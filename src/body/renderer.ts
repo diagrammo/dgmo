@@ -13,9 +13,19 @@
 //     (right), so a muscle present on both views (deltoids, calves) is labeled
 //     once with two leaders.
 //
-// The whole diagram is a single markup string set as the container's innerHTML;
-// HTML5 foreign-content parsing namespaces the `<svg>` subtree in both jsdom
-// (CLI/export) and the browser, and `finalizeSvgExport` serializes it for resvg.
+// The figures and labels are a single markup string set as the container's
+// innerHTML; HTML5 foreign-content parsing namespaces the `<svg>` subtree in
+// both jsdom (CLI/export) and the browser, and `finalizeSvgExport` serializes
+// it for resvg.
+//
+// 🔴 That works only for element names HTML parsing leaves alone, i.e. all-
+// lowercase ones. Every element in the markup below is lowercase, and it must
+// stay that way. The gradients are the exception and are built with DOM calls
+// instead (see the `defs` block in `renderBody`), because `<linearGradient>`
+// comes back as `<lineargradient>` — not an SVG element, so the fill vanishes
+// and the figures render flat with nothing in the output to explain why.
+// Before adding a camelCase element here (`clipPath`, `radialGradient`,
+// `textPath`, `foreignObject`, any `fe*` filter), build it with DOM calls.
 
 import * as d3Selection from 'd3-selection';
 import type { PaletteColors } from './../palettes';
@@ -54,6 +64,13 @@ const LABEL_FONT = 23;
 const NOTE_FONT = 17;
 
 type Box = [number, number, number, number]; // vx vy vw vh
+
+/** One silhouette shading gradient, described rather than written as markup —
+ *  see the note at the top of this file for why these cannot be a string. */
+interface SkinGradient {
+  id: string;
+  stops: Array<{ offset: string; color: string }>;
+}
 
 interface FigureRender {
   fig: BodyFigure;
@@ -118,7 +135,7 @@ function renderFigureBody(
   palette: PaletteColors,
   isDark: boolean,
   fillMode: FillMode | undefined,
-  defs: string[]
+  defs: SkinGradient[]
 ): FigureRender {
   const [vx, vy, vw, vh] = fig.viewBox.split(' ').map(Number) as Box;
   const muscleFill = mix(palette.bg, palette.border, 0.7);
@@ -129,12 +146,13 @@ function renderFigureBody(
   // figure reads as one shaded shape, making highlighted parts + their leaders
   // stand out instead of getting lost in white space.
   const gid = `body-skin-${vx}-${vy}`;
-  defs.push(
-    `<linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">` +
-      `<stop offset="0" stop-color="${mix(palette.surface, palette.bg, 0.4)}"/>` +
-      `<stop offset="1" stop-color="${mix(palette.border, palette.bg, 0.3)}"/>` +
-      `</linearGradient>`
-  );
+  defs.push({
+    id: gid,
+    stops: [
+      { offset: '0', color: mix(palette.surface, palette.bg, 0.4) },
+      { offset: '1', color: mix(palette.border, palette.bg, 0.3) },
+    ],
+  });
 
   let out = '';
   if (form === 'skin') {
@@ -331,7 +349,7 @@ export function renderBody(
   const emphKey = (part: BodyPart): string =>
     activeGroup ? (part.metadata[tagAttrKey(activeGroup)] ?? '') : '';
 
-  const defs: string[] = [];
+  const defs: SkinGradient[] = [];
   const rendered = parsed.options.views.map((view) =>
     renderFigureBody(
       getFigure(parsed.options.sex, view),
@@ -478,7 +496,33 @@ export function renderBody(
     .attr('xmlns', 'http://www.w3.org/2000/svg')
     .style('font-family', FONT_FAMILY);
 
-  if (defs.length) svg.append('defs').html(defs.join(''));
+  // Built with DOM calls, not appended as markup like the figures below.
+  // `<linearGradient>` is the one case-sensitive element name this renderer
+  // emits, and `.html()` is `innerHTML`, which parses with HTML rules and
+  // lowercases it — `lineargradient` is not an SVG element, so the fill
+  // silently disappears and the figures render flat. jsdom hides this by
+  // applying SVG foreign-content rules; not every DOM implementation does, and
+  // one that doesn't turned this into a chart type that looked broken for no
+  // visible reason (issue #123). Everything else emitted here is lowercase and
+  // survives HTML parsing unchanged, which is why only the gradients moved.
+  if (defs.length) {
+    const defsSel = svg.append('defs');
+    for (const def of defs) {
+      const grad = defsSel
+        .append('linearGradient')
+        .attr('id', def.id)
+        .attr('x1', '0')
+        .attr('y1', '0')
+        .attr('x2', '0')
+        .attr('y2', '1');
+      for (const stop of def.stops) {
+        grad
+          .append('stop')
+          .attr('offset', stop.offset)
+          .attr('stop-color', stop.color);
+      }
+    }
+  }
   svg.append('g').html(body); // figures + labels
 
   // Title (centered over the whole canvas).

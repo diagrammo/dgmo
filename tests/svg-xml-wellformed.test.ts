@@ -19,7 +19,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { render } from '../src/index';
-import { escapeAttributeAngleBrackets } from '../src/utils/svg-serialize';
+import { escapeAttributeMarkupChars } from '../src/utils/svg-serialize';
 
 /** Parse as XML and report the failure, if any. jsdom ships a real XML parser. */
 function xmlError(svg: string): string | null {
@@ -47,26 +47,26 @@ const CASES: Record<string, string> = {
   timeline: `timeline\n  2020 ${HOSTILE}\n  2021 Thing\n`,
 };
 
-describe('escapeAttributeAngleBrackets', () => {
+describe('escapeAttributeMarkupChars', () => {
   it('escapes angle brackets inside attribute values', () => {
-    expect(escapeAttributeAngleBrackets('<g data-name="a<b>c"></g>')).toBe(
+    expect(escapeAttributeMarkupChars('<g data-name="a<b>c"></g>')).toBe(
       '<g data-name="a&lt;b&gt;c"></g>'
     );
   });
 
   it('leaves element markup alone', () => {
     const svg = '<svg><g class="x"><text>hi</text></g></svg>';
-    expect(escapeAttributeAngleBrackets(svg)).toBe(svg);
+    expect(escapeAttributeMarkupChars(svg)).toBe(svg);
   });
 
   it('leaves text content alone (the HTML serializer already escaped it)', () => {
     const svg = '<text>a &lt; b</text>';
-    expect(escapeAttributeAngleBrackets(svg)).toBe(svg);
+    expect(escapeAttributeMarkupChars(svg)).toBe(svg);
   });
 
   it('handles namespaced and dotted attribute names', () => {
     expect(
-      escapeAttributeAngleBrackets('<use xlink:href="a<b" data-x.y="c>d"/>')
+      escapeAttributeMarkupChars('<use xlink:href="a<b" data-x.y="c>d"/>')
     ).toBe('<use xlink:href="a&lt;b" data-x.y="c&gt;d"/>');
   });
 
@@ -74,8 +74,42 @@ describe('escapeAttributeAngleBrackets', () => {
     // The serializer emits `&quot;` for any `"` inside a value, so `[^"]*`
     // always stops at the real closing quote.
     const svg = '<g data-a="x&quot;<y" data-b="z"></g>';
-    expect(escapeAttributeAngleBrackets(svg)).toBe(
+    expect(escapeAttributeMarkupChars(svg)).toBe(
       '<g data-a="x&quot;&lt;y" data-b="z"></g>'
+    );
+  });
+
+  it('escapes a bare ampersand inside an attribute value', () => {
+    // What an implementation that does not escape `&` itself leaves behind.
+    // An XML parser rejects the whole document over this one character.
+    expect(
+      escapeAttributeMarkupChars('<g data-node-path="Sailing & Rigging"></g>')
+    ).toBe('<g data-node-path="Sailing &amp; Rigging"></g>');
+  });
+
+  it('does NOT double-escape output that was already escaped', () => {
+    // The trap this pass has to avoid. jsdom and every browser emit `&amp;`
+    // themselves; turning that into `&amp;amp;` would corrupt the path that
+    // works today, on every chart type, for the sake of the one that does not.
+    const svg = '<g data-a="Sailing &amp; Rigging" data-b="x &lt; y"></g>';
+    expect(escapeAttributeMarkupChars(svg)).toBe(svg);
+  });
+
+  it('leaves numeric and hex character references alone', () => {
+    const svg = '<g data-a="a&#39;b" data-b="c&#x27;d"></g>';
+    expect(escapeAttributeMarkupChars(svg)).toBe(svg);
+  });
+
+  it('escapes a bare ampersand next to an escaped one', () => {
+    expect(escapeAttributeMarkupChars('<g data-a="R&D &amp; more"></g>')).toBe(
+      '<g data-a="R&amp;D &amp; more"></g>'
+    );
+  });
+
+  it('escapes an ampersand that only looks like a reference', () => {
+    // `&nbsp` without its semicolon is not a character reference.
+    expect(escapeAttributeMarkupChars('<g data-a="a&nbsp b"></g>')).toBe(
+      '<g data-a="a&amp;nbsp b"></g>'
     );
   });
 });
