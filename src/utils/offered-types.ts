@@ -23,11 +23,6 @@ export const INTERNAL_CHART_TYPE_IDS: ReadonlySet<string> = new Set(
   chartTypes.filter((c) => c.internal).map((c) => c.id)
 );
 
-/** True when a type must be hidden from a picker, a list, or a model. */
-export function isInternalChartType(id: string): boolean {
-  return INTERNAL_CHART_TYPE_IDS.has(id);
-}
-
 /** `ids` with every internal type removed, order preserved. */
 export function withoutInternalChartTypes(ids: readonly string[]): string[] {
   return ids.filter((id) => !INTERNAL_CHART_TYPE_IDS.has(id));

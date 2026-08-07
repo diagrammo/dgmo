@@ -1,0 +1,50 @@
+// Was knip.json until 2026-08-07. Renamed to .jsonc purely so the ignore
+// entries can carry the reason they exist — an unexplained ignore is the kind
+// a later session deletes, re-breaks CI with, and then re-adds.
+{
+  "ignoreDependencies": [
+    // Declared as optional peerDependencies, imported by src/editor/*.
+    "@lezer/common",
+    "@lezer/highlight",
+    "@lezer/lr",
+    "axe-core",
+    "type-coverage",
+
+    // 🔴 This repo publishes TWO packages, and knip only sees one manifest.
+    //
+    // `src/cli.ts` is the source of `@diagrammo/dgmo-cli`, which declares
+    // `@diagrammo/dgmo-mcp` as an ordinary dependency in `cli/package.json`.
+    // The file sits in the root `src/` tree (tsup builds it out to
+    // `cli/dist/cli.cjs`), so knip reads it against the ROOT manifest, where
+    // the dependency correctly does not appear — the library must never
+    // depend on the MCP server.
+    //
+    // There is no cleaner expression of this: knip's `workspaces` maps a
+    // directory to a manifest, and this entry point is not in `cli/`.
+    // Do not "fix" this by adding the package to the root dependencies.
+    "@diagrammo/dgmo-mcp"
+  ],
+  "ignoreBinaries": ["du", "vite"],
+  "ignore": [
+    "src/editor/tokens.ts",
+    "scripts/audit-solid-fill-contrast.ts",
+    "scripts/generate-examples-gallery.mjs",
+    "scripts/check-bundle-size.cjs",
+    "scripts/migrate-as-aliases.mjs",
+    "scripts/migrate-as-aliases.test.mjs",
+    "scripts/build-airports-snapshot.mjs",
+    "scripts/gen-ai-core.mjs",
+    "scripts/eval-ai-generation.mjs",
+    "scripts/eval-tools.mjs",
+    "scripts/gen-body-surface.mjs",
+    "scripts/enrich-gazetteer-tz.mjs",
+    "api-baseline/**",
+    "tools/**"
+  ],
+  "ignoreExportsUsedInFile": true,
+  "rules": {
+    "duplicates": "off",
+    "exports": "warn",
+    "types": "warn"
+  }
+}
