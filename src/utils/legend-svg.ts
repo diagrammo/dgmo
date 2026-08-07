@@ -29,7 +29,12 @@ import {
   legendChromeColors,
 } from './legend-constants';
 import { computeLegendLayout } from './legend-layout';
-import { FONT_FAMILY } from '../fonts';
+import { FONT_FAMILY, FONT_CENTRAL_DY } from '../fonts';
+
+/** Alphabetic-baseline y that centres `fontSize` text on the line `centerY`. */
+function baselineY(centerY: number, fontSize: number): number {
+  return centerY + fontSize * FONT_CENTRAL_DY;
+}
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -92,7 +97,7 @@ function emitCapsule(
 
   // Pill text — vertically centered in the first row.
   inner.push(
-    `<text x="${pill.x + pill.width / 2}" y="${LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2}" font-size="${LEGEND_PILL_FONT_SIZE}" font-weight="500" fill="${esc(palette.text)}" text-anchor="middle" font-family="${esc(FONT_FAMILY)}">${esc(capsule.groupName)}</text>`
+    `<text x="${pill.x + pill.width / 2}" y="${baselineY(LEGEND_HEIGHT / 2, LEGEND_PILL_FONT_SIZE)}" font-size="${LEGEND_PILL_FONT_SIZE}" font-weight="500" fill="${esc(palette.text)}" text-anchor="middle" font-family="${esc(FONT_FAMILY)}">${esc(capsule.groupName)}</text>`
   );
 
   // Wrapped entries — dots + labels positioned by the layout engine.
@@ -109,7 +114,7 @@ function emitCapsule(
       `<g data-legend-entry="${esc(entry.value.toLowerCase())}" data-series-name="${esc(entry.value)}" style="cursor:pointer">` +
         hit +
         `<circle cx="${entry.dotCx}" cy="${entry.dotCy}" r="${LEGEND_DOT_R}" fill="${esc(entry.color)}"/>` +
-        `<text x="${entry.textX}" y="${entry.dotCy + LEGEND_ENTRY_FONT_SIZE / 2 - 1}" font-size="${LEGEND_ENTRY_FONT_SIZE}" fill="${esc(palette.textMuted)}" font-family="${esc(FONT_FAMILY)}">${esc(label)}</text>` +
+        `<text x="${entry.textX}" y="${baselineY(entry.dotCy, LEGEND_ENTRY_FONT_SIZE)}" font-size="${LEGEND_ENTRY_FONT_SIZE}" fill="${esc(palette.textMuted)}" font-family="${esc(FONT_FAMILY)}">${esc(label)}</text>` +
         `</g>`
     );
   }
@@ -126,7 +131,7 @@ function emitPill(
   return (
     `<g transform="translate(${pill.x},${pill.y})" data-legend-group="${esc(tagAttrKey(pill.groupName))}" style="cursor:pointer">` +
     `<rect width="${pill.width}" height="${pill.height}" rx="${pill.height / 2}" fill="${esc(groupBg)}"/>` +
-    `<text x="${pill.width / 2}" y="${pill.height / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2}" font-size="${LEGEND_PILL_FONT_SIZE}" font-weight="500" fill="${esc(palette.textMuted)}" text-anchor="middle" font-family="${esc(FONT_FAMILY)}">${esc(pill.groupName)}</text>` +
+    `<text x="${pill.width / 2}" y="${baselineY(pill.height / 2, LEGEND_PILL_FONT_SIZE)}" font-size="${LEGEND_PILL_FONT_SIZE}" font-weight="500" fill="${esc(palette.textMuted)}" text-anchor="middle" font-family="${esc(FONT_FAMILY)}">${esc(pill.groupName)}</text>` +
     `</g>`
   );
 }

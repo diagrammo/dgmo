@@ -14,6 +14,7 @@ import { select } from 'd3-selection';
 import { renderLegendD3 } from '../src/utils/legend-d3';
 import type { LegendConfig, LegendCallbacks } from '../src/utils/legend-types';
 import type { LegendGroupData } from '../src/utils/legend-svg';
+import { FONT_CENTRAL_DY } from '../src/fonts';
 
 const palette = {
   bg: '#ffffff',
@@ -287,15 +288,17 @@ describe('renderLegendD3', () => {
     expect(layout.activeCapsule!.addonX!).toBeGreaterThan(0);
   });
 
-  // Asserts every <text> under `g` is centered the cross-engine way:
-  // explicit `dy="0.32em"` and NO `dominant-baseline` (which WebKit drops).
+  // Asserts every <text> under `g` is centered the cross-engine way: an
+  // explicit em-relative `dy` and NO `dominant-baseline` (which WebKit drops).
+  // The offset is asserted against Inter's own metric rather than a literal,
+  // so the number can be re-derived from the font instead of guessed at.
   // Returns the rendered text nodes so callers can also assert an expected
   // count — a positive control against a label silently failing to render.
   function expectAllTextCentered(g: SVGGElement): SVGTextElement[] {
     const texts = Array.from(g.querySelectorAll('text'));
     expect(texts.length).toBeGreaterThan(0);
     for (const t of texts) {
-      expect(t.getAttribute('dy')).toBe('0.32em');
+      expect(t.getAttribute('dy')).toBe(`${FONT_CENTRAL_DY}em`);
       expect(t.hasAttribute('dominant-baseline')).toBe(false);
     }
     return texts;

@@ -18,7 +18,7 @@ import {
 } from './legend-constants';
 import { computeLegendLayout } from './legend-layout';
 import { valueRampStops } from '../palettes/color-utils';
-import { FONT_FAMILY } from '../fonts';
+import { FONT_FAMILY, FONT_CENTRAL_DY } from '../fonts';
 import type {
   LegendConfig,
   LegendState,
@@ -36,9 +36,15 @@ import type {
 // Vertically center an SVG <text> across engines. WebKit drops
 // `dominant-baseline` on <text>, and resvg has limited support too
 // (see legend-svg.ts), so we use the alphabetic baseline (the shared
-// default) plus an em-relative dy. 0.32em matches legend-svg.ts's
-// proven pill offset (fontSize/2 - 2 = 0.318em at 11px).
-const LEGEND_TEXT_DY = '0.32em';
+// default) plus an em-relative dy taken from Inter's own metrics.
+//
+// This was 0.32em until 2026-08-07, copied from legend-svg.ts's pill
+// offset (fontSize/2 - 2 = 0.318em at 11px) — an approximation that lands
+// 0.044em short of the real centre, so every legend label rode high next
+// to its dot while the node labels beside it, centred by the browser's own
+// `dominant-baseline: central`, sat correctly. The same file put entry
+// labels at fontSize/2 - 1 = 0.40em, so screen and export disagreed too.
+const LEGEND_TEXT_DY = `${FONT_CENTRAL_DY}em`;
 function centerText(sel: D3Sel): D3Sel {
   return sel.attr('dy', LEGEND_TEXT_DY);
 }
