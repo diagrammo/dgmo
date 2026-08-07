@@ -118,32 +118,46 @@ if (argv[0] === '--compare') {
 const shim = flag('--shim') ?? 'jsdom';
 const outDir = resolve(flag('--out') ?? join(ROOT, `.shim-${shim}`));
 
+// Freeze the clock. `clock` draws the current time, so two runs taken minutes
+// apart differ for reasons that have nothing to do with the DOM — which is
+// exactly what happened on the first measurement and put `clock` on the
+// differences list under false pretences. Anything comparing two renders has to
+// pin this or it is measuring the wall clock.
+const FIXED_NOW = Date.parse('2026-01-01T12:00:00Z');
+const RealDate = Date;
+globalThis.Date = class extends RealDate {
+  constructor(...args) {
+    if (args.length === 0) super(FIXED_NOW);
+    else super(...args);
+  }
+  static now() {
+    return FIXED_NOW;
+  }
+};
+
 if (shim === 'linkedom') {
   // Install the globals BEFORE importing the library, so acquireDom() sees a
   // document and never reaches for jsdom. These five names are exactly what
   // installDom() in src/render.ts defines — keep the two in step.
   //
-  // 🔴 The document is parsed as `image/svg+xml`, NOT built with parseHTML.
-  // This one line was worth two false findings on 2026-08-07. Under an HTML
-  // document linkedom follows HTML serialization rules, which leave a bare `&`
-  // in an attribute value — invalid XML, and resvg rejects the whole file — and
-  // d3's `append()` inherits the parent's namespace, so an `<svg>` without a
-  // real SVG namespace makes every child an HTML element and `linearGradient`
-  // is lowercased into oblivion. Both read as linkedom defects. Neither is.
-  const { DOMParser } = await import('linkedom');
-  const doc = new DOMParser().parseFromString(
-    '<svg xmlns="http://www.w3.org/2000/svg"></svg>',
-    'image/svg+xml'
-  );
-  const win = doc.defaultView ?? doc;
+  // 🔴 An HTML document, deliberately, and do not "fix" this to
+  // `parseFromString(…, 'image/svg+xml')`. That was tried on 2026-08-07: an
+  // SVG document has no `document.body`, every renderer appends to it, and all
+  // 92 fixtures fail with `Cannot read properties of undefined`. It looks like
+  // the tidier choice and it renders nothing at all.
+  //
+  // The two defects an HTML document used to cause are both fixed in the
+  // library now rather than worked around here — a bare `&` in an attribute
+  // value (`escapeAttributeMarkupChars`) and `<linearGradient>` lowercased by
+  // `innerHTML` (`src/body/renderer.ts` builds its gradients with DOM calls).
+  const { parseHTML } = await import('linkedom');
+  const win = parseHTML('<!DOCTYPE html><html><body></body></html>');
   const values = {
-    document: doc,
-    window: win,
+    document: win.document,
+    window: win.window ?? win,
     navigator: win.navigator ?? { userAgent: 'linkedom' },
-    HTMLElement: win.HTMLElement ?? doc.createElement('div').constructor,
-    SVGElement:
-      win.SVGElement ??
-      doc.createElementNS('http://www.w3.org/2000/svg', 'svg').constructor,
+    HTMLElement: win.HTMLElement,
+    SVGElement: win.SVGElement,
   };
   for (const [key, value] of Object.entries(values)) {
     if (value === undefined) {
