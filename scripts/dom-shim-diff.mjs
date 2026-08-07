@@ -122,16 +122,28 @@ if (shim === 'linkedom') {
   // Install the globals BEFORE importing the library, so acquireDom() sees a
   // document and never reaches for jsdom. These five names are exactly what
   // installDom() in src/render.ts defines — keep the two in step.
-  const { parseHTML } = await import('linkedom');
-  const win = parseHTML(
-    '<!DOCTYPE html><html><body></body></html>'
+  //
+  // 🔴 The document is parsed as `image/svg+xml`, NOT built with parseHTML.
+  // This one line was worth two false findings on 2026-08-07. Under an HTML
+  // document linkedom follows HTML serialization rules, which leave a bare `&`
+  // in an attribute value — invalid XML, and resvg rejects the whole file — and
+  // d3's `append()` inherits the parent's namespace, so an `<svg>` without a
+  // real SVG namespace makes every child an HTML element and `linearGradient`
+  // is lowercased into oblivion. Both read as linkedom defects. Neither is.
+  const { DOMParser } = await import('linkedom');
+  const doc = new DOMParser().parseFromString(
+    '<svg xmlns="http://www.w3.org/2000/svg"></svg>',
+    'image/svg+xml'
   );
+  const win = doc.defaultView ?? doc;
   const values = {
-    document: win.document,
-    window: win.window ?? win,
+    document: doc,
+    window: win,
     navigator: win.navigator ?? { userAgent: 'linkedom' },
-    HTMLElement: win.HTMLElement,
-    SVGElement: win.SVGElement,
+    HTMLElement: win.HTMLElement ?? doc.createElement('div').constructor,
+    SVGElement:
+      win.SVGElement ??
+      doc.createElementNS('http://www.w3.org/2000/svg', 'svg').constructor,
   };
   for (const [key, value] of Object.entries(values)) {
     if (value === undefined) {
