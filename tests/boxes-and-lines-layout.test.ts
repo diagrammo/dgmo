@@ -152,7 +152,15 @@ D -> H`;
     // Budget: the placement-search engine runs a multi-seed search (steady-state
     // ~250-320ms here; up to ~950ms on hard graphs). Generous bound so it stays a
     // "doesn't hang" guard, not a flake under contended CI.
-    expect(elapsed).toBeLessThan(2000);
+    //
+    // 2000 was not generous enough, and the way it failed is worth knowing: the
+    // suite runs under `vitest run --coverage`, and v8 instrumentation alone puts
+    // this well past 2000ms on a machine that is also building something else —
+    // measured at 3088ms on 2026-08-06, while the same test passed at ~300ms when
+    // run alone. Three pushes in a row were rejected by the pre-push hook for a
+    // layout change that did not exist. The bound is what catches a hang; it was
+    // never meant to certify a number, so it is set where only a hang trips it.
+    expect(elapsed).toBeLessThan(8000);
   });
 
   // Regression: group-incident edges used to crash dagre ("Cannot set
