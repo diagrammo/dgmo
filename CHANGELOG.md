@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.64.0] - 2026-08-07
+
+### Changed
+
+- 🔴 **The browser drop-ins moved to their own package, `@diagrammo/dgmo-standalone`.** `dist/auto.js` and `dist/element.js` were **3,797 KB of the 9,784 KB** every `npm i @diagrammo/dgmo` unpacked — 39% — for two files no npm consumer can reach: there is no `exports` entry for either, so a bundler never resolves them and an `import` cannot name them. The only way to load one is a `<script src>` on a page we do not own. The library is now **5,996 KB unpacked and 1,835 KB packed, down 39% and 40%**.
+- **Nothing loses a capability.** The drop-ins work exactly as before, from the same CDNs, at a URL that swaps one package name: `unpkg.com/@diagrammo/dgmo-standalone@<version>/dist/element.js`. `brew install dgmo` and `@diagrammo/dgmo-mcp` are unaffected — both compile the library into their own bundle and carried neither file.
+- **The two packages share one version, always.** `element.js` bakes `unpkg.com/@diagrammo/dgmo@<VERSION>/dist/map-data/` into itself at build time, so a standalone published at a version the library never published is a package whose maps 404. `scripts/release.sh dgmo <version>` bumps both manifests in one step. Verified on this release: the baked URL resolves and all three basemaps return 200.
+
+Landed on the measurement rather than the intuition — jsDelivr served the drop-ins 42 times last month against 4,641 npm downloads of the library, roughly 110 installs paying for the two files per genuine use.
+
 ## [0.63.0] - 2026-08-07
 
 ### Fixed
