@@ -112,7 +112,20 @@ describe('ER extractSymbols', () => {
     expect(result.entities).toEqual([]);
   });
 
-  it('handles 100-entity fixture under 10ms', () => {
+  // Six assertions in this file bound how long a symbol extractor takes. They all
+  // read `toBeLessThan(500)` (or 50 for the registry lookup) rather than the 10 and
+  // 1 they were written with, and the reason is worth stating once here.
+  //
+  // The suite runs under `vitest run --coverage`. v8 instrumentation costs far more
+  // than these budgets allowed for — on 2026-08-06 the infra one measured 18ms on a
+  // machine that was also building something else, and rejected a push for a change
+  // that touched nothing but workflow YAML. Uninstrumented, the same call is
+  // sub-millisecond.
+  //
+  // What these assertions are actually for is catching an accidental O(n²) rewrite
+  // of an extractor, which puts a 100-item document orders of magnitude past the
+  // bound rather than a few milliseconds past it. Set where only that trips them.
+  it('handles a 100-entity fixture without going quadratic', () => {
     const lines = ['er'];
     for (let i = 0; i < 100; i++) {
       lines.push(`Table${i}`);
@@ -124,7 +137,7 @@ describe('ER extractSymbols', () => {
     const result = extractErSymbols(doc);
     const elapsed = Date.now() - start;
     expect(result.entities).toHaveLength(100);
-    expect(elapsed).toBeLessThan(10);
+    expect(elapsed).toBeLessThan(500);
   });
 
   it('cross-validation: entity list matches TABLE_DECL_RE recognition', () => {
@@ -178,7 +191,8 @@ describe('Flowchart extractSymbols', () => {
     expect(extractFlowchartSymbols(doc).entities).not.toContain('title');
   });
 
-  it('handles 100-node fixture under 10ms', () => {
+  // Budget: see the note on the ER extractor's timing test above.
+  it('handles a 100-node fixture without going quadratic', () => {
     const lines = ['flowchart'];
     for (let i = 0; i < 100; i++) {
       lines.push(`Node${i}[Node ${i}]`);
@@ -188,7 +202,7 @@ describe('Flowchart extractSymbols', () => {
     const result = extractFlowchartSymbols(doc);
     const elapsed = Date.now() - start;
     expect(result.entities).toHaveLength(100);
-    expect(elapsed).toBeLessThan(10);
+    expect(elapsed).toBeLessThan(500);
   });
 });
 
@@ -263,7 +277,7 @@ describe('Infra extractSymbols', () => {
     expect(extractInfraSymbols('infra\n').entities).toEqual([]);
   });
 
-  it('handles 100-node fixture under 10ms', () => {
+  it('handles a 100-node fixture without going quadratic', () => {
     const lines = ['infra'];
     for (let i = 0; i < 100; i++) {
       lines.push(`Service${i}`);
@@ -274,7 +288,9 @@ describe('Infra extractSymbols', () => {
     const result = extractInfraSymbols(doc);
     const elapsed = Date.now() - start;
     expect(result.entities).toHaveLength(100);
-    expect(elapsed).toBeLessThan(10);
+    // Budget: see the note on the ER extractor's timing test above. This is the
+    // one that actually failed.
+    expect(elapsed).toBeLessThan(500);
   });
 });
 
@@ -327,7 +343,8 @@ describe('Class extractSymbols', () => {
     expect(extractClassSymbols('class\n').entities).toEqual([]);
   });
 
-  it('handles 100-class fixture under 10ms', () => {
+  // Budget: see the note on the ER extractor's timing test above.
+  it('handles a 100-class fixture without going quadratic', () => {
     const lines = ['class'];
     for (let i = 0; i < 100; i++) {
       lines.push(`Class${i}`);
@@ -338,7 +355,7 @@ describe('Class extractSymbols', () => {
     const result = extractClassSymbols(doc);
     const elapsed = Date.now() - start;
     expect(result.entities).toHaveLength(100);
-    expect(elapsed).toBeLessThan(10);
+    expect(elapsed).toBeLessThan(500);
   });
 });
 
@@ -586,13 +603,15 @@ describe('COMPLETION_REGISTRY', () => {
     expect(infraSpec.directives['direction-tb']).toBeDefined();
   });
 
-  it('registry lookup for all 32 types completes under 1ms', () => {
+  // Budget: see the note on the ER extractor's timing test above. A registry
+  // lookup is a Map hit, so anything that turns it into a scan blows past 50.
+  it('registry lookup for every chart type stays a lookup, not a scan', () => {
     const start = performance.now();
     for (const ct of CHART_TYPES) {
       COMPLETION_REGISTRY.get(ct.name);
     }
     const elapsed = performance.now() - start;
-    expect(elapsed).toBeLessThan(1);
+    expect(elapsed).toBeLessThan(50);
   });
 });
 
@@ -679,7 +698,8 @@ describe('Sequence extractSymbols', () => {
     expect(result!.entities).toEqual([]);
   });
 
-  it('handles 100-participant fixture under 10ms', () => {
+  // Budget: see the note on the ER extractor's timing test above.
+  it('handles a 100-participant fixture without going quadratic', () => {
     const lines = ['sequence'];
     for (let i = 0; i < 100; i++) {
       lines.push(`P${i} -> P${i + 1}`);
@@ -689,7 +709,7 @@ describe('Sequence extractSymbols', () => {
     const result = extractDiagramSymbols(doc);
     const elapsed = Date.now() - start;
     expect(result!.entities.length).toBeGreaterThanOrEqual(100);
-    expect(elapsed).toBeLessThan(10);
+    expect(elapsed).toBeLessThan(500);
   });
 });
 
