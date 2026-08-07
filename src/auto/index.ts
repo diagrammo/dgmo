@@ -1,5 +1,6 @@
 /**
- * `dist/auto.js` — IIFE-distributed auto-renderer for static HTML.
+ * `standalone/dist/auto.js` — IIFE-distributed auto-renderer for static HTML.
+ * Ships as `@diagrammo/dgmo-standalone`, not in the library.
  *
  * Reached by `<script src>` only. The `./auto` subpath export and its
  * unminified `.mjs` twin were removed on 2026-08-06 — 6.7 MB of the published

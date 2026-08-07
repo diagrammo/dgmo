@@ -12,10 +12,14 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const DIST = resolve(ROOT, 'dist');
+// The drop-ins and their stylesheet publish as @diagrammo/dgmo-standalone, so
+// both the file location and the CDN path are that package's, not the
+// library's. Its version is the library's by construction — see the dgmo case
+// in scripts/release.sh — so VERSION still comes from the library manifest.
+const DIST = resolve(ROOT, 'standalone', 'dist');
 const PKG = JSON.parse(readFileSync(resolve(ROOT, 'package.json'), 'utf8'));
 const VERSION = PKG.version;
-const CDN_BASE = `https://cdn.jsdelivr.net/npm/@diagrammo/dgmo@${VERSION}/dist`;
+const CDN_BASE = `https://cdn.jsdelivr.net/npm/@diagrammo/dgmo-standalone@${VERSION}/dist`;
 
 const ARTIFACTS = [
   { file: 'auto.js', tag: 'script' },

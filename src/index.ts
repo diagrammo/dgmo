@@ -5,7 +5,8 @@
 // This is the frozen public surface. Everything else lives in
 // `@diagrammo/dgmo/advanced` (unstable, no semver), `@diagrammo/dgmo/editor`,
 // or `@diagrammo/dgmo/highlight`. The browser drop-ins are files you point a
-// `<script src>` at (`dist/auto.js`, `dist/element.js`), NOT subpath imports.
+// `<script src>` at, published as `@diagrammo/dgmo-standalone` — NOT subpath
+// imports, and no longer in this package.
 //
 // If you need something not exported here, import from `/advanced` and
 // accept the no-semver contract. (The legacy `/internal` alias was removed at 1.0.)

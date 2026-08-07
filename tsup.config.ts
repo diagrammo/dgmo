@@ -61,7 +61,10 @@ async function emitAutoCss(): Promise<void> {
   // Strip leading newline to match how the CSS is consumed inline.
   const base = baseMatch[1].replace(/^\n/, '');
   const css = base + '\n' + blockCss + '\n' + darkScoped + '\n';
-  await writeFile(resolve('./dist/auto.css'), css, 'utf8');
+  // Lands beside the drop-in it styles, in the standalone package — auto.css
+  // is not in the library's `exports` map and is only ever fetched by URL.
+  await mkdir(resolve('./standalone/dist'), { recursive: true });
+  await writeFile(resolve('./standalone/dist/auto.css'), css, 'utf8');
 }
 
 /** Extract the BLOCK_CSS literal from src/embed/css.ts (regex mechanism). */
@@ -364,7 +367,14 @@ const BUILDS: Options[] = [
     esbuildPlugins: [fixJsdomXhrWorker, inlineJsdomStylesheet],
     onSuccess: stageCliAssets,
   },
-  // Auto bundle — IIFE at dist/auto.js for `<script src="…/auto.js">`.
+  // Auto bundle — IIFE at standalone/dist/auto.js for `<script src="…/auto.js">`.
+  //
+  // Lives in the @diagrammo/dgmo-standalone package, not the library. It cannot
+  // code-split (tsup can't split an IIFE), so it carries a whole second copy of
+  // the library — 523 of its 524 modules are also in element.js. Publishing the
+  // pair from the library meant every npm consumer downloaded 3.87 MB that no
+  // `exports` key can even reach; a CDN <script src> consumer is the only one
+  // who wants them, and unpkg/jsDelivr serve a separate package just as well.
   //
   // 🔴 IIFE ONLY. `auto` and `element` each used to build twice — this IIFE and
   // an unminified ESM `.mjs` behind the `./auto` and `./element` exports. The
@@ -387,6 +397,7 @@ const BUILDS: Options[] = [
   // `window.diagrammo` from inside the IIFE body.
   {
     entry: { auto: 'src/auto/index.ts' },
+    outDir: 'standalone/dist',
     format: ['iife'],
     globalName: '__dgmoAuto',
     dts: false,
@@ -403,7 +414,7 @@ const BUILDS: Options[] = [
     esbuildPlugins: [fixJsdomXhrWorker],
     onSuccess: emitAutoCss,
   },
-  // Element bundle — IIFE at dist/element.js for `<script src="…/element.js">`.
+  // Element bundle — IIFE at standalone/dist/element.js for `<script src>`.
   // Self-registers `<dgmo-diagram>` on load. Same private-globalName rationale
   // as the auto IIFE: the module defines the element via side effect, so we
   // don't want the bundle assigning a public global. dts is disabled because
@@ -412,6 +423,7 @@ const BUILDS: Options[] = [
   // auto IIFE for why the ESM twins are gone.
   {
     entry: { element: 'src/element/index.ts' },
+    outDir: 'standalone/dist',
     format: ['iife'],
     globalName: '__dgmoElement',
     dts: false,

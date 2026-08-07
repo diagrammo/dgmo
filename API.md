@@ -257,7 +257,7 @@ const tokens = highlightDgmo('gantt Roadmap\n...');
 // role-to-CSS mapping.
 ```
 
-### Browser drop-ins — `dist/auto.js` and `dist/element.js` (stable)
+### Browser drop-ins — `@diagrammo/dgmo-standalone` (stable)
 
 Two self-contained IIFE bundles for static HTML pages. **These are file URLs,
 not subpath imports.** There is no `import '@diagrammo/dgmo/auto'` — the
@@ -265,18 +265,26 @@ not subpath imports.** There is no `import '@diagrammo/dgmo/auto'` — the
 unminified `.mjs` copies behind them, which were 6.7 MB of the published package
 and had no importers anywhere. Point a `<script src>` at the file instead.
 
-They ship inside the npm tarball because jsDelivr and unpkg serve out of it —
+**They moved out of this package on 2026-08-07.** An IIFE cannot code-split, so
+each bundle carries a whole copy of the library — together 3.87 MB that no
+`exports` key could reach, downloaded by every npm consumer to serve the one
+kind of user who never runs `npm install`. They now publish as
+`@diagrammo/dgmo-standalone`, at the same version as this package, always
+released together. Everything below is unchanged apart from the package name in
+the URL.
+
+They ship inside an npm tarball because jsDelivr and unpkg serve out of one —
 there is no separate upload step, and `dist/` is gitignored so the
 `cdn.jsdelivr.net/gh/…` route does not resolve.
 
 **Pin the exact version.** On a `0.x` version a caret locks the MINOR, so
 `@^0.44` keeps serving 0.44.x forever.
 
-`dist/auto.js` scans the page: any `.dgmo` / `.language-dgmo` element
+`auto.js` scans the page: any `.dgmo` / `.language-dgmo` element
 auto-renders. No build pipeline required.
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/@diagrammo/dgmo@0.61.0/dist/auto.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@diagrammo/dgmo-standalone@0.62.0/dist/auto.js"></script>
 
 <pre class="language-dgmo">
 gantt Roadmap
@@ -388,9 +396,9 @@ if (diagnostics.length > 0) {
 ## Versioning
 
 @diagrammo/dgmo follows semver on the public root export surface, the two stable
-subpaths (`/editor`, `/highlight`), and the two browser drop-in files
-(`dist/auto.js`, `dist/element.js`). Breaking changes to these require a major
-version bump.
+subpaths (`/editor`, `/highlight`), and the two browser drop-in files, which now
+ship as `@diagrammo/dgmo-standalone` at this package's version (`auto.js`,
+`element.js`). Breaking changes to these require a major version bump.
 
 `@diagrammo/dgmo/advanced` does NOT follow semver. Treat it as
 implementation detail.

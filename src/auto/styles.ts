@@ -1,5 +1,5 @@
 /**
- * Static CSS for `dist/auto.js` (and `dist/element.js`, which shares the
+ * Static CSS for `standalone/dist/auto.js` (and `element.js`, which shares the
  * same injector).
  *
  * As of BL-114 the diagram + source chrome is the canonical standard block
@@ -20,7 +20,7 @@
  *
  * IMPORTANT: keep AUTO_BASE_CSS a single pure template literal — tsup's
  * emitAutoCss extracts it (plus BLOCK_CSS) with a regex to build
- * `dist/auto.css`, mirroring the concatenation done at the bottom of this
+ * `standalone/dist/auto.css`, mirroring the concatenation done at the bottom of this
  * file. Update tsup.config.ts if the assembly here changes.
  */
 

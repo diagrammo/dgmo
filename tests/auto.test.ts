@@ -1,7 +1,7 @@
 /**
  * Tests for `@diagrammo/dgmo/auto` — the IIFE bundle.
  *
- * These tests run against the **built** `dist/auto.js` artifact loaded
+ * These tests run against the **built** `standalone/dist/auto.js` artifact loaded
  * into a fresh JSDOM per test. Run with `pnpm test:auto` (which builds
  * first); plain `vitest run` will skip these if the dist is missing.
  */
@@ -11,7 +11,7 @@ import { readFileSync, existsSync, statSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { resolve } from 'node:path';
 
-const DIST = resolve(__dirname, '../dist/auto.js');
+const DIST = resolve(__dirname, '../standalone/dist/auto.js');
 const HAS_BUNDLE = existsSync(DIST);
 const BUNDLE = HAS_BUNDLE ? readFileSync(DIST, 'utf8') : '';
 
@@ -141,7 +141,7 @@ async function waitForRendersSettled(
 beforeAll(() => {
   if (!HAS_BUNDLE) {
     console.warn(
-      'Skipping auto tests: dist/auto.js missing. Run pnpm build first.'
+      'Skipping auto tests: standalone/dist/auto.js missing. Run pnpm build first.'
     );
   }
 });

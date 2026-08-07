@@ -1,15 +1,16 @@
 /**
- * `dist/element.js` — the universal `<dgmo-diagram>` custom element.
+ * `standalone/dist/element.js` — the universal `<dgmo-diagram>` custom element.
  *
  * Reached by `<script src>` only. The `./element` subpath export and its
  * unminified `.mjs` twin were removed on 2026-08-06 — see `src/auto/index.ts`.
+ * Ships as `@diagrammo/dgmo-standalone`, not in the library.
  *
  * A mermaid-style, framework-agnostic client-side web component. Drop the
- * IIFE script (`dist/element.js`) on ANY page — Hugo, Jekyll, MkDocs,
+ * IIFE script on ANY page — Hugo, Jekyll, MkDocs,
  * VitePress, plain HTML — and author diagrams as:
  *
  * ```html
- * <script src="https://unpkg.com/@diagrammo/dgmo/dist/element.js"></script>
+ * <script src="https://unpkg.com/@diagrammo/dgmo-standalone/dist/element.js"></script>
  * <dgmo-diagram palette="nord">
  *   flowchart
  *   [Start] -> [Done]
@@ -62,7 +63,15 @@ import {
 // ============================================================
 
 /** Default CDN base for the map geo JSON, pinned to THIS package version so an
- *  element loaded from a stale bundle can't fetch mismatched assets. */
+ *  element loaded from a stale bundle can't fetch mismatched assets.
+ *
+ *  Note the package name: the basemaps stay in `@diagrammo/dgmo` even though
+ *  this bundle now publishes as `@diagrammo/dgmo-standalone`. Duplicating
+ *  768 KB of geo JSON into a second tarball to make the two names match would
+ *  cost every CDN user a download to buy nothing. `VERSION` is the LIBRARY's
+ *  version, and `scripts/release.sh dgmo` bumps both manifests together so
+ *  this URL can never name a version the library did not publish —
+ *  `scripts/prepack-standalone.mjs` fails the pack if they drift. */
 const DEFAULT_MAP_DATA_BASE = `https://unpkg.com/@diagrammo/dgmo@${VERSION}/dist/map-data/`;
 
 // File names mirror src/map/load-data.ts's FILES map (the Node fs loader).
