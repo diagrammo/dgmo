@@ -171,8 +171,26 @@ async function main() {
     await readFile(resolve(SRC, 'LICENSE-Inter.txt'))
   );
 
+  // The coverage manifest, read back out of the TTF we just wrote rather than
+  // computed from the range tables above. Those tables say what we asked
+  // harfbuzz for; this says what it produced, and only the second one is what
+  // ships. `src/font-coverage.ts` reads this to warn about characters no
+  // bundled glyph can draw — a warning derived from an intention rather than
+  // from the bytes would eventually describe a font nobody has.
+  const shipped = readCoverage(await readFile(resolve(OUT, 'Inter-Regular.ttf')));
+  const ranges = [];
+  for (const cp of [...shipped].sort((a, b) => a - b)) {
+    const last = ranges[ranges.length - 1];
+    if (last && cp === last[1] + 1) last[1] = cp;
+    else ranges.push([cp, cp]);
+  }
+  await writeFile(resolve(OUT, 'coverage.json'), JSON.stringify({ ranges }) + '\n');
+
   console.log('fonts/ generated from vendor/inter:');
   console.log(rows.join('\n'));
+  console.log(
+    `  coverage.json      ${String(shipped.size).padStart(7)} codepoints in ${ranges.length} ranges`
+  );
 }
 
 // Only build when run as a script. `tests/font-coverage.test.ts` imports the

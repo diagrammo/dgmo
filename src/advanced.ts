@@ -987,3 +987,17 @@ export { themes, type Theme } from './themes';
 
 // Public-API alias for parseDgmo (also exported from the public root as `validate`)
 export { parseDgmo as validate } from './dgmo-router';
+
+// Font coverage — which characters the bundled Inter cannot draw, and the
+// portability warning a rasterising caller should print. Exported here rather
+// than as a new subpath: a new `exports` key breaks the app's dev-mode source
+// alias (see diagrammo-app/CLAUDE.md), and the two consumers that rasterise —
+// @diagrammo/dgmo-cli and @diagrammo/dgmo-mcp — both inline this entry already.
+export {
+  textFromSvg,
+  uncoveredCharacters,
+  fontPortabilityWarning,
+  type FontCoverage,
+  type CodepointRange,
+  type UncoveredRun,
+} from './font-coverage';

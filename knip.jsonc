@@ -27,6 +27,13 @@
   "ignoreBinaries": ["du", "vite"],
   "ignore": [
     "src/editor/tokens.ts",
+    // The `prepack` gate for @diagrammo/dgmo-cli — it renders one gallery
+    // fixture per chart type and aborts the pack if any fails. Referenced from
+    // `cli/package.json`, which knip reads against the ROOT manifest for the
+    // same reason as `@diagrammo/dgmo-mcp` above: the entry point lives in
+    // `scripts/`, not in `cli/`, so `workspaces` cannot map it. Deleting this
+    // file would let a CLI that cannot draw reach npm — it has once.
+    "scripts/prepack-cli.mjs",
     "scripts/audit-solid-fill-contrast.ts",
     "scripts/generate-examples-gallery.mjs",
     "scripts/check-bundle-size.cjs",

@@ -128,10 +128,15 @@ async function stageCliAssets(): Promise<void> {
     }
   };
 
+  // `.woff2` is deliberately excluded — nothing in this package can load one.
+  // `coverage.json` is deliberately INCLUDED: it is what `warnOnUncoveredGlyphs`
+  // reads to tell a caller their diagram carries characters no bundled glyph
+  // can draw, and without it that warning silently never fires.
   await fill(
     'fonts',
     './fonts',
-    (f) => f.endsWith('.ttf') || f === 'LICENSE-Inter.txt'
+    (f) =>
+      f.endsWith('.ttf') || f === 'LICENSE-Inter.txt' || f === 'coverage.json'
   );
   await fill('.claude/commands', './.claude/commands', () => true);
   await fill('.github', './.github', (f) => f === 'copilot-instructions.md');
