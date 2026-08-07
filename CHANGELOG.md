@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.62.1] - 2026-08-07
+
+### Fixed
+
+- 🔴 **A map that cannot find its basemap now says so, instead of blaming the diagram.** The CLI read only the parse pass, which cannot see a resolver failure, so a perfectly good file came back as *"the input may be empty, invalid, or use an unsupported chart type"* — the sentence that made a CLI published without its map data read as a bad fixture for an afternoon. It now prints the diagnostics `render()` actually reported, in both plain and `--json` output, and guesses only when nothing was reported at all — without ever asserting the input is invalid.
+- **`E_MAP_DATA_NOT_SUPPLIED` tells its two readers apart.** *No basemap was passed* and *the loader you passed threw* are opposite problems with opposite fixes, and both got the same advice to "pass `mapData`" — which sends a host that already does to the wrong file entirely. The error now quotes what the loader reported, and says when the assets are missing from the installed package rather than from your code.
+- **An ampersand in a label no longer breaks the exported SVG.** `Sailing & Rigging` could reach an attribute value as a bare `&`, and an XML parser rejects the whole file — *malformed entity reference* — which is how those bytes are served through embeds and share links. Four of 92 gallery fixtures hit it, and because it is data-dependent it would reach a reader rather than show up in a sweep. The escape pass deliberately skips an `&` that already opens a character reference, so it is a no-op on output that was already correct.
+- **The body chart's shading no longer depends on how the host parses markup.** `<linearGradient>` is the one case-sensitive element this renderer emits, and writing it as markup lets HTML parsing lowercase it into `<lineargradient>` — not an SVG element, so the figures render flat with nothing in the output to say why. The gradients are built with DOM calls now; output under jsdom and the browser is byte-identical.
+
+## [0.62.0] - 2026-08-06
+
+### Changed
+
+- 🔴 **The `dgmo` command moved to its own package, `@diagrammo/dgmo-cli`.** The library stopped carrying a binary it did not need: installing `@diagrammo/dgmo` to parse and render in your own code no longer drags in the CLI's fonts, basemaps and headless-DOM shim. `npm i -g @diagrammo/dgmo-cli` is the install line for the command, and `brew install dgmo` follows that package too. The source still lives in this repo — two tarballs, one checkout.
+- **`render()` takes no filesystem it was not handed.** A breaking change to the advanced entry: the renderer no longer reaches for files on its own, so a caller in a browser, a Worker or a bundler gets the same behaviour as one on a laptop, and a caller that needs map data passes it explicitly.
+
+### Removed
+
+- **The ESM twins of the browser bundles, 6.7 MB nobody imported**, and the `dimensions.ts` pass-through with its public export.
+
 ## [0.61.0] - 2026-08-05
 
 ### Removed
