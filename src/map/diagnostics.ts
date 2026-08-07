@@ -189,13 +189,23 @@ export const MAP_DX = {
     // network access of its own, so a host must supply the assets: bundled
     // `MapData` (Obsidian, the web app) or the Node `loadMapData` loader from
     // the `/advanced` subpath (CLI, SSR).
+    //
+    // 🔴 Two different failures land here and they need different sentences.
+    // No `reason` means the host passed nothing — a wiring mistake in the
+    // embedding code, and the diagram is fine. A `reason` means the host DID
+    // pass a loader and the loader threw: the wiring is right and the install
+    // is broken, which is what happened when `@diagrammo/dgmo-cli` 0.62.0
+    // shipped without its map data (#121). Telling someone to "pass `mapData`"
+    // when they already did sends them to the wrong file.
     code: 'E_MAP_DATA_NOT_SUPPLIED',
     severity: 'error',
     chartType: 'map',
     title: 'No map data supplied',
-    message:
-      'This map has no basemap data. `render()` reads nothing from disk or the network on its own — pass `mapData`, either the bundled assets or a loader that returns them.',
-    hint: 'In Node: `render(src, { mapData: loadMapData })` with `loadMapData` from `@diagrammo/dgmo/advanced`. In a browser or Worker: pass your bundled `MapData`.',
+    message: (p) =>
+      p.reason
+        ? `This map's basemap data could not be loaded, so nothing was drawn. The loader reported: ${p.reason}`
+        : 'This map has no basemap data. `render()` reads nothing from disk or the network on its own — pass `mapData`, either the bundled assets or a loader that returns them.',
+    hint: 'In Node: `render(src, { mapData: loadMapData })` with `loadMapData` from `@diagrammo/dgmo/advanced`. In a browser or Worker: pass your bundled `MapData`. If you already do, the assets are missing from the installed package rather than from your code.',
     example: 'map\nDenver heat: 2',
   },
 } satisfies Record<string, DiagnosticSpec>;

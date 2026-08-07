@@ -117,4 +117,50 @@ describe('render() takes no environment it was not handed', () => {
       true
     );
   });
+
+  // Regression, issue #122. `@diagrammo/dgmo-cli` 0.62.0 shipped with no map
+  // data (#121); `loadMapData` threw a message naming every directory it had
+  // looked in, and every layer above discarded it — so a broken install
+  // surfaced as "the input may be invalid" and read as a bad diagram for an
+  // afternoon. The loader's own words have to survive, or the next missing
+  // asset costs the same afternoon.
+  it("keeps the loader's own message, so a broken install is not read as a bad diagram", async () => {
+    const { diagnostics } = await render('map\nCalifornia heat: 5', {
+      mapData: () =>
+        Promise.reject(
+          new Error(
+            'map data assets not found near /pkg/dist (looked in ./data, ./map-data)'
+          )
+        ),
+    });
+    const dx = diagnostics.find((d) => d.code === 'E_MAP_DATA_NOT_SUPPLIED');
+    expect(dx, 'expected the missing-map-data diagnostic').toBeDefined();
+    expect(dx!.message).toContain('map data assets not found near /pkg/dist');
+    expect(dx!.message).toContain('./map-data');
+  });
+
+  it('tells a host that supplied nothing to supply something, and does not say that to one that tried', async () => {
+    const { diagnostics: nothingSupplied } = await render(
+      'map\nCalifornia heat: 5'
+    );
+    const missing = nothingSupplied.find(
+      (d) => d.code === 'E_MAP_DATA_NOT_SUPPLIED'
+    );
+    // A host that passed nothing has a wiring bug: name the option.
+    expect(missing!.message).toMatch(/pass `mapData`/);
+
+    const { diagnostics: loaderFailed } = await render(
+      'map\nCalifornia heat: 5',
+      {
+        mapData: () => Promise.reject(new Error('assets missing from package')),
+      }
+    );
+    const failed = loaderFailed.find(
+      (d) => d.code === 'E_MAP_DATA_NOT_SUPPLIED'
+    );
+    // A host that DID pass a loader has a broken install, not a wiring bug —
+    // telling it to pass `mapData` sends the reader to the wrong file.
+    expect(failed!.message).not.toMatch(/pass `mapData`/);
+    expect(failed!.message).toContain('assets missing from package');
+  });
 });

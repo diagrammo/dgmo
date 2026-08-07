@@ -1046,7 +1046,7 @@ async function main(): Promise<void> {
     }
   }
 
-  let { svg } = await render(content, {
+  const rendered = await render(content, {
     theme: opts.theme,
     palette: opts.palette,
     // The CLI is the Node host, so it supplies the fs loader `render()` no
@@ -1054,6 +1054,8 @@ async function main(): Promise<void> {
     // runs only if the content turns out to be a map.
     mapData: loadMapData,
   });
+  let svg = rendered.svg;
+  const renderDiagnostics = rendered.diagnostics;
 
   // Error-severity diagnostics ⇒ the error card, never a partial chart — the
   // same contract as the library `render()` (index.ts) that embeds use. A
@@ -1069,8 +1071,24 @@ async function main(): Promise<void> {
 
   if (!svg) {
     if (errors.length === 0) {
+      // 🔴 `errors` came from the PARSE pass, which cannot see everything that
+      // stops a render: a place name that will not resolve, or a basemap the
+      // host could not load. `render()` reports those in its own diagnostics,
+      // and this branch used to throw them away and announce "the input may be
+      // empty, invalid, or use an unsupported chart type" — blaming a diagram
+      // that was fine. That sentence is what made #121 (a CLI package published
+      // with no map data) read as a bad fixture for an afternoon. Say what the
+      // renderer actually reported, and only fall back to guessing when it
+      // reported nothing at all.
+      const why = renderDiagnostics.filter((d) => d.severity === 'error');
+      if (why.length > 0) {
+        const first = why[0]!; // In-bounds by length > 0 check above.
+        if (opts.json) exitWithJsonError(formatDgmoError(first), first.line);
+        for (const d of why) console.error(`✖ ${formatDgmoError(d)}`);
+        process.exit(1);
+      }
       exitWithJsonError(
-        'Error: Failed to render diagram. The input may be empty, invalid, or use an unsupported chart type.'
+        'Error: Failed to render diagram, and nothing reported why. The input may be empty or use an unsupported chart type.'
       );
     }
     process.exit(1);

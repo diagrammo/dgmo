@@ -68,16 +68,30 @@ export type MapDataSource =
   | import('./map/resolved-types').MapData
   | (() => Promise<import('./map/resolved-types').MapData>);
 
-/** Normalize either form to the data, or `undefined` if a loader threw. */
+/**
+ * Normalize either form to the data, plus WHY there is none.
+ *
+ * 🔴 The `reason` is not decoration. This used to return a bare `undefined` for
+ * both "the host supplied nothing" and "the host supplied a loader that threw",
+ * which are opposite problems with opposite fixes — and it discarded the
+ * loader's own message on the way. `loadMapData` throws
+ * `map data assets not found near <dir> (looked in …)`, naming every directory
+ * it tried; that sentence would have identified issue #121 (a CLI package
+ * published with no map data) the moment anyone ran it, instead of surfacing as
+ * a generic "the input may be invalid" and reading as a bad diagram.
+ */
 export async function resolveMapDataSource(
   source: MapDataSource | undefined
-): Promise<import('./map/resolved-types').MapData | undefined> {
-  if (source === undefined) return undefined;
-  if (typeof source !== 'function') return source;
+): Promise<{
+  data?: import('./map/resolved-types').MapData;
+  reason?: string;
+}> {
+  if (source === undefined) return {};
+  if (typeof source !== 'function') return { data: source };
   try {
-    return await source();
-  } catch {
-    return undefined;
+    return { data: await source() };
+  } catch (e) {
+    return { reason: e instanceof Error ? e.message : String(e) };
   }
 }
 
@@ -1301,10 +1315,12 @@ async function exportMap(ctx: ExportContext): Promise<string> {
   // render cannot touch its environment. With nothing supplied — or a loader
   // that threw — degrade to '' like every other branch, but say why through the
   // diagnostics out-param rather than failing silently.
-  const mapData = await resolveMapDataSource(options?.mapData);
+  const { data: mapData, reason } = await resolveMapDataSource(
+    options?.mapData
+  );
   if (!mapData) {
     options?.onMapResolverDiagnostics?.([
-      emit(MAP_DX.DATA_NOT_SUPPLIED, 1, {}),
+      emit(MAP_DX.DATA_NOT_SUPPLIED, 1, reason !== undefined ? { reason } : {}),
     ]);
     return '';
   }

@@ -92,9 +92,16 @@ async function firstExistingDir(
       /* try next candidate */
     }
   }
+  // Two readers see this, and only one of them has a checkout. Name the
+  // directories either way — that is the part that identifies the fault — and
+  // give the build command as the second sentence rather than the only one.
+  // "Run `pnpm build:map-data`" was the whole message until 2026-08-06, which
+  // is meaningless advice to someone who installed the package from npm and
+  // whose real problem is that the package shipped incomplete (#121).
   throw new Error(
     `map data assets not found near ${baseDir} (looked in ${CANDIDATE_DIRS.join(', ')}). ` +
-      `Run \`pnpm build:map-data\` and \`pnpm build\`.`
+      `If you installed this from npm, the package is missing its map data — please report it. ` +
+      `In a dgmo checkout, run \`pnpm build:map-data\` and \`pnpm build\`.`
   );
 }
 
