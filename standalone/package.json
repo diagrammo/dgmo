@@ -1,7 +1,7 @@
 {
   "name": "@diagrammo/dgmo-standalone",
-  "version": "0.64.0",
-  "description": "DGMO diagrams in a plain web page \u2014 one <script> tag, no build step",
+  "version": "0.64.1",
+  "description": "DGMO diagrams in a plain web page — one <script> tag, no build step",
   "keywords": [
     "diagram",
     "dgmo",
