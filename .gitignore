@@ -22,3 +22,4 @@ docs/language-reference.md.tmp-*
 # Only cli/package.json is checked in.
 cli/*
 !cli/package.json
+!cli/README.md

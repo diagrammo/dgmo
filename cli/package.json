@@ -2,13 +2,27 @@
   "name": "@diagrammo/dgmo-cli",
   "version": "0.61.0",
   "description": "Render DGMO diagrams to PNG or SVG from the terminal, and wire the DGMO MCP server into AI editors.",
-  "keywords": ["diagram", "cli", "dgmo", "diagrammo", "svg", "png", "mcp"],
+  "keywords": [
+    "diagram",
+    "cli",
+    "dgmo",
+    "diagrammo",
+    "svg",
+    "png",
+    "mcp"
+  ],
   "license": "MIT",
   "homepage": "https://diagrammo.app",
-  "repository": { "type": "git", "url": "git+https://github.com/diagrammo/dgmo.git", "directory": "cli" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/diagrammo/dgmo.git",
+    "directory": "cli"
+  },
   "bugs": "https://github.com/diagrammo/dgmo/issues",
   "type": "commonjs",
-  "bin": { "dgmo": "dist/cli.cjs" },
+  "bin": {
+    "dgmo": "dist/cli.cjs"
+  },
   "files": [
     "dist",
     "fonts",
@@ -18,7 +32,9 @@
     ".windsurfrules",
     "SKILL.md"
   ],
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
     "@diagrammo/dgmo-mcp": "^0.17.0",
     "@resvg/resvg-js": "^2.6.2",
@@ -26,5 +42,8 @@
   },
   "scripts": {
     "postinstall": "node -e \"console.log('\\n💡 Claude Code user? Run: dgmo install claude-code\\n')\""
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

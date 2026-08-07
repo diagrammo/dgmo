@@ -105,7 +105,7 @@ async function stageCliAssets(): Promise<void> {
   for (const f of await readdir(resolve('./fonts'))) {
     await copyFile(resolve('./fonts', f), resolve(CLI, 'fonts', f));
   }
-  for (const f of ['.cursorrules', '.windsurfrules', 'SKILL.md']) {
+  for (const f of ['.cursorrules', '.windsurfrules', 'SKILL.md', 'LICENSE']) {
     await copyFile(resolve('.', f), resolve(CLI, f));
   }
   await mkdir(resolve(CLI, '.github'), { recursive: true });
