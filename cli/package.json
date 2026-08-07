@@ -1,6 +1,6 @@
 {
   "name": "@diagrammo/dgmo-cli",
-  "version": "0.62.1",
+  "version": "0.62.2",
   "description": "Render DGMO diagrams to PNG or SVG from the terminal, and wire the DGMO MCP server into AI editors.",
   "keywords": [
     "diagram",
