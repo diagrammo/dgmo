@@ -24,6 +24,61 @@ describe('old syntax produces errors', () => {
     expect(result.error).toMatch(/C ~fire~> D/);
   });
 
+  // Regression: the guard used to require a single token either side, so any
+  // participant name with a space slipped past it and the line was accepted as
+  // a bare arrow to a participant named `Python Bridge: POST /mcp`. It rendered
+  // silently and wrongly. One row per cell rather than one combined case — the
+  // single/single cell is the only one that was ever covered.
+  describe.each([
+    ['single -> single', 'C -> D: msg', 'C -msg-> D'],
+    ['multi -> single', 'C D -> E: msg', 'C D -msg-> E'],
+    ['single -> multi', 'C -> D E: msg', 'C -msg-> D E'],
+    [
+      'multi -> multi',
+      'Dify Agent -> Python Bridge: go',
+      'Dify Agent -go-> Python Bridge',
+    ],
+    [
+      'async multi -> multi',
+      'Dify Agent ~> Python Bridge: go',
+      'Dify Agent ~go~> Python Bridge',
+    ],
+  ])('colon syntax is caught for %s', (_name, line, hint) => {
+    it('errors with the rewritten line', () => {
+      const result = parseSequenceDgmo(`A -setup-> B\n${line}`);
+      expect(result.error).toMatch(/Colon syntax is no longer supported/);
+      expect(result.error).toContain(hint);
+    });
+  });
+
+  it('a colon swallowed into a participant name is rejected', () => {
+    // The labeled-arrow parser succeeds here and never reaches the guard above,
+    // so this is caught where the participant is created instead.
+    const result = parseSequenceDgmo('A -setup-> B\nC -msg-> D E: extra');
+    expect(result.error).toMatch(/is not a participant name/);
+    expect(result.error).toMatch(/A -message-> B/);
+  });
+
+  it('leaves same-line metadata on a bare arrow alone', () => {
+    const result = parseSequenceDgmo(
+      'tag Role as c\n  Caching blue\n  Other green\n\nA -setup-> B\nA -> B c: Caching'
+    );
+    expect(result.error).toBeNull();
+    expect(result.participants.map((p) => p.id)).toEqual(['A', 'B']);
+  });
+
+  it('leaves position metadata on a bare arrow alone', () => {
+    const result = parseSequenceDgmo('A -setup-> B\nA -> B position: 3');
+    expect(result.error).toBeNull();
+    expect(result.participants.map((p) => p.id)).toEqual(['A', 'B']);
+  });
+
+  it('leaves a deliberately quoted name containing a colon alone', () => {
+    const result = parseSequenceDgmo('A -setup-> B\nA -> "B: literal"');
+    expect(result.error).toBeNull();
+    expect(result.participants.map((p) => p.id)).toContain('B: literal');
+  });
+
   it('<-> gives error', () => {
     const result = parseSequenceDgmo('A -setup-> B\nA <-> B');
     expect(result.error).toMatch(

@@ -570,6 +570,18 @@ export function parseSequenceDgmo(
     // §2.2: `"..."` around a name is a delimiter, not label text. Peel before
     // normalizing so a quoted declaration and a bare reference key the same.
     const peeled = peelQuotedName(name);
+    // A participant name never contains a colon — every `key: value` tail is
+    // peeled into metadata before we get here, so one that survived means the
+    // rest of a line was swallowed into the name. This is the backstop for the
+    // shapes the colon-postfix guard cannot see, e.g. `A -label-> B: extra`,
+    // where the labeled-arrow parser succeeds and never reaches that guard.
+    // Quoting is the explicit opt-in (§2.2), so a peeled name is exempt.
+    if (peeled === name.trim() && peeled.includes(':')) {
+      pushError(
+        lineNumber,
+        `'${peeled}' is not a participant name — a colon here means the rest of the line was read as the name. Put the message inside the arrow: 'A -message-> B'`
+      );
+    }
     const key = normalizeName(peeled);
     const trimmed = peeled.trim() as ParticipantId;
     const incomingLabel = extras?.label ?? trimmed;
@@ -1237,11 +1249,23 @@ export function parseSequenceDgmo(
     }
 
     // ---- Error: old colon-postfix syntax (A -> B: msg) ----
+    // Participant names may contain spaces, so both sides are `.+?` rather
+    // than single tokens. They were `\S+` and `[^\s:]+` until 2026-08-07, which
+    // meant `Dify Agent -> Python Bridge: POST /mcp` missed this guard entirely,
+    // fell through to the bare-arrow branch below, and drew a participant
+    // literally named `Python Bridge: POST /mcp` — valid, silent, and not the
+    // diagram anyone wrote. Every legitimate `key: value` tail has already been
+    // peeled into `arrowMeta` by splitPipe above, so a colon still standing in
+    // `arrowCore` after a bare arrow is always the removed syntax.
+    // Excluding `"` from the target keeps a deliberately quoted name out of it:
+    // `A -> "B: lit"` is someone asking for that colon (§2.2), not the old
+    // syntax. A lookahead does not work here — `\s*` backtracks to zero width
+    // and the check then passes on the space before the quote.
     const colonPostfixSync = arrowCore.match(
-      /^(\S+)\s*->\s*([^\s:]+)\s*:\s*(.+)$/
+      /^(.+?)\s*->\s*([^:"]+?)\s*:\s*(.+)$/
     );
     const colonPostfixAsync = arrowCore.match(
-      /^(\S+)\s*~>\s*([^\s:]+)\s*:\s*(.+)$/
+      /^(.+?)\s*~>\s*([^:"]+?)\s*:\s*(.+)$/
     );
     const colonPostfix = colonPostfixSync || colonPostfixAsync;
     if (colonPostfix) {
