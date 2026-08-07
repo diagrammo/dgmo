@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.63.0] - 2026-08-07
+
+### Fixed
+
+- 🔴 **Text in a script Inter does not cover rasterised to nothing at all.** The renderer ran with system fonts switched off precisely *because* the bundled Inter was found, which made the `system-ui, …, sans-serif` tail of the font stack inert. Inter has no CJK, Devanagari, Tamil, Arabic, Hebrew or Thai — and never did, upstream included — so a diagram in any of them drew nothing: not a missing-glyph box, nothing, silently, exit code 0. A bar chart labelled 日本語 rasterised to pixels byte-identical to one labelled with a Private Use codepoint that exists in no font on earth. System fallback is on now at both rasterising call sites; Latin output is byte-identical across the change, because Inter is still loaded explicitly and named as the default family.
+- This only fixes the machine doing the rendering. A machine with no font for the script — a bare CI container, most Docker images — still draws nothing, so the CLI and the MCP server now **warn** when a diagram carries characters no bundled glyph can draw, naming the script. It is phrased as portability rather than failure: with fallback on, the image usually *is* correct where it was made, and the risk is the next machine.
+
+### Added
+
+- **`textFromSvg`, `uncoveredCharacters` and `fontPortabilityWarning`** on the advanced entry, for a host that rasterises and wants to report the same thing. Coverage is read from a manifest generated out of the real subset output rather than from the range tables that produced it — the build asked for 1,815 codepoints and got 1,784, so only the bytes describe the font.
+
 ## [0.62.1] - 2026-08-07
 
 ### Fixed
