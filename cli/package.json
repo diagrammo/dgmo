@@ -41,6 +41,7 @@
     "jsdom": "^29.1.1"
   },
   "scripts": {
+    "prepack": "node ../scripts/prepack-cli.mjs",
     "postinstall": "node -e \"console.log('\\n💡 Claude Code user? Run: dgmo install claude-code\\n')\""
   },
   "publishConfig": {
