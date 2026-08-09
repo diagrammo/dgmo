@@ -111,7 +111,8 @@ export function renderNodeCard(container: D3Sel, opts: NodeCardOptions): void {
     container
       .append('text')
       .attr('x', opts.width / 2)
-      .attr('y', opts.headerHeight / 2 + opts.labelFontSize / 2 - 2)
+      .attr('y', opts.headerHeight / 2)
+      .attr('dominant-baseline', 'central')
       .attr('text-anchor', 'middle')
       .attr('fill', opts.labelColor)
       .attr('font-size', opts.labelFontSize)

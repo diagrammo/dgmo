@@ -486,7 +486,8 @@ export function renderFamilyForExport(
 
     g.append('text')
       .attr('x', node.width / 2)
-      .attr('y', HEADER_HEIGHT / 2 + LABEL_FONT_SIZE / 2 - 2)
+      .attr('y', HEADER_HEIGHT / 2)
+      .attr('dominant-baseline', 'central')
       .attr('text-anchor', 'middle')
       .attr('fill', labelColor)
       .attr('font-size', LABEL_FONT_SIZE)

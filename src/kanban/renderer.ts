@@ -555,7 +555,8 @@ export function renderKanban(
 
       g.append('text')
         .attr('x', colLayout.x + sCollapsedColumnWidth / 2)
-        .attr('y', colLayout.y + sColumnHeaderHeight / 2 + sWipFontSize / 2 - 1)
+        .attr('y', colLayout.y + sColumnHeaderHeight / 2)
+        .attr('dominant-baseline', 'central')
         .attr('font-size', sWipFontSize)
         .attr('font-weight', 'bold')
         .attr('fill', col.color ? onHeaderText : palette.textMuted)
@@ -597,10 +598,8 @@ export function renderKanban(
 
     g.append('text')
       .attr('x', colLayout.x + sColumnPadding)
-      .attr(
-        'y',
-        colLayout.y + sColumnHeaderHeight / 2 + sColumnHeaderFontSize / 2 - 2
-      )
+      .attr('y', colLayout.y + sColumnHeaderHeight / 2)
+      .attr('dominant-baseline', 'central')
       .attr('font-size', sColumnHeaderFontSize)
       .attr('font-weight', 'bold')
       .attr('fill', onHeaderText)
@@ -615,7 +614,8 @@ export function renderKanban(
           : String(col.cards.length);
       g.append('text')
         .attr('x', colLayout.x + colLayout.width - sColumnPadding)
-        .attr('y', colLayout.y + sColumnHeaderHeight / 2 + sWipFontSize / 2 - 1)
+        .attr('y', colLayout.y + sColumnHeaderHeight / 2)
+        .attr('dominant-baseline', 'central')
         .attr('text-anchor', 'end')
         .attr('font-size', sWipFontSize)
         .attr(
@@ -1151,7 +1151,8 @@ function renderSwimlaneBoard(
       headerG
         .append('text')
         .attr('x', colInfo.x + colInfo.width / 2)
-        .attr('y', grid.startY + sColumnHeaderHeight / 2 + sWipFontSize / 2 - 1)
+        .attr('y', grid.startY + sColumnHeaderHeight / 2)
+        .attr('dominant-baseline', 'central')
         .attr('font-size', sWipFontSize)
         .attr('font-weight', 'bold')
         .attr('fill', palette.textMuted)
@@ -1161,10 +1162,8 @@ function renderSwimlaneBoard(
       headerG
         .append('text')
         .attr('x', colInfo.x + sColumnPadding)
-        .attr(
-          'y',
-          grid.startY + sColumnHeaderHeight / 2 + sColumnHeaderFontSize / 2 - 2
-        )
+        .attr('y', grid.startY + sColumnHeaderHeight / 2)
+        .attr('dominant-baseline', 'central')
         .attr('font-size', sColumnHeaderFontSize)
         .attr('font-weight', 'bold')
         .attr('fill', palette.text)
@@ -1179,7 +1178,8 @@ function renderSwimlaneBoard(
       headerG
         .append('text')
         .attr('x', colInfo.x + colInfo.width - sColumnPadding)
-        .attr('y', grid.startY + sColumnHeaderHeight / 2 + sWipFontSize / 2 - 1)
+        .attr('y', grid.startY + sColumnHeaderHeight / 2)
+        .attr('dominant-baseline', 'central')
         .attr('text-anchor', 'end')
         .attr('font-size', sWipFontSize)
         .attr('fill', wipExceeded ? palette.colors.red : palette.textMuted)

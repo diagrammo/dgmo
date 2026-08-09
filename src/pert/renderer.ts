@@ -3164,8 +3164,7 @@ function renderTornadoBlock(
 
   rows.forEach((row, i) => {
     const rowY = firstRowY + i * TORNADO_ROW_HEIGHT;
-    const labelY =
-      rowY + TORNADO_ROW_HEIGHT / 2 + TORNADO_BAR_FONT_SIZE / 2 - 2;
+    const labelY = rowY + TORNADO_ROW_HEIGHT / 2;
     const barColor = bandColor(row.band, palette, palette.primary);
     // fill-outline → hollow bar (theme-bg fill, existing colored stroke
     // carries the band color). Tint + solid both keep the canonical tint.
@@ -3205,6 +3204,7 @@ function renderTornadoBlock(
       .attr('class', 'pert-tornado-name')
       .attr('x', nameX)
       .attr('y', labelY)
+      .attr('dominant-baseline', 'central')
       .attr('text-anchor', 'start')
       .attr('fill', labelColor)
       .attr('font-size', TORNADO_BAR_FONT_SIZE)
@@ -3229,6 +3229,7 @@ function renderTornadoBlock(
         .attr('class', 'pert-tornado-value pert-tornado-value-low')
         .attr('x', centerX - lowW - VALUE_GAP)
         .attr('y', labelY)
+        .attr('dominant-baseline', 'central')
         .attr('text-anchor', 'end')
         .attr('fill', labelColor)
         .attr('font-size', TORNADO_BAR_FONT_SIZE)
@@ -3254,6 +3255,7 @@ function renderTornadoBlock(
         .attr('class', 'pert-tornado-value pert-tornado-value-high')
         .attr('x', centerX + highW + VALUE_GAP)
         .attr('y', labelY)
+        .attr('dominant-baseline', 'central')
         .attr('text-anchor', 'start')
         .attr('fill', labelColor)
         .attr('font-size', TORNADO_BAR_FONT_SIZE)

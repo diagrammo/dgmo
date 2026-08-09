@@ -2245,13 +2245,14 @@ function renderLegend(
       measureLegendText('Playback', LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
 
     let entryX = pillWidth + 8;
-    const entryY = LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 1;
+    const entryY = LEGEND_HEIGHT / 2;
 
     const ppLabel = playback.paused ? '▶' : '⏸';
     playbackEl
       .append('text')
       .attr('x', entryX)
       .attr('y', entryY)
+      .attr('dominant-baseline', 'central')
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', LEGEND_PILL_FONT_SIZE)
       .attr('fill', palette.textMuted)
@@ -2288,6 +2289,7 @@ function renderLegend(
         .append('text')
         .attr('x', entryX + slotW / 2)
         .attr('y', entryY)
+        .attr('dominant-baseline', 'central')
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
         .attr('font-weight', isSpeedActive ? '600' : '400')
@@ -2369,8 +2371,7 @@ export function renderInfra(
   // the app-overlay gate; when it's on (and hence a fixed title too) nothing
   // here changes — `header.inline` stays false and every expression below
   // resolves to its prior value.
-  const inlineRequested =
-    legendInlineRequested(layout.options) && !fixedLegend;
+  const inlineRequested = legendInlineRequested(layout.options) && !fixedLegend;
   const legendExtent =
     inlineRequested && hasLegend
       ? getLegendExtent(

@@ -1071,8 +1071,9 @@ export function renderEventLine(
       const shelfText = parsed.options.fillMode
         ? contrastText(p.color, palette.textOnFillLight, palette.textOnFillDark)
         : p.color;
-      // Title lines stack centered in the header band (a 1-line title matches the
-      // prior single-baseline position exactly).
+      // Title lines stack centered in the header band, each line centred by the
+      // renderer rather than by an offset of ours — see the note above
+      // `centerText` in utils/legend-d3.ts for why that distinction matters.
       const titleMid = headBandTop + p.headerH / 2;
       const titleTop =
         titleMid - ((p.titleLines.length - 1) * TITLE_LINE_H) / 2;
@@ -1080,7 +1081,8 @@ export function renderEventLine(
         cardG
           .append('text')
           .attr('x', CARD_PAD)
-          .attr('y', titleTop + ti * TITLE_LINE_H + LABEL_FONT_SIZE / 2 - 2)
+          .attr('y', titleTop + ti * TITLE_LINE_H)
+          .attr('dominant-baseline', 'central')
           .attr('fill', shelfText)
           .attr('font-family', FONT_FAMILY)
           .attr('font-size', LABEL_FONT_SIZE)

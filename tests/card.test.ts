@@ -66,8 +66,13 @@ describe('renderNodeCard', () => {
     expect(label.attr('text-anchor')).toBe('middle');
     expect(label.attr('font-weight')).toBe('bold');
     expect(label.attr('x')).toBe('60'); // width / 2
-    // headerHeight/2 + labelFontSize/2 - 2 = 14 + 6.5 - 2 = 18.5
-    expect(label.attr('y')).toBe('18.5');
+    // The header band's centre, headerHeight / 2 — the renderer does the
+    // baseline itself. This asserted 18.5 until 2026-08-09, when the single-
+    // line branch still added `labelFontSize / 2 - 2` by hand while the
+    // multi-line branch beside it already used `dominant-baseline`, so one
+    // card's title moved depending on whether it wrapped.
+    expect(label.attr('y')).toBe('14'); // headerHeight / 2
+    expect(label.attr('dominant-baseline')).toBe('central');
     expect(label.attr('fill')).toBe('#ffffff');
   });
 

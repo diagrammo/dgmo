@@ -677,7 +677,8 @@ export function renderJourneyMap(
       phaseG
         .append('text')
         .attr('x', pl.x + COLUMN_PADDING)
-        .attr('y', pl.y + COLUMN_HEADER_HEIGHT / 2 + FONT_SIZE_PHASE / 2 - 2)
+        .attr('y', pl.y + COLUMN_HEADER_HEIGHT / 2)
+        .attr('dominant-baseline', 'central')
         .attr('font-size', FONT_SIZE_PHASE)
         .attr('font-weight', 'bold')
         .attr('fill', onHeaderText)
@@ -793,7 +794,8 @@ export function renderJourneyMap(
           itemG
             .append('text')
             .attr('x', textX)
-            .attr('y', itemY + COLLAPSED_CARD_H / 2 + FONT_SIZE_META / 2 - 1)
+            .attr('y', itemY + COLLAPSED_CARD_H / 2)
+            .attr('dominant-baseline', 'central')
             .attr('font-size', FONT_SIZE_META)
             .attr('fill', palette.text)
             .text(truncateText(step.title, maxTextW, FONT_SIZE_META));
@@ -1286,7 +1288,8 @@ function renderStepCard(
     stepG
       .append('text')
       .attr('x', cx + sl.width / 2)
-      .attr('y', stripY + TAG_STRIP_HEIGHT / 2 + FONT_SIZE_META / 2 - 1)
+      .attr('y', stripY + TAG_STRIP_HEIGHT / 2)
+      .attr('dominant-baseline', 'central')
       .attr('text-anchor', 'middle')
       .attr('font-size', FONT_SIZE_META)
       .attr('fill', stripTextColor)

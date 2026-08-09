@@ -395,7 +395,8 @@ export function renderSitemap(
 
     cG.append('text')
       .attr('x', c.width / 2)
-      .attr('y', sContainerHeaderHeight / 2 + sContainerLabelFontSize / 2 - 2)
+      .attr('y', sContainerHeaderHeight / 2)
+      .attr('dominant-baseline', 'central')
       .attr('text-anchor', 'middle')
       .attr('fill', palette.text)
       .attr('font-size', sContainerLabelFontSize)
