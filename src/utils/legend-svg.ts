@@ -9,7 +9,9 @@
 // wraps long entry lists onto multiple rows exactly like the D3 diagrams.
 // This file is the SSR/string view of that layout; legend-d3.ts is the
 // interactive DOM view. Text is positioned with explicit baseline math
-// (not dominant-baseline) so resvg renders it correctly in PNG export.
+// rather than dominant-baseline — see the note above LEGEND_TEXT_DY in
+// legend-d3.ts, which records why, and what re-measuring on 2026-08-09
+// found (resvg 2.6.2 handles `central` fine; the reason is stale).
 // ============================================================
 
 import { tagAttrKey } from './tag-groups';

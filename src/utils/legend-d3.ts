@@ -33,9 +33,7 @@ import type {
   D3Sel,
 } from './legend-types';
 
-// Vertically center an SVG <text> across engines. WebKit drops
-// `dominant-baseline` on <text>, and resvg has limited support too
-// (see legend-svg.ts), so we use the alphabetic baseline (the shared
+// Vertically center an SVG <text>: the alphabetic baseline (every engine's
 // default) plus an em-relative dy taken from Inter's own metrics.
 //
 // This was 0.32em until 2026-08-07, copied from legend-svg.ts's pill
@@ -44,6 +42,18 @@ import type {
 // to its dot while the node labels beside it, centred by the browser's own
 // `dominant-baseline: central`, sat correctly. The same file put entry
 // labels at fontSize/2 - 1 = 0.40em, so screen and export disagreed too.
+//
+// ⚠️ The reason this file centres by hand was that WebKit dropped
+// `dominant-baseline` on <text> and resvg supported it only partly. Both
+// halves were re-measured on 2026-08-09 and neither still holds: WebKit
+// (Playwright build) and Chromium both put `central` at exactly this dy
+// with Inter loaded, and resvg 2.6.2 rasterises `central`, the style form
+// and this dy to identical pixels. So the hand-rolled sum is no longer
+// buying cross-engine safety — and it now costs something, because with
+// system-font fallback on (see the Rendering constraints in CLAUDE.md) a
+// CJK or Devanagari label is drawn by a font whose metrics are not Inter's,
+// which `central` would follow and a baked-in constant cannot. Worth
+// revisiting as a deliberate change; don't flip it as a drive-by.
 const LEGEND_TEXT_DY = `${FONT_CENTRAL_DY}em`;
 function centerText(sel: D3Sel): D3Sel {
   return sel.attr('dy', LEGEND_TEXT_DY);
