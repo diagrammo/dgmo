@@ -1,0 +1,110 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`centred labels sit on the band centre > event-line — every centred label, with the y it was given 1`] = `
+[
+  "y=14 size=11 "Theme"",
+  "y=14 size=10 "Protocol"",
+  "y=14 size=10 "Browser"",
+  "y=14 size=10 "Platform"",
+  "y=14 size=10 "Standard"",
+  "y=14 size=13 "WorldWideWeb"",
+  "y=14 size=13 "Mosaic"",
+  "y=14 size=13 "The Standards Era"",
+  "y=14 size=13 "Ajax"",
+  "y=14 size=13 "HTML5"",
+]
+`;
+
+exports[`centred labels sit on the band centre > family — every centred label, with the y it was given 1`] = `
+[
+  "y=14 size=11 "Sex"",
+  "y=14 size=10 "Male"",
+  "y=14 size=10 "Female"",
+  "y=14 size=10 "Unknown"",
+  "y=14 size=11 "Allegiance"",
+  "y=14 size=13 "Weatherby Swann"",
+  "y=14 size=13 "Margaret Smith"",
+  "y=14 size=13 "† Blackbeard"",
+  "y=14 size=13 "?"",
+  "y=14 size=13 "Elizabeth Swann"",
+  "y=14 size=13 "Will Turner"",
+  "y=14 size=13 "Henry Turner"",
+  "y=14 size=13 "Carina Smyth"",
+  "y=14 size=13 "Joshamee Turner"",
+  "y=14 size=13 "Anna Turner"",
+]
+`;
+
+exports[`centred labels sit on the band centre > infra — every centred label, with the y it was given 1`] = `
+[
+  "y=14 size=11 "Team"",
+  "y=14 size=10 "Backend"",
+  "y=14 size=10 "Platform"",
+]
+`;
+
+exports[`centred labels sit on the band centre > journey-map — every centred label, with the y it was given 1`] = `
+[
+  "y=380 size=13 "Discover"",
+  "y=380 size=13 "Try"",
+]
+`;
+
+exports[`centred labels sit on the band centre > kanban — every centred label, with the y it was given 1`] = `
+[
+  "y=14 size=11 "Priority"",
+  "y=14 size=10 "Low"",
+  "y=14 size=10 "Urgent"",
+  "y=14 size=10 "High"",
+  "y=76 size=13 "Awaiting Orders"",
+  "y=76 size=10 "3"",
+  "y=76 size=13 "Underway"",
+  "y=76 size=10 "2/2"",
+  "y=76 size=13 "Done"",
+  "y=76 size=10 "2"",
+]
+`;
+
+exports[`centred labels sit on the band centre > org — every centred label, with the y it was given 1`] = `
+[
+  "y=14 size=13 "Jane Smith"",
+  "y=14 size=13 "Maria Lopez"",
+  "y=14 size=13 "Sam Wilson"",
+  "y=14 size=13 "Alex Chen"",
+  "y=14 size=13 "Tom Brown"",
+]
+`;
+
+exports[`centred labels sit on the band centre > pert — every centred label, with the y it was given 1`] = `
+[
+  "y=469 size=13 "sail to atoll"",
+  "y=469 size=13 "−2.17"",
+  "y=469 size=13 "+2.83"",
+  "y=495 size=13 "count gold"",
+  "y=495 size=13 "+2.83"",
+  "y=521 size=13 "repair hull"",
+  "y=521 size=13 "−0.58"",
+  "y=521 size=13 "+1.83"",
+  "y=547 size=13 "careen hull"",
+  "y=547 size=13 "+2.33"",
+  "y=573 size=13 "recruit crew"",
+  "y=573 size=13 "−0.23"",
+  "y=573 size=13 "+1.83"",
+  "y=599 size=13 "divvy shares"",
+  "y=599 size=13 "−1"",
+  "y=599 size=13 "+1"",
+  "y=625 size=13 "load powder"",
+  "y=625 size=13 "−0.58"",
+  "y=625 size=13 "+0.92"",
+]
+`;
+
+exports[`centred labels sit on the band centre > sitemap — every centred label, with the y it was given 1`] = `
+[
+  "y=14 size=13 "Content"",
+  "y=14 size=13 "Home"",
+  "y=14 size=13 "About"",
+  "y=14 size=13 "Blog"",
+  "y=14 size=13 "Post"",
+]
+`;
