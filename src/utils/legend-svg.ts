@@ -8,10 +8,9 @@
 // the SAME layout engine — `computeLegendLayout` — so the ECharts legend
 // wraps long entry lists onto multiple rows exactly like the D3 diagrams.
 // This file is the SSR/string view of that layout; legend-d3.ts is the
-// interactive DOM view. Text is positioned with explicit baseline math
-// rather than dominant-baseline — see the note above LEGEND_TEXT_DY in
-// legend-d3.ts, which records why, and what re-measuring on 2026-08-09
-// found (resvg 2.6.2 handles `central` fine; the reason is stale).
+// interactive DOM view. Text is centred with `dominant-baseline="central"`,
+// the same way and for the same reasons as the DOM view — the note above
+// `centerText` in legend-d3.ts carries the argument and the measurements.
 // ============================================================
 
 import { tagAttrKey } from './tag-groups';
@@ -31,12 +30,10 @@ import {
   legendChromeColors,
 } from './legend-constants';
 import { computeLegendLayout } from './legend-layout';
-import { FONT_FAMILY, FONT_CENTRAL_DY } from '../fonts';
+import { FONT_FAMILY } from '../fonts';
 
-/** Alphabetic-baseline y that centres `fontSize` text on the line `centerY`. */
-function baselineY(centerY: number, fontSize: number): number {
-  return centerY + fontSize * FONT_CENTRAL_DY;
-}
+/** Vertical centring, matching legend-d3.ts's `centerText`. */
+const CENTER = 'dominant-baseline="central"';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -99,7 +96,7 @@ function emitCapsule(
 
   // Pill text — vertically centered in the first row.
   inner.push(
-    `<text x="${pill.x + pill.width / 2}" y="${baselineY(LEGEND_HEIGHT / 2, LEGEND_PILL_FONT_SIZE)}" font-size="${LEGEND_PILL_FONT_SIZE}" font-weight="500" fill="${esc(palette.text)}" text-anchor="middle" font-family="${esc(FONT_FAMILY)}">${esc(capsule.groupName)}</text>`
+    `<text x="${pill.x + pill.width / 2}" y="${LEGEND_HEIGHT / 2}" ${CENTER} font-size="${LEGEND_PILL_FONT_SIZE}" font-weight="500" fill="${esc(palette.text)}" text-anchor="middle" font-family="${esc(FONT_FAMILY)}">${esc(capsule.groupName)}</text>`
   );
 
   // Wrapped entries — dots + labels positioned by the layout engine.
@@ -116,7 +113,7 @@ function emitCapsule(
       `<g data-legend-entry="${esc(entry.value.toLowerCase())}" data-series-name="${esc(entry.value)}" style="cursor:pointer">` +
         hit +
         `<circle cx="${entry.dotCx}" cy="${entry.dotCy}" r="${LEGEND_DOT_R}" fill="${esc(entry.color)}"/>` +
-        `<text x="${entry.textX}" y="${baselineY(entry.dotCy, LEGEND_ENTRY_FONT_SIZE)}" font-size="${LEGEND_ENTRY_FONT_SIZE}" fill="${esc(palette.textMuted)}" font-family="${esc(FONT_FAMILY)}">${esc(label)}</text>` +
+        `<text x="${entry.textX}" y="${entry.dotCy}" ${CENTER} font-size="${LEGEND_ENTRY_FONT_SIZE}" fill="${esc(palette.textMuted)}" font-family="${esc(FONT_FAMILY)}">${esc(label)}</text>` +
         `</g>`
     );
   }
@@ -133,7 +130,7 @@ function emitPill(
   return (
     `<g transform="translate(${pill.x},${pill.y})" data-legend-group="${esc(tagAttrKey(pill.groupName))}" style="cursor:pointer">` +
     `<rect width="${pill.width}" height="${pill.height}" rx="${pill.height / 2}" fill="${esc(groupBg)}"/>` +
-    `<text x="${pill.width / 2}" y="${baselineY(pill.height / 2, LEGEND_PILL_FONT_SIZE)}" font-size="${LEGEND_PILL_FONT_SIZE}" font-weight="500" fill="${esc(palette.textMuted)}" text-anchor="middle" font-family="${esc(FONT_FAMILY)}">${esc(pill.groupName)}</text>` +
+    `<text x="${pill.width / 2}" y="${pill.height / 2}" ${CENTER} font-size="${LEGEND_PILL_FONT_SIZE}" font-weight="500" fill="${esc(palette.textMuted)}" text-anchor="middle" font-family="${esc(FONT_FAMILY)}">${esc(pill.groupName)}</text>` +
     `</g>`
   );
 }

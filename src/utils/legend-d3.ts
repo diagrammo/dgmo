@@ -18,7 +18,7 @@ import {
 } from './legend-constants';
 import { computeLegendLayout } from './legend-layout';
 import { valueRampStops } from '../palettes/color-utils';
-import { FONT_FAMILY, FONT_CENTRAL_DY } from '../fonts';
+import { FONT_FAMILY } from '../fonts';
 import type {
   LegendConfig,
   LegendState,
@@ -33,30 +33,47 @@ import type {
   D3Sel,
 } from './legend-types';
 
-// Vertically center an SVG <text>: the alphabetic baseline (every engine's
-// default) plus an em-relative dy taken from Inter's own metrics.
+// Vertically center an SVG <text> by asking the renderer to do it, which is
+// the only way that stays right in a font we did not choose.
 //
-// This was 0.32em until 2026-08-07, copied from legend-svg.ts's pill
-// offset (fontSize/2 - 2 = 0.318em at 11px) — an approximation that lands
-// 0.044em short of the real centre, so every legend label rode high next
-// to its dot while the node labels beside it, centred by the browser's own
-// `dominant-baseline: central`, sat correctly. The same file put entry
-// labels at fontSize/2 - 1 = 0.40em, so screen and export disagreed too.
+// The legend centred by hand until 2026-08-09 — the alphabetic baseline plus
+// an em offset — and the number was wrong twice over. It was 0.32em until
+// 2026-08-07, copied from legend-svg.ts's pill formula (fontSize / 2 - 2 =
+// 0.318em at 11px), which lands 0.044em short, so every legend label rode
+// high beside its dot while the node labels around it, already centred with
+// `central`, sat correctly. The same file put entry labels at fontSize / 2 - 1
+// = 0.40em, so the screen and the export did not even agree with each other.
+// Replacing both with Inter's true 0.3638em fixed the arithmetic and left the
+// real problem: that number is exact only where Inter is the font that draws,
+// and dgmo does not control that. FONT_FAMILY names Inter first and then falls
+// back, so any host embedding a diagram without loading Inter — which the
+// ecosystem docs site did until 2026-08-09, and which a site using the
+// remark/Astro/Docusaurus wrappers may well do — was centring its legend
+// labels by a constant belonging to a font that was not on the page.
 //
-// ⚠️ The reason this file centres by hand was that WebKit dropped
-// `dominant-baseline` on <text> and resvg supported it only partly. Both
-// halves were re-measured on 2026-08-09 and neither still holds: WebKit
-// (Playwright build) and Chromium both put `central` at exactly this dy
-// with Inter loaded, and resvg 2.6.2 rasterises `central`, the style form
-// and this dy to identical pixels. So the hand-rolled sum is no longer
-// buying cross-engine safety — and it now costs something, because with
-// system-font fallback on (see the Rendering constraints in CLAUDE.md) a
-// CJK or Devanagari label is drawn by a font whose metrics are not Inter's,
-// which `central` would follow and a baked-in constant cannot. Worth
-// revisiting as a deliberate change; don't flip it as a drive-by.
-const LEGEND_TEXT_DY = `${FONT_CENTRAL_DY}em`;
+// Measured 2026-08-09, label centre against dot centre, 0 is level:
+//
+//                            central     dy 0.3638em
+//   Chromium, Inter loaded       0           +0.05
+//   Chromium, Inter ABSENT       0           -0.95    <- what this buys
+//   WebKit,   Inter loaded       0            0
+//   WebKit,   Inter ABSENT       0           -0.56    <- what this buys
+//   resvg 2.6.2                  0            0       (identical pixels)
+//
+// It does NOT fix non-Latin labels, which is worth writing down because it is
+// the plausible-sounding reason to reach for this and it is wrong. A baseline
+// is computed from the FIRST AVAILABLE FONT, not per glyph — so with Inter
+// loaded, 日本語 measured +0.05 in Chromium exactly like "Client", though Inter
+// has no CJK and a fallback face drew every character. resvg agrees: Japanese
+// and Devanagari came out identical under both approaches.
+//
+// `central` (midpoint of ascender and descender), never `middle`, which is the
+// baseline plus half the x-height and sits noticeably low. Safe in the desktop
+// app too: boxes-and-lines and raci node labels have centred this way all along
+// with no compensating offset, and a WKWebView that dropped the attribute would
+// put every one of them half a line low.
 function centerText(sel: D3Sel): D3Sel {
-  return sel.attr('dy', LEGEND_TEXT_DY);
+  return sel.attr('dominant-baseline', 'central');
 }
 
 // ── Main renderer ───────────────────────────────────────────

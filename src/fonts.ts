@@ -2,16 +2,13 @@ export const FONT_FAMILY =
   'Inter, system-ui, Avenir, Helvetica, Arial, sans-serif';
 export const DEFAULT_FONT_NAME = 'Inter';
 
-// Distance from a line's vertical centre DOWN to its alphabetic baseline, in
-// em. Add it to the y you want the text centred on.
+// There is deliberately no centre-the-text-by-hand constant here.
 //
-// This is the number `dominant-baseline: central` computes. We do the sum by
-// hand wherever the text must survive export, because WebKit drops the
-// attribute on <text> and resvg supports only part of it — so the attribute is
-// safe on screen and silently wrong in a PNG.
-//
-// Read off `fonts/Inter-Regular.ttf`: ascender 1984/2048, descender -494/2048,
-// so half their span is 0.3638em. Inter's OS/2 sCapHeight (1490/2048) halves to
-// the same figure, which is why capital-height centring and em-box centring
-// agree here and one constant serves both.
-export const FONT_CENTRAL_DY = 0.3638;
+// One lived here between 2026-08-07 and 2026-08-09 — the em offset from a
+// line's centre down to its alphabetic baseline, 0.3638em, read off
+// fonts/Inter-Regular.ttf. It was exact for Inter and wrong wherever Inter is
+// not what draws, and dgmo does not control that: FONT_FAMILY names Inter
+// first and falls back, and plenty of hosts embed a diagram without loading
+// it. Renderers centre with `dominant-baseline: central` instead, which the
+// renderer computes from the font actually in use. Measurements and the one
+// thing this does NOT fix are above `centerText` in utils/legend-d3.ts.
