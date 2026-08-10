@@ -7,9 +7,9 @@
  * src>` on a page we don't own. So the failure mode is silent: a bundle that
  * packs, publishes and 404s or throws in a stranger's browser.
  *
- * This checks the three things that can be checked without a browser:
+ * This checks the four things that can be checked without a browser:
  *
- *   1. Both bundles and auto.css exist and are not stubs.
+ *   1. Both bundles, auto.css and the LICENSE exist and are not stubs.
  *   2. The version baked into element.js matches this package's version.
  *      element.js hardcodes `unpkg.com/@diagrammo/dgmo@<VERSION>/dist/map-data/`
  *      at build time, so a standalone published at a version the library never
@@ -39,10 +39,17 @@ const fail = (msg) => {
 const MIN_BUNDLE_BYTES = 1_000_000;
 const MIN_CSS_BYTES = 1_000;
 
+// The licence text is staged by the build (tsup.config.ts) rather than
+// committed, so a build that skipped that step publishes a package declaring
+// MIT with no MIT in it — which is what shipped until 2026-08-09. A floor of a
+// few hundred bytes distinguishes the real text from an empty file.
+const MIN_LICENSE_BYTES = 500;
+
 for (const [rel, min] of [
   ['dist/auto.js', MIN_BUNDLE_BYTES],
   ['dist/element.js', MIN_BUNDLE_BYTES],
   ['dist/auto.css', MIN_CSS_BYTES],
+  ['LICENSE', MIN_LICENSE_BYTES],
 ]) {
   const abs = join(pkgDir, rel);
   if (!existsSync(abs)) fail(`${rel} is missing — run \`pnpm build\` first`);

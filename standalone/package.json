@@ -22,6 +22,7 @@
   "bugs": "https://github.com/diagrammo/dgmo/issues",
   "type": "module",
   "files": [
+    "LICENSE",
     "README.md",
     "dist/auto.js",
     "dist/element.js",

@@ -65,6 +65,13 @@ async function emitAutoCss(): Promise<void> {
   // is not in the library's `exports` map and is only ever fetched by URL.
   await mkdir(resolve('./standalone/dist'), { recursive: true });
   await writeFile(resolve('./standalone/dist/auto.css'), css, 'utf8');
+  // The drop-ins are a separate npm package, so the repo's LICENSE does not
+  // reach their tarball — npm cannot include a file above a package
+  // directory. Staged here rather than committed, for the same reason
+  // `cli/LICENSE` is: one licence in the repo, copied outward, so a change to
+  // the holder cannot leave a stale duplicate behind. `prepack-standalone`
+  // refuses to pack without it.
+  await copyFile(resolve('./LICENSE'), resolve('./standalone/LICENSE'));
 }
 
 /** Extract the BLOCK_CSS literal from src/embed/css.ts (regex mechanism). */

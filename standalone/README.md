@@ -79,4 +79,6 @@ This one exists for the no-build case. Reach for a sibling instead when:
 - **Try it in the browser** — <https://online.diagrammo.app>
 - **Issues** — <https://github.com/diagrammo/dgmo/issues>
 
-MIT licensed. Bundles [Inter](https://rsms.me/inter/) (SIL Open Font License).
+MIT licensed — the full text is in `LICENSE`, in this package. Labels are drawn
+in [Inter](https://rsms.me/inter/) when your page already provides it, falling
+back to the system interface font; no font files are bundled.
