@@ -224,7 +224,7 @@ treasure
   id int pk
   name varchar
   value int
-  ship_id int fk, nullable
+  ship_id int fk nullable
 
 ports
   id int pk

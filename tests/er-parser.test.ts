@@ -424,3 +424,64 @@ Users Domain: Billing
     expect(result.tagGroups).toHaveLength(0);
   });
 });
+
+describe('a column that does not parse is reported, never dropped', () => {
+  // Regression for the silent-deletion bug: `fk, nullable` (comma) made
+  // parseColumn return null and the caller discarded it, so the column
+  // vanished from the diagram with no error and a zero exit code. Five columns
+  // went missing from a real schema drawing that way, including both foreign
+  // keys on one table, and the shipped ER example carried the same line.
+  it('errors on comma-separated constraints instead of deleting the column', () => {
+    const result = parseERDiagram(
+      'er\nthings\n  id text pk\n  owner_id text fk, nullable'
+    );
+    expect(result.error).toBeTruthy();
+    expect(result.error).toContain('space-separated');
+    // The whole line is refused, so the column is absent — but LOUDLY, which is
+    // the entire point. Silence was the defect, not the absence.
+    expect(result.tables[0]?.columns.map((c) => c.name)).toEqual(['id']);
+  });
+
+  it('keeps the column when the same constraints are space-separated', () => {
+    const result = parseERDiagram(
+      'er\nthings\n  id text pk\n  owner_id text fk nullable'
+    );
+    expect(result.error).toBeNull();
+    expect(result.diagnostics).toEqual([]);
+    const owner = result.tables[0]?.columns.find((c) => c.name === 'owner_id');
+    expect(owner?.constraints).toEqual(['fk', 'nullable']);
+  });
+
+  it('names the offending token for any other unknown constraint', () => {
+    const result = parseERDiagram('er\nthings\n  id text pk notnull');
+    expect(result.error).toBeTruthy();
+    expect(result.error).toContain('notnull');
+  });
+
+  it('reports prose under a table by naming the token it choked on', () => {
+    // `this` reads as the name and `is` as the type, so this lands on the
+    // unknown-token path rather than the not-a-column one.
+    const result = parseERDiagram('er\nthings\n  this is just prose');
+    expect(result.error).toBeTruthy();
+    expect(result.error).toContain('just');
+  });
+
+  it('reports an indented line that cannot even start a column', () => {
+    const result = parseERDiagram('er\nthings\n  (a parenthetical aside)');
+    expect(result.error).toBeTruthy();
+    expect(result.error).toContain('relationship');
+  });
+
+  it('still accepts every valid column shape', () => {
+    const result = parseERDiagram(
+      'er\nthings\n  id text pk\n  name\n  email text unique\n  "first name" text nullable\n  1-has-* others'
+    );
+    expect(result.error).toBeNull();
+    expect(result.tables[0]?.columns.map((c) => c.name)).toEqual([
+      'id',
+      'name',
+      'email',
+      'first name',
+    ]);
+  });
+});

@@ -180,15 +180,28 @@ function parseRelationship(
 // Column parser (space-separated: name [type] [constraints...])
 // ============================================================
 
-function parseColumn(trimmed: string): {
-  name: string;
-  type?: string;
-  constraints: ERConstraint[];
-} | null {
+/**
+ * Outcome of reading one indented line as a column.
+ *
+ * A failure carries WHY, because the caller has to say so. This used to return
+ * a bare `null` and the caller dropped it silently, which meant a single
+ * mistyped constraint deleted the whole column from the picture with no parse
+ * error, no warning, and a zero exit code — `fk, nullable` (comma) cost five
+ * columns on a real diagram, including both foreign keys on one table, and the
+ * shipped ER example carried the same line and lost a column in its own output.
+ * A diagram that renders looks finished, so silence here is the worst available
+ * behaviour.
+ */
+type ColumnParse =
+  | { ok: true; name: string; type?: string; constraints: ERConstraint[] }
+  | { ok: false; reason: 'not-a-column' }
+  | { ok: false; reason: 'unknown-token'; name: string; token: string };
+
+function parseColumn(trimmed: string): ColumnParse {
   // Quote-aware tokenizer keeps `"first name"` together as a single token
   // so multi-word column names work via Universal Name Handling quoting.
   const rawTokens = tokenizeQuoteAware(trimmed);
-  if (rawTokens.length === 0) return null;
+  if (rawTokens.length === 0) return { ok: false, reason: 'not-a-column' };
 
   // In-bounds by length-0 guard above.
   const firstRaw = rawTokens[0]!;
@@ -198,7 +211,9 @@ function parseColumn(trimmed: string): {
   // Bare names must look like a single word (preserves rejection of lines
   // that aren't column declarations, e.g. relationships). Quoted names are
   // accepted as-is.
-  if (!wasQuoted && !/^\w+$/.test(name)) return null;
+  if (!wasQuoted && !/^\w+$/.test(name)) {
+    return { ok: false, reason: 'not-a-column' };
+  }
 
   const constraints: ERConstraint[] = [];
   let type: string | undefined;
@@ -214,12 +229,13 @@ function parseColumn(trimmed: string): {
       // First non-constraint token after name is the type
       type = tok;
     } else {
-      // Unknown token after type — not a valid column line
-      return null;
+      // Unknown token after the type. Reported rather than swallowed — the
+      // caller turns this into a parse error naming the token.
+      return { ok: false, reason: 'unknown-token', name, token: tok };
     }
   }
 
-  return { name, ...(type !== undefined && { type }), constraints };
+  return { ok: true, name, ...(type !== undefined && { type }), constraints };
 }
 
 // ============================================================
@@ -458,13 +474,29 @@ export function parseERDiagram(
       }
 
       const colResult = parseColumn(trimmed);
-      if (colResult) {
+      if (colResult.ok) {
         currentTable.columns.push({
           name: colResult.name,
           ...(colResult.type && { type: colResult.type }),
           constraints: colResult.constraints,
           lineNumber,
         });
+      } else if (colResult.reason === 'unknown-token') {
+        // A comma is the one worth naming outright: every other chart type in
+        // the language takes comma-separated metadata, so `fk, nullable` is the
+        // natural thing to type here, and ER's space-separated columns are the
+        // documented carve-out (§8.3).
+        pushError(
+          lineNumber,
+          colResult.token.includes(',')
+            ? `Column constraints are space-separated, not comma-separated. Write "${colResult.name} ${colResult.token.replace(/,+$/, '')} …" without the comma.`
+            : `Unexpected "${colResult.token}" in column "${colResult.name}". A column is: name [type] [pk|fk|unique|nullable]`
+        );
+      } else {
+        pushError(
+          lineNumber,
+          `"${trimmed}" is neither a column nor a relationship. A column is: name [type] [pk|fk|unique|nullable]. A relationship is: 1-label-* target`
+        );
       }
       continue;
     }

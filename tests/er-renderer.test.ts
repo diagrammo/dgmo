@@ -110,14 +110,14 @@ describe('renderERDiagram', () => {
     });
 
     it('renders data-line-number on table nodes', () => {
-      const container = renderToContainer('users\n  id: int [pk]');
+      const container = renderToContainer('users\n  id int pk');
       const node = container.querySelector('.er-table');
       expect(node?.getAttribute('data-line-number')).toBe('1');
       document.body.removeChild(container);
     });
 
     it('renders data-node-id on table nodes', () => {
-      const container = renderToContainer('users\n  id: int [pk]');
+      const container = renderToContainer('users\n  id int pk');
       const node = container.querySelector('.er-table');
       expect(node?.getAttribute('data-node-id')).toBe('users');
       document.body.removeChild(container);
@@ -188,7 +188,7 @@ describe('renderERDiagram', () => {
   describe('multiple tables', () => {
     it('renders all tables', () => {
       const content =
-        'users\n  id: int [pk]\n\nposts\n  id: int [pk]\n\ncomments\n  id: int [pk]';
+        'users\n  id int pk\n\nposts\n  id int pk\n\ncomments\n  id int pk';
       const container = renderToContainer(content);
       const nodes = container.querySelectorAll('.er-table');
       expect(nodes.length).toBe(3);

@@ -1267,6 +1267,11 @@ users
 Format: `name [type] [constraints...]`
 Constraints: `pk`, `fk`, `unique`, `nullable`
 
+Constraints are separated by **spaces**; a comma is a parse error. Write
+`id text fk nullable`, never `id text fk, nullable` — this is the one place in
+the language where a comma is wrong, and it used to discard the whole column
+silently.
+
 ### 8.4 Relationships (Indented Under Source Table)
 
 ```
