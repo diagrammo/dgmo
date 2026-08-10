@@ -480,8 +480,11 @@ export function wrapEdgeLabelText(
   description: readonly string[],
   maxWidth: number = EDGE_LABEL_MAX_WIDTH
 ): { labelLines: string[]; descLines: string[] } {
+  // The renderer draws the label block at 600 — bold, since only Regular and
+  // Bold ship and CSS font matching resolves 600 up — and the description
+  // block below it at the default weight.
   const labelLines = label
-    ? wrapTextToWidth(label, EDGE_LABEL_FONT_SIZE, maxWidth)
+    ? wrapTextToWidth(label, EDGE_LABEL_FONT_SIZE, maxWidth, { bold: true })
     : [];
   const descLines: string[] = [];
   for (const d of description) {
@@ -711,7 +714,10 @@ function computeEdgePaths(
     const lineCount = labelLines.length + descLines.length;
     let labelPxW = 0;
     for (const l of labelLines)
-      labelPxW = Math.max(labelPxW, measureText(l, EDGE_LABEL_FONT_SIZE));
+      labelPxW = Math.max(
+        labelPxW,
+        measureText(l, EDGE_LABEL_FONT_SIZE, { bold: true })
+      );
     for (const l of descLines)
       labelPxW = Math.max(labelPxW, measureText(l, EDGE_LABEL_FONT_SIZE));
     const { labelX, labelY, labelAngle } = computeEdgeLabelPosition(
@@ -895,7 +901,10 @@ function fitToCanvas(
     );
     let textWidth = 0;
     for (const l of labelLines)
-      textWidth = Math.max(textWidth, measureText(l, EDGE_LABEL_FONT_SIZE));
+      textWidth = Math.max(
+        textWidth,
+        measureText(l, EDGE_LABEL_FONT_SIZE, { bold: true })
+      );
     for (const l of descLines)
       textWidth = Math.max(textWidth, measureText(l, EDGE_LABEL_FONT_SIZE));
     if (textWidth === 0) continue;

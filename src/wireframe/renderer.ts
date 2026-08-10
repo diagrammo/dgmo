@@ -713,7 +713,10 @@ function renderNav(
       .attr('font-weight', isActive ? '600' : 'normal')
       .text(child.label);
 
-    const labelW = measureText(child.label, 13);
+    // An active nav item draws at 600, the rest at normal — and the state is
+    // written in the diagram source rather than toggled, so each item can be
+    // measured in its own face without anything shifting later.
+    const labelW = measureText(child.label, 13, { bold: isActive });
 
     // Active underline
     if (isActive) {
@@ -751,7 +754,7 @@ function renderTabs(
   let x = 0;
   for (const child of el.children) {
     const isActive = child.states.includes('active');
-    const tabW = measureText(child.label, 13) + 24;
+    const tabW = measureText(child.label, 13, { bold: isActive }) + 24;
 
     if (isActive) {
       // Active tab bottom border
@@ -887,7 +890,8 @@ function renderTableCell(
     const isGhost = stateStr === 'ghost';
     const isDestructive = stateStr === 'destructive';
     const fill = isDestructive ? palette.destructive : palette.primary;
-    const btnW = Math.min(measureText(label, 10) + 16, maxW);
+    // Both button branches draw the label at 600.
+    const btnW = Math.min(measureText(label, 10, { bold: true }) + 16, maxW);
     const btnH = 20;
     const by = y + (rowH - btnH) / 2;
 

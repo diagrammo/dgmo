@@ -1753,8 +1753,15 @@ function renderNodes(
 
         // Compute max key width (pixels) so values align vertically.
         // Keys are drawn as "${key}: ", so measure that exact string.
+        // One `valueX` aligns every row, so the widest key has to be found
+        // with each row measured in the face it is drawn in: an inverted row
+        // draws its key at 600 (bold), a plain row at the default weight.
         const maxKeyWidth = Math.max(
-          ...rows.map((r) => measureText(`${r.key}: `, sc.sMetaFontSize))
+          ...rows.map((r) =>
+            measureText(`${r.key}: `, sc.sMetaFontSize, {
+              bold: Boolean(r.inverted && r.invertedBg),
+            })
+          )
         );
         const valueX = x + 10 + maxKeyWidth;
 
@@ -2265,8 +2272,13 @@ function renderLegend(
     for (const s of playback.speedOptions) {
       const label = `${s}x`;
       const isSpeedActive = playback.speed === s;
+      // Measured bold whether or not this speed is the active one. The
+      // active badge draws at 600 and the rest at 400, so measuring per state
+      // would resize the badges as playback speed changes and shuffle the row
+      // sideways under the cursor. Sizing them all for the bold case costs an
+      // inactive badge ~3% padding and keeps the row still.
       const slotW =
-        measureLegendText(label, LEGEND_ENTRY_FONT_SIZE) +
+        measureLegendText(label, LEGEND_ENTRY_FONT_SIZE, { bold: true }) +
         SPEED_BADGE_H_PAD * 2;
       const badgeH = LEGEND_ENTRY_FONT_SIZE + SPEED_BADGE_V_PAD * 2;
       const badgeY = (LEGEND_HEIGHT - badgeH) / 2;

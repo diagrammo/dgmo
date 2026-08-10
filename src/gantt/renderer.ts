@@ -2582,7 +2582,9 @@ function renderErasAndMarkers(
     const markerDisplayLabel = truncateLegendText(
       marker.label,
       11,
-      markerLabelMaxW
+      markerLabelMaxW,
+      // Drawn at 600 below. The era label sharing this helper is not.
+      { bold: true }
     );
     const markerTruncated = markerDisplayLabel !== marker.label;
 

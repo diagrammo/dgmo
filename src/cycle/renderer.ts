@@ -508,7 +508,12 @@ export function renderCycle(
     // uses to size + place the label).
     let maxLineW = 0;
     for (const l of labelLines)
-      maxLineW = Math.max(maxLineW, measureText(l, scaledEdgeLabelFont));
+      maxLineW = Math.max(
+        maxLineW,
+        // The label block is drawn at 600, the description lines below at the
+        // default weight — so only these measure bold.
+        measureText(l, scaledEdgeLabelFont, { bold: true })
+      );
     for (const l of descLines)
       maxLineW = Math.max(maxLineW, measureText(l, scaledDescFont));
 
