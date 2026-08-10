@@ -58,7 +58,9 @@ export function renderLiveLinkCard(
     `<text x="${CONTENT_X}" y="${y}" fill="${palette.text}" font-family="${
       headlineMono ? MONO_FAMILY : FONT_FAMILY
     }" font-size="${HEADLINE_FS}" font-weight="${headlineMono ? 500 : 700}">` +
-      `${escapeXml(truncateText(headline, HEADLINE_FS, CONTENT_W))}</text>`
+      // The titled form is drawn at 700, the mono id form at 500 — which CSS
+      // resolves down to the 400 face, so only the former measures as bold.
+      `${escapeXml(truncateText(headline, HEADLINE_FS, CONTENT_W, { bold: !headlineMono }))}</text>`
   );
   y += 30;
 

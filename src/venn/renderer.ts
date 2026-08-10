@@ -565,12 +565,12 @@ export function renderVenn(
 
     const availW = exclusiveHSpan(centroid.x, centroid.y, i);
     // Width of `text` at fontSize 1; scale to solve for the largest fitting font.
-    const textWidthPerPx = measureText(text, 1);
+    const textWidthPerPx = measureText(text, 1, { bold: true });
     const fitFont = Math.min(
       MAX_FONT,
       Math.max(MIN_FONT, (availW - INTERNAL_PAD * 2) / textWidthPerPx)
     );
-    const estTextW = measureText(text, fitFont);
+    const estTextW = measureText(text, fitFont, { bold: true });
 
     const fitsInside =
       estTextW + INTERNAL_PAD * 2 < availW &&
@@ -634,7 +634,7 @@ export function renderVenn(
       const textAnchor = isRight ? 'start' : 'end';
       let textX = stubEndX + (isRight ? labelTextPad : -labelTextPad);
       const textY = stubEndY;
-      const estW = measureText(text, sSetLabelFont);
+      const estW = measureText(text, sSetLabelFont, { bold: true });
       if (isRight) textX = Math.min(textX, width - estW - 4);
       else textX = Math.max(textX, estW + 4);
 
@@ -652,7 +652,7 @@ export function renderVenn(
         .attr('font-size', `${sSetLabelFont}px`)
         .attr('font-weight', 'bold')
         .text(text);
-      const externalEstW = measureText(text, sSetLabelFont);
+      const externalEstW = measureText(text, sSetLabelFont, { bold: true });
       setLabelBBoxes[i] = {
         x: isRight ? textX : textX - externalEstW,
         y: renderedTextY - sSetLabelFont / 2,

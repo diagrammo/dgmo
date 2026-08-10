@@ -146,7 +146,8 @@ function cardSize(p: FamilyPerson): CardSize {
       : valueX + measureText(r.value, META_FONT_SIZE);
     contentRight = Math.max(contentRight, right);
   }
-  const labelW = measureText(p.label, LABEL_FONT_SIZE);
+  // The renderer draws the card label bold; the meta rows above are regular.
+  const labelW = measureText(p.label, LABEL_FONT_SIZE, { bold: true });
   const width = Math.max(
     MIN_CARD_W,
     labelW + CARD_TEXT_PAD * 2,

@@ -193,7 +193,10 @@ function computeLayout(
       continue;
     }
 
-    let maxCardTextWidth = measureText(col.name, sColumnHeaderFontSize);
+    // The column header is drawn bold; the card titles measured below are not.
+    let maxCardTextWidth = measureText(col.name, sColumnHeaderFontSize, {
+      bold: true,
+    });
 
     const cardLayouts: CardLayout[] = [];
     let cardY = sColumnHeaderHeight + sColumnPadding;

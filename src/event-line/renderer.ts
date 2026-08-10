@@ -332,6 +332,8 @@ export function renderEventLine(
   const titleLayout = (label: string): { lines: string[]; headerH: number } => {
     const lines = wrapTextToWidth(label, LABEL_FONT_SIZE, TITLE_MAX_W, {
       hardBreak: true,
+      // The card title is drawn at 700.
+      bold: true,
     });
     const headerH = Math.max(HEADER_HEIGHT, lines.length * TITLE_LINE_H + 12);
     return { lines, headerH };

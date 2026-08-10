@@ -311,7 +311,9 @@ function flattenNodes(
         fullMeta: { ...node.metadata },
         width: Math.max(
           MIN_CARD_WIDTH,
-          measureText(node.label, CONTAINER_LABEL_FONT_SIZE) + CARD_H_PAD * 2
+          // The renderer draws the container name bold.
+          measureText(node.label, CONTAINER_LABEL_FONT_SIZE, { bold: true }) +
+            CARD_H_PAD * 2
         ),
         height: labelHeight + CONTAINER_PAD_BOTTOM,
       });

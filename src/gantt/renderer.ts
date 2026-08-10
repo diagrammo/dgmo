@@ -85,9 +85,12 @@ function computeBarLabel(
   onFillColor?: string,
   fontSize = 10,
   labelPad = LABEL_PAD,
-  labelGap = LABEL_GAP
+  labelGap = LABEL_GAP,
+  /** True where the caller draws this label at 700 — the group bars do, the
+   *  task bars do not, and measuring the wrong face mis-places it. */
+  bold = false
 ): BarLabelPlacement | null {
-  const textWidth = measureText(label, fontSize);
+  const textWidth = measureText(label, fontSize, { bold });
   const x2 = x1 + barWidth;
 
   if (textWidth < barWidth - labelPad) {
@@ -110,7 +113,7 @@ function computeBarLabel(
   const availWidth = x1 - labelGap;
   // Roughly three average glyphs' worth of room before truncation is worthwhile.
   if (availWidth > fontSize * CHAR_WIDTH_RATIO * 3) {
-    const truncated = truncateText(label, fontSize, availWidth);
+    const truncated = truncateText(label, fontSize, availWidth, { bold });
     if (!truncated) return null;
     return {
       x: x1 - labelGap,
@@ -301,7 +304,8 @@ export function renderGantt(
     ? [
         ...rows
           .filter((r): r is LaneHeaderRow => r.type === 'lane-header')
-          .map((r) => measureText(r.laneName, LABEL_FONT)),
+          // Lane names are drawn bold; task labels below are not.
+          .map((r) => measureText(r.laneName, LABEL_FONT, { bold: true })),
         ...rows
           .filter((r): r is TaskRow => r.type === 'task')
           .map((r) => measureText('● ' + r.task.task.label, LABEL_FONT)),
@@ -313,7 +317,8 @@ export function renderGantt(
         ...resolved.groups.map((g) => {
           const indentPx =
             g.depth <= 2 ? g.depth * 14 : 2 * 14 + (g.depth - 2) * 8;
-          return indentPx + measureText(g.name, LABEL_FONT);
+          // A group name is drawn bold, unlike the task labels above it.
+          return indentPx + measureText(g.name, LABEL_FONT, { bold: true });
         }),
       ];
   // Floor on a 10-char label so very short schedules still get a usable gutter.
@@ -416,7 +421,10 @@ export function renderGantt(
             name: tg.name,
             entries: tg.entries,
           })),
-          position: { placement: 'top-center', titleRelation: 'inline-with-title' },
+          position: {
+            placement: 'top-center',
+            titleRelation: 'inline-with-title',
+          },
           mode: 'preview',
           capsulePillAddonWidth: LEGEND_ICON_W,
         },
@@ -999,7 +1007,9 @@ export function renderGantt(
             ),
             sFont10,
             sLabelPad,
-            sLabelGap
+            sLabelGap,
+            // Drawn at 700 below.
+            true
           );
           if (summaryPlacement) {
             summaryG
@@ -1085,7 +1095,9 @@ export function renderGantt(
             ),
             sFont10,
             sLabelPad,
-            sLabelGap
+            sLabelGap,
+            // Drawn at 700 below.
+            true
           );
           if (expandedPlacement) {
             groupBarG
