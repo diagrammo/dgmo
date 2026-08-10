@@ -57,17 +57,23 @@ export function legendInlineSupported(type: string): boolean {
 export const INLINE_HEADER_PAD = 8;
 /** Minimum gap between the inline title and the legend. */
 export const INLINE_HEADER_GAP = 16;
-/** Bold titles measure ~6% wider than the Helvetica-regular glyph table. */
-const BOLD_WIDTH_FACTOR = 1.06;
 /** A legend narrower than this beside the title isn't worth inlining. */
 const MIN_INLINE_LEGEND_W = 48;
 
-/** Bold-adjusted rendered width of a banner title. */
+/**
+ * Rendered width of a banner title, measured in the face it is drawn in.
+ *
+ * Every renderer draws the title at TITLE_FONT_WEIGHT (700), so this
+ * measures against Inter Bold. It used to scale the Regular width by a flat
+ * 1.06 guess, back when the glyph table was Helvetica and no bold advances
+ * existed; the real Inter Bold/Regular ratio is ~1.034 and now comes from the
+ * shipped TTFs (issue 167).
+ */
 export function measureTitleWidth(
   title: string,
   fontSize: number = TITLE_FONT_SIZE
 ): number {
-  return measureText(title, fontSize) * BOLD_WIDTH_FACTOR;
+  return measureText(title, fontSize, { bold: true });
 }
 
 export interface InlineHeaderInput {
