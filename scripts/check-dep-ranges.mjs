@@ -39,8 +39,17 @@ function npmView(spec, field) {
       stdio: ['ignore', 'pipe', 'ignore'],
     });
     // A range matching several versions prints one per line; take the highest,
-    // which npm prints last.
-    return out.trim().split('\n').filter(Boolean).pop()?.replace(/['"]/g, '');
+    // which npm prints last. In that multi-version form npm also prefixes each
+    // line with `name@version `, so the field is the LAST whitespace-separated
+    // token — not the whole line. Reading the line whole made this guard fail
+    // the moment a range could reach two published versions, reporting
+    // "@scope/pkg@0.21.0 0.21.0" as the version it had resolved.
+    const line = out.trim().split('\n').filter(Boolean).pop();
+    return line
+      ?.trim()
+      .split(/\s+/)
+      .pop()
+      ?.replace(/['"]/g, '');
   } catch {
     return undefined;
   }
