@@ -90,7 +90,7 @@
     "typecheck": "tsc --noEmit",
     "predev": "pnpm fonts",
     "dev": "DGMO_DEV_RELOAD=1 tsup --watch",
-    "pretest": "pnpm codegen",
+    "pretest": "pnpm codegen && pnpm fonts",
     "test": "TZ=UTC vitest run --coverage",
     "bench:perf": "vitest run --config vitest.perf.config.ts tests/perf-bench.ts",
     "bench:bl": "vitest run --config vitest.bench.config.ts tests/bl-layout-bench.ts",
