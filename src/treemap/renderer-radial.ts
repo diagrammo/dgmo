@@ -442,7 +442,9 @@ function isBottomHalf(cell: RadialCell): boolean {
 /** Shrink-to-fit: drop the font size proportionally to the overflow so `text`
  *  fits `availLen`, floored at MIN_LABEL_FS. Width scales ~linearly with fs. */
 function fitFs(text: string, maxFs: number, availLen: number): number {
-  const w = measureText(text, maxFs);
+  // Every run on this chart is drawn at 600 or 700, both of which resolve to
+  // the Bold face.
+  const w = measureText(text, maxFs, { bold: true });
   if (w <= availLen) return maxFs;
   return Math.max(MIN_LABEL_FS, Math.floor((maxFs * availLen) / w));
 }
@@ -548,12 +550,13 @@ function clampFs(base: number, thickness: number): number {
 }
 
 function clip(s: string, maxWidth: number, fs: number): string {
-  if (measureText(s, fs) <= maxWidth) return s;
+  if (measureText(s, fs, { bold: true }) <= maxWidth) return s;
   let lo = 0;
   let hi = s.length;
   while (lo < hi) {
     const mid = Math.ceil((lo + hi) / 2);
-    if (measureText(s.slice(0, mid) + '…', fs) <= maxWidth) lo = mid;
+    if (measureText(s.slice(0, mid) + '…', fs, { bold: true }) <= maxWidth)
+      lo = mid;
     else hi = mid - 1;
   }
   return lo <= 0 ? '' : s.slice(0, lo) + '…';

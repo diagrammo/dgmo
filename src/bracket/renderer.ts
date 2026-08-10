@@ -62,13 +62,20 @@ const LEGEND_POSITION: LegendPosition = {
 
 type GSel = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
 
-function clip(s: string, maxW: number, fs: number): string {
-  if (measureText(s, fs) <= maxW) return s;
+/**
+ * Clip to a pixel width with a trailing ellipsis, measured in the face the
+ * caller draws. Weights on this chart run 500 to 800: with only Regular and
+ * Bold shipped, CSS font matching sends 600 and above to the Bold face and 500
+ * down to Regular (verified by rasterising all four — 600/700/800 come out
+ * byte-identical to each other, 500 to 400).
+ */
+function clip(s: string, maxW: number, fs: number, bold: boolean): string {
+  if (measureText(s, fs, { bold }) <= maxW) return s;
   let lo = 0;
   let hi = s.length;
   while (lo < hi) {
     const mid = Math.ceil((lo + hi) / 2);
-    if (measureText(s.slice(0, mid) + '…', fs) <= maxW) lo = mid;
+    if (measureText(s.slice(0, mid) + '…', fs, { bold }) <= maxW) lo = mid;
     else hi = mid - 1;
   }
   return lo <= 0 ? '' : s.slice(0, lo) + '…';
@@ -410,7 +417,7 @@ export function renderBracket(
       .attr('font-weight', 800)
       .attr('letter-spacing', 0.3)
       .attr('fill', c)
-      .text(clip(s.label, s.x1 - s.x0, 13));
+      .text(clip(s.label, s.x1 - s.x0, 13, true));
   }
 
   // ── Round labels ──
@@ -433,7 +440,7 @@ export function renderBracket(
       .attr('font-weight', covered ? 700 : 800)
       .attr('fill', c)
       .attr('letter-spacing', 0.4)
-      .text(clip(col.label, BOX_W + 20, covered ? 14 : 15));
+      .text(clip(col.label, BOX_W + 20, covered ? 14 : 15, true));
   }
 
   // ── Connectors (behind boxes) ──
@@ -647,7 +654,8 @@ function drawBox(
       .attr('font-weight', 700)
       .attr('fill', gutterColor)
       .text(info.seed);
-    leftPad = 9 + Math.max(12, measureText(String(info.seed), 10)) + 6;
+    leftPad =
+      9 + Math.max(12, measureText(String(info.seed), 10, { bold: true })) + 6;
   }
 
   // Right gutter: home glyph then the score.
@@ -666,7 +674,15 @@ function drawBox(
     .attr('font-size', 12.5)
     .attr('font-weight', weight)
     .attr('fill', textColor)
-    .text(clip(isTBD ? 'TBD' : name!, BOX_W - leftPad - rightPad, 12.5));
+    // A participant name is 500 when it is out of the running, 600+ otherwise.
+    .text(
+      clip(
+        isTBD ? 'TBD' : name!,
+        BOX_W - leftPad - rightPad,
+        12.5,
+        weight >= 600
+      )
+    );
 
   if (info.score) {
     cell

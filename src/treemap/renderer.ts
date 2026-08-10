@@ -432,10 +432,10 @@ export function renderTreemap(
           // smaller, on the same line (if it fits the width).
           const ivfs = clamp(Math.round(fs * 0.5), 11, Math.max(11, vfs));
           const rendered = clipLabel(cell.label, maxW, fs);
-          // Safety factor: text-measure under-estimates bold glyph width, so pad
-          // it to the worst case (and add a real gap) or the value collides with
-          // the name's end (e.g. "Hardtack70").
-          const nW = measureText(rendered, fs) * 1.12;
+          // Measured in the bold face the name is drawn in — this used to pad
+          // the regular width by 12% to keep the value off the name's end
+          // (e.g. "Hardtack70"); the real advances make the guess unnecessary.
+          const nW = measureText(rendered, fs, { bold: true });
           const gap = Math.max(12, Math.round(fs * 0.25));
           if (PAD + nW + gap + measureText(combined, ivfs) <= w - PAD) {
             g.append('text')
@@ -580,7 +580,7 @@ function drawVerticalLabel(
   // Thickness-bound first: cap the glyph height to the cell width (modest cap so
   // vertical names stay subtle), then shrink to fit the name into the length.
   let fs = clamp(Math.round(Math.min(availThick / 0.8, 14)), MIN_FS, 22);
-  const nameW = measureText(label, fs) * 1.06;
+  const nameW = measureText(label, fs, { bold: true });
   if (nameW > availLen)
     fs = Math.max(MIN_FS, Math.floor((fs * availLen) / nameW));
   const text = clipLabel(label, availLen, fs);
@@ -622,13 +622,20 @@ function clamp(x: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, x));
 }
 
+/**
+ * Clip to a pixel width with a trailing ellipsis. Measured bold because every
+ * caller draws at 600 or 700, and with only Regular and Bold shipped, CSS font
+ * matching resolves both of those to the Bold face (verified by rasterising:
+ * 600 and 700 are byte-identical, 500 and 400 are byte-identical).
+ */
 function clipLabel(s: string, maxWidth: number, fs: number): string {
-  if (measureText(s, fs) <= maxWidth) return s;
+  if (measureText(s, fs, { bold: true }) <= maxWidth) return s;
   let lo = 0;
   let hi = s.length;
   while (lo < hi) {
     const mid = Math.ceil((lo + hi) / 2);
-    if (measureText(s.slice(0, mid) + '…', fs) <= maxWidth) lo = mid;
+    if (measureText(s.slice(0, mid) + '…', fs, { bold: true }) <= maxWidth)
+      lo = mid;
     else hi = mid - 1;
   }
   return lo <= 0 ? '' : s.slice(0, lo) + '…';

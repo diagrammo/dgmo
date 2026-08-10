@@ -193,6 +193,11 @@ function fitLabelToHeader(
   nodeWidth: number,
   maxLines: number
 ): { lines: string[]; fontSize: number } {
+  // Every caller draws these lines at 600 or 700 — a group label at 600, a node
+  // title at 700 — and with only Regular and Bold shipped, CSS font matching
+  // resolves both to the Bold face. Verified by rasterising the same string at
+  // all four weights: 600 and 700 come out byte-identical, as do 400 and 500.
+  const BOLD = { bold: true } as const;
   const maxTextWidth = nodeWidth - NODE_TEXT_PADDING * 2;
 
   const words = splitLabelChunks(label);
@@ -202,7 +207,7 @@ function fitLabelToHeader(
     fontSize >= MIN_NODE_FONT_SIZE;
     fontSize--
   ) {
-    if (maxTextWidth < measureText('MM', fontSize)) continue;
+    if (maxTextWidth < measureText('MM', fontSize, BOLD)) continue;
 
     // Wrap words into lines (greedy, by measured pixel width)
     const lines: string[] = [];
@@ -210,7 +215,7 @@ function fitLabelToHeader(
     for (const word of words) {
       const joiner = current && word.spaceBefore ? ' ' : '';
       const test = current ? `${current}${joiner}${word.text}` : word.text;
-      if (measureText(test, fontSize) <= maxTextWidth) {
+      if (measureText(test, fontSize, BOLD) <= maxTextWidth) {
         current = test;
       } else {
         if (current) lines.push(current);
@@ -220,7 +225,7 @@ function fitLabelToHeader(
     if (current) lines.push(current);
 
     const fits = (l: string): boolean =>
-      measureText(l, fontSize) <= maxTextWidth;
+      measureText(l, fontSize, BOLD) <= maxTextWidth;
 
     // All lines fit at this font? Done.
     if (lines.length <= maxLines && lines.every(fits)) {
@@ -230,7 +235,7 @@ function fitLabelToHeader(
     // Lines fit in count but some are too wide? Truncate those lines.
     if (lines.length <= maxLines) {
       const result = lines.map((l) =>
-        fits(l) ? l : truncateText(l, fontSize, maxTextWidth)
+        fits(l) ? l : truncateText(l, fontSize, maxTextWidth, BOLD)
       );
       return { lines: result, fontSize };
     }
@@ -238,21 +243,24 @@ function fitLabelToHeader(
     // Too many lines — take first maxLines, truncate last + any oversized
     const result = lines
       .slice(0, maxLines)
-      .map((l) => (fits(l) ? l : truncateText(l, fontSize, maxTextWidth)));
+      .map((l) =>
+        fits(l) ? l : truncateText(l, fontSize, maxTextWidth, BOLD)
+      );
     // In-bounds: result has exactly maxLines entries (from .slice(0, maxLines)).
     const last = result[maxLines - 1]!;
     if (!last.endsWith('\u2026')) {
       result[maxLines - 1] = truncateText(
         last + '\u2026',
         fontSize,
-        maxTextWidth
+        maxTextWidth,
+        BOLD
       );
     }
     return { lines: result, fontSize };
   }
 
   // Fallback at min font
-  const truncated = truncateText(label, MIN_NODE_FONT_SIZE, maxTextWidth);
+  const truncated = truncateText(label, MIN_NODE_FONT_SIZE, maxTextWidth, BOLD);
   return { lines: [truncated], fontSize: MIN_NODE_FONT_SIZE };
 }
 
