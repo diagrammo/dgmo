@@ -104,31 +104,43 @@ const SAMPLES: readonly {
     beatsFlat: true,
   },
   // Estimates: which face draws these is the machine's choice, so the advance
-  // moves with it. Wide band, and the assertion that does not depend on the
-  // font at all — closer than charging 0.603 per codepoint was.
+  // moves with it — and so does the comparison. `beatsFlat` reads as
+  // font-independent and is not: it divides BOTH models by the same
+  // machine-chosen `real`, so a machine whose Hebrew font happens to average
+  // near 0.603 em hands the win to the flat number by luck rather than by
+  // merit. That is not hypothetical — this laptop had the per-script ratio
+  // ahead on all four while a bare Ubuntu runner had the flat number ahead on
+  // Arabic (0.098 vs 0.186) and Hebrew (0.005 vs 0.168), and the whole gate
+  // went red on the difference in fonts (2026-08-10).
+  //
+  // 🔴 So `beatsFlat` is claimed ONLY where the writing system pins the advance
+  // and every font that draws it agrees — the full-width rows above. For an
+  // estimate the band is the honest assertion, and it is the one that catches a
+  // model charging the wrong width; a comparison decided by what someone
+  // happened to install measures the harness, not the model.
   {
     script: 'Devanagari',
     text: 'नमस्ते',
     band: 0.25,
-    beatsFlat: true,
+    beatsFlat: false,
   },
   {
     script: 'Thai',
     text: 'สวัสดี',
     band: 0.25,
-    beatsFlat: true,
+    beatsFlat: false,
   },
   {
     script: 'Arabic',
     text: 'مرحبا',
     band: 0.25,
-    beatsFlat: true,
+    beatsFlat: false,
   },
   {
     script: 'Hebrew',
     text: 'שלום',
     band: 0.25,
-    beatsFlat: true,
+    beatsFlat: false,
   },
   // Greek and Cyrillic are the two scripts the flat fallback was ALREADY right
   // for — 0.603 is a Latin/Cyrillic number — which is exactly why nobody
