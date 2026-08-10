@@ -174,9 +174,10 @@ function computeCardWidth(
   meta: Record<string, string>,
   descLines?: readonly string[]
 ): number {
-  // Measure each text element at the font size the renderer draws it with so
-  // the card never under-sizes its content.
-  let maxContentWidth = measureText(label, LABEL_FONT_SIZE);
+  // Measure each text element in the font size AND face the renderer draws it
+  // with so the card never under-sizes its content. The card label is bold
+  // (utils/card.ts); meta rows and description lines are regular.
+  let maxContentWidth = measureText(label, LABEL_FONT_SIZE, { bold: true });
   for (const [key, value] of Object.entries(meta)) {
     // Renderer draws meta as "key:" then the value, both at META_FONT_SIZE,
     // with a space separating them.

@@ -162,8 +162,8 @@ function filterMetadata(
 }
 
 function computeCardWidth(label: string, meta: Record<string, string>): number {
-  // Label is drawn bold at LABEL_FONT_SIZE; meta rows at META_FONT_SIZE.
-  let maxTextWidth = measureText(label, LABEL_FONT_SIZE);
+  // Label is drawn bold at LABEL_FONT_SIZE; meta rows regular at META_FONT_SIZE.
+  let maxTextWidth = measureText(label, LABEL_FONT_SIZE, { bold: true });
 
   for (const [key, value] of Object.entries(meta)) {
     const lineWidth = measureText(`${key}: ${value}`, META_FONT_SIZE);
