@@ -72,6 +72,8 @@ const COLUMN_RADIUS = 8;
 const COLUMN_HEADER_HEIGHT = 36;
 const COLUMN_PADDING = 12;
 const FONT_SIZE_TITLE = 18;
+/** Persona panel width; the title stops before it, so both must agree. */
+const PERSONA_PANEL_WIDTH = 280;
 const FONT_SIZE_PHASE = 13;
 const FONT_SIZE_STEP = 12;
 const FONT_SIZE_META = 10;
@@ -181,6 +183,17 @@ export function renderJourneyMap(
     if (parsed.titleLineNumber) {
       titleG.attr('data-line-number', parsed.titleLineNumber);
     }
+    // The persona panel sits at PADDING from the top-right corner, so it
+    // shares the title's band — the title stops before it rather than running
+    // underneath. Bold is the one place in this renderer where the heavier
+    // face is really drawn, so it is the one place measured as bold.
+    const personaPanelX = parsed.persona
+      ? layout.totalWidth - PADDING - PERSONA_PANEL_WIDTH
+      : layout.totalWidth;
+    const titleMaxW = Math.max(
+      0,
+      Math.min(personaPanelX - PADDING, layout.totalWidth - PADDING) - PADDING
+    );
     titleG
       .append('text')
       .attr('x', PADDING)
@@ -188,7 +201,11 @@ export function renderJourneyMap(
       .attr('font-size', FONT_SIZE_TITLE)
       .attr('font-weight', 'bold')
       .attr('fill', palette.text)
-      .text(parsed.title!);
+      .text(
+        truncateToWidth(parsed.title!, FONT_SIZE_TITLE, titleMaxW, {
+          bold: true,
+        })
+      );
 
     if (onNavigateToLine && parsed.titleLineNumber) {
       titleG.style('cursor', 'pointer').on('click', () => {
@@ -208,7 +225,7 @@ export function renderJourneyMap(
     // Panel dimensions
     const titleRowH = CARD_HEADER_HEIGHT;
     const silhouetteZone = 60; // right-side space reserved for silhouette
-    const panelWidth = 280;
+    const panelWidth = PERSONA_PANEL_WIDTH;
     const textAreaWidth = panelWidth - silhouetteZone - CARD_PADDING_X;
     const descLineH = 14;
 
@@ -304,7 +321,12 @@ export function renderJourneyMap(
       .attr('font-size', FONT_SIZE_STEP)
       .attr('font-weight', '500')
       .attr('fill', onPersonaText)
-      .text(parsed.persona.name);
+      // Same text area the description already wraps into — the silhouette
+      // occupies the right of the card. Weight 500 is NOT measured as bold:
+      // only 400 and 700 faces ship, so it resolves down to regular.
+      .text(
+        truncateToWidth(parsed.persona.name, FONT_SIZE_STEP, textAreaWidth)
+      );
 
     // Description — wrapped lines below divider, with inline markdown.
     // Bullet first-lines get a "•" glyph at the left edge with the body
@@ -684,10 +706,10 @@ export function renderJourneyMap(
         .attr('fill', onHeaderText)
         .text(
           isCollapsed
-            ? truncateText(
+            ? truncateToWidth(
                 pl.phase.name,
-                pl.width - COLUMN_PADDING * 2,
-                FONT_SIZE_PHASE
+                FONT_SIZE_PHASE,
+                pl.width - COLUMN_PADDING * 2
               )
             : pl.phase.name
         );
@@ -798,7 +820,7 @@ export function renderJourneyMap(
             .attr('dominant-baseline', 'central')
             .attr('font-size', FONT_SIZE_META)
             .attr('fill', palette.text)
-            .text(truncateText(step.title, maxTextW, FONT_SIZE_META));
+            .text(truncateToWidth(step.title, FONT_SIZE_META, maxTextW));
 
           if (onNavigateToLine) {
             itemG.style('cursor', 'pointer').on('click', (event: Event) => {
@@ -913,7 +935,7 @@ export function renderJourneyMap(
       const fcy = parseFloat(faceEl.attr('data-cy') ?? '0');
       const score = parseInt(faceEl.attr('data-score') ?? '3', 10);
 
-      const lines = wrapText(thoughtText, THOUGHT_MAX_W, THOUGHT_FONT);
+      const lines = wrapTextToWidth(thoughtText, THOUGHT_FONT, THOUGHT_MAX_W);
       const textW = Math.min(
         THOUGHT_MAX_W,
         Math.max(...lines.map((l) => measureText(l, THOUGHT_FONT)))
@@ -1194,10 +1216,10 @@ function renderStepCard(
 
   // Description (wrapped text, matches kanban metadata style)
   if (sl.step.description) {
-    const descLines = wrapText(
+    const descLines = wrapTextToWidth(
       sl.step.description,
-      sl.width - CARD_PADDING_X * 2,
-      FONT_SIZE_META
+      FONT_SIZE_META,
+      sl.width - CARD_PADDING_X * 2
     );
     for (const line of descLines) {
       stepG
@@ -1219,7 +1241,7 @@ function renderStepCard(
   for (const anno of cardAnnotations) {
     const annoColor = annotationColor(anno.type, palette);
     const iconPaths = annotationIconPaths(anno.type);
-    const annoLines = wrapText(anno.text, annoTextW, FONT_SIZE_META);
+    const annoLines = wrapTextToWidth(anno.text, FONT_SIZE_META, annoTextW);
     // Icon color: semantic in tint mode (red pain / green opportunity reads
     // fine on a 25% tinted card). In solid mode the semantic color often
     // matches the card fill (red icon on red card → invisible), so fall back
@@ -1490,10 +1512,10 @@ function addEmotionLabel(
   palette: PaletteColors
 ): void {
   if (!pt.emotionLabel) return;
-  const text = truncateText(
+  const text = truncateToWidth(
     pt.emotionLabel,
-    EMOTION_LABEL_MAX_WIDTH,
-    EMOTION_LABEL_FONT_SIZE
+    EMOTION_LABEL_FONT_SIZE,
+    EMOTION_LABEL_MAX_WIDTH
   );
   const y = pt.y + FACE_RADIUS + 5 + EMOTION_LABEL_FONT_SIZE;
 
@@ -1514,18 +1536,6 @@ function addEmotionLabel(
     .attr('paint-order', 'stroke')
     .attr('pointer-events', 'none')
     .text(text);
-}
-
-function wrapText(text: string, maxWidth: number, fontSize: number): string[] {
-  return wrapTextToWidth(text, fontSize, maxWidth);
-}
-
-function truncateText(
-  text: string,
-  maxWidth: number,
-  fontSize: number
-): string {
-  return truncateToWidth(text, fontSize, maxWidth);
 }
 
 function annotationColor(

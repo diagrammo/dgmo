@@ -8,20 +8,37 @@
 // fit inside an org node but overflow an infra node. All sizing,
 // wrapping, and truncation now route through the per-glyph table here.
 
-// Helvetica character width ratios (fraction of fontSize). Replaces the
-// naive `chars * 0.6 * fontSize` estimate with per-character widths.
-// prettier-ignore
-const CHAR_W: Record<string, number> = {
-  ' ':.28,'!': .28,'"': .36,'#': .56,'$': .56,'%': .89,'&': .67,"'":.19,
-  '(':.33,')':.33,'*': .39,'+':.58,',':.28,'-':.33,'.':.28,'/':.28,
-  '0':.56,'1':.56,'2':.56,'3':.56,'4':.56,'5':.56,'6':.56,'7':.56,'8':.56,'9':.56,
-  ':':.28,';':.28,'<':.58,'=':.58,'>':.58,'?':.56,'@':1.02,
-  A:.67,B:.67,C:.72,D:.72,E:.67,F:.61,G:.78,H:.72,I:.28,J:.50,K:.67,L:.56,M:.83,
-  N:.72,O:.78,P:.67,Q:.78,R:.72,S:.67,T:.61,U:.72,V:.67,W:.94,X:.67,Y:.67,Z:.61,
-  a:.56,b:.56,c:.50,d:.56,e:.56,f:.28,g:.56,h:.56,i:.22,j:.22,k:.50,l:.22,m:.83,
-  n:.56,o:.56,p:.56,q:.56,r:.33,s:.50,t:.28,u:.56,v:.50,w:.72,x:.50,y:.50,z:.50,
-};
-const DEFAULT_W = 0.56;
+// The table is Inter's own advance widths, generated from the shipped TTFs by
+// scripts/build-text-metrics.mjs. It was a hand-copied Helvetica table until
+// 2026-08-09, which is not the font any renderer draws: FONT_FAMILY has put
+// Inter first for as long as fonts/ has existed, and Inter is the wider face.
+// Every chart type therefore under-measured by ~8% and wrapped one word too
+// late — visible first on journey-map cards, whose text is real prose in a
+// narrow box with nothing clipping it (issue 147).
+import {
+  INTER_BOLD_W,
+  INTER_DEFAULT_W,
+  INTER_REGULAR_W,
+} from './inter-metrics';
+
+const DEFAULT_W = INTER_DEFAULT_W;
+
+/**
+ * Which of the two shipped faces a run of text is drawn in.
+ *
+ * Only 400 and 700 exist — `fonts/` ships `Inter-Regular.ttf` and
+ * `Inter-Bold.ttf`, and the app declares exactly those two `@font-face`
+ * weights. So an intermediate weight is NOT an intermediate width: CSS font
+ * matching resolves a `font-weight: 500` label down to the 400 face, and it
+ * renders and measures as regular. Pass `bold` only where the text really is
+ * drawn at 700.
+ */
+export interface MeasureOpts {
+  bold?: boolean;
+}
+
+const tableFor = (opts?: MeasureOpts): Record<string, number> =>
+  opts?.bold ? INTER_BOLD_W : INTER_REGULAR_W;
 
 /**
  * Average glyph-width ratio (fraction of fontSize). Only for the rare
@@ -45,21 +62,31 @@ const MEASURE_CACHE_MAX = 10000;
  * model, no kerning), which lets wrap/truncate accumulate widths incrementally
  * instead of re-measuring growing strings.
  */
-function extendWidth(acc: number, text: string, fontSize: number): number {
+function extendWidth(
+  acc: number,
+  text: string,
+  fontSize: number,
+  opts?: MeasureOpts
+): number {
+  const table = tableFor(opts);
   let w = acc;
   for (let i = 0; i < text.length; i++) {
     // charAt returns '' for out-of-bounds, never undefined.
-    w += (CHAR_W[text.charAt(i)] ?? DEFAULT_W) * fontSize;
+    w += (table[text.charAt(i)] ?? DEFAULT_W) * fontSize;
   }
   return w;
 }
 
-/** Estimate rendered text width using Helvetica proportional character widths. */
-export function measureText(text: string, fontSize: number): number {
-  const key = `${fontSize}|${text}`;
+/** Estimate rendered text width using Inter's proportional advance widths. */
+export function measureText(
+  text: string,
+  fontSize: number,
+  opts?: MeasureOpts
+): number {
+  const key = `${opts?.bold ? 'b' : 'r'}|${fontSize}|${text}`;
   const cached = MEASURE_CACHE.get(key);
   if (cached !== undefined) return cached;
-  const w = extendWidth(0, text, fontSize);
+  const w = extendWidth(0, text, fontSize, opts);
   if (MEASURE_CACHE.size >= MEASURE_CACHE_MAX) MEASURE_CACHE.clear();
   MEASURE_CACHE.set(key, w);
   return w;
@@ -73,18 +100,19 @@ export function measureText(text: string, fontSize: number): number {
 export function truncateText(
   text: string,
   fontSize: number,
-  maxWidth: number
+  maxWidth: number,
+  opts?: MeasureOpts
 ): string {
-  if (measureText(text, fontSize) <= maxWidth) return text;
+  if (measureText(text, fontSize, opts) <= maxWidth) return text;
   const ellipsis = '…';
-  const ellipsisW = measureText(ellipsis, fontSize);
+  const ellipsisW = measureText(ellipsis, fontSize, opts);
   if (ellipsisW > maxWidth) return '';
   // Cumulative prefix widths, computed once: prefix[i] equals
   // measureText(text.slice(0, i), fontSize) exactly (same fold order), so the
   // bisection below never re-measures slices.
   const prefix: number[] = [0];
   for (let i = 0; i < text.length; i++) {
-    prefix.push(extendWidth(prefix[i]!, text.charAt(i), fontSize));
+    prefix.push(extendWidth(prefix[i]!, text.charAt(i), fontSize, opts));
   }
   let lo = 0;
   let hi = text.length;
@@ -111,12 +139,12 @@ export function wrapTextToWidth(
   text: string,
   fontSize: number,
   maxWidth: number,
-  opts?: { hardBreak?: boolean }
+  opts?: MeasureOpts & { hardBreak?: boolean }
 ): string[] {
   const words = text.split(/\s+/).filter((w) => w.length > 0);
   if (words.length === 0) return [''];
   const hardBreak = opts?.hardBreak ?? false;
-  const spaceW = (CHAR_W[' '] ?? DEFAULT_W) * fontSize;
+  const spaceW = (tableFor(opts)[' '] ?? DEFAULT_W) * fontSize;
   const lines: string[] = [];
   let current = '';
   // Running width of `current`, extended incrementally instead of re-measuring
@@ -124,18 +152,23 @@ export function wrapTextToWidth(
   // bit-identical widths to measuring the joined string whole.
   let currentW = 0;
   const pushWord = (word: string) => {
-    const testW = extendWidth(current ? currentW + spaceW : 0, word, fontSize);
+    const testW = extendWidth(
+      current ? currentW + spaceW : 0,
+      word,
+      fontSize,
+      opts
+    );
     if (testW <= maxWidth || !current) {
       current = current ? `${current} ${word}` : word;
       currentW = testW;
     } else {
       lines.push(current);
       current = word;
-      currentW = extendWidth(0, word, fontSize);
+      currentW = extendWidth(0, word, fontSize, opts);
     }
   };
   for (const word of words) {
-    if (hardBreak && measureText(word, fontSize) > maxWidth) {
+    if (hardBreak && measureText(word, fontSize, opts) > maxWidth) {
       // Break the over-long word into width-fitting chunks.
       if (current) {
         lines.push(current);
@@ -145,11 +178,11 @@ export function wrapTextToWidth(
       let chunk = '';
       let chunkW = 0;
       for (const ch of word) {
-        const candW = extendWidth(chunkW, ch, fontSize);
+        const candW = extendWidth(chunkW, ch, fontSize, opts);
         if (chunk && candW > maxWidth) {
           lines.push(chunk);
           chunk = ch;
-          chunkW = extendWidth(0, ch, fontSize);
+          chunkW = extendWidth(0, ch, fontSize, opts);
         } else {
           chunk += ch;
           chunkW = candW;

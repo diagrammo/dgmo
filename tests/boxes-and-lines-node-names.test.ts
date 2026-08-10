@@ -101,7 +101,10 @@ describe('boxes-and-lines node names — quotes are delimiters', () => {
     const texts = await renderTexts(
       'boxes-and-lines T\n\nsay "hi" loudly -> Cache\n'
     );
-    expect(texts).toContain('say "hi" loudly');
+    // The name reaches the card intact. It arrives as more than one line —
+    // the quotes make it wide enough to wrap — so join before comparing:
+    // where the wrap falls is the width model's business, not this test's.
+    expect(texts.join(' ')).toContain('say "hi" loudly');
   });
 });
 

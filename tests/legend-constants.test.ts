@@ -20,10 +20,17 @@ describe('truncateLegendText', () => {
   });
 
   it('returns just the ellipsis when at least the ellipsis fits but no characters do', () => {
-    // Ellipsis at fontSize 10 ≈ 5.6 wide; first char 'A' ≈ 6.7 wide.
-    // A budget between those returns just the ellipsis.
-    const out = truncateLegendText('Anything', 10, 7);
-    expect(out).toBe('…');
+    // Derive the budget rather than hard-coding one: this used to say
+    // "ellipsis ≈ 5.6, 'A' ≈ 6.7, so 7 sits between them", which was true of
+    // the Helvetica table the measurement no longer uses. In Inter the
+    // ellipsis is the WIDER of the two, so a literal 7 now fits neither.
+    const ellipsisW = measureLegendText('…', 10);
+    const firstCharW = measureLegendText('A', 10);
+    const budget = ellipsisW + firstCharW / 2;
+    expect(budget).toBeGreaterThanOrEqual(ellipsisW);
+    expect(budget).toBeLessThan(ellipsisW + firstCharW);
+
+    expect(truncateLegendText('Anything', 10, budget)).toBe('…');
   });
 
   it('returns empty string when even an ellipsis would not fit', () => {

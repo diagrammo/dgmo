@@ -9,6 +9,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { getPalette } from '../src/palettes';
 import { parseVisualization, renderTimeline } from '../src/d3';
+import { measureLegendText } from '../src/utils/legend-constants';
 
 beforeAll(() => {
   const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
@@ -115,10 +116,25 @@ era 2025-01 -> 2025-12 Second Long Phase
     const container = renderToContainer(src);
     const labels = eraLabelTexts(container);
     expect(labels.length).toBe(3);
-    // Tiny transition (1 month span) should be truncated.
-    const tiny = labels.find((t) => t.startsWith('Tiny'));
+    // The one-month transition is truncated. Assert that it fits its own span
+    // rather than how many characters survive — the surviving count is a
+    // property of the font, and pinning it made this test fail when the width
+    // model stopped claiming Helvetica and started measuring Inter (it went
+    // from 'Tiny…' to 'Tin…', because 'Tiny…' never actually fit).
+    const tiny = labels.find(
+      (t) => t !== 'First Long Phase' && t !== 'Second Long Phase'
+    );
     expect(tiny).toBeTruthy();
     expect(tiny!.endsWith('…')).toBe(true);
+    expect('Tiny Transition Window'.startsWith(tiny!.slice(0, -1))).toBe(true);
+
+    // The invariant the renderer states at the truncation site: a label stays
+    // inside its own tinted band, with the same 8px it budgets for.
+    const spanW = Number(
+      container.querySelectorAll('.tl-era rect')[1]!.getAttribute('width')
+    );
+    expect(measureLegendText(tiny!, 13)).toBeLessThanOrEqual(spanW - 8);
+
     // Wide eras keep their full labels.
     expect(labels).toContain('First Long Phase');
     expect(labels).toContain('Second Long Phase');

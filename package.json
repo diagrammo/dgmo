@@ -84,7 +84,8 @@
   "scripts": {
     "codegen": "lezer-generator src/editor/dgmo.grammar -o src/editor/dgmo.grammar.js",
     "fonts": "node scripts/build-fonts.mjs",
-    "prebuild": "rm -rf dist && pnpm codegen && pnpm fonts",
+    "metrics": "node scripts/build-text-metrics.mjs",
+    "prebuild": "rm -rf dist && pnpm codegen && pnpm fonts && pnpm metrics",
     "build": "DGMO_DEV_RELOAD=1 tsup; _e=$?; rm -rf ../diagrammo-app/node_modules/.vite/deps 2>/dev/null; exit $_e",
     "typecheck": "tsc --noEmit",
     "predev": "pnpm fonts",
