@@ -66,6 +66,7 @@ import { layoutEdgeLabels } from './edge-labels';
 import { buildConnectorLegs, W_MIN } from './connectors';
 import { layoutInsets } from './insets';
 import { createLabelMetrics, FONT, VALUE_GAP } from './label-metrics';
+import { FIT_PAD, WORLD_LABEL_ANCHORS } from './layout-constants';
 import { placeRegionLabels } from './region-labels';
 
 // Minimal GeoJSON shapes (avoid a hard @types/geojson dep; cast at d3 calls).
@@ -81,7 +82,10 @@ interface GeoFC {
 }
 
 // -- Tunable constants (deterministic; no magic at call sites) --
-export const FIT_PAD = 24; // px padding inside the viewport
+// FIT_PAD and WORLD_LABEL_ANCHORS live in ./layout-constants so the passes this
+// module calls can read them without importing it back. Re-exported here so the
+// public surface is unchanged.
+export { FIT_PAD, WORLD_LABEL_ANCHORS } from './layout-constants';
 // Fractional digits for projected path `d` coordinates. d3-geo defaults to 3
 // (sub-micropixel at our canvas scale) — full-world detail geometry then emits
 // multi-MB SVGs that bloat the page and overflow downstream HTML reparsers.
@@ -175,22 +179,6 @@ const R_MAX = 22;
 const POI_FILL_OPACITY_MAX = 0.92; // at R_MIN (smallest)
 const POI_FILL_OPACITY_MIN = 0.55; // at R_MAX (largest)
 
-// A few countries have far-flung territory that drags the area-weighted centroid
-// off the mainland (US → Alaska pulls it up into Canada). Anchor their world-layer
-// label/hover point to a mainland [lon, lat] instead. Antimeridian crossers whose
-// body dominates by area (Russia) are NOT listed — their area-weighted centroid
-// already lands on the mainland; only the naive bounding-box centre (which the app
-// previously used for hover) mistook the wrapped sliver for half the shape.
-export const WORLD_LABEL_ANCHORS: Record<string, [number, number]> = {
-  US: [-98.5, 39.5], // CONUS geographic centre (near Lebanon, Kansas)
-  // Russia crosses the antimeridian (Chukotka at ~170°W), so on a non-global
-  // (e.g. Europe) projection its geometry smears across the whole frame and the
-  // area-weighted centroid lands mid-map (over Europe) — useless as a label
-  // anchor. Pin it to European Russia (~Volga) so a Europe view labels visible
-  // western Russia on its eastern margin; on a world view this still sits over
-  // Russian land. (See the curated-anchor smear-gate bypass in context-labels.)
-  RU: [45, 58],
-};
 // POI-cluster hover-only gate (Decision #1). A ≥2-member cluster's callout
 // column falls back to hover-only labels when it would sprawl or overflow:
 //  - MAX_CLUSTER_EXTENT_FACTOR × min(width,height) = the px diagonal beyond which

@@ -22,7 +22,7 @@ import type {
   MapLayoutPoi,
   PlacedLabel,
 } from './layout';
-import { WORLD_LABEL_ANCHORS, FIT_PAD } from './layout';
+import { WORLD_LABEL_ANCHORS, FIT_PAD } from './layout-constants';
 
 /**
  * Place a label on every region that should carry one — subject regions with
