@@ -271,13 +271,19 @@ function colorOf(node: BlockNode | undefined, ctx: DrawCtx): string | null {
   return resolveTagColor(node.metadata, ctx.tagGroups, ctx.activeGroup) ?? null;
 }
 
+/**
+ * Clip to a pixel width with a trailing ellipsis. Measured bold: the three
+ * callers draw at 700, 700 and 600, and with only Regular and Bold shipped,
+ * CSS font matching resolves 600 up to the Bold face.
+ */
 function clipLabel(s: string, maxWidth: number, fs: number): string {
-  if (measureText(s, fs) <= maxWidth) return s;
+  if (measureText(s, fs, { bold: true }) <= maxWidth) return s;
   let lo = 0;
   let hi = s.length;
   while (lo < hi) {
     const mid = Math.ceil((lo + hi) / 2);
-    if (measureText(s.slice(0, mid) + '…', fs) <= maxWidth) lo = mid;
+    if (measureText(s.slice(0, mid) + '…', fs, { bold: true }) <= maxWidth)
+      lo = mid;
     else hi = mid - 1;
   }
   return lo <= 0 ? '' : s.slice(0, lo) + '…';

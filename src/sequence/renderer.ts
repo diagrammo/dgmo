@@ -2739,7 +2739,11 @@ export function renderSequenceDiagram(
     // Transparent hit area scoped to the label so the toggle stays clickable
     // without the band swallowing clicks across the full diagram width.
     // Label renders at the fixed 11px section-label size.
-    const labelHitW = Math.max(80, measureText(labelText, 11) + 24);
+    // The section label is drawn bold just below.
+    const labelHitW = Math.max(
+      80,
+      measureText(labelText, 11, { bold: true }) + 24
+    );
     sectionG
       .append('rect')
       .attr('x', labelX - labelHitW / 2)

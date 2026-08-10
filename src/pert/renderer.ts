@@ -2222,7 +2222,8 @@ function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
   const NAME_PIN_GAP = 4;
   const pinReserve = a.pinned ? sPIW + NAME_PIN_GAP : 0;
   const availTextW = Math.max(0, w - 2 * NAME_PAD_X - pinReserve);
-  const displayName = truncateText(a.name, sNFS, availTextW);
+  // Both drawCell branches below render the name at 'bold'.
+  const displayName = truncateText(a.name, sNFS, availTextW, { bold: true });
   const nameColor = a.midBandLabelColor ?? a.labelColor;
   if (a.pinned) {
     drawAnchorPin(g, x + NAME_PAD_X, midCenterY, nameColor, sPIW, sPIH);
@@ -2396,7 +2397,11 @@ function drawMilestonePill(g: AnySel, a: MilestonePillArgs): void {
   const availW = textAreaRight - textAreaLeft;
   // Hard-break over-long words so a single long token still fits the
   // narrow milestone pill rather than overflowing.
-  const lines = wrapTextToWidth(a.name, nameSize, availW, { hardBreak: true });
+  // The pill name is drawn at 'bold' by drawCenteredText below.
+  const lines = wrapTextToWidth(a.name, nameSize, availW, {
+    hardBreak: true,
+    bold: true,
+  });
   const maxLines = Math.max(1, Math.floor(midRowH / NAME_LINE_HEIGHT));
   const visibleLines = lines.slice(0, maxLines);
   if (lines.length > maxLines && visibleLines.length > 0) {
@@ -2405,9 +2410,9 @@ function drawMilestonePill(g: AnySel, a: MilestonePillArgs): void {
     const last = visibleLines[visibleLines.length - 1]!;
     const withEllipsis = `${last}…`;
     visibleLines[visibleLines.length - 1] =
-      measureText(withEllipsis, nameSize) <= availW
+      measureText(withEllipsis, nameSize, { bold: true }) <= availW
         ? withEllipsis
-        : truncateText(last, nameSize, availW);
+        : truncateText(last, nameSize, availW, { bold: true });
   }
   const startCy =
     midCenterY - ((visibleLines.length - 1) * NAME_LINE_HEIGHT) / 2;

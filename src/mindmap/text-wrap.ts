@@ -35,7 +35,8 @@ function tryWrap(
   tokens: string[],
   maxWidth: number,
   fontSize: number,
-  maxLines: number
+  maxLines: number,
+  bold: boolean
 ): string[] | null {
   const availWidth = maxWidth - H_PAD;
 
@@ -47,7 +48,7 @@ function tryWrap(
     const sep = currentLine && !currentLine.endsWith('-') ? ' ' : '';
     const candidate = currentLine + sep + token;
 
-    if (measureText(candidate, fontSize) <= availWidth) {
+    if (measureText(candidate, fontSize, { bold }) <= availWidth) {
       currentLine = candidate;
     } else if (!currentLine) {
       // Single token exceeds line — force it onto this line (will be truncated later if needed)
@@ -74,15 +75,18 @@ function tryWrap(
 function truncateLastLine(
   lines: string[],
   maxWidth: number,
-  fontSize: number
+  fontSize: number,
+  bold: boolean
 ): string[] {
   const availWidth = maxWidth - H_PAD;
 
   const result = [...lines];
   // In-bounds: caller passes non-empty lines; tryWrap returns at least one line.
   const last = result[result.length - 1]!;
-  if (measureText(last, fontSize) > availWidth) {
-    result[result.length - 1] = truncateText(last, fontSize, availWidth);
+  if (measureText(last, fontSize, { bold }) > availWidth) {
+    result[result.length - 1] = truncateText(last, fontSize, availWidth, {
+      bold,
+    });
   }
   return result;
 }
@@ -103,7 +107,10 @@ export function wrapText(
   maxWidth: number,
   baseFontSize: number,
   minFontSize: number,
-  maxLines: number = MAX_LABEL_LINES
+  maxLines: number = MAX_LABEL_LINES,
+  /** True where the renderer draws this text at 700 — only the root node's
+   *  label is; every other label and every description line is regular. */
+  bold = false
 ): WrapResult {
   if (!text) return { lines: [''], fontSize: baseFontSize };
 
@@ -111,17 +118,20 @@ export function wrapText(
 
   // Try at each font size from base down to min
   for (let fs = baseFontSize; fs >= minFontSize; fs--) {
-    const lines = tryWrap(tokens, maxWidth, fs, maxLines);
+    const lines = tryWrap(tokens, maxWidth, fs, maxLines, bold);
     if (lines) {
       // Ensure each line fits (truncate overly long single tokens)
-      return { lines: truncateLastLine(lines, maxWidth, fs), fontSize: fs };
+      return {
+        lines: truncateLastLine(lines, maxWidth, fs, bold),
+        fontSize: fs,
+      };
     }
   }
 
   // Last resort: wrap at minFontSize with unlimited lines, then take first maxLines
-  const allLines = tryWrap(tokens, maxWidth, minFontSize, 999) ?? [text];
+  const allLines = tryWrap(tokens, maxWidth, minFontSize, 999, bold) ?? [text];
   const capped = allLines.slice(0, maxLines);
-  const truncated = truncateLastLine(capped, maxWidth, minFontSize);
+  const truncated = truncateLastLine(capped, maxWidth, minFontSize, bold);
   // If we dropped lines, append ellipsis to indicate overflow
   if (allLines.length > maxLines) {
     // In-bounds: truncated is derived from allLines which has at least one entry (allLines.length > maxLines >= 0).
@@ -130,11 +140,12 @@ export function wrapText(
       const availWidth = maxWidth - H_PAD;
       // If appending an ellipsis would overflow, truncate to fit; otherwise
       // just append it to signal that lines were dropped.
-      if (measureText(last + '\u2026', minFontSize) > availWidth) {
+      if (measureText(last + '\u2026', minFontSize, { bold }) > availWidth) {
         truncated[truncated.length - 1] = truncateText(
           last,
           minFontSize,
-          availWidth
+          availWidth,
+          { bold }
         );
       } else {
         truncated[truncated.length - 1] = last + '\u2026';
@@ -184,7 +195,10 @@ export function computeNodeText(
     nodeWidth,
     baseFontSize,
     MIN_FONT_SIZE,
-    MAX_LABEL_LINES
+    MAX_LABEL_LINES,
+    // The renderer draws the root node's label bold and every other label
+    // normal, and a mindmap has exactly one node at depth 0.
+    depth === 0
   );
 
   const descLines: string[] = [];
