@@ -361,3 +361,64 @@ fill-outline
     );
   });
 });
+
+// ============================================================
+// Violation messages — mixed-weight wrapping
+// ============================================================
+//
+// A violation message quotes task and role names, and those quoted spans draw
+// bold inside regular prose. It used to be wrapped as one string and then
+// re-parsed line by line, which broke in two ways once a quoted phrase
+// straddled a break: the quote characters were unbalanced on each side, so
+// neither half rendered bold, and the stray quote was drawn. These assert the
+// properties rather than where the break lands, so they survive a change to
+// the font metrics.
+
+describe('renderRaci — violation message runs', () => {
+  // A line that is neither a description nor a role assignment. Its diagnostic
+  // is long enough to wrap at any plausible metric and quotes two phrases, one
+  // of them mid-sentence.
+  const source = `raci
+
+Chart the route
+  Cap: A
+  Crew: R
+  this line is not a role assignment`;
+
+  const violationSpans = (): HTMLElement[] =>
+    Array.from(
+      render(source).querySelectorAll('.raci-violation-line tspan')
+    ) as HTMLElement[];
+
+  it('wraps the message over more than one line', () => {
+    // Every line after the first starts with a `dy`-carrying run.
+    const wrapped = violationSpans().filter((t) => t.hasAttribute('dy'));
+    expect(wrapped.length).toBeGreaterThan(0);
+  });
+
+  it('never draws the quote characters', () => {
+    const drawn = violationSpans()
+      .map((t) => t.textContent ?? '')
+      .join('');
+    expect(drawn).not.toContain("'");
+  });
+
+  it('keeps a quoted phrase bold across the line break inside it', () => {
+    const bold = violationSpans()
+      .filter((t) => t.getAttribute('font-weight') === '700')
+      .map((t) => t.textContent ?? '')
+      .join('')
+      // Whitespace is dropped where a break falls, so compare without it.
+      .replace(/\s+/g, '');
+    expect(bold).toBe('CharttherouteRole:markers');
+  });
+
+  it('leaves the surrounding prose regular', () => {
+    const regular = violationSpans()
+      .filter((t) => t.getAttribute('font-weight') !== '700')
+      .map((t) => t.textContent ?? '')
+      .join('');
+    expect(regular).toContain('Unexpected line after role assignments');
+    expect(regular).not.toContain('Chart');
+  });
+});

@@ -1449,9 +1449,10 @@ function renderTaskRow(
       .attr('dominant-baseline', 'central')
       .attr('font-size', violationFont)
       .attr('fill', lineColor);
-    v.lines.forEach((line, i) => {
-      // Render bold for any quoted spans within this wrapped line.
-      const segs = parseQuotedSegments(line);
+    v.lines.forEach((segs, i) => {
+      // The runs arrive already split by face — re-parsing a wrapped line
+      // cannot work, because a quoted span that straddles the break leaves an
+      // unmatched quote on each side of it.
       segs.forEach((seg, segIdx) => {
         const tspan = textEl.append('tspan').text(seg.text);
         if (i > 0 && segIdx === 0)
@@ -1629,7 +1630,9 @@ interface RowContent {
     severity: 'error' | 'warning';
     sourceLine: number;
     text: string;
-    lines: string[];
+    /** Wrapped lines, each as the runs it is drawn in — a violation message
+     *  quotes task and role names, and those quoted spans draw bold. */
+    lines: Segment[][];
   }>;
   rowHeight: number;
 }
@@ -1671,9 +1674,7 @@ function prepareRowContent(
           severity,
           sourceLine: e.line,
           text,
-          lines: wrapTextToWidth(text, sLabelFont - 2, labelMaxW, {
-            hardBreak: true,
-          }),
+          lines: wrapQuotedMessage(text, sLabelFont - 2, labelMaxW),
         });
       }
     };
@@ -1706,6 +1707,112 @@ function prepareRowContent(
  * the only emphasis available there.
  */
 type Segment = { text: string; bold: boolean };
+
+/**
+ * Word-wrap a violation message whose quoted spans are drawn bold.
+ *
+ * `wrapTextToWidth` measures a whole line in ONE face, and this line has two:
+ * `parseQuotedSegments` draws what was quoted at 700 and the prose around it
+ * regular. Measuring it all regular under-sizes the bold spans; measuring it
+ * all bold over-sizes the prose, which is the larger share. So the wrap has to
+ * happen over runs, each measured in the face it will be drawn in.
+ *
+ * It also fixes two things the previous per-line re-parse got wrong: the
+ * quotes are stripped before drawing, so measuring the string with them in it
+ * counted glyphs that never appear; and a quoted span that straddled a line
+ * break left an unmatched quote on each side, so neither half rendered bold
+ * and the stray quote was drawn.
+ *
+ * Returns one entry per line, each the runs of that line, with adjacent runs
+ * of the same face merged.
+ */
+function wrapQuotedMessage(
+  message: string,
+  fontSize: number,
+  maxWidth: number
+): Segment[][] {
+  type Token = Segment & { space: boolean };
+  const tokens: Token[] = [];
+  for (const seg of parseQuotedSegments(message)) {
+    // Keep the whitespace as its own token rather than discarding it: which
+    // face a gap is drawn in follows the segment it came from.
+    for (const part of seg.text.split(/(\s+)/)) {
+      if (part === '') continue;
+      tokens.push({ text: part, bold: seg.bold, space: /^\s/.test(part) });
+    }
+  }
+
+  const runW = (r: Segment): number =>
+    measureText(r.text, fontSize, { bold: r.bold });
+  const merge = (runs: Segment[]): Segment[] => {
+    const out: Segment[] = [];
+    for (const r of runs) {
+      const prev = out[out.length - 1];
+      if (prev?.bold === r.bold) prev.text += r.text;
+      else out.push({ ...r });
+    }
+    return out;
+  };
+
+  const lines: Segment[][] = [];
+  let line: Segment[] = [];
+  let lineW = 0;
+  const flush = (): void => {
+    if (line.length > 0) lines.push(merge(line));
+    line = [];
+    lineW = 0;
+  };
+
+  let pendingGap: Segment | null = null;
+  let i = 0;
+  while (i < tokens.length) {
+    // In-bounds by loop guard.
+    const tok = tokens[i]!;
+    if (tok.space) {
+      // Any run of whitespace between two words renders as one space.
+      pendingGap = { text: ' ', bold: tok.bold };
+      i++;
+      continue;
+    }
+    // A word can straddle a quote boundary ("'Chart the route'." ends regular),
+    // so collect every consecutive non-space token as one unbreakable unit.
+    const word: Segment[] = [];
+    while (i < tokens.length && !tokens[i]!.space) {
+      const t = tokens[i]!;
+      word.push({ text: t.text, bold: t.bold });
+      i++;
+    }
+    const wordW = word.reduce((n, r) => n + runW(r), 0);
+    const gapW = line.length > 0 && pendingGap ? runW(pendingGap) : 0;
+
+    if (line.length > 0 && lineW + gapW + wordW > maxWidth) flush();
+    if (line.length > 0 && pendingGap) {
+      line.push(pendingGap);
+      lineW += gapW;
+    }
+    pendingGap = null;
+
+    if (line.length === 0 && wordW > maxWidth) {
+      // Hard-break a word that cannot fit a line of its own, character by
+      // character, each keeping its own face.
+      for (const r of word) {
+        for (const ch of r.text) {
+          const chW = measureText(ch, fontSize, { bold: r.bold });
+          if (line.length > 0 && lineW + chW > maxWidth) flush();
+          line.push({ text: ch, bold: r.bold });
+          lineW += chW;
+        }
+      }
+      continue;
+    }
+    line.push(...word);
+    lineW += wordW;
+  }
+  flush();
+
+  // An empty message still occupies its row, as the old whole-string wrap did.
+  return lines.length > 0 ? lines : [[{ text: '', bold: false }]];
+}
 
 function parseQuotedSegments(message: string): Segment[] {
   const out: Segment[] = [];
