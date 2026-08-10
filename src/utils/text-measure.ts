@@ -20,6 +20,12 @@ import {
   INTER_DEFAULT_W,
   INTER_REGULAR_W,
 } from './inter-metrics';
+// Anything the table above does not cover — CJK, Hangul, Devanagari, Thai,
+// Arabic, Hebrew — used to take one flat fallback ratio per codepoint, which
+// measured full-width scripts 40% narrow and combining ones up to 63% wide
+// (issue 170). script-metrics.ts is hand-written for a reason: inter-metrics.ts
+// is regenerated on every prebuild.
+import { graphemeClusters, uncoveredWidthRatio } from './script-metrics';
 
 const DEFAULT_W = INTER_DEFAULT_W;
 
@@ -71,6 +77,12 @@ const MEASURE_CACHE_MAX = 10000;
  * bit-identical to measuring the concatenated string whole (per-char additive
  * model, no kerning), which lets wrap/truncate accumulate widths incrementally
  * instead of re-measuring growing strings.
+ *
+ * That promise survives the per-script fallback because a combining mark is
+ * charged zero **wherever it appears** — the fold stays additive per codepoint,
+ * so it does not matter whether a cluster arrives whole or in pieces. The one
+ * thing a caller must not do is split a surrogate pair; every caller here steps
+ * by grapheme cluster, which cannot.
  */
 function extendWidth(
   acc: number,
@@ -82,7 +94,17 @@ function extendWidth(
   let w = acc;
   for (let i = 0; i < text.length; i++) {
     // charAt returns '' for out-of-bounds, never undefined.
-    w += (table[text.charAt(i)] ?? DEFAULT_W) * fontSize;
+    const covered = table[text.charAt(i)];
+    if (covered !== undefined) {
+      w += covered * fontSize;
+      continue;
+    }
+    // Outside the table: read the whole codepoint, since a surrogate pair is
+    // one character and charging it twice is what made CJK 40% narrow.
+    const cp = text.codePointAt(i);
+    if (cp === undefined) continue;
+    if (cp > 0xffff) i++;
+    w += uncoveredWidthRatio(cp) * fontSize;
   }
   return w;
 }
@@ -118,14 +140,19 @@ export function truncateText(
   const ellipsisW = measureText(ellipsis, fontSize, opts);
   if (ellipsisW > maxWidth) return '';
   // Cumulative prefix widths, computed once: prefix[i] equals
-  // measureText(text.slice(0, i), fontSize) exactly (same fold order), so the
-  // bisection below never re-measures slices.
+  // measureText(the first i clusters, fontSize) exactly (same fold order), so
+  // the bisection below never re-measures slices.
+  //
+  // The step is a grapheme cluster, not a UTF-16 unit, so the cut can only land
+  // between characters a reader would read as separate — never between a
+  // Devanagari consonant and its vowel sign, and never inside a surrogate pair.
+  const clusters = graphemeClusters(text);
   const prefix: number[] = [0];
-  for (let i = 0; i < text.length; i++) {
-    prefix.push(extendWidth(prefix[i]!, text.charAt(i), fontSize, opts));
+  for (let i = 0; i < clusters.length; i++) {
+    prefix.push(extendWidth(prefix[i]!, clusters[i]!, fontSize, opts));
   }
   let lo = 0;
-  let hi = text.length;
+  let hi = clusters.length;
   while (lo < hi) {
     const mid = Math.ceil((lo + hi) / 2);
     if (prefix[mid]! + ellipsisW <= maxWidth) {
@@ -134,7 +161,7 @@ export function truncateText(
       hi = mid - 1;
     }
   }
-  return lo === 0 ? ellipsis : text.slice(0, lo) + ellipsis;
+  return lo === 0 ? ellipsis : clusters.slice(0, lo).join('') + ellipsis;
 }
 
 /**
@@ -187,7 +214,9 @@ export function wrapTextToWidth(
       }
       let chunk = '';
       let chunkW = 0;
-      for (const ch of word) {
+      // By cluster, for the same reason truncation is: a hard break must not
+      // land inside one.
+      for (const ch of graphemeClusters(word)) {
         const candW = extendWidth(chunkW, ch, fontSize, opts);
         if (chunk && candW > maxWidth) {
           lines.push(chunk);
