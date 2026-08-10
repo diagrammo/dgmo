@@ -1,3 +1,6 @@
+import { M as MapDataSource } from './d3-Bfhj-XBX.js';
+import './tag-groups-NUA2F1I5.js';
+
 /**
  * Canonical stylesheet for the standard DGMO embed block (BL-114).
  *
@@ -106,6 +109,20 @@ interface DgmoBlockOptions {
      * trusted, since these end up in markup verbatim.
      */
     dataAttributes?: Record<string, string>;
+    /**
+     * Map basemap assets, forwarded to `render()`. Without them a ` ```dgmo `
+     * fence containing a map emits the error card ("This map has no basemap
+     * data") — this module reads nothing from disk or the network on its own,
+     * and it has no environment default, because it runs in browsers as much as
+     * in build scripts.
+     *
+     * A Node host (a remark build, a static-site generator, a report writer)
+     * passes `loadMapData` from `@diagrammo/dgmo/advanced` — as the FUNCTION, so
+     * the eleven basemap JSON files are read only for a fence that turns out to
+     * be a map. A browser host supplies the data itself, or a loader that
+     * fetches it.
+     */
+    mapData?: MapDataSource;
     /** Receives palette-fallback warnings. Default: console.warn. */
     onWarn?: (message: string) => void;
 }
@@ -139,4 +156,4 @@ declare function buildDgmoBlockHtml(source: string, svgsHtml: string, options?: 
  */
 declare function errorBlockHtml(err: unknown, source: string, options?: Pick<DgmoBlockOptions, 'className' | 'legacyClassNames'>): string;
 
-export { BLOCK_CSS, type BlockColorMode, type BlockMode, type DgmoBlockOptions, type DgmoBlockResult, EDITOR_BASE_URL, buildDgmoBlockHtml, errorBlockHtml, renderDgmoBlock };
+export { BLOCK_CSS, type BlockColorMode, type BlockMode, type DgmoBlockOptions, type DgmoBlockResult, EDITOR_BASE_URL, MapDataSource, buildDgmoBlockHtml, errorBlockHtml, renderDgmoBlock };

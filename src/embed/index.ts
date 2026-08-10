@@ -25,6 +25,7 @@
  */
 
 import { render } from '../render';
+import type { MapDataSource } from '../d3';
 import { encodeDiagramUrl } from '../sharing';
 import { resolvePaletteOrFallback } from '../palettes';
 import { highlightDgmo } from '../editor/highlight-api';
@@ -36,6 +37,17 @@ import { renderErrorCard, docsLink } from '../error-card';
 import { escapeHtml, escapeAttr } from './escape';
 
 export { BLOCK_CSS } from './css';
+
+/**
+ * The shape `mapData` accepts. A TYPE export, deliberately — `loadMapData`
+ * itself is NOT re-exported here and must not be. This entry is loaded in
+ * browsers (the `<dgmo-diagram>` element, and remark-dgmo's opt-in client
+ * re-render, which reaches it by dynamic import), and the loader's module
+ * carries `import('fs/promises')`; pulling it in would put an unresolvable
+ * Node builtin into every browser bundle of this entry to save a Node host one
+ * import. Node hosts take `loadMapData` from `@diagrammo/dgmo/advanced`.
+ */
+export type { MapDataSource } from '../d3';
 
 /** Default hosted editor used by "Open in editor" links. */
 export const EDITOR_BASE_URL = 'https://online.diagrammo.app';
@@ -100,14 +112,29 @@ export interface DgmoBlockOptions {
    * trusted, since these end up in markup verbatim.
    */
   dataAttributes?: Record<string, string>;
+  /**
+   * Map basemap assets, forwarded to `render()`. Without them a ` ```dgmo `
+   * fence containing a map emits the error card ("This map has no basemap
+   * data") — this module reads nothing from disk or the network on its own,
+   * and it has no environment default, because it runs in browsers as much as
+   * in build scripts.
+   *
+   * A Node host (a remark build, a static-site generator, a report writer)
+   * passes `loadMapData` from `@diagrammo/dgmo/advanced` — as the FUNCTION, so
+   * the eleven basemap JSON files are read only for a fence that turns out to
+   * be a map. A browser host supplies the data itself, or a loader that
+   * fetches it.
+   */
+  mapData?: MapDataSource;
   /** Receives palette-fallback warnings. Default: console.warn. */
   onWarn?: (message: string) => void;
 }
 
 type ResolvedBlockOptions = Required<
-  Omit<DgmoBlockOptions, 'title' | 'onWarn'>
+  Omit<DgmoBlockOptions, 'title' | 'onWarn' | 'mapData'>
 > & {
   title: string | undefined;
+  mapData: MapDataSource | undefined;
   onWarn: (message: string) => void;
 };
 
@@ -134,6 +161,7 @@ function resolveBlockOptions(opts: DgmoBlockOptions): ResolvedBlockOptions {
     legacyClassNames: opts.legacyClassNames ?? [],
     dataAttributes: opts.dataAttributes ?? {},
     title: opts.title,
+    mapData: opts.mapData,
 
     onWarn: opts.onWarn ?? ((message) => console.warn(message)),
   };
@@ -168,7 +196,14 @@ export async function renderDgmoBlock(
   const renderTheme = async (
     theme: 'light' | 'dark' | 'transparent'
   ): Promise<string> => {
-    const r = await render(trimmed, { palette: palette.id, theme });
+    // `mapData` is spread in only when the host supplied one: under
+    // `exactOptionalPropertyTypes` an explicit `undefined` is not the same as
+    // an absent key, and `render()`'s option is optional rather than nullable.
+    const r = await render(trimmed, {
+      palette: palette.id,
+      theme,
+      ...(opts.mapData !== undefined ? { mapData: opts.mapData } : {}),
+    });
     chartType = r.chartType;
     diagnostics.push(...r.diagnostics);
     const errors = r.diagnostics.filter((d) => d.severity === 'error');

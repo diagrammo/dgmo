@@ -5,6 +5,7 @@ import {
   errorBlockHtml,
   BLOCK_CSS,
 } from '../src/embed';
+import { loadMapData } from '../src/map/load-data';
 import {
   LIGHT_ROLE_STYLES,
   NORD_ROLE_STYLES,
@@ -224,6 +225,59 @@ describe('renderDgmoBlock — invalid source bakes the error card', () => {
     // the error path indexes palette.light/.dark and used to throw on a string.
     const { html } = await renderDgmoBlock(BAD, { palette: 'nord' });
     expect(html).toContain("Couldn't render this diagram");
+  });
+});
+
+describe('renderDgmoBlock — a map fence needs its basemap data handed over', () => {
+  // The one-line map used across the map suite: a POI resolved by name, which
+  // needs the gazetteer, so it cannot accidentally pass without real assets.
+  const MAP = `map Port Calls
+
+poi Denver`;
+
+  it('does not drag the Node loader into this browser-loaded entry', async () => {
+    // `/block` is dynamically imported in the reader's browser (the custom
+    // element, remark-dgmo's opt-in re-render). `loadMapData`'s module carries
+    // `import('fs/promises')`, so re-exporting it from here — however
+    // convenient for a Node host — would put an unresolvable builtin into
+    // every browser bundle of this entry.
+    const entry = await import('../src/embed');
+    expect('loadMapData' in entry).toBe(false);
+  });
+
+  it('bakes the error card when the host supplies no mapData', async () => {
+    // Not a defect in the fence — the block reads nothing from disk on its own.
+    // Pinned because this is what every wrapper emitted until the option
+    // existed, and a future "helpful" environment default would break the
+    // browser hosts that share this module.
+    const { html, diagnostics } = await renderDgmoBlock(MAP);
+    expect(html).toContain("Couldn't render this diagram");
+    expect(html).toContain('no basemap data');
+    expect(diagnostics.some((d) => d.severity === 'error')).toBe(true);
+  });
+
+  it('renders the map when the host passes the loader', async () => {
+    const { html, diagnostics } = await renderDgmoBlock(MAP, {
+      mapData: loadMapData,
+    });
+    expect(html).not.toContain("Couldn't render this diagram");
+    expect(html).not.toContain('no basemap data');
+    expect(diagnostics.some((d) => d.severity === 'error')).toBe(false);
+    // A real basemap, not an empty frame: Denver's label resolved off the
+    // gazetteer, and the projection drew boundaries. A floor rather than a
+    // measurement — the count moves with the basemap's own detail, and what
+    // this asserts is only that geography was drawn at all.
+    expect(html).toContain('Denver');
+    expect(html.match(/<path/g)?.length ?? 0).toBeGreaterThan(20);
+  });
+
+  it('accepts already-loaded data, not only a loader', async () => {
+    // The browser hosts of this module take the second shape — they bundle or
+    // fetch the assets rather than reading them off a disk they do not have.
+    const data = await loadMapData();
+    const { html } = await renderDgmoBlock(MAP, { mapData: data });
+    expect(html).not.toContain('no basemap data');
+    expect(html).toContain('Denver');
   });
 });
 
