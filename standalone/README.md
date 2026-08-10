@@ -65,6 +65,27 @@ Themes and palettes are attributes — `palette="slate"`, `theme="dark"`. Maps
 fetch their basemaps on demand from `@diagrammo/dgmo` on the same CDN, so a page
 with no map downloads no map data.
 
+## Watching a diagram somebody showed you
+
+If someone published a diagram at Diagrammo — *showed it on the web* — you can
+watch it from any page, and every reader gets the version its author has now:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/@diagrammo/dgmo-standalone/dist/element.js"></script>
+
+<dgmo-diagram watch="https://online.diagrammo.app/d/dgm_7f2a91"></dgmo-diagram>
+```
+
+Paste the share link you were sent, or just the id at the end of it. The
+diagram is fetched when the page loads — there is no polling, so a page left
+open shows what it fetched on arrival until it is reloaded.
+
+If your page sends a `Content-Security-Policy` header, it needs
+`connect-src https://api.diagrammo.app` or the browser will block the request.
+That case is not silent: the element draws a card naming the diagram and says
+what went wrong, as it does when a diagram is missing or its author has stopped
+showing it.
+
 ## When you want a different package
 
 This one exists for the no-build case. Reach for a sibling instead when:

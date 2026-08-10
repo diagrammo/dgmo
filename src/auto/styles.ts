@@ -54,6 +54,17 @@ pre.dgmo, code.language-dgmo, pre > code.language-dgmo,
   font-size: 12px;
   font-family: ui-monospace, monospace;
 }
+
+/* A watched diagram that could not be drawn: the reference card, then this
+   sentence. Deliberately not styled as an error — a publisher who stopped
+   showing a diagram did something on purpose, and a red box would tell the
+   reader the page is broken. */
+.dgmo--live-state .dgmo-live-note {
+  margin: 0.5em 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  opacity: 0.8;
+}
 `;
 
 /** Re-scope BLOCK_CSS's \`[data-theme="dark"]\` rules to `.dgmo-theme-dark`. */

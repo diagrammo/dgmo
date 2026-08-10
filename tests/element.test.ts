@@ -250,3 +250,161 @@ describe('<dgmo-diagram> custom element', () => {
     expect(el.querySelector('svg')).toBeTruthy();
   });
 });
+
+// ============================================================
+// Watching a live link (issue #163)
+// ============================================================
+//
+// The point of the feature is a page nobody compiled, so these assert the two
+// things such a page cannot recover from on its own: that the RIGHT diagram is
+// asked for, and that every failure leaves something a reader can read. An
+// empty container passes no test here.
+
+describe('<dgmo-diagram watch>', () => {
+  const ID = 'dgm_7f2a91';
+  const SOURCE_URL = `https://api.diagrammo.app/public/diagrams/${ID}/source`;
+  const LIVE_SOURCE = 'flowchart\n[Live] -> [Diagram]';
+
+  /** A Cloud `source` endpoint answering with one status. */
+  function stubCloud(
+    status: number,
+    body: unknown = {
+      id: ID,
+      source: LIVE_SOURCE,
+      dgmoVersion: '0.64.1',
+      updatedAt: 1,
+    }
+  ): ReturnType<typeof vi.fn> {
+    const spy = vi.fn(() =>
+      Promise.resolve({
+        ok: status >= 200 && status < 300,
+        status,
+        json: () => Promise.resolve(body),
+      } as Response)
+    );
+    vi.stubGlobal('fetch', spy);
+    return spy;
+  }
+
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('draws the published diagram for a bare id', async () => {
+    const fetchSpy = stubCloud(200);
+    const el = makeElement('', { watch: ID });
+    document.body.appendChild(el);
+
+    await waitFor(() => el.querySelector('svg') !== null);
+    expect(fetchSpy.mock.calls[0]?.[0]).toBe(SOURCE_URL);
+    // What was drawn is the FETCHED source, not the (empty) authored one.
+    expect(el.querySelector('svg')!.textContent).toContain('Live');
+    expect(el.querySelector('.dgmo--error')).toBeNull();
+  });
+
+  it('accepts a pasted share link and asks for the same diagram', async () => {
+    const fetchSpy = stubCloud(200);
+    const el = makeElement('', {
+      watch: `https://online.diagrammo.app/d/${ID}`,
+    });
+    document.body.appendChild(el);
+
+    await waitFor(() => el.querySelector('svg') !== null);
+    expect(fetchSpy.mock.calls[0]?.[0]).toBe(SOURCE_URL);
+  });
+
+  it('watches a live-link written as the element SOURCE', async () => {
+    const fetchSpy = stubCloud(200);
+    const el = makeElement(`live-link ${ID}`);
+    document.body.appendChild(el);
+
+    await waitFor(() => el.querySelector('svg') !== null);
+    expect(fetchSpy.mock.calls[0]?.[0]).toBe(SOURCE_URL);
+    expect(el.querySelector('svg')!.textContent).toContain('Live');
+  });
+
+  it('a withdrawn diagram (410) draws the card and says who withdrew it', async () => {
+    stubCloud(410, {});
+    const el = makeElement('', { watch: ID });
+    document.body.appendChild(el);
+
+    await waitFor(() => el.querySelector('.dgmo-live-note') !== null);
+    const container = el.firstElementChild as HTMLElement;
+    expect(container.className).toContain('dgmo--live-state');
+    // The reference card is drawn — this is not an error state.
+    expect(container.querySelector('svg')).toBeTruthy();
+    expect(el.querySelector('.dgmo--error')).toBeNull();
+    const note = el.querySelector('.dgmo-live-note')!;
+    expect(note.textContent).toContain('stopped showing');
+  });
+
+  it('a missing diagram (404) names the id it could not find', async () => {
+    stubCloud(404, {});
+    const el = makeElement('', { watch: ID });
+    document.body.appendChild(el);
+
+    await waitFor(() => el.querySelector('.dgmo-live-note') !== null);
+    const note = el.querySelector('.dgmo-live-note')!;
+    expect(note.textContent).toContain('No diagram is published');
+    expect(note.textContent).toContain(ID);
+  });
+
+  it('an unreachable Cloud names the content-security-policy directive', async () => {
+    // A CSP-blocked request is indistinguishable from being offline, so the
+    // note has to raise the possibility itself.
+    const fetchSpy = vi.fn(() => Promise.reject(new Error('Failed to fetch')));
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const el = makeElement('', { watch: ID });
+    document.body.appendChild(el);
+
+    await waitFor(() => el.querySelector('.dgmo-live-note') !== null);
+    const note = el.querySelector('.dgmo-live-note')!;
+    expect(note.textContent).toContain('connect-src https://api.diagrammo.app');
+    const link = note.querySelector('a') as HTMLAnchorElement;
+    expect(link.href).toContain(ID);
+  });
+
+  it('refuses a target that is not a diagram, without asking the network', async () => {
+    const fetchSpy = stubCloud(200);
+    const el = makeElement('', { watch: 'my favourite diagram' });
+    document.body.appendChild(el);
+
+    await waitFor(() => el.querySelector('.dgmo--error') !== null);
+    expect(el.querySelector('.dgmo--error')!.textContent).toContain(
+      'is not a Diagrammo diagram'
+    );
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('refuses a pinned revision and says which pin to remove', async () => {
+    const fetchSpy = stubCloud(200);
+    const el = makeElement('', {
+      watch: `https://online.diagrammo.app/d/${ID}?at=1712345678`,
+    });
+    document.body.appendChild(el);
+
+    await waitFor(() => el.querySelector('.dgmo--error') !== null);
+    const card = el.querySelector('.dgmo--error')!;
+    expect(card.textContent).toContain('pinned revision');
+    expect(card.textContent).toContain('?at=1712345678');
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('re-fetches when the watch attribute changes', async () => {
+    const fetchSpy = stubCloud(200);
+    const el = makeElement('', { watch: ID });
+    document.body.appendChild(el);
+    await waitFor(() => el.querySelector('svg') !== null);
+
+    el.setAttribute('watch', 'dgm_other1');
+    await waitFor(() =>
+      fetchSpy.mock.calls.some((c) => String(c[0]).includes('dgm_other1'))
+    );
+  });
+});

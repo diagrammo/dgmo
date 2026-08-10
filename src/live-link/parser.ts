@@ -51,8 +51,13 @@ const EXAMPLE_URL = 'https://online.diagrammo.app/d/dgm_7f2a91';
  * Both shapes delegate. The bare-id case reaches the shared parser through its
  * own FENCE spelling (`live-link <id>` IS the bare-id form, as typed in a docs
  * fence), which is how this file gets the id pattern without copying it.
+ *
+ * Exported for hosts that take a target OUTSIDE a fence — `<dgmo-diagram
+ * watch="…">` takes exactly the same two spellings from an HTML attribute. They
+ * resolve here and word their own messages, because "add a `url <link>` line"
+ * names a line that does not exist in an HTML attribute.
  */
-function resolveTarget(value: string): string | null {
+export function resolveLiveLinkTarget(value: string): string | null {
   const trimmed = value.trim();
   // The URL shape, through the split-out entry point rather than a broader one:
   // `url live-link abc` and `url ![[live-link:abc]]` are copy-paste mistakes,
@@ -83,16 +88,16 @@ function resolveTarget(value: string): string | null {
  * the wrong problem. It covers the `@` spelling too — `dgm_1@2026-03-12` — which
  * is the form most likely to actually carry a pin.
  */
-function pinnedRevision(value: string): string | null {
+export function liveLinkPinnedRevision(value: string): string | null {
   const trimmed = value.trim();
-  if (resolveTarget(trimmed) !== null) return null;
+  if (resolveLiveLinkTarget(trimmed) !== null) return null;
 
   try {
     const url = new URL(trimmed);
     const at = url.searchParams.get('at');
     if (at !== null) {
       url.searchParams.delete('at');
-      if (resolveTarget(url.toString()) !== null) return `?at=${at}`;
+      if (resolveLiveLinkTarget(url.toString()) !== null) return `?at=${at}`;
     }
   } catch {
     // Not a URL — fall through to the `@` spelling below.
@@ -101,7 +106,7 @@ function pinnedRevision(value: string): string | null {
   const at = trimmed.indexOf('@');
   if (at > 0) {
     const pin = trimmed.slice(at);
-    if (resolveTarget(trimmed.slice(0, at)) !== null) return pin;
+    if (resolveLiveLinkTarget(trimmed.slice(0, at)) !== null) return pin;
   }
   return null;
 }
@@ -119,7 +124,7 @@ export function isLiveLinkLine(line: string): boolean {
   const trimmed = line.trim();
   return (
     parseCloudReferenceFence(trimmed) !== null ||
-    pinnedRevision(trimmed) !== null
+    liveLinkPinnedRevision(trimmed) !== null
   );
 }
 
@@ -171,7 +176,7 @@ export function parseLiveLink(content: string): ParsedLiveLink {
       }
       // The router sent a pinned link here on purpose, so that the pin gets its
       // own message instead of the generic one it used to collect.
-      const pin = pinnedRevision(trimmed);
+      const pin = liveLinkPinnedRevision(trimmed);
       if (pin !== null) {
         fail(
           i + 1,
@@ -304,7 +309,7 @@ export function parseLiveLink(content: string): ParsedLiveLink {
 
   // ── The `url` form (titled, or headlined by its own id) ──
   if (url) {
-    const pin = pinnedRevision(url.value);
+    const pin = liveLinkPinnedRevision(url.value);
     if (pin !== null) {
       fail(
         url.line,
@@ -312,7 +317,7 @@ export function parseLiveLink(content: string): ParsedLiveLink {
       );
       return done(titleSlot, null);
     }
-    const id = resolveTarget(url.value);
+    const id = resolveLiveLinkTarget(url.value);
     if (id === null) {
       fail(
         url.line,
@@ -338,7 +343,7 @@ export function parseLiveLink(content: string): ParsedLiveLink {
   }
 
   // titleSlot is non-null and whitespace-free here.
-  const shorthandPin = pinnedRevision(titleSlot!);
+  const shorthandPin = liveLinkPinnedRevision(titleSlot!);
   if (shorthandPin !== null) {
     fail(
       titleLineNumber,
@@ -346,7 +351,7 @@ export function parseLiveLink(content: string): ParsedLiveLink {
     );
     return done(null, null);
   }
-  const id = resolveTarget(titleSlot!);
+  const id = resolveLiveLinkTarget(titleSlot!);
   if (id === null) {
     fail(
       titleLineNumber,

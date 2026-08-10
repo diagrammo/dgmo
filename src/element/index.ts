@@ -21,7 +21,42 @@
  * a `<pre>`, or its own text content — de-indented), calls the isomorphic
  * `render()`, sanitizes the SVG, and injects it. Attributes: `palette`,
  * `theme`/`color-mode`, `mode` (diagram|showcase), `editor-base`,
- * `map-data-base`.
+ * `map-data-base`, `watch`.
+ *
+ * Watching a live link — `watch="<id-or-share-link>"` — is the one attribute
+ * that reaches the network for the DIAGRAM itself:
+ *
+ * ```html
+ * <dgmo-diagram watch="https://online.diagrammo.app/d/dgm_7f2a91"></dgmo-diagram>
+ * ```
+ *
+ * The publisher SHOWS a diagram on the web; the reader WATCHES it — hence the
+ * attribute name, which is the reader-side word the product already uses
+ * everywhere else. Until this existed, a live link only worked on a page built
+ * through the remark pipeline, which put it out of reach of every hand-written
+ * page, CMS and intranet (issue #163). Writing `live-link <id>` as the
+ * element's SOURCE does the same thing, because that is the same pointer in
+ * DGMO rather than in HTML; the attribute is the spelling for someone writing
+ * markup, and both land in `drawLive()`.
+ *
+ * Three deliberate choices, each of which could reasonably have gone the other
+ * way:
+ *
+ * - **It checks once, when the page loads** — and again if the attribute
+ *   changes. No polling. A reader's arrival IS the refresh here, the same
+ *   moment a compiled page gets one, and a timer on a page left open overnight
+ *   spends the publisher's quota to redraw a diagram nobody is looking at.
+ * - **Every failure draws something.** Withdrawn, missing and unreachable each
+ *   render the live-link reference card plus a sentence saying what happened.
+ *   An empty box is the one outcome that must never happen, because the reader
+ *   cannot tell it from a page that is still loading. The unreachable case
+ *   names the content-security-policy directive by hand, since a host that
+ *   omits `connect-src https://api.diagrammo.app` gets a blocked request the
+ *   browser reports to the page as an indistinguishable network error.
+ * - **It does NOT converge with the remark pipeline's `data-dgmo-ref` path**,
+ *   and should not: that path finds a diagram the build already drew and
+ *   decides whether to replace it, so silence is a safe answer there. Here
+ *   there is nothing on the page to fall back to, so silence is a blank space.
  *
  * DOM strategy — **light DOM** (not shadow DOM). Rationale: the rendered
  * SVG, source panel, and syntax-highlight token classes are all styled by
@@ -42,6 +77,13 @@ import { render } from '../render';
 import { startCountdowns } from '../countdown/ticker';
 import { startClocks } from '../clock/ticker';
 import { parseDgmoChartType } from '../dgmo-router';
+import {
+  parseLiveLink,
+  resolveLiveLinkTarget,
+  liveLinkPinnedRevision,
+} from '../live-link/parser';
+import { fetchLiveLink } from '../live-link/resolve';
+import { referenceShareUrl } from '../cloud-reference';
 import type { MapData } from '../map/resolved-types';
 import '../palettes';
 import {
@@ -189,6 +231,7 @@ const OBSERVED = [
   'mode',
   'editor-base',
   'map-data-base',
+  'watch',
   'show-source',
   'show-copy',
   'show-expand',
@@ -303,25 +346,206 @@ export class DgmoDiagram extends HTMLElement {
     severity?: string;
     line?: number;
     column?: number;
+    /** The source the card shows. Defaults to what the author wrote — a
+     *  watched diagram passes the FETCHED source, since the authored side is a
+     *  pointer and printing it under a parse error would name the wrong text. */
+    source?: string;
   }): void {
     // The standard error card carries `.dgmo.dgmo--error` on its own root,
     // so the container itself stays class-free.
-    this.mount(buildErrorBlock({ ...opts, source: this.source ?? '' }), '');
+    const { source, ...banner } = opts;
+    this.mount(
+      buildErrorBlock({ ...banner, source: source ?? this.source ?? '' }),
+      ''
+    );
+  }
+
+  private showLoading(message: string): void {
+    const loading = document.createElement('div');
+    loading.textContent = message;
+    this.mount(loading, 'dgmo--loading');
+  }
+
+  /**
+   * The diagram this element WATCHES, if any — from the `watch` attribute, or
+   * from a source that is itself a live-link pointer.
+   *
+   * `null` means "there is nothing live here, draw the source". A `problem` is
+   * a target that was named and could not be read, which is never silent: being
+   * wrong about which diagram a pointer points at is the one way this construct
+   * fails badly, so a bad target refuses instead of guessing.
+   */
+  private liveTarget(): { id: string } | { problem: string } | null {
+    const attr = this.getAttribute('watch');
+    if (attr !== null) {
+      const value = attr.trim();
+      if (value === '') {
+        return {
+          problem:
+            'The "watch" attribute needs a diagram — a share link like https://online.diagrammo.app/d/dgm_7f2a91, or a bare diagram id.',
+        };
+      }
+      const pin = liveLinkPinnedRevision(value);
+      if (pin !== null) {
+        return {
+          problem: `A pinned revision cannot be watched — watching always shows the publisher's current version. Remove the "${pin}" from the "watch" attribute.`,
+        };
+      }
+      const id = resolveLiveLinkTarget(value);
+      if (id === null) {
+        return {
+          problem: `"${value}" is not a Diagrammo diagram — the "watch" attribute takes a share link like https://online.diagrammo.app/d/dgm_7f2a91, or a bare diagram id.`,
+        };
+      }
+      return { id };
+    }
+
+    // The source form: `live-link <id>`, or a pasted share link on its own
+    // line. A pointer that does NOT resolve falls through to the normal render
+    // path on purpose — the parser's own diagnostics say why, on the right
+    // line, in the words a fence author needs.
+    const src = this.source ?? '';
+    if (parseDgmoChartType(src) !== 'live-link') return null;
+    const id = parseLiveLink(src).id;
+    return id === null ? null : { id };
   }
 
   private async rerender(): Promise<void> {
     const token = ++this.renderToken;
-    const src = this.source ?? '';
+    const target = this.liveTarget();
+    if (target !== null) {
+      if ('problem' in target) {
+        this.showError({ message: target.problem, severity: 'error' });
+        return;
+      }
+      await this.drawLive(target.id, token);
+      return;
+    }
+    await this.drawSource(this.source ?? '', token);
+  }
+
+  /**
+   * Ask the Cloud what the pointer points at, then draw the answer.
+   *
+   * Every branch draws. See the failure-state note at the top of this file for
+   * why an empty box is not an option, and why the blocked case has to name the
+   * content-security-policy directive itself.
+   */
+  private async drawLive(id: string, token: number): Promise<void> {
+    this.showLoading('Fetching the current diagram…');
+    const answer = await fetchLiveLink({ id });
+    if (token !== this.renderToken) return;
+
+    if (answer.kind === 'ok') {
+      await this.drawSource(answer.entry.source, token);
+      return;
+    }
+    if (answer.kind === 'gone') {
+      // The publisher's undo is "Stop showing", and this sentence is the
+      // reader's side of that word.
+      await this.drawLiveState(id, token, {
+        note: 'Its publisher stopped showing this diagram, so there is nothing to draw. Ask them to show it again if you still need it.',
+      });
+      return;
+    }
+    if (answer.kind === 'missing') {
+      await this.drawLiveState(id, token, {
+        note: `No diagram is published at "${id}". Check the link — it may be mistyped, or it may never have been shown on the web.`,
+      });
+      return;
+    }
+    await this.drawLiveState(id, token, {
+      note: `Could not reach Diagrammo Cloud (${answer.reason}). If this page sets a content security policy, it needs to allow connect-src https://api.diagrammo.app.`,
+      link: {
+        href: referenceShareUrl({ id }),
+        text: 'Open this diagram at Diagrammo',
+      },
+    });
+  }
+
+  /**
+   * A live link that could not be drawn: the reference card naming the diagram,
+   * plus a sentence saying what happened.
+   *
+   * The card rather than an error card, because withdrawn and missing are not
+   * render errors — the same shape the Obsidian plugin draws, so a reader who
+   * meets both surfaces meets one behaviour.
+   */
+  private async drawLiveState(
+    id: string,
+    token: number,
+    state: { note: string; link?: { href: string; text: string } }
+  ): Promise<void> {
+    const themePref = this.themePreference();
+    const resolvedTheme =
+      themePref === 'transparent' ? 'transparent' : resolveTheme(themePref);
+
+    let cardSvg: string | null = null;
+    try {
+      const card = await render(`live-link ${id}`, {
+        theme: resolvedTheme,
+        palette: this.palette(),
+      });
+      cardSvg = card.svg ?? null;
+    } catch (err) {
+      // The card is the courtesy; the note is the message. A card that failed
+      // to draw must not take the explanation down with it.
+      sharedWarn('live-link card render failed:', err);
+    }
+    if (token !== this.renderToken) return;
+
+    const wrapper = document.createElement('div');
+    if (cardSvg !== null) {
+      const holder = document.createElement('div');
+      holder.innerHTML = cardSvg;
+      const svgEl = holder.querySelector('svg');
+      if (svgEl) {
+        sanitizeSvgInPlace(svgEl);
+        svgEl.setAttribute('role', 'img');
+        svgEl.setAttribute('aria-label', `Live link ${id}`);
+        wrapper.appendChild(svgEl);
+      }
+    }
+    const note = document.createElement('p');
+    note.className = 'dgmo-live-note';
+    note.setAttribute('role', 'status');
+    note.textContent = state.note;
+    if (state.link) {
+      note.appendChild(document.createTextNode(' '));
+      const a = document.createElement('a');
+      a.href = state.link.href;
+      a.rel = 'noopener noreferrer';
+      a.target = '_blank';
+      a.textContent = state.link.text;
+      note.appendChild(a);
+    }
+    wrapper.appendChild(note);
+    this.mount(wrapper, 'dgmo-rendered dgmo--live-state');
+  }
+
+  /**
+   * Draw one DGMO string — what the author wrote, or what a watched diagram
+   * came back as. Every error card here shows `src` rather than the authored
+   * text, so a fetched diagram that fails to parse prints the source that
+   * actually failed.
+   */
+  private async drawSource(src: string, token: number): Promise<void> {
+    const fail = (opts: {
+      message: string;
+      severity?: string;
+      line?: number;
+      column?: number;
+    }): void => {
+      this.showError({ ...opts, source: src });
+    };
 
     if (src.trim() === '') {
-      this.showError({ message: 'No DGMO source provided', severity: 'error' });
+      fail({ message: 'No DGMO source provided', severity: 'error' });
       return;
     }
 
     // Loading state (visible only while an async render/fetch is in flight).
-    const loading = document.createElement('div');
-    loading.textContent = 'Rendering diagram…';
-    this.mount(loading, 'dgmo--loading');
+    this.showLoading('Rendering diagram…');
 
     const themePref = this.themePreference();
     const resolvedTheme =
@@ -334,7 +558,7 @@ export class DgmoDiagram extends HTMLElement {
     if (chartType === 'map') {
       const base = this.mapDataBase();
       if (!base) {
-        this.showError({
+        fail({
           message:
             'Map diagrams need map data — set a "map-data-base" URL on <dgmo-diagram>.',
           severity: 'error',
@@ -345,7 +569,7 @@ export class DgmoDiagram extends HTMLElement {
         mapData = await loadMapDataFromBase(base);
       } catch (err) {
         sharedWarn('map data fetch failed:', err);
-        this.showError({
+        fail({
           message: `Could not load map data from "${base}". Check the "map-data-base" URL.`,
           severity: 'error',
         });
@@ -365,7 +589,7 @@ export class DgmoDiagram extends HTMLElement {
       if (token !== this.renderToken) return;
       const message =
         err instanceof Error ? err.message : 'Render failed unexpectedly';
-      this.showError({ message, severity: 'error' });
+      fail({ message, severity: 'error' });
       sharedWarn('render() rejected:', err);
       return;
     }
@@ -373,7 +597,7 @@ export class DgmoDiagram extends HTMLElement {
 
     if (result.diagnostics && result.diagnostics.length > 0) {
       const d = result.diagnostics[0]!;
-      this.showError({
+      fail({
         message: d.message,
         severity: d.severity,
         ...(d.line !== undefined && { line: d.line }),
@@ -383,7 +607,7 @@ export class DgmoDiagram extends HTMLElement {
     }
 
     if (!result.svg) {
-      this.showError({
+      fail({
         message: 'Empty SVG returned from renderer',
         severity: 'error',
       });
@@ -395,7 +619,7 @@ export class DgmoDiagram extends HTMLElement {
     holder.innerHTML = result.svg;
     const svgEl = holder.querySelector('svg');
     if (!svgEl) {
-      this.showError({
+      fail({
         message: 'Empty SVG returned from renderer',
         severity: 'error',
       });
