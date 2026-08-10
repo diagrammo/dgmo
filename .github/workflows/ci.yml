@@ -33,10 +33,30 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # Run the hygiene trio explicitly (not `check:all`, whose superset
-      # pulls in pnpm audit / publint / attw — covered elsewhere and flaky).
+      # Named explicitly rather than `pnpm check:all`, whose superset pulls in
+      # pnpm audit / publint / attw — those genuinely are flaky here.
+      #
+      # Everything else in check:all belongs on a push. Until 2026-08-10 this
+      # step ran only the first three, and the comment claimed the rest was
+      # "covered elsewhere". It was not: spelling, circular and dep-ranges fired
+      # ONLY inside ./release.sh, so they rotted unseen and all three failed at
+      # once during the 0.65.0 cut — including a real map import cycle that had
+      # already shipped in 0.64.0 and 0.64.1. A gate nobody meets until they are
+      # mid-release is a gate that gets bypassed.
       - name: Hygiene checks (dead code, duplication, deps)
         run: pnpm check:deadcode && pnpm check:duplication && pnpm check:deps
+
+      - name: Spelling
+        run: pnpm check:spelling
+
+      - name: Circular dependencies
+        run: pnpm check:circular
+
+      # Asks the registry what each declared @diagrammo range can actually
+      # reach. Degrades to a quiet skip with no network, so an npm outage
+      # cannot fail the build.
+      - name: Dependency ranges reach what is published
+        run: pnpm check:dep-ranges
 
       - name: Reject legacy alias syntaxes (TD-18)
         run: bash scripts/lint-no-legacy-alias.sh
