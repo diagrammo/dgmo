@@ -216,8 +216,11 @@ function computeNodeWidth(
       ? measureText(`${badgeVal}x`, META_FONT_SIZE) +
         2 * CHAR_WIDTH_RATIO * NODE_FONT_SIZE
       : 0;
+  // The header label draws at 600; the instance badge beside it does not.
   const labelWidth =
-    measureText(node.label, NODE_FONT_SIZE) + badgeWidth + PADDING_X;
+    measureText(node.label, NODE_FONT_SIZE, { bold: true }) +
+    badgeWidth +
+    PADDING_X;
 
   // Collect all key names (including "RPS" and computed rows) to compute aligned value column
   const allKeys: string[] = [];
@@ -286,8 +289,13 @@ function computeNodeWidth(
 
   // Width of the aligned key column ("key: "), measured in pixels at the meta
   // font size — mirrors renderer.ts's valueX = x + 10 + measureText("key: ").
+  // Measured bold: which rows end up as inverted pills — and so draw their key
+  // at 600 — is decided in the renderer from computed severity, and is not
+  // knowable here. Sizing the column for the bold case guarantees the node is
+  // wide enough whichever way that lands; the cost on a node with no inverted
+  // row is a couple of pixels of width.
   const keyColWidth = Math.max(
-    ...allKeys.map((k) => measureText(`${k}: `, META_FONT_SIZE))
+    ...allKeys.map((k) => measureText(`${k}: `, META_FONT_SIZE, { bold: true }))
   );
   // keyColWidth + measured value width
   let maxRowWidth = 0;

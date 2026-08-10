@@ -570,7 +570,10 @@ export function renderRaci(
   // chip = 4 pad + 24 slab + 8 gap + label + 8 right pad.
   const longestLabelPx = legendMarkers.reduce(
     (n, m) =>
-      Math.max(n, measureText(variantLabels[m] ?? '', sLegendLabelFont)),
+      Math.max(
+        n,
+        measureText(variantLabels[m] ?? '', sLegendLabelFont, { bold: true })
+      ),
     0
   );
   const fullChipW = Math.max(
@@ -755,7 +758,8 @@ export function renderRaci(
         truncateText(
           parsed.roleDisplayNames[i] ?? '',
           sRoleHeaderFont,
-          roleColW - 2 * sCellPad
+          roleColW - 2 * sCellPad,
+          { bold: true }
         )
       );
   });
@@ -1108,7 +1112,8 @@ function renderLegend(
         truncateText(
           labelText,
           sLegendLabelFont,
-          chipW - slabW - slabPad * 2 - 12
+          chipW - slabW - slabPad * 2 - 12,
+          { bold: true }
         )
       );
   });
@@ -1209,7 +1214,9 @@ function renderPhaseBar(
     // can see at a glance what's in the rolled-up phase.
     const taskCount = phase.tasks.length;
     if (taskCount > 0) {
-      const labelTextWidth = measureText(phase.displayName, sPhaseFont);
+      const labelTextWidth = measureText(phase.displayName, sPhaseFont, {
+        bold: true,
+      });
       phaseG
         .append('text')
         .attr('x', x + 26 + labelTextWidth + 10)
@@ -1555,7 +1562,8 @@ function renderTaskRow(
       // ("Responsible") instead of the bare letter. Same primitive as the
       // legend chip, so cells and legend read as the same UI element.
       const fullLabel = variantLabels[m] ?? m;
-      const labelPx = measureText(fullLabel, sLegendLabelFont);
+      // Drawn at MARKER_FONT_WEIGHT (600).
+      const labelPx = measureText(fullLabel, sLegendLabelFont, { bold: true });
       const showFullLabel = labelPx + 16 <= sliceW;
       const textContent = showFullLabel ? fullLabel : m;
       const textFont = showFullLabel ? sLegendLabelFont : sMarkerFont;

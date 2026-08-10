@@ -100,7 +100,8 @@ export function computeCycleLayout(
     const hasDesc = !hideDescriptions && node.description.length > 0;
     const labelWidth = Math.max(
       MIN_NODE_WIDTH,
-      measureText(node.label, LABEL_FONT_SIZE) + NODE_PAD_X * 2
+      // Node labels draw at 600; the description lines under them do not.
+      measureText(node.label, LABEL_FONT_SIZE, { bold: true }) + NODE_PAD_X * 2
     );
 
     if (circleNodes) {
@@ -500,7 +501,9 @@ function computeCircleNodeDims(
   hasDesc: boolean
 ): { width: number; height: number; wrappedDesc: WrappedDescLine[] } {
   if (!hasDesc) {
-    const textW = measureText(node.label, CIRCLE_LABEL_FONT_SIZE);
+    const textW = measureText(node.label, CIRCLE_LABEL_FONT_SIZE, {
+      bold: true,
+    });
     const r = Math.max(MIN_CIRCLE_RADIUS, textW / 2 + CIRCLE_PAD);
     return { width: r * 2, height: r * 2, wrappedDesc: [] };
   }
@@ -513,7 +516,9 @@ function computeCircleNodeDims(
     const textBlockH = totalLines * DESC_LINE_HEIGHT + CIRCLE_PAD;
 
     if (textBlockH / 2 <= r * 0.85) {
-      const labelW = measureText(node.label, CIRCLE_LABEL_FONT_SIZE);
+      const labelW = measureText(node.label, CIRCLE_LABEL_FONT_SIZE, {
+        bold: true,
+      });
       const labelY = -textBlockH / 2 + DESC_LINE_HEIGHT;
       const availW = 2 * Math.sqrt(Math.max(0, r * r - labelY * labelY));
       if (labelW <= availW - CIRCLE_PAD) {

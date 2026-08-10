@@ -165,7 +165,8 @@ function renderEras(
       if (useReservedRow) {
         // Truncate to era's own span so labels stay inside their tinted band.
         const maxW = Math.max(0, w - 8);
-        displayLabel = truncateLegendText(era.label, 13, maxW);
+        // Drawn at 600 below; the legend pills further down are not.
+        displayLabel = truncateLegendText(era.label, 13, maxW, { bold: true });
         truncated = displayLabel !== era.label;
       }
       labelEl = eraG
@@ -326,7 +327,9 @@ function renderMarkers(
           if (d < nearestDist) nearestDist = d;
         }
         const maxW = Math.max(0, nearestDist - 8);
-        displayLabel = truncateLegendText(marker.label, 11, maxW);
+        displayLabel = truncateLegendText(marker.label, 11, maxW, {
+          bold: true,
+        });
         truncated = displayLabel !== marker.label;
       }
 

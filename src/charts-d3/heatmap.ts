@@ -89,7 +89,11 @@ export function renderHeatmap(
   const REF = 100;
   const maxValueW = Math.max(
     1,
-    ...rows.flatMap((r) => r.values.map((v) => measureText(fmtNum(v), REF)))
+    // Cell values are drawn at 600; the row and column labels around them are
+    // not, which is why only this measurement is bold.
+    ...rows.flatMap((r) =>
+      r.values.map((v) => measureText(fmtNum(v), REF, { bold: true }))
+    )
   );
   const cellFont = Math.max(
     11,

@@ -266,16 +266,18 @@ export function renderVenn(
     if (!ov.label) continue;
     const idxs = ov.sets.map((s) => vennSets.findIndex((vs) => vs.name === s));
     if (idxs.some((idx) => idx < 0)) continue;
+    // Overlap labels draw at 600, like the set names.
     const lines = wrapTextToWidth(
       ov.label,
       OVERLAP_FONT,
-      OVERLAP_WRAP_TARGET_W
+      OVERLAP_WRAP_TARGET_W,
+      { bold: true }
     );
     wrappedOverlapLabels.set(ov, lines);
 
     const dir = predictOverlapDirRaw(idxs);
     const labelW = lines.reduce(
-      (m, l) => Math.max(m, measureText(l, OVERLAP_FONT)),
+      (m, l) => Math.max(m, measureText(l, OVERLAP_FONT, { bold: true })),
       0
     );
     const labelH = lines.length * OVERLAP_LINE_H;
@@ -863,7 +865,7 @@ export function renderVenn(
     }
 
     const blockW = lines.reduce(
-      (m, l) => Math.max(m, measureText(l, OVERLAP_FONT)),
+      (m, l) => Math.max(m, measureText(l, OVERLAP_FONT, { bold: true })),
       0
     );
     const blockH = lines.length * OVERLAP_LINE_H;

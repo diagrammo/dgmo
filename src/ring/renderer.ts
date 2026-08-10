@@ -356,11 +356,15 @@ function drawRingCurvedLabel(
   textColor: string,
   palette: PaletteColors
 ): void {
-  // Pad the arc past the measured width — bold-600 glyphs render a touch wider
-  // than measureText estimates, and a textPath clips anything longer than its
-  // path. The pad must live *inside* the shrink budget so the reserve survives
-  // when the arc clamps to MAX_LABEL_ARC.
-  const PAD = 1.18;
+  // Pad the arc past the measured width — a textPath clips anything longer
+  // than its path, and an arc measured to the glyph makes a label sit right on
+  // that edge. The pad must live *inside* the shrink budget so the reserve
+  // survives when the arc clamps to MAX_LABEL_ARC.
+  //
+  // It was 1.18 while the width model measured these 600-weight labels in the
+  // regular face; the measurements below are bold now, so the ~3.4% that was
+  // covering that comes back out and the rest stays as clipping reserve.
+  const PAD = 1.14;
   // Baseline sits on the path; glyphs grow outward, so pull the path in by a
   // fraction of the font size to keep the optical center on rMid. The angle
   // must be sized from this radius (not rMid) or the arc comes up short on the
@@ -368,7 +372,7 @@ function drawRingCurvedLabel(
   let fs = labelFont;
   let rPath = rMid - fs * 0.32;
   const maxLen = MAX_LABEL_ARC * rPath;
-  const wPadded = measureText(text, labelFont) * PAD;
+  const wPadded = measureText(text, labelFont, { bold: true }) * PAD;
   if (wPadded > maxLen) {
     fs = Math.max(LABEL_FONT_MIN, Math.floor((labelFont * maxLen) / wPadded));
     rPath = rMid - fs * 0.32;
@@ -376,7 +380,7 @@ function drawRingCurvedLabel(
 
   // Half-angle the text subtends at the path radius, clamped so the two ends
   // never meet at the bottom.
-  const arcLen = measureText(text, fs) * PAD;
+  const arcLen = measureText(text, fs, { bold: true }) * PAD;
   const halfAngle = Math.min(arcLen / (2 * rPath), MAX_LABEL_ARC / 2);
   const largeArc = halfAngle * 2 > Math.PI ? 1 : 0;
   // Polar: 0 rad = 12 o'clock, +sin → clockwise (screen-right at the top).

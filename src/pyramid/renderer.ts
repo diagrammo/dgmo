@@ -251,7 +251,7 @@ export function renderPyramid(
     // the visual noise of a stroke.
     const labelFitsInside =
       Math.min(topHalf, botHalf) * 2 >
-      measureText(layer.label, layout.labelFont);
+      measureText(layer.label, layout.labelFont, { bold: true });
     const haloColor =
       textColor === palette.textOnFillLight
         ? palette.textOnFillDark

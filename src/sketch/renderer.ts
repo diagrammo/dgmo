@@ -182,15 +182,22 @@ function fitWrapped(
   minFont: number = CARD_LABEL_MIN,
   maxLines: number = 2
 ): { lines: string[]; fontSize: number } {
+  // Every caller draws these lines bold — the group band at 800, the two card
+  // headers at 700 through renderNodeCard — and 800, 700 and 600 all resolve to
+  // the one Bold face that ships.
+  const BOLD = { hardBreak: true, bold: true } as const;
   for (let fs = maxFont; fs >= minFont; fs--) {
-    const lines = wrapTextToWidth(label, fs, maxWidth, { hardBreak: true });
+    const lines = wrapTextToWidth(label, fs, maxWidth, BOLD);
     if (lines.length <= maxLines) return { lines, fontSize: fs };
   }
-  const lines = wrapTextToWidth(label, minFont, maxWidth, { hardBreak: true });
+  const lines = wrapTextToWidth(label, minFont, maxWidth, BOLD);
   if (lines.length <= maxLines) return { lines, fontSize: minFont };
   const kept = lines.slice(0, maxLines);
   let last = kept[maxLines - 1]!;
-  while (last.length > 1 && measureText(`${last}…`, minFont) > maxWidth)
+  while (
+    last.length > 1 &&
+    measureText(`${last}…`, minFont, { bold: true }) > maxWidth
+  )
     last = last.slice(0, -1);
   kept[maxLines - 1] = `${last}…`;
   return { lines: kept, fontSize: minFont };

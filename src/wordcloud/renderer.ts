@@ -42,7 +42,8 @@ function hasCanvas2d(): boolean {
 }
 
 function estimateWordWidth(text: string, size: number): number {
-  return measureText(text, size);
+  // Every word in the cloud is drawn at 600.
+  return measureText(text, size, { bold: true });
 }
 
 type PlacedCloudWord = WordCloudWord & {
