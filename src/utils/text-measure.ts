@@ -28,10 +28,20 @@ const DEFAULT_W = INTER_DEFAULT_W;
  *
  * Only 400 and 700 exist — `fonts/` ships `Inter-Regular.ttf` and
  * `Inter-Bold.ttf`, and the app declares exactly those two `@font-face`
- * weights. So an intermediate weight is NOT an intermediate width: CSS font
- * matching resolves a `font-weight: 500` label down to the 400 face, and it
- * renders and measures as regular. Pass `bold` only where the text really is
- * drawn at 700.
+ * weights. An intermediate weight is therefore not an intermediate width: it
+ * lands on one of the two faces, and which one is NOT simply "the nearest".
+ * CSS font matching walks *upward* first for any weight above 500, so
+ *
+ *     400, 500        → the Regular face
+ *     600, 700, 800   → the Bold face
+ *
+ * Verified by rasterising the same string at all four weights through resvg
+ * with only these two TTFs loaded: the PNGs come out identical in exactly
+ * those two groups. 600 is the most common emphasis weight in this codebase,
+ * and reading it as regular is what left ~20 sites mis-measured after the
+ * first sweep (issues 167, 168).
+ *
+ * Pass `bold` wherever the run is drawn at 600 or above — and only there.
  */
 export interface MeasureOpts {
   bold?: boolean;
