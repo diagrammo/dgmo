@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.65.0] - 2026-08-10
+
+### Added
+
+- **A plain web page can watch a diagram somebody is showing.** A live link previously only worked on a page built through the remark pipeline, so a hand-written page, a content management system or an intranet had no way to display a diagram that stays current (issue #163). `<dgmo-diagram watch="dgm_7f2a91">` is now that route, and writing `live-link <id>` as the element's source does the same thing — one is the pointer spelled in HTML, the other the same pointer spelled in DGMO. Every failure draws something: withdrawn, missing and unreachable each render the live-link card and a sentence, because an empty box is indistinguishable from a page still loading. It resolves once at load and never polls — a reader's arrival is the refresh, and a timer would spend the publisher's quota redrawing for nobody.
+
+### Fixed
+
+- **Text is measured in the face it is actually drawn in.** Runs set at the middle weight render bold — only the regular and bold faces ship, and font matching walks upward above weight 500 — but they were being measured as regular, so roughly twenty places sized their boxes too narrow for their own text: chart titles, legends, the shared node card, sequence, pert, block, mindmap, treemap, boxes-and-lines and bracket among them.
+- **Non-Latin text is measured per script instead of at one flat Latin average** (issue #170). Every character outside the generated Inter table was charged 0.603 of an em, which is wrong in both directions at once: Chinese, Japanese and Korean are a full em, so a Japanese label measured about 40% narrow, wrapped past its box and truncated to something that still did not fit; Devanagari, Thai and Arabic render several codepoints as one cluster, so charging each one separately measured them 45–63% too wide and any box sized from that came out huge. Latin measurement is bit-identical — nothing below U+0300 changes path. Only the full-width row is a fact of the writing system; the other ratios are estimates that depend on the machine's fallback face, and they are two to four times closer than the flat number they replace. Truncation and hard breaking now step by grapheme cluster, so a cut can only land where a reader sees a boundary — never between a Devanagari consonant and its vowel sign, and never inside a surrogate pair.
+- **A table column that cannot be parsed is reported instead of silently deleted.** One mistyped constraint removed the whole column from an entity-relationship diagram with no error, no warning and a zero exit code — the parser returned nothing and the caller dropped it. A diagram that renders looks finished, which makes this the worst available behaviour. The comma form is the one that gets typed, because every other chart type takes comma-separated metadata and these space-separated columns are the deliberate carve-out for SQL habits, so `fk, nullable` now errors and names the fix. Any indented line under a table that is neither a column nor a relationship errors too, rather than vanishing.
+- **An edge label is no longer crossed by its own connector.**
+- **Header and legend text is centred by the renderer** using the baseline the format provides, rather than a hand-tuned constant that was only ever right for one font at one size.
+- **A violation message wraps by run**, so the quoted names inside it stay bold across the line break.
+
+### Changed
+
+- **The published copyright names Diagrammo LLC**, the company that now exists, across the library and the standalone drop-in package.
+
 ## [0.64.0] - 2026-08-07
 
 ### Changed
