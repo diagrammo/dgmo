@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.66.0] - 2026-08-10
+
 ### Fixed
 
 - **A map inside a documentation page draws a map again.** Since 0.62.0 the library has read no basemap files on its own — the host hands them over — but the embed block that renders a ` ```dgmo ` fence had no way to accept them, so a map on a docs site built with any of the Astro, Docusaurus, Fumadocs, Nextra or VitePress integrations came out as the "this map has no basemap data" card instead of a diagram. The block now takes the basemaps like every other entry point does, and reads them only for a fence that turns out to be a map.
