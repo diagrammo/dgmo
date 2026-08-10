@@ -35,6 +35,19 @@ export const CARD_RADIUS = 6;
 export const CONTAINER_RADIUS = 8;
 /** Collapse accent bar horizontal inset from the card edges. */
 export const COLLAPSE_BAR_INSET = 0;
+/**
+ * Opacity of the `palette.bg` rect knocked out behind an edge label that sits
+ * on its own connector.
+ *
+ * It is not fully opaque because the label may lie over a tinted group
+ * container, and a hard patch of page background there reads as a hole. What it
+ * must NOT do is leave enough of the connector showing to cross the glyphs:
+ * boxes-and-lines used 0.72 and the line landed on the baseline band, so every
+ * edge label rendered looking struck through. Flowchart, infra and
+ * boxes-and-lines each carried a different guess (0.85 / 0.9 / 0.72); this is
+ * the one value, taken from the strongest of the three.
+ */
+export const EDGE_LABEL_KNOCKOUT_OPACITY = 0.9;
 
 // ── Convention defaults (org/sitemap baseline; see deviations above) ──
 

@@ -70,6 +70,7 @@ const NODE_FONT_SIZE = 11;
 const MIN_NODE_FONT_SIZE = 9;
 const EDGE_LABEL_FONT_SIZE = 11;
 import {
+  EDGE_LABEL_KNOCKOUT_OPACITY,
   EDGE_STROKE_WIDTH,
   NODE_STROKE_WIDTH,
 } from '../utils/visual-conventions'; // shared (Story 111.1)
@@ -1391,9 +1392,8 @@ export function renderBoxesAndLines(
       .attr('height', lh)
       .attr('rx', 3)
       .attr('fill', palette.bg)
-      // No border; semi-transparent so the line stays faintly visible behind the
-      // label while the (full-opacity) text on top stays crisp.
-      .attr('opacity', 0.72);
+      // No border; see EDGE_LABEL_KNOCKOUT_OPACITY for why it is not opaque.
+      .attr('opacity', EDGE_LABEL_KNOCKOUT_OPACITY);
 
     const text = labelG
       .append('text')

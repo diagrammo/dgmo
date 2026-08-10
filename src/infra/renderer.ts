@@ -71,6 +71,7 @@ const EDGE_LABEL_FONT_SIZE = 11;
 const GROUP_LABEL_FONT_SIZE = 14;
 const NODE_BORDER_RADIUS = 8;
 import {
+  EDGE_LABEL_KNOCKOUT_OPACITY,
   EDGE_STROKE_WIDTH,
   NODE_STROKE_WIDTH,
   COLLAPSE_BAR_HEIGHT,
@@ -1409,7 +1410,7 @@ function renderEdgeLabels(
       .attr('height', 16)
       .attr('rx', 3)
       .attr('fill', palette.bg)
-      .attr('opacity', 0.9);
+      .attr('opacity', EDGE_LABEL_KNOCKOUT_OPACITY);
 
     g.append('text')
       .attr('x', midPt.x)
