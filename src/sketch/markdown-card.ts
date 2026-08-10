@@ -30,8 +30,6 @@ export interface MarkdownBlockOptions {
   noEllipsis?: boolean;
 }
 
-/** Bold runs measure slightly wider than the regular table suggests. */
-const BOLD_WIDTH_FACTOR = 1.06;
 const INDENT_PX = 12;
 const BULLET_HANG_PX = 12;
 const ELLIPSIS = '…';
@@ -51,13 +49,14 @@ interface VisualLine {
   bulletX?: number; // if set, draw a bullet marker here
 }
 
-/** Measure a segment's rendered width, widening bold runs slightly. */
+/** Measure a segment's rendered width in the face it is drawn in. */
 function segWidth(
   seg: { text: string; bold: boolean },
   fontSize: number
 ): number {
-  const w = measureText(seg.text, fontSize);
-  return seg.bold ? w * BOLD_WIDTH_FACTOR : w;
+  // A bold run used to be the regular width scaled by a flat 1.06 guess, from
+  // before the width model carried Inter Bold's own advances (issue 167).
+  return measureText(seg.text, fontSize, { bold: seg.bold });
 }
 
 /**
