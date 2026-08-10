@@ -507,7 +507,7 @@ export function renderC4Context(
     // Name (bold) — above divider
     if (node.type === 'person') {
       // Person icon to the left of name
-      const textWidth = measureText(node.name, NAME_FONT_SIZE);
+      const textWidth = measureText(node.name, NAME_FONT_SIZE, { bold: true });
       const gap = 6;
       const totalWidth = PERSON_ICON_W + gap + textWidth;
       const iconCx = -totalWidth / 2 + PERSON_ICON_W / 2;
@@ -1608,7 +1608,7 @@ export function renderC4Containers(
 
     // Name (bold)
     if (node.type === 'person') {
-      const textWidth = measureText(node.name, NAME_FONT_SIZE);
+      const textWidth = measureText(node.name, NAME_FONT_SIZE, { bold: true });
       const gap = 6;
       const totalWidth = PERSON_ICON_W + gap + textWidth;
       const iconCx = -totalWidth / 2 + PERSON_ICON_W / 2;

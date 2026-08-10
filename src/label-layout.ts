@@ -222,7 +222,10 @@ export function computeQuadrantPointLabels(
   chartBounds: { left: number; top: number; right: number; bottom: number },
   obstacles: LabelRect[],
   pointRadius: number,
-  fontSize: number
+  fontSize: number,
+  /** True where the caller draws these labels at 700 — quadrant does, the
+   *  scatter chart does not. */
+  bold = false
 ): PlacedQuadrantLabel[] {
   const labelHeight = fontSize + 4;
   const stepSize = labelHeight + 2;
@@ -240,7 +243,7 @@ export function computeQuadrantPointLabels(
   for (let i = 0; i < points.length; i++) {
     const pt = points[i]!; // In-bounds by loop guard.
     const minGap = (pt.r ?? pointRadius) + 4;
-    const labelWidth = measureText(pt.label, fontSize) + 8;
+    const labelWidth = measureText(pt.label, fontSize, { bold }) + 8;
 
     // Try 4 directions: above, below, left, right
     // Each direction generates candidate (labelX, labelY, anchor)

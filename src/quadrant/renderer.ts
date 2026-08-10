@@ -216,7 +216,8 @@ export function renderQuadrant(
     const availH = qh - LABEL_PAD;
 
     // Try single line first
-    if (measureText(text, LABEL_MAX_FONT) <= availW) {
+    // The watermark is drawn at 700 (see the quadrant-label render below).
+    if (measureText(text, LABEL_MAX_FONT, { bold: true }) <= availW) {
       const fs = Math.min(LABEL_MAX_FONT, availH);
       return {
         lines: [text],
@@ -226,7 +227,7 @@ export function renderQuadrant(
 
     // Try wrapping into 2+ lines: greedily pack words so each line fits availW
     const wrapLines = (fs: number): string[] =>
-      wrapTextToWidth(text, fs, availW);
+      wrapTextToWidth(text, fs, availW, { bold: true });
 
     // Binary-search for largest font size where wrapped text fits both width and height
     let lo = LABEL_MIN_FONT;
@@ -237,7 +238,9 @@ export function renderQuadrant(
       const mid = Math.round((lo + hi) / 2);
       const lines = wrapLines(mid);
       const totalH = lines.length * mid * 1.2; // line height ~1.2em
-      const maxLineW = Math.max(...lines.map((l) => measureText(l, mid)));
+      const maxLineW = Math.max(
+        ...lines.map((l) => measureText(l, mid, { bold: true }))
+      );
       if (maxLineW <= availW && totalH <= availH) {
         bestFs = mid;
         bestLines = lines;
@@ -493,7 +496,9 @@ export function renderQuadrant(
     { left: 0, top: 0, right: chartWidth, bottom: chartHeight },
     quadrantLabelObstacles,
     POINT_RADIUS,
-    POINT_LABEL_FONT_SIZE
+    POINT_LABEL_FONT_SIZE,
+    // Point labels are drawn at 700 here.
+    true
   );
 
   // Draw data points (circles and labels)

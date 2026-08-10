@@ -78,7 +78,8 @@ function computeNodeDimensions(table: ERTable): {
   // Width: max rendered pixel width of table name and column rows. Measure
   // each at the font size the renderer draws it with; reserve the constraint
   // icon's horizontal offset when a column carries one.
-  let maxTextWidth = measureText(table.name, TABLE_FONT_SIZE);
+  // The table name is drawn bold; the column rows below are regular.
+  let maxTextWidth = measureText(table.name, TABLE_FONT_SIZE, { bold: true });
   for (const col of table.columns) {
     let colText = col.name;
     if (col.type) colText += `: ${col.type}`;

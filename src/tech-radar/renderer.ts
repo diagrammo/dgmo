@@ -1157,11 +1157,12 @@ function renderQuadrantLabel(
   baseFontSize = QUADRANT_LABEL_FONT_SIZE
 ): void {
   // Greedy word-wrap to the available pixel width.
-  const lines = wrapTextToWidth(name, baseFontSize, maxWidth);
+  // Every line here is drawn at 700 below.
+  const lines = wrapTextToWidth(name, baseFontSize, maxWidth, { bold: true });
 
   // Scale font down if any line is still too wide
   const estimatedWidth = Math.max(
-    ...lines.map((l) => measureText(l, baseFontSize))
+    ...lines.map((l) => measureText(l, baseFontSize, { bold: true }))
   );
   const fontSize =
     estimatedWidth > maxWidth

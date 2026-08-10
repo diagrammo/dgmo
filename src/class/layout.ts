@@ -81,7 +81,8 @@ function computeNodeDimensions(node: ClassNode): {
 
   // Width: max rendered pixel width of class name, modifier badge, and members.
   // Measure each at the font size the renderer draws it with.
-  let maxTextWidth = measureText(node.name, CLASS_FONT_SIZE);
+  // The class name is drawn bold; the badge and members below are regular.
+  let maxTextWidth = measureText(node.name, CLASS_FONT_SIZE, { bold: true });
   if (node.modifier) {
     // Renderer draws the badge as «modifier» at MEMBER_FONT_SIZE.
     maxTextWidth = Math.max(
