@@ -161,7 +161,14 @@ D -> H`;
     // layout change that did not exist. The bound is what catches a hang; it was
     // never meant to certify a number, so it is set where only a hang trips it.
     expect(elapsed).toBeLessThan(8000);
-  });
+    // 🔴 The per-test timeout has to sit ABOVE the budget, or vitest kills the
+    // test before its own assertion can decide. It did not: the bound went to
+    // 8000 while vitest's default stayed 5000, so from then on the guard could
+    // only ever fail — a contended machine tripped the harness at 5000ms and
+    // reported a timeout rather than the measured number the comment above is
+    // about. Seen again 2026-08-10, rejecting three pushes for a sequence-only
+    // change. Whatever the budget becomes, this stays larger than it.
+  }, 20000);
 
   // Regression: group-incident edges used to crash dagre ("Cannot set
   // properties of undefined (setting 'rank')") because an edge endpoint was a
