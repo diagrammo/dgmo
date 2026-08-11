@@ -746,13 +746,63 @@ describe('collapsed section participant marks', () => {
     );
   });
 
-  it('keeps the label clear of the mark row', () => {
+  it('keeps the centred label on its own row above the marks', () => {
     const svg = renderCollapsed();
     const label = svg.querySelector('.section-label')!;
-    expect(label.getAttribute('text-anchor')).toBe('start');
+    expect(label.getAttribute('text-anchor')).toBe('middle');
     const labelY = Number(label.getAttribute('y'));
     const markY = Number(markFor(svg, 'Auth').getAttribute('cy'));
     expect(markY).toBeGreaterThan(labelY);
+  });
+
+  it('cuts the lifelines that would run behind the label', () => {
+    const svg = renderCollapsed();
+    const label = svg.querySelector('.section-label')!;
+    const labelX = Number(label.getAttribute('x'));
+    const labelY = Number(label.getAttribute('y'));
+    // Whichever participant's column the centred label crosses
+    const crossed = [...svg.querySelectorAll('.section-mark')]
+      .map((m) => Number(m.getAttribute('cx')))
+      .reduce((best, cx) =>
+        Math.abs(cx - labelX) < Math.abs(best - labelX) ? cx : best
+      );
+    const spans = [
+      ...svg.querySelectorAll<SVGLineElement>('line.lifeline'),
+    ].filter((l) => Number(l.getAttribute('x1')) === crossed);
+    // That lifeline is drawn in two runs with the label's row missing between
+    expect(spans.length).toBe(2);
+    const gapTop = Number(spans[0]!.getAttribute('y2'));
+    const gapBottom = Number(spans[1]!.getAttribute('y1'));
+    expect(gapTop).toBeLessThan(labelY);
+    expect(gapBottom).toBeGreaterThan(labelY - 12);
+    expect(gapBottom).toBeGreaterThan(gapTop);
+  });
+
+  it('cuts an expanded section label out of the lifelines too', () => {
+    const svg = renderToSvg(diagram)!;
+    const labelX = Number(
+      svg.querySelector('.section-label')!.getAttribute('x')
+    );
+    const lifelines = [
+      ...svg.querySelectorAll<SVGLineElement>('line.lifeline'),
+    ];
+    const nearest = lifelines
+      .map((l) => Number(l.getAttribute('x1')))
+      .reduce((best, x) =>
+        Math.abs(x - labelX) < Math.abs(best - labelX) ? x : best
+      );
+    expect(
+      lifelines.filter((l) => Number(l.getAttribute('x1')) === nearest).length
+    ).toBe(2);
+  });
+
+  it('leaves a lifeline whole when no label crosses its column', () => {
+    const svg = renderCollapsed();
+    const browserX = Number(markFor(svg, 'Browser').getAttribute('cx'));
+    const spans = [
+      ...svg.querySelectorAll<SVGLineElement>('line.lifeline'),
+    ].filter((l) => Number(l.getAttribute('x1')) === browserX);
+    expect(spans.length).toBe(1);
   });
 
   it('marks the group lifeline when a collapsed group hides the sender', () => {

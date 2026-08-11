@@ -563,6 +563,15 @@ const COLLAPSED_SECTION_BAND_EXTRA =
 const COLLAPSED_SECTION_MARK_OFFSET = 9;
 /** Distance from the section anchor up to the label baseline when collapsed. */
 const COLLAPSED_SECTION_LABEL_BASELINE = -4;
+/**
+ * Breathing room around a section label, where the lifelines are cut away.
+ * At 11px bold the glyphs run about 8px above the baseline and 3px below, so
+ * these leave a few pixels of clear band on every side — enough that a dash
+ * ending near the label reads as absent rather than as a clipped stroke.
+ */
+const SECTION_LABEL_CLEARANCE_X = 8;
+const SECTION_LABEL_CLEARANCE_ABOVE = 12;
+const SECTION_LABEL_CLEARANCE_BELOW = 5;
 
 /** What one participant did inside a run of messages. */
 export interface SectionParticipation {
@@ -2249,6 +2258,74 @@ export function renderSequenceDiagram(
       .text(group.name);
   }
 
+  // ── Section band geometry ────────────────────────────────
+  // Computed here rather than beside the band render below, because the
+  // lifelines are drawn first and have to be cut around each band's label.
+  const bandLeftmostX = Math.min(...Array.from(participantX.values()));
+  const bandRightmostX = Math.max(...Array.from(participantX.values()));
+  const sectionLineX1 = bandLeftmostX - sBoxW / 2 - 10;
+  const sectionLineX2 = bandRightmostX + sBoxW / 2 + 10;
+  const sectionLabelX = (sectionLineX1 + sectionLineX2) / 2;
+
+  const sectionLabelTextFor = (
+    sec: import('./parser').SequenceSection
+  ): string => {
+    if (!isSectionCollapsed(sec)) return sec.label;
+    const count = sectionMsgCounts.get(sec.lineNumber) ?? 0;
+    return `${sec.label} (${count} ${count === 1 ? 'message' : 'messages'})`;
+  };
+  const sectionLabelBaselineFor = (
+    sec: import('./parser').SequenceSection,
+    secY: number
+  ): number =>
+    isSectionCollapsed(sec)
+      ? secY + COLLAPSED_SECTION_LABEL_BASELINE
+      : secY + 4;
+
+  /**
+   * The rectangle each section label occupies. Lifelines run behind the band
+   * and the band is a tint rather than a fill, so a dashed line crosses the
+   * label text and turns a name into something you decode. These boxes are cut
+   * out of the lifelines below — actually suppressing the dashes rather than
+   * painting over them, which would show as an opaque patch wherever the
+   * diagram is rendered on no background at all.
+   */
+  const sectionLabelBoxes = sectionRegions
+    .map((region) => {
+      const secY = sectionYPositions.get(region.section.lineNumber);
+      if (secY === undefined) return null;
+      const width = measureText(sectionLabelTextFor(region.section), 11, {
+        bold: true,
+      });
+      const baseline = sectionLabelBaselineFor(region.section, secY);
+      return {
+        x1: sectionLabelX - width / 2 - SECTION_LABEL_CLEARANCE_X,
+        x2: sectionLabelX + width / 2 + SECTION_LABEL_CLEARANCE_X,
+        y1: baseline - SECTION_LABEL_CLEARANCE_ABOVE,
+        y2: baseline + SECTION_LABEL_CLEARANCE_BELOW,
+      };
+    })
+    .filter((box): box is NonNullable<typeof box> => box !== null);
+
+  /** A lifeline's runs of visible dashes, with each label box taken out. */
+  const lifelineSegments = (
+    cx: number,
+    yTop: number,
+    yBottom: number
+  ): Array<[number, number]> => {
+    const cuts = sectionLabelBoxes
+      .filter((b) => cx >= b.x1 && cx <= b.x2 && b.y2 > yTop && b.y1 < yBottom)
+      .sort((a, b) => a.y1 - b.y1);
+    const segments: Array<[number, number]> = [];
+    let y = yTop;
+    for (const cut of cuts) {
+      if (cut.y1 > y) segments.push([y, cut.y1]);
+      y = Math.max(y, cut.y2);
+    }
+    if (y < yBottom) segments.push([y, yBottom]);
+    return segments;
+  };
+
   // Render each participant
   const lifelineStartY = lifelineStartY0;
   participants.forEach((participant) => {
@@ -2367,19 +2444,29 @@ export function renderSequenceDiagram(
         ? lifelineStartY + ACTOR_LABEL_CLEARANCE
         : lifelineStartY;
     const llColor = effectiveTagColor || palette.textMuted;
-    const lifelineEl = svg
-      .append('line')
-      .attr('x1', cx)
-      .attr('y1', llY)
-      .attr('x2', cx)
-      .attr('y2', lifelineStartY + lifelineLength)
-      .attr('stroke', llColor)
-      .attr('stroke-width', 1)
-      .attr('stroke-dasharray', '6 4')
-      .attr('class', 'lifeline')
-      .attr('data-participant-id', participant.id);
-    if (tagKey && pTagValue) {
-      lifelineEl.attr(`data-tag-${tagKey}`, pTagValue.toLowerCase());
+    // One line per run of dashes: a lifeline crossing a section label is cut
+    // around it, so the label reads. Every segment carries the same class and
+    // attributes, so anything selecting `.lifeline` still finds this
+    // participant's, and the topmost segment still reports the true start.
+    for (const [segTop, segBottom] of lifelineSegments(
+      cx,
+      llY,
+      lifelineStartY + lifelineLength
+    )) {
+      const lifelineEl = svg
+        .append('line')
+        .attr('x1', cx)
+        .attr('y1', segTop)
+        .attr('x2', cx)
+        .attr('y2', segBottom)
+        .attr('stroke', llColor)
+        .attr('stroke-width', 1)
+        .attr('stroke-dasharray', '6 4')
+        .attr('class', 'lifeline')
+        .attr('data-participant-id', participant.id);
+      if (tagKey && pTagValue) {
+        lifelineEl.attr(`data-tag-${tagKey}`, pTagValue.toLowerCase());
+      }
     }
   });
 
@@ -2394,7 +2481,6 @@ export function renderSequenceDiagram(
   // sits comfortably inside.
   const SELF_ARROW_PROJECTION = sActivationWidth / 2 + sSelfCallWidth;
   const SELF_ARROW_FRAME_PAD = 10;
-  const frameRightmostX = Math.max(...Array.from(participantX.values()));
 
   // Collect message indices from an element subtree
   const collectMsgIndices = (els: readonly SequenceElement[]): number[] => {
@@ -2758,18 +2844,14 @@ export function renderSequenceDiagram(
       : px - sActivationWidth / 2 + offset;
   };
 
-  // Render section dividers
-  const leftmostX = Math.min(...Array.from(participantX.values()));
-  const rightmostX = frameRightmostX;
-  const sectionLineX1 = leftmostX - sBoxW / 2 - 10;
-  const sectionLineX2 = rightmostX + sBoxW / 2 + 10;
-
+  // Render section dividers — geometry hoisted above the lifelines, which are
+  // drawn first and cut around each label.
   for (const region of sectionRegions) {
     const sec = region.section;
     const secY = sectionYPositions.get(sec.lineNumber);
     if (secY === undefined) continue;
 
-    const isCollapsed = collapsedSections?.has(sec.lineNumber) ?? false;
+    const isCollapsed = isSectionCollapsed(sec);
     const lineColor = palette.textMuted;
 
     // Wrap section elements in a <g> for toggle.
@@ -2813,23 +2895,13 @@ export function renderSequenceDiagram(
       .attr('pointer-events', 'none')
       .attr('class', 'section-divider');
 
-    // Build display label
-    const msgCount = sectionMsgCounts.get(sec.lineNumber) ?? 0;
-    const labelText = isCollapsed
-      ? `${sec.label} (${msgCount} ${msgCount === 1 ? 'message' : 'messages'})`
-      : sec.label;
-
-    // An expanded band centres its label; a collapsed one moves it to the
-    // left edge, because the centre of the band is a participant column and
-    // that column is where the busiest mark usually lands.
+    // Build display label. Centred in both states — the lifelines are cut
+    // around it (see sectionLabelBoxes) rather than the label moving aside,
+    // and on a collapsed band the marks have their own row below it.
+    const labelText = sectionLabelTextFor(sec);
     const labelWidth = measureText(labelText, 11, { bold: true });
-    const labelAnchor = isCollapsed ? 'start' : 'middle';
-    const labelX = isCollapsed
-      ? bandX + 10
-      : (sectionLineX1 + sectionLineX2) / 2;
-    const labelBaseline = isCollapsed
-      ? secY + COLLAPSED_SECTION_LABEL_BASELINE
-      : secY + 4;
+    const labelX = sectionLabelX;
+    const labelBaseline = sectionLabelBaselineFor(sec, secY);
 
     // Transparent hit area scoped to the label so the toggle stays clickable
     // without the band swallowing clicks across the full diagram width.
@@ -2838,7 +2910,7 @@ export function renderSequenceDiagram(
     const labelHitW = Math.max(80, labelWidth + 24);
     sectionG
       .append('rect')
-      .attr('x', isCollapsed ? labelX - 12 : labelX - labelHitW / 2)
+      .attr('x', labelX - labelHitW / 2)
       .attr('y', secY - BAND_HEIGHT / 2)
       .attr('width', labelHitW)
       .attr('height', BAND_HEIGHT)
@@ -2849,7 +2921,7 @@ export function renderSequenceDiagram(
       .append('text')
       .attr('x', labelX)
       .attr('y', labelBaseline)
-      .attr('text-anchor', labelAnchor)
+      .attr('text-anchor', 'middle')
       .attr('fill', lineColor)
       .attr('font-size', 11)
       .attr('font-weight', 'bold')
