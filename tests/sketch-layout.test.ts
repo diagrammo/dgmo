@@ -346,9 +346,10 @@ describe('sketch layout — Stage 3: geometry-derived placement order', () => {
     expect(node(last, 'Spy').x).toBeLessThan(last.boxes[0]!.x);
   });
 
-  it('sortRootsBySource on (default): declaration order still decides', () => {
-    const first = layoutSketch(parseSketch(NODE_FIRST));
-    const last = layoutSketch(parseSketch(NODE_LAST));
+  it('sortRootsBySource on (legacy opt-in): declaration order decides', () => {
+    const legacy = { autoLayout: { sortRootsBySource: true } };
+    const first = layoutSketch(parseSketch(NODE_FIRST), legacy);
+    const last = layoutSketch(parseSketch(NODE_LAST), legacy);
     // Declared first → keeps its slot; declared last → bumped by the group.
     expect(node(first, 'Spy').slot).toEqual({ c: -3, r: 0 });
     expect(node(last, 'Spy').slot).not.toEqual({ c: -3, r: 0 });

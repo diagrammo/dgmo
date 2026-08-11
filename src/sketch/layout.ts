@@ -101,12 +101,17 @@ export interface SketchLayoutOptions {
 }
 
 export interface SketchAutoLayoutFlags {
-  /** M1 — re-anchor the whole diagram to the min corner every render. */
+  /**
+   * M1 — re-anchor the whole diagram to the min corner every render.
+   * Off (the default) is the WYSIWYG frozen-origin behaviour; without a
+   * `frozenOrigin` it still anchors to the live min, so stateless callers
+   * render identically either way.
+   */
   readonly normalizeOrigin?: boolean;
   /**
-   * M2 — order root placement by declaration line. Off = geometry-stable:
-   * authored-`at` units place in coordinate order (row-major), flow units in
-   * reading order after them.
+   * M2 — order root placement by declaration line. Off (the default) is
+   * geometry-stable: authored-`at` units place in coordinate order
+   * (row-major), flow units in reading order after them.
    */
   readonly sortRootsBySource?: boolean;
   /** M3 — bump a colliding authored slot to the nearest free slot. */
@@ -132,14 +137,30 @@ interface ResolvedAutoFlags {
   avoidEdges: boolean;
 }
 
+/**
+ * The one set of defaults every caller shares — the WYSIWYG behaviour the
+ * editor ships (frozen origin, geometry-stable root order). The app's dev
+ * drawer reads this rather than keeping its own copy, so the two cannot
+ * drift apart again (issue #174).
+ */
+export const SKETCH_AUTO_LAYOUT_DEFAULTS: Required<SketchAutoLayoutFlags> = {
+  normalizeOrigin: false,
+  sortRootsBySource: false,
+  resolveOverlap: true,
+  groupCollisionAsRect: true,
+  flowPlaceUnpositioned: true,
+  avoidEdges: true,
+};
+
 function resolveAutoFlags(f: SketchAutoLayoutFlags = {}): ResolvedAutoFlags {
+  const d = SKETCH_AUTO_LAYOUT_DEFAULTS;
   return {
-    normalizeOrigin: f.normalizeOrigin ?? true,
-    sortRootsBySource: f.sortRootsBySource ?? true,
-    resolveOverlap: f.resolveOverlap ?? true,
-    groupCollisionAsRect: f.groupCollisionAsRect ?? true,
-    flowPlaceUnpositioned: f.flowPlaceUnpositioned ?? true,
-    avoidEdges: f.avoidEdges ?? true,
+    normalizeOrigin: f.normalizeOrigin ?? d.normalizeOrigin,
+    sortRootsBySource: f.sortRootsBySource ?? d.sortRootsBySource,
+    resolveOverlap: f.resolveOverlap ?? d.resolveOverlap,
+    groupCollisionAsRect: f.groupCollisionAsRect ?? d.groupCollisionAsRect,
+    flowPlaceUnpositioned: f.flowPlaceUnpositioned ?? d.flowPlaceUnpositioned,
+    avoidEdges: f.avoidEdges ?? d.avoidEdges,
   };
 }
 
