@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.68.0] - 2026-08-11
+
+### Changed
+
+- **Every render path lays out a sketch the way the editor does.** The editor had turned off two auto-layout behaviours — re-anchoring the drawing to its top-left corner on every change, and ordering shapes that contest the same slot by declaration order rather than by where they sit — but the library kept both on, so the CLI, the documentation wrappers and a live link could lay out the same sketch differently from the app that drew it. Both now default off in the library itself, and the defaults live in one exported constant (`SKETCH_AUTO_LAYOUT_DEFAULTS`) that the editor reads instead of keeping a copy that can drift. The one visible difference outside the editor: when two shapes contest the same slot, the geometrically-left one now wins over the declared-first one.
+
 ## [0.67.0] - 2026-08-10
 
 ### Added
