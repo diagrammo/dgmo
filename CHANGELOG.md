@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.67.0] - 2026-08-10
+
+### Added
+
+- **A folded section in a sequence diagram says who is inside it.** Collapsing a phase used to leave a band reading "Fraud screening (5 messages)" and nothing else, so the fold destroyed the thing the diagram was being read for, and the lifelines running through it untouched read as "nobody was involved" rather than "you cannot see this yet". The band now carries a row of participant marks, one per column: filled in the participant's own tag colour when it sends, a ring in that colour when it only ever receives, and a faint tick when the fold never touches it — an empty column is otherwise ambiguous between absent and overlooked. Marks are sized in three steps by how many hidden messages touch each participant. The band is a button, so the participants involved also go into its accessible name, where a screen reader gets the whole answer with none of the marks.
+
+### Fixed
+
+- **A section label is readable in both states.** The dashed lifelines ran straight through the title of a section band, folded or not, and the band is a tint rather than a fill so it hid nothing on its own. Each lifeline is now drawn as runs of dashes with the label's box taken out of it — cut rather than painted over, because a background-coloured patch would show as an opaque box under `--theme transparent`, which has no background to match.
+- **An activation bar with no return stops short of the next message.** A bar closed implicitly had its bottom edge pinned to whatever happened next, so a message line merely passing over that participant landed exactly on the edge and the bar read as though it terminated in an arrow. Implicitly-closed bars now stop 8px short; a bar closed by an explicit return still ends on that return, which is its own arrow leaving it. Reported with a screenshot.
+
+### Changed
+
+- **A folded band wears the legend's background instead of a heavy tint.** It was the section tint at 25% light and 35% dark, which made the one thing on the canvas you cannot read the loudest thing on it. A folded band is a container holding something hidden, which is what the legend's capsule is, so it now takes that same colour from that same function and the two cannot drift. An expanded band keeps its faint tint: it divides rather than contains, and one reads as a rule across the diagram while the other reads as a panel sitting in it.
+
 ## [0.66.0] - 2026-08-10
 
 ### Fixed
