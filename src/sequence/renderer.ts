@@ -45,6 +45,7 @@ import {
 import { legendSuppressed, legendInlineRequested } from '../utils/parsing';
 import { layoutInlineHeader } from '../utils/inline-header';
 import { renderIntegratedLegend } from '../utils/legend-integration';
+import { legendChromeColors } from '../utils/legend-constants';
 import type { LegendCallbacks, LegendConfig } from '../utils/legend-types';
 import {
   TITLE_FONT_SIZE,
@@ -2873,13 +2874,14 @@ export function renderSequenceDiagram(
       : SECTION_BAND_HEIGHT;
     const bandX = sectionLineX1 - 10;
     const bandWidth = sectionLineX2 - sectionLineX1 + 20;
-    const bandOpacity = isCollapsed
-      ? isDark
-        ? 0.35
-        : 0.25
-      : isDark
-        ? 0.1
-        : 0.08;
+    // A collapsed band is a container holding something you cannot see, which
+    // is the same thing the legend's capsule is — so it wears the legend's own
+    // background rather than a heavier tint of its own. An expanded band stays
+    // a faint tint, because it divides rather than contains.
+    const bandFill = isCollapsed
+      ? legendChromeColors(palette, isDark).groupBg
+      : lineColor;
+    const bandOpacity = isCollapsed ? 1 : isDark ? 0.1 : 0.08;
     // Visual band — pointer-events:none so it never intercepts clicks
     // intended for elements rendered earlier (participants, lifelines, etc.).
     // Toggle hit area is the label rect below.
@@ -2889,7 +2891,7 @@ export function renderSequenceDiagram(
       .attr('y', secY - BAND_HEIGHT / 2)
       .attr('width', bandWidth)
       .attr('height', BAND_HEIGHT)
-      .attr('fill', lineColor)
+      .attr('fill', bandFill)
       .attr('opacity', bandOpacity)
       .attr('rx', 2)
       .attr('pointer-events', 'none')
@@ -2988,9 +2990,11 @@ export function renderSequenceDiagram(
       const markColor = participantTagColor(participant.id) ?? palette.text;
       const radius = sectionMarkRadius(part.sends + part.receives);
       if (part.sends === 0) {
+        // Hollow against the band itself, so it reads as an outline rather
+        // than as a hole punched through to the page behind.
         mark
           .attr('r', radius)
-          .attr('fill', palette.bg)
+          .attr('fill', bandFill)
           .attr('stroke', markColor)
           .attr('stroke-width', 1.6)
           .attr('class', 'section-mark section-mark-receives');

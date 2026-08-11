@@ -12,6 +12,7 @@ import {
 } from '../src/sequence/renderer';
 import type { SequenceRenderOptions } from '../src/sequence/renderer';
 import { getPalette } from '../src/palettes';
+import { legendChromeColors } from '../src/utils/legend-constants';
 import { applyCollapseProjection } from '../src/sequence/collapse';
 import { renderForExport } from '../src/d3';
 
@@ -667,9 +668,25 @@ describe('collapsed section participant marks', () => {
     const svg = renderCollapsed();
     const notifier = markFor(svg, 'Notifier');
     expect(notifier.classList).toContain('section-mark-receives');
-    // Hole punched in the band, outlined in the participant's own colour
-    expect(notifier.getAttribute('fill')).toBe(palette.bg);
+    // Hollow against the band, outlined in the participant's own colour
+    const bandFill = svg
+      .querySelector('.section-divider')!
+      .getAttribute('fill');
+    expect(notifier.getAttribute('fill')).toBe(bandFill);
     expect(notifier.getAttribute('stroke')).toBe(palette.text);
+  });
+
+  it('wears the legend background rather than a heavier tint', () => {
+    const band = renderCollapsed().querySelector('.section-divider')!;
+    const { groupBg } = legendChromeColors(palette, false);
+    expect(band.getAttribute('fill')).toBe(groupBg);
+    expect(band.getAttribute('opacity')).toBe('1');
+  });
+
+  it('leaves an expanded band as the faint tint it has always been', () => {
+    const band = renderToSvg(diagram)!.querySelector('.section-divider')!;
+    expect(band.getAttribute('fill')).toBe(palette.textMuted);
+    expect(Number(band.getAttribute('opacity'))).toBeLessThan(0.2);
   });
 
   it('draws the absent tick for a participant the fold never touches', () => {
