@@ -6,7 +6,10 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { parseSequenceDgmo } from '../src/sequence/parser';
 import type { SequenceNote, SequenceSection } from '../src/sequence/parser';
-import { renderSequenceDiagram } from '../src/sequence/renderer';
+import {
+  renderSequenceDiagram,
+  summarizeSectionParticipation,
+} from '../src/sequence/renderer';
 import type { SequenceRenderOptions } from '../src/sequence/renderer';
 import { getPalette } from '../src/palettes';
 import { applyCollapseProjection } from '../src/sequence/collapse';
@@ -583,5 +586,195 @@ describe('renderForExport applies sequence share-link viewState', () => {
     );
     // Non-numeric entries are filtered → nothing collapses, render still succeeds
     expect(out).toContain('data-participant-id="API"');
+  });
+});
+
+// ============================================================
+// Collapsed Section Participant Marks
+// ============================================================
+
+describe('summarizeSectionParticipation', () => {
+  const msg = (from: string, to: string, lineNumber: number) => ({
+    kind: 'message' as const,
+    from,
+    to,
+    label: '',
+    lineNumber,
+  });
+
+  it('counts sends and receives separately', () => {
+    const messages = [msg('A', 'B', 1), msg('B', 'C', 2), msg('C', 'B', 3)];
+    const summary = summarizeSectionParticipation(messages, [0, 1, 2]);
+    expect(summary.get('A')).toEqual({ sends: 1, receives: 0 });
+    expect(summary.get('B')).toEqual({ sends: 1, receives: 2 });
+    expect(summary.get('C')).toEqual({ sends: 1, receives: 1 });
+  });
+
+  it('omits a participant that no message in the run touches', () => {
+    const summary = summarizeSectionParticipation([msg('A', 'B', 1)], [0]);
+    expect(summary.has('C')).toBe(false);
+  });
+
+  it('counts a self-message on both sides, so it never reads as receive-only', () => {
+    const summary = summarizeSectionParticipation([msg('A', 'A', 1)], [0]);
+    expect(summary.get('A')).toEqual({ sends: 1, receives: 1 });
+  });
+
+  it('ignores indices that address no message', () => {
+    const summary = summarizeSectionParticipation([msg('A', 'B', 1)], [0, 9]);
+    expect(summary.size).toBe(2);
+  });
+});
+
+describe('collapsed section participant marks', () => {
+  // Gateway sends and receives, Auth does both three times over, Ledger does
+  // one of each, Notifier only ever receives, and Browser is not in the fold.
+  const diagram = [
+    'Browser -place order-> Gateway',
+    '== Fraud screening ==',
+    'Gateway -verify token-> Auth',
+    'Auth -check funds-> Ledger',
+    'Ledger -balance ok-> Auth',
+    'Auth -log decision-> Notifier',
+    'Auth -cleared-> Gateway',
+  ].join('\n');
+
+  const sectionLineOf = (input: string): number =>
+    parseSequenceDgmo(input)
+      .elements.filter((el): el is SequenceSection => el.kind === 'section')
+      .map((s) => s.lineNumber)[0]!;
+
+  const renderCollapsed = (input = diagram): SVGSVGElement =>
+    renderToSvg(input, {
+      collapsedSections: new Set([sectionLineOf(input)]),
+    })!;
+
+  const markFor = (svg: SVGSVGElement, id: string): SVGElement =>
+    svg.querySelector(`.section-mark[data-participant-id="${id}"]`)!;
+
+  it('draws one mark per participant, involved or not', () => {
+    const svg = renderCollapsed();
+    expect(svg.querySelectorAll('.section-mark').length).toBe(5);
+  });
+
+  it('fills the mark of a participant that sends', () => {
+    const svg = renderCollapsed();
+    expect(markFor(svg, 'Gateway').classList).toContain('section-mark-sends');
+    expect(markFor(svg, 'Gateway').getAttribute('fill')).not.toBe('none');
+  });
+
+  it('draws a ring for a participant that only ever receives', () => {
+    const svg = renderCollapsed();
+    const notifier = markFor(svg, 'Notifier');
+    expect(notifier.classList).toContain('section-mark-receives');
+    // Hole punched in the band, outlined in the participant's own colour
+    expect(notifier.getAttribute('fill')).toBe(palette.bg);
+    expect(notifier.getAttribute('stroke')).toBe(palette.text);
+  });
+
+  it('draws the absent tick for a participant the fold never touches', () => {
+    const svg = renderCollapsed();
+    const browser = markFor(svg, 'Browser');
+    expect(browser.classList).toContain('section-mark-absent');
+    expect(browser.getAttribute('fill')).toBe('none');
+  });
+
+  it('sizes the mark by how many messages touch the participant', () => {
+    const svg = renderCollapsed();
+    const r = (id: string) => Number(markFor(svg, id).getAttribute('r'));
+    // Auth is in all five; Gateway and Ledger in two each
+    expect(r('Auth')).toBeGreaterThan(r('Gateway'));
+    expect(r('Gateway')).toBe(r('Ledger'));
+  });
+
+  it('takes the mark colour from the participant tag, not the band', () => {
+    const tagged = [
+      'tag Zone as t',
+      '  Edge blue',
+      '  Core green',
+      'Gateway t: Edge',
+      'Auth t: Core',
+      'Browser -place order-> Gateway',
+      '== Fraud screening ==',
+      'Gateway -verify token-> Auth',
+      'Auth -cleared-> Gateway',
+    ].join('\n');
+    const svg = renderCollapsed(tagged);
+    const gateway = markFor(svg, 'Gateway').getAttribute('fill');
+    const auth = markFor(svg, 'Auth').getAttribute('fill');
+    expect(gateway).toBeTruthy();
+    expect(gateway).not.toBe(auth);
+    // …and it matches the colour that participant's own lifeline wears
+    const lifeline = svg.querySelector(
+      'line.lifeline[data-participant-id="Gateway"]'
+    )!;
+    expect(lifeline.getAttribute('stroke')).toBe(gateway);
+  });
+
+  it('spans a reach hairline across the columns the fold touches', () => {
+    const svg = renderCollapsed();
+    const reach = svg.querySelector('.section-reach')!;
+    const x1 = Number(reach.getAttribute('x1'));
+    const x2 = Number(reach.getAttribute('x2'));
+    const browserX = Number(markFor(svg, 'Browser').getAttribute('cx'));
+    // Browser is outside the fold, so the reach must stop short of its column
+    expect(x2).toBeGreaterThan(x1);
+    expect(x1).toBeGreaterThan(browserX);
+  });
+
+  it('names the involved participants in the band accessible name', () => {
+    const svg = renderCollapsed();
+    const band = svg.querySelector('[data-section-toggle]')!;
+    const label = band.getAttribute('aria-label')!;
+    expect(label).toContain('Fraud screening (5 messages)');
+    expect(label).toContain('Auth');
+    expect(label).not.toContain('Browser');
+  });
+
+  it('draws no marks and keeps the short band while expanded', () => {
+    const svg = renderToSvg(diagram)!;
+    expect(svg.querySelectorAll('.section-mark').length).toBe(0);
+    expect(svg.querySelector('.section-divider')!.getAttribute('height')).toBe(
+      '22'
+    );
+  });
+
+  it('grows the band to make room for the mark row', () => {
+    const svg = renderCollapsed();
+    expect(svg.querySelector('.section-divider')!.getAttribute('height')).toBe(
+      '36'
+    );
+  });
+
+  it('keeps the label clear of the mark row', () => {
+    const svg = renderCollapsed();
+    const label = svg.querySelector('.section-label')!;
+    expect(label.getAttribute('text-anchor')).toBe('start');
+    const labelY = Number(label.getAttribute('y'));
+    const markY = Number(markFor(svg, 'Auth').getAttribute('cy'));
+    expect(markY).toBeGreaterThan(labelY);
+  });
+
+  it('marks the group lifeline when a collapsed group hides the sender', () => {
+    const grouped = [
+      '[Backend]',
+      '  Auth',
+      '  Ledger',
+      'Browser -place order-> Gateway',
+      '== Fraud screening ==',
+      'Gateway -verify token-> Auth',
+      'Auth -check funds-> Ledger',
+    ].join('\n');
+    const parsed = parseSequenceDgmo(grouped);
+    const svg = renderToSvg(grouped, {
+      collapsedGroups: new Set([parsed.groups[0]!.lineNumber]),
+      collapsedSections: new Set([sectionLineOf(grouped)]),
+    })!;
+    // The members are gone from the canvas; the mark lands on the group
+    expect(markFor(svg, 'Backend')).toBeTruthy();
+    expect(markFor(svg, 'Backend').classList).toContain('section-mark-sends');
+    expect(svg.querySelector('.section-mark[data-participant-id="Auth"]')).toBe(
+      null
+    );
   });
 });

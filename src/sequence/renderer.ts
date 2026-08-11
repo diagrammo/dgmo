@@ -545,6 +545,77 @@ export function groupMessagesBySection(
   return groups;
 }
 
+/** Height of a section band with nothing but its label. */
+const SECTION_BAND_HEIGHT = 22;
+/**
+ * Height of a collapsed band, which carries a second row of participant
+ * marks beneath its label. The label and the marks cannot share a row: the
+ * label is left-aligned once it has marks to make room for (a centred one
+ * lands on the middle column, which is usually the busiest participant in
+ * the fold), and a mark landing under that label is then unreadable either
+ * way — hidden behind the text, or punched through it and reading as damage.
+ */
+const COLLAPSED_SECTION_BAND_HEIGHT = 36;
+/** Split evenly above and below the section anchor, so the band stays centred. */
+const COLLAPSED_SECTION_BAND_EXTRA =
+  COLLAPSED_SECTION_BAND_HEIGHT - SECTION_BAND_HEIGHT;
+/** Distance from the section anchor down to the row of participant marks. */
+const COLLAPSED_SECTION_MARK_OFFSET = 9;
+/** Distance from the section anchor up to the label baseline when collapsed. */
+const COLLAPSED_SECTION_LABEL_BASELINE = -4;
+
+/** What one participant did inside a run of messages. */
+export interface SectionParticipation {
+  /** Messages it sent. */
+  sends: number;
+  /** Messages addressed to it. */
+  receives: number;
+}
+
+/**
+ * Who takes part in a hidden run of messages, and how.
+ *
+ * A collapsed band draws one mark per participant, and the mark's shape comes
+ * from this: anything that sends is filled, a participant that only ever
+ * receives is drawn as a ring, and one that appears in neither column gets the
+ * absent tick. A self-message counts on both sides — the participant plainly
+ * spoke — so it never produces a ring.
+ *
+ * Keyed by participant id in whatever space `messages` is expressed in, which
+ * after a group-collapse projection is the group's virtual id rather than the
+ * member's. That is what the band wants: the mark goes on the lifeline the
+ * reader can actually see.
+ */
+export function summarizeSectionParticipation(
+  messages: readonly SequenceMessage[],
+  msgIndices: readonly number[]
+): Map<string, SectionParticipation> {
+  const summary = new Map<string, SectionParticipation>();
+  const bump = (id: string, key: 'sends' | 'receives'): void => {
+    const entry = summary.get(id) ?? { sends: 0, receives: 0 };
+    entry[key] += 1;
+    summary.set(id, entry);
+  };
+  for (const idx of msgIndices) {
+    const msg = messages[idx];
+    if (!msg) continue;
+    bump(msg.from, 'sends');
+    bump(msg.to, 'receives');
+  }
+  return summary;
+}
+
+/**
+ * Radius of a participant's mark, stepped by how many hidden messages touch
+ * it. Three tiers rather than a continuous scale — beyond three, the sizes
+ * stop being tellable apart and read as noise instead of as weight.
+ */
+function sectionMarkRadius(touches: number): number {
+  if (touches >= 4) return 6;
+  if (touches >= 2) return 4.5;
+  return 3.5;
+}
+
 // ============================================================
 // Render Sequence Builder (stack-based return placement)
 // ============================================================
@@ -1224,6 +1295,12 @@ export function renderSequenceDiagram(
   };
 
   // Section layout constants
+  const isSectionCollapsed = (
+    sec: import('./parser').SequenceSection
+  ): boolean => collapsedSections?.has(sec.lineNumber) ?? false;
+  /** Half the collapsed band's extra height, added on each side of the anchor. */
+  const collapsedBandPad = (sec: import('./parser').SequenceSection): number =>
+    isSectionCollapsed(sec) ? COLLAPSED_SECTION_BAND_EXTRA / 2 : 0;
   const SECTION_TOP_PAD = 35;
   const SECTION_BOTTOM_PAD = 45;
 
@@ -1577,9 +1654,10 @@ export function renderSequenceDiagram(
       const sections = sectionsBeforeStep.get(i);
       if (sections) {
         for (const sec of sections) {
-          curY += SECTION_TOP_PAD;
+          const bandPad = collapsedBandPad(sec);
+          curY += SECTION_TOP_PAD + bandPad;
           sectionYPositions.set(sec.lineNumber, curY);
-          curY += SECTION_BOTTOM_PAD;
+          curY += SECTION_BOTTOM_PAD + bandPad;
         }
       }
 
@@ -1596,9 +1674,10 @@ export function renderSequenceDiagram(
     }
     // Handle trailing sections (after all steps)
     for (const sec of trailingSections) {
-      curY += SECTION_TOP_PAD;
+      const bandPad = collapsedBandPad(sec);
+      curY += SECTION_TOP_PAD + bandPad;
       sectionYPositions.set(sec.lineNumber, curY);
-      curY += SECTION_BOTTOM_PAD;
+      curY += SECTION_BOTTOM_PAD + bandPad;
     }
     // Extend for trailing notes that have no following message
     curY += trailingNoteSpace;
@@ -2072,6 +2151,20 @@ export function renderSequenceDiagram(
     }
   }
 
+  /**
+   * The colour a participant's own shape wears — its tag colour, falling back
+   * to the group's metadata when a collapsed group stands in for its members.
+   * A collapsed section's marks read this too, so a mark can never disagree
+   * with the column it sits on about what colour that participant is.
+   */
+  const participantTagColor = (id: string): string | undefined => {
+    const direct = getTagColor(tagMap?.participants.get(id));
+    if (direct) return direct;
+    if (!collapsedGroupNames.has(id) || !tagKey) return undefined;
+    const meta = collapsedGroupMeta.get(id);
+    return meta?.metadata ? getTagColor(meta.metadata[tagKey]) : undefined;
+  };
+
   // Render group boxes (behind participant shapes) — skip collapsed groups
   for (const group of groups) {
     if (group.participantIds.length === 0) continue;
@@ -2163,20 +2256,13 @@ export function renderSequenceDiagram(
     const cy = participantStartY;
 
     const pTagValue = tagMap?.participants.get(participant.id);
-    const pTagColor = getTagColor(pTagValue);
     const pTagAttr =
       tagKey && pTagValue
         ? { key: tagKey, value: pTagValue.toLowerCase() }
         : undefined;
-    // For collapsed group participants, resolve tag color from group metadata
     const isCollapsedGroup = collapsedGroupNames.has(participant.id);
-    let effectiveTagColor = pTagColor;
-    if (isCollapsedGroup && !effectiveTagColor) {
-      const meta = collapsedGroupMeta.get(participant.id);
-      if (meta?.metadata && tagKey) {
-        effectiveTagColor = getTagColor(meta.metadata[tagKey]);
-      }
-    }
+    // Falls back to the group's own metadata for a collapsed group.
+    const effectiveTagColor = participantTagColor(participant.id);
 
     renderParticipant(
       svg,
@@ -2280,9 +2366,7 @@ export function renderSequenceDiagram(
       : participant.type === 'actor'
         ? lifelineStartY + ACTOR_LABEL_CLEARANCE
         : lifelineStartY;
-    const llColor = isCollapsedGroup
-      ? effectiveTagColor || palette.textMuted
-      : pTagColor || palette.textMuted;
+    const llColor = effectiveTagColor || palette.textMuted;
     const lifelineEl = svg
       .append('line')
       .attr('x1', cx)
@@ -2701,8 +2785,10 @@ export function renderSequenceDiagram(
       .attr('role', 'button')
       .attr('aria-expanded', String(!isCollapsed));
 
-    // Full-width tinted band
-    const BAND_HEIGHT = 22;
+    // Full-width tinted band — taller when collapsed, to carry the mark row
+    const BAND_HEIGHT = isCollapsed
+      ? COLLAPSED_SECTION_BAND_HEIGHT
+      : SECTION_BAND_HEIGHT;
     const bandX = sectionLineX1 - 10;
     const bandWidth = sectionLineX2 - sectionLineX1 + 20;
     const bandOpacity = isCollapsed
@@ -2733,20 +2819,26 @@ export function renderSequenceDiagram(
       ? `${sec.label} (${msgCount} ${msgCount === 1 ? 'message' : 'messages'})`
       : sec.label;
 
-    // Centered label text
-    const labelX = (sectionLineX1 + sectionLineX2) / 2;
+    // An expanded band centres its label; a collapsed one moves it to the
+    // left edge, because the centre of the band is a participant column and
+    // that column is where the busiest mark usually lands.
+    const labelWidth = measureText(labelText, 11, { bold: true });
+    const labelAnchor = isCollapsed ? 'start' : 'middle';
+    const labelX = isCollapsed
+      ? bandX + 10
+      : (sectionLineX1 + sectionLineX2) / 2;
+    const labelBaseline = isCollapsed
+      ? secY + COLLAPSED_SECTION_LABEL_BASELINE
+      : secY + 4;
 
     // Transparent hit area scoped to the label so the toggle stays clickable
     // without the band swallowing clicks across the full diagram width.
     // Label renders at the fixed 11px section-label size.
     // The section label is drawn bold just below.
-    const labelHitW = Math.max(
-      80,
-      measureText(labelText, 11, { bold: true }) + 24
-    );
+    const labelHitW = Math.max(80, labelWidth + 24);
     sectionG
       .append('rect')
-      .attr('x', labelX - labelHitW / 2)
+      .attr('x', isCollapsed ? labelX - 12 : labelX - labelHitW / 2)
       .attr('y', secY - BAND_HEIGHT / 2)
       .attr('width', labelHitW)
       .attr('height', BAND_HEIGHT)
@@ -2756,13 +2848,97 @@ export function renderSequenceDiagram(
     sectionG
       .append('text')
       .attr('x', labelX)
-      .attr('y', secY + 4)
-      .attr('text-anchor', 'middle')
+      .attr('y', labelBaseline)
+      .attr('text-anchor', labelAnchor)
       .attr('fill', lineColor)
       .attr('font-size', 11)
       .attr('font-weight', 'bold')
       .attr('class', 'section-label')
       .text(labelText);
+
+    if (!isCollapsed) continue;
+
+    // ── Participant marks ────────────────────────────────────
+    // The count above says how much the fold swallowed; these say who was in
+    // it. Without them the lifelines run through the band untouched, which
+    // reads as "nobody was involved" rather than "you cannot see this yet".
+    const participation = summarizeSectionParticipation(
+      messages,
+      region.msgIndices
+    );
+    const markY = secY + COLLAPSED_SECTION_MARK_OFFSET;
+
+    // Reach: a hairline between the outermost columns the fold touches, so
+    // the span of the hidden traffic reads before any individual mark does.
+    const involvedXs = participants
+      .filter((p) => participation.has(p.id))
+      .map((p) => participantX.get(p.id))
+      .filter((x): x is number => x !== undefined);
+    if (involvedXs.length > 1) {
+      sectionG
+        .append('line')
+        .attr('x1', Math.min(...involvedXs))
+        .attr('x2', Math.max(...involvedXs))
+        .attr('y1', markY)
+        .attr('y2', markY)
+        .attr('stroke', lineColor)
+        .attr('stroke-width', 1)
+        .attr('stroke-dasharray', '2 3')
+        .attr('opacity', 0.5)
+        .attr('pointer-events', 'none')
+        .attr('class', 'section-reach');
+    }
+
+    for (const participant of participants) {
+      const markX = participantX.get(participant.id);
+      if (markX === undefined) continue;
+      const part = participation.get(participant.id);
+      const mark = sectionG
+        .append('circle')
+        .attr('cx', markX)
+        .attr('cy', markY)
+        .attr('pointer-events', 'none')
+        .attr('data-participant-id', participant.id);
+
+      if (!part) {
+        // Drawn rather than omitted: an empty column is ambiguous between
+        // "not in this phase" and "you missed it".
+        mark
+          .attr('r', 2.5)
+          .attr('fill', 'none')
+          .attr('stroke', lineColor)
+          .attr('stroke-width', 1)
+          .attr('opacity', 0.5)
+          .attr('class', 'section-mark section-mark-absent');
+        continue;
+      }
+
+      const markColor = participantTagColor(participant.id) ?? palette.text;
+      const radius = sectionMarkRadius(part.sends + part.receives);
+      if (part.sends === 0) {
+        mark
+          .attr('r', radius)
+          .attr('fill', palette.bg)
+          .attr('stroke', markColor)
+          .attr('stroke-width', 1.6)
+          .attr('class', 'section-mark section-mark-receives');
+      } else {
+        mark
+          .attr('r', radius)
+          .attr('fill', markColor)
+          .attr('class', 'section-mark section-mark-sends');
+      }
+    }
+
+    // The band is a button, and its text names only the phase and a count.
+    // Spelling the participants into the accessible name hands a screen
+    // reader the whole answer without any of the marks above.
+    const involvedLabels = participants
+      .filter((p) => participation.has(p.id))
+      .map((p) => p.label);
+    if (involvedLabels.length > 0) {
+      sectionG.attr('aria-label', `${labelText}, ${involvedLabels.join(', ')}`);
+    }
   }
 
   // Render steps (calls and returns in stack-inferred order)
