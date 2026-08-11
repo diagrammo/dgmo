@@ -78,6 +78,13 @@ const NOTE_FONT_SIZE = 10;
 const NOTE_LINE_H = 14;
 const NOTE_GAP = 15;
 const ACTIVATION_WIDTH = 10;
+/**
+ * Gap between the bottom of an activation bar with no explicit return and the
+ * next message's line. Vertical, so it is deliberately not scaled — it lives
+ * in the same coordinate space as `stepSpacing` (35), which ScaleContext also
+ * leaves alone.
+ */
+const ACTIVATION_IMPLICIT_END_CLEARANCE = 8;
 const SELF_CALL_HEIGHT = 25;
 const SELF_CALL_WIDTH = 30;
 // Actors render their label below the stick figure (at boxH + 14). Their
@@ -1200,11 +1207,18 @@ export function renderSequenceDiagram(
   // then remapped to laid-out indices for Y positioning.
   const activations = activationsOff
     ? []
-    : computeActivations(allRenderSteps).map((a) => ({
-        ...a,
-        startStep: clampStep(allToFiltered[a.startStep] ?? 0),
-        endStep: clampStep(allToFiltered[a.endStep] ?? 0),
-      }));
+    : computeActivations(allRenderSteps).map((a) => {
+        const closingStep = allRenderSteps[a.endStep];
+        return {
+          ...a,
+          startStep: clampStep(allToFiltered[a.startStep] ?? 0),
+          endStep: clampStep(allToFiltered[a.endStep] ?? 0),
+          // True when the return that closes this bar was dropped from the
+          // layout, so `endStep` is not the bar's own event but whatever
+          // happens next. The bar has to stop short of it — see the render.
+          implicitEnd: closingStep !== undefined && !stepSurvives(closingStep),
+        };
+      });
   // Vertical spacing is NOT compressed by ScaleContext — the container scrolls
   // vertically, so keeping full spacing preserves message readability at all scales.
   const stepSpacing = 35;
@@ -2727,7 +2741,20 @@ export function renderSequenceDiagram(
 
     const x = px - sActivationWidth / 2 + act.depth * ACTIVATION_NEST_OFFSET;
     const y1 = stepY(act.startStep);
-    const y2 = stepY(act.endStep);
+    // A bar closed by an explicit return ends ON that return, which is its own
+    // arrow leaving it. A bar with no return ends at whatever happens NEXT —
+    // and that next message is very often one between two other participants
+    // crossing this column, so its line landed exactly on the bar's bottom
+    // edge and read as though the bar terminated in an arrow. Stop short of it.
+    // Extra vertical spacing does not fix this and never could: the edge is
+    // pinned to the next message's Y, so moving that message moves the edge
+    // with it.
+    const rawY2 = stepY(act.endStep);
+    const y2 =
+      act.implicitEnd &&
+      rawY2 - ACTIVATION_IMPLICIT_END_CLEARANCE > y1 + sActivationWidth
+        ? rawY2 - ACTIVATION_IMPLICIT_END_CLEARANCE
+        : rawY2;
 
     // Collect message line numbers covered by this activation
     const coveredLines: number[] = [];
