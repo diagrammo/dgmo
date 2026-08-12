@@ -234,6 +234,10 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'tags', category: 'directive' },
   { token: 'import', category: 'directive' },
   { token: 'hide', category: 'directive' },
+  // `focus <name>`: org subtree drill-down (view-state, source-backed) — the
+  // export re-roots to that person/team with the ancestor breadcrumb trail.
+  // Org reads it via its own KNOWN_OPTIONS; registered here for highlighting.
+  { token: 'focus', category: 'directive' },
   { token: 'direction', category: 'directive' },
   // ── Clock ────────────────────────────────────────────────
   // The board's flat directives — highlight-only (the parser validates them

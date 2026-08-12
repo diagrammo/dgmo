@@ -72,6 +72,17 @@ const ANCESTOR_LABEL_FONT_SIZE = 11;
 const ANCESTOR_ROW_HEIGHT = 22;
 const ANCESTOR_TRAIL_BOTTOM_GAP = 16;
 
+/**
+ * Vertical space the ancestor breadcrumb trail needs above the focused root,
+ * at identity scale. Exporters add this to the canvas height so a focused
+ * chart isn't scaled down to make room for its own trail.
+ */
+export function ancestorTrailReserve(count: number): number {
+  return count > 0
+    ? count * ANCESTOR_ROW_HEIGHT + ANCESTOR_TRAIL_BOTTOM_GAP
+    : 0;
+}
+
 const LEGEND_FIXED_GAP = 8; // gap between fixed legend and scaled diagram — local, not shared
 
 // ============================================================
@@ -180,8 +191,9 @@ export function renderOrg(
   const fixedTitle = !exportDims && showTitle;
   const titleReserve = fixedTitle ? sTitleHeight : 0;
 
-  const hasAncestorTrail =
-    !exportDims && ancestorPath && ancestorPath.length > 0;
+  // The trail draws in exports too — a `focus <name>` chart keeps its
+  // ancestors as breadcrumbs everywhere, matching the app's focused view.
+  const hasAncestorTrail = ancestorPath && ancestorPath.length > 0;
   const ancestorTrailHeight = hasAncestorTrail
     ? ancestorPath.length * sAncestorRowHeight + sAncestorTrailBottomGap
     : 0;

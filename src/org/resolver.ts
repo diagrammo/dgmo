@@ -56,6 +56,7 @@ const KNOWN_HEADER_OPTIONS = new Set([
   'fill-solid',
   'fill-outline',
   'active-tag',
+  'focus',
 ]);
 
 // ============================================================
