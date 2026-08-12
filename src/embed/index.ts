@@ -371,15 +371,15 @@ const EXPAND_ICON = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none"
  */
 function sourceDisclosure(source: string, opts: ResolvedBlockOptions): string {
   const toggle = opts.showSource
-    ? `<span class="dgmo-toggle" title="View DGMO source">${CODE_ICON}</span>`
+    ? `<span class="dgmo-toggle" aria-label="View DGMO source">${CODE_ICON}</span>`
     : '';
 
   const expandButton = opts.showExpand
-    ? `<button type="button" class="dgmo-toolbar-btn dgmo-expand" aria-label="View full screen" title="Expand">${EXPAND_ICON}</button>`
+    ? `<button type="button" class="dgmo-toolbar-btn dgmo-expand" aria-label="View full screen">${EXPAND_ICON}</button>`
     : '';
 
   const copyButton = opts.showCopy
-    ? `<button type="button" class="dgmo-toolbar-btn dgmo-copy" aria-label="Copy DGMO source" title="Copy source" data-dgmo-source="${escapeAttr(source)}">${COPY_ICON}</button>`
+    ? `<button type="button" class="dgmo-toolbar-btn dgmo-copy" aria-label="Copy DGMO source" data-dgmo-source="${escapeAttr(source)}">${COPY_ICON}</button>`
     : '';
 
   let openButton = '';
@@ -387,7 +387,7 @@ function sourceDisclosure(source: string, opts: ResolvedBlockOptions): string {
     const encoded = encodeDiagramUrl(source, { baseUrl: opts.editorBaseUrl });
     // `too-large` (or any encode failure) → omit the link; copy remains.
     if (encoded.url) {
-      openButton = `<a href="${escapeAttr(encoded.url)}" target="_blank" rel="noopener noreferrer" class="dgmo-toolbar-btn dgmo-open" aria-label="Open in online editor" title="Open in online editor">${EXTERNAL_ICON}</a>`;
+      openButton = `<a href="${escapeAttr(encoded.url)}" target="_blank" rel="noopener noreferrer" class="dgmo-toolbar-btn dgmo-open" aria-label="Open in online editor">${EXTERNAL_ICON}</a>`;
     }
   }
 

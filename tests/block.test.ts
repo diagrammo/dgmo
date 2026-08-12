@@ -54,6 +54,14 @@ describe('renderDgmoBlock — standard embed block', () => {
     expect(html).toContain('class="dgmo-tok-chartType"');
   });
 
+  it('no native title attribute anywhere — hover names ride aria-label', async () => {
+    // A `title` attr fires the OS tooltip on top of host tooltip systems
+    // (Obsidian tooltips aria-label), showing two labels with different text
+    // that lag the pointer. UI convention: never a native title tooltip.
+    const { html } = await renderDgmoBlock(PIE, { mode: 'showcase' });
+    expect(html).not.toMatch(/ title="/);
+  });
+
   it('single colorMode renders one .dgmo-svg wrapper', async () => {
     const { html } = await renderDgmoBlock(PIE, { colorMode: 'light' });
     expect(html).toContain('class="dgmo-svg"');
