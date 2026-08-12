@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.69.0] - 2026-08-11
+
+### Added
+
+- **An org chart can ship focused on one subtree.** `focus <name>` is now a
+  top-level directive (decision #54), so re-rooting the chart to one person's
+  or team's subtree — with the ancestor breadcrumb trail — survives export,
+  share links and embeds instead of living only as app state. The target
+  matches case-insensitively, containers included; a name that resolves to
+  nothing is a warning, never an error.
+- **The event-line `now` pin says when "now" was.** The marker's tab used to
+  print the word `now`, which reads identically on the day a roadmap was
+  drawn and two years later. The tab is now captioned with the date the pin
+  resolved to — today's date for a computed `now`, the pinned date for
+  `now <date>`, at the grain the author wrote — through the same formatter
+  the event cards use. An explicit caption still wins.
+
+### Changed
+
+- **Labels on solid fills now pick their color the way eyes do.** In
+  `fill-solid` mode the text-on-fill color was chosen by a WCAG-ratio
+  heuristic with that formula's known mid-tone blind spot: a gray box got
+  dark ink on medium gray (APCA Lc 37) when white (Lc 68) is nearly twice as
+  readable. The picker now scores both palette text tokens with APCA — the
+  perceptual contrast algorithm — and takes the stronger one. Measured across
+  all 154 palette solid fills, 30 flipped to the stronger choice; tinted
+  (default) fills are unchanged. A registry-wide guard test now enforces the
+  pick and fails any future palette whose best option falls under Lc 45.
+- **Embed block toolbars no longer double up hover labels.** Hosts with their
+  own tooltip system (Obsidian) showed both the styled tooltip and the
+  OS-native one, which lags the pointer across the tightly packed icons. The
+  toolbar buttons carry `aria-label` instead of native `title` attributes,
+  and a guard test keeps it that way.
+
 ## [0.68.0] - 2026-08-11
 
 ### Changed
