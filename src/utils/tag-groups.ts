@@ -506,6 +506,24 @@ export function validateTagGroupNames(
         `Tag group alias "${group.alias}" contains invalid characters — use a single identifier (letters, digits, underscore, hyphen)`
       );
     }
+    // `tag Status s` (missing `as`) declares a group NAMED "Status s" with no
+    // alias — every later `s:` assignment then falls through silently. The
+    // trailing token is deliberately not inferred as an alias (TD-18), so the
+    // author's only feedback is this warning. Quotes are stripped before
+    // validation, so a quoted spaced name is indistinguishable here; fire only
+    // when the group has no alias and the last word is alias-shaped (lowercase
+    // start), which a spaced display name like "Trust Zone" rarely is.
+    if (group.alias == null) {
+      const words = group.name.trim().split(/\s+/);
+      const last = words[words.length - 1]!;
+      if (words.length > 1 && /^[a-z][a-z0-9_]{0,11}$/.test(last)) {
+        const head = words.slice(0, -1).join(' ');
+        pushWarning(
+          group.lineNumber,
+          `Tag group "${group.name}" has a space and no alias — if '${last}' is meant as an alias, write 'tag ${head} as ${last}'; if the space is intentional, quote the name: tag "${group.name}"`
+        );
+      }
+    }
   }
 }
 

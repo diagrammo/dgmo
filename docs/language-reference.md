@@ -212,7 +212,7 @@ tag GroupName as <alias>
 - First entry is the default value — reorder to change
 - The first declared group is active by default (colors nodes immediately); `active-tag <GroupName>` only matters with ≥2 groups to pick a non-first group, and `active-tag none` suppresses all coloring
 - Must appear before diagram content
-- Legacy bare shorthand (`tag Priority p`) and `alias` keyword (`tag Priority alias p`) emit `E_TAG_SHORTHAND_REMOVED` per TD-18
+- Bare shorthand is not an alias (TD-18): `tag Priority p` declares a group *named* "Priority p" — no alias registers, so `p:` assignments silently miss. The parser warns on this shape (spaced name, no alias, alias-shaped trailing word), suggesting `tag Priority as p` or a quoted name
 
 **Diagram types that support tags**: the tag model is near-universal across the structural types — sequence, infra, org, c4, er, kanban, gantt, sitemap, timeline, boxes-and-lines, state (§5.7), pert, swimlane, mindmap, journey-map, event-line, treemap, map, block, sketch, bracket, family, and wireframe all accept `tag <Group> as <alias>` blocks. Check the per-type Options section for the exact directive set; if a type draws a tag legend, it takes tags.
 

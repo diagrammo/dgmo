@@ -592,6 +592,45 @@ describe('validateTagGroupNames', () => {
     expect(color).toBe('#1f1');
   });
 
+  describe('missing-`as` alias mistake (`tag Status s`)', () => {
+    it('warns when a spaced name with no alias ends in an alias-shaped word', () => {
+      const warn = vi.fn();
+      validateTagGroupNames([{ name: 'Status s', lineNumber: 2 }], warn);
+      expect(warn).toHaveBeenCalledOnce();
+      expect(warn.mock.calls[0][0]).toBe(2);
+      expect(warn.mock.calls[0][1]).toContain('tag Status as s');
+      expect(warn.mock.calls[0][1]).toContain('tag "Status s"');
+    });
+
+    it('warns for a longer alias-shaped trailing word (tag Priority prio)', () => {
+      const warn = vi.fn();
+      validateTagGroupNames([{ name: 'Priority prio', lineNumber: 4 }], warn);
+      expect(warn).toHaveBeenCalledOnce();
+      expect(warn.mock.calls[0][1]).toContain('tag Priority as prio');
+    });
+
+    it('does not warn when an alias was declared', () => {
+      const warn = vi.fn();
+      validateTagGroupNames(
+        [{ name: 'Trust Zone', alias: 'tz', lineNumber: 4 }],
+        warn
+      );
+      expect(warn).not.toHaveBeenCalled();
+    });
+
+    it('does not warn when the trailing word is capitalized (a display name)', () => {
+      const warn = vi.fn();
+      validateTagGroupNames([{ name: 'Trust Zone', lineNumber: 4 }], warn);
+      expect(warn).not.toHaveBeenCalled();
+    });
+
+    it('does not warn for a single-word name', () => {
+      const warn = vi.fn();
+      validateTagGroupNames([{ name: 'status', lineNumber: 4 }], warn);
+      expect(warn).not.toHaveBeenCalled();
+    });
+  });
+
   it('accepts a multi-word name (quoted) — it slugs to a DOM-safe key', () => {
     const warn = vi.fn();
     const error = vi.fn();
