@@ -381,13 +381,34 @@ export function parseEventLine(
       {
         const nowMatch = trimmed.match(NOW_RE);
         if (nowMatch) {
-          const rest = nowMatch[1]!.trim();
+          let rest = nowMatch[1]!.trim();
+          // A trailing named color recolors the pin, for a timeline whose tags
+          // already use red (§1.5 trailing-token rule, as on an era). Peeled
+          // first so the date/caption logic below never sees it. Named colors
+          // only — a hex value is rejected and the pin stays red. The
+          // placeholder prefix lets extractColor's trailing-token rule fire on
+          // a lone token (`now blue`).
+          let color: string | null = null;
+          if (rest) {
+            const token = rest.split(/\s+/).pop()!;
+            const ex = extractColor(
+              `x ${token}`,
+              palette,
+              result.diagnostics,
+              lineNumber
+            );
+            if (ex.color !== undefined) {
+              color = token;
+              rest = rest.slice(0, rest.length - token.length).trim();
+            }
+          }
           if (!rest) {
             result.now = {
               computed: true,
               date: null,
               dateValue: null,
               label: null,
+              color,
               lineNumber,
             } satisfies EventLineNow;
           } else {
@@ -399,6 +420,7 @@ export function parseEventLine(
                 date: prefix.startDate,
                 dateValue: parseTimelineDate(prefix.startDate),
                 label,
+                color,
                 lineNumber,
               } satisfies EventLineNow;
             } else {

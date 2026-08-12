@@ -260,7 +260,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'no-legend': { description: 'Hide the tag legend' },
       now: {
         description:
-          'Pin on the spine, captioned with its date — today (bare) or a pinned date (now 2026-07-20)',
+          'Pin on the spine, captioned with its date — today (bare) or a pinned date (now 2026-07-20); a trailing color recolors it (now blue)',
       },
       TBD: {
         description:

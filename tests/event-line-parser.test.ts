@@ -745,6 +745,70 @@ now 2022
       ).toBe(true);
     });
 
+    it('takes a trailing named color on a bare `now`', () => {
+      const p = parseEventLine(`event-line X
+now blue
+
+2020 A
+2024 B`);
+      expect(errors(p)).toHaveLength(0);
+      expect(p.now!.computed).toBe(true);
+      expect(p.now!.color).toBe('blue');
+      expect(p.now!.date).toBeNull();
+      expect(p.now!.label).toBeNull();
+    });
+
+    it('takes a trailing named color after a pinned date', () => {
+      const p = parseEventLine(`event-line X
+now 2022-06 teal
+
+2020 A
+2024 B`);
+      expect(errors(p)).toHaveLength(0);
+      expect(p.now!.color).toBe('teal');
+      expect(p.now!.date).toBe('2022-06');
+      expect(p.now!.label).toBeNull();
+    });
+
+    it('takes a color after a custom caption, keeping both', () => {
+      const p = parseEventLine(`event-line X
+now 2022-06 Today purple
+
+2020 A
+2024 B`);
+      expect(p.now!.color).toBe('purple');
+      expect(p.now!.label).toBe('Today');
+      expect(p.now!.date).toBe('2022-06');
+    });
+
+    it('leaves the pin red when no color is given', () => {
+      const p = parseEventLine(`event-line X
+now 2022-06
+
+2020 A`);
+      expect(p.now!.color).toBeNull();
+    });
+
+    it('keeps a capitalized caption word out of the color slot', () => {
+      // The trailing-token color rule is case-sensitive (§1.5), so a caption
+      // reading `Red` stays a caption.
+      const p = parseEventLine(`event-line X
+now 2022-06 Red
+
+2020 A`);
+      expect(p.now!.color).toBeNull();
+      expect(p.now!.label).toBe('Red');
+    });
+
+    it('rejects a hex value and leaves the pin red', () => {
+      const p = parseEventLine(`event-line X
+now 2022-06 #ff0000
+
+2020 A`);
+      expect(p.now!.color).toBeNull();
+      expect(p.now!.date).toBe('2022-06');
+    });
+
     it('last `now` directive wins', () => {
       const p = parseEventLine(`event-line X
 now 2021

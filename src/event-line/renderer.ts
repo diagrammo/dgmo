@@ -1416,8 +1416,12 @@ export function renderEventLine(
       // parse as "right now." On-palette in every palette; distinct from the
       // green/orange/blue tag rotation. The fill family below softens the tab
       // FILL, but text/stroke/diamond/rule stay at full destructive ink.
+      // A named color on the directive (§28.6b) replaces the red, for the
+      // timeline whose own tags already use it — the shape carries the meaning.
       const base = themeBaseBg(palette, isDark);
-      const nowColor = palette.destructive;
+      const nowColor = parsed.now.color
+        ? (resolveColor(parsed.now.color, palette) ?? palette.destructive)
+        : palette.destructive;
       // The tab honors the §1.9 fill family, mirroring the event cards: solid =
       // flooded, outline = hollow (bg fill + colored stroke), tint (default) =
       // soft fill with a hairline edge. The diamond + stem stay solid, like the

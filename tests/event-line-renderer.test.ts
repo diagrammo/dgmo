@@ -1246,6 +1246,37 @@ now 2022-01-01
       expect(nowG.querySelector('text')!.textContent).toBe('Jan 1, 2022');
     });
 
+    it('recolors the pin from a trailing named color', () => {
+      // The default red is a convention, not a law — a timeline whose own tags
+      // use red needs the pin to read as something else.
+      const red = parseEventLine(NOW_SRC, nordLight);
+      const blue = parseEventLine(
+        `event-line Roadmap
+now 2022-01-01 blue
+
+2020-01-01 A
+2024-01-01 B`,
+        nordLight
+      );
+      const cr = mount(900, 400);
+      const cb = mount(900, 400);
+      renderEventLine(cr, red, nordLight, false);
+      renderEventLine(cb, blue, nordLight, false);
+      const diamond = (c: HTMLElement): string =>
+        c.querySelector('.evt-now path')!.getAttribute('fill')!;
+      expect(diamond(cr)).toBe(nordLight.destructive);
+      expect(diamond(cb)).not.toBe(nordLight.destructive);
+      // The stem rides the same ink as the diamond.
+      expect(
+        cb.querySelector('.evt-now line + line')?.getAttribute('stroke') ??
+          diamond(cb)
+      ).toBe(diamond(cb));
+      // The caption is untouched — the color token never becomes the label.
+      expect(cb.querySelector('.evt-now text')!.textContent).toBe(
+        'Jan 1, 2022'
+      );
+    });
+
     it('captions a computed `now` with the date it resolved to', () => {
       const parsed = parseEventLine(
         `event-line R
