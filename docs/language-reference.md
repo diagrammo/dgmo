@@ -54,7 +54,7 @@ LLMs default to Mermaid / PlantUML habits; DGMO differs. These rules prevent the
 - **No colons in declarations, directives, tags, or data rows.** `bar Revenue` (not `bar: Revenue`); `series Cloud blue, Legacy red` (not `series: ...`); `North 850` (not `North: 850`); `tag Team as t` (not `tag: Team`). A colon binds a value only in metadata (`key: value`), class/function type separators, and a few scoped spots — see §26.
 - **No Mermaid arrow-labels.** Put the label _between_ the dashes: `A -Login-> B`, never `A -> B: Login`. Sequence: `->` sync, `~>` async; left-to-right only — no `<-` / `<~`.
 - **No indented edges on a map.** Every map connection is ONE full line — `JFK ~daily~> LAX`; for a hub repeat the origin per spoke (`JFK ~daily~> LHR`, …). A bare source with indented `-> dest` legs errors as `Malformed edge`; indented legs are valid ONLY inside a `route` block (an ordered stop→stop voyage). Edge endpoints auto-create their POIs — don't add separate `poi` lines for places already in an edge.
-- **No `|` metadata delimiter** (removed 0.18.0 → `E_PIPE_OPERATOR_REMOVED`). Use same-line `Name key: value, k2: v2` or indented `key: value`. (`|` survives only in wireframe `{A | B}` dropdowns, in-arrow label text, and quoted names.)
+- **No `|` metadata delimiter** (removed 0.18.0; since 0.43.0 a stray `|` raises no dedicated error — it falls through as a literal). Use same-line `Name key: value, k2: v2` or indented `key: value`. (`|` survives only in wireframe `{A | B}` dropdowns, in-arrow label text, and quoted names.)
 - **No removed participant keywords.** Do not write `X is a service` / `external` / `frontend` / `networking` / `gateway` — these were removed and error. A bare name renders the default shape; for a typed glyph use `is a person` / `is a database` / `is a queue`.
 <!-- COLORS start -->
 - **Colors are a closed set of EXACTLY these 11 — nothing else is a color.** Valid colors, the complete list: `red`, `orange`, `yellow`, `green`, `blue`, `purple`, `teal`, `cyan`, `gray`, `black`, `white`. That is the entire universe of DGMO colors — there are no others. Do NOT use hex (`#1f77b4`), `rgb(...)`, `hsl(...)`, or ANY CSS color name: `crimson`, `royalblue`, `navy`, `pink`, `lime`, `magenta`, `indigo`, `gold`, `salmon`, `turquoise`, `violet`, etc. are ALL invalid — they are rejected and the element falls back to an auto-assigned color. When you want a color outside the 11, map it to the nearest one: crimson/scarlet→`red`, royalblue/navy/cobalt→`blue`, pink/magenta/violet/indigo→`purple`, lime/olive→`green`, gold/amber→`yellow`, turquoise→`teal`. Apply a color as a trailing token (`Done green`) or after a category/group bracket (`[North America] red`). Named colors are mandatory because they re-resolve per active palette + light/dark theme; a hardcoded value never would.
@@ -427,7 +427,8 @@ quote.
 Sequence's `Name is a type aka Alias` modifier is removed. Use the
 universal `as` postfix (§2A) for short-codes; UNH normalization
 handles casing/spacing variants automatically. Encountering `aka`
-in a participant declaration produces `E_AKA_REMOVED`.
+in a participant declaration falls to the generic unexpected-line
+warning (no dedicated code since 0.43.0).
 
 ### 2.5 Carve-Outs
 
@@ -440,9 +441,7 @@ These are intentionally outside the universal rule:
 ### 2.6 Error Codes
 
 - `I_NAME_MERGED` (warning) — two source-distinct names normalize to the same key with different displayed forms
-- `E_NAME_RESERVED_CHAR` (error) — bare name contains a reserved char without quoting
-- `E_AKA_REMOVED` (error) — removed `aka` keyword used in sequence participant declaration
-- `E_PARTICIPANT_TYPE_REMOVED` (error) — sequence `is a X` declaration used a removed type keyword (`service`, `frontend`, `networking`, `gateway`, `external`)
+- A bare name with a reserved char, a sequence `aka`, and a removed sequence type keyword (`service`, `frontend`, `networking`, `gateway`, `external`) no longer carry dedicated codes (deleted 0.43.0): the reserved char and removed type keyword parse **silently**, `aka` falls to the generic unexpected-line warning
 
 ---
 
@@ -506,18 +505,16 @@ rarely benefit. Aliases should aid comprehension, not obscure it.
 
 ### 2A.6 Error Codes
 
-- `E_ALIAS_BEFORE_DECL` — alias used before declaration
-- `E_ALIAS_COLLISION` — same alias bound to two canonicals
-- `E_ALIAS_SHADOWS_NAME` — alias literal collides with an existing canonical
-- `E_ALIAS_REBINDING` — same canonical given two aliases
-- `E_ALIAS_OF_ALIAS` — aliasing an alias
-- `E_ALIAS_RESERVED_KEYWORD` — alias is a reserved keyword
-- `E_ALIAS_INVALID_FORMAT` — alias doesn't match `[A-Za-z][A-Za-z0-9_]{0,11}`
-- `E_ALIAS_AFTER_CANONICAL` — canonical was already used plain before its alias declaration
-- `E_TAG_SHORTHAND_REMOVED` — legacy `tag Name <alias>` (bare shorthand)
-- `E_VENN_ALIAS_KEYWORD_REMOVED` — legacy venn `alias` keyword
-- `W_ALIAS_CASE_NEAR_MATCH` — case-near-match suggestion
-- `W_ALIAS_UNDERUSED` — alias declared but referenced ≤1 time
+The coded alias diagnostics (`E_ALIAS_*`, `W_ALIAS_*`, the tag/venn
+shorthand errors) were deleted in 0.43.0 and the TD-18 alias integrity
+rules are currently **unenforced** — a collision, an out-of-order
+reference, an alias-of-alias, and an over-length alias all parse without
+complaint, and a malformed alias silently fails the `as` peel (the whole
+`Name as xyz…` string becomes the entity name). The §2A.2–2A.4 rules
+remain the language definition: don't emit source that violates them.
+One related warning DOES fire: a `tag` line with a spaced name, no
+alias, and an alias-shaped trailing word (`tag Status s`) warns and
+suggests `tag Status as s`.
 
 ---
 
@@ -583,7 +580,7 @@ Name key: value
 
 Types: `actor`, `database`, `cache`, `queue` (plus default — the plain rectangle, used when `is a` is omitted).
 
-Type names in `is a X` are **case-insensitive** (`is a Actor`, `is an ACTOR`, `is an actor` all parse the same). The keywords `service`, `frontend`, `networking`, `gateway`, and `external` were removed in 0.16.0 and now emit `E_PARTICIPANT_TYPE_REMOVED`; drop the override and the participant renders as the default rectangle.
+Type names in `is a X` are **case-insensitive** (`is a Actor`, `is an ACTOR`, `is an actor` all parse the same). The keywords `service`, `frontend`, `networking`, `gateway`, and `external` were removed in 0.16.0; using one now parses **silently** and the participant renders as the default rectangle — drop the override.
 
 A participant _named_ with a removed-type keyword (e.g. `service -hi-> User` declares a participant named "service") remains valid. The trim affects only the `is a X` declaration syntax, not name resolution.
 
@@ -1633,7 +1630,7 @@ want; anything left un-chained starts together at the parent's start.
   Wireframes duration: 10bd
 ```
 
-> The `parallel` keyword was removed at 1.0 (error `E_GANTT_LEGACY_REMOVED`).
+> The `parallel` keyword was removed at 1.0 (now silently ignored — no dedicated error since 0.43.0).
 
 ---
 
@@ -2210,13 +2207,13 @@ swimlanes              # back-compat spelling of lane-by
 
 Every section under §15 follows the same two rules.
 
-**Rule A — data rows are space-separated; commas are removed.** Values are separated by spaces only. A comma in a value position — whether a value separator (`Q1 400, 700`) or a thousands grouping (`Revenue 1,000`) — raises `E_DATA_COMMA_REMOVED`. Write whole numbers without thousands commas (`1000`, not `1,000`); an underscore digit-group separator is accepted if desired (`1_000`). The value still parses best-effort so the diagram renders, but the comma form is an error at 1.0.
+**Rule A — data rows are space-separated; commas are tolerated.** Spaces are the canonical separator. A comma in a value position is **accepted** since 0.43.0 (#28 reversed the short-lived hard error): a separator comma (`Q1 400, 700`) and a thousands grouping (`Revenue 1,000` → 1000) both parse. Still, write the canonical form — whole numbers without thousands commas (`1000`, or `1_000` if you want digit grouping), values separated by spaces.
 
 ```
 Q1 400 700 300 500     ✅  canonical
-Q1 400, 700, 300, 500  ❌  E_DATA_COMMA_REMOVED — use spaces
+Q1 400, 700, 300, 500  ⚠️  tolerated — spaces are canonical
 Revenue 1000           ✅  canonical
-Revenue 1,000          ❌  E_DATA_COMMA_REMOVED — drop the thousands comma
+Revenue 1,000          ⚠️  tolerated — parses as 1000; prefer 1000 or 1_000
 ```
 
 **Rule B — list-of-labelled-items directives (e.g. `series`, `columns`) prefer the indented one-per-line form.** Short one-line forms are tolerated for ≤3 items with no colour annotations or spaces.
@@ -2506,7 +2503,7 @@ Roberts 12 52
     Before COVID
     After COVID
   ```
-- Data rows: `Label value1 value2` — follows §15 Rule A (space-separated; a comma in a value raises `E_DATA_COMMA_REMOVED`)
+- Data rows: `Label value1 value2` — follows §15 Rule A (space-separated canonical; commas tolerated)
 - Thousands commas are removed — write `1000`, not `1,000` (underscore grouping `1_000` is accepted)
 - Color annotations: `Label color value1 value2` (trailing color word before numeric values)
 - Minimum 2 periods required
@@ -2745,7 +2742,7 @@ sw + nav + lead Legendary Pirates
 
 - Set declaration: `Name [color] as <alias>` — color is an optional trailing token BEFORE `as` (universal alias syntax, §2A)
 - Intersections: `Set1 + Set2 Label` — label follows the last set reference (no colon)
-- Legacy `Name(color) alias X` emits `E_VENN_ALIAS_KEYWORD_REMOVED` per TD-18
+- Legacy `Name(color) alias X` is silently absorbed into the set name (no dedicated error since 0.43.0) — use `as X`
 
 ### 16.5 Quadrant Diagrams
 
@@ -2771,7 +2768,7 @@ Navigator 0.85 0.8
 
 - Axis labels: `x-label Low, High` — comma-separated (low/high pair, not a data row; comma is the delimiter here by design)
 - Position labels: `top-right Label` — space-separated
-- Data points: `Label x y` — follows §15 Rule A (space-separated; `Label x, y` raises `E_DATA_COMMA_REMOVED` — the comma between x and y is removed, but axis labels above keep their comma)
+- Data points: `Label x y` — follows §15 Rule A (space-separated canonical; a comma between x and y is tolerated, and axis labels above keep their comma)
 
 ---
 
@@ -3315,7 +3312,7 @@ Browsed casually                                      // no score = no curve poi
 
 - `score` outside 1–5, floats, or negatives → parse error.
 - Multi-word emotion labels (e.g. `emotion: Very Happy`) → parse error.
-- The legacy bare-score form (`Step | 4 Delighted`) is removed and emits `E_JOURNEY_BARE_SCORE_REMOVED`.
+- The legacy bare-score form (`Step | 4 Delighted`) is removed — the pipe tail is absorbed into the step name and only the "has no score" warning surfaces. Use `score: <N>, emotion: <Word>`.
 
 ### Reserved Metadata Keys
 
@@ -4416,7 +4413,7 @@ A colon binds a value, and it appears in exactly **four syntactic positions** �
 
 - Directives and options — space-separated (`start-date 2026-03-15`, `x-label Low, High`, `region`)
 - Tag declarations and chart type declarations
-- Series declarations and data rows for simple/data charts (incl. sankey/arc links `Source -> Target value` and quadrant data; space-delimited — a comma in a data-row value raises `E_DATA_COMMA_REMOVED`)
+- Series declarations and data rows for simple/data charts (incl. sankey/arc links `Source -> Target value` and quadrant data; space-delimited canonical, commas tolerated)
 - Structural syntax (groups, sections, arrows, comments)
 - Wireframe flag lists; flowchart/state node labels (colons are literal label text — these charts have no metadata)
 
@@ -4488,7 +4485,7 @@ Do NOT emit these — they're documented historically but no parser supports the
 - Inline forward-declaration of PERT edge targets (`-> name 1 2 4`) — declare first, reference second
 - `"Quoted Name" as alias` (any chart type) — drop quotes or drop alias
 - Standalone sequence participant `Name as a` (with metadata) without `is a TYPE` — use the typed form
-- The `|` operator as metadata delimiter — emits `E_PIPE_OPERATOR_REMOVED`. Use same-line or indented metadata per §1.4.
+- The `|` operator as metadata delimiter — removed 0.18.0; a stray `|` now falls through as a literal (no dedicated error since 0.43.0). Use same-line or indented metadata per §1.4.
 
 ### 26.7 Diagnostic-Free Checklist
 
