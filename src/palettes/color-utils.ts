@@ -267,52 +267,85 @@ export function contrastRatio(a: string, b: string): number {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
+// ------------------------------------------------------------
+// APCA (Accessible Perceptual Contrast Algorithm)
+// ------------------------------------------------------------
+// Vendored from apca-w3 0.1.9 — SAPC-APCA, 0.0.98G series, "G-4g"
+// constants — © 2019–2022 Andrew Somers / Myndex Research, W3 license,
+// https://github.com/Myndex/apca-w3. Forward sRGB path only; constants
+// copied verbatim from the package source.
+
+const APCA = {
+  mainTRC: 2.4,
+  sRco: 0.2126729,
+  sGco: 0.7151522,
+  sBco: 0.072175,
+  normBG: 0.56,
+  normTXT: 0.57,
+  revTXT: 0.62,
+  revBG: 0.65,
+  blkThrs: 0.022,
+  blkClmp: 1.414,
+  scale: 1.14,
+  loOffset: 0.027,
+  deltaYmin: 0.0005,
+  loClip: 0.1,
+} as const;
+
+/** APCA screen luminance Y (simple 2.4-exponent linearization, not WCAG's). */
+function apcaY(hex: string): number {
+  const raw = hex.replace('#', '');
+  const full = raw.length === 3 ? [...raw].map((c) => c + c).join('') : raw;
+  const [r, g, b] = [0, 2, 4].map(
+    (i) => (parseInt(full.substring(i, i + 2), 16) / 255) ** APCA.mainTRC
+  ) as [number, number, number];
+  return APCA.sRco * r + APCA.sGco * g + APCA.sBco * b;
+}
+
 /**
- * Pick `lightText` or `darkText` for placement on top of `bg`.
+ * APCA lightness contrast (Lc) of `text` over `bg`. Signed: positive for
+ * dark-on-light, negative for light-on-dark; magnitude is what matters for
+ * ranking. |Lc| 60 ≈ fluent reading for bold ~12px text; |Lc| 45 is the
+ * floor for large headline weights; 0 is returned for near-identical pairs.
+ */
+export function apcaContrast(text: string, bg: string): number {
+  const clamp = (y: number) =>
+    y > APCA.blkThrs ? y : y + (APCA.blkThrs - y) ** APCA.blkClmp;
+  const txtY = clamp(apcaY(text));
+  const bgY = clamp(apcaY(bg));
+  if (Math.abs(bgY - txtY) < APCA.deltaYmin) return 0;
+  if (bgY > txtY) {
+    const sapc = (bgY ** APCA.normBG - txtY ** APCA.normTXT) * APCA.scale;
+    return sapc < APCA.loClip ? 0 : (sapc - APCA.loOffset) * 100;
+  }
+  const sapc = (bgY ** APCA.revBG - txtY ** APCA.revTXT) * APCA.scale;
+  return sapc > -APCA.loClip ? 0 : (sapc + APCA.loOffset) * 100;
+}
+
+/**
+ * Pick `lightText` or `darkText` for placement on top of `bg`: whichever
+ * scores the higher |Lc| under APCA.
  *
- * Three-tier decision:
- *  1. **High-luminance fill (luminance > 0.55)** → `darkText`. Yellows, peaches,
- *     light cyans — dark text reads better and a light cream on light yellow is
- *     unreadable.
- *  2. **Pastel fill (min RGB channel ≥ 100, luminance ≤ 0.55)** → defer to WCAG
- *     ratio. Pastels have no near-zero channel and tend to read as "soft" —
- *     dark text usually wins by ratio (catppuccin dark mauve `#cba6f7` min 166,
- *     ratio 9.35:1; tokyo-night dark red `#f7768e` min 118, ratio 7.86:1; and
- *     tokyo-night green `#9ece6a` min 106, ratio 11.4:1 all correctly pick dark).
- *  3. **Saturated fill (min RGB < 100, luminance ≤ 0.55)** → `lightText`. At least
- *     one channel near zero signals true saturation — gruvbox dark green
- *     `#b8bb26` (min 38), blueprint blue `#1f5e8c` (min 31), bold red/blue
- *     (min 0), solarized blue `#268bd2` (min 38). The user consistently
- *     prefers light text on these for visual punch.
+ * This replaced a WCAG-ratio three-tier heuristic on 2026-08-11. The WCAG
+ * 2.1 ratio formula has a known blind spot on mid-tone fills, preferring
+ * dark ink where every eye wants light text — slate light gray `#7e8a97`
+ * scores 4.19:1 dark vs 3.35:1 light on WCAG, but Lc 37 dark vs Lc 68
+ * light on APCA. 30 of the 154 palette solid fills (7 palettes × 2 modes
+ * × 11 intents) got the perceptually weaker token from the old picker.
  *
- * `min RGB` discriminates pastel-vs-saturated more reliably than `max-min`
- * (vibrance): tokyo-night and catppuccin dark are pastels with high max RGB,
- * so vibrance alone misclassifies them as "saturated."
- *
- * Tinted fills (luminance ~0.7+ in light themes / ~0.02–0.14 in dark themes)
- * are unambiguous in either branch; only fill-solid output shifts here.
+ * `tests/palette-contrast.test.ts` guards the whole registry: the picker
+ * must return the stronger token for every fill, and a fill whose best
+ * |Lc| falls under 45 is a palette defect the test names.
  */
 export function contrastText(
   bg: string,
   lightText: string,
   darkText: string
 ): string {
-  const L = relativeLuminance(bg);
-  if (L > 0.55) return darkText;
-  const raw = bg.replace('#', '');
-  const full = raw.length === 3 ? [...raw].map((c) => c + c).join('') : raw;
-  const r = parseInt(full.substring(0, 2), 16);
-  const g = parseInt(full.substring(2, 4), 16);
-  const b = parseInt(full.substring(4, 6), 16);
-  const minRgb = Math.min(r, g, b);
-  if (minRgb >= 100) {
-    // Pastel: defer to WCAG ratio (almost always picks dark for these).
-    return contrastRatio(bg, darkText) > contrastRatio(bg, lightText)
-      ? darkText
-      : lightText;
-  }
-  // Truly saturated: prefer light text for visual punch.
-  return lightText;
+  return Math.abs(apcaContrast(darkText, bg)) >=
+    Math.abs(apcaContrast(lightText, bg))
+    ? darkText
+    : lightText;
 }
 
 // ============================================================
