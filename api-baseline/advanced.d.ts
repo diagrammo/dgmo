@@ -5,8 +5,8 @@ export { A as AirportData, B as BoundaryTopology, G as Gazetteer, a as Gazetteer
 export { b as CHART_TYPE_DESCRIPTIONS, C as ChartTypeId, a as ChartTypeMeta, R as RenderCategory, d as chartTypeParsers, c as chartTypes, e as getAllChartTypes, f as getAvailablePalettes, g as getPalette, h as getRenderCategory, i as isExtendedChartType, j as isValidHex, k as knownChartTypeIds, p as parseDgmo, l as parseDgmoChartType, m as registerPalette, p as validate } from './dgmo-router-EAW7XiBE.js';
 import { Selection } from 'd3-selection';
 import * as d3Scale from 'd3-scale';
-import { P as ParsedOrg, F as FillMode, R as RaciMarker, a as ParsedRaci, b as RaciVariant, c as RaciTask } from './chart-meta-CpicJ1kj.js';
-export { A as ALL_CHART_TYPES, I as ImportSource, O as OrgNode, d as RaciPhase, e as RaciRoleAssignment, f as ReadFileFn, g as ResolveImportsResult, h as contrastText, i as getSeriesColors, j as hexToHSL, k as hexToHSLString, l as hslToHex, m as mix, n as normalizePertSourceForShare, p as parseFirstLine, o as parseOrg, q as parseRaci, r as resolveOrgImports, s as shade, t as shapeFill, u as tint } from './chart-meta-CpicJ1kj.js';
+import { P as ParsedOrg, F as FillMode, R as RaciMarker, a as ParsedRaci, b as RaciVariant, c as RaciTask } from './chart-meta-DNsYpNbh.js';
+export { A as ALL_CHART_TYPES, I as ImportSource, O as OrgNode, d as RaciPhase, e as RaciRoleAssignment, f as ReadFileFn, g as ResolveImportsResult, h as contrastText, i as findOrgNodeIdByName, j as getSeriesColors, k as hexToHSL, l as hexToHSLString, m as hslToHex, n as mix, o as normalizePertSourceForShare, p as parseFirstLine, q as parseOrg, r as parseRaci, s as resolveOrgImports, t as shade, u as shapeFill, v as tint } from './chart-meta-DNsYpNbh.js';
 import { GeoProjection } from 'd3-geo';
 export { M as MapCompletionOptions, a as MapLocationMatch, b as MapPlaceCompletion, c as MapRegionCompletion, T as Theme, d as completeMapPlaces, e as completeMapRegions, p as palettes, s as searchMapLocations, t as themes } from './themes-Dem5xalq.js';
 
@@ -4771,8 +4771,12 @@ interface EventLineNow {
     readonly date: string | null;
     /** Numeric value for the pinned date (timeline scale), or null when computed. */
     readonly dateValue: number | null;
-    /** Rule caption (default `now`; a trailing token on the pinned form overrides). */
-    readonly label: string;
+    /**
+     * Author-supplied tab caption, or null to caption the tab with the marker's
+     * own resolved date (the default — a tab reading `now` cannot tell a diagram
+     * redrawn today from one exported two years ago).
+     */
+    readonly label: string | null;
     readonly lineNumber: number;
 }
 interface EventLineOptions {
