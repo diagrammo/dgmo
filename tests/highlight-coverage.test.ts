@@ -235,6 +235,7 @@ const INVENTORY = {
     'fill-solid',
     'fill-tint',
     'flow-width',
+    'focus',
     'gauge',
     'hide',
     'highlight',

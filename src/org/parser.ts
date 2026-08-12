@@ -74,6 +74,7 @@ const KNOWN_OPTIONS = new Set([
   'hide',
   'show-sub-node-count',
   'active-tag',
+  'focus',
 ]);
 /** Known org chart boolean options (bare keyword = on). */
 const KNOWN_BOOLEANS = new Set([
@@ -140,6 +141,7 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
   let contentStarted = false;
   let nodeCounter = 0;
   let containerCounter = 0;
+  let focusOptionLine = 0;
 
   // Tag group parsing state
   let currentTagGroup: Writable<TagGroup> | null = null;
@@ -250,6 +252,7 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
         const key = optMatch[1]!.trim().toLowerCase();
         if (KNOWN_OPTIONS.has(key)) {
           options[key] = optMatch[2]!.trim();
+          if (key === 'focus') focusOptionLine = lineNumber;
           continue;
         }
       }
@@ -436,6 +439,18 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
     result.error = formatDgmoError(diag);
   }
 
+  // `focus <name>` must name a person or team that exists — warn (never
+  // error) when it doesn't; renderers fall back to the whole chart.
+  const focusName = options['focus'];
+  if (focusName && result.roots.length > 0) {
+    if (!findOrgNodeIdByName(result.roots, focusName)) {
+      pushWarning(
+        focusOptionLine || 1,
+        `focus target "${focusName}" not found — showing the whole chart`
+      );
+    }
+  }
+
   // Resolve the layout direction (§7.5). The boolean pair is mutually
   // exclusive and already collapsed to a single surviving key above
   // (§1.9, last one wins), so a lone presence check is sufficient.
@@ -443,6 +458,24 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
   result.direction = options['direction-lr'] ? 'LR' : 'TB';
 
   return result;
+}
+
+/**
+ * Resolve a `focus <name>` directive value to a node id — case-insensitive
+ * match on the person's (or team container's) display label, depth-first in
+ * source order, first match wins. Returns null when nothing matches.
+ */
+export function findOrgNodeIdByName(
+  nodes: readonly OrgNode[],
+  name: string
+): string | null {
+  const target = name.trim().toLowerCase();
+  for (const node of nodes) {
+    if (node.label.trim().toLowerCase() === target) return node.id;
+    const hit = findOrgNodeIdByName(node.children, target);
+    if (hit) return hit;
+  }
+  return null;
 }
 
 // ============================================================

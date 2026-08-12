@@ -10,6 +10,7 @@
 
 import type { PaletteColors } from './palettes';
 import type { D3ExportDimensions } from './utils/d3-types';
+import type { AncestorInfo } from './org/collapse';
 import { emit } from './diagnostics';
 import { MAP_DX } from './map/diagnostics';
 import { parseVisualization } from './visualizations/parse';
@@ -384,10 +385,10 @@ function unionHiddenAttributes(
 
 async function exportOrg(ctx: ExportContext): Promise<string> {
   const { content, theme, palette, viewState, exportMode } = ctx;
-  const { parseOrg } = await import('./org/parser');
+  const { parseOrg, findOrgNodeIdByName } = await import('./org/parser');
   const { layoutOrg } = await import('./org/layout');
-  const { collapseOrgTree } = await import('./org/collapse');
-  const { renderOrg } = await import('./org/renderer');
+  const { collapseOrgTree, focusOrgTree } = await import('./org/collapse');
+  const { renderOrg, ancestorTrailReserve } = await import('./org/renderer');
 
   const isDark = ctx.isDark;
   const effectivePalette = await resolveExportPalette(theme, palette);
@@ -410,10 +411,28 @@ async function exportOrg(ctx: ExportContext): Promise<string> {
     viewState?.ha
   );
 
-  const { parsed: effectiveParsed, hiddenCounts } =
+  const collapseResult =
     collapsedNodes && collapsedNodes.size > 0
       ? collapseOrgTree(orgParsed, collapsedNodes)
       : { parsed: orgParsed, hiddenCounts: new Map<string, number>() };
+  const { hiddenCounts } = collapseResult;
+  let effectiveParsed = collapseResult.parsed;
+
+  // `focus <name>` (source directive) re-roots the export to that person's
+  // (or team's) subtree with the ancestor breadcrumb trail — parity with the
+  // app's focused view, which seeds from the same directive. Resolved against
+  // the collapse-pruned tree, mirroring the app's collapse-then-focus order;
+  // an unresolved name falls back to the whole chart (parse warning).
+  let ancestorPath: AncestorInfo[] | undefined;
+  const focusName = orgParsed.options['focus'];
+  if (focusName) {
+    const focusId = findOrgNodeIdByName(effectiveParsed.roots, focusName);
+    const focused = focusId ? focusOrgTree(effectiveParsed, focusId) : null;
+    if (focused) {
+      effectiveParsed = focused.parsed;
+      ancestorPath = focused.ancestorPath;
+    }
+  }
 
   const orgLayout = layoutOrg(
     effectiveParsed,
@@ -425,8 +444,10 @@ async function exportOrg(ctx: ExportContext): Promise<string> {
 
   const PADDING = 20;
   const titleOffset = effectiveParsed.title ? 30 : 0;
+  const trailReserve = ancestorTrailReserve(ancestorPath?.length ?? 0);
   const exportWidth = orgLayout.width + PADDING * 2;
-  const exportHeight = orgLayout.height + PADDING * 2 + titleOffset;
+  const exportHeight =
+    orgLayout.height + PADDING * 2 + titleOffset + trailReserve;
   const container = createExportContainer(exportWidth, exportHeight);
 
   renderOrg(
@@ -439,7 +460,7 @@ async function exportOrg(ctx: ExportContext): Promise<string> {
     { width: exportWidth, height: exportHeight },
     activeTagGroup,
     hiddenAttributes,
-    undefined,
+    ancestorPath,
     exportMode
   );
   return finalizeSvgExport(container, theme, effectivePalette);

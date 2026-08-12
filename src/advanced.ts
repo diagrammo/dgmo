@@ -191,7 +191,7 @@ export {
 } from './utils/name-normalize';
 export type { NameEntry, GetOrCreateNameResult } from './utils/name-normalize';
 
-export { parseOrg } from './org/parser';
+export { findOrgNodeIdByName, parseOrg } from './org/parser';
 export type { ParsedOrg, OrgNode } from './org/parser';
 
 export { layoutOrg } from './org/layout';
