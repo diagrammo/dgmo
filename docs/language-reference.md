@@ -1127,6 +1127,8 @@ This is key-value metadata assignment, consistent with same-line metadata syntax
 - `sub-node-label Text`
 - `show-sub-node-count`
 - `hide`
+- `active-tag GroupName` / `active-tag none`
+- `focus Name` — re-root the chart to that person's (or team's) subtree; pruned ancestors draw as a breadcrumb trail above the new root. Case-insensitive, first match in source order wins; an unknown name warns and the whole chart renders. Top-level and colon-less — distinct from `focus: value` metadata on a node line.
 
 ---
 

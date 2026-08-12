@@ -332,7 +332,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'org',
     // Spec §7 §6.5: direction-tb, sub-node-label, show-sub-node-count,
-    // hide, active-tag. fill family via FILL_FAMILY_CAPABLE.
+    // hide, active-tag, focus. fill family via FILL_FAMILY_CAPABLE.
     withGlobals({
       'no-legend': { description: 'Hide the legend' },
       'direction-tb': { description: 'Top-to-bottom layout (the default)' },
@@ -341,6 +341,9 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'show-sub-node-count': { description: 'Show sub-node counts' },
       hide: { description: 'Hide tag:value pairs' },
       'active-tag': { description: 'Active tag group name' },
+      focus: {
+        description: 'Re-root to a person or team subtree (focus Name)',
+      },
     }),
   ],
   [
