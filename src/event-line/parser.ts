@@ -375,7 +375,9 @@ export function parseEventLine(
       }
       // §28.6b `now` marker — a single dashed vertical rule at "today". Bare
       // `now` is resolved at render time (computed); `now <date> [Label]` pins
-      // it to an explicit ISO date. Last one wins if repeated.
+      // it to an explicit ISO date. Last one wins if repeated. A caption is
+      // only recorded when the author writes one — otherwise the renderer
+      // captions the tab with the resolved date itself.
       {
         const nowMatch = trimmed.match(NOW_RE);
         if (nowMatch) {
@@ -385,13 +387,13 @@ export function parseEventLine(
               computed: true,
               date: null,
               dateValue: null,
-              label: 'now',
+              label: null,
               lineNumber,
             } satisfies EventLineNow;
           } else {
             const prefix = extractDatePrefix(rest, dateCtx);
             if (prefix) {
-              const label = prefix.remainder?.trim() || 'now';
+              const label = prefix.remainder?.trim() || null;
               result.now = {
                 computed: false,
                 date: prefix.startDate,

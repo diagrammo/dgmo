@@ -691,7 +691,9 @@ now
       expect(p.now!.computed).toBe(true);
       expect(p.now!.date).toBeNull();
       expect(p.now!.dateValue).toBeNull();
-      expect(p.now!.label).toBe('now');
+      // No author caption — the renderer captions the tab with the date it
+      // resolves, so the mark says WHEN it was drawn.
+      expect(p.now!.label).toBeNull();
     });
 
     it('pins `now <date>` to an explicit ISO date', () => {
@@ -704,7 +706,7 @@ now 2022-06
       expect(p.now!.computed).toBe(false);
       expect(p.now!.date).toBe('2022-06');
       expect(p.now!.dateValue).not.toBeNull();
-      expect(p.now!.label).toBe('now');
+      expect(p.now!.label).toBeNull();
     });
 
     it('takes a trailing token after the pinned date as a custom label', () => {

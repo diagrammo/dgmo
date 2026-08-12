@@ -1382,9 +1382,11 @@ export function renderEventLine(
   // date. Drawn last so nothing hides it and the finished card boxes are known.
   if (parsed.now && scaled) {
     let nowValue: number | null = parsed.now.dateValue;
+    let nowIso: string | null = parsed.now.date;
     if (parsed.now.computed) {
       const d = nowDate ?? new Date();
       const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      nowIso = iso;
       const v = parseTimelineDate(iso);
       nowValue = Number.isFinite(v) ? v : null;
     }
@@ -1439,7 +1441,14 @@ export function renderEventLine(
               palette.textOnFillDark
             )
           : nowColor;
-      const label = parsed.now.label;
+      // The tab says WHEN, not just "here": a caption reading `now` is equally
+      // true on the day it was drawn and two years later, so a reader cannot
+      // tell a diagram that redraws from a picture of a dead one. The date is
+      // formatted exactly as the event cards below format theirs, so the pin
+      // and the cards can never disagree about how a date looks. An explicit
+      // caption (`now 2023-06-01 Today`) still wins.
+      const label =
+        parsed.now.label ?? (nowIso ? formatDateLabel(nowIso) : 'now');
       const pillH = 18;
       const pillW = Math.max(28, label.length * 6.6 + 16);
       const PIN_GAP = 6; // clearance spine↔pill and card↔pill

@@ -1241,7 +1241,50 @@ now 2022-01-01
       expect(nowG.querySelector('path')).not.toBeNull(); // diamond on the spine
       expect(nowG.querySelector('line')).not.toBeNull(); // stem
       expect(nowG.querySelector('rect')).not.toBeNull(); // tab
-      expect(nowG.querySelector('text')!.textContent).toBe('now');
+      // The tab is captioned with the pinned date, not the word `now` — a
+      // wordless caption cannot distinguish a fresh diagram from an old one.
+      expect(nowG.querySelector('text')!.textContent).toBe('Jan 1, 2022');
+    });
+
+    it('captions a computed `now` with the date it resolved to', () => {
+      const parsed = parseEventLine(
+        `event-line R
+now
+
+2020 A
+2024 B`,
+        nordLight
+      );
+      const container = mount(900, 400);
+      renderEventLine(
+        container,
+        parsed,
+        nordLight,
+        false,
+        undefined,
+        undefined,
+        undefined,
+        new Date(2022, 5, 9)
+      );
+      expect(container.querySelector('.evt-now text')!.textContent).toBe(
+        'Jun 9, 2022'
+      );
+    });
+
+    it('captions to the grain of the pinned date, like the event cards do', () => {
+      const parsed = parseEventLine(
+        `event-line R
+now 2022
+
+2020 A
+2024 B`,
+        nordLight
+      );
+      const container = mount(900, 400);
+      renderEventLine(container, parsed, nordLight, false);
+      expect(container.querySelector('.evt-now text')!.textContent).toBe(
+        '2022'
+      );
     });
 
     it('honors a custom tab label', () => {

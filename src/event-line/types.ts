@@ -63,8 +63,12 @@ export interface EventLineNow {
   readonly date: string | null;
   /** Numeric value for the pinned date (timeline scale), or null when computed. */
   readonly dateValue: number | null;
-  /** Rule caption (default `now`; a trailing token on the pinned form overrides). */
-  readonly label: string;
+  /**
+   * Author-supplied tab caption, or null to caption the tab with the marker's
+   * own resolved date (the default — a tab reading `now` cannot tell a diagram
+   * redrawn today from one exported two years ago).
+   */
+  readonly label: string | null;
   readonly lineNumber: number;
 }
 
