@@ -1,0 +1,23 @@
+event-line Service Reliability, 2024
+now 2024-09-15 Today teal
+
+tag Event as e
+  Outage red
+  Recovery green
+  Change blue
+
+2024-01-18 Database failover  e: Outage
+  A primary node lost its lease during a routine patch. **41 minutes** of
+  write errors before the standby took over.
+
+2024-02-02 Automatic failover shipped  e: Change
+  The standby now promotes itself; no human in the path.
+
+2024-04-11 Cache stampede  e: Outage
+  An expired key let every request through to the database at once.
+
+2024-05-30 Request coalescing  e: Change
+  One fetch per key, the rest wait on it.
+
+2024-08-22 Four months clean  e: Recovery
+  The longest run without a customer-visible incident.
