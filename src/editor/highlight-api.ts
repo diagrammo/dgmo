@@ -21,6 +21,16 @@ import { scanMonthNameDates } from '../utils/date';
 // the standalone post-pass below — same pattern as `classifyRecurrenceLine`).
 export { scanMonthNameDates } from '../utils/date';
 
+// Which directives take a trailing color, for editors that highlight one. The
+// rules are unrecoverable from the grammar — `lane Writer gray` colors a lane
+// and `lane gray` names one — so they ship from here rather than being
+// re-derived, and wrong, in each editor.
+export {
+  COLOR_DIRECTIVES,
+  colorDirectiveRule,
+  type ColorDirectiveRule,
+} from './color-directives';
+
 // ============================================================
 // Types
 // ============================================================
