@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.70.0] - 2026-08-13
+
+### Added
+
+- **The event-line `now` pin takes a color.** `now` and `now <date>` accept an
+  optional trailing color word, the same way the directives that already peel
+  one do — so the marker for today can be told apart from the milestones
+  around it without recoloring anything else on the line. Omitting it keeps
+  the previous appearance exactly.
+- **A spaced tag-group name is now called out as a probable missed `as`.**
+  Writing a group whose name contains a space is legal, but it is far more
+  often a forgotten `as` alias than a deliberate two-word group. It raises a
+  warning naming the alias you probably meant; the diagram still renders.
+- **The rules for which directives carry a trailing color are exported.** The
+  editor integration reads them from here instead of every host keeping its
+  own copy, so a directive that gains a trailing color is highlighted
+  everywhere as soon as this package ships it.
+
+### Fixed
+
+- The language reference no longer cites the diagnostic codes deleted in
+  0.43.0, which have raised nothing for twenty-seven releases.
+
 ## [0.69.0] - 2026-08-11
 
 ### Added
