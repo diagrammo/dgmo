@@ -118,28 +118,36 @@ const SAMPLES: readonly {
   // estimate the band is the honest assertion, and it is the one that catches a
   // model charging the wrong width; a comparison decided by what someone
   // happened to install measures the harness, not the model.
+  //
+  // The band itself is subject to the same caveat, which is why it is 0.35 and
+  // not the 0.25 it was until 2026-08-13. The narrower number held on this
+  // laptop and went red on the Ubuntu runner, whose Arabic fallback came out
+  // 0.2575 off — a difference in installed faces, with the model untouched. A
+  // band that only holds on the machine it was written on tests that machine.
+  // 0.35 still fails a model charging a wrong width: the flat 0.603 number this
+  // replaced was 0.98 off on Japanese and 0.186 off on Arabic on that runner.
   {
     script: 'Devanagari',
     text: 'नमस्ते',
-    band: 0.25,
+    band: 0.35,
     beatsFlat: false,
   },
   {
     script: 'Thai',
     text: 'สวัสดี',
-    band: 0.25,
+    band: 0.35,
     beatsFlat: false,
   },
   {
     script: 'Arabic',
     text: 'مرحبا',
-    band: 0.25,
+    band: 0.35,
     beatsFlat: false,
   },
   {
     script: 'Hebrew',
     text: 'שלום',
-    band: 0.25,
+    band: 0.35,
     beatsFlat: false,
   },
   // Greek and Cyrillic are the two scripts the flat fallback was ALREADY right
@@ -150,13 +158,13 @@ const SAMPLES: readonly {
   {
     script: 'Cyrillic',
     text: 'Диаграмма',
-    band: 0.25,
+    band: 0.35,
     beatsFlat: false,
   },
   {
     script: 'Greek',
     text: 'Διάγραμμα',
-    band: 0.25,
+    band: 0.35,
     beatsFlat: false,
   },
 ];

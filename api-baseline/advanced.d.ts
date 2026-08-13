@@ -4762,6 +4762,8 @@ interface EventLineEra {
  * fades out within the leader gap (full-height only on hover, preview).
  * `now` alone is *computed* (resolved to the render-time date);
  * `now <date>` *pins* it to an explicit ISO date (deterministic, snapshot-safe).
+ * A trailing named color (`now blue`, `now 2023-06-01 Today blue`) overrides
+ * the red, for timelines whose tags already claim it.
  * Only drawn on a to-scale axis (every event dated); ignored under `no-scale`.
  */
 interface EventLineNow {
@@ -4777,6 +4779,12 @@ interface EventLineNow {
      * redrawn today from one exported two years ago).
      */
     readonly label: string | null;
+    /**
+     * Named palette color for the pin, or null for the default `destructive`
+     * red. An escape hatch for a timeline whose own tags already use red, where
+     * the today-line convention would read as just another category.
+     */
+    readonly color: string | null;
     readonly lineNumber: number;
 }
 interface EventLineOptions {
