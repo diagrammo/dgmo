@@ -100,7 +100,8 @@ else
     echo "::error::release.yml failed for ${TAG}."
     echo "::error::Read it: gh run view $RUN_ID -R diagrammo/dgmo --log-failed"
     echo "::error::A publish step that cannot authenticate means the package has no"
-    echo "::error::trusted publisher yet — run ../scripts/npm-trusted-publishing.sh"
+    echo "::error::trusted publisher yet. Register it at npmjs.com — the runbook is"
+    echo "::error::https://docs.diagrammo.app/infrastructure/npm-trusted-publishers/"
     exit 1
   fi
 
