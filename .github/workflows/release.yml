@@ -1,21 +1,41 @@
 name: Release
 
-# Tag trigger disabled 2026-07-22 to cut Actions minutes. Releases are done
-# locally (see the workspace release skill / release checklist), so a tag-driven
-# run was spending minutes repeating work already done by hand.
+# 🔴 THIS WORKFLOW IS THE PUBLISHER as of 2026-08-14, for TWO packages —
+# `@diagrammo/dgmo` from the repo root and `@diagrammo/dgmo-standalone` from
+# `standalone/`, which share one version by design. The `dgmo` COMMAND
+# (`@diagrammo/dgmo-cli`, from `cli/`) is a third package on its own `cli-v*`
+# tag and its own `release-cli.yml`.
 #
-# 🔴 The reason recorded here originally — "the org NPM_TOKEN is broken" — was a
-# WRONG DIAGNOSIS, retracted 2026-07-31. The token authenticates fine, for scoped
-# and unscoped packages alike. The CI runs that looked like auth failures say
-# "You cannot publish over the previously published versions", because a local
-# publish had already gone out. Read the failing run own log before re-deriving
-# it; a red run kept confirming the story for weeks.
+# Authentication is npm Trusted Publishing (OIDC) — no stored credential
+# anywhere. The local `npm publish` path this replaced is going away: npm
+# strips direct publish from bypass-2FA tokens in January 2027.
+# https://github.blog/changelog/2026-07-31-restricting-npm-bypass-2fa-granular-access-tokens/
 #
-# So: rotating the token will NOT restore this trigger and is not a precondition
-# for it. Restoring it is a deliberate choice about spending Actions minutes.
-# (The token does still expire ~2026-08-15 — that is a real deadline, unrelated.)
+# 🔴 Each package's trusted-publisher registration on npmjs.com names this REPO
+# and this FILENAME. Renaming or moving this file stops publishing until someone
+# updates BOTH registrations by hand at npmjs.com → the package → Settings →
+# Trusted publisher. A token cannot do it — npm removed that power from
+# bypass-2FA tokens on 2026-07-31.
+#
+# Dispatch-only on purpose: `scripts/release.sh` in the workspace bumps, tags,
+# pushes, and then dispatches this workflow at the tag. By hand:
+#   gh workflow run release.yml -R diagrammo/dgmo --ref vX.Y.Z
+#
+# Actions minutes: this repo is PUBLIC, so runs are free. The tag trigger came
+# off 2026-07-22 to save minutes that were never being billed (verified
+# 2026-08-14) — the cost worth avoiding is a run firing twice, not its minutes.
+#
+# 🔴 The note that used to sit here — "the org NPM_TOKEN is broken" — was a WRONG
+# DIAGNOSIS, retracted 2026-07-31. No workflow in this repo has read a token
+# since. A red run saying "cannot publish over the previously published
+# versions" means a local publish beat CI to it; read the run's own log.
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release, e.g. v0.70.1. Leave blank when dispatching on a tag ref.'
+        required: false
+        type: string
 
 jobs:
   publish:
@@ -24,8 +44,29 @@ jobs:
       contents: write
       id-token: write
     steps:
+      # Dispatching at a tag ref makes GITHUB_REF_NAME the tag; the `tag` input
+      # is the escape hatch for a dispatch from a branch. Everything downstream
+      # reads these outputs rather than GITHUB_REF_NAME, so a run started the
+      # wrong way fails here with a readable message instead of publishing a
+      # version named `main`.
+      - name: Resolve the tag being released
+        id: target
+        run: |
+          TAG="${{ inputs.tag }}"
+          [ -n "$TAG" ] || TAG="$GITHUB_REF_NAME"
+          case "$TAG" in
+            cli-v*) echo "::error::'$TAG' is the CLI's tag — release it with release-cli.yml."; exit 1 ;;
+            v[0-9]*) ;;
+            *) echo "::error::'$TAG' is not a version tag. Dispatch on a tag ref, or pass tag=vX.Y.Z."; exit 1 ;;
+          esac
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+          echo "Releasing $TAG"
+
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.target.outputs.tag }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v5
@@ -39,13 +80,18 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           cache: pnpm
 
-      - name: Verify tag matches package.json
+      # standalone/package.json is checked too: element.js bakes
+      # `unpkg.com/@diagrammo/dgmo@<VERSION>/dist/map-data/` into itself, so a
+      # standalone published at a version the library never published is a
+      # package whose maps 404.
+      - name: Verify tag matches package.json / standalone/package.json
         run: |
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          TAG_VERSION="${{ steps.target.outputs.version }}"
           PKG_VERSION=$(node -p "require('./package.json').version")
-          echo "tag=$TAG_VERSION pkg=$PKG_VERSION"
-          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
-            echo "::error::Version mismatch — bump package.json to $TAG_VERSION before tagging."
+          STANDALONE_VERSION=$(node -p "require('./standalone/package.json').version")
+          echo "tag=$TAG_VERSION pkg=$PKG_VERSION standalone=$STANDALONE_VERSION"
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ] || [ "$STANDALONE_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::Version mismatch — bump package.json and standalone/package.json to $TAG_VERSION before tagging."
             exit 1
           fi
 
@@ -64,15 +110,44 @@ jobs:
       - name: Build
         run: pnpm build
 
-      - name: Publish to npm
+      # Re-running a release must be safe. npm rejects a duplicate version with
+      # "You cannot publish over the previously published versions", which reads
+      # as a credential failure and has been misread as one here before. The two
+      # packages are asked about separately: a run that published the library
+      # and then failed on the standalone must be able to finish the job.
+      - name: What is already on npm?
+        id: npm_state
+        run: |
+          VERSION="${{ steps.target.outputs.version }}"
+          for PKG in dgmo dgmo-standalone; do
+            if npm view "@diagrammo/$PKG@$VERSION" version >/dev/null 2>&1; then
+              echo "${PKG//-/_}=true" >> "$GITHUB_OUTPUT"
+              echo "✓ npm already has @diagrammo/$PKG@$VERSION — skipping that publish"
+            else
+              echo "${PKG//-/_}=false" >> "$GITHUB_OUTPUT"
+            fi
+          done
+
+      - name: Publish @diagrammo/dgmo to npm
         # OIDC via npm Trusted Publishing (configured per-package on
         # npmjs.com). No stored token — the id-token: write permission lets
         # npm verify this workflow's identity; provenance is attested too.
+        if: steps.npm_state.outputs.dgmo == 'false'
+        run: npm publish --access public --provenance
+
+      # The <script src> drop-ins, same version as the library, from their own
+      # directory. `prepack` (scripts/prepack-standalone.mjs) refuses to pack a
+      # truncated bundle, a missing LICENSE, or a version that disagrees with
+      # the library's — so this step is also the guard for that pairing.
+      - name: Publish @diagrammo/dgmo-standalone to npm
+        if: steps.npm_state.outputs.dgmo_standalone == 'false'
+        working-directory: standalone
         run: npm publish --access public --provenance
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v3
         with:
+          tag_name: ${{ steps.target.outputs.tag }}
           generate_release_notes: true
 
 # The `bump-homebrew` job that used to live here was moved to

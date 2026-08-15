@@ -1,0 +1,137 @@
+name: Release CLI
+
+# 🔴 THIS WORKFLOW IS THE PUBLISHER for `@diagrammo/dgmo-cli` — the `dgmo`
+# COMMAND — as of 2026-08-14. Until then the CLI had no CI publish path at all:
+# `release.yml` publishes the library and the standalone drop-ins from the repo
+# root, and this package ships from `cli/` on its own `cli-v*` tag so the two
+# tag namespaces cannot collide in this one repo.
+#
+# 🔴 `brew install dgmo` installs THIS package, not the library. After a release
+# here, bump the tap:
+#   gh workflow run bump-homebrew.yml -R diagrammo/dgmo -f version=X.Y.Z
+#
+# Authentication is npm Trusted Publishing (OIDC) — no stored credential. The
+# registration on npmjs.com names this REPO and this FILENAME, so renaming this
+# file stops publishing until someone updates it by hand at npmjs.com → the
+# package → Settings → Trusted publisher.
+#
+# Dispatch-only: `scripts/release.sh dgmo-cli X.Y.Z` in the workspace bumps,
+# tags, pushes and dispatches this at the tag. By hand:
+#   gh workflow run release-cli.yml -R diagrammo/dgmo --ref cli-vX.Y.Z
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release, e.g. cli-v0.70.1. Leave blank when dispatching on a tag ref.'
+        required: false
+        type: string
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Resolve the tag being released
+        id: target
+        run: |
+          TAG="${{ inputs.tag }}"
+          [ -n "$TAG" ] || TAG="$GITHUB_REF_NAME"
+          case "$TAG" in
+            cli-v[0-9]*) ;;
+            v[0-9]*) echo "::error::'$TAG' is the library's tag — release it with release.yml."; exit 1 ;;
+            *) echo "::error::'$TAG' is not a CLI version tag. Dispatch on a tag ref, or pass tag=cli-vX.Y.Z."; exit 1 ;;
+          esac
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#cli-v}" >> "$GITHUB_OUTPUT"
+          echo "Releasing $TAG"
+
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.target.outputs.tag }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: 'https://registry.npmjs.org'
+          cache: pnpm
+
+      - name: Verify tag matches cli/package.json
+        run: |
+          TAG_VERSION="${{ steps.target.outputs.version }}"
+          PKG_VERSION=$(node -p "require('./cli/package.json').version")
+          echo "tag=$TAG_VERSION cli/pkg=$PKG_VERSION"
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::Version mismatch — bump cli/package.json to $TAG_VERSION before tagging."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      # `cli/` is build output apart from its manifest: the build emits
+      # cli/dist/cli.cjs and stages fonts/ and the AI editors' rules files into
+      # it, because cli.ts reads them from its own package root.
+      - name: Build
+        run: pnpm build
+
+      - name: Is this version already on npm?
+        id: npm_state
+        run: |
+          VERSION="${{ steps.target.outputs.version }}"
+          if npm view "@diagrammo/dgmo-cli@$VERSION" version >/dev/null 2>&1; then
+            echo "already=true" >> "$GITHUB_OUTPUT"
+            echo "✓ npm already has $VERSION — skipping the publish"
+          else
+            echo "already=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # `prepack` (scripts/prepack-cli.mjs) renders one gallery fixture per
+      # chart type through the built binary and fails the publish if any of them
+      # cannot draw. That check exists because 0.62.0 shipped unable to render a
+      # map at all — `--version` is not a smoke test.
+      - name: Publish to npm
+        if: steps.npm_state.outputs.already == 'false'
+        working-directory: cli
+        run: npm publish --access public --provenance
+
+      - name: Wait for npm propagation
+        if: steps.npm_state.outputs.already == 'false'
+        run: |
+          for i in 1 2 3 4 5 6; do
+            if npm view "@diagrammo/dgmo-cli@${{ steps.target.outputs.version }}" version >/dev/null 2>&1; then
+              echo "✓ npm shows ${{ steps.target.outputs.version }}"
+              exit 0
+            fi
+            echo "Waiting for npm registry... ($i/6)"
+            sleep 10
+          done
+          echo "::warning::npm did not surface the new version within 60s — proceeding anyway"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.target.outputs.tag }}
+          generate_release_notes: true
+
+      - name: Remind about the Homebrew tap
+        run: |
+          echo "### Next: bump the Homebrew formula" >> "$GITHUB_STEP_SUMMARY"
+          echo '`brew install dgmo` installs this package, and the tap does not follow npm on its own:' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "gh workflow run bump-homebrew.yml -R diagrammo/dgmo -f version=${{ steps.target.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
