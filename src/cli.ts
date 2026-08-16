@@ -17,7 +17,10 @@ import {
   CHART_TYPE_DESCRIPTIONS,
 } from './dgmo-router';
 import { parseDgmoChartType } from './dgmo-router';
-import { withoutInternalChartTypes } from './utils/offered-types';
+import {
+  isBetaChartType,
+  withoutInternalChartTypes,
+} from './utils/offered-types';
 import { formatDgmoError } from './diagnostics';
 import { renderErrorCard } from './error-card';
 import { listDiagnosticCodes } from './diagnostics-registry';
@@ -387,6 +390,9 @@ function runTypesCommand(args: string[]): void {
     const listed = types.map((id) => ({
       id,
       description: CHART_TYPE_DESCRIPTIONS[id] ?? id,
+      // Present on every entry rather than only the beta ones, so a consumer
+      // can tell "not beta" from "this dgmo is too old to know" (issue #221).
+      beta: isBetaChartType(id),
     }));
     process.stdout.write(
       JSON.stringify({ chartTypes: listed }, null, 2) + '\n'
@@ -394,7 +400,10 @@ function runTypesCommand(args: string[]): void {
   } else {
     for (const id of types) {
       const desc = CHART_TYPE_DESCRIPTIONS[id];
-      console.log(desc ? `${id} — ${desc}` : id);
+      // Spelled out, not a glyph: this goes to a terminal that may be piped,
+      // read by a screen reader, or copied into an issue.
+      const mark = isBetaChartType(id) ? ' [beta]' : '';
+      console.log(desc ? `${id}${mark} — ${desc}` : `${id}${mark}`);
     }
   }
 }

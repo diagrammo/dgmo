@@ -27,3 +27,23 @@ export const INTERNAL_CHART_TYPE_IDS: ReadonlySet<string> = new Set(
 export function withoutInternalChartTypes(ids: readonly string[]): string[] {
   return ids.filter((id) => !INTERNAL_CHART_TYPE_IDS.has(id));
 }
+
+/**
+ * Ids of every chart type that is offered but not finished.
+ *
+ * The same cross-lookup problem as `internal`, one flag along: the surfaces
+ * that enumerate types hold bare ids, so asking "is this one beta" means
+ * coming back to `chartTypes` for the metadata.
+ *
+ * ⚠️ Unlike `INTERNAL_CHART_TYPE_IDS` this is NOT a filter — a beta type is
+ * listed everywhere, it just carries a mark. Anything that removes a type
+ * from a list on the strength of this flag has misread it.
+ */
+export const BETA_CHART_TYPE_IDS: ReadonlySet<string> = new Set(
+  chartTypes.filter((c) => c.beta).map((c) => c.id)
+);
+
+/** Whether this chart type should be shown as beta wherever it is named. */
+export function isBetaChartType(id: string): boolean {
+  return BETA_CHART_TYPE_IDS.has(id);
+}
