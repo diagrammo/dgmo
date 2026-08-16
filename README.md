@@ -137,6 +137,8 @@ It auto-detects Claude Code, Codex, Claude Desktop, Cursor, Windsurf, and Copilo
 
 **Diagrams** — sequence · flowchart · class · er · org · c4 · state · infra · kanban · sitemap · mindmap · gantt · pert · journey-map · boxes-and-lines · wireframe · raci · rasci · daci
 
+_Beta — expect rough edges and syntax changes: **c4**, **sketch**, **venn**. `dgmo types` marks them too._
+
 All **45 chart types** are categorized with live examples at **[diagrammo.app/reference](https://diagrammo.app/reference)**.
 
 Each type's full syntax, directives, and options live in the **[Language Reference](https://diagrammo.app/reference)** — the authoritative spec.

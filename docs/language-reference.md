@@ -1133,6 +1133,8 @@ This is key-value metadata assignment, consistent with same-line metadata syntax
 
 <!-- TYPE:c4 -->
 
+**Beta — expect rough edges and syntax changes.**
+
 <!-- TIPS start -->
 **Styling tips:** name each element by its responsibility, not its technology — put the tech in the `tech` field; color by system boundary with a tag group; keep one level of abstraction per diagram (context OR container, not both); keep relationship labels to the verb of the interaction. Write relationships INDENTED under their source element (`  -uses-> Other`), never as a top-level `A -uses-> B` line. Static renders (CLI, MCP) show the context level — containers/components appear only in the interactive drill-down, so author context-level diagrams for static output.
 <!-- TIPS end -->
@@ -2725,6 +2727,8 @@ main
 
 <!-- TYPE:venn -->
 
+**Beta — expect rough edges and syntax changes.**
+
 <!-- TIPS start -->
 **Styling tips:** Use 2–3 sets and write the count of each meaningful overlap directly on its intersection; circle area is NOT proportional, so the numbers — not the sizes — carry the comparison.
 <!-- TIPS end -->
@@ -3728,6 +3732,8 @@ In the desktop app a block diagram is interactive: click a container header to c
 ## 24E. Sketch Diagrams
 
 <!-- TYPE:sketch -->
+
+**Beta — expect rough edges and syntax changes.**
 
 <!-- TIPS start -->
 **Styling tips:** Sketch is a GUI-authored format — the desktop and web canvas editors generate this markup, so hand-writing it is the exception. If you generate it anyway: keep it SMALL (sketches read best under ~15 shapes), and either omit `at:` everywhere (shapes flow into rows) or use integer half-slot coordinates with shapes at least 2 half-slots apart on one axis. Alias any shape an edge references (`as con`). Never write `size:`, colors, fonts, or a `shape:` outside the closed set (database, queue, cloud, person, document, note). In sketch, `~` dashed means secondary emphasis, NOT async. Categorize with a tag group instead of reaching for more shape kinds — kind-of-thing is meaning, and meaning lives in tags. Reach for `sketch` when the drawing itself is the content; reach for `boxes-and-lines` when topology should auto-lay-out.

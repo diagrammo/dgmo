@@ -72,3 +72,57 @@ describe('beta chart types', () => {
     expect(BETA_CHART_TYPE_IDS.size).toBeGreaterThan(0);
   });
 });
+
+// ── The prose surfaces ────────────────────────────────────────
+//
+// 🔴 These are hand-written, so the flag cannot reach them — somebody typed a
+// sentence into each. That re-introduces, in miniature, the exact drift the
+// flag exists to end: when a type graduates, six-odd sentences have to be
+// deleted by hand and nothing would notice if one survived. This is what
+// notices.
+//
+// ⚠️ It guards the files IN THIS REPO only. `dgmo-content/guide/chart-*.md`
+// and the workspace `docs/dgmo-language-spec.md` carry the same sentence and
+// are NOT covered — dgmo's CI checks out this repo alone, and a test that
+// silently skips when a path is missing is worse than no test (see the
+// dist-gated-test note in CLAUDE.md). Those two are checked by hand.
+
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+/** The one sentence, so a grep finds every copy of it. */
+const MARK = '**Beta — expect rough edges and syntax changes.**';
+
+describe('the beta mark in prose', () => {
+  const reference = readFileSync(
+    join(__dirname, '..', 'docs', 'language-reference.md'),
+    'utf-8'
+  );
+
+  it('marks every beta type in the language reference, and no other', () => {
+    // Placed immediately after the TYPE anchor so it rides the per-type slice
+    // the MCP server hands a model — which is the moment the warning is worth
+    // most, when something is being written rather than merely listed.
+    for (const id of BETA_CHART_TYPE_IDS) {
+      expect(reference).toContain(`<!-- TYPE:${id} -->\n\n${MARK}`);
+    }
+    for (const { id } of chartTypes) {
+      if (BETA_CHART_TYPE_IDS.has(id)) continue;
+      expect(reference).not.toContain(`<!-- TYPE:${id} -->\n\n${MARK}`);
+    }
+  });
+
+  it('names exactly the beta types in the README', () => {
+    const readme = readFileSync(join(__dirname, '..', 'README.md'), 'utf-8');
+    const line = readme
+      .split('\n')
+      .find((l) => l.includes('Beta — expect rough edges'));
+    expect(line).toBeDefined();
+    for (const { id } of chartTypes) {
+      // A roster is prose, so this asserts the NAMES present in the sentence
+      // rather than its shape — the sentence may be reworded, the set may not
+      // drift from the flag.
+      expect(line!.includes(`**${id}**`)).toBe(BETA_CHART_TYPE_IDS.has(id));
+    }
+  });
+});
