@@ -21,6 +21,8 @@ import {
   drawXAxisTitle,
   drawYAxisTitle,
   drawValueLabel,
+  planCategoryLabels,
+  drawCategoryLabels,
 } from './shared';
 
 function seriesValue(
@@ -115,15 +117,26 @@ export function renderLine(
   const [loL, hiL] = extentFor('left');
   const [loR, hiR] = dual ? extentFor('right') : [0, 1];
 
+  // Horizontal margins first: the category-label plan needs the plot width to
+  // know how much room one category owns, and the bottom margin then follows
+  // from the plan (rotated labels stand taller than flat ones).
+  const mLeft = computeLeftMargin(chart.ylabel, [fmtNum(hiL), fmtNum(loL)]);
+  const mRight = dual
+    ? computeLeftMargin(chart.yrlabel, [fmtNum(hiR), fmtNum(loR)])
+    : 32;
+  const plotW = width - mLeft - mRight;
+  // scalePoint with padding(0.5) puts one slot's worth of space between
+  // adjacent points, and half a slot at each end.
+  const labelPlan = planCategoryLabels(
+    data.map((d) => d.label),
+    data.length > 0 ? plotW / data.length : plotW
+  );
   const m: Margins = {
     top: top + 8,
-    right: dual
-      ? computeLeftMargin(chart.yrlabel, [fmtNum(hiR), fmtNum(loR)])
-      : 32,
-    bottom: 64,
-    left: computeLeftMargin(chart.ylabel, [fmtNum(hiL), fmtNum(loL)]),
+    right: mRight,
+    bottom: Math.max(64, labelPlan.height + (chart.xlabel ? 40 : 18)),
+    left: mLeft,
   };
-  const plotW = width - m.left - m.right;
   const plotH = height - m.top - m.bottom;
 
   const x = scalePoint<string>()
@@ -211,19 +224,16 @@ export function renderLine(
     }
   }
 
-  // x category labels
-  for (const d of data) {
-    svg
-      .append('text')
-      .attr('class', 'dgmo-tick')
-      .attr('x', x(d.label) ?? 0)
-      .attr('y', m.top + plotH + 18)
-      .attr('text-anchor', 'middle')
-      .attr('fill', textColor)
-      .attr('font-size', TICK_FONT)
-      .attr('font-family', FONT_FAMILY)
-      .text(d.label);
-  }
+  // x category labels — thinned, and rotated when thinning alone would cost too
+  // many of them. See planCategoryLabels in ./shared.
+  drawCategoryLabels(
+    svg,
+    data.map((d) => d.label),
+    labelPlan,
+    (i) => x(data[i]!.label) ?? 0,
+    m.top + plotH,
+    textColor
+  );
 
   // Transparent hit-target over the plot area — the interaction adapter reads
   // its bounds for crosshair extent and snapping (see charts-d3/interactions.ts).

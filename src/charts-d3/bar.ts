@@ -27,6 +27,8 @@ import {
   drawYAxisTitle,
   drawValueLabel,
   tagDatum,
+  planCategoryLabels,
+  drawCategoryLabels,
 } from './shared';
 
 function seriesValues(
@@ -119,14 +121,24 @@ export function renderBar(
   const leftLabels = horizontal
     ? data.map((d) => d.label)
     : [fmtNum(niceMax), fmtNum(niceMax / 2), fmtNum(loVal), fmtNum(loVal / 2)];
+  const mLeft = computeLeftMargin(chart.ylabel, leftLabels);
+  const plotW = width - mLeft - 32;
+  // Vertical bars carry their category names under the axis, so they need the
+  // same fit treatment as line. Horizontal bars put them in the left gutter,
+  // which computeLeftMargin already sizes.
+  const labelPlan = planCategoryLabels(
+    data.map((d) => d.label),
+    horizontal || data.length === 0 ? Infinity : plotW / data.length
+  );
   const m: Margins = {
     top: top + 8,
     right: 32,
-    bottom: 64,
-    left: computeLeftMargin(chart.ylabel, leftLabels),
+    bottom: horizontal
+      ? 64
+      : Math.max(64, labelPlan.height + (chart.xlabel ? 40 : 18)),
+    left: mLeft,
   };
 
-  const plotW = width - m.left - m.right;
   const plotH = height - m.top - m.bottom;
   const horiz = horizontal;
 
@@ -186,9 +198,9 @@ export function renderBar(
   }
 
   // category labels
-  for (const d of data) {
-    const c = (cat(d.label) ?? 0) + cat.bandwidth() / 2;
-    if (horiz) {
+  if (horiz) {
+    for (const d of data) {
+      const c = (cat(d.label) ?? 0) + cat.bandwidth() / 2;
       svg
         .append('text')
         .attr('x', m.left - 10)
@@ -198,17 +210,18 @@ export function renderBar(
         .attr('font-size', TICK_FONT)
         .attr('font-family', FONT_FAMILY)
         .text(d.label);
-    } else {
-      svg
-        .append('text')
-        .attr('x', c)
-        .attr('y', m.top + plotH + 18)
-        .attr('text-anchor', 'middle')
-        .attr('fill', textColor)
-        .attr('font-size', TICK_FONT)
-        .attr('font-family', FONT_FAMILY)
-        .text(d.label);
     }
+  } else {
+    // Thinned, and rotated when thinning alone would cost too many. See
+    // planCategoryLabels in ./shared.
+    drawCategoryLabels(
+      svg,
+      data.map((d) => d.label),
+      labelPlan,
+      (i) => (cat(data[i]!.label) ?? 0) + cat.bandwidth() / 2,
+      m.top + plotH,
+      textColor
+    );
   }
 
   const zero = val(0);

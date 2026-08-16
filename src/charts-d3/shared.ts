@@ -335,3 +335,129 @@ export function drawValueLabel(
     .attr('font-family', FONT_FAMILY)
     .text(text);
 }
+
+// ============================================================
+// Category-axis label fitting
+//
+// The cartesian category axis used to draw one label per datum unconditionally,
+// so thirty daily dates landed on top of each other in a grey smear. Every other
+// crowded-label site in the library measures first and then resolves the
+// crowding — heatmap columns rotate (charts-d3/heatmap.ts), the countdown month
+// grid divides available width by a target per item, and computeTimeTicks walks
+// a decimation ladder. This is that treatment for bar and line, in one place so
+// the two cannot drift.
+//
+// The ladder, in order:
+//   1. Everything fits flat        → draw them all, flat.
+//   2. A stride of 2 clears it     → drop every other one, stay flat. Cheaper to
+//                                    read than rotation, and half the labels is
+//                                    still a legible axis.
+//   3. Otherwise                   → rotate. Rotation buys far more room than
+//                                    thinning (a label needs its line height
+//                                    rather than its width per slot), so it is
+//                                    preferred over dropping two labels in three.
+//   4. Rotated and still crowded   → thin the rotated labels too.
+//
+// No directive controls any of this. There is no label-thinning option anywhere
+// in the language, and adding one here would be the first of its kind.
+// ============================================================
+
+/** Rotation applied when labels cannot fit flat — matches heatmap's column labels. */
+const LABEL_ROTATE_DEG = 40;
+/** Clear space between two adjacent flat labels before they read as touching. */
+const LABEL_GAP = 8;
+/** A rotated label occupies its line height along the axis, not its width. */
+const LABEL_LINE_HEIGHT = 1.25;
+
+export interface CategoryLabelPlan {
+  /** Draw the labels rotated by LABEL_ROTATE_DEG rather than flat. */
+  rotate: boolean;
+  /** Draw every Nth label. 1 means every one. */
+  stride: number;
+  /** Vertical room the labels need below the axis line, in px. */
+  height: number;
+}
+
+/**
+ * Decide how a horizontal category axis should draw its labels so they do not
+ * overlap. `slot` is the horizontal space one category owns (band width, or the
+ * gap between adjacent points).
+ */
+export function planCategoryLabels(
+  labels: string[],
+  slot: number,
+  font: number = TICK_FONT
+): CategoryLabelPlan {
+  if (labels.length === 0) return { rotate: false, stride: 1, height: 18 };
+
+  const widest = Math.max(...labels.map((t) => measureText(t, font)));
+  const flatNeeds = widest + LABEL_GAP;
+  const flatHeight = Math.round(font * LABEL_LINE_HEIGHT) + 6;
+
+  // 1. Everything fits flat.
+  if (slot <= 0 || flatNeeds <= slot) {
+    return { rotate: false, stride: 1, height: flatHeight };
+  }
+
+  // 2. A stride of 2 is cheaper to read than rotating the whole axis.
+  const flatStride = Math.ceil(flatNeeds / slot);
+  if (flatStride <= 2) {
+    return { rotate: false, stride: 2, height: flatHeight };
+  }
+
+  // 3/4. Rotate, thinning further only if rotation alone is not enough.
+  const rad = (LABEL_ROTATE_DEG * Math.PI) / 180;
+  const rotNeeds = (font * LABEL_LINE_HEIGHT) / Math.sin(rad);
+  const stride = Math.max(1, Math.ceil(rotNeeds / slot));
+  return {
+    rotate: true,
+    stride,
+    height: Math.round(widest * Math.sin(rad)) + 12,
+  };
+}
+
+/** True when the label at `i` survives the plan's thinning. */
+export function labelSurvives(
+  plan: CategoryLabelPlan,
+  i: number,
+  count: number
+): boolean {
+  // Always keep the last one: an axis whose right edge is unlabelled reads as
+  // though the data stops before it does.
+  return i % plan.stride === 0 || i === count - 1;
+}
+
+/**
+ * Draw a horizontal category axis' labels according to `plan`. `xFor` gives the
+ * center of category `i`; `baseline` is the y of the axis line.
+ */
+export function drawCategoryLabels(
+  svg: Svg,
+  labels: string[],
+  plan: CategoryLabelPlan,
+  xFor: (i: number) => number,
+  baseline: number,
+  textColor: string,
+  font: number = TICK_FONT
+): void {
+  labels.forEach((label, i) => {
+    if (!labelSurvives(plan, i, labels.length)) return;
+    const t = svg
+      .append('text')
+      .attr('class', 'dgmo-tick')
+      .attr('fill', textColor)
+      .attr('font-size', font)
+      .attr('font-family', FONT_FAMILY)
+      .text(label);
+    if (plan.rotate) {
+      t.attr(
+        'transform',
+        `translate(${xFor(i)},${baseline + font}) rotate(-${LABEL_ROTATE_DEG})`
+      ).attr('text-anchor', 'end');
+    } else {
+      t.attr('x', xFor(i))
+        .attr('y', baseline + font + 6)
+        .attr('text-anchor', 'middle');
+    }
+  });
+}
