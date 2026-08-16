@@ -358,6 +358,10 @@ export function drawValueLabel(
 //                                    preferred over dropping two labels in three.
 //   4. Rotated and still crowded   → thin the rotated labels too.
 //
+// Whatever the rung, the surviving labels are spread evenly across the axis with
+// the first and last always among them — see spreadIndices, and the collision
+// that rule exists to prevent.
+//
 // No directive controls any of this. There is no label-thinning option anywhere
 // in the language, and adding one here would be the first of its kind.
 // ============================================================
@@ -372,10 +376,34 @@ const LABEL_LINE_HEIGHT = 1.25;
 export interface CategoryLabelPlan {
   /** Draw the labels rotated by LABEL_ROTATE_DEG rather than flat. */
   rotate: boolean;
-  /** Draw every Nth label. 1 means every one. */
+  /** Nominal spacing between kept labels — the minimum gap `keep` honours. */
   stride: number;
   /** Vertical room the labels need below the axis line, in px. */
   height: number;
+  /** Indices of the labels that survive thinning. */
+  keep: Set<number>;
+}
+
+/**
+ * Choose `count` label positions spread evenly across `total` categories, always
+ * including the first and the last.
+ *
+ * Striding from the left and then force-keeping the last is the obvious version
+ * and it is wrong: whenever the last index does not happen to land on the
+ * stride, the forced label sits one slot from its neighbour and the two
+ * collide — which is exactly what a fourteen-point chart at stride 2 did, with
+ * the final two dates printed on top of each other. Anchoring at both ends
+ * instead keeps every gap at or above the stride.
+ */
+function spreadIndices(total: number, count: number): Set<number> {
+  if (total <= 0) return new Set();
+  if (total === 1 || count <= 1) return new Set([0]);
+  const n = Math.min(count, total);
+  const keep = new Set<number>();
+  for (let k = 0; k < n; k++) {
+    keep.add(Math.round((k * (total - 1)) / (n - 1)));
+  }
+  return keep;
 }
 
 /**
@@ -388,21 +416,32 @@ export function planCategoryLabels(
   slot: number,
   font: number = TICK_FONT
 ): CategoryLabelPlan {
-  if (labels.length === 0) return { rotate: false, stride: 1, height: 18 };
+  const n = labels.length;
+  if (n === 0) {
+    return { rotate: false, stride: 1, height: 18, keep: new Set() };
+  }
 
   const widest = Math.max(...labels.map((t) => measureText(t, font)));
   const flatNeeds = widest + LABEL_GAP;
   const flatHeight = Math.round(font * LABEL_LINE_HEIGHT) + 6;
+  const all = (stride: number): Set<number> =>
+    // How many labels fit at this spacing, both ends included.
+    spreadIndices(n, Math.floor((n - 1) / stride) + 1);
 
   // 1. Everything fits flat.
   if (slot <= 0 || flatNeeds <= slot) {
-    return { rotate: false, stride: 1, height: flatHeight };
+    return {
+      rotate: false,
+      stride: 1,
+      height: flatHeight,
+      keep: spreadIndices(n, n),
+    };
   }
 
   // 2. A stride of 2 is cheaper to read than rotating the whole axis.
   const flatStride = Math.ceil(flatNeeds / slot);
   if (flatStride <= 2) {
-    return { rotate: false, stride: 2, height: flatHeight };
+    return { rotate: false, stride: 2, height: flatHeight, keep: all(2) };
   }
 
   // 3/4. Rotate, thinning further only if rotation alone is not enough.
@@ -413,18 +452,13 @@ export function planCategoryLabels(
     rotate: true,
     stride,
     height: Math.round(widest * Math.sin(rad)) + 12,
+    keep: all(stride),
   };
 }
 
 /** True when the label at `i` survives the plan's thinning. */
-export function labelSurvives(
-  plan: CategoryLabelPlan,
-  i: number,
-  count: number
-): boolean {
-  // Always keep the last one: an axis whose right edge is unlabelled reads as
-  // though the data stops before it does.
-  return i % plan.stride === 0 || i === count - 1;
+export function labelSurvives(plan: CategoryLabelPlan, i: number): boolean {
+  return plan.keep.has(i);
 }
 
 /**
@@ -441,7 +475,7 @@ export function drawCategoryLabels(
   font: number = TICK_FONT
 ): void {
   labels.forEach((label, i) => {
-    if (!labelSurvives(plan, i, labels.length)) return;
+    if (!labelSurvives(plan, i)) return;
     const t = svg
       .append('text')
       .attr('class', 'dgmo-tick')

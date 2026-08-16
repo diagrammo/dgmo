@@ -57,16 +57,49 @@ describe('planCategoryLabels', () => {
   });
 });
 
-describe('labelSurvives', () => {
-  it('always keeps the last label so the axis does not end unlabelled', () => {
-    const plan = { rotate: false, stride: 3, height: 20 };
-    expect(labelSurvives(plan, 9, 10)).toBe(true);
+describe('which labels survive thinning', () => {
+  const kept = (plan: { keep: Set<number> }): number[] =>
+    [...plan.keep].sort((a, b) => a - b);
+
+  it('keeps both ends', () => {
+    const plan = planCategoryLabels(DATES, 900 / DATES.length);
+    const k = kept(plan);
+    expect(k[0]).toBe(0);
+    expect(k[k.length - 1]).toBe(DATES.length - 1);
   });
 
-  it('keeps every Nth otherwise', () => {
-    const plan = { rotate: false, stride: 3, height: 20 };
-    const kept = [0, 1, 2, 3, 4, 5].filter((i) => labelSurvives(plan, i, 20));
-    expect(kept).toEqual([0, 3]);
+  it('never keeps two adjacent labels when it is thinning', () => {
+    // The regression: 14 daily dates in a ~660px plot thinned to a stride of 2,
+    // and the old rule bolted the last index on next to an already-kept one, so
+    // 2026-08-15 and 2026-08-16 printed on top of each other.
+    const fourteen = Array.from({ length: 14 }, (_, i) => `2026-08-${i + 3}`);
+    const plan = planCategoryLabels(fourteen, 660 / fourteen.length);
+    expect(plan.stride).toBeGreaterThan(1);
+    const k = kept(plan);
+    expect(k).toContain(0);
+    expect(k).toContain(13);
+    const gaps = k.slice(1).map((v, i) => v - k[i]!);
+    expect(Math.min(...gaps)).toBeGreaterThanOrEqual(plan.stride);
+  });
+
+  it('honours the stride at every count, both ends included', () => {
+    for (let n = 2; n <= 200; n++) {
+      const labels = Array.from({ length: n }, (_, i) => `2026-08-${i}`);
+      const plan = planCategoryLabels(labels, 700 / n);
+      const k = kept(plan);
+      expect(k[0]).toBe(0);
+      expect(k[k.length - 1]).toBe(n - 1);
+      const gaps = k.slice(1).map((v, i) => v - k[i]!);
+      if (gaps.length) {
+        expect(Math.min(...gaps)).toBeGreaterThanOrEqual(plan.stride);
+      }
+    }
+  });
+
+  it('labelSurvives reads the plan', () => {
+    const plan = planCategoryLabels(['a', 'b', 'c'], 500);
+    expect(labelSurvives(plan, 0)).toBe(true);
+    expect(labelSurvives(plan, 99)).toBe(false);
   });
 });
 
