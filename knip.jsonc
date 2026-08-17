@@ -22,7 +22,15 @@
     // There is no cleaner expression of this: knip's `workspaces` maps a
     // directory to a manifest, and this entry point is not in `cli/`.
     // Do not "fix" this by adding the package to the root dependencies.
-    "@diagrammo/dgmo-mcp"
+    "@diagrammo/dgmo-mcp",
+
+    // The candidate browser stand-in under evaluation, imported by
+    // scripts/dom-shim-diff.mjs and deliberately by nothing else — the whole
+    // point of that measurement is that the swap needs no source change to
+    // try. It is a devDependency of an experiment, not dead weight; when the
+    // jsdom-or-linkedom question is decided it either becomes a real
+    // dependency or leaves with the script.
+    "linkedom"
   ],
   "ignoreBinaries": ["du", "vite"],
   "ignore": [
@@ -38,6 +46,13 @@
     // This repo now publishes three manifests and knip reads one, so any
     // entry point belonging to `cli/` or `standalone/` lands here.
     "scripts/prepack-standalone.mjs",
+    // The acceptance test for replacing jsdom with linkedom as the browser
+    // stand-in (#123): it renders every gallery fixture under each and diffs
+    // the SVGs byte for byte. Nothing imports it and nothing should — the
+    // suite runs in jsdom by configuration, so it would stay green whichever
+    // one ships, which is precisely why this exists outside it. It arrived on
+    // main 2026-08-17 and had CI red at the hygiene step within the hour.
+    "scripts/dom-shim-diff.mjs",
     "scripts/audit-solid-fill-contrast.ts",
     "scripts/generate-examples-gallery.mjs",
     "scripts/check-bundle-size.cjs",
