@@ -379,17 +379,61 @@ function renderBar(
     .attr('rx', r)
     .attr('fill', paint.track);
 
+  // The fill is CLIPPED to the track rather than carrying a radius of its own.
+  //
+  // 🔴 It used to be a second rounded rect asking for the track's `rx` at
+  // whatever width it happened to be, and SVG will not draw that: `rx` is
+  // clamped to half the width while `ry`, unspecified and inheriting `rx`,
+  // clamps to half the HEIGHT. A 7px-wide fill asking for `rx 26` came out as a
+  // 7 × 52 lens — a bubble floating at the left of the track instead of 1% of a
+  // distance — and anything under `2r` (8.4% of target here) did the same. Above
+  // that it was a both-ends-rounded pill sitting inside the track, which reads
+  // as a capsule rather than a level.
+  //
+  // Clipping removes the whole class rather than the reported value: the shape
+  // stops being a function of its own width, so there is no threshold left to
+  // fall below at any track size or radius. The left end takes the track's
+  // rounding, the right end is flat, and at 100% the clip restores the right
+  // rounding for nothing. Same construction as the collapse bar in
+  // `boxes-and-lines`.
+  const clipId = 'dgmo-goal-track-clip';
+  g.append('clipPath')
+    .attr('id', clipId)
+    .append('rect')
+    .attr('x', x)
+    .attr('y', y)
+    .attr('width', trackW)
+    .attr('height', trackH)
+    .attr('rx', r);
+
   const fillW = trackW * metrics.fillFrac;
   if (fillW > 0.5) {
-    g.append('rect')
+    const clipped = g.append('g').attr('clip-path', `url(#${clipId})`);
+    // No stroke on the fill itself: a clipped stroke loses the left arc and
+    // halves along the track edge, which is worse than none. What the outline
+    // was carrying is the LEVEL, so the level is what gets drawn.
+    clipped
+      .append('rect')
       .attr('x', x)
       .attr('y', y)
       .attr('width', fillW)
       .attr('height', trackH)
-      .attr('rx', r)
-      .attr('fill', paint.fill)
-      .attr('stroke', paint.base)
-      .attr('stroke-width', parsed.options.fillMode === 'outline' ? 1.5 : 2);
+      .attr('fill', paint.fill);
+
+    // The level edge — the one line that says how far the fill has come. Inset
+    // by half its width so it sits wholly inside the fill, and skipped at 100%,
+    // where the level IS the track's own end and a line there would ride the
+    // rounding.
+    const levelW = parsed.options.fillMode === 'outline' ? 1.5 : 2;
+    if (fillW < trackW - 0.5) {
+      clipped
+        .append('rect')
+        .attr('x', x + fillW - levelW)
+        .attr('y', y)
+        .attr('width', levelW)
+        .attr('height', trackH)
+        .attr('fill', paint.base);
+    }
   }
 
   // Current value rides INSIDE the fill, tracking its right end.

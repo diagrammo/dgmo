@@ -41,6 +41,28 @@ function errors(diagnostics: readonly { severity: string }[]): unknown[] {
   return diagnostics.filter((d) => d.severity === 'error');
 }
 
+// The bar's parts, addressed by what they ARE. These were `querySelectorAll(
+// 'rect')[2]` until 2026-08-17, and the clipPath the fill now lives behind
+// carries a rect of its own — so an index that meant "the fill" quietly began
+// meaning something else, and two tests failed for a reason unrelated to what
+// they were checking.
+function barTrack(container: HTMLDivElement): SVGRectElement {
+  return container.querySelector('.goal-bar > rect') as SVGRectElement;
+}
+
+/** The fill region. Lives inside the clip group; the level marker follows it. */
+function barFill(container: HTMLDivElement): SVGRectElement {
+  const rects = container.querySelectorAll('.goal-bar g[clip-path] rect');
+  expect(rects.length).toBeGreaterThanOrEqual(1);
+  return rects[0] as SVGRectElement;
+}
+
+/** The level edge, or null at 100% where the track's own end is the level. */
+function barLevel(container: HTMLDivElement): SVGRectElement | null {
+  const rects = container.querySelectorAll('.goal-bar g[clip-path] rect');
+  return rects.length > 1 ? (rects[1] as SVGRectElement) : null;
+}
+
 // ============================================================
 // Parser
 // ============================================================
@@ -241,6 +263,92 @@ describe('goal renderer — faces', () => {
     expect(all).toContain('5');
   });
 
+  // ── The fill is clipped, never rounded ────────────────────────────────
+  //
+  // A goal bar at 3 of 250 used to draw its fill as a vertical LENS floating at
+  // the left of the track. The fill rect asked for the track's `rx 26` at
+  // whatever width it had, and SVG clamps `rx` to half the width while `ry`,
+  // unspecified and inheriting `rx`, clamps to half the HEIGHT — so a 7.44 × 52
+  // rect came out `rx 3.72, ry 26`. Anything under `2r` did it, which is 8.4% of
+  // target, so it was a band of ordinary values rather than an edge case.
+  //
+  // These assert the SHAPE, not the picture: a fill carrying no radius of its
+  // own cannot degenerate at any width, which is the whole point of clipping.
+  it('bar: the fill carries no corner radius at any value', () => {
+    for (const now of [1, 3, 25, 125, 249, 250]) {
+      const c = makeContainer();
+      renderGoal(
+        c,
+        parseGoal(`goal R\nnow ${now}\ntarget 250`),
+        nordLight,
+        false
+      );
+      const fill = barFill(c);
+      // The lens came from this attribute existing. It must not.
+      expect(fill.getAttribute('rx'), `now ${now}`).toBeNull();
+      expect(fill.getAttribute('ry'), `now ${now}`).toBeNull();
+    }
+  });
+
+  it('bar: the fill is clipped to the track, which is what rounds it', () => {
+    const c = makeContainer();
+    renderGoal(c, parseGoal(`goal R\nnow 3\ntarget 250`), nordLight, false);
+    const clip = c.querySelector('.goal-bar clipPath rect')!;
+    // The clip IS the track: same width and the track's radius.
+    expect(clip.getAttribute('width')).toBe('620');
+    expect(clip.getAttribute('rx')).toBe('26');
+    const group = c.querySelector('.goal-bar g[clip-path]')!;
+    expect(group.getAttribute('clip-path')).toContain(
+      c.querySelector('.goal-bar clipPath')!.getAttribute('id')!
+    );
+  });
+
+  it('bar: a level edge marks how far the fill has come, except when full', () => {
+    const partial = makeContainer();
+    renderGoal(
+      partial,
+      parseGoal(`goal R\nnow 125\ntarget 250`),
+      nordLight,
+      false
+    );
+    const rects = partial.querySelectorAll('.goal-bar g[clip-path] rect');
+    expect(rects.length).toBe(2); // fill + level
+    // The level sits at the fill's right end, inset so it stays inside it.
+    const fillW = Number(rects[0]!.getAttribute('width'));
+    const levelX = Number(rects[1]!.getAttribute('x'));
+    const levelW = Number(rects[1]!.getAttribute('width'));
+    expect(levelX + levelW).toBeCloseTo(fillW, 5);
+
+    // At 100% the level IS the track's own end; a line there would ride the
+    // rounding, so there must not be one.
+    const full = makeContainer();
+    renderGoal(
+      full,
+      parseGoal(`goal R\nnow 250\ntarget 250`),
+      nordLight,
+      false
+    );
+    expect(full.querySelectorAll('.goal-bar g[clip-path] rect').length).toBe(1);
+  });
+
+  it('bar: outline mode keeps a hollow fill and still marks the level', () => {
+    const c = makeContainer();
+    renderGoal(
+      c,
+      parseGoal(`goal R\nnow 3\ntarget 250\nfill-outline`),
+      nordLight,
+      false
+    );
+    const rects = c.querySelectorAll('.goal-bar g[clip-path] rect');
+    expect(rects.length).toBe(2);
+    // In outline mode advancement reads from the region's extent against the
+    // gray track, so the level marker is the only colored thing — and it must
+    // not be the same color as the hollow region behind it.
+    expect(rects[1]!.getAttribute('fill')).not.toBe(
+      rects[0]!.getAttribute('fill')
+    );
+  });
+
   it('thermometer: renders bulb + column silhouette and % label', () => {
     const parsed = parseGoal(`goal Fund\nthermometer\nnow 6400\ntarget 10000`);
     const c = makeContainer();
@@ -287,10 +395,8 @@ describe('goal renderer — faces', () => {
     const c = makeContainer();
     renderGoal(c, parsed, nordLight, false);
     const svg = c.querySelector('svg')!;
-    const fill = Array.from(svg.querySelectorAll('rect'))[2]!; // bg, track, fill
-    const track = Array.from(svg.querySelectorAll('rect'))[1]!;
-    expect(parseFloat(fill.getAttribute('width')!)).toBeLessThanOrEqual(
-      parseFloat(track.getAttribute('width')!) + 0.5
+    expect(parseFloat(barFill(c).getAttribute('width')!)).toBeLessThanOrEqual(
+      parseFloat(barTrack(c).getAttribute('width')!) + 0.5
     );
     expect(texts(svg).join(' ')).toContain('6'); // raw now value, uncapped
   });
@@ -320,26 +426,27 @@ describe('goal renderer — faces', () => {
     const parsed = parseGoal(`goal Books\nfill-outline\nnow 3\ntarget 5`);
     const c = makeContainer();
     renderGoal(c, parsed, nordLight, false);
-    const svg = c.querySelector('svg')!;
-    const meter = Array.from(svg.querySelectorAll('rect'))[2]!; // bg, track, fill
     const band = resolveColor('orange', nordLight);
-    expect(meter.getAttribute('fill')).toBe(themeBaseBg(nordLight, false));
-    expect(meter.getAttribute('stroke')).toBe(band);
-    expect(meter.getAttribute('stroke-width')).toBe('1.5');
+    // Hollow interior, band color on the boundary. Since 2026-08-17 that
+    // boundary is the LEVEL marker rather than a stroke on the fill: the fill
+    // is clipped to the track, and a clipped stroke loses the left arc and
+    // halves along the track edge.
+    expect(barFill(c).getAttribute('fill')).toBe(themeBaseBg(nordLight, false));
+    expect(barFill(c).getAttribute('stroke')).toBeNull();
+    expect(barLevel(c)!.getAttribute('fill')).toBe(band);
+    expect(barLevel(c)!.getAttribute('width')).toBe('1.5');
   });
 
   it('bar default (no fill directive) keeps the 25%-tint meter unchanged', () => {
     const parsed = parseGoal(`goal Books\nnow 3\ntarget 5`);
     const c = makeContainer();
     renderGoal(c, parsed, nordLight, false);
-    const svg = c.querySelector('svg')!;
-    const meter = Array.from(svg.querySelectorAll('rect'))[2]!;
     const band = resolveColor('orange', nordLight);
-    expect(meter.getAttribute('fill')).toBe(
+    expect(barFill(c).getAttribute('fill')).toBe(
       mix(band, themeBaseBg(nordLight, false), 25)
     );
-    expect(meter.getAttribute('stroke')).toBe(band);
-    expect(meter.getAttribute('stroke-width')).toBe('2');
+    expect(barLevel(c)!.getAttribute('fill')).toBe(band);
+    expect(barLevel(c)!.getAttribute('width')).toBe('2');
   });
 
   it('thermometer fill-outline: mercury renders hollow, band color on the stroke', () => {
