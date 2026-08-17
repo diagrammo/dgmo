@@ -1443,7 +1443,7 @@ function resolveActiveTagStroke(
     (t) => t.name.toLowerCase() === activeGroup.toLowerCase()
   );
   if (!tg) return null;
-  const tagKey = tagAttrKey(tg.alias ?? tg.name);
+  const tagKey = tagAttrKey(tg.name);
   const tagVal = node.tags[tagKey];
   if (!tagVal) return null;
   const tv = tg.values.find(
@@ -1519,9 +1519,12 @@ function renderNodes(
       g.attr('data-node-toggle', node.id);
     }
 
-    // Expose tag values for legend hover dimming
+    // Expose tag values for legend hover dimming. The parser keys the bag by
+    // the tag GROUP's slug, so this pairs with `data-legend-active` (#249);
+    // re-slug anyway, since a stray metadata key can hold characters an
+    // attribute name cannot.
     for (const [tagKey, tagVal] of Object.entries(node.tags)) {
-      g.attr(`data-tag-${tagKey.toLowerCase()}`, tagVal.toLowerCase());
+      g.attr(`data-tag-${tagAttrKey(tagKey)}`, tagVal.toLowerCase());
     }
 
     // Expose role names for role legend hover dimming
@@ -2135,7 +2138,7 @@ export function computeInfraLegendGroups(
     groups.push({
       name: tg.name,
       type: 'tag',
-      tagKey: tagAttrKey(tg.alias ?? tg.name),
+      tagKey: tagAttrKey(tg.name),
       entries,
       width: LEGEND_CAPSULE_PAD * 2 + pillWidth + 4 + entriesWidth,
       minifiedWidth: pillWidth,

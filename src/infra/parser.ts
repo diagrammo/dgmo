@@ -1189,10 +1189,33 @@ export function parseInfra(content: string): ParsedInfra {
     }
   }
 
+  // A tag value is stored under the GROUP's slug, never the alias the author
+  // typed to apply it — the alias is input spelling, the group is the thing
+  // being named. The renderer stamps `data-tag-<key>` straight off this bag,
+  // and the legend marks the active group as `data-legend-active="<group>"`,
+  // so keying it by alias produced a marker that matched no mark (#249) and
+  // left infra the one tag-group chart whose exported legend could not hover.
+  // Every other tag-group chart keys its bag this way. The same-line path
+  // (`Name f: Edge`) stores the raw key it read, so slug both sides.
+  for (const tg of result.tagGroups) {
+    const groupKey = tagAttrKey(tg.name);
+    const applied = new Set([groupKey]);
+    if (tg.alias) applied.add(tagAttrKey(tg.alias));
+    for (const node of result.nodes) {
+      const tags = nodeMutableTags.get(node.id);
+      if (!tags) continue;
+      for (const key of Object.keys(tags)) {
+        if (key === groupKey || !applied.has(tagAttrKey(key))) continue;
+        tags[groupKey] = tags[key]!;
+        delete tags[key];
+      }
+    }
+  }
+
   // Inject default tag values into nodes that don't have one
   for (const tg of result.tagGroups) {
     if (!tg.defaultValue) continue;
-    const key = tagAttrKey(tg.alias ?? tg.name);
+    const key = tagAttrKey(tg.name);
     for (const node of result.nodes) {
       if (node.isEdge) continue;
       if (!(key in node.tags)) {

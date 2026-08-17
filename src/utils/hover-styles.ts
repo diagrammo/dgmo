@@ -410,9 +410,6 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
   // app's own legend hover does (FamilyPreview `emphasizeCards`).
   //
   // Charts that draw a legend and tagged marks but are NOT listed:
-  //   infra   — keys its attrs off the tag ALIAS (`data-tag-f` for `Fleet`),
-  //             so `data-legend-active="fleet"` matches no mark. Tracked
-  //             separately; `resolveTagAttr` degrades to no legend rules.
   //   kanban  — `structural`; the marks are columns while the tags sit on the
   //             cards inside them, so a pairing needs a mark-selector change.
   //   bracket, family — no registry row at all; a legend needs a whole spec.
@@ -527,6 +524,8 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     edgeSelector: '.infra-edge',
     fromAttr: 'data-from',
     toAttr: 'data-to',
+    legend: true,
+    emphasis: 'dim',
   },
   c4: {
     markSelector: '.c4-card',
@@ -715,10 +714,11 @@ function resolveTagAttr(
     // group name here, which is not a valid attribute name when the group
     // name contains spaces/parens — querySelectorAll would throw.
     const attr = `data-tag-${tagAttrKey(slug)}`;
-    // The marker names the GROUP; a renderer that keys its attrs off the tag
-    // ALIAS instead (infra) produces a marker that matches no mark. Only
-    // return an attr something actually carries, so a mismatch degrades to
-    // no legend rules rather than to rules that dim the whole chart.
+    // The marker names the GROUP; a renderer that keys its mark attrs off
+    // anything else — the tag alias, say — produces a marker that matches no
+    // mark. Only return an attr something actually carries, so a mismatch
+    // degrades to no legend rules rather than to rules that dim the whole
+    // chart. (infra was that renderer until #249.)
     if (root.querySelector(`${markSelector}[${attr}]`)) return attr;
   }
   const names = new Set<string>();

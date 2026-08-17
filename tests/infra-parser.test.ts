@@ -354,7 +354,8 @@ CloudFront | t: Backend
   cache-hit: 80%
 `);
       const node = result.nodes.find((n) => n.label === 'CloudFront');
-      expect(node!.tags).toEqual({ t: 'Backend' });
+      // Keyed by the GROUP, not the alias it was applied through (#249).
+      expect(node!.tags).toEqual({ team: 'Backend' });
     });
   });
 
@@ -416,7 +417,7 @@ StaticServer | t: Platform
       );
 
       const cf = result.nodes.find((n) => n.label === 'CloudFront');
-      expect(cf!.tags).toEqual({ t: 'Platform' });
+      expect(cf!.tags).toEqual({ team: 'Platform' });
       expect(cf!.properties.find((p) => p.key === 'cache-hit')!.value).toBe(80);
 
       const api = result.nodes.find((n) => n.label === 'APIServer');
@@ -1260,7 +1261,7 @@ internet
 `);
       const redis = result.nodes.find((n) => n.label === 'Redis Cache');
       expect(redis).toBeDefined();
-      expect(redis!.tags).toEqual({ t: 'Data' });
+      expect(redis!.tags).toEqual({ tier: 'Data' });
       // The tag line must not leak into the description.
       expect(JSON.stringify(redis!.description ?? [])).not.toContain('t: Data');
     });

@@ -486,9 +486,10 @@ describe('injectHoverStyles — legend pairing on a NON-enumerated chart', () =>
   });
 
   it('emits nothing when the active-group marker matches no mark', () => {
-    // infra keys its attrs off the tag ALIAS (`data-tag-f` for a group named
-    // `Fleet`), so the marker names a group the marks do not carry. Degrade to
-    // no legend rules rather than to rules that dim everything.
+    // A renderer keying its mark attrs off the tag ALIAS (`data-tag-r` for a
+    // group named `Rank`) leaves the marker naming a group the marks do not
+    // carry. Degrade to no legend rules rather than to rules that dim
+    // everything. (infra was that renderer until #249.)
     const mismatched = orgSvg.replace(/data-tag-rank/g, 'data-tag-r');
     const out = injectHoverStyles(mismatched, 'org', { bakeHover: true });
     // one distinct data-tag-* on the marks → the fallback still resolves it
@@ -517,5 +518,28 @@ describe('injectHoverStyles — legend pairing on a NON-enumerated chart', () =>
       'svg:has([data-legend-entry="deck"]:hover) .gantt-task'
     );
     expect(out).toContain('[data-tag-crew="deck"]');
+  });
+
+  it('pairs infra’s legend against marks keyed by the GROUP, not its alias', async () => {
+    // A tag applied through an alias (`f: Blackbeard`) is still stored and
+    // stamped under the group's slug, so `data-legend-active="fleet"` finds
+    // the marks. Keying the marks by the alias left this the one tag-group
+    // chart whose exported legend could not hover (#249).
+    const src = [
+      'infra Pirate Signals',
+      'tag Fleet as f',
+      '  Blackbeard red',
+      '  Bonny purple',
+      'SignalFlags f: Blackbeard',
+      '  -> Flagship',
+      'Flagship f: Bonny',
+    ].join('\n');
+    const { svg } = await render(src);
+    expect(svg).toContain('data-tag-fleet="blackbeard"');
+    expect(svg).not.toContain('data-tag-f=');
+    expect(svg).toContain('data-legend-active="fleet"');
+    expect(svg).toContain(
+      'svg:has([data-legend-entry="blackbeard"]:hover) .infra-node:not([data-tag-fleet="blackbeard"])'
+    );
   });
 });
