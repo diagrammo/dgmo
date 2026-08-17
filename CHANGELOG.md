@@ -7,6 +7,90 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.71.0] - 2026-08-17
+
+### Added
+
+- **A chart type can say it is beta, and every surface reads the same answer.**
+  `ChartTypeMeta.beta` marks `c4`, `sketch` and `venn`. Until now the app and
+  the marketing site each held a hand-written list kept in step by a comment,
+  and neither reached the CLI, the MCP server, the guides or the language
+  reference — so `sketch` shipped marked on two surfaces and presented as
+  finished on the rest. `dgmo types` prints ` [beta]` in the listing and puts a
+  `beta` boolean on **every** entry under `--json`, so a consumer can tell "not
+  beta" from "this dgmo is too old to know". The flag is a mark and never a
+  filter — that is the whole difference from `internal`.
+- **An org chart can fold in source: `collapsed: true`.** Collapsing a person or
+  a team was runtime state and nothing else, wiped on every content change, so
+  a folded subtree survived neither save, export, share link nor embed. Org was
+  the last chart type in that position. The marker is accepted same-line on a
+  person, indented under one, and on a `[Team]` container header; only the
+  literal `true` folds, and the key never draws as an attribute row on the
+  card. A plain render honours it, so an independent render and the app can no
+  longer disagree about the same file.
+- **A collapsed sequence group names the members it swallowed.** The box carries
+  a second line listing them in source order, middle-dot separated, truncated
+  to a trailing `+n` and then to a bare count as room runs out. Marks on a
+  collapsed band are also targets now — each one carries the source line of the
+  first hidden message touching that participant, so clicking it opens the fold
+  and goes there, where previously about three-quarters of the band was dead to
+  the pointer.
+- **`active-tag` naming a group the diagram never declared is now a warning**
+  (`W_ACTIVE_TAG_NO_MATCH`), with the declared names and a did-you-mean. It was
+  returned unchecked, so a typo or a renamed group rendered in flat neutral
+  colours at exit code 0 — indistinguishable from a diagram that has no tags at
+  all. Wired into the twelve parsers that take the directive and have tag
+  groups; it stays silent on `active-tag none`, on a group declared but empty,
+  and on the app's runtime override.
+
+### Fixed
+
+- **A goal bar's fill is a level again rather than a floating lens.** The fill
+  asked for the track's corner radius at its own width, and SVG clamps `rx` to
+  half the width while `ry` clamps to half the height — so anything under 8.4%
+  of target on a 620px track drew as a vertical lens rather than as a distance.
+  The fill now carries no radius and is clipped to the track, so the shape has
+  stopped being a function of its own width and there is no threshold left to
+  fall below at any track size. The level is drawn as its own marker at the
+  fill's right end, which is what the removed stroke was carrying.
+- **A cartesian category axis measures its labels before drawing them.** Thirty
+  daily dates drew all thirty at full width on top of each other — each label
+  was more than twice as wide as its slot, with no measurement, no rotation and
+  no stride anywhere in either the bar or the line path. One shared plan now
+  decides for both: draw flat, thin to every other one, rotate, then thin the
+  rotated ones, with the bottom margin following the plan instead of a
+  hardcoded 64. Thinned labels are also spread evenly with both ends kept, so
+  the last one no longer lands one slot from its neighbour — the exact
+  collision the thinning existed to prevent.
+- **Legend entries have a real hit target, and an exported org chart's legend
+  hovers.** An entry was a 4px dot and some glyph strokes, so the gap between
+  them and the padding around the capsule were dead to the pointer, which reads
+  as hover being broken rather than as a miss. Separately, the hover CSS baked
+  into an exported SVG — what keeps a diagram in a docs page interactive with
+  no JavaScript — was emitted only for enumerated charts, so a pie chart's
+  legend worked and an org chart's did nothing. Seven types gained it: org, c4,
+  sitemap, sequence, sketch, boxes-and-lines and gantt.
+- **A collapsed sequence group is drawn in the same type as an expanded one,
+  and its toggle says which group.** The collapsed box redrew the name two
+  points larger at a weight that resolves to Regular, and the gap widened as
+  the preview narrowed because only one of the two sizes was scaled. The
+  toggle's entire accessible name was a native tooltip reading "Click to
+  expand", so a screen reader learned the gesture and never the group; both
+  toggles now carry a label built from the group and its members, and the
+  native tooltip is gone.
+- **Infra keys its tag attributes by the group rather than the alias.** A node
+  tagged through `tag Fleet as f` was stamped `data-tag-f` while the legend
+  marked the active group as `fleet`, so infra was the one chart in the
+  tag-group family whose exported legend could not be given working hover. With
+  both sides agreeing it now emits legend-to-mark rules like the rest.
+- **wireframe and raci refuse `active-tag` and tag blocks instead of discarding
+  them.** wireframe parsed whole `tag` blocks — validating names, assigning
+  palette colours — and nothing read the result; its elements carry a flag list,
+  not tag metadata, so there was never anything for a tag value to colour. raci
+  has no tag groups at all. Both now warn and name what does drive appearance.
+  wireframe also stored its header options under the raw source key, so
+  `Palette nord` landed under `Palette` and every canonical lookup missed it.
+
 ## [0.70.0] - 2026-08-13
 
 ### Added
