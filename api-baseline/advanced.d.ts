@@ -2,11 +2,11 @@ import { D as DgmoError, P as PaletteConfig, T as TagGroup, a as PaletteColors, 
 export { h as DecodedDiagramUrl, c as DgmoSeverity, i as EncodeDiagramUrlOptions, j as EncodeDiagramUrlResult, k as autoTagColorCycle, l as decodeDiagramUrl, m as decodeViewState, n as encodeDiagramUrl, o as encodeViewState, f as formatDgmoError, p as makeDgmoError, t as tagAttrKey } from './tag-groups-NUA2F1I5.js';
 import { M as MapDataSource, P as ParsedMap, b as MapData, d as ResolvedMap, e as MapLayoutLegend, f as GeoExtent } from './d3-Bfhj-XBX.js';
 export { A as AirportData, B as BoundaryTopology, G as Gazetteer, a as GazetteerEntry, g as MapDirectives, h as MapEdge, i as MapPoi, j as MapRegion, k as MapRoute, l as PoiPos, m as ProjectionFamily, R as RegionName, c as RegionNames, n as ResolvedEdge, o as ResolvedPoi, p as ResolvedRegion, q as ResolvedRoute, r as renderForExport } from './d3-Bfhj-XBX.js';
-export { b as CHART_TYPE_DESCRIPTIONS, C as ChartTypeId, a as ChartTypeMeta, R as RenderCategory, d as chartTypeParsers, c as chartTypes, e as getAllChartTypes, f as getAvailablePalettes, g as getPalette, h as getRenderCategory, i as isExtendedChartType, j as isValidHex, k as knownChartTypeIds, p as parseDgmo, l as parseDgmoChartType, m as registerPalette, p as validate } from './dgmo-router-EAW7XiBE.js';
+export { b as CHART_TYPE_DESCRIPTIONS, C as ChartTypeId, a as ChartTypeMeta, R as RenderCategory, d as chartTypeParsers, c as chartTypes, e as getAllChartTypes, f as getAvailablePalettes, g as getPalette, h as getRenderCategory, i as isExtendedChartType, j as isValidHex, k as knownChartTypeIds, p as parseDgmo, l as parseDgmoChartType, m as registerPalette, p as validate } from './dgmo-router-Lya7cs3R.js';
 import { Selection } from 'd3-selection';
 import * as d3Scale from 'd3-scale';
-import { P as ParsedOrg, F as FillMode, R as RaciMarker, a as ParsedRaci, b as RaciVariant, c as RaciTask } from './chart-meta-DNsYpNbh.js';
-export { A as ALL_CHART_TYPES, I as ImportSource, O as OrgNode, d as RaciPhase, e as RaciRoleAssignment, f as ReadFileFn, g as ResolveImportsResult, h as contrastText, i as findOrgNodeIdByName, j as getSeriesColors, k as hexToHSL, l as hexToHSLString, m as hslToHex, n as mix, o as normalizePertSourceForShare, p as parseFirstLine, q as parseOrg, r as parseRaci, s as resolveOrgImports, t as shade, u as shapeFill, v as tint } from './chart-meta-DNsYpNbh.js';
+import { P as ParsedOrg, F as FillMode, R as RaciMarker, a as ParsedRaci, b as RaciVariant, c as RaciTask } from './chart-meta-6JaOudSs.js';
+export { A as ALL_CHART_TYPES, I as ImportSource, O as OrgNode, d as RaciPhase, e as RaciRoleAssignment, f as ReadFileFn, g as ResolveImportsResult, h as contrastText, i as findOrgNodeIdByName, j as getSeriesColors, k as hexToHSL, l as hexToHSLString, m as hslToHex, n as mix, o as normalizePertSourceForShare, p as parseFirstLine, q as parseOrg, r as parseRaci, s as resolveOrgImports, t as shade, u as shapeFill, v as tint } from './chart-meta-6JaOudSs.js';
 import { GeoProjection } from 'd3-geo';
 export { M as MapCompletionOptions, a as MapLocationMatch, b as MapPlaceCompletion, c as MapRegionCompletion, T as Theme, d as completeMapPlaces, e as completeMapRegions, p as palettes, s as searchMapLocations, t as themes } from './themes-Dem5xalq.js';
 
@@ -4296,7 +4296,6 @@ interface ParsedWireframe {
     readonly roots: readonly WireframeElement[];
     /** Modal elements (rendered separately below main) */
     readonly modals: readonly WireframeElement[];
-    readonly tagGroups: readonly TagGroup[];
     readonly options: Readonly<Record<string, string>>;
     readonly diagnostics: readonly DgmoError[];
     readonly error: string | null;
