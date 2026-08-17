@@ -80,6 +80,10 @@ export const UNIVERSAL_DIAGNOSTICS: DiagnosticSpec[] = [
     message:
       '`active-tag` names a group the diagram does not declare, so nothing is coloured.',
     hint: 'Check the spelling against the declared `tag` groups, or use `active-tag none` to colour nothing on purpose.',
+    // The group name in this example is misspelled on purpose — showing a name
+    // that matches no declared group is the example's whole job. Ignored for
+    // this file rather than added to cspell.json, which would excuse the same
+    // typo anywhere in the library. cspell:ignore Rnak
     example:
       'org Crew\nactive-tag Rnak\n\ntag Rank as r\n  Captain red\n\nBlackbeard r: Captain\n',
   },
