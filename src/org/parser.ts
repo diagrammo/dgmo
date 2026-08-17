@@ -18,6 +18,7 @@ import {
   finalizeAutoTagColors,
   AUTO_TAG_COLOR_SENTINEL,
   tagAttrKey,
+  activeTagNoMatchMessage,
 } from '../utils/tag-groups';
 import {
   measureIndent,
@@ -129,8 +130,8 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
   };
 
   /** Push a non-fatal warning (does not set result.error). */
-  const pushWarning = (line: number, message: string): void => {
-    result.diagnostics.push(makeDgmoError(line, message, 'warning'));
+  const pushWarning = (line: number, message: string, code?: string): void => {
+    result.diagnostics.push(makeDgmoError(line, message, 'warning', code));
   };
 
   if (!content?.trim()) {
@@ -142,6 +143,7 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
   let nodeCounter = 0;
   let containerCounter = 0;
   let focusOptionLine = 0;
+  let activeTagOptionLine = 0;
 
   // Tag group parsing state
   let currentTagGroup: Writable<TagGroup> | null = null;
@@ -253,6 +255,7 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
         if (KNOWN_OPTIONS.has(key)) {
           options[key] = optMatch[2]!.trim();
           if (key === 'focus') focusOptionLine = lineNumber;
+          if (key === 'active-tag') activeTagOptionLine = lineNumber;
           continue;
         }
       }
@@ -449,6 +452,21 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
         `focus target "${focusName}" not found — showing the whole chart`
       );
     }
+  }
+
+  // `active-tag <group>` must name a declared tag group — warn (never error)
+  // when it doesn't, or the chart silently renders in flat neutral colours and
+  // reads as "tags aren't working" rather than "you spelled it wrong".
+  const activeTagWarning = activeTagNoMatchMessage(
+    options['active-tag'],
+    result.tagGroups
+  );
+  if (activeTagWarning) {
+    pushWarning(
+      activeTagOptionLine || 1,
+      activeTagWarning,
+      'W_ACTIVE_TAG_NO_MATCH'
+    );
   }
 
   // Resolve the layout direction (§7.5). The boolean pair is mutually

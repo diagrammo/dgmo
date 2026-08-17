@@ -8,6 +8,7 @@ import {
   RECOGNIZED_COLOR_NAMES,
   resolveColor,
 } from '../colors';
+import { suggest } from '../diagnostics';
 import type { PaletteColors } from '../palettes/types';
 import type { Writable } from './brand';
 
@@ -644,6 +645,73 @@ export function resolveActiveTagGroup(
 
   // 4. No tag groups → no coloring
   return null;
+}
+
+/**
+ * The message for an `active-tag` that names nothing the diagram declares, or
+ * `null` when there is nothing to report.
+ *
+ * `resolveActiveTagGroup` above deliberately hands an explicit `active-tag`
+ * straight back without consulting the groups — every caller then fails to
+ * find it and quietly renders in flat neutral colours, which is
+ * indistinguishable from a diagram that has no tags at all. This is the check
+ * that makes a typo say so. It is a WARNING, not an error: the diagram still
+ * draws, and the colouring is the only thing lost.
+ *
+ * Callers own the push and the line number, because both are per-parser.
+ *
+ * Four things it must not fire on, covered here or by the caller:
+ *   1. `active-tag none` — reserved, means "no colouring". Returns null.
+ *   2. A declared-but-EMPTY group — pass what was DECLARED, never a list
+ *      already filtered by `entries.length > 0`, or this reports a group the
+ *      author can plainly see in their source.
+ *   3. The programmatic override — that is the app's runtime tag switcher,
+ *      not source, so it never reaches a parser and must never be checked.
+ *   4. A chart whose directive accepts more than tag-group names (treemap's
+ *      heat label, boxes-and-lines' metric) — widen `extraNames` rather than
+ *      skipping the check.
+ *
+ * @param activeTag   the raw `active-tag` value from source, if any
+ * @param tagGroups   the groups the diagram DECLARES (only `.name` is read)
+ * @param extraNames  other values this chart's directive legitimately accepts
+ * @param extraLabel  what those extra names are, for the message's first line
+ */
+export function activeTagNoMatchMessage(
+  activeTag: string | undefined | null,
+  tagGroups: ReadonlyArray<{ name: string }>,
+  extraNames: readonly string[] = [],
+  extraLabel?: string
+): string | null {
+  const at = activeTag?.trim();
+  if (!at) return null;
+  const lower = at.toLowerCase();
+  if (lower === 'none') return null;
+
+  const valid = [...tagGroups.map((g) => g.name), ...extraNames];
+  // Accept the raw name AND its DOM-safe slug. The spec says a quoted group
+  // name "slugs to a DOM-safe key (`Trust Zone` → `trust-zone`) used for
+  // assignment, matching, and `active-tag`" (§1.4 Name), while several
+  // renderers match the raw name case-insensitively instead. Both spellings
+  // colour something somewhere, so both must pass: this is a WARNING, and a
+  // false positive on a diagram that renders correctly is the damaging kind of
+  // mistake here, while a false negative costs nothing.
+  if (valid.some((n) => n.toLowerCase() === lower || tagAttrKey(n) === lower)) {
+    return null;
+  }
+
+  const subject = extraLabel
+    ? `a declared tag group or ${extraLabel}`
+    : 'a declared tag group';
+  const available = valid.length
+    ? ` Available: ${valid.join(', ')}, none.`
+    : ' No tag groups are declared.';
+  const didYouMean = suggest(at, valid);
+
+  return (
+    `active-tag "${at}" does not match ${subject}.` +
+    available +
+    (didYouMean ? ` ${didYouMean}` : '')
+  );
 }
 
 // ── Matchers ────────────────────────────────────────────────

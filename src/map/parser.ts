@@ -30,6 +30,7 @@ import {
   finalizeAutoTagColors,
   AUTO_TAG_COLOR_SENTINEL,
   tagAttrKey,
+  activeTagNoMatchMessage,
 } from '../utils/tag-groups';
 import { parseInArrowLabel } from '../utils/arrows';
 import type {
@@ -127,8 +128,8 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
     pushError(line, message);
     return result;
   };
-  const pushWarning = (line: number, message: string): void => {
-    diagnostics.push(makeDgmoError(line, message, 'warning'));
+  const pushWarning = (line: number, message: string, code?: string): void => {
+    diagnostics.push(makeDgmoError(line, message, 'warning', code));
   };
 
   const lines = content.split('\n');
@@ -162,6 +163,7 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
   const routes = result.routes as MapRoute[];
   const edges = result.edges as MapEdge[];
   const aliasMap = new Map<string, string>(); // tag alias → group name (lowercased)
+  let activeTagOptionLine = 0;
 
   // Holder object (property access avoids TS narrowing closure-mutated `let`s
   // to `never`). `tag`/`route`/`poi` are the currently-open blocks.
@@ -297,18 +299,31 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
   validateTagGroupNames(tagGroups, pushWarning, (line, m) =>
     pushError(line, m)
   );
-  const at = result.directives.activeTag;
-  if (at && at.toLowerCase() !== 'none') {
-    const names = tagGroupNames();
-    if (!names.has(at.toLowerCase())) {
-      const hint = tagGroups.length
-        ? ` Declared groups: ${tagGroups.map((g) => g.name).join(', ')}.`
-        : ' No tag groups are declared.';
-      pushWarning(
-        0,
-        `active-tag "${at}" does not match a declared tag group.${hint}`
-      );
-    }
+  // `active-tag <group>` must name a declared tag group — or, when any region
+  // carries a value, the choropleth ramp, whose group name is the `region-heat`
+  // label and otherwise `Value` (`map/layout.ts`, `VALUE_NAME`).
+  //
+  // This replaced a hand-rolled check that never admitted the ramp, so
+  // `region-heat Sales` + `active-tag Sales` warned on a map that colours
+  // correctly. It also compared ONLY against `tagAttrKey(g.name)` — the slug
+  // the spec names for `active-tag` (§1.4) — while `map/layout.ts`
+  // (`matchColorGroup`) matches the RAW name case-insensitively, so the check
+  // and the renderer disagreed about a spaced group name. The shared helper
+  // accepts both spellings, since both colour something somewhere.
+  const activeTagWarning = activeTagNoMatchMessage(
+    result.directives.activeTag,
+    tagGroups,
+    regions.some((r) => r.value !== undefined)
+      ? [result.directives.regionMetric?.trim() || 'Value']
+      : [],
+    'the value ramp'
+  );
+  if (activeTagWarning) {
+    pushWarning(
+      activeTagOptionLine || 1,
+      activeTagWarning,
+      'W_ACTIVE_TAG_NO_MATCH'
+    );
   }
 
   return result;
@@ -391,6 +406,7 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
       case 'active-tag':
         dup(d.activeTag);
         d.activeTag = value;
+        activeTagOptionLine = line;
         break;
       case 'caption':
         dup(d.caption);

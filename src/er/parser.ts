@@ -29,6 +29,7 @@ import {
   finalizeAutoTagColors,
   AUTO_TAG_COLOR_SENTINEL,
   tagAttrKey,
+  activeTagNoMatchMessage,
 } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import { tryCollectNote, resolveNotes, type DiagramNote } from '../utils/notes';
@@ -271,6 +272,8 @@ export function parseERDiagram(
   let currentTable: Writable<ERTable> | null = null;
   const notes: DiagramNote[] = [];
   let contentStarted = false;
+  let activeTagOptionLine = 0;
+  let activeTagRaw: string | undefined;
   let currentTagGroup: Writable<TagGroup> | null = null;
   // metaAliasMap: tag-group metadata-key aliases (per A1 convention).
   const metaAliasMap = new Map<string, string>();
@@ -424,6 +427,12 @@ export function parseERDiagram(
         const value = optMatch[2]!.trim();
         if (KNOWN_OPTIONS.has(key)) {
           options[key] = value.toLowerCase();
+          if (key === 'active-tag') {
+            // `options` holds the LOWERCASED value; keep the author's own
+            // spelling so the message quotes what they actually wrote.
+            activeTagRaw = value;
+            activeTagOptionLine = lineNumber;
+          }
           continue;
         }
       }
@@ -680,6 +689,26 @@ export function parseERDiagram(
         );
       }
     }
+  }
+
+  // `active-tag <group>` must name a declared tag group — warn (never error)
+  // when it doesn't, or the diagram silently renders in flat neutral colours
+  // and reads as "tags aren't working" rather than "you spelled it wrong".
+  // Deliberately OUTSIDE any `tagGroups.length` guard: naming a group when
+  // none are declared is exactly the case worth reporting.
+  const activeTagWarning = activeTagNoMatchMessage(
+    activeTagRaw,
+    result.tagGroups
+  );
+  if (activeTagWarning) {
+    result.diagnostics.push(
+      makeDgmoError(
+        activeTagOptionLine || 1,
+        activeTagWarning,
+        'warning',
+        'W_ACTIVE_TAG_NO_MATCH'
+      )
+    );
   }
 
   return result;

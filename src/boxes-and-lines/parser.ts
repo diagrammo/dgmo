@@ -16,6 +16,7 @@ import {
   finalizeAutoTagColors,
   AUTO_TAG_COLOR_SENTINEL,
   tagAttrKey,
+  activeTagNoMatchMessage,
 } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
@@ -173,6 +174,7 @@ export function parseBoxesAndLines(
 
   // Tag block state
   let contentStarted = false;
+  let activeTagOptionLine = 0;
   let currentTagGroup: Writable<TagGroup> | null = null;
   // metaAliasMap: tag-group metadata-key aliases (per A1).
   const metaAliasMap = new Map<string, string>();
@@ -185,8 +187,10 @@ export function parseBoxesAndLines(
     // Regex capture groups present after successful match.
     return { label: m[1]!.trim(), alias: m[2]! };
   }
-  const pushWarning = (lineNumber: number, message: string) => {
-    result.diagnostics.push(makeDgmoError(lineNumber, message, 'warning'));
+  const pushWarning = (lineNumber: number, message: string, code?: string) => {
+    result.diagnostics.push(
+      makeDgmoError(lineNumber, message, 'warning', code)
+    );
   };
 
   /** Get the innermost active group, if any */
@@ -319,6 +323,7 @@ export function parseBoxesAndLines(
           const value = optMatch[2]!.trim();
           if (key === 'active-tag') {
             options[key] = value;
+            activeTagOptionLine = lineNum;
             continue;
           }
         }
@@ -765,6 +770,30 @@ export function parseBoxesAndLines(
       result.diagnostics.push(diag);
       if (!result.error) result.error = diag.message;
     });
+  }
+
+  // `active-tag <group>` must name a declared tag group — warn (never error)
+  // when it doesn't, or the diagram silently renders in flat neutral colours
+  // and reads as "tags aren't working" rather than "you spelled it wrong".
+  // Deliberately OUTSIDE the `tagGroups.length` guard above: naming a group
+  // when none are declared is exactly the case worth reporting.
+  const activeTagWarning = activeTagNoMatchMessage(
+    options['active-tag'],
+    result.tagGroups,
+    // The value metric is a legitimate `active-tag` target here (§13.9), named
+    // by `box-metric` and defaulting to `Value` — but only when some box
+    // actually carries a value, which is what the renderer gates on.
+    result.nodes.some((n) => n.value !== undefined)
+      ? [result.boxMetric?.trim() || 'Value']
+      : [],
+    'the value metric'
+  );
+  if (activeTagWarning) {
+    pushWarning(
+      activeTagOptionLine || 1,
+      activeTagWarning,
+      'W_ACTIVE_TAG_NO_MATCH'
+    );
   }
 
   return result;

@@ -35,6 +35,7 @@ import {
   AUTO_TAG_COLOR_SENTINEL,
   type TagGroup,
   tagAttrKey,
+  activeTagNoMatchMessage,
 } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
 import type { Duration, DurationUnit } from '../gantt/types';
@@ -638,6 +639,7 @@ export function parsePert(
    * until the first non-tag content line closes it.
    */
   const tagGroups: TagGroup[] = [];
+  let activeTagOptionLine = 0;
   let currentTagGroup: Writable<TagGroup> | null = null;
   /**
    * Tag-block phase ends as soon as the parser sees any directive,
@@ -993,6 +995,9 @@ export function parsePert(
           }
           continue;
         }
+        // `applyDirective` is a free function with no way back to this scope,
+        // so the line is captured here rather than threaded through it.
+        if (head === 'active-tag') activeTagOptionLine = lineNumber;
         applyDirective(head, value, lineNumber, options, error, warn, {
           order: dateOrder,
           baseYear,
@@ -1349,6 +1354,19 @@ export function parsePert(
     for (const g of groups) {
       if (g.tags && Object.keys(g.tags).length === 0) delete g.tags;
     }
+  }
+
+  // `active-tag <group>` must name a declared tag group — warn (never error)
+  // when it doesn't, or the chart silently renders in flat neutral colours and
+  // reads as "tags aren't working" rather than "you spelled it wrong".
+  // Deliberately outside the tag block above: naming a group when none are
+  // declared is exactly the case worth reporting.
+  const activeTagWarning = activeTagNoMatchMessage(
+    options.activeTag,
+    tagGroups
+  );
+  if (activeTagWarning) {
+    warn(activeTagOptionLine || 1, activeTagWarning, 'W_ACTIVE_TAG_NO_MATCH');
   }
 
   const firstFatal = diagnostics.find((d) => d.severity === 'error');

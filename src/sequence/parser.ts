@@ -39,6 +39,7 @@ import {
   stripDefaultModifier,
   finalizeAutoTagColors,
   AUTO_TAG_COLOR_SENTINEL,
+  activeTagNoMatchMessage,
 } from '../utils/tag-groups';
 
 /** Known sequence-diagram options that take a value (space-separated). */
@@ -497,8 +498,8 @@ export function parseSequenceDgmo(
   };
 
   /** Push a non-fatal warning (does not set result.error). */
-  const pushWarning = (line: number, message: string): void => {
-    result.diagnostics.push(makeDgmoError(line, message, 'warning'));
+  const pushWarning = (line: number, message: string, code?: string): void => {
+    result.diagnostics.push(makeDgmoError(line, message, 'warning', code));
   };
 
   if (!content?.trim()) {
@@ -508,6 +509,7 @@ export function parseSequenceDgmo(
   const lines = content.split('\n');
   let hasExplicitChart = false;
   let contentStarted = false;
+  let activeTagOptionLine = 0;
   // Whether the message body has begun (first message, section, block, or note).
   // Unlike `contentStarted` — which any declaration trips to close the
   // options/tag-group "headers first" window — `bodyStarted` stays false through
@@ -1021,6 +1023,7 @@ export function parseSequenceDgmo(
             continue;
           }
           result.options[optKey] = optVal;
+          if (optKey === 'active-tag') activeTagOptionLine = lineNumber;
           continue;
         }
       }
@@ -1624,6 +1627,26 @@ export function parseSequenceDgmo(
     }
     validateTagValues(entities, result.tagGroups, pushWarning, suggest);
     validateTagGroupNames(result.tagGroups, pushWarning, pushError);
+  }
+
+  // `active-tag <group>` must name a declared tag group — warn (never error)
+  // when it doesn't, or the diagram silently renders in flat neutral colours
+  // and reads as "tags aren't working" rather than "you spelled it wrong".
+  // Deliberately OUTSIDE any `tagGroups.length` guard: naming a group when
+  // none are declared is exactly the case worth reporting.
+  const activeTagWarning = activeTagNoMatchMessage(
+    result.options['active-tag'],
+    // What was DECLARED. The renderer narrows this to groups with entries
+    // (`sequence/renderer.ts`), and checking against that filtered list would
+    // report a group the author can plainly see in their source.
+    result.tagGroups
+  );
+  if (activeTagWarning) {
+    pushWarning(
+      activeTagOptionLine || 1,
+      activeTagWarning,
+      'W_ACTIVE_TAG_NO_MATCH'
+    );
   }
 
   return result;

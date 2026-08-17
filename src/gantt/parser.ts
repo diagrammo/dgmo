@@ -23,6 +23,7 @@ import {
   stripDefaultModifier,
   validateTagGroupNames,
   tagAttrKey,
+  activeTagNoMatchMessage,
 } from '../utils/tag-groups';
 import {
   measureIndent,
@@ -278,8 +279,8 @@ export function parseGantt(
     return result;
   };
 
-  const warn = (line: number, message: string): void => {
-    diagnostics.push(makeDgmoError(line, message, 'warning'));
+  const warn = (line: number, message: string, code?: string): void => {
+    diagnostics.push(makeDgmoError(line, message, 'warning', code));
   };
 
   /** Red squiggly but parsing continues — line is wrong, rest of chart is fine */
@@ -1421,6 +1422,21 @@ export function parseGantt(
     diagnostics.push(diag);
     if (!result.error) result.error = formatDgmoError(diag);
   });
+
+  // `active-tag <group>` must name a declared tag group — warn (never error)
+  // when it doesn't, or the chart silently renders in flat neutral colours and
+  // reads as "tags aren't working" rather than "you spelled it wrong".
+  const activeTagWarning = activeTagNoMatchMessage(
+    result.options.activeTag,
+    result.tagGroups
+  );
+  if (activeTagWarning) {
+    warn(
+      result.options.optionLineNumbers['active-tag'] || 1,
+      activeTagWarning,
+      'W_ACTIVE_TAG_NO_MATCH'
+    );
+  }
 
   // ── Sprint mode detection ──────────────────────────────
   const hasSprintOption =

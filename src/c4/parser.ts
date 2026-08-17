@@ -20,6 +20,7 @@ import {
   finalizeAutoTagColors,
   AUTO_TAG_COLOR_SENTINEL,
   tagAttrKey,
+  activeTagNoMatchMessage,
 } from '../utils/tag-groups';
 import { inferParticipantType } from '../sequence/participant-inference';
 import {
@@ -292,9 +293,10 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
   const pushError = (
     line: number,
     message: string,
-    severity: 'error' | 'warning' = 'error'
+    severity: 'error' | 'warning' = 'error',
+    code?: string
   ): void => {
-    const diag = makeDgmoError(line, message, severity);
+    const diag = makeDgmoError(line, message, severity, code);
     result.diagnostics.push(diag);
     if (!result.error && severity === 'error')
       result.error = formatDgmoError(diag);
@@ -308,6 +310,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
 
   const lines = content.split('\n');
   let contentStarted = false;
+  let activeTagOptionLine = 0;
   let sawChartType = false;
   let inDeployment = false;
 
@@ -446,6 +449,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         }
         if (KNOWN_C4_OPTIONS.has(key)) {
           options[key] = optMatch[2]!.trim();
+          if (key === 'active-tag') activeTagOptionLine = lineNumber;
           continue;
         }
       }
@@ -1083,6 +1087,24 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
   // (§1.9, last one wins), so a lone presence check is sufficient.
   // Absent both, C4 views keep their long-standing top-down orientation.
   result.direction = options['direction-lr'] ? 'LR' : 'TB';
+
+  // `active-tag <group>` must name a declared tag group — warn (never error)
+  // when it doesn't, or the diagram silently renders in flat neutral colours
+  // and reads as "tags aren't working" rather than "you spelled it wrong".
+  // Deliberately OUTSIDE any `tagGroups.length` guard: naming a group when
+  // none are declared is exactly the case worth reporting.
+  const activeTagWarning = activeTagNoMatchMessage(
+    options['active-tag'],
+    result.tagGroups
+  );
+  if (activeTagWarning) {
+    pushError(
+      activeTagOptionLine || 1,
+      activeTagWarning,
+      'warning',
+      'W_ACTIVE_TAG_NO_MATCH'
+    );
+  }
 
   return result;
 }

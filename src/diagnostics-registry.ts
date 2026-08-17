@@ -73,6 +73,17 @@ export const UNIVERSAL_DIAGNOSTICS: DiagnosticSpec[] = [
     example: 'block\n[A]\ntag warn red',
   },
   {
+    code: 'W_ACTIVE_TAG_NO_MATCH',
+    severity: 'warning',
+    chartType: null,
+    title: 'Active tag group not found',
+    message:
+      '`active-tag` names a group the diagram does not declare, so nothing is coloured.',
+    hint: 'Check the spelling against the declared `tag` groups, or use `active-tag none` to colour nothing on purpose.',
+    example:
+      'org Crew\nactive-tag Rnak\n\ntag Rank as r\n  Captain red\n\nBlackbeard r: Captain\n',
+  },
+  {
     code: 'W_EMPTY_METADATA_VALUE',
     severity: 'warning',
     chartType: null,

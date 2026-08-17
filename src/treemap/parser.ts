@@ -30,6 +30,7 @@ import {
   cascadeTagMetadata,
   AUTO_TAG_COLOR_SENTINEL,
   tagAttrKey,
+  activeTagNoMatchMessage,
 } from '../utils/tag-groups';
 import {
   measureIndent,
@@ -410,7 +411,7 @@ function handleDirective(
  */
 function resolveDefaultColorMode(
   result: ParsedTreemap,
-  pushWarning: (line: number, message: string) => void
+  pushWarning: (line: number, message: string, code?: string) => void
 ): TreemapColorMode {
   const at = result.activeTag?.trim();
   if (at) {
@@ -423,17 +424,23 @@ function resolveDefaultColorMode(
         : lv === 'value' || lv === 'heat';
     if (result.hasHeat && heatHit) return 'heat';
     if (result.tagGroups.some((g) => g.name.toLowerCase() === lv)) return 'tag';
-    const dims = [
-      ...result.tagGroups.map((g) => g.name),
-      ...(result.hasHeat ? [heatName ?? 'Value'] : []),
-    ];
-    const hint = dims.length
-      ? ` Available: ${dims.join(', ')}, none.`
-      : ' No tag groups or heat are declared.';
-    pushWarning(
-      result.activeTagLineNumber ?? 0,
-      `active-tag "${at}" does not match a declared tag group or the heat label.${hint}`
+    // Shared wording with every other chart's `active-tag` check. The heat
+    // ramp is a legitimate target here, under its own label — or `Value` /
+    // `heat` when it is unnamed, both of which `heatHit` above already
+    // admitted, so only the ones reachable by name go in the message.
+    const warning = activeTagNoMatchMessage(
+      at,
+      result.tagGroups,
+      result.hasHeat ? [heatName ?? 'Value'] : [],
+      'the heat label'
     );
+    if (warning) {
+      pushWarning(
+        result.activeTagLineNumber ?? 1,
+        warning,
+        'W_ACTIVE_TAG_NO_MATCH'
+      );
+    }
   }
   // Universal precedence (decision #48): heat → tag → branch.
   if (result.hasHeat) return 'heat';

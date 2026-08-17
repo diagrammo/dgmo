@@ -17,6 +17,7 @@ import {
   finalizeAutoTagColors,
   AUTO_TAG_COLOR_SENTINEL,
   tagAttrKey,
+  activeTagNoMatchMessage,
 } from '../utils/tag-groups';
 import {
   measureIndent,
@@ -88,8 +89,8 @@ export function parseKanban(
 
   const fail = makeFail(result);
 
-  const warn = (line: number, message: string): void => {
-    result.diagnostics.push(makeDgmoError(line, message, 'warning'));
+  const warn = (line: number, message: string, code?: string): void => {
+    result.diagnostics.push(makeDgmoError(line, message, 'warning', code));
   };
 
   if (!content?.trim()) {
@@ -98,6 +99,7 @@ export function parseKanban(
 
   const lines = content.split('\n');
   let contentStarted = false;
+  let activeTagOptionLine = 0;
   let currentTagGroup: Writable<KanbanTagGroup> | null = null;
   let currentColumn: Writable<KanbanColumn> | null = null;
   let currentCard: Writable<KanbanCard> | null = null;
@@ -198,6 +200,7 @@ export function parseKanban(
         const key = optMatch[1]!.trim().toLowerCase();
         if (KNOWN_OPTIONS.has(key)) {
           options[key] = optMatch[2]!.trim();
+          if (key === 'active-tag') activeTagOptionLine = lineNumber;
           continue;
         }
       }
@@ -476,6 +479,19 @@ export function parseKanban(
     result.diagnostics.push(diag);
     if (!result.error) result.error = formatDgmoError(diag);
   });
+
+  // `active-tag <group>` must name a declared tag group — warn (never error)
+  // when it doesn't, or the diagram silently renders in flat neutral colours
+  // and reads as "tags aren't working" rather than "you spelled it wrong".
+  // Deliberately OUTSIDE any `tagGroups.length` guard: naming a group when
+  // none are declared is exactly the case worth reporting.
+  const activeTagWarning = activeTagNoMatchMessage(
+    options['active-tag'],
+    result.tagGroups
+  );
+  if (activeTagWarning) {
+    warn(activeTagOptionLine || 1, activeTagWarning, 'W_ACTIVE_TAG_NO_MATCH');
+  }
 
   return result;
 }
