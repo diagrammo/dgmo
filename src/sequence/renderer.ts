@@ -587,6 +587,12 @@ export interface SectionParticipation {
   sends: number;
   /** Messages addressed to it. */
   receives: number;
+  /**
+   * Source line of the first message in the run that touches it — sent or
+   * received. This is where clicking its mark lands the reader: the fold opens
+   * and the cursor goes to the message the mark was standing for.
+   */
+  firstLine: number;
 }
 
 /**
@@ -608,18 +614,65 @@ export function summarizeSectionParticipation(
   msgIndices: readonly number[]
 ): Map<string, SectionParticipation> {
   const summary = new Map<string, SectionParticipation>();
-  const bump = (id: string, key: 'sends' | 'receives'): void => {
-    const entry = summary.get(id) ?? { sends: 0, receives: 0 };
+  const bump = (
+    id: string,
+    key: 'sends' | 'receives',
+    lineNumber: number
+  ): void => {
+    // `firstLine` is only ever set on creation: msgIndices arrive in source
+    // order, so the message that introduces a participant is the first one
+    // that touches it.
+    const entry = summary.get(id) ?? {
+      sends: 0,
+      receives: 0,
+      firstLine: lineNumber,
+    };
     entry[key] += 1;
     summary.set(id, entry);
   };
   for (const idx of msgIndices) {
     const msg = messages[idx];
     if (!msg) continue;
-    bump(msg.from, 'sends');
-    bump(msg.to, 'receives');
+    bump(msg.from, 'sends', msg.lineNumber);
+    bump(msg.to, 'receives', msg.lineNumber);
   }
   return summary;
+}
+
+/**
+ * The second line inside a collapsed group's box, naming the members it has
+ * swallowed: source order, separated by middle dots, and truncated to a
+ * trailing `+n` count when the whole list will not fit.
+ *
+ * This is what a collapsed group can offer in place of the section band's
+ * marks. A collapsed section keeps every column, so a mark on a column means
+ * something; a collapsed group draws one column for several members, so a mark
+ * there would look like it carried identity and could not. The question a
+ * group raises is *which member*, and only text answers that.
+ *
+ * The line deliberately does NOT feed the participant-box width measurement.
+ * Every box in a sequence diagram shares one width taken from the longest
+ * label, so letting three service names vote in it would widen every unrelated
+ * box in the diagram to suit one collapsed group. Truncating more often is the
+ * cheaper of the two, and the accessible name on the box carries the full list
+ * either way.
+ */
+export function collapsedGroupMemberLine(
+  labels: readonly string[],
+  maxWidth: number,
+  fontSize: number
+): string {
+  if (labels.length === 0) return '';
+  const full = labels.join(' · ');
+  if (measureText(full, fontSize) <= maxWidth) return full;
+  for (let keep = labels.length - 1; keep >= 1; keep--) {
+    const line = `${labels.slice(0, keep).join(' · ')} +${labels.length - keep}`;
+    if (measureText(line, fontSize) <= maxWidth) return line;
+  }
+  // Not even one name fits beside its count. How many there are is the last
+  // true thing left to say, and it still beats an empty box.
+  const count = labels.length === 1 ? '1 member' : `${labels.length} members`;
+  return measureText(count, fontSize) <= maxWidth ? count : '';
 }
 
 /**
@@ -632,6 +685,13 @@ function sectionMarkRadius(touches: number): number {
   if (touches >= 2) return 4.5;
   return 3.5;
 }
+
+/**
+ * How big a mark's invisible click target is, whatever the mark's own radius.
+ * The band is 36px tall, so a 9px radius stays inside it while giving the
+ * smallest mark a target five times its drawn area.
+ */
+const SECTION_MARK_HIT_RADIUS = 9;
 
 // ============================================================
 // Render Sequence Builder (stack-based return placement)
@@ -1601,6 +1661,16 @@ export function renderSequenceDiagram(
   // not, so a scaled-down name simply sits in a roomier strip.
   const sGroupLabelSize = ctx.text(GROUP_LABEL_SIZE);
   const GROUP_LABEL_WEIGHT = 'bold';
+  // The members a collapsed group has swallowed, named on a second line inside
+  // its box. Smaller and lighter than the group's own name, because it answers
+  // a follow-up question rather than competing with the heading.
+  const GROUP_MEMBER_SIZE = 9;
+  const sGroupMemberSize = ctx.text(GROUP_MEMBER_SIZE);
+  // Between the group's name and the member line, and inside the box edges.
+  // The name and the member line are centred as one block, so the gap is the
+  // only thing separating them.
+  const GROUP_MEMBER_GAP = 3;
+  const GROUP_MEMBER_PADDING_X = 6;
 
   // Compute cumulative Y positions for each step, with section dividers as stable anchors
   const showTitle = !!title && parsedOptions['no-title'] !== 'on';
@@ -2455,11 +2525,24 @@ export function renderSequenceDiagram(
         .attr('stroke', pStroke)
         .attr('stroke-width', 1.5);
 
+      // The members this collapse swallowed, named on a second line. Written
+      // first so the group's own name can be shifted up to make room for it —
+      // the pair reads as one centred block, not a label with an afterthought.
+      const memberLine = collapsedGroupMemberLine(
+        meta.participantIds.map((id) => participantLabels.get(id) ?? id),
+        boxW - GROUP_MEMBER_PADDING_X * 2,
+        sGroupMemberSize
+      );
+      const boxMidY = -GROUP_PADDING_TOP + fullH / 2;
+      const nameY = memberLine
+        ? boxMidY - (sGroupMemberSize + GROUP_MEMBER_GAP) / 2
+        : boxMidY;
+
       // Re-render label centered in the taller box (local coords)
       participantG
         .append('text')
         .attr('x', 0)
-        .attr('y', -GROUP_PADDING_TOP + fullH / 2)
+        .attr('y', nameY)
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'central')
         // Colour and opacity legitimately differ from the expanded header —
@@ -2473,6 +2556,19 @@ export function renderSequenceDiagram(
         // participant <g> would change what lights up.
         .attr('class', 'collapsed-group-label')
         .text(participant.label);
+
+      if (memberLine) {
+        participantG
+          .append('text')
+          .attr('x', 0)
+          .attr('y', boxMidY + (sGroupLabelSize + GROUP_MEMBER_GAP) / 2)
+          .attr('text-anchor', 'middle')
+          .attr('dominant-baseline', 'central')
+          .attr('fill', palette.textMuted)
+          .attr('font-size', sGroupMemberSize)
+          .attr('class', 'collapsed-group-members')
+          .text(memberLine);
+      }
 
       // Drill-bar at bottom (local coords)
       participantG
@@ -3062,6 +3158,25 @@ export function renderSequenceDiagram(
 
       const markColor = participantTagColor(participant.id) ?? palette.text;
       const radius = sectionMarkRadius(part.sends + part.receives);
+
+      // A transparent disc over the mark, because the mark itself is 3.5–6px
+      // across and nobody hits that. It carries the destination rather than
+      // the visible circle so the drawn shape stays inert and unchanged.
+      //
+      // The attribute is NOT `data-line-number`: a child carrying one resolves
+      // to plain line navigation before the click walk-up ever reaches the
+      // band's own toggle (see the section wrapper's comment above), which
+      // would unfold nothing.
+      sectionG
+        .append('circle')
+        .attr('cx', markX)
+        .attr('cy', markY)
+        .attr('r', Math.max(radius, SECTION_MARK_HIT_RADIUS))
+        .attr('fill', 'transparent')
+        .attr('class', 'section-mark-hit')
+        .attr('data-participant-id', participant.id)
+        .attr('data-section-mark-line', String(part.firstLine))
+        .attr('cursor', 'pointer');
       if (part.sends === 0) {
         // Hollow against the band itself, so it reads as an outline rather
         // than as a hole punched through to the page behind.

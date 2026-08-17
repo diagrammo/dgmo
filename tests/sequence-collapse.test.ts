@@ -9,6 +9,7 @@ import type { SequenceNote, SequenceSection } from '../src/sequence/parser';
 import {
   renderSequenceDiagram,
   summarizeSectionParticipation,
+  collapsedGroupMemberLine,
 } from '../src/sequence/renderer';
 import type { SequenceRenderOptions } from '../src/sequence/renderer';
 import { getPalette } from '../src/palettes';
@@ -393,6 +394,31 @@ describe('Collapse rendering', () => {
     expect(participant.getAttribute('data-group-toggle')).toBe('');
   });
 
+  it('names the swallowed members on a second line inside the box', () => {
+    // The question a collapsed group raises is *which member*, and only text
+    // can answer it — a mark on the one column it draws would look like it
+    // carried identity and could not.
+    const svg = renderToSvg(collapseDiagram)!;
+    const members = svg.querySelector('.collapsed-group-members')!;
+    expect(members.textContent).toBe('API · DB');
+    // Sits below the group's own name, both centred as one block
+    const name = svg.querySelector('.collapsed-group-label')!;
+    expect(Number(members.getAttribute('y'))).toBeGreaterThan(
+      Number(name.getAttribute('y'))
+    );
+    // Quieter than the name it follows — it answers a follow-up question
+    expect(Number(members.getAttribute('font-size'))).toBeLessThan(
+      Number(name.getAttribute('font-size'))
+    );
+  });
+
+  it('draws no member line for an expanded group', () => {
+    const svg = renderToSvg(
+      ['[Backend]', '  API', '  DB', 'User -request-> API'].join('\n')
+    )!;
+    expect(svg.querySelector('.collapsed-group-members')).toBeNull();
+  });
+
   it('names the swallowed members in the collapsed toggle accessible name', () => {
     // The box shows only "Backend"; the members it has absorbed are drawn
     // nowhere, so the accessible name is the only place a screen reader can
@@ -682,9 +708,9 @@ describe('summarizeSectionParticipation', () => {
   it('counts sends and receives separately', () => {
     const messages = [msg('A', 'B', 1), msg('B', 'C', 2), msg('C', 'B', 3)];
     const summary = summarizeSectionParticipation(messages, [0, 1, 2]);
-    expect(summary.get('A')).toEqual({ sends: 1, receives: 0 });
-    expect(summary.get('B')).toEqual({ sends: 1, receives: 2 });
-    expect(summary.get('C')).toEqual({ sends: 1, receives: 1 });
+    expect(summary.get('A')).toEqual({ sends: 1, receives: 0, firstLine: 1 });
+    expect(summary.get('B')).toEqual({ sends: 1, receives: 2, firstLine: 1 });
+    expect(summary.get('C')).toEqual({ sends: 1, receives: 1, firstLine: 2 });
   });
 
   it('omits a participant that no message in the run touches', () => {
@@ -694,12 +720,51 @@ describe('summarizeSectionParticipation', () => {
 
   it('counts a self-message on both sides, so it never reads as receive-only', () => {
     const summary = summarizeSectionParticipation([msg('A', 'A', 1)], [0]);
-    expect(summary.get('A')).toEqual({ sends: 1, receives: 1 });
+    expect(summary.get('A')).toEqual({ sends: 1, receives: 1, firstLine: 1 });
   });
 
   it('ignores indices that address no message', () => {
     const summary = summarizeSectionParticipation([msg('A', 'B', 1)], [0, 9]);
     expect(summary.size).toBe(2);
+  });
+});
+
+describe('collapsedGroupMemberLine', () => {
+  // 9px is the size the renderer draws this line at.
+  const SIZE = 9;
+
+  it('joins every member with a middle dot when they all fit', () => {
+    expect(collapsedGroupMemberLine(['Auth', 'Ledger'], 200, SIZE)).toBe(
+      'Auth · Ledger'
+    );
+  });
+
+  it('keeps what fits and counts the rest', () => {
+    const line = collapsedGroupMemberLine(
+      ['Stripe', 'Ledger', 'Notifier', 'Auth', 'Audit'],
+      70,
+      SIZE
+    );
+    expect(line).toMatch(/^Stripe( · \w+)* \+\d$/);
+    // The count and the names must agree about how many there are
+    const kept = line.slice(0, line.lastIndexOf(' +')).split(' · ').length;
+    expect(kept + Number(line.slice(line.lastIndexOf('+') + 1))).toBe(5);
+  });
+
+  it('falls back to a bare count when not even one name fits', () => {
+    expect(
+      collapsedGroupMemberLine(['Extraordinarily Long Service', 'B'], 60, SIZE)
+    ).toBe('2 members');
+  });
+
+  it('says member, singular, for a group of one', () => {
+    expect(
+      collapsedGroupMemberLine(['Extraordinarily Long Service'], 60, SIZE)
+    ).toBe('1 member');
+  });
+
+  it('gives an empty line for a group with no members', () => {
+    expect(collapsedGroupMemberLine([], 200, SIZE)).toBe('');
   });
 });
 
@@ -813,6 +878,37 @@ describe('collapsed section participant marks', () => {
     // Browser is outside the fold, so the reach must stop short of its column
     expect(x2).toBeGreaterThan(x1);
     expect(x1).toBeGreaterThan(browserX);
+  });
+
+  it('gives each involved mark a hit target carrying its first hidden line', () => {
+    const svg = renderCollapsed();
+    const hit = svg.querySelector(
+      '.section-mark-hit[data-participant-id="Ledger"]'
+    )!;
+    // Ledger's first appearance in the fold is `Auth -check funds-> Ledger`,
+    // the fourth line of the diagram.
+    expect(hit.getAttribute('data-section-mark-line')).toBe('4');
+    // The visible mark stays inert; the invisible disc over it takes the click
+    expect(markFor(svg, 'Ledger').getAttribute('pointer-events')).toBe('none');
+    expect(Number(hit.getAttribute('r'))).toBeGreaterThanOrEqual(9);
+  });
+
+  it('carries no data-line-number on the hit target', () => {
+    // A child with one resolves to plain line navigation before the click
+    // walk-up reaches the band's toggle, so the fold would never open.
+    const svg = renderCollapsed();
+    for (const hit of svg.querySelectorAll('.section-mark-hit')) {
+      expect(hit.getAttribute('data-line-number')).toBeNull();
+    }
+  });
+
+  it('gives no hit target to a participant the fold never touches', () => {
+    // Browser has nothing hidden, so there is nowhere for a click to go.
+    const svg = renderCollapsed();
+    expect(
+      svg.querySelector('.section-mark-hit[data-participant-id="Browser"]')
+    ).toBeNull();
+    expect(svg.querySelectorAll('.section-mark-hit').length).toBe(4);
   });
 
   it('names the involved participants in the band accessible name', () => {
