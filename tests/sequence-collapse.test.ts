@@ -393,6 +393,31 @@ describe('Collapse rendering', () => {
     expect(participant.getAttribute('data-group-toggle')).toBe('');
   });
 
+  it('names the swallowed members in the collapsed toggle accessible name', () => {
+    // The box shows only "Backend"; the members it has absorbed are drawn
+    // nowhere, so the accessible name is the only place a screen reader can
+    // learn what collapsing hid.
+    const svg = renderToSvg(collapseDiagram)!;
+    const participant = svg.querySelector(
+      '.participant[data-participant-id="Backend"]'
+    )!;
+    const label = participant.getAttribute('aria-label')!;
+    expect(label).toContain('Backend');
+    expect(label).toContain('API');
+    expect(label).toContain('DB');
+  });
+
+  it('puts no native title tooltip on the collapsed toggle', () => {
+    // A native <title> is OS-styled, a second late and absent on touch —
+    // banned across every Diagrammo surface. It was also the toggle's whole
+    // accessible name ("Click to expand"), which named no group at all.
+    const svg = renderToSvg(collapseDiagram)!;
+    const participant = svg.querySelector(
+      '.participant[data-participant-id="Backend"]'
+    )!;
+    expect(participant.querySelector('title')).toBeNull();
+  });
+
   it('draws the group name in the same type collapsed as expanded (#242)', () => {
     // Collapsing is a reading gesture — same diagram, less in it. The name
     // changing weight or size under it reads as a different kind of object
@@ -517,6 +542,25 @@ describe('Collapse rendering', () => {
     expect(svg.querySelector('.group-label')!.getAttribute('text-anchor')).toBe(
       'middle'
     );
+  });
+
+  it('names its members on the expanded toggle, with no native title', () => {
+    // Same button, same naming rule as its collapsed twin — the two states
+    // disagreeing about what the control is called is what made "Click to
+    // collapse" wrong in the first place.
+    const expandedDiagram = [
+      '[Backend]',
+      '  API',
+      '  DB',
+      'User -request-> API',
+    ].join('\n');
+    const svg = renderToSvg(expandedDiagram)!;
+    const wrapper = svg.querySelector('.group-box-wrapper')!;
+    const label = wrapper.getAttribute('aria-label')!;
+    expect(label).toContain('Backend');
+    expect(label).toContain('API');
+    expect(label).toContain('DB');
+    expect(wrapper.querySelector('title')).toBeNull();
   });
 
   it('section collapse hides messages even when a group is also collapsed', () => {

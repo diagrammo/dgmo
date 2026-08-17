@@ -2171,17 +2171,45 @@ export function renderSequenceDiagram(
   const collapsedGroupNames = new Set<string>();
   const collapsedGroupMeta = new Map<
     string,
-    { lineNumber: number; metadata?: Record<string, string> }
+    {
+      lineNumber: number;
+      participantIds: readonly string[];
+      metadata?: Record<string, string>;
+    }
   >();
   for (const group of parsed.groups) {
     if (effectiveCollapsedGroups.has(group.lineNumber)) {
       collapsedGroupNames.add(group.name);
       collapsedGroupMeta.set(group.name, {
         lineNumber: group.lineNumber,
+        participantIds: group.participantIds,
         ...(group.metadata !== undefined && { metadata: group.metadata }),
       });
     }
   }
+
+  /**
+   * The accessible name of a group's collapse toggle. The box itself shows
+   * only the group's own name, so a screen reader hearing just that learns
+   * nothing about what is inside — and a collapsed group has swallowed its
+   * members entirely. Spelling them into the name is what the collapsed
+   * section band does with its participants (see its aria-label below), and
+   * the two collapses are the same gesture, so they name themselves alike.
+   *
+   * Member labels come from `parsed.participants`: the collapse projection
+   * removes members from the rendered participant list, so post-collapse
+   * they exist nowhere else.
+   */
+  const participantLabels = new Map<string, string>(
+    parsed.participants.map((p) => [String(p.id), p.label])
+  );
+  const groupToggleName = (
+    groupName: string,
+    memberIds: readonly string[]
+  ): string => {
+    const labels = memberIds.map((id) => participantLabels.get(id) ?? id);
+    return labels.length > 0 ? `${groupName}, ${labels.join(', ')}` : groupName;
+  };
 
   /**
    * The colour a participant's own shape wears — its tag colour, falling back
@@ -2234,8 +2262,8 @@ export function renderSequenceDiagram(
       .attr('tabindex', '0')
       .attr('role', 'button')
       .attr('aria-expanded', 'true')
+      .attr('aria-label', groupToggleName(group.name, group.participantIds))
       .attr('cursor', 'pointer');
-    groupG.append('title').text('Click to collapse');
 
     // Visual group frame — pointer-events:none so it never intercepts clicks.
     // The box is rendered behind the participant shapes, so the only reliable
@@ -2401,8 +2429,11 @@ export function renderSequenceDiagram(
         .attr('tabindex', '0')
         .attr('role', 'button')
         .attr('aria-expanded', 'false')
+        .attr(
+          'aria-label',
+          groupToggleName(participant.id, meta.participantIds)
+        )
         .attr('cursor', 'pointer');
-      participantG.append('title').text('Click to expand');
 
       // Overlay a taller rect to replace the standard participant box
       const pFill = effectiveTagColor
