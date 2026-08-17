@@ -39,6 +39,10 @@ Shared at the root of `src/`:
 - `editor/` — CodeMirror grammar + highlight helpers · `completion.ts` — symbol extraction
 - `diagnostics.ts` — `DgmoError`, severity, `suggest()`
 
+## Sweeping `src/` — pass `-a` or the sweep lies
+
+🔴 **`src/arc/renderer.ts`, `src/diagnostics.ts` and `src/pert/monte-carlo.ts` contain a byte that makes both plain `grep` and the shell's ugrep shim classify them as binary and drop every match — silently, with no error and no `Binary file matches` line.** `renderArcDiagram` is invisible to a sweep of this repo without `command grep -a`. Verified 2026-08-17, while censusing all 51 chart-type renderers; the arc renderer was initially reported as having none. This compounds the workspace-level shim trap (a root sweep skips all nested repos), so a sweep of `dgmo/src` needs **both** `command grep` and `-a`.
+
 ## Adding or changing a chart type
 
 Follow `docs/dev-notes/chart-type-checklist.md`. For syntax changes to an existing type, `docs/dev-notes/syntax-change-checklist.md` — it covers spec, parsers, tests, examples, grammars, docs, sync scripts and publishing, and skipping a step here is how the ecosystem drifts.
