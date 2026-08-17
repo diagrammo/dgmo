@@ -1593,6 +1593,14 @@ export function renderSequenceDiagram(
   const GROUP_PADDING_TOP = 22;
   const GROUP_PADDING_BOTTOM = 8;
   const GROUP_LABEL_SIZE = 11;
+  // The ONE type setting for a group's name, used by both states — the header
+  // strip when the group is expanded, and the box label when it is collapsed.
+  // Collapsing is a reading gesture, so the name must not change weight or
+  // size under it (#242). Scaled like every other label in this renderer; the
+  // strip's reserved height (GROUP_PADDING_TOP + GROUP_LABEL_SIZE, above) is
+  // not, so a scaled-down name simply sits in a roomier strip.
+  const sGroupLabelSize = ctx.text(GROUP_LABEL_SIZE);
+  const GROUP_LABEL_WEIGHT = 'bold';
 
   // Compute cumulative Y positions for each step, with section dividers as stable anchors
   const showTitle = !!title && parsedOptions['no-title'] !== 'on';
@@ -2262,11 +2270,11 @@ export function renderSequenceDiagram(
     groupG
       .append('text')
       .attr('x', (minX + maxX) / 2)
-      .attr('y', boxY + GROUP_LABEL_SIZE + 4)
+      .attr('y', boxY + sGroupLabelSize + 4)
       .attr('text-anchor', 'middle')
       .attr('fill', strokeColor)
-      .attr('font-size', GROUP_LABEL_SIZE)
-      .attr('font-weight', 'bold')
+      .attr('font-size', sGroupLabelSize)
+      .attr('font-weight', GROUP_LABEL_WEIGHT)
       .attr('opacity', 0.7)
       .attr('pointer-events', 'none')
       .attr('class', 'group-label')
@@ -2423,9 +2431,16 @@ export function renderSequenceDiagram(
         .attr('y', -GROUP_PADDING_TOP + fullH / 2)
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'central')
+        // Colour and opacity legitimately differ from the expanded header —
+        // this name sits on a filled box and needs its own contrast, where
+        // the header is a washed-out strip label. The TYPE must not differ.
         .attr('fill', palette.text)
-        .attr('font-size', ctx.text(13))
-        .attr('font-weight', 500)
+        .attr('font-size', sGroupLabelSize)
+        .attr('font-weight', GROUP_LABEL_WEIGHT)
+        // NOT `.group-label` — the app's cursor highlight selects that class
+        // for the header strip, and a second matching element inside the
+        // participant <g> would change what lights up.
+        .attr('class', 'collapsed-group-label')
         .text(participant.label);
 
       // Drill-bar at bottom (local coords)

@@ -393,6 +393,38 @@ describe('Collapse rendering', () => {
     expect(participant.getAttribute('data-group-toggle')).toBe('');
   });
 
+  it('draws the group name in the same type collapsed as expanded (#242)', () => {
+    // Collapsing is a reading gesture — same diagram, less in it. The name
+    // changing weight or size under it reads as a different kind of object
+    // appearing. Colour and opacity may differ; type may not.
+    const expandedDiagram = [
+      '[Backend]',
+      '  API',
+      '  DB',
+      'User -request-> API',
+    ].join('\n');
+
+    const expanded =
+      renderToSvg(expandedDiagram)!.querySelector('.group-label')!;
+    // The collapsed name is drawn TWICE — renderParticipant's own label, then
+    // an overlay rect, then this one on top. The visible one is this one.
+    const collapsed = renderToSvg(collapseDiagram)!.querySelector(
+      '.participant[data-participant-id="Backend"] .collapsed-group-label'
+    )!;
+
+    expect(expanded.textContent).toBe('Backend');
+    expect(collapsed.textContent).toBe('Backend');
+    expect(collapsed.getAttribute('font-size')).toBe(
+      expanded.getAttribute('font-size')
+    );
+    expect(collapsed.getAttribute('font-weight')).toBe(
+      expanded.getAttribute('font-weight')
+    );
+    // Only Inter Regular and Inter Bold ship, so a numeric weight below 700
+    // resolves down to Regular — a full weight step, not a nudge.
+    expect(collapsed.getAttribute('font-weight')).toBe('bold');
+  });
+
   it('expanded group has .group-box present', () => {
     const expandedDiagram = [
       '[Backend]',

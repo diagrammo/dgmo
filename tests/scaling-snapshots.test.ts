@@ -45,6 +45,22 @@ describe('scaling baselines — ideal size (pre-renderer-change regression guard
     expect(svg).toMatchSnapshot();
   });
 
+  it('sequence collapsed-group baseline', async () => {
+    // The collapsed group's box label and the expanded header strip draw the
+    // group's name from two different code paths; this pins both (#242).
+    const src = [
+      'sequence Ship Ops',
+      '[Backend] collapsed: true',
+      '  API',
+      '  DB',
+      '[Frontend]',
+      '  App',
+      'App -request-> API',
+    ].join('\n');
+    const svg = await renderForExport(src, 'light', palette);
+    expect(svg).toMatchSnapshot();
+  });
+
   it('raci baseline', async () => {
     const svg = await renderForExport(
       fix('raci/voyage-operations.dgmo'),
