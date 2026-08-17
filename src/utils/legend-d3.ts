@@ -290,6 +290,21 @@ function renderCapsule(
       .attr('data-series-name', entry.value)
       .style('cursor', 'pointer');
 
+    // Transparent hit-rect spanning the whole entry so hover/click land on the
+    // full pill area, not only the dot/text glyphs. Same numbers the string
+    // emitter uses (legend-svg.ts) — the shared layout engine already computed
+    // the entry's box, so this needs no getBBox() and works under jsdom.
+    if (entry.width != null) {
+      entryG
+        .append('rect')
+        .attr('data-legend-hit', '')
+        .attr('x', entry.x)
+        .attr('y', entry.y)
+        .attr('width', entry.width)
+        .attr('height', LEGEND_HEIGHT)
+        .attr('fill', 'transparent');
+    }
+
     entryG
       .append('circle')
       .attr('cx', entry.dotCx)

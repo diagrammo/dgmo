@@ -12,6 +12,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { select } from 'd3-selection';
 import { renderLegendD3 } from '../src/utils/legend-d3';
+import { LEGEND_DOT_R, LEGEND_HEIGHT } from '../src/utils/legend-constants';
 import type { LegendConfig, LegendCallbacks } from '../src/utils/legend-types';
 import type { LegendGroupData } from '../src/utils/legend-svg';
 
@@ -90,6 +91,42 @@ describe('renderLegendD3', () => {
     const circles = entries[0].querySelectorAll('circle');
     expect(circles.length).toBe(1);
     expect(circles[0].getAttribute('fill')).toBe('#e53e3e');
+  });
+
+  it('gives each entry a transparent hit-rect wider than its dot', () => {
+    // Without it the only pointer targets are the 4px dot and the text glyph
+    // strokes — the gap between them, and the padding around the capsule, are
+    // dead, so the legend looks like a row of pills and behaves like a row of
+    // pinpricks. Mirrors the string emitter (legend-svg.ts).
+    const g = makeContainer();
+    renderLegendD3(
+      select(g),
+      defaultConfig,
+      { activeGroup: 'Priority' },
+      palette,
+      false
+    );
+
+    const entries = g.querySelectorAll('[data-legend-entry]');
+    expect(entries.length).toBe(2);
+
+    for (const entry of Array.from(entries)) {
+      const hit = entry.querySelector('[data-legend-hit]');
+      expect(hit).not.toBeNull();
+      expect(hit!.getAttribute('fill')).toBe('transparent');
+
+      // Behind the visible marks, so it never intercepts their paint.
+      expect(entry.firstElementChild).toBe(hit);
+
+      // Spans dot AND label, not just the dot: strictly wider than the dot's
+      // diameter, and reaching past the text's start x.
+      const w = Number(hit!.getAttribute('width'));
+      const x = Number(hit!.getAttribute('x'));
+      const textX = Number(entry.querySelector('text')!.getAttribute('x'));
+      expect(w).toBeGreaterThan(LEGEND_DOT_R * 2);
+      expect(x + w).toBeGreaterThan(textX);
+      expect(Number(hit!.getAttribute('height'))).toBe(LEGEND_HEIGHT);
+    }
   });
 
   it('sets data-legend-active on container when active group set', () => {

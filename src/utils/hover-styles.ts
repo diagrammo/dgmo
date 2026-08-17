@@ -77,6 +77,17 @@ export interface HoverDerived {
   ids?: string[];
   /** The group attr resolved at scan time (tag-active charts). */
   groupAttr?: string;
+  /** The tag attr the LEGEND pairs against, when it is not the same attr the
+   *  strategy enumerates. Set only for charts whose legend is a tag-group
+   *  legend while their cross rules key off something else — the graph family
+   *  (org, c4, sitemap, sequence, sketch, boxes-and-lines: cross rules are
+   *  node→edge) and gantt (cross rules key off `data-group`). Left undefined
+   *  for the tag-active enumerated charts, whose `groupAttr` already IS the
+   *  tag attr and whose legend rules the enumerated branch emits. */
+  legendAttr?: string;
+  /** Distinct values of `legendAttr`, read off the marks (never off the
+   *  legend — a legend entry with no matching mark would dim everything). */
+  legendValues?: string[];
 }
 
 /**
@@ -256,6 +267,34 @@ export function buildHoverCss(
     }
   }
 
+  // Legend pairing for a chart whose legend is a TAG-group legend while its
+  // cross rules key off something else — the graph family (node→edge) and
+  // gantt (`data-group`). Emitted alongside those rules rather than instead of
+  // them: hovering a NODE dims non-incident edges, hovering a LEGEND ENTRY dims
+  // non-matching marks, and the two triggers cannot fire at once. The marks
+  // already carry `data-tag-<slug>` lowercased and the legend already emits
+  // `data-legend-entry` lowercased, so this needs no renderer change.
+  const legendValues = derived.legendValues ?? [];
+  if (spec.legend && derived.legendAttr && legendValues.length) {
+    if (legendValues.length > MAX_HOVER_GROUPS) {
+      base.push(
+        `/* hover: ${legendValues.length} legend groups exceeds cap ${MAX_HOVER_GROUPS}; no legend pairing */`
+      );
+    } else {
+      for (const v of legendValues) {
+        cross.push(
+          legendRule(
+            spec.markSelector,
+            derived.legendAttr,
+            v,
+            emphasis,
+            dimOpacity
+          )
+        );
+      }
+    }
+  }
+
   // Cross/connection rules are pointer-only (RED-4): a touch device has no
   // hover, so `@media (hover:hover)` prevents stuck/absent dimming there. Self
   // emphasis is intentionally global (a tap counts as :hover on touch).
@@ -336,10 +375,15 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
   // and no renderer edits. Tag-group charts (treemap/event-line/block/map —
   // keyed on a per-diagram `data-tag-<slug>`) are deferred: they need
   // active-tag-slug discovery in the injector.
+  // gantt's legend is a TAG-group legend while its cross rules enumerate
+  // `data-group` (the section), so the two key off different attrs — the
+  // injector resolves the legend's own attr (`legendAttr`). Measured
+  // 2026-08-16: 10/10 `.gantt-task` marks carry `data-tag-crew`.
   gantt: {
     markSelector: '.gantt-task',
     strategy: 'enumerated',
     groupAttr: 'data-group',
+    legend: true,
   },
   timeline: {
     markSelector: '.tl-event',
@@ -355,6 +399,24 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
   },
 
   // ── CROSS-FREE connection charts (node hover → dim non-incident edges) ──
+  //
+  // `legend: true` here is ADDITIVE, not an alternative strategy: these charts
+  // draw a tag-group legend as well as a graph, so they get BOTH node→edge
+  // rules and legend→mark rules. Their marks already carry `data-tag-<slug>`
+  // (lowercased) for the active group, so the injector resolves the pairing
+  // attr itself and no renderer changes. `emphasis` is otherwise inert on a
+  // connection spec — `connectionRule` always dims and `selfRule` always lifts
+  // — so it reads here purely as the legend's emphasis, and `dim` is what the
+  // app's own legend hover does (FamilyPreview `emphasizeCards`).
+  //
+  // Charts that draw a legend and tagged marks but are NOT listed:
+  //   infra   — keys its attrs off the tag ALIAS (`data-tag-f` for `Fleet`),
+  //             so `data-legend-active="fleet"` matches no mark. Tracked
+  //             separately; `resolveTagAttr` degrades to no legend rules.
+  //   kanban  — `structural`; the marks are columns while the tags sit on the
+  //             cards inside them, so a pairing needs a mark-selector change.
+  //   bracket, family — no registry row at all; a legend needs a whole spec.
+  //   map     — carries two tag kinds on different marks (see its row).
   sequence: {
     markSelector: '.participant',
     strategy: 'connection',
@@ -363,6 +425,8 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     edgeSelector: '.message-arrow',
     fromAttr: 'data-from',
     toAttr: 'data-to',
+    legend: true,
+    emphasis: 'dim',
   },
   arc: {
     markSelector: '.arc-node',
@@ -441,6 +505,8 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     edgeSelector: '.bl-edge-group',
     fromAttr: 'data-from',
     toAttr: 'data-to',
+    legend: true,
+    emphasis: 'dim',
   },
   sketch: {
     markSelector: '.sk-node',
@@ -450,6 +516,8 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     edgeSelector: '.sk-edge-group',
     fromAttr: 'data-from',
     toAttr: 'data-to',
+    legend: true,
+    emphasis: 'dim',
   },
   infra: {
     markSelector: '.infra-node',
@@ -468,6 +536,8 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     edgeSelector: '.c4-edge-group',
     fromAttr: 'data-source',
     toAttr: 'data-target',
+    legend: true,
+    emphasis: 'dim',
   },
   class: {
     markSelector: '.cd-class',
@@ -495,6 +565,8 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     edgeSelector: '.org-edge',
     fromAttr: 'data-from',
     toAttr: 'data-to',
+    legend: true,
+    emphasis: 'dim',
   },
   sitemap: {
     markSelector: '.sitemap-node',
@@ -504,6 +576,8 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     edgeSelector: '.sitemap-edge-group',
     fromAttr: 'data-from',
     toAttr: 'data-to',
+    legend: true,
+    emphasis: 'dim',
   },
   cycle: {
     markSelector: '.cycle-node',
@@ -623,6 +697,53 @@ export interface InjectHoverOptions {
  * never re-serialized, so no attribute reordering / entity churn). Requires a
  * `document`; returns an empty derived set when none is available.
  */
+/**
+ * Resolve the `data-tag-<slug>` attr for the ONE active tag group: from the
+ * legend's `data-legend-active` marker, else from the marks when they carry
+ * exactly one distinct `data-tag-*` (charts with no marker, e.g. mindmap).
+ * Ambiguous or absent → undefined (F9: never the intersection of all groups).
+ */
+function resolveTagAttr(
+  root: Element,
+  markSelector: string
+): string | undefined {
+  const slug = root
+    .querySelector('[data-legend-active]')
+    ?.getAttribute('data-legend-active');
+  if (slug) {
+    // Defensive re-slug: legacy SVGs (pre-0.46) carried the raw lowercased
+    // group name here, which is not a valid attribute name when the group
+    // name contains spaces/parens — querySelectorAll would throw.
+    const attr = `data-tag-${tagAttrKey(slug)}`;
+    // The marker names the GROUP; a renderer that keys its attrs off the tag
+    // ALIAS instead (infra) produces a marker that matches no mark. Only
+    // return an attr something actually carries, so a mismatch degrades to
+    // no legend rules rather than to rules that dim the whole chart.
+    if (root.querySelector(`${markSelector}[${attr}]`)) return attr;
+  }
+  const names = new Set<string>();
+  root.querySelectorAll(markSelector).forEach((el) => {
+    for (const a of Array.from(el.attributes)) {
+      if (a.name.startsWith('data-tag-')) names.add(a.name);
+    }
+  });
+  return names.size === 1 ? [...names][0] : undefined;
+}
+
+/** Distinct values of `attr` across the marks. */
+function distinctAttrValues(
+  root: Element,
+  markSelector: string,
+  attr: string
+): string[] {
+  const seen = new Set<string>();
+  root.querySelectorAll(`${markSelector}[${attr}]`).forEach((el) => {
+    const v = el.getAttribute(attr);
+    if (v != null) seen.add(v);
+  });
+  return [...seen];
+}
+
 function deriveFromSvg(svg: string, spec: HoverSpec): HoverDerived {
   if (typeof document === 'undefined') return {};
   const holder = document.createElement('div');
@@ -630,44 +751,36 @@ function deriveFromSvg(svg: string, spec: HoverSpec): HoverDerived {
   const root = holder.querySelector('svg');
   if (!root) return {};
 
+  // A tag-group legend pairs against the active group's attr, which for these
+  // charts is NOT what the strategy enumerates. Resolved once here; left
+  // undefined when the strategy already keys off the same attr, so the
+  // enumerated branch stays the single emitter for those charts.
+  const legendExtra = (): HoverDerived => {
+    if (!spec.legend || spec.groupAttrMode === 'tag-active') return {};
+    const attr = resolveTagAttr(root, spec.markSelector);
+    if (!attr || attr === spec.groupAttr) return {};
+    return {
+      legendAttr: attr,
+      legendValues: distinctAttrValues(root, spec.markSelector, attr),
+    };
+  };
+
   if (spec.strategy === 'enumerated') {
     // Resolve the group attr. Fixed name (`groupAttr`), or — for tag-group
     // charts — the single ACTIVE tag group, discovered from the legend's
     // `data-legend-active="<slug>"` marker → `data-tag-<slug>` (F9: exactly one
     // group drives the rules, never the intersection of all tag groups). No
     // active tag → self-emphasis only.
-    let groupAttr = spec.groupAttr;
-    if (spec.groupAttrMode === 'tag-active') {
-      const slug = root
-        .querySelector('[data-legend-active]')
-        ?.getAttribute('data-legend-active');
-      if (slug) {
-        // Defensive re-slug: legacy SVGs (pre-0.46) carried the raw lowercased
-        // group name here, which is not a valid attribute name when the group
-        // name contains spaces/parens — querySelectorAll would throw.
-        groupAttr = `data-tag-${tagAttrKey(slug)}`;
-      } else {
-        // Fallback for charts with no legend-active marker (e.g. mindmap): if
-        // the marks carry exactly ONE distinct `data-tag-*` group, use it.
-        // Ambiguous (multiple) or none → self-emphasis only (F9).
-        const names = new Set<string>();
-        root.querySelectorAll(spec.markSelector).forEach((el) => {
-          for (const a of Array.from(el.attributes)) {
-            if (a.name.startsWith('data-tag-')) names.add(a.name);
-          }
-        });
-        if (names.size !== 1) return {};
-        groupAttr = [...names][0];
-      }
-    }
-    if (!groupAttr) return {};
-    const attr = groupAttr;
-    const seen = new Set<string>();
-    root.querySelectorAll(`${spec.markSelector}[${attr}]`).forEach((el) => {
-      const v = el.getAttribute(attr);
-      if (v != null) seen.add(v);
-    });
-    return { values: [...seen], groupAttr: attr };
+    const groupAttr =
+      spec.groupAttrMode === 'tag-active'
+        ? resolveTagAttr(root, spec.markSelector)
+        : spec.groupAttr;
+    if (!groupAttr) return { ...legendExtra() };
+    return {
+      values: distinctAttrValues(root, spec.markSelector, groupAttr),
+      groupAttr,
+      ...legendExtra(),
+    };
   }
   if (spec.strategy === 'connection' && spec.hoverSelector && spec.hoverAttr) {
     const seen = new Set<string>();
@@ -677,9 +790,9 @@ function deriveFromSvg(svg: string, spec: HoverSpec): HoverDerived {
         const v = el.getAttribute(spec.hoverAttr!);
         if (v != null) seen.add(v);
       });
-    return { ids: [...seen] };
+    return { ids: [...seen], ...legendExtra() };
   }
-  return {}; // structural needs no derived values
+  return { ...legendExtra() }; // structural needs no enumerated values
 }
 
 /**

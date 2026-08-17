@@ -417,3 +417,105 @@ describe('deriveFromSvg — tag-active slug robustness', () => {
     ).not.toThrow();
   });
 });
+
+describe('injectHoverStyles — legend pairing on a NON-enumerated chart', () => {
+  // The tag-group graph family draws a legend AND a graph: its cross rules are
+  // node→edge (`connection`), so before this the legend was rendered with
+  // `cursor: pointer` and did nothing at all in an export. The marks already
+  // carry `data-tag-<slug>` lowercased for the active group, so the pairing is
+  // a generator concern only — no renderer change.
+  /** The baked CSS only — the SVG markup itself contains `data-legend-entry`
+   *  on the legend elements, so a whole-document assertion cannot tell a
+   *  missing RULE from a present legend. */
+  const styleOf = (out: string): string =>
+    (out.match(/<style>([\s\S]*?)<\/style>/) ?? ['', ''])[1];
+
+  const orgSvg =
+    '<svg xmlns="http://www.w3.org/2000/svg">' +
+    '<g data-legend-active="rank">' +
+    '<g data-legend-entry="captain"></g><g data-legend-entry="gunner"></g>' +
+    '</g>' +
+    '<g class="org-node" data-node-id="n1" data-tag-rank="captain"></g>' +
+    '<g class="org-node" data-node-id="n2" data-tag-rank="gunner"></g>' +
+    '<g class="org-node" data-node-id="n3" data-tag-rank="gunner"></g>' +
+    '<g class="org-edge" data-from="n1" data-to="n2"></g>' +
+    '</svg>';
+
+  it('emits legend rules ALONGSIDE the connection rules, not instead', () => {
+    const out = injectHoverStyles(orgSvg, 'org', { bakeHover: true });
+    // node hover → dim non-incident edges (unchanged)
+    expect(out).toContain(
+      'svg:has(.org-node[data-node-id="n1"]:hover) .org-edge:not([data-from="n1"]):not([data-to="n1"])'
+    );
+    // legend hover → dim non-matching nodes (new)
+    expect(out).toContain(
+      'svg:has([data-legend-entry="captain"]:hover) .org-node:not([data-tag-rank="captain"])'
+    );
+  });
+
+  it('emits one legend rule per DISTINCT tag value, read off the marks', () => {
+    const out = injectHoverStyles(orgSvg, 'org', { bakeHover: true });
+    const rules = out.match(/svg:has\(\[data-legend-entry=/g) ?? [];
+    expect(rules.length).toBe(2); // gunner twice on the marks, once in the CSS
+  });
+
+  it('derives values from the MARKS, never from the legend', () => {
+    // A legend entry with no matching mark must emit no rule — its
+    // `:not([attr="v"])` would match every mark and dim the whole chart.
+    const withGhost = orgSvg.replace(
+      '<g data-legend-entry="gunner"></g>',
+      '<g data-legend-entry="gunner"></g><g data-legend-entry="swab"></g>'
+    );
+    const out = injectHoverStyles(withGhost, 'org', { bakeHover: true });
+    expect(styleOf(out)).not.toContain('[data-legend-entry="swab"]');
+  });
+
+  it('dims rather than lifts, matching the app’s own legend hover', () => {
+    const out = injectHoverStyles(orgSvg, 'org', { bakeHover: true });
+    expect(out).toContain(':not([data-tag-rank="captain"]){opacity:0.4}');
+  });
+
+  it('emits nothing when no tag group is active (legend is a plain key)', () => {
+    const noActive =
+      '<svg xmlns="http://www.w3.org/2000/svg">' +
+      '<g class="org-node" data-node-id="n1"></g>' +
+      '<g class="org-edge" data-from="n1" data-to="n2"></g></svg>';
+    const out = injectHoverStyles(noActive, 'org', { bakeHover: true });
+    expect(out).toContain('.org-node:hover'); // self floor survives
+    expect(styleOf(out)).not.toContain('data-legend-entry');
+  });
+
+  it('emits nothing when the active-group marker matches no mark', () => {
+    // infra keys its attrs off the tag ALIAS (`data-tag-f` for a group named
+    // `Fleet`), so the marker names a group the marks do not carry. Degrade to
+    // no legend rules rather than to rules that dim everything.
+    const mismatched = orgSvg.replace(/data-tag-rank/g, 'data-tag-r');
+    const out = injectHoverStyles(mismatched, 'org', { bakeHover: true });
+    // one distinct data-tag-* on the marks → the fallback still resolves it
+    expect(out).toContain('[data-tag-r="captain"]');
+
+    const ambiguous = mismatched.replace(
+      '<g class="org-node" data-node-id="n3" data-tag-r="gunner"></g>',
+      '<g class="org-node" data-node-id="n3" data-tag-other="x"></g>'
+    );
+    const out2 = injectHoverStyles(ambiguous, 'org', { bakeHover: true });
+    expect(styleOf(out2)).not.toContain('data-legend-entry');
+  });
+
+  it('pairs gantt’s legend to its TAG attr, not the attr it enumerates', () => {
+    // gantt enumerates `data-group` (the section) while its legend is a tag
+    // legend — the two must not be conflated.
+    const ganttSvg =
+      '<svg xmlns="http://www.w3.org/2000/svg">' +
+      '<g data-legend-active="crew"></g>' +
+      '<rect class="gantt-task" data-group="Rigging" data-tag-crew="deck"/>' +
+      '<rect class="gantt-task" data-group="Sailing" data-tag-crew="galley"/>' +
+      '</svg>';
+    const out = injectHoverStyles(ganttSvg, 'gantt', { bakeHover: true });
+    expect(out).toContain('.gantt-task[data-group="Rigging"]'); // unchanged
+    expect(out).toContain(
+      'svg:has([data-legend-entry="deck"]:hover) .gantt-task'
+    );
+    expect(out).toContain('[data-tag-crew="deck"]');
+  });
+});
