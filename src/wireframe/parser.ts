@@ -4,19 +4,10 @@
 
 import type { DgmoError } from '../diagnostics';
 import { formatDgmoError, makeDgmoError } from '../diagnostics';
-import type { TagGroup } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
-import {
-  isTagBlockHeading,
-  matchTagBlockHeading,
-  validateTagGroupNames,
-  stripDefaultModifier,
-  finalizeAutoTagColors,
-  AUTO_TAG_COLOR_SENTINEL,
-} from '../utils/tag-groups';
+import { isTagBlockHeading } from '../utils/tag-groups';
 import {
   measureIndent,
-  extractColor,
   parseFirstLine,
   OPTION_NOCOLON_RE,
   tryParseSharedOption,
@@ -49,7 +40,23 @@ type MutableWireframeElement = Omit<
 // ============================================================
 
 /** Known wireframe option keys (header-phase options before content) */
-const KNOWN_OPTIONS = new Set(['palette', 'theme', 'active-tag']);
+const KNOWN_OPTIONS = new Set(['palette', 'theme']);
+
+/**
+ * Options and blocks wireframe recognizes only in order to refuse them.
+ * A wireframe has no tag colouring — its elements carry a trailing flag list
+ * (`primary`, `disabled`, …), not tag metadata — so a tag group has nothing to
+ * apply to and `active-tag` has nothing to select (#251). Recognizing and
+ * warning beats simply not knowing the key: an unrecognized line here ends the
+ * header phase and is parsed as an ELEMENT, so `active-tag Priority` would
+ * appear in the wireframe as a label.
+ */
+const INERT_OPTIONS: Record<string, string> = {
+  'active-tag':
+    '"active-tag" does nothing on a wireframe — it has no tag groups. Element appearance comes from the trailing state keywords (primary, disabled, selected, …).',
+};
+const NO_TAG_GROUPS_MESSAGE =
+  'A wireframe has no tag groups — this block is ignored. Element appearance comes from the trailing state keywords (primary, disabled, selected, …).';
 
 /** Keywords that only make sense on groups — force group interpretation (EC1).
  *  Exported so editor completion can drop them for non-group elements. */
@@ -663,29 +670,22 @@ export function parseWireframe(content: string): ParsedWireframe {
   let formFactor: WireframeFormFactor = 'desktop';
   const roots: MutableWireframeElement[] = [];
   const modals: MutableWireframeElement[] = [];
-  const tagGroups: TagGroup[] = [];
   const options: Record<string, string> = {};
 
   // Parsing state
-  let phase: 'header' | 'tags' | 'content' = 'header';
-  let currentTagGroup: Writable<TagGroup> | null = null;
+  let phase: 'header' | 'content' = 'header';
+  // A `tag` block is refused, but still SWALLOWED — its indented entries must
+  // not fall through and become wireframe elements named "High red" (#251).
+  let swallowingTagBlock = false;
 
   function pushWarning(line: number, msg: string): void {
     diagnostics.push(makeDgmoError(line, msg, 'warning'));
   }
 
-  function makeTagGroup(
-    trimmed: string,
-    lineNumber: number
-  ): Writable<TagGroup> | null {
-    const match = matchTagBlockHeading(trimmed);
-    if (!match) return null;
-    return {
-      name: match.name,
-      ...(match.alias !== undefined && { alias: match.alias }),
-      entries: [],
-      lineNumber,
-    };
+  /** Refuse a `tag` block: warn at its heading, then eat the block. */
+  function refuseTagBlock(lineNumber: number): void {
+    pushWarning(lineNumber, NO_TAG_GROUPS_MESSAGE);
+    swallowingTagBlock = true;
   }
 
   // Indent stack for hierarchy
@@ -800,6 +800,14 @@ export function parseWireframe(content: string): ParsedWireframe {
 
     const indent = measureIndent(line);
 
+    // ── Refused tag block: eat its entries ────────────────
+    // The heading already warned that the whole block is ignored; without
+    // this, `High red` under it would become a wireframe element (#251).
+    if (swallowingTagBlock) {
+      if (indent > 0) continue;
+      swallowingTagBlock = false;
+    }
+
     // ── Header phase ──────────────────────────────────────
     if (phase === 'header') {
       // First line: chart type declaration
@@ -825,66 +833,28 @@ export function parseWireframe(content: string): ParsedWireframe {
       // Store under the canonical lowercased key, as every other parser does —
       // `Palette Nord` used to land in options['Palette'] and every lookup by
       // the canonical name missed it (#251).
-      if (optMatch && KNOWN_OPTIONS.has(optMatch[1]!.toLowerCase())) {
-        options[optMatch[1]!.toLowerCase()] = optMatch[2] || '';
-        continue;
-      }
-
-      // Tag group heading
-      if (isTagBlockHeading(trimmed)) {
-        const tg = makeTagGroup(trimmed, lineNumber);
-        if (tg) {
-          currentTagGroup = tg;
-          tagGroups.push(tg);
-          phase = 'tags';
+      if (optMatch) {
+        const key = optMatch[1]!.toLowerCase();
+        const inertMsg = INERT_OPTIONS[key];
+        if (inertMsg) {
+          pushWarning(lineNumber, inertMsg);
           continue;
         }
+        if (KNOWN_OPTIONS.has(key)) {
+          options[key] = optMatch[2] || '';
+          continue;
+        }
+      }
+
+      // Tag group heading — refused, not parsed
+      if (isTagBlockHeading(trimmed)) {
+        refuseTagBlock(lineNumber);
+        continue;
       }
 
       // Not a header line — switch to content phase
       phase = 'content';
       // Fall through to content parsing
-    }
-
-    // ── Tag group entries ─────────────────────────────────
-    if (phase === 'tags') {
-      // Tag group heading
-      if (isTagBlockHeading(trimmed)) {
-        const tg = makeTagGroup(trimmed, lineNumber);
-        if (tg) {
-          currentTagGroup = tg;
-          tagGroups.push(tg);
-          continue;
-        }
-      }
-
-      // Indented tag entry: `Value color` or `Value color default`
-      if (indent > 0 && currentTagGroup) {
-        const { text: cleanEntry, isDefault } = stripDefaultModifier(trimmed);
-        const { label, color } = extractColor(
-          cleanEntry,
-          undefined,
-          diagnostics,
-          lineNumber
-        );
-        // Bare value (no explicit color) → keep it; finalized below.
-        currentTagGroup.entries.push({
-          value: label,
-          color: color ?? AUTO_TAG_COLOR_SENTINEL,
-          lineNumber,
-        });
-        if (isDefault) {
-          currentTagGroup.defaultValue = label;
-        } else if (currentTagGroup.entries.length === 1) {
-          currentTagGroup.defaultValue = label;
-        }
-        continue;
-      }
-
-      // Non-indented, non-tag-heading → switch to content
-      phase = 'content';
-      currentTagGroup = null;
-      // Fall through
     }
 
     // ── Content phase ─────────────────────────────────────
@@ -910,6 +880,11 @@ export function parseWireframe(content: string): ParsedWireframe {
         // who had already written it lowercase (#251).
         // In-bounds: OPTION_NOCOLON_RE has 2 capture groups; first is required by match.
         const key = optMatch[1]!.toLowerCase();
+        const inertMsg = INERT_OPTIONS[key];
+        if (inertMsg) {
+          pushWarning(lineNumber, inertMsg);
+          continue;
+        }
         if (KNOWN_OPTIONS.has(key)) {
           options[key] = optMatch[2] || '';
           continue;
@@ -917,15 +892,10 @@ export function parseWireframe(content: string): ParsedWireframe {
       }
     }
 
-    // Tag group entries can appear in content phase too
+    // A tag block written after content starts is refused the same way
     if (isTagBlockHeading(trimmed)) {
-      const tg = makeTagGroup(trimmed, lineNumber);
-      if (tg) {
-        currentTagGroup = tg;
-        tagGroups.push(tg);
-        phase = 'tags';
-        continue;
-      }
+      refuseTagBlock(lineNumber);
+      continue;
     }
 
     // Table data rows (comma-separated, indented under a table element)
@@ -1026,16 +996,6 @@ export function parseWireframe(content: string): ParsedWireframe {
     }
   }
 
-  // Assign palette colors to bare (colorless) tag values. Wireframe does not
-  // thread a PaletteColors object into parse, so names resolve to the Nord
-  // defaults — exactly as explicit `Value color` entries already do here.
-  finalizeAutoTagColors(tagGroups as Writable<TagGroup>[]);
-
-  // Validate tag groups
-  validateTagGroupNames(tagGroups, pushWarning, (line, msg) => {
-    diagnostics.push(makeDgmoError(line, msg));
-  });
-
   const error = diagnostics.find((d) => d.severity === 'error')
     ? formatDgmoError(diagnostics.find((d) => d.severity === 'error')!)
     : null;
@@ -1046,7 +1006,6 @@ export function parseWireframe(content: string): ParsedWireframe {
     formFactor,
     roots,
     modals,
-    tagGroups,
     options,
     diagnostics,
     error,

@@ -214,7 +214,7 @@ tag GroupName as <alias>
 - Must appear before diagram content
 - Bare shorthand is not an alias (TD-18): `tag Priority p` declares a group *named* "Priority p" — no alias registers, so `p:` assignments silently miss. The parser warns on this shape (spaced name, no alias, alias-shaped trailing word), suggesting `tag Priority as p` or a quoted name
 
-**Diagram types that support tags**: the tag model is near-universal across the structural types — sequence, infra, org, c4, er, kanban, gantt, sitemap, timeline, boxes-and-lines, state (§5.7), pert, swimlane, mindmap, journey-map, event-line, treemap, map, block, sketch, bracket, family, and wireframe all accept `tag <Group> as <alias>` blocks. Check the per-type Options section for the exact directive set; if a type draws a tag legend, it takes tags.
+**Diagram types that support tags**: the tag model is near-universal across the structural types — sequence, infra, org, c4, er, kanban, gantt, sitemap, timeline, boxes-and-lines, state (§5.7), pert, swimlane, mindmap, journey-map, event-line, treemap, map, block, sketch, bracket and family all accept `tag <Group> as <alias>` blocks. Check the per-type Options section for the exact directive set; if a type draws a tag legend, it takes tags. **Flowchart, wireframe and raci take no tags** — a `tag` block or `active-tag` on any of them is ignored with a warning, because what an element looks like is fixed by what it is (a flowchart's shape, a wireframe's state keywords) or by the roles (raci).
 
 ### 1.4 Same-Line Metadata
 

@@ -446,14 +446,47 @@ describe('wireframe parser', () => {
     });
   });
 
-  describe('tag groups', () => {
-    it('parses tag group with entries', () => {
+  describe('tag groups are refused (#251)', () => {
+    it('warns at the block heading and eats the block', () => {
       const result = parseWireframe(
         'wireframe Test\ntag Status as s\n  Active green\n  Inactive gray\n[Form]\n  (Submit)'
       );
-      expect(result.tagGroups).toHaveLength(1);
-      expect(result.tagGroups[0].name).toBe('Status');
-      expect(result.tagGroups[0].entries).toHaveLength(2);
+      expect(result.error).toBeNull();
+      const warnings = result.diagnostics.filter(
+        (d) => d.severity === 'warning'
+      );
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].message).toContain('no tag groups');
+      expect(warnings[0].line).toBe(2);
+      // The entries must be eaten, not turned into elements named
+      // "Active green" — that is the failure this refusal has to avoid.
+      const labels = result.roots.map((r) => r.label);
+      expect(labels).toEqual(['Form']);
+    });
+
+    it('refuses a tag block written after content starts', () => {
+      const result = parseWireframe(
+        'wireframe Test\n[Form]\n  (Submit)\ntag Status as s\n  Active green'
+      );
+      const warnings = result.diagnostics.filter(
+        (d) => d.severity === 'warning'
+      );
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].message).toContain('no tag groups');
+      expect(result.roots.map((r) => r.label)).toEqual(['Form']);
+    });
+
+    it('warns that active-tag does nothing, without minting an element', () => {
+      const result = parseWireframe(
+        'wireframe Test\nactive-tag Status\n[Form]\n  (Submit)'
+      );
+      const warnings = result.diagnostics.filter(
+        (d) => d.severity === 'warning'
+      );
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].message).toContain('"active-tag" does nothing');
+      expect(result.options['active-tag']).toBeUndefined();
+      expect(result.roots.map((r) => r.label)).toEqual(['Form']);
     });
   });
 

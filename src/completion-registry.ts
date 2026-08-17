@@ -384,7 +384,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description:
           'Declare role column order (inline `roles A, B, C` or indented block with per-role pipe metadata)',
       },
-      'active-tag': { description: 'Active tag group name' },
+      // No `active-tag`: raci has no tag groups at all (#251).
     }),
   ],
   [
@@ -560,9 +560,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
   [
     'wireframe',
+    // No `active-tag`: a wireframe has no tag groups, and the parser now
+    // refuses both it and `tag` blocks (#251).
     withGlobals({
       mobile: { description: 'Use mobile (narrow vertical) layout' },
-      'active-tag': { description: 'Active tag group name' },
     }),
   ],
   [
@@ -1039,7 +1040,8 @@ export const STRUCTURAL_KEYWORDS = new Map<string, string[]>([
       'progress',
       'chart',
       'mobile',
-      'tag',
+      // No `tag`: wireframe has no tag groups, and dropping it here also
+      // drops wireframe from the derived TAG_SUPPORTING_TYPES below (#251).
     ],
   ],
   ['class', ['abstract', 'interface', 'enum', 'extends', 'implements']],

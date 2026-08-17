@@ -3,7 +3,6 @@
 // ============================================================
 
 import type { DgmoError } from '../diagnostics';
-import type { TagGroup } from '../utils/tag-groups';
 
 /**
  * All wireframe element types.
@@ -103,7 +102,6 @@ export interface ParsedWireframe {
   readonly roots: readonly WireframeElement[];
   /** Modal elements (rendered separately below main) */
   readonly modals: readonly WireframeElement[];
-  readonly tagGroups: readonly TagGroup[];
   readonly options: Readonly<Record<string, string>>;
   readonly diagnostics: readonly DgmoError[];
   readonly error: string | null;
