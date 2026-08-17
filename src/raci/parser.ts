@@ -47,12 +47,24 @@ import type {
 import type { Writable } from '../utils/brand';
 
 /** Header options that take a value (`key value`). */
-const KNOWN_OPTIONS = new Set(['roles', 'palette', 'theme', 'active-tag']);
+const KNOWN_OPTIONS = new Set(['roles', 'palette', 'theme']);
 /** Header options that are bare booleans (presence = on). */
 const KNOWN_BOOLEANS = new Set<string>(['no-title']);
 const REMOVED_BOOLEANS: Record<string, string> = {
   'no-rule-enforcement':
     '"no-rule-enforcement" has been removed — RACI validation is always active.',
+};
+/**
+ * Valued options this chart recognizes only to say it does nothing with them.
+ * A directive a chart accepts is a promise it does something, and raci has no
+ * tag groups at all — there is nothing for `active-tag` to select even in
+ * principle (#251). Warning beats dropping it from KNOWN_OPTIONS: an
+ * unrecognized `key value` line here falls through and becomes a TASK named
+ * "active-tag Priority", which is a louder wrong answer than silence.
+ */
+const INERT_OPTIONS: Record<string, string> = {
+  'active-tag':
+    '"active-tag" does nothing on a raci chart — it has no tag groups. Colour comes from the roles; give a role its own with the block form of "roles".',
 };
 
 // Allow optional trailing color shortcut and/or pipe metadata after the
@@ -387,6 +399,11 @@ export function parseRaci(
       if (optMatch) {
         // Capture groups [1] and [2] guaranteed by OPTION_NOCOLON_RE shape.
         const key = optMatch[1]!.trim().toLowerCase();
+        const inertMsg = INERT_OPTIONS[key];
+        if (inertMsg) {
+          warn(lineNumber, inertMsg);
+          continue;
+        }
         if (KNOWN_OPTIONS.has(key)) {
           const value = optMatch[2]!.trim();
           if (key === 'roles') {

@@ -461,3 +461,40 @@ Task
     expect(t.roleAssignments[1].displayName).toBe('Junior Dev');
   });
 });
+
+// ============================================================
+// Inert directives (#251)
+// ============================================================
+
+describe('parseRaci — active-tag is refused, not swallowed', () => {
+  it('warns that active-tag does nothing, and does not mint a task from it', () => {
+    const r = parseRaci(`raci Launch
+active-tag Priority
+
+Ship it
+  Cap: A`);
+    expect(r.error).toBeNull();
+    const warning = r.diagnostics.find((d) =>
+      d.message.includes('"active-tag" does nothing')
+    );
+    expect(warning).toBeDefined();
+    expect(warning!.severity).toBe('warning');
+    // The old behaviour stored the value and dropped it. Removing it from the
+    // known set alone would be worse — the line falls through to the task
+    // parser and becomes a task literally named "active-tag Priority".
+    expect(r.options['active-tag']).toBeUndefined();
+    expect(r.tasksWithoutPhase.map((t) => t.displayName)).toEqual(['Ship it']);
+  });
+
+  it('leaves a real option alone', () => {
+    const r = parseRaci(`raci Launch
+palette nord
+
+Ship it
+  Cap: A`);
+    expect(r.options['palette']).toBe('nord');
+    expect(r.diagnostics.some((d) => d.message.includes('does nothing'))).toBe(
+      false
+    );
+  });
+});

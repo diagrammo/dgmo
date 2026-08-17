@@ -822,8 +822,11 @@ export function parseWireframe(content: string): ParsedWireframe {
 
       const optMatch = trimmed.match(OPTION_NOCOLON_RE);
       // In-bounds: OPTION_NOCOLON_RE has 2 capture groups; first is required by match.
+      // Store under the canonical lowercased key, as every other parser does —
+      // `Palette Nord` used to land in options['Palette'] and every lookup by
+      // the canonical name missed it (#251).
       if (optMatch && KNOWN_OPTIONS.has(optMatch[1]!.toLowerCase())) {
-        options[optMatch[1]!] = optMatch[2] || '';
+        options[optMatch[1]!.toLowerCase()] = optMatch[2] || '';
         continue;
       }
 
@@ -902,10 +905,12 @@ export function parseWireframe(content: string): ParsedWireframe {
         !trimmed.startsWith('[') &&
         !trimmed.startsWith('(')
       ) {
-        // Only treat as option if it looks like one (palette, theme, active-tag, etc.)
+        // Same key set as the header phase, and the same canonical spelling —
+        // this branch tested the RAW key, so it only ever matched an author
+        // who had already written it lowercase (#251).
         // In-bounds: OPTION_NOCOLON_RE has 2 capture groups; first is required by match.
-        const key = optMatch[1]!;
-        if (['palette', 'theme', 'active-tag'].includes(key)) {
+        const key = optMatch[1]!.toLowerCase();
+        if (KNOWN_OPTIONS.has(key)) {
           options[key] = optMatch[2] || '';
           continue;
         }
