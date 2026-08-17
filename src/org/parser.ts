@@ -44,6 +44,13 @@ export interface OrgNode {
   readonly isContainer: boolean;
   readonly lineNumber: number;
   readonly color?: string;
+  /**
+   * Seeded collapsed by source — `collapsed: true` on the node's own line, or
+   * as an indented key under it / under a `[Container]` header (§6.5).
+   * Lifted out of `metadata` at end of parse so it drives render and export
+   * rather than being drawn as an attribute row.
+   */
+  readonly collapsed?: boolean;
 }
 
 export interface ParsedOrg {
@@ -66,7 +73,13 @@ export interface ParsedOrg {
 // Helpers
 // ============================================================
 
-const CONTAINER_RE = /^\[([^\]]+)\]$/;
+// A container header, optionally carrying the same-line collapse marker
+// (§6.4.1). Deliberately narrow: ONLY `collapsed: <val>` may follow the
+// bracket, so no other trailing text becomes legal on a container line and
+// nothing else about container parsing moves. C4's CONTAINER_RE has the same
+// shape (it also takes a bare `collapsed` flag, which org does not — see the
+// colon-form-only ruling in decision #55).
+const CONTAINER_RE = /^\[([^\]]+)\](?:\s+collapsed:\s*(\S+))?$/;
 const METADATA_RE = /^([^:]+):\s*(.+)$/;
 
 /** Known org chart options (key-value). */
@@ -349,7 +362,13 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
       const node: Writable<OrgNode> = {
         id: containerId,
         label,
-        metadata: {},
+        // The same-line collapse marker (capture 2, §6.4.1). Goes into metadata
+        // rather than the typed field so the one post-parse lift handles every
+        // route — same-line here, indented under the header, or under a person.
+        metadata:
+          containerMatch[2] !== undefined
+            ? { collapsed: containerMatch[2] }
+            : {},
         children: [],
         parentId: null,
         isContainer: true,
@@ -441,6 +460,13 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
     result.diagnostics.push(diag);
     result.error = formatDgmoError(diag);
   }
+
+  // Lift the `collapsed` view-state marker out of metadata into a typed field
+  // (§6.5). One pass at the end covers every way it can arrive — same-line on a
+  // node, an indented key under a node, an indented key under a `[Container]`
+  // header — because all three land in the same `metadata` bag. Dropped from
+  // metadata so it never draws as an attribute row on the card.
+  liftCollapsedMarkers(result.roots);
 
   // `focus <name>` must name a person or team that exists — warn (never
   // error) when it doesn't; renderers fall back to the whole chart.
@@ -549,6 +575,26 @@ function parseNodeLabel(
     isContainer: false,
     lineNumber,
   };
+}
+
+/**
+ * Move `collapsed: <val>` from each node's metadata into its typed `collapsed`
+ * field, recursively. Only the literal `true` collapses — every other chart
+ * type reads this key the same way, so `collapsed: false` spells "expanded"
+ * and still leaves no attribute row behind.
+ */
+function liftCollapsedMarkers(nodes: readonly OrgNode[]): void {
+  for (const node of nodes) {
+    const n = node as Writable<OrgNode>;
+    const raw = n.metadata['collapsed'];
+    if (raw !== undefined) {
+      const meta = { ...n.metadata };
+      delete meta['collapsed'];
+      n.metadata = meta;
+      if (raw.toLowerCase() === 'true') n.collapsed = true;
+    }
+    liftCollapsedMarkers(n.children);
+  }
 }
 
 function attachNode(

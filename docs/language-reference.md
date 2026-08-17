@@ -1118,6 +1118,21 @@ This is key-value metadata assignment, consistent with same-line metadata syntax
   members...
 ```
 
+### 6.4.1 Collapse
+
+`collapsed: true` on a person's line, or indented under a person or a `[Team]`, renders that subtree folded with a hidden-descendant count on the card.
+
+```
+Blackbeard
+  Anne Bonny collapsed: true
+    Cannonball Pete
+  [Gun Deck]
+    collapsed: true
+    Powder Monkey
+```
+
+**Colon form only** — org has no bare trailing `collapsed` flag (mindmap/gantt/kanban do), because an org label is a person's name and a trailing bare word cannot be told from part of one. Only the literal `true` collapses; the key is reserved, so it never becomes part of a label and never draws as an attribute row. Honoured by every render path, so a folded chart survives save, export, share link and embed; applied before `focus`.
+
 ### 6.5 Options
 
 - `direction-lr` / `direction-tb` (booleans, last one wins; default is TB)

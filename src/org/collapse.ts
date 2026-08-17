@@ -68,6 +68,30 @@ const ORG_SHAPE: TreeCollapseShape<OrgNode> = {
 // Main
 // ============================================================
 
+/**
+ * The ids of every node the SOURCE marks collapsed (`collapsed: true`, §6.5),
+ * optionally unioned with an interactive set from a share link or the app.
+ *
+ * Source alone must collapse on a plain render — parity with the app, which
+ * seeds its own collapse state from the same marker — so this is what `viewState.cg`
+ * is combined with rather than replaced by. Mirrors `unionHiddenAttributes`,
+ * the same shape for the `hide` directive.
+ */
+export function unionCollapsedOrgNodes(
+  parsed: ParsedOrg,
+  interactive?: readonly string[]
+): Set<string> {
+  const ids = new Set<string>(interactive ?? []);
+  const walk = (nodes: readonly OrgNode[]): void => {
+    for (const node of nodes) {
+      if (node.collapsed) ids.add(node.id);
+      walk(node.children);
+    }
+  };
+  walk(parsed.roots);
+  return ids;
+}
+
 export function collapseOrgTree(
   original: ParsedOrg,
   collapsedIds: Set<string>

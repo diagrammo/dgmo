@@ -387,7 +387,8 @@ async function exportOrg(ctx: ExportContext): Promise<string> {
   const { content, theme, palette, viewState, exportMode } = ctx;
   const { parseOrg, findOrgNodeIdByName } = await import('./org/parser');
   const { layoutOrg } = await import('./org/layout');
-  const { collapseOrgTree, focusOrgTree } = await import('./org/collapse');
+  const { collapseOrgTree, focusOrgTree, unionCollapsedOrgNodes } =
+    await import('./org/collapse');
   const { renderOrg, ancestorTrailReserve } = await import('./org/renderer');
 
   const isDark = ctx.isDark;
@@ -396,8 +397,11 @@ async function exportOrg(ctx: ExportContext): Promise<string> {
   const orgParsed = parseOrg(content, effectivePalette);
   if (orgParsed.error) return '';
 
-  // Apply interactive collapse state when provided (read from unified viewState)
-  const collapsedNodes = viewState?.cg ? new Set(viewState.cg) : undefined;
+  // Collapsed nodes come from the source `collapsed: true` markers UNIONed with
+  // any interactive `viewState.cg` (share link / app). Source alone must
+  // collapse on a plain render — parity with the app, which seeds from the same
+  // marker — which is why this is a union rather than a viewState-only read.
+  const collapsedNodes = unionCollapsedOrgNodes(orgParsed, viewState?.cg);
   const activeTagGroup = resolveActiveTagGroup(
     orgParsed.tagGroups,
     orgParsed.options['active-tag'],

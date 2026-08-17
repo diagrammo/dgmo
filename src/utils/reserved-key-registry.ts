@@ -131,6 +131,13 @@ export const ORG_REGISTRY: ReservedKeyRegistry = staticRegistry([
   'location',
   'email',
   'phone',
+  // The collapse view-state marker, in the COLON form only (`collapsed: true`).
+  // Org deliberately has no bare trailing-token form the way mindmap and gantt
+  // do: an org label is a person's name and `split.color` is already restored
+  // into it (see `createOrgNode`), so a trailing bare word cannot be told from
+  // part of a name. `key: value` has no such ambiguity. C4 reserves this same
+  // key.
+  'collapsed',
 ]);
 
 export const C4_REGISTRY: ReservedKeyRegistry = staticRegistry([
