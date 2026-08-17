@@ -68,6 +68,17 @@ jobs:
         with:
           ref: ${{ steps.target.outputs.tag }}
 
+      # The same sibling ci.yml clones, and for the same reason: two suites read
+      # the shipped examples out of ../dgmo-content, mirroring the local
+      # workspace layout. Missing here until 2026-08-17, which nothing noticed
+      # while this workflow had never published a release —
+      # tests/embed-clipping.test.ts died on ENOENT and map-layout-golden found
+      # 15 map fixtures where it asserts at least 16.
+      - name: Clone dgmo-content sibling
+        run: |
+          cd ..
+          git clone --depth 1 https://github.com/diagrammo/dgmo-content.git
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v5
         with:
