@@ -89,6 +89,13 @@ const COLLAPSED_NAME_GAP = 10;
 // height by at most this many chips; past it the stack ends in a +N mark. Four
 // covers every tag group the palette can distinguish at chip size anyway.
 const COLLAPSED_CHIP_MAX_SLOTS = 4;
+// A collapsed LANE is the same idea turned ninety degrees: its chips run
+// left-to-right along a 26px band, so a slot is a WIDTH rather than a height and
+// the ribbon rides in the lane header beside the name. Uniform width, measured
+// from the widest count actually drawn, so slot N sits at the same x in every
+// lane and two lanes can be compared by eye.
+const COLLAPSED_CHIP_MIN_WIDTH = 22;
+const COLLAPSED_CHIP_LABEL_PADDING = 10;
 
 // ============================================================
 // Tag color resolution
@@ -192,6 +199,12 @@ function collapsedChips(
         b.count - a.count || rank(aKey) - rank(bKey) || aKey.localeCompare(bKey)
     )
     .map(([, entry]) => entry);
+}
+
+/** What a collapsed lane's header reads. Shared by the drawing and by the
+ *  measurement that reserves room for the chip ribbon beside it. */
+function collapsedLaneLabel(laneName: string, total: number): string {
+  return `${laneName} (${total})`;
 }
 
 // ============================================================
@@ -624,7 +637,15 @@ export function renderKanban(
       sCardPaddingX,
       sCardStrokeWidth,
       sCardTitleFontSize,
-      sCardMetaFontSize
+      sCardMetaFontSize,
+      {
+        height: sCollapsedChipHeight,
+        gap: sCollapsedChipGap,
+        inset: sCollapsedChipInset,
+        radius: sCollapsedChipRadius,
+        nameGap: sCollapsedNameGap,
+        fontSize: sCardMetaFontSize,
+      }
     );
     return;
   }
@@ -1015,6 +1036,17 @@ export function renderKanbanForExport(
 
 const LANE_HEADER_WIDTH = 140;
 const LANE_GAP = 14;
+// The lane header rect stops short of the first column by this much.
+const LANE_HEADER_TRIM = 8;
+// Where a lane label starts inside its header, and what a lane's colour dot
+// costs it. Shared by the drawing and by the measurement that reserves room for
+// the collapsed-lane chip ribbon — if they drift, the ribbon starts in the
+// wrong place.
+const LANE_LABEL_X = 10;
+const LANE_DOT_ADVANCE = 14;
+const LANE_LABEL_BASELINE = 20;
+const COLLAPSED_LANE_FONT_SIZE = 10;
+const LANE_FONT_SIZE = 12;
 
 function drawSwimlaneIcon(
   parent: D3Sel,
@@ -1121,6 +1153,20 @@ interface SwimlaneLaneLayout {
   y: number;
   height: number;
   cells: SwimlaneCellLayout[];
+  /** Per-value counts for a COLLAPSED lane; empty for an expanded one and when
+   *  no tag group is active. */
+  chips: CollapsedChip[];
+}
+
+/** The scaled chip geometry the collapsed-lane ribbon needs, passed as one
+ *  object rather than five more positional parameters. */
+interface CollapsedChipStyle {
+  height: number;
+  gap: number;
+  inset: number;
+  radius: number;
+  nameGap: number;
+  fontSize: number;
 }
 
 interface SwimlaneBoardLayout {
@@ -1129,6 +1175,12 @@ interface SwimlaneBoardLayout {
   totalWidth: number;
   totalHeight: number;
   startY: number;
+  /** The lane header's width AFTER any growth to clear the chip ribbon — the
+   *  columns start at this, so the renderer must use it and not the constant. */
+  laneHeaderWidth: number;
+  /** The ribbon's shared start x (relative to the lane header's own origin),
+   *  the uniform chip width, and how many slots the header was grown for. */
+  laneChips: { startX: number; chipWidth: number; slots: number };
 }
 
 function computeCardHeight(
@@ -1169,14 +1221,93 @@ function computeSwimlaneLayout(
   sCollapsedLaneHeight = COLLAPSED_LANE_HEIGHT,
   sLaneGap = LANE_GAP,
   sCardSeparatorGap = CARD_SEPARATOR_GAP,
-  sCardMetaLineHeight = CARD_META_LINE_HEIGHT
+  sCardMetaLineHeight = CARD_META_LINE_HEIGHT,
+  activeGroup?: KanbanTagGroup,
+  chipStyle?: CollapsedChipStyle
 ): SwimlaneBoardLayout {
   const headerHeight =
     parsed.title && parsed.options['no-title'] !== 'on' ? sTitleHeight + 8 : 0;
   const startY = sDiagramPadding + headerHeight;
 
+  // A collapsed lane drew its name, its total and a per-column count, and
+  // nothing about the KIND of work behind it — the gap a collapsed column had
+  // until #266, turned ninety degrees (#278). The chips ride in the lane header
+  // beside the name, so the header has to be wide enough to hold the widest
+  // label plus the ribbon. That is the mirror image of the column case, where
+  // the board's one shared HEIGHT had to be raised or the chips fell outside
+  // the well and were dropped with no error at all.
+  const laneChipsByLane = new Map<string, CollapsedChip[]>();
+  let chipStartX = 0;
+  let chipWidth = 0;
+  let chipSlots = 0;
+  if (activeGroup && chipStyle) {
+    let widestLabel = 0;
+    for (const bucket of buckets) {
+      if (!(collapsedLanes?.has(bucket.laneName) ?? false)) continue;
+      const cards = Object.values(bucket.cellsByColumn).flat();
+      const chips = collapsedChips(cards, activeGroup);
+      if (chips.length === 0) continue;
+      laneChipsByLane.set(bucket.laneName, chips);
+      chipSlots = Math.max(chipSlots, chips.length);
+      widestLabel = Math.max(
+        widestLabel,
+        LANE_LABEL_X +
+          (bucket.laneColor ? LANE_DOT_ADVANCE : 0) +
+          measureText(
+            collapsedLaneLabel(bucket.laneName, cards.length),
+            COLLAPSED_LANE_FONT_SIZE
+          )
+      );
+    }
+    // Bounded the same way the column stack is: a collapse is meant to be
+    // CHEAP, and past this the ribbon ends in a +N mark rather than reading as
+    // a complete count of the values present.
+    chipSlots = Math.min(chipSlots, COLLAPSED_CHIP_MAX_SLOTS);
+    if (chipSlots > 0) {
+      let widestChipLabel = 0;
+      for (const chips of laneChipsByLane.values()) {
+        const shown = chips.length > chipSlots ? chipSlots - 1 : chips.length;
+        for (let i = 0; i < shown; i++) {
+          widestChipLabel = Math.max(
+            widestChipLabel,
+            measureText(String(chips[i]!.count), chipStyle.fontSize, {
+              bold: true,
+            })
+          );
+        }
+        if (chips.length > shown) {
+          widestChipLabel = Math.max(
+            widestChipLabel,
+            measureText(`+${chips.length - shown}`, chipStyle.fontSize, {
+              bold: true,
+            })
+          );
+        }
+      }
+      chipWidth = Math.max(
+        COLLAPSED_CHIP_MIN_WIDTH,
+        widestChipLabel + COLLAPSED_CHIP_LABEL_PADDING
+      );
+      chipStartX = widestLabel + chipStyle.nameGap;
+    }
+  }
+  const ribbonWidth =
+    chipSlots > 0
+      ? chipSlots * chipWidth + (chipSlots - 1) * (chipStyle?.gap ?? 0)
+      : 0;
+  // Grow rather than clip: a lane header too narrow for its ribbon would drop
+  // chips off its right edge silently, which is the column bug wearing the
+  // other axis.
+  const laneHeaderWidth =
+    ribbonWidth > 0
+      ? Math.max(
+          sLaneHeaderWidth,
+          chipStartX + ribbonWidth + (chipStyle?.inset ?? 0) + LANE_HEADER_TRIM
+        )
+      : sLaneHeaderWidth;
+
   const columnXs: SwimlaneBoardLayout['columnXs'] = [];
-  let currentX = sDiagramPadding + sLaneHeaderWidth;
+  let currentX = sDiagramPadding + laneHeaderWidth;
   for (const col of baseLayout.columns) {
     const isColCollapsed = collapsedColumns?.has(col.column.id) ?? false;
     const w = isColCollapsed ? sCollapsedColumnWidth : col.width;
@@ -1198,7 +1329,13 @@ function computeSwimlaneLayout(
         cards: bucket.cellsByColumn[colInfo.column.id] ?? [],
         cardLayouts: [],
       }));
-      lanes.push({ bucket, y: laneY, height: sCollapsedLaneHeight, cells });
+      lanes.push({
+        bucket,
+        y: laneY,
+        height: sCollapsedLaneHeight,
+        cells,
+        chips: laneChipsByLane.get(bucket.laneName) ?? [],
+      });
       laneY += sCollapsedLaneHeight + sLaneGap;
       continue;
     }
@@ -1264,13 +1401,21 @@ function computeSwimlaneLayout(
       return { column: tmp.column, cards: tmp.cards, cardLayouts };
     });
 
-    lanes.push({ bucket, y: laneY, height: laneHeight, cells });
+    lanes.push({ bucket, y: laneY, height: laneHeight, cells, chips: [] });
     laneY += laneHeight + sLaneGap;
   }
 
   const totalHeight = laneY - sLaneGap + sColumnPadding + sDiagramPadding;
 
-  return { columnXs, lanes, totalWidth, totalHeight, startY };
+  return {
+    columnXs,
+    lanes,
+    totalWidth,
+    totalHeight,
+    startY,
+    laneHeaderWidth,
+    laneChips: { startX: chipStartX, chipWidth, slots: chipSlots },
+  };
 }
 
 function renderSwimlaneBoard(
@@ -1310,10 +1455,31 @@ function renderSwimlaneBoard(
   sCardPaddingX = CARD_PADDING_X,
   sCardStrokeWidth = CARD_STROKE_WIDTH,
   sCardTitleFontSize = CARD_TITLE_FONT_SIZE,
-  sCardMetaFontSize = CARD_META_FONT_SIZE
+  sCardMetaFontSize = CARD_META_FONT_SIZE,
+  chipStyle: CollapsedChipStyle = {
+    height: COLLAPSED_CHIP_HEIGHT,
+    gap: COLLAPSED_CHIP_GAP,
+    inset: COLLAPSED_CHIP_INSET,
+    radius: COLLAPSED_CHIP_RADIUS,
+    nameGap: COLLAPSED_NAME_GAP,
+    fontSize: CARD_META_FONT_SIZE,
+  }
 ): void {
   const visibleColumns = parsed.columns.filter((c) => !isArchiveColumn(c.name));
   const buckets = bucketCardsBySwimlane(visibleColumns, swimlaneGroup);
+  const fillMode = fillModeFromOptions(parsed.options);
+  const baseBg = themeBaseBg(palette, isDark);
+  // No ribbon when the active group IS the lane group: every card in a lane
+  // carries that lane's value, so the chips would be one chip repeating the
+  // total already printed beside the name, in the colour the lane dot already
+  // shows. Silence is the honest rendering, and it costs the header no width.
+  const activeGroup =
+    activeTagGroup &&
+    activeTagGroup.toLowerCase() !== swimlaneGroup.name.toLowerCase()
+      ? parsed.tagGroups.find(
+          (g) => g.name.toLowerCase() === activeTagGroup.toLowerCase()
+        )
+      : undefined;
   const grid = computeSwimlaneLayout(
     parsed,
     buckets,
@@ -1334,7 +1500,9 @@ function renderSwimlaneBoard(
     sCollapsedLaneHeight,
     sLaneGap,
     sCardSeparatorGap,
-    sCardMetaLineHeight
+    sCardMetaLineHeight,
+    activeGroup,
+    chipStyle
   );
 
   const currentW = parseFloat(svg.attr('width') || '0');
@@ -1371,9 +1539,7 @@ function renderSwimlaneBoard(
       .attr('data-line-number', col.lineNumber);
 
     const colHeaderBg = col.color
-      ? shapeFill(palette, col.color, isDark, {
-          mode: fillModeFromOptions(parsed.options),
-        })
+      ? shapeFill(palette, col.color, isDark, { mode: fillMode })
       : defaultColHeaderBg;
 
     headerG
@@ -1445,12 +1611,12 @@ function renderSwimlaneBoard(
       .append('rect')
       .attr('x', 0)
       .attr('y', 0)
-      .attr('width', sLaneHeaderWidth - 8)
+      .attr('width', grid.laneHeaderWidth - LANE_HEADER_TRIM)
       .attr('height', lane.height + sColumnPadding * 2)
       .attr('rx', sColumnRadius)
       .attr('fill', defaultColBg);
 
-    let labelX = 10;
+    let labelX = LANE_LABEL_X;
     const totalCards = lane.cells.reduce((s, c) => s + c.cards.length, 0);
     if (lane.bucket.laneColor) {
       headerG
@@ -1459,26 +1625,96 @@ function renderSwimlaneBoard(
         .attr('cy', 16)
         .attr('r', 4)
         .attr('fill', lane.bucket.laneColor);
-      labelX += 14;
+      labelX += LANE_DOT_ADVANCE;
     }
 
     if (isLaneCollapsed) {
       headerG
         .append('text')
         .attr('x', labelX)
-        .attr('y', 20)
-        .attr('font-size', 10)
+        .attr('y', LANE_LABEL_BASELINE)
+        .attr('font-size', COLLAPSED_LANE_FONT_SIZE)
         .attr('fill', palette.textMuted)
-        .text(`${lane.bucket.laneName} (${totalCards})`);
+        .text(collapsedLaneLabel(lane.bucket.laneName, totalCards));
     } else {
       headerG
         .append('text')
         .attr('x', labelX)
-        .attr('y', 20)
-        .attr('font-size', 12)
+        .attr('y', LANE_LABEL_BASELINE)
+        .attr('font-size', LANE_FONT_SIZE)
         .attr('font-weight', 'bold')
         .attr('fill', lane.bucket.isFallback ? palette.textMuted : palette.text)
         .text(lane.bucket.laneName);
+    }
+
+    // The chip ribbon: one per value of the active tag group present in this
+    // lane, tinted like the cards it stands for and carrying that value's
+    // count. Every lane starts its ribbon at ONE shared x, set by the WIDEST
+    // collapsed lane label — starting each under its own name would stagger the
+    // ribbons and defeat the comparison they exist for.
+    if (isLaneCollapsed && lane.chips.length > 0 && grid.laneChips.slots > 0) {
+      const { startX, chipWidth, slots } = grid.laneChips;
+      const shown =
+        lane.chips.length > slots ? Math.max(0, slots - 1) : lane.chips.length;
+      const hidden = lane.chips.length - shown;
+      const step = chipWidth + chipStyle.gap;
+      const chipY = LANE_LABEL_BASELINE - chipStyle.height / 2 - 4;
+      const cg = headerG.append('g').attr('class', 'kanban-collapsed-chips');
+      const drawChip = (
+        index: number,
+        fill: string,
+        stroke: string,
+        label: string,
+        title: string
+      ): void => {
+        const chip = cg
+          .append('g')
+          .attr('class', 'kanban-collapsed-chip')
+          .attr('data-tag-value', title);
+        chip
+          .append('rect')
+          .attr('x', startX + index * step)
+          .attr('y', chipY)
+          .attr('width', chipWidth)
+          .attr('height', chipStyle.height)
+          .attr('rx', chipStyle.radius)
+          .attr('fill', fill)
+          .attr('stroke', stroke)
+          .attr('stroke-width', 1);
+        chip
+          .append('text')
+          .attr('x', startX + index * step + chipWidth / 2)
+          .attr('y', chipY + chipStyle.height / 2)
+          .attr('dominant-baseline', 'central')
+          .attr('text-anchor', 'middle')
+          .attr('font-size', chipStyle.fontSize)
+          .attr('font-weight', 'bold')
+          .attr(
+            'fill',
+            contrastText(fill, palette.textOnFillLight, palette.textOnFillDark)
+          )
+          .text(label);
+      };
+      for (let i = 0; i < shown; i++) {
+        const chip = lane.chips[i]!;
+        const intent = chip.color ?? palette.textMuted;
+        drawChip(
+          i,
+          shapeFill(palette, intent, isDark, { mode: fillMode }),
+          intent,
+          String(chip.count),
+          chip.value
+        );
+      }
+      if (hidden > 0 && shown < slots) {
+        drawChip(
+          shown,
+          fillMode === 'outline' ? baseBg : defaultColHeaderBg,
+          palette.textMuted,
+          `+${hidden}`,
+          `${hidden} more`
+        );
+      }
     }
 
     if (isLaneCollapsed) {
@@ -1521,7 +1757,7 @@ function renderSwimlaneBoard(
 
     laneG
       .append('line')
-      .attr('x1', sDiagramPadding + sLaneHeaderWidth)
+      .attr('x1', sDiagramPadding + grid.laneHeaderWidth)
       .attr('x2', grid.totalWidth - sDiagramPadding)
       .attr('y1', lane.y + lane.height + sColumnPadding)
       .attr('y2', lane.y + lane.height + sColumnPadding)
@@ -1569,7 +1805,7 @@ function renderSwimlaneBoard(
             palette,
             isDark,
             hiddenMetaGroups,
-            fillModeFromOptions(parsed.options),
+            fillMode,
             sCardRadius,
             sCardPaddingX,
             sCardPaddingY,
