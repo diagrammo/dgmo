@@ -44,6 +44,7 @@ import {
   type DateToken,
 } from '../utils/date';
 import { normalizeName } from '../utils/name-normalize';
+import { AliasRegistry } from '../utils/alias-registry';
 import type { PaletteColors } from '../palettes';
 import { getSeriesColors } from '../palettes';
 import type {
@@ -292,7 +293,7 @@ export function parseGantt(
 
   const metaAliasMap = new Map<string, string>();
   // ── nameAliasMap: TD-18 entity-name aliases (per C8) ────
-  const nameAliasMap = new Map<string, string>();
+  const nameAliasMap = new AliasRegistry();
   function peelAlias(label: string): { label: string; alias?: string } {
     const trimmed = label.trim();
     const m = trimmed.match(/^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/);
@@ -301,7 +302,7 @@ export function parseGantt(
     return { label: m[1]!.trim(), alias: m[2]! };
   }
   function resolveAliasTarget(token: string): string {
-    return nameAliasMap.get(token.trim()) ?? token;
+    return nameAliasMap.resolve(token.trim()) ?? token;
   }
 
   // ── Block stack ─────────────────────────────────────────
@@ -358,6 +359,7 @@ export function parseGantt(
     const line = rawLine.trim();
     const indent = measureIndent(rawLine);
     const lineNumber = i + 1;
+    nameAliasMap.at(lineNumber);
 
     // Skip empty lines
     if (!line) {
@@ -634,7 +636,8 @@ export function parseGantt(
             content.preExtracted
           );
           // Bind the alias to the peeled label (§2.2), not the quoted source.
-          if (content.alias) nameAliasMap.set(content.alias, task.label);
+          if (content.alias) nameAliasMap.declare(content.alias, task.label);
+          nameAliasMap.noteCanonical(task.label);
           const taskNode: GanttNode = { kind: 'task', ...task };
 
           // Add dependency ON lastTaskNode pointing TO the new task.
@@ -1051,7 +1054,8 @@ export function parseGantt(
           preExtracted
         );
         // Bind the alias to the peeled label (§2.2), not the quoted source.
-        if (split.alias) nameAliasMap.set(split.alias, task.label);
+        if (split.alias) nameAliasMap.declare(split.alias, task.label);
+        nameAliasMap.noteCanonical(task.label);
         const taskNode: GanttNode = { kind: 'task', ...task };
         currentContainer().push(taskNode);
         const writableTaskN = taskNode as Writable<
@@ -1320,7 +1324,9 @@ export function parseGantt(
         // bracket contents carry no other token decisions, and the metadata
         // tail was split off above, so this is the late point for the peel.
         const groupName = peelQuotedName(groupPeeled.label);
-        if (groupPeeled.alias) nameAliasMap.set(groupPeeled.alias, groupName);
+        if (groupPeeled.alias)
+          nameAliasMap.declare(groupPeeled.alias, groupName);
+        nameAliasMap.noteCanonical(groupName);
         const group: Writable<GanttGroup> = {
           name: groupName,
           color: null,
@@ -1367,7 +1373,8 @@ export function parseGantt(
             content.preExtracted
           );
           // Bind the alias to the peeled label (§2.2), not the quoted source.
-          if (content.alias) nameAliasMap.set(content.alias, task.label);
+          if (content.alias) nameAliasMap.declare(content.alias, task.label);
+          nameAliasMap.noteCanonical(task.label);
           if (lineOffset) {
             (task as Writable<GanttTask>).offset = lineOffset;
           }
@@ -1462,6 +1469,10 @@ export function parseGantt(
     }
     // sprintStart defaults to chart start or today — handled in calculator
   }
+
+  // Alias namespace rules (§2A.2) — decidable only once the whole
+  // source has been read.
+  result.diagnostics.push(...nameAliasMap.finish());
 
   return result;
 
@@ -1686,7 +1697,8 @@ export function parseGantt(
     // positional-duration scan and the metadata split above both need the
     // quotes intact (`"Rev 5d" 3d` keeps `5d` out of the duration scan).
     label = peelQuotedName(label);
-    if (peeled.alias) nameAliasMap.set(peeled.alias, label);
+    if (peeled.alias) nameAliasMap.declare(peeled.alias, label);
+    nameAliasMap.noteCanonical(label);
 
     if (preExtractedMeta) {
       Object.assign(metadata, preExtractedMeta);

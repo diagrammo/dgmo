@@ -37,6 +37,7 @@ import { GRAPH_DIAGNOSTICS } from './graph/diagnostics';
 import { COLOR_DIAGNOSTICS } from './colors-diagnostics';
 import { SKETCH_DIAGNOSTICS } from './sketch/diagnostics';
 import { FAMILY_DIAGNOSTICS } from './family/diagnostics';
+import { ALIAS_DIAGNOSTICS } from './alias-diagnostics';
 
 // ── Universal codes (chartType: null) ───────────────────────
 // Name handling, alias syntax, and metadata grammar apply to every
@@ -132,6 +133,7 @@ const REGISTRY: DiagnosticSpec[] = [
   ...COLOR_DIAGNOSTICS,
   ...SKETCH_DIAGNOSTICS,
   ...FAMILY_DIAGNOSTICS,
+  ...ALIAS_DIAGNOSTICS,
 ];
 
 /**

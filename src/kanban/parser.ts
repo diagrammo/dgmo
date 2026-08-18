@@ -1,4 +1,5 @@
 import type { PaletteColors } from '../palettes';
+import { AliasRegistry } from '../utils/alias-registry';
 import {
   formatDgmoError,
   makeDgmoError,
@@ -110,7 +111,7 @@ export function parseKanban(
   // metaAliasMap: tag-group metadata-key aliases (per A1 convention).
   const metaAliasMap = new Map<string, string>();
   // nameAliasMap: TD-18 entity-name aliases for kanban columns. Per C8.
-  const nameAliasMap = new Map<string, string>();
+  const nameAliasMap = new AliasRegistry();
 
   // Build a lookup for tag group entries (for validation)
   const tagValueSets = new Map<string, Set<string>>();
@@ -119,6 +120,7 @@ export function parseKanban(
     // In-bounds by loop guard.
     const line = lines[i]!;
     const lineNumber = i + 1;
+    nameAliasMap.at(lineNumber);
     const trimmed = line.trim();
 
     // Skip empty lines
@@ -348,7 +350,8 @@ export function parseKanban(
       }
 
       const colId = `col-${columnCounter}`;
-      if (colAlias) nameAliasMap.set(colAlias, colId);
+      if (colAlias) nameAliasMap.declare(colAlias, colId, lineNumber);
+      nameAliasMap.noteCanonical(colId, lineNumber);
       currentColumn = {
         id: colId,
         name: colName,
@@ -492,6 +495,10 @@ export function parseKanban(
   if (activeTagWarning) {
     warn(activeTagOptionLine || 1, activeTagWarning, 'W_ACTIVE_TAG_NO_MATCH');
   }
+
+  // Alias namespace rules (§2A.2) — decidable only once the whole
+  // source has been read.
+  result.diagnostics.push(...nameAliasMap.finish());
 
   return result;
 }

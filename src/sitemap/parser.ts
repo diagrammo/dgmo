@@ -3,6 +3,7 @@
 // ============================================================
 
 import type { PaletteColors } from '../palettes';
+import { AliasRegistry } from '../utils/alias-registry';
 import type { DgmoError } from '../diagnostics';
 import {
   formatDgmoError,
@@ -192,7 +193,7 @@ export function parseSitemap(
   // metaAliasMap: tag-group metadata-key aliases (per A1 convention).
   const metaAliasMap = new Map<string, string>();
   // nameAliasMap: TD-18 entity-name aliases (`a` → `node-7`). Per C8.
-  const nameAliasMap = new Map<string, string>();
+  const nameAliasMap = new AliasRegistry();
 
   // Indent stack for hierarchy tracking
   const indentStack: { node: Writable<SitemapNode>; indent: number }[] = [];
@@ -216,6 +217,7 @@ export function parseSitemap(
     // In-bounds by loop guard.
     const line = lines[i]!;
     const lineNumber = i + 1;
+    nameAliasMap.at(lineNumber);
     const trimmed = line.trim();
 
     // Skip empty lines
@@ -416,7 +418,8 @@ export function parseSitemap(
 
       containerCounter++;
       const containerId = `container-${containerCounter}`;
-      if (asMatch) nameAliasMap.set(asMatch[2]!, containerId);
+      if (asMatch) nameAliasMap.declare(asMatch[2]!, containerId, lineNumber);
+      nameAliasMap.noteCanonical(containerId, lineNumber);
       const node: Writable<SitemapNode> = {
         id: containerId,
         label,
@@ -517,7 +520,7 @@ export function parseSitemap(
   // --- Post-parse: resolve arrow targets ---
   for (const arrow of deferredArrows) {
     // TD-18: resolve alias literal first; if hit, use the bound id directly.
-    const aliasHit = nameAliasMap.get(arrow.targetLabel.trim());
+    const aliasHit = nameAliasMap.resolve(arrow.targetLabel.trim());
     if (aliasHit !== undefined) {
       result.edges.push({
         sourceId: arrow.sourceNode.id,
@@ -593,6 +596,10 @@ export function parseSitemap(
     result.error = formatDgmoError(diag);
   }
 
+  // Alias namespace rules (§2A.2) — decidable only once the whole
+  // source has been read.
+  result.diagnostics.push(...nameAliasMap.finish());
+
   return result;
 }
 
@@ -608,7 +615,7 @@ function parseNodeLabel(
   metaAliasMap: Map<string, string> = new Map(),
   warnFn?: (line: number, msg: string) => void,
   _diagnostics?: DgmoError[],
-  nameAliasMap?: Map<string, string>
+  nameAliasMap?: AliasRegistry
 ): Writable<SitemapNode> {
   // §1.4 unified metadata grammar — same-line cut.
   const registry = withTagAliases(
@@ -635,7 +642,9 @@ function parseNodeLabel(
   // §2.2: quotes delimit a page name that holds a reserved character —
   // peel before the caller normalizes it into a lookup key.
   const label = peelQuotedName(split.name);
-  if (split.alias) nameAliasMap?.set(normalizeName(split.alias), id);
+  if (split.alias)
+    nameAliasMap?.declare(normalizeName(split.alias), id, lineNumber);
+  nameAliasMap?.noteCanonical(id, lineNumber);
   const metadata: Record<string, string> = { ...split.meta };
   if (split.color !== undefined) metadata['color'] = split.color;
 

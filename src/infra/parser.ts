@@ -35,6 +35,7 @@ import {
   validateTagGroupNames,
 } from '../utils/tag-groups';
 import { INFRA_REGISTRY, withTagAliases } from '../utils/reserved-key-registry';
+import { AliasRegistry } from '../utils/alias-registry';
 import type {
   ParsedInfra,
   InfraNode,
@@ -296,7 +297,7 @@ export function parseInfra(content: string): ParsedInfra {
   } as const;
 
   // Per-parse alias literal → canonical node id (TD-18). Per C8.
-  const nameAliasMap = new Map<string, string>();
+  const nameAliasMap = new AliasRegistry();
   function peelAlias(label: string): { label: string; alias?: string } {
     const trimmed = label.trim();
     const m = trimmed.match(/^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/);
@@ -352,7 +353,7 @@ export function parseInfra(content: string): ParsedInfra {
    * through to the normal `nodeId()` hash.
    */
   function resolveTargetId(rawName: string): string {
-    const aliasResolved = nameAliasMap.get(rawName.trim());
+    const aliasResolved = nameAliasMap.resolve(rawName.trim());
     if (aliasResolved !== undefined) return aliasResolved;
     return nodeId(rawName);
   }
@@ -397,7 +398,7 @@ export function parseInfra(content: string): ParsedInfra {
       // edge-block header `web` for a node `"Web App" as web`) is an intentional
       // pointer, not a near-duplicate name — don't flag it as a case/whitespace
       // typo. Genuine collisions (no matching alias) still warn.
-      const isAliasRef = nameAliasMap.get(currentNode.label) === key;
+      const isAliasRef = nameAliasMap.lookup(currentNode.label) === key;
       if (incomingDisplay !== existingDisplay && !isAliasRef) {
         result.diagnostics.push(
           makeDgmoError(
@@ -456,6 +457,7 @@ export function parseInfra(content: string): ParsedInfra {
     // In-bounds by loop guard.
     const raw = lines[i]!;
     const lineNumber = i + 1;
+    nameAliasMap.at(lineNumber);
     const trimmed = raw.trim();
     const indent = measureIndent(raw);
 
@@ -545,7 +547,8 @@ export function parseInfra(content: string): ParsedInfra {
         const gLabel = groupMatch[1]!.trim();
         const groupAlias = groupMatch[2];
         const gId = groupId(gLabel);
-        if (groupAlias) nameAliasMap.set(groupAlias, gId);
+        if (groupAlias) nameAliasMap.declare(groupAlias, gId, lineNumber);
+        nameAliasMap.noteCanonical(gId, lineNumber);
         // Canonical bare `collapsed` trailing flag (capture 3).
         let groupCollapsed = groupMatch[3] !== undefined;
         const groupMeta = groupMatch[4]
@@ -607,8 +610,9 @@ export function parseInfra(content: string): ParsedInfra {
         // (its label-slug differs from the alias, e.g. "Web App" as web). Resolve
         // through the alias map first so an edge-source/reference merges into
         // that node instead of spawning a duplicate stub.
-        const id = nameAliasMap.get(name) ?? nodeId(name);
-        if (alias) nameAliasMap.set(alias, id);
+        const id = nameAliasMap.resolve(name) ?? nodeId(name);
+        if (alias) nameAliasMap.declare(alias, id, lineNumber);
+        nameAliasMap.noteCanonical(id, lineNumber);
         const isEdge = EDGE_NODE_NAMES.has(id.toLowerCase());
 
         currentNode = {
@@ -748,8 +752,9 @@ export function parseInfra(content: string): ParsedInfra {
         // (its label-slug differs from the alias, e.g. "Web App" as web). Resolve
         // through the alias map first so an edge-source/reference merges into
         // that node instead of spawning a duplicate stub.
-        const id = nameAliasMap.get(name) ?? nodeId(name);
-        if (alias) nameAliasMap.set(alias, id);
+        const id = nameAliasMap.resolve(name) ?? nodeId(name);
+        if (alias) nameAliasMap.declare(alias, id, lineNumber);
+        nameAliasMap.noteCanonical(id, lineNumber);
         // Cascade group metadata into node tags; node-level metadata overrides
         const tags: Record<string, string> = currentGroup.metadata
           ? { ...currentGroup.metadata, ...nodeTags }
@@ -1081,8 +1086,9 @@ export function parseInfra(content: string): ParsedInfra {
         // (its label-slug differs from the alias, e.g. "Web App" as web). Resolve
         // through the alias map first so an edge-source/reference merges into
         // that node instead of spawning a duplicate stub.
-        const id = nameAliasMap.get(name) ?? nodeId(name);
-        if (alias) nameAliasMap.set(alias, id);
+        const id = nameAliasMap.resolve(name) ?? nodeId(name);
+        if (alias) nameAliasMap.declare(alias, id, lineNumber);
+        nameAliasMap.noteCanonical(id, lineNumber);
         const tags: Record<string, string> = currentGroup.metadata
           ? { ...currentGroup.metadata, ...nodeTags }
           : nodeTags;
@@ -1129,8 +1135,9 @@ export function parseInfra(content: string): ParsedInfra {
         // (its label-slug differs from the alias, e.g. "Web App" as web). Resolve
         // through the alias map first so an edge-source/reference merges into
         // that node instead of spawning a duplicate stub.
-        const id = nameAliasMap.get(name) ?? nodeId(name);
-        if (alias) nameAliasMap.set(alias, id);
+        const id = nameAliasMap.resolve(name) ?? nodeId(name);
+        if (alias) nameAliasMap.declare(alias, id, lineNumber);
+        nameAliasMap.noteCanonical(id, lineNumber);
 
         currentNode = {
           id,
@@ -1230,6 +1237,10 @@ export function parseInfra(content: string): ParsedInfra {
 
   checkReachability(result);
   checkSplitSums(result);
+
+  // Alias namespace rules (§2A.2) — decidable only once the whole
+  // source has been read.
+  result.diagnostics.push(...nameAliasMap.finish());
 
   return result;
 }

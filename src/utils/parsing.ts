@@ -24,6 +24,7 @@ import {
   isReservedKey,
   type ReservedKeyRegistry,
 } from './reserved-key-registry';
+import { checkAliasSyntax } from './alias-registry';
 
 const RECOGNIZED_COLOR_SET: ReadonlySet<string> = new Set(
   RECOGNIZED_COLOR_NAMES
@@ -1063,6 +1064,16 @@ export function splitNameAndMeta(
     if (aliasMatch) {
       alias = aliasMatch[1];
       postColorName = postColorName.substring(0, aliasMatch.index).trimEnd();
+    }
+    // The two alias rules that need only the token: a reserved keyword, and a
+    // malformed one. The malformed case is why this check reads the name
+    // region BEFORE the peel — an over-length or hyphenated alias never
+    // matches AS_ALIAS_RE, so nothing is peeled and the whole
+    // `Name as thirteencharss` string becomes the name, silently (§2A.2,
+    // issue #200). The namespace rules need the whole source and live in
+    // `AliasRegistry` instead.
+    if (diagnostics && lineNumber !== undefined) {
+      diagnostics.push(...checkAliasSyntax(postColorName, alias, lineNumber));
     }
   }
 

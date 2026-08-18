@@ -180,6 +180,7 @@ export interface ParsedExtendedChartFull extends ParsedExtendedBase {
 // ============================================================
 
 import type { PaletteColors } from './palettes';
+import { AliasRegistry } from './utils/alias-registry';
 import type { ParsedChart } from './chart';
 import {
   makeDgmoError,
@@ -380,7 +381,7 @@ function parseExtendedChartFull(
 
   // Per-parse alias literal → canonical node name (TD-18). Per C8.
   // Used by sankey + chord link slots.
-  const nameAliasMap = new Map<string, string>();
+  const nameAliasMap = new AliasRegistry();
   /** Peel `as <alias>` and resolve bare alias references in one pass. */
   function resolveSlot(raw: string): string {
     const trimmed = raw.trim();
@@ -388,10 +389,13 @@ function parseExtendedChartFull(
     if (m) {
       // Regex capture groups [1] and [2] are non-optional in the pattern.
       const canonical = m[1]!.trim();
-      nameAliasMap.set(m[2]!, canonical);
+      // No line in scope here — the registry's cursor, set once per line in
+      // the main loop below, dates both the declaration and the reference.
+      nameAliasMap.declare(m[2]!, canonical);
+      nameAliasMap.noteCanonical(canonical);
       return canonical;
     }
-    const aliased = nameAliasMap.get(trimmed);
+    const aliased = nameAliasMap.resolve(trimmed);
     return aliased !== undefined ? aliased : trimmed;
   }
 
@@ -399,6 +403,7 @@ function parseExtendedChartFull(
     // In-bounds by loop guard.
     const trimmed = lines[i]!.trim();
     const lineNumber = i + 1;
+    nameAliasMap.at(lineNumber);
 
     // Skip empty lines
     if (!trimmed) continue;
@@ -1038,6 +1043,10 @@ function parseExtendedChartFull(
       }
     }
   }
+
+  // Alias namespace rules (§2A.2) — decidable only once the whole
+  // source has been read.
+  result.diagnostics.push(...nameAliasMap.finish());
 
   return result;
 }

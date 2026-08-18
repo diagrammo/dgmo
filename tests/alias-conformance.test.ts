@@ -110,10 +110,12 @@ i -> [Dan]`,
   },
   {
     name: 'infra',
+    // Declaration first: strict ordering (§2A.2) is enforced since #200, and
+    // this fixture used to reference `os` a line above its own declaration.
     declAndRef: `infra
+OrderService as os
 GatewayService as gw
-  -routes-> os
-OrderService as os`,
+  -routes-> os`,
     freshAfter: `infra
 Carol as gw
   -routes-> Dan`,

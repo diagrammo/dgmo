@@ -16,6 +16,7 @@ import {
 } from '../diagnostics';
 import { normalizeName, displayName } from '../utils/name-normalize';
 import { parseArrow, parseInArrowLabel } from '../utils/arrows';
+import { AliasRegistry } from '../utils/alias-registry';
 import {
   measureIndent,
   extractColor,
@@ -482,10 +483,10 @@ export function parseSequenceDgmo(
   // (TD-18). Distinct from `aliasMap` further down, which is for
   // tag-group aliases (per the A1 naming convention). Per C8:
   // never persisted, fresh each parse.
-  const nameAliasMap = new Map<string, string>();
+  const nameAliasMap = new AliasRegistry();
   const resolveAlias = (token: string): string => {
     const trimmed = token.trim();
-    return nameAliasMap.get(trimmed) ?? trimmed;
+    return nameAliasMap.resolve(trimmed) ?? trimmed;
   };
 
   const fail = makeFail(result);
@@ -739,6 +740,7 @@ export function parseSequenceDgmo(
     const raw = lines[i]!;
     const trimmed = raw.trim();
     const lineNumber = i + 1;
+    nameAliasMap.at(lineNumber);
 
     // Skip empty lines
     if (!trimmed) {
@@ -1077,14 +1079,15 @@ export function parseSequenceDgmo(
       // precede the metadata) and handed it back as `isAAlias`; otherwise
       // the alias is still in `remainder` for us to peel here.
       if (isAAlias !== undefined) {
-        nameAliasMap.set(isAAlias, id);
+        nameAliasMap.declare(isAAlias, id, lineNumber);
       }
+      nameAliasMap.noteCanonical(id, lineNumber);
       const asInRemainder = remainder.match(
         /^(.*?)\s*\bas\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/
       );
       if (asInRemainder) {
         // Capture group 2 guaranteed present after successful match.
-        nameAliasMap.set(asInRemainder[2]!, id);
+        nameAliasMap.declare(asInRemainder[2]!, id, lineNumber);
       }
 
       // Position is colon-keyed metadata (§2.2) — pull it from the parsed meta.
@@ -1162,7 +1165,9 @@ export function parseSequenceDgmo(
       ) {
         contentStarted = true;
         const id = bareCore;
-        if (bareAlias !== undefined) nameAliasMap.set(bareAlias, id);
+        if (bareAlias !== undefined)
+          nameAliasMap.declare(bareAlias, id, lineNumber);
+        nameAliasMap.noteCanonical(id, lineNumber);
         // Colon-keyed `position: N` (§2.2) arrives as metadata here.
         const position = takePosition(bareMeta, lineNumber);
         const key = addParticipant(id, lineNumber, {
@@ -1648,6 +1653,10 @@ export function parseSequenceDgmo(
       'W_ACTIVE_TAG_NO_MATCH'
     );
   }
+
+  // Alias namespace rules (§2A.2) — decidable only once the whole
+  // source has been read.
+  result.diagnostics.push(...nameAliasMap.finish());
 
   return result;
 }

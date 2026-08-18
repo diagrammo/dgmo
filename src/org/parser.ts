@@ -1,4 +1,5 @@
 import type { PaletteColors } from '../palettes';
+import { AliasRegistry } from '../utils/alias-registry';
 import type { DgmoError } from '../diagnostics';
 import {
   formatDgmoError,
@@ -167,7 +168,7 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
   const metaAliasMap = new Map<string, string>();
   // nameAliasMap: TD-18 entity-name aliases (e.g. `pm` → `Product Manager`).
   // Per C8: per-parse, never persisted, fresh each parse.
-  const nameAliasMap = new Map<string, string>();
+  const nameAliasMap = new AliasRegistry();
 
   // Indent stack for hierarchy tracking
   // Each entry: { node, indent }
@@ -176,6 +177,7 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!; // In-bounds by loop guard.
     const lineNumber = i + 1;
+    nameAliasMap.at(lineNumber);
     const trimmed = line.trim();
 
     // Skip empty lines
@@ -358,7 +360,8 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
 
       containerCounter++;
       const containerId = `container-${containerCounter}`;
-      if (asMatch) nameAliasMap.set(asMatch[2]!, containerId);
+      if (asMatch) nameAliasMap.declare(asMatch[2]!, containerId, lineNumber);
+      nameAliasMap.noteCanonical(containerId, lineNumber);
       const node: Writable<OrgNode> = {
         id: containerId,
         label,
@@ -501,6 +504,10 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
   // Absent both, org charts keep their long-standing top-down orientation.
   result.direction = options['direction-lr'] ? 'LR' : 'TB';
 
+  // Alias namespace rules (§2A.2) — decidable only once the whole
+  // source has been read.
+  result.diagnostics.push(...nameAliasMap.finish());
+
   return result;
 }
 
@@ -534,7 +541,7 @@ function parseNodeLabel(
   counter: number,
   metaAliasMap: Map<string, string> = new Map(),
   diagnostics?: DgmoError[],
-  nameAliasMap?: Map<string, string>
+  nameAliasMap?: AliasRegistry
 ): Writable<OrgNode> {
   // §1.4 unified metadata grammar — same-line cut.
   const registry = withTagAliases(ORG_REGISTRY, new Set(metaAliasMap.keys()));
@@ -562,8 +569,9 @@ function parseNodeLabel(
   // metadata only.
   const label = split.color !== undefined ? `${peeled} ${split.color}` : peeled;
   if (split.alias) {
-    nameAliasMap?.set(normalizeName(split.alias), id);
+    nameAliasMap?.declare(normalizeName(split.alias), id, lineNumber);
   }
+  nameAliasMap?.noteCanonical(id, lineNumber);
   const metadata: Record<string, string> = { ...split.meta };
 
   return {

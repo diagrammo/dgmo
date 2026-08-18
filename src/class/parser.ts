@@ -1,5 +1,6 @@
 import { resolveColorWithDiagnostic } from '../colors';
 import type { PaletteColors } from '../palettes';
+import { AliasRegistry } from '../utils/alias-registry';
 import {
   makeDgmoError,
   formatDgmoError,
@@ -196,11 +197,11 @@ export function parseClassDiagram(
   const notes: DiagramNote[] = [];
 
   // Per-parse alias literal → canonical class id (TD-18). Per C8.
-  const nameAliasMap = new Map<string, string>();
+  const nameAliasMap = new AliasRegistry();
   function resolveAliasName(token: string | undefined): string | undefined {
     if (!token) return token;
     const trimmed = token.trim();
-    const hit = nameAliasMap.get(trimmed);
+    const hit = nameAliasMap.resolve(trimmed);
     if (hit !== undefined) {
       // The aliasMap stores canonical-id; need to invert to canonical-name
       // for callers like getOrCreateClass that hash the name. Walk classMap.
@@ -256,6 +257,7 @@ export function parseClassDiagram(
     const raw = lines[i]!;
     const trimmed = raw.trim();
     const lineNumber = i + 1;
+    nameAliasMap.at(lineNumber);
     const indent = measureIndent(raw);
 
     // Skip empty lines
@@ -423,7 +425,9 @@ export function parseClassDiagram(
       const node = getOrCreateClass(name, lineNumber);
       if (modifier) node.modifier = modifier;
       if (color) node.color = color;
-      if (aliasLiteral) nameAliasMap.set(aliasLiteral, classId(name));
+      if (aliasLiteral)
+        nameAliasMap.declare(aliasLiteral, classId(name), lineNumber);
+      nameAliasMap.noteCanonical(classId(name), lineNumber);
       // Update line number to the declaration line (may have been created by relationship)
       node.lineNumber = lineNumber;
 
@@ -514,6 +518,10 @@ export function parseClassDiagram(
       }
     }
   }
+
+  // Alias namespace rules (§2A.2) — decidable only once the whole
+  // source has been read.
+  result.diagnostics.push(...nameAliasMap.finish());
 
   return result;
 }

@@ -1,5 +1,6 @@
 import { resolveColorWithDiagnostic } from '../colors';
 import type { PaletteColors } from '../palettes';
+import { AliasRegistry } from '../utils/alias-registry';
 import {
   formatDgmoError,
   makeDgmoError,
@@ -278,7 +279,7 @@ export function parseERDiagram(
   // metaAliasMap: tag-group metadata-key aliases (per A1 convention).
   const metaAliasMap = new Map<string, string>();
   // nameAliasMap: TD-18 entity-name aliases (`u` → `users`). Per C8.
-  const nameAliasMap = new Map<string, string>();
+  const nameAliasMap = new AliasRegistry();
   function peelAlias(label: string): { label: string; alias?: string } {
     const trimmed = label.trim();
     const m = trimmed.match(/^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/);
@@ -287,7 +288,7 @@ export function parseERDiagram(
     return { label: m[1]!.trim(), alias: m[2]! };
   }
   function resolveAliasName(token: string): string {
-    return nameAliasMap.get(token.trim()) ?? token;
+    return nameAliasMap.resolve(token.trim()) ?? token;
   }
   let firstLineParsed = false;
 
@@ -337,6 +338,7 @@ export function parseERDiagram(
     const raw = lines[i]!;
     const trimmed = raw.trim();
     const lineNumber = i + 1;
+    nameAliasMap.at(lineNumber);
     const indent = measureIndent(raw);
 
     // Skip empty lines
@@ -573,7 +575,14 @@ export function parseERDiagram(
       const rawName = (tableDecl[1] ?? tableDecl[2] ?? '').trim();
       const peeled = peelAlias(rawName);
       const name = peeled.label;
-      if (peeled.alias) nameAliasMap.set(peeled.alias, name);
+      // The alias can arrive from either peel: `splitNameAndMeta` takes it
+      // when the line has no pipe metadata, and the local one when the legacy
+      // pipe form left it in the name region. Registering only the local one
+      // meant a plain `users as u` bound nothing at all, so `u` in a later
+      // relationship resolved to itself and spawned a phantom table.
+      const declaredAlias = peeled.alias ?? split.alias;
+      if (declaredAlias) nameAliasMap.declare(declaredAlias, name, lineNumber);
+      nameAliasMap.noteCanonical(name, lineNumber);
       // Color may have been captured either by the §1.5 trailing-token
       // peel in splitNameAndMeta OR (if splitNameAndMeta didn't run a
       // cut) by the legacy regex's color group.
@@ -710,6 +719,10 @@ export function parseERDiagram(
       )
     );
   }
+
+  // Alias namespace rules (§2A.2) — decidable only once the whole
+  // source has been read.
+  result.diagnostics.push(...nameAliasMap.finish());
 
   return result;
 }

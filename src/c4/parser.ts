@@ -3,6 +3,7 @@
 // ============================================================
 
 import type { PaletteColors } from '../palettes';
+import { AliasRegistry } from '../utils/alias-registry';
 import {
   formatDgmoError,
   makeDgmoError,
@@ -322,12 +323,12 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
 
   // nameAliasMap: TD-18 entity-name aliases (`os` → `Order Service`).
   // Per C8: per-parse, never persisted, fresh each parse.
-  const nameAliasMap = new Map<string, string>();
+  const nameAliasMap = new AliasRegistry();
   function resolveNameRef(rawName: string): string {
     const trimmed = rawName.trim();
     // §2.2: `"..."` around a reference delimits the name — peel so a
     // quoted declaration and a bare reference key the same element.
-    return nameAliasMap.get(trimmed) ?? peelQuotedName(trimmed);
+    return nameAliasMap.resolve(trimmed) ?? peelQuotedName(trimmed);
   }
 
   // Name uniqueness tracking
@@ -354,6 +355,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
     // In-bounds by loop guard.
     const line = lines[i]!;
     const lineNumber = i + 1;
+    nameAliasMap.at(lineNumber);
     const trimmed = line.trim();
 
     // Skip empty lines
@@ -801,7 +803,8 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
       // declaration and a bare reference resolve to one element.
       namePart = peelQuotedName(namePart);
       if (declaredAlias !== undefined)
-        nameAliasMap.set(declaredAlias, namePart);
+        nameAliasMap.declare(declaredAlias, namePart, lineNumber);
+      nameAliasMap.noteCanonical(namePart, lineNumber);
 
       // Map external/database to shape overrides with default element type
       let elementType: C4ElementType;
@@ -1105,6 +1108,10 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
       'W_ACTIVE_TAG_NO_MATCH'
     );
   }
+
+  // Alias namespace rules (§2A.2) — decidable only once the whole
+  // source has been read.
+  result.diagnostics.push(...nameAliasMap.finish());
 
   return result;
 }

@@ -6,6 +6,7 @@ import { makeDgmoError, suggest } from '../diagnostics';
 import type { DgmoError } from '../diagnostics';
 import { parseInArrowLabel } from '../utils/arrows';
 import { normalizeName } from '../utils/name-normalize';
+import { AliasRegistry } from '../utils/alias-registry';
 import type { ParsedBoxesAndLines, BLNode, BLEdge, BLGroup } from './types';
 import {
   matchTagBlockHeading,
@@ -179,7 +180,10 @@ export function parseBoxesAndLines(
   // metaAliasMap: tag-group metadata-key aliases (per A1).
   const metaAliasMap = new Map<string, string>();
   // nameAliasMap: TD-18 entity-name aliases (`a` → `<canonical id>`). Per C8.
-  const nameAliasMap = new Map<string, string>();
+  // An AliasRegistry rather than a bare Map so the namespace rules — collision,
+  // rebinding, shadows-name, alias-of-alias, before-decl, after-canonical —
+  // are decided over the whole source and reported (§2A.2, issue #200).
+  const nameAliasMap = new AliasRegistry();
   function peelAlias(label: string): { label: string; alias?: string } {
     const trimmed = label.trim();
     const m = trimmed.match(/^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/);
@@ -551,7 +555,8 @@ export function parseBoxesAndLines(
       const groupPeeled = peelAlias(groupMatch[1]!);
       const label = groupPeeled.label;
       if (groupPeeled.alias)
-        nameAliasMap.set(groupPeeled.alias, groupId(label));
+        nameAliasMap.declare(groupPeeled.alias, groupId(label), lineNum);
+      nameAliasMap.noteCanonical(groupId(label), lineNum);
 
       // Check nesting depth
       const currentDepth = groupStack.length + 1;
@@ -796,6 +801,10 @@ export function parseBoxesAndLines(
     );
   }
 
+  // The alias namespace rules are decided over the whole source, so they can
+  // only be settled once every declaration, reference and canonical is in.
+  result.diagnostics.push(...nameAliasMap.finish());
+
   return result;
 }
 
@@ -814,7 +823,7 @@ function parseNodeLine(
   lineNum: number,
   metaAliasMap: Map<string, string>,
   diagnostics: DgmoError[],
-  nameAliasMap?: Map<string, string>
+  nameAliasMap?: AliasRegistry
 ): MutBLNode | null {
   const registry = withTagAliases(
     BOXES_AND_LINES_REGISTRY,
@@ -870,8 +879,9 @@ function parseNodeLine(
 
   // TD-18 alias is now peeled by splitNameAndMeta — re-register if set.
   if (split.alias) {
-    nameAliasMap?.set(normalizeName(split.alias), label);
+    nameAliasMap?.declare(normalizeName(split.alias), label, lineNum);
   }
+  nameAliasMap?.noteCanonical(label, lineNum);
 
   if (!label) return null;
 
@@ -919,13 +929,16 @@ function splitTargetAndMeta(
  */
 function resolveEndpoint(
   name: string,
-  nameAliasMap?: Map<string, string>
+  lineNum: number,
+  nameAliasMap?: AliasRegistry
 ): string {
   const m = name.match(/^\[(.+)\]$/);
   // Regex capture group present after successful match.
   if (m) return groupId(m[1]!.trim());
   if (nameAliasMap) {
-    const aliased = nameAliasMap.get(name.trim());
+    // `resolve` doubles as the reference recorder — it is what makes the
+    // strict-ordering rule (§2A.2) decidable at the end of the parse.
+    const aliased = nameAliasMap.resolve(name, lineNum);
     if (aliased !== undefined) return aliased;
   }
   return peelQuotedName(name);
@@ -947,7 +960,7 @@ function parseEdgeLine(
   lineNum: number,
   metaAliasMap: Map<string, string>,
   diagnostics: DgmoError[],
-  nameAliasMap?: Map<string, string>
+  nameAliasMap?: AliasRegistry
 ): BLEdge | null {
   const edgeRegistry = withTagAliases(
     BOXES_AND_LINES_REGISTRY,
@@ -958,7 +971,7 @@ function parseEdgeLine(
   if (biLabeledMatch) {
     // Regex capture groups present after successful match.
     const rawSource = biLabeledMatch[1]!.trim();
-    const source = resolveEndpoint(rawSource, nameAliasMap);
+    const source = resolveEndpoint(rawSource, lineNum, nameAliasMap);
     const labelResult = parseInArrowLabel(biLabeledMatch[2]!, lineNum);
     diagnostics.push(...labelResult.diagnostics);
     const label = labelResult.label;
@@ -992,7 +1005,7 @@ function parseEdgeLine(
 
     return {
       source,
-      target: resolveEndpoint(rest, nameAliasMap),
+      target: resolveEndpoint(rest, lineNum, nameAliasMap),
       ...(label !== undefined && { label }),
       bidirectional: true,
       lineNumber: lineNum,
@@ -1004,7 +1017,7 @@ function parseEdgeLine(
   const biIdx = trimmed.indexOf('<->');
   if (biIdx >= 0) {
     const rawSource = trimmed.slice(0, biIdx).trim();
-    const source = resolveEndpoint(rawSource, nameAliasMap);
+    const source = resolveEndpoint(rawSource, lineNum, nameAliasMap);
     let rest = trimmed.slice(biIdx + 3).trim();
 
     const { target: plainTarget, metadata } = splitTargetAndMeta(
@@ -1035,7 +1048,7 @@ function parseEdgeLine(
 
     return {
       source,
-      target: resolveEndpoint(rest, nameAliasMap),
+      target: resolveEndpoint(rest, lineNum, nameAliasMap),
       bidirectional: true,
       lineNumber: lineNum,
       metadata,
@@ -1048,7 +1061,7 @@ function parseEdgeLine(
   if (labeledMatch) {
     // Regex capture groups present after successful match.
     const rawSource = labeledMatch[1]!.trim();
-    const source = resolveEndpoint(rawSource, nameAliasMap);
+    const source = resolveEndpoint(rawSource, lineNum, nameAliasMap);
     const labelResult = parseInArrowLabel(labeledMatch[2]!, lineNum);
     diagnostics.push(...labelResult.diagnostics);
     const label = labelResult.label;
@@ -1083,7 +1096,7 @@ function parseEdgeLine(
 
       return {
         source,
-        target: resolveEndpoint(rest, nameAliasMap),
+        target: resolveEndpoint(rest, lineNum, nameAliasMap),
         label,
         bidirectional: false,
         lineNumber: lineNum,
@@ -1097,7 +1110,7 @@ function parseEdgeLine(
   if (arrowIdx < 0) return null;
 
   const rawSource = trimmed.slice(0, arrowIdx).trim();
-  const source = resolveEndpoint(rawSource, nameAliasMap);
+  const source = resolveEndpoint(rawSource, lineNum, nameAliasMap);
   let rest = trimmed.slice(arrowIdx + 2).trim();
 
   if (!source || !rest) {
@@ -1133,7 +1146,7 @@ function parseEdgeLine(
 
   return {
     source,
-    target: resolveEndpoint(rest, nameAliasMap),
+    target: resolveEndpoint(rest, lineNum, nameAliasMap),
     bidirectional: false,
     lineNumber: lineNum,
     metadata,
