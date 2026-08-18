@@ -1413,7 +1413,20 @@ export function layoutOrg(
     finalHeight += legendShift;
     const neededWidth = totalGroupsWidth + MARGIN * 2;
     if (neededWidth > finalWidth) {
+      // The legend row is wider than the tree, so the box grows to fit it.
+      // Re-centre the tree inside the wider box: renderers centre the BOX in
+      // the canvas, so leaving the tree at its old left-aligned x pushes it
+      // off-centre by half the surplus. Invisible on most charts (the tree is
+      // wider than the legend) — a `focus <name>` chart shrinks the tree to a
+      // single card and makes it obvious.
+      const shift = (neededWidth - finalWidth) / 2;
       finalWidth = neededWidth;
+      for (const n of layoutNodes) n.x += shift;
+      for (const c of containers) c.x += shift;
+      for (const e of layoutEdges) {
+        for (const p of e.points as Writable<(typeof e.points)[number]>[])
+          p.x += shift;
+      }
     }
   }
 

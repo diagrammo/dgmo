@@ -496,3 +496,40 @@ describe('layoutSitemap', () => {
     });
   });
 });
+
+// The legend row can out-measure the tree — a one-page sitemap with several
+// tag groups does it. The box grew to fit the legend and the tree stayed where
+// it was, so renderers (which centre the BOX in the canvas) drew the pages off
+// to the left by half the surplus. Same defect as the org chart's, filed as
+// the off-centre focused org chart (#311).
+describe('sitemap: a legend wider than the tree keeps the tree centred', () => {
+  const MARGIN = 40;
+
+  const WIDE_LEGEND = `sitemap Tiny Site
+
+tag Access Level as al
+  Public
+tag Payment Method as pm
+  Card
+tag Editorial Owner as eo
+  Desk
+tag Review Cadence as rc
+  Weekly
+
+Home al: Public, pm: Card, eo: Desk, rc: Weekly`;
+
+  it('centres the page under a wider legend', () => {
+    const layout = layoutSitemap(parseSitemap(WIDE_LEGEND));
+
+    let minX = Infinity;
+    let maxX = -Infinity;
+    for (const n of layout.nodes) {
+      minX = Math.min(minX, n.x - n.width / 2);
+      maxX = Math.max(maxX, n.x + n.width / 2);
+    }
+
+    // Guard: the legend really is the wider of the two here.
+    expect(layout.width).toBeGreaterThan(maxX - minX + MARGIN * 2 + 1);
+    expect(minX).toBeCloseTo(layout.width - maxX, 5);
+  });
+});

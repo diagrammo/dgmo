@@ -905,7 +905,19 @@ export function layoutSitemap(
 
     // Center legend groups horizontally
     const neededWidth = totalGroupsWidth + MARGIN * 2;
-    if (neededWidth > totalWidth) totalWidth = neededWidth;
+    if (neededWidth > totalWidth) {
+      // Re-centre the tree inside the wider box — renderers centre the BOX in
+      // the canvas, so a tree left at its old x sits off-centre by half the
+      // surplus. Same defect as `org/layout.ts`.
+      const shift = (neededWidth - totalWidth) / 2;
+      totalWidth = neededWidth;
+      for (const n of layoutNodes) n.x += shift;
+      for (const c of layoutContainers) c.x += shift;
+      for (const e of layoutEdges) {
+        for (const p of e.points as Writable<{ x: number; y: number }>[])
+          p.x += shift;
+      }
+    }
     let cx = (totalWidth - totalGroupsWidth) / 2;
     const legendY = totalHeight + LEGEND_GROUP_GAP;
     for (const g of visibleGroups) {
