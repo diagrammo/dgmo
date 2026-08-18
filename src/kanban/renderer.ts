@@ -78,6 +78,17 @@ const COLUMN_RADIUS = 8;
 const COLUMN_HEADER_RADIUS = 8;
 const COLLAPSED_COLUMN_WIDTH = 40;
 const COLLAPSED_LANE_HEIGHT = 26;
+// Collapsed-column tag chips — the per-value counts drawn under the rotated name.
+const COLLAPSED_CHIP_HEIGHT = 16;
+const COLLAPSED_CHIP_GAP = 4;
+const COLLAPSED_CHIP_INSET = 6;
+const COLLAPSED_CHIP_RADIUS = 5;
+// Gap between the end of the rotated name and the first chip.
+const COLLAPSED_NAME_GAP = 10;
+// A collapsed column is meant to be CHEAP, so it may raise the board's shared
+// height by at most this many chips; past it the stack ends in a +N mark. Four
+// covers every tag group the palette can distinguish at chip size anyway.
+const COLLAPSED_CHIP_MAX_SLOTS = 4;
 
 // ============================================================
 // Tag color resolution
@@ -125,6 +136,64 @@ function resolveCardTagColor(
   return entry?.color;
 }
 
+interface CollapsedChip {
+  readonly value: string;
+  readonly count: number;
+  readonly color?: string;
+}
+
+/**
+ * Per-value counts for one collapsed column.
+ *
+ * Ordered by count DESCENDING, then by the value's position in the legend, then
+ * by value. The legend tie-break is what makes two columns comparable: an even
+ * split would otherwise order itself arbitrarily, and a reader scanning across
+ * collapsed columns is comparing stack against stack, not reading each alone.
+ *
+ * A card with no value for the group — and no group `defaultValue` to inherit —
+ * is counted in no chip, so the chips can legitimately sum to less than the
+ * column total in the header. That is the honest rendering: the alternative is
+ * an "untagged" bucket the legend never mentions.
+ */
+function collapsedChips(
+  cards: readonly KanbanCard[],
+  group: KanbanTagGroup | undefined
+): CollapsedChip[] {
+  if (!group) return [];
+  const legendOrder = new Map(
+    group.entries.map((entry, index) => [entry.value.toLowerCase(), index])
+  );
+  const tagKey = tagAttrKey(group.name);
+  const byValue = new Map<
+    string,
+    { value: string; count: number; color?: string }
+  >();
+  for (const card of cards) {
+    const raw = card.tags[tagKey] ?? group.defaultValue;
+    if (!raw) continue;
+    const key = raw.toLowerCase();
+    const seen = byValue.get(key);
+    if (seen) {
+      seen.count++;
+      continue;
+    }
+    const entry = group.entries.find((e) => e.value.toLowerCase() === key);
+    byValue.set(key, {
+      value: entry?.value ?? raw,
+      count: 1,
+      ...(entry?.color !== undefined && { color: entry.color }),
+    });
+  }
+  const rank = (key: string): number =>
+    legendOrder.get(key) ?? Number.MAX_SAFE_INTEGER;
+  return [...byValue.entries()]
+    .sort(
+      ([aKey, a], [bKey, b]) =>
+        b.count - a.count || rank(aKey) - rank(bKey) || aKey.localeCompare(bKey)
+    )
+    .map(([, entry]) => entry);
+}
+
 // ============================================================
 // Layout computation
 // ============================================================
@@ -166,7 +235,11 @@ function computeLayout(
   sCardGap = CARD_GAP,
   sColumnMinWidth = COLUMN_MIN_WIDTH,
   sColumnGap = COLUMN_GAP,
-  sCollapsedColumnWidth = COLLAPSED_COLUMN_WIDTH
+  sCollapsedColumnWidth = COLLAPSED_COLUMN_WIDTH,
+  activeTagGroup: string | null = null,
+  sCollapsedChipHeight = COLLAPSED_CHIP_HEIGHT,
+  sCollapsedChipGap = COLLAPSED_CHIP_GAP,
+  sCollapsedNameGap = COLLAPSED_NAME_GAP
 ): { columns: ColumnLayout[]; totalWidth: number; totalHeight: number } {
   const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
   const headerHeight = showTitle ? sTitleHeight + 8 : 0;
@@ -263,6 +336,46 @@ function computeLayout(
     });
   }
 
+  // A collapsed column draws its rotated name and then a stack of tag chips —
+  // and every column is given ONE shared height below, so unless that height
+  // clears the tallest collapsed stack the chips fall outside the well and are
+  // silently dropped. This is not hypothetical: a board whose expanded columns
+  // hold one card each is shorter than a rotated "Needs triage" plus a single
+  // chip, which is exactly the small board where the feature is easiest to see.
+  const layoutActiveGroup = activeTagGroup
+    ? parsed.tagGroups.find(
+        (g) => g.name.toLowerCase() === activeTagGroup.toLowerCase()
+      )
+    : undefined;
+  if (layoutActiveGroup) {
+    let nameExtent = 0;
+    let mostChips = 0;
+    for (const col of visibleColumns) {
+      if (!(collapsedColumns?.has(col.id) ?? false)) continue;
+      nameExtent = Math.max(
+        nameExtent,
+        measureText(col.name, sCardTitleFontSize, { bold: true })
+      );
+      mostChips = Math.max(
+        mostChips,
+        collapsedChips(col.cards, layoutActiveGroup).length
+      );
+    }
+    const slots = Math.min(mostChips, COLLAPSED_CHIP_MAX_SLOTS);
+    if (slots > 0) {
+      maxColumnHeight = Math.max(
+        maxColumnHeight,
+        sColumnHeaderHeight +
+          sColumnPadding +
+          nameExtent +
+          sCollapsedNameGap +
+          slots * sCollapsedChipHeight +
+          (slots - 1) * sCollapsedChipGap +
+          sColumnPadding
+      );
+    }
+  }
+
   let currentX = sDiagramPadding;
   for (const cl of columnLayouts) {
     cl.x = currentX;
@@ -351,6 +464,11 @@ export function renderKanban(
   const sColumnHeaderRadius = ctx.structural(COLUMN_HEADER_RADIUS);
   const sCollapsedColumnWidth = ctx.structural(COLLAPSED_COLUMN_WIDTH);
   const sCollapsedLaneHeight = ctx.structural(COLLAPSED_LANE_HEIGHT);
+  const sCollapsedChipHeight = ctx.structural(COLLAPSED_CHIP_HEIGHT);
+  const sCollapsedChipGap = ctx.aesthetic(COLLAPSED_CHIP_GAP);
+  const sCollapsedChipInset = ctx.aesthetic(COLLAPSED_CHIP_INSET);
+  const sCollapsedChipRadius = ctx.structural(COLLAPSED_CHIP_RADIUS);
+  const sCollapsedNameGap = ctx.aesthetic(COLLAPSED_NAME_GAP);
   const sTitleFontSize = ctx.text(TITLE_FONT_SIZE);
   const sLaneHeaderWidth = ctx.structural(LANE_HEADER_WIDTH);
   const sLaneGap = ctx.aesthetic(LANE_GAP);
@@ -375,7 +493,11 @@ export function renderKanban(
     sCardGap,
     sColumnMinWidth,
     sColumnGap,
-    sCollapsedColumnWidth
+    sCollapsedColumnWidth,
+    activeTagGroup,
+    sCollapsedChipHeight,
+    sCollapsedChipGap,
+    sCollapsedNameGap
   );
 
   const width = exportDims?.width ?? layout.totalWidth;
@@ -514,6 +636,38 @@ export function renderKanban(
     ? mix(palette.surface, palette.bg, 70)
     : mix(palette.surface, palette.bg, 50);
 
+  // ── Collapsed-column tag chips ──────────────────────────────
+  // A collapsed column used to draw a total and a rotated name and nothing
+  // else, so the active tag's colours — the thing every expanded card carries —
+  // vanished exactly when the reader had least information, and the surviving
+  // number was the one the group header already gave (#266).
+  const activeGroup = activeTagGroup
+    ? parsed.tagGroups.find(
+        (g) => g.name.toLowerCase() === activeTagGroup.toLowerCase()
+      )
+    : undefined;
+  // Every collapsed column starts its chips at ONE shared y, set by the LONGEST
+  // collapsed column name. The names are rotated, so a long one reaches further
+  // down the strip; letting each stack begin under its own name would stagger
+  // the rows and make two columns impossible to compare by eye. Measured rather
+  // than assumed a line height, because the name runs along the y axis and its
+  // extent there is its horizontal advance width.
+  const collapsedNameExtent = layout.columns.reduce(
+    (max, cl) =>
+      (collapsedColumns?.has(cl.column.id) ?? false)
+        ? Math.max(
+            max,
+            measureText(cl.column.name, sCardTitleFontSize, { bold: true })
+          )
+        : max,
+    0
+  );
+  const collapsedChipTop =
+    sColumnHeaderHeight +
+    sColumnPadding +
+    collapsedNameExtent +
+    sCollapsedNameGap;
+
   for (const colLayout of layout.columns) {
     const col = colLayout.column;
     const isColCollapsed = collapsedColumns?.has(col.id) ?? false;
@@ -575,6 +729,87 @@ export function renderKanban(
         .attr('text-anchor', 'middle')
         .attr('writing-mode', 'tb')
         .text(col.name);
+
+      const chips = collapsedChips(col.cards, activeGroup);
+      if (chips.length > 0) {
+        const chipX = colLayout.x + sCollapsedChipInset;
+        const chipW = sCollapsedColumnWidth - sCollapsedChipInset * 2;
+        const step = sCollapsedChipHeight + sCollapsedChipGap;
+        const room = colLayout.height - collapsedChipTop - sColumnPadding;
+        // How many whole chips fit below the shared start. The last slot goes to
+        // a +N overflow mark when it cannot hold every value, so a truncated
+        // stack never reads as a complete one.
+        const slots = Math.max(
+          0,
+          Math.floor((room + sCollapsedChipGap) / step)
+        );
+        const shown =
+          chips.length > slots ? Math.max(0, slots - 1) : chips.length;
+        const hidden = chips.length - shown;
+
+        const cg = g.append('g').attr('class', 'kanban-collapsed-chips');
+        const drawChip = (
+          index: number,
+          fill: string,
+          stroke: string,
+          label: string,
+          title: string
+        ): void => {
+          const y = colLayout.y + collapsedChipTop + index * step;
+          const chip = cg
+            .append('g')
+            .attr('class', 'kanban-collapsed-chip')
+            .attr('data-tag-value', title);
+          chip
+            .append('rect')
+            .attr('x', chipX)
+            .attr('y', y)
+            .attr('width', chipW)
+            .attr('height', sCollapsedChipHeight)
+            .attr('rx', sCollapsedChipRadius)
+            .attr('fill', fill)
+            .attr('stroke', stroke)
+            .attr('stroke-width', 1);
+          chip
+            .append('text')
+            .attr('x', chipX + chipW / 2)
+            .attr('y', y + sCollapsedChipHeight / 2)
+            .attr('dominant-baseline', 'central')
+            .attr('text-anchor', 'middle')
+            .attr('font-size', sCardMetaFontSize)
+            .attr('font-weight', 'bold')
+            .attr(
+              'fill',
+              contrastText(
+                fill,
+                palette.textOnFillLight,
+                palette.textOnFillDark
+              )
+            )
+            .text(label);
+        };
+
+        for (let i = 0; i < shown; i++) {
+          const chip = chips[i]!;
+          const intent = chip.color ?? palette.textMuted;
+          drawChip(
+            i,
+            shapeFill(palette, intent, isDark, { mode: fillMode }),
+            intent,
+            String(chip.count),
+            chip.value
+          );
+        }
+        if (hidden > 0 && shown < slots) {
+          drawChip(
+            shown,
+            fillMode === 'outline' ? baseBg : defaultColHeaderBg,
+            palette.textMuted,
+            `+${hidden}`,
+            `${hidden} more`
+          );
+        }
+      }
 
       continue;
     }
