@@ -205,8 +205,8 @@ export class AliasRegistry {
     const key = token.trim();
     // Recorded whether or not it resolves TODAY: an out-of-order reference is
     // by definition one the parser could not resolve when it read it, so
-    // recording only the hits would make the strict-ordering rule unfireable
-    // — the exact rule this records for.
+    // recording only the hits would leave the strict-ordering rule with
+    // nothing to fire on — the exact rule this records for.
     if (key !== '') this.references.push({ token: key, line });
     return this.bindings.get(key);
   }
