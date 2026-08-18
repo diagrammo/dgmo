@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.72.0] - 2026-08-18
+
+### Added
+
+- **A collapsed kanban column shows what kind of work it holds, not just how
+  many.** A collapsed column drew a bold total and a rotated name, so the active
+  tag's colours — the thing every expanded card carries — disappeared at exactly
+  the moment the reader had least information. It now draws a stack of tag chips
+  under the name: one per value of the active tag group present in that column,
+  tinted like the cards they stand for and carrying that value's count. Order is
+  count descending, then legend position, then value — the legend tie-break is
+  what keeps two columns with the same mix stacking the same way, which is the
+  whole point of drawing them. Every stack starts at one shared y, set by the
+  longest rotated name's reach, and the board's shared column height grows to
+  clear the tallest stack; past `COLLAPSED_CHIP_MAX_SLOTS` the stack ends in a
+  `+N` mark rather than reading as a complete count.
+- **A collapsed swimlane does the same, turned ninety degrees.** The lane header
+  carries a ribbon of tag chips beside the name, gathered across the lane's cells
+  and ordered by the same rule. A slot is a width rather than a height, and every
+  ribbon starts at one shared x set by the widest collapsed lane label, so slot N
+  sits at the same place in every lane. `computeSwimlaneLayout` now computes and
+  returns `laneHeaderWidth` instead of taking a constant — the columns start at
+  it. No ribbon is drawn when the active group *is* the lane group, where every
+  chip would repeat the total already printed beside the name.
+
+Both degrade to exactly the previous output when no tag group is active.
+
+### Fixed
+
+- **A focused org chart no longer reserves the same space twice above its
+  ancestor trail.** Two reservations stacked — the legend band the preview
+  already draws outside the scaled group, and the full ancestor-trail height
+  charged although the trail is drawn upward into the layout's own top margin.
+  The layout now reports the shift it applied (`legendShift`) so the renderer can
+  take it back, and `ancestorTrailReserve` charges only the shortfall. Measured
+  on a four-ancestor focus in a 1400×1000 pane: topmost ink 102 diagram units
+  below the box top, now 6. Export canvas for the same chart 464 → 368 px tall,
+  trail unclipped and padding symmetric.
+- **Org and sitemap charts centre correctly when the legend row is wider than the
+  tree.** Both layouts grew the box to fit the legend and left the tree at its old
+  x, hard against the left margin, so the renderer centred a box whose content was
+  not centred in it. Invisible on a full chart; `focus <name>` shrinks the tree to
+  a single card and makes it obvious — a four-tag-group focused card sat ~116 px
+  left of centre. Nodes, containers and edge waypoints now shift by half the
+  surplus.
+
+### Removed
+
+- **The chart-type registry's `measure` / `minDims` sizing layer.** The pair lost
+  its only production caller when `src/dimensions.ts` was deleted on 2026-08-04,
+  leaving 38 formulas and a shared `ContentCounts` shape exercised by nothing but
+  the tests written for them.
+
 ## [0.71.0] - 2026-08-17
 
 ### Added
