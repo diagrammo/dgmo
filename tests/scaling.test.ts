@@ -1,21 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ScaleContext, type ContentCounts } from '../src/utils/scaling';
-import { REGISTRY_BY_ID } from '../src/chart-type-registry';
-
-// Min-dimension formulas moved into the chart-type registry (Story 111.5).
-// This mirrors how dimensions.ts applies them: the descriptor's `minDims`
-// (counts → size) with a {300,200} fallback for types without one.
-function minDims(
-  chartType: string,
-  counts: ContentCounts
-): { width: number; height: number } {
-  return (
-    REGISTRY_BY_ID.get(chartType)?.minDims?.(counts) ?? {
-      width: 300,
-      height: 200,
-    }
-  );
-}
+import { ScaleContext } from '../src/utils/scaling';
 
 describe('ScaleContext', () => {
   describe('identity()', () => {
@@ -191,64 +175,5 @@ describe('ScaleContext', () => {
       expect(ctx.factor).toBe(0.5);
       expect(ctx.isBelowFloor).toBe(true);
     });
-  });
-});
-
-describe('chart-type minDims (registry, Story 111.5)', () => {
-  it('returns content-dependent dimensions for sequence', () => {
-    const result = minDims('sequence', {
-      participants: 4,
-      messages: 10,
-    });
-    expect(result.width).toBe(320);
-    expect(result.height).toBe(320);
-  });
-
-  it('scales sequence width with participant count', () => {
-    const small = minDims('sequence', { participants: 2 });
-    const large = minDims('sequence', { participants: 8 });
-    expect(large.width).toBeGreaterThan(small.width);
-  });
-
-  it('returns content-dependent dimensions for raci', () => {
-    const result = minDims('raci', { roles: 5, tasks: 8 });
-    expect(result.width).toBe(430);
-    expect(result.height).toBe(304);
-  });
-
-  it('returns content-dependent dimensions for mindmap', () => {
-    const result = minDims('mindmap', { nodes: 15, depth: 4 });
-    expect(result.width).toBe(450);
-    expect(result.height).toBe(240);
-  });
-
-  it('returns fixed dimensions for tech-radar', () => {
-    const result = minDims('tech-radar', { blips: 27 });
-    expect(result.width).toBe(360);
-    expect(result.height).toBe(400);
-  });
-
-  it('returns content-dependent dimensions for heatmap', () => {
-    const result = minDims('heatmap', { columns: 6, rows: 5 });
-    expect(result.width).toBe(300);
-    expect(result.height).toBe(210);
-  });
-
-  it('returns content-dependent dimensions for arc', () => {
-    const result = minDims('arc', { nodes: 10 });
-    expect(result.width).toBe(300);
-    expect(result.height).toBe(320);
-  });
-
-  it('returns default fallback for unknown chart type', () => {
-    const result = minDims('unknown-chart', {});
-    expect(result.width).toBe(300);
-    expect(result.height).toBe(200);
-  });
-
-  it('returns default when counts are missing', () => {
-    const result = minDims('sequence', {});
-    expect(result.width).toBe(320);
-    expect(result.height).toBe(200);
   });
 });

@@ -20,7 +20,7 @@ A library that turns **DGMO source text** (a line-oriented diagram language — 
 
 ## The seams (interface lives here ↓)
 
-**Chart-type registry** — `src/chart-type-registry.ts`. `CHART_TYPE_REGISTRY: ChartTypeDescriptor[]` + derived `REGISTRY_BY_ID`. The single source of truth: each chart type declares `{ id, category, parse, measure?, minDims? }` once; every other table (`chartTypes`, the export-handler map, dimensions) is cross-checked against it by `chart-type-registry.test.ts`. **This is the deepest seam in the codebase — adding a chart type means adding a descriptor.** See ADR-0001.
+**Chart-type registry** — `src/chart-type-registry.ts`. `CHART_TYPE_REGISTRY: ChartTypeDescriptor[]` + derived `REGISTRY_BY_ID`. The single source of truth: each chart type declares `{ id, category, parse }` once; every other table (`chartTypes`, the export-handler map) is cross-checked against it by `chart-type-registry.test.ts`. **This is the deepest seam in the codebase — adding a chart type means adding a descriptor.** See ADR-0001.
 
 **Render router** — `src/render.ts` (public `render()`) → `src/dgmo-router.ts` (`parseDgmo`, `getRenderCategory`). Parses, looks up the category, dispatches to one of the family renderers. See ADR-0005 for the category split.
 
@@ -46,7 +46,6 @@ A library that turns **DGMO source text** (a line-oriented diagram language — 
 - **Legend** — `src/utils/legend-*.ts`. `renderIntegratedLegend()` draws a legend from tag groups.
 - **Text measurement** — `src/utils/text-measure.ts`. Canonical measurer (`measureText`, `truncateText`).
 - **Label layout** — `src/label-layout.ts`. Geometry primitives for leader-line / label collision avoidance.
-- **Dimensions** — `src/dimensions.ts`. `getMinDimensions(content)` → responsive min canvas, delegating to the registry descriptor's `measure`/`minDims`.
 - **Fonts** — `src/fonts.ts`. `FONT_FAMILY` constant; bundled Inter for CLI rasterization.
 
 ## Where dgmo's responsibility ends

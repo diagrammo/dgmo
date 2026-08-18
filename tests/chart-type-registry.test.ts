@@ -2,9 +2,13 @@
 //
 // Guards the single-source chart-type registry and the sites DERIVED from it.
 // Extends the parser cross-check (chart-types.test.ts) to the render-category
-// and measure dispatch sites, so a chart type that is registered but missing a
-// category or measure path trips a test instead of failing silently at render
-// (empty SVG) or sizing (degraded dimensions) time.
+// dispatch site, so a chart type that is registered but missing a category
+// trips a test instead of failing silently at render (empty SVG) time.
+//
+// The `measure` / `minDims` guards that sat here went with those fields on
+// 2026-08-17 (issue 14) — they had no production caller left once dimensions.ts
+// was deleted, and a test suite that is a subsystem's only consumer asserts
+// that it compiles, not that the product works.
 
 import { describe, it, expect } from 'vitest';
 import {
@@ -89,58 +93,6 @@ const EXPECTED_CATEGORY: Record<
   funnel: 'data-chart',
 };
 
-// The set of types that had a content-count extractor in dimensions.ts.
-const EXPECTED_MEASURE_IDS = [
-  'arc',
-  'body',
-  'class',
-  'er',
-  'event-line',
-  'family',
-  'flowchart',
-  'gantt',
-  'heatmap',
-  'infra',
-  'kanban',
-  'mindmap',
-  'org',
-  'pert',
-  'raci',
-  'sequence',
-  'state',
-  'swimlane',
-  'tech-radar',
-  'version-control',
-].sort();
-
-// The set of types whose min-dimension formula moved into the registry
-// (Story 111.5) — the old `computeMinDimensions` switch cases. A registered
-// type missing a `minDims` silently falls back to {300,200}; this guard trips
-// instead, the same way EXPECTED_MEASURE_IDS guards `measure`. (rasci/daci had
-// no switch case — they intentionally keep the {300,200} default.)
-const EXPECTED_MINDIMS_IDS = [
-  'arc',
-  'body',
-  'class',
-  'er',
-  'event-line',
-  'family',
-  'flowchart',
-  'gantt',
-  'heatmap',
-  'infra',
-  'kanban',
-  'mindmap',
-  'org',
-  'pert',
-  'raci',
-  'sequence',
-  'state',
-  'swimlane',
-  'tech-radar',
-  'version-control',
-].sort();
-
 const EXPECTED_EXTENDED_IDS = [
   'function',
   'funnel',
@@ -200,24 +152,10 @@ describe('render-category dispatch derives from the registry', () => {
   });
 });
 
-describe('measure dispatch derives from the registry', () => {
-  it('exactly the expected types expose a measure function', () => {
-    const withMeasure = CHART_TYPE_REGISTRY.filter((d) => d.measure)
-      .map((d) => d.id)
-      .sort();
-    expect(withMeasure).toEqual(EXPECTED_MEASURE_IDS);
-  });
-
-  it('exactly the expected types expose a minDims function', () => {
-    const withMinDims = CHART_TYPE_REGISTRY.filter((d) => d.minDims)
-      .map((d) => d.id)
-      .sort();
-    expect(withMinDims).toEqual(EXPECTED_MINDIMS_IDS);
-  });
-
-  it('REGISTRY_BY_ID resolves descriptors for lookup', () => {
+describe('REGISTRY_BY_ID lookup', () => {
+  it('resolves a descriptor by id, and nothing for an unknown id', () => {
     expect(REGISTRY_BY_ID.get('gantt')?.category).toBe('diagram');
-    expect(REGISTRY_BY_ID.get('gantt')?.measure).toBeTypeOf('function');
+    expect(REGISTRY_BY_ID.get('gantt')?.parse).toBeTypeOf('function');
     expect(REGISTRY_BY_ID.get('nope')).toBeUndefined();
   });
 });

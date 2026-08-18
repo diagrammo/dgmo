@@ -10,12 +10,18 @@
 // This registry is the one place that binds, per chart type:
 //   - `category`  → drives `getRenderCategory` (data-chart | visualization | diagram)
 //   - `parse`     → drives `chartTypeParsers` / `PARSER_BY_ID`
-//   - `measure`   → drives `dimensions.extractContentCounts`
 //
-// `dgmo-router.ts` and `dimensions.ts` DERIVE their tables from here; they no
-// longer maintain parallel lists. `chart-type-registry.test.ts` asserts the
-// derived tables stay complete, extending the existing parser cross-check to
-// the render-category and measure sites.
+// `dgmo-router.ts` DERIVES its tables from here; it no longer maintains a
+// parallel list. `chart-type-registry.test.ts` asserts the derived tables stay
+// complete, extending the existing parser cross-check to the render-category
+// site.
+//
+// A third pair of fields lived here and no longer does: `measure` (content →
+// ContentCounts) and `minDims` (counts → {width,height}), relocated in from
+// `dimensions.ts`. That module was deleted 2026-08-04 (issue 12) and was their
+// only production caller, so the 38 formulas and the `ContentCounts` shape went
+// with them on 2026-08-17 (issue 14). Git history holds them if a real caller
+// ever appears; do not rebuild the layer speculatively.
 //
 // NOTE: the EXPORT-RENDER dispatch (renderForExport) is coverage-checked
 // against this registry in d3.ts rather than referenced from here — pulling
@@ -24,8 +30,6 @@
 //
 // Description + fallback metadata stays in `chart-types.ts` (the data model the
 // AI-authoring selection engine reads); this file owns dispatch behavior.
-
-import type { ContentCounts } from './utils/scaling';
 
 // Parsers — the same leaf modules dgmo-router consumed before. Importing them
 // here (not the router) keeps the dependency direction router → registry → leaf.
@@ -76,7 +80,7 @@ import { parseGoal } from './goal/parser';
 import { parseCountdown } from './countdown/parser';
 import { parseClock } from './clock/parser';
 import { parseBracket } from './bracket/parser';
-import { parseRaci, allTasks } from './raci/parser';
+import { parseRaci } from './raci/parser';
 import { parseBody } from './body/parser';
 import { parseLiveLink } from './live-link/parser';
 import type { DgmoError } from './diagnostics';
@@ -88,283 +92,11 @@ export type RenderCategory = 'data-chart' | 'visualization' | 'diagram';
 type ParseResult = { diagnostics: readonly DgmoError[] };
 type ParseFn = (content: string) => ParseResult;
 
-/**
- * Everything dispatch needs to know about one chart type.
- *
- * `measure` is optional: types without a meaningful content-count (most data
- * charts and several visualizations) simply omit it and fall back to `{}` — the
- * absence is explicit per descriptor, not a silent switch default.
- */
+/** Everything dispatch needs to know about one chart type. */
 export interface ChartTypeDescriptor {
   readonly id: string;
   readonly category: RenderCategory;
   readonly parse: ParseFn;
-  readonly measure?: (content: string) => ContentCounts;
-  readonly minDims?: (counts: ContentCounts) => {
-    width: number;
-    height: number;
-  };
-}
-
-// ============================================================
-// measure() implementations — relocated verbatim from dimensions.ts so the
-// registry owns content-count extraction. Each returns ContentCounts.
-// ============================================================
-
-function measureSequence(content: string): ContentCounts {
-  const parsed = parseSequenceDgmo(content);
-  return {
-    participants: parsed.participants.length,
-    messages: parsed.messages.length,
-  };
-}
-
-function measureRaci(content: string): ContentCounts {
-  const parsed = parseRaci(content);
-  let taskCount = 0;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  for (const _task of allTasks(parsed)) taskCount++;
-  return {
-    roles: parsed.roles.length,
-    tasks: taskCount,
-  };
-}
-
-function walkTree(
-  nodes: readonly { children: readonly unknown[] }[],
-  depth: number,
-  acc: { nodes: number; depth: number }
-): void {
-  for (const node of nodes) {
-    acc.nodes++;
-    if (depth > acc.depth) acc.depth = depth;
-    walkTree(
-      node.children as readonly { children: readonly unknown[] }[],
-      depth + 1,
-      acc
-    );
-  }
-}
-
-function measureMindmap(content: string): ContentCounts {
-  const parsed = parseMindmap(content);
-  const acc = { nodes: 0, depth: 0 };
-  walkTree(parsed.roots, 1, acc);
-  return { nodes: acc.nodes, depth: acc.depth };
-}
-
-function measureTechRadar(content: string): ContentCounts {
-  const parsed = parseTechRadar(content);
-  let blipCount = 0;
-  for (const q of parsed.quadrants) blipCount += q.blips.length;
-  return { blips: blipCount };
-}
-
-function measureHeatmap(content: string): ContentCounts {
-  const parsed = parseHeatmap(content);
-  return {
-    columns: parsed.columns?.length ?? 0,
-    rows: parsed.heatmapRows?.length ?? parsed.rows?.length ?? 0,
-  };
-}
-
-function measureArc(content: string): ContentCounts {
-  const parsed = parseArc(content);
-  const allNodes = new Set<string>();
-  for (const g of parsed.arcNodeGroups) {
-    for (const n of g.nodes) allNodes.add(n);
-  }
-  return { nodes: allNodes.size };
-}
-
-function measureOrg(content: string): ContentCounts {
-  const parsed = parseOrg(content);
-  const acc = { nodes: 0, depth: 0 };
-  walkTree(parsed.roots, 1, acc);
-  return { nodes: acc.nodes, depth: acc.depth };
-}
-
-function measureGantt(content: string): ContentCounts {
-  const parsed = parseGantt(content);
-  const taskCount = parsed.nodes.filter(
-    (n: { kind: string }) => n.kind === 'task'
-  ).length;
-  return { tasks: taskCount };
-}
-
-function measureKanban(content: string): ContentCounts {
-  const parsed = parseKanban(content);
-  return { columns: parsed.columns.length };
-}
-
-function measureER(content: string): ContentCounts {
-  const parsed = parseERDiagram(content);
-  return { nodes: parsed.tables.length };
-}
-
-function measureClass(content: string): ContentCounts {
-  const parsed = parseClassDiagram(content);
-  return { nodes: parsed.classes.length };
-}
-
-function measureFlowchart(content: string): ContentCounts {
-  const parsed = parseFlowchart(content);
-  return { nodes: parsed.nodes.length };
-}
-
-function measureStateGraph(content: string): ContentCounts {
-  const parsed = parseState(content);
-  return { nodes: parsed.nodes.length };
-}
-
-function measurePert(content: string): ContentCounts {
-  const parsed = parsePert(content);
-  return { tasks: parsed.activities.length };
-}
-
-function measureInfra(content: string): ContentCounts {
-  const parsed = parseInfra(content);
-  return { nodes: parsed.nodes.length };
-}
-
-function measureSwimlane(content: string): ContentCounts {
-  const parsed = parseSwimlane(content);
-  return { lanes: parsed.lanes.length, nodes: parsed.nodes.length };
-}
-
-function measureFamily(content: string): ContentCounts {
-  const parsed = parseFamily(content);
-  return { nodes: parsed.persons.size };
-}
-
-// ============================================================
-// minDims() implementations — relocated verbatim from computeMinDimensions() in
-// utils/scaling.ts so the registry owns per-type minimum-dimension formulas
-// alongside measure(). Each maps ContentCounts → {width,height}. Types without a
-// minDims fall back to {300,200} (the old switch `default`) via the
-// REGISTRY_BY_ID lookup in dimensions.ts.
-// ============================================================
-
-function minDimsSequence(c: ContentCounts): { width: number; height: number } {
-  return {
-    width: Math.max((c.participants ?? 2) * 80, 320),
-    height: Math.max((c.messages ?? 1) * 20 + 120, 200),
-  };
-}
-function minDimsRaci(c: ContentCounts): { width: number; height: number } {
-  return {
-    width: Math.max((c.roles ?? 2) * 50 + 180, 300),
-    height: Math.max((c.tasks ?? 1) * 28 + 80, 200),
-  };
-}
-function minDimsMindmap(c: ContentCounts): { width: number; height: number } {
-  return {
-    width: Math.max((c.nodes ?? 3) * 30, 300),
-    height: Math.max((c.depth ?? 2) * 60, 200),
-  };
-}
-function minDimsTechRadar(): { width: number; height: number } {
-  return { width: 360, height: 400 };
-}
-function minDimsHeatmap(c: ContentCounts): { width: number; height: number } {
-  return {
-    width: Math.max((c.columns ?? 3) * 40, 300),
-    height: Math.max((c.rows ?? 3) * 30 + 60, 200),
-  };
-}
-function minDimsArc(c: ContentCounts): { width: number; height: number } {
-  return {
-    width: 300,
-    height: Math.max((c.nodes ?? 3) * 20 + 120, 200),
-  };
-}
-function measureEventLine(content: string): ContentCounts {
-  return { items: parseEventLine(content).events.length };
-}
-function measureBody(content: string): ContentCounts {
-  return { items: parseBody(content).parts.length };
-}
-function minDimsBody(): { width: number; height: number } {
-  // Fixed-aspect human figure (724×1448) plus side gutters for leader labels.
-  return { width: 720, height: 900 };
-}
-function minDimsEventLine(c: ContentCounts): { width: number; height: number } {
-  return {
-    width: Math.max(640, 120 + (c.items ?? 3) * 100),
-    height: 420,
-  };
-}
-function measureVersionControl(content: string): ContentCounts {
-  return { nodes: parseVersionControl(content).nodes.length };
-}
-function minDimsVersionControl(c: ContentCounts): {
-  width: number;
-  height: number;
-} {
-  return {
-    width: Math.max(480, 160 + (c.nodes ?? 3) * 86),
-    height: 360,
-  };
-}
-function minDimsOrg(c: ContentCounts): { width: number; height: number } {
-  return {
-    width: Math.max((c.nodes ?? 3) * 60, 300),
-    height: Math.max((c.depth ?? 2) * 80, 200),
-  };
-}
-function minDimsGantt(c: ContentCounts): { width: number; height: number } {
-  return {
-    width: 400,
-    height: Math.max((c.tasks ?? 3) * 24 + 80, 200),
-  };
-}
-function minDimsKanban(c: ContentCounts): { width: number; height: number } {
-  return {
-    width: Math.max((c.columns ?? 3) * 120, 360),
-    height: 300,
-  };
-}
-// er + class share this formula.
-function minDimsEntities(c: ContentCounts): { width: number; height: number } {
-  return {
-    width: Math.max((c.nodes ?? 2) * 140, 300),
-    height: Math.max((c.nodes ?? 2) * 80, 200),
-  };
-}
-// flowchart + state share this formula.
-function minDimsGraph(c: ContentCounts): { width: number; height: number } {
-  return {
-    width: Math.max((c.nodes ?? 3) * 60, 300),
-    height: Math.max((c.nodes ?? 3) * 50, 200),
-  };
-}
-function minDimsPert(c: ContentCounts): { width: number; height: number } {
-  return {
-    width: Math.max((c.tasks ?? 3) * 80, 340),
-    height: Math.max((c.tasks ?? 3) * 40 + 80, 200),
-  };
-}
-function minDimsInfra(c: ContentCounts): { width: number; height: number } {
-  return {
-    width: Math.max((c.nodes ?? 3) * 80, 300),
-    height: Math.max((c.nodes ?? 3) * 60, 200),
-  };
-}
-// Lane diagrams run wide (flow along the long axis); keep a generous width and a
-// height that grows with lane count — don't fall back to the {300,200} default.
-function minDimsSwimlane(c: ContentCounts): { width: number; height: number } {
-  return {
-    width: Math.max((c.nodes ?? 4) * 90, 480),
-    height: Math.max((c.lanes ?? 3) * 100 + 60, 240),
-  };
-}
-// Family trees fan wide (a generation is a horizontal row of cards) and deepen
-// with each generation; grow width faster than height.
-function minDimsFamily(c: ContentCounts): { width: number; height: number } {
-  return {
-    width: Math.max((c.nodes ?? 4) * 90, 420),
-    height: Math.max((c.nodes ?? 4) * 40 + 80, 240),
-  };
 }
 
 // ============================================================
@@ -376,102 +108,27 @@ function minDimsFamily(c: ContentCounts): { width: number; height: number } {
 
 const REGISTRY: Record<ChartTypeId, Omit<ChartTypeDescriptor, 'id'>> = {
   // ── Structured diagrams ───────────────────────────────────
-  sequence: {
-    category: 'diagram',
-    parse: parseSequenceDgmo,
-    measure: measureSequence,
-    minDims: minDimsSequence,
-  },
-  flowchart: {
-    category: 'diagram',
-    parse: parseFlowchart,
-    measure: measureFlowchart,
-    minDims: minDimsGraph,
-  },
-  class: {
-    category: 'diagram',
-    parse: parseClassDiagram,
-    measure: measureClass,
-    minDims: minDimsEntities,
-  },
-  er: {
-    category: 'diagram',
-    parse: parseERDiagram,
-    measure: measureER,
-    minDims: minDimsEntities,
-  },
-  state: {
-    category: 'diagram',
-    parse: parseState,
-    measure: measureStateGraph,
-    minDims: minDimsGraph,
-  },
-  org: {
-    category: 'diagram',
-    parse: parseOrg,
-    measure: measureOrg,
-    minDims: minDimsOrg,
-  },
-  kanban: {
-    category: 'diagram',
-    parse: parseKanban,
-    measure: measureKanban,
-    minDims: minDimsKanban,
-  },
+  sequence: { category: 'diagram', parse: parseSequenceDgmo },
+  flowchart: { category: 'diagram', parse: parseFlowchart },
+  class: { category: 'diagram', parse: parseClassDiagram },
+  er: { category: 'diagram', parse: parseERDiagram },
+  state: { category: 'diagram', parse: parseState },
+  org: { category: 'diagram', parse: parseOrg },
+  kanban: { category: 'diagram', parse: parseKanban },
   c4: { category: 'diagram', parse: parseC4 },
   sitemap: { category: 'diagram', parse: parseSitemap },
-  infra: {
-    category: 'diagram',
-    parse: parseInfra,
-    measure: measureInfra,
-    minDims: minDimsInfra,
-  },
-  gantt: {
-    category: 'diagram',
-    parse: parseGantt,
-    measure: measureGantt,
-    minDims: minDimsGantt,
-  },
-  pert: {
-    category: 'diagram',
-    parse: parsePert,
-    measure: measurePert,
-    minDims: minDimsPert,
-  },
+  infra: { category: 'diagram', parse: parseInfra },
+  gantt: { category: 'diagram', parse: parseGantt },
+  pert: { category: 'diagram', parse: parsePert },
   'boxes-and-lines': { category: 'diagram', parse: parseBoxesAndLines },
   sketch: { category: 'diagram', parse: parseSketch },
-  swimlane: {
-    category: 'diagram',
-    parse: parseSwimlane,
-    measure: measureSwimlane,
-    minDims: minDimsSwimlane,
-  },
-  family: {
-    category: 'diagram',
-    parse: parseFamily,
-    measure: measureFamily,
-    minDims: minDimsFamily,
-  },
-  'version-control': {
-    category: 'diagram',
-    parse: parseVersionControl,
-    measure: measureVersionControl,
-    minDims: minDimsVersionControl,
-  },
-  mindmap: {
-    category: 'diagram',
-    parse: parseMindmap,
-    measure: measureMindmap,
-    minDims: minDimsMindmap,
-  },
+  swimlane: { category: 'diagram', parse: parseSwimlane },
+  family: { category: 'diagram', parse: parseFamily },
+  'version-control': { category: 'diagram', parse: parseVersionControl },
+  mindmap: { category: 'diagram', parse: parseMindmap },
   wireframe: { category: 'diagram', parse: parseWireframe },
   'journey-map': { category: 'diagram', parse: parseJourneyMap },
-  raci: {
-    category: 'diagram',
-    parse: parseRaci,
-    measure: measureRaci,
-    minDims: minDimsRaci,
-  },
+  raci: { category: 'diagram', parse: parseRaci },
 
   // ── Standard ECharts charts (parseChart) ──────────────────
   bar: { category: 'data-chart', parse: parseChart },
@@ -484,66 +141,41 @@ const REGISTRY: Record<ChartTypeId, Omit<ChartTypeDescriptor, 'id'>> = {
   scatter: { category: 'data-chart', parse: parseScatter },
   sankey: { category: 'data-chart', parse: parseSankey },
   function: { category: 'data-chart', parse: parseFunctionChart },
-  heatmap: {
-    category: 'data-chart',
-    parse: parseHeatmap,
-    measure: measureHeatmap,
-    minDims: minDimsHeatmap,
-  },
+  heatmap: { category: 'data-chart', parse: parseHeatmap },
   funnel: { category: 'data-chart', parse: parseFunnel },
 
   // ── D3 visualizations — own per-viz parser door (Story 109.2) ──
   slope: { category: 'visualization', parse: parseSlope },
   wordcloud: { category: 'visualization', parse: parseWordcloud },
-  arc: {
-    category: 'visualization',
-    parse: parseArc,
-    measure: measureArc,
-    minDims: minDimsArc,
-  },
+  arc: { category: 'visualization', parse: parseArc },
   timeline: { category: 'visualization', parse: parseTimeline },
-  'event-line': {
-    category: 'visualization',
-    parse: parseEventLine,
-    measure: measureEventLine,
-    minDims: minDimsEventLine,
-  },
+  'event-line': { category: 'visualization', parse: parseEventLine },
   venn: { category: 'visualization', parse: parseVenn },
   quadrant: { category: 'visualization', parse: parseQuadrant },
-  body: {
-    category: 'diagram',
-    parse: parseBody,
-    measure: measureBody,
-    minDims: minDimsBody,
-  },
+  body: { category: 'diagram', parse: parseBody },
 
   // ── Visualizations with their own parsers ─────────────────
-  'tech-radar': {
-    category: 'visualization',
-    parse: parseTechRadar,
-    measure: measureTechRadar,
-    minDims: minDimsTechRadar,
-  },
+  'tech-radar': { category: 'visualization', parse: parseTechRadar },
   cycle: { category: 'visualization', parse: parseCycle },
   pyramid: { category: 'visualization', parse: parsePyramid },
   ring: { category: 'visualization', parse: parseRing },
-  // Treemap: squarified hierarchy. No measure/minDims — a treemap fills whatever
-  // rectangle it's given and has no intrinsic aspect/size (F11).
+  // Treemap: squarified hierarchy — fills whatever rectangle it's given and has
+  // no intrinsic aspect/size (F11).
   treemap: { category: 'visualization', parse: parseTreemap },
-  // Block diagram: deterministic grid (no measure/minDims — it sizes to content
-  // and is scaled to fit whatever rectangle it's given).
+  // Block diagram: deterministic grid — sizes to content and is scaled to fit
+  // whatever rectangle it's given.
   block: { category: 'visualization', parse: parseBlock },
   // Goal: a single now/target value in one of three faces (bar/thermometer/
-  // gauge). No measure/minDims — it centers in whatever rectangle it's given.
+  // gauge) — centers in whatever rectangle it's given.
   goal: { category: 'visualization', parse: parseGoal },
   // Countdown: the only dynamic chart — a single "N days until X" that ticks
-  // live. No measure/minDims; it centers in whatever rectangle it's given.
+  // live, centered in whatever rectangle it's given.
   countdown: { category: 'visualization', parse: parseCountdown },
   // Clock: live world-clock board — one row per place/zone, ticking every
-  // second. No measure/minDims; it sizes to its rows and scales to fit.
+  // second; sizes to its rows and scales to fit.
   clock: { category: 'visualization', parse: parseClock },
   // Bracket: single-elim tournament tree. A diagram (structural, node-and-edge);
-  // no measure/minDims — it sizes to content and scales to fit its rectangle.
+  // sizes to content and scales to fit its rectangle.
   bracket: { category: 'diagram', parse: parseBracket },
 
   // ── Geographic map (own parser → resolver → layout → renderer) ──
@@ -551,8 +183,8 @@ const REGISTRY: Record<ChartTypeId, Omit<ChartTypeDescriptor, 'id'>> = {
 
   // Live link: a pointer to a diagram published at Diagrammo Cloud, rendered
   // as a reference card. `diagram` like every other card-shaped type, so the
-  // export-handler cross-check covers it rather than being relaxed for it. No
-  // measure/minDims — the card sizes to its own text and scales to fit.
+  // export-handler cross-check covers it rather than being relaxed for it. The
+  // card sizes to its own text and scales to fit.
   'live-link': { category: 'diagram', parse: parseLiveLink },
 };
 

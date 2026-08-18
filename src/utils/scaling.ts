@@ -75,23 +75,3 @@ export class ScaleContext {
     return Math.max(fontSize * this.factor, floor);
   }
 }
-
-// ============================================================
-// ContentCounts — per-chart-type content tallies that feed the registry's
-// `minDims` formulas (chart-type-registry.ts). The formulas themselves moved
-// there (Story 111.5) so a chart type's sizing is defined in one descriptor.
-// ============================================================
-
-export interface ContentCounts {
-  items?: number;
-  columns?: number;
-  rows?: number;
-  participants?: number;
-  nodes?: number;
-  depth?: number;
-  messages?: number;
-  tasks?: number;
-  roles?: number;
-  blips?: number;
-  lanes?: number;
-}

@@ -8,7 +8,7 @@ dgmo is consumed by many repos (the desktop app, MCP server, Obsidian plugin, re
 
 ## Decision
 
-`src/index.ts` is the **frozen, semver-stable** interface: `render`, `validate`, `getPalette`, `palettes`, `themes`, sharing + embed helpers, `getMinDimensions`, `chartTypes`, and a fixed set of type exports.
+`src/index.ts` is the **frozen, semver-stable** interface: `render`, `validate`, `getPalette`, `palettes`, `themes`, sharing + embed helpers, `chartTypes`, and a fixed set of type exports. (`getMinDimensions` was listed here until 2026-08-17; it left the public surface when `src/dimensions.ts` was deleted on 2026-08-04.)
 
 `@diagrammo/dgmo/advanced` is the **explicit unstable** surface: low-level parsers (`parseFlowchart`, `parseChart`, …), D3 renderers, and shared internals. Breaking changes there are permitted per-minor and don't require a major bump.
 
