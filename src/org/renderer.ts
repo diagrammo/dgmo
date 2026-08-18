@@ -26,7 +26,6 @@ import { parseOrg } from './parser';
 import { layoutOrg } from './layout';
 import {
   LEGEND_HEIGHT,
-  LEGEND_GROUP_GAP,
   LEGEND_EYE_SIZE,
   LEGEND_EYE_GAP,
   EYE_OPEN_PATH,
@@ -72,15 +71,31 @@ const ANCESTOR_LABEL_FONT_SIZE = 11;
 const ANCESTOR_ROW_HEIGHT = 22;
 const ANCESTOR_TRAIL_BOTTOM_GAP = 16;
 
+// Ink above the topmost dot's centre: the dot itself, and the label's cap
+// height, which reaches about as far up as the radius does (baseline sits at
+// ANCESTOR_LABEL_FONT_SIZE * 0.35 below the centre).
+const ANCESTOR_TRAIL_TOP_INK = ANCESTOR_DOT_R + 2;
+
 /**
- * Vertical space the ancestor breadcrumb trail needs above the focused root,
- * at identity scale. Exporters add this to the canvas height so a focused
- * chart isn't scaled down to make room for its own trail.
+ * Vertical space a focused chart needs ABOVE whatever the layout already
+ * leaves over the root, at identity scale, for its ancestor breadcrumb trail.
+ *
+ * The trail is drawn UPWARD from the root's top edge — the bottom dot
+ * ANCESTOR_TRAIL_BOTTOM_GAP above it, each further ancestor one row higher —
+ * so its ink reaches `bottom gap + (count - 1) rows` above the root and no
+ * further. `headroom` is the empty space already there (the layout's top
+ * margin, and the in-diagram legend band when a renderer is not using it);
+ * only the shortfall has to be added. Reserving the whole trail height on top
+ * of that headroom left a focused chart ~100px of nothing above its own trail
+ * (#325).
  */
-export function ancestorTrailReserve(count: number): number {
-  return count > 0
-    ? count * ANCESTOR_ROW_HEIGHT + ANCESTOR_TRAIL_BOTTOM_GAP
-    : 0;
+export function ancestorTrailReserve(count: number, headroom = 0): number {
+  if (count < 1) return 0;
+  const inkAboveRoot =
+    ANCESTOR_TRAIL_BOTTOM_GAP +
+    (count - 1) * ANCESTOR_ROW_HEIGHT +
+    ANCESTOR_TRAIL_TOP_INK;
+  return Math.max(0, inkAboveRoot - headroom);
 }
 
 const LEGEND_FIXED_GAP = 8; // gap between fixed legend and scaled diagram — local, not shared
@@ -174,7 +189,10 @@ export function renderOrg(
   const legendOnly = layout.nodes.length === 0;
   const hasLegend = layout.legend.length > 0;
 
-  const layoutLegendShift = LEGEND_HEIGHT + LEGEND_GROUP_GAP;
+  // How far `layoutOrg` pushed the content down for an in-diagram legend row.
+  // Read from the layout, not assumed: with an active tag group that matches no
+  // group, the legend exists but nothing was shifted.
+  const layoutLegendShift = layout.legendShift;
   const fixedLegend = !exportDims && hasLegend && !legendOnly;
   const legendReserve = fixedLegend
     ? getMaxLegendReservedHeight(
@@ -198,12 +216,42 @@ export function renderOrg(
     ? ancestorPath.length * sAncestorRowHeight + sAncestorTrailBottomGap
     : 0;
 
+  // Root node IDs — focus icon is suppressed on these (already the tree root),
+  // and the breadcrumb trail hangs off the root's top edge.
+  const rootNodeIds = new Set(parsed.roots.map((r) => r.id));
+  const rootLayoutNode = layout.nodes.find((n) => rootNodeIds.has(n.id));
+  const rootLayoutContainer = rootLayoutNode
+    ? null
+    : layout.containers.find((c) => rootNodeIds.has(c.nodeId));
+  // Nodes: x is center. Containers: x is left edge, so center = x + width/2
+  const rootCenterX = rootLayoutNode
+    ? rootLayoutNode.x
+    : rootLayoutContainer
+      ? rootLayoutContainer.x + rootLayoutContainer.width / 2
+      : null;
+  const rootTopY = rootLayoutNode
+    ? rootLayoutNode.y
+    : rootLayoutContainer
+      ? rootLayoutContainer.y
+      : null;
+
+  // The fixed legend is drawn above the scaled diagram at native size, so the
+  // band `layoutOrg` left for an in-diagram legend is dead space — take it back
+  // instead of only discounting it from the height (#325).
+  const legendUnshift = fixedLegend ? layoutLegendShift : 0;
+  // Only the part of the trail that does not fit in the space already above the
+  // root is added; the layout's top margin pays for the rest.
+  const trailShift =
+    hasAncestorTrail && rootTopY !== null
+      ? ancestorTrailReserve(
+          ancestorPath!.length,
+          Math.max(0, rootTopY - legendUnshift)
+        )
+      : ancestorTrailHeight;
+
   const diagramW = layout.width;
-  let diagramH =
-    layout.height + (fixedTitle ? 0 : titleOffset) + ancestorTrailHeight;
-  if (fixedLegend) {
-    diagramH -= layoutLegendShift;
-  }
+  const diagramH =
+    layout.height + (fixedTitle ? 0 : titleOffset) - legendUnshift + trailShift;
   const availH = height - sDiagramPadding * 2 - legendReserve - titleReserve;
   const scaleX = (width - sDiagramPadding * 2) / diagramW;
   const scaleY = availH / diagramH;
@@ -272,8 +320,10 @@ export function renderOrg(
     }
   }
 
-  // Content group (offset by title + ancestor trail height)
-  const contentYShift = (fixedTitle ? 0 : titleOffset) + ancestorTrailHeight;
+  // Content group: title band, less the in-diagram legend band the fixed legend
+  // makes redundant, plus whatever the breadcrumb trail still needs above it.
+  const contentYShift =
+    (fixedTitle ? 0 : titleOffset) - legendUnshift + trailShift;
   const contentG = mainG
     .append('g')
     .attr('transform', `translate(0, ${contentYShift})`);
@@ -283,9 +333,6 @@ export function renderOrg(
   for (const group of parsed.tagGroups) {
     displayNames.set(tagAttrKey(group.name), group.name);
   }
-
-  // Root node IDs — focus icon is suppressed on these (already the tree root)
-  const rootNodeIds = new Set(parsed.roots.map((r) => r.id));
 
   // Render container backgrounds (bottom layer)
   const colorOff = parsed.options?.['color'] === 'off';
@@ -614,22 +661,7 @@ export function renderOrg(
   // Render ancestor breadcrumb trail (focus mode) — inside scaled group,
   // centered on and connected to the root node
   if (hasAncestorTrail) {
-    // Find the root node/container position in the layout
-    const rootNode = layout.nodes.find((n) => rootNodeIds.has(n.id));
-    const rootContainer = !rootNode
-      ? layout.containers.find((c) => rootNodeIds.has(c.nodeId))
-      : null;
-    // Nodes: x is center. Containers: x is left edge, so center = x + width/2
-    const rootCenterX = rootNode
-      ? rootNode.x
-      : rootContainer
-        ? rootContainer.x + rootContainer.width / 2
-        : null;
-    const rootTopY = rootNode
-      ? rootNode.y
-      : rootContainer
-        ? rootContainer.y
-        : null;
+    // Root position was read above the scale math — the trail's height feeds it.
     if (rootCenterX !== null && rootTopY !== null) {
       // Trail connects directly to the top edge of the root node.
       // The last ancestor dot sits ANCESTOR_TRAIL_BOTTOM_GAP above the root.

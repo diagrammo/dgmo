@@ -448,7 +448,15 @@ async function exportOrg(ctx: ExportContext): Promise<string> {
 
   const PADDING = 20;
   const titleOffset = effectiveParsed.title ? 30 : 0;
-  const trailReserve = ancestorTrailReserve(ancestorPath?.length ?? 0);
+  // Only the part of the breadcrumb trail that overshoots the space already
+  // above the focused root grows the canvas — the layout's top margin, and the
+  // legend band when the legend draws inside the diagram, pay for the rest.
+  const rootIds = new Set(effectiveParsed.roots.map((r) => r.id));
+  const rootTop =
+    orgLayout.nodes.find((n) => rootIds.has(n.id))?.y ??
+    orgLayout.containers.find((c) => rootIds.has(c.nodeId))?.y ??
+    0;
+  const trailReserve = ancestorTrailReserve(ancestorPath?.length ?? 0, rootTop);
   const exportWidth = orgLayout.width + PADDING * 2;
   const exportHeight =
     orgLayout.height + PADDING * 2 + titleOffset + trailReserve;

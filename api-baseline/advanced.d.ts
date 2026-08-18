@@ -391,32 +391,6 @@ declare function render(content: string, options?: {
     chartType: string | undefined;
 }>;
 
-declare class ScaleContext {
-    readonly factor: number;
-    readonly isBelowFloor: boolean;
-    private constructor();
-    static from(containerSize: number, idealSize: number, minScaleFactor?: number): ScaleContext;
-    /**
-     * Fit content into a bounding box, scaling by whichever dimension is more
-     * constraining (the smaller of the width- and height-fit ratios) so the
-     * diagram never overflows the canvas in either axis. Like {@link from}, the
-     * factor is clamped to `[minScaleFactor, 1]` (content is never enlarged, and
-     * never shrunk past the readability floor).
-     */
-    static fromBox(containerWidth: number, idealWidth: number, containerHeight: number, idealHeight: number, minScaleFactor?: number): ScaleContext;
-    /**
-     * Build a context from an explicit raw factor (clamped to
-     * `[minScaleFactor, 1]`). Used to refine a fit iteratively: layout scaling is
-     * non-linear (gaps shrink faster than floored text), so the first-pass factor
-     * can still overflow — re-measure the laid-out result and tighten.
-     */
-    static fromFactor(rawFactor: number, minScaleFactor?: number): ScaleContext;
-    static identity(): ScaleContext;
-    aesthetic(value: number): number;
-    structural(value: number): number;
-    text(fontSize: number, floor?: number): number;
-}
-
 type ChartType$1 = 'bar' | 'line' | 'pie' | 'polar-area' | 'radar';
 interface ChartDataPoint {
     label: string;
@@ -1666,6 +1640,14 @@ interface OrgLayoutResult {
     readonly legend: readonly OrgLegendGroup[];
     readonly width: number;
     readonly height: number;
+    /**
+     * How far every node, container and edge point was pushed DOWN to leave room
+     * for a legend row drawn inside the diagram — 0 when no group is visible.
+     * A renderer that draws the legend somewhere else (the app pins it above the
+     * scaled diagram at native size) takes this back, so it must read the shift
+     * that was actually applied rather than assume one (#325).
+     */
+    readonly legendShift: number;
 }
 declare function layoutOrg(parsed: ParsedOrg, hiddenCounts?: Map<string, number>, activeTagGroup?: string | null, hiddenAttributes?: Set<string>, expandAllLegend?: boolean): OrgLayoutResult;
 
@@ -4189,6 +4171,32 @@ interface MindmapLayoutResult {
 }
 
 declare function parseMindmap(content: string, palette?: PaletteColors): ParsedMindmap;
+
+declare class ScaleContext {
+    readonly factor: number;
+    readonly isBelowFloor: boolean;
+    private constructor();
+    static from(containerSize: number, idealSize: number, minScaleFactor?: number): ScaleContext;
+    /**
+     * Fit content into a bounding box, scaling by whichever dimension is more
+     * constraining (the smaller of the width- and height-fit ratios) so the
+     * diagram never overflows the canvas in either axis. Like {@link from}, the
+     * factor is clamped to `[minScaleFactor, 1]` (content is never enlarged, and
+     * never shrunk past the readability floor).
+     */
+    static fromBox(containerWidth: number, idealWidth: number, containerHeight: number, idealHeight: number, minScaleFactor?: number): ScaleContext;
+    /**
+     * Build a context from an explicit raw factor (clamped to
+     * `[minScaleFactor, 1]`). Used to refine a fit iteratively: layout scaling is
+     * non-linear (gaps shrink faster than floored text), so the first-pass factor
+     * can still overflow — re-measure the laid-out result and tighten.
+     */
+    static fromFactor(rawFactor: number, minScaleFactor?: number): ScaleContext;
+    static identity(): ScaleContext;
+    aesthetic(value: number): number;
+    structural(value: number): number;
+    text(fontSize: number, floor?: number): number;
+}
 
 declare function layoutMindmap(parsed: ParsedMindmap, _palette: PaletteColors, options?: {
     interactive?: boolean;

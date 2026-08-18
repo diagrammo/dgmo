@@ -97,6 +97,14 @@ export interface OrgLayoutResult {
   readonly legend: readonly OrgLegendGroup[];
   readonly width: number;
   readonly height: number;
+  /**
+   * How far every node, container and edge point was pushed DOWN to leave room
+   * for a legend row drawn inside the diagram — 0 when no group is visible.
+   * A renderer that draws the legend somewhere else (the app pins it above the
+   * scaled diagram at native size) takes this back, so it must read the shift
+   * that was actually applied rather than assume one (#325).
+   */
+  readonly legendShift: number;
 }
 
 // ============================================================
@@ -393,6 +401,7 @@ export function layoutOrg(
         legend: [],
         width: 0,
         height: 0,
+        legendShift: 0,
       };
     }
 
@@ -412,6 +421,7 @@ export function layoutOrg(
       legend: legendGroups,
       width: maxWidth + MARGIN * 2,
       height: cy - LEGEND_GROUP_GAP + MARGIN,
+      legendShift: 0,
     };
   }
 
@@ -1387,9 +1397,11 @@ export function layoutOrg(
   const effectiveW = (g: OrgLegendGroup) =>
     activeTagGroup != null || allExpanded ? g.width : g.minifiedWidth;
 
+  let appliedLegendShift = 0;
   if (visibleGroups.length > 0) {
     // Top: horizontal row above chart content, left-aligned
     const legendShift = LEGEND_HEIGHT + LEGEND_GROUP_GAP;
+    appliedLegendShift = legendShift;
 
     // Push all chart content down
     for (const n of layoutNodes) n.y += legendShift;
@@ -1437,5 +1449,6 @@ export function layoutOrg(
     legend: legendGroups,
     width: finalWidth,
     height: finalHeight,
+    legendShift: appliedLegendShift,
   };
 }
