@@ -461,13 +461,12 @@ function applyLabelOverrides(tokens: HighlightToken[]): void {
 // Post-processing: countdown recurrence line
 // ============================================================
 //
-// The recurrence line `every <cadence> [on …] [at …] [from …]` (and its
-// standalone slot lines) is a fixed-slot grammar the flat Lezer tokenizer can't
-// see — the whole line renders generically. This context-aware pass lights up
-// the sub-keywords + closed instant vocab WITHOUT teaching them to the
-// context-free specializer (which would leak `on`/`at`/`from` into every prose
-// label in every chart). Gated on the countdown chart type + the leader word,
-// so it only fires on real recurrence lines. Shared with the desktop editor's
+// The recurrence pair `since <date>` + `every <cadence>` is a fixed grammar the
+// flat Lezer tokenizer can't see — the whole line renders generically. This
+// context-aware pass lights up the cadence vocabulary WITHOUT teaching it to the
+// context-free specializer (which would leak `week`/`month`/`by` into every
+// prose label in every chart). Gated on the countdown chart type + the leader
+// word, so it only fires on real recurrence lines. Shared with the desktop editor's
 // ViewPlugin via `classifyRecurrenceLine` so the two render paths can't drift.
 
 /** A role override for one token span on a recurrence line. */
@@ -479,18 +478,9 @@ export interface RecurrenceSpan {
   role: 'keyword' | 'modifier';
 }
 
-/** Line leaders that open a recurrence line or a standalone slot line. */
-const RECUR_LEADERS = new Set([
-  'every',
-  'on',
-  'at',
-  'from',
-  'on-day',
-  'since-label',
-]);
-/** Connector sub-keywords inside `every …`. */
-const RECUR_CONNECTORS = new Set(['on', 'at', 'from']);
-/** Cadence unit words (only keyword-worthy in the cadence slot of `every`). */
+/** Line leaders that open a recurrence line. */
+const RECUR_LEADERS = new Set(['every', 'since', 'on-day', 'since-label']);
+/** Cadence words — the whole vocabulary `every` takes since decision #56. */
 const RECUR_CADENCE_WORDS = new Set([
   'year',
   'month',
@@ -500,11 +490,8 @@ const RECUR_CADENCE_WORDS = new Set([
   'weeks',
   'months',
 ]);
-
-/** `3rd` / `21st` / `last` — the ordinal position of an `on <nth> <weekday>`. */
-function isRecurOrdinal(token: string): boolean {
-  return /^(?:\d+(?:st|nd|rd|th)|last)$/i.test(token);
-}
+/** The `month by [last] weekday` shape selector — a shape, never a date. */
+const RECUR_SHAPE_WORDS = new Set(['by', 'last', 'weekday']);
 
 /**
  * Classify the significant tokens on a countdown recurrence line. Returns the
@@ -526,7 +513,6 @@ export function classifyRecurrenceLine(line: string): RecurrenceSpan[] {
   const lead = toks[0]!.t.toLowerCase();
   if (!RECUR_LEADERS.has(lead)) return spans;
   const everyLine = lead === 'every';
-  let seenConnector = false;
 
   for (let i = 0; i < toks.length; i++) {
     const { t, s, e } = toks[i]!;
@@ -535,23 +521,21 @@ export function classifyRecurrenceLine(line: string): RecurrenceSpan[] {
       spans.push({ start: s, end: e, role: 'keyword' }); // the leader
       continue;
     }
-    if (RECUR_CONNECTORS.has(low)) {
-      spans.push({ start: s, end: e, role: 'keyword' });
-      seenConnector = true;
-      continue;
-    }
-    // Cadence unit words are keywords only in `every`'s cadence slot (before the
-    // first connector) — checked before the weekday match so `month`/`week`
-    // don't collide with weekdayIndex's 3-letter prefix ('mon' → Monday).
-    if (everyLine && !seenConnector && RECUR_CADENCE_WORDS.has(low)) {
+    // `every` carries a cadence and nothing else, so every word after it is
+    // either a cadence unit or the `by [last] weekday` shape selector. Checked
+    // before the weekday match so `month`/`week` don't collide with
+    // weekdayIndex's 3-letter prefix ('mon' → Monday).
+    if (everyLine && RECUR_CADENCE_WORDS.has(low)) {
       spans.push({ start: s, end: e, role: 'keyword' });
       continue;
     }
-    if (
-      isRecurOrdinal(low) ||
-      monthIndex(t) !== null ||
-      weekdayIndex(t) !== null
-    ) {
+    if (everyLine && RECUR_SHAPE_WORDS.has(low)) {
+      spans.push({ start: s, end: e, role: 'modifier' });
+      continue;
+    }
+    // Month and weekday names survive on a `since` anchor written the long way
+    // (`since Jun 14 2015`); they no longer appear on an `every` line at all.
+    if (!everyLine && (monthIndex(t) !== null || weekdayIndex(t) !== null)) {
       spans.push({ start: s, end: e, role: 'modifier' });
     }
   }

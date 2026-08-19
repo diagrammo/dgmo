@@ -198,8 +198,75 @@ export interface RecurRule {
   readonly intervalN?: number | undefined;
   /** interval anchor epoch ms (from `from <date>`). */
   readonly anchorMs?: number | undefined;
-  /** IANA zone the `at`/`on` wall-clock resolves in; undefined → viewer-local. */
+  /** IANA zone the anchor's wall-clock resolves in; undefined → viewer-local. */
   readonly tz?: string | undefined;
+}
+
+/**
+ * What `every` carries — the cadence and nothing else (decision #56). The
+ * instant used to live beside it in `every … on <Aug 21>`, where it could
+ * disagree with the `since` anchor; deriving every calendar field from the
+ * anchor makes that disagreement impossible rather than merely an error.
+ */
+export type Cadence =
+  | { readonly kind: 'year' }
+  | { readonly kind: 'month' }
+  | { readonly kind: 'month-weekday'; readonly last: boolean }
+  | { readonly kind: 'week' }
+  | {
+      readonly kind: 'interval';
+      readonly n: number;
+      readonly unit: 'day' | 'week' | 'month';
+    };
+
+/**
+ * Build the recurrence rule from the cadence plus the `since` anchor instant.
+ * Month, day, weekday, nth and time-of-day all come from the anchor, so there
+ * is exactly one place a date lives and nothing to reconcile.
+ *
+ * `every month` follows the anchor's day-of-month (RRULE BYMONTHDAY semantics —
+ * a 31st simply skips 30-day months); `every month by weekday` follows its
+ * nth-weekday instead, which is the one reading a bare date cannot settle on
+ * its own.
+ */
+export function ruleFromAnchor(
+  cadence: Cadence,
+  anchorMs: number,
+  allDay: boolean,
+  tz: string | null
+): RecurRule {
+  const a = zoneFields(anchorMs, tz);
+  const base = {
+    hour: allDay ? 0 : a.hour,
+    minute: allDay ? 0 : a.minute,
+    allDay,
+    anchorMs,
+    ...(tz ? { tz } : {}),
+  };
+  switch (cadence.kind) {
+    case 'year':
+      return { ...base, kind: 'month-day', month: a.month, day: a.day };
+    case 'week':
+      return { ...base, kind: 'weekly', weekday: a.weekday };
+    case 'month-weekday':
+      return cadence.last
+        ? { ...base, kind: 'last-weekday', weekday: a.weekday }
+        : {
+            ...base,
+            kind: 'nth-weekday',
+            weekday: a.weekday,
+            nth: Math.floor((a.day - 1) / 7) + 1,
+          };
+    case 'month':
+      return { ...base, kind: 'interval', intervalUnit: 'month', intervalN: 1 };
+    case 'interval':
+      return {
+        ...base,
+        kind: 'interval',
+        intervalUnit: cadence.unit,
+        intervalN: cadence.n,
+      };
+  }
 }
 
 // ── Closed vocab (autocomplete + named errors, never a silent wrong date) ──
@@ -413,9 +480,37 @@ export function resolveNext(rule: RecurRule, now: number): number {
   }
 }
 
-/** The `since` ordinal for a resolved instant: `resolvedYear − since`. */
-export function ordinalFor(resolvedMs: number, since: number): number {
-  return new Date(resolvedMs).getFullYear() - since;
+/**
+ * The `since` ordinal for a resolved instant: complete cadence-units elapsed
+ * since the anchor. Birthday semantics (decision #56) — the anchor occurrence
+ * is the 0th, so someone born 2015-06-14 turns 11 on 2026-06-14 — and the same
+ * rule holds for every cadence, so a weekly standup anchored on its first
+ * meeting numbers that meeting 0 and the next one 1. An author who wants their
+ * first occurrence to read "#1" anchors `since` one cadence-unit earlier.
+ */
+export function ordinalFor(resolvedMs: number, rule: RecurRule): number {
+  const anchor = rule.anchorMs;
+  if (anchor === undefined) return 0;
+  const tz = rule.tz ?? null;
+  const a = zoneFields(anchor, tz);
+  const r = zoneFields(resolvedMs, tz);
+  const months = (r.year - a.year) * 12 + (r.month - a.month);
+  const spanDays = (dayStart(resolvedMs, tz) - dayStart(anchor, tz)) / DAY_MS;
+  switch (rule.kind) {
+    case 'month-day':
+      return r.year - a.year;
+    case 'nth-weekday':
+    case 'last-weekday':
+      return months;
+    case 'weekly':
+      return Math.round(spanDays / 7);
+    case 'interval': {
+      const n = rule.intervalN ?? 1;
+      if (rule.intervalUnit === 'month') return Math.floor(months / n);
+      const perStep = rule.intervalUnit === 'week' ? 7 : 1;
+      return Math.round(spanDays / perStep / n);
+    }
+  }
 }
 
 // ── Count + footer formatting (shared so baked == live) ──

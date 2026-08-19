@@ -51,9 +51,18 @@ export interface ParsedCountdown {
   /** Whether the resolved instant carries a meaningful time-of-day (drives footer). */
   readonly hasTime: boolean;
 
-  // ── Ordinal / since — numbers a yearly occurrence (resolvedYear − since) ──
-  readonly since: number | null;
-  /** Eyebrow template: `Nth` → ordinal word, `N` → the number. Null → "Nth <title>". */
+  // ── Ordinal / since ──
+  /**
+   * The recurrence anchor — the origin instant every calendar field is derived
+   * from (epoch ms), or null for a one-shot `target` block. Also the ordinal's
+   * zero point: the anchor occurrence is the 0th (decision #56).
+   */
+  readonly sinceMs: number | null;
+  /**
+   * Eyebrow template: `Nth` → ordinal word, `N` → the number. Null → NO eyebrow.
+   * The ordinal is opt-in, because `since` is now mandatory on every recurring
+   * block and numbering a standing meeting nobody asked to number is noise.
+   */
   readonly sinceLabel: string | null;
 
   /**

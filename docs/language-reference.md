@@ -3901,20 +3901,30 @@ Percent is `now / target`. Over-target clamps the fill at 100% while the `%` lab
 <!-- TYPE:countdown -->
 
 <!-- TIPS start -->
-**Styling tips:** The only dynamic chart — it ticks every second and is accurate on every load, so use it for a live "N days until X" widget, not a static report. Keep the title to the event (`Trip to Japan`); the target date renders as a caption automatically. `target` is a space-separated `key value` directive (no colon): a bare date (`2026-08-21`) counts to the viewer's local midnight, a datetime or offset is honored. Default `units days` reads best for weeks/months out; use `units full` for a launch-day `Nd HH:MM:SS` clock. Set `expired` to the celebration text (`🚀 Shipped!`); after the target passes every live surface shows it and the tick stops. On images (PNG export, `.svg` via `<img>`, GitHub camo) it can't tick and shows the whole-day count baked at export time — the correct fallback.
+**Styling tips:** The only dynamic chart — it ticks every second and is accurate on every load, so use it for a live "N days until X" widget, not a static report. Keep the title to the event (`Trip to Japan`); the target date renders as a caption automatically. `target` is a space-separated `key value` directive (no colon): a bare date (`2026-08-21`) counts to the viewer's local midnight, a datetime or offset is honored. Default `units days` reads best for weeks/months out; use `units full` for a launch-day `Nd HH:MM:SS` clock. Set `expired` to the celebration text (`🚀 Shipped!`); after the target passes every live surface shows it and the tick stops. For anything that comes round again — a birthday, an anniversary, a fortnightly retro — write `since <date>` in place of `target` and let `every <cadence>` say how often (`every year`, `every month`, `every 2 weeks`, `every month by last weekday`); omit `every` entirely and yearly is assumed. The whole date lives on `since`, the time included (`since 2026-01-05T18:00`), and the block rolls itself forward to the next occurrence — so `expired` is for one-shot blocks only. Add `since-label Nth Anniversary` when the occurrence should be numbered (`Nth` → `7th`, `N` → `7`); with no `since-label` there is no eyebrow. On images (PNG export, `.svg` via `<img>`, GitHub camo) it can't tick and shows the whole-day count baked at export time — the correct fallback.
 <!-- TIPS end -->
 
-The only _dynamic_ dgmo chart: a single "N days until X" recomputed against the viewer's clock on every load and ticking every second on any live surface. Distinct from `goal` (static) — a countdown has no `now`/`target` pair, just one future instant. The renderer bakes a whole-day fallback number (the no-JS floor); a tiny page-level ticker overwrites it live and, in `units full`, upgrades it to `Nd HH:MM:SS`.
+The only _dynamic_ dgmo chart: a single "N days until X" recomputed against the viewer's clock on every load and ticking every second on any live surface. Distinct from `goal` (static) — a countdown has no `now`/`target` pair, just one future instant: either an absolute `target`, or the next occurrence of a recurring block anchored by `since`. The renderer bakes a whole-day fallback number (the no-JS floor); a tiny page-level ticker overwrites it live and, in `units full`, upgrades it to `Nd HH:MM:SS`.
 
 ### Declaration
 
 ```
 countdown [Title]
 
+// one-shot — an absolute instant
 target <ISO date | datetime | now>
+
+// recurring — one date, and it lives on `since`
+since <date | datetime>   // the anchor instant (required for a recurring block)
+every <cadence>           // cadence only; omit the line and yearly is assumed
+since-label <template>    // opt-in ordinal eyebrow: `Nth` → "7th", `N` → "7"
+on-day <text>             // shown on the occurrence day itself
+
 units <days | full>       // default days
-expired <text>            // default "Now!"
+expired <text>            // default "Now!" (one-shot only)
 ```
+
+A block carries **either** `target` **or** `since`/`every`, never both.
 
 ### Example
 
@@ -3924,14 +3934,27 @@ countdown Trip to Japan
 target 2026-08-21
 ```
 
+Recurring — `since` carries the whole date (here a time too), `every` only the cadence:
+
+```
+countdown Team Retro
+
+since 2026-01-05T18:00
+every 2 weeks
+```
+
 ### Directives
 
-| Directive            | Effect                                                                                                                                                                                                                                       |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `target <iso>`       | The future instant (required). `2026-08-21`, `2026-08-21T18:00`, or with a tz offset. The literal `now` resolves at render (→ immediately expired; for testing).                                                                             |
-| `tz <IANA>`          | Pin authored times to a zone (`America/New_York`, `Asia/Kolkata`, `UTC`) so the count is the **same for every viewer** and doesn't drift when the host moves zones. Default viewer-local. Footer then shows the in-zone time + a `UTC±` tag. |
-| `units <days\|full>` | `days` (default) shows whole days (ceil); `full` ticks `Nd HH:MM:SS` on live surfaces.                                                                                                                                                       |
-| `expired <text>`     | Shown once the target passes; the tick stops. Default `"Now!"`.                                                                                                                                                                              |
+| Directive            | Effect                                                                                                                                                                                                                                                                                                                              |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------                                                                                        |
+| `target <iso>`       | The future instant of a **one-shot** block. `2026-08-21`, `2026-08-21T18:00`, or with a tz offset. The literal `now` resolves at render (→ immediately expired; for testing).                                                                                                                                                       |
+| `since <date>`       | The anchor instant of a **recurring** block, and the only date in it — month, day, weekday and time are all read from here (`since 2026-01-05T18:00` recurs at 18:00; a bare date is all-day). Liberal date grammar (§2B).                                                                                                          |
+| `every <cadence>`    | How often it comes round, and nothing else: `year`, `month`, `month by weekday`, `month by last weekday`, `week`, `day`, or `N days\|weeks\|months`. Omit the line entirely and **yearly** is assumed.                                                                                                                              |
+| `since-label <tmpl>` | Opt-in eyebrow numbering the occurrence — `Nth` → `7th`, `N` → `7` (`since-label Nth Anniversary`, `since-label Year N`). With no `since-label` there is no eyebrow.                                                                                                                                                                |
+| `on-day <text>`      | Shown on the occurrence day itself (`on-day 🎂 Today!`).                                                                                                                                                                                                                                                                             |
+| `tz <IANA>`          | Pin authored times to a zone (`America/New_York`, `Asia/Kolkata`, `UTC`) so the count is the **same for every viewer** and doesn't drift when the host moves zones. Default viewer-local. Footer then shows the in-zone time + a `UTC±` tag.                                                                                        |
+| `units <days\|full>` | `days` (default) shows whole days (ceil); `full` ticks `Nd HH:MM:SS` on live surfaces.                                                                                                                                                                                                                                              |
+| `expired <text>`     | Shown once the target passes; the tick stops. Default `"Now!"`. One-shot blocks only — a recurring block rolls forward to its next occurrence instead.                                                                                                                                                                              |
 
 ### Values & color
 
@@ -3939,7 +3962,7 @@ A bare `YYYY-MM-DD` counts to **midnight** and a datetime with no offset to that
 
 ### Semantics
 
-Days mode uses `ceil` — a target later _today_ reads "1 day", not "0". Full mode floors the days and shows `HH:MM:SS` for the remainder. Once the target passes, the `expired` text replaces the number and that node stops ticking (no negative counts). Live surfaces recompute from the absolute target on every load/route-change/note-open, so there is **no persisted state** and no drift; image surfaces (PNG, `.svg`-as-image, GitHub camo) show the whole-day count baked at export time.
+A recurring block always counts to the **next** occurrence: the anchor's calendar fields are stepped forward by the cadence until the result is in the future, and it rolls again as each occurrence passes. `month` keeps the anchor's day-of-month, `month by weekday` its nth weekday (a 2nd Sunday stays a 2nd Sunday), `month by last weekday` the last one of each month. The **ordinal** — what `since-label` prints — is the number of complete cadence units elapsed since the anchor, so the anchor occurrence itself is the 0th (birthday semantics), and it reads for every cadence, not just yearly. Days mode uses `ceil` — a target later _today_ reads "1 day", not "0". Full mode floors the days and shows `HH:MM:SS` for the remainder. Once the target passes, the `expired` text replaces the number and that node stops ticking (no negative counts). Live surfaces recompute from the absolute target on every load/route-change/note-open, so there is **no persisted state** and no drift; image surfaces (PNG, `.svg`-as-image, GitHub camo) show the whole-day count baked at export time.
 
 ---
 

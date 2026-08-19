@@ -682,9 +682,11 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
   [
     'countdown',
-    // Live "N until X". One-shot `target` OR a recurring `every … on … at …`
-    // rule (never both). `units`/`round`/`fields` shape the display; `since*`
-    // number the ordinal. All space-separated key value (no colon).
+    // Live "N until X". One-shot `target` OR a recurring `since <date>` (+ an
+    // optional `every <cadence>`), never both. Every calendar field comes from
+    // the anchor, so `on`/`at`/`from` are gone (decision #56).
+    // `units`/`round`/`fields` shape the display; `since-label` opts into the
+    // ordinal eyebrow. All space-separated key value (no colon).
     withGlobals({
       ...DATE_DIRECTIVES,
       target: {
@@ -693,18 +695,15 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       },
       every: {
         description:
-          'Recurring: every <year|month|week|N days|weeks|months> [on <instant>] [at <time>] [from <date>]',
-      },
-      on: {
-        description:
-          'Instant within the cadence: Aug 21 | 3rd Tuesday | last Friday | Friday',
-      },
-      at: {
-        description: 'Time of day: 18:00 | 6pm | 6:30pm; default midnight',
-      },
-      from: {
-        description:
-          'Interval anchor date: every [N] day|week|month from <date> (e.g. every month from 2026-01-31)',
+          'Cadence only — year | month | month by weekday | month by last weekday | week | day | N days|weeks|months. Omit it and yearly is assumed',
+        values: [
+          'year',
+          'month',
+          'month by weekday',
+          'month by last weekday',
+          'week',
+          'day',
+        ],
       },
       units: {
         description: 'human (default) | days | full | clock | weeks | words',
@@ -720,10 +719,13 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       },
       lang: { description: 'Locale for words/month names (en)' },
       'on-day': { description: 'Text shown on the occurrence day (recurring)' },
-      since: { description: 'Anchor year → enables the ordinal ("7th")' },
+      since: {
+        description:
+          'Recurring anchor — the whole origin instant (2015-06-14, or 2026-01-05T18:00 for a timed one). Every calendar field derives from it',
+      },
       'since-label': {
         description:
-          'Eyebrow template: Nth → ordinal word, N → number (e.g. "Nth Anniversary")',
+          'Opt into the ordinal eyebrow: Nth → ordinal word, N → number (e.g. "Nth Anniversary")',
       },
       expired: { description: 'Text shown once a one-shot target passes' },
     }),

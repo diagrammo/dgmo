@@ -1357,10 +1357,13 @@ export function renderCountdown(
 
   const now = Date.now();
   const resolved = parsed.resolvedMs;
+  // The eyebrow is OPT-IN: `since` is mandatory on every recurring block now, so
+  // keying the ordinal off it would number a standing meeting nobody asked to
+  // number. `since-label` is the opt-in, and carries the template.
   const label = parsed.sinceLabel ?? parsed.title ?? '';
   const ordinal =
-    parsed.since !== null && resolved !== null
-      ? ordinalFor(resolved, parsed.since)
+    parsed.sinceLabel !== null && parsed.rule !== null && resolved !== null
+      ? ordinalFor(resolved, parsed.rule)
       : null;
 
   // Band tier — auto-picked from the whole-day span (§36.6). `no-visual` and an
@@ -1773,14 +1776,11 @@ export function renderCountdown(
   if (parsed.hasTime) value.attr('data-dgmo-countdown-hastime', '1');
   // Zone for live display (one-shot re-parse + footer/hero formatting).
   if (parsed.tz) value.attr('data-dgmo-countdown-tz', parsed.tz);
-  if (parsed.since !== null) {
-    value.attr('data-dgmo-countdown-since', parsed.since);
-    // Bake the eyebrow TEMPLATE (Nth/N tokens) so the ticker re-applies it when
-    // the ordinal rolls to the next year.
-    value.attr(
-      'data-dgmo-countdown-since-label',
-      parsed.sinceLabel ?? `Nth ${parsed.title ?? ''}`
-    );
+  // Bake the eyebrow TEMPLATE (Nth/N tokens) so the ticker re-applies it when the
+  // ordinal rolls forward. The anchor itself rides `data-dgmo-recur-anchor`, so
+  // there is no separate `-since` attribute to keep in step.
+  if (parsed.sinceLabel !== null) {
+    value.attr('data-dgmo-countdown-since-label', parsed.sinceLabel);
   }
   stampRecur(value, parsed);
 

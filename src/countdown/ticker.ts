@@ -201,7 +201,6 @@ function updateNode(node: Element, now: number): void {
   if (resolvedMs === null) return; // unparseable — leave the baked text.
 
   const remaining = resolvedMs - now;
-  const sinceAttr = node.getAttribute('data-dgmo-countdown-since');
   const custom = node.getAttribute('data-dgmo-countdown-expired');
   const hasTime = node.getAttribute('data-dgmo-countdown-hastime') === '1';
   // Timed pivot: on the final day (or past) the hero is the ticking clock and the
@@ -265,12 +264,14 @@ function updateNode(node: Element, now: number): void {
   }
 
   // Since eyebrow — re-apply the Nth/N template when the ordinal rolls forward.
+  // The anchor and cadence both ride the reconstructed rule, so the ordinal
+  // counts in the cadence's own unit exactly as the baked one did.
+  const tpl = node.getAttribute('data-dgmo-countdown-since-label');
   const eyebrowEl = svg.querySelector('[data-dgmo-countdown-eyebrow]');
-  if (eyebrowEl && sinceAttr) {
-    const tpl = node.getAttribute('data-dgmo-countdown-since-label') || 'Nth';
+  if (eyebrowEl && tpl && rule) {
     eyebrowEl.textContent = applyOrdinalTemplate(
       tpl,
-      ordinalFor(resolvedMs, Number(sinceAttr))
+      ordinalFor(resolvedMs, rule)
     );
   }
 

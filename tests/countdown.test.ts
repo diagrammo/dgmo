@@ -6,6 +6,7 @@ import { tickCountdowns } from '../src/countdown/ticker';
 import {
   resolveNext,
   ordinalFor,
+  ruleFromAnchor,
   ordinalWord,
   formatCount,
   formatHuman,
@@ -205,9 +206,9 @@ describe('countdown parser — tz', () => {
     expect(r.diagnostics.some((d) => d.severity === 'warning')).toBe(true);
   });
 
-  it('pins a recurring `at` time to the zone (Fri 09:00 IST = 03:30Z)', () => {
+  it('pins a recurring anchor time to the zone (Fri 09:00 IST = 03:30Z)', () => {
     const r = parseCountdown(
-      `countdown Standup\nevery week on Friday at 09:00\ntz Asia/Kolkata`
+      `countdown Standup\nsince 2026-07-10T09:00\nevery week\ntz Asia/Kolkata`
     );
     expect(r.rule?.tz).toBe('Asia/Kolkata');
     // FIXED_NOW is Fri 2026-07-10 00:00Z; 09:00 IST that day = 03:30Z, still
@@ -234,19 +235,42 @@ describe('countdown parser — tz', () => {
 // Parser — recurring grammar
 // ============================================================
 
-describe('countdown parser — recurring', () => {
-  it('every year on Aug 21 → month-day rule', () => {
-    const r = parseCountdown(`countdown Birthday\nevery year on Aug 21`);
+describe('countdown parser — recurring (one date, in `since`)', () => {
+  it('`since` alone means yearly — the month and day come from the anchor', () => {
+    const r = parseCountdown(`countdown Birthday\nsince 2015-08-21`);
     expect(r.rule).toEqual(
       expect.objectContaining({ kind: 'month-day', month: 7, day: 21, hour: 0 })
     );
     expect(r.target).toBeNull();
+    expect(r.sinceMs).toBe(new Date(2015, 7, 21).getTime());
     expect(errors(r.diagnostics)).toHaveLength(0);
   });
 
-  it('every month on 3rd Tuesday at 18:00 → nth-weekday rule', () => {
+  it('an explicit `every year` reads identically to omitting it', () => {
+    const bare = parseCountdown(`countdown Birthday\nsince 2015-08-21`);
+    const spelt = parseCountdown(
+      `countdown Birthday\nsince 2015-08-21\nevery year`
+    );
+    expect(spelt.rule).toEqual(bare.rule);
+    expect(errors(spelt.diagnostics)).toHaveLength(0);
+  });
+
+  it('`every month` follows the anchor day-of-month', () => {
+    const r = parseCountdown(`countdown Rent\nsince 2026-01-31\nevery month`);
+    expect(r.rule).toEqual(
+      expect.objectContaining({
+        kind: 'interval',
+        intervalUnit: 'month',
+        intervalN: 1,
+      })
+    );
+    expect(r.rule?.anchorMs).toBe(new Date(2026, 0, 31).getTime());
+  });
+
+  it('`every month by weekday` derives the nth weekday from the anchor', () => {
+    // 2026-08-18 is the 3rd Tuesday of August.
     const r = parseCountdown(
-      `countdown Meetup\nevery month on 3rd Tuesday at 18:00`
+      `countdown Meetup\nsince 2026-08-18T18:00\nevery month by weekday`
     );
     expect(r.rule).toEqual(
       expect.objectContaining({
@@ -259,22 +283,28 @@ describe('countdown parser — recurring', () => {
     expect(r.hasTime).toBe(true);
   });
 
-  it('every month on last Friday → last-weekday rule', () => {
-    const r = parseCountdown(`countdown Retro\nevery month on last Friday`);
+  it('`every month by last weekday` derives the weekday from the anchor', () => {
+    // 2026-08-28 is a Friday.
+    const r = parseCountdown(
+      `countdown Retro\nsince 2026-08-28\nevery month by last weekday`
+    );
     expect(r.rule).toEqual(
       expect.objectContaining({ kind: 'last-weekday', weekday: 5 })
     );
   });
 
-  it('every week on Friday → weekly rule', () => {
-    const r = parseCountdown(`countdown Standup\nevery week on Friday`);
+  it('`every week` derives the weekday from the anchor', () => {
+    // 2026-07-03 is a Friday.
+    const r = parseCountdown(`countdown Standup\nsince 2026-07-03\nevery week`);
     expect(r.rule).toEqual(
       expect.objectContaining({ kind: 'weekly', weekday: 5 })
     );
   });
 
-  it('every 2 weeks from 2026-07-03 → interval rule', () => {
-    const r = parseCountdown(`countdown Sprint\nevery 2 weeks from 2026-07-03`);
+  it('`every 2 weeks` anchors the interval on `since`', () => {
+    const r = parseCountdown(
+      `countdown Sprint\nsince 2026-07-03\nevery 2 weeks`
+    );
     expect(r.rule).toEqual(
       expect.objectContaining({
         kind: 'interval',
@@ -285,74 +315,91 @@ describe('countdown parser — recurring', () => {
     expect(r.rule?.anchorMs).toBe(new Date(2026, 6, 3).getTime());
   });
 
-  it('rejects both target and every', () => {
-    const r = parseCountdown(
-      `countdown Both\ntarget 2026-08-21\nevery year on Aug 21`
+  it('`every day` is an interval of one day, no anchor line needed', () => {
+    const r = parseCountdown(`countdown Streak\nsince 2026-07-03\nevery day`);
+    expect(r.rule).toEqual(
+      expect.objectContaining({
+        kind: 'interval',
+        intervalN: 1,
+        intervalUnit: 'day',
+      })
     );
-    expect(errors(r.diagnostics).length).toBeGreaterThan(0);
+    expect(errors(r.diagnostics)).toHaveLength(0);
   });
 
-  it('errors on `every year` without an `on`', () => {
-    const r = parseCountdown(`countdown X\nevery year`);
-    expect(errors(r.diagnostics).length).toBeGreaterThan(0);
+  it('a datetime anchor carries the time; a bare date is all-day', () => {
+    const timed = parseCountdown(
+      `countdown Standup\nsince 2026-01-05T09:30\nevery week`
+    );
+    expect(timed.rule).toEqual(
+      expect.objectContaining({ hour: 9, minute: 30, allDay: false })
+    );
+    expect(timed.hasTime).toBe(true);
+    const allDay = parseCountdown(
+      `countdown Standup\nsince 2026-01-05\nevery week`
+    );
+    expect(allDay.rule).toEqual(
+      expect.objectContaining({ hour: 0, minute: 0, allDay: true })
+    );
+    expect(allDay.hasTime).toBe(false);
+  });
+
+  it('rejects both target and since', () => {
+    const r = parseCountdown(
+      `countdown Both\ntarget 2026-08-21\nsince 2015-08-21`
+    );
+    expect(r.error).not.toBeNull();
+  });
+
+  it('rejects `every` with no anchor to recur from', () => {
+    const r = parseCountdown(`countdown X\nevery week`);
+    expect(r.error).not.toBeNull();
+    expect(r.error).toContain('since');
   });
 });
 
+describe('countdown parser — the retired slots (decision #56)', () => {
+  it('a bare-year `since` is an error naming the full-date form', () => {
+    const r = parseCountdown(`countdown Anniversary\nsince 2015`);
+    expect(r.error).not.toBeNull();
+    expect(r.error).toContain('2015-06-14');
+  });
+
+  for (const [line, mentions] of [
+    ['every year on Aug 21', 'since'],
+    ['every week at 18:00', 'since'],
+    ['every 2 weeks from 2026-07-03', 'since'],
+  ] as const) {
+    it(`rejects inline slots: ${line}`, () => {
+      const r = parseCountdown(`countdown X\nsince 2026-07-03\n${line}`);
+      expect(r.error).not.toBeNull();
+      expect(r.error).toContain(mentions);
+    });
+  }
+
+  for (const line of ['on Aug 21', 'at 18:00', 'from 2026-07-03']) {
+    it(`rejects the standalone slot line: ${line}`, () => {
+      const r = parseCountdown(`countdown X\nsince 2026-07-03\n${line}`);
+      expect(r.error).not.toBeNull();
+    });
+  }
+});
+
 describe('countdown parser — §2.4 free-prose rejection', () => {
-  it('rejects "every Friday 6pm" with a 24h fix + cadence hint', () => {
-    const r = parseCountdown(`countdown X\nevery Friday 6pm`);
+  it('rejects "every Friday 6pm", pointing the date and time at the anchor', () => {
+    const r = parseCountdown(`countdown X\nsince 2026-07-03\nevery Friday 6pm`);
     const errs = r.diagnostics.filter((d) => d.severity === 'error');
     expect(errs.length).toBeGreaterThan(0);
     const msg = errs.map((e) => e.message).join(' ');
     expect(msg).toContain('18:00');
-    expect(msg.toLowerCase()).toContain('every week on friday');
+    expect(msg.toLowerCase()).toContain('every week');
   });
 
-  it('rejects an unparseable `at` value with a format hint', () => {
-    const r = parseCountdown(`countdown X\nevery week on Friday\nat teatime`);
+  it('rejects an unknown cadence with the cadence list', () => {
+    const r = parseCountdown(`countdown X\nsince 2026-07-03\nevery fortnight`);
     const errs = r.diagnostics.filter((d) => d.severity === 'error');
     expect(errs.length).toBeGreaterThan(0);
-    expect(errs.map((e) => e.message).join(' ')).toContain('18:00 or 6:30pm');
-  });
-});
-
-describe('countdown parser — am/pm `at` times (decision #48)', () => {
-  it('`at 6pm` == `at 18:00`', () => {
-    const ampm = parseCountdown(`countdown X\nevery week on Friday\nat 6pm`);
-    const h24 = parseCountdown(`countdown X\nevery week on Friday\nat 18:00`);
-    expect(errors(ampm.diagnostics)).toHaveLength(0);
-    expect(ampm.rule).toEqual(
-      expect.objectContaining({ hour: 18, minute: 0, allDay: false })
-    );
-    expect(ampm.rule).toEqual(h24.rule);
-  });
-
-  it('`at 6:30pm` normalizes to 18:30', () => {
-    const r = parseCountdown(`countdown X\nevery week on Friday\nat 6:30pm`);
-    expect(errors(r.diagnostics)).toHaveLength(0);
-    expect(r.rule).toEqual(expect.objectContaining({ hour: 18, minute: 30 }));
-  });
-
-  it('`at 9am` normalizes to 09:00 and `at 12am` to midnight', () => {
-    const am = parseCountdown(`countdown X\nevery week on Friday\nat 9am`);
-    expect(am.rule).toEqual(expect.objectContaining({ hour: 9, minute: 0 }));
-    const mid = parseCountdown(`countdown X\nevery week on Friday\nat 12am`);
-    expect(mid.rule).toEqual(expect.objectContaining({ hour: 0, minute: 0 }));
-  });
-
-  it('am/pm works inline on an `every` line', () => {
-    const r = parseCountdown(
-      `countdown Meetup\nevery month on 3rd Tuesday at 6pm`
-    );
-    expect(errors(r.diagnostics)).toHaveLength(0);
-    expect(r.rule).toEqual(
-      expect.objectContaining({ kind: 'nth-weekday', nth: 3, hour: 18 })
-    );
-  });
-
-  it('rejects an out-of-range meridiem hour like 13pm', () => {
-    const r = parseCountdown(`countdown X\nevery week on Friday\nat 13pm`);
-    expect(errors(r.diagnostics).length).toBeGreaterThan(0);
+    expect(errs.map((e) => e.message).join(' ')).toContain('N days');
   });
 });
 
@@ -428,8 +475,39 @@ describe('resolveNext', () => {
 });
 
 describe('ordinal math', () => {
-  it('resolvedYear − since', () => {
-    expect(ordinalFor(new Date(2026, 5, 14).getTime(), 2019)).toBe(7);
+  it('yearly: complete years since the anchor (the anchor year is the 0th)', () => {
+    const rule = ruleFromAnchor(
+      { kind: 'year' },
+      new Date(2019, 5, 14).getTime(),
+      true,
+      null
+    );
+    expect(ordinalFor(new Date(2026, 5, 14).getTime(), rule)).toBe(7);
+    expect(ordinalFor(new Date(2019, 5, 14).getTime(), rule)).toBe(0);
+  });
+
+  it('weekly: complete weeks since the anchor', () => {
+    const anchor = new Date(2026, 0, 5).getTime(); // a Monday
+    const rule = ruleFromAnchor({ kind: 'week' }, anchor, true, null);
+    expect(ordinalFor(anchor, rule)).toBe(0);
+    expect(ordinalFor(new Date(2026, 0, 26).getTime(), rule)).toBe(3);
+  });
+
+  it('monthly: complete months since the anchor', () => {
+    const anchor = new Date(2026, 0, 15).getTime();
+    const rule = ruleFromAnchor({ kind: 'month' }, anchor, true, null);
+    expect(ordinalFor(new Date(2026, 4, 15).getTime(), rule)).toBe(4);
+  });
+
+  it('interval: complete N-unit steps since the anchor', () => {
+    const anchor = new Date(2026, 6, 3).getTime();
+    const rule = ruleFromAnchor(
+      { kind: 'interval', n: 2, unit: 'week' },
+      anchor,
+      true,
+      null
+    );
+    expect(ordinalFor(new Date(2026, 7, 14).getTime(), rule)).toBe(3);
   });
   it('ordinalWord', () => {
     expect(ordinalWord(1)).toBe('1st');
@@ -548,7 +626,7 @@ describe('countdown renderer — baked markers', () => {
 
   it('recurring: bakes resolved instant + structured recur attrs', () => {
     const c = renderAt(
-      `countdown Meetup\nevery month on 3rd Tuesday at 18:00`,
+      `countdown Meetup\nsince 2026-08-18T18:00\nevery month by weekday`,
       '2026-07-10T00:00:00Z'
     );
     const node = valueNode(c);
@@ -562,7 +640,7 @@ describe('countdown renderer — baked markers', () => {
 
   it('since eyebrow: fills the Nth/N template', () => {
     const c = renderAt(
-      `countdown Anniversary\nevery year on Jun 14\nsince 2019\nsince-label Nth Anniversary`,
+      `countdown Anniversary\nsince 2019-06-14\nsince-label Nth Anniversary`,
       '2026-07-10T00:00:00Z'
     );
     // Next Jun 14 is 2027 → 2027 − 2019 = 8 → "8th Anniversary".
@@ -570,13 +648,14 @@ describe('countdown renderer — baked markers', () => {
     expect(eyebrow?.textContent).toBe('8th Anniversary');
   });
 
-  it('since eyebrow: default template is "Nth <title>"', () => {
+  it('no since-label, no eyebrow — the ordinal is opt-in', () => {
+    // `since` is mandatory on every recurring block now, so keying the eyebrow
+    // off it would number a standing meeting nobody asked to number.
     const c = renderAt(
-      `countdown Trip\nevery year on Jun 14\nsince 2019`,
+      `countdown Trip\nsince 2019-06-14`,
       '2026-07-10T00:00:00Z'
     );
-    const eyebrow = c.querySelector('[data-dgmo-countdown-eyebrow]');
-    expect(eyebrow?.textContent).toBe('8th Trip');
+    expect(c.querySelector('[data-dgmo-countdown-eyebrow]')).toBeNull();
   });
 });
 
@@ -795,7 +874,7 @@ describe('countdown ticker', () => {
 
   it('recurring rolls forward: past the occurrence it counts to the next one', () => {
     const c = renderAt(
-      `countdown Birthday\nevery year on Aug 21`,
+      `countdown Birthday\nsince 2019-08-21`,
       '2026-07-10T00:00:00Z'
     );
     // Move past this year's Aug 21 → ticker resolves to 2027-08-21.
@@ -809,7 +888,7 @@ describe('countdown ticker', () => {
   it('all-day recurring ON its day → on-day text, not "next year"', () => {
     // The critical fix: an all-day occurrence stays current for its whole day.
     const c = renderAt(
-      `countdown Birthday\nevery year on Jul 12\non-day 🎂 Today!`,
+      `countdown Birthday\nsince 2019-07-12\non-day 🎂 Today!`,
       '2026-07-12T12:00:00Z' // Jul 12 IS the day
     );
     expect(valueNode(c).textContent).toBe('🎂 Today!');
@@ -817,7 +896,7 @@ describe('countdown ticker', () => {
 
   it('since eyebrow re-applies the template live on a roll-forward tick', () => {
     const c = renderAt(
-      `countdown Anniversary\nevery year on Jul 12\nsince 2019\nsince-label Nth Anniversary`,
+      `countdown Anniversary\nsince 2019-07-12\nsince-label Nth Anniversary`,
       '2026-07-11T00:00:00Z'
     );
     // Jul 12 2026 → 7th. After it passes, rolls to Jul 12 2027 → 8th.

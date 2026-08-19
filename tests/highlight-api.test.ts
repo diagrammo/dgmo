@@ -256,27 +256,25 @@ describe('highlightDgmo — countdown recurrence line', () => {
   const roleOf = (src: string, text: string): string | undefined =>
     highlightDgmo(src).find((t) => t.text === text)?.role;
 
-  it('lights up every/on/at as keywords and the month as a modifier', () => {
-    const src = 'countdown Launch\nevery year on August 21 at 18:00\n';
+  it('lights up the cadence words on an `every` line', () => {
+    const src = 'countdown Launch\nsince 2026-08-21\nevery year\n';
     expect(roleOf(src, 'every')).toBe('keyword');
-    expect(roleOf(src, 'on')).toBe('keyword');
-    expect(roleOf(src, 'at')).toBe('keyword');
     expect(roleOf(src, 'year')).toBe('keyword');
-    expect(roleOf(src, 'August')).toBe('modifier');
+    expect(roleOf(src, 'since')).toBe('keyword');
   });
 
-  it('classifies ordinal + weekday as modifiers, cadence word as keyword', () => {
-    const src = 'countdown Standup\nevery month on last Friday\n';
+  it('classifies the `month by last weekday` shape selector', () => {
+    const src =
+      'countdown Standup\nsince 2026-08-28\nevery month by last weekday\n';
     expect(roleOf(src, 'month')).toBe('keyword'); // cadence, not weekday
+    expect(roleOf(src, 'by')).toBe('modifier');
     expect(roleOf(src, 'last')).toBe('modifier');
-    expect(roleOf(src, 'Friday')).toBe('modifier');
+    expect(roleOf(src, 'weekday')).toBe('modifier');
   });
 
-  it('handles nth-weekday ordinals', () => {
-    // `3rd` tokenizes as Number(`3`) + Identifier(`rd`); both are re-roled.
-    const src = 'countdown Retro\nevery month on 3rd Tuesday\n';
-    expect(roleOf(src, 'rd')).toBe('modifier');
-    expect(roleOf(src, 'Tuesday')).toBe('modifier');
+  it('lights a month name written the long way on the anchor', () => {
+    const src = 'countdown Retro\nsince August 21 2026\n';
+    expect(roleOf(src, 'August')).toBe('modifier');
   });
 
   it('does not leak on/at/from into other chart types', () => {
@@ -288,7 +286,7 @@ describe('highlightDgmo — countdown recurrence line', () => {
 
   it('leaves note-block prose alone', () => {
     const src =
-      'countdown Trip\nevery week on Friday\nnote\n  every Friday we sail\n';
+      'countdown Trip\nsince 2026-07-03\nevery week\nnote\n  every Friday we sail\n';
     // The note body is not a recurrence line — `every`/`Friday` stay note content.
     const noteEvery = highlightDgmo(src).filter((t) => t.text === 'every');
     expect(noteEvery[1]?.role).toBe('noteContent');
