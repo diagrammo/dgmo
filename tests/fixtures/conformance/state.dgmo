@@ -1,0 +1,10 @@
+state Ship Battle Lifecycle
+
+[*] -> Sailing
+
+Sailing
+  -enemy spotted-> Engaging
+
+Engaging
+  -enemy strikes colours-> Sailing
+  -outgunned-> [*]

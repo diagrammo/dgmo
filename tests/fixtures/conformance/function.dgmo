@@ -1,0 +1,4 @@
+function Cannonball Trajectory
+x 0 to 250
+
+45 degrees red: -0.003*x^2 + 0.75*x

@@ -1,0 +1,8 @@
+swimlane Weekly Publishing
+
+lane Writer gray
+  Draft Post -> Review
+lane Editor blue
+  <Review>
+    -ok-> Schedule
+  Schedule

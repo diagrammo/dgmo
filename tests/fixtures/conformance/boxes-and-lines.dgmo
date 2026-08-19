@@ -1,0 +1,5 @@
+boxes-and-lines Pirate Fleet Command
+
+Flagship
+  -orders-> Watchtower
+  -orders-> Signal Flags

@@ -1,0 +1,12 @@
+c4 Pirate Treasure Map System
+
+Captain is a person
+  -Plots the next raid-> TreasureMap
+
+TreasureMap is a system description: Tracks buried treasure locations
+
+  containers
+    ChartRoom is a container description: Interactive sea chart, tech: Parchment
+      -Queries treasure data-> Vault
+
+    Vault is a container description: Encrypted treasure ledger, tech: Iron Chest

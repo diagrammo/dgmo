@@ -1,0 +1,5 @@
+sketch Plunder Pipeline
+
+Captain's Console as con at: 2 0
+Spyglass Feed shape: database, at: 0 0
+  -sightings-> con

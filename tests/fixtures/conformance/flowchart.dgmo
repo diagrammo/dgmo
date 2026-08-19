@@ -1,0 +1,5 @@
+flowchart Mutiny Resolution
+
+(Weigh Anchor) -> [Set Sail] -> <Crew Discontent?>
+  -no-> (Reach Port)
+  -yes-> [Call a Vote] -> (Elect New Captain)

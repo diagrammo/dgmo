@@ -1,0 +1,8 @@
+raci Voyage Departure
+roles
+  Cap red
+  Nav blue
+
+Plot the course
+  Cap: A
+  Nav: R

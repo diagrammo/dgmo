@@ -1,0 +1,6 @@
+sequence Treasure Claim
+
+User -Claim the sunken chest-> ClaimAPI
+ClaimAPI -Set status = claimed-> MapDB
+MapDB -Claim accepted-> ClaimAPI
+ClaimAPI -500 doubloons earned-> User

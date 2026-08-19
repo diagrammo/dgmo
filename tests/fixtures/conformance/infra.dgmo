@@ -1,0 +1,14 @@
+infra Pirate Communication Network
+
+edge
+  rps: 200
+  -> SignalFlags
+
+SignalFlags
+  description: Flag semaphore relay between ships
+  latency-ms: 30000
+  -> Flagship
+
+Flagship
+  max-rps: 50
+  latency-ms: 5000

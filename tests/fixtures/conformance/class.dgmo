@@ -1,0 +1,8 @@
+class Ship Class Hierarchy
+
+abstract Vessel
+  # name: string
+  + sail(): void
+
+Galleon extends Vessel
+  - cannons: number

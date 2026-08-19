@@ -1,0 +1,5 @@
+pert Voyage to the Atoll
+
+sail to atoll 4 5 7
+recruit crew 1 2 4
+  -> sail to atoll

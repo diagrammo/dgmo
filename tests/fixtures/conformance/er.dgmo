@@ -1,0 +1,10 @@
+er Pirate Fleet
+
+ships
+  id int pk
+  name varchar
+  1-aboard-* crew_members
+
+crew_members
+  id int pk
+  ship_id int fk
