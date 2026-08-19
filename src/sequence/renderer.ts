@@ -588,9 +588,17 @@ export interface SectionParticipation {
   /** Messages addressed to it. */
   receives: number;
   /**
-   * Source line of the first message in the run that touches it — sent or
-   * received. This is where clicking its mark lands the reader: the fold opens
-   * and the cursor goes to the message the mark was standing for.
+   * Source line the mark's click lands on: the first message in the run this
+   * participant SENDS, falling back to the first that merely addresses it.
+   *
+   * Not the first message that touches it, which is what this was until
+   * 2026-08-18 (#286). The first arrow pointing at a participant is often
+   * somebody else's business — a fold in which Cook sent three orders landed
+   * Cook's mark on the line where the quartermaster handed over the keys — so
+   * intent beats mere involvement. The fallback is what a receive-only
+   * participant gets, and it is the same rule the mark's own shape already
+   * shows: filled exactly when `sends > 0`, so a filled dot goes to what it
+   * said and a ring to what was said to it.
    */
   firstLine: number;
 }
@@ -614,20 +622,29 @@ export function summarizeSectionParticipation(
   msgIndices: readonly number[]
 ): Map<string, SectionParticipation> {
   const summary = new Map<string, SectionParticipation>();
+  // The first SEND wins the destination, so a participant's line can move
+  // later as the run is walked — `firstLine` cannot be fixed at creation the
+  // way it was when any touch would do. Tracked here rather than in the entry:
+  // once a send has been seen the answer is settled, and a receive-only
+  // participant keeps the first line that addressed it.
+  const sendLine = new Map<string, number>();
   const bump = (
     id: string,
     key: 'sends' | 'receives',
     lineNumber: number
   ): void => {
-    // `firstLine` is only ever set on creation: msgIndices arrive in source
-    // order, so the message that introduces a participant is the first one
-    // that touches it.
+    // msgIndices arrive in source order, so the message that introduces a
+    // participant is the first one that touches it.
     const entry = summary.get(id) ?? {
       sends: 0,
       receives: 0,
       firstLine: lineNumber,
     };
     entry[key] += 1;
+    if (key === 'sends' && !sendLine.has(id)) {
+      sendLine.set(id, lineNumber);
+      entry.firstLine = lineNumber;
+    }
     summary.set(id, entry);
   };
   for (const idx of msgIndices) {

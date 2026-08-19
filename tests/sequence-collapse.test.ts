@@ -708,9 +708,49 @@ describe('summarizeSectionParticipation', () => {
   it('counts sends and receives separately', () => {
     const messages = [msg('A', 'B', 1), msg('B', 'C', 2), msg('C', 'B', 3)];
     const summary = summarizeSectionParticipation(messages, [0, 1, 2]);
+    // firstLine is where the mark's click lands: the first message the
+    // participant SENDS. B is addressed on line 1 and speaks on line 2; C is
+    // addressed on line 2 and speaks on line 3 (#286).
     expect(summary.get('A')).toEqual({ sends: 1, receives: 0, firstLine: 1 });
-    expect(summary.get('B')).toEqual({ sends: 1, receives: 2, firstLine: 1 });
-    expect(summary.get('C')).toEqual({ sends: 1, receives: 1, firstLine: 2 });
+    expect(summary.get('B')).toEqual({ sends: 1, receives: 2, firstLine: 2 });
+    expect(summary.get('C')).toEqual({ sends: 1, receives: 1, firstLine: 3 });
+  });
+
+  // ── Where a mark's click lands (#286) ─────────────────────────────
+  //
+  // It was the first message that TOUCHED a participant until 2026-08-18,
+  // which delivered the participant driving a section to somebody else's
+  // message: a cook that sent three orders landed on the line where the
+  // quartermaster handed over the keys.
+
+  it('lands on the first message the participant sends, not the first that touches it', () => {
+    const messages = [
+      msg('Quartermaster', 'Cook', 12),
+      msg('Cook', 'Steward', 13),
+      msg('Cook', 'Quartermaster', 14),
+      msg('Cook', 'Steward', 15),
+    ];
+    const summary = summarizeSectionParticipation(messages, [0, 1, 2, 3]);
+    expect(summary.get('Cook')?.firstLine).toBe(13);
+  });
+
+  it('falls back to the first message addressed to a participant that never sends', () => {
+    const messages = [
+      msg('Quartermaster', 'Cook', 12),
+      msg('Cook', 'Steward', 13),
+      msg('Cook', 'Steward', 15),
+    ];
+    const summary = summarizeSectionParticipation(messages, [0, 1, 2]);
+    const steward = summary.get('Steward');
+    expect(steward?.sends).toBe(0);
+    expect(steward?.firstLine).toBe(13);
+  });
+
+  it('keeps the sending line even when a later message only addresses it', () => {
+    const messages = [msg('A', 'B', 4), msg('B', 'A', 5), msg('A', 'B', 6)];
+    const summary = summarizeSectionParticipation(messages, [0, 1, 2]);
+    expect(summary.get('A')?.firstLine).toBe(4);
+    expect(summary.get('B')?.firstLine).toBe(5);
   });
 
   it('omits a participant that no message in the run touches', () => {
@@ -885,9 +925,10 @@ describe('collapsed section participant marks', () => {
     const hit = svg.querySelector(
       '.section-mark-hit[data-participant-id="Ledger"]'
     )!;
-    // Ledger's first appearance in the fold is `Auth -check funds-> Ledger`,
-    // the fourth line of the diagram.
-    expect(hit.getAttribute('data-section-mark-line')).toBe('4');
+    // Ledger is first ADDRESSED on line 4 (`Auth -check funds-> Ledger`) and
+    // first SPEAKS on line 5 (`Ledger -balance ok-> Auth`). The click lands on
+    // 5: what it said, not what was said to it (#286).
+    expect(hit.getAttribute('data-section-mark-line')).toBe('5');
     // The visible mark stays inert; the invisible disc over it takes the click
     expect(markFor(svg, 'Ledger').getAttribute('pointer-events')).toBe('none');
     expect(Number(hit.getAttribute('r'))).toBeGreaterThanOrEqual(9);
