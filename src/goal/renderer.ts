@@ -20,6 +20,7 @@ import {
 import { resolveColor } from '../colors';
 import { compactNumber } from '../treemap/treemap-shared';
 import { parseInlineMarkdown } from '../utils/inline-markdown';
+import { measureText } from '../utils/text-measure';
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import type { ParsedGoal } from './types';
@@ -436,18 +437,28 @@ function renderBar(
     }
   }
 
-  // Current value rides INSIDE the fill, tracking its right end.
+  // Current value rides INSIDE the fill, tracking its right end — for as long
+  // as the fill is wide enough to hold the glyphs. Below that it moves to the
+  // OUTSIDE of the level and changes colour with the surface it lands on:
+  // `paint.base` is the fill's own accent, picked to be read against the fill,
+  // and 24px of it sitting on the bare grey track is the one place it was never
+  // chosen for. The switch is measured rather than a fixed floor, so a five-
+  // digit value asks for more room than a single digit (#280).
   if (!parsed.options.noValue) {
-    const valX = Math.max(x + fillW - 16, x + 52);
+    const valueText = compactNumber(parsed.now);
+    const valuePad = 16;
+    const insideFits =
+      fillW >= measureText(valueText, 24, { bold: true }) + valuePad * 2;
+    const valX = insideFits ? x + fillW - valuePad : x + fillW + valuePad;
     g.append('text')
       .attr('x', valX)
       .attr('y', barCy + 24 * 0.35)
-      .attr('text-anchor', 'end')
-      .attr('fill', paint.base)
+      .attr('text-anchor', insideFits ? 'end' : 'start')
+      .attr('fill', insideFits ? paint.base : paint.text)
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', 24)
       .attr('font-weight', 700)
-      .text(compactNumber(parsed.now));
+      .text(valueText);
   }
 
   // Goal (target) to the RIGHT of the bar.

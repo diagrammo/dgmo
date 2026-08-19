@@ -303,6 +303,78 @@ describe('goal renderer — faces', () => {
     );
   });
 
+  // ── The value label knows which surface it is sitting on ──────────
+  //
+  // It rides inside the fill, right-aligned to the level — until the fill is
+  // too narrow to hold the glyphs, when it moves outside and switches from the
+  // fill's accent to the ordinary text colour. It used to be pinned at a fixed
+  // 52px and stay accent-coloured, so at a low fill it was the bar's own accent
+  // read against the bare grey track (#280).
+
+  /** The value label — the only 24px text in the bar. */
+  function barValue(container: HTMLDivElement): SVGTextElement {
+    const t = Array.from(container.querySelectorAll('.goal-bar text')).find(
+      (el) => el.getAttribute('font-size') === '24'
+    );
+    expect(t).toBeDefined();
+    return t as SVGTextElement;
+  }
+
+  it('bar: the value rides inside the fill, in the accent, when there is room', () => {
+    const c = makeContainer();
+    renderGoal(c, parseGoal(`goal R\nnow 125\ntarget 250`), nordLight, false);
+    const fill = barFill(c);
+    const fillRight =
+      Number(fill.getAttribute('x')) + Number(fill.getAttribute('width'));
+    const value = barValue(c);
+    expect(value.getAttribute('text-anchor')).toBe('end');
+    expect(Number(value.getAttribute('x'))).toBeLessThan(fillRight);
+    // Same paint as the level edge — the fill's own accent.
+    expect(value.getAttribute('fill')).toBe(barLevel(c)!.getAttribute('fill'));
+  });
+
+  it('bar: at a low fill the value moves outside and drops the accent', () => {
+    const c = makeContainer();
+    renderGoal(c, parseGoal(`goal R\nnow 3\ntarget 250`), nordLight, false);
+    const fill = barFill(c);
+    const fillRight =
+      Number(fill.getAttribute('x')) + Number(fill.getAttribute('width'));
+    const value = barValue(c);
+    expect(value.getAttribute('text-anchor')).toBe('start');
+    expect(Number(value.getAttribute('x'))).toBeGreaterThan(fillRight);
+    // On the track now, so NOT the accent the fill was painted in.
+    expect(value.getAttribute('fill')).not.toBe(
+      barLevel(c)!.getAttribute('fill')
+    );
+  });
+
+  it('bar: the switch is measured — same fill, a wider number moves out', () => {
+    const short = makeContainer();
+    renderGoal(
+      short,
+      parseGoal(`goal R\nnow 12\ntarget 100`),
+      nordLight,
+      false
+    );
+    const long = makeContainer();
+    renderGoal(
+      long,
+      parseGoal(`goal R\nnow 123456\ntarget 1000000`),
+      nordLight,
+      false
+    );
+    // ~12% of the track either way, within a couple of pixels.
+    expect(
+      Math.abs(
+        Number(barFill(short).getAttribute('width')) -
+          Number(barFill(long).getAttribute('width'))
+      )
+    ).toBeLessThan(5);
+    // The short one still fits inside; the wider one does not.
+    expect(barValue(short).getAttribute('text-anchor')).toBe('end');
+    expect(barValue(long).getAttribute('text-anchor')).toBe('start');
+  });
+
   it('bar: a level edge marks how far the fill has come, except when full', () => {
     const partial = makeContainer();
     renderGoal(
