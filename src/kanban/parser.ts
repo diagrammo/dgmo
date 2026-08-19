@@ -193,35 +193,14 @@ export function parseKanban(
       }
     }
 
-    // Generic header options (space-separated: `key value` or bare boolean `key`)
-    // Only match known option keys to avoid swallowing content lines
-    if (!contentStarted && !currentTagGroup && measureIndent(line) === 0) {
-      const optMatch = trimmed.match(OPTION_NOCOLON_RE);
-      if (optMatch && !COLUMN_RE.test(trimmed)) {
-        // OPTION_NOCOLON_RE has 2 capture groups; both exist when matched.
-        const key = optMatch[1]!.trim().toLowerCase();
-        if (KNOWN_OPTIONS.has(key)) {
-          options[key] = optMatch[2]!.trim();
-          if (key === 'active-tag') activeTagOptionLine = lineNumber;
-          continue;
-        }
-      }
-      const removedMsg = REMOVED_BOOLEANS[trimmed.toLowerCase()];
-      if (removedMsg && !COLUMN_RE.test(trimmed)) {
-        warn(lineNumber, removedMsg);
-        continue;
-      }
-      if (
-        KNOWN_BOOLEANS.has(trimmed.toLowerCase()) &&
-        !COLUMN_RE.test(trimmed)
-      ) {
-        options[trimmed.toLowerCase()] = 'on';
-        continue;
-      }
-    }
-
-    // Tag group entries (indented Value color under tag heading)
-    // First entry is the default unless another is marked `default`
+    // Tag group entries (indented Value color under tag heading).
+    // First entry is the default unless another is marked `default`.
+    // 🔴 This block runs BEFORE the header-option block below, and the order is
+    // load-bearing: a non-indented line ends the tag block, and the option block
+    // is gated on `!currentTagGroup`. Checked in the other order, the first
+    // directive after a tag block closes the group and is then dropped with no
+    // diagnostic — the line below it parsed fine, which is what made it look like
+    // swimlanes were broken rather than a line being in the wrong place (#301).
     if (currentTagGroup && !contentStarted) {
       const indent = measureIndent(line);
       if (indent > 0) {
@@ -247,6 +226,33 @@ export function parseKanban(
       }
       // Non-indented line after tag group — fall through
       currentTagGroup = null;
+    }
+
+    // Generic header options (space-separated: `key value` or bare boolean `key`)
+    // Only match known option keys to avoid swallowing content lines
+    if (!contentStarted && !currentTagGroup && measureIndent(line) === 0) {
+      const optMatch = trimmed.match(OPTION_NOCOLON_RE);
+      if (optMatch && !COLUMN_RE.test(trimmed)) {
+        // OPTION_NOCOLON_RE has 2 capture groups; both exist when matched.
+        const key = optMatch[1]!.trim().toLowerCase();
+        if (KNOWN_OPTIONS.has(key)) {
+          options[key] = optMatch[2]!.trim();
+          if (key === 'active-tag') activeTagOptionLine = lineNumber;
+          continue;
+        }
+      }
+      const removedMsg = REMOVED_BOOLEANS[trimmed.toLowerCase()];
+      if (removedMsg && !COLUMN_RE.test(trimmed)) {
+        warn(lineNumber, removedMsg);
+        continue;
+      }
+      if (
+        KNOWN_BOOLEANS.has(trimmed.toLowerCase()) &&
+        !COLUMN_RE.test(trimmed)
+      ) {
+        options[trimmed.toLowerCase()] = 'on';
+        continue;
+      }
     }
 
     // --- Content phase ---

@@ -283,6 +283,41 @@ export function parseSitemap(
       continue;
     }
 
+    // Tag group entries (indented `Value color` under tag heading; §1.5)
+    // First entry is the default unless another is marked `default`.
+    // 🔴 Runs BEFORE the option block below, and the order is load-bearing: a
+    // non-indented line ends the tag block, and the option block is gated on
+    // `!currentTagGroup`. Checked the other way round, the first directive after a
+    // tag block closes the group and is then lost — silently on a single-group
+    // source, and as a misleading "tag groups must appear before content" error on
+    // the next tag block when there is one (#301).
+    if (currentTagGroup && !contentStarted) {
+      const indent = measureIndent(line);
+      if (indent > 0) {
+        const { text: cleanEntry, isDefault } = stripDefaultModifier(trimmed);
+        const { label, color } = extractColor(
+          cleanEntry,
+          palette,
+          result.diagnostics,
+          lineNumber
+        );
+        // Bare value (no explicit color) → keep it; finalized below.
+        currentTagGroup.entries.push({
+          value: label,
+          color: color ?? AUTO_TAG_COLOR_SENTINEL,
+          lineNumber,
+        });
+        if (isDefault) {
+          currentTagGroup.defaultValue = label;
+        } else if (currentTagGroup.entries.length === 1) {
+          currentTagGroup.defaultValue = label;
+        }
+        continue;
+      }
+      // Non-indented line after tag group — fall through to content
+      currentTagGroup = null;
+    }
+
     // Generic header options (space-separated, before content/tag groups)
     // Skip lines with `|` (pipe metadata), `->` (arrows), or `:` (page
     // with same-line metadata per §1.4) — those are content, not options.
@@ -313,35 +348,6 @@ export function parseSitemap(
         options[key] = optMatch[2]!.trim();
         continue;
       }
-    }
-
-    // Tag group entries (indented `Value color` under tag heading; §1.5)
-    // First entry is the default unless another is marked `default`
-    if (currentTagGroup && !contentStarted) {
-      const indent = measureIndent(line);
-      if (indent > 0) {
-        const { text: cleanEntry, isDefault } = stripDefaultModifier(trimmed);
-        const { label, color } = extractColor(
-          cleanEntry,
-          palette,
-          result.diagnostics,
-          lineNumber
-        );
-        // Bare value (no explicit color) → keep it; finalized below.
-        currentTagGroup.entries.push({
-          value: label,
-          color: color ?? AUTO_TAG_COLOR_SENTINEL,
-          lineNumber,
-        });
-        if (isDefault) {
-          currentTagGroup.defaultValue = label;
-        } else if (currentTagGroup.entries.length === 1) {
-          currentTagGroup.defaultValue = label;
-        }
-        continue;
-      }
-      // Non-indented line after tag group — fall through to content
-      currentTagGroup = null; // eslint-disable-line no-useless-assignment
     }
 
     // --- Content phase ---

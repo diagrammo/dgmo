@@ -177,6 +177,39 @@ export function parseMindmap(
       continue;
     }
 
+    // Tag group entries (indented Value color under tag heading).
+    // 🔴 Runs BEFORE the option block below, and the order is load-bearing: a
+    // non-indented line ends the tag block, and the option block is gated on
+    // `!currentTagGroup`. Checked the other way round, the first directive after a
+    // tag block closes the group and is then lost — silently on a single-group
+    // source, and as a misleading "tag groups must appear before content" error on
+    // the next tag block when there is one (#301).
+    if (currentTagGroup && !contentStarted) {
+      const indent = measureIndent(line);
+      if (indent > 0) {
+        const { text: cleanEntry, isDefault } = stripDefaultModifier(trimmed);
+        const { label, color } = extractColor(
+          cleanEntry,
+          palette,
+          result.diagnostics,
+          lineNumber
+        );
+        // Bare value (no explicit color) → keep it; finalized below.
+        if (isDefault) {
+          currentTagGroup.defaultValue = label;
+        } else if (currentTagGroup.entries.length === 0) {
+          currentTagGroup.defaultValue = label;
+        }
+        currentTagGroup.entries.push({
+          value: label,
+          color: color ?? AUTO_TAG_COLOR_SENTINEL,
+          lineNumber,
+        });
+        continue;
+      }
+      currentTagGroup = null;
+    }
+
     // Options: key-value (e.g., `active-tag Priority`)
     if (!contentStarted && !currentTagGroup && measureIndent(line) === 0) {
       const optMatch = trimmed.match(OPTION_NOCOLON_RE);
@@ -206,33 +239,6 @@ export function parseMindmap(
       if (tryParseSharedOption(trimmed, options)) {
         continue;
       }
-    }
-
-    // Tag group entries (indented Value color under tag heading)
-    if (currentTagGroup && !contentStarted) {
-      const indent = measureIndent(line);
-      if (indent > 0) {
-        const { text: cleanEntry, isDefault } = stripDefaultModifier(trimmed);
-        const { label, color } = extractColor(
-          cleanEntry,
-          palette,
-          result.diagnostics,
-          lineNumber
-        );
-        // Bare value (no explicit color) → keep it; finalized below.
-        if (isDefault) {
-          currentTagGroup.defaultValue = label;
-        } else if (currentTagGroup.entries.length === 0) {
-          currentTagGroup.defaultValue = label;
-        }
-        currentTagGroup.entries.push({
-          value: label,
-          color: color ?? AUTO_TAG_COLOR_SENTINEL,
-          lineNumber,
-        });
-        continue;
-      }
-      currentTagGroup = null; // eslint-disable-line no-useless-assignment
     }
 
     // --- Content phase ---

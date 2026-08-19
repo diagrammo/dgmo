@@ -418,6 +418,39 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
       continue;
     }
 
+    // Tag group entries — first entry is the default unless another is marked `default`.
+    // 🔴 Runs BEFORE the option block below, and the order is load-bearing: a
+    // non-indented line ends the tag block, and the option block is gated on
+    // `!currentTagGroup`. Checked the other way round, the first directive after a
+    // tag block closes the group and then falls into the content phase, which
+    // rejects it as unexpected content and names the wrong cause (#301).
+    if (currentTagGroup && !contentStarted) {
+      const indent = measureIndent(line);
+      if (indent > 0) {
+        const { text: cleanEntry, isDefault } = stripDefaultModifier(trimmed);
+        const { label, color } = extractColor(
+          cleanEntry,
+          palette,
+          result.diagnostics,
+          lineNumber
+        );
+        // Bare value (no explicit color) → keep it; the post-parse
+        // finalize pass assigns a deterministic palette color.
+        if (isDefault) {
+          currentTagGroup.defaultValue = label;
+        } else if (currentTagGroup.entries.length === 0) {
+          currentTagGroup.defaultValue = label;
+        }
+        currentTagGroup.entries.push({
+          value: label,
+          color: color ?? AUTO_TAG_COLOR_SENTINEL,
+          lineNumber,
+        });
+        continue;
+      }
+      currentTagGroup = null;
+    }
+
     // Generic header options (space-separated: `key value` or bare boolean)
     if (!contentStarted && !currentTagGroup && measureIndent(line) === 0) {
       // Bare boolean options
@@ -455,34 +488,6 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
           continue;
         }
       }
-    }
-
-    // Tag group entries — first entry is the default unless another is marked `default`
-    if (currentTagGroup && !contentStarted) {
-      const indent = measureIndent(line);
-      if (indent > 0) {
-        const { text: cleanEntry, isDefault } = stripDefaultModifier(trimmed);
-        const { label, color } = extractColor(
-          cleanEntry,
-          palette,
-          result.diagnostics,
-          lineNumber
-        );
-        // Bare value (no explicit color) → keep it; the post-parse
-        // finalize pass assigns a deterministic palette color.
-        if (isDefault) {
-          currentTagGroup.defaultValue = label;
-        } else if (currentTagGroup.entries.length === 0) {
-          currentTagGroup.defaultValue = label;
-        }
-        currentTagGroup.entries.push({
-          value: label,
-          color: color ?? AUTO_TAG_COLOR_SENTINEL,
-          lineNumber,
-        });
-        continue;
-      }
-      currentTagGroup = null; // eslint-disable-line no-useless-assignment
     }
 
     // --- Content phase ---
