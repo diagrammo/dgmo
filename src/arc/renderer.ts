@@ -546,7 +546,7 @@ export function renderArcDiagram(
       let boundaryCount = 0;
       let prevG: string | null = null;
       for (const n of nodes) {
-        const gn = groupOfNode.get(n) ?? ` solo:${n}`;
+        const gn = groupOfNode.get(n) ?? `\0solo:${n}`;
         if (prevG !== null && gn !== prevG) boundaryCount++;
         prevG = gn;
       }
@@ -571,7 +571,7 @@ export function renderArcDiagram(
       let cx = leftInset;
       prevG = null;
       for (const n of nodes) {
-        const gn = groupOfNode.get(n) ?? ` solo:${n}`;
+        const gn = groupOfNode.get(n) ?? `\0solo:${n}`;
         if (prevG !== null) cx += gn !== prevG ? groupGapPx : stepPx;
         xPos.set(n, cx);
         prevG = gn;

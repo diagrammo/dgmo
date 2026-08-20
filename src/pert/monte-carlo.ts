@@ -255,7 +255,7 @@ function simulate(
         criticalityCount.set(cur, (criticalityCount.get(cur) ?? 0) + 1);
         cur = predOnLongestPath.get(cur) ?? null;
       }
-      const key = path.join(' ');
+      const key = path.join('\0');
       pathCount.set(key, (pathCount.get(key) ?? 0) + 1);
       if (!pathById.has(key)) pathById.set(key, path);
     }
