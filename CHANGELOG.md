@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING — a recurring countdown takes one whole date, on `since`, and
+  `every` carries only the cadence.** The anchor used to be spread across up to
+  four lines (`since`, `on`, `at`, `from`) that each held a fragment of one
+  moment, so a diagram could state a day and a time that disagreed and nothing
+  could say which was meant. There is now one line: `since 2015-06-14`, or
+  `since 2026-01-05T09:30` when the time matters. `on`, `at` and `from` are
+  deleted — they are hard errors rather than ignored lines, because a silently
+  dropped anchor is a countdown that renders confidently from the wrong date. A
+  bare year is no longer accepted for the same reason. A clock time written as
+  `6pm` becomes `T18:00` on the anchor itself. `every month` now needs a shape
+  word when you mean the nth weekday rather than the day of the month —
+  `every month by last weekday`.
+- **BREAKING — an org chart pulls in another file with one keyword, `import`.**
+  Composition was two keywords that looked alike and behaved differently; it is
+  now one, and **position decides what it does**: at column 0 it brings in tag
+  groups, indented it grafts a subtree at that point. `tags shared.dgmo` is
+  deleted with no fallback, as is the colon form of both. A file reference that
+  does not resolve is now refused with a message naming the correct form —
+  previously a misspelling drew a person named after the filename, which
+  validated cleanly and looked deliberate. C4's own `import:` is unaffected and
+  keeps its colon.
+
+### Fixed
+
+- **An error inside an imported org file names that file and its own line, and
+  marks the `import` that led there.** Every resolver diagnostic was reported
+  against the open document, so a mistake in a shared file drew squiggles on
+  three correct lines of the file you were looking at — a misattributed error
+  being worse than none at all, since it sends the reader to rewrite something
+  that was right.
+- **Alias integrity is enforced.** A collision, a reference that appears before
+  the alias that defines it, an alias of an alias, and an over-length alias each
+  raise a real diagnostic. A malformed `as` no longer silently renames the thing
+  it was meant to shorten.
+- **A directive written on the line straight after a tag block is no longer
+  swallowed.** It was lost in silence in kanban, org, mindmap, sitemap and C4.
+- **A collapsed sequence section's mark sits on the first message that
+  participant sent**, rather than on something said to it.
+- **A goal bar's value stays readable at any level.** Below roughly 52px of fill
+  the label moves outside the bar and switches to the text colour, instead of
+  painting the fill's accent onto bare grey.
+
+### Internal
+
+- Every registered chart type is now driven from source through to drawn output
+  in the test suite; the timezone is pinned in the vitest config rather than only
+  in the test script; and NUL separators are written as escapes, so the files
+  holding them stop reading as binary to git and to every grep.
+
 ## [0.72.0] - 2026-08-18
 
 ### Added
