@@ -435,7 +435,7 @@ warning (no dedicated code since 0.43.0).
 These are intentionally outside the universal rule:
 
 - D3 chart data rows (slope, quadrant) — labels are data, not entity names
-- `tags:` and `import:` directives in org — values are file/tag references
+- `import` directives in org and `import:` in C4 — values are file references
 - Flowchart and state shape brackets `[]`, `()`, `{}`, `<>` — shape sigils, not name quoting
 
 ### 2.6 Error Codes
@@ -1141,6 +1141,21 @@ Blackbeard
 - `hide`
 - `active-tag GroupName` / `active-tag none`
 - `focus Name` — re-root the chart to that person's (or team's) subtree; pruned ancestors draw as a breadcrumb trail above the new root. Case-insensitive, first match in source order wins; an unknown name warns and the whole chart renders. Top-level and colon-less — distinct from `focus: value` metadata on a node line.
+
+### 6.6 Composition (`import <file>.dgmo`)
+
+One keyword, and its position decides what it pulls in: at **column 0** it merges another file's tag groups into the header; **indented** it grafts that file's people in at that indentation.
+
+```
+org Acme
+import ../shared/company-tags.dgmo
+
+Dana Reyes
+  [Engineering]
+    import teams/engineering.dgmo
+```
+
+No colon — `import: x.dgmo` is an error, and so is any other keyword before a `.dgmo` path (`tags shared.dgmo` reports an unknown directive rather than drawing a person named after a file). C4's `import:` is a different construct: indented metadata on an element, where the colon is required. Paths are relative to the importing file; imports nest, circular chains are reported, depth is capped at ten. Tag groups clash-resolve inline > header import > imported subtree. Reads the filesystem, so a share link or an embedded fence needs the chart flattened into one file.
 
 ---
 

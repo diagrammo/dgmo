@@ -34,8 +34,16 @@ export interface ResolveImportsResult {
 // ============================================================
 
 const MAX_DEPTH = 10;
-const IMPORT_RE = /^(\s+)import:?\s+(.+\.dgmo)\s*$/i;
-const TAGS_RE = /^tags:?\s+(.+\.dgmo)\s*$/i;
+/** Indented `import <file>.dgmo` — splices that file's subtree in at this point. */
+const IMPORT_RE = /^(\s+)import\s+(.+\.dgmo)\s*$/i;
+/** Column-0 `import <file>.dgmo` — pulls that file's tag groups into the header. */
+const HEADER_IMPORT_RE = /^import\s+(.+\.dgmo)\s*$/i;
+/**
+ * Any `<word> <file>.dgmo` line, so a misspelled directive is REJECTED rather
+ * than dropped into the body as a person named after a filename. Only `import`,
+ * colon-free, is a directive; everything else this matches is a diagnostic.
+ */
+const FILE_REF_RE = /^\s*([A-Za-z][\w-]*)(:?)\s+\S+\.dgmo\s*$/;
 /** Matches new-style first line: `org ...` or `kanban ...` or `title: ...` */
 const HEADER_RE = /^(org|kanban|title\s*:)/i;
 /**
@@ -43,7 +51,7 @@ const HEADER_RE = /^(org|kanban|title\s*:)/i;
  * Only these are stripped from imported files — avoids eating content like "Alice Chen".
  * MUST stay in sync with `KNOWN_OPTIONS` + `KNOWN_BOOLEANS` in `parser.ts`; otherwise
  * an unknown header keyword causes the resolver to misidentify body-start, which
- * pushes downstream `tags` / `import` directives into the body as garbage.
+ * pushes downstream `import` directives into the body as garbage.
  */
 const KNOWN_HEADER_OPTIONS = new Set([
   'direction-tb',
@@ -126,12 +134,12 @@ function extractTagGroups(lines: string[]): TagGroupBlock[] {
 // ============================================================
 
 interface ParsedHeader {
-  /** Lines that are NOT header/tags/tag-groups — the "content" body */
+  /** Lines that are NOT header/import/tag-groups — the "content" body */
   contentLines: string[];
   /** For each contentLine, its 0-based index in the input lines[] array */
   contentLineIndices: number[];
   tagGroups: TagGroupBlock[];
-  tagsDirective: string | null;
+  headerImportPath: string | null;
 }
 
 /**
@@ -153,7 +161,7 @@ function parseFileHeader(lines: string[]): ParsedHeader {
     }
   }
 
-  let tagsDirective: string | null = null;
+  let headerImportPath: string | null = null;
   const contentLines: string[] = [];
   const contentLineIndices: number[] = [];
   let headerDone = false;
@@ -173,10 +181,12 @@ function parseFileHeader(lines: string[]): ParsedHeader {
     if (!headerDone) {
       if (HEADER_RE.test(trimmed)) continue;
 
-      const tagsMatch = trimmed.match(TAGS_RE);
-      if (tagsMatch) {
-        // Capture group 1 guaranteed by TAGS_RE match.
-        tagsDirective = tagsMatch[1]!.trim();
+      // Raw line, not trimmed: column 0 is what makes this a header import
+      // rather than a subtree import.
+      const headerImportMatch = rawLine.match(HEADER_IMPORT_RE);
+      if (headerImportMatch) {
+        // Capture group 1 guaranteed by HEADER_IMPORT_RE match.
+        headerImportPath = headerImportMatch[1]!.trim();
         continue;
       }
 
@@ -200,7 +210,7 @@ function parseFileHeader(lines: string[]): ParsedHeader {
     contentLineIndices.push(i);
   }
 
-  return { contentLines, contentLineIndices, tagGroups, tagsDirective };
+  return { contentLines, contentLineIndices, tagGroups, headerImportPath };
 }
 
 // ============================================================
@@ -208,7 +218,8 @@ function parseFileHeader(lines: string[]): ParsedHeader {
 // ============================================================
 
 /**
- * Pre-processes org chart content, resolving `tags` and `import` directives.
+ * Pre-processes org chart content, resolving `import` directives — column 0
+ * pulls in a file's tag groups, indented splices in its subtree.
  *
  * @param content   - Raw .dgmo file content
  * @param filePath  - Absolute path of the file (for relative path resolution)
@@ -251,14 +262,36 @@ async function resolveFile(
 }> {
   const lines = content.split('\n');
 
-  // ---- Step 1: Identify header, tags directive, inline tag groups ----
+  // ---- Step 0: Reject malformed file references ----
+  // A `<word> <file>.dgmo` line that is not a well-formed `import` would
+  // otherwise fall through into the body and draw as a person named after a
+  // filename, with no diagnostic.
+  for (let i = 0; i < lines.length; i++) {
+    // In-bounds by loop guard.
+    const match = lines[i]!.match(FILE_REF_RE);
+    if (!match) continue;
+    // Capture groups 1 and 2 guaranteed by FILE_REF_RE match.
+    const keyword = match[1]!;
+    const colon = match[2]!;
+    if (keyword.toLowerCase() === 'import' && colon === '') continue;
+    diagnostics.push(
+      makeDgmoError(
+        i + 1,
+        keyword.toLowerCase() === 'import'
+          ? 'An import takes no colon: write `import <file>.dgmo`'
+          : `Unknown directive \`${keyword}\`: a file is pulled in with \`import <file>.dgmo\``
+      )
+    );
+  }
+
+  // ---- Step 1: Identify header, import directive, inline tag groups ----
   const headerLines: { text: string; originalLine: number }[] = [];
-  let tagsDirective: string | null = null;
+  let headerImportPath: string | null = null;
   const inlineTagGroups = extractTagGroups(lines);
   const bodyStartIndex = findBodyStart(lines);
 
-  // Collect header lines (chart:, title:, options, tags:)
-  let tagsLineNumber = 0; // 1-based line number of the tags directive
+  // Collect header lines (chart:, title:, options, import)
+  let headerImportLine = 0; // 1-based line number of the header import
   for (let i = 0; i < bodyStartIndex; i++) {
     // In-bounds: bodyStartIndex <= lines.length by construction.
     const rawLine = lines[i]!;
@@ -270,28 +303,30 @@ async function resolveFile(
     if (isTagBlockHeading(trimmed)) continue; // skip inline tag group headings
     if (/^\s/.test(rawLine)) continue; // skip tag group entries (indented lines)
 
-    const tagsMatch = trimmed.match(TAGS_RE);
-    if (tagsMatch) {
-      // Capture group 1 guaranteed by TAGS_RE match.
-      tagsDirective = tagsMatch[1]!.trim();
-      tagsLineNumber = i + 1; // 1-based
+    const headerImportMatch = rawLine.match(HEADER_IMPORT_RE);
+    if (headerImportMatch) {
+      // Capture group 1 guaranteed by HEADER_IMPORT_RE match.
+      headerImportPath = headerImportMatch[1]!.trim();
+      headerImportLine = i + 1; // 1-based
       continue;
     }
 
     headerLines.push({ text: rawLine, originalLine: i + 1 });
   }
 
-  // ---- Step 2: Resolve tags directive ----
-  let tagsFileGroups: TagGroupBlock[] = [];
-  if (tagsDirective) {
-    const tagsPath = resolvePath(filePath, tagsDirective);
+  // ---- Step 2: Resolve the header import ----
+  let headerImportGroups: TagGroupBlock[] = [];
+  if (headerImportPath) {
+    const absPath = resolvePath(filePath, headerImportPath);
     try {
-      const tagsContent = await readFileFn(tagsPath);
-      const tagsLines = tagsContent.split('\n');
-      tagsFileGroups = extractTagGroups(tagsLines);
+      const importedContent = await readFileFn(absPath);
+      headerImportGroups = extractTagGroups(importedContent.split('\n'));
     } catch {
       diagnostics.push(
-        makeDgmoError(tagsLineNumber, `Tags file not found: ${tagsDirective}`)
+        makeDgmoError(
+          headerImportLine,
+          `Import file not found: ${headerImportPath}`
+        )
       );
     }
   }
@@ -312,6 +347,27 @@ async function resolveFile(
     const importMatch = line.match(IMPORT_RE);
 
     if (!importMatch) {
+      // A column-0 `import` cannot appear in the body: at column 0 it pulls in
+      // tag groups, which only the header does, and a subtree import must be
+      // indented under the person it hangs from.
+      if (HEADER_IMPORT_RE.test(line)) {
+        diagnostics.push(
+          makeDgmoError(
+            lineNumber,
+            'An import in the body must be indented under the person it reports to'
+          )
+        );
+        continue;
+      }
+      // Malformed file reference — already reported in step 0, so drop it
+      // rather than drawing it as a person.
+      const fileRef = line.match(FILE_REF_RE);
+      if (
+        fileRef &&
+        !(fileRef[1]!.toLowerCase() === 'import' && fileRef[2] === '')
+      ) {
+        continue;
+      }
       // Pass through — skip inline tag group lines (already extracted above)
       const trimmed = line.trim();
       if (
@@ -446,10 +502,10 @@ async function resolveFile(
   }
 
   // ---- Step 4: Merge tag groups with precedence ----
-  // Priority: inline > tags file > imported files
+  // Priority: inline > header import > subtree imports
   const mergedGroups = mergeTagGroups(
     inlineTagGroups,
-    tagsFileGroups,
+    headerImportGroups,
     importedTagGroups
   );
 
@@ -461,7 +517,7 @@ async function resolveFile(
   const lineMap: (number | null)[] = [null];
   const importSourceMap: (ImportSource | null)[] = [null];
 
-  // Header lines (chart:, title:, options — no tags or tag groups)
+  // Header lines (chart:, title:, options — no import or tag groups)
   for (const entry of headerLines) {
     outputLines.push(entry.text);
     lineMap.push(entry.originalLine);
@@ -559,7 +615,9 @@ function findBodyStart(lines: string[]): number {
 
     // Header directives
     if (HEADER_RE.test(trimmed)) continue;
-    if (TAGS_RE.test(trimmed)) continue;
+    // Raw line: an INDENTED import is body content, and testing the trimmed
+    // line here would swallow it as a header directive.
+    if (HEADER_IMPORT_RE.test(rawLine)) continue;
 
     // Known option lines (space-separated `key value` or bare boolean before content)
     if (
@@ -605,14 +663,14 @@ function isTagGroupEntry(
 
 /**
  * Merge tag groups from three sources with priority:
- * inline (highest) > tags file > imported files (lowest).
+ * inline (highest) > header import > subtree imports (lowest).
  *
  * On name conflict (case-insensitive), higher priority wins.
  * New groups from lower priority are added.
  */
 function mergeTagGroups(
   inline: TagGroupBlock[],
-  tagsFile: TagGroupBlock[],
+  headerImport: TagGroupBlock[],
   imported: TagGroupBlock[]
 ): TagGroupBlock[] {
   const seen = new Map<string, TagGroupBlock>();
@@ -622,8 +680,8 @@ function mergeTagGroups(
     seen.set(group.name, group);
   }
 
-  // Tags file (medium priority — only add if not overridden)
-  for (const group of tagsFile) {
+  // Header import (medium priority — only add if not overridden)
+  for (const group of headerImport) {
     if (!seen.has(group.name)) {
       seen.set(group.name, group);
     }
