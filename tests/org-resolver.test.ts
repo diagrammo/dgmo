@@ -820,4 +820,134 @@ import team.dgmo`;
     expect(result.diagnostics[0].message).toContain('must be indented');
     expect(result.content).not.toContain('team.dgmo');
   });
+
+  // ----------------------------------------------------------
+  // An imported file's error names ITS file, and marks the import
+  // ----------------------------------------------------------
+
+  it("marks an imported file's error on the import line and names the file", async () => {
+    // Line 4 of the parent is `show-sub-node-count` and is valid; line 4 of the
+    // child is the offender. Reporting the child's raw line number accused the
+    // parent's line 4 and named no file at all (#378).
+    const content = `org Parent
+hide title
+sub-node-label Reports
+show-sub-node-count
+
+CEO
+  import team.dgmo`;
+
+    const reader = mockReader({
+      '/proj/team.dgmo': `org Team
+sub-node-label Reports
+show-sub-node-count
+tags ../groups.dgmo
+
+Alice`,
+    });
+    const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
+
+    expect(result.diagnostics).toHaveLength(1);
+    const d = result.diagnostics[0];
+    expect(d.line).toBe(7); // the `import team.dgmo` line, not the child's 4
+    expect(d.file).toBe('team.dgmo');
+    expect(d.fileLine).toBe(4);
+    expect(d.message).toBe(
+      'team.dgmo line 4: Unknown directive `tags`: a file is pulled in with `import <file>.dgmo`'
+    );
+  });
+
+  it('names the deepest file but marks the top-level import line', async () => {
+    const content = `org Parent
+
+CEO
+  import mid.dgmo`;
+
+    const reader = mockReader({
+      '/proj/mid.dgmo': `org Mid
+
+Bob
+  import deep.dgmo`,
+      '/proj/deep.dgmo': `org Deep
+tags ../groups.dgmo
+
+Carol`,
+    });
+    const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
+
+    expect(result.diagnostics).toHaveLength(1);
+    const d = result.diagnostics[0];
+    expect(d.line).toBe(4); // top-level `import mid.dgmo`
+    expect(d.file).toBe('deep.dgmo'); // the file that actually holds `tags`
+    expect(d.fileLine).toBe(2);
+  });
+
+  it('attributes a missing grandchild import to its own file', async () => {
+    const content = `org Parent
+
+CEO
+  import team.dgmo`;
+
+    const reader = mockReader({
+      '/proj/team.dgmo': `org Team
+
+Alice
+  import ghost.dgmo`,
+    });
+    const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
+
+    expect(result.diagnostics).toHaveLength(1);
+    const d = result.diagnostics[0];
+    expect(d.line).toBe(4);
+    expect(d.file).toBe('team.dgmo');
+    expect(d.fileLine).toBe(4);
+    expect(d.message).toContain('Import file not found: ghost.dgmo');
+  });
+
+  it('leaves a top-level error untouched — no file, no remap', async () => {
+    const content = `org Test
+tags shared-tags.dgmo
+
+Alice`;
+
+    const result = await resolveOrgImports(
+      content,
+      '/proj/org.dgmo',
+      mockReader({})
+    );
+
+    expect(result.diagnostics).toHaveLength(1);
+    const d = result.diagnostics[0];
+    expect(d.line).toBe(2);
+    expect(d.file).toBeUndefined();
+    expect(d.fileLine).toBeUndefined();
+    expect(d.message).toBe(
+      'Unknown directive `tags`: a file is pulled in with `import <file>.dgmo`'
+    );
+  });
+
+  it('gives each stale child its own import line', async () => {
+    // The reported case: one parent, three children, all three still on `tags`.
+    const content = `org Venue Engineering
+
+Paul Zimny t:SVP
+  import venue-services.dgmo
+  import venue-web.dgmo
+  import venue-fee.dgmo`;
+
+    const stale = (name: string) =>
+      `org ${name}\nsub-node-label Reports\ntags ../groups.dgmo\n\nAlice`;
+    const reader = mockReader({
+      '/proj/venue-services.dgmo': stale('Services'),
+      '/proj/venue-web.dgmo': stale('Web'),
+      '/proj/venue-fee.dgmo': stale('Fee'),
+    });
+    const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
+
+    expect(result.diagnostics.map((d) => [d.line, d.file])).toEqual([
+      [4, 'venue-services.dgmo'],
+      [5, 'venue-web.dgmo'],
+      [6, 'venue-fee.dgmo'],
+    ]);
+  });
 });

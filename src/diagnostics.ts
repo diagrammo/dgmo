@@ -15,6 +15,16 @@ export interface DgmoError {
    * substring-on-`.message` assertions keep working unchanged.
    */
   code?: string;
+  /**
+   * Set only when the error was raised in a file OTHER than the one being
+   * parsed — today, a file pulled in by an org chart's `import`. Holds that
+   * file's path as the import directive wrote it. When present, `line` points
+   * at the top-level `import` line that led there, NOT at the offending line,
+   * and `fileLine` carries the line within `file`.
+   */
+  file?: string;
+  /** 1-based line within `file`. Only set alongside `file`. */
+  fileLine?: number;
 }
 
 export function makeDgmoError(

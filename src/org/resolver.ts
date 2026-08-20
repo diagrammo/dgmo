@@ -20,6 +20,17 @@ export interface ImportSource {
   sourceLine: number;
 }
 
+/**
+ * Where the file currently being resolved was pulled in from, expressed in the
+ * TOP-LEVEL document's terms. `null` for the top-level file itself.
+ */
+interface ImportOrigin {
+  /** The imported file's path exactly as its `import` directive wrote it. */
+  displayPath: string;
+  /** 1-based line in the top-level file whose `import` chain led here. */
+  line: number;
+}
+
 export interface ResolveImportsResult {
   content: string;
   diagnostics: DgmoError[];
@@ -238,7 +249,8 @@ export async function resolveOrgImports(
     readFileFn,
     diagnostics,
     new Set([filePath]),
-    0
+    0,
+    null
   );
   return {
     content: result.content,
@@ -248,13 +260,45 @@ export async function resolveOrgImports(
   };
 }
 
+/**
+ * Records a diagnostic against the file it was actually raised in.
+ *
+ * At the top level the line number stands on its own — it indexes the document
+ * the reader has open. Below that it indexes an IMPORTED file, where reporting
+ * it raw marked whatever the open document happened to have on that line: a
+ * child's `tags` on its line 4 was drawn on the parent's line 4, which was a
+ * different and perfectly valid directive, and nothing named the real file
+ * (#378). So an imported file's error moves onto the top-level `import` line
+ * that led there, and names its own file and line in the message.
+ */
+function pushDiag(
+  diagnostics: DgmoError[],
+  origin: ImportOrigin | null,
+  line: number,
+  message: string
+): void {
+  if (origin === null) {
+    diagnostics.push(makeDgmoError(line, message));
+    return;
+  }
+  diagnostics.push({
+    ...makeDgmoError(
+      origin.line,
+      `${origin.displayPath} line ${line}: ${message}`
+    ),
+    file: origin.displayPath,
+    fileLine: line,
+  });
+}
+
 async function resolveFile(
   content: string,
   filePath: string,
   readFileFn: ReadFileFn,
   diagnostics: DgmoError[],
   ancestorChain: Set<string>,
-  depth: number
+  depth: number,
+  origin: ImportOrigin | null
 ): Promise<{
   content: string;
   lineMap: (number | null)[];
@@ -274,13 +318,13 @@ async function resolveFile(
     const keyword = match[1]!;
     const colon = match[2]!;
     if (keyword.toLowerCase() === 'import' && colon === '') continue;
-    diagnostics.push(
-      makeDgmoError(
-        i + 1,
-        keyword.toLowerCase() === 'import'
-          ? 'An import takes no colon: write `import <file>.dgmo`'
-          : `Unknown directive \`${keyword}\`: a file is pulled in with \`import <file>.dgmo\``
-      )
+    pushDiag(
+      diagnostics,
+      origin,
+      i + 1,
+      keyword.toLowerCase() === 'import'
+        ? 'An import takes no colon: write `import <file>.dgmo`'
+        : `Unknown directive \`${keyword}\`: a file is pulled in with \`import <file>.dgmo\``
     );
   }
 
@@ -322,11 +366,11 @@ async function resolveFile(
       const importedContent = await readFileFn(absPath);
       headerImportGroups = extractTagGroups(importedContent.split('\n'));
     } catch {
-      diagnostics.push(
-        makeDgmoError(
-          headerImportLine,
-          `Import file not found: ${headerImportPath}`
-        )
+      pushDiag(
+        diagnostics,
+        origin,
+        headerImportLine,
+        `Import file not found: ${headerImportPath}`
       );
     }
   }
@@ -351,11 +395,11 @@ async function resolveFile(
       // tag groups, which only the header does, and a subtree import must be
       // indented under the person it hangs from.
       if (HEADER_IMPORT_RE.test(line)) {
-        diagnostics.push(
-          makeDgmoError(
-            lineNumber,
-            'An import in the body must be indented under the person it reports to'
-          )
+        pushDiag(
+          diagnostics,
+          origin,
+          lineNumber,
+          'An import in the body must be indented under the person it reports to'
         );
         continue;
       }
@@ -391,11 +435,11 @@ async function resolveFile(
 
     // Depth check
     if (depth >= MAX_DEPTH) {
-      diagnostics.push(
-        makeDgmoError(
-          lineNumber,
-          `Import depth limit exceeded (${MAX_DEPTH}): ${importRelPath}`
-        )
+      pushDiag(
+        diagnostics,
+        origin,
+        lineNumber,
+        `Import depth limit exceeded (${MAX_DEPTH}): ${importRelPath}`
       );
       continue;
     }
@@ -405,8 +449,11 @@ async function resolveFile(
       const chain = [...ancestorChain, importAbsPath]
         .map((p) => p.split('/').pop())
         .join(' -> ');
-      diagnostics.push(
-        makeDgmoError(lineNumber, `Circular import detected: ${chain}`)
+      pushDiag(
+        diagnostics,
+        origin,
+        lineNumber,
+        `Circular import detected: ${chain}`
       );
       continue;
     }
@@ -416,8 +463,11 @@ async function resolveFile(
     try {
       importedContent = await readFileFn(importAbsPath);
     } catch {
-      diagnostics.push(
-        makeDgmoError(lineNumber, `Import file not found: ${importRelPath}`)
+      pushDiag(
+        diagnostics,
+        origin,
+        lineNumber,
+        `Import file not found: ${importRelPath}`
       );
       continue;
     }
@@ -431,7 +481,11 @@ async function resolveFile(
       readFileFn,
       diagnostics,
       nestedChain,
-      depth + 1
+      depth + 1,
+      {
+        displayPath: importRelPath,
+        line: origin === null ? lineNumber : origin.line,
+      }
     );
 
     // Strip header, extract tag groups from resolved content
