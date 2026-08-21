@@ -1,6 +1,6 @@
 import type { ConformanceFixture } from './_types';
 
-// Spec §3 (Sequence) §2.7 Options: activations, active-tag.
+// Spec §3 (Sequence) §2.7 Options: autonumber, activations, active-tag.
 // the fill family via FILL_FAMILY_CAPABLE.
 export const fixture: ConformanceFixture = {
   chartType: 'sequence',
@@ -9,6 +9,7 @@ export const fixture: ConformanceFixture = {
   firstLineKeyword: 'sequence',
   directives: [
     'no-legend',
+    'autonumber',
     'activations',
     'active-tag',
     'fill-tint',

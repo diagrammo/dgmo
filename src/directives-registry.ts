@@ -286,6 +286,7 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   // ── Sequence ─────────────────────────────────────────────
   { token: 'activations', category: 'directive' },
   { token: 'no-activations', category: 'directive' },
+  { token: 'autonumber', category: 'directive' },
   // ── Map element leaders (not in DIRECTIVE_SET) ───────────
   { token: 'poi', category: 'directive' },
   { token: 'route', category: 'directive' },

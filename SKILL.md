@@ -463,6 +463,7 @@ Other tools (use only when the user asks for them):
 ### Sequence diagram
 ```dgmo
 sequence Auth Flow
+autonumber
 
 User -Login-> API
 API -Find user-> DB
@@ -566,6 +567,7 @@ dgmo file.dgmo --json              # structured JSON output
 
 - Don't use `#` for comments — use `//`
 - Don't use `end` to close sequence blocks — indentation closes them
+- Use `autonumber` before sequence content when message references need stable numbers
 - Don't use hex colors in section headers — use named colors
 - Start the file with the chart type keyword when content is ambiguous
 - Sequence arrows: `->` (sync), `~>` (async) — always left-to-right

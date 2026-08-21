@@ -1076,6 +1076,27 @@ export function renderSequenceDiagram(
   const elements = collapsed ? collapsed.elements : parsed.elements;
   const groups = collapsed ? collapsed.groups : parsed.groups;
   const collapsedSections = options?.collapsedSections;
+  const autonumber = parsedOptions['autonumber']?.toLowerCase() === 'on';
+  const sourceMessageNumberByLine = new Map(
+    parsed.messages.map((message, index) => [message.lineNumber, index + 1])
+  );
+  const displayMessageLabel = (step: RenderStep): string => {
+    if (!autonumber) return step.label;
+    const message = messages[step.messageIndex];
+    if (!message) return step.label;
+    // An inferred return is a renderer-created step, not a message the author
+    // can point to. Explicit response arrows carry their source label and are
+    // numbered like every other source message.
+    if (
+      step.type === 'return' &&
+      !step.label &&
+      (step.from !== message.from || step.to !== message.to)
+    )
+      return '';
+    const number = sourceMessageNumberByLine.get(message.lineNumber);
+    if (number === undefined) return step.label;
+    return step.label ? `${number}. ${step.label}` : String(number);
+  };
 
   const sourceParticipants = collapsed
     ? collapsed.participants
@@ -1266,7 +1287,7 @@ export function renderSequenceDiagram(
   // balanced sequence, then remap step indices to the laid-out array.
   const stepSurvives = (s: RenderStep): boolean =>
     (hiddenMsgIndices.size === 0 || !hiddenMsgIndices.has(s.messageIndex)) &&
-    (s.type === 'call' || !!s.label);
+    (s.type === 'call' || !!displayMessageLabel(s));
   const renderSteps: RenderStep[] = [];
   // allRenderSteps index → laid-out (renderSteps) index. A dropped step maps to
   // the next surviving step, so an activation whose closing return was dropped
@@ -1613,7 +1634,7 @@ export function renderSequenceDiagram(
       const step = allRenderSteps[oi]!;
       if (
         !hiddenMsgIndices.has(step.messageIndex) &&
-        (step.type === 'call' || step.label)
+        (step.type === 'call' || displayMessageLabel(step))
       ) {
         originalToFiltered.set(oi, fi);
         fi++;
@@ -1916,7 +1937,8 @@ export function renderSequenceDiagram(
         const selfProj = sActivationWidth + sSelfCallWidth;
         let labelProj = 0;
         // Self-call labels render at the fixed 12px message-label size.
-        if (step.label) labelProj = measureText(step.label, 12) + 15;
+        const label = displayMessageLabel(step);
+        if (label) labelProj = measureText(label, 12) + 15;
         rightProjection = Math.max(rightProjection, selfProj + labelProj);
       }
     }
@@ -2047,8 +2069,9 @@ export function renderSequenceDiagram(
     let contentLeft = 0;
     let contentRight = svgWidth;
     for (const step of renderSteps) {
-      if (!step.label) continue;
-      const labelW = measureText(step.label, 12);
+      const displayLabel = displayMessageLabel(step);
+      if (!displayLabel) continue;
+      const labelW = measureText(displayLabel, 12);
       if (step.from === step.to) {
         const px = participantX.get(step.from);
         if (px !== undefined) {
@@ -3280,7 +3303,8 @@ export function renderSequenceDiagram(
           selfCallEl.attr(`data-tag-${tagKey}`, msgTagValue.toLowerCase());
         }
 
-        if (step.label) {
+        const displayLabel = displayMessageLabel(step);
+        if (displayLabel) {
           const labelEl = svg
             .append('text')
             .attr('x', loopX + 5)
@@ -3301,7 +3325,7 @@ export function renderSequenceDiagram(
           }
           // TD-1: in-arrow labels render as plain text (no markdown interpretation).
           // Fixes the `location[]`-style silent character drop.
-          labelEl.text(step.label);
+          labelEl.text(displayLabel);
         }
       } else {
         // Normal call arrow — snap to activation box edges
@@ -3344,7 +3368,8 @@ export function renderSequenceDiagram(
           arrowEl.attr(`data-tag-${tagKey}`, msgTagValue.toLowerCase());
         }
 
-        if (step.label) {
+        const displayLabel = displayMessageLabel(step);
+        if (displayLabel) {
           const midX = (x1 + x2) / 2;
           const labelEl = svg
             .append('text')
@@ -3366,7 +3391,7 @@ export function renderSequenceDiagram(
           }
           // TD-1: in-arrow labels render as plain text (no markdown interpretation).
           // Fixes the `location[]`-style silent character drop.
-          labelEl.text(step.label);
+          labelEl.text(displayLabel);
         }
       }
     } else {
@@ -3413,7 +3438,8 @@ export function renderSequenceDiagram(
         returnEl.attr(`data-tag-${tagKey}`, msgTagValue.toLowerCase());
       }
 
-      if (step.label) {
+      const displayLabel = displayMessageLabel(step);
+      if (displayLabel) {
         const midX = (x1 + x2) / 2;
         const labelEl = svg
           .append('text')
@@ -3438,7 +3464,7 @@ export function renderSequenceDiagram(
         // (buildRenderSequence sets them to '') but this path is kept in
         // sync with the call/self-call sites above to prevent a future
         // change resurrecting the location[] silent-drop bug.
-        labelEl.text(step.label);
+        labelEl.text(displayLabel);
       }
     }
   });

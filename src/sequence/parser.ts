@@ -54,6 +54,7 @@ const KNOWN_SEQ_BOOLEANS = new Set([
   'no-title',
   'no-legend',
   'legend-inline',
+  'autonumber',
 ]);
 
 /** Boolean options that only support the `no-` prefix form (no bare or key-value). */

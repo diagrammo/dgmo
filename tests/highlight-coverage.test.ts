@@ -204,6 +204,7 @@ const INVENTORY = {
     'active-tag',
     'analog',
     'animate',
+    'autonumber',
     'bottom-left',
     'bottom-right',
     'caption',

@@ -298,6 +298,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description: 'Show activation bars',
         values: ['on', 'off'],
       },
+      autonumber: { description: 'Number messages in source order' },
       'active-tag': { description: 'Active tag group name' },
     }),
   ],
