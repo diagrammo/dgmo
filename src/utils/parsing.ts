@@ -397,7 +397,7 @@ export function prescanOptions(
  * Normalize a numeric token with visual separators (commas or underscores) to a plain number string.
  *
  * Supported formats:
- * - Comma-grouped integers: `1,000` → `'1000'`, `1,234,567` → `'1234567'` (strict 3-digit grouping)
+ * - Comma-grouped integers: `1,000` → `'1000'`, `9495,725` → `'9495725'` (every suffix is exactly 3 digits)
  * - Comma-grouped decimals: `1,234.56` → `'1234.56'`
  * - Underscore-separated integers: `1_000` → `'1000'`, `10_00_000` → `'1000000'` (any grouping)
  * - Underscore-separated decimals: `1_234.56` → `'1234.56'` (no underscores in decimal part)
@@ -424,11 +424,13 @@ export function normalizeNumericToken(token: string): string | null {
   if (!unsigned) return null;
 
   if (unsigned.includes(',')) {
-    // Comma-grouped integers: 1,000 or 1,234,567
-    if (/^\d{1,3}(,\d{3})+$/.test(unsigned))
+    // Comma-grouped integers: accept a long leading group (`9495,725`) when
+    // every group after a comma is exactly three digits. Internal malformed
+    // groups such as `1,24,000` remain rejected.
+    if (/^\d+(,\d{3})+$/.test(unsigned))
       return sign + unsigned.replace(/,/g, '');
     // Comma-grouped decimals: 1,234.56
-    if (/^\d{1,3}(,\d{3})+\.\d+$/.test(unsigned))
+    if (/^\d+(,\d{3})+\.\d+$/.test(unsigned))
       return sign + unsigned.replace(/,/g, '');
     return null;
   }

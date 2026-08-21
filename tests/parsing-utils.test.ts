@@ -263,6 +263,8 @@ describe('normalizeNumericToken', () => {
     expect(normalizeNumericToken('1,234,567')).toBe('1234567');
     expect(normalizeNumericToken('10,000')).toBe('10000');
     expect(normalizeNumericToken('100,000,000')).toBe('100000000');
+    expect(normalizeNumericToken('9495,725')).toBe('9495725');
+    expect(normalizeNumericToken('28869,376')).toBe('28869376');
   });
 
   it('normalizes comma-grouped decimals', () => {

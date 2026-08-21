@@ -21,11 +21,30 @@ describe('numeric grouping separators are accepted consistently', () => {
     expect(normalizeNumericToken('1,240,000')).toBe('1240000');
     expect(normalizeNumericToken('1,234.56')).toBe('1234.56');
     expect(normalizeNumericToken('1_240_000')).toBe('1240000');
+    expect(normalizeNumericToken('9495,725')).toBe('9495725');
     // Ambiguous / malformed grouping is rejected outright rather than
     // silently truncated by parseFloat.
     expect(normalizeNumericToken('1,24,000')).toBeNull();
     expect(normalizeNumericToken('1,5')).toBeNull();
     expect(normalizeNumericToken('1_000,000')).toBeNull();
+  });
+
+  it('pie accepts a long leading group when every comma suffix is three digits', () => {
+    const result = parseChart(`pie 2025 Sources of MPV Traffic
+Ballpark 9495,725
+MLB.com 1610,591
+Club.com 28869,376
+Email 27466,684
+MLBApp 13882,201`);
+
+    expect(result.diagnostics).toHaveLength(0);
+    expect(result.data).toEqual([
+      { label: 'Ballpark', value: 9495725, lineNumber: 2 },
+      { label: 'MLB.com', value: 1610591, lineNumber: 3 },
+      { label: 'Club.com', value: 28869376, lineNumber: 4 },
+      { label: 'Email', value: 27466684, lineNumber: 5 },
+      { label: 'MLBApp', value: 13882201, lineNumber: 6 },
+    ]);
   });
 
   // bar/line/pie/radar go through `parseChart`; funnel through the extended
