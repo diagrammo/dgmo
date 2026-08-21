@@ -99,8 +99,7 @@ direction-tb
   //    left-to-right by date; list events chronologically.`
   DATE_ORDER: {
     code: 'E_EVENT_LINE_DATE_ORDER',
-    // Runtime: emitted at `warning` despite the E_ prefix (see registry allowlist).
-    severity: 'warning',
+    severity: 'error',
     chartType: 'event-line',
     title: 'Events out of chronological order',
     message: (p) =>

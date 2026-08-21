@@ -211,7 +211,7 @@ year 2026
     expect(p.diagnostics.some((d) => d.severity === 'error')).toBe(false);
   });
 
-  it('carry-forward + rollover from an explicit anchor (BL-121)', () => {
+  it('normalizes a bare cross-year rollover but requires its new year to be explicit', () => {
     const p = parseEventLine(`event-line X
 
 2026-11-01 Kickoff
@@ -221,6 +221,15 @@ year 2026
       '2026-11-01',
       '2026-12-15',
       '2027-01-10', // rolled: Jan < Dec
+    ]);
+    expect(
+      p.diagnostics.filter((d) => d.code === 'E_EVENT_LINE_DATE_ORDER')
+    ).toMatchObject([
+      {
+        line: 5,
+        severity: 'error',
+        message: expect.stringContaining('01-10'),
+      },
     ]);
   });
 
@@ -301,7 +310,23 @@ tag Genre as g
   });
 
   describe('out-of-order event dates', () => {
-    it('warns on a dated event listed before an earlier-dated one', () => {
+    it('errors when bare month-days descend instead of silently rolling into the next year', () => {
+      const p = parseEventLine(`event-line GAEv2
+year 2026
+
+08-03 NY on-site
+08-21 HW/ SW Prep
+08-10 v2 Prototype begins`);
+      const w = p.diagnostics.filter(
+        (d) => d.code === 'E_EVENT_LINE_DATE_ORDER'
+      );
+      expect(w).toHaveLength(1);
+      expect(w[0]).toMatchObject({ line: 6, severity: 'error' });
+      expect(w[0]!.message).toContain('08-10');
+      expect(w[0]!.message).toContain('08-21');
+    });
+
+    it('errors on a dated event listed before an earlier-dated one', () => {
       const p = parseEventLine(`event-line X
 
 2020 A
@@ -311,7 +336,7 @@ tag Genre as g
         (d) => d.code === 'E_EVENT_LINE_DATE_ORDER'
       );
       expect(w).toHaveLength(1);
-      expect(w[0]!.severity).toBe('warning');
+      expect(w[0]!.severity).toBe('error');
       expect(w[0]!.message).toContain('C');
       expect(w[0]!.message).toContain('2022');
       expect(w[0]!.message).toContain('B');

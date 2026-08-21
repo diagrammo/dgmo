@@ -160,6 +160,14 @@ export function parseEventLine(
     order: dateOrder,
     resolve: (tok) => resolveTokenYear(tok, yearCtx),
   };
+  // Resolving a descending bare month-day by silently rolling into the next year
+  // hides the common authoring slip this chart type can otherwise diagnose. Keep
+  // authored month/day order for validation; a real cross-year event must state
+  // its new year explicitly.
+  const authoredMonthDays = new Map<
+    number,
+    { readonly order: number; readonly caption: string }
+  >();
   const isDateDirective = (t: string): boolean =>
     t === 'no-current-year' ||
     t === 'date-order dmy' ||
@@ -486,6 +494,19 @@ export function parseEventLine(
     const inEra = currentEra !== null && indent > eraIndent;
     if (!inEra) currentEra = null;
     contentStarted = true;
+    const authoredDate = parseDateToken(trimmed, { dateOrder });
+    if (authoredDate?.token.year === null) {
+      const { month, day, hour, minute, second } = authoredDate.token;
+      authoredMonthDays.set(lineNumber, {
+        order:
+          month * 31_536_000 +
+          day * 86_400 +
+          hour * 3_600 +
+          minute * 60 +
+          second,
+        caption: trimmed.slice(0, authoredDate.consumed),
+      });
+    }
     const event = parseEventHeader(
       trimmed,
       lineNumber,
@@ -537,7 +558,12 @@ export function parseEventLine(
   // order — a likely authoring slip (and, to-scale, it plots to the left of an
   // event listed above it). Era-spanning inversions already get the richer
   // ERA_DATE_ORDER message, so skip lines that check already flagged.
-  validateEventDateOrder(result.events, eraFlaggedLines, result.diagnostics);
+  validateEventDateOrder(
+    result.events,
+    eraFlaggedLines,
+    authoredMonthDays,
+    result.diagnostics
+  );
 
   // §28.6b: the `now` rule rides the date scale, so it only draws to-scale. Under
   // explicit `no-scale` (even spacing) there is no date axis to anchor it to.
@@ -641,6 +667,10 @@ function resolveFutureEvents(events: Writable<EventLineEvent>[]): void {
 function validateEventDateOrder(
   events: readonly EventLineEvent[],
   skipLines: ReadonlySet<number>,
+  authoredMonthDays: ReadonlyMap<
+    number,
+    { readonly order: number; readonly caption: string }
+  >,
   diagnostics: DgmoError[]
 ): void {
   let prev: EventLineEvent | null = null;
@@ -648,17 +678,26 @@ function validateEventDateOrder(
     // Future (TBD) events carry an inferred dateValue, not an authored one —
     // never flag them (or use them as the reference) for chronological order.
     if (ev.future || ev.dateValue === null) continue;
+    const authoredMonthDay = authoredMonthDays.get(ev.lineNumber);
+    const previousAuthoredMonthDay = prev
+      ? authoredMonthDays.get(prev.lineNumber)
+      : undefined;
+    const normalizedDatesDescend = prev && ev.dateValue < prev.dateValue!;
+    const authoredMonthDaysDescend =
+      authoredMonthDay !== undefined &&
+      previousAuthoredMonthDay !== undefined &&
+      authoredMonthDay.order < previousAuthoredMonthDay.order;
     if (
       prev &&
-      ev.dateValue < prev.dateValue! &&
+      (normalizedDatesDescend || authoredMonthDaysDescend) &&
       !skipLines.has(ev.lineNumber)
     ) {
       diagnostics.push(
         emit(EVENT_LINE_DX.DATE_ORDER, ev.lineNumber, {
           label: ev.label,
-          date: ev.date,
+          date: authoredMonthDay?.caption ?? ev.date,
           prevLabel: prev.label,
-          prevDate: prev.date,
+          prevDate: previousAuthoredMonthDay?.caption ?? prev.date,
         })
       );
     }
