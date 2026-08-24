@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A sequence diagram can number its own messages — write `autonumber` before
+  them.** Every authored message gets its source-order number as a prefix, so a
+  review or a discussion can say "step 7" and have that mean the same line
+  tomorrow. Inferred return arrows stay unnumbered, and a number is allowed to
+  be missing from the picture when folding hides its message — the alternative
+  is renumbering everything above a fold, which is what makes a reference rot.
+
+### Changed
+
+- **An event-line whose dates run backwards is now an error, not a warning.**
+  It had been reported at `warning` severity despite its `E_` code, and a bare
+  month-day that ran backwards was quietly rolled into the following year
+  instead of being reported at all — so the most common authoring slip this
+  chart type can detect drew a confident, wrong timeline. An event that really
+  does cross into a new year has to say so, by writing the year.
+
+### Fixed
+
+- **A PERT chart states how long the project takes, on every surface that draws
+  it.** The expected duration and its spread reached the page only as the header
+  of the optional S-curve panel, so `no-analysis` deleted the one number the
+  chart type exists to produce and left the reader adding node durations along
+  the critical path by eye. The subtitle that says it had existed since v0.14.1
+  and was drawn by nothing: the export path — the one the CLI, the MCP server,
+  share-link images and every doc-site embed take — never passed it. `no-title`
+  is honoured there now too (it had reserved no height and drawn the title
+  anyway, over the top of the diagram), the spread carries its unit
+  (`≈ 10.4 weeks (± 1.06 weeks)`), and the analysis layer's height is measured
+  at the width it will actually paint at, so a narrow canvas no longer clips the
+  bottom block off the image.
+- **A collapsed sequence group is sized and set like the participant it stands
+  on.** It was unconditionally the height of an expanded group's frame — 80
+  where a participant is 50 — so a lone collapsed group stood 30px proud of its
+  neighbours and broke the row's shared top edge. Its name draws at the
+  participant label's size and weight rather than the expanded header's, and an
+  untagged group's collapse bar is mixed into the theme's own ground instead of
+  painting full-strength muted text onto an otherwise lightly tinted canvas.
+- **A number written with a long leading group is accepted** — `9495,725` reads
+  as 9,495,725, as it already did with underscores. Grouping is validated on
+  what follows each comma (every group exactly three digits), so a genuinely
+  malformed `1,24,000` is still rejected.
+
+## [0.73.0] - 2026-08-20
+
 ### Changed
 
 - **BREAKING — a recurring countdown takes one whole date, on `since`, and
