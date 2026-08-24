@@ -35,6 +35,7 @@ import {
   type WrappedDescLine,
 } from '../utils/wrapped-desc';
 import { measureText, truncateText } from '../utils/text-measure';
+import { COLLAPSE_BAR_HEIGHT } from '../utils/visual-conventions';
 import { resolveSequenceTags } from './tag-resolution';
 import type { ResolvedTagMap } from './tag-resolution';
 import { resolveActiveTagGroup } from '../utils/tag-groups';
@@ -654,42 +655,6 @@ export function summarizeSectionParticipation(
     bump(msg.to, 'receives', msg.lineNumber);
   }
   return summary;
-}
-
-/**
- * The second line inside a collapsed group's box, naming the members it has
- * swallowed: source order, separated by middle dots, and truncated to a
- * trailing `+n` count when the whole list will not fit.
- *
- * This is what a collapsed group can offer in place of the section band's
- * marks. A collapsed section keeps every column, so a mark on a column means
- * something; a collapsed group draws one column for several members, so a mark
- * there would look like it carried identity and could not. The question a
- * group raises is *which member*, and only text answers that.
- *
- * The line deliberately does NOT feed the participant-box width measurement.
- * Every box in a sequence diagram shares one width taken from the longest
- * label, so letting three service names vote in it would widen every unrelated
- * box in the diagram to suit one collapsed group. Truncating more often is the
- * cheaper of the two, and the accessible name on the box carries the full list
- * either way.
- */
-export function collapsedGroupMemberLine(
-  labels: readonly string[],
-  maxWidth: number,
-  fontSize: number
-): string {
-  if (labels.length === 0) return '';
-  const full = labels.join(' · ');
-  if (measureText(full, fontSize) <= maxWidth) return full;
-  for (let keep = labels.length - 1; keep >= 1; keep--) {
-    const line = `${labels.slice(0, keep).join(' · ')} +${labels.length - keep}`;
-    if (measureText(line, fontSize) <= maxWidth) return line;
-  }
-  // Not even one name fits beside its count. How many there are is the last
-  // true thing left to say, and it still beats an empty box.
-  const count = labels.length === 1 ? '1 member' : `${labels.length} members`;
-  return measureText(count, fontSize) <= maxWidth ? count : '';
 }
 
 /**
@@ -1691,24 +1656,20 @@ export function renderSequenceDiagram(
   const GROUP_PADDING_TOP = 22;
   const GROUP_PADDING_BOTTOM = 8;
   const GROUP_LABEL_SIZE = 11;
-  // The ONE type setting for a group's name, used by both states — the header
-  // strip when the group is expanded, and the box label when it is collapsed.
-  // Collapsing is a reading gesture, so the name must not change weight or
-  // size under it (#242). Scaled like every other label in this renderer; the
-  // strip's reserved height (GROUP_PADDING_TOP + GROUP_LABEL_SIZE, above) is
-  // not, so a scaled-down name simply sits in a roomier strip.
+  // The type of the group's name on its EXPANDED header strip only. Scaled
+  // like every other label here; the strip's reserved height
+  // (GROUP_PADDING_TOP + GROUP_LABEL_SIZE, above) is not, so a scaled-down
+  // name simply sits in a roomier strip.
+  //
+  // A COLLAPSED group no longer borrows this (#447, reversing #242). #242's
+  // argument was that collapsing is a reading gesture, so the name must not
+  // change type under it. The counter-argument, which won on the mockup: a
+  // collapsed group is not a header any more, it is a box standing on the
+  // participant row, and every sibling there draws its name at
+  // LABEL_FONT_SIZE weight 500. Matching the strip made it the one name on
+  // that row set in something else.
   const sGroupLabelSize = ctx.text(GROUP_LABEL_SIZE);
   const GROUP_LABEL_WEIGHT = 'bold';
-  // The members a collapsed group has swallowed, named on a second line inside
-  // its box. Smaller and lighter than the group's own name, because it answers
-  // a follow-up question rather than competing with the heading.
-  const GROUP_MEMBER_SIZE = 9;
-  const sGroupMemberSize = ctx.text(GROUP_MEMBER_SIZE);
-  // Between the group's name and the member line, and inside the box edges.
-  // The name and the member line are centred as one block, so the gap is the
-  // only thing separating them.
-  const GROUP_MEMBER_GAP = 3;
-  const GROUP_MEMBER_PADDING_X = 6;
 
   // Compute cumulative Y positions for each step, with section dividers as stable anchors
   const showTitle = !!title && parsedOptions['no-title'] !== 'on';
@@ -2335,6 +2296,15 @@ export function renderSequenceDiagram(
     return meta?.metadata ? getTagColor(meta.metadata[tagKey]) : undefined;
   };
 
+  // Is any group still drawn as a frame on this row? The collapse projection
+  // empties a collapsed group's `participantIds`, so a group with members that
+  // still resolve to a column is an expanded one. A collapsed group sizes
+  // itself against this: matching an expanded frame when there is one to match,
+  // and an ordinary participant when there is not (#447).
+  const hasExpandedGroup = groups.some((g) =>
+    g.participantIds.some((id) => participantX.has(id))
+  );
+
   // Render group boxes (behind participant shapes) — skip collapsed groups
   for (const group of groups) {
     if (group.participantIds.length === 0) continue;
@@ -2518,14 +2488,44 @@ export function renderSequenceDiagram(
       sLabelFontSize
     );
 
-    // Collapsed group: re-render participant box at full group height + drill-bar
+    // Collapsed group: overlay a group-shaped box carrying the collapse bar.
     if (isCollapsedGroup) {
       const meta = collapsedGroupMeta.get(participant.id)!;
-      const drillColor = effectiveTagColor || palette.textMuted;
-      const drillBarH = 6;
+      // The collapse bar is a mark the whole system shares — COLLAPSE_BAR_HEIGHT
+      // in utils/visual-conventions.ts, drawn by renderCollapseBar in
+      // utils/card.ts, and carried by infra, boxes-and-lines, org, sitemap,
+      // mindmap, pert, sketch, block and C4. In every one of those the bar
+      // takes the CARD'S OWN OUTLINE COLOUR, so it lands as an accent on a box
+      // that already wears that hue.
+      //
+      // A tagged group's outline is the tag colour, so the bar takes it
+      // unchanged and the match holds. An untagged group's outline falls back
+      // to `palette.border`, which is far too faint to read as a mark — and
+      // the bar used to jump the other way to full-strength `palette.textMuted`,
+      // making this the one place in the system where the bar and the box it
+      // sits on disagree, and the heaviest ink on an otherwise 25%-tinted
+      // canvas. It now meets in the middle: textMuted mixed into the theme's
+      // own ground, which is a real colour in both themes rather than an
+      // opacity that would let the lifeline show through (#447).
+      const drillColor =
+        effectiveTagColor ??
+        mix(palette.textMuted, themeBaseBg(palette, isDark), 55);
+      const drillBarH = ctx.structural(COLLAPSE_BAR_HEIGHT);
       const boxW = sBoxW;
-      // Match the group box dimensions
-      const fullH = sBoxH + GROUP_PADDING_TOP + GROUP_PADDING_BOTTOM;
+      // A collapsed group agrees with whatever else is on the participant row.
+      // When another group is expanded it matches that frame exactly, top and
+      // bottom, so the two read as the same kind of object. When nothing else
+      // is expanded there is nothing to agree with, and it takes an ordinary
+      // participant's height so the row keeps one shared top edge instead of
+      // one box standing 30px proud of its neighbours (#447).
+      //
+      // Layout is unaffected either way: `groupOffset` and `messageStartOffset`
+      // reserve the group padding from `parsed.groups`, not from the projected
+      // view, so toggling a group still moves nothing. A compact box simply
+      // leaves the reserved strip above it empty.
+      const padTop = hasExpandedGroup ? GROUP_PADDING_TOP : 0;
+      const padBottom = hasExpandedGroup ? GROUP_PADDING_BOTTOM : 0;
+      const fullH = sBoxH + padTop + padBottom;
       const clipId = `clip-drill-group-${participant.id.replace(/[^a-zA-Z0-9-]/g, '-')}`;
 
       // Add toggle attributes to the participant <g> so any click on it
@@ -2545,7 +2545,7 @@ export function renderSequenceDiagram(
         )
         .attr('cursor', 'pointer');
 
-      // Overlay a taller rect to replace the standard participant box
+      // Overlay rect replacing the standard participant box
       const pFill = effectiveTagColor
         ? mix(effectiveTagColor, themeBaseBg(palette, isDark), isDark ? 30 : 40)
         : isDark
@@ -2553,11 +2553,11 @@ export function renderSequenceDiagram(
           : mix(palette.bg, palette.surface, 50);
       const pStroke = effectiveTagColor || palette.border;
 
-      // Taller box inside the participant <g> (local coords, y=0 is participant cy)
+      // Local coords — y=0 is the participant's own box top.
       participantG
         .append('rect')
         .attr('x', -boxW / 2)
-        .attr('y', -GROUP_PADDING_TOP)
+        .attr('y', -padTop)
         .attr('width', boxW)
         .attr('height', fullH)
         .attr('rx', 6)
@@ -2565,58 +2565,38 @@ export function renderSequenceDiagram(
         .attr('stroke', pStroke)
         .attr('stroke-width', 1.5);
 
-      // The members this collapse swallowed, named on a second line. Written
-      // first so the group's own name can be shifted up to make room for it —
-      // the pair reads as one centred block, not a label with an afterthought.
-      const memberLine = collapsedGroupMemberLine(
-        meta.participantIds.map((id) => participantLabels.get(id) ?? id),
-        boxW - GROUP_MEMBER_PADDING_X * 2,
-        sGroupMemberSize
-      );
-      const boxMidY = -GROUP_PADDING_TOP + fullH / 2;
-      const nameY = memberLine
-        ? boxMidY - (sGroupMemberSize + GROUP_MEMBER_GAP) / 2
-        : boxMidY;
+      // Centred in the box ABOVE the bar, so the bar does not push the name
+      // off-centre the way it would if the whole box were used.
+      const nameY = -padTop + (fullH - drillBarH) / 2;
 
-      // Re-render label centered in the taller box (local coords)
       participantG
         .append('text')
         .attr('x', 0)
         .attr('y', nameY)
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'central')
-        // Colour and opacity legitimately differ from the expanded header —
-        // this name sits on a filled box and needs its own contrast, where
-        // the header is a washed-out strip label. The TYPE must not differ.
+        // The participant label's own type and colour: a collapsed group is a
+        // box standing on the participant row, and every sibling there is set
+        // this way. It borrowed the expanded header's 11px bold until #447 —
+        // see the note on GROUP_LABEL_SIZE for why that was reversed. The
+        // swallowed members are no longer drawn at all; the toggle's
+        // accessible name is where they live.
         .attr('fill', palette.text)
-        .attr('font-size', sGroupLabelSize)
-        .attr('font-weight', GROUP_LABEL_WEIGHT)
+        .attr('font-size', sLabelFontSize)
+        .attr('font-weight', 500)
         // NOT `.group-label` — the app's cursor highlight selects that class
         // for the header strip, and a second matching element inside the
         // participant <g> would change what lights up.
         .attr('class', 'collapsed-group-label')
-        .text(participant.label);
+        .text(truncateText(participant.label, sLabelFontSize, sLabelTextWidth));
 
-      if (memberLine) {
-        participantG
-          .append('text')
-          .attr('x', 0)
-          .attr('y', boxMidY + (sGroupLabelSize + GROUP_MEMBER_GAP) / 2)
-          .attr('text-anchor', 'middle')
-          .attr('dominant-baseline', 'central')
-          .attr('fill', palette.textMuted)
-          .attr('font-size', sGroupMemberSize)
-          .attr('class', 'collapsed-group-members')
-          .text(memberLine);
-      }
-
-      // Drill-bar at bottom (local coords)
+      // Collapse bar along the bottom edge, clipped to the box's radius.
       participantG
         .append('clipPath')
         .attr('id', clipId)
         .append('rect')
         .attr('x', -boxW / 2)
-        .attr('y', -GROUP_PADDING_TOP)
+        .attr('y', -padTop)
         .attr('width', boxW)
         .attr('height', fullH)
         .attr('rx', 6);
@@ -2625,7 +2605,7 @@ export function renderSequenceDiagram(
         .append('rect')
         .attr('class', 'sequence-drill-bar')
         .attr('x', -boxW / 2)
-        .attr('y', -GROUP_PADDING_TOP + fullH - drillBarH)
+        .attr('y', -padTop + fullH - drillBarH)
         .attr('width', boxW)
         .attr('height', drillBarH)
         .attr('fill', drillColor)
@@ -2636,7 +2616,7 @@ export function renderSequenceDiagram(
     // carry their label *below* the stick figure (at boxH + 14), so their
     // lifeline must start below that label or the dashes run through the text.
     const llY = isCollapsedGroup
-      ? lifelineStartY + GROUP_PADDING_BOTTOM
+      ? lifelineStartY + (hasExpandedGroup ? GROUP_PADDING_BOTTOM : 0)
       : participant.type === 'actor'
         ? lifelineStartY + ACTOR_LABEL_CLEARANCE
         : lifelineStartY;

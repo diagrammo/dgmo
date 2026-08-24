@@ -9,10 +9,11 @@ import type { SequenceNote, SequenceSection } from '../src/sequence/parser';
 import {
   renderSequenceDiagram,
   summarizeSectionParticipation,
-  collapsedGroupMemberLine,
 } from '../src/sequence/renderer';
 import type { SequenceRenderOptions } from '../src/sequence/renderer';
 import { getPalette } from '../src/palettes';
+import { mix, themeBaseBg } from '../src/palettes/color-utils';
+import { COLLAPSE_BAR_HEIGHT } from '../src/utils/visual-conventions';
 import { legendChromeColors } from '../src/utils/legend-constants';
 import { applyCollapseProjection } from '../src/sequence/collapse';
 import { renderForExport } from '../src/d3';
@@ -394,28 +395,12 @@ describe('Collapse rendering', () => {
     expect(participant.getAttribute('data-group-toggle')).toBe('');
   });
 
-  it('names the swallowed members on a second line inside the box', () => {
-    // The question a collapsed group raises is *which member*, and only text
-    // can answer it — a mark on the one column it draws would look like it
-    // carried identity and could not.
+  it('draws no member line inside the box', () => {
+    // The members were drawn on a 9px second line until #447. The point of
+    // collapsing is to stop caring which members; spending the smallest type
+    // on the canvas re-stating them, inside a box that then had to grow to
+    // hold them, bought nothing the accessible name below does not.
     const svg = renderToSvg(collapseDiagram)!;
-    const members = svg.querySelector('.collapsed-group-members')!;
-    expect(members.textContent).toBe('API · DB');
-    // Sits below the group's own name, both centred as one block
-    const name = svg.querySelector('.collapsed-group-label')!;
-    expect(Number(members.getAttribute('y'))).toBeGreaterThan(
-      Number(name.getAttribute('y'))
-    );
-    // Quieter than the name it follows — it answers a follow-up question
-    expect(Number(members.getAttribute('font-size'))).toBeLessThan(
-      Number(name.getAttribute('font-size'))
-    );
-  });
-
-  it('draws no member line for an expanded group', () => {
-    const svg = renderToSvg(
-      ['[Backend]', '  API', '  DB', 'User -request-> API'].join('\n')
-    )!;
     expect(svg.querySelector('.collapsed-group-members')).toBeNull();
   });
 
@@ -444,10 +429,14 @@ describe('Collapse rendering', () => {
     expect(participant.querySelector('title')).toBeNull();
   });
 
-  it('draws the group name in the same type collapsed as expanded (#242)', () => {
-    // Collapsing is a reading gesture — same diagram, less in it. The name
-    // changing weight or size under it reads as a different kind of object
-    // appearing. Colour and opacity may differ; type may not.
+  it('names a collapsed group in the participant label type, not the header type (#447)', () => {
+    // Reverses #242, which had fixed the collapsed name to the expanded
+    // header's 11px bold on the argument that collapsing is a reading gesture
+    // and the name must not change type under it. It does change kind of
+    // object, though: expanded, the name is a strip caption floating above a
+    // frame; collapsed, it is the label of a box standing on the participant
+    // row. Every other name on that row is LABEL_FONT_SIZE weight 500, and
+    // matching the strip made this the only one that was not.
     const expandedDiagram = [
       '[Backend]',
       '  API',
@@ -457,23 +446,121 @@ describe('Collapse rendering', () => {
 
     const expanded =
       renderToSvg(expandedDiagram)!.querySelector('.group-label')!;
+    const svg = renderToSvg(collapseDiagram)!;
     // The collapsed name is drawn TWICE — renderParticipant's own label, then
     // an overlay rect, then this one on top. The visible one is this one.
-    const collapsed = renderToSvg(collapseDiagram)!.querySelector(
+    const collapsed = svg.querySelector(
       '.participant[data-participant-id="Backend"] .collapsed-group-label'
     )!;
+    // A plain participant's label, for comparison.
+    const sibling = svg.querySelector(
+      '.participant[data-participant-id="User"] text'
+    )!;
 
-    expect(expanded.textContent).toBe('Backend');
     expect(collapsed.textContent).toBe('Backend');
     expect(collapsed.getAttribute('font-size')).toBe(
-      expanded.getAttribute('font-size')
+      sibling.getAttribute('font-size')
     );
     expect(collapsed.getAttribute('font-weight')).toBe(
-      expanded.getAttribute('font-weight')
+      sibling.getAttribute('font-weight')
     );
-    // Only Inter Regular and Inter Bold ship, so a numeric weight below 700
-    // resolves down to Regular — a full weight step, not a nudge.
-    expect(collapsed.getAttribute('font-weight')).toBe('bold');
+    expect(collapsed.getAttribute('font-size')).not.toBe(
+      expanded.getAttribute('font-size')
+    );
+  });
+
+  it("takes a participant's height when no other group is expanded (#447)", () => {
+    // The box was unconditionally H + GROUP_PADDING_TOP + GROUP_PADDING_BOTTOM
+    // — 80 where a participant is 50 — so a lone collapsed group stood 30px
+    // proud of every neighbour and broke the row's shared top edge.
+    const svg = renderToSvg(collapseDiagram)!;
+    const g = svg.querySelector('.participant[data-participant-id="Backend"]')!;
+    // Local coords: y=0 is the participant box top. The overlay is the rect
+    // carrying rx=6; the participant's own box underneath is rx=2.
+    const overlay = Array.from(g.querySelectorAll('rect')).find(
+      (r) => r.getAttribute('rx') === '6'
+    )!;
+    // The participant's own box is still underneath, drawn at rx=2 by
+    // renderRectParticipant — the height to match, without importing it.
+    const ownBox = Array.from(g.querySelectorAll('rect')).find(
+      (r) => r.getAttribute('rx') === '2'
+    )!;
+    expect(overlay.getAttribute('y')).toBe('0');
+    expect(overlay.getAttribute('height')).toBe(ownBox.getAttribute('height'));
+  });
+
+  it('matches the expanded frame when one is on the row (#447)', () => {
+    // With something to agree with, the two are the same object drawn two
+    // ways, so they line up exactly — top edge and bottom edge.
+    const svg = renderToSvg(
+      [
+        '[Backend] collapsed: true',
+        '  API',
+        '  DB',
+        '[Frontend]',
+        '  Web',
+        'User -request-> Web',
+        'Web -call-> API',
+      ].join('\n')
+    )!;
+    const frame = svg.querySelector('.group-box')!;
+    const g = svg.querySelector('.participant[data-participant-id="Backend"]')!;
+    const overlay = Array.from(g.querySelectorAll('rect')).find(
+      (r) => r.getAttribute('rx') === '6'
+    )!;
+    // The participant <g> is translated to (cx, participantStartY), so the
+    // overlay's local y is the offset from the row's top edge.
+    const transform = g.getAttribute('transform')!;
+    const participantTop = Number(
+      /translate\([^,]+,\s*([-\d.]+)\)/.exec(transform)![1]
+    );
+    expect(participantTop + Number(overlay.getAttribute('y'))).toBeCloseTo(
+      Number(frame.getAttribute('y')),
+      5
+    );
+    expect(overlay.getAttribute('height')).toBe(frame.getAttribute('height'));
+  });
+
+  it('draws the collapse bar at the shared height (#447)', () => {
+    // COLLAPSE_BAR_HEIGHT lives in utils/visual-conventions.ts and nine other
+    // renderers import it. Sequence hardcoded a matching 6, so a deliberate
+    // cross-chart change to the constant would have silently skipped it.
+    const svg = renderToSvg(collapseDiagram)!;
+    const bar = svg.querySelector('.sequence-drill-bar')!;
+    expect(Number(bar.getAttribute('height'))).toBe(COLLAPSE_BAR_HEIGHT);
+  });
+
+  it('softens the collapse bar on an untagged group (#447)', () => {
+    // Everywhere else the bar carries its card's own outline colour. Here the
+    // outline falls back to `border` and the bar used to fall back to
+    // `textMuted` at full strength — the one place the two disagreed, and the
+    // heaviest ink on the canvas. It now sits between them.
+    const svg = renderToSvg(collapseDiagram)!;
+    const bar = svg.querySelector('.sequence-drill-bar')!;
+    const fill = bar.getAttribute('fill')!;
+    expect(fill).not.toBe(palette.textMuted);
+    expect(fill).toBe(mix(palette.textMuted, themeBaseBg(palette, false), 55));
+  });
+
+  it("leaves a tagged group's bar on its own colour (#447)", () => {
+    // A tagged group's outline IS the tag colour, so bar and outline already
+    // agree and the cross-chart rule is already satisfied. Softening here
+    // would break the match it exists to keep.
+    const tagged = [
+      'tag Area as a',
+      '  Storage blue',
+      '[Backend] collapsed: true, a: Storage',
+      '  API',
+      '  DB',
+      'User -request-> API',
+    ].join('\n');
+    const svg = renderToSvg(tagged)!;
+    const g = svg.querySelector('.participant[data-participant-id="Backend"]')!;
+    const bar = g.querySelector('.sequence-drill-bar')!;
+    const overlay = Array.from(g.querySelectorAll('rect')).find(
+      (r) => r.getAttribute('rx') === '6'
+    )!;
+    expect(bar.getAttribute('fill')).toBe(overlay.getAttribute('stroke'));
   });
 
   it('expanded group has .group-box present', () => {
@@ -766,45 +853,6 @@ describe('summarizeSectionParticipation', () => {
   it('ignores indices that address no message', () => {
     const summary = summarizeSectionParticipation([msg('A', 'B', 1)], [0, 9]);
     expect(summary.size).toBe(2);
-  });
-});
-
-describe('collapsedGroupMemberLine', () => {
-  // 9px is the size the renderer draws this line at.
-  const SIZE = 9;
-
-  it('joins every member with a middle dot when they all fit', () => {
-    expect(collapsedGroupMemberLine(['Auth', 'Ledger'], 200, SIZE)).toBe(
-      'Auth · Ledger'
-    );
-  });
-
-  it('keeps what fits and counts the rest', () => {
-    const line = collapsedGroupMemberLine(
-      ['Stripe', 'Ledger', 'Notifier', 'Auth', 'Audit'],
-      70,
-      SIZE
-    );
-    expect(line).toMatch(/^Stripe( · \w+)* \+\d$/);
-    // The count and the names must agree about how many there are
-    const kept = line.slice(0, line.lastIndexOf(' +')).split(' · ').length;
-    expect(kept + Number(line.slice(line.lastIndexOf('+') + 1))).toBe(5);
-  });
-
-  it('falls back to a bare count when not even one name fits', () => {
-    expect(
-      collapsedGroupMemberLine(['Extraordinarily Long Service', 'B'], 60, SIZE)
-    ).toBe('2 members');
-  });
-
-  it('says member, singular, for a group of one', () => {
-    expect(
-      collapsedGroupMemberLine(['Extraordinarily Long Service'], 60, SIZE)
-    ).toBe('1 member');
-  });
-
-  it('gives an empty line for a group with no members', () => {
-    expect(collapsedGroupMemberLine([], 200, SIZE)).toBe('');
   });
 });
 
