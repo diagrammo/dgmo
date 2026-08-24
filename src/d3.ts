@@ -1104,7 +1104,14 @@ async function exportPert(ctx: ExportContext): Promise<string> {
   const pertResolved = analyzePert(pertParsed);
   const pertLayout = layoutPert(pertResolved);
 
-  const titleHeight = pertParsed.title && !pertParsed.options.noTitle ? 80 : 0;
+  const hasTitle = !!pertParsed.title && !pertParsed.options.noTitle;
+  // The project subtitle (μ ± σ, plus the anchor-derived date) is the
+  // one line that answers "how long will this take". It is project-
+  // level, so `no-title` suppresses the title and keeps it — it just
+  // moves up into the title's slot. 80 with a title above it, 50 on
+  // its own, 0 when the analyzer produced neither.
+  const hasSubtitle = pertResolved.projectSubtitle !== null;
+  const titleHeight = hasTitle ? 80 : hasSubtitle ? 50 : 0;
   const PERT_PADDING = 20;
   // Analysis layer renders by default whenever MC ran. Precedence:
   // an explicit viewState.an (app toggle / share link) wins; else the
@@ -1112,16 +1119,23 @@ async function exportPert(ctx: ExportContext): Promise<string> {
   // renderer silently omits it in analytical mode (no MC output).
   const analysisOn = viewState?.an ?? !pertParsed.options.noAnalysis;
   const fieldLabelsOn = viewState?.fl === true;
+  // The project-stats caption is NOT part of that toggle. It reports
+  // expected duration and the percentile dates, and `no-analysis` is a
+  // request for a quieter chart rather than one that withholds its own
+  // answer — so it renders whenever the analyzer succeeded. The
+  // renderer drops the S-curve's duplicate header band automatically
+  // when the caption is present alongside it.
   const exportW = pertLayout.width + PERT_PADDING * 2;
-  const analysisMeasured =
-    analysisOn || fieldLabelsOn
-      ? measurePertAnalysisBlock(pertResolved, exportW - 2 * PERT_PADDING, {
-          showSummary: false,
-          showTornado: analysisOn,
-          showScurve: analysisOn,
-          showFieldLegend: fieldLabelsOn,
-        })
-      : { width: 0, height: 0 };
+  const analysisMeasured = measurePertAnalysisBlock(
+    pertResolved,
+    exportW - 2 * PERT_PADDING,
+    {
+      showSummary: true,
+      showTornado: analysisOn,
+      showScurve: analysisOn,
+      showFieldLegend: fieldLabelsOn,
+    }
+  );
   const exportH =
     pertLayout.height +
     PERT_PADDING * 2 +
@@ -1136,9 +1150,10 @@ async function exportPert(ctx: ExportContext): Promise<string> {
     effectivePalette,
     ctx.isDark,
     {
-      title: pertParsed.title,
+      title: hasTitle ? pertParsed.title : null,
+      subtitle: pertResolved.projectSubtitle,
       exportDims: { width: exportW, height: exportH },
-      showSummary: false,
+      showSummary: true,
       showTornado: analysisOn,
       showScurve: analysisOn,
       showFieldLegend: fieldLabelsOn,

@@ -440,9 +440,10 @@ export function renderPert(
     showFieldLegend: options.showFieldLegend ?? false,
   });
   const standaloneFieldLegendWidthForExport = layout.width;
-  const analysisBlockHeight = analysisLayer.analysisHasContent
-    ? CAPTION_TOP_GAP + analysisLayer.analysisRowHeight
-    : 0;
+  const analysisBlockHeightAt = (contentWidth: number): number =>
+    analysisLayer.analysisHasContent
+      ? CAPTION_TOP_GAP + analysisContentHeightAt(analysisLayer, contentWidth)
+      : 0;
   const fieldLegendBlockHeight = analysisLayer.fieldLegendStandalone
     ? CAPTION_TOP_GAP +
       fieldLegendHeightFor(standaloneFieldLegendWidthForExport)
@@ -464,12 +465,15 @@ export function renderPert(
     ? analysisLayer.minContentWidth + 2 * DIAGRAM_PADDING
     : 0;
   const naturalWidth = Math.max(naturalChartWidth, minAnalysisRowW);
+  // At the natural width the analysis row always fits on one line, so
+  // this is the row-mode height. The scaled canvas below can be
+  // narrower, and then the row stacks — measure it again there.
   const naturalHeight =
     layout.height +
     DIAGRAM_PADDING * 2 +
     titleHeight +
     legendBlockHeight +
-    analysisBlockHeight +
+    analysisBlockHeightAt(naturalWidth - DIAGRAM_PADDING * 2) +
     fieldLegendBlockHeight;
   const exportWidth = Math.max(
     options.exportDims?.width ?? naturalWidth,
@@ -520,7 +524,7 @@ export function renderPert(
     sDiagramPad * 2 +
     sTitleHeight +
     sLegendBlockHeight +
-    analysisBlockHeight +
+    analysisBlockHeightAt(scaledWidth - sDiagramPad * 2) +
     fieldLegendBlockHeight;
   const svgW = ctx.isBelowFloor ? exportWidth : scaledWidth;
   const svgH = ctx.isBelowFloor ? exportHeight : scaledHeight;
@@ -926,9 +930,24 @@ function analysisLayerHeightAt(
       ? CAPTION_TOP_GAP + fieldLegendHeightFor(availableWidth)
       : 0;
   }
-  if (availableWidth >= state.minContentWidth) {
-    return CAPTION_TOP_GAP + state.analysisRowHeight;
-  }
+  return CAPTION_TOP_GAP + analysisContentHeightAt(state, availableWidth);
+}
+
+/**
+ * Height of the analysis content itself at `availableWidth`, excluding
+ * the gap above it and the standalone field-legend case. Row mode when
+ * the width fits the single-row minimum, greedy-packed stack otherwise
+ * — the same choice `paintAnalysisLayer` makes, which is the whole
+ * point: a caller that reserves `analysisRowHeight` unconditionally
+ * under-reserves by a whole stacked row and clips the bottom block off
+ * the canvas (#420, seen once the Summary card made three items).
+ */
+function analysisContentHeightAt(
+  state: AnalysisLayerState,
+  availableWidth: number
+): number {
+  if (!state.analysisHasContent) return 0;
+  if (availableWidth >= state.minContentWidth) return state.analysisRowHeight;
   // Stack mode — type-grouped rows; sum per-row max heights.
   const rows = packRows(state, availableWidth);
   let total = 0;
@@ -943,7 +962,7 @@ function analysisLayerHeightAt(
     total += rowHeight;
     if (i < rows.length - 1) total += ANALYSIS_GAP;
   });
-  return CAPTION_TOP_GAP + total;
+  return total;
 }
 
 function paintAnalysisLayer(

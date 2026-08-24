@@ -601,6 +601,7 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
     projectSigma: projectSigmaOut,
     unit,
     anchor: parsed.options.anchor,
+    mcRan: mode === 'monte-carlo' && monteCarloResult !== null,
   });
 
   return {
@@ -1064,14 +1065,27 @@ export function buildProjectSubtitle(input: {
   projectSigma: number | null;
   unit: DurationUnit;
   anchor?: Anchor;
+  /**
+   * Whether the Monte Carlo run produced output. The ± parenthetical
+   * follows the same rule as the project-stats caption's — it appears
+   * only when the simulation ran with σ > 0. The two lines sit on the
+   * same page, so a subtitle quoting a spread the caption withholds
+   * (analytical mode, `trials` under 100) reads as a contradiction.
+   */
+  mcRan?: boolean;
 }): string | null {
   const anchor = input.anchor ?? null;
   const { projectMu, projectSigma, unit } = input;
 
   const sigmaPositive = projectSigma !== null && projectSigma > 0;
-  const sigmaParen = sigmaPositive
-    ? ` (± ${roundForCaption(projectSigma!)})`
-    : '';
+  // σ carries its unit, matching the project-stats caption. A bare
+  // number here reads as a fraction of the μ figure beside it, and in
+  // the anchored shapes ("≈ 10 weeks of work (± 2)") there is no
+  // adjacent unit for it to borrow at all.
+  const sigmaParen =
+    sigmaPositive && input.mcRan !== false
+      ? ` (± ${formatPercentile(projectSigma!, unit)})`
+      : '';
 
   if (projectMu === null) {
     // Anchored + TBD: keep the framing prefix, mark the math as ?.
