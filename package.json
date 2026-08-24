@@ -1,6 +1,6 @@
 {
   "name": "@diagrammo/dgmo",
-  "version": "0.73.0",
+  "version": "0.74.0",
   "description": "DGMO diagram markup language — parser, renderer, and color system",
   "license": "MIT",
   "author": "Diagrammo LLC",
