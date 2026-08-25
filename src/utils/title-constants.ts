@@ -8,10 +8,9 @@ export const TITLE_FONT_WEIGHT = '700';
 export const TITLE_Y = 30;
 export const TITLE_OFFSET = 40;
 
-// Caption — supplementary banner text. The pert renderer wraps caption
-// content in a node-styled rectangle below the diagram body; backward-
-// anchor annotations still render as a free-floating italic line below
-// the title. Pixel `dy` (not `'1.2em'`) so layout math and rendered text
+// Caption — supplementary banner text. In pert these size the header
+// bands and inner padding of the analysis blocks (Field labels, Tornado,
+// S-curve). Pixel `dy` (not `'1.2em'`) so layout math and rendered text
 // never drift between JSDOM and resvg.
 export const CAPTION_FONT_SIZE = 13;
 export const CAPTION_FONT_WEIGHT = '400';

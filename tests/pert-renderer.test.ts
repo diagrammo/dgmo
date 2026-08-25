@@ -5,6 +5,7 @@ import { JSDOM } from 'jsdom';
 import { renderPert, renderPertForExport } from '../src/pert/renderer';
 import { parsePert } from '../src/pert/parser';
 import { analyzePert } from '../src/pert/analyzer';
+import { addCalendarDays } from '../src/pert/internal';
 import { relayoutPert } from '../src/pert/layout';
 import { getPalette } from '../src/palettes';
 import { themeBaseBg } from '../src/palettes/color-utils';
@@ -357,50 +358,18 @@ describe('pert renderer — structural assertions', () => {
     document.body.removeChild(c);
   });
 
-  it('AC19: caption emits one tspan per bullet, prefixed with •; first has no dy, others have pixel dy', () => {
-    const svg = renderForTest(loadFixture('three-point.dgmo'));
-    const doc = parseDom(svg);
-    const captions = doc.querySelectorAll('text.pert-caption');
-    expect(captions.length).toBe(1);
-    const tspans = captions[0]!.querySelectorAll('tspan');
-    expect(tspans.length).toBeGreaterThan(0);
-    expect(tspans[0]!.getAttribute('dy')).toBeNull();
-    expect(tspans[0]!.textContent?.startsWith('• ')).toBe(true);
-    for (let i = 1; i < tspans.length; i++) {
-      const dy = tspans[i]!.getAttribute('dy');
-      expect(dy).not.toBeNull();
-      expect(/^\d+(\.\d+)?$/.test(dy!)).toBe(true);
-      expect(tspans[i]!.textContent?.startsWith('• ')).toBe(true);
-    }
+  it('AC19/AC20: no Summary card is drawn at all (#455)', () => {
+    // A "Summary" card of bullets sat below the diagram until 2026-08-24,
+    // restating the μ ± σ the subtitle above the diagram already prints.
+    const doc = parseDom(renderForTest(loadFixture('three-point.dgmo')));
+    expect(doc.querySelectorAll('text.pert-caption').length).toBe(0);
+    expect(doc.querySelectorAll('g.pert-caption-block').length).toBe(0);
+    expect(doc.querySelectorAll('rect.pert-caption-rect').length).toBe(0);
+    // The headline still reaches the page — via the subtitle, once.
+    expect(doc.querySelectorAll('text.pert-subtitle').length).toBe(1);
   });
 
-  it('AC20: caption renders below the diagram, wrapped in a node-styled rect', () => {
-    const c = document.createElement('div');
-    document.body.appendChild(c);
-    const parsed = parsePert(loadFixture('basic.dgmo'));
-    const resolved = analyzePert(parsed);
-    const layout = relayoutPert(resolved, {});
-    const colors = getPalette('nord').light;
-    renderPert(c as HTMLDivElement, resolved, layout, colors, false, {
-      title: parsed.title,
-    });
-    const block = c.querySelector('g.pert-caption-block');
-    expect(block).not.toBeNull();
-    expect(block!.querySelector('rect.pert-caption-rect')).not.toBeNull();
-    // Caption rect Y is below every node g's transform Y.
-    const captionRect = block!.querySelector('rect')!;
-    const captionY = parseFloat(captionRect.getAttribute('y')!);
-    const nodeYs = Array.from(c.querySelectorAll('g.pert-node')).map((n) => {
-      const t = n.getAttribute('transform') ?? '';
-      const m = t.match(/translate\(\s*[\d.]+\s*,\s*([\d.]+)/);
-      return m ? parseFloat(m[1]) : 0;
-    });
-    const lastNodeBottom = Math.max(...nodeYs);
-    expect(captionY).toBeGreaterThan(lastNodeBottom);
-    document.body.removeChild(c);
-  });
-
-  it('AC21: TB and LR layouts produce byte-identical summaryRows', () => {
+  it('AC21: TB and LR layouts produce a byte-identical project subtitle', () => {
     const lr = `pert
 direction LR
 A 1 2 4
@@ -417,30 +386,30 @@ A
 `;
     const resLr = analyzePert(parsePert(lr));
     const resTb = analyzePert(parsePert(tb));
-    expect(resLr.summaryRows).toEqual(resTb.summaryRows);
+    expect(resLr.projectSubtitle).toEqual(resTb.projectSubtitle);
   });
 
   it('AC25: monte-carlo.dgmo (with deprecated `analysis monte-carlo`) still renders', () => {
     // The directive now warns but does not block rendering. SVG must
-    // contain a caption and the chart body.
+    // contain the subtitle and the chart body.
     const svg = renderForTest(loadFixture('monte-carlo.dgmo'));
     expect(svg).toContain('<svg');
-    expect(svg).toContain('class="pert-caption"');
+    expect(svg).toContain('class="pert-subtitle"');
     expect(svg).toContain('class="pert-node"');
   });
 
-  it('AC27: cycle bailout emits no caption element', () => {
+  it('AC27: cycle bailout emits no subtitle element', () => {
     const svg = renderForTest(loadFixture('cycle-error.dgmo'));
     const doc = parseDom(svg);
-    expect(doc.querySelectorAll('text.pert-caption').length).toBe(0);
+    expect(doc.querySelectorAll('text.pert-subtitle').length).toBe(0);
   });
 
-  it('AC15 (rendered): TBD-fallback caption is the single sentence', () => {
+  it('AC15 (rendered): TBD upstream leaves a "?" in the subtitle', () => {
     const svg = renderForTest(loadFixture('tbd-poison.dgmo'));
     const doc = parseDom(svg);
-    const tspans = doc.querySelectorAll('text.pert-caption tspan');
-    expect(tspans.length).toBe(1);
-    expect(tspans[0]!.textContent).toContain('Expected duration unknown');
+    const subtitle = doc.querySelector('text.pert-subtitle');
+    expect(subtitle).not.toBeNull();
+    expect(subtitle!.textContent).toContain('?');
   });
 
   it('edge labels appear for non-default dependency types', () => {
@@ -671,49 +640,39 @@ describe('pert renderer — date anchoring', () => {
     // is the start-date carried through. Renderer formats as ISO.
     const svg = renderForTest(loadFixture('start-date.dgmo'));
     expect(svg).toContain('2026-06-01');
-    // Per spec §13A.12, forward anchor surfaces "Forward from
-    // start-date YYYY-MM-DD" — symmetric with the backward annotation.
-    expect(svg).toContain('Forward from start-date 2026-06-01');
+    // The anchor date reaches the page through the subtitle's
+    // "Expected finish: <date>" framing. A separate "Forward from
+    // start-date …" note lived in the Summary card and went with it
+    // when the card was deleted (#455).
+    const subtitle = svg.match(/class="pert-subtitle"[^>]*>([^<]*)/)?.[1] ?? '';
+    expect(subtitle).toMatch(/^Expected finish: \d{4}-\d{2}-\d{2} · /);
     expect(svg).not.toContain('Backward-anchored');
   });
 
-  it('backward anchor: italic anchor-framing bullet lives in the caption box', () => {
+  it('backward anchor: the subtitle frames the schedule as a lead time', () => {
     const svg = renderForTest(loadFixture('end-date.dgmo'));
-    // Annotation sits as the FINAL bullet inside the yellow caption
-    // box. Per spec §13A.12, backward anchor renders as
-    // "Backward-anchored from end-date YYYY-MM-DD (as of YYYY-MM-DD)"
-    // where the "as of" carries the parse-time today.
-    expect(svg).toContain('Backward-anchored from end-date 2026-09-15');
-    expect(svg).toContain('(as of ');
-    expect(svg).not.toContain('project start');
-    expect(svg).not.toContain('earliest possible');
-    // The bullet's tspan carries font-style="italic"; the standalone
-    // subtitle element no longer exists.
-    expect(svg).toContain('font-style="italic"');
+    const subtitle = svg.match(/class="pert-subtitle"[^>]*>([^<]*)/)?.[1] ?? '';
+    expect(subtitle).toMatch(/^Expected start: \d{4}-\d{2}-\d{2} · /);
+    expect(subtitle).toContain('lead time');
+    // ⚠️ Nothing names the end-date the schedule was pinned to, and nothing
+    // carries the parse-time "(as of <today>)" that says how fresh the
+    // past-date check is. Both were bullets in the Summary card, deleted
+    // 2026-08-24 (#455); rehoming them onto the subtitle is open work.
+    expect(svg).not.toContain('Backward-anchored from end-date');
     expect(svg).not.toContain('class="pert-anchor-annotation"');
-    // Anchor note is rendered as a regular bullet — every line in the
-    // Summary box wears the `•` glyph for visual consistency.
-    expect(svg).toContain('• Backward-anchored from end-date 2026-09-15');
   });
 
   it('backward anchor + TBD upstream: schedule cells fall back to "?"', () => {
     const svg = renderForTest(loadFixture('backward-tbd.dgmo'));
-    // Annotation still names the end date, plus a tail explaining the
-    // `?` cells when projectStart can't be derived.
-    expect(svg).toContain('Backward-anchored from end-date 2026-09-15');
-    expect(svg).toContain('upstream activities still need estimates');
     // No date strings should appear in node bodies — projectStart is null
     // so every schedule cell renders nullLabel='?'.
     //
-    // Scoped to the NODES, which is what the claim was always about. Scanning
-    // the whole SVG also caught the caption's "(as of <today>)", so the second
-    // assertion below passed only while today's date didn't happen to start
-    // with the literal it excluded — it began failing the moment the clock
-    // rolled into 2026-08. Matching any ISO date in the node band is both
-    // date-proof and a stronger statement of the same rule.
+    // Scoped to the NODES, which is what the claim was always about.
+    // Scanning the whole SVG also catches the subtitle's anchor date, so
+    // the assertion has to be bounded to the node band to mean anything.
     const nodes = svg.slice(
       svg.indexOf('class="pert-nodes"'),
-      svg.indexOf('class="pert-caption-block"')
+      svg.lastIndexOf('</g></g>')
     );
     expect(nodes).not.toContain('2026-09-15</text>');
     expect(nodes).not.toMatch(/\d{4}-\d{2}-\d{2}/);
@@ -882,17 +841,26 @@ describe('pert renderer — S-curve backward-mode framing (Path B)', () => {
     document.body.removeChild(c);
   });
 
-  it('backward inline labels carry the latest-safe-start dates from the caption', () => {
-    // The percentile labels (now inline next to each dot) must match
-    // the latest-safe-start dates the caption reports — proves the
-    // curve is plotted in candidate-start space, not duration space.
+  it('backward inline labels are end-date minus the ceiled percentile duration', () => {
+    // The percentile labels (inline next to each dot) must equal
+    // `end-date − ceil(P_X)` — proves the curve is plotted in
+    // candidate-start space, not duration space, and that the rounding
+    // stays conservative (an earlier start = more buffer).
+    //
+    // Derived from the Monte-Carlo result rather than from a second
+    // rendered string: this used to compare the labels against the
+    // Summary card's bullets, which made it a check of one renderer path
+    // against another. The card was deleted 2026-08-24 (#455).
     const parsed = parsePert(loadFixture('backward-monte-carlo.dgmo'), {
       now: NOW,
     });
     const resolved = analyzePert(parsed);
-    const startDates = (resolved.summaryRows ?? [])
-      .filter((row) => row.text.startsWith('P'))
-      .map((row) => row.text.match(/(\d{4}-\d{2}-\d{2})/)![1]);
+    const mc = resolved.monteCarloResult!;
+    expect(resolved.options.anchor?.kind).toBe('backward');
+    const endDate = resolved.options.anchor!.date;
+    const startDates = [mc.p50, mc.p80, mc.p95].map((days) =>
+      addCalendarDays(endDate, -Math.ceil(days))
+    );
     expect(startDates.length).toBe(3);
 
     const c = renderWithFixture('backward-monte-carlo.dgmo');
@@ -901,7 +869,7 @@ describe('pert renderer — S-curve backward-mode framing (Path B)', () => {
       block.querySelectorAll('text.pert-scurve-percentile-label')
     ).map((t) => t.textContent ?? '');
     // formatScurveDate produces "Mon DD" (e.g. "May 19"). Convert the
-    // caption ISO dates to the same shape for comparison.
+    // expected ISO dates to the same shape for comparison.
     const monthShort = [
       'Jan',
       'Feb',

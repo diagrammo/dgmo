@@ -16,7 +16,6 @@ import type { DgmoError } from '../diagnostics';
 import type { Duration, DurationUnit } from '../gantt/types';
 import type {
   Anchor,
-  CaptionRow,
   ParsedPert,
   PertActivity,
   PertEdge,
@@ -502,7 +501,6 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
         groups: [],
         tagGroups: parsed.tagGroups.slice(),
         mode: 'monte-carlo',
-        summaryRows: null,
         projectSubtitle: null,
         projectMu: null,
         projectSigma: null,
@@ -583,19 +581,6 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
     }
   }
 
-  const summaryRows = buildSummary({
-    mode,
-    projectMu: projectMuOut,
-    projectSigma: projectSigmaOut,
-    unit,
-    parsedActivities: activities,
-    monteCarloResult,
-    trialsClamped,
-    anchor: parsed.options.anchor,
-    today: parsed.options.today,
-    ...(sprintDays !== undefined && { sprintDays }),
-  });
-
   const projectSubtitle = buildProjectSubtitle({
     projectMu: projectMuOut,
     projectSigma: projectSigmaOut,
@@ -611,7 +596,6 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
     groups: resolvedGroups,
     tagGroups: parsed.tagGroups.slice(),
     mode,
-    summaryRows,
     projectSubtitle,
     projectMu: projectMuOut,
     projectSigma: projectSigmaOut,
@@ -848,208 +832,11 @@ function rollupGroup(
   };
 }
 
-// ============================================================
-// Caption (project-stats summary) builder
-// ============================================================
-
-/**
- * Build the project-stats caption emitted as `ResolvedPert.summaryRows`.
- * Each `CaptionRow` is one bullet in the rendered caption box. Returns
- * `null` when the analyzer produced no output (e.g. cycle bailout).
- */
-export interface BuildSummaryInput {
-  mode: 'monte-carlo' | 'analytical';
-  projectMu: number | null;
-  projectSigma: number | null;
-  unit: DurationUnit;
-  parsedActivities: readonly PertActivity[];
-  monteCarloResult: MonteCarloResult | null;
-  trialsClamped: boolean;
-  /**
-   * Date anchor — when set, "Expected duration" becomes a date and
-   * Monte-Carlo percentiles render as ISO dates instead of durations.
-   * Forward → finish-date rows; backward → latest-safe-start rows.
-   */
-  anchor?: Anchor;
-  /**
-   * Parse-time "today" (ISO YYYY-MM-DD). Used to flag backward-mode
-   * latest-safe-start rows that have already passed. Empty string is
-   * treated as "unknown" — no past flagging.
-   */
-  today: string;
-  /**
-   * Days-per-sprint when sprint mode is active. Used to convert
-   * Monte-Carlo percentile durations (canonical days) into the
-   * displayed unit when `unit === 's'`.
-   */
-  sprintDays?: number;
-}
-
-/**
- * Round a fractional canonical-days duration toward whichever direction
- * pushes the resulting date further from "now":
- *   - forward  → ceil (the finish lands later, more conservative)
- *   - backward → ceil (the latest-safe start lands earlier, more
- *                       conservative — `end_date − ceil(d)` is smaller)
- *
- * Both modes ceil because callers apply opposite signs (`+` vs `−`).
- * Keeping the rule in one helper avoids drift between caption math
- * and S-curve math.
- */
-function roundConservative(
-  durationDays: number,
-  _mode: 'forward' | 'backward'
-): number {
-  return Math.ceil(durationDays);
-}
-
-export function buildSummary(input: BuildSummaryInput): CaptionRow[] | null {
-  const {
-    mode,
-    projectMu,
-    projectSigma,
-    unit,
-    parsedActivities,
-    monteCarloResult,
-    trialsClamped,
-    sprintDays,
-    today,
-  } = input;
-  const anchor = input.anchor ?? null;
-
-  if (parsedActivities.length === 0) return null;
-
-  // Indeterminate projectMu — TBD upstream of the sink.
-  if (projectMu === null) {
-    // Backward + TBD: spec §13A.12 mandates `?` placeholders for both
-    // Expected duration AND each percentile latest-safe start so the
-    // caption shape stays parallel to the feasible case (one top row +
-    // three percentile sub-rows).
-    if (anchor?.kind === 'backward') {
-      return [
-        { text: 'Expected duration: ?', level: 0 },
-        { text: 'P50 latest-safe start: ?', level: 0 },
-        { text: 'P80 latest-safe start: ?', level: 0 },
-        { text: 'P95 latest-safe start: ?', level: 0 },
-      ];
-    }
-    // Forward / unanchored: existing wording — names the unestimated
-    // activities so the author knows what to fill in.
-    const tbdCount = parsedActivities.filter(
-      (a) => a.duration === null && !a.isMilestone
-    ).length;
-    return [
-      {
-        text: `Expected duration unknown — ${tbdCount} ${
-          tbdCount === 1 ? 'activity has' : 'activities have'
-        } no estimate.`,
-        level: 0,
-      },
-    ];
-  }
-
-  const rows: CaptionRow[] = [];
-  const mc = mode === 'monte-carlo' && monteCarloResult !== null;
-  const sigmaPositive = projectSigma !== null && projectSigma > 0;
-  const showMcDetail = mc && sigmaPositive;
-
-  // 1. Expected duration / finish / start — fold σ into a "(± X)"
-  // parenthetical when MC ran with σ > 0. Reads more naturally than a
-  // separate "Standard deviation:" bullet; for a roughly-normal
-  // distribution ±1σ covers ~68% of outcomes.
-  const sigmaParen = showMcDetail
-    ? ` (± ${roundForCaption(projectSigma!)} ${pluralizeUnit(projectSigma!, unit)})`
-    : '';
-  if (anchor?.kind === 'forward') {
-    const projectMuDays = projectMu * unitToDays(unit);
-    rows.push({
-      text: `Expected finish: ${addCalendarDays(anchor.date, projectMuDays)}${sigmaParen}.`,
-      level: 0,
-    });
-  } else if (anchor?.kind === 'backward') {
-    const projectMuDays = projectMu * unitToDays(unit);
-    rows.push({
-      text: `Expected start: ${addCalendarDays(anchor.date, -projectMuDays)}${sigmaParen}.`,
-      level: 0,
-    });
-  } else {
-    const muStr = `${roundForCaption(projectMu)} ${pluralizeUnit(projectMu, unit)}`;
-    rows.push({
-      text: `Expected duration: ${muStr}${sigmaParen}.`,
-      level: 0,
-    });
-  }
-
-  // 2. Percentiles — uniform shape per spec §13A.10/§13A.12:
-  //   - Forward:    P{X} finish: <date>
-  //   - Backward:   P{X} latest-safe start: <date> [(latest-safe start has passed)]
-  //   - Unanchored: P{X}: <duration>
-  // Sub-rows (level 1) so they indent under the preceding "Expected …"
-  // row, matching the existing visual rhythm.
-  if (showMcDetail) {
-    const percentiles: Array<{ pct: 50 | 80 | 95; days: number }> = [
-      { pct: 50, days: monteCarloResult!.p50 },
-      { pct: 80, days: monteCarloResult!.p80 },
-      { pct: 95, days: monteCarloResult!.p95 },
-    ];
-    if (anchor?.kind === 'forward') {
-      for (const { pct, days } of percentiles) {
-        const offsetDays = roundConservative(days, 'forward');
-        const date = addCalendarDays(anchor.date, offsetDays);
-        rows.push({ text: `P${pct} finish: ${date}.`, level: 1 });
-      }
-    } else if (anchor?.kind === 'backward') {
-      for (const { pct, days } of percentiles) {
-        const offsetDays = roundConservative(days, 'backward');
-        const date = addCalendarDays(anchor.date, -offsetDays);
-        // ISO YYYY-MM-DD strings are lexicographically sortable, so a
-        // string compare is the correct past-date check here.
-        const isPast = today.length > 0 && date < today;
-        const suffix = isPast ? ' (latest-safe start has passed)' : '';
-        const row: CaptionRow = {
-          text: `P${pct} latest-safe start: ${date}${suffix}`,
-          level: 1,
-        };
-        if (isPast) row.isPast = true;
-        rows.push(row);
-      }
-    } else {
-      for (const { pct, days } of percentiles) {
-        const v = fromDays(days, unit, sprintDays);
-        rows.push({ text: `P${pct}: ${formatPercentile(v, unit)}.`, level: 1 });
-      }
-    }
-  }
-
-  // 3. Zero-variance fallback (replaces percentile rows when O=M=P
-  // across every authored activity).
-  if (mc && projectSigma === 0) {
-    const filtered: CaptionRow[] = rows.filter((r) =>
-      r.text.startsWith('Expected ')
-    );
-    filtered.push({
-      text: '(No variance in estimates — all activities have O = M = P.)',
-      level: 0,
-    });
-    return filtered;
-  }
-
-  // 4. Trials caveat (mode auto-derived to MC then clamped back).
-  if (trialsClamped) {
-    rows.push({
-      text: 'Insufficient trials configured (`trials` < 100) — falling back to deterministic analysis.',
-      level: 0,
-    });
-  }
-
-  return rows;
-}
-
 /**
  * Build the one-line project subtitle rendered under the diagram title.
- * Distinct from `buildSummary` because the subtitle sits in the title
- * region (always visible, independent of the Analysis-row toggle) and
- * collapses the σ + duration restatement into a single bullet-free line.
+ * This is the ONLY place a PERT diagram prints its headline number: the
+ * Summary card that used to restate it below the diagram was deleted on
+ * 2026-08-24 (#455) for saying what this line already says.
  *
  * Shape per mode (§13A.7):
  *   - Forward:    `Expected finish: <date> · ≈ <μ> <unit> of work (± <σ>)`
@@ -1067,10 +854,8 @@ export function buildProjectSubtitle(input: {
   anchor?: Anchor;
   /**
    * Whether the Monte Carlo run produced output. The ± parenthetical
-   * follows the same rule as the project-stats caption's — it appears
-   * only when the simulation ran with σ > 0. The two lines sit on the
-   * same page, so a subtitle quoting a spread the caption withholds
-   * (analytical mode, `trials` under 100) reads as a contradiction.
+   * appears only when the simulation ran with σ > 0 — quoting a spread
+   * the simulation never produced would be inventing precision.
    */
   mcRan?: boolean;
 }): string | null {
@@ -1078,10 +863,9 @@ export function buildProjectSubtitle(input: {
   const { projectMu, projectSigma, unit } = input;
 
   const sigmaPositive = projectSigma !== null && projectSigma > 0;
-  // σ carries its unit, matching the project-stats caption. A bare
-  // number here reads as a fraction of the μ figure beside it, and in
-  // the anchored shapes ("≈ 10 weeks of work (± 2)") there is no
-  // adjacent unit for it to borrow at all.
+  // σ carries its unit. A bare number here reads as a fraction of the
+  // μ figure beside it, and in the anchored shapes ("≈ 10 weeks of
+  // work (± 2)") there is no adjacent unit for it to borrow at all.
   const sigmaParen =
     sigmaPositive && input.mcRan !== false
       ? ` (± ${formatPercentile(projectSigma!, unit)})`
@@ -1180,7 +964,6 @@ function emptyResolved(
     })),
     tagGroups: parsed.tagGroups.slice(),
     mode: 'analytical',
-    summaryRows: null,
     projectSubtitle: null,
     projectMu: null,
     projectSigma: null,

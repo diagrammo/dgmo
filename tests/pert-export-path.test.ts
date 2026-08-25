@@ -5,11 +5,15 @@ import { render } from '../src/render';
  * Covers `exportPert` in `src/d3.ts` — the render path taken by the
  * CLI, the MCP server, share-link images and every doc-site embed.
  *
- * The renderer's own subtitle/caption tests exercise
- * `renderPertForExport`, which has no production caller: for months
- * they were green while every shipped PERT render omitted the project
- * duration entirely (#420). These assertions go through `render()`, so
- * they fail if the wiring is dropped again.
+ * The renderer's own subtitle tests exercise `renderPertForExport`,
+ * which has no production caller: for months they were green while every
+ * shipped PERT render omitted the project duration entirely (#420). These
+ * assertions go through `render()`, so they fail if the wiring is dropped
+ * again.
+ *
+ * That guard matters more since 2026-08-24, when the Summary card was
+ * deleted (#455): the subtitle is now the ONLY place a PERT diagram prints
+ * how long the project takes, so losing it loses the number outright.
  */
 
 const BASIC = `pert Pirate Voyage
@@ -49,18 +53,20 @@ describe('pert export path — the project duration always reaches the page', ()
     expect(subtitle).toMatch(/\(± [\d.]+ (week|weeks|day|days)\)/);
   });
 
-  it('draws the project-stats caption alongside the diagram', async () => {
+  it('draws no Summary card — the subtitle is the only headline (#455)', async () => {
     const svg = await svgFor(BASIC);
-    expect(svg).toContain('data-pert-caption');
-    expect(svg).toContain('Expected duration:');
+    expect(svg).not.toContain('data-pert-caption');
+    expect(svg).not.toContain('pert-caption-block');
+    // Exactly one element states the duration, and it is the subtitle.
+    expect(svg.match(/≈ [\d.]+ weeks/g)?.length).toBe(1);
   });
 
-  it('keeps both when `no-analysis` suppresses the tornado and S-curve', async () => {
+  it('keeps the subtitle when `no-analysis` suppresses the tornado and S-curve', async () => {
     const svg = await svgFor(
       BASIC.replace('time-unit w', 'time-unit w\nno-analysis')
     );
     expect(svg).toContain('class="pert-subtitle"');
-    expect(svg).toContain('Expected duration:');
+    expect(svg).toMatch(/pert-subtitle[^>]*>≈ [\d.]+ weeks/);
     expect(svg).not.toContain('pert-tornado-block');
     expect(svg).not.toContain('pert-scurve-block');
   });
@@ -73,14 +79,13 @@ describe('pert export path — the project duration always reaches the page', ()
     expect(svg).toContain('class="pert-subtitle"');
   });
 
-  it('drops the ± in analytical mode, matching what the caption reports', async () => {
+  it('drops the ± in analytical mode — no simulation, no spread', async () => {
     const svg = await svgFor(
       BASIC.replace('time-unit w', 'time-unit w\ntrials 50')
     );
     const subtitle = svg.match(/class="pert-subtitle"[^>]*>([^<]*)/)?.[1] ?? '';
     expect(subtitle).toMatch(/^≈ [\d.]+ weeks$/);
-    expect(svg).toContain('Expected duration:');
-    expect(svg).not.toMatch(/Expected duration:[^<]*±/);
+    expect(svg).not.toContain('±');
   });
 
   it('anchors the subtitle to a calendar date when `start-date` is given', async () => {

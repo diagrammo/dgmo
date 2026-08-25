@@ -2,13 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parsePert } from '../src/pert/parser';
-import { analyzePert, buildSummary } from '../src/pert/analyzer';
-import type {
-  CaptionRow,
-  MonteCarloResult,
-  PertActivity,
-  ResolvedActivity,
-} from '../src/pert/types';
+import { analyzePert } from '../src/pert/analyzer';
 
 const FIXTURES = join(__dirname, '../test-fixtures/pert');
 function loadFixture(name: string): string {
@@ -18,17 +12,6 @@ function loadFixture(name: string): string {
 function analyze(input: string) {
   const parsed = parsePert(input);
   return analyzePert(parsed);
-}
-
-/**
- * Legacy compatibility shim. The analyzer now emits `summaryRows`
- * (structured) instead of `summaryText`; many existing tests still
- * assert on the joined text form, so this rebuilds that string from
- * the row list. Backward-mode caption tests use `summaryRows` directly.
- */
-function summaryText(rows: CaptionRow[] | null): string | null {
-  if (rows === null) return null;
-  return rows.map((r) => r.text).join('\n');
 }
 
 const APPROX = (actual: number | null, expected: number, eps = 1e-6) => {
@@ -349,7 +332,7 @@ middle
     expect(r.mode).toBe('analytical');
   });
 
-  it('AC4: trials < 100 clamps to analytical and adds caveat to summary', () => {
+  it('AC4: trials < 100 clamps to analytical', () => {
     const r = analyze(`pert
 time-unit w
 trials 50
@@ -360,10 +343,11 @@ A
 `);
     expect(r.mode).toBe('analytical');
     expect(r.monteCarloResult).toBeNull();
-    expect(summaryText(r.summaryRows)).not.toBeNull();
-    expect(summaryText(r.summaryRows)!).toContain(
-      'Insufficient trials configured'
-    );
+    // The clamp used to add a caveat bullet to the Summary card; the card
+    // was deleted 2026-08-24 (#455), so the observable consequence is the
+    // subtitle dropping its ± parenthetical — there is no simulated spread.
+    expect(r.projectSubtitle).not.toBeNull();
+    expect(r.projectSubtitle!).not.toContain('±');
   });
 });
 
@@ -415,285 +399,18 @@ B
   });
 });
 
-describe('pert analyzer — summaryText (AC8/AC9/AC15)', () => {
-  it('AC8: analytical caption begins with Expected duration; no Critical path bullet (diagram shows it)', () => {
-    const r = analyze(`pert
-time-unit d
-A 2
-B 3
-A
-  -> B
-`);
-    expect(summaryText(r.summaryRows)).not.toBeNull();
-    expect(summaryText(r.summaryRows)!.startsWith('Expected duration:')).toBe(
-      true
-    );
-    expect(summaryText(r.summaryRows)!).not.toContain('Critical path:');
-  });
-
-  it('AC9: MC caption emits expected (with ±σ)/percentiles/critical/bottleneck in order', () => {
-    const r = analyze(`pert
-time-unit d
-trials 500
-seed 42
-A 1 2 4
-B 1 2 4
-C 1 2 4
-A
-  -> B
-B
-  -> C
-`);
-    expect(r.mode).toBe('monte-carlo');
-    const lines = summaryText(r.summaryRows)!.split('\n');
-    // Expected-duration line carries σ as "(± X)" parenthetical.
-    // Per spec §13A.10 the percentile rows now use the uniform
-    // "P{X}: <duration>" shape (no anchor → bare duration).
-    // Standalone "Standard deviation:" / "Critical path:" /
-    // "Most-frequent critical path..." bullets are intentionally gone
-    // (the diagram's red coloring shows the critical chain).
-    expect(lines[0]).toMatch(/^Expected duration:.*\(±\s/);
-    expect(lines[1]).toMatch(/^P50:/);
-    expect(lines[2]).toMatch(/^P80:/);
-    expect(lines[3]).toMatch(/^P95:/);
-    expect(
-      lines.find((l) => l.startsWith('Standard deviation:'))
-    ).toBeUndefined();
-    expect(lines.find((l) => l.startsWith('Critical path:'))).toBeUndefined();
-    expect(
-      lines.find((l) => l.startsWith('Most-frequent critical path'))
-    ).toBeUndefined();
-    expect(lines.find((l) => l.startsWith('Bottleneck:'))).toBeUndefined();
-  });
-
-  it('AC15: TBD upstream → caption is exactly the TBD-fallback sentence', () => {
-    const r = analyze(`pert
-time-unit w
-A
-B 1 2 3
-A
-  -> B
-`);
-    expect(r.projectMu).toBeNull();
-    expect(summaryText(r.summaryRows)).toBe(
-      'Expected duration unknown — 1 activity has no estimate.'
-    );
-  });
-});
-
 describe('pert analyzer — cycle bailout (AC26/AC27)', () => {
-  it('cycle returns analytical mode, null summary, every activity isAuthored=false', () => {
+  it('cycle returns analytical mode, null subtitle, every activity isAuthored=false', () => {
     const r = analyze(loadFixture('cycle-error.dgmo'));
     expect(r.mode).toBe('analytical');
-    expect(summaryText(r.summaryRows)).toBeNull();
+    expect(r.projectSubtitle).toBeNull();
     for (const ra of r.activities) {
       expect(ra.isAuthored).toBe(false);
     }
   });
 });
 
-describe('pert analyzer — caption with date anchor', () => {
-  it('forward anchor: Expected finish renders as a date and percentile bullets show end-dates', () => {
-    const r = analyze(`pert
-time-unit w
-trials 500
-seed 42
-start-date 2026-06-01
-A 1 2 4
-  -> B
-B 1 2 4
-  -> C
-C 1 2 4
-`);
-    expect(r.mode).toBe('monte-carlo');
-    const lines = summaryText(r.summaryRows)!.split('\n');
-    // Expected-finish line carries σ as "(± X)" parenthetical.
-    expect(lines[0]).toMatch(
-      /^Expected finish: \d{4}-\d{2}-\d{2} \(±\s.+\)\.$/
-    );
-    // Per spec §13A.10, percentile rows render as one row per
-    // percentile (level 1 sub-rows under "Expected finish").
-    expect(lines[1]).toMatch(/^P50 finish: \d{4}-\d{2}-\d{2}\.$/);
-    expect(lines[2]).toMatch(/^P80 finish: \d{4}-\d{2}-\d{2}\.$/);
-    expect(lines[3]).toMatch(/^P95 finish: \d{4}-\d{2}-\d{2}\.$/);
-    // No anchored caption should mention the legacy duration phrasing
-    // or the pre-refactor "Nth-percentile finish" prose.
-    expect(summaryText(r.summaryRows)).not.toContain('Expected duration');
-    expect(summaryText(r.summaryRows)).not.toContain('50th-percentile finish');
-  });
-
-  it('backward anchor: Expected start renders as a date and percentile bullets show start-dates', () => {
-    const r = analyze(`pert
-time-unit w
-trials 500
-seed 42
-end-date 2026-09-15
-A 1 2 4
-  -> B
-B 1 2 4
-  -> C
-C 1 2 4
-`);
-    expect(r.mode).toBe('monte-carlo');
-    const lines = summaryText(r.summaryRows)!.split('\n');
-    expect(lines[0]).toMatch(/^Expected start: \d{4}-\d{2}-\d{2} \(±\s.+\)\.$/);
-    // Per spec §13A.12, backward-mode percentile rows now render as
-    // separate "P{X} latest-safe start: <date>" rows (level 1).
-    expect(lines[1]).toMatch(/^P50 latest-safe start: \d{4}-\d{2}-\d{2}/);
-    expect(lines[2]).toMatch(/^P80 latest-safe start: \d{4}-\d{2}-\d{2}/);
-    expect(lines[3]).toMatch(/^P95 latest-safe start: \d{4}-\d{2}-\d{2}/);
-  });
-
-  it('forward anchor + analytical mode: Expected finish only (no percentile bullets)', () => {
-    // `trials < 100` clamps to analytical → no MC, no percentile lines.
-    // (M-only durations now trigger MC via default-confidence; this test
-    // uses the trials clamp to exercise the analytical caption path.)
-    const r = analyze(`pert
-time-unit w
-trials 50
-start-date 2026-06-01
-A 2
-  -> B
-B 3
-`);
-    expect(r.mode).toBe('analytical');
-    expect(summaryText(r.summaryRows)).toMatch(
-      /^Expected finish: \d{4}-\d{2}-\d{2}\./
-    );
-    expect(summaryText(r.summaryRows)).not.toContain('percentile');
-  });
-
-  it('no anchor: caption keeps the original duration phrasing (regression)', () => {
-    const r = analyze(`pert
-time-unit d
-A 2
-  -> B
-B 3
-`);
-    expect(summaryText(r.summaryRows)!.startsWith('Expected duration:')).toBe(
-      true
-    );
-    expect(summaryText(r.summaryRows)).not.toContain('Expected finish');
-    expect(summaryText(r.summaryRows)).not.toContain('Expected start');
-  });
-});
-
 // ── Backward-anchor framing tests (tech-spec §13A.10 / §13A.12) ─────
-
-describe('pert analyzer — backward-anchor caption framing (Task 10)', () => {
-  // Local-time anchor; matches the parser's `formatLocalISODate(now)`
-  // semantics across machines without UTC drift.
-  const NOW = new Date(2026, 4, 10);
-
-  function analyzeWithNow(input: string) {
-    return analyzePert(parsePert(input, { now: NOW }));
-  }
-
-  it('AC 1 + AC 2: backward + MC emits "P{X} latest-safe start" rows with isPast flag', () => {
-    const r = analyzeWithNow(loadFixture('backward-monte-carlo.dgmo'));
-    expect(r.mode).toBe('monte-carlo');
-    const rows = r.summaryRows!;
-    // First row is "Expected start: <date> (± σ)." level 0.
-    expect(rows[0].text).toMatch(/^Expected start:/);
-    // Three level-1 percentile rows follow, in P50/P80/P95 order.
-    expect(rows[1].text).toMatch(/^P50 latest-safe start: \d{4}-\d{2}-\d{2}/);
-    expect(rows[2].text).toMatch(/^P80 latest-safe start: \d{4}-\d{2}-\d{2}/);
-    expect(rows[3].text).toMatch(/^P95 latest-safe start: \d{4}-\d{2}-\d{2}/);
-    // Fixture is calibrated so P50/P80 are feasible and P95 is past.
-    expect(rows[1].isPast).toBeFalsy();
-    expect(rows[2].isPast).toBeFalsy();
-    expect(rows[3].isPast).toBe(true);
-    expect(rows[3].text).toMatch(/\(latest-safe start has passed\)$/);
-  });
-
-  it('AC 4: backward + TBD upstream → `?` placeholders for every percentile', () => {
-    const r = analyzeWithNow(`pert
-time-unit w
-trials 200
-end-date 2026-09-15
-A
-B 1 2 3
-A
-  -> B
-`);
-    expect(r.projectMu).toBeNull();
-    const rows = r.summaryRows!;
-    expect(rows[0].text).toBe('Expected duration: ?');
-    expect(rows[1].text).toBe('P50 latest-safe start: ?');
-    expect(rows[2].text).toBe('P80 latest-safe start: ?');
-    expect(rows[3].text).toBe('P95 latest-safe start: ?');
-  });
-
-  it('AC 5: backward + analytical mode emits no percentile rows', () => {
-    // Use `trials 50` clamp to land in analytical mode. (M-only now
-    // triggers MC via default-confidence, so we can't rely on duration
-    // form alone to choose analytical.)
-    const r = analyzeWithNow(`pert
-time-unit w
-trials 50
-end-date 2026-09-15
-A 2
-  -> B
-B 3
-`);
-    expect(r.mode).toBe('analytical');
-    const rows = r.summaryRows!;
-    expect(rows.every((row) => !row.text.includes('latest-safe start'))).toBe(
-      true
-    );
-    // Expected-start row is still emitted (μ-derived), but no percentile rows.
-    expect(rows.some((row) => row.text.startsWith('Expected start:'))).toBe(
-      true
-    );
-  });
-
-  it('AC 6: backward rounding is conservative (latest-safe start lands earlier)', () => {
-    // Synthesize a controlled scenario: 50.7-day P80 against
-    // end-date 2026-09-15 → 51-day offset → 2026-07-26 latest-safe start
-    // (NOT 2026-07-27 which would round the offset down to 50).
-    const rows = buildSummary({
-      mode: 'monte-carlo',
-      projectMu: 50.7,
-      projectSigma: 1,
-      unit: 'd',
-      parsedActivities: [
-        {
-          id: 'a',
-          name: 'a',
-          duration: {
-            o: { amount: 50, unit: 'd' },
-            m: { amount: 51, unit: 'd' },
-            p: { amount: 52, unit: 'd' },
-          },
-          lineNumber: 1,
-          isMilestone: false,
-        },
-      ],
-      monteCarloResult: {
-        trials: 1000,
-        seed: 1,
-        p50: 50.5,
-        p80: 50.7,
-        p95: 51.2,
-        p16: 50.2,
-        p84: 50.9,
-        minDurationDays: 50,
-        maxDurationDays: 52,
-        criticalityByActivity: { a: 1 },
-        modalCriticalPath: ['a'],
-        tornadoSwings: [],
-      },
-      trialsClamped: false,
-      anchor: { kind: 'backward', date: '2026-09-15' },
-      today: '2026-05-10',
-    })!;
-    const p80Row = rows.find((row) =>
-      row.text.startsWith('P80 latest-safe start:')
-    )!;
-    // 50.7 → ceil → 51-day offset; end_date − 51d = 2026-07-26.
-    expect(p80Row.text).toMatch(/2026-07-26/);
-  });
-});
 
 describe('pert analyzer — projectStart derivation', () => {
   it('forward anchor sets projectStart to the literal start-date', () => {
@@ -809,97 +526,5 @@ A 4 confidence: low
     const A = resolved.activities[0];
     // low: O=0.5*4=2, P=4*4=16; mean = (2 + 16 + 16) / 6 ≈ 5.6667
     APPROX(A.mu, (2 + 16 + 16) / 6);
-  });
-});
-
-// ============================================================
-// buildSummary — direct unit tests against deterministic inputs
-// ============================================================
-
-function stubActivity(
-  id: string,
-  name: string,
-  isMilestone = false
-): PertActivity {
-  return {
-    id,
-    name,
-    duration: isMilestone
-      ? {
-          o: { amount: 0, unit: 'd' },
-          m: { amount: 0, unit: 'd' },
-          p: { amount: 0, unit: 'd' },
-          mOnly: false,
-        }
-      : {
-          o: { amount: 1, unit: 'd' },
-          m: { amount: 2, unit: 'd' },
-          p: { amount: 3, unit: 'd' },
-          mOnly: false,
-        },
-    lineNumber: 1,
-    isMilestone,
-  };
-}
-
-function stubResolved(
-  id: string,
-  mu: number,
-  isAuthored: boolean,
-  opts: { isMilestone?: boolean; isCriticalPath?: boolean; sigma?: number } = {}
-): ResolvedActivity {
-  const sigma = opts.sigma ?? (isAuthored ? 0.5 : 1.5);
-  return {
-    activity: stubActivity(id, id, opts.isMilestone),
-    es: 0,
-    ef: mu,
-    ls: 0,
-    lf: mu,
-    slack: 0,
-    isCriticalPath: opts.isCriticalPath ?? true,
-    mu,
-    sigma,
-    criticality: null,
-    isAuthored,
-  };
-}
-
-describe('buildSummary — AC14 (zero-variance fallback)', () => {
-  it('replaces percentile bullets with the (No variance...) parenthetical', () => {
-    const a = stubResolved('a', 5, true, { sigma: 0 });
-    const b = stubResolved('b', 3, true, { sigma: 0 });
-    const c = stubResolved('c', 2, true, { sigma: 0 });
-    const mc: MonteCarloResult = {
-      trials: 1000,
-      seed: 1,
-      p50: 10,
-      p80: 10,
-      p95: 10,
-      p16: 10,
-      p84: 10,
-      minDurationDays: 10,
-      maxDurationDays: 10,
-      criticalityByActivity: { a: 1, b: 1, c: 1 },
-      modalCriticalPath: ['a', 'b', 'c'],
-      tornadoSwings: [],
-    };
-    const rows = buildSummary({
-      mode: 'monte-carlo',
-      projectMu: 10,
-      projectSigma: 0,
-      unit: 'd',
-      parsedActivities: [a, b, c].map((r) => r.activity),
-      monteCarloResult: mc,
-      trialsClamped: false,
-      today: '',
-    });
-    const text = summaryText(rows)!;
-    expect(text).toContain(
-      '(No variance in estimates — all activities have O = M = P.)'
-    );
-    expect(text).not.toContain('percentile');
-    expect(text).toContain('Expected duration:');
-    // Critical-path bullet was dropped — diagram conveys the chain.
-    expect(text).not.toContain('Critical path:');
   });
 });

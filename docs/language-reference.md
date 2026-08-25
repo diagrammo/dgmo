@@ -1712,7 +1712,7 @@ divvy shares 1 2 3
 | `default-confidence <level>`    | M-only heuristic: `high`, `medium`, `low`, or a custom `O/P` factor pair (e.g. `0.6/2.5`)                                                                                                             |
 | `direction-lr` / `direction-tb` | Layout direction booleans (last one wins; default `LR`); key+value `direction LR\|TB` accepted legacy                                                                                                 |
 | `node-detail <compact\|full>`   | Visual density; `full` adds slack bars and σ-as-border-thickness                                                                                                                                      |
-| `no-analysis`                   | Bare flag — hide the analysis layer (tornado + S-curve). The layer renders by default whenever Monte Carlo ran; this suppresses it. An explicit `viewState.an` (app toggle / share link) overrides it. The project subtitle and the project-stats caption are not part of the layer and still render |
+| `no-analysis`                   | Bare flag — hide the analysis layer (tornado + S-curve). The layer renders by default whenever Monte Carlo ran; this suppresses it. An explicit `viewState.an` (app toggle / share link) overrides it. The project subtitle is not part of the layer and still renders |
 | `trials <N>`                    | Canonical Monte Carlo trial count (`< 100` clamps to analytical)                                                                                                                                      |
 | `seed <N>`                      | Mulberry32 PRNG seed for deterministic runs                                                                                                                                                           |
 | `scrubber-trials <N>`           | Fast-MC trials for the interactive duration scrubber                                                                                                                                                  |
@@ -1823,11 +1823,11 @@ The first declared tag group is active by default and colors nodes; `active-tag 
 
 `start-date YYYY-MM-DD` anchors the forward pass; `end-date YYYY-MM-DD` anchors the backward pass. They are mutually exclusive. When anchored, ES / EF / LS / LF cells render as calendar dates and slack normalizes to days. `start-date now` resolves to today at parse time and is substituted before share-link compression so recipients see the author's view. `end-date now` is a parse error.
 
-In backward mode with Monte Carlo active, the project-stats caption reframes its percentile rows from _finishes_ to _latest-safe starts_ — higher confidence demands an earlier start. Latest-safe-start dates that fall in the past relative to the parse-time today date append `(latest-safe start has passed)`.
+In backward mode with Monte Carlo active, the S-curve reframes its percentile reference lines from _finishes_ to _latest-safe starts_ — higher confidence demands an earlier start. A latest-safe-start date that falls in the past relative to the parse-time today date draws dashed with a `(past)` suffix on its label.
 
 ### Critical path and analysis
 
-Forward/backward pass, slack, M-world critical path, and project μ/σ are always computed. Critical-path activities and edges paint with a red border (`palette.colors.red`) in analytical mode. When Monte Carlo runs (any non-milestone activity has a duration), criticality is banded by the criticality index: red ≥ 0.80, orange ≥ 0.50, yellow ≥ 0.25, green ≥ 0.10, blue ≥ 0.02. The project-stats caption reports expected duration, σ, and P50/P80/P95 dates. Activities downstream of a TBD activity render `?` for ES/EF/LS/LF/slack and dashed borders.
+Forward/backward pass, slack, M-world critical path, and project μ/σ are always computed. Critical-path activities and edges paint with a red border (`palette.colors.red`) in analytical mode. When Monte Carlo runs (any non-milestone activity has a duration), criticality is banded by the criticality index: red ≥ 0.80, orange ≥ 0.50, yellow ≥ 0.25, green ≥ 0.10, blue ≥ 0.02. The project subtitle reports expected duration and σ; the S-curve's reference lines report the P50/P80/P95 dates. Activities downstream of a TBD activity render `?` for ES/EF/LS/LF/slack and dashed borders.
 
 See spec §13A for full date-anchoring semantics, S-curve axes, and diagnostic codes.
 

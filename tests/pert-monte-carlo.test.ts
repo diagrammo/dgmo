@@ -2,16 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { parsePert } from '../src/pert/parser';
 import { analyzePert } from '../src/pert/analyzer';
 import { mulberry32, sampleBetaPert } from '../src/pert/monte-carlo';
-import type { CaptionRow } from '../src/pert/types';
-
 function analyze(input: string) {
   return analyzePert(parsePert(input));
-}
-
-/** Legacy compatibility shim — see notes in pert-analyzer.test.ts. */
-function summaryText(rows: CaptionRow[] | null): string | null {
-  if (rows === null) return null;
-  return rows.map((r) => r.text).join('\n');
 }
 
 describe('mulberry32 PRNG', () => {
@@ -157,10 +149,10 @@ A
 `);
     expect(r.mode).toBe('analytical');
     expect(r.monteCarloResult).toBeNull();
-    expect(summaryText(r.summaryRows)).not.toBeNull();
-    expect(summaryText(r.summaryRows)!).toContain(
-      'Insufficient trials configured'
-    );
+    // No simulation ran, so the subtitle quotes no spread (#455 deleted the
+    // Summary card that used to carry the clamp's caveat bullet).
+    expect(r.projectSubtitle).not.toBeNull();
+    expect(r.projectSubtitle!).not.toContain('±');
   });
 
   it('MC populates criticality + percentiles', () => {
@@ -262,7 +254,9 @@ A
     expect(
       r.diagnostics.find((d) => d.message.includes('Cannot run Monte Carlo'))
     ).toBeUndefined();
-    expect(summaryText(r.summaryRows)).toContain('Expected duration unknown');
+    // Unestimated activities leave the total indeterminate; the subtitle
+    // says so with a `?` in the μ slot.
+    expect(r.projectSubtitle).toContain('?');
   });
 
   it('MC-derived hammock rollup uses modal critical path', () => {

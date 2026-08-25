@@ -1119,18 +1119,11 @@ async function exportPert(ctx: ExportContext): Promise<string> {
   // renderer silently omits it in analytical mode (no MC output).
   const analysisOn = viewState?.an ?? !pertParsed.options.noAnalysis;
   const fieldLabelsOn = viewState?.fl === true;
-  // The project-stats caption is NOT part of that toggle. It reports
-  // expected duration and the percentile dates, and `no-analysis` is a
-  // request for a quieter chart rather than one that withholds its own
-  // answer — so it renders whenever the analyzer succeeded. The
-  // renderer drops the S-curve's duplicate header band automatically
-  // when the caption is present alongside it.
   const exportW = pertLayout.width + PERT_PADDING * 2;
   const analysisMeasured = measurePertAnalysisBlock(
     pertResolved,
     exportW - 2 * PERT_PADDING,
     {
-      showSummary: true,
       showTornado: analysisOn,
       showScurve: analysisOn,
       showFieldLegend: fieldLabelsOn,
@@ -1153,7 +1146,6 @@ async function exportPert(ctx: ExportContext): Promise<string> {
       title: hasTitle ? pertParsed.title : null,
       subtitle: pertResolved.projectSubtitle,
       exportDims: { width: exportW, height: exportH },
-      showSummary: true,
       showTornado: analysisOn,
       showScurve: analysisOn,
       showFieldLegend: fieldLabelsOn,

@@ -51,7 +51,6 @@ import {
   TITLE_FONT_WEIGHT,
   TITLE_Y,
   CAPTION_FONT_SIZE,
-  CAPTION_FONT_WEIGHT,
   CAPTION_LINE_HEIGHT,
   CAPTION_TOP_GAP,
   CAPTION_BOX_PADDING_X,
@@ -63,7 +62,6 @@ import { renderIntegratedLegend } from '../utils/legend-integration';
 import { getLegendExtent } from '../utils/legend-layout';
 import { layoutInlineHeader, INLINE_HEADER_PAD } from '../utils/inline-header';
 import type {
-  CaptionRow,
   LayoutResult,
   PertEdge,
   ResolvedActivity,
@@ -334,9 +332,9 @@ export interface PertRenderOptions {
   /**
    * Override container dimensions during export. Treated as a hint:
    * the renderer will expand height/width if needed to fit chrome
-   * (title + backward-anchor annotation + diagram body + caption
-   * block) so the diagram never clips. Pass `undefined` (or omit) to
-   * use the auto-computed natural size.
+   * (title + subtitle + diagram body + tag legend + analysis row) so
+   * the diagram never clips. Pass `undefined` (or omit) to use the
+   * auto-computed natural size.
    */
   exportDims?: { width?: number; height?: number };
   /**
@@ -350,8 +348,8 @@ export interface PertRenderOptions {
    */
   collapsedGroupIds?: readonly string[];
   /**
-   * Render the 3×2 field-reference mini-card to the right of the
-   * Summary box. Helps presenters explain what each schedule cell
+   * Render the 3×2 field-reference mini-card beside the analysis
+   * charts. Helps presenters explain what each schedule cell
    * (ES / dur / EF / LS / slack / LF) means while reviewing the
    * diagram. Off by default; the desktop app turns it on with the
    * "Field labels" toggle.
@@ -366,13 +364,6 @@ export interface PertRenderOptions {
    * panel.
    */
   showLegend?: boolean;
-  /**
-   * Render the project-stats Summary box below the diagram. Defaults
-   * to true so CLI exports / share-link images keep showing it; the
-   * desktop app's cog has a "Summary" toggle that flips this off when
-   * readers want a cleaner chart.
-   */
-  showSummary?: boolean;
   /**
    * Render the Tornado sensitivity chart below the diagram. Reads
    * existing Monte-Carlo output (criticality + per-activity sigma)
@@ -418,23 +409,8 @@ export function renderPert(
   const effectiveSubtitle = options.subtitle ?? null;
   const titleHeight = effectiveTitle ? 80 : effectiveSubtitle ? 50 : 0;
 
-  const anchorAnnotation = anchorAnnotationText(resolved);
-
   const collapsedSet = new Set(options.collapsedGroupIds ?? []);
-  const captionRows = resolved.error !== null ? null : resolved.summaryRows;
-  const captionBullets: CaptionBullet[] =
-    captionRows !== null && captionRows.length > 0
-      ? bulletizeCaption(captionRows)
-      : [];
-  if (anchorAnnotation) {
-    captionBullets.push({
-      text: anchorAnnotation,
-      level: 0,
-      italic: true,
-    });
-  }
-  const analysisLayer = computeAnalysisLayer(resolved, captionBullets, {
-    showSummary: options.showSummary ?? true,
+  const analysisLayer = computeAnalysisLayer(resolved, {
     showTornado: options.showTornado ?? false,
     showScurve: options.showScurve ?? false,
     showFieldLegend: options.showFieldLegend ?? false,
@@ -670,7 +646,6 @@ export function renderPert(
     palette,
     isDark,
     analysisLayer,
-    captionBullets,
     sDiagramPad,
     offsetY + layout.height,
     svgW - 2 * sDiagramPad
@@ -684,8 +659,8 @@ export function renderPertForExport(
   /**
    * Optional parse-time "today" override. Threads through to
    * `parsePert({ now })` so the analyzer's backward-mode past-date
-   * check + the anchor annotation's "(as of YYYY-MM-DD)" suffix stay
-   * deterministic. Test snapshots pin this; production code omits it.
+   * check stays deterministic. Test snapshots pin this; production code
+   * omits it.
    */
   now?: Date
 ): string {
@@ -705,25 +680,6 @@ export function renderPertForExport(
   const hasTitle = !!parsed.title && !resolved.options.noTitle;
   const hasSubtitle = resolved.projectSubtitle !== null;
   const titleHeight = hasTitle ? 80 : hasSubtitle ? 50 : 0;
-  // Mirror the bullet-list assembly inside renderPert so exportDims
-  // matches the natural height (anchor annotation now lives inside
-  // the caption box as a final italic bullet).
-  const captionBullets: CaptionBullet[] =
-    resolved.summaryRows !== null && resolved.summaryRows.length > 0
-      ? bulletizeCaption(resolved.summaryRows)
-      : [];
-  const anchorNote = anchorAnnotationText(resolved);
-  if (anchorNote) {
-    captionBullets.push({ text: anchorNote, level: 0, italic: true });
-  }
-  const captionBoxHeight =
-    captionBullets.length > 0
-      ? captionBullets.length * CAPTION_LINE_HEIGHT +
-        2 * CAPTION_BOX_PADDING_Y +
-        CAPTION_HEADER_BAND_HEIGHT
-      : 0;
-  const captionBlockHeight =
-    captionBullets.length > 0 ? CAPTION_TOP_GAP + captionBoxHeight : 0;
   // Mirror renderPert's tag-legend reservation so the offscreen
   // container matches the natural canvas height.
   const legendBlockHeight =
@@ -732,11 +688,7 @@ export function renderPertForExport(
       : 0;
   const exportWidth = layout.width + DIAGRAM_PADDING * 2;
   const exportHeight =
-    layout.height +
-    DIAGRAM_PADDING * 2 +
-    titleHeight +
-    legendBlockHeight +
-    captionBlockHeight;
+    layout.height + DIAGRAM_PADDING * 2 + titleHeight + legendBlockHeight;
 
   const container = document.createElement('div');
   container.style.width = `${exportWidth}px`;
@@ -774,10 +726,9 @@ export function renderPertForExport(
 // a separate native-pixel SVG so its text stays readable regardless of
 // the scale applied to the main diagram SVG.
 
-type AnalysisKind = 'summary' | 'tornado' | 'scurve';
+type AnalysisKind = 'tornado' | 'scurve';
 
 interface AnalysisLayerOptions {
-  showSummary: boolean;
   showTornado: boolean;
   showScurve: boolean;
   showFieldLegend: boolean;
@@ -785,7 +736,6 @@ interface AnalysisLayerOptions {
 
 interface AnalysisLayerState {
   // Resolved on/off states (data availability has been considered).
-  summaryRendered: boolean;
   showTornado: boolean;
   showScurve: boolean;
   fieldLegendInAnalysisRow: boolean;
@@ -798,7 +748,6 @@ interface AnalysisLayerState {
   analysisCharts: { kind: AnalysisKind; contentHeight: number }[];
 
   // Sub-block heights (width-independent).
-  captionBoxHeight: number;
   fieldLegendCol1Height: number;
   tornadoBoxHeight: number;
   scurveBoxHeight: number;
@@ -813,15 +762,8 @@ interface AnalysisLayerState {
 
 function computeAnalysisLayer(
   resolved: ResolvedPert,
-  captionBullets: CaptionBullet[],
   opts: AnalysisLayerOptions
 ): AnalysisLayerState {
-  const summaryRendered = opts.showSummary && captionBullets.length > 0;
-  const captionBoxHeight = summaryRendered
-    ? captionBullets.length * CAPTION_LINE_HEIGHT +
-      2 * CAPTION_BOX_PADDING_Y +
-      CAPTION_HEADER_BAND_HEIGHT
-    : 0;
   // Tornado / S-curve only render when MC ran — analytical mode
   // produces no criticality/sigma data.
   let tornadoRows = opts.showTornado ? buildTornadoRows(resolved) : [];
@@ -832,25 +774,12 @@ function computeAnalysisLayer(
   const scurveBoxHeight = showScurve ? SCURVE_BOX_HEIGHT : 0;
 
   const fieldLegendInAnalysisRow =
-    opts.showFieldLegend && (summaryRendered || showTornado || showScurve);
-  const col1Width = summaryRendered
-    ? Math.max(
-        SUMMARY_MIN_W,
-        Math.min(SUMMARY_MAX_W, captionNaturalWidth(captionBullets))
-      )
-    : fieldLegendInAnalysisRow
-      ? SUMMARY_MAX_W
-      : 0;
-  const fieldLegendCol1Height = fieldLegendInAnalysisRow
+    opts.showFieldLegend && (showTornado || showScurve);
+  const col1Width = fieldLegendInAnalysisRow ? FIELD_LEGEND_COL1_W : 0;
+  const col1Height = fieldLegendInAnalysisRow
     ? fieldLegendHeightFor(col1Width)
     : 0;
-  const col1Items: number[] = [];
-  if (summaryRendered) col1Items.push(captionBoxHeight);
-  if (fieldLegendInAnalysisRow) col1Items.push(fieldLegendCol1Height);
-  const col1Height = col1Items.length
-    ? col1Items.reduce((a, b) => a + b, 0) +
-      (col1Items.length - 1) * COL1_VSTACK_GAP
-    : 0;
+  const fieldLegendCol1Height = col1Height;
 
   let analysisRowHeight = Math.max(
     col1Height,
@@ -878,14 +807,14 @@ function computeAnalysisLayer(
   if (showScurve)
     analysisCharts.push({ kind: 'scurve', contentHeight: scurveBoxHeight });
   const analysisHasContent =
-    summaryRendered || analysisCharts.length > 0 || fieldLegendInAnalysisRow;
+    analysisCharts.length > 0 || fieldLegendInAnalysisRow;
   const fieldLegendStandalone =
     opts.showFieldLegend && !fieldLegendInAnalysisRow;
 
   // Minimum content width — col1 + sum of chart minimums + gaps.
   let minContentWidth = 0;
   if (analysisHasContent) {
-    const col1Used = summaryRendered || fieldLegendInAnalysisRow;
+    const col1Used = fieldLegendInAnalysisRow;
     if (col1Used) minContentWidth += col1Width;
     for (const w of analysisCharts) {
       minContentWidth += w.kind === 'tornado' ? TORNADO_MIN_W : SCURVE_MIN_W;
@@ -895,7 +824,6 @@ function computeAnalysisLayer(
   }
 
   return {
-    summaryRendered,
     showTornado,
     showScurve,
     fieldLegendInAnalysisRow,
@@ -904,7 +832,6 @@ function computeAnalysisLayer(
     tornadoRows,
     scurveData,
     analysisCharts,
-    captionBoxHeight,
     fieldLegendCol1Height,
     tornadoBoxHeight,
     scurveBoxHeight,
@@ -940,7 +867,7 @@ function analysisLayerHeightAt(
  * — the same choice `paintAnalysisLayer` makes, which is the whole
  * point: a caller that reserves `analysisRowHeight` unconditionally
  * under-reserves by a whole stacked row and clips the bottom block off
- * the canvas (#420, seen once the Summary card made three items).
+ * the canvas (#420, seen when the analysis row carried three items).
  */
 function analysisContentHeightAt(
   state: AnalysisLayerState,
@@ -971,7 +898,6 @@ function paintAnalysisLayer(
   palette: PaletteColors,
   isDark: boolean,
   state: AnalysisLayerState,
-  captionBullets: CaptionBullet[],
   x: number,
   y: number,
   availableWidth: number
@@ -1001,7 +927,6 @@ function paintAnalysisLayer(
       palette,
       isDark,
       state,
-      captionBullets,
       x,
       y,
       availableWidth
@@ -1013,7 +938,6 @@ function paintAnalysisLayer(
     palette,
     isDark,
     state,
-    captionBullets,
     x,
     y,
     availableWidth
@@ -1026,13 +950,12 @@ function paintAnalysisRowMode(
   palette: PaletteColors,
   isDark: boolean,
   state: AnalysisLayerState,
-  captionBullets: CaptionBullet[],
   x: number,
   y: number,
   availableWidth: number
 ): number {
   const bandY = y + CAPTION_TOP_GAP;
-  const col1Used = state.summaryRendered || state.fieldLegendInAnalysisRow;
+  const col1Used = state.fieldLegendInAnalysisRow;
   const colCount = (col1Used ? 1 : 0) + state.analysisCharts.length;
   const nGaps = Math.max(0, colCount - 1);
   const usableWidth = availableWidth - nGaps * ANALYSIS_GAP;
@@ -1058,41 +981,18 @@ function paintAnalysisRowMode(
         fillMode: resolved.options.fillMode,
       });
     } else {
-      // Promote the first caption row ("Expected duration: …") into
-      // the S-curve's header band when the Summary card is suppressed,
-      // so the project's headline stat still appears somewhere. When
-      // Summary IS rendered alongside, the title is omitted to avoid
-      // duplicating the same line in two places.
-      const scurveTitle =
-        !state.summaryRendered && captionBullets.length > 0
-          ? // In-bounds by length check.
-            captionBullets[0]!.text
-          : undefined;
       renderScurveBlock(svg, state.scurveData!, {
         ...args,
         unit: resolved.options.timeUnit,
-        ...(scurveTitle !== undefined && { title: scurveTitle }),
       });
     }
     cursorX += chartWidth + ANALYSIS_GAP;
   }
   if (col1Used) {
-    let stackY = bandY;
-    if (state.summaryRendered) {
-      renderCaptionBlock(svg, captionBullets, {
-        x: cursorX,
-        y: stackY,
-        width: state.col1Width,
-        height: state.captionBoxHeight,
-        palette,
-        isDark,
-      });
-      stackY += state.captionBoxHeight + COL1_VSTACK_GAP;
-    }
     if (state.fieldLegendInAnalysisRow) {
       renderFieldLegendBlock(svg, {
         x: cursorX,
-        y: stackY,
+        y: bandY,
         width: state.col1Width,
         height: state.fieldLegendCol1Height,
         palette,
@@ -1103,23 +1003,17 @@ function paintAnalysisRowMode(
   return CAPTION_TOP_GAP + state.analysisRowHeight;
 }
 
-type StackItemKind = 'summary' | 'tornado' | 'scurve' | 'field';
+type StackItemKind = 'tornado' | 'scurve' | 'field';
 interface PaintItem {
   kind: StackItemKind;
   paintWidth: number;
 }
 
-// Field labels wraps to any width; this is a "looks OK" floor so it
-// doesn't get squeezed paper-thin alongside another item.
-const FIELD_LEGEND_MIN_W = 220;
-
 // Type-grouped packing. Charts (tornado, scurve) share a row so they
-// stay expressive at narrow widths instead of getting squeezed next to
-// Summary's content-fit box. Texts (summary, field) share their own
-// row with Summary at content-fit and Field labels filling the rest —
-// that puts the leftover width where wrapped descriptions actually
-// benefit from it. Each row falls back to vertical stacking when its
-// side-by-side minimums don't fit the available width.
+// stay expressive at narrow widths. Field labels takes its own row
+// below them, full width, since its wrapped descriptions are what
+// benefit from the leftover space. Each row falls back to vertical
+// stacking when its side-by-side minimums don't fit the width given.
 function packRows(
   state: AnalysisLayerState,
   availableWidth: number
@@ -1151,23 +1045,7 @@ function packRows(
   }
 
   // ── Texts row ──────────────────────────────────────────────
-  const hasSummary = state.summaryRendered;
-  const hasField = state.fieldLegendInAnalysisRow;
-  if (hasSummary && hasField) {
-    const summaryW = state.col1Width;
-    const fieldW = availableWidth - summaryW - ANALYSIS_GAP;
-    if (fieldW >= FIELD_LEGEND_MIN_W) {
-      rows.push([
-        { kind: 'summary', paintWidth: summaryW },
-        { kind: 'field', paintWidth: fieldW },
-      ]);
-    } else {
-      rows.push([{ kind: 'summary', paintWidth: summaryW }]);
-      rows.push([{ kind: 'field', paintWidth: availableWidth }]);
-    }
-  } else if (hasSummary) {
-    rows.push([{ kind: 'summary', paintWidth: state.col1Width }]);
-  } else if (hasField) {
+  if (state.fieldLegendInAnalysisRow) {
     rows.push([{ kind: 'field', paintWidth: availableWidth }]);
   }
 
@@ -1184,8 +1062,6 @@ function itemContentHeight(
       return state.tornadoBoxHeight;
     case 'scurve':
       return state.scurveBoxHeight;
-    case 'summary':
-      return state.captionBoxHeight;
     case 'field':
       return fieldLegendHeightFor(paintWidth);
   }
@@ -1197,7 +1073,6 @@ function paintAnalysisStackMode(
   palette: PaletteColors,
   isDark: boolean,
   state: AnalysisLayerState,
-  captionBullets: CaptionBullet[],
   x: number,
   y: number,
   availableWidth: number
@@ -1234,24 +1109,11 @@ function paintAnalysisStackMode(
             fillMode: resolved.options.fillMode,
           });
           break;
-        case 'scurve': {
-          // Same rule as the side-by-side path: promote the headline
-          // caption row to the S-curve's header band when Summary is
-          // suppressed, otherwise omit to avoid duplication.
-          const scurveTitle =
-            !state.summaryRendered && captionBullets.length > 0
-              ? // In-bounds by length check.
-                captionBullets[0]!.text
-              : undefined;
+        case 'scurve':
           renderScurveBlock(svg, state.scurveData!, {
             ...args,
             unit: resolved.options.timeUnit,
-            ...(scurveTitle !== undefined && { title: scurveTitle }),
           });
-          break;
-        }
-        case 'summary':
-          renderCaptionBlock(svg, captionBullets, args);
           break;
         case 'field':
           renderFieldLegendBlock(svg, args);
@@ -1276,23 +1138,12 @@ export function measurePertAnalysisBlock(
   resolved: ResolvedPert,
   width: number,
   options: {
-    showSummary?: boolean;
     showTornado?: boolean;
     showScurve?: boolean;
     showFieldLegend?: boolean;
   }
 ): { width: number; height: number } {
-  const captionRows = resolved.error !== null ? null : resolved.summaryRows;
-  const captionBullets: CaptionBullet[] =
-    captionRows !== null && captionRows.length > 0
-      ? bulletizeCaption(captionRows)
-      : [];
-  const anchorAnnotation = anchorAnnotationText(resolved);
-  if (anchorAnnotation) {
-    captionBullets.push({ text: anchorAnnotation, level: 0, italic: true });
-  }
-  const state = computeAnalysisLayer(resolved, captionBullets, {
-    showSummary: options.showSummary ?? true,
+  const state = computeAnalysisLayer(resolved, {
     showTornado: options.showTornado ?? false,
     showScurve: options.showScurve ?? false,
     showFieldLegend: options.showFieldLegend ?? false,
@@ -1301,7 +1152,6 @@ export function measurePertAnalysisBlock(
     return { width: 0, height: 0 };
   }
   const itemMinW = Math.max(
-    state.summaryRendered ? SUMMARY_MIN_W : 0,
     state.showTornado ? TORNADO_MIN_W : 0,
     state.showScurve ? SCURVE_MIN_W : 0,
     0
@@ -1323,7 +1173,6 @@ export function renderPertAnalysisBlock(
   isDark: boolean,
   options: {
     width: number;
-    showSummary?: boolean;
     showTornado?: boolean;
     showScurve?: boolean;
     showFieldLegend?: boolean;
@@ -1331,20 +1180,7 @@ export function renderPertAnalysisBlock(
 ): void {
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
-  // Mirror renderPert's caption assembly: project-stats bullets +
-  // optional anchor-annotation as the closing italic bullet.
-  const captionRows = resolved.error !== null ? null : resolved.summaryRows;
-  const captionBullets: CaptionBullet[] =
-    captionRows !== null && captionRows.length > 0
-      ? bulletizeCaption(captionRows)
-      : [];
-  const anchorAnnotation = anchorAnnotationText(resolved);
-  if (anchorAnnotation) {
-    captionBullets.push({ text: anchorAnnotation, level: 0, italic: true });
-  }
-
-  const state = computeAnalysisLayer(resolved, captionBullets, {
-    showSummary: options.showSummary ?? true,
+  const state = computeAnalysisLayer(resolved, {
     showTornado: options.showTornado ?? false,
     showScurve: options.showScurve ?? false,
     showFieldLegend: options.showFieldLegend ?? false,
@@ -1359,7 +1195,6 @@ export function renderPertAnalysisBlock(
   // The absolute floor is the widest single item (since stacked items
   // each need their own minimum).
   const itemMinW = Math.max(
-    state.summaryRendered ? SUMMARY_MIN_W : 0,
     state.showTornado ? TORNADO_MIN_W : 0,
     state.showScurve ? SCURVE_MIN_W : 0,
     // Field labels has no hard min — it wraps to whatever width it gets.
@@ -1383,17 +1218,7 @@ export function renderPertAnalysisBlock(
     .style('font-family', FONT_FAMILY)
     .style('overflow', 'visible');
 
-  paintAnalysisLayer(
-    svg,
-    resolved,
-    palette,
-    isDark,
-    state,
-    captionBullets,
-    0,
-    0,
-    width
-  );
+  paintAnalysisLayer(svg, resolved, palette, isDark, state, 0, 0, width);
 }
 
 // ============================================================
@@ -2529,114 +2354,10 @@ function computeAnchorPinSet(resolved: ResolvedPert): Set<string> {
   return pinned;
 }
 
-/**
- * Build the anchor framing bullet, or `null` when no anchor is set.
- * Surfaces the user-pinned date in plain language; the start/finish
- * percentile bullets above already speak to the other end, so this
- * line stays narrowly focused on the fixed boundary.
- */
-function anchorAnnotationText(resolved: ResolvedPert): string | null {
-  const anchor = resolved.options.anchor;
-  if (anchor === null) return null;
-  const today = resolved.options.today;
-  if (anchor.kind === 'forward') {
-    return `Forward from start-date ${anchor.date}`;
-  }
-  // Backward mode — surface the parse-time "today" so shared-link
-  // recipients see how fresh the past-date annotations are.
-  const asOf = today ? ` (as of ${today})` : '';
-  // TBD upstream still needs a hint that schedule cells will render
-  // `?` until estimates land, otherwise readers see ?-filled cards
-  // under a deadline with no explanation.
-  if (resolved.projectStart) {
-    return `Backward-anchored from end-date ${anchor.date}${asOf}`;
-  }
-  return `Backward-anchored from end-date ${anchor.date}${asOf} — upstream activities still need estimates`;
-}
-
-interface CaptionBullet {
-  text: string;
-  /** 0 = top-level bullet; 1 = sub-bullet (indented). */
-  level: number;
-  /**
-   * When true, render the bullet text in italic. Bullets always carry
-   * a `•` glyph regardless; italic is a stylistic accent for the D10
-   * anchor framing note at the bottom of the caption box.
-   */
-  italic?: boolean;
-  /**
-   * Backward-mode flag carried over from the analyzer's `CaptionRow`.
-   * True when the row reports a latest-safe-start date that already
-   * precedes `options.today`; the underlying text already carries the
-   * `(latest-safe start has passed)` suffix.
-   */
-  isPast?: boolean;
-}
-
-/**
- * Pass-through adapter from the analyzer's structured `CaptionRow[]`
- * to the renderer's `CaptionBullet[]` shape. The analyzer now emits
- * one row per logical bullet (with `level`/`italic`/`isPast`), so the
- * renderer no longer has to recover bullet structure by splitting on
- * `\n` / `. ` and assertions on `isPast` flow through directly to
- * downstream styling.
- */
-function bulletizeCaption(rows: CaptionRow[]): CaptionBullet[] {
-  return rows.map((row) => {
-    const out: CaptionBullet = { text: row.text, level: row.level };
-    if (row.italic) out.italic = true;
-    if (row.isPast) out.isPast = true;
-    return out;
-  });
-}
-
-interface CaptionBlockArgs {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  palette: PaletteColors;
-  isDark: boolean;
-}
-
-/**
- * Render the project-stats caption as a node-styled rectangle below
- * the diagram body. Mirrors the textbook-card recipe: rounded corners,
- * `palette.primary` stroke, 25% tint fill via `shapeFill`. A centered
- * "Summary" header sits above a hairline divider; bullets follow,
- * left-aligned with a `•` glyph and sub-bullets (level 1) indented
- * under the preceding top-level bullet.
- */
-const SUB_BULLET_INDENT = 20;
-// Vertical space the header band reserves: the "Summary" line itself
-// (CAPTION_LINE_HEIGHT) plus a small gap between divider and the first
-// bullet. Used by renderPert / renderPertForExport when sizing the
-// caption box.
+// Vertical space an analysis block's header band reserves: the header
+// line itself (CAPTION_LINE_HEIGHT) plus a small gap below its divider.
+// Shared by the Field-labels card and the Tornado chart.
 const CAPTION_HEADER_BAND_HEIGHT = CAPTION_LINE_HEIGHT + 8;
-
-/**
- * Estimate the Summary box's natural pixel width given its bullets.
- * Picks the longest bullet (with `• ` glyph + sub-bullet indent) and
- * adds box padding. Used to size the Summary to its content rather
- * than always claiming a fixed share of the Analysis row.
- *
- * 0.55 × CAPTION_FONT_SIZE approximates Inter's average glyph width
- * at 13pt for mixed-case English content. Tighter than the typical
- * 0.6 estimator — works because bullet text is mostly ASCII numerics
- * and short labels.
- */
-function captionNaturalWidth(bullets: CaptionBullet[]): number {
-  const charW = CAPTION_FONT_SIZE * 0.55;
-  // Header text "Summary" sets a soft floor so a one-bullet caption
-  // doesn't end up narrower than its centered header label.
-  let max = 'Summary'.length * charW;
-  for (const b of bullets) {
-    const indent = b.level === 1 ? SUB_BULLET_INDENT : 0;
-    const w = indent + `• ${b.text}`.length * charW;
-    if (w > max) max = w;
-  }
-  return Math.ceil(max + 2 * CAPTION_BOX_PADDING_X);
-}
 
 // Tornado widget — Monte-Carlo sensitivity ranking. Renders inside
 // the Analysis row at width determined by the row's column allocation.
@@ -2649,10 +2370,13 @@ const TORNADO_BAR_HEIGHT = 16;
 // Analysis row layout — shared between the inline (CLI / export) path
 // inside renderPert and the standalone sibling-SVG path used by the
 // desktop preview (renderPertAnalysisBlock).
-const SUMMARY_MIN_W = 260;
-const SUMMARY_MAX_W = 420;
+//
+// Column 1 holds the Field-labels card when it rides in the analysis
+// row. It was a two-item stack — the Summary card above Field labels —
+// until the Summary card was deleted on 2026-08-24 (#455) for saying
+// what the project subtitle already says.
+const FIELD_LEGEND_COL1_W = 420;
 const ANALYSIS_GAP = 16;
-const COL1_VSTACK_GAP = 8;
 // Each chart's minimum readable width — below these axis labels overlap
 // and bars collapse. The canvas widens to honor them when needed.
 const TORNADO_MIN_W = 340;
@@ -2665,72 +2389,6 @@ const SCURVE_PLOT_PADDING_RIGHT = 16;
 const SCURVE_PLOT_PADDING_BOTTOM = 44; // x-axis labels + tick gap (13pt ticks)
 const SCURVE_TICK_FONT_SIZE = 13;
 const SCURVE_PERCENTILE_RADIUS = 4;
-
-function renderCaptionBlock(
-  svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
-  bullets: CaptionBullet[],
-  args: CaptionBlockArgs
-): void {
-  const { x, y, width, height, palette, isDark } = args;
-  const { fill, stroke: chromeStroke } = analysisBlockChrome(palette, isDark);
-  const labelColor = contrastText(
-    fill,
-    palette.textOnFillLight,
-    palette.textOnFillDark
-  );
-
-  const block = svg
-    .append('g')
-    .attr('class', 'pert-caption-block')
-    .attr('data-pert-caption', '');
-
-  block
-    .append('rect')
-    .attr('class', 'pert-caption-rect')
-    .attr('x', x)
-    .attr('y', y)
-    .attr('width', width)
-    .attr('height', height)
-    .attr('rx', NODE_RADIUS)
-    .attr('ry', NODE_RADIUS)
-    .attr('fill', fill)
-    .attr('stroke', chromeStroke)
-    .attr('stroke-width', NODE_STROKE_WIDTH);
-
-  block
-    .append('text')
-    .attr('class', 'pert-caption-header')
-    .attr('x', x + width / 2)
-    .attr('y', y + CAPTION_BOX_PADDING_Y + CAPTION_FONT_SIZE)
-    .attr('text-anchor', 'middle')
-    .attr('fill', labelColor)
-    .attr('font-size', CAPTION_FONT_SIZE)
-    .attr('font-weight', '700')
-    .text('Summary');
-
-  const textX = x + CAPTION_BOX_PADDING_X;
-  const firstBaselineY =
-    y + CAPTION_BOX_PADDING_Y + CAPTION_HEADER_BAND_HEIGHT + CAPTION_FONT_SIZE;
-  const text = block
-    .append('text')
-    .attr('class', 'pert-caption')
-    .attr('x', textX)
-    .attr('y', firstBaselineY)
-    .attr('text-anchor', 'start')
-    .attr('fill', labelColor)
-    .attr('font-size', CAPTION_FONT_SIZE)
-    .attr('font-weight', CAPTION_FONT_WEIGHT);
-
-  bullets.forEach((bullet, i) => {
-    const indent = bullet.level === 1 ? SUB_BULLET_INDENT : 0;
-    const tspan = text
-      .append('tspan')
-      .attr('x', textX + indent)
-      .text(`• ${bullet.text}`);
-    if (bullet.italic) tspan.attr('font-style', 'italic');
-    if (i > 0) tspan.attr('dy', CAPTION_LINE_HEIGHT);
-  });
-}
 
 interface FieldLegendArgs {
   x: number;
@@ -3388,10 +3046,10 @@ function buildScurveData(resolved: ResolvedPert): ScurveData | null {
   // start); P5_proxy (shortest) → rightmost (latest candidate start).
   //
   // Two projection helpers: `projectSmooth` keeps fractional days so
-  // the curve interpolates smoothly; `projectRounded` applies the
-  // same `Math.ceil` rounding the analyzer uses (`roundConservative`)
-  // so percentile dots and their date labels match the caption rows
-  // byte-for-byte.
+  // the curve interpolates smoothly; `projectRounded` rounds a duration
+  // up (`Math.ceil`), which pushes each percentile date away from now —
+  // later in forward mode, earlier in backward — so a dot's label is
+  // never more optimistic than the trial it came from.
   const projectSmooth = (durationDays: number): number =>
     mode === 'backward' && deadlineDays !== null
       ? deadlineDays - durationDays
@@ -3480,17 +3138,15 @@ function buildScurveData(resolved: ResolvedPert): ScurveData | null {
     samples,
     p16Days: bandLeft,
     p84Days: bandRight,
-    // Percentile dots/date-labels — `projectRounded` matches the
-    // analyzer's `roundConservative` (Math.ceil of the duration), so
-    // each dot's date label is byte-identical to the caption's
-    // "P{X} latest-safe start: <date>" row.
+    // Percentile dots/date-labels — `projectRounded` ceils the
+    // duration, so each dot's date label is the conservative reading
+    // of its trial rather than a rounded-down one.
     p50Days: projectRounded(mc.p50),
     p80Days: projectRounded(mc.p80),
     p95Days: projectRounded(mc.p95),
     xMinDays,
     xMaxDays,
     referenceLines,
-    framingNote: anchorAnnotationText(resolved),
     anchorDate: resolved.projectStart,
     deadlineDays,
     deadlineDate,
@@ -3505,12 +3161,6 @@ interface ScurveBlockArgs {
   palette: PaletteColors;
   isDark: boolean;
   unit: DurationUnit;
-  // Header text painted in the top band of the block, matching the
-  // "Summary" header treatment in renderCaptionBlock. Used to surface
-  // the project's headline stat ("Expected duration: 11 days (± 2 days).")
-  // so the chart carries its own context now that the Summary card is
-  // gone from the desktop preview.
-  title?: string;
 }
 
 function renderScurveBlock(
@@ -3518,7 +3168,7 @@ function renderScurveBlock(
   data: ScurveData,
   args: ScurveBlockArgs
 ): void {
-  const { x, y, width, height, palette, isDark, unit, title } = args;
+  const { x, y, width, height, palette, isDark, unit } = args;
   const { fill, stroke: chromeStroke } = analysisBlockChrome(palette, isDark);
   const labelColor = contrastText(
     fill,
@@ -3544,45 +3194,24 @@ function renderScurveBlock(
     .attr('stroke', chromeStroke)
     .attr('stroke-width', NODE_STROKE_WIDTH);
 
-  // Header band — mirrors the Summary card's title treatment. Only
-  // reserved when a title is provided; the inline renderPert path
-  // (which still pairs S-curve with a Summary card) passes none, so
-  // the plot keeps its full height there.
-  const hasTitle = typeof title === 'string' && title.length > 0;
-  if (hasTitle) {
-    // Strip the trailing period — the caption-box renders this same
-    // string as a sentence-style bullet, but as a bold header it reads
-    // cleaner without terminal punctuation.
-    const titleText = title!.replace(/\.$/, '');
-    block
-      .append('text')
-      .attr('class', 'pert-scurve-header')
-      .attr('x', x + width / 2)
-      .attr('y', y + CAPTION_BOX_PADDING_Y + CAPTION_FONT_SIZE)
-      .attr('text-anchor', 'middle')
-      .attr('fill', labelColor)
-      .attr('font-size', CAPTION_FONT_SIZE)
-      .attr('font-weight', '700')
-      .text(titleText);
-  }
-
   // Anchor-framing kept only as a top reservation for the deadline
   // label when the diagram is end-date-anchored. The rotated y-axis
   // title plus the colored P50/P80/P95 dots make the chart self-
-  // identifying for the axis story; the header band (when present)
-  // names the chart with the project's headline stat.
+  // identifying. A header band carrying the project's headline stat
+  // used to sit here for the case where the Summary card was hidden;
+  // the card is gone (#455) and the project subtitle under the diagram
+  // title already prints that line, so the band would only repeat it.
   const SCURVE_DEADLINE_LABEL_HEIGHT = 16;
   const hasDeadline = data.deadlineDays !== null;
 
   // Plot rect — leave room on the left for y-axis labels, below for
-  // x-axis labels, above for the header band (when titled) and the
-  // deadline label (when end-date-anchored).
+  // x-axis labels, and above for the deadline label (when
+  // end-date-anchored).
   const plotLeft = x + SCURVE_PLOT_PADDING_X;
   const plotRight = x + width - SCURVE_PLOT_PADDING_RIGHT;
   const plotTop =
     y +
     CAPTION_BOX_PADDING_Y +
-    (hasTitle ? CAPTION_HEADER_BAND_HEIGHT : 0) +
     (hasDeadline ? SCURVE_DEADLINE_LABEL_HEIGHT : 0);
   // Percentile metadata (date / duration) now lives inline next to
   // each dot rather than stacked below the plot, so no extra bottom
