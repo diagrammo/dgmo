@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **A PERT chart no longer draws a "Summary" card — the subtitle under the
+  title carries the headline instead, once.** The card opened by restating the
+  expected start and its spread, which the subtitle already says, and its other
+  bullets were the P50/P80/P95 percentile dates the S-curve already marks as
+  labelled reference lines. Diagrams come out 80–152px shorter. ⚠️ One thing
+  went with it that nothing else says: on a backward-anchored diagram, the
+  italic note naming the end-date it was pinned to, and the `(as of <today>)`
+  stamp telling a recipient how fresh the past-date check is. `no-analysis` now
+  hides the percentile dates entirely rather than falling back to the card.
+  Pre-1.0, so there is no deprecation window: `showSummary`, `buildSummary`,
+  `ResolvedPert.summaryRows` and the caption-block renderers are deleted.
+
+### Fixed
+
+- **A collapsed sequence group's corners stop blobbing.** It overlaid a
+  rounded group box on an ordinary participant rect that was drawn first and
+  never removed; the overlay hid the fill, but the sharper corner's stroke sits
+  outside the rounder path, so all four corners showed a doubled, squared-off
+  blob and the participant's own label was painted over. The participant is now
+  drawn once, by the caller that supplies the shape and the name. Layout is
+  untouched.
+
+## [0.74.0] - 2026-08-24
+
 ### Added
 
 - **A sequence diagram can number its own messages — write `autonumber` before
