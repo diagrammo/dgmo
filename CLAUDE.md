@@ -15,8 +15,36 @@ pnpm build            # tsup (ESM + CJS, lib + CLI)
 pnpm dev              # tsup --watch  — only ONE may run; racing watchers tear dist/
 pnpm test             # Vitest        (test:watch for watch mode)
 pnpm typecheck        # tsc --noEmit
+pnpm check:all        # the FULL gate — 11 checks, incl. the ones above miss
 ./test-cli.sh input.dgmo [args...]   # build + run the CLI in one step
 ```
+
+🔴 **`build` + `test` + `lint` + `typecheck` all passing is NOT the gate.**
+`pnpm check:all` runs eleven checks and the four above are not among them —
+dead code, spelling, duplication, import cycles, dependency ranges, security,
+publishability, and **`check:api`**, which diffs the freshly built
+`dist/*.d.ts` against the checked-in `api-baseline/` snapshot. That one exists
+because dgmo's `.d.ts` files are consumed by seven downstream packages, so a
+type that quietly leaves the public surface is a breaking change for them.
+
+- Removing an exported type or an option from an exported signature **will**
+  fail it. That is the tripwire working: re-baseline with
+  `pnpm check:api:update` and say in the commit message why the surface moved.
+- 🔴 **A red `check:api` may not be your change.** The baseline is only as
+  fresh as the last person who re-baselined, so check what the diff actually
+  contains before assuming ownership — found stale on 2026-08-24, carrying an
+  unrelated diagnostics-field change from #378 that had landed weeks earlier.
+- ⚠️ **`check:all` is red on `check:spelling` as of 2026-08-24** — six hits,
+  all of them the word `autonumber` in `src/sequence/`, `completion-registry`
+  and `directives-registry`, from the sequence-autonumbering work. It is a
+  missing dictionary entry, not a defect. Until someone adds the word, run the
+  check you need on its own (`pnpm check:api`) rather than reading a red
+  `check:all` as your fault.
+- 🔴 **Pipe `check:all` and you will read the wrong exit code.** `pnpm check:all
+  | tail` reports `tail`'s status, so a failed gate prints as success — prefix
+  with `set -o pipefail`. It is also a per-repo script: running it from the
+  workspace root runs the ROOT repo's checks, which are different ones and pass
+  happily while dgmo's are failing.
 
 ```bash
 dgmo diagram.dgmo                          # PNG (default)
