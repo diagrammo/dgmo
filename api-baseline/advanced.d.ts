@@ -1,14 +1,14 @@
-import { D as DgmoError, P as PaletteConfig, T as TagGroup, a as PaletteColors, C as CompactViewState, g as TagEntry } from './tag-groups-NUA2F1I5.js';
-export { h as DecodedDiagramUrl, c as DgmoSeverity, i as EncodeDiagramUrlOptions, j as EncodeDiagramUrlResult, k as autoTagColorCycle, l as decodeDiagramUrl, m as decodeViewState, n as encodeDiagramUrl, o as encodeViewState, f as formatDgmoError, p as makeDgmoError, t as tagAttrKey } from './tag-groups-NUA2F1I5.js';
-import { M as MapDataSource, P as ParsedMap, b as MapData, d as ResolvedMap, e as MapLayoutLegend, f as GeoExtent } from './d3-Bfhj-XBX.js';
-export { A as AirportData, B as BoundaryTopology, G as Gazetteer, a as GazetteerEntry, g as MapDirectives, h as MapEdge, i as MapPoi, j as MapRegion, k as MapRoute, l as PoiPos, m as ProjectionFamily, R as RegionName, c as RegionNames, n as ResolvedEdge, o as ResolvedPoi, p as ResolvedRegion, q as ResolvedRoute, r as renderForExport } from './d3-Bfhj-XBX.js';
-export { b as CHART_TYPE_DESCRIPTIONS, C as ChartTypeId, a as ChartTypeMeta, R as RenderCategory, d as chartTypeParsers, c as chartTypes, e as getAllChartTypes, f as getAvailablePalettes, g as getPalette, h as getRenderCategory, i as isExtendedChartType, j as isValidHex, k as knownChartTypeIds, p as parseDgmo, l as parseDgmoChartType, m as registerPalette, p as validate } from './dgmo-router-Lya7cs3R.js';
+import { D as DgmoError, P as PaletteConfig, T as TagGroup, a as PaletteColors, C as CompactViewState, g as TagEntry } from './tag-groups-DrHT2tEc.js';
+export { h as DecodedDiagramUrl, c as DgmoSeverity, i as EncodeDiagramUrlOptions, j as EncodeDiagramUrlResult, k as autoTagColorCycle, l as decodeDiagramUrl, m as decodeViewState, n as encodeDiagramUrl, o as encodeViewState, f as formatDgmoError, p as makeDgmoError, t as tagAttrKey } from './tag-groups-DrHT2tEc.js';
+import { M as MapDataSource, P as ParsedMap, b as MapData, d as ResolvedMap, e as MapLayoutLegend, f as GeoExtent } from './d3--y67plmW.js';
+export { A as AirportData, B as BoundaryTopology, G as Gazetteer, a as GazetteerEntry, g as MapDirectives, h as MapEdge, i as MapPoi, j as MapRegion, k as MapRoute, l as PoiPos, m as ProjectionFamily, R as RegionName, c as RegionNames, n as ResolvedEdge, o as ResolvedPoi, p as ResolvedRegion, q as ResolvedRoute, r as renderForExport } from './d3--y67plmW.js';
+export { b as CHART_TYPE_DESCRIPTIONS, C as ChartTypeId, a as ChartTypeMeta, R as RenderCategory, d as chartTypeParsers, c as chartTypes, e as getAllChartTypes, f as getAvailablePalettes, g as getPalette, h as getRenderCategory, i as isExtendedChartType, j as isValidHex, k as knownChartTypeIds, p as parseDgmo, l as parseDgmoChartType, m as registerPalette, p as validate } from './dgmo-router-CY5j16Pl.js';
 import { Selection } from 'd3-selection';
 import * as d3Scale from 'd3-scale';
-import { P as ParsedOrg, F as FillMode, R as RaciMarker, a as ParsedRaci, b as RaciVariant, c as RaciTask } from './chart-meta-6JaOudSs.js';
-export { A as ALL_CHART_TYPES, I as ImportSource, O as OrgNode, d as RaciPhase, e as RaciRoleAssignment, f as ReadFileFn, g as ResolveImportsResult, h as contrastText, i as findOrgNodeIdByName, j as getSeriesColors, k as hexToHSL, l as hexToHSLString, m as hslToHex, n as mix, o as normalizePertSourceForShare, p as parseFirstLine, q as parseOrg, r as parseRaci, s as resolveOrgImports, t as shade, u as shapeFill, v as tint } from './chart-meta-6JaOudSs.js';
+import { P as ParsedOrg, F as FillMode, R as RaciMarker, a as ParsedRaci, b as RaciVariant, c as RaciTask } from './chart-meta-lP8Rl19E.js';
+export { A as ALL_CHART_TYPES, I as ImportSource, O as OrgNode, d as RaciPhase, e as RaciRoleAssignment, f as ReadFileFn, g as ResolveImportsResult, h as contrastText, i as findOrgNodeIdByName, j as getSeriesColors, k as hexToHSL, l as hexToHSLString, m as hslToHex, n as mix, o as normalizePertSourceForShare, p as parseFirstLine, q as parseOrg, r as parseRaci, s as resolveOrgImports, t as shade, u as shapeFill, v as tint } from './chart-meta-lP8Rl19E.js';
 import { GeoProjection } from 'd3-geo';
-export { M as MapCompletionOptions, a as MapLocationMatch, b as MapPlaceCompletion, c as MapRegionCompletion, T as Theme, d as completeMapPlaces, e as completeMapRegions, p as palettes, s as searchMapLocations, t as themes } from './themes-Dem5xalq.js';
+export { M as MapCompletionOptions, a as MapLocationMatch, b as MapPlaceCompletion, c as MapRegionCompletion, T as Theme, d as completeMapPlaces, e as completeMapRegions, p as palettes, s as searchMapLocations, t as themes } from './themes-GWhsabnx.js';
 
 /**
  * Stable diagnostic codes for in-arrow label parsing errors.
@@ -3476,28 +3476,6 @@ type Anchor = {
     kind: 'backward';
     date: string;
 } | null;
-/**
- * One row of the project-stats caption. Replaces the previous
- * `\n`-joined `summaryText` string with a structured shape so the
- * renderer doesn't have to recover bullet structure by splitting on
- * `\n` / `. ` and tests can assert on `isPast` directly instead of
- * matching the trailing `(latest-safe start has passed)` suffix.
- */
-interface CaptionRow {
-    /** Pre-formatted caption text for this row (no leading bullet glyph). */
-    text: string;
-    /** 0 = top-level row; 1 = sub-row (indented under the previous level-0 row). */
-    level: 0 | 1;
-    /** When true, renderer paints the text italic. */
-    italic?: boolean;
-    /**
-     * Backward-mode flag — true when the row reports a latest-safe-start
-     * date that precedes `options.today`. The text already carries a
-     * `(latest-safe start has passed)` suffix; the flag is for downstream
-     * styling/test assertions.
-     */
-    isPast?: boolean;
-}
 /** Diagram-level options collected by the parser. */
 interface PertOptions {
     /** Time unit for μ/σ/ES/EF formatting and M-only heuristics. */
@@ -3561,9 +3539,10 @@ interface PertOptions {
     /**
      * "Today" baked in at parse time (ISO YYYY-MM-DD). Same source as
      * `start-date now`, captured for every parse regardless of whether
-     * `now` was authored. Analyzer reads this to flag past latest-safe
-     * starts in backward mode; renderer surfaces it in the
-     * `(as of YYYY-MM-DD)` anchor annotation. Empty string when the
+     * `now` was authored. The renderer reads it in `buildScurveData` to
+     * flag past latest-safe starts in backward mode — a dashed reference
+     * line with a `(past)` label. Nothing prints the captured date itself
+     * since the Summary card was deleted (#455). Empty string when the
      * parser was given no `now` and no `start-date now` directive (legacy
      * fixtures pre-dating this field) — consumers treat empty as
      * "no today known" and skip past-flagging.
@@ -3840,14 +3819,6 @@ interface ResolvedPert {
      */
     mode: 'monte-carlo' | 'analytical';
     /**
-     * Project-stats caption rows. Each row is one bullet in the rendered
-     * caption box; level-1 rows render indented under the preceding
-     * level-0 row. Null only when analysis bails out before producing
-     * any output (e.g. cycle detection); non-null in every successful
-     * analyze() run.
-     */
-    summaryRows: CaptionRow[] | null;
-    /**
      * One-line project summary rendered as a subtitle under the diagram title.
      * Shape per mode (see §13A.7):
      *   - Forward:    `Expected finish: <date> · ≈ <μ> <unit> of work (± <σ>)`
@@ -4010,9 +3981,9 @@ interface PertRenderOptions {
     /**
      * Override container dimensions during export. Treated as a hint:
      * the renderer will expand height/width if needed to fit chrome
-     * (title + backward-anchor annotation + diagram body + caption
-     * block) so the diagram never clips. Pass `undefined` (or omit) to
-     * use the auto-computed natural size.
+     * (title + subtitle + diagram body + tag legend + analysis row) so
+     * the diagram never clips. Pass `undefined` (or omit) to use the
+     * auto-computed natural size.
      */
     exportDims?: {
         width?: number;
@@ -4029,8 +4000,8 @@ interface PertRenderOptions {
      */
     collapsedGroupIds?: readonly string[];
     /**
-     * Render the 3×2 field-reference mini-card to the right of the
-     * Summary box. Helps presenters explain what each schedule cell
+     * Render the 3×2 field-reference mini-card beside the analysis
+     * charts. Helps presenters explain what each schedule cell
      * (ES / dur / EF / LS / slack / LF) means while reviewing the
      * diagram. Off by default; the desktop app turns it on with the
      * "Field labels" toggle.
@@ -4045,13 +4016,6 @@ interface PertRenderOptions {
      * panel.
      */
     showLegend?: boolean;
-    /**
-     * Render the project-stats Summary box below the diagram. Defaults
-     * to true so CLI exports / share-link images keep showing it; the
-     * desktop app's cog has a "Summary" toggle that flips this off when
-     * readers want a cleaner chart.
-     */
-    showSummary?: boolean;
     /**
      * Render the Tornado sensitivity chart below the diagram. Reads
      * existing Monte-Carlo output (criticality + per-activity sigma)
@@ -4087,8 +4051,8 @@ declare function renderPertForExport(content: string, theme: 'light' | 'dark' | 
 /**
  * Optional parse-time "today" override. Threads through to
  * `parsePert({ now })` so the analyzer's backward-mode past-date
- * check + the anchor annotation's "(as of YYYY-MM-DD)" suffix stay
- * deterministic. Test snapshots pin this; production code omits it.
+ * check stays deterministic. Test snapshots pin this; production code
+ * omits it.
  */
 now?: Date): string;
 /**
@@ -4099,7 +4063,6 @@ now?: Date): string;
  * height by scaling proportionally when natural sizes overflow.
  */
 declare function measurePertAnalysisBlock(resolved: ResolvedPert, width: number, options: {
-    showSummary?: boolean;
     showTornado?: boolean;
     showScurve?: boolean;
     showFieldLegend?: boolean;
@@ -4115,7 +4078,6 @@ declare function measurePertAnalysisBlock(resolved: ResolvedPert, width: number,
  */
 declare function renderPertAnalysisBlock(container: HTMLDivElement, resolved: ResolvedPert, palette: PaletteColors, isDark: boolean, options: {
     width: number;
-    showSummary?: boolean;
     showTornado?: boolean;
     showScurve?: boolean;
     showFieldLegend?: boolean;
@@ -4884,7 +4846,7 @@ interface RecurRule {
     readonly intervalN?: number | undefined;
     /** interval anchor epoch ms (from `from <date>`). */
     readonly anchorMs?: number | undefined;
-    /** IANA zone the `at`/`on` wall-clock resolves in; undefined → viewer-local. */
+    /** IANA zone the anchor's wall-clock resolves in; undefined → viewer-local. */
     readonly tz?: string | undefined;
 }
 type CountUnits = 'human' | 'days' | 'full' | 'clock' | 'weeks' | 'words' | 'compound';
@@ -4918,8 +4880,17 @@ interface ParsedCountdown {
     readonly resolvedMs: number | null;
     /** Whether the resolved instant carries a meaningful time-of-day (drives footer). */
     readonly hasTime: boolean;
-    readonly since: number | null;
-    /** Eyebrow template: `Nth` → ordinal word, `N` → the number. Null → "Nth <title>". */
+    /**
+     * The recurrence anchor — the origin instant every calendar field is derived
+     * from (epoch ms), or null for a one-shot `target` block. Also the ordinal's
+     * zero point: the anchor occurrence is the 0th (decision #56).
+     */
+    readonly sinceMs: number | null;
+    /**
+     * Eyebrow template: `Nth` → ordinal word, `N` → the number. Null → NO eyebrow.
+     * The ordinal is opt-in, because `since` is now mandatory on every recurring
+     * block and numbering a standing meeting nobody asked to number is noise.
+     */
     readonly sinceLabel: string | null;
     /**
      * IANA zone (`America/New_York`) the authored wall-clock times resolve in, so

@@ -10,6 +10,16 @@ interface DgmoError {
      * substring-on-`.message` assertions keep working unchanged.
      */
     code?: string;
+    /**
+     * Set only when the error was raised in a file OTHER than the one being
+     * parsed — today, a file pulled in by an org chart's `import`. Holds that
+     * file's path as the import directive wrote it. When present, `line` points
+     * at the top-level `import` line that led there, NOT at the offending line,
+     * and `fileLine` carries the line within `file`.
+     */
+    file?: string;
+    /** 1-based line within `file`. Only set alongside `file`. */
+    fileLine?: number;
 }
 
 /** A single entry inside a tag group: `Value color` */
@@ -84,28 +94,6 @@ type Anchor = {
     kind: 'backward';
     date: string;
 } | null;
-/**
- * One row of the project-stats caption. Replaces the previous
- * `\n`-joined `summaryText` string with a structured shape so the
- * renderer doesn't have to recover bullet structure by splitting on
- * `\n` / `. ` and tests can assert on `isPast` directly instead of
- * matching the trailing `(latest-safe start has passed)` suffix.
- */
-interface CaptionRow {
-    /** Pre-formatted caption text for this row (no leading bullet glyph). */
-    text: string;
-    /** 0 = top-level row; 1 = sub-row (indented under the previous level-0 row). */
-    level: 0 | 1;
-    /** When true, renderer paints the text italic. */
-    italic?: boolean;
-    /**
-     * Backward-mode flag — true when the row reports a latest-safe-start
-     * date that precedes `options.today`. The text already carries a
-     * `(latest-safe start has passed)` suffix; the flag is for downstream
-     * styling/test assertions.
-     */
-    isPast?: boolean;
-}
 /** Diagram-level options collected by the parser. */
 interface PertOptions {
     /** Time unit for μ/σ/ES/EF formatting and M-only heuristics. */
@@ -169,9 +157,10 @@ interface PertOptions {
     /**
      * "Today" baked in at parse time (ISO YYYY-MM-DD). Same source as
      * `start-date now`, captured for every parse regardless of whether
-     * `now` was authored. Analyzer reads this to flag past latest-safe
-     * starts in backward mode; renderer surfaces it in the
-     * `(as of YYYY-MM-DD)` anchor annotation. Empty string when the
+     * `now` was authored. The renderer reads it in `buildScurveData` to
+     * flag past latest-safe starts in backward mode — a dashed reference
+     * line with a `(past)` label. Nothing prints the captured date itself
+     * since the Summary card was deleted (#455). Empty string when the
      * parser was given no `now` and no `start-date now` directive (legacy
      * fixtures pre-dating this field) — consumers treat empty as
      * "no today known" and skip past-flagging.
@@ -447,14 +436,6 @@ interface ResolvedPert {
      * otherwise `analytical`.
      */
     mode: 'monte-carlo' | 'analytical';
-    /**
-     * Project-stats caption rows. Each row is one bullet in the rendered
-     * caption box; level-1 rows render indented under the preceding
-     * level-0 row. Null only when analysis bails out before producing
-     * any output (e.g. cycle detection); non-null in every successful
-     * analyze() run.
-     */
-    summaryRows: CaptionRow[] | null;
     /**
      * One-line project summary rendered as a subtitle under the diagram title.
      * Shape per mode (see §13A.7):
