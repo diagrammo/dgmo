@@ -395,6 +395,58 @@ describe('Collapse rendering', () => {
     expect(participant.getAttribute('data-group-toggle')).toBe('');
   });
 
+  it('draws exactly one box, so no corner stroke leaks past another (#456)', () => {
+    // A collapsed group used to be drawn TWICE: an ordinary participant rect
+    // (rx 2) and then the group-shaped overlay (rx 6) on top of it. The
+    // overlay's fill hid the fill underneath, but the sharper corner's stroke
+    // sits OUTSIDE the rounder path, so all four corners showed a blob. It
+    // only surfaced once #447 let a collapsed group take an ordinary
+    // participant's height, which made the two rects exactly coincident —
+    // before that the overlay was taller and the rx-2 corners were interior.
+    const svg = renderToSvg(collapseDiagram)!;
+    const participant = svg.querySelector(
+      '.participant[data-participant-id="Backend"]'
+    )!;
+    const stroked = Array.from(participant.querySelectorAll('rect')).filter(
+      (r) => r.getAttribute('stroke')
+    );
+    expect(stroked).toHaveLength(1);
+    expect(stroked[0]!.getAttribute('rx')).toBe('6');
+  });
+
+  it('draws one name, not the overlay name over a hidden one (#456)', () => {
+    // Same defect one element along: the participant's own label was drawn
+    // and then painted over by the overlay, which draws the name itself.
+    const svg = renderToSvg(collapseDiagram)!;
+    const participant = svg.querySelector(
+      '.participant[data-participant-id="Backend"]'
+    )!;
+    const texts = Array.from(participant.querySelectorAll('text'));
+    expect(texts).toHaveLength(1);
+    expect(texts[0]!.getAttribute('class')).toBe('collapsed-group-label');
+  });
+
+  it('still draws an expanded sibling as an ordinary participant (#456)', () => {
+    // The skip is keyed on the collapsed group alone; a participant beside
+    // it keeps its own rect at the ordinary rx 2.
+    const svg = renderToSvg(
+      [
+        '[Backend] collapsed: true',
+        '  API',
+        '  DB',
+        'Gateway -request-> API',
+      ].join('\n')
+    )!;
+    const sibling = svg.querySelector(
+      '.participant[data-participant-id="Gateway"]'
+    )!;
+    const stroked = Array.from(sibling.querySelectorAll('rect')).filter((r) =>
+      r.getAttribute('stroke')
+    );
+    expect(stroked).toHaveLength(1);
+    expect(stroked[0]!.getAttribute('rx')).toBe('2');
+  });
+
   it('draws no member line inside the box', () => {
     // The members were drawn on a 9px second line until #447. The point of
     // collapsing is to stop caring which members; spending the smallest type
@@ -473,20 +525,32 @@ describe('Collapse rendering', () => {
     // The box was unconditionally H + GROUP_PADDING_TOP + GROUP_PADDING_BOTTOM
     // — 80 where a participant is 50 — so a lone collapsed group stood 30px
     // proud of every neighbour and broke the row's shared top edge.
-    const svg = renderToSvg(collapseDiagram)!;
+    // `Gateway` infers to default (a plain rect) and stands beside the
+    // collapsed group, so its box is the height to match — read from the same
+    // render, which keeps this honest under ScaleContext without importing
+    // the constant. It cannot be read off the collapsed group itself any
+    // more: the participant rect underneath the overlay is no longer drawn
+    // at all (#456), it being the thing whose rx-2 corners leaked past the
+    // overlay's rx-6 ones.
+    const svg = renderToSvg(
+      [
+        '[Backend] collapsed: true',
+        '  API',
+        '  DB',
+        'Gateway -request-> API',
+      ].join('\n')
+    )!;
     const g = svg.querySelector('.participant[data-participant-id="Backend"]')!;
-    // Local coords: y=0 is the participant box top. The overlay is the rect
-    // carrying rx=6; the participant's own box underneath is rx=2.
+    // Local coords: y=0 is the participant box top.
     const overlay = Array.from(g.querySelectorAll('rect')).find(
       (r) => r.getAttribute('rx') === '6'
     )!;
-    // The participant's own box is still underneath, drawn at rx=2 by
-    // renderRectParticipant — the height to match, without importing it.
-    const ownBox = Array.from(g.querySelectorAll('rect')).find(
-      (r) => r.getAttribute('rx') === '2'
+    const sibling = svg.querySelector(
+      '.participant[data-participant-id="Gateway"] rect'
     )!;
+    expect(sibling.getAttribute('rx')).toBe('2');
     expect(overlay.getAttribute('y')).toBe('0');
-    expect(overlay.getAttribute('height')).toBe(ownBox.getAttribute('height'));
+    expect(overlay.getAttribute('height')).toBe(sibling.getAttribute('height'));
   });
 
   it('matches the expanded frame when one is on the row (#447)', () => {

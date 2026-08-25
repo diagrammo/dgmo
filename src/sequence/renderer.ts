@@ -2485,7 +2485,8 @@ export function renderSequenceDiagram(
       sBoxW,
       sBoxH,
       sLabelTextWidth,
-      sLabelFontSize
+      sLabelFontSize,
+      isCollapsedGroup
     );
 
     // Collapsed group: overlay a group-shaped box carrying the collapse bar.
@@ -3654,7 +3655,8 @@ function renderParticipant(
   boxW: number = W,
   boxH: number = H,
   labelTextW: number = labelTextWidth(W),
-  labelFontSize: number = LABEL_FONT_SIZE
+  labelFontSize: number = LABEL_FONT_SIZE,
+  overlaid: boolean = false
 ): void {
   const g = svg
     .append('g')
@@ -3666,6 +3668,17 @@ function renderParticipant(
   if (tagAttr) {
     g.attr(`data-tag-${tagAttr.key}`, tagAttr.value);
   }
+
+  // A collapsed group supplies its own box and its own name, drawn into this
+  // same <g> by the caller. Drawing an ordinary participant's shape underneath
+  // it is not merely wasted — the shapes disagree on corner radius (rx 2 here,
+  // rx 6 for anything group-shaped), and when a collapsed group takes an
+  // ordinary participant's height the two rects land exactly on top of each
+  // other, leaving the sharper corner's stroke sticking out past the rounder
+  // one at all four corners (#456). Only the container and its attributes are
+  // wanted in that case — every selector in the app addresses this <g>, never
+  // the rect inside it.
+  if (overlaid) return;
 
   // Render shape based on type
   switch (participant.type) {
