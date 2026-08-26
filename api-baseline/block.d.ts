@@ -9,9 +9,17 @@ import './tag-groups-DrHT2tEc.js';
  * consumers, and the `BLOCK_CSS` string export for embedders that inject a
  * `<style>` tag.
  *
- * Dark mode keys off `[data-theme="dark"]`. Hosts with a different signal
- * (`html.dark`, `body.theme-dark`) rewrite the selector at their build step —
+ * Dark mode keys off BOTH `[data-theme="dark"]` (Starlight, Docusaurus) and
+ * `html.dark` (Tailwind, next-themes, VitePress), because those two cover
+ * essentially every host and picking one silently left the other half of the
+ * ecosystem with a diagram that never toggled. A host on a third signal
+ * (`body.theme-dark`) still rewrites the selector at its build step —
  * fumadocs-dgmo/nextra-dgmo's build-css.mjs is the reference adapter.
+ *
+ * 🔴 Keep the two conventions in SEPARATE rule blocks. `auto/styles.ts`
+ * re-scopes the `[data-theme="dark"]` rules onto `.dgmo-theme-dark` with a
+ * regex that swallows everything up to the `{`, so folding them into one
+ * multi-selector rule would drag `html.dark` into the re-scoped copy too.
  *
  * The `.dgmo-tok-*` role colors mirror LIGHT_ROLE_STYLES (light) and
  * NORD_ROLE_STYLES (dark) from editor/highlight-api.ts. A parity test
