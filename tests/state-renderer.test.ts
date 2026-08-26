@@ -161,6 +161,63 @@ describe('renderState', () => {
       expect(d).toContain('C'); // cubic bezier for self-loop
       document.body.removeChild(container);
     });
+
+    // #500: the loop used to be a fixed arc off the node's right edge, which
+    // under the default LR rank direction is exactly where the outgoing
+    // edges leave — so it landed on top of them. dagre routes self-edges
+    // perpendicular to the flow and reserves the space; the renderer must
+    // draw THOSE points.
+    it('routes a self-loop clear of the node its siblings leave through', () => {
+      const parsed = parseState('Live -save-> Live\nLive -delete-> Trashed');
+      expect(parsed.error).toBeNull();
+      const layout = layoutGraph(parsed);
+
+      const live = layout.nodes.find((n) => n.label === 'Live')!;
+      expect(live).toBeDefined();
+      const loop = layout.edges.find((e) => e.source === e.target)!;
+      expect(loop.points.length).toBeGreaterThanOrEqual(3);
+
+      // Every waypoint between the two endpoints sits below the node — not
+      // off its right edge, where `delete` and any return edge run.
+      const nodeBottom = live.y + live.height / 2;
+      const nodeRight = live.x + live.width / 2;
+      for (const pt of loop.points.slice(1, -1)) {
+        expect(pt.y).toBeGreaterThan(nodeBottom);
+        expect(pt.x).toBeLessThanOrEqual(nodeRight);
+      }
+
+      // The reserved space has to reach the canvas, or the arc clips.
+      const lowest = Math.max(...loop.points.map((pt) => pt.y));
+      expect(layout.height).toBeGreaterThan(lowest);
+    });
+
+    it('draws the self-loop below the node, not off its right edge', () => {
+      const container = renderToContainer('Live -save-> Live');
+      const d = container.querySelector('path.st-edge')!.getAttribute('d')!;
+      // `d` is in layout coordinates — contentG carries the fit transform.
+      const coords = d.match(/-?\d+(?:\.\d+)?/g)!.map(Number);
+      const xs = coords.filter((_, i) => i % 2 === 0);
+      const ys = coords.filter((_, i) => i % 2 === 1);
+
+      const parsed = parseState('Live -save-> Live');
+      const live = layoutGraph(parsed).nodes[0]!;
+      expect(Math.max(...xs)).toBeLessThanOrEqual(live.x + live.width / 2);
+      expect(Math.max(...ys)).toBeGreaterThan(live.y + live.height / 2);
+      document.body.removeChild(container);
+    });
+
+    it('puts the self-loop label outside the node, on the loop', () => {
+      const container = renderToContainer('Live -save-> Live');
+      const label = container.querySelector('text.st-edge-label')!;
+      expect(label.textContent).toBe('save');
+
+      const parsed = parseState('Live -save-> Live');
+      const layout = layoutGraph(parsed);
+      const live = layout.nodes[0]!;
+      expect(Number(label.getAttribute('y'))).toBeGreaterThan(
+        live.y + live.height / 2
+      );
+    });
   });
 
   describe('group rendering', () => {

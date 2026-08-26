@@ -425,11 +425,17 @@ export function layoutGraph(
     }
   }
 
-  // Content bounding box over nodes, their (floated) notes, and groups.
-  // Notes placed above/left of a node can land at negative coordinates;
-  // when they do, everything is shifted so nothing clips on export. Edges
-  // are intentionally excluded (matching the prior bounds behavior) so
-  // un-annotated layouts are byte-for-byte unchanged.
+  // Content bounding box over nodes, their (floated) notes, groups, and
+  // self-loop edges. Notes placed above/left of a node can land at negative
+  // coordinates; when they do, everything is shifted so nothing clips on
+  // export. Ordinary edges are intentionally excluded (matching the prior
+  // bounds behavior) so un-annotated layouts are byte-for-byte unchanged.
+  //
+  // Self-loops are the exception: dagre routes them on the axis
+  // perpendicular to the flow (below the node under `LR`, beside it under
+  // `TB`) and reserves rank space for them, but that space lies wholly
+  // outside every node box — so a bbox over nodes alone puts the loop
+  // exactly on the canvas edge and clips it.
   let bbMinX = Infinity;
   let bbMinY = Infinity;
   let bbMaxX = -Infinity;
@@ -458,6 +464,10 @@ export function layoutGraph(
   }
   for (const group of layoutGroups) {
     extend(group.x, group.y, group.x + group.width, group.y + group.height);
+  }
+  for (const edge of layoutEdges) {
+    if (edge.source !== edge.target) continue;
+    for (const pt of edge.points) extend(pt.x, pt.y, pt.x, pt.y);
   }
   if (!Number.isFinite(bbMinX)) {
     bbMinX = 0;

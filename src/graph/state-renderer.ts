@@ -98,22 +98,6 @@ function stateStroke(
 }
 
 // ============================================================
-// Self-loop path
-// ============================================================
-
-function selfLoopPath(node: LayoutNode): string {
-  const cx = node.x;
-  const cy = node.y;
-  const r = node.width / 2;
-  const startX = cx + r;
-  const startY = cy - 5;
-  const endX = cx + r;
-  const endY = cy + 5;
-  const loopR = 25;
-  return `M ${startX} ${startY} C ${startX + loopR * 2} ${startY - loopR * 2}, ${endX + loopR * 2} ${endY + loopR * 2}, ${endX} ${endY}`;
-}
-
-// ============================================================
 // Main renderer
 // ============================================================
 
@@ -362,19 +346,12 @@ export function renderState(
       .text(group.label);
   }
 
-  const selfLoopEdges = new Set<number>();
-  for (const edge of layout.edges) {
-    if (edge.source === edge.target) selfLoopEdges.add(edge.lineNumber);
-  }
-
-  const nodePositionMap = new Map<string, LayoutNode>();
-  for (const node of layout.nodes) {
-    nodePositionMap.set(node.id, node);
-  }
-
   const LABEL_PAD = 8;
   const LABEL_H = 16;
   const PERP_OFFSET = 10;
+
+  const nodeCenters = new Map<string, LayoutNode>();
+  for (const node of layout.nodes) nodeCenters.set(node.id, node);
 
   interface LabelPos {
     x: number;
@@ -391,25 +368,40 @@ export function renderState(
     const bgW = measureText(edge.label, sEdgeLabelFontSize) + LABEL_PAD;
     let lx: number, ly: number;
 
-    if (edge.source === edge.target) {
-      const node = nodePositionMap.get(edge.source);
-      if (!node) continue;
-      lx = node.x + node.width / 2 + 30;
-      ly = node.y;
-    } else if (edge.points.length >= 2) {
+    if (edge.points.length >= 2) {
       const midIdx = Math.floor(edge.points.length / 2);
       const midPt = edge.points[midIdx]!;
       const prev = edge.points[Math.max(0, midIdx - 1)]!;
       const next = edge.points[Math.min(edge.points.length - 1, midIdx + 1)]!;
-      const dx = next.x - prev.x;
-      const dy = next.y - prev.y;
-      const len = Math.sqrt(dx * dx + dy * dy);
-      if (len > 0) {
-        lx = midPt.x + (-dy / len) * PERP_OFFSET;
-        ly = midPt.y + (dx / len) * PERP_OFFSET;
+      const self = edge.source === edge.target;
+      const node = self ? nodeCenters.get(edge.source) : undefined;
+      if (self && node) {
+        // A self-loop's midpoint is the far apex of the arc, and the two
+        // waypoints around it are parallel to the node's edge — so the
+        // perpendicular used below is ambiguous in sign and half the time
+        // pushes the label back over the node. Push it straight out from
+        // the node center instead, which is correct in every `rankdir`.
+        const ox = midPt.x - node.x;
+        const oy = midPt.y - node.y;
+        const olen = Math.sqrt(ox * ox + oy * oy);
+        if (olen > 0) {
+          lx = midPt.x + (ox / olen) * PERP_OFFSET;
+          ly = midPt.y + (oy / olen) * PERP_OFFSET;
+        } else {
+          lx = midPt.x;
+          ly = midPt.y;
+        }
       } else {
-        lx = midPt.x;
-        ly = midPt.y;
+        const dx = next.x - prev.x;
+        const dy = next.y - prev.y;
+        const len = Math.sqrt(dx * dx + dy * dy);
+        if (len > 0) {
+          lx = midPt.x + (-dy / len) * PERP_OFFSET;
+          ly = midPt.y + (dx / len) * PERP_OFFSET;
+        } else {
+          lx = midPt.x;
+          ly = midPt.y;
+        }
       }
     } else {
       continue;
@@ -446,42 +438,7 @@ export function renderState(
     const edgeColor = palette.textMuted;
     const markerId = 'st-arrow';
 
-    if (edge.source === edge.target) {
-      const node = nodePositionMap.get(edge.source);
-      if (node) {
-        edgeG
-          .append('path')
-          .attr('d', selfLoopPath(node))
-          .attr('fill', 'none')
-          .attr('stroke', edgeColor)
-          .attr('stroke-width', sEdgeStrokeWidth)
-          .attr('marker-end', `url(#${markerId})`)
-          .attr('class', 'st-edge');
-
-        const lp = labelPosMap.get(ei);
-        if (edge.label && lp) {
-          edgeG
-            .append('rect')
-            .attr('x', lp.x - lp.w / 2)
-            .attr('y', lp.y - lp.h / 2 - 1)
-            .attr('width', lp.w)
-            .attr('height', lp.h)
-            .attr('rx', 3)
-            .attr('fill', palette.bg)
-            .attr('opacity', 0.85)
-            .attr('class', 'st-edge-label-bg');
-          edgeG
-            .append('text')
-            .attr('x', lp.x)
-            .attr('y', lp.y + 4)
-            .attr('text-anchor', 'middle')
-            .attr('fill', edgeColor)
-            .attr('font-size', sEdgeLabelFontSize)
-            .attr('class', 'st-edge-label')
-            .text(edge.label);
-        }
-      }
-    } else if (edge.points.length >= 2) {
+    if (edge.points.length >= 2) {
       const pathD = edgeSplinePath(edge.points);
       if (pathD) {
         edgeG
