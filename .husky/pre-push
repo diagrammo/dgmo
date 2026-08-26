@@ -18,6 +18,14 @@
 # another session's in-flight edit under src/ can fail your push. That defect
 # was fixed for the app and cloud gates (#445) and not here.
 
+# 🔴 git EXPORTS GIT_DIR (and friends) into every hook, and anything this hook
+# runs inherits them. tests/no-nul-bytes.test.ts shells out to
+# `git rev-parse --show-toplevel`, which with GIT_DIR set answers with the CWD
+# rather than the repo root — so under a hook run in a worktree it reads the
+# wrong files and fails. Unsetting them is a no-op in the main checkout, where
+# GIT_DIR is the relative `.git` and resolves correctly anyway.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES
+
 set -e
 
 echo "→ hygiene"
