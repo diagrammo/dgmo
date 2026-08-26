@@ -224,7 +224,18 @@ export async function renderDgmoBlock(
         : opts.background;
     svgsHtml =
       `<div class="${escapeAttr(innerClasses(opts, 'dgmo-light'))}" data-dgmo-bg="${escapeAttr(palette.light.bg)}">${normalizeSvgForEmbed(light, { background })}</div>` +
-      `<div class="${escapeAttr(innerClasses(opts, 'dgmo-dark'))}" data-dgmo-bg="${escapeAttr(palette.dark.bg)}">${normalizeSvgForEmbed(dark, { background })}</div>`;
+      // 🔴 `hidden` is what makes a dual-render embed safe on a host that
+      // never loaded our stylesheet. The rule that hides one of the two lives
+      // only in BLOCK_CSS / remark-dgmo's client.css, and two of the five
+      // framework wrappers make the consumer import that by hand — so a
+      // forgotten import used to render the SAME diagram twice, stacked, with
+      // a green build and nothing said (issue 507, reported from a real Astro
+      // site 2026-08-26). The browser's own `[hidden] { display: none }` is
+      // user-agent origin, so ANY author rule with `display: block` still
+      // wins: the `[data-theme="dark"]`/`html.dark` overrides below keep
+      // working untouched, and the no-CSS floor becomes "the light diagram"
+      // instead of "both of them".
+      `<div class="${escapeAttr(innerClasses(opts, 'dgmo-dark'))}" data-dgmo-bg="${escapeAttr(palette.dark.bg)}" hidden>${normalizeSvgForEmbed(dark, { background })}</div>`;
   } else {
     const svg = await renderTheme(opts.colorMode);
     const background =

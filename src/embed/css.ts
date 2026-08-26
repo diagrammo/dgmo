@@ -6,9 +6,17 @@
  * consumers, and the `BLOCK_CSS` string export for embedders that inject a
  * `<style>` tag.
  *
- * Dark mode keys off `[data-theme="dark"]`. Hosts with a different signal
- * (`html.dark`, `body.theme-dark`) rewrite the selector at their build step —
+ * Dark mode keys off BOTH `[data-theme="dark"]` (Starlight, Docusaurus) and
+ * `html.dark` (Tailwind, next-themes, VitePress), because those two cover
+ * essentially every host and picking one silently left the other half of the
+ * ecosystem with a diagram that never toggled. A host on a third signal
+ * (`body.theme-dark`) still rewrites the selector at its build step —
  * fumadocs-dgmo/nextra-dgmo's build-css.mjs is the reference adapter.
+ *
+ * 🔴 Keep the two conventions in SEPARATE rule blocks. `auto/styles.ts`
+ * re-scopes the `[data-theme="dark"]` rules onto `.dgmo-theme-dark` with a
+ * regex that swallows everything up to the `{`, so folding them into one
+ * multi-selector rule would drag `html.dark` into the re-scoped copy too.
  *
  * The `.dgmo-tok-*` role colors mirror LIGHT_ROLE_STYLES (light) and
  * NORD_ROLE_STYLES (dark) from editor/highlight-api.ts. A parity test
@@ -20,10 +28,21 @@
  */
 export const BLOCK_CSS: string = `
 /* @diagrammo/dgmo block — standard embed chrome.
- * Override the [data-theme="dark"] selectors if your site uses .dark or
- * another color-mode convention. */
+ * Dark mode is keyed on a data-theme="dark" attribute (Starlight, Docusaurus)
+ * AND an html.dark class (Tailwind, next-themes, VitePress), so all of those
+ * work as shipped. Add your own selector if your site marks dark a third way.
+ *
+ * No selector is spelled in bracket form anywhere in these comments on
+ * purpose: the adapters that re-key the attribute rules onto another host's
+ * signal match that exact substring, and a mention inside a comment would be
+ * swallowed into a rule they then emit as garbage. */
 
-/* === Color-mode visibility (dual-render) === */
+/* === Color-mode visibility (dual-render) ===
+ * The dark wrapper also carries the "hidden" ATTRIBUTE, so a page that never
+ * loaded this stylesheet shows the light diagram rather than both of them.
+ * Every rule below is author-origin and therefore still overrides it.
+ * Keep the two host conventions in separate rule blocks — the adapters
+ * rewrite by literal replace and a folded rule would half-rewrite. */
 .dgmo-dark {
   display: none;
 }
@@ -31,6 +50,12 @@ export const BLOCK_CSS: string = `
   display: none;
 }
 [data-theme="dark"] .dgmo-dark {
+  display: block;
+}
+html.dark .dgmo-light {
+  display: none;
+}
+html.dark .dgmo-dark {
   display: block;
 }
 

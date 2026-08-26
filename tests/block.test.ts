@@ -27,6 +27,26 @@ describe('renderDgmoBlock — standard embed block', () => {
     expect(diagnostics).toEqual([]);
   });
 
+  // Issue 507: two of the five framework wrappers make the consumer import
+  // the color-mode stylesheet by hand, so a forgotten import rendered the
+  // SAME diagram twice, stacked. `hidden` is user-agent origin, so this is a
+  // floor rather than a lock — every author rule below still overrides it.
+  it('dual-render: the dark wrapper is `hidden`, so a page with no stylesheet shows one diagram', async () => {
+    const { html } = await renderDgmoBlock(PIE);
+    expect(html).toContain('class="dgmo-dark"');
+    expect(html).toMatch(/<div class="dgmo-dark"[^>]*\shidden>/);
+    // the light wrapper is never hidden — it IS the no-stylesheet default
+    expect(html).not.toMatch(/<div class="dgmo-light"[^>]*\shidden>/);
+  });
+
+  it('single-mode render carries no `hidden` — there is nothing to hide', async () => {
+    for (const colorMode of ['light', 'dark'] as const) {
+      const { html } = await renderDgmoBlock(PIE, { colorMode });
+      expect(html).toContain('class="dgmo-svg"');
+      expect(html).not.toMatch(/<div class="dgmo-svg"[^>]*\shidden>/);
+    }
+  });
+
   it('showcase mode: toolbar-in-summary with toggle, copy, open icons', async () => {
     const { html } = await renderDgmoBlock(PIE, { mode: 'showcase' });
     expect(html).toMatch(/^<figure class="dgmo dgmo--showcase">/);
@@ -316,6 +336,26 @@ describe('errorBlockHtml — standard error card', () => {
     const untyped = errorBlockHtml(new Error('boom'), '@@@');
     expect(untyped).toContain('href="https://diagrammo.app/docs/"');
     expect(untyped).toContain('Browse the DGMO docs ↗');
+  });
+});
+
+describe('BLOCK_CSS — color-mode visibility (issue 507)', () => {
+  it('keys dark on both host conventions, so Tailwind and Starlight sites toggle', () => {
+    expect(BLOCK_CSS).toContain('[data-theme="dark"] .dgmo-light');
+    expect(BLOCK_CSS).toContain('[data-theme="dark"] .dgmo-dark');
+    expect(BLOCK_CSS).toContain('html.dark .dgmo-light');
+    expect(BLOCK_CSS).toContain('html.dark .dgmo-dark');
+  });
+
+  // `auto/styles.ts` re-scopes the `[data-theme="dark"]` rules onto
+  // `.dgmo-theme-dark` with a regex that swallows everything up to the `{`,
+  // and the wrapper build-css adapters rewrite the same substring by literal
+  // replace. Folding the two conventions into one multi-selector rule would
+  // drag `html.dark` through both transforms.
+  it('keeps the two conventions in separate rule blocks', () => {
+    const rules = BLOCK_CSS.match(/\[data-theme="dark"\][^{]*\{/g) ?? [];
+    expect(rules.length).toBeGreaterThan(0);
+    for (const rule of rules) expect(rule).not.toContain('html.dark');
   });
 });
 

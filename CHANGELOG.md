@@ -5,6 +5,31 @@ All notable changes to `@diagrammo/dgmo` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.76.0] - 2026-08-26
+
+### Fixed
+
+- **A dual-render embed no longer shows the same diagram twice on a page that
+  never loaded the stylesheet.** Under the default `colorMode: 'auto'` each
+  fence renders two SVGs, light and dark, and the rule hiding the one you are
+  not in lived only in `BLOCK_CSS` / `remark-dgmo/client.css` — which two of
+  the five framework wrappers made the consumer import by hand. A site that
+  did not know to add that line printed both diagrams, stacked, on a green
+  build with no warning anywhere. The dark wrapper now carries the `hidden`
+  attribute, so the no-stylesheet floor is the light diagram rather than both
+  of them. `hidden` is user-agent origin, so every color-mode rule still
+  overrides it and toggling is unchanged.
+- **Dark mode is keyed on `html.dark` as well as `[data-theme="dark"]`.**
+  Tailwind, next-themes and VitePress sites mark dark with a class; Starlight
+  and Docusaurus use the attribute. Shipping only the attribute left the other
+  half of the ecosystem with a diagram that never toggled unless they rewrote
+  the selector themselves.
+- **`standalone/dist/auto.css` no longer carries a garbage rule** built from a
+  comment. The re-scoping pass that re-keys the dark rules onto
+  `.dgmo-theme-dark` matches the selector as a substring, and a comment
+  mentioning it in bracket form was being swallowed into a rule that no
+  browser could parse. The comments say it in prose now.
+
 ## [0.75.0] - 2026-08-25
 
 ### Removed
