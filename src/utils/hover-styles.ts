@@ -442,6 +442,8 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     edgeSelector: '.pert-edge',
     fromAttr: 'data-source',
     toAttr: 'data-target',
+    legend: true,
+    emphasis: 'dim',
   },
 
   // ── CROSS-FREE tag-group charts — active group discovered at scan time ──
@@ -493,6 +495,8 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     edgeSelector: '.st-edge-group',
     fromAttr: 'data-source',
     toAttr: 'data-target',
+    legend: true,
+    emphasis: 'dim',
   },
   'boxes-and-lines': {
     markSelector: '.bl-node',
@@ -555,6 +559,8 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     edgeSelector: '.er-edge-group',
     fromAttr: 'data-source',
     toAttr: 'data-target',
+    legend: true,
+    emphasis: 'dim',
   },
   org: {
     markSelector: '.org-node',

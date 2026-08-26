@@ -543,3 +543,79 @@ describe('injectHoverStyles — legend pairing on a NON-enumerated chart', () =>
     );
   });
 });
+
+describe('render() integration — legend pairing on state / er / pert (#504)', () => {
+  // These three bake `data-tag-<slug>` on their marks and draw a tag-group
+  // legend, exactly as org / sitemap / infra do, but their registry rows
+  // carried no `legend: true` — so the injector emitted their node→edge rules
+  // and nothing at all for the legend, and every pill was inert on hover.
+
+  it('state: a legend pill dims the nodes that do not carry its value', async () => {
+    const src = [
+      'state The life of one diagram',
+      '',
+      'tag Reachable as r',
+      '  Yours to open green',
+      '  Gone for good red',
+      '',
+      '[*] -create-> Live',
+      'Live r: Yours to open',
+      'Live -delete-> Trashed',
+      'Trashed r: Yours to open',
+      'Trashed -grace ends-> Destroyed',
+      'Destroyed r: Gone for good',
+    ].join('\n');
+    const { svg } = await render(src);
+    expect(svg).toContain('data-legend-active="reachable"');
+    expect(svg).toContain('data-tag-reachable="gone for good"');
+    expect(svg).toContain(
+      'svg:has([data-legend-entry="gone for good"]:hover) .st-node:not([data-tag-reachable="gone for good"])'
+    );
+    // The connection rules survive alongside — the two triggers cannot both fire.
+    expect(svg).toMatch(
+      /svg:has\(\.st-node\[data-node-id="[^"]+"\]:hover\) \.st-edge-group:not\(\[data-source=/
+    );
+  });
+
+  it('er: a legend pill dims the tables that do not carry its value', async () => {
+    const src = [
+      'er Ship Stores',
+      '',
+      'tag Domain as d',
+      '  Billing blue',
+      '  Shipping green',
+      '',
+      'Users d: Billing',
+      '  id int pk',
+      '',
+      'Orders d: Shipping',
+      '  id int pk',
+    ].join('\n');
+    const { svg } = await render(src);
+    expect(svg).toContain('data-legend-active="domain"');
+    expect(svg).toContain(
+      'svg:has([data-legend-entry="billing"]:hover) .er-table:not([data-tag-domain="billing"])'
+    );
+  });
+
+  it('pert: a legend pill dims the activities that do not carry its value', async () => {
+    const src = [
+      'pert Voyage',
+      '',
+      'tag Priority as pr',
+      '  High red',
+      '  Low green',
+      '',
+      'Chart course 1 2 3',
+      '  pr: High',
+      '  -> Load rum',
+      'Load rum 1 2 3',
+      '  pr: Low',
+    ].join('\n');
+    const { svg } = await render(src);
+    expect(svg).toContain('data-legend-active="priority"');
+    expect(svg).toContain(
+      'svg:has([data-legend-entry="high"]:hover) .pert-node:not([data-tag-priority="high"])'
+    );
+  });
+});
