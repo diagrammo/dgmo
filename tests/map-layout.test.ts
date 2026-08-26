@@ -647,6 +647,28 @@ describe('layout — an unspecified element takes the tag default (#489)', () =>
     const ca = r.regions.find((x) => x.id === 'US-CA')!;
     expect(ca.tags).toEqual({ m: 'Office' });
   });
+  it('a connector naming no value takes the leg group default', () => {
+    const r = lay(
+      'map\ntag Leg as l\n  Sail blue\n  March green\n' +
+        'poi 20.05 -72.82 as tor\npoi 23.13 -82.38 as hav\npoi 18.02 -76.79 as cove\n' +
+        'tor ~> hav l: March\nhav ~> cove'
+    );
+    const assumed = r.legs.find((l) => l.toId === 'cove')!;
+    expect(assumed.color).toBe(P.colors.blue);
+    expect(assumed.tags).toEqual({ leg: 'Sail' }); // keyed by group NAME, not alias
+    // …and the explicitly tagged leg keeps its own colour.
+    expect(r.legs.find((l) => l.toId === 'hav')!.color).toBe(P.colors.green);
+  });
+  it('a group no connector uses is NOT assumed onto connectors', () => {
+    // `Market` is a place facet; the line between two markets is not a market.
+    const r = lay(
+      'map\ntag Market as m\n  HQ blue\n  Region teal\n' +
+        'poi 20.05 -72.82 as tor m: HQ\npoi 23.13 -82.38 as hav m: Region\ntor ~> hav'
+    );
+    const leg = r.legs[0]!;
+    expect(leg.color).not.toBe(P.colors.blue);
+    expect(leg.tags).toBeUndefined();
+  });
   it('an explicit tag is never overwritten by the default', () => {
     const r = lay(
       'map\ntag M as m\n  Office blue\n  Depot green\npoi Osaka m: Office\npoi Tokyo m: Depot'

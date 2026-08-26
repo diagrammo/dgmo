@@ -1,5 +1,6 @@
 import { mix } from '../palettes/color-utils';
 import { tagAttrKey } from '../utils/tag-groups';
+import type { TagGroup } from '../utils/tag-groups';
 import type { PaletteColors } from '../palettes/types';
 import type { ResolvedMap, ResolvedEdge } from './resolved-types';
 import type { OnFillStyle } from './edge-labels';
@@ -151,17 +152,59 @@ export function buildConnectorLegs(args: {
 
   const legs: MapLayoutLeg[] = [];
 
-  /** A tag-group colour for this connector, when one of its tags carries one. */
+  /** The groups whose default value is assumed onto a connector: those carrying
+   *  a default AND used by at least one route leg or edge. Mirrors
+   *  `poiDefaultGroups` in layout.ts and exists for the same reason — a facet
+   *  that only ever lands on REGIONS or POIs describes places, so its default
+   *  must not colour the lines between them (#489). */
+  const legDefaultGroups = resolved.tagGroups.filter((g) => {
+    if (!g.defaultValue) return false;
+    const k = tagAttrKey(g.name);
+    return (
+      resolved.edges.some((e) => e.tags[k]) ||
+      resolved.routes.some((rt) => rt.legs.some((l) => l.tags[k]))
+    );
+  });
+
+  const entryColor = (
+    group: TagGroup,
+    val: string | undefined
+  ): string | undefined =>
+    val
+      ? group.entries.find((e) => e.value.toLowerCase() === val.toLowerCase())
+          ?.color // already hex (parser-resolved)
+      : undefined;
+
+  /** A tag-group colour for this connector: its own value first, then the
+   *  default of an in-play group it named no value for. The walks are separate
+   *  so an EXPLICIT value in a later group still beats an earlier group's
+   *  default — same contract as `poiFill`. */
   const lineColor = (tags: Readonly<Record<string, string>>): string | null => {
     for (const group of resolved.tagGroups) {
-      const val = tags[tagAttrKey(group.name)];
-      if (!val) continue;
-      const entry = group.entries.find(
-        (e) => e.value.toLowerCase() === val.toLowerCase()
-      );
-      if (entry?.color) return entry.color; // already hex (parser-resolved)
+      const hex = entryColor(group, tags[tagAttrKey(group.name)]);
+      if (hex) return hex;
+    }
+    for (const group of legDefaultGroups) {
+      if (tags[tagAttrKey(group.name)]) continue;
+      const hex = entryColor(group, group.defaultValue);
+      if (hex) return hex;
     }
     return null;
+  };
+
+  /** What the connector wrote, plus the default of every in-play group it left
+   *  unspecified — emitted as `data-tag-*`, so a legend-entry hover spotlights
+   *  the assumed lines instead of dimming the ones wearing its colour. */
+  const effectiveTags = (
+    tags: Readonly<Record<string, string>>
+  ): Readonly<Record<string, string>> => {
+    let out: Record<string, string> | null = null;
+    for (const group of legDefaultGroups) {
+      const key = tagAttrKey(group.name);
+      if (tags[key]) continue;
+      (out ??= { ...tags })[key] = group.defaultValue!;
+    }
+    return out ?? tags;
   };
 
   const placedLegSamples: Array<{
@@ -334,6 +377,7 @@ export function buildConnectorLegs(args: {
           ? labelOnFill(fillAt(bow.labelX, bow.labelY))
           : undefined;
       const routeVal = Number(leg.value);
+      const legTags = effectiveTags(leg.tags);
       legs.push({
         d: legPath(a, b, bow.curved, bow.offset, bow.center),
         width: routeWidthFor(routeVal),
@@ -342,7 +386,7 @@ export function buildConnectorLegs(args: {
         fromId: leg.fromId,
         toId: leg.toId,
         ...(Number.isFinite(routeVal) && routeVal > 0 && { value: routeVal }),
-        ...(Object.keys(leg.tags).length > 0 && { tags: leg.tags }),
+        ...(Object.keys(legTags).length > 0 && { tags: legTags }),
         lineNumber: leg.lineNumber,
         ...(leg.label !== undefined && {
           label: leg.label,
@@ -406,6 +450,7 @@ export function buildConnectorLegs(args: {
           ? labelOnFill(fillAt(bow.labelX, bow.labelY))
           : undefined;
       const edgeVal = Number(e.meta['width']);
+      const edgeTags = effectiveTags(e.tags);
       legs.push({
         d: legPath(a, b, bow.curved, bow.offset),
         width: widthFor(e),
@@ -414,7 +459,7 @@ export function buildConnectorLegs(args: {
         fromId: e.fromId,
         toId: e.toId,
         ...(Number.isFinite(edgeVal) && edgeVal > 0 && { value: edgeVal }),
-        ...(Object.keys(e.tags).length > 0 && { tags: e.tags }),
+        ...(Object.keys(edgeTags).length > 0 && { tags: edgeTags }),
         lineNumber: e.lineNumber,
         ...(e.label !== undefined && {
           label: e.label,
