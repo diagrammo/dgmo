@@ -1,1 +1,62 @@
-pnpm typecheck && pnpm lint && pnpm test && pnpm build
+# The checks .github/workflows/ci.yml runs, in the same order, so a push and a
+# CI run ask the same questions. Until 2026-08-25 this was one line —
+# `pnpm typecheck && pnpm lint && pnpm test && pnpm build`, four of CI's
+# thirteen steps — and the nine it skipped could only report themselves as a
+# failure email. Spelling was one of them, and sat red for six consecutive
+# pushes over a word the dictionary had never been told about (#487).
+#
+# 🔴 NOT `pnpm check:all`. That is the release gate and differs both ways: it
+# adds pnpm audit / publint / attw, which ci.yml excludes by name as flaky
+# here, and it omits lint, test, the legacy-alias lint, the bundle-size guard
+# and the gallery snapshot.
+#
+# Cheap first, so a 2-second spelling slip fails in 2 seconds rather than
+# behind 89 seconds of tests. Measured warm 2026-08-25: ~113s total, of which
+# the four original checks are 89s and everything added here is 24s.
+#
+# ⚠️ This runs against the WORKING TREE, not the commit being pushed, so
+# another session's in-flight edit under src/ can fail your push. That defect
+# was fixed for the app and cloud gates (#445) and not here.
+
+set -e
+
+echo "→ hygiene"
+pnpm check:deadcode
+pnpm check:duplication
+pnpm check:deps
+
+echo "→ spelling"
+pnpm check:spelling
+
+echo "→ circular dependencies"
+pnpm check:circular
+
+echo "→ dependency ranges"
+pnpm check:dep-ranges
+
+echo "→ legacy alias syntaxes"
+bash scripts/lint-no-legacy-alias.sh
+
+echo "→ typecheck"
+pnpm typecheck
+
+echo "→ lint"
+pnpm lint
+
+echo "→ test"
+pnpm test
+
+echo "→ build"
+pnpm build
+
+# These three need dist/, which the build above just produced. Called as
+# scripts rather than via `pnpm check:size` / `check:api` / `gallery:snapshot`,
+# each of which would run a second build.
+echo "→ bundle size"
+node scripts/check-bundle-size.cjs
+
+echo "→ public API surface"
+bash scripts/check-api.sh check
+
+echo "→ gallery snapshot"
+node scripts/gallery-snapshot.mjs
