@@ -5,7 +5,7 @@
 import type { DiagnosticSpec } from '../diagnostics';
 
 export const SKETCH_DIAGNOSTIC_CODES = {
-  NESTED_BOX: 'E_SKETCH_NESTED_BOX',
+  BOX_DEPTH: 'E_SKETCH_BOX_DEPTH',
   AMBIGUOUS_TARGET: 'E_SKETCH_AMBIGUOUS_TARGET',
   UNKNOWN_SHAPE: 'W_SKETCH_UNKNOWN_SHAPE',
   OVERLAP_RESOLVED: 'W_SKETCH_OVERLAP_RESOLVED',
@@ -14,13 +14,13 @@ export const SKETCH_DIAGNOSTIC_CODES = {
 
 export const SKETCH_DIAGNOSTICS: DiagnosticSpec[] = [
   {
-    code: SKETCH_DIAGNOSTIC_CODES.NESTED_BOX,
+    code: SKETCH_DIAGNOSTIC_CODES.BOX_DEPTH,
     severity: 'error',
     chartType: 'sketch',
-    title: 'Nested box',
+    title: 'Box nested too deep',
     message: (p) =>
-      `Box "${String(p.label ?? '?')}" is nested inside another box — sketch boxes are one level only; its shapes join the outer box`,
-    hint: 'Move the inner [Box] to the top level.',
+      `Box "${String(p.label ?? '?')}" is nested ${String(p.depth ?? '?')} levels deep — sketch boxes nest to depth ${String(p.max ?? '?')} (decision #58); its shapes join the box above it`,
+    hint: 'Move the inner [Box] up a level — two levels of bracket is the bound.',
     example: 'sketch\n[Outer]\n  [Inner]\n    Shape',
   },
   {

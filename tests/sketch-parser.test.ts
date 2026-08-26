@@ -246,17 +246,55 @@ describe('sketch parser — boxes', () => {
     expect(p.boxes[0]!.alias).toBe('armory');
   });
 
-  it('nested boxes error with E_SKETCH_NESTED_BOX and flatten into the outer box', () => {
+  // Decision #58 — sketch boxes nest to depth 2, matching boxes-and-lines (§14).
+  // Replaces the old one-level rule and its E_SKETCH_NESTED_BOX error, which was
+  // deleted rather than relaxed.
+  it('nests a box inside a box, linking parent and child both ways', () => {
     const p = parseSketch(
       'sketch\n[Outer]\n  A at: 0 0\n  [Inner]\n    B at: 2 0'
     );
-    expect(p.boxes).toHaveLength(1);
-    expect(
-      errors(p).find((d) => d.code === 'E_SKETCH_NESTED_BOX')
-    ).toBeDefined();
+    expect(p.boxes).toHaveLength(2);
+    expect(errors(p)).toHaveLength(0);
+    expect(p.error).toBeNull();
+
+    const outer = p.boxes.find((b) => b.label === 'Outer')!;
+    const inner = p.boxes.find((b) => b.label === 'Inner')!;
+    expect(outer.parentBoxId).toBeNull();
+    expect(inner.parentBoxId).toBe(outer.id);
+    expect(outer.childBoxes).toEqual([inner.id]);
+    expect(inner.childBoxes).toEqual([]);
+
+    // Each shape belongs to its own box, not all to the outer one.
+    expect(p.nodes.find((n) => n.label === 'A')!.boxLabel).toBe('Outer');
+    expect(p.nodes.find((n) => n.label === 'B')!.boxLabel).toBe('Inner');
+  });
+
+  it('dedents back out of an inner box to the outer one', () => {
+    const p = parseSketch('sketch\n[Outer]\n  [Inner]\n    B\n  C\n');
+    expect(errors(p)).toHaveLength(0);
+    expect(p.nodes.find((n) => n.label === 'B')!.boxLabel).toBe('Inner');
+    expect(p.nodes.find((n) => n.label === 'C')!.boxLabel).toBe('Outer');
+  });
+
+  it('a third level raises E_SKETCH_BOX_DEPTH and joins the box above it', () => {
+    const p = parseSketch(
+      'sketch\n[Outer]\n  [Inner]\n    [Deeper]\n      B\n'
+    );
+    // Deeper is refused; Outer and Inner survive.
+    expect(p.boxes.map((b) => b.label)).toEqual(['Outer', 'Inner']);
+    const d = errors(p).find((x) => x.code === 'E_SKETCH_BOX_DEPTH');
+    expect(d).toBeDefined();
+    expect(d!.message).toContain('3 levels deep');
     expect(p.error).toBeNull(); // degrade, never fatal
-    expect(p.nodes).toHaveLength(2);
-    expect(p.nodes.every((n) => n.boxLabel === 'Outer')).toBe(true);
+    // Its shape is not dropped — it joins the box above, which is what renders.
+    expect(p.nodes.find((n) => n.label === 'B')!.boxLabel).toBe('Inner');
+  });
+
+  it('two sibling boxes do not become parent and child', () => {
+    const p = parseSketch('sketch\n[One]\n  A\n[Two]\n  B\n');
+    expect(errors(p)).toHaveLength(0);
+    expect(p.boxes.every((b) => b.parentBoxId === null)).toBe(true);
+    expect(p.boxes.every((b) => b.childBoxes.length === 0)).toBe(true);
   });
 });
 

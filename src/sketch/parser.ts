@@ -116,7 +116,16 @@ type WritableNode = Writable<SketchNode> & { metadata: Record<string, string> };
 type WritableBox = Writable<SketchBox> & {
   metadata: Record<string, string>;
   children: string[];
+  childBoxes: string[];
 };
+
+/**
+ * Sketch boxes nest to depth 2 — language decision #58, matching
+ * `boxes-and-lines` (§14), which is the chart type that already does this.
+ * (The decision record said "matching infra" until 2026-08-26; §4 Infrastructure
+ * says "No nesting" outright.)
+ */
+const MAX_BOX_DEPTH = 2;
 
 export function parseSketch(
   content: string,
@@ -369,7 +378,8 @@ export function parseSketch(
   const openBox = (
     label: string,
     tail: string,
-    lineNumber: number
+    lineNumber: number,
+    parentBoxId: string | null
   ): WritableBox => {
     const norm = normalizeName(label);
     const existing = boxByNorm.get(norm);
@@ -389,9 +399,16 @@ export function parseSketch(
       metadata: meta,
       collapsed,
       children: [],
+      childBoxes: [],
+      parentBoxId,
       lineNumber,
     };
     boxes.push(box);
+    if (parentBoxId !== null) {
+      boxByNorm
+        .get(normalizeName(parentBoxId.slice(1, -1)))
+        ?.childBoxes.push(box.id);
+    }
     boxByNorm.set(norm, box);
     if (alias !== undefined) {
       if (aliasIndex.has(alias)) {
@@ -469,7 +486,24 @@ export function parseSketch(
   let firstLineConsumed = false;
   let contentStarted = false;
   let currentTagGroup: Writable<TagGroup> | null = null;
-  let currentBox: { box: WritableBox; indent: number } | null = null;
+  const boxStack: Array<{ box: WritableBox; indent: number }> = [];
+  /**
+   * Pop every box this line has stepped back out of, then hand back the innermost
+   * one still open — the box a shape or edge at this indent belongs to.
+   * Replaces the old single-slot `currentBox`, which is what limited sketch to
+   * one level (decision #58).
+   */
+  const boxAt = (
+    indent: number
+  ): { box: WritableBox; indent: number } | null => {
+    while (
+      boxStack.length > 0 &&
+      indent <= boxStack[boxStack.length - 1]!.indent
+    ) {
+      boxStack.pop();
+    }
+    return boxStack[boxStack.length - 1] ?? null;
+  };
   let currentShape: { id: string; indent: number } | null = null;
 
   for (let i = 0; i < lines.length; i++) {
@@ -629,8 +663,8 @@ export function parseSketch(
     if (EDGE_START_RE.test(trimmed)) {
       if (indent > 0 && currentShape && indent > currentShape.indent) {
         addEdge(trimmed, lineNumber, currentShape.id);
-      } else if (indent > 0 && currentBox && indent > currentBox.indent) {
-        addEdge(trimmed, lineNumber, currentBox.box.id);
+      } else if (indent > 0 && boxAt(indent)) {
+        addEdge(trimmed, lineNumber, boxAt(indent)!.box.id);
       } else {
         warn(
           lineNumber,
@@ -648,32 +682,47 @@ export function parseSketch(
         warn(lineNumber, 'Box has no label — ignored');
         continue;
       }
-      if (indent > 0 && currentBox && indent > currentBox.indent) {
-        // Nested box: flatten — its shapes fall through to the outer box.
+      // Close any open boxes this line has stepped back out of.
+      while (
+        boxStack.length > 0 &&
+        indent <= boxStack[boxStack.length - 1]!.indent
+      ) {
+        boxStack.pop();
+      }
+      const depth = boxStack.length + 1;
+      if (depth > MAX_BOX_DEPTH) {
+        // Deeper than the bound: diagnose and hang its shapes on the box above,
+        // which is what the reader sees. Never silent — six producers write
+        // sketch source (tech-spec-sketch-rebuild.md §2), so the grammar checks.
         pushError(
           lineNumber,
-          `Box "${label}" is nested inside "${currentBox.box.label}" — sketch boxes are one level only; its shapes join the outer box`,
-          SKETCH_DIAGNOSTIC_CODES.NESTED_BOX
+          `Box "${label}" is nested ${depth} levels deep — sketch boxes nest to depth ${MAX_BOX_DEPTH} (decision #58); its shapes join the box above it`,
+          SKETCH_DIAGNOSTIC_CODES.BOX_DEPTH
         );
         continue;
       }
-      currentBox = {
-        box: openBox(label, boxMatch[2] ?? '', lineNumber),
-        indent,
-      };
+      const parent = boxStack[boxStack.length - 1] ?? null;
+      const box = openBox(
+        label,
+        boxMatch[2] ?? '',
+        lineNumber,
+        parent ? parent.box.id : null
+      );
+      boxStack.push({ box, indent });
       currentShape = null;
       continue;
     }
 
     // Shape line.
     if (indent === 0) {
-      currentBox = null;
+      boxStack.length = 0;
       const node = addShape(trimmed, lineNumber, null);
       currentShape = node ? { id: node.id, indent } : null;
       continue;
     }
-    if (currentBox && indent > currentBox.indent) {
-      const node = addShape(trimmed, lineNumber, currentBox.box);
+    const owner = boxAt(indent);
+    if (owner) {
+      const node = addShape(trimmed, lineNumber, owner.box);
       currentShape = node ? { id: node.id, indent } : currentShape;
       continue;
     }

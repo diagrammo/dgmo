@@ -34,12 +34,10 @@ type that quietly leaves the public surface is a breaking change for them.
   fresh as the last person who re-baselined, so check what the diff actually
   contains before assuming ownership — found stale on 2026-08-24, carrying an
   unrelated diagnostics-field change from #378 that had landed weeks earlier.
-- ⚠️ **`check:all` is red on `check:spelling` as of 2026-08-24** — six hits,
-  all of them the word `autonumber` in `src/sequence/`, `completion-registry`
-  and `directives-registry`, from the sequence-autonumbering work. It is a
-  missing dictionary entry, not a defect. Until someone adds the word, run the
-  check you need on its own (`pnpm check:api`) rather than reading a red
-  `check:all` as your fault.
+- ✅ **`check:spelling` is GREEN again as of 2026-08-26.** It was red on six
+  `autonumber` hits from 2026-08-24; they are gone. Keep the habit the old note
+  taught, though — when `check:all` goes red, read *which* check failed before
+  assuming it is your change, and run that one on its own.
 - 🔴 **Pipe `check:all` and you will read the wrong exit code.** `pnpm check:all
   | tail` reports `tail`'s status, so a failed gate prints as success — prefix
   with `set -o pipefail`. It is also a per-repo script: running it from the

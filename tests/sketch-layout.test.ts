@@ -524,3 +524,55 @@ describe('sketch layout — frozen origin', () => {
     expect(l.origin).toEqual({ c: -3, r: -3 });
   });
 });
+// Decision #58 — a box inside a box, to depth 2.
+describe('sketch layout — nested boxes', () => {
+  it('places the inner frame inside the outer one, and grows the outer to fit', () => {
+    const p = parseSketch(
+      'sketch\n[Outer]\n  [Inner]\n    Alpha\n    Gamma\n  Beta\n'
+    );
+    const l = layoutSketch(p, {});
+
+    const outer = l.boxes.find((b) => b.label === 'Outer')!;
+    const inner = l.boxes.find((b) => b.label === 'Inner')!;
+
+    // Fully contained, frame and all.
+    expect(inner.x).toBeGreaterThanOrEqual(outer.x);
+    expect(inner.y).toBeGreaterThanOrEqual(outer.y);
+    expect(inner.x + inner.w).toBeLessThanOrEqual(outer.x + outer.w);
+    expect(inner.y + inner.h).toBeLessThanOrEqual(outer.y + outer.h);
+
+    // The outer frame is strictly bigger — it grew to hold the inner one.
+    expect(outer.w).toBeGreaterThan(inner.w);
+    expect(outer.h).toBeGreaterThan(inner.h);
+  });
+
+  it('draws the outer frame before the inner one, or the parent covers its child', () => {
+    const p = parseSketch('sketch\n[Outer]\n  [Inner]\n    Alpha\n');
+    const labels = layoutSketch(p, {}).boxes.map((b) => b.label);
+    expect(labels.indexOf('Outer')).toBeLessThan(labels.indexOf('Inner'));
+  });
+
+  it('a loose sibling shape does not overlap the inner frame', () => {
+    const p = parseSketch(
+      'sketch\n[Outer]\n  [Inner]\n    Alpha\n    Gamma\n  Beta\n'
+    );
+    const l = layoutSketch(p, {});
+    const inner = l.boxes.find((b) => b.label === 'Inner')!;
+    const beta = l.nodes.find((n) => n.label === 'Beta')!;
+    const overlaps =
+      beta.x < inner.x + inner.w &&
+      inner.x < beta.x + beta.w &&
+      beta.y < inner.y + inner.h &&
+      inner.y < beta.y + beta.h;
+    expect(overlaps).toBe(false);
+  });
+
+  it('an inner box with no shapes still gets a visible band-height frame', () => {
+    const p = parseSketch('sketch\n[Outer]\n  [Inner]\n  Beta\n');
+    const l = layoutSketch(p, {});
+    const inner = l.boxes.find((b) => b.label === 'Inner');
+    expect(inner).toBeDefined();
+    expect(inner!.w).toBeGreaterThan(0);
+    expect(inner!.h).toBeGreaterThan(0);
+  });
+});

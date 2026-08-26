@@ -2178,6 +2178,18 @@ interface SketchBox {
     readonly collapsed: boolean;
     /** child node ids, declaration order */
     readonly children: readonly string[];
+    /**
+     * Child BOX ids, declaration order (decision #58 — sketch nests to depth 2,
+     * matching boxes-and-lines §14). Empty on an inner box: depth 2 is the bound.
+     */
+    readonly childBoxes: readonly string[];
+    /**
+     * The box this box sits inside, or null at the top level. Membership lives on
+     * the CHILD, the same shape `boxes-and-lines` uses (`parentGroup`) and the one
+     * the sketch rebuild's canvas model arrived at independently — a tree cannot
+     * express double membership, so this cannot either.
+     */
+    readonly parentBoxId: string | null;
     readonly lineNumber: number;
 }
 interface SketchOptions {

@@ -177,6 +177,51 @@ function unitRect(c: number, r: number): SlotRect {
   return { c, r, w: SKETCH_SEP, h: SKETCH_SEP };
 }
 
+/** An inner box placed inside its parent's local slot space (decision #58). */
+interface LocalChildBox {
+  boxId: string;
+  c: number;
+  r: number;
+  /** the rect it occupies, frame included, in half-slots */
+  rect: SlotRect;
+}
+
+/**
+ * `at:` of each inner box, keyed by box id — filled before any parent is laid
+ * out. A side-table rather than a parameter because `layoutChildren` already
+ * takes five arguments and this is read only for nested boxes.
+ */
+const childBoxAt = new Map<string, { c: number; r: number } | null>();
+
+/**
+ * `nearestFree` for a unit of arbitrary size. The shape-sized version searches
+ * from a SEP-square; an inner box's frame can be many slots across, so its
+ * collision test has to use its own width and height.
+ */
+function nearestFreeRect(
+  base: SlotRect,
+  occupied: Occupancy
+): { c: number; r: number } {
+  if (!occupied.hits(base)) return { c: base.c, r: base.r };
+  for (let d = 1; d <= 200; d++) {
+    const candidates: Array<{ c: number; r: number }> = [];
+    for (let dc = -d; dc <= d; dc++) {
+      const dr = d - Math.abs(dc);
+      candidates.push({ c: base.c + dc, r: base.r + dr });
+      if (dr !== 0) candidates.push({ c: base.c + dc, r: base.r - dr });
+    }
+    candidates.sort((a, b) => {
+      const costA = (a.r < base.r ? 2 : 0) + (a.c < base.c ? 1 : 0);
+      const costB = (b.r < base.r ? 2 : 0) + (b.c < base.c ? 1 : 0);
+      return costA - costB || a.r - b.r || a.c - b.c;
+    });
+    for (const cand of candidates) {
+      if (!occupied.hits({ ...base, c: cand.c, r: cand.r })) return cand;
+    }
+  }
+  return { c: base.c, r: base.r };
+}
+
 function rectsOverlap(a: SlotRect, b: SlotRect): boolean {
   return (
     a.c < b.c + b.w && b.c < a.c + a.w && a.r < b.r + b.h && b.r < a.r + a.h
@@ -312,11 +357,35 @@ function layoutChildren(
   box: SketchBox,
   nodesById: ReadonlyMap<string, SketchNode>,
   warn: (line: number, label: string) => void,
-  flags: ResolvedAutoFlags
-): { children: LocalChild[]; extent: SlotRect } {
+  flags: ResolvedAutoFlags,
+  /**
+   * Decision #58 — a box may hold boxes, to depth 2. Each inner box has already
+   * been laid out (they contain shapes only, so there is no recursion), and
+   * arrives here as the SlotRect it needs including its own frame. It is placed
+   * in the same Occupancy as the shapes, so an inner box and a loose shape
+   * cannot overlap, and it counts toward this box's extent.
+   */
+  childBoxRects: ReadonlyMap<string, SlotRect> = new Map()
+): { children: LocalChild[]; boxes: LocalChildBox[]; extent: SlotRect } {
   const occupied = new Occupancy();
   const children: LocalChild[] = [];
+  const localBoxes: LocalChildBox[] = [];
   const pending: SketchNode[] = [];
+
+  // Inner boxes first: they are the largest units and an authored `at:` on one
+  // should win the slot over a shape that merely flows into it.
+  for (const boxId of box.childBoxes) {
+    const rect = childBoxRects.get(boxId);
+    if (!rect) continue;
+    const at = childBoxAt.get(boxId) ?? null;
+    const base = at ?? { c: 0, r: 0 };
+    const want: SlotRect = { ...rect, c: base.c, r: base.r };
+    const spot = flags.resolveOverlap
+      ? nearestFreeRect(want, occupied)
+      : { c: want.c, r: want.r };
+    occupied.add({ ...rect, c: spot.c, r: spot.r });
+    localBoxes.push({ boxId, c: spot.c, r: spot.r, rect });
+  }
 
   for (const id of box.children) {
     const node = nodesById.get(id);
@@ -381,7 +450,7 @@ function layoutChildren(
     const rMax = Math.max(...occupied.rects.map((o) => o.r + o.h));
     extent = { c: cMin, r: rMin, w: cMax - cMin, h: rMax - rMin };
   }
-  return { children, extent };
+  return { children, boxes: localBoxes, extent };
 }
 
 // ── Main layout ─────────────────────────────────────────────
@@ -414,11 +483,46 @@ export function layoutSketch(
   // 1. Box-local child layout (children of expanded boxes).
   const boxLocal = new Map<
     string,
-    { children: LocalChild[]; extent: SlotRect }
+    { children: LocalChild[]; boxes: LocalChildBox[]; extent: SlotRect }
   >();
   const inExpandedBox = new Set<string>();
+  const boxById = new Map(collapsed.boxes.map((b) => [b.id, b]));
+  /** Boxes that sit inside another box — they are placed by their parent, not at root. */
+  const nestedBoxIds = new Set(
+    collapsed.boxes.filter((b) => b.parentBoxId !== null).map((b) => b.id)
+  );
+  // Two passes, because depth is capped at 2 (decision #58): inner boxes hold
+  // only shapes, so laying them out first gives each one a finished rect for
+  // its parent to reserve space against. No recursion is possible or needed.
+  childBoxAt.clear();
   for (const box of collapsed.boxes) {
+    if (!nestedBoxIds.has(box.id)) continue;
+    childBoxAt.set(box.id, box.at);
     const local = layoutChildren(box, nodesById, overlapWarn, flags);
+    boxLocal.set(box.id, local);
+    for (const child of local.children) inExpandedBox.add(child.node.id);
+  }
+  /** An inner box's footprint in its parent's slot space: extent + frame. */
+  const childBoxRects = new Map<string, SlotRect>();
+  for (const box of collapsed.boxes) {
+    if (!nestedBoxIds.has(box.id)) continue;
+    const local = boxLocal.get(box.id)!;
+    childBoxRects.set(box.id, {
+      c: 0,
+      r: 0,
+      w: local.extent.w + 2 * padHsX,
+      h: local.extent.h + bandHs + padHsY,
+    });
+  }
+  for (const box of collapsed.boxes) {
+    if (nestedBoxIds.has(box.id)) continue;
+    const local = layoutChildren(
+      box,
+      nodesById,
+      overlapWarn,
+      flags,
+      childBoxRects
+    );
     boxLocal.set(box.id, local);
     for (const child of local.children) inExpandedBox.add(child.node.id);
   }
@@ -486,6 +590,8 @@ export function layoutSketch(
     rootUnits.push({ kind: 'virtual', box });
   }
   for (const box of collapsed.boxes) {
+    // A nested box is placed by its parent (decision #58), never at root.
+    if (nestedBoxIds.has(box.id)) continue;
     rootUnits.push({ kind: 'box', box });
   }
   // Placement order decides who keeps a contested slot under collision
@@ -709,6 +815,79 @@ export function layoutSketch(
         maxX = origin.x + SKETCH_FOOT_W;
         maxY = minY;
       }
+      // Inner boxes (decision #58, depth 2). Each was laid out in pass 1 and
+      // placed in this box's local slot space; emit its frame and its own
+      // children at the absolute origin, and grow this frame to contain it.
+      for (const inner of local.boxes) {
+        const innerBox = boxById.get(inner.boxId);
+        const innerLocal = boxLocal.get(inner.boxId);
+        if (!innerBox || !innerLocal) continue;
+        // The inner frame's top-left, in absolute px. `inner.c/r` is where its
+        // RECT starts, and the rect leads with the frame margins, so the
+        // content origin sits one pad in and one band down.
+        const innerRectOrigin = toPx(spot.c + inner.c, spot.r + inner.r);
+        const innerContentX =
+          innerRectOrigin.x +
+          SKETCH_GEOMETRY.boxPadPx -
+          innerLocal.extent.c * SKETCH_HALF_SLOT_X;
+        const innerContentY =
+          innerRectOrigin.y +
+          SKETCH_GEOMETRY.bandPx -
+          innerLocal.extent.r * SKETCH_HALF_SLOT_Y;
+        let iMinX = Infinity;
+        let iMinY = Infinity;
+        let iMaxX = -Infinity;
+        let iMaxY = -Infinity;
+        for (const gc of innerLocal.children) {
+          const gx = innerContentX + gc.c * SKETCH_HALF_SLOT_X;
+          const gy = innerContentY + gc.r * SKETCH_HALF_SLOT_Y;
+          nodes.push({
+            id: gc.node.id,
+            label: gc.node.label,
+            shape: gc.node.shape,
+            metadata: gc.node.metadata,
+            ...(gc.node.description && { description: gc.node.description }),
+            boxLabel: innerBox.label,
+            lineNumber: gc.node.lineNumber,
+            slot: { c: spot.c + inner.c, r: spot.r + inner.r },
+            x: gx,
+            y: gy,
+            w: SKETCH_FOOT_W,
+            h: SKETCH_FOOT_H,
+          });
+          iMinX = Math.min(iMinX, gx);
+          iMinY = Math.min(iMinY, gy);
+          iMaxX = Math.max(iMaxX, gx + SKETCH_FOOT_W);
+          iMaxY = Math.max(iMaxY, gy + SKETCH_FOOT_H);
+        }
+        if (iMinX === Infinity) {
+          // Empty inner box — the same band-height frame an empty top-level
+          // box gets, so "drag the last shape out" leaves something visible.
+          iMinX = innerContentX;
+          iMinY = innerContentY + SKETCH_GEOMETRY.bandPx;
+          iMaxX = innerContentX + SKETCH_FOOT_W;
+          iMaxY = iMinY;
+        }
+        const iFrame = {
+          x: iMinX - SKETCH_GEOMETRY.boxPadPx,
+          y: iMinY - SKETCH_GEOMETRY.bandPx,
+          w: iMaxX - iMinX + 2 * SKETCH_GEOMETRY.boxPadPx,
+          h: iMaxY - iMinY + SKETCH_GEOMETRY.bandPx + SKETCH_GEOMETRY.boxPadPx,
+        };
+        boxes.push({
+          id: innerBox.id,
+          label: innerBox.label,
+          metadata: innerBox.metadata,
+          lineNumber: innerBox.lineNumber,
+          ...iFrame,
+          bandH: SKETCH_GEOMETRY.bandPx,
+        });
+        // The outer frame must contain the inner one, frame and all.
+        minX = Math.min(minX, iFrame.x);
+        minY = Math.min(minY, iFrame.y);
+        maxX = Math.max(maxX, iFrame.x + iFrame.w);
+        maxY = Math.max(maxY, iFrame.y + iFrame.h);
+      }
       boxes.push({
         id: unit.box.id,
         label: unit.box.label,
@@ -830,9 +1009,18 @@ export function layoutSketch(
     height = Math.max(height, b.y + b.h);
   }
 
+  // Outer frames must paint BEFORE the frames they contain, or a parent's fill
+  // covers its own children (decision #58). Inner boxes are emitted first
+  // because a parent's extent depends on them, so re-order here: a stable
+  // partition, top-level frames ahead of nested ones.
+  const orderedBoxes = [
+    ...boxes.filter((b) => !nestedBoxIds.has(b.id)),
+    ...boxes.filter((b) => nestedBoxIds.has(b.id)),
+  ];
+
   return {
     nodes,
-    boxes,
+    boxes: orderedBoxes,
     edges: collapsed.edges,
     width,
     height,
