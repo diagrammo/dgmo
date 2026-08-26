@@ -35,7 +35,7 @@ import type { ParsedGraph } from './types';
 import type { LayoutResult, LayoutNode } from './layout';
 import { parseState } from './state-parser';
 import { layoutGraph } from './layout';
-import { edgeSplinePath } from './edge-spline';
+import { edgeSplinePath, selfLoopArcPath } from './edge-spline';
 import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
@@ -439,7 +439,12 @@ export function renderState(
     const markerId = 'st-arrow';
 
     if (edge.points.length >= 2) {
-      const pathD = edgeSplinePath(edge.points);
+      // A self-loop keeps dagre's placement but not its waypoints — see
+      // `selfLoopArcPath`.
+      const pathD =
+        edge.source === edge.target
+          ? (selfLoopArcPath(edge.points) ?? edgeSplinePath(edge.points))
+          : edgeSplinePath(edge.points);
       if (pathD) {
         edgeG
           .append('path')

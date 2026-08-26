@@ -191,6 +191,16 @@ describe('renderState', () => {
       expect(layout.height).toBeGreaterThan(lowest);
     });
 
+    // #501: dagre emits a flat-bottomed trapezoid and `curveBasis` rounds
+    // its corners without removing them. One cubic, no interior corners.
+    it('draws the self-loop as a single smooth cubic', () => {
+      const container = renderToContainer('Live -save-> Live');
+      const d = container.querySelector('path.st-edge')!.getAttribute('d')!;
+      expect(d.match(/C/g)).toHaveLength(1);
+      expect(d).not.toContain('L');
+      document.body.removeChild(container);
+    });
+
     it('draws the self-loop below the node, not off its right edge', () => {
       const container = renderToContainer('Live -save-> Live');
       const d = container.querySelector('path.st-edge')!.getAttribute('d')!;
