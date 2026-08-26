@@ -1378,6 +1378,7 @@ function stripNodeDecorations(name: string): string {
 
 export function extractSymbols(docText: string): DiagramSymbols {
   const entities: string[] = [];
+  const seen = new Set<string>();
   let inMetadata = true;
   let inTagGroup = false;
   for (const rawLine of docText.split('\n')) {
@@ -1420,7 +1421,10 @@ export function extractSymbols(docText: string): DiagramSymbols {
       const m = COMPONENT_RE.exec(line);
       if (m) {
         const name = stripNodeDecorations((m[1] ?? m[2] ?? '').trim());
-        if (name && !entities.includes(name)) entities.push(name);
+        if (name && !seen.has(name)) {
+          seen.add(name);
+          entities.push(name);
+        }
       }
     } else {
       // Indented: skip tag values, connections, and properties; extract grouped components
@@ -1445,7 +1449,10 @@ export function extractSymbols(docText: string): DiagramSymbols {
       const m = COMPONENT_RE.exec(line);
       if (m) {
         const name = stripNodeDecorations((m[1] ?? m[2] ?? '').trim());
-        if (name && !entities.includes(name)) entities.push(name);
+        if (name && !seen.has(name)) {
+          seen.add(name);
+          entities.push(name);
+        }
       }
     }
   }

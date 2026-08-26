@@ -747,6 +747,7 @@ const NODE_ID_RE = /^([a-zA-Z_][\w-]*)[\s([</{]/;
  */
 export function extractSymbols(docText: string): DiagramSymbols {
   const entities: string[] = [];
+  const seen = new Set<string>();
   let inMetadata = true;
   for (const rawLine of docText.split('\n')) {
     const line = rawLine.trim();
@@ -759,7 +760,10 @@ export function extractSymbols(docText: string): DiagramSymbols {
     inMetadata = false;
     if (line.length === 0 || /^\s/.test(rawLine)) continue;
     const m = NODE_ID_RE.exec(line);
-    if (m && !entities.includes(m[1]!)) entities.push(m[1]!);
+    if (m && !seen.has(m[1]!)) {
+      seen.add(m[1]!);
+      entities.push(m[1]!);
+    }
   }
   return { kind: 'flowchart', entities };
 }

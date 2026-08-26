@@ -21,6 +21,29 @@ import { extractSymbols as extractInfraSymbols } from '../src/infra/parser';
 import { extractSymbols as extractClassSymbols } from '../src/class/parser';
 import { ALL_CHART_TYPES } from '../src/utils/parsing';
 import { chartTypes } from '../src/chart-types';
+import { fastestOf, growthExponent } from './perf-helpers';
+
+function extractorCost(
+  size: number,
+  makeDocument: (size: number) => string,
+  extract: (document: string) => unknown
+): number {
+  const document = makeDocument(size);
+  return fastestOf(5, () => extract(document));
+}
+
+function expectSubquadraticGrowth(
+  makeDocument: (size: number) => string,
+  extract: (document: string) => unknown
+): void {
+  const small = 300;
+  const large = 3000;
+  const exponent = growthExponent(
+    { n: small, ms: extractorCost(small, makeDocument, extract) },
+    { n: large, ms: extractorCost(large, makeDocument, extract) }
+  );
+  expect(exponent).toBeLessThan(1.7);
+}
 
 // ============================================================
 // extractDiagramSymbols dispatch
@@ -112,32 +135,18 @@ describe('ER extractSymbols', () => {
     expect(result.entities).toEqual([]);
   });
 
-  // Six assertions in this file bound how long a symbol extractor takes. They all
-  // read `toBeLessThan(500)` (or 50 for the registry lookup) rather than the 10 and
-  // 1 they were written with, and the reason is worth stating once here.
-  //
-  // The suite runs under `vitest run --coverage`. v8 instrumentation costs far more
-  // than these budgets allowed for — on 2026-08-06 the infra one measured 18ms on a
-  // machine that was also building something else, and rejected a push for a change
-  // that touched nothing but workflow YAML. Uninstrumented, the same call is
-  // sub-millisecond.
-  //
-  // What these assertions are actually for is catching an accidental O(n²) rewrite
-  // of an extractor, which puts a 100-item document orders of magnitude past the
-  // bound rather than a few milliseconds past it. Set where only that trips them.
-  it('handles a 100-entity fixture without going quadratic', () => {
-    const lines = ['er'];
-    for (let i = 0; i < 100; i++) {
-      lines.push(`Table${i}`);
-      lines.push(`  id: int [pk]`);
-      lines.push(`  name: varchar`);
-    }
-    const doc = lines.join('\n');
-    const start = Date.now();
-    const result = extractErSymbols(doc);
-    const elapsed = Date.now() - start;
-    expect(result.entities).toHaveLength(100);
-    expect(elapsed).toBeLessThan(500);
+  it('grows subquadratically with entity count', () => {
+    const makeDocument = (size: number) => {
+      const lines = ['er'];
+      for (let i = 0; i < size; i++) {
+        lines.push(`Table${i}`);
+        lines.push(`  id: int [pk]`);
+        lines.push(`  name: varchar`);
+      }
+      return lines.join('\n');
+    };
+    expect(extractErSymbols(makeDocument(100)).entities).toHaveLength(100);
+    expectSubquadraticGrowth(makeDocument, extractErSymbols);
   });
 
   it('cross-validation: entity list matches TABLE_DECL_RE recognition', () => {
@@ -191,18 +200,16 @@ describe('Flowchart extractSymbols', () => {
     expect(extractFlowchartSymbols(doc).entities).not.toContain('title');
   });
 
-  // Budget: see the note on the ER extractor's timing test above.
-  it('handles a 100-node fixture without going quadratic', () => {
-    const lines = ['flowchart'];
-    for (let i = 0; i < 100; i++) {
-      lines.push(`Node${i}[Node ${i}]`);
-    }
-    const doc = lines.join('\n');
-    const start = Date.now();
-    const result = extractFlowchartSymbols(doc);
-    const elapsed = Date.now() - start;
-    expect(result.entities).toHaveLength(100);
-    expect(elapsed).toBeLessThan(500);
+  it('grows subquadratically with node count', () => {
+    const makeDocument = (size: number) =>
+      [
+        'flowchart',
+        ...Array.from({ length: size }, (_, i) => `Node${i}[Node ${i}]`),
+      ].join('\n');
+    expect(extractFlowchartSymbols(makeDocument(100)).entities).toHaveLength(
+      100
+    );
+    expectSubquadraticGrowth(makeDocument, extractFlowchartSymbols);
   });
 });
 
@@ -277,20 +284,14 @@ describe('Infra extractSymbols', () => {
     expect(extractInfraSymbols('infra\n').entities).toEqual([]);
   });
 
-  it('handles a 100-node fixture without going quadratic', () => {
-    const lines = ['infra'];
-    for (let i = 0; i < 100; i++) {
-      lines.push(`Service${i}`);
-      lines.push(`  rps: 100`);
-    }
-    const doc = lines.join('\n');
-    const start = Date.now();
-    const result = extractInfraSymbols(doc);
-    const elapsed = Date.now() - start;
-    expect(result.entities).toHaveLength(100);
-    // Budget: see the note on the ER extractor's timing test above. This is the
-    // one that actually failed.
-    expect(elapsed).toBeLessThan(500);
+  it('grows subquadratically with component count', () => {
+    const makeDocument = (size: number) =>
+      [
+        'infra',
+        ...Array.from({ length: size }, (_, i) => `Service${i}\n  rps: 100`),
+      ].join('\n');
+    expect(extractInfraSymbols(makeDocument(100)).entities).toHaveLength(100);
+    expectSubquadraticGrowth(makeDocument, extractInfraSymbols);
   });
 });
 
@@ -343,19 +344,14 @@ describe('Class extractSymbols', () => {
     expect(extractClassSymbols('class\n').entities).toEqual([]);
   });
 
-  // Budget: see the note on the ER extractor's timing test above.
-  it('handles a 100-class fixture without going quadratic', () => {
-    const lines = ['class'];
-    for (let i = 0; i < 100; i++) {
-      lines.push(`Class${i}`);
-      lines.push(`  + id: int`);
-    }
-    const doc = lines.join('\n');
-    const start = Date.now();
-    const result = extractClassSymbols(doc);
-    const elapsed = Date.now() - start;
-    expect(result.entities).toHaveLength(100);
-    expect(elapsed).toBeLessThan(500);
+  it('grows subquadratically with class count', () => {
+    const makeDocument = (size: number) =>
+      [
+        'class',
+        ...Array.from({ length: size }, (_, i) => `Class${i}\n  + id: int`),
+      ].join('\n');
+    expect(extractClassSymbols(makeDocument(100)).entities).toHaveLength(100);
+    expectSubquadraticGrowth(makeDocument, extractClassSymbols);
   });
 });
 
@@ -603,15 +599,11 @@ describe('COMPLETION_REGISTRY', () => {
     expect(infraSpec.directives['direction-tb']).toBeDefined();
   });
 
-  // Budget: see the note on the ER extractor's timing test above. A registry
-  // lookup is a Map hit, so anything that turns it into a scan blows past 50.
   it('registry lookup for every chart type stays a lookup, not a scan', () => {
-    const start = performance.now();
+    expect(COMPLETION_REGISTRY).toBeInstanceOf(Map);
     for (const ct of CHART_TYPES) {
-      COMPLETION_REGISTRY.get(ct.name);
+      expect(COMPLETION_REGISTRY.get(ct.name)).toBeDefined();
     }
-    const elapsed = performance.now() - start;
-    expect(elapsed).toBeLessThan(50);
   });
 });
 
@@ -698,18 +690,16 @@ describe('Sequence extractSymbols', () => {
     expect(result!.entities).toEqual([]);
   });
 
-  // Budget: see the note on the ER extractor's timing test above.
-  it('handles a 100-participant fixture without going quadratic', () => {
-    const lines = ['sequence'];
-    for (let i = 0; i < 100; i++) {
-      lines.push(`P${i} -> P${i + 1}`);
-    }
-    const doc = lines.join('\n');
-    const start = Date.now();
-    const result = extractDiagramSymbols(doc);
-    const elapsed = Date.now() - start;
-    expect(result!.entities.length).toBeGreaterThanOrEqual(100);
-    expect(elapsed).toBeLessThan(500);
+  it('grows subquadratically with participant count', () => {
+    const makeDocument = (size: number) =>
+      [
+        'sequence',
+        ...Array.from({ length: size }, (_, i) => `P${i} -> P${i + 1}`),
+      ].join('\n');
+    expect(
+      extractDiagramSymbols(makeDocument(100))!.entities.length
+    ).toBeGreaterThanOrEqual(100);
+    expectSubquadraticGrowth(makeDocument, extractDiagramSymbols);
   });
 });
 

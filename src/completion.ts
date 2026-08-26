@@ -119,6 +119,7 @@ const SEQ_STRUCTURAL_RE = /^(if|else|loop|parallel|end)\b/i;
 function extractSequenceSymbols(docText: string): DiagramSymbols {
   const lines = docText.split('\n');
   const entities: string[] = [];
+  const seen = new Set<string>();
   let pastFirstLine = false;
 
   for (const line of lines) {
@@ -145,8 +146,14 @@ function extractSequenceSymbols(docText: string): DiagramSymbols {
     if (arrowMatch) {
       const src = (arrowMatch[1] ?? arrowMatch[2] ?? '').trim();
       const dst = (arrowMatch[4] ?? arrowMatch[5] ?? '').trim();
-      if (src && !entities.includes(src)) entities.push(src);
-      if (dst && !entities.includes(dst)) entities.push(dst);
+      if (src && !seen.has(src)) {
+        seen.add(src);
+        entities.push(src);
+      }
+      if (dst && !seen.has(dst)) {
+        seen.add(dst);
+        entities.push(dst);
+      }
       continue;
     }
 
@@ -154,7 +161,10 @@ function extractSequenceSymbols(docText: string): DiagramSymbols {
     const isAMatch = trimmed.match(SEQ_IS_A_RE);
     if (isAMatch) {
       const name = (isAMatch[1] ?? isAMatch[2] ?? '').trim();
-      if (name && !entities.includes(name)) entities.push(name);
+      if (name && !seen.has(name)) {
+        seen.add(name);
+        entities.push(name);
+      }
       continue;
     }
   }

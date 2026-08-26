@@ -614,6 +614,7 @@ import type { DiagramSymbols } from '../completion-types';
  */
 export function extractSymbols(docText: string): DiagramSymbols {
   const entities: string[] = [];
+  const seen = new Set<string>();
   let inMetadata = true;
   for (const rawLine of docText.split('\n')) {
     const line = rawLine.trim();
@@ -633,7 +634,10 @@ export function extractSymbols(docText: string): DiagramSymbols {
     const m = CLASS_DECL_RE.exec(line);
     if (m) {
       const name = (m[2] ?? m[3] ?? '').trim();
-      if (name && !entities.includes(name)) entities.push(name);
+      if (name && !seen.has(name)) {
+        seen.add(name);
+        entities.push(name);
+      }
     }
   }
   return {

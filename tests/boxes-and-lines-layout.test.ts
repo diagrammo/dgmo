@@ -120,7 +120,7 @@ describe('boxes-and-lines layout', () => {
     expect(layout.edges).toHaveLength(3);
   });
 
-  it('finishes in reasonable time on a medium graph', async () => {
+  it('finishes laying out a medium graph', async () => {
     // 10 nodes, 12 edges, 2 groups
     const src = `boxes-and-lines
 [G1]
@@ -144,30 +144,9 @@ H -> E
 A -> E
 D -> H`;
     const parsed = parseBoxesAndLines(src);
-    await layoutBoxesAndLines(parsed); // warm up the dynamic import + dagre init
-    const t0 = performance.now();
     const layout = await layoutBoxesAndLines(parsed);
-    const elapsed = performance.now() - t0;
     expect(layout.nodes.length).toBeGreaterThan(0);
-    // Budget: the placement-search engine runs a multi-seed search (steady-state
-    // ~250-320ms here; up to ~950ms on hard graphs). Generous bound so it stays a
-    // "doesn't hang" guard, not a flake under contended CI.
-    //
-    // 2000 was not generous enough, and the way it failed is worth knowing: the
-    // suite runs under `vitest run --coverage`, and v8 instrumentation alone puts
-    // this well past 2000ms on a machine that is also building something else —
-    // measured at 3088ms on 2026-08-06, while the same test passed at ~300ms when
-    // run alone. Three pushes in a row were rejected by the pre-push hook for a
-    // layout change that did not exist. The bound is what catches a hang; it was
-    // never meant to certify a number, so it is set where only a hang trips it.
-    expect(elapsed).toBeLessThan(8000);
-    // 🔴 The per-test timeout has to sit ABOVE the budget, or vitest kills the
-    // test before its own assertion can decide. It did not: the bound went to
-    // 8000 while vitest's default stayed 5000, so from then on the guard could
-    // only ever fail — a contended machine tripped the harness at 5000ms and
-    // reported a timeout rather than the measured number the comment above is
-    // about. Seen again 2026-08-10, rejecting three pushes for a sequence-only
-    // change. Whatever the budget becomes, this stays larger than it.
+    expect(layout.edges.length).toBeGreaterThan(0);
   }, 20000);
 
   // Regression: group-incident edges used to crash dagre ("Cannot set
