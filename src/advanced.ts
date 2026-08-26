@@ -285,6 +285,7 @@ export { collapseBoxesAndLines } from './boxes-and-lines/collapse';
 // layout, renderer, AND the slot-geometry constants through this entrypoint
 // (one drawing code path, decision 21; constants never redefined, Task 5).
 export { parseSketch } from './sketch/parser';
+export { emitSketch, canonicalSketch, sameSketch } from './sketch/emit';
 export type {
   ParsedSketch,
   SketchNode,
