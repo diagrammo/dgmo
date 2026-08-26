@@ -586,6 +586,22 @@ describe('layout — direct trailing colors & ramp hue (§1.5, §24B.3)', () => 
   });
 });
 
+describe('layout — a quoted multi-word tag group is a fill group (#492)', () => {
+  // The parser files tag values under the DOM-safe slug (`trust-zone`), so a
+  // lookup keyed on `name.toLowerCase()` ("trust zone") never matched and the
+  // group was treated as connector-only: neighbour land kept its full colorize
+  // dress while the identical single-word diagram muted it.
+  const dress = (name: string, alias: string): string =>
+    lay(
+      `map\ntag ${name} as ${alias}\n  Core blue\n  Edge green\n` +
+        `California ${alias}: Core\nOregon ${alias}: Edge`
+    ).regions.find((x) => x.id === 'MX')!.fill;
+
+  it('mutes the neighbour land exactly as a single-word group does', () => {
+    expect(dress('"Trust Zone"', 'tz')).toBe(dress('Zone', 'z'));
+  });
+});
+
 describe('layout — an unspecified element takes the tag default (#489)', () => {
   it('a POI naming no value takes the group default, not orange', () => {
     const r = lay(

@@ -1426,9 +1426,16 @@ export function layoutMap(
   // or a POI. A group used solely on connector lines (§24B.6) colours edges,
   // never the basemap — so it must not drive the region/active-tag dress or
   // suppress colorize.
+  //
+  // Keyed with `tagAttrKey`, NOT `name.toLowerCase()` — the parser files tag
+  // values under the DOM-safe slug, so a quoted multi-word group (`tag "Trust
+  // Zone"`) is stored as `trust-zone` and a lowercased lookup for `trust zone`
+  // never matched. That left the group out of this set, so the neighbour land
+  // kept its full colorize dress while the identical single-word diagram muted
+  // it (#492).
   const fillGroupNames = new Set<string>();
   for (const g of resolved.tagGroups) {
-    const k = g.name.toLowerCase();
+    const k = tagAttrKey(g.name);
     if (
       resolved.regions.some((r) => r.tags[k]) ||
       resolved.pois.some((p) => p.tags[k])
