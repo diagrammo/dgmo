@@ -183,9 +183,90 @@ function rectsOverlap(a: SlotRect, b: SlotRect): boolean {
   );
 }
 
-function collidesAny(rect: SlotRect, occupied: readonly SlotRect[]): boolean {
-  for (const o of occupied) if (rectsOverlap(rect, o)) return true;
-  return false;
+/**
+ * The rects placed so far, indexed so that a collision test does not walk all
+ * of them.
+ *
+ * Placement asks "does this hit anything already down?" once per unit, and
+ * `nearestFree` asks again for every candidate slot while it spirals outward.
+ * Against a flat array that made laying out n shapes O(n²), and it showed:
+ * 0.41 / 1.67 / 9.17 / 58.51 ms at 50 / 100 / 200 / 400 shapes — more than
+ * quadrupling per doubling (#484). The guard that should have caught it was a
+ * 1500ms ceiling on a 27ms operation, so it never did (#440).
+ *
+ * A uniform grid on the slot lattice fixes it: everything sits on a SKETCH_SEP
+ * pitch, so a shape footprint touches at most four cells and a query reads only
+ * the cells its own rect covers.
+ *
+ * Box frames are the exception — one can span the whole diagram, and indexing
+ * it by area would cost more than scanning it — so a rect covering more than
+ * OVERSIZED_CELLS cells goes in a list that is still walked linearly. A
+ * diagram has a handful of boxes and hundreds of shapes, which is the whole
+ * reason the split pays.
+ *
+ * The cell range is deliberately a SUPERSET of the cells a rect truly touches
+ * (a rect ending exactly on a boundary claims the next cell too). An extra
+ * bucket read costs nothing; a missed one would be a silent overlap.
+ */
+const CELL = SKETCH_SEP;
+const OVERSIZED_CELLS = 64;
+
+function cellRange(rect: SlotRect): [number, number, number, number] {
+  return [
+    Math.floor(rect.c / CELL),
+    Math.floor(rect.r / CELL),
+    Math.floor((rect.c + rect.w) / CELL),
+    Math.floor((rect.r + rect.h) / CELL),
+  ];
+}
+
+function cellSpan(range: [number, number, number, number]): number {
+  return (range[2] - range[0] + 1) * (range[3] - range[1] + 1);
+}
+
+class Occupancy {
+  private readonly grid = new Map<string, SlotRect[]>();
+  private readonly oversized: SlotRect[] = [];
+  /** Every rect, in insertion order — the extent and flow-origin maths want it. */
+  readonly rects: SlotRect[] = [];
+
+  add(rect: SlotRect): void {
+    this.rects.push(rect);
+    const range = cellRange(rect);
+    if (cellSpan(range) > OVERSIZED_CELLS) {
+      this.oversized.push(rect);
+      return;
+    }
+    const [c0, r0, c1, r1] = range;
+    for (let c = c0; c <= c1; c++) {
+      for (let r = r0; r <= r1; r++) {
+        const key = `${c},${r}`;
+        const bucket = this.grid.get(key);
+        if (bucket) bucket.push(rect);
+        else this.grid.set(key, [rect]);
+      }
+    }
+  }
+
+  hits(rect: SlotRect): boolean {
+    for (const o of this.oversized) if (rectsOverlap(rect, o)) return true;
+    const range = cellRange(rect);
+    if (cellSpan(range) > OVERSIZED_CELLS) {
+      // A query this wide would read most of the grid anyway; scanning the
+      // flat list is cheaper and there are only ever a few such queries.
+      for (const o of this.rects) if (rectsOverlap(rect, o)) return true;
+      return false;
+    }
+    const [c0, r0, c1, r1] = range;
+    for (let c = c0; c <= c1; c++) {
+      for (let r = r0; r <= r1; r++) {
+        const bucket = this.grid.get(`${c},${r}`);
+        if (!bucket) continue;
+        for (const o of bucket) if (rectsOverlap(rect, o)) return true;
+      }
+    }
+    return false;
+  }
 }
 
 /**
@@ -194,9 +275,9 @@ function collidesAny(rect: SlotRect, occupied: readonly SlotRect[]): boolean {
  */
 function nearestFree(
   base: SlotRect,
-  occupied: readonly SlotRect[]
+  occupied: Occupancy
 ): { c: number; r: number } {
-  if (!collidesAny(base, occupied)) return { c: base.c, r: base.r };
+  if (!occupied.hits(base)) return { c: base.c, r: base.r };
   for (let d = 1; d <= 200; d++) {
     const candidates: Array<{ c: number; r: number }> = [];
     for (let dc = -d; dc <= d; dc++) {
@@ -211,7 +292,7 @@ function nearestFree(
       return costA - costB || a.r - b.r || a.c - b.c;
     });
     for (const cand of candidates) {
-      if (!collidesAny({ ...base, c: cand.c, r: cand.r }, occupied)) {
+      if (!occupied.hits({ ...base, c: cand.c, r: cand.r })) {
         return cand;
       }
     }
@@ -233,7 +314,7 @@ function layoutChildren(
   warn: (line: number, label: string) => void,
   flags: ResolvedAutoFlags
 ): { children: LocalChild[]; extent: SlotRect } {
-  const occupied: SlotRect[] = [];
+  const occupied = new Occupancy();
   const children: LocalChild[] = [];
   const pending: SketchNode[] = [];
 
@@ -251,7 +332,7 @@ function layoutChildren(
     if (spot.c !== node.at.c || spot.r !== node.at.r) {
       warn(node.lineNumber, node.label);
     }
-    occupied.push(unitRect(spot.c, spot.r));
+    occupied.add(unitRect(spot.c, spot.r));
     children.push({ node, c: spot.c, r: spot.r });
   }
 
@@ -263,22 +344,22 @@ function layoutChildren(
 
   // Flow-place un-positioned children in rows below the positioned content.
   let flowRow =
-    occupied.length > 0
-      ? Math.max(...occupied.map((o) => o.r)) + SKETCH_SEP
+    occupied.rects.length > 0
+      ? Math.max(...occupied.rects.map((o) => o.r)) + SKETCH_SEP
       : 0;
   let flowCol = 0;
   const wrapAt = Math.max(
     SKETCH_SEP * 3,
-    occupied.length > 0
-      ? Math.max(...occupied.map((o) => o.c)) + SKETCH_SEP
+    occupied.rects.length > 0
+      ? Math.max(...occupied.rects.map((o) => o.c)) + SKETCH_SEP
       : SKETCH_SEP * 3
   );
   for (const node of pending) {
     let placed = false;
     while (!placed) {
       const rect = unitRect(flowCol, flowRow);
-      if (!collidesAny(rect, occupied)) {
-        occupied.push(rect);
+      if (!occupied.hits(rect)) {
+        occupied.add(rect);
         children.push({ node, c: flowCol, r: flowRow });
         placed = true;
       }
@@ -291,13 +372,13 @@ function layoutChildren(
   }
 
   let extent: SlotRect;
-  if (occupied.length === 0) {
+  if (occupied.rects.length === 0) {
     extent = { c: 0, r: 0, w: SKETCH_SEP, h: SKETCH_SEP };
   } else {
-    const cMin = Math.min(...occupied.map((o) => o.c));
-    const rMin = Math.min(...occupied.map((o) => o.r));
-    const cMax = Math.max(...occupied.map((o) => o.c + o.w));
-    const rMax = Math.max(...occupied.map((o) => o.r + o.h));
+    const cMin = Math.min(...occupied.rects.map((o) => o.c));
+    const rMin = Math.min(...occupied.rects.map((o) => o.r));
+    const cMax = Math.max(...occupied.rects.map((o) => o.c + o.w));
+    const rMax = Math.max(...occupied.rects.map((o) => o.r + o.h));
     extent = { c: cMin, r: rMin, w: cMax - cMin, h: rMax - rMin };
   }
   return { children, extent };
@@ -452,7 +533,7 @@ export function layoutSketch(
     return unitRect(c, r);
   };
 
-  const occupied: SlotRect[] = [];
+  const occupied = new Occupancy();
   const placedAt = new Map<RootUnit, { c: number; r: number }>();
   const pending: RootUnit[] = [];
 
@@ -474,11 +555,7 @@ export function layoutSketch(
     // on another and it parts" behavior), and only FLOW-placed roots (no `at:`)
     // are auto-arranged below. A collapsed box still reserves its would-be
     // frame footprint (fold/unfold moves nothing) via rectFor.
-    if (
-      flags.resolveOverlap &&
-      unit.kind === 'shape' &&
-      collidesAny(base, occupied)
-    ) {
+    if (flags.resolveOverlap && unit.kind === 'shape' && occupied.hits(base)) {
       const freed = nearestFree(base, occupied);
       spot = {
         c: at.c + (freed.c - base.c),
@@ -486,14 +563,14 @@ export function layoutSketch(
       };
       overlapWarn(unit.node.lineNumber, unit.node.label);
     }
-    occupied.push(rectFor(unit, spot.c, spot.r));
+    occupied.add(rectFor(unit, spot.c, spot.r));
     placedAt.set(unit, spot);
   }
 
   if (!flags.flowPlaceUnpositioned) {
     // No auto-flow: park coord-less roots at the origin.
     for (const unit of pending) {
-      occupied.push(rectFor(unit, 0, 0));
+      occupied.add(rectFor(unit, 0, 0));
       placedAt.set(unit, { c: 0, r: 0 });
     }
     pending.length = 0;
@@ -501,22 +578,22 @@ export function layoutSketch(
 
   // Flow-place the un-positioned roots below all placed content.
   let flowRow =
-    occupied.length > 0
-      ? Math.ceil(Math.max(...occupied.map((o) => o.r + o.h)))
+    occupied.rects.length > 0
+      ? Math.ceil(Math.max(...occupied.rects.map((o) => o.r + o.h)))
       : 0;
   let flowCol = 0;
   const wrapAt = Math.max(
     SKETCH_SEP * 4,
-    occupied.length > 0
-      ? Math.ceil(Math.max(...occupied.map((o) => o.c + o.w)))
+    occupied.rects.length > 0
+      ? Math.ceil(Math.max(...occupied.rects.map((o) => o.c + o.w)))
       : SKETCH_SEP * 4
   );
   for (const unit of pending) {
     let placed = false;
     while (!placed) {
       const rect = rectFor(unit, flowCol, flowRow);
-      if (!collidesAny(rect, occupied)) {
-        occupied.push(rect);
+      if (!occupied.hits(rect)) {
+        occupied.add(rect);
         placedAt.set(unit, { c: flowCol, r: flowRow });
         placed = true;
       }
