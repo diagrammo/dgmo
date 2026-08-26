@@ -4285,7 +4285,7 @@ poi Austin red                      # direct marker color (trailing token, §1.5
 ```
 
 - **Coordinates are positional** — two leading signed numbers (lat then lon); cities never start with a number.
-- `size:` scales marker area (use `poi-size <label>` for the legend key). A trailing color (`poi Austin red`) sets the marker fill directly — winning over a tag color and the default orange. POI properties: `label`, `size`, `style`, applied tag alias, `as`, `clock`. No `icon` in v1.
+- `size:` scales marker area (use `poi-size <label>` for the legend key). A trailing color (`poi Austin red`) sets the marker fill directly — winning over a tag color and over the orange fallback. A POI that names no value for a tag group other POIs use takes that group's default value (the entry marked `default`, else the first) and is colored as that category — the same assumption a region makes. Orange is the fill only where there is no such group; a group used solely on connector lines never colors a marker. POI properties: `label`, `size`, `style`, applied tag alias, `as`, `clock`. No `icon` in v1.
 - Coord-positioned or relabeled POIs take `as <alias>` for route/edge references; named POIs are referenced by name.
 
 ### Local-time cards (`clock`)

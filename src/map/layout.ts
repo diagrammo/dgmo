@@ -6,6 +6,7 @@
 // escalation. The SVG emission is renderer.ts (it only draws what we compute).
 // See spec section 24B.3-.7/.11 + the tech-spec Adversarial Review Resolutions AR1-AR9.
 import { tagAttrKey } from '../utils/tag-groups';
+import type { TagGroup } from '../utils/tag-groups';
 import {
   geoPath,
   geoNaturalEarth1,
@@ -1601,6 +1602,46 @@ export function layoutMap(
     return mix(rampHue, rampBase, pct);
   };
 
+  /** The groups whose default value is ASSUMED onto an element of this kind:
+   *  those carrying a default AND actually used by at least one element of that
+   *  kind. Same discipline as `fillGroupNames` above and for the same reason — a
+   *  group that only ever lands on connector lines (§24B.6) describes legs, so
+   *  assuming its default onto ports would paint `map-tagged-legs`'s four
+   *  harbours as "Sail". Keyed with `tagAttrKey`, the key the parser files tag
+   *  values under. */
+  const defaultGroupsFor = (
+    used: (key: string) => boolean
+  ): readonly TagGroup[] =>
+    resolved.tagGroups.filter(
+      (g) => g.defaultValue && used(tagAttrKey(g.name))
+    );
+  const poiDefaultGroups = defaultGroupsFor((k) =>
+    resolved.pois.some((p) => p.tags[k])
+  );
+  const regionDefaultGroups = defaultGroupsFor((k) =>
+    resolved.regions.some((r) => r.tags[k])
+  );
+
+  /** The tag values an element effectively carries: what the author wrote, plus
+   *  the default of every in-play group it left unspecified. An element naming
+   *  no value for a group IS that group's default value (the whole point of
+   *  `default` / the first entry) — `tagFill` already paints on that assumption,
+   *  so the `data-tag-*` attributes must agree with it. They did not: an
+   *  unstamped mark is dimmed by a legend hover on the very entry whose colour it
+   *  is wearing (#489). */
+  const effectiveTags = (
+    tags: Readonly<Record<string, string>>,
+    groups: readonly TagGroup[]
+  ): Readonly<Record<string, string>> => {
+    let out: Record<string, string> | null = null;
+    for (const group of groups) {
+      const key = tagAttrKey(group.name);
+      if (tags[key]) continue;
+      (out ??= { ...tags })[key] = group.defaultValue!;
+    }
+    return out ?? tags;
+  };
+
   /** Resolve a tag value (name) -> tinted hex via a declared group, or null. */
   const tagFill = (
     tags: Readonly<Record<string, string>>,
@@ -2267,9 +2308,11 @@ export function layoutMap(
       let label: string | undefined;
       let lineNumber = -1;
       let layer: MapLayoutRegion['layer'] = 'base';
+      let tags: Readonly<Record<string, string>> = {};
       if (isThisLayer) {
         // Fill by the ACTIVE colouring dimension (score ramp or tag group).
         fill = regionFill(r);
+        tags = effectiveTags(r.tags, regionDefaultGroups);
         lineNumber = r.lineNumber;
         layer = layerKind;
         label = r.name;
@@ -2289,7 +2332,7 @@ export function layoutMap(
         ...(label !== undefined && { label }),
         ...(hasCentroid && { labelX: geo.cx!, labelY: geo.cy! }),
         ...(isThisLayer && r.value !== undefined && { value: r.value }),
-        ...(isThisLayer && Object.keys(r.tags).length > 0 && { tags: r.tags }),
+        ...(Object.keys(tags).length > 0 && { tags }),
       });
     }
   };
@@ -2564,27 +2607,45 @@ export function layoutMap(
   };
 
   // POI fill precedence (§24B.5): a direct §1.5 trailing color wins, then the
-  // FIRST declared tag group for which the POI has a value (AR4), then orange.
+  // FIRST declared tag group for which the POI has a value (AR4), then the FIRST
+  // in-play group's default value (#489 — a POI naming no value IS that group's
+  // default, the same assumption regions have always been painted under, see
+  // `tagFill`), then orange.
+  //
+  // The two walks are deliberately separate rather than one walk over
+  // `effectiveTags`: an EXPLICIT value in a later group must still beat an
+  // earlier group's default, or a POI tagged only in the second group would be
+  // painted by the first group's default and lose its own colour entirely.
   const poiFill = (p: ResolvedPoi): { fill: string; stroke: string } => {
     const directHex = p.color ? resolveColor(p.color, palette) : null;
     if (directHex)
       return { fill: directHex, stroke: mix(directHex, palette.text, 18) };
+    const paint = (hex: string): { fill: string; stroke: string } => ({
+      fill: hex,
+      stroke: mix(hex, palette.text, 18),
+    });
+    const entryColor = (
+      group: (typeof resolved.tagGroups)[number],
+      val: string | undefined
+    ): string | undefined =>
+      val
+        ? group.entries.find((e) => e.value.toLowerCase() === val.toLowerCase())
+            ?.color // already hex (parser-resolved)
+        : undefined;
     for (const group of resolved.tagGroups) {
-      const val = p.tags[tagAttrKey(group.name)];
-      if (!val) continue;
-      const entry = group.entries.find(
-        (e) => e.value.toLowerCase() === val.toLowerCase()
-      );
-      const hex = entry?.color; // already hex (parser-resolved)
-      if (hex) return { fill: hex, stroke: mix(hex, palette.text, 18) };
+      const hex = entryColor(group, p.tags[tagAttrKey(group.name)]);
+      if (hex) return paint(hex);
     }
-    // Untagged markers default to orange — a warm hue that contrasts with BOTH
-    // the green land and the blue water/lakes/rivers. `palette.accent` is a
-    // blue-ish tone in some palettes (e.g. nord) and vanished against the ocean.
-    return {
-      fill: palette.colors.orange,
-      stroke: mix(palette.colors.orange, palette.text, 18),
-    };
+    for (const group of poiDefaultGroups) {
+      if (p.tags[tagAttrKey(group.name)]) continue;
+      const hex = entryColor(group, group.defaultValue);
+      if (hex) return paint(hex);
+    }
+    // Markers on a map with no tag group to fall back to default to orange — a
+    // warm hue that contrasts with BOTH the green land and the blue
+    // water/lakes/rivers. `palette.accent` is a blue-ish tone in some palettes
+    // (e.g. nord) and vanished against the ocean.
+    return paint(palette.colors.orange);
   };
 
   // Connector colour (§24B.6): a tag on the edge/leg LINE colours the line. Walk
@@ -2623,6 +2684,7 @@ export function layoutMap(
     clusterId?: string
   ): void => {
     const { fill, stroke } = poiFill(e.p);
+    const poiTags = effectiveTags(e.p.tags, poiDefaultGroups);
     const r = radiusFor(e.p);
     poiScreen.set(e.p.id, { cx, cy, r });
     const num = routeNumberById.get(e.p.id);
@@ -2638,7 +2700,7 @@ export function layoutMap(
       implicit: !!e.p.implicit,
       isOrigin: originIds.has(e.p.id),
       ...(num !== undefined && { routeNumber: num }),
-      ...(Object.keys(e.p.tags).length > 0 && { tags: e.p.tags }),
+      ...(Object.keys(poiTags).length > 0 && { tags: poiTags }),
       ...(clusterId !== undefined && { clusterId }),
     });
   };

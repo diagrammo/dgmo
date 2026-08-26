@@ -586,6 +586,77 @@ describe('layout — direct trailing colors & ramp hue (§1.5, §24B.3)', () => 
   });
 });
 
+describe('layout — an unspecified element takes the tag default (#489)', () => {
+  it('a POI naming no value takes the group default, not orange', () => {
+    const r = lay(
+      'map\ntag M as m\n  Office blue\n  Depot green\npoi Osaka m: Depot\npoi Tokyo'
+    );
+    const tokyo = r.pois.find((p) => p.id === 'tokyo')!;
+    expect(tokyo.fill).toBe(P.colors.blue);
+    expect(tokyo.fill).not.toBe(P.colors.orange);
+  });
+  it('the entry marked `default` wins over the first entry', () => {
+    const r = lay(
+      'map\ntag M as m\n  Office blue\n  Depot green default\npoi Osaka m: Office\npoi Tokyo'
+    );
+    expect(r.pois.find((p) => p.id === 'tokyo')!.fill).toBe(P.colors.green);
+  });
+  it('an explicit value in a LATER group beats an earlier group default', () => {
+    // Without the two separate walks this POI would paint `Office` blue — the
+    // first group's default — and lose the colour it was actually tagged with.
+    const r = lay(
+      'map\ntag M as m\n  Office blue\ntag Status as s\n  Down red\n' +
+        'poi Osaka m: Office\npoi Tokyo s: Down'
+    );
+    expect(r.pois.find((p) => p.id === 'tokyo')!.fill).toBe(P.colors.red);
+  });
+  it('a group no POI uses is NOT assumed onto POIs (leg-only facet)', () => {
+    // `map-tagged-legs` tags the LEGS; assuming `Sail` onto every harbour would
+    // paint four ports as a kind of voyage.
+    const r = lay(
+      'map\ntag Leg as l\n  Sail blue\n  March green\n' +
+        'poi 20.05 -72.82 as tor\npoi 23.13 -82.38 as hav\ntor ~> hav l: Sail'
+    );
+    expect(r.pois.find((p) => p.id === 'tor')!.fill).toBe(P.colors.orange);
+    expect(r.pois.find((p) => p.id === 'tor')!.tags).toBeUndefined();
+  });
+  it('no tag group declared → the orange marker default survives', () => {
+    const r = lay('map\npoi Tokyo');
+    expect(r.pois[0]!.fill).toBe(P.colors.orange);
+  });
+  it('a trailing color still wins over the group default', () => {
+    const r = lay(
+      'map\ntag M as m\n  Office blue\npoi Osaka m: Office\npoi Tokyo red'
+    );
+    expect(r.pois.find((p) => p.id === 'tokyo')!.fill).toBe(P.colors.red);
+  });
+  it('the default value is emitted as a tag, so a legend hover matches it', () => {
+    // The marker is painted `Office` blue; without the tag the app's legend-entry
+    // hover would dim the very markers wearing that entry's colour.
+    const r = lay(
+      'map\ntag M as m\n  Office blue\n  Depot green\npoi Osaka m: Depot\npoi Tokyo'
+    );
+    expect(r.pois.find((p) => p.id === 'tokyo')!.tags).toEqual({ m: 'Office' });
+  });
+  it('a region left unspecified carries the default tag too', () => {
+    // Regions have always been PAINTED from the default (`tagFill`); the tag
+    // itself was missing, so the legend hover dimmed them.
+    const r = lay(
+      'map\ntag M as m\n  Office blue\nOregon m: Office\nCalifornia'
+    );
+    const ca = r.regions.find((x) => x.id === 'US-CA')!;
+    expect(ca.tags).toEqual({ m: 'Office' });
+  });
+  it('an explicit tag is never overwritten by the default', () => {
+    const r = lay(
+      'map\ntag M as m\n  Office blue\n  Depot green\npoi Osaka m: Office\npoi Tokyo m: Depot'
+    );
+    const tokyo = r.pois.find((p) => p.id === 'tokyo')!;
+    expect(tokyo.tags).toEqual({ m: 'Depot' });
+    expect(tokyo.fill).toBe(P.colors.green);
+  });
+});
+
 describe('layout — uniform subtle basemap dress (subject water + land)', () => {
   // Subject water + land wear the SAME faded blue/green dress regardless of data
   // activity or the muted/natural flags — only neighbour land changes (below).
