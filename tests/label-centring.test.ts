@@ -114,11 +114,11 @@ const ALLOWED = new Map<string, string>([
       'hand-tune aligning the glyph with the name beside it (2 call sites)',
   ],
   [
-    'src/sketch/renderer.ts::EDGE_LABEL_FONT_SIZE / 2 + 4',
+    'src/sketch/renderer.ts::sEdgeLabelFontSize / 2 + 4',
     'half-height expanding an edge label into the autofit extents',
   ],
   [
-    'src/sketch/renderer.ts::EDGE_LABEL_FONT_SIZE / 2 + 3',
+    'src/sketch/renderer.ts::sEdgeLabelFontSize / 2 + 3',
     'half-height for an edge label collision rect in the declutter pass',
   ],
 ]);

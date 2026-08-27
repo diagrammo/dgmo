@@ -30,6 +30,7 @@ import {
   resolveTagColor,
   tagAttrKey,
 } from '../utils/tag-groups';
+import { ScaleContext } from '../utils/scaling';
 import { measureText, wrapTextToWidth } from '../utils/text-measure';
 import {
   CARD_RADIUS,
@@ -103,9 +104,33 @@ interface NodeColors {
   text: string;
 }
 
+/** The visual constants this renderer routes through its `ScaleContext`,
+ *  threaded into the drawing helpers below so each number has exactly ONE
+ *  answer — the scaled one — rather than a scaled local here and the raw
+ *  module constant inside the helper. */
+interface SketchScaled {
+  nodeStrokeWidth: number;
+  cardRadius: number;
+  containerRadius: number;
+  cardHeaderH: number;
+  collapseBarHeight: number;
+  cardLabelMax: number;
+  cardLabelMin: number;
+  cardMetaFont: number;
+  cardTitleMax: number;
+  bandLabelFontSize: number;
+  noteFontSize: number;
+}
+
 // ── Sticky-note body (the one non-card shape) ───────────────
 
-function drawNoteBody(g: Sel, w: number, h: number, colors: NodeColors): void {
+function drawNoteBody(
+  g: Sel,
+  w: number,
+  h: number,
+  colors: NodeColors,
+  strokeWidth: number
+): void {
   const f = 14;
   g.append('path')
     .attr(
@@ -114,7 +139,7 @@ function drawNoteBody(g: Sel, w: number, h: number, colors: NodeColors): void {
     )
     .attr('fill', colors.fill)
     .attr('stroke', colors.stroke)
-    .attr('stroke-width', NODE_STROKE_WIDTH);
+    .attr('stroke-width', strokeWidth);
   g.append('path')
     .attr('d', `M${w - f} 0 v${f} h${f}`)
     .attr('fill', 'none')
@@ -192,8 +217,8 @@ const CARD_TITLE_MAX = SKETCH_VISUALS.nodeLabelFontSize;
 function fitWrapped(
   label: string,
   maxWidth: number,
-  maxFont: number = CARD_LABEL_MAX,
-  minFont: number = CARD_LABEL_MIN,
+  maxFont: number,
+  minFont: number,
   maxLines: number = 2
 ): { lines: string[]; fontSize: number } {
   // Every caller draws these lines bold — the group band at 800, the two card
@@ -236,6 +261,37 @@ export function renderSketch(
   // Hide the descriptions when the source directive OR the shelf/view-state
   // toggle asks — the name then takes the whole card.
   const hideDesc = hideDescriptions || parsed.options.noDescriptions;
+
+  const sctx = ScaleContext.identity();
+
+  const sTitleFontSize = sctx.text(TITLE_FONT_SIZE);
+  const sEdgeLabelFontSize = sctx.text(EDGE_LABEL_FONT_SIZE);
+  const sBandLabelFontSize = sctx.text(BAND_LABEL_FONT_SIZE);
+  const sNoteFontSize = sctx.text(NOTE_FONT_SIZE);
+  const sCardLabelMax = sctx.text(CARD_LABEL_MAX);
+  const sCardLabelMin = sctx.text(CARD_LABEL_MIN);
+  const sCardMetaFont = sctx.text(CARD_META_FONT);
+  const sCardTitleMax = sctx.text(CARD_TITLE_MAX);
+  const sNodeStrokeWidth = sctx.structural(NODE_STROKE_WIDTH);
+  const sEdgeStrokeWidth = sctx.structural(EDGE_STROKE_WIDTH);
+  const sCardRadius = sctx.structural(CARD_RADIUS);
+  const sContainerRadius = sctx.structural(CONTAINER_RADIUS);
+  const sCardHeaderH = sctx.structural(CARD_HEADER_H);
+  const sCollapseBarHeight = sctx.structural(COLLAPSE_BAR_HEIGHT);
+
+  const scaled: SketchScaled = {
+    nodeStrokeWidth: sNodeStrokeWidth,
+    cardRadius: sCardRadius,
+    containerRadius: sContainerRadius,
+    cardHeaderH: sCardHeaderH,
+    collapseBarHeight: sCollapseBarHeight,
+    cardLabelMax: sCardLabelMax,
+    cardLabelMin: sCardLabelMin,
+    cardMetaFont: sCardMetaFont,
+    cardTitleMax: sCardTitleMax,
+    bandLabelFontSize: sBandLabelFontSize,
+    noteFontSize: sNoteFontSize,
+  };
 
   // 🔴 The colour model lives in `./colors` so the app's live canvas can share
   // it rather than invent one — which it had, and which is why a container bled
@@ -283,8 +339,8 @@ export function renderSketch(
     }
     const label = layout.edges[i]?.label;
     if (label) {
-      const hw = measureText(label, EDGE_LABEL_FONT_SIZE) / 2 + 6;
-      const hh = EDGE_LABEL_FONT_SIZE / 2 + 4;
+      const hw = measureText(label, sEdgeLabelFontSize) / 2 + 6;
+      const hh = sEdgeLabelFontSize / 2 + 4;
       minX = Math.min(minX, g.mid.x - hw);
       maxX = Math.max(maxX, g.mid.x + hw);
       minY = Math.min(minY, g.mid.y - hh);
@@ -339,7 +395,7 @@ export function renderSketch(
     titleBandHeight: titleOffset,
     legendReserve: legendHeight,
     titleBaselineY: TITLE_Y,
-    titleFontSize: TITLE_FONT_SIZE,
+    titleFontSize: sTitleFontSize,
   });
   const contentTop =
     titleOffset +
@@ -418,7 +474,7 @@ export function renderSketch(
       .attr('x', header.titleX)
       .attr('y', TITLE_Y)
       .attr('text-anchor', header.titleAnchor)
-      .attr('font-size', TITLE_FONT_SIZE)
+      .attr('font-size', sTitleFontSize)
       .attr('font-weight', 700)
       .attr('fill', palette.text)
       .text(parsed.title!);
@@ -463,7 +519,7 @@ export function renderSketch(
   // ── Boxes (frames) ──────────────────────────────────────────
   const boxLayer = root.append('g').attr('class', 'sk-boxes');
   for (const box of layout.boxes) {
-    drawBoxFrame(boxLayer, box, colorsFor(box.metadata, true), palette);
+    drawBoxFrame(boxLayer, box, colorsFor(box.metadata, true), palette, scaled);
   }
 
   // ── Edges ───────────────────────────────────────────────────
@@ -502,7 +558,7 @@ export function renderSketch(
       .attr('d', geo.dRender ?? d)
       .attr('fill', 'none')
       .attr('stroke', color)
-      .attr('stroke-width', EDGE_STROKE_WIDTH);
+      .attr('stroke-width', sEdgeStrokeWidth);
     if (edge.dashed) path.attr('stroke-dasharray', DASH);
     if (edge.heads === 'one' || edge.heads === 'both') {
       path.attr('marker-end', `url(#sk-arrow-${hex})`);
@@ -541,9 +597,8 @@ export function renderSketch(
   // nearest parameter clear of all three — it stays on its line while stepping
   // off the ambiguous spot.
   {
-    const labelW = (t: string): number =>
-      t.length * EDGE_LABEL_FONT_SIZE * 0.56;
-    const halfH = EDGE_LABEL_FONT_SIZE / 2 + 3;
+    const labelW = (t: string): number => t.length * sEdgeLabelFontSize * 0.56;
+    const halfH = sEdgeLabelFontSize / 2 + 3;
     const GAP = 4; // breathing room around each label box
     const shapeRects: Rect[] = [
       ...layout.nodes.map((n) => ({ x: n.x, y: n.y, w: n.w, h: n.h })),
@@ -643,7 +698,8 @@ export function renderSketch(
       colorsFor(node.metadata),
       palette,
       isDark,
-      !hideDesc && (splitCardIds?.includes(node.id) ?? false)
+      !hideDesc && (splitCardIds?.includes(node.id) ?? false),
+      scaled
     );
   }
 
@@ -663,7 +719,7 @@ export function renderSketch(
       .attr('y', l.y)
       .attr('text-anchor', 'middle')
       .attr('dominant-baseline', 'central')
-      .attr('font-size', EDGE_LABEL_FONT_SIZE)
+      .attr('font-size', sEdgeLabelFontSize)
       .attr('fill', l.color)
       .attr('stroke', palette.bg)
       .attr('stroke-width', 3)
@@ -690,7 +746,8 @@ function drawBoxFrame(
   layer: Sel,
   box: SketchLayoutBox,
   colors: NodeColors,
-  palette: PaletteColors
+  palette: PaletteColors,
+  s: SketchScaled
 ): void {
   const g = layer
     .append('g')
@@ -703,15 +760,15 @@ function drawBoxFrame(
     .attr('y', box.y)
     .attr('width', box.w)
     .attr('height', box.h)
-    .attr('rx', CONTAINER_RADIUS)
+    .attr('rx', s.containerRadius)
     .attr('fill', colors.fill)
     .attr('fill-opacity', CONTAINER_FILL_OPACITY)
     .attr('stroke', colors.stroke)
     .attr('stroke-opacity', CONTAINER_STROKE_OPACITY)
-    .attr('stroke-width', NODE_STROKE_WIDTH);
+    .attr('stroke-width', s.nodeStrokeWidth);
   // Wrap the group name (up to 2 lines) so a long label stays legible in the
   // fixed top band instead of overflowing the box width.
-  const fit = fitWrapped(box.label, box.w - 16, BAND_LABEL_FONT_SIZE, 12, 2);
+  const fit = fitWrapped(box.label, box.w - 16, s.bandLabelFontSize, 12, 2);
   const lineH = fit.fontSize * 1.2;
   const bandMid = box.y + box.bandH / 2;
   const startY = bandMid - ((fit.lines.length - 1) * lineH) / 2;
@@ -736,7 +793,8 @@ function drawNode(
   colors: NodeColors,
   palette: PaletteColors,
   isDark: boolean,
-  splitCard: boolean
+  splitCard: boolean,
+  s: SketchScaled
 ): void {
   void isDark;
   const g = layer
@@ -754,14 +812,14 @@ function drawNode(
 
   if (node.shape === 'note') {
     // Sticky-style: folded-corner body, smaller left-aligned multiline text.
-    drawNoteBody(g, node.w, node.h, colors);
-    const lines = wrapTextToWidth(node.label, NOTE_FONT_SIZE, node.w - 34);
-    const lineHeight = NOTE_FONT_SIZE + 4;
+    drawNoteBody(g, node.w, node.h, colors, s.nodeStrokeWidth);
+    const lines = wrapTextToWidth(node.label, s.noteFontSize, node.w - 34);
+    const lineHeight = s.noteFontSize + 4;
     lines.slice(0, 5).forEach((line, i) => {
       g.append('text')
         .attr('x', 10)
         .attr('y', 20 + i * lineHeight)
-        .attr('font-size', NOTE_FONT_SIZE)
+        .attr('font-size', s.noteFontSize)
         .attr('fill', colors.text)
         .text(line);
     });
@@ -784,42 +842,42 @@ function drawNode(
       const fitH = fitWrapped(
         node.label,
         node.w - 24 - labelInset,
-        CARD_LABEL_MAX,
-        CARD_LABEL_MIN,
+        s.cardLabelMax,
+        s.cardLabelMin,
         1
       );
       renderNodeCard(g, {
         width: node.w,
         height: node.h,
-        rx: CARD_RADIUS,
+        rx: s.cardRadius,
         fill: colors.fill,
         stroke: colors.stroke,
-        strokeWidth: NODE_STROKE_WIDTH,
+        strokeWidth: s.nodeStrokeWidth,
         label: fitH.lines[0] ?? node.label,
         labelColor: colors.text,
         labelFontSize: fitH.fontSize,
-        headerHeight: CARD_HEADER_H,
+        headerHeight: s.cardHeaderH,
       });
       g.append('line')
         .attr('x1', 0)
-        .attr('y1', CARD_HEADER_H)
+        .attr('y1', s.cardHeaderH)
         .attr('x2', node.w)
-        .attr('y2', CARD_HEADER_H)
+        .attr('y2', s.cardHeaderH)
         .attr('stroke', ruleColor)
         .attr('stroke-opacity', 0.3)
         .attr('stroke-width', 1);
       if (node.description) {
         const inset = 12;
         const bodyGap = 8;
-        const lh = CARD_META_FONT + 4;
-        const avail = node.h - CARD_HEADER_H - bodyGap - 8;
+        const lh = s.cardMetaFont + 4;
+        const avail = node.h - s.cardHeaderH - bodyGap - 8;
         const body = g
           .append('g')
           .attr('class', 'sk-desc')
-          .attr('transform', `translate(${inset} ${CARD_HEADER_H + bodyGap})`);
+          .attr('transform', `translate(${inset} ${s.cardHeaderH + bodyGap})`);
         const block = drawMarkdownBlock(body, node.description, {
           width: node.w - inset * 2,
-          fontSize: CARD_META_FONT,
+          fontSize: s.cardMetaFont,
           lineHeight: lh,
           color: colors.text, // match the header label (contrast-aware in solid)
           linkColor: colors.text,
@@ -843,7 +901,7 @@ function drawNode(
         }
       }
       if (badge) {
-        drawTypeBadge(g, node.shape, colors.text, 10, (CARD_HEADER_H - 16) / 2);
+        drawTypeBadge(g, node.shape, colors.text, 10, (s.cardHeaderH - 16) / 2);
       }
       return;
     }
@@ -855,17 +913,17 @@ function drawNode(
     const fit = fitWrapped(
       node.label,
       node.w - 24 - labelInset,
-      CARD_TITLE_MAX,
-      CARD_LABEL_MIN,
+      s.cardTitleMax,
+      s.cardLabelMin,
       3
     );
     renderNodeCard(g, {
       width: node.w,
       height: node.h,
-      rx: CARD_RADIUS,
+      rx: s.cardRadius,
       fill: colors.fill,
       stroke: colors.stroke,
-      strokeWidth: NODE_STROKE_WIDTH,
+      strokeWidth: s.nodeStrokeWidth,
       label: fit.lines.join(' '),
       labelLines: fit.lines,
       labelColor: colors.text,
@@ -877,7 +935,7 @@ function drawNode(
       // would otherwise sink it to the vertical center).
       // colors.text (not stroke): in solid-fill the stroke IS the fill, so a
       // stroke-colored badge would vanish; colors.text stays contrast-aware.
-      drawTypeBadge(g, node.shape, colors.text, 10, (CARD_HEADER_H - 16) / 2);
+      drawTypeBadge(g, node.shape, colors.text, 10, (s.cardHeaderH - 16) / 2);
     }
   }
 
@@ -885,9 +943,9 @@ function drawNode(
     renderCollapseBar(g, {
       width: node.w,
       height: node.h,
-      barHeight: COLLAPSE_BAR_HEIGHT,
+      barHeight: s.collapseBarHeight,
       inset: 0,
-      rx: CARD_RADIUS,
+      rx: s.cardRadius,
       fill:
         colors.stroke === palette.textMuted ? palette.textMuted : colors.stroke,
       clipId: `sk-clip-${node.id.replace(/[^a-zA-Z0-9_-]/g, '')}-${node.lineNumber}`,
