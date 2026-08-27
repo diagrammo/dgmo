@@ -16,12 +16,6 @@
 import * as d3 from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
-import {
-  contrastText,
-  mix,
-  shapeFill,
-  themeBaseBg,
-} from '../palettes/color-utils';
 import { renderCollapseBar, renderNodeCard } from '../utils/card';
 import { drawMarkdownBlock } from './markdown-card';
 import type { LegendGroupData } from '../utils/legend-types';
@@ -38,6 +32,7 @@ import {
 } from '../utils/tag-groups';
 import { measureText, wrapTextToWidth } from '../utils/text-measure';
 import { CARD_RADIUS, CONTAINER_RADIUS } from '../utils/visual-conventions';
+import { sketchColors } from './colors';
 import { SKETCH_VISUALS } from './visuals';
 import type { ParsedSketch, SketchShapeKind } from './types';
 import type { SketchLayout, SketchLayoutBox, SketchLayoutNode } from './layout';
@@ -225,13 +220,10 @@ export function renderSketch(
   // toggle asks — the name then takes the whole card.
   const hideDesc = hideDescriptions || parsed.options.noDescriptions;
 
-  // Untagged shapes still read as filled cards, not empty outlines: a slight
-  // gray tint (muted mixed into the bg) — subtle on light, a touch lighter than
-  // the bg on dark.
-  const neutralFill =
-    parsed.options.fillMode === 'outline'
-      ? themeBaseBg(palette, isDark)
-      : mix(palette.textMuted, palette.bg, 12);
+  // 🔴 The colour model lives in `./colors` so the app's live canvas can share
+  // it rather than invent one — which it had, and which is why a container bled
+  // through its children there (#516). This closure stays only as the name the
+  // rest of this function already calls.
   const tagGroups = [...parsed.tagGroups];
   const activeName = resolveActiveTagGroup(
     tagGroups,
@@ -239,36 +231,13 @@ export function renderSketch(
     activeTagGroup
   );
   const activeKey = activeName === null ? null : tagAttrKey(activeName);
-
-  const colorsFor = (
-    metadata: Record<string, string>,
-    isContainer = false
-  ): NodeColors => {
-    const tagged = activeKey !== null && metadata[activeKey] !== undefined;
-    const tagColor = tagged
-      ? resolveTagColor(metadata, tagGroups, activeName, isContainer)
-      : undefined;
-    if (!tagColor) {
-      return {
-        fill: neutralFill,
-        stroke: palette.textMuted,
-        text: palette.text,
-      };
-    }
-    const fill = shapeFill(palette, tagColor, isDark, {
-      mode: parsed.options.fillMode,
-    });
-    return {
-      fill,
-      stroke: tagColor,
-      // Label text takes the shape's own (tag) color — but for solid fills the
-      // tag color would vanish into the fill, so keep a contrast color there.
-      text:
-        parsed.options.fillMode === 'solid'
-          ? contrastText(fill, palette.textOnFillLight, palette.textOnFillDark)
-          : tagColor,
-    };
-  };
+  const colorsFor = sketchColors({
+    palette,
+    isDark,
+    tagGroups,
+    activeTagGroup,
+    fillMode: parsed.options.fillMode,
+  });
 
   // ── Frame: title + legend reservation ──────────────────────
   const showTitle = !!parsed.title;

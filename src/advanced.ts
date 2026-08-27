@@ -862,6 +862,19 @@ export type { LegendGroupData } from './utils/legend-types';
 // The sketch chart type's visual weights, so a SECOND drawer of the same
 // chart cannot pick different ones (diagrammo/diagrammo#502).
 export { SKETCH_VISUALS } from './sketch/visuals';
+// 🔴 The sketch colour model, exported for the app's live canvas — the one
+// drawing surface here that is not a renderer. It had invented its own (the raw
+// tag colour at 25% alpha for a shape, 12% for a container) against these
+// opaque `shapeFill` blends, so a tinted container bled through every child
+// (#516). Cite it; never restate it.
+export {
+  CONTAINER_FILL_OPACITY,
+  CONTAINER_STROKE_OPACITY,
+  sketchColors,
+  sketchNeutralFill,
+  type SketchFillMode,
+  type SketchNodeColors,
+} from './sketch/colors';
 // 🔴 The DIAGRAM typeface, and it is not the host's. A page's own font stack is
 // chrome; every renderer here writes this onto the SVG it emits so diagram text
 // resolves to the two-weight family whatever the host sets. Exported 2026-08-27
