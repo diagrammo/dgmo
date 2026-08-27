@@ -33,6 +33,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Installed dependency tree matches lockfile
+        run: pnpm check:install-lock
+
       # Named explicitly rather than `pnpm check:all`, whose superset pulls in
       # pnpm audit / publint / attw — those genuinely are flaky here.
       #
@@ -85,7 +88,7 @@ jobs:
       # downstream packages; strictness changes can leak as breaking
       # type changes if not caught here.
       - name: API surface diff
-        run: bash scripts/check-api.sh check
+        run: node --test scripts/check-api.test.mjs && bash scripts/check-api.sh check
 
       - name: Gallery snapshot
         run: pnpm gallery:snapshot

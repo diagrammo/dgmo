@@ -17,8 +17,16 @@
 set -e
 
 MODE="${1:-check}"
-BASELINE_DIR="api-baseline"
-DIST_DIR="dist"
+BASELINE_DIR="${API_BASELINE_DIR:-api-baseline}"
+DIST_DIR="${API_DIST_DIR:-dist}"
+
+# tsup's declaration bundler gives internal chunks content-hashed filenames.
+# The hash is not public API: consumers import the named entry point and tsup
+# follows these private specifiers. Compare stable logical chunk names while
+# preserving every imported/exported symbol and the rest of each declaration.
+normalize_chunk_hashes() {
+  sed -E "s#(from |import\\()(['\"]\\./[^'\"]+)-[A-Za-z0-9_-]{8}(\\.js['\"])#\\1\\2-HASH\\3#g" "$1"
+}
 
 # The public surface is the named subpath entries only. ESM code-splitting
 # (tsup `splitting: true` on index/block/advanced) also emits internal shared
@@ -69,7 +77,9 @@ case "$MODE" in
         DIFF_OUTPUT="${DIFF_OUTPUT}Only in $BASELINE_DIR: $f"$'\n'
       elif [ ! -f "$BASELINE_DIR/$f" ]; then
         DIFF_OUTPUT="${DIFF_OUTPUT}Only in $DIST_DIR: $f"$'\n'
-      elif ! diff -q "$BASELINE_DIR/$f" "$DIST_DIR/$f" >/dev/null 2>&1; then
+      elif ! diff -q \
+        <(normalize_chunk_hashes "$BASELINE_DIR/$f") \
+        <(normalize_chunk_hashes "$DIST_DIR/$f") >/dev/null 2>&1; then
         DIFF_OUTPUT="${DIFF_OUTPUT}Files $BASELINE_DIR/$f and $DIST_DIR/$f differ"$'\n'
       fi
     done

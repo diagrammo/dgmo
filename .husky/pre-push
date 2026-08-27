@@ -28,6 +28,9 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OB
 
 set -e
 
+echo "→ installed dependency tree"
+pnpm check:install-lock
+
 echo "→ hygiene"
 pnpm check:deadcode
 pnpm check:duplication
@@ -64,6 +67,7 @@ echo "→ bundle size"
 node scripts/check-bundle-size.cjs
 
 echo "→ public API surface"
+node --test scripts/check-api.test.mjs
 bash scripts/check-api.sh check
 
 echo "→ gallery snapshot"
