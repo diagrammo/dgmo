@@ -877,6 +877,7 @@ export {
   computeLegendLayout,
   controlsGroupCapsuleWidth,
   getLegendReservedHeight,
+  legendEntryWidth,
 } from './utils/legend-layout';
 export type {
   LegendConfig,

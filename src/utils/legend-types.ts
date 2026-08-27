@@ -109,6 +109,21 @@ export interface LegendConfig {
   titleWidth?: number;
   /** Extra width (px) reserved after the pill inside an active capsule (e.g. for eye icon addon). Entries start after this offset. */
   capsulePillAddonWidth?: number;
+  /**
+   * Extra width (px) reserved AFTER the last entry, still inside the active
+   * capsule. The counterpart of `capsulePillAddonWidth` at the other end of the
+   * row, and reserved during packing rather than added afterwards — so it never
+   * competes with an entry for the same pixels, and on a group that wraps it
+   * cannot be the thing pushed past `LEGEND_MAX_ENTRY_ROWS` and dropped.
+   *
+   * Added 2026-08-26 for the app's live sketch canvas, where the legend is the
+   * AUTHORING surface and `add a value` has to sit on the same rhythm as the
+   * values rather than beside the capsule (diagrammo/diagrammo#514). Nothing
+   * else sets it; omitted, the layout is byte-identical to before.
+   *
+   * Where it landed comes back as `LegendCapsuleLayout.trailingAddon`.
+   */
+  capsuleTrailingAddonWidth?: number;
   /** When true, groups with no entries are still rendered as collapsed pills. Default: false (empty groups hidden). */
   showEmptyGroups?: boolean;
   /** When true, INACTIVE sibling groups still render as collapsed pills next to
@@ -172,6 +187,9 @@ export interface LegendCapsuleLayout {
   moreCount?: number;
   /** X offset where addon content (e.g. eye icon) can be placed — after pill, before entries */
   addonX?: number;
+  /** Where `capsuleTrailingAddonWidth` came to rest — after the last entry, on
+   *  whatever row that entry ended on. Capsule-relative, like `entries`. */
+  trailingAddon?: { x: number; y: number; width: number };
   /** Continuous-ramp swatch (choropleth groups) drawn in place of entry dots:
    *  `minText` | gradient rect | `maxText`, all vertically centred. */
   gradient?: {

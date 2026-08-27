@@ -143,7 +143,14 @@ function entriesWidth(
   return w;
 }
 
-function entryWidth(value: string): number {
+/**
+ * The full advance width of one legend entry — dot, gap, label and trail.
+ *
+ * Public because a caller sizing `capsuleTrailingAddonWidth` has to reserve
+ * room for something that will be DRAWN as an entry, and measuring it any other
+ * way is a second implementation of `measureLegendText` plus four constants.
+ */
+export function legendEntryWidth(value: string): number {
   return (
     LEGEND_DOT_R * 2 +
     LEGEND_ENTRY_DOT_GAP +
@@ -151,6 +158,8 @@ function entryWidth(value: string): number {
     LEGEND_ENTRY_TRAIL
   );
 }
+
+const entryWidth = legendEntryWidth;
 
 function controlWidth(control: LegendControl): number {
   let w = CONTROL_PILL_PAD;
@@ -172,7 +181,8 @@ function capsuleWidth(
   name: string,
   entries: ReadonlyArray<{ readonly value: string }>,
   containerWidth: number,
-  addonWidth = 0
+  addonWidth = 0,
+  trailWidth = 0
 ): {
   width: number;
   entryRows: number;
@@ -188,7 +198,7 @@ function capsuleWidth(
   // associativity in intermediate sums can leave maxCapsuleW short by
   // ~1e-14 (same family of bug fixed in 069a327 for the per-entry pass).
   const ew = entriesWidth(entries);
-  const singleRowW = baseW + ew;
+  const singleRowW = baseW + ew + trailWidth;
   if (singleRowW <= maxCapsuleW + 0.5) {
     return {
       width: singleRowW,
@@ -201,7 +211,15 @@ function capsuleWidth(
   // Multi-row: compute how many entries fit per row
   // Right boundary leaves one LEGEND_CAPSULE_PAD for right padding;
   // left padding is already baked into the starting rowX.
-  const rowWidth = maxCapsuleW - LEGEND_CAPSULE_PAD;
+  //
+  // 🔴 The trailing addon is reserved on EVERY row, not just the last. Which
+  // row is last is not known until the packing is done, and an addon added
+  // afterwards would either overhang the capsule or sit on top of an entry.
+  // The cost is that rows wrap marginally earlier; the benefit is that the
+  // addon can never be the thing pushed past LEGEND_MAX_ENTRY_ROWS — which for
+  // an authoring affordance means the control that adds a value cannot be
+  // dropped by having too many values.
+  const rowWidth = maxCapsuleW - LEGEND_CAPSULE_PAD - trailWidth;
   let row = 1;
   let rowX = LEGEND_CAPSULE_PAD + pw + 4 + addonWidth;
   let visible = 0;
@@ -458,7 +476,8 @@ export function computeLegendLayout(
       activeCapsule = buildCapsuleLayout(
         g,
         groupAvailW,
-        config.capsulePillAddonWidth ?? 0
+        config.capsulePillAddonWidth ?? 0,
+        config.capsuleTrailingAddonWidth ?? 0
       );
     } else if (!activeGroupName || config.showInactivePills) {
       const pw = pillWidth(g.name);
@@ -510,7 +529,8 @@ export function computeLegendLayout(
 function buildCapsuleLayout(
   group: LegendGroupData,
   containerWidth: number,
-  addonWidth = 0
+  addonWidth = 0,
+  trailWidth = 0
 ): LegendCapsuleLayout {
   if (group.gradient) return buildGradientCapsuleLayout(group, group.gradient);
   const pw = pillWidth(group.name);
@@ -518,7 +538,8 @@ function buildCapsuleLayout(
     group.name,
     group.entries,
     containerWidth,
-    addonWidth
+    addonWidth,
+    trailWidth
   );
 
   const pill: LegendPillLayout = {
@@ -536,7 +557,7 @@ function buildCapsuleLayout(
   let rowX = ex;
   // Right boundary: one LEGEND_CAPSULE_PAD for right padding.
   // Left padding is already in ex/rowX starting position.
-  const maxRowW = containerWidth - LEGEND_CAPSULE_PAD;
+  const maxRowW = containerWidth - LEGEND_CAPSULE_PAD - trailWidth;
   let currentRow = 0;
 
   for (let i = 0; i < info.visibleEntries; i++) {
@@ -602,6 +623,11 @@ function buildCapsuleLayout(
     entries,
     ...(info.moreCount > 0 && { moreCount: info.moreCount }),
     ...(addonWidth > 0 && { addonX: LEGEND_CAPSULE_PAD + pw + 4 }),
+    // After the last entry, on whatever row that entry ended on — `rowX` and
+    // `ey` are exactly the cursor the loop left behind.
+    ...(trailWidth > 0 && {
+      trailingAddon: { x: rowX, y: ey, width: trailWidth },
+    }),
   };
 }
 
@@ -765,10 +791,11 @@ export function getMaxLegendReservedHeight(
   const groups = config.groups;
   if (groups.length === 0) return LEGEND_HEIGHT;
   const addon = config.capsulePillAddonWidth ?? 0;
+  const trail = config.capsuleTrailingAddonWidth ?? 0;
   let max = LEGEND_HEIGHT;
   for (const g of groups) {
     if (g.entries.length === 0) continue;
-    const info = capsuleWidth(g.name, g.entries, containerWidth, addon);
+    const info = capsuleWidth(g.name, g.entries, containerWidth, addon, trail);
     const h = info.entryRows * LEGEND_HEIGHT;
     if (h > max) max = h;
   }
@@ -801,7 +828,8 @@ export function getLegendExtent(
     const c = layout.activeCapsule;
     track(c.x, c.y, c.width, c.height);
   }
-  for (const pill of layout.pills) track(pill.x, pill.y, pill.width, pill.height);
+  for (const pill of layout.pills)
+    track(pill.x, pill.y, pill.width, pill.height);
   return {
     width: right - (left === Infinity ? 0 : left),
     height: bottom || LEGEND_HEIGHT,
