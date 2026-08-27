@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { getPalette } from '../src/palettes';
 import { contrastText } from '../src/palettes/color-utils';
-import { sketchColors } from '../src/sketch/colors';
+import { sketchColors, sketchContainerFill } from '../src/sketch/colors';
 import { SKETCH_VISUALS } from '../src/sketch/visuals';
 import {
   CONTAINER_LABEL_FONT_SIZE,
@@ -46,6 +46,33 @@ describe('sketch takes the shared visual conventions', () => {
       SKETCH_VISUALS.nodeLabelFontSize
     );
     expect(SKETCH_VISUALS.bandLabelOpacity).toBe(1);
+  });
+
+  it('never tints a container by its tag', () => {
+    // 🔴 A group used to be a wash of its own tag colour at 0.4, with everything
+    // inside it swimming in that wash. `boxes-and-lines` never tints a group and
+    // this is its expression — a sketch beside one of the same content has to
+    // read as the same product.
+    const colours = sketchColors({
+      palette: P,
+      isDark: false,
+      tagGroups: [
+        {
+          name: 'Crew',
+          entries: [{ value: 'Deck', lineNumber: 1 }],
+          lineNumber: 1,
+        } as never,
+      ],
+      activeTagGroup: 'Crew',
+      fillMode: undefined,
+    });
+    const tagged = colours({ crew: 'Deck' }, true);
+    const bare = colours({}, true);
+    expect(tagged.fill).toBe(bare.fill);
+    expect(tagged.fill).toBe(sketchContainerFill(P, false));
+    expect(tagged.stroke).toBe(P.textMuted);
+    // A NODE still carries its tag — only the group stopped.
+    expect(colours({ crew: 'Deck' }).fill).not.toBe(bare.fill);
   });
 
   it('derives a label colour from its fill, like every other chart type', () => {

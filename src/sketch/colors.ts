@@ -47,9 +47,32 @@ export type SketchFillMode = 'solid' | 'outline' | undefined;
  * 0.12 against this 0.4, which is most of why a group read as a wash rather
  * than a frame.
  */
-export const CONTAINER_FILL_OPACITY = 0.4;
-/** Likewise for a container's outline, which is softer than a node's. */
-export const CONTAINER_STROKE_OPACITY = 0.7;
+export const CONTAINER_FILL_OPACITY = 1;
+/** A container's outline, which is far softer than a node's — `boxes-and-lines`
+ *  gives the same object exactly this. */
+export const CONTAINER_STROKE_OPACITY = 0.35;
+/** And its stroke width: a plain 1, not a node's. */
+export const CONTAINER_STROKE_WIDTH = 1;
+
+/**
+ * A container's surface. 🔴 NEUTRAL, and never the group's tag colour.
+ *
+ * Sketch used to paint a whole group in its own tag at 0.4 — so a tagged group
+ * was a wash of colour with everything inside it swimming in that wash, and a
+ * sketch put beside a `boxes-and-lines` chart of the same content did not read
+ * as the same product (reported 2026-08-27). `boxes-and-lines` never tints a
+ * group; this is its expression, verbatim.
+ *
+ * ⚠️ What that costs: a container's OWN tag no longer shows in its fill. It is
+ * still in the source, still cascades to the children inside it, and still
+ * colours them — what is gone is the group-level wash.
+ */
+export function sketchContainerFill(
+  palette: PaletteColors,
+  _isDark: boolean
+): string {
+  return mix(palette.surface, palette.bg, 40);
+}
 
 /**
  * Untagged shapes still read as filled cards, not empty outlines: a slight gray
@@ -95,6 +118,14 @@ export function sketchColors(opts: {
   const activeKey = activeName === null ? null : tagAttrKey(activeName);
 
   return (metadata, isContainer = false) => {
+    // 🔴 A container is neutral whatever it carries — see `sketchContainerFill`.
+    if (isContainer) {
+      return {
+        fill: sketchContainerFill(palette, isDark),
+        stroke: palette.textMuted,
+        text: palette.text,
+      };
+    }
     const tagged = activeKey !== null && metadata[activeKey] !== undefined;
     const tagColor = tagged
       ? resolveTagColor(metadata, tagGroups, activeName, isContainer)

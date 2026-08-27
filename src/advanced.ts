@@ -870,7 +870,9 @@ export { SKETCH_VISUALS } from './sketch/visuals';
 export {
   CONTAINER_FILL_OPACITY,
   CONTAINER_STROKE_OPACITY,
+  CONTAINER_STROKE_WIDTH,
   sketchColors,
+  sketchContainerFill,
   sketchNeutralFill,
   type SketchFillMode,
   type SketchNodeColors,

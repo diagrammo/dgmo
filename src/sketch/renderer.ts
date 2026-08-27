@@ -40,6 +40,7 @@ import {
 import {
   CONTAINER_FILL_OPACITY,
   CONTAINER_STROKE_OPACITY,
+  CONTAINER_STROKE_WIDTH,
   sketchColors,
 } from './colors';
 import { SKETCH_VISUALS } from './visuals';
@@ -765,7 +766,9 @@ function drawBoxFrame(
     .attr('fill-opacity', CONTAINER_FILL_OPACITY)
     .attr('stroke', colors.stroke)
     .attr('stroke-opacity', CONTAINER_STROKE_OPACITY)
-    .attr('stroke-width', s.nodeStrokeWidth);
+    // 🔴 A plain 1, not a node's stroke. `boxes-and-lines` gives a group box
+    // exactly this, and a group is a backdrop rather than a thing.
+    .attr('stroke-width', CONTAINER_STROKE_WIDTH);
   // Wrap the group name (up to 2 lines) so a long label stays legible in the
   // fixed top band instead of overflowing the box width.
   const fit = fitWrapped(box.label, box.w - 16, s.bandLabelFontSize, 12, 2);
