@@ -31,8 +31,16 @@ import {
   tagAttrKey,
 } from '../utils/tag-groups';
 import { measureText, wrapTextToWidth } from '../utils/text-measure';
-import { CARD_RADIUS, CONTAINER_RADIUS } from '../utils/visual-conventions';
-import { sketchColors } from './colors';
+import {
+  CARD_RADIUS,
+  COLLAPSE_BAR_HEIGHT as SHARED_COLLAPSE_BAR_HEIGHT,
+  CONTAINER_RADIUS,
+} from '../utils/visual-conventions';
+import {
+  CONTAINER_FILL_OPACITY,
+  CONTAINER_STROKE_OPACITY,
+  sketchColors,
+} from './colors';
 import { SKETCH_VISUALS } from './visuals';
 import type { ParsedSketch, SketchShapeKind } from './types';
 import type { SketchLayout, SketchLayoutBox, SketchLayoutNode } from './layout';
@@ -56,8 +64,12 @@ const ARROWHEAD_H = SKETCH_VISUALS.arrowheadH;
 const DASH = SKETCH_VISUALS.dash;
 const BAND_LABEL_FONT_SIZE = SKETCH_VISUALS.bandLabelFontSize;
 const BAND_LABEL_OPACITY = SKETCH_VISUALS.bandLabelOpacity;
+const BAND_LABEL_WEIGHT = SKETCH_VISUALS.bandLabelFontWeight;
 const NOTE_FONT_SIZE = 11;
-const COLLAPSE_BAR_HEIGHT = 4;
+// Shared. It was a bare 4 with no comment, against the conventions' 6 —
+// boxes-and-lines deviates here too, but records it in the shared file's own
+// list; sketch never did.
+const COLLAPSE_BAR_HEIGHT = SHARED_COLLAPSE_BAR_HEIGHT;
 const EDGE_LABEL_FONT_SIZE = SKETCH_VISUALS.edgeLabelFontSize;
 const CURVE_HANDLE_MIN = 24;
 const CURVE_HANDLE_MAX = 90;
@@ -160,12 +172,17 @@ function drawTypeBadge(
   }
 }
 
-const CARD_HEADER_H = 34;
-const CARD_LABEL_MAX = 15;
-const CARD_LABEL_MIN = 11;
-const CARD_META_FONT = 12;
-/** Header font ceiling when the name fills a card with no rows. */
-const CARD_TITLE_MAX = 30;
+// 🔴 All four from the shared conventions now, via `SKETCH_VISUALS`. They read
+// 34 / 15 / 12 and a 30px ceiling for a card with no rows — more than twice
+// what any other chart type prints — which is most of why a sketch did not look
+// like the rest of the product (2026-08-27).
+const CARD_HEADER_H = SKETCH_VISUALS.cardHeaderHeight;
+const CARD_LABEL_MAX = SKETCH_VISUALS.nodeLabelFontSize;
+const CARD_LABEL_MIN = SKETCH_VISUALS.nodeLabelFontSizeMin;
+const CARD_META_FONT = SKETCH_VISUALS.cardMetaFontSize;
+/** Header font ceiling when the name fills a card with no rows. Shared: a name
+ *  is a name, whether or not the card also carries rows. */
+const CARD_TITLE_MAX = SKETCH_VISUALS.nodeLabelFontSize;
 
 /** Largest font in [minFont, maxFont] whose word-wrap of `label` fits `maxWidth`
  *  in ≤ maxLines lines. Wraps (multi-line) before it shrinks, so a long label
@@ -688,9 +705,9 @@ function drawBoxFrame(
     .attr('height', box.h)
     .attr('rx', CONTAINER_RADIUS)
     .attr('fill', colors.fill)
-    .attr('fill-opacity', 0.4)
+    .attr('fill-opacity', CONTAINER_FILL_OPACITY)
     .attr('stroke', colors.stroke)
-    .attr('stroke-opacity', 0.7)
+    .attr('stroke-opacity', CONTAINER_STROKE_OPACITY)
     .attr('stroke-width', NODE_STROKE_WIDTH);
   // Wrap the group name (up to 2 lines) so a long label stays legible in the
   // fixed top band instead of overflowing the box width.
@@ -705,7 +722,7 @@ function drawBoxFrame(
       .attr('text-anchor', 'middle')
       .attr('dominant-baseline', 'central')
       .attr('font-size', fit.fontSize)
-      .attr('font-weight', 800)
+      .attr('font-weight', BAND_LABEL_WEIGHT)
       .attr('fill', palette.text)
       .attr('opacity', BAND_LABEL_OPACITY)
       // In-bounds by loop guard.

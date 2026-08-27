@@ -6,6 +6,7 @@ import { SKETCH_FOOT_H, SKETCH_HALF_SLOT_Y } from '../src/sketch/geometry';
 import { layoutSketch } from '../src/sketch/layout';
 import { parseSketch } from '../src/sketch/parser';
 import { renderSketch, sketchEdgeGeometry } from '../src/sketch/renderer';
+import { SKETCH_VISUALS } from '../src/sketch/visuals';
 
 const P = getPalette('nord').light;
 
@@ -220,8 +221,13 @@ describe('sketch renderer — colors', () => {
   it('untagged shapes render neutral gray (decision 26a)', () => {
     const svg = render('sketch\nLonely at: 0 0');
     const rect = svg.querySelector('.sk-node rect')!;
+    // The neutral FILL is the decision, and it is unchanged.
     expect(rect.getAttribute('fill')).toBe(mix(P.textMuted, P.bg, 12));
-    expect(rect.getAttribute('stroke')).toBe(P.textMuted);
+    // 🔴 The outline is not: it was `textMuted`, which at the shared stroke
+    // width made an untagged sketch card the most heavily outlined object in
+    // the product. Now the same softened text colour `boxes-and-lines` gives
+    // an untagged node.
+    expect(rect.getAttribute('stroke')).toBe(mix(P.text, P.bg, 40));
   });
 
   it('edges: colored only by their OWN tag; untagged lines stay neutral', () => {
@@ -710,14 +716,28 @@ describe('sketch renderer — collapse (AC 12 static state)', () => {
     expect(svg.textContent).not.toContain('Powder Store');
   });
 
-  it('box band label renders big/thick/faded', () => {
+  it('box band label is typeset like every other container label', () => {
+    // 🔴 It was 19 at weight 800 behind 0.55 opacity — bigger than a NODE's
+    // name and the only container label in the product that was faded. Cited,
+    // never restated, so this cannot drift back without `SKETCH_VISUALS`
+    // saying so.
     const svg = render(PIRATE);
     const band = [...svg.querySelectorAll('.sk-box text')].find(
       (t) => t.textContent === 'Below Decks'
     )!;
-    expect(band.getAttribute('font-size')).toBe('19');
-    expect(band.getAttribute('font-weight')).toBe('800');
-    expect(Number(band.getAttribute('opacity'))).toBeCloseTo(0.55);
+    expect(band.getAttribute('font-size')).toBe(
+      String(SKETCH_VISUALS.bandLabelFontSize)
+    );
+    expect(band.getAttribute('font-weight')).toBe(
+      String(SKETCH_VISUALS.bandLabelFontWeight)
+    );
+    expect(Number(band.getAttribute('opacity'))).toBeCloseTo(
+      SKETCH_VISUALS.bandLabelOpacity
+    );
+    // And no bigger than the name of a card inside it.
+    expect(SKETCH_VISUALS.bandLabelFontSize).toBeLessThanOrEqual(
+      SKETCH_VISUALS.nodeLabelFontSize
+    );
   });
 });
 
@@ -752,9 +772,12 @@ describe('sketch renderer — options', () => {
     const src = 'sketch\n\nAlpha at: 0 0';
     const plain = render(src);
     // Full-height name: no header rule line inside the node group.
+    // 🔴 The rule sits on the header band, whose height is SHARED — this read a
+    // literal 34 and so was really asserting sketch's old private one.
+    const y = String(SKETCH_VISUALS.cardHeaderHeight);
     const nodeRule = (svg: SVGSVGElement) =>
       [...svg.querySelectorAll('.sk-node line')].filter(
-        (l) => l.getAttribute('y1') === '34' && l.getAttribute('y2') === '34'
+        (l) => l.getAttribute('y1') === y && l.getAttribute('y2') === y
       );
     expect(nodeRule(plain).length).toBe(0);
     const split = render(src, { splitCardIds: ['sketch-node-1'] });

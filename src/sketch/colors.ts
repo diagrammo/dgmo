@@ -102,7 +102,12 @@ export function sketchColors(opts: {
     if (!tagColor) {
       return {
         fill: neutralFill,
-        stroke: palette.textMuted,
+        // 🔴 The same expression `boxes-and-lines` gives an untagged node
+        // (`renderer.ts`): a softened text colour, not `palette.textMuted`.
+        // Muted is a good deal darker, and at the shared stroke width it made
+        // an untagged sketch card the most heavily outlined object in the
+        // product (2026-08-27).
+        stroke: mix(palette.text, palette.bg, isDark ? 60 : 40),
         text: palette.text,
       };
     }
@@ -110,12 +115,14 @@ export function sketchColors(opts: {
     return {
       fill,
       stroke: tagColor,
-      // Label text takes the shape's own (tag) color — but for solid fills the
-      // tag color would vanish into the fill, so keep a contrast color there.
-      text:
-        fillMode === 'solid'
-          ? contrastText(fill, palette.textOnFillLight, palette.textOnFillDark)
-          : tagColor,
+      // 🔴 CONTRAST-DERIVED, like every other chart type. This took the tag
+      // colour itself in the default and `outline` modes, which made sketch the
+      // only chart in the product whose labels are tinted — and on the 25% blend
+      // a card is filled with, that is pale-green text on a pale-green card.
+      // `boxes-and-lines` and `org` both derive it from the fill and land on one
+      // of two neutral tokens; sketch now does the same, in every mode rather
+      // than only `solid`.
+      text: contrastText(fill, palette.textOnFillLight, palette.textOnFillDark),
     };
   };
 }
