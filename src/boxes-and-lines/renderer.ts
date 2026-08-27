@@ -70,11 +70,17 @@ const NODE_FONT_SIZE = 11;
 const MIN_NODE_FONT_SIZE = 9;
 const EDGE_LABEL_FONT_SIZE = 11;
 import {
+  CARD_RADIUS,
+  CONTAINER_RADIUS,
   EDGE_LABEL_KNOCKOUT_OPACITY,
   EDGE_STROKE_WIDTH,
   NODE_STROKE_WIDTH,
 } from '../utils/visual-conventions'; // shared (Story 111.1)
-const NODE_RX = 8;
+// 🔴 SHARED. This was a local `8` against the conventions' 6 — undocumented, and
+// absent from the deviation list the shared file keeps, so it was drift rather
+// than a decision. `org` and `sketch` both take the shared value; this was the
+// only card-shaped renderer rounder than the rest (2026-08-27).
+const NODE_RX = CARD_RADIUS;
 // Intentional deviation (conventions §3): boxes-and-lines uses a 4px collapse
 // bar (and 4px separator gap in layout.ts) — denser than the 6px default.
 const COLLAPSE_BAR_HEIGHT = 4;
@@ -84,7 +90,10 @@ const DESC_FONT_SIZE = 10; // matches infra META_FONT_SIZE
 const DESC_LINE_HEIGHT = 1.4; // 14px row height at 10px font (matches infra META_LINE_HEIGHT)
 const MAX_DESC_LINES = 6;
 const NODE_TEXT_PADDING = 12;
-const GROUP_RX = 8;
+// Shared too. It was a local `8` — the same NUMBER as `CONTAINER_RADIUS`, which
+// is precisely why it could drift without anyone noticing: a re-declared
+// constant that happens to agree today is not the same as citing it.
+const GROUP_RX = CONTAINER_RADIUS;
 const GROUP_LABEL_FONT_SIZE = 14;
 const GROUP_LABEL_ZONE = 32;
 // % tint floor so the ramp minimum still reads as "low, present" (mirror map).

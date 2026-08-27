@@ -9,6 +9,7 @@ import {
   shapeFill,
   valueRampColor,
 } from '../src/palettes/color-utils';
+import { CARD_RADIUS, CONTAINER_RADIUS } from '../src/utils/visual-conventions';
 
 const P = getPalette('nord').light;
 const DIMS = { width: 800, height: 600 };
@@ -416,5 +417,31 @@ describe('boxes-and-lines renderer — fit within viewport', () => {
     for (const H of [980, 700, 560, 420]) {
       expect(await scaledBottom(1050, H)).toBeLessThanOrEqual(H);
     }
+  });
+});
+
+describe('boxes-and-lines takes the shared radii', () => {
+  it('rounds a node card by CARD_RADIUS, not a local number', async () => {
+    // 🔴 It used a local `8` against the conventions' 6 — undocumented, and
+    // absent from the deviation list `visual-conventions.ts` keeps, so it was
+    // drift rather than a decision. `org` and `sketch` both take the shared
+    // value; this was the only card-shaped renderer rounder than the rest.
+    const svg = await render('boxes-and-lines\n\nAlpha\n');
+    const rx = [...svg.querySelectorAll('rect')]
+      .map((r) => r.getAttribute('rx'))
+      .filter((v): v is string => v !== null);
+    expect(rx).toContain(String(CARD_RADIUS));
+    expect(rx).not.toContain('8');
+  });
+
+  it('rounds a group box by CONTAINER_RADIUS', async () => {
+    // The same NUMBER as the local one it replaced — which is precisely why it
+    // could drift unnoticed. A re-declared constant that happens to agree today
+    // is not the same as citing it.
+    const svg = await render('boxes-and-lines\n\n[Group]\n  Alpha\n');
+    const rx = [...svg.querySelectorAll('rect')].map((r) =>
+      r.getAttribute('rx')
+    );
+    expect(rx).toContain(String(CONTAINER_RADIUS));
   });
 });
