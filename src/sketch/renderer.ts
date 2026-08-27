@@ -38,30 +38,32 @@ import {
 } from '../utils/tag-groups';
 import { measureText, wrapTextToWidth } from '../utils/text-measure';
 import { CARD_RADIUS, CONTAINER_RADIUS } from '../utils/visual-conventions';
+import { SKETCH_VISUALS } from './visuals';
 import type { ParsedSketch, SketchShapeKind } from './types';
 import type { SketchLayout, SketchLayoutBox, SketchLayoutNode } from './layout';
 
 // ── Local constants ─────────────────────────────────────────
 
-const DIAGRAM_PADDING = 20;
-const TITLE_Y = 32;
-const TITLE_FONT_SIZE = 18;
-// Sketch overrides the shared visual weights for a bolder, less-washed look.
-const NODE_STROKE_WIDTH = 2;
-const EDGE_STROKE_WIDTH = 2;
+// 🔴 The weights now live in `./visuals`, exported, because the app's live
+// canvas draws this same chart type and had its own set — see the note there.
+const DIAGRAM_PADDING = SKETCH_VISUALS.diagramPadding;
+const TITLE_Y = SKETCH_VISUALS.titleY;
+const TITLE_FONT_SIZE = SKETCH_VISUALS.titleFontSize;
+const NODE_STROKE_WIDTH = SKETCH_VISUALS.nodeStrokeWidth;
+const EDGE_STROKE_WIDTH = SKETCH_VISUALS.edgeStrokeWidth;
 // A wide, invisible stroke laid over each edge so it's easy to click/select even
 // though the drawn line is thin. pointer-events:stroke makes the transparent
 // paint catch clicks; it sits last in the group so `.sk-edge-group path` (first
 // path) still resolves to the VISIBLE line.
 const EDGE_HIT_WIDTH = 18;
-const ARROWHEAD_W = 18;
-const ARROWHEAD_H = 12;
-const DASH = '6 3';
-const BAND_LABEL_FONT_SIZE = 19;
-const BAND_LABEL_OPACITY = 0.55;
+const ARROWHEAD_W = SKETCH_VISUALS.arrowheadW;
+const ARROWHEAD_H = SKETCH_VISUALS.arrowheadH;
+const DASH = SKETCH_VISUALS.dash;
+const BAND_LABEL_FONT_SIZE = SKETCH_VISUALS.bandLabelFontSize;
+const BAND_LABEL_OPACITY = SKETCH_VISUALS.bandLabelOpacity;
 const NOTE_FONT_SIZE = 11;
 const COLLAPSE_BAR_HEIGHT = 4;
-const EDGE_LABEL_FONT_SIZE = 12;
+const EDGE_LABEL_FONT_SIZE = SKETCH_VISUALS.edgeLabelFontSize;
 const CURVE_HANDLE_MIN = 24;
 const CURVE_HANDLE_MAX = 90;
 

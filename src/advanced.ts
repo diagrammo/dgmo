@@ -859,6 +859,10 @@ export type { LegendGroupData } from './utils/legend-types';
 // restate those numbers, which is how a legend comes to look almost right.
 // Added 2026-08-26 for the app's live sketch canvas, the one legend in the
 // product dgmo does not draw (diagrammo/diagrammo#514).
+// The sketch chart type's visual weights, so a SECOND drawer of the same
+// chart cannot pick different ones (diagrammo/diagrammo#502).
+export { SKETCH_VISUALS } from './sketch/visuals';
+
 export {
   LEGEND_CAPSULE_PAD,
   LEGEND_DOT_R,
