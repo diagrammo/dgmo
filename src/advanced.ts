@@ -862,6 +862,15 @@ export type { LegendGroupData } from './utils/legend-types';
 // The sketch chart type's visual weights, so a SECOND drawer of the same
 // chart cannot pick different ones (diagrammo/diagrammo#502).
 export { SKETCH_VISUALS } from './sketch/visuals';
+// 🔴 The DIAGRAM typeface, and it is not the host's. A page's own font stack is
+// chrome; every renderer here writes this onto the SVG it emits so diagram text
+// resolves to the two-weight family whatever the host sets. Exported 2026-08-27
+// because the app draws a sketch by hand on a live canvas — the one drawing
+// surface that is not a renderer — and was inheriting the app's chrome family,
+// so a sketch looked like one typeface while you edited it and another once it
+// was exported. Same reason `SKETCH_VISUALS` is exported above: cite it, never
+// restate it.
+export { DEFAULT_FONT_NAME, FONT_FAMILY } from './fonts';
 
 export {
   LEGEND_CAPSULE_PAD,
