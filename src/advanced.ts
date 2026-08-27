@@ -853,7 +853,25 @@ export {
 export { ScaleContext } from './utils/scaling';
 export { renderLegendSvg, renderLegendSvgFromConfig } from './utils/legend-svg';
 export type { LegendGroupData } from './utils/legend-types';
-export { LEGEND_HEIGHT, LEGEND_GEAR_PILL_W } from './utils/legend-constants';
+// 🔴 The geometry a SECOND drawer needs. `computeLegendLayout` is already
+// exported, but its output alone does not say how big a dot is or what size
+// the type runs at — so a consumer drawing from the layout by hand had to
+// restate those numbers, which is how a legend comes to look almost right.
+// Added 2026-08-26 for the app's live sketch canvas, the one legend in the
+// product dgmo does not draw (diagrammo/diagrammo#514).
+export {
+  LEGEND_CAPSULE_PAD,
+  LEGEND_DOT_R,
+  LEGEND_ENTRY_DOT_GAP,
+  LEGEND_ENTRY_FONT_SIZE,
+  LEGEND_ENTRY_TRAIL,
+  LEGEND_GEAR_PILL_W,
+  LEGEND_GROUP_GAP,
+  LEGEND_HEIGHT,
+  LEGEND_MAX_ENTRY_ROWS,
+  LEGEND_PILL_FONT_SIZE,
+  LEGEND_PILL_PAD,
+} from './utils/legend-constants';
 export { renderLegendD3 } from './utils/legend-d3';
 export {
   computeLegendLayout,
