@@ -89,17 +89,24 @@ function boxLine(box: SketchBox, indent: string): string {
 function edgeText(edge: SketchEdge, target: string): string {
   const d = edge.dashed;
   const label = edge.label ?? '';
+  // 🔴 An edge's OWN metadata, which this dropped entirely until 2026-08-27.
+  // The parser reads `-ships-> bay crew: Deck` and the renderer colours a line
+  // by exactly that tag — so every canonical rewrite silently un-tagged every
+  // edge in the document, and an authored colour came back as a plain grey
+  // connector. Not a missing feature: data loss on a round trip, in the one
+  // direction `sameSketch` compares by parsing BOTH sides and so could not see.
+  const tail = tailFor(edge, null);
   if (label === '') {
-    if (edge.heads === 'none') return `${d ? '~~' : '--'} ${target}`;
-    if (edge.heads === 'both') return `${d ? '<~>' : '<->'} ${target}`;
-    return `${d ? '~>' : '->'} ${target}`;
+    if (edge.heads === 'none') return `${d ? '~~' : '--'} ${target}${tail}`;
+    if (edge.heads === 'both') return `${d ? '<~>' : '<->'} ${target}${tail}`;
+    return `${d ? '~>' : '->'} ${target}${tail}`;
   }
   const l = safeValue(label);
   if (edge.heads === 'none')
-    return `${d ? '~' : '-'}${l}${d ? '~' : '-'} ${target}`;
+    return `${d ? '~' : '-'}${l}${d ? '~' : '-'} ${target}${tail}`;
   if (edge.heads === 'both')
-    return `${d ? '<~' : '<-'}${l}${d ? '~>' : '->'} ${target}`;
-  return `${d ? '~' : '-'}${l}${d ? '~>' : '->'} ${target}`;
+    return `${d ? '<~' : '<-'}${l}${d ? '~>' : '->'} ${target}${tail}`;
+  return `${d ? '~' : '-'}${l}${d ? '~>' : '->'} ${target}${tail}`;
 }
 
 /**
