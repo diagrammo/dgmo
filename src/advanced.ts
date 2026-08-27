@@ -179,7 +179,20 @@ export type {
 export type { TagGroup, TagEntry } from './utils/tag-groups';
 // The canonical categorical auto-color rotation (RGB-seeded, max-contrast,
 // neutrals excluded) — so app/editor swatch cyclers share dgmo's exact order.
-export { autoTagColorCycle, tagAttrKey } from './utils/tag-groups';
+//
+// 🔴 `resolveActiveTagGroup` and `resolveTagColor` are exported for the same
+// reason and it is not convenience: the app's sketch canvas draws the board
+// itself, so without these it would need its OWN copy of "which group is
+// active" and "what colour is this value" — and a second copy of a colour
+// rotation is how the deuteranopia work and the eight-slot cycle come to
+// disagree between the picture dgmo renders and the picture the editor shows.
+// One resolver, both renderers.
+export {
+  autoTagColorCycle,
+  resolveActiveTagGroup,
+  resolveTagColor,
+  tagAttrKey,
+} from './utils/tag-groups';
 
 export { parseInlineMarkdown, truncateBareUrl } from './utils/inline-markdown';
 export type { InlineSpan } from './utils/inline-markdown';
