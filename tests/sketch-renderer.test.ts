@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import { getPalette } from '../src/palettes';
+import { EDGE_LABEL_KNOCKOUT_OPACITY } from '../src/utils/visual-conventions';
 import { mix, shapeFill } from '../src/palettes/color-utils';
-import { SKETCH_FOOT_H, SKETCH_HALF_SLOT_Y } from '../src/sketch/geometry';
+import {
+  SKETCH_FOOT_H,
+  SKETCH_FOOT_W,
+  SKETCH_HALF_SLOT_Y,
+} from '../src/sketch/geometry';
 import { layoutSketch } from '../src/sketch/layout';
 import { parseSketch } from '../src/sketch/parser';
 import { renderSketch, sketchEdgeGeometry } from '../src/sketch/renderer';
@@ -371,15 +376,23 @@ describe('sketch renderer — edges', () => {
     expect(x0).toBeCloseTo(q.x + q.w / 2, 1); // horizontal midpoint (a top port)
   });
 
-  it('renders edge labels with a bg stroke halo (no rect) above nodes', () => {
+  it('renders edge labels on a knocked-out plate, above the nodes', () => {
     const svg = render('sketch\nA at: 0 0\n  -haul-> b\nB as b at: 4 0');
     const label = svg.querySelector('.sk-edge-label')!;
-    // No opaque bg rect — the line is masked by a bg-colored glyph halo painted
-    // under the fill (paint-order: stroke), so no visible whitespace box.
-    expect(label.querySelector('rect')).toBeNull();
+    // 🔴 A PLATE, at the one shared knockout opacity — the same mark
+    // boxes-and-lines and infra draw (#518). It was a per-glyph stroke halo,
+    // which sketch alone used: over a tinted container that fringes every
+    // letter with page background instead of laying down one clean patch.
+    const plate = label.querySelector('rect')!;
+    expect(plate).not.toBeNull();
+    expect(plate.getAttribute('fill')).toBeTruthy();
+    expect(Number(plate.getAttribute('opacity'))).toBe(
+      EDGE_LABEL_KNOCKOUT_OPACITY
+    );
     const text = label.querySelector('text')!;
-    expect(text.getAttribute('paint-order')).toBe('stroke');
-    expect(text.getAttribute('stroke')).toBeTruthy();
+    // The halo is gone with it — the plate is the whole mechanism now.
+    expect(text.getAttribute('paint-order')).toBeNull();
+    expect(text.getAttribute('stroke')).toBeNull();
     expect(label.textContent).toBe('haul');
   });
 
@@ -701,7 +714,11 @@ describe('sketch renderer — text fit (AC 9)', () => {
       expect(fs).toBeLessThanOrEqual(30);
     }
     const node = svg.querySelector('.sk-node rect')!;
-    expect(Number(node.getAttribute('width'))).toBe(208); // footprint never grows
+    // Footprint never grows — and it is DERIVED, not a literal. It was 208 in a
+    // product whose other card-shaped charts draw 97×60, so every shared
+    // constant tuned for those cards (1.5px strokes, a 6px radius, 13px type)
+    // rendered at roughly half weight here (#518).
+    expect(Number(node.getAttribute('width'))).toBe(SKETCH_FOOT_W);
   });
 });
 

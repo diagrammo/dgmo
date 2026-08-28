@@ -36,6 +36,7 @@ import {
   CARD_RADIUS,
   COLLAPSE_BAR_HEIGHT as SHARED_COLLAPSE_BAR_HEIGHT,
   CONTAINER_RADIUS,
+  EDGE_LABEL_KNOCKOUT_OPACITY,
 } from '../utils/visual-conventions';
 import {
   CONTAINER_FILL_OPACITY,
@@ -61,6 +62,11 @@ const EDGE_STROKE_WIDTH = SKETCH_VISUALS.edgeStrokeWidth;
 // paint catch clicks; it sits last in the group so `.sk-edge-group path` (first
 // path) still resolves to the VISIBLE line.
 const EDGE_HIT_WIDTH = 18;
+/** Edge-label plate padding — `boxes-and-lines/label-placement.ts`'s H_PAD/V_PAD. */
+const EDGE_LABEL_H_PAD = 6;
+const EDGE_LABEL_V_PAD = 3;
+/** A container name's baseline below the frame's top edge (boxes-and-lines). */
+const CONTAINER_LABEL_BASELINE = 18;
 const ARROWHEAD_W = SKETCH_VISUALS.arrowheadW;
 const ARROWHEAD_H = SKETCH_VISUALS.arrowheadH;
 const DASH = SKETCH_VISUALS.dash;
@@ -444,7 +450,6 @@ export function renderSketch(
       .attr('refY', ARROWHEAD_H / 2)
       .attr('markerWidth', ARROWHEAD_W)
       .attr('markerHeight', ARROWHEAD_H)
-      .attr('markerUnits', 'userSpaceOnUse')
       .attr('orient', 'auto')
       .append('polygon')
       .attr('points', `0,0 ${ARROWHEAD_W},${ARROWHEAD_H / 2} 0,${ARROWHEAD_H}`)
@@ -457,7 +462,6 @@ export function renderSketch(
       .attr('refY', ARROWHEAD_H / 2)
       .attr('markerWidth', ARROWHEAD_W)
       .attr('markerHeight', ARROWHEAD_H)
-      .attr('markerUnits', 'userSpaceOnUse')
       .attr('orient', 'auto')
       .append('polygon')
       .attr(
@@ -601,9 +605,21 @@ export function renderSketch(
     const labelW = (t: string): number => t.length * sEdgeLabelFontSize * 0.56;
     const halfH = sEdgeLabelFontSize / 2 + 3;
     const GAP = 4; // breathing room around each label box
+    // 🔴 A container's INTERIOR is valid label space — only its NAME is an
+    // obstacle. Treating the whole frame as one made every label inside a
+    // container score an identical shape hit, so the declutter had nothing to
+    // steer by and left `entries` sitting on top of `Below Decks` (#518). This
+    // is the rule `boxes-and-lines/label-placement.ts` already follows: node
+    // boxes and collapsed groups block, an expanded group's inside does not.
     const shapeRects: Rect[] = [
       ...layout.nodes.map((n) => ({ x: n.x, y: n.y, w: n.w, h: n.h })),
-      ...layout.boxes.map((b) => ({ x: b.x, y: b.y, w: b.w, h: b.h })),
+      ...layout.boxes.map((b) => ({
+        // The band the name is drawn in, not the frame below it.
+        x: b.x,
+        y: b.y,
+        w: b.w,
+        h: b.bandH,
+      })),
     ];
     const cubicPt = (cp: number[], t: number): Pt => {
       const u = 1 - t;
@@ -639,47 +655,88 @@ export function renderSketch(
     ): boolean =>
       Math.abs(cx - ox) < hw + ohw + GAP &&
       Math.abs(cy - oy) < halfH + ohh + GAP;
+    /** Unit normal to the curve at `t`, by finite difference. */
+    const normalAt = (cp: number[], t: number): Pt => {
+      const e = 0.01;
+      const a = cubicPt(cp, Math.max(0, t - e));
+      const b = cubicPt(cp, Math.min(1, t + e));
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const len = Math.hypot(dx, dy);
+      return len === 0 ? { x: 0, y: -1 } : { x: -dy / len, y: dx / len };
+    };
     const placed: Array<{ x: number; y: number; hw: number }> = [];
     // t=0.5 first, then step outward toward each end.
     const TS = [0.5, 0.4, 0.6, 0.32, 0.68, 0.25, 0.75, 0.18, 0.82];
+    // 🔴 The SECOND pass, which sketch did not have (#518). Sliding along the
+    // curve cannot help a label whose whole curve is blocked — `entries` runs
+    // 40px from a card's top edge to another card's bottom edge, every point of
+    // it inside a container's name band, so all nine `t` values scored the same
+    // and the label printed on top of `Below Decks`. Stepping off the line is
+    // the only move left, and it is the one `boxes-and-lines` already makes
+    // (`label-placement.ts`, PERP_STEP/PERP_MAX).
+    const PERP_STEP = 8;
+    const PERP_MAX = 40;
+    const PERP_OFFSETS = [0];
+    for (let d = PERP_STEP; d <= PERP_MAX; d += PERP_STEP)
+      PERP_OFFSETS.push(d, -d);
     for (const l of labelLayerData) {
       const hw = labelW(l.text) / 2 + 3;
-      let bestT = 0.5;
+      let best = cubicPt(l.cp, 0.5);
       let bestScore = Infinity;
-      for (const t of TS) {
-        const p = cubicPt(l.cp, t);
-        let labelHits = 0;
-        for (const q of placed)
-          if (covers(p.x, p.y, hw, q.x, q.y, q.hw, halfH)) labelHits++;
-        let shapeHits = 0;
-        for (const r of shapeRects)
-          if (
-            covers(p.x, p.y, hw, r.x + r.w / 2, r.y + r.h / 2, r.w / 2, r.h / 2)
-          )
-            shapeHits++;
-        // Foreign line under the label box → ambiguous ownership.
-        let lineHits = 0;
-        for (let k = 0; k < allPolys.length; k++) {
-          if (k === l.ei) continue;
-          const poly = allPolys[k];
-          if (poly?.some((pt) => covers(p.x, p.y, hw, pt.x, pt.y, 0, 0)))
-            lineHits++;
-        }
-        if (labelHits === 0 && shapeHits === 0 && lineHits === 0) {
-          bestT = t; // TS is preference-ordered → first fully-clear t wins
-          break;
-        }
-        const score =
-          labelHits * 10 + shapeHits * 6 + lineHits * 4 + Math.abs(t - 0.5);
-        if (score < bestScore) {
-          bestScore = score;
-          bestT = t;
+      search: for (const perp of PERP_OFFSETS) {
+        const n = perp === 0 ? { x: 0, y: 0 } : normalAt(l.cp, 0.5);
+        for (const t of TS) {
+          const base = cubicPt(l.cp, t);
+          const p = { x: base.x + n.x * perp, y: base.y + n.y * perp };
+          let labelHits = 0;
+          for (const q of placed)
+            if (covers(p.x, p.y, hw, q.x, q.y, q.hw, halfH)) labelHits++;
+          let shapeHits = 0;
+          for (const r of shapeRects)
+            if (
+              covers(
+                p.x,
+                p.y,
+                hw,
+                r.x + r.w / 2,
+                r.y + r.h / 2,
+                r.w / 2,
+                r.h / 2
+              )
+            )
+              shapeHits++;
+          // Foreign line under the label box → ambiguous ownership.
+          let lineHits = 0;
+          for (let k = 0; k < allPolys.length; k++) {
+            if (k === l.ei) continue;
+            const poly = allPolys[k];
+            if (poly?.some((pt) => covers(p.x, p.y, hw, pt.x, pt.y, 0, 0)))
+              lineHits++;
+          }
+          if (labelHits === 0 && shapeHits === 0 && lineHits === 0) {
+            // Both lists are preference-ordered — on the line and at the
+            // midpoint first — so the first clear spot is the best one.
+            best = p;
+            break search;
+          }
+          // Stepping off the line costs, so a blocked-but-on-the-line spot is
+          // still preferred to a clear-looking one far away.
+          const score =
+            labelHits * 10 +
+            shapeHits * 6 +
+            lineHits * 4 +
+            Math.abs(t - 0.5) +
+            Math.abs(perp) / PERP_MAX;
+          if (score < bestScore) {
+            bestScore = score;
+            best = p;
+          }
         }
       }
-      const p = cubicPt(l.cp, bestT);
-      l.x = p.x;
-      l.y = p.y;
-      placed.push({ x: p.x, y: p.y, hw });
+      l.x = best.x;
+      l.y = best.y;
+      placed.push({ x: best.x, y: best.y, hw });
     }
   }
 
@@ -712,9 +769,22 @@ export function renderSketch(
       .attr('class', 'sk-edge-label')
       .attr('data-from', l.from)
       .attr('data-to', l.to);
-    // No bg rect — a bg-colored stroke halo painted UNDER the fill (paint-order)
-    // hugs each glyph, so the line is masked behind the text without a visible
-    // rectangle of whitespace around it.
+    // 🔴 A KNOCKED-OUT PLATE, which is what boxes-and-lines and infra draw, at
+    // the one shared opacity. A per-glyph stroke halo was the sketch's own
+    // invention: on a tinted container it fringes each letter with page
+    // background instead of laying down one clean patch, so the same label read
+    // as a different component in the two pictures (#518).
+    const plateW =
+      measureText(l.text, sEdgeLabelFontSize) + EDGE_LABEL_H_PAD * 2;
+    const plateH = sEdgeLabelFontSize * 1.3 + EDGE_LABEL_V_PAD * 2;
+    g.append('rect')
+      .attr('x', l.x - plateW / 2)
+      .attr('y', l.y - plateH / 2)
+      .attr('width', plateW)
+      .attr('height', plateH)
+      .attr('rx', 3)
+      .attr('fill', palette.bg)
+      .attr('opacity', EDGE_LABEL_KNOCKOUT_OPACITY);
     g.append('text')
       .attr('x', l.x)
       .attr('y', l.y)
@@ -722,10 +792,6 @@ export function renderSketch(
       .attr('dominant-baseline', 'central')
       .attr('font-size', sEdgeLabelFontSize)
       .attr('fill', l.color)
-      .attr('stroke', palette.bg)
-      .attr('stroke-width', 3)
-      .attr('stroke-linejoin', 'round')
-      .attr('paint-order', 'stroke')
       .text(l.text);
   }
 
@@ -773,7 +839,11 @@ function drawBoxFrame(
   // fixed top band instead of overflowing the box width.
   const fit = fitWrapped(box.label, box.w - 16, s.bandLabelFontSize, 12, 2);
   const lineH = fit.fontSize * 1.2;
-  const bandMid = box.y + box.bandH / 2;
+  // 🔴 `groupTop + 18`, the same offset boxes-and-lines uses, rather than the
+  // centre of a band whose height sketch alone knows about. Centring on the
+  // band put the name in a different place relative to the frame than every
+  // other grouped chart type (#518).
+  const bandMid = box.y + CONTAINER_LABEL_BASELINE;
   const startY = bandMid - ((fit.lines.length - 1) * lineH) / 2;
   for (let li = 0; li < fit.lines.length; li++) {
     g.append('text')

@@ -20,7 +20,7 @@ export const SKETCH_PHI = (1 + Math.sqrt(5)) / 2;
 
 export const SKETCH_GEOMETRY = {
   /** px per grid cell (the dot-grid pitch) */
-  cellPx: 26,
+  cellPx: 16,
   /** universal footprint width, in grid cells */
   footprintCellsW: 8,
   /**
@@ -30,9 +30,9 @@ export const SKETCH_GEOMETRY = {
   gapCellsX: 4,
   gapCellsY: 4,
   /** box reserved top band, px (spec decision 12) */
-  bandPx: 44,
+  bandPx: 28,
   /** box frame padding around the children bbox, px */
-  boxPadPx: 26,
+  boxPadPx: 16,
   /** edge-ring (connect hook) width as a fraction of footprint height */
   ringFrac: 0.22,
 } as const;
