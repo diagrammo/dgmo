@@ -5,6 +5,58 @@ All notable changes to `@diagrammo/dgmo` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.77.0] - 2026-08-28
+
+### Fixed
+
+- **A colour written into a sketch by hand is no longer thrown away when the
+  file is rewritten.** The language lets a tag value name its own colour —
+  `Deck purple` — and says an explicit one always wins, but the emitter never
+  wrote that word back out, so every explicit colour in a file was silently
+  replaced by the automatic rotation on the next save. It is not one swatch
+  that moves: the rotation skips colours the explicit entries have claimed, so
+  losing one re-seats every automatic colour after it, and a legend of three
+  came back as three different colours. The desktop app rewrites the file after
+  every edit, so this fired on opening a diagram and moving a single box.
+- **An arrow no longer loses its own tag when the file is rewritten.** An
+  authored `-ships-> bay crew: Deck` came back out as `-ships-> bay`, dropping
+  the tag the renderer colours the line by — so any rewrite silently returned
+  every tagged connector in a document to plain grey.
+- **The shipped sketch example asked for a shape that does not exist**
+  (`shape: cloud`), so the gallery had been drawing a plain rectangle for it
+  and emitting a warning nobody saw.
+
+### Changed
+
+- **A sketch now looks like the rest of the product.** Placed beside a
+  boxes-and-lines chart of the same content it read as a different tool, and it
+  had drifted from the shared visual conventions in a dozen places — none of
+  them ever a decision. It is drawn at the size every other card-shaped chart
+  type uses, so its labels stay readable in a preview pane instead of rendering
+  at roughly half the intended weight; its arrowheads, title, edge labels,
+  corner radii, strokes and name sizes all now come from the shared values; and
+  a label is coloured for contrast rather than tinted with its own tag, which
+  had been putting pale green text on a pale green card.
+- ⚠️ **A container in a sketch is now a neutral backdrop rather than a wash of
+  its own tag colour.** Its tag is still in the source, still cascades to
+  everything inside it, and still colours those; what is gone is the tint on
+  the group box itself, which everything inside was swimming in. This is the
+  trade boxes-and-lines already makes.
+- **Boxes-and-lines corners match everything else** — its cards and group boxes
+  were rounder than every other chart type's, from a local number that had
+  drifted from the shared one.
+
+### Added
+
+- **The pieces a second drawing surface needs to draw a sketch identically** —
+  the colour model, the typeface, the chart type's visual weights, the legend's
+  geometry and the tag-colour resolvers are all exported now. The desktop app's
+  live sketch board draws itself rather than handing off to a renderer, and had
+  been inventing its own answers, so the diagram you edited and the diagram you
+  exported were not the same picture. One source for each fact, both surfaces.
+- **A legend can reserve room after its last entry**, so an authoring control
+  can sit on the same rhythm as the values instead of beside the capsule.
+
 ## [0.76.0] - 2026-08-26
 
 ### Fixed
