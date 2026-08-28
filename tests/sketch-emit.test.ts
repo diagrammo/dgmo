@@ -33,6 +33,56 @@ function roundTrip(src: string): {
   return { same: sameSketch(a, b), newDiagnostics, emitted };
 }
 
+describe('sketch emitter — an authored tag colour survives', () => {
+  // 🔴 §1.3: "An explicit `Value color` always wins." The parser keeps the word
+  // on `authoredColor` "so a reparse can tell authored from auto" and the
+  // emitter read it nowhere, so every explicit colour was dropped and the group
+  // fell back to the automatic rotation. Opening such a file in the canvas and
+  // moving one box rewrote every swatch in its legend (2026-08-28).
+  const SRC =
+    'sketch Crew\n\ntag Watch\n  Deck purple\n  Hold\n  Lookout teal\n\nHelm as helm at: 0 0, watch: Deck\n';
+
+  it('writes the colour word back', () => {
+    expect(emitSketch(parseSketch(SRC))).toContain('  Deck purple');
+    expect(emitSketch(parseSketch(SRC))).toContain('  Lookout teal');
+  });
+
+  it('every swatch comes back the colour it went in', () => {
+    const a = parseSketch(SRC);
+    const b = parseSketch(emitSketch(a));
+    expect(b.tagGroups[0]!.entries.map((e) => `${e.value}=${e.color}`)).toEqual(
+      a.tagGroups[0]!.entries.map((e) => `${e.value}=${e.color}`)
+    );
+    // 🔴 The bare one too. The rotation skips colours the explicit entries
+    // claimed, so losing one explicit colour moves the automatic ones as well.
+    expect(b.tagGroups[0]!.entries[1]!.color).toBe(
+      a.tagGroups[0]!.entries[1]!.color
+    );
+  });
+
+  it('keeps the default modifier after the colour, which is the only order that parses', () => {
+    // ⚠️ The parser strips `default` first, then takes the LAST token as the
+    // colour — so `Deck default purple` becomes a value named "Deck default",
+    // with no diagnostic.
+    const src =
+      'sketch Crew\n\ntag Watch\n  Deck purple default\n  Hold\n\nHelm as helm at: 0 0\n';
+    const emitted = emitSketch(parseSketch(src));
+    expect(emitted).toContain('  Deck purple default');
+    expect(parseSketch(emitted).tagGroups[0]!.defaultValue).toBe('Deck');
+  });
+
+  it('leaves a capitalised colour word alone — it is part of the NAME', () => {
+    // §1.3: capitalising keeps it a literal value with no colour.
+    const src =
+      'sketch Crew\n\ntag Watch\n  Deck Purple\n  Hold\n\nHelm as helm at: 0 0\n';
+    const a = parseSketch(src);
+    expect(a.tagGroups[0]!.entries[0]!.value).toBe('Deck Purple');
+    expect(a.tagGroups[0]!.entries[0]!.authoredColor).toBeUndefined();
+    const b = parseSketch(emitSketch(a));
+    expect(b.tagGroups[0]!.entries[0]!.value).toBe('Deck Purple');
+  });
+});
+
 describe('sketch emitter — the standing invariant', () => {
   it('round-trips a plain sketch', () => {
     const r = roundTrip(

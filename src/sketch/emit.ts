@@ -138,7 +138,34 @@ export function emitSketch(parsed: ParsedSketch): string {
     for (const entry of group.entries) {
       const isDefault =
         group.defaultValue !== undefined && entry.value === group.defaultValue;
-      lines.push(`  ${entry.value}${isDefault ? ' default' : ''}`);
+      // 🔴 The authored colour, written back. §1.3 lets a value name its own
+      // colour (`Deck purple`) and says an explicit one always wins; the parser
+      // keeps the word on `authoredColor` expressly "so a reparse can tell
+      // authored from auto", and nothing read it. So emitting DROPPED every
+      // explicit colour in the file and the group fell back to the automatic
+      // rotation — `Deck purple` came back `Deck` and turned red, along with
+      // every colour after it, because the rotation skips hexes explicit
+      // entries had claimed and there were none left to skip.
+      //
+      // 🔴 The standing invariant could not see it: `sameSketch` returned TRUE
+      // across a round trip that changed every swatch in the legend. Silent,
+      // and triggered by opening such a file in the canvas and moving anything
+      // (2026-08-28). Same class as the `collapsed` flag, which was dropped the
+      // same way and for the same reason — a field carried on the parsed object
+      // rather than in a metadata bag, so it was invisible to whatever saved
+      // the others.
+      //
+      // ⚠️ Order is `value colour default`, and it is not free choice: the
+      // parser strips `default` FIRST and then takes the colour as the LAST
+      // remaining token, so `Deck default purple` parses as a value named
+      // "Deck default" — with no diagnostic.
+      //
+      // ⚠️ Case is meaningful and is preserved verbatim. §1.3: capitalising the
+      // colour word (`Deck Purple`) keeps it as part of the NAME with no colour
+      // at all, so lower-casing here would rename values.
+      const colour =
+        entry.authoredColor === undefined ? '' : ` ${entry.authoredColor}`;
+      lines.push(`  ${entry.value}${colour}${isDefault ? ' default' : ''}`);
     }
   }
 
