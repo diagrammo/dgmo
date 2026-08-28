@@ -160,7 +160,7 @@ export function emitSketch(parsed: ParsedSketch): string {
       // remaining token, so `Deck default purple` parses as a value named
       // "Deck default" — with no diagnostic.
       //
-      // ⚠️ Case is meaningful and is preserved verbatim. §1.3: capitalising the
+      // ⚠️ Case is meaningful and is preserved verbatim. §1.3: capitalizing the
       // colour word (`Deck Purple`) keeps it as part of the NAME with no colour
       // at all, so lower-casing here would rename values.
       const colour =
