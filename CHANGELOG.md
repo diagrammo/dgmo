@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.78.0] - 2026-08-29
+
+### Fixed
+
+- **A sketch with many shapes on the same spot lays out in a fraction of the
+  time.** Shapes authored at one coordinate are nudged apart by searching
+  outward for a free slot, and each shape was re-walking every ring the one
+  before it had already found full. Slots are only ever taken while a diagram
+  is laid out, never given back, so a ring that was full once stays full — and
+  a search can now start where the last one finished. 800 shapes stacked on
+  three slots fell from 927ms to 9.9ms, and the cost now grows almost in step
+  with the number of shapes rather than far ahead of it. The candidate list
+  that search built and sorted for every ring is gone too. Neither change can
+  move a shape: a 322-shape crowded diagram lays out to byte-for-byte the same
+  coordinates as before.
+
 ### Added
 
 - **`dgmo --now <instant>` pins the current moment**, so the chart types that
