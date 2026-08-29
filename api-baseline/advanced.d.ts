@@ -6590,7 +6590,7 @@ declare const SKETCH_VISUALS: {
     /** A card's header band. */
     readonly cardHeaderHeight: 28;
     readonly bandLabelFontSize: 13;
-    readonly bandLabelFontWeight: "bold";
+    readonly bandLabelFontWeight: number;
     readonly bandLabelOpacity: 1;
     /** 11 — what boxes-and-lines prints. It was 12, the only edge label in the
      *  product at that size. */

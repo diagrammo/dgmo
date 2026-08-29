@@ -97,7 +97,17 @@ export const SKETCH_VISUALS = {
   // boxes-and-lines' 14 — and infra's — are the undocumented deviations here;
   // the fix is those two coming to 13, not a third chart type leaving.
   bandLabelFontSize: CONTAINER_LABEL_FONT_SIZE,
-  bandLabelFontWeight: 'bold',
+  // 🔴 A WEIGHT, never the word — the same defect `titleFontWeight` carries
+  //  the note for, one property along. `'bold'` is valid on the SVG attribute
+  //  this renderer writes it to, and invalid everywhere a consumer needs a
+  //  number: the app's live canvas puts a container band's weight on an
+  //  `<input>`'s inline style and into a `fontWeight: number` slot, so it had
+  //  to translate the word back to 700 itself and typecheck went red on main
+  //  when it did not (#537, 2026-08-29). 700 is what `'bold'` already drew —
+  //  this changes the type, not the picture. `as number` for the same reason
+  //  `titleFontWeight` carries it: the literal would otherwise leak into the
+  //  published type surface and `check:api` fails on it.
+  bandLabelFontWeight: 700 as number,
   bandLabelOpacity: 1,
   /** 11 — what boxes-and-lines prints. It was 12, the only edge label in the
    *  product at that size. */
