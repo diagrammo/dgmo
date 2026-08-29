@@ -529,5 +529,22 @@
     "gallery",
     "*.json"
   ],
-  "useGitignore": true
+  "useGitignore": true,
+  // 🔴 Stop collecting `.gitignore` files at this repo, never above it.
+  //
+  // `useGitignore` walks UP from the working directory, and a dgmo worktree is
+  // a sibling of ~/code/diagrammo, whose own `.gitignore` carries
+  // `/dgmo-wt-*/` — the very naming convention the workspace CLAUDE.md
+  // mandates for a worktree of an occupied repo. So without this key cspell
+  // decides the entire checkout is ignored, matches NOTHING, and exits 1 on
+  // its must-find-files rule: `Files checked: 0, Issues found: 0` next to a
+  // failing gate, which reads as a misspelling nobody can find.
+  //
+  // That made `check:spelling` — and therefore the pre-push gate — impossible
+  // to pass from any dgmo worktree, so a branch worked the documented way
+  // could not be pushed at all (#530). `diagrammo-app` never had it only
+  // because `diagrammo-app-wt-*` is absent from that same file.
+  //
+  // A no-op in the main checkout, verified both ways: 352 files either way.
+  "gitignoreRoot": "."
 }
