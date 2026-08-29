@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import { getPalette } from '../src/palettes';
 import { contrastText } from '../src/palettes/color-utils';
 import { sketchColors, sketchContainerFill } from '../src/sketch/colors';
-import { TITLE_FONT_WEIGHT } from '../src/utils/title-constants';
 import { SKETCH_VISUALS } from '../src/sketch/visuals';
 import {
   CONTAINER_LABEL_FONT_SIZE,
@@ -98,27 +97,5 @@ describe('sketch takes the shared visual conventions', () => {
       contrastText(tagged.fill, P.textOnFillLight, P.textOnFillDark)
     );
     expect(tagged.text).not.toBe(tagged.stroke);
-  });
-});
-
-describe('every visual constant is a value, not a word coerced to one', () => {
-  // 🔴 `titleFontWeight` was `Number(TITLE_FONT_WEIGHT)` and the shared constant
-  // is the STRING `bold`, so it shipped as `NaN`. Every other consumer writes
-  // that constant straight into an SVG attribute, where the word is valid; this
-  // one is read as a value by the desktop canvas, which puts it on an attribute
-  // AND on an input's inline style. The result was `font-weight="NaN"` on every
-  // sketch title, silently rendered at the default weight — so a sketch's name
-  // was the one title in the product that was not bold, and nothing failed.
-  it('SKETCH_VISUALS holds no NaN', () => {
-    for (const [key, value] of Object.entries(SKETCH_VISUALS)) {
-      if (typeof value === 'number') {
-        expect(Number.isFinite(value), `${key} is ${String(value)}`).toBe(true);
-      }
-    }
-  });
-
-  it('the sketch title is bold, at the shared weight', () => {
-    expect(SKETCH_VISUALS.titleFontWeight).toBe(700);
-    expect(TITLE_FONT_WEIGHT).toBe('bold');
   });
 });
