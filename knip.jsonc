@@ -30,7 +30,7 @@
     // try. It is a devDependency of an experiment, not dead weight; when the
     // jsdom-or-linkedom question is decided it either becomes a real
     // dependency or leaves with the script.
-    "linkedom"
+    "linkedom",
   ],
   "ignoreBinaries": ["du", "vite"],
   "ignore": [
@@ -65,12 +65,12 @@
     "scripts/gen-body-surface.mjs",
     "scripts/enrich-gazetteer-tz.mjs",
     "api-baseline/**",
-    "tools/**"
+    "tools/**",
   ],
   "ignoreExportsUsedInFile": true,
   "rules": {
     "duplicates": "off",
     "exports": "warn",
-    "types": "warn"
-  }
+    "types": "warn",
+  },
 }

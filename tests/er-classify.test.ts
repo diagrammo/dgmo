@@ -6,12 +6,19 @@ import type { ERTable, ERRelationship } from '../src/er/types';
 
 function makeTable(
   id: string,
-  cols: Array<{ name: string; constraints: ('pk' | 'fk' | 'unique' | 'nullable')[] }>
+  cols: Array<{
+    name: string;
+    constraints: ('pk' | 'fk' | 'unique' | 'nullable')[];
+  }>
 ): ERTable {
   return {
     id,
     name: id,
-    columns: cols.map((c, i) => ({ name: c.name, constraints: c.constraints, lineNumber: i + 1 })),
+    columns: cols.map((c, i) => ({
+      name: c.name,
+      constraints: c.constraints,
+      lineNumber: i + 1,
+    })),
     metadata: {},
     lineNumber: 1,
   };
@@ -20,7 +27,10 @@ function makeTable(
 function makeNamedTable(
   id: string,
   name: string,
-  cols: Array<{ name: string; constraints: ('pk' | 'fk' | 'unique' | 'nullable')[] }>
+  cols: Array<{
+    name: string;
+    constraints: ('pk' | 'fk' | 'unique' | 'nullable')[];
+  }>
 ): ERTable {
   return { ...makeTable(id, cols), name };
 }
@@ -39,7 +49,9 @@ function makeRel(
 describe('classifyEREntities', () => {
   describe('core', () => {
     it('classifies a table with PK and no FKs as core', () => {
-      const tables = [makeTable('users', [{ name: 'id', constraints: ['pk'] }])];
+      const tables = [
+        makeTable('users', [{ name: 'id', constraints: ['pk'] }]),
+      ];
       const result = classifyEREntities(tables, []);
       expect(result.get('users')).toBe('core');
     });

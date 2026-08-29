@@ -66,11 +66,11 @@ cat diagram.dgmo | dgmo > out.png      # pipe in, PNG to stdout
 dgmo diagram.dgmo --theme dark --palette catppuccin
 ```
 
-| Flag | Values | Default |
-|------|--------|---------|
-| `--theme` | `light`, `dark`, `transparent` | `light` |
-| `--palette` | one of 7 palettes (see below) | `slate` |
-| `-o` | output path (`.svg` → SVG, else PNG) | `<input>.png` |
+| Flag        | Values                               | Default       |
+| ----------- | ------------------------------------ | ------------- |
+| `--theme`   | `light`, `dark`, `transparent`       | `light`       |
+| `--palette` | one of 7 palettes (see below)        | `slate`       |
+| `-o`        | output path (`.svg` → SVG, else PNG) | `<input>.png` |
 
 ## Library
 
@@ -79,13 +79,16 @@ Render any diagram to an SVG string — no browser, no visible DOM:
 ```typescript
 import { render } from '@diagrammo/dgmo';
 
-const { svg } = await render(`
+const { svg } = await render(
+  `
 bar Revenue by Quarter
 Q1 12
 Q2 19
 Q3 15
 Q4 22
-`, { theme: 'light', palette: 'slate' });
+`,
+  { theme: 'light', palette: 'slate' }
+);
 ```
 
 `render()` auto-detects the chart type and dispatches to the right engine. Need the lower-level parsers, config builders, and per-type renderers? They live under the [`@diagrammo/dgmo/advanced`](https://diagrammo.app/dev) subpath — see the docs for the full surface and stability contract.
@@ -97,10 +100,12 @@ Add one `<script>` tag and every `<pre class="dgmo">` block renders on load:
 ```html
 <script src="https://cdn.jsdelivr.net/npm/@diagrammo/dgmo-standalone/dist/auto.js"></script>
 
-<pre class="dgmo">pie Crew Rations
+<pre class="dgmo">
+pie Crew Rations
 Grog: 58
 Hardtack: 21
-Limes: 21</pre>
+Limes: 21</pre
+>
 ```
 
 Prefer an explicit element? Use `<dgmo-diagram>` from the same package:
@@ -108,10 +113,9 @@ Prefer an explicit element? Use `<dgmo-diagram>` from the same package:
 ```html
 <script src="https://cdn.jsdelivr.net/npm/@diagrammo/dgmo-standalone/dist/element.js"></script>
 
-<dgmo-diagram palette="slate">pie Crew Rations
-Grog: 58
-Hardtack: 21
-Limes: 21</dgmo-diagram>
+<dgmo-diagram palette="slate"
+  >pie Crew Rations Grog: 58 Hardtack: 21 Limes: 21</dgmo-diagram
+>
 ```
 
 Theme detection, copy button, and "open in editor" come for free. Full config, framework recipes (Astro, Docusaurus, Hugo, MkDocs), self-hosting, and CSP guidance: **[diagrammo.app/embed](https://diagrammo.app/embed)**.

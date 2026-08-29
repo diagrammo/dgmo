@@ -1,9 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { parseInlineMarkdown, truncateBareUrl } from '../src/utils/inline-markdown';
+import {
+  parseInlineMarkdown,
+  truncateBareUrl,
+} from '../src/utils/inline-markdown';
 
 describe('parseInlineMarkdown', () => {
   it('returns plain text as a single span', () => {
-    expect(parseInlineMarkdown('hello world')).toEqual([{ text: 'hello world' }]);
+    expect(parseInlineMarkdown('hello world')).toEqual([
+      { text: 'hello world' },
+    ]);
   });
 
   it('returns empty array for empty string', () => {
@@ -11,23 +16,33 @@ describe('parseInlineMarkdown', () => {
   });
 
   it('parses **bold** (asterisks)', () => {
-    expect(parseInlineMarkdown('**bold**')).toEqual([{ text: 'bold', bold: true }]);
+    expect(parseInlineMarkdown('**bold**')).toEqual([
+      { text: 'bold', bold: true },
+    ]);
   });
 
   it('parses __bold__ (underscores)', () => {
-    expect(parseInlineMarkdown('__bold__')).toEqual([{ text: 'bold', bold: true }]);
+    expect(parseInlineMarkdown('__bold__')).toEqual([
+      { text: 'bold', bold: true },
+    ]);
   });
 
   it('parses *italic* (single asterisk)', () => {
-    expect(parseInlineMarkdown('*italic*')).toEqual([{ text: 'italic', italic: true }]);
+    expect(parseInlineMarkdown('*italic*')).toEqual([
+      { text: 'italic', italic: true },
+    ]);
   });
 
   it('parses _italic_ (single underscore)', () => {
-    expect(parseInlineMarkdown('_italic_')).toEqual([{ text: 'italic', italic: true }]);
+    expect(parseInlineMarkdown('_italic_')).toEqual([
+      { text: 'italic', italic: true },
+    ]);
   });
 
   it('parses `code`', () => {
-    expect(parseInlineMarkdown('`code`')).toEqual([{ text: 'code', code: true }]);
+    expect(parseInlineMarkdown('`code`')).toEqual([
+      { text: 'code', code: true },
+    ]);
   });
 
   it('parses [link](url)', () => {
@@ -93,11 +108,14 @@ describe('truncateBareUrl', () => {
   });
 
   it('keeps short URLs intact', () => {
-    expect(truncateBareUrl('https://api.example.com/v2')).toBe('api.example.com/v2');
+    expect(truncateBareUrl('https://api.example.com/v2')).toBe(
+      'api.example.com/v2'
+    );
   });
 
   it('truncates long URLs with ellipsis', () => {
-    const long = 'https://api.example.com/v2/users/authentication/oauth2/callback';
+    const long =
+      'https://api.example.com/v2/users/authentication/oauth2/callback';
     const result = truncateBareUrl(long);
     expect(result.length).toBe(35);
     expect(result.endsWith('\u2026')).toBe(true);

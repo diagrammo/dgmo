@@ -229,7 +229,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ribbon starts at one shared x set by the widest collapsed lane label, so slot N
   sits at the same place in every lane. `computeSwimlaneLayout` now computes and
   returns `laneHeaderWidth` instead of taking a constant — the columns start at
-  it. No ribbon is drawn when the active group *is* the lane group, where every
+  it. No ribbon is drawn when the active group _is_ the lane group, where every
   chip would repeat the total already printed beside the name.
 
 Both degrade to exactly the previous output when no tag group is active.
@@ -461,8 +461,8 @@ Landed on the measurement rather than the intuition — jsDelivr served the drop
 
 ### Fixed
 
-- 🔴 **Text in a script Inter does not cover rasterised to nothing at all.** The renderer ran with system fonts switched off precisely *because* the bundled Inter was found, which made the `system-ui, …, sans-serif` tail of the font stack inert. Inter has no CJK, Devanagari, Tamil, Arabic, Hebrew or Thai — and never did, upstream included — so a diagram in any of them drew nothing: not a missing-glyph box, nothing, silently, exit code 0. A bar chart labelled 日本語 rasterised to pixels byte-identical to one labelled with a Private Use codepoint that exists in no font on earth. System fallback is on now at both rasterising call sites; Latin output is byte-identical across the change, because Inter is still loaded explicitly and named as the default family.
-- This only fixes the machine doing the rendering. A machine with no font for the script — a bare CI container, most Docker images — still draws nothing, so the CLI and the MCP server now **warn** when a diagram carries characters no bundled glyph can draw, naming the script. It is phrased as portability rather than failure: with fallback on, the image usually *is* correct where it was made, and the risk is the next machine.
+- 🔴 **Text in a script Inter does not cover rasterised to nothing at all.** The renderer ran with system fonts switched off precisely _because_ the bundled Inter was found, which made the `system-ui, …, sans-serif` tail of the font stack inert. Inter has no CJK, Devanagari, Tamil, Arabic, Hebrew or Thai — and never did, upstream included — so a diagram in any of them drew nothing: not a missing-glyph box, nothing, silently, exit code 0. A bar chart labelled 日本語 rasterised to pixels byte-identical to one labelled with a Private Use codepoint that exists in no font on earth. System fallback is on now at both rasterising call sites; Latin output is byte-identical across the change, because Inter is still loaded explicitly and named as the default family.
+- This only fixes the machine doing the rendering. A machine with no font for the script — a bare CI container, most Docker images — still draws nothing, so the CLI and the MCP server now **warn** when a diagram carries characters no bundled glyph can draw, naming the script. It is phrased as portability rather than failure: with fallback on, the image usually _is_ correct where it was made, and the risk is the next machine.
 
 ### Added
 
@@ -472,9 +472,9 @@ Landed on the measurement rather than the intuition — jsDelivr served the drop
 
 ### Fixed
 
-- 🔴 **A map that cannot find its basemap now says so, instead of blaming the diagram.** The CLI read only the parse pass, which cannot see a resolver failure, so a perfectly good file came back as *"the input may be empty, invalid, or use an unsupported chart type"* — the sentence that made a CLI published without its map data read as a bad fixture for an afternoon. It now prints the diagnostics `render()` actually reported, in both plain and `--json` output, and guesses only when nothing was reported at all — without ever asserting the input is invalid.
-- **`E_MAP_DATA_NOT_SUPPLIED` tells its two readers apart.** *No basemap was passed* and *the loader you passed threw* are opposite problems with opposite fixes, and both got the same advice to "pass `mapData`" — which sends a host that already does to the wrong file entirely. The error now quotes what the loader reported, and says when the assets are missing from the installed package rather than from your code.
-- **An ampersand in a label no longer breaks the exported SVG.** `Sailing & Rigging` could reach an attribute value as a bare `&`, and an XML parser rejects the whole file — *malformed entity reference* — which is how those bytes are served through embeds and share links. Four of 92 gallery fixtures hit it, and because it is data-dependent it would reach a reader rather than show up in a sweep. The escape pass deliberately skips an `&` that already opens a character reference, so it is a no-op on output that was already correct.
+- 🔴 **A map that cannot find its basemap now says so, instead of blaming the diagram.** The CLI read only the parse pass, which cannot see a resolver failure, so a perfectly good file came back as _"the input may be empty, invalid, or use an unsupported chart type"_ — the sentence that made a CLI published without its map data read as a bad fixture for an afternoon. It now prints the diagnostics `render()` actually reported, in both plain and `--json` output, and guesses only when nothing was reported at all — without ever asserting the input is invalid.
+- **`E_MAP_DATA_NOT_SUPPLIED` tells its two readers apart.** _No basemap was passed_ and _the loader you passed threw_ are opposite problems with opposite fixes, and both got the same advice to "pass `mapData`" — which sends a host that already does to the wrong file entirely. The error now quotes what the loader reported, and says when the assets are missing from the installed package rather than from your code.
+- **An ampersand in a label no longer breaks the exported SVG.** `Sailing & Rigging` could reach an attribute value as a bare `&`, and an XML parser rejects the whole file — _malformed entity reference_ — which is how those bytes are served through embeds and share links. Four of 92 gallery fixtures hit it, and because it is data-dependent it would reach a reader rather than show up in a sweep. The escape pass deliberately skips an `&` that already opens a character reference, so it is a no-op on output that was already correct.
 - **The body chart's shading no longer depends on how the host parses markup.** `<linearGradient>` is the one case-sensitive element this renderer emits, and writing it as markup lets HTML parsing lowercase it into `<lineargradient>` — not an SVG element, so the figures render flat with nothing in the output to say why. The gradients are built with DOM calls now; output under jsdom and the browser is byte-identical.
 
 ## [0.62.0] - 2026-08-06
@@ -496,12 +496,13 @@ Landed on the measurement rather than the intuition — jsDelivr served the drop
 
 ### Added
 
-- **`parseCloudReferenceFence` and `parseCloudReferenceEmbed`**, so each surface names itself. The removed behaviour came from a parser named for nothing in particular: three of the four callers of `parseCloudReference` wanted *"what may a fence contain"* and got *"any of the three spellings, anywhere"*. `parseCloudReference` survives for a host scanning raw note text, where all three legitimately turn up, and now says in its own doc comment that a fence must not use it.
+- **`parseCloudReferenceFence` and `parseCloudReferenceEmbed`**, so each surface names itself. The removed behaviour came from a parser named for nothing in particular: three of the four callers of `parseCloudReference` wanted _"what may a fence contain"_ and got _"any of the three spellings, anywhere"_. `parseCloudReference` survives for a host scanning raw note text, where all three legitimately turn up, and now says in its own doc comment that a fence must not use it.
+
 ## [0.60.0] - 2026-08-04
 
 ### Fixed
 
-- 🔴 **Paste a share link into a fence and it now draws the diagram it points at.** It used to say *"Unsupported chart type"* — and so did `![[live-link:dgm_7f2a91]]`, the spelling designed for a note. Spec §38.6 has claimed since it was written that a live link's three spellings "parse identically"; only `live-link <id>` ever did, because only it names a chart type on its first line. The other two fell past the router into the visualization parser and came back as an error naming a chart type nobody typed, which is wrong twice over: the syntax was valid, and the message sent the author hunting for a typo in a line that says exactly what it means. Every surface had it — the desktop app, the web editor and all five docs wrappers, not just the one it was noticed on. The router now asks the live-link parser whether the first line *is* a pointer, and the parser resolves a whole-line target instead of reading it as a stray directive. `/d/<id>`, `/view/<id>` and `/public/diagrams/<id>/source` are all accepted, on any origin, because self-hosting is why the host is not checked.
+- 🔴 **Paste a share link into a fence and it now draws the diagram it points at.** It used to say _"Unsupported chart type"_ — and so did `![[live-link:dgm_7f2a91]]`, the spelling designed for a note. Spec §38.6 has claimed since it was written that a live link's three spellings "parse identically"; only `live-link <id>` ever did, because only it names a chart type on its first line. The other two fell past the router into the visualization parser and came back as an error naming a chart type nobody typed, which is wrong twice over: the syntax was valid, and the message sent the author hunting for a typo in a line that says exactly what it means. Every surface had it — the desktop app, the web editor and all five docs wrappers, not just the one it was noticed on. The router now asks the live-link parser whether the first line _is_ a pointer, and the parser resolves a whole-line target instead of reading it as a stray directive. `/d/<id>`, `/view/<id>` and `/public/diagrams/<id>/source` are all accepted, on any origin, because self-hosting is why the host is not checked.
 - **A pinned share link now names the pin it has to lose.** `…/d/dgm_7f2a91?at=2026-03-12` also collected the generic message; it is claimed deliberately so that the pinned-revision error — a live link always shows the publisher's current version — reaches the person who wrote the `?at=`. Only the **declaration** line can be a pointer, so a link inside another chart type's content is left alone, and a URL that is not a diagram path is not claimed at all.
 
 ### Added
@@ -515,7 +516,7 @@ Landed on the measurement rather than the intuition — jsDelivr served the drop
 ### Changed
 
 - 🔴 **A quoted name is a delimiter everywhere, not label text in nine chart types.** Quoting is the language's only escape hatch for a reserved character in a name (spec §2.2), so a parser that renders the quotes does not merely look wrong — it removes the only way to write `Order | Items` at all. **boxes-and-lines, sequence, org, sitemap, kanban, c4, gantt, pert** and the shared **tag** path all rendered them; all now peel. `peelQuotedName` moved out of the boxes-and-lines parser into `utils/parsing.ts` and every type shares it. It is deliberately stricter than the neighbouring `stripQuotes`: it peels only when both ends carry the same quote character and the name has no interior quote, because the language has **no escape form** — so `say "hi" loudly`, and a card named `Repair the foretops'l`, are left exactly as typed.
-- **A quoted declaration and a bare reference are now one entity.** Each type peels at the declaration *before* the id or normalization key is computed, and again wherever a name is resolved — c4 and gantt aliases bind to the peeled name, so `as oi` points at `Order | Items` rather than at the quoted literal. gantt's dependency targets, its dotted `[Group].Task` resolver, and pert's indented `-> Target` lines peel too.
+- **A quoted declaration and a bare reference are now one entity.** Each type peels at the declaration _before_ the id or normalization key is computed, and again wherever a name is resolved — c4 and gantt aliases bind to the peeled name, so `as oi` points at `Order | Items` rather than at the quoted literal. gantt's dependency targets, its dotted `[Group].Task` resolver, and pert's indented `-> Target` lines peel too.
 
 ### Fixed
 
@@ -535,17 +536,20 @@ Landed on the measurement rather than the intuition — jsDelivr served the drop
 ## [0.58.0] - 2026-08-01
 
 ### Added
-- **`live-link` — a pointer to a published diagram is now a chart type.** A `.dgmo` file can name a diagram published to Diagrammo Cloud instead of carrying its own drawing, and whoever opens it sees the publisher's current version. Until now that file could not exist: `parseFirstLine` validates the first token against a hand-listed set, so a file naming a reference was *"Unsupported chart type"* — while the same text in a docs fence resolved correctly. The language knew about references in one direction only. It is ordinary DGMO grammar (a declaration line, a `url` directive, then plain English), so it inherits open, rename, move and search on day one. Spec §38, decision #53. **This ships and appears to do nothing on purpose:** every pointer renders a reference card and none resolves yet — following one is the next step.
+
+- **`live-link` — a pointer to a published diagram is now a chart type.** A `.dgmo` file can name a diagram published to Diagrammo Cloud instead of carrying its own drawing, and whoever opens it sees the publisher's current version. Until now that file could not exist: `parseFirstLine` validates the first token against a hand-listed set, so a file naming a reference was _"Unsupported chart type"_ — while the same text in a docs fence resolved correctly. The language knew about references in one direction only. It is ordinary DGMO grammar (a declaration line, a `url` directive, then plain English), so it inherits open, rename, move and search on day one. Spec §38, decision #53. **This ships and appears to do nothing on purpose:** every pointer renders a reference card and none resolves yet — following one is the next step.
 - **`internal?: true` on `ChartTypeMeta` — routable, but never offered.** A type nobody hand-authors has no business in a picker: a "Cloud" tile would produce a file needing an id the user cannot know. The flag is honoured at five user-facing edges — `dgmo types`, the completion popup, MCP `list_chart_types`, the MCP suggester's candidate pool, and the generated AI core every model reads — and deliberately **not** inside `getAllChartTypes()`, which keeps meaning "everything routable". `internal-chart-types.test.ts` is the flag's specification; four filters at unrelated edges with nothing tying them together is a convention, not a mechanism.
 - **A reference card renderer.** Pure string-built SVG, no DOM, in the shape of `error-card.ts` — it is what a CLI export produces, what a docs site shows when live-link resolution is switched off, and what a host shows before a fetch resolves. Not an error state. `parseLiveLink` and `renderLiveLinkCard` are exported so a host can draw the same card.
 
 ### Changed
-- 🔴 **The reference keyword is `live-link`, not `cloud`.** `cloud abc123` in a fence and `![[cloud:abc123]]` in a note **no longer resolve** — not deprecated, simply no longer references. `cloud` named *where the thing lives*; `live-link` names *what it is*, and it is the publish dialog's own phrase, so one word now spans both sides of the exchange. Pre-1.0, so there is no dual-accept window. The module and its subpath export keep the name `cloud-reference` deliberately: renaming a subpath breaks the app's dev server while the production build stays green.
+
+- 🔴 **The reference keyword is `live-link`, not `cloud`.** `cloud abc123` in a fence and `![[cloud:abc123]]` in a note **no longer resolve** — not deprecated, simply no longer references. `cloud` named _where the thing lives_; `live-link` names _what it is_, and it is the publish dialog's own phrase, so one word now spans both sides of the exchange. Pre-1.0, so there is no dual-accept window. The module and its subpath export keep the name `cloud-reference` deliberately: renaming a subpath breaks the app's dev server while the production build stays green.
 - **An error card on a type with no published guide links to the docs landing page** rather than deep-linking to a `chart-<id>` page that cannot exist.
 
 ## [0.57.0] - 2026-07-30
 
 ### Added
+
 - **`@diagrammo/dgmo/cloud-reference` — one resolver for pointing at a diagram instead of pasting one.** A reference names a diagram living in Diagrammo Cloud, so a document stops going stale the day it is written. Three spellings, one parser, because each is native to where it gets typed: `cloud abc123` inside a fence, `![[cloud:abc123]]` in a note, or a plain share URL. Its own subpath export and **zero dependencies** — a docs wrapper can resolve a reference without pulling the render graph in behind it. A parity test asserts all three forms from one table, so a future modifier cannot land in one spelling and quietly miss the others. Consumed first by `remark-dgmo`; the CLI and the app can use the same parser rather than growing their own regexes.
 - **`dataAttributes` on the standard embed block.** Emits `data-*` pairs on the wrapper so a host surface can mark its own blocks — `remark-dgmo` stamps the referenced diagram's id and the revision a page was baked from, and its client reads them back. Passed as an option rather than patched onto rendered HTML, because a wrapper editing markup by regex is how a rendering pipeline ends up with two of them. A key that is not a valid attribute name is dropped rather than escaped: the value is escaped, but the name lands in markup verbatim.
 - **Block chrome for a withdrawn reference.** `BLOCK_CSS` gains rules for the placeholder shown when a referenced diagram has been unshared by its author, and for the quiet "this diagram has been updated" affordance a host client falls back to when it can see a diagram changed but cannot safely swap it in. Deliberately understated — a page peppered with badges is worse than one that is a few days behind.
@@ -553,6 +557,7 @@ Landed on the measurement rather than the intuition — jsDelivr served the drop
 ## [0.56.0] - 2026-07-28
 
 ### Added
+
 - **Sketch edges route for straightness.** The relaxer now scores curve shape — a straight run beats a single bend, and a single bend beats an S — weighted below crossings but above port facing, so a straighter route wins even when its ports face slightly worse. Shape is measured from the sampled polyline (total absolute turning plus a surcharge per turn-sign flip) rather than port tangents alone, which used to miss an S built from two same-direction tangents. Back-facing ports carry a steep surcharge, so an edge leaves toward its target instead of looping over the top of its card, and two edges landing on the same bare node split onto different sides instead of stacking two arrowheads on one dot.
 - **Sketch folds in place.** A collapsed box keeps its would-be expanded footprint occupied and centres the card inside it, so folding moves nothing else and unfolding is the exact inverse — for authored and flow-placed boxes alike. Authored placement also wins outright now: a card parked where its frame wouldn't fit falls back to its own cell at the authored spot instead of being shoved to the nearest frame-sized hole, and authored-at root entities are exempt from the edge-avoidance nudge.
 - **Sketch card body is a markdown description.** Tags still colour the card (border, fill, legend) but no longer print as `Group: value` body rows — the body belongs to the free-text description. Over-long descriptions clamp with a `+N more in source` marker (`.sk-desc-more`, carrying `data-line-number`) instead of a silent ellipsis, so an editor can jump to the source.
@@ -560,6 +565,7 @@ Landed on the measurement rather than the intuition — jsDelivr served the drop
 - **`E_VALUE_NEGATIVE` — magnitude charts reject negative values.** Charts whose value channel encodes pure magnitude (share, radius, ribbon width, font weight) now error instead of rendering garbage: pie, polar-area, radar, funnel, sankey flows, arc link weights, wordcloud weights, and map `size:`/`width:`. Signed charts (bar, line, scatter, slope, quadrant, heatmap, map/treemap `heat:`) are untouched. The CLI now renders the error card whenever error-severity diagnostics exist — the same contract as `render()` — so a broken chart can no longer export as a misleading partial diagram.
 
 ### Fixed
+
 - **Bar charts handle signed values with a diverging baseline.** The domain is now `[min(0, dataMin), max(0, dataMax)]`, so negative values extend the axis below zero and bars grow either direction from the 0 baseline in both orientations. Stacks accumulate positive and negative segments into separate runs, and value labels flip inside the bar when the free end sits at the plot edge. Previously an all-negative dataset collapsed the domain and bars overflowed the plot.
 - **SVG attribute values escape angle brackets on serialize.** Renderers return `outerHTML`, the HTML serializer, which leaves `<` and `>` alone inside attribute values. That is inert in HTML, but a label like `A</text><script>…` landing in `data-name` makes an XML parser reject the whole document — so any `.svg` served as `image/svg+xml` or loaded via `<img>` (the Cloud render cache, wrapper embeds) silently broke on one unlucky label. All ten serialization sites now route through `utils/svg-serialize.ts`. This is a well-formedness fix, not an XSS fix: a security sweep across 20 chart types confirmed nothing escapes its attribute.
 - **Sketch auto-layout stage flags and frozen origin restored** after a parallel-session clobber dropped them from main, with regression tests pinning the contract.
@@ -567,6 +573,7 @@ Landed on the measurement rather than the intuition — jsDelivr served the drop
 ## [0.55.0] - 2026-07-21
 
 ### Added
+
 - **`legend-inline` — a one-line header on every chart with a top-center legend.** Title left, series/tag legend flushed right, instead of a centered title stacked above the legend — reclaiming a header row for embeds, slides, and dashboards. Opt-in per diagram (`legend-inline`), default unchanged. It measures the legend against the width left of the title and, if it can't fit on one row, silently falls back to the stacked header and re-centers the title — so the diagram is always valid regardless of title length or entry count. Honoured by the data charts (bar, line, radar, scatter, function) and the structured tag-legend charts (state, treemap, block, event-line, boxes-and-lines, er, class, family, infra, sequence, sketch, bracket, gantt, pert); on any other chart type it emits a warning rather than silently doing nothing. See spec §1.9, decision #50.
 - **Function charts get a `fill` area directive.** `fill` shades the band between each curve and the y=0 baseline — the same directive the `line` chart uses — a soft 25% tint by default, opaque under `fill-solid`. This replaces the vestigial `shade` token, which was parsed and advertised in completions but rendered nothing. See decision #52.
 - **Event-line `now` marker — a "today line".** `now` (§28.6b) draws a red vertical marker at the current date/time with a quick fade-in and hover reveal, so a live roadmap shows where "today" falls against its events.
@@ -575,9 +582,11 @@ Landed on the measurement rather than the intuition — jsDelivr served the drop
 - **Sketch surfaces the authored tag-color name on each TagEntry.**
 
 ### Changed
+
 - **Sequence participant order now follows first appearance in messages, not declaration order.** A bare participant declaration (`Name t: Group`) assigns a tag/type only — it no longer pins a column. Placement comes from the order the arrows reach a participant, so you can tag just the exceptions (an External or Customer) without dragging them out of message-flow order; use `position:` to pin one deliberately. This brings the renderer into line with the long-documented spec §2.2 ordering priority. See decision #51.
 
 ### Fixed
+
 - **Clock digital time renders as fixed-width cells** so it stays uniform across WebKit and resvg (no more jitter between preview and export).
 - **`legend-inline` on a chart type that can't host it now warns** ("not supported for this chart type; title and legend render stacked") instead of silently doing nothing or, on clock, erroring as if it were a zone row.
 - **Sequence message labels no longer clip off the canvas at tight scale** (#35).
@@ -587,16 +596,19 @@ Landed on the measurement rather than the intuition — jsDelivr served the drop
 ## [0.54.0] - 2026-07-20
 
 ### Added
+
 - **Emphasis directives `highlight` / `dim` (sankey).** A chart-level way to push one element into the foreground or background while keeping every element's own hue — a red flow that recedes is still red. Resolves to a baked SVG opacity attribute, so it survives PNG/SVG export with no interactivity dependency. `dim <name>` recedes the named element(s); `highlight <name>` recedes everything outside the named element's flow closure. Shipped on `sankey` only; `family`'s existing `highlight` is unchanged and both now share one dim constant. Registering these also closed a pre-existing gap where `family`'s `highlight` had completions but no editor syntax highlighting. See spec §1.11, decision #49.
 - **`default-rps` on infra now works.** It was parse-accepted, listed in completions, and read by nobody; it now sets the fallback entry RPS used when the `Edge`/`Internet` node omits an explicit `rps:` (an explicit `rps:` and the app's slider still win).
 - **A light `./completion` subpath for editor integrations.** Autocomplete data — the per-chart-type directive registries and symbol extractors — now ships as its own entry point instead of only being reachable through `/advanced`. Anything building editor support can import it without pulling in the parsers and renderers: the new subpath's dependency closure is a fraction of `/advanced`'s. The same data remains exported from `/advanced` for existing callers.
 - **Swimlane diagrams offer edge completions.** Swimlane was the one chart type with no completion descriptor at all, so its `->` edges and node references were never suggested. The reserved `~>` form is deliberately not offered — the parser rejects it (§27.8).
 
 ### Changed
+
 - **Thousands separators are accepted consistently across every numeric chart type.** They already worked on bar/line/pie/funnel but `treemap` (never imported the shared number helper) and `sankey` (called it behind a regex that made the comma branch dead code) silently dropped a comma-grouped number to zero, and `goal` rejected it outright. All now normalize `1,240,000` → 1240000; malformed grouping (`1,24,000`) is named and rejected rather than truncated.
 - Cycle edge labels are set at the same size as node labels rather than two points smaller, so they no longer read as secondary to the text they sit between.
 
 ### Fixed
+
 - **Infra async edges no longer under-report downstream load 2×.** An async (`~>`) edge was parsed but never read by the compute model, so a sync+async fan-out — the guide's own canonical pattern — split traffic evenly and reported half the real load on each downstream. Async edges now carry the source's full rate and are excluded from the split sum, the caller's latency percentiles, and its availability. The long-dormant "splits must sum to 100%" warning (its validator had no callers) is now wired into the parser pass.
 - **Multi-series data rows warn on surplus values instead of silently welding them into the label.** `Armor 50 60 70 80` against two series used to become an axis literally named `Armor 50 60`; it now warns and prints the quoted rewrite. The quoted escape hatch itself (`"Armor 50" 60`) was broken — it left the quote characters in the label — and is fixed. Single-value rows are unaffected: the last token is the value and the rest is the label, so `Day 1 8` stays label `Day 1`, value `8`.
 - **An invalid trailing color on a sankey link keeps the link.** A misspelled color used to make the line match no link form, so it silently became a phantom node and the flow vanished, surfacing only as an unrelated "No links found". The color now resolves through the shared diagnostic path — the link is built and the bad token is named on its own line with a suggestion.
@@ -610,6 +622,7 @@ Landed on the measurement rather than the intuition — jsDelivr served the drop
 A language-consistency release. A five-dimension audit of all 37 chart types found the universal sections had quietly fallen behind the ten newest types, plus fifteen genuine drift points where the same idea was spelled differently depending on which chart you happened to be in. Everything below is the result. **Every legacy spelling still parses** — no existing diagram breaks — but a few defaults changed on purpose, listed under Changed.
 
 ### Added
+
 - **State diagrams can finally be colored.** They were the one structural chart with no color channel at all: no tag groups, no metadata, and the old advice ("use edge colors") stopped meaning anything when edge color was removed language-wide. States now take the standard tag system — declare `tag Phase as ph`, then write `Draft ph: Intake` — and render with the same 25% tint and solid outline as org and boxes-and-lines, legend included, `active-tag` and the `fill-*` family included. A state diagram with no tags parses exactly as before.
 - **`no-legend` works everywhere.** It used to exist only on the seven newest chart types, while data charts insisted the legend was always shown and the older tag charts offered no way to hide it at all. Any chart that draws a legend now accepts `no-legend`, and the space it occupied collapses rather than leaving a gap — which is what you want when a diagram is going into a slide.
 - **One spelling for layout direction, on every chart that has one.** `direction-lr` and `direction-tb` are now canonical everywhere, replacing a split where some charts wanted `direction LR` and others only accepted a `direction-tb` boolean. They read as a single completion entry instead of a keyword plus a value popup, and the last one wins if both appear. The key+value form still parses.
@@ -618,15 +631,17 @@ A language-consistency release. A five-dimension audit of all 37 chart types fou
 - Groups start folded with a bare `collapsed` flag on the group line (`[Backend] collapsed`), the spelling block and sketch already used, now shared by sequence, infra, gantt, kanban, mindmap, PERT, state, c4, and event-line eras. A group whose name genuinely ends in "Collapsed" is untouched — the flag is matched in lowercase.
 
 ### Changed
+
 - **Boxes-and-lines prints box values by default.** It was the lone chart where a numeric value you typed stayed invisible until you added `show-values` — the inverse of every other chart's "everything shows, subtract what you don't want" rule. Values now render; `no-value` suppresses them. `show-values` still parses and does nothing.
 - **The tech-radar blip listing renders on every surface.** It was previously always on in CLI exports but hidden in the app unless you asked for it — the only feature in the language whose default depended on where it was being drawn. Suppress it with `no-blip-legend`.
 - **When a treemap has both tags and `heat:` values, the heat ramp now colors it at rest**, matching map and boxes-and-lines. Treemap alone resolved this the other way round. The full order is heat → tag → branch, and `active-tag` overrides it.
 - **A trailing color on a bracket's title line now sets the winner accent** instead of being ignored, matching goal and countdown. The bracket-only `accent <color>` directive still works and is no longer documented.
-- Canonical spellings, with the old ones kept as silent aliases: gantt anchors with **`start-date`** (was `start`), sprint durations use **`sp`** (was `s`, which still means *seconds* in timeline — the collision is why), clock and map time-cards take **`workweek`** (was `days`), goal suppresses notes with **`no-notes`** (was `no-note`), and treemap with **`no-value`** (was `no-values`).
+- Canonical spellings, with the old ones kept as silent aliases: gantt anchors with **`start-date`** (was `start`), sprint durations use **`sp`** (was `s`, which still means _seconds_ in timeline — the collision is why), clock and map time-cards take **`workweek`** (was `days`), goal suppresses notes with **`no-notes`** (was `no-note`), and treemap with **`no-value`** (was `no-values`).
 - **The data-chart `title` directive is now an error.** The title is the first line, as it is on every other chart type; the directive was a leftover second way to say the same thing. The diagnostic points at the declaration line.
 - **Version-control's `direction BT` is gone.** It parsed but rendered identically to `TB` — the "newest at top" layout it implied was never built.
 
 ### Fixed
+
 - **Org and c4 were ignoring `direction` entirely.** Both accepted the directive and neither did anything with it: org's layout was hardcoded top-down and c4's rank direction was a literal constant at four separate places. Both now genuinely lay out left-to-right when asked. Their documented default of `LR` was also fiction — both have always drawn top-down, so the docs were corrected to `TB` rather than silently re-flowing every existing diagram.
 - **Journey-map's `no-legend` never worked**: the renderer honored it, but the parser rejected the word as removed syntax before it could take effect.
 - Flowchart's `orientation-vertical` is gone from completion and the docs — it was offered to authors but had no implementation behind it.
@@ -636,10 +651,12 @@ A language-consistency release. A five-dimension audit of all 37 chart types fou
 ## [0.52.0] - 2026-07-16
 
 ### Changed
-- **BREAKING: `solid-fill` is gone — the `fill-*` family replaces it.** Chart fill is now a three-way choice spelled as sibling directives: `fill-tint` (the default 25% tint with a solid intent-color outline, now spellable explicitly), `fill-solid` (full intent saturation — the exact successor to `solid-fill`), and the new **`fill-outline`** (no fill at all; shapes take the theme background and the color rides entirely on the outline, for a clean line-art look). The three are mutually exclusive — when more than one appears, the last one wins. `solid-fill` was removed outright with no alias: replace it with `fill-solid`. Charts whose fill *encodes data* ignore the family entirely (map choropleth, infra severity tints, gantt progress, tech-radar blips), and a small group honors `fill-solid` but skips `fill-outline` because hollowing the surface would erase the chart (line/function area fills, sankey/chord ribbons). Everything else renders outline for real — bar, pie, polar, funnel, scatter, treemap (colored frames with matching label ink), radar and venn (stroke-only overlaps), quadrant, arc (including group bands), bracket (winner boxes, wells, capsules), body, clock (daylight/state tints stay — they're data), countdown, journey-map, PERT tornado bars, RACI, kanban wells, state group areas, sketch, goal (hollow meter with a colored rim), and heatmap (background cells with full-intent ramp strokes). See spec §1.9 and decisions #46–47.
+
+- **BREAKING: `solid-fill` is gone — the `fill-*` family replaces it.** Chart fill is now a three-way choice spelled as sibling directives: `fill-tint` (the default 25% tint with a solid intent-color outline, now spellable explicitly), `fill-solid` (full intent saturation — the exact successor to `solid-fill`), and the new **`fill-outline`** (no fill at all; shapes take the theme background and the color rides entirely on the outline, for a clean line-art look). The three are mutually exclusive — when more than one appears, the last one wins. `solid-fill` was removed outright with no alias: replace it with `fill-solid`. Charts whose fill _encodes data_ ignore the family entirely (map choropleth, infra severity tints, gantt progress, tech-radar blips), and a small group honors `fill-solid` but skips `fill-outline` because hollowing the surface would erase the chart (line/function area fills, sankey/chord ribbons). Everything else renders outline for real — bar, pie, polar, funnel, scatter, treemap (colored frames with matching label ink), radar and venn (stroke-only overlaps), quadrant, arc (including group bands), bracket (winner boxes, wells, capsules), body, clock (daylight/state tints stay — they're data), countdown, journey-map, PERT tornado bars, RACI, kanban wells, state group areas, sketch, goal (hollow meter with a colored rim), and heatmap (background cells with full-intent ramp strokes). See spec §1.9 and decisions #46–47.
 - **Clock and map time-cards share one status indicator** — the open/closed state is a filled colored dot on both surfaces, replacing the clock board's earlier outline ring.
 
 ### Fixed
+
 - **Every exported sankey SVG was malformed XML.** The internal emphasis-key separator embedded a raw NUL character in a `data-` attribute; XML parsers and `data:`-URI loaders reject the file (Safari refused to display it). The separator is now a printable Unicode character, so sankey exports parse everywhere.
 - **Sequence diagrams no longer reserve a phantom trailing gap** — total width now ends at the last participant instead of carrying an extra message-gap of dead space.
 - **Sketch rejects out-of-range `at:` coordinates** with a diagnostic instead of silently blowing the canvas up around a runaway point.
@@ -648,46 +665,55 @@ A language-consistency release. A five-dimension audit of all 37 chart types fou
 ## [0.51.0] - 2026-07-14
 
 ### Added
+
 - **A map can show the current local time at each office.** Flag any map POI with `clock` (`poi Denver clock`) and it grows a live time-card above the marker — the local time, an open/closed status dot, and the weekday when it differs from yours. **You don't type the zone:** a named city derives its IANA zone from the bundled gazetteer (sourced from GeoNames, so a border city like Austin correctly reads Central, not Mountain). A bare-coordinate pin names its zone with the valued form `clock: America/Denver` (an IANA id or a fixed `clock: UTC+9`), which also overrides a city if you ever need to. Add header `hours 9-17` + `days mon-fri` for a per-pin availability window (evaluated in each pin's own zone), and `label: El Segundo` for a multi-word office name. Cards tick every second on live surfaces (app, Obsidian, web), keep clear of the frame edge, and bake a correct snapshot in PNG/SVG exports. See spec §24B.
 - **Dates can be written however is natural — one grammar across every date-bearing chart.** Gantt, PERT, timeline, event-line, and countdown now all accept slash (`7/4`), bare-dash (`07-04`), and month-name (`Jul 4`, `July 4, 2026`) dates alongside ISO — previously each type had its own parser and most demanded full `YYYY-MM-DD`. Numeric slash dates are **US month-first** by default; a `date-order dmy` directive flips the whole document to day-first, and out-of-range values self-disambiguate (`13/2` → Feb 13). **You rarely need to type a year:** a bare month-day inherits it from an explicit `year 2026` directive, from a neighbouring full date (timeline/event-line roll across New Year; gantt/pert anchor to the project start), or — only when a chart has no full date at all — the current year, with a soft hint to pin it. `no-current-year` turns that last case into an error for teams that need reproducible output. Timeline/gantt era, marker, and holiday bands accept the liberal grammar too. Every existing ISO diagram renders byte-identically — this is an additive superset, no migration. See spec §2B.
-- **Clock entries now take a single anchor — a city name, an IANA id, or a UTC offset — instead of a place-then-zone pair.** Type the place the way you'd say it (`London`, `NYC`, `Los Angeles`) and a bundled gazetteer resolves it to the canonical zone and city; an explicit IANA id (`Europe/London`) still works for exactness; and a raw **UTC/GMT offset** (`UTC+5:30`, `GMT-3`) gives a *fixed* zone that never observes DST — it carries a "no DST" marker and draws no sun line. Ambiguous city names error with the candidates; unknown ones are skipped with a did-you-mean hint. The old two-token `<place> <IANA>` form is gone; write `Europe/London as UK team` or just `London`.
-- **Countdown can pin its target to a fixed time zone.** A new `tz <IANA>` directive (`tz America/New_York`, `Asia/Kolkata`, `UTC`) anchors the authored date/time to that zone so every viewer sees the *same* remaining time and the count no longer drifts when the host carries their laptop across zones — ideal for a shared launch or livestream page. Without it, bare dates/datetimes stay viewer-local (each person's own deadline), unchanged. The footer shows the in-zone time plus a `UTC±` tag.
+- **Clock entries now take a single anchor — a city name, an IANA id, or a UTC offset — instead of a place-then-zone pair.** Type the place the way you'd say it (`London`, `NYC`, `Los Angeles`) and a bundled gazetteer resolves it to the canonical zone and city; an explicit IANA id (`Europe/London`) still works for exactness; and a raw **UTC/GMT offset** (`UTC+5:30`, `GMT-3`) gives a _fixed_ zone that never observes DST — it carries a "no DST" marker and draws no sun line. Ambiguous city names error with the candidates; unknown ones are skipped with a did-you-mean hint. The old two-token `<place> <IANA>` form is gone; write `Europe/London as UK team` or just `London`.
+- **Countdown can pin its target to a fixed time zone.** A new `tz <IANA>` directive (`tz America/New_York`, `Asia/Kolkata`, `UTC`) anchors the authored date/time to that zone so every viewer sees the _same_ remaining time and the count no longer drifts when the host carries their laptop across zones — ideal for a shared launch or livestream page. Without it, bare dates/datetimes stay viewer-local (each person's own deadline), unchanged. The footer shows the in-zone time plus a `UTC±` tag.
 - **The countdown target ring now flashes subtly.** The bright ring around the target chip does a slow opacity/stroke-width breathe on live surfaces (app, Obsidian, web) so the destination pops out of a warm approach ramp. PNG/image exports bake the first frame; honours `prefers-reduced-motion`.
 - **The error fall-through card now links to the online documentation**, and the link is always present (there's nothing to toggle on the failure card). It deep-links to the chart-type guide (`diagrammo.app/docs/chart-<type>/`) when the type is recoverable from the broken source — the first line usually still declares it — and falls back to the docs landing page otherwise. Present on both the SVG card (embeds/exports) and the HTML card (`/auto`, `<dgmo-diagram>`).
 - **Every embed toolbar button can be turned off individually.** `showSource`, `showCopy`, `showExpand`, and `showOpenInEditor` are now fully independent — turning off the source-view toggle no longer removes copy/expand/open (they render as a plain overlay toolbar), and any single button can be shown or hidden on its own. Exposed on every surface: `renderDgmoBlock`/`buildDgmoBlockHtml` options, the `/auto` script config (`data-config` + per-element `data-show-source` / `data-show-copy` / `data-show-expand` / `data-show-editor-link`), and the `<dgmo-diagram>` element (`show-source` / `show-copy` / `show-expand` / `show-editor-link` attributes). When no button is enabled, no toolbar is emitted.
 
 ### Changed
+
 - **An open embed source panel now collapses on its own once you move on.** When both the pointer and keyboard focus leave a block whose `</>` source view is expanded, the code panel closes automatically — the expanded source no longer lingers on the page after you're done with it. Applies to the doc-site wrappers (remark client) and the `/auto` + `<dgmo-diagram>` surfaces; clicking the toggle still works as before while you're on the block.
 - **Clock horizontal boards (`direction lr`) are cleaner and easier to scan.** Subtle vertical dividers (same shade as the card border) now separate the columns; each column's detail list (place · availability · sundown) is **bottom-aligned** across the board so a title that wraps to two lines no longer pushes its icons out of row with the others; and the digital time is larger, with the seconds and am/pm sized up and pinned to the digits' top and baseline so the trio reads as one block.
 - **Embedded-diagram toolbar is now an overlay** pinned to the diagram's top-right corner instead of a reserved row below the chart. The hover-reveal icon strip (source / copy / expand) no longer adds layout height, so an embedded block is exactly as tall as the chart it renders.
 
 ### Fixed
-- **Countdown recurring glyph no longer renders as a squiggle.** The "repeat" icon beside a recurring event's footer was drawn from Lucide's four separate `<path>`s flattened into one string, which turned the bottom arrow's leading move into a *relative* one — it landed off the icon. The subpath is now absolute, so the glyph reads as the intended two-arrow repeat mark.
+
+- **Countdown recurring glyph no longer renders as a squiggle.** The "repeat" icon beside a recurring event's footer was drawn from Lucide's four separate `<path>`s flattened into one string, which turned the bottom arrow's leading move into a _relative_ one — it landed off the icon. The subpath is now absolute, so the glyph reads as the intended two-arrow repeat mark.
 - **Event-line: dots now sit at their true calendar position.** Clustered same-side events were being slid horizontally so their cards wouldn't overlap, which pushed dots off their date (e.g. a Jan 15 event rendering at 20% of the span instead of 4%). Dots now hold their exact date-proportional x and card collisions resolve by stacking into deeper lanes (each with its own vertical leader) instead. Dense clusters therefore grow taller rather than distorting the timeline; wide panels still widen the whole axis to relieve crowding to scale.
 
 ## [0.50.2] - 2026-07-13
 
 ### Changed
-- **Embedded diagrams now have a transparent background by default**, so they blend into the host page — Obsidian, the doc-site wrappers, any surface — instead of showing a mismatched dark or light rectangle behind the chart. Standalone PNG/SVG exports are unaffected (still opaque). Background-meaningful types like `map`, whose background *is* the ocean, stay opaque automatically. Embedders can force either behaviour with the block `background: 'transparent' | 'opaque'` option (`renderDgmoBlock`), and `normalizeSvgForEmbed(svg, { background })` exposes the same control directly.
+
+- **Embedded diagrams now have a transparent background by default**, so they blend into the host page — Obsidian, the doc-site wrappers, any surface — instead of showing a mismatched dark or light rectangle behind the chart. Standalone PNG/SVG exports are unaffected (still opaque). Background-meaningful types like `map`, whose background _is_ the ocean, stay opaque automatically. Embedders can force either behaviour with the block `background: 'transparent' | 'opaque'` option (`renderDgmoBlock`), and `normalizeSvgForEmbed(svg, { background })` exposes the same control directly.
 - **Line charts now auto-fit the y-axis to the data by default** instead of forcing a 0 baseline. The axis spans a padded min→max window across all series and both y-axes, so a tight, high-valued series (e.g. a 315→395 lb strength log) fills the plot rather than hugging the top of a 0-based scale. Add `no-auto-y` to restore the 0 baseline. Line-only — bar charts keep the 0 anchor (length encodes magnitude); non-negative data never fits to a negative floor.
 
 ### Added
+
 - **Countdown: a years-strip tier for targets more than three years out**, giving distant countdowns a legible long-range layout instead of an unreadable day count.
 
 ### Fixed
+
 - **Clock: digital time width is pinned** so the `:SS` and am/pm segments hug the digits instead of drifting as the value changes.
 
 ## [0.50.1] - 2026-07-13
 
 ### Fixed
+
 - **Countdown (and any large-text chart) no longer has its top clipped in responsive embeds** (Obsidian, remark-based wrappers). The embed normalizer sized every text box at a fixed height regardless of font-size, so the 40px title and 96px hero landed a hair below the tightened viewBox and browser font metrics tipped them into a clip. Text extent is now font-size-aware.
 
 ### Changed
+
 - **Countdown recurring-event glyph is now the Lucide `repeat` icon** — matching the icon set the app and Obsidian already use — replacing the hand-drawn double-arrow.
 
 ## [0.50.0] - 2026-07-12
 
 ### Added
+
 - **New `countdown` chart type (dynamic, live-ticking).** Count down to — or up from — a target date across every rendering surface, with a distance-as-colour band, a short-span compact layout, recurring-event support (including Nth-occurrence templates), and contextual editor highlighting for the recurrence line.
 - **New `clock` world-clock chart type.** A live ticking board of world clocks across time zones, for standups, launch windows, and follow-the-sun coverage.
 - **New `bracket` chart type.** Single-elimination tournament brackets with match enrichment (scores, tags, commentary, home marker), colored rounds, and layout directives.
@@ -696,12 +722,14 @@ A language-consistency release. A five-dimension audit of all 37 chart types fou
 - **Flowcharts honor the space form of `direction LR` / `direction TB`.**
 
 ### Changed
+
 - **Sketch edge routing rebuilt.** Edges route around intervening shapes, minimize edge–edge crossings, draw a visible hop where two lines cross, snap to a fixed per-side port grid, and declutter overlapping labels along their own curves with a glyph halo instead of a background rect. Shapes nudge off non-incident edges at layout time.
 - **Bracket export/preview canvas sizes to content** instead of a fixed 1200×800.
 
 ## [0.49.0] - 2026-07-10
 
 ### Added
+
 - **New `body` anatomy chart type.** Render the human body — male or female, front or back — with individually colorable muscle groups over a skin layer, for fitness, medical, and educational diagrams.
 - **New `sketch` chart type.** Freeform org-style node cards (header rule + tag rows), group containers, and edges that snap to discrete ports and attach at facing-side midpoints; supports indented `>` markdown shape descriptions, a `no-descriptions` directive, and neutral edges that only take color from their own tag.
 - **Family charts gain a full presentation batch.** Divorce lines, a deceased marker, child sorting, generation grouping, a `?` placeholder for unknown people, and lineage highlighting that dims everyone outside the highlighted bloodline.
@@ -717,11 +745,13 @@ A language-consistency release. A five-dimension audit of all 37 chart types fou
 - **Arc diagrams gain group-aware coloring, collision-safe labels, and a vertical orientation.**
 
 ### Changed
+
 - **Funnel charts redesigned** — contiguous bands with values centered inside each band, larger colored side labels, and a responsive layout so labels never clip at any pane size (no more leader lines).
 - **Flowchart branches now render in source-definition order** rather than a reordered layout.
 - **Infrastructure edges can now target a `[Group]` container** directly (#29).
 
 ### Fixed
+
 - **Family chart connector cleanup** — marriage bars connect through the name-header center at a uniform height, a union's shared bus trunk dashes only when all children are adopted (and stays solid for a single adopted child), the `?` placeholder gets a solid border with a fainter fill instead of a dash, edges are occluded behind dimmed cards during lineage highlight, and a stray trailing `adopted` token after metadata is stripped.
 - **Sketch rendering fixes** — collapsed group cards styled like a plain node, opaque edge-label halos so lines don't fade behind labels, edge labels centered on the line, type badges visible in solid-fill mode, and description text using the label color.
 - **Invalid embed blocks now render the standard error card** instead of a blank box.
@@ -732,53 +762,64 @@ A language-consistency release. A five-dimension audit of all 37 chart types fou
 ## [0.48.2] - 2026-07-06
 
 ### Fixed
+
 - **Embed source panel no longer reflows the diagram when opened.** The standard block's one-shared-frame (border + padding) was applied only while the source was open, so toggling code on added a 1px border and padding that shrank the `width:100%` SVG and shifted the icon toolbar inward. The frame box is now reserved at all times with a transparent border; opening the panel only paints the border color in. Diagram dimensions and toolbar position are identical open vs closed — a more finished expand/collapse. Affects every embed surface (marketing gallery, docs wrappers, Obsidian, `/auto`).
 
 ## [0.48.1] - 2026-07-06
 
 ### Changed
+
 - **Embedded charts now dim on hover to match the app.** The baked-CSS hover for the data-chart family (bar, pie, funnel, heatmap, polar-area, scatter) used a faint `saturate`/`brightness` lift on the hovered group — imperceptible on muted fills, so an embedded chart (doc site, Obsidian, browser-opened `.svg`) read as having no hover feedback at all. Hovering a mark now fades every other category to `opacity: 0.18`, mirroring the desktop app's live hover exactly. The `:hover` self-emphasis floor is retained. Safe with no JavaScript: these renderers set no inline opacity on marks, so the baked `<style>` rule wins.
 
 ### Fixed
+
 - **C4: bare text after `Name is a <type>` is again a hard error** instead of being silently dropped. After decision #28 (0.43.0) deleted the `E_*_REMOVED` diagnostic family, a non-`key: value` tail such as `User is a person Handles all requests` silently lost the trailing text (data loss). The tail now raises a parse error naming the fix (`description: …`), and — like other C4 parse errors — the diagram does not render until it is corrected. Use `User is a person, description: Handles all requests`.
 
 ### Added
+
 - **Frozen-palette CI guard.** A test now pins the 11 recognized color names (`RECOGNIZED_COLOR_NAMES` + the `colorNames` resolver map) to their exact literal list, so adding/renaming a palette color (a breaking grammar change) fails CI rather than slipping in silently. Documents the decision-#17 invariant that was previously only asserted by prose.
 
 ## [0.48.0] - 2026-07-05
 
 ### Changed
+
 - **BREAKING: the package is now ESM-only.** The CommonJS build (`dist/*.cjs`) and the `require` export conditions are gone; every entry resolves to its ESM output. All first-party consumers (the remark plugin and its host wrappers, the app, Obsidian, the site, and `@diagrammo/dgmo-mcp` as of its ESM release) already import the ESM build, so nothing in the ecosystem changes. External code still using `require('@diagrammo/dgmo')` must switch to `import`. The CLI (`dgmo`) is unaffected — it ships as its own self-contained binary. Dropping the duplicate CJS bundles removes ~12 MB from the unpacked package.
 - **Raw `src/` is no longer published.** The tarball shipped the full TypeScript source (~5 MB) that nothing referenced at runtime (the `exports` map points only at `dist/`; map data is served from `dist/map-data/`). Removed from the published `files`.
 
 ## [0.47.0] - 2026-07-05
 
 ### Changed
+
 - **Smaller bundles for hosts that import multiple entry points.** `index`, `block`, and `advanced` now share one code-split render pipeline (ESM) instead of each shipping a self-contained ~2.5 MB copy. A downstream bundler (esbuild / Rollup / Vite) that pulls more than one of these keeps a single copy of the pipeline — the Obsidian plugin's bundle drops from ~8.5 MB to ~4.0 MB (it imports all three). No API change; the CJS builds stay self-contained (esbuild can't code-split CJS, and `require` consumers don't bundle).
 
 ## [0.46.0] - 2026-07-05
 
 ### Changed
+
 - **`/auto` and `<dgmo-diagram>` adopt the standard embed block (BL-114)** — both browser drop-ins now emit the canonical chrome from `@diagrammo/dgmo/block` instead of their bespoke source panel: `figure.dgmo` wrapper, hover-reveal wordless icon toolbar (`</>` view source · copy · open-in-editor) in a reserved footer row, source hidden behind a native `<details class="dgmo-source-wrap">`, and one shared frame around chart + code while the source is open. Copy still copies the raw DGMO source and the editor link keeps its UTM-tagged share URL. Errors now render as the standard `.dgmo--error` card (message + offending source, `role="alert"`) on both surfaces, replacing the old `.dgmo-error-banner`. The old chrome classes (`.dgmo-source-panel`, `.dgmo-source-toggle`, `.dgmo-source-body`, `.dgmo-source-actions`, `.dgmo-btn*`, `.dgmo-chevron`, `.dgmo-error-banner*`) are gone from both surfaces and from `dist/auto.css`, which now bundles `BLOCK_CSS` plus a `.dgmo-theme-dark`-scoped copy of its dark-mode rules.
 
 ### Fixed
+
 - **Baked hover no longer fails on tag-group names with spaces or parentheses** (e.g. `Residents (millions)`). Legend markers now carry the same slug the marks use, and the hover injector re-slugs defensively, so `render()` no longer throws `Invalid selector` on such diagrams when a DOM is present.
 - **Concurrent renders across two bundle copies no longer race on DOM globals.** Hosts that load both `@diagrammo/dgmo` and `@diagrammo/dgmo/block` (two self-contained bundles) could see one copy tear down `globalThis.document` mid-render of the other (`document is not defined`). The jsdom-globals ref-count is now shared across copies via a `Symbol.for` slot.
 
 ## [0.45.0] - 2026-07-05
 
 ### Added
+
 - **Standard embed block (`@diagrammo/dgmo/block`)** — the one canonical "diagram + source chrome" every embed surface now shares (remark-dgmo and its five host wrappers first; `/auto`, `<dgmo-diagram>`, MCP reports, site, and Obsidian to follow). The diagram is the star: a slim wordless icon toolbar (`</>` view source · copy · open-in-editor) sits below the chart and only fades in while the pointer is over the diagram itself; source stays hidden behind a native `<details>` (zero-JS toggle); opening it draws one shared frame around chart + code so the source reads as part of the figure. Ships `renderDgmoBlock()`, `buildDgmoBlockHtml()`, `errorBlockHtml()`, `BLOCK_CSS`, and `dist/block.css` (also exported as `./block.css`).
 - **`LIGHT_ROLE_STYLES`** in `@diagrammo/dgmo/highlight` — light-background companion to `NORD_ROLE_STYLES` for static source display, with a parity test tying both maps to the block stylesheet's `.dgmo-tok-*` rules.
 
 ## [0.44.1] - 2026-07-04
 
 ### Fixed
+
 - **event-line / block**: removed the opaque full-canvas background rect. Both types now rely on the SVG's CSS `background` (and resvg's background option for PNG) like every other chart type, so transparent-theme and Obsidian embeds blend with the host instead of showing a dark box.
 
 ## [0.44.0] - 2026-07-04
 
 ### Added
+
 - **`<dgmo-diagram>` web component** — render diagrams client-side in any HTML page (Hugo, Jekyll, MkDocs, plain HTML) via a `<script>` tag + custom element. New `./element` entry plus a self-registering `dist/element.js` bundle; map diagrams lazy-fetch their geo data so the base bundle stays lean.
 - **Baked pure-CSS hover** — exported SVGs carry hover emphasis with zero JavaScript (`bakeHover` in `render()`), across the connection, tag-group, and cross-free chart families.
 - **Portable view-state directives (BL-111)** — source-native markers reproduce a configured view anywhere the `.dgmo` travels: `collapsed: true` (mindmap / sequence / state / kanban / gantt / infra), `lane-by <group>` (timeline / gantt / kanban), `color-by-depth` (mindmap), `no-semantic-colors` (er), and honored `hide` (org / sitemap).
@@ -788,9 +829,11 @@ A language-consistency release. A five-dimension audit of all 37 chart types fou
 - Enumerable diagnostic registry plus a `dgmo diagnostics` CLI command.
 
 ### Changed
+
 - **BREAKING**: removed the `chord` chart-type keyword. Use `arc` with `layout chord` for circular / chord layouts.
 
 ### Fixed
+
 - Swimlane: blocking boxes shifted out of back-edge corridors.
 - Map: arrowheads tagged so legend hover keeps matching arrows lit.
 - Arc / block: exported SVG sized to content instead of a fixed canvas.
@@ -834,7 +877,7 @@ A language-consistency release. A five-dimension audit of all 37 chart types fou
 
 ### Changed
 
-- **Value→colour/size/width ramps are channel-named (decision #20) — BREAKING.** The ramp directive and its per-element key now share the *visual-channel* word. boxes-and-lines: `box-metric`/`value:` → **`heat`/`heat:`**. map: `region-metric` → **`region-heat`** (`heat:`), `poi-metric` → **`poi-size`** (`size:`), `flow-metric` → **`flow-width`** (`width:`); `no-region-value` → **`no-region-heat-value`**. Each map element accepts exactly one channel key — a wrong-channel key (e.g. `size:` on a region) is now a hard error. treemap (`heat`/`heat:`) is unchanged — it was the reference pattern. No migration: the old tokens are unrecognized.
+- **Value→colour/size/width ramps are channel-named (decision #20) — BREAKING.** The ramp directive and its per-element key now share the _visual-channel_ word. boxes-and-lines: `box-metric`/`value:` → **`heat`/`heat:`**. map: `region-metric` → **`region-heat`** (`heat:`), `poi-metric` → **`poi-size`** (`size:`), `flow-metric` → **`flow-width`** (`width:`); `no-region-value` → **`no-region-heat-value`**. Each map element accepts exactly one channel key — a wrong-channel key (e.g. `size:` on a region) is now a hard error. treemap (`heat`/`heat:`) is unchanged — it was the reference pattern. No migration: the old tokens are unrecognized.
 - **Event-line** — legend mute-to-dots, collapsed-era centering + hover fix, date-in-card layout, focus interactions, and tag defaults.
 
 ### Removed
@@ -863,7 +906,7 @@ A language-consistency release. A five-dimension audit of all 37 chart types fou
 
 - **Event-line chart type** — an annotated narrative timeline: a horizontal spine of point events, each a dot with a date caption and a leader to an org-style card, auto-alternating above/below. Distinct from `timeline` (to-scale axis with eras/markers/ranges); event-line is point events with rich prose, optionally not to scale. Supports **eras** (`[Name]` run delimiters) that bracket a contiguous run of events; an era can **collapse** to a single summary card (bulleted member list, tag-colored) with an on-spine `⊓` bracket marking its span, and expand again live in the app. `no-scale`, `side above|below`, `no-box`, `no-legend` directives.
 - **Version-control chart type** — a VCS-agnostic commit DAG drawn as parallel branch lanes (the git/Mercurial/SVN branch-and-merge picture) in a "metro map" visual. Keyword-less grammar (a bare top-level line is a branch, a bare indented line is a commit); only `merge` and `cherry-pick` are required verbs. At parity with Mermaid `gitGraph` and beyond (HEAD / remote-tracking / ahead-behind, `rebase`/`reset`/`revert`/squash, step notes).
-- **Block chart type** — an author-controlled grid of rectangular blocks with nested, collapsible containers, for diagrams where the 2-D arrangement *is* the meaning (system/hardware/architecture layouts). Containment over edges; columns inferred from placement; `_` for empty cells.
+- **Block chart type** — an author-controlled grid of rectangular blocks with nested, collapsible containers, for diagrams where the 2-D arrangement _is_ the meaning (system/hardware/architecture layouts). Containment over edges; columns inferred from placement; `_` for empty cells.
 - **Swimlane chart type** — cross-functional / BPMN-style swimlanes: lanes, `[Phase]` columns, and in-arrow labels.
 
 ### Changed
@@ -955,7 +998,7 @@ A language-consistency release. A five-dimension audit of all 37 chart types fou
 
 ### Fixed
 
-- **Flowchart structural integrity** — a node carrying an unsupported trailing suffix (e.g. a tag-style `(Denied) s: Denied`) is salvaged with a warning instead of silently dropping the node *and* its edge; a leading-arrow continuation line (`(Start)` then `-> Next`) now attaches to the previous node instead of orphaning it.
+- **Flowchart structural integrity** — a node carrying an unsupported trailing suffix (e.g. a tag-style `(Denied) s: Denied`) is salvaged with a warning instead of silently dropping the node _and_ its edge; a leading-arrow continuation line (`(Start)` then `-> Next`) now attaches to the previous node instead of orphaning it.
 - **function** — a curve whose name begins with `x` (e.g. `x / 2: x / 2`) no longer collides with the `x <min> to <max>` range keyword and gets silently dropped.
 - **bar** — plain `bar` given multiple series now warns (use `bar-stacked` / `multi-line`) instead of silently rendering only the first series.
 - Timeline horizontal fit, mindmap canvas fit, scatter legend spacing, org focus-icon contrast, sequence participant interleave, map antimeridian POI-frame clamp.
@@ -1510,11 +1553,11 @@ all three.
 
 #### Migrate with `dgmo migrate`
 
-```bash
+````bash
 dgmo migrate path/to/dir --diff           # preview
 dgmo migrate path/to/dir --apply          # write (.bak sidecars by default)
 dgmo migrate docs/ --embedded --apply     # .md / .mdx with fenced ```dgmo
-```
+````
 
 The tool is dry-run by default, idempotent on re-run, and atomic
 per file in `--embedded` mode (a parse-error block aborts the whole
@@ -1587,13 +1630,13 @@ during the transition.
 The sequence diagram retains only the types whose shape carries semantic
 weight at a glance:
 
-| Kept type | Shape |
-|-----------|-------|
-| `actor` | Stick figure |
-| `database` | Vertical cylinder |
-| `cache` | Dashed vertical cylinder |
-| `queue` | Horizontal pipe |
-| _default_ | Plain rectangle (used when `is a` is omitted) |
+| Kept type  | Shape                                         |
+| ---------- | --------------------------------------------- |
+| `actor`    | Stick figure                                  |
+| `database` | Vertical cylinder                             |
+| `cache`    | Dashed vertical cylinder                      |
+| `queue`    | Horizontal pipe                               |
+| _default_  | Plain rectangle (used when `is a` is omitted) |
 
 The keywords `service`, `frontend`, `networking`, `gateway`, and `external`
 were **removed** — using any of them in `is a X` is a hard parse error
@@ -1686,7 +1729,7 @@ word as a label would silently change behavior.
 
 Edges on these three chart types no longer have a color slot. `A -(red)-> B`
 parses as a label `(red)`; `A -yes-> B` and `A -no-> B` no longer auto-color
-the arrow. All edges render with the default theme color. To color a *node*,
+the arrow. All edges render with the default theme color. To color a _node_,
 use tags. Sankey/chord links are the one exception — they carry data, so a
 trailing color word after the numeric flow value colors the link
 (`Source -> Target 3000 red`).

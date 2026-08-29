@@ -8,14 +8,14 @@ Tree-shaking via `"sideEffects": false` ensures consumers only pay for what they
 
 ## Summary
 
-| Package                     | Category | Strategy       | Rationale                                         |
-| --------------------------- | -------- | -------------- | ------------------------------------------------- |
-| `d3-scale`                  | Runtime  | **dependency** | D3 renderer implementation detail                 |
-| `d3-selection`              | Runtime  | **dependency** | D3 + sequence renderer implementation detail      |
-| `d3-shape`                  | Runtime  | **dependency** | D3 renderer implementation detail                 |
-| `d3-array`                  | Runtime  | **dependency** | D3 renderer implementation detail                 |
-| `d3-cloud`                  | Runtime  | **dependency** | Wordcloud renderer implementation detail          |
-| `echarts`                   | Runtime  | **dependency** | Option builder types + consumer rendering runtime |
+| Package        | Category | Strategy       | Rationale                                         |
+| -------------- | -------- | -------------- | ------------------------------------------------- |
+| `d3-scale`     | Runtime  | **dependency** | D3 renderer implementation detail                 |
+| `d3-selection` | Runtime  | **dependency** | D3 + sequence renderer implementation detail      |
+| `d3-shape`     | Runtime  | **dependency** | D3 renderer implementation detail                 |
+| `d3-array`     | Runtime  | **dependency** | D3 renderer implementation detail                 |
+| `d3-cloud`     | Runtime  | **dependency** | Wordcloud renderer implementation detail          |
+| `echarts`      | Runtime  | **dependency** | Option builder types + consumer rendering runtime |
 
 ## `package.json`
 

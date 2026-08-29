@@ -27,19 +27,32 @@ const WORKSPACE_ROOT = resolve(DGMO_ROOT, '..');
 
 const CLI_PATH = join(DGMO_ROOT, 'cli', 'dist', 'cli.cjs');
 const EXAMPLES_DIR = join(WORKSPACE_ROOT, 'dgmo-content', 'examples');
-const OUT_DIR = join(WORKSPACE_ROOT, '_bmad-output', 'galleries', 'dgmo-examples');
+const OUT_DIR = join(
+  WORKSPACE_ROOT,
+  '_bmad-output',
+  'galleries',
+  'dgmo-examples'
+);
 const RENDERS_DIR = join(OUT_DIR, 'renders');
 
 const PALETTES = [
-  'slate', 'atlas', 'blueprint', 'tidewater',
-  'nord', 'catppuccin', 'tokyo-night',
+  'slate',
+  'atlas',
+  'blueprint',
+  'tidewater',
+  'nord',
+  'catppuccin',
+  'tokyo-night',
 ];
 const THEMES = ['light', 'dark'];
 
 // Fixtures excluded from rendering. Each entry MUST cite the reason.
 // Mirrors the SKIP map in gallery-snapshot.mjs for consistency.
 const SKIP = new Map([
-  ['business/wordcloud.dgmo', 'requires canvas npm package — render fails in jsdom'],
+  [
+    'business/wordcloud.dgmo',
+    'requires canvas npm package — render fails in jsdom',
+  ],
 ]);
 
 function parseArgs() {
@@ -137,12 +150,16 @@ function renderOne({ inputPath, outputPath, palette, theme }) {
     const args = [
       CLI_PATH,
       inputPath,
-      '--palette', palette,
-      '--theme', theme,
-      '-o', outputPath,
+      '--palette',
+      palette,
+      '--theme',
+      theme,
+      '-o',
+      outputPath,
     ];
     execFile('node', args, { timeout: 30_000 }, (err, _stdout, stderr) => {
-      if (err) res({ ok: false, error: (stderr || err.message).split('\n')[0] });
+      if (err)
+        res({ ok: false, error: (stderr || err.message).split('\n')[0] });
       else res({ ok: true });
     });
   });
@@ -151,7 +168,12 @@ function renderOne({ inputPath, outputPath, palette, theme }) {
 // For solid-fill renders: try the top-inject source first, fall back
 // to the end-inject source if the parser rejected the top form.
 async function renderSolid({ topPath, endPath, outputPath, palette, theme }) {
-  const first = await renderOne({ inputPath: topPath, outputPath, palette, theme });
+  const first = await renderOne({
+    inputPath: topPath,
+    outputPath,
+    palette,
+    theme,
+  });
   if (first.ok) return first;
   return renderOne({ inputPath: endPath, outputPath, palette, theme });
 }
@@ -180,7 +202,9 @@ function escapeHtml(s) {
 }
 
 function renderIndexHtml({ examples, palettes, themes, generatedAt }) {
-  const palOptions = palettes.map((p) => `<option value="${p}">${p}</option>`).join('');
+  const palOptions = palettes
+    .map((p) => `<option value="${p}">${p}</option>`)
+    .join('');
   const styles = `
     :root { color-scheme: light dark; }
     * { box-sizing: border-box; }
@@ -277,15 +301,19 @@ function renderIndexHtml({ examples, palettes, themes, generatedAt }) {
                 <div class="variant-pair">
                   <div class="sub">
                     <div class="sublabel">tint</div>
-                    <div class="image">${baselineFile
-                      ? `<img loading="lazy" src="${baselineFile}" alt="${palette} ${theme} tint">`
-                      : '<span style="color:#f85149;font-size:11px">render error</span>'}</div>
+                    <div class="image">${
+                      baselineFile
+                        ? `<img loading="lazy" src="${baselineFile}" alt="${palette} ${theme} tint">`
+                        : '<span style="color:#f85149;font-size:11px">render error</span>'
+                    }</div>
                   </div>
                   <div class="sub">
                     <div class="sublabel">solid-fill</div>
-                    <div class="image">${solidFile
-                      ? `<img loading="lazy" src="${solidFile}" alt="${palette} ${theme} solid-fill">`
-                      : '<span style="color:#f85149;font-size:11px">render error</span>'}</div>
+                    <div class="image">${
+                      solidFile
+                        ? `<img loading="lazy" src="${solidFile}" alt="${palette} ${theme} solid-fill">`
+                        : '<span style="color:#f85149;font-size:11px">render error</span>'
+                    }</div>
                   </div>
                 </div>
               </div>`);
@@ -294,9 +322,11 @@ function renderIndexHtml({ examples, palettes, themes, generatedAt }) {
             cells.push(`
               <div class="${cellClass}" data-palette="${palette}" data-theme="${theme}">
                 <div class="label"><span>${palette} · ${theme}</span></div>
-                <div class="image">${file
-                  ? `<img loading="lazy" src="${file}" alt="${palette} ${theme}">`
-                  : '<span style="color:#f85149;font-size:11px">render error</span>'}</div>
+                <div class="image">${
+                  file
+                    ? `<img loading="lazy" src="${file}" alt="${palette} ${theme}">`
+                    : '<span style="color:#f85149;font-size:11px">render error</span>'
+                }</div>
               </div>`);
           }
         }
@@ -544,7 +574,9 @@ async function main() {
 
   if (opts.fresh && existsSync(RENDERS_DIR)) {
     if (opts.htmlOnly) {
-      console.error('--fresh and --html-only are incompatible (--fresh wipes the renders that --html-only needs).');
+      console.error(
+        '--fresh and --html-only are incompatible (--fresh wipes the renders that --html-only needs).'
+      );
       process.exit(1);
     }
     rmSync(RENDERS_DIR, { recursive: true, force: true });
@@ -622,7 +654,10 @@ async function main() {
       for (const theme of THEMES) {
         const baselineRel = join(ex.id, `${palette}__${theme}__baseline.svg`);
         tasks.push({
-          ex, palette, theme, variant: 'baseline',
+          ex,
+          palette,
+          theme,
+          variant: 'baseline',
           input: ex.file,
           output: join(RENDERS_DIR, baselineRel),
           relForHtml: `renders/${baselineRel}`,
@@ -630,7 +665,10 @@ async function main() {
         if (ex.solidFill) {
           const solidRel = join(ex.id, `${palette}__${theme}__solid.svg`);
           tasks.push({
-            ex, palette, theme, variant: 'solid',
+            ex,
+            palette,
+            theme,
+            variant: 'solid',
             input: ex.solidSourceTop,
             inputFallback: ex.solidSourceEnd,
             output: join(RENDERS_DIR, solidRel),
@@ -651,22 +689,27 @@ async function main() {
         found++;
       }
     }
-    console.log(`html-only: found ${found}/${tasks.length} existing SVGs on disk.`);
+    console.log(
+      `html-only: found ${found}/${tasks.length} existing SVGs on disk.`
+    );
     const indexPath = join(OUT_DIR, 'index.html');
     const html = renderIndexHtml({
       examples,
       palettes: PALETTES,
       themes: THEMES,
-      generatedAt: new Date().toISOString().replace('T', ' ').slice(0, 19) + 'Z',
+      generatedAt:
+        new Date().toISOString().replace('T', ' ').slice(0, 19) + 'Z',
     });
     writeFileSync(indexPath, html);
     console.log(`\nGallery: file://${indexPath}`);
     return;
   }
 
-  console.log(`Rendering ${tasks.length} SVGs across ${examples.length} examples ` +
-              `(${PALETTES.length} palettes × ${THEMES.length} themes` +
-              `, +solid-fill for ${examples.filter(e => e.solidFill).length} examples)…`);
+  console.log(
+    `Rendering ${tasks.length} SVGs across ${examples.length} examples ` +
+      `(${PALETTES.length} palettes × ${THEMES.length} themes` +
+      `, +solid-fill for ${examples.filter((e) => e.solidFill).length} examples)…`
+  );
   const start = Date.now();
   let done = 0;
   const tick = setInterval(() => {
@@ -700,12 +743,16 @@ async function main() {
 
   const errors = results.filter((r) => !r.ok);
   const elapsed = ((Date.now() - start) / 1000).toFixed(1);
-  console.log(`Rendered ${results.length - errors.length}/${results.length} in ${elapsed}s`);
+  console.log(
+    `Rendered ${results.length - errors.length}/${results.length} in ${elapsed}s`
+  );
 
   if (errors.length) {
     console.log(`\n${errors.length} render error(s):`);
     for (const e of errors.slice(0, 50)) {
-      console.log(`  - ${e.t.ex.relPath} [${e.t.palette}/${e.t.theme}/${e.t.variant}]: ${e.error}`);
+      console.log(
+        `  - ${e.t.ex.relPath} [${e.t.palette}/${e.t.theme}/${e.t.variant}]: ${e.error}`
+      );
     }
     if (errors.length > 50) console.log(`  …and ${errors.length - 50} more`);
   }

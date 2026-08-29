@@ -24,8 +24,13 @@ const OUTPUT_DIR = join(ROOT, 'gallery', 'output');
 const RENDERS_DIR = join(OUTPUT_DIR, 'renders');
 
 const PALETTES = [
-  'slate', 'atlas', 'blueprint', 'tidewater',
-  'nord', 'catppuccin', 'tokyo-night',
+  'slate',
+  'atlas',
+  'blueprint',
+  'tidewater',
+  'nord',
+  'catppuccin',
+  'tokyo-night',
 ];
 
 const THEMES = ['light', 'dark', 'transparent'];
@@ -37,16 +42,27 @@ const FORMATS = ['svg', 'png'];
 
 function parseArgs() {
   const args = process.argv.slice(2);
-  const opts = { chart: null, palette: null, theme: null, format: null, concurrency: cpus().length };
+  const opts = {
+    chart: null,
+    palette: null,
+    theme: null,
+    format: null,
+    concurrency: cpus().length,
+  };
   let i = 0;
   while (i < args.length) {
     const arg = args[i];
-    if (arg === '--chart') { opts.chart = args[++i]; }
-    else if (arg === '--palette') { opts.palette = args[++i]; }
-    else if (arg === '--theme') { opts.theme = args[++i]; }
-    else if (arg === '--format') { opts.format = args[++i]; }
-    else if (arg === '--concurrency') { opts.concurrency = parseInt(args[++i], 10); }
-    else if (arg === '--help' || arg === '-h') {
+    if (arg === '--chart') {
+      opts.chart = args[++i];
+    } else if (arg === '--palette') {
+      opts.palette = args[++i];
+    } else if (arg === '--theme') {
+      opts.theme = args[++i];
+    } else if (arg === '--format') {
+      opts.format = args[++i];
+    } else if (arg === '--concurrency') {
+      opts.concurrency = parseInt(args[++i], 10);
+    } else if (arg === '--help' || arg === '-h') {
       console.log(`Usage: node scripts/generate-gallery.mjs [options]
 
 Options:
@@ -57,8 +73,7 @@ Options:
   --concurrency <n>    Max concurrent renders (default: CPU count)
   --help               Show this help`);
       process.exit(0);
-    }
-    else {
+    } else {
       console.error(`Unknown argument: ${arg}`);
       process.exit(1);
     }
@@ -77,7 +92,7 @@ function discoverFixtures(filterChart) {
     process.exit(1);
   }
   const files = readdirSync(FIXTURES_DIR)
-    .filter(f => extname(f) === '.dgmo')
+    .filter((f) => extname(f) === '.dgmo')
     .sort();
 
   if (files.length === 0) {
@@ -86,10 +101,12 @@ function discoverFixtures(filterChart) {
   }
 
   if (filterChart) {
-    const filtered = files.filter(f => basename(f, '.dgmo') === filterChart);
+    const filtered = files.filter((f) => basename(f, '.dgmo') === filterChart);
     if (filtered.length === 0) {
       console.error(`Error: No fixture found for chart type "${filterChart}"`);
-      console.error(`Available: ${files.map(f => basename(f, '.dgmo')).join(', ')}`);
+      console.error(
+        `Available: ${files.map((f) => basename(f, '.dgmo')).join(', ')}`
+      );
       process.exit(1);
     }
     return filtered;
@@ -138,9 +155,12 @@ function renderOne(task) {
     const args = [
       CLI_PATH,
       task.fixturePath,
-      '--palette', task.palette,
-      '--theme', task.theme,
-      '-o', task.outputPath,
+      '--palette',
+      task.palette,
+      '--theme',
+      task.theme,
+      '-o',
+      task.outputPath,
     ];
 
     execFile('node', args, { timeout: 30_000 }, (err, _stdout, stderr) => {
@@ -170,7 +190,10 @@ async function runPool(tasks, concurrency, onProgress) {
     }
   }
 
-  const workers = Array.from({ length: Math.min(concurrency, tasks.length) }, () => worker());
+  const workers = Array.from(
+    { length: Math.min(concurrency, tasks.length) },
+    () => worker()
+  );
   await Promise.all(workers);
   return results;
 }
@@ -180,18 +203,22 @@ async function runPool(tasks, concurrency, onProgress) {
 // ============================================================
 
 function generateHTML(results) {
-  const successful = results.filter(r => r.ok);
-  const failed = results.filter(r => !r.ok);
+  const successful = results.filter((r) => r.ok);
+  const failed = results.filter((r) => !r.ok);
 
   // Collect unique values for filters
-  const charts = [...new Set(successful.map(r => r.chart))].sort();
-  const palettes = [...new Set(successful.map(r => r.palette))].sort();
-  const themes = [...new Set(successful.map(r => r.theme))];
-  const formats = [...new Set(successful.map(r => r.format))];
+  const charts = [...new Set(successful.map((r) => r.chart))].sort();
+  const palettes = [...new Set(successful.map((r) => r.palette))].sort();
+  const themes = [...new Set(successful.map((r) => r.theme))];
+  const formats = [...new Set(successful.map((r) => r.format))];
 
   function optionsHTML(label, values) {
-    return `<option value="all">${label}: All</option>\n` +
-      values.map(v => `          <option value="${v}">${v}</option>`).join('\n');
+    return (
+      `<option value="all">${label}: All</option>\n` +
+      values
+        .map((v) => `          <option value="${v}">${v}</option>`)
+        .join('\n')
+    );
   }
 
   function bgClass(theme) {
@@ -200,8 +227,9 @@ function generateHTML(results) {
     return 'bg-checker';
   }
 
-  const cards = successful.map(r => {
-    return `      <div class="card" data-chart="${r.chart}" data-palette="${r.palette}" data-theme="${r.theme}" data-format="${r.format}">
+  const cards = successful
+    .map((r) => {
+      return `      <div class="card" data-chart="${r.chart}" data-palette="${r.palette}" data-theme="${r.theme}" data-format="${r.format}">
         <div class="card-img ${bgClass(r.theme)}">
           <img src="renders/${r.outName}" loading="lazy" alt="${r.chart} ${r.palette} ${r.theme} ${r.format}" />
         </div>
@@ -212,15 +240,19 @@ function generateHTML(results) {
           <span class="tag tag-format">${r.format}</span>
         </div>
       </div>`;
-  }).join('\n');
+    })
+    .join('\n');
 
-  const failedSection = failed.length > 0 ? `
+  const failedSection =
+    failed.length > 0
+      ? `
     <details class="errors">
       <summary>${failed.length} render error${failed.length > 1 ? 's' : ''}</summary>
       <ul>
-        ${failed.map(r => `<li><code>${r.outName}</code>: ${escapeHTML(r.error || 'unknown error')}</li>`).join('\n        ')}
+        ${failed.map((r) => `<li><code>${r.outName}</code>: ${escapeHTML(r.error || 'unknown error')}</li>`).join('\n        ')}
       </ul>
-    </details>` : '';
+    </details>`
+      : '';
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -576,7 +608,11 @@ ${cards}
 }
 
 function escapeHTML(str) {
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 // ============================================================
@@ -595,11 +631,15 @@ async function main() {
 
   // Discover fixtures
   const fixtures = discoverFixtures(opts.chart);
-  console.log(`Found ${fixtures.length} fixture(s): ${fixtures.map(f => basename(f, '.dgmo')).join(', ')}`);
+  console.log(
+    `Found ${fixtures.length} fixture(s): ${fixtures.map((f) => basename(f, '.dgmo')).join(', ')}`
+  );
 
   // Build matrix
   const tasks = buildMatrix(fixtures, opts);
-  console.log(`Render matrix: ${tasks.length} total (${fixtures.length} charts x ${(opts.palette ? 1 : PALETTES.length)} palettes x ${(opts.theme ? 1 : THEMES.length)} themes x ${(opts.format ? 1 : FORMATS.length)} formats)`);
+  console.log(
+    `Render matrix: ${tasks.length} total (${fixtures.length} charts x ${opts.palette ? 1 : PALETTES.length} palettes x ${opts.theme ? 1 : THEMES.length} themes x ${opts.format ? 1 : FORMATS.length} formats)`
+  );
   console.log(`Concurrency: ${opts.concurrency}`);
   console.log('');
 
@@ -608,16 +648,22 @@ async function main() {
 
   // Render
   const startTime = Date.now();
-  const results = await runPool(tasks, opts.concurrency, (done, total, result) => {
-    const status = result.ok ? '' : ' FAILED';
-    const pct = Math.round((done / total) * 100);
-    process.stdout.write(`\r  [${done}/${total}] ${pct}% ${result.outName}${status}${''.padEnd(20)}`);
-  });
+  const results = await runPool(
+    tasks,
+    opts.concurrency,
+    (done, total, result) => {
+      const status = result.ok ? '' : ' FAILED';
+      const pct = Math.round((done / total) * 100);
+      process.stdout.write(
+        `\r  [${done}/${total}] ${pct}% ${result.outName}${status}${''.padEnd(20)}`
+      );
+    }
+  );
   process.stdout.write('\r' + ''.padEnd(80) + '\r');
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-  const ok = results.filter(r => r.ok).length;
-  const fail = results.filter(r => !r.ok).length;
+  const ok = results.filter((r) => r.ok).length;
+  const fail = results.filter((r) => !r.ok).length;
 
   // Generate HTML
   const html = generateHTML(results);
@@ -629,16 +675,19 @@ async function main() {
   console.log(`  Rendered: ${ok}/${results.length}`);
   if (fail > 0) {
     console.log(`  Failed:   ${fail}`);
-    const failures = results.filter(r => !r.ok);
+    const failures = results.filter((r) => !r.ok);
     for (const f of failures.slice(0, 10)) {
-      console.log(`    - ${f.outName}: ${(f.error || 'unknown').split('\n')[0]}`);
+      console.log(
+        `    - ${f.outName}: ${(f.error || 'unknown').split('\n')[0]}`
+      );
     }
-    if (failures.length > 10) console.log(`    ... and ${failures.length - 10} more`);
+    if (failures.length > 10)
+      console.log(`    ... and ${failures.length - 10} more`);
   }
   console.log(`  Gallery:  ${htmlPath}`);
 }
 
-main().catch(err => {
+main().catch((err) => {
   console.error(err);
   process.exit(1);
 });

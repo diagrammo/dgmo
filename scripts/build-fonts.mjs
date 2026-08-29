@@ -94,7 +94,8 @@ function readCoverage(buf) {
   let cmapOff = null;
   for (let i = 0; i < numTables; i++) {
     const o = 12 + i * 16;
-    if (buf.toString('latin1', o, o + 4) === 'cmap') cmapOff = buf.readUInt32BE(o + 8);
+    if (buf.toString('latin1', o, o + 4) === 'cmap')
+      cmapOff = buf.readUInt32BE(o + 8);
   }
   if (cmapOff === null) throw new Error('font has no cmap table');
 
@@ -147,15 +148,23 @@ async function main() {
     const coverage = readCoverage(src);
 
     const ttfKeep = toText([...coverage].filter((c) => !inRanges(c, TTF_DROP)));
-    const woff2Keep = toText([...coverage].filter((c) => inRanges(c, WOFF2_KEEP)));
+    const woff2Keep = toText(
+      [...coverage].filter((c) => inRanges(c, WOFF2_KEEP))
+    );
 
     // preserveNameIds keeps the typographic family/subfamily names (16/17)
     // alongside the standard ones harfbuzz retains. resvg matches on the
     // family name — `defaultFontFamily: 'Inter'` in all three render call
     // sites — so losing it would silently fall back to a default face.
     const opts = { preserveNameIds: [16, 17] };
-    const ttf = await subsetFont(src, ttfKeep, { targetFormat: 'sfnt', ...opts });
-    const woff2 = await subsetFont(src, woff2Keep, { targetFormat: 'woff2', ...opts });
+    const ttf = await subsetFont(src, ttfKeep, {
+      targetFormat: 'sfnt',
+      ...opts,
+    });
+    const woff2 = await subsetFont(src, woff2Keep, {
+      targetFormat: 'woff2',
+      ...opts,
+    });
 
     await writeFile(resolve(OUT, `Inter-${weight}.ttf`), ttf);
     await writeFile(resolve(OUT, `Inter-${weight}.woff2`), woff2);
@@ -177,14 +186,19 @@ async function main() {
   // ships. `src/font-coverage.ts` reads this to warn about characters no
   // bundled glyph can draw — a warning derived from an intention rather than
   // from the bytes would eventually describe a font nobody has.
-  const shipped = readCoverage(await readFile(resolve(OUT, 'Inter-Regular.ttf')));
+  const shipped = readCoverage(
+    await readFile(resolve(OUT, 'Inter-Regular.ttf'))
+  );
   const ranges = [];
   for (const cp of [...shipped].sort((a, b) => a - b)) {
     const last = ranges[ranges.length - 1];
     if (last && cp === last[1] + 1) last[1] = cp;
     else ranges.push([cp, cp]);
   }
-  await writeFile(resolve(OUT, 'coverage.json'), JSON.stringify({ ranges }) + '\n');
+  await writeFile(
+    resolve(OUT, 'coverage.json'),
+    JSON.stringify({ ranges }) + '\n'
+  );
 
   console.log('fonts/ generated from vendor/inter:');
   console.log(rows.join('\n'));
@@ -196,6 +210,9 @@ async function main() {
 // Only build when run as a script. `tests/font-coverage.test.ts` imports the
 // range tables above to assert the coverage promise, and must not regenerate
 // the fonts as a side effect of doing so.
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (
+  process.argv[1] &&
+  resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+) {
   await main();
 }

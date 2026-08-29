@@ -202,16 +202,62 @@ const DROP_NAMES = new Set(['Indian Ocean Ter.', 'Siachen Glacier']);
 
 // --- US FIPS -> ISO 3166-2 (embedded; 56 = 50 states + DC + 5 territories, R7) -
 const FIPS_TO_ISO2 = {
-  '01': 'AL', '02': 'AK', '04': 'AZ', '05': 'AR', '06': 'CA', '08': 'CO',
-  '09': 'CT', '10': 'DE', '11': 'DC', '12': 'FL', '13': 'GA', '15': 'HI',
-  '16': 'ID', '17': 'IL', '18': 'IN', '19': 'IA', '20': 'KS', '21': 'KY',
-  '22': 'LA', '23': 'ME', '24': 'MD', '25': 'MA', '26': 'MI', '27': 'MN',
-  '28': 'MS', '29': 'MO', '30': 'MT', '31': 'NE', '32': 'NV', '33': 'NH',
-  '34': 'NJ', '35': 'NM', '36': 'NY', '37': 'NC', '38': 'ND', '39': 'OH',
-  '40': 'OK', '41': 'OR', '42': 'PA', '44': 'RI', '45': 'SC', '46': 'SD',
-  '47': 'TN', '48': 'TX', '49': 'UT', '50': 'VT', '51': 'VA', '53': 'WA',
-  '54': 'WV', '55': 'WI', '56': 'WY', '60': 'AS', '66': 'GU', '69': 'MP',
-  '72': 'PR', '78': 'VI',
+  '01': 'AL',
+  '02': 'AK',
+  '04': 'AZ',
+  '05': 'AR',
+  '06': 'CA',
+  '08': 'CO',
+  '09': 'CT',
+  10: 'DE',
+  11: 'DC',
+  12: 'FL',
+  13: 'GA',
+  15: 'HI',
+  16: 'ID',
+  17: 'IL',
+  18: 'IN',
+  19: 'IA',
+  20: 'KS',
+  21: 'KY',
+  22: 'LA',
+  23: 'ME',
+  24: 'MD',
+  25: 'MA',
+  26: 'MI',
+  27: 'MN',
+  28: 'MS',
+  29: 'MO',
+  30: 'MT',
+  31: 'NE',
+  32: 'NV',
+  33: 'NH',
+  34: 'NJ',
+  35: 'NM',
+  36: 'NY',
+  37: 'NC',
+  38: 'ND',
+  39: 'OH',
+  40: 'OK',
+  41: 'OR',
+  42: 'PA',
+  44: 'RI',
+  45: 'SC',
+  46: 'SD',
+  47: 'TN',
+  48: 'TX',
+  49: 'UT',
+  50: 'VT',
+  51: 'VA',
+  53: 'WA',
+  54: 'WV',
+  55: 'WI',
+  56: 'WY',
+  60: 'AS',
+  66: 'GU',
+  69: 'MP',
+  72: 'PR',
+  78: 'VI',
 };
 // 50 states + DC (territories excluded) — the positive presence check (F10).
 const US_TERRITORIES = new Set(['AS', 'GU', 'MP', 'PR', 'VI']);
@@ -223,19 +269,56 @@ const STATE_DC_CODES = Object.values(FIPS_TO_ISO2)
 // Matched by (folded name, US-XX). Guarantees small capitals (Montpelier ~8k,
 // Pierre ~14k) survive — they're present in cities5000 (>=5k floor).
 const US_CAPITALS = {
-  AL: 'Montgomery', AK: 'Juneau', AZ: 'Phoenix', AR: 'Little Rock',
-  CA: 'Sacramento', CO: 'Denver', CT: 'Hartford', DE: 'Dover',
-  FL: 'Tallahassee', GA: 'Atlanta', HI: 'Honolulu', ID: 'Boise',
-  IL: 'Springfield', IN: 'Indianapolis', IA: 'Des Moines', KS: 'Topeka',
-  KY: 'Frankfort', LA: 'Baton Rouge', ME: 'Augusta', MD: 'Annapolis',
-  MA: 'Boston', MI: 'Lansing', MN: 'Saint Paul', MS: 'Jackson',
-  MO: 'Jefferson City', MT: 'Helena', NE: 'Lincoln', NV: 'Carson City',
-  NH: 'Concord', NJ: 'Trenton', NM: 'Santa Fe', NY: 'Albany',
-  NC: 'Raleigh', ND: 'Bismarck', OH: 'Columbus', OK: 'Oklahoma City',
-  OR: 'Salem', PA: 'Harrisburg', RI: 'Providence', SC: 'Columbia',
-  SD: 'Pierre', TN: 'Nashville', TX: 'Austin', UT: 'Salt Lake City',
-  VT: 'Montpelier', VA: 'Richmond', WA: 'Olympia', WV: 'Charleston',
-  WI: 'Madison', WY: 'Cheyenne',
+  AL: 'Montgomery',
+  AK: 'Juneau',
+  AZ: 'Phoenix',
+  AR: 'Little Rock',
+  CA: 'Sacramento',
+  CO: 'Denver',
+  CT: 'Hartford',
+  DE: 'Dover',
+  FL: 'Tallahassee',
+  GA: 'Atlanta',
+  HI: 'Honolulu',
+  ID: 'Boise',
+  IL: 'Springfield',
+  IN: 'Indianapolis',
+  IA: 'Des Moines',
+  KS: 'Topeka',
+  KY: 'Frankfort',
+  LA: 'Baton Rouge',
+  ME: 'Augusta',
+  MD: 'Annapolis',
+  MA: 'Boston',
+  MI: 'Lansing',
+  MN: 'Saint Paul',
+  MS: 'Jackson',
+  MO: 'Jefferson City',
+  MT: 'Helena',
+  NE: 'Lincoln',
+  NV: 'Carson City',
+  NH: 'Concord',
+  NJ: 'Trenton',
+  NM: 'Santa Fe',
+  NY: 'Albany',
+  NC: 'Raleigh',
+  ND: 'Bismarck',
+  OH: 'Columbus',
+  OK: 'Oklahoma City',
+  OR: 'Salem',
+  PA: 'Harrisburg',
+  RI: 'Providence',
+  SC: 'Columbia',
+  SD: 'Pierre',
+  TN: 'Nashville',
+  TX: 'Austin',
+  UT: 'Salt Lake City',
+  VT: 'Montpelier',
+  VA: 'Richmond',
+  WA: 'Olympia',
+  WV: 'Charleston',
+  WI: 'Madison',
+  WY: 'Cheyenne',
 };
 const CAPITAL_KEYS = new Set(
   Object.entries(US_CAPITALS).map(([st, name]) => `${fold(name)}|US-${st}`)
@@ -304,7 +387,8 @@ function httpsGet(url, redirectsLeft = 5) {
     const req = https.get(url, { timeout: 30_000 }, (r) => {
       if (r.statusCode >= 300 && r.statusCode < 400 && r.headers.location) {
         r.resume();
-        if (redirectsLeft <= 0) return rej(new Error(`Too many redirects: ${url}`));
+        if (redirectsLeft <= 0)
+          return rej(new Error(`Too many redirects: ${url}`));
         const next = new URL(r.headers.location, url).href; // handles relative Location
         return httpsGet(next, redirectsLeft - 1).then(res, rej);
       }
@@ -338,20 +422,30 @@ const sourceHashes = {};
 async function fetchValidated(url, kind) {
   console.log(`  fetch ${url}`);
   const buf = await download(url);
-  if (buf.length < 1024) throw new Error(`Suspiciously small (${buf.length}B): ${url}`);
-  sourceHashes[url] = { sha256: createHash('sha256').update(buf).digest('hex'), bytes: buf.length };
+  if (buf.length < 1024)
+    throw new Error(`Suspiciously small (${buf.length}B): ${url}`);
+  sourceHashes[url] = {
+    sha256: createHash('sha256').update(buf).digest('hex'),
+    bytes: buf.length,
+  };
   if (kind === 'topojson') {
     const head = buf.subarray(0, 64).toString('utf8').trimStart();
-    if (!head.startsWith('{')) throw new Error(`Not JSON (CDN error page?): ${url}`);
+    if (!head.startsWith('{'))
+      throw new Error(`Not JSON (CDN error page?): ${url}`);
     const topo = JSON.parse(buf.toString('utf8'));
-    if (topo.type !== 'Topology' || !topo.objects || !Object.keys(topo.objects).length) {
+    if (
+      topo.type !== 'Topology' ||
+      !topo.objects ||
+      !Object.keys(topo.objects).length
+    ) {
       throw new Error(`Not a valid TopoJSON Topology: ${url}`);
     }
     return topo;
   }
   if (kind === 'zip') {
     // PK\x03\x04 local-file-header magic (R2 — node:zlib can't read PKZIP).
-    if (buf[0] !== 0x50 || buf[1] !== 0x4b) throw new Error(`Not a zip: ${url}`);
+    if (buf[0] !== 0x50 || buf[1] !== 0x4b)
+      throw new Error(`Not a zip: ${url}`);
     return buf;
   }
   return buf;
@@ -362,7 +456,9 @@ async function fetchValidated(url, kind) {
 function unzipEntry(zipBuf, expectedName) {
   const files = unzipSync(new Uint8Array(zipBuf));
   if (!files[expectedName]) {
-    throw new Error(`zip missing expected entry "${expectedName}" (has: ${Object.keys(files).join(', ')})`);
+    throw new Error(
+      `zip missing expected entry "${expectedName}" (has: ${Object.keys(files).join(', ')})`
+    );
   }
   return strFromU8(files[expectedName]);
 }
@@ -378,17 +474,25 @@ async function buildLakes(url) {
   console.log('• lakes (110m physical)');
   console.log(`  fetch ${url}`);
   const buf = await download(url);
-  if (buf.length < 1024) throw new Error(`lakes: suspiciously small (${buf.length}B)`);
-  sourceHashes[url] = { sha256: createHash('sha256').update(buf).digest('hex'), bytes: buf.length };
+  if (buf.length < 1024)
+    throw new Error(`lakes: suspiciously small (${buf.length}B)`);
+  sourceHashes[url] = {
+    sha256: createHash('sha256').update(buf).digest('hex'),
+    bytes: buf.length,
+  };
   const geo = JSON.parse(buf.toString('utf8'));
-  geo.features.forEach((f, i) => { f.id = `lake-${i}`; });
+  geo.features.forEach((f, i) => {
+    f.id = `lake-${i}`;
+  });
   const out = await mapshaper.applyCommands(
     `-i in.json -rename-layers lakes -simplify ${LAKES_RETAIN}% keep-shapes -o quantization=${QUANT_LAKES} format=topojson out.json`,
     { 'in.json': Buffer.from(JSON.stringify(geo)) }
   );
   const topo = JSON.parse(Buffer.from(out['out.json']).toString('utf8'));
   const geoms = topo.objects.lakes.geometries;
-  geoms.forEach((g, i) => { if (g.id == null) g.id = `lake-${i}`; });
+  geoms.forEach((g, i) => {
+    if (g.id == null) g.id = `lake-${i}`;
+  });
   console.log(`  lakes: ${geoms.length}`);
   return topo;
 }
@@ -401,17 +505,25 @@ async function buildRivers(url) {
   console.log('• rivers (110m centerlines)');
   console.log(`  fetch ${url}`);
   const buf = await download(url);
-  if (buf.length < 1024) throw new Error(`rivers: suspiciously small (${buf.length}B)`);
-  sourceHashes[url] = { sha256: createHash('sha256').update(buf).digest('hex'), bytes: buf.length };
+  if (buf.length < 1024)
+    throw new Error(`rivers: suspiciously small (${buf.length}B)`);
+  sourceHashes[url] = {
+    sha256: createHash('sha256').update(buf).digest('hex'),
+    bytes: buf.length,
+  };
   const geo = JSON.parse(buf.toString('utf8'));
-  geo.features.forEach((f, i) => { f.id = `river-${i}`; });
+  geo.features.forEach((f, i) => {
+    f.id = `river-${i}`;
+  });
   const out = await mapshaper.applyCommands(
     `-i in.json -rename-layers rivers -simplify ${RIVERS_RETAIN}% -o quantization=${QUANT_RIVERS} format=topojson out.json`,
     { 'in.json': Buffer.from(JSON.stringify(geo)) }
   );
   const topo = JSON.parse(Buffer.from(out['out.json']).toString('utf8'));
   const geoms = topo.objects.rivers.geometries;
-  geoms.forEach((g, i) => { if (g.id == null) g.id = `river-${i}`; });
+  geoms.forEach((g, i) => {
+    if (g.id == null) g.id = `river-${i}`;
+  });
   console.log(`  rivers: ${geoms.length}`);
   return topo;
 }
@@ -424,8 +536,12 @@ async function buildNaLand(url) {
   console.log('• na-land (10m countries, NA-clipped)');
   console.log(`  fetch ${url}`);
   const buf = await download(url);
-  if (buf.length < 1024) throw new Error(`na-land: suspiciously small (${buf.length}B)`);
-  sourceHashes[url] = { sha256: createHash('sha256').update(buf).digest('hex'), bytes: buf.length };
+  if (buf.length < 1024)
+    throw new Error(`na-land: suspiciously small (${buf.length}B)`);
+  sourceHashes[url] = {
+    sha256: createHash('sha256').update(buf).digest('hex'),
+    bytes: buf.length,
+  };
   const out = await mapshaper.applyCommands(
     `-i in.json -clip bbox=${NA_BBOX} -simplify ${NA_LAND_RETAIN}% keep-shapes -rename-layers countries -o quantization=${QUANT_NA} format=topojson out.json`,
     { 'in.json': buf }
@@ -454,17 +570,26 @@ async function buildNaLakes(url) {
   console.log('• na-lakes (10m lakes, NA-clipped)');
   console.log(`  fetch ${url}`);
   const buf = await download(url);
-  if (buf.length < 1024) throw new Error(`na-lakes: suspiciously small (${buf.length}B)`);
-  sourceHashes[url] = { sha256: createHash('sha256').update(buf).digest('hex'), bytes: buf.length };
+  if (buf.length < 1024)
+    throw new Error(`na-lakes: suspiciously small (${buf.length}B)`);
+  sourceHashes[url] = {
+    sha256: createHash('sha256').update(buf).digest('hex'),
+    bytes: buf.length,
+  };
   const geo = JSON.parse(buf.toString('utf8'));
-  geo.features.forEach((f, i) => { f.id = `lake-${i}`; });
+  geo.features.forEach((f, i) => {
+    f.id = `lake-${i}`;
+  });
   const out = await mapshaper.applyCommands(
     `-i in.json -clip bbox=${NA_BBOX} -filter 'scalerank <= ${NA_LAKES_SCALERANK}' -simplify ${NA_LAKES_RETAIN}% keep-shapes -rename-layers lakes -o quantization=${QUANT_NA} format=topojson out.json`,
     { 'in.json': Buffer.from(JSON.stringify(geo)) }
   );
   const topo = JSON.parse(Buffer.from(out['out.json']).toString('utf8'));
   const geoms = topo.objects.lakes.geometries;
-  geoms.forEach((g, i) => { g.id = `lake-${i}`; delete g.properties; });
+  geoms.forEach((g, i) => {
+    g.id = `lake-${i}`;
+    delete g.properties;
+  });
   console.log(`  na-lakes: ${geoms.length}`);
   return topo;
 }
@@ -480,8 +605,12 @@ async function buildMountainRanges(url) {
   console.log('• mountain-ranges (10m geography regions, Range/mtn)');
   console.log(`  fetch ${url}`);
   const buf = await download(url);
-  if (buf.length < 1024) throw new Error(`mountain-ranges: suspiciously small (${buf.length}B)`);
-  sourceHashes[url] = { sha256: createHash('sha256').update(buf).digest('hex'), bytes: buf.length };
+  if (buf.length < 1024)
+    throw new Error(`mountain-ranges: suspiciously small (${buf.length}B)`);
+  sourceHashes[url] = {
+    sha256: createHash('sha256').update(buf).digest('hex'),
+    bytes: buf.length,
+  };
   const geo = JSON.parse(buf.toString('utf8'));
   const kept = [];
   for (const f of geo.features) {
@@ -495,7 +624,10 @@ async function buildMountainRanges(url) {
     f.id = `mtn-${kept.length}`;
     kept.push(f);
   }
-  if (!kept.length) throw new Error('mountain-ranges: no Range/mtn features (source schema drift?)');
+  if (!kept.length)
+    throw new Error(
+      'mountain-ranges: no Range/mtn features (source schema drift?)'
+    );
   geo.features = kept;
   const out = await mapshaper.applyCommands(
     `-i in.json -rename-layers ranges -simplify ${MOUNTAIN_RETAIN}% keep-shapes -o quantization=${QUANT_MOUNTAIN} format=topojson out.json`,
@@ -505,14 +637,24 @@ async function buildMountainRanges(url) {
   const geoms = topo.objects.ranges.geometries;
   // Re-assign synthetic ids by index (topojson conversion may not carry the
   // GeoJSON Feature.id through); decodeLayer requires unique non-null ids.
-  geoms.forEach((g, i) => { g.id = `mtn-${i}`; });
+  geoms.forEach((g, i) => {
+    g.id = `mtn-${i}`;
+  });
   console.log(`  mountain-ranges: ${geoms.length}`);
   return topo;
 }
 
 // --- Water bodies (context-labels orientation layer) ------------------------
 // featurecla → WaterKind. `river`/`reef` are intentionally excluded (Decision 5).
-const WATER_KIND = new Set(['ocean', 'sea', 'gulf', 'bay', 'strait', 'channel', 'sound']);
+const WATER_KIND = new Set([
+  'ocean',
+  'sea',
+  'gulf',
+  'bay',
+  'strait',
+  'channel',
+  'sound',
+]);
 // Single editorial override layer (Decision 11): the ONE auditable place a
 // generated name can be hand-adjusted. Keyed by the Natural Earth `name`.
 const WATER_NAME_OVERRIDES = { 'Gulf of Mexico': 'Gulf of America' };
@@ -525,19 +667,37 @@ const WATER_NAME_OVERRIDES = { 'Gulf of Mexico': 'Gulf of America' };
 // to clamp to the frame edge. The mid-basin NE point stays primary for world
 // views. Emitted as the optional 6th tuple element `alt` (see WaterBodyEntry).
 const WATER_ALT_ANCHORS = {
-  'North Pacific Ocean': [[36, -126], [47, -131], [55, -143], [35, 160], [15, 165]],
-  'South Pacific Ocean': [[-20, -110], [-40, -95], [-15, 170], [-35, 170]],
-  'North Atlantic Ocean': [[40, -55], [30, -45], [50, -25], [15, -45]],
-  'South Atlantic Ocean': [[-25, -35], [-40, -15], [-10, -20]],
+  'North Pacific Ocean': [
+    [36, -126],
+    [47, -131],
+    [55, -143],
+    [35, 160],
+    [15, 165],
+  ],
+  'South Pacific Ocean': [
+    [-20, -110],
+    [-40, -95],
+    [-15, 170],
+    [-35, 170],
+  ],
+  'North Atlantic Ocean': [
+    [40, -55],
+    [30, -45],
+    [50, -25],
+    [15, -45],
+  ],
+  'South Atlantic Ocean': [
+    [-25, -35],
+    [-40, -15],
+    [-10, -20],
+  ],
 };
 
 /** Natural Earth ships a few names ALL-CAPS (SOUTHERN OCEAN, INDIAN OCEAN);
  *  title-case multi-word all-caps names for display consistency with the rest. */
 function normalizeWaterName(name) {
   if (name !== name.toUpperCase() || !/\s/.test(name)) return name;
-  return name
-    .toLowerCase()
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+  return name.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 /** Build the water-bodies orientation gazetteer from Natural Earth marine polys
@@ -553,11 +713,17 @@ async function buildWaterBodies(coarseUrl, detailUrl) {
   for (const url of [coarseUrl, detailUrl]) {
     console.log(`  fetch ${url}`);
     const buf = await download(url);
-    if (buf.length < 1024) throw new Error(`water-bodies: suspiciously small (${buf.length}B)`);
-    sourceHashes[url] = { sha256: createHash('sha256').update(buf).digest('hex'), bytes: buf.length };
+    if (buf.length < 1024)
+      throw new Error(`water-bodies: suspiciously small (${buf.length}B)`);
+    sourceHashes[url] = {
+      sha256: createHash('sha256').update(buf).digest('hex'),
+      bytes: buf.length,
+    };
     const geo = JSON.parse(buf.toString('utf8'));
     // Inner label points (one per polygon feature), carrying properties through.
-    geo.features.forEach((f, i) => { f.id = `w-${i}`; });
+    geo.features.forEach((f, i) => {
+      f.id = `w-${i}`;
+    });
     const out = await mapshaper.applyCommands(
       '-i in.json -points inner -o out.json',
       { 'in.json': Buffer.from(JSON.stringify(geo)) }
@@ -583,7 +749,8 @@ async function buildWaterBodies(coarseUrl, detailUrl) {
       );
     }
   }
-  if (!entries.length) throw new Error('water-bodies: no marine features (source schema drift?)');
+  if (!entries.length)
+    throw new Error('water-bodies: no marine features (source schema drift?)');
   // Deterministic order: tier, then name (codepoint).
   entries.sort((a, b) => a[3] - b[3] || cmp(a[2], b[2]));
   console.log(`  water-bodies: ${entries.length}`);
@@ -631,7 +798,8 @@ function dissolveSharedArcRing(arcs, ringA, ringB) {
   let shared = null;
   for (const a of ringA)
     for (const b of ringB)
-      if (arcRealIdx(a) === arcRealIdx(b) && a < 0 !== b < 0) shared = arcRealIdx(a);
+      if (arcRealIdx(a) === arcRealIdx(b) && a < 0 !== b < 0)
+        shared = arcRealIdx(a);
   if (shared == null) return null;
   const pool = [...ringA, ...ringB].filter((v) => arcRealIdx(v) !== shared);
   if (!pool.length) return null;
@@ -639,7 +807,9 @@ function dissolveSharedArcRing(arcs, ringA, ringB) {
   const startNode = arcEndpoints(arcs, ring[0]).start;
   let endNode = arcEndpoints(arcs, ring[0]).end;
   while (pool.length) {
-    const i = pool.findIndex((v) => sameNode(arcEndpoints(arcs, v).start, endNode));
+    const i = pool.findIndex((v) =>
+      sameNode(arcEndpoints(arcs, v).start, endNode)
+    );
     if (i < 0) return null; // dangling — can't form a single ring
     const next = pool.splice(i, 1)[0];
     ring.push(next);
@@ -682,7 +852,9 @@ function mergeDisputedTerritories(topo, obj) {
 
 /** Re-key world geometries by ISO 3166-1 alpha-2 (fail-loud, R1/R4/R8/R15). */
 function rekeyWorld(topo) {
-  const objName = topo.objects.countries ? 'countries' : Object.keys(topo.objects)[0];
+  const objName = topo.objects.countries
+    ? 'countries'
+    : Object.keys(topo.objects)[0];
   const obj = topo.objects[objName];
   if (!obj) throw new Error('world: no geometry object');
   // Fold Somaliland/N. Cyprus into Somalia/Cyprus before keying — afterwards no
@@ -691,7 +863,9 @@ function rekeyWorld(topo) {
   const dropped = [];
   for (const g of obj.geometries) {
     if (g.id != null && typeof g.id !== 'string') {
-      throw new Error(`world: non-string id ${JSON.stringify(g.id)} (leading-zero risk)`);
+      throw new Error(
+        `world: non-string id ${JSON.stringify(g.id)} (leading-zero risk)`
+      );
     }
     const name = g.properties?.name;
     let iso = g.id != null ? ISO_NUMERIC_TO_ALPHA2[g.id] : undefined;
@@ -704,7 +878,9 @@ function rekeyWorld(topo) {
         g.__drop = true;
         continue;
       }
-      throw new Error(`world: unmapped feature id=${g.id} name=${JSON.stringify(name)}`);
+      throw new Error(
+        `world: unmapped feature id=${g.id} name=${JSON.stringify(name)}`
+      );
     }
     g.id = iso;
   }
@@ -724,14 +900,18 @@ function rekeyUS(topo) {
       throw new Error(`us: non-string id ${JSON.stringify(g.id)}`);
     }
     const usps = FIPS_TO_ISO2[g.id];
-    if (!usps) throw new Error(`us: unmapped FIPS id=${g.id} name=${JSON.stringify(g.properties?.name)}`);
+    if (!usps)
+      throw new Error(
+        `us: unmapped FIPS id=${g.id} name=${JSON.stringify(g.properties?.name)}`
+      );
     g.id = `US-${usps}`;
   }
   topo.objects = { states: obj };
   const keys = new Set(obj.geometries.map((g) => g.id));
   // assert all 50 states + DC are present by code (not just a count, F10)
   const missing = STATE_DC_CODES.filter((k) => !keys.has(k));
-  if (missing.length) throw new Error(`us: missing states/DC: ${missing.join(', ')}`);
+  if (missing.length)
+    throw new Error(`us: missing states/DC: ${missing.join(', ')}`);
   return { topo, keys: [...keys] };
 }
 
@@ -767,9 +947,15 @@ function buildGazetteer(tsv) {
     const modDate = c[18];
     // strict guard (R15/Decision 15)
     if (
-      !Number.isFinite(lat) || lat < -90 || lat > 90 ||
-      !Number.isFinite(lon) || lon < -180 || lon > 180 ||
-      !Number.isInteger(pop) || pop < 0 || !cc
+      !Number.isFinite(lat) ||
+      lat < -90 ||
+      lat > 90 ||
+      !Number.isFinite(lon) ||
+      lon < -180 ||
+      lon > 180 ||
+      !Number.isInteger(pop) ||
+      pop < 0 ||
+      !cc
     ) {
       droppedRows++;
       continue;
@@ -781,12 +967,23 @@ function buildGazetteer(tsv) {
 
     // inclusion: world majors OR (US >= US floor) OR a US state capital
     const include =
-      pop >= WORLD_POP_FLOOR || (cc === 'US' && pop >= US_POP_FLOOR) || isCapital;
+      pop >= WORLD_POP_FLOOR ||
+      (cc === 'US' && pop >= US_POP_FLOOR) ||
+      isCapital;
     if (!include) continue;
 
     if (modDate && modDate < minDate) minDate = modDate;
     if (modDate && modDate > maxDate) maxDate = modDate;
-    recs.push({ lat: round(lat), lon: round(lon), cc, pop, name, sub, foldedName, tz });
+    recs.push({
+      lat: round(lat),
+      lon: round(lon),
+      cc,
+      pop,
+      name,
+      sub,
+      foldedName,
+      tz,
+    });
   }
 
   // Deterministic order, independent of source row order: name, country, sub,
@@ -822,7 +1019,9 @@ function buildGazetteer(tsv) {
   // Sort the zone table for a stable, readable emit; remap the tz indices.
   const zonesUnsorted = [...zoneId.keys()];
   const zones = [...zonesUnsorted].sort(cmp);
-  const zoneRemap = new Map(zones.map((z, newId) => [zonesUnsorted.indexOf(z), newId]));
+  const zoneRemap = new Map(
+    zones.map((z, newId) => [zonesUnsorted.indexOf(z), newId])
+  );
   const tz = rawTz.map((id) => (id < 0 ? -1 : zoneRemap.get(id)));
 
   // Curated aliases → most-populous matching city index (F5). Skip any that
@@ -846,8 +1045,13 @@ function buildGazetteer(tsv) {
   return {
     gaz: { cities, byName, alt, zones, tz },
     stats: {
-      kept: cities.length, droppedRows, minDate, maxDate, zones: zones.length,
-      capitalsHit: [...capitalsHit].sort(), aliases: Object.keys(alt).length,
+      kept: cities.length,
+      droppedRows,
+      minDate,
+      maxDate,
+      zones: zones.length,
+      capitalsHit: [...capitalsHit].sort(),
+      aliases: Object.keys(alt).length,
       missingAliases,
     },
   };
@@ -919,7 +1123,9 @@ function buildAirports(gaz) {
   console.log('• airports (OurAirports snapshot, IATA-coded)');
   const text = readFileSync(AIRPORT_SNAPSHOT, 'utf8');
   sourceHashes['file:scripts/airports-snapshot.csv'] = {
-    sha256: createHash('sha256').update(Buffer.from(text, 'utf8')).digest('hex'),
+    sha256: createHash('sha256')
+      .update(Buffer.from(text, 'utf8'))
+      .digest('hex'),
     bytes: Buffer.byteLength(text, 'utf8'),
   };
   const lines = text.split('\n').filter(Boolean);
@@ -950,8 +1156,12 @@ function buildAirports(gaz) {
         : type === 'large_airport';
     if (!include) continue;
     if (
-      !Number.isFinite(lat) || lat < -90 || lat > 90 ||
-      !Number.isFinite(lon) || lon < -180 || lon > 180 ||
+      !Number.isFinite(lat) ||
+      lat < -90 ||
+      lat > 90 ||
+      !Number.isFinite(lon) ||
+      lon < -180 ||
+      lon > 180 ||
       !iso
     )
       continue;
@@ -1010,7 +1220,11 @@ function buildAirports(gaz) {
 
 async function main() {
   if (!existsSync(OUT)) mkdirSync(OUT, { recursive: true });
-  const provenance = { generatedBy: 'scripts/build-map-data.mjs', sources: {}, assets: {} };
+  const provenance = {
+    generatedBy: 'scripts/build-map-data.mjs',
+    sources: {},
+    assets: {},
+  };
 
   console.log('• world boundaries (coarse=110m, detail=50m)');
   const coarseBuf = Buffer.from(
@@ -1024,15 +1238,22 @@ async function main() {
 
   // Two sources → different feature counts by design (110m≈177, 50m≈241); each
   // tier re-keyed independently (fail-loud). No cross-tier key-set equality.
-  const coarse = rekeyWorld(await simplify(coarseBuf, WORLD_COARSE_RETAIN, QUANT_COARSE));
-  const detail = rekeyWorld(await simplify(detailBuf, WORLD_DETAIL_RETAIN, QUANT_DETAIL));
+  const coarse = rekeyWorld(
+    await simplify(coarseBuf, WORLD_COARSE_RETAIN, QUANT_COARSE)
+  );
+  const detail = rekeyWorld(
+    await simplify(detailBuf, WORLD_DETAIL_RETAIN, QUANT_DETAIL)
+  );
   // Detail is the superset; assert coarse keys ⊆ detail keys (sanity).
   const dk = new Set(detail.keys);
   const orphan = coarse.keys.filter((k) => !dk.has(k));
-  if (orphan.length) throw new Error(`coarse has keys absent from detail: ${orphan.join(', ')}`);
-  console.log(`  coarse ${coarse.keys.length} / detail ${detail.keys.length} countries ` +
-    `(merged into parent: ${detail.merged.join(', ') || 'none'}; ` +
-    `dropped no-ISO: ${detail.dropped.join(', ') || 'none'})`);
+  if (orphan.length)
+    throw new Error(`coarse has keys absent from detail: ${orphan.join(', ')}`);
+  console.log(
+    `  coarse ${coarse.keys.length} / detail ${detail.keys.length} countries ` +
+      `(merged into parent: ${detail.merged.join(', ') || 'none'}; ` +
+      `dropped no-ISO: ${detail.dropped.join(', ') || 'none'})`
+  );
 
   console.log('• US states');
   const usBuf = Buffer.from(
@@ -1071,7 +1292,9 @@ async function main() {
   // schema-drift guard: a near-empty gazetteer (e.g. column count changed →
   // every row dropped) must hard-fail, not silently ship (F8).
   if (stats.kept < MIN_KEPT_CITIES) {
-    throw new Error(`gazetteer near-empty: kept ${stats.kept} < ${MIN_KEPT_CITIES} (source schema drift?)`);
+    throw new Error(
+      `gazetteer near-empty: kept ${stats.kept} < ${MIN_KEPT_CITIES} (source schema drift?)`
+    );
   }
   provenance.sources.geonames = {
     citiesUrl: SOURCES.geonames.citiesUrl,
@@ -1085,8 +1308,12 @@ async function main() {
   const missingCaps = Object.keys(US_CAPITALS)
     .map((s) => `US-${s}`)
     .filter((k) => !stats.capitalsHit.includes(k));
-  if (missingCaps.length) console.warn(`  ⚠ capitals not matched: ${missingCaps.join(', ')}`);
-  if (stats.missingAliases.length) console.warn(`  ⚠ aliases not resolved: ${stats.missingAliases.join(', ')}`);
+  if (missingCaps.length)
+    console.warn(`  ⚠ capitals not matched: ${missingCaps.join(', ')}`);
+  if (stats.missingAliases.length)
+    console.warn(
+      `  ⚠ aliases not resolved: ${stats.missingAliases.join(', ')}`
+    );
 
   // Airports — reads gaz.byName for the collision report only; never mutates it.
   const airportsBuilt = buildAirports(gaz);
@@ -1106,7 +1333,8 @@ async function main() {
   // region-names.json — completion-only asset: country + US-state display names
   // (the renderer derives names from the topology; this feeds the editor's
   // region autocomplete). Deterministic order: layer, then name (codepoint).
-  const geomsOf = (topo) => topo.objects[Object.keys(topo.objects)[0]].geometries;
+  const geomsOf = (topo) =>
+    topo.objects[Object.keys(topo.objects)[0]].geometries;
   const regionNames = {
     regions: [
       ...geomsOf(coarse.topo).map((g) => ({
@@ -1143,14 +1371,18 @@ async function main() {
     const gz = gzipSync(buf).length;
     const ceil = GZ_CEILINGS[name];
     const flag = gz > ceil ? '  ✗ OVER' : '  ok';
-    console.log(`  ${name}: ${(buf.length / 1024).toFixed(1)}KB raw / ${(gz / 1024).toFixed(1)}KB gz (ceil ${(ceil / 1024).toFixed(0)}KB)${flag}`);
+    console.log(
+      `  ${name}: ${(buf.length / 1024).toFixed(1)}KB raw / ${(gz / 1024).toFixed(1)}KB gz (ceil ${(ceil / 1024).toFixed(0)}KB)${flag}`
+    );
     provenance.assets[name] = {
       sha256: createHash('sha256').update(buf).digest('hex'),
       bytes: buf.length,
       gzBytes: gz,
     };
     if (gz > ceil) {
-      throw new Error(`${name} ${gz}B gz exceeds ceiling ${ceil}B — raise a pop floor or simplify more`);
+      throw new Error(
+        `${name} ${gz}B gz exceeds ceiling ${ceil}B — raise a pop floor or simplify more`
+      );
     }
   }
   provenance.counts = {
@@ -1171,7 +1403,9 @@ async function main() {
   // Committed collision fixture (AC4): the build's authoritative enumeration of
   // folded IATA codes shadowed by a gazetteer city. The map-data test asserts the
   // emitted set equals this file, so "city wins" stays a verified invariant.
-  writeJson('airport-collisions.json', { collisions: airportsBuilt.collisions });
+  writeJson('airport-collisions.json', {
+    collisions: airportsBuilt.collisions,
+  });
 
   writeJson('PROVENANCE.json', provenance);
   writeReadme();

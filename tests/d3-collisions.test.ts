@@ -33,7 +33,7 @@ describe('resolveVerticalCollisions', () => {
   it('preserves original index mapping when items are unsorted', () => {
     const items = [
       { naturalY: 100, height: 20 }, // index 0, higher Y
-      { naturalY: 10, height: 20 },  // index 1, lower Y
+      { naturalY: 10, height: 20 }, // index 1, lower Y
     ];
     const result = resolveVerticalCollisions(items, 4);
     // index 1 (naturalY=10) should stay at 10

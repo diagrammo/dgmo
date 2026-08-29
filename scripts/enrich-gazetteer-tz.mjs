@@ -143,9 +143,7 @@ async function main() {
   });
 
   // Sort zones for a stable, readable table; remap tz indices accordingly.
-  const order = zones
-    .map((z, id) => ({ z, id }))
-    .sort((a, b) => cmp(a.z, b.z));
+  const order = zones.map((z, id) => ({ z, id })).sort((a, b) => cmp(a.z, b.z));
   const remap = new Array(zones.length);
   order.forEach((o, newId) => (remap[o.id] = newId));
   const sortedZones = order.map((o) => o.z);
@@ -159,7 +157,10 @@ async function main() {
     `• matched ${matched}/${gaz.cities.length} cities · ${sortedZones.length} distinct zones`
   );
   if (misses.length)
-    console.log(`• ${misses.length} unmatched (no auto-zone):`, misses.join(', '));
+    console.log(
+      `• ${misses.length} unmatched (no auto-zone):`,
+      misses.join(', ')
+    );
   console.log('• wrote', GAZ_PATH);
 }
 

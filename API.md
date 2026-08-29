@@ -7,7 +7,7 @@ your own risk; it may change in any release) or via the stable subpaths:
 was removed at 1.0 — use `/advanced`.
 
 The browser drop-ins are **not** subpath imports — they are files you point a
-`<script src>` at. See *Browser drop-ins* below.
+`<script src>` at. See _Browser drop-ins_ below.
 
 ```bash
 npm install @diagrammo/dgmo
@@ -40,7 +40,7 @@ Render DGMO source to SVG.
 function render(
   text: string,
   options?: {
-    theme?: Theme;           // 'light' | 'dark' | 'transparent'  (default 'light')
+    theme?: Theme; // 'light' | 'dark' | 'transparent'  (default 'light')
     palette?: PaletteConfig; // see `palettes` namespace          (default palettes.slate)
     onError?: 'svg' | 'silent' | 'throw'; // (default 'svg')
     mapData?: MapDataSource; // map charts only — see below
@@ -70,6 +70,7 @@ Omit it and a map renders empty with an `E_MAP_DATA_NOT_SUPPLIED` diagnostic
 naming the fix. Every other chart type ignores the option.
 
 **`onError` modes:**
+
 - `'svg'` (default) — on parse errors, render an inline error SVG listing the
   first few diagnostics. The user sees what's broken without your code
   inspecting `diagnostics`.
@@ -115,7 +116,7 @@ compressed payload exceeds the 8 KB URL limit.
 function encodeDiagramUrl(
   text: string,
   options?: {
-    baseUrl?: string;        // default: 'https://online.diagrammo.app'
+    baseUrl?: string; // default: 'https://online.diagrammo.app'
     palette?: PaletteConfig;
     theme?: Theme;
     filename?: string;
@@ -161,13 +162,13 @@ Namespace containing all 7 built-in palettes, keyed by camelCase id. Each
 value is a `PaletteConfig`.
 
 ```ts
-palettes.nord
-palettes.atlas
-palettes.blueprint
-palettes.slate
-palettes.tidewater
-palettes.catppuccin
-palettes.tokyoNight
+palettes.nord;
+palettes.atlas;
+palettes.blueprint;
+palettes.slate;
+palettes.tidewater;
+palettes.catppuccin;
+palettes.tokyoNight;
 ```
 
 Each palette's `.id` field is the canonical kebab-case string used by
@@ -184,9 +185,9 @@ Namespace for the three render modes. The underlying type is a string
 literal union, so passing `'dark'` directly also works.
 
 ```ts
-themes.light
-themes.dark        // dark background, light text
-themes.transparent // no background — for embedding in colored containers
+themes.light;
+themes.dark; // dark background, light text
+themes.transparent; // no background — for embedding in colored containers
 ```
 
 ### Types
@@ -304,7 +305,6 @@ a Web Worker without pulling the full library. Most consumers don't need it.
 ### `@diagrammo/dgmo/advanced` (unstable — NOT public API)
 
 > The legacy `@diagrammo/dgmo/internal` alias for this subpath is removed at 1.0 — import from `/advanced`.
-
 
 > **These exports are not part of the public API.** They will be renamed,
 > removed, or behave differently in any release — including patch versions.

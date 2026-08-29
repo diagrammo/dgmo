@@ -61,13 +61,13 @@ When you've already checked that the index is valid:
 ```typescript
 // Before
 for (let i = 0; i < lines.length; i++) {
-  process(lines[i]);  // T | undefined under strict
+  process(lines[i]); // T | undefined under strict
 }
 
 // After
 for (let i = 0; i < lines.length; i++) {
   const line = lines[i];
-  if (line === undefined) continue;  // unreachable but appeases TS
+  if (line === undefined) continue; // unreachable but appeases TS
   process(line);
 }
 ```

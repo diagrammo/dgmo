@@ -15,6 +15,7 @@ You are producing a **single, committable Markdown report** that explains how a 
   ````
 
   Rendering surfaces (diagrammo app, online.diagrammo.app, the remark/astro/docusaurus/fumadocs wrappers, the Obsidian plugin) render these fences live. In a plain viewer (e.g. GitHub) the reader sees the DGMO source, which is still readable. Do **not** inline PNG/SVG — the fence is the source of truth and stays diffable in git.
+
 - **Prose carries the report.** Every diagram is wrapped in explanation: what it shows, why it matters, the non-obvious bits. A diagram with no surrounding analysis is a failure.
 - **Everything is real.** Use actual module, file, service, table, and endpoint names pulled from the code. No invented components, no placeholder "ServiceA".
 
@@ -45,18 +46,19 @@ Write down (for your own use): one-sentence purpose, tech stack, the 5–12 top-
 
 A good report is 3–7 diagrams that form a **narrative**: zoom from the outside in, then show behavior, then data. Pick from this matrix based on what the code actually has — skip anything that doesn't apply.
 
-| Signal in the codebase | Chart type | Section it anchors |
-|---|---|---|
-| Any system with external users/deps | `c4` (context, then container) | "System at a glance" — almost always include one |
-| Internal modules/packages with dependencies | `boxes-and-lines` | "Module map" — the dependency graph, grouped by layer/domain via tags |
-| REST/GraphQL/RPC handlers, key workflows | `sequence` | "Key flows" — 1–3 important request/event paths |
-| DB models / migrations / schema | `er` | "Data model" |
-| Docker / k8s / cloud / LB / queues | `infra` | "Infrastructure & traffic" |
-| Status fields, workflow/state machines | `state` | "Lifecycle" |
-| Class/interface hierarchies that matter | `class` | "Core types" |
-| Cross-team / cross-service process | `swimlane` | "End-to-end process" |
+| Signal in the codebase                      | Chart type                     | Section it anchors                                                    |
+| ------------------------------------------- | ------------------------------ | --------------------------------------------------------------------- |
+| Any system with external users/deps         | `c4` (context, then container) | "System at a glance" — almost always include one                      |
+| Internal modules/packages with dependencies | `boxes-and-lines`              | "Module map" — the dependency graph, grouped by layer/domain via tags |
+| REST/GraphQL/RPC handlers, key workflows    | `sequence`                     | "Key flows" — 1–3 important request/event paths                       |
+| DB models / migrations / schema             | `er`                           | "Data model"                                                          |
+| Docker / k8s / cloud / LB / queues          | `infra`                        | "Infrastructure & traffic"                                            |
+| Status fields, workflow/state machines      | `state`                        | "Lifecycle"                                                           |
+| Class/interface hierarchies that matter     | `class`                        | "Core types"                                                          |
+| Cross-team / cross-service process          | `swimlane`                     | "End-to-end process"                                                  |
 
 Rules:
+
 - **Always** open with a `c4` context or container view — the high-level orientation.
 - **Always** include a `boxes-and-lines` **module/dependency map** for any non-trivial repo — this is the highest-value diagram for understanding code and the main reason this report exists.
 - Behavior → `sequence`. Don't ship more than 3 sequences; pick the flows that teach the system.
@@ -71,6 +73,7 @@ For every chart type you'll use, fetch idiomatic syntax before writing it:
 - No MCP: consult the `dgmo-diagramming` skill.
 
 DGMO syntax reminders (common mistakes):
+
 - First line is `type Title` (e.g. `c4 System Context`) — no colon.
 - No colons in chart-type declarations, tag declarations, or directives.
 - Arrows carry inline labels: `User -POST /login-> API` (sync), `API ~publish~> Queue` (async). Never Mermaid-style `-->`/`->>`.
@@ -82,7 +85,7 @@ DGMO syntax reminders (common mistakes):
 
 Build the Markdown around the diagrams. Structure:
 
-```markdown
+````markdown
 # <Project> — Architecture Report
 
 > Generated from a codebase walkthrough on <date>. Diagrams are DGMO fences —
@@ -90,21 +93,26 @@ Build the Markdown around the diagrams. Structure:
 > to see them rendered; the raw source is readable as-is.
 
 ## TL;DR
+
 - **What it is:** <one sentence>
 - **Stack:** <language / framework / db / infra>
 - **Shape:** <monolith | modular monolith | services | library | CLI> with <N> top-level modules.
 - **Read next:** the Module map below is the fastest way in.
 
 ## System at a glance
+
 <2–4 sentences framing the system and its external dependencies.>
 
 ```dgmo
 c4 System Context
 ...
 ```
+````
+
 <1–3 sentences reading the diagram: what each actor/system is, the key boundary.>
 
 ## Module map
+
 <What the internal pieces are and how they depend on each other. Call out the
 seams, the direction of dependencies, and anything surprising (cycles, a god
 module, a layer that reaches around another).>
@@ -117,9 +125,11 @@ tag Layer as l
   data orange
 ...
 ```
+
 <Analysis: the layering, the hotspots, where new code tends to go.>
 
 ## Key flows
+
 <For each important runtime path: a sentence of setup, the sequence, a sentence
 on the tricky part (auth, retries, async handoff).>
 
@@ -128,15 +138,19 @@ sequence <Flow name>
 ...
 ```
 
-## Data model        ← only if there's a real schema
+## Data model ← only if there's a real schema
+
 ...
 
-## Infrastructure & traffic   ← only if there's real infra
+## Infrastructure & traffic ← only if there's real infra
+
 ...
 
 ## Notes & gotchas
+
 <Non-obvious constraints, tech debt, conventions a newcomer must know. Pull these
 from comments, config, and naming you noticed while reading.>
+
 ```
 
 Writing standards:
@@ -170,3 +184,4 @@ Write the file (default `docs/architecture-report.md`). Then report to the user:
 - ❌ Forcing `er`/`infra` with nothing to show → ✅ only diagram what exists.
 - ❌ Inlining rendered PNG/SVG → ✅ DGMO fences (diffable, editable, the point of the format).
 - ❌ Asking the user which diagrams to make → ✅ decide from the code; they can adjust after.
+```

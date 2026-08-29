@@ -8,7 +8,7 @@ Boxes-and-lines (and graph-based diagrams generally) need automatic node placeme
 
 ## Decision
 
-elkjs was **dropped** (shipped 2026-06-10, dgmo 0.28.0). The sole b&l engine is the home-grown dagre placement-search with flat layered + grouped tier-banded candidates (`src/boxes-and-lines/layout.ts`). A group-aware fully-clustered engine was also built, measured, and rejected as NO-GO — dagre's compound layout already enforces contiguity, so clustering added no structural lever; the winning lever was tier *ordering*, captured in `layout-grouped.ts`.
+elkjs was **dropped** (shipped 2026-06-10, dgmo 0.28.0). The sole b&l engine is the home-grown dagre placement-search with flat layered + grouped tier-banded candidates (`src/boxes-and-lines/layout.ts`). A group-aware fully-clustered engine was also built, measured, and rejected as NO-GO — dagre's compound layout already enforces contiguity, so clustering added no structural lever; the winning lever was tier _ordering_, captured in `layout-grouped.ts`.
 
 ## Consequences
 

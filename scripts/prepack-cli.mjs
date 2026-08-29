@@ -34,13 +34,17 @@ const BIN = resolve(ROOT, 'cli/dist/cli.cjs');
 const FIXTURES = resolve(ROOT, 'gallery/fixtures');
 
 if (!existsSync(BIN)) {
-  console.error(`✖ prepack: ${BIN} is missing — run \`pnpm build\` before publishing.`);
+  console.error(
+    `✖ prepack: ${BIN} is missing — run \`pnpm build\` before publishing.`
+  );
   process.exit(1);
 }
 if (!existsSync(FIXTURES)) {
   // Packing from a checkout without the gallery. Nothing to check against, and
   // failing would be worse than not checking.
-  console.log('· prepack: no gallery fixtures found, skipping the render check');
+  console.log(
+    '· prepack: no gallery fixtures found, skipping the render check'
+  );
   process.exit(0);
 }
 
@@ -58,9 +62,13 @@ const out = mkdtempSync(join(tmpdir(), 'dgmo-prepack-'));
 const broken = [];
 for (const [type, file] of byType) {
   try {
-    execFileSync(process.execPath, [BIN, file, '-o', join(out, `${type}.png`)], {
-      stdio: 'pipe',
-    });
+    execFileSync(
+      process.execPath,
+      [BIN, file, '-o', join(out, `${type}.png`)],
+      {
+        stdio: 'pipe',
+      }
+    );
   } catch {
     broken.push(type);
   }
@@ -75,4 +83,6 @@ if (broken.length > 0) {
   );
   process.exit(1);
 }
-console.log(`✓ prepack: all ${byType.size} chart types render with the built CLI`);
+console.log(
+  `✓ prepack: all ${byType.size} chart types render with the built CLI`
+);

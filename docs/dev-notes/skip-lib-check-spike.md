@@ -16,11 +16,11 @@ upstream work (or patch-package), not a dgmo PR.
 strictness flag we ship → **6 errors across 4 third-party files, 0 in
 src/**.
 
-| Code | Count | Meaning |
-|---|---:|---|
-| TS2430 | 4 | Interface incorrectly extends interface (child re-declares a required field with `\| undefined`) |
-| TS2536 | 1 | Type 'number' cannot be used to index a generic constraint |
-| TS1203 | 1 | Export assignment in an ESM-target module |
+| Code   | Count | Meaning                                                                                          |
+| ------ | ----: | ------------------------------------------------------------------------------------------------ |
+| TS2430 |     4 | Interface incorrectly extends interface (child re-declares a required field with `\| undefined`) |
+| TS2536 |     1 | Type 'number' cannot be used to index a generic constraint                                       |
+| TS1203 |     1 | Export assignment in an ESM-target module                                                        |
 
 ## The 6 errors
 

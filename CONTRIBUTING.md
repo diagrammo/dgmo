@@ -18,16 +18,16 @@ pnpm build
 
 ## Development
 
-| Command | Description |
-|---------|-------------|
-| `pnpm build` | Build library + CLI (tsup, ESM + CJS) |
-| `pnpm dev` | Watch mode (rebuild on save) |
-| `pnpm test` | Run all tests (Vitest, 3800+ tests) |
-| `pnpm test:watch` | Run tests in watch mode |
-| `pnpm typecheck` | Type-check without emitting |
-| `pnpm lint` | ESLint |
-| `pnpm format` | Prettier |
-| `pnpm check:all` | Full quality suite (dead code, spelling, duplication, circular deps, security audit, publish check, type check) |
+| Command           | Description                                                                                                     |
+| ----------------- | --------------------------------------------------------------------------------------------------------------- |
+| `pnpm build`      | Build library + CLI (tsup, ESM + CJS)                                                                           |
+| `pnpm dev`        | Watch mode (rebuild on save)                                                                                    |
+| `pnpm test`       | Run all tests (Vitest, 3800+ tests)                                                                             |
+| `pnpm test:watch` | Run tests in watch mode                                                                                         |
+| `pnpm typecheck`  | Type-check without emitting                                                                                     |
+| `pnpm lint`       | ESLint                                                                                                          |
+| `pnpm format`     | Prettier                                                                                                        |
+| `pnpm check:all`  | Full quality suite (dead code, spelling, duplication, circular deps, security audit, publish check, type check) |
 
 ## Testing
 
@@ -48,6 +48,7 @@ src/er/             # Entity-relationship
 The router (`src/dgmo-router.ts`) dispatches to the correct parser based on the first line of input. D3-based charts go through `src/d3.ts`, ECharts-based through `src/echarts.ts`.
 
 When adding a new diagram type, you'll typically create:
+
 - `parser.ts` — parse DGMO text into a typed AST
 - `renderer.ts` — render the AST to SVG
 - `types.ts` — TypeScript interfaces

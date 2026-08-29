@@ -6,8 +6,8 @@
     <title>@diagrammo/dgmo/auto — manual test page</title>
     <style>
       :root {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-          sans-serif;
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         line-height: 1.45;
         color-scheme: light dark;
       }
@@ -42,23 +42,27 @@
 
     <section>
       <h2>Pie chart (default config)</h2>
-      <pre class="dgmo">pie Crew Roles Distribution
+      <pre class="dgmo">
+pie Crew Roles Distribution
 
 Sailors          45
 Gunners          20
 Marines          15
 Officers          8
 Specialists       7
-Cooks &amp; Surgeons  5</pre>
+Cooks &amp; Surgeons  5</pre
+      >
     </section>
 
     <section>
       <h2>Sequence diagram</h2>
-      <pre class="dgmo">sequence Cast Off
+      <pre class="dgmo">
+sequence Cast Off
 
 Captain -Set sail-&gt; Crew
 Crew -Aye!-&gt; Helm
-Helm -On heading 270-&gt; Captain</pre>
+Helm -On heading 270-&gt; Captain</pre
+      >
     </section>
 
     <section>
@@ -73,7 +77,8 @@ Helm -On heading 270-&gt; Captain</pre>
 
     <section>
       <h2>Long source (verifies max-height + scroll)</h2>
-      <pre class="dgmo">flowchart Pirate's Long Voyage
+      <pre class="dgmo">
+flowchart Pirate's Long Voyage
 
 (Embark) -&gt; [Hoist Sails]
 [Hoist Sails] -&gt; [Set Heading]
@@ -86,22 +91,27 @@ Helm -On heading 270-&gt; Captain</pre>
 [Hold Course] -&gt; &lt;Land Ho?&gt;
 &lt;Land Ho?&gt; -not yet-&gt; [Watch Horizon]
 &lt;Land Ho?&gt; -ahoy-&gt; [[Drop Anchor]]
-[[Drop Anchor]] -&gt; (Disembark)</pre>
+[[Drop Anchor]] -&gt; (Disembark)</pre
+      >
     </section>
 
     <section>
       <h2>Per-element override: data-show-source="false"</h2>
-      <pre class="dgmo" data-show-source="false">pie Hide source
+      <pre class="dgmo" data-show-source="false">
+pie Hide source
 
 Sloop  60
 Brig   25
-Galleon 15</pre>
+Galleon 15</pre
+      >
     </section>
 
     <section>
       <h2>Intentionally broken source (error banner)</h2>
-      <pre class="dgmo">!!! definitely not a real chart type
-this should produce an error banner</pre>
+      <pre class="dgmo">
+!!! definitely not a real chart type
+this should produce an error banner</pre
+      >
     </section>
 
     <!-- Bundle bootstrap. Adjust the data-config to test combinations. -->

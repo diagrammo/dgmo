@@ -18,4 +18,4 @@ Adding a chart type = add a descriptor + its parser/renderer pair; the test fail
 
 - The registry is the deepest seam in the codebase: high leverage, strong locality for "what chart types exist."
 - The cross-check test is load-bearing — do not weaken it to make a partial chart type pass.
-- A future review may legitimately propose *deepening* the descriptor (e.g. folding the export handler or an `isExtended` flag into it so the four-place sync for ECharts "extended" types collapses). That deepens this seam; it does not contradict this ADR.
+- A future review may legitimately propose _deepening_ the descriptor (e.g. folding the export handler or an `isExtended` flag into it so the four-place sync for ECharts "extended" types collapses). That deepens this seam; it does not contradict this ADR.

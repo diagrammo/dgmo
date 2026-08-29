@@ -212,7 +212,7 @@ tag GroupName as <alias>
 - First entry is the default value — reorder to change
 - The first declared group is active by default (colors nodes immediately); `active-tag <GroupName>` only matters with ≥2 groups to pick a non-first group, and `active-tag none` suppresses all coloring
 - Must appear before diagram content
-- Bare shorthand is not an alias (TD-18): `tag Priority p` declares a group *named* "Priority p" — no alias registers, so `p:` assignments silently miss. The parser warns on this shape (spaced name, no alias, alias-shaped trailing word), suggesting `tag Priority as p` or a quoted name
+- Bare shorthand is not an alias (TD-18): `tag Priority p` declares a group _named_ "Priority p" — no alias registers, so `p:` assignments silently miss. The parser warns on this shape (spaced name, no alias, alias-shaped trailing word), suggesting `tag Priority as p` or a quoted name
 
 **Diagram types that support tags**: the tag model is near-universal across the structural types — sequence, infra, org, c4, er, kanban, gantt, sitemap, timeline, boxes-and-lines, state (§5.7), pert, swimlane, mindmap, journey-map, event-line, treemap, map, block, sketch, bracket and family all accept `tag <Group> as <alias>` blocks. Check the per-type Options section for the exact directive set; if a type draws a tag legend, it takes tags. **Flowchart, wireframe and raci take no tags** — a `tag` block or `active-tag` on any of them is ignored with a warning, because what an element looks like is fixed by what it is (a flowchart's shape, a wireframe's state keywords) or by the roles (raci).
 
@@ -568,7 +568,9 @@ dmy` once at the top; then `7/4` is **Apr 7**.
 <!-- TYPE:sequence -->
 
 <!-- TIPS start -->
+
 **Styling tips:** stay terse — participants are created by the messages that name them, so a plain flow needs only the arrow lines (no participant declarations). Skip `is a TYPE`: the glyph is inferred from the name (`User`→actor, `*DB`→database, `Redis`→cache, `Kafka`→queue); add a declaration, a `[Group]`, or `position: N` only when it genuinely aids reading order or grouping, never as boilerplate. Give each participant a short role name. Reach for `== Section ==` dividers only when the flow splits into **two or more** distinct phases (e.g. `== Authentication ==` then `== Checkout ==`) — a single divider over one run of arrows just repeats the diagram's subject and adds a redundant band, so a one-phase flow should have no dividers at all. Label a return arrow only when its value matters (unlabeled returns are auto-pruned). Add `autonumber` before the messages when a review or discussion needs stable message references. Drop a `note` where something subtle happens. Categorize the participants and color them (not the messages) by that category with a tag group using the named palette colors — client vs service vs datastore, trust zones (internal / external), or owning team are almost always present, so default to coloring by one rather than leaving the lifelines monochrome, and the boundaries read at a glance.
+
 <!-- TIPS end -->
 
 ### 2.1 Participants
@@ -723,7 +725,9 @@ parallel label
 <!-- TYPE:infra -->
 
 <!-- TIPS start -->
+
 **Styling tips:** an infra diagram traces request traffic flowing inward from an `internet` or `edge` entry — that flow IS the diagram. **Every node MUST be reachable from an `internet`/`edge` entry by following the connections.** A node with no path back to an entry receives no traffic: it is dead, serves no purpose, and must be omitted entirely — not declared, not drawn, not even left as an island. There are no standalone nodes on an infra diagram. Before you add any node, ask "which request reaches this?" — if nothing routes to it, leave it out. Build strictly outward from the entry, one hop at a time along the request path, so the graph is connected by construction. Then: keep capabilities in properties (`latency-ms`, `max-rps`, `cache-hit`), not the node name; color by tier with a tag group so the layers read at a glance; reserve async edges (`~>`) for genuine fire-and-forget like queues or pub/sub.
+
 <!-- TIPS end -->
 
 ### 4.1 Declaration
@@ -885,7 +889,9 @@ API Gateway
 <!-- TYPE:flowchart -->
 
 <!-- TIPS start -->
+
 **Styling tips:** write every connection as `Source -> Target` (or a single-line chain like `(Start) -> [Collect info] -> <Eligible?>`); write each connection on its own line. Every decision `<Question?>` MUST have at least two outgoing branches — usually `-yes->`/`-no->`, but use specific labels when the choices are not binary (e.g. `-retirement->`, `-disability->`, `-survivor->`); a decision with only one branch is invalid. Begin at exactly one start terminal `(Start)` and make every path terminate at a terminal node (`(Approved)`, `(Denied)`, `(End)`). Every node MUST connect to the rest of the graph: if a node cannot be traced from the start forward to a terminal, it is invalid — remove it, never leave it floating. Flowcharts have NO tag groups, node metadata, or manual node colors — do NOT write `tag … as …`, a `s: value` suffix, or a trailing color word; node colors are assigned automatically by shape (start terminal green, end terminals red, processes blue, decisions yellow). Just pick the right shape and let color follow. Label every decision edge so branches read unambiguously; keep each node to a short action phrase and phrase every decision as a question.
+
 <!-- TIPS end -->
 
 ### 4.1 Declaration
@@ -976,7 +982,9 @@ collides with the indented-body grammar.
 <!-- TYPE:state -->
 
 <!-- TIPS start -->
+
 **Styling tips:** name states as nouns (`Idle`, `Loading`) and label transitions with the triggering event (`-submit->`); mark the initial and final states; color by state category with a tag group; keep transition labels to the event, not a sentence.
+
 <!-- TIPS end -->
 
 ### 5.1 Declaration
@@ -1063,7 +1071,9 @@ Published ph: Terminal
 <!-- TYPE:org -->
 
 <!-- TIPS start -->
+
 **Styling tips:** label each node with the name and role on separate lines, not a paragraph; let the layout build the hierarchy — don't hand-draw edges; color by department or team with a tag group; keep titles consistent (all roles, or all names).
+
 <!-- TIPS end -->
 
 ### 6.1 Declaration
@@ -1167,7 +1177,9 @@ No colon — `import: x.dgmo` is an error, and so is any other keyword before a 
 **Beta — expect rough edges and syntax changes.**
 
 <!-- TIPS start -->
+
 **Styling tips:** name each element by its responsibility, not its technology — put the tech in the `tech` field; color by system boundary with a tag group; keep one level of abstraction per diagram (context OR container, not both); keep relationship labels to the verb of the interaction. Write relationships INDENTED under their source element (`  -uses-> Other`), never as a top-level `A -uses-> B` line. Static renders (CLI, MCP) show the context level — containers/components appear only in the interactive drill-down, so author context-level diagrams for static output.
+
 <!-- TIPS end -->
 
 ### 7.1 Declaration
@@ -1266,7 +1278,9 @@ Database is a container description: PostgreSQL with read replicas
 <!-- TYPE:er -->
 
 <!-- TIPS start -->
+
 **Styling tips:** name entities in the singular (`Customer`, not `Customers`); mark keys (`pk`, `fk`) and show only the columns that carry the relationship story; let the crow's-feet express cardinality instead of restating it in text; group related entities by color.
+
 <!-- TIPS end -->
 
 ### 8.1 Declaration
@@ -1326,7 +1340,9 @@ Cardinality symbols: `1` (one), `*` (many), `?` (optional)
 <!-- TYPE:class -->
 
 <!-- TIPS start -->
+
 **Styling tips:** show only the members that serve the diagram's point, not every field; mark visibility (`+`/`-`); express connections with relationships (inheritance, composition) rather than restating them in notes; group related classes by color.
+
 <!-- TIPS end -->
 
 ### 9.1 Declaration
@@ -1408,7 +1424,9 @@ Optional label: `--|> Vessel : extends` (colon optional before label)
 <!-- TYPE:kanban -->
 
 <!-- TIPS start -->
-**Styling tips:** Color EVERY column — write a lowercase color word right after the closing bracket (`[Done] green`). Don't match on column names; reason about what each column *means* for a card sitting in it, then pick the color whose everyday connotation fits, so the board reads at a glance. The guiding sense: green = good / finished / success, red = bad / stuck / needs attention, yellow = waiting / caution / in review, blue = active work in motion, gray = inert / not yet started / parked. Apply that to whatever columns exist — e.g. a terminal success column reads green even if it's called `Shipped`, `Hired`, or `Live`; a column meaning a card is stuck reads red whether it's `Blocked`, `On Hold`, or `Rejected`; an early holding column reads gray whether it's `Backlog`, `Ideas`, or `Inbox`. When several columns share a sense (two active-work stages), it's fine to keep a couple uncolored or reuse a color rather than force eleven distinct hues. Name columns for workflow stages, keep card titles to a short task phrase, and let column length convey WIP instead of annotating counts. Card color is separate from column color: color cards by owner or priority with a tag group, and if you use one, tag EVERY card — an untagged card currently inherits the first tag value (mislabeling it), so omit the tag group entirely for cards you want left uncolored.
+
+**Styling tips:** Color EVERY column — write a lowercase color word right after the closing bracket (`[Done] green`). Don't match on column names; reason about what each column _means_ for a card sitting in it, then pick the color whose everyday connotation fits, so the board reads at a glance. The guiding sense: green = good / finished / success, red = bad / stuck / needs attention, yellow = waiting / caution / in review, blue = active work in motion, gray = inert / not yet started / parked. Apply that to whatever columns exist — e.g. a terminal success column reads green even if it's called `Shipped`, `Hired`, or `Live`; a column meaning a card is stuck reads red whether it's `Blocked`, `On Hold`, or `Rejected`; an early holding column reads gray whether it's `Backlog`, `Ideas`, or `Inbox`. When several columns share a sense (two active-work stages), it's fine to keep a couple uncolored or reuse a color rather than force eleven distinct hues. Name columns for workflow stages, keep card titles to a short task phrase, and let column length convey WIP instead of annotating counts. Card color is separate from column color: color cards by owner or priority with a tag group, and if you use one, tag EVERY card — an untagged card currently inherits the first tag value (mislabeling it), so omit the tag group entirely for cards you want left uncolored.
+
 <!-- TIPS end -->
 
 ### 10.1 Declaration
@@ -1458,7 +1476,9 @@ tag Crew as c
 <!-- TYPE:sitemap -->
 
 <!-- TIPS start -->
+
 **Styling tips:** Build a real navigation graph, not a flat column of boxes. Three things make a sitemap read well, and a good one uses all three. (1) **Cluster pages into `[Area]` group sections** when the site has distinct areas — e.g. `[Shop]`, `[Account]`, `[Admin]` — indenting each page under its bracket header, and leave only the true entry page (`Home` / `Landing`) at the top level. (2) **Show how a visitor moves** with an indented labeled arrow under the source page: `-submit-> Home`, `-checkout-> Payment`, `-back-> Dashboard`, where the label is the action or link text. Every arrow target must be declared as its own page; an arrow can point at a whole area with `-> [Admin]`. If pages share no links you've drawn a list, not a sitemap — connect them. (3) **Classify pages with a colored tag group**, so the legend organizes the map by meaning rather than by position. Declare a facet with colored values and assign it to every page in same-line metadata — access level works well: `tag Access` with `Public green`, `Member blue`, `Admin red`, then `Pricing Access: Public`; or a functional facet (`Browse`, `Purchase`, `Admin`). A second tag group for page kind (`Landing purple`, `Form orange`, `Content cyan`) adds a second color dimension. Reason about which facet actually distinguishes this site's pages rather than reaching for a fixed list. Keep the tree shallow and order siblings by prominence.
+
 <!-- TIPS end -->
 
 ### 11.1 Declaration
@@ -1538,7 +1558,9 @@ Blog
 <!-- TYPE:gantt -->
 
 <!-- TIPS start -->
+
 **Styling tips:** group tasks under labeled phases; mark milestones as zero-duration; color by workstream or status with a tag group; keep task names to a short verb phrase; draw dependencies only where they actually drive the schedule.
+
 <!-- TIPS end -->
 
 ### 12.1 Declaration
@@ -1672,7 +1694,9 @@ want; anything left un-chained starts together at the parent's start.
 <!-- TYPE:pert -->
 
 <!-- TIPS start -->
+
 **Styling tips:** Name each task as a short action and wire the real finish-to-start dependencies — branch and merge them so the critical path and per-task slack become meaningful. Give one most-likely estimate per task (the engine derives optimistic/pessimistic), or explicit O/M/P when you know them.
+
 <!-- TIPS end -->
 
 PERT diagrams visualize project networks with three-point duration estimates, surfacing critical path, slack, and project μ/σ. Each activity renders as a node card (rectangle, or diamond for milestones); dependencies are arrows between them. Monte Carlo simulation runs automatically whenever any activity carries duration data.
@@ -1706,22 +1730,22 @@ divvy shares 1 2 3
 
 ### Directives
 
-| Directive                       | Effect                                                                                                                                                                                                |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `time-unit <unit>`              | Unit for bare-number durations (default `d`); accepts `min`, `h`, `d`, `bd`, `w`, `sp` (sprints)                                                                                                      |
-| `default-confidence <level>`    | M-only heuristic: `high`, `medium`, `low`, or a custom `O/P` factor pair (e.g. `0.6/2.5`)                                                                                                             |
-| `direction-lr` / `direction-tb` | Layout direction booleans (last one wins; default `LR`); key+value `direction LR\|TB` accepted legacy                                                                                                 |
-| `node-detail <compact\|full>`   | Visual density; `full` adds slack bars and σ-as-border-thickness                                                                                                                                      |
+| Directive                       | Effect                                                                                                                                                                                                                                                                 |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `time-unit <unit>`              | Unit for bare-number durations (default `d`); accepts `min`, `h`, `d`, `bd`, `w`, `sp` (sprints)                                                                                                                                                                       |
+| `default-confidence <level>`    | M-only heuristic: `high`, `medium`, `low`, or a custom `O/P` factor pair (e.g. `0.6/2.5`)                                                                                                                                                                              |
+| `direction-lr` / `direction-tb` | Layout direction booleans (last one wins; default `LR`); key+value `direction LR\|TB` accepted legacy                                                                                                                                                                  |
+| `node-detail <compact\|full>`   | Visual density; `full` adds slack bars and σ-as-border-thickness                                                                                                                                                                                                       |
 | `no-analysis`                   | Bare flag — hide the analysis layer (tornado + S-curve). The layer renders by default whenever Monte Carlo ran; this suppresses it. An explicit `viewState.an` (app toggle / share link) overrides it. The project subtitle is not part of the layer and still renders |
-| `trials <N>`                    | Canonical Monte Carlo trial count (`< 100` clamps to analytical)                                                                                                                                      |
-| `seed <N>`                      | Mulberry32 PRNG seed for deterministic runs                                                                                                                                                           |
-| `scrubber-trials <N>`           | Fast-MC trials for the interactive duration scrubber                                                                                                                                                  |
-| `start-date <YYYY-MM-DD>`       | Anchor the forward pass — accepts the literal `now`                                                                                                                                                   |
-| `end-date <YYYY-MM-DD>`         | Anchor the backward pass (mutually exclusive with `start-date`)                                                                                                                                       |
-| `sprint-length <duration>`      | Sprint length when sprint mode is active (default `2w`)                                                                                                                                               |
-| `sprint-number <N>`             | Starting sprint label N — cells render as `S<N+offset>` (default `1`)                                                                                                                                 |
-| `sprint-start <YYYY-MM-DD>`     | Optional ISO date the starting sprint begins on                                                                                                                                                       |
-| `active-tag <GroupName>`        | Pre-expand a tag group + drive node fill                                                                                                                                                              |
+| `trials <N>`                    | Canonical Monte Carlo trial count (`< 100` clamps to analytical)                                                                                                                                                                                                       |
+| `seed <N>`                      | Mulberry32 PRNG seed for deterministic runs                                                                                                                                                                                                                            |
+| `scrubber-trials <N>`           | Fast-MC trials for the interactive duration scrubber                                                                                                                                                                                                                   |
+| `start-date <YYYY-MM-DD>`       | Anchor the forward pass — accepts the literal `now`                                                                                                                                                                                                                    |
+| `end-date <YYYY-MM-DD>`         | Anchor the backward pass (mutually exclusive with `start-date`)                                                                                                                                                                                                        |
+| `sprint-length <duration>`      | Sprint length when sprint mode is active (default `2w`)                                                                                                                                                                                                                |
+| `sprint-number <N>`             | Starting sprint label N — cells render as `S<N+offset>` (default `1`)                                                                                                                                                                                                  |
+| `sprint-start <YYYY-MM-DD>`     | Optional ISO date the starting sprint begins on                                                                                                                                                                                                                        |
+| `active-tag <GroupName>`        | Pre-expand a tag group + drive node fill                                                                                                                                                                                                                               |
 
 Sprint mode activates automatically when `time-unit sp` is set, or explicitly when any `sprint-*` directive appears. ES/EF/LS/LF cells then render as `S5`, `S7`, etc.
 
@@ -1838,7 +1862,9 @@ See spec §13A for full date-anchoring semantics, S-curve axes, and diagnostic c
 <!-- TYPE:family -->
 
 <!-- TIPS start -->
+
 **Styling tips:** Two line shapes carry the whole tree: a **person line** (`Anne b: 1665, sex: f`) and a **union line** (`Anne + Jack m: 1701`), with children indented under the union. Declare each person **standalone** with their full metadata — per-side metadata on a union line is unsupported and re-stating a name just re-references the same person. Set `sex:` so cards color (m→blue, f→purple), but **treat the legend as the real sex channel**: blue and purple separate weakly under the 25% tint, so where color-vision matters distinguish with a `tag` group (labeled legend entries) instead. Reuse a name in a second union for remarriage (one card, two bars); a lone person with indented children is a single parent; a bare trailing `adopted` token marks an adopted child.
+
 <!-- TIPS end -->
 
 ### Declaration
@@ -1883,7 +1909,9 @@ Henry Turner + Carina Smyth m: 1751
 <!-- TYPE:swimlane -->
 
 <!-- TIPS start -->
-**Styling tips:** Give each lane a color and let nodes inherit it — reach for a `tag` group only when you need a *second* dimension (e.g. risk) that deliberately breaks lane color. Echo the gateway/terminal delimiters (`<Review>`, `(Paid) success`) even though bare names also resolve — it keeps the source self-documenting. Put every edge label *inside* the arrow (`-invalid->`), never as a trailing word.
+
+**Styling tips:** Give each lane a color and let nodes inherit it — reach for a `tag` group only when you need a _second_ dimension (e.g. risk) that deliberately breaks lane color. Echo the gateway/terminal delimiters (`<Review>`, `(Paid) success`) even though bare names also resolve — it keeps the source self-documenting. Put every edge label _inside_ the arrow (`-invalid->`), never as a trailing word.
+
 <!-- TIPS end -->
 
 Swimlane diagrams model a cross-functional process: actors/systems are **lanes**, the process flows along the flow axis (`direction-lr` default, `direction-tb` transposes; key+value `direction LR|TB` accepted legacy), and optional `[Phase]` columns group steps into stages. Nodes are tasks (bare), exclusive gateways (`<X>`), parallel gateways (`<+ X>`), terminals (`(X)`), and subprocesses (`[[X]]`). A `lane` block **owns its edges** — nodes and their outgoing `->` edges are written inline, no separate flow block. A back-edge to an earlier node draws a routed loop.
@@ -1940,7 +1968,9 @@ lane Social green
 <!-- TYPE:boxes-and-lines -->
 
 <!-- TIPS start -->
+
 **Styling tips:** Show one clear direction of flow, label each edge with the relationship rather than a bare arrow, and keep every box a short noun phrase. **Color by category with a tag group:** declare a `tag <Facet> as <alias>` with a distinct color per value, then assign each box `<alias>: <Value>` so like things share a color and unlike things visibly differ — pick the facet that actually divides this system (tier: `Client`/`Edge`/`Compute`/`Data`, ownership, internal vs external, stateful vs stateless) rather than coloring at random. **Organize when it gets busy:** with more than ~4 boxes there is almost always a structure to surface — cluster the boxes that belong together into `[Group]` sections (a backend tier, a region, a subsystem) and draw edges to the group with `-> [Group]` where a whole cluster is the target. A flat row of many boxes is a missed opportunity; derive the grouping from how the parts relate. The `[Group]` brackets handle spatial clustering and the tag group handles color — use both, and they can cut across each other (e.g. group by subsystem, color by tier).
+
 <!-- TIPS end -->
 
 ### 13.1 Declaration
@@ -2106,7 +2136,9 @@ The tag group (color) composes with `[Group]` clustering (spatial) and can cut a
 <!-- TYPE:timeline -->
 
 <!-- TIPS start -->
+
 **Styling tips:** label each event with a date and a terse headline; keep entries in chronological order; color by era or category with a tag group; merge minor events rather than crowding the axis.
+
 <!-- TIPS end -->
 
 ### 14.1 Declaration
@@ -2233,7 +2265,9 @@ swimlanes              # back-compat spelling of lane-by
 <!-- TYPE:bar -->
 
 <!-- TIPS start -->
+
 **Styling tips:** pick the form from the question — `bar` to compare categories, `line` for a trend over time, `pie` only for parts of one whole (≤6 slices); sort bars by value unless the category order is inherent (time, size); give one highlighted series a distinct color and keep the rest neutral; always label units.
+
 <!-- TIPS end -->
 
 ### Conventions shared across all data charts
@@ -2389,7 +2423,9 @@ The right axis may hold more than one series; data rows stay positional across b
 <!-- TYPE:scatter -->
 
 <!-- TIPS start -->
+
 **Styling tips:** label both axes with units; group points into categories with `[Category] color` brackets (points indented under each) so clusters read at a glance — scatter colors by bracketed category, not by a tag group; reach for a second category only when the comparison is the point; keep marker labels off unless a few outliers need calling out.
+
 <!-- TIPS end -->
 
 **Data rows** — follows §15 Rule A (space-separated):
@@ -2422,7 +2458,9 @@ Point names render by default. Use `no-name` to hide them.
 <!-- TYPE:heatmap -->
 
 <!-- TIPS start -->
+
 **Styling tips:** Sort rows and columns by their totals (not alphabetically) so the strongest cells gather in one corner and the high-to-low pattern reads at a glance; keep every cell on the same numeric scale so the colors stay comparable.
+
 <!-- TIPS end -->
 
 **Columns** — follows §15 Rule B (prefer the indented block for multiple columns):
@@ -2447,7 +2485,9 @@ RowLabel 5 4 3
 <!-- TYPE:function -->
 
 <!-- TIPS start -->
+
 **Styling tips:** Pick a domain (`x <min> to <max>`) that frames the interesting behavior and keep to a few curves for legibility. Give each curve a short readable name before the colon (`Sine: sin(x)`), not the expression repeated.
+
 <!-- TIPS end -->
 
 ```
@@ -2471,7 +2511,9 @@ The colon between name and expression is **required** — both sides can contain
 <!-- TYPE:sankey -->
 
 <!-- TIPS start -->
+
 **Styling tips:** Feed flows in process order (left to right) and let each connection’s value set its band width — the layout already orders nodes to reduce crossings. Fold flows into one "Other" band only when many are individually negligible; never rename a single meaningful node.
+
 <!-- TIPS end -->
 
 **Tree structure (indented, space-separated):**
@@ -2496,7 +2538,9 @@ Source -- Target 2000
 <!-- TYPE:funnel -->
 
 <!-- TIPS start -->
+
 **Styling tips:** order stages largest→smallest, top to bottom; keep each stage name to a noun phrase; let the stages auto-color (each gets a distinct hue — no tag group needed); cap it at ~6 stages and merge minor drop-offs rather than crowding.
+
 <!-- TIPS end -->
 
 **Data rows** — follows §15 Rule A (space-separated):
@@ -2518,7 +2562,9 @@ Each stage renders its name to the left of the band (in the band's color), its v
 <!-- TYPE:slope -->
 
 <!-- TIPS start -->
+
 **Styling tips:** Slope auto-labels both endpoints and colors each line — recolor only when one line is the story, then color just that mover and leave the rest to the default palette. It compares exactly two periods; use a line chart for more.
+
 <!-- TIPS end -->
 
 ```
@@ -2546,7 +2592,9 @@ Roberts 12 52
 <!-- TYPE:wordcloud -->
 
 <!-- TIPS start -->
+
 **Styling tips:** Make the largest and smallest terms differ enough in size to read at a glance — set an explicit `size <min> <max>` when raw weights are bunched together. Keep to the signal terms: cap the list (~30–40) and drop filler words.
+
 <!-- TIPS end -->
 
 ```
@@ -2567,7 +2615,9 @@ navigation 88
 <!-- TYPE:arc -->
 
 <!-- TIPS start -->
+
 **Styling tips:** Set `order appearance` and list links so the busiest pairs sit next to each other — heavy connections then read as short arcs hugging the axis instead of long sweeps (otherwise placement is automatic and row order is ignored). Add `layout chord` for the circular ("chord") layout when relationships are genuinely reciprocal and many-to-many; leave it off (linear default) for hub-and-spoke or mostly one-directional flows.
+
 <!-- TIPS end -->
 
 ```
@@ -2589,7 +2639,9 @@ order group
 <!-- TYPE:event-line -->
 
 <!-- TIPS start -->
-**Styling tips:** an event line is the annotated *narrative* timeline (Super Bowl halftime shows, "a history of X") — reach for it over `timeline` when each event carries a real description, and over `timeline` when the spacing should NOT be to scale. Keep to ~5–25 events; lead each with a terse title and write a sentence or two of body; color by category with a tag group.
+
+**Styling tips:** an event line is the annotated _narrative_ timeline (Super Bowl halftime shows, "a history of X") — reach for it over `timeline` when each event carries a real description, and over `timeline` when the spacing should NOT be to scale. Keep to ~5–25 events; lead each with a terse title and write a sentence or two of body; color by category with a tag group.
+
 <!-- TIPS end -->
 
 **When to use vs `timeline`:** `timeline` is a to-scale date axis with eras, markers, and range bars (roadmaps, project history). `event-line` is point events with rich prose cards that auto-alternate above/below a spine — and is to-scale by default but drops to even spacing with `no-scale`.
@@ -2655,7 +2707,9 @@ Group a run of events into a labeled section with a `[Name]` bracket, then **ind
 <!-- TYPE:body -->
 
 <!-- TIPS start -->
+
 **Styling tips:** Reach for `body` when the drawing IS the human figure — colour muscle groups over a skin layer to show which parts a workout targets, where an injury sits, or how the musculature is organised. Choose the figure with `male`/`female` and `front`/`back`; each named muscle group takes a tag so the legend carries the meaning. Best for fitness, medical, exercise, and educational diagrams — not for generic part-to-whole (that's `pie`/`treemap`).
+
 <!-- TIPS end -->
 
 **Figures:** male and female, front and back — four figures. `skin` form renders any figure as a plain silhouette (with head + hair) instead of the segmented muscle map. `skeletal` is reserved.
@@ -2702,7 +2756,9 @@ abs          e: Secondary
 <!-- TYPE:version-control -->
 
 <!-- TIPS start -->
+
 **Styling tips:** the git / version-control branch-and-merge graph (GitFlow, trunk-based, release trains). The grammar is keyword-less — a bare top-level line is a branch, a bare indented line is a commit; only `merge` / `cherry-pick` are required verbs. Keep to ~3–6 branches and ~5–30 commits; name branches meaningfully (`feature/login`); tag releases. Use it for branching strategy, not real timestamps (use `timeline`/`gantt` for dates).
+
 <!-- TIPS end -->
 
 **When to use vs `timeline`:** `version-control` shows commit/branch **topology** (who branched from whom, what merged where), not wall-clock time. It is the git-graph picture; `timeline` is a date axis.
@@ -2761,7 +2817,9 @@ main
 **Beta — expect rough edges and syntax changes.**
 
 <!-- TIPS start -->
+
 **Styling tips:** Use 2–3 sets and write the count of each meaningful overlap directly on its intersection; circle area is NOT proportional, so the numbers — not the sizes — carry the comparison.
+
 <!-- TIPS end -->
 
 ```
@@ -2784,7 +2842,9 @@ sw + nav + lead Legendary Pirates
 <!-- TYPE:quadrant -->
 
 <!-- TIPS start -->
+
 **Styling tips:** Name the four quadrants as meaningful categories (not just positions) and call out the outliers; normalize values to 0–1 so the points spread across the whole space.
+
 <!-- TIPS end -->
 
 ```
@@ -2812,7 +2872,9 @@ Navigator 0.85 0.8
 <!-- TYPE:mindmap -->
 
 <!-- TIPS start -->
+
 **Styling tips:** keep each node to 1–3 words; let depth carry the structure — don't echo a parent's word in its child; color the top-level branches distinctly with a tag group; favor breadth over long single chains.
+
 <!-- TIPS end -->
 
 A radial hierarchy of ideas branching out from a central root. Hierarchy is established by indentation, nodes accept descriptions and tag-driven coloring, and any subtree can be collapsed by default.
@@ -2945,7 +3007,9 @@ Universal options (`palette`, `theme`) apply as elsewhere.
 <!-- TYPE:wireframe -->
 
 <!-- TIPS start -->
+
 **Styling tips:** Keep it low-fidelity — boxes, labels, and one primary action `(Sign in) primary` per screen, grouped by region. Links are bare text (`Forgot password?`); `[brackets]` is an input field.
+
 <!-- TIPS end -->
 
 Wireframe diagrams use **visual-mnemonic syntax** where bracket characters communicate element type.
@@ -3083,7 +3147,9 @@ wireframe Login Page
 <!-- TYPE:tech-radar -->
 
 <!-- TIPS start -->
+
 **Styling tips:** Group blips into the four domain quadrants and let the rings carry adoption stage (Adopt→Hold); annotate movement with a `trend`. When the source is a numeric score, bucket it into a ring and keep the number in the description.
+
 <!-- TIPS end -->
 
 ```
@@ -3159,7 +3225,9 @@ Blips receive sequential global numbers. Order: quadrants clockwise (top-left �
 <!-- TYPE:cycle -->
 
 <!-- TIPS start -->
+
 **Styling tips:** Aim for 3–6 stages so the loop stays legible; name each as a short step and let the closed ring imply repetition (no wrap-around edge needed). An indented line adds a description.
+
 <!-- TIPS end -->
 
 Circular process flows where nodes sit on a ring and directed edges connect each to the next, wrapping from last back to first. Common use: OODA loops, PDCA, product lifecycles, continuous improvement.
@@ -3296,7 +3364,9 @@ Act red
 <!-- TYPE:journey-map -->
 
 <!-- TIPS start -->
+
 **Styling tips:** A journey map is a story about one specific person, so author it richly even when the prompt is thin — fill the gaps with plausible, concrete detail rather than leaving it skeletal. **Persona:** give them a real first name, a color, and a short background — `persona Gina green`, then a sentence or 2–3 indented bullet (`- …`) lines covering who they are, their goal, and their constraints. Always color the persona (trailing color word after the name, or `persona Name color: green`) so the protagonist's card stands out. When the prompt implies a customer archetype, let the name's first letter echo it (a fanatic → Fred, a casual user → Carl, a beginner → Betty) — a light touch, never forced. **Structure:** organize the journey into 2–4 `[Phase]` sections, each holding 1–3 steps — and never one step per phase across the board. If every phase has exactly one step you've just bracketed a flat list; that 1:1 mapping is wrong — either give phases multiple steps or drop the brackets and let the steps run flat. Give every step a 1–5 `score:` (and a single-word `emotion:` at the highs and lows) so the mood curve has shape. **Depth per step:** every step gets a `description:` (what actually happens there) plus 2–5 annotations drawn from `pain:` (friction, red), `opportunity:` (a fix, green), and `thought:` (what they're thinking, italic) — choose the ones that genuinely fit that moment; a smooth early step might be all `thought:`/`opportunity:`, a trough heavy on `pain:`. Don't pad every step identically — let the friction cluster where the score dips so the arc reads true.
+
 <!-- TIPS end -->
 
 Persona-centric mood landscapes. Steps carry a 1–5 score and optional emotion label; the renderer draws an emotion curve over phase-grouped step cards. **Declaration is required** — the `journey-map` keyword must appear on the first line (no inference, to avoid colliding with kanban's `[Column]` + indented items shape).
@@ -3425,7 +3495,9 @@ Got resolution score: 5, emotion: Relieved
 <!-- TYPE:pyramid -->
 
 <!-- TIPS start -->
+
 **Styling tips:** Keep to a few tiers (3–5), widest at the base, and label each tier with its value — bands are uniform height, so the number carries the magnitude. For a funnel-shaped dataset, list the smallest stage first.
+
 <!-- TIPS end -->
 
 Hierarchical pyramid visualization with stacked layers, descriptions, and optional per-layer color. Source order reads apex-first (top of file = top of pyramid).
@@ -3492,7 +3564,9 @@ When descriptions don't fit a layer's band the renderer wraps at the column edge
 <!-- TYPE:ring -->
 
 <!-- TIPS start -->
+
 **Styling tips:** Order rings core→outward by hierarchy, not by size — band thickness is uniform and carries no proportional meaning (use pie/funnel for part-of-whole). Keep any value you want read at a glance in the ring’s own label.
+
 <!-- TIPS end -->
 
 Concentric-ring visualization for nested or hierarchical categories. Source order reads core-out: top of file = innermost element (rendered as a filled disc), last line = outermost ring. Min 2 layers, max 15.
@@ -3565,7 +3639,9 @@ When ring band thickness would force the in-band label below the readable floor 
 <!-- TYPE:treemap -->
 
 <!-- TIPS start -->
+
 **Styling tips:** Put the unit in the title (`Cloud Spend ($)`) — there is no currency/format directive. Reach for `depth N` once a tree goes past ~3 levels (deeper subtrees collapse to a drillable block) and `other-below N` to fold a long tail of tiny categories into one **Other** box. Pick the color mode to match intent: tags for categories, `heat` for a gain/loss heatmap, branch for zero-config structure. Add `radial` to render a **sunburst / hierarchical pie** — best for shallow trees where you want "share of a circle"; keep the rectangular default for deep trees or precise magnitude comparison.
+
 <!-- TIPS end -->
 
 Nested rectangles sized by value — the canonical way to show a hierarchy's proportions at a glance (budgets, disk usage, portfolios, taxonomies). Indentation is the hierarchy; a bare trailing number on a leaf is its size; parents auto-sum their children. Built on a squarified layout so cells keep good aspect ratios.
@@ -3676,7 +3752,9 @@ In the desktop app a treemap is interactive: click a parent to drill in (with a 
 <!-- TYPE:block -->
 
 <!-- TIPS start -->
+
 **Styling tips:** Reach for `block` when the **arrangement is the message** (system/hardware/architecture layouts) — not when you just want boxes auto-connected (that's `boxes-and-lines`/`flowchart`). Group with **containers** (indent a sub-grid) and **tag the container** so the colour cascades to its children. Don't write `columns` unless you need to override the inferred width; a lone block on a row already fills it. Mark a busy subsystem `collapsed` to keep the overview readable.
+
 <!-- TIPS end -->
 
 An author-controlled **grid** of rectangular blocks — for diagrams where the 2-D arrangement itself is the meaning (system block diagrams, hardware/signal chains, layered stacks, deployment topologies). Unlike the auto-layout diagrams, you place the blocks; the renderer still derives every pixel (column widths, row heights, gaps). One source line = one row; `[Label]` is a block; `_` is an empty cell.
@@ -3767,7 +3845,9 @@ In the desktop app a block diagram is interactive: click a container header to c
 **Beta — expect rough edges and syntax changes.**
 
 <!-- TIPS start -->
+
 **Styling tips:** Sketch is a GUI-authored format — the desktop and web canvas editors generate this markup, so hand-writing it is the exception. If you generate it anyway: keep it SMALL (sketches read best under ~15 shapes), and either omit `at:` everywhere (shapes flow into rows) or use integer half-slot coordinates with shapes **at least 3 half-slots apart** on one axis (a footprint spans 2 half-units and the mandatory gap adds 1 more, so each shape claims a 3×3 block; 2 apart overlaps). A `[Box]` may hold another `[Box]`, to **depth 2** — a third level is refused and its shapes join the box above it. Alias any shape an edge references (`as con`). Never write `size:`, colors, fonts, or a `shape:` outside the closed set (database, queue, cloud, person, document, note). In sketch, `~` dashed means secondary emphasis, NOT async. Categorize with a tag group instead of reaching for more shape kinds — kind-of-thing is meaning, and meaning lives in tags. Reach for `sketch` when the drawing itself is the content; reach for `boxes-and-lines` when topology should auto-lay-out.
+
 <!-- TIPS end -->
 
 A **GUI-first constrained canvas**: uniformly-sized shapes placed freely on a snap grid, arrows between them, meaning through tags. The renderer owns all styling — authors own placement, connection, naming, and tags. Every shape has ONE universal footprint (no resizing); text always fits (shrink → smart-wrap → `…`). Pick `sketch` when the spatial arrangement is yours to decide; pick `boxes-and-lines` when topology should auto-lay-out.
@@ -3844,7 +3924,9 @@ In the desktop and web app a sketch opens in the **canvas editor** (the code pan
 <!-- TYPE:goal -->
 
 <!-- TIPS start -->
+
 **Styling tips:** A single progress-toward-a-target reading — one `now` against one `target`, answering "how close am I?". Reach for it for a KPI tile, a fundraising thermometer, a quarterly quota, or a completion percentage; there is no time axis, series, or milestones (use `line` for a trend, `countdown` for a live deadline). Put the **unit in the title** (`Marathon Fund ($)`, `Grog Barrel Fill (L)`) — there is no format/currency directive. `now` and `target` are **space-separated `key value`** directives, no colon (`now 6400` / `target 10000`); the percent is `now / target` and values auto-compact (`6.4k`, `1.2M`). Pick the face for the story with a bare flag on its own line: the default progress **bar** for a plain KPI, `thermometer` for fundraising/fill-the-tank framings, `gauge` for a speedometer/quota dial — all three read the same value pair. The fill is **auto traffic-light** by completion (`< 50%` red, `50–80%` orange, `≥ 80%` green; over-target stays green) so the color already reads the number's health — leave it unless you have reason to override with a trailing color on the title line (`goal Marathon Fund ($) green`) or `no-auto-color` (flat palette color). Over-target clamps the fill at 100% while the `%` label stays truthful (`120%`). Add a `note` — inline (`note Still waiting on three crews`) or a block header on its own line with an indented body — to caption the number with context (who's still owed, what's left); it takes simple markdown (`**bold**`, `*italic*`, `` `code` ``) and `- ` bullets. `fill-solid` for a bolder fill; `no-percent` / `no-value` / `no-title` / `no-notes` to drop labels.
+
 <!-- TIPS end -->
 
 A single progress-toward-a-target value: one `now` measured against one `target`, drawn in one of three static faces. No time axis, no series, no milestones — just "how close am I?". The face is a bare-flag mode directive under the title (like treemap's `radial`); all three faces consume the same value pair.
@@ -3917,7 +3999,9 @@ Percent is `now / target`. Over-target clamps the fill at 100% while the `%` lab
 <!-- TYPE:countdown -->
 
 <!-- TIPS start -->
+
 **Styling tips:** The only dynamic chart — it ticks every second and is accurate on every load, so use it for a live "N days until X" widget, not a static report. Keep the title to the event (`Trip to Japan`); the target date renders as a caption automatically. `target` is a space-separated `key value` directive (no colon): a bare date (`2026-08-21`) counts to the viewer's local midnight, a datetime or offset is honored. Default `units days` reads best for weeks/months out; use `units full` for a launch-day `Nd HH:MM:SS` clock. Set `expired` to the celebration text (`🚀 Shipped!`); after the target passes every live surface shows it and the tick stops. On images (PNG export, `.svg` via `<img>`, GitHub camo) it can't tick and shows the whole-day count baked at export time — the correct fallback.
+
 <!-- TIPS end -->
 
 The only _dynamic_ dgmo chart: a single "N days until X" recomputed against the viewer's clock on every load and ticking every second on any live surface. Distinct from `goal` (static) — a countdown has no `now`/`target` pair, just one future instant: either an absolute `target`, or the next occurrence of a recurring block anchored by `since`. The renderer bakes a whole-day fallback number (the no-JS floor); a tiny page-level ticker overwrites it live and, in `units full`, upgrades it to `Nd HH:MM:SS`.
@@ -3961,16 +4045,16 @@ every 2 weeks
 
 ### Directives
 
-| Directive            | Effect                                                                                                                                                                                                                                                                                                                              |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------                                                                                        |
-| `target <iso>`       | The future instant of a **one-shot** block. `2026-08-21`, `2026-08-21T18:00`, or with a tz offset. The literal `now` resolves at render (→ immediately expired; for testing).                                                                                                                                                       |
-| `since <date>`       | The anchor instant of a **recurring** block, and the only date in it — month, day, weekday and time are all read from here (`since 2026-01-05T18:00` recurs at 18:00; a bare date is all-day). Liberal date grammar (§2B).                                                                                                          |
-| `every <cadence>`    | How often it comes round, and nothing else: `year`, `month`, `month by weekday`, `month by last weekday`, `week`, `day`, or `N days\|weeks\|months`. Omit the line entirely and **yearly** is assumed.                                                                                                                              |
-| `since-label <tmpl>` | Opt-in eyebrow numbering the occurrence — `Nth` → `7th`, `N` → `7` (`since-label Nth Anniversary`, `since-label Year N`). With no `since-label` there is no eyebrow.                                                                                                                                                                |
-| `on-day <text>`      | Shown on the occurrence day itself (`on-day 🎂 Today!`).                                                                                                                                                                                                                                                                             |
-| `tz <IANA>`          | Pin authored times to a zone (`America/New_York`, `Asia/Kolkata`, `UTC`) so the count is the **same for every viewer** and doesn't drift when the host moves zones. Default viewer-local. Footer then shows the in-zone time + a `UTC±` tag.                                                                                        |
-| `units <days\|full>` | `days` (default) shows whole days (ceil); `full` ticks `Nd HH:MM:SS` on live surfaces.                                                                                                                                                                                                                                              |
-| `expired <text>`     | Shown once the target passes; the tick stops. Default `"Now!"`. One-shot blocks only — a recurring block rolls forward to its next occurrence instead.                                                                                                                                                                              |
+| Directive            | Effect                                                                                                                                                                                                                                       |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `target <iso>`       | The future instant of a **one-shot** block. `2026-08-21`, `2026-08-21T18:00`, or with a tz offset. The literal `now` resolves at render (→ immediately expired; for testing).                                                                |
+| `since <date>`       | The anchor instant of a **recurring** block, and the only date in it — month, day, weekday and time are all read from here (`since 2026-01-05T18:00` recurs at 18:00; a bare date is all-day). Liberal date grammar (§2B).                   |
+| `every <cadence>`    | How often it comes round, and nothing else: `year`, `month`, `month by weekday`, `month by last weekday`, `week`, `day`, or `N days\|weeks\|months`. Omit the line entirely and **yearly** is assumed.                                       |
+| `since-label <tmpl>` | Opt-in eyebrow numbering the occurrence — `Nth` → `7th`, `N` → `7` (`since-label Nth Anniversary`, `since-label Year N`). With no `since-label` there is no eyebrow.                                                                         |
+| `on-day <text>`      | Shown on the occurrence day itself (`on-day 🎂 Today!`).                                                                                                                                                                                     |
+| `tz <IANA>`          | Pin authored times to a zone (`America/New_York`, `Asia/Kolkata`, `UTC`) so the count is the **same for every viewer** and doesn't drift when the host moves zones. Default viewer-local. Footer then shows the in-zone time + a `UTC±` tag. |
+| `units <days\|full>` | `days` (default) shows whole days (ceil); `full` ticks `Nd HH:MM:SS` on live surfaces.                                                                                                                                                       |
+| `expired <text>`     | Shown once the target passes; the tick stops. Default `"Now!"`. One-shot blocks only — a recurring block rolls forward to its next occurrence instead.                                                                                       |
 
 ### Values & color
 
@@ -3987,7 +4071,9 @@ A recurring block always counts to the **next** occurrence: the anchor's calenda
 <!-- TYPE:clock -->
 
 <!-- TIPS start -->
-**Styling tips:** A live world clock — one panel per person or place, each showing the CURRENT time in its zone and ticking every second, accurate the instant the page loads. Reach for it to answer "what time is it for the crew right now": a distributed team's local times, a single collaborator's clock, or the overlap window for scheduling a call. The first line declares the type and a title (`Crew standups`). Each entry is one line, `<anchor> [as <label>]`, where the **anchor** names the zone in one of three forms (first match wins): (1) a **city name** resolved through a built-in gazetteer — just write it the way you'd say it (`London`, `New York`, `Los Angeles`, `Tokyo`, and aliases like `NYC`/`LA`/`Bombay`) — this is the easiest and preferred form; (2) an explicit **IANA id** containing a `/` (`Europe/London`, `America/New_York`) for anything ambiguous or obscure; (3) a raw **UTC offset** (`UTC`, `UTC+5:30`, `UTC-7`, `GMT+2`) — a FIXED offset that does not track daylight saving, so it renders with a small "no DST" marker and no sunrise line (use it for `UTC` itself or regions that don't shift, e.g. India `UTC+5:30`). You name the zone ONCE — do NOT write a place and an IANA zone as two tokens. Use `as <label>` to name the person or role (`New York as Dani (NY)`); the label becomes the caption and defaults to the resolved city. The single-clock case is common and encouraged — one title, one entry (`clock Dani` / `New York`). An ambiguous city (e.g. `San Jose`) errors listing the candidate zones; an unknown place is skipped with a did-you-mean. Global directives are flat, no colon: `analog` for analog dials (digital is the default face), `time-24` for a 24-hour readout (12h am/pm is the default), and optional context bands `hours 9-17` + `workweek mon-fri` (the window accepts `HH:MM` and am/pm, e.g. `hours 8:30-17:15`) to shade each zone's working window so out-of-hours people read at a glance. `no-sun` hides the sunrise/sundown indicator (on by default). Add `hours`/`workweek` only when the point is scheduling overlap; drop them for a plain "current time" widget. Zones are **colorized by default** (`color-by`, default `place` — a distinct palette accent per place); reach for a semantic mode when color should *mean* something: `color-by time` or `color-by daylight` make an at-a-glance world board read as day-vs-night (order the zones west→east so the daylight sweeps across), and `color-by work` turns a standup/team board green/amber/grey by availability — it needs `hours` set. A hand-set per-zone color (`London as UK team purple`) is a **defined** shade that always wins over the dimension, so you can pin one zone and let the rest follow. `color-by none` goes neutral. On image surfaces (PNG, `.svg` via `<img>`, GitHub camo) it can't tick and bakes the time at export — the correct graceful fallback.
+
+**Styling tips:** A live world clock — one panel per person or place, each showing the CURRENT time in its zone and ticking every second, accurate the instant the page loads. Reach for it to answer "what time is it for the crew right now": a distributed team's local times, a single collaborator's clock, or the overlap window for scheduling a call. The first line declares the type and a title (`Crew standups`). Each entry is one line, `<anchor> [as <label>]`, where the **anchor** names the zone in one of three forms (first match wins): (1) a **city name** resolved through a built-in gazetteer — just write it the way you'd say it (`London`, `New York`, `Los Angeles`, `Tokyo`, and aliases like `NYC`/`LA`/`Bombay`) — this is the easiest and preferred form; (2) an explicit **IANA id** containing a `/` (`Europe/London`, `America/New_York`) for anything ambiguous or obscure; (3) a raw **UTC offset** (`UTC`, `UTC+5:30`, `UTC-7`, `GMT+2`) — a FIXED offset that does not track daylight saving, so it renders with a small "no DST" marker and no sunrise line (use it for `UTC` itself or regions that don't shift, e.g. India `UTC+5:30`). You name the zone ONCE — do NOT write a place and an IANA zone as two tokens. Use `as <label>` to name the person or role (`New York as Dani (NY)`); the label becomes the caption and defaults to the resolved city. The single-clock case is common and encouraged — one title, one entry (`clock Dani` / `New York`). An ambiguous city (e.g. `San Jose`) errors listing the candidate zones; an unknown place is skipped with a did-you-mean. Global directives are flat, no colon: `analog` for analog dials (digital is the default face), `time-24` for a 24-hour readout (12h am/pm is the default), and optional context bands `hours 9-17` + `workweek mon-fri` (the window accepts `HH:MM` and am/pm, e.g. `hours 8:30-17:15`) to shade each zone's working window so out-of-hours people read at a glance. `no-sun` hides the sunrise/sundown indicator (on by default). Add `hours`/`workweek` only when the point is scheduling overlap; drop them for a plain "current time" widget. Zones are **colorized by default** (`color-by`, default `place` — a distinct palette accent per place); reach for a semantic mode when color should _mean_ something: `color-by time` or `color-by daylight` make an at-a-glance world board read as day-vs-night (order the zones west→east so the daylight sweeps across), and `color-by work` turns a standup/team board green/amber/grey by availability — it needs `hours` set. A hand-set per-zone color (`London as UK team purple`) is a **defined** shade that always wins over the dimension, so you can pin one zone and let the rest follow. `color-by none` goes neutral. On image surfaces (PNG, `.svg` via `<img>`, GitHub camo) it can't tick and bakes the time at export — the correct graceful fallback.
+
 <!-- TIPS end -->
 
 The second _dynamic_ dgmo chart (with `countdown`): a live board of world clocks recomputed against the viewer's clock every second. Flat syntax — the first line is `clock <Title>`; every other non-blank line is either a board-level directive (its first token is an option keyword) or a place row. Order-independent; no colons anywhere.
@@ -4066,7 +4152,9 @@ Each row's time comes from `Intl.DateTimeFormat` with that row's zone, so DST is
 <!-- TYPE:bracket -->
 
 <!-- TIPS start -->
+
 **Styling tips:** A single-elimination tournament bracket: winners auto-advance rightward toward a championship. Reach for it for playoff trees, knockout draws, and seeded fields. Two ways to author: seed the field for a **day-0 skeleton** (`seed 1 Team A`, `seed 2 Team B` …) and let matches fill in, or list results casually as `A beats B` / `A vs B` lines and let winners flow forward. Name the columns with `rounds` (comma-separated, e.g. `rounds Quarterfinals, Semifinals, Final`) or an indented `rounds` block with per-round colors. The two sides mirror inward to the final. Color a competitor's box outline with a `tag` group; `accent` overrides the winner highlight (default blue). `single-elim` is the default; opt-outs are `no-round` (hide column labels) and `no-legend`.
+
 <!-- TIPS end -->
 
 A single-elimination tournament bracket. Winners auto-advance up a tree that builds itself from the results — a one-sided ladder for a simple pool, or two `[Side]` columns that mirror inward and meet at a championship (MLB / NBA / NCAA-style). Any `seed` line switches on **seeded mode** (day-0 skeleton); otherwise the bracket is **casual** (structure inferred from `beats` / `vs` lines).
@@ -4119,7 +4207,9 @@ The winner is always the left operand of `beats`, regardless of the score; a sco
 <!-- TYPE:raci -->
 
 <!-- TIPS start -->
+
 **Styling tips:** Put each task at indent-0 with its `Role: A/R/C/I` cells indented one level under it — never nest tasks inside the `roles` block (it swallows them). Give every task exactly one Accountable (ideally one Responsible) and keep roles small (≤~6) so the matrix stays scannable.
+
 <!-- TIPS end -->
 
 A tasks × roles responsibility matrix with author-time linting. **One chart type — `raci` — covers all three variants.** The variant is **inferred from the markers used**: any `D` marker → DACI, any `S` marker → RASCI, otherwise RACI. There is no directive to lock a variant; just use the markers you want. Using both `D` and `S` in one chart is an error (`E_RACI_MIXED_VARIANTS`).
@@ -4214,7 +4304,9 @@ Markers in cells are always **rendered in canonical alphabet order** (`R A C I`,
 <!-- TYPE:map -->
 
 <!-- TIPS start -->
+
 **Styling tips:** the zero-config map already looks good — name places and stop. When POIs fall into categories, tag them so each category gets its own color; keep place labels to the place name; leave region colorize and coastlines on unless the user asks to hide them. **For flights and airport routes, use IATA codes, not city names** — `LHR ~> JFK`, `LHR ~> DXB`, `LHR ~> SIN`, `LHR ~> HND` — the bundled airport set (large international hubs + all US commercial airports) resolves them to the right coordinates and labels them with the code. **For cities, use the exact canonical name**: "New York City" (NOT "New York"), "Washington, D.C.", etc. — a name the gazetteer doesn't have **silently drops that point** and the map just reframes around the rest, so it looks fine but is wrong. When unsure of the exact token, look it up: `dgmo map-search "<place>"` (or the `lookup_map_location` MCP tool) returns the city name or airport code to paste; fall back to coordinates (`poi Name as 40.71,-74.0`) for anything not found. **For routes/flows from a hub** (an airport's daily flights, a distribution center's shipments), write ONE edge per line and repeat the origin — never indented edges (those error). Use **arcs** (`~>`) for flights and long-haul links so the spokes separate; the connector label carries the relationship (`~daily~>`, `~2x daily~>`). Endpoints auto-create POIs, so don't add separate `poi` lines for places already in an edge. Reach for a `route` block only when the trip is an **ordered voyage** that continues stop→stop (a cruise itinerary), not a set of independent routes from one origin.
+
 <!-- TIPS end -->
 
 Geographic concept maps: highlight/shade political subdivisions, drop points of interest (POIs), and connect them with routes or edges. For "share a concept" business maps, not cartography. Renders at a fixed, auto-fit position — no pan/zoom. Basemap and viewport are **inferred from the content you reference** — most maps need no directives. v1 boundaries: world countries + US states.

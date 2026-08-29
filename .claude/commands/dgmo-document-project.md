@@ -17,6 +17,7 @@ Read these files (skip any that don't exist):
 5. **.env.example** or config files — external services and integrations
 
 From this, determine:
+
 - What the project does (one sentence)
 - The tech stack (language, framework, database, message broker, etc.)
 - Key modules or services
@@ -27,17 +28,18 @@ From this, determine:
 
 Pick 3–6 diagrams based on what the project actually has. Don't force a diagram type that doesn't fit. Use this decision matrix:
 
-| Signal in codebase | Diagram type | What to show |
-|---|---|---|
-| Multiple services, APIs, or modules | **c4** (context or container) | System components and their relationships |
-| REST/GraphQL endpoints, API handlers | **sequence** | 1–2 key request flows (e.g., auth, main business operation) |
-| Database models, ORM entities, schema files | **er** | Entity relationships and key fields |
-| Docker, k8s, cloud infra, load balancers | **infra** | Traffic flow and infrastructure components |
-| State machines, workflow engines, status fields | **state** | Key state transitions |
-| Multiple packages or layers | **flowchart** | Request lifecycle or data flow |
-| Microservices with message queues | **sequence** | Async event flow between services |
+| Signal in codebase                              | Diagram type                  | What to show                                                |
+| ----------------------------------------------- | ----------------------------- | ----------------------------------------------------------- |
+| Multiple services, APIs, or modules             | **c4** (context or container) | System components and their relationships                   |
+| REST/GraphQL endpoints, API handlers            | **sequence**                  | 1–2 key request flows (e.g., auth, main business operation) |
+| Database models, ORM entities, schema files     | **er**                        | Entity relationships and key fields                         |
+| Docker, k8s, cloud infra, load balancers        | **infra**                     | Traffic flow and infrastructure components                  |
+| State machines, workflow engines, status fields | **state**                     | Key state transitions                                       |
+| Multiple packages or layers                     | **flowchart**                 | Request lifecycle or data flow                              |
+| Microservices with message queues               | **sequence**                  | Async event flow between services                           |
 
 **Rules:**
+
 - Always include a C4 context or container diagram — every project benefits from a high-level view
 - Prefer sequence diagrams for showing **behavior** (how things interact at runtime)
 - Prefer ER diagrams only if there's a real database schema to document
@@ -65,6 +67,7 @@ Write the DGMO markup for each diagram. Follow these rules:
 - **Title every diagram** — the title goes on the first line after the chart type
 
 ### Syntax reminders (no colons in directives or data):
+
 ```
 sequence Auth Flow          // first line: type + title
 tag Layer as l              // tag declaration (use `as`)

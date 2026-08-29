@@ -1,6 +1,6 @@
 # CONTEXT — dgmo
 
-The domain glossary for the dgmo library + CLI. Names the **seams** that already exist so architecture work talks about *the chart-type registry* and *the render router*, not "the handler" or "the service."
+The domain glossary for the dgmo library + CLI. Names the **seams** that already exist so architecture work talks about _the chart-type registry_ and _the render router_, not "the handler" or "the service."
 
 Architecture vocabulary (module, interface, seam, depth, adapter, leverage, locality) is defined in the architecture skill's `LANGUAGE.md` and is **not** redefined here. This file names the domain nouns and where their seams live.
 
@@ -25,6 +25,7 @@ A library that turns **DGMO source text** (a line-oriented diagram language — 
 **Render router** — `src/render.ts` (public `render()`) → `src/dgmo-router.ts` (`parseDgmo`, `getRenderCategory`). Parses, looks up the category, dispatches to one of the family renderers. See ADR-0005 for the category split.
 
 **Family renderers** — the three export entry points:
+
 - `src/d3.ts` — `renderForExport()`, dispatching on `DIAGRAM_EXPORT_HANDLERS` (~32 diagram/visualization handlers). Needs a DOM; callers acquire/release jsdom around it.
 - `src/echarts.ts` — `renderExtendedChartForExport()`, for `data-chart` types.
 - `src/chart.ts` — `parseChart()`, the shared parser for the standard ECharts types (bar/line/pie/area/…).
@@ -40,7 +41,7 @@ A library that turns **DGMO source text** (a line-oriented diagram language — 
 ## Cross-cutting modules (shared by every chart type)
 
 - **Palettes** — `src/palettes/` (registry + 7 palettes + `color-utils.ts`). `getPalette(id)` → `PaletteConfig` with `light`/`dark` `PaletteColors`. Renderers compute fills via `mix()`, `shapeFill()`, `contrastText()`.
-- **Colors** — `src/colors.ts`. The *closed* set of recognized color names + name→hex resolution + diagnostics on invalid names.
+- **Colors** — `src/colors.ts`. The _closed_ set of recognized color names + name→hex resolution + diagnostics on invalid names.
 - **Diagnostics** — `src/diagnostics.ts`. `DgmoError { line, message, severity, code? }`, the `makeFail`/`dedupeDiagnostics`/`suggest` helpers, and the stable diagnostic-code sets the MCP server + editor depend on.
 - **Tag groups** — `src/utils/tag-groups.ts`. The interactive-legend / swimlane feature; parsed per chart type, validated + auto-colored centrally.
 - **Legend** — `src/utils/legend-*.ts`. `renderIntegratedLegend()` draws a legend from tag groups.
@@ -50,5 +51,5 @@ A library that turns **DGMO source text** (a line-oriented diagram language — 
 
 ## Where dgmo's responsibility ends
 
-- **Chart-type *selection*** (natural-language prompt → suggested chart type) lives in **dgmo-mcp**, not dgmo. dgmo only exposes the registry it scores against. See ADR-0004.
+- **Chart-type _selection_** (natural-language prompt → suggested chart type) lives in **dgmo-mcp**, not dgmo. dgmo only exposes the registry it scores against. See ADR-0004.
 - **Interactivity** (hover, pan/zoom, click-sync) is added by host apps over the exported SVG, not by dgmo.

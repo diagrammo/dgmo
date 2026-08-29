@@ -78,7 +78,8 @@ function parseArgs() {
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === '--update' || arg === '-u') opts.update = true;
-    else if (arg === '--concurrency') opts.concurrency = parseInt(args[++i], 10);
+    else if (arg === '--concurrency')
+      opts.concurrency = parseInt(args[++i], 10);
     else if (arg === '--filter') opts.filter = args[++i];
     else if (arg === '--help' || arg === '-h') {
       console.log(`Usage: node scripts/gallery-snapshot.mjs [options]
@@ -120,7 +121,11 @@ function discoverFixtures(filter) {
   const all = [...walk(FIXTURES_DIR)].sort();
   const filtered = filter ? all.filter((f) => f.includes(filter)) : all;
   if (filtered.length === 0) {
-    console.error(filter ? `No fixtures match filter "${filter}"` : 'No .dgmo fixtures found');
+    console.error(
+      filter
+        ? `No fixtures match filter "${filter}"`
+        : 'No .dgmo fixtures found'
+    );
     process.exit(1);
   }
   return filtered;
@@ -136,20 +141,28 @@ function renderOne(fixturePath, outputPath) {
     const args = [
       CLI_PATH,
       fixturePath,
-      '--palette', PALETTE,
-      '--theme', THEME,
-      '-o', outputPath,
+      '--palette',
+      PALETTE,
+      '--theme',
+      THEME,
+      '-o',
+      outputPath,
     ];
-    execFile('node', args, {
-      timeout: 30_000,
-      env: { ...process.env, TZ: 'UTC' },
-    }, (err, _stdout, stderr) => {
-      if (err) {
-        res({ ok: false, error: stderr || err.message });
-      } else {
-        res({ ok: true });
+    execFile(
+      'node',
+      args,
+      {
+        timeout: 30_000,
+        env: { ...process.env, TZ: 'UTC' },
+      },
+      (err, _stdout, stderr) => {
+        if (err) {
+          res({ ok: false, error: stderr || err.message });
+        } else {
+          res({ ok: true });
+        }
       }
-    });
+    );
   });
 }
 
@@ -254,7 +267,8 @@ async function main() {
   );
   if (opts.update) console.log('mode: --update (overwriting baselines)');
   if (skipped.length) {
-    for (const s of skipped) console.log(`  skip ${s.rel} — ${SKIP.get(s.rel)}`);
+    for (const s of skipped)
+      console.log(`  skip ${s.rel} — ${SKIP.get(s.rel)}`);
   }
   console.log('');
 
@@ -267,10 +281,13 @@ async function main() {
     });
     const failed = results.filter((r) => !r.ok);
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`Wrote ${results.length - failed.length} snapshot(s) in ${elapsed}s`);
+    console.log(
+      `Wrote ${results.length - failed.length} snapshot(s) in ${elapsed}s`
+    );
     if (failed.length) {
       console.error(`\n${failed.length} render error(s):`);
-      for (const f of failed) console.error(`  - ${f.rel}: ${(f.error || '').split('\n')[0]}`);
+      for (const f of failed)
+        console.error(`  - ${f.rel}: ${(f.error || '').split('\n')[0]}`);
       process.exit(1);
     }
     return;
@@ -323,10 +340,13 @@ async function main() {
 
   if (errors.length) {
     console.error(`\n${errors.length} render error(s):`);
-    for (const e of errors) console.error(`  - ${e.rel}: ${(e.error || '').split('\n')[0]}`);
+    for (const e of errors)
+      console.error(`  - ${e.rel}: ${(e.error || '').split('\n')[0]}`);
   }
   if (missing.length) {
-    console.error(`\n${missing.length} fixture(s) without a baseline (run with --update):`);
+    console.error(
+      `\n${missing.length} fixture(s) without a baseline (run with --update):`
+    );
     for (const m of missing) console.error(`  - ${m.rel}`);
   }
   if (diffs.length) {

@@ -159,14 +159,10 @@ describe('graph types', () => {
       const graph: ParsedGraph = {
         type: 'flowchart',
         direction: 'LR',
-        nodes: [
-          { id: 'n1', label: 'Start', shape: 'terminal', lineNumber: 1 },
-        ],
+        nodes: [{ id: 'n1', label: 'Start', shape: 'terminal', lineNumber: 1 }],
         edges: [{ source: 'n1', target: 'n2', lineNumber: 2 }],
         title: 'My Flow',
-        groups: [
-          { id: 'g1', label: 'Group', nodeIds: ['n1'], lineNumber: 3 },
-        ],
+        groups: [{ id: 'g1', label: 'Group', nodeIds: ['n1'], lineNumber: 3 }],
         error: 'some error',
       };
       expectTypeOf(graph).toMatchTypeOf<ParsedGraph>();

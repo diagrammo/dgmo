@@ -69,8 +69,8 @@ Resvg l: Support
 
 Things worth knowing from this map:
 
-- **`chart-type-registry.ts` is a deliberate single source of truth** (Story 109.1). It binds each type's `category`, `parse`, and `measure` in one place; `dgmo-router.ts` and `dimensions.ts` *derive* their tables from it instead of keeping parallel lists, and a test asserts the derived tables stay complete (`src/chart-type-registry.ts:1–28`). Metadata that the AI-selection engine reads (`description`, `fallback`) stays separate in `chart-types.ts` — dispatch vs. data are split on purpose.
-- **The export-render dispatch is intentionally *not* in the registry.** `renderForExport` and `DIAGRAM_EXPORT_HANDLERS` live in `d3.ts` so per-type renderers can stay lazily imported — pulling every renderer into the registry would bloat consumer bundles (`src/chart-type-registry.ts:21–25`).
+- **`chart-type-registry.ts` is a deliberate single source of truth** (Story 109.1). It binds each type's `category`, `parse`, and `measure` in one place; `dgmo-router.ts` and `dimensions.ts` _derive_ their tables from it instead of keeping parallel lists, and a test asserts the derived tables stay complete (`src/chart-type-registry.ts:1–28`). Metadata that the AI-selection engine reads (`description`, `fallback`) stays separate in `chart-types.ts` — dispatch vs. data are split on purpose.
+- **The export-render dispatch is intentionally _not_ in the registry.** `renderForExport` and `DIAGRAM_EXPORT_HANDLERS` live in `d3.ts` so per-type renderers can stay lazily imported — pulling every renderer into the registry would bloat consumer bundles (`src/chart-type-registry.ts:21–25`).
 - **`render()` is async and manages a jsdom lifecycle** on Node, ref-counted so it doesn't leak a `window` global into a host that does its own SSR after calling it (`src/render.ts:30–76`).
 
 ## Chart-type detection
@@ -161,4 +161,4 @@ Colors are a **closed set of 11 names** (red, orange, yellow, green, blue, purpl
 
 ---
 
-*No ER diagram (the library has no persistent data model — its closest analogue, the chart-type registry, is covered above) and no infra diagram (it's a library: no deployment topology, no services). Diagramming either would mean inventing structure that isn't in the code.*
+_No ER diagram (the library has no persistent data model — its closest analogue, the chart-type registry, is covered above) and no infra diagram (it's a library: no deployment topology, no services). Diagramming either would mean inventing structure that isn't in the code._

@@ -87,9 +87,7 @@ const ALIAS_TOKEN = '[A-Za-z][A-Za-z0-9_]{0,11}';
 // Tag bare shorthand: `tag <Name…> <alias>`.
 // Multi-word names allowed; alias is the last bare token.
 // We scan line-by-line and detect `tag` lines without `as`/`alias`/inline values.
-const TAG_BARE_RE = new RegExp(
-  `^(\\s*tag\\s+)(.+?)\\s+(${ALIAS_TOKEN})\\s*$`
-);
+const TAG_BARE_RE = new RegExp(`^(\\s*tag\\s+)(.+?)\\s+(${ALIAS_TOKEN})\\s*$`);
 
 // Tag explicit `alias` keyword (rare): `tag Name alias x`.
 const TAG_ALIAS_KEYWORD_RE = new RegExp(
@@ -251,7 +249,9 @@ for (const rel of targets) {
 const mode = dryRun ? '[DRY-RUN]' : '[REWRITE]';
 console.log(`${mode} migrate-as-aliases`);
 console.log(`  scanned:  ${totalFiles} files`);
-console.log(`  touched:  ${touchedFiles} files (${totalLineChanges} line changes)`);
+console.log(
+  `  touched:  ${touchedFiles} files (${totalLineChanges} line changes)`
+);
 if (touchedFiles > 0) {
   console.log('');
   for (const { file, touched } of touchedPaths) {

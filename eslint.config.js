@@ -7,9 +7,22 @@ const require = createRequire(import.meta.url);
 const localPlugin = require('./eslint-plugin-local');
 
 export default tseslint.config(
-  { ignores: ['dist', 'scripts', 'test-fixtures', 'eslint-plugin-local', 'gallery', 'api-baseline', 'playground'] },
   {
-    extends: [js.configs.recommended, ...tseslint.configs.recommendedTypeChecked],
+    ignores: [
+      'dist',
+      'scripts',
+      'test-fixtures',
+      'eslint-plugin-local',
+      'gallery',
+      'api-baseline',
+      'playground',
+    ],
+  },
+  {
+    extends: [
+      js.configs.recommended,
+      ...tseslint.configs.recommendedTypeChecked,
+    ],
     files: ['**/*.ts'],
     languageOptions: {
       parserOptions: {

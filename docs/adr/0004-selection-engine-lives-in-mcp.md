@@ -4,7 +4,7 @@
 
 ## Context
 
-Natural-language chart-type *selection* (prompt → suggested chart type, the hybrid scorer + triggers vocabulary) originally lived in dgmo. It improved rapidly and on a different cadence than the rendering library, and is only needed by AI-facing consumers.
+Natural-language chart-type _selection_ (prompt → suggested chart type, the hybrid scorer + triggers vocabulary) originally lived in dgmo. It improved rapidly and on a different cadence than the rendering library, and is only needed by AI-facing consumers.
 
 ## Decision
 

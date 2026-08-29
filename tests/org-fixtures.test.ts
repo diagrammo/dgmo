@@ -18,14 +18,20 @@ describe('org fixtures', () => {
   }
 
   it('org-basic has title "Small Startup" and at least 1 root', () => {
-    const content = readFileSync(resolve(FIXTURE_DIR, 'org-basic.dgmo'), 'utf-8');
+    const content = readFileSync(
+      resolve(FIXTURE_DIR, 'org-basic.dgmo'),
+      'utf-8'
+    );
     const result = parseOrg(content);
     expect(result.title).toBe('Small Startup');
     expect(result.roots.length).toBeGreaterThanOrEqual(1);
   });
 
   it('org-teams has containers', () => {
-    const content = readFileSync(resolve(FIXTURE_DIR, 'org-teams.dgmo'), 'utf-8');
+    const content = readFileSync(
+      resolve(FIXTURE_DIR, 'org-teams.dgmo'),
+      'utf-8'
+    );
     const result = parseOrg(content);
 
     function hasContainer(nodes: typeof result.roots): boolean {
@@ -40,7 +46,10 @@ describe('org fixtures', () => {
   });
 
   it('org-full has tag groups defined', () => {
-    const content = readFileSync(resolve(FIXTURE_DIR, 'org-full.dgmo'), 'utf-8');
+    const content = readFileSync(
+      resolve(FIXTURE_DIR, 'org-full.dgmo'),
+      'utf-8'
+    );
     const result = parseOrg(content);
     expect(result.tagGroups).toBeDefined();
     expect(result.tagGroups!.length).toBeGreaterThan(0);

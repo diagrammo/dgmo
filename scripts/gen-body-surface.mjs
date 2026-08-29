@@ -106,7 +106,8 @@ function build(fk, fig) {
   };
 
   const face = bboxOf(fig.headPaths, fig.viewBox);
-  const head = bboxOf([...fig.headPaths, ...fig.hairPaths], fig.viewBox) || face;
+  const head =
+    bboxOf([...fig.headPaths, ...fig.hairPaths], fig.viewBox) || face;
   if (!back && face) {
     const { x, y, w, h } = face,
       fmx = x + w / 2;

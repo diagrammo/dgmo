@@ -2,7 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { parseBlock } from '../src/block/parser';
 import { layoutBlock } from '../src/block/layout';
 import { tagAttrKey } from '../src/utils/tag-groups';
-import { isBlockNode, type BlockGrid, type BlockNode } from '../src/block/types';
+import {
+  isBlockNode,
+  type BlockGrid,
+  type BlockNode,
+} from '../src/block/types';
 
 function codes(r: ReturnType<typeof parseBlock>): string[] {
   return r.diagnostics.map((d) => d.code ?? '').filter(Boolean);
@@ -52,7 +56,9 @@ describe('parseBlock — declaration & rows', () => {
 
 describe('parseBlock — columns inference', () => {
   it('infers columns from the widest row and fills a lone block', () => {
-    const r = parseBlock('block T\n\n[Web] [Mobile] [CLI]\n[API Gateway]\n[A] [B] [C]');
+    const r = parseBlock(
+      'block T\n\n[Web] [Mobile] [CLI]\n[API Gateway]\n[A] [B] [C]'
+    );
     expect(r.top.cols).toBe(3);
     // A lone block on its row even-fills to the full width.
     expect(find(r.top, 'API Gateway')!.span).toBe(3);
@@ -82,7 +88,9 @@ describe('parseBlock — columns inference', () => {
 
 describe('parseBlock — containers', () => {
   it('nests an indented sub-grid into a container', () => {
-    const r = parseBlock('block T\n\n[Backend]\n  [Auth] [Orders]\n  [Inventory] [Billing]');
+    const r = parseBlock(
+      'block T\n\n[Backend]\n  [Auth] [Orders]\n  [Inventory] [Billing]'
+    );
     const backend = find(r.top, 'Backend')!;
     expect(backend.grid).toBeDefined();
     expect(backend.grid!.rows).toHaveLength(2);
@@ -110,7 +118,9 @@ describe('parseBlock — tags outside the bracket', () => {
   });
 
   it('keeps a colon inside the label as label text, tag stays outside', () => {
-    const r = parseBlock('block T\n\ntag State as s\n  Down red\n\n[API: v2] s: Down');
+    const r = parseBlock(
+      'block T\n\ntag State as s\n  Down red\n\n[API: v2] s: Down'
+    );
     const node = find(r.top, 'API: v2');
     expect(node).toBeDefined();
     expect(node!.metadata[tagAttrKey('State')]).toBe('Down');
@@ -145,7 +155,9 @@ describe('parseBlock — empty cells & layout', () => {
   it('renders a collapsed container as a compact band in the layout', () => {
     const r = parseBlock('block T\n\n[Data] collapsed\n  [A] [B] [C]');
     const layout = layoutBlock(r.top, {
-      collapsed: new Set(find(r.top, 'Data')!.id ? [find(r.top, 'Data')!.id] : []),
+      collapsed: new Set(
+        find(r.top, 'Data')!.id ? [find(r.top, 'Data')!.id] : []
+      ),
     });
     const collapsed = layout.items.find((it) => it.type === 'collapsed');
     expect(collapsed).toBeDefined();

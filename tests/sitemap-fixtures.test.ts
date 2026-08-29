@@ -28,38 +28,56 @@ describe('sitemap fixtures', () => {
   }
 
   it('sitemap-basic has title "Simple Website"', () => {
-    const content = readFileSync(resolve(FIXTURE_DIR, 'sitemap-basic.dgmo'), 'utf-8');
+    const content = readFileSync(
+      resolve(FIXTURE_DIR, 'sitemap-basic.dgmo'),
+      'utf-8'
+    );
     const result = parseSitemap(content);
     expect(result.title).toBe('Simple Website');
   });
 
   it('sitemap-basic has a container', () => {
-    const content = readFileSync(resolve(FIXTURE_DIR, 'sitemap-basic.dgmo'), 'utf-8');
+    const content = readFileSync(
+      resolve(FIXTURE_DIR, 'sitemap-basic.dgmo'),
+      'utf-8'
+    );
     const result = parseSitemap(content);
-    const hasContainer = result.roots.some(r => r.isContainer);
+    const hasContainer = result.roots.some((r) => r.isContainer);
     expect(hasContainer).toBe(true);
   });
 
   it('sitemap-basic has edges', () => {
-    const content = readFileSync(resolve(FIXTURE_DIR, 'sitemap-basic.dgmo'), 'utf-8');
+    const content = readFileSync(
+      resolve(FIXTURE_DIR, 'sitemap-basic.dgmo'),
+      'utf-8'
+    );
     const result = parseSitemap(content);
     expect(result.edges.length).toBeGreaterThan(0);
   });
 
   it('sitemap-full has title "Grand Slam Tickets"', () => {
-    const content = readFileSync(resolve(FIXTURE_DIR, 'sitemap-full.dgmo'), 'utf-8');
+    const content = readFileSync(
+      resolve(FIXTURE_DIR, 'sitemap-full.dgmo'),
+      'utf-8'
+    );
     const result = parseSitemap(content);
     expect(result.title).toBe('Grand Slam Tickets');
   });
 
   it('sitemap-full has tag groups', () => {
-    const content = readFileSync(resolve(FIXTURE_DIR, 'sitemap-full.dgmo'), 'utf-8');
+    const content = readFileSync(
+      resolve(FIXTURE_DIR, 'sitemap-full.dgmo'),
+      'utf-8'
+    );
     const result = parseSitemap(content);
     expect(result.tagGroups.length).toBeGreaterThanOrEqual(2);
   });
 
   it('sitemap-full has 4 groups and 20+ pages', () => {
-    const content = readFileSync(resolve(FIXTURE_DIR, 'sitemap-full.dgmo'), 'utf-8');
+    const content = readFileSync(
+      resolve(FIXTURE_DIR, 'sitemap-full.dgmo'),
+      'utf-8'
+    );
     const result = parseSitemap(content);
 
     // Count containers
@@ -79,13 +97,19 @@ describe('sitemap fixtures', () => {
   });
 
   it('sitemap-full has 40+ edges', () => {
-    const content = readFileSync(resolve(FIXTURE_DIR, 'sitemap-full.dgmo'), 'utf-8');
+    const content = readFileSync(
+      resolve(FIXTURE_DIR, 'sitemap-full.dgmo'),
+      'utf-8'
+    );
     const result = parseSitemap(content);
     expect(result.edges.length).toBeGreaterThanOrEqual(40);
   });
 
   it('sitemap-full renders without overlap (layout sanity)', () => {
-    const content = readFileSync(resolve(FIXTURE_DIR, 'sitemap-full.dgmo'), 'utf-8');
+    const content = readFileSync(
+      resolve(FIXTURE_DIR, 'sitemap-full.dgmo'),
+      'utf-8'
+    );
     const parsed = parseSitemap(content);
     const layout = layoutSitemap(parsed);
 

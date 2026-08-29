@@ -27,7 +27,11 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { chartTypes } from '@diagrammo/dgmo/advanced';
 import { extractAiCore } from './lib/ref-anchors.mjs';
-import { extractDgmoFences, validateDgmoSource, formatDiagnostic } from './lib/fence-validate.mjs';
+import {
+  extractDgmoFences,
+  validateDgmoSource,
+  formatDiagnostic,
+} from './lib/fence-validate.mjs';
 import { loadExampleIndex, resolveExample } from './lib/example-source.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -49,8 +53,8 @@ const SURFACES = [
 ];
 
 const POINTERS = {
-  mcp: '**Fetch more:** call `get_language_reference(type)` for a type\'s full syntax and `get_examples(type)` for starter templates. `suggest_chart_type` returns the chosen type\'s reference automatically.',
-  url: '**Fetch more:** the full per-type reference is at https://diagrammo.app/docs — fetch a type\'s section when the index + anti-patterns above aren\'t enough.',
+  mcp: "**Fetch more:** call `get_language_reference(type)` for a type's full syntax and `get_examples(type)` for starter templates. `suggest_chart_type` returns the chosen type's reference automatically.",
+  url: "**Fetch more:** the full per-type reference is at https://diagrammo.app/docs — fetch a type's section when the index + anti-patterns above aren't enough.",
 };
 
 function fail(msg) {
@@ -64,7 +68,8 @@ const antipatterns = extractAiCore(refMd, 'ANTIPATTERNS');
 const styling = extractAiCore(refMd, 'STYLING');
 const typeIndex = extractAiCore(refMd, 'TYPE-INDEX');
 
-if (!antipatterns) fail('AI-CORE:ANTIPATTERNS block missing or empty in ' + REF);
+if (!antipatterns)
+  fail('AI-CORE:ANTIPATTERNS block missing or empty in ' + REF);
 if (!styling) fail('AI-CORE:STYLING block missing or empty in ' + REF);
 if (!typeIndex) fail('AI-CORE:TYPE-INDEX block missing or empty in ' + REF);
 
@@ -76,15 +81,21 @@ if (!typeIndex) fail('AI-CORE:TYPE-INDEX block missing or empty in ' + REF);
 const offered = chartTypes.filter((c) => !c.internal);
 
 // Completeness (AC12): every offered chart-type id must appear in the index.
-const missing = offered.filter((c) => !new RegExp(`\`${c.id}\``).test(typeIndex)).map((c) => c.id);
-if (missing.length) fail(`TYPE-INDEX is missing ${missing.length} id(s): ${missing.join(', ')}`);
+const missing = offered
+  .filter((c) => !new RegExp(`\`${c.id}\``).test(typeIndex))
+  .map((c) => c.id);
+if (missing.length)
+  fail(`TYPE-INDEX is missing ${missing.length} id(s): ${missing.join(', ')}`);
 
 // Validate every fence in the core BEFORE emitting (fail fast for authors).
 for (const f of extractDgmoFences(antipatterns + '\n' + styling, REF)) {
   if (f.counterExample) continue;
   const { errors, warnings } = validateDgmoSource(f.source);
   const bad = [...errors, ...warnings];
-  if (bad.length) fail(`core example at ${REF}:${f.line} is not clean:\n  ${bad.map(formatDiagnostic).join('\n  ')}`);
+  if (bad.length)
+    fail(
+      `core example at ${REF}:${f.line} is not clean:\n  ${bad.map(formatDiagnostic).join('\n  ')}`
+    );
 }
 
 // Data-derived "common" set: the first N ids in chart-types.ts source order
@@ -100,7 +111,10 @@ const commonExamples = common.map((id) => {
   if (!source) fail(`no curated example resolves for common type "${id}"`);
   const { errors, warnings } = validateDgmoSource(source);
   const bad = [...errors, ...warnings];
-  if (bad.length) fail(`curated example for "${id}" is not clean:\n  ${bad.map(formatDiagnostic).join('\n  ')}`);
+  if (bad.length)
+    fail(
+      `curated example for "${id}" is not clean:\n  ${bad.map(formatDiagnostic).join('\n  ')}`
+    );
   return { id, source };
 });
 
@@ -109,7 +123,9 @@ const examplesBlock = [
   '',
   `_The most common types, inline so you can generate them without a fetch. For the other ${offered.length - COMMON_N}, get the per-type section (see below)._`,
   '',
-  ...commonExamples.map((e) => `#### ${e.id}\n\n\`\`\`dgmo\n${e.source}\n\`\`\``),
+  ...commonExamples.map(
+    (e) => `#### ${e.id}\n\n\`\`\`dgmo\n${e.source}\n\`\`\``
+  ),
 ].join('\n');
 
 function buildCore(pointer) {
@@ -142,10 +158,14 @@ for (const { path, pointer } of SURFACES) {
   try {
     content = readFileSync(file, 'utf8');
   } catch {
-    fail(`surface not found: ${path} (expected the DGMO-AI-CORE markers to be present)`);
+    fail(
+      `surface not found: ${path} (expected the DGMO-AI-CORE markers to be present)`
+    );
   }
   const block = buildCore(pointer);
-  const re = new RegExp(`${BANNER.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\n${START}[\\s\\S]*?${END}`);
+  const re = new RegExp(
+    `${BANNER.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\n${START}[\\s\\S]*?${END}`
+  );
   const reBare = new RegExp(`${START}[\\s\\S]*?${END}`);
   let next;
   if (re.test(content)) {
@@ -153,19 +173,26 @@ for (const { path, pointer } of SURFACES) {
   } else if (reBare.test(content)) {
     next = content.replace(reBare, block);
   } else {
-    fail(`${path} has no ${START} … ${END} markers — add them where the core should land, then re-run.`);
+    fail(
+      `${path} has no ${START} … ${END} markers — add them where the core should land, then re-run.`
+    );
   }
   if (next !== content) {
     writeFileSync(file, next);
     wrote++;
   }
-  if (path === '.cursorrules' || path === '.windsurfrules') cursorWindsurf.push(next);
-  console.log(`gen-ai-core: ${path} (${next === content ? 'unchanged' : 'updated'})`);
+  if (path === '.cursorrules' || path === '.windsurfrules')
+    cursorWindsurf.push(next);
+  console.log(
+    `gen-ai-core: ${path} (${next === content ? 'unchanged' : 'updated'})`
+  );
 }
 
 // .cursorrules and .windsurfrules must stay byte-identical (AC4).
 if (cursorWindsurf.length === 2 && cursorWindsurf[0] !== cursorWindsurf[1]) {
-  fail('.cursorrules and .windsurfrules diverged — they must be byte-identical.');
+  fail(
+    '.cursorrules and .windsurfrules diverged — they must be byte-identical.'
+  );
 }
 
 // AC21: Copilot is the tightest of the five surfaces, so measure it. There is
@@ -178,16 +205,21 @@ if (cursorWindsurf.length === 2 && cursorWindsurf[0] !== cursorWindsurf[1]) {
 // Copilot. A warning whose only remedy is breaking an invariant is a warning
 // people learn to ignore. Budget the hand-written tail instead — the one part
 // that is genuinely per-surface, and the part that actually drifts.
-const copilotSrc = readFileSync(join(repo, '.github/copilot-instructions.md'), 'utf8');
+const copilotSrc = readFileSync(
+  join(repo, '.github/copilot-instructions.md'),
+  'utf8'
+);
 const coreChars = buildCore('url').length;
 const tailChars = copilotSrc.length - coreChars;
 const COPILOT_TAIL_BUDGET = 5_000;
 console.log(
   `gen-ai-core: copilot-instructions.md = ${copilotSrc.length} chars ` +
     `(shared core ${coreChars} + tail ${tailChars}, tail budget ${COPILOT_TAIL_BUDGET})` +
-    (tailChars > COPILOT_TAIL_BUDGET ? ' — OVER: trim the hand-written tail' : ''),
+    (tailChars > COPILOT_TAIL_BUDGET
+      ? ' — OVER: trim the hand-written tail'
+      : '')
 );
 
 console.log(
-  `gen-ai-core: done (${wrote} file(s) changed, core = ${offered.length} types, common-${common.length} = ${common.join(', ')}).`,
+  `gen-ai-core: done (${wrote} file(s) changed, core = ${offered.length} types, common-${common.length} = ${common.join(', ')}).`
 );

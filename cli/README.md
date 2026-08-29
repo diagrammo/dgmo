@@ -36,11 +36,11 @@ dgmo diagnostics    # every diagnostic code the parser can emit
 
 ## Which package is which
 
-| Package | What it is |
-|---|---|
-| **`@diagrammo/dgmo-cli`** | this — the `dgmo` command |
-| [`@diagrammo/dgmo`](https://www.npmjs.com/package/@diagrammo/dgmo) | the library: `render()`, the parsers, the palettes |
-| [`@diagrammo/dgmo-mcp`](https://www.npmjs.com/package/@diagrammo/dgmo-mcp) | the MCP server, installed with this package |
+| Package                                                                    | What it is                                         |
+| -------------------------------------------------------------------------- | -------------------------------------------------- |
+| **`@diagrammo/dgmo-cli`**                                                  | this — the `dgmo` command                          |
+| [`@diagrammo/dgmo`](https://www.npmjs.com/package/@diagrammo/dgmo)         | the library: `render()`, the parsers, the palettes |
+| [`@diagrammo/dgmo-mcp`](https://www.npmjs.com/package/@diagrammo/dgmo-mcp) | the MCP server, installed with this package        |
 
 The command lived inside `@diagrammo/dgmo` until 0.61.0. It moved out so that a documentation build calling `render()` stops installing a command-line program and a native rasterizer it never reaches.
 

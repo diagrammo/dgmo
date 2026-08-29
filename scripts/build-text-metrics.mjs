@@ -33,7 +33,8 @@ export function tableOffset(buf, tag) {
   const numTables = buf.readUInt16BE(4);
   for (let i = 0; i < numTables; i++) {
     const o = 12 + i * 16;
-    if (buf.toString('latin1', o, o + 4) === tag) return buf.readUInt32BE(o + 8);
+    if (buf.toString('latin1', o, o + 4) === tag)
+      return buf.readUInt32BE(o + 8);
   }
   throw new Error(`font has no ${tag} table`);
 }
@@ -188,8 +189,9 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     /\p{L}/u.test(String.fromCodePoint(cp))
   );
   const meanLetter =
-    Math.round((letters.reduce((a, [, w]) => a + w, 0) / letters.length) * 1000) /
-    1000;
+    Math.round(
+      (letters.reduce((a, [, w]) => a + w, 0) / letters.length) * 1000
+    ) / 1000;
 
   const banner = [
     '// ============================================================',
@@ -209,7 +211,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const trailer = [
     '',
     '/**',
-    " * Fallback ratio for a character absent from the tables above — the mean",
+    ' * Fallback ratio for a character absent from the tables above — the mean',
     " * advance of Inter Regular's covered letters.",
     ' */',
     `export const INTER_DEFAULT_W = ${meanLetter};`,

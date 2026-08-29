@@ -99,7 +99,9 @@ if (argv[0] === '--compare') {
     const pa = join(a, n);
     const pb = join(b, n);
     if (!existsSync(pa) || !existsSync(pb)) {
-      onlyIn.push(`${n} (only in ${existsSync(pa) ? 'baseline' : 'candidate'})`);
+      onlyIn.push(
+        `${n} (only in ${existsSync(pa) ? 'baseline' : 'candidate'})`
+      );
       continue;
     }
     const [x, y] = [readFileSync(pa), readFileSync(pb)];
@@ -161,14 +163,18 @@ if (shim === 'linkedom') {
   };
   for (const [key, value] of Object.entries(values)) {
     if (value === undefined) {
-      console.error(`✖ linkedom does not provide \`${key}\` — the swap cannot work as-is`);
+      console.error(
+        `✖ linkedom does not provide \`${key}\` — the swap cannot work as-is`
+      );
       process.exit(1);
     }
     Object.defineProperty(globalThis, key, { value, configurable: true });
   }
 }
 
-const { render } = await import(pathToFileURL(join(ROOT, 'dist/index.js')).href);
+const { render } = await import(
+  pathToFileURL(join(ROOT, 'dist/index.js')).href
+);
 const { loadMapData } = await import(
   pathToFileURL(join(ROOT, 'dist/advanced.js')).href
 );

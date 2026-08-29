@@ -8,12 +8,9 @@ paste a script tag into a page you already have.
 ```html
 <script src="https://cdn.jsdelivr.net/npm/@diagrammo/dgmo-standalone/dist/element.js"></script>
 
-<dgmo-diagram palette="slate">pie Crew Rations
-
-Salt Pork: 34
-Hardtack: 28
-Rum: 17
-Limes: 21</dgmo-diagram>
+<dgmo-diagram palette="slate"
+  >pie Crew Rations Salt Pork: 34 Hardtack: 28 Rum: 17 Limes: 21</dgmo-diagram
+>
 ```
 
 That is the whole install.
@@ -24,17 +21,19 @@ That is the whole install.
 markup — use it when you control the HTML.
 
 **`auto.js`** scans the page for `<pre class="dgmo">` blocks and draws them —
-use it when you *don't* control the HTML, which is the usual case with markdown,
-a CMS, or a static-site generator emitting ```` ```dgmo ```` fences.
+use it when you _don't_ control the HTML, which is the usual case with markdown,
+a CMS, or a static-site generator emitting ` ```dgmo ` fences.
 
 ```html
 <script src="https://cdn.jsdelivr.net/npm/@diagrammo/dgmo-standalone/dist/auto.js"></script>
 
-<pre class="dgmo">bar Ship Stores
+<pre class="dgmo">
+bar Ship Stores
 
 Salt Pork 34
 Hardtack 28
-Rum 17</pre>
+Rum 17</pre
+>
 ```
 
 Load one or the other, not both — each carries a complete copy of the renderer.
@@ -67,7 +66,7 @@ with no map downloads no map data.
 
 ## Watching a diagram somebody showed you
 
-If someone published a diagram at Diagrammo — *showed it on the web* — you can
+If someone published a diagram at Diagrammo — _showed it on the web_ — you can
 watch it from any page, and every reader gets the version its author has now:
 
 ```html

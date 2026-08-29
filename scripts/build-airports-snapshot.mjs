@@ -114,7 +114,9 @@ async function main() {
     rows.push(KEEP_COLS.map((k) => c[col[k]]));
   }
   if (rows.length < 1000) {
-    throw new Error(`only ${rows.length} candidate rows — source schema drift?`);
+    throw new Error(
+      `only ${rows.length} candidate rows — source schema drift?`
+    );
   }
 
   // Deterministic order: IATA code, then name — a stable git diff across refreshes.

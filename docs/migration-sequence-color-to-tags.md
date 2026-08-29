@@ -16,12 +16,14 @@ Inline `(color)` on sequence elements is static — every viewer sees the same f
 ### Participants
 
 Before (static color):
+
 ```
 API(blue)
 DB(green)
 ```
 
 After (tag-driven):
+
 ```
 tag: Role
   Gateway(blue)
@@ -34,11 +36,13 @@ DB is a database | role: Storage
 ### Messages
 
 Before (no color mechanism existed for messages):
+
 ```
 User -login-> API
 ```
 
 After (tag metadata on messages):
+
 ```
 tag: Concern
   Auth(green)
@@ -49,6 +53,7 @@ User -login-> API | concern: Auth
 ### Groups
 
 Before (static color):
+
 ```
 [Backend(teal)]
   API
@@ -56,6 +61,7 @@ Before (static color):
 ```
 
 After (tag-driven):
+
 ```
 tag: Team
   Product(teal)
@@ -68,26 +74,28 @@ tag: Team
 ### Sections
 
 Sections (`== Title ==`) do not carry tag metadata. Continue using inline colors if needed:
+
 ```
 == Authentication(green) ==
 ```
 
 ## Quick reference
 
-| Syntax | Purpose |
-|--------|---------|
-| `tag: Name alias x` | Declare a tag group with optional alias |
-| `Value(color)` | Tag entry with named color |
-| `Value(color) default` | Default entry for untagged elements |
-| `\| key: value` | Pipe metadata on participants, messages, groups |
-| `\| k1: v1, k2: v2` | Multiple tag values |
-| `active-tag: Name` | Activate a group for CLI/export rendering |
+| Syntax                 | Purpose                                         |
+| ---------------------- | ----------------------------------------------- |
+| `tag: Name alias x`    | Declare a tag group with optional alias         |
+| `Value(color)`         | Tag entry with named color                      |
+| `Value(color) default` | Default entry for untagged elements             |
+| `\| key: value`        | Pipe metadata on participants, messages, groups |
+| `\| k1: v1, k2: v2`    | Multiple tag values                             |
+| `active-tag: Name`     | Activate a group for CLI/export rendering       |
 
 ## Activation
 
 In the desktop app, click legend pills to switch active tag groups interactively.
 
 For CLI or static export, add `active-tag: GroupName` to the diagram header:
+
 ```
 chart: sequence
 active-tag: Concern

@@ -69,7 +69,7 @@ For **examples** of real diagrams, call `mcp__dgmo__get_examples("<type>")` — 
 
 Before showing the first diagram, call `mcp__dgmo__check_app_installed()` **once** and remember the answer for the rest of the session. It decides your default visual output:
 
-- **App installed → open the saved file live in the app.** Save the `.dgmo` source first (see "Always save the source"), then `mcp__dgmo__open_in_app({ dgmo, filePath: "<absolute path to the saved file>" })`. The app opens *that file*, so the user edits it in the app and changes autosave back to the same file — one source of truth, live re-render. Do NOT open an online URL and do NOT render a PNG.
+- **App installed → open the saved file live in the app.** Save the `.dgmo` source first (see "Always save the source"), then `mcp__dgmo__open_in_app({ dgmo, filePath: "<absolute path to the saved file>" })`. The app opens _that file_, so the user edits it in the app and changes autosave back to the same file — one source of truth, live re-render. Do NOT open an online URL and do NOT render a PNG.
 - **App not installed → open the online editor.** `mcp__dgmo__share_diagram(dgmo)` then `open <url>` in the shell. This lands the user on online.diagrammo.app with the chart and the code side-by-side, tweakable and shareable. Don't just print the URL — always `open` it.
 
 **Always save the source.** Whether or not the app is installed, write the diagram to `<name>.dgmo` in the current project/working directory so the user always has one editable artifact. Use a short kebab-case name from the diagram's title (e.g. `checkout-flow.dgmo`). This file IS the deliverable; the app or URL just displays it.
@@ -127,6 +127,7 @@ When `validate_diagram` or `render_diagram` returns errors:
 4. **Then render** — only call `share_diagram` (default), `preview_diagram` (variants), or `render_diagram` (files) after validation passes.
 
 Common fixes:
+
 - "Unknown directive" → check spelling, remove colons from directives
 - "Expected number" → data rows use spaces not colons: `Label 100` not `Label: 100`
 - Duplicate name → parentheses strip color from display name; `App (TS)` and `App (Rust)` both become `App`
@@ -143,6 +144,7 @@ mcp__dgmo__preview_diagram([
 ```
 
 This opens a single page with both diagrams. Use this for:
+
 - Light vs dark theme comparisons
 - Different levels of detail
 - Alternative structures for the same data
@@ -151,20 +153,20 @@ This opens a single page with both diagrams. Use this for:
 
 Trigger phrases: "save as PNG", "export to SVG", "make an image", "render to a file", "give me a PNG", "I need an SVG", "generate an image". For these, skip the share URL and go straight to file output:
 
-| Intent | How to do it |
-|---|---|
-| **Save as PNG** | `mcp__dgmo__render_diagram(dgmo, format:"png", theme:"dark", palette:"nord")` → returns temp path; offer to copy to their preferred location. Or CLI: `dgmo file.dgmo -o out.png --theme dark --palette nord` |
-| **Save as SVG** | `mcp__dgmo__render_diagram(dgmo, format:"svg", theme:"dark", palette:"nord")` returns SVG text — write it to the desired path. Or CLI: `dgmo file.dgmo -o out.svg --theme dark --palette nord` |
-| **View in macOS Preview** | `mcp__dgmo__render_diagram(dgmo, format:"png", theme:"dark", palette:"nord")` → get temp path → `open <path>` |
+| Intent                    | How to do it                                                                                                                                                                                                  |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Save as PNG**           | `mcp__dgmo__render_diagram(dgmo, format:"png", theme:"dark", palette:"nord")` → returns temp path; offer to copy to their preferred location. Or CLI: `dgmo file.dgmo -o out.png --theme dark --palette nord` |
+| **Save as SVG**           | `mcp__dgmo__render_diagram(dgmo, format:"svg", theme:"dark", palette:"nord")` returns SVG text — write it to the desired path. Or CLI: `dgmo file.dgmo -o out.svg --theme dark --palette nord`                |
+| **View in macOS Preview** | `mcp__dgmo__render_diagram(dgmo, format:"png", theme:"dark", palette:"nord")` → get temp path → `open <path>`                                                                                                 |
 
 ### Other output options (when explicitly requested)
 
-| What the user wants | How to do it |
-|---|---|
-| **Open in the desktop app (no saved file)** | `mcp__dgmo__open_in_app({ dgmo })` — deep-links an ephemeral copy into Diagrammo. Prefer the `filePath` form (open the saved file) whenever you've saved the source. |
-| **Force the online editor even though the app is installed** | `mcp__dgmo__share_diagram(dgmo)` + `open <url>` |
-| **Local HTML preview (not online.diagrammo.app)** | `mcp__dgmo__preview_diagram([{dgmo, title}])` — useful when the user specifically wants a local file or is offline |
-| **Copy markup to clipboard** | Run `echo '<dgmo markup>' \| pbcopy` |
+| What the user wants                                          | How to do it                                                                                                                                                         |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Open in the desktop app (no saved file)**                  | `mcp__dgmo__open_in_app({ dgmo })` — deep-links an ephemeral copy into Diagrammo. Prefer the `filePath` form (open the saved file) whenever you've saved the source. |
+| **Force the online editor even though the app is installed** | `mcp__dgmo__share_diagram(dgmo)` + `open <url>`                                                                                                                      |
+| **Local HTML preview (not online.diagrammo.app)**            | `mcp__dgmo__preview_diagram([{dgmo, title}])` — useful when the user specifically wants a local file or is offline                                                   |
+| **Copy markup to clipboard**                                 | Run `echo '<dgmo markup>' \| pbcopy`                                                                                                                                 |
 
 (The default visual output is decided by `check_app_installed` — open the saved file in the app when installed, otherwise the online share URL. See "Where the diagram goes" above. The options here are for when the user explicitly asks for something else.)
 
@@ -211,6 +213,7 @@ dgmo types                       # list all supported chart types
 ```
 
 Key options:
+
 - `-o <file>` — output file; format inferred from extension (`.svg` → SVG, else PNG)
 - `--theme <theme>` — `light` (default), `dark`, `transparent`
 - `--palette <name>` — `slate` (default), `atlas`, `blueprint`, `catppuccin`, `nord`, `tidewater`, `tokyo-night`

@@ -11,6 +11,7 @@ A clear description of what's wrong.
 ## To reproduce
 
 Steps to reproduce the behavior:
+
 1. ...
 2. ...
 

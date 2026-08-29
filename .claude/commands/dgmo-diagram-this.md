@@ -9,6 +9,7 @@ Verify DGMO MCP tools are available by calling `mcp__dgmo__list_chart_types`. If
 ## Step 1 — Determine Scope
 
 The user may provide:
+
 - **A file path** — diagram that specific file
 - **A function/class name** — diagram that specific piece
 - **A directory** — diagram the module/package
@@ -19,6 +20,7 @@ If scope is unclear, read the project root (`package.json`, `README.md`, `src/` 
 ## Step 2 — Read the Code
 
 Read the relevant source files. Look for:
+
 - Function signatures and call chains
 - API endpoints and request handlers
 - Database models, schemas, ORM entities
@@ -29,16 +31,16 @@ Read the relevant source files. Look for:
 
 ## Step 3 — Pick the Diagram Type
 
-| What you found | Diagram type |
-|---|---|
-| API handler calling other services/DB | `sequence` |
-| Multiple models with relationships | `er` |
-| Service/module dependency graph | `c4` (container level) |
-| State enum, FSM, workflow transitions | `state` |
-| Decision logic, branching control flow | `flowchart` |
-| Docker/k8s/cloud infra config | `infra` |
-| Class hierarchy with methods | `class` |
-| Team/org structure data | `org` |
+| What you found                         | Diagram type           |
+| -------------------------------------- | ---------------------- |
+| API handler calling other services/DB  | `sequence`             |
+| Multiple models with relationships     | `er`                   |
+| Service/module dependency graph        | `c4` (container level) |
+| State enum, FSM, workflow transitions  | `state`                |
+| Decision logic, branching control flow | `flowchart`            |
+| Docker/k8s/cloud infra config          | `infra`                |
+| Class hierarchy with methods           | `class`                |
+| Team/org structure data                | `org`                  |
 
 If a single file contains multiple diagrammable things (e.g., models AND an API handler), generate multiple diagrams.
 

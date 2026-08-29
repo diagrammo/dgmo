@@ -34,7 +34,11 @@ Oranges(blue) alias o
 
 The legacy \`alias\` keyword was removed in TD-18.`;
   const after = runOnFixture(before, '.md');
-  assert.match(after, /Apples\(red\) as a/, 'embedded venn code block migrated');
+  assert.match(
+    after,
+    /Apples\(red\) as a/,
+    'embedded venn code block migrated'
+  );
   assert.match(after, /Oranges\(blue\) as o/);
   // Prose mention is left intact (anchored regex doesn't match it).
   assert.match(after, /legacy `alias` keyword was removed/);
@@ -146,7 +150,11 @@ tag Priority
 tag Priority p High(red), Low(blue)`;
   const after = runOnFixture(before);
   // Inline-value form is left alone — manual review needed.
-  assert.equal(after, before, 'tag with inline values → skipped (manual review)');
+  assert.equal(
+    after,
+    before,
+    'tag with inline values → skipped (manual review)'
+  );
 }
 
 console.log('migrate-as-aliases.test.mjs: all assertions passed');

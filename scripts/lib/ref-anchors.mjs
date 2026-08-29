@@ -59,7 +59,7 @@ export function extractTypeBlock(markdown, id) {
 /** Content between AI-CORE:<name> start/end markers (exclusive of the markers). */
 export function extractAiCore(markdown, name) {
   const re = new RegExp(
-    `<!--\\s*AI-CORE:${name}\\s+start\\s*-->([\\s\\S]*?)<!--\\s*AI-CORE:${name}\\s+end\\s*-->`,
+    `<!--\\s*AI-CORE:${name}\\s+start\\s*-->([\\s\\S]*?)<!--\\s*AI-CORE:${name}\\s+end\\s*-->`
   );
   const m = re.exec(markdown);
   return m ? m[1].trim() : null;

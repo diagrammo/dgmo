@@ -55,7 +55,9 @@ for (const [rel, min] of [
   if (!existsSync(abs)) fail(`${rel} is missing — run \`pnpm build\` first`);
   const { size } = statSync(abs);
   if (size < min) {
-    fail(`${rel} is ${size} B, under the ${min} B floor — build looks truncated`);
+    fail(
+      `${rel} is ${size} B, under the ${min} B floor — build looks truncated`
+    );
   }
 }
 

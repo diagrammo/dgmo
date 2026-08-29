@@ -72,7 +72,11 @@ function looksNormalized(node) {
 
   // normalizeName(...) / getOrCreateName(...) / displayName(...)
   const name = calleeName(node);
-  if (name === 'normalizeName' || name === 'getOrCreateName' || name === 'displayName') {
+  if (
+    name === 'normalizeName' ||
+    name === 'getOrCreateName' ||
+    name === 'displayName'
+  ) {
     return true;
   }
 
@@ -116,9 +120,9 @@ module.exports = {
     schema: [],
     messages: {
       missingNormalize:
-        "Entity-storage insertion `{{var}}.{{method}}(...)` must use a normalized key. " +
-        "Pass `normalizeName(input)` (or use `getOrCreateName(input, store, line)`) from " +
-        "`src/utils/name-normalize`. See docs/dgmo-language-spec.md § Universal Name Handling.",
+        'Entity-storage insertion `{{var}}.{{method}}(...)` must use a normalized key. ' +
+        'Pass `normalizeName(input)` (or use `getOrCreateName(input, store, line)`) from ' +
+        '`src/utils/name-normalize`. See docs/dgmo-language-spec.md § Universal Name Handling.',
     },
   },
 

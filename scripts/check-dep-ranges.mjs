@@ -67,11 +67,7 @@ function npmView(spec, field) {
     // the moment a range could reach two published versions, reporting
     // "@scope/pkg@0.21.0 0.21.0" as the version it had resolved.
     const line = out.trim().split('\n').filter(Boolean).pop();
-    return line
-      ?.trim()
-      .split(/\s+/)
-      .pop()
-      ?.replace(/['"]/g, '');
+    return line?.trim().split(/\s+/).pop()?.replace(/['"]/g, '');
   } catch {
     return undefined;
   }
@@ -133,7 +129,9 @@ for (const manifest of MANIFESTS) {
 // it — and this early exit would otherwise report a green build for the one
 // class of drift that is invisible everywhere else.
 if (offline && checked === 0 && failures === 0) {
-  console.log('· dependency ranges not checked — the registry was unreachable.');
+  console.log(
+    '· dependency ranges not checked — the registry was unreachable.'
+  );
   process.exit(0);
 }
 
@@ -144,4 +142,6 @@ if (failures > 0) {
   process.exit(1);
 }
 
-console.log(`✓ ${checked} @diagrammo dependency range(s) reach the published version.`);
+console.log(
+  `✓ ${checked} @diagrammo dependency range(s) reach the published version.`
+);

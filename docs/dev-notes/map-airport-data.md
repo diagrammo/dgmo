@@ -12,11 +12,11 @@ before touching anything under `src/map/data/airports*` or `scripts/airports-*`.
 
 ## The files
 
-| File | Tracked? | What it is |
-| ---- | -------- | ---------- |
-| `scripts/airports-snapshot.csv` | committed | **Pinned source.** A lean, offline slice of OurAirports `airports.csv` — only rows with `scheduled_service=yes` + a 3-letter `iata_code`, and only the columns the build uses. ~308 KB. This is the input the build reads. |
-| `src/map/data/airports.json` | committed | **Runtime asset.** `{ airports: GazetteerEntry[], airportIata }`, ~38 KB gz. Generated from the snapshot. Loaded only for map diagrams (separate optional asset). |
-| `src/map/data/airport-collisions.json` | committed | `{ collisions }` — folded IATA codes that are also a gazetteer city name (currently `["aba","ufa"]`). Guards the "city wins" precedence invariant; a test asserts the build's live set equals this file. |
+| File                                   | Tracked?  | What it is                                                                                                                                                                                                                 |
+| -------------------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/airports-snapshot.csv`        | committed | **Pinned source.** A lean, offline slice of OurAirports `airports.csv` — only rows with `scheduled_service=yes` + a 3-letter `iata_code`, and only the columns the build uses. ~308 KB. This is the input the build reads. |
+| `src/map/data/airports.json`           | committed | **Runtime asset.** `{ airports: GazetteerEntry[], airportIata }`, ~38 KB gz. Generated from the snapshot. Loaded only for map diagrams (separate optional asset).                                                          |
+| `src/map/data/airport-collisions.json` | committed | `{ collisions }` — folded IATA codes that are also a gazetteer city name (currently `["aba","ufa"]`). Guards the "city wins" precedence invariant; a test asserts the build's live set equals this file.                   |
 
 `buildAirports()` lives in `scripts/build-map-data.mjs`.
 
@@ -35,7 +35,7 @@ drifting committed data that has nothing to do with airports — a coordinate
 shifts, a city drops — and it sneaks into your "airport" commit.
 
 **Airports are pinned and offline precisely to avoid this.** Regenerate them in
-isolation against the *already-committed* gazetteer.
+isolation against the _already-committed_ gazetteer.
 
 ## Regenerate airports only (offline, deterministic)
 
@@ -47,10 +47,12 @@ import { readFileSync } from 'node:fs';
 import { buildAirports, writeJson } from './scripts/build-map-data.mjs';
 
 const gaz = JSON.parse(readFileSync('src/map/data/gazetteer.json', 'utf8'));
-const built = buildAirports(gaz);                 // reads the committed snapshot; reads gaz READ-ONLY
-writeJson('airports.json', built.airports);       // → src/map/data/airports.json
+const built = buildAirports(gaz); // reads the committed snapshot; reads gaz READ-ONLY
+writeJson('airports.json', built.airports); // → src/map/data/airports.json
 writeJson('airport-collisions.json', { collisions: built.collisions });
-console.log(`kept ${built.stats.count} airports; collisions: ${built.collisions.join(', ') || 'none'}`);
+console.log(
+  `kept ${built.stats.count} airports; collisions: ${built.collisions.join(', ') || 'none'}`
+);
 ```
 
 This makes **zero network calls**, never mutates the gazetteer, and is

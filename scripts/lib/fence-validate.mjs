@@ -105,7 +105,9 @@ export function validateDgmoSource(source) {
  * @param {object} d
  */
 export function formatDiagnostic(d) {
-  const loc = d.line ? `line ${d.line}${d.column ? `:${d.column}` : ''}` : 'no line';
+  const loc = d.line
+    ? `line ${d.line}${d.column ? `:${d.column}` : ''}`
+    : 'no line';
   const code = d.code ? ` [${d.code}]` : '';
   return `${loc}${code}: ${d.message}`;
 }

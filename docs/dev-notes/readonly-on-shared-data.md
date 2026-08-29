@@ -15,7 +15,7 @@ Mark parser output, palette configs, and layout results as `readonly` so the par
 A second POC on **`ParsedKanban`** (`src/kanban/types.ts`) was tried and reverted. Adding `readonly` to the kanban parser output surfaced **29 errors**:
 
 - **21 in `src/kanban/parser.ts`** — the parser itself mutates `result.columns`, `column.cards`, `result.tagGroups` during construction (expected; the natural construction style is push-as-you-go).
-- **7 in `src/kanban/renderer.ts`** — `readonly TagGroup[]` passed to functions that declare `TagGroup[]` (legend layout, drill helpers, etc.). These are *real* invariant leaks: those callees don't actually mutate, they just declared mutable inputs.
+- **7 in `src/kanban/renderer.ts`** — `readonly TagGroup[]` passed to functions that declare `TagGroup[]` (legend layout, drill helpers, etc.). These are _real_ invariant leaks: those callees don't actually mutate, they just declared mutable inputs.
 - **1 in `src/dgmo-router.ts`** — the `ParseFn` signature in the dispatcher requires a mutable return type.
 
 **The cascade is the lesson.** Making a parser output `readonly` forces `readonly` through everything it touches:
@@ -26,7 +26,7 @@ ParsedKanban (readonly)
          └── consumed by legend-layout, drill-helpers, dispatcher (all need readonly param sigs)
 ```
 
-Per-chart-type readonly is *not* tractable as isolated stories — the shared substrate (`TagGroup`, `LegendGroupData`, `DgmoError[]`, the dispatcher's `ParseFn`) has to go readonly *first*, then per-chart parser outputs follow easily.
+Per-chart-type readonly is _not_ tractable as isolated stories — the shared substrate (`TagGroup`, `LegendGroupData`, `DgmoError[]`, the dispatcher's `ParseFn`) has to go readonly _first_, then per-chart parser outputs follow easily.
 
 ## Recommended follow-up
 

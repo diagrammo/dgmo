@@ -110,7 +110,9 @@ function main() {
     };
     fs.writeFileSync(baselinePath, JSON.stringify(baseline, null, 2) + '\n');
     console.log(`\nRebaselined → ${path.relative(repo, baselinePath)}`);
-    console.log(`  totalGzip=${fmt(m.gzipTotal)} budget=${fmt(DEFAULT_BUDGET)}`);
+    console.log(
+      `  totalGzip=${fmt(m.gzipTotal)} budget=${fmt(DEFAULT_BUDGET)}`
+    );
     return;
   }
 
@@ -130,7 +132,9 @@ function main() {
       baseline.measuredAt ?? '?'
     })`
   );
-  console.log(`Delta ${delta >= 0 ? '+' : ''}${fmt(delta)} | budget ${fmt(budget)}`);
+  console.log(
+    `Delta ${delta >= 0 ? '+' : ''}${fmt(delta)} | budget ${fmt(budget)}`
+  );
 
   if (delta > budget) {
     console.error(
