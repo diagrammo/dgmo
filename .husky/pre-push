@@ -83,7 +83,19 @@ fi
 # worktree (#530). `/.gate-dgmo.*/` is ignored there too, beside the app's.
 gate=
 
+# 🔴 One gate at a time, across every repo in the workspace (#557). These
+# gates each take minutes at full CPU, and ten sessions share this laptop:
+# run several at once and they slow each other down past the point where the
+# suite is reliable, so a push fails on tests unrelated to its change and the
+# retry adds more load. Measured 2026-08-29 — load 19.8 on 10 cores, twelve
+# abandoned gate worktrees, eleven commits nobody could land.
+#
+# The lock never refuses a push: a missing script, an unreadable holder or a
+# wait past its ceiling all proceed unlocked and say so.
+GATE_LOCK="$WORKSPACE/scripts/gate-lock.sh"
+
 cleanup() {
+  if [ -x "$GATE_LOCK" ]; then "$GATE_LOCK" release $$ || true; fi
   [ -n "$gate" ] || return 0
   git worktree remove --force "$gate" >/dev/null 2>&1 || true
   git worktree prune >/dev/null 2>&1 || true
@@ -172,6 +184,8 @@ run_gate() {
   (cd "$gate" && run_checks)
   cleanup
 }
+
+if [ -x "$GATE_LOCK" ]; then "$GATE_LOCK" acquire dgmo $$ || true; fi
 
 for sha in $pushed; do
   run_gate "$sha"
