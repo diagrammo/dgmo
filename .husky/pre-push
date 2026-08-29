@@ -13,65 +13,156 @@
 # Cheap first, so a 2-second spelling slip fails in 2 seconds rather than
 # behind 89 seconds of tests. Measured warm 2026-08-25: ~113s total, of which
 # the four original checks are 89s and everything added here is 24s.
-#
-# ⚠️ This runs against the WORKING TREE, not the commit being pushed, so
-# another session's in-flight edit under src/ can fail your push. That defect
-# was fixed for the app and cloud gates (#445) and not here.
 
 # 🔴 git EXPORTS GIT_DIR (and friends) into every hook, and anything this hook
 # runs inherits them. tests/no-nul-bytes.test.ts shells out to
 # `git rev-parse --show-toplevel`, which with GIT_DIR set answers with the CWD
 # rather than the repo root — so under a hook run in a worktree it reads the
-# wrong files and fails. Unsetting them is a no-op in the main checkout, where
-# GIT_DIR is the relative `.git` and resolves correctly anyway.
+# wrong files and fails. That is doubly load-bearing now that the gate IS a
+# worktree: `git worktree add` below would otherwise resolve against the
+# inherited GIT_DIR rather than this repo.
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES
 
 set -e
 
-echo "→ installed dependency tree"
-pnpm check:install-lock
+ZERO=0000000000000000000000000000000000000000
+REPO_ROOT=$(git rev-parse --show-toplevel)
 
-echo "→ formatting"
-pnpm format:check
+# Git hands a pre-push hook "<local ref> <local sha> <remote ref> <remote sha>"
+# per ref on stdin. It can only be read once, so capture it up front.
+refs=$(cat)
 
-echo "→ hygiene"
-pnpm check:deadcode
-pnpm check:duplication
-pnpm check:deps
+pushed=$(printf '%s\n' "$refs" | while read -r _lref lsha _rref _rsha; do
+  [ -z "$lsha" ] && continue
+  [ "$lsha" = "$ZERO" ] && continue              # branch deletion
+  echo "$lsha"
+done)
 
-echo "→ spelling"
-pnpm check:spelling
+if [ -z "$pushed" ]; then
+  echo "pre-push: nothing to gate (deletion only)"
+  exit 0
+fi
 
-echo "→ circular dependencies"
-pnpm check:circular
+# 🔴 Gate the pushed COMMIT, never the working tree.
+#
+# Ten sessions share this checkout, so it is routinely mid-edit by somebody
+# else. This hook ran in place until 2026-08-29 and its own header carried a
+# ⚠️ saying so, pointing at #445 — the same defect, fixed for the app and the
+# cloud gates and left here. Two pushes of a ONE-FILE change (`cspell.json`,
+# 18 insertions) were refused within the hour on 2026-08-29, each by a
+# different unrelated step:
+#
+#   * check:spelling — `librsvg` and `Inkscape`, unknown words in another
+#     session's uncommitted src/utils/export-container.ts
+#   * check:api      — `titleFontWeight: number` narrowed to `400 | 700` by
+#     that session's uncommitted src/utils/title-constants.ts
+#
+# Neither was in the commit. The dirty set went from 52 files to 185 while
+# that was happening, so waiting for a quiet moment is unbounded and the
+# obvious escape is `--no-verify`, which disarms all seventeen checks at once.
+# #534.
+#
+# 🔴 There is deliberately NO in-place fast path, not even for a clean tree at
+# the pushed sha. The app's gate had one and #499 removed it: "clean tree" is
+# not "tree equals the pushed commit" when dist/ is shared, and the tidier your
+# tree was, the less isolation your push got — which is the wrong way round.
+#
+# dgmo's case is simpler than the app's: there are no relative package symlinks
+# to preserve, so the gate lives in TMPDIR rather than beside the repo. That
+# also keeps it clear of the workspace .gitignore's `/dgmo-wt-*/`, which is
+# what made cspell see an empty checkout in a hand-made worktree (#530).
+gate=
 
-echo "→ dependency ranges"
-pnpm check:dep-ranges
+cleanup() {
+  [ -n "$gate" ] || return 0
+  git worktree remove --force "$gate" >/dev/null 2>&1 || true
+  git worktree prune >/dev/null 2>&1 || true
+  rm -rf "$gate"
+  gate=
+}
+trap cleanup EXIT INT TERM
 
-echo "→ legacy alias syntaxes"
-bash scripts/lint-no-legacy-alias.sh
+# A gate that died without running its trap leaves a registered worktree behind
+# — one was found on 2026-08-29, from the APP's hook, which makes a dgmo gate of
+# its own. Prune before adding so they cannot accumulate.
+git worktree prune >/dev/null 2>&1 || true
 
-echo "→ typecheck"
-pnpm typecheck
+run_checks() {
+  echo "→ installed dependency tree"
+  pnpm check:install-lock
 
-echo "→ lint"
-pnpm lint
+  echo "→ formatting"
+  pnpm format:check
 
-echo "→ test"
-pnpm test
+  echo "→ hygiene"
+  pnpm check:deadcode
+  pnpm check:duplication
+  pnpm check:deps
 
-echo "→ build"
-pnpm build
+  echo "→ spelling"
+  pnpm check:spelling
 
-# These three need dist/, which the build above just produced. Called as
-# scripts rather than via `pnpm check:size` / `check:api` / `gallery:snapshot`,
-# each of which would run a second build.
-echo "→ bundle size"
-node scripts/check-bundle-size.cjs
+  echo "→ circular dependencies"
+  pnpm check:circular
 
-echo "→ public API surface"
-node --test scripts/check-api.test.mjs
-bash scripts/check-api.sh check
+  echo "→ dependency ranges"
+  pnpm check:dep-ranges
 
-echo "→ gallery snapshot"
-node scripts/gallery-snapshot.mjs
+  echo "→ legacy alias syntaxes"
+  bash scripts/lint-no-legacy-alias.sh
+
+  echo "→ typecheck"
+  pnpm typecheck
+
+  echo "→ lint"
+  pnpm lint
+
+  echo "→ test"
+  pnpm test
+
+  echo "→ build"
+  pnpm build
+
+  # These three need dist/, which the build above just produced. Called as
+  # scripts rather than via `pnpm check:size` / `check:api` / `gallery:snapshot`,
+  # each of which would run a second build.
+  echo "→ bundle size"
+  node scripts/check-bundle-size.cjs
+
+  echo "→ public API surface"
+  node --test scripts/check-api.test.mjs
+  bash scripts/check-api.sh check
+
+  echo "→ gallery snapshot"
+  node scripts/gallery-snapshot.mjs
+}
+
+run_gate() {
+  sha=$1
+  short=$(git rev-parse --short "$sha")
+
+  echo "pre-push: gating a worktree at $short"
+  # `git worktree add` accepts an existing empty directory, so mktemp's own
+  # directory is the worktree rather than its parent.
+  gate=$(mktemp -d "${TMPDIR:-/tmp}/dgmo-gate.XXXXXX")
+  git worktree add --detach --quiet "$gate" "$sha"
+
+  # 🔴 A REAL install, never a symlink to the working checkout's node_modules.
+  # Borrowing is free and is what the app's gate tried first: `pnpm install`
+  # walks the borrowed tree and rewrites the SHARED checkout's node_modules to
+  # point into a directory the gate is about to delete — 52 dangling links on
+  # 2026-08-26, which tore dist/ and stopped the app booting. Read-only in
+  # intent, read-write in fact.
+  #
+  # ~5s against a warm pnpm store (measured 2026-08-29) on a ~113s gate.
+  # check:install-lock compares the committed lockfile against pnpm's own
+  # record, so the install has to be frozen for the first step to pass.
+  (cd "$gate" && pnpm install --frozen-lockfile --prefer-offline --reporter=silent)
+
+  (cd "$gate" && run_checks)
+  cleanup
+}
+
+for sha in $pushed; do
+  run_gate "$sha"
+done
