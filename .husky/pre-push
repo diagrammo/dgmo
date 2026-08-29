@@ -31,6 +31,9 @@ set -e
 echo "→ installed dependency tree"
 pnpm check:install-lock
 
+echo "→ formatting"
+pnpm format:check
+
 echo "→ hygiene"
 pnpm check:deadcode
 pnpm check:duplication

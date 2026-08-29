@@ -36,6 +36,14 @@ jobs:
       - name: Installed dependency tree matches lockfile
         run: pnpm check:install-lock
 
+      # Covers src/ only, and src/map/data is excluded in .prettierignore —
+      # that whole directory is emitted by scripts/build-map-data.mjs, and
+      # PROVENANCE.json records each asset's sha256, so reformatting one would
+      # make the audit trail wrong. Added 2026-08-29: nothing had ever run this
+      # and three files had drifted (#531).
+      - name: Formatting
+        run: pnpm format:check
+
       # Named explicitly rather than `pnpm check:all`, whose superset pulls in
       # pnpm audit / publint / attw — those genuinely are flaky here.
       #
