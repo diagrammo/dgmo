@@ -40,7 +40,20 @@ export const SKETCH_VISUALS = {
   // their own name was (2026-08-27, #518).
   titleY: SHARED_TITLE_Y,
   titleFontSize: SHARED_TITLE_FONT_SIZE,
-  titleFontWeight: Number(SHARED_TITLE_FONT_WEIGHT),
+  // 🔴 `bold` AS A NUMBER, and never `Number('bold')` — which is `NaN`, which is
+  // what this shipped. Every other consumer of `TITLE_FONT_WEIGHT` writes it
+  // straight into an SVG attribute, where the string is valid; this one is read
+  // as a VALUE by the desktop canvas, which puts it on an SVG attribute AND on
+  // an input's inline style, so it has to be a weight rather than a word.
+  //
+  // The result was `font-weight="NaN"` on every sketch title — silently
+  // rendered at the default weight, so a sketch's name was the one title in the
+  // product that was not bold, and nothing failed. Found 2026-08-29 by an app
+  // test asserting the drawn weight, which had been red on it.
+  //
+  // The comparison rather than a bare `700` so that changing the shared
+  // constant is a type error here instead of another silent coercion.
+  titleFontWeight: SHARED_TITLE_FONT_WEIGHT === 'bold' ? 700 : 400,
   // 🔴 SHARED, not overridden. These read 2 and 2 against the conventions'
   // 1.5, under a comment claiming "a bolder, less-washed look" — and the
   // boldness was the complaint: a sketch beside a boxes-and-lines or an org
