@@ -2490,7 +2490,8 @@ declare const SKETCH_FOOT_H: number;
  * 🔴 The desktop canvas disagrees: its `AT_UNIT_X` is half a SLOT (96), not
  * half a footprint. So the same `at:` value means different pixels in the two,
  * and a canvas-authored file lays out here with `W_SKETCH_OVERLAP_RESOLVED`.
- * Filed 2026-08-29 — do not "fix" either side without reading that issue.
+ * Filed as the at:-unit disagreement (#571) — do not "fix" either side
+ * without reading it; existing files change meaning either way.
  */
 declare const SKETCH_HALF_SLOT_X: number;
 /** Vertical half-unit pitch, px: half a footprint (40 at the default cell). */
