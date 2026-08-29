@@ -202,7 +202,7 @@ const childBoxAt = new Map<string, { c: number; r: number } | null>();
  * yields ascending (r, c), so four passes — one per quadrant — produce that
  * order without building a candidate array and sorting it. That array was
  * allocated and sorted once per ring per unit, which is what made a crowded
- * scene superlinear beyond the collision index (#484).
+ * scene cost more than linear beyond the collision index (#484).
  */
 function firstFreeOnRing(
   base: SlotRect,
