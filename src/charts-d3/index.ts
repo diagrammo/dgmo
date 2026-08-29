@@ -8,6 +8,7 @@
 // (parseExtendedChart).
 // ============================================================
 
+import { naturalDataChartSize } from './natural-size';
 import { parseChart } from '../chart';
 import { getSimpleChartLegendGroups } from '../data-chart-parser';
 import {
@@ -126,10 +127,19 @@ export async function renderDataChartD3(
   const effectivePalette = await resolveExportPalette(theme, palette);
   const isDark = theme === 'dark';
 
+  // A caller's width always wins. Absent one, the chart sizes itself from its
+  // own content rather than inheriting a flat 1200 — see natural-size.ts.
+  const natural = naturalDataChartSize(content, effectivePalette);
   const w =
-    dims?.width && dims.width > 0 ? Math.round(dims.width) : EXPORT_WIDTH;
+    dims?.width && dims.width > 0
+      ? Math.round(dims.width)
+      : (natural?.width ?? EXPORT_WIDTH);
   const h =
-    dims?.height && dims.height > 0 ? Math.round(dims.height) : EXPORT_HEIGHT;
+    dims?.height && dims.height > 0
+      ? Math.round(dims.height)
+      : dims?.width && dims.width > 0
+        ? EXPORT_HEIGHT
+        : (natural?.height ?? EXPORT_HEIGHT);
   const container = createExportContainer(w, h);
   const init = initD3Chart(container, effectivePalette, {
     width: w,

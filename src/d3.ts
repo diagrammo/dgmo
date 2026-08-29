@@ -258,7 +258,14 @@ export async function renderForExport(
     const { supportsD3DataChart, renderDataChartD3 } =
       await import('./charts-d3');
     if (supportsD3DataChart(detectedType)) {
-      return renderDataChartD3(renderContent, theme, palette);
+      // Forward the caller's dimensions. They were dropped here until
+      // 2026-08-29, so a data chart routed through renderForExport — the app's
+      // markdown export, the marketing site's hero — silently ignored a
+      // requested width that `render()` honoured (#532).
+      return renderDataChartD3(renderContent, theme, palette, {
+        ...(options?.width !== undefined && { width: options.width }),
+        ...(options?.height !== undefined && { height: options.height }),
+      });
     }
   }
   const ctx: ExportContext = {

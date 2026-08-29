@@ -37,7 +37,9 @@ function legendGroupCount(svg: string): number {
 function legendGroupX(svg: string): number | null {
   // The legend `<g class="chart-legend">` is wrapped in a positioning `<g
   // transform="translate(x,y)">`. Find the translate immediately before it.
-  const m = svg.match(/translate\(([-\d.]+),[-\d.]+\)"><g class="chart-legend"/);
+  const m = svg.match(
+    /translate\(([-\d.]+),[-\d.]+\)"><g class="chart-legend"/
+  );
   return m ? parseFloat(m[1]) : null;
 }
 
@@ -82,12 +84,17 @@ describe('legend-inline (spec §1.9, decision #50)', () => {
     // Left-aligned title: no centered anchor, origin at the 8px inset.
     expect(tag).not.toContain('text-anchor="middle"');
     expect(tag).toContain('x="8"');
-    // Legend still rendered, now flushed to the RIGHT edge (well past the short
-    // title, in the right half of the 1200px-wide chart).
+    // Legend still rendered, now flushed to the RIGHT edge — past the short
+    // title, in the right half of the canvas. Measured against the canvas the
+    // chart actually chose, not a hardcoded 1200: a data chart sizes itself
+    // from its content since 2026-08-29 (#532).
     expect(legendGroupCount(svg)).toBeGreaterThan(0);
     const x = legendGroupX(svg);
     expect(x).not.toBeNull();
-    expect(x!).toBeGreaterThan(600);
+    const canvasWidth = Number(
+      /viewBox="0 0 ([\d.]+)/.exec(svg)?.[1] ?? '1200'
+    );
+    expect(x!).toBeGreaterThan(canvasWidth / 2);
   });
 
   it('falls back to the stacked header when the legend cannot fit', async () => {
