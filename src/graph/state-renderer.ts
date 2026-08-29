@@ -191,24 +191,25 @@ export function renderState(
 
   const diagramW = layout.width;
   const diagramH = layout.height;
-  const { scale, offsetX, offsetY, canvasHeight } = fitDiagramToCanvas({
-    width,
-    height,
-    diagramW,
-    diagramH,
-    padding: sDiagramPadding,
-    // Inline → one band (title only); stacked → title + legend band.
-    titleHeight: header.inline ? titleHeight : titleHeight + legendH,
-    maxScale: MAX_SCALE,
-    exportMode: !!exportDims,
-  });
+  const { scale, offsetX, offsetY, canvasHeight, canvasWidth } =
+    fitDiagramToCanvas({
+      width,
+      height,
+      diagramW,
+      diagramH,
+      padding: sDiagramPadding,
+      // Inline → one band (title only); stacked → title + legend band.
+      titleHeight: header.inline ? titleHeight : titleHeight + legendH,
+      maxScale: MAX_SCALE,
+      exportMode: !!exportDims,
+    });
 
   const svg = d3Selection
     .select(container)
     .append('svg')
-    .attr('width', width)
+    .attr('width', canvasWidth)
     .attr('height', canvasHeight)
-    .attr('viewBox', `0 0 ${width} ${canvasHeight}`)
+    .attr('viewBox', `0 0 ${canvasWidth} ${canvasHeight}`)
     .attr('preserveAspectRatio', 'xMidYMin meet')
     .style('font-family', FONT_FAMILY);
 

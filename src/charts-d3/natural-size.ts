@@ -22,6 +22,7 @@
 import { parseChart } from '../chart';
 import { parseExtendedChart } from '../data-chart-parser';
 import { EXPORT_HEIGHT, EXPORT_WIDTH } from '../utils/d3-helpers';
+import { MIN_CANVAS_WIDTH } from '../utils/fit-canvas';
 import type { PaletteColors } from '../palettes';
 
 /**
@@ -31,8 +32,8 @@ import type { PaletteColors } from '../palettes';
  * kanban 672, er 680, class 420), so their type reads at a comparable size.
  */
 const UNCOUNTED_WIDTH = 720;
-/** Narrowest natural canvas. Below this, axis furniture crowds the plot. */
-const MIN_NATURAL_WIDTH = 480;
+/** Narrowest natural canvas — shared with the graph fit (`utils/fit-canvas.ts`). */
+const MIN_NATURAL_WIDTH = MIN_CANVAS_WIDTH;
 
 /** Comfortable x-step per repeating element, by what the element is. */
 const STEP_PER_CATEGORY = 80;

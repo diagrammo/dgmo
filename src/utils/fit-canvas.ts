@@ -7,8 +7,18 @@
 // scale) keeps its own math on purpose — this is only for the ones
 // that were byte-identical.
 
+/**
+ * Narrowest canvas an export will produce. A diagram whose content is thinner
+ * than this keeps the dead margin rather than becoming a sliver — and its type
+ * stays in the band the other sparse chart types occupy (class 420, block 428).
+ * Shared with `charts-d3/natural-size.ts`, which floors its own widths here.
+ */
+export const MIN_CANVAS_WIDTH = 480;
+
 export interface CanvasFit {
   scale: number;
+  /** Canvas width — the scaled content plus padding, never wider than asked. */
+  canvasWidth: number;
   offsetX: number;
   offsetY: number;
   canvasHeight: number;
@@ -45,20 +55,35 @@ export function fitDiagramToCanvas(p: FitDiagramParams): CanvasFit {
   const scaleX = (p.width - p.padding * 2) / p.diagramW;
   let scale: number;
   let canvasHeight: number;
+  let canvasWidth: number;
   if (p.exportMode) {
-    scale = Math.min(p.maxScale, scaleX);
+    // Never enlarge on export. It used to scale to width capped at `maxScale`,
+    // which for a narrow diagram meant inflating it to fill a canvas it had no
+    // business filling — `flowchart-basic` is four nodes in a vertical stack,
+    // and it came out at scale 3 on a 1200x1670 sheet, so a declared
+    // `font-size: 13` rendered at 39 and the apparent size of its text moved
+    // with the canvas instead of with the diagram (#532).
+    scale = Math.min(p.maxScale, scaleX, 1);
     canvasHeight = p.titleHeight + p.diagramH * scale + p.padding * 2;
+    canvasWidth = Math.round(
+      Math.min(
+        p.width,
+        Math.max(MIN_CANVAS_WIDTH, p.diagramW * scale + p.padding * 2)
+      )
+    );
   } else {
     const availH = p.height - p.titleHeight;
     const scaleY = (availH - p.padding * 2) / p.diagramH;
     scale = Math.min(p.maxScale, scaleX, scaleY);
     canvasHeight = p.height;
+    canvasWidth = p.width;
   }
   const scaledW = p.diagramW * scale;
   return {
     scale,
-    offsetX: (p.width - scaledW) / 2,
+    offsetX: (canvasWidth - scaledW) / 2,
     offsetY: p.titleHeight + p.padding,
     canvasHeight,
+    canvasWidth,
   };
 }
