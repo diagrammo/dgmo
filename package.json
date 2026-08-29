@@ -129,7 +129,7 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@dagrejs/dagre": "^3.0.0",
+    "@dagrejs/dagre": "3.1.1",
     "d3-array": "^3.2.4",
     "d3-cloud": "^1.2.9",
     "d3-geo": "^3.1.1",

@@ -28,9 +28,31 @@ import { dirname, join } from 'node:path';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 // Every manifest this repo publishes from, plus the scope we govern. A range on
-// a third-party package is not ours to widen, so only @diagrammo/* is checked.
+// a third-party package is not ours to widen, so only @diagrammo/* is checked
+// for REACHABILITY. Exactness is a separate rule with the opposite sign — see
+// EXACT_PINS below.
 const MANIFESTS = ['package.json', 'cli/package.json'];
 const SCOPE = '@diagrammo/';
+
+// 🔴 Third-party packages whose output the gallery snapshots ASSERT ON, and
+// which must therefore be pinned exactly rather than by range.
+//
+// This is the inverse of the `>=X <1` rule above and is not a contradiction:
+// that rule is about sibling @diagrammo packages, where admitting the next
+// minor is right because we publish it. A layout engine is different — the 98
+// gallery snapshots are the only thing asserting a chart is laid out correctly,
+// and a range means dgmo's own lockfile can certify one version while every
+// consumer resolves another.
+//
+// That is not hypothetical. `"@dagrejs/dagre": "^3.0.0"` had dgmo's lockfile on
+// 3.0.0 while diagrammo-app, astro-dgmo and a fixture installing dgmo from npm
+// all resolved 3.1.1 — measured 2026-08-28 (#519) — so the snapshots certified
+// a layout nobody ran. Pinning to 3.1.1 moved exactly nine of them: flowchart
+// (x4), class, er, infra, sitemap and state.
+//
+// 🔴 CI installing frozen is what ENTRENCHES such a split rather than catching
+// it. Only an exact declared version makes every consumer resolve what we test.
+const EXACT_PINS = new Set(['@dagrejs/dagre']);
 
 function npmView(spec, field) {
   try {
@@ -69,6 +91,17 @@ for (const manifest of MANIFESTS) {
 
   const deps = { ...pkg.dependencies, ...pkg.peerDependencies };
   for (const [name, range] of Object.entries(deps)) {
+    // Exactness is checked WITHOUT the registry, so it holds offline too — the
+    // whole point is that this class of drift is invisible until someone
+    // installs somewhere else.
+    if (EXACT_PINS.has(name) && !/^\d+\.\d+\.\d+$/.test(range)) {
+      failures += 1;
+      console.error(
+        `\u2717 ${manifest}: "${name}": "${range}" is a RANGE. The gallery ` +
+          `snapshots assert this package's layout, so it must be an exact ` +
+          `version or consumers resolve one we never test (#519).`
+      );
+    }
     if (!name.startsWith(SCOPE)) continue;
     if (/^(workspace:|link:|file:|\*$)/.test(range)) continue;
 
@@ -95,13 +128,19 @@ for (const manifest of MANIFESTS) {
   }
 }
 
-if (offline && checked === 0) {
+// 🔴 The offline pass must not swallow an EXACTNESS failure. That check reads
+// only the manifest, so being unable to reach the registry says nothing about
+// it — and this early exit would otherwise report a green build for the one
+// class of drift that is invisible everywhere else.
+if (offline && checked === 0 && failures === 0) {
   console.log('· dependency ranges not checked — the registry was unreachable.');
   process.exit(0);
 }
 
 if (failures > 0) {
-  console.error(`\n${failures} dependency range(s) cannot reach what is published.`);
+  // Deliberately not "cannot reach what is published" — this script now
+  // enforces two different rules and that wording named only one of them.
+  console.error(`\n${failures} dependency range(s) failed.`);
   process.exit(1);
 }
 
