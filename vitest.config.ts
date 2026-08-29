@@ -39,6 +39,23 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    // ── A test deadline measures the machine, not the code ──
+    //
+    // vitest's `testTimeout` defaults to 5000 ms, and several renders here do
+    // 5-9 seconds of real work. Ten agent sessions share this laptop, so spare
+    // capacity is not a constant: under load those tests cross the default and
+    // the pre-push gate refuses a push whose code is fine, with a failure set
+    // that reshuffles every run. That is the shape of a race, not a defect.
+    //
+    // Nobody typed 5000, which is why the sweep that removed this repo's
+    // wall-clock ASSERTIONS did not find it — a library default is a wall-clock
+    // deadline wearing different clothes (#555).
+    //
+    // 🔴 30 s is not tuned to the observed margin, deliberately. A budget a
+    // correct render can plausibly approach is not a safe test, it is an absent
+    // one. This number exists only so a genuine HANG still fails, which is the
+    // one use of a clock the workspace rule endorses.
+    testTimeout: 30_000,
     // Inherited by pool workers, which get their own process env.
     env: { TZ: 'UTC' },
     include: ['tests/**/*.test.ts'],
