@@ -194,6 +194,39 @@ interface LocalChildBox {
 const childBoxAt = new Map<string, { c: number; r: number } | null>();
 
 /**
+ * The first free slot on the Manhattan ring `d` around `base`, or null.
+ *
+ * Order is fixed and matters: prefer down-and-right, then right-and-up, then
+ * down-and-left, then up-and-left; within one of those quadrants, ascending
+ * row and then ascending column. Enumerating the ring row by row already
+ * yields ascending (r, c), so four passes — one per quadrant — produce that
+ * order without building a candidate array and sorting it. That array was
+ * allocated and sorted once per ring per unit, which is what made a crowded
+ * scene superlinear beyond the collision index (#484).
+ */
+function firstFreeOnRing(
+  base: SlotRect,
+  occupied: Occupancy,
+  d: number
+): { c: number; r: number } | null {
+  for (let quadrant = 0; quadrant < 4; quadrant++) {
+    for (let dr = -d; dr <= d; dr++) {
+      const r = base.r + dr;
+      const spread = d - Math.abs(dr);
+      // Ascending column: the left arm of the ring, then the right one.
+      for (const c of spread === 0
+        ? [base.c]
+        : [base.c - spread, base.c + spread]) {
+        const cost = (r < base.r ? 2 : 0) + (c < base.c ? 1 : 0);
+        if (cost !== quadrant) continue;
+        if (!occupied.hits({ ...base, c, r })) return { c, r };
+      }
+    }
+  }
+  return null;
+}
+
+/**
  * `nearestFree` for a unit of arbitrary size. The shape-sized version searches
  * from a SEP-square; an inner box's frame can be many slots across, so its
  * collision test has to use its own width and height.
@@ -203,20 +236,12 @@ function nearestFreeRect(
   occupied: Occupancy
 ): { c: number; r: number } {
   if (!occupied.hits(base)) return { c: base.c, r: base.r };
-  for (let d = 1; d <= 200; d++) {
-    const candidates: Array<{ c: number; r: number }> = [];
-    for (let dc = -d; dc <= d; dc++) {
-      const dr = d - Math.abs(dc);
-      candidates.push({ c: base.c + dc, r: base.r + dr });
-      if (dr !== 0) candidates.push({ c: base.c + dc, r: base.r - dr });
-    }
-    candidates.sort((a, b) => {
-      const costA = (a.r < base.r ? 2 : 0) + (a.c < base.c ? 1 : 0);
-      const costB = (b.r < base.r ? 2 : 0) + (b.c < base.c ? 1 : 0);
-      return costA - costB || a.r - b.r || a.c - b.c;
-    });
-    for (const cand of candidates) {
-      if (!occupied.hits({ ...base, c: cand.c, r: cand.r })) return cand;
+  const key = `${base.c},${base.r},${base.w},${base.h}`;
+  for (let d = occupied.ringStart.get(key) ?? 1; d <= 200; d++) {
+    const found = firstFreeOnRing(base, occupied, d);
+    if (found) {
+      occupied.ringStart.set(key, d);
+      return found;
     }
   }
   return { c: base.c, r: base.r };
@@ -274,6 +299,17 @@ class Occupancy {
   private readonly oversized: SlotRect[] = [];
   /** Every rect, in insertion order — the extent and flow-origin maths want it. */
   readonly rects: SlotRect[] = [];
+  /**
+   * The ring a search from a given base last had to reach, keyed by that base.
+   *
+   * Slots are only ever taken here, never given back, so a ring that was full
+   * once is full for the rest of the layout. The next unit authored at the
+   * same slot can therefore start where the last one finished instead of
+   * re-walking every ring inside it — which is what made a stack of shapes on
+   * one coordinate cost more than linear even with the collision index in
+   * place (#484). Skipping proven-full rings cannot change where a unit lands.
+   */
+  readonly ringStart = new Map<string, number>();
 
   add(rect: SlotRect): void {
     this.rects.push(rect);
@@ -323,23 +359,12 @@ function nearestFree(
   occupied: Occupancy
 ): { c: number; r: number } {
   if (!occupied.hits(base)) return { c: base.c, r: base.r };
-  for (let d = 1; d <= 200; d++) {
-    const candidates: Array<{ c: number; r: number }> = [];
-    for (let dc = -d; dc <= d; dc++) {
-      const dr = d - Math.abs(dc);
-      candidates.push({ c: base.c + dc, r: base.r + dr });
-      if (dr !== 0) candidates.push({ c: base.c + dc, r: base.r - dr });
-    }
-    // Prefer reading order: right, then down, then left/up.
-    candidates.sort((a, b) => {
-      const costA = (a.r < base.r ? 2 : 0) + (a.c < base.c ? 1 : 0);
-      const costB = (b.r < base.r ? 2 : 0) + (b.c < base.c ? 1 : 0);
-      return costA - costB || a.r - b.r || a.c - b.c;
-    });
-    for (const cand of candidates) {
-      if (!occupied.hits({ ...base, c: cand.c, r: cand.r })) {
-        return cand;
-      }
+  const key = `${base.c},${base.r},${base.w},${base.h}`;
+  for (let d = occupied.ringStart.get(key) ?? 1; d <= 200; d++) {
+    const found = firstFreeOnRing(base, occupied, d);
+    if (found) {
+      occupied.ringStart.set(key, d);
+      return found;
     }
   }
   return { c: base.c, r: base.r }; // pathological; give up rather than loop
