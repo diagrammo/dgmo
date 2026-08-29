@@ -50,7 +50,7 @@ export const SKETCH_FOOT_W =
  * fits within it.
  *
  * ⚠️ The figures here follow `cellPx`, so they are pinned by
- * `tests/sketch/geometry-constants.test.ts` rather than trusted — this docblock
+ * `tests/sketch-geometry-constants.test.ts` rather than trusted — this docblock
  * described a 208 × 128 footprint until 2026-08-29, long after the cell
  * changed, and that stale figure was copied into the app and the tech spec.
  */

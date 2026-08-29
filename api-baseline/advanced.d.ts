@@ -2465,23 +2465,35 @@ declare const SKETCH_GEOMETRY: {
     /** edge-ring (connect hook) width as a fraction of footprint height */
     readonly ringFrac: 0.22;
 };
-/** Footprint width, px (208 at the default cell). */
+/** Footprint width, px — 128 at the default cell (`cellPx` 16 x `footprintCellsW` 8). */
 declare const SKETCH_FOOT_W: number;
 /**
  * Footprint height, px — the ONE universal size (spec §31.2). Every shape is a
  * golden-ratio landscape box: height ≈ width / φ, forced EVEN so half the
- * height is a whole pixel (the vertical half-unit). 208/φ = 128.6 → 128
- * (ratio 1.625). Uniform: every shape draws to exactly SKETCH_FOOT_W ×
- * SKETCH_FOOT_H. The org-card body (header + rule + ~4 rows) fits within it.
+ * height is a whole pixel (the vertical half-unit). At the default cell,
+ * 128/φ = 79.1 → 80 (ratio 1.6). Uniform: every shape draws to exactly
+ * SKETCH_FOOT_W × SKETCH_FOOT_H. The org-card body (header + rule + ~4 rows)
+ * fits within it.
+ *
+ * ⚠️ The figures here follow `cellPx`, so they are pinned by
+ * `tests/sketch-geometry-constants.test.ts` rather than trusted — this docblock
+ * described a 208 × 128 footprint until 2026-08-29, long after the cell
+ * changed, and that stale figure was copied into the app and the tech spec.
  */
 declare const SKETCH_FOOT_H: number;
 /**
- * Horizontal half-unit pitch, px: HALF a footprint (104). This is the dot grid
- * AND the snap step — a footprint is 2 of these wide, so its left/right edges
- * both land on dots.
+ * Horizontal half-unit pitch, px: HALF a footprint (64 at the default cell).
+ * This is the dot grid, and it is what ONE AUTHORED `at:` UNIT IS WORTH here —
+ * `sketchSlotToPx` and `layout.ts` both multiply by it. A footprint is 2 of
+ * these wide, so its left/right edges both land on dots.
+ *
+ * 🔴 The desktop canvas disagrees: its `AT_UNIT_X` is half a SLOT (96), not
+ * half a footprint. So the same `at:` value means different pixels in the two,
+ * and a canvas-authored file lays out here with `W_SKETCH_OVERLAP_RESOLVED`.
+ * Filed 2026-08-29 — do not "fix" either side without reading that issue.
  */
 declare const SKETCH_HALF_SLOT_X: number;
-/** Vertical half-unit pitch, px: half a footprint (64). */
+/** Vertical half-unit pitch, px: half a footprint (40 at the default cell). */
 declare const SKETCH_HALF_SLOT_Y: number;
 /**
  * Minimum origin separation in half-units. A footprint spans 2 half-units and
@@ -2492,8 +2504,11 @@ declare const SKETCH_HALF_SLOT_Y: number;
 declare const SKETCH_SEP = 3;
 /**
  * Full-slot pitch, px: footprint + gap (== SKETCH_SEP half-units). The
- * origin-to-origin distance between two edge-adjacent shapes. 312 × 192 —
- * horizontal spacing is unchanged from the old geometry, vertical is tighter.
+ * origin-to-origin distance between two edge-adjacent shapes — 192 × 120 at
+ * the default cell, leaving 64 × 40 of clear air between two footprints.
+ *
+ * That clear air is what `JOIN_REACH` in the canvas is (#560), which is why it
+ * is a lattice quantity rather than a tuned number.
  */
 declare const SKETCH_SLOT_X: number;
 declare const SKETCH_SLOT_Y: number;
