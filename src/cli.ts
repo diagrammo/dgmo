@@ -124,6 +124,11 @@ Render options:
                        With stdin and no -o, PNG is written to stdout
   --theme <theme>      Theme: ${THEMES.join(', ')} (default: light)
   --palette <name>     Palette: ${PALETTES.join(', ')} (default: slate)
+  --width <px>         Canvas width. Chart types that size themselves from
+                       their content treat it as a maximum and warn if their
+                       content does not fit
+  --height <px>        Canvas height. Most chart types derive it from the
+                       content and ignore this
   --json               Output structured JSON to stdout
   --help               Show this help
   --version            Show version`);
@@ -144,6 +149,8 @@ function parseArgs(argv: string[]): {
   help: boolean;
   version: boolean;
   json: boolean;
+  width: number | undefined;
+  height: number | undefined;
 } {
   const result = {
     input: undefined as string | undefined,
@@ -153,6 +160,8 @@ function parseArgs(argv: string[]): {
     help: false,
     version: false,
     json: false,
+    width: undefined as number | undefined,
+    height: undefined as number | undefined,
   };
 
   const args = argv.slice(2); // skip node + script
@@ -189,6 +198,18 @@ function parseArgs(argv: string[]): {
         process.exit(1);
       }
       result.palette = val;
+      i++;
+    } else if (arg === '--width' || arg === '--height') {
+      const val = args[++i];
+      const n = Number(val);
+      if (!Number.isFinite(n) || n <= 0) {
+        console.error(
+          `Error: ${arg} needs a positive number of pixels, got "${val ?? ''}".`
+        );
+        process.exit(1);
+      }
+      if (arg === '--width') result.width = Math.round(n);
+      else result.height = Math.round(n);
       i++;
     } else if (arg === '--json') {
       result.json = true;
@@ -1098,6 +1119,8 @@ async function main(): Promise<void> {
   const rendered = await render(content, {
     theme: opts.theme,
     palette: opts.palette,
+    ...(opts.width !== undefined && { width: opts.width }),
+    ...(opts.height !== undefined && { height: opts.height }),
     // The CLI is the Node host, so it supplies the fs loader `render()` no
     // longer reaches for itself. Passed as the function, not its result — it
     // runs only if the content turns out to be a map.

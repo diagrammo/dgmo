@@ -149,6 +149,9 @@ interface ExportContext {
   /** The canvas every handler draws onto — the caller's, or the default sheet. */
   width: number;
   height: number;
+  /** The caller's raw request, `undefined` when they made none. */
+  requestedWidth: number | undefined;
+  requestedHeight: number | undefined;
 }
 
 type DiagramExportHandler = (ctx: ExportContext) => Promise<string>;
@@ -276,6 +279,18 @@ export async function renderForExport(
     options,
     exportMode,
     isDark: theme === 'dark',
+    // The resolved canvas, and the raw request beside it. A chart whose own
+    // natural size is not EXPORT_WIDTH (tech-radar) needs to tell "the caller
+    // asked for 1200" apart from "nobody asked", which the resolved value
+    // cannot express.
+    requestedWidth:
+      options?.width && options.width > 0
+        ? Math.round(options.width)
+        : undefined,
+    requestedHeight:
+      options?.height && options.height > 0
+        ? Math.round(options.height)
+        : undefined,
     width:
       options?.width && options.width > 0
         ? Math.round(options.width)
@@ -1172,8 +1187,8 @@ async function exportGantt(ctx: ExportContext): Promise<string> {
   const resolved = calculateSchedule(ganttParsed);
   if (resolved.tasks.length === 0) return '';
 
-  const EXPORT_W = 1200;
-  const EXPORT_H = 800;
+  const EXPORT_W = ctx.width;
+  const EXPORT_H = ctx.height;
   const container = createExportContainer(EXPORT_W, EXPORT_H);
 
   // Union source-declared collapsed groups (`[Group] collapsed: true`) with any
@@ -1279,8 +1294,10 @@ async function exportTechRadar(ctx: ExportContext): Promise<string> {
   const radarParsed = parseTechRadar(content);
   if (radarParsed.error || radarParsed.quadrants.length === 0) return '';
 
-  const RADAR_EXPORT_W = 1300;
-  const RADAR_EXPORT_H = 1500;
+  // 1300x1500 is the radar's own natural size, not the shared default — so it
+  // takes the caller's request when there is one and its own when there is not.
+  const RADAR_EXPORT_W = ctx.requestedWidth ?? 1300;
+  const RADAR_EXPORT_H = ctx.requestedHeight ?? 1500;
   const container = createExportContainer(RADAR_EXPORT_W, RADAR_EXPORT_H);
   renderTechRadarForExport(
     container,

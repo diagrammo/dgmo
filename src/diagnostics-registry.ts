@@ -107,6 +107,16 @@ export const UNIVERSAL_DIAGNOSTICS: DiagnosticSpec[] = [
     hint: 'Remove legend-inline, or use a chart type with a top-center capsule legend (e.g. bar, line, state, treemap, sequence, gantt).',
     example: 'pie Share\nApples 30\nPears 70',
   },
+  {
+    code: 'W_CANVAS_WIDTH_IGNORED',
+    severity: 'warning',
+    chartType: null,
+    title: 'Requested width not applied',
+    message: () =>
+      'This chart type sizes itself from its content, so the canvas came out wider than the width that was requested.',
+    hint: 'The width is a maximum for chart types that fit their content to it; one that lays out from its own nodes (org, sitemap, class, er, infra, and the rest of the structured family) is as wide as its content needs. Remove the width, or give the diagram less to draw.',
+    example: 'org Team\nJane\n  Sam',
+  },
 
   // ── Data-chart `title` directive (decision #48) ──
   TITLE_DIRECTIVE_DX,

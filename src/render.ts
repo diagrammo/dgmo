@@ -235,6 +235,36 @@ export async function render(
   const withLegendInlineWarning = (ds: DgmoError[]): DgmoError[] =>
     legendInlineWarning ? [...ds, legendInlineWarning] : ds;
 
+  /**
+   * Tell the caller when the canvas came out WIDER than the width they asked
+   * for. Twenty-one chart types size themselves from their own content and
+   * discarded the request in silence — an org chart is as wide as its cards
+   * are, and no amount of asking makes it narrower.
+   *
+   * Measured against the produced SVG rather than a list of chart types, so it
+   * cannot go stale: a narrower canvas is honouring the request as a maximum
+   * and says nothing; only exceeding it is worth a word. Issue #532.
+   */
+  const withCanvasWidthWarning = (
+    ds: DgmoError[],
+    svg: string
+  ): DgmoError[] => {
+    const asked = options?.width;
+    if (!asked || asked <= 0) return ds;
+    const vb = /viewBox="[-\d.]+ [-\d.]+ ([\d.]+) /.exec(svg);
+    const got = vb ? Number(vb[1]) : NaN;
+    if (!Number.isFinite(got) || got <= asked + 1) return ds;
+    return [
+      ...ds,
+      makeDgmoError(
+        1,
+        `This ${chartType ?? 'diagram'} is ${Math.round(got)}px wide — it sizes itself from its content, so the requested width of ${Math.round(asked)}px was not applied.`,
+        'warning',
+        'W_CANVAS_WIDTH_IGNORED'
+      ),
+    ];
+  };
+
   // Build viewState from legendState (backwards compat) or use provided viewState
   const viewState: CompactViewState | undefined =
     options?.viewState ??
@@ -266,7 +296,10 @@ export async function render(
       );
       return {
         svg,
-        diagnostics: withLegendInlineWarning(diagnostics),
+        diagnostics: withCanvasWidthWarning(
+          withLegendInlineWarning(diagnostics),
+          svg
+        ),
         chartType: chartType ?? undefined,
       };
     } finally {
@@ -326,7 +359,10 @@ export async function render(
 
   return {
     svg,
-    diagnostics: withLegendInlineWarning(diagnostics),
+    diagnostics: withCanvasWidthWarning(
+      withLegendInlineWarning(diagnostics),
+      svg
+    ),
     chartType: chartType ?? undefined,
   };
 }

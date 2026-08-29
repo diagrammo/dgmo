@@ -134,11 +134,13 @@ export async function renderDataChartD3(
     dims?.width && dims.width > 0
       ? Math.round(dims.width)
       : (natural?.width ?? EXPORT_WIDTH);
+  // A width with no height keeps the sheet's proportions rather than taking a
+  // flat EXPORT_HEIGHT, which turned a narrow request into a portrait canvas.
   const h =
     dims?.height && dims.height > 0
       ? Math.round(dims.height)
       : dims?.width && dims.width > 0
-        ? EXPORT_HEIGHT
+        ? Math.round((w * EXPORT_HEIGHT) / EXPORT_WIDTH)
         : (natural?.height ?? EXPORT_HEIGHT);
   const container = createExportContainer(w, h);
   const init = initD3Chart(container, effectivePalette, {
