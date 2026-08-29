@@ -27,6 +27,9 @@ set -e
 
 ZERO=0000000000000000000000000000000000000000
 REPO_ROOT=$(git rev-parse --show-toplevel)
+# The parent of the checkout, which is ~/code/diagrammo whether this hook runs
+# in the main dgmo repo or in a worktree sibling of it.
+WORKSPACE=$(dirname "$REPO_ROOT")
 
 # Git hands a pre-push hook "<local ref> <local sha> <remote ref> <remote sha>"
 # per ref on stdin. It can only be read once, so capture it up front.
@@ -67,10 +70,17 @@ fi
 # not "tree equals the pushed commit" when dist/ is shared, and the tidier your
 # tree was, the less isolation your push got — which is the wrong way round.
 #
-# dgmo's case is simpler than the app's: there are no relative package symlinks
-# to preserve, so the gate lives in TMPDIR rather than beside the repo. That
-# also keeps it clear of the workspace .gitignore's `/dgmo-wt-*/`, which is
-# what made cspell see an empty checkout in a hand-made worktree (#530).
+# 🔴 The gate MUST be a direct child of ~/code/diagrammo, exactly as the app's
+# is, and for a reason that is easy to miss here: dgmo has no relative package
+# symlinks, but its TESTS reach a sibling repo. `tests/map-layout-golden.ts`
+# resolves `../../dgmo-content/examples/map` and asserts a floor of 16 fixtures
+# — 15 come from gallery/, 3 from that sibling. A gate in TMPDIR sees only the
+# 15 and fails the floor, which reads as a missing fixture rather than as a
+# misplaced worktree. Measured 2026-08-29, on the first run of this hook.
+#
+# `.gate-dgmo.*` rather than `dgmo-wt-*`: the latter is gitignored by the
+# workspace, which is what made cspell read an empty checkout in a hand-made
+# worktree (#530). `/.gate-dgmo.*/` is ignored there too, beside the app's.
 gate=
 
 cleanup() {
@@ -144,7 +154,7 @@ run_gate() {
   echo "pre-push: gating a worktree at $short"
   # `git worktree add` accepts an existing empty directory, so mktemp's own
   # directory is the worktree rather than its parent.
-  gate=$(mktemp -d "${TMPDIR:-/tmp}/dgmo-gate.XXXXXX")
+  gate=$(mktemp -d "$WORKSPACE/.gate-dgmo.XXXXXX")
   git worktree add --detach --quiet "$gate" "$sha"
 
   # 🔴 A REAL install, never a symlink to the working checkout's node_modules.
