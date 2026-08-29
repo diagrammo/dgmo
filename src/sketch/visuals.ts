@@ -53,7 +53,12 @@ export const SKETCH_VISUALS = {
   //
   // The comparison rather than a bare `700` so that changing the shared
   // constant is a type error here instead of another silent coercion.
-  titleFontWeight: SHARED_TITLE_FONT_WEIGHT === 'bold' ? 700 : 400,
+  //
+  // ⚠️ Widened back to `number`. Without the assertion the literal `700` leaks
+  // into the published type surface — `check:api` caught it on the push — and a
+  // consumer would then be typed against this exact weight rather than against
+  // "a weight", which is the opposite of what a shared constant is for.
+  titleFontWeight: (SHARED_TITLE_FONT_WEIGHT === 'bold' ? 700 : 400) as number,
   // 🔴 SHARED, not overridden. These read 2 and 2 against the conventions'
   // 1.5, under a comment claiming "a bolder, less-washed look" — and the
   // boldness was the complaint: a sketch beside a boxes-and-lines or an org
