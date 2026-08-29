@@ -35,7 +35,13 @@ import {
   type WrappedDescLine,
 } from '../utils/wrapped-desc';
 import { measureText, truncateText } from '../utils/text-measure';
-import { COLLAPSE_BAR_HEIGHT } from '../utils/visual-conventions';
+import {
+  ARROWHEAD_HEIGHT,
+  ARROWHEAD_WIDTH,
+  COLLAPSE_BAR_HEIGHT,
+  EDGE_DASH,
+  HAIRLINE_DASH,
+} from '../utils/visual-conventions';
 import { resolveSequenceTags } from './tag-resolution';
 import type { ResolvedTagMap } from './tag-resolution';
 import { resolveActiveTagGroup } from '../utils/tag-groups';
@@ -68,7 +74,6 @@ const TITLE_HEIGHT = 30;
 const PARTICIPANT_Y_OFFSET = 10;
 const MESSAGE_START_OFFSET = 50;
 const LIFELINE_TAIL = 30;
-const ARROWHEAD_SIZE = 8;
 
 // Note rendering constants
 const NOTE_MAX_W = 200;
@@ -424,7 +429,7 @@ function renderCacheParticipant(
   const bodyH = h - ry * 2;
   const f = fill(palette, isDark, color, fillMode);
   const s = stroke(palette, color);
-  const dash = '4 3';
+  const dash = EDGE_DASH;
 
   // Bottom ellipse (back face)
   g.append('ellipse')
@@ -1134,7 +1139,8 @@ export function renderSequenceDiagram(
   const sParticipantYOffset = ctx.aesthetic(PARTICIPANT_Y_OFFSET);
   const sMsgStartOffset = ctx.structural(MESSAGE_START_OFFSET);
   const sLifelineTail = ctx.structural(LIFELINE_TAIL);
-  const sArrowheadSize = ctx.structural(ARROWHEAD_SIZE);
+  const sArrowheadW = ctx.structural(ARROWHEAD_WIDTH);
+  const sArrowheadH = ctx.structural(ARROWHEAD_HEIGHT);
   const sNoteMaxW = ctx.structural(NOTE_MAX_W);
   const sNoteFold = ctx.structural(NOTE_FOLD);
   const sNotePadH = ctx.structural(NOTE_PAD_H);
@@ -2078,12 +2084,20 @@ export function renderSequenceDiagram(
   const svg = d3Selection
     .select(container)
     .append('svg')
-    .attr('width', '100%')
+    .attr('width', svgWidth)
     .attr('height', totalHeight)
     .attr('viewBox', `0 0 ${svgWidth} ${totalHeight}`)
     .attr('preserveAspectRatio', 'xMidYMin meet')
     .attr('class', 'sequence-diagram')
     .style('font-family', FONT_FAMILY);
+
+  // Fluid only when the content cannot shrink any further, matching raci and
+  // mindmap. It was an unconditional `'100%'`, so every EXPORTED sequence
+  // diagram carried a percentage root — the one chart type whose .svg had no
+  // intrinsic size when opened on its own or rasterised.
+  if (ctx.isBelowFloor) {
+    svg.attr('width', '100%');
+  }
 
   // Define arrowhead markers
   const defs = svg.append('defs');
@@ -2092,34 +2106,28 @@ export function renderSequenceDiagram(
   defs
     .append('marker')
     .attr('id', 'seq-arrowhead')
-    .attr('viewBox', `0 0 ${sArrowheadSize} ${sArrowheadSize}`)
-    .attr('refX', sArrowheadSize)
-    .attr('refY', sArrowheadSize / 2)
-    .attr('markerWidth', sArrowheadSize)
-    .attr('markerHeight', sArrowheadSize)
+    .attr('viewBox', `0 0 ${sArrowheadW} ${sArrowheadH}`)
+    .attr('refX', sArrowheadW)
+    .attr('refY', sArrowheadH / 2)
+    .attr('markerWidth', sArrowheadW)
+    .attr('markerHeight', sArrowheadH)
     .attr('orient', 'auto')
     .append('polygon')
-    .attr(
-      'points',
-      `0,0 ${sArrowheadSize},${sArrowheadSize / 2} 0,${sArrowheadSize}`
-    )
+    .attr('points', `0,0 ${sArrowheadW},${sArrowheadH / 2} 0,${sArrowheadH}`)
     .attr('fill', palette.text);
 
   // Open arrowhead for return arrows
   defs
     .append('marker')
     .attr('id', 'seq-arrowhead-open')
-    .attr('viewBox', `0 0 ${sArrowheadSize} ${sArrowheadSize}`)
-    .attr('refX', sArrowheadSize)
-    .attr('refY', sArrowheadSize / 2)
-    .attr('markerWidth', sArrowheadSize)
-    .attr('markerHeight', sArrowheadSize)
+    .attr('viewBox', `0 0 ${sArrowheadW} ${sArrowheadH}`)
+    .attr('refX', sArrowheadW)
+    .attr('refY', sArrowheadH / 2)
+    .attr('markerWidth', sArrowheadW)
+    .attr('markerHeight', sArrowheadH)
     .attr('orient', 'auto')
     .append('polyline')
-    .attr(
-      'points',
-      `0,0 ${sArrowheadSize},${sArrowheadSize / 2} 0,${sArrowheadSize}`
-    )
+    .attr('points', `0,0 ${sArrowheadW},${sArrowheadH / 2} 0,${sArrowheadH}`)
     .attr('fill', 'none')
     .attr('stroke', palette.textMuted)
     .attr('stroke-width', 1.2);
@@ -2128,34 +2136,31 @@ export function renderSequenceDiagram(
   defs
     .append('marker')
     .attr('id', 'seq-arrowhead-async')
-    .attr('viewBox', `0 0 ${sArrowheadSize} ${sArrowheadSize}`)
-    .attr('refX', sArrowheadSize)
-    .attr('refY', sArrowheadSize / 2)
-    .attr('markerWidth', sArrowheadSize)
-    .attr('markerHeight', sArrowheadSize)
+    .attr('viewBox', `0 0 ${sArrowheadW} ${sArrowheadH}`)
+    .attr('refX', sArrowheadW)
+    .attr('refY', sArrowheadH / 2)
+    .attr('markerWidth', sArrowheadW)
+    .attr('markerHeight', sArrowheadH)
     .attr('orient', 'auto')
     .append('polyline')
-    .attr(
-      'points',
-      `0,0 ${sArrowheadSize},${sArrowheadSize / 2} 0,${sArrowheadSize}`
-    )
+    .attr('points', `0,0 ${sArrowheadW},${sArrowheadH / 2} 0,${sArrowheadH}`)
     .attr('fill', 'none')
     .attr('stroke', palette.text)
     .attr('stroke-width', 1.2);
 
   // Per-color arrowhead markers for tag-driven coloring
-  const arrowPoints = `0,0 ${sArrowheadSize},${sArrowheadSize / 2} 0,${sArrowheadSize}`;
+  const arrowPoints = `0,0 ${sArrowheadW},${sArrowheadH / 2} 0,${sArrowheadH}`;
   for (const [, color] of tagValueToColor) {
     const hex = color.replace('#', '');
     // Filled arrowhead (call arrows)
     defs
       .append('marker')
       .attr('id', `seq-arrowhead-c${hex}`)
-      .attr('viewBox', `0 0 ${sArrowheadSize} ${sArrowheadSize}`)
-      .attr('refX', sArrowheadSize)
-      .attr('refY', sArrowheadSize / 2)
-      .attr('markerWidth', sArrowheadSize)
-      .attr('markerHeight', sArrowheadSize)
+      .attr('viewBox', `0 0 ${sArrowheadW} ${sArrowheadH}`)
+      .attr('refX', sArrowheadW)
+      .attr('refY', sArrowheadH / 2)
+      .attr('markerWidth', sArrowheadW)
+      .attr('markerHeight', sArrowheadH)
       .attr('orient', 'auto')
       .append('polygon')
       .attr('points', arrowPoints)
@@ -2164,11 +2169,11 @@ export function renderSequenceDiagram(
     defs
       .append('marker')
       .attr('id', `seq-arrowhead-async-c${hex}`)
-      .attr('viewBox', `0 0 ${sArrowheadSize} ${sArrowheadSize}`)
-      .attr('refX', sArrowheadSize)
-      .attr('refY', sArrowheadSize / 2)
-      .attr('markerWidth', sArrowheadSize)
-      .attr('markerHeight', sArrowheadSize)
+      .attr('viewBox', `0 0 ${sArrowheadW} ${sArrowheadH}`)
+      .attr('refX', sArrowheadW)
+      .attr('refY', sArrowheadH / 2)
+      .attr('markerWidth', sArrowheadW)
+      .attr('markerHeight', sArrowheadH)
       .attr('orient', 'auto')
       .append('polyline')
       .attr('points', arrowPoints)
@@ -2179,11 +2184,11 @@ export function renderSequenceDiagram(
     defs
       .append('marker')
       .attr('id', `seq-arrowhead-open-c${hex}`)
-      .attr('viewBox', `0 0 ${sArrowheadSize} ${sArrowheadSize}`)
-      .attr('refX', sArrowheadSize)
-      .attr('refY', sArrowheadSize / 2)
-      .attr('markerWidth', sArrowheadSize)
-      .attr('markerHeight', sArrowheadSize)
+      .attr('viewBox', `0 0 ${sArrowheadW} ${sArrowheadH}`)
+      .attr('refX', sArrowheadW)
+      .attr('refY', sArrowheadH / 2)
+      .attr('markerWidth', sArrowheadW)
+      .attr('markerHeight', sArrowheadH)
       .attr('orient', 'auto')
       .append('polyline')
       .attr('points', arrowPoints)
@@ -2584,7 +2589,7 @@ export function renderSequenceDiagram(
         // accessible name is where they live.
         .attr('fill', palette.text)
         .attr('font-size', sLabelFontSize)
-        .attr('font-weight', 500)
+        .attr('font-weight', 'normal')
         // NOT `.group-label` — the app's cursor highlight selects that class
         // for the header strip, and a second matching element inside the
         // participant <g> would change what lights up.
@@ -2639,7 +2644,7 @@ export function renderSequenceDiagram(
         .attr('y2', segBottom)
         .attr('stroke', llColor)
         .attr('stroke-width', 1)
-        .attr('stroke-dasharray', '6 4')
+        .attr('stroke-dasharray', EDGE_DASH)
         .attr('class', 'lifeline')
         .attr('data-participant-id', participant.id);
       if (tagKey && pTagValue) {
@@ -2803,7 +2808,7 @@ export function renderSequenceDiagram(
         .attr('fill', 'none')
         .attr('stroke', palette.textMuted)
         .attr('stroke-width', 1)
-        .attr('stroke-dasharray', '2 3')
+        .attr('stroke-dasharray', HAIRLINE_DASH)
         .attr('rx', 3)
         .attr('ry', 3)
         .attr('class', 'block-frame')
@@ -2982,7 +2987,7 @@ export function renderSequenceDiagram(
       .attr('y2', ln.y2)
       .attr('stroke', palette.textMuted)
       .attr('stroke-width', 1)
-      .attr('stroke-dasharray', '2 3')
+      .attr('stroke-dasharray', HAIRLINE_DASH)
       .attr('class', 'block-divider');
     if (ln.blockLine !== undefined)
       line.attr('data-block-line', String(ln.blockLine));
@@ -3147,7 +3152,7 @@ export function renderSequenceDiagram(
         .attr('y2', markY)
         .attr('stroke', lineColor)
         .attr('stroke-width', 1)
-        .attr('stroke-dasharray', '2 3')
+        .attr('stroke-dasharray', HAIRLINE_DASH)
         .attr('opacity', 0.5)
         .attr('pointer-events', 'none')
         .attr('class', 'section-reach');
@@ -3407,7 +3412,7 @@ export function renderSequenceDiagram(
         .attr('y2', y)
         .attr('stroke', returnColor)
         .attr('stroke-width', 1)
-        .attr('stroke-dasharray', '6 4')
+        .attr('stroke-dasharray', EDGE_DASH)
         .attr('marker-end', coloredMarker('return', msgTagColor))
         .attr('class', 'return-arrow')
         .attr('data-line-number', String(msg.lineNumber))
@@ -3729,7 +3734,7 @@ function renderParticipant(
     .attr('text-anchor', 'middle')
     .attr('fill', labelFill)
     .attr('font-size', fontSize)
-    .attr('font-weight', 500);
+    .attr('font-weight', 'normal');
 
   const maxLabelW = labelTextWidth(boxW);
   const truncLine = (text: string): string =>

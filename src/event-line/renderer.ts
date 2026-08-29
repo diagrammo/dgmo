@@ -24,6 +24,7 @@ import {
   LABEL_FONT_SIZE,
   NODE_STROKE_WIDTH,
   SEPARATOR_GAP,
+  HAIRLINE_DASH,
 } from '../utils/visual-conventions';
 import {
   contrastText,
@@ -50,6 +51,7 @@ import {
   resolveActiveTagGroup,
   resolveTagColor,
   type TagGroup,
+  UNTAGGED_TAG_COLOR,
 } from '../utils/tag-groups';
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
@@ -76,7 +78,7 @@ const TITLE_MAX_W = (CARD_W - CARD_PAD * 2) * 0.93;
 const DOT_R = 5.5;
 const MIN_SPACING = 96;
 const LANE_GAP = 16;
-const NEUTRAL_TAG = '#999999';
+const NEUTRAL_TAG = UNTAGGED_TAG_COLOR;
 // Horizontal placement: a card may slide sideways as long as its dot stays at
 // least CARD_INSET from either edge (so a vertical leader still lands cleanly
 // on it). Cards fan side-by-side until they can't, then stack into lanes.
@@ -897,7 +899,7 @@ export function renderEventLine(
       .attr('stroke-width', 2.5)
       .attr('stroke-linecap', 'round')
       .attr('stroke-opacity', 0.45)
-      .attr('stroke-dasharray', '2 6');
+      .attr('stroke-dasharray', HAIRLINE_DASH);
   }
 
   // The `now` marker (§28.6b) is drawn LAST — after cards + dots — so its pin is
@@ -1088,7 +1090,7 @@ export function renderEventLine(
           .attr('fill', shelfText)
           .attr('font-family', FONT_FAMILY)
           .attr('font-size', LABEL_FONT_SIZE)
-          .attr('font-weight', 700)
+          .attr('font-weight', 'bold')
           // In-bounds by loop guard.
           .text(p.titleLines[ti]!);
       }
@@ -1110,7 +1112,7 @@ export function renderEventLine(
           )
           .attr('font-family', FONT_FAMILY)
           .attr('font-size', DATE_SUBTITLE_FONT)
-          .attr('font-weight', 600)
+          .attr('font-weight', 'bold')
           .text(dateStr);
       }
       if (p.lines.length > 0) {
@@ -1152,7 +1154,7 @@ export function renderEventLine(
           .attr('fill', mix(p.titleColor, p.cardFill, 60))
           .attr('font-family', FONT_FAMILY)
           .attr('font-size', DATE_SUBTITLE_FONT)
-          .attr('font-weight', 600)
+          .attr('font-weight', 'bold')
           .text(dateStr);
       }
 
@@ -1363,7 +1365,7 @@ export function renderEventLine(
         .attr('text-anchor', 'middle')
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', ERA_LABEL_FONT)
-        .attr('font-weight', 700)
+        .attr('font-weight', 'bold')
         .attr('fill', col)
         .attr('fill-opacity', neutral ? 0.85 : 1)
         .text(r.era.name);
@@ -1562,7 +1564,7 @@ export function renderEventLine(
         .attr('y2', ruleBot)
         .attr('stroke', `url(#${gradId})`)
         .attr('stroke-width', 1.6)
-        .attr('stroke-dasharray', '1 4')
+        .attr('stroke-dasharray', HAIRLINE_DASH)
         .attr('stroke-linecap', 'round');
       // Diamond planted on the spine — the exact "you are here" point.
       nowG
@@ -1597,7 +1599,7 @@ export function renderEventLine(
         .attr('dominant-baseline', 'central')
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', 10.5)
-        .attr('font-weight', 600)
+        .attr('font-weight', 'bold')
         .attr('fill', pillText)
         .text(label);
 
@@ -1615,7 +1617,7 @@ export function renderEventLine(
           .attr('y2', totalH - 2)
           .attr('stroke', nowColor)
           .attr('stroke-width', 1.4)
-          .attr('stroke-dasharray', '1 4')
+          .attr('stroke-dasharray', HAIRLINE_DASH)
           .attr('stroke-linecap', 'round')
           .attr('opacity', 0)
           .style('transition', 'opacity 120ms ease')
@@ -2113,7 +2115,7 @@ function renderBody(
         .attr('fill', lineColor)
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', DESC_FONT)
-        .attr('font-weight', 700)
+        .attr('font-weight', 'bold')
         .text('•');
       tagBullet(marker);
     } else if (!isBullet) {

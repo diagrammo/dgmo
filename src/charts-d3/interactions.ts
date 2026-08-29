@@ -21,6 +21,8 @@
 // Plus universal click-to-source via `data-line-number`.
 // ============================================================
 
+import { GRID_DASH } from '../utils/visual-conventions';
+
 export interface DataChartInteractionOpts {
   onNavigate?: (line: number) => void;
   mutedColor?: string;
@@ -50,8 +52,8 @@ function ensureStyle(svg: SVGSVGElement, muted: string): void {
     .dgmo-tick.dgmo-faded{opacity:.22}
     .dgmo-datum{cursor:pointer}
     .dgmo-axis-label{cursor:pointer}
-    .dgmo-axis-label.dgmo-axis-active{font-weight:700}
-    .dgmo-axline{stroke:${muted};stroke-width:1;stroke-dasharray:4 4;pointer-events:none}
+    .dgmo-axis-label.dgmo-axis-active{font-weight:bold}
+    .dgmo-axline{stroke:${muted};stroke-width:1;stroke-dasharray:${GRID_DASH};pointer-events:none}
   `;
   svg.insertBefore(style, svg.firstChild);
 }
@@ -161,7 +163,7 @@ export function attachDataChartInteractions(
   ) => {
     const t = doc.createElementNS(NS, 'text');
     t.setAttribute('font-size', '15');
-    t.setAttribute('font-weight', '700');
+    t.setAttribute('font-weight', 'bold');
     t.setAttribute('font-family', 'Inter, system-ui, sans-serif');
     t.setAttribute('fill', text);
     t.textContent = label;

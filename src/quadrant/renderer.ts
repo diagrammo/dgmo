@@ -191,8 +191,9 @@ export function renderQuadrant(
     .attr('stroke', (d) => getQuadrantColor(d.label, d.colorIdx))
     .attr('stroke-width', ctx.structural(2));
 
-  // White text for points; quadrant labels use a muted text color (consistent across all quadrants)
-  const shadowColor = 'rgba(0,0,0,0.4)';
+  // Halo behind point labels. Branched on theme like every other shadow in
+  // the codebase — a flat black halo was invisible on a dark canvas.
+  const shadowColor = isDark ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.4)';
 
   // Single muted shade of textColor — watermark-style, readable against any quadrant fill
   const quadrantLabelColor = mix(textColor, bg, 35);
@@ -273,8 +274,8 @@ export function renderQuadrant(
     const layout = labelLayouts.get(d.label!.text)!;
     const el = d3Selection.select(textEl);
     el.text(null)
-      .attr('font-size', `${layout.fontSize}px`)
-      .attr('font-weight', '700');
+      .attr('font-size', layout.fontSize)
+      .attr('font-weight', 'bold');
     if (layout.lines.length === 1) {
       // In-bounds by length === 1 check.
       el.text(layout.lines[0]!);
@@ -337,7 +338,7 @@ export function renderQuadrant(
       .attr('y', height - sAxisPad)
       .attr('text-anchor', 'middle')
       .attr('fill', textColor)
-      .attr('font-size', `${sAxisFont}px`)
+      .attr('font-size', sAxisFont)
       .attr(
         'data-line-number',
         quadrantXAxisLineNumber ? String(quadrantXAxisLineNumber) : null
@@ -356,7 +357,7 @@ export function renderQuadrant(
       .attr('y', height - sAxisPad)
       .attr('text-anchor', 'middle')
       .attr('fill', textColor)
-      .attr('font-size', `${sAxisFont}px`)
+      .attr('font-size', sAxisFont)
       .attr(
         'data-line-number',
         quadrantXAxisLineNumber ? String(quadrantXAxisLineNumber) : null
@@ -394,7 +395,7 @@ export function renderQuadrant(
       .attr('y', yMidBottom)
       .attr('text-anchor', 'middle')
       .attr('fill', textColor)
-      .attr('font-size', `${sAxisFont}px`)
+      .attr('font-size', sAxisFont)
       .attr('transform', `rotate(-90, ${sAxisX}, ${yMidBottom})`)
       .attr(
         'data-line-number',
@@ -414,7 +415,7 @@ export function renderQuadrant(
       .attr('y', yMidTop)
       .attr('text-anchor', 'middle')
       .attr('fill', textColor)
-      .attr('font-size', `${sAxisFont}px`)
+      .attr('font-size', sAxisFont)
       .attr('transform', `rotate(-90, ${sAxisX}, ${yMidTop})`)
       .attr(
         'data-line-number',
@@ -545,7 +546,7 @@ export function renderQuadrant(
       .attr('cx', cx)
       .attr('cy', cy)
       .attr('r', POINT_RADIUS)
-      .attr('fill', parsed.fillMode === 'outline' ? bg : '#ffffff')
+      .attr('fill', bg)
       .attr('stroke', pointColor)
       .attr('stroke-width', ctx.structural(2));
 
@@ -558,8 +559,8 @@ export function renderQuadrant(
       .attr('text-anchor', placed.anchor)
       .attr('dominant-baseline', 'central')
       .attr('fill', textColor)
-      .attr('font-size', `${POINT_LABEL_FONT_SIZE}px`)
-      .attr('font-weight', '700')
+      .attr('font-size', POINT_LABEL_FONT_SIZE)
+      .attr('font-weight', 'bold')
       .style('text-shadow', `0 1px 2px ${shadowColor}`)
       .style('transition', 'y 120ms ease-out');
 
@@ -570,8 +571,8 @@ export function renderQuadrant(
       .attr('class', 'point-coords')
       .attr('x', placed.x)
       .attr('dy', `${POINT_LABEL_FONT_SIZE}px`)
-      .attr('font-size', `${ctx.text(10)}px`)
-      .attr('font-weight', '500')
+      .attr('font-size', ctx.text(10))
+      .attr('font-weight', 'normal')
       .attr('opacity', 0)
       .text(`${point.x.toFixed(2)}, ${point.y.toFixed(2)}`);
 

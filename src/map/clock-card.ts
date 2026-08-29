@@ -226,7 +226,7 @@ export function renderClockCards(
       .attr('font-family', FONT_FAMILY)
       .attr('fill', palette.text)
       .attr('font-size', mainFont)
-      .attr('font-weight', 600)
+      .attr('font-weight', 'bold')
       .attr('textLength', mainW)
       .attr('lengthAdjust', 'spacing')
       .style('font-variant-numeric', 'tabular-nums')

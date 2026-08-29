@@ -266,7 +266,7 @@ export function renderPyramid(
       .attr('fill', textColor)
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', layout.labelFont)
-      .attr('font-weight', 600);
+      .attr('font-weight', 'bold');
     if (!labelFitsInside) {
       labelText
         .attr('paint-order', 'stroke fill')
@@ -715,7 +715,7 @@ function renderDescriptionVariant(args: RenderVariantArgs): void {
         .attr('fill', palette.text)
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', descFont)
-        .attr('font-weight', j === 0 ? 500 : 400)
+        .attr('font-weight', 'normal')
         .text('•');
     }
     const t = descG
@@ -727,7 +727,7 @@ function renderDescriptionVariant(args: RenderVariantArgs): void {
       .attr('fill', palette.text)
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', descFont)
-      .attr('font-weight', j === 0 ? 500 : 400);
+      .attr('font-weight', 'normal');
     renderInlineText(t, line.text, palette);
   }
 }

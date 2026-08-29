@@ -109,7 +109,7 @@ describe('centred labels sit on the band centre', () => {
 // into a blanket exemption.
 const ALLOWED = new Map<string, string>([
   [
-    'src/c4/renderer.ts::yPos + NAME_FONT_SIZE / 2 - 2',
+    'src/c4/renderer.ts::yPos + LABEL_FONT_SIZE / 2 - 2',
     'anchors drawPersonIcon geometry, not a text baseline; the -2 is a ' +
       'hand-tune aligning the glyph with the name beside it (2 call sites)',
   ],

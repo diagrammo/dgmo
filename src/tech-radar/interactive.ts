@@ -1,7 +1,7 @@
 import * as d3Selection from 'd3-selection';
 import { fillModeFromOptions } from '../utils/parsing';
 import { FONT_FAMILY } from '../fonts';
-import { mix, shapeFill } from '../palettes/color-utils';
+import { contrastText, mix, shapeFill } from '../palettes/color-utils';
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import type {
@@ -145,7 +145,6 @@ export function renderQuadrantFocus(
     quadrant,
     qColor,
     palette,
-    isDark,
     svgWidth,
     svgHeight,
     palette.border,
@@ -186,7 +185,6 @@ function renderQuarterCircle(
   quadrant: ParsedTechRadar['quadrants'][number],
   qColor: string,
   palette: PaletteColors,
-  isDark: boolean,
   width: number,
   height: number,
   mutedColor: string,
@@ -340,7 +338,10 @@ function renderQuarterCircle(
         .attr('x', bx)
         .attr('y', by + 3)
         .attr('text-anchor', 'middle')
-        .attr('fill', isDark ? '#000' : '#fff')
+        .attr(
+          'fill',
+          contrastText(qColor, palette.textOnFillLight, palette.textOnFillDark)
+        )
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', BLIP_FONT_SIZE)
         .attr('font-weight', 'bold')
@@ -454,7 +455,7 @@ function renderHtmlPanel(
       // Ring header inside the group
       const header = document.createElement('div');
       header.style.cssText = `
-        font-size: 13px; font-weight: 700; color: ${palette.textMuted};
+        font-size: 13px; font-weight: bold; color: ${palette.textMuted};
         margin-bottom: 8px;
       `;
       header.textContent = ringName;
@@ -517,7 +518,14 @@ function renderHtmlPanel(
           .attr('x', 13)
           .attr('y', 16)
           .attr('text-anchor', 'middle')
-          .attr('fill', isDark ? '#000' : '#fff')
+          .attr(
+            'fill',
+            contrastText(
+              qColor,
+              palette.textOnFillLight,
+              palette.textOnFillDark
+            )
+          )
           .attr('font-family', FONT_FAMILY)
           .attr('font-size', 9)
           .attr('font-weight', 'bold')
@@ -528,7 +536,7 @@ function renderHtmlPanel(
         const name = document.createElement('span');
         name.textContent = blip.name;
         name.style.cssText = `
-          flex: 1; font-size: 12px; font-weight: 600;
+          flex: 1; font-size: 12px; font-weight: bold;
           color: ${palette.text}; white-space: nowrap;
           overflow: hidden; text-overflow: ellipsis;
         `;
@@ -848,7 +856,6 @@ export function renderQuadrantFocusForExport(
     quadrant,
     qColor,
     palette,
-    isDark,
     svgWidth,
     svgHeight,
     palette.border
@@ -864,7 +871,6 @@ function renderQuarterCircleStatic(
   quadrant: ParsedTechRadar['quadrants'][number],
   qColor: string,
   palette: PaletteColors,
-  isDark: boolean,
   width: number,
   height: number,
   mutedColor: string
@@ -931,7 +937,7 @@ function renderQuarterCircleStatic(
       .attr('fill', palette.textMuted)
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', 11)
-      .attr('font-weight', '600')
+      .attr('font-weight', 'bold')
       .attr('opacity', 0.5)
       // In-bounds by loop guard (ri < parsed.rings.length).
       .text(parsed.rings[ri]!.name);
@@ -995,7 +1001,10 @@ function renderQuarterCircleStatic(
         .attr('x', bx)
         .attr('y', by + 3)
         .attr('text-anchor', 'middle')
-        .attr('fill', isDark ? '#000' : '#fff')
+        .attr(
+          'fill',
+          contrastText(qColor, palette.textOnFillLight, palette.textOnFillDark)
+        )
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', BLIP_FONT_SIZE)
         .attr('font-weight', 'bold')
@@ -1036,7 +1045,7 @@ function renderStaticHtmlPanel(
     // Ring header
     const header = document.createElement('div');
     header.style.cssText = `
-      font-size: 13px; font-weight: 700; color: ${palette.textMuted};
+      font-size: 13px; font-weight: bold; color: ${palette.textMuted};
       margin-bottom: 8px;
     `;
     header.textContent = ringName;
@@ -1091,7 +1100,10 @@ function renderStaticHtmlPanel(
         .attr('x', 13)
         .attr('y', 16)
         .attr('text-anchor', 'middle')
-        .attr('fill', isDark ? '#000' : '#fff')
+        .attr(
+          'fill',
+          contrastText(qColor, palette.textOnFillLight, palette.textOnFillDark)
+        )
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', 9)
         .attr('font-weight', 'bold')
@@ -1102,7 +1114,7 @@ function renderStaticHtmlPanel(
       const name = document.createElement('span');
       name.textContent = blip.name;
       name.style.cssText = `
-        flex: 1; font-size: 12px; font-weight: 600;
+        flex: 1; font-size: 12px; font-weight: bold;
         color: ${palette.text};
       `;
       titleRow.appendChild(name);

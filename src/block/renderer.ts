@@ -9,6 +9,7 @@
 // renders the authored state. Colours come from the tag group (cascaded in the
 // parser), resolved here via the shared tag-color helper.
 
+import { EDGE_DASH } from '../utils/visual-conventions';
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import { mix, themeBaseBg } from '../palettes/color-utils';
@@ -309,7 +310,7 @@ function drawItems(
         .attr('fill', 'none')
         .attr('stroke', ctx.neutral)
         .attr('stroke-width', 1)
-        .attr('stroke-dasharray', '3 4')
+        .attr('stroke-dasharray', EDGE_DASH)
         .attr('opacity', 0.7);
       continue;
     }
@@ -370,7 +371,7 @@ function drawItems(
         .attr('y', it.y + it.h / 2 + 4)
         .attr('text-anchor', 'middle')
         .attr('font-size', 12.5)
-        .attr('font-weight', 700)
+        .attr('font-weight', 'bold')
         .attr('fill', palette.text)
         .text(clipLabel(it.label ?? '', it.w - 24, 12.5));
       // Collapse-bar (org / sitemap / mindmap precedent).
@@ -423,7 +424,7 @@ function drawItems(
         .attr('y', headerY)
         .attr('text-anchor', 'middle')
         .attr('font-size', headerFs)
-        .attr('font-weight', 700)
+        .attr('font-weight', 'bold')
         .attr('fill', palette.text)
         .attr('opacity', headerOpacity)
         .text(clipLabel(it.label ?? '', it.w - 24, headerFs));
@@ -463,7 +464,7 @@ function drawItems(
       .attr('y', it.y + it.h / 2 + 5)
       .attr('text-anchor', 'middle')
       .attr('font-size', 13)
-      .attr('font-weight', 600)
+      .attr('font-weight', 'bold')
       .attr('fill', palette.text)
       .text(clipLabel(it.label ?? '', it.w - 16, 13));
   }

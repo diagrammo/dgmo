@@ -49,6 +49,54 @@ export const COLLAPSE_BAR_INSET = 0;
  */
 export const EDGE_LABEL_KNOCKOUT_OPACITY = 0.9;
 
+/**
+ * Arrowhead marker box, in the marker's own units.
+ *
+ * `markerUnits` is left at the SVG default (`strokeWidth`) everywhere, so the
+ * head a reader sees is these numbers times the edge's stroke width — 15 x 10.5
+ * at the conventional 1.5. Eleven chart types each declared their own box
+ * until 2026-08-28 (5x4 sketch, 8x8 sequence, 9x6.4 swimlane, 12x8 class, a
+ * computed float in cycle), so a head was between 7.5 and 18 units wide
+ * depending on which chart you were looking at.
+ */
+export const ARROWHEAD_WIDTH = 10;
+export const ARROWHEAD_HEIGHT = 7;
+
+// ── Dash patterns ──
+//
+// Three roles, three patterns, one separator. The corpus carried NINE
+// patterns before 2026-08-28 — `6 3`, `6 4`, `4 4`, `3 3`, `5 4`, `5 5`,
+// `3 4`, `2 3`, `1 4`, `2 6`, `3 2`, `2 4` — plus `4,4`, `4,3` and `4,2`
+// written with a comma where every other site used a space. Nothing
+// distinguished them; they were each a fresh guess at the same three jobs.
+
+/**
+ * A connector that is not a hard link: async, implements, depends,
+ * reference, a back edge, a divorced union, a not-yet-scheduled card.
+ */
+export const EDGE_DASH = '6 3';
+/** Background rules — grid lines, axis guides, reference lines, era edges. */
+export const GRID_DASH = '4 4';
+/** Fine dotted trails: tick guides, leader lines, activation gaps. */
+export const HAIRLINE_DASH = '2 3';
+
+/**
+ * Scale a dash pattern with a ScaleContext-style factor, keeping the SPACE
+ * separator. `arc`, `slope` and `timeline` each built theirs by hand as
+ * `${a},${b}` — legal SVG, but the only three comma-separated patterns in the
+ * product, so a sweep for a dash pattern missed them.
+ */
+export function scaleDash(
+  pattern: string,
+  scale: (n: number) => number
+): string {
+  return pattern
+    .split(/[\s,]+/)
+    .filter(Boolean)
+    .map((n) => scale(Number(n)))
+    .join(' ');
+}
+
 // ── Convention defaults (org/sitemap baseline; see deviations above) ──
 
 /** Node card header band height. */

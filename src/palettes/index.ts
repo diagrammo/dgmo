@@ -4,6 +4,7 @@ export type { PaletteConfig, PaletteColors } from './types';
 // Re-export registry
 export {
   getPalette,
+  DEFAULT_PALETTE_ID,
   resolvePaletteOrFallback,
   getAvailablePalettes,
   registerPalette,

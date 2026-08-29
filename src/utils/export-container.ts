@@ -34,6 +34,52 @@ export function runInExportContainer<T>(
  * the renderer already painted its own root background. Pass `palette` so every
  * export path yields an opaque diagram; omit it only for transparent-only calls.
  */
+/**
+ * Paint the diagram background as a real `<rect>` covering the viewBox.
+ *
+ * Every export used to declare its background with `svgEl.style.background`
+ * alone. CSS on an `<svg>` root is honoured by browsers and ignored by every
+ * standalone SVG consumer — librsvg, Inkscape, Illustrator, `<img src>`. So an
+ * exported `.svg` came out with a background for the six chart types that
+ * happened to paint their own rect (cycle, map, pyramid, ring, treemap, goal)
+ * and transparent for the other forty-odd. The CSS declaration stays for
+ * browsers; this adds the rect the rest of the world needs.
+ *
+ * Idempotent: any existing full-canvas rect already filled with `palette.bg`
+ * is removed first, so the renderers that paint their own do not double up.
+ * A `transparent` theme paints nothing.
+ */
+export function paintRootBackground(
+  svgEl: SVGSVGElement,
+  theme: string,
+  bg: string
+): void {
+  if (theme === 'transparent') return;
+  const vb = (svgEl.getAttribute('viewBox') ?? '').trim().split(/[\s,]+/);
+  if (vb.length !== 4) return;
+  const [x, y, w, h] = vb.map(Number) as [number, number, number, number];
+  if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return;
+  const want = bg.trim().toLowerCase();
+  for (const rect of Array.from(svgEl.querySelectorAll(':scope > rect'))) {
+    const fill = (rect.getAttribute('fill') ?? '').trim().toLowerCase();
+    if (fill !== want) continue;
+    if (Number(rect.getAttribute('width')) !== w) continue;
+    if (Number(rect.getAttribute('height')) !== h) continue;
+    rect.remove();
+  }
+  const rect = svgEl.ownerDocument.createElementNS(
+    'http://www.w3.org/2000/svg',
+    'rect'
+  );
+  rect.setAttribute('class', 'dgmo-canvas-bg');
+  rect.setAttribute('x', String(x));
+  rect.setAttribute('y', String(y));
+  rect.setAttribute('width', String(w));
+  rect.setAttribute('height', String(h));
+  rect.setAttribute('fill', bg);
+  svgEl.insertBefore(rect, svgEl.firstChild);
+}
+
 export function extractExportSvg(
   container: HTMLElement,
   theme: 'light' | 'dark' | 'transparent',
@@ -49,5 +95,6 @@ export function extractExportSvg(
   svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
   svgEl.style.fontFamily = FONT_FAMILY;
   svgEl.querySelectorAll('[data-export-ignore]').forEach((el) => el.remove());
+  if (palette) paintRootBackground(svgEl, theme, palette.bg);
   return serializeSvg(svgEl);
 }

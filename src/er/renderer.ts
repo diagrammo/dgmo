@@ -56,6 +56,7 @@ const TABLE_FONT_SIZE = 13;
 const COLUMN_FONT_SIZE = 11;
 const EDGE_LABEL_FONT_SIZE = 11;
 import {
+  EDGE_LABEL_KNOCKOUT_OPACITY,
   EDGE_STROKE_WIDTH,
   NODE_STROKE_WIDTH,
 } from '../utils/visual-conventions'; // shared (Story 111.1)
@@ -491,7 +492,7 @@ export function renderERDiagram(
         .attr('height', bgH)
         .attr('rx', 3)
         .attr('fill', palette.bg)
-        .attr('opacity', 0.85)
+        .attr('opacity', EDGE_LABEL_KNOCKOUT_OPACITY)
         .attr('class', 'er-edge-label-bg');
 
       edgeG

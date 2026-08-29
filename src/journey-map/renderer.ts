@@ -61,14 +61,17 @@ export interface JourneyMapInteractiveOptions {
 // Match kanban styling constants
 const DIAGRAM_PADDING = 20;
 const PADDING = DIAGRAM_PADDING;
-import { CARD_RADIUS } from '../utils/visual-conventions'; // shared (Story 111.1)
+import {
+  CARD_RADIUS,
+  GRID_DASH,
+  CONTAINER_RADIUS,
+  NODE_STROKE_WIDTH,
+} from '../utils/visual-conventions'; // shared (Story 111.1)
 const CARD_PADDING_X = 10;
 const CARD_PADDING_Y = 6;
 const CARD_HEADER_HEIGHT = 24;
-const CARD_STROKE_WIDTH = 1.5;
 const CARD_META_LINE_HEIGHT = 14;
 const CARD_GAP_INTERNAL = 8;
-const COLUMN_RADIUS = 8;
 const COLUMN_HEADER_HEIGHT = 36;
 const COLUMN_PADDING = 12;
 const FONT_SIZE_TITLE = 18;
@@ -311,7 +314,7 @@ export function renderJourneyMap(
       .attr('rx', CARD_RADIUS)
       .attr('fill', 'none')
       .attr('stroke', personaColor)
-      .attr('stroke-width', CARD_STROKE_WIDTH);
+      .attr('stroke-width', NODE_STROKE_WIDTH);
 
     // Name (left-aligned in title row, matches kanban card title)
     personaG
@@ -319,7 +322,7 @@ export function renderJourneyMap(
       .attr('x', textX)
       .attr('y', panelY + CARD_PADDING_Y + FONT_SIZE_STEP)
       .attr('font-size', FONT_SIZE_STEP)
-      .attr('font-weight', '500')
+      .attr('font-weight', 'normal')
       .attr('fill', onPersonaText)
       // Same text area the description already wraps into — the silhouette
       // occupies the right of the card. Weight 500 is NOT measured as bold:
@@ -484,7 +487,7 @@ export function renderJourneyMap(
       .attr('y2', y)
       .attr('stroke', palette.textMuted)
       .attr('stroke-opacity', GRID_LINE_OPACITY)
-      .attr('stroke-dasharray', '4,4');
+      .attr('stroke-dasharray', GRID_DASH);
   }
 
   // Emotion curve (area fill + line)
@@ -667,7 +670,7 @@ export function renderJourneyMap(
         .attr('y', pl.y)
         .attr('width', pl.width)
         .attr('height', pl.height)
-        .attr('rx', COLUMN_RADIUS)
+        .attr('rx', CONTAINER_RADIUS)
         .attr('fill', colBg);
 
       // Column header (no stroke — matches kanban)
@@ -677,16 +680,16 @@ export function renderJourneyMap(
         .attr('y', pl.y)
         .attr('width', pl.width)
         .attr('height', COLUMN_HEADER_HEIGHT)
-        .attr('rx', COLUMN_RADIUS)
+        .attr('rx', CONTAINER_RADIUS)
         .attr('fill', pl.headerColor);
 
       // Clip bottom corners of header
       phaseG
         .append('rect')
         .attr('x', pl.x)
-        .attr('y', pl.y + COLUMN_HEADER_HEIGHT - COLUMN_RADIUS)
+        .attr('y', pl.y + COLUMN_HEADER_HEIGHT - CONTAINER_RADIUS)
         .attr('width', pl.width)
-        .attr('height', COLUMN_RADIUS)
+        .attr('height', CONTAINER_RADIUS)
         .attr('fill', pl.headerColor);
 
       // Column header text — must contrast against pl.headerColor, not bg.
@@ -786,7 +789,7 @@ export function renderJourneyMap(
             .attr('rx', CARD_RADIUS)
             .attr('fill', rowFill)
             .attr('stroke', rowStroke)
-            .attr('stroke-width', CARD_STROKE_WIDTH);
+            .attr('stroke-width', NODE_STROKE_WIDTH);
 
           // Face icon (small, left side)
           const faceCx = listX + CARD_PADDING_X + COLLAPSED_FACE_R;
@@ -968,7 +971,7 @@ export function renderJourneyMap(
         .attr('rx', CARD_RADIUS)
         .attr('fill', tintedBg)
         .attr('stroke', scoreColor)
-        .attr('stroke-width', CARD_STROKE_WIDTH);
+        .attr('stroke-width', NODE_STROKE_WIDTH);
 
       // Connector line from bubble bottom to face top
       g.append('line')
@@ -977,7 +980,7 @@ export function renderJourneyMap(
         .attr('x2', fcx)
         .attr('y2', fcy - FACE_HOVER_R - 1)
         .attr('stroke', scoreColor)
-        .attr('stroke-width', CARD_STROKE_WIDTH);
+        .attr('stroke-width', NODE_STROKE_WIDTH);
 
       const centerX = bx + bw / 2;
       for (let i = 0; i < lines.length; i++) {
@@ -1173,7 +1176,7 @@ function renderStepCard(
     .attr('rx', CARD_RADIUS)
     .attr('fill', cardFill)
     .attr('stroke', cardStroke)
-    .attr('stroke-width', CARD_STROKE_WIDTH);
+    .attr('stroke-width', NODE_STROKE_WIDTH);
 
   // Title (wrapped)
   const titleMaxW = sl.width - CARD_PADDING_X * 2;
@@ -1185,7 +1188,7 @@ function renderStepCard(
       .attr('x', cx + CARD_PADDING_X)
       .attr('y', cy + CARD_PADDING_Y + FONT_SIZE_STEP + i * TITLE_LINE_HEIGHT)
       .attr('font-size', FONT_SIZE_STEP)
-      .attr('font-weight', '500')
+      .attr('font-weight', 'normal')
       .attr('fill', onCardText)
       // In-bounds by loop guard.
       .text(titleLines[i]!);
@@ -1299,7 +1302,7 @@ function renderStepCard(
       .attr('rx', CARD_RADIUS)
       .attr('fill', stripFill)
       .attr('stroke', stripColor)
-      .attr('stroke-width', CARD_STROKE_WIDTH);
+      .attr('stroke-width', NODE_STROKE_WIDTH);
 
     // Tag strip text — contrast against the strip fill, not against bg.
     const stripTextColor = contrastText(
@@ -1527,7 +1530,7 @@ function addEmotionLabel(
     .attr('text-anchor', 'middle')
     .attr('font-family', FONT_FAMILY)
     .attr('font-size', EMOTION_LABEL_FONT_SIZE)
-    .attr('font-weight', 500)
+    .attr('font-weight', 'normal')
     .attr('fill', palette.text)
     .attr('stroke', palette.bg)
     .attr('stroke-width', 3)

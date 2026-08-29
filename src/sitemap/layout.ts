@@ -2,6 +2,13 @@
 // Sitemap Diagram Layout Engine (Dagre flat graph)
 // ============================================================
 
+import {
+  HEADER_HEIGHT,
+  LABEL_FONT_SIZE,
+  META_FONT_SIZE,
+  META_LINE_HEIGHT,
+  SEPARATOR_GAP,
+} from '../utils/visual-conventions';
 import { tagAttrKey } from '../utils/tag-groups';
 import dagre from '@dagrejs/dagre';
 import type { Writable } from '../utils/brand';
@@ -26,8 +33,6 @@ import { measureText } from '../utils/text-measure';
 
 // Font sizes — must match the renderer (renderer.ts) so card sizing here
 // agrees pixel-for-pixel with what gets drawn.
-const LABEL_FONT_SIZE = 13;
-const META_FONT_SIZE = 11;
 const CONTAINER_LABEL_FONT_SIZE = 13;
 
 // ============================================================
@@ -136,9 +141,6 @@ function clipToRectBorder(
 // Constants
 // ============================================================
 
-const META_LINE_HEIGHT = 16;
-const HEADER_HEIGHT = 28;
-const SEPARATOR_GAP = 6;
 const CARD_H_PAD = 20;
 const CARD_V_PAD = 10;
 const MIN_CARD_WIDTH = 140;

@@ -13,7 +13,7 @@
 // resvg→PNG in the CLI). resvg has no color-mix(); all colors are pre-resolved.
 
 import { truncateText, measureText } from './utils/text-measure';
-import { FONT_FAMILY } from './fonts';
+import { FONT_FAMILY, MONO_FAMILY } from './fonts';
 import { encodeDiagramUrl } from './sharing';
 import { parseDgmoChartType } from './dgmo-router';
 import { chartTypes } from './chart-types';
@@ -50,8 +50,7 @@ export function docsLink(source: string): { url: string; label: string } {
  * rather than adding a fourth copy — an id is code, and it must look like code
  * in every card that shows one.
  */
-export const MONO_FAMILY =
-  "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace";
+export { MONO_FAMILY };
 
 const W = 660;
 const PAD = 24;
@@ -92,8 +91,8 @@ export function renderErrorCard(
   // ── Header: frown mark + title, dgmo wordmark right ────────
   parts.push(frownMark(PAD + 14, y + 12, danger));
   parts.push(
-    `<text x="${PAD + 38}" y="${y + 11}" fill="${text}" font-family="${FONT_FAMILY}" font-size="16" font-weight="700">Couldn't render this diagram</text>`,
-    `<text x="${W - PAD}" y="${y + 10}" text-anchor="end" fill="${muted}" font-family="${FONT_FAMILY}" font-size="12" font-weight="600" letter-spacing="0.5">dgmo</text>`
+    `<text x="${PAD + 38}" y="${y + 11}" fill="${text}" font-family="${FONT_FAMILY}" font-size="16" font-weight="bold">Couldn't render this diagram</text>`,
+    `<text x="${W - PAD}" y="${y + 10}" text-anchor="end" fill="${muted}" font-family="${FONT_FAMILY}" font-size="12" font-weight="bold" letter-spacing="0.5">dgmo</text>`
   );
   y += 24;
   const errLabel = errors.length === 1 ? '1 error' : `${errors.length} errors`;
@@ -117,7 +116,7 @@ export function renderErrorCard(
       const badgeW = 14 + label.length * 7;
       parts.push(
         `<rect x="${PAD}" y="${y - 13}" width="${badgeW}" height="19" rx="4" fill="${danger}"/>`,
-        `<text x="${PAD + badgeW / 2}" y="${y + 1}" text-anchor="middle" fill="${c.bg}" font-family="${FONT_FAMILY}" font-size="11.5" font-weight="700">${escapeXml(label)}</text>`
+        `<text x="${PAD + badgeW / 2}" y="${y + 1}" text-anchor="middle" fill="${c.bg}" font-family="${FONT_FAMILY}" font-size="11.5" font-weight="bold">${escapeXml(label)}</text>`
       );
       msgX = PAD + badgeW + 12;
     }
@@ -162,13 +161,13 @@ export function renderErrorCard(
           );
         }
         rowParts.push(
-          `<text x="${PAD + 8}" y="${ry + 1}" fill="${isBad ? danger : muted}" font-family="${MONO_FAMILY}" font-size="${CODE_FS}" font-weight="${isBad ? 700 : 400}">${escapeXml(`${n}`)}</text>`,
+          `<text x="${PAD + 8}" y="${ry + 1}" fill="${isBad ? danger : muted}" font-family="${MONO_FAMILY}" font-size="${CODE_FS}" font-weight="${isBad ? 'bold' : 'normal'}">${escapeXml(`${n}`)}</text>`,
           `<text x="${codeX}" y="${ry + 1}" fill="${text}" font-family="${MONO_FAMILY}" font-size="${CODE_FS}" xml:space="preserve">${escapeXml(codeText)}</text>`
         );
         if (isBad && hasCaret) {
           const caretX = codeX + (e.column! - 1) * CODE_FS * MONO_CH;
           rowParts.push(
-            `<text x="${caretX}" y="${ry + 15}" fill="${danger}" font-family="${MONO_FAMILY}" font-size="${CODE_FS}" font-weight="700">^</text>`
+            `<text x="${caretX}" y="${ry + 15}" fill="${danger}" font-family="${MONO_FAMILY}" font-size="${CODE_FS}" font-weight="bold">^</text>`
           );
           ry += 14; // reserve the caret's row before the next context line
         }
@@ -216,7 +215,7 @@ export function renderErrorCard(
   parts.push(
     `<a href="${escapeXml(editUrl)}" target="_blank" rel="noopener noreferrer">` +
       diagrammoIcon(PAD, y - 14, iconSize) +
-      `<text x="${PAD + iconSize + 8}" y="${y}" fill="${linkColor}" font-family="${FONT_FAMILY}" font-size="12.5" font-weight="600" text-decoration="underline">Edit &amp; fix this diagram at online.diagrammo.app ↗</text>` +
+      `<text x="${PAD + iconSize + 8}" y="${y}" fill="${linkColor}" font-family="${FONT_FAMILY}" font-size="12.5" font-weight="bold" text-decoration="underline">Edit &amp; fix this diagram at online.diagrammo.app ↗</text>` +
       `</a>`
   );
   y += 22;
@@ -228,7 +227,7 @@ export function renderErrorCard(
   parts.push(
     `<a href="${escapeXml(docs.url)}" target="_blank" rel="noopener noreferrer">` +
       docIcon(PAD, y - 14, iconSize, linkColor) +
-      `<text x="${PAD + iconSize + 8}" y="${y}" fill="${linkColor}" font-family="${FONT_FAMILY}" font-size="12.5" font-weight="600" text-decoration="underline">${escapeXml(docs.label)}</text>` +
+      `<text x="${PAD + iconSize + 8}" y="${y}" fill="${linkColor}" font-family="${FONT_FAMILY}" font-size="12.5" font-weight="bold" text-decoration="underline">${escapeXml(docs.label)}</text>` +
       `</a>`
   );
   y += 8;

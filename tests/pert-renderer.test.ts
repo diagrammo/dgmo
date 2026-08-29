@@ -279,7 +279,7 @@ describe('pert renderer — structural assertions', () => {
       'g.pert-node[data-activity-id="celebrate"] rect'
     );
     expect(celebrate).not.toBeNull();
-    expect(celebrate!.getAttribute('stroke-dasharray')).toBe('4,3');
+    expect(celebrate!.getAttribute('stroke-dasharray')).toBe('6 3');
   });
 
   it('handles empty content without throwing', () => {
@@ -809,13 +809,13 @@ describe('pert renderer — S-curve backward-mode framing (Path B)', () => {
     const ticks = Array.from(
       block.querySelectorAll('line.pert-scurve-percentile-tick')
     );
-    // Expect 3 percentile ticks; the P95 one (index 2) should be dashed
-    // "4,2" because the fixture is calibrated with P95 in the past.
+    // Expect 3 percentile ticks; the P95 one (index 2) carries
+    // PAST_PERCENTILE_DASH because the fixture is calibrated with P95 in the
+    // past. Feasible percentiles take the shared hairline.
     expect(ticks.length).toBe(3);
-    expect(ticks[2].getAttribute('stroke-dasharray')).toBe('4,2');
-    // Feasible percentiles keep the default "3 3" dash.
-    expect(ticks[0].getAttribute('stroke-dasharray')).toBe('3 3');
-    expect(ticks[1].getAttribute('stroke-dasharray')).toBe('3 3');
+    expect(ticks[2].getAttribute('stroke-dasharray')).toBe('4 2');
+    expect(ticks[0].getAttribute('stroke-dasharray')).toBe('2 3');
+    expect(ticks[1].getAttribute('stroke-dasharray')).toBe('2 3');
     document.body.removeChild(c);
   });
 

@@ -42,9 +42,9 @@ import {
   EDGE_LABEL_KNOCKOUT_OPACITY,
   EDGE_STROKE_WIDTH,
   NODE_STROKE_WIDTH,
+  ARROWHEAD_WIDTH,
+  ARROWHEAD_HEIGHT,
 } from '../utils/visual-conventions'; // shared (Story 111.1)
-const ARROWHEAD_W = 10;
-const ARROWHEAD_H = 7;
 const IO_SKEW = 15;
 const SUBROUTINE_INSET = 8;
 const DOC_WAVE_HEIGHT = 10;
@@ -503,8 +503,8 @@ export function renderFlowchart(
   const sEdgeLabelFontSize = ctx.text(EDGE_LABEL_FONT_SIZE);
   const sEdgeStrokeWidth = ctx.structural(EDGE_STROKE_WIDTH);
   const sNodeStrokeWidth = ctx.structural(NODE_STROKE_WIDTH);
-  const sArrowheadW = ctx.structural(ARROWHEAD_W);
-  const sArrowheadH = ctx.structural(ARROWHEAD_H);
+  const sArrowheadW = ctx.structural(ARROWHEAD_WIDTH);
+  const sArrowheadH = ctx.structural(ARROWHEAD_HEIGHT);
   const sIoSkew = ctx.structural(IO_SKEW);
   const sSubroutineInset = ctx.structural(SUBROUTINE_INSET);
   const sDocWaveHeight = ctx.structural(DOC_WAVE_HEIGHT);

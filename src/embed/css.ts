@@ -293,7 +293,7 @@ html.dark .dgmo-dark {
   display: inline-block;
   margin-top: 0.6em;
   font-size: 0.9em;
-  font-weight: 600;
+  font-weight: bold;
   color: inherit;
 }
 

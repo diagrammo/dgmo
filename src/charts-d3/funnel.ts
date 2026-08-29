@@ -137,7 +137,7 @@ export function renderFunnel(
         .attr('text-anchor', 'end')
         .attr('fill', stroke)
         .attr('font-size', sideFont)
-        .attr('font-weight', 600)
+        .attr('font-weight', 'bold')
         .attr('font-family', FONT_FAMILY)
         .text(d.label);
     }
@@ -157,7 +157,7 @@ export function renderFunnel(
         .attr('text-anchor', 'middle')
         .attr('fill', valueFill)
         .attr('font-size', valueSize)
-        .attr('font-weight', 700)
+        .attr('font-weight', 'bold')
         .attr('font-family', FONT_FAMILY)
         .text(fmtNum(d.value));
     }
@@ -169,7 +169,7 @@ export function renderFunnel(
         .attr('y', yMid + sideFont * 0.35)
         .attr('text-anchor', 'start')
         .attr('font-size', sideFont)
-        .attr('font-weight', 600)
+        .attr('font-weight', 'bold')
         .attr('font-family', FONT_FAMILY);
       if (showValueRight) {
         text.append('tspan').attr('fill', stroke).text(fmtNum(d.value));

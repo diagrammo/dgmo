@@ -204,7 +204,7 @@ export function renderWordCloud(
       .join('text')
       .style('font-size', (d) => `${d.size}px`)
       .style('font-family', FONT_FAMILY)
-      .style('font-weight', '600')
+      .style('font-weight', 'bold')
       // colors is non-empty; modulo guarantees in-bounds.
       .style('fill', (_d, i) => colors[i % colors.length]!)
       .style('cursor', (d) =>
@@ -322,7 +322,7 @@ export function renderWordCloudAsync(
         .join('text')
         .style('font-size', (d) => `${d.size}px`)
         .style('font-family', FONT_FAMILY)
-        .style('font-weight', '600')
+        .style('font-weight', 'bold')
         // colors is non-empty; modulo guarantees in-bounds.
         .style('fill', (_d, i) => colors[i % colors.length]!)
         .attr('text-anchor', 'middle')

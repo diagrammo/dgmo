@@ -17,8 +17,17 @@ import type { LegendGroupData } from '../utils/legend-types';
 import type { PaletteColors } from '../palettes';
 import type { ParsedTreemap, TreemapColorMode, TreemapNode } from './types';
 
-/** Fill for cells with no resolvable color (missing heat / tag / node). */
-export const MUTED_FILL = '#cbd5e1';
+/**
+ * Fill for cells with no resolvable colour (missing heat / tag / node).
+ *
+ * A fixed `'#cbd5e1'` until 2026-08-28 — a light slate that sat on a dark
+ * canvas as a bright slab and never matched a non-default palette. Derived
+ * from the live palette now: the neutral hue pulled most of the way toward
+ * the background, so it reads as "nothing here" in either theme.
+ */
+export function mutedFill(palette: PaletteColors): string {
+  return mix(palette.colors.gray, palette.bg, 35);
+}
 
 // ============================================================
 // Depth-tint ramp (branch mode) — with a FLOORED lightness
@@ -99,6 +108,8 @@ export interface CellColorContext {
   readonly colorOffset: number;
   /** Palette background, for the depth-tint mix. */
   readonly bg: string;
+  /** Fill for a cell whose colour cannot be resolved. */
+  readonly muted: string;
 }
 
 /**
@@ -115,16 +126,16 @@ export function resolveCellColor(
   if (ctx.mode === 'heat') {
     return cell.heat !== undefined && ctx.heat
       ? ctx.heat.scale(cell.heat)
-      : MUTED_FILL;
+      : ctx.muted;
   }
   if (ctx.mode === 'tag') {
-    if (!cell.node) return MUTED_FILL;
+    if (!cell.node) return ctx.muted;
     return (
       resolveTagColor(
         cell.node.metadata,
         ctx.tagGroups as TagGroup[],
         ctx.activeGroup
-      ) ?? MUTED_FILL
+      ) ?? ctx.muted
     );
   }
   // branch: top-level hue, lightened slightly with depth (floored).

@@ -2,6 +2,7 @@
 // Arc renderer — Story 109.2 (arch-review). Extracted from d3.ts.
 // ============================================================
 
+import { GRID_DASH, scaleDash } from '../utils/visual-conventions';
 import * as d3Scale from 'd3-scale';
 import * as d3Selection from 'd3-selection';
 import * as d3Array from 'd3-array';
@@ -201,7 +202,7 @@ export function renderArcDiagram(
   const sNodeLabelYOffset = ctx.structural(ARC_NODE_LABEL_Y_OFFSET);
   const sStrokeMin = ctx.structural(ARC_STROKE_MIN);
   const sStrokeMax = ctx.structural(ARC_STROKE_MAX);
-  const sBaselineDash = `${ctx.structural(4)},${ctx.structural(4)}`;
+  const sBaselineDash = scaleDash(GRID_DASH, (n) => ctx.structural(n));
   const sBaselineStrokeWidth = ctx.structural(ARC_BASELINE_STROKE_WIDTH);
 
   svg.attr('preserveAspectRatio', 'xMidYMin meet');
@@ -416,8 +417,8 @@ export function renderArcDiagram(
           .attr('text-anchor', 'middle')
           .attr('transform', `rotate(-90 ${nameX} ${midYBand})`)
           .attr('fill', textColor)
-          .attr('font-size', `${sGroupLabelFont}px`)
-          .attr('font-weight', '600')
+          .attr('font-size', sGroupLabelFont)
+          .attr('font-weight', 'bold')
           .attr('fill-opacity', 0.6)
           .style('cursor', onClickItem ? 'pointer' : 'default')
           .text(group.name)
@@ -511,7 +512,7 @@ export function renderArcDiagram(
         .attr('dy', '0.35em')
         .attr('text-anchor', 'end')
         .attr('fill', textColor)
-        .attr('font-size', `${sNodeLabelFont}px`)
+        .attr('font-size', sNodeLabelFont)
         .text(node);
     }
   } else {
@@ -674,8 +675,8 @@ export function renderArcDiagram(
           .attr('y', nameY)
           .attr('text-anchor', 'middle')
           .attr('fill', textColor)
-          .attr('font-size', `${sGroupLabelFont}px`)
-          .attr('font-weight', '600')
+          .attr('font-size', sGroupLabelFont)
+          .attr('font-weight', 'bold')
           .attr('fill-opacity', 0.6)
           .style('cursor', onClickItem ? 'pointer' : 'default')
           .text(group.name)
@@ -771,7 +772,7 @@ export function renderArcDiagram(
         .attr('y', labelY)
         .attr('text-anchor', rotateLabels ? 'end' : 'middle')
         .attr('fill', textColor)
-        .attr('font-size', `${sNodeLabelFont}px`)
+        .attr('font-size', sNodeLabelFont)
         .text(node);
       if (rotateLabels) {
         // -45° pivots at the dot; anchor 'end' hangs text down-left, last char

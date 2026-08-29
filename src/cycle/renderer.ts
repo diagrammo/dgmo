@@ -11,6 +11,7 @@ import {
   TITLE_Y,
 } from '../utils/title-constants';
 import { LEGEND_HEIGHT } from '../utils/legend-constants';
+import { ARROWHEAD_HEIGHT, ARROWHEAD_WIDTH } from '../utils/visual-conventions';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import type {
   LegendCallbacks,
@@ -352,7 +353,7 @@ export function renderCycle(
           .attr('fill', textColor)
           .attr('font-family', FONT_FAMILY)
           .attr('font-size', labelFont)
-          .attr('font-weight', '600');
+          .attr('font-weight', 'bold');
         renderInlineText(labelText, node.label, palette, labelFont);
 
         let descY = startY + scaledDescLineH + 4;
@@ -379,7 +380,7 @@ export function renderCycle(
           .attr('fill', textColor)
           .attr('font-family', FONT_FAMILY)
           .attr('font-size', labelFont)
-          .attr('font-weight', '600');
+          .attr('font-weight', 'bold');
         renderInlineText(labelText, node.label, palette, labelFont);
       }
     } else {
@@ -408,7 +409,7 @@ export function renderCycle(
           .attr('fill', textColor)
           .attr('font-family', FONT_FAMILY)
           .attr('font-size', scaledNodeFont)
-          .attr('font-weight', '600');
+          .attr('font-weight', 'bold');
         renderInlineText(labelText, node.label, palette, scaledNodeFont);
 
         const sepY = ln.y - nodeH / 2 + HEADER_H;
@@ -474,7 +475,7 @@ export function renderCycle(
           .attr('fill', textColor)
           .attr('font-family', FONT_FAMILY)
           .attr('font-size', scaledNodeFont)
-          .attr('font-weight', '600');
+          .attr('font-weight', 'bold');
         renderInlineText(labelText, node.label, palette, scaledNodeFont);
       }
     }
@@ -546,7 +547,7 @@ export function renderCycle(
         .attr('fill', palette.text)
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', scaledEdgeLabelFont)
-        .attr('font-weight', '600');
+        .attr('font-weight', 'bold');
       renderInlineText(labelText, line, palette, scaledEdgeLabelFont);
       textY += scaledEdgeLineH;
     }
@@ -642,9 +643,11 @@ function ensureArrowMarker(
   // Marker dimensions in strokeWidth units.
   // Rendered size = mw × sw  (length)  and  mh × sw  (height).
   const mw = arrowHeadLength(strokeWidth) / strokeWidth;
-  // Height proportional to length (½ ratio) but at least 1.5× stroke width
-  // so the arrowhead is always visibly wider than the stroke.
-  const mh = Math.max(1.5, mw * 0.5);
+  // Height follows the SHARED arrowhead's aspect ratio, floored at 1.5× the
+  // stroke width so the head is always visibly wider than the line. It was a
+  // flat ½ until 2026-08-28, which drew cycle's head a third slimmer than
+  // every other chart's at the same stroke width.
+  const mh = Math.max(1.5, mw * (ARROWHEAD_HEIGHT / ARROWHEAD_WIDTH));
 
   defs
     .append('marker')

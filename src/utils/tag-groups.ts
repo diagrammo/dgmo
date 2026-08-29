@@ -375,6 +375,16 @@ export function parseTagDeclaration(line: string): TagBlockMatch | null {
  * @param activeGroupName The currently selected tag group (null = no group active)
  * @param isContainer When true, `defaultValue` is NOT applied (containers are structural, not data)
  */
+/**
+ * Colour `resolveTagColor` returns for an entity the active tag group does not
+ * classify. It is a SENTINEL, not a paint value: every consumer is expected to
+ * compare against it and substitute `palette.textMuted`, so that an untagged
+ * node reads as neutral in whatever palette and theme are in force. It was an
+ * unnamed `'#999999'` literal in eleven files until 2026-08-28, which is how
+ * some consumers came to paint it raw.
+ */
+export const UNTAGGED_TAG_COLOR = '#999999';
+
 export function resolveTagColor(
   metadata: Record<string, string>,
   tagGroups: TagGroup[],
@@ -391,11 +401,11 @@ export function resolveTagColor(
   const metaValue =
     metadata[tagAttrKey(group.name)] ??
     (isContainer ? undefined : group.defaultValue);
-  if (!metaValue) return '#999999';
+  if (!metaValue) return UNTAGGED_TAG_COLOR;
 
   return (
     group.entries.find((e) => e.value.toLowerCase() === metaValue.toLowerCase())
-      ?.color ?? '#999999'
+      ?.color ?? UNTAGGED_TAG_COLOR
   );
 }
 

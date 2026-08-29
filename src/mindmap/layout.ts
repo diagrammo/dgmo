@@ -7,6 +7,7 @@
 // Nodes at the same depth share the same X column. Hierarchy reads
 // left→right (right branches) or right→left (left branches).
 
+import { HEADER_HEIGHT } from '../utils/visual-conventions';
 import type { MindmapNode } from './types';
 import type {
   MindmapLayoutNode,
@@ -28,7 +29,6 @@ const ROOT_WIDTH = 180;
 const DEPTH1_WIDTH = 150;
 const LEAF_WIDTH = 120;
 
-const SINGLE_LABEL_HEIGHT = 28;
 const LABEL_LINE_HEIGHT = 18; // per line when multi-line
 const DESC_LINE_HEIGHT = 14; // per description line
 const NODE_V_PAD = 10;
@@ -614,9 +614,7 @@ function nodeHeightS(
   );
   const labelLineCount = text.labelLines.length;
   const labelH =
-    labelLineCount <= 1
-      ? SINGLE_LABEL_HEIGHT
-      : LABEL_LINE_HEIGHT * labelLineCount;
+    labelLineCount <= 1 ? HEADER_HEIGHT : LABEL_LINE_HEIGHT * labelLineCount;
   let h = labelH + NODE_V_PAD;
   if (text.descLines.length > 0) {
     h += DESC_LINE_HEIGHT * text.descLines.length + 4;

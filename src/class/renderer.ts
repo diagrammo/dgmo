@@ -55,8 +55,12 @@ const CLASS_FONT_SIZE = 13;
 const MEMBER_FONT_SIZE = 11;
 const EDGE_LABEL_FONT_SIZE = 11;
 import {
+  EDGE_LABEL_KNOCKOUT_OPACITY,
   EDGE_STROKE_WIDTH,
   NODE_STROKE_WIDTH,
+  ARROWHEAD_WIDTH,
+  ARROWHEAD_HEIGHT,
+  EDGE_DASH,
 } from '../utils/visual-conventions'; // shared (Story 111.1)
 const MEMBER_LINE_HEIGHT = 18;
 const COMPARTMENT_PADDING_Y = 8;
@@ -292,8 +296,7 @@ export function renderClassDiagram(
   const diagramW = layout.width;
   const diagramH = layout.height;
   // Inline → one band (title only); stacked → title + legend band.
-  const availH =
-    height - titleHeight - (header.inline ? 0 : legendReserve);
+  const availH = height - titleHeight - (header.inline ? 0 : legendReserve);
   const scaleX = (width - sDiagramPadding * 2) / diagramW;
   const scaleY = (availH - sDiagramPadding * 2) / diagramH;
   const scale = Math.min(MAX_SCALE, scaleX, scaleY);
@@ -318,8 +321,10 @@ export function renderClassDiagram(
 
   // ── Marker defs ──
   const defs = svg.append('defs');
-  const AW = 12; // arrowhead width
-  const AH = 8; // arrowhead height
+  // Box from the shared convention; the SHAPES stay UML's (filled and
+  // hollow triangle, filled and hollow diamond, open V).
+  const AW = ARROWHEAD_WIDTH;
+  const AH = ARROWHEAD_HEIGHT;
 
   // Filled triangle (inheritance) — filled with stroke color
   defs
@@ -354,8 +359,8 @@ export function renderClassDiagram(
     .attr('stroke-width', 1);
 
   // Filled diamond (composition) — at source end
-  const DW = 12;
-  const DH = 8;
+  const DW = ARROWHEAD_WIDTH;
+  const DH = ARROWHEAD_HEIGHT;
   defs
     .append('marker')
     .attr('id', 'cd-arrow-compose')
@@ -509,7 +514,7 @@ export function renderClassDiagram(
         .attr('class', 'cd-edge');
 
       if (dashed) {
-        pathEl.attr('stroke-dasharray', '6 3');
+        pathEl.attr('stroke-dasharray', EDGE_DASH);
       }
 
       if (sourceMarker) {
@@ -535,7 +540,7 @@ export function renderClassDiagram(
         .attr('height', bgH)
         .attr('rx', 3)
         .attr('fill', palette.bg)
-        .attr('opacity', 0.85)
+        .attr('opacity', EDGE_LABEL_KNOCKOUT_OPACITY)
         .attr('class', 'cd-edge-label-bg');
 
       edgeG

@@ -250,7 +250,7 @@ const COLUMN_INSET = 8;
 const COLUMN_BOTTOM_PAD = 14;
 /** Marker letter font size. */
 const MARKER_FONT = 14;
-const MARKER_FONT_WEIGHT = 600;
+const MARKER_FONT_WEIGHT = 'bold';
 /** Task-label font size. */
 const LABEL_FONT = 13;
 /** Role-header font size. */
@@ -752,7 +752,7 @@ export function renderRaci(
       .attr('text-anchor', 'middle')
       .attr('dominant-baseline', 'central')
       .attr('font-size', sRoleHeaderFont)
-      .attr('font-weight', 600)
+      .attr('font-weight', 'bold')
       .attr('fill', palette.text)
       .text(
         truncateText(
@@ -998,7 +998,7 @@ function renderLegend(
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'central')
         .attr('font-size', sLegendLetterFont)
-        .attr('font-weight', 700)
+        .attr('font-weight', 'bold')
         .attr(
           'fill',
           fillMode === 'solid'
@@ -1086,7 +1086,7 @@ function renderLegend(
       .attr('text-anchor', 'middle')
       .attr('dominant-baseline', 'central')
       .attr('font-size', sLegendLetterFont)
-      .attr('font-weight', 700)
+      .attr('font-weight', 'bold')
       .attr(
         'fill',
         fillMode === 'solid'
@@ -1106,7 +1106,7 @@ function renderLegend(
       .attr('y', y + sLegendHeight / 2)
       .attr('dominant-baseline', 'central')
       .attr('font-size', sLegendLabelFont)
-      .attr('font-weight', 600)
+      .attr('font-weight', 'bold')
       .attr('fill', palette.text)
       .text(
         truncateText(
@@ -1205,7 +1205,7 @@ function renderPhaseBar(
     .attr('y', y + (sPhaseHeight - 4) / 2 + 2)
     .attr('dominant-baseline', 'central')
     .attr('font-size', sPhaseFont)
-    .attr('font-weight', 600)
+    .attr('font-weight', 'bold')
     .attr('fill', palette.text)
     .text(phase.displayName);
 
@@ -1223,7 +1223,7 @@ function renderPhaseBar(
         .attr('y', y + (sPhaseHeight - 4) / 2 + 2)
         .attr('dominant-baseline', 'central')
         .attr('font-size', sPhaseFont - 1)
-        .attr('font-weight', 500)
+        .attr('font-weight', 'normal')
         .attr('fill', palette.textMuted)
         .text(`${taskCount} ${taskCount === 1 ? 'task' : 'tasks'}`);
     }
@@ -1291,7 +1291,7 @@ function renderPhaseBar(
           .attr('text-anchor', 'middle')
           .attr('dominant-baseline', 'central')
           .attr('font-size', SUMMARY_LETTER_FONT)
-          .attr('font-weight', 700)
+          .attr('font-weight', 'bold')
           .attr(
             'fill',
             fillMode === 'solid'
@@ -1457,7 +1457,7 @@ function renderTaskRow(
         const tspan = textEl.append('tspan').text(seg.text);
         if (i > 0 && segIdx === 0)
           tspan.attr('x', labelX).attr('dy', sViolationLineHeight);
-        if (seg.bold) tspan.attr('font-weight', 700);
+        if (seg.bold) tspan.attr('font-weight', 'bold');
       });
     });
 
@@ -1563,7 +1563,7 @@ function renderTaskRow(
       // ("Responsible") instead of the bare letter. Same primitive as the
       // legend chip, so cells and legend read as the same UI element.
       const fullLabel = variantLabels[m] ?? m;
-      // Drawn at MARKER_FONT_WEIGHT (600).
+      // Drawn at MARKER_FONT_WEIGHT ('bold').
       const labelPx = measureText(fullLabel, sLegendLabelFont, { bold: true });
       const showFullLabel = labelPx + 16 <= sliceW;
       const textContent = showFullLabel ? fullLabel : m;

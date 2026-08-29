@@ -316,7 +316,7 @@ function gutterLabels(r: FigureRender, palette: PaletteColors): string {
       labels +=
         `<path${dl} d="M${sx} ${ly} L${tgt.x} ${tgt.y}" stroke="${a.color}" stroke-width="2" stroke-linecap="round" vector-effect="non-scaling-stroke" fill="none" opacity="0.85"/>` +
         `<circle${dl} cx="${tgt.x}" cy="${tgt.y}" r="5.5" fill="${a.color}" stroke="${palette.bg}" stroke-width="2" vector-effect="non-scaling-stroke"/>` +
-        `<text${dl} x="${gx}" y="${ly + (note ? -2 : 7)}" text-anchor="${anchorX}" font-size="${LABEL_FONT}" font-weight="700" fill="${palette.text}">${esc(partLabel(a.part))}</text>`;
+        `<text${dl} x="${gx}" y="${ly + (note ? -2 : 7)}" text-anchor="${anchorX}" font-size="${LABEL_FONT}" font-weight="bold" fill="${palette.text}">${esc(partLabel(a.part))}</text>`;
       if (note) {
         labels += `<text${dl} x="${gx}" y="${ly + 22}" text-anchor="${anchorX}" font-size="${NOTE_FONT}" fill="${palette.textMuted}">${esc(note)}</text>`;
       }
@@ -468,7 +468,7 @@ export function renderBody(
           `<path${dl} d="M${(centerX + stub).toFixed(1)} ${it.y.toFixed(1)} L${it.right.x.toFixed(1)} ${it.right.y.toFixed(1)}" stroke="${it.color}" stroke-width="2" stroke-linecap="round" vector-effect="non-scaling-stroke" fill="none" opacity="0.85"/>` +
           `<circle${dl} cx="${it.right.x.toFixed(1)}" cy="${it.right.y.toFixed(1)}" r="5.5" fill="${it.color}" stroke="${palette.bg}" stroke-width="2" vector-effect="non-scaling-stroke"/>`;
       }
-      labels += `<text${dl} x="${centerX}" y="${(it.y - 3).toFixed(1)}" text-anchor="middle" font-size="${LABEL_FONT}" font-weight="700" fill="${palette.text}">${esc(it.name)}</text>`;
+      labels += `<text${dl} x="${centerX}" y="${(it.y - 3).toFixed(1)}" text-anchor="middle" font-size="${LABEL_FONT}" font-weight="bold" fill="${palette.text}">${esc(it.name)}</text>`;
       if (it.note) {
         labels += `<text${dl} x="${centerX}" y="${(it.y + 20).toFixed(1)}" text-anchor="middle" font-size="${NOTE_FONT}" fill="${palette.textMuted}">${esc(it.note)}</text>`;
       }
@@ -483,14 +483,19 @@ export function renderBody(
   d3Selection.select(container).selectAll('svg').remove();
   const width = exportDims?.width ?? container.clientWidth ?? 1200;
   const height = exportDims?.height ?? container.clientHeight ?? 800;
+  // Viewport matches the content aspect, so `meet` has nothing to letterbox —
+  // the canvas was left at the caller's 1200x800 while the content is ~1:1,
+  // which left a third of the width empty on either side.
+  const vbW = totalW + 2 * PAGE_MARGIN;
+  const vbH = totalH + 2 * PAGE_MARGIN;
   const svg = d3Selection
     .select(container)
     .append('svg')
     .attr('width', width)
-    .attr('height', height)
+    .attr('height', vbW > 0 ? Math.round((width * vbH) / vbW) : height)
     .attr(
       'viewBox',
-      `${-PAGE_MARGIN} ${-PAGE_MARGIN} ${(totalW + 2 * PAGE_MARGIN).toFixed(0)} ${(totalH + 2 * PAGE_MARGIN).toFixed(0)}`
+      `${-PAGE_MARGIN} ${-PAGE_MARGIN} ${vbW.toFixed(0)} ${vbH.toFixed(0)}`
     )
     .attr('preserveAspectRatio', 'xMidYMin meet')
     .attr('xmlns', 'http://www.w3.org/2000/svg')
@@ -533,7 +538,7 @@ export function renderBody(
       .attr('y', 40)
       .attr('text-anchor', 'middle')
       .attr('font-size', 34)
-      .attr('font-weight', 700)
+      .attr('font-weight', 'bold')
       .attr('fill', palette.text)
       .text(parsed.title);
   }

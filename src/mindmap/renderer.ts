@@ -40,15 +40,15 @@ import { ScaleContext } from '../utils/scaling';
 
 const DIAGRAM_PADDING = 20;
 const TITLE_HEIGHT = 30;
-const SINGLE_LABEL_HEIGHT = 28;
 const LABEL_LINE_HEIGHT = 18;
 const DESC_LINE_HEIGHT = 14;
-const NODE_RADIUS = 6;
 const ROOT_STROKE_WIDTH = 2.5;
 import {
   NODE_STROKE_WIDTH,
   EDGE_STROKE_WIDTH,
   COLLAPSE_BAR_HEIGHT,
+  CARD_RADIUS,
+  HEADER_HEIGHT,
 } from '../utils/visual-conventions'; // shared (Story 111.1)
 
 function nodeFill(
@@ -470,8 +470,8 @@ export function renderMindmap(
       .attr('y', node.y)
       .attr('width', node.width)
       .attr('height', node.height)
-      .attr('rx', NODE_RADIUS)
-      .attr('ry', NODE_RADIUS)
+      .attr('rx', CARD_RADIUS)
+      .attr('ry', CARD_RADIUS)
       .attr('fill', fill)
       .attr('stroke', stroke)
       .attr('stroke-width', strokeW);
@@ -498,9 +498,7 @@ export function renderMindmap(
     // Label zone height
     const labelLineCount = labelLines.length;
     const labelZoneH =
-      labelLineCount <= 1
-        ? SINGLE_LABEL_HEIGHT
-        : LABEL_LINE_HEIGHT * labelLineCount;
+      labelLineCount <= 1 ? HEADER_HEIGHT : LABEL_LINE_HEIGHT * labelLineCount;
     const labelZoneHeight = showDesc ? labelZoneH : node.height;
 
     // Label text — vertically centered in the label zone
@@ -607,8 +605,8 @@ export function renderMindmap(
         .attr('y', node.y)
         .attr('width', node.width)
         .attr('height', node.height)
-        .attr('rx', NODE_RADIUS)
-        .attr('ry', NODE_RADIUS);
+        .attr('rx', CARD_RADIUS)
+        .attr('ry', CARD_RADIUS);
 
       nodeG
         .append('rect')

@@ -43,6 +43,7 @@ import {
   resolveCellColor,
   resolveColorMode,
   type CellColorContext,
+  mutedFill,
 } from './treemap-shared';
 
 const PADDING = 12;
@@ -171,6 +172,7 @@ export function renderTreemapRadial(
     seriesColors,
     colorOffset: options.colorOffset ?? 0,
     bg: palette.bg,
+    muted: mutedFill(palette),
   };
 
   const arcGen = d3arc<RadialCell>()
@@ -313,7 +315,7 @@ function drawCenterDisc(
       .attr('y', -4)
       .attr('fill', ink)
       .attr('font-size', titleFs)
-      .attr('font-weight', 600)
+      .attr('font-weight', 'bold')
       .text(clip(title, maxW, titleFs));
     if (parsed.titleLineNumber !== null) {
       t.attr('data-line-number', parsed.titleLineNumber);
@@ -327,7 +329,7 @@ function drawCenterDisc(
     .attr('y', title ? titleFs : 8)
     .attr('fill', ink)
     .attr('font-size', totalFs)
-    .attr('font-weight', 700)
+    .attr('font-weight', 'bold')
     .text(totalStr);
 }
 
@@ -399,7 +401,7 @@ function drawArcLabel(
         cell,
         rName,
         nameFs,
-        600,
+        'bold',
         nameText,
         ink
       );
@@ -414,7 +416,7 @@ function drawArcLabel(
           cell,
           rVal,
           valFs,
-          500,
+          'normal',
           valText,
           ink
         );
@@ -429,7 +431,7 @@ function drawArcLabel(
   const fs = fitFs(full, maxFs, availLen);
   const text = clip(full, availLen, fs);
   if (!text) return;
-  drawCurvedLine(g, defs, pathId, cell, rMid, fs, 600, text, ink);
+  drawCurvedLine(g, defs, pathId, cell, rMid, fs, 'bold', text, ink);
 }
 
 /** Is the cell's mid-angle on the lower half (where the baseline path must be
@@ -459,7 +461,7 @@ function drawCurvedLine(
   cell: RadialCell,
   centerR: number,
   fs: number,
-  weight: number,
+  weight: string,
   text: string,
   ink: string
 ): void {

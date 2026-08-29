@@ -66,9 +66,10 @@ import {
   CONTAINER_META_LINE_HEIGHT,
   CONTAINER_HEADER_HEIGHT,
   COLLAPSE_BAR_HEIGHT,
+  EDGE_LABEL_KNOCKOUT_OPACITY,
+  ARROWHEAD_WIDTH,
+  ARROWHEAD_HEIGHT,
 } from '../utils/visual-conventions';
-const ARROWHEAD_W = 10;
-const ARROWHEAD_H = 7;
 const EDGE_LABEL_FONT_SIZE = 11;
 
 const LEGEND_FIXED_GAP = 8; // gap between fixed legend and scaled diagram — local, not shared
@@ -273,14 +274,17 @@ export function renderSitemap(
   defs
     .append('marker')
     .attr('id', 'sm-arrow')
-    .attr('viewBox', `0 0 ${ARROWHEAD_W} ${ARROWHEAD_H}`)
-    .attr('refX', ARROWHEAD_W)
-    .attr('refY', ARROWHEAD_H / 2)
-    .attr('markerWidth', ARROWHEAD_W)
-    .attr('markerHeight', ARROWHEAD_H)
+    .attr('viewBox', `0 0 ${ARROWHEAD_WIDTH} ${ARROWHEAD_HEIGHT}`)
+    .attr('refX', ARROWHEAD_WIDTH)
+    .attr('refY', ARROWHEAD_HEIGHT / 2)
+    .attr('markerWidth', ARROWHEAD_WIDTH)
+    .attr('markerHeight', ARROWHEAD_HEIGHT)
     .attr('orient', 'auto')
     .append('polygon')
-    .attr('points', `0,0 ${ARROWHEAD_W},${ARROWHEAD_H / 2} 0,${ARROWHEAD_H}`)
+    .attr(
+      'points',
+      `0,0 ${ARROWHEAD_WIDTH},${ARROWHEAD_HEIGHT / 2} 0,${ARROWHEAD_HEIGHT}`
+    )
     .attr('fill', palette.textMuted);
 
   // Edges have no color slot (spec §1.7); keep empty set so the marker-setup
@@ -291,14 +295,17 @@ export function renderSitemap(
     defs
       .append('marker')
       .attr('id', id)
-      .attr('viewBox', `0 0 ${ARROWHEAD_W} ${ARROWHEAD_H}`)
-      .attr('refX', ARROWHEAD_W)
-      .attr('refY', ARROWHEAD_H / 2)
-      .attr('markerWidth', ARROWHEAD_W)
-      .attr('markerHeight', ARROWHEAD_H)
+      .attr('viewBox', `0 0 ${ARROWHEAD_WIDTH} ${ARROWHEAD_HEIGHT}`)
+      .attr('refX', ARROWHEAD_WIDTH)
+      .attr('refY', ARROWHEAD_HEIGHT / 2)
+      .attr('markerWidth', ARROWHEAD_WIDTH)
+      .attr('markerHeight', ARROWHEAD_HEIGHT)
       .attr('orient', 'auto')
       .append('polygon')
-      .attr('points', `0,0 ${ARROWHEAD_W},${ARROWHEAD_H / 2} 0,${ARROWHEAD_H}`)
+      .attr(
+        'points',
+        `0,0 ${ARROWHEAD_WIDTH},${ARROWHEAD_HEIGHT / 2} 0,${ARROWHEAD_HEIGHT}`
+      )
       .attr('fill', color);
   }
 
@@ -500,7 +507,7 @@ export function renderSitemap(
         .attr('height', labelH)
         .attr('rx', 3)
         .attr('fill', palette.bg)
-        .attr('opacity', 0.85)
+        .attr('opacity', EDGE_LABEL_KNOCKOUT_OPACITY)
         .attr('class', 'sitemap-edge-label-bg');
 
       edgeG
@@ -840,10 +847,11 @@ export async function renderSitemapForExport(
 ): Promise<string> {
   const { parseSitemap } = await import('./parser');
   const { layoutSitemap } = await import('./layout');
-  const { getPalette } = await import('../palettes');
+  const { getPalette, DEFAULT_PALETTE_ID } = await import('../palettes');
   const isDark = theme === 'dark';
+  const defaultCfg = getPalette(DEFAULT_PALETTE_ID);
   const effectivePalette =
-    palette ?? (isDark ? getPalette('nord').dark : getPalette('nord').light);
+    palette ?? (isDark ? defaultCfg.dark : defaultCfg.light);
 
   const parsed = parseSitemap(content, effectivePalette);
   if (parsed.error || parsed.roots.length === 0) return '';

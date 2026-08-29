@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { inferRoles, collectDiagramRoles, collectFanoutSourceIds, FANOUT_ROLE } from '../src/infra/roles';
+import {
+  inferRoles,
+  collectDiagramRoles,
+  collectFanoutSourceIds,
+  FANOUT_ROLE,
+} from '../src/infra/roles';
 import type { InfraProperty } from '../src/infra/types';
 import type { InfraLayoutEdge } from '../src/infra/layout';
 
@@ -36,13 +41,13 @@ describe('infra role inference', () => {
   it('infers Queue role from buffer', () => {
     const roles = inferRoles(props('buffer', 'drain-rate'));
     expect(roles.map((r) => r.name)).toContain('Queue');
-    expect(roles.find((r) => r.name === 'Queue')!.color).toBe('#8b5cf6');
+    expect(roles.find((r) => r.name === 'Queue')!.colorToken).toBe('teal');
   });
 
   it('infers Serverless role from concurrency', () => {
     const roles = inferRoles(props('concurrency', 'duration-ms'));
     expect(roles.map((r) => r.name)).toContain('Serverless');
-    expect(roles.find((r) => r.name === 'Serverless')!.color).toBe('#06b6d4');
+    expect(roles.find((r) => r.name === 'Serverless')!.colorToken).toBe('cyan');
   });
 
   it('returns empty for no matching properties', () => {
@@ -61,8 +66,21 @@ describe('infra role inference', () => {
   });
 });
 
-function edge(sourceId: string, targetId: string, fanout: number | null): InfraLayoutEdge {
-  return { sourceId, targetId, label: '', computedRps: 0, split: 100, fanout, points: [], lineNumber: 1 };
+function edge(
+  sourceId: string,
+  targetId: string,
+  fanout: number | null
+): InfraLayoutEdge {
+  return {
+    sourceId,
+    targetId,
+    label: '',
+    computedRps: 0,
+    split: 100,
+    fanout,
+    points: [],
+    lineNumber: 1,
+  };
 }
 
 describe('collectFanoutSourceIds', () => {
@@ -87,6 +105,6 @@ describe('collectFanoutSourceIds', () => {
 
   it('FANOUT_ROLE has expected name and color', () => {
     expect(FANOUT_ROLE.name).toBe('Fan-Out');
-    expect(FANOUT_ROLE.color).toMatch(/^#/);
+    expect(FANOUT_ROLE.colorToken).toBe('orange');
   });
 });

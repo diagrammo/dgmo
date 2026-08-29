@@ -35,7 +35,11 @@ import {
   mix,
 } from '../palettes/color-utils';
 import { resolveColor } from '../colors';
-import { resolveTagColor, tagAttrKey } from '../utils/tag-groups';
+import {
+  resolveTagColor,
+  tagAttrKey,
+  UNTAGGED_TAG_COLOR,
+} from '../utils/tag-groups';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import {
   getMaxLegendReservedHeight,
@@ -53,6 +57,7 @@ import {
   CARD_RADIUS,
   NODE_STROKE_WIDTH,
   EDGE_STROKE_WIDTH,
+  EDGE_DASH,
 } from '../utils/visual-conventions';
 import { EMPHASIS_DIM_OPACITY } from '../utils/emphasis';
 import { familyCardRows, familyDisplayLabel } from './card-model';
@@ -135,7 +140,7 @@ function baseColor(
       [...parsed.tagGroups],
       activeTagGroup
     );
-    if (c && c !== '#999999') return c;
+    if (c && c !== UNTAGGED_TAG_COLOR) return c;
   }
   return palette.primary;
 }
@@ -349,7 +354,7 @@ export function renderFamilyForExport(
       .attr('fill', 'none')
       .attr('stroke', palette.textMuted)
       .attr('stroke-width', EDGE_STROKE_WIDTH)
-      .attr('stroke-dasharray', dashed ? '6 3' : null)
+      .attr('stroke-dasharray', dashed ? EDGE_DASH : null)
       .attr('stroke-opacity', dimmed ? DIM_OPACITY : null);
   };
   // Group child edges by union so a union's shared bus TRUNK is drawn ONCE. The
@@ -404,7 +409,7 @@ export function renderFamilyForExport(
       .attr('stroke', palette.textMuted)
       .attr('stroke-width', EDGE_STROKE_WIDTH)
       // Divorced/dissolved union → dashed marriage bar.
-      .attr('stroke-dasharray', bar.divorced ? '6 3' : null)
+      .attr('stroke-dasharray', bar.divorced ? EDGE_DASH : null)
       .attr('class', 'family-marriage-bar')
       .attr('data-line-number', String(bar.lineNumber));
     bg.append('circle')

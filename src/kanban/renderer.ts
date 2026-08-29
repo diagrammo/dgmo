@@ -952,7 +952,7 @@ export function renderKanban(
         .attr('x', cx + sCardPaddingX)
         .attr('y', cy + sCardPaddingY + sCardTitleFontSize)
         .attr('font-size', sCardTitleFontSize)
-        .attr('font-weight', '500')
+        .attr('font-weight', 'normal')
         .attr('fill', onCardText);
       renderInlineText(titleEl, card.title, palette, sCardTitleFontSize);
 
@@ -1892,7 +1892,7 @@ function renderSwimlaneCard(
     .attr('x', cx + sCardPaddingX)
     .attr('y', cy + sCardPaddingY + sCardTitleFontSize)
     .attr('font-size', sCardTitleFontSize)
-    .attr('font-weight', '500')
+    .attr('font-weight', 'normal')
     .attr('fill', onCardText);
   renderInlineText(titleEl, card.title, palette, sCardTitleFontSize);
 

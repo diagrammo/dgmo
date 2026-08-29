@@ -18,6 +18,10 @@ import {
 } from '../utils/note-box';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
+import {
+  appendArrowheadMarkers,
+  appendReverseArrowheadMarkers,
+} from '../utils/arrow-markers';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import {
   getMaxLegendReservedHeight,
@@ -75,6 +79,8 @@ import {
   EDGE_LABEL_KNOCKOUT_OPACITY,
   EDGE_STROKE_WIDTH,
   NODE_STROKE_WIDTH,
+  ARROWHEAD_WIDTH,
+  ARROWHEAD_HEIGHT,
 } from '../utils/visual-conventions'; // shared (Story 111.1)
 // 🔴 SHARED. This was a local `8` against the conventions' 6 — undocumented, and
 // absent from the deviation list the shared file keeps, so it was drift rather
@@ -84,8 +90,6 @@ const NODE_RX = CARD_RADIUS;
 // Intentional deviation (conventions §3): boxes-and-lines uses a 4px collapse
 // bar (and 4px separator gap in layout.ts) — denser than the 6px default.
 const COLLAPSE_BAR_HEIGHT = 4;
-const ARROWHEAD_W = 5;
-const ARROWHEAD_H = 4;
 const DESC_FONT_SIZE = 10; // matches infra META_FONT_SIZE
 const DESC_LINE_HEIGHT = 1.4; // 14px row height at 10px font (matches infra META_LINE_HEIGHT)
 const MAX_DESC_LINES = 6;
@@ -372,44 +376,23 @@ function ensureArrowMarkers(
   defs: d3Selection.Selection<SVGDefsElement, unknown, null, undefined>,
   colors: Set<string>
 ): void {
-  for (const color of colors) {
-    const id = `bl-arrow-${color.replace('#', '')}`;
-    if (!defs.select(`#${id}`).empty()) continue;
-    defs
-      .append('marker')
-      .attr('id', id)
-      .attr('viewBox', `0 0 ${ARROWHEAD_W * 2} ${ARROWHEAD_H * 2}`)
-      .attr('refX', ARROWHEAD_W * 2)
-      .attr('refY', ARROWHEAD_H)
-      .attr('markerWidth', ARROWHEAD_W)
-      .attr('markerHeight', ARROWHEAD_H)
-      .attr('orient', 'auto')
-      .append('polygon')
-      .attr(
-        'points',
-        `0,0 ${ARROWHEAD_W * 2},${ARROWHEAD_H} 0,${ARROWHEAD_H * 2}`
-      )
-      .attr('fill', color);
-
-    // Reverse marker for bidirectional
-    const revId = `bl-arrow-rev-${color.replace('#', '')}`;
-    if (!defs.select(`#${revId}`).empty()) continue;
-    defs
-      .append('marker')
-      .attr('id', revId)
-      .attr('viewBox', `0 0 ${ARROWHEAD_W * 2} ${ARROWHEAD_H * 2}`)
-      .attr('refX', 0)
-      .attr('refY', ARROWHEAD_H)
-      .attr('markerWidth', ARROWHEAD_W)
-      .attr('markerHeight', ARROWHEAD_H)
-      .attr('orient', 'auto')
-      .append('polygon')
-      .attr(
-        'points',
-        `${ARROWHEAD_W * 2},0 0,${ARROWHEAD_H} ${ARROWHEAD_W * 2},${ARROWHEAD_H * 2}`
-      )
-      .attr('fill', color);
-  }
+  // Only the colours not already defined — the shared helpers append
+  // unconditionally, and this runs more than once per render.
+  const fresh = [...colors].filter((color) =>
+    defs.select(`#bl-arrow-${color.replace('#', '')}`).empty()
+  );
+  if (fresh.length === 0) return;
+  const opts = {
+    idPrefix: 'bl',
+    width: ARROWHEAD_WIDTH,
+    height: ARROWHEAD_HEIGHT,
+    // Every marker here is per-colour; the base id is never referenced, so it
+    // takes the first colour rather than introducing a palette dependency.
+    baseFill: fresh[0]!,
+    colors: fresh,
+  };
+  appendArrowheadMarkers(defs, opts);
+  appendReverseArrowheadMarkers(defs, opts);
 }
 
 // ── Main render function ───────────────────────────────────
@@ -813,7 +796,7 @@ export function renderBoxesAndLines(
           .attr('dominant-baseline', 'central')
           .attr('font-family', FONT_FAMILY)
           .attr('font-size', fitted.fontSize)
-          .attr('font-weight', '600')
+          .attr('font-weight', 'bold')
           .attr('fill', palette.text)
           // In-bounds by loop guard.
           .text(fitted.lines[li]!);
@@ -850,7 +833,7 @@ export function renderBoxesAndLines(
           .attr('dominant-baseline', 'central')
           .attr('font-family', FONT_FAMILY)
           .attr('font-size', chipFont)
-          .attr('font-weight', '600')
+          .attr('font-weight', 'bold')
           .attr('fill', palette.text)
           .text(String(group.childCount));
       }
@@ -877,7 +860,7 @@ export function renderBoxesAndLines(
         .attr('text-anchor', 'middle')
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', sGroupLabelFontSize)
-        .attr('font-weight', '600')
+        .attr('font-weight', 'bold')
         .attr('fill', palette.text)
         .text(group.label);
     }
@@ -1237,7 +1220,7 @@ export function renderBoxesAndLines(
           .attr('text-anchor', 'middle')
           .attr('dominant-baseline', 'central')
           .attr('font-size', VALUE_FONT_SIZE)
-          .attr('font-weight', '600')
+          .attr('font-weight', 'bold')
           .attr('fill', colors.text)
           .text(valueLabel);
       }
@@ -1312,7 +1295,7 @@ export function renderBoxesAndLines(
           .attr('text-anchor', 'middle')
           .attr('dominant-baseline', 'central')
           .attr('font-size', fitted.fontSize)
-          .attr('font-weight', '600')
+          .attr('font-weight', 'bold')
           .attr('fill', colors.text)
           // In-bounds by loop guard.
           .text(fitted.lines[li]!);

@@ -361,7 +361,7 @@ export function renderClock(
       .attr('fill', palette.text)
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', titleFont)
-      .attr('font-weight', 650)
+      .attr('font-weight', 'bold')
       .attr('data-line-number', parsed.titleLineNumber)
       .text(ellipsize(parsed.title, titleFont, rightX - padX - metaW));
     if (meta) {
@@ -373,7 +373,7 @@ export function renderClock(
         .attr('fill', faint)
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', 12)
-        .attr('font-weight', 500)
+        .attr('font-weight', 'normal')
         .text(meta);
     }
     y += titleFont + 12;
@@ -710,7 +710,11 @@ function drawRow(
     // (WebKit distorts `lengthAdjust=spacing`). The seconds/am-pm stack hugs
     // `x0 + width`; the ticker rebuilds the cells from the baked x0/fs/gap.
     const gap = 5;
-    const { cells, width: mainW } = fixedTimeCells(ts.main, contentLeft, mainFont);
+    const { cells, width: mainW } = fixedTimeCells(
+      ts.main,
+      contentLeft,
+      mainFont
+    );
     const stackX = contentLeft + mainW + gap;
     const mainText = g
       .append('text')
@@ -721,12 +725,11 @@ function drawRow(
       .attr('fill', timeColor)
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', mainFont)
-      .attr('font-weight', 600)
+      .attr('font-weight', 'bold')
       .attr('data-dgmo-clock-x0', contentLeft)
       .attr('data-dgmo-clock-fs', mainFont)
       .attr('data-dgmo-clock-gap', gap);
-    for (const c of cells)
-      mainText.append('tspan').attr('x', c.x).text(c.ch);
+    for (const c of cells) mainText.append('tspan').attr('x', c.x).text(c.ch);
     g.append('text')
       .attr('data-dgmo-clock-digital-part', 'sec')
       .attr('x', stackX)
@@ -734,7 +737,7 @@ function drawRow(
       .attr('fill', muted)
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', sf)
-      .attr('font-weight', 600)
+      .attr('font-weight', 'bold')
       .style('font-variant-numeric', 'tabular-nums')
       .text(`:${ts.sec}`);
     if (ts.ap)
@@ -745,7 +748,7 @@ function drawRow(
         .attr('fill', muted)
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', sf)
-        .attr('font-weight', 600)
+        .attr('font-weight', 'bold')
         .text(ts.ap);
   }
 
@@ -791,7 +794,7 @@ function drawRow(
       .attr('fill', aliasFill)
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', aliasFont)
-      .attr('font-weight', 650)
+      .attr('font-weight', 'bold')
       .text(ln);
   });
 
@@ -829,7 +832,7 @@ function drawRow(
         .attr('fill', muted)
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', 14)
-        .attr('font-weight', 500)
+        .attr('font-weight', 'normal')
         .text(ellipsize(entry.place, 14, textMax));
     } else if (ln.kind === 'avail' && status) {
       const stCol =
@@ -842,7 +845,7 @@ function drawRow(
         .attr('fill', stCol)
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', 14)
-        .attr('font-weight', 600)
+        .attr('font-weight', 'bold')
         .text(ellipsize(status.text, 14, textMax));
     } else if (ln.kind === 'sun' && sun) {
       drawSunMoon(g, iconX, yy - 5, up, sw, 1.25);
@@ -1143,7 +1146,7 @@ function drawColumns(
         .attr('fill', timeColor)
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', tf)
-        .attr('font-weight', 600)
+        .attr('font-weight', 'bold')
         .attr('data-dgmo-clock-x0', gLeft)
         .attr('data-dgmo-clock-fs', tf)
         .attr('data-dgmo-clock-gap', gap);
@@ -1159,7 +1162,7 @@ function drawColumns(
         .attr('fill', muted)
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', sf)
-        .attr('font-weight', 500)
+        .attr('font-weight', 'normal')
         .text(`:${ts.sec}`);
       if (ts.ap)
         g.append('text')
@@ -1169,7 +1172,7 @@ function drawColumns(
           .attr('fill', muted)
           .attr('font-family', FONT_FAMILY)
           .attr('font-size', sf)
-          .attr('font-weight', 500)
+          .attr('font-weight', 'normal')
           .text(ts.ap);
       cy += tf + 8;
     }
@@ -1200,7 +1203,7 @@ function drawColumns(
         .attr('fill', aFill)
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', af)
-        .attr('font-weight', 650)
+        .attr('font-weight', 'bold')
         .text(ln)
     );
     cy += alines.length * alh + 12;
@@ -1248,7 +1251,7 @@ function drawColumns(
               .attr('fill', stCol)
               .attr('font-family', FONT_FAMILY)
               .attr('font-size', 12)
-              .attr('font-weight', 600)
+              .attr('font-weight', 'bold')
               .text(ellipsize(status.text, 12, tmax));
           } else if (kind === 'sun' && sun) {
             drawSunMoon(g, iconX, yy - 4, up, sw, 1);

@@ -210,13 +210,16 @@ edge
     expect(svg).toContain('Pool');
   });
 
-  it('renders edges without arrowheads', () => {
+  it('renders directed edges with the shared arrowhead', () => {
+    // Infra edges carried no head at all until 2026-08-28 — direction was
+    // implied by layout order and, when animating, by the particles.
     const svg = renderToSvg(`infra
 edge
   rps: 100
   -> A`);
-    expect(svg).not.toContain('<marker');
-    expect(svg).not.toContain('marker-end');
+    expect(svg).toContain('<marker');
+    expect(svg).toContain('marker-end');
+    expect(svg).toContain('markerWidth="10" markerHeight="7"');
   });
 
   it('renders in dark theme', () => {
@@ -672,8 +675,9 @@ edge
   -> API
 API
   ~> EventBus`);
-    // The async edge (API -> EventBus) should have stroke-dasharray
-    expect(svg).toContain('stroke-dasharray="6 4"');
+    // The async edge (API -> EventBus) carries the shared EDGE_DASH; infra
+    // had its own '6 4' for the same meaning until 2026-08-28.
+    expect(svg).toContain('stroke-dasharray="6 3"');
   });
 
   it('does not render stroke-dasharray on sync edges', () => {

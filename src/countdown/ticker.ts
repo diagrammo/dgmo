@@ -69,7 +69,7 @@ function setClockText(el: Element, str: string): void {
         const fill = el.getAttribute('data-dgmo-cd-sec-fill');
         if (size) secT.setAttribute('font-size', size);
         if (fill) secT.setAttribute('fill', fill);
-        secT.setAttribute('font-weight', '700');
+        secT.setAttribute('font-weight', 'bold');
         el.appendChild(leadT);
         el.appendChild(secT);
       }

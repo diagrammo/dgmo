@@ -61,11 +61,12 @@ const NODE_FONT_SIZE = 13;
 const EDGE_LABEL_FONT_SIZE = 11;
 const GROUP_LABEL_FONT_SIZE = 11;
 import {
+  EDGE_LABEL_KNOCKOUT_OPACITY,
   EDGE_STROKE_WIDTH,
   NODE_STROKE_WIDTH,
+  ARROWHEAD_WIDTH,
+  ARROWHEAD_HEIGHT,
 } from '../utils/visual-conventions'; // shared (Story 111.1)
-const ARROWHEAD_W = 10;
-const ARROWHEAD_H = 7;
 const PSEUDOSTATE_RADIUS = 10;
 const STATE_CORNER_RADIUS = 10;
 const GROUP_EXTRA_PADDING = 12;
@@ -126,8 +127,8 @@ export function renderState(
   const sGroupLabelFontSize = ctx.text(GROUP_LABEL_FONT_SIZE);
   const sEdgeStrokeWidth = ctx.structural(EDGE_STROKE_WIDTH);
   const sNodeStrokeWidth = ctx.structural(NODE_STROKE_WIDTH);
-  const sArrowheadW = ctx.structural(ARROWHEAD_W);
-  const sArrowheadH = ctx.structural(ARROWHEAD_H);
+  const sArrowheadW = ctx.structural(ARROWHEAD_WIDTH);
+  const sArrowheadH = ctx.structural(ARROWHEAD_HEIGHT);
   const sPseudostateRadius = ctx.structural(PSEUDOSTATE_RADIUS);
   const sStateCornerRadius = ctx.structural(STATE_CORNER_RADIUS);
   const sGroupExtraPadding = ctx.aesthetic(GROUP_EXTRA_PADDING);
@@ -466,7 +467,7 @@ export function renderState(
           .attr('height', lp.h)
           .attr('rx', 3)
           .attr('fill', palette.bg)
-          .attr('opacity', 0.85)
+          .attr('opacity', EDGE_LABEL_KNOCKOUT_OPACITY)
           .attr('class', 'st-edge-label-bg');
         edgeG
           .append('text')

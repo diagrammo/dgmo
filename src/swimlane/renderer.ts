@@ -13,13 +13,22 @@ import { fillModeFromOptions } from '../utils/parsing';
 import { FONT_FAMILY } from '../fonts';
 import { appendArrowheadMarkers } from '../utils/arrow-markers';
 import {
+  ARROWHEAD_HEIGHT,
+  ARROWHEAD_WIDTH,
+  EDGE_DASH,
+} from '../utils/visual-conventions';
+import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
   TITLE_Y,
 } from '../utils/title-constants';
 import { mix, contrastText, themeBaseBg } from '../palettes/color-utils';
 import { resolveColor, CATEGORICAL_COLOR_ORDER } from '../colors';
-import { resolveTagColor, tagAttrKey } from '../utils/tag-groups';
+import {
+  resolveTagColor,
+  tagAttrKey,
+  UNTAGGED_TAG_COLOR,
+} from '../utils/tag-groups';
 import type { PaletteColors } from '../palettes';
 import type {
   ParsedSwimlane,
@@ -35,8 +44,6 @@ const NODE_RX = 8;
 const NODE_STROKE = 1.5;
 const EDGE_STROKE = 1.6;
 const EDGE_CORNER_R = 11; // fillet radius for orthogonal edge corners
-const ARROW_W = 9;
-const ARROW_H = 6.4;
 const LANE_RADIUS = 10;
 const LANE_INSET = 2; // visual gutter between adjacent lane cards
 
@@ -167,8 +174,8 @@ export function renderSwimlaneForExport(
   };
   appendArrowheadMarkers(defs, {
     idPrefix: 'sw',
-    width: ARROW_W,
-    height: ARROW_H,
+    width: ARROWHEAD_WIDTH,
+    height: ARROWHEAD_HEIGHT,
     baseFill: palette.textMuted,
     colors: [ev.error, ev.success],
   });
@@ -275,7 +282,7 @@ export function renderSwimlaneForExport(
       .attr('text-anchor', isLR ? 'start' : 'middle')
       .attr('dominant-baseline', 'middle')
       .attr('font-size', LANE_LABEL_FONT)
-      .attr('font-weight', '700')
+      .attr('font-weight', 'bold')
       .attr('fill', mix(hex, palette.text, 55))
       .text(band.label);
   }
@@ -307,7 +314,7 @@ export function renderSwimlaneForExport(
       .attr('text-anchor', 'middle')
       .attr('dominant-baseline', 'middle')
       .attr('font-size', PHASE_LABEL_FONT)
-      .attr('font-weight', '700')
+      .attr('font-weight', 'bold')
       .attr('letter-spacing', '0.06em')
       .attr('fill', palette.textMuted)
       .attr('data-line-number', String(band.lineNumber))
@@ -325,7 +332,7 @@ export function renderSwimlaneForExport(
       const key = tagAttrKey(activeTag);
       if (n.tags[key]) {
         const c = resolveTagColor(n.tags, [...parsed.tagGroups], activeTag);
-        if (c && c !== '#999999')
+        if (c && c !== UNTAGGED_TAG_COLOR)
           return {
             fill:
               fillMode === 'solid' ? c : outline ? baseBg : mix(c, baseBg, 22),
@@ -402,7 +409,7 @@ export function renderSwimlaneForExport(
       .attr('fill', 'none')
       .attr('stroke', stroke)
       .attr('stroke-width', EDGE_STROKE)
-      .attr('stroke-dasharray', e.back ? '5 4' : null)
+      .attr('stroke-dasharray', e.back ? EDGE_DASH : null)
       .attr('marker-end', `url(#${marker})`)
       .attr('data-line-number', String(e.lineNumber));
     if (e.label) {

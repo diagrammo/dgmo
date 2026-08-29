@@ -49,3 +49,52 @@ export function appendArrowheadMarkers<GElement extends BaseType>(
     appendMarker(`${idPrefix}-arrow-${color.replace('#', '')}`, color);
   }
 }
+
+export interface ReverseArrowheadOptions extends ArrowheadMarkerOptions {
+  /** Marker id prefix for the reversed head, e.g. 'bl' → `bl-arrow-rev`. */
+  reverseSuffix?: string;
+}
+
+/**
+ * Append a REVERSED arrowhead (`id` = `${idPrefix}-arrow-rev...`), pointing back
+ * along the path so it can sit on the start of a bidirectional edge.
+ *
+ * Same box as {@link appendArrowheadMarkers}: `refX` is 0 rather than `width`,
+ * and the polygon is mirrored. boxes-and-lines, class and sketch each carried
+ * their own copy of this until 2026-08-28.
+ */
+export function appendReverseArrowheadMarkers<GElement extends BaseType>(
+  defs: Selection<GElement, unknown, null, undefined>,
+  opts: ReverseArrowheadOptions
+): void {
+  const {
+    idPrefix,
+    width,
+    height,
+    baseFill,
+    colors,
+    reverseSuffix = 'arrow-rev',
+  } = opts;
+  const appendMarker = (id: string, fill: string): void => {
+    defs
+      .append('marker')
+      .attr('id', id)
+      .attr('viewBox', `0 0 ${width} ${height}`)
+      .attr('refX', 0)
+      .attr('refY', height / 2)
+      .attr('markerWidth', width)
+      .attr('markerHeight', height)
+      .attr('orient', 'auto')
+      .append('polygon')
+      .attr('points', `${width},0 0,${height / 2} ${width},${height}`)
+      .attr('fill', fill);
+  };
+
+  appendMarker(`${idPrefix}-${reverseSuffix}`, baseFill);
+  for (const color of colors ?? []) {
+    appendMarker(
+      `${idPrefix}-${reverseSuffix}-${color.replace('#', '')}`,
+      color
+    );
+  }
+}

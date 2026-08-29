@@ -316,7 +316,7 @@ function renderGroup(
       .attr('y', 18)
       .attr('fill', palette.textMuted)
       .attr('font-size', 11)
-      .attr('font-weight', '600')
+      .attr('font-weight', 'bold')
       .attr('letter-spacing', '0.5px')
       .text(el.label.toUpperCase());
   }
@@ -457,7 +457,7 @@ function renderButton(
     .attr('y', node.height / 2 + 4)
     .attr('fill', textColor)
     .attr('font-size', 13)
-    .attr('font-weight', '600')
+    .attr('font-weight', 'bold')
     .attr('text-anchor', 'middle')
     .text(el.label);
 }
@@ -710,7 +710,7 @@ function renderNav(
       .attr('y', node.height / 2 + 4)
       .attr('fill', isActive ? palette.primary : palette.text)
       .attr('font-size', 13)
-      .attr('font-weight', isActive ? '600' : 'normal')
+      .attr('font-weight', isActive ? 'bold' : 'normal')
       .text(child.label);
 
     // An active nav item draws at 600, the rest at normal — and the state is
@@ -772,7 +772,7 @@ function renderTabs(
       .attr('y', node.height / 2 + 4)
       .attr('fill', isActive ? palette.primary : palette.textMuted)
       .attr('font-size', 13)
-      .attr('font-weight', isActive ? '600' : 'normal')
+      .attr('font-weight', isActive ? 'bold' : 'normal')
       .text(child.label);
 
     x += tabW;
@@ -820,7 +820,7 @@ function renderTable(
       .attr('y', headerH / 2 + 4)
       .attr('fill', palette.text)
       .attr('font-size', 12)
-      .attr('font-weight', '600')
+      .attr('font-weight', 'bold')
       .text(label);
   }
 
@@ -910,7 +910,7 @@ function renderTableCell(
         .attr('y', by + btnH / 2 + 3)
         .attr('fill', fill)
         .attr('font-size', 10)
-        .attr('font-weight', '600')
+        .attr('font-weight', 'bold')
         .attr('text-anchor', 'middle')
         .text(label);
     } else {
@@ -926,7 +926,7 @@ function renderTableCell(
         .attr('y', by + btnH / 2 + 3)
         .attr('fill', palette.bg)
         .attr('font-size', 10)
-        .attr('font-weight', '600')
+        .attr('font-weight', 'bold')
         .attr('text-anchor', 'middle')
         .text(label);
     }
@@ -1261,7 +1261,7 @@ function renderModal(
   node: WireframeLayoutNode,
   ctx: RenderContext
 ): void {
-  const { palette, isTransparent } = ctx;
+  const { palette, isDark, isTransparent } = ctx;
   const el = node.element;
 
   const g = parent
@@ -1276,7 +1276,7 @@ function renderModal(
       .attr('y', 4)
       .attr('width', node.width)
       .attr('height', node.height)
-      .attr('fill', 'rgba(0,0,0,0.1)')
+      .attr('fill', isDark ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0.1)')
       .attr('rx', GROUP_CORNER);
   }
 
@@ -1303,7 +1303,7 @@ function renderModal(
     .attr('y', 24)
     .attr('fill', palette.text)
     .attr('font-size', 14)
-    .attr('font-weight', '600')
+    .attr('font-weight', 'bold')
     .text(el.label || 'Modal');
 
   // Close button

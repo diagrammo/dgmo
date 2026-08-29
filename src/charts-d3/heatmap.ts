@@ -177,7 +177,7 @@ export function renderHeatmap(
           .attr('text-anchor', 'middle')
           .attr('fill', labelTint(ramp))
           .attr('font-size', cellFont)
-          .attr('font-weight', 600)
+          .attr('font-weight', 'bold')
           .attr('font-family', FONT_FAMILY)
           .text(fmtNum(v));
         tagDatum(label, {

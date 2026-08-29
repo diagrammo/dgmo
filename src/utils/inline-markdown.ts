@@ -5,6 +5,7 @@
 import type * as d3Selection from 'd3-selection';
 import type { PaletteColors } from '../palettes';
 import { safeHref } from './safe-href';
+import { MONO_FAMILY } from '../fonts';
 
 export interface InlineSpan {
   text: string;
@@ -108,7 +109,7 @@ export function renderInlineText(
       if (span.bold) tspan.attr('font-weight', 'bold');
       if (span.italic) tspan.attr('font-style', 'italic');
       if (span.code) {
-        tspan.attr('font-family', 'monospace');
+        tspan.attr('font-family', MONO_FAMILY);
         if (fontSize) tspan.attr('font-size', fontSize - 1);
       }
     }

@@ -595,7 +595,7 @@ export function renderVenn(
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'central')
         .attr('fill', textColor)
-        .attr('font-size', `${Math.round(fitFont)}px`)
+        .attr('font-size', Math.round(fitFont))
         .attr('font-weight', 'bold')
         .text(text);
       setLabelBBoxes[i] = {
@@ -651,7 +651,7 @@ export function renderVenn(
         .attr('text-anchor', textAnchor)
         .attr('dominant-baseline', 'central')
         .attr('fill', textColor)
-        .attr('font-size', `${sSetLabelFont}px`)
+        .attr('font-size', sSetLabelFont)
         .attr('font-weight', 'bold')
         .text(text);
       const externalEstW = measureText(text, sSetLabelFont, { bold: true });
@@ -949,8 +949,8 @@ export function renderVenn(
       .attr('text-anchor', textAnchor)
       .attr('dominant-baseline', baseline)
       .attr('fill', overlapColor)
-      .attr('font-size', `${OVERLAP_FONT}px`)
-      .attr('font-weight', '600');
+      .attr('font-size', OVERLAP_FONT)
+      .attr('font-weight', 'bold');
 
     lines.forEach((line, i) => {
       const tspan = textEl.append('tspan').attr('x', textX);

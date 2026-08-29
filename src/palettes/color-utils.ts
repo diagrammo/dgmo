@@ -505,3 +505,21 @@ export function politicalTints(
   }
   return out.slice(0, count);
 }
+
+/**
+ * Era band colours — the five-hue ramp behind a gantt or timeline era.
+ *
+ * gantt carried its own `ERA_COLORS` array of five raw hexes and timeline used
+ * these tokens with the same hexes as a no-palette fallback, so the two charts
+ * agreed only under the palette those hexes were sampled from. One function,
+ * palette slots, no literals (2026-08-28).
+ */
+export function getEraColors(palette: PaletteColors): string[] {
+  return [
+    palette.colors.blue,
+    palette.colors.green,
+    palette.colors.yellow,
+    palette.colors.orange,
+    palette.colors.purple,
+  ];
+}

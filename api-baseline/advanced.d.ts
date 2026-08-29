@@ -1,14 +1,14 @@
-import { D as DgmoError, P as PaletteConfig, T as TagGroup, a as PaletteColors, C as CompactViewState, g as TagEntry } from './tag-groups-BAtkq0b_.js';
-export { h as DecodedDiagramUrl, c as DgmoSeverity, i as EncodeDiagramUrlOptions, j as EncodeDiagramUrlResult, k as autoTagColorCycle, l as decodeDiagramUrl, m as decodeViewState, n as encodeDiagramUrl, o as encodeViewState, f as formatDgmoError, p as makeDgmoError, r as resolveActiveTagGroup, q as resolveTagColor, t as tagAttrKey } from './tag-groups-BAtkq0b_.js';
-import { M as MapDataSource, P as ParsedMap, b as MapData, d as ResolvedMap, e as MapLayoutLegend, f as GeoExtent } from './d3-BiaJtaSw.js';
-export { A as AirportData, B as BoundaryTopology, G as Gazetteer, a as GazetteerEntry, g as MapDirectives, h as MapEdge, i as MapPoi, j as MapRegion, k as MapRoute, l as PoiPos, m as ProjectionFamily, R as RegionName, c as RegionNames, n as ResolvedEdge, o as ResolvedPoi, p as ResolvedRegion, q as ResolvedRoute, r as renderForExport } from './d3-BiaJtaSw.js';
-export { b as CHART_TYPE_DESCRIPTIONS, C as ChartTypeId, a as ChartTypeMeta, R as RenderCategory, d as chartTypeParsers, c as chartTypes, e as getAllChartTypes, f as getAvailablePalettes, g as getPalette, h as getRenderCategory, i as isExtendedChartType, j as isValidHex, k as knownChartTypeIds, p as parseDgmo, l as parseDgmoChartType, m as registerPalette, p as validate } from './dgmo-router-BwXHZ_P3.js';
+import { D as DgmoError, P as PaletteConfig, T as TagGroup, a as PaletteColors, C as CompactViewState, g as TagEntry } from './tag-groups-BoJg3lFV.js';
+export { h as DecodedDiagramUrl, c as DgmoSeverity, i as EncodeDiagramUrlOptions, j as EncodeDiagramUrlResult, k as autoTagColorCycle, l as decodeDiagramUrl, m as decodeViewState, n as encodeDiagramUrl, o as encodeViewState, f as formatDgmoError, p as makeDgmoError, r as resolveActiveTagGroup, q as resolveTagColor, t as tagAttrKey } from './tag-groups-BoJg3lFV.js';
+import { M as MapDataSource, P as ParsedMap, b as MapData, d as ResolvedMap, e as MapLayoutLegend, f as GeoExtent } from './d3-CQT5bwpb.js';
+export { A as AirportData, B as BoundaryTopology, G as Gazetteer, a as GazetteerEntry, g as MapDirectives, h as MapEdge, i as MapPoi, j as MapRegion, k as MapRoute, l as PoiPos, m as ProjectionFamily, R as RegionName, c as RegionNames, n as ResolvedEdge, o as ResolvedPoi, p as ResolvedRegion, q as ResolvedRoute, r as renderForExport } from './d3-CQT5bwpb.js';
+export { b as CHART_TYPE_DESCRIPTIONS, C as ChartTypeId, a as ChartTypeMeta, R as RenderCategory, d as chartTypeParsers, c as chartTypes, e as getAllChartTypes, f as getAvailablePalettes, g as getPalette, h as getRenderCategory, i as isExtendedChartType, j as isValidHex, k as knownChartTypeIds, p as parseDgmo, l as parseDgmoChartType, m as registerPalette, p as validate } from './dgmo-router-C9CsswPZ.js';
 import { Selection } from 'd3-selection';
 import * as d3Scale from 'd3-scale';
-import { P as ParsedOrg, F as FillMode, R as RaciMarker, a as ParsedRaci, b as RaciVariant, c as RaciTask } from './chart-meta-Cf_jkApJ.js';
-export { A as ALL_CHART_TYPES, I as ImportSource, O as OrgNode, d as RaciPhase, e as RaciRoleAssignment, f as ReadFileFn, g as ResolveImportsResult, h as contrastText, i as findOrgNodeIdByName, j as getSeriesColors, k as hexToHSL, l as hexToHSLString, m as hslToHex, n as mix, o as normalizePertSourceForShare, p as parseFirstLine, q as parseOrg, r as parseRaci, s as resolveOrgImports, t as shade, u as shapeFill, v as tint } from './chart-meta-Cf_jkApJ.js';
+import { P as ParsedOrg, F as FillMode, R as RaciMarker, a as ParsedRaci, b as RaciVariant, c as RaciTask } from './chart-meta-BKN2ORkc.js';
+export { A as ALL_CHART_TYPES, I as ImportSource, O as OrgNode, d as RaciPhase, e as RaciRoleAssignment, f as ReadFileFn, g as ResolveImportsResult, h as contrastText, i as findOrgNodeIdByName, j as getSeriesColors, k as hexToHSL, l as hexToHSLString, m as hslToHex, n as mix, o as normalizePertSourceForShare, p as parseFirstLine, q as parseOrg, r as parseRaci, s as resolveOrgImports, t as shade, u as shapeFill, v as tint } from './chart-meta-BKN2ORkc.js';
 import { GeoProjection } from 'd3-geo';
-export { M as MapCompletionOptions, a as MapLocationMatch, b as MapPlaceCompletion, c as MapRegionCompletion, T as Theme, d as completeMapPlaces, e as completeMapRegions, p as palettes, s as searchMapLocations, t as themes } from './themes-DpsyRSO7.js';
+export { M as MapCompletionOptions, a as MapLocationMatch, b as MapPlaceCompletion, c as MapRegionCompletion, T as Theme, d as completeMapPlaces, e as completeMapRegions, p as palettes, s as searchMapLocations, t as themes } from './themes-CXYnNA4e.js';
 
 /**
  * Stable diagnostic codes for in-arrow label parsing errors.
@@ -3211,9 +3211,16 @@ interface InfraLayoutResult {
 }
 declare function layoutInfra(computed: ComputedInfraModel, expandedNodeIds?: Set<string> | null, collapsedNodes?: Set<string> | null): InfraLayoutResult;
 
+/** Semantic palette slot a role's badge is painted from. */
+type RoleColorToken = keyof PaletteColors['colors'];
 interface InfraRole {
     name: string;
-    color: string;
+    /**
+     * Palette slot, NOT a hex. These were eight raw Tailwind hues until
+     * 2026-08-28, so a role dot kept its own colours under every palette and
+     * in dark mode. The renderer resolves the token against the live palette.
+     */
+    colorToken: RoleColorToken;
 }
 /**
  * Infer roles from a component's properties.
@@ -6570,8 +6577,8 @@ declare const SKETCH_VISUALS: {
     readonly titleFontWeight: number;
     readonly nodeStrokeWidth: 1.5;
     readonly edgeStrokeWidth: 1.5;
-    readonly arrowheadW: 5;
-    readonly arrowheadH: 4;
+    readonly arrowheadW: 10;
+    readonly arrowheadH: 7;
     readonly dash: "6 3";
     /** A card's name. Shared, and it fits DOWN to `nodeLabelFontSizeMin` before
      *  it wraps — it used to be allowed up to 30 on a card with no rows, which is
@@ -6583,7 +6590,7 @@ declare const SKETCH_VISUALS: {
     /** A card's header band. */
     readonly cardHeaderHeight: 28;
     readonly bandLabelFontSize: 13;
-    readonly bandLabelFontWeight: 600;
+    readonly bandLabelFontWeight: "bold";
     readonly bandLabelOpacity: 1;
     /** 11 — what boxes-and-lines prints. It was 12, the only edge label in the
      *  product at that size. */

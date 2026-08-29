@@ -233,7 +233,7 @@ export function renderPie(
       .attr('y', Math.max(4, 8 * labelScale))
       .attr('fill', textColor)
       .attr('font-size', Math.max(11, 26 * labelScale))
-      .attr('font-weight', 700)
+      .attr('font-weight', 'bold')
       .attr('font-family', FONT_FAMILY)
       .text(fmtNum(total));
   }

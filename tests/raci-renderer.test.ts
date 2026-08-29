@@ -405,7 +405,7 @@ Chart the route
 
   it('keeps a quoted phrase bold across the line break inside it', () => {
     const bold = violationSpans()
-      .filter((t) => t.getAttribute('font-weight') === '700')
+      .filter((t) => t.getAttribute('font-weight') === 'bold')
       .map((t) => t.textContent ?? '')
       .join('')
       // Whitespace is dropped where a break falls, so compare without it.
@@ -415,7 +415,7 @@ Chart the route
 
   it('leaves the surrounding prose regular', () => {
     const regular = violationSpans()
-      .filter((t) => t.getAttribute('font-weight') !== '700')
+      .filter((t) => t.getAttribute('font-weight') !== 'bold')
       .map((t) => t.textContent ?? '')
       .join('');
     expect(regular).toContain('Unexpected line after role assignments');

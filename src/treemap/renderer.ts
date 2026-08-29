@@ -43,6 +43,7 @@ import {
   resolveCellColor,
   resolveColorMode,
   type CellColorContext,
+  mutedFill,
 } from './treemap-shared';
 
 const PADDING = 12;
@@ -245,6 +246,7 @@ export function renderTreemap(
     seriesColors,
     colorOffset,
     bg: palette.bg,
+    muted: mutedFill(palette),
   };
 
   // ── Cells ──────────────────────────────────────────────────
@@ -334,7 +336,7 @@ export function renderTreemap(
         .attr('x', 6)
         .attr('y', 13)
         .attr('font-size', 11)
-        .attr('font-weight', 700)
+        .attr('font-weight', 'bold')
         .attr('fill', ink)
         .text(clipLabel(cell.label, Math.max(0, labelMax), 11));
 
@@ -393,7 +395,7 @@ export function renderTreemap(
         .attr('x', PAD)
         .attr('y', y)
         .attr('font-size', fs)
-        .attr('font-weight', 600)
+        .attr('font-weight', 'bold')
         .attr('fill', ink)
         .attr('opacity', nameOpacity)
         .text(clipLabel(cell.label, maxW, fs));
@@ -595,7 +597,7 @@ function drawVerticalLabel(
     .attr('y', Math.round(fs * 0.28))
     .attr('text-anchor', 'middle')
     .attr('font-size', fs)
-    .attr('font-weight', 600)
+    .attr('font-weight', 'bold')
     .attr('fill', ink)
     .attr('opacity', 0.95)
     .text(text);

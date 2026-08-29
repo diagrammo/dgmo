@@ -2,6 +2,7 @@
 // Slope renderer — Story 109.2 (arch-review). Extracted from d3.ts.
 // ============================================================
 
+import { GRID_DASH, scaleDash } from '../utils/visual-conventions';
 import * as d3Scale from 'd3-scale';
 import * as d3Shape from 'd3-shape';
 import * as d3Array from 'd3-array';
@@ -85,7 +86,7 @@ export function renderSlopeChart(
   const sPeriodFont = ctx.text(18);
   const sValueFont = ctx.text(16);
   const sPeriodHeaderY = ctx.structural(15);
-  const sDash = `${ctx.structural(4)},${ctx.structural(4)}`;
+  const sDash = scaleDash(GRID_DASH, (n) => ctx.structural(n));
   const sLineStroke = ctx.structural(2.5);
   const sHitWidth = ctx.structural(14);
   const sPointR = ctx.structural(4);
@@ -154,8 +155,8 @@ export function renderSlopeChart(
       .attr('y', -sPeriodHeaderY)
       .attr('text-anchor', 'middle')
       .attr('fill', textColor)
-      .attr('font-size', `${sPeriodFont}px`)
-      .attr('font-weight', '600')
+      .attr('font-size', sPeriodFont)
+      .attr('font-weight', 'bold')
       .text(period);
 
     // Vertical guide line
@@ -328,7 +329,7 @@ export function renderSlopeChart(
           .attr('dy', '0.35em')
           .attr('text-anchor', isFirst ? 'end' : 'middle')
           .attr('fill', color)
-          .attr('font-size', `${sValueFont}px`)
+          .attr('font-size', sValueFont)
           .text(val.toString());
       }
     });
@@ -343,8 +344,8 @@ export function renderSlopeChart(
       .attr('y', adjustedLastY)
       .attr('text-anchor', 'start')
       .attr('fill', color)
-      .attr('font-size', `${sLabelFontSize}px`)
-      .attr('font-weight', '500');
+      .attr('font-size', sLabelFontSize)
+      .attr('font-weight', 'normal');
 
     if (!si.wrappedLines) {
       labelEl.attr('dy', '0.35em').text(si.labelText);

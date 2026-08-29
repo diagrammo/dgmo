@@ -53,7 +53,7 @@ describe('funnel renderer labels', () => {
   it('in-band value uses the segment color, scaled up', async () => {
     const { svg } = await render(SRC);
     const value = svg.match(
-      /<text[^>]*fill="([^"]+)"[^>]*font-size="([^"]+)"[^>]*font-weight="700"[^>]*>1,000<\/text>/
+      /<text[^>]*fill="([^"]+)"[^>]*font-size="([^"]+)"[^>]*font-weight="bold"[^>]*>1,000<\/text>/
     );
     expect(value).not.toBeNull();
     const seg = svg.match(/<polygon[^>]*stroke="([^"]+)"/);
@@ -64,7 +64,7 @@ describe('funnel renderer labels', () => {
   it('fill-solid switches the in-band value to contrast text', async () => {
     const { svg } = await render(`funnel T\nfill-solid\nA 1000\nB 500`);
     const value = svg.match(
-      /<text[^>]*fill="([^"]+)"[^>]*font-weight="700"[^>]*>1,000<\/text>/
+      /<text[^>]*fill="([^"]+)"[^>]*font-weight="bold"[^>]*>1,000<\/text>/
     );
     expect(value).not.toBeNull();
     const seg = svg.match(/<polygon[^>]*stroke="([^"]+)"/);

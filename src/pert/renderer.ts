@@ -28,6 +28,13 @@
 //   - group bounding rects (cluster) and super-edges (hammock when collapsed)
 //   - data attrs on the `<g>` wrapper of each activity ONLY (per
 //     CLAUDE.md gotcha: children must NOT carry data attributes)
+/**
+ * A percentile tick whose date has already passed. Dash is DATA here — it
+ * separates a percentile the project can still hit from one it cannot — so it
+ * is a documented local pattern rather than one of the three shared ones.
+ * Space-separated like every other pattern in the product; it was `'4,2'`.
+ */
+const PAST_PERCENTILE_DASH = '4 2';
 
 import { serializeSvg } from '../utils/svg-serialize';
 import * as d3Selection from 'd3-selection';
@@ -57,7 +64,11 @@ import {
   CAPTION_BOX_PADDING_Y,
 } from '../utils/title-constants';
 import { LEGEND_HEIGHT as LEGEND_HEIGHT_CONST } from '../utils/legend-constants';
-import { resolveActiveTagGroup, resolveTagColor } from '../utils/tag-groups';
+import {
+  resolveActiveTagGroup,
+  resolveTagColor,
+  UNTAGGED_TAG_COLOR,
+} from '../utils/tag-groups';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import { getLegendExtent } from '../utils/legend-layout';
 import { layoutInlineHeader, INLINE_HEADER_PAD } from '../utils/inline-header';
@@ -87,12 +98,9 @@ import type { Duration, DurationUnit } from '../gantt/types';
 // ============================================================
 
 const DIAGRAM_PADDING = 20;
-const NODE_FONT_SIZE = 13;
-const NODE_CELL_FONT_SIZE = 11;
 // Textbook 3×3 PERT/CPM box. Card rx=6 to match org/infra. The middle
 // row holds the name and is taller than the corner cells so the name
 // reads as the primary label (mirroring textbook proportions).
-const NODE_RADIUS = 6;
 // Shared card / group / collapse constants (Story 111.1). The explanatory
 // comments below stay with the renderer; the values now live in one module.
 import {
@@ -102,6 +110,13 @@ import {
   CONTAINER_LABEL_FONT_SIZE,
   CONTAINER_HEADER_HEIGHT,
   COLLAPSE_BAR_HEIGHT,
+  ARROWHEAD_WIDTH,
+  ARROWHEAD_HEIGHT,
+  EDGE_DASH,
+  HAIRLINE_DASH,
+  CARD_RADIUS,
+  LABEL_FONT_SIZE,
+  META_FONT_SIZE,
 } from '../utils/visual-conventions';
 
 // Analysis-block chrome (Summary / Activity Risk / Completion / Field
@@ -128,8 +143,6 @@ const NODE_BOTTOM_ROW_HEIGHT = 26;
 // stroke and a matching red arrowhead because the critical path is the
 // central concept of a PERT chart, and a binary `data-critical` attr
 // alone left it visually invisible to readers.
-const ARROWHEAD_W = 10;
-const ARROWHEAD_H = 7;
 // Group-rect treatment per §2: neutral surface fill on textMuted stroke,
 // solid border, rx=8, top-center 13pt 'bold' label inside a reserved
 // 28px header band — exactly matching org's container recipe.
@@ -478,15 +491,15 @@ export function renderPert(
   const sLegendBlockHeight = showTagLegend
     ? sLegendTopGap + sLegendPillHeight + sLegendBottomGap
     : 0;
-  const sNodeRadius = ctx.structural(NODE_RADIUS);
+  const sNodeRadius = ctx.structural(CARD_RADIUS);
   const sNodeStrokeWidth = ctx.structural(NODE_STROKE_WIDTH);
-  const sNodeFontSize = ctx.text(NODE_FONT_SIZE);
-  const sNodeCellFontSize = ctx.text(NODE_CELL_FONT_SIZE);
+  const sNodeFontSize = ctx.text(LABEL_FONT_SIZE);
+  const sNodeCellFontSize = ctx.text(META_FONT_SIZE);
   const sNodeTopRowHeight = ctx.structural(NODE_TOP_ROW_HEIGHT);
   const sNodeBottomRowHeight = ctx.structural(NODE_BOTTOM_ROW_HEIGHT);
   const sEdgeStrokeWidth = ctx.structural(EDGE_STROKE_WIDTH);
-  const sArrowheadW = ctx.structural(ARROWHEAD_W);
-  const sArrowheadH = ctx.structural(ARROWHEAD_H);
+  const sArrowheadW = ctx.structural(ARROWHEAD_WIDTH);
+  const sArrowheadH = ctx.structural(ARROWHEAD_HEIGHT);
   const sContainerRadius = ctx.structural(CONTAINER_RADIUS);
   const sContainerLabelFontSize = ctx.text(CONTAINER_LABEL_FONT_SIZE);
   const sContainerHeaderHeight = ctx.structural(CONTAINER_HEADER_HEIGHT);
@@ -572,7 +585,7 @@ export function renderPert(
       .attr('text-anchor', 'middle')
       .attr('fill', palette.textMuted)
       .attr('font-size', sSubtitleFontSize)
-      .attr('font-weight', 400)
+      .attr('font-weight', 'normal')
       .text(effectiveSubtitle);
   }
 
@@ -1230,8 +1243,8 @@ type Defs = d3Selection.Selection<SVGDefsElement, unknown, null, undefined>;
 function buildArrowheads(
   defs: Defs,
   palette: PaletteColors,
-  arrowW: number = ARROWHEAD_W,
-  arrowH: number = ARROWHEAD_H
+  arrowW: number = ARROWHEAD_WIDTH,
+  arrowH: number = ARROWHEAD_HEIGHT
 ): void {
   const mk = (id: string, fill: string): void => {
     defs
@@ -1371,7 +1384,7 @@ function renderGroups(
         palette.textOnFillLight,
         palette.textOnFillDark
       );
-      const sNR = sc.nodeRadius ?? NODE_RADIUS;
+      const sNR = sc.nodeRadius ?? CARD_RADIUS;
       const sCBH = sc.collapseBarHeight ?? COLLAPSE_BAR_HEIGHT;
       drawTextbookCard(g, {
         width: grp.width,
@@ -1674,7 +1687,7 @@ function renderNodes(
     if (r.activity.groupId && collapsedSet.has(r.activity.groupId)) continue;
     const isCritical = r.isCriticalPath;
     const isTbd = tbdSet.has(node.id);
-    const dashArray = isTbd ? '4,3' : 'none';
+    const dashArray = isTbd ? EDGE_DASH : 'none';
     const isTopMu = topMuIds.has(node.id);
     const isBottomMu = bottomMuIds.has(node.id);
 
@@ -1743,7 +1756,8 @@ function renderNodes(
       resolved.tagGroups,
       activeTagGroup
     );
-    const hasTagColor = tagColor !== undefined && tagColor !== '#999999';
+    const hasTagColor =
+      tagColor !== undefined && tagColor !== UNTAGGED_TAG_COLOR;
     const tagBandFill = hasTagColor
       ? shapeFill(palette, tagColor as string, isDark, { mode: fillMode })
       : undefined;
@@ -1939,12 +1953,12 @@ type AnySel = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
 
 function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
   const { width: w, height: h, x, y } = a;
-  const sNR = a.sNodeRadius ?? NODE_RADIUS;
+  const sNR = a.sNodeRadius ?? CARD_RADIUS;
   const sNSW = a.sNodeStrokeWidth ?? NODE_STROKE_WIDTH;
   const sTRH = a.sNodeTopRowHeight ?? NODE_TOP_ROW_HEIGHT;
   const sBRH = a.sNodeBottomRowHeight ?? NODE_BOTTOM_ROW_HEIGHT;
-  const sNFS = a.sNodeFontSize ?? NODE_FONT_SIZE;
-  const sNCFS = a.sNodeCellFontSize ?? NODE_CELL_FONT_SIZE;
+  const sNFS = a.sNodeFontSize ?? LABEL_FONT_SIZE;
+  const sNCFS = a.sNodeCellFontSize ?? META_FONT_SIZE;
   const sPIW = a.sPinIconW ?? PIN_ICON_W;
   const sPIH = a.sPinIconH ?? PIN_ICON_H;
   const outerColW = a.outerColW;
@@ -2135,11 +2149,11 @@ interface MilestonePillArgs {
 
 function drawMilestonePill(g: AnySel, a: MilestonePillArgs): void {
   const { width: w, height: h, x, y } = a;
-  const sNR = a.sNodeRadius ?? NODE_RADIUS;
+  const sNR = a.sNodeRadius ?? CARD_RADIUS;
   const sNSW = a.sNodeStrokeWidth ?? NODE_STROKE_WIDTH;
   const topRowH = a.sNodeTopRowHeight ?? NODE_TOP_ROW_HEIGHT;
   const botRowH = a.sNodeBottomRowHeight ?? NODE_BOTTOM_ROW_HEIGHT;
-  const sNCFS = a.sNodeCellFontSize ?? NODE_CELL_FONT_SIZE;
+  const sNCFS = a.sNodeCellFontSize ?? META_FONT_SIZE;
   const sPIW = a.sPinIconW ?? PIN_ICON_W;
   const sPIH = a.sPinIconH ?? PIN_ICON_H;
   const topY = y + topRowH;
@@ -2504,8 +2518,8 @@ function renderFieldLegendBlock(
     .attr('y', y)
     .attr('width', width)
     .attr('height', height)
-    .attr('rx', NODE_RADIUS)
-    .attr('ry', NODE_RADIUS)
+    .attr('rx', CARD_RADIUS)
+    .attr('ry', CARD_RADIUS)
     .attr('fill', 'none')
     .attr('stroke', baseColor)
     .attr('stroke-opacity', 0.4)
@@ -2520,7 +2534,7 @@ function renderFieldLegendBlock(
     .attr('text-anchor', 'middle')
     .attr('fill', labelColor)
     .attr('font-size', CAPTION_FONT_SIZE)
-    .attr('font-weight', '700')
+    .attr('font-weight', 'bold')
     .text('Field labels');
 
   // Internal grid lines for the 3×2 cell area (matches
@@ -2605,7 +2619,7 @@ function renderFieldLegendBlock(
       .attr('text-anchor', 'middle')
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', FIELD_LEGEND_LABEL_FONT_SIZE)
-      .attr('font-weight', 600)
+      .attr('font-weight', 'bold')
       .attr('fill', labelColor)
       .text(cell.label);
 
@@ -2759,8 +2773,8 @@ function renderTornadoBlock(
     .attr('y', y)
     .attr('width', width)
     .attr('height', height)
-    .attr('rx', NODE_RADIUS)
-    .attr('ry', NODE_RADIUS)
+    .attr('rx', CARD_RADIUS)
+    .attr('ry', CARD_RADIUS)
     .attr('fill', fill)
     .attr('stroke', chromeStroke)
     .attr('stroke-width', NODE_STROKE_WIDTH);
@@ -2773,7 +2787,7 @@ function renderTornadoBlock(
     .attr('text-anchor', 'middle')
     .attr('fill', labelColor)
     .attr('font-size', CAPTION_FONT_SIZE)
-    .attr('font-weight', '700')
+    .attr('font-weight', 'bold')
     .text('Activity Risk');
 
   // Two-sided bar geometry. Activity name on the far left, then a
@@ -3188,8 +3202,8 @@ function renderScurveBlock(
     .attr('y', y)
     .attr('width', width)
     .attr('height', height)
-    .attr('rx', NODE_RADIUS)
-    .attr('ry', NODE_RADIUS)
+    .attr('rx', CARD_RADIUS)
+    .attr('ry', CARD_RADIUS)
     .attr('fill', fill)
     .attr('stroke', chromeStroke)
     .attr('stroke-width', NODE_STROKE_WIDTH);
@@ -3283,7 +3297,7 @@ function renderScurveBlock(
     .attr('text-anchor', 'middle')
     .attr('fill', labelColor)
     .attr('font-size', SCURVE_TICK_FONT_SIZE - 1)
-    .attr('font-weight', '600')
+    .attr('font-weight', 'bold')
     .attr('opacity', 0.85)
     // Plain-English "Probability of completion" — same label in
     // both modes. The mode-specific reading comes from the x-axis
@@ -3340,7 +3354,7 @@ function renderScurveBlock(
         .attr('text-anchor', anchor)
         .attr('fill', deadlineColor)
         .attr('font-size', SCURVE_TICK_FONT_SIZE)
-        .attr('font-weight', '700')
+        .attr('font-weight', 'bold')
         .text(`Deadline · ${formatScurveDate(data.deadlineDate)}`);
       block
         .append('line')
@@ -3538,7 +3552,7 @@ function renderScurveBlock(
       .attr('y2', plotBottom)
       .attr('stroke', color)
       .attr('stroke-width', 1)
-      .attr('stroke-dasharray', d.isPast ? '4,2' : '3 3')
+      .attr('stroke-dasharray', d.isPast ? PAST_PERCENTILE_DASH : HAIRLINE_DASH)
       .attr('opacity', 0.7);
     dotGroup
       .append('circle')
@@ -3580,7 +3594,7 @@ function renderScurveBlock(
       .attr('text-anchor', labelAnchor)
       .attr('fill', labelFill)
       .attr('font-size', SCURVE_TICK_FONT_SIZE)
-      .attr('font-weight', '700')
+      .attr('font-weight', 'bold')
       // Paint-order halo with the panel fill — knocks out the band
       // and dashed gridlines behind each letter so the label reads
       // against the panel bg, not the visual noise behind it.
@@ -3603,7 +3617,7 @@ function renderScurveBlock(
       .attr('text-anchor', labelAnchor)
       .attr('fill', labelFill)
       .attr('font-size', SCURVE_TICK_FONT_SIZE)
-      .attr('font-weight', '700')
+      .attr('font-weight', 'bold')
       .attr('paint-order', 'stroke fill')
       .attr('stroke', fill)
       .attr('stroke-width', 3)

@@ -88,6 +88,42 @@ export function escapeAttributeMarkupChars(svg: string): string {
 }
 
 /**
+ * Attributes whose value is a plain number that nobody reads at more than a
+ * couple of decimal places. Deliberately NOT `d`, `points`, `transform`, `x`,
+ * `y`, `width` or `height` — geometry is left exactly as the renderer computed
+ * it, so this pass cannot move anything.
+ */
+const ROUNDED_ATTRS = /(\s(?:font-size|stroke-width|rx|ry)=")(-?\d+\.\d{3,})"/g;
+
+/**
+ * Opacities keep four decimals. Two is enough for the eye but not for the
+ * arithmetic: `emphasis` dims a ribbon to `0.6 * EMPHASIS_DIM_OPACITY`, and
+ * rounding that to `0.17` breaks the relationship the value encodes.
+ */
+const ROUNDED_OPACITY_ATTRS =
+  /(\s(?:opacity|fill-opacity|stroke-opacity)=")(-?\d+\.\d{5,})"/g;
+
+/**
+ * Trim float noise out of the attributes that carry a plain magnitude.
+ *
+ * Computed sizes reached the output as `font-size="15.986159169550175"`,
+ * `opacity="0.09999999999999998"` and `rx="11.760000000000002"` — seventeen
+ * digits of a number whose first two mattered. It bloats every snapshot diff
+ * and makes a real change hard to see among the noise.
+ */
+function roundMagnitudeAttrs(svg: string): string {
+  const round =
+    (re: RegExp, digits: number) =>
+    (s: string): string =>
+      s.replace(re, (_m, prefix: string, value: string) => {
+        const n = Number(value);
+        if (!Number.isFinite(n)) return `${prefix}${value}"`;
+        return `${prefix}${String(Number(n.toFixed(digits)))}"`;
+      });
+  return round(ROUNDED_OPACITY_ATTRS, 4)(round(ROUNDED_ATTRS, 2)(svg));
+}
+
+/**
  * Serialize an SVG element to the string every renderer returns.
  *
  * The single place `outerHTML` is turned into shipped bytes, so the
@@ -95,5 +131,5 @@ export function escapeAttributeMarkupChars(svg: string): string {
  * somebody remembered.
  */
 export function serializeSvg(svgEl: Element): string {
-  return escapeAttributeMarkupChars(svgEl.outerHTML);
+  return roundMagnitudeAttrs(escapeAttributeMarkupChars(svgEl.outerHTML));
 }

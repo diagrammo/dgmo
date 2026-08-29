@@ -11,6 +11,7 @@
 import { serializeSvg } from './svg-serialize';
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
+import { paintRootBackground } from './export-container';
 import type { PaletteColors } from '../palettes';
 import { getSeriesColors } from '../palettes';
 import type { D3ExportDimensions } from './d3-types';
@@ -168,15 +169,16 @@ export const EXPORT_WIDTH = 1200;
 export const EXPORT_HEIGHT = 800;
 
 /**
- * Resolves the palette for export, falling back to Nord light/dark.
+ * Resolves the palette for export, falling back to the product default.
  */
 export async function resolveExportPalette(
   theme: string,
   palette?: PaletteColors
 ): Promise<PaletteColors> {
   if (palette) return palette;
-  const { getPalette } = await import('../palettes');
-  return theme === 'dark' ? getPalette('nord').dark : getPalette('nord').light;
+  const { getPalette, DEFAULT_PALETTE_ID } = await import('../palettes');
+  const cfg = getPalette(DEFAULT_PALETTE_ID);
+  return theme === 'dark' ? cfg.dark : cfg.light;
 }
 
 /**
@@ -214,6 +216,7 @@ export function finalizeSvgExport(
   svgEl.style.fontFamily = FONT_FAMILY;
   // Strip elements marked for export exclusion (e.g., inactive legend pills)
   svgEl.querySelectorAll('[data-export-ignore]').forEach((el) => el.remove());
+  paintRootBackground(svgEl, theme, palette.bg);
   const svgHtml = serializeSvg(svgEl);
   document.body.removeChild(container);
   return svgHtml;

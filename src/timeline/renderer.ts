@@ -3,6 +3,8 @@
 // ============================================================
 
 import { tagAttrKey } from '../utils/tag-groups';
+import { GRID_DASH, EDGE_DASH, scaleDash } from '../utils/visual-conventions';
+import { getPalette, DEFAULT_PALETTE_ID } from '../palettes';
 import * as d3Scale from 'd3-scale';
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
@@ -25,7 +27,12 @@ import type {
 import { parseTimelineDate } from '../timeline/parser';
 import type { PaletteColors } from '../palettes';
 import { getSeriesColors } from '../palettes';
-import { mix, shapeFill, themeBaseBg } from '../palettes/color-utils';
+import {
+  mix,
+  shapeFill,
+  themeBaseBg,
+  getEraColors,
+} from '../palettes/color-utils';
 import { resolveTagColor } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import {
@@ -43,16 +50,6 @@ import {
 } from '../utils/legend-constants';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import type { LegendConfig, LegendCallbacks } from '../utils/legend-types';
-
-function getEraColors(palette: PaletteColors): string[] {
-  return [
-    palette.colors.blue,
-    palette.colors.green,
-    palette.colors.yellow,
-    palette.colors.orange,
-    palette.colors.purple,
-  ];
-}
 
 /**
  * Renders semi-transparent era background bands behind timeline events.
@@ -80,9 +77,9 @@ function renderEras(
   fillMode?: 'solid' | 'outline',
   outlineBg?: string
 ): void {
-  const eraColors = palette
-    ? getEraColors(palette)
-    : ['#3b6ea5', '#5b9357', '#c9a227', '#cc7a33', '#7d5ba6'];
+  const eraColors = getEraColors(
+    palette ?? getPalette(DEFAULT_PALETTE_ID).light
+  );
   eras.forEach((era, i) => {
     const startVal = parseTimelineDate(era.startDate);
     const endVal = parseTimelineDate(era.endDate);
@@ -141,8 +138,8 @@ function renderEras(
         .attr('y', y + 18)
         .attr('text-anchor', 'start')
         .attr('fill', color)
-        .attr('font-size', '13px')
-        .attr('font-weight', '600')
+        .attr('font-size', 13)
+        .attr('font-weight', 'bold')
         .attr('opacity', 0.8)
         .text(displayLabel);
     } else {
@@ -175,8 +172,8 @@ function renderEras(
         .attr('y', labelY)
         .attr('text-anchor', 'middle')
         .attr('fill', color)
-        .attr('font-size', '13px')
-        .attr('font-weight', '600')
+        .attr('font-size', 13)
+        .attr('font-weight', 'bold')
         .attr('opacity', 0.8)
         .text(displayLabel);
     }
@@ -270,7 +267,7 @@ function renderMarkers(
         .attr('y2', pos)
         .attr('stroke', color)
         .attr('stroke-width', 1.5)
-        .attr('stroke-dasharray', '6 4')
+        .attr('stroke-dasharray', EDGE_DASH)
         .attr('opacity', lineOpacity);
 
       // Label above diamond
@@ -280,8 +277,8 @@ function renderMarkers(
         .attr('y', pos - diamondSize - 4)
         .attr('text-anchor', 'middle')
         .attr('fill', color)
-        .attr('font-size', '11px')
-        .attr('font-weight', '600')
+        .attr('font-size', 11)
+        .attr('font-weight', 'bold')
         .text(marker.label);
 
       // Diamond at the left edge
@@ -339,8 +336,8 @@ function renderMarkers(
         .attr('y', labelY)
         .attr('text-anchor', 'middle')
         .attr('fill', color)
-        .attr('font-size', '11px')
-        .attr('font-weight', '600')
+        .attr('font-size', 11)
+        .attr('font-weight', 'bold')
         .text(displayLabel);
 
       // Diamond
@@ -362,7 +359,7 @@ function renderMarkers(
         .attr('y2', innerHeight)
         .attr('stroke', color)
         .attr('stroke-width', 1.5)
-        .attr('stroke-dasharray', '6 4')
+        .attr('stroke-dasharray', EDGE_DASH)
         .attr('opacity', lineOpacity);
 
       markerG
@@ -488,7 +485,7 @@ function renderTimeScale(
         .attr('y2', tick.pos)
         .attr('stroke', textColor)
         .attr('stroke-width', 1)
-        .attr('stroke-dasharray', '4 4')
+        .attr('stroke-dasharray', GRID_DASH)
         .attr('opacity', guideOpacity);
 
       // Left edge
@@ -507,7 +504,7 @@ function renderTimeScale(
         .attr('dy', '0.35em')
         .attr('text-anchor', 'end')
         .attr('fill', textColor)
-        .attr('font-size', '10px')
+        .attr('font-size', 10)
         .attr('opacity', opacity)
         .text(tick.label);
 
@@ -527,7 +524,7 @@ function renderTimeScale(
         .attr('dy', '0.35em')
         .attr('text-anchor', 'start')
         .attr('fill', textColor)
-        .attr('font-size', '10px')
+        .attr('font-size', 10)
         .attr('opacity', opacity)
         .text(tick.label);
     } else {
@@ -540,7 +537,7 @@ function renderTimeScale(
         .attr('y2', innerHeight)
         .attr('stroke', textColor)
         .attr('stroke-width', 1)
-        .attr('stroke-dasharray', '4 4')
+        .attr('stroke-dasharray', GRID_DASH)
         .attr('opacity', guideOpacity);
 
       // Bottom edge
@@ -560,7 +557,7 @@ function renderTimeScale(
         .attr('y', innerHeight + tickLen + 12)
         .attr('text-anchor', 'middle')
         .attr('fill', textColor)
-        .attr('font-size', '10px')
+        .attr('font-size', 10)
         .attr('opacity', opacity)
         .text(tick.label);
 
@@ -581,7 +578,7 @@ function renderTimeScale(
         .attr('y', -tickLen - 4)
         .attr('text-anchor', 'middle')
         .attr('fill', textColor)
-        .attr('font-size', '10px')
+        .attr('font-size', 10)
         .attr('opacity', opacity)
         .text(tick.label);
     }
@@ -620,7 +617,7 @@ function showEventDatesOnScale(
     .attr('y2', innerHeight)
     .attr('stroke', accentColor)
     .attr('stroke-width', 1.5)
-    .attr('stroke-dasharray', '4 4')
+    .attr('stroke-dasharray', GRID_DASH)
     .attr('opacity', 0.6);
 
   g.append('text')
@@ -629,8 +626,8 @@ function showEventDatesOnScale(
     .attr('y', -tickLen - 4)
     .attr('text-anchor', 'middle')
     .attr('fill', accentColor)
-    .attr('font-size', '10px')
-    .attr('font-weight', '600')
+    .attr('font-size', 10)
+    .attr('font-weight', 'bold')
     .text(startLabel);
 
   // Start date - bottom
@@ -640,8 +637,8 @@ function showEventDatesOnScale(
     .attr('y', innerHeight + tickLen + 12)
     .attr('text-anchor', 'middle')
     .attr('fill', accentColor)
-    .attr('font-size', '10px')
-    .attr('font-weight', '600')
+    .attr('font-size', 10)
+    .attr('font-weight', 'bold')
     .text(startLabel);
 
   if (endDate) {
@@ -657,7 +654,7 @@ function showEventDatesOnScale(
       .attr('y2', innerHeight)
       .attr('stroke', accentColor)
       .attr('stroke-width', 1.5)
-      .attr('stroke-dasharray', '4 4')
+      .attr('stroke-dasharray', GRID_DASH)
       .attr('opacity', 0.6);
 
     g.append('text')
@@ -666,8 +663,8 @@ function showEventDatesOnScale(
       .attr('y', -tickLen - 4)
       .attr('text-anchor', 'middle')
       .attr('fill', accentColor)
-      .attr('font-size', '10px')
-      .attr('font-weight', '600')
+      .attr('font-size', 10)
+      .attr('font-weight', 'bold')
       .text(endLabel);
 
     // End date - bottom
@@ -677,8 +674,8 @@ function showEventDatesOnScale(
       .attr('y', innerHeight + tickLen + 12)
       .attr('text-anchor', 'middle')
       .attr('fill', accentColor)
-      .attr('font-size', '10px')
-      .attr('font-weight', '600')
+      .attr('font-size', 10)
+      .attr('font-weight', 'bold')
       .text(endLabel);
   }
 }
@@ -774,7 +771,7 @@ function renderTimelineGroupLegend(
       .attr('y', legendY)
       .attr('dy', '0.35em')
       .attr('fill', textColor)
-      .attr('font-size', `${FONT_SIZE}px`)
+      .attr('font-size', FONT_SIZE)
       .attr('font-family', FONT_FAMILY)
       .text(grp.name);
 
@@ -1822,7 +1819,7 @@ function renderTimelineHorizontalTimeSort(
           .attr('dy', '0.35em')
           .attr('text-anchor', 'start')
           .attr('fill', textColor)
-          .attr('font-size', `${sEventFont}px`)
+          .attr('font-size', sEventFont)
           .text(ev.label);
       } else {
         const sLabelGap = ctx.aesthetic(6);
@@ -1836,7 +1833,7 @@ function renderTimelineHorizontalTimeSort(
           .attr('dy', '0.35em')
           .attr('text-anchor', flipLeft ? 'end' : 'start')
           .attr('fill', textColor)
-          .attr('font-size', `${sEventFont}px`)
+          .attr('font-size', sEventFont)
           .text(ev.label);
       }
     } else {
@@ -1860,7 +1857,7 @@ function renderTimelineHorizontalTimeSort(
         .attr('dy', '0.35em')
         .attr('text-anchor', flipLeft ? 'end' : 'start')
         .attr('fill', textColor)
-        .attr('font-size', `${sEventFontSm}px`)
+        .attr('font-size', sEventFontSm)
         .text(ev.label);
     }
   });
@@ -2151,8 +2148,8 @@ function renderTimelineHorizontalGrouped(
       .attr('dy', '0.35em')
       .attr('text-anchor', 'start')
       .attr('fill', textColor)
-      .attr('font-size', `${sLaneHeaderFont}px`)
-      .attr('font-weight', '600')
+      .attr('font-size', sLaneHeaderFont)
+      .attr('font-weight', 'bold')
       .text(`${toggleIcon} ${lane.name}`);
 
     // Group bar in time area — spans min→max event dates, always rendered
@@ -2254,7 +2251,7 @@ function renderTimelineHorizontalGrouped(
         .attr('y', y)
         .attr('dy', '0.35em')
         .attr('text-anchor', 'start')
-        .attr('font-size', `${sEventFont}px`)
+        .attr('font-size', sEventFont)
         .attr('fill', textColor);
       labelEl.append('tspan').attr('fill', evColor).text(icon);
       labelEl
@@ -2407,7 +2404,7 @@ function renderTimelineVertical(
   const sEventFontSm = ctx.text(11);
   const sDateFont = ctx.text(10);
   const sLaneHeaderFont = ctx.text(12);
-  const sDash = `${ctx.structural(4)},${ctx.structural(4)}`;
+  const sDash = scaleDash(GRID_DASH, (n) => ctx.structural(n));
 
   const useGroupedVertical =
     tagLanes != null || (timelineSort === 'group' && timelineGroups.length > 0);
@@ -2562,8 +2559,8 @@ function renderTimelineVertical(
         .attr('y', -ctx.structural(15))
         .attr('text-anchor', 'middle')
         .attr('fill', laneColor)
-        .attr('font-size', `${sLaneHeaderFont}px`)
-        .attr('font-weight', '600')
+        .attr('font-size', sLaneHeaderFont)
+        .attr('font-weight', 'bold')
         .text(laneName);
 
       g.append('line')
@@ -2680,7 +2677,7 @@ function renderTimelineVertical(
             .attr('y', y + rectH / 2)
             .attr('dy', '0.35em')
             .attr('fill', textColor)
-            .attr('font-size', `${sEventFont}px`)
+            .attr('font-size', sEventFont)
             .text(ev.label);
         } else {
           evG
@@ -2700,7 +2697,7 @@ function renderTimelineVertical(
             .attr('y', y)
             .attr('dy', '0.35em')
             .attr('fill', textColor)
-            .attr('font-size', `${sEventFont}px`)
+            .attr('font-size', sEventFont)
             .text(ev.label);
         }
       }
@@ -2924,7 +2921,7 @@ function renderTimelineVertical(
           .attr('y', y + rectH / 2)
           .attr('dy', '0.35em')
           .attr('fill', textColor)
-          .attr('font-size', `${sEventFontSm}px`)
+          .attr('font-size', sEventFontSm)
           .text(ev.label);
       } else {
         evG
@@ -2941,7 +2938,7 @@ function renderTimelineVertical(
           .attr('y', y)
           .attr('dy', '0.35em')
           .attr('fill', textColor)
-          .attr('font-size', `${sEventFontSm}px`)
+          .attr('font-size', sEventFontSm)
           .text(ev.label);
       }
 
@@ -2963,7 +2960,7 @@ function renderTimelineVertical(
         .attr('dy', '0.35em')
         .attr('text-anchor', 'end')
         .attr('fill', mutedColor)
-        .attr('font-size', `${sDateFont}px`)
+        .attr('font-size', sDateFont)
         .text(ev.date + (ev.endDate ? `→${ev.endDate}` : ''));
     }
   }

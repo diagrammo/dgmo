@@ -8,6 +8,10 @@ import { fillModeFromOptions } from '../utils/parsing';
 import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
+import {
+  appendArrowheadMarkers,
+  appendReverseArrowheadMarkers,
+} from '../utils/arrow-markers';
 import type { PaletteColors } from '../palettes';
 import { contrastText, mix, shapeFill } from '../palettes/color-utils';
 import { renderInlineText } from '../utils/inline-markdown';
@@ -35,9 +39,7 @@ const DIAGRAM_PADDING = 20;
 const MAX_SCALE = 3;
 const TITLE_HEIGHT = 30;
 const TYPE_FONT_SIZE = 10;
-const NAME_FONT_SIZE = 14;
-const DESC_FONT_SIZE = 11;
-const DESC_LINE_HEIGHT = 16;
+
 const EDGE_LABEL_FONT_SIZE = 11;
 const TECH_FONT_SIZE = 10;
 import {
@@ -46,6 +48,13 @@ import {
   CARD_RADIUS,
   META_FONT_SIZE,
   META_LINE_HEIGHT,
+  EDGE_LABEL_KNOCKOUT_OPACITY,
+  ARROWHEAD_WIDTH,
+  ARROWHEAD_HEIGHT,
+  EDGE_DASH,
+  CONTAINER_RADIUS,
+  COLLAPSE_BAR_HEIGHT,
+  LABEL_FONT_SIZE,
 } from '../utils/visual-conventions'; // shared (Story 111.1)
 const CARD_H_PAD = 20;
 const CARD_V_PAD = 14;
@@ -53,11 +62,8 @@ const TYPE_LABEL_HEIGHT = 18;
 const DIVIDER_GAP = 6;
 const NAME_HEIGHT = 20;
 const BOUNDARY_LABEL_FONT_SIZE = 12;
-const BOUNDARY_STROKE_WIDTH = 1.5;
-const BOUNDARY_RADIUS = 8;
 
 // Drillable accent bar (matches org chart collapse bar)
-const DRILL_BAR_HEIGHT = 6;
 
 // Cylinder (database/cache) shape constants
 const CYLINDER_RY = 8;
@@ -256,36 +262,17 @@ export function renderC4Context(
 
   // ── Marker defs ──
   const defs = svg.append('defs');
-  const AW = 10;
-  const AH = 7;
-
-  // Filled triangle — end marker
-  defs
-    .append('marker')
-    .attr('id', 'c4-arrow-end')
-    .attr('viewBox', `0 0 ${AW} ${AH}`)
-    .attr('refX', AW)
-    .attr('refY', AH / 2)
-    .attr('markerWidth', AW)
-    .attr('markerHeight', AH)
-    .attr('orient', 'auto')
-    .append('polygon')
-    .attr('points', `0,0 ${AW},${AH / 2} 0,${AH}`)
-    .attr('fill', palette.textMuted);
-
-  // Filled triangle — start marker (for bidirectional)
-  defs
-    .append('marker')
-    .attr('id', 'c4-arrow-start')
-    .attr('viewBox', `0 0 ${AW} ${AH}`)
-    .attr('refX', 0)
-    .attr('refY', AH / 2)
-    .attr('markerWidth', AW)
-    .attr('markerHeight', AH)
-    .attr('orient', 'auto')
-    .append('polygon')
-    .attr('points', `${AW},0 0,${AH / 2} ${AW},${AH}`)
-    .attr('fill', palette.textMuted);
+  const markerOpts = {
+    idPrefix: 'c4',
+    width: ARROWHEAD_WIDTH,
+    height: ARROWHEAD_HEIGHT,
+    baseFill: palette.textMuted,
+  };
+  appendArrowheadMarkers(defs, markerOpts);
+  appendReverseArrowheadMarkers(defs, {
+    ...markerOpts,
+    reverseSuffix: 'arrow-start',
+  });
 
   // ── Title ──
   if (parsed.title && parsed.options['no-title'] !== 'on') {
@@ -355,10 +342,10 @@ export function renderC4Context(
         .attr('stroke', edgeColor)
         .attr('stroke-width', EDGE_STROKE_WIDTH)
         .attr('class', 'c4-edge')
-        .attr('marker-end', 'url(#c4-arrow-end)');
+        .attr('marker-end', 'url(#c4-arrow)');
 
       if (dashed) {
-        pathEl.attr('stroke-dasharray', '6 3');
+        pathEl.attr('stroke-dasharray', EDGE_DASH);
       }
 
       if (bidir) {
@@ -391,7 +378,7 @@ export function renderC4Context(
         .attr('height', bgH)
         .attr('rx', 3)
         .attr('fill', palette.bg)
-        .attr('opacity', 0.9)
+        .attr('opacity', EDGE_LABEL_KNOCKOUT_OPACITY)
         .attr('class', 'c4-edge-label-bg');
 
       let textY = midPt.y;
@@ -507,7 +494,7 @@ export function renderC4Context(
     // Name (bold) — above divider
     if (node.type === 'person') {
       // Person icon to the left of name
-      const textWidth = measureText(node.name, NAME_FONT_SIZE, { bold: true });
+      const textWidth = measureText(node.name, LABEL_FONT_SIZE, { bold: true });
       const gap = 6;
       const totalWidth = PERSON_ICON_W + gap + textWidth;
       const iconCx = -totalWidth / 2 + PERSON_ICON_W / 2;
@@ -516,29 +503,29 @@ export function renderC4Context(
       drawPersonIcon(
         nodeG as GSelection,
         iconCx,
-        yPos + NAME_FONT_SIZE / 2 - 2,
+        yPos + LABEL_FONT_SIZE / 2 - 2,
         stroke
       );
 
       nodeG
         .append('text')
         .attr('x', textX)
-        .attr('y', yPos + NAME_FONT_SIZE / 2)
+        .attr('y', yPos + LABEL_FONT_SIZE / 2)
         .attr('text-anchor', 'start')
         .attr('dominant-baseline', 'central')
         .attr('fill', onFillText)
-        .attr('font-size', NAME_FONT_SIZE)
+        .attr('font-size', LABEL_FONT_SIZE)
         .attr('font-weight', 'bold')
         .text(node.name);
     } else {
       nodeG
         .append('text')
         .attr('x', 0)
-        .attr('y', yPos + NAME_FONT_SIZE / 2)
+        .attr('y', yPos + LABEL_FONT_SIZE / 2)
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'central')
         .attr('fill', onFillText)
-        .attr('font-size', NAME_FONT_SIZE)
+        .attr('font-size', LABEL_FONT_SIZE)
         .attr('font-weight', 'bold')
         .text(node.name);
     }
@@ -553,8 +540,8 @@ export function renderC4Context(
       .attr('x2', w / 2 - CARD_H_PAD / 2)
       .attr('y2', yPos)
       .attr('stroke', fillMode === 'solid' ? onFillText : stroke)
-      .attr('stroke-width', 0.5)
-      .attr('stroke-opacity', 0.4);
+      .attr('stroke-width', 1)
+      .attr('stroke-opacity', 0.3);
 
     yPos += DIVIDER_GAP;
 
@@ -563,25 +550,25 @@ export function renderC4Context(
       const contentWidth = w - CARD_H_PAD * 2;
       const lines = wrapTextToWidth(
         node.description,
-        DESC_FONT_SIZE,
+        META_FONT_SIZE,
         contentWidth
       );
       for (const line of lines) {
         const textEl = nodeG
           .append('text')
           .attr('x', 0)
-          .attr('y', yPos + DESC_FONT_SIZE / 2)
+          .attr('y', yPos + META_FONT_SIZE / 2)
           .attr('text-anchor', 'middle')
           .attr('dominant-baseline', 'central')
           .attr('fill', onFillText)
-          .attr('font-size', DESC_FONT_SIZE);
+          .attr('font-size', META_FONT_SIZE);
         renderInlineText(
           textEl,
           preprocessDescriptionLine(line),
           palette,
-          DESC_FONT_SIZE
+          META_FONT_SIZE
         );
-        yPos += DESC_LINE_HEIGHT;
+        yPos += META_LINE_HEIGHT;
       }
     }
 
@@ -600,9 +587,9 @@ export function renderC4Context(
       nodeG
         .append('rect')
         .attr('x', -w / 2)
-        .attr('y', h / 2 - DRILL_BAR_HEIGHT)
+        .attr('y', h / 2 - COLLAPSE_BAR_HEIGHT)
         .attr('width', w)
-        .attr('height', DRILL_BAR_HEIGHT)
+        .attr('height', COLLAPSE_BAR_HEIGHT)
         // In solid mode, `stroke` matches the fill — drill-bar disappears.
         // Use the contrast text color so the indicator stays visible.
         .attr('fill', fillMode === 'solid' ? onFillText : stroke)
@@ -719,7 +706,7 @@ function drawCylinderCard(
     .attr('stroke-width', NODE_STROKE_WIDTH);
 
   if (dashed) {
-    el.attr('stroke-dasharray', '6 3');
+    el.attr('stroke-dasharray', EDGE_DASH);
   }
 
   // Top ellipse highlight (inner curve)
@@ -758,7 +745,7 @@ function drawCardRect(
     .attr('stroke-width', NODE_STROKE_WIDTH);
 
   if (dashed) {
-    el.attr('stroke-dasharray', '6 3');
+    el.attr('stroke-dasharray', EDGE_DASH);
   }
 }
 
@@ -816,10 +803,10 @@ function renderEdges(
         .attr('stroke', edgeColor)
         .attr('stroke-width', EDGE_STROKE_WIDTH)
         .attr('class', 'c4-edge')
-        .attr('marker-end', 'url(#c4-arrow-end)');
+        .attr('marker-end', 'url(#c4-arrow)');
 
       if (dashed) {
-        pathEl.attr('stroke-dasharray', '6 3');
+        pathEl.attr('stroke-dasharray', EDGE_DASH);
       }
 
       if (bidir) {
@@ -867,7 +854,7 @@ function renderEdges(
       .attr('height', lbl.bgH)
       .attr('rx', 3)
       .attr('fill', palette.bg)
-      .attr('opacity', 0.9)
+      .attr('opacity', EDGE_LABEL_KNOCKOUT_OPACITY)
       .attr('class', 'c4-edge-label-bg');
 
     let textY = lbl.y;
@@ -1338,34 +1325,17 @@ export function renderC4Containers(
 
   // ── Marker defs ──
   const defs = svg.append('defs');
-  const AW = 10;
-  const AH = 7;
-
-  defs
-    .append('marker')
-    .attr('id', 'c4-arrow-end')
-    .attr('viewBox', `0 0 ${AW} ${AH}`)
-    .attr('refX', AW)
-    .attr('refY', AH / 2)
-    .attr('markerWidth', AW)
-    .attr('markerHeight', AH)
-    .attr('orient', 'auto')
-    .append('polygon')
-    .attr('points', `0,0 ${AW},${AH / 2} 0,${AH}`)
-    .attr('fill', palette.textMuted);
-
-  defs
-    .append('marker')
-    .attr('id', 'c4-arrow-start')
-    .attr('viewBox', `0 0 ${AW} ${AH}`)
-    .attr('refX', 0)
-    .attr('refY', AH / 2)
-    .attr('markerWidth', AW)
-    .attr('markerHeight', AH)
-    .attr('orient', 'auto')
-    .append('polygon')
-    .attr('points', `${AW},0 0,${AH / 2} ${AW},${AH}`)
-    .attr('fill', palette.textMuted);
+  const markerOpts = {
+    idPrefix: 'c4',
+    width: ARROWHEAD_WIDTH,
+    height: ARROWHEAD_HEIGHT,
+    baseFill: palette.textMuted,
+  };
+  appendArrowheadMarkers(defs, markerOpts);
+  appendReverseArrowheadMarkers(defs, {
+    ...markerOpts,
+    reverseSuffix: 'arrow-start',
+  });
 
   // ── Title ──
   if (parsed.title && parsed.options['no-title'] !== 'on') {
@@ -1427,11 +1397,11 @@ export function renderC4Containers(
       .attr('y', b.y)
       .attr('width', b.width)
       .attr('height', b.height)
-      .attr('rx', BOUNDARY_RADIUS)
-      .attr('ry', BOUNDARY_RADIUS)
+      .attr('rx', CONTAINER_RADIUS)
+      .attr('ry', CONTAINER_RADIUS)
       .attr('fill', boundaryFill)
       .attr('stroke', boundaryStroke)
-      .attr('stroke-width', BOUNDARY_STROKE_WIDTH);
+      .attr('stroke-width', NODE_STROKE_WIDTH);
 
     // Boundary label
     boundaryG
@@ -1467,11 +1437,11 @@ export function renderC4Containers(
         .attr('y', gb.y)
         .attr('width', gb.width)
         .attr('height', gb.height)
-        .attr('rx', 6)
-        .attr('ry', 6)
+        .attr('rx', CONTAINER_RADIUS)
+        .attr('ry', CONTAINER_RADIUS)
         .attr('fill', groupFill)
         .attr('stroke', groupStroke)
-        .attr('stroke-width', 1);
+        .attr('stroke-width', NODE_STROKE_WIDTH);
 
       // Group label — top-left, italic, name only
       gbG
@@ -1608,7 +1578,7 @@ export function renderC4Containers(
 
     // Name (bold)
     if (node.type === 'person') {
-      const textWidth = measureText(node.name, NAME_FONT_SIZE, { bold: true });
+      const textWidth = measureText(node.name, LABEL_FONT_SIZE, { bold: true });
       const gap = 6;
       const totalWidth = PERSON_ICON_W + gap + textWidth;
       const iconCx = -totalWidth / 2 + PERSON_ICON_W / 2;
@@ -1617,29 +1587,29 @@ export function renderC4Containers(
       drawPersonIcon(
         nodeG as GSelection,
         iconCx,
-        yPos + NAME_FONT_SIZE / 2 - 2,
+        yPos + LABEL_FONT_SIZE / 2 - 2,
         stroke
       );
 
       nodeG
         .append('text')
         .attr('x', textX)
-        .attr('y', yPos + NAME_FONT_SIZE / 2)
+        .attr('y', yPos + LABEL_FONT_SIZE / 2)
         .attr('text-anchor', 'start')
         .attr('dominant-baseline', 'central')
         .attr('fill', onFillText)
-        .attr('font-size', NAME_FONT_SIZE)
+        .attr('font-size', LABEL_FONT_SIZE)
         .attr('font-weight', 'bold')
         .text(node.name);
     } else {
       nodeG
         .append('text')
         .attr('x', 0)
-        .attr('y', yPos + NAME_FONT_SIZE / 2)
+        .attr('y', yPos + LABEL_FONT_SIZE / 2)
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'central')
         .attr('fill', onFillText)
-        .attr('font-size', NAME_FONT_SIZE)
+        .attr('font-size', LABEL_FONT_SIZE)
         .attr('font-weight', 'bold')
         .text(node.name);
     }
@@ -1654,25 +1624,25 @@ export function renderC4Containers(
         const contentWidth = w - CARD_H_PAD * 2;
         const lines = wrapTextToWidth(
           node.description,
-          DESC_FONT_SIZE,
+          META_FONT_SIZE,
           contentWidth
         );
         for (const line of lines) {
           const textEl = nodeG
             .append('text')
             .attr('x', 0)
-            .attr('y', yPos + DESC_FONT_SIZE / 2)
+            .attr('y', yPos + META_FONT_SIZE / 2)
             .attr('text-anchor', 'middle')
             .attr('dominant-baseline', 'central')
             .attr('fill', onFillText)
-            .attr('font-size', DESC_FONT_SIZE);
+            .attr('font-size', META_FONT_SIZE);
           renderInlineText(
             textEl,
             preprocessDescriptionLine(line),
             palette,
-            DESC_FONT_SIZE
+            META_FONT_SIZE
           );
-          yPos += DESC_LINE_HEIGHT;
+          yPos += META_LINE_HEIGHT;
         }
       }
 
@@ -1687,8 +1657,8 @@ export function renderC4Containers(
           .attr('x2', w / 2 - CARD_H_PAD / 2)
           .attr('y2', yPos)
           .attr('stroke', fillMode === 'solid' ? onFillText : stroke)
-          .attr('stroke-width', 0.5)
-          .attr('stroke-opacity', 0.4);
+          .attr('stroke-width', 1)
+          .attr('stroke-opacity', 0.3);
 
         yPos += DIVIDER_GAP;
 
@@ -1734,8 +1704,8 @@ export function renderC4Containers(
         .attr('x2', w / 2 - CARD_H_PAD / 2)
         .attr('y2', yPos)
         .attr('stroke', fillMode === 'solid' ? onFillText : stroke)
-        .attr('stroke-width', 0.5)
-        .attr('stroke-opacity', 0.4);
+        .attr('stroke-width', 1)
+        .attr('stroke-opacity', 0.3);
 
       yPos += DIVIDER_GAP;
 
@@ -1744,25 +1714,25 @@ export function renderC4Containers(
         const contentWidth = w - CARD_H_PAD * 2;
         const lines = wrapTextToWidth(
           node.description,
-          DESC_FONT_SIZE,
+          META_FONT_SIZE,
           contentWidth
         );
         for (const line of lines) {
           const textEl = nodeG
             .append('text')
             .attr('x', 0)
-            .attr('y', yPos + DESC_FONT_SIZE / 2)
+            .attr('y', yPos + META_FONT_SIZE / 2)
             .attr('text-anchor', 'middle')
             .attr('dominant-baseline', 'central')
             .attr('fill', onFillText)
-            .attr('font-size', DESC_FONT_SIZE);
+            .attr('font-size', META_FONT_SIZE);
           renderInlineText(
             textEl,
             preprocessDescriptionLine(line),
             palette,
-            DESC_FONT_SIZE
+            META_FONT_SIZE
           );
-          yPos += DESC_LINE_HEIGHT;
+          yPos += META_LINE_HEIGHT;
         }
       }
     }
@@ -1782,9 +1752,9 @@ export function renderC4Containers(
       nodeG
         .append('rect')
         .attr('x', -w / 2)
-        .attr('y', h / 2 - DRILL_BAR_HEIGHT)
+        .attr('y', h / 2 - COLLAPSE_BAR_HEIGHT)
         .attr('width', w)
-        .attr('height', DRILL_BAR_HEIGHT)
+        .attr('height', COLLAPSE_BAR_HEIGHT)
         // In solid mode, `stroke` matches the fill — drill-bar disappears.
         // Use the contrast text color so the indicator stays visible.
         .attr('fill', fillMode === 'solid' ? onFillText : stroke)

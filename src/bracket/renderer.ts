@@ -414,7 +414,7 @@ export function renderBracket(
       .attr('y', 18)
       .attr('text-anchor', 'middle')
       .attr('font-size', 13)
-      .attr('font-weight', 800)
+      .attr('font-weight', 'bold')
       .attr('letter-spacing', 0.3)
       .attr('fill', c)
       .text(clip(s.label, s.x1 - s.x0, 13, true));
@@ -437,7 +437,7 @@ export function renderBracket(
       .attr('y', covered ? roundY : 22)
       .attr('text-anchor', 'middle')
       .attr('font-size', covered ? 14 : 15)
-      .attr('font-weight', covered ? 700 : 800)
+      .attr('font-weight', 'bold')
       .attr('fill', c)
       .attr('letter-spacing', 0.4)
       .text(clip(col.label, BOX_W + 20, covered ? 14 : 15, true));
@@ -591,27 +591,27 @@ function drawBox(
   let sw = 1.25;
   let dash: string | null = null;
   let textColor = paint.ink;
-  let weight = 600;
+  let weight = 'bold';
 
   if (info.isChampion) {
     fill = paint.tint;
     stroke = paint.accent;
     sw = 3;
-    weight = 800;
+    weight = 'bold';
   } else if (isTBD) {
     fill = paint.track;
     dash = '4 4';
     textColor = paint.muted;
-    weight = 500;
+    weight = 'normal';
   } else if (info.isWinner) {
     fill = paint.tint;
     stroke = paint.accent;
     sw = 2;
-    weight = 700;
+    weight = 'bold';
   } else if (info.isLoser) {
     stroke = paint.hair;
     textColor = paint.muted;
-    weight = 500;
+    weight = 'normal';
   } else if (info.pending) {
     stroke = mix(paint.accent, paint.hair, 50);
   }
@@ -651,7 +651,7 @@ function drawBox(
       .attr('y', cy + 4)
       .attr('text-anchor', 'start')
       .attr('font-size', 10)
-      .attr('font-weight', 700)
+      .attr('font-weight', 'bold')
       .attr('fill', gutterColor)
       .text(info.seed);
     leftPad =
@@ -680,7 +680,7 @@ function drawBox(
         isTBD ? 'TBD' : name!,
         BOX_W - leftPad - rightPad,
         12.5,
-        weight >= 600
+        weight === 'bold'
       )
     );
 
@@ -691,7 +691,7 @@ function drawBox(
       .attr('y', cy + 4)
       .attr('text-anchor', 'end')
       .attr('font-size', 12)
-      .attr('font-weight', info.isWinner ? 700 : 500)
+      .attr('font-weight', info.isWinner ? 'bold' : 'normal')
       .attr('fill', info.isWinner ? textColor : gutterColor)
       .text(info.score);
   }
@@ -718,7 +718,7 @@ function drawUpset(g: GSel, m: LaidMatch, paint: Paint): void {
     .attr('y', m.y - HALF_SPAN - BOX_H / 2 - 4)
     .attr('text-anchor', 'end')
     .attr('font-size', 9)
-    .attr('font-weight', 800)
+    .attr('font-weight', 'bold')
     .attr('letter-spacing', 0.6)
     .attr('fill', paint.accent)
     .text('UPSET');

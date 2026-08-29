@@ -2,7 +2,8 @@
 // C4 Context Diagram Layout Engine (dagre)
 // ============================================================
 
-import { tagAttrKey } from '../utils/tag-groups';
+import { META_FONT_SIZE, META_LINE_HEIGHT } from '../utils/visual-conventions';
+import { tagAttrKey, UNTAGGED_TAG_COLOR } from '../utils/tag-groups';
 import dagre from '@dagrejs/dagre';
 import type {
   ParsedC4,
@@ -134,8 +135,6 @@ const DESC_LINE_HEIGHT = 16;
 const DESC_FONT_SIZE = 11;
 const CARD_V_PAD = 14;
 const CARD_H_PAD = 20;
-const META_LINE_HEIGHT = 16;
-const META_FONT_SIZE = 11;
 const MARGIN = 40;
 const BOUNDARY_PAD = 40;
 const GROUP_BOUNDARY_PAD = 24;
@@ -673,11 +672,11 @@ function resolveNodeColor(
     }
   }
   const resolvedValue = metaValue ?? group.defaultValue;
-  if (!resolvedValue) return '#999999';
+  if (!resolvedValue) return UNTAGGED_TAG_COLOR;
   return (
     group.entries.find(
       (e) => e.value.toLowerCase() === resolvedValue.toLowerCase()
-    )?.color ?? '#999999'
+    )?.color ?? UNTAGGED_TAG_COLOR
   );
 }
 

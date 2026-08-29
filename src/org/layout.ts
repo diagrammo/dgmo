@@ -2,6 +2,13 @@
 // Org Chart Tree Layout Engine (d3-hierarchy)
 // ============================================================
 
+import {
+  HEADER_HEIGHT,
+  LABEL_FONT_SIZE,
+  META_FONT_SIZE,
+  META_LINE_HEIGHT,
+  SEPARATOR_GAP,
+} from '../utils/visual-conventions';
 import { tagAttrKey } from '../utils/tag-groups';
 import { hierarchy, tree } from 'd3-hierarchy';
 import type { ParsedOrg, OrgNode } from './parser';
@@ -113,11 +120,6 @@ export interface OrgLayoutResult {
 
 // Card text font sizes — MUST match the renderer (LABEL_FONT_SIZE / META_FONT_SIZE)
 // so node sizing measures text at the exact size it is drawn.
-const LABEL_FONT_SIZE = 13;
-const META_FONT_SIZE = 11;
-const META_LINE_HEIGHT = 16;
-const HEADER_HEIGHT = 28;
-const SEPARATOR_GAP = 6;
 const CARD_H_PAD = 20;
 const CARD_V_PAD = 10;
 const MIN_CARD_WIDTH = 140;

@@ -152,6 +152,11 @@ export function renderGoal(
   const vw = box.maxX - box.minX + pad * 2;
   const vh = box.maxY - box.minY + pad * 2;
   svg.attr('viewBox', `${vx} ${vy} ${vw} ${vh}`);
+  // Match the viewport to the fitted content, so `meet` has nothing to letterbox.
+  // The canvas was left at the caller's height (1200x800 on the export path)
+  // while the content is a ~5:1 strip, so a goal PNG came out ~70% empty and
+  // the background rect covered only the middle band.
+  if (vw > 0 && vh > 0) svg.attr('height', Math.round((cw * vh) / vw));
   svg
     .insert('rect', ':first-child')
     .attr('x', vx)
@@ -306,7 +311,7 @@ function drawNote(
     .attr('fill', paint.muted)
     .attr('font-family', FONT_FAMILY)
     .attr('font-size', descSize)
-    .attr('font-weight', 500);
+    .attr('font-weight', 'normal');
   renderWrappedMarkdown(desc, lines, lineH);
   return firstY + lines.length * lineH;
 }
@@ -365,7 +370,7 @@ function renderBar(
       .attr('fill', paint.muted)
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', titleSize)
-      .attr('font-weight', 700)
+      .attr('font-weight', 'bold')
       .text(metrics.pctLabel);
   }
   const y = hasTitle || showPct ? titleSize + 14 : 0;
@@ -457,7 +462,7 @@ function renderBar(
       .attr('fill', insideFits ? paint.base : paint.text)
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', 24)
-      .attr('font-weight', 700)
+      .attr('font-weight', 'bold')
       .text(valueText);
   }
 
@@ -470,7 +475,7 @@ function renderBar(
       .attr('fill', paint.text)
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', 26)
-      .attr('font-weight', 700)
+      .attr('font-weight', 'bold')
       .text(compactNumber(parsed.target));
   }
 
@@ -574,7 +579,7 @@ function renderThermometer(
           .attr('fill', paint.muted)
           .attr('font-family', FONT_FAMILY)
           .attr('font-size', 15)
-          .attr('font-weight', 600)
+          .attr('font-weight', 'bold')
           .attr('letter-spacing', 1)
           .text('TARGET');
       }
@@ -602,7 +607,7 @@ function renderThermometer(
       .attr('fill', paint.base)
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', 42)
-      .attr('font-weight', 700)
+      .attr('font-weight', 'bold')
       .text(compactNumber(parsed.now));
   }
 
@@ -634,7 +639,7 @@ function renderThermometer(
       .attr('fill', paint.muted)
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', 64)
-      .attr('font-weight', 700)
+      .attr('font-weight', 'bold')
       .text(metrics.pctLabel);
     cursorY += 76;
   }
@@ -804,7 +809,7 @@ function renderGauge(
     .attr('fill', paint.muted)
     .attr('font-family', FONT_FAMILY)
     .attr('font-size', nowSize)
-    .attr('font-weight', 700)
+    .attr('font-weight', 'bold')
     .text(nowLabel);
 
   // Scale ticks + value labels around the arc: 0 at the left end, `target` at
@@ -838,7 +843,7 @@ function renderGauge(
           .attr('fill', paint.muted)
           .attr('font-family', FONT_FAMILY)
           .attr('font-size', 15)
-          .attr('font-weight', 600)
+          .attr('font-weight', 'bold')
           .attr('letter-spacing', 1)
           .text('TARGET');
       }

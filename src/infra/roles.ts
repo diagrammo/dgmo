@@ -7,21 +7,36 @@
 
 import type { InfraProperty } from './types';
 import type { InfraLayoutEdge } from './layout';
+import type { PaletteColors } from '../palettes';
+
+/** Semantic palette slot a role's badge is painted from. */
+export type RoleColorToken = keyof PaletteColors['colors'];
 
 export interface InfraRole {
   name: string;
-  color: string; // hex color for badge
+  /**
+   * Palette slot, NOT a hex. These were eight raw Tailwind hues until
+   * 2026-08-28, so a role dot kept its own colours under every palette and
+   * in dark mode. The renderer resolves the token against the live palette.
+   */
+  colorToken: RoleColorToken;
 }
 
 /** All recognized roles with their trigger keys. */
 const ROLE_RULES: { keys: string[]; role: InfraRole }[] = [
-  { keys: ['cache-hit'], role: { name: 'Cache', color: '#22c55e' } },
-  { keys: ['firewall-block'], role: { name: 'Firewall', color: '#ef4444' } },
-  { keys: ['ratelimit-rps'], role: { name: 'Rate Limiter', color: '#eab308' } },
-  { keys: ['max-rps'], role: { name: 'Service', color: '#3b82f6' } },
-  { keys: ['cb-error-threshold', 'cb-latency-threshold-ms'], role: { name: 'Circuit Breaker', color: '#a855f7' } },
-  { keys: ['concurrency'], role: { name: 'Serverless', color: '#06b6d4' } },
-  { keys: ['buffer'], role: { name: 'Queue', color: '#8b5cf6' } },
+  { keys: ['cache-hit'], role: { name: 'Cache', colorToken: 'green' } },
+  { keys: ['firewall-block'], role: { name: 'Firewall', colorToken: 'red' } },
+  {
+    keys: ['ratelimit-rps'],
+    role: { name: 'Rate Limiter', colorToken: 'yellow' },
+  },
+  { keys: ['max-rps'], role: { name: 'Service', colorToken: 'blue' } },
+  {
+    keys: ['cb-error-threshold', 'cb-latency-threshold-ms'],
+    role: { name: 'Circuit Breaker', colorToken: 'purple' },
+  },
+  { keys: ['concurrency'], role: { name: 'Serverless', colorToken: 'cyan' } },
+  { keys: ['buffer'], role: { name: 'Queue', colorToken: 'teal' } },
 ];
 
 /**
@@ -42,7 +57,7 @@ export function inferRoles(properties: InfraProperty[]): InfraRole[] {
 }
 
 /** The Fan-Out role, assigned to nodes with at least one outgoing fanout edge. */
-export const FANOUT_ROLE: InfraRole = { name: 'Fan-Out', color: '#f97316' };
+export const FANOUT_ROLE: InfraRole = { name: 'Fan-Out', colorToken: 'orange' };
 
 /**
  * Return the set of sourceIds that have at least one outgoing edge with fanout.
@@ -58,7 +73,9 @@ export function collectFanoutSourceIds(edges: InfraLayoutEdge[]): Set<string> {
 /**
  * Collect all unique roles present in the diagram (for legend).
  */
-export function collectDiagramRoles(allProperties: InfraProperty[][]): InfraRole[] {
+export function collectDiagramRoles(
+  allProperties: InfraProperty[][]
+): InfraRole[] {
   const seen = new Set<string>();
   const roles: InfraRole[] = [];
 

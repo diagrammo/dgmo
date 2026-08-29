@@ -6,6 +6,7 @@ import { tagAttrKey } from '../utils/tag-groups';
 import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
+import { appendArrowheadMarkers } from '../utils/arrow-markers';
 import type { PaletteColors } from '../palettes';
 import { contrastText, mix, shapeFill } from '../palettes/color-utils';
 import type { InfraTagGroup } from './types';
@@ -76,6 +77,9 @@ import {
   NODE_STROKE_WIDTH,
   COLLAPSE_BAR_HEIGHT,
   COLLAPSE_BAR_INSET,
+  ARROWHEAD_WIDTH,
+  ARROWHEAD_HEIGHT,
+  EDGE_DASH,
 } from '../utils/visual-conventions'; // shared (Story 111.1)
 const OVERLOAD_STROKE_WIDTH = 3;
 const ROLE_DOT_RADIUS = 3;
@@ -1260,7 +1264,7 @@ function renderGroups(
       .attr('text-anchor', 'middle')
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', sc.sGroupLabelFontSize)
-      .attr('font-weight', '600')
+      .attr('font-weight', 'bold')
       .attr('fill', palette.text)
       .text(group.label);
 
@@ -1299,6 +1303,22 @@ function renderEdgePaths(
   const maxRps = Math.max(...edges.map((e) => e.computedRps), 1);
   const { srcPts, tgtPts } = computePortPts(edges, nodeMap, direction);
 
+  // Arrowheads. An infra edge is directed — traffic flows one way — but until
+  // 2026-08-28 it was drawn as a bare stroked path, so direction was carried
+  // only by layout order and, when animating, by the particles. Same marker
+  // box as every other chart type (utils/visual-conventions).
+  const defs = svg.append('defs');
+  const edgeColors = new Set(edges.map((e) => edgeColor(e, palette)));
+  if (edgeColors.size > 0) {
+    appendArrowheadMarkers(defs, {
+      idPrefix: 'infra',
+      width: ARROWHEAD_WIDTH,
+      height: ARROWHEAD_HEIGHT,
+      baseFill: palette.textMuted,
+      colors: edgeColors,
+    });
+  }
+
   for (const edge of edges) {
     if (edge.points.length === 0) continue;
 
@@ -1333,9 +1353,10 @@ function renderEdgePaths(
       .attr('d', pathD)
       .attr('fill', 'none')
       .attr('stroke', color)
-      .attr('stroke-width', strokeW);
+      .attr('stroke-width', strokeW)
+      .attr('marker-end', `url(#infra-arrow-${color.replace('#', '')})`);
     if (edge.async) {
-      edgePath.attr('stroke-dasharray', '6 4');
+      edgePath.attr('stroke-dasharray', EDGE_DASH);
     }
 
     if (animate && edge.computedRps > 0) {
@@ -1564,7 +1585,7 @@ function renderNodes(
       .attr('text-anchor', 'middle')
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', sc.sNodeFontSize)
-      .attr('font-weight', '600')
+      .attr('font-weight', 'bold')
       .attr('fill', textFill)
       .text(node.label);
 
@@ -1700,7 +1721,7 @@ function renderNodes(
             key: 'RPS',
             value: rpsText,
             valueFill: rpsColor,
-            fontWeight: '500',
+            fontWeight: 'normal',
             inverted: rpsInverted,
             ...(rpsInverted && { invertedBg: rpsColor }),
           });
@@ -1800,15 +1821,20 @@ function renderNodes(
               .attr('rx', 3)
               .attr('fill', row.invertedBg)
               .attr('opacity', 0.9);
-            // Inverted text: use lightest available color for max contrast on colored pills
-            const pillTextColor = isDark ? '#ffffff' : palette.text;
+            // Inverted text: whichever of the palette's on-fill inks reads
+            // best on THIS pill, rather than a fixed white/dark by theme.
+            const pillTextColor = contrastText(
+              row.invertedBg,
+              palette.textOnFillLight,
+              palette.textOnFillDark
+            );
             // Key — same x as normal rows
             g.append('text')
               .attr('x', x + 10)
               .attr('y', rowY)
               .attr('font-family', FONT_FAMILY)
               .attr('font-size', sc.sMetaFontSize)
-              .attr('font-weight', '600')
+              .attr('font-weight', 'bold')
               .attr('fill', pillTextColor)
               .text(`${row.key}: `);
             g.append('text')
@@ -1816,7 +1842,7 @@ function renderNodes(
               .attr('y', rowY)
               .attr('font-family', FONT_FAMILY)
               .attr('font-size', sc.sMetaFontSize)
-              .attr('font-weight', '600')
+              .attr('font-weight', 'bold')
               .attr('fill', pillTextColor)
               .text(row.value);
           } else {
@@ -1880,7 +1906,7 @@ function renderNodes(
             .attr('cx', startX + i * (sc.sRoleDotRadius * 2 + 2))
             .attr('cy', dotY)
             .attr('r', sc.sRoleDotRadius)
-            .attr('fill', roles[i]!.color);
+            .attr('fill', palette.colors[roles[i]!.colorToken]);
         }
       }
 
@@ -2089,7 +2115,7 @@ export function computeInfraLegendGroups(
   if (roles.length > 0) {
     const entries = roles.map((r) => ({
       value: r.name,
-      color: r.color,
+      color: palette.colors[r.colorToken],
       key: r.name.toLowerCase().replace(/\s+/g, '-'),
     }));
     const pillWidth =
@@ -2308,7 +2334,7 @@ function renderLegend(
         .attr('dominant-baseline', 'central')
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
-        .attr('font-weight', isSpeedActive ? '600' : '400')
+        .attr('font-weight', isSpeedActive ? 'bold' : 'normal')
         .attr('fill', isSpeedActive ? palette.bg : palette.textMuted)
         .attr('text-anchor', 'middle')
         .text(label);
@@ -2488,7 +2514,7 @@ export function renderInfra(
       }
       @keyframes infra-pulse-cb {
         0%, 49% { stroke-dasharray: none; }
-        50%, 100% { stroke-dasharray: 6 4; }
+        50%, 100% { stroke-dasharray: ${EDGE_DASH}; }
       }
       .infra-node-warning > rect:first-of-type {
         animation: infra-pulse-warning ${NODE_PULSE_SPEED}s ease-in-out infinite;
@@ -2497,7 +2523,7 @@ export function renderInfra(
         animation: infra-pulse-overload ${NODE_PULSE_OVERLOAD}s ease-in-out infinite;
       }
       .infra-node-cb-open > rect:first-of-type {
-        stroke-dasharray: 6 4;
+        stroke-dasharray: ${EDGE_DASH};
         animation: infra-pulse-cb 1s step-end infinite;
       }
       @keyframes infra-edge-throb {

@@ -287,7 +287,7 @@ export function renderRing(
           .attr('fill', textColor)
           .attr('font-family', FONT_FAMILY)
           .attr('font-size', labelFont)
-          .attr('font-weight', 600)
+          .attr('font-weight', 'bold')
           .style('pointer-events', 'none');
         renderInlineText(label, layer.label, palette, labelFont);
         continue;
@@ -398,7 +398,7 @@ function drawRingCurvedLabel(
     .attr('fill', textColor)
     .attr('font-family', FONT_FAMILY)
     .attr('font-size', fs)
-    .attr('font-weight', 600)
+    .attr('font-weight', 'bold')
     .style('pointer-events', 'none');
   const textPath = label
     .append('textPath')
@@ -540,7 +540,7 @@ function renderSideDescriptions(args: SideDescArgs): void {
       .attr('fill', palette.text)
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', descFont)
-      .attr('font-weight', 600);
+      .attr('font-weight', 'bold');
     renderInlineText(labelEl, layer.label, palette, descFont);
 
     let lineY = cursorY + labelRowH + Math.round(descLineHeight * 0.4);

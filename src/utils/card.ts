@@ -14,6 +14,7 @@
 // attributes, same values. Scaled numbers are passed IN (the door never calls
 // ScaleContext), so rounding order is unchanged.
 
+import { EDGE_DASH } from './visual-conventions';
 import type { D3Sel } from './legend-types';
 import { measureText } from './text-measure';
 
@@ -85,7 +86,7 @@ export function renderNodeCard(container: D3Sel, opts: NodeCardOptions): void {
     .attr('stroke-width', opts.strokeWidth);
 
   if (opts.dashed) {
-    rect.attr('stroke-dasharray', '6 3');
+    rect.attr('stroke-dasharray', EDGE_DASH);
   }
 
   const labelLines = opts.labelLines;

@@ -743,7 +743,7 @@ describe('clock renderer — layout fit (scales, never overflows)', () => {
     const c = renderWidth(LONG, 300);
     const row = c.querySelector('[data-dgmo-clock]')!;
     const aliasLines = [...row.querySelectorAll('text')].filter(
-      (t) => t.getAttribute('font-weight') === '650'
+      (t) => t.getAttribute('font-weight') === 'bold'
     );
     expect(aliasLines.length).toBeGreaterThan(1);
   });

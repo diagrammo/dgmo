@@ -261,7 +261,7 @@ export function drawXAxisTitle(
     .attr('fill', textColor)
     .attr('font-size', AXIS_LABEL_FONT)
     .attr('font-family', FONT_FAMILY)
-    .attr('font-weight', 600)
+    .attr('font-weight', 'bold')
     .text(label);
 }
 
@@ -281,7 +281,7 @@ export function drawYAxisTitle(
     .attr('fill', textColor)
     .attr('font-size', AXIS_LABEL_FONT)
     .attr('font-family', FONT_FAMILY)
-    .attr('font-weight', 600)
+    .attr('font-weight', 'bold')
     .text(label);
 }
 

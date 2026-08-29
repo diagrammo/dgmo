@@ -2,12 +2,22 @@
 // Gantt Chart Renderer
 // ============================================================
 
-import { tagAttrKey } from '../utils/tag-groups';
+import {
+  EDGE_DASH,
+  GRID_DASH,
+  HAIRLINE_DASH,
+} from '../utils/visual-conventions';
+import { tagAttrKey, UNTAGGED_TAG_COLOR } from '../utils/tag-groups';
 import * as d3Scale from 'd3-scale';
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import { getSeriesColors } from '../palettes';
-import { contrastText, mix, shapeFill } from '../palettes/color-utils';
+import {
+  contrastText,
+  mix,
+  shapeFill,
+  getEraColors,
+} from '../palettes/color-utils';
 import { normalizeName } from '../utils/name-normalize';
 import { resolveTagColor, resolveActiveTagGroup } from '../utils/tag-groups';
 import { ScaleContext } from '../utils/scaling';
@@ -663,7 +673,7 @@ export function renderGantt(
         .attr('y2', sInnerHeight + 10)
         .attr('stroke', todayColor)
         .attr('stroke-width', 2)
-        .attr('stroke-dasharray', '6 4')
+        .attr('stroke-dasharray', EDGE_DASH)
         .attr('opacity', 0.7)
         .attr('pointer-events', 'none');
       if (todayMarkerLineNum)
@@ -675,7 +685,7 @@ export function renderGantt(
         .attr('x', todayX)
         .attr('y', sTodayLabelY)
         .attr('text-anchor', 'middle')
-        .attr('font-size', `${sFont10}px`)
+        .attr('font-size', sFont10)
         .attr('fill', todayColor)
         .attr('opacity', 0.7)
         .attr('pointer-events', 'none')
@@ -727,7 +737,9 @@ export function renderGantt(
   for (const row of rows) {
     if (row.type === 'lane-header') {
       const laneColor =
-        row.laneColor === '#999999' ? palette.textMuted : row.laneColor;
+        row.laneColor === UNTAGGED_TAG_COLOR
+          ? palette.textMuted
+          : row.laneColor;
       const toggleIcon = row.isCollapsed ? '▶' : '▼';
       const labelX = 10;
 
@@ -793,7 +805,7 @@ export function renderGantt(
         .attr('y', sMarginTop + yOffset + sBarH / 2)
         .attr('dy', '0.35em')
         .attr('text-anchor', 'start')
-        .attr('font-size', `${sFont11}px`)
+        .attr('font-size', sFont11)
         .attr('font-weight', 'bold')
         .attr('fill', laneColor)
         .text(
@@ -874,7 +886,7 @@ export function renderGantt(
         true
       );
       const groupColor =
-        tagColor && tagColor !== '#999999'
+        tagColor && tagColor !== UNTAGGED_TAG_COLOR
           ? tagColor
           : group.color || palette.textMuted;
       renderLabelBand(
@@ -925,7 +937,7 @@ export function renderGantt(
         .attr('y', sMarginTop + yOffset + sBarH / 2)
         .attr('dy', '0.35em')
         .attr('text-anchor', 'start')
-        .attr('font-size', `${sFont11}px`)
+        .attr('font-size', sFont11)
         .attr('font-weight', 'bold')
         .attr('fill', palette.text)
         .text(
@@ -1017,7 +1029,7 @@ export function renderGantt(
               .attr('x', summaryPlacement.x)
               .attr('y', yOffset + sBarH / 2)
               .attr('dy', '0.35em')
-              .attr('font-size', `${sFont10}px`)
+              .attr('font-size', sFont10)
               .attr('font-weight', 'bold')
               .attr('text-anchor', summaryPlacement.anchor)
               .attr('fill', summaryPlacement.fill)
@@ -1105,7 +1117,7 @@ export function renderGantt(
               .attr('x', expandedPlacement.x)
               .attr('y', yOffset + sBarH / 2)
               .attr('dy', '0.35em')
-              .attr('font-size', `${sFont10}px`)
+              .attr('font-size', sFont10)
               .attr('font-weight', 'bold')
               .attr('text-anchor', expandedPlacement.anchor)
               .attr('fill', expandedPlacement.fill)
@@ -1139,7 +1151,7 @@ export function renderGantt(
         .attr('y', sMarginTop + yOffset + sBarH / 2)
         .attr('dy', '0.35em')
         .attr('text-anchor', 'start')
-        .attr('font-size', `${sFont11}px`)
+        .attr('font-size', sFont11)
         .attr('fill', palette.text)
         .attr('data-line-number', String(task.lineNumber))
         .attr('data-task-id', task.id)
@@ -1208,9 +1220,9 @@ export function renderGantt(
               .attr('y', my)
               .attr('dy', '0.35em')
               .attr('text-anchor', 'end')
-              .attr('font-size', `${sFont10}px`)
+              .attr('font-size', sFont10)
               .attr('fill', barColor)
-              .attr('font-weight', '600')
+              .attr('font-weight', 'bold')
               .text(task.label);
           })
           .on('mouseleave', () => {
@@ -1411,7 +1423,7 @@ export function renderGantt(
             .attr('x', labelPlacement.x)
             .attr('y', yOffset + sBarH / 2)
             .attr('dy', '0.35em')
-            .attr('font-size', `${sFont10}px`)
+            .attr('font-size', sFont10)
             .attr('text-anchor', labelPlacement.anchor)
             .attr('fill', labelPlacement.fill)
             .attr('pointer-events', 'none')
@@ -1736,8 +1748,8 @@ function drawHolidayBand(
     .attr('x', labelX)
     .attr('y', headerY)
     .attr('text-anchor', 'middle')
-    .attr('font-size', '10px')
-    .attr('font-weight', '500')
+    .attr('font-size', 10)
+    .attr('font-weight', 'normal')
     .attr('fill', palette.text)
     .attr('opacity', 0)
     .attr('pointer-events', 'none')
@@ -2435,8 +2447,6 @@ function renderTagLegend(
 
 // ── Era & Marker Rendering ──────────────────────────────────
 
-const ERA_COLORS = ['#3b6ea5', '#5b9357', '#c9a227', '#cc7a33', '#7d5ba6'];
-
 function renderErasAndMarkers(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
@@ -2451,8 +2461,9 @@ function renderErasAndMarkers(
   for (let i = 0; i < resolved.eras.length; i++) {
     const era = resolved.eras[i];
     if (!era) continue; // In-bounds by loop guard; appeases TS.
-    // In-bounds: ERA_COLORS has 5 entries and i % 5 is always 0-4.
-    const color = era.color || ERA_COLORS[i % ERA_COLORS.length]!;
+    // In-bounds: getEraColors returns 5 entries and i % 5 is always 0-4.
+    const eraColors = getEraColors(palette);
+    const color = era.color || eraColors[i % eraColors.length]!;
     const sx = xScale(parseDateToFractionalYear(era.startDate));
     const ex = xScale(parseDateToFractionalYear(era.endDate));
     if (ex <= sx) continue;
@@ -2489,7 +2500,7 @@ function renderErasAndMarkers(
       .attr('x', (sx + ex) / 2)
       .attr('y', eraLabelY)
       .attr('text-anchor', 'middle')
-      .attr('font-size', '10px')
+      .attr('font-size', 10)
       .attr('fill', color)
       .attr('opacity', 0.7)
       .style('cursor', 'pointer')
@@ -2611,8 +2622,8 @@ function renderErasAndMarkers(
       .attr('x', mx)
       .attr('y', labelY)
       .attr('text-anchor', 'middle')
-      .attr('font-size', '11px')
-      .attr('font-weight', '600')
+      .attr('font-size', 11)
+      .attr('font-weight', 'bold')
       .attr('fill', color)
       .text(markerDisplayLabel);
 
@@ -2636,7 +2647,7 @@ function renderErasAndMarkers(
       .attr('y2', innerHeight)
       .attr('stroke', color)
       .attr('stroke-width', 1.5)
-      .attr('stroke-dasharray', '6 4')
+      .attr('stroke-dasharray', EDGE_DASH)
       .attr('opacity', 0.5);
 
     // Hide marker line/diamond on hover but keep label visible
@@ -2775,8 +2786,8 @@ function renderSprintBands(
       .attr('x', (sx + ex) / 2)
       .attr('y', -22)
       .attr('text-anchor', 'middle')
-      .attr('font-size', '10px')
-      .attr('font-weight', '600')
+      .attr('font-size', 10)
+      .attr('font-weight', 'bold')
       .attr('fill', bandColor)
       .attr('opacity', 0.4)
       .text(String(sprint.number));
@@ -2792,7 +2803,7 @@ function renderSprintBands(
         .attr('y2', innerHeight)
         .attr('stroke', bandColor)
         .attr('stroke-width', 1)
-        .attr('stroke-dasharray', '3 3')
+        .attr('stroke-dasharray', HAIRLINE_DASH)
         .attr('opacity', SPRINT_BOUNDARY_OPACITY);
     }
 
@@ -2916,8 +2927,8 @@ function renderSprintBands(
         const accentColor = palette.accent || palette.text || bandColor;
         sprintLabel
           .text(`Sprint ${sprint.number}`)
-          .attr('font-size', '13px')
-          .attr('font-weight', '700')
+          .attr('font-size', 13)
+          .attr('font-weight', 'bold')
           .attr('fill', accentColor)
           .attr('opacity', 1);
       })
@@ -2926,8 +2937,8 @@ function renderSprintBands(
         sprintRect.attr('opacity', baseOpacity);
         sprintLabel
           .text(String(sprint.number))
-          .attr('font-size', '10px')
-          .attr('font-weight', '600')
+          .attr('font-size', 10)
+          .attr('font-weight', 'bold')
           .attr('fill', bandColor)
           .attr('opacity', 0.4);
         hideGanttDateIndicators(g);
@@ -2946,7 +2957,7 @@ function renderSprintBands(
     .attr('y2', innerHeight)
     .attr('stroke', bandColor)
     .attr('stroke-width', 1)
-    .attr('stroke-dasharray', '3 3')
+    .attr('stroke-dasharray', HAIRLINE_DASH)
     .attr('opacity', SPRINT_BOUNDARY_OPACITY);
 }
 
@@ -3540,7 +3551,7 @@ export function buildTagLaneRowList(
     rows.push({
       type: 'lane-header',
       laneName: noLaneName,
-      laneColor: '#999999',
+      laneColor: UNTAGGED_TAG_COLOR,
       aggregateProgress,
       tagKey,
       isCollapsed,
@@ -3636,7 +3647,7 @@ function showGanttDateIndicators(
       .attr('y2', innerHeight)
       .attr('stroke', color)
       .attr('stroke-width', 1.5)
-      .attr('stroke-dasharray', '4 4')
+      .attr('stroke-dasharray', GRID_DASH)
       .attr('opacity', 0.6);
   }
 
@@ -3647,8 +3658,8 @@ function showGanttDateIndicators(
     .attr('y', -tickLen - 4)
     .attr('text-anchor', 'middle')
     .attr('fill', color)
-    .attr('font-size', '10px')
-    .attr('font-weight', '600')
+    .attr('font-size', 10)
+    .attr('font-weight', 'bold')
     .text(startLabel);
 
   // Start date — bottom label
@@ -3658,8 +3669,8 @@ function showGanttDateIndicators(
     .attr('y', innerHeight + tickLen + 12)
     .attr('text-anchor', 'middle')
     .attr('fill', color)
-    .attr('font-size', '10px')
-    .attr('font-weight', '600')
+    .attr('font-size', 10)
+    .attr('font-weight', 'bold')
     .text(startLabel);
 
   if (endDate && endDate.getTime() !== startDate.getTime()) {
@@ -3691,7 +3702,7 @@ function showGanttDateIndicators(
       .attr('y2', innerHeight)
       .attr('stroke', color)
       .attr('stroke-width', 1.5)
-      .attr('stroke-dasharray', '4 4')
+      .attr('stroke-dasharray', GRID_DASH)
       .attr('opacity', 0.6);
 
     // Reposition start labels to avoid overlap
@@ -3711,8 +3722,8 @@ function showGanttDateIndicators(
       .attr('y', -tickLen - 4)
       .attr('text-anchor', endAnchor)
       .attr('fill', color)
-      .attr('font-size', '10px')
-      .attr('font-weight', '600')
+      .attr('font-size', 10)
+      .attr('font-weight', 'bold')
       .text(endLabel);
 
     // End date — bottom label
@@ -3722,8 +3733,8 @@ function showGanttDateIndicators(
       .attr('y', innerHeight + tickLen + 12)
       .attr('text-anchor', endAnchor)
       .attr('fill', color)
-      .attr('font-size', '10px')
-      .attr('font-weight', '600')
+      .attr('font-size', 10)
+      .attr('font-weight', 'bold')
       .text(endLabel);
   }
 }
@@ -3755,7 +3766,7 @@ function resolveTaskColor(
     resolved.tagGroups,
     activeTagGroup
   );
-  if (tagColor && tagColor !== '#999999') return tagColor;
+  if (tagColor && tagColor !== UNTAGGED_TAG_COLOR) return tagColor;
 
   // Fall back to group-based coloring
   if (rt.groupPath.length > 0) {
@@ -3803,7 +3814,7 @@ function renderTimeScaleHorizontal(
       .attr('y2', innerHeight)
       .attr('stroke', textColor)
       .attr('stroke-width', 1)
-      .attr('stroke-dasharray', '4 4')
+      .attr('stroke-dasharray', GRID_DASH)
       .attr('opacity', guideOpacity);
 
     // Top tick
@@ -3824,7 +3835,7 @@ function renderTimeScaleHorizontal(
       .attr('y', -tickLen - 4)
       .attr('text-anchor', 'middle')
       .attr('dominant-baseline', 'auto')
-      .attr('font-size', '10px')
+      .attr('font-size', 10)
       .attr('fill', textColor)
       .attr('opacity', opacity)
       .text(tick.label);
@@ -3845,7 +3856,7 @@ function renderTimeScaleHorizontal(
       .attr('x', tick.pos)
       .attr('y', innerHeight + tickLen + 12)
       .attr('text-anchor', 'middle')
-      .attr('font-size', '10px')
+      .attr('font-size', 10)
       .attr('fill', textColor)
       .attr('opacity', opacity)
       .text(tick.label);

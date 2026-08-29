@@ -1,5 +1,6 @@
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
+import { TITLE_FONT_SIZE } from '../utils/title-constants';
 import { contrastText, mix, shapeFill } from '../palettes/color-utils';
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
@@ -47,7 +48,7 @@ const BLIP_RADIUS = 12;
 const BLIP_FONT_SIZE = 9;
 const RING_LABEL_FONT_SIZE = 13;
 const QUADRANT_LABEL_FONT_SIZE = 18;
-const TITLE_FONT_SIZE = 18;
+
 const LISTING_FONT_SIZE = 12;
 const LISTING_HEADER_FONT_SIZE = 13;
 const LISTING_TOP_MARGIN = 24;
@@ -356,7 +357,7 @@ export function renderTechRadar(
         .attr('fill', textColor)
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', sRingLabelFontSize)
-        .attr('font-weight', '600')
+        .attr('font-weight', 'bold')
         .attr('opacity', 0.5)
         // In-bounds by loop guard (ri < parsed.rings.length).
         .text(parsed.rings[ri]!.name);
@@ -371,7 +372,7 @@ export function renderTechRadar(
         .attr('fill', textColor)
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', sRingLabelFontSize)
-        .attr('font-weight', '600')
+        .attr('font-weight', 'bold')
         .attr('opacity', 0.5)
         // In-bounds by loop guard (ri < parsed.rings.length).
         .text(parsed.rings[ri]!.name);
@@ -386,7 +387,7 @@ export function renderTechRadar(
         .attr('fill', textColor)
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', sRingLabelFontSize)
-        .attr('font-weight', '600')
+        .attr('font-weight', 'bold')
         .attr('opacity', 0.5)
         // In-bounds by loop guard (ri < parsed.rings.length).
         .text(parsed.rings[ri]!.name);
@@ -512,7 +513,10 @@ export function renderTechRadar(
       .attr('x', point.x)
       .attr('y', point.y + 3)
       .attr('text-anchor', 'middle')
-      .attr('fill', isDark ? '#000' : '#fff')
+      .attr(
+        'fill',
+        contrastText(qColor, palette.textOnFillLight, palette.textOnFillDark)
+      )
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', sBlipFontSize)
       .attr('font-weight', 'bold')
@@ -655,7 +659,6 @@ export function renderTechRadar(
       svg,
       parsed,
       palette,
-      isDark,
       textColor,
       radarHeight + sListingTopMargin,
       width,
@@ -679,7 +682,6 @@ function renderBlipListing(
   svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
   parsed: ParsedTechRadar,
   palette: PaletteColors,
-  isDark: boolean,
   textColor: string,
   startY: number,
   totalWidth: number,
@@ -778,7 +780,10 @@ function renderBlipListing(
         .attr('x', blipCx)
         .attr('y', blipCy + 3)
         .attr('text-anchor', 'middle')
-        .attr('fill', isDark ? '#000' : '#fff')
+        .attr(
+          'fill',
+          contrastText(qColor, palette.textOnFillLight, palette.textOnFillDark)
+        )
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', 9)
         .attr('font-weight', 'bold')
@@ -1015,7 +1020,7 @@ function showBlipPopover(
   );
 
   let html = `<div style="background:${fillColor}; border: 1.5px solid ${qColor}; border-radius: 6px; overflow: hidden;">`;
-  html += `<div style="padding: 8px 12px; font-weight: 600; color: ${onFillText};">${escapeHtml(blip.name)}</div>`;
+  html += `<div style="padding: 8px 12px; font-weight: bold; color: ${onFillText};">${escapeHtml(blip.name)}</div>`;
 
   if (hasDesc) {
     html += `<div style="border-top: 1px solid ${qColor}; opacity: 0.3;"></div>`;

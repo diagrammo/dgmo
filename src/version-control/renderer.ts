@@ -8,6 +8,7 @@
 // shared primitive behind rebase/reset/squash. Ports
 // docs/version-control-syntax-mockups.html build()/draw().
 
+import { EDGE_DASH, HAIRLINE_DASH } from '../utils/visual-conventions';
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import {
@@ -408,7 +409,7 @@ function drawGraph(
       .attr('fill', 'none')
       .attr('stroke', color)
       .attr('stroke-width', 2)
-      .attr('stroke-dasharray', '2 4')
+      .attr('stroke-dasharray', HAIRLINE_DASH)
       .attr('opacity', 0.8);
     if (arrow) {
       // small arrowhead at B pointing along (corner → B)
@@ -448,7 +449,7 @@ function drawGraph(
         .attr('stroke-linecap', 'round')
         .attr('data-branch', n.branch)
         .attr('opacity', o);
-      if (n.ghost) e.attr('stroke-dasharray', '5 5');
+      if (n.ghost) e.attr('stroke-dasharray', EDGE_DASH);
     }
     if (n.parent != null) {
       const par = byKey(n.parent),
@@ -463,7 +464,7 @@ function drawGraph(
         .attr('stroke-linecap', 'round')
         .attr('data-branch', n.branch)
         .attr('opacity', o);
-      if (n.ghost) e.attr('stroke-dasharray', '5 5');
+      if (n.ghost) e.attr('stroke-dasharray', EDGE_DASH);
     }
     if (n.mergeFrom != null) {
       const s = byKey(n.mergeFrom),
@@ -502,7 +503,7 @@ function drawGraph(
           .attr('y', 14)
           .attr('text-anchor', 'middle')
           .attr('font-size', 12.5)
-          .attr('font-weight', 800)
+          .attr('font-weight', 'bold')
           .attr('fill', col)
           .text(b.name);
       } else {
@@ -512,7 +513,7 @@ function drawGraph(
           .attr('y', fp.y - DOT - 7)
           .attr('text-anchor', 'start')
           .attr('font-size', 12.5)
-          .attr('font-weight', 800)
+          .attr('font-weight', 'bold')
           .attr('fill', col)
           .attr('data-branch', b.name)
           .text(b.name);
@@ -624,7 +625,7 @@ function drawGraph(
     textColor: string,
     border?: string,
     dash?: boolean,
-    weight = 700
+    weight = 'bold'
   ): void => {
     const r = g
       .append('rect')
@@ -636,7 +637,7 @@ function drawGraph(
       .attr('fill', fill);
     if (border) {
       r.attr('stroke', border).attr('stroke-width', 1.3);
-      if (dash) r.attr('stroke-dasharray', '3 2');
+      if (dash) r.attr('stroke-dasharray', HAIRLINE_DASH);
     }
     g.append('text')
       .attr('x', cx)
@@ -675,7 +676,7 @@ function drawGraph(
         palette.bg,
         undefined,
         false,
-        800
+        'bold'
       );
     else if (pl.kind === 'ref')
       pill(pl.x, pl.y, pl.w!, pl.label!, palette.bg, c, c, pl.remote);
@@ -698,7 +699,7 @@ function drawGraph(
         .attr('y', pl.y + 4)
         .attr('text-anchor', 'start')
         .attr('font-size', 11)
-        .attr('font-weight', 700)
+        .attr('font-weight', 'bold')
         .attr('fill', c)
         .text(pl.label!);
     } else {
@@ -762,7 +763,7 @@ function drawGraph(
           .text(L.sha + ' ');
       t.append('tspan')
         .attr('fill', mfill)
-        .attr('font-weight', n.kind === 'cherry' ? 400 : 700)
+        .attr('font-weight', n.kind === 'cherry' ? 'normal' : 'bold')
         .attr('font-style', n.kind === 'cherry' ? 'italic' : 'normal')
         .text(L.msg);
     }
@@ -779,7 +780,7 @@ function drawGraph(
         .attr('font-size', 11.5);
       t.append('tspan')
         .attr('fill', palette.text)
-        .attr('font-weight', 800)
+        .attr('font-weight', 'bold')
         .text((CIRCLED[nt.num - 1] ?? `#${nt.num}`) + '  ');
       t.append('tspan').attr('fill', palette.textMuted).text(nt.text);
       y += 16;

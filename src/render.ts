@@ -1,6 +1,7 @@
 import { renderForExport, resolveArcChordOverride } from './d3';
 import { renderDataChartD3 } from './charts-d3';
 import { injectHoverStyles } from './utils/hover-styles';
+import { applyRootA11y } from './utils/root-a11y';
 import { getRenderCategory, parseDgmo } from './dgmo-router';
 import type { DgmoError } from './diagnostics';
 import { makeDgmoError } from './diagnostics';
@@ -259,7 +260,10 @@ export async function render(
       // Bake pure-CSS hover while jsdom is still installed (the injector scans
       // the SVG DOM for group values). No-op unless `chartType` has a registry
       // row and `bakeHover` is on.
-      const svg = injectHoverStyles(raw, chartType, { bakeHover });
+      const svg = applyRootA11y(
+        injectHoverStyles(raw, chartType, { bakeHover }),
+        chartType
+      );
       return {
         svg,
         diagnostics: withLegendInlineWarning(diagnostics),
@@ -304,7 +308,10 @@ export async function render(
     );
     // Bake pure-CSS hover while jsdom is still installed (no-op unless the
     // detected `chartType` has a registry row and `bakeHover` is on).
-    svg = injectHoverStyles(svg, chartType, { bakeHover });
+    svg = applyRootA11y(
+      injectHoverStyles(svg, chartType, { bakeHover }),
+      chartType
+    );
   } finally {
     releaseDom();
   }

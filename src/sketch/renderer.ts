@@ -15,6 +15,10 @@
 
 import * as d3 from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
+import {
+  appendArrowheadMarkers,
+  appendReverseArrowheadMarkers,
+} from '../utils/arrow-markers';
 import type { PaletteColors } from '../palettes';
 import { renderCollapseBar, renderNodeCard } from '../utils/card';
 import { drawMarkdownBlock } from './markdown-card';
@@ -29,6 +33,7 @@ import {
   resolveActiveTagGroup,
   resolveTagColor,
   tagAttrKey,
+  UNTAGGED_TAG_COLOR,
 } from '../utils/tag-groups';
 import { ScaleContext } from '../utils/scaling';
 import { measureText, wrapTextToWidth } from '../utils/text-measure';
@@ -428,7 +433,7 @@ export function renderSketch(
   const edgeColorFor = (metadata: Record<string, string>): string => {
     if (activeKey !== null && metadata[activeKey] !== undefined) {
       const c = resolveTagColor(metadata, tagGroups, activeName);
-      if (c && c !== '#999999') return c;
+      if (c && c !== UNTAGGED_TAG_COLOR) return c;
     }
     return palette.textMuted;
   };
@@ -440,35 +445,17 @@ export function renderSketch(
     metadata: Record<string, string>;
   }): string => edgeColorFor(edge.metadata);
   const edgeColors = new Set(layout.edges.map((e) => flowColor(e)));
-  for (const color of edgeColors) {
-    const hex = color.replace('#', '');
-    defs
-      .append('marker')
-      .attr('id', `sk-arrow-${hex}`)
-      .attr('viewBox', `0 0 ${ARROWHEAD_W} ${ARROWHEAD_H}`)
-      .attr('refX', ARROWHEAD_W)
-      .attr('refY', ARROWHEAD_H / 2)
-      .attr('markerWidth', ARROWHEAD_W)
-      .attr('markerHeight', ARROWHEAD_H)
-      .attr('orient', 'auto')
-      .append('polygon')
-      .attr('points', `0,0 ${ARROWHEAD_W},${ARROWHEAD_H / 2} 0,${ARROWHEAD_H}`)
-      .attr('fill', color);
-    defs
-      .append('marker')
-      .attr('id', `sk-arrow-rev-${hex}`)
-      .attr('viewBox', `0 0 ${ARROWHEAD_W} ${ARROWHEAD_H}`)
-      .attr('refX', 0)
-      .attr('refY', ARROWHEAD_H / 2)
-      .attr('markerWidth', ARROWHEAD_W)
-      .attr('markerHeight', ARROWHEAD_H)
-      .attr('orient', 'auto')
-      .append('polygon')
-      .attr(
-        'points',
-        `${ARROWHEAD_W},0 0,${ARROWHEAD_H / 2} ${ARROWHEAD_W},${ARROWHEAD_H}`
-      )
-      .attr('fill', color);
+  if (edgeColors.size > 0) {
+    const markerOpts = {
+      idPrefix: 'sk',
+      width: ARROWHEAD_W,
+      height: ARROWHEAD_H,
+      // Every marker is per-colour here; the base id is never referenced.
+      baseFill: [...edgeColors][0]!,
+      colors: edgeColors,
+    };
+    appendArrowheadMarkers(defs, markerOpts);
+    appendReverseArrowheadMarkers(defs, markerOpts);
   }
 
   // ── Title ───────────────────────────────────────────────────
@@ -480,7 +467,7 @@ export function renderSketch(
       .attr('y', TITLE_Y)
       .attr('text-anchor', header.titleAnchor)
       .attr('font-size', sTitleFontSize)
-      .attr('font-weight', 700)
+      .attr('font-weight', 'bold')
       .attr('fill', palette.text)
       .text(parsed.title!);
   }

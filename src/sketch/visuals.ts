@@ -26,6 +26,9 @@ import {
   LABEL_FONT_SIZE,
   META_FONT_SIZE,
   NODE_STROKE_WIDTH,
+  ARROWHEAD_WIDTH,
+  ARROWHEAD_HEIGHT,
+  EDGE_DASH,
 } from '../utils/visual-conventions';
 
 export const SKETCH_VISUALS = {
@@ -52,9 +55,9 @@ export const SKETCH_VISUALS = {
   // single difference between the two pictures (#518). `markerUnits` defaults
   // to `strokeWidth`, so 5×4 here renders 7.5×6 — the same triangle
   // boxes-and-lines draws.
-  arrowheadW: 5,
-  arrowheadH: 4,
-  dash: '6 3',
+  arrowheadW: ARROWHEAD_WIDTH,
+  arrowheadH: ARROWHEAD_HEIGHT,
+  dash: EDGE_DASH,
   /** A card's name. Shared, and it fits DOWN to `nodeLabelFontSizeMin` before
    *  it wraps — it used to be allowed up to 30 on a card with no rows, which is
    *  more than twice what any other chart type prints. */
@@ -76,7 +79,7 @@ export const SKETCH_VISUALS = {
   // boxes-and-lines' 14 — and infra's — are the undocumented deviations here;
   // the fix is those two coming to 13, not a third chart type leaving.
   bandLabelFontSize: CONTAINER_LABEL_FONT_SIZE,
-  bandLabelFontWeight: 600,
+  bandLabelFontWeight: 'bold',
   bandLabelOpacity: 1,
   /** 11 — what boxes-and-lines prints. It was 12, the only edge label in the
    *  product at that size. */

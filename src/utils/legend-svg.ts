@@ -96,7 +96,7 @@ function emitCapsule(
 
   // Pill text — vertically centered in the first row.
   inner.push(
-    `<text x="${pill.x + pill.width / 2}" y="${LEGEND_HEIGHT / 2}" ${CENTER} font-size="${LEGEND_PILL_FONT_SIZE}" font-weight="500" fill="${esc(palette.text)}" text-anchor="middle" font-family="${esc(FONT_FAMILY)}">${esc(capsule.groupName)}</text>`
+    `<text x="${pill.x + pill.width / 2}" y="${LEGEND_HEIGHT / 2}" ${CENTER} font-size="${LEGEND_PILL_FONT_SIZE}" font-weight="normal" fill="${esc(palette.text)}" text-anchor="middle" font-family="${esc(FONT_FAMILY)}">${esc(capsule.groupName)}</text>`
   );
 
   // Wrapped entries — dots + labels positioned by the layout engine.
@@ -130,7 +130,7 @@ function emitPill(
   return (
     `<g transform="translate(${pill.x},${pill.y})" data-legend-group="${esc(tagAttrKey(pill.groupName))}" style="cursor:pointer">` +
     `<rect width="${pill.width}" height="${pill.height}" rx="${pill.height / 2}" fill="${esc(groupBg)}"/>` +
-    `<text x="${pill.width / 2}" y="${pill.height / 2}" ${CENTER} font-size="${LEGEND_PILL_FONT_SIZE}" font-weight="500" fill="${esc(palette.textMuted)}" text-anchor="middle" font-family="${esc(FONT_FAMILY)}">${esc(pill.groupName)}</text>` +
+    `<text x="${pill.width / 2}" y="${pill.height / 2}" ${CENTER} font-size="${LEGEND_PILL_FONT_SIZE}" font-weight="normal" fill="${esc(palette.textMuted)}" text-anchor="middle" font-family="${esc(FONT_FAMILY)}">${esc(pill.groupName)}</text>` +
     `</g>`
   );
 }

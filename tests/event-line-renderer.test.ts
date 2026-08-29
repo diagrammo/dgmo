@@ -92,7 +92,7 @@ no-box
     renderEventLine(container, parsed, nordLight, false);
     const svg = container.querySelector('svg')!;
     const titleLines = Array.from(svg.querySelectorAll('text')).filter(
-      (t) => t.getAttribute('font-weight') === '700'
+      (t) => t.getAttribute('font-weight') === 'bold'
     );
     // The long title spills onto 2+ bold lines; the short one stays single.
     const longLines = titleLines.filter((t) =>

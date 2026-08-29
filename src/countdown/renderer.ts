@@ -286,7 +286,7 @@ function aText(
   y: number,
   size: number,
   fill: string,
-  weight: number,
+  weight: string,
   anchor: 'start' | 'middle' | 'end',
   txt: string,
   extra?: Record<string, string | number>
@@ -639,7 +639,7 @@ function vizYears(
       ry + rowH / 2,
       Math.min(14, rowH * 0.5),
       C.muted,
-      800,
+      'bold',
       'end',
       `${dec}s`,
       { 'dominant-baseline': 'central' }
@@ -667,7 +667,7 @@ function vizYears(
           ry + cellH / 2,
           yrFont,
           st.text,
-          isNow || isEv ? 800 : 650,
+          'bold',
           'middle',
           String(yr),
           { 'dominant-baseline': 'central' }
@@ -717,7 +717,7 @@ function vizYear(
       ry + rowH / 2,
       Math.min(22, rowH * 0.6),
       C.muted,
-      800,
+      'bold',
       'end',
       String(yr),
       { 'dominant-baseline': 'central' }
@@ -749,7 +749,7 @@ function vizYear(
           ry + cellH * 0.36,
           mFont,
           st.text,
-          700,
+          'bold',
           'middle',
           MON_ABBR[m]!,
           { 'dominant-baseline': 'central' }
@@ -761,7 +761,7 @@ function vizYear(
           ry + cellH * 0.72,
           Math.min(14, cellW * 0.42),
           st.text,
-          800,
+          'bold',
           'middle',
           String(dnum),
           { 'dominant-baseline': 'central' }
@@ -773,7 +773,7 @@ function vizYear(
           ry + cellH / 2,
           mFont,
           st.text,
-          700,
+          'bold',
           'middle',
           MON_ABBR[m]!,
           { 'dominant-baseline': 'central' }
@@ -849,7 +849,7 @@ function vizMonths(
       y + 19,
       16,
       st.text,
-      700,
+      'bold',
       'middle',
       MON_ABBR[d.getMonth()]!
     );
@@ -872,7 +872,7 @@ function vizMonths(
         y + labelH + (cellH - labelH) / 2 + 1,
         dFont,
         st.text,
-        800,
+        'bold',
         'middle',
         String(dnum),
         { 'dominant-baseline': 'central' }
@@ -944,7 +944,7 @@ function vizMonthGrid(
       top + 16,
       14,
       C.text,
-      700,
+      'bold',
       'middle',
       `${MON_ABBR[m.getMonth()]} ${m.getFullYear()}`
     );
@@ -983,7 +983,7 @@ function vizMonthGrid(
           cy + cellH / 2,
           Math.min(16, cellH * 0.62),
           st.text,
-          750,
+          'bold',
           'middle',
           String(day),
           { 'dominant-baseline': 'central' }
@@ -1072,7 +1072,7 @@ function vizWeekStrip(
         cellTop + 18,
         Math.min(12, cw * 0.3),
         st.text,
-        700,
+        'bold',
         'middle',
         WD_ABBR[dt.getDay()]!,
         { 'letter-spacing': '0.04em' }
@@ -1094,7 +1094,7 @@ function vizWeekStrip(
       cellTop + (showWd ? ch * 0.6 : ch * 0.54),
       Math.min(44, cw * 0.62),
       st.text,
-      750,
+      'bold',
       'middle',
       String(dt.getDate())
     );
@@ -1105,7 +1105,7 @@ function vizWeekStrip(
         cellTop + ch - 13,
         10,
         st.text,
-        700,
+        'bold',
         'middle',
         'TODAY',
         { 'letter-spacing': '0.04em' }
@@ -1152,7 +1152,7 @@ function vizToday(
     cy - h * 0.14,
     14,
     st.text,
-    700,
+    'bold',
     'middle',
     MON_ABBR[ev.getMonth()]!.toUpperCase(),
     { 'letter-spacing': '0.08em' }
@@ -1163,7 +1163,7 @@ function vizToday(
     cy + h * 0.22,
     Math.min(48, h * 0.4),
     st.text,
-    800,
+    'bold',
     'middle',
     String(ev.getDate())
   );
@@ -1173,7 +1173,7 @@ function vizToday(
     cy + h / 2 + 26,
     13,
     C.event,
-    700,
+    'bold',
     'middle',
     'THE DAY IS HERE',
     { 'letter-spacing': '0.12em' }
@@ -1251,14 +1251,14 @@ function vizClock(
       cy + R * 0.22,
       R * 0.62,
       C.text,
-      800,
+      'bold',
       'middle',
       pad2(gg.val),
       {
         'data-dgmo-gauge-val': gg.key,
       }
     );
-    aText(svg, cx, cy + R + 22, 12, C.muted, 700, 'middle', gg.label, {
+    aText(svg, cx, cy + R + 22, 12, C.muted, 'bold', 'middle', gg.label, {
       'letter-spacing': '0.1em',
     });
   });
@@ -1269,7 +1269,7 @@ function vizClock(
     cy - R - 14,
     13,
     ahead ? C.event : C.muted,
-    700,
+    'bold',
     'middle',
     ahead ? 'TO GO' : 'AGO',
     {
@@ -1312,7 +1312,7 @@ function paintClock(
       .attr('data-cd-sec', '')
       .attr('font-size', secSize)
       .attr('fill', secFill)
-      .attr('font-weight', 700)
+      .attr('font-weight', 'bold')
       .text(sec);
 }
 
@@ -1546,7 +1546,7 @@ export function renderCountdown(
     yTop: number,
     fs: number,
     fill: string,
-    weight: number
+    weight: string
   ): d3Selection.Selection<SVGTextElement, unknown, null, undefined> =>
     svg
       .append('text')
@@ -1567,7 +1567,7 @@ export function renderCountdown(
 
   if (parsed.title) {
     titleLines.forEach((tl, i) => {
-      const t = drawText(tl, y, titleFont, palette.text, 700);
+      const t = drawText(tl, y, titleFont, palette.text, 'bold');
       if (i === 0) t.attr('data-line-number', parsed.titleLineNumber);
       y += i < titleLines.length - 1 ? Math.round(titleFont * 1.12) : titleFont;
     });
@@ -1593,7 +1593,7 @@ export function renderCountdown(
   // Eyebrow ordinal (ancillary — below the rule): the `since`/tenure count is
   // BANKED time, so it wears the calm green, not the red deadline hue.
   if (eyebrowText) {
-    drawText(eyebrowText, y, eyebrowFont, banked, 700).attr(
+    drawText(eyebrowText, y, eyebrowFont, banked, 'bold').attr(
       'data-dgmo-countdown-eyebrow',
       ''
     );
@@ -1614,7 +1614,7 @@ export function renderCountdown(
       .attr('fill', muted)
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', footerFont)
-      .attr('font-weight', 500)
+      .attr('font-weight', 'normal')
       .attr('data-dgmo-countdown-footer', '')
       .text(footerText);
     y += footerFont + 8;
@@ -1642,7 +1642,7 @@ export function renderCountdown(
         .attr('fill', palette.text)
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', noteFont)
-        .attr('font-weight', 400);
+        .attr('font-weight', 'normal');
       renderInlineText(
         t as unknown as d3Selection.Selection<
           SVGTextElement,
@@ -1660,7 +1660,7 @@ export function renderCountdown(
   }
 
   // The "as of" stamp — ticker removes it on first tick; a baked image keeps it.
-  drawText(`as of ${formatDateShort(now)}`, y, asofFont, faint, 400).attr(
+  drawText(`as of ${formatDateShort(now)}`, y, asofFont, faint, 'normal').attr(
     'data-dgmo-countdown-asof',
     ''
   );
@@ -1755,7 +1755,7 @@ export function renderCountdown(
     .attr('fill', accent)
     .attr('font-family', FONT_FAMILY)
     .attr('font-size', heroFont)
-    .attr('font-weight', 800)
+    .attr('font-weight', 'bold')
     .attr('data-dgmo-countdown-units', parsed.units)
     .attr('data-dgmo-countdown-round', parsed.round)
     .attr('data-dgmo-countdown-fields', parsed.fields.join(','))
@@ -1796,7 +1796,7 @@ export function renderCountdown(
       .attr('fill', muted)
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', detailFont)
-      .attr('font-weight', 500)
+      .attr('font-weight', 'normal')
       .attr('data-dgmo-countdown-detail', '');
     paintClock(
       detailSel as unknown as d3Selection.Selection<

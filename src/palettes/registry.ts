@@ -5,7 +5,12 @@ import type { PaletteConfig, PaletteColors } from './types';
 // ============================================================
 
 const PALETTE_REGISTRY = new Map<string, PaletteConfig>();
-const DEFAULT_PALETTE_ID = 'slate';
+/**
+ * The product's default palette. Exported because two export-path fallbacks
+ * hardcoded `getPalette('nord')` instead — so a caller that omitted the
+ * palette silently got nord while every other surface used this one.
+ */
+export const DEFAULT_PALETTE_ID = 'slate';
 
 // ============================================================
 // Validation
