@@ -106,8 +106,15 @@ trap cleanup EXIT INT TERM
 
 # A gate that died without running its trap leaves a registered worktree behind
 # — one was found on 2026-08-29, from the APP's hook, which makes a dgmo gate of
-# its own. Prune before adding so they cannot accumulate.
-git worktree prune >/dev/null 2>&1 || true
+# its own.
+#
+# 🔴 The `git worktree prune` that used to stand here could not collect them,
+# and eleven accumulated under it holding 6.1 GB. Prune drops registrations
+# whose directory is already GONE; a leaked gate still has its directory, so
+# prune inspects it, calls it valid and moves on. The sweep deletes the
+# directory first — which is what makes the prune inside it work.
+GATE_SWEEP="$WORKSPACE/scripts/gate-sweep.sh"
+if [ -x "$GATE_SWEEP" ]; then "$GATE_SWEEP" || true; fi
 
 run_checks() {
   echo "→ installed dependency tree"
@@ -168,6 +175,8 @@ run_gate() {
   # directory is the worktree rather than its parent.
   gate=$(mktemp -d "$WORKSPACE/.gate-dgmo.XXXXXX")
   git worktree add --detach --quiet "$gate" "$sha"
+  # Who to blame for this directory if it outlives the push.
+  echo $$ > "$gate/.gate-owner"
 
   # 🔴 A REAL install, never a symlink to the working checkout's node_modules.
   # Borrowing is free and is what the app's gate tried first: `pnpm install`
