@@ -5,6 +5,19 @@ All notable changes to `@diagrammo/dgmo` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`dgmo --now <instant>` pins the current moment**, so the chart types that
+  draw it — `clock` and `countdown` — render the same picture every time
+  instead of a different one every second. Any date-time the runtime can parse
+  works (`--now 2026-01-15T09:00:00Z`); without the flag they read the real
+  clock exactly as before. This is what let the visual-regression gallery start
+  covering them: four chart types had shipped with no rendered evidence at all,
+  so nothing caught a rendering regression in `c4`, `clock`, `countdown` or
+  `wordcloud`. All four are now covered, and the gallery skips nothing.
+
 ## [0.77.0] - 2026-08-28
 
 ### Fixed

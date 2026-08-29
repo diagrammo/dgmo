@@ -20,6 +20,7 @@
 
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
+import { now as currentTimeMs } from '../utils/now';
 import { contrastText, mix, themeBaseBg } from '../palettes/color-utils';
 import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes';
@@ -284,7 +285,7 @@ export function renderClock(
         )
       : baseWidth);
 
-  const now = Date.now();
+  const now = currentTimeMs();
   const baseBg = themeBaseBg(palette, isDark);
   const muted = mix(palette.text, baseBg, 55);
   const faint = mix(palette.text, baseBg, 72);

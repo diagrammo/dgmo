@@ -26,6 +26,7 @@ import { renderErrorCard } from './error-card';
 import { listDiagnosticCodes } from './diagnostics-registry';
 import { getPalette, getAvailablePalettes } from './palettes';
 import { DEFAULT_FONT_NAME } from './fonts';
+import { setPinnedNow } from './utils/now';
 import {
   textFromSvg,
   uncoveredCharacters,
@@ -129,6 +130,10 @@ Render options:
                        content does not fit
   --height <px>        Canvas height. Most chart types derive it from the
                        content and ignore this
+  --now <instant>      Pin "now" to a fixed date-time for chart types that
+                       draw the current instant (clock, countdown), so their
+                       output is reproducible. Any Date-parseable string,
+                       e.g. 2026-01-15T09:00:00Z
   --json               Output structured JSON to stdout
   --help               Show this help
   --version            Show version`);
@@ -210,6 +215,17 @@ function parseArgs(argv: string[]): {
       }
       if (arg === '--width') result.width = Math.round(n);
       else result.height = Math.round(n);
+      i++;
+    } else if (arg === '--now') {
+      const val = args[++i];
+      const ms = val === undefined ? NaN : Date.parse(val);
+      if (!Number.isFinite(ms)) {
+        console.error(
+          `Error: --now needs a date-time this runtime can parse, got "${val ?? ''}". Try an ISO instant like 2026-01-15T09:00:00Z.`
+        );
+        process.exit(1);
+      }
+      setPinnedNow(ms);
       i++;
     } else if (arg === '--json') {
       result.json = true;

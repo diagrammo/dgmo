@@ -38,6 +38,7 @@ import {
   type RecurRule,
   type RoundMode,
 } from './resolve';
+import { now as currentTimeMs } from '../utils/now';
 
 function pad2(n: number): string {
   return n < 10 ? '0' + n : String(n);
@@ -304,7 +305,7 @@ function updateNode(node: Element, now: number): void {
 /** Run one update pass over every countdown node inside `root`. */
 export function tickCountdowns(root: ParentNode = document): void {
   if (typeof document === 'undefined') return;
-  const now = Date.now();
+  const now = currentTimeMs();
   root
     .querySelectorAll('[data-dgmo-countdown]')
     .forEach((node) => updateNode(node, now));

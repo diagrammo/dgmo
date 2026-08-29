@@ -15,6 +15,7 @@
 
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
+import { now as currentTimeMs } from '../utils/now';
 import {
   contrastText,
   mix,
@@ -1355,7 +1356,7 @@ export function renderCountdown(
   const height = exportDims?.height ?? container.clientHeight;
   if (width <= 0 || height <= 0) return;
 
-  const now = Date.now();
+  const now = currentTimeMs();
   const resolved = parsed.resolvedMs;
   // The eyebrow is OPT-IN: `since` is mandatory on every recurring block now, so
   // keying the ordinal off it would number a standing meeting nobody asked to

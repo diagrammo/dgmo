@@ -34,6 +34,7 @@ import {
   parseFirstLine,
 } from '../utils/parsing';
 import { normalizeDate, type DateOrder } from '../utils/date';
+import { now as currentTimeMs } from '../utils/now';
 import type { ParsedCountdown } from './types';
 import {
   monthIndex,
@@ -403,7 +404,7 @@ export function parseCountdown(
 
   // ── Resolve deferred target/anchor now that `tz` (if any) is known ──
   if (targetIsNow) {
-    targetMs = Date.now();
+    targetMs = currentTimeMs();
     result.target = new Date(targetMs).toISOString();
   } else if (targetRaw !== null) {
     // Liberal input → canonical ISO (slash/month-name/bare → YYYY-MM-DD). A
@@ -479,7 +480,7 @@ export function parseCountdown(
       result.tz
     );
     result.rule = rule;
-    result.resolvedMs = resolveNext(rule, Date.now());
+    result.resolvedMs = resolveNext(rule, currentTimeMs());
     result.sinceMs = sinceMs;
     if (sinceHasTime) result.hasTime = true;
   } else if (targetMs !== null) {

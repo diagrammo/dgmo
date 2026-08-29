@@ -28,6 +28,7 @@ import {
   type WorkSpec,
 } from './resolve';
 import { mix } from '../palettes/color-utils';
+import { now as currentTimeMs } from '../utils/now';
 
 /** Reconstruct the working window from the baked `data-dgmo-clock-work-*` attrs. */
 function readWork(node: Element): WorkSpec | null {
@@ -220,7 +221,7 @@ function updateRow(group: Element, now: number): void {
 /** Run one update pass over every clock row inside `root`. */
 export function tickClocks(root: ParentNode = document): void {
   if (typeof document === 'undefined') return;
-  const now = Date.now();
+  const now = currentTimeMs();
   root
     .querySelectorAll('[data-dgmo-clock]')
     .forEach((group) => updateRow(group, now));

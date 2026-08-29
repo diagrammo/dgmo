@@ -37,32 +37,27 @@ const SNAPSHOTS_DIR = join(ROOT, 'gallery', 'snapshots');
 const PALETTE = 'nord';
 const THEME = 'light';
 
+// Pinned instant handed to every render, so the chart types that draw
+// the current moment produce the same bytes today and next year. Chosen
+// as a Thursday inside the clock fixture's 9am–5pm Mon–Fri window, which
+// exercises its working-hours path rather than the weekend one.
+// Without this, `clock` differs between two runs a second apart and
+// `countdown` is wrong the day after it is recorded — the reason four
+// chart types had no snapshot at all until 2026-08-29 (#533).
+const NOW = '2026-01-15T09:00:00Z';
+
 // Fixtures excluded from snapshot diffing. Each entry MUST cite the
 // reason — bare skips rot. Skipped fixtures still get walked (so a
 // removal is noticed) but neither rendered nor compared.
-const SKIP = new Map([
-  // Uses labeled-arrow syntax (`-Verb-> Target`) which the c4 parser
-  // doesn't accept. Pre-existing fixture bug, unrelated to the
-  // universal name handling work. Track as separate cleanup.
-  ['c4.dgmo', 'c4 parser rejects labeled-arrow syntax used in fixture'],
-  ['c4-full.dgmo', 'c4 parser rejects labeled-arrow syntax used in fixture'],
-  // d3-cloud relies on HTMLCanvasElement.getContext, which jsdom
-  // can't provide without the optional `canvas` npm package.
-  ['wordcloud.dgmo', 'requires canvas npm package — render fails in jsdom'],
-  // Clock renders wall-clock time (Date.now() in src/clock/renderer.ts) —
-  // hand angles and digits differ every run, so output length is
-  // nondeterministic. Needs a fixed-now override hook to be snapshottable.
-  ['clock.dgmo', 'renders wall-clock time — nondeterministic output'],
-  // Countdown draws the remaining time from Date.now(), so its baseline is
-  // wrong the day after it is recorded and more wrong every day after that.
-  // `countdown-tz` was reading "42 days" against a fresh "28 days" on
-  // 2026-08-05 — a fortnight of drift that had nothing to do with the
-  // renderer. Re-baselining only restarts the same clock; these need the same
-  // fixed-now override `clock.dgmo` above is waiting for.
-  ['countdown.dgmo', 'renders time remaining — nondeterministic output'],
-  ['countdown-far.dgmo', 'renders time remaining — nondeterministic output'],
-  ['countdown-tz.dgmo', 'renders time remaining — nondeterministic output'],
-]);
+//
+// Empty since 2026-08-29 (#533). It had held seven fixtures across four
+// chart types — c4, clock, countdown and wordcloud — which therefore
+// shipped with no rendered evidence anywhere. Two of the reasons had
+// gone stale under the parser and renderer that fixed them: the c4
+// parser accepts labeled arrows (`-Uses-> Banking`) and wordcloud has a
+// no-canvas placement path for headless Node. The other two were real,
+// and `--now` below is what closed them.
+const SKIP = new Map([]);
 
 // ============================================================
 // CLI argument parsing
@@ -145,6 +140,8 @@ function renderOne(fixturePath, outputPath) {
       PALETTE,
       '--theme',
       THEME,
+      '--now',
+      NOW,
       '-o',
       outputPath,
     ];
