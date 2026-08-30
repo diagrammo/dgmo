@@ -907,6 +907,17 @@ export {
   getLegendReservedHeight,
   legendEntryWidth,
 } from './utils/legend-layout';
+/**
+ * Inter's proportional advance widths, for a consumer that has to reserve room
+ * for text it is about to draw.
+ *
+ * 🔴 Exported 2026-08-30 for the desktop sketch canvas (#574), which draws a
+ * sketch BY HAND rather than through a renderer and so has to answer "how wide
+ * will this name be" for itself. The alternative was a second copy of the
+ * advance-width table in the app, kept in step by nobody — the same class of
+ * duplication `sketchColors` exists to prevent for colour.
+ */
+export { measureText, truncateText } from './utils/text-measure';
 export type {
   LegendConfig,
   LegendState,
