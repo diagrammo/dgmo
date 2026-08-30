@@ -98,8 +98,13 @@ const AT_VALUE_RE = /^(-?\d+)\s+(-?\d+)$/;
 // Sane bound for authored half-slot coords. Even a large hand-placed sketch
 // stays within a few hundred half-slots; anything past this is a garbage value
 // (e.g. a canvas-drag coord that ran away) and would blow the SVG viewBox up
-// past what a browser can render. A half-slot is 64–104px, so 2000 already
-// spans a ~128k–208k px canvas — far beyond any real diagram.
+// past what a browser can render. A half-slot is `SKETCH_HALF_SLOT_X/Y` — half
+// a footprint on each axis — so 2000 of them already spans a canvas two orders
+// of magnitude past any real diagram, whatever the cell size.
+//
+// ⚠️ This quoted "64–104px … ~128k–208k px" until 2026-08-30 (#563), figures
+// from before `cellPx` went 26 → 16 on 2026-08-27. The derivation is named
+// rather than restated now, because the pixels moved and this comment did not.
 const SKETCH_AT_MAX = 2000;
 
 interface PendingEdge {
