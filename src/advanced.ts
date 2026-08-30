@@ -191,8 +191,16 @@ export {
   autoTagColorCycle,
   resolveActiveTagGroup,
   resolveTagColor,
+  resolveTagValue,
   tagAttrKey,
 } from './utils/tag-groups';
+// 🔴 How far a mark the hover does not name recedes — the one depth every
+// rendered chart's legend pairing uses (`injectHoverStyles`). The live sketch
+// canvas is React-drawn rather than a render with this file's CSS injected into
+// it, so it cannot inherit the rule and has to ask for the number instead
+// (diagrammo/diagrammo#599). Named for what it means outside the module, where
+// there is no `spec.dimOpacity` for it to be the default of.
+export { DEFAULT_DIM_OPACITY as HOVER_DIM_OPACITY } from './utils/hover-styles';
 
 export { parseInlineMarkdown, truncateBareUrl } from './utils/inline-markdown';
 export type { InlineSpan } from './utils/inline-markdown';

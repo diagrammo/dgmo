@@ -5,6 +5,7 @@ import {
   matchTagBlockHeading,
   parseTagDeclaration,
   resolveTagColor,
+  resolveTagValue,
   validateTagValues,
   validateTagGroupNames,
   injectDefaultTagMetadata,
@@ -356,6 +357,112 @@ describe('resolveTagColor', () => {
     expect(resolveTagColor({ role: 'Manager' }, groups, 'Role', true)).toBe(
       '#a3be8c'
     );
+  });
+});
+
+// ============================================================
+// resolveTagValue
+// ============================================================
+
+describe('resolveTagValue', () => {
+  const groups: TagGroup[] = [
+    {
+      name: 'Role',
+      entries: [
+        { value: 'Engineer', color: '#5e81ac', lineNumber: 3 },
+        { value: 'Manager', color: '#a3be8c', lineNumber: 4 },
+      ],
+      defaultValue: 'Engineer',
+      lineNumber: 2,
+    },
+    {
+      name: 'Location',
+      entries: [
+        { value: 'NY', color: '#bf616a', lineNumber: 7 },
+        { value: 'SF', color: '#ebcb8b', lineNumber: 8 },
+      ],
+      lineNumber: 6,
+    },
+  ];
+
+  it('returns undefined when no group is active', () => {
+    expect(resolveTagValue({ role: 'Engineer' }, groups, null)).toBeUndefined();
+  });
+
+  it('returns undefined when the active group does not exist', () => {
+    expect(
+      resolveTagValue({ role: 'Engineer' }, groups, 'Nonexistent')
+    ).toBeUndefined();
+  });
+
+  it('returns the value an entity carries', () => {
+    expect(resolveTagValue({ role: 'Manager' }, groups, 'Role')).toBe(
+      'Manager'
+    );
+  });
+
+  // 🔴 The reason this function exists rather than a lookup at the call site:
+  // a consumer pairing a legend entry with the marks under it compares against
+  // the group's spelling, and `resolveTagColor` has already coloured this mark
+  // as a Manager.
+  it("answers in the GROUP's spelling, not the author's", () => {
+    expect(resolveTagValue({ role: 'manager' }, groups, 'role')).toBe(
+      'Manager'
+    );
+  });
+
+  it('falls back to the default value when the key is missing', () => {
+    expect(resolveTagValue({}, groups, 'Role')).toBe('Engineer');
+  });
+
+  it('returns undefined when the key is missing and there is no default', () => {
+    expect(resolveTagValue({}, groups, 'Location')).toBeUndefined();
+  });
+
+  it('skips the default for containers', () => {
+    expect(resolveTagValue({}, groups, 'Role', true)).toBeUndefined();
+  });
+
+  it('still uses explicit metadata on containers', () => {
+    expect(resolveTagValue({ role: 'Manager' }, groups, 'Role', true)).toBe(
+      'Manager'
+    );
+  });
+
+  // An unknown value is not the group's, and the colour resolver paints it
+  // untagged — but it comes back verbatim rather than as `undefined`, so a
+  // caller can tell "carries something I do not recognise" from "carries
+  // nothing".
+  it('returns an unknown value verbatim', () => {
+    expect(resolveTagValue({ location: 'London' }, groups, 'Location')).toBe(
+      'London'
+    );
+    expect(resolveTagColor({ location: 'London' }, groups, 'Location')).toBe(
+      '#999999'
+    );
+  });
+
+  // The two resolvers must not answer differently about the same entity.
+  it('agrees with resolveTagColor on every case above', () => {
+    const cases: ReadonlyArray<
+      [Record<string, string>, string | null, boolean]
+    > = [
+      [{ role: 'manager' }, 'role', false],
+      [{}, 'Role', false],
+      [{}, 'Role', true],
+      [{}, 'Location', false],
+      [{ location: 'London' }, 'Location', false],
+    ];
+    for (const [meta, active, isContainer] of cases) {
+      const value = resolveTagValue(meta, groups, active, isContainer);
+      const expected =
+        value === undefined
+          ? '#999999'
+          : (groups
+              .find((g) => g.name.toLowerCase() === active?.toLowerCase())
+              ?.entries.find((e) => e.value === value)?.color ?? '#999999');
+      expect(resolveTagColor(meta, groups, active, isContainer)).toBe(expected);
+    }
   });
 });
 

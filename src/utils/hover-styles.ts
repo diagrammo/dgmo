@@ -97,7 +97,18 @@ export interface HoverDerived {
  */
 export const MAX_HOVER_GROUPS = 40;
 
-const DEFAULT_DIM_OPACITY = 0.4;
+/**
+ * How far a mark the hover does not name recedes.
+ *
+ * 🔴 Exported (as `HOVER_DIM_OPACITY` from `advanced`) so the app's live sketch
+ * canvas can pair its own legend with its own marks at the same strength every
+ * rendered chart uses (diagrammo/diagrammo#599). That canvas draws the board
+ * itself rather than taking a render plus this file's injected CSS, so without
+ * the constant it would restate the number — and a legend that dims to a
+ * different depth while you are editing than after you export is the same class
+ * of drift the colour resolver is exported to prevent.
+ */
+export const DEFAULT_DIM_OPACITY = 0.4;
 
 /** Positive emphasis for the MATCHED marks in `lift` mode (never opacity>1). */
 const LIFT_DECL = 'filter:saturate(1.4) brightness(1.06)';

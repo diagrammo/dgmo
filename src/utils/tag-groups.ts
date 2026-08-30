@@ -385,7 +385,31 @@ export function parseTagDeclaration(line: string): TagBlockMatch | null {
  */
 export const UNTAGGED_TAG_COLOR = '#999999';
 
-export function resolveTagColor(
+/**
+ * The VALUE the active tag group gives an entity — the legend entry it belongs
+ * under — or `undefined` when nothing classifies it.
+ *
+ * 🔴 It answers in the group's OWN spelling, not the author's. A value matches
+ * its entry case-insensitively (`crew: deck` wears `Deck`'s colour), so a
+ * consumer comparing the raw metadata against a legend entry would find nothing
+ * on exactly the entities the picture has already coloured. An unknown value
+ * comes back verbatim: it is not the group's, and `resolveTagColor` paints it
+ * `UNTAGGED_TAG_COLOR`.
+ *
+ * `resolveTagColor` is the same question one step further on, and calls this —
+ * so "which value is this" and "what colour is it" cannot answer differently
+ * about `defaultValue`, about containers, or about case. Exported for the app's
+ * live sketch canvas, which needs the value rather than the colour to pair a
+ * hovered legend entry with the marks under it (diagrammo/diagrammo#599): two
+ * values may be authored the same colour, so the colour cannot stand in for the
+ * value.
+ *
+ * @param metadata  The entity's key-value metadata (keys already lowercased)
+ * @param tagGroups All declared tag groups
+ * @param activeGroupName The currently selected tag group (null = no group active)
+ * @param isContainer When true, `defaultValue` is NOT applied (containers are structural, not data)
+ */
+export function resolveTagValue(
   metadata: Record<string, string>,
   tagGroups: TagGroup[],
   activeGroupName: string | null,
@@ -401,6 +425,33 @@ export function resolveTagColor(
   const metaValue =
     metadata[tagAttrKey(group.name)] ??
     (isContainer ? undefined : group.defaultValue);
+  if (!metaValue) return undefined;
+
+  return (
+    group.entries.find((e) => e.value.toLowerCase() === metaValue.toLowerCase())
+      ?.value ?? metaValue
+  );
+}
+
+export function resolveTagColor(
+  metadata: Record<string, string>,
+  tagGroups: TagGroup[],
+  activeGroupName: string | null,
+  isContainer?: boolean
+): string | undefined {
+  if (!activeGroupName) return undefined;
+
+  const group = tagGroups.find(
+    (g) => tagAttrKey(g.name) === tagAttrKey(activeGroupName)
+  );
+  if (!group) return undefined;
+
+  const metaValue = resolveTagValue(
+    metadata,
+    tagGroups,
+    activeGroupName,
+    isContainer
+  );
   if (!metaValue) return UNTAGGED_TAG_COLOR;
 
   return (
