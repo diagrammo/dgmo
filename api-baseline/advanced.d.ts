@@ -1118,6 +1118,15 @@ interface GraphGroup {
     readonly nodeIds: readonly string[];
     readonly lineNumber: number;
     readonly collapsed?: boolean;
+    /**
+     * §1.4 same-line tag metadata authored on the group line itself
+     * (`[Backend] s: Red`), present only when the author wrote some. The
+     * renderer resolves it through `resolveTagColor(..., isContainer: true)`
+     * so the frame tints only on an explicit value — a container must never
+     * pick up the group's `defaultValue`, or every untagged frame in the
+     * diagram would wear the first entry's color.
+     */
+    readonly metadata?: Readonly<Record<string, string>>;
 }
 
 type GraphNote = DiagramNote;
@@ -1247,6 +1256,9 @@ interface LayoutGroup {
     readonly id: string;
     readonly label: string;
     readonly color?: string;
+    /** The group's own tag metadata, carried through so the renderer can tint
+     *  the frame from the active tag group (#585). */
+    readonly metadata?: Readonly<Record<string, string>>;
     readonly lineNumber: number;
     readonly collapsed?: boolean;
     readonly x: number;
@@ -1817,6 +1829,14 @@ interface C4Group {
      * group boundaries.
      */
     readonly collapsed?: boolean;
+    /**
+     * §1.4 same-line tag metadata authored on the boundary line itself
+     * (`[Backend] s: Red`), present only when the author wrote some. Resolved
+     * by the renderer through `resolveTagColor(..., isContainer: true)`, so a
+     * boundary tints only on an explicit value and never inherits the tag
+     * group's `defaultValue`.
+     */
+    readonly metadata?: Readonly<Record<string, string>>;
     readonly lineNumber: number;
 }
 interface C4Element {
@@ -1910,6 +1930,9 @@ interface C4LayoutBoundary {
     readonly y: number;
     readonly width: number;
     readonly height: number;
+    /** A `[Group]` boundary's own tag metadata, so the renderer can tint the
+     *  frame (#585). Absent on element and deployment boundaries. */
+    readonly metadata?: Readonly<Record<string, string>>;
 }
 interface C4LayoutResult {
     readonly nodes: readonly C4LayoutNode[];
@@ -3234,6 +3257,9 @@ interface InfraLayoutGroup {
     readonly width: number;
     readonly height: number;
     readonly instances?: number | string;
+    /** The group's own tag metadata, carried through so the renderer can tint
+     *  the frame without reaching back into the parse result (#585). */
+    readonly metadata?: Readonly<Record<string, string>>;
     readonly lineNumber: number;
 }
 interface InfraLayoutResult {
