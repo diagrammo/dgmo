@@ -172,6 +172,61 @@ export function truncateText(
  *   character boundary that fits.
  * - Returns at least one line (`['']` for empty input).
  */
+/**
+ * Where a single token may be broken, beyond the spaces `wrapTextToWidth`
+ * already splits on.
+ *
+ * Added 2026-08-30 (#586). A label like `SpyglassFeedService` or
+ * `powder_store_queue` is ONE word, so the wrapper had nowhere to break it and
+ * fell through to `hardBreak`, which chops by grapheme cluster — mid-word, and
+ * unreadable. The three opportunities, in the order the request named them:
+ *
+ * - a space, which the caller has already split on;
+ * - `_` or `-`, breaking AFTER the separator so it stays on the end of the
+ *   preceding line, the way a hyphenated word reads on paper;
+ * - a camelCase boundary, inserting nothing: lower-or-digit followed by upper,
+ *   and the last capital of an acronym run before a capitalised word, so
+ *   `HTTPServer` gives `HTTP` + `Server` rather than `HTTPS` + `erver`.
+ *
+ * 🔴 Atoms CONCATENATE, they are never re-joined with a space. So segmenting a
+ * token that fits its line whole is a no-op — the pieces land back together and
+ * the output is byte-identical to the unsegmented one. That is why this can run
+ * unconditionally rather than only when a word overflows, and why it cannot
+ * change what any existing caller renders unless a break was needed anyway.
+ */
+export function breakAtoms(word: string): string[] {
+  const upper = (c: string): boolean => c >= 'A' && c <= 'Z';
+  const lowerOrDigit = (c: string): boolean =>
+    (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9');
+  const out: string[] = [];
+  let current = '';
+  for (let i = 0; i < word.length; i++) {
+    const c = word[i]!;
+    current += c;
+    if (c === '_' || c === '-') {
+      // After the separator: it belongs to the line it ends.
+      out.push(current);
+      current = '';
+      continue;
+    }
+    const next = word[i + 1];
+    if (next === undefined) continue;
+    const boundary =
+      (lowerOrDigit(c) && upper(next)) ||
+      // An acronym run ending where a capitalised word begins.
+      (upper(c) &&
+        upper(next) &&
+        word[i + 2] !== undefined &&
+        lowerOrDigit(word[i + 2]!));
+    if (boundary) {
+      out.push(current);
+      current = '';
+    }
+  }
+  if (current) out.push(current);
+  return out.length > 0 ? out : [word];
+}
+
 export function wrapTextToWidth(
   text: string,
   fontSize: number,
@@ -188,23 +243,37 @@ export function wrapTextToWidth(
   // the growing line per word (O(n²) → O(n)). Continuing the char fold gives
   // bit-identical widths to measuring the joined string whole.
   let currentW = 0;
-  const pushWord = (word: string) => {
+  // 🔴 Each word becomes its ATOMS, which concatenate rather than re-joining
+  // with a space — see `breakAtoms`. Only the first atom of a word takes the
+  // space that separated it from the word before.
+  const atoms: { text: string; sep: string }[] = [];
+  for (const word of words) {
+    const pieces = breakAtoms(word);
+    for (let k = 0; k < pieces.length; k++) {
+      atoms.push({ text: pieces[k]!, sep: k === 0 ? ' ' : '' });
+    }
+  }
+  const pushAtom = (atom: { text: string; sep: string }) => {
+    const glue = current && atom.sep === ' ' ? spaceW : 0;
     const testW = extendWidth(
-      current ? currentW + spaceW : 0,
-      word,
+      current ? currentW + glue : 0,
+      atom.text,
       fontSize,
       opts
     );
     if (testW <= maxWidth || !current) {
-      current = current ? `${current} ${word}` : word;
+      current = current
+        ? `${current}${atom.sep === ' ' ? ' ' : ''}${atom.text}`
+        : atom.text;
       currentW = testW;
     } else {
       lines.push(current);
-      current = word;
-      currentW = extendWidth(0, word, fontSize, opts);
+      current = atom.text;
+      currentW = extendWidth(0, atom.text, fontSize, opts);
     }
   };
-  for (const word of words) {
+  for (const atom of atoms) {
+    const word = atom.text;
     if (hardBreak && measureText(word, fontSize, opts) > maxWidth) {
       // Break the over-long word into width-fitting chunks.
       if (current) {
@@ -231,8 +300,59 @@ export function wrapTextToWidth(
       currentW = chunkW;
       continue;
     }
-    pushWord(word);
+    pushAtom(atom);
   }
   if (current) lines.push(current);
   return lines.length > 0 ? lines : [''];
+}
+
+/**
+ * Fit a label into a fixed box: wrap, then shrink, then ellipsize.
+ *
+ * The ladder, in this order, and the order is the point — a long name stays
+ * readable across lines rather than becoming tiny on one:
+ *
+ * 1. **Wrap** at the opportunities `breakAtoms` gives — a space, a `_` or `-`,
+ *    a camelCase boundary — falling back to a hard grapheme break only for a
+ *    single atom that cannot fit at all.
+ * 2. **Shrink** the font one point at a time from `maxFont` to `minFont`,
+ *    re-wrapping at each size.
+ * 3. **Ellipsize** the last kept line, once the floor font at the line cap
+ *    still will not fit.
+ *
+ * 🔴 It lived inside `sketch/renderer.ts` until 2026-08-30 (#586), which is why
+ * the desktop canvas — the one surface that draws a sketch BY HAND rather than
+ * through a renderer — had none of it, and drew node labels at full width
+ * straight across their neighbours. A second copy on the app side would be the
+ * exact divergence that issue is about, so it moved here and is exported.
+ *
+ * ⚠️ `opts` defaults to BOLD, because every caller when this moved drew these
+ * lines bold — the sketch group band at 800, the two card headers at 700 — and
+ * 600 and up resolve to the one Bold face that ships. A caller drawing at 400
+ * or 500 must say so, or it reserves more room than its glyphs need.
+ */
+export function fitWrapped(
+  label: string,
+  maxWidth: number,
+  maxFont: number,
+  minFont: number,
+  maxLines: number = 2,
+  opts: MeasureOpts = { bold: true }
+): { lines: string[]; fontSize: number } {
+  const wrapOpts = { ...opts, hardBreak: true };
+  for (let fs = maxFont; fs >= minFont; fs--) {
+    const lines = wrapTextToWidth(label, fs, maxWidth, wrapOpts);
+    if (lines.length <= maxLines) return { lines, fontSize: fs };
+  }
+  const lines = wrapTextToWidth(label, minFont, maxWidth, wrapOpts);
+  if (lines.length <= maxLines) return { lines, fontSize: minFont };
+  const kept = lines.slice(0, maxLines);
+  let last = kept[maxLines - 1]!;
+  while (
+    last.length > 1 &&
+    measureText(`${last}\u2026`, minFont, opts) > maxWidth
+  )
+    last = last.slice(0, -1);
+  kept[maxLines - 1] = `${last}\u2026`;
+  return { lines: kept, fontSize: minFont };
 }

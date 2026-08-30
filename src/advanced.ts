@@ -917,7 +917,13 @@ export {
  * advance-width table in the app, kept in step by nobody — the same class of
  * duplication `sketchColors` exists to prevent for colour.
  */
-export { measureText, truncateText } from './utils/text-measure';
+export {
+  breakAtoms,
+  fitWrapped,
+  measureText,
+  truncateText,
+  wrapTextToWidth,
+} from './utils/text-measure';
 export type {
   LegendConfig,
   LegendState,

@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
+  breakAtoms,
+  fitWrapped,
   measureText,
   truncateText,
   wrapTextToWidth,
@@ -178,5 +180,155 @@ describe('truncateText — equivalence with whole-string measurement', () => {
     const kept = out.slice(0, -1);
     const oneMore = text.slice(0, kept.length + 1) + '…';
     expect(measureText(oneMore, fs)).toBeGreaterThan(maxWidth);
+  });
+});
+
+// ============================================================
+// Break opportunities inside a single token (#586)
+// ============================================================
+//
+// A label like `SpyglassFeedService` or `powder_store_queue` is ONE word, so
+// the wrapper had nowhere to break it and fell through to `hardBreak`, which
+// chops by grapheme cluster — mid-word, and unreadable.
+
+describe('breakAtoms', () => {
+  it('leaves a plain word alone', () => {
+    expect(breakAtoms('Powder')).toEqual(['Powder']);
+  });
+
+  it('breaks after an underscore or hyphen, keeping the separator', () => {
+    // On the end of the line it terminates, the way a hyphenated word reads.
+    expect(breakAtoms('powder_store_queue')).toEqual([
+      'powder_',
+      'store_',
+      'queue',
+    ]);
+    expect(breakAtoms('powder-store')).toEqual(['powder-', 'store']);
+  });
+
+  it('breaks at a camelCase boundary, inserting nothing', () => {
+    expect(breakAtoms('SpyglassFeedService')).toEqual([
+      'Spyglass',
+      'Feed',
+      'Service',
+    ]);
+  });
+
+  it('breaks an acronym run before a capitalised word, not inside it', () => {
+    // 🔴 `HTTPServer` gives `HTTP` + `Server`, never `HTTPS` + `erver`.
+    expect(breakAtoms('HTTPServer')).toEqual(['HTTP', 'Server']);
+    expect(breakAtoms('parseHTTPRequest')).toEqual([
+      'parse',
+      'HTTP',
+      'Request',
+    ]);
+  });
+
+  it('breaks between a digit and a capital', () => {
+    expect(breakAtoms('queue2Store')).toEqual(['queue2', 'Store']);
+  });
+
+  it('never loses a character', () => {
+    for (const w of [
+      'SpyglassFeedService',
+      'powder_store_queue',
+      'HTTPServer',
+      'a-b_cD',
+      '',
+      '_',
+    ]) {
+      expect(breakAtoms(w).join('')).toBe(w === '' ? '' : w);
+    }
+  });
+});
+
+describe('wrapTextToWidth uses those opportunities', () => {
+  it('is byte-identical for text that fits, atoms or not', () => {
+    // 🔴 Atoms CONCATENATE rather than re-joining with a space, so segmenting a
+    // token that fits is a no-op. This is what lets the segmentation run
+    // unconditionally without changing any existing caller's output.
+    expect(wrapTextToWidth('SpyglassFeedService', 12, 10_000)).toEqual([
+      'SpyglassFeedService',
+    ]);
+    expect(wrapTextToWidth('powder_store_queue', 12, 10_000)).toEqual([
+      'powder_store_queue',
+    ]);
+  });
+
+  it('breaks a camelCase name at its humps rather than mid-word', () => {
+    const lines = wrapTextToWidth('SpyglassFeedService', 12, 60);
+    expect(lines.length).toBeGreaterThan(1);
+    expect(lines.join('')).toBe('SpyglassFeedService');
+    // Every line starts at a hump, so none begins mid-word.
+    for (const l of lines.slice(1)) expect(l[0]).toBe(l[0]!.toUpperCase());
+  });
+
+  it('breaks an underscored name after its separators', () => {
+    const lines = wrapTextToWidth('powder_store_queue', 12, 60);
+    expect(lines.join('')).toBe('powder_store_queue');
+    for (const l of lines.slice(0, -1)) expect(l.endsWith('_')).toBe(true);
+  });
+});
+
+describe('fitWrapped — wrap, then shrink, then ellipsize', () => {
+  it('keeps the full font when the label already fits', () => {
+    const fit = fitWrapped('Bank', 500, 13, 9, 2);
+    expect(fit.lines).toEqual(['Bank']);
+    expect(fit.fontSize).toBe(13);
+  });
+
+  it('wraps before it shrinks', () => {
+    // The order is the point: a long name stays readable across lines rather
+    // than becoming tiny on one.
+    const fit = fitWrapped('How Long Can Labels Be', 120, 13, 9, 2);
+    expect(fit.lines.length).toBe(2);
+    expect(fit.fontSize).toBe(13);
+    expect(fit.lines.join(' ')).toBe('How Long Can Labels Be');
+  });
+
+  it('shrinks when wrapping alone will not fit the line cap', () => {
+    const wide = fitWrapped('How Long Can Labels Be For Nodes', 120, 13, 9, 2);
+    expect(wide.fontSize).toBeLessThan(13);
+  });
+
+  it('ellipsizes only once the floor font still will not fit', () => {
+    const fit = fitWrapped(
+      'How Long Can Labels Be For Nodes Really Quite Long Indeed',
+      80,
+      13,
+      9,
+      2
+    );
+    expect(fit.fontSize).toBe(9);
+    expect(fit.lines).toHaveLength(2);
+    expect(fit.lines[1]!.endsWith('\u2026')).toBe(true);
+  });
+
+  it('never returns a line wider than the box it was given', () => {
+    const width = 100;
+    for (const label of [
+      'How Long Can Labels Be For Nodes',
+      'SpyglassFeedService',
+      'powder_store_queue',
+      'Bank',
+    ]) {
+      const fit = fitWrapped(label, width, 13, 9, 2);
+      for (const line of fit.lines) {
+        expect(
+          measureText(line, fit.fontSize, { bold: true })
+        ).toBeLessThanOrEqual(width + 0.01);
+      }
+    }
+  });
+
+  it('takes a weight, and does not assume bold', () => {
+    // ⚠️ The default is BOLD because every caller when this moved drew bold. A
+    // caller at 400 or 500 that did not say so would reserve more room than its
+    // glyphs need.
+    const bold = fitWrapped('How Long Can Labels Be', 120, 13, 9, 2);
+    const plain = fitWrapped('How Long Can Labels Be', 120, 13, 9, 2, {
+      bold: false,
+    });
+    expect(plain.fontSize).toBeGreaterThanOrEqual(bold.fontSize);
   });
 });

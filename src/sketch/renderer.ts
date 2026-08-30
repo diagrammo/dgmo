@@ -36,7 +36,11 @@ import {
   UNTAGGED_TAG_COLOR,
 } from '../utils/tag-groups';
 import { ScaleContext } from '../utils/scaling';
-import { measureText, wrapTextToWidth } from '../utils/text-measure';
+import {
+  fitWrapped,
+  measureText,
+  wrapTextToWidth,
+} from '../utils/text-measure';
 import {
   CARD_RADIUS,
   COLLAPSE_BAR_HEIGHT as SHARED_COLLAPSE_BAR_HEIGHT,
@@ -226,33 +230,6 @@ const CARD_TITLE_MAX = SKETCH_VISUALS.nodeLabelFontSize;
  *  reads at a comfortable size across several lines rather than collapsing to a
  *  tiny one-liner. If even minFont can't fit within maxLines, the last shown
  *  line is middle-ellipsized so the block stays bounded. */
-function fitWrapped(
-  label: string,
-  maxWidth: number,
-  maxFont: number,
-  minFont: number,
-  maxLines: number = 2
-): { lines: string[]; fontSize: number } {
-  // Every caller draws these lines bold — the group band at 800, the two card
-  // headers at 700 through renderNodeCard — and 800, 700 and 600 all resolve to
-  // the one Bold face that ships.
-  const BOLD = { hardBreak: true, bold: true } as const;
-  for (let fs = maxFont; fs >= minFont; fs--) {
-    const lines = wrapTextToWidth(label, fs, maxWidth, BOLD);
-    if (lines.length <= maxLines) return { lines, fontSize: fs };
-  }
-  const lines = wrapTextToWidth(label, minFont, maxWidth, BOLD);
-  if (lines.length <= maxLines) return { lines, fontSize: minFont };
-  const kept = lines.slice(0, maxLines);
-  let last = kept[maxLines - 1]!;
-  while (
-    last.length > 1 &&
-    measureText(`${last}…`, minFont, { bold: true }) > maxWidth
-  )
-    last = last.slice(0, -1);
-  kept[maxLines - 1] = `${last}…`;
-  return { lines: kept, fontSize: minFont };
-}
 
 // ── Main renderer ───────────────────────────────────────────
 
