@@ -186,7 +186,7 @@ export function truncateText(
  *   preceding line, the way a hyphenated word reads on paper;
  * - a camelCase boundary, inserting nothing: lower-or-digit followed by upper,
  *   and the last capital of an acronym run before a capitalised word, so
- *   `HTTPServer` gives `HTTP` + `Server` rather than `HTTPS` + `erver`.
+ *   `HTTPServer` gives `HTTP` + `Server` rather than splitting inside the run.
  *
  * 🔴 Atoms CONCATENATE, they are never re-joined with a space. So segmenting a
  * token that fits its line whole is a no-op — the pieces land back together and
