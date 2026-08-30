@@ -2487,11 +2487,14 @@ declare const SKETCH_FOOT_H: number;
  * `sketchSlotToPx` and `layout.ts` both multiply by it. A footprint is 2 of
  * these wide, so its left/right edges both land on dots.
  *
- * 🔴 The desktop canvas disagrees: its `AT_UNIT_X` is half a SLOT (96), not
- * half a footprint. So the same `at:` value means different pixels in the two,
- * and a canvas-authored file lays out here with `W_SKETCH_OVERLAP_RESOLVED`.
- * Filed as the at:-unit disagreement (#571) — do not "fix" either side
- * without reading it; existing files change meaning either way.
+ * 🔴 The desktop canvas agrees, as of 2026-08-30 (#571). It read one unit as
+ * half a SLOT (96) for four days, so the same `at:` value meant different
+ * pixels in the two and a canvas-authored file laid out here with
+ * `W_SKETCH_OVERLAP_RESOLVED` — invisibly, because the resolver's "nearest free
+ * slot" happens to land where the canvas intended on a plain row. Its
+ * `AT_UNIT_X` is this constant now, and its `slotToPx` calls `sketchSlotToPx`
+ * rather than restating the multiplication, so a future divergence is a change
+ * to this file that both sides compile against.
  */
 declare const SKETCH_HALF_SLOT_X: number;
 /** Vertical half-unit pitch, px: half a footprint (40 at the default cell). */
