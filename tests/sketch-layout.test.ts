@@ -576,3 +576,86 @@ describe('sketch layout — nested boxes', () => {
     expect(inner!.h).toBeGreaterThan(0);
   });
 });
+
+/**
+ * A group must claim exactly the frame it draws — #597.
+ *
+ * The extent behind a box's collision rect was measured from its children's
+ * `SKETCH_SEP` separation claims while the frame it draws was measured from
+ * their footprints, so every group reserved one half-slot more than it drew on
+ * its right and bottom edges. A shape authored in that invisible margin was
+ * shoved a slot, silently, the next time the file was opened — and the desktop
+ * canvas adopts resolved slots on load, so the author's board came back
+ * rearranged with the frame plainly not touching the shape it had displaced.
+ */
+describe('a group claims the frame it draws (#597)', () => {
+  /** The frame `g` draws, in half-slot units. */
+  function drawnFrame(src: string): {
+    c0: number;
+    r0: number;
+    c1: number;
+    r1: number;
+  } {
+    const laid = layoutSketch(parseSketch(src));
+    const b = laid.boxes[0];
+    if (!b) throw new Error('no box');
+    const o = laid.origin;
+    const c0 = o.c + b.x / SKETCH_HALF_SLOT_X;
+    const r0 = o.r + b.y / SKETCH_HALF_SLOT_Y;
+    return {
+      c0,
+      r0,
+      c1: c0 + b.w / SKETCH_HALF_SLOT_X,
+      r1: r0 + b.h / SKETCH_HALF_SLOT_Y,
+    };
+  }
+
+  const GROUP = '[g] as g1 at: 3 -6\n  kid as k at: 0 0\n';
+
+  /** Where a probe shape authored at `c,r` actually ends up. */
+  function place(c: number, r: number): { c: number; r: number } {
+    const laid = layoutSketch(
+      parseSketch(
+        `sketch t\nProbe as P at: ${String(c)} ${String(r)}\n${GROUP}`
+      )
+    );
+    const p = laid.nodes.find((n) => n.label === 'Probe');
+    if (!p) throw new Error('no probe');
+    return p.slot;
+  }
+
+  it('leaves a shape alone the moment it clears the drawn frame', () => {
+    const f = drawnFrame(`sketch t\n${GROUP}`);
+    // The first whole row at or below the frame's bottom edge. A shape there
+    // does not overlap the frame, so nothing may move it.
+    // Column 3 is under the frame, so only the row decides the outcome.
+    const clear = Math.ceil(f.r1);
+    expect(place(3, clear)).toEqual({ c: 3, r: clear });
+    // ...and the row above it, which DOES overlap, still resolves.
+    expect(place(3, clear - 1)).not.toEqual({ c: 3, r: clear - 1 });
+  });
+
+  it('leaves a shape alone the moment it clears the frame on the right', () => {
+    const f = drawnFrame(`sketch t\n${GROUP}`);
+    const clear = Math.ceil(f.c1);
+    expect(place(clear, -6)).toEqual({ c: clear, r: -6 });
+  });
+
+  it('does not shove a shape the frame visibly does not reach', () => {
+    // The exact board from the report: `foo` holds a nested group, and
+    // `Box Alpha` sits a clear row below the frame's bottom edge.
+    const src = `sketch t
+Box Alpha as Untitled10 at: 9 -5
+Box Beta as Untitled11 at: 9 -2
+[foo] as f2 at: 5 -9
+  [group 1] as f at: 0 0
+    a as Untitled at: 0 0
+    b as ledger at: 0 0
+`;
+    const laid = layoutSketch(parseSketch(src));
+    const alpha = laid.nodes.find((n) => n.label === 'Box Alpha');
+    const beta = laid.nodes.find((n) => n.label === 'Box Beta');
+    expect(alpha?.slot).toEqual({ c: 9, r: -5 });
+    expect(beta?.slot).toEqual({ c: 9, r: -2 });
+  });
+});

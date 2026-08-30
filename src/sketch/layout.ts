@@ -465,14 +465,40 @@ function layoutChildren(
     }
   }
 
+  /**
+   * The extent measures what the children DRAW, never what they CLAIM.
+   *
+   * 🔴 A shape's `unitRect` is `SKETCH_SEP` square — its footprint (2 half-slots)
+   * plus the gap that keeps the next shape off it (1 more). Measuring the extent
+   * from `occupied.rects` therefore handed every group a collision rect one
+   * half-slot wider and one taller than the frame it draws, growing right and
+   * down, while `boxes` at output time measures the same children by
+   * `SKETCH_FOOT_W`/`SKETCH_FOOT_H`. Two measurements of one rectangle, and the
+   * bigger one was invisible.
+   *
+   * A box authored in that margin was shoved a slot the next time the file was
+   * opened, with the frame plainly not touching it on screen, and the canvas
+   * adopted the shove (#597). The gap belongs BETWEEN shapes, which is what
+   * their own `unitRect`s already enforce inside this same `Occupancy`; a
+   * group's frame must claim its frame and nothing more.
+   *
+   * Inner boxes are already right — their rect IS the drawn frame, so they are
+   * measured as they stand.
+   */
+  const footWs = SKETCH_FOOT_W / SKETCH_HALF_SLOT_X;
+  const footHs = SKETCH_FOOT_H / SKETCH_HALF_SLOT_Y;
+  const drawn: SlotRect[] = [
+    ...children.map((k) => ({ c: k.c, r: k.r, w: footWs, h: footHs })),
+    ...localBoxes.map((b) => ({ c: b.c, r: b.r, w: b.rect.w, h: b.rect.h })),
+  ];
   let extent: SlotRect;
-  if (occupied.rects.length === 0) {
-    extent = { c: 0, r: 0, w: SKETCH_SEP, h: SKETCH_SEP };
+  if (drawn.length === 0) {
+    extent = { c: 0, r: 0, w: footWs, h: footHs };
   } else {
-    const cMin = Math.min(...occupied.rects.map((o) => o.c));
-    const rMin = Math.min(...occupied.rects.map((o) => o.r));
-    const cMax = Math.max(...occupied.rects.map((o) => o.c + o.w));
-    const rMax = Math.max(...occupied.rects.map((o) => o.r + o.h));
+    const cMin = Math.min(...drawn.map((o) => o.c));
+    const rMin = Math.min(...drawn.map((o) => o.r));
+    const cMax = Math.max(...drawn.map((o) => o.c + o.w));
+    const rMax = Math.max(...drawn.map((o) => o.r + o.h));
     extent = { c: cMin, r: rMin, w: cMax - cMin, h: rMax - rMin };
   }
   return { children, boxes: localBoxes, extent };
