@@ -143,6 +143,35 @@ function resolveCardTagColor(
   return entry?.color;
 }
 
+/**
+ * The color a COLUMN HEADER takes from the active tag group, or `undefined`.
+ *
+ * The sibling of `resolveCardTagColor` with one deliberate difference: it does
+ * NOT fall back to `group.defaultValue`. A column is a container (§2), so it
+ * colors only on a value its author wrote — with the default applied, every
+ * untagged column in the board would wear the first entry's color.
+ *
+ * Until 2026-08-30 a column header could only be colored by the trailing
+ * palette word (`[Doing] green`); a tag value on the column line parsed,
+ * cascaded to the cards, and left the header grey (#585).
+ */
+function resolveColumnTagColor(
+  column: KanbanColumn,
+  tagGroups: readonly KanbanTagGroup[],
+  activeTagGroup: string | null
+): string | undefined {
+  if (!activeTagGroup) return undefined;
+  const group = tagGroups.find(
+    (g) => g.name.toLowerCase() === activeTagGroup.toLowerCase()
+  );
+  if (!group) return undefined;
+  const value = column.metadata?.[tagAttrKey(group.name)];
+  if (!value) return undefined;
+  return group.entries.find(
+    (e) => e.value.toLowerCase() === value.toLowerCase()
+  )?.color;
+}
+
 interface CollapsedChip {
   readonly value: string;
   readonly count: number;
@@ -699,10 +728,16 @@ export function renderKanban(
       .attr('data-line-number', col.lineNumber);
 
     const thisColBg = defaultColBg;
-    const thisColHeaderBg = col.color
-      ? shapeFill(palette, col.color, isDark, { mode: fillMode })
+    // A tag value on the column line wins over the §1.8 trailing color word
+    // for the same reason it does on a card: when a tag group is the active
+    // dimension, that dimension is what the board is colored by.
+    const colColor =
+      resolveColumnTagColor(col, parsed.tagGroups, activeTagGroup ?? null) ??
+      col.color;
+    const thisColHeaderBg = colColor
+      ? shapeFill(palette, colColor, isDark, { mode: fillMode })
       : defaultColHeaderBg;
-    const onHeaderText = col.color
+    const onHeaderText = colColor
       ? contrastText(
           thisColHeaderBg,
           palette.textOnFillLight,

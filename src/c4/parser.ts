@@ -56,6 +56,14 @@ import type {
 // tail keeps the line out of this regex, preserving prior diagnostics.
 const CONTAINER_RE = /^\[([^\]]+)\](?:\s+(collapsed)|\s+collapsed:\s*(\S+))?$/;
 
+// The same boundary carrying a §1.4 same-line metadata tail —
+// `[Backend] s: Red` (diagrammo/diagrammo#585). Kept as a SECOND pattern rather
+// than loosening the anchor above, because the `$` there is load-bearing: a
+// tail that is not metadata must stay out of both patterns so the existing
+// `Unexpected content` diagnostic still fires on it. The tail is accepted only
+// when `parseC4MetaTail` finds at least one `key: value` pair.
+const CONTAINER_META_RE = /^\[([^\]]+)\]\s+(.+)$/;
+
 /** Matches element declarations: `person Name`, `system Name | k: v` */
 const ELEMENT_RE = /^(person|system|container|component)\s+(.+)$/i;
 
@@ -616,20 +624,36 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
 
     // ── Group boundaries: [Group Name] ──────────────────────
     const containerMatch = trimmed.match(CONTAINER_RE);
-    if (containerMatch) {
-      // Capture group [1] guaranteed by regex match.
-      const groupName = containerMatch[1]!.trim();
+    // A boundary with a metadata tail is the same construct; it is matched
+    // separately so a non-metadata tail keeps falling through to the
+    // `Unexpected content` diagnostic exactly as before (#585).
+    let containerMeta: Record<string, string> = {};
+    let metaMatch: RegExpMatchArray | null = null;
+    if (!containerMatch) {
+      metaMatch = trimmed.match(CONTAINER_META_RE);
+      if (metaMatch) {
+        containerMeta = parseC4MetaTail(metaMatch[2]!, metaAliasMap);
+        if (Object.keys(containerMeta).length === 0) metaMatch = null;
+      }
+    }
+    if (containerMatch || metaMatch) {
+      // Capture group [1] guaranteed by whichever regex matched.
+      const groupName = (containerMatch ?? metaMatch)![1]!.trim();
       // Canonical bare `collapsed` flag (capture 2) or legacy
       // `collapsed: true` metadata (capture 3).
       const groupCollapsed =
-        containerMatch[2] !== undefined ||
-        containerMatch[3]?.toLowerCase() === 'true';
+        containerMatch !== null &&
+        (containerMatch[2] !== undefined ||
+          containerMatch[3]?.toLowerCase() === 'true');
       const parentEntry = findParentElement(indent, stack);
       if (parentEntry) {
         const group: Writable<C4Group> = {
           name: groupName,
           children: [],
           ...(groupCollapsed && { collapsed: true }),
+          ...(Object.keys(containerMeta).length > 0 && {
+            metadata: containerMeta,
+          }),
           lineNumber,
         };
         parentEntry.element.groups.push(group);

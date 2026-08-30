@@ -66,6 +66,9 @@ export interface InfraLayoutGroup {
   readonly width: number;
   readonly height: number;
   readonly instances?: number | string;
+  /** The group's own tag metadata, carried through so the renderer can tint
+   *  the frame without reaching back into the parse result (#585). */
+  readonly metadata?: Readonly<Record<string, string>>;
   readonly lineNumber: number;
 }
 
@@ -788,6 +791,7 @@ export function layoutInfra(
           width: MIN_NODE_WIDTH,
           height: NODE_HEADER_HEIGHT + NODE_PAD_BOTTOM,
           ...(group.instances !== undefined && { instances: group.instances }),
+          ...(group.metadata && { metadata: group.metadata }),
           lineNumber: group.lineNumber,
         };
       }
@@ -813,6 +817,7 @@ export function layoutInfra(
         width: maxX - minX + GROUP_PADDING * 2,
         height: maxY - minY + GROUP_PADDING * 2 + GROUP_HEADER_HEIGHT,
         ...(group.instances !== undefined && { instances: group.instances }),
+        ...(group.metadata && { metadata: group.metadata }),
         lineNumber: group.lineNumber,
       };
     }

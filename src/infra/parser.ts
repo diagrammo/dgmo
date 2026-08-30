@@ -1217,6 +1217,21 @@ export function parseInfra(content: string): ParsedInfra {
         delete tags[key];
       }
     }
+    // GROUPS need the same slugging, and did not get it until 2026-08-30
+    // (#585). This loop walked `result.nodes` alone, so a group authored with
+    // the alias (`[Backend] f: Edge`) kept the key `f` while every node was
+    // rewritten to `flavor` — and any consumer resolving the group's color by
+    // the tag group's own name found nothing on exactly the groups the author
+    // had tagged.
+    for (const group of result.groups as Writable<InfraGroup>[]) {
+      const tags = group.metadata as Record<string, string> | undefined;
+      if (!tags) continue;
+      for (const key of Object.keys(tags)) {
+        if (key === groupKey || !applied.has(tagAttrKey(key))) continue;
+        tags[groupKey] = tags[key]!;
+        delete tags[key];
+      }
+    }
   }
 
   // Inject default tag values into nodes that don't have one

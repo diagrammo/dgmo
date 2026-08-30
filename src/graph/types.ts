@@ -40,6 +40,15 @@ export interface GraphGroup {
   readonly nodeIds: readonly string[];
   readonly lineNumber: number;
   readonly collapsed?: boolean; // `[Group] collapsed: true` view-state marker
+  /**
+   * §1.4 same-line tag metadata authored on the group line itself
+   * (`[Backend] s: Red`), present only when the author wrote some. The
+   * renderer resolves it through `resolveTagColor(..., isContainer: true)`
+   * so the frame tints only on an explicit value — a container must never
+   * pick up the group's `defaultValue`, or every untagged frame in the
+   * diagram would wear the first entry's color.
+   */
+  readonly metadata?: Readonly<Record<string, string>>;
 }
 
 /**

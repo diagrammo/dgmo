@@ -68,6 +68,9 @@ export interface LayoutGroup {
   readonly id: string;
   readonly label: string;
   readonly color?: string;
+  /** The group's own tag metadata, carried through so the renderer can tint
+   *  the frame from the active tag group (#585). */
+  readonly metadata?: Readonly<Record<string, string>>;
   readonly lineNumber: number;
   readonly collapsed?: boolean;
   readonly x: number;
@@ -363,6 +366,7 @@ export function layoutGraph(
             id: group.id,
             label: group.label,
             ...(group.color !== undefined && { color: group.color }),
+            ...(group.metadata && { metadata: group.metadata }),
             lineNumber: group.lineNumber,
             collapsed: true,
             x: syntheticNode.x - syntheticNode.width / 2,
@@ -387,6 +391,7 @@ export function layoutGraph(
           id: group.id,
           label: group.label,
           ...(group.color !== undefined && { color: group.color }),
+          ...(group.metadata && { metadata: group.metadata }),
           lineNumber: group.lineNumber,
           x: 0,
           y: 0,
@@ -416,6 +421,7 @@ export function layoutGraph(
         id: group.id,
         label: group.label,
         ...(group.color !== undefined && { color: group.color }),
+        ...(group.metadata && { metadata: group.metadata }),
         lineNumber: group.lineNumber,
         x: minX - GROUP_PADDING,
         y: minY - GROUP_PADDING,

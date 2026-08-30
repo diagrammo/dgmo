@@ -378,6 +378,31 @@ export function themeBaseBg(palette: PaletteColors, isDark: boolean): string {
   return isDark ? palette.surface : palette.bg;
 }
 
+/**
+ * The fill for a GROUP FRAME — the persistent rect wrapping a set of nodes
+ * (org containers, boxes-and-lines groups, c4 boundaries, infra groups, pert
+ * groups, kanban column headers). `docs/architecture/diagram-visual-conventions.md`
+ * §2 states the two branches; this is them, in one place.
+ *
+ * A frame with no color of its own is neutral grey; a colored one is a 10%
+ * tint of that color over the theme base. It lived only in `org/renderer.ts`
+ * until 2026-08-30, which is exactly why four charts implemented the first
+ * branch and none of them the second (diagrammo/diagrammo#585).
+ */
+export function groupFill(
+  palette: PaletteColors,
+  isDark: boolean,
+  color?: string
+): string {
+  if (color) return mix(color, themeBaseBg(palette, isDark), 10);
+  return mix(palette.surface, palette.bg, 40);
+}
+
+/** The stroke paired with {@link groupFill} — the group's own color, or muted. */
+export function groupStroke(palette: PaletteColors, color?: string): string {
+  return color ?? palette.textMuted;
+}
+
 export function shapeFill(
   palette: PaletteColors,
   intent: string,

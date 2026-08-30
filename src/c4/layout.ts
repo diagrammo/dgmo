@@ -109,6 +109,9 @@ export interface C4LayoutBoundary {
   readonly y: number;
   readonly width: number;
   readonly height: number;
+  /** A `[Group]` boundary's own tag metadata, so the renderer can tint the
+   *  frame (#585). Absent on element and deployment boundaries. */
+  readonly metadata?: Readonly<Record<string, string>>;
 }
 
 export interface C4LayoutResult {
@@ -1126,7 +1129,11 @@ export function layoutC4Containers(
   // Build element-to-group mapping for compound graph
   const elementToGroup = new Map<
     string,
-    { name: string; lineNumber: number }
+    {
+      name: string;
+      lineNumber: number;
+      metadata?: Readonly<Record<string, string>>;
+    }
   >();
   for (const group of system.groups) {
     for (const child of group.children) {
@@ -1134,6 +1141,7 @@ export function layoutC4Containers(
         elementToGroup.set(child.name, {
           name: group.name,
           lineNumber: group.lineNumber,
+          ...(group.metadata && { metadata: group.metadata }),
         });
       }
     }
@@ -1380,17 +1388,25 @@ export function layoutC4Containers(
     const nodeMap = new Map(containerNodes.map((n) => [n.name, n]));
     const seenGroups = new Map<
       string,
-      { lineNumber: number; members: Writable<C4LayoutNode>[] }
+      {
+        lineNumber: number;
+        members: Writable<C4LayoutNode>[];
+        metadata?: Readonly<Record<string, string>>;
+      }
     >();
     for (const [elName, grp] of elementToGroup) {
       const node = nodeMap.get(elName);
       if (!node) continue;
       if (!seenGroups.has(grp.name)) {
-        seenGroups.set(grp.name, { lineNumber: grp.lineNumber, members: [] });
+        seenGroups.set(grp.name, {
+          lineNumber: grp.lineNumber,
+          members: [],
+          ...(grp.metadata && { metadata: grp.metadata }),
+        });
       }
       seenGroups.get(grp.name)!.members.push(node);
     }
-    for (const [groupName, { lineNumber, members }] of seenGroups) {
+    for (const [groupName, { lineNumber, members, metadata }] of seenGroups) {
       if (members.length === 0) continue;
       let gMinX = Infinity,
         gMinY = Infinity,
@@ -1414,6 +1430,7 @@ export function layoutC4Containers(
         y: gMinY - GROUP_BOUNDARY_PAD,
         width: gMaxX - gMinX + GROUP_BOUNDARY_PAD * 2,
         height: gMaxY - gMinY + GROUP_BOUNDARY_PAD * 2,
+        ...(metadata && { metadata }),
       });
     }
   }
@@ -1665,7 +1682,11 @@ export function layoutC4Components(
   // Build element-to-group mapping for compound graph
   const elementToGroup = new Map<
     string,
-    { name: string; lineNumber: number }
+    {
+      name: string;
+      lineNumber: number;
+      metadata?: Readonly<Record<string, string>>;
+    }
   >();
   for (const group of targetContainer.groups) {
     for (const child of group.children) {
@@ -1673,6 +1694,7 @@ export function layoutC4Components(
         elementToGroup.set(child.name, {
           name: group.name,
           lineNumber: group.lineNumber,
+          ...(group.metadata && { metadata: group.metadata }),
         });
       }
     }
@@ -1933,17 +1955,25 @@ export function layoutC4Components(
     const nodeMap = new Map(componentNodes.map((n) => [n.name, n]));
     const seenGroups = new Map<
       string,
-      { lineNumber: number; members: Writable<C4LayoutNode>[] }
+      {
+        lineNumber: number;
+        members: Writable<C4LayoutNode>[];
+        metadata?: Readonly<Record<string, string>>;
+      }
     >();
     for (const [elName, grp] of elementToGroup) {
       const node = nodeMap.get(elName);
       if (!node) continue;
       if (!seenGroups.has(grp.name)) {
-        seenGroups.set(grp.name, { lineNumber: grp.lineNumber, members: [] });
+        seenGroups.set(grp.name, {
+          lineNumber: grp.lineNumber,
+          members: [],
+          ...(grp.metadata && { metadata: grp.metadata }),
+        });
       }
       seenGroups.get(grp.name)!.members.push(node);
     }
-    for (const [groupName, { lineNumber, members }] of seenGroups) {
+    for (const [groupName, { lineNumber, members, metadata }] of seenGroups) {
       if (members.length === 0) continue;
       let gMinX = Infinity,
         gMinY = Infinity,
@@ -1967,6 +1997,7 @@ export function layoutC4Components(
         y: gMinY - GROUP_BOUNDARY_PAD,
         width: gMaxX - gMinX + GROUP_BOUNDARY_PAD * 2,
         height: gMaxY - gMinY + GROUP_BOUNDARY_PAD * 2,
+        ...(metadata && { metadata }),
       });
     }
   }

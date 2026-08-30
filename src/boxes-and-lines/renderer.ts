@@ -44,9 +44,11 @@ import {
   shapeFill,
   valueRampColor,
   themeBaseBg,
+  groupFill,
+  groupStroke,
 } from '../palettes/color-utils';
 import { resolveColor } from '../colors';
-import { resolveTagColor } from '../utils/tag-groups';
+import { resolveTagColor, resolveGroupTagColor } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import type { PaletteColors } from '../palettes';
 import {
@@ -714,13 +716,25 @@ export function renderBoxesAndLines(
   // Identify groups that contain sub-groups — only those need extra label space
   const groupLabels = new Set(layout.groups.map((g) => g.label));
   const hasSubGroups = new Set<string>();
+  // `BLLayoutGroup` carries geometry only, so the authored metadata is looked
+  // up by label rather than threaded through layout (#585).
+  const groupMetaByLabel = new Map<string, Readonly<Record<string, string>>>();
   for (const group of parsed.groups) {
+    groupMetaByLabel.set(group.label, group.metadata);
     for (const child of group.children) {
       if (groupLabels.has(child)) hasSubGroups.add(group.label);
     }
   }
 
   for (const group of sortedGroups) {
+    // The frame's own tag value (§2 of the visual-conventions doc). Container
+    // resolution, so an untagged group stays neutral instead of inheriting the
+    // tag group's default value.
+    const groupTagColor = resolveGroupTagColor(
+      groupMetaByLabel.get(group.label),
+      parsed.tagGroups,
+      activeGroup
+    );
     const gx = group.x - group.width / 2;
     // Only extend top for groups that contain sub-groups (dagre under-pads these)
     const needsExtra = !group.collapsed && hasSubGroups.has(group.label);
@@ -743,9 +757,14 @@ export function renderBoxesAndLines(
       .style('cursor', 'pointer');
 
     if (group.collapsed) {
-      // Collapsed: solid rounded rect matching node style + 6px collapse bar
-      const fillColor = themeBaseBg(palette, isDark);
-      const strokeColor = palette.border;
+      // Collapsed: solid rounded rect matching node style + 6px collapse bar.
+      // A tinted group keeps its color when folded, so collapsing does not
+      // silently drop the one thing the author set (#585) — the same rule
+      // pert's collapsed card already follows for the critical-path band.
+      const fillColor = groupTagColor
+        ? groupFill(palette, isDark, groupTagColor)
+        : themeBaseBg(palette, isDark);
+      const strokeColor = groupTagColor ?? palette.border;
 
       groupG
         .append('rect')
@@ -847,10 +866,13 @@ export function renderBoxesAndLines(
         .attr('height', groupHeight)
         .attr('rx', GROUP_RX)
         .attr('ry', GROUP_RX)
-        .attr('fill', mix(palette.surface, palette.bg, 40))
-        .attr('stroke', palette.textMuted)
+        .attr('fill', groupFill(palette, isDark, groupTagColor))
+        .attr('stroke', groupStroke(palette, groupTagColor))
         .attr('stroke-width', 1)
-        .attr('stroke-opacity', 0.35);
+        // A colored frame draws its stroke at full strength; the 0.35 that
+        // keeps an untagged frame recessive would wash the tag color out to
+        // the point where the group reads as uncolored again.
+        .attr('stroke-opacity', groupTagColor ? 1 : 0.35);
 
       groupG
         .append('text')

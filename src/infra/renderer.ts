@@ -8,7 +8,13 @@ import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
 import { appendArrowheadMarkers } from '../utils/arrow-markers';
 import type { PaletteColors } from '../palettes';
-import { contrastText, mix, shapeFill } from '../palettes/color-utils';
+import {
+  contrastText,
+  mix,
+  shapeFill,
+  groupFill,
+  groupStroke,
+} from '../palettes/color-utils';
 import type { InfraTagGroup } from './types';
 import { resolveColor } from '../colors';
 import { renderInlineText } from '../utils/inline-markdown';
@@ -1230,12 +1236,43 @@ function edgeColor(_edge: InfraLayoutEdge, palette: PaletteColors): string {
 // Render functions
 // ============================================================
 
+/**
+ * The color a GROUP FRAME takes from the active tag group, or null.
+ *
+ * Deliberately reads `group.metadata` directly rather than going through any
+ * default-injection path: a group colors only on a value its author wrote
+ * (§2, container rule). infra injects `defaultValue` into NODES at parse time
+ * and never into groups, so reading the bag straight is already the container
+ * behaviour here.
+ */
+function resolveGroupTagFill(
+  metadata: Readonly<Record<string, string>> | undefined,
+  activeGroup: string,
+  tagGroups: readonly InfraTagGroup[],
+  palette: PaletteColors
+): string | null {
+  if (!metadata) return null;
+  const tg = tagGroups.find(
+    (t) => t.name.toLowerCase() === activeGroup.toLowerCase()
+  );
+  if (!tg) return null;
+  const tagVal = metadata[tagAttrKey(tg.name)];
+  if (!tagVal) return null;
+  const tv = tg.values.find(
+    (v) => v.name.toLowerCase() === tagVal.toLowerCase()
+  );
+  if (!tv?.color) return null;
+  return resolveColor(tv.color, palette);
+}
+
 function renderGroups(
   svg: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   groups: readonly InfraLayoutGroup[],
   palette: PaletteColors,
-  _isDark: boolean,
-  sc: ScaledInfraConstants = buildScaledConstants(ScaleContext.identity())
+  isDark: boolean,
+  sc: ScaledInfraConstants = buildScaledConstants(ScaleContext.identity()),
+  activeGroup?: string | null,
+  tagGroups?: readonly InfraTagGroup[]
 ) {
   for (const group of groups) {
     const g = svg
@@ -1245,17 +1282,23 @@ function renderGroups(
       .attr('data-node-toggle', group.id)
       .style('cursor', 'pointer');
 
-    const groupFill = mix(palette.surface, palette.bg, 40);
-    const groupStroke = palette.textMuted;
+    // §4.6 of the spec has promised "group coloring via tags" since before
+    // this renderer honoured it (#585).
+    const tagColor =
+      activeGroup && tagGroups
+        ? resolveGroupTagFill(group.metadata, activeGroup, tagGroups, palette)
+        : null;
+    const frameFill = groupFill(palette, isDark, tagColor ?? undefined);
+    const frameStroke = groupStroke(palette, tagColor ?? undefined);
     g.append('rect')
       .attr('x', group.x)
       .attr('y', group.y)
       .attr('width', group.width)
       .attr('height', group.height)
       .attr('rx', 6)
-      .attr('fill', groupFill)
-      .attr('stroke', groupStroke)
-      .attr('stroke-opacity', 0.35)
+      .attr('fill', frameFill)
+      .attr('stroke', frameStroke)
+      .attr('stroke-opacity', tagColor ? 1 : 0.35)
       .attr('stroke-width', 1);
 
     g.append('text')
@@ -2568,7 +2611,7 @@ export function renderInfra(
       .text(title);
   }
 
-  renderGroups(svg, layout.groups, palette, isDark, sc);
+  renderGroups(svg, layout.groups, palette, isDark, sc, activeGroup, tagGroups);
   const speedMultiplier = playback?.speed ?? 1;
   renderEdgePaths(
     svg,

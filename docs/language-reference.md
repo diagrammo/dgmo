@@ -282,6 +282,12 @@ Two narrow exceptions accept same-line-metadata-only color: **cycle edges** (no 
 - Optional trailing-token color (kanban columns, scatter categories, era/marker labels)
 - Optional same-line metadata (outside brackets)
 - Indented content below belongs to the group
+- **A tag value on the group line colors the group's own frame**, and cascades
+  to its children: `[Backend] s: Red`. Supported on boxes-and-lines, infra, c4,
+  state, pert, kanban, gantt, sequence, org, block and sketch. Two rules: a
+  group never picks up the tag group's first-value default (an untagged group
+  stays neutral grey), and a value the tag group does not recognize leaves it
+  neutral rather than painting a fallback shade.
 
 ### 1.8 Boolean Options
 

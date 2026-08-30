@@ -14,9 +14,9 @@ import { ScaleContext } from '../utils/scaling';
 import type { PaletteColors } from '../palettes';
 import {
   contrastText,
-  mix,
   shapeFill,
-  themeBaseBg,
+  groupFill,
+  groupStroke,
 } from '../palettes/color-utils';
 import { resolveTagColor } from '../utils/tag-groups';
 import type { ParsedOrg } from './parser';
@@ -118,19 +118,21 @@ function nodeStroke(palette: PaletteColors, nodeColor?: string): string {
   return nodeColor ?? palette.primary;
 }
 
+// The §2 container recipe lives in `groupFill` / `groupStroke` — org was its
+// only implementation until 2026-08-30, which is exactly how five other charts
+// came to draw the uncolored branch and none of them the colored one (#585).
+// These two stay as named local aliases because org's call sites read better
+// with them, but the arithmetic is no longer here.
 function containerFill(
   palette: PaletteColors,
   isDark: boolean,
   nodeColor?: string
 ): string {
-  if (nodeColor) {
-    return mix(nodeColor, themeBaseBg(palette, isDark), 10);
-  }
-  return mix(palette.surface, palette.bg, 40);
+  return groupFill(palette, isDark, nodeColor);
 }
 
 function containerStroke(palette: PaletteColors, nodeColor?: string): string {
-  return nodeColor ?? palette.textMuted;
+  return groupStroke(palette, nodeColor);
 }
 
 // ============================================================

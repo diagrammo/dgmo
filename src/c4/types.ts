@@ -50,6 +50,14 @@ export interface C4Group {
    * group boundaries.
    */
   readonly collapsed?: boolean;
+  /**
+   * §1.4 same-line tag metadata authored on the boundary line itself
+   * (`[Backend] s: Red`), present only when the author wrote some. Resolved
+   * by the renderer through `resolveTagColor(..., isContainer: true)`, so a
+   * boundary tints only on an explicit value and never inherits the tag
+   * group's `defaultValue`.
+   */
+  readonly metadata?: Readonly<Record<string, string>>;
   readonly lineNumber: number;
 }
 

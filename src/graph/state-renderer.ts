@@ -23,6 +23,7 @@ import {
 import {
   resolveActiveTagGroup,
   resolveTagColor,
+  resolveGroupTagColor,
   tagAttrKey,
 } from '../utils/tag-groups';
 import { renderIntegratedLegend } from '../utils/legend-integration';
@@ -300,16 +301,27 @@ export function renderState(
     const gw = group.width + sGroupExtraPadding * 2;
     const gh = group.height + sGroupExtraPadding * 2 + sGroupLabelFontSize + 4;
 
+    // The frame's color: a value from the active tag group if the author put
+    // one on the group line, else the §1.8 trailing palette word. The tag wins
+    // for the same reason it wins on a state — when a tag group is the active
+    // dimension, that dimension is what the picture is colored by.
+    //
+    // Until 2026-08-30 a tag value here was not merely ignored: the whole
+    // group was destroyed at parse time (#585). See `state-parser.ts`.
+    const groupColor =
+      resolveGroupTagColor(group.metadata, tagGroups, activeTagGroup) ??
+      group.color;
+
     // §1.9 fill-outline: group areas drop their wash — bg fill, colored frame.
     const groupOutline = fillModeFromOptions(graph.options ?? {}) === 'outline';
     const fillColor = groupOutline
       ? themeBaseBg(palette, isDark)
-      : group.color
-        ? mix(group.color, themeBaseBg(palette, isDark), 10)
+      : groupColor
+        ? mix(groupColor, themeBaseBg(palette, isDark), 10)
         : isDark
           ? palette.surface
           : mix(palette.border, palette.bg, 30);
-    const strokeColor = group.color ?? palette.textMuted;
+    const strokeColor = groupColor ?? palette.textMuted;
 
     const groupWrapper = contentG
       .append('g')

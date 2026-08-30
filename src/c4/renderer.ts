@@ -3,7 +3,7 @@
 // ============================================================
 
 import { serializeSvg } from '../utils/svg-serialize';
-import { tagAttrKey } from '../utils/tag-groups';
+import { tagAttrKey, resolveGroupTagColor } from '../utils/tag-groups';
 import { fillModeFromOptions } from '../utils/parsing';
 import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
@@ -13,7 +13,12 @@ import {
   appendReverseArrowheadMarkers,
 } from '../utils/arrow-markers';
 import type { PaletteColors } from '../palettes';
-import { contrastText, mix, shapeFill } from '../palettes/color-utils';
+import {
+  contrastText,
+  mix,
+  shapeFill,
+  groupFill,
+} from '../palettes/color-utils';
 import { renderInlineText } from '../utils/inline-markdown';
 import { preprocessDescriptionLine } from '../utils/description-helpers';
 import { measureText, wrapTextToWidth } from '../utils/text-measure';
@@ -1416,10 +1421,26 @@ export function renderC4Containers(
 
   // ── Group boundaries (between parent boundary and edges) ──
   if (layout.groupBoundaries.length > 0) {
-    const groupFill = mix(palette.surface, palette.bg, 15);
-    const groupStroke = mix(palette.textMuted, palette.bg, 60);
+    // 🔴 The UNCOLORED branch keeps c4's own 15% wash rather than the shared
+    // `groupFill`'s 40%. A c4 group boundary nests inside a parent boundary
+    // that is already tinted, so it is deliberately fainter than a top-level
+    // frame — switching it to the shared neutral would restyle every existing
+    // c4 diagram, which is not what #585 asked for.
+    const neutralFill = mix(palette.surface, palette.bg, 15);
+    const neutralStroke = mix(palette.textMuted, palette.bg, 60);
 
     for (const gb of layout.groupBoundaries) {
+      // A boundary that answers the active tag group tints to the canonical
+      // 10% recipe; anything else keeps the neutral wash above.
+      const gbTagColor = resolveGroupTagColor(
+        gb.metadata,
+        parsed.tagGroups,
+        activeTagGroup ?? null
+      );
+      const groupFillColor = gbTagColor
+        ? groupFill(palette, isDark, gbTagColor)
+        : neutralFill;
+      const groupStrokeColor = gbTagColor ?? neutralStroke;
       const gbG = contentG
         .append('g')
         .attr('class', 'c4-group-boundary')
@@ -1439,8 +1460,8 @@ export function renderC4Containers(
         .attr('height', gb.height)
         .attr('rx', CONTAINER_RADIUS)
         .attr('ry', CONTAINER_RADIUS)
-        .attr('fill', groupFill)
-        .attr('stroke', groupStroke)
+        .attr('fill', groupFillColor)
+        .attr('stroke', groupStrokeColor)
         .attr('stroke-width', NODE_STROKE_WIDTH);
 
       // Group label — top-left, italic, name only

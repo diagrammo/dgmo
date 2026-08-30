@@ -46,6 +46,7 @@ import {
   mix,
   shapeFill,
   themeBaseBg,
+  groupFill,
 } from '../palettes/color-utils';
 import { ScaleContext } from '../utils/scaling';
 import {
@@ -67,6 +68,7 @@ import { LEGEND_HEIGHT as LEGEND_HEIGHT_CONST } from '../utils/legend-constants'
 import {
   resolveActiveTagGroup,
   resolveTagColor,
+  resolveGroupTagColor,
   UNTAGGED_TAG_COLOR,
 } from '../utils/tag-groups';
 import { renderIntegratedLegend } from '../utils/legend-integration';
@@ -612,20 +614,30 @@ export function renderPert(
     .attr('transform', `translate(${offsetX}, ${offsetY})`);
 
   const sizing = computeNodeSizing(resolved);
-  renderGroups(root, resolved, layout, palette, isDark, collapsedSet, sizing, {
-    nodeRadius: sNodeRadius,
-    nodeStrokeWidth: sNodeStrokeWidth,
-    containerRadius: sContainerRadius,
-    containerLabelFontSize: sContainerLabelFontSize,
-    containerHeaderHeight: sContainerHeaderHeight,
-    collapseBarHeight: sCollapseBarHeight,
-    nodeTopRowHeight: sNodeTopRowHeight,
-    nodeBottomRowHeight: sNodeBottomRowHeight,
-    nodeFontSize: sNodeFontSize,
-    nodeCellFontSize: sNodeCellFontSize,
-    pinIconW: sPinIconW,
-    pinIconH: sPinIconH,
-  });
+  renderGroups(
+    root,
+    resolved,
+    layout,
+    palette,
+    isDark,
+    collapsedSet,
+    sizing,
+    {
+      nodeRadius: sNodeRadius,
+      nodeStrokeWidth: sNodeStrokeWidth,
+      containerRadius: sContainerRadius,
+      containerLabelFontSize: sContainerLabelFontSize,
+      containerHeaderHeight: sContainerHeaderHeight,
+      collapseBarHeight: sCollapseBarHeight,
+      nodeTopRowHeight: sNodeTopRowHeight,
+      nodeBottomRowHeight: sNodeBottomRowHeight,
+      nodeFontSize: sNodeFontSize,
+      nodeCellFontSize: sNodeCellFontSize,
+      pinIconW: sPinIconW,
+      pinIconH: sPinIconH,
+    },
+    tagLegendActive
+  );
   renderEdges(root, resolved, layout, palette, collapsedSet, {
     edgeStrokeWidth: sEdgeStrokeWidth,
     edgeLabelFontSize: ctx.text(10),
@@ -1282,7 +1294,8 @@ function renderGroups(
   isDark: boolean,
   collapsedSet: ReadonlySet<string>,
   sizing: NodeSizing,
-  sc: ScaledGroupConstants = {}
+  sc: ScaledGroupConstants = {},
+  activeTagGroup: string | null = null
 ): void {
   if (layout.groups.length === 0) return;
   const layer = root.append('g').attr('class', 'pert-groups');
@@ -1291,11 +1304,15 @@ function renderGroups(
 
   // Container recipe (non-collapsed groups) — see
   // `docs/architecture/diagram-visual-conventions.md` §2.
-  // PERT groups don't carry a color, so use the uncolored-group form:
-  // a neutral surface-on-bg mix that reads as a soft grey container,
-  // matching org's `Data Team` / `Frontend Team` look.
-  const containerFill = mix(palette.surface, palette.bg, 40);
-  const containerStroke = palette.textMuted;
+  //
+  // 🔴 The comment that stood here — "PERT groups don't carry a color" — was
+  // wrong, and it was the reason nobody looked (#585). The PARSER has stored a
+  // group's tag values on `PertGroup.tags` all along (`pert/parser.ts`, the
+  // `[group] k: v` tail); only this renderer never asked for them, so a group
+  // the author had tagged drew the uncolored form. The neutral pair below is
+  // now the FALLBACK, not the only option.
+  const neutralContainerFill = mix(palette.surface, palette.bg, 40);
+  const neutralContainerStroke = palette.textMuted;
 
   // Collapsed-group surface — looks like a regular activity card per §3
   // Pattern B. Same fill/stroke/radius as `renderNodes`. Border + fill
@@ -1323,6 +1340,17 @@ function renderGroups(
     const isCollapsed = collapsedSet.has(grp.id);
     const memberBand = groupBand(grp.id, resolvedGroup?.criticality ?? null);
     const memberCritical = groupHasCritical(grp.id);
+    // Container resolution — a group colors only on a value its author wrote,
+    // which is also why pert's default-tag injection already skips groups.
+    const grpTagColor = resolveGroupTagColor(
+      resolvedGroup?.group.tags,
+      resolved.tagGroups,
+      activeTagGroup
+    );
+    const containerFill = grpTagColor
+      ? groupFill(palette, isDark, grpTagColor)
+      : neutralContainerFill;
+    const containerStroke = grpTagColor ?? neutralContainerStroke;
 
     const g = layer
       .append('g')
@@ -1449,7 +1477,7 @@ function renderGroups(
       .attr('ry', sCR)
       .attr('fill', containerFill)
       .attr('stroke', containerStroke)
-      .attr('stroke-opacity', 0.35)
+      .attr('stroke-opacity', grpTagColor ? 1 : 0.35)
       .attr('stroke-width', sNSW);
 
     g.append('text')

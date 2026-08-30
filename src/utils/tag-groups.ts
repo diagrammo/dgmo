@@ -376,7 +376,7 @@ export function parseTagDeclaration(line: string): TagBlockMatch | null {
  * @param isContainer When true, `defaultValue` is NOT applied (containers are structural, not data)
  */
 /**
- * Colour `resolveTagColor` returns for an entity the active tag group does not
+ * Color `resolveTagColor` returns for an entity the active tag group does not
  * classify. It is a SENTINEL, not a paint value: every consumer is expected to
  * compare against it and substitute `palette.textMuted`, so that an untagged
  * node reads as neutral in whatever palette and theme are in force. It was an
@@ -384,6 +384,39 @@ export function parseTagDeclaration(line: string): TagBlockMatch | null {
  * some consumers came to paint it raw.
  */
 export const UNTAGGED_TAG_COLOR = '#999999';
+
+/**
+ * The color a GROUP FRAME should take from the active tag group, or
+ * `undefined` when the group has no value of its own.
+ *
+ * This is `resolveTagColor` with the two decisions a container always makes,
+ * made once instead of per chart:
+ *
+ * - 🔴 `isContainer: true`, so the tag group's `defaultValue` does NOT apply.
+ *   A frame colors only when the author wrote a value on the group line. Drop
+ *   this and every untagged frame in the diagram wears the first entry's
+ *   color, which is worse than the uncolored frames this was meant to fix.
+ * - `UNTAGGED_TAG_COLOR` is a sentinel, not a paint value, so a group the
+ *   active tag group does not classify comes back `undefined` and the caller
+ *   falls back to its neutral frame.
+ *
+ * Added for diagrammo/diagrammo#585, where boxes-and-lines, infra, kanban, c4
+ * and pert all drew an uncolored frame over a group that had a value.
+ */
+export function resolveGroupTagColor(
+  metadata: Readonly<Record<string, string>> | undefined,
+  tagGroups: readonly TagGroup[],
+  activeGroupName: string | null
+): string | undefined {
+  if (!metadata || Object.keys(metadata).length === 0) return undefined;
+  const color = resolveTagColor(
+    { ...metadata },
+    [...tagGroups],
+    activeGroupName,
+    true
+  );
+  return color && color !== UNTAGGED_TAG_COLOR ? color : undefined;
+}
 
 /**
  * The VALUE the active tag group gives an entity — the legend entry it belongs

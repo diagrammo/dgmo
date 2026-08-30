@@ -458,7 +458,19 @@ export function parseState(
     }
 
     // Group brackets: [Name] or [Name](color)
-    const groupMatch = trimmed.match(GROUP_BRACKET_RE);
+    //
+    // §1.4 same-line tag metadata is peeled BEFORE the bracket match, and
+    // that order is the whole fix for diagrammo/diagrammo#585. `GROUP_BRACKET_RE`
+    // is `$`-anchored, so `[Backend] s: Red` never matched it at all: the line
+    // fell through to the state-node branch below, which peeled the metadata
+    // correctly and then created an ordinary state literally labelled
+    // `"[Backend]"`. The group vanished, its children were orphaned, and the
+    // only diagnostic was `State "[Backend]" is not connected to any other
+    // state` — which names neither the cause nor the line's real intent.
+    const groupPeeled = trimmed.startsWith('[')
+      ? peelStateMeta(trimmed)
+      : { text: trimmed, meta: {} as Record<string, string> };
+    const groupMatch = groupPeeled.text.match(GROUP_BRACKET_RE);
     // Regex capture group 1 is mandatory in GROUP_BRACKET_RE.
     if (groupMatch && groupMatch[1]!.trim() !== '*') {
       const groupLabel = groupMatch[1]!.trim();
@@ -484,6 +496,9 @@ export function parseState(
         lineNumber,
         ...(groupColor && { color: groupColor }),
         ...(groupCollapsed && { collapsed: true }),
+        ...(Object.keys(groupPeeled.meta).length > 0 && {
+          metadata: groupPeeled.meta,
+        }),
       };
       groupIndent = indent;
       groups.push(currentGroup);
