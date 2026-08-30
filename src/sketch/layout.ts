@@ -900,7 +900,24 @@ export function layoutSketch(
             ...(gc.node.description && { description: gc.node.description }),
             boxLabel: innerBox.label,
             lineNumber: gc.node.lineNumber,
-            slot: { c: spot.c + inner.c, r: spot.r + inner.r },
+            // 🔴 The child's OWN offset, or every child of an inner box
+            // reports its box's corner and they all read as one stack.
+            // `x`/`y` two lines down have always added `gc`; the slot did not,
+            // so two shapes 192px apart on screen both answered `5,-9` — and
+            // anything reading slots rather than pixels (the desktop canvas
+            // does, to adopt resolved positions on load) drew them on top of
+            // each other, then wrote that stack back to the file. The frame
+            // margins are the sub-unit difference between this and `gx`; the
+            // lattice owns the answer, so they round away, exactly as the
+            // depth-1 path above already assumes (#597).
+            slot: {
+              c: Math.round(
+                spot.c + inner.c + padHsX - innerLocal.extent.c + gc.c
+              ),
+              r: Math.round(
+                spot.r + inner.r + bandHs - innerLocal.extent.r + gc.r
+              ),
+            },
             x: gx,
             y: gy,
             w: SKETCH_FOOT_W,
