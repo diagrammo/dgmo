@@ -45,6 +45,7 @@ import {
   stripQuotes,
   warnUnknownMetaKeys,
   fillModeFromToken,
+  recognizeGlobalBoolean,
 } from '../utils/parsing';
 import { normalizeName } from '../utils/name-normalize';
 import { parseInArrowLabel } from '../utils/arrows';
@@ -141,6 +142,7 @@ export function parseSketch(
     legendInline: false,
     fillMode: undefined as 'solid' | 'outline' | undefined,
     noDescriptions: false,
+    noTitle: false,
   };
   const result: Writable<ParsedSketch> = {
     type: 'sketch',
@@ -637,6 +639,27 @@ export function parseSketch(
     if (indent === 0 && /^no-descriptions\s*$/i.test(trimmed)) {
       options.noDescriptions = true;
       continue;
+    }
+    // Everything else in the universal set (`utils/parsing` GLOBAL_BOOLEANS).
+    //
+    // 🔴 This branch exists so sketch cannot SWALLOW a universal directive. The
+    // four branches above hand-roll the ones sketch gives typed fields with
+    // their own semantics; before this, anything else in the set fell straight
+    // through to the content block and parsed as a SHAPE CARD NAMED AFTER THE
+    // DIRECTIVE, with no diagnostic — `no-title` and `no-notes` both did, and
+    // the editor's autocomplete offers `no-title` here because it is in
+    // GLOBAL_DIRECTIVES (#607).
+    //
+    // Sharing the token set rather than adding two more regexes is the point:
+    // the next flag added to GLOBAL_BOOLEANS is recognised here automatically
+    // instead of becoming a card. A token sketch has no feature for is a
+    // harmless no-op, which is the documented contract for the universal set.
+    if (indent === 0) {
+      const shared = recognizeGlobalBoolean(trimmed);
+      if (shared !== null) {
+        if (shared === 'no-title') options.noTitle = true;
+        continue;
+      }
     }
 
     // ── Content ─────────────────────────────────────────────

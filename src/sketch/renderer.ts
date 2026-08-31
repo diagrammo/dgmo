@@ -302,7 +302,9 @@ export function renderSketch(
   });
 
   // ── Frame: title + legend reservation ──────────────────────
-  const showTitle = !!parsed.title;
+  // §1.9 `no-title` keeps the title in the SOURCE and only suppresses the
+  // drawing — unlike clearing it on the canvas, which deletes the text (#607).
+  const showTitle = !!parsed.title && !parsed.options.noTitle;
   const titleOffset = showTitle ? 40 : 0;
   const legendGroups: readonly LegendGroupData[] = parsed.options.noLegend
     ? []

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { parseSketch } from '../src/sketch/parser';
+import { GLOBAL_BOOLEANS } from '../src/utils/parsing';
 import type { ParsedSketch } from '../src/sketch/types';
 
 const errors = (p: ParsedSketch) =>
@@ -384,5 +385,57 @@ Divvy Service as dvy at: 4 0, crew: Hold
     const haul = p.edges.find((e) => e.label === 'haul')!;
     expect(haul.dashed).toBe(true);
     expect(haul.heads).toBe('one');
+  });
+});
+
+// ============================================================
+// Universal directives are not swallowed as shapes (#607)
+// ============================================================
+//
+// Sketch hand-rolls the universal flags it gives typed fields — `no-legend`,
+// `legend-inline`, the fill family, `no-descriptions`. Everything ELSE in
+// `GLOBAL_BOOLEANS` used to fall straight through to the content block and
+// parse as a shape card NAMED AFTER THE DIRECTIVE, with no diagnostic at all.
+//
+// 🔴 That was not a hypothetical typo. `no-title` is in `GLOBAL_DIRECTIVES`,
+// so the editor's autocomplete OFFERS it inside a sketch, described as "Hide
+// the diagram title" — and taking the suggestion produced a card called
+// `no-title`. `no-notes` did the same.
+//
+// The guard iterates the shared set rather than naming the two that were
+// broken, so a flag added to `GLOBAL_BOOLEANS` next year is covered here the
+// day it is added instead of becoming the next phantom card.
+
+describe('sketch parser — universal directives', () => {
+  it('recognises every global boolean instead of making it a shape', () => {
+    for (const token of GLOBAL_BOOLEANS) {
+      const parsed = parseSketch(`sketch Ship\n${token}\n\nAlpha at: 0 0\n`);
+
+      expect(byLabel(parsed, token), `${token} became a shape card`).toEqual(
+        []
+      );
+      expect(parsed.nodes.map((n) => n.label)).toEqual(['Alpha']);
+      expect(errors(parsed)).toEqual([]);
+    }
+  });
+
+  it('hides the title without deleting it', () => {
+    const parsed = parseSketch(`sketch Ship\nno-title\n\nAlpha at: 0 0\n`);
+
+    expect(parsed.options.noTitle).toBe(true);
+    // ⚠️ The title STAYS in the parse. `no-title` and clearing the title on the
+    // canvas are different states: this one keeps `sketch Ship` in the file and
+    // only suppresses the drawing, which is why it is not a second spelling of
+    // the rename gesture.
+    expect(parsed.title).toBe('Ship');
+  });
+
+  it('accepts a flag sketch has no feature for, as a no-op', () => {
+    // The documented contract for the universal set: a chart with nothing to
+    // suppress takes the token harmlessly rather than erroring or swallowing.
+    const parsed = parseSketch(`sketch Ship\nno-notes\n\nAlpha at: 0 0\n`);
+
+    expect(parsed.nodes.map((n) => n.label)).toEqual(['Alpha']);
+    expect(parsed.diagnostics).toEqual([]);
   });
 });
