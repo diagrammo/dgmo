@@ -1264,6 +1264,21 @@ function renderLegend(
     groups,
     activeGroup: activeTagGroup ?? null,
     mode: exportMode ? 'export' : 'preview',
+    // Keep inactive sibling tag groups visible as name-only pills, exactly as
+    // boxes-and-lines does. Without this a c4 reader cannot tell a second
+    // colouring dimension EXISTS — not merely that they cannot reach it: the
+    // author declared it and it rendered as nothing at all (#567).
+    //
+    // The pill carries `data-legend-group`, which is what the app walks up to
+    // on a click, and C4Preview already wires `onLegendGroupToggle` to flip the
+    // active dimension and write the `active-tag` directive back to source. So
+    // this needs no app change to be clickable.
+    //
+    // A CLI-rendered static SVG shows a pill nobody can click, and that is the
+    // accepted cost: knowing the dimension is there beats not knowing. Export
+    // mode is unaffected — `legend-layout.ts` drops non-active groups before
+    // this flag is consulted.
+    showInactivePills: true,
     palette,
     isDark,
     width: containerWidth,

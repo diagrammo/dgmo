@@ -1337,3 +1337,137 @@ describe('group boundaries in component layout', () => {
     }
   });
 });
+
+// ============================================================
+// Inactive tag-group pills (#567)
+// ============================================================
+
+const twoGroupInput = `c4 Two dimensions
+
+tag Team
+  Frontend blue
+  Backend green
+
+tag Stage
+  Live purple
+  Beta orange
+
+Customer is a person
+Web is a system Team: Frontend, Stage: Live
+  -Serves-> Customer`;
+
+describe('c4 legend — inactive tag groups', () => {
+  /**
+   * A c4 diagram used to render its non-active tag groups as NOTHING — not a
+   * collapsed pill, not a name, nothing — so a reader could not tell a second
+   * colouring dimension existed at all. boxes-and-lines has always shown a
+   * name-only pill for each one. Both branch on the same line in
+   * `legend-layout.ts`; only the flag differed (#567).
+   */
+  it('names an inactive group so the reader knows the dimension is there', () => {
+    const parsed = parseC4(twoGroupInput, palette.light);
+    const layout = layoutC4Context(parsed, 'Team');
+
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+    renderC4Context(
+      el,
+      parsed,
+      layout,
+      palette.light,
+      false,
+      undefined,
+      { width: 1000, height: 800 },
+      'Team'
+    );
+
+    const text = el.querySelector('svg')!.textContent ?? '';
+    // The active dimension colours the picture, so it gets entries.
+    expect(text).toContain('Frontend');
+    // The inactive one gets its NAME, and nothing else — an entry would be a
+    // swatch matching no colour anywhere on screen, which is why #556 was
+    // closed rather than fixed.
+    expect(text).toContain('Stage');
+    expect(text).not.toContain('Beta');
+
+    document.body.removeChild(el);
+  });
+
+  /**
+   * The pill is only worth drawing because it is reachable. `data-legend-group`
+   * is what the app walks up to from a click, so its absence would mean a pill
+   * that names a dimension and does nothing.
+   */
+  it('gives the inactive pill the attribute the app clicks on', () => {
+    const parsed = parseC4(twoGroupInput, palette.light);
+    const layout = layoutC4Context(parsed, 'Team');
+
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+    renderC4Context(
+      el,
+      parsed,
+      layout,
+      palette.light,
+      false,
+      undefined,
+      { width: 1000, height: 800 },
+      'Team'
+    );
+
+    const keys = Array.from(
+      el.querySelectorAll('[data-legend-group]'),
+      (n) => n.getAttribute('data-legend-group') ?? ''
+    );
+    expect(keys.some((k) => k.toLowerCase().includes('stage'))).toBe(true);
+
+    document.body.removeChild(el);
+  });
+
+  /**
+   * Export drops every non-active group BEFORE the flag is consulted
+   * (`legend-layout.ts`), so `showInactivePills` must not reach it. This is the
+   * half of the behaviour the change must leave alone.
+   *
+   * 🔴 `renderC4ContextForExport` is NOT this path — despite the name it renders
+   * in PREVIEW mode, which is why a CLI-rendered SVG keeps its pills. Export
+   * mode is the last positional argument of `renderC4Context`, and passing the
+   * wrong one here would make this test assert nothing.
+   */
+  it('still omits the inactive group when export mode is on', () => {
+    const parsed = parseC4(twoGroupInput, palette.light);
+    const layout = layoutC4Context(parsed, 'Team');
+
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+    renderC4Context(
+      el,
+      parsed,
+      layout,
+      palette.light,
+      false,
+      undefined,
+      { width: 1000, height: 800 },
+      'Team',
+      true
+    );
+
+    const text = el.querySelector('svg')!.textContent ?? '';
+    expect(text).toContain('Frontend');
+    expect(text).not.toContain('Stage');
+
+    document.body.removeChild(el);
+  });
+
+  /**
+   * With NO active group both names already showed, before and after this
+   * change — `legend-layout.ts` takes the pill branch on `!activeGroupName`
+   * alone. Pinned so nobody reads the change as "c4 gained pills": it gained
+   * them only for the case where one group is active, which was the gap.
+   */
+  it('was already naming both groups when none is active', () => {
+    const svg = renderC4ContextForExport(twoGroupInput, 'light', palette.light);
+    expect(svg).toContain('Team');
+    expect(svg).toContain('Stage');
+  });
+});
