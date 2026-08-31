@@ -7,6 +7,122 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.79.0] - 2026-08-31
+
+### Added
+
+- **A group line can carry a tag value, and the group's frame takes that
+  value's colour.** Writing `[Backend] s: Red` now tints the container the same
+  way a tag value has always tinted a node, in boxes-and-lines, infra, kanban,
+  c4, state and pert. The recipe existed already but lived inside the org
+  chart's own renderer, so six chart types had implemented the uncoloured
+  branch and none of them the coloured one; there is now one implementation
+  rather than six. Two of those six were worse than a missing tint before this,
+  and both are fixed on the way: a state diagram silently created an ordinary
+  state literally named `"[Backend]"` and orphaned everything inside it, its
+  only complaint being that the phantom state connected to nothing, and c4
+  rejected the line outright and drew the whole diagram as an error card. Not
+  everything is uniform, deliberately — a c4 boundary keeps its fainter wash
+  because it nests inside an already-tinted parent, and a kanban column tints
+  its header band rather than a rectangle around its cards, a column being a
+  lane. A group with no tag value, or one naming a value the group does not
+  declare, stays neutral (a group cannot be given a colour, #585).
+- **The whole text-fitting ladder is available to a surface that draws a
+  diagram by hand** — `measureText`, `truncateText`, `wrapTextToWidth`,
+  `breakAtoms` and `fitWrapped` all join the advanced entry point. The desktop
+  app's live sketch board draws its own nodes rather than handing off to a
+  renderer, so it had no way to answer "how wide will this name be" before
+  reserving room for a field, and its rename box took the width of the name
+  already declared — type a longer one and it ran out of box. The alternative
+  was a second copy of Inter's advance-width table in the app, kept in step
+  with this one by nobody (a label that overruns the shapes beside it, #586).
+- **A consumer can ask which tag value a mark wears, not only what colour it
+  is.** `resolveTagValue` answers the same question one step earlier than
+  `resolveTagColor`, which now calls it, so "which value is this" and "what
+  colour is it" cannot disagree about a group's default, about a container, or
+  about the spelling an author typed. Colour cannot stand in for the value,
+  because two values may be authored the same colour. `HOVER_DIM_OPACITY` is
+  exported beside it for a surface that is drawn in React rather than through
+  the injected hover stylesheet, so it does not have to restate the number
+  (the sketch canvas legend's missing hover highlight, #599).
+
+### Fixed
+
+- **A universal directive written in a sketch is recognised instead of being
+  drawn as a shape.** A top-level `no-title` fell past sketch's four
+  hand-rolled directive checks into the content block and parsed as a shape
+  card named `no-title`, with no diagnostic at all; `no-notes` did the same.
+  This was not a hypothetical typo — the editor's autocomplete offers
+  `no-title` inside a sketch, described as "Hide the diagram title", and taking
+  the suggestion drew a card named after the directive. Sketch now consults the
+  shared token set for anything it does not hand-roll, so a flag added to the
+  universal set next year is recognised here the day it is added rather than
+  becoming the next phantom card. `no-title` also does what it says: the title
+  stops being drawn while `sketch Ship` stays in the source, which is a
+  different state from clearing the title on the canvas, and that difference is
+  pinned by a test (a no-title line in a sketch silently becoming a shape card,
+  #607).
+- **A c4 diagram now names a tag group nobody has switched to, instead of
+  drawing it as nothing at all.** With two tag groups declared, the inactive
+  one rendered as silence — not a collapsed pill, not a name — so a reader
+  could not tell a second colouring dimension existed, which is worse than
+  being unable to reach it. The same two groups on a boxes-and-lines chart had
+  always shown their pill; both branch on the same line, and c4 simply never
+  asked for it. Only the name is drawn and never the entries, because an
+  inactive group's swatches would name colours that appear nowhere on the
+  screen. In the app the pill is clickable and flips the dimension with no
+  app-side change; a diagram rendered from the command line shows a pill nobody
+  can click, and knowing the dimension is there beats not knowing (a c4 diagram
+  giving no sign a second tag group exists, #567).
+- **A sketch group reserves exactly the frame it draws, so a shape authored
+  beside it stays where it was put.** The frame was measured from its children's
+  footprints while the collision rectangle behind it was measured from their
+  unit squares, which are the footprint plus the gap that keeps the next shape
+  off it — so every group claimed one half-slot more than it drew, on its right
+  and bottom edges, invisibly. A shape sitting in that margin was shoved to the
+  nearest free slot the next time the file was opened, and on the desktop
+  canvas that reads as lost work: a board came back rearranged with the frame
+  plainly not touching the box it had displaced. The gap belongs between
+  shapes, and their own unit squares already enforce it. All 105 gallery
+  snapshots are unchanged, so no board anyone renders today was sitting in that
+  margin (#597).
+- **A shape inside an inner box reports the slot it is actually drawn at.**
+  Every child of a box two levels deep was emitted with the slot of that box's
+  own corner — the same value for all of them — while the pixel coordinates two
+  lines below correctly added the child's own offset, so two shapes drawn 192px
+  apart both answered `5,-9`. Nothing reading pixels noticed, but the desktop
+  canvas reads slots, so it stacked every member of an inner group on one point
+  and wrote that stack back to the file on the next edit. The stack is a real
+  overlap, so the resolver moved one of the pair to clear it, which widened the
+  group, which displaced unrelated boxes elsewhere on the board — a file that
+  lost its arrangement in a different place on every open, because the repair
+  was computed correctly every time and then discarded. Opening such a file now
+  reflows once and every subsequent open is byte-identical, verified by opening,
+  saving and opening again, twice over (#597).
+- **A long identifier breaks where a reader would break it.** Wrapping split on
+  whitespace and nothing else, so `SpyglassFeedService` and
+  `powder_store_queue` were each one unbreakable word and fell through to a
+  chop by character — mid-word, and unreadable. Underscores and hyphens now
+  break after the separator, so it stays on the line it ends, and camelCase
+  breaks with nothing inserted, with the last capital of an acronym run kept
+  with the word that follows it, so `HTTPServer` gives `HTTP` and `Server`. The
+  pieces concatenate rather than being rejoined with a space, so segmenting a
+  token that already fits is a no-op and nothing that fits today can move: all
+  292 test files and 9,341 tests pass unchanged across 49 call sites (#586).
+
+### Changed
+
+- Internal only, with nothing visible in a rendered diagram: a render is given
+  30 seconds rather than the 5-second default a busy laptop could not meet, so
+  the pre-push gate stops refusing pushes whose code is fine; the build fails
+  early and by name when this checkout's `node_modules` has been left as
+  symlinks to a deleted worktree, instead of dying several steps later on a
+  package that is right there in the lockfile; abandoned gate worktrees are
+  swept rather than accumulating, eleven of them having reached 6.1 GB; and the
+  sketch geometry documentation, which quoted a footprint the library stopped
+  drawing three days earlier, is corrected and pinned by a test so a change to
+  the cell size fails there instead of silently making three documents wrong.
+
 ## [0.78.0] - 2026-08-29
 
 ### Fixed
