@@ -2259,6 +2259,15 @@ interface SketchOptions {
     /** `no-descriptions` directive (mindmap `hd` standard): hide the card
      *  metadata rows so each card is just its name. */
     readonly noDescriptions: boolean;
+    /**
+     * §1.9 `no-title` — keep the title in the source, do not draw it.
+     *
+     * ⚠️ NOT the same state as clearing the title on the canvas, which deletes
+     * the text and emits a bare `sketch`. This one keeps `sketch Ship` in the
+     * file and only suppresses the drawing, which is why it is not a second
+     * spelling of the rename gesture (#607).
+     */
+    readonly noTitle: boolean;
 }
 interface ParsedSketch {
     readonly type: 'sketch';
