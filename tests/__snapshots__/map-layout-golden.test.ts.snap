@@ -18,7 +18,7 @@ exports[`map layout golden output > is unchanged — dark, 520x900 1`] = `
   "map-region-values.dgmo": "429bcae2bfa43ba5 357804b",
   "map-route.dgmo": "0d86bccd169d591b 22909b",
   "map-subnational-zoom.dgmo": "e5a1eea6a63acc5f 131464b",
-  "map-tagged-legs.dgmo": "ecdbc36c97fd9c23 83598b",
+  "map-tagged-legs.dgmo": "11ecc9274744553a 83598b",
   "map-undirected-edges.dgmo": "6799c4a57dc374db 10026b 9err",
 }
 `;
@@ -41,7 +41,7 @@ exports[`map layout golden output > is unchanged — dark, 1200x800 1`] = `
   "map-region-values.dgmo": "a3633a7acc1125e0 420637b",
   "map-route.dgmo": "e0714d066d653778 22681b",
   "map-subnational-zoom.dgmo": "d22e49a9da51537f 130998b",
-  "map-tagged-legs.dgmo": "6f1e7e1c880db832 74147b",
+  "map-tagged-legs.dgmo": "d299961a71c08170 74147b",
   "map-undirected-edges.dgmo": "ba49d2735fdd628e 9859b 9err",
 }
 `;
@@ -64,7 +64,7 @@ exports[`map layout golden output > is unchanged — light, 520x900 1`] = `
   "map-region-values.dgmo": "bfa534fc1f155087 357807b",
   "map-route.dgmo": "8eafe42bbdd59291 22912b",
   "map-subnational-zoom.dgmo": "871ac049c01b0448 131467b",
-  "map-tagged-legs.dgmo": "933f9b658badc7aa 83601b",
+  "map-tagged-legs.dgmo": "e241fcd29faa5f3e 83601b",
   "map-undirected-edges.dgmo": "18c373049567caf3 10029b 9err",
 }
 `;
@@ -87,7 +87,7 @@ exports[`map layout golden output > is unchanged — light, 1200x800 1`] = `
   "map-region-values.dgmo": "82703357446c0b4a 420640b",
   "map-route.dgmo": "b36850ff09d7eb79 22684b",
   "map-subnational-zoom.dgmo": "5f5c8faafea1cdc2 130872b",
-  "map-tagged-legs.dgmo": "dbe0622add7d3f67 74150b",
+  "map-tagged-legs.dgmo": "9534e9ab90b101a9 74150b",
   "map-undirected-edges.dgmo": "862c99acc5f68dde 9862b 9err",
 }
 `;

@@ -628,12 +628,13 @@ describe('layout — an unspecified element takes the tag default (#489)', () =>
   });
   it('a group no POI uses is NOT assumed onto POIs (leg-only facet)', () => {
     // `map-tagged-legs` tags the LEGS; assuming `Sail` onto every harbour would
-    // paint four ports as a kind of voyage.
+    // paint four ports as a kind of voyage. The marker takes the NEUTRAL rather
+    // than orange, because the map declares a tag group (#620).
     const r = lay(
       'map\ntag Leg as l\n  Sail blue\n  March green\n' +
         'poi 20.05 -72.82 as tor\npoi 23.13 -82.38 as hav\ntor ~> hav l: Sail'
     );
-    expect(r.pois.find((p) => p.id === 'tor')!.fill).toBe(P.colors.orange);
+    expect(r.pois.find((p) => p.id === 'tor')!.fill).toBe(P.colors.gray);
     expect(r.pois.find((p) => p.id === 'tor')!.tags).toBeUndefined();
   });
   it('no tag group declared → the orange marker default survives', () => {
@@ -692,6 +693,76 @@ describe('layout — an unspecified element takes the tag default (#489)', () =>
     const tokyo = r.pois.find((p) => p.id === 'tokyo')!;
     expect(tokyo.tags).toEqual({ m: 'Depot' });
     expect(tokyo.fill).toBe(P.colors.green);
+  });
+});
+
+describe('layout — a marker with nothing to fall back to (#620)', () => {
+  // Orange is a DECLARABLE colour (`map-route.dgmo` declares `Spanish Prize
+  // orange`), so on a map that declares tag groups an untagged marker painted
+  // orange is indistinguishable from a tagged one — and where the only group
+  // tags regions or legs, that orange appears nowhere in the legend. Such a
+  // marker wears the palette neutral instead. Orange survives only where there
+  // is no tag group at all.
+  it('a region-only group → the untagged marker is neutral, not orange', () => {
+    const r = lay(
+      'map\ntag R as r\n  West blue\n  East green\n' +
+        'Oregon r: West\nMaine r: East\npoi Portland US-ME'
+    );
+    const poi = r.pois.find((p) => p.id === 'portland')!;
+    expect(poi.fill).toBe(P.colors.gray);
+    expect(poi.fill).not.toBe(P.colors.orange);
+  });
+  it('a group NOTHING uses → neutral', () => {
+    const r = lay('map\ntag R as r\n  West blue\n  East green\npoi Tokyo');
+    expect(r.pois[0]!.fill).toBe(P.colors.gray);
+  });
+  it('the neutral stamps no tag, so no legend entry claims the marker', () => {
+    const r = lay(
+      'map\ntag R as r\n  West blue\n  East green\nOregon r: West\npoi Tokyo'
+    );
+    expect(r.pois[0]!.tags).toBeUndefined();
+  });
+  it('a POI naming a value the group never declares → neutral, not orange', () => {
+    // Walk 1 finds no entry; walk 2 skips a group the POI has any value for. A
+    // REGION in the same position already falls to neutral (AR4/AC25) — the
+    // marker used to fall to a saturated orange instead.
+    const r = lay(
+      'map\ntag M as m\n  Office blue\n  Depot green\n' +
+        'poi Osaka m: Office\npoi Tokyo m: Warehouse'
+    );
+    const tokyo = r.pois.find((p) => p.id === 'tokyo')!;
+    expect(tokyo.fill).toBe(P.colors.gray);
+    expect(tokyo.fill).not.toBe(P.colors.orange);
+  });
+  it('an in-play group default still beats the neutral', () => {
+    // The #489 cascade runs FIRST — the neutral is the step after it, not
+    // instead of it.
+    const r = lay(
+      'map\ntag M as m\n  Office blue\n  Depot green\npoi Osaka m: Depot\npoi Tokyo'
+    );
+    const tokyo = r.pois.find((p) => p.id === 'tokyo')!;
+    expect(tokyo.fill).toBe(P.colors.blue);
+    expect(tokyo.fill).not.toBe(P.colors.gray);
+  });
+  it('a trailing color still wins on a map that declares tag groups', () => {
+    const r = lay(
+      'map\ntag R as r\n  West blue\nOregon r: West\npoi Tokyo red'
+    );
+    expect(r.pois[0]!.fill).toBe(P.colors.red);
+  });
+  it('no tag group at all → orange, unchanged', () => {
+    const r = lay('map\npoi Tokyo\npoi Osaka');
+    expect(r.pois.every((p) => p.fill === P.colors.orange)).toBe(true);
+  });
+  it('`no-legend` does not change what a marker means', () => {
+    const withLegend = lay(
+      'map\ntag R as r\n  West blue\nOregon r: West\npoi Tokyo'
+    );
+    const without = lay(
+      'map\nno-legend\ntag R as r\n  West blue\nOregon r: West\npoi Tokyo'
+    );
+    expect(without.pois[0]!.fill).toBe(withLegend.pois[0]!.fill);
+    expect(without.pois[0]!.fill).toBe(P.colors.gray);
   });
 });
 

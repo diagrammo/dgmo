@@ -2617,7 +2617,8 @@ export function layoutMap(
   // FIRST declared tag group for which the POI has a value (AR4), then the FIRST
   // in-play group's default value (#489 — a POI naming no value IS that group's
   // default, the same assumption regions have always been painted under, see
-  // `tagFill`), then orange.
+  // `tagFill`), then the palette NEUTRAL if the map declares any tag group at
+  // all (#620), and only on a map with NO tag group, orange.
   //
   // The two walks are deliberately separate rather than one walk over
   // `effectiveTags`: an EXPLICIT value in a later group must still beat an
@@ -2648,10 +2649,24 @@ export function layoutMap(
       const hex = entryColor(group, group.defaultValue);
       if (hex) return paint(hex);
     }
-    // Markers on a map with no tag group to fall back to default to orange — a
-    // warm hue that contrasts with BOTH the green land and the blue
-    // water/lakes/rivers. `palette.accent` is a blue-ish tone in some palettes
-    // (e.g. nord) and vanished against the ocean.
+    // A marker that reached here on a map that DECLARES tag groups wears the
+    // palette neutral, not orange (#620). Orange is a colour an author may
+    // declare as a tag value — `map-route.dgmo` declares `Spanish Prize orange`
+    // — so an untagged marker painted orange is indistinguishable from a tagged
+    // one, and on a map whose only group tags regions or legs that orange
+    // appears nowhere in the legend beside it. The neutral claims no category.
+    // Keyed on a group being DECLARED rather than on the legend being drawn, so
+    // `no-legend` does not silently change what a marker means.
+    //
+    // NOTE this is also where a POI naming a value its group never declares
+    // lands (walk 1 finds no entry; walk 2 skips a group the POI has any value
+    // for) — matching `tagFill`, which drops an unknown region value to neutral
+    // rather than to a saturated hue.
+    if (resolved.tagGroups.length > 0) return paint(palette.colors.gray);
+    // Markers on a map with no tag group at all default to orange — a warm hue
+    // that contrasts with BOTH the green land and the blue water/lakes/rivers.
+    // `palette.accent` is a blue-ish tone in some palettes (e.g. nord) and
+    // vanished against the ocean.
     return paint(palette.colors.orange);
   };
 
