@@ -333,6 +333,7 @@ export {
 } from './sketch/renderer';
 export type {
   SketchRenderOptions,
+  SketchEdgeBoard,
   SketchEdgeGeometry,
 } from './sketch/renderer';
 export { collapseSketch } from './sketch/collapse';

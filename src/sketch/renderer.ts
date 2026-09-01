@@ -1322,6 +1322,60 @@ export interface SketchEdgeGeometry {
   /** Visible stroke path WITH crossing-hops, when this edge hops another. The
    *  renderer draws this if present; everything else still uses `d`. */
   dRender?: string;
+  /**
+   * The same cubic as four points — start, its handle, the end's handle, end.
+   *
+   * 🔴 Handed over rather than left to be re-parsed out of `d`. A consumer that
+   * needs a TANGENT (an arrowhead), a POINT AT A DISTANCE (a control seated in
+   * from an end) or an arc LENGTH has to have these, and the app`s canvas needs
+   * all three — so the alternative was a cubic parser in the app, which is a
+   * second reading of this module`s own output and drifts the first time the
+   * path gains a segment.
+   */
+  p0: { x: number; y: number };
+  h0: { x: number; y: number };
+  h1: { x: number; y: number };
+  p1: { x: number; y: number };
+}
+
+/**
+ * The subset of a laid-out sketch that edge routing actually reads.
+ *
+ * 🔴 A `SketchLayout` satisfies this structurally, so every caller inside this
+ * module is unchanged — the point of stating it is the OTHER caller. The app`s
+ * canvas draws a sketch by hand from the rects it has already placed (a live
+ * drag moves them a frame at a time), and asking it for a full `SketchLayout`
+ * would mean fabricating a `lineNumber`, a `shape` and a resolved `slot` per
+ * node purely to satisfy a type that routing never looks at. This says what is
+ * load-bearing, which is also the list to check before reading a new field in
+ * here.
+ *
+ * A node`s `boxLabel` is matched against a box`s `label`, exactly as the
+ * renderer does it — port snapping included, and the same-label merge that goes
+ * with it (diagrammo/diagrammo#616).
+ */
+export interface SketchEdgeBoard {
+  readonly nodes: readonly {
+    readonly id: string;
+    readonly label: string;
+    readonly boxLabel?: string;
+    readonly x: number;
+    readonly y: number;
+    readonly w: number;
+    readonly h: number;
+  }[];
+  readonly boxes: readonly {
+    readonly id: string;
+    readonly label: string;
+    readonly x: number;
+    readonly y: number;
+    readonly w: number;
+    readonly h: number;
+  }[];
+  readonly edges: readonly {
+    readonly sourceId: string;
+    readonly targetId: string;
+  }[];
 }
 
 /**
@@ -1332,7 +1386,7 @@ export interface SketchEdgeGeometry {
  * the committed layout.
  */
 export function sketchEdgeGeometry(
-  layout: SketchLayout,
+  layout: SketchEdgeBoard,
   offsets?: ReadonlyMap<string, { dx: number; dy: number }>
 ): Array<SketchEdgeGeometry | null> {
   const off = (id: string): { dx: number; dy: number } =>
@@ -1687,6 +1741,10 @@ export function sketchEdgeGeometry(
       d: g.d,
       mid: g.mid,
       ...(dRender && { dRender }),
+      p0: g.p0,
+      h0: g.h0,
+      h1: g.h1,
+      p1: g.p1,
     };
   });
 }
