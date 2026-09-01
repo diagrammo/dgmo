@@ -59,6 +59,7 @@ import {
   TITLE_FONT_WEIGHT,
   TITLE_Y,
   CAPTION_FONT_SIZE,
+  CAPTION_FONT_WEIGHT,
   CAPTION_LINE_HEIGHT,
   CAPTION_TOP_GAP,
   CAPTION_BOX_PADDING_X,
@@ -587,7 +588,7 @@ export function renderPert(
       .attr('text-anchor', 'middle')
       .attr('fill', palette.textMuted)
       .attr('font-size', sSubtitleFontSize)
-      .attr('font-weight', 'normal')
+      .attr('font-weight', CAPTION_FONT_WEIGHT)
       .text(effectiveSubtitle);
   }
 

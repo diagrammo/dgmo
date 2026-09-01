@@ -3,6 +3,18 @@
 // a later session deletes, re-breaks CI with, and then re-adds.
 {
   "ignoreDependencies": [
+    // 🔴 Used by `.githooks/pre-commit`, which knip cannot see.
+    //
+    // knip's husky plugin reads `.husky/*` and counts what those scripts run.
+    // The hooks moved to a TRACKED `.githooks/` on 2026-09-01 so that a push
+    // from a worktree is gated at all (#623) — `core.hooksPath` is shared by
+    // every worktree and `.husky/_` is written by `pnpm install`, so a fresh
+    // worktree aimed git at a directory that did not exist and git skipped the
+    // hook in silence. knip has no equivalent plugin for a plain hooks
+    // directory, so this is now invisible to it. It is not dead: delete it and
+    // every commit stops being linted.
+    "lint-staged",
+
     // Declared as optional peerDependencies, imported by src/editor/*.
     "@lezer/common",
     "@lezer/highlight",

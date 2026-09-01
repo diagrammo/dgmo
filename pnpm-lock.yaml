@@ -123,9 +123,6 @@ importers:
       fflate:
         specifier: ^0.8.3
         version: 0.8.3
-      husky:
-        specifier: ^9.1.7
-        version: 9.1.7
       jscpd:
         specifier: ^4.2.4
         version: 4.2.4
@@ -2817,11 +2814,6 @@ packages:
   human-signals@1.1.1:
     resolution: {integrity: sha512-SEQu7vl8KjNL2eoGBLF3+wAjpsNfA9XMlXAYj/3EdaNfAlxKthD1xjEQfGOUhllCGGJVNY34bRr6lPINhNjyZw==}
     engines: {node: '>=8.12.0'}
-
-  husky@9.1.7:
-    resolution: {integrity: sha512-5gs5ytaNjBrh5Ow3zrvdUUY+0VxIuWVL4i9irt6friV+BqdCfmV11CQTWMiBYWHbXhco+J1kHfTOUkePhCDvMA==}
-    engines: {node: '>=18'}
-    hasBin: true
 
   hyparquet-compressors@1.1.1:
     resolution: {integrity: sha512-yx7aA3Rhj0YycbdV71+XznQSLAefa4cT0urpgNXy4aM6eSeCknaVDNne8y45Uz74Fb15yyXUzOStlceOJBan7A==}
@@ -7043,8 +7035,6 @@ snapshots:
       entities: 7.0.1
 
   human-signals@1.1.1: {}
-
-  husky@9.1.7: {}
 
   hyparquet-compressors@1.1.1:
     dependencies:
