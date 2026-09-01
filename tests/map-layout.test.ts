@@ -626,16 +626,17 @@ describe('layout — an unspecified element takes the tag default (#489)', () =>
     );
     expect(r.pois.find((p) => p.id === 'tokyo')!.fill).toBe(P.colors.red);
   });
-  it('a group no POI uses is NOT assumed onto POIs (leg-only facet)', () => {
-    // `map-tagged-legs` tags the LEGS; assuming `Sail` onto every harbour would
-    // paint four ports as a kind of voyage. The marker takes the NEUTRAL rather
-    // than orange, because the map declares a tag group (#620).
+  it('a group no POI uses IS assumed onto POIs (#620 reverses #489)', () => {
+    // `map-tagged-legs` tags the LEGS, and its four harbours now read "Sail".
+    // Under DGMO's convention that is correct: an element naming no value for a
+    // group IS that group's default. A diagram that wants its harbours to read
+    // as untagged declares an `NA` first entry — see the escape-hatch test.
     const r = lay(
       'map\ntag Leg as l\n  Sail blue\n  March green\n' +
         'poi 20.05 -72.82 as tor\npoi 23.13 -82.38 as hav\ntor ~> hav l: Sail'
     );
-    expect(r.pois.find((p) => p.id === 'tor')!.fill).toBe(P.colors.gray);
-    expect(r.pois.find((p) => p.id === 'tor')!.tags).toBeUndefined();
+    expect(r.pois.find((p) => p.id === 'tor')!.fill).toBe(P.colors.blue);
+    expect(r.pois.find((p) => p.id === 'tor')!.tags).toEqual({ leg: 'Sail' });
   });
   it('no tag group declared → the orange marker default survives', () => {
     const r = lay('map\npoi Tokyo');
@@ -696,36 +697,63 @@ describe('layout — an unspecified element takes the tag default (#489)', () =>
   });
 });
 
-describe('layout — a marker with nothing to fall back to (#620)', () => {
-  // Orange is a DECLARABLE colour (`map-route.dgmo` declares `Spanish Prize
-  // orange`), so on a map that declares tag groups an untagged marker painted
-  // orange is indistinguishable from a tagged one — and where the only group
-  // tags regions or legs, that orange appears nowhere in the legend. Such a
-  // marker wears the palette neutral instead. Orange survives only where there
-  // is no tag group at all.
-  it('a region-only group → the untagged marker is neutral, not orange', () => {
+describe('layout — every declared group reaches a marker (#620)', () => {
+  // DGMO's convention: an element naming no value for a tag group IS that
+  // group's default value — the entry marked `default`, else the first one.
+  // It is uniform across chart types, so a map marker is not the one place it
+  // stops. An author who wants "no value" to read as no value declares that
+  // case as the group's own first entry (`NA gray`).
+  it('a region-only group reaches the untagged marker', () => {
     const r = lay(
       'map\ntag R as r\n  West blue\n  East green\n' +
         'Oregon r: West\nMaine r: East\npoi Portland US-ME'
     );
     const poi = r.pois.find((p) => p.id === 'portland')!;
-    expect(poi.fill).toBe(P.colors.gray);
-    expect(poi.fill).not.toBe(P.colors.orange);
+    expect(poi.fill).toBe(P.colors.blue);
+    expect(poi.tags).toEqual({ r: 'West' });
   });
-  it('a group NOTHING uses → neutral', () => {
+  it('a group NOTHING else uses still reaches the marker', () => {
     const r = lay('map\ntag R as r\n  West blue\n  East green\npoi Tokyo');
-    expect(r.pois[0]!.fill).toBe(P.colors.gray);
+    expect(r.pois[0]!.fill).toBe(P.colors.blue);
   });
-  it('the neutral stamps no tag, so no legend entry claims the marker', () => {
+  it('the assumed value is stamped, so a legend hover spotlights the marker', () => {
+    // Painted without the stamp, the marker would be DIMMED by a hover on the
+    // very entry whose colour it wears — the #489 defect, one level out.
     const r = lay(
       'map\ntag R as r\n  West blue\n  East green\nOregon r: West\npoi Tokyo'
     );
-    expect(r.pois[0]!.tags).toBeUndefined();
+    expect(r.pois[0]!.tags).toEqual({ r: 'West' });
   });
-  it('a POI naming a value the group never declares → neutral, not orange', () => {
-    // Walk 1 finds no entry; walk 2 skips a group the POI has any value for. A
-    // REGION in the same position already falls to neutral (AR4/AC25) — the
-    // marker used to fall to a saturated orange instead.
+  it('an `NA` first entry is the escape hatch for an untagged marker', () => {
+    // The author declares the no-value case, rather than the renderer guessing
+    // one. `NA` is the first entry, so it is the group default.
+    const r = lay(
+      'map\ntag R as r\n  NA gray\n  West blue\n  East green\n' +
+        'Oregon r: West\npoi Tokyo\npoi Osaka r: East'
+    );
+    const tokyo = r.pois.find((p) => p.id === 'tokyo')!;
+    expect(tokyo.fill).toBe(P.colors.gray);
+    expect(tokyo.tags).toEqual({ r: 'NA' });
+    expect(r.pois.find((p) => p.id === 'osaka')!.fill).toBe(P.colors.green);
+  });
+  it('`default` on a later entry beats the first, on a group POIs never use', () => {
+    const r = lay(
+      'map\ntag R as r\n  West blue\n  East green default\n' +
+        'Oregon r: West\npoi Tokyo'
+    );
+    expect(r.pois[0]!.fill).toBe(P.colors.green);
+  });
+  it('an explicit value in a LATER group still beats an earlier default', () => {
+    const r = lay(
+      'map\ntag R as r\n  West blue\ntag S as s\n  Down red\n' +
+        'Oregon r: West\npoi Tokyo s: Down'
+    );
+    expect(r.pois[0]!.fill).toBe(P.colors.red);
+  });
+  it('a POI naming a value no group declares → neutral, not orange', () => {
+    // The only route left to the fallback. A REGION with an unknown value
+    // already falls to neutral (AR4/AC25); the marker used to fall to orange,
+    // which an author may DECLARE as a tag value.
     const r = lay(
       'map\ntag M as m\n  Office blue\n  Depot green\n' +
         'poi Osaka m: Office\npoi Tokyo m: Warehouse'
@@ -734,17 +762,7 @@ describe('layout — a marker with nothing to fall back to (#620)', () => {
     expect(tokyo.fill).toBe(P.colors.gray);
     expect(tokyo.fill).not.toBe(P.colors.orange);
   });
-  it('an in-play group default still beats the neutral', () => {
-    // The #489 cascade runs FIRST — the neutral is the step after it, not
-    // instead of it.
-    const r = lay(
-      'map\ntag M as m\n  Office blue\n  Depot green\npoi Osaka m: Depot\npoi Tokyo'
-    );
-    const tokyo = r.pois.find((p) => p.id === 'tokyo')!;
-    expect(tokyo.fill).toBe(P.colors.blue);
-    expect(tokyo.fill).not.toBe(P.colors.gray);
-  });
-  it('a trailing color still wins on a map that declares tag groups', () => {
+  it('a trailing color still wins over an assumed default', () => {
     const r = lay(
       'map\ntag R as r\n  West blue\nOregon r: West\npoi Tokyo red'
     );
@@ -753,16 +771,6 @@ describe('layout — a marker with nothing to fall back to (#620)', () => {
   it('no tag group at all → orange, unchanged', () => {
     const r = lay('map\npoi Tokyo\npoi Osaka');
     expect(r.pois.every((p) => p.fill === P.colors.orange)).toBe(true);
-  });
-  it('`no-legend` does not change what a marker means', () => {
-    const withLegend = lay(
-      'map\ntag R as r\n  West blue\nOregon r: West\npoi Tokyo'
-    );
-    const without = lay(
-      'map\nno-legend\ntag R as r\n  West blue\nOregon r: West\npoi Tokyo'
-    );
-    expect(without.pois[0]!.fill).toBe(withLegend.pois[0]!.fill);
-    expect(without.pois[0]!.fill).toBe(P.colors.gray);
   });
 });
 

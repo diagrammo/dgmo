@@ -3,7 +3,7 @@
 exports[`map layout golden output > is unchanged — dark, 520x900 1`] = `
 {
   "content/map-office-hours.dgmo": "af8cb35a83a65303 750951b",
-  "content/map-route.dgmo": "8935e84f5d4b295b 57258b",
+  "content/map-route.dgmo": "05abf97087062add 57342b",
   "content/map.dgmo": "dfec969d4b5c64d5 358854b",
   "map-categorical-world.dgmo": "700a8ffc34b79c62 754552b",
   "map-categorical.dgmo": "d3934fd88fea8ae1 753137b",
@@ -18,7 +18,7 @@ exports[`map layout golden output > is unchanged — dark, 520x900 1`] = `
   "map-region-values.dgmo": "429bcae2bfa43ba5 357804b",
   "map-route.dgmo": "0d86bccd169d591b 22909b",
   "map-subnational-zoom.dgmo": "e5a1eea6a63acc5f 131464b",
-  "map-tagged-legs.dgmo": "11ecc9274744553a 83598b",
+  "map-tagged-legs.dgmo": "28f3d906d8c4c222 83817b",
   "map-undirected-edges.dgmo": "6799c4a57dc374db 10026b 9err",
 }
 `;
@@ -26,7 +26,7 @@ exports[`map layout golden output > is unchanged — dark, 520x900 1`] = `
 exports[`map layout golden output > is unchanged — dark, 1200x800 1`] = `
 {
   "content/map-office-hours.dgmo": "b619a2116d4233d8 1345420b",
-  "content/map-route.dgmo": "ae32d6c2ffc1d3a0 22057b",
+  "content/map-route.dgmo": "b6dd2df9da42ef32 22141b",
   "content/map.dgmo": "3a626b2e2545a5dd 438716b",
   "map-categorical-world.dgmo": "5d436c4852944ff7 1290398b",
   "map-categorical.dgmo": "dc207aff7f654b31 1289142b",
@@ -41,7 +41,7 @@ exports[`map layout golden output > is unchanged — dark, 1200x800 1`] = `
   "map-region-values.dgmo": "a3633a7acc1125e0 420637b",
   "map-route.dgmo": "e0714d066d653778 22681b",
   "map-subnational-zoom.dgmo": "d22e49a9da51537f 130998b",
-  "map-tagged-legs.dgmo": "d299961a71c08170 74147b",
+  "map-tagged-legs.dgmo": "57c958cd5147ed16 74366b",
   "map-undirected-edges.dgmo": "ba49d2735fdd628e 9859b 9err",
 }
 `;
@@ -49,7 +49,7 @@ exports[`map layout golden output > is unchanged — dark, 1200x800 1`] = `
 exports[`map layout golden output > is unchanged — light, 520x900 1`] = `
 {
   "content/map-office-hours.dgmo": "d204cc31184e3ccc 750954b",
-  "content/map-route.dgmo": "628cae21cb44c6dc 57261b",
+  "content/map-route.dgmo": "9146478528474545 57345b",
   "content/map.dgmo": "d7bab37d580c28c8 358857b",
   "map-categorical-world.dgmo": "c2d28ab7420c1b9c 754555b",
   "map-categorical.dgmo": "319b45290b6c9228 753140b",
@@ -64,7 +64,7 @@ exports[`map layout golden output > is unchanged — light, 520x900 1`] = `
   "map-region-values.dgmo": "bfa534fc1f155087 357807b",
   "map-route.dgmo": "8eafe42bbdd59291 22912b",
   "map-subnational-zoom.dgmo": "871ac049c01b0448 131467b",
-  "map-tagged-legs.dgmo": "e241fcd29faa5f3e 83601b",
+  "map-tagged-legs.dgmo": "205d8d5d991258c1 83820b",
   "map-undirected-edges.dgmo": "18c373049567caf3 10029b 9err",
 }
 `;
@@ -72,7 +72,7 @@ exports[`map layout golden output > is unchanged — light, 520x900 1`] = `
 exports[`map layout golden output > is unchanged — light, 1200x800 1`] = `
 {
   "content/map-office-hours.dgmo": "7651f4b62efb10f4 1345423b",
-  "content/map-route.dgmo": "c0f971cc3262dad3 22060b",
+  "content/map-route.dgmo": "bd25a03404534185 22144b",
   "content/map.dgmo": "dcf27deccb1702c4 438719b",
   "map-categorical-world.dgmo": "cd71684ab372e530 1290384b",
   "map-categorical.dgmo": "6441164817463f97 1289128b",
@@ -87,7 +87,7 @@ exports[`map layout golden output > is unchanged — light, 1200x800 1`] = `
   "map-region-values.dgmo": "82703357446c0b4a 420640b",
   "map-route.dgmo": "b36850ff09d7eb79 22684b",
   "map-subnational-zoom.dgmo": "5f5c8faafea1cdc2 130872b",
-  "map-tagged-legs.dgmo": "9534e9ab90b101a9 74150b",
+  "map-tagged-legs.dgmo": "c6972f8863a31996 74369b",
   "map-undirected-edges.dgmo": "862c99acc5f68dde 9862b 9err",
 }
 `;

@@ -1610,21 +1610,28 @@ export function layoutMap(
   };
 
   /** The groups whose default value is ASSUMED onto an element of this kind:
-   *  those carrying a default AND actually used by at least one element of that
-   *  kind. Same discipline as `fillGroupNames` above and for the same reason — a
-   *  group that only ever lands on connector lines (§24B.6) describes legs, so
-   *  assuming its default onto ports would paint `map-tagged-legs`'s four
-   *  harbours as "Sail". Keyed with `tagAttrKey`, the key the parser files tag
-   *  values under. */
+   *  those carrying a default AND — where a gate is passed — actually used by at
+   *  least one element of that kind. Keyed with `tagAttrKey`, the key the parser
+   *  files tag values under. */
   const defaultGroupsFor = (
     used: (key: string) => boolean
   ): readonly TagGroup[] =>
     resolved.tagGroups.filter(
       (g) => g.defaultValue && used(tagAttrKey(g.name))
     );
-  const poiDefaultGroups = defaultGroupsFor((k) =>
-    resolved.pois.some((p) => p.tags[k])
-  );
+  /** POIs take EVERY declared group's default (#620), with no in-play gate.
+   *  DGMO's convention is that an element naming no value for a group IS that
+   *  group's default value, and the author's escape hatch is to declare the
+   *  "no value" case as the group's own first entry (`NA gray`, `Untagged
+   *  gray`) or to mark another entry `default`. That convention is uniform
+   *  across chart types, so a marker must not be the one place it stops.
+   *
+   *  The gate this replaces (#489) excluded a group no POI used, to keep a
+   *  connector-only facet off the markers — `map-tagged-legs` declares a `Leg`
+   *  group of Sail/March/Row, and its four harbours are now "Sail". Under the
+   *  convention that is the correct reading, not a defect: a diagram that wants
+   *  its harbours to read as untagged declares an `NA` first entry. */
+  const poiDefaultGroups = resolved.tagGroups.filter((g) => g.defaultValue);
   const regionDefaultGroups = defaultGroupsFor((k) =>
     resolved.regions.some((r) => r.tags[k])
   );
@@ -2615,10 +2622,10 @@ export function layoutMap(
 
   // POI fill precedence (§24B.5): a direct §1.5 trailing color wins, then the
   // FIRST declared tag group for which the POI has a value (AR4), then the FIRST
-  // in-play group's default value (#489 — a POI naming no value IS that group's
-  // default, the same assumption regions have always been painted under, see
-  // `tagFill`), then the palette NEUTRAL if the map declares any tag group at
-  // all (#620), and only on a map with NO tag group, orange.
+  // declared group's default value (#489/#620 — a POI naming no value IS that
+  // group's default, the same assumption regions have always been painted
+  // under, see `tagFill`), then the palette NEUTRAL, and only on a map with NO
+  // tag group at all, orange.
   //
   // The two walks are deliberately separate rather than one walk over
   // `effectiveTags`: an EXPLICIT value in a later group must still beat an
@@ -2649,19 +2656,15 @@ export function layoutMap(
       const hex = entryColor(group, group.defaultValue);
       if (hex) return paint(hex);
     }
-    // A marker that reached here on a map that DECLARES tag groups wears the
-    // palette neutral, not orange (#620). Orange is a colour an author may
-    // declare as a tag value — `map-route.dgmo` declares `Spanish Prize orange`
-    // — so an untagged marker painted orange is indistinguishable from a tagged
-    // one, and on a map whose only group tags regions or legs that orange
-    // appears nowhere in the legend beside it. The neutral claims no category.
-    // Keyed on a group being DECLARED rather than on the legend being drawn, so
-    // `no-legend` does not silently change what a marker means.
-    //
-    // NOTE this is also where a POI naming a value its group never declares
-    // lands (walk 1 finds no entry; walk 2 skips a group the POI has any value
-    // for) — matching `tagFill`, which drops an unknown region value to neutral
-    // rather than to a saturated hue.
+    // With every declared group's default in play above, the only way to reach
+    // here on a map that HAS tag groups is a POI naming a value none of them
+    // declares — a typo (walk 1 finds no entry; walk 2 skips a group the POI has
+    // any value for). That takes the palette neutral, matching `tagFill`, which
+    // drops an unknown region value to neutral rather than to a saturated hue.
+    // Orange would be worse than neutral here for the same reason it is a poor
+    // fallback generally: it is a colour an author may DECLARE as a tag value
+    // (`map-tagged-legs` declares `Row orange`), so the typo would be
+    // indistinguishable from a real category.
     if (resolved.tagGroups.length > 0) return paint(palette.colors.gray);
     // Markers on a map with no tag group at all default to orange — a warm hue
     // that contrasts with BOTH the green land and the blue water/lakes/rivers.
