@@ -141,8 +141,7 @@ export function sketchColors(opts: {
     // 🔴 CONTAINER resolution: `resolveGroupTagColor` withholds the tag group's
     // `defaultValue`, so a frame colours only where the author wrote a value on
     // the group line. Without that every untagged frame on the board wears the
-    // first entry's colour, which is worse than the uncoloured frames this
-    // fixes.
+    // first entry's colour, which is worse than the bare frames this fixes.
     //
     // The text stays `palette.text`: the tint is a tenth, which is nowhere near
     // heavy enough to need `contrastText` the way a node's 25% fill does.
