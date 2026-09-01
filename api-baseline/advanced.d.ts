@@ -6759,19 +6759,28 @@ declare const CONTAINER_STROKE_OPACITY = 0.35;
 /** And its stroke width: a plain 1, not a node's. */
 declare const CONTAINER_STROKE_WIDTH = 1;
 /**
- * A container's surface. 🔴 NEUTRAL, and never the group's tag colour.
+ * An UNTAGGED container's surface — the library's neutral group fill.
  *
- * Sketch used to paint a whole group in its own tag at 0.4 — so a tagged group
- * was a wash of colour with everything inside it swimming in that wash, and a
- * sketch put beside a `boxes-and-lines` chart of the same content did not read
- * as the same product (reported 2026-08-27). `boxes-and-lines` never tints a
- * group; this is its expression, verbatim.
+ * 🔴 It is `groupFill` with no colour, delegated rather than restated, because
+ * the two were the same expression written twice and the whole point of #619 is
+ * that sketch stopped having its own answer here.
  *
- * ⚠️ What that costs: a container's OWN tag no longer shows in its fill. It is
- * still in the source, still cascades to the children inside it, and still
- * colours them — what is gone is the group-level wash.
+ * ⚠️ The name is now narrower than it reads: a container that CARRIES a value
+ * does not come through here at all — see the container branch of
+ * `sketchColors`. This stays exported for the app's live canvas, which asks for
+ * the neutral fill directly when it is drawing a frame nothing has classified.
+ *
+ * The history is worth keeping, because it is why sketch was the last chart
+ * type left out. Sketch used to paint a whole group in its own tag at 0.4, so a
+ * tagged group was a wash with everything inside it swimming in that wash, and
+ * a sketch beside a `boxes-and-lines` chart of the same content did not read as
+ * the same product (reported 2026-08-27). The fix was to make a container
+ * neutral *whatever it carried* — which overshot: the group-frame sweep for
+ * diagrammo/diagrammo#585 gave five other chart types a **tenth**, not a
+ * fortieth, and a coloured stroke to carry the meaning. That is what the frame
+ * wears now, and the wash cannot come back at 10%.
  */
-declare function sketchContainerFill(palette: PaletteColors, _isDark: boolean): string;
+declare function sketchContainerFill(palette: PaletteColors, isDark: boolean): string;
 /**
  * Untagged shapes still read as filled cards, not empty outlines: a slight gray
  * tint (muted mixed into the bg) — subtle on light, a touch lighter than the bg

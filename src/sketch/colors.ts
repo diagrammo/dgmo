@@ -21,6 +21,8 @@
 import type { PaletteColors } from '../palettes';
 import {
   contrastText,
+  groupFill,
+  groupStroke,
   mix,
   shapeFill,
   themeBaseBg,
@@ -28,6 +30,7 @@ import {
 import type { TagGroup } from '../utils/tag-groups';
 import {
   resolveActiveTagGroup,
+  resolveGroupTagColor,
   resolveTagColor,
   tagAttrKey,
 } from '../utils/tag-groups';
@@ -55,23 +58,32 @@ export const CONTAINER_STROKE_OPACITY = 0.35;
 export const CONTAINER_STROKE_WIDTH = 1;
 
 /**
- * A container's surface. 🔴 NEUTRAL, and never the group's tag colour.
+ * An UNTAGGED container's surface — the library's neutral group fill.
  *
- * Sketch used to paint a whole group in its own tag at 0.4 — so a tagged group
- * was a wash of colour with everything inside it swimming in that wash, and a
- * sketch put beside a `boxes-and-lines` chart of the same content did not read
- * as the same product (reported 2026-08-27). `boxes-and-lines` never tints a
- * group; this is its expression, verbatim.
+ * 🔴 It is `groupFill` with no colour, delegated rather than restated, because
+ * the two were the same expression written twice and the whole point of #619 is
+ * that sketch stopped having its own answer here.
  *
- * ⚠️ What that costs: a container's OWN tag no longer shows in its fill. It is
- * still in the source, still cascades to the children inside it, and still
- * colours them — what is gone is the group-level wash.
+ * ⚠️ The name is now narrower than it reads: a container that CARRIES a value
+ * does not come through here at all — see the container branch of
+ * `sketchColors`. This stays exported for the app's live canvas, which asks for
+ * the neutral fill directly when it is drawing a frame nothing has classified.
+ *
+ * The history is worth keeping, because it is why sketch was the last chart
+ * type left out. Sketch used to paint a whole group in its own tag at 0.4, so a
+ * tagged group was a wash with everything inside it swimming in that wash, and
+ * a sketch beside a `boxes-and-lines` chart of the same content did not read as
+ * the same product (reported 2026-08-27). The fix was to make a container
+ * neutral *whatever it carried* — which overshot: the group-frame sweep for
+ * diagrammo/diagrammo#585 gave five other chart types a **tenth**, not a
+ * fortieth, and a coloured stroke to carry the meaning. That is what the frame
+ * wears now, and the wash cannot come back at 10%.
  */
 export function sketchContainerFill(
   palette: PaletteColors,
-  _isDark: boolean
+  isDark: boolean
 ): string {
-  return mix(palette.surface, palette.bg, 40);
+  return groupFill(palette, isDark);
 }
 
 /**
@@ -118,11 +130,27 @@ export function sketchColors(opts: {
   const activeKey = activeName === null ? null : tagAttrKey(activeName);
 
   return (metadata, isContainer = false) => {
-    // 🔴 A container is neutral whatever it carries — see `sketchContainerFill`.
+    // 🔴 A container takes its OWN tag value, through the same two functions
+    // boxes-and-lines, infra, c4, state and pert go through (#619). Sketch was
+    // the one chart type still refusing this, while its own spec section said
+    // "**Taggable**: the frame tints and the tag **cascades** to children" and
+    // §1 said it universally — so a tagged group and an untagged one rendered
+    // byte-identical, and dropping a colour on a group did nothing you could
+    // see.
+    //
+    // 🔴 CONTAINER resolution: `resolveGroupTagColor` withholds the tag group's
+    // `defaultValue`, so a frame colours only where the author wrote a value on
+    // the group line. Without that every untagged frame on the board wears the
+    // first entry's colour, which is worse than the uncoloured frames this
+    // fixes.
+    //
+    // The text stays `palette.text`: the tint is a tenth, which is nowhere near
+    // heavy enough to need `contrastText` the way a node's 25% fill does.
     if (isContainer) {
+      const groupColor = resolveGroupTagColor(metadata, tagGroups, activeName);
       return {
-        fill: sketchContainerFill(palette, isDark),
-        stroke: palette.textMuted,
+        fill: groupFill(palette, isDark, groupColor),
+        stroke: groupStroke(palette, groupColor),
         text: palette.text,
       };
     }
