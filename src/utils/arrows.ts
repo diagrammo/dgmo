@@ -74,7 +74,7 @@ export function validateLabelCharacters(
       makeDgmoError(
         lineNumber,
         'Arrow symbols (-> or ~>) are not allowed inside a label. ' +
-          'Move the label after the arrow: "A -> B: uses -> to chain". ' +
+          'Reword the label without them — e.g. "A -chains to-> B". ' +
           'See "In-Arrow Message Labels" → Forbidden.',
         'error',
         ARROW_DIAGNOSTIC_CODES.ARROW_SUBSTRING_IN_LABEL

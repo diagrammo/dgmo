@@ -31,9 +31,20 @@ export const ARROW_DIAGNOSTICS: DiagnosticSpec[] = [
     // Verbatim from validateLabelCharacters (arrows.ts, TD-13).
     message:
       'Arrow symbols (-> or ~>) are not allowed inside a label. ' +
-      'Move the label after the arrow: "A -> B: uses -> to chain". ' +
+      'Reword the label without them — e.g. "A -chains to-> B". ' +
       'See "In-Arrow Message Labels" → Forbidden.',
-    hint: 'Put the label after the arrow with a colon: `A -> B: uses -> to chain`.',
+    // 🔴 This said `A -> B: uses -> to chain` until 2026-09-01 — it recommended
+    // the one syntax that breaks silently. In a sequence diagram the colon form
+    // is a hard error; in boxes-and-lines it parses clean and invents a node
+    // literally named "B: uses to chain" (verified: nodes come back
+    // `["A","B: uses to chain"]` with zero diagnostics). The label belongs
+    // BETWEEN the dashes, and it can never contain an arrow, so the repair is
+    // to reword it rather than move it.
+    hint:
+      'The label goes between the dashes — `A -chains to-> B` — and cannot ' +
+      'contain an arrow at all, so reword it rather than move it. Do not use ' +
+      '`A -> B: label`: outside sequence diagrams that silently creates a node ' +
+      'named "B: label".',
     // End-to-end trigger via a symbolic parser (class), whose label is
     // everything after the target name, so the inner `~>` survives to the
     // validator instead of being absorbed as a second arrow token.

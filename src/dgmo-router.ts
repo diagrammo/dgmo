@@ -16,6 +16,7 @@ import { parseVisualization } from './visualizations/parse';
 import { parseFirstLine } from './utils/parsing';
 import { isLiveLinkLine } from './live-link/parser';
 import { makeDgmoError, suggest, dedupeDiagnostics } from './diagnostics';
+import { attachHints } from './diagnostics-registry';
 import type { DgmoError } from './diagnostics';
 import { chartTypes } from './chart-types';
 import {
@@ -202,7 +203,9 @@ export function parseDgmo(content: string): {
   // and the MCP `validate_diagram` tool.
   const result = parseDgmoUndeduped(content);
   return {
-    diagnostics: dedupeDiagnostics(result.diagnostics),
+    // `attachHints` backfills the registry's repair sentence by code, so the
+    // hint travels however the diagnostic was constructed. See its own comment.
+    diagnostics: attachHints(dedupeDiagnostics(result.diagnostics)),
     chartType: result.chartType,
   };
 }

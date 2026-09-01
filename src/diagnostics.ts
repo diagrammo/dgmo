@@ -25,6 +25,17 @@ export interface DgmoError {
   file?: string;
   /** 1-based line within `file`. Only set alongside `file`. */
   fileLine?: number;
+  /**
+   * The fix, in a sentence, copied from the emitting `DiagnosticSpec`.
+   *
+   * 🔴 This exists so an EDITOR can show it. Until 2026-09-01 the registry's
+   * hints reached `dgmo diagnostics --json` and nothing else: `emit()` copied
+   * line, message, severity and code and never read `spec.hint`, so 84
+   * sentences saying how to repair each mistake were written, reviewed and
+   * then dropped one function before any consumer could render them. Do not
+   * "tidy" this away as unused — the app reads it.
+   */
+  hint?: string;
 }
 
 export function makeDgmoError(
@@ -114,6 +125,7 @@ export function emit(
     severity: spec.severity,
     code: spec.code,
   };
+  if (spec.hint !== undefined) err.hint = spec.hint;
   if (opts.column !== undefined) err.column = opts.column;
   return err;
 }

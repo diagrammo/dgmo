@@ -17,7 +17,7 @@
 // severity matching its prefix — so a new code can't be added without
 // being cataloged.
 
-import type { DiagnosticSpec } from './diagnostics';
+import type { DiagnosticSpec, DgmoError } from './diagnostics';
 import {
   nameMergedMessage,
   emptyMetadataValueMessage,
@@ -158,6 +158,29 @@ export function listDiagnosticCodes(): DiagnosticSpec[] {
 }
 
 /** Look up a single spec by its code, or `undefined` if not cataloged. */
+/**
+ * Fill in each diagnostic's `hint` from the registry, by code.
+ *
+ * 🔴 Why this is not done in `emit()` alone: seven specs are constructed
+ * without it — `makeDgmoError`, a hand-built object literal, a `fail()` — and
+ * their hints were therefore dropped even after `emit()` learned to copy one
+ * (measured 2026-09-01: E_ARROW_SUBSTRING_IN_LABEL, E_CONTROL_CHAR_IN_LABEL,
+ * E_INVALID_COLOR, E_TAG_DECLARED_AFTER_CONTENT, I_NAME_MERGED,
+ * W_ACTIVE_TAG_NO_MATCH, W_EMPTY_METADATA_VALUE). Backfilling by code at the
+ * parse boundary means a hint travels no matter how its diagnostic was built,
+ * so a new parser cannot silently opt out of it.
+ *
+ * An existing `hint` is never overwritten: a diagnostic that computed a
+ * situation-specific hint outranks the registry's static one.
+ */
+export function attachHints(diagnostics: DgmoError[]): DgmoError[] {
+  return diagnostics.map((d) => {
+    if (d.hint !== undefined || d.code === undefined) return d;
+    const hint = getDiagnosticSpec(d.code)?.hint;
+    return hint === undefined ? d : { ...d, hint };
+  });
+}
+
 export function getDiagnosticSpec(code: string): DiagnosticSpec | undefined {
   return REGISTRY.find((s) => s.code === code);
 }
