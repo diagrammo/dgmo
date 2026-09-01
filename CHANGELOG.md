@@ -7,6 +7,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.80.0] - 2026-09-01
+
+### Added
+
+- **A diagnostic now carries the sentence that fixes it.** 84 diagnostics in
+  the registry ship a `hint` — the sentence saying what to DO, where the
+  message only says what is wrong — and until now nothing but
+  `dgmo diagnostics --json` could see one. `emit()` built its error from line,
+  message, severity and code and never read the hint, so every one of those
+  sentences was written and then dropped one function before any consumer
+  could render it. A `DgmoError` gains an optional `hint`, and hints are
+  backfilled by code at the parse boundary, so a hint travels however its
+  diagnostic was constructed — seven codes build theirs without `emit()` and
+  would otherwise still lose it. The advice on `E_ARROW_SUBSTRING_IN_LABEL`
+  was corrected in the same change rather than published as it stood: it
+  recommended `A -> B: uses -> to chain`, which is the one form that breaks
+  silently — in boxes-and-lines that parses clean and invents a node named
+  `B: uses to chain`. It now says to reword the label between the dashes, and
+  warns off the colon form by name.
+
+- **Sketch edge routing can be asked for a route without a whole layout, and
+  hands back the cubic it drew.** A caller that has rectangles and edges but
+  no layout — a canvas placing its own cards, moving them a frame at a time
+  under a drag — no longer has to fabricate a line number, a shape and a
+  resolved slot per node to satisfy fields the routing never reads. The result
+  now carries its curve as four points, so a consumer needing a tangent for an
+  arrowhead, or a point seated in from an end, has them rather than parsing
+  this module's own output back.
+
+### Fixed
+
+- **An untagged marker on a tagged map paints neutral, not orange.** Orange is
+  a colour an author may declare as a tag value, so a marker falling through
+  to the orange fallback was indistinguishable from a tagged one — and where
+  the map's tag group tags regions or connector legs, that orange appeared
+  nowhere in the legend beside it. On any map that declares a tag group a
+  marker's last step is now the palette neutral; orange survives only where no
+  tag group is declared at all. A marker naming a value its group never
+  declares lands on the same neutral, matching what an unknown region value
+  has always done.
+
+- **Every declared tag group's default reaches a marker.** DGMO's convention
+  is universal — an element naming no value for a tag group IS that group's
+  default, and declaring the "no value" case is the author's job, by making it
+  the group's own first entry (`NA gray`). Markers were the one place that
+  convention stopped: a group's default reached a marker only if some other
+  marker already used that group. It now reaches every marker, and a diagram
+  that wants its markers untagged says so with an `NA` first entry like
+  everything else.
+
+- **A sketch group's own tag colours its frame, like every other chart type.**
+  A tagged group and an untagged one rendered byte-identical, so writing a tag
+  value on a group line changed the file and nothing you could see. Sketch was
+  left out of the group-frame recipe that boxes-and-lines, infra, c4, state
+  and pert were given, while the spec said it had it. It now delegates to the
+  same `groupFill` / `groupStroke` as the rest — a tenth of the tag colour in
+  the fill with the meaning in the outline, not the wash a sketch group used
+  to get. An untagged group does not move a pixel.
+
+### Changed
+
+- The pert subtitle reads its weight from the shared caption constant instead
+  of a literal. The value is identical and nothing renders differently; the
+  constant now means something, where it had been exported and imported
+  nowhere while its six siblings were all read by that same renderer.
+
 ## [0.79.0] - 2026-08-31
 
 ### Added
