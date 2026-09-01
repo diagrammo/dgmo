@@ -1,3 +1,4 @@
+#!/bin/sh
 # The checks .github/workflows/ci.yml runs, in the same order, so a push and a
 # CI run ask the same questions. Until 2026-08-25 this was one line —
 # `pnpm typecheck && pnpm lint && pnpm test && pnpm build`, four of CI's
@@ -42,7 +43,11 @@ pushed=$(printf '%s\n' "$refs" | while read -r _lref lsha _rref _rsha; do
 done)
 
 if [ -z "$pushed" ]; then
-  echo "pre-push: nothing to gate (deletion only)"
+  # Every ref in this push carries the all-zero sha, so there is no commit to
+  # check out and gate. A branch deletion is the usual cause; a push git
+  # refused locally as non-fast-forward reaches here too, which is why this no
+  # longer claims to know which (#623).
+  echo "pre-push: nothing to gate (no commits in this push)"
   exit 0
 fi
 
