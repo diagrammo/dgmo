@@ -404,10 +404,34 @@ function applyParallelEdgeOffsets(layout: BLLayoutResult): BLLayoutResult {
   }
   return {
     ...layout,
-    edges: layout.edges.map((e, i) => ({
-      ...e,
-      yOffset: yOffset[i]!,
-      parallelCount: count[i]!,
-    })),
+    edges: layout.edges.map((e, i) => {
+      const off = yOffset[i]!;
+      const cnt = count[i]!;
+      const base = { ...e, yOffset: off, parallelCount: cnt };
+      if (off === 0 || cnt <= 1) return base;
+      // 🔴 Build the fan HERE, not at render time. This used to set only the
+      // offset and leave `points` alone; the renderer then discarded `points`
+      // entirely and drew a five-point fan from the endpoints. So the label —
+      // placed by placeEdgeLabels against `points`, one step later — sat on a
+      // curve that was never drawn. Where the router had taken a long detour and
+      // the fan drew a short direct line, that put the label 216px from its own
+      // edge, over blank canvas (#640). 28% of real boxes-and-lines diagrams
+      // carry at least one fanned edge, and no gallery fixture does.
+      const s = e.points[0];
+      const t = e.points[e.points.length - 1];
+      if (!s || !t) return base;
+      const midX = (s.x + t.x) / 2;
+      const midY = (s.y + t.y) / 2;
+      return {
+        ...base,
+        points: [
+          { x: s.x, y: s.y }, // port (bundled)
+          { x: s.x + (midX - s.x) * 0.3, y: s.y + off * 0.5 }, // separate
+          { x: midX, y: midY + off }, // full spread
+          { x: t.x - (t.x - midX) * 0.3, y: t.y + off * 0.5 }, // converge
+          { x: t.x, y: t.y }, // port (bundled)
+        ],
+      };
+    }),
   };
 }

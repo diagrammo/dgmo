@@ -967,40 +967,12 @@ export function renderBoxesAndLines(
       continue;
     }
 
-    // Parallel edge fan: construct explicit 5-point geometry so lines
-    // bundle at ports and visibly spread apart in the middle.
-    let points: { x: number; y: number }[];
-    if (le.yOffset !== 0 && le.parallelCount > 1) {
-      // 🔴 Both coordinates of a port come from the ROUTED polyline, never from
-      // the node's centre. Taking x from the polyline and y from the layout node
-      // mixes two coordinate sources: an edge that approaches a box vertically
-      // has a boundary point whose x already IS the centre x, so substituting
-      // the centre y put the port — and its arrowhead — at the exact centre of
-      // the node, buried under the box. That is the one arrowhead that survived
-      // fixing #625 in both layout generators and in the search's final clip.
-      // Parallel edges share a node pair, so their endpoints coincide anyway;
-      // the fan's bundling intent is preserved by using them.
-      const srcLayout = layoutNodeMap.get(le.source);
-      const tgtLayout = layoutNodeMap.get(le.target);
-      const srcPt = le.points[0];
-      const tgtPt = le.points[le.points.length - 1];
-      const srcY = srcPt?.y ?? srcLayout?.y ?? 0;
-      const tgtY = tgtPt?.y ?? tgtLayout?.y ?? 0;
-      const srcX = srcPt?.x ?? srcLayout?.x ?? 0;
-      const tgtX = tgtPt?.x ?? tgtLayout?.x ?? 0;
-      const midX = (srcX + tgtX) / 2;
-      const midY = (srcY + tgtY) / 2;
-
-      points = [
-        { x: srcX, y: srcY }, // port (bundled)
-        { x: srcX + (midX - srcX) * 0.3, y: srcY + le.yOffset * 0.5 }, // separate
-        { x: midX, y: midY + le.yOffset }, // full spread
-        { x: tgtX - (tgtX - midX) * 0.3, y: tgtY + le.yOffset * 0.5 }, // converge
-        { x: tgtX, y: tgtY }, // port (bundled)
-      ];
-    } else {
-      points = le.points.map((p) => ({ x: p.x, y: p.y }));
-    }
+    // The polyline IS the drawn geometry — including the parallel-edge fan,
+    // which is built in layout (applyParallelEdgeOffsets) so that
+    // placeEdgeLabels sees the same curve the reader does. Rebuilding it here
+    // is what put labels on a line that was never drawn (#640) and, when it
+    // mixed a routed x with a node-centre y, buried an arrowhead (#625).
+    const points = le.points.map((p) => ({ x: p.x, y: p.y }));
     if (points.length < 2) continue;
 
     const edgeG = diagramG

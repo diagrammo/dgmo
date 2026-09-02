@@ -90,7 +90,16 @@ describe('stable collapse layout', () => {
   it('routes edges as straight border-to-border segments', async () => {
     const layout = await stableLayout(new Set(['G']), PREV);
     for (const e of layout.edges) {
-      expect(e.points).toHaveLength(2);
+      // A pair redirected onto the same collapsed pill is parallel, and a
+      // parallel edge carries the 5-point fan rather than a straight segment.
+      // That is not new on screen: the renderer built the fan itself from
+      // `yOffset` and threw the 2-point polyline away, so these two edges have
+      // always been DRAWN fanned. The fan moved into layout with #640 so the
+      // edge label is placed against the curve the reader actually sees; the
+      // picture is unchanged, and this assertion was reading a value that never
+      // reached it.
+      const fanned = e.parallelCount > 1 && e.yOffset !== 0;
+      expect(e.points).toHaveLength(fanned ? 5 : 2);
       for (const p of e.points) {
         expect(Number.isFinite(p.x)).toBe(true);
         expect(Number.isFinite(p.y)).toBe(true);
