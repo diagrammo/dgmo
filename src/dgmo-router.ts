@@ -15,7 +15,13 @@ import { looksLikePert } from './pert/parser';
 import { parseVisualization } from './visualizations/parse';
 import { parseFirstLine } from './utils/parsing';
 import { isLiveLinkLine } from './live-link/parser';
-import { makeDgmoError, suggest, dedupeDiagnostics } from './diagnostics';
+import {
+  makeDgmoError,
+  suggest,
+  dedupeDiagnostics,
+  emit,
+  MISTYPED_CHART_TYPE_DX,
+} from './diagnostics';
 import { attachHints } from './diagnostics-registry';
 import type { DgmoError } from './diagnostics';
 import { chartTypes } from './chart-types';
@@ -234,8 +240,10 @@ function parseDgmoUndeduped(content: string): {
   const parser = PARSER_BY_ID.get(chartType);
   if (parser) {
     const result = parser(content);
+    const mistyped = detectMistypedChartType(content, chartType);
     return {
       diagnostics: [
+        ...(mistyped ? [mistyped] : []),
         ...result.diagnostics,
         ...detectEmptyContent(content, chartType),
       ],
@@ -262,6 +270,51 @@ function parseDgmoUndeduped(content: string): {
  * Detects colon-separated chart type declarations like "bar: Sales" or "pie: Data".
  * Returns a diagnostic if the word before the colon is a known or similar chart type.
  */
+/** Mermaid's spelling → ours, for first words no edit distance would find. */
+const MERMAID_FIRST_WORDS: Readonly<Record<string, string>> = {
+  graph: 'flowchart',
+  journey: 'journey-map',
+};
+
+/**
+ * The no-colon sibling of `detectColonChartType`: a first line whose opening
+ * word is close to a chart type but is not one, on a document that therefore
+ * fell through to content inference.
+ *
+ * 🔴 Only a LOWERCASE bare word is considered. Every chart-type id is
+ * lowercase, while the first token of an inferred diagram is usually a node or
+ * person name and is capitalised — so this refuses to guess at `Barr Smith` in
+ * an org chart, which `suggest` would otherwise offer to "correct" to `bar`.
+ */
+function detectMistypedChartType(
+  content: string,
+  resolved: string
+): DgmoError | null {
+  const lines = content.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i]!.trim();
+    if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('//'))
+      continue;
+
+    const match = trimmed.match(/^([a-z][a-z0-9-]*)(?:\s|$)/);
+    if (!match) return null; // not a bare lowercase word — no declaration attempt
+    const word = match[1]!;
+    if (ALL_KNOWN_TYPES.has(word)) return null; // spelled correctly
+
+    // Words another tool spells differently. Edit distance cannot reach these —
+    // `graph` is four edits from `gantt` and nowhere near `flowchart` — and
+    // arriving from Mermaid is the single likeliest way to type a first line
+    // DGMO does not know.
+    const alias = MERMAID_FIRST_WORDS[word];
+    const suggestion = alias
+      ? `Did you mean '${alias}'?`
+      : suggest(word, [...ALL_KNOWN_TYPES]);
+    if (!suggestion) return null;
+    return emit(MISTYPED_CHART_TYPE_DX, i + 1, { word, resolved, suggestion });
+  }
+  return null;
+}
+
 function detectColonChartType(content: string): DgmoError | null {
   const lines = content.split('\n');
   for (let i = 0; i < lines.length; i++) {

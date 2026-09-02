@@ -331,6 +331,32 @@ export const NEGATIVE_VALUE_DX: DiagnosticSpec = {
   example: 'pie Budget\nRent 1200\nRefunds -300',
 };
 
+/**
+ * A first line that ALMOST names a chart type.
+ *
+ * 🔴 The router does not fail when line 1 is not a known type — it falls
+ * through to content inference, which is a supported path: `[A] -> [B]` with no
+ * declaration is legal and draws a sequence. The cost is that a TYPO reaches
+ * the same place silently. `flowchar Deploy` over `[A] -> [B]` resolved to a
+ * `sequence` and the only diagnostic was a warning about the title line, phrased
+ * in the vocabulary of a chart the author never chose. Mermaid muscle memory
+ * (`graph TD`) behaved the same way.
+ *
+ * So this says the word was not understood, names what was drawn instead, and
+ * offers the correction. It stays a WARNING because the diagram did render and
+ * inference may genuinely be what the author wanted.
+ */
+export const MISTYPED_CHART_TYPE_DX: DiagnosticSpec = {
+  code: 'W_CHART_TYPE_INFERRED',
+  severity: 'warning',
+  chartType: null,
+  title: 'First line almost names a chart type',
+  message: (p: DiagnosticMessageParams) =>
+    `'${p.word ?? 'flowchar'}' is not a chart type, so this was drawn as a ${p.resolved ?? 'sequence'} inferred from its content. ${p.suggestion ?? "Did you mean 'flowchart'?"}`,
+  hint: 'Line 1 names the chart type. Correct the spelling, or delete the line if the content really should be inferred.',
+  example: 'flowchar Deploy\n[A] -> [B]',
+};
+
 export const TITLE_DIRECTIVE_DX: DiagnosticSpec = {
   code: 'E_TITLE_DIRECTIVE',
   severity: 'error',

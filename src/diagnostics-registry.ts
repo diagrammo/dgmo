@@ -21,6 +21,7 @@ import type { DiagnosticSpec, DgmoError } from './diagnostics';
 import {
   nameMergedMessage,
   emptyMetadataValueMessage,
+  MISTYPED_CHART_TYPE_DX,
   TITLE_DIRECTIVE_DX,
   NEGATIVE_VALUE_DX,
 } from './diagnostics';
@@ -119,6 +120,7 @@ export const UNIVERSAL_DIAGNOSTICS: DiagnosticSpec[] = [
   },
 
   // ── Data-chart `title` directive (decision #48) ──
+  MISTYPED_CHART_TYPE_DX,
   TITLE_DIRECTIVE_DX,
 
   // ── Negative value on a magnitude channel (pie/polar-area/radar/funnel/
