@@ -445,3 +445,53 @@ describe('boxes-and-lines takes the shared radii', () => {
     expect(rx).toContain(String(CONTAINER_RADIUS));
   });
 });
+
+// ------------------------------------------------------------
+// #631 — an explicit `color:` on an edge was parsed and then dropped.
+//
+// §1.5 documents the long form as the ONLY way to colour an edge (edges have no
+// trailing-token slot), and `color` is in the reserved-key registry, so the
+// metadata cut fires and the value reaches the renderer. `edgeColor` only ever
+// consulted tag metadata, so the edge parsed clean, warned about nothing, and
+// drew in the default stroke.
+// ------------------------------------------------------------
+describe('boxes-and-lines — explicit edge colour', () => {
+  const edgeStrokes = (svg: SVGSVGElement): string[] => [
+    ...new Set(
+      [...svg.querySelectorAll('path.bl-edge')].map(
+        (p) => p.getAttribute('stroke') ?? ''
+      )
+    ),
+  ];
+
+  it('renders an edge in the named colour', async () => {
+    const svg = await render('boxes-and-lines T\nA -calls-> B color: red\n');
+    expect(edgeStrokes(svg)).toEqual([P.colors.red]);
+  });
+
+  it('gives the arrowhead the same colour as its edge', async () => {
+    const svg = await render('boxes-and-lines T\nA -calls-> B color: red\n');
+    const ref = svg.querySelector('path.bl-edge')?.getAttribute('marker-end');
+    expect(ref).toBe(`url(#bl-arrow-${P.colors.red.replace('#', '')})`);
+  });
+
+  it('leaves an uncoloured edge neutral', async () => {
+    const svg = await render('boxes-and-lines T\nA -calls-> B\n');
+    expect(edgeStrokes(svg)).toEqual([P.textMuted]);
+  });
+
+  it('ignores a CSS keyword outside the eleven named colours', async () => {
+    // §1.5: the eleven names are the only valid colours; `crimson` is not one.
+    const svg = await render(
+      'boxes-and-lines T\nA -calls-> B color: crimson\n'
+    );
+    expect(edgeStrokes(svg)).toEqual([P.textMuted]);
+  });
+
+  it('ignores a hex value', async () => {
+    const svg = await render(
+      'boxes-and-lines T\nA -calls-> B color: #ff0000\n'
+    );
+    expect(edgeStrokes(svg)).toEqual([P.textMuted]);
+  });
+});

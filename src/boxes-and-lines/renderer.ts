@@ -358,7 +358,19 @@ function edgeColor(
   activeGroupName: string | null,
   palette: PaletteColors
 ): string {
-  // Only color edges that have explicit tag metadata — otherwise neutral
+  // An explicit `color:` wins over a tag-derived colour — it is the author
+  // naming this edge's colour directly, where a tag names a category that
+  // happens to have one. §1.5 documents the long form as the ONLY way to colour
+  // an edge (edges have no trailing-token slot), and `color` is in the reserved
+  // key registry, so the metadata cut fires and the value lands here. It was
+  // then dropped on the floor: the edge parsed clean, warned about nothing, and
+  // rendered in the default stroke (#631).
+  const explicit = edge.metadata['color'];
+  if (typeof explicit === 'string') {
+    const resolved = resolveColor(explicit, palette);
+    if (resolved) return resolved;
+  }
+  // Otherwise colour only edges that carry tag metadata — else neutral.
   const hasTagMeta =
     Object.keys(edge.metadata).length > 0 && activeGroupName != null;
   if (hasTagMeta) {
