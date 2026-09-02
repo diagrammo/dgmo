@@ -37,7 +37,7 @@
     "node": ">=18"
   },
   "dependencies": {
-    "@diagrammo/dgmo-mcp": ">=0.29.0 <1",
+    "@diagrammo/dgmo-mcp": ">=0.29.1 <1",
     "@resvg/resvg-js": "^2.6.2",
     "jsdom": "^29.1.1"
   },
