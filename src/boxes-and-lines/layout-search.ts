@@ -1600,7 +1600,7 @@ export async function layoutBoxesAndLinesSearch(
       best = separated;
   }
   opts?.onTopConfigs?.(topConfigs);
-  // Last line of defence, and it covers the dagre winner too. dagre normally
+  // The last guard, and it covers the dagre winner too. dagre normally
   // clips for itself, but its `intersectRect` throws on some configurations
   // ("Not possible to find intersection inside of the rectangle") and the edges
   // it could not solve keep the node centre as their endpoint — one buried
