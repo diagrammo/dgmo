@@ -227,3 +227,52 @@ describe('sankey — invalid link color', () => {
     expect(links(valid)[0]?.color).toBeTruthy();
   });
 });
+
+// ------------------------------------------------------------
+// Heatmap rows — the same ambiguity, one construct over.
+//
+// `columns` fixes an exact value count, so "Compound 1 5 4 3" against three
+// columns is resolvable rather than ambiguous. The greedy walk used to eat the
+// "1" as data: the label became "Compound", the row carried four values against
+// three columns, every cell shifted one column left, and nothing warned. Filed
+// from outside against 0.75.0 (the numbered heatmap row label, dgmo#42).
+// ------------------------------------------------------------
+describe('heatmap data row — numbered row label', () => {
+  const HEATMAP = (row: string): string =>
+    `heatmap Assay\ncolumns\n  X\n  Y\n  Z\n${row}\n`;
+  const parse = (row: string) => parseExtendedChart(HEATMAP(row), palette);
+
+  it('keeps the trailing number in the label when columns fix the count', () => {
+    const rows = parse('Compound 1 5 4 3').heatmapRows;
+    expect(rows).toHaveLength(1);
+    expect(rows?.[0]?.label).toBe('Compound 1');
+    expect(rows?.[0]?.values).toEqual([5, 4, 3]);
+  });
+
+  it('warns that the surplus number was welded back into the label', () => {
+    const msgs = parse('Compound 1 5 4 3').diagnostics.map((d) => d.message);
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0]).toContain('has 4 value(s), but 3 series defined');
+    expect(msgs[0]).toContain('quote it: "Compound 1" 5 4 3');
+  });
+
+  it('leaves an unambiguous row alone, with no diagnostic', () => {
+    const parsed = parse('Compound 5 4 3');
+    expect(parsed.heatmapRows?.[0]?.label).toBe('Compound');
+    expect(parsed.heatmapRows?.[0]?.values).toEqual([5, 4, 3]);
+    expect(parsed.diagnostics).toEqual([]);
+  });
+
+  it('never warns on the quoted escape hatch', () => {
+    const parsed = parse('"Compound 1" 5 4 3');
+    expect(parsed.heatmapRows?.[0]?.label).toBe('Compound 1');
+    expect(parsed.heatmapRows?.[0]?.values).toEqual([5, 4, 3]);
+    expect(parsed.diagnostics).toEqual([]);
+  });
+
+  it('handles a label that is several words ending in a number', () => {
+    const rows = parse('Run 3 batch 12 5 4 3').heatmapRows;
+    expect(rows?.[0]?.label).toBe('Run 3 batch 12');
+    expect(rows?.[0]?.values).toEqual([5, 4, 3]);
+  });
+});

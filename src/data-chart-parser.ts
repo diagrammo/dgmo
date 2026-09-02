@@ -202,7 +202,7 @@ import {
   parseFirstLine,
   parseSeriesNames,
 } from './utils/parsing';
-import { parseDataRowValues } from './chart';
+import { parseDataRowValues, surplusValueDiagnostic } from './chart';
 import {
   type EmphasisDirective,
   isEmphasisToken,
@@ -942,8 +942,21 @@ function parseExtendedChartFull(
 
     // Heatmap data row: "RowLabel val1, val2, val3, ..." or "RowLabel val1 val2 val3"
     if (result.type === 'heatmap') {
-      const dataRow = parseDataRowValues(trimmed, { multiValue: true });
+      // `columns` fixes an exact value count, so a row label ending in a digit
+      // ("Compound 1 5 4 3") is resolvable rather than ambiguous: take the last
+      // N numbers as values and weld the surplus back into the label. Without
+      // this the greedy walk eats the "1", shifting every cell one column left
+      // and mangling the label, in silence.
+      const expected = result.columns?.length;
+      const dataRow = parseDataRowValues(trimmed, {
+        multiValue: true,
+        ...(expected !== undefined && { expectedValues: expected }),
+      });
       if (dataRow && dataRow.values.length > 0) {
+        if (expected !== undefined) {
+          const surplus = surplusValueDiagnostic(dataRow, expected, lineNumber);
+          if (surplus) result.diagnostics.push(surplus);
+        }
         if (!result.heatmapRows) result.heatmapRows = [];
         result.heatmapRows.push({
           label: dataRow.label,
