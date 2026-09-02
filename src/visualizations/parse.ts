@@ -59,14 +59,14 @@ import {
   type ParsedVizFull,
 } from './types';
 
+const allChartTypeIds: readonly string[] = chartTypes.map((c) => c.id);
+
 /**
  * Parses D3 chart text format into structured data. Returns the discriminated
  * {@link ParsedVisualization} union; internally the single state machine fills a
  * fat {@link ParsedVizFull} accumulator, which is a structural superset of every
  * variant, so the narrowing is sound and runtime-identical.
  */
-const allChartTypeIds: readonly string[] = chartTypes.map((c) => c.id);
-
 export function parseVisualization(
   content: string,
   palette?: PaletteColors
