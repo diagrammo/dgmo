@@ -7,6 +7,7 @@
 // parseVisualization from this module, not from d3.ts. Behavior is identical.
 // ============================================================
 
+import { chartTypes } from '../chart-types';
 import type { PaletteColors } from '../palettes';
 import { resolveColorWithDiagnostic } from '../colors';
 import {
@@ -64,6 +65,8 @@ import {
  * fat {@link ParsedVizFull} accumulator, which is a structural superset of every
  * variant, so the narrowing is sound and runtime-identical.
  */
+const allChartTypeIds: readonly string[] = chartTypes.map((c) => c.id);
+
 export function parseVisualization(
   content: string,
   palette?: PaletteColors
@@ -1362,17 +1365,33 @@ function parseVisualizationFull(
 
   // Validation
   if (!result.type) {
-    const validD3Types = [...VALID_D3_TYPES];
     const firstNonEmpty =
       lines.find((l) => l.trim() && !l.trim().startsWith('//'))?.trim() ?? '';
     // split always returns at least one element.
-    const hint = suggest(
-      firstNonEmpty.split(/\s/)[0]!.toLowerCase(),
-      validD3Types
-    );
-    let msg = `Unsupported chart type: "${firstNonEmpty.split(/\s/)[0]}". Supported types: ${validD3Types.join(', ')}`;
-    if (hint) msg += `. ${hint}`;
-    return fail(1, msg);
+    // 🔴 Suggest against EVERY chart type, and never enumerate this parser's own
+    // list. `validD3Types` is the seven types this legacy visualization parser
+    // handles; the product has 51. Until 2026-09-02 the first keystroke in a new
+    // file answered `Unsupported chart type: "f". Supported types: slope,
+    // wordcloud, arc, timeline, venn, quadrant, sequence` — the product's
+    // opening move was a wrong answer, offering a seventh of what it can draw
+    // and omitting `flowchart`, the likeliest thing the person was typing.
+    const word = firstNonEmpty.split(/\s/)[0]!;
+    const hint = suggest(word.toLowerCase(), allChartTypeIds);
+    let msg = `'${word}' is not a chart type`;
+    msg += hint
+      ? `. ${hint}`
+      : ` — line 1 names the chart type, e.g. \`bar Sales\` or \`flowchart Deploy\`.`;
+
+    // 🔴 Lead with it. This is the ROOT cause; every `Unexpected line:` already
+    // in the array is a consequence of the parser not knowing what it is
+    // reading. Consumers show the first error — the app's parse card takes
+    // `diagnostics.find(d => d.severity === 'error')` — so appending this left
+    // the person looking at a complaint about their content when the real
+    // answer was about line 1.
+    const diag = makeDgmoError(1, msg);
+    result.diagnostics.unshift(diag);
+    result.error = formatDgmoError(diag);
+    return result;
   }
 
   // Sequence diagrams are parsed by their own dedicated parser

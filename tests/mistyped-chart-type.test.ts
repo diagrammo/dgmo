@@ -52,3 +52,44 @@ describe('a first line that almost names a chart type', () => {
     expect(found('// flowchar\nflowchart D\n[A] -> [B]')).toHaveLength(0);
   });
 });
+
+// ============================================================
+// The card shown when NOTHING resolves
+// ============================================================
+//
+// This is the product's opening move: the first keystroke in a new file. Until
+// 2026-09-02 it answered `Unsupported chart type: "f". Supported types: slope,
+// wordcloud, arc, timeline, venn, quadrant, sequence` — the legacy
+// visualization parser's own seven, out of 51, omitting the likeliest answer.
+describe('the message when no chart type resolves at all', () => {
+  const first = (src: string) => validate(src).diagnostics[0]?.message ?? '';
+
+  it('never enumerates the legacy seven', () => {
+    expect(first('f')).not.toContain('wordcloud');
+    expect(first('f')).not.toContain('Supported types');
+  });
+
+  it('leads with the root cause, not a complaint about the content', () => {
+    // `ba Sales / Q1 10` also raises "Unexpected line" for both rows; the
+    // reason none of it parsed has to come first, because consumers show
+    // the first error.
+    expect(first('ba Sales\nQ1 10')).toContain("'ba' is not a chart type");
+  });
+
+  it('corrects a real typo', () => {
+    expect(first('ba Sales\nQ1 10')).toContain("Did you mean 'bar'?");
+    expect(first('flowchar')).toContain("Did you mean 'flowchart'?");
+  });
+
+  it('says what line 1 is for when there is nothing to correct', () => {
+    expect(first('xyzzy')).toContain('line 1 names the chart type');
+  });
+
+  // 🔴 A single character is not a typo, it is someone mid-word. `suggest`
+  // allowed two edits on a two-letter word — the whole word replaced — so `f`
+  // was answered "Did you mean 'c4'?" and `zz` likewise.
+  it('does not guess at one or two characters it cannot correct', () => {
+    expect(first('f')).toContain('line 1 names the chart type');
+    expect(first('zz')).toContain('line 1 names the chart type');
+  });
+});

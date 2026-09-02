@@ -254,7 +254,9 @@ describe('parseDgmo()', () => {
     const { diagnostics } = parseDgmo('bra\nFoo: 1');
     const errors = diagnostics.filter((d) => d.severity === 'error');
     expect(errors.length).toBeGreaterThanOrEqual(1);
-    expect(errors[0].message).toContain('Unsupported chart type');
+    // Wording changed 2026-09-02: the message no longer enumerates the legacy
+    // visualization parser's seven types, it names the word and suggests.
+    expect(errors[0].message).toContain('is not a chart type');
   });
 
   it('returns empty diagnostics for valid input', () => {

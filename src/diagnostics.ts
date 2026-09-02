@@ -210,7 +210,16 @@ export function suggest(
 ): string | null {
   if (!input || candidates.length === 0) return null;
   const lower = input.toLowerCase();
-  const threshold = Math.max(2, Math.floor(lower.length / 3));
+  // 🔴 Never allow an edit for every character. `max(2, len/3)` alone let a
+  // TWO-letter word match anything within two edits — the whole word replaced —
+  // so `zz` was answered "Did you mean 'c4'?", and a single letter matched half
+  // the registry. Capping at `len - 1` requires at least one character to
+  // survive, which is what makes a suggestion a correction rather than a guess.
+  // `ba` → `bar` still passes at distance 1; `f` now suggests nothing.
+  const threshold = Math.min(
+    Math.max(2, Math.floor(lower.length / 3)),
+    lower.length - 1
+  );
 
   let best: string | null = null;
   let bestDist = Infinity;

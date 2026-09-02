@@ -237,7 +237,9 @@ describe('renderDgmoBlock — invalid source bakes the error card', () => {
     // must fall through to the shared error card.
     expect(html).not.toContain('<div class="dgmo-light"></div>');
     expect(html).toContain("Couldn't render this diagram");
-    expect(html).toContain('Unsupported chart type');
+    // Wording changed 2026-09-02: the message no longer enumerates the legacy
+    // visualization parser's seven types, it names the word and suggests.
+    expect(html).toContain('is not a chart type');
     expect(diagnostics.some((d) => d.severity === 'error')).toBe(true);
   });
 
