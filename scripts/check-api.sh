@@ -24,8 +24,16 @@ DIST_DIR="${API_DIST_DIR:-dist}"
 # The hash is not public API: consumers import the named entry point and tsup
 # follows these private specifiers. Compare stable logical chunk names while
 # preserving every imported/exported symbol and the rest of each declaration.
+# 🔴 `import '\''./chunk-XXXXXXXX.js'\'';` — a BARE side-effect import, no `from` and
+# no `import(` — was not covered until 2026-09-02, so `block.d.ts` carried a
+# live hash and diffed on every rebuild that reshuffled a chunk. That looks
+# exactly like a public API change and is the shape that teaches people to
+# re-baseline without reading the diff (#638).
 normalize_chunk_hashes() {
-  sed -E "s#(from |import\\()(['\"]\\./[^'\"]+)-[A-Za-z0-9_-]{8}(\\.js['\"])#\\1\\2-HASH\\3#g" "$1"
+  sed -E \
+    -e "s#(from |import\\()(['\"]\\./[^'\"]+)-[A-Za-z0-9_-]{8}(\\.js['\"])#\\1\\2-HASH\\3#g" \
+    -e "s#^(import )(['\"]\\./[^'\"]+)-[A-Za-z0-9_-]{8}(\\.js['\"];)#\\1\\2-HASH\\3#g" \
+    "$1"
 }
 
 # The public surface is the named subpath entries only. ESM code-splitting
