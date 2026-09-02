@@ -227,7 +227,21 @@ describe('sketch emitter — the real corpus', () => {
     // produce something needing it.
     const failures: string[] = [];
     for (const file of files) {
-      const r = roundTrip(readFileSync(file, 'utf8'));
+      // ⚠️ The sweep reaches SIBLING checkouts, and this workspace runs ten
+      // agent sessions that create and remove git worktrees continuously — so
+      // a path listed a moment ago can be gone by the time it is read. That
+      // surfaced as `ENOENT ... diagrammo_app_site-deploy/content/examples/
+      // sketch/sketch.dgmo` refusing a push, for a file belonging to nobody in
+      // this repo. Losing a transient sibling costs the sweep nothing: the
+      // test above pins the two fixtures that live HERE, which is what makes
+      // this assertion non-vacuous.
+      let source: string;
+      try {
+        source = readFileSync(file, 'utf8');
+      } catch {
+        continue;
+      }
+      const r = roundTrip(source);
       if (!r.same) failures.push(`${file}: scene changed`);
       if (r.newDiagnostics.length > 0) {
         failures.push(`${file}: new ${r.newDiagnostics.join(',')}`);
