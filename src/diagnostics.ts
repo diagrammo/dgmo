@@ -346,6 +346,8 @@ export const NEGATIVE_VALUE_DX: DiagnosticSpec = {
  * offers the correction. It stays a WARNING because the diagram did render and
  * inference may genuinely be what the author wanted.
  */
+// cspell:ignore flowchar -- deliberately misspelled: it is the typo this
+// diagnostic exists to catch, and it appears in the message and the example.
 export const MISTYPED_CHART_TYPE_DX: DiagnosticSpec = {
   code: 'W_CHART_TYPE_INFERRED',
   severity: 'warning',
