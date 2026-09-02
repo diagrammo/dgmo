@@ -224,18 +224,29 @@ export async function renderDgmoBlock(
         : opts.background;
     svgsHtml =
       `<div class="${escapeAttr(innerClasses(opts, 'dgmo-light'))}" data-dgmo-bg="${escapeAttr(palette.light.bg)}">${normalizeSvgForEmbed(light, { background })}</div>` +
-      // 🔴 `hidden` is what makes a dual-render embed safe on a host that
-      // never loaded our stylesheet. The rule that hides one of the two lives
-      // only in BLOCK_CSS / remark-dgmo's client.css, and two of the five
-      // framework wrappers make the consumer import that by hand — so a
-      // forgotten import used to render the SAME diagram twice, stacked, with
-      // a green build and nothing said (issue 507, reported from a real Astro
-      // site 2026-08-26). The browser's own `[hidden] { display: none }` is
-      // user-agent origin, so ANY author rule with `display: block` still
-      // wins: the `[data-theme="dark"]`/`html.dark` overrides below keep
-      // working untouched, and the no-CSS floor becomes "the light diagram"
-      // instead of "both of them".
-      `<div class="${escapeAttr(innerClasses(opts, 'dgmo-dark'))}" data-dgmo-bg="${escapeAttr(palette.dark.bg)}" hidden>${normalizeSvgForEmbed(dark, { background })}</div>`;
+      // 🔴 An inline `display: none` is what makes a dual-render embed safe on
+      // a host that never loaded our stylesheet. The rule that hides one of
+      // the two lives only in BLOCK_CSS / remark-dgmo's client.css, and two of
+      // the five framework wrappers make the consumer import that by hand — so
+      // a forgotten import used to render the SAME diagram twice, stacked,
+      // with a green build and nothing said (issue 507, reported from a real
+      // Astro site 2026-08-26).
+      //
+      // 🔴 This was the `hidden` ATTRIBUTE until issue 647 and must never go
+      // back. Tailwind v4's preflight ships
+      //   [hidden]:where(:not([hidden='until-found'])) { display: none !important }
+      // inside `@layer base`, and an important declaration in a layer outranks
+      // an important declaration in no layer whatever its specificity — so the
+      // dark override below could not win at any strength, and every diagram
+      // on a Tailwind v4 host rendered as a zero-height empty box in dark mode
+      // (measured on diagrammo.app/compare/, 2026-09-02). An inline style is
+      // plain author origin, which `display: block !important` beats.
+      //
+      // The cost, accepted: a host whose Content-Security-Policy forbids inline
+      // styles drops this attribute, and its no-stylesheet floor goes back to
+      // "both diagrams". A page that DID load the stylesheet is unaffected —
+      // `.dgmo-dark { display: none }` covers it.
+      `<div class="${escapeAttr(innerClasses(opts, 'dgmo-dark'))}" data-dgmo-bg="${escapeAttr(palette.dark.bg)}" style="display:none">${normalizeSvgForEmbed(dark, { background })}</div>`;
   } else {
     const svg = await renderTheme(opts.colorMode);
     const background =

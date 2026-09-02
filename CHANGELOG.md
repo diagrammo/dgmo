@@ -5,6 +5,28 @@ All notable changes to `@diagrammo/dgmo` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.82.0] - 2026-09-02
+
+### Fixed
+
+- **Every diagram on a Tailwind v4 site was blank in dark mode.** A dual-render
+  block ships both a light and a dark SVG and lets CSS pick one; the dark
+  wrapper carried the `hidden` attribute so a page that never loaded the block
+  stylesheet would show one diagram rather than two. Tailwind v4's preflight
+  hides `[hidden]` with `!important` from inside `@layer base`, and for
+  important declarations a layered rule outranks an unlayered one at any
+  specificity — so the dark override could not win at any strength. The light
+  wrapper was hidden by our own rule, the dark one by Tailwind's, and the block
+  collapsed to a zero-height empty box. Measured on diagrammo.app, where all 11
+  diagrams on the comparison page and all 8 on a blog post were blank.
+
+  The dark wrapper is now hidden by an inline `display: none` instead, and the
+  two reveal rules in `BLOCK_CSS` are `!important` so they beat it. The
+  no-stylesheet floor is unchanged. One host is worse off than before: a site
+  whose Content-Security-Policy forbids inline styles drops the attribute, and
+  its floor goes back to both diagrams — a page that loaded the stylesheet is
+  unaffected either way.
+
 ## [0.81.0] - 2026-09-02
 
 ### Added

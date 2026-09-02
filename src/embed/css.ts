@@ -38,9 +38,16 @@ export const BLOCK_CSS: string = `
  * swallowed into a rule they then emit as garbage. */
 
 /* === Color-mode visibility (dual-render) ===
- * The dark wrapper also carries the "hidden" ATTRIBUTE, so a page that never
+ * The dark wrapper also carries an inline display:none, so a page that never
  * loaded this stylesheet shows the light diagram rather than both of them.
- * Every rule below is author-origin and therefore still overrides it.
+ * The two reveal rules are !important because of it: an inline declaration
+ * outranks every normal author rule, and only an important one beats it.
+ *
+ * That inline style replaced the "hidden" ATTRIBUTE in issue 647. Tailwind v4
+ * hides [hidden] with !important from inside a cascade layer, and a layered
+ * important declaration outranks an unlayered one at ANY specificity — so no
+ * rule here could reveal the dark wrapper, and every diagram on a Tailwind v4
+ * host was a zero-height empty box in dark mode.
  * Keep the two host conventions in separate rule blocks — the adapters
  * rewrite by literal replace and a folded rule would half-rewrite. */
 .dgmo-dark {
@@ -50,13 +57,13 @@ export const BLOCK_CSS: string = `
   display: none;
 }
 [data-theme="dark"] .dgmo-dark {
-  display: block;
+  display: block !important;
 }
 html.dark .dgmo-light {
   display: none;
 }
 html.dark .dgmo-dark {
-  display: block;
+  display: block !important;
 }
 
 /* === Diagram sizing ===
