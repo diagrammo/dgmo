@@ -55,7 +55,7 @@ unpkg works the same way — swap the host for `unpkg.com/`.
 
 ## What you get
 
-40+ chart types from one text format: flowcharts, sequence diagrams,
+50+ chart types from one text format: flowcharts, sequence diagrams,
 timelines, org charts, gantt, maps, and the usual bar/line/pie family. The
 renderer infers the chart type from what you wrote, so there is one syntax to
 learn rather than one per chart.

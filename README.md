@@ -4,7 +4,7 @@
 
 ### Simple text in. Brilliant diagrams out.
 
-Write plain-text `.dgmo` files, get clean, themeable diagrams and charts. One markup language, **45+ chart types** — flowcharts, sequence diagrams, ER, org charts, C4, gantt, maps, bar/line/pie, and a lot more.
+Write plain-text `.dgmo` files, get clean, themeable diagrams and charts. One markup language, **50+ chart types** — flowcharts, sequence diagrams, ER, org charts, C4, gantt, maps, bar/line/pie, and a lot more.
 
 [![npm](https://img.shields.io/npm/v/@diagrammo/dgmo?color=2e7d32&label=npm)](https://www.npmjs.com/package/@diagrammo/dgmo)
 [![npm downloads](https://img.shields.io/npm/dm/@diagrammo/dgmo?color=blue)](https://www.npmjs.com/package/@diagrammo/dgmo)
@@ -143,7 +143,7 @@ It auto-detects Claude Code, Codex, Claude Desktop, Cursor, Windsurf, and Copilo
 
 _Beta — expect rough edges and syntax changes: **c4**, **sketch**, **venn**. `dgmo types` marks them too._
 
-All **45 chart types** are categorized with live examples at **[diagrammo.app/reference](https://diagrammo.app/reference)**.
+**Every chart type** is categorized with live examples at **[diagrammo.app/reference](https://diagrammo.app/reference)**.
 
 Each type's full syntax, directives, and options live in the **[Language Reference](https://diagrammo.app/reference)** — the authoritative spec.
 
