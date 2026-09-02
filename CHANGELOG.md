@@ -5,7 +5,24 @@ All notable changes to `@diagrammo/dgmo` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.81.0] - 2026-09-02
+
+### Added
+
+- **A first line that almost names a chart type now says so.** The router does
+  not fail when line 1 is not a known type — it falls through to content
+  inference, and that is a supported path, so `flowchar Deploy` over
+  `[A] -> [B]` drew a sequence and the only thing said about it was a warning
+  phrased in the vocabulary of a chart the author never chose. The warning now
+  names the word that was not understood, says what was drawn instead, and
+  offers the correction. It stays a warning, because the diagram did render.
+
+  Two guards keep it quiet: it considers only a lowercase bare first word — every
+  chart type id is lowercase, while the first token of an inferred diagram is
+  usually a capitalised name — and it says nothing when there is no declaration
+  at all. `graph` and `journey` are mapped explicitly, edit distance being unable
+  to reach them, because arriving from Mermaid is the commonest way to type a
+  first line DGMO does not know.
 
 ### Changed
 
@@ -35,6 +52,101 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `tests/light-entries-stay-light.test.ts` holds the four light entries to a
   ceiling on how many source modules they may reach, and asserts specifically
   that `chart-meta` cannot see `chart-type-registry` or `dgmo-router` again.
+
+### Fixed
+
+- **Boxes-and-lines arrowheads were painted at the node centres, under the
+  boxes.** Reported from inside the app on an OAuth flow: all 13 arrowheads sat
+  at their target node's exact centre, and since edges paint before nodes each
+  one was drawn and then covered by that node's own opaque rect — the direction
+  of every flow in the diagram, gone, with no diagnostic. Three independent
+  causes stacked on one file, which is why fixing any one of them still left
+  arrowheads buried: the hand-rolled candidate generators routed centre to
+  centre and never clipped to the node boundary; dagre's own `intersectRect`
+  throws on some configurations and the edges it cannot solve kept the centre;
+  and the renderer's parallel-edge fan rebuilt a port from two coordinate
+  sources, taking x from the routed polyline and y from the node centre. The
+  clip is now shared and applied in the generators and once more over the
+  winning layout, and the fan takes both coordinates from the polyline.
+
+  The gallery could not catch this: the committed baseline for this chart type's
+  flagship fixture had every one of its 14 arrowheads buried too, so the
+  reference image had been certifying a picture in which no edge shows its
+  direction. That one fixture is re-baselined, out of 105.
+
+- **An edge label lands on the line it names.** Five of thirteen labels on a
+  reported diagram sat over blank canvas, the worst 216px from its edge, four of
+  them parked in a column touching nothing. Layout was never at fault — across
+  247 labels in 53 real diagrams none lands more than 40px from its edge as
+  placement computes it. The renderer was a second source of geometry: the
+  parallel-edge fan set an offset and left the routed points alone, so labels
+  were placed against the routed polyline while the renderer discarded it and
+  drew a fan from the endpoints. The fan is now built during layout, before
+  labels are placed, and the renderer draws those points verbatim — one
+  geometry, so a label cannot be placed on a curve nobody draws. The drawn
+  picture is unchanged; the same formula runs one step earlier.
+
+- **A two-way pair of edges no longer draws as an X.** `A -> B` with `B -> A` is
+  fanned into two lanes, and the offsets were handed out by each edge's index in
+  its group — blind to the fact that the router has usually separated the two
+  ends already, so the pair could be given exactly the offsets that drag each
+  edge across the other. The lane order now comes from where each edge's own
+  ports sit, and the offset runs perpendicular to the line between the two
+  boxes rather than straight down the page, which is what a plain y offset gave
+  and which separates nothing on a top-to-bottom diagram. Measured over the 43
+  real boxes-and-lines diagrams here, crossings from two-way pairs go 7 → 0 and
+  overlap runs 10 → 2.
+
+- **An edge's explicit `color:` reaches the stroke.** §1.5 documents the long
+  form as the only way to colour an edge, and the value arrived on the layout
+  edge correctly — but edge colour consulted tag metadata and nothing else, so
+  `A -calls-> B color: red` parsed clean, warned about nothing, and drew in the
+  default stroke. An explicit colour now wins over a tag-derived one: a tag names
+  a category that happens to have a colour, where `color:` is the author naming
+  this edge's colour outright. The arrowhead follows, the marker set being keyed
+  on the resolved colour.
+
+- **A numbered heatmap row label is a label, not the first value of the row.**
+  `columns` fixes an exact value count, so `Compound 1 5 4 3` against three
+  columns was never ambiguous — but the heatmap path asked for the values
+  without saying how many it expected, so the greedy trailing-number walk ate
+  the `1`. The label became `Compound`, the row carried four values against
+  three columns, every cell shifted one column left, and nothing warned. A
+  plausible-looking heatmap with every cell in the wrong place is the worst
+  shape a parse failure can take. Reported from outside against 0.75.0.
+
+- **The first keystroke gets a real answer.** Typing `f` into an empty file was
+  answered with the legacy parser's own seven supported types out of 51,
+  omitting `flowchart` — the likeliest thing the person was starting to type —
+  and that message is what the app's parse card shows, so it was the product's
+  opening move. It now names the word, suggests against every chart type, and
+  when there is nothing to correct says what line 1 is for with two examples.
+  It also leads rather than trails, being the root cause of the complaints about
+  the lines beneath it. And a suggestion now requires at least one character of
+  the original to survive, so `f` and `zz` get no suggestion instead of a
+  confident wrong one.
+
+- **A transposition counts as one slip, and ties are broken on purpose.** Plain
+  edit distance charges 2 for the commonest typing slip — right keys, wrong
+  order — where a person sees one, which on short chart type ids is the
+  difference between a right answer and a wrong one. Distance is now optimal
+  string alignment, so `bra` is 1 from `bar` and `sequnece` reaches `sequence`
+  at 1. Ties no longer fall to registry order either, which had made
+  two-character ids magnets: almost any three-character typo sits within two
+  edits of `er` or `c4`, and both `bra` and `pei` were answered "Did you mean
+  'er'?". A candidate sharing the input's first letter now wins, then one closer
+  in length.
+
+- **`parseVisualization`'s documentation is published again.** A const inserted
+  between the JSDoc block and the function it documents stopped the comment
+  attaching to anything exported, so it dropped out of the published type
+  declarations — a change to the public type surface, caught by the API
+  tripwire. Also fixes that tripwire's own blind spot: it normalised
+  `from './x-HASH.js'` and `import('./x-HASH.js')` but not the bare
+  `import './chunk-HASH.js';` form, which is most of `block.d.ts`, so that file
+  diffed against its baseline on any build that reshuffled a chunk and the
+  printed advice was to re-baseline. A tripwire that cries wolf a few times is
+  decoration.
 
 ## [0.80.0] - 2026-09-01
 
