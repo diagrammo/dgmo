@@ -91,7 +91,7 @@ function parseNodeToken(raw: string): NodeTokenResult {
         shape: 'exclusive',
         event: 'none',
         label: inner.replace(/^o\s*/, '').trim(),
-        unsupported: 'inclusive gateway (<o …>) is fast-follow',
+        unsupported: 'inclusive gateway (<o …>) is not supported',
       };
     }
     if (inner.startsWith('* ') || inner === '*') {
@@ -99,7 +99,7 @@ function parseNodeToken(raw: string): NodeTokenResult {
         shape: 'exclusive',
         event: 'none',
         label: inner.replace(/^\*\s*/, '').trim(),
-        unsupported: 'event-based gateway (<* …>) is fast-follow',
+        unsupported: 'event-based gateway (<* …>) is not supported',
       };
     }
     return { shape: 'exclusive', event: 'none', label: inner };
@@ -459,7 +459,7 @@ export function parseSwimlane(
       if (k === 'note') {
         diagnostics.push(
           emit(SWIMLANE_DX.UNSUPPORTED, lineNum, {
-            reason: 'notes are deferred past v1',
+            reason: 'notes are not supported',
           })
         );
         continue;
@@ -467,7 +467,7 @@ export function parseSwimlane(
       if (k === 'data') {
         diagnostics.push(
           emit(SWIMLANE_DX.UNSUPPORTED, lineNum, {
-            reason: 'data objects are deferred past v1',
+            reason: 'data objects are not supported',
           })
         );
         continue;
@@ -732,7 +732,7 @@ export function parseSwimlane(
       if (trimmed.includes('~>')) {
         diagnostics.push(
           emit(SWIMLANE_DX.UNSUPPORTED, lineNum, {
-            reason: 'message flow (~>) is fast-follow',
+            reason: 'message flow (~>) is not supported',
           })
         );
         continue;

@@ -42,8 +42,7 @@ export const VERSION_CONTROL_DX = {
     message: (p) => {
       const op = (p.op as string) ?? 'merge';
       const branch = (p.branch as string) ?? 'ghostbranch';
-      const section = (p.section as string) ?? '§29.4';
-      return `${op} references unknown branch "${branch}". (${section})`;
+      return `${op} references unknown branch "${branch}".`;
     },
     hint: 'Declare the branch (a bare top-level line) before referencing it in merge/rebase/reset.',
     example: 'version-control U\n\nmain\n  A\n  merge ghostbranch',
@@ -56,7 +55,7 @@ export const VERSION_CONTROL_DX = {
     message: (p) => {
       const ref = (p.ref as string) ?? 'Fix';
       const count = (p.count as number | string) ?? 2;
-      return `Commit reference "${ref}" matches ${count} commits — use an explicit id:. (§29.10)`;
+      return `Commit reference "${ref}" matches ${count} commits — use an explicit id:.`;
     },
     hint: 'Give the target commit an `id:` and reference that id, or make the message unique.',
     example: 'version-control A\n\nmain\n  Fix\n  Fix\n  cherry-pick Fix',

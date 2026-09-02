@@ -81,7 +81,7 @@ lane L
 [Start]`,
   },
   // One code, many wordings — the call site passes the exact `reason`:
-  //   parseNodeToken: 'inclusive gateway (<o …>) is fast-follow', event-based,
+  //   parseNodeToken: 'inclusive gateway (<o …>) is not supported', event-based,
   //                   timer|message|signal events; declareNode: 'notes are
   //                   deferred past v1', 'data objects are deferred past v1',
   //                   `${k} events are fast-follow`; addChain: 'message flow
@@ -94,8 +94,8 @@ lane L
     message: (p) =>
       typeof p.reason === 'string' && p.reason
         ? p.reason
-        : 'inclusive gateway (<o …>) is fast-follow',
-    hint: 'This construct is deferred past v1 / fast-follow — remove it or use a supported shape, event, or flow.',
+        : 'inclusive gateway (<o …>) is not supported',
+    hint: 'Remove it, or use a supported shape, event, or flow.',
     example: `swimlane T
 lane L
 L

@@ -63,7 +63,7 @@ export const EVENT_LINE_DX = {
     message: (p) =>
       typeof p.reason === 'string' && p.reason
         ? p.reason
-        : 'event-line is horizontal-only in v1; `direction-tb` (vertical orientation) is a fast-follow.',
+        : 'event-line runs horizontally. `direction-tb` (vertical orientation) is not supported — remove it.',
     hint: 'Only horizontal (`direction-lr`) is supported; use `[Name]` era brackets (not `section`); events are single points, not date ranges (`->`).',
     example: `event-line X
 direction-tb

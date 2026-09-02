@@ -724,7 +724,7 @@ export function parseSketch(
         // sketch source (tech-spec-sketch-rebuild.md §2), so the grammar checks.
         pushError(
           lineNumber,
-          `Box "${label}" is nested ${depth} levels deep — sketch boxes nest to depth ${MAX_BOX_DEPTH} (decision #58); its shapes join the box above it`,
+          `Box "${label}" is nested ${depth} levels deep — sketch boxes nest to depth ${MAX_BOX_DEPTH}; its shapes join the box above it`,
           SKETCH_DIAGNOSTIC_CODES.BOX_DEPTH
         );
         continue;

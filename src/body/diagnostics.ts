@@ -43,7 +43,7 @@ xyz  effort: Primary`,
     title: 'Figure not available',
     message: (p) =>
       `The ${p.figure ?? 'female back skin'} figure isn't available yet; rendering the male front-view muscle figure instead.`,
-    hint: 'This build ships only male / front / muscle. Other forms/views are a fast-follow.',
+    hint: 'This build ships only male / front / muscle. Use one of those.',
     example: `body
 
 female

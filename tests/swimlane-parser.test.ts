@@ -105,13 +105,16 @@ lane L
   });
 });
 
-describe('swimlane parser — per-token fast-follow rejection (AC12)', () => {
+// The wording moved from roadmap status to what the author should do
+// (2026-09-01) — these diagnostics are shown to someone drawing a diagram, not
+// to someone reading the plan.
+describe('swimlane parser — per-token unsupported-construct rejection (AC12)', () => {
   const cases: Array<[string, string]> = [
     ['<o Maybe>', 'inclusive'],
     ['<* Pick>', 'event-based'],
     ['Foo timer: 5d', 'timer'],
-    ['Foo note: hi', 'notes are deferred'],
-    ['Foo data: x', 'data objects are deferred'],
+    ['Foo note: hi', 'notes are not supported'],
+    ['Foo data: x', 'data objects are not supported'],
   ];
   for (const [token, needle] of cases) {
     it(`rejects ${token} with E_SWIMLANE_UNSUPPORTED`, () => {

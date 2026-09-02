@@ -170,7 +170,6 @@ export function parseVersionControl(
         emit(VERSION_CONTROL_DX.UNKNOWN_BRANCH, lineNumber, {
           op: 'rebase',
           branch: !fbr ? fb : tb,
-          section: '§29.8',
         })
       );
       return;
@@ -283,7 +282,6 @@ export function parseVersionControl(
             emit(VERSION_CONTROL_DX.UNKNOWN_BRANCH, lineNumber, {
               op: 'reset',
               branch: m[1]!.trim(),
-              section: '§29.8',
             })
           );
         } else if (tgt) {
@@ -349,7 +347,6 @@ export function parseVersionControl(
           emit(VERSION_CONTROL_DX.UNKNOWN_BRANCH, lineNumber, {
             op: 'merge',
             branch: src,
-            section: '§29.4',
           })
         );
       }

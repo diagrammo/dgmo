@@ -19,7 +19,7 @@ export const SKETCH_DIAGNOSTICS: DiagnosticSpec[] = [
     chartType: 'sketch',
     title: 'Box nested too deep',
     message: (p) =>
-      `Box "${String(p.label ?? '?')}" is nested ${String(p.depth ?? '?')} levels deep — sketch boxes nest to depth ${String(p.max ?? '?')} (decision #58); its shapes join the box above it`,
+      `Box "${String(p.label ?? '?')}" is nested ${String(p.depth ?? '?')} levels deep — sketch boxes nest to depth ${String(p.max ?? '?')}; its shapes join the box above it`,
     hint: 'Move the inner [Box] up a level — two levels of bracket is the bound.',
     example: 'sketch\n[Outer]\n  [Inner]\n    Shape',
   },

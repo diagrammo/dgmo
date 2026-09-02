@@ -458,7 +458,7 @@ export function parseEventLine(
         result.diagnostics.push(
           emit(EVENT_LINE_DX.UNSUPPORTED, lineNumber, {
             reason:
-              'event-line is horizontal-only in v1; `direction-tb` (vertical orientation) is a fast-follow.',
+              'event-line runs horizontally. `direction-tb` (vertical orientation) is not supported — remove it.',
           })
         );
         continue;
@@ -469,7 +469,7 @@ export function parseEventLine(
         if (dir !== 'LR') {
           result.diagnostics.push(
             emit(EVENT_LINE_DX.UNSUPPORTED, lineNumber, {
-              reason: `event-line is horizontal-only in v1; \`direction ${dir}\` (vertical orientation) is a fast-follow.`,
+              reason: `event-line runs horizontally. \`direction ${dir}\` (vertical orientation) is not supported — remove it.`,
             })
           );
         }

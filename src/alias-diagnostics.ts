@@ -20,7 +20,7 @@ export const ALIAS_INVALID_FORMAT_DX: DiagnosticSpec = {
   chartType: null,
   title: 'Malformed alias',
   message: (p) =>
-    `Alias '${String(p.alias ?? 'pm-cluster')}' must match [A-Za-z][A-Za-z0-9_]{0,11} (letter start, letters/digits/underscore, max 12 chars).`,
+    `Alias '${String(p.alias ?? 'pm-cluster')}' must start with a letter and use only letters, digits and underscores, up to 12 characters.`,
   hint: 'Shorten the alias or drop the hyphen — a malformed one is not peeled off, so the whole `Name as …` string becomes the name.',
   example: 'org\nAlice as thirteencharss\n  Bob as b\n',
 };
