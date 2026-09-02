@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`@diagrammo/dgmo/chart-meta` is now the light entry it says it is.** Asking
+  it one question — `parseDgmoChartType`, "what kind of diagram is this?" —
+  pulled **1,117,251 bytes** into a consumer's bundle, measured with a one-line
+  Vite app importing that single symbol. It now pulls **44,620**, a 96%
+  reduction, and nothing about the function changed.
+
+  The function had been sitting in `dgmo-router.ts`, which also owns `parseDgmo`
+  and for that builds `chartTypeParsers` by mapping `CHART_TYPE_REGISTRY` at
+  module scope — a top-level `.map()` over a table holding a live `parse`
+  reference for all 51 chart types, which no bundler will remove. So importing
+  *any* symbol from that module pulled every parser in the library. Detection
+  moves to `src/chart-type-detect.ts`, which imports no registry;
+  `dgmo-router` re-exports it, so no caller changes and no export is removed.
+
+  The eight `looksLike*` inference predicates were **not** the weight, though
+  they look like the obvious suspect — removing inference entirely saved 5,598
+  of the 1.1 MB. Nor were the 61 bare side-effect chunk imports in the emitted
+  entry: forcing `"sideEffects": false` produced a byte-identical bundle.
+
+  Every consumer that reads a chart type on a startup path gets this back —
+  the desktop app's launch payload falls from 1,683,736 to 1,149,114 bytes
+  (−32%, 36 fewer chunks) on this change alone.
+
+  `tests/light-entries-stay-light.test.ts` holds the four light entries to a
+  ceiling on how many source modules they may reach, and asserts specifically
+  that `chart-meta` cannot see `chart-type-registry` or `dgmo-router` again.
+
 ## [0.80.0] - 2026-09-01
 
 ### Added
