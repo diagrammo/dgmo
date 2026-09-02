@@ -23,7 +23,7 @@
 // inference entirely saved 5,598 bytes of the 1.1 MB.
 //
 // So: nothing here may import `./chart-type-registry`, `./diagnostics-registry`
-// or anything else that materialises the parser table. Detection answers a
+// or anything else that builds the parser table. Detection answers a
 // question ABOUT source; parsing consumes it. Keep them apart.
 
 import { looksLikeSequence } from './sequence/parser';

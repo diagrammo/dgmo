@@ -19,7 +19,7 @@ export type { ChartTypeMeta, ChartTypeId } from './chart-types';
 // ── First-line parsing + chart-type detection ────────────────
 export { parseFirstLine, ALL_CHART_TYPES } from './utils/parsing';
 // From './chart-type-detect', NOT './dgmo-router'. Same function, and the
-// router still re-exports it for everyone else — but the router materialises
+// router still re-exports it for everyone else — but the router builds
 // the parser table at module scope, so importing it from there made this
 // "light" entry cost 1.1 MB (#638).
 export { parseDgmoChartType } from './chart-type-detect';
