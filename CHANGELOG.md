@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and for that builds `chartTypeParsers` by mapping `CHART_TYPE_REGISTRY` at
   module scope — a top-level `.map()` over a table holding a live `parse`
   reference for all 51 chart types, which no bundler will remove. So importing
-  *any* symbol from that module pulled every parser in the library. Detection
+  _any_ symbol from that module pulled every parser in the library. Detection
   moves to `src/chart-type-detect.ts`, which imports no registry;
   `dgmo-router` re-exports it, so no caller changes and no export is removed.
 
