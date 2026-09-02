@@ -179,24 +179,39 @@ export function makeFail<
  * Simple Levenshtein distance between two strings.
  */
 function levenshtein(a: string, b: string): number {
+  // Optimal string alignment, not plain Levenshtein: a TRANSPOSITION costs 1.
+  //
+  // 🔴 Right keys, wrong order is the commonest typing slip, and plain
+  // Levenshtein charges 2 for it — two substitutions — where a person sees one.
+  // On short chart-type ids that is the difference between a right answer and a
+  // wrong one, because the threshold is tight: measured 2026-09-02 against the
+  // real registry, `bra` scored `er` at 2 and `bar` at 2 and lost the tie, and
+  // `pei` did the same. Under OSA they are `bar` at 1 and `pie` at 1.
+  //
+  // ⚠️ A full matrix, where this used to roll a single row. OSA reads the row
+  // TWO steps back (`dp[i-2][j-2]`), which one rolling row cannot hold. Chart
+  // type ids are under twenty characters, so the allocation is irrelevant.
   const m = a.length;
   const n = b.length;
-  const dp: number[] = Array(n + 1)
-    .fill(0)
-    .map((_, i) => i);
+  const dp: number[][] = Array.from({ length: m + 1 }, (_, i) =>
+    Array.from({ length: n + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0))
+  );
 
   for (let i = 1; i <= m; i++) {
-    // dp has length n+1, all indices 0..n are valid by construction.
-    let prev = dp[0]!;
-    dp[0] = i;
     for (let j = 1; j <= n; j++) {
-      const tmp = dp[j]!;
-      dp[j] =
-        a[i - 1] === b[j - 1] ? prev : 1 + Math.min(prev, dp[j]!, dp[j - 1]!);
-      prev = tmp;
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      let best = Math.min(
+        dp[i - 1]![j]! + 1, // deletion
+        dp[i]![j - 1]! + 1, // insertion
+        dp[i - 1]![j - 1]! + cost // substitution
+      );
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+        best = Math.min(best, dp[i - 2]![j - 2]! + 1); // transposition
+      }
+      dp[i]![j] = best;
     }
   }
-  return dp[n]!;
+  return dp[m]![n]!;
 }
 
 /**
@@ -223,11 +238,25 @@ export function suggest(
 
   let best: string | null = null;
   let bestDist = Infinity;
+  let bestTie = Infinity;
 
   for (const c of candidates) {
-    const dist = levenshtein(lower, c.toLowerCase());
-    if (dist < bestDist && dist <= threshold && dist > 0) {
+    const lc = c.toLowerCase();
+    const dist = levenshtein(lower, lc);
+    if (dist === 0 || dist > threshold) continue;
+
+    // 🔴 Break ties deliberately, because the loop used to take the first
+    // candidate at the minimum — i.e. registry order decided. Two-character
+    // ids are magnets: almost any three-character typo sits within two edits of
+    // `er` or `c4`, so `bra` and `pei` were both answered "Did you mean 'er'?".
+    // Prefer a candidate that starts with the same letter, then one closer in
+    // length. A wrong suggestion is worse than none — it sends the reader to
+    // look up a chart type they have never heard of.
+    const tie =
+      (lower[0] === lc[0] ? 0 : 100) + Math.abs(lower.length - lc.length);
+    if (dist < bestDist || (dist === bestDist && tie < bestTie)) {
       bestDist = dist;
+      bestTie = tie;
       best = c;
     }
   }

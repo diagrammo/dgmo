@@ -93,3 +93,43 @@ describe('the message when no chart type resolves at all', () => {
     expect(first('zz')).toContain('line 1 names the chart type');
   });
 });
+
+// ============================================================
+// What counts as "close enough" to suggest
+// ============================================================
+//
+// Two faults, fixed together on 2026-09-02 because they break the same
+// assertions. Plain Levenshtein charged 2 for a TRANSPOSITION — right keys,
+// wrong order, the commonest typing slip — and the loop took the first
+// candidate at the minimum, so registry order decided ties. Between them,
+// `bra` and `pei` were both answered "Did you mean 'er'?".
+describe('choosing which chart type to suggest', () => {
+  const suggestion = (word: string): string | null => {
+    const msg = validate(`${word} T\nQ1 10`).diagnostics[0]?.message ?? '';
+    return msg.match(/Did you mean '([^']+)'/)?.[1] ?? null;
+  };
+
+  it('reads a transposition as one slip, not two', () => {
+    expect(suggestion('bra')).toBe('bar');
+    expect(suggestion('pei')).toBe('pie');
+    expect(suggestion('sequnece')).toBe('sequence');
+  });
+
+  it('still corrects an ordinary single edit', () => {
+    expect(suggestion('flowchar')).toBe('flowchart');
+    expect(suggestion('ba')).toBe('bar');
+  });
+
+  // 🔴 The magnet. A two-character id sits within two edits of almost any
+  // three-character typo, so `er` and `c4` won on registry order alone.
+  it('does not answer a three-letter typo with a two-letter id', () => {
+    expect(suggestion('bra')).not.toBe('er');
+    expect(suggestion('pei')).not.toBe('er');
+  });
+
+  it('declines when nothing is close enough', () => {
+    expect(suggestion('zz')).toBeNull();
+    expect(suggestion('f')).toBeNull();
+    expect(suggestion('tabel')).toBeNull();
+  });
+});
