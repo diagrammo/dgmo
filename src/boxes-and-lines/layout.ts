@@ -373,11 +373,25 @@ function attachNotes(
 
 /**
  * Assign parallel-edge fan offsets on any layout (engine-agnostic). Edges sharing
- * an unordered {source,target} pair are bundled at their ports and spread in the
- * middle by the renderer using `yOffset`/`parallelCount`; beyond `MAX_PARALLEL_EDGES`
- * the extras are dropped (`parallelCount: 0` ⇒ renderer skips them). The ELK path
- * computes this inside extractLayout; the search engine produces a single set of
- * points per pair, so it needs the same offsets applied here.
+ * an unordered {source,target} pair are spread into lanes either side of the line
+ * joining their two boxes; beyond `MAX_PARALLEL_EDGES` the extras are dropped
+ * (`parallelCount: 0` ⇒ renderer skips them). The ELK path computes this inside
+ * extractLayout; the search engine produces a single set of points per pair, so it
+ * needs the same offsets applied here.
+ *
+ * 🔴 The lane order comes from the PORTS, not from the edge's index in the group.
+ * Assigning by index was blind to the fact that the router has usually separated
+ * the two ends already, so a two-way pair could be handed the offsets that drag
+ * each edge across the other: on a bare two-node diagram the A→B edge left both
+ * boxes 19px BELOW the B→A edge and was then pushed 11px above it in the middle,
+ * leaving the two curves 2.8px apart and reading as one line. On a real diagram
+ * with a wider port gap the same swap became two true crossings per pair, and the
+ * two-way pairs were the only thing crossing on the whole canvas (#642).
+ *
+ * 🔴 The offset runs PERPENDICULAR to that line, not down the page. A plain y
+ * offset is a sideways spread only while the pair happens to be horizontal; on a
+ * TB diagram the two boxes sit above one another and shifting in y moves the lane
+ * ALONG its own edge, separating nothing.
  */
 function applyParallelEdgeOffsets(layout: BLLayoutResult): BLLayoutResult {
   const groups = new Map<string, number[]>();
@@ -391,15 +405,58 @@ function applyParallelEdgeOffsets(layout: BLLayoutResult): BLLayoutResult {
   });
   if ([...groups.values()].every((g) => g.length < 2)) return layout;
 
+  // Endpoint boxes, so a group can be given a direction. Collapsed groups are
+  // edge endpoints too (`__group_<label>`), exactly as in the pierce detector.
+  const centre = new Map<string, { x: number; y: number }>();
+  for (const n of layout.nodes) centre.set(n.label, { x: n.x, y: n.y });
+  for (const g of layout.groups)
+    if (g.collapsed) centre.set('__group_' + g.label, { x: g.x, y: g.y });
+
   const yOffset = new Array(layout.edges.length).fill(0);
   const count = new Array(layout.edges.length).fill(1);
-  for (const idxs of groups.values()) {
+  const normal: ({ x: number; y: number } | undefined)[] = new Array(
+    layout.edges.length
+  ).fill(undefined);
+  for (const [key, idxs] of groups) {
     const capped = idxs.slice(0, MAX_PARALLEL_EDGES);
     for (const drop of idxs.slice(MAX_PARALLEL_EDGES)) count[drop] = 0;
     if (capped.length < 2) continue;
-    capped.forEach((idx, j) => {
+
+    // Lane direction: perpendicular to the line between the two boxes. A self
+    // pair, or an endpoint that isn't a box, leaves the old straight-down
+    // normal — the renderer's self-loop path draws those, not this fan.
+    const sep = key.indexOf('\x00');
+    const ca = centre.get(key.slice(0, sep));
+    const cb = centre.get(key.slice(sep + 1));
+    let nx = 0;
+    let ny = 1;
+    if (ca && cb) {
+      const dx = cb.x - ca.x;
+      const dy = cb.y - ca.y;
+      const len = Math.hypot(dx, dy);
+      if (len > 1e-6) {
+        nx = -dy / len;
+        ny = dx / len;
+      }
+    }
+
+    // Where each edge's own ports already sit on that axis. Ties keep the
+    // group's insertion order, so the assignment stays deterministic.
+    const ordered = capped
+      .map((idx) => {
+        const pts = layout.edges[idx]!.points;
+        const p0 = pts[0];
+        const p1 = pts[pts.length - 1];
+        const mx = ((p0?.x ?? 0) + (p1?.x ?? 0)) / 2;
+        const my = ((p0?.y ?? 0) + (p1?.y ?? 0)) / 2;
+        return { idx, along: mx * nx + my * ny };
+      })
+      .sort((p, q) => p.along - q.along || p.idx - q.idx);
+
+    ordered.forEach(({ idx }, j) => {
       yOffset[idx] = (j - (capped.length - 1) / 2) * PARALLEL_SPACING;
       count[idx] = capped.length;
+      normal[idx] = { x: nx, y: ny };
     });
   }
   return {
@@ -420,16 +477,23 @@ function applyParallelEdgeOffsets(layout: BLLayoutResult): BLLayoutResult {
       const s = e.points[0];
       const t = e.points[e.points.length - 1];
       if (!s || !t) return base;
-      const midX = (s.x + t.x) / 2;
-      const midY = (s.y + t.y) / 2;
+      const n = normal[i] ?? { x: 0, y: 1 };
+      // A point `u` of the way along the straight port-to-port line, pushed
+      // `k · off` off it along the lane normal. Interpolating BOTH coordinates
+      // is what keeps a slanted pair straight — the y used to be pinned to the
+      // near port's y while x moved, which kinked every non-horizontal fan.
+      const at = (u: number, k: number) => ({
+        x: s.x + (t.x - s.x) * u + n.x * off * k,
+        y: s.y + (t.y - s.y) * u + n.y * off * k,
+      });
       return {
         ...base,
         points: [
-          { x: s.x, y: s.y }, // port (bundled)
-          { x: s.x + (midX - s.x) * 0.3, y: s.y + off * 0.5 }, // separate
-          { x: midX, y: midY + off }, // full spread
-          { x: t.x - (t.x - midX) * 0.3, y: t.y + off * 0.5 }, // converge
-          { x: t.x, y: t.y }, // port (bundled)
+          { x: s.x, y: s.y }, // port
+          at(0.15, 0.5), // separate
+          at(0.5, 1), // full spread
+          at(0.85, 0.5), // converge
+          { x: t.x, y: t.y }, // port
         ],
       };
     }),
