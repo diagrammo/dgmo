@@ -29,21 +29,38 @@ describe('renderDgmoBlock — standard embed block', () => {
 
   // Issue 507: two of the five framework wrappers make the consumer import
   // the color-mode stylesheet by hand, so a forgotten import rendered the
-  // SAME diagram twice, stacked. `hidden` is user-agent origin, so this is a
-  // floor rather than a lock — every author rule below still overrides it.
-  it('dual-render: the dark wrapper is `hidden`, so a page with no stylesheet shows one diagram', async () => {
+  // SAME diagram twice, stacked. The inline rule is a floor rather than a
+  // lock — BLOCK_CSS reveals the dark wrapper with `!important`, which beats
+  // a normal inline declaration.
+  it('dual-render: the dark wrapper is inline-hidden, so a page with no stylesheet shows one diagram', async () => {
     const { html } = await renderDgmoBlock(PIE);
     expect(html).toContain('class="dgmo-dark"');
-    expect(html).toMatch(/<div class="dgmo-dark"[^>]*\shidden>/);
+    expect(html).toMatch(/<div class="dgmo-dark"[^>]*\sstyle="display:none">/);
     // the light wrapper is never hidden — it IS the no-stylesheet default
-    expect(html).not.toMatch(/<div class="dgmo-light"[^>]*\shidden>/);
+    expect(html).not.toMatch(
+      /<div class="dgmo-light"[^>]*\sstyle="display:none">/
+    );
   });
 
-  it('single-mode render carries no `hidden` — there is nothing to hide', async () => {
+  // Issue 647. Tailwind v4's preflight hides `[hidden]` with `!important` from
+  // inside `@layer base`, and a layered important declaration outranks an
+  // unlayered one at any specificity — so while the dark wrapper wore the
+  // attribute, no rule in BLOCK_CSS could reveal it and every diagram on a
+  // Tailwind v4 host was a zero-height empty box in dark mode. Measured on
+  // diagrammo.app/compare/, 2026-09-02.
+  it('dual-render: the dark wrapper never wears the `hidden` attribute', async () => {
+    const { html } = await renderDgmoBlock(PIE);
+    expect(html).not.toMatch(/<div class="dgmo-dark"[^>]*\shidden[\s>]/);
+  });
+
+  it('single-mode render is not inline-hidden — there is nothing to hide', async () => {
     for (const colorMode of ['light', 'dark'] as const) {
       const { html } = await renderDgmoBlock(PIE, { colorMode });
       expect(html).toContain('class="dgmo-svg"');
-      expect(html).not.toMatch(/<div class="dgmo-svg"[^>]*\shidden>/);
+      expect(html).not.toMatch(
+        /<div class="dgmo-svg"[^>]*\sstyle="display:none">/
+      );
+      expect(html).not.toMatch(/<div class="dgmo-svg"[^>]*\shidden[\s>]/);
     }
   });
 
@@ -358,6 +375,29 @@ describe('BLOCK_CSS — color-mode visibility (issue 507)', () => {
     const rules = BLOCK_CSS.match(/\[data-theme="dark"\][^{]*\{/g) ?? [];
     expect(rules.length).toBeGreaterThan(0);
     for (const rule of rules) expect(rule).not.toContain('html.dark');
+  });
+
+  // Issue 647. The dark wrapper ships behind the `hidden` ATTRIBUTE so a page
+  // that never loaded this stylesheet shows the light diagram rather than
+  // both. Tailwind v4's preflight is
+  // `[hidden]:where(:not([hidden='until-found'])) { display: none !important }`,
+  // which outranks an author-origin reveal — so without the flag the light
+  // wrapper is hidden by our own rule, the dark one stays hidden by the
+  // attribute, and every diagram on a Tailwind v4 host is a zero-height empty
+  // box in dark mode. Measured on diagrammo.app/compare/, 2026-09-02.
+  it('reveals the dark wrapper with !important, outranking Tailwind preflight', () => {
+    for (const selector of [
+      '[data-theme="dark"] .dgmo-dark',
+      'html.dark .dgmo-dark',
+    ]) {
+      const rule = BLOCK_CSS.match(
+        new RegExp(
+          selector.replace(/[[\]".]/g, (c) => '\\' + c) + '\\s*\\{([^}]*)\\}'
+        )
+      );
+      expect(rule, `no rule for ${selector}`).not.toBeNull();
+      expect(rule?.[1]).toMatch(/display:\s*block\s*!important/);
+    }
   });
 });
 
