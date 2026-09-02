@@ -16,6 +16,7 @@
 
 import type { ParsedBoxesAndLines } from './types';
 import { NODE_WIDTH, NODE_HEIGHT } from './node-metrics';
+import { clipEndpointsToNodes, type ClipRect } from './edge-clip';
 import type { BLLayoutResult, BLLayoutEdge, BLLayoutNode } from './layout';
 
 type Size = { width: number; height: number };
@@ -605,6 +606,15 @@ export function layeredCandidates(
       }
     }
 
+    // Centre-to-centre like the grouped generator, and with the same
+    // consequence: an unclipped marker-end hides under the target's rect (#625).
+    const nodeRect = (label: string): ClipRect | undefined => {
+      const n = node.get(label);
+      if (!n) return undefined;
+      const c = coord(n);
+      return { x: c.x, y: c.y, w: n.realW, h: n.realH };
+    };
+
     const layoutEdges: BLLayoutEdge[] = [];
     for (let i = 0; i < parsed.edges.length; i++) {
       const e = parsed.edges[i]!;
@@ -613,12 +623,19 @@ export function layeredCandidates(
       if (e.source === e.target) {
         const c = coord(node.get(e.source)!);
         points = [c, c];
-      } else if (backPoints.has(i)) {
-        points = backPoints.get(i)!;
       } else {
-        const chain = chainById.get(i);
-        if (!chain) continue;
-        points = chain.map((id) => coord(node.get(id)!));
+        if (backPoints.has(i)) {
+          points = backPoints.get(i)!;
+        } else {
+          const chain = chainById.get(i);
+          if (!chain) continue;
+          points = chain.map((id) => coord(node.get(id)!));
+        }
+        points = clipEndpointsToNodes(
+          points,
+          nodeRect(e.source),
+          nodeRect(e.target)
+        );
       }
       layoutEdges.push({
         source: e.source,

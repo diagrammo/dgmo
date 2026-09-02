@@ -959,12 +959,23 @@ export function renderBoxesAndLines(
     // bundle at ports and visibly spread apart in the middle.
     let points: { x: number; y: number }[];
     if (le.yOffset !== 0 && le.parallelCount > 1) {
+      // 🔴 Both coordinates of a port come from the ROUTED polyline, never from
+      // the node's centre. Taking x from the polyline and y from the layout node
+      // mixes two coordinate sources: an edge that approaches a box vertically
+      // has a boundary point whose x already IS the centre x, so substituting
+      // the centre y put the port — and its arrowhead — at the exact centre of
+      // the node, buried under the box. That is the one arrowhead that survived
+      // fixing #625 in both layout generators and in the search's final clip.
+      // Parallel edges share a node pair, so their endpoints coincide anyway;
+      // the fan's bundling intent is preserved by using them.
       const srcLayout = layoutNodeMap.get(le.source);
       const tgtLayout = layoutNodeMap.get(le.target);
-      const srcY = srcLayout?.y ?? le.points[0]?.y ?? 0;
-      const tgtY = tgtLayout?.y ?? le.points[le.points.length - 1]?.y ?? 0;
-      const srcX = le.points[0]?.x ?? 0;
-      const tgtX = le.points[le.points.length - 1]?.x ?? 0;
+      const srcPt = le.points[0];
+      const tgtPt = le.points[le.points.length - 1];
+      const srcY = srcPt?.y ?? srcLayout?.y ?? 0;
+      const tgtY = tgtPt?.y ?? tgtLayout?.y ?? 0;
+      const srcX = srcPt?.x ?? srcLayout?.x ?? 0;
+      const tgtX = tgtPt?.x ?? tgtLayout?.x ?? 0;
       const midX = (srcX + tgtX) / 2;
       const midY = (srcY + tgtY) / 2;
 

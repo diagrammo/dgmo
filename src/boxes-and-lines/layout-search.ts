@@ -22,6 +22,7 @@ import {
 } from './layout';
 import { layeredCandidates } from './layout-layered';
 import { groupedTierCandidates } from './layout-grouped';
+import { clipEndpointsToNodes } from './edge-clip';
 import { measureEdgeLabel, EDGE_LABEL_FONT_SIZE } from './label-placement';
 import { tryStableCollapseLayout } from './layout-stable-collapse';
 
@@ -439,6 +440,37 @@ export function countEdgeNodePierces(
  * an ALTERNATIVE candidate — the caller keeps it only if total badness drops, so
  * a detour that trades a pierce for a crossing is simply rejected.
  */
+/**
+ * Trim every edge in `layout` back to its endpoint nodes' boundaries.
+ *
+ * Applied to the hand-rolled candidates only. The dagre candidates already
+ * arrive clipped (dagre's own `intersectRect`) and re-clipping them would move
+ * endpoints that are already correct, so they are deliberately left alone.
+ * Returns the input unchanged when nothing needed trimming, so a caller can
+ * still compare by identity.
+ */
+function clipLayoutEdgesToNodes(layout: BLLayoutResult): BLLayoutResult {
+  const rectOf = new Map(
+    layout.nodes.map((n) => [
+      n.label,
+      { x: n.x, y: n.y, w: n.width, h: n.height },
+    ])
+  );
+  let changed = false;
+  const edges = layout.edges.map((e) => {
+    if (e.source === e.target) return e;
+    const clipped = clipEndpointsToNodes(
+      e.points,
+      rectOf.get(e.source),
+      rectOf.get(e.target)
+    );
+    if (clipped === e.points) return e;
+    changed = true;
+    return { ...e, points: clipped };
+  });
+  return changed ? { ...layout, edges } : layout;
+}
+
 export function deroutePierces(layout: BLLayoutResult): BLLayoutResult {
   const pierces = detectEdgeNodePierces(layout);
   if (!pierces.length) return layout;
@@ -1532,7 +1564,15 @@ export async function layoutBoxesAndLinesSearch(
     const variants = [lay];
     const dp = deroutePierces(lay);
     if (dp !== lay) variants.push(dp);
-    for (const v of variants) {
+    for (const raw of variants) {
+      // 🔴 Clip HERE, not only inside the generators. Only the dagre candidates
+      // arrive boundary-clipped (dagre's own intersectRect); every hand-rolled
+      // candidate routes centre-to-centre, and deroutePierces rebuilds edges
+      // from those same centres. An unclipped end puts the marker-end under the
+      // target's opaque rect, so the moment such a candidate wins EVERY arrow
+      // in the diagram vanishes at once (#625). Clipping before scoring also
+      // means badness judges the geometry that will actually be drawn.
+      const v = clipLayoutEdgesToNodes(raw);
       const bad = badness(v, bestBad - 1);
       if (bad < bestBad) {
         bestBad = bad;
@@ -1560,5 +1600,13 @@ export async function layoutBoxesAndLinesSearch(
       best = separated;
   }
   opts?.onTopConfigs?.(topConfigs);
-  return best;
+  // Last line of defence, and it covers the dagre winner too. dagre normally
+  // clips for itself, but its `intersectRect` throws on some configurations
+  // ("Not possible to find intersection inside of the rectangle") and the edges
+  // it could not solve keep the node centre as their endpoint — one buried
+  // arrowhead on an otherwise correct diagram, which is how #625 survived being
+  // fixed in both candidate generators. `isInsideRect` is strict by half a
+  // pixel, so an endpoint already sitting on a boundary is left untouched and
+  // no correctly routed edge moves.
+  return clipLayoutEdgesToNodes(best);
 }

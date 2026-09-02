@@ -30,6 +30,7 @@
 
 import type { ParsedBoxesAndLines } from './types';
 import { NODE_WIDTH, NODE_HEIGHT } from './node-metrics';
+import { clipEndpointsToNodes, type ClipRect } from './edge-clip';
 import type {
   BLLayoutResult,
   BLLayoutEdge,
@@ -752,6 +753,16 @@ export function groupedTierCandidates(
       ]);
     }
 
+    // Every branch below routes centre-to-centre, which leaves the marker-end
+    // sitting under the target's own opaque rect. dagre clips for itself; this
+    // generator has to (#625).
+    const nodeRect = (label: string): ClipRect | undefined => {
+      const n = node.get(label);
+      if (!n) return undefined;
+      const c = coord(n);
+      return { x: c.x, y: c.y, w: n.realW, h: n.realH };
+    };
+
     const layoutEdges: BLLayoutEdge[] = [];
     for (let i = 0; i < parsed.edges.length; i++) {
       const e = parsed.edges[i]!;
@@ -760,12 +771,19 @@ export function groupedTierCandidates(
       if (e.source === e.target) {
         const c = coord(node.get(e.source)!);
         points = [c, c];
-      } else if (backPoints.has(i)) points = backPoints.get(i)!;
-      else if (flatPoints.has(i)) points = flatPoints.get(i)!;
-      else {
-        const chain = chainById.get(i);
-        if (!chain) continue;
-        points = chain.map((id) => coord(node.get(id)!));
+      } else {
+        if (backPoints.has(i)) points = backPoints.get(i)!;
+        else if (flatPoints.has(i)) points = flatPoints.get(i)!;
+        else {
+          const chain = chainById.get(i);
+          if (!chain) continue;
+          points = chain.map((id) => coord(node.get(id)!));
+        }
+        points = clipEndpointsToNodes(
+          points,
+          nodeRect(e.source),
+          nodeRect(e.target)
+        );
       }
       layoutEdges.push({
         source: e.source,
