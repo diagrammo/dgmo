@@ -73,6 +73,36 @@ const BOUNDARY_LABEL_FONT_SIZE = 12;
 // Cylinder (database/cache) shape constants
 const CYLINDER_RY = 8;
 
+/**
+ * How far each cloud lobe bulges past the card's text box (#654).
+ *
+ * 🔴 The outline stays INSIDE `w × h`, exactly as `drawCardRect` does — the
+ * lobes reach the card's own edges and the text box is inset by this much top
+ * and bottom. A shape that drew outside its node would overlap its neighbours,
+ * because dagre spaces nodes by the box it was given.
+ *
+ * `computeC4NodeDimensions` adds `CLOUD_BUMP * 2` to a cloud's height, so the
+ * inset is paid for rather than taken out of the card's padding.
+ */
+const CLOUD_BUMP = 7;
+
+/**
+ * Half-width of a queue's end caps — a cylinder on its side (#654).
+ *
+ * The same deal as `CLOUD_BUMP`, on the other axis:
+ * `computeC4NodeDimensions` adds `QUEUE_CAP * 2` to the width, so the caps
+ * never sit under the name.
+ *
+ * 🔴 It was 8 and that was too shallow to READ — measured by rendering it,
+ * not by reasoning about it. `CARD_RADIUS` is 6, so an 8px cap on a 250px
+ * card is within a couple of pixels of the rounding every plain card already
+ * has, and the queue came out indistinguishable from a box with no override:
+ * the exact defect this change exists to fix, reintroduced at a smaller
+ * scale. A shape override has to be legible at a glance or it is not an
+ * override.
+ */
+const QUEUE_CAP = 16;
+
 // Person stick-figure dimensions (sequence-diagram style, scaled for cards)
 const PERSON_HEAD_R = 4;
 const PERSON_ARM_SPAN = 10;
@@ -722,6 +752,130 @@ function drawCylinderCard(
     .attr('rx', w / 2)
     .attr('ry', ry)
     .attr('fill', fill)
+    .attr('stroke', stroke)
+    .attr('stroke-width', NODE_STROKE_WIDTH);
+}
+
+/**
+ * The radius of a circular arc with chord `chord` bulging `sag` past it.
+ *
+ * Both cloud lobes and queue caps are specified by how far they bulge, which
+ * is the thing that has to stay constant as a card grows — a fixed radius
+ * would make a wide card's lobes shallow and a narrow one's nearly circular.
+ */
+function arcRadius(chord: number, sag: number): number {
+  return (chord * chord) / 4 / (2 * sag) + sag / 2;
+}
+
+/**
+ * Draw a cloud card (#654).
+ *
+ * 🔴 It was in the spec, in the parser's valid set and in the `C4Shape` union,
+ * and nowhere in this file — so `is a cloud` parsed, validated clean, and drew
+ * an ordinary rounded rectangle indistinguishable from no override at all.
+ * That is the silent-render class: the parse succeeds, the validator is happy,
+ * and the picture is wrong, with no way to find out except knowing what a
+ * cloud is supposed to look like.
+ *
+ * Eight lobes — three along the top, three along the bottom, one per side —
+ * all bulging outward from a chord inset by `CLOUD_BUMP`, so the outline
+ * touches the card's edges and never leaves them. Every radius is derived from
+ * the card's own size, so a wide card gets wide lobes rather than a row of
+ * circles.
+ */
+function drawCloudCard(
+  nodeG: GSelection,
+  w: number,
+  h: number,
+  fill: string,
+  stroke: string
+): void {
+  const b = CLOUD_BUMP;
+  const xL = -w / 2 + b;
+  const xR = w / 2 - b;
+  const yTop = -h / 2 + b;
+  const yBot = h / 2 - b;
+  const topChord = (xR - xL) / 3;
+  const sideChord = yBot - yTop;
+  const rTop = arcRadius(topChord, b);
+  const rSide = arcRadius(sideChord, b);
+
+  // Sweep 1 throughout: the path runs clockwise, so every arc bulges away
+  // from the middle without needing a per-edge flag.
+  const path = [
+    `M ${xL} ${yTop}`,
+    `A ${rTop} ${rTop} 0 0 1 ${xL + topChord} ${yTop}`,
+    `A ${rTop} ${rTop} 0 0 1 ${xL + topChord * 2} ${yTop}`,
+    `A ${rTop} ${rTop} 0 0 1 ${xR} ${yTop}`,
+    `A ${rSide} ${rSide} 0 0 1 ${xR} ${yBot}`,
+    `A ${rTop} ${rTop} 0 0 1 ${xL + topChord * 2} ${yBot}`,
+    `A ${rTop} ${rTop} 0 0 1 ${xL + topChord} ${yBot}`,
+    `A ${rTop} ${rTop} 0 0 1 ${xL} ${yBot}`,
+    `A ${rSide} ${rSide} 0 0 1 ${xL} ${yTop}`,
+    'Z',
+  ].join(' ');
+
+  nodeG
+    .append('path')
+    .attr('d', path)
+    .attr('data-c4-shape', 'cloud')
+    .attr('fill', fill)
+    .attr('stroke', stroke)
+    .attr('stroke-width', NODE_STROKE_WIDTH);
+}
+
+/**
+ * Draw a queue card — a cylinder on its side (#654).
+ *
+ * Not drawn, for the same reason `cloud` was not, and found the same way:
+ * the issue
+ * suspected it and reading the shape branch confirmed it.
+ *
+ * The near cap is a second arc rather than a full ellipse, which is what makes
+ * it read as a pipe seen end-on rather than as a lozenge. `computeC4NodeDimensions`
+ * pays for both caps in width, so the name never sits on top of that arc.
+ */
+function drawQueueCard(
+  nodeG: GSelection,
+  w: number,
+  h: number,
+  fill: string,
+  stroke: string
+): void {
+  const cap = QUEUE_CAP;
+  const xL = -w / 2 + cap;
+  const xR = w / 2 - cap;
+  const ry = h / 2;
+
+  const path = [
+    `M ${xL} ${-ry}`,
+    `L ${xR} ${-ry}`,
+    `A ${cap} ${ry} 0 0 1 ${xR} ${ry}`,
+    `L ${xL} ${ry}`,
+    `A ${cap} ${ry} 0 0 1 ${xL} ${-ry}`,
+    'Z',
+  ].join(' ');
+
+  nodeG
+    .append('path')
+    .attr('d', path)
+    .attr('data-c4-shape', 'queue')
+    .attr('fill', fill)
+    .attr('stroke', stroke)
+    .attr('stroke-width', NODE_STROKE_WIDTH);
+
+  // The near cap, bulging INTO the body — the whole difference between a pipe
+  // and a lozenge.
+  //
+  // 🔴 Sweep 1 while going DOWN. The outline's own left cap is also sweep
+  // 1 but travels UP, so it bulges the other way; drawn with sweep 0 this arc
+  // lands exactly on top of it and disappears, which is what it did until it
+  // was rendered and looked at. Reasoning about it gave the wrong answer
+  // twice — the direction of travel is half the flag's meaning.
+  nodeG
+    .append('path')
+    .attr('d', `M ${xL} ${-ry} A ${cap} ${ry} 0 0 1 ${xL} ${ry}`)
+    .attr('fill', 'none')
     .attr('stroke', stroke)
     .attr('stroke-width', NODE_STROKE_WIDTH);
 }
@@ -1574,7 +1728,14 @@ export function renderC4Containers(
     const shape = node.shape ?? 'default';
     const isExternalShape = shape === 'external';
 
-    // Card background — shape-specific
+    // Card background — shape-specific.
+    //
+    // 🔴 Every member of `C4Shape` is handled here. Two of them were not until
+    // 2026-09-03 and fell through to the rounded rect, which is the same
+    // picture a card with no override at all draws (#654). If a shape is ever
+    // added to the union, the spec or the parser's valid set, it lands here in
+    // the same change — an override the renderer ignores is worse than one the
+    // parser rejects, because nothing anywhere says it was ignored.
     if (shape === 'database' || shape === 'cache') {
       drawCylinderCard(
         nodeG as GSelection,
@@ -1584,6 +1745,10 @@ export function renderC4Containers(
         stroke,
         shape === 'cache'
       );
+    } else if (shape === 'cloud') {
+      drawCloudCard(nodeG as GSelection, w, h, fill, stroke);
+    } else if (shape === 'queue') {
+      drawQueueCard(nodeG as GSelection, w, h, fill, stroke);
     } else {
       drawCardRect(nodeG as GSelection, w, h, fill, stroke, isExternalShape);
     }
@@ -1593,6 +1758,12 @@ export function renderC4Containers(
     // For cylinder shapes, offset content down past the top ellipse
     if (shape === 'database' || shape === 'cache') {
       yPos += CYLINDER_RY;
+    }
+    // A cloud's top lobes eat the same space. Unlike the cylinder this is PAID
+    // FOR in `computeC4NodeDimensions` rather than taken out of the card's
+    // padding, so the text sits where it would on a plain card.
+    if (shape === 'cloud') {
+      yPos += CLOUD_BUMP;
     }
 
     // Type label — only for external elements (person/system); containers/components are the default

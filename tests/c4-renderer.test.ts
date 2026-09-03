@@ -1471,3 +1471,143 @@ describe('c4 legend — inactive tag groups', () => {
     expect(svg).toContain('Stage');
   });
 });
+
+// ============================================================
+// Every shape override draws something (#654)
+// ============================================================
+//
+// 🔴 `cloud` and `queue` were in the spec's override list, in the parser's
+// valid set and in the `C4Shape` union, and nowhere in the renderer — so both
+// parsed, validated clean, and drew an ordinary rounded rectangle
+// indistinguishable from a card with no override at all. This is the
+// silent-render class: the parse succeeds, the validator is happy, and the
+// picture is wrong, with no way to find out except knowing what the shape is
+// supposed to look like.
+//
+// The first test below is the one that would have caught it. It does not name
+// the shapes it expects to differ — it enumerates every override the parser
+// accepts and asserts their outlines are all different from each other and
+// from a plain card. A sixth override added to the union and forgotten in the
+// renderer fails here without anyone remembering to add a case.
+
+const shapeInput = (shape: string): string => `c4
+
+Banking is a system description: Core banking
+  containers
+    Thing is a container is a ${shape} tech: X, description: A thing`;
+
+/**
+ * The outline a card actually draws, as a comparable string.
+ *
+ * ⚠️ The dash is part of the identity, not decoration. `database` and `cache`
+ * emit a byte-identical `d` and are told apart ONLY by `stroke-dasharray` — so
+ * a signature that read the geometry alone would report them as duplicates and
+ * make this test cry wolf about the one pair that is deliberately similar.
+ */
+function outlineOf(el: Element): string {
+  const path =
+    el.querySelector('path[data-c4-shape]') ?? el.querySelector('path');
+  if (path) {
+    return [
+      'path',
+      path.getAttribute('data-c4-shape') ?? '',
+      path.getAttribute('d'),
+      path.getAttribute('stroke-dasharray') ?? '',
+    ].join(':');
+  }
+  const rect = el.querySelector('rect');
+  return `rect:${rect?.getAttribute('rx')}:${rect?.getAttribute('stroke-dasharray') ?? ''}`;
+}
+
+function renderShape(shape: string): { outline: string; card: Element } {
+  const parsed = parseC4(shapeInput(shape), palette.light);
+  const layout = layoutC4Containers(parsed, 'Banking');
+  const el = document.createElement('div');
+  document.body.appendChild(el);
+  renderC4Containers(el, parsed, layout, palette.light, false, undefined, {
+    width: 1000,
+    height: 800,
+  });
+  const card = el.querySelector(`[data-shape="${shape}"]`);
+  expect(card, shape).not.toBeNull();
+  const outline = outlineOf(card!);
+  document.body.removeChild(el);
+  return { outline, card: card! };
+}
+
+describe('C4 shape overrides all draw', () => {
+  // Kept in step with `VALID_SHAPES` in the parser and the `C4Shape` union.
+  const OVERRIDES = ['database', 'cache', 'queue', 'cloud', 'external'];
+
+  it('draws a different outline for every override', () => {
+    const seen = new Map<string, string>();
+    for (const shape of OVERRIDES) {
+      seen.set(shape, renderShape(shape).outline);
+    }
+    // A duplicate here means two overrides draw the same picture, which is
+    // exactly the defect: `cloud` and `queue` both matched the plain card.
+    const outlines = [...seen.values()];
+    expect(new Set(outlines).size, JSON.stringify([...seen], null, 2)).toBe(
+      OVERRIDES.length
+    );
+  });
+
+  it('draws none of them the same as a card with no override', () => {
+    const plain = renderShape('default').outline;
+    for (const shape of OVERRIDES) {
+      expect(renderShape(shape).outline, shape).not.toBe(plain);
+    }
+  });
+
+  it('gives a cloud a lobed outline rather than a rectangle', () => {
+    const { card } = renderShape('cloud');
+    const path = card.querySelector('path[data-c4-shape="cloud"]');
+    expect(path).not.toBeNull();
+    // Eight lobes: three along the top, three along the bottom, one per side.
+    // Counting the arcs is what says it is a cloud rather than a blob.
+    const arcs = (path!.getAttribute('d')!.match(/A /g) ?? []).length;
+    expect(arcs).toBe(8);
+    expect(card.querySelector('rect')).toBeNull();
+  });
+
+  it('gives a queue end caps and a near cap, so it reads as a pipe', () => {
+    const { card } = renderShape('queue');
+    const outline = card.querySelector('path[data-c4-shape="queue"]');
+    expect(outline).not.toBeNull();
+    // Two caps on the outline…
+    expect((outline!.getAttribute('d')!.match(/A /g) ?? []).length).toBe(2);
+    // …and a third, unfilled, bulging the other way. Without it the shape is
+    // a lozenge rather than a cylinder seen end-on.
+    const nearCap = [...card.querySelectorAll('path')].find(
+      (p) => p.getAttribute('fill') === 'none'
+    );
+    expect(nearCap).toBeDefined();
+    expect(nearCap!.getAttribute('d')).toContain('A ');
+  });
+
+  // 🔴 The renderer draws inside the box dagre was given, so a bump the box
+  // does not know about is a bump taken out of the card's own padding. These
+  // two pay for theirs; `database`/`cache` deliberately do not, and changing
+  // that would move every existing C4 layout.
+  it('reserves room for the lobes rather than eating the card padding', () => {
+    const plain = computeC4NodeDimensions({
+      name: 'Thing',
+      type: 'container',
+    } as never);
+    const cloud = computeC4NodeDimensions({
+      name: 'Thing',
+      type: 'container',
+      shape: 'cloud',
+    } as never);
+    const queue = computeC4NodeDimensions({
+      name: 'Thing',
+      type: 'container',
+      shape: 'queue',
+    } as never);
+
+    expect(cloud.height).toBeGreaterThan(plain.height);
+    expect(cloud.width).toBe(plain.width);
+    expect(queue.width).toBeGreaterThan(plain.width);
+    expect(queue.height).toBe(plain.height);
+  });
+});

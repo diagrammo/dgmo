@@ -713,6 +713,19 @@ export function collectCardMetadata(
   return entries;
 }
 
+/**
+ * Room the two lobed shapes need beyond their text (#654).
+ *
+ * 🔴 These MIRROR `CLOUD_BUMP` and `QUEUE_CAP` in the renderer, which is a
+ * duplication worth naming rather than hiding: the renderer draws inside the
+ * box this function hands dagre, so a bump the box does not know about is a
+ * bump taken out of the card's own padding. `database`/`cache` do exactly
+ * that and are deliberately left alone — reserving height for them now would
+ * move every existing C4 layout, which is a far wider change than this issue.
+ */
+const CLOUD_BUMP = 7;
+const QUEUE_CAP = 16;
+
 export function computeC4NodeDimensions(
   el: C4Element,
   options?: { showTechnology?: boolean }
@@ -749,7 +762,7 @@ export function computeC4NodeDimensions(
     }
 
     height += CARD_V_PAD;
-    return { width, height };
+    return padForShape(el, width, height);
   }
 
   // Context card layout: type + name | divider | description
@@ -764,6 +777,20 @@ export function computeC4NodeDimensions(
 
   height += CARD_V_PAD;
 
+  return padForShape(el, width, height);
+}
+
+/**
+ * Give a cloud its lobes and a queue its end caps, so neither eats the card's
+ * own padding (#654). Every other shape is returned untouched.
+ */
+function padForShape(
+  el: C4Element,
+  width: number,
+  height: number
+): { width: number; height: number } {
+  if (el.shape === 'cloud') return { width, height: height + CLOUD_BUMP * 2 };
+  if (el.shape === 'queue') return { width: width + QUEUE_CAP * 2, height };
   return { width, height };
 }
 
