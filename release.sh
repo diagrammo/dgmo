@@ -11,16 +11,30 @@ set -euo pipefail
 # `scripts/release.sh dgmo X.Y.Z` instead.
 #
 # Usage:
-#   ./release.sh              # build, check, tag, dispatch CI, verify npm
-#   ./release.sh --dry-run    # build and check only, no tag, no publish
+#   ./release.sh                     # build, check, tag, dispatch CI, verify npm
+#   ./release.sh --dry-run           # build and check only, no tag, no publish
+#   ./release.sh --gates-on anchor   # ship the checks to the Linux box
 # ─────────────────────────────────────────────────────────────────────────────
 
 DRY_RUN=false
+# Where the checks run. `anchor` ships them to the Linux box on the tailnet, in
+# a throwaway worktree at this checkout's HEAD — see scripts/release-remote.sh
+# for why the sha is proven rather than assumed.
+GATES_ON="local"
 for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY_RUN=true ;;
+    --gates-on=*) GATES_ON="${arg#--gates-on=}" ;;
   esac
 done
+# `--gates-on anchor` (space form) too, since every other script here takes it.
+prev=""
+for arg in "$@"; do
+  [ "$prev" = "--gates-on" ] && GATES_ON="$arg"
+  prev="$arg"
+done
+case "$GATES_ON" in local|anchor) ;; *)
+  echo "::error:: --gates-on takes local | anchor, not '$GATES_ON'"; exit 2 ;; esac
 
 VERSION=$(grep '"version"' package.json | head -1 | sed 's/.*: *"\(.*\)".*/\1/')
 
@@ -30,17 +44,36 @@ echo "════════════════════════�
 echo ""
 
 # ─── Build ───────────────────────────────────────────────────────────────────
+# 🔴 The build stays LOCAL even with --gates-on anchor, and that is deliberate.
+# diagrammo-app bundles this checkout's dist through the packages/dgmo symlink
+# (`@diagrammo/dgmo` is `workspace:*`, never a registry install), so a release
+# that built only on another machine would leave the tree the desktop app is
+# about to be signed from carrying stale output. It is 40s.
 echo "▶ Building..."
 pnpm build
 echo "✓ Build complete"
 echo ""
 
 # ─── Static Analysis ────────────────────────────────────────────────────────
-echo "▶ Running checks..."
-pnpm typecheck
-pnpm lint
-pnpm test
-pnpm check:all
+# This is the CPU. Measured 2026-09-03: `pnpm test` alone is 442 user-seconds,
+# on a laptop that ten agent sessions already share. anchor runs it 35% slower
+# in wall clock and costs this machine nothing.
+if [ "$GATES_ON" = "anchor" ]; then
+  echo "▶ Running checks on anchor..."
+  REMOTE="$(cd "$(dirname "$0")/.." && pwd)/scripts/release-remote.sh"
+  if [ ! -x "$REMOTE" ]; then
+    echo "::error:: $REMOTE is missing — cannot gate remotely."
+    exit 1
+  fi
+  "$REMOTE" --repo dgmo --install frozen --timeout 2400 -- \
+    'pnpm build && pnpm typecheck && pnpm lint && pnpm test && pnpm check:all'
+else
+  echo "▶ Running checks..."
+  pnpm typecheck
+  pnpm lint
+  pnpm test
+  pnpm check:all
+fi
 echo "✓ All checks passed"
 echo ""
 
