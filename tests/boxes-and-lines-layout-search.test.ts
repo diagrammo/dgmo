@@ -245,3 +245,100 @@ describe('boxes-and-lines collapse-all layout', () => {
     expect(layout.nodes.some((n) => n.label === 'Gateway')).toBe(true);
   });
 });
+
+/**
+ * The reported OAuth flow, reduced to what makes dagre choke: three groups,
+ * long edge labels, `direction-lr`. Reserving a virtual label node per edge is
+ * what turns it degenerate — laid out plain it is fine.
+ */
+const OAUTH_RESERVE_CHOKER = `boxes-and-lines OAuth 2.0 Authorization Code with PKCE
+direction-lr
+
+tag Role as r
+  Client blue
+  Service green
+  Data purple
+
+[Client Environment]
+  User r: Client, description: Resource owner
+  Client Application r: Client, description: Web, mobile, or desktop application
+
+[Authorization System]
+  Authorization Server r: Service, description: Authenticates users and issues tokens
+  Login and Consent UI r: Service, description: Collects credentials and authorization consent
+  User Directory r: Data, description: User identities, credentials, and grants
+  Signing Keys r: Data, description: Private signing keys and published public keys
+
+[Protected APIs]
+  Resource Server r: Service, description: API that accepts access tokens
+
+User -1. Starts sign-in-> Client Application
+Client Application -2. Authorization request + PKCE challenge-> Authorization Server
+Authorization Server -3. Login and consent-> Login and Consent UI
+Login and Consent UI -4. Authenticates user-> User
+Login and Consent UI -Checks identity and grants-> User Directory
+Authorization Server -5. Authorization code via redirect-> Client Application
+Client Application -6. Code + PKCE verifier-> Authorization Server
+Authorization Server -Signs tokens with-> Signing Keys
+Authorization Server -7. Access, ID, and refresh tokens-> Client Application
+Client Application -8. API request + bearer token-> Resource Server
+Resource Server -Fetches JWKS-> Authorization Server
+Resource Server -9. Protected resource-> Client Application
+Client Application -10. Displays result-> User
+`;
+
+describe('the search returns a layout rather than throwing', () => {
+  /**
+   * 🔴 Regression: dagre's `Not possible to find intersection inside of the
+   * rectangle` used to escape the search, so a diagram rendered as an exception.
+   *
+   * The escape route was the last-resort placement taken when EVERY candidate
+   * chokes — the one `place` call that was not wrapped. It is reachable only
+   * through the label-reserving relayout, and in the wild only on a busy
+   * machine: the first search's wall-clock budget truncates its pool, the
+   * layout it settles for leaves a label unresolved, and that is what calls the
+   * relayout at all. Loaded, it reproduced 3 of 3 runs on an 8-core Linux box;
+   * idle, 0 of 5.
+   *
+   * `configs: []` is the deterministic form of the same state — an explicitly
+   * empty candidate pool lands on the fallback directly, with no dependence on
+   * how busy this machine is. That matters more than mimicking the original
+   * route: a wall-clock reproduction would measure the machine.
+   */
+  it('falls back when label reservation chokes every candidate', async () => {
+    const parsed = parseBoxesAndLines(OAUTH_RESERVE_CHOKER);
+
+    const layout = await layoutBoxesAndLinesSearch(parsed, undefined, {
+      reserveEdgeLabels: true,
+      configs: [],
+    });
+
+    // A real layout, not an empty shell: every node placed, every edge routed.
+    expect(layout.nodes).toHaveLength(parsed.nodes.length);
+    expect(layout.edges).toHaveLength(parsed.edges.length);
+    for (const n of layout.nodes) {
+      expect(Number.isFinite(n.x)).toBe(true);
+      expect(Number.isFinite(n.y)).toBe(true);
+    }
+
+    // Dropping the reservation is what saves it, so the fallback must land on
+    // the unreserved geometry — if this ever diverges, the retry stopped being
+    // the thing under test.
+    const unreserved = await layoutBoxesAndLinesSearch(parsed, undefined, {
+      configs: [],
+    });
+    expect(geom(layout)).toBe(geom(unreserved));
+  });
+
+  it('still reserves label space when the candidates can take it', async () => {
+    // The guard must not have turned reservation into a no-op everywhere: on a
+    // graph dagre lays out happily, reserving space still changes the geometry.
+    const parsed = parseBoxesAndLines(LABELED);
+
+    const reserved = await layoutBoxesAndLinesSearch(parsed, undefined, {
+      reserveEdgeLabels: true,
+    });
+    const plain = await layoutBoxesAndLinesSearch(parsed, undefined, {});
+    expect(geom(reserved)).not.toBe(geom(plain));
+  });
+});

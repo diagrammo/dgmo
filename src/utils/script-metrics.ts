@@ -31,9 +31,18 @@
 // Measured 2026-08-09 on macOS 15. tests/text-metrics-scripts.test.ts re-runs
 // that measurement against these values.
 //
-// 🔴 Only the full-width row is a FACT. Han, Kana and Hangul are 1.000 em by
-// design of the writing system, not by accident of which font answered, and
-// every font that draws them agrees. Everything else here is an ESTIMATE that
+// 🔴 Only the full-width row is a FACT, and HANGUL IS THE EXCEPTION INSIDE IT.
+// Han and Kana are 1.000 em by design of the writing system, not by accident of
+// which font answered, and every font that draws them agrees. Hangul does not:
+// measured 2026-09-02 at font-size 100 on both machines, macOS draws 한 at
+// 100.00px while Linux's Noto Sans CJK — the fallback on Linux, Android and
+// most bare containers — draws it at 92.00px. Exactly 0.920 em, identical at
+// one, two and three syllables, while Han *inside that same Korean face* still
+// comes out 1.000. So the 1.0 below is the wider of two real faces rather than
+// a universal fact, and it is kept at 1.0 deliberately: a width model that
+// over-charges wraps a line early, and one that under-charges lets a label run
+// out of its box. tests/text-metrics-scripts.test.ts bands Korean accordingly.
+// Everything else here is an ESTIMATE that
 // depends on the font the machine falls back to: which face draws Arabic or
 // Devanagari is decided at draw time and dgmo does not choose it, so those
 // advances move with the machine. They are still two to four times closer than

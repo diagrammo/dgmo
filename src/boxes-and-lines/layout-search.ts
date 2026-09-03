@@ -993,10 +993,20 @@ export async function layoutBoxesAndLinesSearch(
      *  loop would otherwise grind through every config no matter how long that
      *  takes; past the budget we stop generating and rank whatever we have.
      *  Stage-2 exact scoring is NOT time-boxed — it's already bounded by
-     *  `refineK` and it's where the layout quality comes from. This is a
-     *  pathological-graph backstop, not a tuning knob: the default is far above
-     *  what any real diagram needs, so results stay deterministic. Set 0 (or a
-     *  negative) to disable the bound entirely. */
+     *  `refineK` and it's where the layout quality comes from. Set 0 (or a
+     *  negative) to disable the bound entirely.
+     *
+     *  🔴 This is a wall clock, so the pool it produces depends on how busy the
+     *  machine is, and the claim that lived here until 2026-09-02 — that the
+     *  default sits far above what any real diagram needs, so results stay
+     *  deterministic — is FALSE. On an idle 8-core Linux box the reported OAuth
+     *  flow (tests/boxes-and-lines-arrowheads.test.ts) finishes inside it; with
+     *  16 spinning processes on that same box it does not, settles for a worse
+     *  layout, and reaches the label-reserving relayout that a fast run never
+     *  needs. Everything downstream of the pool IS deterministic — same pool,
+     *  same answer — but the pool is not, so never treat a layout difference
+     *  between two machines as a code change, and never write a test that
+     *  depends on which candidates got generated. */
     budgetMs?: number;
   }
 ): Promise<BLLayoutResult> {
@@ -1183,7 +1193,10 @@ export async function layoutBoxesAndLinesSearch(
     Math.abs(p.x - rect.x) <= rect.w / 2 &&
     Math.abs(p.y - rect.y) <= rect.h / 2;
 
-  function place(cfg: BLSearchConfig): BLLayoutResult {
+  function place(
+    cfg: BLSearchConfig,
+    reserve = reserveEdgeLabels
+  ): BLLayoutResult {
     const r = cfg.seed === undefined ? null : rng(cfg.seed + 1);
     const ord = <T>(a: readonly T[]): T[] => (r ? shuffle(a, r) : a.slice());
     const g = new dagre.graphlib.Graph({ compound: true, multigraph: true });
@@ -1229,7 +1242,7 @@ export async function layoutBoxesAndLinesSearch(
         // Last-resort label legibility: reserve a virtual label node on the edge
         // so dagre widens the rank gap to fit the (wrapped) label.
         let edgeLabel: object = {};
-        if (reserveEdgeLabels && e.label) {
+        if (reserve && e.label) {
           const m = measureEdgeLabel(e.label, EDGE_LABEL_FONT_SIZE);
           edgeLabel = { width: m.width, height: m.height, labelpos: 'c' };
         }
@@ -1436,8 +1449,40 @@ export async function layoutBoxesAndLinesSearch(
     // pool would skip straight to the fallback below and throw away the work.
     if (pool.length && overBudget()) break;
   }
-  if (!pool.length)
-    return place({ ranker: 'network-simplex', nodesep: 50, ranksep: 60 });
+  if (!pool.length) {
+    // Last resort: every candidate choked, so lay the graph out with the plain
+    // config rather than returning nothing.
+    //
+    // 🔴 This call was unguarded until 2026-09-02 and was the ONLY route by
+    // which a dagre throw escaped this function — every other `place` here is
+    // wrapped. It escaped as `Not possible to find intersection inside of the
+    // rectangle`, which is dagre's, so nothing in the message says the search
+    // decided to keep going and could not.
+    //
+    // The route is entirely inside the label-reserving relayout: reserving a
+    // virtual label node per edge is what makes this graph degenerate, so the
+    // whole candidate list throws, the pool is empty, and the fallback throws
+    // for the same reason its candidates did. Reproduced on the reported OAuth
+    // flow (tests/boxes-and-lines-arrowheads.test.ts) — 3 of 3 runs with the
+    // machine loaded, 0 of 5 idle, because it is the FIRST search's truncated
+    // budget that leaves a label unresolved and calls the relayout at all.
+    //
+    // So the retry drops the reservation rather than the config. Label space is
+    // an enhancement the caller keeps only if it resolves more labels
+    // (src/boxes-and-lines/layout.ts), and a laid-out diagram with a crowded
+    // label beats an exception where a diagram should be.
+    const plain: BLSearchConfig = {
+      ranker: 'network-simplex',
+      nodesep: 50,
+      ranksep: 60,
+    };
+    if (!reserveEdgeLabels) return place(plain);
+    try {
+      return place(plain);
+    } catch {
+      return place(plain, false);
+    }
+  }
 
   // Home-grown layered candidates (flat graphs only). These own the
   // crossing-minimization stage AND route back-edges around the periphery, so

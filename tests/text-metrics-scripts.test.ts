@@ -82,8 +82,9 @@ const SAMPLES: readonly {
   beatsFlat: boolean;
 }[] = [
   // Full-width by design of the writing system, not by accident of which font
-  // answered — every font that draws these agrees on 1.000 em, so they are
-  // pinned tight and must beat the flat number by a mile.
+  // answered — every font that draws Han or Kana agrees on 1.000 em, so they
+  // are pinned tight and must beat the flat number by a mile. Hangul is the
+  // exception and has its own row below.
   {
     script: 'Japanese',
     text: '日本語',
@@ -96,7 +97,20 @@ const SAMPLES: readonly {
     band: 0.05,
     beatsFlat: true,
   },
-  { script: 'Korean', text: '한국어', band: 0.05, beatsFlat: true },
+  // 🔴 Hangul is NOT font-independent, which the row above claims and this one
+  // does not. Measured 2026-09-02, font-size 100, the string `한`: macOS 100.00px,
+  // Linux's Noto Sans CJK 92.00px — a flat 0.920 em, identical at one, two and
+  // three syllables, and Han drawn from that same Korean face still measures
+  // 1.000. The model charges the wider face, so on Noto it reads 1/0.92 = 8.70%
+  // over and a 0.05 band cannot hold on both machines. 0.10 covers the pair with
+  // room, and still fails a model charging a wrong width by a wide margin: the
+  // flat 0.603 this replaced is 34.5% off on Noto and 39.7% off on macOS, which
+  // is why `beatsFlat` stays claimed here.
+  //
+  // ⚠️ Widening is the right move only because BOTH faces were measured. Do not
+  // widen further on a red run without measuring the new machine's advance —
+  // that is how a band stops testing the model and starts testing nothing.
+  { script: 'Korean', text: '한국어', band: 0.1, beatsFlat: true },
   {
     script: 'Kana',
     text: 'ひらがな',
