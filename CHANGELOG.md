@@ -5,6 +5,28 @@ All notable changes to `@diagrammo/dgmo` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.83.0] - 2026-09-03
+
+### Fixed
+
+- **A busy machine could hand you an error message instead of a diagram.** In
+  `boxes-and-lines`, the layout search wraps every placement it tries bar one —
+  the last-resort placement taken when every candidate has choked. On a loaded
+  machine the search's time budget truncates its candidate pool, the layout it
+  settles for leaves an edge label unresolved, and the relayout that reserves
+  label space then makes a crowded graph degenerate; every candidate throws, the
+  pool empties, and the unwrapped fallback let the layout engine's own
+  "Not possible to find intersection inside of the rectangle" out as the
+  diagram. Three failures in three loaded runs on an eight-core Linux box, none
+  in five idle ones. The fallback now drops the label reservation rather than
+  the diagram, because a crowded label beats no picture at all.
+
+- **`is a cloud` and `is a queue` drew an ordinary rounded rectangle.** Two of
+  C4's five shape overrides were in the spec, in the parser's valid set and in
+  the shape union, and nowhere in the renderer — so both parsed, validated
+  clean, and drew something indistinguishable from a card with no override at
+  all. A cloud is now drawn as a cloud and a queue as a queue.
+
 ## [0.82.0] - 2026-09-02
 
 ### Fixed
