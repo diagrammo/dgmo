@@ -50,6 +50,22 @@ export interface EncodeDiagramUrlOptions {
   palette?: string;
   theme?: 'light' | 'dark';
   filename?: string;
+  /**
+   * Where this link was generated, carried through to the editor (#718).
+   *
+   * The only value in use is `embed`, written by the toolbar link an embedded
+   * diagram renders. It exists because that last hop is otherwise unmeasurable:
+   * the anchor carries `rel="noopener noreferrer"`, so the editor sees no
+   * referrer, and every other `?dgmo=` arrival — a pasted snapshot link, a
+   * shared file — is byte-identical without it.
+   *
+   * 🔴 It is a LABEL on a link, not a fact about a person. Nothing about who
+   * followed it is recorded; the editor counts arrivals carrying this and
+   * nothing else. And like every part of this URL it can be pasted onward, so
+   * a second reader opening the same link counts too — which is still the embed
+   * link being followed, one hop later, and is the honest reading of the number.
+   */
+  via?: 'embed';
 }
 
 export type EncodeDiagramUrlResult =
@@ -131,6 +147,11 @@ export function encodeDiagramUrl(
 
   if (options?.filename) {
     hash += `&fn=${encodeURIComponent(options.filename)}`;
+  }
+
+  // Last, so it never sits between the payload and the params that decode it.
+  if (options?.via) {
+    hash += `&via=${encodeURIComponent(options.via)}`;
   }
 
   // Encode in both query param AND hash fragment — some share mechanisms

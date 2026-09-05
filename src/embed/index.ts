@@ -406,7 +406,16 @@ function sourceDisclosure(source: string, opts: ResolvedBlockOptions): string {
 
   let openButton = '';
   if (opts.showOpenInEditor) {
-    const encoded = encodeDiagramUrl(source, { baseUrl: opts.editorBaseUrl });
+    // 🔴 `via: 'embed'` is what makes the last hop of the loop countable at
+    // all (#718). An embedded diagram's toolbar link is the one mechanism that
+    // reaches somebody who has never visited the site, and until this marker
+    // existed an arrival from it was indistinguishable from a pasted snapshot
+    // link. The anchor below is `rel="noopener noreferrer"`, so there is no
+    // referrer to read instead — this or nothing.
+    const encoded = encodeDiagramUrl(source, {
+      baseUrl: opts.editorBaseUrl,
+      via: 'embed',
+    });
     // `too-large` (or any encode failure) → omit the link; copy remains.
     if (encoded.url) {
       openButton = `<a href="${escapeAttr(encoded.url)}" target="_blank" rel="noopener noreferrer" class="dgmo-toolbar-btn dgmo-open" aria-label="Open in online editor">${EXTERNAL_ICON}</a>`;

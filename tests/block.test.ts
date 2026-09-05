@@ -6,6 +6,7 @@ import {
   BLOCK_CSS,
 } from '../src/embed';
 import { loadMapData } from '../src/map/load-data';
+import { encodeDiagramUrl } from '../src/sharing';
 import {
   LIGHT_ROLE_STYLES,
   NORD_ROLE_STYLES,
@@ -134,6 +135,24 @@ describe('renderDgmoBlock — standard embed block', () => {
     );
     expect(html).toContain('class="dgmo-light astro-dgmo"');
     expect(html).not.toContain('dgmo-caption');
+  });
+
+  it('marks the editor link as coming from an embed, and nothing else', async () => {
+    // 🔴 #718's last hop. The anchor is rel="noopener noreferrer", so the
+    // editor sees no referrer and a pasted snapshot link is byte-identical to
+    // a followed embed link without this. The marker is on the LINK; nothing
+    // about who followed it is recorded anywhere.
+    const { html } = await renderDgmoBlock(PIE, { mode: 'showcase' });
+    expect(html).toContain('dgmo-open');
+    expect(html).toContain('via=embed');
+    // Last, so it never sits between the payload and the params that decode it.
+    expect(html).not.toMatch(/via=embed&(?:vs|pal|th|fn)=/);
+  });
+
+  it('never marks an ordinary share URL — the marker means one thing', async () => {
+    const url = encodeDiagramUrl(PIE);
+    expect(url).not.toBeNull();
+    expect(url).not.toContain('via=');
   });
 
   it('each toolbar button toggles independently', async () => {
