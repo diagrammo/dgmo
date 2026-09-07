@@ -127,6 +127,7 @@
     "check:size": "pnpm build && node scripts/check-bundle-size.cjs",
     "check:size:update": "pnpm build && node scripts/check-bundle-size.cjs --update",
     "check:types": "attw --pack . --ignore-rules no-resolution false-export-default cjs-resolves-to-esm",
+    "prepack": "node scripts/prepack-sourcemaps.mjs",
     "prepare": "git config core.hooksPath .githooks"
   },
   "dependencies": {

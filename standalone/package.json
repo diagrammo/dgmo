@@ -29,7 +29,7 @@
     "dist/auto.css"
   ],
   "scripts": {
-    "prepack": "node ../scripts/prepack-standalone.mjs"
+    "prepack": "node ../scripts/prepack-standalone.mjs && node ../scripts/prepack-sourcemaps.mjs ."
   },
   "publishConfig": {
     "access": "public"
