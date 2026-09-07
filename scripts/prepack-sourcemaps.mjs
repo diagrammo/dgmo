@@ -38,7 +38,7 @@
  * its maps, which is the whole point of stripping here rather than at build time.
  */
 import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs';
-import { dirname, join, relative, resolve, posix } from 'node:path';
+import { dirname, join, resolve, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -177,7 +177,10 @@ for (const rel of [...candidates].sort()) {
       return whole;
     }
     const mapRel = posix.normalize(
-      posix.join(rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : '', url)
+      posix.join(
+        rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : '',
+        url
+      )
     );
     if (publishes(mapRel)) {
       kept += 1;
@@ -233,7 +236,10 @@ for (const rel of [...candidates].sort()) {
     const url = m[1];
     if (url.startsWith('data:')) continue;
     const mapRel = posix.normalize(
-      posix.join(rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : '', url)
+      posix.join(
+        rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : '',
+        url
+      )
     );
     if (!publishes(mapRel)) survivors.push(`${rel} → ${url}`);
   }
