@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import dagre from '@dagrejs/dagre';
 import { parseBoxesAndLines } from '../src/boxes-and-lines/parser';
 import { collapseBoxesAndLines } from '../src/boxes-and-lines/collapse';
 import {
@@ -340,5 +341,93 @@ describe('the search returns a layout rather than throwing', () => {
     });
     const plain = await layoutBoxesAndLinesSearch(parsed, undefined, {});
     expect(geom(reserved)).not.toBe(geom(plain));
+  });
+});
+
+/**
+ * The terminal case: the fallback itself cannot be placed, so there is no
+ * layout to return either way. #644 is about what happens THEN — the search
+ * used to let the placement engine's own geometry error out unchanged, and an
+ * uncaught throw is attributed by vitest to whichever test was running, which
+ * is why a red full suite indicted a different, passing test on every run.
+ *
+ * Every placement is forced to throw, which is the deterministic form of the
+ * same state and the same device as the `configs: []` test above: a wall-clock
+ * reproduction would measure the machine rather than the code. `configs: []`
+ * empties the candidate pool, so the fallback is the only placement attempted
+ * and the stub stands in for nothing else.
+ */
+describe('when no arrangement can be laid out at all', () => {
+  const GEOMETRY_THROW =
+    'Not possible to find intersection inside of the rectangle';
+
+  const everyPlacementThrows = (): void => {
+    vi.spyOn(dagre, 'layout').mockImplementation(() => {
+      throw new Error(GEOMETRY_THROW);
+    });
+  };
+
+  const failureOf = async (
+    opts: Parameters<typeof layoutBoxesAndLinesSearch>[2]
+  ): Promise<Error> => {
+    const parsed = parseBoxesAndLines(OAUTH_RESERVE_CHOKER);
+    const caught = await layoutBoxesAndLinesSearch(
+      parsed,
+      undefined,
+      opts
+    ).then(
+      () => null,
+      (e: unknown) => e
+    );
+    expect(caught).toBeInstanceOf(Error);
+    return caught as Error;
+  };
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('names the diagram and the configuration it gave up on', async () => {
+    everyPlacementThrows();
+    // No reservation — the common path, and the one that was never wrapped.
+    const err = await failureOf({ configs: [] });
+
+    expect(err.message).toContain('OAuth 2.0 Authorization Code with PKCE');
+    expect(err.message).toContain('7 boxes, 13 lines, 3 groups');
+    expect(err.message).toContain('ranker network-simplex');
+    // 🔴 The defect itself: the engine's bare geometry wording escaping as the
+    // error a user reads. It says nothing about which diagram, and reads as if
+    // the diagram were malformed when it is not.
+    expect(err.message).not.toContain(GEOMETRY_THROW);
+    // Dropped from the message, kept for whoever is debugging.
+    expect((err.cause as Error).message).toBe(GEOMETRY_THROW);
+  });
+
+  it('says so when dropping the reserved label space did not help either', async () => {
+    everyPlacementThrows();
+    const err = await failureOf({ configs: [], reserveEdgeLabels: true });
+
+    expect(err.message).toContain('OAuth 2.0 Authorization Code with PKCE');
+    // The retry ran and is reported, so the message distinguishes "could not be
+    // placed" from "could not be placed even after giving up label space".
+    expect(err.message).toContain('retried without reserved label space');
+    expect(err.message).not.toContain(GEOMETRY_THROW);
+    expect((err.cause as Error).message).toBe(GEOMETRY_THROW);
+  });
+
+  it('describes an untitled diagram by its shape', async () => {
+    everyPlacementThrows();
+    const parsed = parseBoxesAndLines(DENSE);
+    const caught = await layoutBoxesAndLinesSearch(parsed, undefined, {
+      configs: [],
+    }).then(
+      () => null,
+      (e: unknown) => e
+    );
+
+    expect((caught as Error).message).toContain(
+      'untitled boxes-and-lines diagram'
+    );
+    expect((caught as Error).message).toContain('4 boxes, 7 lines');
   });
 });

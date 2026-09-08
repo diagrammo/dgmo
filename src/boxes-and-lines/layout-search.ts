@@ -948,6 +948,39 @@ export interface BLSearchConfig {
   seed?: number;
 }
 
+/** The search's terminal failure: every candidate choked AND so did the plain
+ *  fallback, with and without reserved label space. There is no layout to
+ *  return, so this throws — but it throws something that says which diagram and
+ *  which configuration ran out of options, because the geometry error the
+ *  placement engine raises names neither and is what made a red suite indict a
+ *  different, passing test each run (#644).
+ *
+ *  🔴 The original error is carried as `cause`, never spliced into the message:
+ *  it is the engine's internal wording, it reads as if the diagram were
+ *  malformed when it is not, and a message is the one part of this a user sees.
+ */
+function layoutFailure(
+  parsed: ParsedBoxesAndLines,
+  cfg: BLSearchConfig,
+  reservedLabelSpace: boolean,
+  cause: unknown
+): Error {
+  const which = parsed.title
+    ? `boxes-and-lines diagram "${parsed.title}"`
+    : 'untitled boxes-and-lines diagram';
+  const shape =
+    `${parsed.nodes.length} boxes, ${parsed.edges.length} lines, ` +
+    `${parsed.groups.length} groups, direction ${parsed.direction}`;
+  const config =
+    `ranker ${cfg.ranker}, nodesep ${cfg.nodesep}, ranksep ${cfg.ranksep}` +
+    (reservedLabelSpace ? ', retried without reserved label space' : '');
+  return new Error(
+    `Could not lay out the ${which} (${shape}). Every candidate arrangement ` +
+      `failed, and so did the fallback (${config}).`,
+    { cause }
+  );
+}
+
 export async function layoutBoxesAndLinesSearch(
   parsed: ParsedBoxesAndLines,
   collapseInfo?: {
@@ -1471,16 +1504,36 @@ export async function layoutBoxesAndLinesSearch(
     // an enhancement the caller keeps only if it resolves more labels
     // (src/boxes-and-lines/layout.ts), and a laid-out diagram with a crowded
     // label beats an exception where a diagram should be.
+    //
+    // 🔴 The 2026-09-02 guard narrowed that escape rather than closing it, and
+    // BOTH remaining routes are on this path: the `!reserveEdgeLabels` branch —
+    // the common one, since most callers never reserve — was never wrapped at
+    // all, and the retry that drops the reservation is itself bare, so a graph
+    // dagre cannot lay out either way threw straight out of the search. That is
+    // an uncaught throw, so vitest attributes it to whichever test happened to
+    // be running, which is why a red full suite indicted a different, passing
+    // test each run. Every route now ends in `layoutFailure`, which names the
+    // diagram and the config instead of reporting dagre's geometry.
     const plain: BLSearchConfig = {
       ranker: 'network-simplex',
       nodesep: 50,
       ranksep: 60,
     };
-    if (!reserveEdgeLabels) return place(plain);
+    if (!reserveEdgeLabels) {
+      try {
+        return place(plain);
+      } catch (err) {
+        throw layoutFailure(parsed, plain, false, err);
+      }
+    }
     try {
       return place(plain);
     } catch {
-      return place(plain, false);
+      try {
+        return place(plain, false);
+      } catch (err) {
+        throw layoutFailure(parsed, plain, true, err);
+      }
     }
   }
 
