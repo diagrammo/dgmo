@@ -5,6 +5,47 @@ All notable changes to `@diagrammo/dgmo` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.84.0] - 2026-09-08
+
+### Added
+
+- **A diagram embedded on somebody else's site can now tell you when its edit
+  link was followed.** Seven published packages render diagrams inside other
+  people's documentation, and each embedded diagram offers a link into the web
+  editor carrying its own source. That link is the only thing in the product
+  that reaches a person who has never visited the site, and whether anybody
+  ever followed one was unmeasurable: the anchor is `rel="noopener noreferrer"`
+  so the editor sees no referrer, and an arrival was byte-identical to somebody
+  pasting a snapshot link. The embed link now carries `via=embed`, appended
+  after the payload so it can never sit between the source and the parameters
+  that decode it. It is a label on a link and not a fact about a person —
+  nothing about who followed it is recorded, and an ordinary share URL is
+  unchanged, because only the embed writes the marker.
+
+### Fixed
+
+- **`boxes-and-lines` could still hand you the layout engine's error text
+  instead of a diagram.** The 0.83.0 fix narrowed this escape rather than
+  closing it: two routes were left on the last-resort placement taken when
+  every candidate has choked — the common path, where a caller reserves no
+  label space and was never wrapped at all, and the retry that drops the
+  reservation, which was itself bare. Both now end in a failure that names the
+  diagram, its shape and the configuration that ran out of options, and carries
+  the geometry error underneath rather than splicing it into something a reader
+  sees. The placement engine's own wording says nothing about which diagram and
+  reads as though the diagram were malformed when it is not.
+
+- **The published build pointed every file at a source map that was never
+  shipped.** `tsup` stamps a `sourceMappingURL` comment on eight of its nine
+  entries and no `files` allowlist admits `dist/*.map`, so every consumer
+  loading dgmo through Vite printed one error per chunk and got nothing back —
+  281 dangling comments measured on 0.83.0, and true of every release with the
+  current allowlist rather than a regression. The comment is now stripped from
+  the published artifact while local builds keep their maps. The rule enforced
+  is the honest one: no published file may point at a map that is not itself
+  published, so adding the maps to a manifest one day leaves the comments
+  alone. The standalone drop-ins had the same defect and are fixed with it.
+
 ## [0.83.0] - 2026-09-03
 
 ### Fixed
