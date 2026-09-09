@@ -1,0 +1,12 @@
+# Supply-chain hardening, matching diagrammo-app. A malicious npm version is
+# usually caught and unpublished within hours, so refusing anything published
+# in the last day removes most of that window; `no-downgrade` refuses a package
+# whose trust signals (provenance, signature) got WEAKER between updates.
+# Neither affects a `--frozen-lockfile` install, which resolves nothing — so CI
+# and the pre-push gates are untouched.
+#
+# 🔴 pnpm reads these from pnpm-workspace.yaml even in a single-package repo
+# with no `packages:` key — verified 2026-09-08 by setting an absurd age here
+# and watching `pnpm update prettier` be refused.
+minimumReleaseAge: 1440
+trustPolicy: no-downgrade
