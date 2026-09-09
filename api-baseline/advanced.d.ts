@@ -1,60 +1,14 @@
-import { D as DgmoError, P as PaletteConfig, T as TagGroup, a as PaletteColors, C as CompactViewState, g as TagEntry } from './tag-groups-CFxENdtP.js';
-export { h as DecodedDiagramUrl, c as DgmoSeverity, i as EncodeDiagramUrlOptions, j as EncodeDiagramUrlResult, k as autoTagColorCycle, l as decodeDiagramUrl, m as decodeViewState, n as encodeDiagramUrl, o as encodeViewState, f as formatDgmoError, p as makeDgmoError, r as resolveActiveTagGroup, q as resolveTagColor, s as resolveTagValue, t as tagAttrKey } from './tag-groups-CFxENdtP.js';
-import { M as MapDataSource, P as ParsedMap, b as MapData, d as ResolvedMap, e as MapLayoutLegend, f as GeoExtent } from './d3-CTGUvjsH.js';
-export { A as AirportData, B as BoundaryTopology, G as Gazetteer, a as GazetteerEntry, g as MapDirectives, h as MapEdge, i as MapPoi, j as MapRegion, k as MapRoute, l as PoiPos, m as ProjectionFamily, R as RegionName, c as RegionNames, n as ResolvedEdge, o as ResolvedPoi, p as ResolvedRegion, q as ResolvedRoute, r as renderForExport } from './d3-CTGUvjsH.js';
-export { C as ChartTypeId, a as ChartTypeMeta, c as chartTypes, b as getAvailablePalettes, g as getPalette, i as isValidHex, d as registerPalette } from './chart-types-CsUlmuiY.js';
-export { C as CHART_TYPE_DESCRIPTIONS, M as MapCompletionOptions, a as MapLocationMatch, b as MapPlaceCompletion, c as MapRegionCompletion, R as RenderCategory, T as Theme, g as chartTypeParsers, d as completeMapPlaces, e as completeMapRegions, h as getAllChartTypes, i as getRenderCategory, j as isExtendedChartType, k as knownChartTypeIds, p as palettes, f as parseDgmo, s as searchMapLocations, t as themes, f as validate } from './themes-WjudZgda.js';
+import { P as PaletteConfig, D as DgmoError, T as TagGroup, a as PaletteColors, C as CompactViewState, g as TagEntry } from './tag-groups-CGuOg_QP.js';
+export { h as DecodedDiagramUrl, c as DgmoSeverity, i as EncodeDiagramUrlOptions, j as EncodeDiagramUrlResult, k as autoTagColorCycle, l as decodeDiagramUrl, m as decodeViewState, n as encodeDiagramUrl, o as encodeViewState, f as formatDgmoError, p as makeDgmoError, r as resolveActiveTagGroup, q as resolveTagColor, s as resolveTagValue, t as tagAttrKey } from './tag-groups-CGuOg_QP.js';
+import { M as MapDataSource, P as ParsedMap, b as MapData, d as ResolvedMap, e as MapLayoutLegend, f as GeoExtent } from './d3-BKxlhmpy.js';
+export { A as AirportData, B as BoundaryTopology, G as Gazetteer, a as GazetteerEntry, g as MapDirectives, h as MapEdge, i as MapPoi, j as MapRegion, k as MapRoute, l as PoiPos, m as ProjectionFamily, R as RegionName, c as RegionNames, n as ResolvedEdge, o as ResolvedPoi, p as ResolvedRegion, q as ResolvedRoute, r as renderForExport } from './d3-BKxlhmpy.js';
+export { C as ChartTypeId, a as ChartTypeMeta, c as chartTypes, b as getAvailablePalettes, g as getPalette, i as isValidHex, d as registerPalette } from './chart-types-OpWbyUIA.js';
+export { C as CHART_TYPE_DESCRIPTIONS, M as MapCompletionOptions, a as MapLocationMatch, b as MapPlaceCompletion, c as MapRegionCompletion, R as RenderCategory, T as Theme, g as chartTypeParsers, d as completeMapPlaces, e as completeMapRegions, h as getAllChartTypes, i as getRenderCategory, j as isExtendedChartType, k as knownChartTypeIds, p as palettes, f as parseDgmo, s as searchMapLocations, t as themes, f as validate } from './completion-BW7eBB-g.js';
 import { Selection } from 'd3-selection';
 import * as d3Scale from 'd3-scale';
-import { P as ParsedOrg, F as FillMode, R as RaciMarker, a as ParsedRaci, b as RaciVariant, c as RaciTask } from './chart-meta-BnVwoPaA.js';
-export { A as ALL_CHART_TYPES, I as ImportSource, O as OrgNode, d as RaciPhase, e as RaciRoleAssignment, f as ReadFileFn, g as ResolveImportsResult, h as contrastText, i as findOrgNodeIdByName, j as getSeriesColors, k as hexToHSL, l as hexToHSLString, m as hslToHex, n as mix, o as normalizePertSourceForShare, p as parseDgmoChartType, q as parseFirstLine, r as parseOrg, s as parseRaci, t as resolveOrgImports, u as shade, v as shapeFill, w as tint } from './chart-meta-BnVwoPaA.js';
+import { P as ParsedOrg, F as FillMode, R as RaciMarker, a as ParsedRaci, b as RaciVariant, c as RaciTask } from './chart-meta-Oc8kL8mA.js';
+export { A as ALL_CHART_TYPES, I as ImportSource, O as OrgNode, d as RaciPhase, e as RaciRoleAssignment, f as ReadFileFn, g as ResolveImportsResult, h as contrastText, i as findOrgNodeIdByName, j as getSeriesColors, k as hexToHSL, l as hexToHSLString, m as hslToHex, n as mix, o as normalizePertSourceForShare, p as parseDgmoChartType, q as parseFirstLine, r as parseOrg, s as parseRaci, t as resolveOrgImports, u as shade, v as shapeFill, w as tint } from './chart-meta-Oc8kL8mA.js';
 import { GeoProjection } from 'd3-geo';
-
-/**
- * Stable diagnostic codes for in-arrow label parsing errors.
- *
- * **Active codes** — emitted by the parser pipeline today:
- *   - `ARROW_SUBSTRING_IN_LABEL` (TD-13)
- *   - `CONTROL_CHAR_IN_LABEL` (TD-14)
- *
- * See `docs/dgmo-language-spec-decisions.md` → TD-16 for the rationale.
- */
-declare const ARROW_DIAGNOSTIC_CODES: {
-    /** Active: label contains `->` or `~>` substring (TD-13). */
-    readonly ARROW_SUBSTRING_IN_LABEL: "E_ARROW_SUBSTRING_IN_LABEL";
-    /** Active: label contains a forbidden control character (TD-14). */
-    readonly CONTROL_CHAR_IN_LABEL: "E_CONTROL_CHAR_IN_LABEL";
-};
-/**
- * Validate an in-arrow label against the TD-13 and TD-14 character-set
- * contract. Returns diagnostics (possibly empty). Does NOT mutate the label —
- * callers that want a normalized label should trim before calling.
- *
- * TD-13: label must not contain the substrings "->" or "~>".
- * TD-14: label must not contain C0 control chars other than tab, and no DEL.
- */
-declare function validateLabelCharacters(label: string, lineNumber: number): DgmoError[];
-interface ParseInArrowLabelResult {
-    /** Cleaned label (trimmed; `undefined` if empty after trim per TD-10). */
-    label: string | undefined;
-    diagnostics: DgmoError[];
-}
-/**
- * Normalize and validate a raw in-arrow label.
- *
- * Behavior:
- *   - Trims leading/trailing whitespace (TD-8: internal whitespace preserved).
- *   - Empty-after-trim → `{ label: undefined }` (TD-10 normalization).
- *   - TD-13: emits `E_ARROW_SUBSTRING_IN_LABEL` if `->` or `~>` is present.
- *   - TD-14: emits `E_CONTROL_CHAR_IN_LABEL` for forbidden control chars.
- *
- * This helper is intentionally chart-agnostic: it operates on an already
- * extracted label string, leaving each chart's existing arrow-finding
- * tokenization in place. Edges no longer have a color slot on any chart
- * type (see spec §1.7 "Edge color is not a feature"); arrow content is
- * pure label text.
- */
-declare function parseInArrowLabel(rawLabel: string, lineNumber: number): ParseInArrowLabelResult;
 
 /**
  * Tag a primitive type `T` with a phantom brand `B`. The brand
@@ -319,6 +273,52 @@ declare function renderVenn(container: HTMLDivElement, parsed: ParsedVenn, palet
  * Displays 4 colored quadrant regions, axis labels, quadrant labels, and data points.
  */
 declare function renderQuadrant(container: HTMLDivElement, parsed: ParsedQuadrant, palette: PaletteColors, isDark: boolean, onClickItem?: (lineNumber: number) => void, exportDims?: D3ExportDimensions): void;
+
+/**
+ * Stable diagnostic codes for in-arrow label parsing errors.
+ *
+ * **Active codes** — emitted by the parser pipeline today:
+ *   - `ARROW_SUBSTRING_IN_LABEL` (TD-13)
+ *   - `CONTROL_CHAR_IN_LABEL` (TD-14)
+ *
+ * See `docs/dgmo-language-spec-decisions.md` → TD-16 for the rationale.
+ */
+declare const ARROW_DIAGNOSTIC_CODES: {
+    /** Active: label contains `->` or `~>` substring (TD-13). */
+    readonly ARROW_SUBSTRING_IN_LABEL: "E_ARROW_SUBSTRING_IN_LABEL";
+    /** Active: label contains a forbidden control character (TD-14). */
+    readonly CONTROL_CHAR_IN_LABEL: "E_CONTROL_CHAR_IN_LABEL";
+};
+/**
+ * Validate an in-arrow label against the TD-13 and TD-14 character-set
+ * contract. Returns diagnostics (possibly empty). Does NOT mutate the label —
+ * callers that want a normalized label should trim before calling.
+ *
+ * TD-13: label must not contain the substrings "->" or "~>".
+ * TD-14: label must not contain C0 control chars other than tab, and no DEL.
+ */
+declare function validateLabelCharacters(label: string, lineNumber: number): DgmoError[];
+interface ParseInArrowLabelResult {
+    /** Cleaned label (trimmed; `undefined` if empty after trim per TD-10). */
+    label: string | undefined;
+    diagnostics: DgmoError[];
+}
+/**
+ * Normalize and validate a raw in-arrow label.
+ *
+ * Behavior:
+ *   - Trims leading/trailing whitespace (TD-8: internal whitespace preserved).
+ *   - Empty-after-trim → `{ label: undefined }` (TD-10 normalization).
+ *   - TD-13: emits `E_ARROW_SUBSTRING_IN_LABEL` if `->` or `~>` is present.
+ *   - TD-14: emits `E_CONTROL_CHAR_IN_LABEL` for forbidden control chars.
+ *
+ * This helper is intentionally chart-agnostic: it operates on an already
+ * extracted label string, leaving each chart's existing arrow-finding
+ * tokenization in place. Edges no longer have a color slot on any chart
+ * type (see spec §1.7 "Edge color is not a feature"); arrow content is
+ * pure label text.
+ */
+declare function parseInArrowLabel(rawLabel: string, lineNumber: number): ParseInArrowLabelResult;
 
 /**
  * Render DGMO source to an SVG string.
@@ -1034,8 +1034,19 @@ declare function isSequenceNote(el: SequenceElement): el is SequenceNote;
  */
 interface SequenceGroup {
     readonly name: string;
+    /**
+     * Every participant under this group, nested ones included, in source
+     * order. Transitive so a frame — outer or inner — can size itself from one
+     * list; `parent` is what distinguishes the two. Members of a nested group
+     * are contiguous inside their parent's list because the source order that
+     * built it is the order they were written in.
+     */
     readonly participantIds: readonly ParticipantId[];
     readonly lineNumber: number;
+    /** Name of the enclosing group, when this one is indented inside another. */
+    readonly parent?: string;
+    /** 0 for a top-level group, 1 for one nested inside it. Capped at MAX_GROUP_DEPTH - 1. */
+    readonly depth: number;
     /** Pipe-delimited tag metadata (e.g. `[Backend | t: Product]`) */
     readonly metadata?: Readonly<Record<string, string>>;
     /** Whether this group is collapsed by default */

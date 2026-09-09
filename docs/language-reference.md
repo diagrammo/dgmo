@@ -629,6 +629,17 @@ Names that previously inferred to a removed type — `AuthService`, `WebApp`, `C
 ```
 
 - Metadata goes outside brackets: `[Backend] t: Eng`
+- **Groups nest one level deep.** Indent a `[Group]` under another and its members one level deeper again; dedenting rejoins the outer group, so `FanScreen` below belongs to `Monolith`, not to `Linux`. A third level is refused with `E_SEQ_GROUP_DEPTH` and its participants join the group above.
+
+```
+[Monolith]
+  Camera
+  [Linux]
+    FacialCapture
+    GAEEdgeSW
+  FanScreen
+  StaffScreen
+```
 - **Color participants by category with a tag group** (§1.3). Declare the group with named palette colors, then assign each participant `<alias>: <Value>` — the tag is on the participant, not the group line or a message:
 
 ```

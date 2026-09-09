@@ -34,7 +34,11 @@ export function propagateGroupTags(
   participantMeta: Map<string, Record<string, string>>,
   groups: ReadonlyArray<SequenceGroup>
 ): void {
-  for (const group of groups) {
+  // Deepest group first. Only keys not already present are set, so walking
+  // inward-out lets a nested group's tag beat the one it sits inside —
+  // `[Linux]` marked NEC inside an untagged `[Monolith]`, and equally a
+  // `[Monolith]` tag that a nested group deliberately overrides.
+  for (const group of [...groups].sort((a, b) => b.depth - a.depth)) {
     if (!group.metadata) continue;
     for (const id of group.participantIds) {
       const meta = participantMeta.get(id);

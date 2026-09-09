@@ -32,6 +32,7 @@ import {
   SEQUENCE_REGISTRY,
   withTagAliases,
 } from '../utils/reserved-key-registry';
+import { SEQUENCE_DIAGNOSTIC_CODES } from './diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
 import {
   matchTagBlockHeading,
@@ -190,8 +191,19 @@ export function isSequenceNote(el: SequenceElement): el is SequenceNote {
  */
 export interface SequenceGroup {
   readonly name: string;
+  /**
+   * Every participant under this group, nested ones included, in source
+   * order. Transitive so a frame — outer or inner — can size itself from one
+   * list; `parent` is what distinguishes the two. Members of a nested group
+   * are contiguous inside their parent's list because the source order that
+   * built it is the order they were written in.
+   */
   readonly participantIds: readonly ParticipantId[];
   readonly lineNumber: number;
+  /** Name of the enclosing group, when this one is indented inside another. */
+  readonly parent?: string;
+  /** 0 for a top-level group, 1 for one nested inside it. Capped at MAX_GROUP_DEPTH - 1. */
+  readonly depth: number;
   /** Pipe-delimited tag metadata (e.g. `[Backend | t: Product]`) */
   readonly metadata?: Readonly<Record<string, string>>;
   /** Whether this group is collapsed by default */
@@ -229,6 +241,14 @@ const COLORED_PARTICIPANT_PATTERN =
 
 // Group heading pattern — "[Backend]", "[Backend] | t: Product"
 // Group 1: name (no ] or | inside brackets), Group 2: color in parens, Group 3: after-bracket text
+/**
+ * How many levels of `[Group]` a sequence diagram nests (§2.3). Two: a group
+ * and one group inside it. Past that the picture stops paying for itself —
+ * each level costs another label band above the participant row, and the
+ * frames converge on the columns they wrap.
+ */
+const MAX_GROUP_DEPTH = 2;
+
 const GROUP_HEADING_PATTERN = /^\[([^\]|]+?)(?:\(([^)]+)\))?\]\s*(.*)$/;
 // Fallback: allows anything inside brackets (used to detect pipe-inside-brackets error)
 const GROUP_HEADING_FALLBACK = /^\[([^\]]+)\]\s*(.*)$/;
@@ -493,8 +513,8 @@ export function parseSequenceDgmo(
   const fail = makeFail(result);
 
   /** Push a recoverable error and continue parsing. */
-  const pushError = (line: number, message: string): void => {
-    const diag = makeDgmoError(line, message);
+  const pushError = (line: number, message: string, code?: string): void => {
+    const diag = makeDgmoError(line, message, 'error', code);
     result.diagnostics.push(diag);
     if (!result.error) result.error = formatDgmoError(diag);
   };
@@ -538,10 +558,58 @@ export function parseSequenceDgmo(
     break;
   }
 
-  // Group parsing state — tracks the active [Group] heading.
-  // Mutated during parse (participantIds.push); typed Writable so the
-  // local accumulator can grow before the readonly-typed value is exposed.
-  let activeGroup: Writable<SequenceGroup> | null = null;
+  // Group parsing state — the open [Group] headings, outermost first.
+  // A `[Linux]` indented under `[Monolith]` NESTS rather than replacing it
+  // (§2.3), so the owning group of a participant line is the deepest heading
+  // less indented than that line; a heading or participant at indent N closes
+  // every open group whose own heading sits at indent N or deeper. Mutated
+  // during parse (participantIds.push); typed Writable so the local
+  // accumulator can grow before the readonly-typed value is exposed.
+  const groupStack: Array<{
+    group: Writable<SequenceGroup>;
+    indent: number;
+  }> = [];
+  /** The innermost open group, or null at the top level. */
+  const activeGroup = (): Writable<SequenceGroup> | null =>
+    groupStack.length > 0 ? groupStack[groupStack.length - 1]!.group : null;
+  /** Close every open group whose heading sits at `indent` or deeper. */
+  const closeGroupsTo = (indent: number): void => {
+    while (
+      groupStack.length > 0 &&
+      groupStack[groupStack.length - 1]!.indent >= indent
+    ) {
+      groupStack.pop();
+    }
+  };
+  /**
+   * File a participant into the innermost open group and every ancestor above
+   * it, so each frame's `participantIds` is its own full span. Membership is
+   * still one group per participant — the innermost — which is what the
+   * duplicate check reports on.
+   */
+  const joinActiveGroup = (
+    key: ParticipantId,
+    id: string,
+    lineNumber: number
+  ): void => {
+    const innermost = activeGroup();
+    if (!innermost || innermost.participantIds.includes(key)) return;
+    const existingGroup = participantGroupMap.get(key);
+    if (existingGroup) {
+      pushError(
+        lineNumber,
+        `Participant '${id}' is already in group '${existingGroup}' — participants can only belong to one group`
+      );
+      return;
+    }
+    for (const frame of groupStack) {
+      if (!frame.group.participantIds.includes(key)) {
+        frame.group.participantIds.push(key);
+      }
+    }
+    // participantGroupMap is keyed by normalized participant key
+    participantGroupMap.set(key, innermost.name);
+  };
 
   // Fast lookup set for participant existence checks (mirrors result.participants).
   // Holds NORMALIZED participant keys so 'Auth Service' and 'auth service' fold
@@ -745,7 +813,7 @@ export function parseSequenceDgmo(
 
     // Skip empty lines
     if (!trimmed) {
-      activeGroup = null;
+      closeGroupsTo(0);
       currentTagGroup = null;
       continue;
     }
@@ -802,14 +870,38 @@ export function parseSequenceDgmo(
         );
       }
       contentStarted = true;
-      activeGroup = {
+
+      // §2.3 — a heading at indent N closes every group opened at N or
+      // deeper, so `[Linux]` at indent 2 nests inside `[Monolith]` at 0 while
+      // a sibling `[NEC Cloud]` back at 0 does not.
+      const headingIndent = measureIndent(raw);
+      closeGroupsTo(headingIndent);
+      const depth = groupStack.length;
+
+      if (depth >= MAX_GROUP_DEPTH) {
+        // The too-deep group is refused rather than dropped on the floor: it
+        // never opens, so its participants file into the group above it. Same
+        // recovery sketch uses for a `[Box]` past its own bound (decision #58).
+        pushError(
+          lineNumber,
+          `Group '${groupName}' is nested ${String(depth + 1)} levels deep — participant groups nest to depth ${String(MAX_GROUP_DEPTH)}; its participants join the group above it`,
+          SEQUENCE_DIAGNOSTIC_CODES.GROUP_DEPTH
+        );
+        continue;
+      }
+
+      const parentGroup = activeGroup();
+      const group: Writable<SequenceGroup> = {
         name: groupName,
         participantIds: [],
         lineNumber,
+        depth,
+        ...(parentGroup ? { parent: parentGroup.name } : {}),
         ...(groupMeta ? { metadata: groupMeta } : {}),
         ...(isCollapsed ? { collapsed: true } : {}),
       };
-      result.groups.push(activeGroup);
+      result.groups.push(group);
+      groupStack.push({ group, indent: headingIndent });
       continue;
     }
 
@@ -837,10 +929,9 @@ export function parseSequenceDgmo(
       }
     }
 
-    // Close active group on non-indented, non-group lines
-    if (activeGroup && measureIndent(raw) === 0) {
-      activeGroup = null;
-    }
+    // Close every group this line's indentation has left behind. At indent 0
+    // that is all of them, which is what one `activeGroup` slot used to do.
+    closeGroupsTo(measureIndent(raw));
 
     // Skip comments — only // is supported
     if (trimmed.startsWith('//')) continue;
@@ -1101,20 +1192,7 @@ export function parseSequenceDgmo(
         ...(isAMeta !== undefined && { metadata: isAMeta }),
       });
       // Track group membership
-      if (activeGroup && !activeGroup.participantIds.includes(key)) {
-        const existingGroup = participantGroupMap.get(key);
-        if (existingGroup) {
-          pushError(
-            lineNumber,
-            `Participant '${id}' is already in group '${existingGroup}' — participants can only belong to one group`
-          );
-        } else {
-          activeGroup.participantIds.push(key);
-          // participantGroupMap is keyed by normalized participant key
-
-          participantGroupMap.set(key, activeGroup.name);
-        }
-      }
+      joinActiveGroup(key, id, lineNumber);
       continue;
     }
 
@@ -1134,19 +1212,7 @@ export function parseSequenceDgmo(
       const key = addParticipant(id, lineNumber, {
         ...(colorMeta !== undefined && { metadata: colorMeta }),
       });
-      if (activeGroup && !activeGroup.participantIds.includes(key)) {
-        const existingGroup = participantGroupMap.get(key);
-        if (existingGroup) {
-          pushError(
-            lineNumber,
-            `Participant '${id}' is already in group '${existingGroup}' — participants can only belong to one group`
-          );
-        } else {
-          activeGroup.participantIds.push(key);
-
-          participantGroupMap.set(key, activeGroup.name);
-        }
-      }
+      joinActiveGroup(key, id, lineNumber);
       continue;
     }
 
@@ -1158,7 +1224,7 @@ export function parseSequenceDgmo(
         meta: bareMeta,
         alias: bareAlias,
       } = splitPipe(trimmed, lineNumber);
-      const inGroup = activeGroup && measureIndent(raw) > 0;
+      const inGroup = activeGroup() !== null && measureIndent(raw) > 0;
       if (
         /^\S+$/.test(bareCore) &&
         !ARROW_PATTERN.test(bareCore) &&
@@ -1175,19 +1241,7 @@ export function parseSequenceDgmo(
           ...(position !== undefined && { position }),
           ...(bareMeta !== undefined && { metadata: bareMeta }),
         });
-        if (activeGroup && !activeGroup.participantIds.includes(key)) {
-          const existingGroup = participantGroupMap.get(key);
-          if (existingGroup) {
-            pushError(
-              lineNumber,
-              `Participant '${id}' is already in group '${existingGroup}' — participants can only belong to one group`
-            );
-          } else {
-            activeGroup.participantIds.push(key);
-
-            participantGroupMap.set(key, activeGroup.name);
-          }
-        }
+        joinActiveGroup(key, id, lineNumber);
         continue;
       }
     }

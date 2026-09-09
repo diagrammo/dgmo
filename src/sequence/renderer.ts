@@ -941,9 +941,16 @@ export function applyGroupOrdering(
   groups: readonly SequenceGroup[],
   messages: readonly SequenceMessage[] = []
 ): SequenceParticipant[] {
-  // Build a map: participantId → group
+  // Build a map: participantId → group.
+  //
+  // Only ROOT groups place columns. A nested group's members are already in
+  // its parent's transitive `participantIds`, and contiguous within it, so the
+  // parent placing its whole list puts the inner group's columns side by side
+  // as a side effect. Letting the inner group place them too would pull them
+  // out of the parent's run and leave its frame spanning a gap.
   const idToGroup = new Map<string, SequenceGroup>();
   for (const group of groups) {
+    if (group.parent !== undefined) continue;
     for (const id of group.participantIds) {
       idToGroup.set(id, group);
     }
@@ -1085,8 +1092,11 @@ export function renderSequenceDiagram(
   // adjacent group box (whose frame extends GROUP_PADDING_X past its members).
   const groupBoundaryIds = new Set<string>();
   if (groups.length > 0) {
+    // Root groups only — a nested frame sits inside its parent's, so the gap
+    // between an inner member and an outer one is still a within-group gap.
     const pToG = new Map<string, number>();
     for (let gi = 0; gi < groups.length; gi++) {
+      if (groups[gi]!.parent !== undefined) continue;
       for (const pid of groups[gi]!.participantIds) pToG.set(pid, gi);
     }
     const LOOSE = -1;
@@ -1659,6 +1669,11 @@ export function renderSequenceDiagram(
 
   // Group box layout constants (needed early for Y offset)
   const GROUP_PADDING_X = 15;
+  // How much narrower each level of nesting draws its frame, and the floor it
+  // may not cross — below ~4px the inner stroke reads as a double border on
+  // the outer one rather than as a box inside a box.
+  const GROUP_NEST_INSET_X = 6;
+  const GROUP_NEST_MIN_PAD_X = 4;
   const GROUP_PADDING_TOP = 22;
   const GROUP_PADDING_BOTTOM = 8;
   const GROUP_LABEL_SIZE = 11;
@@ -1736,9 +1751,17 @@ export function renderSequenceDiagram(
     titleFontSize: ctx.text(TITLE_FONT_SIZE),
   });
   // Use parsed.groups (not projected groups) to keep vertical space consistent
-  // even when all groups are collapsed into virtual participants
+  // even when all groups are collapsed into virtual participants.
+  //
+  // §2.3 nesting: every level of containment stacks one more label strip above
+  // the participant row, because the lifelines all start together and so the
+  // header has to grow upward instead. A flat diagram is `maxGroupDepth === 0`
+  // and reserves exactly what it always did.
+  const maxGroupDepth = parsed.groups.reduce((d, g) => Math.max(d, g.depth), 0);
   const groupOffset =
-    parsed.groups.length > 0 ? GROUP_PADDING_TOP + GROUP_LABEL_SIZE : 0;
+    parsed.groups.length > 0
+      ? (maxGroupDepth + 1) * GROUP_PADDING_TOP + GROUP_LABEL_SIZE
+      : 0;
   const participantStartY =
     sTopMargin +
     titleOffset +
@@ -2249,6 +2272,7 @@ export function renderSequenceDiagram(
     string,
     {
       lineNumber: number;
+      depth: number;
       participantIds: readonly string[];
       metadata?: Record<string, string>;
     }
@@ -2258,6 +2282,7 @@ export function renderSequenceDiagram(
       collapsedGroupNames.add(group.name);
       collapsedGroupMeta.set(group.name, {
         lineNumber: group.lineNumber,
+        depth: group.depth,
         participantIds: group.participantIds,
         ...(group.metadata !== undefined && { metadata: group.metadata }),
       });
@@ -2310,8 +2335,14 @@ export function renderSequenceDiagram(
     g.participantIds.some((id) => participantX.has(id))
   );
 
-  // Render group boxes (behind participant shapes) — skip collapsed groups
-  for (const group of groups) {
+  // Render group boxes (behind participant shapes) — skip collapsed groups.
+  //
+  // 🔴 Outermost first. A nested frame is drawn ON TOP of its parent's, so its
+  // own header strip and hit area win the clicks inside it; the other order
+  // buries an inner group under the box that contains it, where nothing can
+  // toggle it.
+  const framedGroups = [...groups].sort((a, b) => a.depth - b.depth);
+  for (const group of framedGroups) {
     if (group.participantIds.length === 0) continue;
 
     // Find X bounds from member participant positions
@@ -2320,10 +2351,22 @@ export function renderSequenceDiagram(
       .filter((x): x is number => x !== undefined);
     if (memberXs.length === 0) continue;
 
-    const minX = Math.min(...memberXs) - sBoxW / 2 - GROUP_PADDING_X;
-    const maxX = Math.max(...memberXs) + sBoxW / 2 + GROUP_PADDING_X;
-    const boxY = participantStartY - GROUP_PADDING_TOP;
-    const boxH = sBoxH + GROUP_PADDING_TOP + GROUP_PADDING_BOTTOM;
+    // A nested frame draws narrower rather than its parent drawing wider, so a
+    // flat diagram's horizontal extents — and every margin computed from
+    // GROUP_PADDING_X — are exactly what they were. With neither, two frames
+    // wrapping the same columns would land on the same rectangle.
+    const padX = Math.max(
+      GROUP_NEST_MIN_PAD_X,
+      GROUP_PADDING_X - group.depth * GROUP_NEST_INSET_X
+    );
+    const minX = Math.min(...memberXs) - sBoxW / 2 - padX;
+    const maxX = Math.max(...memberXs) + sBoxW / 2 + padX;
+    // Each level of nesting gives up one strip of the reserved header, so the
+    // outermost frame starts highest and every frame's members share a
+    // baseline.
+    const boxY =
+      participantStartY - (maxGroupDepth + 1 - group.depth) * GROUP_PADDING_TOP;
+    const boxH = sBoxH + (participantStartY - boxY) + GROUP_PADDING_BOTTOM;
 
     // Group box background — use tag color if group has metadata for the active tag group.
     // Intentionally 15-20% (not the canonical 25% shapeFill): group boxes are
@@ -2529,7 +2572,13 @@ export function renderSequenceDiagram(
       // reserve the group padding from `parsed.groups`, not from the projected
       // view, so toggling a group still moves nothing. A compact box simply
       // leaves the reserved strip above it empty.
-      const padTop = hasExpandedGroup ? GROUP_PADDING_TOP : 0;
+      // At its own depth, so a collapsed group stands exactly where its frame
+      // would have: a nested one keeps the inner strip's top edge and stays
+      // inside the parent frame it is a column of, rather than rising to the
+      // outermost one and punching through it.
+      const padTop = hasExpandedGroup
+        ? (maxGroupDepth + 1 - meta.depth) * GROUP_PADDING_TOP
+        : 0;
       const padBottom = hasExpandedGroup ? GROUP_PADDING_BOTTOM : 0;
       const fullH = sBoxH + padTop + padBottom;
       const clipId = `clip-drill-group-${participant.id.replace(/[^a-zA-Z0-9-]/g, '-')}`;
