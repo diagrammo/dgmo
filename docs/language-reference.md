@@ -640,6 +640,7 @@ Names that previously inferred to a removed type — `AuthService`, `WebApp`, `C
   FanScreen
   StaffScreen
 ```
+
 - **Color participants by category with a tag group** (§1.3). Declare the group with named palette colors, then assign each participant `<alias>: <Value>` — the tag is on the participant, not the group line or a message:
 
 ```
