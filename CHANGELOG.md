@@ -5,6 +5,44 @@ All notable changes to `@diagrammo/dgmo` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.85.0] - 2026-09-10
+
+### Added
+
+- **A sequence diagram's participant groups can now hold one group inside
+  another.** A real system is drawn in nested boxes — a Linux partition inside
+  a monolith, a rack inside a data centre — and the obvious spelling for it
+  produced a valid diagram that was wrong. A `[Group]` indented inside another
+  parsed as a **sibling** and then captured every participant written after it,
+  whatever its indentation, so a `[Monolith]` holding a camera, a nested
+  `[Linux]`, and two screens came out as a one-participant Monolith beside a
+  Linux holding four. Nothing reported it: validation answered _no errors or
+  warnings_, and the only way to find it was to look at the picture.
+  Indentation now decides containment and dedenting rejoins the outer group, to
+  a maximum depth of two — the bound `boxes-and-lines` and `sketch` already
+  use. A third level is refused, naming the line, and its participants join the
+  group above rather than vanishing. Every lifeline still starts at the same
+  height, so a second level of containment stacks another label strip above the
+  participant row instead of making a box taller; the inner frame's side
+  borders split the gap to the column on either side of it, and its bottom edge
+  clears the outer frame's. A nested group's tag beats the one it sits inside,
+  and collapsing a container takes everything in it — collapsing only the inner
+  group leaves it as a single column standing inside its parent's frame.
+
+### Fixed
+
+- **A group frame could be drawn flush against the canvas edge, or cut by
+  it.** A frame reaches past the participant box it wraps, and that box reaches
+  past its own lifeline. The right margin had always accounted for both; the
+  left margin accounted for neither, and had never been more than half a
+  column gap. So a leftmost participant inside a `[Group]` had its frame drawn
+  past a margin that did not know it was there — five pixels of clear air on
+  one side against ten on the other, measured on a five-group diagram. Both
+  sides now take the same measurement and a wider one, so a grouped sequence
+  diagram sits clear of both edges. The right side keeps the two allowances it
+  alone needs, since a note hangs to the right of its lifeline and a self-call
+  loops right, and nothing reaches further left than a group frame.
+
 ## [0.84.0] - 2026-09-08
 
 ### Added
