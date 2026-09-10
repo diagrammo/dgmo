@@ -10,3 +10,33 @@
 # and watching `pnpm update prettier` be refused.
 minimumReleaseAge: 1440
 trustPolicy: no-downgrade
+
+# 🔴 Our OWN packages are exempt, and this is narrower than the workaround it
+# replaces. The hold above exists for a THIRD-PARTY version compromised
+# upstream and unpublished within hours; ours are published by our own Actions
+# runs over npm Trusted Publishing (OIDC) with a SLSA provenance statement, and
+# a release cascade installs them minutes after they go out. Without this,
+# every same-day release is blocked and the escape is
+# `pnpm install --config.minimumReleaseAge=0`, which switches the hold off for
+# EVERY package in that install, third-party ones included — so an explicit,
+# reviewed, first-party-only list is the safer of the two. Added 2026-09-10,
+# after dgmo 0.85.0 blocked the dgmo-mcp release that had to inline it.
+#
+# The trade taken knowingly: if our own publishing pipeline were compromised,
+# the delay that would have bought time to notice is given up for these names.
+# It is given up for THOSE NAMES ONLY — measured 2026-09-10 by setting a ten-year
+# hold here: `@diagrammo/dgmo` installed, and its own transitive `lz-string` was
+# still refused. The hold goes on governing everything underneath our packages.
+#
+# ⚠️ `@diagrammo/*` is a glob because the SCOPE is ours and nobody else can
+# publish into it. The six unscoped wrappers are listed by name on purpose —
+# `*-dgmo` would match anything anyone published under that convention, which
+# is the squatting hole this whole setting defends against.
+minimumReleaseAgeExclude:
+  - '@diagrammo/*'
+  - 'remark-dgmo'
+  - 'astro-dgmo'
+  - 'docusaurus-plugin-dgmo'
+  - 'fumadocs-dgmo'
+  - 'nextra-dgmo'
+  - 'vitepress-dgmo'
