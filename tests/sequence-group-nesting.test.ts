@@ -68,6 +68,22 @@ function renderToSvg(input: string): SVGSVGElement {
   return svg!;
 }
 
+/**
+ * Every participant's lifeline centre, by id. The box is drawn in local
+ * coordinates inside a translated <g>, so the centre is the translate's x.
+ */
+function columnXs(svg: SVGSVGElement): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const g of svg.querySelectorAll('g.participant[data-participant-id]')) {
+    const id = g.getAttribute('data-participant-id');
+    const tx = /translate\(\s*(-?[\d.]+)/.exec(
+      g.getAttribute('transform') ?? ''
+    );
+    if (id && tx) out.set(id, Number(tx[1]));
+  }
+  return out;
+}
+
 /** The frame rect of a named group box, by its label. */
 function frameOf(svg: SVGSVGElement, name: string) {
   const label = Array.from(svg.querySelectorAll('text.group-label')).find(
@@ -264,7 +280,7 @@ describe('Sequence participant groups — one level of nesting (§2.3)', () => {
   // Rendering
   // ──────────────────────────────────────────────────
 
-  it('draws the inner frame inside the outer one', () => {
+  it('draws the inner frame inside the outer one, on all four sides', () => {
     const svg = renderToSvg(nested);
     const monolith = frameOf(svg, 'Monolith');
     const linux = frameOf(svg, 'Linux');
@@ -272,7 +288,55 @@ describe('Sequence participant groups — one level of nesting (§2.3)', () => {
     expect(linux.x).toBeGreaterThan(monolith.x);
     expect(linux.x + linux.width).toBeLessThan(monolith.x + monolith.width);
     expect(linux.y).toBeGreaterThan(monolith.y);
-    expect(linux.y + linux.height).toBe(monolith.y + monolith.height);
+    // The bottom edges must not share a line — the two frames read as one box
+    // with a divider when they do.
+    expect(linux.y + linux.height).toBeLessThan(monolith.y + monolith.height);
+    expect(monolith.y + monolith.height - (linux.y + linux.height)).toBe(6);
+  });
+
+  it('bisects the gap to the column on either side of the nested group', () => {
+    const svg = renderToSvg(nested);
+    const linux = frameOf(svg, 'Linux');
+    const x = columnXs(svg);
+
+    // Camera | FacialCapture … GAEEdgeSW | FanScreen — the frame's borders land
+    // halfway between the centres, which for uniformly wide boxes centred on
+    // their lifelines is halfway between the boxes.
+    expect(linux.x).toBeCloseTo(
+      (x.get('Camera')! + x.get('FacialCapture')!) / 2,
+      3
+    );
+    expect(linux.x + linux.width).toBeCloseTo(
+      (x.get('GAEEdgeSW')! + x.get('FanScreen')!) / 2,
+      3
+    );
+  });
+
+  it('keeps a nested frame inside its parent when the neighbour is outside it', () => {
+    // [Inner] is the whole of [Outer], so the columns either side of it are
+    // outside the parent too — bisecting to them would put the inner frame
+    // through the outer one's wall.
+    const svg = renderToSvg(
+      [
+        'sequence',
+        'Client',
+        '',
+        '[Outer]',
+        '  [Inner]',
+        '    A',
+        '    B',
+        '',
+        'Server',
+        'Client -go-> A',
+        'A -on-> B',
+        'B -done-> Server',
+      ].join('\n')
+    );
+    const outer = frameOf(svg, 'Outer');
+    const inner = frameOf(svg, 'Inner');
+
+    expect(inner.x).toBeGreaterThanOrEqual(outer.x);
+    expect(inner.x + inner.width).toBeLessThanOrEqual(outer.x + outer.width);
   });
 
   it('draws the outer frame first so the inner one takes its own clicks', () => {
@@ -311,14 +375,16 @@ describe('Sequence participant groups — one level of nesting (§2.3)', () => {
     const flatFrame = frameOf(renderToSvg(flat), 'Monolith');
     const nestedFrame = frameOf(renderToSvg(nested), 'Monolith');
 
-    // GROUP_PADDING_TOP, once. Asserted as a difference rather than an
-    // absolute so it survives any other change to the header band.
+    // GROUP_PADDING_TOP above (22) plus GROUP_NEST_INSET_Y below (6), which
+    // is the room the inner frame's bottom edge needs to clear this one.
+    // Asserted as a difference rather than an absolute so it survives any
+    // other change to the band.
     //
     // The band grows DOWNWARD from a pinned top edge: an outer frame starts
     // where it always did, and the extra strip pushes the participant row
     // down instead. So the top-level frame's own y must not move — that is
     // what keeps a nested diagram sitting under its legend like a flat one.
-    expect(nestedFrame.height - flatFrame.height).toBe(22);
+    expect(nestedFrame.height - flatFrame.height).toBe(28);
     expect(nestedFrame.y).toBe(flatFrame.y);
   });
 });

@@ -1674,6 +1674,10 @@ export function renderSequenceDiagram(
   // the outer one rather than as a box inside a box.
   const GROUP_NEST_INSET_X = 6;
   const GROUP_NEST_MIN_PAD_X = 4;
+  // How much lower each enclosing level draws its bottom edge. The header band
+  // above grows the same way, so a nested frame is inset on all four sides
+  // rather than sharing a line with the box that contains it.
+  const GROUP_NEST_INSET_Y = 6;
   const GROUP_PADDING_TOP = 22;
   const GROUP_PADDING_BOTTOM = 8;
   const GROUP_LABEL_SIZE = 11;
@@ -1762,6 +1766,13 @@ export function renderSequenceDiagram(
     parsed.groups.length > 0
       ? (maxGroupDepth + 1) * GROUP_PADDING_TOP + GROUP_LABEL_SIZE
       : 0;
+  /**
+   * How far below the participant boxes a frame at this depth closes. An
+   * OUTER frame reaches lower so an inner one clears it; a flat diagram is
+   * `maxGroupDepth === 0` and gets exactly GROUP_PADDING_BOTTOM, as before.
+   */
+  const groupBottomPad = (depth: number): number =>
+    GROUP_PADDING_BOTTOM + (maxGroupDepth - depth) * GROUP_NEST_INSET_Y;
   const participantStartY =
     sTopMargin +
     titleOffset +
@@ -1773,7 +1784,7 @@ export function renderSequenceDiagram(
   const messageStartOffset =
     sMsgStartOffset +
     (hasActors ? 20 : 0) +
-    (parsed.groups.length > 0 ? GROUP_PADDING_BOTTOM : 0);
+    (parsed.groups.length > 0 ? groupBottomPad(0) : 0);
   const stepYPositions: number[] = [];
   const sectionYPositions = new Map<number, number>(); // section lineNumber → Y
   let layoutEndY: number; // final Y after all steps and trailing sections
@@ -2342,6 +2353,13 @@ export function renderSequenceDiagram(
   // buries an inner group under the box that contains it, where nothing can
   // toggle it.
   const framedGroups = [...groups].sort((a, b) => a.depth - b.depth);
+  // Every column's x, ascending — used to find the lifeline on either side of
+  // a nested group so its frame can split the gap between them.
+  const allColumnXs = [...participantX.values()].sort((a, b) => a - b);
+  // Each frame's horizontal extent, by group name. Filled outermost-first, so
+  // a nested group always finds its parent's already computed.
+  const frameExtents = new Map<string, { minX: number; maxX: number }>();
+
   for (const group of framedGroups) {
     if (group.participantIds.length === 0) continue;
 
@@ -2351,22 +2369,49 @@ export function renderSequenceDiagram(
       .filter((x): x is number => x !== undefined);
     if (memberXs.length === 0) continue;
 
+    const firstX = Math.min(...memberXs);
+    const lastX = Math.max(...memberXs);
     // A nested frame draws narrower rather than its parent drawing wider, so a
     // flat diagram's horizontal extents — and every margin computed from
-    // GROUP_PADDING_X — are exactly what they were. With neither, two frames
-    // wrapping the same columns would land on the same rectangle.
+    // GROUP_PADDING_X — are exactly what they were.
     const padX = Math.max(
       GROUP_NEST_MIN_PAD_X,
       GROUP_PADDING_X - group.depth * GROUP_NEST_INSET_X
     );
-    const minX = Math.min(...memberXs) - sBoxW / 2 - padX;
-    const maxX = Math.max(...memberXs) + sBoxW / 2 + padX;
+    let minX = firstX - sBoxW / 2 - padX;
+    let maxX = lastX + sBoxW / 2 + padX;
+
+    // A nested frame's side borders BISECT the gap to the column outside it,
+    // rather than sitting a fixed distance from their own edge member. Boxes
+    // are uniformly wide and centred on their lifeline, so the midpoint of two
+    // adjacent centres is also the midpoint of the space between the boxes —
+    // the frame lands exactly halfway, and the air it leaves on the inside
+    // matches the air on the outside however the gap was redistributed.
+    if (group.depth > 0) {
+      const prevX = allColumnXs.filter((x) => x < firstX).pop();
+      const nextX = allColumnXs.find((x) => x > lastX);
+      if (prevX !== undefined) minX = (prevX + firstX) / 2;
+      if (nextX !== undefined) maxX = (lastX + nextX) / 2;
+
+      // The neighbour may sit OUTSIDE the parent — a nested group that is its
+      // parent's first or last member has one — and bisecting to it would put
+      // the inner frame through the outer one's wall. Keep it inside.
+      const parent = group.parent ? frameExtents.get(group.parent) : undefined;
+      if (parent) {
+        minX = Math.max(minX, parent.minX + GROUP_NEST_MIN_PAD_X);
+        maxX = Math.min(maxX, parent.maxX - GROUP_NEST_MIN_PAD_X);
+      }
+    }
+    frameExtents.set(group.name, { minX, maxX });
+
     // Each level of nesting gives up one strip of the reserved header, so the
     // outermost frame starts highest and every frame's members share a
-    // baseline.
+    // baseline. The same happens below, so a nested frame's bottom edge clears
+    // its parent's instead of sharing a line with it.
     const boxY =
       participantStartY - (maxGroupDepth + 1 - group.depth) * GROUP_PADDING_TOP;
-    const boxH = sBoxH + (participantStartY - boxY) + GROUP_PADDING_BOTTOM;
+    const boxH =
+      sBoxH + (participantStartY - boxY) + groupBottomPad(group.depth);
 
     // Group box background — use tag color if group has metadata for the active tag group.
     // Intentionally 15-20% (not the canonical 25% shapeFill): group boxes are
@@ -2579,7 +2624,9 @@ export function renderSequenceDiagram(
       const padTop = hasExpandedGroup
         ? (maxGroupDepth + 1 - meta.depth) * GROUP_PADDING_TOP
         : 0;
-      const padBottom = hasExpandedGroup ? GROUP_PADDING_BOTTOM : 0;
+      // At its own depth too, so a collapsed group closes on the same line
+      // its frame would have — inside its parent's, not level with it.
+      const padBottom = hasExpandedGroup ? groupBottomPad(meta.depth) : 0;
       const fullH = sBoxH + padTop + padBottom;
       const clipId = `clip-drill-group-${participant.id.replace(/[^a-zA-Z0-9-]/g, '-')}`;
 
@@ -2671,7 +2718,10 @@ export function renderSequenceDiagram(
     // carry their label *below* the stick figure (at boxH + 14), so their
     // lifeline must start below that label or the dashes run through the text.
     const llY = isCollapsedGroup
-      ? lifelineStartY + (hasExpandedGroup ? GROUP_PADDING_BOTTOM : 0)
+      ? lifelineStartY +
+        (hasExpandedGroup
+          ? groupBottomPad(collapsedGroupMeta.get(participant.id)?.depth ?? 0)
+          : 0)
       : participant.type === 'actor'
         ? lifelineStartY + ACTOR_LABEL_CLEARANCE
         : lifelineStartY;
