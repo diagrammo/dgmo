@@ -1,0 +1,50 @@
+sequence Night Signal Chain
+
+tag Owner as o
+  Crown red
+  Guild blue
+
+[Flagship] o: Crown
+  Lookout
+  [Gun Deck] o: Guild
+    PowderRoom
+    RangeMaster
+  Helm
+  QuarterMaster
+
+[Harbour Watch] o: Crown
+  [Watchtower] o: Guild
+    BeaconKeeper
+    TideGauge
+
+[Signal Chain]
+  Runner o: Crown
+  [Cipher Room] collapsed
+    CipherClerk
+    CodeBook
+
+== Sighting ==
+Lookout -sail on the horizon-> Helm
+Helm -range the target-> RangeMaster
+
+note right of RangeMaster
+  Bearing and elevation are
+  read off the same glass, so
+  one clerk owns both numbers
+
+RangeMaster -draw two charges-> PowderRoom
+PowderRoom -charges ready-> RangeMaster
+RangeMaster -laid and ready-> QuarterMaster
+
+== Raising the Alarm ==
+QuarterMaster -light the beacon-> BeaconKeeper
+BeaconKeeper -read the tide-> TideGauge
+TideGauge -water is making-> BeaconKeeper
+BeaconKeeper -beacon lit-> Runner
+
+== Passing the Word ==
+Runner -carry the dispatch-> CipherClerk
+CipherClerk -look up the night code-> CodeBook
+CodeBook -tonight's cipher-> CipherClerk
+CipherClerk -sealed dispatch-> Runner
+Runner -word is away-> QuarterMaster
