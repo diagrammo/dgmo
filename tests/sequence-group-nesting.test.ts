@@ -54,18 +54,40 @@ const groupNamed = (
   name: string
 ) => parsed.groups.find((g) => g.name === name);
 
-function renderToSvg(input: string): SVGSVGElement {
+function renderToSvg(input: string, exportWidth = 1200): SVGSVGElement {
   const parsed = parseSequenceDgmo(input);
   expect(parsed.error).toBeNull();
   const container = doc.createElement('div') as unknown as HTMLDivElement;
   doc.body.appendChild(container);
   renderSequenceDiagram(container, parsed, palette, false, undefined, {
-    exportWidth: 1200,
+    exportWidth,
   });
   const svg = container.querySelector('svg');
   doc.body.removeChild(container);
   expect(svg).not.toBeNull();
   return svg!;
+}
+
+/** Every drawn left/right extent: group frames plus participant boxes. */
+function drawnExtents(svg: SVGSVGElement): { left: number; right: number } {
+  const spans: Array<[number, number]> = [];
+  for (const r of svg.querySelectorAll('rect.group-box')) {
+    const x = Number(r.getAttribute('x'));
+    spans.push([x, x + Number(r.getAttribute('width'))]);
+  }
+  for (const g of svg.querySelectorAll('g.participant[data-participant-id]')) {
+    const tx = /translate\(\s*(-?[\d.]+)/.exec(
+      g.getAttribute('transform') ?? ''
+    );
+    const r = g.querySelector('rect');
+    if (!tx || !r) continue;
+    const x = Number(tx[1]) + Number(r.getAttribute('x'));
+    spans.push([x, x + Number(r.getAttribute('width'))]);
+  }
+  return {
+    left: Math.min(...spans.map(([a]) => a)),
+    right: Math.max(...spans.map(([, b]) => b)),
+  };
 }
 
 /**
@@ -350,6 +372,25 @@ describe('Sequence participant groups — one level of nesting (§2.3)', () => {
   it('aligns every top-level frame on one top edge', () => {
     const svg = renderToSvg(nested);
     expect(frameOf(svg, 'MLB Cloud').y).toBe(frameOf(svg, 'Monolith').y);
+  });
+
+  it('keeps the outermost group frame clear of both canvas edges', () => {
+    // 🔴 The left margin was a bare `sGap / 2` that budgeted for neither the
+    // participant box nor the group frame around it, so a leftmost member
+    // inside a [Group] had its frame drawn flush against the canvas edge —
+    // or cut by it. Rendered at its own ideal width, where the margins are
+    // the whole story and centring cannot mask them.
+    // A width the diagram must COMPRESS into, so the content fills the canvas
+    // and the margins are all that stand between a frame and the edge. Given
+    // slack, centring would supply the clearance and hide a missing margin.
+    const svg = renderToSvg(nested, 700);
+    const width = Number(svg.getAttribute('viewBox')?.split(' ')[2]);
+    const { left, right } = drawnExtents(svg);
+
+    expect(left).toBeGreaterThan(0);
+    expect(right).toBeLessThan(width);
+    // Same air on both sides — the two used to be computed by different rules.
+    expect(left).toBeCloseTo(width - right, 3);
   });
 
   it('spends one extra header strip only when something nests', () => {

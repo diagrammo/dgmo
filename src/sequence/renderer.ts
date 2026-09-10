@@ -21,6 +21,7 @@ export { parseInlineMarkdown, truncateBareUrl };
 import { FONT_FAMILY } from '../fonts';
 import type {
   ParsedSequenceDgmo,
+  ParticipantId,
   SequenceElement,
   SequenceGroup,
   SequenceMessage,
@@ -1668,6 +1669,9 @@ export function renderSequenceDiagram(
   }
 
   // Group box layout constants (needed early for Y offset)
+  // Clear air between the outermost drawn edge and the canvas. Was an
+  // unnamed `+ 10` on the right and nothing at all on the left.
+  const sEdgePad = ctx.aesthetic(20);
   const GROUP_PADDING_X = 15;
   // How much narrower each level of nesting draws its frame, and the floor it
   // may not cross — below ~4px the inner stroke reads as a double border on
@@ -1921,17 +1925,23 @@ export function renderSequenceDiagram(
       (totalGaps * sGap - numWithinGaps * sWithinGap) / numGroupGaps;
   }
 
+  /**
+   * How far past the OUTERMOST lifeline on a side the drawn content reaches.
+   * A participant box overhangs its lifeline by half its width, and a group
+   * frame around that participant reaches GROUP_PADDING_X further still.
+   */
+  const edgeProjection = (id: ParticipantId | undefined): number => {
+    if (!id) return sBoxW / 2;
+    const framed = parsed.groups.some((g: SequenceGroup) =>
+      g.participantIds.includes(id)
+    );
+    return framed ? sBoxW / 2 + GROUP_PADDING_X : sBoxW / 2;
+  };
+
   // Compute right-edge projection: how far content extends past the rightmost lifeline
   const rightmostId = participants[participants.length - 1]?.id;
-  let rightProjection = sBoxW / 2;
+  let rightProjection = edgeProjection(rightmostId);
   if (rightmostId) {
-    // Group padding if rightmost participant is in a group
-    if (
-      parsed.groups.some((g: SequenceGroup) =>
-        g.participantIds.includes(rightmostId)
-      )
-    )
-      rightProjection = Math.max(rightProjection, sBoxW / 2 + GROUP_PADDING_X);
     // Self-calls on rightmost: loop + label projection (+ activation nesting buffer)
     for (const step of renderSteps) {
       if (step.from === step.to && step.from === rightmostId) {
@@ -1980,9 +1990,19 @@ export function renderSequenceDiagram(
     if (elements && hasBlockWithRightmost(elements))
       rightProjection = Math.max(rightProjection, sBoxW / 2 + blockFramePadX);
   }
-  let rightMargin = Math.max(rightProjection + 10, sGap / 2);
+  let rightMargin = Math.max(rightProjection + sEdgePad, sGap / 2);
 
-  let leftMargin = sGap / 2;
+  // 🔴 The left side gets the SAME projection as the right. It used to be a
+  // bare `sGap / 2`, with nothing said about the box or the group frame — so a
+  // leftmost participant inside a `[Group]` had its frame drawn 15px past a
+  // margin that never budgeted for it, and the frame sat flush against the
+  // canvas edge or was cut by it. Nothing projects further left than a group
+  // frame: notes hang to the right of their lifeline and a self-call loops
+  // right, which is why the right side alone carries those two terms.
+  let leftMargin = Math.max(
+    edgeProjection(participants[0]?.id) + sEdgePad,
+    sGap / 2
+  );
   // Lifelines span (n-1) gaps; overhang past the last lifeline (box half,
   // group padding) is already covered by rightMargin's rightProjection. The
   // previous `participants.length * sGap` baked one phantom trailing gap into
