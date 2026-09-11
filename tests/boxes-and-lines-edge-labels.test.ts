@@ -164,3 +164,62 @@ describe('boxes-and-lines — an edge label stays with its edge', () => {
     for (const e of fanned) expect(e.points).toHaveLength(5);
   });
 });
+
+// ------------------------------------------------------------
+// #703 — a label whose edge is shorter than the label is wide sat ON the node
+// boxes at either end, because the clear-spot search stopped 40px from the
+// line. It now reaches 56px, the displacement the detachment test above
+// already calls legitimate. Measured on this fixture: that clears line 29, and
+// lines 22 and 26 still cannot be placed without leaving their line by more.
+// ------------------------------------------------------------
+describe('boxes-and-lines — an edge label clears the boxes it names', () => {
+  type Box = { x: number; y: number; width: number; height: number };
+
+  /** Node boxes a label rect covers with non-zero area. */
+  function covered(
+    label: { x: number; y: number; w: number; h: number },
+    nodes: readonly (Box & { label: string })[]
+  ): string[] {
+    return nodes
+      .filter(
+        (n) =>
+          Math.min(label.x + label.w / 2, n.x + n.width / 2) -
+            Math.max(label.x - label.w / 2, n.x - n.width / 2) >
+            0 &&
+          Math.min(label.y + label.h / 2, n.y + n.height / 2) -
+            Math.max(label.y - label.h / 2, n.y - n.height / 2) >
+            0
+      )
+      .map((n) => n.label);
+  }
+
+  async function labelsOnBoxes(): Promise<Map<number, string[]>> {
+    const layout = await layoutBoxesAndLines(parseBoxesAndLines(OAUTH));
+    const out = new Map<number, string[]>();
+    for (const e of layout.edges) {
+      if (e.labelX === undefined || e.labelY === undefined) continue;
+      const hit = covered(
+        {
+          x: e.labelX,
+          y: e.labelY,
+          w: e.labelWidth ?? 0,
+          h: e.labelHeight ?? 0,
+        },
+        layout.nodes
+      );
+      const line = (e as { lineNumber?: number }).lineNumber ?? -1;
+      if (hit.length > 0) out.set(line, hit);
+    }
+    return out;
+  }
+
+  it('moves "Signs tokens with" (line 29) off the two boxes it names', async () => {
+    const onBoxes = await labelsOnBoxes();
+    expect(onBoxes.get(29)).toBeUndefined();
+  });
+
+  it('leaves no more labels on boxes than the two it cannot yet place', async () => {
+    const onBoxes = await labelsOnBoxes();
+    expect([...onBoxes.keys()].sort((a, b) => a - b)).toEqual([22, 26]);
+  });
+});

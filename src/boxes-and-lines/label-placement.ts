@@ -35,7 +35,16 @@ const H_PAD = 6; // horizontal halo padding (each side)
 const V_PAD = 3; // vertical halo padding (each side)
 const BOX_CLEAR_PAD = 4; // min clearance kept between a label box and a node box
 const PERP_STEP = 8; // perpendicular offset increment (px)
-const PERP_MAX = 40; // max perpendicular offset before giving up
+// Max perpendicular offset before giving up. Raised from 40 by a MEASURED step
+// (#703), not to whatever clears everything: on the OAUTH fixture in
+// tests/boxes-and-lines-edge-labels.test.ts, 40 and 48 leave three labels on
+// top of node boxes; 56 clears line 29's ("Signs tokens with", which covered
+// both boxes it names) with the worst label then 56px from its own line — the
+// "legitimate displacement" that test already documents; 72 costs 72px for one
+// more; 80 clears all three by sitting exactly on the test's 80px detachment
+// bound, i.e. by trading the #640 defect back in. Each px here is distance from
+// the line the label names.
+const PERP_MAX = 56;
 const SLIDE_SAMPLES = 9; // arc-length samples per side when sliding along the edge
 
 type Pt = { readonly x: number; readonly y: number };
