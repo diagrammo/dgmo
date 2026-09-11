@@ -11,7 +11,7 @@ import type { ParsedBoxesAndLines, BLNode, BLGroup } from './types';
 import type { BLSearchConfig } from './layout-search';
 import { NODE_HEIGHT, NODE_WIDTH } from './node-metrics';
 import { measureText, wrapTextToWidth } from '../utils/text-measure';
-import { placeEdgeLabels } from './label-placement';
+import { LABEL_REACH_WIDE, placeEdgeLabels } from './label-placement';
 import {
   resolveNotes,
   buildPlacedNotes,
@@ -243,7 +243,8 @@ export async function layoutBoxesAndLines(
   // chosen layout. If any label still can't clear a node box, escalate ONCE to a
   // label-aware relayout that reserves dagre label space so a gap opens — and
   // keep it only if it actually resolves more labels.
-  let placed = placeEdgeLabels(applyParallelEdgeOffsets(searched));
+  let chosen = applyParallelEdgeOffsets(searched);
+  let placed = placeEdgeLabels(chosen);
   if (placed.unresolved.length > 0) {
     const relaid = await layoutBoxesAndLinesSearch(parsed, collapseInfo, {
       ...searchOpts,
@@ -254,9 +255,22 @@ export async function layoutBoxesAndLines(
       ...(topConfigs !== undefined &&
         topConfigs.length > 0 && { configs: topConfigs }),
     });
-    const relaidPlaced = placeEdgeLabels(applyParallelEdgeOffsets(relaid));
-    if (relaidPlaced.unresolved.length < placed.unresolved.length)
+    const relaidChosen = applyParallelEdgeOffsets(relaid);
+    const relaidPlaced = placeEdgeLabels(relaidChosen);
+    if (relaidPlaced.unresolved.length < placed.unresolved.length) {
       placed = relaidPlaced;
+      chosen = relaidChosen;
+    }
+  }
+  // Last resort, AFTER the relayout decision (#703): a label still on a box in
+  // the chosen layout gets the wider search. Never before it — a label placed
+  // wide on the first layout would stop that layout escalating, and the
+  // relayout is what puts labels back on their lines. A label NEAR placed lands
+  // in the same spot either way, because the search tries the smallest offset
+  // first.
+  if (placed.unresolved.length > 0) {
+    const wide = placeEdgeLabels(chosen, { perpMax: LABEL_REACH_WIDE });
+    if (wide.unresolved.length < placed.unresolved.length) placed = wide;
   }
 
   // Engine-agnostic post-processing: float notes (and shift the canvas to fit

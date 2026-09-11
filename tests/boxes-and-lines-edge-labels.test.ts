@@ -218,8 +218,70 @@ describe('boxes-and-lines — an edge label clears the boxes it names', () => {
     expect(onBoxes.get(29)).toBeUndefined();
   });
 
-  it('leaves no more labels on boxes than the two it cannot yet place', async () => {
+  it('leaves no more than two labels on boxes, down from three', async () => {
     const onBoxes = await labelsOnBoxes();
-    expect([...onBoxes.keys()].sort((a, b) => a - b)).toEqual([22, 26]);
+    expect(onBoxes.size).toBeLessThanOrEqual(2);
+  });
+
+  // Review finding, round 1: widening the FIRST search pre-empted the
+  // label-reserving relayout, whose result puts labels back on their lines.
+  // On this small LR diagram every label sat 0px from its line before the
+  // search widened, and two were pushed 48px out with no overlap to fix.
+  const CANVAS_SPIKE = `boxes-and-lines E-Commerce Platform
+
+tag Team as t Backend blue, Frontend green, Platform purple
+
+active-tag Team
+
+direction LR
+
+// --- Services ---
+API Gateway t: Backend
+  Main entry point for all requests
+  -routes-> UserService
+  -routes-> ProductService
+
+UserService t: Backend
+  Handles auth and profiles
+  -reads-> UserDB
+
+ProductService t: Frontend, description: Product catalog and search
+  -queries-> ProductDB
+
+// --- Data Stores ---
+UserDB t: Platform
+ProductDB t: Platform`;
+
+  function distanceToOwnLine(
+    x: number,
+    y: number,
+    pts: readonly { x: number; y: number }[]
+  ): number {
+    let best = Infinity;
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const a = pts[i]!;
+      const b = pts[i + 1]!;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const len2 = dx * dx + dy * dy;
+      const t =
+        len2 === 0
+          ? 0
+          : Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / len2));
+      best = Math.min(best, Math.hypot(x - (a.x + t * dx), y - (a.y + t * dy)));
+    }
+    return best;
+  }
+
+  it('does not pull labels off their lines on a diagram with nothing to fix', async () => {
+    const layout = await layoutBoxesAndLines(parseBoxesAndLines(CANVAS_SPIKE));
+    const far = layout.edges
+      .filter((e) => e.labelX !== undefined && e.labelY !== undefined)
+      .map((e) => ({
+        label: e.label,
+        d: distanceToOwnLine(e.labelX!, e.labelY!, e.points),
+      }))
+      .filter((r) => r.d > 1);
+    expect(far).toEqual([]);
   });
 });

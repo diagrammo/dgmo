@@ -35,16 +35,26 @@ const H_PAD = 6; // horizontal halo padding (each side)
 const V_PAD = 3; // vertical halo padding (each side)
 const BOX_CLEAR_PAD = 4; // min clearance kept between a label box and a node box
 const PERP_STEP = 8; // perpendicular offset increment (px)
-// Max perpendicular offset before giving up. Raised from 40 by a MEASURED step
-// (#703), not to whatever clears everything: on the OAUTH fixture in
-// tests/boxes-and-lines-edge-labels.test.ts, 40 and 48 leave three labels on
-// top of node boxes; 56 clears line 29's ("Signs tokens with", which covered
-// both boxes it names) with the worst label then 56px from its own line — the
-// "legitimate displacement" that test already documents; 72 costs 72px for one
-// more; 80 clears all three by sitting exactly on the test's 80px detachment
-// bound, i.e. by trading the #640 defect back in. Each px here is distance from
-// the line the label names.
-const PERP_MAX = 56;
+// Max perpendicular offset before giving up — TWO reaches, used in order (#703).
+//
+// NEAR is the everyday search, and it is the one that decides whether a layout
+// escalates to the label-reserving relayout (layout.ts): a label NEAR cannot
+// place is what makes the engine open a gap for it, and that relayout puts
+// labels back ON their lines. WIDE is a last resort, run only on the layout
+// already chosen, only for labels still on a box after the relayout decision.
+// Using WIDE for the first pass stops that relayout from running — a small LR diagram
+// (test-fixtures/canvas-spike/02-tags-desc-comments.dgmo) went from every label
+// 0px from its line to two of them 48px out, with no overlap to fix.
+//
+// WIDE is a MEASURED step, not whatever clears everything: on the OAUTH fixture
+// in tests/boxes-and-lines-edge-labels.test.ts, 48 clears nothing; 56 clears
+// line 29 ("Signs tokens with", which covered both boxes it names) at 56px from
+// its line — the "legitimate displacement" that test already documents; 72
+// clears one more at 72px; 80 clears all three by sitting exactly on that
+// test's 80px detachment bound, i.e. by trading the #640 defect back in. Each
+// px here is distance from the line the label names.
+export const LABEL_REACH_NEAR = 40;
+export const LABEL_REACH_WIDE = 56;
 const SLIDE_SAMPLES = 9; // arc-length samples per side when sliding along the edge
 
 type Pt = { readonly x: number; readonly y: number };
@@ -192,14 +202,15 @@ function findClearPosition(
   w: number,
   h: number,
   points: ReadonlyArray<Pt>,
-  obstacles: readonly Rect[]
+  obstacles: readonly Rect[],
+  perpMax: number
 ): Pt | null {
   const ts = slideFractions();
   for (const t of ts) {
     const { p } = pointAtArcFraction(points, t);
     if (!overlapsAny(p.x, p.y, w, h, obstacles, BOX_CLEAR_PAD)) return p;
   }
-  for (let mag = PERP_STEP; mag <= PERP_MAX; mag += PERP_STEP) {
+  for (let mag = PERP_STEP; mag <= perpMax; mag += PERP_STEP) {
     for (const t of ts) {
       const { p, nx, ny } = pointAtArcFraction(points, t);
       for (const sign of [-1, 1]) {
@@ -269,10 +280,11 @@ export interface PlaceEdgeLabelsResult {
  */
 export function placeEdgeLabels(
   layout: BLLayoutResult,
-  opts?: { fontSize?: number; maxWidth?: number }
+  opts?: { fontSize?: number; maxWidth?: number; perpMax?: number }
 ): PlaceEdgeLabelsResult {
   const fontSize = opts?.fontSize ?? EDGE_LABEL_FONT_SIZE;
   const maxWidth = opts?.maxWidth ?? LABEL_MAX_WIDTH;
+  const perpMax = opts?.perpMax ?? LABEL_REACH_NEAR;
 
   // Obstacles = real node boxes + collapsed groups (drawn as boxes). Expanded
   // groups are containers — their interior is valid label space, so they are NOT
@@ -309,7 +321,7 @@ export function placeEdgeLabels(
     if (!overlapsAny(box.cx, box.cy, box.w, box.h, obstacles, BOX_CLEAR_PAD))
       continue;
     const e = layout.edges[box.edgeIdx]!;
-    const clear = findClearPosition(box.w, box.h, e.points, obstacles);
+    const clear = findClearPosition(box.w, box.h, e.points, obstacles, perpMax);
     if (clear) {
       box.cx = clear.x;
       box.cy = clear.y;
