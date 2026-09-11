@@ -18,6 +18,7 @@
 // of the labelX/labelY/labelWidth/labelHeight/labelLines fields written here.
 
 import type { BLLayoutResult } from './layout';
+import type { BLGroup } from './types';
 import {
   measureText,
   wrapTextToWidth,
@@ -223,6 +224,58 @@ function findClearPosition(
   return null;
 }
 
+/**
+ * label -> every group label containing it, transitively, a group counting as
+ * containing itself. Used to decide whether an expanded group is an obstacle for
+ * a given edge's label (#777): it is NOT, exactly when it contains both
+ * endpoints — the "this edge lives here" case the group interior was always
+ * meant to serve.
+ *
+ * Parentage is read from `parentGroup` where the parser set it and inferred from
+ * a `children` entry that is itself a group where it did not, so a nested group
+ * is never mistaken for a foreign one just because one of the two was absent.
+ */
+function buildGroupContainers(
+  groups: readonly BLGroup[]
+): Map<string, Set<string>> {
+  const byLabel = new Map(groups.map((g) => [g.label, g]));
+  const parent = new Map<string, string>();
+  for (const g of groups)
+    for (const c of g.children) if (byLabel.has(c)) parent.set(c, g.label);
+  // An explicit parentGroup wins over one inferred from a children list.
+  for (const g of groups) if (g.parentGroup) parent.set(g.label, g.parentGroup);
+
+  /** A group plus its ancestors. Guarded against a parent cycle, which a
+   *  hand-written diagram can express even though the parser should not. */
+  const chainOf = (label: string): string[] => {
+    const out: string[] = [];
+    const seen = new Set<string>();
+    let cur: string | undefined = label;
+    while (cur !== undefined && byLabel.has(cur) && !seen.has(cur)) {
+      seen.add(cur);
+      out.push(cur);
+      cur = parent.get(cur);
+    }
+    return out;
+  };
+
+  const containers = new Map<string, Set<string>>();
+  for (const g of groups) containers.set(g.label, new Set(chainOf(g.label)));
+  for (const g of groups) {
+    const chain = chainOf(g.label);
+    for (const c of g.children) {
+      if (byLabel.has(c)) continue; // a child group already has its own chain
+      let set = containers.get(c);
+      if (!set) {
+        set = new Set<string>();
+        containers.set(c, set);
+      }
+      for (const a of chain) set.add(a);
+    }
+  }
+  return containers;
+}
+
 interface LabelBox {
   edgeIdx: number;
   cx: number;
@@ -268,33 +321,83 @@ function resolveLabelOverlaps(boxes: LabelBox[]): void {
 
 export interface PlaceEdgeLabelsResult {
   readonly layout: BLLayoutResult;
-  /** Edge indices whose label still overlaps a node box (escalate to relayout). */
+  /** Edge indices whose label still overlaps an obstacle — a node box, a
+   *  collapsed group, or an expanded group the edge does not live inside
+   *  (#777). Drives the caller's escalation to a label-reserving relayout. */
   readonly unresolved: number[];
 }
 
 /**
- * Wrap, then collision-resolve every edge label against node boxes (steps 1–2),
- * writing labelX/labelY/labelWidth/labelHeight/labelLines onto each edge. Returns
- * the edge indices that could not be cleared so the caller can trigger a
- * last-resort relayout.
+ * Wrap, then collision-resolve every edge label against the boxes it must clear
+ * (steps 1–2), writing labelX/labelY/labelWidth/labelHeight/labelLines onto each
+ * edge. Returns the edge indices that could not be cleared so the caller can
+ * trigger a last-resort relayout.
  */
 export function placeEdgeLabels(
   layout: BLLayoutResult,
-  opts?: { fontSize?: number; maxWidth?: number; perpMax?: number }
+  opts?: {
+    fontSize?: number;
+    maxWidth?: number;
+    perpMax?: number;
+    /** Parsed groups, for the containment test below. Omitted, every expanded
+     *  group is treated as valid label space for every label — the pre-#777
+     *  behaviour, kept so a caller without the parse still lays out. */
+    groups?: readonly BLGroup[];
+  }
 ): PlaceEdgeLabelsResult {
   const fontSize = opts?.fontSize ?? EDGE_LABEL_FONT_SIZE;
   const maxWidth = opts?.maxWidth ?? LABEL_MAX_WIDTH;
   const perpMax = opts?.perpMax ?? LABEL_REACH_NEAR;
 
-  // Obstacles = real node boxes + collapsed groups (drawn as boxes). Expanded
-  // groups are containers — their interior is valid label space, so they are NOT
-  // obstacles.
-  const obstacles: Rect[] = [];
+  // Obstacles are PER EDGE, because an expanded group is an obstacle for some
+  // labels and valid space for others (#777).
+  //
+  // Base, for every label = real node boxes + collapsed groups (drawn as boxes).
+  //
+  // An expanded group is a container, and its interior is valid label space for
+  // a label whose edge LIVES there — both endpoints inside it. For an edge that
+  // merely CROSSES the boundary the label belongs to neither side, and nothing
+  // used to stop it landing astride the border: this list never held the group,
+  // so findClearPosition reported a clean placement having never looked, while
+  // the renderer — which draws edge labels last, over everything — cut the
+  // label's knockout halo through the group's fill, border and title. Measured
+  // on a real diagram: two labels each covering more than half the width of a
+  // 143px-wide group, one of them across its title. 9 of the 25 grouped
+  // boxes-and-lines diagrams in the corpus carried it, tests/fixtures included.
+  //
+  // Containment is TRANSITIVE and BOTH endpoints must be inside, which is what
+  // makes nesting come out right: a label on an edge inside a child group is not
+  // evicted from that child's ancestors, and a label on an edge between two
+  // sibling children may use the parent's corridor but neither child's interior.
+  const baseObstacles: Rect[] = [];
   for (const n of layout.nodes)
-    obstacles.push(rectFromCenter(n.x, n.y, n.width, n.height));
-  for (const g of layout.groups)
-    if (g.collapsed)
-      obstacles.push(rectFromCenter(g.x, g.y, g.width, g.height));
+    baseObstacles.push(rectFromCenter(n.x, n.y, n.width, n.height));
+  const expandedGroups: { readonly label: string; readonly rect: Rect }[] = [];
+  for (const g of layout.groups) {
+    const r = rectFromCenter(g.x, g.y, g.width, g.height);
+    if (g.collapsed) baseObstacles.push(r);
+    else expandedGroups.push({ label: g.label, rect: r });
+  }
+
+  const containers = buildGroupContainers(opts?.groups ?? []);
+  const noContainers: ReadonlySet<string> = new Set<string>();
+  const obstacleCache = new Map<number, readonly Rect[]>();
+  const obstaclesFor = (edgeIdx: number): readonly Rect[] => {
+    const cached = obstacleCache.get(edgeIdx);
+    if (cached !== undefined) return cached;
+    let out: readonly Rect[] = baseObstacles;
+    if (expandedGroups.length > 0) {
+      const e = layout.edges[edgeIdx]!;
+      const src = containers.get(e.source) ?? noContainers;
+      const tgt = containers.get(e.target) ?? noContainers;
+      const foreign = expandedGroups
+        .filter((g) => !(src.has(g.label) && tgt.has(g.label)))
+        .map((g) => g.rect);
+      if (foreign.length > 0) out = [...baseObstacles, ...foreign];
+    }
+    obstacleCache.set(edgeIdx, out);
+    return out;
+  };
 
   const boxes: LabelBox[] = [];
   layout.edges.forEach((e, idx) => {
@@ -316,24 +419,44 @@ export function placeEdgeLabels(
     });
   });
 
-  // Step 2: reposition any box that overlaps a node.
+  // Step 2: reposition any box that overlaps one of ITS OWN obstacles.
+  //
+  // 🔴 The two obstacle sets are a PRIORITY, not alternatives, and collapsing
+  // them into one search is a regression: asking for a position that clears the
+  // groups too can fail where clearing the nodes alone would have succeeded, and
+  // a failed search leaves the label on its raw midpoint — which is often ON a
+  // node. Measured while building #777: searching the combined set in one pass
+  // took the OAUTH fixture in this file from 2 labels over node boxes to 4,
+  // undoing half of #703. So the group pass can only ever ADD clearance.
+  //
+  // The ranking is what the reader loses. A label over a node box hides the
+  // node's NAME (#703); a label over a group's fill hides tint and a border. So
+  // the base set — node boxes and collapsed groups — is the floor, and a
+  // position clearing it is kept even when no position clears the groups too.
   for (const box of boxes) {
+    const obstacles = obstaclesFor(box.edgeIdx);
     if (!overlapsAny(box.cx, box.cy, box.w, box.h, obstacles, BOX_CLEAR_PAD))
       continue;
     const e = layout.edges[box.edgeIdx]!;
-    const clear = findClearPosition(box.w, box.h, e.points, obstacles, perpMax);
+    const clear =
+      findClearPosition(box.w, box.h, e.points, obstacles, perpMax) ??
+      findClearPosition(box.w, box.h, e.points, baseObstacles, perpMax);
     if (clear) {
       box.cx = clear.x;
       box.cy = clear.y;
-    } else {
-      box.resolved = false;
     }
+    // Unresolved whenever the FULL set is not cleared, group clearance included
+    // — that is the signal the caller escalates on, and a relayout is exactly
+    // what can open the corridor this label could not find.
+    if (overlapsAny(box.cx, box.cy, box.w, box.h, obstacles, BOX_CLEAR_PAD))
+      box.resolved = false;
   }
 
-  // Separate stacked labels, then re-check node overlap (a vertical nudge can
-  // push a label back onto a box — that becomes an unresolved escalation).
+  // Separate stacked labels, then re-check overlap (a vertical nudge can push a
+  // label back onto a box — that becomes an unresolved escalation).
   resolveLabelOverlaps(boxes);
   for (const box of boxes) {
+    const obstacles = obstaclesFor(box.edgeIdx);
     if (overlapsAny(box.cx, box.cy, box.w, box.h, obstacles, BOX_CLEAR_PAD))
       box.resolved = false;
   }

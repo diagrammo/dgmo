@@ -243,8 +243,11 @@ export async function layoutBoxesAndLines(
   // chosen layout. If any label still can't clear a node box, escalate ONCE to a
   // label-aware relayout that reserves dagre label space so a gap opens — and
   // keep it only if it actually resolves more labels.
+  // `groups` lets the placement tell an expanded group the edge lives inside
+  // (valid label space) from one it merely crosses (an obstacle) — #777.
+  const labelOpts = { groups: parsed.groups };
   let chosen = applyParallelEdgeOffsets(searched);
-  let placed = placeEdgeLabels(chosen);
+  let placed = placeEdgeLabels(chosen, labelOpts);
   if (placed.unresolved.length > 0) {
     const relaid = await layoutBoxesAndLinesSearch(parsed, collapseInfo, {
       ...searchOpts,
@@ -256,7 +259,7 @@ export async function layoutBoxesAndLines(
         topConfigs.length > 0 && { configs: topConfigs }),
     });
     const relaidChosen = applyParallelEdgeOffsets(relaid);
-    const relaidPlaced = placeEdgeLabels(relaidChosen);
+    const relaidPlaced = placeEdgeLabels(relaidChosen, labelOpts);
     if (relaidPlaced.unresolved.length < placed.unresolved.length) {
       placed = relaidPlaced;
       chosen = relaidChosen;
@@ -269,7 +272,10 @@ export async function layoutBoxesAndLines(
   // in the same spot either way, because the search tries the smallest offset
   // first.
   if (placed.unresolved.length > 0) {
-    const wide = placeEdgeLabels(chosen, { perpMax: LABEL_REACH_WIDE });
+    const wide = placeEdgeLabels(chosen, {
+      ...labelOpts,
+      perpMax: LABEL_REACH_WIDE,
+    });
     if (wide.unresolved.length < placed.unresolved.length) placed = wide;
   }
 

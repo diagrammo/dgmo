@@ -285,3 +285,156 @@ ProductDB t: Platform`;
     expect(far).toEqual([]);
   });
 });
+
+// A label on an edge that CROSSES a group boundary used to be placed as if the
+// group were not there: the obstacle list held node boxes and collapsed groups
+// only, so the search reported a clean placement having never looked, and the
+// renderer then cut the label's knockout halo through the group's fill, border
+// and title (#777). The missing discrimination is containment — a group is valid
+// label space for an edge that LIVES in it, an obstacle for one passing through.
+describe('boxes-and-lines — an edge label clears groups it does not live in', () => {
+  // The reported diagram, trimmed of copy and tags. Four front groups all feed
+  // one node inside a fifth, so every inter-group edge ends just inside
+  // [The market] and its label used to land astride that group's border.
+  const FOUR_FRONTS = `boxes-and-lines Four Fronts, One Barrel Count
+
+[Ukraine and Russia]
+  Drone strikes on refineries
+    -damaged 54 percent of them-> Russian refining capacity
+  Russian refining capacity
+    -product exports at a record low-> Barrels off the market
+
+[United States and Iran]
+  US strikes on Iranian tankers
+    -three disabled or destroyed-> Kharg Island exports
+  Kharg Island exports
+    -90 percent of Iran's crude-> Barrels off the market
+
+[Houthis and Saudi Arabia]
+  Missiles on Aramco sites
+    -Jazan, Abha, Najran halted-> Saudi Red Sea route
+  Blockade of Saudi shipping
+    -Yanbu and the Red Sea-> Saudi Red Sea route
+  Saudi Red Sea route
+    -Saudi output down 1.9 million barrels a day in August-> Barrels off the market
+
+[Iran and the Gulf states]
+  172 strikes on Gulf infrastructure
+    -48 percent of them on energy-> Gulf refining and LNG
+  Gulf refining and LNG
+    -Ras Laffan, Mina al-Ahmadi, Abqaiq, Ruwais-> Barrels off the market
+
+[The market]
+  Barrels off the market
+    -> Brent above 100 dollars
+    -> Record tanker rates
+`;
+
+  const NESTED = `boxes-and-lines Nested groups
+
+[Platform]
+  [Services]
+    Auth
+      -verifies-> Sessions
+    Sessions
+  [Storage]
+    Blobs
+
+[Edge]
+  CDN
+    -asks the platform for a token-> Auth
+`;
+
+  type R = { minX: number; minY: number; maxX: number; maxY: number };
+  const box = (x: number, y: number, w: number, h: number): R => ({
+    minX: x - w / 2,
+    minY: y - h / 2,
+    maxX: x + w / 2,
+    maxY: y + h / 2,
+  });
+  const hits = (a: R, b: R): boolean =>
+    a.minX < b.maxX && a.maxX > b.minX && a.minY < b.maxY && a.maxY > b.minY;
+  const within = (inner: R, outer: R): boolean =>
+    inner.minX >= outer.minX &&
+    inner.maxX <= outer.maxX &&
+    inner.minY >= outer.minY &&
+    inner.maxY <= outer.maxY;
+
+  /** Every (label, group) pair whose boxes intersect. Membership is deliberately
+   *  NOT applied here — each test states what it expects, so the assertions do
+   *  not re-implement (and so cannot mirror a bug in) the containment rule. */
+  async function labelGroupOverlaps(
+    src: string
+  ): Promise<{ label: string; group: string; inside: boolean }[]> {
+    const layout = await layoutBoxesAndLines(parseBoxesAndLines(src));
+    const out: { label: string; group: string; inside: boolean }[] = [];
+    for (const e of layout.edges) {
+      if (!e.label || e.labelX === undefined || e.labelY === undefined)
+        continue;
+      const lr = box(e.labelX, e.labelY, e.labelWidth ?? 0, e.labelHeight ?? 0);
+      for (const g of layout.groups) {
+        const gr = box(g.x, g.y, g.width, g.height);
+        if (hits(lr, gr))
+          out.push({ label: e.label, group: g.label, inside: within(lr, gr) });
+      }
+    }
+    return out;
+  }
+
+  it('keeps every cross-group label off the group it crosses into', async () => {
+    // FOUR_FRONTS has no nesting, so the only group a label may sit in is the
+    // one holding BOTH endpoints of its own edge.
+    const parsed = parseBoxesAndLines(FOUR_FRONTS);
+    const owner = new Map<string, string>();
+    for (const g of parsed.groups)
+      for (const c of g.children) owner.set(c, g.label);
+    const layout = await layoutBoxesAndLines(parsed);
+
+    const straddles: string[] = [];
+    for (const e of layout.edges) {
+      if (!e.label || e.labelX === undefined || e.labelY === undefined)
+        continue;
+      const lr = box(e.labelX, e.labelY, e.labelWidth ?? 0, e.labelHeight ?? 0);
+      for (const g of layout.groups) {
+        if (owner.get(e.source) === g.label && owner.get(e.target) === g.label)
+          continue;
+        if (hits(lr, box(g.x, g.y, g.width, g.height)))
+          straddles.push(`"${e.label}" over [${g.label}]`);
+      }
+    }
+    expect(straddles).toEqual([]);
+  });
+
+  it('still lets a label sit inside the group its own edge lives in', async () => {
+    // The other half of the rule: five of this diagram's labels belong to edges
+    // wholly inside a front group. Evicting those would be the same defect
+    // wearing the opposite sign, and a search told to clear every group would.
+    const inside = (await labelGroupOverlaps(FOUR_FRONTS))
+      .filter((h) => h.inside)
+      .map((h) => h.label);
+    expect(inside).toContain('damaged 54 percent of them');
+    expect(inside).toContain('three disabled or destroyed');
+    expect(inside).toContain('Jazan, Abha, Najran halted');
+    expect(inside).toContain('Yanbu and the Red Sea');
+    expect(inside).toContain('48 percent of them on energy');
+  });
+
+  it('does not evict a label from the ANCESTOR of the group it lives in', async () => {
+    // Containment is transitive: `verifies` runs between two boxes in [Services],
+    // which sits in [Platform], so both are valid space for it. A containment
+    // test looking only at the immediate group would push it out of [Platform],
+    // and no other fixture in the corpus has a nested group to catch that.
+    const groups = (await labelGroupOverlaps(NESTED))
+      .filter((h) => h.label === 'verifies')
+      .map((h) => h.group)
+      .sort();
+    expect(groups).toEqual(['Platform', 'Services']);
+  });
+
+  it('clears a label crossing INTO a nested group, its parent included', async () => {
+    const groups = (await labelGroupOverlaps(NESTED))
+      .filter((h) => h.label === 'asks the platform for a token')
+      .map((h) => h.group);
+    expect(groups).toEqual([]);
+  });
+});
