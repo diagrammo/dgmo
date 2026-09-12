@@ -72,7 +72,9 @@ watch it from any page, and every reader gets the version its author has now:
 ```html
 <script src="https://cdn.jsdelivr.net/npm/@diagrammo/dgmo-standalone/dist/element.js"></script>
 
-<dgmo-diagram watch="https://online.diagrammo.app/d/dgm_7f2a91"></dgmo-diagram>
+<dgmo-diagram
+  watch="https://online.diagrammo.app/d/dgm_01M1JBN56CAVS728HPWDACVNMC"
+></dgmo-diagram>
 ```
 
 Paste the share link you were sent, or just the id at the end of it. The

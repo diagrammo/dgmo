@@ -105,6 +105,34 @@ const STALE_PATTERNS: Array<{ name: string; re: RegExp }> = [
   },
 ];
 
+// Docs that SHIP to a reader and hand out a diagram id to copy: the AI-facing
+// reference bundled in @diagrammo/dgmo, and the standalone package's npm
+// readme. A reader follows these literally, so an id here has to be one that
+// could exist. Tests and fixtures are deliberately NOT in this list — a test
+// must never name a resolvable id (a preview test resolving a live link on
+// every mount was once 97% of all traffic to the public source route), so a
+// fake id in a test is correct and a fake id in a doc is not. CHANGELOG.md is
+// history and is left alone.
+const PUBLISHED_ID_FILES = [
+  'docs/language-reference.md',
+  'standalone/README.md',
+];
+
+// A real Cloud diagram id is `dgm_` + a 26-character ULID, whose alphabet is
+// Crockford base32 — no I, L, O or U. `dgm_7f2a91` (6 hex) shipped in this
+// reference and on the public docs page for months: it is the wrong SHAPE, so
+// it could never have resolved for anybody.
+const PUBLISHED_ID_RE = /dgm_[0-9A-Za-z]+/g;
+const WELL_FORMED_ID_RE = /^dgm_[0-9A-HJKMNP-TV-Z]{26}$/;
+
+// Ids known to be gone from the Cloud. Shape alone cannot catch these — they
+// are well-formed and were once live. This list is what stops the specific
+// recurrence: a withdrawn id was swapped out of the blog post and survived in
+// four other files for eight days, because nothing looked at the others.
+const WITHDRAWN_IDS = new Set([
+  'dgm_01KYRFCJZ2BHS18XRBEAZ0Y120', // Stop showing; answers 410 Gone
+]);
+
 function readRepoFile(rel: string): string | null {
   try {
     return readFileSync(join(repo, rel), 'utf8');
@@ -337,4 +365,51 @@ describe('no stale syntax in AI surfaces (denylist — locks in the de-stale swe
       });
     }
   }
+});
+
+describe('every diagram id a shipped doc hands out is one that could resolve', () => {
+  // Guards the offline half of the question: is this id even the right shape,
+  // and is it one we already know is gone? Whether a well-formed unknown id is
+  // live needs the network, so it cannot live here — a pre-push gate must not
+  // fail on somebody's wifi.
+  let scanned = 0;
+
+  for (const rel of PUBLISHED_ID_FILES) {
+    const content = readRepoFile(rel);
+    if (content == null) continue;
+
+    const found = content.split('\n').flatMap((line, i) =>
+      [...line.matchAll(PUBLISHED_ID_RE)].map((m) => ({
+        id: m[0],
+        line: i + 1,
+      }))
+    );
+    scanned += found.length;
+
+    it(`${rel} names only well-formed diagram ids`, () => {
+      const bad = found
+        .filter(({ id }) => !WELL_FORMED_ID_RE.test(id))
+        .map(({ id, line }) => `  ${rel}:${line}  ${id}`);
+      expect(
+        bad.length,
+        `not \`dgm_\` + a 26-character ULID, so it cannot resolve for a reader:\n${bad.join('\n')}`
+      ).toBe(0);
+    });
+
+    it(`${rel} names no diagram we have stopped showing`, () => {
+      const gone = found
+        .filter(({ id }) => WITHDRAWN_IDS.has(id))
+        .map(({ id, line }) => `  ${rel}:${line}  ${id}`);
+      expect(
+        gone.length,
+        `withdrawn from the Cloud — a reader gets a tombstone:\n${gone.join('\n')}`
+      ).toBe(0);
+    });
+  }
+
+  // Never pass vacuously: if the extraction breaks, or both files lose their
+  // examples, the two assertions above go green having checked nothing.
+  it('found at least one diagram id to check', () => {
+    expect(scanned).toBeGreaterThan(0);
+  });
 });

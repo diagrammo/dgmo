@@ -4509,14 +4509,14 @@ A pointer to a diagram published at Diagrammo Cloud — the file holds no drawin
 Two forms. The titled form names the diagram and carries a `url` directive:
 
 ```
-live-link Platform architecture
-url https://online.diagrammo.app/d/dgm_7f2a91
+live-link A Cabin Boy's First Voyage
+url https://online.diagrammo.app/d/dgm_01M1JBN56CAVS728HPWDACVNMC
 ```
 
 The shorthand form is one line, and is what a docs-site fence contains:
 
 ```
-live-link dgm_7f2a91
+live-link dgm_01M1JBN56CAVS728HPWDACVNMC
 ```
 
 `url` takes a full Diagrammo link (`/d/<id>`, `/view/<id>`, or the public source endpoint) or a bare diagram id. A link carrying `?at=` is an error — a live link always shows the current version, and silently serving the latest to a document that asked to be frozen is the one outcome pinning existed to prevent.
