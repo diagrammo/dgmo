@@ -535,15 +535,6 @@
     "gallery",
     "*.json"
   ],
-  // A Cloud diagram id is `dgm_` + a 26-character ULID — a machine identifier
-  // that cannot be spelled right or wrong, so cspell has no opinion worth
-  // having about it. Narrow on purpose: it matches the exact id shape and
-  // nothing else, so a real word sitting next to one is still checked. Needed
-  // because a bare id appears in the docs by design — `live-link <id>` is the
-  // shorthand form of the syntax — and the alternative was adding fragments
-  // like `CAVS` and `HPWDACVNMC` to the dictionary, which would go stale the
-  // next time an example named a different diagram.
-  "ignoreRegExpList": ["/dgm_[0-9A-HJKMNP-TV-Z]{26}/g"],
   "useGitignore": true,
   // 🔴 Stop collecting `.gitignore` files at this repo, never above it.
   //
