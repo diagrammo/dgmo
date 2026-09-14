@@ -112,6 +112,33 @@ describe('resolution', () => {
     }
   });
 
+  // #772: 56 requests in one day for `/public/diagrams/undefined/source`, from
+  // a Node caller that interpolated a missing id. The builder refuses instead,
+  // so the next such caller fails with a stack that names it.
+  it('refuses to build a source URL for an id that is not one', () => {
+    for (const id of [
+      undefined,
+      null,
+      '',
+      'ab',
+      'x'.repeat(65),
+      'a/b',
+      'dgm 1',
+      '../x',
+    ]) {
+      expect(() =>
+        referenceSourceUrl({ id } as unknown as CloudReference)
+      ).toThrow(/not a diagram id/);
+    }
+    // Every id the parsers accept still builds.
+    expect(referenceSourceUrl({ id: 'abc' })).toBe(
+      `${CLOUD_API_BASE}/public/diagrams/abc/source`
+    );
+    expect(referenceSourceUrl({ id: 'x'.repeat(64) })).toContain(
+      'x'.repeat(64)
+    );
+  });
+
   it('takes a custom base for self-host and staging, trailing slash or not', () => {
     expect(
       referenceSourceUrl({ id: 'dgm_1' }, { base: 'https://api.example.test/' })
