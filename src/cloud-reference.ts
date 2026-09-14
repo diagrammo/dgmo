@@ -137,8 +137,20 @@ export function parseCloudReferenceUrl(text: string): CloudReference | null {
   return reference(match[1] ?? match[2] ?? match[3]);
 }
 
+/**
+ * What a missing value becomes once it passes through a string — a template
+ * literal, `String(x)`, an HTML attribute. Each is id-SHAPED, and `undefined`
+ * is exactly the path the Cloud API logged (#772), so neither the parsers nor
+ * the builder accept them. No real id is one: ids are prefixed ULIDs.
+ */
+const STRINGIFIED_NOTHING: ReadonlySet<string> = new Set([
+  'undefined',
+  'null',
+  'NaN',
+]);
+
 function reference(id: string | undefined): CloudReference | null {
-  return id ? { id } : null;
+  return id && !STRINGIFIED_NOTHING.has(id) ? { id } : null;
 }
 
 export interface ResolveUrlOptions {
@@ -165,7 +177,11 @@ export function referenceSourceUrl(
   options: ResolveUrlOptions = {}
 ): string {
   const id: unknown = ref.id;
-  if (typeof id !== 'string' || !ID_ONLY_RE.test(id)) {
+  if (
+    typeof id !== 'string' ||
+    !ID_ONLY_RE.test(id) ||
+    STRINGIFIED_NOTHING.has(id)
+  ) {
     throw new TypeError(
       `referenceSourceUrl: not a diagram id: ${JSON.stringify(id) ?? String(id)}`
     );

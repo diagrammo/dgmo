@@ -115,6 +115,25 @@ describe('resolution', () => {
   // #772: 56 requests in one day for `/public/diagrams/undefined/source`, from
   // a Node caller that interpolated a missing id. The builder refuses instead,
   // so the next such caller fails with a stack that names it.
+  it('parses no reference out of a stringified missing id, in any spelling', () => {
+    for (const id of ['undefined', 'null', 'NaN']) {
+      expect(parseCloudReference(`live-link ${id}`)).toBeNull();
+      expect(parseCloudReference(`![[live-link:${id}]]`)).toBeNull();
+      expect(
+        parseCloudReference(
+          `https://api.diagrammo.app/public/diagrams/${id}/source`
+        )
+      ).toBeNull();
+      expect(
+        parseCloudReference(`https://online.diagrammo.app/d/${id}`)
+      ).toBeNull();
+    }
+    // Only the exact stringifications: an id merely containing one still parses.
+    expect(parseCloudReference('live-link dgm_undefined')).toEqual({
+      id: 'dgm_undefined',
+    });
+  });
+
   it('refuses to build a source URL for an id that is not one', () => {
     for (const id of [
       undefined,
@@ -125,6 +144,11 @@ describe('resolution', () => {
       'a/b',
       'dgm 1',
       '../x',
+      // What a missing id becomes once stringified: id-SHAPED, and
+      // `undefined` is exactly the path the server logged.
+      'undefined',
+      'null',
+      'NaN',
     ]) {
       expect(() =>
         referenceSourceUrl({ id } as unknown as CloudReference)
