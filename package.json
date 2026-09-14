@@ -121,7 +121,7 @@
     "check:deps": "depcheck --ignores='@diagrammo/dgmo,@diagrammo/dgmo-mcp,@codemirror/language,@lezer/*,lint-staged,tsup,axe-core,type-coverage'",
     "check:node-modules": "node --test scripts/check-node-modules.test.mjs && node scripts/check-node-modules.mjs",
     "check:install-lock": "node --test scripts/check-install-lock.test.mjs && node scripts/check-install-lock.mjs",
-    "check:security": "pnpm audit --prod",
+    "check:security": "node scripts/check-security.mjs",
     "check:dep-ranges": "node scripts/check-dep-ranges.mjs",
     "check:publish": "publint",
     "check:size": "pnpm build && node scripts/check-bundle-size.cjs",
