@@ -320,6 +320,18 @@ export function createMapGeoQuery(opts: CreateMapGeoQueryOptions): MapGeoQuery {
     { width, height },
     { palette, isDark }
   );
+  return createMapGeoQueryForLayout(layout, data);
+}
+
+/** Construct a geo-query handle bound to a layout the caller already has — the
+ *  one it just drew — instead of laying the map out again. A layout that crossed
+ *  `postMessage` works: the projection is rebuilt from its parameters. `data` is
+ *  the same injected `MapData` the layout was computed from. */
+export function createMapGeoQueryForLayout(
+  layout: MapLayout,
+  data: MapData
+): MapGeoQuery {
+  const { width, height } = layout;
 
   // Decode the boundary features ONCE (review L3) — country containment against
   // world-detail (50m); US-state against us-states (10m).

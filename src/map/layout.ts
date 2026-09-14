@@ -9,11 +9,6 @@ import { tagAttrKey } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import {
   geoPath,
-  geoNaturalEarth1,
-  geoEqualEarth,
-  geoEquirectangular,
-  geoConicEqualArea,
-  geoMercator,
   geoBounds,
   geoTransform,
   type GeoProjection,
@@ -66,6 +61,8 @@ import type { MapLayoutCityDot } from './city-dots';
 import { layoutEdgeLabels } from './edge-labels';
 import { buildConnectorLegs, W_MIN } from './connectors';
 import { layoutInsets } from './insets';
+import { captureMapProjection, createMapProjection } from './projection';
+import type { MapProjectionParams, MapProjectionSpec } from './projection';
 import { createLabelMetrics, FONT, VALUE_GAP } from './label-metrics';
 import { FIT_PAD, WORLD_LABEL_ANCHORS } from './layout-constants';
 import { placeRegionLabels } from './region-labels';
@@ -339,10 +336,10 @@ export interface MapLayoutInset {
   readonly h: number;
   readonly points: ReadonlyArray<readonly [number, number]>;
   /** The FITTED inset projection (fit to this frame's screen box inside
-   *  `placeInset`). Load-bearing for pixel↔lonLat over the AK/HI insets: the
-   *  un-fitted `alaskaProjection()`/`hawaiiProjection()` factories would invert
-   *  to garbage, so the geo-query inverts against THIS instance. */
-  readonly projection: GeoProjection;
+   *  `placeInset`), as cloneable parameters. Load-bearing for pixel↔lonLat over
+   *  the AK/HI insets: the un-fitted Alaska/Hawaii specs would invert to garbage,
+   *  so the geo-query rebuilds THIS fit (`rebuildMapProjection`). */
+  readonly projectionParams: MapProjectionParams;
   /** Neighbour land (e.g. Canada beside Alaska) projected with this inset's
    *  fitted projection and clipped to the box — drawn BEHIND the state so a land
    *  border reads as land, not coast. Without it the state's outer ring buffers
@@ -592,10 +589,11 @@ export interface MapLayout {
   /** AK/HI region paths drawn inside the inset boxes (foreground, over an
    *  opaque ocean fill). Paired positionally with `insets`. */
   readonly insetRegions: readonly MapLayoutRegion[];
-  /** The fitted MAIN projection (the conus conic for albers-usa). Exposed for
-   *  the geo-query's pixel↔lonLat inversion — the app NEVER reconstructs it from
-   *  metadata; it binds to this exact instance. */
-  readonly projection: GeoProjection;
+  /** The fitted MAIN projection (the conus conic for albers-usa), as cloneable
+   *  parameters rather than the live d3-geo function, so a layout can cross
+   *  `postMessage` (#645). The geo-query's pixel↔lonLat inversion rebuilds it
+   *  with `rebuildMapProjection`, which projects bit-identically. */
+  readonly projectionParams: MapProjectionParams;
   /** Non-uniform stretch applied for GLOBAL fits (null for regional fits). */
   readonly stretch: MapLayoutStretch | null;
   /** Generic layout-time diagnostics channel — currently has no producers, so it
@@ -860,45 +858,54 @@ function mkCurated(
 // plain Albers conic for the contiguous 48 — it does NOT clip, so neighbour land
 // projects naturally and bleeds off the canvas edges. Alaska & Hawaii are drawn
 // as our own insets with the dedicated projections below.
-const usConusProjection = (): GeoProjection =>
-  geoConicEqualArea().parallels([29.5, 45.5]).rotate([96, 0]);
-const alaskaProjection = (): GeoProjection =>
-  geoConicEqualArea().rotate([154, 0]).center([-2, 58.5]).parallels([55, 65]);
-const hawaiiProjection = (): GeoProjection => geoMercator();
+const US_CONUS_PROJECTION: MapProjectionSpec = {
+  kind: 'conic-equal-area',
+  parallels: [29.5, 45.5],
+  rotate: [96, 0],
+};
+const ALASKA_PROJECTION: MapProjectionSpec = {
+  kind: 'conic-equal-area',
+  rotate: [154, 0],
+  center: [-2, 58.5],
+  parallels: [55, 65],
+};
+const HAWAII_PROJECTION: MapProjectionSpec = { kind: 'mercator' };
 
-function projectionFor(
+function projectionSpecFor(
   family: ProjectionFamily,
   extent: GeoExtent
-): GeoProjection {
+): MapProjectionSpec {
   switch (family) {
     case 'albers-usa':
-      return usConusProjection();
+      return US_CONUS_PROJECTION;
     case 'conic-equal-area': {
       // Albers for a single continent: standard parallels at 1/6 and 5/6 of the
       // extent's latitude band (distortion-minimizing), centered on the band's
-      // mid-latitude. Longitude centering is handled by the shared .rotate below.
+      // mid-latitude. Longitude centering is handled by the shared rotate below.
       const s = extent[0][1];
       const n = extent[1][1];
-      return geoConicEqualArea()
-        .parallels([s + (n - s) / 6, s + ((n - s) * 5) / 6])
-        .center([0, (s + n) / 2]);
+      return {
+        kind: 'conic-equal-area',
+        parallels: [s + (n - s) / 6, s + ((n - s) * 5) / 6],
+        center: [0, (s + n) / 2],
+      };
     }
     case 'mercator':
-      return geoMercator();
+      return { kind: 'mercator' };
     case 'equal-earth':
       // Equal-area pseudocylindrical: areas stay honest so a choropleth's shading
       // isn't distorted by projection (the default for *data* world maps).
-      return geoEqualEarth();
+      return { kind: 'equal-earth' };
     case 'equirectangular':
       // Plate carrée: straight lat/lon grid, fully rectangular frame. The default
       // for dataless *reference* world maps — a clean conventional wall-map look.
-      return geoEquirectangular();
+      return { kind: 'equirectangular' };
     case 'natural-earth':
       // Curved pseudocylindrical compromise. Retained for completeness; areas are
       // only approximately preserved.
-      return geoNaturalEarth1();
+      return { kind: 'natural-earth' };
     default:
-      return geoEquirectangular();
+      return { kind: 'equirectangular' };
   }
 }
 
@@ -991,6 +998,9 @@ export function mapNeutralLandColor(
  *  in place by `fitExtent`/`clipExtent`, so the instance is never shared. */
 export interface MapProjectionBuild {
   readonly projection: GeoProjection;
+  /** How `projection` was constructed — `captureMapProjection` pairs it with
+   *  the fit to describe the projection as data. */
+  readonly projectionSpec: MapProjectionSpec;
   readonly fitTarget: GeoFC;
   /** ≥270° lon or ≥130° lat span ⇒ global (stretch-fill) vs regional (contain). */
   readonly fitIsGlobal: boolean;
@@ -1116,15 +1126,16 @@ export function buildMapProjection(
   }
   const fitTarget: GeoFC = { type: 'FeatureCollection', features: fitFeatures };
 
-  const projection = projectionFor(resolved.projection, resolved.extent);
+  let projectionSpec = projectionSpecFor(resolved.projection, resolved.extent);
   // mercator / natural-earth: rotate to the extent's center longitude BEFORE
-  // fitting (rotate changes the bounds fitExtent measures). albers-usa is a
-  // US-only composite with NO .rotate -- never call it (AR2).
+  // fitting (rotate changes the bounds fitExtent measures). albers-usa's conus
+  // conic carries its own fixed rotate -- never override it (AR2).
   if (resolved.projection !== 'albers-usa') {
     let centerLon = (resolved.extent[0][0] + resolved.extent[1][0]) / 2;
     if (centerLon > 180) centerLon -= 360;
-    projection.rotate([-centerLon, 0]);
+    projectionSpec = { ...projectionSpec, rotate: [-centerLon, 0] };
   }
+  const projection = createMapProjection(projectionSpec);
 
   // Global vs regional classification (drives stretch-fill vs contain-fit).
   const fitGB = geoBounds(fitTarget as never) as [
@@ -1136,6 +1147,7 @@ export function buildMapProjection(
 
   return {
     projection,
+    projectionSpec,
     fitTarget,
     fitIsGlobal,
     worldLayer,
@@ -1349,6 +1361,7 @@ export function layoutMap(
   // depends on canvas width/height). --
   const {
     projection,
+    projectionSpec,
     fitTarget,
     fitIsGlobal,
     worldLayer,
@@ -2053,8 +2066,8 @@ export function layoutMap(
           regionStroke,
           colorizeStroke,
           regionFill,
-          alaskaProjection,
-          hawaiiProjection,
+          alaskaProjection: ALASKA_PROJECTION,
+          hawaiiProjection: HAWAII_PROJECTION,
           akRef,
           hiRef,
         })
@@ -3982,7 +3995,7 @@ export function layoutMap(
     legend,
     insets,
     insetRegions,
-    projection,
+    projectionParams: captureMapProjection(projectionSpec, projection),
     stretch: stretchParams,
     diagnostics: [],
   };

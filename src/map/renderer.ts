@@ -23,6 +23,7 @@ import type { MapData, ResolvedMap } from './resolved-types';
 import {
   layoutMap,
   parsePathRings,
+  type MapLayout,
   type MapLayoutRegion,
   type MapLayoutCoastlineStyle,
   type PlacedLabel,
@@ -268,7 +269,45 @@ export function renderMap(
       }),
     }
   );
+  drawMap(
+    container,
+    layout,
+    resolved,
+    palette,
+    isDark,
+    onClickItem,
+    exportDims
+  );
+}
 
+/** Draw a map layout the caller already computed — typically off the main thread
+ *  (the app lays maps out in a worker, #645) — into `container`, exactly as
+ *  `renderMap` would draw it. PREVIEW only: an export goes through `renderMap`
+ *  with its export dimensions. `layout` must come from `layoutMap` over this same
+ *  `resolved` with the preview legend mode; it may have crossed `postMessage`. */
+export function renderMapLayout(
+  container: HTMLDivElement,
+  layout: MapLayout,
+  resolved: ResolvedMap,
+  palette: PaletteColors,
+  isDark: boolean,
+  onClickItem?: (lineNumber: number) => void
+): void {
+  d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
+  if (layout.width <= 0 || layout.height <= 0) return;
+  drawMap(container, layout, resolved, palette, isDark, onClickItem, undefined);
+}
+
+function drawMap(
+  container: HTMLDivElement,
+  layout: MapLayout,
+  resolved: ResolvedMap,
+  palette: PaletteColors,
+  isDark: boolean,
+  onClickItem: ((lineNumber: number) => void) | undefined,
+  exportDims: D3ExportDimensions | undefined
+): void {
+  const { width, height } = layout;
   const svg = d3Selection
     .select(container)
     .append('svg')

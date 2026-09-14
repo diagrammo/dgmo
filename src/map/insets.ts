@@ -3,6 +3,8 @@ import type { GeoProjection } from 'd3-geo';
 // Type-only, so the cycle with layout.ts is erased at build time.
 import type { MapLayoutInset, MapLayoutRegion, GeoFeature } from './layout';
 import type { ResolvedMap, ResolvedRegion } from './resolved-types';
+import { captureMapProjection, createMapProjection } from './projection';
+import type { MapProjectionSpec } from './projection';
 
 /** Seed for an AK/HI label — turned into a PlacedLabel by the labels stage so
  *  it shares the region-label styling. */
@@ -34,8 +36,8 @@ const BW = 8; // x-bucket width (px) for the coast profile
  * to `regions` by the caller so the renderer draws them like any other region.
  *
  * Reads the main `projection` only to sample the CONUS coast — it is never
- * refitted here. The two inset projections are constructed fresh by the caller
- * and fitted to their own boxes, which is why passing them in is safe.
+ * refitted here. The two inset projections are constructed fresh here from the
+ * caller's specs and fitted to their own boxes.
  */
 export function layoutInsets(args: {
   readonly resolved: ResolvedMap;
@@ -58,9 +60,9 @@ export function layoutInsets(args: {
   readonly regionStroke: string;
   readonly colorizeStroke: (fill: string) => string;
   readonly regionFill: (r: ResolvedRegion) => string;
-  /** Fresh, unfitted projections for each inset — fitted to their box here. */
-  readonly alaskaProjection: () => GeoProjection;
-  readonly hawaiiProjection: () => GeoProjection;
+  /** How each inset's projection is built — constructed and fitted to its box here. */
+  readonly alaskaProjection: MapProjectionSpec;
+  readonly hawaiiProjection: MapProjectionSpec;
   /** Whether each inset is referenced by the content (§24B.2). */
   readonly akRef: boolean;
   readonly hiRef: boolean;
@@ -142,10 +144,11 @@ export function layoutInsets(args: {
   // the next inset can sit beside it.
   const placeInset = (
     iso: string,
-    proj: GeoProjection,
+    spec: MapProjectionSpec,
     boxX: number,
     iwReq: number
   ): number => {
+    const proj = createMapProjection(spec);
     const f = usLayer.get(iso);
     if (!f) return boxX;
     const x0 = boxX;
@@ -217,9 +220,10 @@ export function layoutInsets(args: {
         [xr, bottom],
         [x0, bottom],
       ],
-      // The FITTED inset projection (just fit to this box) — captured so the
-      // geo-query can invert pixels inside the frame back to AK/HI coords.
-      projection: proj,
+      // The FITTED inset projection (just fit to this box), as data — so the
+      // geo-query can rebuild it and invert pixels inside the frame back to
+      // AK/HI coords.
+      projectionParams: captureMapProjection(spec, proj),
       ...(contextLand && { contextLand }),
     });
     insetRegions.push({
@@ -244,11 +248,11 @@ export function layoutInsets(args: {
   // Each draws only when referenced; HI slides left to fitPad if AK is absent.
   let akRight = fitPad;
   if (akRef)
-    akRight = placeInset('US-AK', alaskaProjection(), fitPad, width * 0.18);
+    akRight = placeInset('US-AK', alaskaProjection, fitPad, width * 0.18);
   if (hiRef)
     placeInset(
       'US-HI',
-      hawaiiProjection(),
+      hawaiiProjection,
       akRef ? akRight + 24 : fitPad,
       width * 0.12
     );

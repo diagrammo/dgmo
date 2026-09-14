@@ -1,8 +1,10 @@
 // Composite- + stretch-aware pixel↔lonLat for the geo-query (step-5 inspector).
-// This is the FIRST map code to call `projection.invert()`. It binds to the
-// REAL fitted projection(s) captured on the MapLayout (layout.ts Task 1) — the
-// caller never reconstructs a projection from metadata, so an inverted pixel
-// lands exactly where the rendered SVG drew the corresponding point.
+// This is the FIRST map code to call `projection.invert()`. It rebuilds the
+// fitted projection(s) from the parameters captured on the MapLayout
+// (`rebuildMapProjection`, bit-identical to the instance layout drew with), so an
+// inverted pixel lands exactly where the rendered SVG drew the corresponding
+// point. The layout carries parameters, not the live function, so it can be
+// computed in a worker and posted to the main thread (#645).
 //
 // Three cases, in priority order:
 //   1. albers-usa insets — a pixel inside an AK/HI frame rect inverts against
@@ -11,7 +13,22 @@
 //      (and apply it AFTER the main project).
 //   3. plain regional/world fit — invert/project the main projection directly
 //      (clipExtent set on a regional projection is ignored by `.invert`).
+import type { GeoProjection } from 'd3-geo';
 import type { MapLayout, MapLayoutInset } from './layout';
+import { rebuildMapProjection } from './projection';
+import type { MapProjectionParams } from './projection';
+
+// One rebuild per layout, not per pointer move: keyed by the params object, which
+// a layout never shares and never mutates.
+const rebuilt = new WeakMap<MapProjectionParams, GeoProjection>();
+function projectionOf(params: MapProjectionParams): GeoProjection {
+  let p = rebuilt.get(params);
+  if (!p) {
+    p = rebuildMapProjection(params);
+    rebuilt.set(params, p);
+  }
+  return p;
+}
 
 /** True if `(px,py)` is inside an inset frame's bounding box. */
 function inInsetFrame(inset: MapLayoutInset, px: number, py: number): boolean {
@@ -57,7 +74,7 @@ export function pixelToLonLat(
   // conus, so their pixels would otherwise invert against the conus conic.
   for (const inset of layout.insets) {
     if (inInsetFrame(inset, px, py)) {
-      const ll = inset.projection.invert?.([px, py]);
+      const ll = projectionOf(inset.projectionParams).invert?.([px, py]);
       return ll && Number.isFinite(ll[0]) && Number.isFinite(ll[1])
         ? [ll[0], ll[1]]
         : null;
@@ -65,7 +82,7 @@ export function pixelToLonLat(
   }
   // (2)/(3) main projection (undo the stretch first for a global fit).
   const [x, y] = layout.stretch ? unstretch(layout, px, py) : [px, py];
-  const ll = layout.projection.invert?.([x, y]);
+  const ll = projectionOf(layout.projectionParams).invert?.([x, y]);
   return ll && Number.isFinite(ll[0]) && Number.isFinite(ll[1])
     ? [ll[0], ll[1]]
     : null;
@@ -80,7 +97,7 @@ export function lonLatToPixel(
 ): [number, number] | null {
   const pt: [number, number] = [lonLat[0], lonLat[1]];
   // Main projection first.
-  const main = layout.projection(pt);
+  const main = projectionOf(layout.projectionParams)(pt);
   const mainPx: [number, number] | null =
     main && Number.isFinite(main[0]) && Number.isFinite(main[1])
       ? layout.stretch
@@ -98,7 +115,7 @@ export function lonLatToPixel(
   // Off-canvas under the main projection (AK/HI under the conus conic): see if an
   // inset claims it — project via the inset and keep it if it lands in the frame.
   for (const inset of layout.insets) {
-    const p = inset.projection(pt);
+    const p = projectionOf(inset.projectionParams)(pt);
     if (
       p &&
       Number.isFinite(p[0]) &&

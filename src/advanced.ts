@@ -746,7 +746,15 @@ export type {
   PlacedLabel,
   MapLayoutLegend,
 } from './map/layout';
-export { renderMap, renderMapForExport } from './map/renderer';
+export { renderMap, renderMapForExport, renderMapLayout } from './map/renderer';
+// A map layout carries its projection as data so it can be computed in a worker
+// and posted back (#645); this rebuilds the live d3-geo projection from it.
+export { rebuildMapProjection } from './map/projection';
+export type {
+  MapProjectionParams,
+  MapProjectionSpec,
+  MapProjectionKind,
+} from './map/projection';
 // Content-aware export dimensions — derive the canvas height from a map's intrinsic
 // projected aspect so exports/embeds match the content's natural shape (no vertical
 // stretch). Used by the CLI/MCP/SSG export path and by Obsidian's DI render.
@@ -758,7 +766,7 @@ export {
 // Map geo-query (step-5 coordinate/location inspector) — a SEPARATE entry from
 // the renderer; takes `MapData` by DI so it's browser-safe (never calls the
 // Node-only `loadMapData`).
-export { createMapGeoQuery } from './map/geo-query';
+export { createMapGeoQuery, createMapGeoQueryForLayout } from './map/geo-query';
 export type {
   MapGeoQuery,
   CreateMapGeoQueryOptions,
