@@ -1062,7 +1062,9 @@ function edgePath(
   sSide: Side,
   tSide: Side,
   sourcePorts?: Ports,
-  targetPorts?: Ports
+  targetPorts?: Ports,
+  /** Explicit attachment points — a fanned side's spread ports (#779). */
+  ends?: { p0?: Pt; p1?: Pt }
 ): EdgeGeom {
   const acx = source.x + source.w / 2;
   const acy = source.y + source.h / 2;
@@ -1078,8 +1080,10 @@ function edgePath(
   // an aligned edge runs dead straight into it. (No corner trim: a child center
   // is already inset by the band + padding, well clear of the frame corners, and
   // clamping it to the tall side's middle band would bend an otherwise-straight
-  // line.) A BARE node attaches at that side's MIDPOINT — one port per side (4
-  // per node). `toward` is the other end's center, which the group port snaps to.
+  // line.) A BARE node attaches at that side's MIDPOINT here; when several edges
+  // share one side, sketchEdgeGeometry fans them across it afterwards and passes
+  // the spread points in as `ends` (#779). `toward` is the other end's center,
+  // which the group port snaps to.
   const attach = (
     side: Side,
     rect: Rect,
@@ -1107,8 +1111,8 @@ function edgePath(
         : side === 'T'
           ? { x: 0, y: -1 }
           : { x: 0, y: 1 };
-  const p0 = attach(sSide, source, sourcePorts, { x: bcx, y: bcy });
-  const p1 = attach(tSide, target, targetPorts, { x: acx, y: acy });
+  const p0 = ends?.p0 ?? attach(sSide, source, sourcePorts, { x: bcx, y: bcy });
+  const p1 = ends?.p1 ?? attach(tSide, target, targetPorts, { x: acx, y: acy });
   const n0 = normal(sSide);
   const n1 = normal(tSide);
   const k = Math.max(
@@ -1194,8 +1198,9 @@ function polyCrossings(a: Pt[], b: Pt[]): number {
   return n;
 }
 
-/** Intersection point of two crossing polylines, or null if they don't cross. */
-function polyIntersection(a: Pt[], b: Pt[]): Pt | null {
+/** Every point where two polylines cross, in order along `a`. */
+function polyIntersections(a: Pt[], b: Pt[]): Pt[] {
+  const out: Pt[] = [];
   for (let i = 0; i + 1 < a.length; i++) {
     const p = a[i]!;
     const p2 = a[i + 1]!;
@@ -1210,10 +1215,10 @@ function polyIntersection(a: Pt[], b: Pt[]): Pt | null {
       const denom = rx * sy - ry * sx;
       if (denom === 0) continue;
       const t = ((q.x - p.x) * sy - (q.y - p.y) * sx) / denom;
-      return { x: p.x + t * rx, y: p.y + t * ry };
+      out.push({ x: p.x + t * rx, y: p.y + t * ry });
     }
   }
-  return null;
+  return out;
 }
 
 // Radius (half-chord) of the little semicircular hop drawn where one line jumps
@@ -1716,18 +1721,177 @@ export function sketchEdgeGeometry(
     if (!changed) break;
   }
 
-  // Crossing-hops: where two (non-adjacent) edges still cross, the HIGHER-index
-  // edge hops over the lower one so the two read as distinct. `polys` holds the
-  // final routing after relaxation.
+  // Fan a shared side (#779). Relaxation scores every bare-node side at its
+  // midpoint, so edges that settled on the same side still share one point and
+  // one first handle: they leave collinear, run a few px apart and, when their
+  // far ends pull toward each other, cross. Spread each such side's endpoints
+  // across it:
+  //  - ORDER by the direction of each edge's far end, measured from the side's
+  //    outward normal, so a line bound further along the side's axis leaves
+  //    from further along it and neighbours do not have to swap over. Ties
+  //    (edges to one far point) keep declaration order, the same order at both
+  //    ends, so a reciprocal pair stays parallel.
+  //  - PLACE each end where its far end projects onto the side, clamped to the
+  //    width an even fan would span, then push apart to `gap` keeping that
+  //    order. An end whose far point projects INSIDE that span is a line that
+  //    can run straight, and holds its place outright — a run containing one is
+  //    positioned by its aligned members alone — so the fan never bends a
+  //    level edge to make room for a diagonal one beside it.
+  // A group endpoint already snaps to a per-child port and is left alone, and a
+  // side with ONE edge keeps its midpoint. `gap` is an even split of the side,
+  // capped so a pair on a wide side stays near its centre.
+  const FAN_GAP_MAX = 32;
+  type FanEnd = {
+    edge: number;
+    end: 'p0' | 'p1';
+    at: Pt;
+    key: number;
+    proj: number;
+  };
+  const fanSides = new Map<string, FanEnd[]>();
+  for (let i = 0; i < layout.edges.length; i++) {
+    const g = geoms[i];
+    if (!g) continue;
+    const e = layout.edges[i]!;
+    const ch = chosen[i]!;
+    const ends = [
+      { id: e.sourceId, side: ch.s, end: 'p0' as const, at: g.p0, far: g.p1 },
+      { id: e.targetId, side: ch.t, end: 'p1' as const, at: g.p1, far: g.p0 },
+    ];
+    for (const en of ends) {
+      if (isBox(en.id)) continue;
+      const n = normalOf(en.side);
+      const along = en.side === 'T' || en.side === 'B';
+      const dx = en.far.x - en.at.x;
+      const dy = en.far.y - en.at.y;
+      const proj = along ? dx : dy;
+      const key = Math.atan2(proj, dx * n.x + dy * n.y);
+      const k = `${en.side}:${en.id}`;
+      const list = fanSides.get(k) ?? [];
+      list.push({ edge: i, end: en.end, at: en.at, key, proj });
+      fanSides.set(k, list);
+    }
+  }
+  const fanned: Array<{ p0?: Pt; p1?: Pt }> = layout.edges.map(() => ({}));
+  let anyFanned = false;
+  for (const [k, list] of fanSides) {
+    const count = list.length;
+    if (count < 2) continue;
+    const along = k[0] === 'T' || k[0] === 'B';
+    const c = ctx[list[0]!.edge]!;
+    const rect = list[0]!.end === 'p0' ? c.source : c.target;
+    const len = along ? rect.w : rect.h;
+    const gap = Math.min(len / (count + 1), FAN_GAP_MAX);
+    const span = ((count - 1) / 2) * gap; // half-width of an even fan
+    const reach = len / 2 - gap / 2; // furthest an end may sit from centre
+    list.sort(
+      (a, b) => a.key - b.key || a.edge - b.edge || (a.end < b.end ? -1 : 1)
+    );
+    // Ordered placement with a minimum gap: merge neighbours that would sit
+    // closer than `gap` into one run, placed at the mean of its members' wanted
+    // start (each wanted position less its offset inside the run) — counting
+    // only the ALIGNED members when the run has any.
+    type Run = { n: number; an: number; as: number; ln: number; ls: number };
+    const runs: Array<Run & { at: number }> = [];
+    const place = (r: Run): number =>
+      Math.max(
+        -reach,
+        Math.min(reach - (r.n - 1) * gap, r.an > 0 ? r.as / r.an : r.ls / r.ln)
+      );
+    for (const f of list) {
+      const aligned = Math.abs(f.proj) <= span;
+      const d = Math.max(-span, Math.min(span, f.proj));
+      const run = aligned
+        ? { n: 1, an: 1, as: d, ln: 0, ls: 0, at: 0 }
+        : { n: 1, an: 0, as: 0, ln: 1, ls: d, at: 0 };
+      run.at = place(run);
+      runs.push(run);
+      while (runs.length > 1) {
+        const cur = runs[runs.length - 1]!;
+        const prev = runs[runs.length - 2]!;
+        if (prev.at + prev.n * gap <= cur.at) break;
+        runs.pop();
+        prev.as += cur.as - cur.an * prev.n * gap;
+        prev.ls += cur.ls - cur.ln * prev.n * gap;
+        prev.an += cur.an;
+        prev.ln += cur.ln;
+        prev.n += cur.n;
+        prev.at = place(prev);
+      }
+    }
+    let idx = 0;
+    for (const run of runs) {
+      for (let m = 0; m < run.n; m++, idx++) {
+        const f = list[idx]!;
+        const off = run.at + m * gap;
+        fanned[f.edge]![f.end] = along
+          ? { x: f.at.x + off, y: f.at.y }
+          : { x: f.at.x, y: f.at.y + off };
+      }
+    }
+    anyFanned = true;
+  }
+  if (anyFanned) {
+    for (let i = 0; i < ctx.length; i++) {
+      const c = ctx[i];
+      const f = fanned[i]!;
+      if (!c || (!f.p0 && !f.p1)) continue;
+      const g = edgePath(
+        c.source,
+        c.target,
+        chosen[i]!.s,
+        chosen[i]!.t,
+        c.sPorts,
+        c.tPorts,
+        f
+      );
+      geoms[i] = g;
+      polys[i] = polyline(g);
+    }
+  }
+
+  // Crossing-hops: where two edges still cross, the HIGHER-index edge hops over
+  // the lower one so the two read as distinct. `polys` holds the final routing.
+  // Edges that SHARE an endpoint used to be skipped outright, on the belief
+  // that siblings only ever meet at that endpoint — false for two lines whose
+  // far ends pull toward each other and cross mid-run (#779). They are now
+  // skipped only for a crossing within reach of an endpoint on the shared node,
+  // where a hump would have no room and the meeting is the fan itself.
+  const SHARED_END_CLEAR = 2 * HOP_R;
+  const endsAt = (i: number, id: string): Pt[] => {
+    const e = layout.edges[i]!;
+    const g = geoms[i]!;
+    const out: Pt[] = [];
+    if (e.sourceId === id) out.push(g.p0);
+    if (e.targetId === id) out.push(g.p1);
+    return out;
+  };
   const hopsFor: Array<Pt[]> = layout.edges.map(() => []);
   for (let i = 0; i < polys.length; i++) {
     for (let j = i + 1; j < polys.length; j++) {
-      if (ctx[i]?.adjacent.has(j)) continue;
       const a = polys[i];
       const b = polys[j];
       if (!a || !b) continue;
-      const pt = polyIntersection(a, b);
-      if (pt) hopsFor[j]!.push(pt); // j (drawn later, on top) does the hop
+      if (!ctx[i]?.adjacent.has(j)) {
+        const pt = polyIntersections(a, b)[0];
+        if (pt) hopsFor[j]!.push(pt); // j (drawn later, on top) does the hop
+        continue;
+      }
+      const ei = layout.edges[i]!;
+      const ej = layout.edges[j]!;
+      const shared = [ei.sourceId, ei.targetId].filter(
+        (id) => id === ej.sourceId || id === ej.targetId
+      );
+      const nearShared = shared.flatMap((id) => [
+        ...endsAt(i, id),
+        ...endsAt(j, id),
+      ]);
+      const pt = polyIntersections(a, b).find((p) =>
+        nearShared.every(
+          (q) => Math.hypot(p.x - q.x, p.y - q.y) > SHARED_END_CLEAR
+        )
+      );
+      if (pt) hopsFor[j]!.push(pt);
     }
   }
 

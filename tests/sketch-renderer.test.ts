@@ -54,11 +54,12 @@ describe('sketch renderer — structure', () => {
     expect(svg.querySelector('.sk-legend-group')).not.toBeNull();
   });
 
-  it('assigns sides by direction only — an up-left edge shares the left port', () => {
+  it('assigns sides by direction only — an up-left edge shares the left side', () => {
     // Hub with left (l), right (r), and an up-and-left edge (u). Assignment is
     // purely directional: u is horizontally dominant → LEFT side, so it leaves
-    // the same left-side port as l (one shared port per side, no congestion
-    // flip to the top — that`s what kept mirror-image spokes symmetric).
+    // the same left SIDE as l (no congestion flip to the top — that`s what kept
+    // mirror-image spokes symmetric). The side is fanned (#779): u, bound
+    // upward, takes the upper port and l the lower one.
     const svg = render(
       'sketch\n' +
         'Hub as hub at: 10 4\n  -a-> l\n  -b-> r\n  -c-> u\n' +
@@ -72,9 +73,9 @@ describe('sketch renderer — structure', () => {
       return { x: Number(m[1]), y: Number(m[2]) };
     });
     const [sl, sr, su] = starts;
-    // u shares l`s exact left-side port; r leaves the opposite (right) side.
+    // u shares l`s left side, above it; r leaves the opposite (right) side.
     expect(su!.x).toBeCloseTo(sl!.x, 1);
-    expect(su!.y).toBeCloseTo(sl!.y, 1);
+    expect(su!.y).toBeLessThan(sl!.y);
     expect(sr!.x).not.toBeCloseTo(sl!.x, 1);
   });
 
@@ -514,9 +515,9 @@ describe('sketch renderer — edges', () => {
     expect(overlap).toBe(false);
   });
 
-  it('uses at most 4 ports per node (one shared port per side)', () => {
-    // An 8-way hub: every spoke must leave from one of ONLY four source ports
-    // (the four side midpoints), edges on the same side sharing a port.
+  it('gives every spoke of a hub its own port, fanned across its side (#779)', () => {
+    // An 8-way hub: spokes that share a side are spread across it rather than
+    // stacked on its midpoint, so every spoke leaves from a distinct point.
     const layout = layoutSketch(
       parseSketch(
         'sketch\n' +
@@ -535,7 +536,7 @@ describe('sketch renderer — edges', () => {
           return `${Math.round(Number(m[1]))},${Math.round(Number(m[2]))}`;
         })
     );
-    expect(ports.size).toBeLessThanOrEqual(4);
+    expect(ports.size).toBe(8);
   });
 
   it('adds a hop on one line where two edges cross', () => {
@@ -696,6 +697,216 @@ describe('sketch renderer — edges', () => {
     // gap; neither wraps out A`s left or B`s right.
     expect(sideOf(start(find('A', 'B').d), a)).toBe('R');
     expect(sideOf(start(find('B', 'A').d), b)).toBe('L');
+  });
+
+  // sketch edges collide leaving a shared side (diagrammo/diagrammo#779) — the
+  // reporter's source, verbatim. Broker3's two cross-group edges both left its
+  // TOP midpoint with an identical first handle, ran under 7px apart for 240px,
+  // then crossed with no hop because sharing a source put them in `adjacent`.
+  const REPORT_779 = `sketch Site Architecture
+
+tag Status
+  Broker gray
+  Stuff cyan
+
+tag Team
+  Other
+  Engineering
+  Infrastructure
+
+[Thing 1] at: -4 -2
+  A at: 3 1, status: Stuff
+  Broker as Broker at: 3 4, status: Broker
+    -> A
+    -> B
+    -> C
+    <-> Broker2
+    -> D
+  B at: 0 2, status: Stuff
+  C at: 0 6, status: Stuff
+  D at: 3 7, status: Stuff
+
+[Thing 2] at: 3 1
+  Broker as Broker2 at: 0 1, status: Broker
+    -> X
+    -> Y
+    -> Z
+    -> W
+  X at: 3 -1, status: Stuff
+  Y at: 3 3, status: Stuff
+  Z at: 0 4, status: Stuff
+  W at: 0 -2, status: Stuff
+
+[Thing 3] at: -2 9
+  Broker as Broker3 at: 3 0, status: Broker
+    -> 1
+    -> 2
+    -> 3
+    -> 4
+    -> Broker
+    -> Broker2
+  1 at: 0 0, status: Stuff
+  2 at: 1 4, status: Stuff
+  3 at: 5 4, status: Stuff
+  4 at: 6 0, status: Stuff
+`;
+
+  const cubicPts = (g: {
+    p0: { x: number; y: number };
+    h0: { x: number; y: number };
+    h1: { x: number; y: number };
+    p1: { x: number; y: number };
+  }) => {
+    const pts: Array<{ x: number; y: number }> = [];
+    for (let i = 0; i <= 60; i++) {
+      const t = i / 60;
+      const u = 1 - t;
+      const a = u * u * u;
+      const b = 3 * u * u * t;
+      const c = 3 * u * t * t;
+      const d = t * t * t;
+      pts.push({
+        x: a * g.p0.x + b * g.h0.x + c * g.h1.x + d * g.p1.x,
+        y: a * g.p0.y + b * g.h0.y + c * g.h1.y + d * g.p1.y,
+      });
+    }
+    return pts;
+  };
+  const crossingsBetween = (
+    a: { x: number; y: number }[],
+    b: { x: number; y: number }[]
+  ) => {
+    const o = (
+      p: { x: number; y: number },
+      q: { x: number; y: number },
+      r: { x: number; y: number }
+    ) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+    let n = 0;
+    for (let i = 0; i + 1 < a.length; i++)
+      for (let j = 0; j + 1 < b.length; j++) {
+        const d1 = o(a[i]!, a[i + 1]!, b[j]!);
+        const d2 = o(a[i]!, a[i + 1]!, b[j + 1]!);
+        const d3 = o(b[j]!, b[j + 1]!, a[i]!);
+        const d4 = o(b[j]!, b[j + 1]!, a[i + 1]!);
+        if (d1 * d2 < 0 && d3 * d4 < 0) n++;
+      }
+    return n;
+  };
+
+  it('spreads edges leaving one side of a bare node instead of stacking them (#779)', () => {
+    const layout = layoutSketch(parseSketch(REPORT_779, P));
+    // All three brokers are labelled `Broker`; the box tells them apart.
+    const brokerIn = (box: string) =>
+      layout.nodes.find((n) => n.label === 'Broker' && n.boxLabel === box)!.id;
+    const geom = sketchEdgeGeometry(layout);
+    const find = (from: string, to: string) =>
+      geom.find((g) => g?.sourceId === from && g?.targetId === to)!;
+    const broker3 = brokerIn('Thing 3');
+    const toBroker = find(broker3, brokerIn('Thing 1'));
+    const toBroker2 = find(broker3, brokerIn('Thing 2'));
+    // Separate ports on the shared side.
+    expect(
+      Math.hypot(toBroker.p0.x - toBroker2.p0.x, toBroker.p0.y - toBroker2.p0.y)
+    ).toBeGreaterThanOrEqual(16);
+    // And they do not cross — or, if they still do, the crossing draws a hop.
+    const n = crossingsBetween(cubicPts(toBroker), cubicPts(toBroker2));
+    if (n > 0)
+      expect(Boolean(toBroker.dRender || toBroker2.dRender)).toBe(true);
+    else expect(n).toBe(0);
+    // The two lines never run within a stroke-and-a-half of each other past
+    // the ports, which is what made them read as one doubled line.
+    const a = cubicPts(toBroker);
+    const b = cubicPts(toBroker2);
+    let closest = Infinity;
+    for (let i = 6; i < a.length; i++)
+      for (const q of b.slice(6))
+        closest = Math.min(closest, Math.hypot(a[i]!.x - q.x, a[i]!.y - q.y));
+    expect(closest).toBeGreaterThan(8);
+  });
+
+  it('keeps a level edge straight when its side is fanned (#779)', () => {
+    // Broker3`s LEFT side carries the level edge to `1` and the drop to `2`.
+    // The fan makes room by moving the diagonal, never by bending the level one.
+    const layout = layoutSketch(parseSketch(REPORT_779, P));
+    const inThing3 = (label: string) =>
+      layout.nodes.find((n) => n.label === label && n.boxLabel === 'Thing 3')!;
+    const broker3 = inThing3('Broker');
+    const geom = sketchEdgeGeometry(layout);
+    const to = (label: string) =>
+      geom.find(
+        (g) => g?.sourceId === broker3.id && g?.targetId === inThing3(label).id
+      )!;
+    const level = to('1');
+    const drop = to('2');
+    expect(level.p0.x).toBe(broker3.x);
+    expect(drop.p0.x).toBe(broker3.x);
+    expect(level.p0.y).toBe(level.p1.y);
+    expect(drop.p0.y).toBeGreaterThan(level.p0.y);
+  });
+
+  it('orders a fanned side so its edges do not cross each other (#779)', () => {
+    // A hub with three targets fanned across its top: left, straight up, right.
+    const layout = layoutSketch(
+      parseSketch(
+        'sketch\n' +
+          'H as h at: 4 8\n  -> l\n  -> u\n  -> r\n' +
+          'L as l at: 2 0\nU as u at: 4 0\nR as r at: 6 0\n',
+        P
+      )
+    );
+    const idH = layout.nodes.find((n) => n.label === 'H')!.id;
+    const out = sketchEdgeGeometry(layout).filter((g) => g?.sourceId === idH);
+    expect(out).toHaveLength(3);
+    const starts = new Set(out.map((g) => `${g!.p0.x},${g!.p0.y}`));
+    expect(starts.size).toBe(3);
+    for (let i = 0; i < out.length; i++)
+      for (let j = i + 1; j < out.length; j++)
+        expect(crossingsBetween(cubicPts(out[i]!), cubicPts(out[j]!))).toBe(0);
+  });
+
+  it('keeps a lone edge on a side at that side`s midpoint (#779)', () => {
+    const layout = layoutSketch(
+      parseSketch('sketch\nA as a at: 0 0\n  -> b\nB as b at: 4 0\n', P)
+    );
+    const a = layout.nodes.find((n) => n.label === 'A')!;
+    const g = sketchEdgeGeometry(layout)[0]!;
+    expect(g.p0).toEqual({ x: a.x + a.w, y: a.y + a.h / 2 });
+  });
+
+  it('hops a mid-run crossing between two edges that share an endpoint (#779)', () => {
+    // A hub whose two edges both leave its top: one to a node far up-left,
+    // entered on that node`s RIGHT face, one to a nearer node entered from
+    // below. The first line's far handle pulls it back across the second,
+    // well away from the hub — a crossing the fan does not remove, which the
+    // hop pass used to ignore because the two edges share a source.
+    const layout = layoutSketch(
+      parseSketch(
+        'sketch\nH as h at: 0 0\n  -> a\n  -> b\n' +
+          'A as a at: -6 -6\nB as b at: -2 -6\n',
+        P
+      )
+    );
+    const [ga, gb] = sketchEdgeGeometry(layout) as [
+      NonNullable<ReturnType<typeof sketchEdgeGeometry>[number]>,
+      NonNullable<ReturnType<typeof sketchEdgeGeometry>[number]>,
+    ];
+    const a = cubicPts(ga);
+    const b = cubicPts(gb);
+    const ends = [ga.p0, ga.p1, gb.p0, gb.p1];
+    let midRun = 0;
+    for (let s = 0; s + 1 < a.length; s++)
+      for (let k = 0; k + 1 < b.length; k++)
+        if (
+          crossingsBetween([a[s]!, a[s + 1]!], [b[k]!, b[k + 1]!]) > 0 &&
+          ends.every((e) => Math.hypot(e.x - a[s]!.x, e.y - a[s]!.y) > 40)
+        )
+          midRun++;
+    // Precondition: the construction really does cross mid-run. If a later
+    // routing change removes the crossing, this fixture needs replacing.
+    expect(midRun).toBeGreaterThan(0);
+    // The later edge draws the hop.
+    expect(gb.dRender).toBeDefined();
+    expect(gb.dRender).toContain('C ');
   });
 });
 
