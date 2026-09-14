@@ -6052,10 +6052,7 @@ interface MapProjectionSpec {
 interface MapProjectionParams extends MapProjectionSpec {
     readonly scale: number;
     readonly translate: readonly [number, number];
-    readonly clipExtent: readonly [
-        readonly [number, number],
-        readonly [number, number]
-    ] | null;
+    readonly clipExtent: readonly [readonly [number, number], readonly [number, number]] | null;
 }
 /** Rebuild the live projection a layout was fitted with. */
 declare function rebuildMapProjection(params: MapProjectionParams): GeoProjection;
