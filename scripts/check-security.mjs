@@ -227,7 +227,10 @@ function sleepSync(ms) {
 // without spawning a real audit. Compared as resolved absolute paths: matching
 // on the basename would also fire when some other `check-security.mjs` is the
 // entry, and a symlinked bin would miss.
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (
+  process.argv[1] &&
+  resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+) {
   const { code, lines } = report(audit());
   for (const line of lines) console.log(line);
   process.exit(code);
