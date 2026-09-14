@@ -794,13 +794,29 @@ function renderGauge(
 
   // `now` value dominates the interior — big, gray, filling the arc's belly.
   const nowLabel = compactNumber(parsed.now);
-  // Shrink long values so they never step on the inner tick labels: cap the
-  // text width to ~0.95·r (the clear belly between the 25/75 ticks).
-  const nowSize = Math.min(
+  const bandInner = r - stroke / 2;
+  // Keep long values inside ~0.95·r of chord. That alone does NOT clear the
+  // 25/75 shoulder labels: they are anchored inward from radius
+  // `bandInner - 26`, so their text grows toward cx and ends well inside that
+  // chord. With a target, measure those two labels and size the value to the
+  // gap that is really left between their inner edges.
+  let nowSize = Math.min(
     r * 0.62,
     140,
     (r * 0.95) / Math.max(1, nowLabel.length * 0.6)
   );
+  if (parsed.hasTarget) {
+    const shoulderX = (bandInner - 26) * Math.SQRT1_2;
+    const shoulderW = Math.max(
+      measureText(compactNumber(parsed.target * 0.25), 18),
+      measureText(compactNumber(parsed.target * 0.75), 18)
+    );
+    const halfClear = shoulderX - shoulderW - 8;
+    const widthPerPx = measureText(nowLabel, 100, { bold: true }) / 100;
+    if (widthPerPx > 0 && halfClear > 0) {
+      nowSize = Math.min(nowSize, (2 * halfClear) / widthPerPx);
+    }
+  }
   const nowY = cy - r * 0.42;
   g.append('text')
     .attr('x', cx)
@@ -816,7 +832,6 @@ function renderGauge(
   // the right end, quarter steps between. The needle + the NOW value read the
   // current position (no center % — the raw value carries the story).
   if (parsed.hasTarget) {
-    const bandInner = r - stroke / 2;
     for (const f of [0, 0.25, 0.5, 0.75, 1]) {
       const isTarget = f === 1;
       const ang = Math.PI - f * Math.PI;

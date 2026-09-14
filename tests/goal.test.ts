@@ -7,6 +7,7 @@ import { getPalette } from '../src/palettes';
 import { mix, themeBaseBg } from '../src/palettes/color-utils';
 import { resolveColor } from '../src/colors';
 import { getRenderCategory } from '../src/dgmo-router';
+import { measureText } from '../src/utils/text-measure';
 
 beforeAll(() => {
   const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
@@ -443,6 +444,79 @@ describe('goal renderer — faces', () => {
     const gaugeText = texts(svg).join(' ');
     expect(gaugeText).toContain('64');
     expect(gaugeText).not.toContain('%');
+  });
+
+  // Estimated box of a gauge <text>, from the attributes the renderer wrote.
+  // x follows text-anchor; y follows the baseline the renderer chose
+  // (`hanging` puts the cap top at y, otherwise y is the alphabetic baseline).
+  function gaugeTextBox(t: Element) {
+    const size = parseFloat(t.getAttribute('font-size')!);
+    const bold =
+      t.getAttribute('font-weight') === 'bold' ||
+      parseFloat(t.getAttribute('font-weight') ?? '400') >= 600;
+    const w = measureText(t.textContent ?? '', size, { bold });
+    const x = parseFloat(t.getAttribute('x')!);
+    const y = parseFloat(t.getAttribute('y')!);
+    const anchor = t.getAttribute('text-anchor');
+    const x0 = anchor === 'end' ? x - w : anchor === 'middle' ? x - w / 2 : x;
+    const hanging = t.getAttribute('dominant-baseline') === 'hanging';
+    const y0 = hanging ? y : y - size * 0.73;
+    return { x0, x1: x0 + w, y0, y1: y0 + size * 0.73 };
+  }
+
+  function gaugeValueAndShoulders(src: string) {
+    const c = makeContainer();
+    renderGoal(c, parseGoal(src), nordLight, false);
+    const all = Array.from(c.querySelectorAll('.goal-gauge text'));
+    const value = all.find((t) => t.getAttribute('font-weight') === 'bold')!;
+    return { value, all };
+  }
+
+  function overlaps(
+    a: ReturnType<typeof gaugeTextBox>,
+    b: ReturnType<typeof gaugeTextBox>
+  ) {
+    return a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0;
+  }
+
+  it('gauge: a long centre value clears the 25% and 75% shoulder labels (#690)', () => {
+    const { value, all } = gaugeValueAndShoulders(
+      `goal Q3 New Bookings (USD)\nnow 780000\ntarget 1000000\ngauge`
+    );
+    expect(value.textContent).toBe('780k');
+    const shoulders = all.filter((t) =>
+      ['250k', '750k'].includes(t.textContent ?? '')
+    );
+    expect(shoulders).toHaveLength(2);
+    const v = gaugeTextBox(value);
+    for (const s of shoulders) {
+      expect(overlaps(v, gaugeTextBox(s))).toBe(false);
+    }
+  });
+
+  it('gauge: long shoulder labels shrink the centre value further, still clear', () => {
+    const { value, all } = gaugeValueAndShoulders(
+      `goal Big\ngauge\nnow 7800000000\ntarget 12300000000`
+    );
+    const shoulders = all.filter((t) =>
+      ['3.1B', '9.2B'].includes(t.textContent ?? '')
+    );
+    expect(shoulders).toHaveLength(2);
+    const v = gaugeTextBox(value);
+    for (const s of shoulders) {
+      expect(overlaps(v, gaugeTextBox(s))).toBe(false);
+    }
+  });
+
+  it('gauge: a short centre value keeps its full size', () => {
+    // 1-2 character values were never in the collision; r·0.62 binds there.
+    const { value } = gaugeValueAndShoulders(
+      `goal Quota\ngauge\nnow 64\ntarget 100`
+    );
+    expect(parseFloat(value.getAttribute('font-size')!)).toBeCloseTo(
+      210 * 0.62,
+      5
+    );
   });
 
   it('gauge fill above 50% uses the minor arc, not the reflex circle', () => {
