@@ -36,6 +36,20 @@ WORKSPACE=$(dirname "$REPO_ROOT")
 # per ref on stdin. It can only be read once, so capture it up front.
 refs=$(cat)
 
+# 🔴 A push can lose the race for main while it waits for the gate lock, and
+# used to find out only AFTER the gate — four refusals in five attempts on one
+# change, 8 to 20 minutes of queue each (#680). So the remote is asked where the
+# ref is, before queueing and again right after the lock is taken, and a push
+# that has already lost is refused in seconds with the fix. It never retries on
+# its own and never blocks on a remote it cannot reach —
+# .githooks/stale-ref-check.sh says why.
+REMOTE=${1:-origin}
+STALE_REF_CHECK="$REPO_ROOT/.githooks/stale-ref-check.sh"
+stale_ref_check() {
+  [ -f "$STALE_REF_CHECK" ] || return 0
+  printf '%s\n' "$refs" | bash "$STALE_REF_CHECK" "$REMOTE" "$1"
+}
+
 pushed=$(printf '%s\n' "$refs" | while read -r _lref lsha _rref _rsha; do
   [ -z "$lsha" ] && continue
   [ "$lsha" = "$ZERO" ] && continue              # branch deletion
@@ -199,7 +213,13 @@ run_gate() {
   cleanup
 }
 
+# The lock is where the ref goes stale, so the check runs on both sides of it:
+# once before queueing, and once right after it is taken — that second one is
+# the one that matters. Refusing after the lock exits through the cleanup trap,
+# which releases it.
+stale_ref_check before-lock || exit 1
 if [ -x "$GATE_LOCK" ]; then "$GATE_LOCK" acquire dgmo $$ || true; fi
+stale_ref_check after-lock || exit 1
 
 for sha in $pushed; do
   run_gate "$sha"
