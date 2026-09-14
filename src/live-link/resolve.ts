@@ -155,8 +155,13 @@ async function fetchOnce(
 /**
  * Ask the Cloud for a live link's current source, and say what came back.
  *
- * Never throws: every way this can fail is one of the four outcomes, because a
- * caller that has to tell a rejected promise from a 410 will get it wrong.
+ * Never throws for anything the Cloud or the network does: every way the fetch
+ * can fail is one of the four outcomes, because a caller that has to tell a
+ * rejected promise from a 410 will get it wrong.
+ *
+ * 🔴 The one rejection is a `ref` whose id is not an id (`referenceSourceUrl`
+ * throws). No parser produces one, so only a caller that built the reference by
+ * hand can reach it, and the rejection's stack names that caller (#772).
  */
 export async function fetchLiveLink(
   ref: CloudReference,
