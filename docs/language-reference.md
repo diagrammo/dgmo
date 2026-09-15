@@ -3864,7 +3864,7 @@ In the desktop app a block diagram is interactive: click a container header to c
 
 <!-- TIPS start -->
 
-**Styling tips:** Sketch is a GUI-authored format — the desktop and web canvas editors generate this markup, so hand-writing it is the exception. If you generate it anyway: keep it SMALL (sketches read best under ~15 shapes), and either omit `at:` everywhere (shapes flow into rows) or use integer half-slot coordinates with shapes **at least 3 half-slots apart** on one axis (a footprint spans 2 half-units and the mandatory gap adds 1 more, so each shape claims a 3×3 block; 2 apart overlaps). A `[Box]` may hold another `[Box]`, to **depth 2** — a third level is refused and its shapes join the box above it. Alias any shape an edge references (`as con`). Never write `size:`, colors, fonts, or a `shape:` outside the closed set (database, queue, cloud, person, document, note). In sketch, `~` dashed means secondary emphasis, NOT async. Categorize with a tag group instead of reaching for more shape kinds — kind-of-thing is meaning, and meaning lives in tags. Reach for `sketch` when the drawing itself is the content; reach for `boxes-and-lines` when topology should auto-lay-out.
+**Styling tips:** Sketch is a GUI-authored format — the desktop and web canvas editors generate this markup, so hand-writing it is the exception. If you generate it anyway: keep it SMALL (sketches read best under ~15 shapes), and either omit `at:` everywhere (shapes flow into rows) or use integer half-slot coordinates with shapes **at least 3 half-slots apart** on one axis (a footprint spans 2 half-units and the mandatory gap adds 1 more, so each shape claims a 3×3 block; 2 apart overlaps). A `[Box]` may hold another `[Box]`, to **depth 2** — a third level is refused and its shapes join the box above it. Alias any shape an edge references (`as con`). Never write `size:`, colors, fonts, or a `shape:` outside the closed set (database, queue, person, document, note). In sketch, `~` dashed means secondary emphasis, NOT async. Categorize with a tag group instead of reaching for more shape kinds — kind-of-thing is meaning, and meaning lives in tags. Reach for `sketch` when the drawing itself is the content; reach for `boxes-and-lines` when topology should auto-lay-out.
 
 <!-- TIPS end -->
 
@@ -3885,7 +3885,7 @@ tag Crew
   Deck
   Hold
 
-Spyglass Feed shape: cloud, at: 0 0, crew: Deck
+Spyglass Feed at: 0 0, crew: Deck
   -sightings-> con
 Captain's Console as con at: 2 0, crew: Deck
   -orders-> bq
@@ -3902,7 +3902,7 @@ Divvy Service as dvy at: 4 0, crew: Hold
 
 ### Shapes
 
-One top-level line = one shape — a **bare name** plus same-line `key: value` metadata. `shape:` morphs from the default rectangle: `database`, `queue`, `cloud`, `person`, `document`, `note` (rectangle is never written; unknown values warn and fall back). `note` renders as a sticky-style card with smaller left-aligned multiline text. Duplicate labels are legal **when aliased** (`Cache as c1` / `Cache as c2`); unaliased duplicates merge (standard dgmo semantics).
+One top-level line = one shape — a **bare name** plus same-line `key: value` metadata. `shape:` morphs from the default rectangle: `database`, `queue`, `person`, `document`, `note` (rectangle is never written; unknown values warn and fall back). `note` renders as a sticky-style card with smaller left-aligned multiline text. Duplicate labels are legal **when aliased** (`Cache as c1` / `Cache as c2`); unaliased duplicates merge (standard dgmo semantics).
 
 ### Coordinates — `at: C R`
 
@@ -3918,12 +3918,12 @@ Indented under the source shape, targeting an alias (or an unambiguous bare labe
 
 ### Node Metadata
 
-| Key         | Type           | Default                 | Description                                                     |
-| ----------- | -------------- | ----------------------- | --------------------------------------------------------------- |
-| `shape`     | closed set     | rectangle               | `database` / `queue` / `cloud` / `person` / `document` / `note` |
-| `at`        | `C R` integers | flow-placed             | Half-slot position (origin-normalized)                          |
-| `collapsed` | flag           | —                       | Box only — start folded (collapse-bar)                          |
-| `<tag>`     | declared value | untagged (neutral gray) | Tag value (cascades from box; edge tails color the line)        |
+| Key         | Type           | Default                 | Description                                              |
+| ----------- | -------------- | ----------------------- | -------------------------------------------------------- |
+| `shape`     | closed set     | rectangle               | `database` / `queue` / `person` / `document` / `note`    |
+| `at`        | `C R` integers | flow-placed             | Half-slot position (origin-normalized)                   |
+| `collapsed` | flag           | —                       | Box only — start folded (collapse-bar)                   |
+| `<tag>`     | declared value | untagged (neutral gray) | Tag value (cascades from box; edge tails color the line) |
 
 ### Directives
 

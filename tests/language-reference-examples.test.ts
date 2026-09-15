@@ -38,6 +38,7 @@ import {
   resolveExample,
 } from '../scripts/lib/example-source.mjs';
 import { chartTypes } from '../src/advanced';
+import { SKETCH_SHAPE_KINDS } from '../src/sketch/types';
 
 // The data-derived common set inlined into every core (must match
 // gen-ai-core.mjs's COMMON_N). dgmo-content may be absent in a standalone
@@ -412,4 +413,69 @@ describe('every diagram id a shipped doc hands out is one that could resolve', (
   it('found at least one diagram id to check', () => {
     expect(scanned).toBeGreaterThan(0);
   });
+});
+
+// The per-type `### Example` fences in language-reference.md are plain ```
+// fences, so the ```dgmo gate above never sees them — and they are the
+// examples a reader copies first. The sketch section's own example asked for
+// `shape: cloud`, which the parser has never accepted: it warned and drew a
+// rectangle, exit 0, so nothing looked (#689).
+function typeBlocks(md: string): Array<{ id: string; block: string }> {
+  const markers = [...md.matchAll(/<!--\s*TYPE:([a-z0-9-]+)\s*-->/g)];
+  return markers.map((m, i) => {
+    const start = (m.index ?? 0) + m[0].length;
+    const end =
+      i + 1 < markers.length ? (markers[i + 1].index ?? md.length) : md.length;
+    return { id: m[1], block: md.slice(start, end) };
+  });
+}
+
+describe("each TYPE block's ### Example parses with no errors and no warnings", () => {
+  const refMd = readRepoFile('docs/language-reference.md') ?? '';
+  const examples = typeBlocks(refMd).flatMap(({ id, block }) => {
+    const m = block.match(/### Example[^\n]*\n+```[a-z-]*\n([\s\S]*?)\n```/);
+    return m ? [{ id, source: m[1] }] : [];
+  });
+
+  it('found the sketch example (non-vacuous)', () => {
+    expect(examples.map((e) => e.id)).toContain('sketch');
+  });
+
+  for (const { id, source } of examples) {
+    it(`${id} example parses clean`, () => {
+      const { errors, warnings } = validateDgmoSource(source);
+      const msgs = [...errors, ...warnings].map(formatDiagnostic).join('\n  ');
+      expect(errors.length + warnings.length, `${id}:\n  ${msgs}`).toBe(0);
+    });
+  }
+});
+
+describe('the sketch reference names exactly the shapes the parser accepts', () => {
+  const refMd = readRepoFile('docs/language-reference.md') ?? '';
+  const sketch =
+    typeBlocks(refMd).find(({ id }) => id === 'sketch')?.block ?? '';
+  // `rectangle` is the default and is never written, so no list names it.
+  const accepted = SKETCH_SHAPE_KINDS.filter((k) => k !== 'rectangle').sort();
+
+  const lists: Array<{ where: string; re: RegExp }> = [
+    { where: 'styling tips', re: /outside the closed set \(([^)]*)\)/ },
+    {
+      where: 'Shapes prose',
+      re: /`shape:` morphs from the default rectangle: ((?:`[a-z]+`(?:, )?)+)/,
+    },
+    { where: 'metadata table', re: /^\| `shape`\s*\|[^|]*\|[^|]*\|([^|]*)\|/m },
+  ];
+
+  for (const { where, re } of lists) {
+    it(`${where} lists ${accepted.join(', ')}`, () => {
+      const m = sketch.match(re);
+      expect(m, `${where}: the shape list was not found`).toBeTruthy();
+      const named = (m?.[1] ?? '')
+        .split(/[,/]/)
+        .map((s) => s.replace(/`/g, '').trim())
+        .filter(Boolean)
+        .sort();
+      expect(named).toEqual(accepted);
+    });
+  }
 });
