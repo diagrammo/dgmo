@@ -79,7 +79,17 @@ interface ResolveUrlOptions {
     /** Origin of the Cloud API. */
     base?: string;
 }
-/** The URL to fetch a reference's source from. Always the current revision. */
+/**
+ * The URL to fetch a reference's source from. Always the current revision.
+ *
+ * 🔴 Throws on an id that is not id-shaped, `undefined` and `''` included. The
+ * parsers above never produce one, so a bad id here means a caller built the
+ * reference by hand. Interpolating it anyway sent
+ * `GET /public/diagrams/undefined/source` to the Cloud API 56 times in one day
+ * from a Node process nobody could name, because a 404 on the server carries no
+ * stack. Refusing here makes that caller fail in its own process, where the
+ * stack names it (#772).
+ */
 declare function referenceSourceUrl(ref: CloudReference, options?: ResolveUrlOptions): string;
 /** The human share link for a reference — what a "view this in Diagrammo" link points at. */
 declare function referenceShareUrl(ref: CloudReference, options?: {
