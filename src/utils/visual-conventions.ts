@@ -50,6 +50,22 @@ export const COLLAPSE_BAR_INSET = 0;
 export const EDGE_LABEL_KNOCKOUT_OPACITY = 0.9;
 
 /**
+ * Knockout opacity for a boxes-and-lines edge label that placement could NOT
+ * clear of its obstacles: still over a node box, a collapsed group, or a group
+ * its edge does not live in, after the near search, the label-reserving
+ * relayout and the wide search have all run (#703).
+ *
+ * The trade-off is accepted on purpose, and for these labels only. At 0.9 the
+ * title of the node or group underneath shows through as a smudge, so neither
+ * the label nor the title reads. At 1 the label reads and the title underneath
+ * is cleanly hidden. The cost is the one EDGE_LABEL_KNOCKOUT_OPACITY was chosen
+ * to avoid (#159): a connector running under the label is fully cut, so it can
+ * look struck through. A label that placement did clear keeps
+ * EDGE_LABEL_KNOCKOUT_OPACITY, and no other chart type uses this value.
+ */
+export const EDGE_LABEL_UNRESOLVED_KNOCKOUT_OPACITY = 1;
+
+/**
  * Arrowhead marker box, in the marker's own units.
  *
  * `markerUnits` is left at the SVG default (`strokeWidth`) everywhere, so the

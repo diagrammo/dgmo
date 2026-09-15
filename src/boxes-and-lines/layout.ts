@@ -67,6 +67,10 @@ export interface BLLayoutEdge {
   readonly labelWidth?: number;
   readonly labelHeight?: number;
   readonly labelLines?: readonly string[];
+  /** `false` when label-placement could not clear the label of the boxes it
+   *  must avoid, so the renderer draws it on an opaque knockout (#703). Set on
+   *  every labelled edge; absent on an edge with no label. */
+  readonly labelResolved?: boolean;
   readonly yOffset: number;
   readonly parallelCount: number;
   readonly metadata: Readonly<Record<string, string>>;

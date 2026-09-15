@@ -79,6 +79,7 @@ import {
   CARD_RADIUS,
   CONTAINER_RADIUS,
   EDGE_LABEL_KNOCKOUT_OPACITY,
+  EDGE_LABEL_UNRESOLVED_KNOCKOUT_OPACITY,
   EDGE_STROKE_WIDTH,
   NODE_STROKE_WIDTH,
   ARROWHEAD_WIDTH,
@@ -1410,7 +1411,14 @@ export function renderBoxesAndLines(
       .attr('rx', 3)
       .attr('fill', palette.bg)
       // No border; see EDGE_LABEL_KNOCKOUT_OPACITY for why it is not opaque.
-      .attr('opacity', EDGE_LABEL_KNOCKOUT_OPACITY);
+      // A label placement could not clear IS opaque — see
+      // EDGE_LABEL_UNRESOLVED_KNOCKOUT_OPACITY (#703).
+      .attr(
+        'opacity',
+        le.labelResolved === false
+          ? EDGE_LABEL_UNRESOLVED_KNOCKOUT_OPACITY
+          : EDGE_LABEL_KNOCKOUT_OPACITY
+      );
 
     const text = labelG
       .append('text')

@@ -473,6 +473,7 @@ export function placeEdgeLabels(
       labelWidth: b.w,
       labelHeight: b.h,
       labelLines: b.lines,
+      labelResolved: b.resolved,
     };
   });
 

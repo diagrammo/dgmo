@@ -438,3 +438,78 @@ describe('boxes-and-lines — an edge label clears groups it does not live in', 
     expect(groups).toEqual([]);
   });
 });
+
+// ------------------------------------------------------------
+// #703 — a label placement genuinely cannot clear used to be drawn anyway, on
+// the same 0.9 knockout as every other label, so the node title underneath
+// showed through it and neither could be read. Such a label now draws on an
+// opaque knockout. Labels placement did clear keep 0.9 (see
+// EDGE_LABEL_UNRESOLVED_KNOCKOUT_OPACITY for the trade-off).
+// ------------------------------------------------------------
+describe('boxes-and-lines — a label with no clear spot gets an opaque knockout', () => {
+  function knockouts(svg: SVGSVGElement): Map<string, string | null> {
+    const out = new Map<string, string | null>();
+    for (const g of Array.from(svg.querySelectorAll('g.bl-edge-label'))) {
+      out.set(
+        g.getAttribute('data-line-number') ?? '',
+        g.querySelector('rect')?.getAttribute('opacity') ?? null
+      );
+    }
+    return out;
+  }
+
+  // Six OAUTH labels stay unresolved on this layout: 22 and 26 sit on the two
+  // node boxes each names, and 27, 30, 31 and 32 cross into a group their edge
+  // does not live in (#777's group clearance, which `resolved` includes).
+  const UNRESOLVED = ['22', '26', '27', '30', '31', '32'];
+
+  it('draws the unresolved OAUTH labels opaque, and every other label at 0.9', async () => {
+    const ops = knockouts(await renderSvg(OAUTH));
+    expect(ops.size).toBe(13);
+    const opaque = [...ops].filter(([, o]) => o === '1').map(([l]) => l);
+    expect(opaque.sort()).toEqual(UNRESOLVED);
+    for (const [line, o] of ops) {
+      if (!UNRESOLVED.includes(line)) expect(o).toBe('0.9');
+    }
+  });
+
+  it('keeps "Signs tokens with" (line 29), which the wide search clears, at 0.9', async () => {
+    expect(knockouts(await renderSvg(OAUTH)).get('29')).toBe('0.9');
+  });
+
+  it('marks the same six labels unresolved in the layout the renderer reads', async () => {
+    const layout = await layoutBoxesAndLines(parseBoxesAndLines(OAUTH));
+    const unresolved = layout.edges
+      .filter((e) => e.labelResolved === false)
+      .map((e) => String(e.lineNumber))
+      .sort();
+    expect(unresolved).toEqual(UNRESOLVED);
+    for (const e of layout.edges)
+      expect(typeof e.labelResolved).toBe('boolean');
+  });
+
+  it('leaves every label at 0.9 on a diagram where every label is placed', async () => {
+    const src = `boxes-and-lines Spaced out
+direction-lr
+
+Browser
+  -sends a request to-> Web Server
+Web Server
+  -reads rows from-> Database
+Database
+  -> Backup
+`;
+    const layout = await layoutBoxesAndLines(parseBoxesAndLines(src));
+    expect(
+      layout.edges.filter((e) => e.label).map((e) => e.labelResolved)
+    ).toEqual([true, true]);
+    // The unlabelled edge carries no flag at all.
+    expect(
+      layout.edges.filter((e) => !e.label).map((e) => e.labelResolved)
+    ).toEqual([undefined]);
+    expect([...knockouts(await renderSvg(src)).values()]).toEqual([
+      '0.9',
+      '0.9',
+    ]);
+  });
+});
