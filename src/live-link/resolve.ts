@@ -82,8 +82,50 @@ export interface LiveLinkFetchOptions {
    * the response — 429 and 5xx are the server saying "not right now", which is
    * different from "no". Anything beyond one retry is a host's patience budget:
    * set 0 when a person is waiting.
+   *
+   * 🔴 "Not right now" is never answered by asking again right now. A retry
+   * waits out the server's `Retry-After` when that fits inside `timeoutMs`, and
+   * gives up without asking again when it does not; with no `Retry-After` it
+   * waits a jittered `LIVE_LINK_RETRY_DELAY_MS`, doubling per attempt. Until
+   * 2026-09-14 the retry went out back-to-back, so every reader of a page
+   * doubled the traffic of an API that was shedding load (#804).
    */
   retries?: number;
+}
+
+/**
+ * Base wait before a retry the server gave no `Retry-After` for. The actual
+ * wait is between half and all of it, doubling per attempt — the jitter is so a
+ * page of readers who all failed together does not all return together.
+ */
+export const LIVE_LINK_RETRY_DELAY_MS = 1_000;
+
+/** One attempt's outcome, plus the server's requested wait when it named one. */
+interface Attempt {
+  result: LiveLinkFetch;
+  retryAfterMs?: number;
+}
+
+/**
+ * `Retry-After` as milliseconds: delta-seconds or an HTTP date.
+ *
+ * ⚠️ A browser reads this header only if the API lists it in
+ * `Access-Control-Expose-Headers` — `retry-after` is not among the headers
+ * CORS lets a page read by default, so cross-origin it arrives as `null` and the jittered
+ * default applies instead. Node's `fetch` sees it directly; a host adapter
+ * sees it only if it copies the headers onto the `Response` it builds.
+ */
+function parseRetryAfter(value: string | null): number | undefined {
+  if (!value) return undefined;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1_000;
+  const at = Date.parse(value);
+  if (!Number.isFinite(at)) return undefined;
+  return Math.max(0, at - Date.now());
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 interface ResolvedFetchOptions {
@@ -109,7 +151,7 @@ function resolveOptions(options: LiveLinkFetchOptions): ResolvedFetchOptions {
 async function fetchOnce(
   ref: CloudReference,
   opts: ResolvedFetchOptions
-): Promise<LiveLinkFetch> {
+): Promise<Attempt> {
   const url = referenceSourceUrl(
     ref,
     opts.base === undefined ? {} : { base: opts.base }
@@ -122,32 +164,40 @@ async function fetchOnce(
       signal: AbortSignal.timeout(opts.timeoutMs),
       headers: { accept: 'application/json' },
     });
-    if (res.status === 410) return { kind: 'gone' };
-    if (res.status === 404) return { kind: 'missing' };
+    if (res.status === 410) return { result: { kind: 'gone' } };
+    if (res.status === 404) return { result: { kind: 'missing' } };
     if (!res.ok) {
-      return { kind: 'unavailable', reason: `HTTP ${String(res.status)}` };
+      const retryAfterMs = parseRetryAfter(res.headers.get('retry-after'));
+      return {
+        result: { kind: 'unavailable', reason: `HTTP ${String(res.status)}` },
+        ...(retryAfterMs === undefined ? {} : { retryAfterMs }),
+      };
     }
     const body = (await res.json()) as Partial<CloudReferenceSource>;
     // A 200 carrying no source is a broken deploy on our side, not a missing
     // diagram — `unavailable` so the caller keeps whatever copy it has instead
     // of concluding the diagram is gone.
     if (typeof body.source !== 'string') {
-      return { kind: 'unavailable', reason: 'malformed response' };
+      return { result: { kind: 'unavailable', reason: 'malformed response' } };
     }
     return {
-      kind: 'ok',
-      entry: {
-        id: ref.id,
-        source: body.source,
-        dgmoVersion:
-          typeof body.dgmoVersion === 'string' ? body.dgmoVersion : '',
-        updatedAt: typeof body.updatedAt === 'number' ? body.updatedAt : 0,
+      result: {
+        kind: 'ok',
+        entry: {
+          id: ref.id,
+          source: body.source,
+          dgmoVersion:
+            typeof body.dgmoVersion === 'string' ? body.dgmoVersion : '',
+          updatedAt: typeof body.updatedAt === 'number' ? body.updatedAt : 0,
+        },
       },
     };
   } catch (err) {
     return {
-      kind: 'unavailable',
-      reason: err instanceof Error ? err.message : String(err),
+      result: {
+        kind: 'unavailable',
+        reason: err instanceof Error ? err.message : String(err),
+      },
     };
   }
 }
@@ -168,9 +218,25 @@ export async function fetchLiveLink(
   options: LiveLinkFetchOptions = {}
 ): Promise<LiveLinkFetch> {
   const opts = resolveOptions(options);
-  let result = await fetchOnce(ref, opts);
-  for (let i = 0; i < opts.retries && result.kind === 'unavailable'; i++) {
-    result = await fetchOnce(ref, opts);
+  let attempt = await fetchOnce(ref, opts);
+  for (
+    let i = 0;
+    i < opts.retries && attempt.result.kind === 'unavailable';
+    i++
+  ) {
+    let wait: number;
+    if (attempt.retryAfterMs !== undefined) {
+      // The server named its wait. Longer than this caller's patience means
+      // the answer is already known — asking sooner would be asking it to
+      // break its own rule.
+      if (attempt.retryAfterMs > opts.timeoutMs) break;
+      wait = attempt.retryAfterMs;
+    } else {
+      const window = LIVE_LINK_RETRY_DELAY_MS * 2 ** i;
+      wait = window / 2 + Math.floor(Math.random() * (window / 2));
+    }
+    await sleep(wait);
+    attempt = await fetchOnce(ref, opts);
   }
-  return result;
+  return attempt.result;
 }

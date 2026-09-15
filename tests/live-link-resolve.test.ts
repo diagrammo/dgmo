@@ -15,6 +15,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   fetchLiveLink,
   DEFAULT_LIVE_LINK_TIMEOUT_MS,
+  LIVE_LINK_RETRY_DELAY_MS,
 } from '../src/live-link/resolve';
 
 const REF = { id: 'dgm_7f2a91' };
@@ -94,16 +95,137 @@ describe('fetchLiveLink — the four outcomes', () => {
 });
 
 describe('fetchLiveLink — retries', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
   it('retries once by default on `unavailable`, and a second answer wins', async () => {
+    vi.useFakeTimers();
     let calls = 0;
-    const r = await fetchLiveLink(REF, {
+    const pending = fetchLiveLink(REF, {
       fetchImpl: async () => {
         calls++;
         return calls === 1 ? new Response('', { status: 429 }) : ok(SOURCE);
       },
     });
+    await vi.advanceTimersByTimeAsync(LIVE_LINK_RETRY_DELAY_MS);
+    const r = await pending;
     expect(calls).toBe(2);
     expect(r.kind).toBe('ok');
+  });
+
+  // #804: the retry used to go out back-to-back, doubling every reader's load on
+  // an API that had just said "not right now".
+  it('never retries immediately — it waits at least half the base delay', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    let calls = 0;
+    const pending = fetchLiveLink(REF, {
+      fetchImpl: async () => {
+        calls++;
+        return new Response('', { status: 503 });
+      },
+    });
+    await vi.advanceTimersByTimeAsync(LIVE_LINK_RETRY_DELAY_MS / 2 - 1);
+    expect(calls).toBe(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await pending;
+    expect(calls).toBe(2);
+  });
+
+  it('jitters the wait, so readers who failed together do not return together', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, 'random').mockReturnValue(0.999);
+    let calls = 0;
+    const pending = fetchLiveLink(REF, {
+      fetchImpl: async () => {
+        calls++;
+        return new Response('', { status: 503 });
+      },
+    });
+    await vi.advanceTimersByTimeAsync(LIVE_LINK_RETRY_DELAY_MS / 2);
+    expect(calls).toBe(1);
+    await vi.advanceTimersByTimeAsync(LIVE_LINK_RETRY_DELAY_MS / 2);
+    await pending;
+    expect(calls).toBe(2);
+  });
+
+  it('doubles the wait for each further attempt', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    let calls = 0;
+    const pending = fetchLiveLink(REF, {
+      retries: 2,
+      fetchImpl: async () => {
+        calls++;
+        return new Response('', { status: 503 });
+      },
+    });
+    await vi.advanceTimersByTimeAsync(LIVE_LINK_RETRY_DELAY_MS / 2);
+    expect(calls).toBe(2);
+    await vi.advanceTimersByTimeAsync(LIVE_LINK_RETRY_DELAY_MS - 1);
+    expect(calls).toBe(2);
+    await vi.advanceTimersByTimeAsync(1);
+    await pending;
+    expect(calls).toBe(3);
+  });
+
+  it('waits out a Retry-After that fits inside the timeout', async () => {
+    vi.useFakeTimers();
+    let calls = 0;
+    const pending = fetchLiveLink(REF, {
+      fetchImpl: async () => {
+        calls++;
+        return calls === 1
+          ? new Response('', { status: 429, headers: { 'retry-after': '3' } })
+          : ok(SOURCE);
+      },
+    });
+    await vi.advanceTimersByTimeAsync(2_999);
+    expect(calls).toBe(1);
+    await vi.advanceTimersByTimeAsync(1);
+    const r = await pending;
+    expect(calls).toBe(2);
+    expect(r.kind).toBe('ok');
+  });
+
+  it('reads an HTTP-date Retry-After too', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-14T12:00:00Z'));
+    let calls = 0;
+    const pending = fetchLiveLink(REF, {
+      fetchImpl: async () => {
+        calls++;
+        return calls === 1
+          ? new Response('', {
+              status: 503,
+              headers: { 'retry-after': 'Mon, 14 Sep 2026 12:00:02 GMT' },
+            })
+          : ok(SOURCE);
+      },
+    });
+    await vi.advanceTimersByTimeAsync(1_999);
+    expect(calls).toBe(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await pending;
+    expect(calls).toBe(2);
+  });
+
+  it('gives up WITHOUT asking again when Retry-After outlasts the timeout', async () => {
+    let calls = 0;
+    const r = await fetchLiveLink(REF, {
+      timeoutMs: 5_000,
+      fetchImpl: async () => {
+        calls++;
+        return new Response('', {
+          status: 429,
+          headers: { 'retry-after': '60' },
+        });
+      },
+    });
+    expect(calls).toBe(1);
+    expect(r).toEqual({ kind: 'unavailable', reason: 'HTTP 429' });
   });
 
   it('does NOT retry a 404 or a 410 — those are answers, not outages', async () => {

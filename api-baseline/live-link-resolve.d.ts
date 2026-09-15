@@ -59,9 +59,22 @@ interface LiveLinkFetchOptions {
      * the response — 429 and 5xx are the server saying "not right now", which is
      * different from "no". Anything beyond one retry is a host's patience budget:
      * set 0 when a person is waiting.
+     *
+     * 🔴 "Not right now" is never answered by asking again right now. A retry
+     * waits out the server's `Retry-After` when that fits inside `timeoutMs`, and
+     * gives up without asking again when it does not; with no `Retry-After` it
+     * waits a jittered `LIVE_LINK_RETRY_DELAY_MS`, doubling per attempt. Until
+     * 2026-09-14 the retry went out back-to-back, so every reader of a page
+     * doubled the traffic of an API that was shedding load (#804).
      */
     retries?: number;
 }
+/**
+ * Base wait before a retry the server gave no `Retry-After` for. The actual
+ * wait is between half and all of it, doubling per attempt — the jitter is so a
+ * page of readers who all failed together does not all return together.
+ */
+declare const LIVE_LINK_RETRY_DELAY_MS = 1000;
 /**
  * Ask the Cloud for a live link's current source, and say what came back.
  *
@@ -75,4 +88,4 @@ interface LiveLinkFetchOptions {
  */
 declare function fetchLiveLink(ref: CloudReference, options?: LiveLinkFetchOptions): Promise<LiveLinkFetch>;
 
-export { DEFAULT_LIVE_LINK_TIMEOUT_MS, type LiveLinkFetch, type LiveLinkFetchOptions, fetchLiveLink };
+export { DEFAULT_LIVE_LINK_TIMEOUT_MS, LIVE_LINK_RETRY_DELAY_MS, type LiveLinkFetch, type LiveLinkFetchOptions, fetchLiveLink };
