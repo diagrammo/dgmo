@@ -140,6 +140,24 @@ jobs:
 
           repo-add "${SIGN_ARGS[@]}" diagrammo.db.tar.gz ./*.pkg.tar.zst
 
+          # 🔴 The carry-forward above brings back EVERY version of every
+          # package the release holds, and `repo-add` keeps one entry per
+          # package name — so the version it just superseded is still sitting
+          # here, 10 MB of it, with nothing in the database that can ever point
+          # at it again. Uploaded, it would grow the release by a package per
+          # release forever. Keep exactly what the database lists: that still
+          # carries a genuine second package forward, which is what the download
+          # is for, and drops only what this run replaced.
+          KEEP=$(bsdtar -xOf diagrammo.db.tar.gz '*/desc' |
+                   awk '/^%FILENAME%$/{getline; print}')
+          for pkg in ./*.pkg.tar.zst; do
+            name=${pkg#./}
+            if ! printf '%s\n' "$KEEP" | grep -qxF "$name"; then
+              echo "dropping superseded package: $name"
+              rm -f "$pkg" "$pkg.sig"
+            fi
+          done
+
           # 🔴 repo-add leaves `diagrammo.db` as a SYMLINK to the tarball, and a
           # GitHub release asset is a flat file — a symlink uploads as its own
           # 19-byte text. pacman requests `<repo>.db`, so both names must be
