@@ -49,9 +49,26 @@ is precisely the thing that makes a third-party repository look untrustworthy.
 Signed, the stanza stays the two lines above and the user imports the key once:
 
 ```bash
-sudo pacman-key --recv-keys <fingerprint>
-sudo pacman-key --lsign-key <fingerprint>
+curl -LO https://github.com/diagrammo/dgmo/releases/download/arch-repo/diagrammo.gpg
+sudo pacman-key --add diagrammo.gpg
+sudo pacman-key --lsign-key 17D65ED4FC456B0FA77BD83F21886645BC5F2431
 ```
+
+🔴 **`pacman-key --recv-keys` does NOT work for this key and never will.** The
+public half ships as the `diagrammo.gpg` release asset, not to a keyserver.
+Arch's `/etc/pacman.d/gnupg/gpg.conf` carries three `keyserver-options` lines and
+no `keyserver` line at all (re-verified on anchor, Omarchy 4.0.4, 2026-09-17), so
+`--recv-keys` has nowhere to go and fails with "No keyserver available". Serving
+the key beside the database keeps the whole channel on one host and needs no
+third party.
+
+✅ **The channel has been signed since 2026-09-17.** The key is
+`17D65ED4FC456B0FA77BD83F21886645BC5F2431` (`Diagrammo LLC
+<hello@diagrammo.app>`, rsa4096, sign+certify, no expiry). Verified that day on
+anchor against the published bytes rather than the run log: `gpg --verify
+diagrammo.db.sig diagrammo.db` gave a good signature, and `pacman -Sy dgmo`
+recorded `Validated By: SHA-256 Sum  Signature` under Omarchy's stock
+`SigLevel = Required DatabaseOptional`.
 
 The workflow signs when the `ARCH_SIGNING_KEY` secret is set on this repo and
 publishes unsigned with a loud warning when it is not, rather than failing and
