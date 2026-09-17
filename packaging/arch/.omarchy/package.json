@@ -1,0 +1,11 @@
+{
+  "source": "local",
+  "upstream": {
+    "npm": "@diagrammo/dgmo-cli",
+    "sources": {
+      "any": [
+        "{npm_tarball}"
+      ]
+    }
+  }
+}
