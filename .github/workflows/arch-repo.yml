@@ -100,6 +100,14 @@ jobs:
           echo "signed=true" >> "$GITHUB_OUTPUT"
           echo "fingerprint=$FPR" >> "$GITHUB_OUTPUT"
           echo "signing as $FPR"
+          # 🔴 The PUBLIC half ships as an asset, and users import it with
+          # `pacman-key --add`, NOT from a keyserver. Arch's
+          # /etc/pacman.d/gnupg/gpg.conf configures keyserver-options but no
+          # `keyserver` line at all (checked on Omarchy 4.0.4, 2026-09-17), so
+          # `pacman-key --recv-keys <fpr>` has nowhere to go and fails with
+          # "No keyserver available". Serving the key beside the database keeps
+          # the whole channel on one host and needs no third party.
+          gpg --armor --export "$FPR" > "$GITHUB_WORKSPACE/diagrammo.gpg"
 
       - name: Assemble the repository database
         env:
@@ -109,6 +117,7 @@ jobs:
           set -euo pipefail
           mkdir -p repo && cd repo
           cp ../packaging/arch/*.pkg.tar.zst .
+          [ -e ../diagrammo.gpg ] && cp ../diagrammo.gpg . || true
 
           # Carry forward whatever is already published, so a future second
           # package in this repository is not dropped by a run that only
