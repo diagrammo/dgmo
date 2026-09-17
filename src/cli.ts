@@ -37,6 +37,7 @@ import { encodeDiagramUrl } from './sharing';
 import { resolveOrgImports } from './org/resolver';
 import { normalizePertSourceForShare } from './pert/share-normalize';
 import { renderBanner } from './cli-banner';
+import { owningPackageManager, linuxClipboardCommand } from './cli-host';
 import { searchMapLocations } from './map/completion';
 import { loadMapData } from './map/load-data';
 
@@ -348,7 +349,9 @@ function copyToClipboard(text: string): boolean {
     } else if (process.platform === 'win32') {
       execSync('clip', { input: text });
     } else {
-      execSync('xclip -selection clipboard', { input: text });
+      const cmd = linuxClipboardCommand(commandExists);
+      if (!cmd) return false;
+      execSync(cmd, { input: text });
     }
     return true;
   } catch {
@@ -646,11 +649,10 @@ function claudeDesktopConfigPath(): string {
 // has no cold-start. Not required for correctness — `dgmo mcp` falls back to
 // npx — so any failure is a note, not an error. Memoized: in auto mode we set
 // up several surfaces in one run and only need to check once.
-// True when this CLI is running from a Homebrew install (its files live under
-// a Cellar prefix). Homebrew owns the MCP server in that case.
-function isHomebrewManaged(): boolean {
-  return PKG_ROOT.includes('/Cellar/') || PKG_ROOT.includes('/homebrew/');
-}
+// Which package manager owns this install, if any — `owningPackageManager` in
+// `cli-host.ts` decides it from PKG_ROOT. When something owns it, that manager
+// owns the MCP server too, because it came down as an ordinary dependency of
+// this package.
 
 // Absolute path to the MCP server, or null if it is not installed.
 //
@@ -675,13 +677,20 @@ let mcpEnsured = false;
 function ensureDgmoMcp(opts: InstallOpts): void {
   if (mcpEnsured) return;
   mcpEnsured = true;
-  // Homebrew vendors and upgrades the MCP server alongside the CLI (the formula
-  // installs it as a sibling in the same prefix). Don't npm-install a second
-  // global copy — `brew upgrade dgmo` keeps it current.
-  if (isHomebrewManaged()) {
+  // A package manager that owns this install owns the MCP server with it, and
+  // upgrades the two together. Don't npm-install a second global copy: under
+  // Homebrew it would fight `brew upgrade dgmo`, and under a distribution
+  // package at a `/usr` prefix it would need root and write files outside the
+  // package manager's database.
+  const owner = owningPackageManager(PKG_ROOT);
+  if (owner) {
+    const upgradesWith =
+      owner === 'homebrew'
+        ? 'Homebrew (upgrades with `brew upgrade dgmo`)'
+        : 'your system package manager (upgrades with the dgmo package)';
     console.log(
       bundledMcpEntry()
-        ? '✓ MCP server managed by Homebrew (upgrades with `brew upgrade dgmo`)'
+        ? `✓ MCP server managed by ${upgradesWith}`
         : '  MCP server not found — it will be fetched on first use via npx.'
     );
     return;
