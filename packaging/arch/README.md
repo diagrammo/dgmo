@@ -1,9 +1,87 @@
 # Packaging `dgmo` for Arch and Omarchy
 
-`PKGBUILD` here builds `@diagrammo/dgmo-cli` into a pacman package. It has two
-consumers and both are real — do not tailor it to one.
+`PKGBUILD` here builds `@diagrammo/dgmo-cli` into a pacman package. It has three
+consumers and all three are real — do not tailor it to one.
 
-## 1. A user installing it today, with nothing hosted by us
+## 1. Our own pacman repository — the route with upgrades
+
+The `arch-repo` release on this repo **is** the repository: its assets are the
+package, the database and their signatures, replaced in place on every publish.
+`.github/workflows/arch-repo.yml` builds and publishes them.
+
+```bash
+# /etc/pacman.conf
+[diagrammo]
+Server = https://github.com/diagrammo/dgmo/releases/download/arch-repo
+```
+
+```bash
+sudo pacman -Sy dgmo
+```
+
+After that `dgmo` upgrades with `pacman -Syu` alongside everything else on the
+machine, which is the whole reason this route exists — routes 2 and 3 below give
+you an install and nothing after it.
+
+🔴 **pacman follows GitHub's asset redirect, and that is measured rather than
+assumed.** On Arch, 2026-09-17: `pacman -Sy` fetched `diagrammo.db` through the
+302 to `objects.githubusercontent.com`, `pacman -Sp dgmo` resolved the package to
+its asset URL, and `pacman -Sw dgmo` downloaded it byte-identically to what was
+uploaded (sha256 `55a41505…`). So no bucket, no custom domain and no publish
+credential beyond `GITHUB_TOKEN` are needed to serve a pacman repository.
+
+🔴 **`repo-add` leaves `diagrammo.db` a SYMLINK to `diagrammo.db.tar.gz`, and a
+GitHub release asset is a flat file** — upload the symlink and you publish its
+19-byte target path as the database. pacman requests `<repo>.db`, so both names
+have to be uploaded as real files with the same bytes. Same for `.files`, and
+for the `.sig` beside each.
+
+### Signing, and what it costs a user if we skip it
+
+🔴 **On Omarchy an unsigned repository is REFUSED by default.**
+`/etc/pacman.conf` there sets `SigLevel = Required DatabaseOptional` globally
+(verified on Omarchy 4.0.4, 2026-09-17), and a `[diagrammo]` stanza with no
+`SigLevel` of its own inherits it — so an unsigned package is a fatal error, not
+a warning. Skipping signing therefore does not merely weaken the channel, it
+forces every user to write `SigLevel = Optional TrustAll` into the stanza, which
+is precisely the thing that makes a third-party repository look untrustworthy.
+
+Signed, the stanza stays the two lines above and the user imports the key once:
+
+```bash
+sudo pacman-key --recv-keys <fingerprint>
+sudo pacman-key --lsign-key <fingerprint>
+```
+
+The workflow signs when the `ARCH_SIGNING_KEY` secret is set on this repo and
+publishes unsigned with a loud warning when it is not, rather than failing and
+leaving the channel with nothing.
+
+### Omarchy overwrites `/etc/pacman.conf`, so the stanza needs a hook
+
+🔴 `omarchy-refresh-pacman` does `sudo cp -f "$OMARCHY_PATH/default/pacman/pacman-$channel.conf" /etc/pacman.conf`
+— it replaces the **whole file** with Omarchy's default on every channel
+refresh, and a hand-added stanza does not survive it. It then calls
+`omarchy-hook pre-refresh-pacman` for exactly this reason, before running
+`pacman -Syyuu`. So the instruction is always "add the stanza **and** the hook",
+never just the stanza:
+
+```bash
+mkdir -p ~/.config/omarchy/hooks/pre-refresh-pacman.d
+command cat > ~/.config/omarchy/hooks/pre-refresh-pacman.d/10-diagrammo <<'HOOK'
+grep -q '^\[diagrammo\]' /etc/pacman.conf || sudo tee -a /etc/pacman.conf >/dev/null <<'STANZA'
+
+[diagrammo]
+Server = https://github.com/diagrammo/dgmo/releases/download/arch-repo
+STANZA
+HOOK
+```
+
+`omarchy-hook` runs `~/.config/omarchy/hooks/<name>` and every file in
+`<name>.d/`, skipping `*.sample`. Read off `/usr/bin/omarchy-hook` and
+`/usr/bin/omarchy-refresh-pacman` on Omarchy 4.0.4, 2026-09-17.
+
+## 2. Building it yourself, with nothing hosted by us
 
 Arch ships `base-devel`, so `makepkg` is already there on a stock install:
 
@@ -13,15 +91,14 @@ cd dgmo/packaging/arch
 makepkg -si
 ```
 
-That is the whole route. No AUR entry, no repository, no signing key, no account
-with anybody. `dgmo --version` afterwards should match the `pkgver` in the
-PKGBUILD.
+No repository, no signing key, no account with anybody. `dgmo --version`
+afterwards should match the `pkgver` in the PKGBUILD.
 
 To install a package file someone has already built:
 
 ```bash
-curl -LO https://…/dgmo-0.85.0-1-x86_64.pkg.tar.zst
-sudo pacman -U ./dgmo-0.85.0-1-x86_64.pkg.tar.zst
+curl -LO https://…/dgmo-<version>-1-x86_64.pkg.tar.zst
+sudo pacman -U ./dgmo-<version>-1-x86_64.pkg.tar.zst
 ```
 
 🔴 **Download first, then install — a one-liner will fail on Omarchy.** `pacman -U`
@@ -32,11 +109,12 @@ file installs cleanly once on disk, because Omarchy sets
 `LocalFileSigLevel = Optional`. The error names neither the policy nor the
 setting, so it reads as a corrupt package. Verified on anchor 2026-09-17.
 
-A package installed this way is foreign (`pacman -Qm` lists it), so `pacman -Syu`
-leaves it alone. There are no automatic updates on this route, and no conflict
-either.
+⚠️ **A package installed this way is foreign** (`pacman -Qm` lists it), so
+`pacman -Syu` leaves it alone. There are no automatic updates on this route.
+Installing from route 1 afterwards adopts it — same package name, so pacman
+upgrades rather than conflicts.
 
-## 2. Omarchy's package repository
+## 3. Omarchy's package repository
 
 Omarchy serves `pkgs.omarchy.org` from `omacom/omarchy-pkgs`, where a package is
 `pkgbuilds/<name>/PKGBUILD` plus `.omarchy/package.json` — the same two files in
@@ -59,20 +137,26 @@ worth more than one we host ourselves.
 `edge` only, which is the modest default for a package they have not asked for.
 Their maintainers can promote it.
 
-## Known gaps, before this is offered to anyone
+⚠️ **Nothing has been offered to them, and that is deliberate** (2026-09-17). The
+owner wants the package exercised on his own machines through route 1 first. Do
+not open anything on `omacom/omarchy-pkgs` without being told to.
 
-These are defects in the CLI rather than in the recipe, and both bite exactly
-when `dgmo` is installed by a package manager:
+## Two CLI defects, fixed 2026-09-17 — do not offer a package built before that
 
-- **`isHomebrewManaged()` (`src/cli.ts`) does not detect a pacman-owned
-  install.** `dgmo install` therefore falls through to
-  `npm install -g @diagrammo/dgmo-mcp@latest`, which under a `/usr` prefix needs
-  root and writes outside the package manager. The MCP server is already an
-  ordinary dependency of this package and is present at an absolute path, so the
-  install is not merely unnecessary — it is wrong.
-- **Clipboard copy shells out to `xclip`** (`src/cli.ts`). Omarchy is
-  Hyprland/Wayland and ships `wl-copy`, not `xclip`, so copying fails silently
-  there today — the call is `try`/`catch`-wrapped and returns `false`.
+Both bit exactly when `dgmo` is installed by a package manager, and both are
+fixed in `dgmo` commit `fcf915bf`:
+
+- **`isHomebrewManaged()` did not detect a package-manager-owned install**, so
+  `dgmo install` fell through to `npm install -g @diagrammo/dgmo-mcp@latest` —
+  which under a `/usr` prefix needs root and writes outside pacman's database.
+  It is now `owningPackageManager()` in `src/cli-host.ts`, which answers
+  `homebrew`, `system` or `null`, and both owned cases skip the install.
+- **Clipboard copy shelled out to `xclip`.** Omarchy is Hyprland/Wayland and
+  ships `wl-copy`, so copying failed silently. `linuxClipboardCommand()` picks on
+  the session rather than on mere presence.
+
+🔴 **Neither fix has been released.** They reach a package only once
+`@diagrammo/dgmo-cli` is published above 0.85.0 and this recipe is pointed at it.
 
 ## What the sha256 does and does not pin
 

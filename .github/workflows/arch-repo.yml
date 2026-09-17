@@ -1,0 +1,160 @@
+name: Arch package repository
+
+# Publishes the `[diagrammo]` pacman repository that Arch and Arch-derived
+# machines install `dgmo` from. The repository IS this repo's `arch-repo`
+# release: its assets are the package, the database, and their signatures, and
+# they are replaced in place on every run. That tag is rolling and never moves.
+#
+#   [diagrammo]
+#   Server = https://github.com/diagrammo/dgmo/releases/download/arch-repo
+#
+# 🔴 Why a release rather than a hosted bucket: pacman follows GitHub's asset
+# redirect. Measured 2026-09-17 on Arch — `pacman -Sy` fetched the database and
+# `pacman -Sw dgmo` fetched the package byte-identically through the 302. No
+# bucket, no custom domain, no publish credential beyond GITHUB_TOKEN.
+#
+# 🔴 This repo is PUBLIC, so these runs consume none of the org's included
+# Actions minutes. Do not move this job to a private repo; the minutes
+# arithmetic there does not fit (see the workspace CLAUDE.md).
+#
+# Dispatch after a CLI release, once npm is serving the version:
+#   gh workflow run arch-repo.yml -R diagrammo/dgmo -f version=X.Y.Z
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '@diagrammo/dgmo-cli version to package, e.g. 0.86.0'
+        required: true
+        type: string
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # makepkg, repo-add and pacman are Arch's own tools and exist nowhere else.
+    container: archlinux:base-devel
+    permissions:
+      contents: write
+    steps:
+      - name: Install what the base image does not carry
+        run: pacman -Sy --noconfirm --needed git github-cli nodejs npm
+
+      - uses: actions/checkout@v6
+
+      - name: Refuse a version npm is not serving yet
+        id: target
+        run: |
+          VERSION="${{ inputs.version }}"
+          URL="https://registry.npmjs.org/@diagrammo/dgmo-cli/-/dgmo-cli-${VERSION}.tgz"
+          # The registry is eventually consistent after a publish, so give it a
+          # few tries rather than failing a release-day dispatch on a race.
+          for i in 1 2 3 4 5 6; do
+            if curl -sIfL "$URL" >/dev/null; then
+              SHA=$(curl -sL "$URL" | sha256sum | cut -d' ' -f1)
+              echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+              echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+              echo "npm is serving $VERSION, sha256 $SHA"
+              exit 0
+            fi
+            echo "not on npm yet, retrying in 20s ($i/6)"
+            sleep 20
+          done
+          echo "::error::npm is not serving @diagrammo/dgmo-cli@${VERSION}. Release the CLI first."
+          exit 1
+
+      - name: Point the recipe at that version
+        run: |
+          cd packaging/arch
+          sed -i "s/^pkgver=.*/pkgver=${{ steps.target.outputs.version }}/" PKGBUILD
+          sed -i "s/^sha256sums=.*/sha256sums=('${{ steps.target.outputs.sha256 }}')/" PKGBUILD
+          grep -E '^(pkgver|sha256sums)=' PKGBUILD
+
+      - name: Build the package
+        run: |
+          # makepkg refuses to run as root, and a container is root by default.
+          useradd -m builder
+          chown -R builder "$GITHUB_WORKSPACE"
+          cd packaging/arch
+          sudo -u builder makepkg --noconfirm --clean
+          ls -la ./*.pkg.tar.zst
+
+      # The signing key is the owner's, and the repository is consumable without
+      # it — just not verifiable. When ARCH_SIGNING_KEY is absent this publishes
+      # unsigned and says so loudly in the summary, rather than failing and
+      # leaving the channel with nothing at all.
+      - name: Import the signing key, if there is one
+        id: signing
+        env:
+          ARCH_SIGNING_KEY: ${{ secrets.ARCH_SIGNING_KEY }}
+        run: |
+          if [ -z "$ARCH_SIGNING_KEY" ]; then
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::ARCH_SIGNING_KEY is not set — publishing an UNSIGNED repository. Users must set SigLevel = Never, which is exactly the thing that makes a third-party repo untrustworthy. Add the secret to fix this."
+            exit 0
+          fi
+          printf '%s' "$ARCH_SIGNING_KEY" | gpg --batch --import
+          FPR=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr:/{print $10; exit}')
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+          echo "fingerprint=$FPR" >> "$GITHUB_OUTPUT"
+          echo "signing as $FPR"
+
+      - name: Assemble the repository database
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PASSPHRASE: ${{ secrets.ARCH_SIGNING_KEY_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          mkdir -p repo && cd repo
+          cp ../packaging/arch/*.pkg.tar.zst .
+
+          # Carry forward whatever is already published, so a future second
+          # package in this repository is not dropped by a run that only
+          # rebuilds the first. Absent on the very first run, hence `|| true`.
+          gh release download arch-repo --repo "$GITHUB_REPOSITORY" \
+            --pattern '*.pkg.tar.zst' --skip-existing || true
+
+          SIGN_ARGS=()
+          if [ "${{ steps.signing.outputs.signed }}" = "true" ]; then
+            for pkg in ./*.pkg.tar.zst; do
+              gpg --batch --yes --pinentry-mode loopback \
+                ${PASSPHRASE:+--passphrase "$PASSPHRASE"} \
+                --detach-sign --no-armor "$pkg"
+            done
+            # `-s` signs the database itself; `-v` verifies each package's
+            # signature as it is added, so a bad .sig fails here rather than on
+            # somebody's machine.
+            SIGN_ARGS=(-s -v)
+          fi
+
+          repo-add "${SIGN_ARGS[@]}" diagrammo.db.tar.gz ./*.pkg.tar.zst
+
+          # 🔴 repo-add leaves `diagrammo.db` as a SYMLINK to the tarball, and a
+          # GitHub release asset is a flat file — a symlink uploads as its own
+          # 19-byte text. pacman requests `<repo>.db`, so both names must be
+          # real files with the same bytes.
+          for base in db files; do
+            rm -f "diagrammo.$base"
+            cp "diagrammo.$base.tar.gz" "diagrammo.$base"
+            if [ -e "diagrammo.$base.tar.gz.sig" ]; then
+              rm -f "diagrammo.$base.sig"
+              cp "diagrammo.$base.tar.gz.sig" "diagrammo.$base.sig"
+            fi
+          done
+          ls -la
+
+      - name: Publish it
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cd repo
+          gh release upload arch-repo --repo "$GITHUB_REPOSITORY" --clobber ./*
+          {
+            echo "### Arch repository published"
+            echo
+            echo "\`dgmo ${{ steps.target.outputs.version }}\` is now served from the \`arch-repo\` release."
+            if [ "${{ steps.signing.outputs.signed }}" = "true" ]; then
+              echo "Signed by \`${{ steps.signing.outputs.fingerprint }}\`."
+            else
+              echo "🔴 **UNSIGNED** — \`ARCH_SIGNING_KEY\` is not set on this repository."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
