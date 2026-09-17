@@ -73,6 +73,10 @@ jobs:
           # makepkg refuses to run as root, and a container is root by default.
           useradd -m builder
           chown -R builder "$GITHUB_WORKSPACE"
+          # Without this every package we publish is stamped "Unknown
+          # Packager", which is a poor signal on a repository we are asking
+          # people to add to /etc/pacman.conf. `pacman -Qi` shows it.
+          echo 'PACKAGER="Diagrammo LLC <hello@diagrammo.app>"' >> /etc/makepkg.conf
           cd packaging/arch
           sudo -u builder makepkg --noconfirm --clean
           ls -la ./*.pkg.tar.zst
