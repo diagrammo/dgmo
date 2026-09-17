@@ -21,7 +21,7 @@
 _npmmodule=@diagrammo/dgmo-cli
 
 pkgname=dgmo
-pkgver=0.85.0
+pkgver=0.86.0
 pkgrel=1
 pkgdesc="Render DGMO diagrams to PNG or SVG from the terminal, and wire the DGMO MCP server into AI editors"
 arch=('x86_64' 'aarch64')
@@ -42,7 +42,7 @@ options=('!strip' '!debug' 'emptydirs')
 
 source=("https://registry.npmjs.org/${_npmmodule}/-/dgmo-cli-${pkgver}.tgz")
 noextract=("dgmo-cli-${pkgver}.tgz")
-sha256sums=('3d397b6e451e5e44a790e5b922e88f4dbc71d539a0931d83ff3b2431b06ceeba')
+sha256sums=('26ed8618f2b2074cbecc0227340080bd774ba98a74fbb9af204ad457d5f647a1')
 
 package() {
   # 🔴 The published tarball is the CLI bundle ONLY — 30 files, no node_modules —

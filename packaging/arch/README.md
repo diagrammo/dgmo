@@ -155,8 +155,10 @@ fixed in `dgmo` commit `fcf915bf`:
   ships `wl-copy`, so copying failed silently. `linuxClipboardCommand()` picks on
   the session rather than on mere presence.
 
-🔴 **Neither fix has been released.** They reach a package only once
-`@diagrammo/dgmo-cli` is published above 0.85.0 and this recipe is pointed at it.
+✅ **Both fixes are released and this recipe carries them**, as of
+`@diagrammo/dgmo-cli` 0.86.0 (published 2026-09-17, the first version above
+`fcf915bf`). `pkgver` and `sha256sums` above point at that tarball, so a
+`makepkg -si` from a clone builds a CLI that knows pacman owns it.
 
 ## What the sha256 does and does not pin
 
