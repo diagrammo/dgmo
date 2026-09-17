@@ -23,6 +23,17 @@ After that `dgmo` upgrades with `pacman -Syu` alongside everything else on the
 machine, which is the whole reason this route exists — routes 2 and 3 below give
 you an install and nothing after it.
 
+🔴 **The channel does not follow a release on its own — something has to
+dispatch `arch-repo.yml`.** It is `workflow_dispatch` only: no tag trigger, no
+release trigger. Since 2026-09-17 `scripts/release.sh dgmo-cli X.Y.Z` does it as
+step 9, after it has confirmed npm serves the version. Releasing any other way
+means dispatching it yourself, or the channel keeps serving the previous version
+while `pacman -Syu` reports success and installs nothing:
+
+```bash
+gh workflow run arch-repo.yml -R diagrammo/dgmo -f version=X.Y.Z
+```
+
 🔴 **pacman follows GitHub's asset redirect, and that is measured rather than
 assumed.** On Arch, 2026-09-17: `pacman -Sy` fetched `diagrammo.db` through the
 302 to `objects.githubusercontent.com`, `pacman -Sp dgmo` resolved the package to
