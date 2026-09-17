@@ -160,6 +160,18 @@ jobs:
         run: |
           set -euo pipefail
           cd repo
+          # 🔴 `--clobber` replaces an asset, it never removes one. A run that
+          # publishes UNSIGNED after a signed one would otherwise leave the old
+          # `.sig` and `diagrammo.gpg` assets in place — and under a
+          # `SigLevel = Required` client those stale signatures are worse than
+          # no signatures, because they are checked and fail. Drop anything this
+          # run did not produce.
+          for stale in $(gh release view arch-repo --repo "$GITHUB_REPOSITORY" \
+                           --json assets --jq '.assets[].name'); do
+            [ -e "$stale" ] && continue
+            echo "removing stale asset: $stale"
+            gh release delete-asset arch-repo "$stale" --repo "$GITHUB_REPOSITORY" --yes
+          done
           gh release upload arch-repo --repo "$GITHUB_REPOSITORY" --clobber ./*
           {
             echo "### Arch repository published"
