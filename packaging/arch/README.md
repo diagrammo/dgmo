@@ -163,11 +163,36 @@ worth more than one we host ourselves.
 
 `release_ring` is deliberately **not** set: a package without one builds for
 `edge` only, which is the modest default for a package they have not asked for.
-Their maintainers can promote it.
+Their maintainers can promote it — on `omawake`/`omaspeak` (`omacom/omarchy-pkgs#447`,
+merged 2026-09-17) a maintainer replaced the submitter's `channels` with
+`"release_ring": "fast"` himself.
 
-⚠️ **Nothing has been offered to them, and that is deliberate** (2026-09-17). The
-owner wants the package exercised on his own machines through route 1 first. Do
-not open anything on `omacom/omarchy-pkgs` without being told to.
+`min_release_age` is set to `24h`, copying `openclaw` — the only other package
+there on an `npm` upstream watch (`github-copilot-cli` is the second, and sets
+none). It makes their pipeline wait a day after we publish to npm before
+building, which is a guard against *us* shipping a bad release straight onto
+their machines. Verified 2026-09-17 against all 144 of their recipes: 2 declare
+an `npm` upstream, 45 `github`, 18 `git_tags`, 6 `debian`, and 53 none.
+
+✅ **The owner chose this route on 2026-09-17** (the Arch channel's four-step
+join, #840), and the precondition he set — the package exercised on his own
+machines through route 1 first — is met: `pacman -Q dgmo` on anchor answers
+`dgmo 0.86.0-1`, and `/usr/bin/dgmo` is owned by that package rather than by a
+stray `npm -g` write.
+
+🔴 **Opening the pull request is still a separate go-ahead each time.** It posts
+publicly on another organisation's repository under the owner's account, so it
+is never done on the strength of this file.
+
+**There is no stated submission process** — verified 2026-09-17 against the whole
+repository tree: no `CONTRIBUTING.md`, no issue or pull-request template, no code
+of conduct, and only two Markdown files outside `pkgbuilds/`. A pull request is
+nonetheless the route, and outsiders do get merged: `slap-notes-bin` (#282),
+`schist-bin` (#293) and `omawake`/`omaspeak` (#447) were all first-time
+contributors merged by a maintainer, two of them after review commits pushed on
+top. Nothing states a scope rule either, and their 144 packages include
+`spotify`, `typora`, `sublime-text-4`, `yay` and `symfony-cli`, so a third-party
+developer CLI is not out of place.
 
 ## Two CLI defects, fixed 2026-09-17 — do not offer a package built before that
 

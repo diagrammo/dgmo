@@ -1,5 +1,6 @@
 {
   "source": "local",
+  "min_release_age": "24h",
   "upstream": {
     "npm": "@diagrammo/dgmo-cli",
     "sources": {
