@@ -18,19 +18,46 @@ package, the database and their signatures, replaced in place on every publish.
 ### Joining it: two commands
 
 ```bash
+# Arch
 curl -LO https://github.com/diagrammo/dgmo/releases/download/arch-repo/diagrammo-keyring.pkg.tar.zst &&
   sudo pacman -U ./diagrammo-keyring.pkg.tar.zst &&
   sudo pacman -Syu dgmo
+
+# Omarchy — -Syu is refused there, see below
+curl -LO https://github.com/diagrammo/dgmo/releases/download/arch-repo/diagrammo-keyring.pkg.tar.zst &&
+  sudo pacman -U ./diagrammo-keyring.pkg.tar.zst &&
+  sudo pacman -Sy dgmo
 ```
 
-🔴 **`-Syu`, and the `y` is not optional.** Adding the stanza does not fetch the
-repository's database, so a plain `pacman -S dgmo` answers _"database file for
-'diagrammo' does not exist (use '-Sy' to download)"_ — reported from a real
+🔴 **The install command differs between Arch and Omarchy, and getting it wrong
+is not a style question — one of them is refused outright.**
+
+| Command            | Plain Arch                          | Omarchy 4.0.4 |
+| ------------------ | ----------------------------------- | ------------- |
+| `pacman -Syu dgmo` | correct                             | **BLOCKED**   |
+| `pacman -Sy dgmo`  | partial upgrade, avoid              | correct       |
+| `pacman -S dgmo`   | fails until the database is fetched | same          |
+
+Omarchy ships `/usr/share/libalpm/hooks/00-omarchy-update-guard.hook`, which
+aborts **any** pacman run carrying both `-S` and `-u` — _"Woah partner... This
+looks like a direct pacman system upgrade"_ — and points at `omarchy update`.
+Measured against that guard on 2026-09-17 by feeding it command lines through
+`OMARCHY_PACMAN_CMDLINE`, which needs no root: `-Syu dgmo` blocked, `-Sy dgmo`
+allowed, `-S dgmo` allowed, `-U ./…pkg.tar.zst` allowed.
+
+So an Omarchy user gets `-Sy`, and keeps the system itself current through
+`omarchy update`, which is what owns upgrades there. A plain Arch user gets
+`-Syu`, because `-Sy <package>` is the partial upgrade Arch warns against.
+`diagrammo-keyring`'s own post-install message asks the machine which it is on
+rather than printing one answer and being wrong half the time.
+
+🔴 **The `y` is not optional in either form.** Adding the stanza does not fetch
+the repository's database, so a plain `pacman -S dgmo` answers _"database file
+for 'diagrammo' does not exist (use '-Sy' to download)"_ — reported from a real
 Omarchy install on 2026-09-17, the first time anyone ran this from a cold
 machine. **Nothing in the package can do the sync**: the install scriptlet and
 the libalpm hook both run inside a transaction that already holds the pacman
-lock. It is `-Syu` rather than `-Sy` because `-Sy <package>` is the partial
-upgrade Arch warns against.
+lock.
 
 🔴 **Chained with `&&` on purpose — do not split it back into three lines.**
 Pasting three separate lines into a terminal fails in a way that looks like the
