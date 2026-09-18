@@ -287,6 +287,38 @@ fixed in `dgmo` commit `fcf915bf`:
 `fcf915bf`). `pkgver` and `sha256sums` above point at that tarball, so a
 `makepkg -si` from a clone builds a CLI that knows pacman owns it.
 
+## A published filename is immutable — the rule that was learned the hard way
+
+🔴 **Never publish different bytes under a filename the channel already serves.**
+`package()` resolves `@diagrammo/dgmo-mcp`, `jsdom` and `@resvg/resvg-js` from
+the npm registry at build time, so two runs of the same recipe at the same
+version produce **different tarballs**. Republished under the same
+`dgmo-<ver>-<rel>-x86_64.pkg.tar.zst`, that breaks every machine holding the
+earlier copy in `/var/cache/pacman/pkg`:
+
+```
+:: File /var/cache/pacman/pkg/dgmo-0.86.0-1-x86_64.pkg.tar.zst is corrupted
+   (invalid or corrupted package (checksum)).
+```
+
+The database's checksum is the new file's, the cache's file is the old one, and
+pacman is right to refuse it. The user cannot tell what happened, and the
+upgrade silently does not occur — leaving the previously installed version in
+place. Reported from a real Omarchy machine on 2026-09-17, after the channel was
+republished twice in one evening; the same filename went from 10,153,150 to
+10,152,855 bytes.
+
+- **`arch-repo.yml` now reuses a package the release already serves** instead of
+  rebuilding it, so a re-dispatch at an unchanged version is a no-op for that
+  package rather than a hazard.
+- **A recipe change therefore needs a `pkgrel` bump.** That is what `pkgrel` is
+  for: the filename changes with it, so no cache can collide.
+- **A new `pkgver` resets `pkgrel` to 1**, in the workflow, since `pkgrel` counts
+  rebuilds of one version.
+- **Bumping `pkgrel` is also the repair** when ambiguous bytes have already gone
+  out: a new filename misses every cache cleanly, and `pacman -Syu` picks it up
+  with nothing for the user to clear by hand.
+
 ## What the sha256 does and does not pin
 
 The published npm tarball is the CLI bundle only — 30 files, no `node_modules` —

@@ -22,7 +22,16 @@ _npmmodule=@diagrammo/dgmo-cli
 
 pkgname=dgmo
 pkgver=0.86.0
-pkgrel=1
+# 🔴 pkgrel 2 for an unchanged recipe, deliberately. The channel published
+# 0.86.0-1 twice with DIFFERENT bytes — `package()` resolves its dependencies
+# from npm at build time, so no two builds match — and a pacman client holding
+# the first copy in /var/cache/pacman/pkg then refuses the second with
+# "invalid or corrupted package (checksum)". Reported from a real Omarchy
+# machine, 2026-09-17. Bumping pkgrel changes the filename, so every cache
+# misses cleanly and the upgrade just works. arch-repo.yml now refuses to
+# rebuild a filename it already serves, which stops this recurring; this bump
+# is what repairs the machines that already have the ambiguous copy.
+pkgrel=2
 pkgdesc="Render DGMO diagrams to PNG or SVG from the terminal, and wire the DGMO MCP server into AI editors"
 arch=('x86_64' 'aarch64')
 url="https://github.com/diagrammo/dgmo"

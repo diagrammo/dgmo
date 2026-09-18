@@ -64,19 +64,68 @@ jobs:
       - name: Point the recipe at that version
         run: |
           cd packaging/arch
+          # pkgrel counts rebuilds OF ONE VERSION, so a new version resets it to
+          # 1 — otherwise a hand bump (see the comment above pkgrel in the
+          # recipe) would ride along on every later release, claiming a rebuild
+          # that never happened.
+          CURRENT=$(awk -F= '/^pkgver=/{print $2}' PKGBUILD)
+          if [ "$CURRENT" != "${{ steps.target.outputs.version }}" ]; then
+            sed -i "s/^pkgrel=.*/pkgrel=1/" PKGBUILD
+          fi
           sed -i "s/^pkgver=.*/pkgver=${{ steps.target.outputs.version }}/" PKGBUILD
           sed -i "s/^sha256sums=.*/sha256sums=('${{ steps.target.outputs.sha256 }}')/" PKGBUILD
-          grep -E '^(pkgver|sha256sums)=' PKGBUILD
+          grep -E '^(pkgver|pkgrel|sha256sums)=' PKGBUILD
+
+      # 🔴 A published package filename is IMMUTABLE. `package()` resolves three
+      # dependencies from the npm registry at build time, so two runs of the
+      # same recipe at the same version produce different bytes — and publishing
+      # those under the same `name-version-pkgrel-arch.pkg.tar.zst` breaks every
+      # machine that already has the old copy in /var/cache/pacman/pkg, with
+      # `invalid or corrupted package (checksum)`. The database's checksum is
+      # the new file's; the cache's file is the old one; pacman is right to
+      # refuse it and the user cannot tell what happened.
+      #
+      # Reported from a real Omarchy machine on 2026-09-17, after this channel
+      # was republished twice in one evening. The same filename went from
+      # 10153150 to 10152855 bytes.
+      #
+      # So: build only what the channel does not already serve. A recipe change
+      # needs a pkgrel bump, which is what pkgrel is for — the filename changes
+      # with it and no cache can collide.
+      - name: Is this exact package already published?
+        id: published
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.target.outputs.version }}"
+          REL=$(awk -F= '/^pkgrel=/{print $2}' packaging/arch/PKGBUILD)
+          NAME="dgmo-${VERSION}-${REL}-x86_64.pkg.tar.zst"
+          echo "filename=$NAME" >> "$GITHUB_OUTPUT"
+          if gh release view arch-repo --repo "$GITHUB_REPOSITORY" \
+               --json assets --jq '.assets[].name' | grep -qxF "$NAME"; then
+            echo "already=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::$NAME is already published — reusing it rather than rebuilding. Bump pkgrel if the recipe changed."
+          else
+            echo "already=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Build the package
         run: |
           # makepkg refuses to run as root, and a container is root by default.
+          # This runs even when the dgmo package is being reused, because the
+          # bootstrap package below still needs the builder user and the
+          # PACKAGER line.
           useradd -m builder
           chown -R builder "$GITHUB_WORKSPACE"
           # Without this every package we publish is stamped "Unknown
           # Packager", which is a poor signal on a repository we are asking
           # people to add to /etc/pacman.conf. `pacman -Qi` shows it.
           echo 'PACKAGER="Diagrammo LLC <hello@diagrammo.app>"' >> /etc/makepkg.conf
+          if [ "${{ steps.published.outputs.already }}" = "true" ]; then
+            echo "${{ steps.published.outputs.filename }} is already served; the carry-forward below brings it back unchanged."
+            exit 0
+          fi
           cd packaging/arch
           sudo -u builder makepkg --noconfirm --clean
           ls -la ./*.pkg.tar.zst
@@ -116,9 +165,21 @@ jobs:
       # `SigLevel` by hand, which is the situation this package exists to avoid.
       - name: Build the bootstrap package
         if: steps.signing.outputs.signed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           cd packaging/arch/keyring
+          # Same immutability rule as the dgmo package above: never republish
+          # different bytes under a filename the channel already serves.
+          KR_VER=$(awk -F= '/^pkgver=/{print $2}' PKGBUILD)
+          KR_REL=$(awk -F= '/^pkgrel=/{print $2}' PKGBUILD)
+          KR_NAME="diagrammo-keyring-${KR_VER}-${KR_REL}-any.pkg.tar.zst"
+          if gh release view arch-repo --repo "$GITHUB_REPOSITORY" \
+               --json assets --jq '.assets[].name' | grep -qxF "$KR_NAME"; then
+            echo "::notice::$KR_NAME is already published — reusing it. Bump pkgrel in packaging/arch/keyring/PKGBUILD if the recipe changed."
+            exit 0
+          fi
           cp "$GITHUB_WORKSPACE/diagrammo.gpg" .
           # 🔴 The fingerprint in diagrammo-trusted is what pacman-key locally
           # signs. If the key is ever rotated and that file is not updated,
