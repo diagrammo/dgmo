@@ -33,3 +33,14 @@ standalone/*
 # Generated from vendor/inter by scripts/build-fonts.mjs (pnpm fonts, run by prebuild).
 # The tracked source of truth is vendor/inter/ — never edit these by hand.
 fonts/
+
+# Arch packaging build artifacts. `diagrammo.gpg` is deliberately NOT committed:
+# it is the public half of the channel's signing key, exported by
+# arch-repo.yml at build time and fetched by hand for a local `makepkg`.
+packaging/arch/**/*.pkg.tar.zst
+packaging/arch/**/*.pkg.tar.zst.sig
+packaging/arch/keyring/diagrammo.gpg
+packaging/arch/src/
+packaging/arch/pkg/
+packaging/arch/keyring/src/
+packaging/arch/keyring/pkg/

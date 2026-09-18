@@ -1,0 +1,35 @@
+# 🔴 pacman-key --populate is the whole reason this package exists: it imports
+# /usr/share/pacman/keyrings/diagrammo.gpg and locally signs whatever
+# diagrammo-trusted lists, which is exactly what `--add` followed by
+# `--lsign-key <fingerprint>` did by hand — minus the fingerprint a person had
+# to paste correctly.
+
+post_install() {
+  pacman-key --populate diagrammo
+  /usr/share/diagrammo-keyring/ensure-repo.sh
+  cat <<'MSG'
+
+  The [diagrammo] channel is ready. Install the CLI with:
+
+      sudo pacman -S dgmo
+
+  After that it upgrades with the rest of the system through pacman -Syu.
+  Removing this package takes the key and the repository back out again.
+
+MSG
+}
+
+post_upgrade() {
+  # Idempotent, and it has to run on an upgrade too: this is the path that
+  # re-trusts a rotated key, since the new public half arrives in the package.
+  pacman-key --populate diagrammo
+  /usr/share/diagrammo-keyring/ensure-repo.sh
+}
+
+pre_remove() {
+  /usr/share/diagrammo-keyring/ensure-repo.sh --remove
+  # --delete takes the key out of pacman's own keyring. It is deliberately not
+  # guarded: if the key is already gone, pacman-key says so and the removal
+  # carries on, which is better than a package that cannot be uninstalled.
+  pacman-key --delete 17D65ED4FC456B0FA77BD83F21886645BC5F2431 || true
+}

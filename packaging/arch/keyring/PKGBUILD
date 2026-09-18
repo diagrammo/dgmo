@@ -1,0 +1,68 @@
+# Maintainer: Diagrammo LLC <hello@diagrammo.app>
+#
+# The bootstrap package for the `[diagrammo]` pacman channel. Installing it
+# collapses the channel's first three joining steps — trust the key, add the
+# repository, keep it through an Omarchy config refresh — into one command, so
+# the whole join is:
+#
+#   curl -LO https://github.com/diagrammo/dgmo/releases/download/arch-repo/diagrammo-keyring.pkg.tar.zst
+#   sudo pacman -U ./diagrammo-keyring.pkg.tar.zst
+#   sudo pacman -S dgmo
+#
+# 🔴 It cannot become `pacman -U <url>`, and that is not an oversight.
+# Omarchy's stock `SigLevel = Required DatabaseOptional` applies to a remote
+# package, and this package cannot be verified because the key it delivers is
+# the one that would verify it. A downloaded file is covered by
+# `LocalFileSigLevel = Optional` instead, which is why the curl comes first.
+#
+# 🔴 `diagrammo.gpg` is NOT committed — it is the public half exported from the
+# ARCH_SIGNING_KEY secret, and `.github/workflows/arch-repo.yml` copies it in
+# beside this recipe before building. To build by hand, fetch it first:
+#
+#   curl -LO https://github.com/diagrammo/dgmo/releases/download/arch-repo/diagrammo.gpg
+
+pkgname=diagrammo-keyring
+pkgver=1
+pkgrel=1
+pkgdesc="Trust the Diagrammo signing key and add the [diagrammo] pacman repository"
+arch=('any')
+url="https://github.com/diagrammo/dgmo"
+license=('MIT')
+
+# pacman-key does the importing and local signing; the rest is plain bash.
+depends=('pacman')
+
+install="${pkgname}.install"
+
+# All four are local files. The key is fetched or copied in (see the header), so
+# its checksum is SKIP rather than a pin — pinning the export would break every
+# build the day the key is rotated, which is the one time this package matters.
+source=('diagrammo.gpg'
+        'diagrammo-trusted'
+        '10-diagrammo-repo.hook'
+        'ensure-repo.sh')
+sha256sums=('SKIP'
+            'SKIP'
+            'SKIP'
+            'SKIP')
+
+package() {
+  # The location pacman-key --populate reads, and the same one archlinux-keyring
+  # and omarchy-keyring use.
+  install -Dm644 "${srcdir}/diagrammo.gpg" \
+    "${pkgdir}/usr/share/pacman/keyrings/diagrammo.gpg"
+  install -Dm644 "${srcdir}/diagrammo-trusted" \
+    "${pkgdir}/usr/share/pacman/keyrings/diagrammo-trusted"
+
+  # 🔴 The hook is what survives `omarchy-refresh-pacman`, which replaces the
+  # WHOLE of /etc/pacman.conf and then runs `pacman -Syyuu`. Omarchy's own
+  # documented escape hatch — ~/.config/omarchy/hooks/pre-refresh-pacman.d/ — is
+  # closed to a package: `omarchy-hook` reads only $HOME and runs unprivileged,
+  # and there is no system-wide equivalent (verified on Omarchy 4.0.4,
+  # 2026-09-17). A libalpm hook runs during that same `-Syyuu`, so the stanza is
+  # back before anything else runs.
+  install -Dm644 "${srcdir}/10-diagrammo-repo.hook" \
+    "${pkgdir}/usr/share/libalpm/hooks/10-diagrammo-repo.hook"
+  install -Dm755 "${srcdir}/ensure-repo.sh" \
+    "${pkgdir}/usr/share/${pkgname}/ensure-repo.sh"
+}

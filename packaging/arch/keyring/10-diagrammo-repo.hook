@@ -1,0 +1,20 @@
+# Puts the [diagrammo] stanza back into /etc/pacman.conf if something removed it.
+#
+# 🔴 Target has to be `*`. The thing this defends against is
+# `omarchy-refresh-pacman`, which overwrites the whole of /etc/pacman.conf by
+# plain `cp` — not a pacman transaction at all — and then runs `pacman -Syyuu`.
+# There is no package to key off, so the hook rides the next transaction of any
+# kind. The cost is one extra line printed per pacman run; ensure-repo.sh exits
+# silently when nothing needs doing.
+
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Operation = Remove
+Type = Package
+Target = *
+
+[Action]
+Description = Keeping the diagrammo repository in pacman.conf...
+When = PostTransaction
+Exec = /usr/share/diagrammo-keyring/ensure-repo.sh

@@ -109,6 +109,35 @@ jobs:
           # the whole channel on one host and needs no third party.
           gpg --armor --export "$FPR" > "$GITHUB_WORKSPACE/diagrammo.gpg"
 
+      # The bootstrap package DELIVERS that public key, so it can only be built
+      # after the step above has exported it — and not at all when there is no
+      # signing key, since `pacman-key --populate` would then have nothing to
+      # import. An unsigned channel is already asking the user to write
+      # `SigLevel` by hand, which is the situation this package exists to avoid.
+      - name: Build the bootstrap package
+        if: steps.signing.outputs.signed == 'true'
+        run: |
+          set -euo pipefail
+          cd packaging/arch/keyring
+          cp "$GITHUB_WORKSPACE/diagrammo.gpg" .
+          # 🔴 The fingerprint in diagrammo-trusted is what pacman-key locally
+          # signs. If the key is ever rotated and that file is not updated,
+          # --populate imports the new key and trusts nothing, and every package
+          # fails verification on the user's machine with no hint why. Checked
+          # here, where it costs a second.
+          FPR_IN_KEY=$(gpg --show-keys --with-colons diagrammo.gpg | awk -F: '/^fpr:/{print $10; exit}')
+          if ! grep -q "^${FPR_IN_KEY}:" diagrammo-trusted; then
+            echo "::error::diagrammo-trusted does not list ${FPR_IN_KEY}, the fingerprint of the key being shipped. Update packaging/arch/keyring/diagrammo-trusted."
+            exit 1
+          fi
+          bash test-ensure-repo.sh ./ensure-repo.sh
+          chown -R builder .
+          sudo -u builder makepkg --noconfirm --clean
+          # The database is assembled from packaging/arch, so the artifact has
+          # to land there to be picked up.
+          cp ./*.pkg.tar.zst ../
+          ls -la ../*.pkg.tar.zst
+
       - name: Assemble the repository database
         env:
           GH_TOKEN: ${{ github.token }}
@@ -124,6 +153,15 @@ jobs:
           # rebuilds the first. Absent on the very first run, hence `|| true`.
           gh release download arch-repo --repo "$GITHUB_REPOSITORY" \
             --pattern '*.pkg.tar.zst' --skip-existing || true
+
+          # 🔴 `diagrammo-keyring.pkg.tar.zst` is a fixed-name ALIAS of the
+          # versioned bootstrap package, published so the documented join URL
+          # never changes. The carry-forward above brings it back, and left here
+          # `repo-add` would index it as a second copy of the same package and
+          # could point the database at the alias — after which the drop loop
+          # below deletes the versioned file the database no longer names. It is
+          # recreated from this run's package further down.
+          rm -f diagrammo-keyring.pkg.tar.zst diagrammo-keyring.pkg.tar.zst.sig
 
           SIGN_ARGS=()
           if [ "${{ steps.signing.outputs.signed }}" = "true" ]; then
@@ -170,6 +208,15 @@ jobs:
               cp "diagrammo.$base.tar.gz.sig" "diagrammo.$base.sig"
             fi
           done
+
+          # The fixed-name alias, made last so the drop loop above cannot eat it
+          # and `repo-add` never saw it. The database points at the versioned
+          # file; this is only here so the README's curl line is stable.
+          for pkg in ./diagrammo-keyring-*.pkg.tar.zst; do
+            [ -e "$pkg" ] || continue
+            cp "$pkg" diagrammo-keyring.pkg.tar.zst
+            [ -e "$pkg.sig" ] && cp "$pkg.sig" diagrammo-keyring.pkg.tar.zst.sig
+          done
           ls -la
 
       - name: Publish it
@@ -195,6 +242,15 @@ jobs:
             echo "### Arch repository published"
             echo
             echo "\`dgmo ${{ steps.target.outputs.version }}\` is now served from the \`arch-repo\` release."
+            if [ -e diagrammo-keyring.pkg.tar.zst ]; then
+              echo
+              echo "Joining the channel is two commands:"
+              echo
+              echo '```bash'
+              echo "curl -LO https://github.com/$GITHUB_REPOSITORY/releases/download/arch-repo/diagrammo-keyring.pkg.tar.zst"
+              echo "sudo pacman -U ./diagrammo-keyring.pkg.tar.zst"
+              echo '```'
+            fi
             if [ "${{ steps.signing.outputs.signed }}" = "true" ]; then
               echo "Signed by \`${{ steps.signing.outputs.fingerprint }}\`."
             else

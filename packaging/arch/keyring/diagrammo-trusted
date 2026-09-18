@@ -1,0 +1,6 @@
+# pacman-key --populate diagrammo reads this: <fingerprint>:<ownertrust>
+# 4 is "fully trusted", which is what a repository's own signing key needs to
+# validate that repository's packages. It trusts this key and nothing else — an
+# ownertrust of 5 (ultimate) would let the key certify further keys on the
+# user's behalf, which a third-party channel has no business doing.
+17D65ED4FC456B0FA77BD83F21886645BC5F2431:4:

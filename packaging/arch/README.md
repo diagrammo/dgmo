@@ -3,11 +3,57 @@
 `PKGBUILD` here builds `@diagrammo/dgmo-cli` into a pacman package. It has three
 consumers and all three are real — do not tailor it to one.
 
+`keyring/` is a second, unrelated package — `diagrammo-keyring`, the bootstrap
+that joins the channel in two commands (route 1 below). It ships no code: a key,
+a `pacman.conf` stanza, a libalpm hook and the script both call.
+`keyring/test-ensure-repo.sh` tests that script's editing of `pacman.conf` and
+runs anywhere, against a copy.
+
 ## 1. Our own pacman repository — the route with upgrades
 
 The `arch-repo` release on this repo **is** the repository: its assets are the
 package, the database and their signatures, replaced in place on every publish.
 `.github/workflows/arch-repo.yml` builds and publishes them.
+
+### Joining it: two commands
+
+```bash
+curl -LO https://github.com/diagrammo/dgmo/releases/download/arch-repo/diagrammo-keyring.pkg.tar.zst
+sudo pacman -U ./diagrammo-keyring.pkg.tar.zst
+sudo pacman -S dgmo
+```
+
+`diagrammo-keyring` (`keyring/`, built by the same workflow, `arch=any`) carries
+the public signing key, trusts it with `pacman-key --populate`, adds the
+`[diagrammo]` stanza to `/etc/pacman.conf`, and installs the libalpm hook that
+puts the stanza back when Omarchy overwrites the file. `pacman -R
+diagrammo-keyring` takes all of it out again. That replaces the four by-hand
+steps below, which are kept because anyone adding a third-party repository is
+entitled to see exactly what it does to their machine.
+
+🔴 **It cannot be one command, and this is not worth revisiting.**
+`pacman -U <url>` inherits Omarchy's `SigLevel = Required`, and the bootstrap
+package is unverifiable **by construction** — the key that would verify it is
+the key it is delivering. A downloaded file falls under
+`LocalFileSigLevel = Optional` instead, which is why the `curl` is separate.
+
+🔴 **The Omarchy hook the next section documents is closed to a package.**
+`omarchy-hook` reads only `$HOME/.config/omarchy/hooks/<name>` and `<name>.d/`,
+there is no system-wide equivalent (`/etc/omarchy/hooks` and
+`/usr/share/omarchy/hooks` do not exist), and `omarchy-refresh-pacman` calls it
+**without** `sudo` — so it runs as the user, and a package that installs to
+system paths cannot write it. The package uses
+`/usr/share/libalpm/hooks/10-diagrammo-repo.hook` instead, which Omarchy itself
+uses for ten of its own hooks. The ordering works out: `omarchy-refresh-pacman`
+replaces `/etc/pacman.conf` and then runs `pacman -Syyuu`, so the stanza is
+missing for that one transaction and is back before anything else runs.
+Verified on Omarchy 4.0.4, pacman 7.1.0, 2026-09-17.
+
+⚠️ **The hook's `Target` is `*`, so pacman prints one extra line on every
+transaction.** That is the price of defending against a `cp` that is not a
+pacman transaction at all and therefore has no package to trigger on.
+
+### Joining it by hand
 
 ```bash
 # /etc/pacman.conf
