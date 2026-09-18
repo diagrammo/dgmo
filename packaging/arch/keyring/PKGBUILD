@@ -23,7 +23,7 @@
 
 pkgname=diagrammo-keyring
 pkgver=1
-pkgrel=1
+pkgrel=2
 pkgdesc="Trust the Diagrammo signing key and add the [diagrammo] pacman repository"
 arch=('any')
 url="https://github.com/diagrammo/dgmo"

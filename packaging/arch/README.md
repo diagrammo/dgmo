@@ -18,10 +18,26 @@ package, the database and their signatures, replaced in place on every publish.
 ### Joining it: two commands
 
 ```bash
-curl -LO https://github.com/diagrammo/dgmo/releases/download/arch-repo/diagrammo-keyring.pkg.tar.zst
-sudo pacman -U ./diagrammo-keyring.pkg.tar.zst
-sudo pacman -S dgmo
+curl -LO https://github.com/diagrammo/dgmo/releases/download/arch-repo/diagrammo-keyring.pkg.tar.zst &&
+  sudo pacman -U ./diagrammo-keyring.pkg.tar.zst &&
+  sudo pacman -Syu dgmo
 ```
+
+🔴 **`-Syu`, and the `y` is not optional.** Adding the stanza does not fetch the
+repository's database, so a plain `pacman -S dgmo` answers _"database file for
+'diagrammo' does not exist (use '-Sy' to download)"_ — reported from a real
+Omarchy install on 2026-09-17, the first time anyone ran this from a cold
+machine. **Nothing in the package can do the sync**: the install scriptlet and
+the libalpm hook both run inside a transaction that already holds the pacman
+lock. It is `-Syu` rather than `-Sy` because `-Sy <package>` is the partial
+upgrade Arch warns against.
+
+🔴 **Chained with `&&` on purpose — do not split it back into three lines.**
+Pasting three separate lines into a terminal fails in a way that looks like the
+user's fault: line 2 prompts for a sudo password, the terminal has already read
+ahead, and line 3 is consumed as the password. Reported the same day. One
+logical line is read by the shell before anything prompts, and the second
+`sudo` reuses the first's timestamp, so there is one prompt rather than two.
 
 `diagrammo-keyring` (`keyring/`, built by the same workflow, `arch=any`) carries
 the public signing key, trusts it with `pacman-key --populate`, adds the

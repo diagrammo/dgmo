@@ -7,13 +7,24 @@
 post_install() {
   pacman-key --populate diagrammo
   /usr/share/diagrammo-keyring/ensure-repo.sh
+  # 🔴 -Syu, and the y is not optional. Adding the stanza does not FETCH the
+  # repository's database, so a plain `pacman -S dgmo` answers "database file
+  # for 'diagrammo' does not exist" — reported from a real Omarchy install,
+  # 2026-09-17. Nothing here can do the sync for the user: this scriptlet and
+  # the libalpm hook both run inside a transaction that holds the pacman lock.
+  # And it is -Syu rather than -Sy, because `-Sy <package>` is the partial
+  # upgrade Arch warns against — it installs against a database newer than the
+  # rest of the system.
   cat <<'MSG'
 
   The [diagrammo] channel is ready. Install the CLI with:
 
-      sudo pacman -S dgmo
+      sudo pacman -Syu dgmo
 
-  After that it upgrades with the rest of the system through pacman -Syu.
+  The y matters: it downloads this channel's database, which adding the
+  repository does not do on its own.
+
+  After that dgmo upgrades with the rest of the system through pacman -Syu.
   Removing this package takes the key and the repository back out again.
 
 MSG
