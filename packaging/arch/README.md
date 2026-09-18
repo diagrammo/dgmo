@@ -31,6 +31,18 @@ diagrammo-keyring` takes all of it out again. That replaces the four by-hand
 steps below, which are kept because anyone adding a third-party repository is
 entitled to see exactly what it does to their machine.
 
+✅ **The channel serves it, verified against the published bytes 2026-09-17
+20:30 MDT** — not against the run log. `diagrammo.db` lists both packages and
+names the **versioned** file `diagrammo-keyring-1-1-any.pkg.tar.zst`, never the
+fixed-name alias; the database and the package both carry a good signature from
+`17D65ED4FC456B0FA77BD83F21886645BC5F2431`; the alias is byte-identical to the
+versioned file; and the key inside the package is byte-identical to the
+channel's own `diagrammo.gpg`, which is what makes `--populate` trust the right
+key. Run `35337290120`.
+
+⚠️ **Nobody has installed it from a machine that has never joined.** That needs
+root, and the one Arch machine here joined by hand before this existed.
+
 🔴 **It cannot be one command, and this is not worth revisiting.**
 `pacman -U <url>` inherits Omarchy's `SigLevel = Required`, and the bootstrap
 package is unverifiable **by construction** — the key that would verify it is
