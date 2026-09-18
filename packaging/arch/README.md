@@ -170,7 +170,7 @@ merged 2026-09-17) a maintainer replaced the submitter's `channels` with
 `min_release_age` is set to `24h`, copying `openclaw` — the only other package
 there on an `npm` upstream watch (`github-copilot-cli` is the second, and sets
 none). It makes their pipeline wait a day after we publish to npm before
-building, which is a guard against *us* shipping a bad release straight onto
+building, which is a guard against _us_ shipping a bad release straight onto
 their machines. Verified 2026-09-17 against all 144 of their recipes: 2 declare
 an `npm` upstream, 45 `github`, 18 `git_tags`, 6 `debian`, and 53 none.
 
