@@ -44,9 +44,24 @@ Resource Server -9. Protected resource-> Client Application
 Client Application -10. Displays result-> User
 `;
 
+// 🔴 `budgetMs: 0` — no deadline. Every assertion in this file pins WHICH
+// labels the search managed to place, and the search stops generating
+// candidates once it burns through `DEFAULT_SEARCH_BUDGET_MS` (5s), so the
+// result depends on how much time the machine gave it. The OAUTH fixture needs
+// ~2.5s a pass and runs the search twice; under the suite's own parallel load
+// that crosses 5s, five labels come out unplaced, and the failure looks like a
+// rendering regression on the slower box. Observed on anchor 2026-09-20,
+// refusing a full ecosystem release: the same sha was green on an idle laptop
+// and red under load, and raising the constant alone turned all 14 green.
+// Without this the test measures the machine. It fixes only the test: a real
+// caller still gets the deadline and still loses those five labels when the
+// machine is busy, which is the search backstop firing on ordinary diagrams
+// (#868).
+const NO_DEADLINE = { budgetMs: 0 } as const;
+
 async function renderSvg(src: string): Promise<SVGSVGElement> {
   const parsed = parseBoxesAndLines(src);
-  const layout = await layoutBoxesAndLines(parsed);
+  const layout = await layoutBoxesAndLines(parsed, undefined, NO_DEADLINE);
   const el = document.createElement('div');
   renderBoxesAndLines(el, parsed, layout, P, false, {
     exportDims: { width: 800, height: 600 },
@@ -156,7 +171,11 @@ describe('boxes-and-lines — an edge label stays with its edge', () => {
     // The structural half: if the fan is rebuilt at render time again, the
     // layout's points stay the routed polyline and this fails — catching the
     // regression without depending on any distance threshold.
-    const layout = await layoutBoxesAndLines(parseBoxesAndLines(OAUTH));
+    const layout = await layoutBoxesAndLines(
+      parseBoxesAndLines(OAUTH),
+      undefined,
+      NO_DEADLINE
+    );
     const fanned = layout.edges.filter(
       (e) => e.parallelCount > 1 && e.yOffset !== 0
     );
@@ -194,7 +213,11 @@ describe('boxes-and-lines — an edge label clears the boxes it names', () => {
   }
 
   async function labelsOnBoxes(): Promise<Map<number, string[]>> {
-    const layout = await layoutBoxesAndLines(parseBoxesAndLines(OAUTH));
+    const layout = await layoutBoxesAndLines(
+      parseBoxesAndLines(OAUTH),
+      undefined,
+      NO_DEADLINE
+    );
     const out = new Map<number, string[]>();
     for (const e of layout.edges) {
       if (e.labelX === undefined || e.labelY === undefined) continue;
@@ -274,7 +297,11 @@ ProductDB t: Platform`;
   }
 
   it('does not pull labels off their lines on a diagram with nothing to fix', async () => {
-    const layout = await layoutBoxesAndLines(parseBoxesAndLines(CANVAS_SPIKE));
+    const layout = await layoutBoxesAndLines(
+      parseBoxesAndLines(CANVAS_SPIKE),
+      undefined,
+      NO_DEADLINE
+    );
     const far = layout.edges
       .filter((e) => e.labelX !== undefined && e.labelY !== undefined)
       .map((e) => ({
@@ -366,7 +393,11 @@ describe('boxes-and-lines — an edge label clears groups it does not live in', 
   async function labelGroupOverlaps(
     src: string
   ): Promise<{ label: string; group: string; inside: boolean }[]> {
-    const layout = await layoutBoxesAndLines(parseBoxesAndLines(src));
+    const layout = await layoutBoxesAndLines(
+      parseBoxesAndLines(src),
+      undefined,
+      NO_DEADLINE
+    );
     const out: { label: string; group: string; inside: boolean }[] = [];
     for (const e of layout.edges) {
       if (!e.label || e.labelX === undefined || e.labelY === undefined)
@@ -388,7 +419,7 @@ describe('boxes-and-lines — an edge label clears groups it does not live in', 
     const owner = new Map<string, string>();
     for (const g of parsed.groups)
       for (const c of g.children) owner.set(c, g.label);
-    const layout = await layoutBoxesAndLines(parsed);
+    const layout = await layoutBoxesAndLines(parsed, undefined, NO_DEADLINE);
 
     const straddles: string[] = [];
     for (const e of layout.edges) {
@@ -486,7 +517,11 @@ describe('boxes-and-lines — a label with no clear spot gets an opaque knockout
   });
 
   it('marks the same label unresolved in the layout the renderer reads', async () => {
-    const layout = await layoutBoxesAndLines(parseBoxesAndLines(OAUTH));
+    const layout = await layoutBoxesAndLines(
+      parseBoxesAndLines(OAUTH),
+      undefined,
+      NO_DEADLINE
+    );
     const unresolved = layout.edges
       .filter((e) => e.labelResolved === false)
       .map((e) => String(e.lineNumber))
@@ -507,7 +542,11 @@ Web Server
 Database
   -> Backup
 `;
-    const layout = await layoutBoxesAndLines(parseBoxesAndLines(src));
+    const layout = await layoutBoxesAndLines(
+      parseBoxesAndLines(src),
+      undefined,
+      NO_DEADLINE
+    );
     expect(
       layout.edges.filter((e) => e.label).map((e) => e.labelResolved)
     ).toEqual([true, true]);
