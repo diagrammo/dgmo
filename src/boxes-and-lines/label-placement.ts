@@ -34,7 +34,7 @@ const MAX_LABEL_LINES = 3;
 const LABEL_LINE_HEIGHT = 1.3;
 const H_PAD = 6; // horizontal halo padding (each side)
 const V_PAD = 3; // vertical halo padding (each side)
-const BOX_CLEAR_PAD = 4; // min clearance kept between a label box and a node box
+export const BOX_CLEAR_PAD = 4; // min clearance kept between a label box and a node box
 const PERP_STEP = 8; // perpendicular offset increment (px)
 // Max perpendicular offset before giving up — TWO reaches, used in order (#703).
 //

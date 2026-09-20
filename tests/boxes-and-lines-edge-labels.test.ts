@@ -458,12 +458,20 @@ describe('boxes-and-lines — a label with no clear spot gets an opaque knockout
     return out;
   }
 
-  // Six OAUTH labels stay unresolved on this layout: 22 and 26 sit on the two
-  // node boxes each names, and 27, 30, 31 and 32 cross into a group their edge
-  // does not live in (#777's group clearance, which `resolved` includes).
-  const UNRESOLVED = ['22', '26', '27', '30', '31', '32'];
+  // One OAUTH label stays unresolved on this layout. It was six until #778
+  // taught the tier generator to open a corridor between two group walls wide
+  // enough for the label crossing it — 22, 26, 27, 30 and 32 all clear once
+  // there is somewhere to put them.
+  //
+  // 31 is the fixture's widest label (165px, past LABEL_MAX_WIDTH, so it wraps
+  // and is still the widest) and it lands over `Protected APIs`, the group its
+  // TARGET lives in and its source does not. A corridor cannot help a label
+  // whose own group spans the boundary it would sit in; that one is #703's
+  // constituency — a label with genuinely nowhere to go — and is drawn on the
+  // opaque knockout this block is about.
+  const UNRESOLVED = ['31'];
 
-  it('draws the unresolved OAUTH labels opaque, and every other label at 0.9', async () => {
+  it('draws the unresolved OAUTH label opaque, and every other label at 0.9', async () => {
     const ops = knockouts(await renderSvg(OAUTH));
     expect(ops.size).toBe(13);
     const opaque = [...ops].filter(([, o]) => o === '1').map(([l]) => l);
@@ -477,7 +485,7 @@ describe('boxes-and-lines — a label with no clear spot gets an opaque knockout
     expect(knockouts(await renderSvg(OAUTH)).get('29')).toBe('0.9');
   });
 
-  it('marks the same six labels unresolved in the layout the renderer reads', async () => {
+  it('marks the same label unresolved in the layout the renderer reads', async () => {
     const layout = await layoutBoxesAndLines(parseBoxesAndLines(OAUTH));
     const unresolved = layout.edges
       .filter((e) => e.labelResolved === false)

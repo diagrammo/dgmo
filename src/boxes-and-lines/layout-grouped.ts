@@ -31,6 +31,11 @@
 import type { ParsedBoxesAndLines } from './types';
 import { NODE_WIDTH, NODE_HEIGHT } from './node-metrics';
 import { clipEndpointsToNodes, type ClipRect } from './edge-clip';
+import {
+  measureEdgeLabel,
+  EDGE_LABEL_FONT_SIZE,
+  BOX_CLEAR_PAD,
+} from './label-placement';
 import type {
   BLLayoutResult,
   BLLayoutEdge,
@@ -194,7 +199,7 @@ interface LNode {
 export function groupedTierCandidates(
   parsed: ParsedBoxesAndLines,
   sizes: ReadonlyMap<string, Size>,
-  opts?: { restarts?: number; keepK?: number }
+  opts?: { restarts?: number; keepK?: number; reserveEdgeLabels?: boolean }
 ): BLLayoutResult[] {
   if (parsed.groups.length === 0) return [];
   const nCount = parsed.nodes.length;
@@ -393,6 +398,58 @@ export function groupedTierCandidates(
     segs.push({ a: prev, b: e.target });
     chain.push(e.target);
     chains.push({ edgeIdx: i, chain });
+  }
+
+  // ── Rank-gap reservation for edge labels (#778) ────────────
+  // The dagre path reserves label room by hanging a virtual node on the edge,
+  // which widens the gap between two NODE ranks. What a cross-group label needs
+  // is the gap between two group WALLS — the node gap LESS the padding each
+  // group box adds around its children. So that reservation never reaches an
+  // inter-group corridor, and every corridor on a diagram comes out the same
+  // width whatever crosses it: on `ai-pipeline.dgmo` all three measured 92px
+  // while the labels crossing them differed by 61px in width.
+  //
+  // This generator owns the rank-axis arithmetic, so reserve here instead: for
+  // every rank boundary a labelled edge crosses, require room for that label
+  // plus the group walls between its two endpoints plus BOX_CLEAR_PAD either
+  // side. Only on request — a first layout is never widened for a label it has
+  // not yet failed to place; layout.ts asks for this on the relayout, and keeps
+  // the result only if it resolves strictly more labels.
+  const labelGap: number[] = Array.from({ length: maxRank + 1 }, () => 0);
+  if (opts?.reserveEdgeLabels) {
+    // Walls between two nodes along the rank axis: every group enclosing one
+    // and not the other contributes one edge of its box. The rects `realize`
+    // emits below pad by GROUP_PAD on three sides and by GROUP_LABEL_ZONE on
+    // top, so the wall the higher-ranked endpoint sits behind is the label zone
+    // under TB and an ordinary pad under LR.
+    const leadWall = isTB ? GROUP_LABEL_ZONE : GROUP_PAD;
+    const wallsBetween = (a: string, b: string): number => {
+      const pa = pathOf(a);
+      const pb = pathOf(b);
+      let shared = 0;
+      while (
+        shared < pa.length &&
+        shared < pb.length &&
+        pa[shared] === pb[shared]
+      )
+        shared++;
+      return (pa.length - shared) * GROUP_PAD + (pb.length - shared) * leadWall;
+    };
+    for (const { e } of edges) {
+      if (!e.label) continue;
+      const rs = globalRank.get(e.source)!;
+      const rt = globalRank.get(e.target)!;
+      // Flat and back edges are routed off the rank bands (a bowed arc, or the
+      // periphery), so no rank corridor is where their label wants to sit.
+      if (rt <= rs) continue;
+      const m = measureEdgeLabel(e.label, EDGE_LABEL_FONT_SIZE);
+      const need =
+        (isTB ? m.height : m.width) +
+        2 * BOX_CLEAR_PAD +
+        wallsBetween(e.source, e.target);
+      for (let r = rs + 1; r <= rt; r++)
+        labelGap[r] = Math.max(labelGap[r]!, need);
+    }
   }
 
   // Rank buckets + adjacency for ordering.
@@ -603,7 +660,11 @@ export function groupedTierCandidates(
     const bandCenter: number[] = [];
     let acc = MARGIN;
     for (let r = 0; r <= maxRank; r++) {
-      if (r > 0) acc += RANKSEP + (tierStartRanks.has(r) ? TIER_GAP : 0);
+      if (r > 0)
+        acc += Math.max(
+          RANKSEP + (tierStartRanks.has(r) ? TIER_GAP : 0),
+          labelGap[r]!
+        );
       bandCenter[r] = acc + bandDepth[r]! / 2;
       acc += bandDepth[r]!;
     }

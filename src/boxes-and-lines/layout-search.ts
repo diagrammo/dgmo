@@ -1568,7 +1568,12 @@ export async function layoutBoxesAndLinesSearch(
   // models fully-expanded groups only).
   if (parsed.groups.length > 0 && collapsedGroupLabels.size === 0) {
     try {
-      layered = layered.concat(groupedTierCandidates(parsed, sizes));
+      layered = layered.concat(
+        // The reservation is passed on: a tier candidate that wins the pool on
+        // badness is the layout that gets drawn, so a relayout asked to open a
+        // corridor for a label has to reach this generator too (#778).
+        groupedTierCandidates(parsed, sizes, { reserveEdgeLabels })
+      );
     } catch {
       /* ignore */
     }
