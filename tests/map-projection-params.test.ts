@@ -96,6 +96,30 @@ const LONLAT_GRID: Array<[number, number]> = [];
 for (let lon = -180; lon <= 180; lon += 7.5)
   for (let lat = -85; lat <= 85; lat += 5) LONLAT_GRID.push([lon, lat]);
 
+// 🔴 This file needs its own deadline. vitest.config.ts sets testTimeout to
+// 30s and says, in as many words, that the number "is not tuned to the observed
+// margin, deliberately. A budget a correct render can plausibly approach is not
+// a safe test, it is an absent one." That held when the heaviest render in the
+// repo did 5-9 seconds of work. These four do 19.4s, 26.6s, 22.0s and 21.6s on
+// an IDLE anchor — measured from a release gate's own log, 2026-09-20 — so the
+// worst of them had 3.4s of headroom and the global number had quietly become
+// the thing it forbids: a performance assertion against the machine.
+//
+// It duly fired. A full ecosystem release gated dgmo while the desktop app's
+// gate ran beside it on the same 8 cores; all four timed out at exactly 30000ms
+// and nothing else in 9,557 tests failed. The same sha had passed alone twenty
+// minutes earlier.
+//
+// 180s restores the ~6x margin the 30s number was chosen to give, and still
+// fails a genuine hang — which the config says is the one use of a clock this
+// workspace endorses. It is scoped to this file so the tight global guard keeps
+// covering the other 305.
+//
+// The real cost is that each test re-reads and re-lays-out every map fixture;
+// that is why the file alone is 90s of a 335s suite. Worth attacking separately
+// — this only stops it refusing correct pushes in the meantime.
+vi.setConfig({ testTimeout: 180_000 });
+
 describe('map layout projection as data (#645)', () => {
   it('covers every gallery map fixture plus an inset map', () => {
     expect(SOURCES.length).toBeGreaterThan(10);
