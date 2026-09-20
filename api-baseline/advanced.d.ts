@@ -2150,6 +2150,24 @@ declare function layoutBoxesAndLines(parsed: ParsedBoxesAndLines, collapseInfo?:
     /** Progress hook (interactive path). When set, the search yields between
      *  candidates so the UI can paint a "trying X of Y" indicator. */
     onProgress?: (done: number, total: number, phase: string) => void;
+    /** Wall-clock deadline on candidate generation, in ms. Defaults to
+     *  `DEFAULT_SEARCH_BUDGET_MS`; **0 or less means no deadline at all**.
+     *
+     *  🔴 A test that asserts WHICH labels the search managed to place must
+     *  pass 0. The search is the one part of layout whose OUTPUT depends on
+     *  how much time it got, so a test pinning an exact result is otherwise
+     *  measuring the machine — and fails on a busy one while the code is
+     *  fine. `layout-search.ts` has said a non-positive budget is "what the
+     *  snapshot tests want" since the backstop was added, but nothing
+     *  forwarded it here, so no test could ask. Found when a full release's
+     *  gate refused dgmo on 2026-09-20: the OAUTH fixture needs ~2.5s a pass
+     *  and runs the search twice, so under the suite's own parallel load it
+     *  crossed the 5s backstop and five labels came out unplaced.
+     *
+     *  This is the escape hatch for tests only. A real caller still gets the
+     *  deadline, and it still costs them placed labels on a busy machine —
+     *  that half is the search backstop firing on ordinary diagrams (#868). */
+    budgetMs?: number;
 }): Promise<BLLayoutResult>;
 
 interface BLRenderOptions {
