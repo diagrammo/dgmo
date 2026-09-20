@@ -5,6 +5,91 @@ All notable changes to `@diagrammo/dgmo` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.86.0] - 2026-09-20
+
+### Added
+
+- **A map's layout is now data, so it can be computed once and drawn
+  somewhere else.** `MapLayout.projection` and `MapLayoutInset.projection`
+  were live d3-geo functions, and a live function is the one thing that
+  cannot cross a `postMessage` boundary — so anything wanting a map drawn
+  had to lay the whole map out again on the thread that draws. They are now
+  `projectionParams`: the construction spec (kind, parallels, center,
+  rotate, recorded as the inputs they were given rather than read back
+  through getters that round-trip through radians) plus the fitted scale,
+  translate and clip extent. `rebuildMapProjection` turns that back into a
+  projection that projects, inverts and clips bit-identically. Two new
+  entries let a caller holding a layout use it: `renderMapLayout` draws a
+  layout that has already been computed — `renderMap` is now that layout
+  step plus the same draw, so export, CLI and static output are unchanged
+  and all 106 gallery snapshots still match — and
+  `createMapGeoQueryForLayout` binds the inspector to the layout that was
+  actually drawn instead of re-running parse, resolve and layout to build a
+  second one.
+
+### Fixed
+
+- **An edge label crossing into a group no longer cuts a notch out of
+  it.** Labels were placed against node boxes and collapsed groups only, on
+  the rule that an expanded group's interior is valid label space. That is
+  right for a label whose edge lives in the group and says nothing about one
+  that merely crosses the boundary, so the search reported a clean placement
+  having never looked, and the renderer — which draws edge labels last, over
+  everything — cut the label's knockout halo through the group's fill,
+  border and title. Obstacles are now built per edge: an expanded group is
+  valid space for a label exactly when it contains **both** endpoints, and
+  containment is transitive, so a label on an edge inside a child group is
+  not evicted from that child's ancestors, while a label between two sibling
+  children may use the parent's corridor but neither child's interior.
+- **A label longer than the edge it names is no longer dropped on top of the
+  node boxes at either end.** The search gave up 40px from the line; it now
+  widens to a measured 56px, which is what clears the labels that were
+  landing on boxes without trading back the detachment defect that a wider
+  window reintroduces.
+- **A cross-group label now gets a corridor wide enough to sit in.** Room
+  was being reserved by widening the gap between two node ranks, but what a
+  label crossing a boundary needs is the gap between two group **walls** —
+  that gap less the padding each group box adds around its children — so the
+  reservation never reached an inter-group corridor at all. Every corridor
+  on one four-group pipeline measured the same 92px whatever crossed it,
+  while the labels crossing them differed by 61px in width. Reservation now
+  counts the walls between an edge's two endpoints, per side and per nesting
+  level.
+- **A label that still cannot be placed clear is now drawn opaque**, so the
+  node or group title underneath stops showing through it. A label placement
+  did clear keeps the 0.9 knockout it has always had.
+- **Two sketch edges leaving the same side of a node no longer run on top of
+  each other.** A bare node had one port per side, so two edges settling on
+  the same side left from the same point with the same first handle — on the
+  reported diagram, two cross-group edges ran under 7px apart for 240px and
+  then crossed with no hop, because sharing a source excluded the pair from
+  the hop pass. Each side carrying two or more edge ends now fans them
+  across it, ordered by where each far end lies, and an end that can run
+  straight keeps its place so a level edge is never bent to make room for a
+  diagonal beside it. The hop exclusion narrowed to match: siblings crossing
+  mid-run draw a hop.
+- **A goal gauge's centre value no longer draws across its shoulder
+  labels.** A long compacted value — `780k` against a 1M target — was capped
+  at what a comment claimed was the clear belly between the ticks, and was
+  not: the `250k` and `750k` labels are anchored inward and grow toward the
+  centre. With a target, the value is now sized to the gap those two labels
+  actually leave.
+- **A live link asked to back off waits instead of asking again at once.** A
+  429 or a 5xx meant an immediate second request, so every reader of a page
+  carrying a live link doubled its traffic on an API that was already
+  shedding load. A retry now waits the server's `Retry-After` when that fits
+  inside the timeout, gives up rather than retrying when it does not, and
+  otherwise waits a jittered, doubling delay so readers who failed together
+  do not come back together.
+- **`referenceSourceUrl` refuses an id that is not one.** A reference built
+  by hand with a missing id interpolated straight into the URL and sent
+  `/undefined/source` to the server; the 404 that came back carried no
+  stack, so nothing named the caller. It now throws for anything that is not
+  the id shape the parsers accept, and the next bad caller fails in its own
+  process.
+- The `sketch` reference no longer documents a `cloud` shape the parser has
+  never accepted.
+
 ## [0.85.0] - 2026-09-10
 
 ### Added
