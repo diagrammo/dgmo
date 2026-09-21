@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { parseBoxesAndLines } from '../src/boxes-and-lines/parser';
 import { layoutBoxesAndLines } from '../src/boxes-and-lines/layout';
+import { layoutBoxesAndLinesSearch } from '../src/boxes-and-lines/layout-search';
 import { renderBoxesAndLines } from '../src/boxes-and-lines/renderer';
 import { getPalette } from '../src/palettes';
 
@@ -44,24 +45,22 @@ Resource Server -9. Protected resource-> Client Application
 Client Application -10. Displays result-> User
 `;
 
-// 🔴 `budgetMs: 0` — no deadline. Every assertion in this file pins WHICH
-// labels the search managed to place, and the search stops generating
-// candidates once it burns through `DEFAULT_SEARCH_BUDGET_MS` (5s), so the
-// result depends on how much time the machine gave it. The OAUTH fixture needs
-// ~2.5s a pass and runs the search twice; under the suite's own parallel load
-// that crosses 5s, five labels come out unplaced, and the failure looks like a
-// rendering regression on the slower box. Observed on anchor 2026-09-20,
-// refusing a full ecosystem release: the same sha was green on an idle laptop
-// and red under load, and raising the constant alone turned all 14 green.
-// Without this the test measures the machine. It fixes only the test: a real
-// caller still gets the deadline and still loses those five labels when the
-// machine is busy, which is the search backstop firing on ordinary diagrams
-// (#868).
-const NO_DEADLINE = { budgetMs: 0 } as const;
+// 🔴 There is nothing to pin here any more, and that is the point. Every
+// assertion in this file states WHICH labels the search placed, and until
+// 2026-09-20 the search stopped generating candidates on a 5s wall clock — so
+// each of these was really measuring how busy the machine was. The OAUTH
+// fixture needs ~2.5s a pass on anchor and runs the search twice, so under the
+// suite's own parallel load it crossed the wall, five labels came out unplaced,
+// and a green sha turned red on the slower box while refusing a full ecosystem
+// release (#868). The file answered that by passing `budgetMs: 0` to disable
+// the wall — which fixed the tests and did nothing for a real user. The wall is
+// now gone from the product (`SEARCH_WORK_CAP` in layout-search.ts caps the
+// WORK instead, decided before the first candidate is placed), so these tests
+// ask for no escape hatch: they get the same pool a user gets, on any machine.
 
 async function renderSvg(src: string): Promise<SVGSVGElement> {
   const parsed = parseBoxesAndLines(src);
-  const layout = await layoutBoxesAndLines(parsed, undefined, NO_DEADLINE);
+  const layout = await layoutBoxesAndLines(parsed);
   const el = document.createElement('div');
   renderBoxesAndLines(el, parsed, layout, P, false, {
     exportDims: { width: 800, height: 600 },
@@ -171,11 +170,7 @@ describe('boxes-and-lines — an edge label stays with its edge', () => {
     // The structural half: if the fan is rebuilt at render time again, the
     // layout's points stay the routed polyline and this fails — catching the
     // regression without depending on any distance threshold.
-    const layout = await layoutBoxesAndLines(
-      parseBoxesAndLines(OAUTH),
-      undefined,
-      NO_DEADLINE
-    );
+    const layout = await layoutBoxesAndLines(parseBoxesAndLines(OAUTH));
     const fanned = layout.edges.filter(
       (e) => e.parallelCount > 1 && e.yOffset !== 0
     );
@@ -213,11 +208,7 @@ describe('boxes-and-lines — an edge label clears the boxes it names', () => {
   }
 
   async function labelsOnBoxes(): Promise<Map<number, string[]>> {
-    const layout = await layoutBoxesAndLines(
-      parseBoxesAndLines(OAUTH),
-      undefined,
-      NO_DEADLINE
-    );
+    const layout = await layoutBoxesAndLines(parseBoxesAndLines(OAUTH));
     const out = new Map<number, string[]>();
     for (const e of layout.edges) {
       if (e.labelX === undefined || e.labelY === undefined) continue;
@@ -297,11 +288,7 @@ ProductDB t: Platform`;
   }
 
   it('does not pull labels off their lines on a diagram with nothing to fix', async () => {
-    const layout = await layoutBoxesAndLines(
-      parseBoxesAndLines(CANVAS_SPIKE),
-      undefined,
-      NO_DEADLINE
-    );
+    const layout = await layoutBoxesAndLines(parseBoxesAndLines(CANVAS_SPIKE));
     const far = layout.edges
       .filter((e) => e.labelX !== undefined && e.labelY !== undefined)
       .map((e) => ({
@@ -393,11 +380,7 @@ describe('boxes-and-lines — an edge label clears groups it does not live in', 
   async function labelGroupOverlaps(
     src: string
   ): Promise<{ label: string; group: string; inside: boolean }[]> {
-    const layout = await layoutBoxesAndLines(
-      parseBoxesAndLines(src),
-      undefined,
-      NO_DEADLINE
-    );
+    const layout = await layoutBoxesAndLines(parseBoxesAndLines(src));
     const out: { label: string; group: string; inside: boolean }[] = [];
     for (const e of layout.edges) {
       if (!e.label || e.labelX === undefined || e.labelY === undefined)
@@ -419,7 +402,7 @@ describe('boxes-and-lines — an edge label clears groups it does not live in', 
     const owner = new Map<string, string>();
     for (const g of parsed.groups)
       for (const c of g.children) owner.set(c, g.label);
-    const layout = await layoutBoxesAndLines(parsed, undefined, NO_DEADLINE);
+    const layout = await layoutBoxesAndLines(parsed);
 
     const straddles: string[] = [];
     for (const e of layout.edges) {
@@ -517,11 +500,7 @@ describe('boxes-and-lines — a label with no clear spot gets an opaque knockout
   });
 
   it('marks the same label unresolved in the layout the renderer reads', async () => {
-    const layout = await layoutBoxesAndLines(
-      parseBoxesAndLines(OAUTH),
-      undefined,
-      NO_DEADLINE
-    );
+    const layout = await layoutBoxesAndLines(parseBoxesAndLines(OAUTH));
     const unresolved = layout.edges
       .filter((e) => e.labelResolved === false)
       .map((e) => String(e.lineNumber))
@@ -542,11 +521,7 @@ Web Server
 Database
   -> Backup
 `;
-    const layout = await layoutBoxesAndLines(
-      parseBoxesAndLines(src),
-      undefined,
-      NO_DEADLINE
-    );
+    const layout = await layoutBoxesAndLines(parseBoxesAndLines(src));
     expect(
       layout.edges.filter((e) => e.label).map((e) => e.labelResolved)
     ).toEqual([true, true]);
@@ -558,5 +533,96 @@ Database
       '0.9',
       '0.9',
     ]);
+  });
+});
+
+// ------------------------------------------------------------
+// #868 — the search stopped generating candidates on a 5s wall clock, so the
+// diagram a user got recorded how busy their machine was and nothing said so.
+// On this very fixture an idle run left ONE label unresolved (31) and a run
+// under the suite's own parallel load left SIX (22 26 27 30 31 32) — the same
+// set as starving the clock to 1ms, and the same set as before the corridor
+// work of #777/#778 landed. Five labels that place on an idle machine came out
+// sitting on node boxes, drawn on the opaque knockout #703 added for labels
+// with genuinely nowhere to go.
+//
+// The clock is gone. `SEARCH_WORK_CAP` in layout-search.ts caps the WORK
+// instead — candidate placements weighted by graph size, fixed before the
+// first candidate is placed — so the pool is a function of the diagram alone.
+//
+// 🔴 Neither test below times anything. A duration measures the laptop, which
+// is the defect rather than a test for it; what is asserted is the property a
+// wall clock cannot have — the same input gives the same candidate count and
+// the same labels, run after run.
+// ------------------------------------------------------------
+describe('boxes-and-lines — the search stops on work, not on the clock', () => {
+  type Layout = Awaited<ReturnType<typeof layoutBoxesAndLines>>;
+
+  const unresolved = (layout: Layout): string[] =>
+    layout.edges
+      .filter((e) => e.labelResolved === false)
+      .map((e) => String(e.lineNumber))
+      .sort();
+
+  const labelSpots = (layout: Layout): string[] =>
+    layout.edges
+      .filter((e) => e.labelX !== undefined)
+      .map(
+        (e) => `${e.lineNumber}@${e.labelX!.toFixed(2)},${e.labelY!.toFixed(2)}`
+      )
+      .sort();
+
+  it('places the same OAUTH labels twice over, all but line 31', async () => {
+    const first = await layoutBoxesAndLines(parseBoxesAndLines(OAUTH));
+    const second = await layoutBoxesAndLines(parseBoxesAndLines(OAUTH));
+    // One unresolved, not six. 31 is the fixture's widest label and has
+    // genuinely nowhere to go (see UNRESOLVED above); 22, 26, 27, 30 and 32 are
+    // the five the clock used to cost a busy machine.
+    expect(unresolved(first)).toEqual(['31']);
+    expect(unresolved(second)).toEqual(unresolved(first));
+    expect(labelSpots(second)).toEqual(labelSpots(first));
+  });
+
+  // 56 boxes in 8 layers of 7, each feeding three of the next layer: 147 lines,
+  // so size (boxes + lines) is 203. Bigger than anything in the corpus on
+  // purpose — the cap has to actually CUT somewhere or it is decoration.
+  const LAYERED = ((): string => {
+    const lines = ['boxes-and-lines Layered', ''];
+    for (let l = 0; l < 8; l++)
+      for (let w = 0; w < 7; w++) lines.push(`L${l}N${w}`);
+    for (let l = 0; l < 7; l++)
+      for (let w = 0; w < 7; w++)
+        for (let k = 0; k < 3; k++)
+          lines.push(`L${l}N${w} -> L${l + 1}N${(w + k) % 7}`);
+    return lines.join('\n');
+  })();
+
+  it('cuts a large graph to a candidate count fixed by its size', async () => {
+    const parsed = parseBoxesAndLines(LAYERED);
+    expect(parsed.nodes.length).toBe(56);
+    expect(parsed.edges.length).toBe(147);
+
+    const run = async (): Promise<{ tried: number; pool: number }> => {
+      let tried = 0;
+      let pool = 0;
+      await layoutBoxesAndLinesSearch(parsed, undefined, {
+        onProgress: (_done, total, phase) => {
+          // `total` is configs.length + refineK, and refineK defaults to 6, so
+          // the pool this graph WOULD have generated unbounded is total - 6.
+          pool = total - 6;
+          if (phase === 'Optimizing layout') tried++;
+        },
+      });
+      return { tried, pool };
+    };
+
+    const first = await run();
+    const second = await run();
+    // Arithmetic, not a measurement: floor(36000 / 203^1.5) = 12.
+    expect(first.tried).toBe(12);
+    expect(first.pool).toBe(19);
+    expect(first.tried).toBeLessThan(first.pool);
+    // The whole point — twice through, same number, whatever else is running.
+    expect(second).toEqual(first);
   });
 });

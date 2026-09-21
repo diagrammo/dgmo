@@ -40,12 +40,48 @@ const ESCALATE_MAX_N = 45;
 const ESCALATE_SEEDS = 18;
 const ESCALATE_REFINE = 10;
 
-// Wall-clock backstop on candidate generation (see `opts.budgetMs`). A normal
-// diagram builds its whole pool in tens of ms and even the escalating worst
-// case targets ~1s, so 5s is an order of magnitude above anything real: it can
-// only fire on a pathological graph, never as a tuning knob that would make
-// ordinary output machine-dependent.
-const DEFAULT_SEARCH_BUDGET_MS = 5000;
+// Deterministic cap on candidate GENERATION. A wall clock stood here until
+// 2026-09-20 (`DEFAULT_SEARCH_BUDGET_MS = 5000`, with `opts.budgetMs` to
+// override it) under a comment claiming it "can only fire on a pathological
+// graph, never as a tuning knob that would make ordinary output
+// machine-dependent". That was false, and #868 is the disproof: the 13-label
+// OAUTH fixture in tests/boxes-and-lines-edge-labels.test.ts is an ordinary
+// diagram, it runs the search TWICE (layout.ts's label-reserving relayout is a
+// second search with its own clock), it needs ~2.5s a pass on an idle 8-core
+// Linux box — and under that suite's own parallel load it crossed 5s and five
+// labels that place on an idle machine came out sitting on node boxes, with no
+// diagnostic anywhere. A clock inside the product makes the picture depend on
+// how busy the machine was.
+//
+// So the bound counts WORK. One unit is one candidate placement on a graph of
+// unit size; `place()` cost against size (nodes + edges), measured on an idle
+// M4 on 2026-09-20 as the slope between 2 and 22 explicit configs, 3 runs each:
+//
+//   n=  4  e=  3   size=  7     0.26 ms per candidate
+//   n=  7  e= 13   size= 20     5.23 ms   ← the OAUTH fixture of #868
+//   n= 13  e= 14   size= 27     5.73 ms   ← gallery/boxes-and-lines.dgmo
+//   n= 32  e= 45   size= 77    16.66 ms   ← the online-marketplace gauntlet
+//   n= 57  e=135   size=192   134.92 ms   ← the largest diagram in the corpus
+//
+// cost / size^1.5 lands in 0.014–0.059 ms across that 27× spread of sizes, so
+// size^1.5 is the weight; a linear weight is off by 19× over the same range.
+// EDGE count is in `size` deliberately — the label-reserving relayout reserves
+// a virtual node per labelled edge, which is what makes a 7-node diagram like
+// OAUTH cost what a 27-element one does, and node count alone (which is all
+// `seedCount` below reads) cannot see it.
+//
+// 36,000 units is the largest whole search any real diagram asks for: the
+// marketplace wants 31 base configs plus 18 escalation seeds at size 77, which
+// is 33,109. Every boxes-and-lines source in this repo's tests and gallery
+// fixtures asks for at most 11,803, so the cap cannot move an ordinary picture
+// — no snapshot shifted when it landed. The 192-element diagram asks for
+// 50,540 and is cut to 13 of its 19 candidates, which is roughly where the 5s
+// wall used to land, except now at the same place on every machine.
+const SEARCH_WORK_CAP = 36_000;
+// Floor, so a graph past anything we have seen still gets a full stage-2
+// refine set (REFINE_K) rather than a single candidate. It only binds above
+// size 330; the largest diagram in the corpus is 192.
+const MIN_SEARCH_CANDIDATES = 6;
 
 function rng(s: number) {
   return () => {
@@ -1020,27 +1056,6 @@ export async function layoutBoxesAndLinesSearch(
      *  gap. Falls back to the normal search when coverage is incomplete or the
      *  frozen layout would overlap. Opt-in (app preview path). */
     stableCollapse?: boolean;
-    /** Wall-clock backstop for candidate GENERATION (default 5000ms), measured
-     *  from the start of the search. A pathological graph can make a single
-     *  dagre placement cost orders of magnitude more than normal, and the pool
-     *  loop would otherwise grind through every config no matter how long that
-     *  takes; past the budget we stop generating and rank whatever we have.
-     *  Stage-2 exact scoring is NOT time-boxed — it's already bounded by
-     *  `refineK` and it's where the layout quality comes from. Set 0 (or a
-     *  negative) to disable the bound entirely.
-     *
-     *  🔴 This is a wall clock, so the pool it produces depends on how busy the
-     *  machine is, and the claim that lived here until 2026-09-02 — that the
-     *  default sits far above what any real diagram needs, so results stay
-     *  deterministic — is FALSE. On an idle 8-core Linux box the reported OAuth
-     *  flow (tests/boxes-and-lines-arrowheads.test.ts) finishes inside it; with
-     *  16 spinning processes on that same box it does not, settles for a worse
-     *  layout, and reaches the label-reserving relayout that a fast run never
-     *  needs. Everything downstream of the pool IS deterministic — same pool,
-     *  same answer — but the pool is not, so never treat a layout difference
-     *  between two machines as a code change, and never write a test that
-     *  depends on which candidates got generated. */
-    budgetMs?: number;
   }
 ): Promise<BLLayoutResult> {
   const hideDescriptions = opts?.hideDescriptions ?? false;
@@ -1063,13 +1078,11 @@ export async function layoutBoxesAndLinesSearch(
   const YIELD_EVERY_MS = 30;
   const searchStart = performance.now();
   let lastYield = searchStart;
-  // Generation deadline (see `opts.budgetMs`). Shares `searchStart` with the
-  // yield throttle above — one clock for the whole search. A non-positive
-  // budget means "no deadline", which is what the snapshot tests want when they
-  // need the pool generated in full regardless of how slow the machine is.
-  const budgetMs = opts?.budgetMs ?? DEFAULT_SEARCH_BUDGET_MS;
-  const overBudget = (): boolean =>
-    budgetMs > 0 && performance.now() - searchStart > budgetMs;
+  // 🔴 `searchStart` is the YIELD throttle's clock and nothing else's. It used
+  // to be the generation deadline's too — one clock for the whole search — and
+  // that deadline is gone (see SEARCH_WORK_CAP). Yielding only decides when the
+  // main thread is ceded to paint, so it changes latency and never the layout;
+  // never hang anything that picks candidates off this clock again.
 
   // collapsed group labels (shown as plain boxes) — mirrors the ELK path
   const collapsedGroupLabels = new Set<string>();
@@ -1397,6 +1410,24 @@ export async function layoutBoxesAndLinesSearch(
   const lambda = opts?.lambda ?? DEFAULT_LAMBDA;
   const prev = opts?.previousPositions;
 
+  // Deterministic stopping condition for candidate generation, fixed before a
+  // single candidate is placed (see SEARCH_WORK_CAP). `seedCount` above is
+  // already size-adaptive on NODES; this is the same idea carried to total
+  // work, and it is the only thing that stops the pool loop early — so the
+  // same diagram attempts the same candidates on an idle Mac and a loaded
+  // Linux box, and the picture no longer records how busy the machine was.
+  const searchSize = Math.max(1, n + parsed.edges.length);
+  const maxCandidates = Math.max(
+    MIN_SEARCH_CANDIDATES,
+    Math.floor(SEARCH_WORK_CAP / Math.pow(searchSize, 1.5))
+  );
+  // Candidate placements ATTEMPTED, counted across both generation loops (the
+  // base pool and the escalation seed batch, which share the one cap). Attempts
+  // rather than successes: a config that makes dagre throw has already cost its
+  // `place()`, and a graph where most configs choke is exactly the one the cap
+  // is for.
+  let attempts = 0;
+
   // Candidate configs: every (ranker × spacing) combo + seed-shuffles of the
   // default. Diverse candidates lower the crossing floor; seed-shuffles vary
   // dagre's within-layer ordering. An explicit `opts.configs` (label-reserving
@@ -1468,6 +1499,7 @@ export async function layoutBoxesAndLinesSearch(
   const pool: BLLayoutResult[] = [];
   const cfgOf = new Map<BLLayoutResult, BLSearchConfig>();
   for (const cfg of configs) {
+    attempts++;
     try {
       const lay = place(cfg);
       pool.push(lay);
@@ -1476,11 +1508,11 @@ export async function layoutBoxesAndLinesSearch(
       /* some rankers choke on odd graphs */
     }
     await step('Optimizing layout');
-    // Stop generating once the budget is spent — a truncated pool still ranks
+    // Stop generating once the work cap is spent — a truncated pool still ranks
     // and refines normally, so the search degrades to "fewer candidates"
     // instead of running unbounded. Requires at least one candidate: an empty
     // pool would skip straight to the fallback below and throw away the work.
-    if (pool.length && overBudget()) break;
+    if (pool.length && attempts >= maxCandidates) break;
   }
   if (!pool.length) {
     // Last resort: every candidate choked, so lay the graph out with the plain
@@ -1637,6 +1669,7 @@ export async function layoutBoxesAndLinesSearch(
         ranksep: 60,
         seed: s,
       };
+      attempts++;
       try {
         const lay = place(cfg);
         extra.push(lay);
@@ -1644,10 +1677,11 @@ export async function layoutBoxesAndLinesSearch(
       } catch {
         /* ignore choking rankers */
       }
-      // Same generation deadline as the base pool: the extra seed batch is the
-      // other place a hard graph can spend unbounded time. Dropping out early
-      // just means fewer restarts to refine — the stage-1 winner still stands.
-      if (overBudget()) break;
+      // Same work cap as the base pool, on the same running count: the extra
+      // seed batch is the other place a hard graph can spend unbounded time.
+      // Dropping out early just means fewer restarts to refine — the stage-1
+      // winner still stands.
+      if (attempts >= maxCandidates) break;
     }
     const extraKey = new Map<BLLayoutResult, number>();
     for (const lay of extra)
