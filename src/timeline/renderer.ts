@@ -2,6 +2,7 @@
 // Timeline renderer — Story 109.2 (arch-review). Extracted from d3.ts.
 // ============================================================
 
+import { escapeHtml } from '../embed/escape';
 import { tagAttrKey } from '../utils/tag-groups';
 import { GRID_DASH, EDGE_DASH, scaleDash } from '../utils/visual-conventions';
 import { getPalette, DEFAULT_PALETTE_ID } from '../palettes';
@@ -702,7 +703,11 @@ function buildEventTooltipHtml(ev: TimelineEvent): string {
   const datePart = ev.endDate
     ? `${formatDateLabel(ev.date)} → ${formatDateLabel(ev.endDate)}`
     : formatDateLabel(ev.date);
-  return `<strong>${ev.label}</strong><br>${datePart}`;
+  // `ev.label` is DGMO source text and this string reaches the live DOM through
+  // showTooltip's `tooltip.innerHTML`, so it is escaped here. `datePart` is not:
+  // it is built by formatDateLabel out of `ev.date`, which the parser produces
+  // from parsed integers via toInternal() and never from raw source bytes.
+  return `<strong>${escapeHtml(ev.label)}</strong><br>${datePart}`;
 }
 
 // ============================================================
