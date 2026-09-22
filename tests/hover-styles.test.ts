@@ -114,6 +114,79 @@ describe('buildHoverCss — legend pairing casing (AC1h / F2)', () => {
   });
 });
 
+describe('buildHoverCss — the mark→legend mirror (diagrammo/diagrammo#852)', () => {
+  it('dim: hovering a mark dims every legend entry but its own', () => {
+    const spec: HoverSpec = { ...ENUM, legend: true };
+    const css = buildHoverCss(spec, { values: ['Sales'] }, 'dim');
+    expect(css).toContain(
+      'svg:has(.dgmo-datum[data-emph-key="Sales"]:hover):has([data-legend-entry="sales"]) [data-legend-entry]:not([data-legend-entry="sales"]){opacity:0.4}'
+    );
+  });
+
+  it('lift: hovering a mark lifts its legend entry, with no :not() dim', () => {
+    const spec: HoverSpec = { ...ENUM, legend: true };
+    const css = buildHoverCss(spec, { values: ['Sales'] }, 'lift');
+    expect(css).toContain(
+      'svg:has(.dgmo-datum[data-emph-key="Sales"]:hover) [data-legend-entry="sales"]{filter:'
+    );
+    expect(css).not.toContain(':not([data-legend-entry=');
+  });
+
+  it('emits one mirror rule per value, alongside the forward one', () => {
+    const spec: HoverSpec = { ...ENUM, legend: true };
+    const css = buildHoverCss(spec, { values: ['A', 'B'] }, 'dim');
+    const forward = css.match(/svg:has\(\[data-legend-entry=/g) ?? [];
+    const mirror = css.match(/\) \[data-legend-entry\]:not\(/g) ?? [];
+    expect(forward).toHaveLength(2);
+    expect(mirror).toHaveLength(2);
+  });
+
+  it('is emitted for a tag-group legend on a non-enumerated chart too', () => {
+    // The graph family: cross rules are node→edge, the legend pairs on its own
+    // tag attr. The mirror rides with the forward rule at that site as well.
+    const spec: HoverSpec = {
+      markSelector: '.org-node',
+      strategy: 'connection',
+      hoverSelector: '.org-node',
+      hoverAttr: 'data-node-id',
+      edgeSelector: '.org-edge',
+      fromAttr: 'data-from',
+      toAttr: 'data-to',
+      legend: true,
+      emphasis: 'dim',
+    };
+    const css = buildHoverCss(
+      spec,
+      { ids: [], legendAttr: 'data-tag-rank', legendValues: ['captain'] },
+      'dim'
+    );
+    expect(css).toContain(
+      'svg:has(.org-node[data-tag-rank="captain"]:hover):has([data-legend-entry="captain"]) [data-legend-entry]:not([data-legend-entry="captain"])'
+    );
+  });
+
+  it('escapes the mirror literals exactly as the forward rule does', () => {
+    const spec: HoverSpec = { ...ENUM, legend: true };
+    const css = buildHoverCss(spec, { values: ['a"b'] }, 'dim');
+    expect(css).toContain('[data-emph-key="a\\"b"]:hover');
+    expect(css).toContain(
+      '[data-legend-entry]:not([data-legend-entry="a\\"b"])'
+    );
+  });
+
+  it('a pairing still counts ONCE against the cap, not once per direction', () => {
+    // 20 values was the legend ceiling before the mirror existed; adding a
+    // third rule per value must not retire cross-highlighting a chart has.
+    const spec: HoverSpec = { ...ENUM, legend: true };
+    const values = Array.from({ length: 20 }, (_, i) => `v${i}`);
+    const css = buildHoverCss(spec, { values }, 'dim');
+    expect(css).not.toContain('exceeds cap');
+    expect((css.match(/\) \[data-legend-entry\]:not\(/g) ?? []).length).toBe(
+      20
+    );
+  });
+});
+
 describe('buildHoverCss — cap (AC1c / F10)', () => {
   it('bails to self-emphasis only past the cap, counting legend rules', () => {
     // 30 values × (enumerated + legend) = 60 > 40 → over cap

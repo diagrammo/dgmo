@@ -50,7 +50,7 @@ export interface HoverSpec {
   emphasis?: HoverEmphasis;
   /** Dim opacity for non-matched marks (dim mode only). Default 0.4. */
   dimOpacity?: number;
-  /** Emit legend↔mark pairing rules (`data-legend-entry`). */
+  /** Emit legend↔mark pairing rules (`data-legend-entry`), both directions. */
   legend?: boolean;
   /** Emit the `${mark}:hover` self rule. Default true. */
   selfEmphasis?: boolean;
@@ -187,6 +187,29 @@ function legendRule(
     : `${trigger} ${mark}:not([${attr}="${attrLit}"]){opacity:${dimOpacity}}`;
 }
 
+/** The mirror of `legendRule` for value `v`: hover a MARK, emphasize its legend
+ *  entry (diagrammo/diagrammo#852). Same two literals, trigger and subject
+ *  swapped — the mark keeps its raw baked casing, `data-legend-entry` is
+ *  lowercased at the source. */
+function legendReverseRule(
+  mark: string,
+  attr: string,
+  v: string,
+  emphasis: HoverEmphasis,
+  dimOpacity: number
+): string {
+  const entryLit = escCssString(v.toLowerCase());
+  const attrLit = escCssString(v);
+  const trigger = `svg:has(${mark}[${attr}="${attrLit}"]:hover)`;
+  if (emphasis === 'lift')
+    return `${trigger} [data-legend-entry="${entryLit}"]{${LIFT_DECL}}`;
+  // `:has([data-legend-entry="v"])` is the mirror of the injector's rule that
+  // values are read off the MARKS, never off the legend: a mark whose group
+  // value the legend never drew would otherwise dim every entry and emphasize
+  // none. `lift` needs no such guard — it has nothing to lift.
+  return `${trigger}:has([data-legend-entry="${entryLit}"]) [data-legend-entry]:not([data-legend-entry="${entryLit}"]){opacity:${dimOpacity}}`;
+}
+
 /** One connection rule for node id `id` — dim edges not incident to it. */
 function connectionRule(
   spec: HoverSpec,
@@ -236,6 +259,11 @@ export function buildHoverCss(
         : `svg:has(${g}:hover) ${g}:not(:hover){opacity:${dimOpacity}}`
     );
   } else if (spec.strategy === 'enumerated' && spec.groupAttr) {
+    // 🔴 A legend PAIRING counts once, not once per direction. Since #852 it
+    // emits two rules per value (legend→mark and the mirror, mark→legend);
+    // counting the mirror separately would push every legend chart between 14
+    // and 20 values over the cap and retire cross-highlighting it has today,
+    // which is the silent fallback #852 forbids. The cap's unit is the pairing.
     const legendCount = spec.legend ? values.length : 0;
     if (values.length + legendCount > MAX_HOVER_GROUPS) {
       // Over cap: self-emphasis only, record the skip.
@@ -263,6 +291,13 @@ export function buildHoverCss(
               v,
               emphasis,
               dimOpacity
+            ),
+            legendReverseRule(
+              spec.markSelector,
+              spec.groupAttr,
+              v,
+              emphasis,
+              dimOpacity
             )
           );
         }
@@ -281,8 +316,9 @@ export function buildHoverCss(
   // Legend pairing for a chart whose legend is a TAG-group legend while its
   // cross rules key off something else — the graph family (node→edge) and
   // gantt (`data-group`). Emitted alongside those rules rather than instead of
-  // them: hovering a NODE dims non-incident edges, hovering a LEGEND ENTRY dims
-  // non-matching marks, and the two triggers cannot fire at once. The marks
+  // them: hovering a NODE dims non-incident edges AND (since #852) the legend
+  // entries its tag does not name, hovering a LEGEND ENTRY dims non-matching
+  // marks, and the legend and node triggers cannot fire at once. The marks
   // already carry `data-tag-<slug>` lowercased and the legend already emits
   // `data-legend-entry` lowercased, so this needs no renderer change.
   const legendValues = derived.legendValues ?? [];
@@ -295,6 +331,13 @@ export function buildHoverCss(
       for (const v of legendValues) {
         cross.push(
           legendRule(
+            spec.markSelector,
+            derived.legendAttr,
+            v,
+            emphasis,
+            dimOpacity
+          ),
+          legendReverseRule(
             spec.markSelector,
             derived.legendAttr,
             v,

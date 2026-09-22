@@ -299,6 +299,83 @@ y-label Plunder
   Zed 80 30
   Yan 50 65`;
 
+const STACKED_BAR = `bar Revenue by Line
+stack
+  Hardware
+  Services
+  Support
+
+Q1 40 25 10
+Q2 30 45 12`;
+
+// The mirror of the block below: hovering a MARK emphasizes its legend entry
+// (diagrammo/diagrammo#852). Before it, the legend — the one surface that names
+// a colour — did nothing while the other segments receded.
+describe('mark hover → legend emphasis', () => {
+  const legendEntry = (name: string) =>
+    svg.querySelector<SVGGElement>(
+      `.chart-legend [data-series-name="${name}"]`
+    )!;
+  const segment = (series: string) =>
+    svg.querySelector<SVGElement>(`.dgmo-datum[data-series-name="${series}"]`)!;
+
+  it('stacked bar: hovering a segment dims every legend row but its own', async () => {
+    await mount(STACKED_BAR);
+    segment('Hardware').dispatchEvent(
+      new MouseEvent('mousemove', { bubbles: true })
+    );
+    expect(legendEntry('Hardware').classList.contains('dgmo-dim')).toBe(false);
+    expect(legendEntry('Services').classList.contains('dgmo-dim')).toBe(true);
+    expect(legendEntry('Support').classList.contains('dgmo-dim')).toBe(true);
+  });
+
+  it('stacked bar: leaving the chart restores every legend row', async () => {
+    await mount(STACKED_BAR);
+    segment('Services').dispatchEvent(
+      new MouseEvent('mousemove', { bubbles: true })
+    );
+    expect(legendEntry('Hardware').classList.contains('dgmo-dim')).toBe(true);
+    svg.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
+    expect(
+      [...svg.querySelectorAll('.chart-legend [data-legend-entry]')].some((e) =>
+        e.classList.contains('dgmo-dim')
+      )
+    ).toBe(false);
+  });
+
+  it('scatter: hovering a bubble dims the other category, matching the marks', async () => {
+    await mount(SCATTER_CAT);
+    svg
+      .querySelector<SVGElement>('.dgmo-datum[data-emph-key="Alice"]')!
+      .dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+    expect(legendEntry('Crew A').classList.contains('dgmo-dim')).toBe(false);
+    expect(legendEntry('Crew B').classList.contains('dgmo-dim')).toBe(true);
+  });
+
+  it('a mark the legend does not name leaves the whole legend alone', async () => {
+    // The mirror of "values are read off the marks, never off the legend": a
+    // key with no entry must emphasize nothing rather than dim everything.
+    await mount(STACKED_BAR);
+    const mark = segment('Hardware');
+    mark.setAttribute('data-series-name', 'Nothing Named This');
+    mark.setAttribute('data-emph-key', 'Nothing Named This');
+    mark.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+    expect(
+      [...svg.querySelectorAll('.chart-legend [data-legend-entry]')].some((e) =>
+        e.classList.contains('dgmo-dim')
+      )
+    ).toBe(false);
+  });
+
+  it('the dim style reaches a legend entry, which carries no dgmo-* class', async () => {
+    await mount(STACKED_BAR);
+    const css = svg.querySelector(
+      '#dgmo-chart-interactions-style'
+    )!.textContent!;
+    expect(css).toContain('[data-legend-entry].dgmo-dim');
+  });
+});
+
 describe('legend hover → series emphasis', () => {
   const seriesGroup = (name: string) =>
     svg.querySelector<SVGGElement>(`.dgmo-series[data-series-name="${name}"]`)!;

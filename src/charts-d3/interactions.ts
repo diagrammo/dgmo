@@ -48,7 +48,8 @@ function ensureStyle(svg: SVGSVGElement, muted: string): void {
   style.id = STYLE_ID;
   style.textContent = `
     .dgmo-series,.dgmo-datum,.dgmo-tick,.dgmo-ptlabel{transition:opacity .12s ease}
-    .dgmo-series.dgmo-dim,.dgmo-datum.dgmo-dim,.dgmo-ptlabel.dgmo-dim{opacity:.18}
+    [data-legend-entry]{transition:opacity .12s ease}
+    .dgmo-series.dgmo-dim,.dgmo-datum.dgmo-dim,.dgmo-ptlabel.dgmo-dim,[data-legend-entry].dgmo-dim{opacity:.18}
     .dgmo-tick.dgmo-faded{opacity:.22}
     .dgmo-datum{cursor:pointer}
     .dgmo-axis-label{cursor:pointer}
@@ -115,6 +116,12 @@ export function attachDataChartInteractions(
     svg.querySelectorAll<SVGGElement>('.dgmo-series')
   );
   const datums = Array.from(svg.querySelectorAll<SVGElement>('.dgmo-datum'));
+  // The injected series legend (utils/legend-svg.ts). Read here rather than at
+  // the legend-hover block below because the MARK→legend mirror (#852) needs
+  // it too, and that runs from the datum handlers further up.
+  const legendEntries = Array.from(
+    svg.querySelectorAll<SVGGElement>('.chart-legend [data-legend-entry]')
+  );
   const circles = Array.from(
     svg.querySelectorAll<SVGCircleElement>('.dgmo-pt')
   );
@@ -223,6 +230,26 @@ export function attachDataChartInteractions(
   const ptLabels = Array.from(
     svg.querySelectorAll<SVGElement>('.dgmo-ptlabel')
   );
+  // ── mark hover → emphasize its legend entry (diagrammo/diagrammo#852) ───
+  // The mirror of the legend→mark pairing below. The legend entry carries the
+  // same RAW `data-series-name` the mark does (legend-svg.ts), so the two pair
+  // exactly; a chart whose marks key off something the legend never names is
+  // left alone rather than dimmed whole — the same rule the baked-CSS path
+  // states as "values are read off the marks, never off the legend".
+  const dimLegendExcept = (el: Element | null) => {
+    const name =
+      el?.getAttribute('data-series-name') ??
+      el?.getAttribute('data-emph-key') ??
+      null;
+    const paired =
+      name != null &&
+      legendEntries.some((e) => e.getAttribute('data-series-name') === name);
+    for (const e of legendEntries)
+      e.classList.toggle(
+        'dgmo-dim',
+        paired && e.getAttribute('data-series-name') !== name
+      );
+  };
   const dimDatumsExcept = (el: Element | null) => {
     for (const d of datums) d.classList.toggle('dgmo-dim', d !== el);
     const line = el?.getAttribute('data-line-number');
@@ -231,6 +258,7 @@ export function attachDataChartInteractions(
         'dgmo-dim',
         line == null || l.getAttribute('data-line-number') !== line
       );
+    dimLegendExcept(el);
   };
   const dimByKey = (el: SVGElement) => {
     const key = el.getAttribute('data-emph-key');
@@ -239,11 +267,13 @@ export function attachDataChartInteractions(
       if (key) d.classList.toggle('dgmo-dim', dk !== key);
       else d.classList.toggle('dgmo-dim', d !== el);
     }
+    dimLegendExcept(el);
   };
   const clearDim = () => {
     for (const d of datums) d.classList.remove('dgmo-dim');
     for (const g of seriesGroups) g.classList.remove('dgmo-dim');
     for (const l of ptLabels) l.classList.remove('dgmo-dim');
+    for (const e of legendEntries) e.classList.remove('dgmo-dim');
     reapplyAxisPin();
   };
 
@@ -530,9 +560,6 @@ export function attachDataChartInteractions(
   // entry dims every OTHER series (group + its datums); leaving restores. Only
   // series-tagged elements are touched, so charts without series groups are
   // untouched. Dimming the g.dgmo-series fades its polygon, points, and labels.
-  const legendEntries = Array.from(
-    svg.querySelectorAll<SVGGElement>('.chart-legend [data-legend-entry]')
-  );
   const emphasizeSeries = (name: string | null) => {
     for (const g of seriesGroups) {
       const sn = g.getAttribute('data-series-name');
