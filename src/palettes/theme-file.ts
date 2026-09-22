@@ -1,4 +1,4 @@
-import { contrastRatio, shapeFill } from './color-utils';
+import { apcaContrast, contrastRatio, shapeFill } from './color-utils';
 import { COLOR_KEYS, SEMANTIC_KEYS, isValidHex } from './registry';
 import type { PaletteColors, PaletteConfig } from './types';
 
@@ -22,6 +22,14 @@ import type { PaletteColors, PaletteConfig } from './types';
  * text-on-fill pair falls below this is refused.
  */
 const CONTRAST_FLOOR = 4.5;
+
+/**
+ * APCA floor for a label on a SOLID fill — the repo's own existing bar, from
+ * `tests/palette-contrast.test.ts`, which every built-in clears. A solid fill
+ * is the raw intent color with no theme base mixed in, so the WCAG floor above
+ * (which is stated against `shapeFill()` output) does not reach it.
+ */
+const SOLID_FLOOR_LC = 45;
 
 /**
  * The palette fields that reach `shapeFill()` as an intent color: the eleven
@@ -100,21 +108,40 @@ function describe(value: unknown): string {
   return typeof value;
 }
 
+/** Every field of a palette that reaches `shapeFill()` as an intent color. */
+function intents(colors: PaletteColors): [string, string][] {
+  const out: [string, string][] = [];
+  for (const key of COLOR_KEYS) out.push([`colors.${key}`, colors.colors[key]]);
+  for (const key of FILL_ACCENT_KEYS) out.push([key, colors[key]]);
+  return out;
+}
+
+/** The better of the two text tokens on one background, by one measure. */
+function betterToken(
+  colors: PaletteColors,
+  bg: string,
+  score: (text: string, bg: string) => number
+): { score: number; token: 'textOnFillLight' | 'textOnFillDark' } {
+  const light = score(colors.textOnFillLight, bg);
+  const dark = score(colors.textOnFillDark, bg);
+  return light >= dark
+    ? { score: light, token: 'textOnFillLight' }
+    : { score: dark, token: 'textOnFillDark' };
+}
+
 /**
- * The worst text-on-fill pair in one mode: for every fill the palette defines,
- * the better of the two text tokens, and then the weakest of those.
+ * The worst text-on-TINTED-fill pair, for one theme base.
  *
- * 🔴 The fill measured is `shapeFill()`'s OUTPUT, not the intent color that
- * went into it. That is the surface a label is actually drawn on, and it is
- * the invariant `PaletteColors.textOnFillLight` states in so many words:
- * "Must guarantee >= 4.5:1 WCAG AA against any `shapeFill()` the palette can
- * produce." Measuring the raw intent instead asks the wrong question twice
- * over — it tests a background that only `fill-solid` ever paints, and it
- * leaves `surface` and `bg` unmeasured although they are 75% of every
- * canonical fill. Solid fills have their own, different bar: APCA Lc 45, in
- * `tests/palette-contrast.test.ts`, which no built-in may fall below.
+ * 🔴 The background measured is `shapeFill()`'s OUTPUT, not the intent color
+ * that went into it — that is the surface a tinted label is actually drawn on,
+ * and it is the invariant `PaletteColors.textOnFillLight` states in so many
+ * words. Measuring the raw intent instead leaves `surface` and `bg` unmeasured
+ * although they are three quarters of every canonical fill.
+ *
+ * `isDark` picks which of the two the intent is mixed into (`themeBaseBg`), so
+ * a palette that serves both render modes has to be measured against both.
  */
-function worstFillPair(
+function worstTintedFill(
   colors: PaletteColors,
   isDark: boolean
 ): {
@@ -123,42 +150,79 @@ function worstFillPair(
   fill: string;
   fillHex: string;
 } {
-  const fills: [string, string][] = [];
-  for (const key of COLOR_KEYS)
-    fills.push([
-      `colors.${key}`,
-      shapeFill(colors, colors.colors[key], isDark),
-    ]);
-  for (const key of FILL_ACCENT_KEYS)
-    fills.push([key, shapeFill(colors, colors[key], isDark)]);
-
-  let worst: ReturnType<typeof worstFillPair> | undefined;
-  for (const [fill, fillHex] of fills) {
-    const light = contrastRatio(colors.textOnFillLight, fillHex);
-    const dark = contrastRatio(colors.textOnFillDark, fillHex);
-    const best =
-      light >= dark
-        ? { ratio: light, token: 'textOnFillLight' as const }
-        : { ratio: dark, token: 'textOnFillDark' as const };
-    if (!worst || best.ratio < worst.ratio) {
-      worst = { ...best, fill, fillHex };
+  let worst: ReturnType<typeof worstTintedFill> | undefined;
+  for (const [fill, intent] of intents(colors)) {
+    const fillHex = shapeFill(colors, intent, isDark);
+    const best = betterToken(colors, fillHex, contrastRatio);
+    if (!worst || best.score < worst.ratio) {
+      worst = { ratio: best.score, token: best.token, fill, fillHex };
     }
   }
-  // FILL_ACCENT_KEYS and COLOR_KEYS are both non-empty, so the loop always ran.
+  // COLOR_KEYS and FILL_ACCENT_KEYS are non-empty, so the loop always ran.
   return worst!;
 }
 
+/**
+ * The worst text-on-SOLID-fill pair. Under `fill-solid` a shape's background
+ * IS the intent color, with no tint and no theme base, so the tinted check
+ * above never sees it — and a theme file is the one input nothing else checks.
+ * The built-in registry is held to APCA Lc 45 here by
+ * `tests/palette-contrast.test.ts`, and all seven clear it; this applies that
+ * same existing bar to a file, rather than inventing a second number.
+ */
+function worstSolidFill(colors: PaletteColors): {
+  lc: number;
+  token: 'textOnFillLight' | 'textOnFillDark';
+  fill: string;
+  fillHex: string;
+} {
+  const lc = (text: string, bg: string) => Math.abs(apcaContrast(text, bg));
+  let worst: ReturnType<typeof worstSolidFill> | undefined;
+  for (const [fill, intent] of intents(colors)) {
+    const best = betterToken(colors, intent, lc);
+    if (!worst || best.score < worst.lc) {
+      worst = { lc: best.score, token: best.token, fill, fillHex: intent };
+    }
+  }
+  return worst!;
+}
+
+/**
+ * Both fill families, for one set of colors serving one render mode.
+ *
+ * `where` labels the RENDER mode, which is not always the mode the file
+ * declared: a one-mode theme colors both, so its colors are measured against
+ * both theme bases and a failure has to say which one it was found in.
+ */
 function collectContrastErrors(
   colors: PaletteColors,
-  mode: 'light' | 'dark',
+  where: string,
+  isDark: boolean,
   errors: string[]
 ): void {
-  const worst = worstFillPair(colors, mode === 'dark');
-  if (worst.ratio >= CONTRAST_FLOOR) return;
+  const tinted = worstTintedFill(colors, isDark);
+  if (tinted.ratio < CONTRAST_FLOOR) {
+    errors.push(
+      `${where}: ${tinted.token} ${colors[tinted.token]} on the ` +
+        `${tinted.fill} fill ${tinted.fillHex} reaches only ` +
+        `${tinted.ratio.toFixed(2)}:1 — text on a fill needs ` +
+        `${CONTRAST_FLOOR.toFixed(1)}:1`
+    );
+  }
+}
+
+/** The solid-fill bar, measured once per distinct block of colors. */
+function collectSolidErrors(
+  colors: PaletteColors,
+  where: string,
+  errors: string[]
+): void {
+  const solid = worstSolidFill(colors);
+  if (solid.lc >= SOLID_FLOOR_LC) return;
   errors.push(
-    `${mode}: ${worst.token} ${colors[worst.token]} on the ${worst.fill} ` +
-      `fill ${worst.fillHex} reaches only ${worst.ratio.toFixed(2)}:1 — ` +
-      `text on a fill needs ${CONTRAST_FLOOR.toFixed(1)}:1`
+    `${where}: ${solid.token} ${colors[solid.token]} on the solid ` +
+      `${solid.fill} ${solid.fillHex} reaches only Lc ` +
+      `${solid.lc.toFixed(1)} — text on a solid fill needs Lc ${SOLID_FLOOR_LC}`
   );
 }
 
@@ -231,9 +295,34 @@ export function validateThemeFile(input: unknown): ThemeFileResult {
       );
       continue;
     }
-    if (collectShapeErrors(value, key, errors)) {
-      modes[key] = value;
-      collectContrastErrors(value, key, errors);
+    if (collectShapeErrors(value, key, errors)) modes[key] = value;
+  }
+
+  // 🔴 Contrast runs on the ASSEMBLED palette, after the shape is known good,
+  // and never on the file's blocks as written. A one-mode file colors both
+  // modes, so the colors it defined are mixed into `bg` in a light render and
+  // into `surface` in a dark one — two different backgrounds, and measuring
+  // only the declared mode's leaves the other unchecked on a palette the
+  // renderer will happily draw either way. Shape first: a mode that failed
+  // above is not in `modes`, and scoring colors that are not hex is nonsense.
+  if (errors.length === 0) {
+    const light = modes.light ?? modes.dark!;
+    const dark = modes.dark ?? modes.light!;
+    const declaredMode = mode;
+    const label = (render: 'light' | 'dark') =>
+      declaredMode !== null && render !== declaredMode
+        ? `${render} (a theme declaring mode "${declaredMode}" is used in ` +
+          `${render} mode too)`
+        : render;
+    collectContrastErrors(light, label('light'), false, errors);
+    collectContrastErrors(dark, label('dark'), true, errors);
+    // A solid fill is the intent itself, with no theme base, so a mirrored
+    // palette would otherwise report the identical line twice.
+    if (declaredMode !== null) {
+      collectSolidErrors(light, declaredMode, errors);
+    } else {
+      collectSolidErrors(light, 'light', errors);
+      collectSolidErrors(dark, 'dark', errors);
     }
   }
 

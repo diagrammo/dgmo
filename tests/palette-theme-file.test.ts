@@ -249,6 +249,81 @@ describe('validateThemeFile — the worst text-on-fill pair', () => {
     ]);
   });
 
+  // 🔴 A one-mode theme colors BOTH modes, so its colors get mixed into `bg`
+  // in a light render and into `surface` in a dark one. Measuring only the
+  // declared mode's base leaves the other unchecked on a palette the renderer
+  // will draw either way, and the message has to say which render mode the
+  // failure was found in — the author declared the other one.
+  it('measures a one-mode dark theme in a LIGHT render too, through bg', () => {
+    const file = slateDarkFile();
+    (file['dark'] as Record<string, unknown>)['bg'] = '#666666';
+    const result = validateThemeFile(file);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors).toEqual([
+      'light (a theme declaring mode "dark" is used in light mode too): ' +
+        'textOnFillLight #ffffff on the colors.yellow fill #837c63 ' +
+        'reaches only 4.18:1 — text on a fill needs 4.5:1',
+    ]);
+  });
+
+  it('measures a one-mode light theme in a DARK render too, through surface', () => {
+    const light = structuredClone(getPalette('slate').light) as Record<
+      string,
+      unknown
+    >;
+    light['surface'] = '#8f8f8f';
+    const result = validateThemeFile({
+      id: 'omarchy',
+      name: 'Omarchy',
+      mode: 'light',
+      light,
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors).toEqual([
+      'dark (a theme declaring mode "light" is used in dark mode too): ' +
+        'textOnFillDark #1f2933 on the secondary fill #828588 ' +
+        'reaches only 3.98:1 — text on a fill needs 4.5:1',
+    ]);
+  });
+
+  // 🔴 `fill-solid` paints the intent itself, with no theme base mixed in, so
+  // the tinted check above never sees that background. The built-in registry
+  // is held to APCA Lc 45 on it by `tests/palette-contrast.test.ts`, and a
+  // theme file never enters that suite — this is the same bar, applied where
+  // it was missing rather than a second number invented.
+  it('refuses a solid fill its text tokens cannot be read on', () => {
+    const file = slateDarkFile();
+    const dark = file['dark'] as Record<string, unknown> & {
+      colors: Record<string, unknown>;
+    };
+    dark['textOnFillLight'] = '#d0d0d0';
+    dark['textOnFillDark'] = '#808080';
+    dark.colors['gray'] = '#acacac';
+    const result = validateThemeFile(file);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors).toEqual([
+      'dark: textOnFillDark #808080 on the solid colors.gray #acacac ' +
+        'reaches only Lc 20.0 — text on a solid fill needs Lc 45',
+    ]);
+  });
+
+  it('reports a mirrored theme’s solid failure once, not twice', () => {
+    const file = slateDarkFile();
+    const dark = file['dark'] as Record<string, unknown> & {
+      colors: Record<string, unknown>;
+    };
+    dark['textOnFillLight'] = '#d0d0d0';
+    dark['textOnFillDark'] = '#808080';
+    dark.colors['gray'] = '#acacac';
+    const result = validateThemeFile(file);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors).toHaveLength(1);
+  });
+
   // The fill is three quarters theme base, so the base is what most decides
   // whether a label can be read — and measuring the intent alone never saw it.
   it('refuses a theme whose surface makes every fill unreadable', () => {
