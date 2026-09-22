@@ -290,11 +290,11 @@ export { supportsD3DataChart, D3_DATA_CHART_TYPES } from './charts-d3';
 
 // ============================================================
 // The sanitizing boundary for renderer output entering a live document.
-// Browser-only. Every host that assigns rendered markup with innerHTML or
-// dangerouslySetInnerHTML calls one of these first; `mountD3DataChart` above
-// calls `sanitizeSvgInPlace` itself.
+// Browser-only, and it takes an ELEMENT: parse into a detached holder,
+// sanitize, then move the result into the page — the module comment says why
+// the order is load-bearing. `mountD3DataChart` above does exactly that.
 // ============================================================
-export { sanitizeSvgInPlace, sanitizeSvgMarkup } from './utils/sanitize-svg';
+export { sanitizeSvgInPlace } from './utils/sanitize-svg';
 
 // ============================================================
 // Public types

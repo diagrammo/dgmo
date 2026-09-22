@@ -18,9 +18,18 @@ const SCHEME_RE = /^([a-z][a-z0-9+.-]*):/i;
 // eslint-disable-next-line no-control-regex
 const LEADING_TRIM_RE = /^[\x00-\x20]+/;
 
+// …and they strip tab, LF and CR from ANYWHERE in the URL, not only the front,
+// so `java&#9;script:alert(1)` navigates to `javascript:alert(1)`. Trimming
+// only the leading run let that through the allowlist unchanged: the scheme
+// regex saw `java` followed by a tab, matched nothing, and the value was
+// classified as a relative path. Found by the reviewer on
+// diagrammo/diagrammo#884, with the surviving `href` reproduced in jsdom.
+// eslint-disable-next-line no-control-regex
+const URL_STRIP_RE = /[\x09\x0A\x0D]/g;
+
 export function safeHref(url: string | undefined | null): string | null {
   if (typeof url !== 'string') return null;
-  const trimmed = url.replace(LEADING_TRIM_RE, '');
+  const trimmed = url.replace(URL_STRIP_RE, '').replace(LEADING_TRIM_RE, '');
   if (trimmed.length === 0) return null;
 
   const match = SCHEME_RE.exec(trimmed);

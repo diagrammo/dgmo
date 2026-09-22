@@ -111,3 +111,25 @@ describe('inline-markdown safeHref integration', () => {
     expect(out).not.toMatch(/href=["'][^"']*javascript:/i);
   });
 });
+
+// Browsers remove tab, LF and CR from ANYWHERE in a URL while parsing, not
+// only from the front, so a scheme split by one resolves as if it were whole.
+// `safeHref` trimmed the leading run only: the scheme regex saw `java`
+// followed by a tab, matched nothing, and classified the value as a relative
+// path — so `javascript:` reached the DOM through the allowlist that exists to
+// stop it. Found while reviewing diagrammo/diagrammo#884.
+describe('safeHref — control characters inside the scheme', () => {
+  it.each([
+    'java\tscript:alert(1)',
+    'java\nscript:alert(1)',
+    'java\rscript:alert(1)',
+    'j\ta\nv\ra\tscript:alert(1)',
+    'da\tta:text/html,<script>alert(1)</script>',
+  ])('rejects %j', (url) => {
+    expect(safeHref(url)).toBeNull();
+  });
+
+  it('still accepts an allowed scheme carrying one', () => {
+    expect(safeHref('https\t://example.com')).toBe('https\t://example.com');
+  });
+});
