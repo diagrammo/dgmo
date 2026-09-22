@@ -4,7 +4,7 @@ import { T as Theme } from './themes-CzuBdx1T.js';
 export { M as MapCompletionOptions, a as MapLocationMatch, b as MapPlaceCompletion, c as MapRegionCompletion, d as completeMapPlaces, e as completeMapRegions, p as palettes, s as searchMapLocations, t as themes, f as validate } from './themes-CzuBdx1T.js';
 import { M as MapDataSource } from './d3-B6524aaP.js';
 export { G as Gazetteer, a as GazetteerEntry, b as MapData, R as RegionName, c as RegionNames } from './d3-B6524aaP.js';
-export { C as ChartTypeId, a as ChartTypeMeta, c as chartTypes, g as getPalette, r as resolvePaletteOrFallback } from './chart-types-Db_EGf1o.js';
+export { C as ChartTypeId, a as ChartTypeMeta, c as chartTypes, g as getPalette, r as resolvePaletteOrFallback } from './chart-types-Bf8C5QQW.js';
 
 /**
  * Make an SVG produced by `@diagrammo/dgmo`'s static `render()` suitable for

@@ -1030,6 +1030,8 @@ export {
 
 export type { PaletteConfig, PaletteColors } from './palettes';
 export { mix, shapeFill } from './palettes/color-utils';
+export { validateThemeFile } from './palettes/theme-file';
+export type { ThemeFileResult } from './palettes/theme-file';
 
 // ============================================================
 // Sharing (URL encoding/decoding)

@@ -11,6 +11,10 @@ export {
   isValidHex,
 } from './registry';
 
+// Re-export theme-file validation
+export { validateThemeFile } from './theme-file';
+export type { ThemeFileResult } from './theme-file';
+
 // Re-export utilities
 export {
   hexToHSL,

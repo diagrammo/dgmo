@@ -21,8 +21,15 @@ export function isValidHex(value: string): boolean {
   return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value);
 }
 
-/** Named color keys that must be present in PaletteColors.colors. */
-const COLOR_KEYS: (keyof PaletteColors['colors'])[] = [
+/**
+ * Named color keys that must be present in PaletteColors.colors.
+ *
+ * `black` and `white` joined this list on 2026-09-22 with the two `textOnFill*`
+ * keys below: all four are required by `PaletteColors` and none of the four was
+ * checked, so a palette could reach the renderers missing them or carrying a
+ * value that is not a hex string at all.
+ */
+export const COLOR_KEYS: (keyof PaletteColors['colors'])[] = [
   'red',
   'orange',
   'yellow',
@@ -32,16 +39,20 @@ const COLOR_KEYS: (keyof PaletteColors['colors'])[] = [
   'teal',
   'cyan',
   'gray',
+  'black',
+  'white',
 ];
 
 /** Semantic color keys that must be present at the top level of PaletteColors. */
-const SEMANTIC_KEYS: (keyof Omit<PaletteColors, 'colors'>)[] = [
+export const SEMANTIC_KEYS: (keyof Omit<PaletteColors, 'colors'>)[] = [
   'bg',
   'surface',
   'overlay',
   'border',
   'text',
   'textMuted',
+  'textOnFillLight',
+  'textOnFillDark',
   'primary',
   'secondary',
   'accent',
@@ -77,7 +88,7 @@ function validatePaletteColors(
 
 /**
  * Register a palette. Called at module initialization.
- * Validates that all 19 color fields per mode are present and valid hex.
+ * Validates that all 23 color fields per mode are present and valid hex.
  * Throws on malformed palettes to catch errors at startup, not at render time.
  */
 export function registerPalette(palette: PaletteConfig): void {
