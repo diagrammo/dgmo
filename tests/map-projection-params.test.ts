@@ -64,9 +64,42 @@ const SIZES: Array<[number, number]> = [
 ];
 
 let data: MapData;
+
+// Laid out ONCE per (source, size) and shared by every test below. The four
+// tests assert different things about the SAME layouts, and laying each one out
+// per test is the whole reason this file cost 79s of a 201s suite (#869) — four
+// passes over every fixture where one does.
+//
+// 🔴 Hand a shared layout to nothing that could mutate it: the next test gets
+// the same object. Every test below either only reads it or `structuredClone`s
+// it first, which each was already doing for its own reasons.
+const layouts = new Map<string, MapLayout>();
+const layoutKey = (name: string, width: number, height: number): string =>
+  `${name} @${width}x${height}`;
+
+/** The shared layout for one (source, size). Missing means `beforeAll` did not
+ *  build it — a bug in this file, not in the map code, so it throws rather than
+ *  silently laying one out and putting the cost back. */
+function sharedLayout(name: string, width: number, height: number): MapLayout {
+  const key = layoutKey(name, width, height);
+  const layout = layouts.get(key);
+  if (!layout) throw new Error(`no shared layout for ${key}`);
+  return layout;
+}
+
+// 🔴 The deadline is an argument here, not `vi.setConfig`, and it has to be.
+// A hook's timeout is captured where the hook is REGISTERED, and the
+// `vi.setConfig` below runs later in module evaluation than this line — so it
+// reaches the four `it`s and never reaches this `beforeAll`. Both full-suite
+// runs on 2026-09-22 that relied on it died here at exactly 10000ms, vitest's
+// hook default, and reported the whole file as 5 skipped tests. See the block
+// below for why a file that silently stops asserting is the failure to fear.
 beforeAll(async () => {
   data = await loadMapData();
-});
+  for (const [name, src] of SOURCES)
+    for (const [w, h] of SIZES)
+      layouts.set(layoutKey(name, w, h), layoutOf(src, w, h));
+}, 180_000);
 
 function layoutOf(src: string, width: number, height: number): MapLayout {
   return layoutMap(
@@ -115,10 +148,26 @@ for (let lon = -180; lon <= 180; lon += 7.5)
 // workspace endorses. It is scoped to this file so the tight global guard keeps
 // covering the other 305.
 //
-// The real cost is that each test re-reads and re-lays-out every map fixture;
-// that is why the file alone is 90s of a 335s suite. Worth attacking separately
-// — this only stops it refusing correct pushes in the meantime.
-vi.setConfig({ testTimeout: 180_000 });
+// The re-layout that caused those figures is gone (#869): every layout is built
+// once in the `beforeAll` above. Measured on an idle `anchor`, 2026-09-22, at
+// the same commit either side: the file costs 42.6s inside the full suite
+// against 79.3s before, and 14.2s run alone against 20.3s. 180s stays anyway,
+// because the cost that matters is the one under load and the margin is the
+// point — a budget correct code can plausibly approach is not a safe test.
+//
+// 🔴 `testTimeout` does NOT cover hooks, and the shared layouts moved the
+// expensive part into one. vitest's hook default is 10s; with the layouts in
+// `beforeAll` and 308 other files running beside this one, the hook crossed it
+// and the ENTIRE file reported as 5 skipped tests plus one failed suite —
+// measured 2026-09-22, on the first full-suite run after the change, and again
+// on the second, which set `hookTimeout` here and changed nothing because this
+// line runs after the hook is registered. The deadline that works is the
+// argument on `beforeAll` above. `hookTimeout` is set here anyway, for any hook
+// a later edit declares BELOW this line; it is not what protects that one.
+//
+// A file that silently stops asserting is worse than a slow one, which is why
+// both live in the file and both say so.
+vi.setConfig({ testTimeout: 180_000, hookTimeout: 180_000 });
 
 describe('map layout projection as data (#645)', () => {
   it('covers every gallery map fixture plus an inset map', () => {
@@ -126,9 +175,9 @@ describe('map layout projection as data (#645)', () => {
   });
 
   it('every map layout survives structuredClone', () => {
-    for (const [name, src] of SOURCES) {
+    for (const [name] of SOURCES) {
       for (const [w, h] of SIZES) {
-        const layout = layoutOf(src, w, h);
+        const layout = sharedLayout(name, w, h);
         expect(
           () => structuredClone(layout),
           `${name} @${w}x${h}`
@@ -139,9 +188,9 @@ describe('map layout projection as data (#645)', () => {
 
   it('the rebuilt projection projects and inverts exactly like the one layout fitted', () => {
     let insetsChecked = 0;
-    for (const [name, src] of SOURCES) {
+    for (const [name] of SOURCES) {
       for (const [w, h] of SIZES) {
-        const layout = structuredClone(layoutOf(src, w, h));
+        const layout = structuredClone(sharedLayout(name, w, h));
         const pairs = [
           layout.projectionParams,
           ...layout.insets.map((i) => i.projectionParams),
@@ -190,7 +239,7 @@ describe('map layout projection as data (#645)', () => {
         isDark: false,
       });
       const fromLayout = createMapGeoQueryForLayout(
-        structuredClone(layoutOf(src, w, h)),
+        structuredClone(sharedLayout(name, w, h)),
         data
       );
       for (let px = 0; px <= w; px += 50) {
@@ -222,14 +271,7 @@ describe('map layout projection as data (#645)', () => {
       Object.defineProperty(a, 'clientWidth', { value: w });
       Object.defineProperty(a, 'clientHeight', { value: h });
       renderMap(a, resolved, data, palette, false);
-      const layout = structuredClone(
-        layoutMap(
-          resolved,
-          data,
-          { width: w, height: h },
-          { palette, isDark: false, legendMode: 'preview' }
-        )
-      );
+      const layout = structuredClone(sharedLayout(name, w, h));
       renderMapLayout(b, layout, resolved, palette, false);
       expect(a.querySelectorAll('path').length, name).toBeGreaterThan(0);
       expect(svgOf(b), name).toBe(svgOf(a));
