@@ -1,4 +1,4 @@
-import { contrastRatio } from './color-utils';
+import { contrastRatio, shapeFill } from './color-utils';
 import { COLOR_KEYS, SEMANTIC_KEYS, isValidHex } from './registry';
 import type { PaletteColors, PaletteConfig } from './types';
 
@@ -24,11 +24,12 @@ import type { PaletteColors, PaletteConfig } from './types';
 const CONTRAST_FLOOR = 4.5;
 
 /**
- * The palette fields that reach `shapeFill()` as an intent color, and are
- * therefore the fills `textOnFillLight` / `textOnFillDark` have to stay
- * readable on: the eleven named colors plus the four semantic accents.
- * `bg`, `surface`, `overlay` and `border` are grounds rather than fills, and
- * the text fields are not fills at all.
+ * The palette fields that reach `shapeFill()` as an intent color: the eleven
+ * named colors plus these four semantic accents. `bg`, `surface`, `overlay`
+ * and `border` are never an intent — but `surface` and `bg` are three quarters
+ * of every fill all the same, because `shapeFill()` mixes the intent INTO the
+ * theme base. Measuring the fill rather than the intent is what brings them
+ * into the check.
  */
 const FILL_ACCENT_KEYS: (keyof Omit<PaletteColors, 'colors'>)[] = [
   'primary',
@@ -102,8 +103,21 @@ function describe(value: unknown): string {
 /**
  * The worst text-on-fill pair in one mode: for every fill the palette defines,
  * the better of the two text tokens, and then the weakest of those.
+ *
+ * 🔴 The fill measured is `shapeFill()`'s OUTPUT, not the intent color that
+ * went into it. That is the surface a label is actually drawn on, and it is
+ * the invariant `PaletteColors.textOnFillLight` states in so many words:
+ * "Must guarantee >= 4.5:1 WCAG AA against any `shapeFill()` the palette can
+ * produce." Measuring the raw intent instead asks the wrong question twice
+ * over — it tests a background that only `fill-solid` ever paints, and it
+ * leaves `surface` and `bg` unmeasured although they are 75% of every
+ * canonical fill. Solid fills have their own, different bar: APCA Lc 45, in
+ * `tests/palette-contrast.test.ts`, which no built-in may fall below.
  */
-function worstFillPair(colors: PaletteColors): {
+function worstFillPair(
+  colors: PaletteColors,
+  isDark: boolean
+): {
   ratio: number;
   token: 'textOnFillLight' | 'textOnFillDark';
   fill: string;
@@ -111,8 +125,12 @@ function worstFillPair(colors: PaletteColors): {
 } {
   const fills: [string, string][] = [];
   for (const key of COLOR_KEYS)
-    fills.push([`colors.${key}`, colors.colors[key]]);
-  for (const key of FILL_ACCENT_KEYS) fills.push([key, colors[key]]);
+    fills.push([
+      `colors.${key}`,
+      shapeFill(colors, colors.colors[key], isDark),
+    ]);
+  for (const key of FILL_ACCENT_KEYS)
+    fills.push([key, shapeFill(colors, colors[key], isDark)]);
 
   let worst: ReturnType<typeof worstFillPair> | undefined;
   for (const [fill, fillHex] of fills) {
@@ -132,14 +150,14 @@ function worstFillPair(colors: PaletteColors): {
 
 function collectContrastErrors(
   colors: PaletteColors,
-  mode: string,
+  mode: 'light' | 'dark',
   errors: string[]
 ): void {
-  const worst = worstFillPair(colors);
+  const worst = worstFillPair(colors, mode === 'dark');
   if (worst.ratio >= CONTRAST_FLOOR) return;
   errors.push(
-    `${mode}: ${worst.token} ${colors[worst.token]} on ${worst.fill} ` +
-      `${worst.fillHex} reaches only ${worst.ratio.toFixed(2)}:1 — ` +
+    `${mode}: ${worst.token} ${colors[worst.token]} on the ${worst.fill} ` +
+      `fill ${worst.fillHex} reaches only ${worst.ratio.toFixed(2)}:1 — ` +
       `text on a fill needs ${CONTRAST_FLOOR.toFixed(1)}:1`
   );
 }
@@ -183,6 +201,20 @@ export function validateThemeFile(input: unknown): ThemeFileResult {
     } else {
       errors.push(
         `mode: expected "light" or "dark", got ${describe(declared)}`
+      );
+    }
+  }
+
+  // 🔴 A file that declares a mode AND defines the other one is refused, not
+  // half-read. Taking only the declared mode would drop a whole block of
+  // colors the author wrote — unchecked, unreported, and invisible: they edit
+  // `light`, save, and nothing changes with nothing to say why.
+  if (mode) {
+    const other = mode === 'light' ? 'dark' : 'light';
+    if (input[other] !== undefined) {
+      errors.push(
+        `${other}: a theme declaring mode "${mode}" must not also define ` +
+          `${other} — drop the mode to define both`
       );
     }
   }

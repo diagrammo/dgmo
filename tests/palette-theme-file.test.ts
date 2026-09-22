@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import '../src/palettes';
 import { validateThemeFile } from '../src/palettes/theme-file';
-import { getPalette } from '../src/palettes/registry';
-import { registerPalette } from '../src/palettes/registry';
+import {
+  getAvailablePalettes,
+  getPalette,
+  registerPalette,
+} from '../src/palettes/registry';
 import type { PaletteColors } from '../src/palettes/types';
 
 // Theme-file validation (diagrammo/diagrammo#785, slice 1).
@@ -67,6 +70,22 @@ describe('validateThemeFile — the shape', () => {
     expect(result.errors).toContain(
       'dark: a theme declaring mode "dark" has to define dark'
     );
+  });
+
+  // A declared mode plus the other block is refused, never half-read: taking
+  // the declared one alone drops a whole block of colors the author wrote,
+  // unchecked and unreported. They would edit `light`, save, and see nothing
+  // change with nothing to say why.
+  it('refuses a file that declares a mode AND defines the other one', () => {
+    const file = slateDarkFile();
+    file['light'] = 'total garbage';
+    const result = validateThemeFile(file);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors).toEqual([
+      'light: a theme declaring mode "dark" must not also define light — ' +
+        'drop the mode to define both',
+    ]);
   });
 
   it('refuses a file with no mode that defines only one', () => {
@@ -172,72 +191,110 @@ describe('validateThemeFile — the worst text-on-fill pair', () => {
     expect(validateThemeFile(slateDarkFile()).ok).toBe(true);
   });
 
-  // 🔴 Pinned deliberately, and it is the finding this slice hands back.
-  // The floor is WCAG 4.5:1 on the palette's own fill colors, which is a
-  // harder bar than the APCA Lc 45 the registry's built-ins are held to
-  // (`palette-contrast.test.ts`) — so ten of the fourteen built-in modes,
-  // Slate LIGHT among them, would be refused if somebody handed them in as a
-  // theme file. Nothing here rejects a built-in: `registerPalette` does not
-  // run this check. If the bar is wrong, this is the test that says so.
-  it('refuses Slate light, which the built-in registry accepts', () => {
-    const result = validateThemeFile({
-      id: 'slate-light-as-a-file',
-      name: 'Slate light',
-      mode: 'light',
-      light: structuredClone(getPalette('slate').light) as unknown,
-    });
+  // 🔴 The check measures `shapeFill()`'s OUTPUT, not the intent that went
+  // into it — the invariant `PaletteColors.textOnFillLight` states, and the
+  // only surface a tinted label is ever drawn on. Measuring the raw intent
+  // instead refuses ten of these fourteen, Slate light among them, because it
+  // scores text against a background only `fill-solid` paints. Solid fills
+  // have their own bar and their own suite: APCA Lc 45, in
+  // `tests/palette-contrast.test.ts`.
+  //
+  // So: every built-in, both modes, handed in as if it were somebody's theme
+  // file. Thirteen pass. The fourteenth is pinned below, by name and number.
+  const builtIns = getAvailablePalettes().flatMap((p) =>
+    (['light', 'dark'] as const).map(
+      (mode) => [`${p.id} ${mode}`, p.id, mode] as const
+    )
+  );
+
+  function asThemeFile(id: string, mode: 'light' | 'dark') {
+    return {
+      id: `${id}-as-a-file`,
+      name: id,
+      mode,
+      [mode]: structuredClone(getPalette(id)[mode]) as unknown,
+    };
+  }
+
+  it.each(builtIns.filter(([label]) => label !== 'nord dark'))(
+    'accepts %s handed in as a theme file',
+    (_label, id, mode) => {
+      const result = validateThemeFile(asThemeFile(id, mode));
+      if (!result.ok) {
+        throw new Error(`refused: ${result.errors.join(' | ')}`);
+      }
+      expect(result.ok).toBe(true);
+    }
+  );
+
+  // 🔴 The one exception, pinned rather than papered over, and reported on the
+  // row. Nord dark's `white` tints to #676d7b, where its better text token
+  // reaches 4.4984:1 — short of the decided 4.5:1 floor by sixteen
+  // ten-thousandths. That is a real (if hairline) property of Nord, not of
+  // this check: `types.ts` calls `colors.white` a "palette-aesthetic anchor"
+  // that does not always meet contrast requirements, which is the reason
+  // `textOnFill*` exists as a separate token at all. It changes nothing a user
+  // sees today — no renderer reads `colors.black` or `colors.white`, and
+  // neither is in `CATEGORICAL_COLOR_ORDER` — but an author may write `white`
+  // as a tag color, so the fill is reachable and the check counts it.
+  // If this should pass, Nord's `white` moves a hair or the floor stops
+  // covering the two anchors; both are the owner's call, not this slice's.
+  it('refuses nord dark by 0.0016, and says which pair and by how much', () => {
+    const result = validateThemeFile(asThemeFile('nord', 'dark'));
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.errors).toEqual([
-      'light: textOnFillDark #1f2933 on colors.teal #3a9188 reaches only ' +
-        '3.92:1 — text on a fill needs 4.5:1',
+      'dark: textOnFillLight #eceff4 on the colors.white fill #676d7b ' +
+        'reaches only 4.50:1 — text on a fill needs 4.5:1',
     ]);
   });
 
-  it('refuses a fill its text tokens cannot be read on, naming the pair and the number', () => {
+  // The fill is three quarters theme base, so the base is what most decides
+  // whether a label can be read — and measuring the intent alone never saw it.
+  it('refuses a theme whose surface makes every fill unreadable', () => {
     const file = slateDarkFile();
-    const dark = file['dark'] as { colors: Record<string, unknown> };
-    // Mid grey: neither near-black nor near-white text clears 4.5:1 on it.
-    dark.colors['teal'] = '#808080';
+    (file['dark'] as Record<string, unknown>)['surface'] = '#5a5a5a';
     const result = validateThemeFile(file);
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.errors).toHaveLength(1);
-    const [message] = result.errors as [string];
-    expect(message).toMatch(
-      /^dark: textOnFill(Light|Dark) #[0-9a-fA-F]{6} on colors\.teal #808080 /
-    );
-    expect(message).toMatch(
-      /reaches only \d\.\d\d:1 — text on a fill needs 4\.5:1$/
-    );
+    expect(result.errors).toEqual([
+      'dark: textOnFillDark #161b22 on the colors.white fill #7d7e7f ' +
+        'reaches only 4.25:1 — text on a fill needs 4.5:1',
+    ]);
   });
 
   it('checks the semantic accents too, not only the named colors', () => {
     const file = slateDarkFile();
-    (file['dark'] as Record<string, unknown>)['destructive'] = '#808080';
+    const dark = file['dark'] as Record<string, unknown>;
+    dark['surface'] = '#5a5a5a';
+    // Tints to #7c7c7c, a shade worse than colors.white's #7d7e7f.
+    dark['destructive'] = '#e0e0e0';
     const result = validateThemeFile(file);
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.errors[0]).toContain('on destructive #808080');
+    expect(result.errors).toEqual([
+      'dark: textOnFillLight #ffffff on the destructive fill #7c7c7c ' +
+        'reaches only 4.17:1 — text on a fill needs 4.5:1',
+    ]);
   });
 
-  it('reports the WORST pair when several fills fail', () => {
+  it('reports only the WORST pair, not every fill that fails', () => {
     const file = slateDarkFile();
-    const dark = file['dark'] as { colors: Record<string, unknown> };
-    dark.colors['teal'] = '#808080';
-    dark.colors['blue'] = '#7f7f7f';
+    const dark = file['dark'] as Record<string, unknown>;
+    dark['surface'] = '#5a5a5a';
     const result = validateThemeFile(file);
     expect(result.ok).toBe(false);
     if (result.ok) return;
+    // Several fills fail on that surface; one line comes back, the weakest.
     expect(result.errors).toHaveLength(1);
-    // #7f7f7f is a shade darker, so its best token scores lower than #808080's.
-    expect(result.errors[0]).toContain('colors.blue #7f7f7f');
   });
 
   it('does not run the contrast check on a mode whose shape is already wrong', () => {
     const file = slateDarkFile();
-    const dark = file['dark'] as { colors: Record<string, unknown> };
-    dark.colors['teal'] = '#808080';
+    const dark = file['dark'] as Record<string, unknown> & {
+      colors: Record<string, unknown>;
+    };
+    dark['surface'] = '#5a5a5a';
     dark.colors['blue'] = 'not-a-hex';
     const result = validateThemeFile(file);
     expect(result.ok).toBe(false);
