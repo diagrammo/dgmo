@@ -46,6 +46,52 @@ describe('sanitizeSvgInPlace', () => {
     expect(root.querySelector('rect')).not.toBeNull();
   });
 
+  // ── The embedding elements, which execute on connection with no handler
+  // attribute and no href for the allowlist to inspect ──
+  //
+  // `<iframe srcdoc="<script>…">` needs neither, so both checks below are
+  // blind to it; the detached-holder order buys nothing if the element is
+  // still there when the tree is inserted. Found by review round 2 on #884
+  // against the BUILT dist, not just src.
+  describe('embedding and document-level elements', () => {
+    it.each([
+      '<iframe srcdoc="&lt;script&gt;alert(1)&lt;/script&gt;"></iframe>',
+      '<iframe src="javascript:alert(1)"></iframe>',
+      '<object data="javascript:alert(1)"></object>',
+      '<embed src="data:text/html,x">',
+      '<base href="https://attacker.example/">',
+      '<link rel="stylesheet" href="https://attacker.example/x.css">',
+      '<meta http-equiv="refresh" content="0;url=https://attacker.example/">',
+    ])('removes %s', (markup) => {
+      const root = parse(`<div><rect/>${markup}</div>`);
+      sanitizeSvgInPlace(root);
+      expect(
+        root.querySelector('iframe, object, embed, base, link, meta')
+      ).toBeNull();
+      // …and the drawing beside it is untouched.
+      expect(root.querySelector('rect')).not.toBeNull();
+    });
+
+    it('removes one nested inside the svg as well as one beside it', () => {
+      const root = parse(
+        '<svg><g><iframe src="javascript:alert(1)"></iframe></g></svg>' +
+          '<object data="javascript:alert(1)"></object>'
+      );
+      sanitizeSvgInPlace(root);
+      expect(root.querySelector('iframe')).toBeNull();
+      expect(root.querySelector('object')).toBeNull();
+      expect(root.querySelector('svg')).not.toBeNull();
+    });
+
+    it('leaves a <style> element alone, which the contract says it does not inspect', () => {
+      // Not an oversight — the module comment states this carve-out, and a
+      // test is what stops it being quietly closed or quietly widened.
+      const root = parse('<svg><style>.a{fill:red}</style></svg>');
+      sanitizeSvgInPlace(root);
+      expect(root.querySelector('style')!.textContent).toBe('.a{fill:red}');
+    });
+  });
+
   it('removes a foreignObject, payload and all', () => {
     const root = parse(
       '<svg><foreignObject><div onclick="steal()">x</div></foreignObject></svg>'

@@ -101,20 +101,28 @@ export function mountD3DataChart(
       interaction = null;
     }
     // The library's own live-DOM mount, so it goes through the same boundary
-    // every host is asked to use — and in the same order `auto/index.ts` and
-    // `element/index.ts` use: parse into a DETACHED holder, sanitize there,
-    // and only then move the nodes into the page. Sanitizing after assigning
-    // into `container` would be one line too late: connecting the subtree is
-    // what creates an <iframe>'s browsing context, starts an <img>'s fetch and
-    // runs a custom element's connectedCallback, all synchronously inside the
-    // assignment. Renderer output is trusted only as far as the renderer that
-    // produced it, and the error card on the fallback path above carries
-    // parser text straight from the author's source.
+    // every host is asked to use — and the way `auto/index.ts` and
+    // `element/index.ts` use it: parse into a DETACHED holder, take the <svg>
+    // and nothing else, sanitize it there, and only then put it in the page.
+    //
+    // Both halves are load-bearing. Sanitizing after assigning into
+    // `container` would be one line too late — connecting the subtree is what
+    // creates an <iframe>'s browsing context and runs a custom element's
+    // connectedCallback, synchronously inside the assignment. And moving every
+    // child of the holder across would connect whatever sat BESIDE the
+    // diagram, which is the one thing the detached parse was protecting.
+    //
+    // Renderer output is trusted only as far as the renderer that produced it,
+    // and the error card on the fallback path above carries parser text
+    // straight from the author's source.
     const holder = document.createElement('div');
     holder.innerHTML = svg;
-    sanitizeSvgInPlace(holder);
+    const parsed = holder.querySelector('svg');
     container.innerHTML = '';
-    container.append(...Array.from(holder.childNodes));
+    if (parsed) {
+      sanitizeSvgInPlace(parsed);
+      container.append(parsed);
+    }
     const el = container.querySelector('svg');
     if (el) {
       const pal = paletteOf(current);

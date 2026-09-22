@@ -115,28 +115,41 @@ declare function supportsD3DataChart(type: string): boolean;
  * script-tag builds, so a host importing `@diagrammo/dgmo` could not call the
  * sanitizer at all however much it wanted to.
  *
- * 🔴 **Call it on a DETACHED tree, then insert.** Parse into a holder the
- * document does not own, sanitize, and move the result across:
+ * 🔴 **Parse into a DETACHED holder, take the `<svg>`, sanitize, insert.** All
+ * four steps, in that order:
  *
  * ```ts
  * const holder = document.createElement('div');
  * holder.innerHTML = svg;          // inert: nothing here is connected yet
- * sanitizeSvgInPlace(holder);
- * container.replaceChildren(...Array.from(holder.childNodes));
+ * const svgEl = holder.querySelector('svg');
+ * if (svgEl) {
+ *   sanitizeSvgInPlace(svgEl);
+ *   container.replaceChildren(svgEl);
+ * }
  * ```
  *
- * Sanitizing *after* assigning into a live container is too late — connecting
- * the subtree is what creates a nested browsing context for an `<iframe>`,
- * starts a fetch for an `<img>`, and runs a custom element's
- * `connectedCallback`, all synchronously inside the assignment. `auto/index.ts`
- * and `element/index.ts` have always done it in this order; `mount.ts` learned
- * it on diagrammo/diagrammo#884.
+ * Sanitizing *after* assigning into a live container is too late: connecting
+ * the subtree is what creates a nested browsing context for an `<iframe>` and
+ * runs a custom element's `connectedCallback`, both synchronously inside the
+ * assignment. And taking only the `<svg>` is half the safety — moving every
+ * child of the holder across would connect whatever a hostile document put
+ * *beside* the diagram. `auto/index.ts` and `element/index.ts` have always done
+ * both; `mount.ts` learned them on diagrammo/diagrammo#884.
  *
- * **What this does NOT do**, so a caller is not misled about the contract: it
- * removes the script-execution surface listed below. It does not parse CSS, so
- * an `@import` or a `url()` inside a `<style>` element passes through; it does
- * not sandbox layout or styling; and it is no substitute for escaping at the
- * point a renderer interpolates author text (see `src/embed/escape.ts`).
+ * 🔴 **What this does NOT do**, so a caller is not misled about the contract:
+ *
+ * - It does not parse CSS. An `@import` or a `url()` inside a `<style>`
+ *   element passes through untouched.
+ * - It removes the elements listed in `REMOVED_TAGS` and nothing else. That
+ *   set is the script-execution and remote-content surface as of
+ *   diagrammo/diagrammo#884; an element neither it nor the attribute scrub
+ *   below names survives, so a caller sanitizing *arbitrary* HTML rather than
+ *   dgmo renderer output needs its own allowlist on top.
+ * - It does not stop a resource load that an attribute alone starts —
+ *   `<img src>` fetches whether or not the node is connected. What protects
+ *   that case is the `on*` strip, not the detached holder.
+ * - It is no substitute for escaping where a renderer interpolates author
+ *   text (see `src/embed/escape.ts`).
  *
  * Browser-only — it needs a live DOM. There is nothing to sanitize on the
  * rasterising path, which never builds a document.
@@ -146,12 +159,13 @@ declare function supportsD3DataChart(type: string): boolean;
  * lands in the live DOM. This is the safety net that lets us build SVG from
  * markup without trusting renderer output to be fully sanitized.
  *
- * Removes `<script>`/`<foreignObject>`, any SMIL element animating an `href`,
- * any `on*` event-handler attribute, and any `href`/`xlink:href` failing the
- * `safeHref` allowlist.
+ * Removes every element in `REMOVED_TAGS`, any SMIL element animating an
+ * `href`, any `on*` event-handler attribute, and any `href`/`xlink:href`
+ * failing the `safeHref` allowlist.
  *
  * Mutates `root` and returns nothing. Call it on a detached holder — see the
- * module comment above for why the order matters.
+ * module comment above for why the order matters, and for what this does not
+ * cover.
  */
 declare function sanitizeSvgInPlace(root: Element): void;
 

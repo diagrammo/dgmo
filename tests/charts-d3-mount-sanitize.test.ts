@@ -48,7 +48,12 @@ const HOSTILE = [
   '<rect onload="steal()" fill="red" />',
   '<a href="javascript:alert(1)"><text>link</text></a>',
   '<a href="#safe"><animate attributeName="href" to="javascript:alert(1)"/></a>',
+  '<iframe src="javascript:alert(1)"></iframe>',
   '</svg>',
+  // Beside the diagram, not inside it — the case a mount that appended every
+  // holder child would connect.
+  '<iframe srcdoc="&lt;script&gt;alert(1)&lt;/script&gt;"></iframe>',
+  '<dgmo-pwn-probe></dgmo-pwn-probe>',
 ].join('');
 
 describe('mountD3DataChart sanitizes what it injects', () => {
@@ -75,6 +80,27 @@ describe('mountD3DataChart sanitizes what it injects', () => {
     expect(container.innerHTML).not.toContain('javascript:');
     expect(container.querySelector('rect')!.getAttribute('fill')).toBe('red');
     expect(container.querySelector('a[href="#safe"]')).not.toBeNull();
+    expect(container.querySelector('iframe')).toBeNull();
+
+    ctrl.destroy();
+    container.remove();
+  });
+
+  it('takes the <svg> and discards everything beside it', async () => {
+    // 🔴 Round 2's finding: a mount that appends every child of the holder
+    // connects whatever a hostile document put NEXT TO the diagram, which is
+    // the one thing parsing detached was protecting. `auto/index.ts` and
+    // `element/index.ts` take `holder.querySelector('svg')` for this reason.
+    const container = document.createElement('div');
+    document.body.append(container);
+
+    const ctrl = mountD3DataChart(container, 'bar\n  a 1');
+    await ctrl.update('bar\n  a 1');
+
+    expect(container.children).toHaveLength(1);
+    expect(container.firstElementChild!.tagName.toLowerCase()).toBe('svg');
+    expect(container.querySelector('dgmo-pwn-probe')).toBeNull();
+    expect(CONNECTED).toEqual([]);
 
     ctrl.destroy();
     container.remove();
