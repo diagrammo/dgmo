@@ -17,6 +17,7 @@
 
 import { render } from '../render';
 import { getPalette } from '../palettes';
+import { sanitizeSvgInPlace } from '../utils/sanitize-svg';
 import { renderDataChartD3 } from './index';
 import {
   attachDataChartInteractions,
@@ -100,6 +101,11 @@ export function mountD3DataChart(
       interaction = null;
     }
     container.innerHTML = svg;
+    // The library's own live-DOM mount, so it goes through the same boundary
+    // every host is asked to use. Renderer output is trusted only as far as
+    // the renderer that produced it, and the error card on the fallback path
+    // above carries parser text straight from the author's source.
+    sanitizeSvgInPlace(container);
     const el = container.querySelector('svg');
     if (el) {
       const pal = paletteOf(current);

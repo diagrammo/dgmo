@@ -48,37 +48,11 @@ export function sharedWarn(...args: unknown[]): void {
 // SVG sanitizer
 // ============================================================
 
-/**
- * Strip script-execution surface from a freshly parsed SVG tree before it
- * lands in the live DOM. This is the safety net that lets us use innerHTML
- * for SVG insertion without trusting renderer output to be fully sanitized.
- *
- * Removes `<script>`/`<foreignObject>`, any `on*` event-handler attribute,
- * and any `href`/`xlink:href` failing the `safeHref` allowlist.
- */
-export function sanitizeSvgInPlace(root: Element): void {
-  const dangerous = root.querySelectorAll('script, foreignObject');
-  dangerous.forEach((n) => n.remove());
-
-  const all: Element[] = [root, ...Array.from(root.querySelectorAll('*'))];
-  for (const node of all) {
-    for (const attr of Array.from(node.attributes)) {
-      if (attr.name.toLowerCase().startsWith('on')) {
-        node.removeAttribute(attr.name);
-      }
-    }
-    if (node.hasAttribute('href')) {
-      const safe = safeHref(node.getAttribute('href'));
-      if (safe === null) node.removeAttribute('href');
-    }
-    if (node.hasAttributeNS('http://www.w3.org/1999/xlink', 'href')) {
-      const v = node.getAttributeNS('http://www.w3.org/1999/xlink', 'href');
-      if (safeHref(v) === null) {
-        node.removeAttributeNS('http://www.w3.org/1999/xlink', 'href');
-      }
-    }
-  }
-}
+// The implementation moved to `src/utils/sanitize-svg.ts` so that hosts
+// importing `@diagrammo/dgmo` can reach it — this module is private to the
+// two IIFE script-tag bundles and is in no `exports` key. Re-exported here so
+// the `auto` and `element` entries keep their one import site.
+export { sanitizeSvgInPlace } from '../utils/sanitize-svg';
 
 // ============================================================
 // Theme resolver
