@@ -32,7 +32,7 @@ import { chartTypes } from '@diagrammo/dgmo/advanced';
 // so this eval keeps scoring against the live vocabulary (triggers.json).
 import { suggestChartTypes } from '../../dgmo-mcp/dist/suggest/scoring.js';
 import { validateDgmoSource } from './lib/fence-validate.mjs';
-import { extractTypeBlock } from './lib/ref-anchors.mjs';
+import { extractTypeBlock, extractAiCore } from './lib/ref-anchors.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = join(here, '..');
@@ -243,12 +243,12 @@ function evalSelfConsistency(refMd) {
 
 // ---- D. Optional live generation probe (claude -p) -------------------------
 const PROBE_PROMPTS = [
-  'a sequence diagram of an OAuth login: user, web app, auth server, token exchange',
-  'an ER diagram for a blog: authors, posts, comments, tags',
-  'an infra diagram: CDN in front of a load balancer fanning out to 3 API instances and a database',
-  'a flowchart for a CI pipeline: build, test, then deploy or fail',
-  'a gantt chart for a 3-sprint project with design, build, QA, launch',
-  'a journey map for a SaaS free-trial signup',
+  { type: 'sequence', prompt: 'a sequence diagram of an OAuth login: user, web app, auth server, token exchange' },
+  { type: 'er', prompt: 'an ER diagram for a blog: authors, posts, comments, tags' },
+  { type: 'infra', prompt: 'an infra diagram: CDN in front of a load balancer fanning out to 3 API instances and a database' },
+  { type: 'flowchart', prompt: 'a flowchart for a CI pipeline: build, test, then deploy or fail' },
+  { type: 'gantt', prompt: 'a gantt chart for a 3-sprint project with design, build, QA, launch' },
+  { type: 'journey-map', prompt: 'a journey map for a SaaS free-trial signup' },
 ];
 
 function haveClaude() {
@@ -261,15 +261,17 @@ function haveClaude() {
 }
 
 function evalLive(refMd) {
-  // Feed ONLY the current AI surface (the reference) as context — measures
-  // what an agent generates from today's doc, unaided by MCP retrieval.
-  const context = refMd.slice(0, 24000); // keep the prompt bounded
+  // Feed ONLY the current AI surface as context — the universal core plus the
+  // requested type's section, as an MCP client receives it. A head-slice of the
+  // whole reference never reached any probe type's section.
+  const core = extractAiCore(refMd, 'ANTIPATTERNS') ?? '';
   const results = [];
-  for (const p of PROBE_PROMPTS) {
+  for (const { type, prompt: p } of PROBE_PROMPTS) {
+    const context = `${core}\n\n${extractTypeBlock(refMd, type) ?? ''}`;
     const prompt = `You write DGMO diagram markup. Here is the DGMO reference:\n\n${context}\n\n---\nWrite ONLY a DGMO diagram (no prose, no markdown fences) for: ${p}`;
     let out = '';
     try {
-      out = execFileSync('claude', ['-p', prompt], {
+      out = execFileSync('claude', ['-p', prompt, '--tools', '', '--strict-mcp-config', '--disable-slash-commands'], {
         encoding: 'utf8',
         timeout: 120000,
         maxBuffer: 1 << 20,

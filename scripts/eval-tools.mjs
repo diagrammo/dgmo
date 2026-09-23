@@ -83,7 +83,7 @@ async function generate(row) {
   const prompt = `You write DGMO diagram markup. Use ONLY this reference:\n\n${context}\n\n---\nWrite ONLY a DGMO ${row.chosen ?? ''} diagram (no prose, no markdown fences) for: ${row.prompt}`;
   let out;
   try {
-    out = execFileSync('claude', ['-p', prompt], {
+    out = execFileSync('claude', ['-p', prompt, '--tools', '', '--strict-mcp-config', '--disable-slash-commands'], {
       encoding: 'utf8',
       timeout: 120000,
       maxBuffer: 1 << 20,
