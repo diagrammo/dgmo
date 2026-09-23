@@ -224,7 +224,11 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p repo && cd repo
-          cp ../packaging/arch/*.pkg.tar.zst .
+          # A no-version re-index can build nothing at all (dgmo reused, keyring
+          # already served), so an empty glob is normal here, not an error.
+          for pkg in ../packaging/arch/*.pkg.tar.zst; do
+            [ -e "$pkg" ] && cp "$pkg" .
+          done
           [ -e ../diagrammo.gpg ] && cp ../diagrammo.gpg . || true
 
           # Carry forward whatever is already published, so a future second

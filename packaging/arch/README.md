@@ -9,6 +9,14 @@ a `pacman.conf` stanza, a libalpm hook and the script both call.
 `keyring/test-ensure-repo.sh` tests that script's editing of `pacman.conf` and
 runs anywhere, against a copy.
 
+**A third package, `diagrammo` — the desktop app — is NOT built here** (added
+2026-09-23, diagrammo/diagrammo#917). Its recipe is
+`diagrammo-app/packaging/arch/`, it is built on `anchor` by
+`build-on-anchor.sh` (rolling-Arch glibc, so Omarchy/Arch only), uploaded to
+`arch-repo` unsigned, and then `arch-repo.yml` is dispatched with **no
+version**, which re-indexes and signs everything the release holds without
+rebuilding `dgmo`. `diagrammo-app/release.sh` runs that as its last step.
+
 ## 1. Our own pacman repository — the route with upgrades
 
 The `arch-repo` release on this repo **is** the repository: its assets are the
