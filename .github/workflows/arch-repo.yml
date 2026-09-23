@@ -19,12 +19,18 @@ name: Arch package repository
 #
 # Dispatch after a CLI release, once npm is serving the version:
 #   gh workflow run arch-repo.yml -R diagrammo/dgmo -f version=X.Y.Z
+#
+# Dispatch with NO version to re-index what the release already holds — this is
+# how the desktop app's `diagrammo` package gets in (diagrammo/diagrammo#917):
+# anchor builds it, uploads it to `arch-repo` unsigned, then dispatches this;
+# the carry-forward picks it up and every package is signed below. The dgmo
+# package already published is reused untouched.
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: '@diagrammo/dgmo-cli version to package, e.g. 0.86.0'
-        required: true
+        description: '@diagrammo/dgmo-cli version to package, e.g. 0.86.0 — empty re-indexes what is published'
+        required: false
         type: string
 
 jobs:
@@ -44,6 +50,12 @@ jobs:
         id: target
         run: |
           VERSION="${{ inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            echo "reindex=true" >> "$GITHUB_OUTPUT"
+            echo "No version given: re-indexing what arch-repo already serves."
+            exit 0
+          fi
+          echo "reindex=false" >> "$GITHUB_OUTPUT"
           URL="https://registry.npmjs.org/@diagrammo/dgmo-cli/-/dgmo-cli-${VERSION}.tgz"
           # The registry is eventually consistent after a publish, so give it a
           # few tries rather than failing a release-day dispatch on a race.
@@ -62,6 +74,7 @@ jobs:
           exit 1
 
       - name: Point the recipe at that version
+        if: steps.target.outputs.reindex != 'true'
         run: |
           cd packaging/arch
           # pkgrel counts rebuilds OF ONE VERSION, so a new version resets it to
@@ -98,6 +111,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          if [ "${{ steps.target.outputs.reindex }}" = "true" ]; then
+            echo "already=true" >> "$GITHUB_OUTPUT"
+            echo "filename=the published dgmo package" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           VERSION="${{ steps.target.outputs.version }}"
           REL=$(awk -F= '/^pkgrel=/{print $2}' packaging/arch/PKGBUILD)
           NAME="dgmo-${VERSION}-${REL}-x86_64.pkg.tar.zst"
@@ -237,7 +255,11 @@ jobs:
             SIGN_ARGS=(-s -v)
           fi
 
-          repo-add "${SIGN_ARGS[@]}" diagrammo.db.tar.gz ./*.pkg.tar.zst
+          # 🔴 `-p`: the carry-forward can hold two versions of one package (the
+          # one just uploaded and the one it supersedes), and without it the
+          # entry is whichever the glob visits LAST — lexical, so 0.100.0 would
+          # lose to 0.99.0. With it the newer version wins in any order.
+          repo-add -p "${SIGN_ARGS[@]}" diagrammo.db.tar.gz ./*.pkg.tar.zst
 
           # 🔴 The carry-forward above brings back EVERY version of every
           # package the release holds, and `repo-add` keeps one entry per
@@ -302,7 +324,11 @@ jobs:
           {
             echo "### Arch repository published"
             echo
-            echo "\`dgmo ${{ steps.target.outputs.version }}\` is now served from the \`arch-repo\` release."
+            if [ "${{ steps.target.outputs.reindex }}" = "true" ]; then
+              echo "Re-indexed: \`$(ls *.pkg.tar.zst | grep -v '^diagrammo-keyring.pkg' | tr '\n' ' ')\`"
+            else
+              echo "\`dgmo ${{ steps.target.outputs.version }}\` is now served from the \`arch-repo\` release."
+            fi
             if [ -e diagrammo-keyring.pkg.tar.zst ]; then
               echo
               echo "Joining the channel is two commands:"
