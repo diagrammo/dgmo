@@ -23,6 +23,13 @@ import {
 const MARGIN = 40;
 const MAX_PARALLEL_EDGES = 5;
 const PARALLEL_SPACING = 22;
+// A route bowing further than two lanes off its port-to-port line was sent round
+// something by the router, and the fan leaves it alone (#932).
+const DETOUR_TOLERANCE = 2 * PARALLEL_SPACING;
+// Closest two edge ends may sit on one side of a box before they are spread,
+// and how far from a corner a spread end must stay (#932).
+const MIN_PORT_GAP = 16;
+const PORT_CORNER_CLEAR = 6;
 
 const DESC_NODE_WIDTH = 140;
 const DESC_FONT_SIZE = 10;
@@ -250,7 +257,7 @@ export async function layoutBoxesAndLines(
   // `groups` lets the placement tell an expanded group the edge lives inside
   // (valid label space) from one it merely crosses (an obstacle) — #777.
   const labelOpts = { groups: parsed.groups };
-  let chosen = applyParallelEdgeOffsets(searched);
+  let chosen = applyParallelEdgeOffsets(spreadCrowdedPorts(searched));
   let placed = placeEdgeLabels(chosen, labelOpts);
   if (placed.unresolved.length > 0) {
     const relaid = await layoutBoxesAndLinesSearch(parsed, collapseInfo, {
@@ -262,7 +269,7 @@ export async function layoutBoxesAndLines(
       ...(topConfigs !== undefined &&
         topConfigs.length > 0 && { configs: topConfigs }),
     });
-    const relaidChosen = applyParallelEdgeOffsets(relaid);
+    const relaidChosen = applyParallelEdgeOffsets(spreadCrowdedPorts(relaid));
     const relaidPlaced = placeEdgeLabels(relaidChosen, labelOpts);
     if (relaidPlaced.unresolved.length < placed.unresolved.length) {
       placed = relaidPlaced;
@@ -417,6 +424,125 @@ function attachNotes(
  * TB diagram the two boxes sit above one another and shifting in y moves the lane
  * ALONG its own edge, separating nothing.
  */
+/**
+ * Pull apart edge ends that land within MIN_PORT_GAP of each other on the same
+ * side of the same box (#932). Each router picks its ports alone, so two edges
+ * between the same boxes, or several converging on one, can meet a face a few
+ * pixels apart and their arrowheads merge into one blot — 11–13px on the OAUTH
+ * fixture. Only the end point moves, along the face it already sits on, and
+ * only on a face that is crowded; everything else is returned untouched.
+ */
+function spreadCrowdedPorts(layout: BLLayoutResult): BLLayoutResult {
+  type Box = { x: number; y: number; w: number; h: number };
+  const boxes = new Map<string, Box>();
+  for (const n of layout.nodes)
+    boxes.set(n.label, { x: n.x, y: n.y, w: n.width, h: n.height });
+  for (const g of layout.groups)
+    if (g.collapsed)
+      boxes.set('__group_' + g.label, {
+        x: g.x,
+        y: g.y,
+        w: g.width,
+        h: g.height,
+      });
+
+  // (box, side) -> the ends sitting on it. `along` is the coordinate that
+  // varies along that side: x on top/bottom, y on left/right.
+  type End = { edge: number; last: boolean; along: number };
+  const faces = new Map<string, { box: Box; horiz: boolean; ends: End[] }>();
+  const onSide = (box: Box, p: { x: number; y: number }) => {
+    const E = 1;
+    const l = box.x - box.w / 2;
+    const r = box.x + box.w / 2;
+    const t = box.y - box.h / 2;
+    const b = box.y + box.h / 2;
+    if (p.x < l - E || p.x > r + E || p.y < t - E || p.y > b + E) return null;
+    if (Math.abs(p.y - t) <= E) return 'top';
+    if (Math.abs(p.y - b) <= E) return 'bottom';
+    if (Math.abs(p.x - l) <= E) return 'left';
+    if (Math.abs(p.x - r) <= E) return 'right';
+    return null;
+  };
+  layout.edges.forEach((e, i) => {
+    if (e.source === e.target || e.points.length < 2) return;
+    for (const last of [false, true]) {
+      const id = last ? e.target : e.source;
+      const box = boxes.get(id);
+      const p = last ? e.points[e.points.length - 1]! : e.points[0]!;
+      if (!box) continue;
+      const side = onSide(box, p);
+      if (!side) continue;
+      const horiz = side === 'top' || side === 'bottom';
+      const key = `${id}\x00${side}`;
+      let f = faces.get(key);
+      if (!f) faces.set(key, (f = { box, horiz, ends: [] }));
+      f.ends.push({ edge: i, last, along: horiz ? p.x : p.y });
+    }
+  });
+
+  // `${edge}:${last}` -> where that end goes along its face
+  const moved = new Map<string, { along: number; horiz: boolean }>();
+  for (const { box, horiz, ends } of faces.values()) {
+    if (ends.length < 2) continue;
+    ends.sort((a, b) => a.along - b.along || a.edge - b.edge);
+    let crowded = false;
+    for (let k = 1; k < ends.length; k++)
+      if (ends[k]!.along - ends[k - 1]!.along < MIN_PORT_GAP) crowded = true;
+    if (!crowded) continue;
+    const half = (horiz ? box.w : box.h) / 2 - PORT_CORNER_CLEAR;
+    const ctr = horiz ? box.x : box.y;
+    if (half <= 0) continue;
+    const gap = Math.min(MIN_PORT_GAP, (2 * half) / (ends.length - 1));
+    const mean = ends.reduce((acc, e) => acc + e.along, 0) / ends.length;
+    const span = gap * (ends.length - 1);
+    const first = Math.max(
+      ctr - half,
+      Math.min(ctr + half - span, mean - span / 2)
+    );
+    ends.forEach((e, k) => {
+      moved.set(`${e.edge}:${e.last}`, { along: first + k * gap, horiz });
+    });
+  }
+  if (moved.size === 0) return layout;
+
+  return {
+    ...layout,
+    edges: layout.edges.map((e, i) => {
+      const a = moved.get(`${i}:false`);
+      const b = moved.get(`${i}:true`);
+      if (a === undefined && b === undefined) return e;
+      const pts = e.points.map((p) => ({ x: p.x, y: p.y }));
+      const shift = (idx: number, to: { along: number; horiz: boolean }) => {
+        if (to.horiz) pts[idx]!.x = to.along;
+        else pts[idx]!.y = to.along;
+      };
+      if (a !== undefined) shift(0, a);
+      if (b !== undefined) shift(pts.length - 1, b);
+      return { ...e, points: pts };
+    }),
+  };
+}
+
+/** Furthest any routed point strays from the straight line between the two
+ *  ports — 0 for a straight edge, large for a loop around other boxes. */
+function routeDetour(points: readonly { x: number; y: number }[]): number {
+  const s = points[0];
+  const t = points[points.length - 1];
+  if (!s || !t) return 0;
+  const dx = t.x - s.x;
+  const dy = t.y - s.y;
+  const len = Math.hypot(dx, dy);
+  let worst = 0;
+  for (const p of points) {
+    const d =
+      len < 1e-6
+        ? Math.hypot(p.x - s.x, p.y - s.y)
+        : Math.abs((p.x - s.x) * dy - (p.y - s.y) * dx) / len;
+    if (d > worst) worst = d;
+  }
+  return worst;
+}
+
 function applyParallelEdgeOffsets(layout: BLLayoutResult): BLLayoutResult {
   const groups = new Map<string, number[]>();
   layout.edges.forEach((e, i) => {
@@ -442,8 +568,18 @@ function applyParallelEdgeOffsets(layout: BLLayoutResult): BLLayoutResult {
     layout.edges.length
   ).fill(undefined);
   for (const [key, idxs] of groups) {
-    const capped = idxs.slice(0, MAX_PARALLEL_EDGES);
+    const kept = idxs.slice(0, MAX_PARALLEL_EDGES);
     for (const drop of idxs.slice(MAX_PARALLEL_EDGES)) count[drop] = 0;
+    // 🔴 Only edges the router drew as a roughly straight line are fanned. The
+    // fan REPLACES the route with a straight port-to-port line, and it runs after
+    // the search scored the layout, so replacing a detour threw away the very
+    // path that kept the edge clear — on the OAUTH fixture two loops routed
+    // around everything became straight lines through the Resource Server box
+    // and the Protected APIs group, and the labels were placed on those (#932).
+    // A detoured edge is already apart from its siblings, so it keeps its route.
+    const capped = kept.filter(
+      (idx) => routeDetour(layout.edges[idx]!.points) <= DETOUR_TOLERANCE
+    );
     if (capped.length < 2) continue;
 
     // Lane direction: perpendicular to the line between the two boxes. A self

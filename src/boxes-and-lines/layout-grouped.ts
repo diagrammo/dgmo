@@ -31,6 +31,7 @@
 import type { ParsedBoxesAndLines } from './types';
 import { NODE_WIDTH, NODE_HEIGHT } from './node-metrics';
 import { clipEndpointsToNodes, type ClipRect } from './edge-clip';
+import { measureText } from '../utils/text-measure';
 import {
   measureEdgeLabel,
   EDGE_LABEL_FONT_SIZE,
@@ -55,6 +56,10 @@ const MARGIN = 40;
 // candidates are.
 const GROUP_PAD = 16;
 const GROUP_LABEL_ZONE = 32;
+// Keep in sync with GROUP_LABEL_FONT_SIZE in renderer.ts, which draws the title
+// bold and centred in the top GROUP_LABEL_ZONE of the rect.
+const GROUP_TITLE_FONT_SIZE = 14;
+const TITLE_CLEAR = 6; // px kept between a back-edge stub and a title's text
 // Extra cross-axis gap between two adjacent top-level groups so their padded
 // boxes (and the lower one's label zone) never collide.
 const GROUP_GAP = 24;
@@ -738,128 +743,9 @@ export function groupedTierCandidates(
     const chainById = new Map<number, string[]>();
     for (const ch of chains) chainById.set(ch.edgeIdx, ch.chain);
 
-    // Peripheral routing for against-tier (back) edges. Each loops around the
-    // nearer side; lanes nest multiple returns so they don't overlap.
-    let minCross = Infinity,
-      maxCross = -Infinity;
-    for (const n of node.values()) {
-      if (n.dummy) continue;
-      minCross = Math.min(minCross, n.cross - n.thick / 2);
-      maxCross = Math.max(maxCross, n.cross + n.thick / 2);
-    }
-    const GAP = 34;
-    const LANE = 28;
-    const faceLim = (depth: number): number => Math.max(0, depth / 2 - 6);
-    const sideOf = (b: { src: string; tgt: string }): number => {
-      const d = node.get(b.src)!.cross - node.get(b.tgt)!.cross;
-      return d >= 0 ? 1 : -1;
-    };
-    const backSorted = backEdges
-      .map((b) => ({
-        ...b,
-        side: sideOf(b),
-        span: Math.abs(node.get(b.src)!.rank - node.get(b.tgt)!.rank),
-      }))
-      .sort((a, b) => a.side - b.side || a.span - b.span);
-    const sideCounts = new Map<number, number>();
-    for (const b of backSorted)
-      sideCounts.set(b.side, (sideCounts.get(b.side) ?? 0) + 1);
-    const laneCounter = new Map<number, number>();
-    const backPoints = new Map<number, Pt[]>();
-    for (const b of backSorted) {
-      const s = b.side;
-      const k = laneCounter.get(s) ?? 0;
-      laneCounter.set(s, k + 1);
-      const K = sideCounts.get(s)!;
-      const src = node.get(b.src)!;
-      const tgt = node.get(b.tgt)!;
-      const laneC =
-        s > 0 ? maxCross + GAP + k * LANE : minCross - GAP - k * LANE;
-      const srcCtr = bandCenter[src.rank]!;
-      const tgtCtr = bandCenter[tgt.rank]!;
-      const frac = K > 1 ? (k + 1) / (K + 1) : 0;
-      const srcR = srcCtr - frac * faceLim(src.depth);
-      const tgtR = tgtCtr + frac * faceLim(tgt.depth);
-      const m = (c: number, rr: number): Pt =>
-        isTB ? { x: c, y: rr } : { x: rr, y: c };
-      const off = 10;
-      const srcEdgeC = src.cross + s * (src.thick / 2 + off);
-      const tgtEdgeC = tgt.cross + s * (tgt.thick / 2 + off);
-      // src is the LOWER-rank endpoint (higher global rank); tgt is UP-tier.
-      backPoints.set(b.edgeIdx, [
-        m(src.cross, srcCtr),
-        m(srcEdgeC, srcR),
-        m(laneC, srcR),
-        m(laneC, tgtR),
-        m(tgtEdgeC, tgtR),
-        m(tgt.cross, tgtCtr),
-      ]);
-    }
-
-    // Flat (same-rank) edges: a shallow arc bowing off the rank band so it does
-    // not run straight through any node sitting between the two endpoints.
-    const flatPoints = new Map<number, Pt[]>();
-    for (const f of flatEdges) {
-      const a = node.get(f.a)!;
-      const b = node.get(f.b)!;
-      const ctr = bandCenter[a.rank]!;
-      const bow = ctr - (a.depth / 2 + 26);
-      const m = (c: number, rr: number): Pt =>
-        isTB ? { x: c, y: rr } : { x: rr, y: c };
-      flatPoints.set(f.edgeIdx, [
-        m(a.cross, ctr),
-        m(a.cross, bow),
-        m(b.cross, bow),
-        m(b.cross, ctr),
-      ]);
-    }
-
-    // Every branch below routes centre-to-centre, which leaves the marker-end
-    // sitting under the target's own opaque rect. dagre clips for itself; this
-    // generator has to (#625).
-    const nodeRect = (label: string): ClipRect | undefined => {
-      const n = node.get(label);
-      if (!n) return undefined;
-      const c = coord(n);
-      return { x: c.x, y: c.y, w: n.realW, h: n.realH };
-    };
-
-    const layoutEdges: BLLayoutEdge[] = [];
-    for (let i = 0; i < parsed.edges.length; i++) {
-      const e = parsed.edges[i]!;
-      if (!labelSet.has(e.source) || !labelSet.has(e.target)) continue;
-      let points: Pt[];
-      if (e.source === e.target) {
-        const c = coord(node.get(e.source)!);
-        points = [c, c];
-      } else {
-        if (backPoints.has(i)) points = backPoints.get(i)!;
-        else if (flatPoints.has(i)) points = flatPoints.get(i)!;
-        else {
-          const chain = chainById.get(i);
-          if (!chain) continue;
-          points = chain.map((id) => coord(node.get(id)!));
-        }
-        points = clipEndpointsToNodes(
-          points,
-          nodeRect(e.source),
-          nodeRect(e.target)
-        );
-      }
-      layoutEdges.push({
-        source: e.source,
-        target: e.target,
-        ...(e.label !== undefined && { label: e.label }),
-        bidirectional: e.bidirectional,
-        lineNumber: e.lineNumber,
-        points,
-        yOffset: 0,
-        parallelCount: 1,
-        metadata: e.metadata,
-      });
-    }
-
     // ── Group rects (bottom-up so parents enclose nested children) ──
+    // They depend on node boxes only, and are built BEFORE the edges so the
+    // back-edge router can keep its stubs out of the group title strips (#932).
     const nodeBox = new Map(
       layoutNodes.map((n) => [
         n.label,
@@ -937,6 +823,193 @@ export function groupedTierCandidates(
         height: y1 - y0,
         collapsed: false,
         childCount: grp.children.length,
+      });
+    }
+
+    // Peripheral routing for against-tier (back) edges. Each loops around the
+    // nearer side; lanes nest multiple returns so they don't overlap.
+    let minCross = Infinity,
+      maxCross = -Infinity;
+    for (const n of node.values()) {
+      if (n.dummy) continue;
+      minCross = Math.min(minCross, n.cross - n.thick / 2);
+      maxCross = Math.max(maxCross, n.cross + n.thick / 2);
+    }
+    const GAP = 34;
+    const LANE = 28;
+    const faceLim = (depth: number): number => Math.max(0, depth / 2 - 6);
+    const sideOf = (b: { src: string; tgt: string }): number => {
+      const d = node.get(b.src)!.cross - node.get(b.tgt)!.cross;
+      return d >= 0 ? 1 : -1;
+    };
+    const backSorted = backEdges
+      .map((b) => ({
+        ...b,
+        side: sideOf(b),
+        span: Math.abs(node.get(b.src)!.rank - node.get(b.tgt)!.rank),
+      }))
+      .sort((a, b) => a.side - b.side || a.span - b.span);
+    const laneCounter = new Map<number, number>();
+    const backPoints = new Map<number, Pt[]>();
+
+    // Ports are spread per BOX FACE, not per side of the diagram (#932). The
+    // old fraction counted every back edge on the side, so a box with one
+    // arriving edge still had it pushed off-centre, and three edges converging
+    // on one box used only half its face — three arrowheads 11px apart on the
+    // OAUTH fixture. Each face now splits its whole width between the edges
+    // that actually meet it, and a lone edge meets its box in the middle.
+    const faceKey = (id: string, side: number): string => `${id}\x00${side}`;
+    const faceCount = new Map<string, number>();
+    for (const b of backSorted)
+      for (const id of [b.src, b.tgt])
+        faceCount.set(
+          faceKey(id, b.side),
+          (faceCount.get(faceKey(id, b.side)) ?? 0) + 1
+        );
+    const faceSeen = new Map<string, number>();
+    /** -1..1 across the face; later (outer-lane) edges sit further out. */
+    const portSlot = (id: string, side: number): number => {
+      const key = faceKey(id, side);
+      const j = faceSeen.get(key) ?? 0;
+      faceSeen.set(key, j + 1);
+      return (2 * (j + 1)) / (faceCount.get(key)! + 1) - 1;
+    };
+
+    // Group title strips in (cross, rank) terms. A stub from a box out to its
+    // lane runs straight through the title of any group above it; the renderer
+    // draws the title centred in the top GROUP_LABEL_ZONE of the rect.
+    const titleStrips = layoutGroups.map((g) => {
+      const tw = measureText(g.label, GROUP_TITLE_FONT_SIZE, { bold: true });
+      const x0 = g.x - tw / 2 - TITLE_CLEAR;
+      const x1 = g.x + tw / 2 + TITLE_CLEAR;
+      const y0 = g.y - g.height / 2;
+      const y1 = y0 + GROUP_LABEL_ZONE;
+      return isTB
+        ? { c0: x0, c1: x1, r0: y0, r1: y1 }
+        : { c0: y0, c1: y1, r0: x0, r1: x1 };
+    });
+    const stubHitsTitle = (r: number, ca: number, cb: number): boolean =>
+      titleStrips.some(
+        (t) =>
+          r > t.r0 &&
+          r < t.r1 &&
+          Math.min(ca, cb) < t.c1 &&
+          Math.max(ca, cb) > t.c0
+      );
+    /** Middle of the gap between `rank` and its neighbour toward `dir`
+     *  (+1 = higher rank). undefined when there is no neighbour. */
+    const gapMid = (rank: number, dir: number): number | undefined => {
+      const nb = rank + dir;
+      if (nb < 0 || nb > maxRank) return undefined;
+      const a = bandCenter[rank]! + (dir * bandDepth[rank]!) / 2;
+      const b = bandCenter[nb]! - (dir * bandDepth[nb]!) / 2;
+      return (a + b) / 2;
+    };
+
+    for (const b of backSorted) {
+      const s = b.side;
+      const k = laneCounter.get(s) ?? 0;
+      laneCounter.set(s, k + 1);
+      const src = node.get(b.src)!;
+      const tgt = node.get(b.tgt)!;
+      const laneC =
+        s > 0 ? maxCross + GAP + k * LANE : minCross - GAP - k * LANE;
+      const srcCtr = bandCenter[src.rank]!;
+      const tgtCtr = bandCenter[tgt.rank]!;
+      // An outer lane's stubs go further from the other endpoint than an inner
+      // lane's, so a stub never drops across a lane nested inside it.
+      const dir = srcCtr >= tgtCtr ? 1 : -1;
+      const srcR = srcCtr + dir * portSlot(b.src, s) * faceLim(src.depth);
+      const tgtR = tgtCtr - dir * portSlot(b.tgt, s) * faceLim(tgt.depth);
+      const m = (c: number, rr: number): Pt =>
+        isTB ? { x: c, y: rr } : { x: rr, y: c };
+      const off = 10;
+      const srcEdgeC = src.cross + s * (src.thick / 2 + off);
+      const tgtEdgeC = tgt.cross + s * (tgt.thick / 2 + off);
+      // One end of the loop: a stub straight out of the box's side, or — when
+      // that stub would cut a group title — out of the face toward the other
+      // endpoint and along the gap between ranks, which no title sits in.
+      const end = (
+        n: LNode,
+        ctr: number,
+        r: number,
+        edgeC: number,
+        toward: number
+      ): Pt[] => {
+        if (stubHitsTitle(r, n.cross, laneC)) {
+          const g = gapMid(n.rank, toward);
+          if (g !== undefined && !stubHitsTitle(g, n.cross, laneC))
+            return [m(n.cross, ctr), m(n.cross, g), m(laneC, g)];
+        }
+        return [m(n.cross, ctr), m(edgeC, r), m(laneC, r)];
+      };
+      const toTgt = tgt.rank >= src.rank ? 1 : -1;
+      backPoints.set(b.edgeIdx, [
+        ...end(src, srcCtr, srcR, srcEdgeC, toTgt),
+        ...end(tgt, tgtCtr, tgtR, tgtEdgeC, -toTgt).reverse(),
+      ]);
+    }
+
+    // Flat (same-rank) edges: a shallow arc bowing off the rank band so it does
+    // not run straight through any node sitting between the two endpoints.
+    const flatPoints = new Map<number, Pt[]>();
+    for (const f of flatEdges) {
+      const a = node.get(f.a)!;
+      const b = node.get(f.b)!;
+      const ctr = bandCenter[a.rank]!;
+      const bow = ctr - (a.depth / 2 + 26);
+      const m = (c: number, rr: number): Pt =>
+        isTB ? { x: c, y: rr } : { x: rr, y: c };
+      flatPoints.set(f.edgeIdx, [
+        m(a.cross, ctr),
+        m(a.cross, bow),
+        m(b.cross, bow),
+        m(b.cross, ctr),
+      ]);
+    }
+
+    // Every branch below routes centre-to-centre, which leaves the marker-end
+    // sitting under the target's own opaque rect. dagre clips for itself; this
+    // generator has to (#625).
+    const nodeRect = (label: string): ClipRect | undefined => {
+      const n = node.get(label);
+      if (!n) return undefined;
+      const c = coord(n);
+      return { x: c.x, y: c.y, w: n.realW, h: n.realH };
+    };
+
+    const layoutEdges: BLLayoutEdge[] = [];
+    for (let i = 0; i < parsed.edges.length; i++) {
+      const e = parsed.edges[i]!;
+      if (!labelSet.has(e.source) || !labelSet.has(e.target)) continue;
+      let points: Pt[];
+      if (e.source === e.target) {
+        const c = coord(node.get(e.source)!);
+        points = [c, c];
+      } else {
+        if (backPoints.has(i)) points = backPoints.get(i)!;
+        else if (flatPoints.has(i)) points = flatPoints.get(i)!;
+        else {
+          const chain = chainById.get(i);
+          if (!chain) continue;
+          points = chain.map((id) => coord(node.get(id)!));
+        }
+        points = clipEndpointsToNodes(
+          points,
+          nodeRect(e.source),
+          nodeRect(e.target)
+        );
+      }
+      layoutEdges.push({
+        source: e.source,
+        target: e.target,
+        ...(e.label !== undefined && { label: e.label }),
+        bidirectional: e.bidirectional,
+        lineNumber: e.lineNumber,
+        points,
+        yOffset: 0,
+        parallelCount: 1,
+        metadata: e.metadata,
       });
     }
 

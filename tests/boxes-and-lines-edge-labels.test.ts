@@ -4,11 +4,14 @@ import { layoutBoxesAndLines } from '../src/boxes-and-lines/layout';
 import { layoutBoxesAndLinesSearch } from '../src/boxes-and-lines/layout-search';
 import { renderBoxesAndLines } from '../src/boxes-and-lines/renderer';
 import { getPalette } from '../src/palettes';
+import { line as d3line, curveBasis } from 'd3-shape';
 
 const P = getPalette('nord').light;
 
-// Two edges each way between the same pair, so applyParallelEdgeOffsets fans
-// them — the case where the label used to be placed on a curve nobody drew.
+// Four edges between Client Application and Authorization Server. They were
+// fanned — the case where the label used to be placed on a curve nobody drew
+// (#640) — until #932 left routed detours out of the fan; FAN below is the
+// straight-line pair that still is.
 const OAUTH = `boxes-and-lines OAuth 2.0 Authorization Code with PKCE
 direction-lr
 
@@ -43,6 +46,16 @@ Client Application -8. API request + bearer token-> Resource Server
 Resource Server -Fetches JWKS-> Authorization Server
 Resource Server -9. Protected resource-> Client Application
 Client Application -10. Displays result-> User
+`;
+
+const FAN = `boxes-and-lines Fan
+direction-lr
+
+A
+  -first-> B
+  -second-> B
+B
+  -third-> A
 `;
 
 // 🔴 There is nothing to pin here any more, and that is the point. Every
@@ -169,8 +182,10 @@ describe('boxes-and-lines — an edge label stays with its edge', () => {
   it('gives a fanned edge its five-point geometry in the LAYOUT', async () => {
     // The structural half: if the fan is rebuilt at render time again, the
     // layout's points stay the routed polyline and this fails — catching the
-    // regression without depending on any distance threshold.
-    const layout = await layoutBoxesAndLines(parseBoxesAndLines(OAUTH));
+    // regression without depending on any distance threshold. OAUTH has no
+    // fanned edge since #932 (its parallel edges are routed apart), so this
+    // uses a pair of boxes the router joins with straight lines.
+    const layout = await layoutBoxesAndLines(parseBoxesAndLines(FAN));
     const fanned = layout.edges.filter(
       (e) => e.parallelCount > 1 && e.yOffset !== 0
     );
@@ -472,27 +487,38 @@ describe('boxes-and-lines — a label with no clear spot gets an opaque knockout
     return out;
   }
 
-  // One OAUTH label stays unresolved on this layout. It was six until #778
-  // taught the tier generator to open a corridor between two group walls wide
-  // enough for the label crossing it — 22, 26, 27, 30 and 32 all clear once
-  // there is somewhere to put them.
-  //
-  // 31 is the fixture's widest label (165px, past LABEL_MAX_WIDTH, so it wraps
-  // and is still the widest) and it lands over `Protected APIs`, the group its
-  // TARGET lives in and its source does not. A corridor cannot help a label
-  // whose own group spans the boundary it would sit in; that one is #703's
-  // constituency — a label with genuinely nowhere to go — and is drawn on the
-  // opaque knockout this block is about.
-  const UNRESOLVED = ['31'];
+  // No OAUTH label is unresolved. It was six until #778 taught the tier
+  // generator to open a corridor between two group walls wide enough for the
+  // label crossing it, and one — 31, the widest, over `Protected APIs` — until
+  // #932 stopped the parallel-edge fan straightening routed detours. 31 was
+  // stranded on a straight line cut through that group; on its own route it
+  // has somewhere to go.
+  const UNRESOLVED: string[] = [];
 
-  it('draws the unresolved OAUTH label opaque, and every other label at 0.9', async () => {
+  it('draws every OAUTH label at 0.9 now none is unresolved', async () => {
     const ops = knockouts(await renderSvg(OAUTH));
     expect(ops.size).toBe(13);
+    for (const [, o] of ops) expect(o).toBe('0.9');
+  });
+
+  it('draws a label the layout marks unresolved on an opaque knockout', async () => {
+    // No fixture here strands a label any more, so the renderer's half of the
+    // contract is checked on a layout with one flag flipped by hand.
+    const parsed = parseBoxesAndLines(OAUTH);
+    const layout = await layoutBoxesAndLines(parsed);
+    const forced = {
+      ...layout,
+      edges: layout.edges.map((e) =>
+        e.lineNumber === 31 ? { ...e, labelResolved: false } : e
+      ),
+    };
+    const el = document.createElement('div');
+    renderBoxesAndLines(el, parsed, forced, P, false, {
+      exportDims: { width: 800, height: 600 },
+    });
+    const ops = knockouts(el.querySelector('svg')!);
     const opaque = [...ops].filter(([, o]) => o === '1').map(([l]) => l);
-    expect(opaque.sort()).toEqual(UNRESOLVED);
-    for (const [line, o] of ops) {
-      if (!UNRESOLVED.includes(line)) expect(o).toBe('0.9');
-    }
+    expect(opaque).toEqual(['31']);
   });
 
   it('keeps "Signs tokens with" (line 29), which the wide search clears, at 0.9', async () => {
@@ -572,13 +598,12 @@ describe('boxes-and-lines — the search stops on work, not on the clock', () =>
       )
       .sort();
 
-  it('places the same OAUTH labels twice over, all but line 31', async () => {
+  it('places the same OAUTH labels twice over, every one of them', async () => {
     const first = await layoutBoxesAndLines(parseBoxesAndLines(OAUTH));
     const second = await layoutBoxesAndLines(parseBoxesAndLines(OAUTH));
-    // One unresolved, not six. 31 is the fixture's widest label and has
-    // genuinely nowhere to go (see UNRESOLVED above); 22, 26, 27, 30 and 32 are
-    // the five the clock used to cost a busy machine.
-    expect(unresolved(first)).toEqual(['31']);
+    // None unresolved, not six (see UNRESOLVED above); 22, 26, 27, 30 and 32
+    // are the five the clock used to cost a busy machine.
+    expect(unresolved(first)).toEqual([]);
     expect(unresolved(second)).toEqual(unresolved(first));
     expect(labelSpots(second)).toEqual(labelSpots(first));
   });
@@ -624,5 +649,191 @@ describe('boxes-and-lines — the search stops on work, not on the clock', () =>
     expect(first.tried).toBeLessThan(first.pool);
     // The whole point — twice through, same number, whatever else is running.
     expect(second).toEqual(first);
+  });
+});
+
+// ------------------------------------------------------------
+// #932 — the owner's screenshot of OAUTH showed five kinds of collision that
+// nothing guarded: lines through other edges' labels, lines through a group
+// holding neither end, lines through a group title, arrowheads piled on one
+// side of a box, and labels sitting on a group border. Measured on the drawn
+// curve, OAUTH had 3, 4, 1, 5 and 2 of them; each is now zero.
+// ------------------------------------------------------------
+describe('boxes-and-lines — OAUTH draws without collisions (#932)', () => {
+  type R = { l: number; t: number; r: number; b: number };
+  const rc = (x: number, y: number, w: number, h: number): R => ({
+    l: x - w / 2,
+    t: y - h / 2,
+    r: x + w / 2,
+    b: y + h / 2,
+  });
+  const inside = (p: Pt, r: R, inset = 1) =>
+    p.x > r.l + inset &&
+    p.x < r.r - inset &&
+    p.y > r.t + inset &&
+    p.y < r.b - inset;
+
+  /** The curve the renderer draws, sampled. */
+  const drawn = (points: readonly Pt[]): Pt[] => {
+    const out: Pt[] = [];
+    let cx = 0;
+    let cy = 0;
+    const ctx = {
+      moveTo: (x: number, y: number) => {
+        out.push({ x, y });
+        cx = x;
+        cy = y;
+      },
+      lineTo: (x: number, y: number) => {
+        for (let k = 1; k <= 24; k++)
+          out.push({
+            x: cx + ((x - cx) * k) / 24,
+            y: cy + ((y - cy) * k) / 24,
+          });
+        cx = x;
+        cy = y;
+      },
+      bezierCurveTo: (
+        x1: number,
+        y1: number,
+        x2: number,
+        y2: number,
+        x: number,
+        y: number
+      ) => {
+        for (let k = 1; k <= 24; k++) {
+          const t = k / 24;
+          const u = 1 - t;
+          const f = (a: number, b: number, c: number, d: number) =>
+            u * u * u * a +
+            3 * u * u * t * b +
+            3 * u * t * t * c +
+            t * t * t * d;
+          out.push({ x: f(cx, x1, x2, x), y: f(cy, y1, y2, y) });
+        }
+        cx = x;
+        cy = y;
+      },
+      closePath: () => {},
+    };
+    d3line<Pt>()
+      .x((d) => d.x)
+      .y((d) => d.y)
+      .curve(curveBasis)
+      .context(ctx as unknown as CanvasRenderingContext2D)(points as Pt[]);
+    return out;
+  };
+
+  const setup = async () => {
+    const parsed = parseBoxesAndLines(OAUTH);
+    const layout = await layoutBoxesAndLines(parsed);
+    const member = new Map<string, Set<string>>();
+    for (const g of parsed.groups)
+      for (const c of g.children)
+        (member.get(c) ?? member.set(c, new Set()).get(c)!).add(g.label);
+    const curves = layout.edges.map((e) => drawn(e.points));
+    const label = (e: (typeof layout.edges)[number]) =>
+      e.labelX === undefined
+        ? null
+        : rc(e.labelX, e.labelY!, e.labelWidth!, e.labelHeight!);
+    return { layout, member, curves, label };
+  };
+
+  it("runs no line through another edge's label", async () => {
+    const { layout, curves, label } = await setup();
+    const hits: string[] = [];
+    layout.edges.forEach((e, i) =>
+      layout.edges.forEach((f, j) => {
+        const r = label(f);
+        if (i !== j && r && curves[i]!.some((p) => inside(p, r)))
+          hits.push(`${e.lineNumber} through label ${f.lineNumber}`);
+      })
+    );
+    expect(hits).toEqual([]);
+  });
+
+  it('runs no line through a box or group that is not its own', async () => {
+    const { layout, member, curves } = await setup();
+    const hits: string[] = [];
+    layout.edges.forEach((e, i) => {
+      for (const n of layout.nodes)
+        if (
+          n.label !== e.source &&
+          n.label !== e.target &&
+          curves[i]!.some((p) => inside(p, rc(n.x, n.y, n.width, n.height)))
+        )
+          hits.push(`${e.lineNumber} through ${n.label}`);
+      for (const g of layout.groups)
+        if (
+          !member.get(e.source)?.has(g.label) &&
+          !member.get(e.target)?.has(g.label) &&
+          curves[i]!.some((p) => inside(p, rc(g.x, g.y, g.width, g.height)))
+        )
+          hits.push(`${e.lineNumber} through [${g.label}]`);
+    });
+    expect(hits).toEqual([]);
+  });
+
+  it('runs no line through a group title', async () => {
+    const { layout, curves } = await setup();
+    const hits: string[] = [];
+    layout.edges.forEach((e, i) => {
+      for (const g of layout.groups) {
+        const top = g.y - g.height / 2;
+        const title = { l: g.x - 70, r: g.x + 70, t: top + 4, b: top + 24 };
+        if (curves[i]!.some((p) => inside(p, title, 0)))
+          hits.push(`${e.lineNumber} through [${g.label}]`);
+      }
+    });
+    expect(hits).toEqual([]);
+  });
+
+  it('keeps line ends on one side of a box at least 16px apart', async () => {
+    const { layout } = await setup();
+    const ends: { key: string; p: Pt; line: number }[] = [];
+    for (const e of layout.edges) {
+      const pts = e.points;
+      for (const [id, p] of [
+        [e.source, pts[0]!],
+        [e.target, pts[pts.length - 1]!],
+      ] as const) {
+        const n = layout.nodes.find((x) => x.label === id);
+        if (!n) continue;
+        const r = rc(n.x, n.y, n.width, n.height);
+        const d = {
+          left: Math.abs(p.x - r.l),
+          right: Math.abs(p.x - r.r),
+          top: Math.abs(p.y - r.t),
+          bottom: Math.abs(p.y - r.b),
+        };
+        const side = Object.entries(d).sort((a, b) => a[1] - b[1])[0]![0];
+        ends.push({ key: `${id} ${side}`, p, line: e.lineNumber });
+      }
+    }
+    const close: string[] = [];
+    for (let a = 0; a < ends.length; a++)
+      for (let b = a + 1; b < ends.length; b++) {
+        const A = ends[a]!;
+        const B = ends[b]!;
+        if (A.key === B.key && Math.hypot(A.p.x - B.p.x, A.p.y - B.p.y) < 16)
+          close.push(`${A.key}: ${A.line} & ${B.line}`);
+      }
+    expect(close).toEqual([]);
+  });
+
+  it('sits no label astride a group border', async () => {
+    const { layout, label } = await setup();
+    const hits: string[] = [];
+    for (const e of layout.edges) {
+      const r = label(e);
+      if (!r) continue;
+      for (const g of layout.groups) {
+        const G = rc(g.x, g.y, g.width, g.height);
+        const overlaps = r.l < G.r && r.r > G.l && r.t < G.b && r.b > G.t;
+        const within = r.l >= G.l && r.r <= G.r && r.t >= G.t && r.b <= G.b;
+        if (overlaps && !within) hits.push(`${e.lineNumber} on [${g.label}]`);
+      }
+    }
+    expect(hits).toEqual([]);
   });
 });

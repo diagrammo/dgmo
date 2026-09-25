@@ -17,6 +17,7 @@
 // the relayout decision can re-invoke the search. The renderer is a pure consumer
 // of the labelX/labelY/labelWidth/labelHeight/labelLines fields written here.
 
+import { curveBasis } from 'd3-shape';
 import type { BLLayoutResult } from './layout';
 import type { BLGroup } from './types';
 import {
@@ -57,6 +58,17 @@ const PERP_STEP = 8; // perpendicular offset increment (px)
 export const LABEL_REACH_NEAR = 40;
 export const LABEL_REACH_WIDE = 56;
 const SLIDE_SAMPLES = 9; // arc-length samples per side when sliding along the edge
+const CURVE_STEP = 4; // px between samples of a drawn edge curve
+// A label's halo is only 0.9 opaque, so a line running through it still shows
+// through the text; labels keep this far off every OTHER edge's line (#932).
+const EDGE_CLEAR_PAD = 2;
+// Band either side of a group's border, and the title strip at its top, that a
+// label living INSIDE the group keeps off (#932). Keep the title numbers in
+// sync with renderer.ts: 14px bold, centred, baseline 18px below the top.
+const GROUP_BORDER_BAND = 4;
+const GROUP_TITLE_FONT_SIZE = 14;
+const GROUP_TITLE_DEPTH = 24;
+const GROUP_LABEL_ZONE = 32;
 
 type Pt = { readonly x: number; readonly y: number };
 
@@ -200,28 +212,92 @@ function slideFractions(): number[] {
  *  Pass 1 slides along the line; pass 2 offsets perpendicular. null = no clear
  *  spot found within the proximity budget. */
 function findClearPosition(
-  w: number,
-  h: number,
   points: ReadonlyArray<Pt>,
-  obstacles: readonly Rect[],
-  perpMax: number
+  blocked: (cx: number, cy: number) => boolean,
+  perpMax: number,
+  firstSide: 1 | -1 = -1
 ): Pt | null {
   const ts = slideFractions();
   for (const t of ts) {
     const { p } = pointAtArcFraction(points, t);
-    if (!overlapsAny(p.x, p.y, w, h, obstacles, BOX_CLEAR_PAD)) return p;
+    if (!blocked(p.x, p.y)) return p;
   }
   for (let mag = PERP_STEP; mag <= perpMax; mag += PERP_STEP) {
     for (const t of ts) {
       const { p, nx, ny } = pointAtArcFraction(points, t);
-      for (const sign of [-1, 1]) {
+      for (const sign of [firstSide, -firstSide]) {
         const x = p.x + nx * mag * sign;
         const y = p.y + ny * mag * sign;
-        if (!overlapsAny(x, y, w, h, obstacles, BOX_CLEAR_PAD)) return { x, y };
+        if (!blocked(x, y)) return { x, y };
       }
     }
   }
   return null;
+}
+
+/** The curve the renderer draws for an edge (curveBasis over its points),
+ *  flattened to a dense run of points. */
+function sampleDrawnCurve(points: ReadonlyArray<Pt>): Pt[] {
+  const out: Pt[] = [];
+  if (points.length < 2) return out;
+  let cx = 0;
+  let cy = 0;
+  const ctx = {
+    moveTo(x: number, y: number) {
+      out.push({ x, y });
+      cx = x;
+      cy = y;
+    },
+    lineTo(x: number, y: number) {
+      const n = Math.max(1, Math.ceil(Math.hypot(x - cx, y - cy) / CURVE_STEP));
+      for (let k = 1; k <= n; k++)
+        out.push({ x: cx + ((x - cx) * k) / n, y: cy + ((y - cy) * k) / n });
+      cx = x;
+      cy = y;
+    },
+    bezierCurveTo(
+      x1: number,
+      y1: number,
+      x2: number,
+      y2: number,
+      x: number,
+      y: number
+    ) {
+      const n = Math.max(
+        1,
+        Math.ceil(
+          (Math.hypot(x1 - cx, y1 - cy) +
+            Math.hypot(x2 - x1, y2 - y1) +
+            Math.hypot(x - x2, y - y2)) /
+            CURVE_STEP
+        )
+      );
+      for (let k = 1; k <= n; k++) {
+        const t = k / n;
+        const u = 1 - t;
+        out.push({
+          x:
+            u * u * u * cx +
+            3 * u * u * t * x1 +
+            3 * u * t * t * x2 +
+            t * t * t * x,
+          y:
+            u * u * u * cy +
+            3 * u * u * t * y1 +
+            3 * u * t * t * y2 +
+            t * t * t * y,
+        });
+      }
+      cx = x;
+      cy = y;
+    },
+    closePath() {},
+  };
+  const curve = curveBasis(ctx as unknown as CanvasRenderingContext2D);
+  curve.lineStart();
+  for (const p of points) curve.point(p.x, p.y);
+  curve.lineEnd();
+  return out;
 }
 
 /**
@@ -399,6 +475,104 @@ export function placeEdgeLabels(
     return out;
   };
 
+  // Preferred clearance, on top of the obstacles above (#932): the lines of
+  // every OTHER edge, the border band of a group the edge lives inside, and the
+  // title of every expanded group. None of it decides `resolved` — that stays
+  // the node-and-foreign-group test the relayout escalates on — so a label that
+  // cannot find such a spot keeps the one it had.
+  const curves = layout.edges.map((e) => {
+    const pts = sampleDrawnCurve(e.points);
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const p of pts) {
+      if (p.x < minX) minX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y > maxY) maxY = p.y;
+    }
+    return { pts, minX, minY, maxX, maxY };
+  });
+  const crossesOtherEdge = (
+    edgeIdx: number,
+    cx: number,
+    cy: number,
+    w: number,
+    h: number
+  ): boolean => {
+    const minX = cx - w / 2 - EDGE_CLEAR_PAD;
+    const minY = cy - h / 2 - EDGE_CLEAR_PAD;
+    const maxX = cx + w / 2 + EDGE_CLEAR_PAD;
+    const maxY = cy + h / 2 + EDGE_CLEAR_PAD;
+    for (let j = 0; j < curves.length; j++) {
+      if (j === edgeIdx) continue;
+      const c = curves[j]!;
+      if (c.maxX < minX || c.minX > maxX || c.maxY < minY || c.minY > maxY)
+        continue;
+      for (const p of c.pts)
+        if (p.x > minX && p.x < maxX && p.y > minY && p.y < maxY) return true;
+    }
+    return false;
+  };
+  const hasSubGroup = new Set(
+    (opts?.groups ?? []).flatMap((g) => (g.parentGroup ? [g.parentGroup] : []))
+  );
+  const drawnTop = (g: (typeof layout.groups)[number]): number =>
+    g.y - g.height / 2 - (hasSubGroup.has(g.label) ? GROUP_LABEL_ZONE : 0);
+  const titleRects: Rect[] = layout.groups
+    .filter((g) => !g.collapsed)
+    .map((g) => {
+      const tw = measureText(g.label, GROUP_TITLE_FONT_SIZE, { bold: true });
+      const top = drawnTop(g);
+      return {
+        minX: g.x - tw / 2,
+        minY: top,
+        maxX: g.x + tw / 2,
+        maxY: top + GROUP_TITLE_DEPTH,
+      };
+    });
+  const borderBands = (g: (typeof layout.groups)[number]): Rect[] => {
+    const B = GROUP_BORDER_BAND;
+    const l = g.x - g.width / 2;
+    const r = g.x + g.width / 2;
+    const t = drawnTop(g);
+    const b = g.y + g.height / 2;
+    return [
+      { minX: l - B, minY: t - B, maxX: r + B, maxY: t + B },
+      { minX: l - B, minY: b - B, maxX: r + B, maxY: b + B },
+      { minX: l - B, minY: t - B, maxX: l + B, maxY: b + B },
+      { minX: r - B, minY: t - B, maxX: r + B, maxY: b + B },
+    ];
+  };
+  const preferredCache = new Map<number, readonly Rect[]>();
+  const preferredFor = (edgeIdx: number): readonly Rect[] => {
+    const cached = preferredCache.get(edgeIdx);
+    if (cached !== undefined) return cached;
+    const e = layout.edges[edgeIdx]!;
+    const src = containers.get(e.source) ?? noContainers;
+    const tgt = containers.get(e.target) ?? noContainers;
+    const own = layout.groups.filter(
+      (g) => !g.collapsed && src.has(g.label) && tgt.has(g.label)
+    );
+    const out = [
+      ...obstaclesFor(edgeIdx),
+      ...titleRects,
+      ...own.flatMap(borderBands),
+    ];
+    preferredCache.set(edgeIdx, out);
+    return out;
+  };
+  const clearOfAll = (
+    edgeIdx: number,
+    cx: number,
+    cy: number,
+    w: number,
+    h: number
+  ) =>
+    !overlapsAny(cx, cy, w, h, preferredFor(edgeIdx), BOX_CLEAR_PAD) &&
+    !crossesOtherEdge(edgeIdx, cx, cy, w, h);
+
   const boxes: LabelBox[] = [];
   layout.edges.forEach((e, idx) => {
     if (!e.label || e.points.length < 2) return;
@@ -433,14 +607,43 @@ export function placeEdgeLabels(
   // node's NAME (#703); a label over a group's fill hides tint and a border. So
   // the base set — node boxes and collapsed groups — is the floor, and a
   // position clearing it is kept even when no position clears the groups too.
+  //
+  // Above both sits the preferred set (#932), tried first and given up without
+  // cost: a spot clearing it is taken, otherwise a label already clear of its
+  // obstacles stays put and one that is not falls through to the ladder below.
   for (const box of boxes) {
     const obstacles = obstaclesFor(box.edgeIdx);
-    if (!overlapsAny(box.cx, box.cy, box.w, box.h, obstacles, BOX_CLEAR_PAD))
-      continue;
+    if (clearOfAll(box.edgeIdx, box.cx, box.cy, box.w, box.h)) continue;
     const e = layout.edges[box.edgeIdx]!;
+    const { w, h } = box;
+    // Offsets try the side of the line the label already sits on first, so a
+    // fanned pair's labels, folded apart above, do not swap sides.
+    const mid = pointAtArcFraction(e.points, 0.5);
+    const side =
+      (box.cx - mid.p.x) * mid.nx + (box.cy - mid.p.y) * mid.ny > 0 ? 1 : -1;
+    const ideal = findClearPosition(
+      e.points,
+      (x, y) => !clearOfAll(box.edgeIdx, x, y, w, h),
+      perpMax,
+      side
+    );
+    if (ideal) {
+      box.cx = ideal.x;
+      box.cy = ideal.y;
+      continue;
+    }
+    if (!overlapsAny(box.cx, box.cy, w, h, obstacles, BOX_CLEAR_PAD)) continue;
     const clear =
-      findClearPosition(box.w, box.h, e.points, obstacles, perpMax) ??
-      findClearPosition(box.w, box.h, e.points, baseObstacles, perpMax);
+      findClearPosition(
+        e.points,
+        (x, y) => overlapsAny(x, y, w, h, obstacles, BOX_CLEAR_PAD),
+        perpMax
+      ) ??
+      findClearPosition(
+        e.points,
+        (x, y) => overlapsAny(x, y, w, h, baseObstacles, BOX_CLEAR_PAD),
+        perpMax
+      );
     if (clear) {
       box.cx = clear.x;
       box.cy = clear.y;
