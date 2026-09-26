@@ -1324,8 +1324,7 @@ export function renderSequenceDiagram(
   // don't overlap it.
   // If the note's closest preceding message is hidden (collapsed section), return -1
   // so the note is hidden along with its section.
-  const findAssociatedLastStep = (note: SequenceNote): number => {
-    // First find the closest preceding message (ignoring hidden filter)
+  const closestPrecedingMsgIndex = (note: SequenceNote): number => {
     let closestMsgIndex = -1;
     let closestLine = -1;
     for (let mi = 0; mi < messages.length; mi++) {
@@ -1336,10 +1335,17 @@ export function renderSequenceDiagram(
         closestMsgIndex = mi;
       }
     }
+    return closestMsgIndex;
+  };
+  /** A note folded away with its collapsed section — see `findAssociatedLastStep`. */
+  const isNoteHiddenByCollapse = (note: SequenceNote): boolean => {
+    const closestMsgIndex = closestPrecedingMsgIndex(note);
+    return closestMsgIndex >= 0 && hiddenMsgIndices.has(closestMsgIndex);
+  };
+  const findAssociatedLastStep = (note: SequenceNote): number => {
     // If the closest preceding message is hidden, hide the note too
-    if (closestMsgIndex >= 0 && hiddenMsgIndices.has(closestMsgIndex)) {
-      return -1;
-    }
+    if (isNoteHiddenByCollapse(note)) return -1;
+    const closestMsgIndex = closestPrecedingMsgIndex(note);
     if (closestMsgIndex < 0) return -1;
     return msgToLastStep.get(closestMsgIndex) ?? -1;
   };
@@ -1469,6 +1475,17 @@ export function renderSequenceDiagram(
       // In-bounds by loop guard.
       const el = els[i]!;
       if (isSequenceNote(el)) {
+        // 🔴 A note folded away with its collapsed section is not drawn, so it
+        // reserves nothing. It used to reserve anyway, and the scan below skips
+        // hidden messages, so its room landed on the first VISIBLE message —
+        // the opening message of the next expanded section. Every note
+        // collapsed above piled up there: 668px between the `After purchase`
+        // divider and its first message, against 56px expanded (#899).
+        // Consecutive notes follow the same message, so the run hides together.
+        if (isNoteHiddenByCollapse(el)) {
+          while (i + 1 < els.length && isSequenceNote(els[i + 1]!)) i++;
+          continue;
+        }
         // Total vertical extent of notes from the message arrow:
         //   offset (gap above first note — larger after self-calls)
         //   + each note's height + NOTE_OFFSET_BELOW (inter-note gap)

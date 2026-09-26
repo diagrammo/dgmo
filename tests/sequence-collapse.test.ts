@@ -1170,3 +1170,84 @@ describe('collapsed section participant marks', () => {
     );
   });
 });
+
+describe('an expanded section below collapsed ones', () => {
+  // The notes and the `if` block live in the sections that get folded away.
+  // A collapsed section's notes are not drawn, and until #899 their room was
+  // still reserved — carried past every hidden message onto the first VISIBLE
+  // one, which opened a gap under the next expanded section's divider the size
+  // of every note folded away above it.
+  //
+  // ⚠️ No section here ENDS on a note, and that is deliberate: a trailing
+  // note's room lands after the next divider even when nothing is collapsed,
+  // so the expanded gap it would be compared against is not the plain one.
+  const diagram = [
+    'sequence Checkout',
+    '',
+    '== Browse ==',
+    '',
+    'Fan -Find games-> Agent',
+    'note right of Agent',
+    '  A note tall enough to matter:',
+    '  it runs to three lines',
+    '  and reserves room below its message.',
+    'Agent -List games-> Fan',
+    '',
+    '== Pay ==',
+    '',
+    'if card needs step-up',
+    '  Agent -Challenge-> Fan',
+    '  note right of Agent',
+    '    A note that ends the block.',
+    'else',
+    '  Agent -Approve-> Fan',
+    'note right of Agent',
+    '  One more note in the folded part.',
+    'Fan -Confirm-> Agent',
+    '',
+    '== After purchase ==',
+    '',
+    'Agent -Send tickets-> Fan',
+    'Fan -Say thanks-> Agent',
+  ].join('\n');
+
+  const parsed = () => parseSequenceDgmo(diagram);
+  const sectionLine = (label: string): number =>
+    parsed()
+      .elements.filter((el): el is SequenceSection => el.kind === 'section')
+      .find((s) => s.label === label)!.lineNumber;
+
+  /** Divider centre to first-message arrow, for the `After purchase` section. */
+  const gapUnderAfterPurchase = (collapsed: number[]): number => {
+    const svg = renderToSvg(diagram, {
+      collapsedSections: new Set(collapsed),
+    })!;
+    const after = sectionLine('After purchase');
+    const band = svg.querySelector(
+      `[data-line-number="${String(after)}"] .section-divider`
+    )!;
+    const bandMid =
+      Number(band.getAttribute('y')) + Number(band.getAttribute('height')) / 2;
+    const firstMsg = parsed().messages.find((m) => m.lineNumber > after)!;
+    const arrow = svg.querySelector(
+      `line.message-arrow[data-line-number="${String(firstMsg.lineNumber)}"]`
+    )!;
+    return Number(arrow.getAttribute('y1')) - bandMid;
+  };
+
+  it('opens with the same gap as when nothing is collapsed', () => {
+    const expanded = gapUnderAfterPurchase([]);
+    const folded = gapUnderAfterPurchase([
+      sectionLine('Browse'),
+      sectionLine('Pay'),
+    ]);
+    expect(folded).toBeCloseTo(expanded, 6);
+  });
+
+  it('is not pushed down by a note in the ONE section folded above it', () => {
+    expect(gapUnderAfterPurchase([sectionLine('Pay')])).toBeCloseTo(
+      gapUnderAfterPurchase([]),
+      6
+    );
+  });
+});
