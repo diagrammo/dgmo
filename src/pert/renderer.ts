@@ -3417,9 +3417,14 @@ function renderScurveBlock(
     // the spline's boundary tangent can overshoot below y=0 % at
     // xMin (where the next sample point lies outside the visible
     // range), which leaks a dangling tail past the chart's left
-    // edge. Per-S-curve clipPath id keeps multiple PERT diagrams on
-    // the same page from sharing the same clip.
-    const clipId = `pert-scurve-clip-${Math.random().toString(36).slice(2, 10)}`;
+    // edge. The id is derived from the clip rect itself, never random:
+    // two PERT diagrams on one page share an id only when they share
+    // the rect, which is harmless, and every render of the same
+    // diagram emits the same bytes — the gallery snapshot
+    // byte-compares them (#854).
+    const clipId = `pert-scurve-clip-${[plotLeft, plotTop, plotW, plotH]
+      .map((v) => Math.round(v))
+      .join('-')}`;
     block
       .append('clipPath')
       .attr('id', clipId)

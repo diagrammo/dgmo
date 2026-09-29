@@ -1,0 +1,31 @@
+mindmap Product Launch Plan
+
+tag Priority as p
+  Must red
+  Should orange
+  Could green
+
+tag Owner as o
+  Product blue
+  Engineering teal
+  Marketing purple
+
+Launch p: Must, o: Product
+  Scope
+    Core features description: Everything the beta asked for
+    Integrations p: Should
+      Calendar sync
+      Chat notifications p: Could
+    Pricing tiers
+  Readiness o: Engineering
+    Load testing p: Must
+    Monitoring
+    Rollback plan description: One command, rehearsed twice
+  Messaging o: Marketing, collapsed
+    Landing page
+    Launch post
+    Customer emails
+  Support
+    Help articles p: Should
+    Onboarding call
+    FAQ p: Could

@@ -568,6 +568,35 @@ A
     document.body.removeChild(c);
   });
 
+  it('s-curve clip id is the same on every render of the same diagram', () => {
+    // The gallery snapshot byte-compares a fresh render against its
+    // baseline, so a random id makes the pert fixture drift every run.
+    const clipIdOf = () => {
+      const c = document.createElement('div');
+      document.body.appendChild(c);
+      const parsed = parsePert(loadFixture('three-point.dgmo'));
+      const resolved = analyzePert(parsed);
+      const layout = relayoutPert(resolved, {});
+      renderPert(
+        c as HTMLDivElement,
+        resolved,
+        layout,
+        getPalette('nord').light,
+        false,
+        {
+          title: parsed.title,
+          showScurve: true,
+        }
+      );
+      const id = c.querySelector('clipPath[id^="pert-scurve-clip-"]')?.id;
+      document.body.removeChild(c);
+      return id;
+    };
+    const first = clipIdOf();
+    expect(first).toBeTruthy();
+    expect(clipIdOf()).toBe(first);
+  });
+
   it('s-curve is silently omitted in analytical mode (no MC output)', () => {
     const c = document.createElement('div');
     document.body.appendChild(c);

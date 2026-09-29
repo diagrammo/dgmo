@@ -1,0 +1,27 @@
+pert Website Redesign
+time-unit w
+default-confidence medium
+
+kickoff 0
+  -> gather requirements
+
+gather requirements 1 2 3 as req
+  -> design mockups
+  -> audit content
+
+[design]
+  design mockups 2 3 5
+    -> build templates
+  audit content 1 1.5 3
+    -> write copy
+
+build templates 3 4 6
+  -> user testing
+
+write copy 2
+  -> user testing
+
+user testing 1 2 3
+  -> launch
+
+launch 0.5

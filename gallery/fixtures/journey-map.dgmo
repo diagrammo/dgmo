@@ -1,0 +1,28 @@
+journey-map Customer Onboarding
+
+persona New Customer color: blue
+  Team lead at a 40-person company
+  Evaluating the product on a two-week trial
+
+[Discover]
+  Reads a comparison article score: 3, emotion: Curious
+    thought: Could this replace the spreadsheet we keep fighting?
+  Watches the product demo score: 4, emotion: Interested
+
+[Sign Up]
+  Creates an account score: 4, emotion: Hopeful
+    description: Email, password and a workspace name
+  Waits for the verification email score: 2, emotion: Impatient
+    pain: The email lands in spam and takes ten minutes to find
+
+[First Use]
+  Imports existing data score: 2, emotion: Frustrated
+    pain: The CSV importer rejects two columns without saying why
+    opportunity: Show a preview with the rejected columns highlighted
+  Invites the team score: 4, emotion: Relieved
+
+[Adopt]
+  Runs the first weekly review in the tool score: 5, emotion: Confident
+    description: The whole team works from one shared board
+  Upgrades to a paid plan score: 4, emotion: Satisfied
+    thought: Worth it if it saves an hour a week

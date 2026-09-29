@@ -1,0 +1,30 @@
+wireframe Account Settings
+
+[Header]
+  Acme Workspace
+  nav
+    Dashboard
+    Projects
+    Settings active
+    Help
+
+[Main]
+  # Account Settings
+
+  Display name  [Jordan Lee]
+  Email  [jordan@example.com] readonly
+
+  {English | Español | Deutsch}
+
+  <x> Email me a weekly summary
+  < > Show beta features
+
+  (*) Light theme
+  ( ) Dark theme
+
+  (Save Changes)
+  (Cancel) ghost
+
+  ---
+
+  Leaving the team? (Delete Account) ghost
