@@ -431,3 +431,30 @@ describe('when no arrangement can be laid out at all', () => {
     expect((caught as Error).message).toContain('4 boxes, 7 lines');
   });
 });
+
+describe('seed search stops once a base config is already perfect (#981)', () => {
+  const placements = async (src: string): Promise<number> => {
+    let n = 0;
+    await layoutBoxesAndLinesSearch(parseBoxesAndLines(src), undefined, {
+      onProgress: (_d, _t, phase) => {
+        if (phase === 'Optimizing layout') n++;
+      },
+    });
+    return n;
+  };
+
+  it('a chain with nothing to untangle places only the 9 ranker × spacing configs', async () => {
+    const chain = ['boxes-and-lines', 'A -> B', 'B -> C', 'C -> D'].join('\n');
+    expect(await placements(chain)).toBe(9);
+  });
+
+  it('a graph no base config lays out cleanly still gets its seed-shuffles', async () => {
+    const k5 = [
+      'boxes-and-lines',
+      ...['A', 'B', 'C', 'D', 'E'].flatMap((a, i, all) =>
+        all.slice(i + 1).map((b) => `${a} -> ${b}`)
+      ),
+    ].join('\n');
+    expect(await placements(k5)).toBeGreaterThan(9);
+  });
+});

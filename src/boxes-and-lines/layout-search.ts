@@ -1422,9 +1422,13 @@ export async function layoutBoxesAndLinesSearch(
   }
 
   const n = parsed.nodes.length;
-  // ~500ms budget: search a larger pool, then refine the top few exactly.
+  // Search a pool of seed-shuffles, then refine the top few exactly. Small
+  // graphs were given 80 seeds; measured on 20 real diagrams of <= 12 nodes
+  // (#981), 20 seeds found layouts as good in total badness (19 vs 20) at
+  // under half the time, and more seeds can crowd the best candidate out of
+  // the top-REFINE_K re-rank.
   const seedCount =
-    opts?.seeds ?? (n <= 12 ? 80 : n <= 22 ? 40 : n <= 35 ? 22 : 10);
+    opts?.seeds ?? (n <= 12 ? 20 : n <= 22 ? 40 : n <= 35 ? 22 : 10);
   const REFINE_K = opts?.refineK ?? 6;
   const lambda = opts?.lambda ?? DEFAULT_LAMBDA;
   const prev = opts?.previousPositions;
@@ -1517,7 +1521,19 @@ export async function layoutBoxesAndLinesSearch(
   // family can be reported (onTopConfigs) for the label-reserving relayout.
   const pool: BLLayoutResult[] = [];
   const cfgOf = new Map<BLLayoutResult, BLSearchConfig>();
+  // Candidates that are already perfect (badness 0) after the base
+  // ranker × spacing configs. Seed-shuffles can then only move the edge-length
+  // tie-break, so they are skipped — 14 of 20 real diagrams stop here (#981).
+  // These are considered explicitly in stage 2, since the cheap straight-segment
+  // proxy may rank them outside the refine set.
+  const perfect: BLLayoutResult[] = [];
+  let seedsChecked = false;
   for (const cfg of configs) {
+    if (!opts?.configs && cfg.seed !== undefined && !seedsChecked) {
+      seedsChecked = true;
+      for (const lay of pool) if (badness(lay, 0) === 0) perfect.push(lay);
+      if (perfect.length) break;
+    }
     attempts++;
     try {
       const lay = place(cfg);
@@ -1668,6 +1684,12 @@ export async function layoutBoxesAndLinesSearch(
     const cfg = cfgOf.get(lay);
     if (cfg) topConfigs.push(cfg);
     await step('Refining layout');
+  }
+  for (const lay of perfect) {
+    if (pool.indexOf(lay) < refineK) continue;
+    consider(lay);
+    const cfg = cfgOf.get(lay);
+    if (cfg) topConfigs.push(cfg);
   }
 
   // Adaptive escalation: a still-high badness after the base seed budget means
