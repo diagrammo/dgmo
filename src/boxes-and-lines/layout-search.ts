@@ -229,7 +229,7 @@ export function countSplineCrossings(
     if (g.collapsed) center.set('__group_' + g.label, { x: g.x, y: g.y });
   const polys = flatPolys(layout);
   const edges = layout.edges;
-  const R = 34;
+  const R2 = 34 * 34;
   let total = 0;
   for (let a = 0; a < polys.length; a++)
     for (let b = a + 1; b < polys.length; b++) {
@@ -256,6 +256,9 @@ export function countSplineCrossings(
           axMax = a0.x > a1.x ? a0.x : a1.x,
           ayMin = a0.y < a1.y ? a0.y : a1.y,
           ayMax = a0.y > a1.y ? a0.y : a1.y;
+        // segment outside B's whole bbox — no segment of B can cross it
+        if (axMax < B.x0 || axMin > B.x1 || ayMax < B.y0 || ayMin > B.y1)
+          continue;
         for (let j = 1; j < bp.length; j++) {
           const b0 = bp[j - 1]!,
             b1 = bp[j]!;
@@ -266,9 +269,9 @@ export function countSplineCrossings(
           if ((b0.y > b1.y ? b0.y : b1.y) < ayMin) continue;
           const p = segPoint(a0, a1, b0, b1);
           if (!p) continue;
-          if (sh0 && Math.hypot(p.x - sh0.x, p.y - sh0.y) < R) continue;
-          if (sh1 && Math.hypot(p.x - sh1.x, p.y - sh1.y) < R) continue;
-          if (!hits.some((h) => Math.hypot(h.x - p.x, h.y - p.y) < 6))
+          if (sh0 && (p.x - sh0.x) ** 2 + (p.y - sh0.y) ** 2 < R2) continue;
+          if (sh1 && (p.x - sh1.x) ** 2 + (p.y - sh1.y) ** 2 < R2) continue;
+          if (!hits.some((h) => (h.x - p.x) ** 2 + (h.y - p.y) ** 2 < 36))
             hits.push(p);
         }
       }
@@ -278,21 +281,37 @@ export function countSplineCrossings(
   return total;
 }
 
-// distance from point p to segment a–b
-function pointSegDist(p: Pt, a: Pt, b: Pt): number {
+// squared distance from point p to segment a–b
+function pointSegDist2(p: Pt, a: Pt, b: Pt): number {
   const dx = b.x - a.x,
     dy = b.y - a.y;
   const len2 = dx * dx + dy * dy;
-  if (len2 < 1e-9) return Math.hypot(p.x - a.x, p.y - a.y);
-  let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2;
-  t = Math.max(0, Math.min(1, t));
-  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+  let qx = p.x - a.x,
+    qy = p.y - a.y;
+  if (len2 >= 1e-9) {
+    let t = (qx * dx + qy * dy) / len2;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    qx -= t * dx;
+    qy -= t * dy;
+  }
+  return qx * qx + qy * qy;
 }
-function distToPoly(p: Pt, poly: readonly Pt[]): number {
-  let m = Infinity;
-  for (let i = 1; i < poly.length; i++)
-    m = Math.min(m, pointSegDist(p, poly[i - 1]!, poly[i]!));
-  return m;
+// is p strictly within `dist` of the polyline? Squared compares and an early
+// exit: this sits inside the O(E²·P²) overlap scan, where Math.hypot and a full
+// min-scan were a quarter of all search time (#981).
+function nearPoly(p: Pt, poly: FlatPoly, dist: number): boolean {
+  if (
+    p.x < poly.x0 - dist ||
+    p.x > poly.x1 + dist ||
+    p.y < poly.y0 - dist ||
+    p.y > poly.y1 + dist
+  )
+    return false;
+  const d2 = dist * dist,
+    pts = poly.pts;
+  for (let i = 1; i < pts.length; i++)
+    if (pointSegDist2(p, pts[i - 1]!, pts[i]!) < d2) return true;
+  return false;
 }
 type Rect = { x: number; y: number; w: number; h: number };
 // distance from point p to an axis-aligned rectangle (0 if inside)
@@ -381,7 +400,7 @@ export function detectEdgeOverlaps(
         const nearShared =
           (shr0 !== undefined && pointRectDist(p, shr0) < nodeClear) ||
           (shr1 !== undefined && pointRectDist(p, shr1) < nodeClear);
-        const covered = !nearShared && distToPoly(p, B.pts) < dist;
+        const covered = !nearShared && nearPoly(p, B, dist);
         if (covered) {
           if (run.length)
             runLen += Math.hypot(
