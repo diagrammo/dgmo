@@ -988,3 +988,26 @@ describe('gantt controls group', () => {
     expect(svg?.getAttribute('data-critical-path-active')).not.toBeNull();
   });
 });
+
+describe('gantt time domain', () => {
+  // #994: an hours-long chart drew every bar as a sliver because the domain
+  // was padded by a fixed floor of ~3.65 days a side.
+  it('scales an hours-long chart to the plot width, not to days', () => {
+    const container = renderFromInput(`gantt
+start 2024-01-15
+
+A 2h
+-> B 2h
+`);
+    const rects = [
+      ...container.querySelectorAll('.gantt-task rect'),
+    ] as SVGRectElement[];
+    const lefts = rects.map((r) => Number(r.getAttribute('x')));
+    const rights = rects.map(
+      (r) => Number(r.getAttribute('x')) + Number(r.getAttribute('width'))
+    );
+    const extent = Math.max(...rights) - Math.min(...lefts);
+    expect(rects.length).toBeGreaterThanOrEqual(2);
+    expect(extent).toBeGreaterThan(300);
+  });
+});

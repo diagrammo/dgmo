@@ -617,8 +617,11 @@ export function renderGantt(
   const startTime = dateToFractionalYear(resolved.startDate);
   const endTime = dateToFractionalYear(resolved.endDate);
 
-  // Add small padding to domain
-  const domainPad = Math.max((endTime - startTime) * 0.02, 0.01);
+  // Pad the domain by 2% of the span. The pad must stay relative: a fixed
+  // floor (it was 0.01 yr, ~3.65 days a side) squashed an hours-long chart
+  // into a sliver of its own axis. Only a zero-length chart needs a fallback.
+  const span = endTime - startTime;
+  const domainPad = span > 0 ? span * 0.02 : 1 / 365;
   const domainMin = startTime - domainPad;
   const domainMax = endTime + domainPad;
 
