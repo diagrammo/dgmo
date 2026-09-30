@@ -69,10 +69,11 @@ import type { TagGroup, TagEntry } from '../utils/tag-groups';
 
 const BAR_H = 22;
 const ROW_GAP = 6;
-const GROUP_GAP = 14;
 const MILESTONE_SIZE = 10;
 const MIN_LEFT_MARGIN = 120;
 const BOTTOM_MARGIN = 40;
+/** Tick (6) + label baseline (12) + descent and breathing room below it. */
+const BOTTOM_AXIS_LABEL_RESERVE = 30;
 const RIGHT_MARGIN = 20;
 const LABEL_PAD = 8; // inner padding to decide if label fits inside bar
 const LABEL_GAP = 5; // gap between bar edge and external label
@@ -237,6 +238,12 @@ export interface GanttInteractiveOptions {
    * change), matching every other ControlsStrip-hosted chart type.
    */
   controlsHost?: 'app' | 'inline';
+  /**
+   * The host scales the SVG to fit the container on both axes (the app's
+   * preview pane). A chart taller than the container is laid out wider, to the
+   * container's aspect ratio, so it fills the width instead of a centred column.
+   */
+  fitToContainer?: boolean;
   /** Initial Critical Path highlight state (used when `controlsHost` is `'app'`). */
   criticalPathActive?: boolean;
   /** Initial Dependencies-arrow visibility (used when `controlsHost` is `'app'`). */
@@ -403,9 +410,13 @@ export function renderGantt(
 
   const sBarH = ctx.structural(BAR_H);
   const sRowGap = ctx.structural(ROW_GAP);
-  const sGroupGap = ctx.structural(GROUP_GAP);
   const sMilestoneSize = ctx.structural(MILESTONE_SIZE);
-  const sBottomMargin = ctx.aesthetic(BOTTOM_MARGIN);
+  // The bottom tick labels are drawn at full size (renderTimeScaleHorizontal),
+  // so the margin that holds them must not shrink below them.
+  const sBottomMargin = Math.max(
+    ctx.aesthetic(BOTTOM_MARGIN),
+    BOTTOM_AXIS_LABEL_RESERVE
+  );
   const sRightMargin = ctx.aesthetic(RIGHT_MARGIN);
   const sLabelPad = ctx.structural(LABEL_PAD);
   const sLabelGap = ctx.structural(LABEL_GAP);
@@ -415,10 +426,13 @@ export function renderGantt(
   const sTitleY = ctx.aesthetic(TITLE_Y);
   const sHeaderRowH = ctx.structural(HEADER_ROW_H);
   const sContentTopPad = ctx.aesthetic(CONTENT_TOP_PAD);
-  const sTopDateLabelReserve = ctx.structural(topDateLabelReserve);
+  // The top tick labels and the tag legend are drawn at full size, so their
+  // bands are reserved at full size too — scaling the reserve while the
+  // content stays put is what laid the time labels over the legend.
+  const sTopDateLabelReserve = topDateLabelReserve;
   const sSprintLabelReserve = ctx.structural(sprintLabelReserve);
   const sTitleHeight = ctx.aesthetic(titleHeight);
-  const sTagLegendReserve = ctx.structural(tagLegendReserve);
+  const sTagLegendReserve = tagLegendReserve;
 
   // §1.9 `legend-inline` (decision #50): one-line header when tag groups exist
   // (controls-only legends stay stacked — their width isn't in the extent probe).
@@ -481,21 +495,28 @@ export function renderGantt(
 
   const sContentH = isTagMode
     ? totalRows * (sBarH + sRowGap)
-    : totalRows * (sBarH + sRowGap) + sGroupGap * resolved.groups.length;
+    : totalRows * (sBarH + sRowGap);
   const sInnerHeight = sContentTopPad + sContentH;
   const sOuterHeight = sMarginTop + sInnerHeight + sBottomMargin;
 
   // Extra right margin when sprints present so hover date labels aren't clipped
   const sprintRightPad = resolved.sprints.length > 0 ? 50 : 0;
-  const innerWidth =
-    containerWidth - leftMargin - sRightMargin - sprintRightPad;
+  // `fitToContainer`: the host scales the SVG to fit its box on both axes, so
+  // a chart taller than the box would shrink into a centred column. Widen the
+  // layout to the box's aspect ratio instead and give the time axis the room.
+  const containerHeight = options?.fitToContainer ? container.clientHeight : 0;
+  const layoutWidth =
+    !exportDims && containerHeight > 0 && sOuterHeight > containerHeight
+      ? (containerWidth * sOuterHeight) / containerHeight
+      : containerWidth;
+  const innerWidth = layoutWidth - leftMargin - sRightMargin - sprintRightPad;
 
   // ── Create SVG ──────────────────────────────────────────
 
   const svg = d3Selection
     .select(container)
     .append('svg')
-    .attr('viewBox', `0 0 ${containerWidth} ${sOuterHeight}`)
+    .attr('viewBox', `0 0 ${layoutWidth} ${sOuterHeight}`)
     .attr('width', exportDims ? containerWidth : '100%')
     .attr('preserveAspectRatio', 'xMidYMin meet')
     .attr('font-family', FONT_FAMILY)
@@ -509,7 +530,7 @@ export function renderGantt(
     svg
       .append('text')
       .attr('class', 'chart-title')
-      .attr('x', header.titleX)
+      .attr('x', header.inline ? header.titleX : layoutWidth / 2)
       .attr('y', sTitleY)
       .attr('text-anchor', header.titleAnchor)
       .attr('font-size', sTitleFontSize)

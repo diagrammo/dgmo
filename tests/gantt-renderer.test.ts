@@ -1011,3 +1011,91 @@ A 2h
     expect(extent).toBeGreaterThan(300);
   });
 });
+
+describe('gantt preview layout (tall chart, scaled context)', () => {
+  // #997: a tall chart shrinks its layout in preview; the legend and axis
+  // labels are drawn at full size, so their reserved bands must not shrink.
+  const TALL = [
+    'gantt Tall',
+    'start 2024-01-15',
+    'tag Role as r',
+    '  Command red',
+    '  Crew blue',
+    '',
+    ...Array.from({ length: 8 }, (_, g) => [
+      `[Group ${g}]`,
+      ...Array.from({ length: 6 }, (_, t) => `  Task ${g}-${t} 1h | r: Crew`),
+    ]).flat(),
+  ].join('\n');
+
+  function renderPreview(height: number, fitToContainer: boolean) {
+    const container = makeContainer();
+    Object.defineProperty(container, 'clientHeight', {
+      value: height,
+      configurable: true,
+    });
+    renderGantt(container, resolveFromInput(TALL), palette, false, {
+      fitToContainer,
+    });
+    return container.querySelector('svg')!;
+  }
+
+  function plotTop(svg: SVGSVGElement): number {
+    const g = [...svg.children].find((el) =>
+      /^translate\([\d.]+, [\d.]+\)$/.test(el.getAttribute('transform') ?? '')
+    )!;
+    return Number(/, ([\d.]+)\)/.exec(g.getAttribute('transform')!)![1]);
+  }
+
+  it('keeps the top time labels below the tag legend', () => {
+    const svg = renderPreview(500, false);
+    const legend = svg.querySelector('.gantt-tag-legend-container')!;
+    const legendY = Number(
+      /, ?([\d.]+)\)/.exec(legend.getAttribute('transform')!)![1]
+    );
+    // Top tick label: baseline 10px above the plot, 10px font.
+    const labelTop = plotTop(svg) - 10 - 10;
+    expect(labelTop).toBeGreaterThanOrEqual(legendY + 28);
+  });
+
+  it('leaves room under the bottom time labels', () => {
+    const svg = renderPreview(500, false);
+    const [, , , vbH] = svg.getAttribute('viewBox')!.split(' ').map(Number);
+    const bottomLabels = [...svg.querySelectorAll('text.gantt-scale-tick')].map(
+      (t) => Number(t.getAttribute('y'))
+    );
+    const baseline = plotTop(svg) + Math.max(...bottomLabels);
+    expect(vbH - baseline).toBeGreaterThanOrEqual(10);
+  });
+
+  it('reserves no height below the last row', () => {
+    const svg = renderPreview(500, false);
+    const rowBottoms = [...svg.querySelectorAll('.gantt-task rect')].map(
+      (r) => Number(r.getAttribute('y')) + Number(r.getAttribute('height'))
+    );
+    const axisY = Math.max(
+      ...[...svg.querySelectorAll('line.gantt-scale-tick')].map((l) =>
+        Number(l.getAttribute('y1'))
+      )
+    );
+    expect(axisY - Math.max(...rowBottoms)).toBeLessThan(40);
+  });
+
+  it('widens to the container aspect ratio with fitToContainer', () => {
+    const plain = renderPreview(300, false).getAttribute('viewBox')!;
+    const fitted = renderPreview(300, true).getAttribute('viewBox')!;
+    const [, , w0, h0] = plain.split(' ').map(Number);
+    const [, , w1, h1] = fitted.split(' ').map(Number);
+    expect(w0).toBe(800);
+    expect(h1).toBeCloseTo(h0);
+    expect(w1 / h1).toBeCloseTo(800 / 300);
+  });
+
+  it('leaves a chart shorter than its container at container width', () => {
+    const [, , w] = renderPreview(100000, true)
+      .getAttribute('viewBox')!
+      .split(' ')
+      .map(Number);
+    expect(w).toBe(800);
+  });
+});
