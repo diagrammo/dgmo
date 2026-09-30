@@ -5,6 +5,79 @@ All notable changes to `@diagrammo/dgmo` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.87.0] - 2026-09-30
+
+### Changed
+
+- **BREAKING: the SVG sanitizer is now a supported export —
+  `sanitizeSvgInPlace(root)`, node only.** It moves out of the private
+  embed-bundle module to the package root, so any host can sanitize markup
+  before inserting it, and dgmo's own live-DOM chart mount is now wired
+  through it on every render and on the error-card fallback, which
+  previously had no scrub at all. The removed-element set widened from
+  `script`/`foreignObject` to also drop `iframe`, `frame`, `object`,
+  `embed`, `base`, `link` and `meta`; a SMIL `<animate>`/`<animateMotion>`
+  targeting `href`/`xlink:href` is stripped, closing a click-time URL
+  rewrite the static-attribute allowlist couldn't see; and a mount now
+  takes only the `<svg>` it finds rather than everything a hostile document
+  put beside it. A string-in/string-out `sanitizeSvgMarkup` was added and
+  then withdrawn — round-tripping SVG through a string reopens the class of
+  parser/serializer mismatch DOMPurify's own mXSS bypasses live in — so a
+  caller that only holds markup (React's `dangerouslySetInnerHTML` and
+  similar) parses into a detached node, sanitizes, then inserts, the same
+  order `auto`/`element` already used.
+
+### Fixed
+
+- **Edges in a boxes-and-lines diagram no longer cross through labels,
+  boxes, groups or each other.** Five kinds of collision went unguarded: a
+  line running through another edge's label, through a box or group that
+  isn't its own, through a group's title, two line ends crowded under 16px
+  apart, and a label sitting astride a group border. Label placement now
+  first tries a spot clear of every other edge's line and of its own
+  group's border and title; the parallel-edge fan that used to straighten a
+  routed detour back into a collision no longer runs after scoring;
+  back-edge ports spread across a box face instead of stacking; and line
+  ends closer than 16px are pushed apart. Across 49 real diagrams, lines
+  through labels dropped from 10 to 1 and crowded line ends from 257 to 16.
+- **A collapsed sequence section's notes no longer push the next section
+  down.** A note inside a collapsed section isn't drawn, but the room
+  reserved for it still landed on the first visible message — the opening
+  message of the next expanded section — so every collapsed note above
+  piled up as blank space before that section's divider. On the reported
+  diagram this left a 668px gap where the correct gap is 56px.
+- **Hovering a chart segment now dims its matching legend entry too, not
+  just its neighbouring marks.** The pairing only ran one direction —
+  hovering a legend entry dimmed marks — so hovering a mark left every
+  legend row at full strength, the one moment someone hovering wants to
+  know which colour they're looking at. Both hover paths, live interaction
+  and the CSS baked into static/embedded output, now dim the legend entry
+  that doesn't match the hovered mark.
+- **A timeline event's label can no longer inject markup into its hover
+  tooltip.** The tooltip was built by interpolating the label straight into
+  an HTML string and assigning it with `innerHTML`, so a label containing
+  markup reached the live document unescaped. The label is now escaped
+  through the same helper the embed path already uses.
+- **A boxes-and-lines layout search no longer loses placed labels, or
+  produces a different result, depending on how busy the machine is.** The
+  search's stopping point was a 5-second wall-clock backstop, which could
+  fire under ordinary load on an ordinary diagram and silently drop labels
+  with no diagnostic. It's now bounded by a fixed amount of
+  candidate-generation work instead, so the result no longer depends on
+  machine load. The `budgetMs` layout option is removed.
+
+### Performance
+
+- **Boxes-and-lines layout search is significantly faster, with unchanged
+  output.** Candidate scoring — counting line overlaps and crossings — was
+  about 45% of search time; it now skips points and segments outside a
+  bounding box and compares squared distances instead of calling
+  `Math.hypot`, up to 20x faster on that path. Seeding also stops early
+  once a base configuration already scores perfectly, and the seed count
+  for small diagrams (12 nodes or fewer) drops from 80 to 20. Measured
+  across 20 real diagrams, total search time drops from 6.1s to 3.3s, with
+  most individual diagrams 5-10x faster.
+
 ## [0.86.0] - 2026-09-20
 
 ### Added
