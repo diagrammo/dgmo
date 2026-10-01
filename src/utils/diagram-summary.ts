@@ -11,12 +11,37 @@
 // the gap is the table below, not a generic sentence that says nothing. The
 // row filling it in is diagrammo/diagrammo#954, landed by chart type.
 
+import { parseBody } from '../body/parser';
+import { parseBoxesAndLines } from '../boxes-and-lines/parser';
+import { parseBracket } from '../bracket/parser';
+import { parseC4 } from '../c4/parser';
+import type { C4Element } from '../c4/types';
 import { parseChart } from '../chart';
 import type { ParsedChart } from '../chart';
 import type { ChartTypeId } from '../chart-types';
+import { parseClassDiagram } from '../class/parser';
+import { parseERDiagram } from '../er/parser';
+import { parseFamily } from '../family/parser';
+import { parseGantt } from '../gantt/parser';
+import type { GanttNode } from '../gantt/types';
+import { parseFlowchart } from '../graph/flowchart-parser';
+import { parseState } from '../graph/state-parser';
+import { parseInfra } from '../infra/parser';
+import { parseJourneyMap } from '../journey-map/parser';
+import { parseKanban } from '../kanban/parser';
+import { parseLiveLink } from '../live-link/parser';
+import { parseMindmap } from '../mindmap/parser';
 import { parseOrg } from '../org/parser';
 import type { OrgNode } from '../org/parser';
+import { parsePert } from '../pert/parser';
+import { parseRaci } from '../raci/parser';
 import { parseSequenceDgmo } from '../sequence/parser';
+import { parseSitemap } from '../sitemap/parser';
+import type { SitemapNode } from '../sitemap/types';
+import { parseSketch } from '../sketch/parser';
+import { parseSwimlane } from '../swimlane/parser';
+import { parseVersionControl } from '../version-control/parser';
+import { parseWireframe } from '../wireframe/parser';
 import { compactNumber } from './number-format';
 
 type Summarizer = (content: string) => string | null;
@@ -153,9 +178,271 @@ function summarizeOrg(content: string): string | null {
   return `${head} under ${plural(tops.length, 'top-level entry', 'top-level entries')}, ${listNames(tops)}.`;
 }
 
+/** Every node in a tree, counted through `children`. */
+function countTree(nodes: readonly { children: readonly unknown[] }[]): number {
+  return nodes.reduce(
+    (n, node) =>
+      n +
+      1 +
+      countTree(node.children as readonly { children: readonly unknown[] }[]),
+    0
+  );
+}
+
+/** `of 3 kinds, A, B and C` — the count, then the names. */
+function namedCount(
+  names: readonly string[],
+  one: string,
+  many: string
+): string {
+  return names.length === 0
+    ? `no ${many}`
+    : `${plural(names.length, one, many)}, ${listNames(names)}`;
+}
+
+function summarizeFlowchart(content: string): string | null {
+  const parsed = parseFlowchart(content);
+  if (parsed.error) return null;
+  if (parsed.nodes.length === 0) return 'Flowchart with no steps.';
+  const decisions = parsed.nodes.filter((n) => n.shape === 'decision').length;
+  const steps = `${plural(parsed.nodes.length, 'step', 'steps')}${decisions > 0 ? ` (${plural(decisions, 'decision', 'decisions')})` : ''}`;
+  return `Flowchart of ${steps} and ${plural(parsed.edges.length, 'connection', 'connections')}, starting at ${parsed.nodes[0]!.label}.`;
+}
+
+function summarizeState(content: string): string | null {
+  const parsed = parseState(content);
+  if (parsed.error) return null;
+  const states = parsed.nodes
+    .filter((n) => n.shape !== 'pseudostate')
+    .map((n) => n.label);
+  return `State diagram of ${namedCount(states, 'state', 'states')}, with ${plural(parsed.edges.length, 'transition', 'transitions')}.`;
+}
+
+function summarizeClass(content: string): string | null {
+  const parsed = parseClassDiagram(content);
+  if (parsed.error) return null;
+  const names = parsed.classes.map((c) => c.name);
+  return `Class diagram of ${namedCount(names, 'class', 'classes')}, with ${plural(parsed.relationships.length, 'relationship', 'relationships')}.`;
+}
+
+function summarizeEr(content: string): string | null {
+  const parsed = parseERDiagram(content);
+  if (parsed.error) return null;
+  const names = parsed.tables.map((t) => t.name);
+  return `Entity-relationship diagram of ${namedCount(names, 'table', 'tables')}, with ${plural(parsed.relationships.length, 'relationship', 'relationships')}.`;
+}
+
+function summarizeKanban(content: string): string | null {
+  const parsed = parseKanban(content);
+  if (parsed.error) return null;
+  const cards = parsed.columns.reduce((n, c) => n + c.cards.length, 0);
+  const columns = parsed.columns.map((c) => c.name);
+  return `Kanban board with ${plural(cards, 'card', 'cards')} across ${namedCount(columns, 'column', 'columns')}.`;
+}
+
+/** Every element in a C4 model, and every relationship any of them declares. */
+function c4Counts(elements: readonly C4Element[]): {
+  elements: number;
+  relationships: number;
+} {
+  return elements.reduce(
+    (acc, el) => {
+      const below = c4Counts(el.children);
+      return {
+        elements: acc.elements + 1 + below.elements,
+        relationships:
+          acc.relationships + el.relationships.length + below.relationships,
+      };
+    },
+    { elements: 0, relationships: 0 }
+  );
+}
+
+function summarizeC4(content: string): string | null {
+  const parsed = parseC4(content);
+  if (parsed.error) return null;
+  const counts = c4Counts(parsed.elements);
+  const relationships = counts.relationships + parsed.relationships.length;
+  const top = parsed.elements.map((e) => e.name);
+  const nested = counts.elements - top.length;
+  return `C4 diagram of ${namedCount(top, 'top-level element', 'top-level elements')}${nested > 0 ? `, holding ${nested} more` : ''}, with ${plural(relationships, 'relationship', 'relationships')}.`;
+}
+
+/** Pages in a sitemap tree; a container groups pages and is not one. */
+function countPages(nodes: readonly SitemapNode[]): number {
+  return nodes.reduce(
+    (n, node) => n + (node.isContainer ? 0 : 1) + countPages(node.children),
+    0
+  );
+}
+
+function summarizeSitemap(content: string): string | null {
+  const parsed = parseSitemap(content);
+  if (parsed.error) return null;
+  const tops = parsed.roots.map((r) => r.label);
+  return `Sitemap of ${plural(countPages(parsed.roots), 'page', 'pages')} under ${namedCount(tops, 'top-level entry', 'top-level entries')}.`;
+}
+
+function summarizeInfra(content: string): string | null {
+  const parsed = parseInfra(content);
+  if (parsed.error) return null;
+  const names = parsed.nodes.map((n) => n.label);
+  return `Infrastructure diagram of ${namedCount(names, 'component', 'components')}, with ${plural(parsed.edges.length, 'connection', 'connections')}.`;
+}
+
+/** Task labels and group count through a gantt tree's groups and parallel blocks. */
+function ganttTasks(
+  nodes: readonly GanttNode[],
+  acc: { tasks: string[]; groups: number }
+): { tasks: string[]; groups: number } {
+  for (const node of nodes) {
+    if (node.kind === 'task') acc.tasks.push(node.label);
+    else {
+      if (node.kind === 'group') acc.groups += 1;
+      ganttTasks(node.children, acc);
+    }
+  }
+  return acc;
+}
+
+function summarizeGantt(content: string): string | null {
+  const parsed = parseGantt(content);
+  if (parsed.error) return null;
+  const { tasks, groups } = ganttTasks(parsed.nodes, { tasks: [], groups: 0 });
+  return `Gantt chart of ${namedCount(tasks, 'task', 'tasks')}${groups > 0 ? `, in ${plural(groups, 'group', 'groups')}` : ''}.`;
+}
+
+function summarizePert(content: string): string | null {
+  const parsed = parsePert(content);
+  if (parsed.error) return null;
+  const names = parsed.activities.map((a) => a.name);
+  return `PERT chart of ${namedCount(names, 'activity', 'activities')}, with ${plural(parsed.edges.length, 'dependency', 'dependencies')}.`;
+}
+
+function summarizeBoxesAndLines(content: string): string | null {
+  const parsed = parseBoxesAndLines(content);
+  if (parsed.error) return null;
+  const names = parsed.nodes.map((n) => n.label);
+  return `Boxes and lines diagram of ${namedCount(names, 'box', 'boxes')}, with ${plural(parsed.edges.length, 'line', 'lines')}.`;
+}
+
+function summarizeSketch(content: string): string | null {
+  const parsed = parseSketch(content);
+  if (parsed.error) return null;
+  const names = parsed.nodes.map((n) => n.label);
+  return `Sketch of ${namedCount(names, 'shape', 'shapes')}, with ${plural(parsed.edges.length, 'connection', 'connections')}.`;
+}
+
+function summarizeSwimlane(content: string): string | null {
+  const parsed = parseSwimlane(content);
+  if (parsed.error) return null;
+  const lanes = parsed.lanes.map((l) => l.label);
+  return `Swimlane diagram of ${plural(parsed.nodes.length, 'step', 'steps')} across ${namedCount(lanes, 'lane', 'lanes')}, with ${plural(parsed.edges.length, 'connection', 'connections')}.`;
+}
+
+function summarizeFamily(content: string): string | null {
+  const parsed = parseFamily(content);
+  if (parsed.error) return null;
+  return `Family tree of ${plural(parsed.persons.size, 'person', 'people')} in ${plural(parsed.unions.length, 'union', 'unions')}.`;
+}
+
+function summarizeVersionControl(content: string): string | null {
+  const parsed = parseVersionControl(content);
+  if (parsed.error) return null;
+  const branches = parsed.branches.map((b) => b.name);
+  return `Version control graph of ${plural(parsed.nodes.length, 'commit', 'commits')} on ${namedCount(branches, 'branch', 'branches')}.`;
+}
+
+function summarizeMindmap(content: string): string | null {
+  const parsed = parseMindmap(content);
+  if (parsed.error) return null;
+  if (parsed.roots.length === 0) return 'Mind map with no ideas.';
+  const ideas = countTree(parsed.roots) - parsed.roots.length;
+  const centres = parsed.roots.map((r) => r.label);
+  return `Mind map of ${plural(ideas, 'idea', 'ideas')} around ${listNames(centres)}.`;
+}
+
+function summarizeWireframe(content: string): string | null {
+  const parsed = parseWireframe(content);
+  if (parsed.error) return null;
+  const elements = countTree(parsed.roots);
+  const tops = parsed.roots.map((r) => r.label).filter((l) => l.length > 0);
+  const modals =
+    parsed.modals.length > 0
+      ? `, plus ${plural(parsed.modals.length, 'modal', 'modals')}`
+      : '';
+  const noun = `${parsed.formFactor.charAt(0).toUpperCase()}${parsed.formFactor.slice(1)} wireframe`;
+  return `${noun} of ${plural(elements, 'element', 'elements')}${tops.length > 0 ? `, in ${listNames(tops)}` : ''}${modals}.`;
+}
+
+function summarizeJourneyMap(content: string): string | null {
+  const parsed = parseJourneyMap(content);
+  if (parsed.error) return null;
+  const steps =
+    parsed.steps.length + parsed.phases.reduce((n, p) => n + p.steps.length, 0);
+  const phases = parsed.phases.map((p) => p.name);
+  const who = parsed.persona ? ` for ${parsed.persona.name}` : '';
+  return `Journey map${who} of ${plural(steps, 'step', 'steps')}${phases.length > 0 ? ` across ${namedCount(phases, 'phase', 'phases')}` : ''}.`;
+}
+
+function summarizeRaci(content: string): string | null {
+  const parsed = parseRaci(content);
+  if (parsed.error) return null;
+  const tasks =
+    parsed.tasksWithoutPhase.length +
+    parsed.phases.reduce((n, p) => n + p.tasks.length, 0);
+  return `${parsed.variant.toUpperCase()} matrix of ${plural(tasks, 'task', 'tasks')} across ${namedCount(parsed.roleDisplayNames, 'role', 'roles')}.`;
+}
+
+function summarizeBody(content: string): string | null {
+  const parsed = parseBody(content);
+  if (parsed.error) return null;
+  const parts = parsed.parts.map((p) => p.name);
+  return `Body diagram marking ${namedCount(parts, 'part', 'parts')}.`;
+}
+
+function summarizeBracket(content: string): string | null {
+  const parsed = parseBracket(content);
+  if (parsed.error) return null;
+  const competitors =
+    parsed.seeds.length > 0
+      ? parsed.seeds.length
+      : new Set(parsed.matches.flatMap((m) => [m.p1, m.p2])).size;
+  const decided = parsed.matches.filter((m) => m.decided).length;
+  return `Tournament bracket of ${plural(competitors, 'competitor', 'competitors')} in ${plural(parsed.matches.length, 'match', 'matches')}, ${decided} decided.`;
+}
+
+function summarizeLiveLink(content: string): string | null {
+  const parsed = parseLiveLink(content);
+  if (parsed.error || !parsed.id) return null;
+  return `Card linking to the shared diagram ${parsed.title ?? parsed.id}.`;
+}
+
 const SUMMARIZERS: Partial<Record<ChartTypeId, Summarizer>> = {
   sequence: summarizeSequence,
   org: summarizeOrg,
+  flowchart: summarizeFlowchart,
+  state: summarizeState,
+  class: summarizeClass,
+  er: summarizeEr,
+  kanban: summarizeKanban,
+  c4: summarizeC4,
+  sitemap: summarizeSitemap,
+  infra: summarizeInfra,
+  gantt: summarizeGantt,
+  pert: summarizePert,
+  'boxes-and-lines': summarizeBoxesAndLines,
+  sketch: summarizeSketch,
+  swimlane: summarizeSwimlane,
+  family: summarizeFamily,
+  'version-control': summarizeVersionControl,
+  mindmap: summarizeMindmap,
+  wireframe: summarizeWireframe,
+  'journey-map': summarizeJourneyMap,
+  raci: summarizeRaci,
+  body: summarizeBody,
+  bracket: summarizeBracket,
+  'live-link': summarizeLiveLink,
   bar: summarizeChart,
   line: summarizeChart,
   pie: summarizeChart,

@@ -16,7 +16,32 @@ const SUMMARIZED = [
   'pie',
   'radar',
   'polar-area',
+  'flowchart',
+  'state',
+  'class',
+  'er',
+  'kanban',
+  'c4',
+  'sitemap',
+  'infra',
+  'gantt',
+  'pert',
+  'boxes-and-lines',
+  'sketch',
+  'swimlane',
+  'family',
+  'version-control',
+  'mindmap',
+  'wireframe',
+  'journey-map',
+  'raci',
+  'body',
+  'bracket',
+  'live-link',
 ];
+
+/** Summarized types the gallery has no fixture for; rendered below instead. */
+const NO_GALLERY_FIXTURE = ['raci', 'live-link'];
 
 const GALLERY_DIR = join(__dirname, '..', 'gallery', 'fixtures');
 const fixtures = readdirSync(GALLERY_DIR)
@@ -47,7 +72,9 @@ describe('root <desc> summary (#954)', () => {
         content.trimStart().split(/\s/, 1)[0]!.toLowerCase()
       )
     );
-    expect([...types].sort()).toEqual([...SUMMARIZED].sort());
+    expect([...types].sort()).toEqual(
+      SUMMARIZED.filter((t) => !NO_GALLERY_FIXTURE.includes(t)).sort()
+    );
   });
 
   it.each(fixtures.map((f) => [f.file, f.content]))(
@@ -138,7 +165,74 @@ describe('root <desc> summary (#954)', () => {
     }
   );
 
+  it.each([
+    ['raci', 'raci Launch\n\nShip it\n  Cap: A\n  Crew: R\n'],
+    [
+      'live-link',
+      'live-link Platform architecture\nurl https://online.diagrammo.app/d/dgm_7f2a91\n',
+    ],
+  ])(
+    '%s renders a non-empty <desc> without a gallery fixture',
+    async (_t, src) => {
+      const { svg } = await render(src);
+      const { id, text } = rootDesc(svg);
+      expect(id).toMatch(/^dgmo-desc-[0-9a-f]{8}$/);
+      expect(text?.trim()).toBeTruthy();
+    }
+  );
+
+  it('counts a flowchart’s steps and decisions and names where it starts', () => {
+    const src =
+      'flowchart Order\n\n(Start) -> <Paid?>\n  -yes-> [Ship]\n  -no-> [Cancel]\n';
+    expect(summarizeDiagram(src, 'flowchart')).toBe(
+      'Flowchart of 4 steps (1 decision) and 3 connections, starting at Start.'
+    );
+  });
+
+  it('leaves a state diagram’s start and end markers out of its states', () => {
+    const src = 'state Door\n\n[*] -> Closed\nClosed -> Open\nOpen -> [*]\n';
+    expect(summarizeDiagram(src, 'state')).toBe(
+      'State diagram of 2 states, Closed and Open, with 3 transitions.'
+    );
+  });
+
+  it('counts gantt tasks through nested groups and parallel blocks', () => {
+    const src = [
+      'gantt Build',
+      '',
+      'start 2024-01-01',
+      '',
+      '[Backend]',
+      '  Design 3d',
+      '  [API]',
+      '    Endpoints 5d',
+      'parallel',
+      '  Docs 2d',
+      '  Tests 2d',
+      '',
+    ].join('\n');
+    expect(summarizeDiagram(src, 'gantt')).toBe(
+      'Gantt chart of 4 tasks, Design, Endpoints, Docs and Tests, in 2 groups.'
+    );
+  });
+
+  it('counts a RACI matrix’s tasks across every phase and names its roles', () => {
+    const src =
+      'raci Launch\n\n[Build]\n  Code\n    Dev: R\n    Lead: A\n\nShip\n  Lead: A\n';
+    expect(summarizeDiagram(src, 'raci')).toBe(
+      'RACI matrix of 2 tasks across 2 roles, Dev and Lead.'
+    );
+  });
+
+  it('names the diagram a live-link card points at', () => {
+    const src =
+      'live-link Platform architecture\nurl https://online.diagrammo.app/d/dgm_7f2a91\n';
+    expect(summarizeDiagram(src, 'live-link')).toBe(
+      'Card linking to the shared diagram Platform architecture.'
+    );
+  });
+
   it('gives no summary for a chart type without a summarizer yet', () => {
-    expect(summarizeDiagram('flowchart F\n\nA -> B\n', 'flowchart')).toBeNull();
+    expect(summarizeDiagram('scatter S\n\nA 1 2\n', 'scatter')).toBeNull();
   });
 });
