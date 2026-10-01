@@ -296,7 +296,9 @@ export async function render(
           injectHoverStyles(raw, chartType, { bakeHover }),
           chartType
         ),
-        summarizeDiagram(renderContent, chartType)
+        // The AUTHORED source and type: an arc `layout chord` is re-emitted
+        // above as internal `chord` content, which no summarizer reads.
+        summarizeDiagram(content, parsed.chartType)
       );
       return {
         svg,
@@ -350,7 +352,7 @@ export async function render(
         injectHoverStyles(svg, chartType, { bakeHover }),
         chartType
       ),
-      summarizeDiagram(renderContent, chartType)
+      summarizeDiagram(content, parsed.chartType)
     );
   } finally {
     releaseDom();

@@ -1,50 +1,23 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { CHART_TYPE_IDS } from '../src/chart-types';
+import { loadMapData } from '../src/map/load-data';
 import { render } from '../src/render';
 import { summarizeDiagram } from '../src/utils/diagram-summary';
 import { applyRootDesc } from '../src/utils/root-a11y';
 
 // diagrammo/diagrammo#954 — every rendered SVG carries a <desc> saying what it
-// shows, wired to the root with aria-describedby. Landed by chart type; the
-// types below are the ones with a summarizer so far.
-const SUMMARIZED = [
-  'sequence',
-  'org',
-  'bar',
-  'line',
-  'pie',
-  'radar',
-  'polar-area',
-  'flowchart',
-  'state',
-  'class',
-  'er',
-  'kanban',
-  'c4',
-  'sitemap',
-  'infra',
-  'gantt',
-  'pert',
-  'boxes-and-lines',
-  'sketch',
-  'swimlane',
-  'family',
-  'version-control',
-  'mindmap',
-  'wireframe',
-  'journey-map',
-  'raci',
-  'body',
-  'bracket',
-  'live-link',
-];
+// shows, wired to the root with aria-describedby. Every chart type has a
+// summarizer, so every chart type is asserted.
+const SUMMARIZED: readonly string[] = CHART_TYPE_IDS;
 
 /** Summarized types the gallery has no fixture for; rendered below instead. */
-const NO_GALLERY_FIXTURE = ['raci', 'live-link'];
+const NO_GALLERY_FIXTURE = ['live-link'];
 
 const GALLERY_DIR = join(__dirname, '..', 'gallery', 'fixtures');
-const fixtures = readdirSync(GALLERY_DIR)
+// Recursive: cycle, pyramid, raci and ring keep their fixtures in subdirectories.
+const fixtures = readdirSync(GALLERY_DIR, { recursive: true, encoding: 'utf8' })
   .filter((f) => f.endsWith('.dgmo'))
   .map((f) => ({
     file: f,
@@ -80,7 +53,8 @@ describe('root <desc> summary (#954)', () => {
   it.each(fixtures.map((f) => [f.file, f.content]))(
     '%s renders a non-empty <desc> as the root’s first child',
     async (_file, content) => {
-      const { svg } = await render(content);
+      // A map draws nothing without its basemap; every other type needs none.
+      const { svg } = await render(content, { mapData: loadMapData });
       const { id, text } = rootDesc(svg);
       expect(id).toMatch(/^dgmo-desc-[0-9a-f]{8}$/);
       expect(text?.trim()).toBeTruthy();
@@ -166,7 +140,6 @@ describe('root <desc> summary (#954)', () => {
   );
 
   it.each([
-    ['raci', 'raci Launch\n\nShip it\n  Cap: A\n  Crew: R\n'],
     [
       'live-link',
       'live-link Platform architecture\nurl https://online.diagrammo.app/d/dgm_7f2a91\n',
@@ -271,7 +244,108 @@ describe('root <desc> summary (#954)', () => {
     );
   });
 
-  it('gives no summary for a chart type without a summarizer yet', () => {
-    expect(summarizeDiagram('scatter S\n\nA 1 2\n', 'scatter')).toBeNull();
+  it('gives no summary for an unknown chart type', () => {
+    expect(summarizeDiagram('mystery X\n\nA 1\n', 'mystery')).toBeNull();
+  });
+
+  it.each([
+    [
+      'scatter',
+      'scatter Fit\n\nA 1 2\nB 3 4\n',
+      'Scatter chart of 2 points; x ranges from 1 to 3 and y ranges from 2 to 4.',
+    ],
+    [
+      'sankey',
+      'sankey Flow\n\nA\n  B 5\nB\n  C 3\n',
+      'Sankey diagram of 2 flows between 3 nodes, flowing from A.',
+    ],
+    [
+      'heatmap',
+      'heatmap Load\n\ncolumns\n  Mon\n  Tue\n\nAM 1 9\nPM 4 2\n',
+      'Heatmap of 2 rows by 2 columns; values range from 1 to 9, highest at AM, Tue.',
+    ],
+    [
+      'funnel',
+      'funnel Sales\n\nVisit 200\nBuy 50\n',
+      'Funnel chart of 2 stages, from Visit at 200 to Buy at 50 (25% of the first).',
+    ],
+    [
+      'function',
+      'function F\n\nx -1 to 1\nf(x): x\n',
+      'Function plot of 1 function, f(x), for x from -1 to 1.',
+    ],
+    [
+      'timeline',
+      'timeline T\n\n2024-01 -> 2024-03 Build\n2024-05 Ship\n',
+      'Timeline of 2 events from 2024-01 to 2024-05.',
+    ],
+    [
+      'goal',
+      'goal Fund\nnow 25\ntarget 100\n',
+      'Progress toward a target of 100: 25 so far, 25%.',
+    ],
+    [
+      'wordcloud',
+      'wordcloud W\n\nA 1\nB 3\n',
+      'Word cloud of 2 words; the largest are B and A.',
+    ],
+    [
+      'arc',
+      'arc Teams\nlayout chord\nA -> B 3\nB -> C 2\n',
+      'Chord diagram of 2 links between 3 nodes.',
+    ],
+    [
+      'pyramid',
+      'pyramid Crew\n\nRabble\nMates\n',
+      'Pyramid of 2 layers, top to bottom: Rabble and Mates.',
+    ],
+  ])('says what a %s shows', (type, src, expected) => {
+    expect(summarizeDiagram(src, type)).toBe(expected);
+  });
+
+  it('leaves an event line’s collapsed era out of the events it counts', () => {
+    const src =
+      'event-line H\n\n[Early]\n  1991 Web\n[Later] collapsed\n  1995 JS\n  1996 CSS\n';
+    expect(summarizeDiagram(src, 'event-line')).toBe(
+      'Event line of 1 event from 1991 to 1996, in 2 eras, with 2 more folded away.'
+    );
+  });
+
+  it('leaves a collapsed block’s contents out of the blocks it counts', () => {
+    const src = 'block B\n\n[Front]\n  [Web] [App]\n[Data] collapsed\n  [DB]\n';
+    expect(summarizeDiagram(src, 'block')).toBe(
+      'Block diagram of 4 blocks, in Front and Data, with 1 more folded away.'
+    );
+  });
+
+  it('names a map place as drawn, never by its connector alias', () => {
+    const src = 'map M\n\npoi Denver as hub\npoi Dallas\nhub -> Dallas\n';
+    expect(summarizeDiagram(src, 'map')).toBe(
+      'Map showing 2 marked places, Denver and Dallas; and 1 connection.'
+    );
+  });
+
+  it('groups a treemap only when every top-level tile is a group', () => {
+    const grouped =
+      'treemap Spend\n\nCompute\n  EC2 30\n  GPU 10\nStorage\n  S3 20\n';
+    expect(summarizeDiagram(grouped, 'treemap')).toBe(
+      'Treemap of 3 items in 2 groups, Compute and Storage, totalling 60; the largest is EC2 at 30.'
+    );
+    const loose = 'treemap Spend\n\nCompute\n  EC2 30\n  GPU 10\nS3 20\n';
+    expect(summarizeDiagram(loose, 'treemap')).toBe(
+      'Treemap of 3 items totalling 60; the largest is EC2 at 30.'
+    );
+  });
+
+  it('says how often a recurring countdown’s event comes round', () => {
+    expect(
+      summarizeDiagram(
+        'countdown Standup\nsince 2026-01-05\nevery week\n',
+        'countdown'
+      )
+    ).toBe('Countdown to an event that recurs every week on Monday.');
+    expect(
+      summarizeDiagram('countdown Comet\ntarget 2061-07-28\n', 'countdown')
+    ).toBe('Countdown to 2061-07-28.');
   });
 });
