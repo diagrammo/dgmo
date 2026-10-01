@@ -49,12 +49,14 @@ Because every diagram is just text, it lives in git, diffs cleanly in PRs, and d
 # Library
 npm install @diagrammo/dgmo
 
-# CLI (macOS, via Homebrew)
-brew install diagrammo/dgmo/dgmo
+# CLI (macOS and Linux)
+npm install -g @diagrammo/dgmo-cli
 
 # CLI (no install)
 npx @diagrammo/dgmo-cli diagram.dgmo
 ```
+
+Homebrew and Arch/Omarchy (pacman) installs of the CLI are listed at [diagrammo.app/dev](https://diagrammo.app/dev#cli).
 
 ## CLI
 

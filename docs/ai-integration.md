@@ -9,9 +9,11 @@ Use AI coding tools to generate `.dgmo` diagrams. This guide covers Claude Code,
 Install the `dgmo` CLI, then run one command:
 
 ```bash
-brew install diagrammo/dgmo/dgmo   # or: npm install -g @diagrammo/dgmo-cli
-dgmo install                       # auto-detects every AI assistant you have
+npm install -g @diagrammo/dgmo-cli   # macOS and Linux
+dgmo install                         # auto-detects every AI assistant you have
 ```
+
+Homebrew and Arch/Omarchy (pacman) installs are listed at [diagrammo.app/dev](https://diagrammo.app/dev#cli).
 
 `dgmo install` with **no target** scans for Claude Code, Codex, Claude Desktop, Cursor, Windsurf, and Copilot, then configures each one non-interactively — no prompts, no second package to install. The only binary you ever need is `dgmo`; it provides the MCP server through its own `dgmo mcp` subcommand.
 

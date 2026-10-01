@@ -3,10 +3,11 @@
 The `dgmo` command — render [DGMO](https://diagrammo.app) diagrams to PNG or SVG from your terminal, and wire the DGMO MCP server into AI editors.
 
 ```bash
-brew install diagrammo/dgmo/dgmo     # macOS
-npm install -g @diagrammo/dgmo-cli   # anywhere
+npm install -g @diagrammo/dgmo-cli   # macOS and Linux
 npx @diagrammo/dgmo-cli diagram.dgmo # no install
 ```
+
+Prefer your system's package manager? Homebrew and Arch/Omarchy (pacman) instructions are at [diagrammo.app/dev](https://diagrammo.app/dev#cli).
 
 ## Rendering
 
