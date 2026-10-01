@@ -122,6 +122,16 @@ function collectShapeErrors(
     return false;
   }
   const before = errors.length;
+  // 🔴 Unknown keys are refused, not carried. Color names are a closed set:
+  // a theme supplies hex for the existing names and cannot add one, because a
+  // diagram naming `magenta` would draw it for the author and fall back for
+  // every reader of a link, whose palette has no such name.
+  const fields = new Set<string>([...SEMANTIC_KEYS, 'colors']);
+  for (const key of Object.keys(value)) {
+    if (!fields.has(key)) {
+      errors.push(`${mode}.${key}: not a palette field`);
+    }
+  }
   for (const key of SEMANTIC_KEYS) {
     const hex = value[key];
     if (typeof hex !== 'string' || !isValidHex(hex)) {
@@ -134,6 +144,15 @@ function collectShapeErrors(
       `${mode}.colors: expected an object of named colors, got ${describe(named)}`
     );
   } else {
+    const names = new Set<string>(COLOR_KEYS);
+    for (const key of Object.keys(named)) {
+      if (!names.has(key)) {
+        errors.push(
+          `${mode}.colors.${key}: not a palette color — a theme sets the ` +
+            `existing color names and cannot add one`
+        );
+      }
+    }
     for (const key of COLOR_KEYS) {
       const hex = named[key];
       if (typeof hex !== 'string' || !isValidHex(hex)) {

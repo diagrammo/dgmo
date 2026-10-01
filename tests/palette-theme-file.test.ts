@@ -165,6 +165,30 @@ describe('validateThemeFile — the shape', () => {
     expect(getPalette('slate').dark.bg).toBe(before);
   });
 
+  // 🔴 Color names are a closed set. A diagram naming `magenta` would draw the
+  // theme's value for the author and fall back for every reader of a link.
+  it('refuses a color name the palette does not have', () => {
+    const file = slateDarkFile();
+    const colors = (file['dark'] as { colors: Record<string, unknown> }).colors;
+    colors['magenta'] = '#ff00ff';
+    const result = validateThemeFile(file);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors).toEqual([
+      'dark.colors.magenta: not a palette color — a theme sets the existing ' +
+        'color names and cannot add one',
+    ]);
+  });
+
+  it('refuses a field the palette does not have', () => {
+    const file = slateDarkFile();
+    (file['dark'] as Record<string, unknown>)['highlight'] = '#ff00ff';
+    const result = validateThemeFile(file);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors).toEqual(['dark.highlight: not a palette field']);
+  });
+
   it('reports every malformed field at once, not just the first', () => {
     const file = slateDarkFile();
     const dark = file['dark'] as Record<string, unknown> & {
