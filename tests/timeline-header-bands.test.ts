@@ -101,4 +101,13 @@ describe('timeline header bands under a scaled layout', () => {
     );
     expect(vbH - bottomBaseline).toBeGreaterThanOrEqual(8);
   });
+
+  it('group toggle sits inside its band, clear of the accent', () => {
+    const svg = render(`timeline Title\n${GROUPS}`);
+    const accent = svg.querySelector('rect.tl-group-header-accent')!;
+    const label = svg.querySelector('g.tl-group-header text')!;
+    const accentRight =
+      Number(accent.getAttribute('x')) + Number(accent.getAttribute('width'));
+    expect(Number(label.getAttribute('x'))).toBeGreaterThan(accentRight);
+  });
 });

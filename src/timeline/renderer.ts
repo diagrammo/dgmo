@@ -2166,7 +2166,9 @@ function renderTimelineHorizontalGrouped(
 
     headerG
       .append('text')
-      .attr('x', -margin.left + ctx.aesthetic(10))
+      // Fixed inset inside the band (bandX + 5), as gantt's group label: the
+      // band's offset is unscaled, so a scaled inset put the toggle on its edge.
+      .attr('x', bandX + 5)
       .attr('y', curY + sBarH / 2)
       .attr('dy', '0.35em')
       .attr('text-anchor', 'start')
