@@ -32,6 +32,39 @@ export function applyRootA11y(svg: string, chartType?: string | null): string {
   return svg.replace(rootTag, withA11y);
 }
 
+/**
+ * Put `summary` in a `<desc>` as the root `<svg>`'s first child and point the
+ * root's `aria-describedby` at it, so a screen reader reads what the diagram
+ * shows after its name. Leaves an SVG that already has `aria-describedby`
+ * untouched, and does nothing without a summary.
+ *
+ * The id is a hash of the SVG it describes: deterministic, so snapshots hold,
+ * and distinct between different diagrams on one page. Two copies of the same
+ * diagram share an id, and both point at the same words.
+ */
+export function applyRootDesc(svg: string, summary: string | null): string {
+  if (!summary) return svg;
+  const m = svg.match(/<svg\b[^>]*>/);
+  if (!m) return svg;
+  const rootTag = m[0];
+  if (/\baria-describedby=/.test(rootTag)) return svg;
+  const id = `dgmo-desc-${fnv1a(svg)}`;
+  const withDesc =
+    rootTag.replace(/^<svg\b/, `<svg aria-describedby="${id}"`) +
+    `<desc id="${id}">${escapeAttr(summary)}</desc>`;
+  return svg.replace(rootTag, withDesc);
+}
+
+/** 32-bit FNV-1a, as 8 hex digits. */
+function fnv1a(s: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(16).padStart(8, '0');
+}
+
 function escapeAttr(s: string): string {
   return s
     .replace(/&/g, '&amp;')
