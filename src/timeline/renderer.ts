@@ -52,6 +52,11 @@ import {
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import type { LegendConfig, LegendCallbacks } from '../utils/legend-types';
 
+/** Top tick: tick (6) + gap (4) + 10px label + breathing room. */
+const MIN_TOP_SCALE_BAND = 26;
+/** Bottom tick: tick (6) + label baseline (12) + descent and room below. */
+const MIN_BOTTOM_BAND = 30;
+
 /**
  * Renders semi-transparent era background bands behind timeline events.
  */
@@ -1564,16 +1569,24 @@ function renderTimelineHorizontalTimeSort(
   const MARKER_ROW_H = ctx.structural(22);
   const eraReserve = timelineEras.length > 0 ? ERA_ROW_H : 0;
   const markerReserve = timelineMarkers.length > 0 ? MARKER_ROW_H : 0;
-  const topScaleH = timelineScale ? ctx.structural(40) : 0;
+  // The top tick labels are drawn at full size (renderTimeScale), so their
+  // band may shrink with the layout but never below the labels themselves.
+  const topScaleH = timelineScale
+    ? Math.max(ctx.structural(40), MIN_TOP_SCALE_BAND)
+    : 0;
+  // Title (50) and group legend (54) are drawn at full size, so their bands
+  // are reserved at full size; scaling them laid the ticks over both.
+  const hasGroupLegend = timelineGroups.length > 0 && !parsed.noLegend;
   const margin = {
     top:
-      ctx.aesthetic(104) +
+      50 +
+      (hasGroupLegend ? 54 : ctx.aesthetic(54)) +
       topScaleH +
       eraReserve +
       markerReserve +
       tagLegendReserve,
     right: ctx.aesthetic(40),
-    bottom: ctx.aesthetic(40) + scaleMargin,
+    bottom: Math.max(ctx.aesthetic(40), MIN_BOTTOM_BAND) + scaleMargin,
     left: ctx.aesthetic(60),
   };
   const markerLabelY = markerReserve ? -(topScaleH + MARKER_ROW_H / 2) : 0;
@@ -1686,8 +1699,8 @@ function renderTimelineHorizontalTimeSort(
   }
 
   // Group legend at top-left (pill style); `no-legend` suppresses it (#48).
-  if (timelineGroups.length > 0 && !parsed.noLegend) {
-    const legendY = timelineScale ? -ctx.aesthetic(75) : -ctx.aesthetic(55);
+  if (hasGroupLegend) {
+    const legendY = timelineScale ? -(topScaleH + 35) : -55;
     renderTimelineGroupLegend(
       g,
       timelineGroups,
@@ -1963,7 +1976,11 @@ function renderTimelineHorizontalGrouped(
   const MARKER_ROW_H = ctx.structural(22);
   const eraReserve = timelineEras.length > 0 ? ERA_ROW_H : 0;
   const markerReserve = timelineMarkers.length > 0 ? MARKER_ROW_H : 0;
-  const topScaleH = timelineScale ? ctx.structural(40) : 0;
+  // The top tick labels are drawn at full size (renderTimeScale), so their
+  // band may shrink with the layout but never below the labels themselves.
+  const topScaleH = timelineScale
+    ? Math.max(ctx.structural(40), MIN_TOP_SCALE_BAND)
+    : 0;
   const maxGroupNameLen = Math.max(...lanes.map((l) => l.name.length)) + 2;
   const maxEventLabelLen = Math.max(
     0,
@@ -1974,12 +1991,13 @@ function renderTimelineHorizontalGrouped(
     ctx.aesthetic(140),
     maxLeftLabelLen * sCharW + ctx.aesthetic(30)
   );
-  const baseTopMargin = title ? ctx.aesthetic(50) : ctx.aesthetic(20);
+  // The title is drawn at full size (renderChartTitle), so its band is too.
+  const baseTopMargin = title ? 50 : ctx.aesthetic(20);
   const margin = {
     top:
       baseTopMargin + topScaleH + eraReserve + markerReserve + tagLegendReserve,
     right: ctx.aesthetic(40),
-    bottom: ctx.aesthetic(40) + scaleMargin,
+    bottom: Math.max(ctx.aesthetic(40), MIN_BOTTOM_BAND) + scaleMargin,
     left: dynamicLeftMargin,
   };
   const markerLabelY = markerReserve ? -(topScaleH + MARKER_ROW_H / 2) : 0;
