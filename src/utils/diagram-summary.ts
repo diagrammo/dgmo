@@ -441,7 +441,7 @@ function summarizeBracket(content: string): string | null {
   if (parsed.error) return null;
   // The matches DRAWN, from the layout: a seeded bracket draws its whole
   // skeleton before any result line is written, so the authored lines
-  // undercount it.
+  // miss most of it.
   const layout = layoutBracket(parsed);
   const competitors =
     parsed.seeds.length > 0
