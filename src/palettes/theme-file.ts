@@ -1,5 +1,17 @@
-import { apcaContrast, contrastRatio, shapeFill } from './color-utils';
+import { atlasPalette } from './atlas';
+import { blueprintPalette } from './blueprint';
+import { catppuccinPalette } from './catppuccin';
+import {
+  apcaContrast,
+  contrastRatio,
+  contrastText,
+  shapeFill,
+} from './color-utils';
+import { nordPalette } from './nord';
 import { COLOR_KEYS, SEMANTIC_KEYS, isValidHex } from './registry';
+import { slatePalette } from './slate';
+import { tidewaterPalette } from './tidewater';
+import { tokyoNightPalette } from './tokyo-night';
 import type { PaletteColors, PaletteConfig } from './types';
 
 // ============================================================
@@ -45,6 +57,37 @@ const FILL_ACCENT_KEYS: (keyof Omit<PaletteColors, 'colors'>)[] = [
   'accent',
   'destructive',
 ];
+
+/**
+ * `colors.black` and `colors.white` are palette-aesthetic anchors that do not
+ * always meet contrast requirements — the reason `textOnFill*` exists as a
+ * separate token at all (`types.ts`, TD-5). The shape check still requires
+ * them as valid hex; the contrast check leaves them out. Decided 2026-09-23 on
+ * diagrammo/diagrammo#785: with them inside the gate, Nord dark — a shipped
+ * built-in — was refused for a slot `types.ts` exempts.
+ */
+const CONTRAST_EXEMPT: ReadonlySet<keyof PaletteColors['colors']> = new Set([
+  'black',
+  'white',
+]);
+
+/**
+ * The built-in palette ids. A theme file may not take one: a share link
+ * carries only the id, so a file named `slate` would draw the author's colors
+ * on their screen and real Slate for every reader — and Slate is the palette
+ * an export falls back to. Decided 2026-09-23 on diagrammo/diagrammo#785.
+ */
+const BUILT_IN_IDS: ReadonlySet<string> = new Set(
+  [
+    atlasPalette,
+    blueprintPalette,
+    catppuccinPalette,
+    nordPalette,
+    slatePalette,
+    tidewaterPalette,
+    tokyoNightPalette,
+  ].map((palette) => palette.id)
+);
 
 /** What `validateThemeFile` answers. */
 export type ThemeFileResult =
@@ -108,25 +151,32 @@ function describe(value: unknown): string {
   return typeof value;
 }
 
-/** Every field of a palette that reaches `shapeFill()` as an intent color. */
+/**
+ * Every field of a palette that reaches `shapeFill()` as an intent color and
+ * is held to a contrast floor — `CONTRAST_EXEMPT` is left out.
+ */
 function intents(colors: PaletteColors): [string, string][] {
   const out: [string, string][] = [];
-  for (const key of COLOR_KEYS) out.push([`colors.${key}`, colors.colors[key]]);
+  for (const key of COLOR_KEYS) {
+    if (CONTRAST_EXEMPT.has(key)) continue;
+    out.push([`colors.${key}`, colors.colors[key]]);
+  }
   for (const key of FILL_ACCENT_KEYS) out.push([key, colors[key]]);
   return out;
 }
 
-/** The better of the two text tokens on one background, by one measure. */
-function betterToken(
+/**
+ * The text token the renderer DRAWS on one background — `contrastText()`'s
+ * own pick, by APCA. 🔴 Never the WCAG-better of the two: on a mid-tone fill
+ * the two measures disagree, and scoring the token WCAG prefers passed files
+ * whose drawn label sat at 3.23:1 (diagrammo/diagrammo#785, review round 3).
+ */
+function drawnToken(
   colors: PaletteColors,
-  bg: string,
-  score: (text: string, bg: string) => number
-): { score: number; token: 'textOnFillLight' | 'textOnFillDark' } {
-  const light = score(colors.textOnFillLight, bg);
-  const dark = score(colors.textOnFillDark, bg);
-  return light >= dark
-    ? { score: light, token: 'textOnFillLight' }
-    : { score: dark, token: 'textOnFillDark' };
+  bg: string
+): 'textOnFillLight' | 'textOnFillDark' {
+  const drawn = contrastText(bg, colors.textOnFillLight, colors.textOnFillDark);
+  return drawn === colors.textOnFillDark ? 'textOnFillDark' : 'textOnFillLight';
 }
 
 /**
@@ -153,12 +203,13 @@ function worstTintedFill(
   let worst: ReturnType<typeof worstTintedFill> | undefined;
   for (const [fill, intent] of intents(colors)) {
     const fillHex = shapeFill(colors, intent, isDark);
-    const best = betterToken(colors, fillHex, contrastRatio);
-    if (!worst || best.score < worst.ratio) {
-      worst = { ratio: best.score, token: best.token, fill, fillHex };
+    const token = drawnToken(colors, fillHex);
+    const ratio = contrastRatio(colors[token], fillHex);
+    if (!worst || ratio < worst.ratio) {
+      worst = { ratio, token, fill, fillHex };
     }
   }
-  // COLOR_KEYS and FILL_ACCENT_KEYS are non-empty, so the loop always ran.
+  // FILL_ACCENT_KEYS is non-empty, so the loop always ran.
   return worst!;
 }
 
@@ -176,12 +227,12 @@ function worstSolidFill(colors: PaletteColors): {
   fill: string;
   fillHex: string;
 } {
-  const lc = (text: string, bg: string) => Math.abs(apcaContrast(text, bg));
   let worst: ReturnType<typeof worstSolidFill> | undefined;
   for (const [fill, intent] of intents(colors)) {
-    const best = betterToken(colors, intent, lc);
-    if (!worst || best.score < worst.lc) {
-      worst = { lc: best.score, token: best.token, fill, fillHex: intent };
+    const token = drawnToken(colors, intent);
+    const lc = Math.abs(apcaContrast(colors[token], intent));
+    if (!worst || lc < worst.lc) {
+      worst = { lc, token, fill, fillHex: intent };
     }
   }
   return worst!;
@@ -251,6 +302,10 @@ export function validateThemeFile(input: unknown): ThemeFileResult {
   const id = input['id'];
   if (typeof id !== 'string' || id.trim() === '') {
     errors.push(`id: expected a non-empty string, got ${describe(id)}`);
+  } else if (BUILT_IN_IDS.has(id)) {
+    errors.push(
+      `id: "${id}" is a built-in palette — a theme file needs an id of its own`
+    );
   }
   const name = input['name'];
   if (typeof name !== 'string' || name.trim() === '') {
