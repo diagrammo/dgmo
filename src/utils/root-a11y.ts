@@ -38,9 +38,12 @@ export function applyRootA11y(svg: string, chartType?: string | null): string {
  * shows after its name. Leaves an SVG that already has `aria-describedby`
  * untouched, and does nothing without a summary.
  *
- * The id is a hash of the SVG it describes: deterministic, so snapshots hold,
- * and distinct between different diagrams on one page. Two copies of the same
- * diagram share an id, and both point at the same words.
+ * The id is a hash of the SUMMARY, not of the SVG. A map's path coordinates
+ * differ in their last digits between macOS and Linux, so an SVG hash gave the
+ * same diagram a different id on each, and the gallery baseline — which
+ * tolerates that float jitter everywhere else — could never hold on both.
+ * Two diagrams with the same summary share an id, and both point at the same
+ * words, which is what a reader would hear either way.
  */
 export function applyRootDesc(svg: string, summary: string | null): string {
   if (!summary) return svg;
@@ -48,7 +51,7 @@ export function applyRootDesc(svg: string, summary: string | null): string {
   if (!m) return svg;
   const rootTag = m[0];
   if (/\baria-describedby=/.test(rootTag)) return svg;
-  const id = `dgmo-desc-${fnv1a(svg)}`;
+  const id = `dgmo-desc-${fnv1a(summary)}`;
   const withDesc =
     rootTag.replace(/^<svg\b/, `<svg aria-describedby="${id}"`) +
     `<desc id="${id}">${escapeAttr(summary)}</desc>`;

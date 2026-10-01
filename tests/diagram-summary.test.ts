@@ -127,6 +127,20 @@ describe('root <desc> summary (#954)', () => {
     expect(applyRootDesc(svg, null)).toBe(svg);
   });
 
+  it('keys the id to the summary, so float jitter in the drawing cannot move it', () => {
+    // A map's coordinates differ in their last digits between macOS and Linux.
+    // Hashing the SVG gave one diagram two ids, and the gallery baseline could
+    // hold on only one OS.
+    const idOf = (svg: string, summary: string) =>
+      applyRootDesc(svg, summary).match(/aria-describedby="([^"]+)"/)?.[1];
+    const a = '<svg viewBox="0 0 1 1"><path d="M0.30000000000000004 1"/></svg>';
+    const b = '<svg viewBox="0 0 1 1"><path d="M0.3 1"/></svg>';
+    expect(idOf(a, 'Map showing Denver.')).toBe(idOf(b, 'Map showing Denver.'));
+    expect(idOf(a, 'Map showing Denver.')).not.toBe(
+      idOf(a, 'Map showing Dallas.')
+    );
+  });
+
   it.each([['R$&D'], ["Low $'"], ['Basic $`'], ['Rent $$']])(
     'puts a label holding %s into the <desc> literally',
     async (label) => {

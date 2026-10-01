@@ -1,4 +1,4 @@
-<svg aria-describedby="dgmo-desc-e62464f4" width="1200" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The Black Pearl sets sail: 230 days" style="font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif; background: rgb(236, 239, 244);" height="398" viewBox="0 0 1200 398"><desc id="dgmo-desc-e62464f4">Countdown to 2026-09-01 18:00.</desc><rect class="dgmo-canvas-bg" x="0" y="0" width="1200" height="398" fill="#eceff4"></rect><style>
+<svg aria-describedby="dgmo-desc-c67e13be" width="1200" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The Black Pearl sets sail: 230 days" style="font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif; background: rgb(236, 239, 244);" height="398" viewBox="0 0 1200 398"><desc id="dgmo-desc-c67e13be">Countdown to 2026-09-01 18:00.</desc><rect class="dgmo-canvas-bg" x="0" y="0" width="1200" height="398" fill="#eceff4"></rect><style>
     @keyframes dgmo-countdown-flash {
       0%, 100% { opacity: 1; stroke-width: 2; }
       50% { opacity: 0.45; stroke-width: 3; }

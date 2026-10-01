@@ -1,4 +1,4 @@
-<svg aria-describedby="dgmo-desc-7c097273" width="1200" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Halley's Comet returns: 35 years, 6 months" style="font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif; background: rgb(236, 239, 244);" height="458" viewBox="0 0 1200 458"><desc id="dgmo-desc-7c097273">Countdown to 2061-07-28.</desc><rect class="dgmo-canvas-bg" x="0" y="0" width="1200" height="458" fill="#eceff4"></rect><style>
+<svg aria-describedby="dgmo-desc-cbf0ffcb" width="1200" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Halley's Comet returns: 35 years, 6 months" style="font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif; background: rgb(236, 239, 244);" height="458" viewBox="0 0 1200 458"><desc id="dgmo-desc-cbf0ffcb">Countdown to 2061-07-28.</desc><rect class="dgmo-canvas-bg" x="0" y="0" width="1200" height="458" fill="#eceff4"></rect><style>
     @keyframes dgmo-countdown-flash {
       0%, 100% { opacity: 1; stroke-width: 2; }
       50% { opacity: 0.45; stroke-width: 3; }
