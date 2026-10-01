@@ -5,6 +5,31 @@ All notable changes to `@diagrammo/dgmo` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.88.0] - 2026-10-01
+
+### Added
+
+- **Every rendered diagram describes itself to a screen reader.** `render()`
+  now puts a `<desc>` as the root `<svg>`'s first child, wired with
+  `aria-describedby`, holding one or two sentences built from the parsed
+  model — what a flowchart draws, a sequence's participants, a chart's
+  series — rather than only the chart type's name. Every chart type has a
+  summarizer; `SUMMARIZERS` is a full `Record<ChartTypeId, …>`, so a new
+  chart type without one is a compile error.
+- `GanttInteractiveOptions` gains an optional `fitToContainer` flag, which
+  lays a tall chart out to the container's shape so it fills the width.
+
+### Fixed
+
+- Gantt and timeline charts shrunk to fit a preview keep room for their
+  title, legend and time-axis labels, which are drawn at full size; the top
+  labels no longer land on the legend and the bottom ones no longer fall off
+  the SVG. The timeline's group toggle stays inside its band.
+- A Gantt chart shorter than about six months is scaled to its own span
+  instead of padded out by days, so an hours-long project gets hour ticks
+  rather than slivers inside one day column.
+- A label containing `$&` or `$'` is written into the `<desc>` literally.
+
 ## [0.87.0] - 2026-09-30
 
 ### Changed
