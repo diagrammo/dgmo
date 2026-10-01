@@ -126,6 +126,18 @@ describe('root <desc> summary (#954)', () => {
     expect(applyRootDesc(svg, null)).toBe(svg);
   });
 
+  it.each([['R$&D'], ["Low $'"], ['Basic $`'], ['Rent $$']])(
+    'puts a label holding %s into the <desc> literally',
+    async (label) => {
+      const { svg } = await render(`bar Price\n\n${label} 10\nPro 20\n`);
+      expect(rootDesc(svg).text).toBe(
+        `Bar chart for 2 categories, from ${label.replace(/&/g, '&amp;')} at 10 to Pro at 20.`
+      );
+      expect(svg.match(/<svg\b/g)).toHaveLength(1);
+      expect(svg.match(/<\/svg>/g)).toHaveLength(1);
+    }
+  );
+
   it('gives no summary for a chart type without a summarizer yet', () => {
     expect(summarizeDiagram('flowchart F\n\nA -> B\n', 'flowchart')).toBeNull();
   });

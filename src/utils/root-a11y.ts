@@ -52,7 +52,10 @@ export function applyRootDesc(svg: string, summary: string | null): string {
   const withDesc =
     rootTag.replace(/^<svg\b/, `<svg aria-describedby="${id}"`) +
     `<desc id="${id}">${escapeAttr(summary)}</desc>`;
-  return svg.replace(rootTag, withDesc);
+  // A function, not a string: the summary carries the author's labels, and a
+  // `$&` or `$'` in a replacement STRING splices the root tag or the rest of
+  // the document into the <desc>.
+  return svg.replace(rootTag, () => withDesc);
 }
 
 /** 32-bit FNV-1a, as 8 hex digits. */
