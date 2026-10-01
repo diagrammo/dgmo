@@ -196,6 +196,45 @@ describe('root <desc> summary (#954)', () => {
     );
   });
 
+  it('names where a flowchart starts, not the step written first', () => {
+    const src =
+      'flowchart Release\n\n[Review] -> [Ship]\n(Start) -> [Write] -> [Review]\n';
+    expect(summarizeDiagram(src, 'flowchart')).toBe(
+      'Flowchart of 4 steps and 3 connections, starting at Start.'
+    );
+    // All loop, nothing leads in from outside: no start to name.
+    expect(
+      summarizeDiagram(
+        'flowchart Spin\n\n[A] -> [B]\n[B] -> [A]\n',
+        'flowchart'
+      )
+    ).toBe('Flowchart of 2 steps and 2 connections.');
+  });
+
+  it('counts the matches a seeded bracket draws before any is played', () => {
+    const seeds = 'ABCDEFGH'
+      .split('')
+      .map((c, i) => `seed ${i + 1} ${c}`)
+      .join('\n');
+    expect(summarizeDiagram(`bracket Cup\n\n${seeds}\n`, 'bracket')).toBe(
+      'Tournament bracket of 8 competitors in 7 matches, 0 decided.'
+    );
+    expect(
+      summarizeDiagram(
+        `bracket Cup\n\n${seeds}\n\nA beats H\nB beats G\n`,
+        'bracket'
+      )
+    ).toBe('Tournament bracket of 8 competitors in 7 matches, 2 decided.');
+  });
+
+  it('leaves a mind map’s collapsed subtree out of the ideas it counts', () => {
+    const src =
+      'mindmap Plan\n\nLaunch\n  Research collapsed\n    Users\n    Market\n  Build\n';
+    expect(summarizeDiagram(src, 'mindmap')).toBe(
+      'Mind map of 3 ideas around Plan, with 2 more folded away.'
+    );
+  });
+
   it('counts gantt tasks through nested groups and parallel blocks', () => {
     const src = [
       'gantt Build',

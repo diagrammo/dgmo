@@ -13,6 +13,7 @@
 
 import { parseBody } from '../body/parser';
 import { parseBoxesAndLines } from '../boxes-and-lines/parser';
+import { layoutBracket } from '../bracket/layout';
 import { parseBracket } from '../bracket/parser';
 import { parseC4 } from '../c4/parser';
 import type { C4Element } from '../c4/types';
@@ -31,6 +32,7 @@ import { parseJourneyMap } from '../journey-map/parser';
 import { parseKanban } from '../kanban/parser';
 import { parseLiveLink } from '../live-link/parser';
 import { parseMindmap } from '../mindmap/parser';
+import type { MindmapNode } from '../mindmap/types';
 import { parseOrg } from '../org/parser';
 import type { OrgNode } from '../org/parser';
 import { parsePert } from '../pert/parser';
@@ -206,7 +208,14 @@ function summarizeFlowchart(content: string): string | null {
   if (parsed.nodes.length === 0) return 'Flowchart with no steps.';
   const decisions = parsed.nodes.filter((n) => n.shape === 'decision').length;
   const steps = `${plural(parsed.nodes.length, 'step', 'steps')}${decisions > 0 ? ` (${plural(decisions, 'decision', 'decisions')})` : ''}`;
-  return `Flowchart of ${steps} and ${plural(parsed.edges.length, 'connection', 'connections')}, starting at ${parsed.nodes[0]!.label}.`;
+  // Where the flow starts is a step nothing leads into — not the first one
+  // written, which a source may put anywhere. A flow that is all loop has none.
+  const entered = new Set(parsed.edges.map((e) => e.target));
+  const starts = parsed.nodes
+    .filter((n) => !entered.has(n.id))
+    .map((n) => n.label);
+  const start = starts.length > 0 ? `, starting at ${listNames(starts)}` : '';
+  return `Flowchart of ${steps} and ${plural(parsed.edges.length, 'connection', 'connections')}${start}.`;
 }
 
 function summarizeState(content: string): string | null {
@@ -353,13 +362,39 @@ function summarizeVersionControl(content: string): string | null {
   return `Version control graph of ${plural(parsed.nodes.length, 'commit', 'commits')} on ${namedCount(branches, 'branch', 'branches')}.`;
 }
 
+/** Mind map nodes drawn under `nodes`, and those a source-collapsed
+ *  ancestor folds away — the renderer hides a `collapsed` node's subtree. */
+function mindmapCounts(nodes: readonly MindmapNode[]): {
+  shown: number;
+  folded: number;
+} {
+  return nodes.reduce(
+    (acc, node) => {
+      if (node.collapsed) {
+        return {
+          shown: acc.shown + 1,
+          folded: acc.folded + countTree(node.children),
+        };
+      }
+      const below = mindmapCounts(node.children);
+      return {
+        shown: acc.shown + 1 + below.shown,
+        folded: acc.folded + below.folded,
+      };
+    },
+    { shown: 0, folded: 0 }
+  );
+}
+
 function summarizeMindmap(content: string): string | null {
   const parsed = parseMindmap(content);
   if (parsed.error) return null;
   if (parsed.roots.length === 0) return 'Mind map with no ideas.';
-  const ideas = countTree(parsed.roots) - parsed.roots.length;
+  const { shown, folded } = mindmapCounts(parsed.roots);
+  const ideas = shown - parsed.roots.length;
   const centres = parsed.roots.map((r) => r.label);
-  return `Mind map of ${plural(ideas, 'idea', 'ideas')} around ${listNames(centres)}.`;
+  const hidden = folded > 0 ? `, with ${folded} more folded away` : '';
+  return `Mind map of ${plural(ideas, 'idea', 'ideas')} around ${listNames(centres)}${hidden}.`;
 }
 
 function summarizeWireframe(content: string): string | null {
@@ -404,12 +439,21 @@ function summarizeBody(content: string): string | null {
 function summarizeBracket(content: string): string | null {
   const parsed = parseBracket(content);
   if (parsed.error) return null;
+  // The matches DRAWN, from the layout: a seeded bracket draws its whole
+  // skeleton before any result line is written, so the authored lines
+  // undercount it.
+  const layout = layoutBracket(parsed);
   const competitors =
     parsed.seeds.length > 0
       ? parsed.seeds.length
-      : new Set(parsed.matches.flatMap((m) => [m.p1, m.p2])).size;
-  const decided = parsed.matches.filter((m) => m.decided).length;
-  return `Tournament bracket of ${plural(competitors, 'competitor', 'competitors')} in ${plural(parsed.matches.length, 'match', 'matches')}, ${decided} decided.`;
+      : new Set(
+          layout.matches.flatMap((m) =>
+            [m.top, m.bot].filter((n): n is string => n !== null)
+          )
+        ).size;
+  const decided = layout.matches.filter((m) => m.winner !== null).length;
+  const champion = layout.champion ? `; ${layout.champion} won` : '';
+  return `Tournament bracket of ${plural(competitors, 'competitor', 'competitors')} in ${plural(layout.matches.length, 'match', 'matches')}, ${decided} decided${champion}.`;
 }
 
 function summarizeLiveLink(content: string): string | null {
