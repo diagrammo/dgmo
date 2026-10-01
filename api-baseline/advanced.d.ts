@@ -3609,6 +3609,12 @@ interface GanttInteractiveOptions {
      * change), matching every other ControlsStrip-hosted chart type.
      */
     controlsHost?: 'app' | 'inline';
+    /**
+     * The host scales the SVG to fit the container on both axes (the app's
+     * preview pane). A chart taller than the container is laid out wider, to the
+     * container's aspect ratio, so it fills the width instead of a centred column.
+     */
+    fitToContainer?: boolean;
     /** Initial Critical Path highlight state (used when `controlsHost` is `'app'`). */
     criticalPathActive?: boolean;
     /** Initial Dependencies-arrow visibility (used when `controlsHost` is `'app'`). */
