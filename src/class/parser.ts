@@ -42,7 +42,7 @@ function classId(name: string): string {
 /**
  * A class diagram has no tag colouring — a class's colour is its trailing
  * colour word — so a `tag` block has nothing to apply to and `active-tag` has
- * nothing to select (#935, as wireframe and raci, #251). Unrefused, `tag` is
+ * nothing to select (#935, as wireframe and raci, #251). Left alone, `tag` is
  * stored as an option and its indented values become a class named after the
  * first one ("Content", with "Reference green" as a member).
  */
