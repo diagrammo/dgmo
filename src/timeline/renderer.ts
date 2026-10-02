@@ -49,7 +49,10 @@ import {
   truncateLegendText,
   legendChromeColors,
 } from '../utils/legend-constants';
-import { renderIntegratedLegend } from '../utils/legend-integration';
+import {
+  renderIntegratedLegend,
+  wireSwimlaneToggle,
+} from '../utils/legend-integration';
 import type { LegendConfig, LegendCallbacks } from '../utils/legend-types';
 
 /** Top tick: tick (6) + gap (4) + 10px label + breathing room. */
@@ -1427,18 +1430,13 @@ function renderTimelineTagLegendOverlay(
                   iconY,
                   isSwimActive
                 );
-                iconEl
-                  .attr('data-swimlane-toggle', groupKey)
-                  .on('click', (event: MouseEvent) => {
-                    event.stopPropagation();
-                    currentSwimlaneGroup =
-                      currentSwimlaneGroup === groupKey ? null : groupKey;
-                    onTagStateChange?.(
-                      currentActiveGroup,
-                      currentSwimlaneGroup
-                    );
-                    relayout();
-                  });
+                iconEl.attr('data-swimlane-toggle', groupKey);
+                wireSwimlaneToggle(iconEl, groupName, isSwimActive, () => {
+                  currentSwimlaneGroup =
+                    currentSwimlaneGroup === groupKey ? null : groupKey;
+                  onTagStateChange?.(currentActiveGroup, currentSwimlaneGroup);
+                  relayout();
+                });
               }
             },
           };

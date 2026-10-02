@@ -105,3 +105,36 @@ export function renderIntegratedLegend(
     opts.width
   );
 }
+
+/**
+ * Wires a legend pill's swimlane ("Group by") icon as a button (#952). Before,
+ * the icon took only a click and was named only by a hover `<title>`, so Tab
+ * never reached it and a screen reader had nothing to call it. Enter or Space
+ * on the focused icon does what a click does; the `<title>` stays for the
+ * pointer.
+ */
+export function wireSwimlaneToggle(
+  iconEl: D3Sel,
+  groupName: string,
+  isActive: boolean,
+  activate: () => void
+): void {
+  const label = `Group by ${groupName}`;
+  iconEl.append('title').text(label);
+  iconEl
+    .attr('role', 'button')
+    .attr('tabindex', '0')
+    .attr('aria-label', label)
+    .attr('aria-pressed', isActive ? 'true' : 'false')
+    .style('cursor', 'pointer')
+    .on('click', (event: Event) => {
+      event.stopPropagation();
+      activate();
+    })
+    .on('keydown', (event: KeyboardEvent) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      event.stopPropagation();
+      activate();
+    });
+}

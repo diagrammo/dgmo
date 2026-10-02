@@ -42,7 +42,10 @@ import {
   measureLegendText,
   truncateLegendText,
 } from '../utils/legend-constants';
-import { renderIntegratedLegend } from '../utils/legend-integration';
+import {
+  renderIntegratedLegend,
+  wireSwimlaneToggle,
+} from '../utils/legend-integration';
 import {
   controlsGroupCapsuleWidth,
   getMaxLegendReservedHeight,
@@ -2396,16 +2399,12 @@ function renderTagLegend(
             isSwimlane,
             palette
           );
-          iconEl.append('title').text(`Group by ${groupName}`);
-          iconEl.style('cursor', 'pointer').on('click', (event: Event) => {
-            event.stopPropagation();
-            if (onSwimlaneChange) {
-              onSwimlaneChange(
-                currentSwimlaneGroup?.toLowerCase() === groupName.toLowerCase()
-                  ? null
-                  : groupName
-              );
-            }
+          wireSwimlaneToggle(iconEl, groupName, isSwimlane, () => {
+            onSwimlaneChange?.(
+              currentSwimlaneGroup?.toLowerCase() === groupName.toLowerCase()
+                ? null
+                : groupName
+            );
           });
         }
       },

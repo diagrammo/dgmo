@@ -26,7 +26,10 @@ import { isArchiveColumn } from './mutations';
 import { LEGEND_HEIGHT, measureLegendText } from '../utils/legend-constants';
 import { getMaxLegendReservedHeight } from '../utils/legend-layout';
 import { legendSuppressed } from '../utils/parsing';
-import { renderIntegratedLegend } from '../utils/legend-integration';
+import {
+  renderIntegratedLegend,
+  wireSwimlaneToggle,
+} from '../utils/legend-integration';
 import type {
   LegendConfig,
   LegendCallbacks,
@@ -613,9 +616,7 @@ export function renderKanban(
               isCurrent,
               palette
             );
-            iconEl.append('title').text(`Group by ${groupName}`);
-            iconEl.style('cursor', 'pointer').on('click', (event: Event) => {
-              event.stopPropagation();
+            wireSwimlaneToggle(iconEl, groupName, isCurrent, () => {
               onSwimlaneChange?.(isCurrent ? null : groupName);
             });
           },
