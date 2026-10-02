@@ -107,30 +107,35 @@ export function renderIntegratedLegend(
 }
 
 /**
- * Wires a legend pill's swimlane ("Group by") icon as a button (#952). Before,
- * the icon took only a click and was named only by a hover `<title>`, so Tab
- * never reached it and a screen reader had nothing to call it. Enter or Space
- * on the focused icon does what a click does; the `<title>` stays for the
- * pointer.
+ * Wires a legend pill's swimlane ("Group by") icon (#952). Before, the icon
+ * took only a click and was named only by a hover `<title>`, so Tab never
+ * reached it and a screen reader had nothing to call it.
+ *
+ * Every icon gets the `<title>` and the click. Only an `interactive` one — a
+ * render whose caller can act on the toggle — is also a button: focusable,
+ * named, pressed or not, with Enter or Space doing what a click does. A static
+ * render (export, docs embed) stays inert, so it never announces a control
+ * that does nothing.
  */
 export function wireSwimlaneToggle(
   iconEl: D3Sel,
   groupName: string,
   isActive: boolean,
+  interactive: boolean,
   activate: () => void
 ): void {
   const label = `Group by ${groupName}`;
   iconEl.append('title').text(label);
+  iconEl.style('cursor', 'pointer').on('click', (event: Event) => {
+    event.stopPropagation();
+    activate();
+  });
+  if (!interactive) return;
   iconEl
     .attr('role', 'button')
     .attr('tabindex', '0')
     .attr('aria-label', label)
     .attr('aria-pressed', isActive ? 'true' : 'false')
-    .style('cursor', 'pointer')
-    .on('click', (event: Event) => {
-      event.stopPropagation();
-      activate();
-    })
     .on('keydown', (event: KeyboardEvent) => {
       if (event.key !== 'Enter' && event.key !== ' ') return;
       event.preventDefault();

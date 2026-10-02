@@ -158,3 +158,67 @@ tag Status
     );
   });
 });
+
+// A render nobody can act on — export, a static docs embed — passes no
+// callback. Its icon keeps the hover <title> but must not announce a button
+// that does nothing.
+describe('swimlane icon stays inert when nothing can act on it (#952)', () => {
+  function expectInert(icon: Element | null, group: string) {
+    expect(icon).not.toBeNull();
+    expect(icon!.querySelector('title')?.textContent).toBe(`Group by ${group}`);
+    for (const attr of ['role', 'tabindex', 'aria-label', 'aria-pressed']) {
+      expect(icon!.hasAttribute(attr)).toBe(false);
+    }
+  }
+
+  it('gantt with no onSwimlaneChange', () => {
+    const parsed = parseGantt(
+      `gantt
+start 2024-01-15
+
+tag Team as t
+  Engineering blue
+  Design purple
+
+[Backend]
+  Database Layer duration: 30bd, t: Engineering
+  Polish duration: 5bd, t: Design`,
+      palette
+    );
+    const c = container();
+    renderGantt(
+      c,
+      calculateSchedule(parsed),
+      palette,
+      false,
+      { currentActiveGroup: 'Team' },
+      { width: 800, height: 500 }
+    );
+    expectInert(c.querySelector('.gantt-swimlane-icon'), 'Team');
+  });
+
+  it('timeline with no onTagStateChange', () => {
+    const parsed = parseVisualization(
+      `timeline
+
+tag Status
+  Done green
+  Active blue
+
+2024-01-01 -> 2024-06-01: Feature A | status: Done
+2024-03-01 -> 2024-12-01: Feature B | status: Active`,
+      palette
+    );
+    const c = container();
+    renderTimeline(
+      c,
+      parsed,
+      palette,
+      false,
+      undefined,
+      { width: 800, height: 400 },
+      'Status'
+    );
+    expectInert(c.querySelector('.tl-swimlane-icon'), 'Status');
+  });
+});

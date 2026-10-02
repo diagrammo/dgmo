@@ -1431,12 +1431,21 @@ function renderTimelineTagLegendOverlay(
                   isSwimActive
                 );
                 iconEl.attr('data-swimlane-toggle', groupKey);
-                wireSwimlaneToggle(iconEl, groupName, isSwimActive, () => {
-                  currentSwimlaneGroup =
-                    currentSwimlaneGroup === groupKey ? null : groupKey;
-                  onTagStateChange?.(currentActiveGroup, currentSwimlaneGroup);
-                  relayout();
-                });
+                wireSwimlaneToggle(
+                  iconEl,
+                  groupName,
+                  isSwimActive,
+                  !!onTagStateChange,
+                  () => {
+                    currentSwimlaneGroup =
+                      currentSwimlaneGroup === groupKey ? null : groupKey;
+                    onTagStateChange?.(
+                      currentActiveGroup,
+                      currentSwimlaneGroup
+                    );
+                    relayout();
+                  }
+                );
               }
             },
           };

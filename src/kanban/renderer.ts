@@ -616,7 +616,7 @@ export function renderKanban(
               isCurrent,
               palette
             );
-            wireSwimlaneToggle(iconEl, groupName, isCurrent, () => {
+            wireSwimlaneToggle(iconEl, groupName, isCurrent, true, () => {
               onSwimlaneChange?.(isCurrent ? null : groupName);
             });
           },

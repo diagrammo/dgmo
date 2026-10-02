@@ -2399,13 +2399,19 @@ function renderTagLegend(
             isSwimlane,
             palette
           );
-          wireSwimlaneToggle(iconEl, groupName, isSwimlane, () => {
-            onSwimlaneChange?.(
-              currentSwimlaneGroup?.toLowerCase() === groupName.toLowerCase()
-                ? null
-                : groupName
-            );
-          });
+          wireSwimlaneToggle(
+            iconEl,
+            groupName,
+            isSwimlane,
+            !!onSwimlaneChange,
+            () => {
+              onSwimlaneChange?.(
+                currentSwimlaneGroup?.toLowerCase() === groupName.toLowerCase()
+                  ? null
+                  : groupName
+              );
+            }
+          );
         }
       },
     };
