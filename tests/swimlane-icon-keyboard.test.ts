@@ -30,6 +30,36 @@ beforeAll(() => {
 
 const palette = getPalette('nord').light;
 
+const KANBAN = `kanban
+
+tag Team
+  Frontend blue
+  Backend green
+
+[Backlog]
+  Redesign team: Frontend
+  Caching team: Backend`;
+
+const GANTT = `gantt
+start 2024-01-15
+
+tag Team as t
+  Engineering blue
+  Design purple
+
+[Backend]
+  Database Layer duration: 30bd, t: Engineering
+  Polish duration: 5bd, t: Design`;
+
+const TIMELINE = `timeline
+
+tag Status
+  Done green
+  Active blue
+
+2024-01-01 -> 2024-06-01: Feature A | status: Done
+2024-03-01 -> 2024-12-01: Feature B | status: Active`;
+
 function container(): HTMLDivElement {
   const c = document.createElement('div');
   Object.defineProperty(c, 'clientWidth', { value: 800 });
@@ -48,18 +78,21 @@ function press(el: Element, key: string): void {
   );
 }
 
-/** The icon is a named, focusable button; Enter and Space do what a click does. */
-function expectKeyboardButton(
-  icon: Element | null,
-  group: string,
-  activated: () => number
-) {
+function expectNamedButton(icon: Element | null, group: string): void {
   expect(icon).not.toBeNull();
   expect(icon!.getAttribute('role')).toBe('button');
   expect(icon!.getAttribute('tabindex')).toBe('0');
   expect(icon!.getAttribute('aria-label')).toBe(`Group by ${group}`);
   expect(icon!.getAttribute('aria-pressed')).toMatch(/^(true|false)$/);
+}
 
+/** The icon is a named, focusable button; Enter and Space do what a click does. */
+function expectKeyboardButton(
+  icon: Element | null,
+  group: string,
+  activated: () => number
+): void {
+  expectNamedButton(icon, group);
   const before = activated();
   press(icon!, 'Enter');
   expect(activated()).toBe(before + 1);
@@ -72,21 +105,11 @@ function expectKeyboardButton(
 
 describe('swimlane icon is a keyboard button (#952)', () => {
   it('kanban', () => {
-    const parsed = parseKanban(
-      `kanban
-
-tag Team
-  Frontend blue
-  Backend green
-
-[Backlog]
-  Redesign team: Frontend
-  Caching team: Backend`,
-      palette
-    );
     const onSwimlaneChange = vi.fn();
     const c = container();
-    renderKanban(c, parsed, palette, false, { onSwimlaneChange });
+    renderKanban(c, parseKanban(KANBAN, palette), palette, false, {
+      onSwimlaneChange,
+    });
     expectKeyboardButton(
       c.querySelector('.kanban-swimlane-icon'),
       'Team',
@@ -96,24 +119,11 @@ tag Team
   });
 
   it('gantt', () => {
-    const parsed = parseGantt(
-      `gantt
-start 2024-01-15
-
-tag Team as t
-  Engineering blue
-  Design purple
-
-[Backend]
-  Database Layer duration: 30bd, t: Engineering
-  Polish duration: 5bd, t: Design`,
-      palette
-    );
     const onSwimlaneChange = vi.fn();
     const c = container();
     renderGantt(
       c,
-      calculateSchedule(parsed),
+      calculateSchedule(parseGantt(GANTT, palette)),
       palette,
       false,
       { onSwimlaneChange, currentActiveGroup: 'Team' },
@@ -127,22 +137,11 @@ tag Team as t
   });
 
   it('timeline', () => {
-    const parsed = parseVisualization(
-      `timeline
-
-tag Status
-  Done green
-  Active blue
-
-2024-01-01 -> 2024-06-01: Feature A | status: Done
-2024-03-01 -> 2024-12-01: Feature B | status: Active`,
-      palette
-    );
     const onTagStateChange = vi.fn();
     const c = container();
     renderTimeline(
       c,
-      parsed,
+      parseVisualization(TIMELINE, palette),
       palette,
       false,
       undefined,
@@ -157,11 +156,105 @@ tag Status
       () => onTagStateChange.mock.calls.length
     );
   });
+
+  // A live timeline toggles lanes by itself, callback or not, so its icon is a
+  // button either way.
+  it('timeline with no onTagStateChange', () => {
+    const c = container();
+    renderTimeline(
+      c,
+      parseVisualization(TIMELINE, palette),
+      palette,
+      false,
+      undefined,
+      undefined,
+      'Status'
+    );
+    const icon = c.querySelector('.tl-swimlane-icon');
+    expectNamedButton(icon, 'Status');
+    expect(icon!.getAttribute('aria-pressed')).toBe('false');
+    press(icon!, 'Enter');
+    expect(
+      c.querySelector('.tl-swimlane-icon')!.getAttribute('aria-pressed')
+    ).toBe('true');
+  });
 });
 
-// A render nobody can act on — export, a static docs embed — passes no
-// callback. Its icon keeps the hover <title> but must not announce a button
-// that does nothing.
+// Enter re-renders the chart — the timeline itself, the app on its callback.
+// Focus must land back on the toggle, now pressed, not drop to the page.
+describe('swimlane icon keeps focus across the re-render (#952)', () => {
+  it('timeline', () => {
+    const c = container();
+    renderTimeline(
+      c,
+      parseVisualization(TIMELINE, palette),
+      palette,
+      false,
+      undefined,
+      undefined,
+      'Status',
+      undefined,
+      () => {}
+    );
+    const icon = c.querySelector<SVGElement>('.tl-swimlane-icon')!;
+    icon.focus();
+    expect(document.activeElement).toBe(icon);
+    press(icon, 'Enter');
+    const after = document.activeElement!;
+    expect(icon.isConnected).toBe(false);
+    expect(after.classList.contains('tl-swimlane-icon')).toBe(true);
+    expect(after.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('gantt, re-rendered by its caller', () => {
+    const resolved = calculateSchedule(parseGantt(GANTT, palette));
+    const c = container();
+    const draw = (lane: string | null) =>
+      renderGantt(
+        c,
+        resolved,
+        palette,
+        false,
+        {
+          currentActiveGroup: 'Team',
+          currentSwimlaneGroup: lane,
+          onSwimlaneChange: draw,
+        },
+        { width: 800, height: 500 }
+      );
+    draw(null);
+    const icon = c.querySelector<SVGElement>('.gantt-swimlane-icon')!;
+    icon.focus();
+    press(icon, 'Enter');
+    const after = document.activeElement!;
+    expect(icon.isConnected).toBe(false);
+    expect(after.classList.contains('gantt-swimlane-icon')).toBe(true);
+    expect(after.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('kanban, re-rendered by its caller', () => {
+    const parsed = parseKanban(KANBAN, palette);
+    const c = container();
+    const draw = (lane: string | null) =>
+      renderKanban(c, parsed, palette, false, {
+        currentSwimlaneGroup: lane,
+        onSwimlaneChange: draw,
+      });
+    draw(null);
+    const icon = c.querySelector<SVGElement>('.kanban-swimlane-icon')!;
+    icon.focus();
+    press(icon, 'Enter');
+    const after = document.activeElement!;
+    expect(icon.isConnected).toBe(false);
+    expect(after.classList.contains('kanban-swimlane-icon')).toBe(true);
+    expect(after.getAttribute('aria-label')).toBe('Group by Team');
+    expect(after.getAttribute('aria-pressed')).toBe('true');
+  });
+});
+
+// A render nobody can act on — export, a static docs embed — draws an icon
+// with no live handler behind it. It keeps the hover <title> but must not
+// announce a button that does nothing.
 describe('swimlane icon stays inert when nothing can act on it (#952)', () => {
   function expectInert(icon: Element | null, group: string) {
     expect(icon).not.toBeNull();
@@ -172,23 +265,10 @@ describe('swimlane icon stays inert when nothing can act on it (#952)', () => {
   }
 
   it('gantt with no onSwimlaneChange', () => {
-    const parsed = parseGantt(
-      `gantt
-start 2024-01-15
-
-tag Team as t
-  Engineering blue
-  Design purple
-
-[Backend]
-  Database Layer duration: 30bd, t: Engineering
-  Polish duration: 5bd, t: Design`,
-      palette
-    );
     const c = container();
     renderGantt(
       c,
-      calculateSchedule(parsed),
+      calculateSchedule(parseGantt(GANTT, palette)),
       palette,
       false,
       { currentActiveGroup: 'Team' },
@@ -197,22 +277,11 @@ tag Team as t
     expectInert(c.querySelector('.gantt-swimlane-icon'), 'Team');
   });
 
-  it('timeline with no onTagStateChange', () => {
-    const parsed = parseVisualization(
-      `timeline
-
-tag Status
-  Done green
-  Active blue
-
-2024-01-01 -> 2024-06-01: Feature A | status: Done
-2024-03-01 -> 2024-12-01: Feature B | status: Active`,
-      palette
-    );
+  it('timeline rendered for export', () => {
     const c = container();
     renderTimeline(
       c,
-      parsed,
+      parseVisualization(TIMELINE, palette),
       palette,
       false,
       undefined,

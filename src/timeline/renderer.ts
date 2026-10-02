@@ -51,6 +51,7 @@ import {
 } from '../utils/legend-constants';
 import {
   renderIntegratedLegend,
+  keepSwimlaneToggleFocus,
   wireSwimlaneToggle,
 } from '../utils/legend-integration';
 import type { LegendConfig, LegendCallbacks } from '../utils/legend-types';
@@ -1435,7 +1436,7 @@ function renderTimelineTagLegendOverlay(
                   iconEl,
                   groupName,
                   isSwimActive,
-                  !!onTagStateChange,
+                  !exportDims,
                   () => {
                     currentSwimlaneGroup =
                       currentSwimlaneGroup === groupKey ? null : groupKey;
@@ -3002,6 +3003,39 @@ const timelineCollapseState = new WeakMap<HTMLDivElement, Set<string>>();
 let tlBandClipCounter = 0;
 
 export function renderTimeline(
+  container: HTMLDivElement,
+  parsed: ParsedTimeline,
+  palette: PaletteColors,
+  isDark: boolean,
+  onClickItem?: (lineNumber: number) => void,
+  exportDims?: D3ExportDimensions,
+  activeTagGroup?: string | null,
+  swimlaneTagGroup?: string | null,
+  onTagStateChange?: (
+    activeTagGroup: string | null,
+    swimlaneTagGroup: string | null
+  ) => void,
+  viewMode?: boolean,
+  exportMode?: boolean
+): void {
+  keepSwimlaneToggleFocus(container, () =>
+    drawTimeline(
+      container,
+      parsed,
+      palette,
+      isDark,
+      onClickItem,
+      exportDims,
+      activeTagGroup,
+      swimlaneTagGroup,
+      onTagStateChange,
+      viewMode,
+      exportMode
+    )
+  );
+}
+
+function drawTimeline(
   container: HTMLDivElement,
   parsed: ParsedTimeline,
   palette: PaletteColors,

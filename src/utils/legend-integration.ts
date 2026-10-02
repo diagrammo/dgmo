@@ -106,6 +106,9 @@ export function renderIntegratedLegend(
   );
 }
 
+/** Marks an interactive swimlane icon, so a re-render can find it again. */
+const SWIMLANE_TOGGLE_CLASS = 'dgmo-swimlane-toggle';
+
 /**
  * Wires a legend pill's swimlane ("Group by") icon (#952). Before, the icon
  * took only a click and was named only by a hover `<title>`, so Tab never
@@ -132,6 +135,7 @@ export function wireSwimlaneToggle(
   });
   if (!interactive) return;
   iconEl
+    .classed(SWIMLANE_TOGGLE_CLASS, true)
     .attr('role', 'button')
     .attr('tabindex', '0')
     .attr('aria-label', label)
@@ -142,4 +146,34 @@ export function wireSwimlaneToggle(
       event.stopPropagation();
       activate();
     });
+}
+
+/**
+ * Runs `render`, which replaces `container`'s chart, and puts keyboard focus
+ * back on the swimlane toggle that held it before (#952). Enter on a toggle
+ * re-renders the chart — the timeline itself, the app on its callback — and
+ * without this the focused icon is removed, focus drops to the page, and the
+ * new pressed state is never announced.
+ */
+export function keepSwimlaneToggleFocus(
+  container: Element,
+  render: () => void
+): void {
+  const active = container.ownerDocument.activeElement;
+  const label =
+    active &&
+    container.contains(active) &&
+    active.classList.contains(SWIMLANE_TOGGLE_CLASS)
+      ? active.getAttribute('aria-label')
+      : null;
+  render();
+  if (label === null) return;
+  for (const el of container.querySelectorAll<SVGElement>(
+    `.${SWIMLANE_TOGGLE_CLASS}`
+  )) {
+    if (el.getAttribute('aria-label') === label) {
+      el.focus();
+      return;
+    }
+  }
 }
