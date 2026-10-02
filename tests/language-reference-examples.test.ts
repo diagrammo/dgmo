@@ -20,7 +20,7 @@
 // ============================================================
 
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
@@ -38,6 +38,7 @@ import {
   resolveExample,
 } from '../scripts/lib/example-source.mjs';
 import { chartTypes } from '../src/advanced';
+import { render } from '../src/index';
 import { SKETCH_SHAPE_KINDS } from '../src/sketch/types';
 
 // The data-derived common set inlined into every core (must match
@@ -133,6 +134,8 @@ const WELL_FORMED_ID_RE = /^dgm_[0-9A-HJKMNP-TV-Z]{26}$/;
 const WITHDRAWN_IDS = new Set([
   'dgm_01KYRFCJZ2BHS18XRBEAZ0Y120', // Stop showing; answers 410 Gone
 ]);
+
+const GALLERY_FIXTURES = join(repo, 'gallery', 'fixtures');
 
 function readRepoFile(rel: string): string | null {
   try {
@@ -323,17 +326,20 @@ describe('the CATEGORIZE rule places active-tag and names the types it skips', (
     expect(rule.length).toBeGreaterThan(0);
   });
 
-  it('puts active-tag in the header, before the first element', () => {
+  it('puts active-tag in the header, after the tag group and before the first element', () => {
     expect(rule).toMatch(
-      /`active-tag <Axis>` in the header[^.]*before the first element/
+      /`active-tag <Axis>` in the header[^.]*after the tag group and before the first element/
     );
   });
 
   // Which types take a tag group but refuse `active-tag` is a fact of the
-  // parsers, so the rule's list is checked against them, not against itself:
-  // every type whose `tag` line parses clean but whose header `active-tag`
-  // draws a diagnostic must be named, and nothing else may be.
-  it('names exactly the types whose parser takes tags but refuses active-tag', () => {
+  // parsers, so the rule's list is checked against them, not against itself.
+  // A type refuses in one of two ways: it reports the line (bracket, block,
+  // body), or it swallows it as content and draws an element named
+  // "active-tag …" with no diagnostic at all (sketch, event-line, family).
+  // Two probes cover both: a bare header for every type, and every gallery
+  // fixture that declares a tag group with `active-tag` put right after it.
+  it('names exactly the types that take tags but refuse active-tag', async () => {
     const named =
       rule
         .match(
@@ -343,20 +349,48 @@ describe('the CATEGORIZE rule places active-tag and names the types it skips', (
         .split(/,\s*|\s+and\s+/)
         .map((s) => s.trim())
         .filter(Boolean) ?? [];
-    const refusing = chartTypes
-      .filter((c) => !c.internal)
-      .map((c) => c.id)
-      .filter((id) => {
-        const { errors, warnings } = validateDgmoSource(
-          `${id} T\ntag Tier as t\n  Alpha\n  Beta\nactive-tag Tier\n`
-        );
-        const on = (line: number) =>
-          [...errors, ...warnings].some((d) => d.line === line);
-        return !on(2) && on(5);
-      });
-    expect(refusing.length, 'probe found no refusing type').toBeGreaterThan(0);
+
+    const refusing = new Set<string>();
+    for (const c of chartTypes.filter((t) => !t.internal)) {
+      const { errors, warnings } = validateDgmoSource(
+        `${c.id} T\ntag Tier as t\n  Alpha\n  Beta\nactive-tag Tier\n`
+      );
+      const on = (line: number) =>
+        [...errors, ...warnings].some((d) => d.line === line);
+      if (!on(2) && on(5)) refusing.add(c.id);
+    }
+
+    const tagged = readdirSync(GALLERY_FIXTURES)
+      .filter((f) => f.endsWith('.dgmo'))
+      .map((f) => readFileSync(join(GALLERY_FIXTURES, f), 'utf8').split('\n'))
+      .filter((lines) => lines.some((l) => /^tag\s/.test(l)));
+    expect(
+      tagged.length,
+      'no gallery fixture declares a tag group'
+    ).toBeGreaterThan(0);
+    for (const lines of tagged) {
+      const id = lines[0].split(/\s+/)[0];
+      const tagLines = lines.flatMap((l, k) => (/^tag\s/.test(l) ? [k] : []));
+      const m = lines[tagLines[0]].match(/^tag\s+(?:"([^"]+)"|(\S+))/);
+      const group = m?.[1] ?? m?.[2];
+      let at = tagLines[tagLines.length - 1] + 1;
+      while (at < lines.length && /^\s+\S/.test(lines[at])) at++;
+      const src = [
+        ...lines.slice(0, at),
+        `active-tag ${group}`,
+        ...lines.slice(at),
+      ].join('\n');
+      const { errors, warnings } = validateDgmoSource(src);
+      const reported = [...errors, ...warnings].some((d) => d.line === at + 1);
+      const { svg } = await render(src, { onError: 'silent' });
+      if (reported || />[^<]*active-tag/.test(svg)) refusing.add(id);
+    }
+
+    expect(refusing.size, 'the probes found no refusing type').toBeGreaterThan(
+      0
+    );
     expect([...named].sort()).toEqual([...refusing].sort());
-  });
+  }, 60_000);
 
   it('tells class, flowchart, wireframe and raci to take no tag group', () => {
     const skip = rule.match(/\*\*([^*]+)\*\* take no tag group/)?.[1] ?? '';
