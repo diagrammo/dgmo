@@ -308,6 +308,50 @@ describe('generated DGMO-AI-CORE blocks are complete + single-sourced (AC4/AC11/
   });
 });
 
+// The Categorize-and-color rule is read by every model that draws a diagram.
+// Following it blind once broke three types: c4 refuses `active-tag` after
+// content, bracket has no `active-tag` option, and class, flowchart, wireframe
+// and raci take no tags at all (§1, "Diagram types that support tags").
+describe('the CATEGORIZE rule places active-tag and names the types it skips', () => {
+  const refMd = readRepoFile('docs/language-reference.md') ?? '';
+  const rule =
+    refMd
+      .match(/<!-- CATEGORIZE start -->([\s\S]*?)<!-- CATEGORIZE end -->/)?.[1]
+      .trim() ?? '';
+
+  it('the rule exists', () => {
+    expect(rule.length).toBeGreaterThan(0);
+  });
+
+  it('puts active-tag in the header, before the first element', () => {
+    expect(rule).toMatch(
+      /`active-tag <Axis>` in the header[^.]*before the first element/
+    );
+  });
+
+  it('tells bracket to declare the group with no active-tag line', () => {
+    expect(rule).toMatch(
+      /\*\*Bracket\*\* takes the tag group but no `active-tag` line/
+    );
+  });
+
+  it('tells class, flowchart, wireframe and raci to take no tag group', () => {
+    const skip = rule.match(/\*\*([^*]+)\*\* take no tag group/)?.[1] ?? '';
+    for (const id of ['class', 'flowchart', 'wireframe', 'raci']) {
+      expect(
+        skip.toLowerCase(),
+        `${id} missing from the no-tag sentence`
+      ).toContain(id);
+    }
+  });
+
+  for (const rel of GENERATED_CORE_FILES) {
+    it(`${rel} carries the rule as written in the source`, () => {
+      expect(readRepoFile(rel) ?? '').toContain(rule);
+    });
+  }
+});
+
 describe('per-type TIPS blocks are well-formed (authoring-guidance gate, AC12)', () => {
   // Scan the RAW `<!-- TYPE:id -->` blocks (the 35 actual coverage units), NOT
   // the alias-folding chartTypes loop above (which would re-scan parent blocks
