@@ -329,10 +329,33 @@ describe('the CATEGORIZE rule places active-tag and names the types it skips', (
     );
   });
 
-  it('tells bracket to declare the group with no active-tag line', () => {
-    expect(rule).toMatch(
-      /\*\*Bracket\*\* takes the tag group but no `active-tag` line/
-    );
+  // Which types take a tag group but refuse `active-tag` is a fact of the
+  // parsers, so the rule's list is checked against them, not against itself:
+  // every type whose `tag` line parses clean but whose header `active-tag`
+  // draws a diagnostic must be named, and nothing else may be.
+  it('names exactly the types whose parser takes tags but refuses active-tag', () => {
+    const named =
+      rule
+        .match(
+          /\*\*([^*]+)\*\* take the tag group but no `active-tag` line/
+        )?.[1]
+        .toLowerCase()
+        .split(/,\s*|\s+and\s+/)
+        .map((s) => s.trim())
+        .filter(Boolean) ?? [];
+    const refusing = chartTypes
+      .filter((c) => !c.internal)
+      .map((c) => c.id)
+      .filter((id) => {
+        const { errors, warnings } = validateDgmoSource(
+          `${id} T\ntag Tier as t\n  Alpha\n  Beta\nactive-tag Tier\n`
+        );
+        const on = (line: number) =>
+          [...errors, ...warnings].some((d) => d.line === line);
+        return !on(2) && on(5);
+      });
+    expect(refusing.length, 'probe found no refusing type').toBeGreaterThan(0);
+    expect([...named].sort()).toEqual([...refusing].sort());
   });
 
   it('tells class, flowchart, wireframe and raci to take no tag group', () => {
