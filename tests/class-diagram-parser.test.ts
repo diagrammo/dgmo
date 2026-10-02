@@ -508,3 +508,50 @@ describe('looksLikeClassDiagram', () => {
     );
   });
 });
+
+// #935: class takes no tags, like flowchart, wireframe and raci.
+describe('parseClassDiagram — tag blocks are refused', () => {
+  const src = [
+    'class Crew',
+    'tag Role as r',
+    '  Content',
+    '  Reference green',
+    'active-tag Role',
+    '',
+    'User',
+    '  + name: string',
+    'Account',
+    '  + id: number',
+  ].join('\n');
+
+  it('draws only the declared classes, never the tag values', () => {
+    const result = parseClassDiagram(src);
+    expect(result.classes.map((c) => c.name)).toEqual(['User', 'Account']);
+    expect(result.classes[0]!.members).toHaveLength(1);
+    expect(result.options).not.toHaveProperty('tag');
+  });
+
+  it('warns once for the block and once for active-tag, never for a class line', () => {
+    const result = parseClassDiagram(src);
+    expect(
+      result.diagnostics.map((d) => [d.line, d.severity, d.message])
+    ).toEqual([
+      [
+        2,
+        'warning',
+        expect.stringContaining('no tag groups — this block is ignored'),
+      ],
+      [
+        5,
+        'warning',
+        expect.stringContaining('"active-tag" does nothing on a class diagram'),
+      ],
+    ]);
+  });
+
+  it('keeps a class whose name starts with "Tag"', () => {
+    const result = parseClassDiagram('class\nTag Manager\n  + id: number\n');
+    expect(result.classes.map((c) => c.name)).toEqual(['Tag Manager']);
+    expect(result.diagnostics).toEqual([]);
+  });
+});

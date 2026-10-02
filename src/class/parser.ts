@@ -16,6 +16,7 @@ import {
 } from '../utils/parsing';
 import { normalizeName, displayName } from '../utils/name-normalize';
 import { tryCollectNote, resolveNotes, type DiagramNote } from '../utils/notes';
+import { isTagBlockHeading } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
 import type {
   ParsedClassDiagram,
@@ -37,6 +38,20 @@ function classId(name: string): string {
 // ============================================================
 // Regex patterns
 // ============================================================
+
+/**
+ * A class diagram has no tag colouring — a class's colour is its trailing
+ * colour word — so a `tag` block has nothing to apply to and `active-tag` has
+ * nothing to select (#935, as wireframe and raci, #251). Unrefused, `tag` is
+ * stored as an option and its indented values become a class named after the
+ * first one ("Content", with "Reference green" as a member).
+ */
+const INERT_OPTIONS: Record<string, string> = {
+  'active-tag':
+    '"active-tag" does nothing on a class diagram — it has no tag groups. Colour a class with a trailing colour word (`User blue`).',
+};
+const NO_TAG_GROUPS_MESSAGE =
+  'A class diagram has no tag groups — this block is ignored. Colour a class with a trailing colour word (`User blue`).';
 
 // Class declaration: [modifier] ClassName [extends Parent] [implements Interface] [color] [as alias]
 // Color is the universal §1.5 trailing-token form (a bare lowercase palette
@@ -213,6 +228,9 @@ export function parseClassDiagram(
   }
   let currentClass: Writable<ClassNode> | null = null;
   let contentStarted = false;
+  // A refused `tag` block is still SWALLOWED — its indented values must not
+  // fall through and become a class and its members.
+  let swallowingTagBlock = false;
 
   function getOrCreateClass(
     name: string,
@@ -270,6 +288,25 @@ export function parseClassDiagram(
     // Skip comments
     if (trimmed.startsWith('//')) continue;
 
+    // Refused tag block: the heading warned once; eat its indented values.
+    if (swallowingTagBlock) {
+      if (indent > 0) continue;
+      swallowingTagBlock = false;
+    }
+    // Lowercase only: the heading test ignores case, and `Tag Manager` is a class.
+    if (
+      indent === 0 &&
+      trimmed.startsWith('tag') &&
+      isTagBlockHeading(trimmed)
+    ) {
+      result.diagnostics.push(
+        makeDgmoError(lineNumber, NO_TAG_GROUPS_MESSAGE, 'warning')
+      );
+      currentClass = null;
+      swallowingTagBlock = true;
+      continue;
+    }
+
     // Note annotation (top-level): `note <ClassName> [inline body]` + an
     // optional indented body. Checked before options so a note is never
     // swallowed as an option; gated to indent 0 so an indented member
@@ -324,6 +361,13 @@ export function parseClassDiagram(
         // OPTION_NOCOLON_RE: [1]=key, [2]=value.
         const key = optMatch[1]!.toLowerCase();
         const value = optMatch[2]!.trim();
+        const inertMsg = INERT_OPTIONS[key];
+        if (inertMsg) {
+          result.diagnostics.push(
+            makeDgmoError(lineNumber, inertMsg, 'warning')
+          );
+          continue;
+        }
         // Don't swallow lines that look like class modifier keywords
         if (key !== 'abstract' && key !== 'interface' && key !== 'enum') {
           options[key] = value;
