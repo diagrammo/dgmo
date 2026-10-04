@@ -14,9 +14,11 @@ import type { CompactViewState } from './sharing';
 /**
  * The diagram's own title, read from its parsed model, for the root
  * `aria-label` — or null when it sets none. Most parsers keep it on `title`;
- * gantt and timeline keep it on `options.title`, where a `title` option line
- * also lands. The AUTHORED source and type, as for the summary: an arc
- * `layout chord` is re-emitted as internal `chord` content.
+ * gantt keeps it on `options.title`, where a `title` option line also lands.
+ * Only gantt: flowchart, class, state and sitemap also file a body `title`
+ * line under `options`, but draw nothing from it, and the label must not
+ * name a title nobody sees. The AUTHORED source and type, as for the
+ * summary: an arc `layout chord` is re-emitted as internal `chord` content.
  */
 function diagramTitle(
   content: string,
@@ -28,7 +30,7 @@ function diagramTitle(
     title?: unknown;
     options?: { title?: unknown };
   };
-  const title = model.title ?? model.options?.title;
+  const title = chartType === 'gantt' ? model.options?.title : model.title;
   return typeof title === 'string' && title.trim() ? title.trim() : null;
 }
 

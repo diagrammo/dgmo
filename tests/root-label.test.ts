@@ -69,6 +69,19 @@ describe('root aria-label names the diagram (#948)', () => {
     expect(rootLabel(svg)).toBe('Harbour Refit — Gantt diagram');
   });
 
+  it.each([
+    ['flowchart', 'flowchart\ntitle Unseen\n\n[Start] -> [End]'],
+    ['state', 'state\ntitle Unseen\n\n[Idle] -> [Busy]'],
+  ])(
+    'a %s body title line, which draws nothing, stays out of the label',
+    async (type, content) => {
+      const { svg } = await render(content);
+      expect(rootLabel(svg)).toBe(
+        `${type.charAt(0).toUpperCase()}${type.slice(1)} diagram`
+      );
+    }
+  );
+
   it('escapes the title inside the attribute', () => {
     const svg = applyRootA11y(
       '<svg viewBox="0 0 1 1"></svg>',
