@@ -9,22 +9,30 @@
 // goal's percentage), so this never overwrites one — it fills the gap for
 // every chart that has none.
 //
-// The label is the chart type, not the diagram's title: the title is drawn
-// ad-hoc by each renderer with no shared element or class to read it back
-// out of, so a title-aware label would be reliable for some chart types and
-// silently absent for the rest — which is the defect this replaces.
+// The label leads with the diagram's title when it sets one — "Voyage
+// Planning — Gantt diagram" — and is the bare chart type when it does not.
+// The title comes from the PARSED model the caller passes in, never from the
+// SVG: each renderer draws its title ad hoc, with no shared element or class
+// to read it back out of, so reading the SVG would be reliable for some chart
+// types and silently absent for the rest (diagrammo/diagrammo#948).
 
 /**
- * Add `role="img"` and a chart-type `aria-label` to the root `<svg>` when it
- * carries neither. Leaves an existing `role` or `aria-label` untouched.
+ * Add `role="img"` and an `aria-label` naming the diagram to the root `<svg>`
+ * when it carries neither: `<title> — <Type> diagram`, or `<Type> diagram`
+ * with no title. Leaves an existing `role` or `aria-label` untouched.
  */
-export function applyRootA11y(svg: string, chartType?: string | null): string {
+export function applyRootA11y(
+  svg: string,
+  chartType?: string | null,
+  title?: string | null
+): string {
   if (!chartType) return svg;
   const m = svg.match(/<svg\b[^>]*>/);
   if (!m) return svg;
   const rootTag = m[0];
   if (/\brole=/.test(rootTag) || /\baria-label=/.test(rootTag)) return svg;
-  const label = `${chartType.charAt(0).toUpperCase()}${chartType.slice(1)} diagram`;
+  const typeLabel = `${chartType.charAt(0).toUpperCase()}${chartType.slice(1)} diagram`;
+  const label = title ? `${title} — ${typeLabel}` : typeLabel;
   const withA11y = rootTag.replace(
     /^<svg\b/,
     `<svg role="img" aria-label="${escapeAttr(label)}"`

@@ -3,12 +3,34 @@ import { renderDataChartD3 } from './charts-d3';
 import { injectHoverStyles } from './utils/hover-styles';
 import { applyRootA11y, applyRootDesc } from './utils/root-a11y';
 import { summarizeDiagram } from './utils/diagram-summary';
+import { REGISTRY_BY_ID } from './chart-type-registry';
 import { getRenderCategory, parseDgmo } from './dgmo-router';
 import type { DgmoError } from './diagnostics';
 import { makeDgmoError } from './diagnostics';
 import { legendInlineSupported } from './utils/inline-header';
 import { getPalette } from './palettes/registry';
 import type { CompactViewState } from './sharing';
+
+/**
+ * The diagram's own title, read from its parsed model, for the root
+ * `aria-label` — or null when it sets none. Most parsers keep it on `title`;
+ * gantt and timeline keep it on `options.title`, where a `title` option line
+ * also lands. The AUTHORED source and type, as for the summary: an arc
+ * `layout chord` is re-emitted as internal `chord` content.
+ */
+function diagramTitle(
+  content: string,
+  chartType: string | null
+): string | null {
+  const parse = chartType ? REGISTRY_BY_ID.get(chartType)?.parse : undefined;
+  if (!parse) return null;
+  const model = parse(content) as {
+    title?: unknown;
+    options?: { title?: unknown };
+  };
+  const title = model.title ?? model.options?.title;
+  return typeof title === 'string' && title.trim() ? title.trim() : null;
+}
 
 // DOM globals installed for Node-side D3 rendering, scoped with ref-counting.
 //
@@ -294,7 +316,8 @@ export async function render(
       const svg = applyRootDesc(
         applyRootA11y(
           injectHoverStyles(raw, chartType, { bakeHover }),
-          chartType
+          chartType,
+          diagramTitle(content, parsed.chartType)
         ),
         // The AUTHORED source and type: an arc `layout chord` is re-emitted
         // above as internal `chord` content, which no summarizer reads.
@@ -350,7 +373,8 @@ export async function render(
     svg = applyRootDesc(
       applyRootA11y(
         injectHoverStyles(svg, chartType, { bakeHover }),
-        chartType
+        chartType,
+        diagramTitle(content, parsed.chartType)
       ),
       summarizeDiagram(content, parsed.chartType)
     );
