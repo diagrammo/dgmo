@@ -4,6 +4,7 @@
 // ============================================================
 
 import { tagAttrKey } from './tag-groups';
+import { LEGEND_PILL_TOGGLE_CLASS } from './legend-constants';
 import {
   LEGEND_HEIGHT,
   LEGEND_PILL_FONT_SIZE,
@@ -182,9 +183,6 @@ export function renderLegendD3(
 }
 
 // ── Keyboard ────────────────────────────────────────────────
-
-/** Marks a legend pill's keyboard target, so a re-render can find it again. */
-export const LEGEND_PILL_TOGGLE_CLASS = 'dgmo-legend-pill-toggle';
 
 /**
  * Makes a tag-group pill reachable by Tab and operable by Enter or Space

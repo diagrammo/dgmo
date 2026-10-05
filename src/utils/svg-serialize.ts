@@ -44,6 +44,8 @@
  * writing a serializer, which is a much larger change than this corner
  * deserves.
  */
+import { LEGEND_PILL_TOGGLE_CLASS } from './legend-constants';
+
 const BARE_AMPERSAND = /&(?![a-zA-Z][a-zA-Z0-9]*;|#\d+;|#[xX][0-9a-fA-F]+;)/g;
 
 /**
@@ -123,13 +125,32 @@ function roundMagnitudeAttrs(svg: string): string {
   return round(ROUNDED_OPACITY_ATTRS, 4)(round(ROUNDED_ATTRS, 2)(svg));
 }
 
+/** Attributes that make a legend pill a keyboard button (`legend-d3.ts`). */
+const LEGEND_PILL_BUTTON_ATTRS = [
+  'role',
+  'tabindex',
+  'aria-label',
+  'aria-pressed',
+] as const;
+
 /**
  * Serialize an SVG element to the string every renderer returns.
  *
  * The single place `outerHTML` is turned into shipped bytes, so the
  * well-formedness guarantee holds for every chart type rather than the ones
  * somebody remembered.
+ *
+ * It is also where a legend pill stops being a button (#1060). Shipped bytes
+ * are static — a CLI file, a docs embed, an export — and their key handler is
+ * gone, so a focusable pill would announce a control that does nothing. The
+ * app's live preview renders into its own container and never comes through
+ * here, so it keeps them.
  */
 export function serializeSvg(svgEl: Element): string {
+  for (const el of svgEl.querySelectorAll(`.${LEGEND_PILL_TOGGLE_CLASS}`)) {
+    el.classList.remove(LEGEND_PILL_TOGGLE_CLASS);
+    if (el.getAttribute('class') === '') el.removeAttribute('class');
+    for (const attr of LEGEND_PILL_BUTTON_ATTRS) el.removeAttribute(attr);
+  }
   return roundMagnitudeAttrs(escapeAttributeMarkupChars(svgEl.outerHTML));
 }

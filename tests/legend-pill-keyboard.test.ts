@@ -9,6 +9,7 @@ import { getPalette } from '../src/palettes';
 import { renderLegendD3 } from '../src/utils/legend-d3';
 import type { LegendConfig } from '../src/utils/legend-types';
 import { parseVisualization, renderTimeline } from '../src/d3';
+import { render } from '../src/render';
 
 beforeAll(() => {
   const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
@@ -207,5 +208,23 @@ describe('a keyboard user reaches another group and its swimlane icon (#1060)', 
       '.tl-swimlane-icon[aria-label="Group by Owner"]'
     );
     expect(icon?.getAttribute('tabindex')).toBe('0');
+  });
+});
+
+// Shipped bytes are static — a CLI file, a docs embed, an export — and lose
+// the key handler, so a pill there must not announce itself as a button.
+describe('static output carries no pill buttons (#1060)', () => {
+  it('render()', async () => {
+    const { svg } = await render(
+      TIMELINE.replace('timeline', 'timeline\nactive-tag Status'),
+      {
+        theme: 'light',
+      }
+    );
+    expect(svg).toContain('data-legend-group="status"');
+    expect(svg).not.toContain('dgmo-legend-pill-toggle');
+    expect(svg).not.toMatch(
+      /data-legend-group="status"[^>]*>\s*<rect[^>]*(role|tabindex)=/
+    );
   });
 });

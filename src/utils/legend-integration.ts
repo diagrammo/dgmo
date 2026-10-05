@@ -14,7 +14,8 @@
 // fields are spread conditionally exactly as the renderers did, and the
 // position default matches the value every D3 renderer used.
 
-import { LEGEND_PILL_TOGGLE_CLASS, renderLegendD3 } from './legend-d3';
+import { renderLegendD3 } from './legend-d3';
+import { LEGEND_PILL_TOGGLE_CLASS } from './legend-constants';
 import type {
   ControlsGroupConfig,
   D3Sel,

@@ -67,3 +67,10 @@ export const CONTROLS_ICON_PATH =
 export const LEGEND_TOGGLE_DOT_R = LEGEND_DOT_R;
 export const LEGEND_TOGGLE_OFF_OPACITY = 0.4;
 export const LEGEND_GEAR_PILL_W = 14 + LEGEND_PILL_PAD; // gear icon (14) + padding
+
+/**
+ * Marks a legend pill's keyboard target (#1060): `legend-d3.ts` sets it, a
+ * re-render finds the pill again by it, and `serializeSvg` strips the button
+ * semantics it carries from static output.
+ */
+export const LEGEND_PILL_TOGGLE_CLASS = 'dgmo-legend-pill-toggle';
