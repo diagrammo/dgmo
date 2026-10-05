@@ -148,6 +148,66 @@ describe('legend pills are keyboard buttons (#1060)', () => {
   });
 });
 
+// Most charts are redrawn by the APP: its click listener sets state and a
+// React render replaces the svg after the key handler has returned. Focus must
+// still land back on the pill, now pressed.
+describe('a pill keeps focus across an app redraw (#1060)', () => {
+  function appHost() {
+    const div = document.createElement('div');
+    document.body.appendChild(div);
+    let active: string | null = null;
+    const draw = () => {
+      div.innerHTML = '';
+      const g = select(div)
+        .append('svg')
+        .attr('width', 800)
+        .attr('height', 100)
+        .append('g');
+      renderLegendD3(
+        g,
+        config('preview'),
+        { activeGroup: active },
+        legendPalette,
+        false
+      );
+    };
+    div.addEventListener('click', (e) => {
+      const name = (e.target as Element)
+        .closest('[data-legend-group]')
+        ?.getAttribute('data-legend-group');
+      if (!name) return;
+      active = active === name ? null : name;
+      queueMicrotask(draw);
+    });
+    draw();
+    return { div, draw };
+  }
+
+  it('restores focus after a later redraw', async () => {
+    const { div } = appHost();
+    const status = pill(div, 'Status')!;
+    status.focus();
+    press(status, 'Enter');
+    await Promise.resolve();
+    const after = document.activeElement!;
+    expect(status.isConnected).toBe(false);
+    expect(after.getAttribute('aria-label')).toBe('Status');
+    expect(after.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('does not take focus from where the user moved it', async () => {
+    const { div } = appHost();
+    const elsewhere = document.createElement('button');
+    document.body.appendChild(elsewhere);
+    const status = pill(div, 'Status')!;
+    status.focus();
+    press(status, 'Enter');
+    elsewhere.focus();
+    await Promise.resolve();
+    expect(document.activeElement).toBe(elsewhere);
+  });
+});
+
 const TIMELINE = `timeline
 
 tag Status

@@ -161,6 +161,8 @@ export function renderLegendD3(
         config.controls
       );
     }
+
+    if (interactive) restorePillFocus(legendG.node());
   }
 
   render();
@@ -198,6 +200,12 @@ export function renderLegendD3(
  * groups in the APP, by a click listener that looks for `[data-legend-group]`
  * (org, family, map, sequence, c4, …), and the rest through `onGroupToggle` on
  * the `<g>`; one synthetic click reaches both without dgmo knowing which.
+ *
+ * The toggle usually redraws the legend, which removes the focused rect and
+ * drops focus to the page. So the press first records which pill it was, and
+ * the next legend drawn in the same host hands focus back to it — see
+ * `restorePillFocus`. The record is not cleared when the pill is still in the
+ * page after the click: an app redraw has simply not happened yet.
  */
 function wireGroupToggleKeys(
   target: D3Sel,
@@ -216,9 +224,52 @@ function wireGroupToggleKeys(
       event.stopPropagation();
       const el = event.currentTarget as Element;
       const view = el.ownerDocument.defaultView;
-      if (view)
-        el.dispatchEvent(new view.MouseEvent('click', { bubbles: true }));
+      if (!view) return;
+      const host = legendHost(el);
+      pendingPillFocus = host ? { host, label: groupName } : null;
+      el.dispatchEvent(new view.MouseEvent('click', { bubbles: true }));
     });
+}
+
+/**
+ * The pill a key press toggled, waiting for the redraw that follows (#1060).
+ *
+ * Who redraws varies. dgmo does it inside the click for gantt, kanban and
+ * timeline; the app does it for most charts, from its own click listener and
+ * a React render, so after the key handler has returned. Restoring focus where
+ * the legend is drawn covers both without knowing which.
+ */
+let pendingPillFocus: { host: Element; label: string } | null = null;
+
+/**
+ * The element that outlives a redraw: the parent of the outermost `<svg>`. A
+ * re-render replaces the svg, never the container the app or caller owns.
+ */
+function legendHost(el: Element): Element | null {
+  let svg = (el as SVGElement).ownerSVGElement;
+  while (svg?.ownerSVGElement) svg = svg.ownerSVGElement;
+  return svg?.parentElement ?? null;
+}
+
+/**
+ * Hands focus back to the pill a key press toggled, once a legend in the same
+ * host draws a pill of that name. Only while focus is lost to the page: if the
+ * user has moved on to anything else, the redraw does not take focus from it.
+ */
+function restorePillFocus(root: Element | null): void {
+  const pending = pendingPillFocus;
+  if (!pending || !root || !pending.host.contains(root)) return;
+  const doc = root.ownerDocument;
+  if (doc.activeElement && doc.activeElement !== doc.body) return;
+  for (const el of root.querySelectorAll<SVGElement>(
+    `.${LEGEND_PILL_TOGGLE_CLASS}`
+  )) {
+    if (el.getAttribute('aria-label') === pending.label) {
+      pendingPillFocus = null;
+      el.focus();
+      return;
+    }
+  }
 }
 
 // ── Capsule (active group) ──────────────────────────────────

@@ -28,7 +28,7 @@ import { getMaxLegendReservedHeight } from '../utils/legend-layout';
 import { legendSuppressed } from '../utils/parsing';
 import {
   renderIntegratedLegend,
-  keepLegendFocus,
+  keepSwimlaneToggleFocus,
   wireSwimlaneToggle,
 } from '../utils/legend-integration';
 import type {
@@ -446,7 +446,7 @@ export function renderKanban(
   isDark: boolean,
   options?: KanbanInteractiveOptions
 ): void {
-  keepLegendFocus(container, () =>
+  keepSwimlaneToggleFocus(container, () =>
     drawKanban(container, parsed, palette, isDark, options)
   );
 }
