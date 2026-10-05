@@ -402,6 +402,54 @@ describe('the CATEGORIZE rule places active-tag and names the types it skips', (
     }
   });
 
+  // Which types take no tag group is a fact of the parsers, so the rule's list
+  // is checked against them. A type refuses a tag group in one of three ways:
+  // it reports the `tag` line, it draws that line as an element (cycle,
+  // pyramid, ring, version-control, venn), or it draws the values as content
+  // (wordcloud's words). Two probes: a bare header, and the header in front of
+  // a real body — the type's first gallery fixture, else three plain lines —
+  // because cycle, pyramid and ring only draw the line once they have content.
+  // Flowchart is the one listed type no probe sees: its parser drops the block
+  // without a word, and the rule names it because §1 does.
+  it('names exactly the types that take no tag group', async () => {
+    const named = new Set(
+      (rule.match(/\*\*([^*]+)\*\* take no tag group/)?.[1] ?? '')
+        .toLowerCase()
+        .split(/,\s*|\s+and\s+/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+    );
+    const fixtures = readdirSync(GALLERY_FIXTURES)
+      .filter((f) => f.endsWith('.dgmo'))
+      .map((f) => readFileSync(join(GALLERY_FIXTURES, f), 'utf8').split('\n'));
+    const group = ['tag Zq as zq', '  Qa', '  Qb'];
+
+    const refusing = new Set<string>();
+    for (const c of chartTypes.filter((t) => !t.internal)) {
+      const body = fixtures
+        .find((l) => l[0].split(/\s+/)[0] === c.id)
+        ?.slice(1) ?? ['Alpha', 'Beta', 'Gamma'];
+      for (const src of [
+        [`${c.id} T`, ...group].join('\n'),
+        [`${c.id} T`, ...group, ...body].join('\n'),
+      ]) {
+        const { errors, warnings } = validateDgmoSource(src);
+        const { svg } = await render(src, { onError: 'silent' });
+        if (
+          [...errors, ...warnings].some((d) => d.line === 2) ||
+          />[^<]*tag Zq/.test(svg) ||
+          (/>\s*Qa\s*</.test(svg) && !/data-legend-entry/.test(svg))
+        )
+          refusing.add(c.id);
+      }
+    }
+
+    expect(refusing.has('flowchart')).toBe(false);
+    expect([...named].filter((id) => id !== 'flowchart').sort()).toEqual(
+      [...refusing].sort()
+    );
+  }, 60_000);
+
   // A catch-all such as "and for any type whose reference shows no `tag`
   // block" told the model to skip ER, family and swimlane, whose parsers take a
   // tag group without a diagnostic and draw a legend from it (#934, review r3).
