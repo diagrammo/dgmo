@@ -92,6 +92,17 @@ const ACTIVATION_WIDTH = 10;
  * leaves alone.
  */
 const ACTIVATION_IMPLICIT_END_CLEARANCE = 8;
+/**
+ * Space left between the end of an implicitly-ended bar and the top of a
+ * label that crosses its column (see `labelRoomBefore`).
+ */
+const ACTIVATION_LABEL_GAP = 4;
+/** A call's label: font size, and its baseline's height above the arrow. */
+const MSG_LABEL_FONT_SIZE = 12;
+const MSG_LABEL_OFFSET = 8;
+/** A labeled return's label: font size, and its baseline above the arrow. */
+const RETURN_LABEL_FONT_SIZE = 11;
+const RETURN_LABEL_OFFSET = 6;
 const SELF_CALL_HEIGHT = 25;
 const SELF_CALL_WIDTH = 30;
 // Actors render their label below the stick figure (at boxH + 14). Their
@@ -1806,6 +1817,82 @@ export function renderSequenceDiagram(
     sMsgStartOffset +
     (hasActors ? 20 : 0) +
     (parsed.groups.length > 0 ? groupBottomPad(0) : 0);
+  // Redistribute gap: tighter within groups, wider between groups.
+  // Total width stays exactly participants.length * sGap — no viewBox change.
+  // Computed before the vertical layout, which needs the columns' spacing to
+  // tell whether a label crosses a bar (see `labelRoomBefore`).
+  const totalGaps = participants.length > 1 ? participants.length - 1 : 0;
+  const numWithinGaps = totalGaps - numGroupGaps;
+  let sWithinGap = sGap;
+  let sBetweenGap = sGap;
+  if (numGroupGaps > 0 && totalGaps > 0) {
+    sWithinGap = sGap * 0.88;
+    sBetweenGap =
+      (totalGaps * sGap - numWithinGaps * sWithinGap) / numGroupGaps;
+  }
+  const ACTIVATION_NEST_OFFSET = ctx.structural(6);
+
+  // Room inserted before a step whose label would sit on the end of a bar it
+  // only passes. A bar with no return ends ACTIVATION_IMPLICIT_END_CLEARANCE
+  // above the next step — the same height the next step's label is drawn at,
+  // so a label centred over that bar's column was drawn on top of its end
+  // (tracker #972). The room goes between the bar's end and the row: the bar
+  // keeps ending where it did, and the row moves down far enough for its
+  // label to clear it.
+  const labelRoomBefore: number[] = new Array(renderSteps.length).fill(0);
+  {
+    // Column centres relative to the first lifeline: only differences matter.
+    const relX = new Map<string, number>();
+    let px = 0;
+    participants.forEach((p, i) => {
+      relX.set(p.id, px);
+      if (i < participants.length - 1) {
+        const nextId = participants[i + 1]!.id;
+        px += groupBoundaryIds.has(nextId) ? sBetweenGap : sWithinGap;
+      }
+    });
+    for (const act of activations) {
+      if (!act.implicitEnd || act.endStep <= act.startStep) continue;
+      const step = renderSteps[act.endStep];
+      if (!step || step.from === step.to) continue;
+      // Its own arrow is supposed to touch it
+      if (step.from === act.participantId || step.to === act.participantId) {
+        continue;
+      }
+      const label = displayMessageLabel(step);
+      const fromX = relX.get(step.from);
+      const toX = relX.get(step.to);
+      const barX = relX.get(act.participantId);
+      if (!label || fromX === undefined || toX === undefined) continue;
+      if (barX === undefined) continue;
+      const isCall = step.type === 'call';
+      const fontSize = isCall ? MSG_LABEL_FONT_SIZE : RETURN_LABEL_FONT_SIZE;
+      const baseline = isCall ? MSG_LABEL_OFFSET : RETURN_LABEL_OFFSET;
+      // The label is drawn between the arrow's activation edges, which sit up
+      // to half a bar width off the lifeline centres used here; the halo is
+      // half the label's 4px stroke.
+      const halfW = measureText(label, fontSize) / 2 + sActivationWidth / 2 + 2;
+      const midX = (fromX + toX) / 2;
+      const left =
+        barX - sActivationWidth / 2 + act.depth * ACTIVATION_NEST_OFFSET;
+      if (midX + halfW <= left || midX - halfW >= left + sActivationWidth) {
+        continue;
+      }
+      // Label top (baseline, glyph height, halo) clears the bar's end by
+      // ACTIVATION_LABEL_GAP.
+      const room =
+        baseline +
+        fontSize +
+        2 +
+        ACTIVATION_LABEL_GAP -
+        ACTIVATION_IMPLICIT_END_CLEARANCE;
+      labelRoomBefore[act.endStep] = Math.max(
+        labelRoomBefore[act.endStep]!,
+        room
+      );
+    }
+  }
+
   const stepYPositions: number[] = [];
   const sectionYPositions = new Map<number, number>(); // section lineNumber → Y
   let layoutEndY: number; // final Y after all steps and trailing sections
@@ -1830,6 +1917,7 @@ export function renderSequenceDiagram(
         const extra = extraBeforeMsg.get(step.messageIndex) || 0;
         curY += extra;
       }
+      curY += labelRoomBefore[i]!;
       stepYPositions.push(curY);
       const isSelfCall = step.type === 'call' && step.from === step.to;
       curY += isSelfCall ? sSelfCallHeight + 25 : stepSpacing;
@@ -1930,18 +2018,6 @@ export function renderSequenceDiagram(
   }
   const messageAreaHeight = contentBottomY - lifelineStartY0;
   const lifelineLength = messageAreaHeight + sLifelineTail;
-  // Redistribute gap: tighter within groups, wider between groups.
-  // Total width stays exactly participants.length * sGap — no viewBox change.
-  const totalGaps = participants.length > 1 ? participants.length - 1 : 0;
-  const numWithinGaps = totalGaps - numGroupGaps;
-  let sWithinGap = sGap;
-  let sBetweenGap = sGap;
-  if (numGroupGaps > 0 && totalGaps > 0) {
-    sWithinGap = sGap * 0.88;
-    sBetweenGap =
-      (totalGaps * sGap - numWithinGaps * sWithinGap) / numGroupGaps;
-  }
-
   /**
    * How far past the OUTERMOST lifeline on a side the drawn content reaches.
    * A participant box overhangs its lifeline by half its width, and a group
@@ -3038,7 +3114,6 @@ export function renderSequenceDiagram(
   }
 
   // Render activation rectangles (behind arrows)
-  const ACTIVATION_NEST_OFFSET = ctx.structural(6);
   activations.forEach((act) => {
     const px = participantX.get(act.participantId);
     if (px === undefined) return;
@@ -3052,12 +3127,15 @@ export function renderSequenceDiagram(
     // edge and read as though the bar terminated in an arrow. Stop short of it.
     // Extra vertical spacing does not fix this and never could: the edge is
     // pinned to the next message's Y, so moving that message moves the edge
-    // with it.
+    // with it. What extra space does fix is a crossing LABEL, so the room
+    // `labelRoomBefore` inserted before the next step lies below every
+    // implicitly-ended bar: the bar ends where it would have, the row moves.
     const rawY2 = stepY(act.endStep);
+    const implicitY2 =
+      rawY2 - labelRoomBefore[act.endStep]! - ACTIVATION_IMPLICIT_END_CLEARANCE;
     const y2 =
-      act.implicitEnd &&
-      rawY2 - ACTIVATION_IMPLICIT_END_CLEARANCE > y1 + sActivationWidth
-        ? rawY2 - ACTIVATION_IMPLICIT_END_CLEARANCE
+      act.implicitEnd && implicitY2 > y1 + sActivationWidth
+        ? implicitY2
         : rawY2;
 
     // Collect message line numbers covered by this activation
@@ -3496,14 +3574,14 @@ export function renderSequenceDiagram(
           const labelEl = svg
             .append('text')
             .attr('x', midX)
-            .attr('y', y - 8)
+            .attr('y', y - MSG_LABEL_OFFSET)
             .attr('text-anchor', 'middle')
             .attr('fill', arrowColor)
             .attr('paint-order', 'stroke fill')
             .attr('stroke', palette.bg)
             .attr('stroke-width', 4)
             .attr('stroke-linejoin', 'round')
-            .attr('font-size', 12)
+            .attr('font-size', MSG_LABEL_FONT_SIZE)
             .attr('class', 'message-label')
             .attr('data-line-number', String(msg.lineNumber))
             .attr('data-msg-index', String(step.messageIndex))
@@ -3566,14 +3644,14 @@ export function renderSequenceDiagram(
         const labelEl = svg
           .append('text')
           .attr('x', midX)
-          .attr('y', y - 6)
+          .attr('y', y - RETURN_LABEL_OFFSET)
           .attr('text-anchor', 'middle')
           .attr('fill', returnColor)
           .attr('paint-order', 'stroke fill')
           .attr('stroke', palette.bg)
           .attr('stroke-width', 4)
           .attr('stroke-linejoin', 'round')
-          .attr('font-size', 11)
+          .attr('font-size', RETURN_LABEL_FONT_SIZE)
           .attr('class', 'message-label')
           .attr('data-line-number', String(msg.lineNumber))
           .attr('data-msg-index', String(step.messageIndex))

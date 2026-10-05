@@ -18,6 +18,7 @@ import { JSDOM } from 'jsdom';
 import { parseSequenceDgmo } from '../src/sequence/parser';
 import { renderSequenceDiagram } from '../src/sequence/renderer';
 import { getPalette } from '../src/palettes';
+import { measureText } from '../src/utils/text-measure';
 
 let doc: Document;
 beforeAll(() => {
@@ -182,5 +183,116 @@ describe('activation bars and message lines', () => {
       'Camera -sweep-> Store',
     ].join('\n');
     expect(edgeCollisions(render(nested))).toEqual([]);
+  });
+});
+
+/**
+ * Every message label whose text box overlaps a bar it is only passing. The
+ * box is the 12px label's glyphs plus the 2px of its 4px stroke halo that
+ * reaches past them; a bar at either end of the label's own arrow is
+ * excluded, since that arrow is supposed to touch it.
+ */
+function labelCollisions(svg: SVGSVGElement): string[] {
+  const HALO = 2;
+  const ASCENT = 12;
+  const DESCENT = 3;
+  const found: string[] = [];
+  const arrows = new Map<string, { left: number; right: number }>();
+  for (const l of svg.querySelectorAll('line[data-step-index]')) {
+    const x1 = Number(l.getAttribute('x1'));
+    const x2 = Number(l.getAttribute('x2'));
+    arrows.set(l.getAttribute('data-step-index')!, {
+      left: Math.min(x1, x2),
+      right: Math.max(x1, x2),
+    });
+  }
+  for (const label of svg.querySelectorAll('text.message-label')) {
+    const arrow = arrows.get(label.getAttribute('data-step-index')!);
+    if (!arrow) continue;
+    const text = label.textContent ?? '';
+    const size = Number(label.getAttribute('font-size'));
+    const w = measureText(text, size);
+    const cx = Number(label.getAttribute('x'));
+    const base = Number(label.getAttribute('y'));
+    const box = {
+      left: cx - w / 2 - HALO,
+      right: cx + w / 2 + HALO,
+      top: base - ASCENT - HALO,
+      bottom: base + DESCENT + HALO,
+    };
+    for (const bar of activationBars(svg)) {
+      const isOwnArrow =
+        Math.abs(arrow.left - (bar.x + bar.w)) < 14 ||
+        Math.abs(arrow.right - bar.x) < 14;
+      if (isOwnArrow) continue;
+      if (box.right <= bar.x || box.left >= bar.x + bar.w) continue;
+      if (box.bottom <= bar.top || box.top >= bar.bottom) continue;
+      found.push(
+        `"${text}" ${box.top.toFixed(1)}..${box.bottom.toFixed(1)} vs bar x=${bar.x} ${bar.top}..${bar.bottom}`
+      );
+    }
+  }
+  return found;
+}
+
+describe('activation bars and message labels', () => {
+  // Reported 2026-09-29 (tracker #972): Service's bar from `App -store->
+  // Service` has no return, so it runs to the next row, and that row's label,
+  // centred over Service's column, sat on the bar's bottom end. The decided
+  // fix adds room under the bar, before the row whose label would cross it.
+  const reported = [
+    'sequence How TM Does Biometric Entry',
+    'App',
+    'Kiosk',
+    'Service',
+    'BiometricDB',
+    'TicketInventory',
+    '',
+    '== Registration ==',
+    'Fan -register face-> App',
+    'App -store-> Service',
+    'Service -store-> BiometricDB',
+    '',
+    '== Ingress ==',
+    'Kiosk -scan face-> Fan',
+    'Kiosk -check it-> Service',
+    'Service -get id from face-> BiometricDB',
+  ].join('\n');
+
+  it('keeps a crossing label off the end of an unreturned bar', () => {
+    expect(labelCollisions(render(reported))).toEqual([]);
+  });
+
+  it('keeps the bar ending where it did, and moves the row down instead', () => {
+    // The same diagram with the crossing message unlabeled needs no room, so
+    // it shows where the bar ended and where the row sat before the room.
+    const unlabeled = reported.replace(
+      'Kiosk -scan face-> Fan',
+      'Kiosk -> Fan'
+    );
+    const crossing = (svg: SVGSVGElement) => {
+      const line = svg.querySelector('line[data-from="Kiosk"][data-to="Fan"]')!;
+      const mid =
+        (Number(line.getAttribute('x1')) + Number(line.getAttribute('x2'))) / 2;
+      const bar = activationBars(svg).find(
+        (b) => b.x <= mid && mid <= b.x + b.w
+      )!;
+      return { y: Number(line.getAttribute('y1')), bar };
+    };
+    const before = crossing(render(unlabeled));
+    const after = crossing(render(reported));
+    expect(after.bar.bottom).toBeCloseTo(before.bar.bottom, 5);
+    expect(after.y).toBeGreaterThan(before.y);
+    expect(edgeCollisions(render(reported))).toEqual([]);
+  });
+
+  it('adds no room when no label crosses an unreturned bar', () => {
+    // A label that does not reach the bar's column needs no extra space
+    const plain = ['A -call-> B', 'B -next-> C', 'A -back-> B'].join('\n');
+    const lines = messageLines(render(plain))
+      .map((l) => l.y)
+      .sort((a, b) => a - b);
+    const gaps = lines.slice(1).map((y, i) => y - lines[i]!);
+    for (const gap of gaps) expect(gap).toBe(35);
   });
 });
