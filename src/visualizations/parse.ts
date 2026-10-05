@@ -523,7 +523,7 @@ function parseVisualizationFull(
         //   `<start> -> <end> Label color`     (trailing color word)
         const eraRange = tlLeadingRange(line);
         const eraParsed = eraRange && splitTrailingColor(eraRange.rest);
-        if (eraRange && eraParsed && eraParsed.label) {
+        if (eraRange && eraParsed?.label) {
           result.timelineEras.push({
             startDate: eraRange.start,
             endDate: eraRange.end,
@@ -558,7 +558,7 @@ function parseVisualizationFull(
         // Timeline marker block entry (§1.5 trailing-token, § BL-121 liberal date).
         const markerLd = tlLeadingDate(line);
         const markerParsed = markerLd && splitTrailingColor(markerLd.rest);
-        if (markerLd && markerParsed && markerParsed.label) {
+        if (markerLd && markerParsed?.label) {
           result.timelineMarkers.push({
             date: markerLd.iso,
             label: markerParsed.label,
@@ -605,7 +605,7 @@ function parseVisualizationFull(
       const eraInlineRange = eraInline && tlLeadingRange(eraInline[1]!);
       const eraInlineParsed =
         eraInlineRange && splitTrailingColor(eraInlineRange.rest);
-      if (eraInlineRange && eraInlineParsed && eraInlineParsed.label) {
+      if (eraInlineRange && eraInlineParsed?.label) {
         result.timelineEras.push({
           startDate: eraInlineRange.start,
           endDate: eraInlineRange.end,
@@ -630,7 +630,7 @@ function parseVisualizationFull(
       const markerInlineLd = markerInline && tlLeadingDate(markerInline[1]!);
       const markerInlineParsed =
         markerInlineLd && splitTrailingColor(markerInlineLd.rest);
-      if (markerInlineLd && markerInlineParsed && markerInlineParsed.label) {
+      if (markerInlineLd && markerInlineParsed?.label) {
         result.timelineMarkers.push({
           date: markerInlineLd.iso,
           label: markerInlineParsed.label,

@@ -909,7 +909,7 @@ export function parseSequenceDgmo(
     if (trimmed.startsWith('[')) {
       const fallbackMatch = trimmed.match(GROUP_HEADING_FALLBACK);
       // Capture group 1 guaranteed present after successful match.
-      if (fallbackMatch && fallbackMatch[1]!.includes('|')) {
+      if (fallbackMatch?.[1]!.includes('|')) {
         const rawInside = fallbackMatch[1]!;
         const pipeIdx = rawInside.indexOf('|');
         const cleanName = rawInside

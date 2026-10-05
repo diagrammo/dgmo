@@ -299,7 +299,7 @@ function updateNode(node: Element, now: number): void {
   // baked image no tick ever fires, so the stamp stays and the picture is
   // honestly dated.
   const stamp = svg.querySelector('[data-dgmo-countdown-asof]');
-  if (stamp && stamp.parentNode) stamp.parentNode.removeChild(stamp);
+  if (stamp?.parentNode) stamp.parentNode.removeChild(stamp);
 }
 
 /** Run one update pass over every countdown node inside `root`. */

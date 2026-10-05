@@ -412,7 +412,7 @@ export function parseGantt(
       } else {
         // Parse holiday entries (liberal date input, § BL-121).
         const rangeMatch = leadingRange(line);
-        if (rangeMatch && rangeMatch.rest.trim()) {
+        if (rangeMatch?.rest.trim()) {
           holidays.ranges.push({
             startDate: rangeMatch.start,
             endDate: rangeMatch.end,
@@ -467,7 +467,7 @@ export function parseGantt(
       } else {
         if (COMMENT_RE.test(line)) continue;
         const eraEntryMatch = leadingRange(line);
-        if (eraEntryMatch && eraEntryMatch.rest.trim()) {
+        if (eraEntryMatch?.rest.trim()) {
           const eraLabelRaw = eraEntryMatch.rest.trim();
           const eraExtracted = extractColor(
             eraLabelRaw,
@@ -503,7 +503,7 @@ export function parseGantt(
       } else {
         if (COMMENT_RE.test(line)) continue;
         const markerEntryMatch = leadingDate(line);
-        if (markerEntryMatch && markerEntryMatch.rest.trim()) {
+        if (markerEntryMatch?.rest.trim()) {
           const markerLabelRaw = markerEntryMatch.rest.trim();
           const markerExtracted = extractColor(
             markerLabelRaw,
@@ -932,7 +932,7 @@ export function parseGantt(
     const eraInlinePrefix = line.match(/^era\s+(.+)$/i);
     if (eraInlinePrefix) {
       const eraMatch = leadingRange(eraInlinePrefix[1]!);
-      if (eraMatch && eraMatch.rest.trim()) {
+      if (eraMatch?.rest.trim()) {
         const eraLabelRaw = eraMatch.rest.trim();
         const eraExtracted = extractColor(
           eraLabelRaw,
@@ -962,7 +962,7 @@ export function parseGantt(
     const markerInlinePrefix = line.match(/^marker\s+(.+)$/i);
     if (markerInlinePrefix) {
       const markerMatch = leadingDate(markerInlinePrefix[1]!);
-      if (markerMatch && markerMatch.rest.trim()) {
+      if (markerMatch?.rest.trim()) {
         const markerLabelRaw = markerMatch.rest.trim();
         const markerExtracted = extractColor(
           markerLabelRaw,
@@ -1113,7 +1113,7 @@ export function parseGantt(
 
     // Negated booleans: `no-dependencies`, `no-critical-path`
     // Capture group 1 guaranteed by successful regex match.
-    if (bareKeyword && bareKeyword[1]!.toLowerCase().startsWith('no-')) {
+    if (bareKeyword?.[1]!.toLowerCase().startsWith('no-')) {
       const base = bareKeyword[1]!.toLowerCase().substring(3);
       if (KNOWN_BOOLEANS.has(base)) {
         result.options.optionLineNumbers[base] = lineNumber;

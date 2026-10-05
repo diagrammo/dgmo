@@ -895,7 +895,7 @@ function setupColumnHover(
   const findRole = (target: EventTarget | null): string | null => {
     let el = target as Element | null;
     while (el && el !== node) {
-      const r = el.getAttribute && el.getAttribute('data-role-id');
+      const r = el.getAttribute?.('data-role-id');
       if (r) return r;
       el = el.parentElement;
     }

@@ -76,8 +76,7 @@ export function resolveTheme(
   if (html.classList.contains('light')) return 'light';
   if (
     typeof window !== 'undefined' &&
-    window.matchMedia &&
-    window.matchMedia('(prefers-color-scheme: dark)').matches
+    window.matchMedia?.('(prefers-color-scheme: dark)').matches
   ) {
     return 'dark';
   }
@@ -98,7 +97,7 @@ export function ensureStyles(): void {
     'link[rel="stylesheet"][href*="auto.css"]'
   );
   if (linked) {
-    if (html && html.dataset) html.dataset[STYLE_FLAG] = '1';
+    if (html?.dataset) html.dataset[STYLE_FLAG] = '1';
     return;
   }
 
@@ -106,7 +105,7 @@ export function ensureStyles(): void {
   style.setAttribute('data-dgmo-auto', '');
   style.textContent = CSS;
   document.head.appendChild(style);
-  if (html && html.dataset) html.dataset[STYLE_FLAG] = '1';
+  if (html?.dataset) html.dataset[STYLE_FLAG] = '1';
 }
 
 // ============================================================
@@ -355,11 +354,10 @@ function namespaceLightboxSvgIds(root: SVGElement, prefix: string): void {
   root.querySelectorAll('*').forEach((el) => {
     for (const attr of LIGHTBOX_REF_ATTRS) {
       const v = el.getAttribute(attr);
-      if (v && v.includes('url(#')) el.setAttribute(attr, remap(v));
+      if (v?.includes('url(#')) el.setAttribute(attr, remap(v));
     }
     const style = el.getAttribute('style');
-    if (style && style.includes('url(#'))
-      el.setAttribute('style', remap(style));
+    if (style?.includes('url(#')) el.setAttribute('style', remap(style));
     const href = el.getAttribute('href');
     if (href && href.startsWith('#') && map.has(href.slice(1)))
       el.setAttribute('href', '#' + map.get(href.slice(1)));

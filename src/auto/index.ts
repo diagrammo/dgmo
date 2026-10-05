@@ -601,7 +601,7 @@ function unhideAllSources(): void {
     el.style.visibility = 'visible';
   });
   // Also drop the anti-flash flag so subsequent loads re-inject if needed.
-  if (document.documentElement && document.documentElement.dataset) {
+  if (document.documentElement?.dataset) {
     document.documentElement.dataset['dgmoAutoFailed'] = '1';
   }
 }
