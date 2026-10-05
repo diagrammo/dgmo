@@ -51,7 +51,7 @@ import {
 } from '../utils/legend-constants';
 import {
   renderIntegratedLegend,
-  keepSwimlaneToggleFocus,
+  keepLegendFocus,
   wireSwimlaneToggle,
 } from '../utils/legend-integration';
 import type { LegendConfig, LegendCallbacks } from '../utils/legend-types';
@@ -1380,10 +1380,10 @@ function renderTimelineTagLegendOverlay(
         : {
             onGroupToggle: (groupName) => {
               currentActiveGroup =
-                currentActiveGroup === groupName.toLowerCase()
+                currentActiveGroup?.toLowerCase() === groupName.toLowerCase()
                   ? null
                   : groupName.toLowerCase();
-              drawLegend();
+              keepLegendFocus(container, drawLegend);
               recolorEvents();
               onTagStateChange?.(currentActiveGroup, currentSwimlaneGroup);
             },
@@ -3018,7 +3018,7 @@ export function renderTimeline(
   viewMode?: boolean,
   exportMode?: boolean
 ): void {
-  keepSwimlaneToggleFocus(container, () =>
+  keepLegendFocus(container, () =>
     drawTimeline(
       container,
       parsed,

@@ -114,6 +114,7 @@ export function renderLegendD3(
     }
 
     const { groupBg, pillBorder } = legendChromeColors(palette, isDark);
+    const interactive = config.mode !== 'export';
 
     // Render active capsule
     if (currentLayout.activeCapsule) {
@@ -124,13 +125,14 @@ export function renderLegendD3(
         groupBg,
         pillBorder,
         isDark,
+        interactive,
         callbacks
       );
     }
 
     // Render collapsed pills
     for (const pill of currentLayout.pills) {
-      renderPill(legendG, pill, palette, groupBg, callbacks);
+      renderPill(legendG, pill, palette, groupBg, interactive, callbacks);
     }
 
     // Render controls group (gear pill / capsule)
@@ -179,6 +181,48 @@ export function renderLegendD3(
   };
 }
 
+// ── Keyboard ────────────────────────────────────────────────
+
+/** Marks a legend pill's keyboard target, so a re-render can find it again. */
+export const LEGEND_PILL_TOGGLE_CLASS = 'dgmo-legend-pill-toggle';
+
+/**
+ * Makes a tag-group pill reachable by Tab and operable by Enter or Space
+ * (#1060). Before, only a mouse could switch the active tag group, so a
+ * keyboard user never reached any group but the active one — nor its swimlane
+ * ("Group by") icon, which is drawn on the active pill only.
+ *
+ * The target is the pill's own rect, not its `<g>`: the active capsule's `<g>`
+ * holds entries and, on gantt/kanban/timeline, the swimlane button, and a
+ * button must not contain another control.
+ *
+ * A key press dispatches a real bubbling click on the rect. Most charts toggle
+ * groups in the APP, by a click listener that looks for `[data-legend-group]`
+ * (org, family, map, sequence, c4, …), and the rest through `onGroupToggle` on
+ * the `<g>`; one synthetic click reaches both without dgmo knowing which.
+ */
+function wireGroupToggleKeys(
+  target: D3Sel,
+  groupName: string,
+  isActive: boolean
+): void {
+  target
+    .classed(LEGEND_PILL_TOGGLE_CLASS, true)
+    .attr('role', 'button')
+    .attr('tabindex', '0')
+    .attr('aria-label', groupName)
+    .attr('aria-pressed', isActive ? 'true' : 'false')
+    .on('keydown', (event: KeyboardEvent) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      event.stopPropagation();
+      const el = event.currentTarget as Element;
+      const view = el.ownerDocument.defaultView;
+      if (view)
+        el.dispatchEvent(new view.MouseEvent('click', { bubbles: true }));
+    });
+}
+
 // ── Capsule (active group) ──────────────────────────────────
 
 function renderCapsule(
@@ -188,6 +232,7 @@ function renderCapsule(
   groupBg: string,
   pillBorder: string,
   isDark: boolean,
+  interactive: boolean,
   callbacks?: LegendCallbacks
 ): void {
   const g = parent
@@ -205,13 +250,15 @@ function renderCapsule(
 
   // Inner pill
   const pill = capsule.pill;
-  g.append('rect')
+  const pillRect = g
+    .append('rect')
     .attr('x', pill.x)
     .attr('y', pill.y)
     .attr('width', pill.width)
     .attr('height', pill.height)
     .attr('rx', pill.height / 2)
     .attr('fill', palette.bg);
+  if (interactive) wireGroupToggleKeys(pillRect, capsule.groupName, true);
 
   // Pill border
   g.append('rect')
@@ -353,6 +400,7 @@ function renderPill(
   pill: LegendPillLayout,
   palette: LegendPalette,
   groupBg: string,
+  interactive: boolean,
   callbacks?: LegendCallbacks
 ): void {
   // Collapsed tag-group pills are hidden in export mode
@@ -365,11 +413,13 @@ function renderPill(
     .attr('data-legend-group', tagAttrKey(pill.groupName))
     .style('cursor', 'pointer');
 
-  g.append('rect')
+  const pillRect = g
+    .append('rect')
     .attr('width', pill.width)
     .attr('height', pill.height)
     .attr('rx', pill.height / 2)
     .attr('fill', groupBg);
+  if (interactive) wireGroupToggleKeys(pillRect, pill.groupName, false);
 
   g.append('text')
     .attr('x', pill.width / 2)

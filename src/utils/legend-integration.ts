@@ -14,7 +14,7 @@
 // fields are spread conditionally exactly as the renderers did, and the
 // position default matches the value every D3 renderer used.
 
-import { renderLegendD3 } from './legend-d3';
+import { LEGEND_PILL_TOGGLE_CLASS, renderLegendD3 } from './legend-d3';
 import type {
   ControlsGroupConfig,
   D3Sel,
@@ -148,29 +148,26 @@ export function wireSwimlaneToggle(
     });
 }
 
+/** Every legend control a re-render must hand focus back to. */
+const KEPT_FOCUS_CLASSES = [SWIMLANE_TOGGLE_CLASS, LEGEND_PILL_TOGGLE_CLASS];
+
 /**
- * Runs `render`, which replaces `container`'s chart, and puts keyboard focus
- * back on the swimlane toggle that held it before (#952). Enter on a toggle
- * re-renders the chart — the timeline itself, the app on its callback — and
- * without this the focused icon is removed, focus drops to the page, and the
- * new pressed state is never announced.
+ * Runs `render`, which replaces `container`'s chart or legend, and puts
+ * keyboard focus back on the legend control that held it before — a swimlane
+ * toggle (#952) or a tag-group pill (#1060). Enter on either re-renders, and
+ * without this the focused element is removed, focus drops to the page, and
+ * the new pressed state is never announced.
  */
-export function keepSwimlaneToggleFocus(
-  container: Element,
-  render: () => void
-): void {
+export function keepLegendFocus(container: Element, render: () => void): void {
   const active = container.ownerDocument.activeElement;
-  const label =
-    active &&
-    container.contains(active) &&
-    active.classList.contains(SWIMLANE_TOGGLE_CLASS)
-      ? active.getAttribute('aria-label')
-      : null;
+  const held =
+    active && container.contains(active)
+      ? KEPT_FOCUS_CLASSES.find((c) => active.classList.contains(c))
+      : undefined;
+  const label = held ? active?.getAttribute('aria-label') : null;
   render();
-  if (label === null) return;
-  for (const el of container.querySelectorAll<SVGElement>(
-    `.${SWIMLANE_TOGGLE_CLASS}`
-  )) {
+  if (!held || label == null) return;
+  for (const el of container.querySelectorAll<SVGElement>(`.${held}`)) {
     if (el.getAttribute('aria-label') === label) {
       el.focus();
       return;

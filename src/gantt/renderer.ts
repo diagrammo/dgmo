@@ -44,7 +44,7 @@ import {
 } from '../utils/legend-constants';
 import {
   renderIntegratedLegend,
-  keepSwimlaneToggleFocus,
+  keepLegendFocus,
   wireSwimlaneToggle,
 } from '../utils/legend-integration';
 import {
@@ -264,7 +264,7 @@ export function renderGantt(
   options?: GanttInteractiveOptions,
   exportDims?: D3ExportDimensions
 ): void {
-  keepSwimlaneToggleFocus(container, () =>
+  keepLegendFocus(container, () =>
     drawGantt(container, resolved, palette, isDark, options, exportDims)
   );
 }
