@@ -402,6 +402,25 @@ describe('the CATEGORIZE rule places active-tag and names the types it skips', (
     }
   });
 
+  // A catch-all such as "and for any type whose reference shows no `tag`
+  // block" told the model to skip ER, family and swimlane, whose parsers take a
+  // tag group without a diagnostic and draw a legend from it (#934, review r3).
+  // The skip covers the named types and nothing else.
+  it('skips only the types it names — er, family and swimlane still take tags', () => {
+    for (const id of ['er', 'family', 'swimlane']) {
+      const { errors, warnings } = validateDgmoSource(
+        `${id} T\ntag Tier as t\n  Alpha\n  Beta\n`
+      );
+      expect(
+        [...errors, ...warnings].filter((d) => d.line === 2),
+        `${id} refuses a tag group`
+      ).toEqual([]);
+    }
+    expect(rule).toMatch(
+      /\*\*[^*]+\*\* take no tag group at all — skip this rule for them\. /
+    );
+  });
+
   for (const rel of GENERATED_CORE_FILES) {
     it(`${rel} carries the rule as written in the source`, () => {
       expect(readRepoFile(rel) ?? '').toContain(rule);
