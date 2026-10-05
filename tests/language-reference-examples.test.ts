@@ -409,29 +409,48 @@ describe('the CATEGORIZE rule places active-tag and names the types it skips', (
   // (wordcloud's words). Two probes: a bare header, and the header in front of
   // a real body — the type's first gallery fixture, else three plain lines —
   // because cycle, pyramid and ring only draw the line once they have content.
-  // Flowchart is the one listed type no probe sees: its parser drops the block
-  // without a word, and the rule names it because §1 does.
-  it('names exactly the types that take no tag group', async () => {
-    const named = new Set(
-      (rule.match(/\*\*([^*]+)\*\* take no tag group/)?.[1] ?? '')
+  // A type can also drop the block without a word (flowchart, sankey,
+  // tech-radar), which no probe sees. So every chart type must be classified:
+  // in §1's list of types that take tags, in the rule's own list of types that
+  // take the group but no `active-tag`, or in the rule's skip list — and a new
+  // or unlisted type fails here until someone decides which.
+  it('classifies every chart type, and names every type that takes no tag group', async () => {
+    const list = (s: string) =>
+      s
         .toLowerCase()
+        .replace(/\s*\([^)]*\)/g, '')
         .split(/,\s*|\s+and\s+/)
-        .map((s) => s.trim())
-        .filter(Boolean)
+        .map((x) => x.trim())
+        .filter(Boolean);
+    const named = new Set(
+      list(rule.match(/\*\*([^*]+)\*\* take no tag group/)?.[1] ?? '')
     );
+    const takes = new Set([
+      ...list(
+        refMd.match(
+          /\*\*Diagram types that support tags\*\*:[^—]*— ([\s\S]*?) all accept/
+        )?.[1] ?? ''
+      ),
+      ...list(
+        rule.match(
+          /\*\*([^*]+)\*\* take the tag group but no `active-tag` line/
+        )?.[1] ?? ''
+      ),
+    ]);
     const fixtures = readdirSync(GALLERY_FIXTURES)
       .filter((f) => f.endsWith('.dgmo'))
       .map((f) => readFileSync(join(GALLERY_FIXTURES, f), 'utf8').split('\n'));
     const group = ['tag Zq as zq', '  Qa', '  Qb'];
 
+    const ids = chartTypes.filter((t) => !t.internal).map((t) => t.id);
     const refusing = new Set<string>();
-    for (const c of chartTypes.filter((t) => !t.internal)) {
+    for (const id of ids) {
       const body = fixtures
-        .find((l) => l[0].split(/\s+/)[0] === c.id)
+        .find((l) => l[0].split(/\s+/)[0] === id)
         ?.slice(1) ?? ['Alpha', 'Beta', 'Gamma'];
       for (const src of [
-        [`${c.id} T`, ...group].join('\n'),
-        [`${c.id} T`, ...group, ...body].join('\n'),
+        [`${id} T`, ...group].join('\n'),
+        [`${id} T`, ...group, ...body].join('\n'),
       ]) {
         const { errors, warnings } = validateDgmoSource(src);
         const { svg } = await render(src, { onError: 'silent' });
@@ -440,14 +459,24 @@ describe('the CATEGORIZE rule places active-tag and names the types it skips', (
           />[^<]*tag Zq/.test(svg) ||
           (/>\s*Qa\s*</.test(svg) && !/data-legend-entry/.test(svg))
         )
-          refusing.add(c.id);
+          refusing.add(id);
       }
     }
 
-    expect(refusing.has('flowchart')).toBe(false);
-    expect([...named].filter((id) => id !== 'flowchart').sort()).toEqual(
-      [...refusing].sort()
-    );
+    expect(takes.size, '§1 tag list not found').toBeGreaterThan(10);
+    expect(
+      ids.filter((id) => takes.has(id) === named.has(id)),
+      'listed in both, or in neither'
+    ).toEqual([]);
+    expect(
+      [...refusing].filter((id) => !named.has(id)),
+      'refuses a tag group but the rule does not skip it'
+    ).toEqual([]);
+    expect([...named].filter((id) => !refusing.has(id)).sort()).toEqual([
+      'flowchart',
+      'sankey',
+      'tech-radar',
+    ]);
   }, 60_000);
 
   // A catch-all such as "and for any type whose reference shows no `tag`
