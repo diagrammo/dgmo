@@ -48,11 +48,12 @@ describe('sketch takes the shared visual conventions', () => {
     expect(SKETCH_VISUALS.bandLabelOpacity).toBe(1);
   });
 
-  it('never tints a container by its tag', () => {
-    // 🔴 A group used to be a wash of its own tag colour at 0.4, with everything
-    // inside it swimming in that wash. `boxes-and-lines` never tints a group and
-    // this is its expression — a sketch beside one of the same content has to
-    // read as the same product.
+  it('does not tint a container whose tag entry has no colour', () => {
+    // A group used to be a wash of its own tag colour at 0.4, with everything
+    // inside it swimming in that wash. Since #619 a group's own coloured tag
+    // tints its frame by the shared `groupFill` / `groupStroke` recipe — pinned
+    // in `sketch-group-tag-tint.test.ts`. What THIS pins is narrower: an entry
+    // that resolves to no colour leaves the frame neutral.
     const colours = sketchColors({
       palette: P,
       isDark: false,
