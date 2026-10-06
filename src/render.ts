@@ -60,10 +60,17 @@ const DOM_GLOBALS = [
 // per-copy state, each copy keeps its own ref-count over the SAME
 // `globalThis.document` — one copy's release tears down globals mid-render of
 // the other. `Symbol.for` puts every copy on one shared count.
+//
+// The jsdom window itself outlives the globals: building one costs ~10 ms, most
+// of a small chart's render, so the next render reuses it rather than paying
+// again. Only the globals are torn down between renders; the window is held
+// here, off `globalThis`'s named properties, where no host code can see it.
 interface DomGlobalsState {
   refCount: number;
   installPromise: Promise<void> | null;
   installedByUs: boolean;
+  /** Optional: a state object made by an older dgmo bundle has no field. */
+  window?: Jsdom.DOMWindow;
 }
 const DOM_STATE_KEY = Symbol.for('diagrammo.dgmo.dom-globals');
 
@@ -77,13 +84,21 @@ function domState(): DomGlobalsState {
 }
 
 async function installDom(state: DomGlobalsState): Promise<void> {
-  const { JSDOM } = await loadJsdom();
-  // Concrete URL → non-opaque origin, so host code that touches
-  // window.localStorage during a same-process render doesn't throw.
-  const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
-    url: 'http://localhost/',
-  });
-  const win = dom.window;
+  let win = state.window;
+  if (win) {
+    // Reused: drop anything an earlier render left in the document, so this
+    // render starts from the same empty page a fresh jsdom would give it.
+    win.document.head.replaceChildren();
+    win.document.body.replaceChildren();
+  } else {
+    const { JSDOM } = await loadJsdom();
+    // Concrete URL → non-opaque origin, so host code that touches
+    // window.localStorage during a same-process render doesn't throw.
+    win = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
+      url: 'http://localhost/',
+    }).window;
+    state.window = win;
+  }
   const values: Record<(typeof DOM_GLOBALS)[number], unknown> = {
     document: win.document,
     window: win,
@@ -113,7 +128,10 @@ async function acquireDom(): Promise<void> {
   await state.installPromise;
 }
 
-/** Tear down the jsdom globals once no render is in flight. */
+/**
+ * Tear down the jsdom globals once no render is in flight. The window stays
+ * on the state for the next render's `installDom`.
+ */
 function releaseDom(): void {
   const state = domState();
   if (!state.installedByUs) return;
