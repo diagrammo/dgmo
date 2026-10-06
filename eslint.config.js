@@ -54,6 +54,12 @@ export default tseslint.config(
       // Every inline import() type converted to `import type` (#993); now an
       // error so none return.
       '@typescript-eslint/consistent-type-imports': 'error',
+      // Measured at zero hits and turned on as a ratchet (#992): an object
+      // interpolated as `[object Object]`, string eval, a non-string in a
+      // template literal.
+      '@typescript-eslint/no-base-to-string': 'error',
+      '@typescript-eslint/no-implied-eval': 'error',
+      '@typescript-eslint/restrict-template-expressions': 'error',
       // Disable noisy type-checked rules that don't catch real bugs
       '@typescript-eslint/no-unsafe-assignment': 'off',
       '@typescript-eslint/no-unsafe-member-access': 'off',
@@ -62,9 +68,6 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-call': 'off',
       '@typescript-eslint/no-unnecessary-type-assertion': 'off',
       '@typescript-eslint/no-redundant-type-constituents': 'off',
-      '@typescript-eslint/no-base-to-string': 'off',
-      '@typescript-eslint/no-implied-eval': 'off',
-      '@typescript-eslint/restrict-template-expressions': 'off',
       '@typescript-eslint/require-await': 'off',
     },
   },
