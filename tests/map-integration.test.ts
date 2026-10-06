@@ -164,3 +164,44 @@ describe('render() takes no environment it was not handed', () => {
     expect(failed!.message).toContain('assets missing from package');
   });
 });
+
+describe('map SVG weight — region geometry is not copied into the relief clip (#1013)', () => {
+  // dgmo-content's map/map-office-hours.dgmo: a world map with relief, the
+  // corpus's heaviest SVG.
+  const OFFICE_HOURS = [
+    'map Follow-the-Sun Support Desk',
+    '',
+    'hours 9-17',
+    'workweek mon-fri',
+    '',
+    'poi San Francisco clock label: West Coast',
+    'poi London clock label: EMEA',
+    'poi Singapore clock label: APAC',
+    'poi Sydney clock label: Pacific',
+  ].join('\n');
+
+  it('the relief land clip references the drawn region paths instead of repeating their `d`', async () => {
+    const { svg } = await render(OFFICE_HOURS, withMapData);
+    const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
+    const clip = doc.querySelector('clipPath[id^="dgmo-relief-land__m"]')!;
+    expect(clip).toBeTruthy();
+    expect(clip.querySelectorAll('path')).toHaveLength(0);
+    const land = [...doc.querySelectorAll('.dgmo-map-regions path[data-iso]')];
+    const uses = [...clip.querySelectorAll('use')];
+    expect(uses.length).toBe(land.length);
+    for (const u of uses) {
+      const target = doc.getElementById(u.getAttribute('href')!.slice(1));
+      expect(target?.closest('.dgmo-map-regions')).toBeTruthy();
+    }
+    // Outside the label patch (a deliberate fill-only repaint), no region's
+    // `d` is written as a second standalone path.
+    const ds = new Map<string, number>();
+    for (const p of doc.querySelectorAll('path[d]')) {
+      if (p.closest('.dgmo-map-label-patch')) continue;
+      const d = p.getAttribute('d')!;
+      ds.set(d, (ds.get(d) ?? 0) + 1);
+    }
+    const copied = land.filter((p) => ds.get(p.getAttribute('d')!)! > 1);
+    expect(copied).toHaveLength(0);
+  });
+});

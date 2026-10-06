@@ -354,7 +354,7 @@ function drawMap(
     g: Sel,
     r: MapLayoutRegion,
     strokeWidth: number
-  ): void => {
+  ): d3Selection.Selection<SVGPathElement, unknown, null, undefined> => {
     const p = g
       .append('path')
       .attr('d', r.d)
@@ -394,8 +394,9 @@ function drawMap(
         );
       }
     }
+    return p;
   };
-  for (const r of layout.regions) drawRegion(gRegions, r, 0.5);
+  const regionPaths = layout.regions.map((r) => drawRegion(gRegions, r, 0.5));
 
   // ── Relief (mountain-range hachure over ALL land, under rivers/POIs/labels) ──
   // Rule horizontal lines across the whole canvas, clipped to the INTERSECTION
@@ -415,9 +416,17 @@ function drawMap(
     const landClipId = nid('dgmo-relief-land');
     const rangeClip = defs.append('clipPath').attr('id', rangeClipId);
     for (const s of layout.relief) rangeClip.append('path').attr('d', s.d);
+    // Each land entry is a `<use>` of the region path already drawn above, not
+    // a second copy of its `d`: on a world map those copies were ~220KB (#1013).
+    // Per region, never one compound path — a union of separately clipped
+    // shapes and one nonzero compound differ at shared borders by a few pixels.
     const landClip = defs.append('clipPath').attr('id', landClipId);
-    for (const r of layout.regions)
-      if (r.id !== 'lake') landClip.append('path').attr('d', r.d);
+    layout.regions.forEach((r, i) => {
+      if (r.id === 'lake') return;
+      const id = nid(`dgmo-map-region-${i}`);
+      regionPaths[i]!.attr('id', id);
+      landClip.append('use').attr('href', `#${id}`);
+    });
     const gRelief = svg
       .append('g')
       .attr('clip-path', `url(#${landClipId})`) // outer: land only
