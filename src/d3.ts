@@ -11,6 +11,9 @@
 import type { PaletteColors } from './palettes';
 import type { D3ExportDimensions } from './utils/d3-types';
 import type { AncestorInfo } from './org/collapse';
+import type { DgmoError } from './diagnostics';
+import type { MapData } from './map/resolved-types';
+import type { CompactViewState } from './sharing';
 import { emit } from './diagnostics';
 import { MAP_DX } from './map/diagnostics';
 import { parseVisualization } from './visualizations/parse';
@@ -65,9 +68,7 @@ export { renderQuadrant } from './quadrant/renderer';
  * a render that turns out not to be a map — the loader is called only inside
  * the map branch.
  */
-export type MapDataSource =
-  | import('./map/resolved-types').MapData
-  | (() => Promise<import('./map/resolved-types').MapData>);
+export type MapDataSource = MapData | (() => Promise<MapData>);
 
 /**
  * Normalize either form to the data, plus WHY there is none.
@@ -84,7 +85,7 @@ export type MapDataSource =
 export async function resolveMapDataSource(
   source: MapDataSource | undefined
 ): Promise<{
-  data?: import('./map/resolved-types').MapData;
+  data?: MapData;
   reason?: string;
 }> {
   if (source === undefined) return {};
@@ -120,9 +121,7 @@ type RenderForExportOptions = {
   // so render() can surface resolver errors (unknown place/subdivision) without
   // re-running parseMap+resolveMap purely for diagnostics. Not called when the
   // map assets fail to load (exportMap degrades to '' before resolving).
-  onMapResolverDiagnostics?: (
-    diagnostics: readonly import('./diagnostics').DgmoError[]
-  ) => void;
+  onMapResolverDiagnostics?: (diagnostics: readonly DgmoError[]) => void;
   /**
    * Canvas to draw onto, in px. Defaults to EXPORT_WIDTH x EXPORT_HEIGHT.
    *
@@ -141,7 +140,7 @@ interface ExportContext {
   content: string;
   theme: 'light' | 'dark' | 'transparent';
   palette: PaletteColors | undefined;
-  viewState: import('./sharing').CompactViewState | undefined;
+  viewState: CompactViewState | undefined;
   options: RenderForExportOptions | undefined;
   exportMode: boolean;
   /** Whether the theme is dark, resolved once in renderForExport (Story 111.2). */
@@ -243,7 +242,7 @@ export async function renderForExport(
   content: string,
   theme: 'light' | 'dark' | 'transparent',
   palette?: PaletteColors,
-  viewState?: import('./sharing').CompactViewState,
+  viewState?: CompactViewState,
   options?: RenderForExportOptions
 ): Promise<string> {
   const exportMode = options?.exportMode ?? false;

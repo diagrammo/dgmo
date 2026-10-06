@@ -4,6 +4,8 @@ import { fillModeFromOptions } from '../utils/parsing';
 import * as d3 from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import type { PaletteColors } from '../palettes';
+import type { LegendCallbacks } from '../utils/legend-types';
+import type { TagGroup } from '../utils/tag-groups';
 import {
   contrastText,
   mix,
@@ -388,7 +390,7 @@ export function renderJourneyMap(
       .attr('class', 'journey-legend')
       .attr('transform', `translate(${legendX},${legendY})`);
 
-    const legendCallbacks: import('../utils/legend-types').LegendCallbacks = {
+    const legendCallbacks: LegendCallbacks = {
       ...(onActiveTagGroupChange
         ? {
             onGroupToggle: (groupName: string) => {
@@ -1091,7 +1093,7 @@ function resolveStepColor(
   step: JourneyMapStep,
   scoreColor: string,
   activeGroup: string | null,
-  tagGroups: readonly import('../utils/tag-groups').TagGroup[],
+  tagGroups: readonly TagGroup[],
   _palette: PaletteColors
 ): string | undefined {
   if (!activeGroup) return undefined;
@@ -1122,7 +1124,7 @@ function renderStepCard(
   palette: PaletteColors,
   isDark: boolean,
   activeGroup: string | null,
-  tagGroups: readonly import('../utils/tag-groups').TagGroup[],
+  tagGroups: readonly TagGroup[],
   onNavigateToLine?: (line: number) => void,
   fillMode?: 'solid' | 'outline'
 ): void {

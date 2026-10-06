@@ -24,7 +24,11 @@ import { computeNodeText } from './text-wrap';
 import { renderInlineText } from '../utils/inline-markdown';
 import { preprocessDescriptionLine } from '../utils/description-helpers';
 import { renderIntegratedLegend } from '../utils/legend-integration';
-import type { LegendConfig } from '../utils/legend-types';
+import type {
+  ControlsGroupToggle,
+  LegendCallbacks,
+  LegendConfig,
+} from '../utils/legend-types';
 import { LEGEND_GROUP_GAP } from '../utils/legend-constants';
 import {
   getMaxLegendReservedHeight,
@@ -323,7 +327,7 @@ export function renderMindmap(
     }
 
     // Build controls toggles
-    const toggles: import('../utils/legend-types').ControlsGroupToggle[] = [];
+    const toggles: ControlsGroupToggle[] = [];
     if (options?.onToggleDescriptions) {
       toggles.push({
         id: 'descriptions',
@@ -373,7 +377,7 @@ export function renderMindmap(
       surface: palette.surface,
       primary: palette.primary,
     };
-    const legendCallbacks: import('../utils/legend-types').LegendCallbacks = {
+    const legendCallbacks: LegendCallbacks = {
       ...(options?.onToggleControlsExpand !== undefined && {
         onControlsExpand: options.onToggleControlsExpand,
       }),

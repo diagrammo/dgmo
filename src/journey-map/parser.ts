@@ -40,6 +40,7 @@ import type {
 } from './types';
 import type { TagGroup } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
+import type { DgmoError } from '../diagnostics';
 
 // ============================================================
 // Regex patterns
@@ -502,7 +503,7 @@ function parseStepLine(
   counter: number,
   aliasMap: Map<string, string>,
   warn: (line: number, message: string) => void,
-  diagnostics?: import('../diagnostics').DgmoError[]
+  diagnostics?: DgmoError[]
 ): Writable<JourneyMapStep> {
   let score: number | undefined;
   let emotionLabel: string | undefined;

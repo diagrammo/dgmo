@@ -314,7 +314,7 @@ function peelAlias(text: string): { head: string; alias?: string } {
  */
 function tokenizeActivityLine(
   line: string,
-  diagnostics?: import('../diagnostics').DgmoError[],
+  diagnostics?: DgmoError[],
   lineNumber?: number,
   metaAliasMap?: Map<string, string>
 ): {

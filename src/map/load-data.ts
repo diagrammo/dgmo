@@ -23,6 +23,9 @@
 // `await import('jsdom')` seam in render.ts. The web build injects `MapData` via
 // DI and never calls `loadMapData`, so the dynamic import only runs in Node.
 import type { MapData } from './resolved-types';
+import type * as fsPromises from 'node:fs/promises';
+import type * as nodePath from 'node:path';
+import type * as nodeUrl from 'node:url';
 import type {
   BoundaryTopology,
   Gazetteer,
@@ -31,10 +34,10 @@ import type {
 } from './data/types';
 
 type NodeBuiltins = {
-  readFile: typeof import('node:fs/promises').readFile;
-  fileURLToPath: typeof import('node:url').fileURLToPath;
-  dirname: typeof import('node:path').dirname;
-  resolve: typeof import('node:path').resolve;
+  readFile: typeof fsPromises.readFile;
+  fileURLToPath: typeof nodeUrl.fileURLToPath;
+  dirname: typeof nodePath.dirname;
+  resolve: typeof nodePath.resolve;
 };
 
 async function loadNodeBuiltins(): Promise<NodeBuiltins> {

@@ -8,6 +8,8 @@ import {
   truncateBareUrl,
 } from '../src/sequence/renderer';
 import { getPalette } from '../src/palettes';
+import type { SequenceRenderOptions } from '../src/sequence/renderer';
+import type { SequenceNote } from '../src/sequence/parser';
 
 // Set up jsdom globals for D3
 let doc: Document;
@@ -41,7 +43,7 @@ const palette = getPalette('nord').light;
 
 function renderToSvg(
   input: string,
-  options?: import('../src/sequence/renderer').SequenceRenderOptions
+  options?: SequenceRenderOptions
 ): SVGSVGElement | null {
   const parsed = parseSequenceDgmo(input);
   expect(parsed.error).toBeNull();
@@ -220,8 +222,7 @@ describe('buildNoteMessageMap', () => {
 
     const map = buildNoteMessageMap(parsed.elements);
     const notes = parsed.elements.filter(
-      (el): el is import('../src/sequence/parser').SequenceNote =>
-        el.kind === 'note'
+      (el): el is SequenceNote => el.kind === 'note'
     );
 
     expect(notes.length).toBe(2);

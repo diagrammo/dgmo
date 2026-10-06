@@ -56,16 +56,6 @@ interface ParseInArrowLabelResult {
  */
 declare function parseInArrowLabel(rawLabel: string, lineNumber: number): ParseInArrowLabelResult;
 
-/**
- * Tag a primitive type `T` with a phantom brand `B`. The brand
- * exists only in the type system — `Brand<string, 'X'>` is a `string`
- * at runtime, but TypeScript treats it as nominally distinct from
- * plain `string` and from any other `Brand<string, ...>`.
- */
-type Brand<T, B extends string> = T & {
-    readonly __brand: B;
-};
-
 /** What `validateThemeFile` answers. */
 type ThemeFileResult = {
     readonly ok: true;
@@ -109,6 +99,16 @@ declare const slatePalette: PaletteConfig;
 declare const tidewaterPalette: PaletteConfig;
 
 declare const tokyoNightPalette: PaletteConfig;
+
+/**
+ * Tag a primitive type `T` with a phantom brand `B`. The brand
+ * exists only in the type system — `Brand<string, 'X'>` is a `string`
+ * at runtime, but TypeScript treats it as nominally distinct from
+ * plain `string` and from any other `Brand<string, ...>`.
+ */
+type Brand<T, B extends string> = T & {
+    readonly __brand: B;
+};
 
 type TimelineSort = 'time' | 'group' | 'tag';
 interface TimelineEvent {

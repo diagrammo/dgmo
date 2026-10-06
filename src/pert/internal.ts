@@ -6,6 +6,7 @@
 // share these; consumers should reach for `./types` instead.
 
 import type { Duration, DurationUnit } from '../gantt/types';
+import type { EdgeType } from './types';
 import { formatDateKey, parseGanttDate } from '../utils/duration';
 
 /**
@@ -94,9 +95,9 @@ export interface ReferenceSite {
   targetName: string;
   targetLineNumber: number;
   /** Dependency type (default FS when no edge label). */
-  type: import('./types').EdgeType;
+  type: EdgeType;
   /** Lag duration; null = zero offset. Negative amount = lead. */
-  lag: import('../gantt/types').Duration | null;
+  lag: Duration | null;
 }
 
 // ============================================================

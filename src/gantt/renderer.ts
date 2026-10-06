@@ -53,7 +53,10 @@ import {
   getLegendExtent,
 } from '../utils/legend-layout';
 import { layoutInlineHeader, INLINE_HEADER_PAD } from '../utils/inline-header';
-import type { LegendCallbacks } from '../utils/legend-types';
+import type {
+  ControlsGroupToggle,
+  LegendCallbacks,
+} from '../utils/legend-types';
 import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
@@ -2135,8 +2138,8 @@ function buildControlsToggles(
   criticalPathActive: boolean,
   hasDependencies: boolean,
   dependenciesActive: boolean
-): import('../utils/legend-types').ControlsGroupToggle[] {
-  const toggles: import('../utils/legend-types').ControlsGroupToggle[] = [];
+): ControlsGroupToggle[] {
+  const toggles: ControlsGroupToggle[] = [];
   if (hasCriticalPath) {
     toggles.push({
       id: 'critical-path',

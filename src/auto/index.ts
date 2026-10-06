@@ -24,6 +24,7 @@ import { startCountdowns } from '../countdown/ticker';
 import { startClocks } from '../clock/ticker';
 import { getAvailablePalettes } from '../palettes/registry';
 import '../palettes';
+import type { DgmoError } from '../diagnostics';
 import {
   VERSION,
   EDITOR_BASE_URL,
@@ -353,7 +354,7 @@ async function processElement(el: Element): Promise<ProcessOutcome> {
 
   let result: {
     svg: string;
-    diagnostics: import('../diagnostics').DgmoError[];
+    diagnostics: DgmoError[];
   };
   try {
     result = await render(source, {

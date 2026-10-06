@@ -10,6 +10,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type * as ChartsD3 from '../src/charts-d3/index';
+import type * as Render from '../src/render';
 
 const renderDataChartD3 = vi.fn();
 const render = vi.fn();
@@ -20,7 +21,7 @@ vi.mock('../src/charts-d3/index', async (importOriginal) => {
 });
 
 vi.mock('../src/render', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../src/render')>();
+  const actual = await importOriginal<typeof Render>();
   return { ...actual, render };
 });
 

@@ -32,6 +32,7 @@ import {
 } from '../utils/parsing';
 import { normalizeName } from '../utils/name-normalize';
 import type { Writable } from '../utils/brand';
+import type { DgmoError } from '../diagnostics';
 import type {
   ParsedKanban,
   KanbanColumn,
@@ -519,7 +520,7 @@ function parseCardLine(
   counter: number,
   metaAliasMap: Map<string, string>,
   _palette?: PaletteColors,
-  diagnostics?: import('../diagnostics').DgmoError[]
+  diagnostics?: DgmoError[]
 ): KanbanCard {
   // §1.4 unified metadata grammar — same-line cut.
   const registry = withTagAliases(

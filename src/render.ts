@@ -10,6 +10,8 @@ import { makeDgmoError } from './diagnostics';
 import { legendInlineSupported } from './utils/inline-header';
 import { getPalette } from './palettes/registry';
 import type { CompactViewState } from './sharing';
+import type { MapDataSource } from './d3';
+import type * as Jsdom from 'jsdom';
 
 /**
  * The diagram's own title, read from its parsed model, for the root
@@ -133,10 +135,10 @@ function releaseDom(): void {
  * runtime evaluation, but the static dependency edge still pulls jsdom
  * into the bundle.
  */
-async function loadJsdom(): Promise<typeof import('jsdom')> {
+async function loadJsdom(): Promise<typeof Jsdom> {
   const spec = ['js', 'dom'].join('');
   return import(/* @vite-ignore */ /* webpackIgnore: true */ spec) as Promise<
-    typeof import('jsdom')
+    typeof Jsdom
   >;
 }
 
@@ -187,7 +189,7 @@ export async function render(
      * Omit it and a map renders empty with an `E_MAP_DATA_NOT_SUPPLIED`
      * diagnostic. Every other chart type ignores this option.
      */
-    mapData?: import('./d3').MapDataSource;
+    mapData?: MapDataSource;
     /** Bake pure-CSS hover into the exported SVG (no JS). Default ON — embeds
      *  (Obsidian, doc-site wrappers) get hover feedback for free. The desktop
      *  app renders its live preview through direct renderer calls (not this

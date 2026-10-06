@@ -27,6 +27,8 @@ import type {
   SequenceMessage,
   SequenceNote,
   SequenceParticipant,
+  SequenceSection,
+  SequenceBlock,
 } from './parser';
 import { isSequenceBlock, isSequenceSection, isSequenceNote } from './parser';
 import { applyCollapseProjection } from './collapse';
@@ -497,7 +499,7 @@ function renderCacheParticipant(
 // ============================================================
 
 export interface SectionMessageGroup {
-  section: import('./parser').SequenceSection;
+  section: SequenceSection;
   messageIndices: number[]; // indices into messages[]
 }
 
@@ -1416,11 +1418,10 @@ export function renderSequenceDiagram(
   };
 
   // Section layout constants
-  const isSectionCollapsed = (
-    sec: import('./parser').SequenceSection
-  ): boolean => collapsedSections?.has(sec.lineNumber) ?? false;
+  const isSectionCollapsed = (sec: SequenceSection): boolean =>
+    collapsedSections?.has(sec.lineNumber) ?? false;
   /** Half the collapsed band's extra height, added on each side of the anchor. */
-  const collapsedBandPad = (sec: import('./parser').SequenceSection): number =>
+  const collapsedBandPad = (sec: SequenceSection): number =>
     isSectionCollapsed(sec) ? COLLAPSED_SECTION_BAND_EXTRA / 2 : 0;
   const SECTION_TOP_PAD = 35;
   const SECTION_BOTTOM_PAD = 45;
@@ -1563,7 +1564,7 @@ export function renderSequenceDiagram(
 
   // Walk top-level elements to build section regions
   interface SectionRegion {
-    section: import('./parser').SequenceSection;
+    section: SequenceSection;
     msgIndices: number[]; // message indices belonging to this section
   }
   const preSectionMsgIndices: number[] = [];
@@ -1578,9 +1579,7 @@ export function renderSequenceDiagram(
     const findMsgIndex = (child: SequenceElement): number =>
       msgLineToIndex.get(child.lineNumber) ?? -1;
 
-    const collectMsgIndicesFromBlock = (
-      block: import('./parser').SequenceBlock
-    ): number[] => {
+    const collectMsgIndicesFromBlock = (block: SequenceBlock): number[] => {
       const indices: number[] = [];
       for (const child of block.children) {
         if (isSequenceBlock(child)) {
@@ -1662,11 +1661,8 @@ export function renderSequenceDiagram(
   };
 
   // Map: filtered step index → sections to insert before it (in document order)
-  const sectionsBeforeStep = new Map<
-    number,
-    import('./parser').SequenceSection[]
-  >();
-  const trailingSections: import('./parser').SequenceSection[] = [];
+  const sectionsBeforeStep = new Map<number, SequenceSection[]>();
+  const trailingSections: SequenceSection[] = [];
 
   for (const region of sectionRegions) {
     if (region.msgIndices.length === 0) {
@@ -2604,15 +2600,13 @@ export function renderSequenceDiagram(
   const sectionLineX2 = bandRightmostX + sBoxW / 2 + 10;
   const sectionLabelX = (sectionLineX1 + sectionLineX2) / 2;
 
-  const sectionLabelTextFor = (
-    sec: import('./parser').SequenceSection
-  ): string => {
+  const sectionLabelTextFor = (sec: SequenceSection): string => {
     if (!isSectionCollapsed(sec)) return sec.label;
     const count = sectionMsgCounts.get(sec.lineNumber) ?? 0;
     return `${sec.label} (${count} ${count === 1 ? 'message' : 'messages'})`;
   };
   const sectionLabelBaselineFor = (
-    sec: import('./parser').SequenceSection,
+    sec: SequenceSection,
     secY: number
   ): number =>
     isSectionCollapsed(sec)
