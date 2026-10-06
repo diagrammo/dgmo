@@ -11,5 +11,4 @@ export const fixture: ConformanceFixture = {
   firstLineKeyword: 'sankey',
   directives: ['highlight', 'dim'],
   pipeKeys: {},
-  enumChecks: [{ directive: 'palette', source: 'palettes' }],
 };

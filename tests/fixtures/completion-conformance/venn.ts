@@ -8,5 +8,4 @@ export const fixture: ConformanceFixture = {
   firstLineKeyword: 'venn',
   directives: ['fill-tint', 'fill-solid', 'fill-outline'],
   pipeKeys: {},
-  enumChecks: [{ directive: 'palette', source: 'palettes' }],
 };

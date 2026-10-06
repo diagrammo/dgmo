@@ -17,8 +17,5 @@ export const fixture: ConformanceFixture = {
     'fill-outline',
   ],
   pipeKeys: {},
-  enumChecks: [
-    { directive: 'palette', source: 'palettes' },
-    { directive: 'activations', values: ['on', 'off'] },
-  ],
+  enumChecks: [{ directive: 'activations', values: ['on', 'off'] }],
 };

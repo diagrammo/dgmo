@@ -44,5 +44,4 @@ export const fixture: ConformanceFixture = {
     ],
     edge: ['split', 'fanout'],
   },
-  enumChecks: [{ directive: 'palette', source: 'palettes' }],
 };

@@ -37,7 +37,6 @@ export const fixture: ConformanceFixture = {
     node: ['description', 'confidence', 'collapsed'],
   },
   enumChecks: [
-    { directive: 'palette', source: 'palettes' },
     {
       directive: 'time-unit',
       // `sp` = sprints is the canonical unit (decision #48; bare `s` is the

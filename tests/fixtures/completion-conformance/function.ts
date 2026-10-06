@@ -9,5 +9,4 @@ export const fixture: ConformanceFixture = {
   firstLineKeyword: 'function',
   directives: ['no-legend', 'x', 'x-label', 'y-label', 'fill'],
   pipeKeys: {},
-  enumChecks: [{ directive: 'palette', source: 'palettes' }],
 };

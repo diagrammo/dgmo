@@ -20,5 +20,4 @@ export const fixture: ConformanceFixture = {
     'active-tag',
   ],
   pipeKeys: {},
-  enumChecks: [{ directive: 'palette', source: 'palettes' }],
 };

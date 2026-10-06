@@ -27,8 +27,8 @@ export const fixture: ConformanceFixture = {
   // keywords.
   notFirstLineKeywords: [],
 
-  // Directives the spec documents (palette/theme are universal — included
-  // automatically by the harness for every chart type).
+  // Directives the spec documents (no-title/legend-inline are universal —
+  // included automatically by the harness for every chart type).
   // No `active-tag`: raci declares no tag groups at all (#251).
   directives: ['no-legend', 'roles', 'fill-tint', 'fill-solid', 'fill-outline'],
 
@@ -44,8 +44,4 @@ export const fixture: ConformanceFixture = {
 
   // Color values must be palette-resolvable names — the harness checks
   // these come from the shared palette enum, not chart-specific.
-  enumChecks: [
-    { directive: 'palette', source: 'palettes' },
-    { directive: 'theme', values: ['light', 'dark', 'transparent'] },
-  ],
 };

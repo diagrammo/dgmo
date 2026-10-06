@@ -369,10 +369,12 @@ describe('COMPLETION_REGISTRY', () => {
     }
   });
 
-  it('every entry has at least palette and theme directives', () => {
+  // No render path reads a `palette` or `theme` line, and on most chart types
+  // one breaks the diagram, so neither is offered anywhere (#1036).
+  it('no entry offers palette or theme', () => {
     for (const [name, spec] of COMPLETION_REGISTRY) {
-      expect(spec.directives.palette, `${name} missing palette`).toBeDefined();
-      expect(spec.directives.theme, `${name} missing theme`).toBeDefined();
+      expect(spec.directives.palette, `${name} offers palette`).toBeUndefined();
+      expect(spec.directives.theme, `${name} offers theme`).toBeUndefined();
     }
   });
 
@@ -963,8 +965,8 @@ describe('COMPLETION_REGISTRY — tech-radar', () => {
     // live in PIPE_METADATA.
     expect(spec!.directives).toHaveProperty('no-blip-legend');
     expect(spec!.directives).not.toHaveProperty('show-blip-legend');
-    expect(spec!.directives).toHaveProperty('palette');
-    expect(spec!.directives).toHaveProperty('theme');
+    expect(spec!.directives).not.toHaveProperty('palette');
+    expect(spec!.directives).not.toHaveProperty('theme');
 
     const pipe = PIPE_METADATA.get('tech-radar');
     expect(pipe).toBeDefined();

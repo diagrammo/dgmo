@@ -15,5 +15,4 @@ export const fixture: ConformanceFixture = {
     'fill-outline', // working via FILL_FAMILY_CAPABLE
   ],
   pipeKeys: {},
-  enumChecks: [{ directive: 'palette', source: 'palettes' }],
 };

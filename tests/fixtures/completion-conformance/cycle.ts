@@ -24,6 +24,4 @@ export const fixture: ConformanceFixture = {
     node: ['color', 'span', 'description'],
     edge: ['color', 'width'],
   },
-
-  enumChecks: [{ directive: 'palette', source: 'palettes' }],
 };

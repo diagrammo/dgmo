@@ -17,5 +17,4 @@ export const fixture: ConformanceFixture = {
     //   blips:            ring, trend
     node: ['quadrant', 'color', 'ring', 'trend'],
   },
-  enumChecks: [{ directive: 'palette', source: 'palettes' }],
 };

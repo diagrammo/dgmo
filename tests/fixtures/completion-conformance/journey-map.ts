@@ -22,6 +22,4 @@ export const fixture: ConformanceFixture = {
     // and resolved at runtime, not via static PIPE_METADATA.
     node: ['score', 'emotion', 'description', 'pain', 'opportunity', 'thought'],
   },
-
-  enumChecks: [{ directive: 'palette', source: 'palettes' }],
 };

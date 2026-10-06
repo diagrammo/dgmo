@@ -8,7 +8,6 @@ export const fixture: ConformanceFixture = {
   directives: ['order', 'fill-tint', 'fill-solid', 'fill-outline'],
   pipeKeys: {},
   enumChecks: [
-    { directive: 'palette', source: 'palettes' },
     {
       directive: 'order',
       values: ['appearance', 'name', 'group', 'degree'],

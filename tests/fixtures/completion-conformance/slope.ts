@@ -8,5 +8,4 @@ export const fixture: ConformanceFixture = {
   firstLineKeyword: 'slope',
   directives: [],
   pipeKeys: {},
-  enumChecks: [{ directive: 'palette', source: 'palettes' }],
 };

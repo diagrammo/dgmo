@@ -13,6 +13,4 @@ export const fixture: ConformanceFixture = {
   pipeKeys: {
     layer: ['color', 'description'],
   },
-
-  enumChecks: [{ directive: 'palette', source: 'palettes' }],
 };

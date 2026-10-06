@@ -23,5 +23,4 @@ export const fixture: ConformanceFixture = {
   pipeKeys: {
     node: ['description', 'role', 'location', 'email', 'phone'],
   },
-  enumChecks: [{ directive: 'palette', source: 'palettes' }],
 };

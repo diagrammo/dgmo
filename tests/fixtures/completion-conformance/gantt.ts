@@ -35,8 +35,5 @@ export const fixture: ConformanceFixture = {
     edge: ['offset'],
   },
   allowExtras: ['dependencies'], // legacy positive form
-  enumChecks: [
-    { directive: 'palette', source: 'palettes' },
-    { directive: 'sort', values: ['time', 'group', 'tag'] },
-  ],
+  enumChecks: [{ directive: 'sort', values: ['time', 'group', 'tag'] }],
 };

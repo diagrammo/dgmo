@@ -23,5 +23,4 @@ export const fixture: ConformanceFixture = {
     'color',
   ],
   pipeKeys: {},
-  enumChecks: [{ directive: 'palette', source: 'palettes' }],
 };

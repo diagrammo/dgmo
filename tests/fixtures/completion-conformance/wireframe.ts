@@ -23,5 +23,4 @@ export const fixture: ConformanceFixture = {
   firstLineKeyword: 'wireframe',
   directives: ['mobile', 'fill-tint', 'fill-solid', 'fill-outline'],
   pipeKeys: {},
-  enumChecks: [{ directive: 'palette', source: 'palettes' }],
 };

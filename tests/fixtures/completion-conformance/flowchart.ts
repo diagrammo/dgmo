@@ -16,5 +16,4 @@ export const fixture: ConformanceFixture = {
     'no-notes',
   ],
   pipeKeys: {},
-  enumChecks: [{ directive: 'palette', source: 'palettes' }],
 };

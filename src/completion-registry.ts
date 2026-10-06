@@ -45,23 +45,10 @@ export interface DirectiveSpec {
 }
 
 // Global directives applied to every chart type
+// `palette` and `theme` are deliberately NOT here: no render path reads either
+// line, and on most chart types one breaks the diagram (#1036). They return
+// when the diagram-carries-its-own-palette design (#1035) makes `palette` real.
 const GLOBAL_DIRECTIVES: Record<string, DirectiveValueSpec> = {
-  palette: {
-    description: 'Color palette name',
-    values: [
-      'nord',
-      'catppuccin',
-      'tokyo-night',
-      'atlas',
-      'blueprint',
-      'slate',
-      'tidewater',
-    ],
-  },
-  theme: {
-    description: 'Color theme',
-    values: ['light', 'dark', 'transparent'],
-  },
   'no-title': {
     description: 'Hide the diagram title',
   },
@@ -94,7 +81,7 @@ const DATE_DIRECTIVES: Record<string, DirectiveValueSpec> = {
   },
 };
 
-/** Chart-type → directive specifications. Every chart type has at least palette + theme. */
+/** Chart-type → directive specifications. Every chart type has at least no-title + legend-inline. */
 export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   // ── Data charts ──────────────────────────────────────────
   [
@@ -1509,6 +1496,10 @@ export const METADATA_KEY_SET: ReadonlySet<string> = new Set([
   // by completion (the §1.9 booleans are canonical) but still parse-accepted,
   // so extractors must keep skipping it as a directive line.
   'direction',
+  // No longer offered (#1036) but still read by raci and wireframe, and still
+  // in existing files, so extractors keep skipping them as directive lines.
+  'palette',
+  'theme',
   ...[...COMPLETION_REGISTRY.values()].flatMap((spec) =>
     Object.keys(spec.directives)
   ),

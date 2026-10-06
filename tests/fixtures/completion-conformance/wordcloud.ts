@@ -7,8 +7,5 @@ export const fixture: ConformanceFixture = {
   firstLineKeyword: 'wordcloud',
   directives: ['rotate', 'max', 'size'],
   pipeKeys: {},
-  enumChecks: [
-    { directive: 'palette', source: 'palettes' },
-    { directive: 'rotate', values: ['none', 'mixed', 'angled'] },
-  ],
+  enumChecks: [{ directive: 'rotate', values: ['none', 'mixed', 'angled'] }],
 };

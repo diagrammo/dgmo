@@ -15,7 +15,7 @@ export interface ConformanceFixture {
   /** Tokens that look like first-line keywords but are intentionally rejected. */
   notFirstLineKeywords?: string[];
 
-  /** Directive names the spec documents (palette/theme added automatically). */
+  /** Directive names the spec documents (no-title/legend-inline added automatically). */
   directives: string[];
 
   /**
