@@ -5,6 +5,32 @@ All notable changes to `@diagrammo/dgmo` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.89.0] - 2026-10-06
+
+### Added
+
+- **Theme files are validated.** `validateThemeFile` takes a hand-written
+  palette and either returns a `PaletteConfig` the renderers already take, or
+  refuses it with every problem named at once: an unknown colour name or
+  field, a reused built-in id, or text that fails contrast on the fill it is
+  drawn on, in both light and dark.
+- **A rendered diagram is named by its title.** The root `aria-label` reads
+  `<title> — <Type> diagram`, so a screen reader hears which diagram it is.
+- **Legend pills and the swimlane "Group by" icon are keyboard buttons** on a
+  live render (gantt, kanban, timeline and every tagged chart). A static
+  render — the CLI, a docs embed — keeps them inert.
+
+### Fixed
+
+- A sequence row whose label crosses a bar with no return gets room, so the
+  label is no longer drawn on the bar.
+- A class diagram refuses a tag block and `active-tag` with one warning,
+  instead of drawing the block's values as a class.
+- A map with relief no longer writes every land path twice; one large map's
+  SVG drops by about a sixth.
+- Sequential server-side renders reuse one jsdom window, cutting most of a
+  small chart's render time in the CLI, the MCP server and every docs plugin.
+
 ## [0.88.0] - 2026-10-01
 
 ### Added
