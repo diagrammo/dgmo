@@ -890,6 +890,12 @@ async function installClaudeCode(opts: InstallOpts): Promise<void> {
     console.log('  (scope: this project)');
   }
   console.log('  Then type /dgmo in any Claude Code session.');
+  console.log(
+    '  Optional: see diagrams in a pane as Claude draws them (experimental; Ghostty or kitty):'
+  );
+  console.log(
+    '    /plugin install dgmo-pane --marketplace diagrammo/dgmo-pane'
+  );
 }
 
 async function installCodex(opts: InstallOpts): Promise<void> {
