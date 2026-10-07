@@ -187,6 +187,13 @@ interface RenderOptions {
      */
     palette?: PaletteConfig | string;
     /**
+     * A palette that beats the diagram's own `palette` line — for a deliberate
+     * per-embed choice such as a fence attribute or a CLI flag. Same forms as
+     * `palette`. Who wins, highest first: `paletteOverride`, the file's own
+     * `palette` line, `palette`, Slate.
+     */
+    paletteOverride?: PaletteConfig | string;
+    /**
      * How to handle parse errors:
      *   'svg'    — render an inline error SVG (default)
      *   'silent' — return empty svg + diagnostics; caller handles UI

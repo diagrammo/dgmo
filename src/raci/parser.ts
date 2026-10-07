@@ -47,7 +47,6 @@ import type {
 import type { Writable } from '../utils/brand';
 
 /** Header options that take a value (`key value`). */
-const KNOWN_OPTIONS = new Set(['roles', 'palette', 'theme']);
 /** Header options that are bare booleans (presence = on). */
 const KNOWN_BOOLEANS = new Set<string>(['no-title']);
 const REMOVED_BOOLEANS: Record<string, string> = {
@@ -58,7 +57,7 @@ const REMOVED_BOOLEANS: Record<string, string> = {
  * Valued options this chart recognizes only to say it does nothing with them.
  * A directive a chart accepts is a promise it does something, and raci has no
  * tag groups at all — there is nothing for `active-tag` to select even in
- * principle (#251). Warning beats dropping it from KNOWN_OPTIONS: an
+ * principle (#251). Warning beats not knowing the key: an
  * unrecognized `key value` line here falls through and becomes a TASK named
  * "active-tag Priority", which is a louder wrong answer than silence.
  */
@@ -404,21 +403,17 @@ export function parseRaci(
           warn(lineNumber, inertMsg);
           continue;
         }
-        if (KNOWN_OPTIONS.has(key)) {
-          const value = optMatch[2]!.trim();
-          if (key === 'roles') {
-            rolesExplicit = true;
-            // Inline form is name-only. For per-role color use the
-            // block form: each role on its own line with `| color: ...`.
-            const declared = value
-              .split(',')
-              .map((s) => s.trim())
-              .filter((s) => s.length > 0);
-            for (const rawRole of declared) {
-              getOrAddRole(rawRole, lineNumber);
-            }
-          } else {
-            options[key] = value;
+        if (key === 'roles') {
+          rolesExplicit = true;
+          // Inline form is name-only. For per-role color use the
+          // block form: each role on its own line with `| color: ...`.
+          const declared = optMatch[2]!
+            .trim()
+            .split(',')
+            .map((s) => s.trim())
+            .filter((s) => s.length > 0);
+          for (const rawRole of declared) {
+            getOrAddRole(rawRole, lineNumber);
           }
           continue;
         }

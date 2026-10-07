@@ -9,6 +9,7 @@ import { parseVisualization } from './visualizations/parse';
 // see the header there (#638). Re-exported here because this has always been
 // its address for consumers and tests.
 import { parseDgmoChartType } from './chart-type-detect';
+import { extractPaletteDirective } from './palettes/directive';
 export {
   parseDgmoChartType,
   looksLikeGantt,
@@ -112,7 +113,11 @@ export function parseDgmo(content: string): {
   // Dedupe at the parse boundary so one offending line never reports the same
   // problem N times — keeps the fix-loop signal clean for the CLI, the editor,
   // and the MCP `validate_diagram` tool.
-  const result = parseDgmoUndeduped(content);
+  // The `palette` line is every chart type's, so it is lifted out here rather
+  // than taught to each parser — its warnings ride along with theirs.
+  const directive = extractPaletteDirective(content);
+  const result = parseDgmoUndeduped(directive.content);
+  result.diagnostics = [...directive.diagnostics, ...result.diagnostics];
   return {
     // `attachHints` backfills the registry's repair sentence by code, so the
     // hint travels however the diagnostic was constructed. See its own comment.

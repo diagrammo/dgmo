@@ -674,23 +674,27 @@ describe('wireframe parser', () => {
   });
 });
 
-describe('wireframe parser — header options are stored canonically (#251)', () => {
-  it('lowercases the key, so a capitalised option is still found', () => {
+describe('wireframe parser — header options are read canonically (#251)', () => {
+  it('lowercases the key, so a capitalised option is still recognised', () => {
     const result = parseWireframe(
-      ['wireframe Login', 'Palette nord'].join('\n')
+      ['wireframe Login', 'Active-Tag Priority'].join('\n')
     );
-    // Stored raw, this landed in options['Palette'] and every lookup by the
-    // canonical name missed it.
-    expect(result.options['palette']).toBe('nord');
-    expect(result.options['Palette']).toBeUndefined();
+    // Read raw, `Active-Tag` missed the inert-option table and the line
+    // became an element labelled "Active-Tag Priority".
+    expect(
+      result.diagnostics.some((d) => d.message.includes('does nothing'))
+    ).toBe(true);
+    expect(result.options['Active-Tag']).toBeUndefined();
   });
 
-  it('accepts a capitalised option written after content starts', () => {
+  it('recognises a capitalised option written after content starts', () => {
     // The content-phase branch tested the RAW key against its own hardcoded
     // list, so it only matched an author who had already written it lowercase.
     const result = parseWireframe(
-      ['wireframe Login', '# Header', 'Theme dark'].join('\n')
+      ['wireframe Login', '# Header', 'Active-Tag Priority'].join('\n')
     );
-    expect(result.options['theme']).toBe('dark');
+    expect(
+      result.diagnostics.some((d) => d.message.includes('does nothing'))
+    ).toBe(true);
   });
 });

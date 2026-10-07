@@ -111,6 +111,26 @@ export const UNIVERSAL_DIAGNOSTICS: DiagnosticSpec[] = [
     example: 'pie Share\nApples 30\nPears 70',
   },
   {
+    code: 'W_PALETTE_UNKNOWN',
+    severity: 'warning',
+    chartType: null,
+    title: 'Palette not drawn',
+    message: (p) =>
+      `"${String(p.name ?? 'Dracula')}" is not a built-in palette — this diagram uses the default palette.`,
+    hint: 'Name a built-in palette — the message lists them — or remove the palette line.',
+    example: 'pie Share\nApples 30\nPears 70\n\npalette dracula',
+  },
+  {
+    code: 'W_PALETTE_MODE_UNKNOWN',
+    severity: 'warning',
+    chartType: null,
+    title: 'Palette mode word not recognised',
+    message: (p) =>
+      `"palette ${String(p.name ?? 'nord')}" takes one optional mode word, light or dark — the rest of the line is ignored.`,
+    hint: 'Write light, dark, or nothing after the palette name.',
+    example: 'pie Share\nApples 30\nPears 70\n\npalette nord dim',
+  },
+  {
     code: 'W_CANVAS_WIDTH_IGNORED',
     severity: 'warning',
     chartType: null,

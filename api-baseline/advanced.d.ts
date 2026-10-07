@@ -371,9 +371,16 @@ declare function renderQuadrant(container: HTMLDivElement, parsed: ParsedQuadran
  * Rust: 25`);
  * ```
  */
-declare function render(content: string, options?: {
+declare function render(source: string, options?: {
     theme?: 'light' | 'dark' | 'transparent';
+    /** The caller's default palette id — the file's own `palette` line beats it. */
     palette?: string;
+    /**
+     * A palette id that beats the file's own `palette` line: a deliberate
+     * per-embed choice (a fence attribute, a CLI flag). Who wins, highest
+     * first: this, the file's palette, `palette`, Slate (#1035).
+     */
+    paletteOverride?: string;
     c4Level?: 'context' | 'containers' | 'components' | 'deployment';
     c4System?: string;
     c4Container?: string;

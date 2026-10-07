@@ -9,6 +9,7 @@ import type { DgmoError } from './diagnostics';
 import { makeDgmoError } from './diagnostics';
 import { legendInlineSupported } from './utils/inline-header';
 import { getPalette } from './palettes/registry';
+import { extractPaletteDirective } from './palettes/directive';
 import type { CompactViewState } from './sharing';
 import type { MapDataSource } from './d3';
 import type * as Jsdom from 'jsdom';
@@ -181,10 +182,17 @@ async function loadJsdom(): Promise<typeof Jsdom> {
  * ```
  */
 export async function render(
-  content: string,
+  source: string,
   options?: {
     theme?: 'light' | 'dark' | 'transparent';
+    /** The caller's default palette id — the file's own `palette` line beats it. */
     palette?: string;
+    /**
+     * A palette id that beats the file's own `palette` line: a deliberate
+     * per-embed choice (a fence attribute, a CLI flag). Who wins, highest
+     * first: this, the file's palette, `palette`, Slate (#1035).
+     */
+    paletteOverride?: string;
     c4Level?: 'context' | 'containers' | 'components' | 'deployment';
     c4System?: string;
     c4Container?: string;
@@ -245,15 +253,28 @@ export async function render(
    *  failed. Embed callers use it to pick the default embed background. */
   chartType: string | undefined;
 }> {
-  const theme = options?.theme ?? 'light';
-  const paletteName = options?.palette ?? 'slate';
+  // The file's `palette` line is lifted out before anything parses it; the
+  // rest of this function only ever sees the source with that line commented.
+  const directive = extractPaletteDirective(source);
+  const content = directive.content;
+  // The mode word travels with the file's palette: it applies only when the
+  // file's palette is the one drawn, never under an override.
+  const fileWins =
+    options?.paletteOverride === undefined && directive.paletteId !== undefined;
+  const theme =
+    fileWins && directive.mode ? directive.mode : (options?.theme ?? 'light');
+  const paletteName =
+    options?.paletteOverride ??
+    directive.paletteId ??
+    options?.palette ??
+    'slate';
   const bakeHover = options?.bakeHover ?? true;
 
   const paletteColors =
     getPalette(paletteName)[theme === 'dark' ? 'dark' : 'light'];
 
   const parsed = parseDgmo(content);
-  let diagnostics = parsed.diagnostics;
+  let diagnostics = [...directive.diagnostics, ...parsed.diagnostics];
   // Arc↔chord `layout` override (#26): re-emit canonical content for the other
   // engine so each renders its own grammar. Applied here (before the category
   // branch) so it covers BOTH the data-chart shortcut and the unified path.
@@ -430,7 +451,7 @@ export async function render(
   // When the map assets failed to load, exportMap never resolved and the
   // out-param stays null — keep the parser diagnostics, as before.
   if (chartType === 'map' && mapDiag.current) {
-    diagnostics = [...mapDiag.current];
+    diagnostics = [...directive.diagnostics, ...mapDiag.current];
   }
 
   return {

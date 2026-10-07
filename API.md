@@ -42,11 +42,20 @@ function render(
   options?: {
     theme?: Theme; // 'light' | 'dark' | 'transparent'  (default 'light')
     palette?: PaletteConfig; // see `palettes` namespace          (default palettes.slate)
+    paletteOverride?: PaletteConfig; // beats the diagram's own `palette` line
     onError?: 'svg' | 'silent' | 'throw'; // (default 'svg')
     mapData?: MapDataSource; // map charts only — see below
   }
 ): Promise<{ svg: string; diagnostics: DgmoError[] }>;
 ```
+
+**A diagram may name its own palette** with a `palette` line, conventionally
+at the bottom: `palette nord`, or `palette nord dark` to pin the mode as well.
+Who wins, highest first: `paletteOverride`, the diagram's `palette` line,
+`palette`, Slate. The mode word applies only when the diagram's palette is the
+one drawn; without one, `theme` decides light or dark. A name that is not a
+built-in palette draws in the next palette down, with a `W_PALETTE_UNKNOWN`
+warning on its line.
 
 **`render()` touches nothing you did not hand it** — no filesystem, no network.
 That is what makes it safe in a browser, a Worker, or a sandbox, and it is why

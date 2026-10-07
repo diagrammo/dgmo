@@ -488,11 +488,11 @@ Ship it
 
   it('leaves a real option alone', () => {
     const r = parseRaci(`raci Launch
-palette nord
+roles Cap
 
 Ship it
   Cap: A`);
-    expect(r.options['palette']).toBe('nord');
+    expect(r.roleDisplayNames).toEqual(['Cap']);
     expect(r.diagnostics.some((d) => d.message.includes('does nothing'))).toBe(
       false
     );

@@ -77,7 +77,7 @@ const CONTRAST_EXEMPT: ReadonlySet<keyof PaletteColors['colors']> = new Set([
  * on their screen and real Slate for every reader — and Slate is the palette
  * an export falls back to. Decided 2026-09-23 on diagrammo/diagrammo#785.
  */
-const BUILT_IN_IDS: ReadonlySet<string> = new Set(
+export const BUILT_IN_PALETTE_IDS: ReadonlySet<string> = new Set(
   [
     atlasPalette,
     blueprintPalette,
@@ -321,7 +321,7 @@ export function validateThemeFile(input: unknown): ThemeFileResult {
   const id = input['id'];
   if (typeof id !== 'string' || id.trim() === '') {
     errors.push(`id: expected a non-empty string, got ${describe(id)}`);
-  } else if (BUILT_IN_IDS.has(id)) {
+  } else if (BUILT_IN_PALETTE_IDS.has(id)) {
     errors.push(
       `id: "${id}" is a built-in palette — a theme file needs an id of its own`
     );

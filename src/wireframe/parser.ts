@@ -39,9 +39,6 @@ type MutableWireframeElement = Omit<
 // Constants
 // ============================================================
 
-/** Known wireframe option keys (header-phase options before content) */
-const KNOWN_OPTIONS = new Set(['palette', 'theme']);
-
 /**
  * Options and blocks wireframe recognizes only in order to refuse them.
  * A wireframe has no tag colouring — its elements carry a trailing flag list
@@ -818,7 +815,7 @@ export function parseWireframe(content: string): ParsedWireframe {
         continue;
       }
 
-      // Options: `mobile`, `palette xxx`, `theme xxx`
+      // Options: `mobile` and the shared ones
       if (trimmed === 'mobile') {
         formFactor = 'mobile';
         continue;
@@ -838,10 +835,6 @@ export function parseWireframe(content: string): ParsedWireframe {
         const inertMsg = INERT_OPTIONS[key];
         if (inertMsg) {
           pushWarning(lineNumber, inertMsg);
-          continue;
-        }
-        if (KNOWN_OPTIONS.has(key)) {
-          options[key] = optMatch[2] || '';
           continue;
         }
       }
@@ -883,10 +876,6 @@ export function parseWireframe(content: string): ParsedWireframe {
         const inertMsg = INERT_OPTIONS[key];
         if (inertMsg) {
           pushWarning(lineNumber, inertMsg);
-          continue;
-        }
-        if (KNOWN_OPTIONS.has(key)) {
-          options[key] = optMatch[2] || '';
           continue;
         }
       }
