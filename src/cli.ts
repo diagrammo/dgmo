@@ -25,6 +25,7 @@ import { formatDgmoError } from './diagnostics';
 import { renderErrorCard } from './error-card';
 import { listDiagnosticCodes } from './diagnostics-registry';
 import { getPalette, getAvailablePalettes } from './palettes';
+import { choosePalette, extractPaletteDirective } from './palettes/directive';
 import { DEFAULT_FONT_NAME } from './fonts';
 import { setPinnedNow } from './utils/now';
 import {
@@ -125,7 +126,7 @@ Render options:
                        Format inferred from extension: .svg → SVG, else PNG
                        With stdin and no -o, PNG is written to stdout
   --theme <theme>      Theme: ${THEMES.join(', ')} (default: light)
-  --palette <name>     Palette: ${PALETTES.join(', ')} (default: slate)
+  --palette <name>     Palette: ${PALETTES.join(', ')} — beats the file's own palette line (default: the file's, else slate)
   --width <px>         Canvas width. Chart types that size themselves from
                        their content treat it as a maximum and warn if their
                        content does not fit
@@ -151,7 +152,8 @@ function parseArgs(argv: string[]): {
   input: string | undefined;
   output: string | undefined;
   theme: (typeof THEMES)[number];
-  palette: string;
+  /** Only when `--palette` was given: it then beats the file's own line. */
+  palette: string | undefined;
   help: boolean;
   version: boolean;
   json: boolean;
@@ -162,7 +164,7 @@ function parseArgs(argv: string[]): {
     input: undefined as string | undefined,
     output: undefined as string | undefined,
     theme: 'light' as (typeof THEMES)[number],
-    palette: 'slate',
+    palette: undefined as string | undefined,
     help: false,
     version: false,
     json: false,
@@ -1168,8 +1170,15 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const paletteColors = getPalette(opts.palette)[
-    opts.theme === 'dark' ? 'dark' : 'light'
+  // An explicit `--palette` is a per-embed override and beats the file's own
+  // `palette` line; with no flag the file wins over the Slate default. The
+  // PNG background and the error card follow the same choice as the render.
+  const chosen = choosePalette(extractPaletteDirective(content), {
+    ...(opts.palette !== undefined && { paletteOverride: opts.palette }),
+    theme: opts.theme,
+  });
+  const paletteColors = getPalette(chosen.paletteId)[
+    chosen.theme === 'dark' ? 'dark' : 'light'
   ];
 
   // Parse first to collect diagnostics
@@ -1197,7 +1206,7 @@ async function main(): Promise<void> {
 
   const rendered = await render(content, {
     theme: opts.theme,
-    palette: opts.palette,
+    ...(opts.palette !== undefined && { paletteOverride: opts.palette }),
     ...(opts.width !== undefined && { width: opts.width }),
     ...(opts.height !== undefined && { height: opts.height }),
     // The CLI is the Node host, so it supplies the fs loader `render()` no
@@ -1219,8 +1228,8 @@ async function main(): Promise<void> {
     svg = renderErrorCard(
       errors,
       content,
-      getPalette(opts.palette),
-      opts.theme === 'dark' ? 'dark' : 'light'
+      getPalette(chosen.paletteId),
+      chosen.theme === 'dark' ? 'dark' : 'light'
     );
   }
 
@@ -1260,7 +1269,7 @@ async function main(): Promise<void> {
   }
 
   // Determine output destination
-  const pngBg = opts.theme === 'transparent' ? undefined : paletteColors.bg;
+  const pngBg = chosen.theme === 'transparent' ? undefined : paletteColors.bg;
 
   if (opts.json) {
     // JSON mode: write file as normal but output JSON result to stdout

@@ -9,7 +9,7 @@ import type { DgmoError } from './diagnostics';
 import { makeDgmoError } from './diagnostics';
 import { legendInlineSupported } from './utils/inline-header';
 import { getPalette } from './palettes/registry';
-import { extractPaletteDirective } from './palettes/directive';
+import { choosePalette, extractPaletteDirective } from './palettes/directive';
 import type { CompactViewState } from './sharing';
 import type { MapDataSource } from './d3';
 import type * as Jsdom from 'jsdom';
@@ -257,17 +257,13 @@ export async function render(
   // rest of this function only ever sees the source with that line commented.
   const directive = extractPaletteDirective(source);
   const content = directive.content;
-  // The mode word travels with the file's palette: it applies only when the
-  // file's palette is the one drawn, never under an override.
-  const fileWins =
-    options?.paletteOverride === undefined && directive.paletteId !== undefined;
-  const theme =
-    fileWins && directive.mode ? directive.mode : (options?.theme ?? 'light');
-  const paletteName =
-    options?.paletteOverride ??
-    directive.paletteId ??
-    options?.palette ??
-    'slate';
+  const { paletteId: paletteName, theme } = choosePalette(directive, {
+    ...(options?.palette !== undefined && { palette: options.palette }),
+    ...(options?.paletteOverride !== undefined && {
+      paletteOverride: options.paletteOverride,
+    }),
+    ...(options?.theme !== undefined && { theme: options.theme }),
+  });
   const bakeHover = options?.bakeHover ?? true;
 
   const paletteColors =

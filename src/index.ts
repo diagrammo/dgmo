@@ -24,6 +24,7 @@ import type { Theme } from './themes';
 import type { MapDataSource } from './d3';
 import { formatDgmoError, type DgmoError } from './diagnostics';
 import { renderErrorCard } from './error-card';
+import { choosePalette, extractPaletteDirective } from './palettes/directive';
 
 export type { CompactViewState } from './sharing';
 
@@ -131,17 +132,16 @@ export async function render(
     typeof options?.palette === 'string'
       ? getPalette(options.palette)
       : (options?.palette ?? palettes.slate);
+  const override =
+    typeof options?.paletteOverride === 'string'
+      ? getPalette(options.paletteOverride)
+      : options?.paletteOverride;
   const onError = options?.onError ?? 'svg';
 
   const result = await renderInternal(text, {
     ...(options?.theme !== undefined && { theme: options.theme }),
     palette: palette.id,
-    ...(options?.paletteOverride !== undefined && {
-      paletteOverride:
-        typeof options.paletteOverride === 'string'
-          ? getPalette(options.paletteOverride).id
-          : options.paletteOverride.id,
-    }),
+    ...(override !== undefined && { paletteOverride: override.id }),
     ...(options?.viewState !== undefined && { viewState: options.viewState }),
     ...(options?.width !== undefined && { width: options.width }),
     ...(options?.height !== undefined && { height: options.height }),
@@ -175,8 +175,17 @@ export async function render(
   // We show the card whenever there are error-severity diagnostics, even if a
   // parser produced a partial SVG: a misleading half-diagram is worse than a
   // clear "here's what's wrong" for an embedded host (remark/astro/obsidian).
+  // The card is drawn in the palette the diagram would have been drawn in.
+  const chosen = choosePalette(extractPaletteDirective(text), {
+    palette: palette.id,
+    ...(override !== undefined && { paletteOverride: override.id }),
+    ...(options?.theme !== undefined && { theme: options.theme }),
+  });
+  const cardPalette =
+    override ??
+    (chosen.paletteId === palette.id ? palette : getPalette(chosen.paletteId));
   return {
-    svg: renderErrorCard(errors, text, palette, options?.theme),
+    svg: renderErrorCard(errors, text, cardPalette, chosen.theme),
     diagnostics: result.diagnostics,
   };
 }

@@ -10,7 +10,12 @@ import { CHART_TYPE_REGISTRY } from '../src/chart-type-registry';
 import { render as renderInternal } from '../src/render';
 import { render, validate } from '../src/index';
 import { loadMapData } from '../src/map/load-data';
+import {
+  choosePalette,
+  extractPaletteDirective,
+} from '../src/palettes/directive';
 import { setPinnedNow } from '../src/utils/now';
+import { getPalette } from '../src/palettes';
 
 // `__dirname`, not `import.meta.url`: the suite runs under jsdom.
 const FIXTURE_DIR = join(__dirname, 'fixtures/conformance');
@@ -92,6 +97,70 @@ describe('palette line — who wins', () => {
     const got = await render(plain, { palette: 'catppuccin' });
     const before = await renderInternal(plain, { palette: 'catppuccin' });
     expect(got.svg).toBe(before.svg);
+  });
+});
+
+describe('palette line — the mode word and the caller theme', () => {
+  const plain = 'pie Share\nApples 30\nPears 70\n\n';
+
+  it("a light pin keeps a caller's transparent background", async () => {
+    const got = await render(`${plain}palette nord light`, {
+      theme: 'transparent',
+    });
+    const asked = await render(plain, {
+      palette: 'nord',
+      theme: 'transparent',
+    });
+    expect(got.svg).toBe(asked.svg);
+  });
+
+  it('a dark pin draws dark, which has no transparent form', async () => {
+    const got = await render(`${plain}palette nord dark`, {
+      theme: 'transparent',
+    });
+    const asked = await render(plain, { palette: 'nord', theme: 'dark' });
+    expect(got.svg).toBe(asked.svg);
+  });
+
+  it('the error card is drawn in the palette the diagram would have had', async () => {
+    const broken = 'gantt Launch\nstart 2026-01-01\n\n???\n\npalette nord dark';
+    const got = await render(broken);
+    const slate = await render(broken.replace('palette nord dark', ''));
+    // The card quotes the source, so the two cards differ in text; the
+    // ground is what says which palette drew them.
+    const nordDarkBg = getPalette('nord').dark.bg;
+    expect(got.diagnostics.some((d) => d.severity === 'error')).toBe(true);
+    expect(got.svg).toContain(nordDarkBg);
+    expect(slate.svg).not.toContain(nordDarkBg);
+  });
+});
+
+describe('palette line — an explicit choice beats the file', () => {
+  const file = extractPaletteDirective('pie\nA 1\npalette nord dark');
+
+  it("an override (an explicit CLI --palette) wins, and the file's mode word goes with the file", () => {
+    expect(
+      choosePalette(file, { paletteOverride: 'slate', theme: 'light' })
+    ).toEqual({ paletteId: 'slate', theme: 'light' });
+  });
+
+  it('with no override the file beats the caller default', () => {
+    expect(choosePalette(file, { palette: 'slate', theme: 'light' })).toEqual({
+      paletteId: 'nord',
+      theme: 'dark',
+    });
+  });
+
+  it('with no palette line the caller default stands, then Slate', () => {
+    const none = extractPaletteDirective('pie\nA 1');
+    expect(choosePalette(none, { palette: 'catppuccin' })).toEqual({
+      paletteId: 'catppuccin',
+      theme: 'light',
+    });
+    expect(choosePalette(none, {})).toEqual({
+      paletteId: 'slate',
+      theme: 'light',
+    });
   });
 });
 

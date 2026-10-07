@@ -126,3 +126,35 @@ export function extractPaletteDirective(content: string): PaletteDirective {
     diagnostics,
   };
 }
+
+export type RenderTheme = 'light' | 'dark' | 'transparent';
+
+/**
+ * Who wins, highest first: the caller's `paletteOverride` (a deliberate
+ * per-embed choice such as a fence attribute or an explicit CLI `--palette`),
+ * the file's own line, the caller's default `palette`, Slate.
+ *
+ * The mode word travels with the file's palette and applies only when that
+ * palette is the one drawn. `light` keeps a caller's `transparent`, which
+ * already draws the light colours with no background; `dark` has no
+ * transparent form, so it draws dark.
+ */
+export function choosePalette(
+  directive: PaletteDirective,
+  caller: { palette?: string; paletteOverride?: string; theme?: RenderTheme }
+): { paletteId: string; theme: RenderTheme } {
+  const callerTheme = caller.theme ?? 'light';
+  if (caller.paletteOverride !== undefined) {
+    return { paletteId: caller.paletteOverride, theme: callerTheme };
+  }
+  if (directive.paletteId !== undefined) {
+    const theme =
+      directive.mode === 'dark'
+        ? 'dark'
+        : directive.mode === 'light' && callerTheme !== 'transparent'
+          ? 'light'
+          : callerTheme;
+    return { paletteId: directive.paletteId, theme };
+  }
+  return { paletteId: caller.palette ?? 'slate', theme: callerTheme };
+}
