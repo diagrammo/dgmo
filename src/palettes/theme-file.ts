@@ -1,17 +1,11 @@
-import { atlasPalette } from './atlas';
-import { blueprintPalette } from './blueprint';
-import { catppuccinPalette } from './catppuccin';
 import {
   apcaContrast,
   contrastRatio,
   contrastText,
   shapeFill,
 } from './color-utils';
-import { nordPalette } from './nord';
+import { BUILT_IN_PALETTE_IDS } from './built-in-ids';
 import { COLOR_KEYS, SEMANTIC_KEYS, isValidHex } from './registry';
-import { slatePalette } from './slate';
-import { tidewaterPalette } from './tidewater';
-import { tokyoNightPalette } from './tokyo-night';
 import type { PaletteColors, PaletteConfig } from './types';
 
 // ============================================================
@@ -70,24 +64,6 @@ const CONTRAST_EXEMPT: ReadonlySet<keyof PaletteColors['colors']> = new Set([
   'black',
   'white',
 ]);
-
-/**
- * The built-in palette ids. A theme file may not take one: a share link
- * carries only the id, so a file named `slate` would draw the author's colors
- * on their screen and real Slate for every reader — and Slate is the palette
- * an export falls back to. Decided 2026-09-23 on diagrammo/diagrammo#785.
- */
-export const BUILT_IN_PALETTE_IDS: ReadonlySet<string> = new Set(
-  [
-    atlasPalette,
-    blueprintPalette,
-    catppuccinPalette,
-    nordPalette,
-    slatePalette,
-    tidewaterPalette,
-    tokyoNightPalette,
-  ].map((palette) => palette.id)
-);
 
 /** What `validateThemeFile` answers. */
 export type ThemeFileResult =

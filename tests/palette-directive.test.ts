@@ -9,13 +9,14 @@ import { afterAll, beforeAll, describe, it, expect } from 'vitest';
 import { CHART_TYPE_REGISTRY } from '../src/chart-type-registry';
 import { render as renderInternal } from '../src/render';
 import { render, validate } from '../src/index';
+import { renderDgmoBlock } from '../src/embed';
 import { loadMapData } from '../src/map/load-data';
 import {
   choosePalette,
   extractPaletteDirective,
 } from '../src/palettes/directive';
 import { setPinnedNow } from '../src/utils/now';
-import { getPalette } from '../src/palettes';
+import { getPalette, type PaletteColors } from '../src/palettes';
 
 // `__dirname`, not `import.meta.url`: the suite runs under jsdom.
 const FIXTURE_DIR = join(__dirname, 'fixtures/conformance');
@@ -35,6 +36,28 @@ afterAll(() => setPinnedNow(null));
 // them on from the first. The number is not the drawing.
 const sameIds = (svg: string) =>
   svg.replace(/__m\d+/g, '__mN').replace(/clip-\d+/g, 'clip-N');
+
+// An embedded block in the diagram's own syntax, from a palette's colours.
+const blockOf = (
+  name: string,
+  modes: Partial<Record<'light' | 'dark', PaletteColors>>
+): string => {
+  const out = [`palette ${name}`];
+  for (const [mode, colors] of Object.entries(modes)) {
+    out.push(`  ${mode}`);
+    for (const [key, value] of Object.entries(colors)) {
+      if (key === 'colors') continue;
+      out.push(
+        `    ${key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)} ${String(value)}`
+      );
+    }
+    out.push('    colors');
+    for (const [key, value] of Object.entries(colors.colors)) {
+      out.push(`      ${key} ${value}`);
+    }
+  }
+  return out.join('\n');
+};
 
 const paletteDiagnostics = (ds: { line: number; code?: string }[]) =>
   ds
@@ -135,6 +158,46 @@ describe('palette line — the mode word and the caller theme', () => {
   });
 });
 
+describe('palette line — the embed block draws from the same choice', () => {
+  const pinned = 'pie Share\nApples 30\nPears 70\n\npalette nord dark';
+  const nordDark = getPalette('nord').dark.bg;
+
+  it('a dark pin fills both slots in Nord dark and keeps its own ground', async () => {
+    const { html } = await renderDgmoBlock(pinned);
+    const light =
+      /<div class="[^"]*dgmo-light[^"]*" data-dgmo-bg="([^"]+)">([\s\S]*?)<\/div><div/.exec(
+        html
+      );
+    expect(light?.[1]).toBe(nordDark);
+    // Pie embeds strip their ground by default; a pinned dark pie on a light
+    // page would be pale text on white, so this one keeps it.
+    expect(light?.[2]).toContain(nordDark);
+    expect(html).toMatch(
+      new RegExp(`dgmo-dark[^"]*" data-dgmo-bg="${nordDark}"`)
+    );
+  });
+
+  it("an unpinned file keeps the embed's usual transparent ground", async () => {
+    const { html } = await renderDgmoBlock(
+      'pie Share\nApples 30\nPears 70\n\npalette nord'
+    );
+    const light =
+      /dgmo-light[^"]*" data-dgmo-bg="([^"]+)">([\s\S]*?)<\/div><div/.exec(
+        html
+      );
+    expect(light?.[1]).toBe(getPalette('nord').light.bg);
+    expect(light?.[2]).not.toContain(`fill="${getPalette('nord').light.bg}"`);
+  });
+
+  it("the embed's error card is drawn in the file's palette", async () => {
+    const { html } = await renderDgmoBlock(
+      'gantt Launch\nstart 2026-01-01\n\n???\n\npalette nord dark',
+      { colorMode: 'light' }
+    );
+    expect(html).toContain(nordDark);
+  });
+});
+
 describe('palette line — an explicit choice beats the file', () => {
   const file = extractPaletteDirective('pie\nA 1\npalette nord dark');
 
@@ -164,6 +227,46 @@ describe('palette line — an explicit choice beats the file', () => {
   });
 });
 
+describe('palette line — an embedded palette', () => {
+  const plain = 'pie Share\nApples 30\nPears 70\n\n';
+
+  it('a dark-only block draws in its own colours, in dark', async () => {
+    const got = await render(
+      `${plain}${blockOf('Frost', { dark: getPalette('nord').dark })}`,
+      { palette: 'tidewater' }
+    );
+    const asked = await render(plain, { palette: 'nord', theme: 'dark' });
+    expect(got.svg).toBe(asked.svg);
+    expect(paletteDiagnostics(got.diagnostics)).toEqual([]);
+  });
+
+  it("a two-mode block follows the caller's light or dark", async () => {
+    const { light, dark } = getPalette('catppuccin');
+    const source = `${plain}${blockOf('Mocha', { light, dark })}`;
+    for (const theme of ['light', 'dark'] as const) {
+      const got = await render(source, { theme });
+      const asked = await render(plain, { palette: 'catppuccin', theme });
+      expect(got.svg, theme).toBe(asked.svg);
+    }
+  });
+
+  it('is never registered — the next render without it is untouched', async () => {
+    await render(
+      `${plain}${blockOf('Frost', { dark: getPalette('nord').dark })}`
+    );
+    expect(getPalette('frost').id).toBe('slate');
+  });
+
+  it('paletteOverride still beats it', async () => {
+    const got = await render(
+      `${plain}${blockOf('Frost', { dark: getPalette('nord').dark })}`,
+      { paletteOverride: 'tidewater' }
+    );
+    const asked = await render(plain, { palette: 'tidewater' });
+    expect(got.svg).toBe(asked.svg);
+  });
+});
+
 describe('palette line — what is not drawn warns on its own line', () => {
   it('an unknown name warns and draws the caller palette', async () => {
     const got = await render(
@@ -181,30 +284,37 @@ describe('palette line — what is not drawn warns on its own line', () => {
     expect(warning?.severity).toBe('warning');
   });
 
-  it('an embedded block is lifted whole, so none of it reaches the parser', async () => {
-    const block = [
-      'org Team',
-      'CEO',
-      '  CTO',
-      '',
-      'palette Dracula',
-      '  dark',
-      '    bg #282a36',
-      '',
-      '    colors',
-      '      red #ff5555',
-    ].join('\n');
-    const got = await render(block, { palette: 'nord' });
-    const plain = await render('org Team\nCEO\n  CTO\n', { palette: 'nord' });
+  it('a block that fails validation warns on its line and draws the caller palette', async () => {
+    const block = blockOf('Frost', { dark: getPalette('nord').dark }).replace(
+      'bg #2e3440',
+      'bg #2e34'
+    );
+    const source = `org Team\nCEO\n  CTO\n\n${block}`;
+    const got = await render(source, { palette: 'tidewater' });
+    const plain = await render('org Team\nCEO\n  CTO\n', {
+      palette: 'tidewater',
+    });
     expect(got.svg).toBe(plain.svg);
-    expect(got.svg).not.toContain('Dracula');
-    expect(got.svg).not.toContain('282a36');
+    expect(got.svg).not.toContain('Frost');
+    const badLine =
+      source.split('\n').findIndex((l) => l.includes('#2e34')) + 1;
+    expect(paletteDiagnostics(got.diagnostics)).toEqual([
+      [badLine, 'W_PALETTE_INVALID'],
+    ]);
+  });
+
+  it('a built-in name cannot be taken by a block', async () => {
+    const source = `pie Share\nApples 30\n\n${blockOf('nord', { dark: getPalette('nord').dark })}`;
+    const got = await render(source, { palette: 'tidewater' });
+    const plain = await render('pie Share\nApples 30\n', {
+      palette: 'tidewater',
+    });
+    expect(got.svg).toBe(plain.svg);
     expect(
-      got.diagnostics.filter((d) => d.code === 'W_PALETTE_UNKNOWN')
-    ).toHaveLength(1);
-    expect(
-      got.diagnostics.find((d) => d.code === 'W_PALETTE_UNKNOWN')?.line
-    ).toBe(5);
+      got.diagnostics.some(
+        (d) => d.code === 'W_PALETTE_INVALID' && d.message.includes('built-in')
+      )
+    ).toBe(true);
   });
 
   it('a bad mode word warns on its line and keeps the palette', async () => {
@@ -239,6 +349,12 @@ describe('palette line — lifting keeps every line number', () => {
     for (const source of cases) {
       expect(validate(source).diagnostics, source).toEqual([]);
     }
+  });
+
+  it('the keyword is lowercase — a capitalised label stays a label', async () => {
+    const got = await render('pie Share\nApples 30\nPalette 70');
+    expect(paletteDiagnostics(got.diagnostics)).toEqual([]);
+    expect(got.svg).toContain('Palette');
   });
 
   it('a palette inside a comment is only a comment', async () => {

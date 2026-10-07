@@ -183,6 +183,7 @@ export async function render(
   });
   const cardPalette =
     override ??
+    chosen.palette ??
     (chosen.paletteId === palette.id ? palette : getPalette(chosen.paletteId));
   return {
     svg: renderErrorCard(errors, text, cardPalette, chosen.theme),

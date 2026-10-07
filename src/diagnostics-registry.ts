@@ -116,9 +116,20 @@ export const UNIVERSAL_DIAGNOSTICS: DiagnosticSpec[] = [
     chartType: null,
     title: 'Palette not drawn',
     message: (p) =>
-      `"${String(p.name ?? 'Dracula')}" is not a built-in palette — this diagram uses the default palette.`,
+      `"${String(p.name ?? 'dracula')}" is not a built-in palette — this diagram uses the default palette.`,
     hint: 'Name a built-in palette — the message lists them — or remove the palette line.',
     example: 'pie Share\nApples 30\nPears 70\n\npalette dracula',
+  },
+  {
+    code: 'W_PALETTE_INVALID',
+    severity: 'warning',
+    chartType: null,
+    title: 'Embedded palette not drawn',
+    message: (p) =>
+      `Palette "${String(p.name ?? 'Dracula')}" is not drawn — ${String(p.reason ?? 'dark.bg: invalid hex "#28"')}.`,
+    hint: 'Fix the line the warning names: every key present, hex colours only, text readable on its fill, and a name that is not a built-in palette.',
+    example:
+      'pie Share\nApples 30\nPears 70\n\npalette Dracula\n  dark\n    bg #28',
   },
   {
     code: 'W_PALETTE_MODE_UNKNOWN',

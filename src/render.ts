@@ -257,17 +257,19 @@ export async function render(
   // rest of this function only ever sees the source with that line commented.
   const directive = extractPaletteDirective(source);
   const content = directive.content;
-  const { paletteId: paletteName, theme } = choosePalette(directive, {
+  const chosen = choosePalette(directive, {
     ...(options?.palette !== undefined && { palette: options.palette }),
     ...(options?.paletteOverride !== undefined && {
       paletteOverride: options.paletteOverride,
     }),
     ...(options?.theme !== undefined && { theme: options.theme }),
   });
+  const theme = chosen.theme;
   const bakeHover = options?.bakeHover ?? true;
 
-  const paletteColors =
-    getPalette(paletteName)[theme === 'dark' ? 'dark' : 'light'];
+  const paletteColors = (chosen.palette ?? getPalette(chosen.paletteId))[
+    theme === 'dark' ? 'dark' : 'light'
+  ];
 
   const parsed = parseDgmo(content);
   let diagnostics = [...directive.diagnostics, ...parsed.diagnostics];

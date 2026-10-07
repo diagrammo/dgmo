@@ -28,6 +28,7 @@ import {
 // with zero imports, so this entry stays cycle-free and renderer-free.
 import { chartTypes } from './chart-types';
 import { withoutInternalChartTypes } from './utils/offered-types';
+import { BUILT_IN_PALETTE_IDS } from './palettes/built-in-ids';
 
 // ============================================================
 // Completion registry
@@ -37,6 +38,12 @@ import { withoutInternalChartTypes } from './utils/offered-types';
 export interface DirectiveValueSpec {
   description: string;
   values?: string[];
+  /**
+   * Offer this directive only once the word typed so far starts with this
+   * prefix — for a directive almost nobody needs, which must not crowd every
+   * empty line's list. Absent: offered on any line, as before.
+   */
+  minPrefix?: string;
 }
 
 /** Specification for a chart type's directives. */
@@ -45,10 +52,16 @@ export interface DirectiveSpec {
 }
 
 // Global directives applied to every chart type
-// `palette` and `theme` are deliberately NOT here: no render path reads either
-// line, and on most chart types one breaks the diagram (#1036). They return
-// when the diagram-carries-its-own-palette design (#1035) makes `palette` real.
+// `palette` is every chart type's: it is lifted out before any parser reads it
+// (`palettes/directive.ts`, #1035). A diagram carrying one is the exceptional
+// case, so it is offered only after `pal` is typed. `theme` is retired.
 const GLOBAL_DIRECTIVES: Record<string, DirectiveValueSpec> = {
+  palette: {
+    description:
+      'Draw this diagram in a built-in palette, optionally pinned to light or dark',
+    values: [...BUILT_IN_PALETTE_IDS].sort(),
+    minPrefix: 'pal',
+  },
   'no-title': {
     description: 'Hide the diagram title',
   },

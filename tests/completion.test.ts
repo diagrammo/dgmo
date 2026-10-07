@@ -369,11 +369,16 @@ describe('COMPLETION_REGISTRY', () => {
     }
   });
 
-  // No render path reads a `palette` or `theme` line, and on most chart types
-  // one breaks the diagram, so neither is offered anywhere (#1036).
-  it('no entry offers palette or theme', () => {
+  // `palette` is every chart type's since #1037, lifted before any parser
+  // reads it — but a diagram carrying one is the exceptional case, so it is
+  // offered only after `pal` is typed, with the built-in ids as its values.
+  // `theme` is retired and offered nowhere.
+  it('every entry offers palette only after "pal", and none offers theme', () => {
     for (const [name, spec] of COMPLETION_REGISTRY) {
-      expect(spec.directives.palette, `${name} offers palette`).toBeUndefined();
+      expect(spec.directives.palette?.minPrefix, `${name} palette`).toBe('pal');
+      expect(spec.directives.palette?.values, `${name} palette`).toContain(
+        'nord'
+      );
       expect(spec.directives.theme, `${name} offers theme`).toBeUndefined();
     }
   });
@@ -965,7 +970,6 @@ describe('COMPLETION_REGISTRY — tech-radar', () => {
     // live in PIPE_METADATA.
     expect(spec!.directives).toHaveProperty('no-blip-legend');
     expect(spec!.directives).not.toHaveProperty('show-blip-legend');
-    expect(spec!.directives).not.toHaveProperty('palette');
     expect(spec!.directives).not.toHaveProperty('theme');
 
     const pipe = PIPE_METADATA.get('tech-radar');

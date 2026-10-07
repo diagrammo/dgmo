@@ -27,7 +27,8 @@
 import { render } from '../render';
 import type { MapDataSource } from '../d3';
 import { encodeDiagramUrl } from '../sharing';
-import { resolvePaletteOrFallback } from '../palettes';
+import { getPalette, resolvePaletteOrFallback } from '../palettes';
+import { choosePalette, extractPaletteDirective } from '../palettes/directive';
 import { highlightDgmo } from '../editor/highlight-api';
 import {
   normalizeSvgForEmbed,
@@ -193,6 +194,31 @@ export async function renderDgmoBlock(
   // The detected chart type (same across color modes) selects the default embed
   // background — `map` and other background-meaningful types stay opaque.
   let chartType: string | undefined;
+  // A diagram may name its own palette and pin a mode (`palette nord dark`).
+  // The render honours it; the error card, the lightbox ground and the
+  // background stripping below must draw from the same choice.
+  const directive = extractPaletteDirective(trimmed);
+  const drawnIn = (theme: 'light' | 'dark' | 'transparent') => {
+    const chosen = choosePalette(directive, { palette: palette.id, theme });
+    const config =
+      chosen.palette ??
+      (chosen.paletteId === palette.id
+        ? palette
+        : getPalette(chosen.paletteId));
+    return {
+      config,
+      theme: chosen.theme,
+      bg: config[chosen.theme === 'dark' ? 'dark' : 'light'].bg,
+      // Drawn in another mode than the slot asked for: its colours were
+      // picked against its own ground, so stripping that ground would put
+      // dark-mode text on a light page.
+      pinned: chosen.theme !== theme,
+    };
+  };
+  const backgroundFor = (theme: 'light' | 'dark' | 'transparent') => {
+    if (opts.background !== 'auto') return opts.background;
+    return drawnIn(theme).pinned ? 'opaque' : defaultEmbedBackground(chartType);
+  };
   const renderTheme = async (
     theme: 'light' | 'dark' | 'transparent'
   ): Promise<string> => {
@@ -207,8 +233,9 @@ export async function renderDgmoBlock(
     chartType = r.chartType;
     diagnostics.push(...r.diagnostics);
     const errors = r.diagnostics.filter((d) => d.severity === 'error');
+    const drawn = drawnIn(theme);
     return errors.length
-      ? renderErrorCard(errors, trimmed, palette, theme)
+      ? renderErrorCard(errors, trimmed, drawn.config, drawn.theme)
       : r.svg;
   };
 
@@ -218,12 +245,8 @@ export async function renderDgmoBlock(
       renderTheme('light'),
       renderTheme('dark'),
     ]);
-    const background =
-      opts.background === 'auto'
-        ? defaultEmbedBackground(chartType)
-        : opts.background;
     svgsHtml =
-      `<div class="${escapeAttr(innerClasses(opts, 'dgmo-light'))}" data-dgmo-bg="${escapeAttr(palette.light.bg)}">${normalizeSvgForEmbed(light, { background })}</div>` +
+      `<div class="${escapeAttr(innerClasses(opts, 'dgmo-light'))}" data-dgmo-bg="${escapeAttr(drawnIn('light').bg)}">${normalizeSvgForEmbed(light, { background: backgroundFor('light') })}</div>` +
       // 🔴 An inline `display: none` is what makes a dual-render embed safe on
       // a host that never loaded our stylesheet. The rule that hides one of
       // the two lives only in BLOCK_CSS / remark-dgmo's client.css, and two of
@@ -246,19 +269,15 @@ export async function renderDgmoBlock(
       // styles drops this attribute, and its no-stylesheet floor goes back to
       // "both diagrams". A page that DID load the stylesheet is unaffected —
       // `.dgmo-dark { display: none }` covers it.
-      `<div class="${escapeAttr(innerClasses(opts, 'dgmo-dark'))}" data-dgmo-bg="${escapeAttr(palette.dark.bg)}" style="display:none">${normalizeSvgForEmbed(dark, { background })}</div>`;
+      `<div class="${escapeAttr(innerClasses(opts, 'dgmo-dark'))}" data-dgmo-bg="${escapeAttr(drawnIn('dark').bg)}" style="display:none">${normalizeSvgForEmbed(dark, { background: backgroundFor('dark') })}</div>`;
   } else {
     const svg = await renderTheme(opts.colorMode);
-    const background =
-      opts.background === 'auto'
-        ? defaultEmbedBackground(chartType)
-        : opts.background;
     // Stash the real palette background so the expand lightbox can paint an
     // opaque surface even when this embed renders transparent (§transparent
     // embeds strip the chart bg from the SVG itself). `transparent` colorMode
     // falls back to the light background.
-    const paletteBg = palette[opts.colorMode === 'dark' ? 'dark' : 'light'].bg;
-    svgsHtml = `<div class="${escapeAttr(innerClasses(opts, 'dgmo-svg'))}" data-dgmo-bg="${escapeAttr(paletteBg)}">${normalizeSvgForEmbed(svg, { background })}</div>`;
+    const paletteBg = drawnIn(opts.colorMode).bg;
+    svgsHtml = `<div class="${escapeAttr(innerClasses(opts, 'dgmo-svg'))}" data-dgmo-bg="${escapeAttr(paletteBg)}">${normalizeSvgForEmbed(svg, { background: backgroundFor(opts.colorMode) })}</div>`;
   }
 
   return { html: assembleBlock(trimmed, svgsHtml, opts), diagnostics };

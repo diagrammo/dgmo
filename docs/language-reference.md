@@ -385,6 +385,52 @@ One legacy form changed with this spec:
 
 No code migration is required for in-arrow label character escaping — any label that was valid before remains valid, with one exception: if your label happened to contain the literal substring `->` or `~>`, the parser now rejects it with `E_ARROW_SUBSTRING_IN_LABEL`. Move those labels to the post-colon form.
 
+### 1.10 The Palette Line
+
+`palette` works on **every** chart type and is rare: most diagrams never carry one and take the palette of wherever they are shown. It goes at the **bottom** of the file. The line is lifted out before the chart is parsed, so it never becomes a node, task or row. Lowercase only — `Palette 70` stays a data row.
+
+```
+palette nord          // a built-in palette, in the reader's own light/dark
+palette nord dark     // a built-in, pinned to dark (or light)
+```
+
+Built-in palettes: `atlas`, `blueprint`, `catppuccin`, `nord`, `slate`, `tidewater`, `tokyo-night`.
+
+A palette of your own is an indented block — the same content as a desktop theme file. Each `light` / `dark` section holds the twelve role keys and a `colors` section with the eleven colour names; a block with only one section is that mode only. **Hex is allowed inside this block and nowhere else.**
+
+```
+palette Dracula
+  dark
+    bg #282a36
+    surface #343746
+    overlay #44475a
+    border #6272a4
+    text #f8f8f2
+    text-muted #bfbfbf
+    text-on-fill-light #f8f8f2
+    text-on-fill-dark #282a36
+    primary #bd93f9
+    secondary #8be9fd
+    accent #ff79c6
+    destructive #ff5555
+    colors
+      red #ff5555
+      orange #ffb86c
+      yellow #f1fa8c
+      green #50fa7b
+      blue #6272a4
+      purple #bd93f9
+      teal #8be9fd
+      cyan #8be9fd
+      gray #6272a4
+      black #21222c
+      white #f8f8f2
+```
+
+A block must have every key, hex only, text readable on its fills, and a name that is not a built-in. One that fails is not drawn: the diagram uses the next palette down, with a warning on the line at fault. An unknown name warns the same way.
+
+**Who wins**, highest first: an explicit choice where the diagram is shown (a fence `palette=` attribute, `--palette` on the command line), then the file's palette, then the site's or app's own setting, then Slate. `theme` is retired — the mode word on the palette line does its job.
+
 ---
 
 ## 2. Universal Name Handling
@@ -3017,7 +3063,7 @@ Nice-to-haves p: Low collapsed
 | `active-tag GroupName` | Sets the default active tag group.                                   |
 | `color-by-depth`       | Bare flag; colour nodes by depth instead of by tag (off by default). |
 
-Universal options (`palette`, `theme`) apply as elsewhere.
+The `palette` line applies as elsewhere (§1.10).
 
 ---
 
@@ -3483,7 +3529,7 @@ tag Channel as ch
 | Directive              | Effect                                          |
 | ---------------------- | ----------------------------------------------- |
 | `active-tag GroupName` | Set the active tag group for step-card coloring |
-| `palette`, `theme`     | Universal options                               |
+| `palette`              | The universal palette line (§1.10)              |
 
 ### Flat Mode
 
@@ -4400,7 +4446,7 @@ Pick destination
 | Directive                        | Effect                                                                                                                                                                                                                      |
 | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `roles`                          | Declare column order. Inline (`roles Cap, QM, Bos`) is name-only; the indented block form supports per-role color via the trailing-token form (`Cap red`). When present, unknown roles in tasks emit `W_RACI_UNKNOWN_ROLE`. |
-| `palette`, `theme`, `active-tag` | Universal options.                                                                                                                                                                                                          |
+| `active-tag`                     | Universal option; `palette` is the universal line (§1.10).                                                                                                                                                                                                          |
 
 ### Phase metadata
 

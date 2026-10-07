@@ -1177,9 +1177,9 @@ async function main(): Promise<void> {
     ...(opts.palette !== undefined && { paletteOverride: opts.palette }),
     theme: opts.theme,
   });
-  const paletteColors = getPalette(chosen.paletteId)[
-    chosen.theme === 'dark' ? 'dark' : 'light'
-  ];
+  const chosenPalette = chosen.palette ?? getPalette(chosen.paletteId);
+  const paletteColors =
+    chosenPalette[chosen.theme === 'dark' ? 'dark' : 'light'];
 
   // Parse first to collect diagnostics
   const { diagnostics } = parseDgmo(content);
@@ -1228,7 +1228,7 @@ async function main(): Promise<void> {
     svg = renderErrorCard(
       errors,
       content,
-      getPalette(chosen.paletteId),
+      chosenPalette,
       chosen.theme === 'dark' ? 'dark' : 'light'
     );
   }
