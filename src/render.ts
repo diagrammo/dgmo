@@ -222,6 +222,15 @@ export async function render(
      */
     width?: number;
     height?: number;
+    /**
+     * Whiteboard images: turn an image ref — a relative path such as
+     * `board.assets/9f3c.webp`, or an `https://` URL — into an href (a data
+     * URI or a URL). When supplied its answer is final, and `undefined` draws
+     * a plain box labelled "image not uploaded". When omitted, `https://` refs
+     * pass through and everything else is that box. Never an error. Every
+     * other chart type ignores this option.
+     */
+    resolveImage?: (ref: string) => string | undefined;
   }
 ): Promise<{
   svg: string;
@@ -385,6 +394,9 @@ export async function render(
         ...(options?.mapData !== undefined && { mapData: options.mapData }),
         ...(options?.width !== undefined && { width: options.width }),
         ...(options?.height !== undefined && { height: options.height }),
+        ...(options?.resolveImage !== undefined && {
+          resolveImage: options.resolveImage,
+        }),
         onMapResolverDiagnostics: (d) => {
           mapDiag.current = d;
         },

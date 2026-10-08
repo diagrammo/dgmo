@@ -395,6 +395,13 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'alert', category: 'control' },
   { token: 'progress', category: 'control' },
   { token: 'mobile', category: 'control' },
+  // Whiteboard element leaders (§39). `image` is shared with wireframe above
+  // and `text` stays an ER modifier; `database` / `queue` are left plain
+  // because sketch and sequence use them as values, not line leaders.
+  { token: 'rectangle', category: 'control' },
+  { token: 'ellipse', category: 'control' },
+  { token: 'arrow', category: 'control' },
+  { token: 'ink', category: 'control' },
 
   // ── Kanban status keywords (STATUS) ──────────────────────
   { token: 'na', category: 'status' },

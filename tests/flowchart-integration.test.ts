@@ -62,7 +62,8 @@ describe('flowchart routing', () => {
     // Body chart type added: 45 → 46. Goal chart type added: 46 → 47.
     // Bracket + countdown chart types added: 47 → 49. Clock added: 49 → 50.
     // live-link added: 50 → 51 (internal — routable, never offered).
-    expect(getAllChartTypes().length).toBe(51);
+    // whiteboard added: 51 → 52.
+    expect(getAllChartTypes().length).toBe(52);
   });
 });
 

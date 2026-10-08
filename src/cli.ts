@@ -250,6 +250,41 @@ function inferFormat(outputPath: string | undefined): 'svg' | 'png' {
   return 'png';
 }
 
+const IMAGE_MIME: Record<string, string> = {
+  '.webp': 'image/webp',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+};
+
+/**
+ * Whiteboard images for the CLI (spec §39.5). A relative ref is read from
+ * beside the input file and inlined as a data URI, so the SVG and the PNG
+ * both carry it. An `https://` ref passes through in SVG output, where the
+ * viewer's browser fetches it, and becomes the placeholder box in PNG output:
+ * resvg cannot fetch, and a render that silently reached the network would be
+ * a surprise. Anything unreadable is the placeholder, never an error.
+ */
+function cliImageResolver(
+  inputPath: string | undefined,
+  format: 'svg' | 'png'
+): (ref: string) => string | undefined {
+  return (ref) => {
+    if (/^https:\/\//i.test(ref)) return format === 'svg' ? ref : undefined;
+    if (!inputPath) return undefined;
+    const mime = IMAGE_MIME[extname(ref).toLowerCase()];
+    if (!mime) return undefined;
+    try {
+      const bytes = readFileSync(resolve(dirname(inputPath), ref));
+      return `data:${mime};base64,${bytes.toString('base64')}`;
+    } catch {
+      return undefined;
+    }
+  };
+}
+
 const BUNDLED_FONTS = [
   join(__dirname, '..', 'fonts', 'Inter-Regular.ttf'),
   join(__dirname, '..', 'fonts', 'Inter-Bold.ttf'),
@@ -1156,6 +1191,10 @@ async function main(): Promise<void> {
     // longer reaches for itself. Passed as the function, not its result — it
     // runs only if the content turns out to be a map.
     mapData: loadMapData,
+    resolveImage: cliImageResolver(
+      opts.input ? resolve(opts.input) : undefined,
+      format
+    ),
   });
   let svg = rendered.svg;
   const renderDiagnostics = rendered.diagnostics;

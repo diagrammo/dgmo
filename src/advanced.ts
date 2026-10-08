@@ -337,6 +337,41 @@ export type {
   SketchEdgeGeometry,
 } from './sketch/renderer';
 export { collapseSketch } from './sketch/collapse';
+
+// ── Whiteboard (spec §39) — parser, emitter and renderer for the app canvas.
+// The ink codec is on the main entry (`encodeInk` / `decodeInk`).
+export { parseWhiteboard, isWhiteboardImageRef } from './whiteboard/parser';
+export {
+  emitWhiteboard,
+  emitWhiteboardElement,
+  sameWhiteboard,
+} from './whiteboard/emit';
+export type {
+  ParsedWhiteboard,
+  WhiteboardElement,
+  WhiteboardShape,
+  WhiteboardArrow,
+  WhiteboardText,
+  WhiteboardImage,
+  WhiteboardInk,
+  WhiteboardColor,
+  WhiteboardShapeKind,
+  WhiteboardOptions,
+} from './whiteboard/types';
+export {
+  WHITEBOARD_COLORS,
+  WHITEBOARD_SHAPE_KINDS,
+  WHITEBOARD_ELEMENT_KEYWORDS,
+  isWhiteboardColor,
+  isWhiteboardShapeKind,
+} from './whiteboard/types';
+export {
+  renderWhiteboard,
+  whiteboardBounds,
+  inkOutlinePath,
+  IMAGE_NOT_UPLOADED,
+} from './whiteboard/renderer';
+export type { WhiteboardRenderOptions } from './whiteboard/renderer';
 export type { SketchCollapseResult } from './sketch/collapse';
 export {
   SKETCH_GEOMETRY,

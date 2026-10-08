@@ -75,6 +75,14 @@ export interface RenderOptions {
    * diagnostic. Every other chart type ignores this option.
    */
   mapData?: MapDataSource;
+  /**
+   * Whiteboard images: turn an image ref (a relative path such as
+   * `board.assets/9f3c.webp`, or an `https://` URL) into an href — a data URI
+   * or a URL. Supplied → its answer is final, and `undefined` draws a plain
+   * box labelled "image not uploaded". Omitted → `https://` refs pass through
+   * and everything else is that box. Every other chart type ignores it.
+   */
+  resolveImage?: (ref: string) => string | undefined;
 }
 
 export type { MapDataSource };
@@ -119,6 +127,9 @@ export async function render(
     ...(options?.width !== undefined && { width: options.width }),
     ...(options?.height !== undefined && { height: options.height }),
     ...(options?.mapData !== undefined && { mapData: options.mapData }),
+    ...(options?.resolveImage !== undefined && {
+      resolveImage: options.resolveImage,
+    }),
   });
 
   const errors = result.diagnostics.filter((d) => d.severity === 'error');
@@ -275,6 +286,20 @@ export type { ChartTypeMeta, ChartTypeId } from './chart-types';
 // obsidian/app browser-render path that injects bundled map JSON)
 // ============================================================
 export type { MapData } from './map/resolved-types';
+
+// Whiteboard ink codec (spec §39.6) — public so the app's canvas encodes
+// strokes with the very function the parser decodes them with.
+export {
+  encodeInk,
+  decodeInk,
+  INK_DEFAULT_TOLERANCE,
+  INK_PRESSURE_LEVELS,
+} from './whiteboard/ink-codec';
+export type {
+  InkPoint,
+  EncodeInkOptions,
+  InkDecodeResult,
+} from './whiteboard/ink-codec';
 
 // ============================================================
 // SPIKE: hand-built D3 data-chart engine — interactive mount + adapter

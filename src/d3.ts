@@ -133,6 +133,12 @@ type RenderForExportOptions = {
    */
   width?: number;
   height?: number;
+  /**
+   * Whiteboard images: turn a ref (relative path or https URL) into an href.
+   * Supplied → its answer is final, `undefined` draws the placeholder box.
+   * Omitted → https refs pass through and the rest are placeholders.
+   */
+  resolveImage?: (ref: string) => string | undefined;
 };
 
 /** Everything an export handler needs — one bundle threaded through dispatch. */
@@ -170,6 +176,7 @@ export const DIAGRAM_EXPORT_HANDLERS: Record<string, DiagramExportHandler> = {
   er: exportEr,
   'boxes-and-lines': exportBoxesAndLines,
   sketch: exportSketch,
+  whiteboard: exportWhiteboard,
   swimlane: exportSwimlane,
   family: exportFamily,
   'version-control': exportVersionControl,
@@ -724,6 +731,22 @@ async function exportSketch(ctx: ExportContext): Promise<string> {
       ...(viewState?.hd !== undefined && { hideDescriptions: viewState.hd }),
     }
   );
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportWhiteboard(ctx: ExportContext): Promise<string> {
+  const { content, theme } = ctx;
+  const { parseWhiteboard } = await import('./whiteboard/parser');
+  const effectivePalette = await resolveExportPalette(theme, ctx.palette);
+  const parsed = parseWhiteboard(content, effectivePalette);
+  if (parsed.error || parsed.elements.length === 0) return '';
+  const { renderWhiteboard } = await import('./whiteboard/renderer');
+  // The renderer crops to the content, so the canvas size is its own.
+  const container = createExportContainer(1, 1);
+  const resolveImage = ctx.options?.resolveImage;
+  renderWhiteboard(container, parsed, effectivePalette, ctx.isDark, {
+    ...(resolveImage !== undefined && { resolveImage }),
+  });
   return finalizeSvgExport(container, theme, effectivePalette);
 }
 

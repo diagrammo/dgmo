@@ -715,7 +715,7 @@ export function renderC4ContextForExport(
  * Draw a cylinder-shaped card background (for database/cache shapes).
  * Replaces the simple rounded rect with a cylinder shape.
  */
-function drawCylinderCard(
+export function drawCylinderCard(
   nodeG: GSelection,
   w: number,
   h: number,
@@ -835,7 +835,7 @@ function drawCloudCard(
  * it read as a pipe seen end-on rather than as a lozenge. `computeC4NodeDimensions`
  * pays for both caps in width, so the name never sits on top of that arc.
  */
-function drawQueueCard(
+export function drawQueueCard(
   nodeG: GSelection,
   w: number,
   h: number,

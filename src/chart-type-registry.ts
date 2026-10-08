@@ -65,6 +65,7 @@ import { parsePert } from './pert/parser';
 import { parseMap } from './map/parser';
 import { parseBoxesAndLines } from './boxes-and-lines/parser';
 import { parseSketch } from './sketch/parser';
+import { parseWhiteboard } from './whiteboard/parser';
 import { parseSwimlane } from './swimlane/parser';
 import { parseFamily } from './family/parser';
 import { parseMindmap } from './mindmap/parser';
@@ -122,6 +123,7 @@ const REGISTRY: Record<ChartTypeId, Omit<ChartTypeDescriptor, 'id'>> = {
   pert: { category: 'diagram', parse: parsePert },
   'boxes-and-lines': { category: 'diagram', parse: parseBoxesAndLines },
   sketch: { category: 'diagram', parse: parseSketch },
+  whiteboard: { category: 'diagram', parse: parseWhiteboard },
   swimlane: { category: 'diagram', parse: parseSwimlane },
   family: { category: 'diagram', parse: parseFamily },
   'version-control': { category: 'diagram', parse: parseVersionControl },

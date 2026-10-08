@@ -264,6 +264,12 @@ Operations
   Cloud 110
   Support 70`,
 
+  whiteboard: `whiteboard Test Board
+rectangle Sign in at: 0 0, size: 120 60
+arrow from: 120 30, to: 200 30, color: blue
+text note at: 0 80
+`,
+
   sketch: `sketch Test Sketch
 
 tag Crew

@@ -51,6 +51,7 @@ const EXPECTED_CATEGORY: Record<
   pert: 'diagram',
   'boxes-and-lines': 'diagram',
   sketch: 'diagram',
+  whiteboard: 'diagram',
   swimlane: 'diagram',
   family: 'diagram',
   'version-control': 'diagram',

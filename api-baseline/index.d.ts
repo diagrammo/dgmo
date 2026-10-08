@@ -1,10 +1,10 @@
 import { b as DiagnosticSpec, P as PaletteConfig, C as CompactViewState, D as DgmoError } from './tag-groups-fgxWTyyB.js';
 export { c as DgmoSeverity, d as DiagnosticParams, E as EmitOptions, a as PaletteColors, e as emit, f as formatDgmoError } from './tag-groups-fgxWTyyB.js';
-import { T as Theme } from './themes-CzuBdx1T.js';
-export { M as MapCompletionOptions, a as MapLocationMatch, b as MapPlaceCompletion, c as MapRegionCompletion, d as completeMapPlaces, e as completeMapRegions, p as palettes, s as searchMapLocations, t as themes, f as validate } from './themes-CzuBdx1T.js';
-import { M as MapDataSource } from './d3-B6524aaP.js';
-export { G as Gazetteer, a as GazetteerEntry, b as MapData, R as RegionName, c as RegionNames } from './d3-B6524aaP.js';
-export { C as ChartTypeId, a as ChartTypeMeta, c as chartTypes, g as getPalette, r as resolvePaletteOrFallback } from './chart-types-Bf8C5QQW.js';
+import { T as Theme } from './themes-BTEqsgz7.js';
+export { E as EncodeInkOptions, I as INK_DEFAULT_TOLERANCE, a as INK_PRESSURE_LEVELS, b as InkDecodeResult, c as InkPoint, M as MapCompletionOptions, d as MapLocationMatch, e as MapPlaceCompletion, f as MapRegionCompletion, g as completeMapPlaces, h as completeMapRegions, i as decodeInk, j as encodeInk, p as palettes, s as searchMapLocations, t as themes, k as validate } from './themes-BTEqsgz7.js';
+import { M as MapDataSource } from './d3-CTh6-TCP.js';
+export { G as Gazetteer, a as GazetteerEntry, b as MapData, R as RegionName, c as RegionNames } from './d3-CTh6-TCP.js';
+export { C as ChartTypeId, a as ChartTypeMeta, c as chartTypes, g as getPalette, r as resolvePaletteOrFallback } from './chart-types-V2NcgN5O.js';
 
 /**
  * Make an SVG produced by `@diagrammo/dgmo`'s static `render()` suitable for
@@ -223,6 +223,14 @@ interface RenderOptions {
      * diagnostic. Every other chart type ignores this option.
      */
     mapData?: MapDataSource;
+    /**
+     * Whiteboard images: turn an image ref (a relative path such as
+     * `board.assets/9f3c.webp`, or an `https://` URL) into an href — a data URI
+     * or a URL. Supplied → its answer is final, and `undefined` draws a plain
+     * box labelled "image not uploaded". Omitted → `https://` refs pass through
+     * and everything else is that box. Every other chart type ignores it.
+     */
+    resolveImage?: (ref: string) => string | undefined;
 }
 
 interface RenderResult {

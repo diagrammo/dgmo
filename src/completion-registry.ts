@@ -796,6 +796,12 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     }),
   ],
   [
+    'whiteboard',
+    // Canvas-authored free placement: every line is an element; the only
+    // directives are the universal set (`no-title` is the one that acts).
+    withGlobals(),
+  ],
+  [
     'map',
     // Geographic map directives (§24B.2/.7). Cosmetics are ON by default — the
     // only switches are bare `no-*` opt-outs, surfaced proactively so a
@@ -1005,6 +1011,19 @@ export const STRUCTURAL_KEYWORDS = new Map<string, string[]>([
   ['treemap', ['tag']],
   ['block', ['tag']],
   ['sketch', ['tag']],
+  [
+    'whiteboard',
+    [
+      'rectangle',
+      'ellipse',
+      'database',
+      'queue',
+      'arrow',
+      'text',
+      'image',
+      'ink',
+    ],
+  ],
   ['boxes-and-lines', ['tag']],
   ['state', ['note', 'tag']],
   ['swimlane', ['lane', 'tag']],
@@ -1200,6 +1219,24 @@ export interface PipeKeySpec {
 export type PipeContextMap = Record<string, Record<string, PipeKeySpec>>;
 
 export const PIPE_METADATA = new Map<string, PipeContextMap>([
+  [
+    'whiteboard',
+    {
+      node: {
+        at: {
+          description:
+            'Top-left corner `at: X Y` in canvas px (integers, negative allowed)',
+        },
+        size: { description: 'Width and height `size: W H` in px' },
+        color: {
+          description:
+            'ink (default), red, green, blue, teal, purple, orange, yellow, cyan or gray',
+        },
+        from: { description: 'Arrow tail `from: X Y` in canvas px' },
+        to: { description: 'Arrow head `to: X Y` in canvas px' },
+      },
+    },
+  ],
   [
     'sketch',
     {

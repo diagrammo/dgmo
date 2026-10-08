@@ -70,6 +70,7 @@ import { parseSequenceDgmo } from '../sequence/parser';
 import { parseSitemap } from '../sitemap/parser';
 import type { SitemapNode } from '../sitemap/types';
 import { parseSketch } from '../sketch/parser';
+import { parseWhiteboard } from '../whiteboard/parser';
 import { parseSwimlane } from '../swimlane/parser';
 import { parseVersionControl } from '../version-control/parser';
 import { parseWireframe } from '../wireframe/parser';
@@ -369,6 +370,21 @@ function summarizeSketch(content: string): string | null {
   if (parsed.error) return null;
   const names = parsed.nodes.map((n) => n.label);
   return `Sketch of ${namedCount(names, 'shape', 'shapes')}, with ${plural(parsed.edges.length, 'connection', 'connections')}.`;
+}
+
+function summarizeWhiteboard(content: string): string | null {
+  const parsed = parseWhiteboard(content);
+  if (parsed.error) return null;
+  const names: string[] = [];
+  let strokes = 0;
+  let images = 0;
+  for (const el of parsed.elements) {
+    if (el.kind === 'shape' && el.label) names.push(el.label);
+    else if (el.kind === 'text') names.push(el.text);
+    else if (el.kind === 'ink') strokes++;
+    else if (el.kind === 'image') images++;
+  }
+  return `Whiteboard with ${namedCount(names, 'labelled item', 'labelled items')}, ${plural(strokes, 'ink stroke', 'ink strokes')} and ${plural(images, 'image', 'images')}.`;
 }
 
 function summarizeSwimlane(content: string): string | null {
@@ -929,6 +945,7 @@ const SUMMARIZERS: Record<ChartTypeId, Summarizer> = {
   pert: summarizePert,
   'boxes-and-lines': summarizeBoxesAndLines,
   sketch: summarizeSketch,
+  whiteboard: summarizeWhiteboard,
   swimlane: summarizeSwimlane,
   family: summarizeFamily,
   'version-control': summarizeVersionControl,
