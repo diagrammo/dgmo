@@ -58,6 +58,10 @@
     // This repo now publishes three manifests and knip reads one, so any
     // entry point belonging to `cli/` or `standalone/` lands here.
     "scripts/prepack-standalone.mjs",
+    // A by-hand tool: renders a corpus at two refs into one before/after page
+    // for judging a layout change by eye (#1135). Run with `node`, so nothing
+    // imports it.
+    "scripts/layout-compare.mjs",
     // The acceptance test for replacing jsdom with linkedom as the browser
     // stand-in (#123): it renders every gallery fixture under each and diffs
     // the SVGs byte for byte. Nothing imports it and nothing should — the
