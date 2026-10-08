@@ -30,6 +30,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   SVG drops by about a sixth.
 - Sequential server-side renders reuse one jsdom window, cutting most of a
   small chart's render time in the CLI, the MCP server and every docs plugin.
+- A boxes-and-lines diagram draws with fewer crossing lines: the layout
+  search now improves its best ordering one box at a time, keeping a move only
+  when the drawing gets strictly cleaner.
+- Autocomplete no longer offers `palette` and `theme` lines, which no chart
+  type reads and most of them broke on.
+- `source-map-js` is raised to 1.2.2 for an event-loop denial-of-service
+  advisory (GHSA-68fv-2mgg-jv7q).
 
 ## [0.88.0] - 2026-10-01
 
