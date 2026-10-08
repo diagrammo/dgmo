@@ -3946,7 +3946,7 @@ In the desktop and web app a sketch opens in the **canvas editor** (the code pan
 
 <!-- TIPS start -->
 
-**Styling tips:** Whiteboard is a canvas-authored format — the app's whiteboard canvas writes this markup as people draw. **AI tools write shapes, arrows and text — never `ink` lines.** An ink line holds an encoded pen path that only the canvas can produce; never invent, copy or edit one. Never invent an `image` line either: write one only for an `https://` URL the user supplied. Place elements on integer pixel coordinates with room between them (a 180×70 box per idea, 60–100 px gaps reads well), keep labels short, and use colour names sparingly — `ink` is the default and needs no `color:`. Reach for `whiteboard` for a free-form idea dump the user will keep drawing on; reach for `boxes-and-lines` or `flowchart` when the layout should be automatic.
+**Styling tips:** Whiteboard is a canvas-first format: people draw on it, and pen strokes (`ink` lines) only ever come from drawing — never write an `ink` line. Generate the readable parts only: `rectangle`, `ellipse`, `database`, `queue` with a label, `at: X Y` (top-left, integer pixels) and `size: W H`; `arrow` with `from: X Y, to: X Y` and an optional label; `text` at a point. Leave ~40px between shapes and keep boards small (under ~15 elements). Colours are palette names (red, green, blue, teal, purple, orange, yellow, cyan, gray); leave colour off for the default ink. Arrows are free and do not attach to shapes, so place their ends at the shape edges yourself. Reach for `whiteboard` for a loose drawing someone will scribble over; reach for `sketch` for tagged shapes on a grid, and `boxes-and-lines` when topology should auto-lay-out.
 
 <!-- TIPS end -->
 
