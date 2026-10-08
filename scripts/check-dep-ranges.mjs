@@ -52,7 +52,10 @@ const SCOPE = '@diagrammo/';
 //
 // 🔴 CI installing frozen is what ENTRENCHES such a split rather than catching
 // it. Only an exact declared version makes every consumer resolve what we test.
-const EXACT_PINS = new Set(['@dagrejs/dagre']);
+//
+// `perfect-freehand` joined 2026-10-07: the whiteboard snapshot asserts the
+// exact ink outline it draws, so its smoothing must not drift by range.
+const EXACT_PINS = new Set(['@dagrejs/dagre', 'perfect-freehand']);
 
 function npmView(spec, field) {
   try {
