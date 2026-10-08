@@ -101,6 +101,86 @@ function shuffle<T>(a: readonly T[], r: () => number): T[] {
   return x;
 }
 
+// Sifting (#1135): after the search picks its winner, move one entry at a time
+// to every other slot in its rank and keep a slot only on a strict drop in
+// total badness — a local pass the seed-shuffles never make. An entry is a box
+// or a bend of a long line (dagre's dummy node), and it moves only among its
+// SIBLINGS (same rank, same parent group), so a group's band stays contiguous
+// by construction. Placements spent sifting are capped by the same work cap as
+// the pool, so the pass is deterministic and bounded.
+const SIFT_MAX_SWEEPS = 4;
+
+/** A within-rank ordering for one dagre run: each entry is a run of sibling
+ *  entries (same rank, same parent) in cross-axis order, keyed by its sorted
+ *  membership so a forced run can find it again. */
+type OrderPlan = Map<string, string[]>;
+
+type OrderNode = {
+  rank?: number;
+  order?: number;
+  dummy?: string;
+  edgeObj?: { v: string; w: string; name?: string };
+  edgeLabel?: { forwardName?: string };
+};
+type OrderGraph = {
+  nodes(): string[];
+  node(v: string): OrderNode;
+  isCompound(): boolean;
+  parent(v: string): string | undefined | void;
+};
+
+/** An id for `v` that is the same in every run of one config: a box keeps its
+ *  label; a line's bend is named by its line and rank (dagre's own dummy ids
+ *  come from a global counter). Group borders and anything else: null. */
+function siftId(
+  v: string,
+  nd: OrderNode,
+  real: ReadonlySet<string>
+): string | null {
+  if (real.has(v)) return v;
+  if ((nd.dummy === 'edge' || nd.dummy === 'edge-label') && nd.edgeObj) {
+    const name = nd.edgeLabel?.forwardName ?? nd.edgeObj.name ?? '';
+    return `\u0001${nd.edgeObj.v}\u0001${nd.edgeObj.w}\u0001${name}\u0001${nd.rank}`;
+  }
+  return null;
+}
+
+/** dagre `customOrder` body: record the sibling runs into `captured`, and
+ *  where `forced` names a run, put its entries into that order using the same
+ *  slots (group borders keep theirs). */
+function applyOrderPlan(
+  lg: OrderGraph,
+  real: ReadonlySet<string>,
+  forced: OrderPlan | undefined,
+  captured: OrderPlan
+): void {
+  const runs = new Map<string, { v: string; id: string }[]>();
+  for (const v of lg.nodes()) {
+    const nd = lg.node(v);
+    if (nd.rank === undefined) continue;
+    const id = siftId(v, nd, real);
+    if (id === null) continue;
+    const parent = lg.isCompound() ? lg.parent(v) : undefined;
+    const key = `${nd.rank}\u0000${parent ?? ''}`;
+    let run = runs.get(key);
+    if (!run) runs.set(key, (run = []));
+    run.push({ v, id });
+  }
+  for (const run of runs.values()) {
+    if (run.length < 2) continue;
+    run.sort((a, b) => lg.node(a.v).order! - lg.node(b.v).order!);
+    const ids = run.map((e) => e.id);
+    const key = [...ids].sort().join('\u0000');
+    const want = forced?.get(key);
+    if (want) {
+      const slots = run.map((e) => lg.node(e.v).order!);
+      const byId = new Map(run.map((e) => [e.id, e.v]));
+      want.forEach((id, i) => (lg.node(byId.get(id)!).order = slots[i]!));
+    }
+    captured.set(key, want ? [...want] : ids);
+  }
+}
+
 const splineGen = d3line<Pt>()
   .x((d) => d.x)
   .y((d) => d.y)
@@ -1051,6 +1131,8 @@ export async function layoutBoxesAndLinesSearch(
     lambda?: number;
     /** How many top candidates to re-rank with the exact counter (default 6). */
     refineK?: number;
+    /** Run the sifting pass on the dagre winner (default true; #1135). */
+    sift?: boolean;
     /** Progress hook for the interactive path. When provided, the search yields
      *  to a macrotask after each candidate so the host UI can paint a progress
      *  indicator. Omit it (CLI/export) and the search runs straight through with
@@ -1258,9 +1340,15 @@ export async function layoutBoxesAndLinesSearch(
     Math.abs(p.x - rect.x) <= rect.w / 2 &&
     Math.abs(p.y - rect.y) <= rect.h / 2;
 
+  const realBoxes = new Set(parsed.nodes.map((n) => n.label));
+
+  /** `plan` set: run dagre's ordering, then record (`plan.captured`) and
+   *  optionally force (`plan.forced`) the sibling order of every rank — the
+   *  sifting pass's two uses. Unset, dagre runs exactly as it always has. */
   function place(
     cfg: BLSearchConfig,
-    reserve = reserveEdgeLabels
+    reserve = reserveEdgeLabels,
+    plan?: { forced?: OrderPlan; captured: OrderPlan }
   ): BLLayoutResult {
     const r = cfg.seed === undefined ? null : rng(cfg.seed + 1);
     const ord = <T>(a: readonly T[]): T[] => (r ? shuffle(a, r) : a.slice());
@@ -1314,7 +1402,19 @@ export async function layoutBoxesAndLinesSearch(
         g.setEdge(s, t, edgeLabel, edgeKey(e));
       }
     }
-    dagre.layout(g);
+    if (plan)
+      dagre.layout(g, {
+        customOrder: (lg, order) => {
+          order(lg, {});
+          applyOrderPlan(
+            lg as unknown as OrderGraph,
+            realBoxes,
+            plan.forced,
+            plan.captured
+          );
+        },
+      });
+    else dagre.layout(g);
 
     const nodes = parsed.nodes.map((n) => {
       const p = g.node(n.label);
@@ -1732,6 +1832,72 @@ export async function layoutBoxesAndLinesSearch(
       consider(lay);
       const cfg = cfgOf.get(lay);
       if (cfg) topConfigs.push(cfg);
+    }
+  }
+
+  // Sifting (#1135): improve the dagre winner locally. Re-run its config with
+  // the order recorded, then try each entry in every sibling slot of its rank,
+  // forcing that order onto the same config; keep a move only on a strict
+  // total-badness drop. Sweeps until one improves nothing, bounded by
+  // SIFT_MAX_SWEEPS and the work cap. A winner of badness 0 is left alone.
+  const winnerCfg = cfgOf.get(best);
+  if (
+    opts?.sift !== false &&
+    bestBad > 0 &&
+    Number.isFinite(bestBad) &&
+    winnerCfg
+  ) {
+    let siftAttempts = 0;
+    let current: OrderPlan | undefined;
+    try {
+      const captured: OrderPlan = new Map();
+      place(winnerCfg, reserveEdgeLabels, { captured });
+      current = captured;
+    } catch {
+      /* the recording run choked — keep the winner as it is */
+    }
+    for (
+      let sweep = 0;
+      current && sweep < SIFT_MAX_SWEEPS && siftAttempts < maxCandidates;
+      sweep++
+    ) {
+      let improved = false;
+      for (const key of [...current.keys()].sort()) {
+        for (const entry of [...current.get(key)!]) {
+          const run = current.get(key)!;
+          const from = run.indexOf(entry);
+          let bestRun: string[] | null = null;
+          for (let to = 0; to < run.length; to++) {
+            if (to === from || siftAttempts >= maxCandidates) continue;
+            const tried = run.filter((v) => v !== entry);
+            tried.splice(to, 0, entry);
+            const forced: OrderPlan = new Map(current);
+            forced.set(key, tried);
+            siftAttempts++;
+            let lay: BLLayoutResult;
+            try {
+              lay = place(winnerCfg, reserveEdgeLabels, {
+                forced,
+                captured: new Map(),
+              });
+            } catch {
+              continue;
+            }
+            const bad = badness(lay, bestBad - 1);
+            if (bad < bestBad) {
+              bestBad = bad;
+              best = lay;
+              bestRun = tried;
+            }
+          }
+          if (bestRun) {
+            current.set(key, bestRun);
+            improved = true;
+          }
+          await step('Sifting layout');
+        }
+      }
+      if (!improved) break;
     }
   }
 

@@ -9,6 +9,9 @@ import {
 import {
   layoutBoxesAndLinesSearch,
   countSplineCrossings,
+  countEdgeOverlaps,
+  countEdgeNodePierces,
+  countGroupOverlaps,
   type BLSearchConfig,
 } from '../src/boxes-and-lines/layout-search';
 
@@ -456,5 +459,59 @@ describe('seed search stops once a base config is already perfect (#981)', () =>
       ),
     ].join('\n');
     expect(await placements(k5)).toBeGreaterThan(9);
+  });
+});
+
+// Sifting (#1135): a local pass after the search. This graph is one the seed
+// search leaves at 3 badness and sifting a box or a line's bend takes lower.
+const SIFTABLE = [
+  'boxes-and-lines',
+  'A -> E',
+  'E -> H',
+  'D -> G',
+  'B -> C',
+  'D -> H',
+  'C -> F',
+  'G -> I',
+  'E -> F',
+  'A -> H',
+  'C -> E',
+  'A -> G',
+  'B -> D',
+  'D -> I',
+  'C -> D',
+].join('\n');
+
+/** The search's own total: true crossings + overlap runs + pierces + group overlaps. */
+const totalBadness = (lay: BLLayoutResult): number =>
+  countSplineCrossings(lay) +
+  countEdgeOverlaps(lay) +
+  countEdgeNodePierces(lay) +
+  countGroupOverlaps(lay);
+
+describe('layoutBoxesAndLinesSearch — sifting pass (#1135)', () => {
+  it('lowers total badness below what the search alone finds', async () => {
+    const parsed = parseBoxesAndLines(SIFTABLE);
+    const off = await layoutBoxesAndLinesSearch(parsed, undefined, {
+      sift: false,
+    });
+    const on = await layoutBoxesAndLinesSearch(parsed);
+    expect(totalBadness(off)).toBeGreaterThan(0);
+    expect(totalBadness(on)).toBeLessThan(totalBadness(off));
+  });
+
+  it('is deterministic — the same diagram sifts to the same geometry', async () => {
+    const a = await layoutBoxesAndLinesSearch(parseBoxesAndLines(SIFTABLE));
+    const b = await layoutBoxesAndLinesSearch(parseBoxesAndLines(SIFTABLE));
+    expect(geom(a)).toBe(geom(b));
+  });
+
+  it('never raises badness on the dense fixture', async () => {
+    const parsed = parseBoxesAndLines(DENSE);
+    const off = await layoutBoxesAndLinesSearch(parsed, undefined, {
+      sift: false,
+    });
+    const on = await layoutBoxesAndLinesSearch(parsed);
+    expect(totalBadness(on)).toBeLessThanOrEqual(totalBadness(off));
   });
 });
