@@ -19,7 +19,8 @@ export const WHITEBOARD_DIAGNOSTIC_CODES = {
   EMPTY_TEXT: 'W_WHITEBOARD_EMPTY_TEXT',
 } as const;
 
-const s = (v: unknown): string => String(v ?? '?');
+const s = (v: unknown): string =>
+  typeof v === 'string' || typeof v === 'number' ? String(v) : '?';
 
 export const WHITEBOARD_DIAGNOSTICS: DiagnosticSpec[] = [
   {
