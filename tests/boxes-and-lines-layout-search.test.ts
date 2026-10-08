@@ -506,6 +506,19 @@ describe('layoutBoxesAndLinesSearch — sifting pass (#1135)', () => {
     expect(geom(a)).toBe(geom(b));
   });
 
+  it('never reports progress past its total while sifting', async () => {
+    let over = 0;
+    let sifted = false;
+    await layoutBoxesAndLinesSearch(parseBoxesAndLines(SIFTABLE), undefined, {
+      onProgress: (done, total, phase) => {
+        if (done > total) over++;
+        if (phase === 'Sifting layout') sifted = true;
+      },
+    });
+    expect(sifted).toBe(true);
+    expect(over).toBe(0);
+  });
+
   it('never raises badness on the dense fixture', async () => {
     const parsed = parseBoxesAndLines(DENSE);
     const off = await layoutBoxesAndLinesSearch(parsed, undefined, {

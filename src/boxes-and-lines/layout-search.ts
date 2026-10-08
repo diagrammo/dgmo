@@ -106,8 +106,10 @@ function shuffle<T>(a: readonly T[], r: () => number): T[] {
 // total badness — a local pass the seed-shuffles never make. An entry is a box
 // or a bend of a long line (dagre's dummy node), and it moves only among its
 // SIBLINGS (same rank, same parent group), so a group's band stays contiguous
-// by construction. Placements spent sifting are capped by the same work cap as
-// the pool, so the pass is deterministic and bounded.
+// by construction. Every sift placement counts against the SAME running total
+// as the pool and the escalation batch (`attempts` vs `maxCandidates`), so the
+// search's work cap still bounds it: a diagram that spent its cap on candidates
+// is not sifted at all. Deterministic: the cap is fixed before any placement.
 const SIFT_MAX_SWEEPS = 4;
 
 /** A within-rank ordering for one dagre run: each entry is a run of sibling
@@ -1604,9 +1606,11 @@ export async function layoutBoxesAndLinesSearch(
   const progressTotal =
     configs.length + Math.min(opts?.refineK ?? 6, configs.length);
   let progressDone = 0;
-  const step = async (phase: string): Promise<void> => {
+  // `advance` false reports the phase and yields without counting a step —
+  // for the sifting pass, whose length is not known when the total is fixed.
+  const step = async (phase: string, advance = true): Promise<void> => {
     if (!onProgress) return;
-    onProgress(++progressDone, progressTotal, phase);
+    onProgress(advance ? ++progressDone : progressDone, progressTotal, phase);
     const now = performance.now();
     if (
       now - searchStart > YIELD_AFTER_MS &&
@@ -1847,10 +1851,10 @@ export async function layoutBoxesAndLinesSearch(
     Number.isFinite(bestBad) &&
     winnerCfg
   ) {
-    let siftAttempts = 0;
     let current: OrderPlan | undefined;
     try {
       const captured: OrderPlan = new Map();
+      attempts++;
       place(winnerCfg, reserveEdgeLabels, { captured });
       current = captured;
     } catch {
@@ -1858,7 +1862,7 @@ export async function layoutBoxesAndLinesSearch(
     }
     for (
       let sweep = 0;
-      current && sweep < SIFT_MAX_SWEEPS && siftAttempts < maxCandidates;
+      current && sweep < SIFT_MAX_SWEEPS && attempts < maxCandidates;
       sweep++
     ) {
       let improved = false;
@@ -1868,12 +1872,12 @@ export async function layoutBoxesAndLinesSearch(
           const from = run.indexOf(entry);
           let bestRun: string[] | null = null;
           for (let to = 0; to < run.length; to++) {
-            if (to === from || siftAttempts >= maxCandidates) continue;
+            if (to === from || attempts >= maxCandidates) continue;
             const tried = run.filter((v) => v !== entry);
             tried.splice(to, 0, entry);
             const forced: OrderPlan = new Map(current);
             forced.set(key, tried);
-            siftAttempts++;
+            attempts++;
             let lay: BLLayoutResult;
             try {
               lay = place(winnerCfg, reserveEdgeLabels, {
@@ -1894,7 +1898,7 @@ export async function layoutBoxesAndLinesSearch(
             current.set(key, bestRun);
             improved = true;
           }
-          await step('Sifting layout');
+          await step('Sifting layout', false);
         }
       }
       if (!improved) break;
