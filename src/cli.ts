@@ -267,6 +267,8 @@ const IMAGE_MIME: Record<string, string> = {
  * resvg cannot fetch, and a render that silently reached the network would be
  * a surprise. Anything unreadable is the placeholder, never an error.
  */
+let warnedWebpPng = false;
+
 function cliImageResolver(
   inputPath: string | undefined,
   format: 'svg' | 'png'
@@ -276,6 +278,17 @@ function cliImageResolver(
     if (!inputPath) return undefined;
     const mime = IMAGE_MIME[extname(ref).toLowerCase()];
     if (!mime) return undefined;
+    // resvg-js cannot decode WebP, so in a PNG the image would be a blank
+    // gap. The placeholder plus one warning says what happened instead.
+    if (format === 'png' && mime === 'image/webp') {
+      if (!warnedWebpPng) {
+        warnedWebpPng = true;
+        console.error(
+          '⚠ WebP images cannot be drawn into a PNG — they show as placeholders. Export to .svg to keep them.'
+        );
+      }
+      return undefined;
+    }
     try {
       const bytes = readFileSync(resolve(dirname(inputPath), ref));
       return `data:${mime};base64,${bytes.toString('base64')}`;

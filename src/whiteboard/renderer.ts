@@ -52,6 +52,7 @@ const BASELINE = 0.8;
 const RECT_RADIUS = 6;
 /** Placeholder text for an image no host could resolve. */
 export const IMAGE_NOT_UPLOADED = 'image not uploaded';
+const PLACEHOLDER_MIN_FONT = 8;
 
 /** A drawable `href`: http(s), blob, or an inline raster/vector image. */
 const SAFE_IMAGE_HREF_RE = /^(https?:|blob:|data:image\/)/i;
@@ -254,11 +255,18 @@ export function renderWhiteboard(
       .attr('stroke', mix(palette.textMuted, base, 50))
       .attr('stroke-width', 1)
       .attr('stroke-dasharray', '6 4');
+    // Shrink the label to fit the box (≈0.55em per Inter glyph); a box too
+    // small for a legible label keeps only its dashed outline.
+    const fit = Math.min(
+      LABEL_FONT,
+      (el.width - 8) / (IMAGE_NOT_UPLOADED.length * 0.55)
+    );
+    if (fit < PLACEHOLDER_MIN_FONT) return;
     g.append('text')
       .attr('x', el.x + el.width / 2)
-      .attr('y', el.y + el.height / 2 + LABEL_FONT * 0.35)
+      .attr('y', el.y + el.height / 2 + fit * 0.35)
       .attr('text-anchor', 'middle')
-      .attr('font-size', LABEL_FONT)
+      .attr('font-size', round2(fit))
       .attr('fill', palette.textMuted)
       .text(IMAGE_NOT_UPLOADED);
   };
