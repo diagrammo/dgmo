@@ -98,7 +98,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 - **Always title it.** Every diagram gets a short title on the type-declaration line (`flowchart Checkout Flow`, `sequence Checkout`, `boxes-and-lines Service Map`) so it is self-describing — never leave the bare type keyword alone. Infer a fitting title from the request when the user gives none.
   <!-- TITLE end -->
   <!-- CATEGORIZE start -->
-- **Categorize and color — by default, not only when obvious.** Before drawing, find the axis that sorts the items into kinds and color by it: layer (frontend / backend / data), role (client / service / datastore), trust zone (internal / external / third-party), status (done / active / blocked), owner/team, or read-path vs write-path. Almost every diagram has such an axis — actively look for one rather than leaving everything monochrome. Express it with a **tag group**, never ad-hoc per-node colors: declare `tag <Axis> as t` (the name is a single word — `tag TrustZone as tz` — or quote a multi-word name: `tag "Trust Zone" as tz`), indent the category values (a trailing color is optional — bare values auto-pick a palette color), set `active-tag <Axis>` in the header — after the tag group and before the first element, because a type such as c4 refuses it after content — then assign each item `Node t: <Category>` (see the tag-group syntax in the per-type section below). **Bracket, block, body, event-line, family and sketch** take the tag group but no `active-tag` line — declare the group and stop there; on event-line, family and sketch the line would be drawn as an element. **Class, flowchart, wireframe, raci, cycle, pyramid, ring, sankey, tech-radar, venn, version-control, wordcloud, arc, bar, clock, countdown, funnel, function, goal, heatmap, line, pie, polar-area, quadrant, radar, scatter and slope** take no tag group at all — skip this rule for them. Most report the lines; cycle, pyramid, ring, sankey, venn, version-control and wordcloud read them as content, and flowchart and tech-radar drop them without a word. Only the 11 named palette colors exist, and they re-resolve per palette/theme. Color the grouping so the categories — and the boundaries between them — read at a glance. **Buckets, not name tags — never 1:1.** A tag group must have _fewer_ values than it has members: each color should bucket two or more items so the palette compresses the diagram into a few meaningful kinds (aim for ~2–4 categories, and keep distinct colors well under half the item count). If you find yourself giving nearly every item its own value, you've enumerated, not categorized — merge the singletons up a level until each color groups at least two (a `cache` and a `database` are both `datastore`; a caller and a gateway are both `client`; two microservices are both `service`). One color per item is the same visual noise as random colors — the grouping only earns its place when a color means "these belong together." Leave items uncolored only when they genuinely form a single undifferentiated kind, or the user asked for no color.
+- **Categorize and color — by default, not only when obvious.** Before drawing, find the axis that sorts the items into kinds and color by it: layer (frontend / backend / data), role (client / service / datastore), trust zone (internal / external / third-party), status (done / active / blocked), owner/team, or read-path vs write-path. Almost every diagram has such an axis — actively look for one rather than leaving everything monochrome. Express it with a **tag group**, never ad-hoc per-node colors: declare `tag <Axis> as t` (the name is a single word — `tag TrustZone as tz` — or quote a multi-word name: `tag "Trust Zone" as tz`), indent the category values (a trailing color is optional — bare values auto-pick a palette color), set `active-tag <Axis>` in the header — after the tag group and before the first element, because a type such as c4 refuses it after content — then assign each item `Node t: <Category>` (see the tag-group syntax in the per-type section below). **Bracket, block, body, event-line, family and sketch** take the tag group but no `active-tag` line — declare the group and stop there; on event-line, family and sketch the line would be drawn as an element. **Class, flowchart, whiteboard, wireframe, raci, cycle, pyramid, ring, sankey, tech-radar, venn, version-control, wordcloud, arc, bar, clock, countdown, funnel, function, goal, heatmap, line, pie, polar-area, quadrant, radar, scatter and slope** take no tag group at all — skip this rule for them. Most report the lines; cycle, pyramid, ring, sankey, venn, version-control and wordcloud read them as content, and flowchart and tech-radar drop them without a word. Only the 11 named palette colors exist, and they re-resolve per palette/theme. Color the grouping so the categories — and the boundaries between them — read at a glance. **Buckets, not name tags — never 1:1.** A tag group must have _fewer_ values than it has members: each color should bucket two or more items so the palette compresses the diagram into a few meaningful kinds (aim for ~2–4 categories, and keep distinct colors well under half the item count). If you find yourself giving nearly every item its own value, you've enumerated, not categorized — merge the singletons up a level until each color groups at least two (a `cache` and a `database` are both `datastore`; a caller and a gateway are both `client`; two microservices are both `service`). One color per item is the same visual noise as random colors — the grouping only earns its place when a color means "these belong together." Leave items uncolored only when they genuinely form a single undifferentiated kind, or the user asked for no color.
 <!-- CATEGORIZE end -->
 - **Keep labels short.** A few words per node. Move detail into notes or metadata, never a full sentence inside a label.
 - **Let the defaults show.** Don't add `no-*` opt-outs unless the user asked to hide or disable something — they strip helpful labels, values, and color.
@@ -142,6 +142,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `treemap`         | nested rectangles sized by value (budgets, disk usage, portfolios)                                                                                            |
 | `block`           | author-controlled grid of nested, collapsible blocks (system / architecture layouts)                                                                          |
 | `sketch`          | GUI-first free-placement canvas: uniform shapes on a snap grid, arrows, tags (markup is app-generated)                                                        |
+| `whiteboard`      | free-form infinite canvas: shapes, free arrows, text, images and freehand ink at pixel positions (canvas-drawn; AI writes shapes, arrows, text — never ink)   |
 | `goal`            | single progress-toward-a-target value (`now` vs `target`) as a progress bar, thermometer, or gauge — KPIs, fundraising, quotas                                |
 | `countdown`       | live "N days until X" that ticks every second and is accurate on every load — trip dates, launches, deadlines; the only dynamic chart type                    |
 | `clock`           | live world-clock board: current time for people/places across time zones, ticking every second, with optional working-hours status and sundown line           |
@@ -3934,6 +3935,78 @@ Indented under the source shape, targeting an alias (or an unambiguous bare labe
 ### Interactivity vs export
 
 In the desktop and web app a sketch opens in the **canvas editor** (the code pane hides behind a toggle); boxes fold/unfold interactively. Static SVG / PNG export renders the authored state — the same interactive-vs-export split the map, treemap, and block charts use.
+
+---
+
+## 24Ea. Whiteboard Diagrams
+
+<!-- TYPE:whiteboard -->
+
+**Beta — expect rough edges and syntax changes.**
+
+<!-- TIPS start -->
+
+**Styling tips:** Whiteboard is a canvas-authored format — the app's whiteboard canvas writes this markup as people draw. **AI tools write shapes, arrows and text — never `ink` lines.** An ink line holds an encoded pen path that only the canvas can produce; never invent, copy or edit one. Never invent an `image` line either: write one only for an `https://` URL the user supplied. Place elements on integer pixel coordinates with room between them (a 180×70 box per idea, 60–100 px gaps reads well), keep labels short, and use colour names sparingly — `ink` is the default and needs no `color:`. Reach for `whiteboard` for a free-form idea dump the user will keep drawing on; reach for `boxes-and-lines` or `flowchart` when the layout should be automatic.
+
+<!-- TIPS end -->
+
+A **free-form whiteboard** on an infinite canvas: rectangles, ellipses, databases, queues, free arrows, text, pasted images and freehand ink, each at absolute pixel positions. Shapes are clean vector outlines; only ink looks hand-made. The export is cropped to the drawing plus a margin. Element order is drawing order — later lines draw on top.
+
+### Declaration
+
+```
+whiteboard [Title]
+```
+
+### Example
+
+```
+whiteboard Login ideas
+rectangle Sign in at: 60 60, size: 180 70
+ellipse OAuth? at: 345 53, size: 170 84, color: blue
+arrow from: 240 95, to: 340 95
+rectangle Magic link at: 60 250, size: 180 70, color: green
+arrow emails a code from: 150 130, to: 150 245, color: green
+database Users at: 420 160, size: 140 100, color: purple
+queue Email jobs at: 300 380, size: 200 64, color: orange
+text keep it to ONE screen at: 62 184
+text 2FA here?? at: 560 -4, color: red
+```
+
+### Elements
+
+One line = one element, led by its keyword. The label is a **bare name** before the first `key:`; metadata is same-line `key: value` pairs. Quote a label that itself contains `word:` (`text "todo: ship" at: 0 0`).
+
+| Line                                   | Meaning                                                                             |
+| -------------------------------------- | ----------------------------------------------------------------------------------- |
+| `rectangle <label> at: X Y, size: W H` | Box; label centred and wrapped                                                      |
+| `ellipse <label> at: X Y, size: W H`   | Ellipse inside that box                                                             |
+| `database <label> at: X Y, size: W H`  | Upright cylinder                                                                    |
+| `queue <label> at: X Y, size: W H`     | Cylinder on its side                                                                |
+| `arrow <label> from: X Y, to: X Y`     | Free arrow, head at `to:`; bound to no shape; label optional, drawn at the midpoint |
+| `text <words> at: X Y`                 | Free text; `at:` is the top-left of the line                                        |
+| `image <ref> at: X Y, size: W H`       | Picture; `<ref>` is a relative path (`board.assets/9f3c.webp`) or an `https://` URL |
+| `ink <colour> <width> <path>`          | One freehand stroke — **canvas-written only**                                       |
+
+The label is optional on shapes and arrows. `at:` is a top-left corner in canvas pixels; every number is an integer and may be negative. `size:` is width then height, each at least 1.
+
+### Colours
+
+`color:` takes a palette **name**: `ink` (the default, never written — the theme's text colour, near-black on light and near-white on dark), `red`, `green`, `blue`, `teal`, `purple`, `orange`, `yellow`, `cyan`, `gray`. Each takes the palette's own light or dark shade. No hex values.
+
+### Images
+
+An image whose ref cannot be loaded — a local file that is not there, or a copied fence — draws a plain box at its size labelled _image not uploaded_. It is never an error.
+
+### Directives
+
+| Directive  | Effect                                        |
+| ---------- | --------------------------------------------- |
+| `no-title` | Keep the title in the source; do not draw it. |
+
+### Leniency
+
+A malformed line is a warning and is skipped; the rest of the board renders. Only a first line that is not `whiteboard`, or a board with no elements, is an error.
 
 ---
 
