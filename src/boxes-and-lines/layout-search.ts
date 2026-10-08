@@ -1839,11 +1839,38 @@ export async function layoutBoxesAndLinesSearch(
     }
   }
 
+  // Layered candidates (and their better-routed, de-pierced variants) replace
+  // the dagre winner ONLY on a STRICT total-badness reduction — never on an
+  // edge-length tiebreak. They're few, so de-piercing each is cheap.
+  for (const lay of layered) {
+    const variants = [lay];
+    const dp = deroutePierces(lay);
+    if (dp !== lay) variants.push(dp);
+    for (const raw of variants) {
+      // 🔴 Clip HERE, not only inside the generators. Only the dagre candidates
+      // arrive boundary-clipped (dagre's own intersectRect); every hand-rolled
+      // candidate routes centre-to-centre, and deroutePierces rebuilds edges
+      // from those same centres. An unclipped end puts the marker-end under the
+      // target's opaque rect, so the moment such a candidate wins EVERY arrow
+      // in the diagram vanishes at once (#625). Clipping before scoring also
+      // means badness judges the geometry that will actually be drawn.
+      const v = clipLayoutEdgesToNodes(raw);
+      const bad = badness(v, bestBad - 1);
+      if (bad < bestBad) {
+        bestBad = bad;
+        best = v;
+      }
+    }
+  }
+
   // Sifting (#1135): improve the dagre winner locally. Re-run its config with
   // the order recorded, then try each entry in every sibling slot of its rank,
   // forcing that order onto the same config; keep a move only on a strict
   // total-badness drop. Sweeps until one improves nothing, bounded by
-  // SIFT_MAX_SWEEPS and the work cap. A winner of badness 0 is left alone.
+  // SIFT_MAX_SWEEPS and the work cap. Runs AFTER the layered candidates and
+  // only when the dagre winner is still the pick with badness above 0: when a
+  // layered candidate already won, or nothing is left to fix, sifting would be
+  // pure cost (a gallery fixture spent 4x its search time on it for no change).
   const winnerCfg = cfgOf.get(best);
   if (
     opts?.sift !== false &&
@@ -1902,30 +1929,6 @@ export async function layoutBoxesAndLinesSearch(
         }
       }
       if (!improved) break;
-    }
-  }
-
-  // Layered candidates (and their better-routed, de-pierced variants) replace
-  // the dagre winner ONLY on a STRICT total-badness reduction — never on an
-  // edge-length tiebreak. They're few, so de-piercing each is cheap.
-  for (const lay of layered) {
-    const variants = [lay];
-    const dp = deroutePierces(lay);
-    if (dp !== lay) variants.push(dp);
-    for (const raw of variants) {
-      // 🔴 Clip HERE, not only inside the generators. Only the dagre candidates
-      // arrive boundary-clipped (dagre's own intersectRect); every hand-rolled
-      // candidate routes centre-to-centre, and deroutePierces rebuilds edges
-      // from those same centres. An unclipped end puts the marker-end under the
-      // target's opaque rect, so the moment such a candidate wins EVERY arrow
-      // in the diagram vanishes at once (#625). Clipping before scoring also
-      // means badness judges the geometry that will actually be drawn.
-      const v = clipLayoutEdgesToNodes(raw);
-      const bad = badness(v, bestBad - 1);
-      if (bad < bestBad) {
-        bestBad = bad;
-        best = v;
-      }
     }
   }
 
