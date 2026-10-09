@@ -1,14 +1,7 @@
-// Plain data, in a module of its own so the light completion surface
-// (`completion-registry.ts`) can offer the ids without the contrast maths
-// `theme-file.ts` carries.
-
-import { atlasPalette } from './atlas';
-import { blueprintPalette } from './blueprint';
-import { catppuccinPalette } from './catppuccin';
-import { nordPalette } from './nord';
-import { slatePalette } from './slate';
-import { tidewaterPalette } from './tidewater';
-import { tokyoNightPalette } from './tokyo-night';
+// Plain strings, in a module of its own so the light completion surface
+// (`completion-registry.ts`) can offer the ids without importing the
+// palettes themselves or the contrast maths `theme-file.ts` carries.
+// `tests/palette-built-in-ids.test.ts` pins this list to the palettes.
 
 /**
  * The built-in palette ids. A theme file may not take one: a share link
@@ -16,14 +9,12 @@ import { tokyoNightPalette } from './tokyo-night';
  * on their screen and real Slate for every reader — and Slate is the palette
  * an export falls back to. Decided 2026-09-23 on diagrammo/diagrammo#785.
  */
-export const BUILT_IN_PALETTE_IDS: ReadonlySet<string> = new Set(
-  [
-    atlasPalette,
-    blueprintPalette,
-    catppuccinPalette,
-    nordPalette,
-    slatePalette,
-    tidewaterPalette,
-    tokyoNightPalette,
-  ].map((palette) => palette.id)
-);
+export const BUILT_IN_PALETTE_IDS: ReadonlySet<string> = new Set([
+  'atlas',
+  'blueprint',
+  'catppuccin',
+  'nord',
+  'slate',
+  'tidewater',
+  'tokyo-night',
+]);
