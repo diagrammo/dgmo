@@ -10,6 +10,8 @@ import {
   renderWhiteboard,
   whiteboardBounds,
 } from '../src/whiteboard/renderer';
+import { wrapWhiteboardLabel } from '../src/whiteboard/label';
+import type { WhiteboardShape } from '../src/whiteboard/types';
 
 const FIXTURE = readFileSync(
   join(__dirname, '..', 'gallery', 'fixtures', 'whiteboard.dgmo'),
@@ -95,15 +97,36 @@ describe('whiteboard renderer', () => {
     expect(spans.every((t) => t.getAttribute('x') === '100')).toBe(true);
   });
 
-  it('does not reflow a written line, however long', () => {
+  it('wraps each written line of a shape label to the shape, keeping the breaks', () => {
+    const src =
+      'whiteboard\nrectangle at: 0 0, size: 100 100\n  a very long first line\n  b';
+    const svg = draw(src);
+    const drawn = [...svg.querySelectorAll('.whiteboard-label tspan')].map(
+      (t) => t.textContent
+    );
+    const el = parseWhiteboard(src).elements[0]!;
+    expect(drawn).toEqual(
+      wrapWhiteboardLabel('a very long first line\nb', el as WhiteboardShape)
+    );
+    expect(drawn.length).toBeGreaterThan(2);
+    expect(drawn[drawn.length - 1]).toBe('b');
+    expect(drawn.slice(0, -1).join(' ')).toBe('a very long first line');
+  });
+
+  it('never wraps an arrow, line or text label', () => {
     const svg = draw(
-      'whiteboard\nrectangle at: 0 0, size: 40 100\n  a very long first line\n  b'
+      'whiteboard\narrow from: 0 0, to: 40 0\n  a very long first line\n  b\ntext at: 0 100\n  another very long line of text'
     );
     expect(
-      [...svg.querySelectorAll('.whiteboard-label tspan')].map(
+      [...svg.querySelectorAll('.whiteboard-arrow tspan')].map(
         (t) => t.textContent
       )
     ).toEqual(['a very long first line', 'b']);
+    expect(
+      [...svg.querySelectorAll('.whiteboard-text text')].map(
+        (t) => t.textContent
+      )
+    ).toEqual(['another very long line of text']);
   });
 
   it('keeps the slot of an empty line without drawing it', () => {

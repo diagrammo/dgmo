@@ -18,10 +18,15 @@ import type { PaletteColors } from '../palettes';
 import { mix, shapeFill, themeBaseBg } from '../palettes/color-utils';
 import { drawCylinderCard, drawQueueCard } from '../c4/renderer';
 import { renderChartTitle } from '../utils/d3-helpers';
-import { measureText, wrapTextToWidth } from '../utils/text-measure';
+import { measureText } from '../utils/text-measure';
 import { TITLE_FONT_SIZE } from '../utils/title-constants';
 import { RECT_RADIUS, clipWhiteboardConnector } from './geometry';
 import type { InkPoint } from './ink-codec';
+import {
+  WHITEBOARD_LABEL_FONT as LABEL_FONT,
+  WHITEBOARD_LABEL_LINE as LABEL_LINE,
+  wrapWhiteboardLabel,
+} from './label';
 import type {
   ParsedWhiteboard,
   WhiteboardColor,
@@ -52,9 +57,6 @@ const ARROW_HEAD_HALF = 6;
  */
 const DASH_ON = 3;
 const DASH_OFF = 4;
-const LABEL_FONT = 14;
-const LABEL_LINE = 1.25;
-const LABEL_PAD = 8;
 const WHITEBOARD_TEXT_FONT = 16;
 const BASELINE = 0.8;
 /** Placeholder text for an image no host could resolve. */
@@ -64,7 +66,7 @@ const PLACEHOLDER_MIN_FONT = 8;
 /** A drawable `href`: http(s), blob, or an inline raster/vector image. */
 const SAFE_IMAGE_HREF_RE = /^(https?:|blob:|data:image\/)/i;
 
-/** A label's written lines — one drawn line each, never reflowed. */
+/** An arrow, line or text label's written lines — one drawn line each, never reflowed. */
 function labelLines(label: string): string[] {
   return label.split('\n');
 }
@@ -228,21 +230,14 @@ export function renderWhiteboard(
 
   const halo = palette.bg;
 
+  /** A shape label: every written line wrapped to the shape, centred as a block. */
   const centredLabel = (
     g: GSel,
-    label: string,
+    lines: readonly string[],
     cx: number,
-    cy: number,
-    maxW: number
+    cy: number
   ): void => {
-    if (!label) return;
-    // A one-line label wraps to the box; a label written over several lines
-    // is drawn exactly as written.
-    const written = labelLines(label);
-    const lines =
-      written.length > 1
-        ? written
-        : wrapTextToWidth(label, LABEL_FONT, Math.max(maxW, 20));
+    if (lines.length === 0) return;
     const lh = LABEL_FONT * LABEL_LINE;
     const top = cy - (lines.length * lh) / 2 + lh * BASELINE;
     const t = g
@@ -337,9 +332,7 @@ export function renderWhiteboard(
             drawQueueCard(inner, el.width, el.height, fill, stroke);
           }
         }
-        // An ellipse's usable width is narrower than its box.
-        const inset = el.shape === 'ellipse' ? el.width * 0.15 : 0;
-        centredLabel(g, el.label, cx, cy, el.width - 2 * (LABEL_PAD + inset));
+        centredLabel(g, wrapWhiteboardLabel(el.label, el), cx, cy);
         break;
       }
       case 'arrow':

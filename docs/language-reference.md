@@ -3979,7 +3979,7 @@ text 2FA here?? at: 560 -4, color: red
 
 One line = one element, led by its keyword. The label is a **bare name** before the first `key:`; metadata is same-line `key: value` pairs. Quote a label that itself contains `word:` (`text "todo: ship" at: 0 0`).
 
-A label can run over several lines: indent them under the element line, one drawn line each, exactly as written (never reflowed). An inline label, when present, is the first line. This works on every labelled element — shapes, `arrow`, `line` and `text`:
+A label can run over several lines: indent them under the element line. An inline label, when present, is the first line. This works on every labelled element — shapes, `arrow`, `line` and `text`:
 
 ```
 whiteboard
@@ -3993,9 +3993,11 @@ text at: 0 90
 
 Body lines are literal — trimmed, but never read as metadata, quotes or comments. A blank line between two of them is an empty line of the label. `image` and `ink` take no indented lines; any are ignored with a warning.
 
+A **shape** label wraps to the shape's width: each written line is kept and wraps on its own, so a long line breaks at words inside the box. Arrow, line and `text` labels never wrap — each written line is drawn as written.
+
 | Line                                   | Meaning                                                                             |
 | -------------------------------------- | ----------------------------------------------------------------------------------- |
-| `rectangle <label> at: X Y, size: W H` | Box; label centred (one line wraps to fit; written lines stay as written)           |
+| `rectangle <label> at: X Y, size: W H` | Box; label centred, wrapped to the box                                              |
 | `ellipse <label> at: X Y, size: W H`   | Ellipse inside that box                                                             |
 | `database <label> at: X Y, size: W H`  | Upright cylinder                                                                    |
 | `queue <label> at: X Y, size: W H`     | Cylinder on its side                                                                |
