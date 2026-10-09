@@ -182,3 +182,12 @@ describe('fitWhiteboardLabel (#1225)', () => {
     );
   });
 });
+
+it('mirrors the cap sizes c4 draws a database and a queue with', async () => {
+  const c4 = await import('../src/c4/renderer');
+  const b = { shape: 'database' as const, width: 100, height: 100 };
+  expect(whiteboardLabelHeight(b)).toBe(100 - 2 * (8 + 2 * c4.CYLINDER_RY));
+  expect(whiteboardLabelWidth({ shape: 'queue', width: 100 })).toBe(
+    100 - 2 * (8 + c4.QUEUE_CAP)
+  );
+});
