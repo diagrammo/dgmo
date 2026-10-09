@@ -10,8 +10,8 @@
 //   - tag groups §1.3/§1.5 verbatim; box tags cascade, child overrides
 //   - `at: C R` half-slot coords, OPTIONAL (missing → flow auto-place at layout)
 //
-// Leniency contract: never render broken. Unknown shapes fall back to
-// rectangle; unknown/ambiguous edge targets drop the edge with a diagnostic;
+// Leniency contract: never render broken. A `shape:` clause is an error
+// but the box still draws (as the plain card every box is); unknown/ambiguous edge targets drop the edge with a diagnostic;
 // nested boxes flatten. Only an empty sketch or a non-sketch first line is
 // fatal.
 
@@ -62,7 +62,6 @@ import type {
   SketchEdgeHeads,
   SketchNode,
 } from './types';
-import { isSketchShapeKind } from './types';
 
 // ── Edge grammar (spec §31.4) ───────────────────────────────
 // Order matters: arrow forms before headless-labeled, so `-label-> x` never
@@ -227,26 +226,22 @@ export function parseSketch(
   const liftReserved = (
     meta: Record<string, string>,
     lineNumber: number
-  ): { shape: SketchNode['shape']; at: SketchAt | null } => {
-    let shape: SketchNode['shape'] = 'rectangle';
+  ): { at: SketchAt | null } => {
+    // `shape:` was removed from sketch (#1048): every box is the same card.
+    // The clause is an error, but only the clause is dropped — the box stays.
     const shapeRaw = meta['shape'];
     if (shapeRaw !== undefined) {
-      const kind = shapeRaw.trim().toLowerCase();
-      if (kind === 'rectangle' || isSketchShapeKind(kind)) {
-        shape = kind as SketchNode['shape'];
-      } else {
-        warn(
-          lineNumber,
-          `Unknown shape "${shapeRaw}" — rendered as a rectangle (valid: database, queue, person, document, note)`,
-          SKETCH_DIAGNOSTIC_CODES.UNKNOWN_SHAPE
-        );
-      }
+      pushError(
+        lineNumber,
+        `shape: ${shapeRaw.trim()} is not supported in sketch — every box is a plain rectangle; remove the shape: clause`,
+        SKETCH_DIAGNOSTIC_CODES.SHAPE_UNSUPPORTED
+      );
       delete meta['shape'];
     }
     const at = parseAt(meta['at'], lineNumber);
     delete meta['at'];
     delete meta['collapsed']; // boxes handle the bare flag; ignore on shapes
-    return { shape, at };
+    return { at };
   };
 
   const addShape = (
@@ -277,7 +272,7 @@ export function parseSketch(
       (m) => warn(lineNumber, m),
       snm.name
     );
-    const { shape, at } = liftReserved(meta, lineNumber);
+    const { at } = liftReserved(meta, lineNumber);
     const norm = normalizeName(label);
 
     if (snm.alias !== undefined && aliasIndex.has(snm.alias)) {
@@ -301,9 +296,6 @@ export function parseSketch(
           if (!(k in first.metadata)) first.metadata[k] = v;
         }
         if (first.at === null && at !== null) first.at = at;
-        if (first.shape === 'rectangle' && shape !== 'rectangle') {
-          first.shape = shape;
-        }
         warn(
           lineNumber,
           nameMergedMessage({
@@ -323,7 +315,6 @@ export function parseSketch(
       id,
       label,
       ...(alias !== undefined && { alias }),
-      shape,
       at,
       metadata: meta,
       ...(box !== null && { boxLabel: box.label }),

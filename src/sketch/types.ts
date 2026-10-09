@@ -10,18 +10,6 @@
 import type { DgmoError } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
 
-/** Closed shape lexicon — rectangle is the default and never written. */
-export const SKETCH_SHAPE_KINDS = [
-  'rectangle',
-  'database',
-  'queue',
-  'person',
-  'document',
-  'note',
-] as const;
-
-export type SketchShapeKind = (typeof SKETCH_SHAPE_KINDS)[number];
-
 /** Half-slot lattice position (spec §31.3). Box children are box-relative. */
 export interface SketchAt {
   readonly c: number;
@@ -33,10 +21,9 @@ export interface SketchNode {
   readonly id: string;
   readonly label: string;
   readonly alias?: string;
-  readonly shape: SketchShapeKind;
   /** null → flow auto-place at layout */
   readonly at: SketchAt | null;
-  /** tag metadata only (shape/at/alias are lifted out) */
+  /** tag metadata only (at/alias are lifted out) */
   readonly metadata: Record<string, string>;
   /** Free-text markdown description (indented `>` lines under the shape).
    *  Newline-joined; a small markdown subset renders in the card body. */
@@ -115,8 +102,4 @@ export interface ParsedSketch {
   readonly options: SketchOptions;
   readonly diagnostics: readonly DgmoError[];
   readonly error: string | null;
-}
-
-export function isSketchShapeKind(value: string): value is SketchShapeKind {
-  return (SKETCH_SHAPE_KINDS as readonly string[]).includes(value);
 }

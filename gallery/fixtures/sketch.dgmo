@@ -13,9 +13,9 @@ Divvy Service as dvy at: 4 0, crew: Hold
   -entries-> ledger
 
 [Below Decks] at: 2 2, crew: Hold
-  Booty Queue as bq shape: queue, at: 0 0
+  Booty Queue as bq at: 0 0
     ~haul~> dvy
-  Ship Ledger as ledger shape: database, at: 2 0
+  Ship Ledger as ledger at: 2 0
 
 [Armory] as armory at: 0 2, collapsed
   Powder Store at: 0 0

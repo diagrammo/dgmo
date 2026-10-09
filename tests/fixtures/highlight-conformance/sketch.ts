@@ -10,17 +10,16 @@ export const fixture: HighlightFixture = {
 tag Crew
   Deck
 
-Spyglass Feed shape: cloud, at: 0 0, crew: Deck
+Spyglass Feed at: 0 0, crew: Deck
   -sightings-> con
 Captain Console as con at: 2 0
 
 [Below Decks] at: 2 2
-  Booty Queue shape: queue, at: 0 0
+  Booty Queue at: 0 0
 `,
   assertions: [
     { text: 'sketch', role: 'chartType' },
     { text: 'tag', role: 'definitionKeyword' },
-    { text: 'shape', role: 'propertyName' },
     { text: 'at', role: 'propertyName' },
   ],
 };

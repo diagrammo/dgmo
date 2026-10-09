@@ -7,9 +7,9 @@
 // with parsed text (spec decision 21 — parity by construction).
 //
 // Node recipe: an org-style card (renderNodeCard) — 25% tint fill (shapeFill),
-// 2px tag stroke, a header with the name (one line, shrink → ellipsis) + a type
-// badge, a rule, and one metadata row per tag (Group: value). Untagged = neutral
-// gray (decision 26a), name centered. `note` is the one non-card shape. Boxes
+// 2px tag stroke, a header with the name (one line, shrink → ellipsis), a rule,
+// and one metadata row per tag (Group: value). Untagged = neutral gray
+// (decision 26a), name centered. Every shape is the same card. Boxes
 // reserve a top band for a big/thick/faded label. Edges leave ports at 90° on
 // cubic curves, 12×8 arrowheads, '6 3' dash for the ~ family. No manual colors.
 
@@ -36,11 +36,7 @@ import {
   UNTAGGED_TAG_COLOR,
 } from '../utils/tag-groups';
 import { ScaleContext } from '../utils/scaling';
-import {
-  fitWrapped,
-  measureText,
-  wrapTextToWidth,
-} from '../utils/text-measure';
+import { fitWrapped, measureText } from '../utils/text-measure';
 import {
   CARD_RADIUS,
   COLLAPSE_BAR_HEIGHT as SHARED_COLLAPSE_BAR_HEIGHT,
@@ -54,7 +50,7 @@ import {
   sketchColors,
 } from './colors';
 import { SKETCH_VISUALS } from './visuals';
-import type { ParsedSketch, SketchShapeKind } from './types';
+import type { ParsedSketch } from './types';
 import type { SketchLayout, SketchLayoutBox, SketchLayoutNode } from './layout';
 
 // ── Local constants ─────────────────────────────────────────
@@ -82,7 +78,6 @@ const DASH = SKETCH_VISUALS.dash;
 const BAND_LABEL_FONT_SIZE = SKETCH_VISUALS.bandLabelFontSize;
 const BAND_LABEL_OPACITY = SKETCH_VISUALS.bandLabelOpacity;
 const BAND_LABEL_WEIGHT = SKETCH_VISUALS.bandLabelFontWeight;
-const NOTE_FONT_SIZE = 11;
 // Shared. It was a bare 4 with no comment, against the conventions' 6 —
 // boxes-and-lines deviates here too, but records it in the shared file's own
 // list; sketch never did.
@@ -135,82 +130,6 @@ interface SketchScaled {
   cardMetaFont: number;
   cardTitleMax: number;
   bandLabelFontSize: number;
-  noteFontSize: number;
-}
-
-// ── Sticky-note body (the one non-card shape) ───────────────
-
-function drawNoteBody(
-  g: Sel,
-  w: number,
-  h: number,
-  colors: NodeColors,
-  strokeWidth: number
-): void {
-  const f = 14;
-  g.append('path')
-    .attr(
-      'd',
-      `M0 2 a2 2 0 0 1 2 -2 h${w - f - 2} l${f} ${f} v${h - f - 2} a2 2 0 0 1 -2 2 h-${w - 4} a2 2 0 0 1 -2 -2 Z`
-    )
-    .attr('fill', colors.fill)
-    .attr('stroke', colors.stroke)
-    .attr('stroke-width', strokeWidth);
-  g.append('path')
-    .attr('d', `M${w - f} 0 v${f} h${f}`)
-    .attr('fill', 'none')
-    .attr('stroke', colors.stroke)
-    .attr('stroke-width', 1.2);
-}
-
-// ── Type badge (org-card header) ────────────────────────────
-// A small monochrome glyph in the card header marks a non-default shape kind
-// (database / queue / document / person). The card outline itself is a uniform
-// rounded rect — type is a hint, not a silhouette. Drawn in a 16×16 box at
-// (bx, by). `rectangle` and `note` get no badge.
-
-function drawTypeBadge(
-  g: Sel,
-  kind: SketchShapeKind,
-  color: string,
-  bx: number,
-  by: number
-): void {
-  const b = g
-    .append('g')
-    .attr('transform', `translate(${bx},${by})`)
-    .attr('fill', 'none')
-    .attr('stroke', color)
-    .attr('stroke-width', 1.3)
-    .attr('stroke-linejoin', 'round')
-    .attr('stroke-linecap', 'round');
-  switch (kind) {
-    case 'database':
-      b.append('ellipse')
-        .attr('cx', 8)
-        .attr('cy', 3)
-        .attr('rx', 6)
-        .attr('ry', 2.4);
-      b.append('path').attr('d', 'M2 3 v10 a6 2.4 0 0 0 12 0 v-10');
-      return;
-    case 'queue':
-      b.append('path').attr('d', 'M3 1 h8 a3 6.5 0 0 1 0 13 h-8 Z');
-      b.append('ellipse')
-        .attr('cx', 3)
-        .attr('cy', 7.5)
-        .attr('rx', 3)
-        .attr('ry', 6.5);
-      return;
-    case 'document':
-      b.append('path').attr('d', 'M2 1 h9 v11 q-4.5 2 -9 0 q0 0 0 0 Z');
-      return;
-    case 'person':
-      b.append('circle').attr('cx', 8).attr('cy', 5).attr('r', 3);
-      b.append('path').attr('d', 'M2 15 a6 5 0 0 1 12 0');
-      return;
-    default:
-      return;
-  }
 }
 
 // 🔴 All four from the shared conventions now, via `SKETCH_VISUALS`. They read
@@ -256,7 +175,6 @@ export function renderSketch(
   const sTitleFontSize = sctx.text(TITLE_FONT_SIZE);
   const sEdgeLabelFontSize = sctx.text(EDGE_LABEL_FONT_SIZE);
   const sBandLabelFontSize = sctx.text(BAND_LABEL_FONT_SIZE);
-  const sNoteFontSize = sctx.text(NOTE_FONT_SIZE);
   const sCardLabelMax = sctx.text(CARD_LABEL_MAX);
   const sCardLabelMin = sctx.text(CARD_LABEL_MIN);
   const sCardMetaFont = sctx.text(CARD_META_FONT);
@@ -279,7 +197,6 @@ export function renderSketch(
     cardMetaFont: sCardMetaFont,
     cardTitleMax: sCardTitleMax,
     bandLabelFontSize: sBandLabelFontSize,
-    noteFontSize: sNoteFontSize,
   };
 
   // 🔴 The colour model lives in `./colors` so the app's live canvas can share
@@ -849,112 +766,25 @@ function drawNode(
     g.attr('data-group-toggle', node.label);
   }
 
-  if (node.shape === 'note') {
-    // Sticky-style: folded-corner body, smaller left-aligned multiline text.
-    drawNoteBody(g, node.w, node.h, colors, s.nodeStrokeWidth);
-    const lines = wrapTextToWidth(node.label, s.noteFontSize, node.w - 34);
-    const lineHeight = s.noteFontSize + 4;
-    lines.slice(0, 5).forEach((line, i) => {
-      g.append('text')
-        .attr('x', 10)
-        .attr('y', 20 + i * lineHeight)
-        .attr('font-size', s.noteFontSize)
-        .attr('fill', colors.text)
-        .text(line);
-    });
-  } else {
-    // Org-style card: header (badge + name) → rule → free-text description.
-    // Tags color the card (border/fill/legend) but do NOT print as body rows —
-    // the body belongs to the description. A card without one centers its name
-    // full-height; `splitCard` (the app's selected-card state) forces the
-    // header + empty-body layout so the description area is visible to type in.
-    const badge = node.shape !== 'rectangle';
-    const labelInset = badge ? 22 : 0;
-    // Solid-fill: the stroke IS the fill, so a stroke-colored rule/text would
-    // vanish — use the (contrast-aware) label color instead, like the org card.
-    const solidLike = colors.stroke === colors.fill;
-    const ruleColor = solidLike ? colors.text : colors.stroke;
+  // Org-style card: header (name) → rule → free-text description.
+  // Tags color the card (border/fill/legend) but do NOT print as body rows —
+  // the body belongs to the description. A card without one centers its name
+  // full-height; `splitCard` (the app's selected-card state) forces the
+  // header + empty-body layout so the description area is visible to type in.
+  // Solid-fill: the stroke IS the fill, so a stroke-colored rule/text would
+  // vanish — use the (contrast-aware) label color instead, like the org card.
+  const solidLike = colors.stroke === colors.fill;
+  const ruleColor = solidLike ? colors.text : colors.stroke;
 
-    if (!node.isCollapsedBox && (node.description || splitCard)) {
-      // Single-line title: its 34px band sits directly above the rule + body,
-      // so it stays one (ellipsized) line rather than wrapping into the rule.
-      const fitH = fitWrapped(
-        node.label,
-        node.w - 24 - labelInset,
-        s.cardLabelMax,
-        s.cardLabelMin,
-        1
-      );
-      renderNodeCard(g, {
-        width: node.w,
-        height: node.h,
-        rx: s.cardRadius,
-        fill: colors.fill,
-        stroke: colors.stroke,
-        strokeWidth: s.nodeStrokeWidth,
-        label: fitH.lines[0] ?? node.label,
-        labelColor: colors.text,
-        labelFontSize: fitH.fontSize,
-        headerHeight: s.cardHeaderH,
-      });
-      g.append('line')
-        .attr('x1', 0)
-        .attr('y1', s.cardHeaderH)
-        .attr('x2', node.w)
-        .attr('y2', s.cardHeaderH)
-        .attr('stroke', ruleColor)
-        .attr('stroke-opacity', 0.3)
-        .attr('stroke-width', 1);
-      if (node.description) {
-        const inset = 12;
-        const bodyGap = 8;
-        const lh = s.cardMetaFont + 4;
-        const avail = node.h - s.cardHeaderH - bodyGap - 8;
-        const body = g
-          .append('g')
-          .attr('class', 'sk-desc')
-          .attr('transform', `translate(${inset} ${s.cardHeaderH + bodyGap})`);
-        const block = drawMarkdownBlock(body, node.description, {
-          width: node.w - inset * 2,
-          fontSize: s.cardMetaFont,
-          lineHeight: lh,
-          color: colors.text, // match the header label (contrast-aware in solid)
-          linkColor: colors.text,
-          maxLines: Math.max(1, Math.floor(avail / lh)),
-          noEllipsis: true,
-        });
-        // Authored overflow (source written in the editor exceeds the card's
-        // line budget): render the budget and mark the rest honestly — the
-        // app wires the marker to jump the editor to those lines.
-        if (block.total > block.shown) {
-          g.append('text')
-            .attr('class', 'sk-desc-more')
-            .attr('x', node.w - 8)
-            .attr('y', node.h - 5)
-            .attr('text-anchor', 'end')
-            .attr('font-size', 9)
-            .attr('fill', palette.textMuted)
-            .attr('data-line-number', node.lineNumber)
-            .style('cursor', 'pointer')
-            .text(`+${block.total - block.shown} more in source`);
-        }
-      }
-      if (badge) {
-        drawTypeBadge(g, node.shape, colors.text, 10, (s.cardHeaderH - 16) / 2);
-      }
-      return;
-    }
-
-    // No description: the name grows to fill the card, centered in the
-    // full-height header band. A collapsed group is styled exactly like a
-    // plain node — same big centered name — and differs only by the collapse
-    // bar drawn at its bottom.
-    const fit = fitWrapped(
+  if (!node.isCollapsedBox && (node.description || splitCard)) {
+    // Single-line title: its 34px band sits directly above the rule + body,
+    // so it stays one (ellipsized) line rather than wrapping into the rule.
+    const fitH = fitWrapped(
       node.label,
-      node.w - 24 - labelInset,
-      s.cardTitleMax,
+      node.w - 24,
+      s.cardLabelMax,
       s.cardLabelMin,
-      3
+      1
     );
     renderNodeCard(g, {
       width: node.w,
@@ -963,20 +793,80 @@ function drawNode(
       fill: colors.fill,
       stroke: colors.stroke,
       strokeWidth: s.nodeStrokeWidth,
-      label: fit.lines.join(' '),
-      labelLines: fit.lines,
+      label: fitH.lines[0] ?? node.label,
       labelColor: colors.text,
-      labelFontSize: fit.fontSize,
-      headerHeight: node.h,
+      labelFontSize: fitH.fontSize,
+      headerHeight: s.cardHeaderH,
     });
-    if (badge) {
-      // Badge stays in the top-left corner in both modes (a full-height header
-      // would otherwise sink it to the vertical center).
-      // colors.text (not stroke): in solid-fill the stroke IS the fill, so a
-      // stroke-colored badge would vanish; colors.text stays contrast-aware.
-      drawTypeBadge(g, node.shape, colors.text, 10, (s.cardHeaderH - 16) / 2);
+    g.append('line')
+      .attr('x1', 0)
+      .attr('y1', s.cardHeaderH)
+      .attr('x2', node.w)
+      .attr('y2', s.cardHeaderH)
+      .attr('stroke', ruleColor)
+      .attr('stroke-opacity', 0.3)
+      .attr('stroke-width', 1);
+    if (node.description) {
+      const inset = 12;
+      const bodyGap = 8;
+      const lh = s.cardMetaFont + 4;
+      const avail = node.h - s.cardHeaderH - bodyGap - 8;
+      const body = g
+        .append('g')
+        .attr('class', 'sk-desc')
+        .attr('transform', `translate(${inset} ${s.cardHeaderH + bodyGap})`);
+      const block = drawMarkdownBlock(body, node.description, {
+        width: node.w - inset * 2,
+        fontSize: s.cardMetaFont,
+        lineHeight: lh,
+        color: colors.text, // match the header label (contrast-aware in solid)
+        linkColor: colors.text,
+        maxLines: Math.max(1, Math.floor(avail / lh)),
+        noEllipsis: true,
+      });
+      // Authored overflow (source written in the editor exceeds the card's
+      // line budget): render the budget and mark the rest honestly — the
+      // app wires the marker to jump the editor to those lines.
+      if (block.total > block.shown) {
+        g.append('text')
+          .attr('class', 'sk-desc-more')
+          .attr('x', node.w - 8)
+          .attr('y', node.h - 5)
+          .attr('text-anchor', 'end')
+          .attr('font-size', 9)
+          .attr('fill', palette.textMuted)
+          .attr('data-line-number', node.lineNumber)
+          .style('cursor', 'pointer')
+          .text(`+${block.total - block.shown} more in source`);
+      }
     }
+    return;
   }
+
+  // No description: the name grows to fill the card, centered in the
+  // full-height header band. A collapsed group is styled exactly like a
+  // plain node — same big centered name — and differs only by the collapse
+  // bar drawn at its bottom.
+  const fit = fitWrapped(
+    node.label,
+    node.w - 24,
+    s.cardTitleMax,
+    s.cardLabelMin,
+    3
+  );
+  renderNodeCard(g, {
+    width: node.w,
+    height: node.h,
+    rx: s.cardRadius,
+    fill: colors.fill,
+    stroke: colors.stroke,
+    strokeWidth: s.nodeStrokeWidth,
+    label: fit.lines.join(' '),
+    labelLines: fit.lines,
+    labelColor: colors.text,
+    labelFontSize: fit.fontSize,
+    headerHeight: node.h,
+  });
 
   if (node.isCollapsedBox) {
     renderCollapseBar(g, {

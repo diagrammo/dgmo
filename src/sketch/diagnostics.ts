@@ -7,7 +7,7 @@ import type { DiagnosticSpec } from '../diagnostics';
 export const SKETCH_DIAGNOSTIC_CODES = {
   BOX_DEPTH: 'E_SKETCH_BOX_DEPTH',
   AMBIGUOUS_TARGET: 'E_SKETCH_AMBIGUOUS_TARGET',
-  UNKNOWN_SHAPE: 'W_SKETCH_UNKNOWN_SHAPE',
+  SHAPE_UNSUPPORTED: 'E_SKETCH_SHAPE_UNSUPPORTED',
   OVERLAP_RESOLVED: 'W_SKETCH_OVERLAP_RESOLVED',
   AT_OUT_OF_RANGE: 'W_SKETCH_AT_OUT_OF_RANGE',
 } as const;
@@ -34,13 +34,13 @@ export const SKETCH_DIAGNOSTICS: DiagnosticSpec[] = [
     example: 'sketch\nCache as c1\nCache as c2\nApp\n  -> c1',
   },
   {
-    code: SKETCH_DIAGNOSTIC_CODES.UNKNOWN_SHAPE,
-    severity: 'warning',
+    code: SKETCH_DIAGNOSTIC_CODES.SHAPE_UNSUPPORTED,
+    severity: 'error',
     chartType: 'sketch',
-    title: 'Unknown shape',
+    title: 'shape: is not supported in sketch',
     message: (p) =>
-      `Unknown shape "${String(p.shape ?? '?')}" — rendered as a rectangle (valid: database, queue, person, document, note)`,
-    hint: 'Use one of the closed shape kinds, or drop shape: for a rectangle.',
+      `shape: ${String(p.shape ?? '?')} is not supported in sketch — every box is a plain rectangle; remove the shape: clause`,
+    hint: 'Delete the shape: clause. Use a tag to say what kind of thing a box is.',
     example: 'sketch\nStore shape: database',
   },
   {

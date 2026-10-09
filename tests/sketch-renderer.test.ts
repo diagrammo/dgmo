@@ -29,16 +29,16 @@ tag Crew
   Deck
   Hold
 
-Spyglass Feed shape: database, at: 0 0, crew: Deck
+Spyglass Feed at: 0 0, crew: Deck
   -sightings-> con
 Captain's Console as con at: 2 0, crew: Deck
   -orders-> bq
 Divvy Service as dvy at: 4 0, crew: Hold
 
 [Below Decks] at: 2 2, crew: Hold
-  Booty Queue as bq shape: queue, at: 0 0
+  Booty Queue as bq at: 0 0
     ~haul~> dvy
-  Ship Ledger as ledger shape: database, at: 2 0
+  Ship Ledger as ledger at: 2 0
 
 [Armory] as armory at: 0 2, collapsed
   Powder Store at: 0 0
@@ -190,14 +190,22 @@ describe('sketch renderer — structure', () => {
     expect(inflections('sightings')).toBe(0);
   });
 
-  it('marks each shape kind with a header type badge', () => {
-    const svg = render(
-      'sketch\nR at: 0 0\nD shape: database, at: 2 0\nQ shape: queue, at: 4 0\nP shape: person, at: 2 2\nDoc shape: document, at: 4 2\nN shape: note, at: 0 4'
+  // shape: was removed (#1048): a written one draws the same plain card the
+  // app canvas does — no type badge, no sticky note.
+  it('draws a box written with shape: as the plain card', () => {
+    const kinds = ['database', 'queue', 'person', 'document', 'note'];
+    const withShape = render(
+      `sketch\n${kinds.map((k, i) => `S${i} shape: ${k}, at: ${i * 2} 0`).join('\n')}`
     );
-    expect(svg.querySelectorAll('.sk-node').length).toBe(6);
-    // database + queue badges draw an ellipse cap; person badge draws a circle.
-    expect(svg.querySelectorAll('.sk-node ellipse').length).toBe(2);
-    expect(svg.querySelectorAll('.sk-node circle').length).toBe(1);
+    const plain = render(
+      `sketch\n${kinds.map((_, i) => `S${i} at: ${i * 2} 0`).join('\n')}`
+    );
+    expect(withShape.querySelectorAll('.sk-node').length).toBe(5);
+    expect(withShape.querySelectorAll('.sk-node ellipse').length).toBe(0);
+    expect(withShape.querySelectorAll('.sk-node circle').length).toBe(0);
+    expect(withShape.querySelector('.sk-node')!.outerHTML).toBe(
+      plain.querySelector('.sk-node')!.outerHTML
+    );
   });
 
   it('stamps data attributes for hover + canvas wiring', () => {

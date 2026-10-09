@@ -313,11 +313,9 @@ export type {
   SketchEdge,
   SketchBox,
   SketchAt,
-  SketchShapeKind,
   SketchEdgeHeads,
   SketchOptions,
 } from './sketch/types';
-export { SKETCH_SHAPE_KINDS, isSketchShapeKind } from './sketch/types';
 export { layoutSketch, SKETCH_AUTO_LAYOUT_DEFAULTS } from './sketch/layout';
 export type {
   SketchLayout,

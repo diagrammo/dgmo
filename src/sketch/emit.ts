@@ -17,8 +17,8 @@
 // repair*).
 //
 // 🔴 This is the FAITHFUL emitter: it writes everything the parser can read,
-// including constructs the rebuilt canvas will never author (`shape:`,
-// `>` description lines, `collapsed`). That is deliberate and is what makes it
+// including constructs the rebuilt canvas will never author (`>`
+// description lines, `collapsed`). That is deliberate and is what makes it
 // testable — it round-trips the real corpus, not just canvas output. The
 // canvas's emitter is a RESTRICTION of this one, not a different thing: emit
 // from a scene that never carries those fields and they never appear.
@@ -64,9 +64,7 @@ function tailFor(
 }
 
 function shapeLine(node: SketchNode, indent: string): string[] {
-  const extra: string[] = [];
-  if (node.shape !== 'rectangle') extra.push(`shape: ${node.shape}`);
-  const out = [`${indent}${node.label}${tailFor(node, node.at, extra)}`];
+  const out = [`${indent}${node.label}${tailFor(node, node.at)}`];
   if (node.description !== undefined && node.description !== '') {
     for (const line of node.description.split('\n')) {
       out.push(`${indent}  > ${line}`);
@@ -284,7 +282,7 @@ export function canonicalSketch(parsed: ParsedSketch): CanonicalScene {
     nodes: parsed.nodes
       .map(
         (n) =>
-          `${n.label}|${n.shape}|${n.at ? `${String(n.at.c)},${String(n.at.r)}` : '-'}|${n.boxLabel ?? '-'}|${n.description ?? ''}|${meta(n.metadata)}`
+          `${n.label}|${n.at ? `${String(n.at.c)},${String(n.at.r)}` : '-'}|${n.boxLabel ?? '-'}|${n.description ?? ''}|${meta(n.metadata)}`
       )
       .sort(),
     boxes: parsed.boxes

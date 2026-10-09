@@ -139,7 +139,7 @@ describe('sketch emitter — the standing invariant', () => {
     expect(inner?.parentBoxId).toBe(outer?.id);
   });
 
-  it('round-trips tags, shapes, descriptions and directives', () => {
+  it('round-trips tags, descriptions and directives', () => {
     const r = roundTrip(
       [
         'sketch Tagged',
@@ -150,7 +150,7 @@ describe('sketch emitter — the standing invariant', () => {
         '  Deck',
         '  Hold',
         '',
-        'Store shape: database, at: 0 0, crew: Deck',
+        'Store at: 0 0, crew: Deck',
         '  > a line of prose',
         '  > and another',
         'Cook at: 3 0, crew: Hold',

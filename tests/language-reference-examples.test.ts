@@ -39,7 +39,6 @@ import {
 } from '../scripts/lib/example-source.mjs';
 import { chartTypes } from '../src/advanced';
 import { render } from '../src/index';
-import { SKETCH_SHAPE_KINDS } from '../src/sketch/types';
 
 // The data-derived common set inlined into every core (must match
 // gen-ai-core.mjs's COMMON_N). dgmo-content may be absent in a standalone
@@ -647,32 +646,17 @@ describe("each TYPE block's ### Example parses with no errors and no warnings", 
   }
 });
 
-describe('the sketch reference names exactly the shapes the parser accepts', () => {
+describe('the sketch reference offers no shape kinds (#1048)', () => {
   const refMd = readRepoFile('docs/language-reference.md') ?? '';
   const sketch =
     typeBlocks(refMd).find(({ id }) => id === 'sketch')?.block ?? '';
-  // `rectangle` is the default and is never written, so no list names it.
-  const accepted = SKETCH_SHAPE_KINDS.filter((k) => k !== 'rectangle').sort();
 
-  const lists: Array<{ where: string; re: RegExp }> = [
-    { where: 'styling tips', re: /outside the closed set \(([^)]*)\)/ },
-    {
-      where: 'Shapes prose',
-      re: /`shape:` morphs from the default rectangle: ((?:`[a-z]+`(?:, )?)+)/,
-    },
-    { where: 'metadata table', re: /^\| `shape`\s*\|[^|]*\|[^|]*\|([^|]*)\|/m },
-  ];
+  it('found the sketch block (non-vacuous)', () => {
+    expect(sketch).toContain('### Shapes');
+  });
 
-  for (const { where, re } of lists) {
-    it(`${where} lists ${accepted.join(', ')}`, () => {
-      const m = sketch.match(re);
-      expect(m, `${where}: the shape list was not found`).toBeTruthy();
-      const named = (m?.[1] ?? '')
-        .split(/[,/]/)
-        .map((s) => s.replace(/`/g, '').trim())
-        .filter(Boolean)
-        .sort();
-      expect(named).toEqual(accepted);
-    });
-  }
+  it('writes no shape: kind and lists no shape key', () => {
+    expect(sketch).not.toMatch(/shape: (database|queue|person|document|note)/);
+    expect(sketch).not.toMatch(/^\| `shape`/m);
+  });
 });

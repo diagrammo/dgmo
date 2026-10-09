@@ -267,7 +267,7 @@ tag Crew
   Deck
   Hold
 
-Spyglass Feed shape: database, at: 0 0, crew: Deck
+Spyglass Feed at: 0 0, crew: Deck
   -sightings-> con
 
 [Below Decks] crew: Hold
@@ -275,9 +275,9 @@ Spyglass Feed shape: database, at: 0 0, crew: Deck
     -entries-> ledger
   Captain's Console as con at: -3 0, crew: Deck
     -orders-> bq
-  Booty Queue as bq shape: queue, at: 0 0
+  Booty Queue as bq at: 0 0
     ~haul~> dvy
-  Ship Ledger as ledger shape: database, at: 2 0
+  Ship Ledger as ledger at: 2 0
   Powder Store at: -6 0
 `;
 

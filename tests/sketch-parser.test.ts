@@ -38,33 +38,52 @@ describe('sketch parser — declaration', () => {
 
 describe('sketch parser — shapes', () => {
   it('parses multi-word bare names with metadata', () => {
-    const p = parseSketch('sketch\nSpyglass Feed shape: database, at: 0 0');
+    const p = parseSketch('sketch\nSpyglass Feed at: 0 0');
     expect(p.nodes).toHaveLength(1);
     const n = p.nodes[0]!;
     expect(n.label).toBe('Spyglass Feed');
-    expect(n.shape).toBe('database');
     expect(n.at).toEqual({ c: 0, r: 0 });
   });
 
-  it('defaults to rectangle; shape: is never required', () => {
+  it('a node carries no shape kind', () => {
     const p = parseSketch('sketch\nCrow Nest at: 2 0');
-    expect(p.nodes[0]!.shape).toBe('rectangle');
+    expect('shape' in p.nodes[0]!).toBe(false);
   });
 
-  it('accepts all shape kinds', () => {
-    const kinds = ['database', 'queue', 'person', 'document', 'note'];
-    const src = `sketch\n${kinds.map((k, i) => `S${i} shape: ${k}`).join('\n')}`;
+  // shape: was removed from sketch (#1048): every box is the same card.
+  it('reports shape: as E_SKETCH_SHAPE_UNSUPPORTED and keeps the box', () => {
+    const kinds = [
+      'database',
+      'queue',
+      'person',
+      'document',
+      'note',
+      'hexagon',
+    ];
+    const src = `sketch\n${kinds.map((k, i) => `S${i} shape: ${k}, at: ${i * 2} 0`).join('\n')}`;
     const p = parseSketch(src);
-    expect(p.nodes.map((n) => n.shape)).toEqual(kinds);
-    expect(errors(p)).toHaveLength(0);
+    expect(p.error).toBeNull();
+    expect(p.nodes.map((n) => n.label)).toEqual(kinds.map((_, i) => `S${i}`));
+    expect(p.nodes.map((n) => n.at)).toEqual(
+      kinds.map((_, i) => ({ c: i * 2, r: 0 }))
+    );
+    const errs = errors(p).filter(
+      (d) => d.code === 'E_SKETCH_SHAPE_UNSUPPORTED'
+    );
+    expect(errs.map((d) => d.line)).toEqual(kinds.map((_, i) => i + 2));
+    expect(errs[0]!.message).toContain('shape: database');
+    for (const n of p.nodes) expect(n.metadata['shape']).toBeUndefined();
   });
 
-  it('unknown shape warns W_SKETCH_UNKNOWN_SHAPE and falls back to rectangle', () => {
-    const p = parseSketch('sketch\nWidget shape: hexagon');
-    expect(p.nodes[0]!.shape).toBe('rectangle');
-    const w = warnings(p).find((d) => d.code === 'W_SKETCH_UNKNOWN_SHAPE');
-    expect(w).toBeDefined();
-    expect(errors(p)).toHaveLength(0);
+  it('reports shape: database in the source from the report (#1048)', () => {
+    const p = parseSketch(
+      'sketch Shift Work\n\ntag Owner\n  Demian\n  Bob blue\n\n[Day/ Night Shift] at: 7 -10\n  Bob Lane 1 at: 0 0, owner: Bob, shape: database\n  Bob Lane 2 at: 0 6, owner: Bob'
+    );
+    const err = errors(p).find((d) => d.code === 'E_SKETCH_SHAPE_UNSUPPORTED');
+    expect(err?.line).toBe(8);
+    const lane = byLabel(p, 'Bob Lane 1')[0]!;
+    expect(lane.metadata['owner']).toBe('Bob');
+    expect(lane.boxLabel).toBe('Day/ Night Shift');
   });
 
   it('peels as-aliases', () => {
@@ -125,9 +144,8 @@ describe('sketch parser — duplicate labels', () => {
   });
 
   it('bare duplicates merge with I_NAME_MERGED', () => {
-    const p = parseSketch('sketch\nCache at: 0 0\nCache shape: database');
+    const p = parseSketch('sketch\nCache at: 0 0\nCache');
     expect(byLabel(p, 'Cache')).toHaveLength(1);
-    expect(p.nodes[0]!.shape).toBe('database');
     expect(p.nodes[0]!.at).toEqual({ c: 0, r: 0 });
     expect(p.diagnostics.find((d) => d.code === 'I_NAME_MERGED')).toBeDefined();
   });
@@ -226,7 +244,7 @@ describe('sketch parser — edges', () => {
 describe('sketch parser — boxes', () => {
   it('parses a box with children, box-relative at:, and cascade', () => {
     const p = parseSketch(
-      'sketch\n\ntag Crew\n  Deck\n  Hold\n\n[Below Decks] at: 2 2, crew: Hold\n  Booty Queue shape: queue, at: 0 0\n  Ship Ledger shape: database, at: 2 0, crew: Deck'
+      'sketch\n\ntag Crew\n  Deck\n  Hold\n\n[Below Decks] at: 2 2, crew: Hold\n  Booty Queue at: 0 0\n  Ship Ledger at: 2 0, crew: Deck'
     );
     expect(p.boxes).toHaveLength(1);
     const box = p.boxes[0]!;
@@ -355,7 +373,7 @@ tag Crew
   Deck
   Hold
 
-Spyglass Feed shape: database, at: 0 0, crew: Deck
+Spyglass Feed at: 0 0, crew: Deck
   -sightings-> con
 Captain's Console as con at: 2 0, crew: Deck
   -orders-> bq
@@ -364,9 +382,9 @@ Divvy Service as dvy at: 4 0, crew: Hold
   -entries-> ledger
 
 [Below Decks] at: 2 2, crew: Hold
-  Booty Queue as bq shape: queue, at: 0 0
+  Booty Queue as bq at: 0 0
     ~haul~> dvy
-  Ship Ledger as ledger shape: database, at: 2 0
+  Ship Ledger as ledger at: 2 0
 
 [Armory] as armory at: 0 2, collapsed
   Powder Store at: 0 0

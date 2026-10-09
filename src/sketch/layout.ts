@@ -24,18 +24,11 @@ import {
   SKETCH_SLOT_Y,
 } from './geometry';
 import { collapseSketch } from './collapse';
-import type {
-  ParsedSketch,
-  SketchBox,
-  SketchEdge,
-  SketchNode,
-  SketchShapeKind,
-} from './types';
+import type { ParsedSketch, SketchBox, SketchEdge, SketchNode } from './types';
 
 export interface SketchLayoutNode {
   readonly id: string;
   readonly label: string;
-  readonly shape: SketchShapeKind;
   readonly metadata: Record<string, string>;
   readonly description?: string;
   readonly boxLabel?: string;
@@ -797,7 +790,6 @@ export function layoutSketch(
       nodes.push({
         id: unit.node.id,
         label: unit.node.label,
-        shape: unit.node.shape,
         metadata: unit.node.metadata,
         ...(unit.node.description && { description: unit.node.description }),
         lineNumber: unit.node.lineNumber,
@@ -817,7 +809,6 @@ export function layoutSketch(
       nodes.push({
         id: unit.box.id,
         label: unit.box.label,
-        shape: 'rectangle',
         metadata: unit.box.metadata,
         lineNumber: unit.box.lineNumber,
         slot: cardSpot,
@@ -840,7 +831,6 @@ export function layoutSketch(
         nodes.push({
           id: child.node.id,
           label: child.node.label,
-          shape: child.node.shape,
           metadata: child.node.metadata,
           ...(child.node.description && {
             description: child.node.description,
@@ -895,7 +885,6 @@ export function layoutSketch(
           nodes.push({
             id: gc.node.id,
             label: gc.node.label,
-            shape: gc.node.shape,
             metadata: gc.node.metadata,
             ...(gc.node.description && { description: gc.node.description }),
             boxLabel: innerBox.label,
