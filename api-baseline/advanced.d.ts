@@ -2730,7 +2730,7 @@ declare function isWhiteboardShapeKind(value: string): value is WhiteboardShapeK
 declare function isWhiteboardImageRef(ref: string): boolean;
 declare function parseWhiteboard(content: string, _palette?: PaletteColors): ParsedWhiteboard;
 
-/** One element's source line. */
+/** One element's source — its line, plus body lines for a multi-line label. */
 declare function emitWhiteboardElement(el: WhiteboardElement): string;
 /** The whole board as canonical source, ending in a newline. */
 declare function emitWhiteboard(board: ParsedWhiteboard): string;

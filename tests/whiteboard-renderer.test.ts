@@ -75,6 +75,86 @@ describe('whiteboard renderer', () => {
     ).toBeGreaterThanOrEqual(14);
   });
 
+  it('draws a multi-line shape label as one line per body line, centred', () => {
+    const svg = draw(
+      'whiteboard\nrectangle at: 0 0, size: 200 100\n  Sign in\n  with email\n  now'
+    );
+    const spans = [
+      ...svg.querySelectorAll('.whiteboard-rectangle .whiteboard-label tspan'),
+    ];
+    expect(spans.map((t) => t.textContent)).toEqual([
+      'Sign in',
+      'with email',
+      'now',
+    ]);
+    const ys = spans.map((t) => Number(t.getAttribute('y')));
+    expect(ys[1]! - ys[0]!).toBeCloseTo(17.5);
+    expect(ys[2]! - ys[1]!).toBeCloseTo(17.5);
+    // The block is centred: middle baseline sits at cy + 0.3 × line height.
+    expect(ys[1]).toBeCloseTo(50 + 17.5 * 0.3);
+    expect(spans.every((t) => t.getAttribute('x') === '100')).toBe(true);
+  });
+
+  it('does not reflow a written line, however long', () => {
+    const svg = draw(
+      'whiteboard\nrectangle at: 0 0, size: 40 100\n  a very long first line\n  b'
+    );
+    expect(
+      [...svg.querySelectorAll('.whiteboard-label tspan')].map(
+        (t) => t.textContent
+      )
+    ).toEqual(['a very long first line', 'b']);
+  });
+
+  it('keeps the slot of an empty line without drawing it', () => {
+    const svg = draw(
+      'whiteboard\nrectangle at: 0 0, size: 200 100\n  a\n\n  b'
+    );
+    const ys = [...svg.querySelectorAll('.whiteboard-label tspan')].map((t) =>
+      Number(t.getAttribute('y'))
+    );
+    expect(ys).toHaveLength(2);
+    expect(ys[1]! - ys[0]!).toBeCloseTo(35);
+  });
+
+  it('centres a multi-line arrow label on the midpoint, haloed, and grows the bounds', () => {
+    const one = 'whiteboard\narrow go from: 0 0, to: 100 0';
+    const many =
+      'whiteboard\narrow from: 0 0, to: 100 0\n  go\n  on\n  further';
+    const svg = draw(many);
+    const label = svg.querySelector('.whiteboard-arrow .whiteboard-label')!;
+    expect(label.getAttribute('paint-order')).toBe('stroke');
+    const ys = [...label.querySelectorAll('tspan')].map((t) =>
+      Number(t.getAttribute('y'))
+    );
+    expect(ys).toHaveLength(3);
+    // Middle line sits where a one-line label would.
+    expect(ys[1]).toBeCloseTo(14 * 0.35);
+    const b1 = whiteboardBounds(parseWhiteboard(one));
+    const b3 = whiteboardBounds(parseWhiteboard(many));
+    expect(b3.maxY - b3.minY).toBeCloseTo(b1.maxY - b1.minY + 2 * 17.5);
+    // A one-line label is unchanged: text content, no tspans.
+    const single = draw(one).querySelector(
+      '.whiteboard-arrow .whiteboard-label'
+    )!;
+    expect(single.querySelector('tspan')).toBeNull();
+    expect(single.textContent).toBe('go');
+  });
+
+  it('anchors multi-line text top-left, 20px apart, and sizes the bounds', () => {
+    const src = 'whiteboard\ntext at: 10 20\n  first\n  second';
+    const t = draw(src).querySelector('.whiteboard-text text')!;
+    const spans = [...t.querySelectorAll('tspan')];
+    expect(spans.map((s) => s.textContent)).toEqual(['first', 'second']);
+    expect(spans.map((s) => s.getAttribute('x'))).toEqual(['10', '10']);
+    expect(spans.map((s) => Number(s.getAttribute('y')))).toEqual([
+      20 + 16 * 0.8,
+      20 + 16 * 0.8 + 20,
+    ]);
+    const b = whiteboardBounds(parseWhiteboard(src));
+    expect(b.maxY - b.minY).toBe(40);
+  });
+
   it('draws a line with no head, and an arrow with one', () => {
     const svg = draw(
       'whiteboard\nline from: 0 0, to: 100 0\narrow from: 0 50, to: 100 50'

@@ -18,6 +18,7 @@ export const WHITEBOARD_DIAGNOSTIC_CODES = {
   BAD_INK: 'W_WHITEBOARD_BAD_INK',
   BAD_IMAGE_REF: 'W_WHITEBOARD_BAD_IMAGE_REF',
   EMPTY_TEXT: 'W_WHITEBOARD_EMPTY_TEXT',
+  UNEXPECTED_BODY: 'W_WHITEBOARD_UNEXPECTED_BODY',
 } as const;
 
 const s = (v: unknown): string =>
@@ -109,8 +110,19 @@ export const WHITEBOARD_DIAGNOSTICS: DiagnosticSpec[] = [
     chartType: 'whiteboard',
     title: 'Empty text',
     message: () => 'A text line needs some text — line skipped',
-    hint: 'Write the words between `text` and `at:`.',
+    hint: 'Write the words between `text` and `at:`, or on indented lines under it.',
     example: 'whiteboard\ntext at: 0 0',
+  },
+  {
+    code: WHITEBOARD_DIAGNOSTIC_CODES.UNEXPECTED_BODY,
+    severity: 'warning',
+    chartType: 'whiteboard',
+    title: 'Indented lines under an element with no label',
+    message: (p) =>
+      `${s(p.element)} takes no indented lines — ${s(p.count)} ignored`,
+    hint: 'Only shapes, arrows, lines and text have a label that can run over indented lines. Unindent the line if it is meant as its own element.',
+    example:
+      'whiteboard\nimage board.assets/a.webp at: 0 0, size: 320 200\n  caption',
   },
 ];
 

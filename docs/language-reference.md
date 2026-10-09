@@ -3946,7 +3946,7 @@ In the desktop and web app a sketch opens in the **canvas editor** (the code pan
 
 <!-- TIPS start -->
 
-**Styling tips:** Whiteboard is a canvas-first format: people draw on it, and pen strokes (`ink` lines) only ever come from drawing — never write an `ink` line. Generate the readable parts only: `rectangle`, `ellipse`, `database`, `queue` with a label, `at: X Y` (top-left, integer pixels) and `size: W H`; `arrow` with `from: X Y, to: X Y` and an optional label, or `line` the same way for a connection with no head; add `style: dashed` to an arrow or line for a tentative or optional link; `text` at a point. Leave ~40px between shapes and keep boards small (under ~15 elements). Colours are palette names (red, green, blue, teal, purple, orange, yellow, cyan, gray); leave colour off for the default ink. Arrows and lines are free and do not attach to shapes, so place their ends at the shape edges yourself. Reach for `whiteboard` for a loose drawing someone will scribble over; reach for `sketch` for tagged shapes on a grid, and `boxes-and-lines` when topology should auto-lay-out.
+**Styling tips:** Whiteboard is a canvas-first format: people draw on it, and pen strokes (`ink` lines) only ever come from drawing — never write an `ink` line. Generate the readable parts only: `rectangle`, `ellipse`, `database`, `queue` with a label, `at: X Y` (top-left, integer pixels) and `size: W H`; `arrow` with `from: X Y, to: X Y` and an optional label, or `line` the same way for a connection with no head; add `style: dashed` to an arrow or line for a tentative or optional link; `text` at a point. For a label of two or more lines, drop the inline label and indent each line two spaces under the element line. Leave ~40px between shapes and keep boards small (under ~15 elements). Colours are palette names (red, green, blue, teal, purple, orange, yellow, cyan, gray); leave colour off for the default ink. Arrows and lines are free and do not attach to shapes, so place their ends at the shape edges yourself. Reach for `whiteboard` for a loose drawing someone will scribble over; reach for `sketch` for tagged shapes on a grid, and `boxes-and-lines` when topology should auto-lay-out.
 
 <!-- TIPS end -->
 
@@ -3979,15 +3979,29 @@ text 2FA here?? at: 560 -4, color: red
 
 One line = one element, led by its keyword. The label is a **bare name** before the first `key:`; metadata is same-line `key: value` pairs. Quote a label that itself contains `word:` (`text "todo: ship" at: 0 0`).
 
+A label can run over several lines: indent them under the element line, one drawn line each, exactly as written (never reflowed). An inline label, when present, is the first line. This works on every labelled element — shapes, `arrow`, `line` and `text`:
+
+```
+whiteboard
+rectangle at: 0 0, size: 140 60
+  Sign in
+  with email
+text at: 0 90
+  keep it to
+  ONE screen
+```
+
+Body lines are literal — trimmed, but never read as metadata, quotes or comments. A blank line between two of them is an empty line of the label. `image` and `ink` take no indented lines; any are ignored with a warning.
+
 | Line                                   | Meaning                                                                             |
 | -------------------------------------- | ----------------------------------------------------------------------------------- |
-| `rectangle <label> at: X Y, size: W H` | Box; label centred and wrapped                                                      |
+| `rectangle <label> at: X Y, size: W H` | Box; label centred (one line wraps to fit; written lines stay as written)           |
 | `ellipse <label> at: X Y, size: W H`   | Ellipse inside that box                                                             |
 | `database <label> at: X Y, size: W H`  | Upright cylinder                                                                    |
 | `queue <label> at: X Y, size: W H`     | Cylinder on its side                                                                |
 | `arrow <label> from: X Y, to: X Y`     | Free arrow, head at `to:`; bound to no shape; label optional, drawn at the midpoint |
 | `line <label> from: X Y, to: X Y`      | Free line — an arrow with no head; otherwise identical                              |
-| `text <words> at: X Y`                 | Free text; `at:` is the top-left of the line                                        |
+| `text <words> at: X Y`                 | Free text; `at:` is the top-left of its first line                                  |
 | `image <ref> at: X Y, size: W H`       | Picture; `<ref>` is a relative path (`board.assets/9f3c.webp`) or an `https://` URL |
 | `ink <colour> <width> <path>`          | One freehand stroke — **canvas-written only**                                       |
 

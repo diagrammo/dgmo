@@ -284,6 +284,111 @@ describe('parseWhiteboard — leniency', () => {
   });
 });
 
+describe('parseWhiteboard — multi-line labels', () => {
+  it('reads indented body lines as the lines of a shape label', () => {
+    const el = only('rectangle at: 0 0, size: 100 50\n  Sign in\n  with email');
+    expect(el).toMatchObject({ kind: 'shape', label: 'Sign in\nwith email' });
+  });
+
+  it('puts an inline label first, ahead of the body', () => {
+    const el = only('ellipse Sign in at: 0 0, size: 100 50\n  with email');
+    expect(el).toMatchObject({ label: 'Sign in\nwith email' });
+  });
+
+  it('gives arrows, lines and text a multi-line label too', () => {
+    const p = parseWhiteboard(
+      [
+        'whiteboard',
+        'arrow from: 0 0, to: 100 0',
+        '  sends',
+        '  a code',
+        'line maybe from: 0 10, to: 100 10',
+        '  later',
+        'text at: 0 40',
+        '  first',
+        '  second',
+        'database at: 0 80, size: 60 60',
+        '  Users',
+        '  (read)',
+      ].join('\n')
+    );
+    expect(p.diagnostics).toEqual([]);
+    expect(
+      p.elements.map((e) =>
+        e.kind === 'text' ? e.text : (e as { label: string }).label
+      )
+    ).toEqual([
+      'sends\na code',
+      'maybe\nlater',
+      'first\nsecond',
+      'Users\n(read)',
+    ]);
+  });
+
+  it('draws body lines as written: no reflow, comments and keys are text', () => {
+    const el = only(
+      'text at: 0 0\n  // not a comment\n  at: 5 5 is text\n  "quoted"   '
+    );
+    expect(el).toMatchObject({
+      text: '// not a comment\nat: 5 5 is text\n"quoted"',
+    });
+  });
+
+  it('keeps an interior blank line, drops blank lines at either end', () => {
+    const p = parseWhiteboard(
+      'whiteboard\nrectangle at: 0 0, size: 9 9\n\n  a\n\n\n  b\n\ntext c at: 0 20\n'
+    );
+    expect(p.diagnostics).toEqual([]);
+    expect(p.elements[0]).toMatchObject({ label: 'a\n\n\nb' });
+    expect(p.elements[1]).toMatchObject({ kind: 'text', text: 'c' });
+  });
+
+  it('ends the body at the first line not indented deeper', () => {
+    const p = parseWhiteboard(
+      'whiteboard\n  rectangle at: 0 0, size: 9 9\n    a\n  text b at: 0 20\n'
+    );
+    expect(p.elements).toHaveLength(2);
+    expect(p.elements[0]).toMatchObject({ label: 'a' });
+  });
+
+  it('accepts text whose only words are in the body', () => {
+    expect(codes('whiteboard\ntext at: 0 0\n  hi')).toEqual([]);
+    expect(codes('whiteboard\ntext at: 0 0\n\ntext b at: 0 9')).toEqual([
+      'W_WHITEBOARD_EMPTY_TEXT',
+    ]);
+  });
+
+  it('warns on a body under image or ink and ignores it', () => {
+    const img = parseWhiteboard(
+      'whiteboard\nimage a.assets/x.webp at: 0 0, size: 9 9\n  caption\n  more'
+    );
+    expect(img.diagnostics.map((d) => d.code)).toEqual([
+      'W_WHITEBOARD_UNEXPECTED_BODY',
+    ]);
+    expect(img.diagnostics[0]!.message).toMatch(
+      /image takes no indented lines — 2 ignored/
+    );
+    expect(img.elements).toHaveLength(1);
+    const ink = parseWhiteboard(
+      'whiteboard\nink ink 3 AHysAxoGEgIUAyYJFAESAi4MEgIUAyYJFAESAjQOGgE\n  x'
+    );
+    expect(ink.diagnostics.map((d) => d.code)).toEqual([
+      'W_WHITEBOARD_UNEXPECTED_BODY',
+    ]);
+    expect(ink.elements).toHaveLength(1);
+  });
+
+  it('a skipped element takes its body with it', () => {
+    const p = parseWhiteboard(
+      'whiteboard\nsquare at: 0 0, size: 9 9\n  rectangle at: 0 0, size: 9 9\ntext a at: 0 0'
+    );
+    expect(p.diagnostics.map((d) => d.code)).toEqual([
+      'W_WHITEBOARD_UNKNOWN_ELEMENT',
+    ]);
+    expect(p.elements).toHaveLength(1);
+  });
+});
+
 describe('emitWhiteboard — round trip', () => {
   it('parse → emit → parse is identical, and emit is stable', () => {
     const a = parseWhiteboard(FIXTURE);
@@ -325,6 +430,40 @@ describe('emitWhiteboard — round trip', () => {
     expect(a.diagnostics).toEqual([]);
     expect(emitWhiteboard(a)).toBe(src);
     expect(sameWhiteboard(a, parseWhiteboard(emitWhiteboard(a)))).toBe(true);
+  });
+
+  it('emits a multi-line label as indented body lines, and back', () => {
+    const src = [
+      'whiteboard',
+      'rectangle at: 0 0, size: 100 50',
+      '  Sign in',
+      '  with email',
+      'arrow from: 0 60, to: 100 60, style: dashed',
+      '  sends',
+      '',
+      '  a code',
+      'line from: 0 70, to: 100 70, color: blue',
+      '  key: value',
+      '  two',
+      'text at: 0 80, color: red',
+      '  first',
+      '  second',
+      'text one line at: 0 120',
+      '',
+    ].join('\n');
+    const a = parseWhiteboard(src);
+    expect(a.diagnostics).toEqual([]);
+    expect(emitWhiteboard(a)).toBe(src);
+    expect(sameWhiteboard(a, parseWhiteboard(emitWhiteboard(a)))).toBe(true);
+  });
+
+  it('normalises an inline label plus body to body lines only', () => {
+    const out = emitWhiteboard(
+      parseWhiteboard(
+        'whiteboard\nqueue Jobs at: 0 0, size: 9 9\n      out   \n'
+      )
+    );
+    expect(out).toBe('whiteboard\nqueue at: 0 0, size: 9 9\n  Jobs\n  out\n');
   });
 
   it('round-trips no-title and an untitled board', () => {

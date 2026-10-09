@@ -64,6 +64,16 @@ const PLACEHOLDER_MIN_FONT = 8;
 /** A drawable `href`: http(s), blob, or an inline raster/vector image. */
 const SAFE_IMAGE_HREF_RE = /^(https?:|blob:|data:image\/)/i;
 
+/** A label's written lines — one drawn line each, never reflowed. */
+function labelLines(label: string): string[] {
+  return label.split('\n');
+}
+
+/** Widest of `lines` at `font` px. */
+function widest(lines: readonly string[], font: number): number {
+  return Math.max(0, ...lines.map((l) => measureText(l, font)));
+}
+
 interface Bounds {
   minX: number;
   minY: number;
@@ -98,22 +108,27 @@ export function whiteboardBounds(parsed: ParsedWhiteboard): Bounds {
         grow(b, el.x1 - pad, el.y1 - pad, el.x2 + pad, el.y2 + pad);
         grow(b, el.x1 + pad, el.y1 + pad, el.x2 - pad, el.y2 - pad);
         if (el.label) {
+          const lines = labelLines(el.label);
           const mx = (el.x1 + el.x2) / 2;
           const my = (el.y1 + el.y2) / 2;
-          const hw = measureText(el.label, LABEL_FONT) / 2 + 4;
-          grow(b, mx - hw, my - LABEL_FONT, mx + hw, my + LABEL_FONT);
+          const hw = widest(lines, LABEL_FONT) / 2 + 4;
+          const hh =
+            LABEL_FONT + ((lines.length - 1) * LABEL_FONT * LABEL_LINE) / 2;
+          grow(b, mx - hw, my - hh, mx + hw, my + hh);
         }
         break;
       }
-      case 'text':
+      case 'text': {
+        const lines = labelLines(el.text);
         grow(
           b,
           el.x,
           el.y,
-          el.x + measureText(el.text, WHITEBOARD_TEXT_FONT),
-          el.y + WHITEBOARD_TEXT_FONT * LABEL_LINE
+          el.x + widest(lines, WHITEBOARD_TEXT_FONT),
+          el.y + lines.length * WHITEBOARD_TEXT_FONT * LABEL_LINE
         );
         break;
+      }
       case 'ink': {
         const r = el.width;
         for (const p of el.points) grow(b, p.x - r, p.y - r, p.x + r, p.y + r);
@@ -219,7 +234,13 @@ export function renderWhiteboard(
     maxW: number
   ): void => {
     if (!label) return;
-    const lines = wrapTextToWidth(label, LABEL_FONT, Math.max(maxW, 20));
+    // A one-line label wraps to the box; a label written over several lines
+    // is drawn exactly as written.
+    const written = labelLines(label);
+    const lines =
+      written.length > 1
+        ? written
+        : wrapTextToWidth(label, LABEL_FONT, Math.max(maxW, 20));
     const lh = LABEL_FONT * LABEL_LINE;
     const top = cy - (lines.length * lh) / 2 + lh * BASELINE;
     const t = g
@@ -228,12 +249,7 @@ export function renderWhiteboard(
       .attr('text-anchor', 'middle')
       .attr('font-size', LABEL_FONT)
       .attr('fill', palette.text);
-    lines.forEach((ln, i) => {
-      t.append('tspan')
-        .attr('x', round2(cx))
-        .attr('y', round2(top + i * lh))
-        .text(ln);
-    });
+    appendLines(t, lines, cx, top, lh);
   };
 
   const drawImage = (g: GSel, el: WhiteboardImage): void => {
@@ -363,29 +379,52 @@ export function renderWhiteboard(
           }
         }
         if (el.label) {
-          g.append('text')
+          // The block of lines is centred on the midpoint; the halo stroke
+          // knocks the line out behind every one of them.
+          const lines = labelLines(el.label);
+          const mx = round2((el.x1 + el.x2) / 2);
+          const lh = LABEL_FONT * LABEL_LINE;
+          const firstY =
+            (el.y1 + el.y2) / 2 +
+            LABEL_FONT * 0.35 -
+            ((lines.length - 1) * lh) / 2;
+          const t = g
+            .append('text')
             .attr('class', 'whiteboard-label')
-            .attr('x', round2((el.x1 + el.x2) / 2))
-            .attr('y', round2((el.y1 + el.y2) / 2 + LABEL_FONT * 0.35))
+            .attr('x', mx)
+            .attr('y', round2(firstY))
             .attr('text-anchor', 'middle')
             .attr('font-size', LABEL_FONT)
             .attr('fill', palette.text)
             .attr('stroke', halo)
             .attr('stroke-width', 4)
             .attr('stroke-linejoin', 'round')
-            .attr('paint-order', 'stroke')
-            .text(el.label);
+            .attr('paint-order', 'stroke');
+          if (lines.length === 1) t.text(el.label);
+          else appendLines(t, lines, mx, firstY, lh);
         }
         break;
       }
-      case 'text':
-        g.append('text')
+      case 'text': {
+        const lines = labelLines(el.text);
+        const firstY = el.y + WHITEBOARD_TEXT_FONT * BASELINE;
+        const t = g
+          .append('text')
           .attr('x', el.x)
-          .attr('y', round2(el.y + WHITEBOARD_TEXT_FONT * BASELINE))
+          .attr('y', round2(firstY))
           .attr('font-size', WHITEBOARD_TEXT_FONT)
-          .attr('fill', colorOf(el.color))
-          .text(el.text);
+          .attr('fill', colorOf(el.color));
+        if (lines.length === 1) t.text(el.text);
+        else
+          appendLines(
+            t,
+            lines,
+            el.x,
+            firstY,
+            WHITEBOARD_TEXT_FONT * LABEL_LINE
+          );
         break;
+      }
       case 'image':
         drawImage(g, el);
         break;
@@ -398,6 +437,23 @@ export function renderWhiteboard(
   };
 
   for (const el of parsed.elements) drawElement(el);
+}
+
+/** One `<tspan>` per non-empty line, `lh` apart from the first baseline. */
+function appendLines(
+  t: d3.Selection<SVGTextElement, unknown, null, undefined>,
+  lines: readonly string[],
+  x: number,
+  firstY: number,
+  lh: number
+): void {
+  lines.forEach((ln, i) => {
+    if (!ln) return; // an empty line keeps its slot, draws nothing
+    t.append('tspan')
+      .attr('x', round2(x))
+      .attr('y', round2(firstY + i * lh))
+      .text(ln);
+  });
 }
 
 function round2(n: number): number {

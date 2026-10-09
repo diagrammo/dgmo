@@ -12,6 +12,14 @@
 //   image login-ideas.assets/9f3c2a71.webp at: 420 200, size: 250 170
 //   ink red 3 <encoded path>
 //
+// A label may run over several lines: each line indented deeper than its
+// element line is one more line of that label, drawn as written (no reflow).
+// An inline label, when present, is the first line:
+//
+//   rectangle at: 0 0, size: 100 50
+//     Sign in
+//     with email
+//
 // The label (or image ref) is the bare-name region before the first `key:`;
 // metadata is the same-line `key: value, key: value` idiom every DGMO type
 // uses. `color:` is always the long form — it rides with `at:`/`size:` on
@@ -117,6 +125,50 @@ function splitLine(rest: string): Split {
     meta.set(t.slice(0, colon).trim().toLowerCase(), t.slice(colon + 1).trim());
   }
   return { name: name.trim(), meta };
+}
+
+/** Leading whitespace width (a tab counts as one). */
+function indentOf(raw: string): number {
+  return raw.length - raw.trimStart().length;
+}
+
+/**
+ * The indented body under the element line at `head`: every following line
+ * indented deeper than it, each trimmed. A blank line inside the body is an
+ * empty line of it; blank lines after its last line are not part of it.
+ * Body lines are literal — a `//` there is text, not a comment.
+ */
+function collectBody(
+  lines: readonly string[],
+  head: number
+): { body: string[]; end: number } {
+  const base = indentOf(lines[head]!);
+  const body: string[] = [];
+  let end = head;
+  let pendingBlanks = 0;
+  for (let j = head + 1; j < lines.length; j++) {
+    const raw = lines[j]!;
+    if (!raw.trim()) {
+      pendingBlanks++;
+      continue;
+    }
+    if (indentOf(raw) <= base) break;
+    for (; pendingBlanks > 0; pendingBlanks--) body.push('');
+    body.push(raw.trim());
+    end = j;
+  }
+  return { body, end };
+}
+
+/**
+ * The inline label plus body lines, joined with '\n'. Empty lines at either
+ * end are dropped; empty lines between two lines of text are kept.
+ */
+function joinLabel(inline: string, body: readonly string[]): string {
+  const all = inline ? [inline, ...body] : [...body];
+  while (all.length > 0 && all[0] === '') all.shift();
+  while (all.length > 0 && all[all.length - 1] === '') all.pop();
+  return all.join('\n');
 }
 
 /** Is `ref` a relative path or an https URL (the only two image forms)? */
@@ -269,7 +321,21 @@ export function parseWhiteboard(
     const word = (sp === -1 ? trimmed : trimmed.slice(0, sp)).toLowerCase();
     const rest = sp === -1 ? '' : trimmed.slice(sp + 1).trim();
 
+    // Every element line owns the lines indented under it — consumed here,
+    // so a skipped element takes its body with it.
+    const { body, end } = collectBody(lines, i);
+    i = end;
+    const noBody = (element: string): void => {
+      if (body.length > 0) {
+        warn(lineNumber, CODES.UNEXPECTED_BODY, {
+          element,
+          count: body.filter((b) => b !== '').length,
+        });
+      }
+    };
+
     if (word === 'ink') {
+      noBody('ink');
       const m = INK_LINE_RE.exec(rest);
       if (!m) {
         warn(lineNumber, CODES.BAD_INK, {
@@ -330,7 +396,7 @@ export function parseWhiteboard(
         y: at[1],
         width: size[0],
         height: size[1],
-        label: name,
+        label: joinLabel(name, body),
         color: readColor(meta.get('color'), lineNumber),
         lineNumber,
       });
@@ -350,7 +416,7 @@ export function parseWhiteboard(
         y1: from[1],
         x2: to[0],
         y2: to[1],
-        label: name,
+        label: joinLabel(name, body),
         color: readColor(meta.get('color'), lineNumber),
         style: readStyle(meta.get('style'), lineNumber),
         lineNumber,
@@ -361,7 +427,8 @@ export function parseWhiteboard(
     if (word === 'text') {
       const { name, meta } = splitLine(rest);
       checkKeys(meta, 'text', 'text', lineNumber);
-      if (!name) {
+      const text = joinLabel(name, body);
+      if (!text) {
         warn(lineNumber, CODES.EMPTY_TEXT, {});
         continue;
       }
@@ -371,7 +438,7 @@ export function parseWhiteboard(
         kind: 'text',
         x: at[0],
         y: at[1],
-        text: name,
+        text,
         color: readColor(meta.get('color'), lineNumber),
         lineNumber,
       });
@@ -381,6 +448,7 @@ export function parseWhiteboard(
     if (word === 'image') {
       const { name, meta } = splitLine(rest);
       checkKeys(meta, 'image', 'image', lineNumber);
+      noBody('image');
       if (!isWhiteboardImageRef(name)) {
         warn(lineNumber, CODES.BAD_IMAGE_REF, { ref: name });
         continue;

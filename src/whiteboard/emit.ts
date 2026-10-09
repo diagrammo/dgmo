@@ -11,7 +11,9 @@
 //
 // Canonical form: one element per line in z-order, metadata in a fixed key
 // order, `color:` omitted when it is the default `ink`, `style:` omitted when
-// it is the default `solid`, ink payloads verbatim.
+// it is the default `solid`, ink payloads verbatim. A one-line label is
+// written inline; a label of two or more lines is written as indented body
+// lines (two spaces) under an element line that carries no inline label.
 // Emitting the parse of canonical text reproduces it byte for byte.
 
 import type { ParsedWhiteboard, WhiteboardElement } from './types';
@@ -29,12 +31,22 @@ function colorPart(color: string): string[] {
   return color === 'ink' ? [] : [`color: ${color}`];
 }
 
+/** Body lines are indented this far under their element line. */
+const BODY_INDENT = '  ';
+
 function line(keyword: string, name: string, meta: string[]): string {
-  const head = name ? `${keyword} ${nameText(name)}` : keyword;
-  return `${head} ${meta.join(', ')}`;
+  const lines = name.split('\n');
+  if (lines.length === 1) {
+    const head = name ? `${keyword} ${nameText(name)}` : keyword;
+    return `${head} ${meta.join(', ')}`;
+  }
+  // An empty line inside a label is an empty source line — never trailing
+  // spaces, which editors strip.
+  const body = lines.map((l) => (l ? `${BODY_INDENT}${l}` : ''));
+  return [`${keyword} ${meta.join(', ')}`, ...body].join('\n');
 }
 
-/** One element's source line. */
+/** One element's source — its line, plus body lines for a multi-line label. */
 export function emitWhiteboardElement(el: WhiteboardElement): string {
   switch (el.kind) {
     case 'shape':
