@@ -760,7 +760,7 @@ function drawNode(
     .attr('data-node-id', node.id)
     .attr('data-line-number', node.lineNumber);
   for (const [k, v] of Object.entries(node.metadata)) {
-    // Slugged: an unknown key may hold a space (`timesync t:`), and a raw one
+    // Slugged: an unknown key may hold a space (`sync t:`), and a raw one
     // is an invalid attribute name that throws and blanks the chart (#1210).
     g.attr(`data-tag-${tagAttrKey(k)}`, v);
   }
