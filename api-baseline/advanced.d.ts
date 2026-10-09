@@ -2842,11 +2842,12 @@ declare function whiteboardShapeAt(point: WhiteboardPoint, elements: readonly Wh
  */
 declare function whiteboardConnectorAttachments(connector: WhiteboardArrow | WhiteboardLine, elements: readonly WhiteboardElement[]): WhiteboardConnectorAttachments;
 /**
- * The segment a connector is DRAWN along: each attached end pulled back from
- * its stored point to where the segment first crosses that shape's outline,
- * so an arrowhead sits on the border and a plain line meets the edge. Falls
- * back to the stored segment when it has no length, or when clipping both
- * ends would leave nothing (the ends' shapes overlap along it).
+ * The segment a connector is DRAWN along: each attached end aimed at its
+ * shape's centre — wherever inside the shape the stored point sits — then
+ * pulled back to where the segment first crosses that shape's outline, so an
+ * arrowhead sits on the border and a plain line meets the edge. Falls back to
+ * the stored segment when it has no length, or when clipping both ends would
+ * leave nothing (the ends' shapes overlap along it).
  */
 declare function clipWhiteboardConnector(connector: WhiteboardArrow | WhiteboardLine, elements: readonly WhiteboardElement[]): WhiteboardSegment;
 
