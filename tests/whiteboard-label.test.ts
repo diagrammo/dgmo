@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import * as advanced from '../src/advanced';
 import {
+  fitWhiteboardLabel,
   WHITEBOARD_LABEL_FONT,
+  WHITEBOARD_LABEL_MIN_FONT,
   WHITEBOARD_NOTE_FONT,
+  whiteboardLabelHeight,
   whiteboardLabelWidth,
   wrapWhiteboardLabel,
 } from '../src/whiteboard/label';
@@ -80,6 +83,102 @@ describe('wrapWhiteboardLabel', () => {
     // At the label font the same text needs more lines.
     expect(lines.length).toBeLessThan(
       wrapWhiteboardLabel(text, { shape: 'rectangle', width: 116 }).length
+    );
+  });
+});
+
+describe('fitWhiteboardLabel (#1225)', () => {
+  const rect = (width: number, height: number) => ({
+    shape: 'rectangle' as const,
+    width,
+    height,
+  });
+  const fits = (
+    { lines, font }: { lines: string[]; font: number },
+    b: ReturnType<typeof rect>
+  ) => {
+    for (const l of lines)
+      expect(measureText(l, font)).toBeLessThanOrEqual(whiteboardLabelWidth(b));
+    expect(lines.length * font * 1.25).toBeLessThanOrEqual(
+      whiteboardLabelHeight(b)
+    );
+  };
+
+  it('is exported from @diagrammo/dgmo/advanced', () => {
+    expect(advanced.fitWhiteboardLabel).toBe(fitWhiteboardLabel);
+    expect(advanced.WHITEBOARD_LABEL_MIN_FONT).toBe(WHITEBOARD_LABEL_MIN_FONT);
+  });
+
+  it('keeps the full size when the label already fits', () => {
+    expect(fitWhiteboardLabel('Sign in', rect(180, 70))).toEqual({
+      lines: ['Sign in'],
+      font: WHITEBOARD_LABEL_FONT,
+    });
+  });
+
+  it('shrinks a label too tall for its shape until it fits', () => {
+    const b = rect(130, 70);
+    const text =
+      'Hello World What Happens with Really Long text inside of shapes do we make it smaller?';
+    const fit = fitWhiteboardLabel(text, b);
+    expect(fit.font).toBeLessThan(WHITEBOARD_LABEL_FONT);
+    expect(fit.font).toBeGreaterThanOrEqual(WHITEBOARD_LABEL_MIN_FONT);
+    expect(fit.lines.join(' ')).toBe(text);
+    fits(fit, b);
+  });
+
+  it('shrinks a word too wide for the shape before breaking it', () => {
+    const b = rect(100, 60);
+    const fit = fitWhiteboardLabel('Authentication', b);
+    expect(fit.lines).toEqual(['Authentication']);
+    fits(fit, b);
+  });
+
+  it('breaks a word too wide even at the floor', () => {
+    const b = rect(60, 80);
+    const word = 'Supercalifragilisticexpialidocious';
+    const fit = fitWhiteboardLabel(word, b);
+    expect(fit.font).toBe(WHITEBOARD_LABEL_MIN_FONT);
+    expect(fit.lines.length).toBeGreaterThan(1);
+    expect(fit.lines.join('')).toBe(word);
+    fits(fit, b);
+  });
+
+  it('cuts what will not fit at the floor and ends the last line in an ellipsis', () => {
+    const b = rect(100, 40);
+    const fit = fitWhiteboardLabel(
+      Array.from({ length: 30 }, (_, i) => `word${i}`).join(' '),
+      b
+    );
+    expect(fit.font).toBe(WHITEBOARD_LABEL_MIN_FONT);
+    expect(fit.lines.at(-1)!.endsWith('…')).toBe(true);
+    fits(fit, b);
+  });
+
+  it('always keeps one line, even in a shape with no room', () => {
+    const fit = fitWhiteboardLabel('a b c', rect(100, 10));
+    expect(fit.lines).toHaveLength(1);
+  });
+
+  it('fits a note at the note font first', () => {
+    const fit = fitWhiteboardLabel('short', {
+      kind: 'note' as const,
+      width: 160,
+      height: 120,
+    });
+    expect(fit.font).toBe(WHITEBOARD_NOTE_FONT);
+  });
+
+  it('leaves less height in an ellipse and a database than in a rectangle', () => {
+    const h = whiteboardLabelHeight(rect(100, 100));
+    expect(
+      whiteboardLabelHeight({ shape: 'ellipse', width: 100, height: 100 })
+    ).toBeLessThan(h);
+    expect(
+      whiteboardLabelHeight({ shape: 'database', width: 100, height: 100 })
+    ).toBeLessThan(h);
+    expect(whiteboardLabelWidth({ shape: 'queue', width: 100 })).toBeLessThan(
+      whiteboardLabelWidth({ shape: 'rectangle', width: 100 })
     );
   });
 });

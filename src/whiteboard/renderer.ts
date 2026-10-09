@@ -29,9 +29,8 @@ import type { InkPoint } from './ink-codec';
 import {
   WHITEBOARD_LABEL_FONT as LABEL_FONT,
   WHITEBOARD_LABEL_LINE as LABEL_LINE,
-  WHITEBOARD_NOTE_FONT as NOTE_FONT,
   WHITEBOARD_NOTE_PAD as NOTE_PAD,
-  wrapWhiteboardLabel,
+  fitWhiteboardLabel,
 } from './label';
 import type {
   ParsedWhiteboard,
@@ -128,8 +127,8 @@ function grow(b: Bounds, x0: number, y0: number, x1: number, y1: number): void {
 
 /** Height of a sticky note's text block, padding included, px. */
 function noteTextHeight(el: WhiteboardNote): number {
-  const n = wrapWhiteboardLabel(el.text, el).length;
-  return 2 * NOTE_PAD + n * NOTE_FONT * LABEL_LINE;
+  const { lines, font } = fitWhiteboardLabel(el.text, el);
+  return 2 * NOTE_PAD + lines.length * font * LABEL_LINE;
 }
 
 /** Content bounds of every drawn element, in canvas px. */
@@ -287,21 +286,21 @@ export function renderWhiteboard(
 
   const halo = palette.bg;
 
-  /** A shape label: every written line wrapped to the shape, centred as a block. */
+  /** A shape label: fitted to the shape (#1225), centred as a block. */
   const centredLabel = (
     g: GSel,
-    lines: readonly string[],
+    { lines, font }: { lines: readonly string[]; font: number },
     cx: number,
     cy: number
   ): void => {
     if (lines.length === 0) return;
-    const lh = LABEL_FONT * LABEL_LINE;
+    const lh = font * LABEL_LINE;
     const top = cy - (lines.length * lh) / 2 + lh * BASELINE;
     const t = g
       .append('text')
       .attr('class', 'whiteboard-label')
       .attr('text-anchor', 'middle')
-      .attr('font-size', LABEL_FONT)
+      .attr('font-size', font)
       .attr('fill', palette.text);
     appendLines(t, lines, cx, top, lh);
   };
@@ -389,7 +388,7 @@ export function renderWhiteboard(
             drawQueueCard(inner, el.width, el.height, fill, stroke);
           }
         }
-        centredLabel(g, wrapWhiteboardLabel(el.label, el), cx, cy);
+        centredLabel(g, fitWhiteboardLabel(el.label, el), cx, cy);
         break;
       }
       case 'note': {
@@ -413,13 +412,13 @@ export function renderWhiteboard(
             .attr('fill', edge)
             .attr('opacity', NOTE_FOLD_OPACITY);
         }
-        const lines = wrapWhiteboardLabel(el.text, el);
+        const { lines, font } = fitWhiteboardLabel(el.text, el);
         if (lines.length > 0) {
-          const lh = NOTE_FONT * LABEL_LINE;
+          const lh = font * LABEL_LINE;
           const t = g
             .append('text')
             .attr('class', 'whiteboard-label')
-            .attr('font-size', NOTE_FONT)
+            .attr('font-size', font)
             .attr('fill', mix(hue, palette.text, NOTE_INK));
           appendLines(
             t,

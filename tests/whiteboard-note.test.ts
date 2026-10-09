@@ -182,11 +182,12 @@ describe('whiteboard sticky notes — render', () => {
     expect(visibleWhiteboardElements(p, { showNotes: false })).toHaveLength(1);
   });
 
-  it('grows the crop when the text runs past the card', () => {
+  it('grows the crop only by the one line a too-short card still keeps', () => {
+    // The text is cut to fit (#1225), but at least one line is drawn.
     const p = parseWhiteboard(
       wb('note at: 0 0, size: 100 30', '  a', '  b', '  c', '  d')
     );
-    expect(whiteboardBounds(p).maxY).toBeCloseTo(24 + 4 * 15);
+    expect(whiteboardBounds(p).maxY).toBeCloseTo(24 + 9 * 1.25);
   });
 
   it('threads showNotes through render()', async () => {
