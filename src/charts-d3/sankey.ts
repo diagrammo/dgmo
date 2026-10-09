@@ -19,6 +19,10 @@ import {
 
 const NODE_W = 20;
 const NODE_GAP = 14;
+/** Vertical gap between return-ribbon lanes under the chart. */
+const LOOP_GAP = 8;
+/** How far a return ribbon's bend reaches past its node, in thicknesses. */
+const LOOP_BEND = 1.25;
 /** Baseline ribbon translucency — dimming MULTIPLIES this, never replaces it. */
 const RIBBON_FILL_OPACITY = 0.6;
 
@@ -103,10 +107,40 @@ export function renderSankey(
     })
   );
 
+  // Back edges. Authors write cycles (an issue bouncing between two statuses
+  // twice), and longest-path ranking never converges on one: each pass pushes
+  // the loop a column further right, so the loop's nodes inflated maxRank and
+  // crushed every real column into the left of the chart (#1218). A DFS from
+  // the true sources marks each edge that closes a loop; ranking and ordering
+  // ignore those, and they are drawn as return ribbons under the chart.
+  const outgoing = new Map<string, typeof links>();
+  for (const l of links) {
+    const list = outgoing.get(l.source) ?? [];
+    list.push(l);
+    outgoing.set(l.source, list);
+  }
+  const backEdges = new Set<(typeof links)[number]>();
+  const visitState = new Map<string, 'open' | 'done'>();
+  const visit = (name: string): void => {
+    visitState.set(name, 'open');
+    for (const l of outgoing.get(name) ?? []) {
+      const st = visitState.get(l.target);
+      if (st === 'open') backEdges.add(l);
+      else if (st === undefined) visit(l.target);
+    }
+    visitState.set(name, 'done');
+  };
+  const hasIncoming = new Set(links.map((l) => l.target));
+  for (const name of names) if (!hasIncoming.has(name)) visit(name);
+  // a component that is all cycle has no source; enter it at its first name
+  for (const name of names) if (!visitState.has(name)) visit(name);
+  const forwardLinks = links.filter((l) => !backEdges.has(l));
+  const backLinks = links.filter((l) => backEdges.has(l));
+
   // longest-path ranking
   for (let pass = 0; pass < names.length; pass++) {
     let changed = false;
-    for (const l of links) {
+    for (const l of forwardLinks) {
       const s = node.get(l.source)!;
       const t = node.get(l.target)!;
       if (t.rank < s.rank + 1) {
@@ -132,19 +166,40 @@ export function renderSankey(
   const layers: SNode[][] = Array.from({ length: maxRank + 1 }, () => []);
   for (const n of node.values()) layers[n.rank]!.push(n);
 
-  const plotLeft = 16;
+  let plotLeft = 16;
   const top = topInset + 8;
-  const plotW = width - plotLeft - 16 - measureText('M', 14);
-  const plotH = height - top - 24;
+  let plotW = width - plotLeft - 16 - measureText('M', 14);
+  let plotH = height - top - 24;
 
   // global value scale so the busiest layer fits
-  let valueScale = Infinity;
-  for (const layer of layers) {
-    const tot = layer.reduce((a, n) => a + n.value, 0);
-    const avail = plotH - (layer.length - 1) * NODE_GAP;
-    if (tot > 0) valueScale = Math.min(valueScale, avail / tot);
+  const fitScale = (h: number): number => {
+    let scale = Infinity;
+    for (const layer of layers) {
+      const tot = layer.reduce((a, n) => a + n.value, 0);
+      const avail = h - (layer.length - 1) * NODE_GAP;
+      if (tot > 0) scale = Math.min(scale, avail / tot);
+    }
+    return isFinite(scale) && scale > 0 ? scale : 1;
+  };
+  let valueScale = fitScale(plotH);
+  // Return ribbons run in lanes under the nodes; take their room from plotH.
+  if (backLinks.length > 0) {
+    const backTotal = backLinks.reduce((a, l) => a + l.value, 0);
+    const reserve = backTotal * valueScale + LOOP_GAP * (backLinks.length + 1);
+    plotH = Math.max(plotH * 0.5, plotH - reserve);
+    valueScale = fitScale(plotH);
+    // A return ribbon bends outside its node by LOOP_BEND × its thickness;
+    // leaving the last column or entering the first, that bend needs margin.
+    let right = 0;
+    let left = 0;
+    for (const l of backLinks) {
+      const over = l.value * valueScale * LOOP_BEND;
+      if (node.get(l.source)!.rank === maxRank) right = Math.max(right, over);
+      if (node.get(l.target)!.rank === 0) left = Math.max(left, over);
+    }
+    plotLeft += left;
+    plotW -= left + right;
   }
-  if (!isFinite(valueScale)) valueScale = 1;
 
   const layerX = (r: number) =>
     plotLeft + (maxRank === 0 ? 0 : (r * (plotW - NODE_W)) / maxRank);
@@ -172,10 +227,10 @@ export function renderSankey(
     for (const r of order) {
       for (const n of layers[r]!) {
         const neigh = forward
-          ? links
+          ? forwardLinks
               .filter((l) => l.target === n.name)
               .map((l) => node.get(l.source)!)
-          : links
+          : forwardLinks
               .filter((l) => l.source === n.name)
               .map((l) => node.get(l.target)!);
         n.order = neigh.length
@@ -194,12 +249,18 @@ export function renderSankey(
     inOff.set(n.name, n.y);
   }
   // stable order: links by source order then target y
-  const ordered = [...links].sort((a, b) => {
-    const sa = node.get(a.source)!;
-    const sb = node.get(b.source)!;
-    if (sa.y !== sb.y) return sa.y - sb.y;
-    return node.get(a.target)!.y - node.get(b.target)!.y;
-  });
+  // Back edges go last, so they leave and enter at the bottom of each node,
+  // nearest the lane they run in.
+  const ordered = [
+    ...[...forwardLinks].sort((a, b) => {
+      const sa = node.get(a.source)!;
+      const sb = node.get(b.source)!;
+      if (sa.y !== sb.y) return sa.y - sb.y;
+      return node.get(a.target)!.y - node.get(b.target)!.y;
+    }),
+    ...backLinks,
+  ];
+  let laneY = top + plotH + LOOP_GAP;
 
   for (const l of ordered) {
     const s = node.get(l.source)!;
@@ -214,20 +275,43 @@ export function renderSankey(
     const cx0 = sx + (tx - sx) * 0.5;
     const raw = l.color ?? s.raw;
     const color = solid ? raw : mix(raw, bgColor, 45);
-    const ribbon = svg
-      .append('path')
-      .attr(
-        'd',
-        `M${sx},${sy} C${cx0},${sy} ${cx0},${ty} ${tx},${ty} ` +
-          `L${tx},${ty + th} C${cx0},${ty + th} ${cx0},${sy + th} ${sx},${sy + th} Z`
-      )
-      .attr('fill', color)
-      .attr(
-        'fill-opacity',
-        linkDimmed(l)
-          ? RIBBON_FILL_OPACITY * EMPHASIS_DIM_OPACITY
-          : RIBBON_FILL_OPACITY
-      );
+    const opacity = linkDimmed(l)
+      ? RIBBON_FILL_OPACITY * EMPHASIS_DIM_OPACITY
+      : RIBBON_FILL_OPACITY;
+    let ribbon;
+    if (backEdges.has(l)) {
+      // Return ribbon: out of the source's right side, down into its own lane
+      // under the chart, back left, and up into the target's left side.
+      // Stroked at the flow's thickness so the bends keep a constant width.
+      const lane = laneY + th / 2;
+      laneY += th + LOOP_GAP;
+      // control offset k bulges the bend 0.75k; plus half the stroke this is
+      // LOOP_BEND × th, which the margins above reserved
+      const k = th;
+      const y1 = sy + th / 2;
+      const y2 = ty + th / 2;
+      ribbon = svg
+        .append('path')
+        .attr(
+          'd',
+          `M${sx},${y1} C${sx + k},${y1} ${sx + k},${lane} ${sx},${lane} ` +
+            `L${tx},${lane} C${tx - k},${lane} ${tx - k},${y2} ${tx},${y2}`
+        )
+        .attr('fill', 'none')
+        .attr('stroke', color)
+        .attr('stroke-width', th)
+        .attr('stroke-opacity', opacity);
+    } else {
+      ribbon = svg
+        .append('path')
+        .attr(
+          'd',
+          `M${sx},${sy} C${cx0},${sy} ${cx0},${ty} ${tx},${ty} ` +
+            `L${tx},${ty + th} C${cx0},${ty + th} ${cx0},${sy + th} ${sx},${sy + th} Z`
+        )
+        .attr('fill', color)
+        .attr('fill-opacity', opacity);
+    }
     tagDatum(ribbon, {
       line: l.lineNumber,
       // U+241F (symbol-for-unit-separator) — collision-proof AND XML-legal;
