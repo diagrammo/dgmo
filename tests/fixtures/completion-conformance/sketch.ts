@@ -1,6 +1,7 @@
 import type { ConformanceFixture } from './_types';
 
-// Spec §31. GUI-first canvas: shapes carry same-line `shape:`/`at:` metadata,
+// Spec §31. GUI-first canvas: shapes carry same-line `at:` metadata (`shape:`
+// was removed, #1048),
 // boxes take a bare `collapsed` flag; directives are legend/fill/description
 // toggles. fill family via FILL_FAMILY_CAPABLE.
 export const fixture: ConformanceFixture = {
@@ -16,6 +17,6 @@ export const fixture: ConformanceFixture = {
     'no-descriptions',
   ],
   pipeKeys: {
-    node: ['shape', 'at', 'collapsed'],
+    node: ['at', 'collapsed'],
   },
 };

@@ -1245,10 +1245,6 @@ export const PIPE_METADATA = new Map<string, PipeContextMap>([
     'sketch',
     {
       node: {
-        shape: {
-          description:
-            'Morph from the default rectangle: database, queue, person, document, note',
-        },
         at: {
           description:
             'Half-slot position `at: C R` (integers; omit to flow-place)',

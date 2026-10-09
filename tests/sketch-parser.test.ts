@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { PIPE_METADATA } from '../src/completion-registry';
 import { parseSketch } from '../src/sketch/parser';
 import { GLOBAL_BOOLEANS } from '../src/utils/parsing';
 import type { ParsedSketch } from '../src/sketch/types';
@@ -73,6 +74,12 @@ describe('sketch parser — shapes', () => {
     expect(errs.map((d) => d.line)).toEqual(kinds.map((_, i) => i + 2));
     expect(errs[0]!.message).toContain('shape: database');
     for (const n of p.nodes) expect(n.metadata['shape']).toBeUndefined();
+  });
+
+  it('autocomplete no longer offers shape: on a sketch line', () => {
+    const node = PIPE_METADATA.get('sketch')?.node ?? {};
+    expect(Object.keys(node)).toContain('at');
+    expect(Object.keys(node)).not.toContain('shape');
   });
 
   it('reports shape: database in the source from the report (#1048)', () => {
