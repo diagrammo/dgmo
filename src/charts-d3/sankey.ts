@@ -9,7 +9,7 @@
 import type { ParsedSankey } from '../data-chart-parser';
 import { FONT_FAMILY } from '../fonts';
 import { mix } from '../palettes/color-utils';
-import { measureText } from '../utils/text-measure';
+import { measureText, truncateText } from '../utils/text-measure';
 import { type Svg, tagDatum } from './shared';
 import {
   EMPHASIS_DIM_OPACITY,
@@ -23,6 +23,10 @@ const NODE_GAP = 14;
 const LOOP_GAP = 8;
 /** How far a return ribbon's bend reaches past its node, in thicknesses. */
 const LOOP_BEND = 1.25;
+const LABEL_FONT = 13;
+const LABEL_PAD = 6;
+/** Most of the width the last column's labels may take as a right margin. */
+const MAX_LABEL_MARGIN = 0.4;
 /** Baseline ribbon translucency — dimming MULTIPLIES this, never replaces it. */
 const RIBBON_FILL_OPACITY = 0.6;
 
@@ -168,7 +172,7 @@ export function renderSankey(
 
   let plotLeft = 16;
   const top = topInset + 8;
-  let plotW = width - plotLeft - 16 - measureText('M', 14);
+  const rightPad = 16;
   let plotH = height - top - 24;
 
   // global value scale so the busiest layer fits
@@ -188,18 +192,36 @@ export function renderSankey(
     const reserve = backTotal * valueScale + LOOP_GAP * (backLinks.length + 1);
     plotH = Math.max(plotH * 0.5, plotH - reserve);
     valueScale = fitScale(plotH);
-    // A return ribbon bends outside its node by LOOP_BEND × its thickness;
-    // leaving the last column or entering the first, that bend needs margin.
-    let right = 0;
-    let left = 0;
-    for (const l of backLinks) {
-      const over = l.value * valueScale * LOOP_BEND;
-      if (node.get(l.source)!.rank === maxRank) right = Math.max(right, over);
-      if (node.get(l.target)!.rank === 0) left = Math.max(left, over);
-    }
-    plotLeft += left;
-    plotW -= left + right;
   }
+
+  // A return ribbon bends outside its node by LOOP_BEND × its thickness.
+  // Entering the first column, that bend needs a left margin; leaving any
+  // node, it pushes that node's label further right.
+  const bend = new Map<string, number>();
+  let leftBend = 0;
+  for (const l of backLinks) {
+    const over = l.value * valueScale * LOOP_BEND;
+    bend.set(l.source, Math.max(bend.get(l.source) ?? 0, over));
+    if (node.get(l.target)!.rank === 0) leftBend = Math.max(leftBend, over);
+  }
+  plotLeft += leftBend;
+  const labelOffset = (n: SNode) =>
+    NODE_W + (bend.get(n.name) ?? 0) + LABEL_PAD;
+
+  // Every label sits to the RIGHT of its node (#1087). The last column's used
+  // to point left, into the same gap as the column before it, and nothing
+  // measured one against the other. The right margin now holds the last
+  // column's labels, capped at MAX_LABEL_MARGIN of the width; a label longer
+  // than its room is truncated below.
+  let labelMargin = 0;
+  for (const n of layers[maxRank]!) {
+    labelMargin = Math.max(
+      labelMargin,
+      labelOffset(n) - NODE_W + measureText(n.name, LABEL_FONT)
+    );
+  }
+  labelMargin = Math.min(labelMargin, width * MAX_LABEL_MARGIN);
+  const plotW = Math.max(NODE_W, width - plotLeft - rightPad - labelMargin);
 
   const layerX = (r: number) =>
     plotLeft + (maxRank === 0 ? 0 : (r * (plotW - NODE_W)) / maxRank);
@@ -348,16 +370,23 @@ export function renderSankey(
       value: String(n.value),
       color: n.raw,
     });
-    const lastLayer = n.rank === maxRank;
+    // A label may run to the next column's nodes, or to the right edge.
+    const labelX = n.x + labelOffset(n);
+    const room =
+      (n.rank === maxRank ? width - rightPad / 2 : layerX(n.rank + 1)) -
+      LABEL_PAD -
+      labelX;
+    const shown = truncateText(n.name, LABEL_FONT, room);
     const label = svg
       .append('text')
-      .attr('x', lastLayer ? n.x - 6 : n.x + NODE_W + 6)
+      .attr('x', labelX)
       .attr('y', n.y + n.h / 2 + 4)
-      .attr('text-anchor', lastLayer ? 'end' : 'start')
+      .attr('text-anchor', 'start')
       .attr('fill', textColor)
-      .attr('font-size', 13)
+      .attr('font-size', LABEL_FONT)
       .attr('font-family', FONT_FAMILY)
-      .text(n.name);
+      .text(shown);
+    if (shown !== n.name) label.append('title').text(n.name);
     if (nodeDim) label.attr('opacity', EMPHASIS_DIM_TEXT_OPACITY);
   }
 }
