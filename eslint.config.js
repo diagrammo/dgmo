@@ -35,8 +35,8 @@ export default tseslint.config(
         'error',
         { argsIgnorePattern: '^_' },
       ],
-      '@typescript-eslint/no-explicit-any': 'warn',
-      'no-console': ['warn', { allow: ['warn', 'error'] }],
+      '@typescript-eslint/no-explicit-any': 'error',
+      'no-console': ['error', { allow: ['warn', 'error'] }],
       '@typescript-eslint/no-floating-promises': 'error',
       '@typescript-eslint/no-misused-promises': 'error',
       '@typescript-eslint/switch-exhaustiveness-check': [
@@ -84,6 +84,11 @@ export default tseslint.config(
       // CLI and tests read files from known paths
       'security/detect-non-literal-fs-filename': 'off',
     },
+  },
+  // Bench and debug scripts print their results on purpose (#1058).
+  {
+    files: ['tests/*-bench.ts', 'tests/__debug-*.ts'],
+    rules: { 'no-console': 'off' },
   },
   // Disable type-checked linting for files outside tsconfig
   {

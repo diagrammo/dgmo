@@ -6,6 +6,7 @@
 // in its own store and feeds an override map into `relayoutPert`.
 
 import dagre from '@dagrejs/dagre';
+import type { EdgeLabel, GraphLabel, NodeLabel, Point } from '@dagrejs/dagre';
 import type {
   ResolvedPert,
   LayoutResult,
@@ -21,6 +22,12 @@ import {
   formatSlackValue,
 } from './internal';
 import { measureText } from '../utils/text-measure';
+
+// The post-layout passes below read nodes after `dagre.layout()`, which
+// sets every node's x and y.
+type DagreGraph = InstanceType<
+  typeof dagre.graphlib.Graph<GraphLabel, NodeLabel & Point, EdgeLabel>
+>;
 
 // Textbook 3×3 PERT/CPM box: top row [ES | dur | EF], middle row
 // [name spanning all three columns], bottom row [LS | slack | LF].
@@ -495,7 +502,7 @@ export function relayoutPert(
 // but outside the rect, in the columns the spine doesn't span.
 
 function applySwimLanes(
-  g: any,
+  g: DagreGraph,
   resolved: ResolvedPert,
   _memberToGroup: Map<string, string>,
   collapsedGroupIds: ReadonlySet<string>
@@ -568,9 +575,11 @@ function applySwimLanes(
   // Slot size along the slot axis. All non-milestone activity / collapsed-
   // group nodes share DEFAULT_NODE_HEIGHT in LR; in TB we use the uniform
   // activityWidth (first node's width is representative).
+  const firstNode = g.nodes()[0];
   const slotSize = isLR
     ? DEFAULT_NODE_HEIGHT
-    : (g.node(g.nodes()[0])?.width ?? DEFAULT_NODE_HEIGHT);
+    : ((firstNode === undefined ? undefined : g.node(firstNode)?.width) ??
+      DEFAULT_NODE_HEIGHT);
 
   // Lane sizes (along the slot axis) = LABEL_PAD + slot strip + BOTTOM_PAD
   // for any lane with at least one member; empty lanes contribute 0.
@@ -684,12 +693,8 @@ function applySwimLanes(
 // interpolation across the polyline so the curve still terminates on
 // the new node centers.
 
-// `@dagrejs/dagre` ships no type definitions, so `g` is typed as `any`
-// here — every prop access (`nodes()`, `node(id)`, `edges()`, etc.) is
-// untyped within this function.
-
 function centerByCriticality(
-  g: any,
+  g: DagreGraph,
   resolved: ResolvedPert,
   memberToGroup: Map<string, string>,
   collapsedGroupIds: ReadonlySet<string>
@@ -853,7 +858,7 @@ function smoothEdge(
 // axis, not the slot axis, so two edges cross visually iff their slot-
 // axis center segments cross). Caps iterations to bound cost.
 
-function reduceCrossings(g: any, direction: PertDirection): void {
+function reduceCrossings(g: DagreGraph, direction: PertDirection): void {
   const isLR = direction !== 'TB';
   const rankAxis = isLR ? 'x' : 'y';
   const slotAxis = isLR ? 'y' : 'x';
@@ -914,8 +919,8 @@ function reduceCrossings(g: any, direction: PertDirection): void {
             (g.node(a)![slotAxis] as number) - (g.node(b)![slotAxis] as number)
         );
       for (let i = 0; i < sorted.length - 1; i++) {
-        const a = sorted[i];
-        const b = sorted[i + 1];
+        const a = sorted[i]!;
+        const b = sorted[i + 1]!;
         const an = g.node(a)!;
         const bn = g.node(b)!;
         const av = an[slotAxis] as number;

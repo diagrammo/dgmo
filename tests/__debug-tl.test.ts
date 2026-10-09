@@ -14,7 +14,7 @@ beforeAll(() => {
     'SVGElement',
   ])
     Object.defineProperty(globalThis, k, {
-      value: (win as any)[
+      value: (win as unknown as Record<string, unknown>)[
         k === 'document' ? 'document' : k === 'window' ? 'window' : k
       ],
       configurable: true,
@@ -41,15 +41,16 @@ marker 2024-03 Midpoint
 [Beta]
   2024-02 -> 2024-05? Task C`;
   const parsed = parseVisualization(src, palette);
+  if (parsed.type !== 'timeline') throw new Error(`parsed as ${parsed.type}`);
   console.log(
     'fillMode',
-    (parsed as any).fillMode,
+    parsed.fillMode,
     'uncertain flags',
-    (parsed as any).timelineEvents.map((e: any) => [e.label, e.uncertain])
+    parsed.timelineEvents.map((e) => [e.label, e.uncertain])
   );
   const container = document.createElement('div') as HTMLDivElement;
   document.body.appendChild(container);
-  renderTimeline(container, parsed as any, palette, false, undefined, {
+  renderTimeline(container, parsed, palette, false, undefined, {
     width: 1200,
     height: 600,
   });

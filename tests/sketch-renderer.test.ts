@@ -621,8 +621,11 @@ describe('sketch renderer — edges', () => {
       a: { x: number; y: number }[],
       b: { x: number; y: number }[]
     ) => {
-      const o = (p: any, q: any, r: any) =>
-        (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+      const o = (
+        p: { x: number; y: number },
+        q: { x: number; y: number },
+        r: { x: number; y: number }
+      ) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
       let n = 0;
       for (let i = 0; i + 1 < a.length; i++)
         for (let j = 0; j + 1 < b.length; j++) {
