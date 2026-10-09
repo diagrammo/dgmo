@@ -83,9 +83,13 @@ describe('whiteboard connector geometry', () => {
     // the centre, but only y = ry at the side.
     const db = 'database at: 0 0, size: 100 80';
     expect(clip(db, 'arrow from: 50 -100, to: 50 40').y2).toBeCloseTo(0);
-    expect(clip(db, 'arrow from: 2 -100, to: 2 40').y2).toBeCloseTo(
-      CYLINDER_RY - CYLINDER_RY * Math.sqrt(1 - (48 / 50) ** 2)
-    );
+    // Aimed at the centre (50 40) from off to one side: lands on the cap.
+    const c = clip(db, 'arrow from: 10 -200, to: 20 60');
+    expect(c.y2).toBeGreaterThan(0);
+    expect(c.y2).toBeLessThan(CYLINDER_RY);
+    expect(
+      ((c.x2 - 50) / 50) ** 2 + ((c.y2 - CYLINDER_RY) / CYLINDER_RY) ** 2
+    ).toBeCloseTo(1);
     // Flat side.
     expect(clip(db, 'arrow from: -100 40, to: 50 40').x2).toBeCloseTo(0);
   });
@@ -97,7 +101,7 @@ describe('whiteboard connector geometry', () => {
     const s = clip(q, 'arrow from: -100 5, to: 100 5');
     expect(s.x2).toBeGreaterThan(0);
     expect(
-      ((s.x2 - QUEUE_CAP) / QUEUE_CAP) ** 2 + ((5 - 30) / 30) ** 2
+      ((s.x2 - QUEUE_CAP) / QUEUE_CAP) ** 2 + ((s.y2 - 30) / 30) ** 2
     ).toBeCloseTo(1);
     // The flat top.
     expect(clip(q, 'arrow from: 100 -50, to: 100 30').y2).toBeCloseTo(0);
@@ -111,6 +115,26 @@ describe('whiteboard connector geometry', () => {
         'line from: 50 50, to: 350 50'
       )
     ).toEqual({ x1: 100, y1: 50, x2: 300, y2: 50 });
+  });
+
+  it('aims attached ends at their shapes’ centres, not the stored points', () => {
+    // Ends dropped near facing corners: the drawn line still runs centre to
+    // centre, clipped at each border.
+    const s = clip(
+      'rectangle at: 0 0, size: 100 100',
+      'rectangle at: 300 200, size: 100 100',
+      'arrow from: 90 90, to: 310 210'
+    );
+    expect(s.x1).toBeCloseTo(100);
+    expect(s.y1).toBeCloseTo(50 + 200 / 6);
+    expect(s.x2).toBeCloseTo(300);
+    expect(s.y2).toBeCloseTo(250 - 200 / 6);
+    // A free tail keeps its stored point; only the head is aimed.
+    const t = clip(
+      'rectangle at: 300 0, size: 100 100',
+      'arrow from: 0 50, to: 390 10'
+    );
+    expect(t).toEqual({ x1: 0, y1: 50, x2: 300, y2: 50 });
   });
 
   it('attaches to the topmost shape — the later one in the file', () => {

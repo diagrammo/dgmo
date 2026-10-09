@@ -264,11 +264,12 @@ function entryParam(
 }
 
 /**
- * The segment a connector is DRAWN along: each attached end pulled back from
- * its stored point to where the segment first crosses that shape's outline,
- * so an arrowhead sits on the border and a plain line meets the edge. Falls
- * back to the stored segment when it has no length, or when clipping both
- * ends would leave nothing (the ends' shapes overlap along it).
+ * The segment a connector is DRAWN along: each attached end aimed at its
+ * shape's centre — wherever inside the shape the stored point sits — then
+ * pulled back to where the segment first crosses that shape's outline, so an
+ * arrowhead sits on the border and a plain line meets the edge. Falls back to
+ * the stored segment when it has no length, or when clipping both ends would
+ * leave nothing (the ends' shapes overlap along it).
  */
 export function clipWhiteboardConnector(
   connector: WhiteboardArrow | WhiteboardLine,
@@ -279,8 +280,14 @@ export function clipWhiteboardConnector(
   if (Math.hypot(x2 - x1, y2 - y1) < EPS) return stored;
   const { from, to } = whiteboardConnectorAttachments(connector, elements);
   if (from < 0 && to < 0) return stored;
-  const a = { x: x1, y: y1 };
-  const b = { x: x2, y: y2 };
+  const centre = (i: number, x: number, y: number): WhiteboardPoint => {
+    if (i < 0) return { x, y };
+    const s = elements[i] as WhiteboardAttachable;
+    return { x: s.x + s.width / 2, y: s.y + s.height / 2 };
+  };
+  const a = centre(from, x1, y1);
+  const b = centre(to, x2, y2);
+  if (Math.hypot(b.x - a.x, b.y - a.y) < EPS) return stored;
   // Each end measured from the OTHER stored point, so a border point comes
   // out exact rather than as 1 − t.
   const uEnd =
@@ -289,9 +296,9 @@ export function clipWhiteboardConnector(
     from < 0 ? 1 : entryParam(elements[from] as WhiteboardAttachable, b, a);
   if (uEnd + uStart - 1 < EPS) return stored;
   return {
-    x1: x2 + (x1 - x2) * uStart,
-    y1: y2 + (y1 - y2) * uStart,
-    x2: x1 + (x2 - x1) * uEnd,
-    y2: y1 + (y2 - y1) * uEnd,
+    x1: b.x + (a.x - b.x) * uStart,
+    y1: b.y + (a.y - b.y) * uStart,
+    x2: a.x + (b.x - a.x) * uEnd,
+    y2: a.y + (b.y - a.y) * uEnd,
   };
 }
