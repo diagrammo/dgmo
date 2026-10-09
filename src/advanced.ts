@@ -350,6 +350,7 @@ export type {
   ParsedWhiteboard,
   WhiteboardElement,
   WhiteboardShape,
+  WhiteboardNote,
   WhiteboardArrow,
   WhiteboardLine,
   WhiteboardStrokeStyle,
@@ -365,11 +366,15 @@ export {
   WHITEBOARD_SHAPE_KINDS,
   WHITEBOARD_ELEMENT_KEYWORDS,
   WHITEBOARD_STROKE_STYLES,
+  WHITEBOARD_NOTE_WIDTH,
+  WHITEBOARD_NOTE_HEIGHT,
+  WHITEBOARD_NOTE_COLOR,
   isWhiteboardColor,
   isWhiteboardShapeKind,
 } from './whiteboard/types';
 export {
   renderWhiteboard,
+  visibleWhiteboardElements,
   whiteboardBounds,
   inkOutlinePath,
   IMAGE_NOT_UPLOADED,
@@ -392,6 +397,7 @@ export type {
   WhiteboardPoint,
   WhiteboardSegment,
   WhiteboardConnectorAttachments,
+  WhiteboardAttachable,
 } from './whiteboard/geometry';
 export type { SketchCollapseResult } from './sketch/collapse';
 export {

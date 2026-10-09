@@ -153,7 +153,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `treemap`         | nested rectangles sized by value (budgets, disk usage, portfolios)                                                                                            |
 | `block`           | author-controlled grid of nested, collapsible blocks (system / architecture layouts)                                                                          |
 | `sketch`          | GUI-first free-placement canvas: uniform shapes on a snap grid, arrows, tags (markup is app-generated)                                                        |
-| `whiteboard`      | free-form infinite canvas: shapes, free arrows, text, images and freehand ink at pixel positions (canvas-drawn; AI writes shapes, arrows, text — never ink)   |
+| `whiteboard`      | free-form infinite canvas: shapes, sticky notes, free arrows, text, images and freehand ink at pixel positions (canvas-drawn; AI writes all but ink)          |
 | `goal`            | single progress-toward-a-target value (`now` vs `target`) as a progress bar, thermometer, or gauge — KPIs, fundraising, quotas                                |
 | `countdown`       | live "N days until X" that ticks every second and is accurate on every load — trip dates, launches, deadlines; the only dynamic chart type                    |
 | `clock`           | live world-clock board: current time for people/places across time zones, ticking every second, with optional working-hours status and sundown line           |

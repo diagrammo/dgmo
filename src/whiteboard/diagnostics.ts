@@ -31,8 +31,8 @@ export const WHITEBOARD_DIAGNOSTICS: DiagnosticSpec[] = [
     chartType: 'whiteboard',
     title: 'Unknown whiteboard element',
     message: (p) =>
-      `Unknown element "${s(p.word)}" — a whiteboard line starts with rectangle, ellipse, database, queue, arrow, text, image or ink; line skipped${p.hint ? `. ${s(p.hint)}` : ''}`,
-    hint: 'Start the line with one of the nine element keywords.',
+      `Unknown element "${s(p.word)}" — a whiteboard line starts with rectangle, ellipse, database, queue, note, arrow, line, text, image or ink; line skipped${p.hint ? `. ${s(p.hint)}` : ''}`,
+    hint: 'Start the line with one of the ten element keywords.',
     example: 'whiteboard\nsquare Start at: 0 0, size: 120 60',
   },
   {
@@ -61,7 +61,7 @@ export const WHITEBOARD_DIAGNOSTICS: DiagnosticSpec[] = [
     chartType: 'whiteboard',
     title: 'Unknown colour',
     message: (p) =>
-      `Unknown colour "${s(p.color)}" — drawn in ink (valid: ink, red, green, blue, teal, purple, orange, yellow, cyan, gray)${p.hint ? `. ${s(p.hint)}` : ''}`,
+      `Unknown colour "${s(p.color)}" — drawn in ${p.fallback ? s(p.fallback) : 'ink'} (valid: ink, red, green, blue, teal, purple, orange, yellow, cyan, gray)${p.hint ? `. ${s(p.hint)}` : ''}`,
     hint: 'Colours are palette names, never hex values.',
     example: 'whiteboard\ntext Ship it at: 0 0, color: crimson',
   },
@@ -120,7 +120,7 @@ export const WHITEBOARD_DIAGNOSTICS: DiagnosticSpec[] = [
     title: 'Indented lines under an element with no label',
     message: (p) =>
       `${s(p.element)} takes no indented lines — ${s(p.count)} ignored`,
-    hint: 'Only shapes, arrows, lines and text have a label that can run over indented lines. Unindent the line if it is meant as its own element.',
+    hint: 'Only shapes, notes, arrows, lines and text have a label that can run over indented lines. Unindent the line if it is meant as its own element.',
     example:
       'whiteboard\nimage board.assets/a.webp at: 0 0, size: 320 200\n  caption',
   },

@@ -231,6 +231,12 @@ export async function render(
      * other chart type ignores this option.
      */
     resolveImage?: (ref: string) => string | undefined;
+    /**
+     * Whiteboard sticky notes: `true` draws them and `false` hides them,
+     * whatever the board's `no-notes` says. Omitted, the directive decides.
+     * Every other chart type ignores this option.
+     */
+    showNotes?: boolean;
   }
 ): Promise<{
   svg: string;
@@ -396,6 +402,9 @@ export async function render(
         ...(options?.height !== undefined && { height: options.height }),
         ...(options?.resolveImage !== undefined && {
           resolveImage: options.resolveImage,
+        }),
+        ...(options?.showNotes !== undefined && {
+          showNotes: options.showNotes,
         }),
         onMapResolverDiagnostics: (d) => {
           mapDiag.current = d;

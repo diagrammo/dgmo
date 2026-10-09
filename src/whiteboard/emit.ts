@@ -10,13 +10,19 @@
 //     assert(back.diagnostics.length === 0);    // emitter cleanliness
 //
 // Canonical form: one element per line in z-order, metadata in a fixed key
-// order, `color:` omitted when it is the default `ink`, `style:` omitted when
-// it is the default `solid`, ink payloads verbatim. A one-line label is
+// order, `color:` omitted when it is the default (`ink`, or `yellow` on a
+// note), a note's `size:` omitted when it is the default 160 × 120, `style:`
+// omitted when it is the default `solid`, ink payloads verbatim. A one-line label is
 // written inline; a label of two or more lines is written as indented body
 // lines (two spaces) under an element line that carries no inline label.
 // Emitting the parse of canonical text reproduces it byte for byte.
 
 import type { ParsedWhiteboard, WhiteboardElement } from './types';
+import {
+  WHITEBOARD_NOTE_COLOR,
+  WHITEBOARD_NOTE_HEIGHT,
+  WHITEBOARD_NOTE_WIDTH,
+} from './types';
 
 /** Anything the parser would read as the start of metadata, or as quotes. */
 const NEEDS_QUOTES_RE = /(^|\s)[a-z][a-z-]*:(\s|$)|^["']/;
@@ -55,6 +61,15 @@ export function emitWhiteboardElement(el: WhiteboardElement): string {
         `size: ${el.width} ${el.height}`,
         ...colorPart(el.color),
       ]);
+    case 'note':
+      return line('note', el.text, [
+        `at: ${el.x} ${el.y}`,
+        ...(el.width === WHITEBOARD_NOTE_WIDTH &&
+        el.height === WHITEBOARD_NOTE_HEIGHT
+          ? []
+          : [`size: ${el.width} ${el.height}`]),
+        ...(el.color === WHITEBOARD_NOTE_COLOR ? [] : [`color: ${el.color}`]),
+      ]);
     case 'arrow':
     case 'line':
       return line(el.kind, el.label, [
@@ -84,6 +99,7 @@ export function emitWhiteboard(board: ParsedWhiteboard): string {
     board.title ? `whiteboard ${board.title}` : 'whiteboard',
   ];
   if (board.options.noTitle) out.push('no-title');
+  if (board.options.noNotes) out.push('no-notes');
   for (const el of board.elements) out.push(emitWhiteboardElement(el));
   return out.join('\n') + '\n';
 }

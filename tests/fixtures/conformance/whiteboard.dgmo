@@ -9,6 +9,9 @@ queue Email jobs at: 300 380, size: 200 64, color: orange
 arrow from: 150 285, to: 400 412, color: orange
 text keep it to ONE screen at: 62 184
 text 2FA here?? at: 560 -4, color: red
+note at: 560 400
+  Ask legal whether SSO needs a security review
+  - Sam
 image login-ideas.assets/9f3c2a71.webp at: 620 200, size: 250 170
 ink ink 2.5 AHysAxoGEgIUAyYJFAESAi4MEgIUAyYJFAESAjQOGgE
 ink red 3 ALwKUAEKBQoNCA8IKwwxBDMDKwkRBwsJBwkBCQgNCgkkDyQHHAE4ATQIFgYaDAwKCBABCgsO

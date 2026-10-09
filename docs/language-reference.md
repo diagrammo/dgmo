@@ -142,7 +142,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `treemap`         | nested rectangles sized by value (budgets, disk usage, portfolios)                                                                                            |
 | `block`           | author-controlled grid of nested, collapsible blocks (system / architecture layouts)                                                                          |
 | `sketch`          | GUI-first free-placement canvas: uniform shapes on a snap grid, arrows, tags (markup is app-generated)                                                        |
-| `whiteboard`      | free-form infinite canvas: shapes, free arrows, text, images and freehand ink at pixel positions (canvas-drawn; AI writes shapes, arrows, text — never ink)   |
+| `whiteboard`      | free-form infinite canvas: shapes, sticky notes, free arrows, text, images and freehand ink at pixel positions (canvas-drawn; AI writes all but ink)          |
 | `goal`            | single progress-toward-a-target value (`now` vs `target`) as a progress bar, thermometer, or gauge — KPIs, fundraising, quotas                                |
 | `countdown`       | live "N days until X" that ticks every second and is accurate on every load — trip dates, launches, deadlines; the only dynamic chart type                    |
 | `clock`           | live world-clock board: current time for people/places across time zones, ticking every second, with optional working-hours status and sundown line           |
@@ -3946,11 +3946,11 @@ In the desktop and web app a sketch opens in the **canvas editor** (the code pan
 
 <!-- TIPS start -->
 
-**Styling tips:** Whiteboard is a canvas-first format: people draw on it, and pen strokes (`ink` lines) only ever come from drawing — never write an `ink` line. Generate the readable parts only: `rectangle`, `ellipse`, `database`, `queue` with a label, `at: X Y` (top-left, integer pixels) and `size: W H`; `arrow` with `from: X Y, to: X Y` and an optional label, or `line` the same way for a connection with no head; add `style: dashed` to an arrow or line for a tentative or optional link; `text` at a point. For a label of two or more lines, drop the inline label and indent each line two spaces under the element line. Leave ~40px between shapes and keep boards small (under ~15 elements). Colours are palette names (red, green, blue, teal, purple, orange, yellow, cyan, gray); leave colour off for the default ink. An arrow or line end placed inside a shape attaches to it and is drawn to its border, so point ends at shape centres. Reach for `whiteboard` for a loose drawing someone will scribble over; reach for `sketch` for tagged shapes on a grid, and `boxes-and-lines` when topology should auto-lay-out.
+**Styling tips:** Whiteboard is a canvas-first format: people draw on it, and pen strokes (`ink` lines) only ever come from drawing — never write an `ink` line. Generate the readable parts only: `rectangle`, `ellipse`, `database`, `queue` with a label, `at: X Y` (top-left, integer pixels) and `size: W H`; `arrow` with `from: X Y, to: X Y` and an optional label, or `line` the same way for a connection with no head; add `style: dashed` to an arrow or line for a tentative or optional link; `text` at a point; `note` with `at: X Y` for a sticky-note comment or open question (a 160 × 120 yellow card by default; `size:` and `color:` are optional). A shape label or a note wraps to its width on its own, so never break a sentence by hand to fit; for separate lines (a heading, a list), drop the inline label and indent each line two spaces under the element line. Leave ~40px between shapes and keep boards small (under ~15 elements). Colours are palette names (red, green, blue, teal, purple, orange, yellow, cyan, gray); leave colour off for the default ink. An arrow or line end placed inside a shape or note attaches to it and is drawn to its border, so point ends at shape centres. `no-notes` hides every note when the board is shown. Reach for `whiteboard` for a loose drawing someone will scribble over; reach for `sketch` for tagged shapes on a grid, and `boxes-and-lines` when topology should auto-lay-out.
 
 <!-- TIPS end -->
 
-A **free-form whiteboard** on an infinite canvas: rectangles, ellipses, databases, queues, free arrows and lines, text, pasted images and freehand ink, each at absolute pixel positions. Shapes are clean vector outlines; only ink looks hand-made. The export is cropped to the drawing plus a margin. Element order is drawing order — later lines draw on top.
+A **free-form whiteboard** on an infinite canvas: rectangles, ellipses, databases, queues, sticky notes, free arrows and lines, text, pasted images and freehand ink, each at absolute pixel positions. Shapes are clean vector outlines; only ink looks hand-made. The export is cropped to the drawing plus a margin. Element order is drawing order — later lines draw on top.
 
 ### Declaration
 
@@ -3973,13 +3973,14 @@ arrow from: 150 285, to: 400 412, color: orange, style: dashed
 line from: 60 340, to: 240 340, style: dashed
 text keep it to ONE screen at: 62 184
 text 2FA here?? at: 560 -4, color: red
+note ask legal about SSO at: 600 300
 ```
 
 ### Elements
 
 One line = one element, led by its keyword. The label is a **bare name** before the first `key:`; metadata is same-line `key: value` pairs. Quote a label that itself contains `word:` (`text "todo: ship" at: 0 0`).
 
-A label can run over several lines: indent them under the element line. An inline label, when present, is the first line. This works on every labelled element — shapes, `arrow`, `line` and `text`:
+A label can run over several lines: indent them under the element line. An inline label, when present, is the first line. This works on every labelled element — shapes, `note`, `arrow`, `line` and `text`:
 
 ```
 whiteboard
@@ -3993,7 +3994,7 @@ text at: 0 90
 
 Body lines are literal — trimmed, but never read as metadata, quotes or comments. A blank line between two of them is an empty line of the label. `image` and `ink` take no indented lines; any are ignored with a warning.
 
-A **shape** label wraps to the shape's width: each written line is kept and wraps on its own, so a long line breaks at words inside the box. Arrow, line and `text` labels never wrap — each written line is drawn as written.
+A **shape** label, and a note's text, wraps to its width: each written line is kept and wraps on its own, so a long line breaks at words inside the box. Arrow, line and `text` labels never wrap — each written line is drawn as written.
 
 | Line                                   | Meaning                                                                             |
 | -------------------------------------- | ----------------------------------------------------------------------------------- |
@@ -4001,21 +4002,22 @@ A **shape** label wraps to the shape's width: each written line is kept and wrap
 | `ellipse <label> at: X Y, size: W H`   | Ellipse inside that box                                                             |
 | `database <label> at: X Y, size: W H`  | Upright cylinder                                                                    |
 | `queue <label> at: X Y, size: W H`     | Cylinder on its side                                                                |
+| `note <text> at: X Y[, size: W H]`     | Sticky note: tinted card, text top-left, wrapped; default 160 × 120, yellow         |
 | `arrow <label> from: X Y, to: X Y`     | Arrow, head at `to:`; label optional, drawn at the midpoint                         |
 | `line <label> from: X Y, to: X Y`      | Free line — an arrow with no head; otherwise identical                              |
 | `text <words> at: X Y`                 | Free text; `at:` is the top-left of its first line                                  |
 | `image <ref> at: X Y, size: W H`       | Picture; `<ref>` is a relative path (`board.assets/9f3c.webp`) or an `https://` URL |
 | `ink <colour> <width> <path>`          | One freehand stroke — **canvas-written only**                                       |
 
-An `arrow` or `line` end inside a shape attaches to it and is drawn to that shape's border (topmost shape wins; not when both ends are inside the same shape).
+An `arrow` or `line` end inside a shape or a sticky note attaches to it and is drawn to its border (topmost wins; not when both ends are inside the same one).
 
-The label is optional on shapes, arrows and lines. `at:` is a top-left corner in canvas pixels; every number is an integer and may be negative. `size:` is width then height, each at least 1.
+The label is optional on shapes, notes, arrows and lines. `at:` is a top-left corner in canvas pixels; every number is an integer and may be negative. `size:` is width then height, each at least 1.
 
 Arrows and lines take `style: dashed` for a dashed stroke. Solid is the default and is never written; `dashed` is the only value `style:` accepts.
 
 ### Colours
 
-`color:` takes a palette **name**: `ink` (the default, never written — the theme's text colour, near-black on light and near-white on dark), `red`, `green`, `blue`, `teal`, `purple`, `orange`, `yellow`, `cyan`, `gray`. Each takes the palette's own light or dark shade. No hex values.
+`color:` takes a palette **name**: `ink` (the default, never written — the theme's text colour, near-black on light and near-white on dark), `red`, `green`, `blue`, `teal`, `purple`, `orange`, `yellow`, `cyan`, `gray`. Each takes the palette's own light or dark shade. No hex values. A `note` defaults to `yellow` instead of `ink`, and writes `color:` only when it is not yellow.
 
 ### Images
 
@@ -4023,9 +4025,14 @@ An image whose ref cannot be loaded — a local file that is not there, or a cop
 
 ### Directives
 
-| Directive  | Effect                                        |
-| ---------- | --------------------------------------------- |
-| `no-title` | Keep the title in the source; do not draw it. |
+| Directive  | Effect                                                 |
+| ---------- | ------------------------------------------------------ |
+| `no-title` | Keep the title in the source; do not draw it.          |
+| `no-notes` | Keep the sticky notes in the source; do not draw them. |
+
+### Sticky notes
+
+`note` drops a sticky note: a tinted card with its text top-left, wrapped to the card. `size:` is optional (default 160 × 120) and `color:` defaults to `yellow`. An empty `note at: X Y` is valid. Notes are an overlay layer — `no-notes` hides every note, and a host can show or hide them whatever the directive says (the `showNotes` render option). A hidden note is not drawn, takes no room in the crop, and no arrow end attaches to it.
 
 ### Leniency
 

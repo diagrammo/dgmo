@@ -9,11 +9,13 @@
 //   arrow from: 240 95, to: 340 95
 //   line from: 240 300, to: 300 400, style: dashed
 //   text keep it to ONE screen at: 62 184
+//   note ask legal about SSO at: 600 40
 //   image login-ideas.assets/9f3c2a71.webp at: 420 200, size: 250 170
 //   ink red 3 <encoded path>
 //
 // A label may run over several lines: each line indented deeper than its
-// element line is one more line of that label, drawn as written (no reflow).
+// element line is one more line of that label. Lines are never joined; a
+// shape's or note's lines each wrap to its width (`./label`).
 // An inline label, when present, is the first line:
 //
 //   rectangle at: 0 0, size: 100 50
@@ -52,6 +54,9 @@ import type {
 import {
   WHITEBOARD_COLORS,
   WHITEBOARD_ELEMENT_KEYWORDS,
+  WHITEBOARD_NOTE_COLOR,
+  WHITEBOARD_NOTE_HEIGHT,
+  WHITEBOARD_NOTE_WIDTH,
   isWhiteboardColor,
   isWhiteboardShapeKind,
 } from './types';
@@ -76,6 +81,7 @@ const WRITTEN_STYLES = ['dashed'] as const;
 
 const KEYS_BY_KIND: Record<string, readonly string[]> = {
   shape: ['at', 'size', 'color'],
+  note: ['at', 'size', 'color'],
   arrow: ['from', 'to', 'color', 'style'],
   line: ['from', 'to', 'color', 'style'],
   text: ['at', 'color'],
@@ -183,7 +189,7 @@ export function parseWhiteboard(
   content: string,
   _palette?: PaletteColors
 ): ParsedWhiteboard {
-  const options = { noTitle: false };
+  const options = { noTitle: false, noNotes: false };
   const elements: WhiteboardElement[] = [];
   const result: Writable<ParsedWhiteboard> = {
     type: 'whiteboard',
@@ -209,16 +215,18 @@ export function parseWhiteboard(
 
   const readColor = (
     raw: string | undefined,
-    line: number
+    line: number,
+    fallback: WhiteboardColor = 'ink'
   ): WhiteboardColor => {
-    if (raw === undefined) return 'ink';
+    if (raw === undefined) return fallback;
     const c = raw.trim().toLowerCase();
     if (isWhiteboardColor(c)) return c;
     warn(line, CODES.UNKNOWN_COLOR, {
       color: raw,
+      fallback,
       hint: suggest(c, WHITEBOARD_COLORS) ?? '',
     });
-    return 'ink';
+    return fallback;
   };
 
   /** `style:` — only `dashed` is ever written; solid is the default. */
@@ -309,11 +317,12 @@ export function parseWhiteboard(
       continue;
     }
 
-    // §1.9 universal flags — `no-title` means something here, the rest are
-    // harmless no-ops rather than unknown elements.
+    // §1.9 universal flags — `no-title` and `no-notes` mean something here,
+    // the rest are harmless no-ops rather than unknown elements.
     const shared = recognizeGlobalBoolean(trimmed);
     if (shared !== null) {
       if (shared === 'no-title') options.noTitle = true;
+      if (shared === 'no-notes') options.noNotes = true;
       continue;
     }
 
@@ -398,6 +407,30 @@ export function parseWhiteboard(
         height: size[1],
         label: joinLabel(name, body),
         color: readColor(meta.get('color'), lineNumber),
+        lineNumber,
+      });
+      continue;
+    }
+
+    if (word === 'note') {
+      const { name, meta } = splitLine(rest);
+      checkKeys(meta, 'note', 'note', lineNumber);
+      const at = readPair(meta, 'at', 'note', lineNumber, false);
+      if (!at) continue;
+      // `size:` is optional on a note; left off, the note is the default card.
+      const size = meta.has('size')
+        ? readPair(meta, 'size', 'note', lineNumber, true)
+        : [WHITEBOARD_NOTE_WIDTH, WHITEBOARD_NOTE_HEIGHT];
+      if (!size) continue;
+      // An empty note is valid: the canvas drops one ready to type into.
+      elements.push({
+        kind: 'note',
+        x: at[0],
+        y: at[1],
+        width: size[0]!,
+        height: size[1]!,
+        text: joinLabel(name, body),
+        color: readColor(meta.get('color'), lineNumber, WHITEBOARD_NOTE_COLOR),
         lineNumber,
       });
       continue;

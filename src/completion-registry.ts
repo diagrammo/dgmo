@@ -798,8 +798,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'whiteboard',
     // Canvas-authored free placement: every line is an element; the only
-    // directives are the universal set (`no-title` is the one that acts).
-    withGlobals(),
+    // directives are the universal set plus `no-notes`, the two that act.
+    withGlobals({
+      'no-notes': { description: 'Hide every sticky note' },
+    }),
   ],
   [
     'map',
@@ -1018,6 +1020,7 @@ export const STRUCTURAL_KEYWORDS = new Map<string, string[]>([
       'ellipse',
       'database',
       'queue',
+      'note',
       'arrow',
       'line',
       'text',
@@ -1231,7 +1234,7 @@ export const PIPE_METADATA = new Map<string, PipeContextMap>([
         size: { description: 'Width and height `size: W H` in px' },
         color: {
           description:
-            'ink (default), red, green, blue, teal, purple, orange, yellow, cyan or gray',
+            'ink (default; yellow on a note), red, green, blue, teal, purple, orange, yellow, cyan or gray',
         },
         from: { description: 'Arrow tail `from: X Y` in canvas px' },
         to: { description: 'Arrow head `to: X Y` in canvas px' },

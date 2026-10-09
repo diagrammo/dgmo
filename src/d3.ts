@@ -139,6 +139,11 @@ type RenderForExportOptions = {
    * Omitted → https refs pass through and the rest are placeholders.
    */
   resolveImage?: (ref: string) => string | undefined;
+  /**
+   * Whiteboard sticky notes: `true` draws them and `false` hides them,
+   * whatever the board's `no-notes` says. Omitted → the directive decides.
+   */
+  showNotes?: boolean;
 };
 
 /** Everything an export handler needs — one bundle threaded through dispatch. */
@@ -744,8 +749,10 @@ async function exportWhiteboard(ctx: ExportContext): Promise<string> {
   // The renderer crops to the content, so the canvas size is its own.
   const container = createExportContainer(1, 1);
   const resolveImage = ctx.options?.resolveImage;
+  const showNotes = ctx.options?.showNotes;
   renderWhiteboard(container, parsed, effectivePalette, ctx.isDark, {
     ...(resolveImage !== undefined && { resolveImage }),
+    ...(showNotes !== undefined && { showNotes }),
   });
   return finalizeSvgExport(container, theme, effectivePalette);
 }

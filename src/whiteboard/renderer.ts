@@ -20,11 +20,12 @@ import { drawCylinderCard, drawQueueCard } from '../c4/renderer';
 import { renderChartTitle } from '../utils/d3-helpers';
 import { measureText } from '../utils/text-measure';
 import { TITLE_FONT_SIZE } from '../utils/title-constants';
-import { RECT_RADIUS, clipWhiteboardConnector } from './geometry';
+import { NOTE_RADIUS, RECT_RADIUS, clipWhiteboardConnector } from './geometry';
 import type { InkPoint } from './ink-codec';
 import {
   WHITEBOARD_LABEL_FONT as LABEL_FONT,
   WHITEBOARD_LABEL_LINE as LABEL_LINE,
+  WHITEBOARD_NOTE_PAD as NOTE_PAD,
   wrapWhiteboardLabel,
 } from './label';
 import type {
@@ -32,6 +33,7 @@ import type {
   WhiteboardColor,
   WhiteboardElement,
   WhiteboardImage,
+  WhiteboardNote,
 } from './types';
 
 export interface WhiteboardRenderOptions {
@@ -41,6 +43,28 @@ export interface WhiteboardRenderOptions {
    * `https://` refs pass through unchanged and anything else is a placeholder.
    */
   readonly resolveImage?: (ref: string) => string | undefined;
+  /**
+   * Draw the sticky notes, overriding the board's `no-notes` directive either
+   * way — the app's notes toggle and its export pass this. Omitted, the
+   * directive decides: notes show unless the board says `no-notes`. Hidden
+   * notes are left out entirely: not drawn, not counted in the crop, and no
+   * arrow end attaches to them.
+   */
+  readonly showNotes?: boolean;
+}
+
+/**
+ * The elements a render draws, in order: every element, less the sticky notes
+ * when they are hidden (see {@link WhiteboardRenderOptions.showNotes}).
+ */
+export function visibleWhiteboardElements(
+  parsed: ParsedWhiteboard,
+  options: Pick<WhiteboardRenderOptions, 'showNotes'> = {}
+): readonly WhiteboardElement[] {
+  const show = options.showNotes ?? !parsed.options.noNotes;
+  return show
+    ? parsed.elements
+    : parsed.elements.filter((el) => el.kind !== 'note');
 }
 
 /** Space around the cropped content, px. */
@@ -58,6 +82,9 @@ const ARROW_HEAD_HALF = 6;
 const DASH_ON = 3;
 const DASH_OFF = 4;
 const WHITEBOARD_TEXT_FONT = 16;
+/** A sticky note's fill and edge: its hue mixed into the ground, percent. */
+const NOTE_TINT = 40;
+const NOTE_EDGE = 65;
 const BASELINE = 0.8;
 /** Placeholder text for an image no host could resolve. */
 export const IMAGE_NOT_UPLOADED = 'image not uploaded';
@@ -90,24 +117,44 @@ function grow(b: Bounds, x0: number, y0: number, x1: number, y1: number): void {
   b.maxY = Math.max(b.maxY, y0, y1);
 }
 
-/** Content bounds of every element, in canvas px. */
-export function whiteboardBounds(parsed: ParsedWhiteboard): Bounds {
+/** Height of a sticky note's text block, padding included, px. */
+function noteTextHeight(el: WhiteboardNote): number {
+  const n = wrapWhiteboardLabel(el.text, el).length;
+  return 2 * NOTE_PAD + n * LABEL_FONT * LABEL_LINE;
+}
+
+/** Content bounds of every drawn element, in canvas px. */
+export function whiteboardBounds(
+  parsed: ParsedWhiteboard,
+  options: Pick<WhiteboardRenderOptions, 'showNotes'> = {}
+): Bounds {
   const b: Bounds = {
     minX: Infinity,
     minY: Infinity,
     maxX: -Infinity,
     maxY: -Infinity,
   };
-  for (const el of parsed.elements) {
+  const elements = visibleWhiteboardElements(parsed, options);
+  for (const el of elements) {
     switch (el.kind) {
       case 'shape':
       case 'image':
         grow(b, el.x, el.y, el.x + el.width, el.y + el.height);
         break;
+      case 'note':
+        // Text longer than the card runs on below it, and stays in the crop.
+        grow(
+          b,
+          el.x,
+          el.y,
+          el.x + el.width,
+          el.y + Math.max(el.height, noteTextHeight(el))
+        );
+        break;
       case 'arrow':
       case 'line': {
         // The DRAWN segment — an end attached to a shape stops at its border.
-        const s = clipWhiteboardConnector(el, parsed.elements);
+        const s = clipWhiteboardConnector(el, elements);
         const pad = ARROW_HEAD_HALF + ARROW_STROKE;
         grow(b, s.x1 - pad, s.y1 - pad, s.x2 + pad, s.y2 + pad);
         grow(b, s.x1 + pad, s.y1 + pad, s.x2 - pad, s.y2 - pad);
@@ -191,7 +238,8 @@ export function renderWhiteboard(
 
   const showTitle = !!parsed.title && !parsed.options.noTitle;
   const titleOffset = showTitle ? TITLE_BAND : 0;
-  const b = whiteboardBounds(parsed);
+  const elements = visibleWhiteboardElements(parsed, options);
+  const b = whiteboardBounds(parsed, options);
   const contentW = b.maxX - b.minX;
   const contentH = b.maxY - b.minY;
   const titleW = showTitle
@@ -335,11 +383,42 @@ export function renderWhiteboard(
         centredLabel(g, wrapWhiteboardLabel(el.label, el), cx, cy);
         break;
       }
+      case 'note': {
+        // A flat tinted card — stronger than a shape's tint, edged in its own
+        // hue — with the text top-left, wrapped to the card.
+        const hue = colorOf(el.color);
+        g.append('rect')
+          .attr('x', el.x)
+          .attr('y', el.y)
+          .attr('width', el.width)
+          .attr('height', el.height)
+          .attr('rx', Math.min(NOTE_RADIUS, el.width / 2, el.height / 2))
+          .attr('fill', mix(hue, base, NOTE_TINT))
+          .attr('stroke', mix(hue, base, NOTE_EDGE))
+          .attr('stroke-width', 1);
+        const lines = wrapWhiteboardLabel(el.text, el);
+        if (lines.length > 0) {
+          const lh = LABEL_FONT * LABEL_LINE;
+          const t = g
+            .append('text')
+            .attr('class', 'whiteboard-label')
+            .attr('font-size', LABEL_FONT)
+            .attr('fill', palette.text);
+          appendLines(
+            t,
+            lines,
+            el.x + NOTE_PAD,
+            el.y + NOTE_PAD + lh * BASELINE,
+            lh
+          );
+        }
+        break;
+      }
       case 'arrow':
       case 'line': {
         const color = colorOf(el.color);
         // An end inside a shape is attached and drawn to its border.
-        const s = clipWhiteboardConnector(el, parsed.elements);
+        const s = clipWhiteboardConnector(el, elements);
         const dx = s.x2 - s.x1;
         const dy = s.y2 - s.y1;
         const len = Math.hypot(dx, dy);
@@ -433,7 +512,7 @@ export function renderWhiteboard(
     }
   };
 
-  for (const el of parsed.elements) drawElement(el);
+  for (const el of elements) drawElement(el);
 }
 
 /** One `<tspan>` per non-empty line, `lh` apart from the first baseline. */

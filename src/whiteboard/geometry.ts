@@ -18,17 +18,31 @@
 //   ellipse   — the ellipse
 //   database  — the body rectangle plus the top and bottom cap ellipses
 //   queue     — the body rectangle plus the left and right cap ellipses
+//   note      — a sticky note's card: a rectangle with NOTE_RADIUS corners
+//
+// A sticky note is attachable exactly like a shape: "shape" below means any
+// boxed element a connector end can sit in.
 
 import { CYLINDER_RY, QUEUE_CAP } from '../c4/renderer';
 import type {
   WhiteboardArrow,
   WhiteboardElement,
   WhiteboardLine,
+  WhiteboardNote,
   WhiteboardShape,
 } from './types';
 
 /** Corner radius of a whiteboard rectangle, before clamping to its size. */
 export const RECT_RADIUS = 6;
+/** Corner radius of a sticky note's card, before clamping to its size. */
+export const NOTE_RADIUS = 2;
+
+/** An element a connector end can attach to: a shape or a sticky note. */
+export type WhiteboardAttachable = WhiteboardShape | WhiteboardNote;
+
+function isAttachable(el: WhiteboardElement): el is WhiteboardAttachable {
+  return el.kind === 'shape' || el.kind === 'note';
+}
 
 /** Containment and collapse tolerance, px. */
 const EPS = 1e-6;
@@ -76,24 +90,35 @@ function ellipse(cx: number, cy: number, rx: number, ry: number): Piece[] {
   return rx > 0 && ry > 0 ? [{ kind: 'ellipse', cx, cy, rx, ry }] : [];
 }
 
-/** The shape's drawn outline as a union of convex pieces. */
-function piecesOf(s: WhiteboardShape): Piece[] {
+/** A rounded rectangle as a union of convex pieces. */
+function roundedRect(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  radius: number
+): Piece[] {
+  const r = Math.max(0, Math.min(radius, w / 2, h / 2));
+  if (r === 0) return rect(x, y, x + w, y + h);
+  return [
+    ...rect(x + r, y, x + w - r, y + h),
+    ...rect(x, y + r, x + w, y + h - r),
+    ...ellipse(x + r, y + r, r, r),
+    ...ellipse(x + w - r, y + r, r, r),
+    ...ellipse(x + r, y + h - r, r, r),
+    ...ellipse(x + w - r, y + h - r, r, r),
+  ];
+}
+
+/** The element's drawn outline as a union of convex pieces. */
+function piecesOf(s: WhiteboardAttachable): Piece[] {
   const { x, y, width: w, height: h } = s;
+  if (s.kind === 'note') return roundedRect(x, y, w, h, NOTE_RADIUS);
   const cx = x + w / 2;
   const cy = y + h / 2;
   switch (s.shape) {
-    case 'rectangle': {
-      const r = Math.max(0, Math.min(RECT_RADIUS, w / 2, h / 2));
-      if (r === 0) return rect(x, y, x + w, y + h);
-      return [
-        ...rect(x + r, y, x + w - r, y + h),
-        ...rect(x, y + r, x + w, y + h - r),
-        ...ellipse(x + r, y + r, r, r),
-        ...ellipse(x + w - r, y + r, r, r),
-        ...ellipse(x + r, y + h - r, r, r),
-        ...ellipse(x + w - r, y + h - r, r, r),
-      ];
-    }
+    case 'rectangle':
+      return roundedRect(x, y, w, h, RECT_RADIUS);
     case 'ellipse':
       return ellipse(cx, cy, w / 2, h / 2);
     case 'database': {
@@ -132,17 +157,17 @@ function pieceContains(p: Piece, px: number, py: number): boolean {
   return nx * nx + ny * ny <= 1 + EPS;
 }
 
-/** Whether `point` lies inside (or on) the shape's drawn outline. */
+/** Whether `point` lies inside (or on) the shape's or note's drawn outline. */
 export function whiteboardShapeContains(
-  shape: WhiteboardShape,
+  shape: WhiteboardAttachable,
   point: WhiteboardPoint
 ): boolean {
   return piecesOf(shape).some((p) => pieceContains(p, point.x, point.y));
 }
 
 /**
- * Index in `elements` of the topmost shape containing `point` — the one
- * latest in the file — or -1 when the point is on no shape.
+ * Index in `elements` of the topmost shape or sticky note containing `point`
+ * — the one latest in the file — or -1 when the point is on none.
  */
 export function whiteboardShapeAt(
   point: WhiteboardPoint,
@@ -150,7 +175,7 @@ export function whiteboardShapeAt(
 ): number {
   for (let i = elements.length - 1; i >= 0; i--) {
     const el = elements[i]!;
-    if (el.kind === 'shape' && whiteboardShapeContains(el, point)) return i;
+    if (isAttachable(el) && whiteboardShapeContains(el, point)) return i;
   }
   return -1;
 }
@@ -169,7 +194,7 @@ export function whiteboardConnectorAttachments(
   const attach = (end: WhiteboardPoint, other: WhiteboardPoint): number => {
     const i = whiteboardShapeAt(end, elements);
     if (i < 0) return -1;
-    return whiteboardShapeContains(elements[i] as WhiteboardShape, other)
+    return whiteboardShapeContains(elements[i] as WhiteboardAttachable, other)
       ? -1
       : i;
   };
@@ -223,7 +248,7 @@ function interval(
  * `a` is outside the shape and `b` inside it, so an entry always exists.
  */
 function entryParam(
-  shape: WhiteboardShape,
+  shape: WhiteboardAttachable,
   a: WhiteboardPoint,
   b: WhiteboardPoint
 ): number {
@@ -258,9 +283,10 @@ export function clipWhiteboardConnector(
   const b = { x: x2, y: y2 };
   // Each end measured from the OTHER stored point, so a border point comes
   // out exact rather than as 1 − t.
-  const uEnd = to < 0 ? 1 : entryParam(elements[to] as WhiteboardShape, a, b);
+  const uEnd =
+    to < 0 ? 1 : entryParam(elements[to] as WhiteboardAttachable, a, b);
   const uStart =
-    from < 0 ? 1 : entryParam(elements[from] as WhiteboardShape, b, a);
+    from < 0 ? 1 : entryParam(elements[from] as WhiteboardAttachable, b, a);
   if (uEnd + uStart - 1 < EPS) return stored;
   return {
     x1: x2 + (x1 - x2) * uStart,

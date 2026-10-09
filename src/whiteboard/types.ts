@@ -44,6 +44,7 @@ export type WhiteboardShapeKind = (typeof WHITEBOARD_SHAPE_KINDS)[number];
 /** Every line-leading element keyword, in spec order. */
 export const WHITEBOARD_ELEMENT_KEYWORDS = [
   ...WHITEBOARD_SHAPE_KINDS,
+  'note',
   'arrow',
   'line',
   'text',
@@ -69,6 +70,30 @@ export interface WhiteboardShape {
   readonly height: number;
   /** Centred label; '' for none. */
   readonly label: string;
+  readonly color: WhiteboardColor;
+  readonly lineNumber: number;
+}
+
+/** A sticky note's size when `size:` is left off, px. */
+export const WHITEBOARD_NOTE_WIDTH = 160;
+export const WHITEBOARD_NOTE_HEIGHT = 120;
+/** A sticky note's colour when `color:` is left off. */
+export const WHITEBOARD_NOTE_COLOR: WhiteboardColor = 'yellow';
+
+/**
+ * A sticky note: a tinted card with its text top-left, wrapped to the card.
+ * Notes are an overlay layer — `no-notes` (or the `showNotes` render option)
+ * hides every one. An arrow or line end inside a note attaches to it.
+ */
+export interface WhiteboardNote {
+  readonly kind: 'note';
+  /** Top-left corner, canvas px. */
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  /** The note's text; '' for an empty note. */
+  readonly text: string;
   readonly color: WhiteboardColor;
   readonly lineNumber: number;
 }
@@ -139,6 +164,7 @@ export interface WhiteboardInk {
 
 export type WhiteboardElement =
   | WhiteboardShape
+  | WhiteboardNote
   | WhiteboardArrow
   | WhiteboardLine
   | WhiteboardText
@@ -148,6 +174,8 @@ export type WhiteboardElement =
 export interface WhiteboardOptions {
   /** §1.9 `no-title` — keep the title in the source, do not draw it. */
   readonly noTitle: boolean;
+  /** `no-notes` — keep the sticky notes in the source, do not draw them. */
+  readonly noNotes: boolean;
 }
 
 export interface ParsedWhiteboard {

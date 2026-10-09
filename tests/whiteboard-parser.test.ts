@@ -39,6 +39,7 @@ describe('parseWhiteboard — elements', () => {
         'ellipse',
         'image',
         'ink',
+        'note',
         'queue',
         'rectangle',
         'text',

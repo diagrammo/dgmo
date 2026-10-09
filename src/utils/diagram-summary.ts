@@ -382,7 +382,8 @@ function summarizeWhiteboard(content: string): string | null {
     // A multi-line label reads as one phrase in a sentence.
     if (el.kind === 'shape' && el.label)
       names.push(el.label.replace(/\n+/g, ' '));
-    else if (el.kind === 'text') names.push(el.text.replace(/\n+/g, ' '));
+    else if ((el.kind === 'text' || el.kind === 'note') && el.text)
+      names.push(el.text.replace(/\n+/g, ' '));
     else if (el.kind === 'ink') strokes++;
     else if (el.kind === 'image') images++;
   }

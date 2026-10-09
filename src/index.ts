@@ -83,6 +83,12 @@ export interface RenderOptions {
    * and everything else is that box. Every other chart type ignores it.
    */
   resolveImage?: (ref: string) => string | undefined;
+  /**
+   * Whiteboard sticky notes: `true` draws them and `false` hides them,
+   * whatever the board's `no-notes` says. Omitted, the directive decides.
+   * Every other chart type ignores it.
+   */
+  showNotes?: boolean;
 }
 
 export type { MapDataSource };
@@ -129,6 +135,9 @@ export async function render(
     ...(options?.mapData !== undefined && { mapData: options.mapData }),
     ...(options?.resolveImage !== undefined && {
       resolveImage: options.resolveImage,
+    }),
+    ...(options?.showNotes !== undefined && {
+      showNotes: options.showNotes,
     }),
   });
 
