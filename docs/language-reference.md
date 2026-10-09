@@ -3946,7 +3946,7 @@ In the desktop and web app a sketch opens in the **canvas editor** (the code pan
 
 <!-- TIPS start -->
 
-**Styling tips:** Whiteboard is a canvas-first format: people draw on it, and pen strokes (`ink` lines) only ever come from drawing — never write an `ink` line. Generate the readable parts only: `rectangle`, `ellipse`, `database`, `queue` with a label, `at: X Y` (top-left, integer pixels) and `size: W H`; `arrow` with `from: X Y, to: X Y` and an optional label, or `line` the same way for a connection with no head; add `style: dashed` to an arrow or line for a tentative or optional link; `text` at a point. For a label of two or more lines, drop the inline label and indent each line two spaces under the element line. Leave ~40px between shapes and keep boards small (under ~15 elements). Colours are palette names (red, green, blue, teal, purple, orange, yellow, cyan, gray); leave colour off for the default ink. Arrows and lines are free and do not attach to shapes, so place their ends at the shape edges yourself. Reach for `whiteboard` for a loose drawing someone will scribble over; reach for `sketch` for tagged shapes on a grid, and `boxes-and-lines` when topology should auto-lay-out.
+**Styling tips:** Whiteboard is a canvas-first format: people draw on it, and pen strokes (`ink` lines) only ever come from drawing — never write an `ink` line. Generate the readable parts only: `rectangle`, `ellipse`, `database`, `queue` with a label, `at: X Y` (top-left, integer pixels) and `size: W H`; `arrow` with `from: X Y, to: X Y` and an optional label, or `line` the same way for a connection with no head; add `style: dashed` to an arrow or line for a tentative or optional link; `text` at a point. For a label of two or more lines, drop the inline label and indent each line two spaces under the element line. Leave ~40px between shapes and keep boards small (under ~15 elements). Colours are palette names (red, green, blue, teal, purple, orange, yellow, cyan, gray); leave colour off for the default ink. An arrow or line end placed inside a shape attaches to it and is drawn to its border, so point ends at shape centres. Reach for `whiteboard` for a loose drawing someone will scribble over; reach for `sketch` for tagged shapes on a grid, and `boxes-and-lines` when topology should auto-lay-out.
 
 <!-- TIPS end -->
 
@@ -3964,12 +3964,12 @@ whiteboard [Title]
 whiteboard Login ideas
 rectangle Sign in at: 60 60, size: 180 70
 ellipse OAuth? at: 345 53, size: 170 84, color: blue
-arrow from: 240 95, to: 340 95
+arrow from: 150 95, to: 430 95
 rectangle Magic link at: 60 250, size: 180 70, color: green
-arrow emails a code from: 150 130, to: 150 245, color: green
+arrow emails a code from: 150 95, to: 150 285, color: green
 database Users at: 420 160, size: 140 100, color: purple
 queue Email jobs at: 300 380, size: 200 64, color: orange
-arrow from: 240 300, to: 300 400, color: orange, style: dashed
+arrow from: 150 285, to: 400 412, color: orange, style: dashed
 line from: 60 340, to: 240 340, style: dashed
 text keep it to ONE screen at: 62 184
 text 2FA here?? at: 560 -4, color: red
@@ -3999,11 +3999,13 @@ Body lines are literal — trimmed, but never read as metadata, quotes or commen
 | `ellipse <label> at: X Y, size: W H`   | Ellipse inside that box                                                             |
 | `database <label> at: X Y, size: W H`  | Upright cylinder                                                                    |
 | `queue <label> at: X Y, size: W H`     | Cylinder on its side                                                                |
-| `arrow <label> from: X Y, to: X Y`     | Free arrow, head at `to:`; bound to no shape; label optional, drawn at the midpoint |
+| `arrow <label> from: X Y, to: X Y`     | Arrow, head at `to:`; label optional, drawn at the midpoint                         |
 | `line <label> from: X Y, to: X Y`      | Free line — an arrow with no head; otherwise identical                              |
 | `text <words> at: X Y`                 | Free text; `at:` is the top-left of its first line                                  |
 | `image <ref> at: X Y, size: W H`       | Picture; `<ref>` is a relative path (`board.assets/9f3c.webp`) or an `https://` URL |
 | `ink <colour> <width> <path>`          | One freehand stroke — **canvas-written only**                                       |
+
+An `arrow` or `line` end inside a shape attaches to it and is drawn to that shape's border (topmost shape wins; not when both ends are inside the same shape).
 
 The label is optional on shapes, arrows and lines. `at:` is a top-left corner in canvas pixels; every number is an integer and may be negative. `size:` is width then height, each at least 1.
 

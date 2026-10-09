@@ -375,6 +375,20 @@ export {
   IMAGE_NOT_UPLOADED,
 } from './whiteboard/renderer';
 export type { WhiteboardRenderOptions } from './whiteboard/renderer';
+// Containment is the binding: an arrow/line end inside a shape attaches to it
+// and is drawn to its border. The app canvas reuses these to draw and to move
+// attached ends with their shape.
+export {
+  clipWhiteboardConnector,
+  whiteboardConnectorAttachments,
+  whiteboardShapeAt,
+  whiteboardShapeContains,
+} from './whiteboard/geometry';
+export type {
+  WhiteboardPoint,
+  WhiteboardSegment,
+  WhiteboardConnectorAttachments,
+} from './whiteboard/geometry';
 export type { SketchCollapseResult } from './sketch/collapse';
 export {
   SKETCH_GEOMETRY,

@@ -20,6 +20,7 @@ import { drawCylinderCard, drawQueueCard } from '../c4/renderer';
 import { renderChartTitle } from '../utils/d3-helpers';
 import { measureText, wrapTextToWidth } from '../utils/text-measure';
 import { TITLE_FONT_SIZE } from '../utils/title-constants';
+import { RECT_RADIUS, clipWhiteboardConnector } from './geometry';
 import type { InkPoint } from './ink-codec';
 import type {
   ParsedWhiteboard,
@@ -56,7 +57,6 @@ const LABEL_LINE = 1.25;
 const LABEL_PAD = 8;
 const WHITEBOARD_TEXT_FONT = 16;
 const BASELINE = 0.8;
-const RECT_RADIUS = 6;
 /** Placeholder text for an image no host could resolve. */
 export const IMAGE_NOT_UPLOADED = 'image not uploaded';
 const PLACEHOLDER_MIN_FONT = 8;
@@ -104,13 +104,15 @@ export function whiteboardBounds(parsed: ParsedWhiteboard): Bounds {
         break;
       case 'arrow':
       case 'line': {
+        // The DRAWN segment — an end attached to a shape stops at its border.
+        const s = clipWhiteboardConnector(el, parsed.elements);
         const pad = ARROW_HEAD_HALF + ARROW_STROKE;
-        grow(b, el.x1 - pad, el.y1 - pad, el.x2 + pad, el.y2 + pad);
-        grow(b, el.x1 + pad, el.y1 + pad, el.x2 - pad, el.y2 - pad);
+        grow(b, s.x1 - pad, s.y1 - pad, s.x2 + pad, s.y2 + pad);
+        grow(b, s.x1 + pad, s.y1 + pad, s.x2 - pad, s.y2 - pad);
         if (el.label) {
           const lines = labelLines(el.label);
-          const mx = (el.x1 + el.x2) / 2;
-          const my = (el.y1 + el.y2) / 2;
+          const mx = (s.x1 + s.x2) / 2;
+          const my = (s.y1 + s.y2) / 2;
           const hw = widest(lines, LABEL_FONT) / 2 + 4;
           const hh =
             LABEL_FONT + ((lines.length - 1) * LABEL_FONT * LABEL_LINE) / 2;
@@ -343,19 +345,21 @@ export function renderWhiteboard(
       case 'arrow':
       case 'line': {
         const color = colorOf(el.color);
-        const dx = el.x2 - el.x1;
-        const dy = el.y2 - el.y1;
+        // An end inside a shape is attached and drawn to its border.
+        const s = clipWhiteboardConnector(el, parsed.elements);
+        const dx = s.x2 - s.x1;
+        const dy = s.y2 - s.y1;
         const len = Math.hypot(dx, dy);
         if (len > 0) {
           const ux = dx / len;
           const uy = dy / len;
           const head = el.kind === 'arrow' ? Math.min(ARROW_HEAD_LEN, len) : 0;
-          const bx = el.x2 - ux * head;
-          const by = el.y2 - uy * head;
+          const bx = s.x2 - ux * head;
+          const by = s.y2 - uy * head;
           const stroke = g
             .append('line')
-            .attr('x1', el.x1)
-            .attr('y1', el.y1)
+            .attr('x1', round2(s.x1))
+            .attr('y1', round2(s.y1))
             .attr('x2', round2(bx))
             .attr('y2', round2(by))
             .attr('stroke', color)
@@ -373,7 +377,7 @@ export function renderWhiteboard(
             g.append('polygon')
               .attr(
                 'points',
-                `${el.x2},${el.y2} ${round2(bx + px)},${round2(by + py)} ${round2(bx - px)},${round2(by - py)}`
+                `${round2(s.x2)},${round2(s.y2)} ${round2(bx + px)},${round2(by + py)} ${round2(bx - px)},${round2(by - py)}`
               )
               .attr('fill', color);
           }
@@ -382,10 +386,10 @@ export function renderWhiteboard(
           // The block of lines is centred on the midpoint; the halo stroke
           // knocks the line out behind every one of them.
           const lines = labelLines(el.label);
-          const mx = round2((el.x1 + el.x2) / 2);
+          const mx = round2((s.x1 + s.x2) / 2);
           const lh = LABEL_FONT * LABEL_LINE;
           const firstY =
-            (el.y1 + el.y2) / 2 +
+            (s.y1 + s.y2) / 2 +
             LABEL_FONT * 0.35 -
             ((lines.length - 1) * lh) / 2;
           const t = g

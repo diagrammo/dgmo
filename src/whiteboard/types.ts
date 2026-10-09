@@ -73,7 +73,7 @@ export interface WhiteboardShape {
   readonly lineNumber: number;
 }
 
-/** A free arrow: point to point, bound to nothing. Head at `to`. */
+/** An arrow, point to point. Head at `to`. An end inside a shape attaches to it (`./geometry`). */
 export interface WhiteboardArrow {
   readonly kind: 'arrow';
   readonly x1: number;

@@ -71,7 +71,7 @@ const BOUNDARY_LABEL_FONT_SIZE = 12;
 // Drillable accent bar (matches org chart collapse bar)
 
 // Cylinder (database/cache) shape constants
-const CYLINDER_RY = 8;
+export const CYLINDER_RY = 8;
 
 /**
  * How far each cloud lobe bulges past the card's text box (#654).
@@ -101,7 +101,7 @@ const CLOUD_BUMP = 7;
  * scale. A shape override has to be legible at a glance or it is not an
  * override.
  */
-const QUEUE_CAP = 16;
+export const QUEUE_CAP = 16;
 
 // Person stick-figure dimensions (sequence-diagram style, scaled for cards)
 const PERSON_HEAD_R = 4;
