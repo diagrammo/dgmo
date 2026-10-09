@@ -15,6 +15,8 @@ import type { WhiteboardNote, WhiteboardShape } from './types';
 
 /** Shape label font size, px. */
 export const WHITEBOARD_LABEL_FONT = 14;
+/** Sticky note text font size, px — smaller than a shape label. */
+export const WHITEBOARD_NOTE_FONT = 12;
 /** Shape label line height, as a multiple of the font size. */
 export const WHITEBOARD_LABEL_LINE = 1.25;
 /** Space between a shape's side and its label, px. */
@@ -46,8 +48,9 @@ export function whiteboardLabelWidth(box: WhiteboardLabelBox): number {
 
 /**
  * The lines a shape label or a sticky note's text is drawn as: each written
- * line wrapped to the inner width at the label font. An empty written line
- * stays one empty drawn line. `''` gives `[]`.
+ * line wrapped to the inner width at its font — the label font for a shape,
+ * `WHITEBOARD_NOTE_FONT` for a note. An empty written line stays one empty
+ * drawn line. `''` gives `[]`.
  */
 export function wrapWhiteboardLabel(
   label: string,
@@ -55,9 +58,11 @@ export function wrapWhiteboardLabel(
 ): string[] {
   if (!label) return [];
   const width = whiteboardLabelWidth(box);
+  const font =
+    'kind' in box && box.kind === 'note'
+      ? WHITEBOARD_NOTE_FONT
+      : WHITEBOARD_LABEL_FONT;
   return label
     .split('\n')
-    .flatMap((line) =>
-      line ? wrapTextToWidth(line, WHITEBOARD_LABEL_FONT, width) : ['']
-    );
+    .flatMap((line) => (line ? wrapTextToWidth(line, font, width) : ['']));
 }

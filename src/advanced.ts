@@ -380,7 +380,11 @@ export {
 export type { WhiteboardRenderOptions } from './whiteboard/renderer';
 // A shape label wraps to the shape: the canvas calls the same function so it
 // breaks a label at the same words as the render.
-export { wrapWhiteboardLabel, whiteboardLabelWidth } from './whiteboard/label';
+export {
+  wrapWhiteboardLabel,
+  whiteboardLabelWidth,
+  WHITEBOARD_NOTE_FONT,
+} from './whiteboard/label';
 export type { WhiteboardLabelBox } from './whiteboard/label';
 // Containment is the binding: an arrow/line end inside a shape attaches to it
 // and is drawn to its border. The app canvas reuses these to draw and to move
@@ -390,6 +394,7 @@ export {
   whiteboardConnectorAttachments,
   whiteboardShapeAt,
   whiteboardShapeContains,
+  whiteboardNoteFold,
 } from './whiteboard/geometry';
 export type {
   WhiteboardPoint,

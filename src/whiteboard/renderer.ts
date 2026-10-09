@@ -20,11 +20,16 @@ import { drawCylinderCard, drawQueueCard } from '../c4/renderer';
 import { renderChartTitle } from '../utils/d3-helpers';
 import { measureText } from '../utils/text-measure';
 import { TITLE_FONT_SIZE } from '../utils/title-constants';
-import { NOTE_RADIUS, RECT_RADIUS, clipWhiteboardConnector } from './geometry';
+import {
+  RECT_RADIUS,
+  clipWhiteboardConnector,
+  whiteboardNoteFold,
+} from './geometry';
 import type { InkPoint } from './ink-codec';
 import {
   WHITEBOARD_LABEL_FONT as LABEL_FONT,
   WHITEBOARD_LABEL_LINE as LABEL_LINE,
+  WHITEBOARD_NOTE_FONT as NOTE_FONT,
   WHITEBOARD_NOTE_PAD as NOTE_PAD,
   wrapWhiteboardLabel,
 } from './label';
@@ -85,6 +90,10 @@ const WHITEBOARD_TEXT_FONT = 16;
 /** A sticky note's fill and edge: its hue mixed into the ground, percent. */
 const NOTE_TINT = 40;
 const NOTE_EDGE = 65;
+/** A sticky note's text: its hue mixed into the palette's text colour, percent. */
+const NOTE_INK = 40;
+/** Opacity of a sticky note's folded corner, drawn in its edge colour. */
+const NOTE_FOLD_OPACITY = 0.55;
 const BASELINE = 0.8;
 /** Placeholder text for an image no host could resolve. */
 export const IMAGE_NOT_UPLOADED = 'image not uploaded';
@@ -120,7 +129,7 @@ function grow(b: Bounds, x0: number, y0: number, x1: number, y1: number): void {
 /** Height of a sticky note's text block, padding included, px. */
 function noteTextHeight(el: WhiteboardNote): number {
   const n = wrapWhiteboardLabel(el.text, el).length;
-  return 2 * NOTE_PAD + n * LABEL_FONT * LABEL_LINE;
+  return 2 * NOTE_PAD + n * NOTE_FONT * LABEL_LINE;
 }
 
 /** Content bounds of every drawn element, in canvas px. */
@@ -385,25 +394,33 @@ export function renderWhiteboard(
       }
       case 'note': {
         // A flat tinted card — stronger than a shape's tint, edged in its own
-        // hue — with the text top-left, wrapped to the card.
+        // hue — with its top-right corner folded down, and the text top-left
+        // in a dark shade of the same hue, wrapped to the card.
         const hue = colorOf(el.color);
-        g.append('rect')
-          .attr('x', el.x)
-          .attr('y', el.y)
-          .attr('width', el.width)
-          .attr('height', el.height)
-          .attr('rx', Math.min(NOTE_RADIUS, el.width / 2, el.height / 2))
+        const edge = mix(hue, base, NOTE_EDGE);
+        const { x, y, width: w, height: h } = el;
+        const f = whiteboardNoteFold(w, h);
+        g.append('path')
+          .attr('d', `M${x} ${y}h${w - f}l${f} ${f}v${h - f}h${-w}z`)
           .attr('fill', mix(hue, base, NOTE_TINT))
-          .attr('stroke', mix(hue, base, NOTE_EDGE))
-          .attr('stroke-width', 1);
+          .attr('stroke', edge)
+          .attr('stroke-width', 1)
+          .attr('stroke-linejoin', 'round');
+        if (f > 2) {
+          g.append('path')
+            .attr('class', 'whiteboard-note-fold')
+            .attr('d', `M${x + w - f} ${y}v${f - 2}q0 2 2 2h${f - 2}z`)
+            .attr('fill', edge)
+            .attr('opacity', NOTE_FOLD_OPACITY);
+        }
         const lines = wrapWhiteboardLabel(el.text, el);
         if (lines.length > 0) {
-          const lh = LABEL_FONT * LABEL_LINE;
+          const lh = NOTE_FONT * LABEL_LINE;
           const t = g
             .append('text')
             .attr('class', 'whiteboard-label')
-            .attr('font-size', LABEL_FONT)
-            .attr('fill', palette.text);
+            .attr('font-size', NOTE_FONT)
+            .attr('fill', mix(hue, palette.text, NOTE_INK));
           appendLines(
             t,
             lines,

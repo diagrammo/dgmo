@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import * as advanced from '../src/advanced';
 import {
   WHITEBOARD_LABEL_FONT,
+  WHITEBOARD_NOTE_FONT,
   whiteboardLabelWidth,
   wrapWhiteboardLabel,
 } from '../src/whiteboard/label';
@@ -17,6 +18,7 @@ describe('wrapWhiteboardLabel', () => {
   it('is exported from @diagrammo/dgmo/advanced', () => {
     expect(advanced.wrapWhiteboardLabel).toBe(wrapWhiteboardLabel);
     expect(advanced.whiteboardLabelWidth).toBe(whiteboardLabelWidth);
+    expect(advanced.WHITEBOARD_NOTE_FONT).toBe(12);
   });
 
   it('gives no lines for no label', () => {
@@ -65,5 +67,19 @@ describe('wrapWhiteboardLabel', () => {
   it('never wraps to less than 20px, so a tiny shape still draws a word a line', () => {
     expect(whiteboardLabelWidth(box(10))).toBe(20);
     expect(wrapWhiteboardLabel('a b', box(10))).toEqual(['a', 'b']);
+  });
+
+  it('wraps a sticky note at the smaller note font', () => {
+    const note = { kind: 'note' as const, width: 124 };
+    const text = 'Ask legal whether SSO needs a security review first';
+    const lines = wrapWhiteboardLabel(text, note);
+    expect(lines.join(' ')).toBe(text);
+    for (const l of lines) {
+      expect(measureText(l, WHITEBOARD_NOTE_FONT)).toBeLessThanOrEqual(100);
+    }
+    // At the label font the same text needs more lines.
+    expect(lines.length).toBeLessThan(
+      wrapWhiteboardLabel(text, { shape: 'rectangle', width: 116 }).length
+    );
   });
 });

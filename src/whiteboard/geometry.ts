@@ -18,7 +18,8 @@
 //   ellipse   — the ellipse
 //   database  — the body rectangle plus the top and bottom cap ellipses
 //   queue     — the body rectangle plus the left and right cap ellipses
-//   note      — a sticky note's card: a rectangle with NOTE_RADIUS corners
+//   note      — a sticky note's card: a rectangle with its top-right corner
+//               cut on the diagonal (the fold), one convex polygon
 //
 // A sticky note is attachable exactly like a shape: "shape" below means any
 // boxed element a connector end can sit in.
@@ -34,8 +35,17 @@ import type {
 
 /** Corner radius of a whiteboard rectangle, before clamping to its size. */
 export const RECT_RADIUS = 6;
-/** Corner radius of a sticky note's card, before clamping to its size. */
-export const NOTE_RADIUS = 2;
+/** Leg of a sticky note's folded top-right corner, before clamping, px. */
+const NOTE_FOLD = 18;
+
+/**
+ * Leg of a sticky note's folded corner: its top-right corner is cut on the
+ * diagonal this far along each edge. Shared by the renderer, the connector
+ * clip and the app canvas.
+ */
+export function whiteboardNoteFold(width: number, height: number): number {
+  return Math.max(0, Math.min(NOTE_FOLD, width / 3, height / 3));
+}
 
 /** An element a connector end can attach to: a shape or a sticky note. */
 export type WhiteboardAttachable = WhiteboardShape | WhiteboardNote;
@@ -80,6 +90,11 @@ type Piece =
       readonly cy: number;
       readonly rx: number;
       readonly ry: number;
+    }
+  | {
+      /** A convex polygon, corners clockwise on screen (y down). */
+      readonly kind: 'poly';
+      readonly pts: readonly WhiteboardPoint[];
     };
 
 function rect(x0: number, y0: number, x1: number, y1: number): Piece[] {
@@ -113,7 +128,18 @@ function roundedRect(
 /** The element's drawn outline as a union of convex pieces. */
 function piecesOf(s: WhiteboardAttachable): Piece[] {
   const { x, y, width: w, height: h } = s;
-  if (s.kind === 'note') return roundedRect(x, y, w, h, NOTE_RADIUS);
+  if (s.kind === 'note') {
+    const f = whiteboardNoteFold(w, h);
+    if (f === 0) return rect(x, y, x + w, y + h);
+    const pts = [
+      { x, y },
+      { x: x + w - f, y },
+      { x: x + w, y: y + f },
+      { x: x + w, y: y + h },
+      { x, y: y + h },
+    ];
+    return [{ kind: 'poly', pts }];
+  }
   const cx = x + w / 2;
   const cy = y + h / 2;
   switch (s.shape) {
@@ -143,7 +169,29 @@ function piecesOf(s: WhiteboardAttachable): Piece[] {
   }
 }
 
+/**
+ * Each edge of a clockwise convex polygon as `[nx, ny, c]`: a point is inside
+ * that edge's half-plane when `nx·x + ny·y <= c`.
+ */
+function halfPlanes(
+  pts: readonly WhiteboardPoint[]
+): [number, number, number][] {
+  return pts.map((a, i) => {
+    const b = pts[(i + 1) % pts.length]!;
+    // Outward normal of a clockwise (y-down) edge a → b.
+    const nx = b.y - a.y;
+    const ny = -(b.x - a.x);
+    const len = Math.hypot(nx, ny) || 1;
+    return [nx / len, ny / len, (nx * a.x + ny * a.y) / len];
+  });
+}
+
 function pieceContains(p: Piece, px: number, py: number): boolean {
+  if (p.kind === 'poly') {
+    return halfPlanes(p.pts).every(
+      ([nx, ny, c]) => nx * px + ny * py <= c + EPS
+    );
+  }
   if (p.kind === 'rect') {
     return (
       px >= p.x0 - EPS &&
@@ -211,6 +259,23 @@ function interval(
   dx: number,
   dy: number
 ): [number, number] | null {
+  if (p.kind === 'poly') {
+    // Cyrus–Beck: clip the line against each edge's half-plane.
+    let lo = -Infinity;
+    let hi = Infinity;
+    for (const [nx, ny, c] of halfPlanes(p.pts)) {
+      const num = c - (nx * ax + ny * ay);
+      const den = nx * dx + ny * dy;
+      if (Math.abs(den) < EPS) {
+        if (num < -EPS) return null;
+        continue;
+      }
+      const t = num / den;
+      if (den > 0) hi = Math.min(hi, t);
+      else lo = Math.max(lo, t);
+    }
+    return lo <= hi ? [lo, hi] : null;
+  }
   if (p.kind === 'rect') {
     let lo = -Infinity;
     let hi = Infinity;

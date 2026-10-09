@@ -131,9 +131,20 @@ describe('whiteboard sticky notes — render', () => {
     );
     const svg = draw(src);
     const pal = getPalette('nord').light;
-    const card = svg.querySelector('.whiteboard-note rect')!;
+    const card = svg.querySelector('.whiteboard-note path')!;
     expect(card.getAttribute('fill')).toBe(
       mix(pal.colors.yellow!, themeBaseBg(pal, false), 40)
+    );
+    // The outline cuts the top-right corner on the diagonal: the fold.
+    expect(card.getAttribute('d')).toBe('M0 0h102l18 18v102h-120z');
+    const fold = svg.querySelector('.whiteboard-note-fold')!;
+    expect(fold.getAttribute('fill')).toBe(card.getAttribute('stroke'));
+    expect(fold.getAttribute('opacity')).toBe('0.55');
+    // Text is 12px, a dark shade of the note's own hue.
+    const text = svg.querySelector('.whiteboard-note text')!;
+    expect(text.getAttribute('font-size')).toBe('12');
+    expect(text.getAttribute('fill')).toBe(
+      mix(pal.colors.yellow!, pal.text, 40)
     );
     const spans = [...svg.querySelectorAll('.whiteboard-note tspan')];
     const el = parseWhiteboard(src).elements[0] as WhiteboardNote;
@@ -142,7 +153,7 @@ describe('whiteboard sticky notes — render', () => {
     );
     expect(spans.length).toBeGreaterThan(2);
     expect(spans.every((t) => t.getAttribute('x') === '12')).toBe(true);
-    expect(Number(spans[0]!.getAttribute('y'))).toBeCloseTo(12 + 17.5 * 0.8);
+    expect(Number(spans[0]!.getAttribute('y'))).toBeCloseTo(12 + 15 * 0.8);
   });
 
   it('hides every note under no-notes, and showNotes overrides it both ways', () => {
@@ -175,7 +186,7 @@ describe('whiteboard sticky notes — render', () => {
     const p = parseWhiteboard(
       wb('note at: 0 0, size: 100 30', '  a', '  b', '  c', '  d')
     );
-    expect(whiteboardBounds(p).maxY).toBeCloseTo(24 + 4 * 17.5);
+    expect(whiteboardBounds(p).maxY).toBeCloseTo(24 + 4 * 15);
   });
 
   it('threads showNotes through render()', async () => {
@@ -196,6 +207,22 @@ describe('whiteboard sticky notes — attached ends', () => {
     expect(whiteboardShapeContains(n, { x: 150, y: 50 })).toBe(true);
     expect(whiteboardShapeAt({ x: 150, y: 50 }, p.elements)).toBe(0);
     expect(clipWhiteboardConnector(a, p.elements).x2).toBeCloseTo(100);
+  });
+
+  it('the folded corner is outside the note, and an end meets the fold', () => {
+    // 100 × 100 at 0 0: fold leg 18, so the cut runs (82,0) → (100,18).
+    const p = parseWhiteboard(
+      wb('note Hi at: 0 0, size: 100 100', 'arrow from: 150 -50, to: 50 50')
+    );
+    const [n, a] = p.elements as [WhiteboardNote, WhiteboardArrow];
+    expect(whiteboardShapeContains(n, { x: 98, y: 2 })).toBe(false);
+    expect(whiteboardShapeContains(n, { x: 80, y: 2 })).toBe(true);
+    expect(whiteboardShapeContains(n, { x: 98, y: 20 })).toBe(true);
+    // Aimed at the centre along y = 100 − x, the end lands where that line
+    // crosses the cut y = x − 82: (91, 9).
+    const s = clipWhiteboardConnector(a, p.elements);
+    expect(s.x2).toBeCloseTo(91);
+    expect(s.y2).toBeCloseTo(9);
   });
 
   it('a hidden note attaches nothing', () => {
