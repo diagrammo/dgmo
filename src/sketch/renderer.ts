@@ -1034,7 +1034,7 @@ function edgePath(
 const SIDES: readonly Side[] = ['T', 'B', 'L', 'R'];
 
 /** Point on a cubic Bézier at parameter t. */
-function cubicAt(g: EdgeGeom, t: number): Pt {
+function cubicAt(g: Pick<EdgeGeom, 'p0' | 'h0' | 'h1' | 'p1'>, t: number): Pt {
   const u = 1 - t;
   const a = u * u * u;
   const b = 3 * u * u * t;
@@ -1238,6 +1238,12 @@ export interface SketchEdgeGeometry {
   /** Visible stroke path WITH crossing-hops, when this edge hops another. The
    *  renderer draws this if present; everything else still uses `d`. */
   dRender?: string;
+  /**
+   * Every point on THIS line where a hop is drawn — by this line over another,
+   * or by another over this one. Absent when there are none. A label must not
+   * sit on one (#1217); `sketchLabelSpot` is the shared rule.
+   */
+  hops?: { x: number; y: number }[];
   /**
    * The same cubic as four points — start, its handle, the end's handle, end.
    *
@@ -1778,6 +1784,8 @@ export function sketchEdgeGeometry(
     return out;
   };
   const hopsFor: Array<Pt[]> = layout.edges.map(() => []);
+  // The same crossings seen from BOTH lines — what a label has to keep off.
+  const hopsOn: Array<Pt[]> = layout.edges.map(() => []);
   for (let i = 0; i < polys.length; i++) {
     for (let j = i + 1; j < polys.length; j++) {
       const a = polys[i];
@@ -1785,7 +1793,11 @@ export function sketchEdgeGeometry(
       if (!a || !b) continue;
       if (!ctx[i]?.adjacent.has(j)) {
         const pt = polyIntersections(a, b)[0];
-        if (pt) hopsFor[j]!.push(pt); // j (drawn later, on top) does the hop
+        if (pt) {
+          hopsFor[j]!.push(pt); // j (drawn later, on top) does the hop
+          hopsOn[i]!.push(pt);
+          hopsOn[j]!.push(pt);
+        }
         continue;
       }
       const ei = layout.edges[i]!;
@@ -1802,7 +1814,11 @@ export function sketchEdgeGeometry(
           (q) => Math.hypot(p.x - q.x, p.y - q.y) > SHARED_END_CLEAR
         )
       );
-      if (pt) hopsFor[j]!.push(pt);
+      if (pt) {
+        hopsFor[j]!.push(pt);
+        hopsOn[i]!.push(pt);
+        hopsOn[j]!.push(pt);
+      }
     }
   }
 
@@ -1816,12 +1832,53 @@ export function sketchEdgeGeometry(
       d: g.d,
       mid: g.mid,
       ...(dRender && { dRender }),
+      ...(hopsOn[i]!.length > 0 && { hops: hopsOn[i] }),
       p0: g.p0,
       h0: g.h0,
       h1: g.h1,
       p1: g.p1,
     };
   });
+}
+
+// How far a label box keeps from a hop centre, beyond its own half-extents:
+// the hump's half-chord plus its rise, so neither the crossing nor the arch
+// shows under the plate.
+const HOP_LABEL_CLEAR = HOP_R + 2;
+
+/**
+ * Where a line's label goes: the point on the line nearest its midpoint whose
+ * label box, `halfW` by `halfH` either side, clears every hop on the line.
+ * Returns `mid` when the line has no hops or nothing nearby is clear.
+ *
+ * 🔴 For the app's canvas, which puts a label at `mid` and sizes it itself.
+ * dgmo's own renderer needs no call: its declutter keeps a label off every
+ * other line, and a hop is always where another line crosses. Recomputing the
+ * hops in the app would drift the first time the clearance changed (#1217).
+ */
+export function sketchLabelSpot(
+  g: Pick<SketchEdgeGeometry, 'mid' | 'hops' | 'p0' | 'h0' | 'h1' | 'p1'>,
+  halfW: number,
+  halfH: number
+): { x: number; y: number } {
+  const hops = g.hops ?? [];
+  if (hops.length === 0) return g.mid;
+  const clear = (p: Pt): boolean =>
+    hops.every(
+      (h) =>
+        Math.abs(p.x - h.x) >= halfW + HOP_LABEL_CLEAR ||
+        Math.abs(p.y - h.y) >= halfH + HOP_LABEL_CLEAR
+    );
+  if (clear(g.mid)) return g.mid;
+  // Step outward from the middle, alternating sides, and stop short of the
+  // ends where the label would sit on a shape.
+  for (let step = 1; step <= 18; step++) {
+    for (const t of [0.5 - step * 0.02, 0.5 + step * 0.02]) {
+      const p = cubicAt(g, t);
+      if (clear(p)) return p;
+    }
+  }
+  return g.mid;
 }
 
 /** Export wrapper — the b&l precedent (thin spread). */

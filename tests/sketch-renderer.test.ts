@@ -10,7 +10,11 @@ import {
 } from '../src/sketch/geometry';
 import { layoutSketch } from '../src/sketch/layout';
 import { parseSketch } from '../src/sketch/parser';
-import { renderSketch, sketchEdgeGeometry } from '../src/sketch/renderer';
+import {
+  renderSketch,
+  sketchEdgeGeometry,
+  sketchLabelSpot,
+} from '../src/sketch/renderer';
 import { SKETCH_VISUALS } from '../src/sketch/visuals';
 
 const P = getPalette('nord').light;
@@ -673,6 +677,72 @@ describe('sketch renderer — edges', () => {
       ].map((m) => place(Number(m[1] ?? m[3]), Number(m[2] ?? m[4])));
       for (let i = 1; i < ends.length; i++) {
         expect(ends[i]).toBeGreaterThanOrEqual(ends[i - 1]!);
+      }
+    }
+  });
+
+  it('reports each hop on BOTH lines, and the label spot clears it (#1217)', () => {
+    // A plus sign: each line crosses the other through its own middle, so a
+    // label at `mid` would sit squarely on the hop.
+    const layout = layoutSketch(
+      parseSketch(
+        'sketch\n' +
+          'W as w at: 0 3\n  -x-> e\n' +
+          'N as n at: 5 0\n  -y-> s\n' +
+          'E as e at: 10 3\nS as s at: 5 6\n',
+        P
+      )
+    );
+    const geom = sketchEdgeGeometry(layout).filter(Boolean);
+    expect(geom.every((g) => g!.hops?.length === 1)).toBe(true);
+    const [halfW, halfH] = [20, 9];
+    for (const g of geom) {
+      const hop = g!.hops![0]!;
+      // The premise: the midpoint is on the hop.
+      expect(Math.hypot(g!.mid.x - hop.x, g!.mid.y - hop.y)).toBeLessThan(2);
+      const at = sketchLabelSpot(g!, halfW, halfH);
+      const clearX = Math.abs(at.x - hop.x) >= halfW + 9;
+      const clearY = Math.abs(at.y - hop.y) >= halfH + 9;
+      expect(clearX || clearY).toBe(true);
+    }
+  });
+
+  it('leaves the label at the midpoint when the line has no hop (#1217)', () => {
+    const layout = layoutSketch(
+      parseSketch('sketch\nA as a at: 0 0\n  -x-> b\nB as b at: 6 0\n', P)
+    );
+    const g = sketchEdgeGeometry(layout)[0]!;
+    expect(g.hops).toBeUndefined();
+    expect(sketchLabelSpot(g, 20, 9)).toEqual(g.mid);
+  });
+
+  it('draws no label on a hop (#1217)', () => {
+    // dgmo's renderer keeps labels off other lines, which keeps them off every
+    // hop too, since a hop is where another line crosses. Pinned here on a plus
+    // sign and on the reporter's chart.
+    const plus =
+      'sketch\n' +
+      'W as w at: 0 3\n  -crossing-> e\n' +
+      'N as n at: 5 0\n  -over-> s\n' +
+      'E as e at: 10 3\nS as s at: 5 6\n';
+    for (const src of [plus, TIMESYNC]) {
+      const layout = layoutSketch(parseSketch(src, P));
+      const hops = sketchEdgeGeometry(layout).flatMap((g) => g?.hops ?? []);
+      expect(hops.length).toBeGreaterThan(0);
+      const svg = render(src);
+      for (const plate of svg.querySelectorAll('.sk-edge-label rect')) {
+        const x = Number(plate.getAttribute('x'));
+        const y = Number(plate.getAttribute('y'));
+        const w = Number(plate.getAttribute('width'));
+        const h = Number(plate.getAttribute('height'));
+        for (const hp of hops) {
+          const inside =
+            hp.x > x - 7 &&
+            hp.x < x + w + 7 &&
+            hp.y > y - 7 &&
+            hp.y < y + h + 7;
+          expect(inside).toBe(false);
+        }
       }
     }
   });

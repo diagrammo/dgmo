@@ -328,6 +328,7 @@ export {
   renderSketch,
   renderSketchForExport,
   sketchEdgeGeometry,
+  sketchLabelSpot,
 } from './sketch/renderer';
 export type {
   SketchRenderOptions,
