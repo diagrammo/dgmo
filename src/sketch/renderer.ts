@@ -760,7 +760,9 @@ function drawNode(
     .attr('data-node-id', node.id)
     .attr('data-line-number', node.lineNumber);
   for (const [k, v] of Object.entries(node.metadata)) {
-    g.attr(`data-tag-${k}`, v);
+    // Slugged: an unknown key may hold a space (`timesync t:`), and a raw one
+    // is an invalid attribute name that throws and blanks the chart (#1210).
+    g.attr(`data-tag-${tagAttrKey(k)}`, v);
   }
   if (node.isCollapsedBox) {
     g.attr('data-group-toggle', node.label);
@@ -1122,21 +1124,38 @@ const HOP_R = 7;
  * cubic `d`). The hump is a short cubic bulging to the side of least y (a
  * consistent "up-and-over"), so only the visible stroke changes — `d`/`mid`
  * stay the pure cubic every other consumer parses.
+ *
+ * 🔴 The gap is cut by ARC LENGTH, not on one polyline segment. A segment is
+ * often shorter than the hump`s 2·HOP_R chord, and a hump laid on one ran past
+ * the segment`s start and doubled back — a stub poking out of the foot (#1210).
  */
 function hoppedPath(g: EdgeGeom, hops: readonly Pt[]): string | null {
   if (hops.length === 0) return null;
-  // ODD: t=0.5 is never a vertex, so a crossing at two symmetric curves' shared
-  // midpoint lands MID-segment — the hump`s A/B straddle the crossing inside one
-  // segment instead of overshooting a vertex (which left a backward stub).
   const N = 49;
   const pts: Pt[] = [];
   for (let s = 0; s <= N; s++) pts.push(cubicAt(g, s / N));
-  // Snap each hop to the nearest interior segment of this edge`s fine polyline.
-  const onSeg = new Map<number, Pt>();
+  // cum[k] = arc length from the start to pts[k].
+  const cum: number[] = [0];
+  for (let k = 1; k <= N; k++) {
+    const a = pts[k - 1]!;
+    const b = pts[k]!;
+    cum.push(cum[k - 1]! + Math.hypot(b.x - a.x, b.y - a.y));
+  }
+  const total = cum[N]!;
+  const at = (len: number): Pt => {
+    let k = 1;
+    while (k < N && cum[k]! < len) k++;
+    const a = pts[k - 1]!;
+    const b = pts[k]!;
+    const span = cum[k]! - cum[k - 1]! || 1;
+    const f = Math.max(0, Math.min(1, (len - cum[k - 1]!) / span));
+    return { x: a.x + f * (b.x - a.x), y: a.y + f * (b.y - a.y) };
+  };
+  // Project each hop onto the polyline, as an arc-length position.
+  const centres: number[] = [];
   for (const hp of hops) {
-    let bestSeg = -1;
     let bestD = Infinity;
-    let bestPt: Pt | null = null;
+    let bestLen = 0;
     for (let k = 1; k <= N; k++) {
       const a = pts[k - 1]!;
       const b = pts[k]!;
@@ -1145,46 +1164,48 @@ function hoppedPath(g: EdgeGeom, hops: readonly Pt[]): string | null {
       const len2 = dx * dx + dy * dy || 1;
       let f = ((hp.x - a.x) * dx + (hp.y - a.y) * dy) / len2;
       f = Math.max(0, Math.min(1, f));
-      const px = a.x + f * dx;
-      const py = a.y + f * dy;
-      const d = Math.hypot(hp.x - px, hp.y - py);
+      const d = Math.hypot(hp.x - (a.x + f * dx), hp.y - (a.y + f * dy));
       if (d < bestD) {
         bestD = d;
-        bestSeg = k;
-        bestPt = { x: px, y: py };
+        bestLen = cum[k - 1]! + f * (cum[k]! - cum[k - 1]!);
       }
     }
-    // Skip hops too near an endpoint (no room for the hump).
-    if (bestSeg >= 3 && bestSeg <= N - 3 && bestPt && !onSeg.has(bestSeg))
-      onSeg.set(bestSeg, bestPt);
+    centres.push(bestLen);
   }
-  if (onSeg.size === 0) return null;
+  // Skip hops too near an endpoint (no room for the hump), and one that would
+  // overlap the hump before it.
+  const clear = Math.max(2 * HOP_R, (3 * total) / N);
+  const kept: number[] = [];
+  for (const c of centres.sort((x, y) => x - y)) {
+    if (c < clear || c > total - clear) continue;
+    if (kept.length > 0 && c - kept[kept.length - 1]! < 2 * HOP_R) continue;
+    kept.push(c);
+  }
+  if (kept.length === 0) return null;
   let d = `M ${pts[0]!.x} ${pts[0]!.y}`;
-  for (let k = 1; k <= N; k++) {
-    const a = pts[k - 1]!;
-    const b = pts[k]!;
-    const hp = onSeg.get(k);
-    if (hp) {
-      const segLen = Math.hypot(b.x - a.x, b.y - a.y) || 1;
-      const dir = { x: (b.x - a.x) / segLen, y: (b.y - a.y) / segLen };
-      // Perpendicular pointing "up" (toward smaller y) for a consistent arch.
-      let perp = { x: dir.y, y: -dir.x };
-      if (perp.y > 0) perp = { x: -perp.x, y: -perp.y };
-      const A = { x: hp.x - dir.x * HOP_R, y: hp.y - dir.y * HOP_R };
-      const B = { x: hp.x + dir.x * HOP_R, y: hp.y + dir.y * HOP_R };
-      const k1 = {
-        x: A.x + perp.x * HOP_R * 1.33,
-        y: A.y + perp.y * HOP_R * 1.33,
-      };
-      const k2 = {
-        x: B.x + perp.x * HOP_R * 1.33,
-        y: B.y + perp.y * HOP_R * 1.33,
-      };
-      d += ` L ${A.x} ${A.y} C ${k1.x} ${k1.y}, ${k2.x} ${k2.y}, ${B.x} ${B.y} L ${b.x} ${b.y}`;
-    } else {
-      d += ` L ${b.x} ${b.y}`;
+  let k = 1;
+  for (const c of kept) {
+    const s0 = c - HOP_R;
+    const s1 = c + HOP_R;
+    while (k <= N && cum[k]! < s0) {
+      d += ` L ${pts[k]!.x} ${pts[k]!.y}`;
+      k++;
     }
+    const A = at(s0);
+    const B = at(s1);
+    const chord = Math.hypot(B.x - A.x, B.y - A.y) || 1;
+    const dir = { x: (B.x - A.x) / chord, y: (B.y - A.y) / chord };
+    // Perpendicular pointing "up" (toward smaller y) for a consistent arch.
+    let perp = { x: dir.y, y: -dir.x };
+    if (perp.y > 0) perp = { x: -perp.x, y: -perp.y };
+    const lift = (chord / 2) * 1.33;
+    d +=
+      ` L ${A.x} ${A.y}` +
+      ` C ${A.x + perp.x * lift} ${A.y + perp.y * lift},` +
+      ` ${B.x + perp.x * lift} ${B.y + perp.y * lift}, ${B.x} ${B.y}`;
+    while (k <= N && cum[k]! <= s1) k++;
   }
+  for (; k <= N; k++) d += ` L ${pts[k]!.x} ${pts[k]!.y}`;
   return d;
 }
 

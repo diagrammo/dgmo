@@ -44,7 +44,71 @@ Divvy Service as dvy at: 4 0, crew: Hold
   Powder Store at: 0 0
 `;
 
+// A user's chart, verbatim from an in-app report (#1210) — the label lengths
+// and positions are what produce the crossings, so do not tidy it.
+const TIMESYNC = `sketch Timesync Infrastructure
+
+tag Timesync as t
+  PPS red
+  ZDA blue
+  PTP orange
+  PPS_ZDA purple
+  NTP yellow
+  GNSS cyan
+  USBL gray
+
+GNSS at: 4 -6, timesync: GNSS
+  ~> OSA Bottomside timesync: GNSS
+  ~> NMEA timesync: GNSS
+  ~> Ranger timesync: GNSS
+  ~> OSA Topside timesync: GNSS
+
+[Topside] at: -2 -1
+  Ranger at: 12 0, timesync: GNSS
+    ~USBL~> Avtrak timesync: USBL
+  OSA Topside at: 15 0, timesync: GNSS
+    -NTP-> Odin timesync: NTP
+  Odin at: 15 4, timesync: NTP
+
+[Bottomside] at: -4 -4
+  OSA Bottomside at: 1 3, timesync: GNSS
+    -PTP-> Voyis timesync: PTP
+    -PTP-> Njord timesync: PTP
+    -PTP-> Thor timesync: PTP
+    -PTP-> iPEMs timesync: PTP
+  Avtrak at: 9 3, timesync: USBL
+  Njord at: 3 8, timesync: PTP
+    -ZDA-> Seabat timesync: ZDA
+    -ZDA-> SprintNav timesync: ZDA
+    -NTP-> iPEMs timesync: NTP
+    -NTP-> Hydrophone timesync: NTP
+    -NTP-> Norbits timesync: NTP
+    -NTP-> Video Camera timesync: NTP
+  Thor at: 9 7, timesync t: PTP, timesync: PTP
+  iPEMs at: 2 13, timesync t: NTP, timesync: NTP
+    -PPS-> SprintNav timesync: PPS
+    -PPS-> Seabat timesync: PPS
+  NMEA at: 6 3, timesync: GNSS
+  Voyis at: -2 8, timesync: PTP
+  Seabat at: -1 16, timesync: PPS_ZDA
+  SprintNav at: 5 16, timesync: PPS_ZDA
+  Norbits at: 7 12, timesync: NTP
+  Hydrophone at: -2 13, timesync: NTP
+  Video Camera at: 10 12, timesync: NTP
+`;
+
 describe('sketch renderer — structure', () => {
+  it('draws a node whose metadata key has a space (#1210)', () => {
+    // `timesync t: PTP` is an unknown key with a space in it. Written raw as
+    // `data-tag-timesync t` it is an invalid attribute name, which threw and
+    // left the chart blank; slugged, it is `data-tag-timesync-t`.
+    const svg = render(TIMESYNC);
+    const thor = [...svg.querySelectorAll('.sk-node')].find((n) =>
+      n.textContent?.includes('Thor')
+    )!;
+    expect(thor.getAttribute('data-tag-timesync-t')).toBe('PTP');
+  });
+
   it('renders nodes, box frames, edges, title, and legend', () => {
     const svg = render(PIRATE);
     expect(svg.querySelectorAll('.sk-node').length).toBe(6); // 5 shapes + 1 collapsed card
@@ -570,6 +634,47 @@ describe('sketch renderer — edges', () => {
     // added geometry that reads as a jump.
     expect(h.dRender).toContain('L ');
     expect(h.dRender).toContain('C ');
+  });
+
+  it('a hop never doubles back along its own line (#1210)', () => {
+    // The user's chart, verbatim. A hump laid on ONE polyline segment shorter
+    // than its chord began before that segment did, so the stroke ran back
+    // along itself and left a stub poking out of the hump's foot. Every vertex
+    // of `dRender` must sit no earlier on the line than the one before it.
+    const layout = layoutSketch(parseSketch(TIMESYNC, P));
+    const hopped = sketchEdgeGeometry(layout).filter((g) => g?.dRender);
+    expect(hopped.length).toBeGreaterThan(0);
+    for (const g of hopped) {
+      const { p0, h0, h1, p1 } = g!;
+      const curve: Array<{ x: number; y: number }> = [];
+      for (let i = 0; i <= 2000; i++) {
+        const t = i / 2000;
+        const u = 1 - t;
+        const w = [u * u * u, 3 * u * u * t, 3 * u * t * t, t * t * t];
+        curve.push({
+          x: w[0]! * p0.x + w[1]! * h0.x + w[2]! * h1.x + w[3]! * p1.x,
+          y: w[0]! * p0.y + w[1]! * h0.y + w[2]! * h1.y + w[3]! * p1.y,
+        });
+      }
+      const place = (x: number, y: number) => {
+        let best = 0;
+        let bestD = Infinity;
+        curve.forEach((c, i) => {
+          const d = Math.hypot(c.x - x, c.y - y);
+          if (d < bestD) [bestD, best] = [d, i];
+        });
+        return best;
+      };
+      // On-line vertices only: the M, each L, and each C's end point.
+      const ends = [
+        ...g!.dRender!.matchAll(
+          /[ML] ([\d.e-]+) ([\d.e-]+)|C [^,]+, [^,]+, ([\d.e-]+) ([\d.e-]+)/g
+        ),
+      ].map((m) => place(Number(m[1] ?? m[3]), Number(m[2] ?? m[4])));
+      for (let i = 1; i < ends.length; i++) {
+        expect(ends[i]).toBeGreaterThanOrEqual(ends[i - 1]!);
+      }
+    }
   });
 
   it('picks the side that avoids crossing another edge', () => {
