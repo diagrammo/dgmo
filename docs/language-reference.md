@@ -4443,10 +4443,10 @@ Pick destination
 
 ### Directives
 
-| Directive                        | Effect                                                                                                                                                                                                                      |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `roles`                          | Declare column order. Inline (`roles Cap, QM, Bos`) is name-only; the indented block form supports per-role color via the trailing-token form (`Cap red`). When present, unknown roles in tasks emit `W_RACI_UNKNOWN_ROLE`. |
-| `active-tag`                     | Universal option; `palette` is the universal line (§1.10).                                                                                                                                                                                                          |
+| Directive    | Effect                                                                                                                                                                                                                      |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `roles`      | Declare column order. Inline (`roles Cap, QM, Bos`) is name-only; the indented block form supports per-role color via the trailing-token form (`Cap red`). When present, unknown roles in tasks emit `W_RACI_UNKNOWN_ROLE`. |
+| `active-tag` | Universal option; `palette` is the universal line (§1.10).                                                                                                                                                                  |
 
 ### Phase metadata
 
