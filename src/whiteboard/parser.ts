@@ -7,6 +7,7 @@
 //   rectangle Sign in at: 60 60, size: 180 70
 //   ellipse OAuth? at: 345 53, size: 170 84, color: blue
 //   arrow from: 240 95, to: 340 95
+//   line from: 240 300, to: 300 400, style: dashed
 //   text keep it to ONE screen at: 62 184
 //   image login-ideas.assets/9f3c2a71.webp at: 420 200, size: 250 170
 //   ink red 3 <encoded path>
@@ -38,6 +39,7 @@ import type {
   ParsedWhiteboard,
   WhiteboardColor,
   WhiteboardElement,
+  WhiteboardStrokeStyle,
 } from './types';
 import {
   WHITEBOARD_COLORS,
@@ -61,9 +63,13 @@ const INK_WIDTH_RE = /^\d+(\.\d+)?$/;
 /** Largest pen width accepted; a wider stroke is a corrupt line. */
 const INK_WIDTH_MAX = 200;
 
+/** Style values accepted in source; `solid` is implied, never written. */
+const WRITTEN_STYLES = ['dashed'] as const;
+
 const KEYS_BY_KIND: Record<string, readonly string[]> = {
   shape: ['at', 'size', 'color'],
-  arrow: ['from', 'to', 'color'],
+  arrow: ['from', 'to', 'color', 'style'],
+  line: ['from', 'to', 'color', 'style'],
   text: ['at', 'color'],
   image: ['at', 'size'],
 };
@@ -161,6 +167,21 @@ export function parseWhiteboard(
       hint: suggest(c, WHITEBOARD_COLORS) ?? '',
     });
     return 'ink';
+  };
+
+  /** `style:` — only `dashed` is ever written; solid is the default. */
+  const readStyle = (
+    raw: string | undefined,
+    line: number
+  ): WhiteboardStrokeStyle => {
+    if (raw === undefined) return 'solid';
+    const v = raw.trim().toLowerCase();
+    if (v === 'dashed') return 'dashed';
+    warn(line, CODES.UNKNOWN_STYLE, {
+      style: raw,
+      hint: suggest(v, WRITTEN_STYLES) ?? '',
+    });
+    return 'solid';
   };
 
   /** Two integers, in range; null (with a warning) otherwise. */
@@ -316,21 +337,22 @@ export function parseWhiteboard(
       continue;
     }
 
-    if (word === 'arrow') {
+    if (word === 'arrow' || word === 'line') {
       const { name, meta } = splitLine(rest);
-      checkKeys(meta, 'arrow', 'arrow', lineNumber);
-      const from = readPair(meta, 'from', 'arrow', lineNumber, false);
+      checkKeys(meta, word, word, lineNumber);
+      const from = readPair(meta, 'from', word, lineNumber, false);
       if (!from) continue;
-      const to = readPair(meta, 'to', 'arrow', lineNumber, false);
+      const to = readPair(meta, 'to', word, lineNumber, false);
       if (!to) continue;
       elements.push({
-        kind: 'arrow',
+        kind: word,
         x1: from[0],
         y1: from[1],
         x2: to[0],
         y2: to[1],
         label: name,
         color: readColor(meta.get('color'), lineNumber),
+        style: readStyle(meta.get('style'), lineNumber),
         lineNumber,
       });
       continue;

@@ -10,7 +10,8 @@
 //     assert(back.diagnostics.length === 0);    // emitter cleanliness
 //
 // Canonical form: one element per line in z-order, metadata in a fixed key
-// order, `color:` omitted when it is the default `ink`, ink payloads verbatim.
+// order, `color:` omitted when it is the default `ink`, `style:` omitted when
+// it is the default `solid`, ink payloads verbatim.
 // Emitting the parse of canonical text reproduces it byte for byte.
 
 import type { ParsedWhiteboard, WhiteboardElement } from './types';
@@ -43,10 +44,12 @@ export function emitWhiteboardElement(el: WhiteboardElement): string {
         ...colorPart(el.color),
       ]);
     case 'arrow':
-      return line('arrow', el.label, [
+    case 'line':
+      return line(el.kind, el.label, [
         `from: ${el.x1} ${el.y1}`,
         `to: ${el.x2} ${el.y2}`,
         ...colorPart(el.color),
+        ...(el.style === 'solid' ? [] : [`style: ${el.style}`]),
       ]);
     case 'text':
       return line('text', el.text, [

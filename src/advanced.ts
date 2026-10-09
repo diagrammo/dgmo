@@ -351,6 +351,8 @@ export type {
   WhiteboardElement,
   WhiteboardShape,
   WhiteboardArrow,
+  WhiteboardLine,
+  WhiteboardStrokeStyle,
   WhiteboardText,
   WhiteboardImage,
   WhiteboardInk,
@@ -362,6 +364,7 @@ export {
   WHITEBOARD_COLORS,
   WHITEBOARD_SHAPE_KINDS,
   WHITEBOARD_ELEMENT_KEYWORDS,
+  WHITEBOARD_STROKE_STYLES,
   isWhiteboardColor,
   isWhiteboardShapeKind,
 } from './whiteboard/types';

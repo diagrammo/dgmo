@@ -14,6 +14,7 @@ export const WHITEBOARD_DIAGNOSTIC_CODES = {
   OUT_OF_RANGE: 'W_WHITEBOARD_OUT_OF_RANGE',
   UNKNOWN_COLOR: 'W_WHITEBOARD_UNKNOWN_COLOR',
   UNKNOWN_KEY: 'W_WHITEBOARD_UNKNOWN_KEY',
+  UNKNOWN_STYLE: 'W_WHITEBOARD_UNKNOWN_STYLE',
   BAD_INK: 'W_WHITEBOARD_BAD_INK',
   BAD_IMAGE_REF: 'W_WHITEBOARD_BAD_IMAGE_REF',
   EMPTY_TEXT: 'W_WHITEBOARD_EMPTY_TEXT',
@@ -30,7 +31,7 @@ export const WHITEBOARD_DIAGNOSTICS: DiagnosticSpec[] = [
     title: 'Unknown whiteboard element',
     message: (p) =>
       `Unknown element "${s(p.word)}" — a whiteboard line starts with rectangle, ellipse, database, queue, arrow, text, image or ink; line skipped${p.hint ? `. ${s(p.hint)}` : ''}`,
-    hint: 'Start the line with one of the eight element keywords.',
+    hint: 'Start the line with one of the nine element keywords.',
     example: 'whiteboard\nsquare Start at: 0 0, size: 120 60',
   },
   {
@@ -72,6 +73,16 @@ export const WHITEBOARD_DIAGNOSTICS: DiagnosticSpec[] = [
       `Unknown key "${s(p.key)}" on ${s(p.element)} — ignored (valid here: ${s(p.valid)})${p.hint ? `. ${s(p.hint)}` : ''}`,
     hint: 'Quote a label that itself contains "word:" so it is not read as a key.',
     example: 'whiteboard\ntext Ship at: 0 0, colour: red',
+  },
+  {
+    code: WHITEBOARD_DIAGNOSTIC_CODES.UNKNOWN_STYLE,
+    severity: 'warning',
+    chartType: 'whiteboard',
+    title: 'Unknown line style',
+    message: (p) =>
+      `Unknown style "${s(p.style)}" — drawn solid (valid: dashed; solid is the default and never written)${p.hint ? `. ${s(p.hint)}` : ''}`,
+    hint: 'Arrows and lines take `style: dashed`; leave style off for a solid stroke.',
+    example: 'whiteboard\nline from: 0 0, to: 120 0, style: dotted',
   },
   {
     code: WHITEBOARD_DIAGNOSTIC_CODES.BAD_INK,

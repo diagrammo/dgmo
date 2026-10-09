@@ -2,8 +2,8 @@
 // Whiteboard diagram — Types (spec §39)
 // ============================================================
 //
-// Free placement on an infinite canvas: shapes, free arrows, free text, images
-// and freehand ink. Every element carries absolute integer canvas pixels; the
+// Free placement on an infinite canvas: shapes, free arrows and lines, free
+// text, images and freehand ink. Every element carries absolute integer canvas pixels; the
 // renderer crops to the content. Element order IS z-order (later draws on top),
 // so the model keeps one ordered list rather than one list per kind.
 
@@ -45,10 +45,19 @@ export type WhiteboardShapeKind = (typeof WHITEBOARD_SHAPE_KINDS)[number];
 export const WHITEBOARD_ELEMENT_KEYWORDS = [
   ...WHITEBOARD_SHAPE_KINDS,
   'arrow',
+  'line',
   'text',
   'image',
   'ink',
 ] as const;
+
+/**
+ * Stroke styles for arrows and lines. `solid` is the default and never
+ * written; `style:` in source accepts only the other values.
+ */
+export const WHITEBOARD_STROKE_STYLES = ['solid', 'dashed'] as const;
+
+export type WhiteboardStrokeStyle = (typeof WHITEBOARD_STROKE_STYLES)[number];
 
 export interface WhiteboardShape {
   readonly kind: 'shape';
@@ -74,6 +83,21 @@ export interface WhiteboardArrow {
   /** Label at the midpoint; '' for none. */
   readonly label: string;
   readonly color: WhiteboardColor;
+  readonly style: WhiteboardStrokeStyle;
+  readonly lineNumber: number;
+}
+
+/** A free line: an arrow without a head. */
+export interface WhiteboardLine {
+  readonly kind: 'line';
+  readonly x1: number;
+  readonly y1: number;
+  readonly x2: number;
+  readonly y2: number;
+  /** Label at the midpoint; '' for none. */
+  readonly label: string;
+  readonly color: WhiteboardColor;
+  readonly style: WhiteboardStrokeStyle;
   readonly lineNumber: number;
 }
 
@@ -116,6 +140,7 @@ export interface WhiteboardInk {
 export type WhiteboardElement =
   | WhiteboardShape
   | WhiteboardArrow
+  | WhiteboardLine
   | WhiteboardText
   | WhiteboardImage
   | WhiteboardInk;

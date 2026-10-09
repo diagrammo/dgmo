@@ -88,6 +88,36 @@ describe('parseWhiteboard — elements', () => {
     ).toMatchObject({ label: 'emails a code', color: 'green' });
   });
 
+  it('reads a free line exactly like an arrow, minus the head', () => {
+    expect(only('line from: 240 95, to: 340 -95')).toEqual({
+      kind: 'line',
+      x1: 240,
+      y1: 95,
+      x2: 340,
+      y2: -95,
+      label: '',
+      color: 'ink',
+      style: 'solid',
+      lineNumber: 2,
+    });
+    expect(
+      only('line splits here from: 0 0, to: 0 100, color: green')
+    ).toMatchObject({ label: 'splits here', color: 'green' });
+  });
+
+  it('reads style: dashed on arrows and lines, solid by default', () => {
+    expect(only('arrow from: 0 0, to: 10 0')).toMatchObject({
+      style: 'solid',
+    });
+    expect(only('arrow from: 0 0, to: 10 0, style: dashed')).toMatchObject({
+      kind: 'arrow',
+      style: 'dashed',
+    });
+    expect(
+      only('line maybe from: 0 0, to: 10 0, color: red, style: Dashed')
+    ).toMatchObject({ kind: 'line', label: 'maybe', style: 'dashed' });
+  });
+
   it('reads free text, keeping commas and punctuation', () => {
     expect(only('text wait, why?? at: 5 6, color: red')).toMatchObject({
       kind: 'text',
@@ -222,6 +252,28 @@ describe('parseWhiteboard — leniency', () => {
     ]);
   });
 
+  it('warns on an unknown style and draws solid', () => {
+    for (const bad of ['dotted', 'solid', 'dahsed']) {
+      const p = parseWhiteboard(
+        `whiteboard\nline from: 0 0, to: 10 0, style: ${bad}`
+      );
+      expect(p.diagnostics.map((d) => d.code)).toEqual([
+        'W_WHITEBOARD_UNKNOWN_STYLE',
+      ]);
+      expect(p.elements[0]).toMatchObject({ kind: 'line', style: 'solid' });
+    }
+    const near = parseWhiteboard(
+      'whiteboard\narrow from: 0 0, to: 10 0, style: dahsed'
+    );
+    expect(near.diagnostics[0]!.message).toMatch(/dashed/);
+  });
+
+  it('style is not a key on shapes or text', () => {
+    expect(
+      codes('whiteboard\nrectangle at: 0 0, size: 5 5, style: dashed')
+    ).toEqual(['W_WHITEBOARD_UNKNOWN_KEY']);
+  });
+
   it('warns on an unknown key but keeps the element', () => {
     const p = parseWhiteboard('whiteboard\ntext a at: 0 0, colour: red');
     expect(p.diagnostics.map((d) => d.code)).toEqual([
@@ -257,6 +309,22 @@ describe('emitWhiteboard — round trip', () => {
     const out = emitWhiteboard(p);
     expect(out).toContain('text "look at: this" at: 0 0');
     expect(sameWhiteboard(p, parseWhiteboard(out))).toBe(true);
+  });
+
+  it('round-trips lines and dashed arrows and lines', () => {
+    const src = [
+      'whiteboard',
+      'line from: 0 0, to: 100 0',
+      'line maybe from: 0 10, to: 100 10, color: blue',
+      'arrow from: 0 20, to: 100 20, style: dashed',
+      'line from: 0 30, to: 100 -30, color: red, style: dashed',
+      'arrow "note: this" from: 0 40, to: 100 40, style: dashed',
+      '',
+    ].join('\n');
+    const a = parseWhiteboard(src);
+    expect(a.diagnostics).toEqual([]);
+    expect(emitWhiteboard(a)).toBe(src);
+    expect(sameWhiteboard(a, parseWhiteboard(emitWhiteboard(a)))).toBe(true);
   });
 
   it('round-trips no-title and an untitled board', () => {

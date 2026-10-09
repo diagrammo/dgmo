@@ -1019,6 +1019,7 @@ export const STRUCTURAL_KEYWORDS = new Map<string, string[]>([
       'database',
       'queue',
       'arrow',
+      'line',
       'text',
       'image',
       'ink',

@@ -75,6 +75,41 @@ describe('whiteboard renderer', () => {
     ).toBeGreaterThanOrEqual(14);
   });
 
+  it('draws a line with no head, and an arrow with one', () => {
+    const svg = draw(
+      'whiteboard\nline from: 0 0, to: 100 0\narrow from: 0 50, to: 100 50'
+    );
+    const line = svg.querySelector('.whiteboard-line')!;
+    expect(line.querySelector('line')).not.toBeNull();
+    expect(line.querySelector('polygon, marker, path')).toBeNull();
+    // The line runs to its end point; the arrow's shaft stops at the head.
+    expect(line.querySelector('line')!.getAttribute('x2')).toBe('100');
+    expect(svg.querySelector('.whiteboard-arrow polygon')).not.toBeNull();
+    expect(svg.querySelector('marker')).toBeNull();
+  });
+
+  it('dashes a dashed arrow or line, scaled to the stroke width', () => {
+    const svg = draw(
+      [
+        'whiteboard',
+        'line from: 0 0, to: 100 0, style: dashed',
+        'arrow from: 0 50, to: 100 50, style: dashed',
+        'arrow from: 0 90, to: 100 90',
+      ].join('\n')
+    );
+    const strokes = [...svg.querySelectorAll('g[class^="whiteboard-"] > line')];
+    expect(strokes).toHaveLength(3);
+    const [line, dashed, solid] = strokes;
+    const width = Number(line!.getAttribute('stroke-width'));
+    expect(line!.getAttribute('stroke-dasharray')).toBe(
+      `${3 * width} ${4 * width}`
+    );
+    expect(dashed!.getAttribute('stroke-dasharray')).toBe(
+      `${3 * width} ${4 * width}`
+    );
+    expect(solid!.hasAttribute('stroke-dasharray')).toBe(false);
+  });
+
   it('crops to the content plus a margin, wherever it sits', () => {
     const near = draw('whiteboard\nrectangle at: 0 0, size: 100 50');
     const far = draw('whiteboard\nrectangle at: -90000 40000, size: 100 50');

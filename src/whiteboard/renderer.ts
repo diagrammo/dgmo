@@ -44,6 +44,13 @@ const SHAPE_STROKE = 2;
 const ARROW_STROKE = 2;
 const ARROW_HEAD_LEN = 12;
 const ARROW_HEAD_HALF = 6;
+/**
+ * `style: dashed` dash and gap, in multiples of the stroke width. The round
+ * caps add half a width to each end of a dash, so the drawn dash is one width
+ * longer and the drawn gap one width shorter: 8 on, 6 off at the default 2px.
+ */
+const DASH_ON = 3;
+const DASH_OFF = 4;
 const LABEL_FONT = 14;
 const LABEL_LINE = 1.25;
 const LABEL_PAD = 8;
@@ -85,7 +92,8 @@ export function whiteboardBounds(parsed: ParsedWhiteboard): Bounds {
       case 'image':
         grow(b, el.x, el.y, el.x + el.width, el.y + el.height);
         break;
-      case 'arrow': {
+      case 'arrow':
+      case 'line': {
         const pad = ARROW_HEAD_HALF + ARROW_STROKE;
         grow(b, el.x1 - pad, el.y1 - pad, el.x2 + pad, el.y2 + pad);
         grow(b, el.x1 + pad, el.y1 + pad, el.x2 - pad, el.y2 - pad);
@@ -316,7 +324,8 @@ export function renderWhiteboard(
         centredLabel(g, el.label, cx, cy, el.width - 2 * (LABEL_PAD + inset));
         break;
       }
-      case 'arrow': {
+      case 'arrow':
+      case 'line': {
         const color = colorOf(el.color);
         const dx = el.x2 - el.x1;
         const dy = el.y2 - el.y1;
@@ -324,10 +333,11 @@ export function renderWhiteboard(
         if (len > 0) {
           const ux = dx / len;
           const uy = dy / len;
-          const head = Math.min(ARROW_HEAD_LEN, len);
+          const head = el.kind === 'arrow' ? Math.min(ARROW_HEAD_LEN, len) : 0;
           const bx = el.x2 - ux * head;
           const by = el.y2 - uy * head;
-          g.append('line')
+          const stroke = g
+            .append('line')
             .attr('x1', el.x1)
             .attr('y1', el.y1)
             .attr('x2', round2(bx))
@@ -335,14 +345,22 @@ export function renderWhiteboard(
             .attr('stroke', color)
             .attr('stroke-width', ARROW_STROKE)
             .attr('stroke-linecap', 'round');
-          const px = -uy * ARROW_HEAD_HALF;
-          const py = ux * ARROW_HEAD_HALF;
-          g.append('polygon')
-            .attr(
-              'points',
-              `${el.x2},${el.y2} ${round2(bx + px)},${round2(by + py)} ${round2(bx - px)},${round2(by - py)}`
-            )
-            .attr('fill', color);
+          if (el.style === 'dashed') {
+            stroke.attr(
+              'stroke-dasharray',
+              `${DASH_ON * ARROW_STROKE} ${DASH_OFF * ARROW_STROKE}`
+            );
+          }
+          if (el.kind === 'arrow') {
+            const px = -uy * ARROW_HEAD_HALF;
+            const py = ux * ARROW_HEAD_HALF;
+            g.append('polygon')
+              .attr(
+                'points',
+                `${el.x2},${el.y2} ${round2(bx + px)},${round2(by + py)} ${round2(bx - px)},${round2(by - py)}`
+              )
+              .attr('fill', color);
+          }
         }
         if (el.label) {
           g.append('text')
