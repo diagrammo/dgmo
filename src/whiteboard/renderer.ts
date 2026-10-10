@@ -40,6 +40,7 @@ import {
   WHITEBOARD_LABEL_LINE as LABEL_LINE,
   WHITEBOARD_NOTE_PAD as NOTE_PAD,
   fitWhiteboardLabel,
+  whiteboardLabelShift,
 } from './label';
 import type {
   ParsedWhiteboard,
@@ -120,6 +121,8 @@ const ARROW_HEAD_HALF = 6;
  * caps add half a width to each end of a dash, so the drawn dash is one width
  * longer and the drawn gap one width shorter: 8 on, 6 off at the default 2px.
  */
+/** Width of the halo behind a shape label, in the shape's fill, px. */
+const LABEL_HALO = 3;
 const DASH_ON = 3;
 const DASH_OFF = 4;
 const WHITEBOARD_TEXT_FONT = 16;
@@ -451,17 +454,24 @@ export function renderWhiteboard(
     { lines, font }: { lines: readonly string[]; font: number },
     cx: number,
     cy: number,
-    color: string = palette.text
+    color: string,
+    ground: string
   ): void => {
     if (lines.length === 0) return;
     const lh = font * LABEL_LINE;
     const top = cy - (lines.length * lh) / 2 + lh * BASELINE;
+    // A halo of the shape's own fill: where a line of text meets the outline,
+    // the outline gives way to the words.
     const t = g
       .append('text')
       .attr('class', 'whiteboard-label')
       .attr('text-anchor', 'middle')
       .attr('font-size', font)
-      .attr('fill', color);
+      .attr('fill', color)
+      .attr('stroke', ground)
+      .attr('stroke-width', LABEL_HALO)
+      .attr('stroke-linejoin', 'round')
+      .attr('paint-order', 'stroke');
     appendLines(t, lines, cx, top, lh);
   };
 
@@ -558,7 +568,14 @@ export function renderWhiteboard(
             drawQueueCard(inner, el.width, el.height, fill, stroke);
           }
         }
-        centredLabel(g, fitWhiteboardLabel(el.label, el), cx, cy, labelColor);
+        centredLabel(
+          g,
+          fitWhiteboardLabel(el.label, el),
+          cx + whiteboardLabelShift(el),
+          cy,
+          labelColor,
+          fill === 'none' ? halo : fill
+        );
         break;
       }
       case 'note': {

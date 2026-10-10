@@ -395,6 +395,7 @@ export {
   wrapWhiteboardLabel,
   whiteboardLabelHeight,
   whiteboardLabelWidth,
+  whiteboardLabelShift,
   WHITEBOARD_LABEL_MIN_FONT,
   WHITEBOARD_NOTE_FONT,
 } from './whiteboard/label';

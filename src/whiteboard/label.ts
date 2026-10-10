@@ -48,13 +48,25 @@ export function whiteboardLabelWidth(box: WhiteboardLabelBox): number {
   if ('kind' in box && box.kind === 'note') {
     return Math.max(box.width - 2 * WHITEBOARD_NOTE_PAD, MIN_WRAP);
   }
+  if ('shape' in box && box.shape === 'queue') {
+    // The body between the two caps: the back cap bulges QUEUE_CAP past the
+    // left end, but the front cap is a whole ellipse, 2 × QUEUE_CAP wide, at
+    // the right — text there runs under its outline.
+    return Math.max(box.width - 2 * LABEL_PAD - 3 * QUEUE_CAP, MIN_WRAP);
+  }
   const inset =
-    'shape' in box && box.shape === 'ellipse'
-      ? box.width * ELLIPSE_INSET
-      : 'shape' in box && box.shape === 'queue'
-        ? QUEUE_CAP
-        : 0;
+    'shape' in box && box.shape === 'ellipse' ? box.width * ELLIPSE_INSET : 0;
   return Math.max(box.width - 2 * (LABEL_PAD + inset), MIN_WRAP);
+}
+
+/**
+ * How far a label's centre sits right of its box's centre, px (negative is
+ * left). A queue's readable body is off-centre — its front cap takes twice the
+ * room its back cap does — so its label moves left by half a cap. Every other
+ * shape's label is centred.
+ */
+export function whiteboardLabelShift(box: WhiteboardLabelBox): number {
+  return 'shape' in box && box.shape === 'queue' ? -QUEUE_CAP / 2 : 0;
 }
 
 /** What the fit needs: a label box plus its height. */

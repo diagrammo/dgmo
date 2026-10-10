@@ -7,6 +7,7 @@ import {
   WHITEBOARD_LABEL_MIN_FONT,
   WHITEBOARD_NOTE_FONT,
   whiteboardLabelHeight,
+  whiteboardLabelShift,
   whiteboardLabelWidth,
   wrapWhiteboardLabel,
 } from '../src/whiteboard/label';
@@ -187,7 +188,27 @@ it('mirrors the cap sizes c4 draws a database and a queue with', async () => {
   const c4 = await import('../src/shape-caps');
   const b = { shape: 'database' as const, width: 100, height: 100 };
   expect(whiteboardLabelHeight(b)).toBe(100 - 2 * (8 + 2 * c4.CYLINDER_RY));
+  // A queue's label lives on the body between its caps: the back cap takes
+  // QUEUE_CAP at the left, the front cap a whole 2 × QUEUE_CAP ellipse at the
+  // right — so the box is off-centre and the label moves left half a cap.
   expect(whiteboardLabelWidth({ shape: 'queue', width: 100 })).toBe(
-    100 - 2 * (8 + c4.QUEUE_CAP)
+    100 - 2 * 8 - 3 * c4.QUEUE_CAP
   );
+  expect(whiteboardLabelShift({ shape: 'queue', width: 100 })).toBe(
+    -c4.QUEUE_CAP / 2
+  );
+  expect(whiteboardLabelShift({ shape: 'rectangle', width: 100 })).toBe(0);
+});
+
+it('keeps a queue label clear of its front cap', async () => {
+  const { QUEUE_CAP } = await import('../src/shape-caps');
+  // The owner's board: "Hello World" in a 125px queue ran under the cap.
+  const box = { shape: 'queue' as const, width: 125, height: 66 };
+  const { lines, font } = fitWhiteboardLabel('Hello World', box);
+  const cx = box.width / 2 + whiteboardLabelShift(box);
+  for (const line of lines) {
+    const right = cx + measureText(line, font) / 2;
+    expect(right).toBeLessThanOrEqual(box.width - 2 * QUEUE_CAP);
+    expect(cx - measureText(line, font) / 2).toBeGreaterThanOrEqual(QUEUE_CAP);
+  }
 });
