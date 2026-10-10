@@ -393,4 +393,35 @@ describe('multi-word tag group names', () => {
     ).not.toBeNull();
     doc.body.removeChild(container);
   });
+
+  it('timeline view mode keeps the legend for a swimlane given as its slug', () => {
+    const src = [
+      'timeline T',
+      'tag Ended in as o',
+      '  Done green',
+      '  Open red',
+      '[Lane A]',
+      '  2026-10-03 21:00 -> 2026-10-03 21:30 first o: Done',
+      '  2026-10-03 22:00 -> 2026-10-03 22:30 second o: Open',
+    ].join('\n');
+    const parsed = parseVisualization(src, palette);
+    const container = doc.createElement('div') as unknown as HTMLDivElement;
+    Object.defineProperty(container, 'clientWidth', { value: 1200 });
+    Object.defineProperty(container, 'clientHeight', { value: 600 });
+    doc.body.appendChild(container);
+    renderTimeline(
+      container,
+      parsed,
+      palette,
+      false,
+      undefined,
+      undefined,
+      null,
+      'ended-in',
+      undefined,
+      true
+    );
+    expect(container.querySelectorAll('[data-legend-entry]').length).toBe(2);
+    doc.body.removeChild(container);
+  });
 });

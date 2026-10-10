@@ -1330,8 +1330,18 @@ function renderTimelineTagLegendOverlay(
       mainSvg.selectAll('.tl-tag-legend-container').remove();
 
       // Effective color source: explicit color group > swimlane group
+      // The swimlane toggle stores the group's slug, so resolve whichever form
+      // arrives to the group's own lower-cased name, the form compared below.
+      const effectiveSource = currentActiveGroup ?? currentSwimlaneGroup;
       const effectiveColorKey =
-        (currentActiveGroup ?? currentSwimlaneGroup)?.toLowerCase() ?? null;
+        effectiveSource == null
+          ? null
+          : (legendGroups
+              .find(
+                (lg) =>
+                  tagAttrKey(lg.group.name) === tagAttrKey(effectiveSource)
+              )
+              ?.group.name.toLowerCase() ?? effectiveSource.toLowerCase());
 
       // In view mode, only show the color-driving tag group (expanded, non-interactive).
       // Skip the swimlane group if it's separate from the color group (lane headers already label it).
