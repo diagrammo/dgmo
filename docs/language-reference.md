@@ -4083,7 +4083,7 @@ An image whose ref cannot be loaded — a local file that is not there, or a cop
 
 ### Leniency
 
-A malformed line is a warning and is skipped; the rest of the board renders. Only a first line that is not `whiteboard`, or a board with no elements, is an error.
+A malformed line is a warning and is skipped; the rest of the board renders. Only a first line that is not `whiteboard` is an error; a board with no elements is a blank canvas and is valid.
 
 ---
 

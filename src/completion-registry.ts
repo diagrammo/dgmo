@@ -1251,6 +1251,20 @@ export const PIPE_METADATA = new Map<string, PipeContextMap>([
         },
         from: { description: 'Arrow tail `from: X Y` in canvas px' },
         to: { description: 'Arrow head `to: X Y` in canvas px' },
+        style: {
+          description: 'Arrow or line stroke: `dashed` (solid is the default)',
+        },
+        heads: {
+          description: 'Arrow heads: `both` adds one at `from:`',
+        },
+        bend: {
+          description:
+            'Arrow or line curve: whole px off the straight middle, + bends right',
+        },
+        fill: {
+          description:
+            'Shape fill: `solid` or `outline` (a pale tint is the default)',
+        },
       },
     },
   ],
