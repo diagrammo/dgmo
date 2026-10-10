@@ -39,6 +39,7 @@ import { resolveOrgImports } from './org/resolver';
 import { normalizePertSourceForShare } from './pert/share-normalize';
 import { renderBanner } from './cli-banner';
 import { owningPackageManager, linuxClipboardCommand } from './cli-host';
+import { runCloudCommand } from './cli-cloud';
 import { searchMapLocations } from './map/completion';
 import { loadMapData } from './map/load-data';
 
@@ -120,6 +121,14 @@ Commands:
                            cursor, windsurf, copilot. --scope user|project
   dgmo mcp                 Run the MCP server (invoked by AI client configs)
   dgmo map-search <query>  Find the map place token (city or IATA code)
+  dgmo put <file> --space <id> [--folder <path>] [--title <title>]
+                           Write a diagram to a Cloud space (updates the
+                           folder's diagram of that title, else creates it)
+  dgmo get --space <id> [--folder <path>] --title <title> | --id <id>
+                           Print a diagram's source from a Cloud space
+  dgmo ls --space <id>     List the diagrams in a Cloud space
+                           put, get and ls read the space API key from
+                           DGMO_API_KEY, and take --json
 
 Render options:
   -o <file>            Output file (default: <input>.png in cwd)
@@ -1077,6 +1086,17 @@ async function main(): Promise<void> {
   }
   if (sub === 'mcp') {
     runMcpCommand(process.argv.slice(3));
+  }
+  if (sub === 'put' || sub === 'get' || sub === 'ls') {
+    // exitCode, not exit(): a piped `get` can still be flushing stdout.
+    process.exitCode = await runCloudCommand(sub, process.argv.slice(3), {
+      env: process.env,
+      fetch: globalThis.fetch,
+      readFile: (p) => readFileSync(resolve(p), 'utf-8'),
+      stdout: (t) => process.stdout.write(t),
+      stderr: (t) => process.stderr.write(t),
+    });
+    return;
   }
 
   const opts = parseArgs(process.argv);
