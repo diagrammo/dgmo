@@ -129,6 +129,9 @@ const WHITEBOARD_TEXT_FONT = 16;
 /** A sticky note's fill and edge: its hue mixed into the ground, percent. */
 const NOTE_TINT = 40;
 const NOTE_EDGE = 65;
+/** A `fill: solid` shape's outline: this much of its colour, the rest its
+ *  label colour, percent. */
+const SOLID_EDGE = 55;
 /** A sticky note's text: its hue mixed into the palette's text colour, percent. */
 const NOTE_INK = 40;
 /** Opacity of a sticky note's folded corner, drawn in its edge colour. */
@@ -525,18 +528,22 @@ export function renderWhiteboard(
       .attr('data-line-number', el.lineNumber);
     switch (el.kind) {
       case 'shape': {
-        const stroke = colorOf(el.color);
+        const hue = colorOf(el.color);
         // tint: a wash of the colour · solid: the colour · outline: hollow.
         const fill =
           el.fill === 'solid'
-            ? stroke
+            ? hue
             : el.fill === 'outline'
               ? 'none'
               : fillOf(el.color);
         const labelColor =
           el.fill === 'solid'
-            ? contrastText(stroke, base, palette.text)
+            ? contrastText(hue, base, palette.text)
             : palette.text;
+        // A solid shape's outline is drawn a shade toward its label colour,
+        // or a cylinder's caps and an ellipse's rim vanish into the fill.
+        const stroke =
+          el.fill === 'solid' ? mix(hue, labelColor, SOLID_EDGE) : hue;
         const cx = el.x + el.width / 2;
         const cy = el.y + el.height / 2;
         if (el.shape === 'rectangle') {

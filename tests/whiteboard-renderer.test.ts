@@ -74,6 +74,24 @@ describe('whiteboard renderer', () => {
     );
   });
 
+  it('outlines a solid shape apart from its fill, so its caps still read', () => {
+    for (const isDark of [false, true]) {
+      for (const shape of ['database', 'queue', 'ellipse'] as const) {
+        const svg = draw(
+          `whiteboard\n${shape} at: 0 0, size: 80 50, color: blue, fill: solid`,
+          isDark
+        );
+        for (const part of svg.querySelectorAll(
+          `.whiteboard-${shape} path, .whiteboard-${shape} ellipse`
+        )) {
+          expect(part.getAttribute('stroke')).not.toBe(
+            part.getAttribute('fill')
+          );
+        }
+      }
+    }
+  });
+
   it('draws a head at each end for heads: both, one by default', () => {
     const heads = (line: string) =>
       draw(`whiteboard\n${line}`).querySelectorAll('.whiteboard-arrow polygon')
