@@ -1282,7 +1282,7 @@ function renderStepCard(
   // Tag strip — colored bar above the card
   for (const [key, value] of Object.entries(sl.step.tags)) {
     const group = tagGroups.find(
-      (g) => g.name.toLowerCase() === key.toLowerCase()
+      (g) => tagAttrKey(g.name) === key.toLowerCase()
     );
     const entry = group?.entries.find(
       (e) => e.value.toLowerCase() === value.toLowerCase()

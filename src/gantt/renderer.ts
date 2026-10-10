@@ -2301,7 +2301,7 @@ function renderTagLegend(
 
     // Build groups with filtered entries
     const legendGroups = visibleGroups.map((g) => {
-      const key = g.name.toLowerCase();
+      const key = tagAttrKey(g.name);
       const entries = filteredEntries.get(key) ?? g.entries;
       return {
         name: g.name,

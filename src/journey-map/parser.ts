@@ -435,7 +435,7 @@ export function parseJourneyMap(
       const validValues = tagValueSets.get(groupKey);
       if (validValues && !validValues.has(tagValue.toLowerCase())) {
         const entries = result.tagGroups
-          .find((g) => g.name.toLowerCase() === groupKey)
+          .find((g) => tagAttrKey(g.name) === groupKey)
           ?.entries.map((e) => e.value);
         let msg = `Unknown tag value "${tagValue}" for group "${groupKey}"`;
         if (entries) {

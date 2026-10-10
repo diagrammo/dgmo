@@ -1419,7 +1419,8 @@ function renderTimelineTagLegendOverlay(
               groupEl.attr('data-tag-group', groupKey);
               if (isActive && !viewMode) {
                 const isSwimActive =
-                  currentSwimlaneGroup?.toLowerCase() === groupKey;
+                  currentSwimlaneGroup != null &&
+                  tagAttrKey(currentSwimlaneGroup) === groupKey;
                 const pillWidth =
                   measureLegendText(groupName, LG_PILL_FONT_SIZE) + LG_PILL_PAD;
                 const pillXOff = LG_CAPSULE_PAD;
@@ -1439,7 +1440,10 @@ function renderTimelineTagLegendOverlay(
                   !exportDims,
                   () => {
                     currentSwimlaneGroup =
-                      currentSwimlaneGroup === groupKey ? null : groupKey;
+                      currentSwimlaneGroup != null &&
+                      tagAttrKey(currentSwimlaneGroup) === groupKey
+                        ? null
+                        : groupKey;
                     onTagStateChange?.(
                       currentActiveGroup,
                       currentSwimlaneGroup

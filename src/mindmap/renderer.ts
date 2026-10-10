@@ -317,7 +317,7 @@ export function renderMindmap(
     const usedValues = new Map<string, Set<string>>(); // groupName → set of used values
     for (const node of renderLayout.nodes) {
       for (const tg of parsed.tagGroups) {
-        const key = tg.name.toLowerCase();
+        const key = tagAttrKey(tg.name);
         const val = node.metadata[key];
         if (val) {
           if (!usedValues.has(key)) usedValues.set(key, new Set());
@@ -351,7 +351,7 @@ export function renderMindmap(
 
     const legendConfig: LegendConfig = {
       groups: parsed.tagGroups.map((tg) => {
-        const used = usedValues.get(tg.name.toLowerCase());
+        const used = usedValues.get(tagAttrKey(tg.name));
         return {
           name: tg.name,
           ...(tg.alias !== undefined && { alias: tg.alias }),
