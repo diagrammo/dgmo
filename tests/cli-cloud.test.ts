@@ -237,6 +237,79 @@ describe('dgmo get', () => {
   });
 });
 
+describe('dgmo get matches folder + title the way the server does', () => {
+  it('finds a title whose case differs from the stored one (COLLATE NOCASE)', async () => {
+    const h = harness({
+      ...CONTENTS,
+      'GET /spaces/s-1/diagrams/d-1': { status: 200, body: detail },
+    });
+    // `put system.dgmo` defaults the title to `system`, and the server's
+    // case-insensitive upsert updates `System`; reading it back must work.
+    const code = await runCloudCommand(
+      'get',
+      ['--space', 's-1', '--folder', 'docs/arch', '--title', 'system'],
+      h.io
+    );
+    expect(code).toBe(0);
+    expect(h.out()).toBe(SOURCE);
+  });
+
+  it('folds ASCII only, as SQLite NOCASE does', async () => {
+    const h = harness({
+      'GET /spaces/s-1/contents': {
+        status: 200,
+        body: {
+          ...contents,
+          items: [{ ...summary, title: 'Ärger', folderId: null }],
+        },
+      },
+    });
+    const code = await runCloudCommand(
+      'get',
+      ['--space', 's-1', '--title', 'ärger'],
+      h.io
+    );
+    expect(code).toBe(1);
+    expect(h.err()).toContain('No diagram titled');
+  });
+
+  it("treats a root row stored with folderId '' as the space root", async () => {
+    const h = harness({
+      'GET /spaces/s-1/contents': {
+        status: 200,
+        body: {
+          ...contents,
+          items: [{ ...summary, folderId: '' }],
+          folders: [{ id: 'f-top', name: 'Top', parentId: '' }],
+        },
+      },
+      'GET /spaces/s-1/diagrams/d-1': {
+        status: 200,
+        body: { ...detail, folderId: '' },
+      },
+    });
+    const code = await runCloudCommand(
+      'get',
+      ['--space', 's-1', '--title', 'System', '--json'],
+      h.io
+    );
+    expect(code).toBe(0);
+    expect(JSON.parse(h.out())).toMatchObject({ id: 'd-1', folder: '' });
+    const ls = harness({
+      'GET /spaces/s-1/contents': {
+        status: 200,
+        body: {
+          ...contents,
+          items: [{ ...summary, folderId: 'f-top' }],
+          folders: [{ id: 'f-top', name: 'Top', parentId: '' }],
+        },
+      },
+    });
+    expect(await runCloudCommand('ls', ['--space', 's-1'], ls.io)).toBe(0);
+    expect(ls.out()).toBe('Top/System\td-1\n');
+  });
+});
+
 describe('dgmo ls', () => {
   it('lists every diagram with its folder path', async () => {
     const h = harness({ ...CONTENTS });

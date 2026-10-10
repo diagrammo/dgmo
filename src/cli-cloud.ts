@@ -177,14 +177,30 @@ function spacePath(spaceId: string, rest: string): string {
   return `/spaces/${encodeURIComponent(spaceId)}${rest}`;
 }
 
+/**
+ * The server keys a folder's children by name and title under SQLite's
+ * `COLLATE NOCASE` (`uq_folders_sibling_name`, `uq_diagrams_sibling_title`),
+ * which folds ASCII letters only — so this does too, or `put` and `get` would
+ * disagree about which diagram one folder + title names.
+ */
+const sameName = (a: string, b: string): boolean =>
+  a.replace(/[A-Z]/g, (c) => c.toLowerCase()) ===
+  b.replace(/[A-Z]/g, (c) => c.toLowerCase());
+
+/** The space root is `null`, but older rows store it as `''`. */
+const rootIsNull = (id: string | null): string | null =>
+  id === '' ? null : id;
+
 /** A folder's path from the space root, `a/b`; `''` for the root itself. */
 function folderPath(folders: FolderSummary[], folderId: string | null): string {
   const byId = new Map(folders.map((f) => [f.id, f]));
   const names: string[] = [];
-  let cur = folderId === null ? undefined : byId.get(folderId);
+  const start = rootIsNull(folderId);
+  let cur = start === null ? undefined : byId.get(start);
   while (cur && names.length <= folders.length) {
     names.unshift(cur.name);
-    cur = cur.parentId === null ? undefined : byId.get(cur.parentId);
+    const up = rootIsNull(cur.parentId);
+    cur = up === null ? undefined : byId.get(up);
   }
   return names.join('/');
 }
@@ -205,8 +221,7 @@ function resolveFolder(
   let parentId: string | null = null;
   for (const name of parts) {
     const hit = folders.find(
-      (f) =>
-        f.parentId === parentId && f.name.toLowerCase() === name.toLowerCase()
+      (f) => rootIsNull(f.parentId) === parentId && sameName(f.name, name)
     );
     if (!hit)
       throw new CloudError(
@@ -280,7 +295,7 @@ async function runGet(
     const title = requireFlag(flags, '--title');
     const folderId = resolveFolder(contents.folders, flags.get('--folder'));
     const hit = contents.items.find(
-      (d) => d.folderId === folderId && d.title === title
+      (d) => rootIsNull(d.folderId) === folderId && sameName(d.title, title)
     );
     if (!hit)
       throw new CloudError(
