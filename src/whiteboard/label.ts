@@ -14,6 +14,7 @@
 // same lines by calling the same function, so the CLI render and the canvas
 // break a label at the same words.
 
+import { CYLINDER_RY, QUEUE_CAP } from '../shape-caps';
 import { measureText, wrapTextToWidth } from '../utils/text-measure';
 import type { WhiteboardNote, WhiteboardShape } from './types';
 
@@ -31,11 +32,6 @@ export const WHITEBOARD_NOTE_PAD = 12;
 const ELLIPSE_INSET = 0.15;
 /** Narrowest wrap width, px — a tiny shape still puts a word on a line. */
 const MIN_WRAP = 20;
-/** A database's cap and a queue's end cap — c4's `CYLINDER_RY` and
- *  `QUEUE_CAP`, which draw them. Not imported: that pulls the c4 renderer into
- *  this pure module and reshuffles the published type chunks. */
-const CYLINDER_RY = 8;
-const QUEUE_CAP = 16;
 /** Smallest font a label shrinks to before it is cut, px. */
 export const WHITEBOARD_LABEL_MIN_FONT = 9;
 

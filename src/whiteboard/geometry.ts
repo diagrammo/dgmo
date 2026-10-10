@@ -24,7 +24,7 @@
 // A sticky note is attachable exactly like a shape: "shape" below means any
 // boxed element a connector end can sit in.
 
-import { CYLINDER_RY, QUEUE_CAP } from '../c4/renderer';
+import { CYLINDER_RY, QUEUE_CAP } from '../shape-caps';
 import type {
   WhiteboardArrow,
   WhiteboardElement,

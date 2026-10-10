@@ -2,6 +2,7 @@
 // C4 Context Diagram SVG Renderer
 // ============================================================
 
+import { CYLINDER_RY, QUEUE_CAP } from '../shape-caps';
 import { serializeSvg } from '../utils/svg-serialize';
 import { tagAttrKey, resolveGroupTagColor } from '../utils/tag-groups';
 import { fillModeFromOptions } from '../utils/parsing';
@@ -70,9 +71,6 @@ const BOUNDARY_LABEL_FONT_SIZE = 12;
 
 // Drillable accent bar (matches org chart collapse bar)
 
-// Cylinder (database/cache) shape constants
-export const CYLINDER_RY = 8;
-
 /**
  * How far each cloud lobe bulges past the card's text box (#654).
  *
@@ -85,23 +83,6 @@ export const CYLINDER_RY = 8;
  * inset is paid for rather than taken out of the card's padding.
  */
 const CLOUD_BUMP = 7;
-
-/**
- * Half-width of a queue's end caps — a cylinder on its side (#654).
- *
- * The same deal as `CLOUD_BUMP`, on the other axis:
- * `computeC4NodeDimensions` adds `QUEUE_CAP * 2` to the width, so the caps
- * never sit under the name.
- *
- * 🔴 It was 8 and that was too shallow to READ — measured by rendering it,
- * not by reasoning about it. `CARD_RADIUS` is 6, so an 8px cap on a 250px
- * card is within a couple of pixels of the rounding every plain card already
- * has, and the queue came out indistinguishable from a box with no override:
- * the exact defect this change exists to fix, reintroduced at a smaller
- * scale. A shape override has to be legible at a glance or it is not an
- * override.
- */
-export const QUEUE_CAP = 16;
 
 // Person stick-figure dimensions (sequence-diagram style, scaled for cards)
 const PERSON_HEAD_R = 4;

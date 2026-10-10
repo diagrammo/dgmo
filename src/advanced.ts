@@ -394,6 +394,7 @@ export type { WhiteboardFitBox, WhiteboardLabelBox } from './whiteboard/label';
 // Containment is the binding: an arrow/line end inside a shape attaches to it
 // and is drawn to its border. The app canvas reuses these to draw and to move
 // attached ends with their shape.
+export { CYLINDER_RY, QUEUE_CAP } from './shape-caps';
 export {
   clipWhiteboardConnector,
   whiteboardConnectorAttachments,

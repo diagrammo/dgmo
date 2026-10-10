@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import * as advanced from '../src/advanced';
 import { getPalette } from '../src/palettes';
-import { CYLINDER_RY, QUEUE_CAP } from '../src/c4/renderer';
+import { CYLINDER_RY, QUEUE_CAP } from '../src/shape-caps';
 import {
   clipWhiteboardConnector,
   whiteboardConnectorAttachments,

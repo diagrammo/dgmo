@@ -2,6 +2,7 @@
 // C4 Context Diagram Layout Engine (dagre)
 // ============================================================
 
+import { QUEUE_CAP } from '../shape-caps';
 import { META_FONT_SIZE, META_LINE_HEIGHT } from '../utils/visual-conventions';
 import { tagAttrKey, UNTAGGED_TAG_COLOR } from '../utils/tag-groups';
 import dagre from '@dagrejs/dagre';
@@ -716,15 +717,14 @@ export function collectCardMetadata(
 /**
  * Room the two lobed shapes need beyond their text (#654).
  *
- * 🔴 These MIRROR `CLOUD_BUMP` and `QUEUE_CAP` in the renderer, which is a
- * duplication worth naming rather than hiding: the renderer draws inside the
+ * 🔴 `CLOUD_BUMP` MIRRORS the renderer's, which is a duplication worth
+ * naming rather than hiding (`QUEUE_CAP` is shared, from `shape-caps`): the renderer draws inside the
  * box this function hands dagre, so a bump the box does not know about is a
  * bump taken out of the card's own padding. `database`/`cache` do exactly
  * that and are deliberately left alone — reserving height for them now would
  * move every existing C4 layout, which is a far wider change than this issue.
  */
 const CLOUD_BUMP = 7;
-const QUEUE_CAP = 16;
 
 export function computeC4NodeDimensions(
   el: C4Element,
