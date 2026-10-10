@@ -28,6 +28,7 @@ import {
   drawValueLabel,
   tagDatum,
   planCategoryLabels,
+  planLabelsFitLeft,
   drawCategoryLabels,
 } from './shared';
 
@@ -121,15 +122,25 @@ export function renderBar(
   const leftLabels = horizontal
     ? data.map((d) => d.label)
     : [fmtNum(niceMax), fmtNum(niceMax / 2), fmtNum(loVal), fmtNum(loVal / 2)];
-  const mLeft = computeLeftMargin(chart.ylabel, leftLabels);
-  const plotW = width - mLeft - 32;
+  const mLeft0 = computeLeftMargin(chart.ylabel, leftLabels);
   // Vertical bars carry their category names under the axis, so they need the
   // same fit treatment as line. Horizontal bars put them in the left gutter,
-  // which computeLeftMargin already sizes.
-  const labelPlan = planCategoryLabels(
-    data.map((d) => d.label),
-    horizontal || data.length === 0 ? Infinity : plotW / data.length
-  );
+  // which computeLeftMargin already sizes. Rotated labels hang left of the
+  // first bar, so the margin may grow to keep them inside the SVG.
+  const catLabels = data.map((d) => d.label);
+  const fit = horizontal
+    ? null
+    : planLabelsFitLeft(
+        catLabels,
+        mLeft0,
+        (ml) => width - ml - 32,
+        (pw) => (data.length === 0 ? Infinity : pw / data.length),
+        // scaleBand padding 0.3: first centre sits 0.65 steps in
+        (pw) => (pw / (data.length + 0.3)) * 0.65
+      );
+  const mLeft = fit ? fit.mLeft : mLeft0;
+  const plotW = fit ? fit.plotW : width - mLeft - 32;
+  const labelPlan = fit?.plan ?? planCategoryLabels(catLabels, Infinity);
   const m: Margins = {
     top: top + 8,
     right: 32,

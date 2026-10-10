@@ -456,6 +456,55 @@ export function planCategoryLabels(
   };
 }
 
+/**
+ * How far the first rotated label reaches left of its anchor (the first
+ * category's centre): the text runs down-left at LABEL_ROTATE_DEG, plus the
+ * glyph height's share. Zero when the plan does not rotate.
+ */
+function rotatedLeftReach(
+  first: string | undefined,
+  plan: CategoryLabelPlan,
+  font: number
+): number {
+  if (!plan.rotate || first === undefined) return 0;
+  const rad = (LABEL_ROTATE_DEG * Math.PI) / 180;
+  return measureText(first, font) * Math.cos(rad) + font * 0.8 * Math.sin(rad);
+}
+
+/**
+ * Plan the category labels AND widen the left margin so a rotated first label
+ * stays inside the SVG. Rotated labels hang down-left of their anchor, so the
+ * first one can cross the left edge; the margin grows by exactly the shortfall
+ * and not at all when the label fits. The plan depends on the plot width, which
+ * depends on the margin, so this settles them together.
+ *
+ * `plotWFor(mLeft)` is the plot width at that margin; `firstOffset(plotW)` is
+ * the distance from the plot's left edge to the first category's centre.
+ */
+export function planLabelsFitLeft(
+  labels: string[],
+  mLeft0: number,
+  plotWFor: (mLeft: number) => number,
+  slotFor: (plotW: number) => number,
+  firstOffset: (plotW: number) => number,
+  font: number = TICK_FONT
+): { mLeft: number; plotW: number; plan: CategoryLabelPlan } {
+  const EDGE = 4;
+  let mLeft = mLeft0;
+  let plotW = plotWFor(mLeft);
+  let plan = planCategoryLabels(labels, slotFor(plotW), font);
+  for (let i = 0; i < 6; i++) {
+    const reach = rotatedLeftReach(labels[0], plan, font);
+    const need = Math.ceil(reach + EDGE - firstOffset(plotW));
+    const next = Math.max(mLeft0, need);
+    if (next === mLeft) break;
+    mLeft = next;
+    plotW = plotWFor(mLeft);
+    plan = planCategoryLabels(labels, slotFor(plotW), font);
+  }
+  return { mLeft, plotW, plan };
+}
+
 /** True when the label at `i` survives the plan's thinning. */
 export function labelSurvives(plan: CategoryLabelPlan, i: number): boolean {
   return plan.keep.has(i);

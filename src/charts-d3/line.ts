@@ -21,7 +21,7 @@ import {
   drawXAxisTitle,
   drawYAxisTitle,
   drawValueLabel,
-  planCategoryLabels,
+  planLabelsFitLeft,
   drawCategoryLabels,
 } from './shared';
 
@@ -120,17 +120,23 @@ export function renderLine(
   // Horizontal margins first: the category-label plan needs the plot width to
   // know how much room one category owns, and the bottom margin then follows
   // from the plan (rotated labels stand taller than flat ones).
-  const mLeft = computeLeftMargin(chart.ylabel, [fmtNum(hiL), fmtNum(loL)]);
   const mRight = dual
     ? computeLeftMargin(chart.yrlabel, [fmtNum(hiR), fmtNum(loR)])
     : 32;
-  const plotW = width - mLeft - mRight;
+  const mLeft0 = computeLeftMargin(chart.ylabel, [fmtNum(hiL), fmtNum(loL)]);
   // scalePoint with padding(0.5) puts one slot's worth of space between
-  // adjacent points, and half a slot at each end.
-  const labelPlan = planCategoryLabels(
+  // adjacent points, and half a slot at each end. Rotated labels hang left of
+  // the first point, so the margin may grow to keep them inside the SVG.
+  const fit = planLabelsFitLeft(
     data.map((d) => d.label),
-    data.length > 0 ? plotW / data.length : plotW
+    mLeft0,
+    (ml) => width - ml - mRight,
+    (pw) => (data.length > 0 ? pw / data.length : pw),
+    (pw) => (data.length > 0 ? pw / data.length : pw) * 0.5
   );
+  const mLeft = fit.mLeft;
+  const plotW = fit.plotW;
+  const labelPlan = fit.plan;
   const m: Margins = {
     top: top + 8,
     right: mRight,

@@ -142,3 +142,49 @@ describe('the rendered axis', () => {
     expect(svg).not.toContain('rotate(-40)');
   });
 });
+
+describe('the first rotated label stays inside the SVG', () => {
+  const LONG = [
+    "A·1 #1056 app the D mark's accessible name",
+    'A·2 #930 agents consider Sonnet',
+    'B5',
+  ];
+  const body = LONG.map((l, i) => `"${l}" ${[12.38, 6.43, 1.23][i]}`).join(
+    '\n'
+  );
+
+  /** Left edge of the first rotated label, from its anchor and measured width. */
+  function firstLabelLeft(svg: string): number {
+    const m = svg.match(
+      /<text[^>]*transform="translate\(([\d.]+),[\d.]+\) rotate\(-40\)"[^>]*>([^<]*)</
+    );
+    expect(m).not.toBeNull();
+    const text = m![2]!.replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+    const rad = (40 * Math.PI) / 180;
+    return Number(m![1]) - measureText(text, TICK_FONT) * Math.cos(rad);
+  }
+
+  for (const kind of ['bar', 'line']) {
+    it(`${kind}: a long first label does not cross the left edge`, async () => {
+      const svg = await renderDataChartD3(`${kind} Tokens\n\n${body}`, 'light');
+      expect(svg).toContain('rotate(-40)');
+      expect(firstLabelLeft(svg)).toBeGreaterThanOrEqual(0);
+    });
+
+    it(`${kind}: short labels keep the plot as wide as before`, async () => {
+      const tight = await renderDataChartD3(
+        `${kind} Tokens\n\nQ1 4\nQ2 8\nQ3 6`,
+        'light'
+      );
+      expect(tight).not.toContain('rotate(-40)');
+      // No rotation, so no widening: the gridlines start at the base margin.
+      const x1 = Number(tight.match(/<line[^>]*x1="([\d.]+)"/)![1]);
+      const long = await renderDataChartD3(
+        `${kind} Tokens\n\n${body}`,
+        'light'
+      );
+      const x1Long = Number(long.match(/<line[^>]*x1="([\d.]+)"/)![1]);
+      expect(x1Long).toBeGreaterThan(x1);
+    });
+  }
+});
