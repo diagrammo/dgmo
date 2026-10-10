@@ -170,8 +170,8 @@ function grow(b: Bounds, x0: number, y0: number, x1: number, y1: number): void {
 
 /** Height of a sticky note's text block, padding included, px. */
 function noteTextHeight(el: WhiteboardNote): number {
-  const { lines, font } = fitWhiteboardLabel(el.text, el);
-  return 2 * NOTE_PAD + lines.length * font * LABEL_LINE;
+  const { lines, font, top } = fitWhiteboardLabel(el.text, el);
+  return 2 * top + lines.length * font * LABEL_LINE;
 }
 
 /** Content bounds of every drawn element, in canvas px. */
@@ -606,7 +606,7 @@ export function renderWhiteboard(
             .attr('fill', edge)
             .attr('opacity', NOTE_FOLD_OPACITY);
         }
-        const { lines, font } = fitWhiteboardLabel(el.text, el);
+        const { lines, font, top } = fitWhiteboardLabel(el.text, el);
         if (lines.length > 0) {
           const lh = font * LABEL_LINE;
           const t = g
@@ -618,7 +618,7 @@ export function renderWhiteboard(
             t,
             lines,
             el.x + NOTE_PAD,
-            el.y + NOTE_PAD + lh * BASELINE,
+            el.y + top + lh * BASELINE,
             lh
           );
         }

@@ -6,6 +6,7 @@ import {
   WHITEBOARD_LABEL_FONT,
   WHITEBOARD_LABEL_MIN_FONT,
   WHITEBOARD_NOTE_FONT,
+  WHITEBOARD_NOTE_PAD,
   whiteboardLabelHeight,
   whiteboardLabelShift,
   whiteboardLabelWidth,
@@ -114,6 +115,7 @@ describe('fitWhiteboardLabel (#1225)', () => {
     expect(fitWhiteboardLabel('Sign in', rect(180, 70))).toEqual({
       lines: ['Sign in'],
       font: WHITEBOARD_LABEL_FONT,
+      top: 8,
     });
   });
 
@@ -168,6 +170,32 @@ describe('fitWhiteboardLabel (#1225)', () => {
       height: 120,
     });
     expect(fit.font).toBe(WHITEBOARD_NOTE_FONT);
+  });
+
+  it("gives up a note's vertical padding before it cuts the text", () => {
+    const note = { kind: 'note' as const, width: 160, height: 68 };
+    const text =
+      'this is a note and the text stays inside the shape even though it ' +
+      'takes up a lot of space and stuff and has lots of words that are ' +
+      'hard to fit it still shrinks the font and stuff';
+    const fit = fitWhiteboardLabel(text, note);
+    expect(fit.font).toBe(WHITEBOARD_LABEL_MIN_FONT);
+    // At the full 12px padding only three 9px lines fit; tight, five do.
+    expect(fit.lines).toHaveLength(5);
+    expect(fit.lines.at(-1)).toMatch(/\u2026$/);
+    expect(fit.top).toBeLessThan(WHITEBOARD_NOTE_PAD);
+    const lh = fit.font * 1.25;
+    const bottom = fit.top + (fit.lines.length - 1) * lh + fit.font;
+    expect(bottom).toBeLessThanOrEqual(note.height);
+  });
+
+  it("keeps a note's full padding while its text fits", () => {
+    const fit = fitWhiteboardLabel('short', {
+      kind: 'note' as const,
+      width: 160,
+      height: 68,
+    });
+    expect(fit.top).toBe(WHITEBOARD_NOTE_PAD);
   });
 
   it('leaves less height in an ellipse and a database than in a rectangle', () => {

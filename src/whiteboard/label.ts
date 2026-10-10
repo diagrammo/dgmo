@@ -28,6 +28,13 @@ export const WHITEBOARD_LABEL_LINE = 1.25;
 const LABEL_PAD = 8;
 /** Space between a sticky note's edge and its text, px. */
 export const WHITEBOARD_NOTE_PAD = 12;
+/**
+ * A sticky note's inset above and below its text once the text overflows at
+ * the floor font: the padding gives way so more of the text shows. Less below
+ * than above, which keeps the first line clear of the folded corner.
+ */
+const NOTE_TIGHT_TOP = 6;
+const NOTE_TIGHT_BOTTOM = 3;
 /** An ellipse loses this share of its width on each side to its curve. */
 const ELLIPSE_INSET = 0.15;
 /** Narrowest wrap width, px — a tiny shape still puts a word on a line. */
@@ -118,14 +125,20 @@ export function wrapWhiteboardLabel(
  * a word wider than the box breaks inside itself, and lines past the last one
  * that fits are dropped, the last kept line ending in `…`. At least one line
  * is always kept. `''` gives no lines.
+ *
+ * A sticky note that overflows at the floor gives up most of its vertical
+ * padding first, and its last line needs only its own font height, so it
+ * shows as much text as the card can hold. `top` is how far below the note's
+ * top edge its text block starts; a shape centres its block and ignores it.
  */
 export function fitWhiteboardLabel(
   label: string,
   box: WhiteboardFitBox
-): { lines: string[]; font: number } {
+): { lines: string[]; font: number; top: number } {
   const isNote = 'kind' in box && box.kind === 'note';
   const full = isNote ? WHITEBOARD_NOTE_FONT : WHITEBOARD_LABEL_FONT;
-  if (!label) return { lines: [], font: full };
+  const pad = isNote ? WHITEBOARD_NOTE_PAD : LABEL_PAD;
+  if (!label) return { lines: [], font: full, top: pad };
   const width = whiteboardLabelWidth(box);
   const height = whiteboardLabelHeight(box);
   const wrap = (font: number, hardBreak: boolean): string[] =>
@@ -142,16 +155,25 @@ export function fitWhiteboardLabel(
       !tall(lines.length, font) &&
       lines.every((l) => measureText(l, font) <= width)
     )
-      return { lines, font };
+      return { lines, font, top: pad };
   }
   const font = WHITEBOARD_LABEL_MIN_FONT;
   const lines = wrap(font, true);
-  const room = Math.max(1, Math.floor(height / (font * WHITEBOARD_LABEL_LINE)));
-  if (lines.length <= room) return { lines, font };
+  const lh = font * WHITEBOARD_LABEL_LINE;
+  const room = isNote
+    ? Math.max(
+        1,
+        Math.floor(
+          (box.height - NOTE_TIGHT_TOP - NOTE_TIGHT_BOTTOM - font) / lh
+        ) + 1
+      )
+    : Math.max(1, Math.floor(height / lh));
+  const top = isNote ? NOTE_TIGHT_TOP : pad;
+  if (lines.length <= room) return { lines, font, top };
   const kept = lines.slice(0, room);
   let last = kept[room - 1]!;
   while (last && measureText(`${last}\u2026`, font) > width)
     last = [...last].slice(0, -1).join('');
   kept[room - 1] = `${last.trimEnd()}\u2026`;
-  return { lines: kept, font };
+  return { lines: kept, font, top };
 }
