@@ -41,18 +41,18 @@ function draw(src: string, opts?: WhiteboardRenderOptions): SVGSVGElement {
 }
 
 describe('whiteboard sticky notes — parse', () => {
-  it('defaults to a 160 × 120 yellow note', () => {
+  it('defaults to a 160 × 99 (golden) yellow note', () => {
     expect(note('note ask legal at: 10 20')).toMatchObject({
       kind: 'note',
       x: 10,
       y: 20,
       width: 160,
-      height: 120,
+      height: 99,
       text: 'ask legal',
       color: 'yellow',
     });
     expect(advanced.WHITEBOARD_NOTE_WIDTH).toBe(160);
-    expect(advanced.WHITEBOARD_NOTE_HEIGHT).toBe(120);
+    expect(advanced.WHITEBOARD_NOTE_HEIGHT).toBe(99);
     expect(advanced.WHITEBOARD_NOTE_COLOR).toBe('yellow');
   });
 
@@ -117,7 +117,7 @@ describe('whiteboard sticky notes — emit', () => {
 
   it('normalises written defaults away', () => {
     const p = parseWhiteboard(
-      wb('note Hi at: 0 0, size: 160 120, color: yellow')
+      wb('note Hi at: 0 0, size: 160 99, color: yellow')
     );
     expect(emitWhiteboard(p)).toBe(wb('note Hi at: 0 0', ''));
   });

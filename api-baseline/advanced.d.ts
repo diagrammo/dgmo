@@ -2681,7 +2681,7 @@ interface WhiteboardShape {
 }
 /** A sticky note's size when `size:` is left off, px. */
 declare const WHITEBOARD_NOTE_WIDTH = 160;
-declare const WHITEBOARD_NOTE_HEIGHT = 120;
+declare const WHITEBOARD_NOTE_HEIGHT = 99;
 /** A sticky note's colour when `color:` is left off. */
 declare const WHITEBOARD_NOTE_COLOR: WhiteboardColor;
 /**

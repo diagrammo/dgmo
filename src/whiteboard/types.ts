@@ -76,7 +76,7 @@ export interface WhiteboardShape {
 
 /** A sticky note's size when `size:` is left off, px. */
 export const WHITEBOARD_NOTE_WIDTH = 160;
-export const WHITEBOARD_NOTE_HEIGHT = 120;
+export const WHITEBOARD_NOTE_HEIGHT = 99;
 /** A sticky note's colour when `color:` is left off. */
 export const WHITEBOARD_NOTE_COLOR: WhiteboardColor = 'yellow';
 
