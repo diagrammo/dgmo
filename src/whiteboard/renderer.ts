@@ -15,7 +15,12 @@ import * as d3 from 'd3-selection';
 import { getStroke } from 'perfect-freehand';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
-import { mix, shapeFill, themeBaseBg } from '../palettes/color-utils';
+import {
+  contrastText,
+  mix,
+  shapeFill,
+  themeBaseBg,
+} from '../palettes/color-utils';
 import { drawCylinderCard, drawQueueCard } from '../c4/renderer';
 import { renderChartTitle } from '../utils/d3-helpers';
 import { measureText } from '../utils/text-measure';
@@ -25,6 +30,9 @@ import {
   clipWhiteboardConnector,
   whiteboardConnectorAttachments,
   whiteboardNoteFold,
+  whiteboardSegmentMidpoint,
+  type WhiteboardPoint,
+  type WhiteboardSegment,
 } from './geometry';
 import type { InkPoint } from './ink-codec';
 import {
@@ -195,10 +203,15 @@ export function whiteboardBounds(
         const pad = ARROW_HEAD_HALF + ARROW_STROKE;
         grow(b, s.x1 - pad, s.y1 - pad, s.x2 + pad, s.y2 + pad);
         grow(b, s.x1 + pad, s.y1 + pad, s.x2 - pad, s.y2 - pad);
+        if (s.cx !== undefined) {
+          for (let k = 1; k < CURVE_BOUND_STEPS; k++) {
+            const p = segmentPoint(s, k / CURVE_BOUND_STEPS);
+            grow(b, p.x - pad, p.y - pad, p.x + pad, p.y + pad);
+          }
+        }
         if (el.label) {
           const lines = labelLines(el.label);
-          const mx = (s.x1 + s.x2) / 2;
-          const my = (s.y1 + s.y2) / 2;
+          const { x: mx, y: my } = whiteboardSegmentMidpoint(s);
           const hw = widest(lines, LABEL_FONT) / 2 + 4;
           const hh =
             LABEL_FONT + ((lines.length - 1) * LABEL_FONT * LABEL_LINE) / 2;
@@ -226,6 +239,38 @@ export function whiteboardBounds(
   }
   if (!Number.isFinite(b.minX)) return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
   return b;
+}
+
+/** Samples taken along a curve to fit it in the crop. */
+const CURVE_BOUND_STEPS = 16;
+
+/** The point at `t` along a drawn segment — straight, or its quadratic. */
+function segmentPoint(s: WhiteboardSegment, t: number): WhiteboardPoint {
+  const u = 1 - t;
+  if (s.cx === undefined || s.cy === undefined) {
+    return { x: u * s.x1 + t * s.x2, y: u * s.y1 + t * s.y2 };
+  }
+  return {
+    x: u * u * s.x1 + 2 * u * t * s.cx + t * t * s.x2,
+    y: u * u * s.y1 + 2 * u * t * s.cy + t * t * s.y2,
+  };
+}
+
+/**
+ * The `t` at which a curve is `len` px (straight-line) from its end at
+ * `t = end`, found by bisection; the head is drawn over the rest.
+ */
+function curveTrim(s: WhiteboardSegment, end: 0 | 1, len: number): number {
+  const tip = segmentPoint(s, end);
+  let near: number = end;
+  let far: number = 1 - end;
+  for (let n = 0; n < 24; n++) {
+    const m = (near + far) / 2;
+    const p = segmentPoint(s, m);
+    if (Math.hypot(p.x - tip.x, p.y - tip.y) < len) near = m;
+    else far = m;
+  }
+  return (near + far) / 2;
 }
 
 /** The outline polygon perfect-freehand produces, as an SVG path. */
@@ -320,7 +365,8 @@ export function renderWhiteboard(
     g: GSel,
     { lines, font }: { lines: readonly string[]; font: number },
     cx: number,
-    cy: number
+    cy: number,
+    color: string = palette.text
   ): void => {
     if (lines.length === 0) return;
     const lh = font * LABEL_LINE;
@@ -330,7 +376,7 @@ export function renderWhiteboard(
       .attr('class', 'whiteboard-label')
       .attr('text-anchor', 'middle')
       .attr('font-size', font)
-      .attr('fill', palette.text);
+      .attr('fill', color);
     appendLines(t, lines, cx, top, lh);
   };
 
@@ -385,7 +431,17 @@ export function renderWhiteboard(
     switch (el.kind) {
       case 'shape': {
         const stroke = colorOf(el.color);
-        const fill = fillOf(el.color);
+        // tint: a wash of the colour · solid: the colour · outline: hollow.
+        const fill =
+          el.fill === 'solid'
+            ? stroke
+            : el.fill === 'outline'
+              ? 'none'
+              : fillOf(el.color);
+        const labelColor =
+          el.fill === 'solid'
+            ? contrastText(stroke, base, palette.text)
+            : palette.text;
         const cx = el.x + el.width / 2;
         const cy = el.y + el.height / 2;
         if (el.shape === 'rectangle') {
@@ -417,7 +473,7 @@ export function renderWhiteboard(
             drawQueueCard(inner, el.width, el.height, fill, stroke);
           }
         }
-        centredLabel(g, fitWhiteboardLabel(el.label, el), cx, cy);
+        centredLabel(g, fitWhiteboardLabel(el.label, el), cx, cy, labelColor);
         break;
       }
       case 'note': {
@@ -464,51 +520,99 @@ export function renderWhiteboard(
         const color = colorOf(el.color);
         // An end inside a shape is attached and drawn to its border.
         const s = clipWhiteboardConnector(el, elements);
-        const dx = s.x2 - s.x1;
-        const dy = s.y2 - s.y1;
-        const len = Math.hypot(dx, dy);
-        if (len > 0) {
-          const ux = dx / len;
-          const uy = dy / len;
-          const head = el.kind === 'arrow' ? Math.min(ARROW_HEAD_LEN, len) : 0;
-          const bx = s.x2 - ux * head;
-          const by = s.y2 - uy * head;
-          const stroke = g
-            .append('line')
-            .attr('x1', round2(s.x1))
-            .attr('y1', round2(s.y1))
-            .attr('x2', round2(bx))
-            .attr('y2', round2(by))
-            .attr('stroke', color)
-            .attr('stroke-width', ARROW_STROKE)
-            .attr('stroke-linecap', 'round');
+        const headEnd = el.kind === 'arrow';
+        const headStart = el.kind === 'arrow' && el.heads === 'both';
+        const dashed = (stroke: { attr(k: string, v: string): unknown }) => {
           if (el.style === 'dashed') {
             stroke.attr(
               'stroke-dasharray',
               `${DASH_ON * ARROW_STROKE} ${DASH_OFF * ARROW_STROKE}`
             );
           }
-          if (el.kind === 'arrow') {
-            const px = -uy * ARROW_HEAD_HALF;
-            const py = ux * ARROW_HEAD_HALF;
-            g.append('polygon')
-              .attr(
-                'points',
-                `${round2(s.x2)},${round2(s.y2)} ${round2(bx + px)},${round2(by + py)} ${round2(bx - px)},${round2(by - py)}`
-              )
-              .attr('fill', color);
-          }
+        };
+        // A head: its tip at `tip`, its base `head` px back along (ux, uy).
+        const drawHead = (
+          tip: WhiteboardPoint,
+          ux: number,
+          uy: number,
+          head: number
+        ): void => {
+          const bx = tip.x - ux * head;
+          const by = tip.y - uy * head;
+          const px = -uy * ARROW_HEAD_HALF;
+          const py = ux * ARROW_HEAD_HALF;
+          g.append('polygon')
+            .attr(
+              'points',
+              `${round2(tip.x)},${round2(tip.y)} ${round2(bx + px)},${round2(by + py)} ${round2(bx - px)},${round2(by - py)}`
+            )
+            .attr('fill', color);
+        };
+        const dx = s.x2 - s.x1;
+        const dy = s.y2 - s.y1;
+        const len = Math.hypot(dx, dy);
+        if (len > 0 && s.cx === undefined) {
+          const ux = dx / len;
+          const uy = dy / len;
+          const headE = headEnd ? Math.min(ARROW_HEAD_LEN, len) : 0;
+          const headS = headStart ? Math.min(ARROW_HEAD_LEN, len / 2) : 0;
+          const head = headStart ? Math.min(headE, len / 2) : headE;
+          const bx = s.x2 - ux * head;
+          const by = s.y2 - uy * head;
+          const stroke = g
+            .append('line')
+            .attr('x1', round2(s.x1 + ux * headS))
+            .attr('y1', round2(s.y1 + uy * headS))
+            .attr('x2', round2(bx))
+            .attr('y2', round2(by))
+            .attr('stroke', color)
+            .attr('stroke-width', ARROW_STROKE)
+            .attr('stroke-linecap', 'round');
+          dashed(stroke);
+          if (headEnd) drawHead({ x: s.x2, y: s.y2 }, ux, uy, head);
+          if (headStart) drawHead({ x: s.x1, y: s.y1 }, -ux, -uy, headS);
+        } else if (len > 0 || s.cx !== undefined) {
+          // A curve: the stroke stops where each head's base meets it, and
+          // each head points along the bit of curve it covers.
+          const tEnd = headEnd ? curveTrim(s, 1, ARROW_HEAD_LEN) : 1;
+          const tStart = headStart ? curveTrim(s, 0, ARROW_HEAD_LEN) : 0;
+          const [t0, t1] = tEnd - tStart > 0 ? [tStart, tEnd] : [0, 1];
+          const p0 = segmentPoint(s, t0);
+          const p1 = segmentPoint(s, t1);
+          const w0 = (1 - t0) * (1 - t1);
+          const w1 = (1 - t0) * t1 + t0 * (1 - t1);
+          const w2 = t0 * t1;
+          const qx = w0 * s.x1 + w1 * s.cx! + w2 * s.x2;
+          const qy = w0 * s.y1 + w1 * s.cy! + w2 * s.y2;
+          const stroke = g
+            .append('path')
+            .attr(
+              'd',
+              `M${round2(p0.x)} ${round2(p0.y)}Q${round2(qx)} ${round2(qy)} ${round2(p1.x)} ${round2(p1.y)}`
+            )
+            .attr('fill', 'none')
+            .attr('stroke', color)
+            .attr('stroke-width', ARROW_STROKE)
+            .attr('stroke-linecap', 'round');
+          dashed(stroke);
+          const along = (tip: WhiteboardPoint, base: WhiteboardPoint): void => {
+            const hx = tip.x - base.x;
+            const hy = tip.y - base.y;
+            const hl = Math.hypot(hx, hy);
+            if (hl > 0) drawHead(tip, hx / hl, hy / hl, hl);
+          };
+          if (headEnd) along({ x: s.x2, y: s.y2 }, p1);
+          if (headStart) along({ x: s.x1, y: s.y1 }, p0);
         }
         if (el.label) {
           // The block of lines is centred on the midpoint; the halo stroke
           // knocks the line out behind every one of them.
           const lines = labelLines(el.label);
-          const mx = round2((s.x1 + s.x2) / 2);
+          const mid = whiteboardSegmentMidpoint(s);
+          const mx = round2(mid.x);
           const lh = LABEL_FONT * LABEL_LINE;
           const firstY =
-            (s.y1 + s.y2) / 2 +
-            LABEL_FONT * 0.35 -
-            ((lines.length - 1) * lh) / 2;
+            mid.y + LABEL_FONT * 0.35 - ((lines.length - 1) * lh) / 2;
           const t = g
             .append('text')
             .attr('class', 'whiteboard-label')

@@ -63,6 +63,7 @@ describe('parseWhiteboard — elements', () => {
       height: 84,
       label: 'OAuth?',
       color: 'blue',
+      fill: 'tint',
       lineNumber: 2,
     });
   });
@@ -99,6 +100,7 @@ describe('parseWhiteboard — elements', () => {
       label: '',
       color: 'ink',
       style: 'solid',
+      bend: 0,
       lineNumber: 2,
     });
     expect(
@@ -285,6 +287,71 @@ describe('parseWhiteboard — leniency', () => {
   });
 });
 
+describe('parseWhiteboard — fill, heads and bend', () => {
+  it('reads fill: solid and outline on shapes, tint by default', () => {
+    expect(only('rectangle at: 0 0, size: 10 10')).toMatchObject({
+      fill: 'tint',
+    });
+    expect(only('ellipse at: 0 0, size: 10 10, fill: solid')).toMatchObject({
+      fill: 'solid',
+    });
+    expect(only('queue at: 0 0, size: 10 10, fill: Outline')).toMatchObject({
+      fill: 'outline',
+    });
+  });
+
+  it('reads heads: both on arrows, one head by default', () => {
+    expect(only('arrow from: 0 0, to: 10 0')).toMatchObject({ heads: 'end' });
+    expect(only('arrow from: 0 0, to: 10 0, heads: both')).toMatchObject({
+      heads: 'both',
+    });
+  });
+
+  it('reads bend: on arrows and lines, straight by default', () => {
+    expect(only('line from: 0 0, to: 10 0')).toMatchObject({ bend: 0 });
+    expect(only('arrow from: 0 0, to: 10 0, bend: -60')).toMatchObject({
+      bend: -60,
+    });
+    expect(only('line from: 0 0, to: 10 0, bend: 24')).toMatchObject({
+      bend: 24,
+    });
+  });
+
+  it('warns on a bad value and keeps the element at its default', () => {
+    const p = parseWhiteboard(
+      [
+        'whiteboard',
+        'rectangle at: 0 0, size: 10 10, fill: soild',
+        'arrow from: 0 0, to: 10 0, heads: start',
+        'line from: 0 0, to: 10 0, bend: 1.5',
+      ].join('\n')
+    );
+    expect(p.elements).toHaveLength(3);
+    expect(p.elements[0]).toMatchObject({ fill: 'tint' });
+    expect(p.elements[1]).toMatchObject({ heads: 'end' });
+    expect(p.elements[2]).toMatchObject({ bend: 0 });
+    expect(p.diagnostics.map((d) => d.code)).toEqual([
+      'W_WHITEBOARD_BAD_VALUE',
+      'W_WHITEBOARD_BAD_VALUE',
+      'W_WHITEBOARD_BAD_VALUE',
+    ]);
+    expect(p.diagnostics[0]!.message).toContain('solid');
+  });
+
+  it('heads: is not a key on lines, fill: not on arrows or notes', () => {
+    for (const line of [
+      'line from: 0 0, to: 10 0, heads: both',
+      'arrow from: 0 0, to: 10 0, fill: solid',
+      'note at: 0 0, fill: solid',
+    ]) {
+      const p = parseWhiteboard(`whiteboard\n${line}`);
+      expect(p.diagnostics.map((d) => d.code)).toEqual([
+        'W_WHITEBOARD_UNKNOWN_KEY',
+      ]);
+    }
+  });
+});
+
 describe('parseWhiteboard — multi-line labels', () => {
   it('reads indented body lines as the lines of a shape label', () => {
     const el = only('rectangle at: 0 0, size: 100 50\n  Sign in\n  with email');
@@ -431,6 +498,30 @@ describe('emitWhiteboard — round trip', () => {
     expect(a.diagnostics).toEqual([]);
     expect(emitWhiteboard(a)).toBe(src);
     expect(sameWhiteboard(a, parseWhiteboard(emitWhiteboard(a)))).toBe(true);
+  });
+
+  it('round-trips fill, heads and bend, omitting each default', () => {
+    const src = [
+      'whiteboard',
+      'rectangle at: 0 0, size: 100 60, color: blue, fill: solid',
+      'ellipse at: 200 0, size: 100 60, fill: outline',
+      'arrow from: 0 100, to: 100 100, heads: both',
+      'arrow from: 0 120, to: 100 120, color: red, style: dashed, heads: both, bend: -40',
+      'line from: 0 140, to: 100 140, bend: 12',
+      '',
+    ].join('\n');
+    const a = parseWhiteboard(src);
+    expect(a.diagnostics).toEqual([]);
+    expect(emitWhiteboard(a)).toBe(src);
+    expect(
+      emitWhiteboard(
+        parseWhiteboard(
+          'whiteboard\nrectangle at: 0 0, size: 1 1, fill: tint\nline from: 0 0, to: 1 1, bend: 0'
+        )
+      )
+    ).toBe(
+      'whiteboard\nrectangle at: 0 0, size: 1 1\nline from: 0 0, to: 1 1\n'
+    );
   });
 
   it('emits a multi-line label as indented body lines, and back', () => {

@@ -62,12 +62,18 @@ export interface WhiteboardPoint {
   readonly y: number;
 }
 
-/** A drawn connector, `x1 y1` the tail and `x2 y2` the head end. */
+/**
+ * A drawn connector, `x1 y1` the tail and `x2 y2` the head end. A bent
+ * connector also carries `cx cy`, the control point of the quadratic curve
+ * it is drawn along; a straight one has none.
+ */
 export interface WhiteboardSegment {
   readonly x1: number;
   readonly y1: number;
   readonly x2: number;
   readonly y2: number;
+  readonly cx?: number;
+  readonly cy?: number;
 }
 
 /** Element indices of the shapes each end is attached to; -1 for a free end. */
@@ -344,14 +350,9 @@ export function clipWhiteboardConnector(
   const stored = { x1, y1, x2, y2 };
   if (Math.hypot(x2 - x1, y2 - y1) < EPS) return stored;
   const { from, to } = whiteboardConnectorAttachments(connector, elements);
+  if (connector.bend !== 0) return clipCurve(connector, elements, from, to);
   if (from < 0 && to < 0) return stored;
-  const centre = (i: number, x: number, y: number): WhiteboardPoint => {
-    if (i < 0) return { x, y };
-    const s = elements[i] as WhiteboardAttachable;
-    return { x: s.x + s.width / 2, y: s.y + s.height / 2 };
-  };
-  const a = centre(from, x1, y1);
-  const b = centre(to, x2, y2);
+  const { a, b } = aimedEnds(connector, elements, from, to);
   if (Math.hypot(b.x - a.x, b.y - a.y) < EPS) return stored;
   // Each end measured from the OTHER stored point, so a border point comes
   // out exact rather than as 1 − t.
@@ -365,5 +366,180 @@ export function clipWhiteboardConnector(
     y1: b.y + (a.y - b.y) * uStart,
     x2: a.x + (b.x - a.x) * uEnd,
     y2: a.y + (b.y - a.y) * uEnd,
+  };
+}
+
+/** Each end aimed at its attached shape's centre; a free end stays put. */
+function aimedEnds(
+  connector: WhiteboardArrow | WhiteboardLine,
+  elements: readonly WhiteboardElement[],
+  from: number,
+  to: number
+): { a: WhiteboardPoint; b: WhiteboardPoint } {
+  const centre = (i: number, x: number, y: number): WhiteboardPoint => {
+    if (i < 0) return { x, y };
+    const s = elements[i] as WhiteboardAttachable;
+    return { x: s.x + s.width / 2, y: s.y + s.height / 2 };
+  };
+  return {
+    a: centre(from, connector.x1, connector.y1),
+    b: centre(to, connector.x2, connector.y2),
+  };
+}
+
+/**
+ * The frame a bend is measured in: the aimed chord's ends, its midpoint and
+ * its unit normal to the RIGHT of travel on screen (y down), or null when the
+ * chord has no length.
+ */
+function bendFrame(
+  connector: WhiteboardArrow | WhiteboardLine,
+  elements: readonly WhiteboardElement[]
+): {
+  a: WhiteboardPoint;
+  b: WhiteboardPoint;
+  mid: WhiteboardPoint;
+  nx: number;
+  ny: number;
+} | null {
+  const { from, to } = whiteboardConnectorAttachments(connector, elements);
+  const { a, b } = aimedEnds(connector, elements, from, to);
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len = Math.hypot(dx, dy);
+  if (len < EPS) return null;
+  return {
+    a,
+    b,
+    mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+    nx: -dy / len,
+    ny: dx / len,
+  };
+}
+
+/**
+ * Where a connector's bend handle sits: on the curve, halfway along it —
+ * `bend` px off the middle of the aimed chord. A straight connector's handle
+ * is the chord's midpoint.
+ */
+export function whiteboardBendHandle(
+  connector: WhiteboardArrow | WhiteboardLine,
+  elements: readonly WhiteboardElement[]
+): WhiteboardPoint {
+  const f = bendFrame(connector, elements);
+  if (!f) return { x: connector.x1, y: connector.y1 };
+  return {
+    x: f.mid.x + f.nx * connector.bend,
+    y: f.mid.y + f.ny * connector.bend,
+  };
+}
+
+/**
+ * The `bend:` that puts the handle nearest `p` — its signed distance from the
+ * aimed chord, rounded to a whole px. Callers snap small values to 0.
+ */
+export function whiteboardBendFor(
+  connector: WhiteboardArrow | WhiteboardLine,
+  elements: readonly WhiteboardElement[],
+  p: WhiteboardPoint
+): number {
+  const f = bendFrame(connector, elements);
+  if (!f) return 0;
+  return Math.round((p.x - f.mid.x) * f.nx + (p.y - f.mid.y) * f.ny);
+}
+
+/** Steps a curve is walked in to find where it leaves an end's shape. */
+const CURVE_STEPS = 64;
+
+/** A point on the quadratic `a → b` with control `c`. */
+function quad(
+  a: WhiteboardPoint,
+  c: WhiteboardPoint,
+  b: WhiteboardPoint,
+  t: number
+): WhiteboardPoint {
+  const u = 1 - t;
+  return {
+    x: u * u * a.x + 2 * u * t * c.x + t * t * b.x,
+    y: u * u * a.y + 2 * u * t * c.y + t * t * b.y,
+  };
+}
+
+/**
+ * A bent connector: one quadratic through the bend handle, each attached end
+ * pulled back to where the curve crosses its shape's outline — the curve
+ * analogue of the straight clip above. The drawn piece of a quadratic is
+ * itself a quadratic, so the result is still one control point.
+ */
+function clipCurve(
+  connector: WhiteboardArrow | WhiteboardLine,
+  elements: readonly WhiteboardElement[],
+  from: number,
+  to: number
+): WhiteboardSegment {
+  const { x1, y1, x2, y2 } = connector;
+  const f = bendFrame(connector, elements);
+  if (!f) return { x1, y1, x2, y2 };
+  const { a, b } = f;
+  const h = {
+    x: f.mid.x + f.nx * connector.bend,
+    y: f.mid.y + f.ny * connector.bend,
+  };
+  const c = { x: 2 * h.x - f.mid.x, y: 2 * h.y - f.mid.y };
+  const inside = (i: number, t: number): boolean => {
+    const p = quad(a, c, b, t);
+    return whiteboardShapeContains(elements[i] as WhiteboardAttachable, p);
+  };
+  // The last t still inside shape `i`, walking from `start` towards `end`.
+  const leave = (i: number, start: number, end: number): number => {
+    let inT = start;
+    for (let k = 1; k <= CURVE_STEPS; k++) {
+      const t = start + ((end - start) * k) / CURVE_STEPS;
+      if (!inside(i, t)) {
+        let lo = inT;
+        let hi = t;
+        for (let n = 0; n < 24; n++) {
+          const m = (lo + hi) / 2;
+          if (inside(i, m)) lo = m;
+          else hi = m;
+        }
+        return (lo + hi) / 2;
+      }
+      inT = t;
+    }
+    return end;
+  };
+  const t0 = from < 0 ? 0 : leave(from, 0, 1);
+  const t1 = to < 0 ? 1 : leave(to, 1, 0);
+  const [s0, s1] = t1 - t0 > EPS ? [t0, t1] : [0, 1];
+  const p0 = quad(a, c, b, s0);
+  const p1 = quad(a, c, b, s1);
+  // Blossom of the sub-curve [s0, s1]: its control point.
+  const w0 = (1 - s0) * (1 - s1);
+  const w1 = (1 - s0) * s1 + s0 * (1 - s1);
+  const w2 = s0 * s1;
+  return {
+    x1: p0.x,
+    y1: p0.y,
+    x2: p1.x,
+    y2: p1.y,
+    cx: w0 * a.x + w1 * c.x + w2 * b.x,
+    cy: w0 * a.y + w1 * c.y + w2 * b.y,
+  };
+}
+
+/**
+ * The point a connector's label is centred on: halfway along what is drawn —
+ * the segment's midpoint, or the curve's point at t = ½.
+ */
+export function whiteboardSegmentMidpoint(
+  s: WhiteboardSegment
+): WhiteboardPoint {
+  if (s.cx === undefined || s.cy === undefined) {
+    return { x: (s.x1 + s.x2) / 2, y: (s.y1 + s.y2) / 2 };
+  }
+  return {
+    x: (s.x1 + 2 * s.cx + s.x2) / 4,
+    y: (s.y1 + 2 * s.cy + s.y2) / 4,
   };
 }

@@ -60,6 +60,23 @@ export const WHITEBOARD_STROKE_STYLES = ['solid', 'dashed'] as const;
 
 export type WhiteboardStrokeStyle = (typeof WHITEBOARD_STROKE_STYLES)[number];
 
+/**
+ * How a boxed shape is filled. `tint` (a pale wash of its colour) is the
+ * default and never written; `solid` fills with the colour itself; `outline`
+ * leaves the inside empty, so whatever is behind shows through. The same
+ * three words as the other diagram types' `fill-*` family.
+ */
+export const WHITEBOARD_FILLS = ['tint', 'solid', 'outline'] as const;
+export type WhiteboardFill = (typeof WHITEBOARD_FILLS)[number];
+
+/**
+ * Which ends of an arrow carry a head. `end` (at `to:`) is the default and
+ * never written; `both` is written `heads: both`. A head at `from:` alone is
+ * never stored — the canvas swaps the ends and writes an `end` arrow.
+ */
+export const WHITEBOARD_HEADS = ['end', 'both'] as const;
+export type WhiteboardHeads = (typeof WHITEBOARD_HEADS)[number];
+
 export interface WhiteboardShape {
   readonly kind: 'shape';
   readonly shape: WhiteboardShapeKind;
@@ -71,6 +88,8 @@ export interface WhiteboardShape {
   /** Centred label; '' for none. */
   readonly label: string;
   readonly color: WhiteboardColor;
+  /** How the inside is filled; `tint` unless `fill:` says otherwise. */
+  readonly fill: WhiteboardFill;
   readonly lineNumber: number;
 }
 
@@ -109,6 +128,14 @@ export interface WhiteboardArrow {
   readonly label: string;
   readonly color: WhiteboardColor;
   readonly style: WhiteboardStrokeStyle;
+  /** Which ends carry a head; `end` unless `heads: both`. */
+  readonly heads: WhiteboardHeads;
+  /**
+   * How far the middle of the drawn curve sits from the straight chord, px,
+   * to the right of travel from `from:` to `to:` on screen (y down); 0 is
+   * straight. One bend only: the connector is a quadratic curve.
+   */
+  readonly bend: number;
   readonly lineNumber: number;
 }
 
@@ -123,6 +150,12 @@ export interface WhiteboardLine {
   readonly label: string;
   readonly color: WhiteboardColor;
   readonly style: WhiteboardStrokeStyle;
+  /**
+   * How far the middle of the drawn curve sits from the straight chord, px,
+   * to the right of travel from `from:` to `to:` on screen (y down); 0 is
+   * straight. One bend only: the connector is a quadratic curve.
+   */
+  readonly bend: number;
   readonly lineNumber: number;
 }
 

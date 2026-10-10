@@ -49,6 +49,8 @@ import type {
   ParsedWhiteboard,
   WhiteboardColor,
   WhiteboardElement,
+  WhiteboardFill,
+  WhiteboardHeads,
   WhiteboardStrokeStyle,
 } from './types';
 import {
@@ -79,11 +81,14 @@ const INK_WIDTH_MAX = 200;
 /** Style values accepted in source; `solid` is implied, never written. */
 const WRITTEN_STYLES = ['dashed'] as const;
 
+/** Fill values accepted in source; `tint` is implied, never written. */
+const WRITTEN_FILLS = ['solid', 'outline'] as const;
+
 const KEYS_BY_KIND: Record<string, readonly string[]> = {
-  shape: ['at', 'size', 'color'],
+  shape: ['at', 'size', 'color', 'fill'],
   note: ['at', 'size', 'color'],
-  arrow: ['from', 'to', 'color', 'style'],
-  line: ['from', 'to', 'color', 'style'],
+  arrow: ['from', 'to', 'color', 'style', 'heads', 'bend'],
+  line: ['from', 'to', 'color', 'style', 'bend'],
   text: ['at', 'color'],
   image: ['at', 'size'],
 };
@@ -242,6 +247,56 @@ export function parseWhiteboard(
       hint: suggest(v, WRITTEN_STYLES) ?? '',
     });
     return 'solid';
+  };
+
+  /** `fill:` — `tint` is the default and never written. */
+  const readFill = (raw: string | undefined, line: number): WhiteboardFill => {
+    if (raw === undefined) return 'tint';
+    const v = raw.trim().toLowerCase();
+    if (v === 'solid' || v === 'outline') return v;
+    warn(line, CODES.BAD_VALUE, {
+      key: 'fill',
+      value: raw,
+      fallback: 'tint',
+      valid: WRITTEN_FILLS.join(', '),
+      hint: suggest(v, WRITTEN_FILLS) ?? '',
+    });
+    return 'tint';
+  };
+
+  /** `heads:` — only `both` is ever written; a head at `to:` is the default. */
+  const readHeads = (
+    raw: string | undefined,
+    line: number
+  ): WhiteboardHeads => {
+    if (raw === undefined) return 'end';
+    const v = raw.trim().toLowerCase();
+    if (v === 'both') return 'both';
+    warn(line, CODES.BAD_VALUE, {
+      key: 'heads',
+      value: raw,
+      fallback: 'one head, at to:',
+      valid: 'both',
+      hint: suggest(v, ['both']) ?? '',
+    });
+    return 'end';
+  };
+
+  /** `bend:` — one whole number, in range; 0 (straight) otherwise. */
+  const readBend = (raw: string | undefined, line: number): number => {
+    if (raw === undefined) return 0;
+    const v = raw.trim();
+    if (/^-?\d+$/.test(v) && Math.abs(Number(v)) <= WHITEBOARD_COORD_MAX) {
+      return Number(v);
+    }
+    warn(line, CODES.BAD_VALUE, {
+      key: 'bend',
+      value: raw,
+      fallback: 'straight',
+      valid: 'a whole number of px',
+      hint: '',
+    });
+    return 0;
   };
 
   /** Two integers, in range; null (with a warning) otherwise. */
@@ -407,6 +462,7 @@ export function parseWhiteboard(
         height: size[1],
         label: joinLabel(name, body),
         color: readColor(meta.get('color'), lineNumber),
+        fill: readFill(meta.get('fill'), lineNumber),
         lineNumber,
       });
       continue;
@@ -443,8 +499,7 @@ export function parseWhiteboard(
       if (!from) continue;
       const to = readPair(meta, 'to', word, lineNumber, false);
       if (!to) continue;
-      elements.push({
-        kind: word,
+      const common = {
         x1: from[0],
         y1: from[1],
         x2: to[0],
@@ -452,8 +507,18 @@ export function parseWhiteboard(
         label: joinLabel(name, body),
         color: readColor(meta.get('color'), lineNumber),
         style: readStyle(meta.get('style'), lineNumber),
+        bend: readBend(meta.get('bend'), lineNumber),
         lineNumber,
-      });
+      };
+      elements.push(
+        word === 'arrow'
+          ? {
+              kind: 'arrow',
+              ...common,
+              heads: readHeads(meta.get('heads'), lineNumber),
+            }
+          : { kind: 'line', ...common }
+      );
       continue;
     }
 

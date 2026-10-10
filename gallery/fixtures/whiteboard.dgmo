@@ -1,12 +1,12 @@
 whiteboard Login ideas
 rectangle Sign in at: 60 60, size: 180 70
 ellipse OAuth? at: 345 53, size: 170 84, color: blue
-arrow from: 150 95, to: 430 95
+arrow from: 150 95, to: 430 95, heads: both
 rectangle Magic link at: 60 250, size: 180 70, color: green
 arrow emails a code from: 150 95, to: 150 285, color: green
-database Users at: 420 160, size: 140 100, color: purple
+database Users at: 420 160, size: 140 100, color: purple, fill: solid
 queue Email jobs at: 300 380, size: 200 64, color: orange
-arrow from: 150 285, to: 400 412, color: orange
+arrow from: 150 285, to: 400 412, color: orange, bend: 50
 text keep it to ONE screen at: 62 184
 text 2FA here?? at: 560 -4, color: red
 note at: 560 400

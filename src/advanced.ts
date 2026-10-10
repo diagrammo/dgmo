@@ -353,6 +353,8 @@ export type {
   WhiteboardArrow,
   WhiteboardLine,
   WhiteboardStrokeStyle,
+  WhiteboardFill,
+  WhiteboardHeads,
   WhiteboardText,
   WhiteboardImage,
   WhiteboardInk,
@@ -365,6 +367,8 @@ export {
   WHITEBOARD_SHAPE_KINDS,
   WHITEBOARD_ELEMENT_KEYWORDS,
   WHITEBOARD_STROKE_STYLES,
+  WHITEBOARD_FILLS,
+  WHITEBOARD_HEADS,
   WHITEBOARD_NOTE_WIDTH,
   WHITEBOARD_NOTE_HEIGHT,
   WHITEBOARD_NOTE_COLOR,
@@ -401,6 +405,9 @@ export {
   whiteboardShapeAt,
   whiteboardShapeContains,
   whiteboardNoteFold,
+  whiteboardBendHandle,
+  whiteboardBendFor,
+  whiteboardSegmentMidpoint,
 } from './whiteboard/geometry';
 export type {
   WhiteboardPoint,

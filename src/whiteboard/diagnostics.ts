@@ -15,6 +15,7 @@ export const WHITEBOARD_DIAGNOSTIC_CODES = {
   UNKNOWN_COLOR: 'W_WHITEBOARD_UNKNOWN_COLOR',
   UNKNOWN_KEY: 'W_WHITEBOARD_UNKNOWN_KEY',
   UNKNOWN_STYLE: 'W_WHITEBOARD_UNKNOWN_STYLE',
+  BAD_VALUE: 'W_WHITEBOARD_BAD_VALUE',
   BAD_INK: 'W_WHITEBOARD_BAD_INK',
   BAD_IMAGE_REF: 'W_WHITEBOARD_BAD_IMAGE_REF',
   EMPTY_TEXT: 'W_WHITEBOARD_EMPTY_TEXT',
@@ -84,6 +85,16 @@ export const WHITEBOARD_DIAGNOSTICS: DiagnosticSpec[] = [
       `Unknown style "${s(p.style)}" — drawn solid (valid: dashed; solid is the default and never written)${p.hint ? `. ${s(p.hint)}` : ''}`,
     hint: 'Arrows and lines take `style: dashed`; leave style off for a solid stroke.',
     example: 'whiteboard\nline from: 0 0, to: 120 0, style: dotted',
+  },
+  {
+    code: WHITEBOARD_DIAGNOSTIC_CODES.BAD_VALUE,
+    severity: 'warning',
+    chartType: 'whiteboard',
+    title: 'Unknown whiteboard value',
+    message: (p) =>
+      `Unknown ${s(p.key)}: "${s(p.value)}" — ${s(p.fallback)} used instead (valid: ${s(p.valid)})${p.hint ? `. ${s(p.hint)}` : ''}`,
+    hint: 'Shapes take `fill: solid` or `fill: outline`; arrows take `heads: both`; arrows and lines take `bend:` as a whole number.',
+    example: 'whiteboard\nrectangle at: 0 0, size: 100 60, fill: hatched',
   },
   {
     code: WHITEBOARD_DIAGNOSTIC_CODES.BAD_INK,

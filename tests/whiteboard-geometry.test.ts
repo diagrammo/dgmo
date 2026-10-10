@@ -8,6 +8,9 @@ import {
   whiteboardConnectorAttachments,
   whiteboardShapeAt,
   whiteboardShapeContains,
+  whiteboardBendFor,
+  whiteboardBendHandle,
+  whiteboardSegmentMidpoint,
 } from '../src/whiteboard/geometry';
 import { parseWhiteboard } from '../src/whiteboard/parser';
 import { renderWhiteboard, whiteboardBounds } from '../src/whiteboard/renderer';
@@ -277,5 +280,62 @@ describe('whiteboard renderer — attached ends', () => {
       )
     );
     expect(attached).toEqual(byHand);
+  });
+});
+
+describe('bent connectors', () => {
+  it('a free bent line keeps its ends and bows to the right of travel', () => {
+    const s = clip('line from: 0 0, to: 100 0, bend: 40');
+    expect(s).toMatchObject({ x1: 0, y1: 0, x2: 100, y2: 0 });
+    // Right of travel along +x on screen (y down) is +y.
+    expect(whiteboardSegmentMidpoint(s)).toEqual({ x: 50, y: 40 });
+  });
+
+  it('a straight connector has no control point', () => {
+    expect(clip('line from: 0 0, to: 100 0').cx).toBeUndefined();
+  });
+
+  it('clips each attached end where the curve crosses the outline', () => {
+    const els = board(
+      'rectangle at: 0 0, size: 100 100',
+      'rectangle at: 300 0, size: 100 100',
+      'arrow from: 50 50, to: 350 50, bend: -40'
+    );
+    const c = els[2] as WhiteboardArrow;
+    const s = clipWhiteboardConnector(c, els);
+    // Bowing up, the ends leave through the top half of each box's facing side
+    // or its top edge — on the border, not at the centre.
+    for (const [x, y, box] of [
+      [s.x1, s.y1, els[0]],
+      [s.x2, s.y2, els[1]],
+    ] as const) {
+      const b = box as WhiteboardShape;
+      const onEdge =
+        Math.abs(x - b.x) < 0.01 ||
+        Math.abs(x - (b.x + b.width)) < 0.01 ||
+        Math.abs(y - b.y) < 0.01 ||
+        Math.abs(y - (b.y + b.height)) < 0.01;
+      expect(onEdge).toBe(true);
+      expect(y).toBeLessThan(50);
+    }
+    // The drawn piece still passes through the handle.
+    const h = whiteboardBendHandle(c, els);
+    expect(h).toEqual({ x: 200, y: 10 });
+    const t = [0.3, 0.4, 0.5, 0.6, 0.7].map((u) => {
+      const v = 1 - u;
+      return {
+        x: v * v * s.x1 + 2 * v * u * s.cx! + u * u * s.x2,
+        y: v * v * s.y1 + 2 * v * u * s.cy! + u * u * s.y2,
+      };
+    });
+    expect(
+      Math.min(...t.map((p) => Math.hypot(p.x - h.x, p.y - h.y)))
+    ).toBeLessThan(3);
+  });
+
+  it('bendFor inverts bendHandle', () => {
+    const els = board('arrow from: 10 10, to: 110 110, bend: 25');
+    const c = els[0] as WhiteboardArrow;
+    expect(whiteboardBendFor(c, els, whiteboardBendHandle(c, els))).toBe(25);
   });
 });

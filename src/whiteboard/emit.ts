@@ -11,8 +11,9 @@
 //
 // Canonical form: one element per line in z-order, metadata in a fixed key
 // order, `color:` omitted when it is the default (`ink`, or `yellow` on a
-// note), a note's `size:` omitted when it is the default 160 × 120, `style:`
-// omitted when it is the default `solid`, ink payloads verbatim. A one-line label is
+// note), a note's `size:` omitted when it is the default 160 × 99, `style:`,
+// `fill:`, `heads:` and `bend:` omitted at their defaults (`solid`, `tint`,
+// `end`, 0), ink payloads verbatim. A one-line label is
 // written inline; a label of two or more lines is written as indented body
 // lines (two spaces) under an element line that carries no inline label.
 // Emitting the parse of canonical text reproduces it byte for byte.
@@ -60,6 +61,7 @@ export function emitWhiteboardElement(el: WhiteboardElement): string {
         `at: ${el.x} ${el.y}`,
         `size: ${el.width} ${el.height}`,
         ...colorPart(el.color),
+        ...(el.fill === 'tint' ? [] : [`fill: ${el.fill}`]),
       ]);
     case 'note':
       return line('note', el.text, [
@@ -77,6 +79,8 @@ export function emitWhiteboardElement(el: WhiteboardElement): string {
         `to: ${el.x2} ${el.y2}`,
         ...colorPart(el.color),
         ...(el.style === 'solid' ? [] : [`style: ${el.style}`]),
+        ...(el.kind === 'arrow' && el.heads === 'both' ? ['heads: both'] : []),
+        ...(el.bend === 0 ? [] : [`bend: ${el.bend}`]),
       ]);
     case 'text':
       return line('text', el.text, [

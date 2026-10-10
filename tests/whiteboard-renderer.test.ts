@@ -57,6 +57,39 @@ describe('whiteboard renderer', () => {
     ).toBe(getPalette('nord').light.colors.red);
   });
 
+  it('fills a shape by its fill mode', () => {
+    const pal = getPalette('nord').light;
+    const fillOf = (line: string) =>
+      draw(`whiteboard\n${line}`)
+        .querySelector('.whiteboard-rectangle rect')!
+        .getAttribute('fill');
+    expect(
+      fillOf('rectangle at: 0 0, size: 50 50, color: red, fill: solid')
+    ).toBe(pal.colors.red);
+    expect(
+      fillOf('rectangle at: 0 0, size: 50 50, color: red, fill: outline')
+    ).toBe('none');
+    expect(fillOf('rectangle at: 0 0, size: 50 50, color: red')).not.toMatch(
+      /^none$/
+    );
+  });
+
+  it('draws a head at each end for heads: both, one by default', () => {
+    const heads = (line: string) =>
+      draw(`whiteboard\n${line}`).querySelectorAll('.whiteboard-arrow polygon')
+        .length;
+    expect(heads('arrow from: 0 0, to: 100 0')).toBe(1);
+    expect(heads('arrow from: 0 0, to: 100 0, heads: both')).toBe(2);
+    expect(heads('arrow from: 0 0, to: 100 0, heads: both, bend: 30')).toBe(2);
+  });
+
+  it('draws a bent connector as one quadratic path', () => {
+    const svg = draw('whiteboard\nline from: 0 0, to: 100 0, bend: 30');
+    const d = svg.querySelector('.whiteboard-line path')!.getAttribute('d')!;
+    expect(d).toMatch(/^M[-\d.]+ [-\d.]+Q[-\d.]+ [-\d.]+ [-\d.]+ [-\d.]+$/);
+    expect(svg.querySelector('.whiteboard-line line')).toBeNull();
+  });
+
   it('draws every element kind', () => {
     const svg = draw(FIXTURE);
     for (const cls of [
