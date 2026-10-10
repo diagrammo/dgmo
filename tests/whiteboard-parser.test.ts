@@ -189,9 +189,18 @@ describe('parseWhiteboard — leniency', () => {
     expect(p.error).toMatch(/Expected chart type "whiteboard"/);
   });
 
-  it('is fatal for an empty board', () => {
-    expect(parseWhiteboard('whiteboard Empty').error).toMatch(/No elements/);
+  it('accepts an empty board — a blank canvas is where drawing starts', () => {
+    const p = parseWhiteboard('whiteboard Empty');
+    expect(p.error).toBeNull();
+    expect(p.diagnostics).toEqual([]);
+    expect(p.elements).toEqual([]);
     expect(parseWhiteboard('').error).toMatch(/No content/);
+  });
+
+  it('a blank board passes validation with no diagnostics at all', () => {
+    // The New file dialog's blank board is the bare first line (#1248).
+    expect(parseDgmo('whiteboard').diagnostics).toEqual([]);
+    expect(parseDgmo('whiteboard Ideas\n').diagnostics).toEqual([]);
   });
 
   it('skips a bad line with a warning and keeps the rest', () => {

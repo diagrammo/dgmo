@@ -266,9 +266,10 @@ function detectColonChartType(content: string): DgmoError | null {
  * Chart types for which a one-line file is the intended shape, not an omission.
  * `live-link dgm_7f2a91` IS the whole diagram — the shorthand form of §38.3,
  * and the spelling a docs fence uses — so the warning below would fire on every
- * correctly written one.
+ * correctly written one. A bare `whiteboard` line is a blank canvas — the
+ * state every new board starts in, drawn on rather than typed (#1248).
  */
-const EMPTY_CONTENT_EXEMPT = new Set(['live-link']);
+const EMPTY_CONTENT_EXEMPT = new Set(['live-link', 'whiteboard']);
 
 /**
  * Detects when content has only the chart type line with no meaningful data lines.

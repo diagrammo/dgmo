@@ -32,12 +32,7 @@
 // whiteboard first line or a board with no elements is fatal.
 
 import type { PaletteColors } from '../palettes';
-import {
-  makeDgmoError,
-  makeFail,
-  suggest,
-  formatDgmoError,
-} from '../diagnostics';
+import { makeDgmoError, makeFail, suggest } from '../diagnostics';
 import type { Writable } from '../utils/brand';
 import { parseFirstLine, recognizeGlobalBoolean } from '../utils/parsing';
 import {
@@ -575,10 +570,7 @@ export function parseWhiteboard(
 
   if (!firstLineSeen) return fail(0, 'No content provided');
 
-  if (elements.length === 0 && !result.error) {
-    const diag = makeDgmoError(1, 'No elements found in whiteboard');
-    result.diagnostics.push(diag);
-    result.error = formatDgmoError(diag);
-  }
+  // An empty board is valid: a blank canvas is where drawing starts, and
+  // erasing everything must not turn the file into an error (#1248).
   return result;
 }
