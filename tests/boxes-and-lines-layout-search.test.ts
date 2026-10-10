@@ -500,11 +500,19 @@ describe('layoutBoxesAndLinesSearch — sifting pass (#1135)', () => {
     expect(totalBadness(on)).toBeLessThan(totalBadness(off));
   });
 
-  it('is deterministic — the same diagram sifts to the same geometry', async () => {
-    const a = await layoutBoxesAndLinesSearch(parseBoxesAndLines(SIFTABLE));
-    const b = await layoutBoxesAndLinesSearch(parseBoxesAndLines(SIFTABLE));
-    expect(geom(a)).toBe(geom(b));
-  });
+  // A hang guard, not a speed check: two full sifts take ~2s on the Mac but
+  // ran past the 30s file default under a loaded release gate on anchor
+  // (2026-10-08, the gate-load failures issue diagrammo/diagrammo#1163).
+  const SIFT_HANG_GUARD_MS = 120_000;
+  it(
+    'is deterministic — the same diagram sifts to the same geometry',
+    async () => {
+      const a = await layoutBoxesAndLinesSearch(parseBoxesAndLines(SIFTABLE));
+      const b = await layoutBoxesAndLinesSearch(parseBoxesAndLines(SIFTABLE));
+      expect(geom(a)).toBe(geom(b));
+    },
+    SIFT_HANG_GUARD_MS
+  );
 
   it('never reports progress past its total while sifting', async () => {
     let over = 0;
