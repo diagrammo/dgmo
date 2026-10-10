@@ -273,6 +273,91 @@ function curveTrim(s: WhiteboardSegment, end: 0 | 1, len: number): number {
   return (near + far) / 2;
 }
 
+/** What to draw for a connector: one stroke (a line or a curve) and its heads. */
+export interface WhiteboardConnectorPaint {
+  /** A straight stroke, coordinates rounded to 0.01 px. */
+  readonly line?: {
+    readonly x1: number;
+    readonly y1: number;
+    readonly x2: number;
+    readonly y2: number;
+  };
+  /** A curved stroke, as one `M … Q …` path. */
+  readonly path?: string;
+  /** Each head as a polygon `points` string, tip first. */
+  readonly heads: readonly string[];
+}
+
+/**
+ * The stroke and heads of a drawn connector — the renderer and the app canvas
+ * both draw from this, so they cannot disagree. The stroke stops at each
+ * head's base; a head on a curve points along the bit of curve it covers.
+ */
+export function whiteboardConnectorPaint(
+  s: WhiteboardSegment,
+  heads: { readonly start: boolean; readonly end: boolean }
+): WhiteboardConnectorPaint {
+  const polygon = (
+    tip: WhiteboardPoint,
+    ux: number,
+    uy: number,
+    head: number
+  ): string => {
+    const bx = tip.x - ux * head;
+    const by = tip.y - uy * head;
+    const px = -uy * ARROW_HEAD_HALF;
+    const py = ux * ARROW_HEAD_HALF;
+    return `${round2(tip.x)},${round2(tip.y)} ${round2(bx + px)},${round2(by + py)} ${round2(bx - px)},${round2(by - py)}`;
+  };
+  const dx = s.x2 - s.x1;
+  const dy = s.y2 - s.y1;
+  const len = Math.hypot(dx, dy);
+  if (s.cx === undefined || s.cy === undefined) {
+    if (len === 0) return { heads: [] };
+    const ux = dx / len;
+    const uy = dy / len;
+    const headE = heads.end ? Math.min(ARROW_HEAD_LEN, len) : 0;
+    const headS = heads.start ? Math.min(ARROW_HEAD_LEN, len / 2) : 0;
+    const head = heads.start ? Math.min(headE, len / 2) : headE;
+    const out: string[] = [];
+    if (heads.end) out.push(polygon({ x: s.x2, y: s.y2 }, ux, uy, head));
+    if (heads.start) out.push(polygon({ x: s.x1, y: s.y1 }, -ux, -uy, headS));
+    return {
+      line: {
+        x1: round2(s.x1 + ux * headS),
+        y1: round2(s.y1 + uy * headS),
+        x2: round2(s.x2 - ux * head),
+        y2: round2(s.y2 - uy * head),
+      },
+      heads: out,
+    };
+  }
+  const tEnd = heads.end ? curveTrim(s, 1, ARROW_HEAD_LEN) : 1;
+  const tStart = heads.start ? curveTrim(s, 0, ARROW_HEAD_LEN) : 0;
+  const [t0, t1] = tEnd - tStart > 0 ? [tStart, tEnd] : [0, 1];
+  const p0 = segmentPoint(s, t0);
+  const p1 = segmentPoint(s, t1);
+  // Blossom of the sub-curve [t0, t1]: its control point.
+  const w0 = (1 - t0) * (1 - t1);
+  const w1 = (1 - t0) * t1 + t0 * (1 - t1);
+  const w2 = t0 * t1;
+  const qx = w0 * s.x1 + w1 * s.cx + w2 * s.x2;
+  const qy = w0 * s.y1 + w1 * s.cy + w2 * s.y2;
+  const out: string[] = [];
+  const along = (tip: WhiteboardPoint, base: WhiteboardPoint): void => {
+    const hx = tip.x - base.x;
+    const hy = tip.y - base.y;
+    const hl = Math.hypot(hx, hy);
+    if (hl > 0) out.push(polygon(tip, hx / hl, hy / hl, hl));
+  };
+  if (heads.end) along({ x: s.x2, y: s.y2 }, p1);
+  if (heads.start) along({ x: s.x1, y: s.y1 }, p0);
+  return {
+    path: `M${round2(p0.x)} ${round2(p0.y)}Q${round2(qx)} ${round2(qy)} ${round2(p1.x)} ${round2(p1.y)}`,
+    heads: out,
+  };
+}
+
 /** The outline polygon perfect-freehand produces, as an SVG path. */
 export function inkOutlinePath(
   points: readonly InkPoint[],
@@ -520,89 +605,39 @@ export function renderWhiteboard(
         const color = colorOf(el.color);
         // An end inside a shape is attached and drawn to its border.
         const s = clipWhiteboardConnector(el, elements);
-        const headEnd = el.kind === 'arrow';
-        const headStart = el.kind === 'arrow' && el.heads === 'both';
-        const dashed = (stroke: { attr(k: string, v: string): unknown }) => {
+        const paint = whiteboardConnectorPaint(s, {
+          start: el.kind === 'arrow' && el.heads === 'both',
+          end: el.kind === 'arrow',
+        });
+        let stroke: d3.Selection<SVGElement, unknown, null, undefined> | null =
+          null;
+        if (paint.line) {
+          stroke = g
+            .append<SVGElement>('line')
+            .attr('x1', paint.line.x1)
+            .attr('y1', paint.line.y1)
+            .attr('x2', paint.line.x2)
+            .attr('y2', paint.line.y2);
+        } else if (paint.path) {
+          stroke = g
+            .append<SVGElement>('path')
+            .attr('d', paint.path)
+            .attr('fill', 'none');
+        }
+        if (stroke) {
+          stroke
+            .attr('stroke', color)
+            .attr('stroke-width', ARROW_STROKE)
+            .attr('stroke-linecap', 'round');
           if (el.style === 'dashed') {
             stroke.attr(
               'stroke-dasharray',
               `${DASH_ON * ARROW_STROKE} ${DASH_OFF * ARROW_STROKE}`
             );
           }
-        };
-        // A head: its tip at `tip`, its base `head` px back along (ux, uy).
-        const drawHead = (
-          tip: WhiteboardPoint,
-          ux: number,
-          uy: number,
-          head: number
-        ): void => {
-          const bx = tip.x - ux * head;
-          const by = tip.y - uy * head;
-          const px = -uy * ARROW_HEAD_HALF;
-          const py = ux * ARROW_HEAD_HALF;
-          g.append('polygon')
-            .attr(
-              'points',
-              `${round2(tip.x)},${round2(tip.y)} ${round2(bx + px)},${round2(by + py)} ${round2(bx - px)},${round2(by - py)}`
-            )
-            .attr('fill', color);
-        };
-        const dx = s.x2 - s.x1;
-        const dy = s.y2 - s.y1;
-        const len = Math.hypot(dx, dy);
-        if (len > 0 && s.cx === undefined) {
-          const ux = dx / len;
-          const uy = dy / len;
-          const headE = headEnd ? Math.min(ARROW_HEAD_LEN, len) : 0;
-          const headS = headStart ? Math.min(ARROW_HEAD_LEN, len / 2) : 0;
-          const head = headStart ? Math.min(headE, len / 2) : headE;
-          const bx = s.x2 - ux * head;
-          const by = s.y2 - uy * head;
-          const stroke = g
-            .append('line')
-            .attr('x1', round2(s.x1 + ux * headS))
-            .attr('y1', round2(s.y1 + uy * headS))
-            .attr('x2', round2(bx))
-            .attr('y2', round2(by))
-            .attr('stroke', color)
-            .attr('stroke-width', ARROW_STROKE)
-            .attr('stroke-linecap', 'round');
-          dashed(stroke);
-          if (headEnd) drawHead({ x: s.x2, y: s.y2 }, ux, uy, head);
-          if (headStart) drawHead({ x: s.x1, y: s.y1 }, -ux, -uy, headS);
-        } else if (len > 0 || s.cx !== undefined) {
-          // A curve: the stroke stops where each head's base meets it, and
-          // each head points along the bit of curve it covers.
-          const tEnd = headEnd ? curveTrim(s, 1, ARROW_HEAD_LEN) : 1;
-          const tStart = headStart ? curveTrim(s, 0, ARROW_HEAD_LEN) : 0;
-          const [t0, t1] = tEnd - tStart > 0 ? [tStart, tEnd] : [0, 1];
-          const p0 = segmentPoint(s, t0);
-          const p1 = segmentPoint(s, t1);
-          const w0 = (1 - t0) * (1 - t1);
-          const w1 = (1 - t0) * t1 + t0 * (1 - t1);
-          const w2 = t0 * t1;
-          const qx = w0 * s.x1 + w1 * s.cx! + w2 * s.x2;
-          const qy = w0 * s.y1 + w1 * s.cy! + w2 * s.y2;
-          const stroke = g
-            .append('path')
-            .attr(
-              'd',
-              `M${round2(p0.x)} ${round2(p0.y)}Q${round2(qx)} ${round2(qy)} ${round2(p1.x)} ${round2(p1.y)}`
-            )
-            .attr('fill', 'none')
-            .attr('stroke', color)
-            .attr('stroke-width', ARROW_STROKE)
-            .attr('stroke-linecap', 'round');
-          dashed(stroke);
-          const along = (tip: WhiteboardPoint, base: WhiteboardPoint): void => {
-            const hx = tip.x - base.x;
-            const hy = tip.y - base.y;
-            const hl = Math.hypot(hx, hy);
-            if (hl > 0) drawHead(tip, hx / hl, hy / hl, hl);
-          };
-          if (headEnd) along({ x: s.x2, y: s.y2 }, p1);
-          if (headStart) along({ x: s.x1, y: s.y1 }, p0);
+        }
+        for (const points of paint.heads) {
+          g.append('polygon').attr('points', points).attr('fill', color);
         }
         if (el.label) {
           // The block of lines is centred on the midpoint; the halo stroke

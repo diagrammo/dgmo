@@ -380,10 +380,14 @@ export {
   visibleWhiteboardElements,
   visibleWhiteboardIndices,
   whiteboardBounds,
+  whiteboardConnectorPaint,
   inkOutlinePath,
   IMAGE_NOT_UPLOADED,
 } from './whiteboard/renderer';
-export type { WhiteboardRenderOptions } from './whiteboard/renderer';
+export type {
+  WhiteboardRenderOptions,
+  WhiteboardConnectorPaint,
+} from './whiteboard/renderer';
 // A shape label wraps to the shape: the canvas calls the same function so it
 // breaks a label at the same words as the render.
 export {
