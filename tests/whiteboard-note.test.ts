@@ -15,6 +15,7 @@ import { parseWhiteboard } from '../src/whiteboard/parser';
 import {
   renderWhiteboard,
   visibleWhiteboardElements,
+  visibleWhiteboardIndices,
   whiteboardBounds,
 } from '../src/whiteboard/renderer';
 import type {
@@ -182,6 +183,41 @@ describe('whiteboard sticky notes — render', () => {
     expect(visibleWhiteboardElements(p, { showNotes: false })).toHaveLength(1);
   });
 
+  it('hides an arrow or line drawn from a hidden note, and keeps the rest', () => {
+    const p = parseWhiteboard(
+      wb(
+        'rectangle A at: 300 0, size: 100 100',
+        'note Hi at: 0 0, size: 100 100',
+        'arrow why from: 50 50, to: 350 50',
+        'line from: 350 150, to: 50 50',
+        'arrow from: 350 50, to: 600 50'
+      )
+    );
+    expect(visibleWhiteboardIndices(p)).toEqual([0, 1, 2, 3, 4]);
+    expect(visibleWhiteboardIndices(p, { showNotes: false })).toEqual([0, 4]);
+    const svg = draw(
+      wb(
+        'no-notes',
+        'rectangle A at: 300 0, size: 100 100',
+        'note Hi at: 0 0, size: 100 100',
+        'arrow why from: 50 50, to: 350 50'
+      )
+    );
+    expect(svg.textContent).not.toContain('why');
+  });
+
+  it('hides a connector whose end the hidden note held over a shape', () => {
+    // The note sits on top of the box, so it — not the box — holds the end.
+    const p = parseWhiteboard(
+      wb(
+        'rectangle A at: 0 0, size: 200 200',
+        'note Hi at: 20 20, size: 80 80',
+        'arrow from: 50 50, to: 400 50'
+      )
+    );
+    expect(visibleWhiteboardIndices(p, { showNotes: false })).toEqual([0]);
+  });
+
   it('grows the crop only by the one line a too-short card still keeps', () => {
     // The text is cut to fit (#1225), but at least one line is drawn.
     const p = parseWhiteboard(
@@ -226,14 +262,12 @@ describe('whiteboard sticky notes — attached ends', () => {
     expect(s.y2).toBeCloseTo(9);
   });
 
-  it('a hidden note attaches nothing', () => {
+  it('a hidden note takes the arrow drawn into it along', () => {
     const src = wb(
       'no-notes',
       'note Hi at: 100 0, size: 100 100',
       'arrow from: 0 50, to: 150 50'
     );
-    const line = draw(src).querySelector('.whiteboard-arrow line')!;
-    // The head runs to the stored end (150), not the hidden note's border.
-    expect(Number(line.getAttribute('x2'))).toBeCloseTo(150 - 12);
+    expect(draw(src).querySelector('.whiteboard-arrow')).toBeNull();
   });
 });

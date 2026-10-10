@@ -23,6 +23,7 @@ import { TITLE_FONT_SIZE } from '../utils/title-constants';
 import {
   RECT_RADIUS,
   clipWhiteboardConnector,
+  whiteboardConnectorAttachments,
   whiteboardNoteFold,
 } from './geometry';
 import type { InkPoint } from './ink-codec';
@@ -51,24 +52,52 @@ export interface WhiteboardRenderOptions {
    * Draw the sticky notes, overriding the board's `no-notes` directive either
    * way — the app's notes toggle and its export pass this. Omitted, the
    * directive decides: notes show unless the board says `no-notes`. Hidden
-   * notes are left out entirely: not drawn, not counted in the crop, and no
-   * arrow end attaches to them.
+   * notes are left out entirely — not drawn, not counted in the crop — and so
+   * is every arrow or line with an end on one.
    */
   readonly showNotes?: boolean;
 }
 
 /**
- * The elements a render draws, in order: every element, less the sticky notes
- * when they are hidden (see {@link WhiteboardRenderOptions.showNotes}).
+ * Whole-board indices of the elements a render draws, in order: every
+ * element, less the sticky notes when they are hidden (see
+ * {@link WhiteboardRenderOptions.showNotes}) and less every arrow or line with
+ * an end on a hidden note — a connector drawn from a note goes with it, label
+ * and all. Attachment is read on the WHOLE board, so an end the note held is
+ * not re-attached to whatever lies beneath it.
+ */
+export function visibleWhiteboardIndices(
+  parsed: ParsedWhiteboard,
+  options: Pick<WhiteboardRenderOptions, 'showNotes'> = {}
+): number[] {
+  const all = parsed.elements;
+  const show = options.showNotes ?? !parsed.options.noNotes;
+  const out: number[] = [];
+  all.forEach((el, i) => {
+    if (show) return void out.push(i);
+    if (el.kind === 'note') return;
+    if (el.kind === 'arrow' || el.kind === 'line') {
+      const { from, to } = whiteboardConnectorAttachments(el, all);
+      if (all[from]?.kind === 'note' || all[to]?.kind === 'note') return;
+    }
+    out.push(i);
+  });
+  return out;
+}
+
+/**
+ * The elements a render draws, in order — {@link visibleWhiteboardIndices},
+ * as elements.
  */
 export function visibleWhiteboardElements(
   parsed: ParsedWhiteboard,
   options: Pick<WhiteboardRenderOptions, 'showNotes'> = {}
 ): readonly WhiteboardElement[] {
   const show = options.showNotes ?? !parsed.options.noNotes;
-  return show
-    ? parsed.elements
-    : parsed.elements.filter((el) => el.kind !== 'note');
+  if (show) return parsed.elements;
+  return visibleWhiteboardIndices(parsed, options).map(
+    (i) => parsed.elements[i]!
+  );
 }
 
 /** Space around the cropped content, px. */

@@ -374,6 +374,7 @@ export {
 export {
   renderWhiteboard,
   visibleWhiteboardElements,
+  visibleWhiteboardIndices,
   whiteboardBounds,
   inkOutlinePath,
   IMAGE_NOT_UPLOADED,
