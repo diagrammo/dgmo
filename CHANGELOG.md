@@ -5,6 +5,84 @@ All notable changes to `@diagrammo/dgmo` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.90.0] - 2026-10-10
+
+### Added
+
+- **Whiteboard, a new beta chart type.** A free-form board on an infinite
+  canvas: rectangle, ellipse, database and queue shapes, free arrows and
+  lines, text, images and pen ink, all at pixel positions. Shape and note
+  labels take indented lines as further label lines. A bare `whiteboard`
+  line is a valid blank board. An image the CLI cannot rasterise to PNG
+  (WebP) draws a labelled placeholder.
+- **Whiteboard sticky notes.** `note [text] at: X Y` draws a folded-corner
+  card in a soft hue of your choice, 160 x 99 by default. The `no-notes`
+  flag, or the `showNotes` render option, hides every note, and any arrow or
+  line attached to a hidden note goes with it.
+- **Whiteboard arrows and lines.** `line` is an arrow with no head, and both
+  take `style: dashed`. `heads: both` puts a head at each end. `bend: N`
+  draws one curve, N pixels off the straight chord, with heads following it.
+  An end dropped inside a shape or note attaches to it, aimed at its centre
+  and clipped at its border.
+- **Whiteboard shape fill.** `fill: solid | outline` on shapes. The default
+  stays the soft tint. A solid shape's outline is a shade toward its label
+  colour, so a database cap or ellipse rim stays visible.
+- **Whiteboard labels fit their shapes.** A label wraps to the shape, shrinks
+  from 14px (notes 12px) down to 9px, and only then is cut with an
+  ellipsis. A queue's label sits between its caps, and every shape label has
+  a halo in the shape's fill. The ink codec (`encodeInk`, `decodeInk`) and
+  the label, geometry and connector helpers are exported from
+  `@diagrammo/dgmo/advanced` for editors.
+- **A `palette` line picks a diagram's built-in palette on any chart type.**
+  `palette nord` uses Nord in the caller's light or dark; `palette nord dark`
+  pins the mode too. An unknown name or mode warns and falls back to the next
+  palette down. The new `paletteOverride` render option beats the file's line,
+  which beats the Slate default, and the CLI's `--palette` flag, when typed,
+  is that override. A pin to light keeps a transparent background.
+- **An embedded `palette <Name>` block draws.** Its `light` and `dark`
+  sections are checked like a theme file, and a failing block falls back with
+  a warning on each bad line. Embeds take the same palette choice for their
+  error card and lightbox background.
+- **Autocomplete offers `palette`** on every chart type, with the built-in
+  ids as values, once `pal` is typed.
+- **Sketch reports its hops.** `sketchEdgeGeometry` lists where each line has
+  a hop, and the new `sketchLabelSpot` returns the point nearest a line's
+  middle whose label clears them all.
+- **Sankey cycles draw.** A flow that closes a loop is drawn as a return
+  ribbon in a lane under the nodes, and the real columns keep their width.
+
+### Changed
+
+- **Sankey labels all sit to the right of their node.** A margin is reserved
+  for the last column, and a label too long for its room is cut with an
+  ellipsis and keeps its full name in a tooltip.
+- **`theme` is retired as a line.** Raci and wireframe no longer read
+  `palette` or `theme` as options, and the language reference drops `theme`.
+
+### Removed
+
+- **`shape:` is gone from sketch.** The app draws every sketch box as a plain
+  card, so export no longer differs from it with type badges or sticky
+  bodies. A written `shape:` is the error `E_SKETCH_SHAPE_UNSUPPORTED`, and
+  the rest of the box is kept. It is no longer offered in autocomplete.
+  `SKETCH_SHAPE_KINDS`, `SketchShapeKind` and `isSketchShapeKind` are removed.
+
+### Fixed
+
+- **A multi-word tag group no longer breaks rendering.** `tag Ended in as o`
+  threw on a timeline and lost its tag value on sequence and ER diagrams. Every
+  parser and lookup, including the mindmap, gantt, kanban, journey-map, C4 and
+  timeline swimlane legends, now keys the group by its slug.
+- **A timeline's swimlane legend shows in view mode** (and so in export)
+  when a saved view hands back the group's slug.
+- **Rotated first category labels on bar and line charts are no longer
+  clipped.** The left margin grows by exactly the label's overhang.
+- **Sketch line hops leave no stub** where the hop is longer than the
+  segment it sits on. A node metadata key with a space (`timesync t: PTP`)
+  no longer leaves the chart blank.
+- **A `palette` line no longer breaks gantt, org or mindmap.** They drew it
+  as a task or a node.
+
 ## [0.89.0] - 2026-10-06
 
 ### Added
