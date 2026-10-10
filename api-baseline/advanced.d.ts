@@ -2996,10 +2996,16 @@ declare function wrapWhiteboardLabel(label: string, box: WhiteboardLabelBox): st
  * a word wider than the box breaks inside itself, and lines past the last one
  * that fits are dropped, the last kept line ending in `…`. At least one line
  * is always kept. `''` gives no lines.
+ *
+ * A sticky note that overflows at the floor gives up most of its vertical
+ * padding first, and its last line needs only its own font height, so it
+ * shows as much text as the card can hold. `top` is how far below the note's
+ * top edge its text block starts; a shape centres its block and ignores it.
  */
 declare function fitWhiteboardLabel(label: string, box: WhiteboardFitBox): {
     lines: string[];
     font: number;
+    top: number;
 };
 
 /** A database's (cylinder's) cap, half-height. */
