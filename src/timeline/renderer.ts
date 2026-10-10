@@ -886,7 +886,7 @@ function setupTimeline(
   if (resolvedSwimlaneTG) {
     const tagKey = tagAttrKey(resolvedSwimlaneTG);
     const tagGroup = parsed.timelineTagGroups.find(
-      (g) => g.name.toLowerCase() === tagKey
+      (g) => tagAttrKey(g.name) === tagKey
     );
     if (tagGroup) {
       const buckets = new Map<string, TimelineEvent[]>();

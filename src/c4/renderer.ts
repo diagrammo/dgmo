@@ -467,7 +467,7 @@ export function renderC4Context(
         // nodes that inherit the default (e.g. sc: Internal default).
         const tagGroup = parsed.tagGroups.find(
           (g) =>
-            g.name.toLowerCase() === tagKey || g.alias?.toLowerCase() === tagKey
+            tagAttrKey(g.name) === tagKey || g.alias?.toLowerCase() === tagKey
         );
         if (tagGroup?.defaultValue) {
           nodeG.attr(`data-tag-${tagKey}`, tagGroup.defaultValue.toLowerCase());
@@ -1693,7 +1693,7 @@ export function renderC4Containers(
         // nodes that inherit the default (e.g. sc: Internal default).
         const tagGroup = parsed.tagGroups.find(
           (g) =>
-            g.name.toLowerCase() === tagKey || g.alias?.toLowerCase() === tagKey
+            tagAttrKey(g.name) === tagKey || g.alias?.toLowerCase() === tagKey
         );
         if (tagGroup?.defaultValue) {
           nodeG.attr(`data-tag-${tagKey}`, tagGroup.defaultValue.toLowerCase());

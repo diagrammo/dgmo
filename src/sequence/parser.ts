@@ -42,6 +42,7 @@ import {
   finalizeAutoTagColors,
   AUTO_TAG_COLOR_SENTINEL,
   activeTagNoMatchMessage,
+  tagAttrKey,
 } from '../utils/tag-groups';
 
 /** Known sequence-diagram options that take a value (space-separated). */
@@ -962,12 +963,12 @@ export function parseSequenceDgmo(
       if (tagBlockMatch.alias) {
         aliasMap.set(
           tagBlockMatch.alias.toLowerCase(),
-          tagBlockMatch.name.toLowerCase()
+          tagAttrKey(tagBlockMatch.name)
         );
       }
       aliasMap.set(
         normalizeName(tagBlockMatch.name),
-        tagBlockMatch.name.toLowerCase()
+        tagAttrKey(tagBlockMatch.name)
       );
       result.tagGroups.push(newTagGroup);
       continue;

@@ -285,12 +285,12 @@ function parseVisualizationFull(
         if (tagBlockMatch.alias) {
           timelineAliasMap.set(
             tagBlockMatch.alias.toLowerCase(),
-            tagBlockMatch.name.toLowerCase()
+            tagAttrKey(tagBlockMatch.name)
           );
         } else {
           timelineAliasMap.set(
-            tagBlockMatch.name.toLowerCase(),
-            tagBlockMatch.name.toLowerCase()
+            tagAttrKey(tagBlockMatch.name),
+            tagAttrKey(tagBlockMatch.name)
           );
         }
         result.timelineTagGroups.push(newGroup);

@@ -380,12 +380,12 @@ export function parseERDiagram(
         if (tagBlockMatch.alias) {
           metaAliasMap.set(
             normalizeName(tagBlockMatch.alias),
-            tagBlockMatch.name.toLowerCase()
+            tagAttrKey(tagBlockMatch.name)
           );
         }
         metaAliasMap.set(
           normalizeName(tagBlockMatch.name),
-          tagBlockMatch.name.toLowerCase()
+          tagAttrKey(tagBlockMatch.name)
         );
         result.tagGroups.push(currentTagGroup);
         continue;
