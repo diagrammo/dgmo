@@ -65,8 +65,17 @@ export type BlockColorMode = 'auto' | 'light' | 'dark' | 'transparent';
 export interface DgmoBlockOptions {
   /** `diagram` (default): SVG only. `showcase`: SVG + source chrome. */
   mode?: BlockMode;
-  /** Palette name. Default `slate`; unknown names warn + fall back. */
+  /**
+   * Palette name — the surface's default, which a diagram's own `palette`
+   * line beats. Default `slate`; unknown names warn + fall back.
+   */
   palette?: string;
+  /**
+   * A palette name that beats the diagram's own `palette` line: a deliberate
+   * per-embed choice such as a fence attribute (#1038). Unknown names warn +
+   * fall back, like `palette`.
+   */
+  paletteOverride?: string;
   /** Default `auto` (dual light/dark render). */
   colorMode?: BlockColorMode;
   /**
@@ -132,9 +141,10 @@ export interface DgmoBlockOptions {
 }
 
 type ResolvedBlockOptions = Required<
-  Omit<DgmoBlockOptions, 'title' | 'onWarn' | 'mapData'>
+  Omit<DgmoBlockOptions, 'title' | 'onWarn' | 'mapData' | 'paletteOverride'>
 > & {
   title: string | undefined;
+  paletteOverride: string | undefined;
   mapData: MapDataSource | undefined;
   onWarn: (message: string) => void;
 };
@@ -150,6 +160,7 @@ function resolveBlockOptions(opts: DgmoBlockOptions): ResolvedBlockOptions {
   return {
     mode,
     palette: opts.palette ?? 'slate',
+    paletteOverride: opts.paletteOverride,
     colorMode: opts.colorMode ?? 'auto',
     background: opts.background ?? 'auto',
     showSource: opts.showSource ?? showcase,
@@ -184,6 +195,10 @@ export async function renderDgmoBlock(
   // Resolve-with-fallback so unknown names warn here. The full config (not just
   // the id) is needed for the error card below, which indexes palette.light/.dark.
   const palette = resolvePaletteOrFallback(opts.palette, opts.onWarn);
+  const override =
+    opts.paletteOverride === undefined
+      ? undefined
+      : resolvePaletteOrFallback(opts.paletteOverride, opts.onWarn);
   const diagnostics: DgmoBlockResult['diagnostics'] = [];
 
   // Render one theme. `render` here is the low-level renderer, which returns an
@@ -199,12 +214,15 @@ export async function renderDgmoBlock(
   // background stripping below must draw from the same choice.
   const directive = extractPaletteDirective(trimmed);
   const drawnIn = (theme: 'light' | 'dark' | 'transparent') => {
-    const chosen = choosePalette(directive, { palette: palette.id, theme });
+    const chosen = choosePalette(directive, {
+      palette: palette.id,
+      ...(override !== undefined && { paletteOverride: override.id }),
+      theme,
+    });
     const config =
       chosen.palette ??
-      (chosen.paletteId === palette.id
-        ? palette
-        : getPalette(chosen.paletteId));
+      [palette, override].find((p) => p?.id === chosen.paletteId) ??
+      getPalette(chosen.paletteId);
     return {
       config,
       theme: chosen.theme,
@@ -227,6 +245,7 @@ export async function renderDgmoBlock(
     // an absent key, and `render()`'s option is optional rather than nullable.
     const r = await render(trimmed, {
       palette: palette.id,
+      ...(override !== undefined && { paletteOverride: override.id }),
       theme,
       ...(opts.mapData !== undefined ? { mapData: opts.mapData } : {}),
     });

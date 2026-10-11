@@ -198,6 +198,55 @@ describe('palette line — the embed block draws from the same choice', () => {
   });
 });
 
+describe('palette line — the embed block takes a per-embed override', () => {
+  // The three cases a fence `palette=` and a plugin default meet (#1038).
+  const body = 'pie Share\nApples 30\nPears 70\n';
+  const withLine = `${body}\npalette nord`;
+  const ground = async (
+    source: string,
+    opts: { palette?: string; paletteOverride?: string }
+  ) =>
+    /dgmo-svg[^"]*" data-dgmo-bg="([^"]+)"/.exec(
+      (await renderDgmoBlock(source, { colorMode: 'light', ...opts })).html
+    )?.[1];
+
+  it('the file beats the surface default', async () => {
+    expect(await ground(withLine, { palette: 'catppuccin' })).toBe(
+      getPalette('nord').light.bg
+    );
+  });
+
+  it('the override beats the file', async () => {
+    expect(
+      await ground(withLine, {
+        palette: 'catppuccin',
+        paletteOverride: 'tidewater',
+      })
+    ).toBe(getPalette('tidewater').light.bg);
+  });
+
+  it('with no palette line the surface default stands', async () => {
+    expect(await ground(body, { palette: 'catppuccin' })).toBe(
+      getPalette('catppuccin').light.bg
+    );
+  });
+
+  it('draws the diagram itself in the override, not just its ground', async () => {
+    const { html } = await renderDgmoBlock(withLine, {
+      colorMode: 'light',
+      background: 'opaque',
+      paletteOverride: 'tidewater',
+    });
+    const { svg } = await render(withLine, {
+      theme: 'light',
+      paletteOverride: 'tidewater',
+    });
+    const bg = /style="background: ([^;"]+)/.exec(svg)?.[1] ?? '';
+    expect(bg).not.toBe('');
+    expect(html).toContain(bg);
+  });
+});
+
 describe('palette line — an explicit choice beats the file', () => {
   const file = extractPaletteDirective('pie\nA 1\npalette nord dark');
 

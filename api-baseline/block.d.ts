@@ -69,8 +69,17 @@ type BlockColorMode = 'auto' | 'light' | 'dark' | 'transparent';
 interface DgmoBlockOptions {
     /** `diagram` (default): SVG only. `showcase`: SVG + source chrome. */
     mode?: BlockMode;
-    /** Palette name. Default `slate`; unknown names warn + fall back. */
+    /**
+     * Palette name — the surface's default, which a diagram's own `palette`
+     * line beats. Default `slate`; unknown names warn + fall back.
+     */
     palette?: string;
+    /**
+     * A palette name that beats the diagram's own `palette` line: a deliberate
+     * per-embed choice such as a fence attribute (#1038). Unknown names warn +
+     * fall back, like `palette`.
+     */
+    paletteOverride?: string;
     /** Default `auto` (dual light/dark render). */
     colorMode?: BlockColorMode;
     /**
