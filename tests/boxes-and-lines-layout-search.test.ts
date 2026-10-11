@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import { readFileSync } from 'node:fs';
 import dagre from '@dagrejs/dagre';
 import { parseBoxesAndLines } from '../src/boxes-and-lines/parser';
 import { collapseBoxesAndLines } from '../src/boxes-and-lines/collapse';
@@ -12,6 +13,7 @@ import {
   countEdgeOverlaps,
   countEdgeNodePierces,
   countGroupOverlaps,
+  countForeignGroupCrossings,
   type BLSearchConfig,
 } from '../src/boxes-and-lines/layout-search';
 
@@ -534,5 +536,131 @@ describe('layoutBoxesAndLinesSearch — sifting pass (#1135)', () => {
     });
     const on = await layoutBoxesAndLinesSearch(parsed);
     expect(totalBadness(on)).toBeLessThanOrEqual(totalBadness(off));
+  });
+});
+
+// Foreign-group pass-throughs (#1241): an arrow drawn through a group that holds
+// neither of its endpoints.
+describe('countForeignGroupCrossings', () => {
+  // Groups A (x 0..200) and B (x 300..500), both y 0..200; a1 is in A.
+  const groupBox = (label: string, x: number) => ({
+    label,
+    lineNumber: 0,
+    x,
+    y: 100,
+    width: 200,
+    height: 200,
+    collapsed: false,
+  });
+  const group = (label: string, children: string[], parentGroup?: string) => ({
+    label,
+    children,
+    lineNumber: 0,
+    metadata: {},
+    ...(parentGroup !== undefined && { parentGroup }),
+  });
+  const twoGroups = (
+    edges: Parameters<typeof syntheticLayout>[1]
+  ): BLLayoutResult => ({
+    ...syntheticLayout(
+      [
+        { label: 'a1', x: 100, y: 100 },
+        { label: 'c', x: 700, y: 100 },
+        { label: 'p', x: 400, y: -300 },
+        { label: 'q', x: 400, y: 400 },
+      ],
+      edges
+    ),
+    groups: [groupBox('A', 100), groupBox('B', 400)],
+  });
+  const GROUPS = [group('A', ['a1']), group('B', [])];
+
+  // a1 -> c leaves its own group A downward and goes round B: legitimate.
+  const exitOwnGroup = {
+    source: 'a1',
+    target: 'c',
+    points: [
+      { x: 100, y: 112 },
+      { x: 100, y: 250 },
+      { x: 700, y: 250 },
+      { x: 700, y: 112 },
+    ],
+  };
+  // p -> q runs straight down through B, which holds neither: foreign.
+  const throughB = {
+    source: 'p',
+    target: 'q',
+    points: [
+      { x: 400, y: -288 },
+      { x: 400, y: 388 },
+    ],
+  };
+
+  it('counts the pass through a foreign group and not the exit from its own', () => {
+    expect(
+      countForeignGroupCrossings(twoGroups([exitOwnGroup, throughB]), GROUPS)
+    ).toBe(1);
+    expect(countForeignGroupCrossings(twoGroups([exitOwnGroup]), GROUPS)).toBe(
+      0
+    );
+  });
+
+  it('ignores a path that only skims a group within the minimum depth', () => {
+    const skim = {
+      source: 'p',
+      target: 'q',
+      points: [
+        { x: 306, y: -288 },
+        { x: 306, y: 388 },
+      ],
+    };
+    expect(countForeignGroupCrossings(twoGroups([skim]), GROUPS)).toBe(0);
+    expect(
+      countForeignGroupCrossings(twoGroups([skim]), GROUPS, { minDepth: 2 })
+    ).toBe(1);
+  });
+
+  it('treats an enclosing group and a group endpoint as held', () => {
+    // A and B sit inside P. a1 -> [B] ends on B's own box and never leaves P,
+    // so neither P (holds both ends) nor B (is the endpoint) is foreign.
+    const nested = [
+      group('P', ['A', 'B']),
+      group('A', ['a1'], 'P'),
+      group('B', [], 'P'),
+    ];
+    const lay: BLLayoutResult = {
+      ...twoGroups([
+        {
+          source: 'a1',
+          target: '__group_B',
+          points: [
+            { x: 140, y: 100 },
+            { x: 300, y: 100 },
+          ],
+        },
+      ]),
+      groups: [
+        { ...groupBox('P', 250), width: 560, height: 260 },
+        groupBox('A', 100),
+        groupBox('B', 400),
+      ],
+    };
+    expect(countForeignGroupCrossings(lay, nested)).toBe(0);
+  });
+
+  it('leaves a collapsed group box to the pierce counter', () => {
+    const lay: BLLayoutResult = {
+      ...twoGroups([throughB]),
+      groups: [groupBox('A', 100), { ...groupBox('B', 400), collapsed: true }],
+    };
+    expect(countForeignGroupCrossings(lay, GROUPS)).toBe(0);
+  });
+
+  it('the search routes no arrow through a foreign group on the gallery fixture', async () => {
+    const parsed = parseBoxesAndLines(
+      readFileSync('gallery/fixtures/boxes-and-lines.dgmo', 'utf8')
+    );
+    const lay = await layoutBoxesAndLinesSearch(parsed);
+    expect(countForeignGroupCrossings(lay, parsed.groups)).toBe(0);
   });
 });

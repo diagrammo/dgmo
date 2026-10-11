@@ -832,6 +832,120 @@ export function countGroupOverlaps(
     }
   return count;
 }
+
+// How far (px) a drawn edge must reach inside a group's box before it counts as
+// passing through it — an edge skimming the frame is not a pass-through. The
+// layout-engine study (#1221) counted at the same depth.
+const FOREIGN_GROUP_MIN_DEPTH = 12;
+
+// Group label → every endpoint key the group holds, at any depth: member node
+// labels plus the `__group_` key of the group and each group nested in it. A
+// child absent from `groups` may be a collapsed sub-group, whose edges now end
+// on its `__group_` box, so both spellings are kept for every child.
+const HOLDINGS_CACHE = new WeakMap<object, Map<string, Set<string>>>();
+function groupHoldings(groups: readonly BLGroup[]): Map<string, Set<string>> {
+  const hit = HOLDINGS_CACHE.get(groups);
+  if (hit) return hit;
+  const byLabel = new Map(groups.map((g) => [g.label, g]));
+  const memo = new Map<string, Set<string>>();
+  const walk = (label: string, seen: Set<string>): Set<string> => {
+    const done = memo.get(label);
+    if (done) return done;
+    const out = new Set<string>(['__group_' + label]);
+    const g = byLabel.get(label);
+    if (!g || seen.has(label)) return out;
+    seen.add(label);
+    for (const c of g.children) {
+      out.add(c);
+      out.add('__group_' + c);
+      if (byLabel.has(c)) for (const k of walk(c, seen)) out.add(k);
+    }
+    memo.set(label, out);
+    return out;
+  };
+  for (const g of groups) walk(g.label, new Set());
+  HOLDINGS_CACHE.set(groups, memo);
+  return memo;
+}
+
+// Whether segment a→b enters the OPEN rect [l, r] × [t, b] (Liang–Barsky).
+// Touching an edge or a corner does not count.
+function segmentEntersRect(
+  a: Pt,
+  b: Pt,
+  l: number,
+  t: number,
+  r: number,
+  bot: number
+): boolean {
+  let t0 = 0,
+    t1 = 1;
+  const dx = b.x - a.x,
+    dy = b.y - a.y;
+  const clip = (p: number, q: number): boolean => {
+    if (p === 0) return q > 0;
+    const u = q / p;
+    if (p < 0) {
+      if (u >= t1) return false;
+      if (u > t0) t0 = u;
+    } else {
+      if (u <= t0) return false;
+      if (u < t1) t1 = u;
+    }
+    return true;
+  };
+  return (
+    clip(-dx, a.x - l) &&
+    clip(dx, r - a.x) &&
+    clip(-dy, a.y - t) &&
+    clip(dy, bot - a.y) &&
+    t0 < t1
+  );
+}
+
+/**
+ * Count of (edge, group) pairs where the edge's drawn path passes through an
+ * expanded group box that holds neither of its endpoints — reaching more than
+ * `minDepth` px inside it. An edge leaving its own group, or any enclosing
+ * group, is legitimate and never counted. Collapsed group boxes are left to
+ * `countEdgeNodePierces`, which treats them as nodes. `groups` is the parsed
+ * group list the layout was made from — it says which nodes each group holds.
+ */
+export function countForeignGroupCrossings(
+  layout: BLLayoutResult,
+  groups: readonly BLGroup[],
+  opts?: { minDepth?: number }
+): number {
+  const d = opts?.minDepth ?? FOREIGN_GROUP_MIN_DEPTH;
+  const boxes = layout.groups.filter((g) => !g.collapsed);
+  if (boxes.length === 0) return 0;
+  const holdings = groupHoldings(groups);
+  const polys = flatPolys(layout);
+  let count = 0;
+  layout.edges.forEach((e, idx) => {
+    const poly = polys[idx]!;
+    if (poly.pts.length < 2) return;
+    for (const g of boxes) {
+      const held = holdings.get(g.label);
+      if (!held || held.has(e.source) || held.has(e.target)) continue;
+      const l = g.x - g.width / 2 + d,
+        r = g.x + g.width / 2 - d,
+        t = g.y - g.height / 2 + d,
+        b = g.y + g.height / 2 - d;
+      // `!(<)` also skips a box dagre left unsized (NaN), e.g. an empty group.
+      if (!(l < r) || !(t < b)) continue;
+      if (poly.x1 <= l || poly.x0 >= r || poly.y1 <= t || poly.y0 >= b)
+        continue;
+      for (let i = 0; i + 1 < poly.pts.length; i++)
+        if (segmentEntersRect(poly.pts[i]!, poly.pts[i + 1]!, l, t, r, b)) {
+          count++;
+          break;
+        }
+    }
+  });
+  return count;
+}
+
 /**
  * Separated copy of a layout that pushes overlapping TOP-LEVEL group bands apart
  * along the cross-axis. dagre's compound layout sometimes wedges a small group
@@ -1601,7 +1715,8 @@ export async function layoutBoxesAndLinesSearch(
 
   // Honest "badness" — every kind of line-in-the-wrong-place counts equally:
   //   X true crossings + O overlap runs (lines stepping on each other)
-  //     + P edges piercing unrelated node boxes.
+  //     + P edges piercing unrelated node boxes + G group boxes colliding
+  //     + F edges passing through a group that holds neither endpoint.
   // (A line through a node and two lines sharing a path are crossings too.)
   // `floor` lets callers skip the expensive O/P passes once X alone already
   // exceeds the best badness found so far (it can't win, return Infinity).
@@ -1612,7 +1727,8 @@ export async function layoutBoxesAndLinesSearch(
       x +
       countEdgeOverlaps(lay) +
       countEdgeNodePierces(lay) +
-      countGroupOverlaps(lay)
+      countGroupOverlaps(lay) +
+      countForeignGroupCrossings(lay, parsed.groups)
     );
   };
 
