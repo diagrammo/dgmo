@@ -293,6 +293,7 @@
     "neighbours",
     "Nivo",
     "nlen",
+    "NOCASE",
     "NOCOLON",
     "nocolon",
     "nodesep",
