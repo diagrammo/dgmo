@@ -1181,3 +1181,18 @@ export {
   type CodepointRange,
   type UncoveredRun,
 } from './font-coverage';
+
+// Diagrammo Cloud space reads and writes with a space API key — the client
+// behind `dgmo put` / `get` / `ls`, here so dgmo-mcp's space tools call the
+// same code (#1094). Not a new subpath, for the same reason as above.
+export {
+  putSpaceDiagram,
+  getSpaceDiagram,
+  listSpaceDiagrams,
+  CloudSpaceError,
+  CLOUD_API,
+  type CloudSpaceTarget,
+  type SpaceDiagram,
+  type SpaceDiagramSummary,
+  type SpacePutResult,
+} from './cloud-space';

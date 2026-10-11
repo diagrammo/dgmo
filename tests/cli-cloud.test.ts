@@ -164,7 +164,7 @@ describe('dgmo put', () => {
     expect(code).toBe(1);
     const res = JSON.parse(h.out());
     expect(res).toMatchObject({ success: false, status: 409 });
-    expect(res.error).toContain('Run the command again');
+    expect(res.error).toContain('Try again');
     expect(res.error).not.toContain('..');
   });
 });
