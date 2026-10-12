@@ -1031,9 +1031,6 @@ export function applyGroupOrdering(
 // Main Renderer
 // ============================================================
 
-/**
- * Render a sequence diagram into the given container element.
- */
 // --- Block-aware Y spacing ---
 const BLOCK_HEADER_SPACE = 30;
 const BLOCK_AFTER_SPACE = 15;
@@ -2356,6 +2353,9 @@ export function layoutSequence(
   };
 }
 
+/**
+ * Render a sequence diagram into the given container element.
+ */
 export function renderSequenceDiagram(
   container: HTMLDivElement,
   parsed: ParsedSequenceDgmo,
