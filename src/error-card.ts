@@ -282,23 +282,24 @@ function frownMark(cx: number, cy: number, color: string): string {
   ].join('');
 }
 
-// The Diagrammo mark (the app favicon): rounded square, gold arch, a 3-bar
-// chart and 3 lines. Scaled from its native 100×100 box to `size` px at (x,y).
-// Brand colors are literal hex (the mark is fixed, not palette-tinted) and
-// pre-resolved so resvg renders it in PNG exports too.
+// The Diagrammo mark: the D, as three bars and a three-segment bowl. Paths are
+// the site favicon's (diagrammo_app_site/public/favicon.svg), native 100×100
+// box, on a transparent ground so it sits on the light and dark card alike.
+// Scaled to `size` px at (x,y). Brand colours are literal hex (the mark is
+// fixed, not palette-tinted) so resvg renders it in PNG exports too. Until
+// 2026-10-12 this drew the retired dark-square mark (#1262).
 function diagrammoIcon(x: number, y: number, size: number): string {
   const s = size / 100;
   return (
     `<g transform="translate(${x} ${y}) scale(${s})">` +
-    `<rect width="100" height="100" rx="18" fill="#1f2933"/>` +
-    `<path d="M41 71 L41 63.51 A28 28 0 1 1 59 63.51 L59 71" fill="none" stroke="#c9a227" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>` +
-    `<rect x="36" y="43" width="7" height="9" rx="1.9" fill="#c0504d"/>` +
-    `<rect x="45" y="37" width="7" height="15" rx="1.9" fill="#5b9357"/>` +
-    `<rect x="54" y="30" width="7" height="22" rx="1.9" fill="#3b6ea5"/>` +
-    `<rect x="36" y="75" width="28" height="4.6" rx="2.3" fill="#7d5ba6"/>` +
-    `<rect x="36" y="82" width="28" height="4.6" rx="2.3" fill="#7d5ba6"/>` +
-    `<rect x="36" y="89" width="28" height="4.6" rx="2.3" fill="#7d5ba6"/>` +
-    `</g>`
+    `<g transform="translate(-3.27 -4.56) scale(1.0911)">` +
+    `<rect x="11" y="8" width="22" height="39.5" rx="2.5" fill="#c0504d"/>` +
+    `<rect x="11" y="52.5" width="22" height="22.1" rx="2.5" fill="#5b9357"/>` +
+    `<rect x="11" y="79.6" width="22" height="12.4" rx="2.5" fill="#4f96c4"/>` +
+    `<path fill="#3a9188" d="M45 11.12 A3 3 0 0 1 48.23 8.12 A42 42 0 0 1 86.52 43.65 A3 3 0 0 1 83.78 47.10 L72.76 47.92 A3 3 0 0 1 69.59 45.47 A25 25 0 0 0 47.68 25.14 A3 3 0 0 1 45 22.16 Z"/>` +
+    `<path fill="#7d5ba6" d="M83.78 52.90 A3 3 0 0 1 86.52 56.35 A42 42 0 0 1 74.53 79.87 A3 3 0 0 1 70.13 79.67 L62.99 71.24 A3 3 0 0 1 63.12 67.23 A25 25 0 0 0 69.59 54.53 A3 3 0 0 1 72.76 52.08 Z"/>` +
+    `<path fill="#cc7a33" d="M65.43 83.08 A3 3 0 0 1 64.27 87.32 A42 42 0 0 1 48.23 91.88 A3 3 0 0 1 45 88.88 L45 77.84 A3 3 0 0 1 47.68 74.86 A25 25 0 0 0 55.78 72.56 A3 3 0 0 1 59.63 73.69 Z"/>` +
+    `</g></g>`
   );
 }
 

@@ -40,6 +40,17 @@ describe('renderErrorCard', () => {
     expect(svg).toContain('<g transform="translate(');
   });
 
+  it('draws the current D mark, not the retired dark-square one (#1262)', () => {
+    const svg = renderErrorCard(
+      [err({ line: 1, message: 'bad thing' })],
+      'bar Sales\nbad thing',
+      palettes.slate,
+      'light'
+    );
+    expect(svg).toContain('#3a9188'); // teal bowl segment of the D
+    expect(svg).not.toContain('#c9a227'); // the old mark's gold arch
+  });
+
   it('always adds a documentation link, deep-linked to the chart-type guide', () => {
     const svg = renderErrorCard(
       [err({ line: 2, message: 'bad thing' })],
