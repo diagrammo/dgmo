@@ -53,7 +53,10 @@ import {
   getLegendExtent,
 } from '../utils/legend-layout';
 import { legendSuppressed, legendInlineRequested } from '../utils/parsing';
-import { layoutInlineHeader } from '../utils/inline-header';
+import {
+  layoutInlineHeader,
+  type InlineHeaderGeometry,
+} from '../utils/inline-header';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import { legendChromeColors } from '../utils/legend-constants';
 import type { LegendCallbacks, LegendConfig } from '../utils/legend-types';
@@ -1031,19 +1034,130 @@ export function applyGroupOrdering(
 /**
  * Render a sequence diagram into the given container element.
  */
-export function renderSequenceDiagram(
-  container: HTMLDivElement,
-  parsed: ParsedSequenceDgmo,
-  palette: PaletteColors,
-  isDark: boolean,
-  _onNavigateToLine?: (line: number) => void,
-  options?: SequenceRenderOptions
-): void {
-  // Clear previous content
-  d3Selection.select(container).selectAll('*').remove();
+// --- Block-aware Y spacing ---
+const BLOCK_HEADER_SPACE = 30;
+const BLOCK_AFTER_SPACE = 15;
+const FRAME_PADDING_TOP = 42;
 
+// Group box layout constants
+const GROUP_PADDING_X = 15;
+// How much narrower each level of nesting draws its frame, and the floor it
+// may not cross — below ~4px the inner stroke reads as a double border on
+// the outer one rather than as a box inside a box.
+const GROUP_NEST_INSET_X = 6;
+const GROUP_NEST_MIN_PAD_X = 4;
+// How much lower each enclosing level draws its bottom edge. The header band
+// above grows the same way, so a nested frame is inset on all four sides
+// rather than sharing a line with the box that contains it.
+const GROUP_NEST_INSET_Y = 6;
+const GROUP_PADDING_TOP = 22;
+const GROUP_PADDING_BOTTOM = 8;
+const GROUP_LABEL_SIZE = 11;
+const GROUP_LABEL_WEIGHT = 'bold';
+
+/**
+ * How far below the participant boxes a group frame at this depth closes. An
+ * OUTER frame reaches lower so an inner one clears it; a flat diagram is
+ * `maxGroupDepth === 0` and gets exactly GROUP_PADDING_BOTTOM.
+ */
+function groupBottomPad(depth: number, maxGroupDepth: number): number {
+  return GROUP_PADDING_BOTTOM + (maxGroupDepth - depth) * GROUP_NEST_INSET_Y;
+}
+
+function isSectionCollapsed(
+  sec: SequenceSection,
+  collapsedSections: ReadonlySet<number> | undefined
+): boolean {
+  return collapsedSections?.has(sec.lineNumber) ?? false;
+}
+
+/** Where one note is drawn and how wide it may grow. */
+interface NoteLayout {
+  topY: number;
+  /** The side it hangs on, after flipping an edge note inward. */
+  position: 'left' | 'right';
+  /** It follows a self-call, so it starts below that call's loop. */
+  afterSelfCall: boolean;
+  /** The widest the box may draw without entering the next lane. */
+  maxW: number;
+  /** Width available to the wrapped text inside a box of `maxW`. */
+  textWidth: number;
+}
+
+interface SectionRegion {
+  section: SequenceSection;
+  msgIndices: number[]; // message indices belonging to this section
+}
+
+/** Everything `renderSequenceDiagram` draws from — see {@link layoutSequence}. */
+interface SequenceLayout {
+  ctx: ScaleContext;
+  /** The view laid out: collapsed groups already folded into one column. */
+  participants: SequenceParticipant[];
+  messages: readonly SequenceMessage[];
+  elements: readonly SequenceElement[];
+  groups: readonly SequenceGroup[];
+  effectiveCollapsedGroups: Set<number>;
+  activeTagGroup: string | undefined;
+  /** The steps drawn, in order; every per-step array below shares its index. */
+  renderSteps: RenderStep[];
+  stepLabels: string[];
+  stepYPositions: number[];
+  labelRoomBefore: number[];
+  activations: (Activation & { implicitEnd: boolean })[];
+  msgToFirstStep: Map<number, number>;
+  msgToLastStep: Map<number, number>;
+  /** Section divider Y, keyed by the section's line number. */
+  sectionYPositions: Map<number, number>;
+  sectionRegions: SectionRegion[];
+  sectionMsgCounts: Map<number, number>;
+  noteLayouts: Map<SequenceNote, NoteLayout>;
+  /** Lifeline X, keyed by participant id. */
+  participantX: Map<string, number>;
+  participantStartY: number;
+  lifelineStartY0: number;
+  lifelineLength: number;
+  maxGroupDepth: number;
+  svgWidth: number;
+  totalHeight: number;
+  showTitle: boolean;
+  titleOffset: number;
+  noLegend: boolean;
+  legendConfig: LegendConfig;
+  header: InlineHeaderGeometry;
+  // Sizes after scaling to the width available.
+  sTopMargin: number;
+  sBoxW: number;
+  sBoxH: number;
+  sLabelFontSize: number;
+  sLabelTextWidth: number;
+  sGroupLabelSize: number;
+  sActivationWidth: number;
+  ACTIVATION_NEST_OFFSET: number;
+  sArrowheadW: number;
+  sArrowheadH: number;
+  sSelfCallWidth: number;
+  sSelfCallHeight: number;
+  sNoteFold: number;
+  sNoteFontSize: number;
+  sNoteGap: number;
+  sNoteLineH: number;
+  sNotePadH: number;
+  sNotePadV: number;
+}
+
+/**
+ * Lay a sequence diagram out without drawing it: the participant columns, the
+ * Y of every step, section divider and note, the activation bars and the
+ * canvas size. Pure — no DOM, no SVG; the caller passes the width it has.
+ * Returns `null` when there is no participant to lay out.
+ */
+export function layoutSequence(
+  parsed: ParsedSequenceDgmo,
+  containerWidth: number,
+  options?: SequenceRenderOptions
+): SequenceLayout | null {
   const { title, options: parsedOptions } = parsed;
-  const fillMode = fillModeFromOptions(parsedOptions);
 
   // Effective collapsed groups. `options.collapsedGroups` is the AUTHORITATIVE
   // desired set when supplied — the app seeds it from the source `collapsed:
@@ -1095,7 +1209,7 @@ export function renderSequenceDiagram(
   const participants = applyPositionOverrides(
     applyGroupOrdering(sourceParticipants, groups, messages)
   );
-  if (participants.length === 0) return;
+  if (participants.length === 0) return null;
 
   // Compute group boundaries for inter-group spacing redistribution.
   // A gap is "between" (wider) whenever the two adjacent lifelines are not
@@ -1149,8 +1263,6 @@ export function renderSequenceDiagram(
     participants.length * effectiveGap,
     uniformBoxWidth + 40
   );
-  const containerWidth =
-    options?.exportWidth ?? container.getBoundingClientRect().width;
   const ctx = options?.exportWidth
     ? ScaleContext.identity()
     : ScaleContext.from(containerWidth, idealWidth);
@@ -1239,22 +1351,6 @@ export function renderSequenceDiagram(
       parsedOptions['active-tag'],
       options?.activeTagGroup
     ) ?? undefined;
-  let tagMap: ResolvedTagMap | undefined;
-  const tagValueToColor = new Map<string, string>();
-  if (activeTagGroup) {
-    tagMap = resolveSequenceTags(parsed, activeTagGroup);
-    const tg = parsed.tagGroups.find(
-      (g) => g.name.toLowerCase() === activeTagGroup.toLowerCase()
-    );
-    if (tg) {
-      for (const entry of tg.entries) {
-        tagValueToColor.set(entry.value.toLowerCase(), entry.color);
-      }
-    }
-  }
-  const getTagColor = (value: string | undefined): string | undefined =>
-    value ? tagValueToColor.get(value.toLowerCase()) : undefined;
-  const tagKey = activeTagGroup ? tagAttrKey(activeTagGroup) : undefined;
 
   // Build hidden message set for collapse support
   const hiddenMsgIndices = new Set<number>();
@@ -1315,11 +1411,6 @@ export function renderSequenceDiagram(
   // Vertical spacing is NOT compressed by ScaleContext — the container scrolls
   // vertically, so keeping full spacing preserves message readability at all scales.
   const stepSpacing = 35;
-
-  // --- Block-aware Y spacing ---
-  const BLOCK_HEADER_SPACE = 30;
-  const BLOCK_AFTER_SPACE = 15;
-  const FRAME_PADDING_TOP = 42;
 
   // Build maps from messageIndex to render step indices (needed early for spacing)
   const msgToFirstStep = new Map<number, number>();
@@ -1418,11 +1509,11 @@ export function renderSequenceDiagram(
   };
 
   // Section layout constants
-  const isSectionCollapsed = (sec: SequenceSection): boolean =>
-    collapsedSections?.has(sec.lineNumber) ?? false;
   /** Half the collapsed band's extra height, added on each side of the anchor. */
   const collapsedBandPad = (sec: SequenceSection): number =>
-    isSectionCollapsed(sec) ? COLLAPSED_SECTION_BAND_EXTRA / 2 : 0;
+    isSectionCollapsed(sec, collapsedSections)
+      ? COLLAPSED_SECTION_BAND_EXTRA / 2
+      : 0;
   const SECTION_TOP_PAD = 35;
   const SECTION_BOTTOM_PAD = 45;
 
@@ -1563,10 +1654,6 @@ export function renderSequenceDiagram(
   // to messages below). This ensures toggling collapse/expand doesn't move the divider.
 
   // Walk top-level elements to build section regions
-  interface SectionRegion {
-    section: SequenceSection;
-    msgIndices: number[]; // message indices belonging to this section
-  }
   const preSectionMsgIndices: number[] = [];
   const sectionRegions: SectionRegion[] = [];
   {
@@ -1696,19 +1783,6 @@ export function renderSequenceDiagram(
   // Clear air between the outermost drawn edge and the canvas. Was an
   // unnamed `+ 10` on the right and nothing at all on the left.
   const sEdgePad = ctx.aesthetic(20);
-  const GROUP_PADDING_X = 15;
-  // How much narrower each level of nesting draws its frame, and the floor it
-  // may not cross — below ~4px the inner stroke reads as a double border on
-  // the outer one rather than as a box inside a box.
-  const GROUP_NEST_INSET_X = 6;
-  const GROUP_NEST_MIN_PAD_X = 4;
-  // How much lower each enclosing level draws its bottom edge. The header band
-  // above grows the same way, so a nested frame is inset on all four sides
-  // rather than sharing a line with the box that contains it.
-  const GROUP_NEST_INSET_Y = 6;
-  const GROUP_PADDING_TOP = 22;
-  const GROUP_PADDING_BOTTOM = 8;
-  const GROUP_LABEL_SIZE = 11;
   // The type of the group's name on its EXPANDED header strip only. Scaled
   // like every other label here; the strip's reserved height
   // (GROUP_PADDING_TOP + GROUP_LABEL_SIZE, above) is not, so a scaled-down
@@ -1722,7 +1796,6 @@ export function renderSequenceDiagram(
   // LABEL_FONT_SIZE weight 500. Matching the strip made it the one name on
   // that row set in something else.
   const sGroupLabelSize = ctx.text(GROUP_LABEL_SIZE);
-  const GROUP_LABEL_WEIGHT = 'bold';
 
   // Compute cumulative Y positions for each step, with section dividers as stable anchors
   const showTitle = !!title && parsedOptions['no-title'] !== 'on';
@@ -1794,13 +1867,6 @@ export function renderSequenceDiagram(
     parsed.groups.length > 0
       ? (maxGroupDepth + 1) * GROUP_PADDING_TOP + GROUP_LABEL_SIZE
       : 0;
-  /**
-   * How far below the participant boxes a frame at this depth closes. An
-   * OUTER frame reaches lower so an inner one clears it; a flat diagram is
-   * `maxGroupDepth === 0` and gets exactly GROUP_PADDING_BOTTOM, as before.
-   */
-  const groupBottomPad = (depth: number): number =>
-    GROUP_PADDING_BOTTOM + (maxGroupDepth - depth) * GROUP_NEST_INSET_Y;
   const participantStartY =
     sTopMargin +
     titleOffset +
@@ -1812,7 +1878,7 @@ export function renderSequenceDiagram(
   const messageStartOffset =
     sMsgStartOffset +
     (hasActors ? 20 : 0) +
-    (parsed.groups.length > 0 ? groupBottomPad(0) : 0);
+    (parsed.groups.length > 0 ? groupBottomPad(0, maxGroupDepth) : 0);
   // Redistribute gap: tighter within groups, wider between groups.
   // Total width stays exactly participants.length * sGap — no viewBox change.
   // Computed before the vertical layout, which needs the columns' spacing to
@@ -2012,6 +2078,20 @@ export function renderSequenceDiagram(
       noteTopY + noteH + NOTE_TRAILING_GAP
     );
   }
+  const noteLayouts = new Map<SequenceNote, NoteLayout>();
+  for (const [note, topY] of noteYMap) {
+    const position = effectiveNotePosition(note);
+    const afterSelfCall = isNoteAfterSelfCall(note);
+    const maxW = noteEffectiveMaxW(note.participantId, position, afterSelfCall);
+    noteLayouts.set(note, {
+      topY,
+      position,
+      afterSelfCall,
+      maxW,
+      textWidth: noteTextWidth(maxW),
+    });
+  }
+  const stepLabels = renderSteps.map((step) => displayMessageLabel(step));
   const messageAreaHeight = contentBottomY - lifelineStartY0;
   const lifelineLength = messageAreaHeight + sLifelineTail;
   /**
@@ -2223,6 +2303,148 @@ export function renderSequenceDiagram(
     offsetX = leftMargin + Math.max(0, (svgWidth - totalWidth) / 2);
     buildParticipantX();
   }
+
+  return {
+    ctx,
+    participants,
+    messages,
+    elements,
+    groups,
+    effectiveCollapsedGroups,
+    activeTagGroup,
+    renderSteps,
+    stepLabels,
+    activations,
+    labelRoomBefore,
+    msgToFirstStep,
+    msgToLastStep,
+    stepYPositions,
+    sectionYPositions,
+    sectionRegions,
+    sectionMsgCounts,
+    noteLayouts,
+    participantX,
+    participantStartY,
+    lifelineStartY0,
+    lifelineLength,
+    maxGroupDepth,
+    svgWidth,
+    totalHeight,
+    showTitle,
+    titleOffset,
+    noLegend,
+    legendConfig,
+    header,
+    sTopMargin,
+    sBoxW,
+    sBoxH,
+    sLabelFontSize,
+    sLabelTextWidth,
+    sGroupLabelSize,
+    sActivationWidth,
+    ACTIVATION_NEST_OFFSET,
+    sArrowheadW,
+    sArrowheadH,
+    sSelfCallWidth,
+    sSelfCallHeight,
+    sNoteFold,
+    sNoteFontSize,
+    sNoteGap,
+    sNoteLineH,
+    sNotePadH,
+    sNotePadV,
+  };
+}
+
+export function renderSequenceDiagram(
+  container: HTMLDivElement,
+  parsed: ParsedSequenceDgmo,
+  palette: PaletteColors,
+  isDark: boolean,
+  _onNavigateToLine?: (line: number) => void,
+  options?: SequenceRenderOptions
+): void {
+  // Clear previous content
+  d3Selection.select(container).selectAll('*').remove();
+
+  const layout = layoutSequence(
+    parsed,
+    options?.exportWidth ?? container.getBoundingClientRect().width,
+    options
+  );
+  if (!layout) return;
+  const {
+    ctx,
+    participants,
+    messages,
+    elements,
+    groups,
+    effectiveCollapsedGroups,
+    activeTagGroup,
+    renderSteps,
+    stepLabels,
+    activations,
+    labelRoomBefore,
+    msgToFirstStep,
+    msgToLastStep,
+    stepYPositions,
+    sectionYPositions,
+    sectionRegions,
+    sectionMsgCounts,
+    noteLayouts,
+    participantX,
+    participantStartY,
+    lifelineStartY0,
+    lifelineLength,
+    maxGroupDepth,
+    svgWidth,
+    totalHeight,
+    showTitle,
+    titleOffset,
+    noLegend,
+    legendConfig,
+    header,
+    sTopMargin,
+    sBoxW,
+    sBoxH,
+    sLabelFontSize,
+    sLabelTextWidth,
+    sGroupLabelSize,
+    sActivationWidth,
+    ACTIVATION_NEST_OFFSET,
+    sArrowheadW,
+    sArrowheadH,
+    sSelfCallWidth,
+    sSelfCallHeight,
+    sNoteFold,
+    sNoteFontSize,
+    sNoteGap,
+    sNoteLineH,
+    sNotePadH,
+    sNotePadV,
+  } = layout;
+  const { title, options: parsedOptions } = parsed;
+  const fillMode = fillModeFromOptions(parsedOptions);
+  const collapsedSections = options?.collapsedSections;
+  // Callers always pass a laid-out step index (1:1 with stepYPositions).
+  const stepY = (i: number) => stepYPositions[i]!;
+
+  let tagMap: ResolvedTagMap | undefined;
+  const tagValueToColor = new Map<string, string>();
+  if (activeTagGroup) {
+    tagMap = resolveSequenceTags(parsed, activeTagGroup);
+    const tg = parsed.tagGroups.find(
+      (g) => g.name.toLowerCase() === activeTagGroup.toLowerCase()
+    );
+    if (tg) {
+      for (const entry of tg.entries) {
+        tagValueToColor.set(entry.value.toLowerCase(), entry.color);
+      }
+    }
+  }
+  const getTagColor = (value: string | undefined): string | undefined =>
+    value ? tagValueToColor.get(value.toLowerCase()) : undefined;
+  const tagKey = activeTagGroup ? tagAttrKey(activeTagGroup) : undefined;
 
   const svg = d3Selection
     .select(container)
@@ -2520,7 +2742,9 @@ export function renderSequenceDiagram(
     const boxY =
       participantStartY - (maxGroupDepth + 1 - group.depth) * GROUP_PADDING_TOP;
     const boxH =
-      sBoxH + (participantStartY - boxY) + groupBottomPad(group.depth);
+      sBoxH +
+      (participantStartY - boxY) +
+      groupBottomPad(group.depth, maxGroupDepth);
 
     // Group box background — use tag color if group has metadata for the active tag group.
     // Intentionally 15-20% (not the canonical 25% shapeFill): group boxes are
@@ -2601,7 +2825,7 @@ export function renderSequenceDiagram(
   const sectionLabelX = (sectionLineX1 + sectionLineX2) / 2;
 
   const sectionLabelTextFor = (sec: SequenceSection): string => {
-    if (!isSectionCollapsed(sec)) return sec.label;
+    if (!isSectionCollapsed(sec, collapsedSections)) return sec.label;
     const count = sectionMsgCounts.get(sec.lineNumber) ?? 0;
     return `${sec.label} (${count} ${count === 1 ? 'message' : 'messages'})`;
   };
@@ -2609,7 +2833,7 @@ export function renderSequenceDiagram(
     sec: SequenceSection,
     secY: number
   ): number =>
-    isSectionCollapsed(sec)
+    isSectionCollapsed(sec, collapsedSections)
       ? secY + COLLAPSED_SECTION_LABEL_BASELINE
       : secY + 4;
 
@@ -2733,7 +2957,9 @@ export function renderSequenceDiagram(
         : 0;
       // At its own depth too, so a collapsed group closes on the same line
       // its frame would have — inside its parent's, not level with it.
-      const padBottom = hasExpandedGroup ? groupBottomPad(meta.depth) : 0;
+      const padBottom = hasExpandedGroup
+        ? groupBottomPad(meta.depth, maxGroupDepth)
+        : 0;
       const fullH = sBoxH + padTop + padBottom;
       const clipId = `clip-drill-group-${participant.id.replace(/[^a-zA-Z0-9-]/g, '-')}`;
 
@@ -2827,7 +3053,10 @@ export function renderSequenceDiagram(
     const llY = isCollapsedGroup
       ? lifelineStartY +
         (hasExpandedGroup
-          ? groupBottomPad(collapsedGroupMeta.get(participant.id)?.depth ?? 0)
+          ? groupBottomPad(
+              collapsedGroupMeta.get(participant.id)?.depth ?? 0,
+              maxGroupDepth
+            )
           : 0)
       : participant.type === 'actor'
         ? lifelineStartY + ACTOR_LABEL_CLEARANCE
@@ -3255,7 +3484,7 @@ export function renderSequenceDiagram(
     const secY = sectionYPositions.get(sec.lineNumber);
     if (secY === undefined) continue;
 
-    const isCollapsed = isSectionCollapsed(sec);
+    const isCollapsed = isSectionCollapsed(sec, collapsedSections);
     const lineColor = palette.textMuted;
 
     // Wrap section elements in a <g> for toggle.
@@ -3497,7 +3726,7 @@ export function renderSequenceDiagram(
           selfCallEl.attr(`data-tag-${tagKey}`, msgTagValue.toLowerCase());
         }
 
-        const displayLabel = displayMessageLabel(step);
+        const displayLabel = stepLabels[i];
         if (displayLabel) {
           const labelEl = svg
             .append('text')
@@ -3562,7 +3791,7 @@ export function renderSequenceDiagram(
           arrowEl.attr(`data-tag-${tagKey}`, msgTagValue.toLowerCase());
         }
 
-        const displayLabel = displayMessageLabel(step);
+        const displayLabel = stepLabels[i];
         if (displayLabel) {
           const midX = (x1 + x2) / 2;
           const labelEl = svg
@@ -3632,7 +3861,7 @@ export function renderSequenceDiagram(
         returnEl.attr(`data-tag-${tagKey}`, msgTagValue.toLowerCase());
       }
 
-      const displayLabel = displayMessageLabel(step);
+      const displayLabel = stepLabels[i];
       if (displayLabel) {
         const midX = (x1 + x2) / 2;
         const labelEl = svg
@@ -3673,18 +3902,16 @@ export function renderSequenceDiagram(
       if (isSequenceNote(el)) {
         const px = participantX.get(el.participantId);
         if (px === undefined) continue;
-        const noteTopY = noteYMap.get(el);
-        if (noteTopY === undefined) continue;
-
-        const position = effectiveNotePosition(el);
-        const isRight = position === 'right';
-        const afterSelfCall = isNoteAfterSelfCall(el);
-        const maxW = noteEffectiveMaxW(
-          el.participantId,
+        const noteLayout = noteLayouts.get(el);
+        if (noteLayout === undefined) continue;
+        const {
+          topY: noteTopY,
           position,
-          afterSelfCall
-        );
-        const textWidth = noteTextWidth(maxW);
+          afterSelfCall,
+          maxW,
+          textWidth,
+        } = noteLayout;
+        const isRight = position === 'right';
         const wrappedLines = wrapTextLines(el.text, textWidth, sNoteFontSize);
         const noteH = wrappedLines.length * sNoteLineH + sNotePadV * 2;
         const maxLineW = Math.max(
