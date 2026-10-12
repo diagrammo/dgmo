@@ -83,6 +83,27 @@ const SEARCH_WORK_CAP = 36_000;
 // size 330; the largest diagram in the corpus is 192.
 const MIN_SEARCH_CANDIDATES = 6;
 
+/**
+ * The search's budget for a graph of `nodes` nodes and `edges` edges: how many
+ * seed-shuffles to try (by node count, #981), and the most candidate
+ * placements to attempt in all (SEARCH_WORK_CAP). The flowchart and state
+ * search (`src/graph/layout.ts`, #1240) spends the same budget.
+ */
+export function searchBudget(
+  nodes: number,
+  edges: number
+): { seeds: number; maxCandidates: number } {
+  const seeds = nodes <= 12 ? 20 : nodes <= 22 ? 40 : nodes <= 35 ? 22 : 10;
+  const size = Math.max(1, nodes + edges);
+  return {
+    seeds,
+    maxCandidates: Math.max(
+      MIN_SEARCH_CANDIDATES,
+      Math.floor(SEARCH_WORK_CAP / Math.pow(size, 1.5))
+    ),
+  };
+}
+
 function rng(s: number) {
   return () => {
     s |= 0;
@@ -1529,8 +1550,8 @@ export async function layoutBoxesAndLinesSearch(
   // (#981), 20 seeds found layouts as good in total badness (19 vs 20) at
   // under half the time, and more seeds can crowd the best candidate out of
   // the top-REFINE_K re-rank.
-  const seedCount =
-    opts?.seeds ?? (n <= 12 ? 20 : n <= 22 ? 40 : n <= 35 ? 22 : 10);
+  const budget = searchBudget(n, parsed.edges.length);
+  const seedCount = opts?.seeds ?? budget.seeds;
   const REFINE_K = opts?.refineK ?? 6;
   const lambda = opts?.lambda ?? DEFAULT_LAMBDA;
   const prev = opts?.previousPositions;
@@ -1541,11 +1562,7 @@ export async function layoutBoxesAndLinesSearch(
   // work, and it is the only thing that stops the pool loop early — so the
   // same diagram attempts the same candidates on an idle Mac and a loaded
   // Linux box, and the picture no longer records how busy the machine was.
-  const searchSize = Math.max(1, n + parsed.edges.length);
-  const maxCandidates = Math.max(
-    MIN_SEARCH_CANDIDATES,
-    Math.floor(SEARCH_WORK_CAP / Math.pow(searchSize, 1.5))
-  );
+  const maxCandidates = budget.maxCandidates;
   // Candidate placements ATTEMPTED, counted across both generation loops (the
   // base pool and the escalation seed batch, which share the one cap). Attempts
   // rather than successes: a config that makes dagre throw has already cost its

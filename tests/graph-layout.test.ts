@@ -1,6 +1,15 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, it, expect } from 'vitest';
-import { layoutGraph } from '../src/graph/layout';
+import { layoutGraph, type LayoutResult } from '../src/graph/layout';
 import type { ParsedGraph } from '../src/graph/types';
+import { parseFlowchart } from '../src/graph/flowchart-parser';
+import { parseState } from '../src/graph/state-parser';
+import {
+  countSplineCrossings,
+  countEdgeNodePierces,
+} from '../src/boxes-and-lines/layout-search';
+import type { BLLayoutResult } from '../src/boxes-and-lines/layout';
 
 function makeGraph(overrides: Partial<ParsedGraph> = {}): ParsedGraph {
   return {
@@ -262,5 +271,75 @@ describe('layoutGraph', () => {
     expect(result.nodes).toHaveLength(0);
     expect(result.edges).toHaveLength(0);
     expect(result.groups).toHaveLength(0);
+  });
+});
+
+// The boxes-and-lines scorers, read the way the search reads a graph layout.
+function asScored(lay: LayoutResult): BLLayoutResult {
+  return {
+    nodes: lay.nodes.map((n) => ({
+      label: n.id,
+      x: n.x,
+      y: n.y,
+      width: n.width,
+      height: n.height,
+    })),
+    edges: lay.edges,
+    groups: [],
+    width: lay.width,
+    height: lay.height,
+  } as unknown as BLLayoutResult;
+}
+
+const fixture = (name: string): string =>
+  readFileSync(resolve(__dirname, '../gallery/fixtures', name), 'utf8');
+
+describe('layoutGraph crossing search (#1240)', () => {
+  it('lays the decision flowchart out with no crossing (plain dagre draws one)', () => {
+    const lay = layoutGraph(parseFlowchart(fixture('flowchart-decision.dgmo')));
+    expect(countSplineCrossings(asScored(lay))).toBe(0);
+  });
+
+  it('takes the full flowchart from 3 crossings to 0', () => {
+    const lay = layoutGraph(parseFlowchart(fixture('flowchart-full.dgmo')));
+    expect(countSplineCrossings(asScored(lay))).toBe(0);
+  });
+
+  it('takes the state fixture from 3 crossings to 2, the main path still reading forward', () => {
+    const lay = layoutGraph(parseState(fixture('state.dgmo')));
+    expect(countSplineCrossings(asScored(lay))).toBeLessThanOrEqual(2);
+    expect(countEdgeNodePierces(asScored(lay))).toBe(0);
+    // A shuffled candidate with 1 crossing put Pending right of everything it
+    // leads to; no candidate may draw an edge backward that plain dagre draws
+    // forward.
+    const x = new Map(lay.nodes.map((n) => [n.label, n.x]));
+    expect(x.get('Pending')!).toBeLessThan(x.get('Validating')!);
+  });
+
+  it('is deterministic — the same source lays out the same twice', () => {
+    const src = parseState(fixture('state.dgmo'));
+    expect(layoutGraph(src)).toEqual(layoutGraph(src));
+  });
+
+  it('leaves a graph with nothing to fix in source order', () => {
+    // A root with three children: the first-defined branch sits leftmost.
+    const lay = layoutGraph(
+      makeGraph({
+        nodes: [
+          { id: 'r', label: 'Root', shape: 'process', lineNumber: 1 },
+          { id: 'a', label: 'A', shape: 'process', lineNumber: 2 },
+          { id: 'b', label: 'B', shape: 'process', lineNumber: 3 },
+          { id: 'c', label: 'C', shape: 'process', lineNumber: 4 },
+        ],
+        edges: [
+          { source: 'r', target: 'a', lineNumber: 5 },
+          { source: 'r', target: 'b', lineNumber: 6 },
+          { source: 'r', target: 'c', lineNumber: 7 },
+        ],
+      })
+    );
+    const x = new Map(lay.nodes.map((n) => [n.id, n.x]));
+    expect(x.get('a')!).toBeLessThan(x.get('b')!);
+    expect(x.get('b')!).toBeLessThan(x.get('c')!);
   });
 });

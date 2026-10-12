@@ -10,6 +10,14 @@ import { resolveNotes } from './notes';
 import { noteBoxSize } from '../utils/note-box';
 import { placeNotes, noteCanvasShift } from '../utils/notes';
 import type { WrappedDescLine } from '../utils/wrapped-desc';
+import {
+  countSplineCrossings,
+  countEdgeOverlaps,
+  countEdgeNodePierces,
+  deroutePierces,
+  searchBudget,
+} from '../boxes-and-lines/layout-search';
+import type { BLLayoutResult } from '../boxes-and-lines/layout';
 
 export type NoteSide = 'above' | 'below' | 'left' | 'right';
 
@@ -113,6 +121,153 @@ function computeNodeHeight(shape: GraphShape): number {
   return shape === 'decision' ? 60 : 50;
 }
 
+type Pt = { readonly x: number; readonly y: number };
+const newDagreGraph = () => new dagre.graphlib.Graph({ compound: true });
+type DagreGraph = ReturnType<typeof newDagreGraph>;
+
+// The placement search (#1240), borrowed from boxes-and-lines: several dagre
+// placements, scored on the boxes-and-lines search's own badness — true spline
+// crossings + overlap runs + node pierces — then the winner's pierces bent
+// around the node. The plain placement (network-simplex, source order) is the
+// first candidate, and another replaces it only when it lowers badness WITHOUT
+// adding a crossing: a picture with nothing to fix lays out exactly as before,
+// and no fixture ever gains a crossing.
+const SEARCH_RANKERS = ['tight-tree', 'longest-path'];
+// Seed-shuffles tried, below the boxes-and-lines count. `layoutGraph` is
+// synchronous, so every candidate (~27 ms of dagre on a 9-node state diagram)
+// blocks the editor. On the 13 flowchart and state fixtures every winning
+// candidate came within the first 6 attempts; the full count added ~600 ms
+// to the two diagrams it could not finish and found nothing more.
+const SEARCH_SEEDS = 6;
+
+function seeded(s: number): () => number {
+  return () => {
+    s = (s + 0x6d2b79f5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function shuffler(seed: number): <T>(a: readonly T[]) => T[] {
+  const r = seeded(seed + 1);
+  return <T>(a: readonly T[]): T[] => {
+    const out = a.slice();
+    for (let i = out.length - 1; i > 0; i--) {
+      const j = Math.floor(r() * (i + 1));
+      [out[i], out[j]] = [out[j]!, out[i]!];
+    }
+    return out;
+  };
+}
+
+function searchPlacement(
+  graph: ParsedGraph,
+  allNodes: readonly GraphNode[],
+  place: (ranker: string, shuffle?: <T>(a: readonly T[]) => T[]) => DagreGraph
+): { g: DagreGraph; edgePoints?: Pt[][] } {
+  // The scorers read boxes-and-lines' layout shape: nodes keyed by `label`,
+  // edges in `graph.edges` order so a rerouted edge maps back by index.
+  const asScored = (g: DagreGraph): BLLayoutResult =>
+    ({
+      nodes: allNodes.map((n) => {
+        const p = g.node(n.id);
+        return {
+          label: n.id,
+          x: p.x,
+          y: p.y,
+          width: p.width,
+          height: p.height,
+        };
+      }),
+      edges: graph.edges.map((e) => ({
+        source: e.source,
+        target: e.target,
+        points: (g.edge(e.source, e.target)?.points ?? []) as Pt[],
+      })),
+      groups: [],
+      width: 0,
+      height: 0,
+    }) as unknown as BLLayoutResult;
+  const rest = (lay: BLLayoutResult): number =>
+    countEdgeOverlaps(lay) + countEdgeNodePierces(lay);
+  // Edges drawn against the flow (target before source on the rank axis).
+  // dagre picks which edge of a cycle to reverse from insertion order, so a
+  // shuffled candidate can turn the main path around — the state fixture's
+  // Pending landed right of everything it leads to. A candidate may only
+  // draw an edge backward where the plain placement already does.
+  const along = graph.direction === 'LR' ? 'x' : 'y';
+  const backward = (lay: BLLayoutResult): Set<number> => {
+    const at = new Map(lay.nodes.map((n) => [n.label, n[along]]));
+    const out = new Set<number>();
+    lay.edges.forEach((e, i) => {
+      if (e.source === e.target) return;
+      if (at.get(e.target)! < at.get(e.source)! - 1) out.add(i);
+    });
+    return out;
+  };
+
+  let best = place('network-simplex');
+  let bestLay = asScored(best);
+  const plainX = countSplineCrossings(bestLay);
+  let bestBad = plainX + rest(bestLay);
+  if (bestBad === 0) return { g: best };
+  const plainBack = backward(bestLay);
+
+  const budget = searchBudget(allNodes.length, graph.edges.length);
+  const configs: { ranker: string; seed?: number }[] = [
+    ...SEARCH_RANKERS.map((ranker) => ({ ranker })),
+    ...Array.from(
+      { length: Math.min(budget.seeds, SEARCH_SEEDS) },
+      (_, seed) => ({
+        ranker: 'network-simplex',
+        seed,
+      })
+    ),
+  ];
+  // The plain placement is the first attempt.
+  let attempts = 1;
+  for (const cfg of configs) {
+    if (bestBad === 0 || attempts >= budget.maxCandidates) break;
+    attempts++;
+    let g: DagreGraph;
+    try {
+      g = place(
+        cfg.ranker,
+        cfg.seed === undefined ? undefined : shuffler(cfg.seed)
+      );
+    } catch {
+      continue; // some rankers choke on odd graphs
+    }
+    const lay = asScored(g);
+    if ([...backward(lay)].some((i) => !plainBack.has(i))) continue;
+    // Past `floor` it cannot win: more crossings than plain, or no lower badness.
+    const floor = Math.min(plainX, bestBad - 1);
+    const x = countSplineCrossings(lay, floor);
+    if (x > floor) continue;
+    const bad = x + rest(lay);
+    if (bad < bestBad) {
+      best = g;
+      bestLay = lay;
+      bestBad = bad;
+    }
+  }
+
+  // The badness-gated detour: bend edges around the nodes they still pierce,
+  // kept on the same terms as a candidate.
+  const bent = deroutePierces(bestLay);
+  if (bent !== bestLay) {
+    const floor = Math.min(plainX, bestBad - 1);
+    const x = countSplineCrossings(bent, floor);
+    if (x <= floor && x + rest(bent) < bestBad)
+      return {
+        g: best,
+        edgePoints: bent.edges.map((e) => e.points as Pt[]),
+      };
+  }
+  return { g: best };
+}
+
 export function layoutGraph(
   graph: ParsedGraph,
   options?: LayoutOptions
@@ -144,29 +299,10 @@ export function layoutGraph(
     return { nodes: [], edges: [], groups: [], width: 0, height: 0 };
   }
 
-  const g = new dagre.graphlib.Graph({ compound: true });
-  g.setGraph({
-    rankdir: graph.direction,
-    nodesep: 50,
-    ranksep: 60,
-    edgesep: 20,
-  });
-  g.setDefaultEdgeLabel(() => ({}));
-
   // Build a lookup for original node data
   const nodeDataMap = new Map<string, GraphNode>();
   for (const node of allNodes) {
     nodeDataMap.set(node.id, node);
-  }
-
-  // Add group parent nodes (only non-collapsed groups)
-  if (graph.groups) {
-    for (const group of graph.groups) {
-      g.setNode(group.id, {
-        label: group.label,
-        clusterLabelPos: 'top',
-      });
-    }
   }
 
   // Resolve note anchors (no diagnostics here — the parser already
@@ -191,13 +327,7 @@ export function layoutGraph(
     endLineNumber: number;
   }
   const noteGeoms = new Map<string, NoteGeom>();
-
-  // Add nodes with their natural dimensions (notes never inflate them).
   for (const node of allNodes) {
-    const width = computeNodeWidth(node.label, node.shape);
-    const height = computeNodeHeight(node.shape);
-    g.setNode(node.id, { label: node.label, width, height });
-
     const note = noteByNode.get(node.id);
     if (note) {
       const size = noteBoxSize(note.body);
@@ -209,11 +339,6 @@ export function layoutGraph(
         lineNumber: note.lineNumber,
         endLineNumber: note.endLineNumber,
       });
-    }
-
-    // Set parent for grouped nodes (only for non-collapsed groups)
-    if (node.group && graph.groups?.some((gr) => gr.id === node.group)) {
-      g.setParent(node.id, node.group);
     }
   }
 
@@ -240,17 +365,61 @@ export function layoutGraph(
     }
     group.push(edge);
   }
-  for (const group of outgoingBySource.values()) {
-    for (let i = group.length - 1; i >= 0; i--) {
-      const edge = group[i]!;
+  const edgeOrder: GraphEdge[] = [];
+  for (const group of outgoingBySource.values())
+    for (let i = group.length - 1; i >= 0; i--) edgeOrder.push(group[i]!);
+
+  // One dagre placement. `shuffle` (a seeded search candidate) varies the
+  // insertion order of nodes and edges, which is what dagre's within-rank
+  // ordering starts from; without it the order is the source-order bias above.
+  const place = (
+    ranker: string,
+    shuffle?: <T>(a: readonly T[]) => T[]
+  ): DagreGraph => {
+    const ord = shuffle ?? (<T>(a: readonly T[]): T[] => a.slice());
+    const g = newDagreGraph();
+    g.setGraph({
+      rankdir: graph.direction,
+      ranker,
+      nodesep: 50,
+      ranksep: 60,
+      edgesep: 20,
+    });
+    g.setDefaultEdgeLabel(() => ({}));
+
+    // Add group parent nodes (only non-collapsed groups)
+    if (graph.groups) {
+      for (const group of graph.groups) {
+        g.setNode(group.id, {
+          label: group.label,
+          clusterLabelPos: 'top',
+        });
+      }
+    }
+
+    // Add nodes with their natural dimensions (notes never inflate them).
+    for (const node of ord(allNodes)) {
+      const width = computeNodeWidth(node.label, node.shape);
+      const height = computeNodeHeight(node.shape);
+      g.setNode(node.id, { label: node.label, width, height });
+
+      // Set parent for grouped nodes (only for non-collapsed groups)
+      if (node.group && graph.groups?.some((gr) => gr.id === node.group)) {
+        g.setParent(node.id, node.group);
+      }
+    }
+
+    for (const edge of ord(edgeOrder)) {
       g.setEdge(edge.source, edge.target, {
         label: edge.label ?? '',
       });
     }
-  }
 
-  // Run layout
-  dagre.layout(g);
+    dagre.layout(g);
+    return g;
+  };
+
+  const { g, edgePoints } = searchPlacement(graph, allNodes, place);
 
   // Extract positioned nodes
   const collapsedGroupIds = collapsedChildCounts
@@ -339,12 +508,12 @@ export function layoutGraph(
   });
 
   // Extract edge waypoints
-  const layoutEdges: LayoutEdge[] = graph.edges.map((edge): LayoutEdge => {
+  const layoutEdges: LayoutEdge[] = graph.edges.map((edge, i): LayoutEdge => {
     const edgeData = g.edge(edge.source, edge.target);
     return {
       source: edge.source,
       target: edge.target,
-      points: edgeData?.points ?? [],
+      points: edgePoints?.[i] ?? edgeData?.points ?? [],
       ...(edge.label !== undefined && { label: edge.label }),
       lineNumber: edge.lineNumber,
     };
