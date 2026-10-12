@@ -1035,6 +1035,10 @@ export function applyGroupOrdering(
 const BLOCK_HEADER_SPACE = 30;
 const BLOCK_AFTER_SPACE = 15;
 const FRAME_PADDING_TOP = 42;
+const FRAME_PADDING_X = 30;
+const FRAME_PADDING_BOTTOM = 15;
+const FRAME_LABEL_HEIGHT = 18;
+const SELF_ARROW_FRAME_PAD = 10;
 
 // Group box layout constants
 const GROUP_PADDING_X = 15;
@@ -1086,6 +1090,75 @@ interface SectionRegion {
   msgIndices: number[]; // message indices belonging to this section
 }
 
+/** An expanded group's frame. */
+interface GroupFrame {
+  group: SequenceGroup;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** The strip above the member boxes — the collapse toggle's hit area. */
+  headerHeight: number;
+  labelX: number;
+  labelY: number;
+}
+
+/** A collapsed group, drawn as one box standing in its participant column. */
+interface CollapsedGroupBox {
+  lineNumber: number;
+  depth: number;
+  participantIds: readonly string[];
+  metadata?: Record<string, string>;
+  /** How far the box reaches above and below an ordinary participant box. */
+  padTop: number;
+  padBottom: number;
+}
+
+/** Text set inside a frame, at its baseline's left end. */
+interface FrameLabel {
+  x: number;
+  y: number;
+  text: string;
+}
+
+/** The line opening an `else if` or `else` branch inside a block frame. */
+interface BlockDivider {
+  x1: number;
+  x2: number;
+  y: number;
+  label: FrameLabel;
+  /** Source line of the branch, when it has one. */
+  lineNumber?: number;
+}
+
+/** An `if` / `loop` / … block's frame, in the order they are drawn. */
+interface BlockFrame {
+  lineNumber: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  label: FrameLabel;
+  dividers: BlockDivider[];
+}
+
+/** A section's band across the diagram and the label set on it. */
+interface SectionBand {
+  region: SectionRegion;
+  collapsed: boolean;
+  /** The band's centre line — the section's divider Y. */
+  y: number;
+  x: number;
+  width: number;
+  height: number;
+  labelText: string;
+  labelX: number;
+  labelBaseline: number;
+  labelWidth: number;
+  /** Where a collapsed band's participant marks sit. */
+  markY: number;
+}
+
 /** Everything `renderSequenceDiagram` draws from — see {@link layoutSequence}. */
 interface SequenceLayout {
   ctx: ScaleContext;
@@ -1114,6 +1187,18 @@ interface SequenceLayout {
   participantStartY: number;
   lifelineStartY0: number;
   lifelineLength: number;
+  /**
+   * Each lifeline's runs of dashes, top to bottom, keyed by participant id —
+   * starting below a collapsed group's box or an actor's label, and cut
+   * around every section label it crosses.
+   */
+  lifelines: Map<string, Array<[number, number]>>;
+  /** Expanded groups' frames, outermost first — the order they are drawn. */
+  groupFrames: GroupFrame[];
+  /** Collapsed groups, keyed by the participant id that stands for each. */
+  collapsedGroupBoxes: Map<string, CollapsedGroupBox>;
+  blockFrames: BlockFrame[];
+  sectionBands: SectionBand[];
   maxGroupDepth: number;
   svgWidth: number;
   totalHeight: number;
@@ -2301,6 +2386,392 @@ export function layoutSequence(
     buildParticipantX();
   }
 
+  // ── Frames ───────────────────────────────────────────────
+
+  // Every collapsed group, from the source groups: the collapse projection
+  // drops them from `groups`, and the participant standing for each is
+  // named after it.
+  const collapsedGroupBoxes = new Map<string, CollapsedGroupBox>();
+  // Is any group still drawn as a frame on this row? The collapse projection
+  // empties a collapsed group's `participantIds`, so a group with members that
+  // still resolve to a column is an expanded one. A collapsed group sizes
+  // itself against this: matching an expanded frame when there is one to match,
+  // and an ordinary participant when there is not (#447).
+  const hasExpandedGroup = groups.some((g) =>
+    g.participantIds.some((id) => participantX.has(id))
+  );
+  for (const group of parsed.groups) {
+    if (!effectiveCollapsedGroups.has(group.lineNumber)) continue;
+    // A collapsed group agrees with whatever else is on the participant row.
+    // When another group is expanded it matches that frame exactly, top and
+    // bottom, so the two read as the same kind of object. When nothing else
+    // is expanded there is nothing to agree with, and it takes an ordinary
+    // participant's height so the row keeps one shared top edge instead of
+    // one box standing 30px proud of its neighbours (#447).
+    //
+    // Layout is unaffected either way: `groupOffset` and `messageStartOffset`
+    // reserve the group padding from `parsed.groups`, not from the projected
+    // view, so toggling a group still moves nothing. A compact box simply
+    // leaves the reserved strip above it empty.
+    // At its own depth, so a collapsed group stands exactly where its frame
+    // would have: a nested one keeps the inner strip's top edge and stays
+    // inside the parent frame it is a column of, rather than rising to the
+    // outermost one and punching through it. At its own depth at the bottom
+    // too, so it closes on the same line its frame would have — inside its
+    // parent's, not level with it.
+    collapsedGroupBoxes.set(group.name, {
+      lineNumber: group.lineNumber,
+      depth: group.depth,
+      participantIds: group.participantIds,
+      ...(group.metadata !== undefined && { metadata: group.metadata }),
+      padTop: hasExpandedGroup
+        ? (maxGroupDepth + 1 - group.depth) * GROUP_PADDING_TOP
+        : 0,
+      padBottom: hasExpandedGroup
+        ? groupBottomPad(group.depth, maxGroupDepth)
+        : 0,
+    });
+  }
+
+  // 🔴 Outermost first. A nested frame is drawn ON TOP of its parent's, so its
+  // own header strip and hit area win the clicks inside it; the other order
+  // buries an inner group under the box that contains it, where nothing can
+  // toggle it.
+  const framedGroups = [...groups].sort((a, b) => a.depth - b.depth);
+  // Every column's x, ascending — used to find the lifeline on either side of
+  // a nested group so its frame can split the gap between them.
+  const allColumnXs = [...participantX.values()].sort((a, b) => a - b);
+  // Each frame's horizontal extent, by group name. Filled outermost-first, so
+  // a nested group always finds its parent's already computed.
+  const frameExtents = new Map<string, { minX: number; maxX: number }>();
+  const groupFrames: GroupFrame[] = [];
+  for (const group of framedGroups) {
+    if (group.participantIds.length === 0) continue;
+
+    // Find X bounds from member participant positions
+    const memberXs = group.participantIds
+      .map((id) => participantX.get(id))
+      .filter((x): x is number => x !== undefined);
+    if (memberXs.length === 0) continue;
+
+    const firstX = Math.min(...memberXs);
+    const lastX = Math.max(...memberXs);
+    // A nested frame draws narrower rather than its parent drawing wider, so a
+    // flat diagram's horizontal extents — and every margin computed from
+    // GROUP_PADDING_X — are exactly what they were.
+    const padX = Math.max(
+      GROUP_NEST_MIN_PAD_X,
+      GROUP_PADDING_X - group.depth * GROUP_NEST_INSET_X
+    );
+    let minX = firstX - sBoxW / 2 - padX;
+    let maxX = lastX + sBoxW / 2 + padX;
+
+    // A nested frame's side borders BISECT the gap to the column outside it,
+    // rather than sitting a fixed distance from their own edge member. Boxes
+    // are uniformly wide and centred on their lifeline, so the midpoint of two
+    // adjacent centres is also the midpoint of the space between the boxes —
+    // the frame lands exactly halfway, and the air it leaves on the inside
+    // matches the air on the outside however the gap was redistributed.
+    if (group.depth > 0) {
+      const prevX = allColumnXs.filter((x) => x < firstX).pop();
+      const nextX = allColumnXs.find((x) => x > lastX);
+      if (prevX !== undefined) minX = (prevX + firstX) / 2;
+      if (nextX !== undefined) maxX = (lastX + nextX) / 2;
+
+      // The neighbour may sit OUTSIDE the parent — a nested group that is its
+      // parent's first or last member has one — and bisecting to it would put
+      // the inner frame through the outer one's wall. Keep it inside.
+      const parent = group.parent ? frameExtents.get(group.parent) : undefined;
+      if (parent) {
+        minX = Math.max(minX, parent.minX + GROUP_NEST_MIN_PAD_X);
+        maxX = Math.min(maxX, parent.maxX - GROUP_NEST_MIN_PAD_X);
+      }
+    }
+    frameExtents.set(group.name, { minX, maxX });
+
+    // Each level of nesting gives up one strip of the reserved header, so the
+    // outermost frame starts highest and every frame's members share a
+    // baseline. The same happens below, so a nested frame's bottom edge clears
+    // its parent's instead of sharing a line with it.
+    const boxY =
+      participantStartY - (maxGroupDepth + 1 - group.depth) * GROUP_PADDING_TOP;
+    groupFrames.push({
+      group,
+      x: minX,
+      y: boxY,
+      width: maxX - minX,
+      height:
+        sBoxH +
+        (participantStartY - boxY) +
+        groupBottomPad(group.depth, maxGroupDepth),
+      headerHeight: participantStartY - boxY,
+      // Centred across the header strip.
+      labelX: (minX + maxX) / 2,
+      labelY: boxY + sGroupLabelSize + 4,
+    });
+  }
+
+  // Collect message indices from an element subtree
+  const collectMsgIndices = (els: readonly SequenceElement[]): number[] => {
+    const indices: number[] = [];
+    for (const el of els) {
+      if (isSequenceBlock(el)) {
+        indices.push(
+          ...collectMsgIndices(el.children),
+          ...collectMsgIndices(el.elseChildren)
+        );
+        if (el.elseIfBranches) {
+          for (const branch of el.elseIfBranches) {
+            indices.push(...collectMsgIndices(branch.children));
+          }
+        }
+      } else if (!isSequenceSection(el) && !isSequenceNote(el)) {
+        // Narrowed to SequenceMessage by the discriminator (kind === 'message')
+        const idx = messages.indexOf(el);
+        if (idx >= 0) indices.push(idx);
+      }
+    }
+    return indices;
+  };
+  /** The first drawn step of any of these messages, or `Infinity`. */
+  const firstStepOf = (indices: readonly number[]): number => {
+    let first = Infinity;
+    for (const mi of indices) {
+      const step = msgToFirstStep.get(mi);
+      if (step !== undefined) first = Math.min(first, step);
+    }
+    return first;
+  };
+
+  // Self-loop projects ACTIVATION_WIDTH/2 + SELF_CALL_WIDTH (=35) past the
+  // lifeline; FRAME_PADDING_X (=30) leaves no breathing room. When a block
+  // contains a self-arrow, extend the frame on the loop's side so the loop
+  // sits comfortably inside.
+  const SELF_ARROW_PROJECTION = sActivationWidth / 2 + sSelfCallWidth;
+
+  // Block frames, parent before child — the order they are drawn.
+  const blockFrames: BlockFrame[] = [];
+  const layoutBlockFrames = (els: readonly SequenceElement[]): void => {
+    for (const el of els) {
+      if (!isSequenceBlock(el)) continue;
+
+      const ifIndices = collectMsgIndices(el.children);
+      const elseIfBranchData = (el.elseIfBranches ?? []).map((branch) => ({
+        label: branch.label,
+        indices: collectMsgIndices(branch.children),
+        lineNumber: branch.lineNumber,
+      }));
+      const elseIndices = collectMsgIndices(el.elseChildren);
+      const allIndices = [
+        ...ifIndices,
+        ...elseIfBranchData.flatMap((b) => b.indices),
+        ...elseIndices,
+      ];
+      if (allIndices.length === 0) continue;
+
+      // Find render step range
+      let minStep = Infinity;
+      let maxStep = -Infinity;
+      for (const mi of allIndices) {
+        const first = msgToFirstStep.get(mi);
+        const last = msgToLastStep.get(mi);
+        if (first !== undefined) minStep = Math.min(minStep, first);
+        if (last !== undefined) maxStep = Math.max(maxStep, last);
+      }
+      if (minStep === Infinity) continue;
+
+      // Find participant X range
+      const involved = new Set<string>();
+      for (const mi of allIndices) {
+        // In-bounds: allIndices is built from valid message indices via
+        // collectMsgIndices (only pushes `idx >= 0` from messages.indexOf).
+        const m = messages[mi]!;
+        involved.add(m.from);
+        involved.add(m.to);
+      }
+      let minPX = Infinity;
+      let maxPX = -Infinity;
+      for (const pid of involved) {
+        const px = participantX.get(pid);
+        if (px !== undefined) {
+          minPX = Math.min(minPX, px);
+          maxPX = Math.max(maxPX, px);
+        }
+      }
+
+      // Self-arrow geometry: extend frame on the loop's side so loops sit
+      // comfortably inside, and extend vertically if the block's last step
+      // is a self-call (whose loop drops SELF_CALL_HEIGHT below stepY).
+      let extraRight = 0;
+      let maxStepIsSelfCall = false;
+      for (const mi of allIndices) {
+        // In-bounds: same guarantee as above (allIndices built from valid indices).
+        const m = messages[mi]!;
+        if (m.from === m.to) {
+          const px = participantX.get(m.from);
+          if (px !== undefined) {
+            const loopMax = px + SELF_ARROW_PROJECTION;
+            const need =
+              loopMax - (maxPX + FRAME_PADDING_X) + SELF_ARROW_FRAME_PAD;
+            if (need > 0) extraRight = Math.max(extraRight, need);
+          }
+          if (msgToLastStep.get(mi) === maxStep) {
+            maxStepIsSelfCall = true;
+          }
+        }
+      }
+
+      const frameX = minPX - FRAME_PADDING_X;
+      const frameY = stepY(minStep) - FRAME_PADDING_TOP;
+      const frameW = maxPX - minPX + FRAME_PADDING_X * 2 + extraRight;
+      const frameH =
+        stepY(maxStep) -
+        stepY(minStep) +
+        FRAME_PADDING_TOP +
+        FRAME_PADDING_BOTTOM +
+        (maxStepIsSelfCall ? sSelfCallHeight : 0);
+
+      const divider = (
+        firstStep: number,
+        text: string,
+        lineNumber: number | undefined
+      ): BlockDivider => {
+        const dividerY = stepY(firstStep) - BLOCK_HEADER_SPACE;
+        return {
+          x1: frameX,
+          x2: frameX + frameW,
+          y: dividerY,
+          label: { x: frameX + 6, y: dividerY + 14, text },
+          ...(lineNumber !== undefined && { lineNumber }),
+        };
+      };
+      const dividers: BlockDivider[] = [];
+      // Else-if dividers
+      for (const branchData of elseIfBranchData) {
+        const firstBranchStep = firstStepOf(branchData.indices);
+        if (firstBranchStep < Infinity) {
+          dividers.push(
+            divider(
+              firstBranchStep,
+              `else if ${branchData.label}`,
+              branchData.lineNumber
+            )
+          );
+        }
+      }
+      // Else divider
+      const firstElseStep = firstStepOf(elseIndices);
+      if (firstElseStep < Infinity) {
+        dividers.push(divider(firstElseStep, 'else', el.elseLineNumber));
+      }
+
+      blockFrames.push({
+        lineNumber: el.lineNumber,
+        x: frameX,
+        y: frameY,
+        width: frameW,
+        height: frameH,
+        label: {
+          x: frameX + 6,
+          y: frameY + FRAME_LABEL_HEIGHT - 4,
+          text: `${el.type} ${el.label}`,
+        },
+        dividers,
+      });
+
+      // Recurse into nested blocks
+      layoutBlockFrames(el.children);
+      for (const branch of el.elseIfBranches ?? []) {
+        layoutBlockFrames(branch.children);
+      }
+      layoutBlockFrames(el.elseChildren);
+    }
+  };
+  if (elements && elements.length > 0) layoutBlockFrames(elements);
+
+  // ── Section bands ────────────────────────────────────────
+  const sectionLineX1 =
+    Math.min(...Array.from(participantX.values())) - sBoxW / 2 - 10;
+  const sectionLineX2 =
+    Math.max(...Array.from(participantX.values())) + sBoxW / 2 + 10;
+  const sectionLabelX = (sectionLineX1 + sectionLineX2) / 2;
+  const sectionBands: SectionBand[] = [];
+  for (const region of sectionRegions) {
+    const sec = region.section;
+    const secY = sectionYPositions.get(sec.lineNumber);
+    if (secY === undefined) continue;
+    const isCollapsed = isSectionCollapsed(sec, collapsedSections);
+    const count = sectionMsgCounts.get(sec.lineNumber) ?? 0;
+    // Centred in both states — the lifelines are cut around it (see
+    // `lifelines`) rather than the label moving aside, and on a collapsed
+    // band the marks have their own row below it.
+    const labelText = isCollapsed
+      ? `${sec.label} (${count} ${count === 1 ? 'message' : 'messages'})`
+      : sec.label;
+    // Taller when collapsed, to carry the mark row.
+    const height = isCollapsed
+      ? COLLAPSED_SECTION_BAND_HEIGHT
+      : SECTION_BAND_HEIGHT;
+    sectionBands.push({
+      region,
+      collapsed: isCollapsed,
+      y: secY,
+      x: sectionLineX1 - 10,
+      width: sectionLineX2 - sectionLineX1 + 20,
+      height,
+      labelText,
+      labelX: sectionLabelX,
+      labelBaseline: isCollapsed
+        ? secY + COLLAPSED_SECTION_LABEL_BASELINE
+        : secY + 4,
+      // The section label is set at a fixed 11px, bold.
+      labelWidth: measureText(labelText, 11, { bold: true }),
+      markY: secY + COLLAPSED_SECTION_MARK_OFFSET,
+    });
+  }
+
+  /**
+   * The rectangle each section label occupies. Lifelines run behind the band
+   * and the band is a tint rather than a fill, so a dashed line crosses the
+   * label text and turns a name into something you decode. These boxes are cut
+   * out of the lifelines below — actually suppressing the dashes rather than
+   * painting over them, which would show as an opaque patch wherever the
+   * diagram is rendered on no background at all.
+   */
+  const sectionLabelBoxes = sectionBands.map((band) => ({
+    x1: band.labelX - band.labelWidth / 2 - SECTION_LABEL_CLEARANCE_X,
+    x2: band.labelX + band.labelWidth / 2 + SECTION_LABEL_CLEARANCE_X,
+    y1: band.labelBaseline - SECTION_LABEL_CLEARANCE_ABOVE,
+    y2: band.labelBaseline + SECTION_LABEL_CLEARANCE_BELOW,
+  }));
+
+  // Lifelines — collapsed groups start below the taller box; actors carry
+  // their label *below* the stick figure (at boxH + 14), so their lifeline
+  // must start below that label or the dashes run through the text.
+  const lifelines = new Map<string, Array<[number, number]>>();
+  for (const participant of participants) {
+    const cx = participantX.get(participant.id)!;
+    const collapsedBox = collapsedGroupBoxes.get(participant.id);
+    const yTop = collapsedBox
+      ? lifelineStartY0 + collapsedBox.padBottom
+      : participant.type === 'actor'
+        ? lifelineStartY0 + ACTOR_LABEL_CLEARANCE
+        : lifelineStartY0;
+    const yBottom = lifelineStartY0 + lifelineLength;
+    // One run of dashes per gap between the section labels it crosses.
+    const cuts = sectionLabelBoxes
+      .filter((b) => cx >= b.x1 && cx <= b.x2 && b.y2 > yTop && b.y1 < yBottom)
+      .sort((a, b) => a.y1 - b.y1);
+    const segments: Array<[number, number]> = [];
+    let y = yTop;
+    for (const cut of cuts) {
+      if (cut.y1 > y) segments.push([y, cut.y1]);
+      y = Math.max(y, cut.y2);
+    }
+    if (y < yBottom) segments.push([y, yBottom]);
+    lifelines.set(participant.id, segments);
+  }
+
   return {
     ctx,
     participants,
@@ -2324,6 +2795,11 @@ export function layoutSequence(
     participantStartY,
     lifelineStartY0,
     lifelineLength,
+    lifelines,
+    groupFrames,
+    collapsedGroupBoxes,
+    blockFrames,
+    sectionBands,
     maxGroupDepth,
     svgWidth,
     totalHeight,
@@ -2378,25 +2854,20 @@ export function renderSequenceDiagram(
     participants,
     messages,
     elements,
-    groups,
-    effectiveCollapsedGroups,
     activeTagGroup,
     renderSteps,
     stepLabels,
     activations,
     labelRoomBefore,
-    msgToFirstStep,
-    msgToLastStep,
     stepYPositions,
-    sectionYPositions,
-    sectionRegions,
-    sectionMsgCounts,
     noteLayouts,
     participantX,
     participantStartY,
-    lifelineStartY0,
-    lifelineLength,
-    maxGroupDepth,
+    lifelines,
+    groupFrames,
+    collapsedGroupBoxes,
+    blockFrames,
+    sectionBands,
     svgWidth,
     totalHeight,
     showTitle,
@@ -2425,7 +2896,6 @@ export function renderSequenceDiagram(
   } = layout;
   const { title, options: parsedOptions } = parsed;
   const fillMode = fillModeFromOptions(parsedOptions);
-  const collapsedSections = options?.collapsedSections;
   // Callers always pass a laid-out step index (1:1 with stepYPositions).
   const stepY = (i: number) => stepYPositions[i]!;
 
@@ -2608,29 +3078,6 @@ export function renderSequenceDiagram(
 
   const hasTagGroups = parsed.tagGroups.length > 0 && !noLegend;
 
-  // Build set of collapsed group names for drill-bar rendering
-  const collapsedGroupNames = new Set<string>();
-  const collapsedGroupMeta = new Map<
-    string,
-    {
-      lineNumber: number;
-      depth: number;
-      participantIds: readonly string[];
-      metadata?: Record<string, string>;
-    }
-  >();
-  for (const group of parsed.groups) {
-    if (effectiveCollapsedGroups.has(group.lineNumber)) {
-      collapsedGroupNames.add(group.name);
-      collapsedGroupMeta.set(group.name, {
-        lineNumber: group.lineNumber,
-        depth: group.depth,
-        participantIds: group.participantIds,
-        ...(group.metadata !== undefined && { metadata: group.metadata }),
-      });
-    }
-  }
-
   /**
    * The accessible name of a group's collapse toggle. The box itself shows
    * only the group's own name, so a screen reader hearing just that learns
@@ -2663,88 +3110,15 @@ export function renderSequenceDiagram(
   const participantTagColor = (id: string): string | undefined => {
     const direct = getTagColor(tagMap?.participants.get(id));
     if (direct) return direct;
-    if (!collapsedGroupNames.has(id) || !tagKey) return undefined;
-    const meta = collapsedGroupMeta.get(id);
+    if (!collapsedGroupBoxes.has(id) || !tagKey) return undefined;
+    const meta = collapsedGroupBoxes.get(id);
     return meta?.metadata ? getTagColor(meta.metadata[tagKey]) : undefined;
   };
 
-  // Is any group still drawn as a frame on this row? The collapse projection
-  // empties a collapsed group's `participantIds`, so a group with members that
-  // still resolve to a column is an expanded one. A collapsed group sizes
-  // itself against this: matching an expanded frame when there is one to match,
-  // and an ordinary participant when there is not (#447).
-  const hasExpandedGroup = groups.some((g) =>
-    g.participantIds.some((id) => participantX.has(id))
-  );
-
-  // Render group boxes (behind participant shapes) — skip collapsed groups.
-  //
-  // 🔴 Outermost first. A nested frame is drawn ON TOP of its parent's, so its
-  // own header strip and hit area win the clicks inside it; the other order
-  // buries an inner group under the box that contains it, where nothing can
-  // toggle it.
-  const framedGroups = [...groups].sort((a, b) => a.depth - b.depth);
-  // Every column's x, ascending — used to find the lifeline on either side of
-  // a nested group so its frame can split the gap between them.
-  const allColumnXs = [...participantX.values()].sort((a, b) => a - b);
-  // Each frame's horizontal extent, by group name. Filled outermost-first, so
-  // a nested group always finds its parent's already computed.
-  const frameExtents = new Map<string, { minX: number; maxX: number }>();
-
-  for (const group of framedGroups) {
-    if (group.participantIds.length === 0) continue;
-
-    // Find X bounds from member participant positions
-    const memberXs = group.participantIds
-      .map((id) => participantX.get(id))
-      .filter((x): x is number => x !== undefined);
-    if (memberXs.length === 0) continue;
-
-    const firstX = Math.min(...memberXs);
-    const lastX = Math.max(...memberXs);
-    // A nested frame draws narrower rather than its parent drawing wider, so a
-    // flat diagram's horizontal extents — and every margin computed from
-    // GROUP_PADDING_X — are exactly what they were.
-    const padX = Math.max(
-      GROUP_NEST_MIN_PAD_X,
-      GROUP_PADDING_X - group.depth * GROUP_NEST_INSET_X
-    );
-    let minX = firstX - sBoxW / 2 - padX;
-    let maxX = lastX + sBoxW / 2 + padX;
-
-    // A nested frame's side borders BISECT the gap to the column outside it,
-    // rather than sitting a fixed distance from their own edge member. Boxes
-    // are uniformly wide and centred on their lifeline, so the midpoint of two
-    // adjacent centres is also the midpoint of the space between the boxes —
-    // the frame lands exactly halfway, and the air it leaves on the inside
-    // matches the air on the outside however the gap was redistributed.
-    if (group.depth > 0) {
-      const prevX = allColumnXs.filter((x) => x < firstX).pop();
-      const nextX = allColumnXs.find((x) => x > lastX);
-      if (prevX !== undefined) minX = (prevX + firstX) / 2;
-      if (nextX !== undefined) maxX = (lastX + nextX) / 2;
-
-      // The neighbour may sit OUTSIDE the parent — a nested group that is its
-      // parent's first or last member has one — and bisecting to it would put
-      // the inner frame through the outer one's wall. Keep it inside.
-      const parent = group.parent ? frameExtents.get(group.parent) : undefined;
-      if (parent) {
-        minX = Math.max(minX, parent.minX + GROUP_NEST_MIN_PAD_X);
-        maxX = Math.min(maxX, parent.maxX - GROUP_NEST_MIN_PAD_X);
-      }
-    }
-    frameExtents.set(group.name, { minX, maxX });
-
-    // Each level of nesting gives up one strip of the reserved header, so the
-    // outermost frame starts highest and every frame's members share a
-    // baseline. The same happens below, so a nested frame's bottom edge clears
-    // its parent's instead of sharing a line with it.
-    const boxY =
-      participantStartY - (maxGroupDepth + 1 - group.depth) * GROUP_PADDING_TOP;
-    const boxH =
-      sBoxH +
-      (participantStartY - boxY) +
-      groupBottomPad(group.depth, maxGroupDepth);
+  // Render group boxes (behind participant shapes), outermost first — see
+  // `groupFrames`. A collapsed group is drawn with its participant below.
+  for (const frame of groupFrames) {
+    const { group } = frame;
 
     // Group box background — use tag color if group has metadata for the active tag group.
     // Intentionally 15-20% (not the canonical 25% shapeFill): group boxes are
@@ -2776,10 +3150,10 @@ export function renderSequenceDiagram(
     // toggle target is the header strip above the participants (hit area below).
     groupG
       .append('rect')
-      .attr('x', minX)
-      .attr('y', boxY)
-      .attr('width', maxX - minX)
-      .attr('height', boxH)
+      .attr('x', frame.x)
+      .attr('y', frame.y)
+      .attr('width', frame.width)
+      .attr('height', frame.height)
       .attr('rx', 6)
       .attr('fill', fillColor)
       .attr('stroke', strokeColor)
@@ -2793,18 +3167,18 @@ export function renderSequenceDiagram(
     // click target — mirrors the section-label-hit pattern.
     groupG
       .append('rect')
-      .attr('x', minX)
-      .attr('y', boxY)
-      .attr('width', maxX - minX)
-      .attr('height', participantStartY - boxY)
+      .attr('x', frame.x)
+      .attr('y', frame.y)
+      .attr('width', frame.width)
+      .attr('height', frame.headerHeight)
       .attr('fill', 'transparent')
       .attr('class', 'group-label-hit');
 
     // Group label — centered across the header strip.
     groupG
       .append('text')
-      .attr('x', (minX + maxX) / 2)
-      .attr('y', boxY + sGroupLabelSize + 4)
+      .attr('x', frame.labelX)
+      .attr('y', frame.labelY)
       .attr('text-anchor', 'middle')
       .attr('fill', strokeColor)
       .attr('font-size', sGroupLabelSize)
@@ -2815,74 +3189,7 @@ export function renderSequenceDiagram(
       .text(group.name);
   }
 
-  // ── Section band geometry ────────────────────────────────
-  // Computed here rather than beside the band render below, because the
-  // lifelines are drawn first and have to be cut around each band's label.
-  const bandLeftmostX = Math.min(...Array.from(participantX.values()));
-  const bandRightmostX = Math.max(...Array.from(participantX.values()));
-  const sectionLineX1 = bandLeftmostX - sBoxW / 2 - 10;
-  const sectionLineX2 = bandRightmostX + sBoxW / 2 + 10;
-  const sectionLabelX = (sectionLineX1 + sectionLineX2) / 2;
-
-  const sectionLabelTextFor = (sec: SequenceSection): string => {
-    if (!isSectionCollapsed(sec, collapsedSections)) return sec.label;
-    const count = sectionMsgCounts.get(sec.lineNumber) ?? 0;
-    return `${sec.label} (${count} ${count === 1 ? 'message' : 'messages'})`;
-  };
-  const sectionLabelBaselineFor = (
-    sec: SequenceSection,
-    secY: number
-  ): number =>
-    isSectionCollapsed(sec, collapsedSections)
-      ? secY + COLLAPSED_SECTION_LABEL_BASELINE
-      : secY + 4;
-
-  /**
-   * The rectangle each section label occupies. Lifelines run behind the band
-   * and the band is a tint rather than a fill, so a dashed line crosses the
-   * label text and turns a name into something you decode. These boxes are cut
-   * out of the lifelines below — actually suppressing the dashes rather than
-   * painting over them, which would show as an opaque patch wherever the
-   * diagram is rendered on no background at all.
-   */
-  const sectionLabelBoxes = sectionRegions
-    .map((region) => {
-      const secY = sectionYPositions.get(region.section.lineNumber);
-      if (secY === undefined) return null;
-      const width = measureText(sectionLabelTextFor(region.section), 11, {
-        bold: true,
-      });
-      const baseline = sectionLabelBaselineFor(region.section, secY);
-      return {
-        x1: sectionLabelX - width / 2 - SECTION_LABEL_CLEARANCE_X,
-        x2: sectionLabelX + width / 2 + SECTION_LABEL_CLEARANCE_X,
-        y1: baseline - SECTION_LABEL_CLEARANCE_ABOVE,
-        y2: baseline + SECTION_LABEL_CLEARANCE_BELOW,
-      };
-    })
-    .filter((box): box is NonNullable<typeof box> => box !== null);
-
-  /** A lifeline's runs of visible dashes, with each label box taken out. */
-  const lifelineSegments = (
-    cx: number,
-    yTop: number,
-    yBottom: number
-  ): Array<[number, number]> => {
-    const cuts = sectionLabelBoxes
-      .filter((b) => cx >= b.x1 && cx <= b.x2 && b.y2 > yTop && b.y1 < yBottom)
-      .sort((a, b) => a.y1 - b.y1);
-    const segments: Array<[number, number]> = [];
-    let y = yTop;
-    for (const cut of cuts) {
-      if (cut.y1 > y) segments.push([y, cut.y1]);
-      y = Math.max(y, cut.y2);
-    }
-    if (y < yBottom) segments.push([y, yBottom]);
-    return segments;
-  };
-
   // Render each participant
-  const lifelineStartY = lifelineStartY0;
   participants.forEach((participant) => {
     const cx = participantX.get(participant.id)!;
     const cy = participantStartY;
@@ -2892,7 +3199,7 @@ export function renderSequenceDiagram(
       tagKey && pTagValue
         ? { key: tagKey, value: pTagValue.toLowerCase() }
         : undefined;
-    const isCollapsedGroup = collapsedGroupNames.has(participant.id);
+    const isCollapsedGroup = collapsedGroupBoxes.has(participant.id);
     // Falls back to the group's own metadata for a collapsed group.
     const effectiveTagColor = participantTagColor(participant.id);
 
@@ -2915,7 +3222,7 @@ export function renderSequenceDiagram(
 
     // Collapsed group: overlay a group-shaped box carrying the collapse bar.
     if (isCollapsedGroup) {
-      const meta = collapsedGroupMeta.get(participant.id)!;
+      const meta = collapsedGroupBoxes.get(participant.id)!;
       // The collapse bar is a mark the whole system shares — COLLAPSE_BAR_HEIGHT
       // in utils/visual-conventions.ts, drawn by renderCollapseBar in
       // utils/card.ts, and carried by infra, boxes-and-lines, org, sitemap,
@@ -2937,29 +3244,8 @@ export function renderSequenceDiagram(
         mix(palette.textMuted, themeBaseBg(palette, isDark), 55);
       const drillBarH = ctx.structural(COLLAPSE_BAR_HEIGHT);
       const boxW = sBoxW;
-      // A collapsed group agrees with whatever else is on the participant row.
-      // When another group is expanded it matches that frame exactly, top and
-      // bottom, so the two read as the same kind of object. When nothing else
-      // is expanded there is nothing to agree with, and it takes an ordinary
-      // participant's height so the row keeps one shared top edge instead of
-      // one box standing 30px proud of its neighbours (#447).
-      //
-      // Layout is unaffected either way: `groupOffset` and `messageStartOffset`
-      // reserve the group padding from `parsed.groups`, not from the projected
-      // view, so toggling a group still moves nothing. A compact box simply
-      // leaves the reserved strip above it empty.
-      // At its own depth, so a collapsed group stands exactly where its frame
-      // would have: a nested one keeps the inner strip's top edge and stays
-      // inside the parent frame it is a column of, rather than rising to the
-      // outermost one and punching through it.
-      const padTop = hasExpandedGroup
-        ? (maxGroupDepth + 1 - meta.depth) * GROUP_PADDING_TOP
-        : 0;
-      // At its own depth too, so a collapsed group closes on the same line
-      // its frame would have — inside its parent's, not level with it.
-      const padBottom = hasExpandedGroup
-        ? groupBottomPad(meta.depth, maxGroupDepth)
-        : 0;
+      // Sized against the rest of the row — see `collapsedGroupBoxes`.
+      const { padTop, padBottom } = meta;
       const fullH = sBoxH + padTop + padBottom;
       const clipId = `clip-drill-group-${participant.id.replace(/[^a-zA-Z0-9-]/g, '-')}`;
 
@@ -3047,30 +3333,12 @@ export function renderSequenceDiagram(
         .attr('clip-path', `url(#${clipId})`);
     }
 
-    // Render lifeline — collapsed groups start below the taller box; actors
-    // carry their label *below* the stick figure (at boxH + 14), so their
-    // lifeline must start below that label or the dashes run through the text.
-    const llY = isCollapsedGroup
-      ? lifelineStartY +
-        (hasExpandedGroup
-          ? groupBottomPad(
-              collapsedGroupMeta.get(participant.id)?.depth ?? 0,
-              maxGroupDepth
-            )
-          : 0)
-      : participant.type === 'actor'
-        ? lifelineStartY + ACTOR_LABEL_CLEARANCE
-        : lifelineStartY;
     const llColor = effectiveTagColor || palette.textMuted;
     // One line per run of dashes: a lifeline crossing a section label is cut
     // around it, so the label reads. Every segment carries the same class and
     // attributes, so anything selecting `.lifeline` still finds this
     // participant's, and the topmost segment still reports the true start.
-    for (const [segTop, segBottom] of lifelineSegments(
-      cx,
-      llY,
-      lifelineStartY + lifelineLength
-    )) {
+    for (const [segTop, segBottom] of lifelines.get(participant.id) ?? []) {
       const lifelineEl = svg
         .append('line')
         .attr('x1', cx)
@@ -3088,252 +3356,23 @@ export function renderSequenceDiagram(
     }
   });
 
-  // Render block frames (behind everything else)
-  const FRAME_PADDING_X = 30;
-  // FRAME_PADDING_TOP declared earlier (near BLOCK_HEADER_SPACE)
-  const FRAME_PADDING_BOTTOM = 15;
-  const FRAME_LABEL_HEIGHT = 18;
-  // Self-loop projects ACTIVATION_WIDTH/2 + SELF_CALL_WIDTH (=35) past the
-  // lifeline; FRAME_PADDING_X (=30) leaves no breathing room. When a block
-  // contains a self-arrow, extend the frame on the loop's side so the loop
-  // sits comfortably inside.
-  const SELF_ARROW_PROJECTION = sActivationWidth / 2 + sSelfCallWidth;
-  const SELF_ARROW_FRAME_PAD = 10;
-
-  // Collect message indices from an element subtree
-  const collectMsgIndices = (els: readonly SequenceElement[]): number[] => {
-    const indices: number[] = [];
-    for (const el of els) {
-      if (isSequenceBlock(el)) {
-        indices.push(
-          ...collectMsgIndices(el.children),
-          ...collectMsgIndices(el.elseChildren)
-        );
-        if (el.elseIfBranches) {
-          for (const branch of el.elseIfBranches) {
-            indices.push(...collectMsgIndices(branch.children));
-          }
-        }
-      } else if (!isSequenceSection(el) && !isSequenceNote(el)) {
-        // Narrowed to SequenceMessage by the discriminator (kind === 'message')
-        const idx = messages.indexOf(el);
-        if (idx >= 0) indices.push(idx);
-      }
-    }
-    return indices;
-  };
-
-  // Collect deferred draws (rendered after activations so they appear on top)
-  const deferredLabels: Array<{
-    x: number;
-    y: number;
-    text: string;
-    bold: boolean;
-    italic: boolean;
-    blockLine?: number;
-  }> = [];
-  const deferredLines: Array<{
-    x1: number;
-    y1: number;
-    x2: number;
-    y2: number;
-    blockLine?: number;
-  }> = [];
-
-  // Recursive block renderer — draws borders/dividers now, defers label text
-  const renderBlockFrames = (
-    els: readonly SequenceElement[],
-    depth: number
-  ): void => {
-    for (const el of els) {
-      if (!isSequenceBlock(el)) continue;
-
-      const ifIndices = collectMsgIndices(el.children);
-      const elseIfBranchData: {
-        label: string;
-        indices: number[];
-        lineNumber: number;
-      }[] = [];
-      if (el.elseIfBranches) {
-        for (const branch of el.elseIfBranches) {
-          elseIfBranchData.push({
-            label: branch.label,
-            indices: collectMsgIndices(branch.children),
-            lineNumber: branch.lineNumber,
-          });
-        }
-      }
-      const elseIndices = collectMsgIndices(el.elseChildren);
-      const allIndices = [
-        ...ifIndices,
-        ...elseIfBranchData.flatMap((b) => b.indices),
-        ...elseIndices,
-      ];
-      if (allIndices.length === 0) continue;
-
-      // Find render step range
-      let minStep = Infinity;
-      let maxStep = -Infinity;
-      for (const mi of allIndices) {
-        const first = msgToFirstStep.get(mi);
-        const last = msgToLastStep.get(mi);
-        if (first !== undefined) minStep = Math.min(minStep, first);
-        if (last !== undefined) maxStep = Math.max(maxStep, last);
-      }
-      if (minStep === Infinity) continue;
-
-      // Find participant X range
-      const involved = new Set<string>();
-      for (const mi of allIndices) {
-        // In-bounds: allIndices is built from valid message indices via
-        // collectMsgIndices (only pushes `idx >= 0` from messages.indexOf).
-        const m = messages[mi]!;
-        involved.add(m.from);
-        involved.add(m.to);
-      }
-      let minPX = Infinity;
-      let maxPX = -Infinity;
-      for (const pid of involved) {
-        const px = participantX.get(pid);
-        if (px !== undefined) {
-          minPX = Math.min(minPX, px);
-          maxPX = Math.max(maxPX, px);
-        }
-      }
-
-      // Self-arrow geometry: extend frame on the loop's side so loops sit
-      // comfortably inside, and extend vertically if the block's last step
-      // is a self-call (whose loop drops SELF_CALL_HEIGHT below stepY).
-      let extraRight = 0;
-      let maxStepIsSelfCall = false;
-      for (const mi of allIndices) {
-        // In-bounds: same guarantee as above (allIndices built from valid indices).
-        const m = messages[mi]!;
-        if (m.from === m.to) {
-          const px = participantX.get(m.from);
-          if (px !== undefined) {
-            const loopMax = px + SELF_ARROW_PROJECTION;
-            const need =
-              loopMax - (maxPX + FRAME_PADDING_X) + SELF_ARROW_FRAME_PAD;
-            if (need > 0) extraRight = Math.max(extraRight, need);
-          }
-          if (msgToLastStep.get(mi) === maxStep) {
-            maxStepIsSelfCall = true;
-          }
-        }
-      }
-
-      const frameX = minPX - FRAME_PADDING_X;
-      const frameY = stepY(minStep) - FRAME_PADDING_TOP;
-      const frameW = maxPX - minPX + FRAME_PADDING_X * 2 + extraRight;
-      const frameH =
-        stepY(maxStep) -
-        stepY(minStep) +
-        FRAME_PADDING_TOP +
-        FRAME_PADDING_BOTTOM +
-        (maxStepIsSelfCall ? sSelfCallHeight : 0);
-
-      // Frame border
-      svg
-        .append('rect')
-        .attr('x', frameX)
-        .attr('y', frameY)
-        .attr('width', frameW)
-        .attr('height', frameH)
-        .attr('fill', 'none')
-        .attr('stroke', palette.textMuted)
-        .attr('stroke-width', 1)
-        .attr('stroke-dasharray', HAIRLINE_DASH)
-        .attr('rx', 3)
-        .attr('ry', 3)
-        .attr('class', 'block-frame')
-        .attr('data-block-line', String(el.lineNumber));
-
-      // Defer label text (rendered on top of activations later)
-      deferredLabels.push({
-        x: frameX + 6,
-        y: frameY + FRAME_LABEL_HEIGHT - 4,
-        text: `${el.type} ${el.label}`,
-        bold: false,
-        italic: false,
-        blockLine: el.lineNumber,
-      });
-
-      // Else-if dividers
-      for (const branchData of elseIfBranchData) {
-        if (branchData.indices.length > 0) {
-          let firstBranchStep = Infinity;
-          for (const mi of branchData.indices) {
-            const first = msgToFirstStep.get(mi);
-            if (first !== undefined)
-              firstBranchStep = Math.min(firstBranchStep, first);
-          }
-          if (firstBranchStep < Infinity) {
-            const dividerY = stepY(firstBranchStep) - BLOCK_HEADER_SPACE;
-            deferredLines.push({
-              x1: frameX,
-              y1: dividerY,
-              x2: frameX + frameW,
-              y2: dividerY,
-              blockLine: branchData.lineNumber,
-            });
-            deferredLabels.push({
-              x: frameX + 6,
-              y: dividerY + 14,
-              text: `else if ${branchData.label}`,
-              bold: false,
-              italic: false,
-              blockLine: branchData.lineNumber,
-            });
-          }
-        }
-      }
-
-      // Else divider
-      if (elseIndices.length > 0) {
-        let firstElseStep = Infinity;
-        for (const mi of elseIndices) {
-          const first = msgToFirstStep.get(mi);
-          if (first !== undefined)
-            firstElseStep = Math.min(firstElseStep, first);
-        }
-        if (firstElseStep < Infinity) {
-          const dividerY = stepY(firstElseStep) - BLOCK_HEADER_SPACE;
-          deferredLines.push({
-            x1: frameX,
-            y1: dividerY,
-            x2: frameX + frameW,
-            y2: dividerY,
-            ...(el.elseLineNumber !== undefined && {
-              blockLine: el.elseLineNumber,
-            }),
-          });
-          deferredLabels.push({
-            x: frameX + 6,
-            y: dividerY + 14,
-            text: 'else',
-            bold: false,
-            italic: false,
-            ...(el.elseLineNumber !== undefined && {
-              blockLine: el.elseLineNumber,
-            }),
-          });
-        }
-      }
-
-      // Recurse into nested blocks
-      renderBlockFrames(el.children, depth + 1);
-      if (el.elseIfBranches) {
-        for (const branch of el.elseIfBranches) {
-          renderBlockFrames(branch.children, depth + 1);
-        }
-      }
-      renderBlockFrames(el.elseChildren, depth + 1);
-    }
-  };
-
-  if (elements && elements.length > 0) {
-    renderBlockFrames(elements, 0);
+  // Render block frames (behind everything else); their dividers and labels
+  // are drawn after the activations, so they sit on top.
+  for (const frame of blockFrames) {
+    svg
+      .append('rect')
+      .attr('x', frame.x)
+      .attr('y', frame.y)
+      .attr('width', frame.width)
+      .attr('height', frame.height)
+      .attr('fill', 'none')
+      .attr('stroke', palette.textMuted)
+      .attr('stroke-width', 1)
+      .attr('stroke-dasharray', HAIRLINE_DASH)
+      .attr('rx', 3)
+      .attr('ry', 3)
+      .attr('class', 'block-frame')
+      .attr('data-block-line', String(frame.lineNumber));
   }
 
   // Render activation rectangles (behind arrows)
@@ -3414,24 +3453,29 @@ export function renderSequenceDiagram(
     }
   });
 
-  // Render deferred else dividers (on top of activations)
-  for (const ln of deferredLines) {
+  // Render block dividers (on top of activations)
+  for (const divider of blockFrames.flatMap((frame) => frame.dividers)) {
     const line = svg
       .append('line')
-      .attr('x1', ln.x1)
-      .attr('y1', ln.y1)
-      .attr('x2', ln.x2)
-      .attr('y2', ln.y2)
+      .attr('x1', divider.x1)
+      .attr('y1', divider.y)
+      .attr('x2', divider.x2)
+      .attr('y2', divider.y)
       .attr('stroke', palette.textMuted)
       .attr('stroke-width', 1)
       .attr('stroke-dasharray', HAIRLINE_DASH)
       .attr('class', 'block-divider');
-    if (ln.blockLine !== undefined)
-      line.attr('data-block-line', String(ln.blockLine));
+    if (divider.lineNumber !== undefined)
+      line.attr('data-block-line', String(divider.lineNumber));
   }
 
-  // Render deferred block labels (on top of activations)
-  for (const lbl of deferredLabels) {
+  // Render block labels (on top of activations): each frame's own, then its
+  // dividers', parent before child.
+  const blockLabels = blockFrames.flatMap((frame) => [
+    { ...frame.label, lineNumber: frame.lineNumber as number | undefined },
+    ...frame.dividers.map((d) => ({ ...d.label, lineNumber: d.lineNumber })),
+  ]);
+  for (const lbl of blockLabels) {
     const t = svg
       .append('text')
       .attr('x', lbl.x)
@@ -3440,10 +3484,8 @@ export function renderSequenceDiagram(
       .attr('font-size', 11)
       .attr('class', 'block-label')
       .text(lbl.text);
-    if (lbl.bold) t.attr('font-weight', 'bold');
-    if (lbl.italic) t.attr('font-style', 'italic');
-    if (lbl.blockLine !== undefined)
-      t.attr('data-block-line', String(lbl.blockLine));
+    if (lbl.lineNumber !== undefined)
+      t.attr('data-block-line', String(lbl.lineNumber));
   }
 
   // Helper: find max active activation depth for a participant at a step
@@ -3479,12 +3521,10 @@ export function renderSequenceDiagram(
 
   // Render section dividers — geometry hoisted above the lifelines, which are
   // drawn first and cut around each label.
-  for (const region of sectionRegions) {
-    const sec = region.section;
-    const secY = sectionYPositions.get(sec.lineNumber);
-    if (secY === undefined) continue;
-
-    const isCollapsed = isSectionCollapsed(sec, collapsedSections);
+  for (const band of sectionBands) {
+    const sec = band.region.section;
+    const secY = band.y;
+    const isCollapsed = band.collapsed;
     const lineColor = palette.textMuted;
 
     // Wrap section elements in a <g> for toggle.
@@ -3501,11 +3541,7 @@ export function renderSequenceDiagram(
       .attr('aria-expanded', String(!isCollapsed));
 
     // Full-width tinted band — taller when collapsed, to carry the mark row
-    const BAND_HEIGHT = isCollapsed
-      ? COLLAPSED_SECTION_BAND_HEIGHT
-      : SECTION_BAND_HEIGHT;
-    const bandX = sectionLineX1 - 10;
-    const bandWidth = sectionLineX2 - sectionLineX1 + 20;
+    const BAND_HEIGHT = band.height;
     // A collapsed band is a container holding something you cannot see, which
     // is the same thing the legend's capsule is — so it wears the legend's own
     // background rather than a heavier tint of its own. An expanded band stays
@@ -3519,9 +3555,9 @@ export function renderSequenceDiagram(
     // Toggle hit area is the label rect below.
     sectionG
       .append('rect')
-      .attr('x', bandX)
+      .attr('x', band.x)
       .attr('y', secY - BAND_HEIGHT / 2)
-      .attr('width', bandWidth)
+      .attr('width', band.width)
       .attr('height', BAND_HEIGHT)
       .attr('fill', bandFill)
       .attr('opacity', bandOpacity)
@@ -3532,10 +3568,7 @@ export function renderSequenceDiagram(
     // Build display label. Centred in both states — the lifelines are cut
     // around it (see sectionLabelBoxes) rather than the label moving aside,
     // and on a collapsed band the marks have their own row below it.
-    const labelText = sectionLabelTextFor(sec);
-    const labelWidth = measureText(labelText, 11, { bold: true });
-    const labelX = sectionLabelX;
-    const labelBaseline = sectionLabelBaselineFor(sec, secY);
+    const { labelText, labelWidth, labelX, labelBaseline } = band;
 
     // Transparent hit area scoped to the label so the toggle stays clickable
     // without the band swallowing clicks across the full diagram width.
@@ -3570,9 +3603,9 @@ export function renderSequenceDiagram(
     // reads as "nobody was involved" rather than "you cannot see this yet".
     const participation = summarizeSectionParticipation(
       messages,
-      region.msgIndices
+      band.region.msgIndices
     );
-    const markY = secY + COLLAPSED_SECTION_MARK_OFFSET;
+    const markY = band.markY;
 
     // Reach: a hairline between the outermost columns the fold touches, so
     // the span of the hidden traffic reads before any individual mark does.
