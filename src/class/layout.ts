@@ -1,4 +1,9 @@
 import dagre from '@dagrejs/dagre';
+import {
+  searchPlacement,
+  type Pt,
+  type Shuffle,
+} from '../utils/placement-search';
 import { measureText } from '../utils/text-measure';
 import {
   resolveNotes,
@@ -158,6 +163,9 @@ function computeNodeDimensions(node: ClassNode): {
 // Layout engine
 // ============================================================
 
+const newDagreGraph = () => new dagre.graphlib.Graph();
+type DagreGraph = ReturnType<typeof newDagreGraph>;
+
 export function layoutClassDiagram(
   parsed: ParsedClassDiagram,
   options?: ClassLayoutOptions
@@ -166,16 +174,7 @@ export function layoutClassDiagram(
     return { nodes: [], edges: [], width: 0, height: 0 };
   }
 
-  const g = new dagre.graphlib.Graph();
-  g.setGraph({
-    rankdir: 'TB',
-    nodesep: 60,
-    ranksep: 80,
-    edgesep: 20,
-  });
-  g.setDefaultEdgeLabel(() => ({}));
-
-  // Compute dimensions and add nodes
+  // Compute dimensions
   const dimMap = new Map<
     string,
     {
@@ -186,24 +185,52 @@ export function layoutClassDiagram(
       methodsHeight: number;
     }
   >();
-
   for (const node of parsed.classes) {
-    const dims = computeNodeDimensions(node);
-    dimMap.set(node.id, dims);
-    g.setNode(node.id, {
-      label: node.name,
-      width: dims.width,
-      height: dims.height,
+    dimMap.set(node.id, computeNodeDimensions(node));
+  }
+
+  // One dagre placement. `shuffle` (a seeded search candidate, #1240) varies
+  // the insertion order of nodes and edges, which is what dagre's within-rank
+  // ordering starts from.
+  const place = (ranker: string, shuffle?: Shuffle): DagreGraph => {
+    const ord = shuffle ?? (<T>(a: readonly T[]): T[] => a.slice());
+    const g = newDagreGraph();
+    g.setGraph({
+      rankdir: 'TB',
+      ranker,
+      nodesep: 60,
+      ranksep: 80,
+      edgesep: 20,
     });
-  }
+    g.setDefaultEdgeLabel(() => ({}));
+    for (const node of ord(parsed.classes)) {
+      const dims = dimMap.get(node.id)!;
+      g.setNode(node.id, {
+        label: node.name,
+        width: dims.width,
+        height: dims.height,
+      });
+    }
+    for (const rel of ord(parsed.relationships)) {
+      g.setEdge(rel.source, rel.target, { label: rel.label ?? '' });
+    }
+    dagre.layout(g);
+    return g;
+  };
 
-  // Add edges
-  for (const rel of parsed.relationships) {
-    g.setEdge(rel.source, rel.target, { label: rel.label ?? '' });
-  }
-
-  // Run layout
-  dagre.layout(g);
+  // The placement search (#1240). The scorers read the edges in
+  // `parsed.relationships` order, so a rerouted edge maps back by index.
+  const { g, edgePoints } = searchPlacement('TB', place, (lay) => ({
+    nodes: parsed.classes.map((n) => {
+      const p = lay.node(n.id);
+      return { id: n.id, x: p.x, y: p.y, width: p.width, height: p.height };
+    }),
+    edges: parsed.relationships.map((r) => ({
+      source: r.source,
+      target: r.target,
+      points: (lay.edge(r.source, r.target)?.points ?? []) as Pt[],
+    })),
+  }));
 
   // ── Notes ──────────────────────────────────────────────────
   // Resolve note anchors (no diagnostics here — the parser already emitted
@@ -253,13 +280,13 @@ export function layoutClassDiagram(
   });
 
   // Extract edge waypoints
-  const layoutEdges: ClassLayoutEdge[] = parsed.relationships.map((rel) => {
+  const layoutEdges: ClassLayoutEdge[] = parsed.relationships.map((rel, i) => {
     const edgeData = g.edge(rel.source, rel.target);
     const layoutEdge: ClassLayoutEdge = {
       source: rel.source,
       target: rel.target,
       type: rel.type,
-      points: edgeData?.points ?? [],
+      points: edgePoints?.[i] ?? edgeData?.points ?? [],
       ...(rel.label !== undefined && { label: rel.label }),
       lineNumber: rel.lineNumber,
     };

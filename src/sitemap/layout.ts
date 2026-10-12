@@ -528,7 +528,13 @@ export function layoutSitemap(
     );
   }
 
-  // Run dagre layout
+  // Run dagre layout — once. Sitemap does NOT run the placement search the
+  // flowchart, state and class layouts share (`utils/placement-search.ts`,
+  // #1240): a site's pages link back and forth, and on the gallery's
+  // sitemap-full fixture the plain placement (6 crossings) beat every one of
+  // 62 candidates tried — the other rankers and 60 seed-shuffles, the best at
+  // 8. At the shared budget the search changed no crossing on any sitemap in
+  // the gallery, tests or docs, and made sitemap-full's layout ~8× slower.
   dagre.layout(g);
 
   // Extract layout results — all positions from dagre
