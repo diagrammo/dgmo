@@ -315,4 +315,161 @@ describe('layoutSequence', () => {
       expect(laid.lifelines.get('C')).toHaveLength(1);
     });
   });
+
+  describe('marks', () => {
+    const source = [
+      'sequence Marks',
+      'A',
+      'B',
+      'C',
+      'A -call-> B',
+      'note right of B',
+      '  - a bullet long enough to wrap onto a second line of the note',
+      '  - second',
+      'B -self-> B',
+      'note right of B',
+      '  after the self-call',
+      'B -ask-> C',
+      'C -tell-> A',
+    ].join('\n');
+    const laid = layout(source);
+    const x = (id: string) => laid.participantX.get(id)!;
+    const stepOf = (line: number) =>
+      laid.msgToFirstStep.get(
+        laid.messages.findIndex((m) => m.lineNumber === line)
+      )!;
+
+    it('ends every arrow on the edge of the bar it meets', () => {
+      const call = laid.messageArrows[stepOf(5)]!;
+      expect(call.kind).toBe('call');
+      if (call.kind === 'self') throw new Error('not a self-call');
+      const barOnB = laid.activations.findIndex(
+        (a) => a.participantId === 'B' && a.startStep === stepOf(5)
+      );
+      const bar = laid.activationBars[barOnB]!;
+      expect(call.x1).toBe(x('A'));
+      expect(call.x2).toBe(bar.x);
+      expect(call.label.x).toBe((call.x1 + call.x2) / 2);
+      expect(call.label.y).toBeLessThan(call.y);
+    });
+
+    it("loops a self-call out of its bar's right edge and draws its return with it", () => {
+      const si = stepOf(9);
+      const loop = laid.messageArrows[si]!;
+      if (loop.kind !== 'self') throw new Error('not a self-call');
+      // The deepest bar open on B at that step is the one it leaves.
+      const open = laid.activations
+        .map((a, k) => ({ a, bar: laid.activationBars[k]! }))
+        .filter(
+          ({ a }) =>
+            a.participantId === 'B' && a.startStep <= si && si <= a.endStep
+        )
+        .sort((p, q) => q.a.depth - p.a.depth)[0]!;
+      expect(loop.x).toBeCloseTo(open.bar.x + open.bar.width, 9);
+      expect(loop.loopX - loop.x).toBe(laid.sSelfCallWidth);
+      expect(loop.returnY - loop.y).toBe(laid.sSelfCallHeight);
+      expect(loop.label.x).toBeGreaterThan(loop.loopX);
+      // Its return is the loop's lower leg, never an arrow of its own.
+      const ret = laid.renderSteps.findIndex(
+        (s, i) =>
+          i > si && s.type === 'return' && s.from === 'B' && s.to === 'B'
+      );
+      if (ret >= 0) expect(laid.messageArrows[ret]).toBeNull();
+    });
+
+    it('hangs a note beside its lifeline, past a self-call loop when it follows one', () => {
+      const [first, second] = [...laid.noteBoxes.values()];
+      expect(first!.x).toBe(x('B') + laid.sActivationWidth + laid.sNoteGap);
+      const loop = laid.messageArrows[stepOf(9)]!;
+      if (loop.kind !== 'self') throw new Error('not a self-call');
+      expect(second!.x).toBeGreaterThan(loop.loopX);
+      for (const box of [first!, second!]) {
+        expect(box.height).toBe(
+          box.lines.length * laid.sNoteLineH + laid.sNotePadV * 2
+        );
+      }
+    });
+
+    it("sets a bullet's glyph at the left and its body, wrapped lines too, one indent in", () => {
+      const [first] = [...laid.noteBoxes.values()];
+      const lines = first!.lines;
+      // The first bullet wraps; the second does not.
+      expect(lines[0]!.kind).toBe('bullet-first');
+      expect(lines[1]!.kind).toBe('bullet-cont');
+      expect(lines.at(-1)!.kind).toBe('bullet-first');
+      expect(lines[0]!.bulletX).toBe(first!.x + laid.sNotePadH);
+      for (const line of lines) {
+        expect(line.bulletX === undefined).toBe(line.kind !== 'bullet-first');
+      }
+      for (const line of lines)
+        expect(line.x).toBe(first!.x + laid.sNotePadH + 10);
+      expect(lines[1]!.y - lines[0]!.y).toBe(laid.sNoteLineH);
+    });
+
+    it("stops an unreturned bar short of the next row, and its label's room (#972)", () => {
+      const reported = [
+        'A',
+        'B',
+        'C',
+        'A -call-> B',
+        'C -crossing label-> A',
+      ].join('\n');
+      const l = layout(reported);
+      const ai = l.activations.findIndex((a) => a.implicitEnd);
+      expect(ai).toBeGreaterThanOrEqual(0);
+      const act = l.activations[ai]!;
+      const bar = l.activationBars[ai]!;
+      expect(bar.y + bar.height).toBe(
+        // ACTIVATION_IMPLICIT_END_CLEARANCE is 8.
+        l.stepYPositions[act.endStep]! - l.labelRoomBefore[act.endStep]! - 8
+      );
+    });
+
+    it('sizes a collapsed group box around its name and collapse bar', () => {
+      const l = layout(['[G]', '  A', '  B', 'C', 'A -1-> C'].join('\n'), {
+        collapsedGroups: new Set([1]),
+      });
+      const box = l.collapsedGroupBoxes.get('G')!;
+      expect(box.height).toBe(l.sBoxH + box.padTop + box.padBottom);
+      expect(box.barY + box.barHeight).toBe(-box.padTop + box.height);
+      expect(box.nameY).toBe(-box.padTop + (box.height - box.barHeight) / 2);
+    });
+
+    it("marks every column on a collapsed section, and the fold's reach", () => {
+      const src = [
+        'A',
+        'B',
+        'C',
+        'D',
+        '== Fold ==',
+        'B -1-> C',
+        'C -2-> C',
+      ].join('\n');
+      const l = layout(src, { collapsedSections: new Set([5]) });
+      const band = l.sectionBands[0]!;
+      expect(band.collapsed).toBe(true);
+      // One per column, in column order, whether or not it took part.
+      expect(band.marks.map((m) => m.participantId)).toEqual(
+        l.participants.map((p) => p.id)
+      );
+      const mark = (id: string) =>
+        band.marks.find((m) => m.participantId === id)!;
+      const [a, b, c] = ['A', 'B', 'C'].map(mark);
+      expect(band.marks.map((m) => m.participantId).sort()).toEqual([
+        'A',
+        'B',
+        'C',
+        'D',
+      ]);
+      expect(a!.part).toBeUndefined();
+      expect(a!.radius).toBe(2.5);
+      expect(b!.part!.sends).toBe(1);
+      expect(c!.radius).toBeGreaterThan(b!.radius);
+      expect(band.reach).toEqual({
+        x1: l.participantX.get('B'),
+        x2: l.participantX.get('C'),
+      });
+      expect(layout(src).sectionBands[0]!.marks).toEqual([]);
+    });
+  });
 });

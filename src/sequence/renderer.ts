@@ -1085,6 +1085,59 @@ interface NoteLayout {
   textWidth: number;
 }
 
+/** A note's folded-corner box and the lines of text set in it. */
+interface NoteBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  lines: Array<{
+    kind: WrappedDescLine['kind'];
+    text: string;
+    x: number;
+    y: number;
+    /** Where a bullet's glyph sits, on a bullet's first line only. */
+    bulletX?: number;
+  }>;
+}
+
+/** One activation bar, index-aligned with `activations`. */
+interface ActivationBar {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** Where a step's arrow is drawn, index-aligned with `renderSteps`. */
+type MessageArrow =
+  | {
+      kind: 'self';
+      /** The loop leaves and re-enters the bar's right edge here. */
+      x: number;
+      loopX: number;
+      y: number;
+      /** Bottom of the loop, where the arrowhead lands. */
+      returnY: number;
+      label: { x: number; y: number };
+    }
+  | {
+      kind: 'call' | 'return';
+      x1: number;
+      x2: number;
+      y: number;
+      label: { x: number; y: number };
+    };
+
+/** A participant's mark on a collapsed section's band. */
+interface SectionMark {
+  participantId: string;
+  x: number;
+  /** Absent from the fold — drawn hollow and faint. */
+  part?: SectionParticipation;
+  radius: number;
+}
+
 interface SectionRegion {
   section: SequenceSection;
   msgIndices: number[]; // message indices belonging to this section
@@ -1112,6 +1165,12 @@ interface CollapsedGroupBox {
   /** How far the box reaches above and below an ordinary participant box. */
   padTop: number;
   padBottom: number;
+  /** The whole box, top `-padTop` in the participant's own coordinates. */
+  height: number;
+  /** The name's centre line, in the box above the collapse bar. */
+  nameY: number;
+  barY: number;
+  barHeight: number;
 }
 
 /** Text set inside a frame, at its baseline's left end. */
@@ -1157,6 +1216,10 @@ interface SectionBand {
   labelWidth: number;
   /** Where a collapsed band's participant marks sit. */
   markY: number;
+  /** A collapsed band's marks, one per participant, in column order. */
+  marks: SectionMark[];
+  /** The hairline between the outermost columns a fold touches, if two do. */
+  reach: { x1: number; x2: number } | null;
 }
 
 /** Everything `renderSequenceDiagram` draws from — see {@link layoutSequence}. */
@@ -1175,6 +1238,10 @@ interface SequenceLayout {
   stepYPositions: number[];
   labelRoomBefore: number[];
   activations: (Activation & { implicitEnd: boolean })[];
+  /** `null` for a bar whose participant has no column in this view. */
+  activationBars: (ActivationBar | null)[];
+  /** `null` for a step drawn by another (a self-call's return) or off the view. */
+  messageArrows: (MessageArrow | null)[];
   msgToFirstStep: Map<number, number>;
   msgToLastStep: Map<number, number>;
   /** Section divider Y, keyed by the section's line number. */
@@ -1182,6 +1249,8 @@ interface SequenceLayout {
   sectionRegions: SectionRegion[];
   sectionMsgCounts: Map<number, number>;
   noteLayouts: Map<SequenceNote, NoteLayout>;
+  /** Every note whose participant has a column. */
+  noteBoxes: Map<SequenceNote, NoteBox>;
   /** Lifeline X, keyed by participant id. */
   participantX: Map<string, number>;
   participantStartY: number;
@@ -2419,17 +2488,27 @@ export function layoutSequence(
     // outermost one and punching through it. At its own depth at the bottom
     // too, so it closes on the same line its frame would have — inside its
     // parent's, not level with it.
+    const padTop = hasExpandedGroup
+      ? (maxGroupDepth + 1 - group.depth) * GROUP_PADDING_TOP
+      : 0;
+    const padBottom = hasExpandedGroup
+      ? groupBottomPad(group.depth, maxGroupDepth)
+      : 0;
+    const height = sBoxH + padTop + padBottom;
+    const barHeight = ctx.structural(COLLAPSE_BAR_HEIGHT);
     collapsedGroupBoxes.set(group.name, {
       lineNumber: group.lineNumber,
       depth: group.depth,
       participantIds: group.participantIds,
       ...(group.metadata !== undefined && { metadata: group.metadata }),
-      padTop: hasExpandedGroup
-        ? (maxGroupDepth + 1 - group.depth) * GROUP_PADDING_TOP
-        : 0,
-      padBottom: hasExpandedGroup
-        ? groupBottomPad(group.depth, maxGroupDepth)
-        : 0,
+      padTop,
+      padBottom,
+      height,
+      // Centred in the box ABOVE the bar, so the bar does not push the name
+      // off-centre the way it would if the whole box were used.
+      nameY: -padTop + (height - barHeight) / 2,
+      barY: -padTop + height - barHeight,
+      barHeight,
     });
   }
 
@@ -2712,6 +2791,34 @@ export function layoutSequence(
     const height = isCollapsed
       ? COLLAPSED_SECTION_BAND_HEIGHT
       : SECTION_BAND_HEIGHT;
+    // A collapsed band's participant marks: the count says how much the fold
+    // swallowed, these say who was in it.
+    const marks: SectionMark[] = [];
+    let reach: SectionBand['reach'] = null;
+    if (isCollapsed) {
+      const participation = summarizeSectionParticipation(
+        messages,
+        region.msgIndices
+      );
+      const involvedXs = participants
+        .filter((p) => participation.has(p.id))
+        .map((p) => participantX.get(p.id))
+        .filter((x): x is number => x !== undefined);
+      if (involvedXs.length > 1) {
+        reach = { x1: Math.min(...involvedXs), x2: Math.max(...involvedXs) };
+      }
+      for (const participant of participants) {
+        const markX = participantX.get(participant.id);
+        if (markX === undefined) continue;
+        const part = participation.get(participant.id);
+        marks.push({
+          participantId: participant.id,
+          x: markX,
+          ...(part !== undefined && { part }),
+          radius: part ? sectionMarkRadius(part.sends + part.receives) : 2.5,
+        });
+      }
+    }
     sectionBands.push({
       region,
       collapsed: isCollapsed,
@@ -2727,6 +2834,8 @@ export function layoutSequence(
       // The section label is set at a fixed 11px, bold.
       labelWidth: measureText(labelText, 11, { bold: true }),
       markY: secY + COLLAPSED_SECTION_MARK_OFFSET,
+      marks,
+      reach,
     });
   }
 
@@ -2772,6 +2881,139 @@ export function layoutSequence(
     lifelines.set(participant.id, segments);
   }
 
+  // ── Activation bars ──────────────────────────────────────
+  const activationBars: (ActivationBar | null)[] = activations.map((act) => {
+    const px = participantX.get(act.participantId);
+    if (px === undefined) return null;
+    const x = px - sActivationWidth / 2 + act.depth * ACTIVATION_NEST_OFFSET;
+    const y1 = stepY(act.startStep);
+    // A bar closed by an explicit return ends ON that return, which is its own
+    // arrow leaving it. A bar with no return ends at whatever happens NEXT —
+    // and that next message is very often one between two other participants
+    // crossing this column, so its line landed exactly on the bar's bottom
+    // edge and read as though the bar terminated in an arrow. Stop short of it.
+    // Extra vertical spacing does not fix this and never could: the edge is
+    // pinned to the next message's Y, so moving that message moves the edge
+    // with it. What extra space does fix is a crossing LABEL, so the room
+    // `labelRoomBefore` inserted before the next step lies below every
+    // implicitly-ended bar: the bar ends where it would have, the row moves.
+    const rawY2 = stepY(act.endStep);
+    const implicitY2 =
+      rawY2 - labelRoomBefore[act.endStep]! - ACTIVATION_IMPLICIT_END_CLEARANCE;
+    const y2 =
+      act.implicitEnd && implicitY2 > y1 + sActivationWidth
+        ? implicitY2
+        : rawY2;
+    return { x, y: y1, width: sActivationWidth, height: y2 - y1 };
+  });
+
+  // ── Message arrows ───────────────────────────────────────
+  // The deepest bar a participant has open at a step, or -1 for none.
+  const activeDepthAt = (pid: string, stepIdx: number): number => {
+    let maxDepth = -1;
+    for (const act of activations) {
+      if (
+        act.participantId === pid &&
+        act.startStep <= stepIdx &&
+        stepIdx <= act.endStep &&
+        act.depth > maxDepth
+      ) {
+        maxDepth = act.depth;
+      }
+    }
+    return maxDepth;
+  };
+  // An arrow's end X, snapped to the edge of the bar it meets.
+  const arrowEdgeX = (
+    pid: string,
+    stepIdx: number,
+    side: 'left' | 'right'
+  ): number => {
+    const px = participantX.get(pid)!;
+    const depth = activeDepthAt(pid, stepIdx);
+    if (depth < 0) return px;
+    const offset = depth * ACTIVATION_NEST_OFFSET;
+    return side === 'right'
+      ? px + sActivationWidth / 2 + offset
+      : px - sActivationWidth / 2 + offset;
+  };
+  const messageArrows: (MessageArrow | null)[] = renderSteps.map((step, i) => {
+    const fromX = participantX.get(step.from);
+    const toX = participantX.get(step.to);
+    if (fromX === undefined || toX === undefined) return null;
+    const y = stepY(i);
+    if (step.from === step.to) {
+      // A self-call's return is drawn by its call's loop.
+      if (step.type !== 'call') return null;
+      // Always loops to the right; the canvas widens for it via the
+      // right-edge projection.
+      const x = arrowEdgeX(step.from, i, 'right');
+      const loopX = x + sSelfCallWidth;
+      return {
+        kind: 'self',
+        x,
+        loopX,
+        y,
+        returnY: y + sSelfCallHeight,
+        label: { x: loopX + 5, y: y + sSelfCallHeight / 2 + 4 },
+      };
+    }
+    const goingRight = fromX < toX;
+    const x1 = arrowEdgeX(step.from, i, goingRight ? 'right' : 'left');
+    const x2 = arrowEdgeX(step.to, i, goingRight ? 'left' : 'right');
+    return {
+      kind: step.type,
+      x1,
+      x2,
+      y,
+      label: {
+        x: (x1 + x2) / 2,
+        y: y - (step.type === 'call' ? MSG_LABEL_OFFSET : RETURN_LABEL_OFFSET),
+      },
+    };
+  });
+
+  // ── Note boxes ───────────────────────────────────────────
+  const noteBoxes = new Map<SequenceNote, NoteBox>();
+  // A bullet's body sits this far right of its glyph, continuation lines too.
+  const BULLET_BODY_INDENT = 10;
+  for (const [note, noteLayout] of noteLayouts) {
+    const px = participantX.get(note.participantId);
+    if (px === undefined) continue;
+    const { topY, position, afterSelfCall, maxW, textWidth } = noteLayout;
+    const isRight = position === 'right';
+    const wrappedLines = wrapTextLines(note.text, textWidth, sNoteFontSize);
+    const noteH = wrappedLines.length * sNoteLineH + sNotePadV * 2;
+    const maxLineW = Math.max(
+      ...wrappedLines.map((l) => measureText(l.text, sNoteFontSize))
+    );
+    const noteW = Math.min(
+      maxW,
+      Math.max(80, maxLineW + sNotePadH * 2 + sNoteFold)
+    );
+    // Shift notes past self-call loopback when applicable
+    const rightOffset =
+      afterSelfCall && isRight
+        ? sActivationWidth / 2 + sSelfCallWidth + sNoteGap
+        : sActivationWidth + sNoteGap;
+    const noteX = isRight
+      ? px + rightOffset
+      : px - sActivationWidth - sNoteGap - noteW;
+    noteBoxes.set(note, {
+      x: noteX,
+      y: topY,
+      width: noteW,
+      height: noteH,
+      lines: wrappedLines.map((line, li) => ({
+        kind: line.kind,
+        text: line.text,
+        x: noteX + sNotePadH + (line.kind === 'plain' ? 0 : BULLET_BODY_INDENT),
+        y: topY + sNotePadV + (li + 1) * sNoteLineH - 3,
+        ...(line.kind === 'bullet-first' && { bulletX: noteX + sNotePadH }),
+      })),
+    });
+  }
+
   return {
     ctx,
     participants,
@@ -2783,6 +3025,8 @@ export function layoutSequence(
     renderSteps,
     stepLabels,
     activations,
+    activationBars,
+    messageArrows,
     labelRoomBefore,
     msgToFirstStep,
     msgToLastStep,
@@ -2791,6 +3035,7 @@ export function layoutSequence(
     sectionRegions,
     sectionMsgCounts,
     noteLayouts,
+    noteBoxes,
     participantX,
     participantStartY,
     lifelineStartY0,
@@ -2858,9 +3103,9 @@ export function renderSequenceDiagram(
     renderSteps,
     stepLabels,
     activations,
-    labelRoomBefore,
-    stepYPositions,
-    noteLayouts,
+    activationBars,
+    messageArrows,
+    noteBoxes,
     participantX,
     participantStartY,
     lifelines,
@@ -2881,23 +3126,15 @@ export function renderSequenceDiagram(
     sLabelFontSize,
     sLabelTextWidth,
     sGroupLabelSize,
-    sActivationWidth,
-    ACTIVATION_NEST_OFFSET,
     sArrowheadW,
     sArrowheadH,
     sSelfCallWidth,
     sSelfCallHeight,
     sNoteFold,
     sNoteFontSize,
-    sNoteGap,
-    sNoteLineH,
-    sNotePadH,
-    sNotePadV,
   } = layout;
   const { title, options: parsedOptions } = parsed;
   const fillMode = fillModeFromOptions(parsedOptions);
-  // Callers always pass a laid-out step index (1:1 with stepYPositions).
-  const stepY = (i: number) => stepYPositions[i]!;
 
   let tagMap: ResolvedTagMap | undefined;
   const tagValueToColor = new Map<string, string>();
@@ -3242,11 +3479,9 @@ export function renderSequenceDiagram(
       const drillColor =
         effectiveTagColor ??
         mix(palette.textMuted, themeBaseBg(palette, isDark), 55);
-      const drillBarH = ctx.structural(COLLAPSE_BAR_HEIGHT);
       const boxW = sBoxW;
       // Sized against the rest of the row — see `collapsedGroupBoxes`.
-      const { padTop, padBottom } = meta;
-      const fullH = sBoxH + padTop + padBottom;
+      const { padTop, height: fullH, nameY, barY, barHeight } = meta;
       const clipId = `clip-drill-group-${participant.id.replace(/[^a-zA-Z0-9-]/g, '-')}`;
 
       // Add toggle attributes to the participant <g> so any click on it
@@ -3286,10 +3521,6 @@ export function renderSequenceDiagram(
         .attr('stroke', pStroke)
         .attr('stroke-width', 1.5);
 
-      // Centred in the box ABOVE the bar, so the bar does not push the name
-      // off-centre the way it would if the whole box were used.
-      const nameY = -padTop + (fullH - drillBarH) / 2;
-
       participantG
         .append('text')
         .attr('x', 0)
@@ -3326,9 +3557,9 @@ export function renderSequenceDiagram(
         .append('rect')
         .attr('class', 'sequence-drill-bar')
         .attr('x', -boxW / 2)
-        .attr('y', -padTop + fullH - drillBarH)
+        .attr('y', barY)
         .attr('width', boxW)
-        .attr('height', drillBarH)
+        .attr('height', barHeight)
         .attr('fill', drillColor)
         .attr('clip-path', `url(#${clipId})`);
     }
@@ -3376,29 +3607,10 @@ export function renderSequenceDiagram(
   }
 
   // Render activation rectangles (behind arrows)
-  activations.forEach((act) => {
-    const px = participantX.get(act.participantId);
-    if (px === undefined) return;
-
-    const x = px - sActivationWidth / 2 + act.depth * ACTIVATION_NEST_OFFSET;
-    const y1 = stepY(act.startStep);
-    // A bar closed by an explicit return ends ON that return, which is its own
-    // arrow leaving it. A bar with no return ends at whatever happens NEXT —
-    // and that next message is very often one between two other participants
-    // crossing this column, so its line landed exactly on the bar's bottom
-    // edge and read as though the bar terminated in an arrow. Stop short of it.
-    // Extra vertical spacing does not fix this and never could: the edge is
-    // pinned to the next message's Y, so moving that message moves the edge
-    // with it. What extra space does fix is a crossing LABEL, so the room
-    // `labelRoomBefore` inserted before the next step lies below every
-    // implicitly-ended bar: the bar ends where it would have, the row moves.
-    const rawY2 = stepY(act.endStep);
-    const implicitY2 =
-      rawY2 - labelRoomBefore[act.endStep]! - ACTIVATION_IMPLICIT_END_CLEARANCE;
-    const y2 =
-      act.implicitEnd && implicitY2 > y1 + sActivationWidth
-        ? implicitY2
-        : rawY2;
+  activations.forEach((act, ai) => {
+    const bar = activationBars[ai];
+    if (!bar) return;
+    const { x, y: y1, height } = bar;
 
     // Collect message line numbers covered by this activation
     const coveredLines: number[] = [];
@@ -3426,8 +3638,8 @@ export function renderSequenceDiagram(
       .append('rect')
       .attr('x', x)
       .attr('y', y1)
-      .attr('width', sActivationWidth)
-      .attr('height', y2 - y1)
+      .attr('width', bar.width)
+      .attr('height', height)
       .attr('fill', themeBaseBg(palette, isDark));
 
     // Canonical 25% tint via shapeFill() (or full intent when solid-fill is on).
@@ -3438,8 +3650,8 @@ export function renderSequenceDiagram(
       .append('rect')
       .attr('x', x)
       .attr('y', y1)
-      .attr('width', sActivationWidth)
-      .attr('height', y2 - y1)
+      .attr('width', bar.width)
+      .attr('height', height)
       .attr('fill', actFill)
       .attr('stroke', actBaseColor)
       .attr('stroke-width', 1)
@@ -3487,37 +3699,6 @@ export function renderSequenceDiagram(
     if (lbl.lineNumber !== undefined)
       t.attr('data-block-line', String(lbl.lineNumber));
   }
-
-  // Helper: find max active activation depth for a participant at a step
-  const activeDepthAt = (pid: string, stepIdx: number): number => {
-    let maxDepth = -1;
-    for (const act of activations) {
-      if (
-        act.participantId === pid &&
-        act.startStep <= stepIdx &&
-        stepIdx <= act.endStep &&
-        act.depth > maxDepth
-      ) {
-        maxDepth = act.depth;
-      }
-    }
-    return maxDepth;
-  };
-
-  // Helper: compute arrow endpoint X, snapping to activation box edge
-  const arrowEdgeX = (
-    pid: string,
-    stepIdx: number,
-    side: 'left' | 'right'
-  ): number => {
-    const px = participantX.get(pid)!;
-    const depth = activeDepthAt(pid, stepIdx);
-    if (depth < 0) return px;
-    const offset = depth * ACTIVATION_NEST_OFFSET;
-    return side === 'right'
-      ? px + sActivationWidth / 2 + offset
-      : px - sActivationWidth / 2 + offset;
-  };
 
   // Render section dividers — geometry hoisted above the lifelines, which are
   // drawn first and cut around each label.
@@ -3601,23 +3782,15 @@ export function renderSequenceDiagram(
     // The count above says how much the fold swallowed; these say who was in
     // it. Without them the lifelines run through the band untouched, which
     // reads as "nobody was involved" rather than "you cannot see this yet".
-    const participation = summarizeSectionParticipation(
-      messages,
-      band.region.msgIndices
-    );
     const markY = band.markY;
 
     // Reach: a hairline between the outermost columns the fold touches, so
     // the span of the hidden traffic reads before any individual mark does.
-    const involvedXs = participants
-      .filter((p) => participation.has(p.id))
-      .map((p) => participantX.get(p.id))
-      .filter((x): x is number => x !== undefined);
-    if (involvedXs.length > 1) {
+    if (band.reach) {
       sectionG
         .append('line')
-        .attr('x1', Math.min(...involvedXs))
-        .attr('x2', Math.max(...involvedXs))
+        .attr('x1', band.reach.x1)
+        .attr('x2', band.reach.x2)
         .attr('y1', markY)
         .attr('y2', markY)
         .attr('stroke', lineColor)
@@ -3628,22 +3801,19 @@ export function renderSequenceDiagram(
         .attr('class', 'section-reach');
     }
 
-    for (const participant of participants) {
-      const markX = participantX.get(participant.id);
-      if (markX === undefined) continue;
-      const part = participation.get(participant.id);
+    for (const { participantId, x: markX, part, radius } of band.marks) {
       const mark = sectionG
         .append('circle')
         .attr('cx', markX)
         .attr('cy', markY)
         .attr('pointer-events', 'none')
-        .attr('data-participant-id', participant.id);
+        .attr('data-participant-id', participantId);
 
       if (!part) {
         // Drawn rather than omitted: an empty column is ambiguous between
         // "not in this phase" and "you missed it".
         mark
-          .attr('r', 2.5)
+          .attr('r', radius)
           .attr('fill', 'none')
           .attr('stroke', lineColor)
           .attr('stroke-width', 1)
@@ -3652,8 +3822,7 @@ export function renderSequenceDiagram(
         continue;
       }
 
-      const markColor = participantTagColor(participant.id) ?? palette.text;
-      const radius = sectionMarkRadius(part.sends + part.receives);
+      const markColor = participantTagColor(participantId) ?? palette.text;
 
       // A transparent disc over the mark, because the mark itself is 3.5–6px
       // across and nobody hits that. It carries the destination rather than
@@ -3670,7 +3839,7 @@ export function renderSequenceDiagram(
         .attr('r', Math.max(radius, SECTION_MARK_HIT_RADIUS))
         .attr('fill', 'transparent')
         .attr('class', 'section-mark-hit')
-        .attr('data-participant-id', participant.id)
+        .attr('data-participant-id', participantId)
         .attr('data-section-mark-line', String(part.firstLine))
         .attr('cursor', 'pointer');
       if (part.sends === 0) {
@@ -3693,8 +3862,11 @@ export function renderSequenceDiagram(
     // The band is a button, and its text names only the phase and a count.
     // Spelling the participants into the accessible name hands a screen
     // reader the whole answer without any of the marks above.
+    const involved = new Set(
+      band.marks.filter((m) => m.part).map((m) => m.participantId)
+    );
     const involvedLabels = participants
-      .filter((p) => participation.has(p.id))
+      .filter((p) => involved.has(p.id))
       .map((p) => p.label);
     if (involvedLabels.length > 0) {
       sectionG.attr('aria-label', `${labelText}, ${involvedLabels.join(', ')}`);
@@ -3704,11 +3876,9 @@ export function renderSequenceDiagram(
   // Render steps (calls and returns in stack-inferred order)
   // Self-call rendering uses scaled constants
   renderSteps.forEach((step, i) => {
-    const fromX = participantX.get(step.from);
-    const toX = participantX.get(step.to);
-    if (fromX === undefined || toX === undefined) return;
-
-    const y = stepY(i);
+    const arrow = messageArrows[i];
+    if (!arrow) return;
+    const { y, label } = arrow;
 
     const HIT_H = 20; // transparent hit area height (10px above + below arrow)
 
@@ -3722,11 +3892,9 @@ export function renderSequenceDiagram(
     if (step.type === 'call') {
       const arrowColor = msgTagColor || palette.text;
 
-      if (step.from === step.to) {
+      if (arrow.kind === 'self') {
         // Self-call: loopback arrow — always loops to the right.
-        // Canvas width extends to accommodate via right-edge projection.
-        const x = arrowEdgeX(step.from, i, 'right');
-        const loopX = x + sSelfCallWidth;
+        const { x, loopX, returnY } = arrow;
         const hitX = x;
 
         // Hit area for self-call
@@ -3744,7 +3912,7 @@ export function renderSequenceDiagram(
 
         const selfCallEl = svg
           .append('path')
-          .attr('d', `M ${x} ${y} H ${loopX} V ${y + sSelfCallHeight} H ${x}`)
+          .attr('d', `M ${x} ${y} H ${loopX} V ${returnY} H ${x}`)
           .attr('fill', 'none')
           .attr('stroke', arrowColor)
           .attr('stroke-width', 1.2)
@@ -3763,8 +3931,8 @@ export function renderSequenceDiagram(
         if (displayLabel) {
           const labelEl = svg
             .append('text')
-            .attr('x', loopX + 5)
-            .attr('y', y + sSelfCallHeight / 2 + 4)
+            .attr('x', label.x)
+            .attr('y', label.y)
             .attr('text-anchor', 'start')
             .attr('fill', arrowColor)
             .attr('paint-order', 'stroke fill')
@@ -3784,10 +3952,8 @@ export function renderSequenceDiagram(
           labelEl.text(displayLabel);
         }
       } else {
-        // Normal call arrow — snap to activation box edges
-        const goingRight = fromX < toX;
-        const x1 = arrowEdgeX(step.from, i, goingRight ? 'right' : 'left');
-        const x2 = arrowEdgeX(step.to, i, goingRight ? 'left' : 'right');
+        // Normal call arrow, its ends on the activation bars' edges
+        const { x1, x2 } = arrow;
 
         // Hit area for call arrow
         svg
@@ -3826,11 +3992,10 @@ export function renderSequenceDiagram(
 
         const displayLabel = stepLabels[i];
         if (displayLabel) {
-          const midX = (x1 + x2) / 2;
           const labelEl = svg
             .append('text')
-            .attr('x', midX)
-            .attr('y', y - MSG_LABEL_OFFSET)
+            .attr('x', label.x)
+            .attr('y', label.y)
             .attr('text-anchor', 'middle')
             .attr('fill', arrowColor)
             .attr('paint-order', 'stroke fill')
@@ -3850,15 +4015,10 @@ export function renderSequenceDiagram(
           labelEl.text(displayLabel);
         }
       }
-    } else {
-      if (step.from === step.to) {
-        // Self-call return — already handled by the loopback path, skip
-        return;
-      }
-      // Return arrow — snap to activation box edges
-      const goingRight = fromX < toX;
-      const x1 = arrowEdgeX(step.from, i, goingRight ? 'right' : 'left');
-      const x2 = arrowEdgeX(step.to, i, goingRight ? 'left' : 'right');
+    } else if (arrow.kind === 'return') {
+      // Return arrow, its ends on the activation bars' edges. A self-call's
+      // return has no arrow of its own — its call's loop draws it.
+      const { x1, x2 } = arrow;
       const returnColor = msgTagColor || palette.textMuted;
 
       // Hit area for return arrow
@@ -3896,11 +4056,10 @@ export function renderSequenceDiagram(
 
       const displayLabel = stepLabels[i];
       if (displayLabel) {
-        const midX = (x1 + x2) / 2;
         const labelEl = svg
           .append('text')
-          .attr('x', midX)
-          .attr('y', y - RETURN_LABEL_OFFSET)
+          .attr('x', label.x)
+          .attr('y', label.y)
           .attr('text-anchor', 'middle')
           .attr('fill', returnColor)
           .attr('paint-order', 'stroke fill')
@@ -3933,35 +4092,9 @@ export function renderSequenceDiagram(
   const renderNoteElements = (els: readonly SequenceElement[]): void => {
     for (const el of els) {
       if (isSequenceNote(el)) {
-        const px = participantX.get(el.participantId);
-        if (px === undefined) continue;
-        const noteLayout = noteLayouts.get(el);
-        if (noteLayout === undefined) continue;
-        const {
-          topY: noteTopY,
-          position,
-          afterSelfCall,
-          maxW,
-          textWidth,
-        } = noteLayout;
-        const isRight = position === 'right';
-        const wrappedLines = wrapTextLines(el.text, textWidth, sNoteFontSize);
-        const noteH = wrappedLines.length * sNoteLineH + sNotePadV * 2;
-        const maxLineW = Math.max(
-          ...wrappedLines.map((l) => measureText(l.text, sNoteFontSize))
-        );
-        const noteW = Math.min(
-          maxW,
-          Math.max(80, maxLineW + sNotePadH * 2 + sNoteFold)
-        );
-        // Shift notes past self-call loopback when applicable
-        const rightOffset =
-          afterSelfCall && isRight
-            ? sActivationWidth / 2 + sSelfCallWidth + sNoteGap
-            : sActivationWidth + sNoteGap;
-        const noteX = isRight
-          ? px + rightOffset
-          : px - sActivationWidth - sNoteGap - noteW;
+        const box = noteBoxes.get(el);
+        if (box === undefined) continue;
+        const { x: noteX, y: noteTopY, width: noteW, height: noteH } = box;
 
         const noteG = svg
           .append('g')
@@ -4008,28 +4141,25 @@ export function renderSequenceDiagram(
         // Render text with inline markdown. Bullet first lines get a "\u2022"
         // glyph at the left edge with body text indented; bullet continuation
         // lines render at the same indented body column for hanging alignment.
-        const BULLET_BODY_INDENT = 10;
-        wrappedLines.forEach((line, li) => {
-          const textY = noteTopY + sNotePadV + (li + 1) * sNoteLineH - 3;
-          const indent = line.kind === 'plain' ? 0 : BULLET_BODY_INDENT;
-          if (line.kind === 'bullet-first') {
+        for (const line of box.lines) {
+          if (line.bulletX !== undefined) {
             noteG
               .append('text')
-              .attr('x', noteX + sNotePadH)
-              .attr('y', textY)
+              .attr('x', line.bulletX)
+              .attr('y', line.y)
               .attr('fill', palette.text)
               .attr('font-size', sNoteFontSize)
               .text('\u2022');
           }
           const textEl = noteG
             .append('text')
-            .attr('x', noteX + sNotePadH + indent)
-            .attr('y', textY)
+            .attr('x', line.x)
+            .attr('y', line.y)
             .attr('fill', palette.text)
             .attr('font-size', sNoteFontSize)
             .attr('class', 'note-text');
           renderInlineText(textEl, line.text, palette, sNoteFontSize);
-        });
+        }
       } else if (isSequenceBlock(el)) {
         renderNoteElements(el.children);
         if (el.elseIfBranches) {
