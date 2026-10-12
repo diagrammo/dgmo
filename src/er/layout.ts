@@ -1,4 +1,9 @@
 import dagre from '@dagrejs/dagre';
+import {
+  searchPlacement,
+  type Pt,
+  type Shuffle,
+} from '../utils/placement-search';
 import { measureText } from '../utils/text-measure';
 import {
   resolveNotes,
@@ -142,6 +147,9 @@ function findConnectedComponents(
 // Per-component layout (independent dagre run)
 // ============================================================
 
+const newDagreGraph = () => new dagre.graphlib.Graph({ multigraph: true });
+type DagreGraph = ReturnType<typeof newDagreGraph>;
+
 interface ComponentLayout {
   /** Node center positions relative to this component's top-left origin */
   nodePositions: Map<
@@ -205,26 +213,55 @@ function layoutComponent(
     };
   }
 
-  const g = new dagre.graphlib.Graph({ multigraph: true });
-  g.setGraph({ rankdir: 'LR', nodesep: 40, ranksep: 80, edgesep: 20 });
-  g.setDefaultEdgeLabel(() => ({}));
+  // One dagre placement. `shuffle` (a seeded search candidate, #1240) varies
+  // the insertion order of tables and relationships, which is what dagre's
+  // within-rank ordering starts from.
+  const place = (ranker: string, shuffle?: Shuffle): DagreGraph => {
+    const ord = shuffle ?? (<T>(a: readonly T[]): T[] => a.slice());
+    const g = newDagreGraph();
+    g.setGraph({
+      rankdir: 'LR',
+      ranker,
+      nodesep: 40,
+      ranksep: 80,
+      edgesep: 20,
+    });
+    g.setDefaultEdgeLabel(() => ({}));
+    for (const table of ord(tables)) {
+      const dims = dimMap.get(table.id)!;
+      g.setNode(table.id, { width: dims.width, height: dims.height });
+    }
+    // Use lineNumber as edge name to support multigraph (multiple edges between same pair)
+    for (const rel of ord(rels)) {
+      g.setEdge(
+        rel.source,
+        rel.target,
+        { label: rel.label ?? '' },
+        String(rel.lineNumber)
+      );
+    }
+    dagre.layout(g);
+    return g;
+  };
 
-  for (const table of tables) {
-    const dims = dimMap.get(table.id)!;
-    g.setNode(table.id, { width: dims.width, height: dims.height });
-  }
-
-  // Use lineNumber as edge name to support multigraph (multiple edges between same pair)
-  for (const rel of rels) {
-    g.setEdge(
-      rel.source,
-      rel.target,
-      { label: rel.label ?? '' },
-      String(rel.lineNumber)
-    );
-  }
-
-  dagre.layout(g);
+  // The placement search (#1240). The scorers read the edges in `rels`
+  // order, so a rerouted edge maps back by index.
+  const { g, edgePoints: bent } = searchPlacement('LR', place, (lay) => ({
+    nodes: tables.map((t) => {
+      const p = lay.node(t.id);
+      return { id: t.id, x: p.x, y: p.y, width: p.width, height: p.height };
+    }),
+    edges: rels.map((r) => ({
+      source: r.source,
+      target: r.target,
+      points: (lay.edge(r.source, r.target, String(r.lineNumber))?.points ??
+        []) as Pt[],
+    })),
+  }));
+  const routeOf = (i: number, rel: ERRelationship): Pt[] =>
+    bent?.[i] ??
+    g.edge(rel.source, rel.target, String(rel.lineNumber))?.points ??
+    [];
 
   // Compute bounding box (dagre coordinates)
   let minX = Infinity,
@@ -241,22 +278,21 @@ function layoutComponent(
     maxY = Math.max(maxY, pos.y + dims.height / 2);
   }
 
-  for (const rel of rels) {
-    const ed = g.edge(rel.source, rel.target, String(rel.lineNumber));
-    for (const pt of ed?.points ?? []) {
+  rels.forEach((rel, i) => {
+    const pts = routeOf(i, rel);
+    for (const pt of pts) {
       minX = Math.min(minX, pt.x);
       minY = Math.min(minY, pt.y);
       maxX = Math.max(maxX, pt.x);
       maxY = Math.max(maxY, pt.y);
     }
-    if (rel.label && (ed?.points ?? []).length > 0) {
-      const pts = ed!.points;
-      const mid = pts[Math.floor(pts.length / 2)];
+    if (rel.label && pts.length > 0) {
+      const mid = pts[Math.floor(pts.length / 2)]!;
       const hw = (measureText(rel.label, EDGE_LABEL_FONT_SIZE) + 8) / 2;
       minX = Math.min(minX, mid.x - hw);
       maxX = Math.max(maxX, mid.x + hw);
     }
-  }
+  });
 
   // Normalize positions to component origin (0, 0)
   for (const table of tables) {
@@ -268,16 +304,12 @@ function layoutComponent(
       ...dims,
     });
   }
-  for (const rel of rels) {
-    const ed = g.edge(rel.source, rel.target, String(rel.lineNumber));
+  rels.forEach((rel, i) => {
     edgePoints.set(
       rel.lineNumber,
-      (ed?.points ?? []).map((pt: { x: number; y: number }) => ({
-        x: pt.x - minX,
-        y: pt.y - minY,
-      }))
+      routeOf(i, rel).map((pt) => ({ x: pt.x - minX, y: pt.y - minY }))
     );
-  }
+  });
 
   return {
     nodePositions,
