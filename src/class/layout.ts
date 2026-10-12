@@ -293,9 +293,10 @@ export function layoutClassDiagram(
     return layoutEdge;
   });
 
-  // Content bbox over nodes and their (floated) notes. A note placed
-  // above/left can land at negative coords; when it does, shift everything
-  // so nothing clips. Un-annotated diagrams keep min ≥ 0 → no shift.
+  // Content bbox over nodes, their (floated) notes and the edge routes. A
+  // note placed above/left can land at negative coords, and so can an edge
+  // the placement search bent around a class; when either does, shift
+  // everything so nothing clips. Otherwise min ≥ 0 → no shift.
   let bbMinX = Infinity;
   let bbMinY = Infinity;
   let bbMaxX = -Infinity;
@@ -321,6 +322,9 @@ export function layoutClassDiagram(
         node.y + node.note.y + node.note.height
       );
     }
+  }
+  for (const edge of layoutEdges) {
+    for (const pt of edge.points) extend(pt.x, pt.y, pt.x, pt.y);
   }
   if (!Number.isFinite(bbMinX)) {
     bbMinX = 0;

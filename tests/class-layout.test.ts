@@ -43,6 +43,40 @@ describe('layoutClassDiagram crossing search (#1240)', () => {
     expect(countEdgeNodePierces(lay)).toBe(0);
   });
 
+  it('keeps every edge on the canvas, wherever the search routes it', () => {
+    // 36 seeded random class diagrams. A winning candidate can route an edge
+    // left of every class, or the detour can bend one there; the canvas must
+    // still hold it.
+    let seed = 7;
+    const r = (): number => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      return seed / 0x7fffffff;
+    };
+    const kinds = ['->', '..>', '*--', 'o--'];
+    const off: string[] = [];
+    for (let k = 0; k < 36; k++) {
+      const n = 4 + Math.floor(r() * 12);
+      const m = Math.floor(n * (0.8 + r() * 1.2));
+      const rels = new Map<number, string[]>();
+      for (let j = 0; j < m; j++) {
+        const a = Math.floor(r() * n);
+        const b = Math.floor(r() * n);
+        if (a === b) continue;
+        const kind = kinds[Math.floor(r() * 4)]!;
+        rels.set(a, [...(rels.get(a) ?? []), `  ${kind} C${b}`]);
+      }
+      const lines = ['class T', ''];
+      for (let i = 0; i < n; i++)
+        lines.push(`C${i}`, `  + f${i}: number`, ...(rels.get(i) ?? []), '');
+      const lay = layoutClassDiagram(parseClassDiagram(lines.join('\n')));
+      for (const e of lay.edges)
+        for (const p of e.points)
+          if (p.x < 0 || p.y < 0 || p.x > lay.width || p.y > lay.height)
+            off.push(`rand${k} ${e.source}->${e.target} (${p.x}, ${p.y})`);
+    }
+    expect(off).toEqual([]);
+  });
+
   it('is deterministic — the same source lays out the same twice', () => {
     const parsed = parseClassDiagram(fixture('class-full.dgmo'));
     expect(layoutClassDiagram(parsed)).toEqual(layoutClassDiagram(parsed));
