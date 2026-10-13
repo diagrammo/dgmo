@@ -487,7 +487,7 @@ export function parseKanban(
   validateTagGroupNames(result.tagGroups, warn, (line, msg) => {
     const diag = makeDgmoError(line, msg);
     result.diagnostics.push(diag);
-    if (!result.error) result.error = formatDgmoError(diag);
+    result.error ??= formatDgmoError(diag);
   });
 
   // `active-tag <group>` must name a declared tag group — warn (never error)

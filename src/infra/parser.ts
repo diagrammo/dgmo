@@ -369,7 +369,7 @@ export function parseInfra(content: string): ParsedInfra {
   const setError = (line: number, message: string) => {
     const diag = makeDgmoError(line, message);
     result.diagnostics.push(diag);
-    if (!result.error) result.error = formatDgmoError(diag);
+    result.error ??= formatDgmoError(diag);
   };
 
   const warn = (line: number, message: string) => {

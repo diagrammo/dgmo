@@ -140,7 +140,7 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
   const pushError = (line: number, message: string): void => {
     const diag = makeDgmoError(line, message);
     result.diagnostics.push(diag);
-    if (!result.error) result.error = formatDgmoError(diag);
+    result.error ??= formatDgmoError(diag);
   };
 
   /** Push a non-fatal warning (does not set result.error). */

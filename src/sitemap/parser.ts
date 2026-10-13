@@ -90,6 +90,7 @@ function parseArrowLine(
   // Labeled arrow: -label-> Target
   const arrowMatch = trimmed.match(ARROW_RE);
   if (arrowMatch) {
+    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- an empty label is stored as no label
     const label = arrowMatch[1]?.trim() || undefined;
     // Capture group 2 present by regex shape.
     const rawTarget = arrowMatch[2]!.trim();
@@ -170,7 +171,7 @@ export function parseSitemap(
   const pushError = (line: number, message: string): void => {
     const diag = makeDgmoError(line, message);
     result.diagnostics.push(diag);
-    if (!result.error) result.error = formatDgmoError(diag);
+    result.error ??= formatDgmoError(diag);
   };
 
   const pushWarning = (line: number, message: string): void => {

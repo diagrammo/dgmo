@@ -722,7 +722,7 @@ export function parseState(
       (line, message) => {
         const diag = makeDgmoError(line, message);
         result.diagnostics.push(diag);
-        if (!result.error) result.error = formatDgmoError(diag);
+        result.error ??= formatDgmoError(diag);
       }
     );
   }

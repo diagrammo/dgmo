@@ -229,7 +229,8 @@ export function parseCycle(content: string): ParsedCycle {
 
         const edgeLabel = bareMatch
           ? undefined
-          : labeledMatch![1]?.trim() || undefined;
+          : // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- an empty label is stored as no label
+            labeledMatch![1]?.trim() || undefined;
         const rest = (
           bareMatch ? (bareMatch[1] ?? '') : (labeledMatch![2] ?? '')
         ).trim();

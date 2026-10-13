@@ -65,7 +65,7 @@ export function parseBlock(
   const pushError = (line: number, message: string, code?: string): void => {
     const diag = makeDgmoError(line, message, 'error', code);
     result.diagnostics.push(diag);
-    if (!result.error) result.error = formatDgmoError(diag);
+    result.error ??= formatDgmoError(diag);
   };
   const pushWarning = (line: number, message: string, code?: string): void => {
     result.diagnostics.push(makeDgmoError(line, message, 'warning', code));

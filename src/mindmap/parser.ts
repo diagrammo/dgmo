@@ -66,7 +66,7 @@ export function parseMindmap(
   const pushError = (line: number, message: string): void => {
     const diag = makeDgmoError(line, message);
     result.diagnostics.push(diag);
-    if (!result.error) result.error = formatDgmoError(diag);
+    result.error ??= formatDgmoError(diag);
   };
 
   const pushWarning = (line: number, message: string, code?: string): void => {
@@ -412,7 +412,7 @@ function parseNodeLine(
   // flag peeled above).
   let collapsed: boolean | undefined = bareCollapsed ? true : undefined;
   if ('collapsed' in metadata) {
-    collapsed = collapsed || metadata['collapsed'].toLowerCase() === 'true';
+    collapsed ??= metadata['collapsed'].toLowerCase() === 'true';
     delete metadata['collapsed'];
   }
 

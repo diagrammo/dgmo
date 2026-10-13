@@ -463,7 +463,7 @@ function parseSegment(
       .split('|')
       .map((s) => s.trim())
       .filter(Boolean);
-    const el = makeElement('dropdown', options[0] || '', lineNumber, indent);
+    const el = makeElement('dropdown', options[0] ?? '', lineNumber, indent);
     el.options = options;
     applyTrailingMeta(el, dropdownMatch[2]);
     return el;
@@ -484,7 +484,7 @@ function parseSegment(
       .split('|')
       .map((s) => s.trim())
       .filter(Boolean);
-    const el = makeElement('dropdown', options[0] || '', lineNumber, indent);
+    const el = makeElement('dropdown', options[0] ?? '', lineNumber, indent);
     el.options = options;
     return el;
   }
@@ -538,20 +538,21 @@ function parseSegment(
   if (kwMatch) {
     const el = makeElement(
       kwMatch.type,
-      kwMatch.param || '',
+      kwMatch.param ?? '',
       lineNumber,
       indent
     );
     if (kwMatch.type === 'image') {
       el.imageHint = (kwMatch.param as 'round' | 'wide') || 'default';
     } else if (kwMatch.type === 'progress') {
+      // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- an empty param must parse as 0, not NaN
       const val = parseInt(kwMatch.param || '0', 10);
       el.progressValue = Math.max(0, Math.min(100, isNaN(val) ? 0 : val));
     } else if (kwMatch.type === 'chart') {
       el.chartHint = (kwMatch.param as 'line' | 'bar' | 'pie') || 'line';
     } else if (kwMatch.type === 'table') {
       // Check for skeleton shorthand
-      const skelMatch = `table ${kwMatch.param || ''}`.match(TABLE_SKELETON_RE);
+      const skelMatch = `table ${kwMatch.param ?? ''}`.match(TABLE_SKELETON_RE);
       if (skelMatch) {
         // In-bounds: TABLE_SKELETON_RE has 2 capture groups; matched groups are defined.
         el.tableRows = parseInt(skelMatch[1]!, 10);
@@ -601,7 +602,7 @@ function parseSegment(
       .split('|')
       .map((s) => s.trim())
       .filter(Boolean);
-    const el = makeElement('dropdown', options[0] || '', lineNumber, indent);
+    const el = makeElement('dropdown', options[0] ?? '', lineNumber, indent);
     el.options = options;
     return el;
   }
@@ -810,6 +811,7 @@ export function parseWireframe(content: string): ParsedWireframe {
       // First line: chart type declaration
       const firstLineResult = parseFirstLine(trimmed);
       if (firstLineResult?.chartType === 'wireframe') {
+        // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- an empty title is stored as no title
         title = firstLineResult.title || null;
         titleLineNumber = lineNumber;
         continue;
@@ -903,7 +905,7 @@ export function parseWireframe(content: string): ParsedWireframe {
             topNode.tableHeaders = cells;
           }
         } else {
-          if (!topNode.tableData) topNode.tableData = [];
+          topNode.tableData ??= [];
           topNode.tableData.push(cells);
         }
         continue;

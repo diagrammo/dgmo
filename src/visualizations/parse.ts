@@ -1469,13 +1469,14 @@ function parseVisualizationFull(
         (line, msg) => {
           const diag = makeDgmoError(line, msg);
           result.diagnostics.push(diag);
-          if (!result.error) result.error = formatDgmoError(diag);
+          result.error ??= formatDgmoError(diag);
         }
       );
       for (const group of result.timelineTagGroups) {
         if (!group.defaultValue) continue;
         const key = tagAttrKey(group.name);
         for (const event of result.timelineEvents) {
+          // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- an empty value also takes the group default
           if (!event.metadata[key]) {
             event.metadata[key] = group.defaultValue;
           }
@@ -1523,11 +1524,10 @@ function parseVisualizationFull(
               `Intersection references unknown set or alias "${ref}" — declare the set first on its own line ('Name [as <alias>] [color]', e.g. 'Navigation as nav blue'), then reference it by that name or alias. (§16.4)`
             )
           );
-          if (!result.error)
-            // diagnostics non-empty: we just pushed to it.
-            result.error = formatDgmoError(
-              result.diagnostics[result.diagnostics.length - 1]!
-            );
+          // diagnostics non-empty: we just pushed to it.
+          result.error ??= formatDgmoError(
+            result.diagnostics[result.diagnostics.length - 1]!
+          );
           valid = false;
           break;
         }

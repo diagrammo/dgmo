@@ -314,7 +314,8 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
     result.directives.activeTag,
     tagGroups,
     regions.some((r) => r.value !== undefined)
-      ? [result.directives.regionMetric?.trim() || 'Value']
+      ? // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- an empty metric name also falls back to 'Value'
+        [result.directives.regionMetric?.trim() || 'Value']
       : [],
     'the value ramp'
   );

@@ -116,7 +116,7 @@ export function parseEventLine(
   const pushError = (line: number, message: string, code?: string): void => {
     const diag = makeDgmoError(line, message, 'error', code);
     result.diagnostics.push(diag);
-    if (!result.error) result.error = formatDgmoError(diag);
+    result.error ??= formatDgmoError(diag);
   };
 
   if (!content?.trim()) return fail(0, 'No content provided');

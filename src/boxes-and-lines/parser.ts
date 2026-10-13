@@ -773,7 +773,7 @@ export function parseBoxesAndLines(
     validateTagGroupNames(result.tagGroups, pushWarning, (line, msg) => {
       const diag = makeDgmoError(line, msg);
       result.diagnostics.push(diag);
-      if (!result.error) result.error = diag.message;
+      result.error ??= diag.message;
     });
   }
 
@@ -789,7 +789,8 @@ export function parseBoxesAndLines(
     // by `box-metric` and defaulting to `Value` — but only when some box
     // actually carries a value, which is what the renderer gates on.
     result.nodes.some((n) => n.value !== undefined)
-      ? [result.boxMetric?.trim() || 'Value']
+      ? // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- an empty metric name also falls back to 'Value'
+        [result.boxMetric?.trim() || 'Value']
       : [],
     'the value metric'
   );

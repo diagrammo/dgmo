@@ -323,7 +323,7 @@ export function parseVersionControl(
       if (existing) {
         active = name;
       } else {
-        makeBranch(name, parent != null ? parent : active, colorToken, ord);
+        makeBranch(name, parent ?? active, colorToken, ord);
         active = name;
       }
       continue;

@@ -396,7 +396,7 @@ function parseExtendedChartFull(
       return canonical;
     }
     const aliased = nameAliasMap.resolve(trimmed);
-    return aliased !== undefined ? aliased : trimmed;
+    return aliased ?? trimmed;
   }
 
   for (let i = 0; i < lines.length; i++) {
@@ -504,10 +504,10 @@ function parseExtendedChartFull(
           ) ?? null)
         : null;
       if (catColor) {
-        if (!result.categoryColors) result.categoryColors = {};
+        result.categoryColors ??= {};
         result.categoryColors[catName] = catColor;
       }
-      if (!result.categoryLineNumbers) result.categoryLineNumbers = {};
+      result.categoryLineNumbers ??= {};
       result.categoryLineNumbers[catName] = lineNumber;
       currentCategory = catName;
       continue;
@@ -547,7 +547,7 @@ function parseExtendedChartFull(
         lineNumber
       );
       if (sourceColor || targetColor) {
-        if (!result.nodeColors) result.nodeColors = {};
+        result.nodeColors ??= {};
         if (sourceColor) result.nodeColors[source] = sourceColor;
         if (targetColor) result.nodeColors[target] = targetColor;
       }
@@ -571,7 +571,7 @@ function parseExtendedChartFull(
         );
         continue;
       }
-      if (!result.links) result.links = [];
+      result.links ??= [];
       result.links.push({
         source,
         target,
@@ -633,7 +633,7 @@ function parseExtendedChartFull(
               lineNumber
             );
             if (targetColor) {
-              if (!result.nodeColors) result.nodeColors = {};
+              result.nodeColors ??= {};
               result.nodeColors[target] = targetColor;
             }
             // In-bounds by values.length === 1 guard above.
@@ -648,7 +648,7 @@ function parseExtendedChartFull(
               );
               continue;
             }
-            if (!result.links) result.links = [];
+            result.links ??= [];
             result.links.push({
               source,
               target,
@@ -697,7 +697,7 @@ function parseExtendedChartFull(
           lineNumber
         );
         if (nodeColor) {
-          if (!result.nodeColors) result.nodeColors = {};
+          result.nodeColors ??= {};
           result.nodeColors[nodeName] = nodeColor;
         }
         sankeyStack.push({ name: nodeName, indent });
@@ -912,7 +912,7 @@ function parseExtendedChartFull(
           lineNumber
         );
         const fnValue = trimmed.substring(colonIndex + 1).trim();
-        if (!result.functions) result.functions = [];
+        result.functions ??= [];
         result.functions.push({
           name: fnName,
           expression: fnValue,
@@ -934,7 +934,7 @@ function parseExtendedChartFull(
         result.diagnostics
       );
       if (scatterData) {
-        if (!result.scatterPoints) result.scatterPoints = [];
+        result.scatterPoints ??= [];
         result.scatterPoints.push(scatterData);
         continue;
       }
@@ -957,7 +957,7 @@ function parseExtendedChartFull(
           const surplus = surplusValueDiagnostic(dataRow, expected, lineNumber);
           if (surplus) result.diagnostics.push(surplus);
         }
-        if (!result.heatmapRows) result.heatmapRows = [];
+        result.heatmapRows ??= [];
         result.heatmapRows.push({
           label: dataRow.label,
           values: dataRow.values,
@@ -1027,9 +1027,7 @@ function parseExtendedChartFull(
           'No functions found. Add functions in format: Name: expression'
         );
       }
-      if (!result.xRange) {
-        result.xRange = { min: -10, max: 10 }; // Default range
-      }
+      result.xRange ??= { min: -10, max: 10 }; // Default range
     } else if (result.type === 'scatter') {
       if (!result.scatterPoints || result.scatterPoints.length === 0) {
         warn(

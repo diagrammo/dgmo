@@ -1275,6 +1275,7 @@ export function parsePert(
   }
   if (options.seed === -1) {
     const seedSource =
+      // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- an empty title also seeds from the activity names
       title ||
       activities
         .map((a) => a.name)
@@ -1306,12 +1307,8 @@ export function parsePert(
     options.sprintMode = 'auto';
   }
   if (options.sprintMode) {
-    if (!options.sprintLength) {
-      options.sprintLength = { amount: 2, unit: 'w' };
-    }
-    if (options.sprintNumber === null) {
-      options.sprintNumber = 1;
-    }
+    options.sprintLength ??= { amount: 2, unit: 'w' };
+    options.sprintNumber ??= 1;
   }
 
   // Assign palette colors to bare (colorless) tag values.
@@ -1331,7 +1328,7 @@ export function parsePert(
     const ensureTags = (
       entity: Writable<PertActivity> | Writable<PertGroup>
     ): { metadata: Record<string, string>; lineNumber: number } => {
-      if (!entity.tags) entity.tags = {};
+      entity.tags ??= {};
       return {
         metadata: entity.tags as Record<string, string>,
         lineNumber: entity.lineNumber,

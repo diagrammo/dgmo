@@ -341,7 +341,7 @@ export function parseFamily(
         const re = peelTrailingColorName(cleanName);
         if (re.colorName !== undefined) {
           cleanName = re.label;
-          if (color === undefined) color = re.colorName;
+          color ??= re.colorName;
         }
       }
     }

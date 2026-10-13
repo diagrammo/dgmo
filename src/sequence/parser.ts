@@ -316,7 +316,7 @@ function parseNoteLine(
   if (multiMatch) {
     const position =
       (multiMatch[1]?.toLowerCase() as 'right' | 'left') || 'right';
-    let participantId = multiMatch[2] || null;
+    let participantId = multiMatch[2] ?? null;
     if (!participantId) {
       if (!lastMsgFrom) return { kind: 'skip' };
       participantId = lastMsgFrom;
@@ -517,7 +517,7 @@ export function parseSequenceDgmo(
   const pushError = (line: number, message: string, code?: string): void => {
     const diag = makeDgmoError(line, message, 'error', code);
     result.diagnostics.push(diag);
-    if (!result.error) result.error = formatDgmoError(diag);
+    result.error ??= formatDgmoError(diag);
   };
 
   /** Push a non-fatal warning (does not set result.error). */
@@ -831,7 +831,7 @@ export function parseSequenceDgmo(
       let groupMeta: Record<string, string> | undefined;
 
       // Parse metadata and collapse state AFTER the closing bracket
-      let afterBracket = groupMatch[3]?.trim() || '';
+      let afterBracket = groupMatch[3]?.trim() ?? '';
       let isCollapsed = false;
 
       // Canonical bare `collapsed` trailing flag (§1.8, decision #48) —
@@ -1158,7 +1158,7 @@ export function parseSequenceDgmo(
       // Capture groups 1 and 2 guaranteed present after successful match.
       const id = isAMatch[1]!;
       const typeStr = isAMatch[2]!.toLowerCase();
-      const remainder = isAMatch[3]?.trim() || '';
+      const remainder = isAMatch[3]?.trim() ?? '';
 
       const participantType: ParticipantType = VALID_PARTICIPANT_TYPES.has(
         typeStr
@@ -1331,7 +1331,7 @@ export function parseSequenceDgmo(
     const colonPostfixAsync = arrowCore.match(
       /^(.+?)\s*~>\s*([^:"]+?)\s*:\s*(.+)$/
     );
-    const colonPostfix = colonPostfixSync || colonPostfixAsync;
+    const colonPostfix = colonPostfixSync ?? colonPostfixAsync;
     if (colonPostfix) {
       // Capture groups 1-3 guaranteed present after successful match.
       const a = colonPostfix[1]!;
@@ -1359,7 +1359,7 @@ export function parseSequenceDgmo(
     // ---- Deprecated bare return arrows: A <- B, A <~ B ----
     const bareReturnSync = arrowCore.match(/^(.+?)\s*<-\s*(.+)$/);
     const bareReturnAsync = arrowCore.match(/^(.+?)\s*<~\s*(.+)$/);
-    const bareReturn = bareReturnSync || bareReturnAsync;
+    const bareReturn = bareReturnSync ?? bareReturnAsync;
     if (bareReturn) {
       const to = bareReturn[1];
       const from = bareReturn[2];
@@ -1373,7 +1373,7 @@ export function parseSequenceDgmo(
     // ---- Bare (unlabeled) call arrows: A -> B, A ~> B ----
     const bareCallSync = arrowCore.match(/^(.+?)\s*->\s*(.+)$/);
     const bareCallAsync = arrowCore.match(/^(.+?)\s*~>\s*(.+)$/);
-    const bareCall = bareCallSync || bareCallAsync;
+    const bareCall = bareCallSync ?? bareCallAsync;
     if (bareCall) {
       contentStarted = true;
       bodyStarted = true;
@@ -1444,7 +1444,7 @@ export function parseSequenceDgmo(
       const block: Writable<SequenceBlock> = {
         kind: 'block',
         type: 'parallel',
-        label: parallelMatch[1]?.trim() || '',
+        label: parallelMatch[1]?.trim() ?? '',
         children: [],
         elseChildren: [],
         lineNumber,
@@ -1481,7 +1481,7 @@ export function parseSequenceDgmo(
           // `elseIfBranches` is optional on SequenceBlock — Writable<>'s
           // shallow strip doesn't unwrap optional readonly arrays, so seed
           // and access through a typed-mutable local alias.
-          if (!top.block.elseIfBranches) top.block.elseIfBranches = [];
+          top.block.elseIfBranches ??= [];
           const branches = top.block.elseIfBranches as Writable<ElseIfBranch>[];
           branches.push(branch);
           top.activeElseIfBranch = branch;

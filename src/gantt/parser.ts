@@ -481,7 +481,7 @@ export function parseGantt(
             // Peel after extractColor — the quotes are what keep a trailing
             // color word inside the label (§2.2).
             label: peelQuotedName(eraExtracted.label),
-            color: eraExtracted.color || null,
+            color: eraExtracted.color ?? null,
             lineNumber,
           });
         } else {
@@ -516,7 +516,7 @@ export function parseGantt(
             // Peel after extractColor — the quotes are what keep a trailing
             // color word inside the label (§2.2).
             label: peelQuotedName(markerExtracted.label),
-            color: markerExtracted.color || null,
+            color: markerExtracted.color ?? null,
             lineNumber,
           });
         } else {
@@ -550,8 +550,8 @@ export function parseGantt(
           lineNumber
         );
         const color =
-          extracted.color ||
-          seriesColors[currentTagGroup.entries.length % seriesColors.length] ||
+          extracted.color ??
+          seriesColors[currentTagGroup.entries.length % seriesColors.length] ??
           '#888888';
         const isFirstEntry = currentTagGroup.entries.length === 0;
         currentTagGroup.entries.push({
@@ -810,7 +810,7 @@ export function parseGantt(
           startDate: '',
           endDate: '',
           label: peelQuotedName(eraExtracted.label),
-          color: eraExtracted.color || null,
+          color: eraExtracted.color ?? null,
           lineNumber,
           ...(startOff && { offsetStart: startOff }),
           ...(endOff && { offsetEnd: endOff }),
@@ -832,7 +832,7 @@ export function parseGantt(
         result.markers.push({
           date: '',
           label: peelQuotedName(markerExtracted.label),
-          color: markerExtracted.color || null,
+          color: markerExtracted.color ?? null,
           lineNumber,
           ...(dateOff && { offsetDate: dateOff }),
         });
@@ -944,7 +944,7 @@ export function parseGantt(
           startDate: eraMatch.start,
           endDate: eraMatch.end,
           label: peelQuotedName(eraExtracted.label),
-          color: eraExtracted.color || null,
+          color: eraExtracted.color ?? null,
           lineNumber,
         });
         continue;
@@ -973,7 +973,7 @@ export function parseGantt(
         result.markers.push({
           date: markerMatch.iso,
           label: peelQuotedName(markerExtracted.label),
-          color: markerExtracted.color || null,
+          color: markerExtracted.color ?? null,
           lineNumber,
         });
         continue;
@@ -1427,7 +1427,7 @@ export function parseGantt(
   validateTagGroupNames(result.tagGroups, warn, (line, msg) => {
     const diag = makeDgmoError(line, msg);
     diagnostics.push(diag);
-    if (!result.error) result.error = formatDgmoError(diag);
+    result.error ??= formatDgmoError(diag);
   });
 
   // `active-tag <group>` must name a declared tag group — warn (never error)
@@ -1439,7 +1439,7 @@ export function parseGantt(
   );
   if (activeTagWarning) {
     warn(
-      result.options.optionLineNumbers['active-tag'] || 1,
+      result.options.optionLineNumbers['active-tag'] ?? 1,
       activeTagWarning,
       'W_ACTIVE_TAG_NO_MATCH'
     );
@@ -1461,12 +1461,8 @@ export function parseGantt(
 
   // Apply defaults when sprint mode is active
   if (result.options.sprintMode) {
-    if (!result.options.sprintLength) {
-      result.options.sprintLength = { amount: 2, unit: 'w' };
-    }
-    if (result.options.sprintNumber === null) {
-      result.options.sprintNumber = 1;
-    }
+    result.options.sprintLength ??= { amount: 2, unit: 'w' };
+    result.options.sprintNumber ??= 1;
     // sprintStart defaults to chart start or today — handled in calculator
   }
 
