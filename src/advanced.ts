@@ -820,6 +820,18 @@ export {
   validateFlowchartStructure,
   FLOWCHART_STRUCTURE_CODE,
 } from './validate-diagram';
+export {
+  referenceForChartType,
+  extractSection,
+  parseTypeAliases,
+  extractColorRule,
+  extractTitleRule,
+  extractCategorizeRule,
+  formatChartTypeList,
+  isExampleFor,
+  formatExamples,
+  EXAMPLES_SHOWN,
+} from './agent-reference';
 export type {
   DiagramValidation,
   ValidateDiagramOptions,
