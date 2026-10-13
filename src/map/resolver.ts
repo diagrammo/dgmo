@@ -337,13 +337,13 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
     parsed.regions.some(
       (r) =>
         r.scope === 'US' ||
-        r.scope?.startsWith('US-') ||
+        !!r.scope?.startsWith('US-') ||
         usStateFromBareScope(r.scope) !== null
     ) ||
     parsed.pois.some(
       (p) =>
         p.pos.kind === 'name' &&
-        (p.pos.scope?.startsWith('US-') ||
+        (!!p.pos.scope?.startsWith('US-') ||
           usStateFromBareScope(p.pos.scope) !== null)
     );
 

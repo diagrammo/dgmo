@@ -173,10 +173,8 @@ export function assignAutoTagColors(
         !explicitHexes.has(c.hex.toLowerCase()) &&
         !autoHexes.has(c.hex.toLowerCase())
     );
-    if (!chosen) {
-      // Exhausted distinct names — wrap deterministically by auto-index.
-      chosen = cycle[autoHexes.size % cycle.length]!;
-    }
+    // Exhausted distinct names — wrap deterministically by auto-index.
+    chosen ??= cycle[autoHexes.size % cycle.length]!;
     autoHexes.add(chosen.hex.toLowerCase());
     entries[i] = { ...e, color: chosen.hex };
   }

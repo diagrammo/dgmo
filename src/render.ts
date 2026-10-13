@@ -125,7 +125,7 @@ async function acquireDom(): Promise<void> {
   const state = domState();
   if (typeof document !== 'undefined' && !state.installedByUs) return;
   state.refCount++;
-  if (!state.installPromise) state.installPromise = installDom(state);
+  state.installPromise ??= installDom(state);
   await state.installPromise;
 }
 

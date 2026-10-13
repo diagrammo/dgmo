@@ -268,7 +268,7 @@ function determineReplaceTarget(matched: Element): Element {
       const meaningfulChildren = Array.from(parent.childNodes).filter(
         (n) =>
           n.nodeType === 1 ||
-          (n.nodeType === 3 && (n.textContent || '').trim().length > 0)
+          (n.nodeType === 3 && (n.textContent ?? '').trim().length > 0)
       );
       if (
         meaningfulChildren.length === 1 &&

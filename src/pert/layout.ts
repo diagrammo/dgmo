@@ -618,7 +618,7 @@ function applySwimLanes(
   const critOf = (id: string): number => {
     const r = resolved.activities.find((a) => a.activity.id === id);
     if (r) {
-      return r.criticality !== null ? r.criticality : r.isCriticalPath ? 1 : 0;
+      return r.criticality ?? (r.isCriticalPath ? 1 : 0);
     }
     const rg = resolved.groups.find((x) => x.group.id === id);
     if (!rg) return 0;
@@ -626,8 +626,7 @@ function applySwimLanes(
     for (const aid of rg.group.activityIds) {
       const ar = resolved.activities.find((a) => a.activity.id === aid);
       if (!ar) continue;
-      const c =
-        ar.criticality !== null ? ar.criticality : ar.isCriticalPath ? 1 : 0;
+      const c = ar.criticality ?? (ar.isCriticalPath ? 1 : 0);
       if (c > m) m = c;
     }
     return m;
@@ -706,7 +705,7 @@ function centerByCriticality(
   const critById = new Map<string, number>();
   for (const r of resolved.activities) {
     if (memberToGroup.has(r.activity.id)) continue;
-    const c = r.criticality !== null ? r.criticality : r.isCriticalPath ? 1 : 0;
+    const c = r.criticality ?? (r.isCriticalPath ? 1 : 0);
     critById.set(r.activity.id, c);
   }
   for (const rg of resolved.groups) {
@@ -715,8 +714,7 @@ function centerByCriticality(
     for (const aid of rg.group.activityIds) {
       const r = resolved.activities.find((x) => x.activity.id === aid);
       if (!r) continue;
-      const c =
-        r.criticality !== null ? r.criticality : r.isCriticalPath ? 1 : 0;
+      const c = r.criticality ?? (r.isCriticalPath ? 1 : 0);
       if (c > maxC) maxC = c;
     }
     critById.set(rg.group.id, maxC);

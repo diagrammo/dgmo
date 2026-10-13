@@ -393,7 +393,7 @@ export function openDgmoLightbox(fromButton: Element): void {
       break;
     }
   }
-  if (!svg) svg = block.querySelector('svg');
+  svg ??= block.querySelector('svg');
   if (!svg) return;
 
   const clone = svg.cloneNode(true) as SVGSVGElement;

@@ -1426,7 +1426,8 @@ export function layoutMap(
   // whenever any region has a value (the old `active-tag score` token is gone —
   // there is nothing to force; selecting a tag group is what `active-tag` does).
   const VALUE_NAME = hasRamp
-    ? resolved.directives.regionMetric?.trim() || 'Value'
+    ? // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- a blank metric name must still read 'Value'
+      resolved.directives.regionMetric?.trim() || 'Value'
     : null;
   const matchColorGroup = (v: string): string | null => {
     const lv = v.trim().toLowerCase();

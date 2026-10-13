@@ -337,7 +337,7 @@ export function layoutFamily(
 
   // `highlight` bloodline (dim everyone outside it). Empty when unset — parser
   // has already dropped an unknown target, so this id always resolves.
-  const highlightId = parsed.options['highlight'] || null;
+  const highlightId = parsed.options['highlight'] ?? null;
   const litSet = highlightId ? computeBloodline(unions, highlightId) : null;
   const showGen = parsed.options['generations'] === 'true';
   const ANCESTOR_STAGGER = 20; // vertical step between successive parent dots

@@ -33,6 +33,7 @@ export function mapLegendGroups(legend: MapLayoutLegend): LegendGroupData[] {
   // VALUE_NAME in layout.ts so the resolved activeGroup selects it.
   const scoreGroup: LegendGroupData | null = ramp
     ? {
+        // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- a blank metric name must still read 'Value'
         name: ramp.metric?.trim() || 'Value',
         entries: [],
         gradient: {

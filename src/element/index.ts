@@ -287,11 +287,9 @@ export class DgmoDiagram extends HTMLElement {
 
   private themePreference(): ThemePreference {
     // `color-mode` is canonical; `theme` is an accepted synonym.
-    const raw = (
-      this.getAttribute('color-mode') ||
-      this.getAttribute('theme') ||
-      'auto'
-    ).toLowerCase();
+    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- an empty `color-mode=""` falls through to `theme`
+    const attr = this.getAttribute('color-mode') || this.getAttribute('theme');
+    const raw = (attr ?? 'auto').toLowerCase();
     if (
       raw === 'auto' ||
       raw === 'light' ||
@@ -304,20 +302,23 @@ export class DgmoDiagram extends HTMLElement {
   }
 
   private palette(): string {
+    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- an empty `palette=""` must still take the default palette
     return this.getAttribute('palette') || 'slate';
   }
 
   private editorBase(): string {
+    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- an empty `editor-base=""` must still take the default URL
     return this.getAttribute('editor-base') || EDITOR_BASE_URL;
   }
 
   private mapDataBase(): string {
+    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- an empty `map-data-base=""` must still take the default URL
     return this.getAttribute('map-data-base') || DEFAULT_MAP_DATA_BASE;
   }
 
   private isShowcase(): boolean {
     return (
-      (this.getAttribute('mode') || 'diagram').toLowerCase() === 'showcase'
+      (this.getAttribute('mode') ?? 'diagram').toLowerCase() === 'showcase'
     );
   }
 

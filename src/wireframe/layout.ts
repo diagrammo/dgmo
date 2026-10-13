@@ -427,6 +427,7 @@ function getElementHeight(el: WireframeElement): number {
   if (el.type === 'table') {
     const headerH = 32;
     const rowH = 28;
+    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- an empty tableData (0 rows) falls back to the declared row count
     const rows = el.tableData?.length || el.tableRows || 0;
     return headerH + rows * rowH + 8;
   }

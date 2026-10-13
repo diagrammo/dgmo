@@ -43,12 +43,10 @@ export default tseslint.config(
         'error',
         { considerDefaultExhaustiveForUnions: true },
       ],
-      // Epic 105 Tier E modernization rules. Active at 'warn' to surface
-      // violations without blocking CI; convert to 'error' after a focused
-      // pass through the remaining sites (|| → ??).
-      // 44 auto-fixable cases were resolved opportunistically alongside
-      // enabling the rules (commit landing this).
-      '@typescript-eslint/prefer-nullish-coalescing': 'warn',
+      // Every site converted or kept as `||` with a reasoned disable where an
+      // empty string or 0 must still take the fallback (#1117); now an error
+      // so none return.
+      '@typescript-eslint/prefer-nullish-coalescing': 'error',
       // Every site converted (#1057); now an error so none return.
       '@typescript-eslint/prefer-optional-chain': 'error',
       // Every inline import() type converted to `import type` (#993); now an

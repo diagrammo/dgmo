@@ -695,7 +695,7 @@ function resolveSplits(
 
   return outbound.map((e) => ({
     edge: e,
-    split: e.split !== null ? e.split : Math.max(0, evenRemainder),
+    split: e.split ?? Math.max(0, evenRemainder),
   }));
 }
 

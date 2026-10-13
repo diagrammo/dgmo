@@ -214,10 +214,8 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
       sortedIds = topologicalSort(taskMap);
     }
 
-    if (!sortedIds) {
-      // Truly unresolvable — fall back to task insertion order
-      sortedIds = [...taskMap.keys()];
-    }
+    // Truly unresolvable — fall back to task insertion order
+    sortedIds ??= [...taskMap.keys()];
   }
 
   // ── Forward pass: resolve dates ─────────────────────────

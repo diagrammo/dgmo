@@ -126,7 +126,7 @@ export function resolveSequenceTags(
   // Clone participant metadata (don't mutate parsed data)
   const participantMeta = new Map<string, Record<string, string>>();
   for (const p of parsed.participants) {
-    participantMeta.set(p.id, { ...(p.metadata || {}) });
+    participantMeta.set(p.id, { ...(p.metadata ?? {}) });
   }
 
   // Step 1: Group propagation
@@ -157,10 +157,12 @@ export function resolveSequenceTags(
   // Build result maps
   for (const p of parsed.participants) {
     const meta = participantMeta.get(p.id)!;
+    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- an empty tag value means no tag
     result.participants.set(p.id, meta[groupKey] || undefined);
   }
 
   for (const msg of parsed.messages) {
+    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- an empty tag value means no tag
     result.messages.set(msg.lineNumber, msg.metadata?.[groupKey] || undefined);
   }
 

@@ -178,8 +178,10 @@ function readFields(node: Element): Field[] {
 /** Update a single `[data-dgmo-countdown]` node (+ its footer/eyebrow) against `now`. */
 function updateNode(node: Element, now: number): void {
   const rule = readRule(node);
+  // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- an empty attribute must still take the default unit
   const units = (node.getAttribute('data-dgmo-countdown-units') ||
     'days') as CountUnits;
+  // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- an empty attribute must still take the default rounding
   const round = (node.getAttribute('data-dgmo-countdown-round') ||
     'up') as RoundMode;
   const fields = readFields(node);
