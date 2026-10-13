@@ -84,6 +84,21 @@ B
 (Start) -> (Denied) s: Denied
 `,
   },
+  FLOWCHART_STRUCTURE: {
+    // src/validate-diagram.ts — validateFlowchartStructure(), the agent-facing
+    // gate both MCP servers run; the editor itself never emits it.
+    code: 'E_FLOWCHART_STRUCTURE',
+    severity: 'error',
+    chartType: 'flowchart',
+    title: 'Flowchart is not one connected flow',
+    message:
+      'A decision has fewer than two outgoing branches, the flow has no start or no end, or a node is not on a path from a start to an end.',
+    hint: 'Give every decision two or more branches, and wire every node into a path from the start to an end.',
+    example: `flowchart
+(Start) -> (End)
+[Floating]
+`,
+  },
 } satisfies Record<string, DiagnosticSpec>;
 
 export const GRAPH_DIAGNOSTICS: DiagnosticSpec[] = Object.values(GRAPH_DX);
