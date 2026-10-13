@@ -812,6 +812,18 @@ export type {
 // argument); a Node host passes the fs loader below straight to `render()` as
 // `render(src, { mapData: loadMapData })`, which is the ONLY route from a
 // render to the disk — there is no implicit fallback.
+// The validation both MCP servers return — dgmo-mcp's and the desktop app's
+// (diagrammo/diagrammo#1266).
+export {
+  validateDiagram,
+  formatDiagramValidation,
+  validateFlowchartStructure,
+  FLOWCHART_STRUCTURE_CODE,
+} from './validate-diagram';
+export type {
+  DiagramValidation,
+  ValidateDiagramOptions,
+} from './validate-diagram';
 export { parseMap, looksLikeMap } from './map/parser';
 export { resolveMap } from './map/resolver';
 export { loadMapData } from './map/load-data';
