@@ -1399,8 +1399,8 @@ export function renderCountdown(
   // gradient's hot endpoint).
   const defaultAccent = resolveColor('red', palette) ?? seriesAccent;
   const manualColor =
-    (parsed.color && resolveColor(parsed.color, palette)) ||
-    parsed.color ||
+    (parsed.color && resolveColor(parsed.color, palette)) ??
+    parsed.color ??
     null;
   const accent = manualColor ?? defaultAccent;
   const muted = mix(palette.text, themeBaseBg(palette, isDark), 55);

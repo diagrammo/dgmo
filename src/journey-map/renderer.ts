@@ -1201,7 +1201,7 @@ function renderStepCard(
   const cardAnnotations = sl.step.annotations;
 
   // Separator line between title and content (matches kanban)
-  const hasContent = sl.step.description || cardAnnotations.length > 0;
+  const hasContent = !!sl.step.description || cardAnnotations.length > 0;
 
   if (hasContent) {
     stepG

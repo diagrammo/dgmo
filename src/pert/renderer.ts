@@ -1739,10 +1739,7 @@ function renderNodes(
       .attr('transform', `translate(${node.x}, ${node.y})`)
       .attr('data-activity-id', node.id)
       .attr('data-line-number', String(r.activity.lineNumber))
-      .attr(
-        'data-group-id',
-        r.activity.groupId !== undefined ? r.activity.groupId : ''
-      )
+      .attr('data-group-id', r.activity.groupId ?? '')
       .attr('data-critical-path', String(isCritical))
       .attr('data-criticality-band', band ?? '')
       .attr('data-duration-rank', isTopMu ? 'top' : isBottomMu ? 'bottom' : '');

@@ -76,7 +76,7 @@ interface GoalPaint {
 /** Traffic-light fill color from completion: red < 50% < orange < 80% ≤ green. */
 function autoBandColor(pctFrac: number, palette: PaletteColors): string {
   const name = pctFrac < 0.5 ? 'red' : pctFrac < 0.8 ? 'orange' : 'green';
-  return resolveColor(name, palette) || name;
+  return resolveColor(name, palette) ?? name;
 }
 
 function resolvePaint(
@@ -92,9 +92,9 @@ function resolvePaint(
       ? autoBandColor(pctFrac, palette)
       : null;
   const base =
-    (parsed.color && resolveColor(parsed.color, palette)) ||
-    parsed.color ||
-    autoColor ||
+    (parsed.color && resolveColor(parsed.color, palette)) ??
+    parsed.color ??
+    autoColor ??
     getSeriesColors(palette)[0]!;
   return {
     base,

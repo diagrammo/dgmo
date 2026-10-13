@@ -932,7 +932,7 @@ function drawGantt(
       const groupColor =
         tagColor && tagColor !== UNTAGGED_TAG_COLOR
           ? tagColor
-          : group.color || palette.textMuted;
+          : (group.color ?? palette.textMuted);
       renderLabelBand(
         svg,
         sMarginTop + yOffset + sBarH / 2,
@@ -2509,7 +2509,7 @@ function renderErasAndMarkers(
     if (!era) continue; // In-bounds by loop guard; appeases TS.
     // In-bounds: getEraColors returns 5 entries and i % 5 is always 0-4.
     const eraColors = getEraColors(palette);
-    const color = era.color || eraColors[i % eraColors.length]!;
+    const color = era.color ?? eraColors[i % eraColors.length]!;
     const sx = xScale(parseDateToFractionalYear(era.startDate));
     const ex = xScale(parseDateToFractionalYear(era.endDate));
     if (ex <= sx) continue;
@@ -2617,7 +2617,7 @@ function renderErasAndMarkers(
   for (let i = 0; i < resolved.markers.length; i++) {
     const marker = resolved.markers[i];
     if (!marker) continue; // In-bounds by loop guard; appeases TS.
-    const color = marker.color || palette.accent || '#3a9188';
+    const color = marker.color ?? (palette.accent || '#3a9188');
     // In-bounds: markerXs.length === resolved.markers.length.
     const mx = markerXs[i]!;
     const markerDate = parseDateStringToDate(marker.date);
@@ -3829,7 +3829,7 @@ function resolveTaskColor(
   }
 
   // Default
-  return palette.accent || seriesColors[0] || '#4a90d9';
+  return palette.accent || (seriesColors[0] ?? '#4a90d9');
 }
 
 function renderTimeScaleHorizontal(

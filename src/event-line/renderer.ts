@@ -1891,6 +1891,7 @@ function setLegendEntryOff(entry: Element, off: boolean): void {
     if (!c.hasAttribute('data-fill0'))
       c.setAttribute('data-fill0', c.getAttribute('fill') ?? '');
     c.setAttribute('fill', 'none');
+    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- a circle with no fill stores an empty data-fill0, which must still fall back to currentColor
     c.setAttribute('stroke', c.getAttribute('data-fill0') || 'currentColor');
     c.setAttribute('stroke-width', '1.5');
   } else {

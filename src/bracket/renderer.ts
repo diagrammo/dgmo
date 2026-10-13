@@ -121,8 +121,8 @@ function paintFor(
   fillMode?: FillMode
 ): Paint {
   const accent =
-    (sideColor && resolveColor(sideColor, palette)) ||
-    sideColor ||
+    (sideColor && resolveColor(sideColor, palette)) ??
+    sideColor ??
     getSeriesColors(palette)[0]!;
   return paintForAccent(palette, isDark, accent, fillMode);
 }

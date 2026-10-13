@@ -2523,7 +2523,7 @@ export function renderInfra(
       .attr('font-size', sc.sTitleFontSize)
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .attr('fill', palette.text)
-      .attr('data-line-number', titleLineNumber != null ? titleLineNumber : '')
+      .attr('data-line-number', titleLineNumber ?? '')
       .text(title!);
   }
 
@@ -2607,7 +2607,7 @@ export function renderInfra(
       .attr('font-size', sc.sTitleFontSize)
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .attr('fill', palette.text)
-      .attr('data-line-number', titleLineNumber != null ? titleLineNumber : '')
+      .attr('data-line-number', titleLineNumber ?? '')
       .text(title);
   }
 

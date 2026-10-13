@@ -490,7 +490,7 @@ export function renderMindmap(
       node.description,
       node.depth,
       node.width,
-      hideDescriptions || collapsed
+      !!hideDescriptions || collapsed
     );
     const {
       labelLines,

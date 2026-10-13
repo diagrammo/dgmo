@@ -513,6 +513,7 @@ export function renderBoxesAndLines(
     const pct = RAMP_FLOOR + Math.max(0, Math.min(1, t)) * (100 - RAMP_FLOOR);
     return mix(rampHue, rampBase, pct);
   };
+  // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- an empty metric name also falls back to 'Value'
   const VALUE_NAME = hasRamp ? parsed.boxMetric?.trim() || 'Value' : null;
 
   // Local active-dimension resolver — mirror map's inline matchColorGroup /

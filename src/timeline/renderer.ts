@@ -98,7 +98,7 @@ function renderEras(
     const end = scale(endVal);
     if (!Number.isFinite(start) || !Number.isFinite(end)) return;
     // eraColors is non-empty; modulo guarantees in-bounds.
-    const color = era.color || eraColors[i % eraColors.length]!;
+    const color = era.color ?? eraColors[i % eraColors.length]!;
 
     const eraG = g
       .append('g')
@@ -226,7 +226,7 @@ function renderMarkers(
   outlineBg?: string
 ): void {
   // Default marker color - bright orange/red that "pops"
-  const defaultColor = palette?.accent || '#3a9188';
+  const defaultColor = palette?.accent ?? '#3a9188';
 
   // Pre-compute marker positions so each can size its label based on the
   // distance to its nearest neighbor (or chart edge).
@@ -242,7 +242,7 @@ function renderMarkers(
     // positions is produced by markers.map(), so i is in-bounds.
     const pos = positions[i]!;
     if (!Number.isFinite(pos)) return;
-    const color = marker.color || defaultColor;
+    const color = marker.color ?? defaultColor;
     const lineOpacity = 0.5;
     const diamondSize = 5;
     const outlineDiamond = fillMode === 'outline' && outlineBg !== undefined;
@@ -1746,7 +1746,7 @@ function renderTimelineHorizontalTimeSort(
     const evG = g
       .append('g')
       .attr('class', 'tl-event')
-      .attr('data-group', ev.group || '')
+      .attr('data-group', ev.group ?? '')
       .attr('data-line-number', String(ev.lineNumber))
       .attr('data-date', String(parseTimelineDate(ev.date)))
       .attr(
@@ -1798,7 +1798,7 @@ function renderTimelineHorizontalTimeSort(
       if (ev.uncertain) {
         const gradientId = `uncertain-ts-${ev.lineNumber}`;
         const strokeGradientId = `uncertain-ts-s-${ev.lineNumber}`;
-        const defs = svg.select('defs').node() || svg.append('defs').node();
+        const defs = svg.select('defs').node() ?? svg.append('defs').node();
         const defsEl = d3Selection.select(defs as Element);
         defsEl
           .append('linearGradient')
@@ -2318,7 +2318,7 @@ function renderTimelineHorizontalGrouped(
         if (ev.uncertain) {
           const gradientId = `uncertain-${ev.lineNumber}`;
           const strokeGradientId = `uncertain-s-${ev.lineNumber}`;
-          const defs = svg.select('defs').node() || svg.append('defs').node();
+          const defs = svg.select('defs').node() ?? svg.append('defs').node();
           const defsEl = d3Selection.select(defs as Element);
           defsEl
             .append('linearGradient')
@@ -2663,7 +2663,7 @@ function renderTimelineVertical(
           if (ev.uncertain) {
             const gradientId = `uncertain-vg-${ev.lineNumber}`;
             const strokeGradientId = `uncertain-vg-s-${ev.lineNumber}`;
-            const defs = svg.select('defs').node() || svg.append('defs').node();
+            const defs = svg.select('defs').node() ?? svg.append('defs').node();
             const defsEl = d3Selection.select(defs as Element);
             defsEl
               .append('linearGradient')
@@ -2872,7 +2872,7 @@ function renderTimelineVertical(
       const evG = g
         .append('g')
         .attr('class', 'tl-event')
-        .attr('data-group', ev.group || '')
+        .attr('data-group', ev.group ?? '')
         .attr('data-line-number', String(ev.lineNumber))
         .attr('data-date', String(parseTimelineDate(ev.date)))
         .attr(
@@ -2907,7 +2907,7 @@ function renderTimelineVertical(
         if (ev.uncertain) {
           const gradientId = `uncertain-v-${ev.lineNumber}`;
           const strokeGradientId = `uncertain-v-s-${ev.lineNumber}`;
-          const defs = svg.select('defs').node() || svg.append('defs').node();
+          const defs = svg.select('defs').node() ?? svg.append('defs').node();
           const defsEl = d3Selection.select(defs as Element);
           defsEl
             .append('linearGradient')

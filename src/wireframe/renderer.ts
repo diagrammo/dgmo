@@ -786,10 +786,11 @@ function renderTable(
 ): void {
   const { palette, isTransparent } = ctx;
   const el = node.element;
-  const headers = el.tableHeaders || [];
-  const data = el.tableData || [];
+  const headers = el.tableHeaders ?? [];
+  const data = el.tableData ?? [];
   const isSkeleton = el.tableRows !== undefined && el.tableCols !== undefined;
 
+  // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- a 0-column skeleton (`table 3x0`) also falls back to 3 columns
   const cols = headers.length || el.tableCols || 3;
   const colW = node.width / cols;
   const headerH = 32;
@@ -814,6 +815,7 @@ function renderTable(
     .attr('rx', 4);
 
   for (let c = 0; c < cols; c++) {
+    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- an empty header cell also gets the `Col N` placeholder
     const label = headers[c] || `Col ${c + 1}`;
     g.append('text')
       .attr('x', c * colW + 10)
@@ -861,7 +863,7 @@ function renderTable(
           .attr('rx', 2);
       } else if (data[r]) {
         // In-bounds by the data[r] truthy check above.
-        const cellText = data[r]![c] || '';
+        const cellText = data[r]![c] ?? '';
         renderTableCell(g, cellText, c * colW + 10, ry, colW - 20, rowH, ctx);
       }
     }
@@ -1076,7 +1078,7 @@ function renderAlert(
 ): void {
   const { palette, isDark, isTransparent } = ctx;
   const el = node.element;
-  const color = getElementSemanticColor(el, palette) || palette.accent;
+  const color = getElementSemanticColor(el, palette) ?? palette.accent;
 
   // Background
   const fill = isTransparent
@@ -1167,7 +1169,7 @@ function renderChart(
 ): void {
   const { palette, isTransparent } = ctx;
   const el = node.element;
-  const hint = el.chartHint || 'line';
+  const hint = el.chartHint ?? 'line';
 
   // Border
   g.append('rect')

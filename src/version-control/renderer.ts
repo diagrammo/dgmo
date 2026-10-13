@@ -120,6 +120,7 @@ export function renderVersionControl(
   >();
   for (const n of nodes) {
     const sha = n.id;
+    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- an empty commit message also shows '(empty)'
     const msg = pfx(n) + clip(n.message || '(empty)', 26);
     // Bold 12px message text averages ~6.9px/char; under-measuring here lets the
     // diagonal labels project below the computed canvas height (bottom clipping,

@@ -210,7 +210,7 @@ const fill = (
       ? mix(palette.overlay, palette.surface, 50)
       : mix(palette.bg, palette.surface, 50);
 const stroke = (palette: PaletteColors, color?: string): string =>
-  color || palette.border;
+  color ?? palette.border;
 const SW = 1.5;
 const W = PARTICIPANT_BOX_WIDTH;
 const H = PARTICIPANT_BOX_HEIGHT;
@@ -1671,7 +1671,7 @@ export function layoutSequence(
   // Block spacing via extraBeforeMsg (sections handled separately below)
   const extraBeforeMsg = new Map<number, number>();
   const addExtra = (msgIdx: number, amount: number) => {
-    extraBeforeMsg.set(msgIdx, (extraBeforeMsg.get(msgIdx) || 0) + amount);
+    extraBeforeMsg.set(msgIdx, (extraBeforeMsg.get(msgIdx) ?? 0) + amount);
   };
 
   const markBlockSpacing = (els: readonly SequenceElement[]): void => {
@@ -1919,7 +1919,7 @@ export function layoutSequence(
       trailingSections.push(region.section);
       continue;
     }
-    const existing = sectionsBeforeStep.get(filteredStep) || [];
+    const existing = sectionsBeforeStep.get(filteredStep) ?? [];
     existing.push(region.section);
     sectionsBeforeStep.set(filteredStep, existing);
   }
@@ -2127,7 +2127,7 @@ export function layoutSequence(
       const step = renderSteps[i]!;
       // Add extra spacing before the first render step of a flagged message (block spacing)
       if (msgToFirstStep.get(step.messageIndex) === i) {
-        const extra = extraBeforeMsg.get(step.messageIndex) || 0;
+        const extra = extraBeforeMsg.get(step.messageIndex) ?? 0;
         curY += extra;
       }
       curY += labelRoomBefore[i]!;
@@ -3363,13 +3363,13 @@ export function renderSequenceDiagram(
     // the tinted participant shapes inside them. Promoting to 25% would make
     // the wrapper compete with its contents.
     const groupTagValue = tagKey && group.metadata?.[tagKey];
-    const groupTagColor = getTagColor(groupTagValue || undefined);
+    const groupTagColor = getTagColor(groupTagValue);
     const fillColor = groupTagColor
       ? mix(groupTagColor, themeBaseBg(palette, isDark), isDark ? 15 : 20)
       : isDark
         ? palette.surface
         : palette.bg;
-    const strokeColor = groupTagColor || palette.textMuted;
+    const strokeColor = groupTagColor ?? palette.textMuted;
 
     const groupG = svg
       .append('g')
@@ -3507,7 +3507,7 @@ export function renderSequenceDiagram(
         : isDark
           ? mix(palette.overlay, palette.surface, 50)
           : mix(palette.bg, palette.surface, 50);
-      const pStroke = effectiveTagColor || palette.border;
+      const pStroke = effectiveTagColor ?? palette.border;
 
       // Local coords — y=0 is the participant's own box top.
       participantG
@@ -3564,7 +3564,7 @@ export function renderSequenceDiagram(
         .attr('clip-path', `url(#${clipId})`);
     }
 
-    const llColor = effectiveTagColor || palette.textMuted;
+    const llColor = effectiveTagColor ?? palette.textMuted;
     // One line per run of dashes: a lifeline crossing a section label is cut
     // around it, so the label reads. Every segment carries the same class and
     // attributes, so anything selecting `.lifeline` still finds this
@@ -3631,7 +3631,7 @@ export function renderSequenceDiagram(
       ? tagMap?.messages.get(triggerMsg.lineNumber)
       : undefined;
     const actTagColor = getTagColor(actTagValue);
-    const actBaseColor = actTagColor || palette.primary;
+    const actBaseColor = actTagColor ?? palette.primary;
 
     // Opaque background to mask the lifeline
     svg
@@ -3890,7 +3890,7 @@ export function renderSequenceDiagram(
     const msgTagColor = getTagColor(msgTagValue);
 
     if (step.type === 'call') {
-      const arrowColor = msgTagColor || palette.text;
+      const arrowColor = msgTagColor ?? palette.text;
 
       if (arrow.kind === 'self') {
         // Self-call: loopback arrow — always loops to the right.
@@ -4019,7 +4019,7 @@ export function renderSequenceDiagram(
       // Return arrow, its ends on the activation bars' edges. A self-call's
       // return has no arrow of its own — its call's loop draws it.
       const { x1, x2 } = arrow;
-      const returnColor = msgTagColor || palette.textMuted;
+      const returnColor = msgTagColor ?? palette.textMuted;
 
       // Hit area for return arrow
       svg
