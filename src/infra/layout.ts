@@ -700,7 +700,13 @@ export function layoutInfra(
     }
   }
 
-  // Run layout
+  // Run layout. Infra does NOT run the placement search
+  // (utils/placement-search.ts): it scores dagre's edge points, but the
+  // renderer draws its own routes (edgeWaypoints in renderer.ts) and reads
+  // dagre's points only as a has-route flag. Wired in, the search cut dagre's
+  // crossings 615 → 497 on 150 seeded random diagrams, left the drawn crossings
+  // on the gallery's infra-full unchanged, and raised them on 23 of the random
+  // diagrams (diagrammo/diagrammo#1269).
   dagre.layout(g);
 
   // Extract positioned nodes
