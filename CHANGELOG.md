@@ -5,6 +5,49 @@ All notable changes to `@diagrammo/dgmo` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.91.0] - 2026-10-14
+
+### Added
+
+- **`dgmo put`, `dgmo get` and `dgmo ls` keep a diagram in a Cloud space.**
+  `put <file> --space <id>` writes by folder and title, and a re-run
+  updates the same diagram. `get` prints the source, and `ls` lists the
+  diagrams with their folder paths. The key comes from `DGMO_API_KEY`.
+  `--json` works on every verb, and a failure exits 1 with the status named.
+  `get` matches folder and title without regard to ASCII case, as the Cloud
+  does, so `dgmo get --title system` finds a diagram put as `System`.
+- **`putSpaceDiagram`, `getSpaceDiagram`, `listSpaceDiagrams` and
+  `CloudSpaceError`** are exported from `@diagrammo/dgmo/advanced`, so
+  other tools use the same client as the CLI.
+- **`validateDiagram` is the one validation for both MCP servers.** It
+  returns the parse diagnostics, or the resolve diagnostics for a map with
+  `mapData`, plus the flowchart structure check. An invalid colour blocks.
+  `formatDiagramValidation` writes the report text. A flowchart that is not
+  one connected flow reports the new code `E_FLOWCHART_STRUCTURE`.
+- **Agent reference helpers.** `referenceForChartType`,
+  `formatChartTypeList`, `formatExamples` and `isExampleFor` give an agent
+  the per-type language slice, the chart-type list (beta types marked,
+  internal ones hidden) and the gallery examples.
+- **`renderDgmoBlock` takes `paletteOverride`.** It beats the diagram's own
+  `palette` line, so a per-embed choice wins over the file. The drawing, the
+  error card and the lightbox background all follow it.
+
+### Changed
+
+- **Flowchart, state, class and ER diagrams cross fewer lines.** The layout
+  tries several dagre placements and keeps one only if it has fewer
+  crossings and overlaps, adds no crossing and draws no edge backward. Over
+  the 13 flowchart and state fixtures, crossings fell from 9 to 2. A diagram
+  with nothing to fix lays out as before. Sitemap and infra keep their
+  single placement, because the search did not help them.
+
+### Fixed
+
+- **A class diagram's canvas takes in its edge routes.** An edge routed left
+  of every class could be drawn outside the picture.
+- **The error card draws the current Diagrammo D mark.** Its "Edit & fix
+  this diagram" link still showed the retired dark-square logo.
+
 ## [0.90.0] - 2026-10-10
 
 ### Added
