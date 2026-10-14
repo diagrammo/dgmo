@@ -116,7 +116,7 @@
     "check:duplication": "jscpd ./src",
     "check:deadcode": "knip",
     "check:spelling": "cspell \"src/**/*.ts\" \"tests/**/*.ts\"",
-    "check:all": "pnpm check:node-modules && pnpm check:install-lock && pnpm check:deadcode && pnpm check:spelling && pnpm check:duplication && pnpm check:circular && pnpm check:deps && pnpm check:dep-ranges && pnpm check:security && node --test scripts/check-api.test.mjs && pnpm build && bash scripts/check-api.sh check && pnpm check:publish && pnpm check:types",
+    "check:all": "pnpm check:node-modules && pnpm check:install-lock && pnpm check:deadcode && pnpm check:spelling && pnpm check:duplication && pnpm check:circular && pnpm check:deps && pnpm check:dep-ranges && pnpm check:security && node --test scripts/check-api.test.mjs && node --test scripts/prepack-sourcemaps.test.mjs && pnpm build && bash scripts/check-api.sh check && pnpm check:publish && pnpm check:types",
     "check:circular": "node --test scripts/check-circular.test.mjs && madge --circular --extensions ts src/ --json | node scripts/check-circular.mjs",
     "check:deps": "depcheck --ignores='@diagrammo/dgmo,@diagrammo/dgmo-mcp,@codemirror/language,@lezer/*,lint-staged,tsup,axe-core,type-coverage'",
     "check:node-modules": "node --test scripts/check-node-modules.test.mjs && node scripts/check-node-modules.mjs",
