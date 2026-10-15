@@ -5,6 +5,14 @@ All notable changes to `@diagrammo/dgmo` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.91.1] - 2026-10-14
+
+### Fixed
+
+- **A sankey band that skips a column no longer runs through that
+  column's nodes.** It now passes the column in its own reserved slot, and
+  the column's nodes move aside. Sankeys with no such band draw as before.
+
 ## [0.91.0] - 2026-10-14
 
 ### Added
