@@ -39,6 +39,17 @@ interface SNode {
   y: number;
   h: number;
   raw: string;
+  /** A pass-through slot for a link that skips this column; never drawn. */
+  virtual?: boolean;
+}
+
+/** One column-to-column hop of a forward link. */
+interface Seg {
+  s: SNode;
+  t: SNode;
+  value: number;
+  sy: number;
+  ty: number;
 }
 
 export function renderSankey(
@@ -170,6 +181,41 @@ export function renderSankey(
   const layers: SNode[][] = Array.from({ length: maxRank + 1 }, () => []);
   for (const n of node.values()) layers[n.rank]!.push(n);
 
+  // A link that skips columns used to be one curve from source to target, and
+  // nothing reserved its path, so it ran through the nodes of every column it
+  // crossed (#1317). It now hops column to column through a virtual node per
+  // crossed column. The virtual node takes room and joins the ordering sweeps
+  // like a real one, so real nodes move out of the band's way.
+  const segs: Seg[] = [];
+  const chains = new Map<(typeof links)[number], Seg[]>();
+  for (const l of forwardLinks) {
+    const t = node.get(l.target)!;
+    let prev = node.get(l.source)!;
+    const chain: Seg[] = [];
+    for (let r = prev.rank + 1; r <= t.rank; r++) {
+      let next = t;
+      if (r < t.rank) {
+        next = {
+          name: `${l.source}␟${l.target}␟${r}`,
+          rank: r,
+          value: l.value,
+          order: prev.order,
+          x: 0,
+          y: 0,
+          h: 0,
+          raw: prev.raw,
+          virtual: true,
+        };
+        layers[r]!.push(next);
+      }
+      const seg: Seg = { s: prev, t: next, value: l.value, sy: 0, ty: 0 };
+      chain.push(seg);
+      segs.push(seg);
+      prev = next;
+    }
+    chains.set(l, chain);
+  }
+
   let plotLeft = 16;
   const top = topInset + 8;
   const rightPad = 16;
@@ -249,12 +295,8 @@ export function renderSankey(
     for (const r of order) {
       for (const n of layers[r]!) {
         const neigh = forward
-          ? forwardLinks
-              .filter((l) => l.target === n.name)
-              .map((l) => node.get(l.source)!)
-          : forwardLinks
-              .filter((l) => l.source === n.name)
-              .map((l) => node.get(l.target)!);
+          ? segs.filter((g) => g.t === n).map((g) => g.s)
+          : segs.filter((g) => g.s === n).map((g) => g.t);
         n.order = neigh.length
           ? neigh.reduce((a, m) => a + center(m), 0) / neigh.length
           : center(n);
@@ -264,15 +306,30 @@ export function renderSankey(
   }
 
   // link vertical slots: stack outgoing at source right, incoming at target left
-  const outOff = new Map<string, number>();
-  const inOff = new Map<string, number>();
-  for (const n of node.values()) {
-    outOff.set(n.name, n.y);
-    inOff.set(n.name, n.y);
+  const outOff = new Map<SNode, number>();
+  const inOff = new Map<SNode, number>();
+  for (const layer of layers) {
+    for (const n of layer) {
+      outOff.set(n, n.y);
+      inOff.set(n, n.y);
+    }
   }
-  // stable order: links by source order then target y
-  // Back edges go last, so they leave and enter at the bottom of each node,
+  const slot = (n: SNode, th: number, off: Map<SNode, number>): number => {
+    const y = off.get(n)!;
+    off.set(n, y + th);
+    return y;
+  };
+  // Hops by source y then target y, so each node's outgoing bands stack in
+  // the order of where they go and its incoming in the order they came from.
+  // Back edges go after, so they leave and enter at the bottom of each node,
   // nearest the lane they run in.
+  for (const g of [...segs].sort((a, b) =>
+    a.s.y !== b.s.y ? a.s.y - b.s.y : a.t.y - b.t.y
+  )) {
+    const th = g.value * valueScale;
+    g.sy = slot(g.s, th, outOff);
+    g.ty = slot(g.t, th, inOff);
+  }
   const ordered = [
     ...[...forwardLinks].sort((a, b) => {
       const sa = node.get(a.source)!;
@@ -288,13 +345,8 @@ export function renderSankey(
     const s = node.get(l.source)!;
     const t = node.get(l.target)!;
     const th = l.value * valueScale;
-    const sy = outOff.get(s.name)!;
-    const ty = inOff.get(t.name)!;
-    outOff.set(s.name, sy + th);
-    inOff.set(t.name, ty + th);
     const sx = s.x + NODE_W;
     const tx = t.x;
-    const cx0 = sx + (tx - sx) * 0.5;
     const raw = l.color ?? s.raw;
     const color = solid ? raw : mix(raw, bgColor, 45);
     const opacity = linkDimmed(l)
@@ -302,6 +354,8 @@ export function renderSankey(
       : RIBBON_FILL_OPACITY;
     let ribbon;
     if (backEdges.has(l)) {
+      const sy = slot(s, th, outOff);
+      const ty = slot(t, th, inOff);
       // Return ribbon: out of the source's right side, down into its own lane
       // under the chart, back left, and up into the target's left side.
       // Stroked at the flow's thickness so the bends keep a constant width.
@@ -324,13 +378,24 @@ export function renderSankey(
         .attr('stroke-width', th)
         .attr('stroke-opacity', opacity);
     } else {
+      // Top edge left to right through every hop, straight across each
+      // virtual node, then the bottom edge back.
+      const chain = chains.get(l)!;
+      const top: string[] = [];
+      const bottom: string[] = [];
+      chain.forEach((g, i) => {
+        const gx = g.s.x + NODE_W;
+        const cx = (gx + g.t.x) / 2;
+        top.push(
+          `${i === 0 ? 'M' : 'L'}${gx},${g.sy} C${cx},${g.sy} ${cx},${g.ty} ${g.t.x},${g.ty}`
+        );
+        bottom.unshift(
+          `L${g.t.x},${g.ty + th} C${cx},${g.ty + th} ${cx},${g.sy + th} ${gx},${g.sy + th}`
+        );
+      });
       ribbon = svg
         .append('path')
-        .attr(
-          'd',
-          `M${sx},${sy} C${cx0},${sy} ${cx0},${ty} ${tx},${ty} ` +
-            `L${tx},${ty + th} C${cx0},${ty + th} ${cx0},${sy + th} ${sx},${sy + th} Z`
-        )
+        .attr('d', `${top.join(' ')} ${bottom.join(' ')} Z`)
         .attr('fill', color)
         .attr('fill-opacity', opacity);
     }
