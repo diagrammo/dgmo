@@ -191,7 +191,9 @@ export function renderTreemapRadial(
       const g = plot
         .append('g')
         .attr('class', 'dgmo-treemap-cell')
-        .attr('data-node-path', cell.path.join(' / '));
+        .attr('data-node-path', cell.path.join(' / '))
+        // The top-level branch the branch legend names (diagrammo/diagrammo#1215).
+        .attr('data-branch', cell.path[0] ?? '');
       if (cell.lineNumber !== undefined) {
         g.attr('data-line-number', cell.lineNumber);
       }

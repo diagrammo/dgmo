@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, it, expect } from 'vitest';
 import { render } from '../src/render';
 import {
@@ -728,5 +730,69 @@ describe('render() integration — legend pairing on line and timeline (#1215)',
     expect(svg).toContain(
       'svg:has(.tl-event[data-tag-crew="riggers"]:hover) [data-legend-entry="riggers"]{filter:saturate(1.4) brightness(1.06)}'
     );
+  });
+});
+
+describe('render() integration — legend pairing on class, er, function, body and treemap (#1215)', () => {
+  const fixture = (name: string): string =>
+    readFileSync(join(__dirname, '..', 'gallery', 'fixtures', name), 'utf8');
+  const LIFT = '{filter:saturate(1.4) brightness(1.06)}';
+
+  it('class: a kind legend entry lifts the classes of that kind', async () => {
+    const { svg } = await render(fixture('class-full.dgmo'));
+    expect(svg).toContain(
+      `svg:has([data-legend-entry="interface"]:hover) .cd-class[data-cd-type="interface"]${LIFT}`
+    );
+    expect(svg).toContain(
+      `svg:has(.cd-class[data-cd-type="class"]:hover) [data-legend-entry="class"]${LIFT}`
+    );
+  });
+
+  it('er: a role legend entry dims the tables of other roles', async () => {
+    const { svg } = await render(fixture('er.dgmo'));
+    expect(svg).toContain('data-er-role-label="Core entity"');
+    expect(svg).toContain(
+      'svg:has([data-legend-entry="core entity"]:hover) .er-table:not([data-er-role-label="Core entity"]){opacity:0.4}'
+    );
+  });
+
+  it('er: a tag legend still pairs on the tag, not the role', async () => {
+    const { svg } = await render(
+      'er Fleet\n\ntag Status as s\n  Active green\n  Retired gray\n\nships s: Active\n  id int pk\n  1-carries-* cannons\n\ncannons s: Retired\n  id int pk'
+    );
+    expect(svg).toContain(
+      'svg:has([data-legend-entry="active"]:hover) .er-table:not([data-tag-status="active"]){opacity:0.4}'
+    );
+    expect(svg).not.toContain('[data-er-role-label=');
+  });
+
+  it('function: a curve legend entry lifts that curve', async () => {
+    const { svg } = await render(fixture('function.dgmo'));
+    expect(svg).toContain(
+      `svg:has([data-legend-entry="g(x)"]:hover) .dgmo-datum[data-series-name="g(x)"]${LIFT}`
+    );
+  });
+
+  it('body: an effort legend entry lifts the parts wearing that tag', async () => {
+    const { svg } = await render(fixture('body.dgmo'));
+    expect(svg).toContain(
+      `svg:has([data-legend-entry="warm-up"]:hover) .dgmo-body-part[data-tag-effort="warm-up"]${LIFT}`
+    );
+  });
+
+  it('treemap: a branch legend entry lifts every cell in that branch', async () => {
+    const { svg } = await render(fixture('treemap-branch.dgmo'));
+    expect(svg).toContain(
+      `svg:has([data-legend-entry="compute"]:hover) .dgmo-treemap-cell[data-branch="Compute"]${LIFT}`
+    );
+  });
+
+  it('treemap: a tag legend still pairs on the tag, not the branch', async () => {
+    const { svg } = await render(fixture('treemap-tags.dgmo'));
+    const style = svg.match(/<style>([\s\S]*?)<\/style>/)?.[1] ?? '';
+    expect(style).toMatch(
+      /\[data-legend-entry="[^"]+"\]:hover\) \.dgmo-treemap-cell\[data-tag-/
+    );
+    expect(style).not.toContain('[data-branch=');
   });
 });

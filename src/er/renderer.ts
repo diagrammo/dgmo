@@ -546,10 +546,15 @@ export function renderERDiagram(
       }
     }
 
-    // Set data-er-role for semantic coloring (CSS targeting + test assertions)
+    // Set data-er-role for semantic coloring (CSS targeting + test assertions),
+    // and the role's legend label, which the baked legend hover pairs the Role
+    // legend's entries with (diagrammo/diagrammo#1215).
     if (semanticRoles) {
       const role = semanticRoles.get(node.id);
-      if (role) nodeG.attr('data-er-role', role);
+      if (role) {
+        nodeG.attr('data-er-role', role);
+        nodeG.attr('data-er-role-label', ROLE_LABELS[role]);
+      }
     }
 
     if (onClickItem) {

@@ -274,7 +274,10 @@ export function renderTreemap(
       .append('g')
       .attr('class', 'dgmo-treemap-cell')
       .attr('transform', `translate(${cell.x0},${cell.y0})`)
-      .attr('data-node-path', cell.path.join(' / '));
+      .attr('data-node-path', cell.path.join(' / '))
+      // The top-level branch, which the branch legend names — the baked
+      // legend hover pairs on it (diagrammo/diagrammo#1215).
+      .attr('data-branch', cell.path[0] ?? '');
     if (cell.lineNumber !== undefined) {
       g.attr('data-line-number', cell.lineNumber);
     }

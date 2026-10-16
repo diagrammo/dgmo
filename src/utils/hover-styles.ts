@@ -52,10 +52,14 @@ export interface HoverSpec {
   dimOpacity?: number;
   /** Emit legend↔mark pairing rules (`data-legend-entry`), both directions. */
   legend?: boolean;
-  /** The mark attr the legend pairs against, when it is fixed rather than a
-   *  tag group: line's legend names SERIES, so its entries pair with
-   *  `data-series-name` on `g.dgmo-series`. Unset → the injector resolves the
-   *  active tag group's `data-tag-<slug>` (`resolveTagAttr`). */
+  /** The mark attr the legend pairs against when the legend is not a tag
+   *  group: line's legend names SERIES, so its entries pair with
+   *  `data-series-name` on `g.dgmo-series`; er's role legend pairs with
+   *  `data-er-role-label`. The active tag group's `data-tag-<slug>`
+   *  (`resolveTagAttr`) wins whenever the marks carry one, so a chart that
+   *  draws a tag legend OR a fixed one (er, treemap) pairs with whichever it
+   *  drew. A `tag-active` row uses it as its group attr when no tag is
+   *  active and a legend is drawn. */
   legendAttr?: string;
   /** Emit the `${mark}:hover` self rule. Default true. */
   selfEmphasis?: boolean;
@@ -514,11 +518,14 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
   // injector reads the slug from `data-legend-active` (F9). `data-tag-*` values
   // and `data-legend-entry` are both lowercased, so legend pairing casing lines
   // up. (map is excluded — it carries two tag kinds on different marks.)
+  // treemap: with no tag active it may draw a BRANCH legend (one entry per
+  // top-level node), which pairs on the `data-branch` every cell carries.
   treemap: {
     markSelector: '.dgmo-treemap-cell',
     strategy: 'enumerated',
     groupAttrMode: 'tag-active',
     legend: true,
+    legendAttr: 'data-branch',
   },
   block: {
     markSelector: '.dgmo-block-cell',
@@ -605,6 +612,8 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     legend: true,
     emphasis: 'dim',
   },
+  // class's legend names class KINDS (Class, Abstract, Interface, Enum), the
+  // same keys `data-cd-type` carries.
   class: {
     markSelector: '.cd-class',
     strategy: 'connection',
@@ -613,6 +622,8 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     edgeSelector: '.cd-edge-group',
     fromAttr: 'data-source',
     toAttr: 'data-target',
+    legend: true,
+    legendAttr: 'data-cd-type',
   },
   er: {
     markSelector: '.er-table',
@@ -623,6 +634,8 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     fromAttr: 'data-source',
     toAttr: 'data-target',
     legend: true,
+    // An untagged er draws the semantic ROLE legend instead of a tag legend.
+    legendAttr: 'data-er-role-label',
     emphasis: 'dim',
   },
   org: {
@@ -739,9 +752,14 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
   pyramid: { markSelector: '.pyramid-layer', strategy: 'self' },
   ring: { markSelector: '.ring-layer', strategy: 'self' },
   slope: { markSelector: '.slope-series', strategy: 'self' },
-  // function: each curve is a `.dgmo-datum` path — self-emphasis floor only
-  // (thin line, no group).
-  function: { markSelector: '.dgmo-datum', strategy: 'self' },
+  // function: each curve is a `.dgmo-datum` path — self-emphasis floor (thin
+  // line, no group), plus its legend of curves pairing on `data-series-name`.
+  function: {
+    markSelector: '.dgmo-datum',
+    strategy: 'self',
+    legend: true,
+    legendAttr: 'data-series-name',
+  },
   // map: POIs carry data-tag-<group> for the active legend group (resolved from
   // data-legend-active). Hover a POI → lift same-group POIs. `lift` (never dim)
   // sidesteps the decorative-layer / inactive-pill inline-opacity trap (F6).
@@ -836,7 +854,7 @@ function deriveFromSvg(svg: string, spec: HoverSpec): HoverDerived {
     // the `legendAttr` / tag pairing only; an enumerated row's own legend
     // rules (`buildHoverCss`) are emitted per value regardless.
     if (!root.querySelector('[data-legend-entry]')) return {};
-    const attr = spec.legendAttr ?? resolveTagAttr(root, spec.markSelector);
+    const attr = resolveTagAttr(root, spec.markSelector) ?? spec.legendAttr;
     if (!attr || attr === spec.groupAttr) return {};
     return {
       legendAttr: attr,
@@ -849,10 +867,14 @@ function deriveFromSvg(svg: string, spec: HoverSpec): HoverDerived {
     // charts — the single ACTIVE tag group, discovered from the legend's
     // `data-legend-active="<slug>"` marker → `data-tag-<slug>` (F9: exactly one
     // group drives the rules, never the intersection of all tag groups). No
-    // active tag → self-emphasis only.
+    // active tag → the row's fixed `legendAttr` when a legend is drawn
+    // (treemap's branch legend), else self-emphasis only.
     const groupAttr =
       spec.groupAttrMode === 'tag-active'
-        ? resolveTagAttr(root, spec.markSelector)
+        ? (resolveTagAttr(root, spec.markSelector) ??
+          (root.querySelector('[data-legend-entry]')
+            ? spec.legendAttr
+            : undefined))
         : spec.groupAttr;
     if (!groupAttr) return { ...legendExtra() };
     return {

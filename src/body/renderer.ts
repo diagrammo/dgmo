@@ -47,6 +47,14 @@ import type { BodyFigure, BodyPart, BodyView, ParsedBody } from './types';
 const esc = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
+/** The attributes every `.dgmo-body-part` mark carries. `tagAttr` is the active
+ *  tag group's `data-tag-<slug>`, the attr the baked legend hover pairs each
+ *  legend entry with (diagrammo/diagrammo#1215); an untagged part omits it. */
+function partAttrs(line: number, emph: string, tagAttr: string | null): string {
+  const tag = tagAttr && emph ? ` ${tagAttr}="${esc(emph)}"` : '';
+  return ` class="dgmo-body-part" data-line-number="${line}" data-emph-key="${esc(emph)}"${tag}`;
+}
+
 const TITLE_H = 60; // title text area
 // The figure coordinate space is large (~1400-unit tall bodies), so the shared
 // legend — laid out at fixed ~11px — is scaled up to stay legible next to the
@@ -90,6 +98,8 @@ interface FigureRender {
   vy: number;
   vw: number;
   vh: number;
+  /** The active tag group's `data-tag-<slug>`, or null when untagged. */
+  tagAttr: string | null;
 }
 
 /** Absolute x of a path's start point (the initial M/m is always absolute). */
@@ -131,6 +141,7 @@ function renderFigureBody(
   parts: readonly BodyPart[],
   partColor: (p: BodyPart) => string,
   emphKey: (p: BodyPart) => string,
+  tagAttr: string | null,
   form: ParsedBody['options']['form'],
   palette: PaletteColors,
   isDark: boolean,
@@ -200,7 +211,7 @@ function renderFigureBody(
     const geom = getPartGeom(fig, key)!;
     const color = partColor(part);
     const emph = emphKey(part).toLowerCase();
-    const dataLine = ` class="dgmo-body-part" data-line-number="${part.lineNumber}" data-emph-key="${esc(emph)}"`;
+    const dataLine = partAttrs(part.lineNumber, emph, tagAttr);
     // With a side modifier, fill only that side's shapes (patient's right pec →
     // the screen-left path), so a one-sided injury highlights one side alone.
     let paths = geom.paths as readonly string[];
@@ -257,7 +268,7 @@ function renderFigureBody(
   }
 
   out += `<path d="${fig.outline}" fill="none" stroke="${outlineStroke}" stroke-width="2.5"/>`;
-  return { fig, body: out, anchors, vx, vy, vw, vh };
+  return { fig, body: out, anchors, vx, vy, vw, vh, tagAttr };
 }
 
 /** Pick the muscle component centroid nearest a target x (the label side). */
@@ -312,7 +323,7 @@ function gutterLabels(r: FigureRender, palette: PaletteColors): string {
       const ly = Math.max(tgt.y, prevY + minGap);
       prevY = ly;
       const note = a.part.notes.length ? a.part.notes[0]! : '';
-      const dl = ` class="dgmo-body-part" data-line-number="${a.part.lineNumber}" data-emph-key="${esc(a.emph)}"`;
+      const dl = partAttrs(a.part.lineNumber, a.emph, r.tagAttr);
       labels +=
         `<path${dl} d="M${sx} ${ly} L${tgt.x} ${tgt.y}" stroke="${a.color}" stroke-width="2" stroke-linecap="round" vector-effect="non-scaling-stroke" fill="none" opacity="0.85"/>` +
         `<circle${dl} cx="${tgt.x}" cy="${tgt.y}" r="5.5" fill="${a.color}" stroke="${palette.bg}" stroke-width="2" vector-effect="non-scaling-stroke"/>` +
@@ -348,6 +359,7 @@ export function renderBody(
   // Tag value that colours this part, for legend↔chart hover pairing.
   const emphKey = (part: BodyPart): string =>
     activeGroup ? (part.metadata[tagAttrKey(activeGroup)] ?? '') : '';
+  const tagAttr = activeGroup ? `data-tag-${tagAttrKey(activeGroup)}` : null;
 
   const defs: SkinGradient[] = [];
   const rendered = parsed.options.views.map((view) =>
@@ -357,6 +369,7 @@ export function renderBody(
       parsed.parts,
       partColor,
       emphKey,
+      tagAttr,
       parsed.options.form,
       palette,
       _isDark,
@@ -457,7 +470,7 @@ export function renderBody(
     let labels = '';
     const stub = 96; // leader start offset from center, clears the label text
     for (const it of items) {
-      const dl = ` class="dgmo-body-part" data-line-number="${it.line}" data-emph-key="${esc(it.emph)}"`;
+      const dl = partAttrs(it.line, it.emph, tagAttr);
       if (it.left) {
         labels +=
           `<path${dl} d="M${(centerX - stub).toFixed(1)} ${it.y.toFixed(1)} L${it.left.x.toFixed(1)} ${it.left.y.toFixed(1)}" stroke="${it.color}" stroke-width="2" stroke-linecap="round" vector-effect="non-scaling-stroke" fill="none" opacity="0.85"/>` +

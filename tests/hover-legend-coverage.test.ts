@@ -117,19 +117,9 @@ const TAGGED_SOURCES: Record<string, string> = {
  * test below fails until you do.
  */
 const LEGEND_HOVER_PENDING: Record<string, string> = {
-  'class-full.dgmo':
-    'class — the legend names class kinds, the `.cd-class` marks carry no matching attr',
-  'er.dgmo':
-    'er — the legend names table roles, the `.er-table` marks carry no matching attr',
   'kanban.dgmo':
     'kanban — the tags sit on `.kanban-card`, inside the `.kanban-column` marks its structural row keys on',
   'family.dgmo': 'family — no registry row; the tags sit on `.family-card`',
-  'function.dgmo':
-    'function — a self-only row; the legend names curves, the `.dgmo-datum` paths carry no matching attr',
-  'body.dgmo':
-    'body — the legend names effort tags, the `.dgmo-body-part` marks carry no `data-tag-effort`',
-  'treemap-branch.dgmo':
-    'treemap — a branch legend, the cells carry no `data-tag-branch`',
   'map-categorical.dgmo':
     'map — no `legend` on its row; it carries two tag kinds on different marks',
   'map-categorical-world.dgmo':
