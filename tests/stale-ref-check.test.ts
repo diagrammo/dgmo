@@ -1,8 +1,8 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 // A push that lost the race for main while it queued for the gate lock (#680).
 // It used to find out only AFTER the full gate — `cannot lock ref
@@ -49,8 +49,16 @@ function commit(cwd: string, name: string): string {
  * An origin with `main` at A, a clone `work` that knows A, and a second clone
  * that can move `main` underneath it — the other session landing first.
  */
+const scratch: string[] = [];
+
+afterEach(() => {
+  for (const dir of scratch.splice(0))
+    rmSync(dir, { recursive: true, force: true });
+});
+
 function world() {
   const base = mkdtempSync(join(tmpdir(), 'stale-ref-'));
+  scratch.push(base);
   git(base, 'init', '-q', '--bare', 'origin.git');
   git(base, 'clone', '-q', 'origin.git', 'work');
   const work = join(base, 'work');

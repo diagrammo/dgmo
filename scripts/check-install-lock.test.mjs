@@ -1,18 +1,25 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import test from 'node:test';
+import test, { after } from 'node:test';
 
 const script = join(
   dirname(fileURLToPath(import.meta.url)),
   'check-install-lock.mjs'
 );
 
+const scratch = [];
+
+after(() => {
+  for (const dir of scratch) rmSync(dir, { recursive: true, force: true });
+});
+
 function fixture(installed) {
   const root = mkdtempSync(join(tmpdir(), 'dgmo-install-lock-'));
+  scratch.push(root);
   writeFileSync(
     join(root, 'pnpm-lock.yaml'),
     'lockfileVersion: 9\nversion: 3.0.0\n'
