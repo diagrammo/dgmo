@@ -831,8 +831,10 @@ function deriveFromSvg(svg: string, spec: HoverSpec): HoverDerived {
   // enumerated branch stays the single emitter for those charts.
   const legendExtra = (): HoverDerived => {
     if (!spec.legend || spec.groupAttrMode === 'tag-active') return {};
-    // No legend drawn (a single-series line, an untagged gantt) → nothing to
-    // pair, so no rules keyed on an entry that does not exist.
+    // No legend drawn (a single-series line, an untagged gantt) → no pairing
+    // here, so no rules keyed on an entry that does not exist. This covers
+    // the `legendAttr` / tag pairing only; an enumerated row's own legend
+    // rules (`buildHoverCss`) are emitted per value regardless.
     if (!root.querySelector('[data-legend-entry]')) return {};
     const attr = spec.legendAttr ?? resolveTagAttr(root, spec.markSelector);
     if (!attr || attr === spec.groupAttr) return {};
