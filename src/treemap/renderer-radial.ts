@@ -199,7 +199,7 @@ export function renderTreemapRadial(
       if (cell.node && activeGroup) {
         const key = tagAttrKey(activeGroup);
         const tagVal = cell.node.metadata[key];
-        if (tagVal) g.attr(`data-tag-${key}`, tagVal);
+        if (tagVal) g.attr(`data-tag-${tagAttrKey(key)}`, tagVal);
       }
 
       g.append('path')

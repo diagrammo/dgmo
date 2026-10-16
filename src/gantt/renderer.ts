@@ -819,7 +819,7 @@ function drawGantt(
       const labelG = svg
         .append('g')
         .attr('class', 'gantt-lane-header')
-        .attr(`data-tag-${row.tagKey}`, row.laneName.toLowerCase())
+        .attr(`data-tag-${tagAttrKey(row.tagKey)}`, row.laneName.toLowerCase())
         .attr('data-lane', row.laneName)
         .style('cursor', onToggleLane ? 'pointer' : 'default')
         .on('click', () => {
@@ -1225,7 +1225,7 @@ function drawGantt(
 
       // Tag attributes on label for legend hover matching
       for (const [key, value] of Object.entries(rt.effectiveMetadata)) {
-        taskLabel.attr(`data-tag-${key}`, value.toLowerCase());
+        taskLabel.attr(`data-tag-${tagAttrKey(key)}`, value.toLowerCase());
       }
       if (rt.isCriticalPath) {
         taskLabel.attr('data-critical-path', 'true');
@@ -1323,7 +1323,7 @@ function drawGantt(
 
         // Set tag attributes
         for (const [key, value] of Object.entries(rt.effectiveMetadata)) {
-          taskG.attr(`data-tag-${key}`, value.toLowerCase());
+          taskG.attr(`data-tag-${tagAttrKey(key)}`, value.toLowerCase());
         }
 
         // Uncertainty gradient — fade out the trailing edge unless progress > 80%
@@ -2345,7 +2345,9 @@ function renderTagLegend(
               const el = d3Selection.select(this);
               el.attr(
                 'opacity',
-                el.attr(`data-tag-${tagKey}`) === ev ? 1 : FADE_OPACITY
+                el.attr(`data-tag-${tagAttrKey(tagKey)}`) === ev
+                  ? 1
+                  : FADE_OPACITY
               );
             });
           chartG
@@ -2363,7 +2365,9 @@ function renderTagLegend(
               const el = d3Selection.select(this);
               el.attr(
                 'opacity',
-                el.attr(`data-tag-${tagKey}`) === ev ? 1 : FADE_OPACITY
+                el.attr(`data-tag-${tagAttrKey(tagKey)}`) === ev
+                  ? 1
+                  : FADE_OPACITY
               );
             });
           svg
@@ -2375,7 +2379,9 @@ function renderTagLegend(
               const el = d3Selection.select(this);
               el.attr(
                 'opacity',
-                el.attr(`data-tag-${tagKey}`) === ev ? 1 : FADE_OPACITY
+                el.attr(`data-tag-${tagAttrKey(tagKey)}`) === ev
+                  ? 1
+                  : FADE_OPACITY
               );
             });
           chartG
@@ -3181,7 +3187,7 @@ function highlightLane(
   tagKey: string,
   laneName: string
 ): void {
-  const tagAttr = `data-tag-${tagKey}`;
+  const tagAttr = `data-tag-${tagAttrKey(tagKey)}`;
   const laneValue = laneName.toLowerCase();
 
   // Fade tasks not in this lane

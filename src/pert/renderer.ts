@@ -71,6 +71,7 @@ import {
   resolveTagColor,
   resolveGroupTagColor,
   UNTAGGED_TAG_COLOR,
+  tagAttrKey,
 } from '../utils/tag-groups';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import { getLegendExtent } from '../utils/legend-layout';
@@ -1749,7 +1750,10 @@ function renderNodes(
     // to org / kanban / gantt.
     if (r.activity.tags) {
       for (const [tagKey, tagValue] of Object.entries(r.activity.tags)) {
-        g.attr(`data-tag-${tagKey}`, String(tagValue).toLowerCase());
+        g.attr(
+          `data-tag-${tagAttrKey(tagKey)}`,
+          String(tagValue).toLowerCase()
+        );
       }
     }
 

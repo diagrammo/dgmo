@@ -202,6 +202,17 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
     expect(path!.getAttribute('data-tag-leg')).toBe('cruise');
   });
 
+  it('a multi-word tag group keys its leg by the slug, not the raw name (#1212)', () => {
+    const svg = render(
+      'map\ntag "Leg (v2)" as l\n  Fly red\n  Cruise blue\npoi Tokyo\npoi Osaka\nTokyo ~> Osaka l: Cruise'
+    );
+    const path = svg.querySelector<SVGPathElement>(
+      '.dgmo-map-legs path[data-from-id]'
+    );
+    expect(path).toBeTruthy();
+    expect(path!.getAttribute('data-tag-leg-v2')).toBe('cruise');
+  });
+
   it('a weighted edge carries its value as a <title> tooltip + data-value', () => {
     const svg = render(
       'map\npoi Tokyo\npoi Osaka\nTokyo ~fiber~> Osaka width: 28'

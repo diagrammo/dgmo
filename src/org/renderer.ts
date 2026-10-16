@@ -352,7 +352,7 @@ export function renderOrg(
       const tagKey = tagAttrKey(activeTagGroup);
       const metaValue = c.tagMetadata[tagKey];
       if (metaValue) {
-        cG.attr(`data-tag-${tagKey}`, metaValue.toLowerCase());
+        cG.attr(`data-tag-${tagAttrKey(tagKey)}`, metaValue.toLowerCase());
       }
     }
 
@@ -535,7 +535,7 @@ export function renderOrg(
       const tagKey = tagAttrKey(activeTagGroup);
       const metaValue = node.tagMetadata[tagKey];
       if (metaValue) {
-        nodeG.attr(`data-tag-${tagKey}`, metaValue.toLowerCase());
+        nodeG.attr(`data-tag-${tagAttrKey(tagKey)}`, metaValue.toLowerCase());
       }
     }
 

@@ -3582,7 +3582,10 @@ export function renderSequenceDiagram(
         .attr('class', 'lifeline')
         .attr('data-participant-id', participant.id);
       if (tagKey && pTagValue) {
-        lifelineEl.attr(`data-tag-${tagKey}`, pTagValue.toLowerCase());
+        lifelineEl.attr(
+          `data-tag-${tagAttrKey(tagKey)}`,
+          pTagValue.toLowerCase()
+        );
       }
     }
   });
@@ -3661,7 +3664,7 @@ export function renderSequenceDiagram(
       .attr('data-line-number', coveredLines[0] ?? '')
       .attr('class', 'activation');
     if (tagKey && actTagValue) {
-      actRect.attr(`data-tag-${tagKey}`, actTagValue.toLowerCase());
+      actRect.attr(`data-tag-${tagAttrKey(tagKey)}`, actTagValue.toLowerCase());
     }
   });
 
@@ -3924,7 +3927,10 @@ export function renderSequenceDiagram(
           .attr('data-from', step.from)
           .attr('data-to', step.to);
         if (tagKey && msgTagValue) {
-          selfCallEl.attr(`data-tag-${tagKey}`, msgTagValue.toLowerCase());
+          selfCallEl.attr(
+            `data-tag-${tagAttrKey(tagKey)}`,
+            msgTagValue.toLowerCase()
+          );
         }
 
         const displayLabel = stepLabels[i];
@@ -3945,7 +3951,10 @@ export function renderSequenceDiagram(
             .attr('data-msg-index', String(step.messageIndex))
             .attr('data-step-index', String(i));
           if (tagKey && msgTagValue) {
-            labelEl.attr(`data-tag-${tagKey}`, msgTagValue.toLowerCase());
+            labelEl.attr(
+              `data-tag-${tagAttrKey(tagKey)}`,
+              msgTagValue.toLowerCase()
+            );
           }
           // TD-1: in-arrow labels render as plain text (no markdown interpretation).
           // Fixes the `location[]`-style silent character drop.
@@ -3987,7 +3996,10 @@ export function renderSequenceDiagram(
           .attr('data-from', step.from)
           .attr('data-to', step.to);
         if (tagKey && msgTagValue) {
-          arrowEl.attr(`data-tag-${tagKey}`, msgTagValue.toLowerCase());
+          arrowEl.attr(
+            `data-tag-${tagAttrKey(tagKey)}`,
+            msgTagValue.toLowerCase()
+          );
         }
 
         const displayLabel = stepLabels[i];
@@ -4008,7 +4020,10 @@ export function renderSequenceDiagram(
             .attr('data-msg-index', String(step.messageIndex))
             .attr('data-step-index', String(i));
           if (tagKey && msgTagValue) {
-            labelEl.attr(`data-tag-${tagKey}`, msgTagValue.toLowerCase());
+            labelEl.attr(
+              `data-tag-${tagAttrKey(tagKey)}`,
+              msgTagValue.toLowerCase()
+            );
           }
           // TD-1: in-arrow labels render as plain text (no markdown interpretation).
           // Fixes the `location[]`-style silent character drop.
@@ -4051,7 +4066,10 @@ export function renderSequenceDiagram(
         .attr('data-from', step.from)
         .attr('data-to', step.to);
       if (tagKey && msgTagValue) {
-        returnEl.attr(`data-tag-${tagKey}`, msgTagValue.toLowerCase());
+        returnEl.attr(
+          `data-tag-${tagAttrKey(tagKey)}`,
+          msgTagValue.toLowerCase()
+        );
       }
 
       const displayLabel = stepLabels[i];
@@ -4072,7 +4090,10 @@ export function renderSequenceDiagram(
           .attr('data-msg-index', String(step.messageIndex))
           .attr('data-step-index', String(i));
         if (tagKey && msgTagValue) {
-          labelEl.attr(`data-tag-${tagKey}`, msgTagValue.toLowerCase());
+          labelEl.attr(
+            `data-tag-${tagAttrKey(tagKey)}`,
+            msgTagValue.toLowerCase()
+          );
         }
         // TD-1: in-arrow labels render as plain text (no markdown
         // interpretation). Return-arrow labels are currently always empty
@@ -4269,7 +4290,7 @@ function renderParticipant(
 
   // Set data-tag attribute for legend hover dimming
   if (tagAttr) {
-    g.attr(`data-tag-${tagAttr.key}`, tagAttr.value);
+    g.attr(`data-tag-${tagAttrKey(tagAttr.key)}`, tagAttr.value);
   }
 
   // A collapsed group supplies its own box and its own name, drawn into this

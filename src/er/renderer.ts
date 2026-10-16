@@ -542,7 +542,7 @@ export function renderERDiagram(
       const tagKey = tagAttrKey(activeTagGroup);
       const tagValue = node.metadata[tagKey];
       if (tagValue) {
-        nodeG.attr(`data-tag-${tagKey}`, tagValue.toLowerCase());
+        nodeG.attr(`data-tag-${tagAttrKey(tagKey)}`, tagValue.toLowerCase());
       }
     }
 

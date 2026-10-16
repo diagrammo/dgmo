@@ -1144,7 +1144,7 @@ function makeTimelineHoverHelpers(): TimelineHoverHelpers {
     tagKey: string,
     tagValue: string
   ) {
-    const attrName = `data-tag-${tagKey}`;
+    const attrName = `data-tag-${tagAttrKey(tagKey)}`;
     g.selectAll<SVGGElement, unknown>('.tl-event').each(function () {
       const el = d3Selection.select(this);
       const val = el.attr(attrName);
@@ -1176,7 +1176,7 @@ function makeTimelineHoverHelpers(): TimelineHoverHelpers {
     ev: TimelineEvent
   ) {
     for (const [key, value] of Object.entries(ev.metadata)) {
-      evG.attr(`data-tag-${key}`, value.toLowerCase());
+      evG.attr(`data-tag-${tagAttrKey(key)}`, value.toLowerCase());
     }
   }
 

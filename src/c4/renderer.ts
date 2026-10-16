@@ -442,7 +442,7 @@ export function renderC4Context(
       const tagKey = tagAttrKey(activeTagGroup);
       const tagValue = node.metadata[tagKey];
       if (tagValue) {
-        nodeG.attr(`data-tag-${tagKey}`, tagValue.toLowerCase());
+        nodeG.attr(`data-tag-${tagAttrKey(tagKey)}`, tagValue.toLowerCase());
       } else {
         // Fall back to the group's defaultValue so hover-dimming works for
         // nodes that inherit the default (e.g. sc: Internal default).
@@ -451,7 +451,10 @@ export function renderC4Context(
             tagAttrKey(g.name) === tagKey || g.alias?.toLowerCase() === tagKey
         );
         if (tagGroup?.defaultValue) {
-          nodeG.attr(`data-tag-${tagKey}`, tagGroup.defaultValue.toLowerCase());
+          nodeG.attr(
+            `data-tag-${tagAttrKey(tagKey)}`,
+            tagGroup.defaultValue.toLowerCase()
+          );
         }
       }
     }
@@ -1668,7 +1671,7 @@ export function renderC4Containers(
       const tagKey = tagAttrKey(activeTagGroup);
       const tagValue = node.metadata[tagKey];
       if (tagValue) {
-        nodeG.attr(`data-tag-${tagKey}`, tagValue.toLowerCase());
+        nodeG.attr(`data-tag-${tagAttrKey(tagKey)}`, tagValue.toLowerCase());
       } else {
         // Fall back to the group's defaultValue so hover-dimming works for
         // nodes that inherit the default (e.g. sc: Internal default).
@@ -1677,7 +1680,10 @@ export function renderC4Containers(
             tagAttrKey(g.name) === tagKey || g.alias?.toLowerCase() === tagKey
         );
         if (tagGroup?.defaultValue) {
-          nodeG.attr(`data-tag-${tagKey}`, tagGroup.defaultValue.toLowerCase());
+          nodeG.attr(
+            `data-tag-${tagAttrKey(tagKey)}`,
+            tagGroup.defaultValue.toLowerCase()
+          );
         }
       }
     }

@@ -334,7 +334,7 @@ function drawItems(
       cell.attr('data-line-number', it.lineNumber);
     if (ctx.activeKey) {
       const v = node.metadata[ctx.activeKey];
-      if (v) cell.attr(`data-tag-${ctx.activeKey}`, v);
+      if (v) cell.attr(`data-tag-${tagAttrKey(ctx.activeKey)}`, v);
     }
 
     if (it.type === 'collapsed') {

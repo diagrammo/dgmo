@@ -78,6 +78,19 @@ Bob sex: m`);
   });
 });
 
+describe('family renderer — a multi-word tag group (#1212)', () => {
+  it('keys each card by the slug, so legend hover can match it', () => {
+    const src = FIX('family.dgmo').replace(
+      'tag Allegiance as loyalty',
+      'tag "Allegiance (v2)" as loyalty'
+    );
+    const svg = render(src, false, 'Allegiance (v2)');
+    expect(
+      svg.querySelector('[data-tag-allegiance-v2="brethren"]')
+    ).not.toBeNull();
+  });
+});
+
 describe('family renderer — sex color + overrides', () => {
   it('renders in light and dark without hardcoded hex leaking from src', () => {
     // Both themes render some cards.

@@ -593,7 +593,7 @@ export function renderJourneyMap(
         faceG.attr('data-line-number', step.lineNumber);
         faceG.attr('data-score', pt.score);
         for (const [key, value] of Object.entries(step.tags)) {
-          faceG.attr(`data-tag-${key.toLowerCase()}`, value);
+          faceG.attr(`data-tag-${tagAttrKey(key)}`, value);
         }
         // Store thought text for hover-to-reveal
         const thoughts = step.annotations.filter((a) => a.type === 'thought');
@@ -634,7 +634,7 @@ export function renderJourneyMap(
       faceG.attr('data-line-number', step.lineNumber);
       faceG.attr('data-score', pt.score);
       for (const [key, value] of Object.entries(step.tags)) {
-        faceG.attr(`data-tag-${key.toLowerCase()}`, value);
+        faceG.attr(`data-tag-${tagAttrKey(key)}`, value);
       }
       const thoughts = step.annotations.filter((a) => a.type === 'thought');
       if (thoughts.length > 0) {
@@ -759,7 +759,7 @@ export function renderJourneyMap(
             itemG.attr('data-score', step.score);
           }
           for (const [key, value] of Object.entries(step.tags)) {
-            itemG.attr(`data-tag-${key.toLowerCase()}`, value);
+            itemG.attr(`data-tag-${tagAttrKey(key)}`, value);
           }
 
           // Resolve card color from active tag group
@@ -810,7 +810,7 @@ export function renderJourneyMap(
             faceG.attr('data-line-number', step.lineNumber);
             faceG.attr('data-score', step.score);
             for (const [key, value] of Object.entries(step.tags)) {
-              faceG.attr(`data-tag-${key.toLowerCase()}`, value);
+              faceG.attr(`data-tag-${tagAttrKey(key)}`, value);
             }
           }
 
@@ -1138,7 +1138,7 @@ function renderStepCard(
     stepG.attr('data-score', sl.step.score);
   }
   for (const [key, value] of Object.entries(sl.step.tags)) {
-    stepG.attr(`data-tag-${key.toLowerCase()}`, value);
+    stepG.attr(`data-tag-${tagAttrKey(key)}`, value);
   }
 
   const cx = sl.x;

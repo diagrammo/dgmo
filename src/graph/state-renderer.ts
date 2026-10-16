@@ -538,7 +538,7 @@ export function renderState(
       const tagKey = tagAttrKey(activeTagGroup);
       const metaValue = node.metadata?.[tagKey];
       if (metaValue) {
-        nodeG.attr(`data-tag-${tagKey}`, metaValue.toLowerCase());
+        nodeG.attr(`data-tag-${tagAttrKey(tagKey)}`, metaValue.toLowerCase());
       }
     }
 

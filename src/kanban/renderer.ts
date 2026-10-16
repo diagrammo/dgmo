@@ -979,7 +979,7 @@ function drawKanban(
         );
         const value = tagValue ?? group?.defaultValue;
         if (value) {
-          cg.attr(`data-tag-${tagKey}`, value.toLowerCase());
+          cg.attr(`data-tag-${tagAttrKey(tagKey)}`, value.toLowerCase());
         }
       }
 
@@ -1919,7 +1919,7 @@ function renderSwimlaneCard(
     const group = tagGroups.find((tg) => tagAttrKey(tg.name) === tagKey);
     const value = card.tags[tagKey] ?? group?.defaultValue;
     if (value) {
-      cg.attr(`data-tag-${tagKey}`, value.toLowerCase());
+      cg.attr(`data-tag-${tagAttrKey(tagKey)}`, value.toLowerCase());
     }
   }
 

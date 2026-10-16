@@ -476,7 +476,7 @@ export function renderFamilyForExport(
     if (activeTagGroup) {
       const key = tagAttrKey(activeTagGroup);
       const v = node.tagMetadata[key];
-      if (v) g.attr(`data-tag-${key}`, v.toLowerCase());
+      if (v) g.attr(`data-tag-${tagAttrKey(key)}`, v.toLowerCase());
     }
 
     g.append('rect')

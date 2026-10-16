@@ -583,7 +583,7 @@ function drawBox(
   const cell = g.append('g').attr('class', 'dgmo-bracket-box');
   if (m.lineNumber !== null) cell.attr('data-line-number', m.lineNumber);
   if (activeKey && info.tagValue)
-    cell.attr(`data-tag-${activeKey}`, info.tagValue.toLowerCase());
+    cell.attr(`data-tag-${tagAttrKey(activeKey)}`, info.tagValue.toLowerCase());
 
   const isTBD = name === null;
   let fill = 'none';

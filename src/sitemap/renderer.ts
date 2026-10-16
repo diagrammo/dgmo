@@ -383,7 +383,8 @@ export function renderSitemap(
     if (activeTagGroup) {
       const tagKey = tagAttrKey(activeTagGroup);
       const tagVal = c.tagMetadata[tagKey];
-      if (tagVal) cG.attr(`data-tag-${tagKey}`, tagVal.toLowerCase());
+      if (tagVal)
+        cG.attr(`data-tag-${tagAttrKey(tagKey)}`, tagVal.toLowerCase());
     }
 
     const fill = containerFill(palette, isDark, c.color);
@@ -549,7 +550,8 @@ export function renderSitemap(
     if (activeTagGroup) {
       const tagKey = tagAttrKey(activeTagGroup);
       const tagVal = node.tagMetadata[tagKey];
-      if (tagVal) nodeG.attr(`data-tag-${tagKey}`, tagVal.toLowerCase());
+      if (tagVal)
+        nodeG.attr(`data-tag-${tagAttrKey(tagKey)}`, tagVal.toLowerCase());
     }
 
     const fillMode = fillModeFromOptions(parsed.options);

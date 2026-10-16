@@ -48,7 +48,11 @@ import {
   groupStroke,
 } from '../palettes/color-utils';
 import { resolveColor } from '../colors';
-import { resolveTagColor, resolveGroupTagColor } from '../utils/tag-groups';
+import {
+  resolveTagColor,
+  resolveGroupTagColor,
+  tagAttrKey,
+} from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import type { PaletteColors } from '../palettes';
 import {
@@ -1050,7 +1054,7 @@ export function renderBoxesAndLines(
 
     // Add tag metadata as data attributes for legend hover dimming
     for (const [key, val] of Object.entries(node.metadata)) {
-      nodeG.attr(`data-tag-${key.toLowerCase()}`, val.toLowerCase());
+      nodeG.attr(`data-tag-${tagAttrKey(key)}`, val.toLowerCase());
     }
 
     // Numeric value drives the gradient scrub; guard on !== undefined so a

@@ -28,6 +28,7 @@ import {
   type MapLayoutCoastlineStyle,
   type PlacedLabel,
 } from './layout';
+import { tagAttrKey } from '../utils/tag-groups';
 
 const LABEL_FONT = 11;
 
@@ -382,7 +383,7 @@ function drawMap(
       if (r.value !== undefined) p.attr('data-value', r.value);
       if (r.tags) {
         for (const [group, value] of Object.entries(r.tags)) {
-          p.attr(`data-tag-${group.toLowerCase()}`, value.toLowerCase());
+          p.attr(`data-tag-${tagAttrKey(group)}`, value.toLowerCase());
         }
       }
     }
@@ -1016,7 +1017,7 @@ function drawMap(
     // a legend hover spotlights only the matching lines (§24B.6) — mirrors POIs.
     if (leg.tags) {
       for (const [group, value] of Object.entries(leg.tags)) {
-        p.attr(`data-tag-${group.toLowerCase()}`, value.toLowerCase());
+        p.attr(`data-tag-${tagAttrKey(group)}`, value.toLowerCase());
       }
     }
     // A 0-width invisible leg path is hard to hit; pointer-events on the visible
@@ -1050,7 +1051,7 @@ function drawMap(
       // while its matching line stays bright.
       if (leg.tags) {
         for (const [group, value] of Object.entries(leg.tags)) {
-          a.attr(`data-tag-${group.toLowerCase()}`, value.toLowerCase());
+          a.attr(`data-tag-${tagAttrKey(group)}`, value.toLowerCase());
         }
       }
     }
@@ -1151,7 +1152,7 @@ function drawMap(
     // legend-entry attributes) so the app can spotlight it on legend hover.
     if (poi.tags) {
       for (const [group, value] of Object.entries(poi.tags)) {
-        c.attr(`data-tag-${group.toLowerCase()}`, value.toLowerCase());
+        c.attr(`data-tag-${tagAttrKey(group)}`, value.toLowerCase());
       }
     }
     if (onClickItem) {

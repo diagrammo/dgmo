@@ -52,6 +52,7 @@ import {
   resolveTagColor,
   type TagGroup,
   UNTAGGED_TAG_COLOR,
+  tagAttrKey,
 } from '../utils/tag-groups';
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
@@ -1676,7 +1677,7 @@ function applyHoverHooks<E extends d3Selection.BaseType>(
   if (p.eraName) sel.attr('data-evt-era', p.eraName);
   if (p.event) {
     for (const [k, v] of Object.entries(p.event.metadata)) {
-      sel.attr(`data-tag-${k.toLowerCase()}`, String(v).toLowerCase());
+      sel.attr(`data-tag-${tagAttrKey(k)}`, String(v).toLowerCase());
     }
   }
 }
@@ -1727,7 +1728,7 @@ function applyEvtFocus(root: Element, spec: EventLineFocus | null): void {
     });
     return;
   }
-  const attr = `data-tag-${spec.group}`;
+  const attr = `data-tag-${tagAttrKey(spec.group)}`;
   const matches = (el: Element): boolean =>
     el.getAttribute(attr) === spec.value;
   // Member bullets folded inside a collapsed era carry the same `data-tag-*` as
@@ -1865,7 +1866,8 @@ function applyEvtHidden(container: Element, root: Element): void {
       if (sep < 0) continue;
       const group = key.slice(0, sep);
       const value = key.slice(sep + 1);
-      if (el.getAttribute(`data-tag-${group}`) === value) return true;
+      if (el.getAttribute(`data-tag-${tagAttrKey(group)}`) === value)
+        return true;
     }
     return false;
   };
@@ -2098,7 +2100,7 @@ function renderBody(
     if (!lineMeta) return;
     el.attr('class', 'dgmo-evt-bullet');
     for (const [k, v] of Object.entries(lineMeta))
-      el.attr(`data-tag-${k.toLowerCase()}`, String(v).toLowerCase());
+      el.attr(`data-tag-${tagAttrKey(k)}`, String(v).toLowerCase());
   };
   for (const line of lines) {
     const isBullet =
