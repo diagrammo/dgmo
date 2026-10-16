@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it, expect } from 'vitest';
+import { loadMapData } from '../src/map/load-data';
 import { render } from '../src/render';
 import {
   buildHoverCss,
@@ -794,5 +795,95 @@ describe('render() integration — legend pairing on class, er, function, body a
       /\[data-legend-entry="[^"]+"\]:hover\) \.dgmo-treemap-cell\[data-tag-/
     );
     expect(style).not.toContain('[data-branch=');
+  });
+});
+
+describe('render() integration — legend pairing on kanban, family, map, journey-map and bracket (#1215)', () => {
+  const fixture = (name: string): string =>
+    readFileSync(join(__dirname, '..', 'gallery', 'fixtures', name), 'utf8');
+  const LIFT = '{filter:saturate(1.4) brightness(1.06)}';
+
+  it('kanban: a priority legend entry dims the cards of other priorities', async () => {
+    const { svg } = await render(fixture('kanban.dgmo'));
+    expect(svg).toContain(
+      'svg:has([data-legend-entry="high"]:hover) .kanban-card:not([data-tag-priority="high"]){opacity:0.4}'
+    );
+    // The column focus it had is kept.
+    expect(svg).toContain(
+      'svg:has(.kanban-column:hover) .kanban-column:not(:hover){opacity:0.4}'
+    );
+  });
+
+  it('family: a sex legend entry dims the other cards, and a card dims the other entries', async () => {
+    const { svg } = await render(fixture('family.dgmo'));
+    expect(svg).toContain(
+      'svg:has([data-legend-entry="unknown"]:hover) .family-card:not([data-tag-sex="unknown"]){opacity:0.4}'
+    );
+    expect(svg).toContain(
+      'svg:has(.family-card[data-tag-sex="unknown"]:hover):has([data-legend-entry="unknown"]) [data-legend-entry]:not([data-legend-entry="unknown"]){opacity:0.4}'
+    );
+    expect(svg).not.toContain('.family-card:hover{filter');
+  });
+
+  it('map: a region tag legend entry lifts the regions wearing it', async () => {
+    const { svg } = await render(fixture('map-categorical.dgmo'), {
+      mapData: loadMapData,
+    });
+    expect(svg).toContain(
+      `svg:has([data-legend-entry="hq"]:hover) :is(.dgmo-map-region,[data-poi],[data-from-id])[data-tag-market="hq"]${LIFT}`
+    );
+  });
+
+  it('map: a leg legend entry lifts the POIs and route legs wearing it', async () => {
+    const { svg } = await render(fixture('map-tagged-legs.dgmo'), {
+      mapData: loadMapData,
+    });
+    expect(svg).toContain(
+      `svg:has([data-legend-entry="sail"]:hover) :is(.dgmo-map-region,[data-poi],[data-from-id])[data-tag-leg="sail"]${LIFT}`
+    );
+    // POI hover still lifts same-leg POIs.
+    expect(svg).toContain(
+      `svg:has([data-poi][data-tag-leg="sail"]:hover) [data-poi][data-tag-leg="sail"]${LIFT}`
+    );
+  });
+
+  it('journey-map: a tag legend entry lifts the steps and faces wearing it, never a score rule', async () => {
+    const { svg } = await render(
+      'journey-map Boarding\n\ntag Crew as c\n  Gunners blue\n  Riggers green\n\n[Dock]\n  Climbs the gangway score: 3, c: Gunners\n  Stows the kit score: 4, c: Riggers'
+    );
+    expect(svg).toContain(
+      `svg:has([data-legend-entry="gunners"]:hover) :is(.journey-step,.journey-face)[data-tag-crew="Gunners"]${LIFT}`
+    );
+    expect(svg).not.toContain('[data-legend-entry="3"]');
+  });
+
+  it('bracket: a tag legend entry lifts the boxes wearing it', async () => {
+    const { svg } = await render(
+      'bracket Regatta\n\ntag Region as r\n  East blue\n  West green\n\nseed 1 One r: East\nseed 2 Two r: West\nOne beats Two'
+    );
+    expect(svg).toContain(
+      `svg:has([data-legend-entry="east"]:hover) .dgmo-bracket-box[data-tag-region="east"]${LIFT}`
+    );
+  });
+
+  it('treemap: a branch legend under active-tag none pairs on the branch, not the tag', async () => {
+    const src = fixture('treemap-tags.dgmo').replace(
+      'treemap Q3 Budget\n',
+      'treemap Q3 Budget\nactive-tag none\n'
+    );
+    const { svg } = await render(src);
+    expect(svg).toContain('data-legend-entry="engineering"');
+    expect(svg).toContain(
+      `svg:has([data-legend-entry="engineering"]:hover) .dgmo-treemap-cell[data-branch="Engineering"]${LIFT}`
+    );
+    const style = svg.match(/<style>([\s\S]*?)<\/style>/)?.[1] ?? '';
+    expect(style).not.toContain('[data-tag-team=');
+  });
+
+  it('treemap: a heat legend with no tag entries keeps the same-tag cell rules', async () => {
+    const { svg } = await render(fixture('treemap-tag-heat.dgmo'));
+    expect(svg).toContain(
+      `svg:has(.dgmo-treemap-cell[data-tag-squad="Product"]:hover) .dgmo-treemap-cell[data-tag-squad="Product"]${LIFT}`
+    );
   });
 });

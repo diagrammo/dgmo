@@ -61,6 +61,12 @@ export interface HoverSpec {
    *  drew. A `tag-active` row uses it as its group attr when no tag is
    *  active and a legend is drawn. */
   legendAttr?: string;
+  /** The marks the legend pairs against when they are not `markSelector`:
+   *  kanban's tags sit on `.kanban-card`, inside the `.kanban-column` its
+   *  structural rule keys on; map's sit on regions, POIs and route legs. When
+   *  set, the legend is always paired through `legendAttr` resolution on these
+   *  marks, never by the enumerated branch's own per-value legend rules. */
+  legendMarkSelector?: string;
   /** Emit the `${mark}:hover` self rule. Default true. */
   selfEmphasis?: boolean;
   /** Chart already animates opacity (infra pulse) — skip the transition. */
@@ -273,7 +279,8 @@ export function buildHoverCss(
     // counting the mirror separately would push every legend chart between 14
     // and 20 values over the cap and retire cross-highlighting it has today,
     // which is the silent fallback #852 forbids. The cap's unit is the pairing.
-    const legendCount = spec.legend ? values.length : 0;
+    const legendInline = spec.legend && !spec.legendMarkSelector;
+    const legendCount = legendInline ? values.length : 0;
     if (values.length + legendCount > MAX_HOVER_GROUPS) {
       // Over cap: self-emphasis only, record the skip.
       base.push(
@@ -291,7 +298,7 @@ export function buildHoverCss(
           )
         );
       }
-      if (spec.legend) {
+      if (legendInline) {
         for (const v of values) {
           cross.push(
             legendRule(
@@ -331,6 +338,7 @@ export function buildHoverCss(
   // already carry `data-tag-<slug>` lowercased and the legend already emits
   // `data-legend-entry` lowercased, so this needs no renderer change.
   const legendValues = derived.legendValues ?? [];
+  const legendMark = spec.legendMarkSelector ?? spec.markSelector;
   if (spec.legend && derived.legendAttr && legendValues.length) {
     if (legendValues.length > MAX_HOVER_GROUPS) {
       base.push(
@@ -339,15 +347,9 @@ export function buildHoverCss(
     } else {
       for (const v of legendValues) {
         cross.push(
-          legendRule(
-            spec.markSelector,
-            derived.legendAttr,
-            v,
-            emphasis,
-            dimOpacity
-          ),
+          legendRule(legendMark, derived.legendAttr, v, emphasis, dimOpacity),
           legendReverseRule(
-            spec.markSelector,
+            legendMark,
             derived.legendAttr,
             v,
             emphasis,
@@ -694,12 +696,16 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
   // column into `:hover` and the others dim. `dim` (not lift) reads as
   // "focus this column"; the marks' opacity is a presentation attr, which a
   // `<style>` rule outranks (no RED-2 conflict).
+  // Its tag legend pairs on the cards, which carry the active group's
+  // `data-tag-<slug>` (diagrammo/diagrammo#1215).
   kanban: {
     markSelector: '.kanban-column',
     strategy: 'structural',
     groupSelector: '.kanban-column',
     emphasis: 'dim',
     selfEmphasis: false,
+    legend: true,
+    legendMarkSelector: '.kanban-card',
   },
   // line: each series is a `g.dgmo-series` wrapping its line + data dots + an
   // invisible fat hit corridor (`.dgmo-series-hit`, renderer-baked) — without
@@ -734,10 +740,15 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
   },
   // journey-map: faces carry data-score (the emotion). Hover a face → lift all
   // same-score touchpoints across the journey.
+  // A tag legend pairs on the steps and faces, which both carry the active
+  // group's `data-tag-<slug>` — the same marks the app's own legend hover
+  // emphasizes (diagrammo/diagrammo#1215).
   'journey-map': {
     markSelector: '.journey-face',
     strategy: 'enumerated',
     groupAttr: 'data-score',
+    legend: true,
+    legendMarkSelector: ':is(.journey-step,.journey-face)',
   },
   // mindmap: nodes carry a single data-tag-<group> when tagged (no
   // legend-active marker → the single-tag fallback in deriveFromSvg resolves
@@ -763,11 +774,31 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
   // map: POIs carry data-tag-<group> for the active legend group (resolved from
   // data-legend-active). Hover a POI → lift same-group POIs. `lift` (never dim)
   // sidesteps the decorative-layer / inactive-pill inline-opacity trap (F6).
-  // Region-tag (choropleth) maps have no POIs → self-emphasis only.
+  // Region-tag (choropleth) maps have no POIs → self-emphasis only. Its tag
+  // legend pairs on every mark wearing the tag — tagged regions, POIs and
+  // route legs (diagrammo/diagrammo#1215).
   map: {
     markSelector: '[data-poi]',
     strategy: 'enumerated',
     groupAttrMode: 'tag-active',
+    legend: true,
+    legendMarkSelector: ':is(.dgmo-map-region,[data-poi],[data-from-id])',
+  },
+  // family and bracket: a tag legend only, pairing on the card / box that
+  // carries the active group's `data-tag-<slug>`. family's card hover is its
+  // own focus icon, so no self rule; `dim` is what FamilyPreview's legend
+  // hover does (diagrammo/diagrammo#1215).
+  family: {
+    markSelector: '.family-card',
+    strategy: 'self',
+    selfEmphasis: false,
+    legend: true,
+    emphasis: 'dim',
+  },
+  bracket: {
+    markSelector: '.dgmo-bracket-box',
+    strategy: 'self',
+    legend: true,
   },
 };
 
@@ -819,7 +850,28 @@ function resolveTagAttr(
       if (a.name.startsWith('data-tag-')) names.add(a.name);
     }
   });
-  return names.size === 1 ? [...names][0] : undefined;
+  if (names.size !== 1) return undefined;
+  const only = [...names][0]!;
+  // With a marker and drawn entries, the fallback must pair with what the
+  // legend DREW: a marker no mark matches can also name a legend that is not
+  // a tag group at all — treemap's BRANCH legend under `active-tag none` —
+  // whose entries none of the marks' tag values match. Undefined lets the
+  // caller fall back to the row's fixed `legendAttr` (diagrammo/diagrammo#1215).
+  // No entries (a heat legend alone) keeps the tag for the marks' own rules.
+  const entries = new Set<string>();
+  if (slug) {
+    root
+      .querySelectorAll('[data-legend-entry]')
+      .forEach((el) => entries.add(el.getAttribute('data-legend-entry')!));
+  }
+  if (
+    entries.size &&
+    !distinctAttrValues(root, markSelector, only).some((v) =>
+      entries.has(v.toLowerCase())
+    )
+  )
+    return undefined;
+  return only;
 }
 
 /** Distinct values of `attr` across the marks. */
@@ -848,17 +900,21 @@ function deriveFromSvg(svg: string, spec: HoverSpec): HoverDerived {
   // undefined when the strategy already keys off the same attr, so the
   // enumerated branch stays the single emitter for those charts.
   const legendExtra = (): HoverDerived => {
-    if (!spec.legend || spec.groupAttrMode === 'tag-active') return {};
+    if (!spec.legend) return {};
+    if (spec.groupAttrMode === 'tag-active' && !spec.legendMarkSelector)
+      return {};
     // No legend drawn (a single-series line, an untagged gantt) → no pairing
     // here, so no rules keyed on an entry that does not exist. This covers
     // the `legendAttr` / tag pairing only; an enumerated row's own legend
     // rules (`buildHoverCss`) are emitted per value regardless.
     if (!root.querySelector('[data-legend-entry]')) return {};
-    const attr = resolveTagAttr(root, spec.markSelector) ?? spec.legendAttr;
-    if (!attr || attr === spec.groupAttr) return {};
+    const mark = spec.legendMarkSelector ?? spec.markSelector;
+    const attr = resolveTagAttr(root, mark) ?? spec.legendAttr;
+    if (!attr) return {};
+    if (attr === spec.groupAttr && !spec.legendMarkSelector) return {};
     return {
       legendAttr: attr,
-      legendValues: distinctAttrValues(root, spec.markSelector, attr),
+      legendValues: distinctAttrValues(root, mark, attr),
     };
   };
 

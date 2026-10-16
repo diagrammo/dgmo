@@ -116,20 +116,7 @@ const TAGGED_SOURCES: Record<string, string> = {
  * new chart. Remove an entry the moment its render bakes a legend rule; the
  * test below fails until you do.
  */
-const LEGEND_HOVER_PENDING: Record<string, string> = {
-  'kanban.dgmo':
-    'kanban — the tags sit on `.kanban-card`, inside the `.kanban-column` marks its structural row keys on',
-  'family.dgmo': 'family — no registry row; the tags sit on `.family-card`',
-  'map-categorical.dgmo':
-    'map — no `legend` on its row; it carries two tag kinds on different marks',
-  'map-categorical-world.dgmo':
-    'map — no `legend` on its row; it carries two tag kinds on different marks',
-  'map-tagged-legs.dgmo':
-    'map — no `legend` on its row; it carries two tag kinds on different marks',
-  'tagged:journey-map':
-    'journey-map — no `legend` on its row, which keys `.journey-face` on `data-score`',
-  'tagged:bracket': 'bracket — no registry row at all',
-};
+const LEGEND_HOVER_PENDING: Record<string, string> = {};
 
 function fixtures(): string[] {
   return (readdirSync(FIXTURES_DIR, { recursive: true }) as string[])
