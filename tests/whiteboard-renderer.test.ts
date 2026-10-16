@@ -323,6 +323,37 @@ describe('whiteboard renderer', () => {
     expect(svg).toContain('data:image/png;base64,AAAA');
   });
 
+  it('draws by kind band, file order inside a band (#1222)', () => {
+    // File order puts the frame over its contents, the arrow and text under
+    // the shapes, the image over everything and the ink at the bottom.
+    const svg = draw(
+      [
+        'whiteboard',
+        'ink red 3 ALwKUAEKBQoNCA8IKwwxBDMDKwkRBwsJBwkBCQgNCgkkDyQHHAE4ATQIFgYaDAwKCBABCgsO',
+        'text caption at: 20 20',
+        'arrow from: 0 0, to: 50 50',
+        'rectangle A at: 10 10, size: 40 30',
+        'note at: 100 100',
+        'ellipse Frame at: 0 0, size: 300 200',
+        'line from: 0 60, to: 90 60',
+        'image a.assets/x.png at: 0 0, size: 10 10',
+      ].join('\n')
+    );
+    const drawn = [...svg.querySelectorAll('g[data-line-number]')].map(
+      (g) => `${g.getAttribute('class')}@${g.getAttribute('data-line-number')}`
+    );
+    expect(drawn).toEqual([
+      'whiteboard-image@9',
+      'whiteboard-rectangle@5',
+      'whiteboard-ellipse@7',
+      'whiteboard-note@6',
+      'whiteboard-arrow@4',
+      'whiteboard-line@8',
+      'whiteboard-text@3',
+      'whiteboard-ink@2',
+    ]);
+  });
+
   it('renders with every palette in both themes', async () => {
     for (const id of getAvailablePalettes().map((p) => p.id)) {
       for (const theme of ['light', 'dark'] as const) {

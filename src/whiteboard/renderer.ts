@@ -720,7 +720,33 @@ export function renderWhiteboard(
     }
   };
 
-  for (const el of elements) drawElement(el);
+  for (const el of inDrawOrder(elements)) drawElement(el);
+}
+
+/**
+ * The kind bands, bottom to top (spec §39.2): images, shapes, sticky notes,
+ * arrows and lines, text, ink. A band always draws above the one before it,
+ * so a frame drawn after its contents never hides them and a connector never
+ * hides under a shape it crosses.
+ */
+const DRAW_BAND: Readonly<Record<WhiteboardElement['kind'], number>> = {
+  image: 0,
+  shape: 1,
+  note: 2,
+  arrow: 3,
+  line: 3,
+  text: 4,
+  ink: 5,
+};
+
+/** The elements by band, file order kept inside each band. */
+function inDrawOrder(
+  elements: readonly WhiteboardElement[]
+): readonly WhiteboardElement[] {
+  return elements
+    .map((el, i) => ({ el, i }))
+    .sort((a, b) => DRAW_BAND[a.el.kind] - DRAW_BAND[b.el.kind] || a.i - b.i)
+    .map(({ el }) => el);
 }
 
 /** One `<tspan>` per non-empty line, `lh` apart from the first baseline. */
