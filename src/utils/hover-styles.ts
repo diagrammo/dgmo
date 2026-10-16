@@ -52,6 +52,11 @@ export interface HoverSpec {
   dimOpacity?: number;
   /** Emit legend↔mark pairing rules (`data-legend-entry`), both directions. */
   legend?: boolean;
+  /** The mark attr the legend pairs against, when it is fixed rather than a
+   *  tag group: line's legend names SERIES, so its entries pair with
+   *  `data-series-name` on `g.dgmo-series`. Unset → the injector resolves the
+   *  active tag group's `data-tag-<slug>` (`resolveTagAttr`). */
+  legendAttr?: string;
   /** Emit the `${mark}:hover` self rule. Default true. */
   selfEmphasis?: boolean;
   /** Chart already animates opacity (infra pulse) — skip the transition. */
@@ -439,10 +444,14 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     groupAttr: 'data-group',
     legend: true,
   },
+  // timeline: the same split as gantt — cross rules enumerate `data-group`,
+  // the legend is a TAG-group legend, so the injector resolves `legendAttr`
+  // from the marks' `data-tag-<slug>` (diagrammo/diagrammo#1215).
   timeline: {
     markSelector: '.tl-event',
     strategy: 'enumerated',
     groupAttr: 'data-group',
+    legend: true,
   },
   // raci cells AND column headers both carry `data-role-id`; keying on the bare
   // attr makes hovering either lift the whole role (cross-column highlight).
@@ -463,10 +472,10 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
   // — so it reads here purely as the legend's emphasis, and `dim` is what the
   // app's own legend hover does (FamilyPreview `emphasizeCards`).
   //
-  // Charts that draw a legend and tagged marks but are NOT listed:
-  //   kanban  — `structural`; the marks are columns while the tags sit on the
-  //             cards inside them, so a pairing needs a mark-selector change.
-  //   bracket, family — no registry row at all; a legend needs a whole spec.
+  // A chart that draws a legend but bakes no legend rule yet is named, with
+  // its reason, in `LEGEND_HOVER_PENDING` (tests/hover-legend-coverage.test.ts),
+  // which renders every gallery fixture and fails on any other one that draws a
+  // `data-legend-entry` with no legend rule (diagrammo/diagrammo#1215).
   //   map     — carries two tag kinds on different marks (see its row).
   sequence: {
     markSelector: '.participant',
@@ -683,13 +692,18 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
   // invisible fat hit corridor (`.dgmo-series-hit`, renderer-baked) — without
   // the corridor only the 2.5px stroke and 4px dots were hittable, so the
   // baked hover read as dead in embeds. Hovering anywhere along a line puts
-  // its group into `:hover` and the other series dim.
+  // its group into `:hover` and the other series dim. A multi-series line
+  // draws a SERIES legend (entries carry the lowercased series name), so the
+  // legend pairs on the fixed `data-series-name` every series group carries
+  // (diagrammo/diagrammo#1215); a single-series line draws no legend.
   line: {
     markSelector: 'g.dgmo-series',
     strategy: 'structural',
     groupSelector: 'g.dgmo-series',
     emphasis: 'dim',
     selfEmphasis: false,
+    legend: true,
+    legendAttr: 'data-series-name',
   },
   swimlane: {
     markSelector: '[data-lane]',
@@ -817,7 +831,10 @@ function deriveFromSvg(svg: string, spec: HoverSpec): HoverDerived {
   // enumerated branch stays the single emitter for those charts.
   const legendExtra = (): HoverDerived => {
     if (!spec.legend || spec.groupAttrMode === 'tag-active') return {};
-    const attr = resolveTagAttr(root, spec.markSelector);
+    // No legend drawn (a single-series line, an untagged gantt) → nothing to
+    // pair, so no rules keyed on an entry that does not exist.
+    if (!root.querySelector('[data-legend-entry]')) return {};
+    const attr = spec.legendAttr ?? resolveTagAttr(root, spec.markSelector);
     if (!attr || attr === spec.groupAttr) return {};
     return {
       legendAttr: attr,

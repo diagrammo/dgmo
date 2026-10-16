@@ -581,7 +581,9 @@ describe('injectHoverStyles — legend pairing on a NON-enumerated chart', () =>
     // legend — the two must not be conflated.
     const ganttSvg =
       '<svg xmlns="http://www.w3.org/2000/svg">' +
-      '<g data-legend-active="crew"></g>' +
+      '<g data-legend-active="crew">' +
+      '<g data-legend-entry="deck"></g><g data-legend-entry="galley"></g>' +
+      '</g>' +
       '<rect class="gantt-task" data-group="Rigging" data-tag-crew="deck"/>' +
       '<rect class="gantt-task" data-group="Sailing" data-tag-crew="galley"/>' +
       '</svg>';
@@ -689,6 +691,42 @@ describe('render() integration — legend pairing on state / er / pert (#504)', 
     expect(svg).toContain('data-legend-active="priority"');
     expect(svg).toContain(
       'svg:has([data-legend-entry="high"]:hover) .pert-node:not([data-tag-priority="high"])'
+    );
+  });
+});
+
+describe('render() integration — legend pairing on line and timeline (#1215)', () => {
+  it('line: a series legend entry dims the other series, and back', async () => {
+    const src =
+      'line Haul\nseries\n  Rum Stores blue\n  Powder Kegs green\n\n2019 57 645\n2020 39 638';
+    const { svg } = await render(src);
+    expect(svg).toContain(
+      'svg:has([data-legend-entry="rum stores"]:hover) g.dgmo-series:not([data-series-name="Rum Stores"]){opacity:0.4}'
+    );
+    expect(svg).toContain(
+      'svg:has(g.dgmo-series[data-series-name="Powder Kegs"]:hover):has([data-legend-entry="powder kegs"]) [data-legend-entry]:not([data-legend-entry="powder kegs"]){opacity:0.4}'
+    );
+    // The structural series-hover rule is untouched.
+    expect(svg).toContain(
+      'svg:has(g.dgmo-series:hover) g.dgmo-series:not(:hover){opacity:0.4}'
+    );
+  });
+
+  it('line: a single series draws no legend and bakes no legend rule', async () => {
+    const { svg } = await render('line Haul\n2019 57\n2020 39');
+    // Neither a legend element nor a rule keyed on one.
+    expect(svg).not.toContain('data-legend-entry');
+  });
+
+  it('timeline: a tag legend entry lifts the events wearing that tag', async () => {
+    const src =
+      'timeline Voyages\n\ntag Crew as c\n  Gunners blue\n  Riggers green\n\n2024-01 -> 2024-03 Refit c: Gunners\n2024-02 -> 2024-05 Rerig c: Riggers';
+    const { svg } = await render(src);
+    expect(svg).toContain(
+      'svg:has([data-legend-entry="gunners"]:hover) .tl-event[data-tag-crew="gunners"]{filter:saturate(1.4) brightness(1.06)}'
+    );
+    expect(svg).toContain(
+      'svg:has(.tl-event[data-tag-crew="riggers"]:hover) [data-legend-entry="riggers"]{filter:saturate(1.4) brightness(1.06)}'
     );
   });
 });
