@@ -3995,7 +3995,7 @@ In the desktop and web app a sketch opens in the **canvas editor** (the code pan
 
 <!-- TIPS end -->
 
-A **free-form whiteboard** on an infinite canvas: rectangles, ellipses, databases, queues, sticky notes, free arrows and lines, text, pasted images and freehand ink, each at absolute pixel positions. Shapes are clean vector outlines; only ink looks hand-made. The export is cropped to the drawing plus a margin. Element order is drawing order — later lines draw on top.
+A **free-form whiteboard** on an infinite canvas: rectangles, ellipses, databases, queues, sticky notes, free arrows and lines, text, pasted images and freehand ink, each at absolute pixel positions. Shapes are clean vector outlines; only ink looks hand-made. The export is cropped to the drawing plus a margin. Elements draw in kind bands, bottom to top: images, shapes (`rectangle`, `ellipse`, `database`, `queue`), sticky notes, arrows and lines, text, ink. A band always draws above the one before it, so a frame drawn after its contents never hides them. Inside a band, file order decides: a later line draws on top. No syntax sets the band.
 
 ### Declaration
 
@@ -4054,7 +4054,7 @@ A **shape** label, and a note's text, wraps to its width: each written line is k
 | `image <ref> at: X Y, size: W H`       | Picture; `<ref>` is a relative path (`board.assets/9f3c.webp`) or an `https://` URL |
 | `ink <colour> <width> <path>`          | One freehand stroke — **canvas-written only**                                       |
 
-An `arrow` or `line` end inside a shape or a sticky note attaches to it and is drawn to its border (topmost wins; not when both ends are inside the same one).
+An `arrow` or `line` end inside a shape or a sticky note attaches to it and is drawn to its border (where shapes overlap, the one latest in the file wins; not when both ends are inside the same one).
 
 The label is optional on shapes, notes, arrows and lines. `at:` is a top-left corner in canvas pixels; every number is an integer and may be negative. `size:` is width then height, each at least 1.
 
