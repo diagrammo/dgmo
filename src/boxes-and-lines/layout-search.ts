@@ -93,7 +93,7 @@ export function searchBudget(
   nodes: number,
   edges: number
 ): { seeds: number; maxCandidates: number } {
-  const seeds = nodes <= 12 ? 20 : nodes <= 22 ? 40 : nodes <= 35 ? 22 : 10;
+  const seeds = nodes <= 22 ? 20 : nodes <= 35 ? 22 : 10;
   const size = Math.max(1, nodes + edges);
   return {
     seeds,
@@ -1549,7 +1549,11 @@ export async function layoutBoxesAndLinesSearch(
   // graphs were given 80 seeds; measured on 20 real diagrams of <= 12 nodes
   // (#981), 20 seeds found layouts as good in total badness (19 vs 20) at
   // under half the time, and more seeds can crowd the best candidate out of
-  // the top-REFINE_K re-rank.
+  // the top-REFINE_K re-rank. Graphs of 13-22 nodes were given 40 until #1088:
+  // on the 9 workspace diagrams that size (2026-10-16), 10, 20, 30 and 40 seeds
+  // all reached badness 0, and 20 cut their search time by about a third. The
+  // gallery fixture gallery/boxes-and-lines.dgmo (13 nodes) placed 49 dagre
+  // candidates a search and now places 29.
   const budget = searchBudget(n, parsed.edges.length);
   const seedCount = opts?.seeds ?? budget.seeds;
   const REFINE_K = opts?.refineK ?? 6;
