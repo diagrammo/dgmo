@@ -18,6 +18,7 @@ import {
 import type { InfraTagGroup } from './types';
 import { resolveColor } from '../colors';
 import { renderInlineText } from '../utils/inline-markdown';
+import { FULL_TEXT_ATTR, fullNodeText } from '../utils/full-text';
 import { preprocessDescriptionLine } from '../utils/description-helpers';
 import {
   measureText,
@@ -1654,6 +1655,7 @@ function renderNodes(
       const descLines =
         expanded && node.description && !node.isEdge ? node.description : [];
       const descH = descLines.length * META_LINE_HEIGHT;
+      let descCut = false;
       for (let di = 0; di < descLines.length; di++) {
         const rawLine = descLines[di]!;
         const processed = preprocessDescriptionLine(rawLine);
@@ -1675,8 +1677,12 @@ function renderNodes(
           .attr('font-size', sc.sMetaFontSize)
           .attr('fill', textFill);
         renderInlineText(textEl, descTruncated, palette, sc.sMetaFontSize);
-        if (isTruncated) textEl.append('title').text(rawLine);
+        if (isTruncated) {
+          textEl.append('title').text(rawLine);
+          descCut = true;
+        }
       }
+      if (descCut) g.attr(FULL_TEXT_ATTR, fullNodeText(node.label, descLines));
 
       // Declared properties only shown when node is selected (expanded)
       const displayProps =

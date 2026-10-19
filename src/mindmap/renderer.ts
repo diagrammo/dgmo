@@ -37,6 +37,7 @@ import {
 import { layoutInlineHeader } from '../utils/inline-header';
 import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
 import { ScaleContext } from '../utils/scaling';
+import { FULL_TEXT_ATTR, fullNodeText, isCutShort } from '../utils/full-text';
 
 // ============================================================
 // Constants
@@ -549,6 +550,16 @@ export function renderMindmap(
     // Hover tooltip for truncated/wrapped labels — on the <g>, not on <text>
     if (labelLines.length > 1 || labelLines[0] !== node.label) {
       nodeG.append('title').text(node.label);
+    }
+
+    // Full text on the node when the label or description is cut short —
+    // wrapping alone is not a cut.
+    const drawnDesc = showDesc ? (node.description ?? []) : [];
+    if (
+      isCutShort(labelLines, [node.label]) ||
+      isCutShort(descLines, drawnDesc.map(preprocessDescriptionLine))
+    ) {
+      nodeG.attr(FULL_TEXT_ATTR, fullNodeText(node.label, drawnDesc));
     }
 
     // Description — separator line + muted text below label

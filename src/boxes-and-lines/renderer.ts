@@ -66,6 +66,7 @@ import {
 import type { ParsedBoxesAndLines, BLNode } from './types';
 import type { BLLayoutResult, BLLayoutNode, BLLayoutEdge } from './layout';
 import { ScaleContext } from '../utils/scaling';
+import { FULL_TEXT_ATTR, fullNodeText, isCutShort } from '../utils/full-text';
 import {
   CHAR_WIDTH_RATIO,
   measureText,
@@ -1091,10 +1092,16 @@ export function renderBoxesAndLines(
 
     // All text centered vertically using dominant-baseline: central
     const desc = node.description;
+    // Whether the label or description drawn below is cut short, and the
+    // description lines drawn at all — for the node's full-text attribute.
+    let textCut: boolean;
+    let drawnDesc: readonly string[] = [];
     if (desc && desc.length > 0 && !hideDescriptions) {
       const MAX_LABEL_LINES = 3;
       const fitted = fitLabelToHeader(node.label, ln.width, MAX_LABEL_LINES);
       const labelLines = fitted.lines;
+      textCut = isCutShort(labelLines, [node.label]);
+      drawnDesc = desc;
       const labelLineH = fitted.fontSize * 1.3;
       const labelTotalH = labelLines.length * labelLineH;
       const headerH = labelTotalH + 12;
@@ -1223,6 +1230,7 @@ export function renderBoxesAndLines(
 
       // Tooltip when truncated
       if (truncated) {
+        textCut = true;
         const fullText = desc.join(' ');
         const tooltipText =
           fullText.length > 200 ? fullText.slice(0, 199) + '\u2026' : fullText;
@@ -1260,6 +1268,7 @@ export function renderBoxesAndLines(
       const headerH = ln.height / 2;
       const sepY = -ln.height / 2 + headerH;
       const fitted = fitLabelToHeader(node.label, ln.width, 2);
+      textCut = isCutShort(fitted.lines, [node.label]);
       const labelLineH = fitted.fontSize * 1.3;
       const labelTotalH = fitted.lines.length * labelLineH;
       const headerCenterY = -ln.height / 2 + headerH / 2;
@@ -1308,6 +1317,7 @@ export function renderBoxesAndLines(
         Math.floor((ln.height - 16) / (sMinNodeFontSize * 1.3))
       );
       const fitted = fitLabelToHeader(node.label, ln.width, maxLabelLines);
+      textCut = isCutShort(fitted.lines, [node.label]);
       const lineH = fitted.fontSize * 1.3;
       const totalH = fitted.lines.length * lineH;
       for (let li = 0; li < fitted.lines.length; li++) {
@@ -1323,6 +1333,9 @@ export function renderBoxesAndLines(
           // In-bounds by loop guard.
           .text(fitted.lines[li]!);
       }
+    }
+    if (textCut) {
+      nodeG.attr(FULL_TEXT_ATTR, fullNodeText(node.label, drawnDesc));
     }
 
     // ── Note (floated beside the box, or a collapsed corner badge) ──
