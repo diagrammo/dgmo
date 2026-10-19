@@ -3,13 +3,12 @@
 // ============================================================
 //
 // Floats each note beside its anchor node WITHOUT moving the node, so the
-// shape keeps its layout position and its edge connections. Ported verbatim
-// from the graph layout's "Collision-aware note placement" block so every
-// chart shares one placement policy. The caller supplies positioned node
+// shape keeps its layout position and its edge connections. Every chart
+// shares this one placement policy. The caller supplies positioned node
 // rects (`obstacles`) and per-note requests; this returns a box position
 // LOCAL to each node's center (the renderer's translate origin).
 
-import { NOTE_GAP } from '../note-box';
+import { NOTE_GAP, noteConnectorPoints } from '../note-box';
 
 export type NoteSide = 'above' | 'below' | 'left' | 'right';
 
@@ -53,12 +52,55 @@ const intersects = (a: Rect, b: Rect, pad: number): boolean =>
     b.bottom + pad <= a.top
   );
 
+/** Clearance kept between a note's connector and any other shape. */
+const CONNECTOR_CLEAR = 4;
+
 /**
- * Place each note beside its node. Try the default side (right for TB,
- * below for LR); if it would overlap an obstacle flip to the opposite
- * side; if both collide, push the default side outward past the blockers.
- * Each placed note then becomes an obstacle for later notes, so notes keep
- * a comfortable distance from every shape and from each other.
+ * Step of the slide along a side, and the farthest a note moves from its
+ * side — outward, or along a left/right side. Dense layouts leave gaps
+ * smaller than a note, so the clear spot can be a long diagonal away.
+ */
+const SLIDE_STEP = 10;
+const SEARCH_REACH = 480;
+
+/** Does the segment (x1,y1)→(x2,y2) pass through the inside of `r`? */
+const segmentCrosses = (
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  r: Rect
+): boolean => {
+  // Liang–Barsky clip: the part of the segment inside `r` is [t0, t1].
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const p = [-dx, dx, -dy, dy];
+  const q = [x1 - r.left, r.right - x1, y1 - r.top, r.bottom - y1];
+  let t0 = 0;
+  let t1 = 1;
+  for (let i = 0; i < 4; i++) {
+    const pi = p[i]!;
+    const qi = q[i]!;
+    if (pi === 0) {
+      if (qi <= 0) return false;
+      continue;
+    }
+    const t = qi / pi;
+    if (pi < 0) t0 = Math.max(t0, t);
+    else t1 = Math.min(t1, t);
+  }
+  return t0 < t1;
+};
+
+/**
+ * Place each note beside its node, so the note's box clears every shape
+ * and the straight connector from the node to the note crosses no other
+ * shape. Try the default side (right for TB, below for LR), then the
+ * opposite side. If neither is clear, search all four sides — sliding
+ * along each side and stepping outward — and take the clear position with
+ * the shortest connector. Only if none is clear, push the default side
+ * outward past the blockers. Each placed note then becomes an obstacle
+ * for later notes and connectors.
  *
  * Returns a map keyed by request `key`. The `x/y` are the box left/top
  * relative to the node center; collapsed requests return `{collapsed:true,
@@ -125,19 +167,107 @@ export function placeNotes(
     };
 
     const order: NoteSide[] =
-      direction === 'LR' ? ['below', 'above'] : ['right', 'left'];
+      direction === 'LR'
+        ? ['below', 'above', 'right', 'left']
+        : ['right', 'left', 'below', 'above'];
+
+    const anchor: Rect = {
+      left: nodeLeft,
+      top: nodeTop,
+      right: nodeRight,
+      bottom: nodeBottom,
+    };
+    const isAnchor = (o: Rect): boolean =>
+      o.left === anchor.left &&
+      o.top === anchor.top &&
+      o.right === anchor.right &&
+      o.bottom === anchor.bottom;
+
+    // The connector exactly as the renderer draws it, in canvas coords.
+    const connector = (rect: Rect, side: NoteSide): number[] => {
+      const [x1, y1, x2, y2] = noteConnectorPoints(p, {
+        x: rect.left - cx,
+        y: rect.top - cy,
+        width: noteW,
+        height: noteH,
+        side,
+      });
+      return [cx + x1, cy + y1, cx + x2, cy + y2];
+    };
+
+    const isClear = (rect: Rect, side: NoteSide): boolean => {
+      if (occupied.some((o) => intersects(rect, o, NOTE_CLEAR))) return false;
+      const [x1, y1, x2, y2] = connector(rect, side) as [
+        number,
+        number,
+        number,
+        number,
+      ];
+      return !occupied.some(
+        (o) =>
+          !isAnchor(o) &&
+          segmentCrosses(x1, y1, x2, y2, {
+            left: o.left - CONNECTOR_CLEAR,
+            top: o.top - CONNECTOR_CLEAR,
+            right: o.right + CONNECTOR_CLEAR,
+            bottom: o.bottom + CONNECTOR_CLEAR,
+          })
+      );
+    };
 
     let chosen: { rect: Rect; side: NoteSide } | null = null;
-    for (const side of order) {
+    for (const side of order.slice(0, 2)) {
       const rect = rectFor(side);
-      if (!occupied.some((o) => intersects(rect, o, NOTE_CLEAR))) {
+      if (isClear(rect, side)) {
         chosen = { rect, side };
         break;
       }
     }
 
     if (!chosen) {
-      // Both sides blocked — push the default side outward past blockers.
+      // Search the four sides: slide along each, step outward, keep the
+      // clear position whose connector is shortest. Above and below slide
+      // only while the note still spans the node's centre, so their
+      // connector stays the renderer's straight vertical line.
+      let bestLen = Infinity;
+      for (const side of order) {
+        const axisIsY = side === 'above' || side === 'below';
+        const outward = side === 'below' || side === 'right' ? 1 : -1;
+        const reach = axisIsY ? noteW / 2 : SEARCH_REACH;
+        const slides = [0];
+        for (let s = SLIDE_STEP; s <= reach; s += SLIDE_STEP) {
+          slides.push(s, -s);
+        }
+        const base = rectFor(side);
+        for (let out = 0; out <= SEARCH_REACH; out += NOTE_CLEAR) {
+          for (const slide of slides) {
+            const dx = axisIsY ? slide : out * outward;
+            const dy = axisIsY ? out * outward : slide;
+            const rect = {
+              left: base.left + dx,
+              top: base.top + dy,
+              right: base.right + dx,
+              bottom: base.bottom + dy,
+            };
+            if (!isClear(rect, side)) continue;
+            const [x1, y1, x2, y2] = connector(rect, side) as [
+              number,
+              number,
+              number,
+              number,
+            ];
+            const len = Math.hypot(x2 - x1, y2 - y1);
+            if (len < bestLen) {
+              bestLen = len;
+              chosen = { rect, side };
+            }
+          }
+        }
+      }
+    }
+
+    if (!chosen) {
+      // Nowhere is clear — push the default side outward past blockers.
       const side = order[0]!;
       let rect = rectFor(side);
       const axisIsY = side === 'above' || side === 'below';

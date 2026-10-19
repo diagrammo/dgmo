@@ -106,16 +106,59 @@ export interface LayoutResult {
 
 const GROUP_PADDING = 20;
 
-function computeNodeWidth(label: string, shape: GraphShape): number {
+/** A flowchart node label longer than this many characters wraps. */
+const LABEL_WRAP_CHARS = 24;
+
+/** Line advance of a wrapped node label, at the 13px node font. */
+export const NODE_LABEL_LINE_HEIGHT = 16;
+
+/**
+ * Split a flowchart node label at word boundaries. A label of at most
+ * `LABEL_WRAP_CHARS` stays on one line; a longer one takes the fewest
+ * lines of at most that width, then the width narrows while the line
+ * count holds, so the lines come out about even. A word longer than the
+ * limit keeps a line of its own. The renderer draws exactly these lines.
+ */
+export function wrapNodeLabel(label: string): string[] {
+  const words = label.trim().split(/\s+/);
+  if (label.length <= LABEL_WRAP_CHARS || words.length < 2) return [label];
+  const greedy = (limit: number): string[] => {
+    const lines: string[] = [];
+    let line = '';
+    for (const word of words) {
+      if (line && line.length + 1 + word.length > limit) {
+        lines.push(line);
+        line = word;
+      } else {
+        line = line ? `${line} ${word}` : word;
+      }
+    }
+    lines.push(line);
+    return lines;
+  };
+  let best = greedy(LABEL_WRAP_CHARS);
+  for (let limit = LABEL_WRAP_CHARS - 1; limit > 0; limit--) {
+    const lines = greedy(limit);
+    if (lines.length > best.length) break;
+    best = lines;
+  }
+  return best;
+}
+
+function computeNodeWidth(lines: readonly string[], shape: GraphShape): number {
   if (shape === 'pseudostate') return 24;
-  const base = Math.max(120, label.length * 9 + 40);
+  const longest = Math.max(...lines.map((l) => l.length));
+  const base = Math.max(120, longest * 9 + 40);
   if (shape === 'subroutine') return base + 10;
   return base;
 }
 
-function computeNodeHeight(shape: GraphShape): number {
+function computeNodeHeight(lineCount: number, shape: GraphShape): number {
   if (shape === 'pseudostate') return 24;
-  return shape === 'decision' ? 60 : 50;
+  // A diamond narrows toward its points, so each extra line buys twice
+  // the advance to keep the outer lines inside it.
+  const extra = (lineCount - 1) * NODE_LABEL_LINE_HEIGHT;
+  return shape === 'decision' ? 60 + extra * 2 : 50 + extra;
 }
 
 const newDagreGraph = () => new dagre.graphlib.Graph({ compound: true });
@@ -249,8 +292,11 @@ export function layoutGraph(
 
     // Add nodes with their natural dimensions (notes never inflate them).
     for (const node of ord(allNodes)) {
-      const width = computeNodeWidth(node.label, node.shape);
-      const height = computeNodeHeight(node.shape);
+      // Only flowcharts wrap; the state renderer draws one line.
+      const lines =
+        graph.type === 'flowchart' ? wrapNodeLabel(node.label) : [node.label];
+      const width = computeNodeWidth(lines, node.shape);
+      const height = computeNodeHeight(lines.length, node.shape);
       g.setNode(node.id, { label: node.label, width, height });
 
       // Set parent for grouped nodes (only for non-collapsed groups)

@@ -13,7 +13,7 @@ import { contrastText, shapeFill } from '../palettes/color-utils';
 import type { ParsedGraph, GraphShape } from './types';
 import type { LayoutResult, LayoutNode } from './layout';
 import { parseFlowchart } from './flowchart-parser';
-import { layoutGraph } from './layout';
+import { layoutGraph, NODE_LABEL_LINE_HEIGHT, wrapNodeLabel } from './layout';
 import { edgeSplinePath } from './edge-spline';
 import {
   TITLE_FONT_SIZE,
@@ -788,7 +788,7 @@ export function renderFlowchart(
       colorOff,
       fillMode
     );
-    nodeG
+    const labelText = nodeG
       .append('text')
       .attr('x', 0)
       .attr('y', 0)
@@ -802,8 +802,24 @@ export function renderFlowchart(
           palette.textOnFillDark
         )
       )
-      .attr('font-size', sNodeFontSize)
-      .text(node.label);
+      .attr('font-size', sNodeFontSize);
+    // The same lines the layout sized the shape from, centred on it.
+    const labelLines = wrapNodeLabel(node.label);
+    if (labelLines.length === 1) {
+      labelText.text(node.label);
+    } else {
+      const advance = NODE_LABEL_LINE_HEIGHT / NODE_FONT_SIZE;
+      labelLines.forEach((line, i) => {
+        labelText
+          .append('tspan')
+          .attr('x', 0)
+          .attr(
+            'dy',
+            `${i === 0 ? (-(labelLines.length - 1) / 2) * advance : advance}em`
+          )
+          .text(line);
+      });
+    }
 
     if (hasNote && node.note) {
       if (node.note.collapsed) {
