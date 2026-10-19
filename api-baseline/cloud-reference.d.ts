@@ -62,8 +62,9 @@ interface CloudReference {
  */
 declare function parseCloudReference(text: string): CloudReference | null;
 /**
- * What may appear as the whole body of a `dgmo` fence: the keyword form, or a
- * plain link somebody pasted. **Not** the embed spelling — see above.
+ * What may appear as the whole body of a `dgmo` fence: the keyword form with an
+ * id or a share link after it, or a plain link somebody pasted. **Not** the
+ * embed spelling — see above.
  */
 declare function parseCloudReferenceFence(text: string): CloudReference | null;
 /**
