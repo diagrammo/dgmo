@@ -3959,7 +3959,7 @@ interface GanttOptions {
     start: string | null;
     title: string | null;
     titleLineNumber: number | null;
-    todayMarker: 'off' | 'on' | string;
+    todayMarker: string;
     criticalPath: boolean;
     dependencies: boolean;
     sort: 'default' | 'tag';
