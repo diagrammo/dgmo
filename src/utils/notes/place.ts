@@ -55,6 +55,15 @@ const intersects = (a: Rect, b: Rect, pad: number): boolean =>
 /** Clearance kept between a note's connector and any other shape. */
 const CONNECTOR_CLEAR = 4;
 
+/** Clearance kept between a note's box and any edge line. */
+const EDGE_CLEAR = 6;
+
+/** An edge as the polyline its waypoints draw, in canvas coords. */
+export type NoteEdgePath = readonly {
+  readonly x: number;
+  readonly y: number;
+}[];
+
 /**
  * Step of the slide along a side, and the farthest a note moves from its
  * side — outward, or along a left/right side. Dense layouts leave gaps
@@ -98,8 +107,9 @@ const segmentCrosses = (
  * shape. Try the default side (right for TB, below for LR), then the
  * opposite side. If neither is clear, search all four sides — sliding
  * along each side and stepping outward — and take the clear position with
- * the shortest connector. Only if none is clear, push the default side
- * outward past the blockers. Each placed note then becomes an obstacle
+ * the shortest connector. A clear position also keeps the box off every
+ * edge line; only if no such position exists are the edges ignored. Only
+ * if none is clear, push the default side outward past the blockers. Each placed note then becomes an obstacle
  * for later notes and connectors.
  *
  * Returns a map keyed by request `key`. The `x/y` are the box left/top
@@ -109,7 +119,8 @@ const segmentCrosses = (
 export function placeNotes(
   obstacles: readonly PlaceableNode[],
   requests: readonly NotePlaceRequest[],
-  direction: 'TB' | 'LR'
+  direction: 'TB' | 'LR',
+  edges: readonly NoteEdgePath[] = []
 ): Map<string, NotePlacement> {
   const placements = new Map<string, NotePlacement>();
 
@@ -195,8 +206,29 @@ export function placeNotes(
       return [cx + x1, cy + y1, cx + x2, cy + y2];
     };
 
-    const isClear = (rect: Rect, side: NoteSide): boolean => {
+    const onEdge = (rect: Rect): boolean => {
+      const padded = {
+        left: rect.left - EDGE_CLEAR,
+        top: rect.top - EDGE_CLEAR,
+        right: rect.right + EDGE_CLEAR,
+        bottom: rect.bottom + EDGE_CLEAR,
+      };
+      return edges.some((path) =>
+        path.some(
+          (pt, i) =>
+            i > 0 &&
+            segmentCrosses(path[i - 1]!.x, path[i - 1]!.y, pt.x, pt.y, padded)
+        )
+      );
+    };
+
+    const isClear = (
+      rect: Rect,
+      side: NoteSide,
+      avoidEdges: boolean
+    ): boolean => {
       if (occupied.some((o) => intersects(rect, o, NOTE_CLEAR))) return false;
+      if (avoidEdges && onEdge(rect)) return false;
       const [x1, y1, x2, y2] = connector(rect, side) as [
         number,
         number,
@@ -215,16 +247,22 @@ export function placeNotes(
       );
     };
 
-    let chosen: { rect: Rect; side: NoteSide } | null = null;
-    for (const side of order.slice(0, 2)) {
-      const rect = rectFor(side);
-      if (isClear(rect, side)) {
-        chosen = { rect, side };
-        break;
+    // First a spot clear of shapes AND edge lines; failing that, one clear
+    // of shapes only.
+    const search = (
+      avoidEdges: boolean
+    ): { rect: Rect; side: NoteSide } | null => {
+      let chosen: { rect: Rect; side: NoteSide } | null = null;
+      for (const side of order.slice(0, 2)) {
+        const rect = rectFor(side);
+        if (isClear(rect, side, avoidEdges)) {
+          chosen = { rect, side };
+          break;
+        }
       }
-    }
 
-    if (!chosen) {
+      if (chosen) return chosen;
+
       // Search the four sides: slide along each, step outward, keep the
       // clear position whose connector is shortest. Above and below slide
       // only while the note still spans the node's centre, so their
@@ -249,7 +287,7 @@ export function placeNotes(
               right: base.right + dx,
               bottom: base.bottom + dy,
             };
-            if (!isClear(rect, side)) continue;
+            if (!isClear(rect, side, avoidEdges)) continue;
             const [x1, y1, x2, y2] = connector(rect, side) as [
               number,
               number,
@@ -264,7 +302,10 @@ export function placeNotes(
           }
         }
       }
-    }
+      return chosen;
+    };
+
+    let chosen = search(true) ?? search(false);
 
     if (!chosen) {
       // Nowhere is clear — push the default side outward past blockers.

@@ -365,7 +365,11 @@ export function layoutGraph(
       height: p.height,
     })),
     noteRequests,
-    graph.direction === 'LR' ? 'LR' : 'TB'
+    graph.direction === 'LR' ? 'LR' : 'TB',
+    graph.edges.map(
+      (e, i) =>
+        (edgePoints?.[i] ?? g.edge(e.source, e.target)?.points ?? []) as Pt[]
+    )
   );
 
   const layoutNodes: LayoutNode[] = basePositioned.map((p): LayoutNode => {

@@ -121,6 +121,29 @@ describe('flowchart — wrapped labels and clear note connectors (#1400)', () =>
     }
   });
 
+  // The owner's check, 2026-10-19: the "Payment ideally comes first…" note
+  // sat on the edge into "Departments process client card…".
+  it('keeps every note box off every edge line', () => {
+    for (const n of layout.nodes.filter((m) => m.note && !m.note.collapsed)) {
+      const box = {
+        x: n.x + n.note!.x + n.note!.width / 2,
+        y: n.y + n.note!.y + n.note!.height / 2,
+        width: n.note!.width,
+        height: n.note!.height,
+      };
+      const hits = layout.edges
+        .filter((e) =>
+          e.points.some(
+            (pt, i) =>
+              i > 0 &&
+              crosses(e.points[i - 1]!.x, e.points[i - 1]!.y, pt.x, pt.y, box)
+          )
+        )
+        .map((e) => `${e.source} -> ${e.target}`);
+      expect({ note: n.label, hits }).toEqual({ note: n.label, hits: [] });
+    }
+  });
+
   it('renders every wrapped line of a label', async () => {
     const svg = await renderForExport(REPORTED, 'light');
     for (const line of wrapNodeLabel(
