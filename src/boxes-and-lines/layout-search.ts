@@ -1914,11 +1914,14 @@ export async function layoutBoxesAndLinesSearch(
     if (bad === Infinity || bad > bestBad) return;
     const foreign = countForeignGroupCrossings(lay, parsed.groups);
     const sc = objective(lay, bad);
-    if (
-      bad < bestBad ||
-      foreign < bestForeign ||
-      (foreign === bestForeign && sc < bestObj)
-    ) {
+    // Only a badness tie with different foreign passes skips the objective.
+    // Everything else compares exactly as before, so a NaN objective (an edge
+    // dagre left without coordinates) still wins nothing.
+    const wins =
+      bad === bestBad && foreign !== bestForeign
+        ? foreign < bestForeign && !Number.isNaN(sc)
+        : sc < bestObj;
+    if (wins) {
       bestObj = sc;
       bestBad = bad;
       bestForeign = foreign;
