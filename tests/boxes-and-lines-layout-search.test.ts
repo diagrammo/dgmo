@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { readFileSync } from 'node:fs';
 import dagre from '@dagrejs/dagre';
 import { parseBoxesAndLines } from '../src/boxes-and-lines/parser';
 import { collapseBoxesAndLines } from '../src/boxes-and-lines/collapse';
@@ -656,11 +655,116 @@ describe('countForeignGroupCrossings', () => {
     expect(countForeignGroupCrossings(lay, GROUPS)).toBe(0);
   });
 
-  it('the search routes no arrow through a foreign group on the gallery fixture', async () => {
+  // The tie-break in the search's pick (#1241). Real candidate pools almost
+  // never tie on badness with different foreign passes, so dagre is stubbed to
+  // build the tie: both candidates route the one arrow A -> B with no crossing,
+  // pierce or overlap, one through the gap between P and Q inside group G, which
+  // holds neither end, the other far round it. The pass-through is shorter, so
+  // edge length alone would keep it.
+  describe('the search breaks a badness tie on foreign passes', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
     const parsed = parseBoxesAndLines(
-      readFileSync('gallery/fixtures/boxes-and-lines.dgmo', 'utf8')
+      [
+        'boxes-and-lines t',
+        '',
+        'A',
+        'B',
+        'P',
+        'Q',
+        '[G]',
+        '  P',
+        '  Q',
+        'A -> B',
+      ].join('\n')
     );
-    const lay = await layoutBoxesAndLinesSearch(parsed);
-    expect(countForeignGroupCrossings(lay, parsed.groups)).toBe(0);
+    const THROUGH = 50;
+    const AROUND = 51;
+    const cfg = (nodesep: number): BLSearchConfig => ({
+      ranker: 'network-simplex',
+      nodesep,
+      ranksep: 60,
+    });
+    const realLayout = dagre.layout;
+    const routeAB = (): void => {
+      vi.spyOn(dagre, 'layout').mockImplementation((g, o) => {
+        realLayout(g, o);
+        const box = (v: string) =>
+          g.node(v) as unknown as {
+            x: number;
+            y: number;
+            width: number;
+            height: number;
+          };
+        const [a, b] = [box('A'), box('B')];
+        // Left to right: P and Q share a rank, stacked, with a gap between.
+        const [top, bot] = [box('P'), box('Q')].sort((m, n) => m.y - n.y);
+        const gapY = (top!.y + top!.height / 2 + bot!.y - bot!.height / 2) / 2;
+        const right = Math.max(
+          top!.x + top!.width / 2,
+          bot!.x + bot!.width / 2
+        );
+        const start = { x: a.x + a.width / 2, y: a.y };
+        const end = { x: b.x - b.width / 2, y: b.y };
+        const points =
+          (g.graph() as { nodesep?: number }).nodesep === THROUGH
+            ? [
+                start,
+                { x: right + 40, y: a.y },
+                { x: right + 40, y: gapY - 5 },
+                { x: top!.x, y: gapY - 5 },
+                { x: top!.x, y: gapY + 5 },
+                { x: right + 50, y: gapY + 5 },
+                { x: right + 50, y: b.y },
+                end,
+              ]
+            : [
+                start,
+                { x: start.x + 10, y: a.y + 3000 },
+                { x: end.x - 10, y: b.y + 3000 },
+                end,
+              ];
+        for (const e of g.edges()) Object.assign(g.edge(e), { points });
+      });
+    };
+    const badness = (l: BLLayoutResult) =>
+      countSplineCrossings(l, Infinity) +
+      countEdgeOverlaps(l) +
+      countEdgeNodePierces(l) +
+      countGroupOverlaps(l);
+    const length = (l: BLLayoutResult) =>
+      l.edges[0]!.points.reduce(
+        (sum, p, k, pts) =>
+          k ? sum + Math.hypot(p.x - pts[k - 1]!.x, p.y - pts[k - 1]!.y) : 0,
+        0
+      );
+    const search = (configs: BLSearchConfig[]) =>
+      layoutBoxesAndLinesSearch(parsed, undefined, { configs, sift: false });
+
+    it('builds the tie it means to: equal badness, the pass-through shorter', async () => {
+      routeAB();
+      const [through, around] = [
+        await search([cfg(THROUGH)]),
+        await search([cfg(AROUND)]),
+      ];
+      expect([badness(through), badness(around)]).toEqual([0, 0]);
+      expect(countForeignGroupCrossings(through, parsed.groups)).toBe(1);
+      expect(countForeignGroupCrossings(around, parsed.groups)).toBe(0);
+      expect(length(through)).toBeLessThan(length(around));
+    });
+
+    it('keeps the candidate with fewer foreign passes, in either order', async () => {
+      routeAB();
+      for (const order of [
+        [THROUGH, AROUND],
+        [AROUND, THROUGH],
+      ]) {
+        const lay = await search(order.map(cfg));
+        expect(badness(lay)).toBe(0);
+        expect(countForeignGroupCrossings(lay, parsed.groups)).toBe(0);
+      }
+    });
   });
 });

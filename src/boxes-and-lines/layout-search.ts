@@ -1715,9 +1715,11 @@ export async function layoutBoxesAndLinesSearch(
 
   // Honest "badness" — every kind of line-in-the-wrong-place counts equally:
   //   X true crossings + O overlap runs (lines stepping on each other)
-  //     + P edges piercing unrelated node boxes + G group boxes colliding
-  //     + F edges passing through a group that holds neither endpoint.
+  //     + P edges piercing unrelated node boxes + G group boxes colliding.
   // (A line through a node and two lines sharing a path are crossings too.)
+  // Arrows through a foreign group are NOT badness: they break ties in
+  // `consider` instead, so they never cost a crossing, a pierce or the
+  // 0-badness early exit (#1241).
   // `floor` lets callers skip the expensive O/P passes once X alone already
   // exceeds the best badness found so far (it can't win, return Infinity).
   const badness = (lay: BLLayoutResult, floor: number): number => {
@@ -1727,8 +1729,7 @@ export async function layoutBoxesAndLinesSearch(
       x +
       countEdgeOverlaps(lay) +
       countEdgeNodePierces(lay) +
-      countGroupOverlaps(lay) +
-      countForeignGroupCrossings(lay, parsed.groups)
+      countGroupOverlaps(lay)
     );
   };
 
@@ -1902,17 +1903,25 @@ export async function layoutBoxesAndLinesSearch(
 
   // Stage 2: exact-score the top-K dagre candidates on the FULL badness (X+O+P)
   // and pick the best — so the placement search avoids overlaps and node-pierces,
-  // not just crossings.
+  // not just crossings. Among equal badness, fewer arrows through a foreign
+  // group wins, ahead of the edge-length objective (#1241).
   let best = pool[0]!;
   let bestObj = Infinity;
   let bestBad = Infinity;
+  let bestForeign = Infinity;
   const consider = (lay: BLLayoutResult): void => {
     const bad = badness(lay, bestBad);
-    if (bad === Infinity) return;
+    if (bad === Infinity || bad > bestBad) return;
+    const foreign = countForeignGroupCrossings(lay, parsed.groups);
     const sc = objective(lay, bad);
-    if (sc < bestObj) {
+    if (
+      bad < bestBad ||
+      foreign < bestForeign ||
+      (foreign === bestForeign && sc < bestObj)
+    ) {
       bestObj = sc;
       bestBad = bad;
+      bestForeign = foreign;
       best = lay;
     }
   };
