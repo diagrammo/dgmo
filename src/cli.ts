@@ -541,7 +541,7 @@ function runDiagnosticsCommand(args: string[]): void {
 // shareable diagrammo.app URL. Replaces the old `-o url [--copy]` pair: the
 // URL is printed to stdout (pipeable) and copied to the clipboard by default
 // unless --no-copy is given.
-async function runShareCommand(args: string[]): Promise<void> {
+function runShareCommand(args: string[]): void {
   const json = args.includes('--json');
   const noCopy = args.includes('--no-copy');
   const inputArg = args.find((a) => a !== '-' && !a.startsWith('-'));
@@ -838,10 +838,7 @@ function detectSurfaces(): InstallTarget[] {
   return found;
 }
 
-async function runOneInstall(
-  target: InstallTarget,
-  opts: InstallOpts
-): Promise<void> {
+function runOneInstall(target: InstallTarget, opts: InstallOpts): void {
   switch (target) {
     case 'claude-code':
       return installClaudeCode(opts);
@@ -872,7 +869,7 @@ Targets:   ${INSTALL_TARGETS.join(', ')}
 }
 
 // `dgmo install [target] [--scope ...] [--dry-run]`. No target → auto-detect.
-async function runInstallCommand(args: string[]): Promise<void> {
+function runInstallCommand(args: string[]): void {
   if (args.includes('--help') || args.includes('-h')) {
     printInstallHelp();
     return;
@@ -895,7 +892,7 @@ async function runInstallCommand(args: string[]): Promise<void> {
       console.error(`Valid targets: ${INSTALL_TARGETS.join(', ')}`);
       process.exit(1);
     }
-    await runOneInstall(target, opts);
+    runOneInstall(target, opts);
     console.log('\nRestart the assistant to activate the dgmo tools.');
     console.log('(Re-run `dgmo install` after upgrading dgmo to refresh.)');
     return;
@@ -913,14 +910,14 @@ async function runInstallCommand(args: string[]): Promise<void> {
   console.log(`Detected: ${detected.join(', ')} — setting up each.\n`);
   for (const t of detected) {
     console.log(`── ${t} ──`);
-    await runOneInstall(t, opts);
+    runOneInstall(t, opts);
     console.log('');
   }
   console.log('Done. Restart your AI assistant(s) to activate the dgmo tools.');
   console.log('(Re-run `dgmo install` after upgrading dgmo to refresh.)');
 }
 
-async function installClaudeCode(opts: InstallOpts): Promise<void> {
+function installClaudeCode(opts: InstallOpts): void {
   const claudeDir = join(homedir(), '.claude');
   // Skill — single-sourced and always refreshed to the maintained latest.
   writeOut(
@@ -957,7 +954,7 @@ async function installClaudeCode(opts: InstallOpts): Promise<void> {
   );
 }
 
-async function installCodex(opts: InstallOpts): Promise<void> {
+function installCodex(opts: InstallOpts): void {
   ensureDgmoMcp(opts);
 
   // MCP config (TOML). The block migrates in place if a legacy entry exists.
@@ -1010,7 +1007,7 @@ async function installCodex(opts: InstallOpts): Promise<void> {
   }
 }
 
-async function installClaudeDesktop(opts: InstallOpts): Promise<void> {
+function installClaudeDesktop(opts: InstallOpts): void {
   ensureDgmoMcp(opts);
   // Claude Desktop config is always the per-user app config (scope is N/A).
   upsertJsonMcp(opts, claudeDesktopConfigPath());
@@ -1069,7 +1066,7 @@ async function main(): Promise<void> {
     return;
   }
   if (sub === 'share') {
-    await runShareCommand(process.argv.slice(3));
+    runShareCommand(process.argv.slice(3));
     return;
   }
   if (sub === 'types') {
@@ -1081,7 +1078,7 @@ async function main(): Promise<void> {
     return;
   }
   if (sub === 'install') {
-    await runInstallCommand(process.argv.slice(3));
+    runInstallCommand(process.argv.slice(3));
     return;
   }
   if (sub === 'mcp') {

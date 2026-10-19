@@ -91,10 +91,12 @@ lane L
     severity: 'error',
     chartType: 'swimlane',
     title: 'Unsupported construct',
-    message: (p) =>
-      typeof p.reason === 'string' && p.reason
-        ? p.reason
-        : 'inclusive gateway (<o …>) is not supported',
+    message: (p) => {
+      const reason: unknown = p.reason;
+      return typeof reason === 'string' && reason
+        ? reason
+        : 'inclusive gateway (<o …>) is not supported';
+    },
     hint: 'Remove it, or use a supported shape, event, or flow.',
     example: `swimlane T
 lane L

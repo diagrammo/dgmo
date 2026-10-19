@@ -60,10 +60,12 @@ export const EVENT_LINE_DX = {
     severity: 'warning',
     chartType: 'event-line',
     title: 'Unsupported construct',
-    message: (p) =>
-      typeof p.reason === 'string' && p.reason
-        ? p.reason
-        : 'event-line runs horizontally. `direction-tb` (vertical orientation) is not supported — remove it.',
+    message: (p) => {
+      const reason: unknown = p.reason;
+      return typeof reason === 'string' && reason
+        ? reason
+        : 'event-line runs horizontally. `direction-tb` (vertical orientation) is not supported — remove it.';
+    },
     hint: 'Only horizontal (`direction-lr`) is supported; use `[Name]` era brackets (not `section`); events are single points, not date ranges (`->`).',
     example: `event-line X
 direction-tb

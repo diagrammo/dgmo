@@ -125,7 +125,7 @@ export interface GanttOptions {
   start: string | null; // YYYY[-MM[-DD]] or null for relative timeline
   title: string | null;
   titleLineNumber: number | null;
-  todayMarker: 'off' | 'on' | string; // 'on' = current date, string = YYYY-MM-DD
+  todayMarker: string; // 'off', 'on' = current date, or YYYY-MM-DD
   criticalPath: boolean;
   dependencies: boolean;
   sort: 'default' | 'tag';

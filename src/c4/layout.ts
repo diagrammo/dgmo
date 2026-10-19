@@ -50,11 +50,15 @@ interface DagreEdgeLabel {
   [key: string]: unknown;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const gNode = (g: any, name: string): DagreNodeLabel => g.node(name);
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const gEdge = (g: any, v: string, w: string): DagreEdgeLabel | undefined =>
-  g.edge(v, w);
+type DagreGraph = InstanceType<typeof dagre.graphlib.Graph>;
+
+const gNode = (g: DagreGraph, name: string): DagreNodeLabel =>
+  g.node(name) as DagreNodeLabel;
+const gEdge = (
+  g: DagreGraph,
+  v: string,
+  w: string
+): DagreEdgeLabel | undefined => g.edge(v, w) as DagreEdgeLabel | undefined;
 
 // ============================================================
 // Types

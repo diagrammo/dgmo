@@ -749,7 +749,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   }
   // Resolve a reference against declared POI labels. Returns the id, or 'ambiguous'
   // when ≥2 POIs share the label (caller errors), or undefined for no match.
-  const resolveByLabel = (f: string): string | 'ambiguous' | undefined => {
+  const resolveByLabel = (f: string): string | undefined => {
     if (ambiguousLabel.has(f)) return 'ambiguous';
     return declaredByLabel.get(f);
   };

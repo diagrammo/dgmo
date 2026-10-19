@@ -260,7 +260,9 @@ function layoutComponent(
   }));
   const routeOf = (i: number, rel: ERRelationship): Pt[] =>
     bent?.[i] ??
-    g.edge(rel.source, rel.target, String(rel.lineNumber))?.points ??
+    (g.edge(rel.source, rel.target, String(rel.lineNumber))?.points as
+      | Pt[]
+      | undefined) ??
     [];
 
   // Compute bounding box (dagre coordinates)

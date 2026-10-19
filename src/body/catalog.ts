@@ -133,7 +133,7 @@ export function resolvePartKey(
   if (anat && has(anat)) return anat;
   const al = ALIAS[n];
   if (al) {
-    for (const cand of Array.isArray(al) ? al : [al]) {
+    for (const cand of typeof al === 'string' ? [al] : al) {
       if (has(cand)) return cand;
     }
   }
