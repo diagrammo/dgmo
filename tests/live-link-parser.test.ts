@@ -72,6 +72,37 @@ url https://online.diagrammo.app/d/dgm_7f2a91
     expect(r.diagnostics).toEqual([]);
   });
 
+  // #1275: the shorthand slot takes a pasted share link as well as an id, in
+  // every URL shape, and resolves it exactly as the id would.
+  it('the shorthand takes a share link after the keyword, in every URL shape', () => {
+    const byId = parseLiveLink('live-link dgm_7f2a91');
+    for (const url of [
+      'https://online.diagrammo.app/d/dgm_7f2a91',
+      'https://online.diagrammo.app/view/dgm_7f2a91',
+      'https://api.diagrammo.app/public/diagrams/dgm_7f2a91/source',
+    ]) {
+      expect(parseLiveLink(`live-link ${url}`), url).toEqual(byId);
+      const routed = parseDgmo(`live-link ${url}`);
+      expect(routed.chartType, url).toBe('live-link');
+      expect(routed.diagnostics, url).toEqual([]);
+    }
+  });
+
+  it('the shorthand refuses a pinned link and a foreign URL as before', () => {
+    const pinned = parseLiveLink(
+      'live-link https://online.diagrammo.app/d/dgm_7f2a91?at=2026-03-12'
+    );
+    expect(pinned.id).toBeNull();
+    expect(pinned.error).toContain('A pinned revision cannot be served');
+
+    const foreign = parseLiveLink('live-link https://example.com/blog/post');
+    expect(foreign.id).toBeNull();
+    expect(foreign.title).toBeNull();
+    expect(foreign.error).toContain(
+      '"https://example.com/blog/post" is not a diagram id'
+    );
+  });
+
   it('AC2 (through the router): the shorthand gets NO empty-content warning', () => {
     // `detectEmptyContent` warns on any file with one non-comment line, and the
     // shorthand form legitimately IS one line. The router exempts this type.

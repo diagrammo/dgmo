@@ -64,6 +64,13 @@ const ID = String.raw`[A-Za-z0-9_-]{3,64}`;
 /** `live-link abc123` — the whole body of a dgmo fence. */
 const FENCE_RE = new RegExp(`^\\s*live-link\\s+(${ID})\\s*$`);
 
+/**
+ * `live-link https://…/d/abc123` — the keyword, then a pasted share link. The
+ * token is handed to `parseCloudReferenceUrl`, which owns the URL shapes and the
+ * `?at=` refusal; this pattern only finds the one token after the keyword.
+ */
+const FENCE_URL_RE = /^\s*live-link\s+(\S+)\s*$/;
+
 /** `![[live-link:abc123]]` — extends the local-file transclusion the app + Obsidian ship. */
 const EMBED_RE = new RegExp(
   `^\\s*!\\[\\[\\s*live-link:\\s*(${ID})\\s*\\]\\]\\s*$`
@@ -98,13 +105,15 @@ export function parseCloudReference(text: string): CloudReference | null {
 }
 
 /**
- * What may appear as the whole body of a `dgmo` fence: the keyword form, or a
- * plain link somebody pasted. **Not** the embed spelling — see above.
+ * What may appear as the whole body of a `dgmo` fence: the keyword form with an
+ * id or a share link after it, or a plain link somebody pasted. **Not** the
+ * embed spelling — see above.
  */
 export function parseCloudReferenceFence(text: string): CloudReference | null {
   const fence = FENCE_RE.exec(text);
   if (fence) return reference(fence[1]);
-  return parseCloudReferenceUrl(text);
+  const keyed = FENCE_URL_RE.exec(text);
+  return parseCloudReferenceUrl(keyed ? keyed[1]! : text);
 }
 
 /**

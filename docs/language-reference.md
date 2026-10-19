@@ -4669,7 +4669,13 @@ The shorthand form is one line, and is what a docs-site fence contains:
 live-link dgm_01M1JBN56CAVS728HPWDACVNMC
 ```
 
-`url` takes a full Diagrammo link (`/d/<id>`, `/view/<id>`, or the public source endpoint) or a bare diagram id. A link carrying `?at=` is an error — a live link always shows the current version, and silently serving the latest to a document that asked to be frozen is the one outcome pinning existed to prevent.
+The id may be the whole share link instead — `live-link ` followed by a paste resolves exactly as the id does:
+
+```
+live-link https://online.diagrammo.app/d/dgm_01M1JBN56CAVS728HPWDACVNMC
+```
+
+`url` and the shorthand slot each take a full Diagrammo link (`/d/<id>`, `/view/<id>`, or the public source endpoint) or a bare diagram id. A link carrying `?at=` is an error — a live link always shows the current version, and silently serving the latest to a document that asked to be frozen is the one outcome pinning existed to prevent.
 
 The title slot is the only one in the language that can hold a target instead of a name; **whitespace decides**. A title containing a space with no `url` line is an error (a phrase cannot be an id); a single token with no `url` line **is** the id. A `url` line plus a single-token title is an error naming both — two visible targets are never resolved by precedence.
 

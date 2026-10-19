@@ -191,6 +191,42 @@ describe('the surface-specific parsers (2026-08-05)', () => {
     expect(parseCloudReferenceFence(`![[live-link:${ID}]]`)).toBeNull();
   });
 
+  // #1275: `live-link ` then a paste is the obvious thing to type. Every URL
+  // shape the plain-link form takes, the keyword form takes too.
+  it('a fence takes the keyword followed by a share link, in every URL shape', () => {
+    for (const url of [
+      `https://online.diagrammo.app/d/${ID}`,
+      `https://online.diagrammo.app/view/${ID}`,
+      `https://api.diagrammo.app/public/diagrams/${ID}/source`,
+    ]) {
+      expect(parseCloudReferenceFence(`live-link ${url}`), url).toEqual({
+        id: ID,
+      });
+      expect(parseCloudReferenceFence(`  live-link\t${url}  \n`), url).toEqual({
+        id: ID,
+      });
+    }
+  });
+
+  it('the keyword followed by a link still refuses a pin and a foreign URL', () => {
+    expect(
+      parseCloudReferenceFence(
+        `live-link https://online.diagrammo.app/d/${ID}?at=2026-03-12`
+      )
+    ).toBeNull();
+    expect(
+      parseCloudReferenceFence(`live-link https://example.com/d/${ID}/nope`)
+    ).toBeNull();
+    expect(
+      parseCloudReferenceFence(
+        `live-link https://online.diagrammo.app/d/${ID} x`
+      )
+    ).toBeNull();
+    expect(
+      parseCloudReferenceFence(`live-link ![[live-link:${ID}]]`)
+    ).toBeNull();
+  });
+
   it('the note form takes only itself, brackets included', () => {
     expect(parseCloudReferenceEmbed(`![[live-link:${ID}]]`)).toEqual({
       id: ID,
