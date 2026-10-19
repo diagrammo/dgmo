@@ -7,7 +7,8 @@ consumers and all three are real — do not tailor it to one.
 that joins the channel in two commands (route 1 below). It ships no code: a key,
 a `pacman.conf` stanza, a libalpm hook and the script both call.
 `keyring/test-ensure-repo.sh` tests that script's editing of `pacman.conf` and
-runs anywhere, against a copy.
+runs anywhere, against a copy. `keyring/test-cold-install.sh` installs from the
+published channel into a clean `archlinux` container (needs docker).
 
 **A third package, `diagrammo` — the desktop app — is NOT built here** (added
 2026-09-23, diagrammo/diagrammo#917). Its recipe is
@@ -91,8 +92,16 @@ versioned file; and the key inside the package is byte-identical to the
 channel's own `diagrammo.gpg`, which is what makes `--populate` trust the right
 key. Run `35337290120`.
 
-⚠️ **Nobody has installed it from a machine that has never joined.** That needs
-root, and the one Arch machine here joined by hand before this existed.
+✅ **Installed cold, 2026-10-19 11:32 MDT, from a machine that had never
+joined** — a clean `archlinux:latest` container
+(`sha256:3c64b538588416593f69a1aebd2f2ec0f2541b29159f32556fa7def2167147a0`) on
+`anchor`, running the `# Arch` line above verbatim. It installed
+`diagrammo-keyring 1-3` and `dgmo 0.91.0`; `dgmo` rendered a flowchart; the
+hook put the stanza back after `pacman.conf` was overwritten by `cp`; and
+`pacman -R diagrammo-keyring` left no stanza and no hook. Re-run it with
+`keyring/test-cold-install.sh` (docker and the network). Omarchy's half — the
+update guard and `omarchy-refresh-pacman` — cannot run in a container and was
+not part of it.
 
 🔴 **It cannot be one command, and this is not worth revisiting.**
 `pacman -U <url>` inherits Omarchy's `SigLevel = Required`, and the bootstrap
