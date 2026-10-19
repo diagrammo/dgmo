@@ -178,7 +178,7 @@
     "linkedom": "^0.18.13",
     "lint-staged": "^17.0.7",
     "madge": "^8.0.0",
-    "mapshaper": "0.7.22",
+    "mapshaper": "0.7.84",
     "prettier": "^3.8.3",
     "publint": "^0.3.21",
     "subset-font": "^2.5.0",
