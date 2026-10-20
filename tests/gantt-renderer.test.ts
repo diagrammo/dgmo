@@ -364,6 +364,87 @@ Long Task 60d`;
     firstGroup.dispatchEvent(new window.Event('mouseleave'));
     expect(firstLabel?.textContent).toBe(truncated);
   });
+
+  // #1415: the label column is capped at a third of the chart width.
+  const LONG_TASK =
+    'Reproduce the reported rendering defect on the gantt chart today';
+  const LONG_GROUP =
+    'A group whose name is far too long for any sensible label column';
+  const longLabelInput = `gantt
+start 2024-01-01
+[${LONG_GROUP}]
+  ${LONG_TASK} 3d
+  Short 2d`;
+
+  function chartLeftEdge(container: HTMLElement): number {
+    const g = container.querySelector('svg > g[transform^="translate("]');
+    const m = /translate\(([\d.]+)/.exec(g?.getAttribute('transform') ?? '');
+    return Number(m?.[1]);
+  }
+
+  it('caps the label column at a third of the chart width', () => {
+    const container = renderFromInput(longLabelInput);
+    // renderFromInput exports at 800px wide.
+    expect(chartLeftEdge(container)).toBeLessThanOrEqual(800 / 3);
+  });
+
+  it('truncates labels past the cap with an ellipsis and keeps the full text', () => {
+    const container = renderFromInput(longLabelInput);
+    const taskLabel = container.querySelector<SVGTextElement>(
+      '.gantt-task-label[data-full-label]'
+    );
+    expect(taskLabel?.getAttribute('data-full-label')).toBe(LONG_TASK);
+    expect(taskLabel?.textContent?.endsWith('…')).toBe(true);
+
+    const groupText = container.querySelector('.gantt-group-label text');
+    expect(groupText?.textContent?.endsWith('…')).toBe(true);
+    expect(groupText?.getAttribute('data-full-label')).toContain(LONG_GROUP);
+
+    // A label that fits is drawn whole even when its neighbours truncate.
+    const shortLabel = Array.from(
+      container.querySelectorAll('.gantt-task-label')
+    ).find((el) => el.textContent?.includes('Short'));
+    expect(shortLabel?.textContent).toBe('● Short');
+    expect(shortLabel?.hasAttribute('data-full-label')).toBe(false);
+  });
+
+  it('shows a truncated label in full on hover and re-truncates on leave', () => {
+    const container = renderFromInput(longLabelInput);
+    const taskLabel = container.querySelector<SVGTextElement>(
+      '.gantt-task-label[data-full-label]'
+    )!;
+    const truncated = taskLabel.textContent;
+
+    taskLabel.dispatchEvent(new window.Event('mouseenter'));
+    expect(taskLabel.textContent).toBe('● ' + LONG_TASK);
+    taskLabel.dispatchEvent(new window.Event('mouseleave'));
+    expect(taskLabel.textContent).toBe(truncated);
+
+    const groupG = container.querySelector<SVGGElement>('.gantt-group-label')!;
+    const groupText = groupG.querySelector('text')!;
+    const groupTruncated = groupText.textContent;
+    groupG.dispatchEvent(new window.Event('mouseenter'));
+    expect(groupText.textContent).toBe(
+      groupText.getAttribute('data-full-label')
+    );
+    groupG.dispatchEvent(new window.Event('mouseleave'));
+    expect(groupText.textContent).toBe(groupTruncated);
+  });
+
+  it('leaves a chart whose labels fit untouched by the cap', () => {
+    const container = renderFromInput(`gantt
+start 2024-01-01
+[Build]
+  Design 3d
+  Implement 5d`);
+    expect(chartLeftEdge(container)).toBeLessThan(800 / 3);
+    expect(container.querySelector('[data-full-label]')).toBeNull();
+    expect(
+      Array.from(container.querySelectorAll('.gantt-task-label')).map(
+        (el) => el.textContent
+      )
+    ).toEqual(['● Design', '● Implement']);
+  });
 });
 
 // ── buildTagLaneRowList unit tests ──────────────────────────

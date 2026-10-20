@@ -78,6 +78,17 @@ const BAR_H = 22;
 const ROW_GAP = 6;
 const MILESTONE_SIZE = 10;
 const MIN_LEFT_MARGIN = 120;
+/**
+ * The label column's ceiling as a share of the chart width (#1415). Without
+ * one, a long task label widens the column until the timeline is a sliver.
+ * One third keeps every hand-written gantt we hold untouched: the widest
+ * column among the gallery, dgmo-content and my-diagrams charts is 198px,
+ * which fits under a third of a 600px app pane. Labels past it truncate with
+ * "…" and show in full on hover.
+ */
+const LABEL_COLUMN_MAX_SHARE = 1 / 3;
+/** Room kept between a truncated label's "…" and the timeline's left edge. */
+const LABEL_COLUMN_END_PAD = 12;
 const BOTTOM_MARGIN = 40;
 /** Tick (6) + label baseline (12) + descent and breathing room below it. */
 const BOTTOM_AXIS_LABEL_RESERVE = 30;
@@ -213,13 +224,32 @@ function appendTaskIcon(
   isMilestone: boolean,
   iconColor: string,
   textColor: string
-): void {
+): d3Selection.Selection<SVGTSpanElement, unknown, null, undefined> {
   const icon = isMilestone ? '◆' : '●';
   textEl.append('tspan').attr('fill', iconColor).text(icon);
-  textEl
+  return textEl
     .append('tspan')
     .attr('fill', textColor)
     .text(' ' + label);
+}
+
+/**
+ * Draw `shown` in `textEl`, and swap in `full` while `hoverEl` is hovered when
+ * the two differ — the same reveal era and marker labels use. Listeners are
+ * namespaced so they add to the row's own highlight handlers.
+ */
+function showFullOnHover(
+  hoverEl: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
+  textEl: d3Selection.Selection<SVGTextElement, unknown, null, undefined>,
+  full: string,
+  shown: string
+): void {
+  textEl.text(shown);
+  if (shown === full) return;
+  textEl.attr('data-full-label', full);
+  hoverEl
+    .on('mouseenter.reveal', () => textEl.text(full))
+    .on('mouseleave.reveal', () => textEl.text(shown));
 }
 
 // ── Interactive Options ─────────────────────────────────────
@@ -363,7 +393,30 @@ function drawGantt(
     ...labelWidths,
     measureText('0000000000', LABEL_FONT)
   );
-  const leftMargin = Math.max(MIN_LEFT_MARGIN, maxLabelWidth + 30);
+  const containerWidth = exportDims?.width ?? (container.clientWidth || 800);
+  const naturalLeftMargin = Math.max(MIN_LEFT_MARGIN, maxLabelWidth + 30);
+  const leftMarginCap = Math.max(
+    MIN_LEFT_MARGIN,
+    Math.floor(containerWidth * LABEL_COLUMN_MAX_SHARE)
+  );
+  const leftMargin = Math.min(naturalLeftMargin, leftMarginCap);
+  // Only a capped column truncates, so a chart whose labels fit renders
+  // exactly as it did before the cap existed.
+  const labelsCapped = naturalLeftMargin > leftMarginCap;
+  const fitLabel = (
+    text: string,
+    labelX: number,
+    fontSize: number,
+    bold = false
+  ): string =>
+    labelsCapped
+      ? truncateText(
+          text,
+          fontSize,
+          Math.max(0, leftMargin - labelX - LABEL_COLUMN_END_PAD),
+          { bold }
+        )
+      : text;
 
   const totalRows = rows.length;
 
@@ -395,7 +448,6 @@ function drawGantt(
   const title = resolved.options.title;
   const showTitle = !!title && !resolved.options.noTitle;
   const titleHeight = showTitle ? 50 : 20;
-  const containerWidth = exportDims?.width ?? (container.clientWidth || 800);
   // §1.9 `no-legend` suppresses the whole legend row (tag capsules + the
   // critical-path/dependencies controls) and collapses its reserved band.
   const hasTagLegend =
@@ -843,7 +895,14 @@ function drawGantt(
           hideGanttDateIndicators(g);
         });
 
-      labelG
+      const laneFullText =
+        toggleIcon +
+        ' ' +
+        row.laneName +
+        (row.aggregateProgress !== null
+          ? ` ${Math.round(row.aggregateProgress)}%`
+          : '');
+      const laneText = labelG
         .append('text')
         .attr('x', labelX)
         .attr('y', sMarginTop + yOffset + sBarH / 2)
@@ -851,15 +910,13 @@ function drawGantt(
         .attr('text-anchor', 'start')
         .attr('font-size', sFont11)
         .attr('font-weight', 'bold')
-        .attr('fill', laneColor)
-        .text(
-          toggleIcon +
-            ' ' +
-            row.laneName +
-            (row.aggregateProgress !== null
-              ? ` ${Math.round(row.aggregateProgress)}%`
-              : '')
-        );
+        .attr('fill', laneColor);
+      showFullOnHover(
+        labelG,
+        laneText,
+        laneFullText,
+        fitLabel(laneFullText, labelX, sFont11, true)
+      );
 
       if (laneBarWidth > 0) {
         const barFill = shapeFill(palette, laneColor, isDark, {
@@ -975,7 +1032,12 @@ function drawGantt(
       const groupIndent =
         group.depth <= 2 ? group.depth * 14 : 2 * 14 + (group.depth - 2) * 8;
       const labelX = 10 + groupIndent;
-      labelG
+      const groupFullText =
+        toggleIcon +
+        ' ' +
+        group.name +
+        (group.progress !== null ? ` ${Math.round(group.progress)}%` : '');
+      const groupText = labelG
         .append('text')
         .attr('x', labelX)
         .attr('y', sMarginTop + yOffset + sBarH / 2)
@@ -983,13 +1045,13 @@ function drawGantt(
         .attr('text-anchor', 'start')
         .attr('font-size', sFont11)
         .attr('font-weight', 'bold')
-        .attr('fill', palette.text)
-        .text(
-          toggleIcon +
-            ' ' +
-            group.name +
-            (group.progress !== null ? ` ${Math.round(group.progress)}%` : '')
-        );
+        .attr('fill', palette.text);
+      showFullOnHover(
+        labelG,
+        groupText,
+        groupFullText,
+        fitLabel(groupFullText, labelX, sFont11, true)
+      );
 
       // Group bar
       const gStart = dateToFractionalYear(group.startDate);
@@ -1215,13 +1277,26 @@ function drawGantt(
           resetHighlight(g, svg);
         });
 
-      appendTaskIcon(
+      const taskLabelText = appendTaskIcon(
         taskLabel,
         task.label,
         rt.isMilestone,
         barColor,
         palette.text
       );
+      // The icon tspan keeps its room; only the label after it truncates.
+      const taskIconW = measureText(
+        (rt.isMilestone ? '◆' : '●') + ' ',
+        sFont11
+      );
+      const taskShown = fitLabel(task.label, taskLabelX + taskIconW, sFont11);
+      if (taskShown !== task.label) {
+        taskLabelText.text(' ' + taskShown);
+        taskLabel.attr('data-full-label', task.label);
+        taskLabel
+          .on('mouseenter.reveal', () => taskLabelText.text(' ' + task.label))
+          .on('mouseleave.reveal', () => taskLabelText.text(' ' + taskShown));
+      }
 
       // Tag attributes on label for legend hover matching
       for (const [key, value] of Object.entries(rt.effectiveMetadata)) {
