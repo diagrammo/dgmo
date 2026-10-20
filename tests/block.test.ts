@@ -92,6 +92,14 @@ describe('renderDgmoBlock — standard embed block', () => {
     expect(html).toContain('class="dgmo-tok-chartType"');
   });
 
+  it('sourceOpen starts the source panel expanded and implies the toggle', async () => {
+    const { html } = await renderDgmoBlock(PIE, { sourceOpen: true });
+    expect(html).toContain('<details class="dgmo-source-wrap" open>');
+    expect(html).toContain('dgmo-source-inner');
+    const closed = await renderDgmoBlock(PIE, { mode: 'showcase' });
+    expect(closed.html).not.toContain('dgmo-source-wrap" open');
+  });
+
   it('no native title attribute anywhere — hover names ride aria-label', async () => {
     // A `title` attr fires the OS tooltip on top of host tooltip systems
     // (Obsidian tooltips aria-label), showing two labels with different text

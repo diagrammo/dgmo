@@ -87,6 +87,12 @@ export interface DgmoBlockOptions {
   background?: 'auto' | 'transparent' | 'opaque';
   /** Default: true in showcase mode, false in diagram mode. */
   showSource?: boolean;
+  /**
+   * Start with the source panel expanded, so the reader sees the DGMO beside
+   * the picture without pressing `</>`. Implies `showSource`. Default: false.
+   * For teaching pages, where the source IS the point.
+   */
+  sourceOpen?: boolean;
   /** Default: true in showcase mode, false in diagram mode. */
   showCopy?: boolean;
   /**
@@ -163,7 +169,8 @@ function resolveBlockOptions(opts: DgmoBlockOptions): ResolvedBlockOptions {
     paletteOverride: opts.paletteOverride,
     colorMode: opts.colorMode ?? 'auto',
     background: opts.background ?? 'auto',
-    showSource: opts.showSource ?? showcase,
+    showSource: (opts.showSource ?? showcase) || !!opts.sourceOpen,
+    sourceOpen: opts.sourceOpen ?? false,
     showCopy: opts.showCopy ?? showcase,
     showExpand: opts.showExpand ?? showcase,
     showOpenInEditor: opts.showOpenInEditor ?? showcase,
@@ -472,7 +479,7 @@ function sourceDisclosure(source: string, opts: ResolvedBlockOptions): string {
 
   const sourceHtml = highlightedSource(source);
   return (
-    `<details class="dgmo-source-wrap">` +
+    `<details class="dgmo-source-wrap"${opts.sourceOpen ? ' open' : ''}>` +
     `<summary class="dgmo-toolbar" aria-label="View DGMO source">${buttons}</summary>` +
     `<div class="dgmo-source-inner">${sourceHtml}</div>` +
     `</details>`

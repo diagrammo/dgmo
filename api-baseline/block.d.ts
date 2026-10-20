@@ -91,6 +91,12 @@ interface DgmoBlockOptions {
     background?: 'auto' | 'transparent' | 'opaque';
     /** Default: true in showcase mode, false in diagram mode. */
     showSource?: boolean;
+    /**
+     * Start with the source panel expanded, so the reader sees the DGMO beside
+     * the picture without pressing `</>`. Implies `showSource`. Default: false.
+     * For teaching pages, where the source IS the point.
+     */
+    sourceOpen?: boolean;
     /** Default: true in showcase mode, false in diagram mode. */
     showCopy?: boolean;
     /**
