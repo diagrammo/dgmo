@@ -1,0 +1,13 @@
+gantt Building Programme
+// stress: span — a ten-year programme whose milestones are single days
+start-date 2020-01-06
+
+[Phase one]
+  Planning permission 400bd
+  Groundbreaking 1bd
+  Foundations 300bd
+[Phase two]
+  Frame and roof 700bd
+  Topping-out ceremony 1bd
+  Fit-out 600bd
+  Opening day 1bd

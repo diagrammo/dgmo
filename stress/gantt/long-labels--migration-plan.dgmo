@@ -1,0 +1,15 @@
+gantt Customer Data Platform Migration
+// stress: long-labels — task names of 50+ characters, the factory night chart's shape
+// known: diagrammo/diagrammo#1415
+start-date 2026-03-02
+
+[Discovery]
+  Inventory every upstream system that writes customer records today 5bd
+  Interview the billing, support and marketing owners about field semantics 4bd
+[Build]
+  Stand up the ingestion pipeline with schema validation and dead-letter queue 10bd
+  Backfill eighteen months of historical events from the legacy warehouse 6bd
+  Short task 1bd
+[Cutover]
+  Run both systems in parallel and reconcile nightly differences until zero 8bd
+  Decommission the legacy warehouse and revoke its service credentials 2bd

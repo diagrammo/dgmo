@@ -1,0 +1,8 @@
+bar Support Tickets by Category
+// stress: long-labels — category names of 40+ characters on the axis
+// known: diagrammo/diagrammo#1422
+Password reset and account recovery requests 412
+Billing disputes, refunds and invoice corrections 288
+Integration errors from third-party webhooks 197
+Feature requests that are really bug reports 143
+Other 61

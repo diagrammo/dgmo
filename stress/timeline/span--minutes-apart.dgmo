@@ -1,0 +1,7 @@
+timeline Incident Response, 14 March
+// stress: span — events minutes apart inside a single morning
+2026-03-14 09:02 -> 2026-03-14 09:05 Pager fires
+2026-03-14 09:05 -> 2026-03-14 09:20 Triage on the bridge call
+2026-03-14 09:21 -> 2026-03-14 09:24 Roll back the deploy
+2026-03-14 09:24 -> 2026-03-14 10:40 Monitor recovery
+2026-03-14 10:41 -> 2026-03-14 10:43 All clear

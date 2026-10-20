@@ -1,0 +1,10 @@
+sequence Order Fulfilment
+// stress: long-labels — long participant names and sentence-length messages
+// known: diagrammo/diagrammo#1421
+Customer Mobile Application
+Order Management Service (EU region)
+Warehouse Robotics Controller
+Customer Mobile Application -submit order with saved card and default shipping address-> Order Management Service (EU region)
+Order Management Service (EU region) -reserve stock across both fulfilment centres, preferring the nearest-> Warehouse Robotics Controller
+Warehouse Robotics Controller -reservation confirmed-> Order Management Service (EU region)
+Order Management Service (EU region) -push notification: your order is confirmed and will ship tomorrow-> Customer Mobile Application
