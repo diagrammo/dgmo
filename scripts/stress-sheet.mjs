@@ -126,7 +126,9 @@ for (const r of rows) {
   if (r.errors.length)
     out.push(`- **Errors:** ${r.errors.map(esc).join('; ')}`);
   // The row the fix line already links is not repeated here.
-  const others = r.known.filter((k) => !r.v.issue || !String(k).endsWith(`#${r.v.issue}`));
+  const others = r.known.filter(
+    (k) => !r.v.issue || !String(k).endsWith(`#${r.v.issue}`)
+  );
   if (others.length)
     out.push(`- **Also tracked:** ${others.map(issueLink).join(', ')}`);
   out.push('');
