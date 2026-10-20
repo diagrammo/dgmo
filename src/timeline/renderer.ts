@@ -12,6 +12,8 @@ import { FONT_FAMILY } from '../fonts';
 import { MONTH_ABBR, computeTimeTicks } from '../utils/time-ticks';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import { ScaleContext } from '../utils/scaling';
+import { measureText } from '../utils/text-measure';
+import { capLabelColumn, showFullOnHover } from '../utils/label-column';
 import {
   createTooltip,
   hideTooltip,
@@ -2009,10 +2011,14 @@ function renderTimelineHorizontalGrouped(
     ...lanes.flatMap((l) => l.events.map((ev) => ev.label.length + 2))
   );
   const maxLeftLabelLen = Math.max(maxGroupNameLen, maxEventLabelLen);
-  const dynamicLeftMargin = Math.max(
-    ctx.aesthetic(140),
-    maxLeftLabelLen * sCharW + ctx.aesthetic(30)
+  // Capped at a share of the chart width (#1418), as gantt's is; only a
+  // capped column truncates, so lanes whose labels fit render as before.
+  const labelColumn = capLabelColumn(
+    Math.max(ctx.aesthetic(140), maxLeftLabelLen * sCharW + ctx.aesthetic(30)),
+    width,
+    ctx.aesthetic(140)
   );
+  const dynamicLeftMargin = labelColumn.width;
   // The title is drawn at full size (renderChartTitle), so its band is too.
   const baseTopMargin = title ? 50 : ctx.aesthetic(20);
   const margin = {
@@ -2186,7 +2192,7 @@ function renderTimelineHorizontalGrouped(
       .on('mouseleave', () => fadeReset(g))
       .on('click', () => toggleGroup(lane.name));
 
-    headerG
+    const headerText = headerG
       .append('text')
       // Fixed inset inside the band (bandX + 5), as gantt's group label: the
       // band's offset is unscaled, so a scaled inset put the toggle on its edge.
@@ -2196,8 +2202,20 @@ function renderTimelineHorizontalGrouped(
       .attr('text-anchor', 'start')
       .attr('fill', textColor)
       .attr('font-size', sLaneHeaderFont)
-      .attr('font-weight', 'bold')
-      .text(`${toggleIcon} ${lane.name}`);
+      .attr('font-weight', 'bold');
+    const headerFull = `${toggleIcon} ${lane.name}`;
+    showFullOnHover(
+      headerG,
+      headerText,
+      headerText,
+      headerFull,
+      labelColumn.fit(
+        headerFull,
+        bandX + 5 + margin.left,
+        sLaneHeaderFont,
+        true
+      )
+    );
 
     // Group bar in time area — spans min→max event dates, always rendered
     // (expanded and collapsed). Visually identical to gantt's group bar.
@@ -2301,10 +2319,19 @@ function renderTimelineHorizontalGrouped(
         .attr('font-size', sEventFont)
         .attr('fill', textColor);
       labelEl.append('tspan').attr('fill', evColor).text(icon);
-      labelEl
-        .append('tspan')
-        .attr('fill', textColor)
-        .text(' ' + ev.label);
+      const labelTextEl = labelEl.append('tspan').attr('fill', textColor);
+      showFullOnHover(
+        evG,
+        labelEl,
+        labelTextEl,
+        ev.label,
+        labelColumn.fit(
+          ev.label,
+          ctx.aesthetic(20) + measureText(icon + ' ', sEventFont),
+          sEventFont
+        ),
+        ' '
+      );
 
       // Time area: shape only (no floating label)
       if (ev.endDate) {

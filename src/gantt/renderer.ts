@@ -27,6 +27,7 @@ import {
   truncateText,
   CHAR_WIDTH_RATIO,
 } from '../utils/text-measure';
+import { capLabelColumn, showFullOnHover } from '../utils/label-column';
 import {
   LEGEND_HEIGHT,
   LEGEND_PILL_PAD,
@@ -78,17 +79,6 @@ const BAR_H = 22;
 const ROW_GAP = 6;
 const MILESTONE_SIZE = 10;
 const MIN_LEFT_MARGIN = 120;
-/**
- * The label column's ceiling as a share of the chart width (#1415). Without
- * one, a long task label widens the column until the timeline is a sliver.
- * One third keeps every hand-written gantt we hold untouched: the widest
- * column among the gallery, dgmo-content and my-diagrams charts is 198px,
- * which fits under a third of a 600px app pane. Labels past it truncate with
- * "…" and show in full on hover.
- */
-const LABEL_COLUMN_MAX_SHARE = 1 / 3;
-/** Room kept between a truncated label's "…" and the timeline's left edge. */
-const LABEL_COLUMN_END_PAD = 12;
 const BOTTOM_MARGIN = 40;
 /** Tick (6) + label baseline (12) + descent and breathing room below it. */
 const BOTTOM_AXIS_LABEL_RESERVE = 30;
@@ -233,25 +223,6 @@ function appendTaskIcon(
     .text(' ' + label);
 }
 
-/**
- * Draw `shown` in `textEl`, and swap in `full` while `hoverEl` is hovered when
- * the two differ — the same reveal era and marker labels use. Listeners are
- * namespaced so they add to the row's own highlight handlers.
- */
-function showFullOnHover(
-  hoverEl: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
-  textEl: d3Selection.Selection<SVGTextElement, unknown, null, undefined>,
-  full: string,
-  shown: string
-): void {
-  textEl.text(shown);
-  if (shown === full) return;
-  textEl.attr('data-full-label', full);
-  hoverEl
-    .on('mouseenter.reveal', () => textEl.text(full))
-    .on('mouseleave.reveal', () => textEl.text(shown));
-}
-
 // ── Interactive Options ─────────────────────────────────────
 
 export interface GanttInteractiveOptions {
@@ -394,29 +365,15 @@ function drawGantt(
     measureText('0000000000', LABEL_FONT)
   );
   const containerWidth = exportDims?.width ?? (container.clientWidth || 800);
-  const naturalLeftMargin = Math.max(MIN_LEFT_MARGIN, maxLabelWidth + 30);
-  const leftMarginCap = Math.max(
-    MIN_LEFT_MARGIN,
-    Math.floor(containerWidth * LABEL_COLUMN_MAX_SHARE)
+  // Capped at a share of the chart width (#1415); only a capped column
+  // truncates, so a chart whose labels fit renders as it did before the cap.
+  const labelColumn = capLabelColumn(
+    Math.max(MIN_LEFT_MARGIN, maxLabelWidth + 30),
+    containerWidth,
+    MIN_LEFT_MARGIN
   );
-  const leftMargin = Math.min(naturalLeftMargin, leftMarginCap);
-  // Only a capped column truncates, so a chart whose labels fit renders
-  // exactly as it did before the cap existed.
-  const labelsCapped = naturalLeftMargin > leftMarginCap;
-  const fitLabel = (
-    text: string,
-    labelX: number,
-    fontSize: number,
-    bold = false
-  ): string =>
-    labelsCapped
-      ? truncateText(
-          text,
-          fontSize,
-          Math.max(0, leftMargin - labelX - LABEL_COLUMN_END_PAD),
-          { bold }
-        )
-      : text;
+  const leftMargin = labelColumn.width;
+  const fitLabel = labelColumn.fit;
 
   const totalRows = rows.length;
 
@@ -914,6 +871,7 @@ function drawGantt(
       showFullOnHover(
         labelG,
         laneText,
+        laneText,
         laneFullText,
         fitLabel(laneFullText, labelX, sFont11, true)
       );
@@ -1048,6 +1006,7 @@ function drawGantt(
         .attr('fill', palette.text);
       showFullOnHover(
         labelG,
+        groupText,
         groupText,
         groupFullText,
         fitLabel(groupFullText, labelX, sFont11, true)
@@ -1289,14 +1248,14 @@ function drawGantt(
         (rt.isMilestone ? '◆' : '●') + ' ',
         sFont11
       );
-      const taskShown = fitLabel(task.label, taskLabelX + taskIconW, sFont11);
-      if (taskShown !== task.label) {
-        taskLabelText.text(' ' + taskShown);
-        taskLabel.attr('data-full-label', task.label);
-        taskLabel
-          .on('mouseenter.reveal', () => taskLabelText.text(' ' + task.label))
-          .on('mouseleave.reveal', () => taskLabelText.text(' ' + taskShown));
-      }
+      showFullOnHover(
+        taskLabel,
+        taskLabel,
+        taskLabelText,
+        task.label,
+        fitLabel(task.label, taskLabelX + taskIconW, sFont11),
+        ' '
+      );
 
       // Tag attributes on label for legend hover matching
       for (const [key, value] of Object.entries(rt.effectiveMetadata)) {

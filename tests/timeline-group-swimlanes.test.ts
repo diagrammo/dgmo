@@ -342,3 +342,79 @@ marker 2024-03 Midpoint
     }
   });
 });
+
+// #1418: the swimlane label column is capped at a third of the chart width.
+describe('timeline swimlane label column cap', () => {
+  const LONG_EVENT =
+    'Reproduce the reported rendering defect on the timeline chart before the nightly run ends';
+  const LONG_LANE =
+    'A lane whose name is far too long for any sensible label column on this chart';
+  const LONG_SRC = `timeline
+[${LONG_LANE}]
+  2024-01 -> 2024-03 ${LONG_EVENT}
+  2024-04 -> 2024-06 Short
+[Beta]
+  2024-02 -> 2024-05 Task C`;
+
+  function chartLeftEdge(container: HTMLElement): number {
+    const g = container.querySelector('svg > g[transform^="translate("]');
+    const m = /translate\(([\d.]+)/.exec(g?.getAttribute('transform') ?? '');
+    return Number(m?.[1]);
+  }
+
+  it('caps the label column at a third of the chart width', () => {
+    const container = renderToContainer(LONG_SRC);
+    expect(chartLeftEdge(container)).toBeLessThanOrEqual(WIDTH / 3);
+  });
+
+  it('truncates labels past the cap with an ellipsis and keeps the full text', () => {
+    const container = renderToContainer(LONG_SRC);
+    const eventLabel = container.querySelector(
+      '.tl-event-label[data-full-label]'
+    );
+    expect(eventLabel?.getAttribute('data-full-label')).toBe(LONG_EVENT);
+    expect(eventLabel?.textContent?.endsWith('…')).toBe(true);
+
+    const header = container.querySelector('.tl-group-header text');
+    expect(header?.textContent?.endsWith('…')).toBe(true);
+    expect(header?.getAttribute('data-full-label')).toContain(LONG_LANE);
+
+    // A label that fits is drawn whole even when its neighbours truncate.
+    const short = Array.from(
+      container.querySelectorAll('.tl-event-label')
+    ).find((el) => el.textContent?.includes('Short'));
+    expect(short?.textContent).toBe('● Short');
+    expect(short?.hasAttribute('data-full-label')).toBe(false);
+  });
+
+  it('shows a truncated label in full on hover and re-truncates on leave', () => {
+    const container = renderToContainer(LONG_SRC);
+    const label = container.querySelector('.tl-event-label[data-full-label]')!;
+    const eventG = label.closest('.tl-event')!;
+    const truncated = label.textContent;
+    eventG.dispatchEvent(new window.Event('mouseenter'));
+    expect(label.textContent).toBe('● ' + LONG_EVENT);
+    eventG.dispatchEvent(new window.Event('mouseleave'));
+    expect(label.textContent).toBe(truncated);
+
+    const headerG = container.querySelector('.tl-group-header')!;
+    const headerText = headerG.querySelector('text')!;
+    const headerTruncated = headerText.textContent;
+    headerG.dispatchEvent(new window.Event('mouseenter'));
+    expect(headerText.textContent).toBe(
+      headerText.getAttribute('data-full-label')
+    );
+    headerG.dispatchEvent(new window.Event('mouseleave'));
+    expect(headerText.textContent).toBe(headerTruncated);
+  });
+
+  it('leaves lanes whose labels fit untouched by the cap', () => {
+    const container = renderToContainer(GROUPED_SRC);
+    expect(container.querySelector('[data-full-label]')).toBeNull();
+    expect(
+      Array.from(container.querySelectorAll('.tl-event-label')).map(
+        (el) => el.textContent
+      )
+    ).toEqual(['● Task A', '● Task B', '● Task C', '● Task D']);
+  });
+});
