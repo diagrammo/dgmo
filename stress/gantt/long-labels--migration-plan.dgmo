@@ -1,6 +1,5 @@
 gantt Customer Data Platform Migration
 // stress: long-labels — task names of 50+ characters, the factory night chart's shape
-// known: diagrammo/diagrammo#1415
 start-date 2026-03-02
 
 [Discovery]
