@@ -560,4 +560,5 @@ declare function simulateCanonical(resolved: ResolvedPert, expanded: ExpandedAct
  */
 declare function simulateFast(resolved: ResolvedPert, expanded: ExpandedActivity[], opts: SimulateOptions): MonteCarloResult;
 
-export { type ExpandedActivity, type LayoutResult, type MonteCarloResult, type NodeDetail, type ParsedPert, type PertActivity, type PertDirection, type PertEdge, type PertExpandedActivity, type PertGroup, type PertLayoutEdge, type PertLayoutGroup, type PertLayoutNode, type PertMilestone, type PertOptions, type ResolvedActivity, type ResolvedGroup, type ResolvedPert, type SimulateOptions, buildSimulationContext, mulberry32, sampleBetaPert, simulateCanonical, simulateFast };
+export { buildSimulationContext, mulberry32, sampleBetaPert, simulateCanonical, simulateFast };
+export type { ExpandedActivity, LayoutResult, MonteCarloResult, NodeDetail, ParsedPert, PertActivity, PertDirection, PertEdge, PertExpandedActivity, PertGroup, PertLayoutEdge, PertLayoutGroup, PertLayoutNode, PertMilestone, PertOptions, ResolvedActivity, ResolvedGroup, ResolvedPert, SimulateOptions };

@@ -88,4 +88,5 @@ declare const LIVE_LINK_RETRY_DELAY_MS = 1000;
  */
 declare function fetchLiveLink(ref: CloudReference, options?: LiveLinkFetchOptions): Promise<LiveLinkFetch>;
 
-export { DEFAULT_LIVE_LINK_TIMEOUT_MS, LIVE_LINK_RETRY_DELAY_MS, type LiveLinkFetch, type LiveLinkFetchOptions, fetchLiveLink };
+export { DEFAULT_LIVE_LINK_TIMEOUT_MS, LIVE_LINK_RETRY_DELAY_MS, fetchLiveLink };
+export type { LiveLinkFetch, LiveLinkFetchOptions };

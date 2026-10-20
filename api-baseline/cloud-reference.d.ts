@@ -104,4 +104,5 @@ interface CloudReferenceSource {
     updatedAt: number;
 }
 
-export { CLOUD_API_BASE, CLOUD_APP_BASE, type CloudReference, type CloudReferenceSource, type ResolveUrlOptions, parseCloudReference, parseCloudReferenceEmbed, parseCloudReferenceFence, parseCloudReferenceUrl, referenceShareUrl, referenceSourceUrl };
+export { CLOUD_API_BASE, CLOUD_APP_BASE, parseCloudReference, parseCloudReferenceEmbed, parseCloudReferenceFence, parseCloudReferenceUrl, referenceShareUrl, referenceSourceUrl };
+export type { CloudReference, CloudReferenceSource, ResolveUrlOptions };

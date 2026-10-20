@@ -126,4 +126,5 @@ declare const ROLE_TO_ANSI: Record<string, string>;
  */
 declare function renderAnsi(tokens: HighlightToken[], useColor: boolean): string;
 
-export { ATTRIBUTE_KEYS, COLOR_DIRECTIVES, type ColorDirectiveRule, type HighlightToken, LIGHT_ROLE_STYLES, NODE_TO_ROLE, NORD_ROLE_STYLES, ROLE_TO_ANSI, type RecurrenceSpan, classifyRecurrenceLine, colorDirectiveRule, highlightDgmo, renderAnsi, scanMonthNameDates };
+export { ATTRIBUTE_KEYS, COLOR_DIRECTIVES, LIGHT_ROLE_STYLES, NODE_TO_ROLE, NORD_ROLE_STYLES, ROLE_TO_ANSI, classifyRecurrenceLine, colorDirectiveRule, highlightDgmo, renderAnsi, scanMonthNameDates };
+export type { ColorDirectiveRule, HighlightToken, RecurrenceSpan };

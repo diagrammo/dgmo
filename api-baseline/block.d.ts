@@ -1,5 +1,5 @@
-import { M as MapDataSource } from './d3-2S3PrXik.js';
-import './tag-groups-fgxWTyyB.js';
+import { M as MapDataSource } from './d3-BThYBTQk.js';
+import './tag-groups-DsoVpAY-.js';
 
 /**
  * Canonical stylesheet for the standard DGMO embed block (BL-114).
@@ -173,4 +173,5 @@ declare function buildDgmoBlockHtml(source: string, svgsHtml: string, options?: 
  */
 declare function errorBlockHtml(err: unknown, source: string, options?: Pick<DgmoBlockOptions, 'className' | 'legacyClassNames'>): string;
 
-export { BLOCK_CSS, type BlockColorMode, type BlockMode, type DgmoBlockOptions, type DgmoBlockResult, EDITOR_BASE_URL, MapDataSource, buildDgmoBlockHtml, errorBlockHtml, renderDgmoBlock };
+export { BLOCK_CSS, EDITOR_BASE_URL, MapDataSource, buildDgmoBlockHtml, errorBlockHtml, renderDgmoBlock };
+export type { BlockColorMode, BlockMode, DgmoBlockOptions, DgmoBlockResult };

@@ -1,10 +1,10 @@
-import { b as DiagnosticSpec, P as PaletteConfig, C as CompactViewState, D as DgmoError } from './tag-groups-fgxWTyyB.js';
-export { c as DgmoSeverity, d as DiagnosticParams, E as EmitOptions, a as PaletteColors, e as emit, f as formatDgmoError } from './tag-groups-fgxWTyyB.js';
-import { T as Theme } from './themes-Cm2YBcT8.js';
-export { E as EncodeInkOptions, I as INK_DEFAULT_TOLERANCE, a as INK_PRESSURE_LEVELS, b as InkDecodeResult, c as InkPoint, M as MapCompletionOptions, d as MapLocationMatch, e as MapPlaceCompletion, f as MapRegionCompletion, g as completeMapPlaces, h as completeMapRegions, i as decodeInk, j as encodeInk, p as palettes, s as searchMapLocations, t as themes, k as validate } from './themes-Cm2YBcT8.js';
-import { M as MapDataSource } from './d3-2S3PrXik.js';
-export { G as Gazetteer, a as GazetteerEntry, b as MapData, R as RegionName, c as RegionNames } from './d3-2S3PrXik.js';
-export { C as ChartTypeId, a as ChartTypeMeta, c as chartTypes, g as getPalette, r as resolvePaletteOrFallback } from './chart-types-V2NcgN5O.js';
+import { b as DiagnosticSpec, P as PaletteConfig, C as CompactViewState, D as DgmoError } from './tag-groups-DsoVpAY-.js';
+export { c as DgmoSeverity, d as DiagnosticParams, E as EmitOptions, a as PaletteColors, e as emit, f as formatDgmoError } from './tag-groups-DsoVpAY-.js';
+import { T as Theme } from './themes-DRNjxX7Q.js';
+export { E as EncodeInkOptions, I as INK_DEFAULT_TOLERANCE, a as INK_PRESSURE_LEVELS, b as InkDecodeResult, c as InkPoint, M as MapCompletionOptions, d as MapLocationMatch, e as MapPlaceCompletion, f as MapRegionCompletion, g as completeMapPlaces, h as completeMapRegions, i as decodeInk, j as encodeInk, p as palettes, s as searchMapLocations, t as themes, k as validate } from './themes-DRNjxX7Q.js';
+import { M as MapDataSource } from './d3-BThYBTQk.js';
+export { G as Gazetteer, a as GazetteerEntry, b as MapData, R as RegionName, c as RegionNames } from './d3-BThYBTQk.js';
+export { C as ChartTypeId, a as ChartTypeMeta, c as chartTypes, g as getPalette, r as resolvePaletteOrFallback } from './chart-types-CbXlZFLd.js';
 
 /**
  * Make an SVG produced by `@diagrammo/dgmo`'s static `render()` suitable for
@@ -294,4 +294,5 @@ interface DecodedDiagramUrl {
  */
 declare function decodeDiagramUrl(url: string): DecodedDiagramUrl | null;
 
-export { CompactViewState, D3_DATA_CHART_TYPES, type DataChartInteractionOpts, type DecodedDiagramUrl, DgmoError, DiagnosticSpec, type EncodeDiagramUrlOptions, MapDataSource, type MountD3Opts, type MountedD3Chart, type NormalizeSvgForEmbedOptions, PaletteConfig, type RenderOptions, type RenderResult, Theme, attachDataChartInteractions, decodeDiagramUrl, defaultEmbedBackground, encodeDiagramUrl, getDiagnosticSpec, getEmbedSvgViewBox, listDiagnosticCodes, mountD3DataChart, normalizeSvgForEmbed, render, sanitizeSvgInPlace, supportsD3DataChart };
+export { CompactViewState, D3_DATA_CHART_TYPES, DgmoError, DiagnosticSpec, MapDataSource, PaletteConfig, Theme, attachDataChartInteractions, decodeDiagramUrl, defaultEmbedBackground, encodeDiagramUrl, getDiagnosticSpec, getEmbedSvgViewBox, listDiagnosticCodes, mountD3DataChart, normalizeSvgForEmbed, render, sanitizeSvgInPlace, supportsD3DataChart };
+export type { DataChartInteractionOpts, DecodedDiagramUrl, EncodeDiagramUrlOptions, MountD3Opts, MountedD3Chart, NormalizeSvgForEmbedOptions, RenderOptions, RenderResult };
