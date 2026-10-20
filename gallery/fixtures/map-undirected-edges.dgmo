@@ -1,12 +1,12 @@
 map Sister Ports of the Spanish Main
 flow-width Shared cargo runs
 
-poi Tortuga
-poi Port Royal
-poi Nassau
+poi 20.05 -72.82 as Tortuga label: Tortuga
+poi 17.94 -76.84 as royal label: Port Royal
+poi 25.06 -77.35 as Nassau label: Nassau
 poi Havana
 
-Tortuga -ferry- Port Royal width: 18
-Port Royal ~cable~ Nassau
+Tortuga -ferry- royal width: 18
+royal ~cable~ Nassau
 Nassau -- Havana
 Havana -ships-> Tortuga width: 30
