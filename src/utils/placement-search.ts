@@ -48,6 +48,13 @@ const SEARCH_RANKERS = ['tight-tree', 'longest-path'];
 // winning candidate came within the first 6 attempts; the full count added
 // ~600 ms to the two diagrams it could not finish and found nothing more.
 const SEARCH_SEEDS = 6;
+// Seed-shuffles stop after this many in a row that do not lower badness
+// (#1281). A diagram that cannot reach zero crossings otherwise pays for every
+// seed: the state example's winner is the second ranker, and its six seeds
+// all lost, so 9 dagre layouts cost ~245 ms per edit. On the flowchart, state,
+// class and ER gallery and example fixtures, every winning seed came first or
+// straight after one losing seed. The rankers always run.
+const SEED_PATIENCE = 2;
 
 function seeded(s: number): () => number {
   return () => {
@@ -130,9 +137,12 @@ export function searchPlacement<G>(
   ];
   // The plain placement is the first attempt.
   let attempts = 1;
+  let losingSeeds = 0;
   for (const cfg of configs) {
     if (bestBad === 0 || attempts >= budget.maxCandidates) break;
+    if (losingSeeds >= SEED_PATIENCE) break;
     attempts++;
+    if (cfg.seed !== undefined) losingSeeds++;
     let g: G;
     try {
       g = place(
@@ -153,6 +163,7 @@ export function searchPlacement<G>(
       best = g;
       bestLay = lay;
       bestBad = bad;
+      losingSeeds = 0;
     }
   }
 
