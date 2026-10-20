@@ -111,7 +111,7 @@ export function layoutInsets(args: {
   };
   const walk = (co: unknown): void => {
     if (Array.isArray(co) && typeof co[0] === 'number')
-      addPt(co[0] as number, co[1] as number);
+      addPt(co[0], co[1] as number);
     else if (Array.isArray(co)) for (const c of co) walk(c);
   };
   for (const [iso, f] of usLayer) {

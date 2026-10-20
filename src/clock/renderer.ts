@@ -514,7 +514,7 @@ function drawRow(
   const parts = partsFor(entry, now);
   const hasCoords = entry.lat !== null && entry.lon !== null;
   const sun =
-    parsed.sun && hasCoords ? sunLine(now, entry.lat!, entry.lon!) : null;
+    parsed.sun && hasCoords ? sunLine(now, entry.lat, entry.lon) : null;
   const up = sun ? sun.up : parts.h >= 6 && parts.h < 18;
   const stColor = up ? sw.day : sw.night;
   const stTint = up ? sw.dayTint : sw.nightTint;
@@ -980,7 +980,7 @@ function drawColumns(
     const parts = partsFor(entry, now);
     const hasCoords = entry.lat !== null && entry.lon !== null;
     const sun =
-      parsed.sun && hasCoords ? sunLine(now, entry.lat!, entry.lon!) : null;
+      parsed.sun && hasCoords ? sunLine(now, entry.lat, entry.lon) : null;
     const up = sun ? sun.up : parts.h >= 6 && parts.h < 18;
     const ts = formatTime(parts.h, parts.m, parts.s, parsed.hours12);
     const work: WorkSpec | null = parsed.work

@@ -425,7 +425,7 @@ export function shapeFill(
  */
 export function getSeriesColors(palette: PaletteColors): string[] {
   const c = palette.colors;
-  return CATEGORICAL_COLOR_ORDER.map((name) => c[name]!);
+  return CATEGORICAL_COLOR_ORDER.map((name) => c[name]);
 }
 
 /**

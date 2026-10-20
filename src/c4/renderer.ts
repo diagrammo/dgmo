@@ -519,12 +519,7 @@ export function renderC4Context(
       const iconCx = -totalWidth / 2 + PERSON_ICON_W / 2;
       const textX = iconCx + PERSON_ICON_W / 2 + gap;
 
-      drawPersonIcon(
-        nodeG as GSelection,
-        iconCx,
-        yPos + LABEL_FONT_SIZE / 2 - 2,
-        stroke
-      );
+      drawPersonIcon(nodeG, iconCx, yPos + LABEL_FONT_SIZE / 2 - 2, stroke);
 
       nodeG
         .append('text')
@@ -631,7 +626,7 @@ export function renderC4Context(
       legendParent.attr('data-legend-active', tagAttrKey(activeTagGroup));
     }
     renderLegend(
-      legendParent as GSelection,
+      legendParent,
       layout,
       palette,
       isDark,
@@ -1651,7 +1646,7 @@ export function renderC4Containers(
 
   // ── Edges (behind nodes) ──
   renderEdges(
-    contentG as GSelection,
+    contentG,
     layout.edges,
     palette,
     onClickItem,
@@ -1724,20 +1719,13 @@ export function renderC4Containers(
     // the same change — an override the renderer ignores is worse than one the
     // parser rejects, because nothing anywhere says it was ignored.
     if (shape === 'database' || shape === 'cache') {
-      drawCylinderCard(
-        nodeG as GSelection,
-        w,
-        h,
-        fill,
-        stroke,
-        shape === 'cache'
-      );
+      drawCylinderCard(nodeG, w, h, fill, stroke, shape === 'cache');
     } else if (shape === 'cloud') {
-      drawCloudCard(nodeG as GSelection, w, h, fill, stroke);
+      drawCloudCard(nodeG, w, h, fill, stroke);
     } else if (shape === 'queue') {
-      drawQueueCard(nodeG as GSelection, w, h, fill, stroke);
+      drawQueueCard(nodeG, w, h, fill, stroke);
     } else {
-      drawCardRect(nodeG as GSelection, w, h, fill, stroke, isExternalShape);
+      drawCardRect(nodeG, w, h, fill, stroke, isExternalShape);
     }
 
     let yPos = -h / 2 + CARD_V_PAD;
@@ -1778,12 +1766,7 @@ export function renderC4Containers(
       const iconCx = -totalWidth / 2 + PERSON_ICON_W / 2;
       const textX = iconCx + PERSON_ICON_W / 2 + gap;
 
-      drawPersonIcon(
-        nodeG as GSelection,
-        iconCx,
-        yPos + LABEL_FONT_SIZE / 2 - 2,
-        stroke
-      );
+      drawPersonIcon(nodeG, iconCx, yPos + LABEL_FONT_SIZE / 2 - 2, stroke);
 
       nodeG
         .append('text')
@@ -1971,7 +1954,7 @@ export function renderC4Containers(
       legendParent.attr('data-legend-active', tagAttrKey(activeTagGroup));
     }
     renderLegend(
-      legendParent as GSelection,
+      legendParent,
       layout,
       palette,
       isDark,

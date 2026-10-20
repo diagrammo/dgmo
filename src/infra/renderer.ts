@@ -856,7 +856,7 @@ function getComputedRows(
         const color = sloLatencyColor(p.p90, slo);
         const p90Value =
           color !== COLOR_HEALTHY
-            ? `${formatMsShort(p.p90)} / ${formatMsShort(slo.latencyP90!)}`
+            ? `${formatMsShort(p.p90)} / ${formatMsShort(slo.latencyP90)}`
             : formatMsShort(p.p90);
         rows.push({
           key: 'p90',
@@ -874,7 +874,7 @@ function getComputedRows(
         const color = sloLatencyColor(p.p90, slo);
         const p90Value =
           color !== COLOR_HEALTHY
-            ? `${formatMsShort(p.p90)} / ${formatMsShort(slo.latencyP90!)}`
+            ? `${formatMsShort(p.p90)} / ${formatMsShort(slo.latencyP90)}`
             : formatMsShort(p.p90);
         rows.push({
           key: 'p90',
@@ -2530,7 +2530,7 @@ export function renderInfra(
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .attr('fill', palette.text)
       .attr('data-line-number', titleLineNumber ?? '')
-      .text(title!);
+      .text(title);
   }
 
   const fixedOverheadH =

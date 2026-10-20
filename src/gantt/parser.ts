@@ -52,7 +52,6 @@ import type {
   GanttNode,
   GanttTask,
   GanttGroup,
-  GanttDependency,
   GanttParallelBlock,
   Duration,
   DurationUnit,
@@ -230,7 +229,7 @@ export function parseGantt(
     if (!a) return null;
     const arrow = a.rest.match(/^\s*(?:->|–>)\s*/);
     if (!arrow) return null;
-    const b = leadingDate(a.rest.slice(arrow[0]!.length));
+    const b = leadingDate(a.rest.slice(arrow[0].length));
     if (!b) return null;
     return { start: a.iso, end: b.iso, rest: b.rest };
   };
@@ -645,7 +644,7 @@ export function parseGantt(
           if (lastTaskNode) {
             // Point at the task's final label, so a quoted declaration and a
             // bare reference resolve to the one task (§2.2).
-            (lastTaskNode.dependencies as GanttDependency[]).push({
+            lastTaskNode.dependencies.push({
               targetName: task.label,
               ...(arrowResult.label !== undefined && {
                 label: arrowResult.label,
@@ -725,7 +724,7 @@ export function parseGantt(
               }
             }
 
-            (lastTaskNode.dependencies as GanttDependency[]).push({
+            lastTaskNode.dependencies.push({
               targetName,
               ...(arrowResult.label !== undefined && {
                 label: arrowResult.label,

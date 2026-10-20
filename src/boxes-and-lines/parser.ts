@@ -159,7 +159,7 @@ export function parseBoxesAndLines(
       const node = nodes.find((n) => n.label === descState!.nodeLabel);
       if (node) {
         const existing = node.description ?? [];
-        node.description = [...existing, ...descState!.lines];
+        node.description = [...existing, ...descState.lines];
       }
     }
     descState = null;

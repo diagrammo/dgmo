@@ -344,14 +344,14 @@ export function renderVersionControl(
       .attr('font-size', TITLE_FONT_SIZE)
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .attr('data-line-number', parsed.titleLineNumber ?? 1)
-      .text(parsed.title!);
+      .text(parsed.title);
     if (onClickItem && parsed.titleLineNumber && !exportMode) {
       const ln = parsed.titleLineNumber;
       t.style('cursor', 'pointer').on('click', () => onClickItem(ln));
     }
   }
 
-  const g = svg.append('g').attr('transform', `translate(0, ${titleH})`) as Sel;
+  const g = svg.append('g').attr('transform', `translate(0, ${titleH})`);
   drawGraph(
     g,
     parsed,

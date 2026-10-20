@@ -281,7 +281,7 @@ export function renderArcDiagram(
     g.selectAll<SVGGElement, unknown>('.arc-node').each(function () {
       const el = d3Selection.select(this);
       const name = el.attr('data-node');
-      const isRelated = name === hovered || connected.has(name!);
+      const isRelated = name === hovered || connected.has(name);
       el.attr('opacity', isRelated ? 1 : FADE_OPACITY);
     });
   }
@@ -309,14 +309,14 @@ export function renderArcDiagram(
     g.selectAll<SVGPathElement, unknown>('.arc-link').each(function () {
       const el = d3Selection.select(this);
       const isRelated =
-        members.has(el.attr('data-source')!) ||
-        members.has(el.attr('data-target')!);
+        members.has(el.attr('data-source')) ||
+        members.has(el.attr('data-target'));
       el.attr('stroke-opacity', isRelated ? 0.85 : FADE_OPACITY);
     });
 
     g.selectAll<SVGGElement, unknown>('.arc-node').each(function () {
       const el = d3Selection.select(this);
-      el.attr('opacity', members.has(el.attr('data-node')!) ? 1 : FADE_OPACITY);
+      el.attr('opacity', members.has(el.attr('data-node')) ? 1 : FADE_OPACITY);
     });
 
     g.selectAll<SVGRectElement, unknown>('.arc-group-band').each(function () {
@@ -700,8 +700,8 @@ export function renderArcDiagram(
 
     // Arcs
     links.forEach((link, idx) => {
-      const x1 = posX(link.source)!;
-      const x2 = posX(link.target)!;
+      const x1 = posX(link.source);
+      const x2 = posX(link.target);
       const midX = (x1 + x2) / 2;
       const distance = Math.abs(x2 - x1);
       const controlY = baseY - distance * 0.4;
@@ -728,7 +728,7 @@ export function renderArcDiagram(
 
     // Node circles and labels
     for (const node of nodes) {
-      const x = posX(node)!;
+      const x = posX(node);
       const nodeColor = nodeColorMap.get(node) ?? textColor;
       // Find the first link involving this node (for line number and click target)
       const nodeLink = links.find(

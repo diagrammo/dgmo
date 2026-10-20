@@ -481,7 +481,7 @@ function parseNodeLine(
   // Heat metric (optional second numeric).
   let heat: number | undefined;
   if ('heat' in metadata) {
-    const rawHeat = metadata['heat']!;
+    const rawHeat = metadata['heat'];
     const h = parseFloat(normalizeNumericToken(rawHeat) ?? rawHeat);
     if (Number.isFinite(h)) heat = h;
     delete metadata['heat'];

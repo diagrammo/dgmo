@@ -214,7 +214,7 @@ function renderFigureBody(
     const dataLine = partAttrs(part.lineNumber, emph, tagAttr);
     // With a side modifier, fill only that side's shapes (patient's right pec →
     // the screen-left path), so a one-sided injury highlights one side alone.
-    let paths = geom.paths as readonly string[];
+    let paths = geom.paths;
     if (part.side) {
       const wantScreenRight =
         view === 'front' ? part.side === 'left' : part.side === 'right';

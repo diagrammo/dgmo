@@ -960,7 +960,7 @@ export function layoutC4Context(
       return {
         id: el.name,
         name: el.name,
-        type: el.type as 'person' | 'system',
+        type: el.type,
         ...(description !== undefined && { description }),
         metadata: el.metadata,
         lineNumber: el.lineNumber,
@@ -1355,7 +1355,7 @@ export function layoutC4Containers(
     nodes.push({
       id: el.name,
       name: el.name,
-      type: el.type as 'person' | 'system',
+      type: el.type,
       ...(description !== undefined && { description }),
       metadata: el.metadata,
       lineNumber: el.lineNumber,
@@ -1922,7 +1922,7 @@ export function layoutC4Components(
     nodes.push({
       id: el.name,
       name: el.name,
-      type: el.type as 'person' | 'system' | 'container',
+      type: el.type,
       ...(description !== undefined && { description }),
       metadata: el.metadata,
       lineNumber: el.lineNumber,

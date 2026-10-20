@@ -9,7 +9,6 @@ import {
   NEGATIVE_VALUE_DX,
 } from '../diagnostics';
 import { MAP_DIRECTIVE_KEY_SET } from '../directives-registry';
-import type { DgmoError } from '../diagnostics';
 import type { Writable } from '../utils/brand';
 import type { PaletteColors } from '../palettes/types';
 import {
@@ -35,15 +34,13 @@ import {
 import { parseInArrowLabel } from '../utils/arrows';
 import type {
   ParsedMap,
-  MapDirectives,
   MapRegion,
   MapPoi,
   MapRoute,
   MapRouteLeg,
-  MapEdge,
   PoiPos,
 } from './types';
-import type { TagGroup, TagEntry } from '../utils/tag-groups';
+import type { TagGroup } from '../utils/tag-groups';
 
 const COORD_RE = /^[+-]?\d+(?:\.\d+)?\s+[+-]?\d+(?:\.\d+)?$/;
 const NUMERIC_LEAD_RE = /^[+-]?\d/; // a name region that starts like a number
@@ -106,7 +103,7 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
   const result: Writable<ParsedMap> = {
     title: null,
     titleLineNumber: null,
-    directives: {} as MapDirectives,
+    directives: {},
     tagGroups: [],
     regions: [],
     pois: [],
@@ -116,7 +113,7 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
     diagnostics: [],
     error: null,
   };
-  const diagnostics = result.diagnostics as DgmoError[];
+  const diagnostics = result.diagnostics;
 
   const pushError = (line: number, message: string, code?: string): void => {
     diagnostics.push(makeDgmoError(line, message, 'error', code));
@@ -158,10 +155,10 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
 
   // ── Mutable parse state ──
   const tagGroups = result.tagGroups as Writable<TagGroup>[];
-  const regions = result.regions as MapRegion[];
-  const pois = result.pois as MapPoi[];
-  const routes = result.routes as MapRoute[];
-  const edges = result.edges as MapEdge[];
+  const regions = result.regions;
+  const pois = result.pois;
+  const routes = result.routes;
+  const edges = result.edges;
   const aliasMap = new Map<string, string>(); // tag alias → group name (lowercased)
   let activeTagOptionLine = 0;
 
@@ -207,7 +204,7 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
     // (1a) Indented child of an open route → a leg (an edge from the prev stop).
     if (open.route && indent > open.route.indent) {
       const leg = parseLeg(trimmed, lineNumber);
-      if (leg) (open.route.route.legs as MapRouteLeg[]).push(leg);
+      if (leg) open.route.route.legs.push(leg);
       continue;
     }
     // (1b) Indented child of an open POI → hub edge or extra metadata.
@@ -370,7 +367,7 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
   }
 
   function handleDirective(key: string, value: string, line: number): void {
-    const d = result.directives as MapDirectives;
+    const d = result.directives;
     const dup = (have: unknown): void => {
       if (have !== undefined)
         pushWarning(line, `Duplicate directive "${key}" — last value wins.`);
@@ -501,7 +498,7 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
     const { text: clean, isDefault } = stripDefaultModifier(text);
     const { label, color } = extractColor(clean, palette, diagnostics, line);
     // Bare value (no explicit color) → keep it; finalized at end of parse.
-    const entries = group.entries as TagEntry[];
+    const entries = group.entries;
     if (isDefault || entries.length === 0) group.defaultValue = label;
     entries.push({
       value: label,
@@ -525,11 +522,11 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
       line
     );
     const { tags, meta } = partitionMeta(split.meta, tagGroupNames());
-    rejectForeignChannels(meta as Record<string, string>, 'heat', line);
+    rejectForeignChannels(meta, 'heat', line);
     let valueNum: number | undefined;
     const value = meta['heat'];
     if (value !== undefined) {
-      delete (meta as Record<string, string>)['heat']; // lifted out of meta
+      delete meta['heat']; // lifted out of meta
       valueNum = Number(value);
       if (!Number.isFinite(valueNum)) {
         pushError(line, `heat must be a number (got "${value}").`);
@@ -602,9 +599,9 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
     const pos = parsePos(split.name, line);
     if (!pos) return; // error already pushed
     const { tags, meta } = partitionMeta(split.meta, tagGroupNames());
-    rejectForeignChannels(meta as Record<string, string>, 'size', line);
+    rejectForeignChannels(meta, 'size', line);
     const label = meta['label']; // label lifted out of meta; `size:` (→ marker size) stays in meta
-    if (label !== undefined) delete (meta as Record<string, string>)['label'];
+    if (label !== undefined) delete meta['label'];
     const poi: Writable<MapPoi> = { pos, tags, meta, lineNumber: line };
     // A card is requested by the bare `clock` flag OR the valued `clock: <zone>`
     // key — both mean "put a time card here" (the value, if any, is the zone).
@@ -638,7 +635,7 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
     }
     const { tags, meta } = partitionMeta(split.meta, tagGroupNames());
     // The route header is a STOP (a point), so its marker uses the `size:` channel.
-    rejectForeignChannels(meta as Record<string, string>, 'size', line);
+    rejectForeignChannels(meta, 'size', line);
     const originLabel = meta['label'];
     const originValue = meta['size'];
     // `style: arc` on the route header was removed (§24B.6): leg shape comes
@@ -704,7 +701,7 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
     };
     const { tags, meta } = partitionMeta(split.meta, tagGroupNames());
     // A leg is an edge → its thickness rides on the `width:` channel.
-    rejectForeignChannels(meta as Record<string, string>, 'width', line);
+    rejectForeignChannels(meta, 'width', line);
     const value = meta['width'];
     const destLabel = meta['label'];
     // Leg shape comes solely from the leg's own arrow glyph (§24B.6) — the route
@@ -755,7 +752,7 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
       tagGroupNames()
     );
     // Edge thickness rides on the `width:` channel (§24B.6).
-    rejectForeignChannels(lastMeta as Record<string, string>, 'width', line);
+    rejectForeignChannels(lastMeta, 'width', line);
     for (let k = 0; k < links.length; k++) {
       const from = endpoints[k]!;
       const to = endpoints[k + 1]!;

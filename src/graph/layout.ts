@@ -397,7 +397,7 @@ export function layoutGraph(
                 y: 0,
                 width: 0,
                 height: 0,
-                side: 'right' as NoteSide,
+                side: 'right',
                 ...(ng.color && { color: ng.color }),
                 lines: [],
                 lineNumber: ng.lineNumber,

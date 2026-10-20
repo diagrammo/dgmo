@@ -364,7 +364,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
     // the long-form→NE-abbrev alias table (#6).
     const inCountry =
       countryIndex.get(f) ??
-      (REGION_ALIASES[f] ? countryIndex.get(REGION_ALIASES[f]!) : undefined);
+      (REGION_ALIASES[f] ? countryIndex.get(REGION_ALIASES[f]) : undefined);
     const inState = usStateIndex.get(f);
     let chosen: {
       id: string;

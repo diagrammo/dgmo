@@ -886,7 +886,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
             `Unknown shape "${nameIsAMatch[1]}". Valid shapes: ${[...VALID_SHAPES].join(', ')}`
           );
         }
-        namePart = namePart.substring(0, nameIsAMatch.index!).trim();
+        namePart = namePart.substring(0, nameIsAMatch.index).trim();
       }
 
       // 1.0 freeze: a non-empty tail after `is a <type>` with no `key:` is the
@@ -980,7 +980,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
             `Unknown shape "${isAMatch[1]}". Valid shapes: ${[...VALID_SHAPES].join(', ')}`
           );
         }
-        namePart = namePart.substring(0, isAMatch.index!).trim();
+        namePart = namePart.substring(0, isAMatch.index).trim();
       }
 
       // Emit deprecation error with migration hint

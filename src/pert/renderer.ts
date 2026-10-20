@@ -1789,7 +1789,7 @@ function renderNodes(
     const hasTagColor =
       tagColor !== undefined && tagColor !== UNTAGGED_TAG_COLOR;
     const tagBandFill = hasTagColor
-      ? shapeFill(palette, tagColor as string, isDark, { mode: fillMode })
+      ? shapeFill(palette, tagColor, isDark, { mode: fillMode })
       : undefined;
     const tagLabelColor = hasTagColor
       ? contrastText(
@@ -1882,9 +1882,7 @@ function computeDurationEmphasis(activities: ResolvedActivity[]): {
   bottomMuIds: Set<string>;
 } {
   const ranked = activities
-    .filter(
-      (r) => !r.activity.isMilestone && r.mu !== null && (r.mu as number) > 0
-    )
+    .filter((r) => !r.activity.isMilestone && r.mu !== null && r.mu > 0)
     .map((r) => ({ id: r.activity.id, mu: r.mu as number }))
     .sort((a, b) => a.mu - b.mu);
   if (ranked.length < 5) {

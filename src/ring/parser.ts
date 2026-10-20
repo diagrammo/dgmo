@@ -127,10 +127,7 @@ export function parseRing(content: string): ParsedRing {
         // error-severity diagnostic with a "Did you mean...?" hint).
         const resolved = resolveColor(color);
         if (resolved === null) {
-          const hint = suggest(
-            color,
-            RECOGNIZED_COLOR_NAMES as readonly string[]
-          );
+          const hint = suggest(color, RECOGNIZED_COLOR_NAMES);
           const suggestion = hint ? ` ${hint}` : '';
           warn(
             lineNum,

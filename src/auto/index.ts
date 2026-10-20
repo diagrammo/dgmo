@@ -687,8 +687,8 @@ function freezeOn(target: typeof globalThis, key: string): void {
 if (typeof window !== 'undefined') {
   // The IIFE runs at script load. If we're in a test harness without DOM
   // wrappers, this is still safe because we use try/catch.
-  freezeOn(window as unknown as typeof globalThis, 'dgmo');
-  freezeOn(window as unknown as typeof globalThis, 'diagrammo');
+  freezeOn(window, 'dgmo');
+  freezeOn(window, 'diagrammo');
   bootstrap();
 }
 

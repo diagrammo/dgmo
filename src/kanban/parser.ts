@@ -306,14 +306,14 @@ export function parseKanban(
           result.diagnostics,
           palette
         );
-        tail = tail.substring(colorMatch[0]!.length).trim();
+        tail = tail.substring(colorMatch[0].length).trim();
       }
 
       let colAlias: string | undefined;
       const aliasMatch = tail.match(AS_ALIAS_TOKEN_RE);
       if (aliasMatch) {
         colAlias = aliasMatch[1];
-        tail = tail.substring(aliasMatch[0]!.length).trim();
+        tail = tail.substring(aliasMatch[0].length).trim();
       }
 
       // §1.4 unified metadata grammar — same-line cut on the tail (which

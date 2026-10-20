@@ -139,8 +139,6 @@ function containerStroke(palette: PaletteColors, nodeColor?: string): string {
 // Main Renderer
 // ============================================================
 
-type GSelection = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
-
 export function renderOrg(
   container: HTMLDivElement,
   parsed: ParsedOrg,
@@ -246,7 +244,7 @@ export function renderOrg(
   const trailShift =
     hasAncestorTrail && rootTopY !== null
       ? ancestorTrailReserve(
-          ancestorPath!.length,
+          ancestorPath.length,
           Math.max(0, rootTopY - legendUnshift)
         )
       : ancestorTrailHeight;
@@ -343,7 +341,7 @@ export function renderOrg(
       .append('g')
       .attr('transform', `translate(${c.x}, ${c.y})`)
       .attr('class', 'org-container')
-      .attr('data-line-number', String(c.lineNumber)) as GSelection;
+      .attr('data-line-number', String(c.lineNumber));
 
     // Expose active tag group value for legend-entry hover dimming
     // Use tagMetadata (unfiltered) so hover-highlight works even when the
@@ -526,7 +524,7 @@ export function renderOrg(
       .attr('transform', `translate(${node.x - node.width / 2}, ${node.y})`)
       .attr('class', 'org-node')
       .attr('data-line-number', String(node.lineNumber))
-      .attr('data-node-id', node.id) as GSelection;
+      .attr('data-node-id', node.id);
 
     // Expose active tag group value for legend-entry hover dimming
     // Use tagMetadata (unfiltered) so hover-highlight works even when the
@@ -671,7 +669,7 @@ export function renderOrg(
 
       const trailG = contentG.append('g').attr('class', 'org-ancestor-trail');
 
-      const count = ancestorPath!.length;
+      const count = ancestorPath.length;
 
       const dotPositions: number[] = [];
       for (let i = 0; i < count; i++) {
@@ -694,7 +692,7 @@ export function renderOrg(
       // Dots and labels on top of the line
       for (let i = 0; i < count; i++) {
         // In-bounds: count === ancestorPath.length; dotPositions parallel by construction.
-        const ancestor = ancestorPath![i]!;
+        const ancestor = ancestorPath[i]!;
         const dotY = dotPositions[i]!;
 
         // Resolve color from tag groups (same logic as node cards)

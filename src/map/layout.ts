@@ -1138,10 +1138,7 @@ export function buildMapProjection(
   const projection = createMapProjection(projectionSpec);
 
   // Global vs regional classification (drives stretch-fill vs contain-fit).
-  const fitGB = geoBounds(fitTarget as never) as [
-    [number, number],
-    [number, number],
-  ];
+  const fitGB = geoBounds(fitTarget as never);
   const fitIsGlobal =
     fitGB[1][0] - fitGB[0][0] >= 270 || fitGB[1][1] - fitGB[0][1] >= 130;
 
@@ -1977,7 +1974,7 @@ export function layoutMap(
             (thin as unknown as { stream: (d: never) => never }).stream(s)
           )
         ),
-    } as never).digits(PATH_DIGITS);
+    }).digits(PATH_DIGITS);
     project = (lon, lat) => {
       const p = baseProjection([lon, lat]);
       return p ? stretch(p[0], p[1]) : null;
@@ -2002,7 +1999,7 @@ export function layoutMap(
         projection.stream(
           (thin as unknown as { stream: (d: never) => never }).stream(s)
         ),
-    } as never).digits(PATH_DIGITS);
+    }).digits(PATH_DIGITS);
     project = (lon, lat) => projection([lon, lat]) ?? null;
   }
 
@@ -2093,7 +2090,7 @@ export function layoutMap(
   // regional one (cull to the canvas). For an albers fit that's the CONUS bounds;
   // else the resolved data extent.
   const classifyExtent = conusFit
-    ? (geoBounds(fitTarget as never) as [[number, number], [number, number]])
+    ? geoBounds(fitTarget as never)
     : resolved.extent;
   const dLonSpan = classifyExtent[1][0] - classifyExtent[0][0];
   const dLatSpan = classifyExtent[1][1] - classifyExtent[0][1];
@@ -2193,7 +2190,7 @@ export function layoutMap(
       );
       if (!keep.length) return null;
       if (keep.length === polys.length) return f;
-      return { ...f, geometry: { ...g, coordinates: keep } } as GeoFeature;
+      return { ...f, geometry: { ...g, coordinates: keep } };
     }
     return f;
   };
@@ -2247,7 +2244,7 @@ export function layoutMap(
       );
       if (!keep.length) return null;
       if (keep.length === polys.length) return f;
-      return { ...f, geometry: { ...g, coordinates: keep } } as GeoFeature;
+      return { ...f, geometry: { ...g, coordinates: keep } };
     }
     return f;
   };
@@ -2520,10 +2517,7 @@ export function layoutMap(
       if (!viewF) continue;
       const area = path.area(viewF as never);
       if (!Number.isFinite(area) || area < RELIEF_MIN_AREA) continue;
-      const box = path.bounds(viewF as never) as [
-        [number, number],
-        [number, number],
-      ];
+      const box = path.bounds(viewF as never);
       if (
         box[1][0] - box[0][0] < RELIEF_MIN_DIM ||
         box[1][1] - box[0][1] < RELIEF_MIN_DIM
@@ -2893,7 +2887,7 @@ export function layoutMap(
     const x0 = +m[1]!;
     const y0 = +m[2]!;
     if (m[3] !== undefined) {
-      legSegments.push([x0, y0, +m[3]!, +m[4]!]);
+      legSegments.push([x0, y0, +m[3], +m[4]!]);
     } else {
       const cx = +m[5]!;
       const cy = +m[6]!;
@@ -3830,14 +3824,14 @@ export function layoutMap(
           break;
         }
       if (hasReferencedSub) continue;
-      const b = path.bounds(f as never) as [[number, number], [number, number]];
+      const b = path.bounds(f as never);
       const [x0, y0] = b[0];
       const [x1, y1] = b[1];
       if (!Number.isFinite(x0) || !Number.isFinite(x1)) continue;
       const anchorLngLat = WORLD_LABEL_ANCHORS[iso];
       const a = anchorLngLat
         ? project(anchorLngLat[0], anchorLngLat[1])
-        : (path.centroid(f as never) as [number, number]);
+        : path.centroid(f as never);
       rawCountries.push({
         f,
         iso,
@@ -3878,10 +3872,7 @@ export function layoutMap(
       let anchor = r.anchor;
       let positions: readonly (readonly [number, number])[] | undefined;
       if (genIdx.has(i) && anchor) {
-        const gb = geoBounds(r.f as never) as [
-          [number, number],
-          [number, number],
-        ];
+        const gb = geoBounds(r.f as never);
         const gen = countryLabelPositions({
           geometry: r.f.geometry,
           bounds: gb,
@@ -3922,14 +3913,11 @@ export function layoutMap(
         if (regionById.has(iso) || labeledRegionIds.has(iso)) continue;
         const viewF = cullFeatureToView(f);
         if (!viewF) continue; // not in frame
-        const b = path.bounds(viewF as never) as [
-          [number, number],
-          [number, number],
-        ];
+        const b = path.bounds(viewF as never);
         const [x0, y0] = b[0];
         const [x1, y1] = b[1];
         if (!Number.isFinite(x0) || !Number.isFinite(x1)) continue;
-        const a = path.centroid(viewF as never) as [number, number];
+        const a = path.centroid(viewF as never);
         countryCandidates.push({
           name: (f.properties as { name?: string } | undefined)?.name ?? iso,
           bbox: [x0, y0, x1, y1],

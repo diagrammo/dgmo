@@ -398,7 +398,7 @@ export function renderERDiagram(
         'cursor',
         onClickItem && parsed.titleLineNumber ? 'pointer' : 'default'
       )
-      .text(parsed.title!);
+      .text(parsed.title);
 
     if (parsed.titleLineNumber) {
       titleEl.attr('data-line-number', parsed.titleLineNumber);
@@ -518,7 +518,7 @@ export function renderERDiagram(
     );
     const semanticColor = semanticActive
       ? palette.colors[
-          ROLE_COLORS[semanticRoles!.get(node.id) ?? 'unclassified']
+          ROLE_COLORS[semanticRoles.get(node.id) ?? 'unclassified']
         ]
       : semanticRoles
         ? palette.primary // neutral color when legend is collapsed

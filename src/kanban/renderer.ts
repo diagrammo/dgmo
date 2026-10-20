@@ -589,12 +589,12 @@ function drawKanban(
       .attr('font-size', sTitleFontSize)
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .attr('fill', palette.text)
-      .text(parsed.title!);
+      .text(parsed.title);
   }
 
   if (parsed.tagGroups.length > 0 && !legendSuppressed(parsed.options)) {
     const titleTextWidth = showTopTitle
-      ? measureLegendText(parsed.title!, sTitleFontSize) + 16
+      ? measureLegendText(parsed.title, sTitleFontSize) + 16
       : 0;
     const legendX = sDiagramPadding + titleTextWidth;
     const legendConfig: LegendConfig = {

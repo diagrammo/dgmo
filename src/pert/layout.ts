@@ -552,7 +552,7 @@ function applySwimLanes(
   for (const id of g.nodes()) {
     const node = g.node(id);
     if (!node) continue;
-    const rankKey = Math.round(node[rankAxis] as number);
+    const rankKey = Math.round(node[rankAxis]);
     const laneIdx = laneOf.get(id) ?? spineIdx;
     let byLane = rankBuckets.get(rankKey);
     if (!byLane) {
@@ -635,7 +635,7 @@ function applySwimLanes(
   // Pre-shuffle slot positions for stable tie-breaking.
   const oldSlot = new Map<string, number>();
   for (const id of g.nodes()) {
-    oldSlot.set(id, g.node(id)![slotAxis] as number);
+    oldSlot.set(id, g.node(id)[slotAxis]);
   }
 
   // Reposition each node into its (lane, rank) cell — packed from the
@@ -730,7 +730,7 @@ function centerByCriticality(
   for (const id of g.nodes()) {
     const node = g.node(id);
     if (!node) continue;
-    const key = Math.round(node[rankAxis] as number);
+    const key = Math.round(node[rankAxis]);
     if (!buckets.has(key)) buckets.set(key, []);
     buckets.get(key)!.push(id);
   }
@@ -744,14 +744,12 @@ function centerByCriticality(
     if (ids.length < 2) continue;
 
     // Existing slot positions (sorted ascending = top→bottom in LR).
-    const slots = ids
-      .map((id) => g.node(id)![slotAxis] as number)
-      .sort((a, b) => a - b);
+    const slots = ids.map((id) => g.node(id)[slotAxis]).sort((a, b) => a - b);
 
     // Sort ids by criticality descending; tie-break by current slot
     // so deterministic & stable when criticalities are equal.
     const currentSlot = new Map<string, number>();
-    for (const id of ids) currentSlot.set(id, g.node(id)![slotAxis] as number);
+    for (const id of ids) currentSlot.set(id, g.node(id)[slotAxis]);
     const sortedDesc = [...ids].sort((a, b) => {
       const ca = critById.get(a) ?? 0;
       const cb = critById.get(b) ?? 0;
@@ -776,7 +774,7 @@ function centerByCriticality(
 
     newOrder.forEach((id, i) => {
       const node = g.node(id);
-      const oldVal = node[slotAxis] as number;
+      const oldVal = node[slotAxis];
       // In-bounds: slots was built with same length as newOrder above.
       const newVal = slots[i]!;
       shifts.set(id, newVal - oldVal);
@@ -866,7 +864,7 @@ function reduceCrossings(g: DagreGraph, direction: PertDirection): void {
   for (const id of g.nodes()) {
     const node = g.node(id);
     if (!node) continue;
-    const key = Math.round(node[rankAxis] as number);
+    const key = Math.round(node[rankAxis]);
     if (!buckets.has(key)) buckets.set(key, []);
     buckets.get(key)!.push(id);
   }
@@ -912,17 +910,14 @@ function reduceCrossings(g: DagreGraph, direction: PertDirection): void {
       if (ids.length < 2) continue;
       const sorted = ids
         .slice()
-        .sort(
-          (a, b) =>
-            (g.node(a)![slotAxis] as number) - (g.node(b)![slotAxis] as number)
-        );
+        .sort((a, b) => g.node(a)[slotAxis] - g.node(b)[slotAxis]);
       for (let i = 0; i < sorted.length - 1; i++) {
         const a = sorted[i]!;
         const b = sorted[i + 1]!;
-        const an = g.node(a)!;
-        const bn = g.node(b)!;
-        const av = an[slotAxis] as number;
-        const bv = bn[slotAxis] as number;
+        const an = g.node(a);
+        const bn = g.node(b);
+        const av = an[slotAxis];
+        const bv = bn[slotAxis];
         an[slotAxis] = bv;
         bn[slotAxis] = av;
         const after = countCrossings();

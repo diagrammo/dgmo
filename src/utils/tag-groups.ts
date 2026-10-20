@@ -142,7 +142,7 @@ export function assignAutoTagColors(
   group: Writable<TagGroup>,
   palette?: PaletteColors
 ): void {
-  const entries = group.entries as TagEntry[];
+  const entries = group.entries;
   // Hexes claimed by explicit entries (anywhere in the group).
   const explicitHexes = new Set<string>();
   let hasSentinel = false;

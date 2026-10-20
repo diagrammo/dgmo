@@ -722,7 +722,7 @@ export function parseSwimlane(
     }
 
     const cl = currentLane as SwimLane | null;
-    const cp = currentPhase as SwimPhase | null;
+    const cp = currentPhase;
     const laneCtx = cl?.id ?? null;
     const phaseCtx = cp?.id;
     const inLane = cl !== null && indent > laneIndent;

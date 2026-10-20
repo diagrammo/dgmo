@@ -191,7 +191,7 @@ export function parseDateToken(
   if (era) {
     const marker = era[4]!.toUpperCase();
     const sign: 1 | -1 = marker === 'BCE' || marker === 'BC' ? -1 : 1;
-    const grain = (era[3] ? 3 : era[2] ? 2 : 1) as DateGrain;
+    const grain = era[3] ? 3 : era[2] ? 2 : 1;
     return {
       token: {
         sign,
@@ -211,7 +211,7 @@ export function parseDateToken(
   // 2 ─ ISO (4-digit lead): YYYY, YYYY-MM, YYYY-MM-DD [+ time].
   const iso = input.match(ISO_RE);
   if (iso) {
-    const grain = (iso[3] ? 3 : iso[2] ? 2 : 1) as DateGrain;
+    const grain = iso[3] ? 3 : iso[2] ? 2 : 1;
     let consumed = iso[0].length;
     let time: ReturnType<typeof matchTime> = {
       hour: 0,

@@ -658,7 +658,7 @@ function parseNodeLabel(
   // Extract description from pipe metadata into dedicated field
   let description: string[] | undefined;
   if ('description' in metadata) {
-    const descVal = metadata['description']!.trim();
+    const descVal = metadata['description'].trim();
     if (descVal) {
       description = [descVal];
     }

@@ -435,7 +435,7 @@ export function parseFamily(
       unionId = parentScope.singleParentUnionId;
     }
     const u = unionById.get(unionId)!;
-    (u.children as FamilyChild[]).push({ personId: childId, adopted });
+    u.children.push({ personId: childId, adopted });
   };
 
   let inTagBlock = false;

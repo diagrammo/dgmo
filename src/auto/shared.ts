@@ -228,7 +228,7 @@ function bindBlockToolbar(wrapper: HTMLElement): void {
     collapse();
   });
   wrapper.addEventListener('focusout', (e) => {
-    const to = (e as FocusEvent).relatedTarget as Node | null;
+    const to = e.relatedTarget as Node | null;
     if (to && wrapper.contains(to)) return;
     if (wrapper.matches(':hover')) return;
     collapse();
@@ -238,7 +238,7 @@ function bindBlockToolbar(wrapper: HTMLElement): void {
 async function handleToolbarClick(e: Event): Promise<void> {
   const target = e.target as Element | null;
   if (!target || typeof target.closest !== 'function') return;
-  const btn = target.closest('.dgmo-toolbar-btn') as HTMLElement | null;
+  const btn = target.closest<HTMLElement>('.dgmo-toolbar-btn');
   if (!btn) return;
 
   const insideSummary = !!btn.closest('summary');
@@ -389,7 +389,7 @@ export function openDgmoLightbox(fromButton: Element): void {
     if (window.getComputedStyle(w).display === 'none') continue;
     const found = w.querySelector('svg');
     if (found) {
-      svg = found as SVGSVGElement;
+      svg = found;
       break;
     }
   }

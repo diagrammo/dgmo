@@ -18,7 +18,7 @@ function geomObject(topo: BoundaryTopology): {
   geometries: Array<{ id: string; properties: { name: string } }>;
 } {
   const key = Object.keys(topo.objects)[0]!;
-  return topo.objects[key]! as never;
+  return topo.objects[key]!;
 }
 
 /** folded display-name → { id, name } for one layer (per-layer; never merged — R12).
@@ -331,7 +331,7 @@ export function featureBbox(
   // feature() needs the geometry OBJECT, not a string (a string would be read as
   // topology.objects[string] — R6).
   const gj = feature(topo as never, geom as never);
-  const b = geoBounds(gj as never); // [[west, south], [east, north]], antimeridian-aware
+  const b = geoBounds(gj); // [[west, south], [east, north]], antimeridian-aware
   if (!b || !Number.isFinite(b[0][0])) return null;
   return [
     [b[0][0], b[0][1]],
@@ -366,7 +366,7 @@ function explodePolygons(gj: {
     ];
   }
   if (t === 'MultiPolygon') {
-    return (coords as unknown[]).map((rings) => ({
+    return coords.map((rings) => ({
       type: 'Feature' as const,
       geometry: { type: 'Polygon' as const, coordinates: rings },
     }));

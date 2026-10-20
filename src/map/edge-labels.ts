@@ -123,13 +123,13 @@ export function layoutEdgeLabels(args: {
       if (pm?.[5] !== undefined) {
         const u = 1 - t;
         return [
-          u * u * +pm[1]! + 2 * u * t * +pm[5]! + t * t * +pm[7]!,
+          u * u * +pm[1]! + 2 * u * t * +pm[5] + t * t * +pm[7]!,
           u * u * +pm[2]! + 2 * u * t * +pm[6]! + t * t * +pm[8]!,
         ];
       }
       if (pm?.[3] !== undefined)
         return [
-          +pm[1]! + (+pm[3]! - +pm[1]!) * t,
+          +pm[1]! + (+pm[3] - +pm[1]!) * t,
           +pm[2]! + (+pm[4]! - +pm[2]!) * t,
         ];
       return [a.cx + dx * t, a.cy + dy * t];

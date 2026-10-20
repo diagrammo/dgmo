@@ -722,9 +722,7 @@ function layoutRows(
   // Position controls group AFTER centering so it follows the shifted items
   if (controlsGroup) {
     const row0Items = rows[0]?.items ?? [];
-    const groupItemsInRow0 = row0Items.filter(
-      (it) => 'groupName' in it
-    ) as Array<LegendPillLayout | LegendCapsuleLayout>;
+    const groupItemsInRow0 = row0Items.filter((it) => 'groupName' in it);
     if (groupItemsInRow0.length > 0) {
       const last = groupItemsInRow0[groupItemsInRow0.length - 1]!;
       controlsGroup.x = last.x + last.width + LEGEND_GROUP_GAP;
@@ -750,9 +748,7 @@ function centerRowItems(
   controlsGroupW = 0
 ): void {
   // Only center group items (pills and capsules), not controls
-  const groupItems = items.filter((it) => 'groupName' in it) as Array<
-    LegendPillLayout | LegendCapsuleLayout
-  >;
+  const groupItems = items.filter((it) => 'groupName' in it);
 
   if (groupItems.length === 0) return;
 

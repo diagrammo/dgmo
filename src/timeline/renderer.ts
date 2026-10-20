@@ -123,7 +123,7 @@ function renderEras(
     ): void => {
       if (outlineEra) {
         rect
-          .attr('fill', outlineBg!)
+          .attr('fill', outlineBg)
           .attr('stroke', color)
           .attr('stroke-width', 1);
       } else {
@@ -160,7 +160,7 @@ function renderEras(
       // extending above the chart so the label has space when scale is on.
       const useReservedRow = reservedLabelY != null;
       const rectTop = useReservedRow ? 0 : hasScale ? -48 : 0;
-      const labelY = useReservedRow ? reservedLabelY! : hasScale ? -32 : 18;
+      const labelY = useReservedRow ? reservedLabelY : hasScale ? -32 : 18;
       applyEraFill(
         eraG
           .append('rect')
@@ -251,7 +251,7 @@ function renderMarkers(
     ): void => {
       if (outlineDiamond) {
         path
-          .attr('fill', outlineBg!)
+          .attr('fill', outlineBg)
           .attr('stroke', color)
           .attr('stroke-width', 1.25)
           .attr('opacity', 0.9);
@@ -312,7 +312,7 @@ function renderMarkers(
       // Horizontal orientation: vertical dashed line down the chart.
       // Reserved-row mode lifts the label above the chart edge; legacy mode
       // keeps it at y=6 inside the chart top.
-      const labelY = useReservedRow ? reservedLabelY! : 6;
+      const labelY = useReservedRow ? reservedLabelY : 6;
       // Diamond sits fully above the chart edge in reserved-row mode so it
       // isn't clipped by group bars that start at y=0; legacy mode keeps the
       // diamond inside the chart top below the label.
@@ -1085,7 +1085,7 @@ function makeTimelineHoverHelpers(): TimelineHoverHelpers {
   ) {
     g.selectAll<SVGGElement, unknown>('.tl-event').each(function () {
       const el = d3Selection.select(this);
-      const date = parseFloat(el.attr('data-date')!);
+      const date = parseFloat(el.attr('data-date'));
       const endDate = el.attr('data-end-date');
       const evEnd = endDate ? parseFloat(endDate) : date;
       const inside = evEnd >= eraStart && date <= eraEnd;
@@ -1097,14 +1097,14 @@ function makeTimelineHoverHelpers(): TimelineHoverHelpers {
     );
     g.selectAll<SVGGElement, unknown>('.tl-era').each(function () {
       const el = d3Selection.select(this);
-      const s = parseFloat(el.attr('data-era-start')!);
-      const e = parseFloat(el.attr('data-era-end')!);
+      const s = parseFloat(el.attr('data-era-start'));
+      const e = parseFloat(el.attr('data-era-end'));
       const isSelf = s === eraStart && e === eraEnd;
       el.attr('opacity', isSelf ? 1 : FADE_OPACITY);
     });
     g.selectAll<SVGGElement, unknown>('.tl-marker').each(function () {
       const el = d3Selection.select(this);
-      const date = parseFloat(el.attr('data-marker-date')!);
+      const date = parseFloat(el.attr('data-marker-date'));
       const inside = date >= eraStart && date <= eraEnd;
       el.attr('opacity', inside ? 1 : FADE_OPACITY);
     });
@@ -1125,7 +1125,7 @@ function makeTimelineHoverHelpers(): TimelineHoverHelpers {
     );
     g.selectAll<SVGGElement, unknown>('.tl-marker').each(function () {
       const el = d3Selection.select(this);
-      const date = parseFloat(el.attr('data-marker-date')!);
+      const date = parseFloat(el.attr('data-marker-date'));
       el.attr('opacity', date === markerDate ? 1 : FADE_OPACITY);
     });
   }

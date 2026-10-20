@@ -15,7 +15,6 @@ import type {
   ParsedGantt,
   GanttNode,
   GanttTask,
-  GanttGroup,
   GanttHolidays,
   GanttOptions,
   Duration,
@@ -443,9 +442,7 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
   if (parsed.syntaxMode === 'legacy') {
     const topLevelGroups = parsed.nodes.filter((n) => n.kind === 'group');
     if (topLevelGroups.length >= 2) {
-      const names = topLevelGroups.map(
-        (g) => (g as GanttGroup & { kind: 'group' }).name
-      );
+      const names = topLevelGroups.map((g) => g.name);
       warn(
         topLevelGroups[0]!.lineNumber,
         `${names.join(' and ')} are sequential. Wrap in \`parallel\` if they should run concurrently.`

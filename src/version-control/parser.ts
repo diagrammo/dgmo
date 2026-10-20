@@ -13,7 +13,6 @@
 
 import type { PaletteColors } from '../palettes';
 import { emit, formatDgmoError, makeFail, suggest } from '../diagnostics';
-import type { DgmoError } from '../diagnostics';
 import { VERSION_CONTROL_DX } from './diagnostics';
 import type { Writable } from '../utils/brand';
 import { measureIndent, parseFirstLine, extractColor } from '../utils/parsing';
@@ -301,7 +300,7 @@ export function parseVersionControl(
       const colored = extractColor(
         trimmed,
         palette,
-        result.diagnostics as DgmoError[],
+        result.diagnostics,
         lineNumber
       );
       let rest = colored.label;
@@ -488,7 +487,7 @@ export function parseVersionControl(
   });
   const laneOf = new Map<string, number>();
   ordered.forEach((nm, idx) => laneOf.set(nm, idx));
-  for (const n of nodes) (n as Mut).lane = laneOf.get(n.branch)!;
+  for (const n of nodes) n.lane = laneOf.get(n.branch)!;
 
   // ── Emit branch list (declaration order preserved for legend/gutter) ──
   result.branches = order.map((nm): VCBranch => {

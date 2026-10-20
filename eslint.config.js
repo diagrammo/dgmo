@@ -58,11 +58,12 @@ export default tseslint.config(
       '@typescript-eslint/no-base-to-string': 'error',
       '@typescript-eslint/no-implied-eval': 'error',
       '@typescript-eslint/restrict-template-expressions': 'error',
+      // Every site removed by its autofix (#1393); now an error so none return.
+      '@typescript-eslint/no-unnecessary-type-assertion': 'error',
       // Disable noisy type-checked rules that don't catch real bugs
       '@typescript-eslint/no-unsafe-assignment': 'off',
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/no-unsafe-argument': 'off',
-      '@typescript-eslint/no-unnecessary-type-assertion': 'off',
     },
   },
   security.configs.recommended,

@@ -69,9 +69,6 @@ import type {
   FamilyChildEdge,
 } from './types';
 
-type D3Svg = d3Selection.Selection<SVGSVGElement, unknown, null, undefined>;
-type D3G = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
-
 const KEY_X = 10;
 const KEY_VALUE_GAP = 6;
 const BAR_DOT_R = 3.5;
@@ -248,7 +245,7 @@ export function renderFamilyForExport(
     // The app reads the fit-scale to decide when the tree is too small to read
     // (→ a single card click focuses instead of navigating).
     .attr('data-fit-scale', scale.toFixed(3))
-    .style('font-family', FONT_FAMILY) as unknown as D3Svg;
+    .style('font-family', FONT_FAMILY);
 
   // Baked hover-reveal for the per-card focus icon — hidden until its card is
   // hovered (works in every host without host-side CSS; the icon is
@@ -284,7 +281,7 @@ export function renderFamilyForExport(
         header.inline
           ? `translate(${header.legendX}, ${header.legendY})`
           : `translate(0, ${titleReserve})`
-      ) as unknown as D3G;
+      );
     renderIntegratedLegend(legendParent, {
       ...legendConfig,
       // Inline → left-origin so the wrapper's right-flush translate lands the
@@ -310,7 +307,7 @@ export function renderFamilyForExport(
     .attr(
       'transform',
       `translate(${contentX}, ${chrome + PAD}) scale(${scale})`
-    ) as unknown as D3G;
+    );
 
   // ── Generation zebra bands (opt-in `generations`) ──
   // Subtle alternating ROUNDED bands hugging each generation's row, so it's easy
@@ -470,7 +467,7 @@ export function renderFamilyForExport(
       .attr('class', 'family-card')
       .attr('transform', `translate(${node.x}, ${node.y})`)
       .attr('data-line-number', String(node.lineNumber))
-      .attr('data-person-id', node.id) as D3G;
+      .attr('data-person-id', node.id);
     if (node.dimmed) g.attr('opacity', DIM_OPACITY);
     // Expose the active tag value for legend-entry hover-dim (org precedent).
     if (activeTagGroup) {

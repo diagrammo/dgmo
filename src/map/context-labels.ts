@@ -562,12 +562,12 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
   const tryPlace = (cand: Candidate): boolean => {
     const positions = cand.positions ?? [[cand.cx, cand.cy]];
     for (const [px, py] of positions) {
-      const rect = gateAt(px!, py!, cand);
+      const rect = gateAt(px, py, cand);
       if (!rect) continue;
       placedRects.push(rect);
       placed.push({
-        x: px!,
-        y: py!,
+        x: px,
+        y: py,
         text: cand.text,
         anchor: 'middle',
         color: cand.color,

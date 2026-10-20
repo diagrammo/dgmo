@@ -24,7 +24,7 @@ import {
   fillModeFromOptions,
   normalizeNumericToken,
 } from '../utils/parsing';
-import type { GoalMode, GoalOptions, ParsedGoal } from './types';
+import type { GoalOptions, ParsedGoal } from './types';
 
 /**
  * Parse a numeric value token, honoring `,` and `_` grouping separators.
@@ -136,7 +136,7 @@ export function parseGoal(
 
     // ── Bare-flag mode directives ──
     if (lower === 'thermometer' || lower === 'gauge') {
-      result.mode = lower as GoalMode;
+      result.mode = lower;
       continue;
     }
 

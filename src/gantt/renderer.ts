@@ -769,7 +769,7 @@ function drawGantt(
         if (!value && tagGroup.defaultValue) value = tagGroup.defaultValue;
         if (value) {
           const entry = tagGroup.entries.find(
-            (e) => e.value.toLowerCase() === value!.toLowerCase()
+            (e) => e.value.toLowerCase() === value.toLowerCase()
           );
           if (entry) taskLaneMap.set(rt.task.id, entry.value);
         }

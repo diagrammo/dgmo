@@ -346,7 +346,7 @@ function parseNoteLine(
     // Check for positioned note: `note left/right ...`
     if (restLower.startsWith('left') || restLower.startsWith('right')) {
       const posWord = restLower.startsWith('left') ? 'left' : 'right';
-      const position = posWord as 'right' | 'left';
+      const position = posWord;
       let afterPos = rest.substring(posWord.length).trim();
 
       // Strip optional `of` keyword — track whether it was present

@@ -1744,7 +1744,7 @@ export function layoutSequence(
         //   offset (gap above first note — larger after self-calls)
         //   + each note's height + NOTE_OFFSET_BELOW (inter-note gap)
         //   + NOTE_TRAILING_GAP (gap below last note — clears next message label)
-        const firstOffset = noteOffsetBelow(el as SequenceNote);
+        const firstOffset = noteOffsetBelow(el);
         let totalExtent = firstOffset;
         let j = i;
         // In-bounds: j < els.length guard inside the while.
@@ -2384,7 +2384,7 @@ export function layoutSequence(
   ): void => {
     for (const el of els) {
       if (isSequenceNote(el)) {
-        const note = el as SequenceNote;
+        const note = el;
         const pos = effectiveNotePosition(note);
         if (pos === 'right') {
           const px = participantX.get(note.participantId);
@@ -3687,7 +3687,7 @@ export function renderSequenceDiagram(
   // Render block labels (on top of activations): each frame's own, then its
   // dividers', parent before child.
   const blockLabels = blockFrames.flatMap((frame) => [
-    { ...frame.label, lineNumber: frame.lineNumber as number | undefined },
+    { ...frame.label, lineNumber: frame.lineNumber },
     ...frame.dividers.map((d) => ({ ...d.label, lineNumber: d.lineNumber })),
   ]);
   for (const lbl of blockLabels) {

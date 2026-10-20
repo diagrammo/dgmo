@@ -47,8 +47,6 @@ import type {
   PertEdge,
   PertGroup,
   PertOptions,
-  PertDirection,
-  NodeDetail,
 } from './types';
 import { formatLocalISODate } from './internal';
 import type {
@@ -300,7 +298,7 @@ function peelAlias(text: string): { head: string; alias?: string } {
   if (!m) return { head: trimmed };
   const alias = m[1];
   return {
-    head: trimmed.slice(0, m.index!).trim(),
+    head: trimmed.slice(0, m.index).trim(),
     ...(alias !== undefined && { alias }),
   };
 }
@@ -975,7 +973,7 @@ export function parsePert(
           // anchor's line so the user knows which directive to remove.
           const hadAnchor = options.anchor !== null;
           applyAnchorDirective(
-            head as 'start-date' | 'end-date',
+            head,
             value,
             lineNumber,
             options,
@@ -986,7 +984,7 @@ export function parsePert(
           );
           if (!hadAnchor && options.anchor !== null) {
             firstAnchorLine = lineNumber;
-            firstAnchorKey = head as 'start-date' | 'end-date';
+            firstAnchorKey = head;
           } else if (hadAnchor && options.anchor === null) {
             // Both-anchors collision cleared the prior anchor — clear the
             // tracker too so a third directive (if any) sees a clean slate.
@@ -1330,7 +1328,7 @@ export function parsePert(
     ): { metadata: Record<string, string>; lineNumber: number } => {
       entity.tags ??= {};
       return {
-        metadata: entity.tags as Record<string, string>,
+        metadata: entity.tags,
         lineNumber: entity.lineNumber,
       };
     };
@@ -1538,7 +1536,7 @@ function applyDirective(
         error(lineNumber, `Unknown direction '${value}'. Expected LR or TB.`);
         return;
       }
-      options.direction = upper as PertDirection;
+      options.direction = upper;
       return;
     }
     case 'direction-lr': {
@@ -1559,7 +1557,7 @@ function applyDirective(
         );
         return;
       }
-      options.nodeDetail = value as NodeDetail;
+      options.nodeDetail = value;
       return;
     }
     case 'no-analysis': {

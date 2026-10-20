@@ -207,7 +207,7 @@ export function renderJourneyMap(
       .attr('font-weight', 'bold')
       .attr('fill', palette.text)
       .text(
-        truncateToWidth(parsed.title!, FONT_SIZE_TITLE, titleMaxW, {
+        truncateToWidth(parsed.title, FONT_SIZE_TITLE, titleMaxW, {
           bold: true,
         })
       );

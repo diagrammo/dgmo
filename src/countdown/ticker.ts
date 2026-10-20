@@ -61,7 +61,7 @@ function setClockText(el: Element, str: string): void {
       let secT = el.querySelector('[data-cd-sec]');
       if (!leadT || !secT) {
         while (el.firstChild) el.removeChild(el.firstChild);
-        const doc = el.ownerDocument!;
+        const doc = el.ownerDocument;
         leadT = doc.createElementNS(SVG_NS, 'tspan');
         leadT.setAttribute('data-cd-lead', '');
         secT = doc.createElementNS(SVG_NS, 'tspan');

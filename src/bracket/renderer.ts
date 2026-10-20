@@ -295,7 +295,7 @@ export function renderBracket(
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', TITLE_FONT_SIZE)
       .attr('font-weight', TITLE_FONT_WEIGHT)
-      .text(parsed.title!);
+      .text(parsed.title);
     if (parsed.titleLineNumber !== null)
       t.attr('data-line-number', parsed.titleLineNumber);
   }
@@ -677,7 +677,7 @@ function drawBox(
     // A participant name is 500 when it is out of the running, 600+ otherwise.
     .text(
       clip(
-        isTBD ? 'TBD' : name!,
+        isTBD ? 'TBD' : name,
         BOX_W - leftPad - rightPad,
         12.5,
         weight === 'bold'

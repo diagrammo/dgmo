@@ -310,7 +310,7 @@ export function renderQuadrant(
       onClickItem && d.label?.lineNumber ? 'pointer' : 'default'
     )
     .each(function (d) {
-      renderWatermarkOriginal(this as SVGTextElement, d);
+      renderWatermarkOriginal(this, d);
     });
 
   if (onClickItem) {

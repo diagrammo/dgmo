@@ -1543,12 +1543,7 @@ export async function layoutBoxesAndLinesSearch(
       dagre.layout(g, {
         customOrder: (lg, order) => {
           order(lg, {});
-          applyOrderPlan(
-            lg as unknown as OrderGraph,
-            realBoxes,
-            plan.forced,
-            plan.captured
-          );
+          applyOrderPlan(lg, realBoxes, plan.forced, plan.captured);
         },
       });
     else dagre.layout(g);
@@ -1655,7 +1650,7 @@ export async function layoutBoxesAndLinesSearch(
       groups,
       width: gg.width ?? 800,
       height: gg.height ?? 600,
-    } as BLLayoutResult;
+    };
   }
 
   const n = parsed.nodes.length;

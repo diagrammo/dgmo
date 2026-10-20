@@ -370,7 +370,7 @@ export function renderEventLine(
       ? evIdx++ % 2 === 0
         ? 'above'
         : 'below'
-      : (sideOpt as Side);
+      : sideOpt;
     if (slot.kind === 'event') {
       const event = slot.event;
       const solid = eventColor(event);
@@ -816,7 +816,7 @@ export function renderEventLine(
       .attr('font-size', TITLE_FONT_SIZE)
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .attr('data-line-number', parsed.titleLineNumber ?? 1)
-      .text(parsed.title!);
+      .text(parsed.title);
     if (onClickItem && parsed.titleLineNumber) {
       const ln = parsed.titleLineNumber;
       t.style('cursor', 'pointer').on('click', () => onClickItem(ln));
@@ -1995,7 +1995,7 @@ function wireEventLineHover(root: SVGSVGElement | null): void {
     applyEvtFocus(root, readPin(root));
   });
   root.addEventListener('mouseout', (e) => {
-    const to = (e as MouseEvent).relatedTarget as Node | null;
+    const to = e.relatedTarget as Node | null;
     if (!to || !root.contains(to)) applyEvtFocus(root, readPin(root));
   });
 }

@@ -564,7 +564,7 @@ export function renderFlowchart(
         'cursor',
         onClickItem && graph.titleLineNumber ? 'pointer' : 'default'
       )
-      .text(graph.title!);
+      .text(graph.title);
 
     if (graph.titleLineNumber) {
       titleEl.attr('data-line-number', graph.titleLineNumber);
@@ -765,7 +765,7 @@ export function renderFlowchart(
     const hasNote = !!node.note && !noNotes;
 
     renderNodeShape(
-      nodeG as GSelection,
+      nodeG,
       node,
       palette,
       isDark,
@@ -825,7 +825,7 @@ export function renderFlowchart(
       if (node.note.collapsed) {
         // Collapsed → comment-bubble badge in the node's top-right corner.
         renderNoteBadge(
-          nodeG as GSelection,
+          nodeG,
           {
             x: node.width / 2 - NOTE_BADGE_RADIUS - 3,
             y: -node.height / 2 + NOTE_BADGE_RADIUS + 3,
@@ -842,9 +842,9 @@ export function renderFlowchart(
         // Solid tether from the shape edge to the floated note, on whichever
         // side the collision-aware placement chose.
         const [cx1, cy1, cx2, cy2] = noteConnectorPoints(node, node.note);
-        renderNoteConnector(nodeG as GSelection, cx1, cy1, cx2, cy2, palette);
+        renderNoteConnector(nodeG, cx1, cy1, cx2, cy2, palette);
         renderNoteBox(
-          nodeG as GSelection,
+          nodeG,
           {
             x: node.note.x,
             y: node.note.y,

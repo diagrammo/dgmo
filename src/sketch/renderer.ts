@@ -365,7 +365,7 @@ export function renderSketch(
       .attr('font-size', sTitleFontSize)
       .attr('font-weight', 'bold')
       .attr('fill', palette.text)
-      .text(parsed.title!);
+      .text(parsed.title);
   }
 
   // ── Legend ──────────────────────────────────────────────────
@@ -1569,7 +1569,7 @@ export function sketchEdgeGeometry(
 
   // Initial geometry from the congestion-aware side assignment.
   const chosen: Array<{ s: Side; t: Side }> = layout.edges.map(
-    (_, i) => sides[i] ?? { s: 'R' as Side, t: 'L' as Side }
+    (_, i) => sides[i] ?? { s: 'R', t: 'L' }
   );
   const geoms: Array<EdgeGeom | null> = ctx.map((c, i) =>
     c

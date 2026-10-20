@@ -1559,12 +1559,7 @@ export function renderCountdown(
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', fs)
       .attr('font-weight', weight)
-      .text(text) as unknown as d3Selection.Selection<
-      SVGTextElement,
-      unknown,
-      null,
-      undefined
-    >;
+      .text(text);
 
   if (parsed.title) {
     titleLines.forEach((tl, i) => {
@@ -1644,17 +1639,7 @@ export function renderCountdown(
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', noteFont)
         .attr('font-weight', 'normal');
-      renderInlineText(
-        t as unknown as d3Selection.Selection<
-          SVGTextElement,
-          unknown,
-          null,
-          undefined
-        >,
-        nl.text,
-        palette,
-        noteFont
-      );
+      renderInlineText(t, nl.text, palette, noteFont);
       y += Math.round(noteFont * 1.35);
     }
     y += 2;
@@ -1799,17 +1784,7 @@ export function renderCountdown(
       .attr('font-size', detailFont)
       .attr('font-weight', 'normal')
       .attr('data-dgmo-countdown-detail', '');
-    paintClock(
-      detailSel as unknown as d3Selection.Selection<
-        SVGTextElement,
-        unknown,
-        null,
-        undefined
-      >,
-      subText,
-      Math.round(detailFont * 0.66),
-      bandC.now
-    );
+    paintClock(detailSel, subText, Math.round(detailFont * 0.66), bandC.now);
   }
 }
 

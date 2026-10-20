@@ -298,7 +298,7 @@ export function parseExtendedChart(
   content: string,
   palette?: PaletteColors
 ): ParsedExtendedChart {
-  return parseExtendedChartFull(content, palette) as ParsedExtendedChart;
+  return parseExtendedChartFull(content, palette);
 }
 
 // ============================================================

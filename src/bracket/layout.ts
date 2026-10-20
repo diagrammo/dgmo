@@ -411,7 +411,7 @@ function buildCasualSide(
   const roundMemo = new Array<number>(matches.length).fill(0);
   const inProgress = new Set<number>();
   const roundOf = (idx: number): number => {
-    if (roundMemo[idx]) return roundMemo[idx]!;
+    if (roundMemo[idx]) return roundMemo[idx];
     if (inProgress.has(idx)) return 1;
     inProgress.add(idx);
     const m = matches[idx]!;

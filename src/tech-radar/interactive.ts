@@ -495,14 +495,7 @@ function renderHtmlPanel(
         indicatorSvg.setAttribute('width', '26');
         indicatorSvg.setAttribute('height', '26');
         indicatorSvg.style.flexShrink = '0';
-        const indicatorG = d3Selection
-          .select(indicatorSvg)
-          .append('g') as d3Selection.Selection<
-          SVGGElement,
-          unknown,
-          null,
-          undefined
-        >;
+        const indicatorG = d3Selection.select(indicatorSvg).append('g');
         renderTrendIndicator(
           indicatorG,
           blip.trend,
@@ -1077,14 +1070,7 @@ function renderStaticHtmlPanel(
       indicatorSvg.setAttribute('width', '26');
       indicatorSvg.setAttribute('height', '26');
       indicatorSvg.style.flexShrink = '0';
-      const indicatorG = d3Selection
-        .select(indicatorSvg)
-        .append('g') as d3Selection.Selection<
-        SVGGElement,
-        unknown,
-        null,
-        undefined
-      >;
+      const indicatorG = d3Selection.select(indicatorSvg).append('g');
       renderTrendIndicator(
         indicatorG,
         blip.trend,

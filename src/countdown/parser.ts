@@ -43,9 +43,7 @@ import {
   ruleFromAnchor,
   targetToMs as resolveTargetToMs,
   type Cadence,
-  type CountUnits,
   type Field,
-  type RoundMode,
 } from './resolve';
 
 /** Slots that used to sit on `every` and now live on `since` (decision #56). */
@@ -318,7 +316,7 @@ export function parseCountdown(
           v === 'words' ||
           v === 'compound'
         ) {
-          result.units = v as CountUnits;
+          result.units = v;
         } else {
           warn(
             lineNum,
@@ -330,7 +328,7 @@ export function parseCountdown(
       case 'round': {
         const v = rest.toLowerCase();
         if (v === 'up' || v === 'down' || v === 'nearest') {
-          result.round = v as RoundMode;
+          result.round = v;
         } else {
           warn(lineNum, `Unknown round "${rest}" — use up|down|nearest.`);
         }

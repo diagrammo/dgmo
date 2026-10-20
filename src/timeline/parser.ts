@@ -181,10 +181,7 @@ function splitDateParts(input: string): DateParts {
   }
 
   const parts = datePart.split('-').map((p) => parseInt(p, 10));
-  const granularity = (parts.length >= 3 ? 3 : parts.length === 2 ? 2 : 1) as
-    | 1
-    | 2
-    | 3;
+  const granularity = parts.length >= 3 ? 3 : parts.length === 2 ? 2 : 1;
   return {
     sign,
     year: parts[0]!,

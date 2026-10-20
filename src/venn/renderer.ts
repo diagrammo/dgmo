@@ -368,12 +368,7 @@ export function renderVenn(
       )
       .attr('stroke', setColors[i]!)
       .attr('stroke-width', ctx.structural(2))
-      .style('pointer-events', 'none') as d3Selection.Selection<
-      SVGCircleElement,
-      unknown,
-      null,
-      undefined
-    >;
+      .style('pointer-events', 'none');
     circleEls.push(el);
   });
 

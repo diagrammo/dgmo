@@ -460,7 +460,7 @@ export function layoutJourneyMap(
   // this, a single-step journey produces a totalWidth that's narrower than
   // the title + persona row, and the persona panel overlaps the title.
   const headerTitleWidth = hasTitle
-    ? measureText(parsed.title!, 18) // FONT_SIZE_TITLE (18px bold)
+    ? measureText(parsed.title, 18) // FONT_SIZE_TITLE (18px bold)
     : 0;
   const personaPanelWidth = parsed.persona ? PERSONA_PANEL_WIDTH : 0;
   const headerWidth =

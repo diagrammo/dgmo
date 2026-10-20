@@ -243,7 +243,7 @@ export function renderState(
         'cursor',
         onClickItem && graph.titleLineNumber ? 'pointer' : 'default'
       )
-      .text(graph.title!);
+      .text(graph.title);
 
     if (graph.titleLineNumber) {
       titleEl.attr('data-line-number', graph.titleLineNumber);
@@ -514,11 +514,7 @@ export function renderState(
   const nodeIntentColor = (node: LayoutNode): string | undefined =>
     node.color ??
     (activeTagGroup
-      ? resolveTagColor(
-          (node.metadata ?? {}) as Record<string, string>,
-          mutableTagGroups,
-          activeTagGroup
-        )
+      ? resolveTagColor(node.metadata ?? {}, mutableTagGroups, activeTagGroup)
       : undefined);
 
   for (const node of layout.nodes) {

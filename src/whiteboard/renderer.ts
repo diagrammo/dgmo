@@ -385,11 +385,11 @@ export function inkOutlinePath(
   const r = (n: number): string => String(Math.round(n * 100) / 100);
   // Quadratic smoothing through midpoints — perfect-freehand's own recipe.
   const first = outline[0]!;
-  let d = `M${r(first[0]!)} ${r(first[1]!)}Q`;
+  let d = `M${r(first[0])} ${r(first[1])}Q`;
   for (let i = 0; i < outline.length; i++) {
     const a = outline[i]!;
     const b = outline[(i + 1) % outline.length]!;
-    d += `${r(a[0]!)} ${r(a[1]!)} ${r((a[0]! + b[0]!) / 2)} ${r((a[1]! + b[1]!) / 2)} `;
+    d += `${r(a[0])} ${r(a[1])} ${r((a[0] + b[0]) / 2)} ${r((a[1] + b[1]) / 2)} `;
   }
   return d.trimEnd() + 'Z';
 }
@@ -416,7 +416,7 @@ export function renderWhiteboard(
   const contentW = b.maxX - b.minX;
   const contentH = b.maxY - b.minY;
   const titleW = showTitle
-    ? measureText(parsed.title!, TITLE_FONT_SIZE, { bold: true })
+    ? measureText(parsed.title, TITLE_FONT_SIZE, { bold: true })
     : 0;
   const width = Math.ceil(Math.max(contentW, titleW) + 2 * WHITEBOARD_MARGIN);
   const height = Math.ceil(contentH + 2 * WHITEBOARD_MARGIN + titleOffset);

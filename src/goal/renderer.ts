@@ -732,7 +732,7 @@ function renderGauge(
         .text(parsed.title);
       top += titleSize * 0.78 + 16;
     }
-    colBottom = drawNote(svg, parsed.description!, paint, colLeft, top, colW);
+    colBottom = drawNote(svg, parsed.description, paint, colLeft, top, colW);
   } else if (hasTopTitle) {
     faceTitle(svg, parsed, paint, cx, GOAL_TITLE_SIZE);
   }

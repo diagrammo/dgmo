@@ -14,12 +14,6 @@ import { getSimpleChartLegendGroups } from '../data-chart-parser';
 import {
   parseExtendedChart,
   getExtendedChartLegendGroups,
-  type ParsedFunnel,
-  type ParsedHeatmap,
-  type ParsedScatter,
-  type ParsedSankey,
-  type ParsedChord,
-  type ParsedFunctionChart,
 } from '../data-chart-parser';
 import type { PaletteColors } from '../palettes';
 import { getSeriesColors } from '../palettes/color-utils';
@@ -303,7 +297,7 @@ function renderInto(
     case 'funnel':
       renderFunnel(
         s,
-        ext as ParsedFunnel,
+        ext,
         width,
         height,
         seriesColors,
@@ -315,7 +309,7 @@ function renderInto(
     case 'heatmap':
       renderHeatmap(
         s,
-        ext as ParsedHeatmap,
+        ext,
         width,
         height,
         palette,
@@ -340,7 +334,7 @@ function renderInto(
       );
       renderScatter(
         s,
-        ext as ParsedScatter,
+        ext,
         width,
         height,
         seriesColors,
@@ -355,7 +349,7 @@ function renderInto(
     case 'sankey':
       renderSankey(
         s,
-        ext as ParsedSankey,
+        ext,
         width,
         height,
         seriesColors,
@@ -367,7 +361,7 @@ function renderInto(
     case 'chord':
       renderChord(
         s,
-        ext as ParsedChord,
+        ext,
         width,
         height,
         seriesColors,
@@ -392,7 +386,7 @@ function renderInto(
       );
       renderFunction(
         s,
-        ext as ParsedFunctionChart,
+        ext,
         width,
         height,
         seriesColors,

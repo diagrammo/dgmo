@@ -868,7 +868,7 @@ export function buildProjectSubtitle(input: {
   // work (± 2)") there is no adjacent unit for it to borrow at all.
   const sigmaParen =
     sigmaPositive && input.mcRan !== false
-      ? ` (± ${formatPercentile(projectSigma!, unit)})`
+      ? ` (± ${formatPercentile(projectSigma, unit)})`
       : '';
 
   if (projectMu === null) {

@@ -172,14 +172,14 @@ export function renderClockCards(
       .attr('data-dgmo-clock-c-off', sw.off)
       .attr('data-dgmo-clock-c-ok-soft', sw.okSoft)
       .attr('data-dgmo-clock-c-soon-soft', sw.soonSoft)
-      .attr('data-dgmo-clock-c-off-soft', sw.offSoft) as Sel;
+      .attr('data-dgmo-clock-c-off-soft', sw.offSoft);
     if (hasCoords) {
       g.attr('data-dgmo-clock-lat', poi.lat).attr(
         'data-dgmo-clock-lon',
         poi.lon
       );
     }
-    if (isFixed) g.attr('data-dgmo-clock-fixed-offset', poi.tzFixedOffsetMin!);
+    if (isFixed) g.attr('data-dgmo-clock-fixed-offset', poi.tzFixedOffsetMin);
     if (work) {
       g.attr('data-dgmo-clock-work-start', work.startMin)
         .attr('data-dgmo-clock-work-end', work.endMin)

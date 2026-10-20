@@ -211,7 +211,7 @@ function parseVisualizationFull(
     if (!a) return null;
     const arrow = a.rest.match(/^\s*(?:->|–>)\s*/);
     if (!arrow) return null;
-    const b = tlLeadingDate(a.rest.slice(arrow[0]!.length));
+    const b = tlLeadingDate(a.rest.slice(arrow[0].length));
     if (!b) return null;
     return { start: a.iso, end: b.iso, rest: b.rest };
   };

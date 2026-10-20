@@ -707,7 +707,7 @@ export function parseState(
 
     validateTagValues(
       taggable.map((n) => ({
-        metadata: (n.metadata ?? {}) as Record<string, string>,
+        metadata: n.metadata ?? {},
         lineNumber: n.lineNumber,
       })),
       tagGroups,

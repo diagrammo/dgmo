@@ -353,7 +353,7 @@ export function resolveColorWithDiagnostic(
     );
     return undefined;
   }
-  const hint = suggest(color, RECOGNIZED_COLOR_NAMES as readonly string[]);
+  const hint = suggest(color, RECOGNIZED_COLOR_NAMES);
   const suggestion = hint ? ` ${hint}` : '';
   diagnostics.push(
     makeDgmoError(

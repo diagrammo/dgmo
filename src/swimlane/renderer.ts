@@ -122,7 +122,6 @@ function roundedRectPath(
   ].join(' ');
 }
 
-type D3Svg = d3Selection.Selection<SVGSVGElement, unknown, null, undefined>;
 type D3G = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
 
 export interface SwimlaneRenderOptions {
@@ -162,7 +161,7 @@ export function renderSwimlaneForExport(
     .attr('height', height)
     .attr('viewBox', `0 0 ${width} ${height}`)
     .attr('preserveAspectRatio', 'xMidYMin meet')
-    .style('font-family', FONT_FAMILY) as unknown as D3Svg;
+    .style('font-family', FONT_FAMILY);
 
   const defs = svg.append('defs');
   const baseBg = themeBaseBg(palette, isDark);
@@ -182,7 +181,7 @@ export function renderSwimlaneForExport(
 
   const root = svg
     .append('g')
-    .attr('transform', `translate(0, ${titleOffset})`) as unknown as D3G;
+    .attr('transform', `translate(0, ${titleOffset})`);
 
   // ── Title ───────────────────────────────────────────────────
   if (parsed.title) {

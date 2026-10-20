@@ -28,7 +28,7 @@ const surfaceFor = (figure: BodyFigure): Record<string, BodyPartGeometry> => {
 };
 
 export function figureKey(sex: BodySex, view: BodyView): FigureKey {
-  return `${sex}${view === 'front' ? 'Front' : 'Back'}` as FigureKey;
+  return `${sex}${view === 'front' ? 'Front' : 'Back'}`;
 }
 
 export function getFigure(sex: BodySex, view: BodyView): BodyFigure {

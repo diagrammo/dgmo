@@ -187,7 +187,7 @@ async function loadMapDataFromBase(rawBase: string): Promise<MapData> {
       usStates,
       gazetteer,
       ...optional,
-    } as MapData;
+    };
   })().catch((err: unknown) => {
     mapDataCache.delete(base); // don't poison retries with a rejected promise
     throw err;

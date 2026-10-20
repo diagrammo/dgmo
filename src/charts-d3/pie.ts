@@ -91,7 +91,7 @@ export function renderPie(
     .value((d) => d.value)(data.map((d) => ({ value: d.value })));
 
   const arcGen = d3arc<(typeof arcs)[number]>()
-    .innerRadius(hasHole ? radius * holeRatio! : 0)
+    .innerRadius(hasHole ? radius * holeRatio : 0)
     .outerRadius(radius);
 
   const g = svg.append('g').attr('transform', `translate(${cx},${cy})`);

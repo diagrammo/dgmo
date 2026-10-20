@@ -479,7 +479,7 @@ export function peelQuotedName(name: string): string {
   if ((first !== '"' || last !== '"') && (first !== "'" || last !== "'"))
     return name;
   const inner = trimmed.slice(1, -1);
-  if (inner.length === 0 || inner.includes(first!)) return name;
+  if (inner.length === 0 || inner.includes(first)) return name;
   return inner;
 }
 
@@ -628,7 +628,7 @@ export function parseSeriesNames(
         raw,
         palette,
         diagnostics,
-        nameLineNumbers[i]!
+        nameLineNumbers[i]
       );
       names.push(extracted.label);
       nameColors.push(extracted.color);
@@ -657,7 +657,7 @@ export function parseSeriesNames(
       raw,
       palette,
       diagnostics,
-      nameLineNumbers[i]!
+      nameLineNumbers[i]
     );
     nameColors.push(extracted.color);
     names.push(extracted.label);

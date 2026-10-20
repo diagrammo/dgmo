@@ -127,8 +127,6 @@ const lineGeneratorLinear = d3Shape
 // Main Renderer
 // ============================================================
 
-type GSelection = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
-
 export function renderSitemap(
   container: HTMLDivElement,
   parsed: ParsedSitemap,
@@ -363,7 +361,7 @@ export function renderSitemap(
       .append('g')
       .attr('transform', `translate(${c.x}, ${c.y})`)
       .attr('class', 'sitemap-container')
-      .attr('data-line-number', String(c.lineNumber)) as GSelection;
+      .attr('data-line-number', String(c.lineNumber));
 
     if (c.hasChildren) {
       cG.attr('data-node-toggle', c.nodeId)
@@ -530,7 +528,7 @@ export function renderSitemap(
       .attr('transform', `translate(${node.x - node.width / 2}, ${node.y})`)
       .attr('class', 'sitemap-node')
       .attr('data-line-number', String(node.lineNumber))
-      .attr('data-node-id', node.id) as GSelection;
+      .attr('data-node-id', node.id);
 
     if (node.hasChildren) {
       nodeG
@@ -719,7 +717,7 @@ export function renderSitemap(
       }
     }
 
-    titleEl.text(parsed.title!);
+    titleEl.text(parsed.title);
   }
 
   if (fixedLegend) {

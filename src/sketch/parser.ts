@@ -16,7 +16,6 @@
 // fatal.
 
 import type { PaletteColors } from '../palettes';
-import type { DgmoError } from '../diagnostics';
 import {
   NAME_DIAGNOSTIC_CODES,
   formatDgmoError,
@@ -254,7 +253,7 @@ export function parseSketch(
       registryFor(),
       tagAliasMap,
       palette,
-      result.diagnostics as DgmoError[],
+      result.diagnostics,
       lineNumber
     );
     // Sketch has no manual colors — a peeled trailing color token is part of
@@ -444,7 +443,7 @@ export function parseSketch(
         registryFor(),
         tagAliasMap,
         palette,
-        result.diagnostics as DgmoError[],
+        result.diagnostics,
         lineNumber,
         { peelAlias: false }
       );
@@ -568,7 +567,7 @@ export function parseSketch(
             const { label, color } = extractColor(
               cleanEntry,
               palette,
-              result.diagnostics as DgmoError[],
+              result.diagnostics,
               lineNumber
             );
             if (isDefault) currentTagGroup.defaultValue = label;
@@ -595,7 +594,7 @@ export function parseSketch(
       const { label, color } = extractColor(
         cleanEntry,
         palette,
-        result.diagnostics as DgmoError[],
+        result.diagnostics,
         lineNumber
       );
       if (isDefault) currentTagGroup.defaultValue = label;
@@ -662,7 +661,7 @@ export function parseSketch(
     if (trimmed.startsWith('>')) {
       const descLine = trimmed.slice(1).replace(/^ /, '');
       if (indent > 0 && currentShape && indent > currentShape.indent) {
-        const node = nodeById.get(currentShape.id) as WritableNode | undefined;
+        const node = nodeById.get(currentShape.id);
         if (node) {
           node.description =
             node.description === undefined
@@ -817,10 +816,7 @@ export function parseSketch(
         }
       }
     }
-    injectDefaultTagMetadata(
-      [...nodes, ...boxes],
-      result.tagGroups as TagGroup[]
-    );
+    injectDefaultTagMetadata([...nodes, ...boxes], result.tagGroups);
     validateTagValues(
       [...nodes, ...boxes, ...(result.edges as Writable<SketchEdge>[])],
       result.tagGroups,

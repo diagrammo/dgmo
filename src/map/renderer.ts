@@ -684,9 +684,9 @@ function drawMap(
       for (const l of labels) {
         const multi = l.lines && l.lines.length > 1;
         const tw = multi
-          ? Math.max(...l.lines!.map((s) => measureText(s, LABEL_FONT)))
+          ? Math.max(...l.lines.map((s) => measureText(s, LABEL_FONT)))
           : measureText(l.text, LABEL_FONT);
-        const th = multi ? l.lines!.length * (LABEL_FONT + 2) : LABEL_FONT;
+        const th = multi ? l.lines.length * (LABEL_FONT + 2) : LABEL_FONT;
         // Anchor → blob centre x; cy nudged up from the text baseline to the
         // glyph visual centre.
         const cx =
@@ -964,7 +964,7 @@ function drawMap(
     let fromX: number;
     let fromY: number;
     if (m[3] !== undefined) {
-      ex = +m[3]!;
+      ex = +m[3];
       ey = +m[4]!;
       fromX = x0;
       fromY = y0;

@@ -43,8 +43,6 @@ import {
   NOTE_BADGE_RADIUS,
 } from '../utils/note-box';
 
-type GSelection = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
-
 // ============================================================
 // Constants
 // ============================================================
@@ -439,7 +437,7 @@ export function renderClassDiagram(
         'cursor',
         onClickItem && parsed.titleLineNumber ? 'pointer' : 'default'
       )
-      .text(parsed.title!);
+      .text(parsed.title);
 
     if (parsed.titleLineNumber) {
       titleEl.attr('data-line-number', parsed.titleLineNumber);
@@ -761,7 +759,7 @@ export function renderClassDiagram(
     if (node.note) {
       if (node.note.collapsed) {
         renderNoteBadge(
-          nodeG as GSelection,
+          nodeG,
           {
             x: w / 2 - NOTE_BADGE_RADIUS - 3,
             y: -h / 2 + NOTE_BADGE_RADIUS + 3,
@@ -779,9 +777,9 @@ export function renderClassDiagram(
           { width: w, height: h },
           node.note
         );
-        renderNoteConnector(nodeG as GSelection, cx1, cy1, cx2, cy2, palette);
+        renderNoteConnector(nodeG, cx1, cy1, cx2, cy2, palette);
         renderNoteBox(
-          nodeG as GSelection,
+          nodeG,
           {
             x: node.note.x,
             y: node.note.y,
