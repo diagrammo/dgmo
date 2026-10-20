@@ -3,6 +3,20 @@
 // ============================================================
 
 import type * as d3Scale from 'd3-scale';
+import { measureText } from './text-measure';
+
+/** How the axis draws its tick labels, so they can be measured (#1426). */
+export interface TickLabelFit {
+  /** Font size the labels are drawn at. */
+  fontSize: number;
+  /** True when labels stack down a vertical axis rather than along a row. */
+  vertical?: boolean;
+}
+
+/** Clear space kept between neighbouring tick labels — the category axis's. */
+const TICK_LABEL_GAP = 8;
+
+type SlottedTick = { pos: number; label: string; slot: number };
 
 export const MONTH_ABBR = [
   'Jan',
@@ -70,13 +84,18 @@ export function computeTimeTicks(
   boundaryStart?: number,
   boundaryEnd?: number,
   boundaryStartLabel?: string,
-  boundaryEndLabel?: string
+  boundaryEndLabel?: string,
+  labelFit: TickLabelFit = { fontSize: 10 }
 ): { pos: number; label: string }[] {
   const minYear = Math.floor(domainMin);
   const maxYear = Math.floor(domainMax);
   const span = domainMax - domainMin;
 
-  let ticks: { pos: number; label: string }[] = [];
+  // `slot` numbers each standard tick on its own interval (a year, a month
+  // index, or its order), so thinning can step to a coarser round interval.
+  let ticks: SlottedTick[] = [];
+  // Strides to try, finest first, when the labels do not fit (#1426).
+  let strides: number[] = [];
 
   // Year ticks for multi-year spans (need at least 2 boundaries)
   const firstYear = Math.ceil(domainMin);
@@ -96,9 +115,12 @@ export function computeTimeTicks(
     else if (yearSpan > 10) step = 2;
 
     // Align to step boundary so ticks land on round years (1700, 1710, …)
+    strides = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000].filter(
+      (c) => c % step === 0
+    );
     const alignedFirst = Math.ceil(firstYear / step) * step;
     for (let y = alignedFirst; y <= lastYear; y += step) {
-      ticks.push({ pos: scale(y), label: formatYearTick(y) });
+      ticks.push({ pos: scale(y), label: formatYearTick(y), slot: y });
     }
   } else if (span > 0.25) {
     // Month ticks for spans > ~3 months
@@ -113,6 +135,8 @@ export function computeTimeTicks(
           ticks.push({
             pos: scale(val),
             label: crossesYear ? `${abbr} '${String(y).slice(-2)}` : abbr,
+            // Month index, so a stride of 3 lands on Jan, Apr, Jul, Oct.
+            slot: y * 12 + (m - 1),
           });
         }
       }
@@ -140,7 +164,11 @@ export function computeTimeTicks(
         const hh = String(startDate.getHours()).padStart(2, '0');
         const mm = String(startDate.getMinutes()).padStart(2, '0');
         const ss = String(startDate.getSeconds()).padStart(2, '0');
-        ticks.push({ pos: scale(val), label: `${hh}:${mm}:${ss}` });
+        ticks.push({
+          pos: scale(val),
+          label: `${hh}:${mm}:${ss}`,
+          slot: ticks.length,
+        });
       }
       startDate.setSeconds(startDate.getSeconds() + stepSec);
     }
@@ -168,7 +196,11 @@ export function computeTimeTicks(
       if (val >= domainMin) {
         const hh = String(startDate.getHours()).padStart(2, '0');
         const mm = String(startDate.getMinutes()).padStart(2, '0');
-        ticks.push({ pos: scale(val), label: `${hh}:${mm}` });
+        ticks.push({
+          pos: scale(val),
+          label: `${hh}:${mm}`,
+          slot: ticks.length,
+        });
       }
       startDate.setMinutes(startDate.getMinutes() + stepMin);
     }
@@ -200,11 +232,19 @@ export function computeTimeTicks(
         const hh = String(startDate.getHours()).padStart(2, '0');
         const mm = String(startDate.getMinutes()).padStart(2, '0');
         if (singleDay) {
-          ticks.push({ pos: scale(val), label: `${hh}:${mm}` });
+          ticks.push({
+            pos: scale(val),
+            label: `${hh}:${mm}`,
+            slot: ticks.length,
+          });
         } else {
           const mon = MONTH_ABBR[startDate.getMonth()];
           const d = startDate.getDate();
-          ticks.push({ pos: scale(val), label: `${mon} ${d} ${hh}:${mm}` });
+          ticks.push({
+            pos: scale(val),
+            label: `${mon} ${d} ${hh}:${mm}`,
+            slot: ticks.length,
+          });
         }
       }
       startDate.setHours(startDate.getHours() + stepHour);
@@ -220,6 +260,7 @@ export function computeTimeTicks(
             ticks.push({
               pos: scale(val),
               label: `${MONTH_ABBR[m - 1]} ${d}`,
+              slot: ticks.length,
             });
           }
         }
@@ -227,17 +268,21 @@ export function computeTimeTicks(
     }
   }
 
+  if (strides.length === 0) strides = [1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48];
+
   // Add boundary ticks at exact data start/end if provided
   // When a boundary tick collides with a standard tick, replace the standard tick
   const collisionThreshold = 40; // pixels
 
+  let startBoundary: { pos: number; label: string } | null = null;
+  let endBoundary: { pos: number; label: string } | null = null;
   if (boundaryStart !== undefined && boundaryStartLabel) {
     const boundaryPos = scale(boundaryStart);
     // Remove any standard ticks that would collide with the start boundary
     ticks = ticks.filter(
       (t) => Math.abs(t.pos - boundaryPos) >= collisionThreshold
     );
-    ticks.unshift({ pos: boundaryPos, label: boundaryStartLabel });
+    startBoundary = { pos: boundaryPos, label: boundaryStartLabel };
   }
 
   if (boundaryEnd !== undefined && boundaryEndLabel) {
@@ -246,8 +291,68 @@ export function computeTimeTicks(
     ticks = ticks.filter(
       (t) => Math.abs(t.pos - boundaryPos) >= collisionThreshold
     );
-    ticks.push({ pos: boundaryPos, label: boundaryEndLabel });
+    endBoundary = { pos: boundaryPos, label: boundaryEndLabel };
   }
 
-  return ticks;
+  return fitTickLabels(ticks, startBoundary, endBoundary, strides, labelFit);
+}
+
+/**
+ * Thin the standard ticks until no two labels overlap or come within
+ * TICK_LABEL_GAP of each other (#1426). Tries each stride in turn, keeping
+ * only ticks whose slot is a multiple of it, so the axis steps to a coarser
+ * round interval rather than dropping labels at random. Boundary ticks are
+ * kept; a standard tick whose label would touch one is dropped. A chart whose
+ * labels already fit keeps every tick, so its axis is unchanged.
+ */
+function fitTickLabels(
+  standard: SlottedTick[],
+  startBoundary: { pos: number; label: string } | null,
+  endBoundary: { pos: number; label: string } | null,
+  strides: number[],
+  fit: TickLabelFit
+): { pos: number; label: string }[] {
+  const extent = (label: string): number =>
+    fit.vertical ? fit.fontSize * 1.2 : measureText(label, fit.fontSize);
+  type Span = { pos: number; label: string; lo: number; hi: number };
+  const span = (t: { pos: number; label: string }): Span => {
+    const half = extent(t.label) / 2;
+    return { pos: t.pos, label: t.label, lo: t.pos - half, hi: t.pos + half };
+  };
+  const apart = (a: Span, b: Span): boolean =>
+    a.hi + TICK_LABEL_GAP <= b.lo || b.hi + TICK_LABEL_GAP <= a.lo;
+  const fitsInOrder = (spans: Span[]): boolean => {
+    const sorted = [...spans].sort((a, b) => a.lo - b.lo);
+    for (let i = 1; i < sorted.length; i++) {
+      if (!apart(sorted[i - 1]!, sorted[i]!)) return false;
+    }
+    return true;
+  };
+
+  const start = startBoundary ? span(startBoundary) : null;
+  let end = endBoundary ? span(endBoundary) : null;
+  // The end boundary goes when it would touch the start one.
+  if (start && end && !apart(start, end)) end = null;
+  const pinned = [start, end].filter((p): p is Span => p !== null);
+  const withPinned = (kept: Span[]): Span[] => [
+    ...(start ? [start] : []),
+    ...kept,
+    ...(end ? [end] : []),
+  ];
+
+  const strip = (s: Span): { pos: number; label: string } => ({
+    pos: s.pos,
+    label: s.label,
+  });
+  for (const stride of strides) {
+    const kept = standard
+      .filter((t) => t.slot % stride === 0)
+      .map(span)
+      .filter((s) => pinned.every((p) => apart(p, s)));
+    if (kept.length === 0 && pinned.length === 0) continue;
+    if (fitsInOrder(kept)) {
+      return withPinned(kept).map(strip);
+    }
+  }
+  return withPinned([]).map(strip);
 }

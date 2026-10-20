@@ -979,6 +979,13 @@ declare function getSimpleChartLegendGroups(parsed: ParsedChart, colors: string[
  */
 declare function getExtendedChartLegendGroups(parsed: ParsedExtendedChart, colors: string[]): LegendGroupData[];
 
+/** How the axis draws its tick labels, so they can be measured (#1426). */
+interface TickLabelFit {
+    /** Font size the labels are drawn at. */
+    fontSize: number;
+    /** True when labels stack down a vertical axis rather than along a row. */
+    vertical?: boolean;
+}
 /**
  * Generates adaptive tick marks along a time axis.
  * Picks the right granularity (years, months, weeks, days, hours, minutes)
@@ -988,7 +995,7 @@ declare function getExtendedChartLegendGroups(parsed: ParsedExtendedChart, color
  * - boundaryStart/boundaryEnd: numeric date values
  * - boundaryStartLabel/boundaryEndLabel: formatted labels for those dates
  */
-declare function computeTimeTicks(domainMin: number, domainMax: number, scale: d3Scale.ScaleLinear<number, number>, boundaryStart?: number, boundaryEnd?: number, boundaryStartLabel?: string, boundaryEndLabel?: string): {
+declare function computeTimeTicks(domainMin: number, domainMax: number, scale: d3Scale.ScaleLinear<number, number>, boundaryStart?: number, boundaryEnd?: number, boundaryStartLabel?: string, boundaryEndLabel?: string, labelFit?: TickLabelFit): {
     pos: number;
     label: string;
 }[];

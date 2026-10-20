@@ -478,7 +478,8 @@ function renderTimeScale(
     boundaryStart,
     boundaryEnd,
     boundaryStartLabel,
-    boundaryEndLabel
+    boundaryEndLabel,
+    { fontSize: 10, vertical: isVertical }
   );
   if (ticks.length < 2) return;
 
