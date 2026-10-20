@@ -19,7 +19,7 @@ exports[`map layout golden output > is unchanged — dark, 520x900 1`] = `
   "map-route.dgmo": "3c737dfd9ab56b97 23044b",
   "map-subnational-zoom.dgmo": "60e5c9b6a22b8a1a 125262b",
   "map-tagged-legs.dgmo": "58990d3761cfe0e5 84893b",
-  "map-undirected-edges.dgmo": "85c86d29ae00477f 10223b 9err",
+  "map-undirected-edges.dgmo": "ee529189a02241ce 19523b",
 }
 `;
 
@@ -42,7 +42,7 @@ exports[`map layout golden output > is unchanged — dark, 1200x800 1`] = `
   "map-route.dgmo": "5732742b610cda46 22816b",
   "map-subnational-zoom.dgmo": "4ab801bafe92f8b4 126015b",
   "map-tagged-legs.dgmo": "500e07a8678b4f0b 75442b",
-  "map-undirected-edges.dgmo": "857ec8bd80b937dc 10056b 9err",
+  "map-undirected-edges.dgmo": "b4b07256ad7a934b 18597b",
 }
 `;
 
@@ -65,7 +65,7 @@ exports[`map layout golden output > is unchanged — light, 520x900 1`] = `
   "map-route.dgmo": "1b1ffbb0f78ea95d 23047b",
   "map-subnational-zoom.dgmo": "4b94aa07fd1a3242 125265b",
   "map-tagged-legs.dgmo": "e0fc8014ffed28c6 84896b",
-  "map-undirected-edges.dgmo": "a14f58796553a6f2 10226b 9err",
+  "map-undirected-edges.dgmo": "3c7c7f42cd963329 19526b",
 }
 `;
 
@@ -88,6 +88,6 @@ exports[`map layout golden output > is unchanged — light, 1200x800 1`] = `
   "map-route.dgmo": "f70233579a78668b 22819b",
   "map-subnational-zoom.dgmo": "4d4d0d070c378ce7 125889b",
   "map-tagged-legs.dgmo": "be9c821b6a5c3ad0 75445b",
-  "map-undirected-edges.dgmo": "45f9f601d8742624 10059b 9err",
+  "map-undirected-edges.dgmo": "a788d50a122e3991 18600b",
 }
 `;
