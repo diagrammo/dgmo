@@ -5,6 +5,44 @@ All notable changes to `@diagrammo/dgmo` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.92.1] - 2026-10-20
+
+### Fixed
+
+- **A Gantt chart's label column is capped at a third of the chart width.**
+  A long task name now wraps instead of squeezing the bars into a sliver.
+- **A timeline's swimlane label column is capped the same way.**
+- **Time-axis labels no longer run together on a narrow chart.** Timeline
+  and Gantt axes measure their labels and step to a coarser round interval
+  — months by 1, 2, 3 or 6, years by 1, 2, 5 or 10.
+
+## [0.92.0] - 2026-10-20
+
+### Added
+
+- **`sourceOpen` starts an embed with its source panel expanded.** It
+  implies `source`.
+- **A fence accepts a share link after the live-link keyword.**
+- **A truncated node carries its full text in `data-full-text`,** so screen
+  readers and tooltips can reach it.
+- **Legend hover works in exported and embedded SVG** for every chart that
+  has tags — line, timeline, class, ER, function, body, treemap, kanban,
+  family, map, journey map and bracket.
+
+### Changed
+
+- **The whiteboard draws its elements in bands by kind,** keeping file order
+  inside each band.
+- **Boxes-and-lines layouts count arrows that pass through other groups**
+  and avoid them where they can.
+
+### Fixed
+
+- **Long flowchart labels wrap,** and notes stay off edge lines and clear of
+  other shapes.
+- **mapshaper is raised to 0.7.84,** which drops three vulnerable
+  transitive packages.
+
 ## [0.91.1] - 2026-10-14
 
 ### Fixed
