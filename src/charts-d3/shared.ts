@@ -368,6 +368,14 @@ export function drawValueLabel(
 
 /** Rotation applied when labels cannot fit flat — matches heatmap's column labels. */
 const LABEL_ROTATE_DEG = 40;
+/**
+ * The most categories an axis may have and never drop a label. A short axis
+ * names things a reader has to tell apart — six services thinned to every other
+ * name left three bars unnamed (#1473) — so where its labels do not fit flat it
+ * rotates them, all of them. Longer axes (dates, many points) still thin by 2
+ * before rotating, and thin the rotated labels when rotation is not enough.
+ */
+const NEVER_THIN_MAX = 12;
 /** Clear space between two adjacent flat labels before they read as touching. */
 const LABEL_GAP = 8;
 /** A rotated label occupies its line height along the axis, not its width. */
@@ -438,16 +446,19 @@ export function planCategoryLabels(
     };
   }
 
-  // 2. A stride of 2 is cheaper to read than rotating the whole axis.
+  // 2. A stride of 2 is cheaper to read than rotating the whole axis — on a
+  //    long axis only. A short one rotates rather than drop a name.
   const flatStride = Math.ceil(flatNeeds / slot);
-  if (flatStride <= 2) {
+  if (flatStride <= 2 && n > NEVER_THIN_MAX) {
     return { rotate: false, stride: 2, height: flatHeight, keep: all(2) };
   }
 
-  // 3/4. Rotate, thinning further only if rotation alone is not enough.
+  // 3/4. Rotate, thinning further only if rotation alone is not enough — and
+  //      never on a short axis.
   const rad = (LABEL_ROTATE_DEG * Math.PI) / 180;
   const rotNeeds = (font * LABEL_LINE_HEIGHT) / Math.sin(rad);
-  const stride = Math.max(1, Math.ceil(rotNeeds / slot));
+  const stride =
+    n <= NEVER_THIN_MAX ? 1 : Math.max(1, Math.ceil(rotNeeds / slot));
   return {
     rotate: true,
     stride,

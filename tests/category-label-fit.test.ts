@@ -19,13 +19,26 @@ describe('planCategoryLabels', () => {
     expect(plan).toMatchObject({ rotate: false, stride: 1 });
   });
 
-  it('thins by 2 rather than rotating when a stride of 2 clears it', () => {
+  it('thins a long axis by 2 rather than rotating when a stride of 2 clears it', () => {
     // "Mon" is ~28px at 12px; a 20px slot needs a stride of 2, not rotation.
     const w = measureText('Mon', TICK_FONT);
     expect(w).toBeGreaterThan(20);
     expect(w + 8).toBeLessThanOrEqual(40);
-    const plan = planCategoryLabels(['Mon', 'Tue', 'Wed', 'Thu'], 20);
+    const days = Array.from({ length: 13 }, () => 'Mon');
+    const plan = planCategoryLabels(days, 20);
     expect(plan).toMatchObject({ rotate: false, stride: 2 });
+  });
+
+  it('rotates a short axis rather than dropping any of its names (#1473)', () => {
+    // The same squeeze on twelve categories or fewer: every name stays.
+    for (const n of [2, 4, 6, 12]) {
+      const plan = planCategoryLabels(
+        Array.from({ length: n }, () => 'Mon'),
+        20
+      );
+      expect(plan.rotate).toBe(true);
+      expect(plan.keep.size).toBe(n);
+    }
   });
 
   it('rotates rather than dropping two labels in three', () => {
@@ -132,6 +145,23 @@ describe('the rendered axis', () => {
       'light'
     );
     expect(svg).toContain('rotate(-40)');
+  });
+
+  it('names every bar of a six-service chart (#1473)', async () => {
+    const services = [
+      'Edge CDN',
+      'API gateway',
+      'Auth service',
+      'Billing worker',
+      'Audit logger',
+      'Legacy SOAP bridge',
+    ];
+    const body = services.map((s, i) => `${s} ${10 ** (6 - i)}`).join('\n');
+    const svg = await renderDataChartD3(
+      `bar Requests per Second by Service\n\n${body}`,
+      'light'
+    );
+    for (const s of services) expect(svg).toContain(`>${s}<`);
   });
 
   it('leaves horizontal bars alone — their names live in the left gutter', async () => {
