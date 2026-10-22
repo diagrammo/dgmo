@@ -21,6 +21,7 @@ import {
   fixedParts,
   zoneParts,
   formatTime,
+  fixedTimeCells,
   sunLine,
   workStatus,
   type WorkSpec,
@@ -33,6 +34,13 @@ import type { MapLayoutPoi } from './layout';
 type Sel = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
 
 const WEEKDAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+/** Longest form of each status phrase workStatus emits (fmtDelta caps under 24h). */
+const WIDEST_STATUS = [
+  'starts in 23h 59m',
+  'ended 23h 59m ago',
+  '23h 59m left',
+  'Weekend',
+];
 
 const clamp = (v: number, lo: number, hi: number): number =>
   Math.max(lo, Math.min(hi, v));
@@ -117,14 +125,12 @@ export function renderClockCards(
     // am/pm BELOW (mirrors the clock chart's digital readout). ──
     const mainFont = 18;
     const sf = 8; // seconds + am/pm stack font (~0.44 of main, like the clock)
-    // Pin every numeric advance to a fixed tabular estimate (colon ~0.334em,
-    // digits ~0.6em) and force it with `textLength` on the ticking nodes, exactly
-    // as the standalone clock does. Without this the seconds glyphs shape to their
-    // proportional widths and visibly wiggle as they tick each second. `:SS` is
-    // always colon + two digits → this width is invariant to the actual second.
+    // HH:MM as fixed per-glyph cells, exactly as the standalone clock draws it
+    // (see fixedTimeCells): uniform advance on every engine, and the ticker
+    // rebuilds the cells from the baked x0/fs/gap. Pin the seconds advance to a
+    // tabular estimate and force it with `textLength` so it doesn't wiggle.
     const advance = (s: string, f: number): number =>
       [...s].reduce((w, c) => w + f * (c === ':' ? 0.334 : 0.6), 0);
-    const mainW = advance(ts.main, mainFont);
     const secW = advance(`:${ts.sec}`, sf);
     const stackW = Math.max(secW, ts.ap ? measureText(ts.ap, sf) : 0);
     const stackGap = 6;
@@ -135,8 +141,20 @@ export function renderClockCards(
     const iconR = 3.5;
     const iconGap = 5;
     const line2Icon = status ? iconR * 2 + iconGap : 0;
-    const line1W = mainW + stackGap + stackW;
-    const line2W = line2Icon + measureText(line2, 10.5);
+    // Size for the WIDEST text the ticker can later write, not just what is
+    // baked now: a page prerendered hours ago (a static docs site) ticks
+    // "4h left" into "starts in 23h 59m". Same for "9:05" → "12:59".
+    const mainMaxW = fixedTimeCells('00:00', 0, mainFont).width;
+    const line1W = mainMaxW + stackGap + stackW;
+    const weekdayPrefix = showWeekday ? `${parts.weekday} · ` : '';
+    const line2W =
+      line2Icon +
+      Math.max(
+        measureText(line2, 10.5),
+        ...(status ? WIDEST_STATUS : []).map((t) =>
+          measureText(weekdayPrefix + t, 10.5)
+        )
+      );
     const cardW = Math.max(line1W, line2W) + padX * 2;
     const cardH = 44;
     const leaderGap = 7;
@@ -219,18 +237,20 @@ export function renderClockCards(
     // right — seconds ABOVE, am/pm BELOW (mirrors the clock chart). ──
     const line1Y = cardTop + 20; // baseline of the big HH:MM
     const timeX = cardLeft + padX;
-    g.append('text')
+    const { cells, width: mainW } = fixedTimeCells(ts.main, timeX, mainFont);
+    const mainText = g
+      .append('text')
       .attr('data-dgmo-clock-digital-part', 'main')
-      .attr('x', timeX)
       .attr('y', line1Y)
+      .attr('text-anchor', 'middle')
       .attr('font-family', FONT_FAMILY)
       .attr('fill', palette.text)
       .attr('font-size', mainFont)
       .attr('font-weight', 'bold')
-      .attr('textLength', mainW)
-      .attr('lengthAdjust', 'spacing')
-      .style('font-variant-numeric', 'tabular-nums')
-      .text(ts.main);
+      .attr('data-dgmo-clock-x0', timeX)
+      .attr('data-dgmo-clock-fs', mainFont)
+      .attr('data-dgmo-clock-gap', stackGap);
+    for (const c of cells) mainText.append('tspan').attr('x', c.x).text(c.ch);
     // Seconds cap-align to the TOP of the digits, am/pm baseline-align to their
     // BOTTOM, so the trio brackets the big HH:MM as one unit (like the clock).
     const stackX = timeX + mainW + stackGap;

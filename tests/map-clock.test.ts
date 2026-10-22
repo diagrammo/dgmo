@@ -8,6 +8,8 @@ import { renderMap } from '../src/map/renderer';
 import { getPalette } from '../src/palettes';
 import { loadMapData } from '../src/map/load-data';
 import type { MapData } from '../src/map/resolved-types';
+import { measureText } from '../src/utils/text-measure';
+import { tickClocks } from '../src/clock/ticker';
 
 let DATA: MapData;
 beforeAll(async () => {
@@ -184,6 +186,38 @@ describe('map clock channel — card render (ticker contract)', () => {
     ).toBeTruthy();
     expect(g.querySelector('[data-dgmo-clock-status-icon]')).toBeTruthy();
     expect(g.getAttribute('data-dgmo-clock-work-start')).toBe('540');
+  });
+
+  it('bakes the fixed-cell anchors the ticker rebuilds the time from', () => {
+    const svg = render('map\npoi Denver clock');
+    const main = svg.querySelector('[data-dgmo-clock-digital-part="main"]')!;
+    // Without x0/fs the ticker redraws every digit at x=0, font-size 0.
+    expect(Number(main.getAttribute('data-dgmo-clock-x0'))).toBeGreaterThan(0);
+    expect(Number(main.getAttribute('data-dgmo-clock-fs'))).toBeGreaterThan(0);
+    expect(main.getAttribute('data-dgmo-clock-gap')).not.toBeNull();
+    expect(main.querySelectorAll('tspan[x]').length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('a live tick keeps the time inside the card', () => {
+    const svg = render('map\npoi Denver clock');
+    const main = svg.querySelector('[data-dgmo-clock-digital-part="main"]')!;
+    main.textContent = 'stale'; // force setDigits to rebuild the cells
+    tickClocks(svg);
+    const rect = svg.querySelector('[data-dgmo-clock] rect')!;
+    const left = Number(rect.getAttribute('x'));
+    const xs = [...main.querySelectorAll('tspan')].map((t) =>
+      Number(t.getAttribute('x'))
+    );
+    expect(xs.length).toBeGreaterThanOrEqual(4);
+    for (const x of xs) expect(x).toBeGreaterThan(left);
+  });
+
+  it('sizes the card for the longest status the ticker can write', () => {
+    const svg = render('map\nhours 9-17\nworkweek mon-fri\npoi Denver clock');
+    const rect = svg.querySelector('[data-dgmo-clock] rect')!;
+    // A prerendered page ticks a short baked status into "starts in 23h 59m".
+    const widest = 7 + 5 + measureText('starts in 23h 59m', 10.5);
+    expect(Number(rect.getAttribute('width'))).toBeGreaterThanOrEqual(widest);
   });
 
   it('renders no cards when no pin is flagged', () => {

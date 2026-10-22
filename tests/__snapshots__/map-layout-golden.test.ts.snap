@@ -2,9 +2,9 @@
 
 exports[`map layout golden output > is unchanged — dark, 520x900 1`] = `
 {
-  "content/map-office-hours.dgmo": "75847858db8842dd 645932b",
+  "content/map-office-hours.dgmo": "2de05f1ae7f1dcee 646545b",
   "content/map-route.dgmo": "0b0aee4957507bb3 54438b",
-  "content/map.dgmo": "f53e11ddf4eb7fa9 322405b",
+  "content/map.dgmo": "a8cc8e846e9e175e 322731b",
   "map-categorical-world.dgmo": "b5a935efa1c1b028 639802b",
   "map-categorical.dgmo": "e2691e68e05e2b14 638383b",
   "map-choropleth-diverging.dgmo": "951c295f07c7e88b 316522b",
@@ -25,9 +25,9 @@ exports[`map layout golden output > is unchanged — dark, 520x900 1`] = `
 
 exports[`map layout golden output > is unchanged — dark, 1200x800 1`] = `
 {
-  "content/map-office-hours.dgmo": "abe26238ac4c8dc1 1138021b",
+  "content/map-office-hours.dgmo": "b7582d8e1d7c627c 1138662b",
   "content/map-route.dgmo": "4bb9cae24b0a22ba 23316b",
-  "content/map.dgmo": "1585e19ceedbdd6d 401972b",
+  "content/map.dgmo": "230dd1ebfa4b6ec2 402378b",
   "map-categorical-world.dgmo": "81968e3e32f86f1e 1083408b",
   "map-categorical.dgmo": "c846e0df765f0fb6 1082148b",
   "map-choropleth-diverging.dgmo": "9dab8f5366eaaa08 381446b",
@@ -48,9 +48,9 @@ exports[`map layout golden output > is unchanged — dark, 1200x800 1`] = `
 
 exports[`map layout golden output > is unchanged — light, 520x900 1`] = `
 {
-  "content/map-office-hours.dgmo": "bf007190b56a66b5 645935b",
+  "content/map-office-hours.dgmo": "d1ce7f34e497e2c0 646548b",
   "content/map-route.dgmo": "dd64a0fa3bc072e9 54441b",
-  "content/map.dgmo": "9b7e6e187e1838b8 322408b",
+  "content/map.dgmo": "c5aa8f274477a04b 322734b",
   "map-categorical-world.dgmo": "28b4163dd4aa40a3 639805b",
   "map-categorical.dgmo": "00b58ec16cf67f2c 638386b",
   "map-choropleth-diverging.dgmo": "f864d914aa780907 316525b",
@@ -71,9 +71,9 @@ exports[`map layout golden output > is unchanged — light, 520x900 1`] = `
 
 exports[`map layout golden output > is unchanged — light, 1200x800 1`] = `
 {
-  "content/map-office-hours.dgmo": "49188a7111b289bf 1138024b",
+  "content/map-office-hours.dgmo": "7214ceaf32796cc1 1138665b",
   "content/map-route.dgmo": "2487741967aa96d4 23319b",
-  "content/map.dgmo": "ea0587f82c138cfc 401975b",
+  "content/map.dgmo": "7af1df41f26408c1 402381b",
   "map-categorical-world.dgmo": "58c2bd0af7efa4b7 1082926b",
   "map-categorical.dgmo": "7aee44320882e32b 1081666b",
   "map-choropleth-diverging.dgmo": "4257ffb103e8878d 381326b",
