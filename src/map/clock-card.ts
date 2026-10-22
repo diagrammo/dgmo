@@ -142,7 +142,7 @@ export function renderClockCards(
     const iconGap = 5;
     const line2Icon = status ? iconR * 2 + iconGap : 0;
     // Size for the WIDEST text the ticker can later write, not just what is
-    // baked now: a page prerendered hours ago (a static docs site) ticks
+    // baked now: a page rendered at build time, hours ago (a static docs site) ticks
     // "4h left" into "starts in 23h 59m". Same for "9:05" → "12:59".
     const mainMaxW = fixedTimeCells('00:00', 0, mainFont).width;
     const line1W = mainMaxW + stackGap + stackW;
