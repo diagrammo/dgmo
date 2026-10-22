@@ -1,0 +1,9 @@
+bar Requests per Second by Service
+// stress: extreme-values — one value six orders of magnitude above the rest, plus a zero
+// known: diagrammo/diagrammo#1473
+Edge CDN 4800000
+API gateway 52000
+Auth service 1800
+Billing worker 36
+Audit logger 4
+Legacy SOAP bridge 0

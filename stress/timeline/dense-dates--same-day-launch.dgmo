@@ -1,0 +1,15 @@
+timeline Launch Day Checklist
+// stress: dense-dates — a dozen events inside two hours on one day
+// known: diagrammo/diagrammo#1474
+2026-06-02 08:00 -> 2026-06-02 08:15 Freeze merges
+2026-06-02 08:05 -> 2026-06-02 08:20 Final regression run
+2026-06-02 08:10 -> 2026-06-02 08:30 Tag release candidate
+2026-06-02 08:12 -> 2026-06-02 08:40 Build installers
+2026-06-02 08:20 -> 2026-06-02 08:50 Sign and notarize
+2026-06-02 08:30 -> 2026-06-02 09:10 Upload to CDN
+2026-06-02 08:31 -> 2026-06-02 08:45 Update status page
+2026-06-02 08:32 -> 2026-06-02 08:35 Notify support
+2026-06-02 09:00 -> 2026-06-02 09:30 Smoke test production
+2026-06-02 09:05 -> 2026-06-02 09:20 Publish release notes
+2026-06-02 09:06 -> 2026-06-02 09:07 Send announcement email
+2026-06-02 09:30 -> 2026-06-02 10:00 Watch error dashboards
