@@ -36,6 +36,7 @@ import {
   DAY_MS,
   dayStart as tzDayStart,
   sameDay,
+  dayKey,
   formatCompound,
   formatCount,
   formatDateShort,
@@ -1769,6 +1770,19 @@ export function renderCountdown(
     value.attr('data-dgmo-countdown-since-label', parsed.sinceLabel);
   }
   stampRecur(value, parsed);
+  // The band is drawn once, here, and the ticker only rewrites text. Stamp the
+  // day it was drawn and the day it points at, so the ticker can tell when
+  // either has moved and hand the SVG to ./redraw — with everything needed to
+  // draw it again, since a static page has no source or palette to go back to.
+  if (bandKind !== null && resolved !== null) {
+    value
+      .attr('data-dgmo-countdown-band-day', dayKey(now, parsed.tz))
+      .attr('data-dgmo-countdown-band-on', dayKey(resolved, parsed.tz));
+    svg.attr(
+      'data-dgmo-countdown-redraw',
+      JSON.stringify({ parsed, palette, isDark, width, height })
+    );
+  }
 
   // Hero sub-line under the hero (right-aligned, muted, ticks): the human
   // remainder / words precision / days-out clock. Tagged so the ticker updates it.

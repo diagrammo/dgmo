@@ -23,6 +23,7 @@ import {
   dayStart,
   dayDelta,
   sameDay,
+  dayKey,
   formatCompound,
   formatCount,
   formatFooter,
@@ -302,6 +303,47 @@ function updateNode(node: Element, now: number): void {
   // honestly dated.
   const stamp = svg.querySelector('[data-dgmo-countdown-asof]');
   if (stamp?.parentNode) stamp.parentNode.removeChild(stamp);
+
+  redrawIfStale(node, svg, now, resolvedMs, tz);
+}
+
+// SVGs with a redraw in flight, so the ticks before it lands ask only once.
+// The redraw draws into the same element, which leaves the set when it is done
+// so the next stale day can redraw it again.
+const redrawing = new WeakSet<Element>();
+
+/**
+ * The band (the calendar under the hero) is baked; this ticker only rewrites
+ * text. When the day it was drawn on, or the day it points at, is no longer
+ * today's answer, load the renderer — lazily, so a page whose countdowns are
+ * current never downloads it — and draw the SVG again.
+ */
+function redrawIfStale(
+  node: Element,
+  svg: Element,
+  now: number,
+  resolvedMs: number,
+  tz: string | null
+): void {
+  const drawnOn = node.getAttribute('data-dgmo-countdown-band-day');
+  if (drawnOn === null || redrawing.has(svg)) return;
+  if (
+    drawnOn === dayKey(now, tz) &&
+    node.getAttribute('data-dgmo-countdown-band-on') === dayKey(resolvedMs, tz)
+  ) {
+    return;
+  }
+  if (!svg.hasAttribute('data-dgmo-countdown-redraw')) return;
+  redrawing.add(svg);
+  void import('./redraw')
+    .then((m) => {
+      m.redrawCountdown(svg as SVGSVGElement, resolvedMs);
+      redrawing.delete(svg);
+    })
+    .catch(() => {
+      // A failed load leaves the baked band and stays in the set, so it is not
+      // retried every second; the text keeps ticking.
+    });
 }
 
 /** Run one update pass over every countdown node inside `root`. */

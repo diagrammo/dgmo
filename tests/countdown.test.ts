@@ -1226,3 +1226,118 @@ describe('countdown renderer — §1.9 fill family', () => {
     }
   });
 });
+
+// ============================================================
+// Band redraw — a baked band follows the day
+// ============================================================
+
+describe('countdown band redraw — a baked band follows the day', () => {
+  const svgOf = (c: HTMLElement): SVGSVGElement =>
+    c.querySelector('svg') as unknown as SVGSVGElement;
+
+  it('stamps the day the band was drawn, the day it points at, and how to redraw it', () => {
+    const c = renderAt(
+      `countdown Voyage\ntarget 2026-07-22`,
+      '2026-07-10T00:00:00Z'
+    );
+    const node = valueNode(c);
+    expect(node.getAttribute('data-dgmo-countdown-band-day')).toBe('2026-7-10');
+    expect(node.getAttribute('data-dgmo-countdown-band-on')).toBe('2026-7-22');
+    const payload = JSON.parse(
+      svgOf(c).getAttribute('data-dgmo-countdown-redraw')!
+    );
+    expect(payload.isDark).toBe(false);
+    expect(payload.width).toBe(800);
+    expect(payload.parsed.target).toBe('2026-07-22');
+  });
+
+  it('stamps nothing when there is no band to go stale', () => {
+    const c = renderAt(
+      `countdown Voyage\ntarget 2026-07-22\nno-visual`,
+      '2026-07-10T00:00:00Z'
+    );
+    expect(valueNode(c).hasAttribute('data-dgmo-countdown-band-day')).toBe(
+      false
+    );
+    expect(svgOf(c).hasAttribute('data-dgmo-countdown-redraw')).toBe(false);
+  });
+
+  it('redrawCountdown draws the new day’s band into the same element', async () => {
+    const { redrawCountdown } = await import('../src/countdown/redraw');
+    const c = renderAt(
+      `countdown Voyage\ntarget 2026-07-22`, // 12 days → month calendar
+      '2026-07-10T00:00:00Z'
+    );
+    const svg = svgOf(c);
+    expect(allText(c)).not.toContain('TODAY');
+    vi.setSystemTime(Date.parse('2026-07-18T00:00:00Z')); // 4 days → week strip
+    redrawCountdown(svg, Date.parse('2026-07-22T00:00:00Z'));
+    expect(svgOf(c)).toBe(svg);
+    expect(allText(c)).toContain('TODAY');
+    expect(valueNode(c).getAttribute('data-dgmo-countdown-band-day')).toBe(
+      '2026-7-18'
+    );
+  });
+
+  it('the ticker redraws a recurring band once its occurrence rolls forward', async () => {
+    const c = renderAt(
+      `countdown Class\nsince 2026-07-07\nevery week`,
+      '2026-07-10T00:00:00Z'
+    );
+    expect(valueNode(c).getAttribute('data-dgmo-countdown-band-on')).toBe(
+      '2026-7-14'
+    );
+    vi.setSystemTime(Date.parse('2026-07-15T09:00:00Z'));
+    tickCountdowns(c);
+    await vi.dynamicImportSettled();
+    const node = valueNode(c);
+    expect(node.getAttribute('data-dgmo-countdown-band-day')).toBe('2026-7-15');
+    expect(node.getAttribute('data-dgmo-countdown-band-on')).toBe('2026-7-21');
+  });
+
+  it('the ticker leaves a current band alone', async () => {
+    const c = renderAt(
+      `countdown Voyage\ntarget 2026-07-22`,
+      '2026-07-10T00:00:00Z'
+    );
+    const svg = svgOf(c);
+    const firstChild = svg.querySelector('rect')!;
+    vi.setSystemTime(Date.parse('2026-07-10T20:00:00Z'));
+    tickCountdowns(c);
+    await vi.dynamicImportSettled();
+    expect(firstChild.parentNode).toBe(svg);
+  });
+
+  it('an embedded SVG stays embedded: no root size, no background, its <desc> kept', async () => {
+    const { redrawCountdown } = await import('../src/countdown/redraw');
+    const { normalizeSvgForEmbed } = await import('../src/utils/svg-embed');
+    const c = renderAt(
+      `countdown Voyage\ntarget 2026-07-22`,
+      '2026-07-10T00:00:00Z'
+    );
+    // What an embed serves: the export step's root background, normalized
+    // away, with a host-added <desc>.
+    svgOf(c).style.background = nordLight.bg;
+    c.innerHTML = normalizeSvgForEmbed(svgOf(c).outerHTML).replace(
+      /(<svg[^>]*>)/,
+      '$1<desc id="d1">Countdown to a voyage.</desc>'
+    );
+    const svg = svgOf(c);
+    expect(svg.hasAttribute('width')).toBe(false);
+    vi.setSystemTime(Date.parse('2026-07-18T00:00:00Z'));
+    redrawCountdown(svg, Date.parse('2026-07-22T00:00:00Z'));
+    expect(svg.hasAttribute('width')).toBe(false);
+    expect(svg.hasAttribute('height')).toBe(false);
+    expect(svg.querySelector('desc')?.textContent).toBe(
+      'Countdown to a voyage.'
+    );
+    const bg = nordLight.bg.toLowerCase();
+    const bgRects = Array.from(svg.children).filter(
+      (el) =>
+        el.tagName.toLowerCase() === 'rect' &&
+        (el.getAttribute('fill') ?? '').toLowerCase() === bg
+    );
+    expect(bgRects).toHaveLength(0);
+    expect(allText(c)).toContain('TODAY');
+  });
+});

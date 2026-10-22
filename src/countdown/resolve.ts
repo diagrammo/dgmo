@@ -337,6 +337,16 @@ export function dayDelta(
   return Math.round((dayStart(b, tz) - dayStart(a, tz)) / DAY_MS);
 }
 
+/**
+ * The calendar date of `ms` in `tz` (viewer-local when null) as `Y-M-D`. Compared
+ * as text, not as epoch ms, because a bare date resolves to each machine's own
+ * local midnight: the build and the reader agree on the date, not the instant.
+ */
+export function dayKey(ms: number, tz: string | null = null): string {
+  const f = zoneFields(ms, tz);
+  return `${f.year}-${f.month + 1}-${f.day}`;
+}
+
 /** Whether two instants fall on the same calendar day in `tz`. */
 export function sameDay(
   a: number,

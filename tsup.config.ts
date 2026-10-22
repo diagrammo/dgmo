@@ -300,13 +300,16 @@ const BUILDS: Options[] = [
     onSuccess: chain(copyMapData, emitBlockCss),
   },
   {
-    // Countdown ticker — a self-contained (zero-import) ~1 KB browser runtime.
-    // Its own entry so client surfaces (remark-dgmo, Obsidian, the app) import
-    // ONLY the ticker, never the heavy render pipeline.
+    // Countdown ticker — a small browser runtime. Its own entry so client
+    // surfaces (remark-dgmo, Obsidian, the app) import ONLY the ticker; the
+    // countdown renderer comes along as a lazy chunk, never the whole pipeline.
     entry: { countdown: 'src/countdown/ticker.ts' },
     format: ['esm'],
     dts: true,
     sourcemap: true,
+    // The ticker `import()`s ./redraw (the renderer) only when a baked band has
+    // gone stale; splitting keeps that in its own chunk instead of inlining it.
+    splitting: true,
     external: ['jsdom'],
   },
   {
