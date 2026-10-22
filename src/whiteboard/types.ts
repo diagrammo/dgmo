@@ -10,6 +10,7 @@
 
 import type { DgmoError } from '../diagnostics';
 import type { InkPoint } from './ink-codec';
+import type { TagGroup } from '../utils/tag-groups';
 
 /**
  * Colour NAMES — never values. `ink` is the palette's text colour, so it flips
@@ -219,6 +220,14 @@ export interface ParsedWhiteboard {
   /** Source order = draw order. */
   readonly elements: readonly WhiteboardElement[];
   readonly options: WhiteboardOptions;
+  /**
+   * `tag` blocks (spec §1.3): each entry names a colour — `Blocked red` says
+   * red means Blocked. Shapes keep `color:`; the name attaches to the colour,
+   * never to a shape. An entry's `color` is a {@link WhiteboardColor} NAME, not
+   * a hex value, unlike every other chart's tag entries. The first group is the
+   * one the legend shows.
+   */
+  readonly tagGroups: readonly TagGroup[];
   readonly diagnostics: readonly DgmoError[];
   readonly error: string | null;
 }

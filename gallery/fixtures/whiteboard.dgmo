@@ -1,4 +1,7 @@
 whiteboard Login ideas
+tag Meaning
+  Open question red
+  Chosen green
 rectangle Sign in at: 60 60, size: 180 70
 ellipse OAuth? at: 345 53, size: 170 84, color: blue
 arrow from: 150 95, to: 430 95, heads: both

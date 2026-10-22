@@ -20,6 +20,7 @@ export const WHITEBOARD_DIAGNOSTIC_CODES = {
   BAD_IMAGE_REF: 'W_WHITEBOARD_BAD_IMAGE_REF',
   EMPTY_TEXT: 'W_WHITEBOARD_EMPTY_TEXT',
   UNEXPECTED_BODY: 'W_WHITEBOARD_UNEXPECTED_BODY',
+  BAD_TAG_ENTRY: 'W_WHITEBOARD_BAD_TAG_ENTRY',
 } as const;
 
 const s = (v: unknown): string =>
@@ -134,6 +135,16 @@ export const WHITEBOARD_DIAGNOSTICS: DiagnosticSpec[] = [
     hint: 'Only shapes, notes, arrows, lines and text have a label that can run over indented lines. Unindent the line if it is meant as its own element.',
     example:
       'whiteboard\nimage board.assets/a.webp at: 0 0, size: 320 200\n  caption',
+  },
+  {
+    code: WHITEBOARD_DIAGNOSTIC_CODES.BAD_TAG_ENTRY,
+    severity: 'warning',
+    chartType: 'whiteboard',
+    title: 'Tag entry without a colour',
+    message: (p) =>
+      `Tag entry "${s(p.entry)}" names no colour — ignored (end it with one of: red, green, blue, teal, purple, orange, yellow, cyan, gray)`,
+    hint: 'A whiteboard tag entry gives a colour a meaning, so it ends with the colour it names: `Blocked red`.',
+    example: 'whiteboard\ntag Meaning\n  Blocked',
   },
 ];
 

@@ -25,6 +25,9 @@ import { drawCylinderCard, drawQueueCard } from '../c4/renderer';
 import { renderChartTitle } from '../utils/d3-helpers';
 import { measureText } from '../utils/text-measure';
 import { TITLE_FONT_SIZE } from '../utils/title-constants';
+import { renderIntegratedLegend } from '../utils/legend-integration';
+import { getMaxLegendReservedHeight } from '../utils/legend-layout';
+import type { LegendGroupData } from '../utils/legend-types';
 import {
   RECT_RADIUS,
   clipWhiteboardConnector,
@@ -49,6 +52,7 @@ import type {
   WhiteboardImage,
   WhiteboardNote,
 } from './types';
+import { WHITEBOARD_COLORS, WHITEBOARD_NOTE_COLOR } from './types';
 
 export interface WhiteboardRenderOptions {
   /**
@@ -112,6 +116,60 @@ export function visibleWhiteboardElements(
 /** Space around the cropped content, px. */
 const WHITEBOARD_MARGIN = 24;
 const TITLE_BAND = 40;
+/** Gap between the legend band and the content below it, px. */
+const LEGEND_GAP = 8;
+/** Opacity of a legend whose colours are all still unnamed (#1344). */
+const LEGEND_FAINT_OPACITY = 0.4;
+/**
+ * The legend's group name before the board has a `tag` block — the name the
+ * spec's example writes (`tag Meaning`). The shared legend draws nothing for a
+ * nameless group.
+ */
+const LEGEND_DEFAULT_GROUP = 'Meaning';
+
+/**
+ * The colour legend (#1344): one dot per colour on the board, named by the
+ * first `tag` group's entry for it. Fewer than two colours draw nothing. With
+ * none named it is drawn faintly, as bare dots; once one is named, at full
+ * strength. `ink` is no colour, and a note in its default yellow is coloured by
+ * its kind, not by a choice, so neither counts.
+ */
+function whiteboardLegend(
+  parsed: ParsedWhiteboard,
+  elements: readonly WhiteboardElement[],
+  colorOf: (c: WhiteboardColor) => string
+): {
+  group: LegendGroupData;
+  named: boolean;
+  /** The legend entry each counted colour pairs with on hover. */
+  entryOf: ReadonlyMap<WhiteboardColor, string>;
+} | null {
+  const used = new Set<WhiteboardColor>();
+  for (const el of elements) {
+    const c = legendColor(el);
+    if (c) used.add(c);
+  }
+  if (used.size < 2) return null;
+  const tags = parsed.tagGroups[0];
+  const nameOf = (c: WhiteboardColor): string =>
+    tags?.entries.find((e) => e.color === c)?.value ?? '';
+  const entries = WHITEBOARD_COLORS.filter((c) => used.has(c)).map((c) => ({
+    value: nameOf(c),
+    color: colorOf(c),
+  }));
+  return {
+    group: { name: tags?.name ?? LEGEND_DEFAULT_GROUP, entries },
+    named: entries.some((e) => e.value !== ''),
+    entryOf: new Map([...used].map((c) => [c, nameOf(c)])),
+  };
+}
+
+/** The colour an element counts toward the legend, if any. */
+function legendColor(el: WhiteboardElement): WhiteboardColor | null {
+  if (!('color' in el) || el.color === 'ink') return null;
+  if (el.kind === 'note' && el.color === WHITEBOARD_NOTE_COLOR) return null;
+  return el.color;
+}
 const SHAPE_STROKE = 2;
 const ARROW_STROKE = 2;
 const ARROW_HEAD_LEN = 12;
@@ -419,11 +477,25 @@ export function renderWhiteboard(
     ? measureText(parsed.title, TITLE_FONT_SIZE, { bold: true })
     : 0;
   const width = Math.ceil(Math.max(contentW, titleW) + 2 * WHITEBOARD_MARGIN);
-  const height = Math.ceil(contentH + 2 * WHITEBOARD_MARGIN + titleOffset);
+  const legend = whiteboardLegend(parsed, elements, colorOf);
+  const legendConfig = legend && {
+    groups: [legend.group],
+    position: {
+      placement: 'top-center',
+      titleRelation: 'below-title',
+    } as const,
+    mode: 'export' as const,
+  };
+  const legendOffset = legendConfig
+    ? getMaxLegendReservedHeight(legendConfig, width) + LEGEND_GAP
+    : 0;
+  const height = Math.ceil(
+    contentH + 2 * WHITEBOARD_MARGIN + titleOffset + legendOffset
+  );
   // Centre the content under a title wider than it.
   const tx =
     WHITEBOARD_MARGIN - b.minX + (width - 2 * WHITEBOARD_MARGIN - contentW) / 2;
-  const ty = WHITEBOARD_MARGIN + titleOffset - b.minY;
+  const ty = WHITEBOARD_MARGIN + titleOffset + legendOffset - b.minY;
 
   d3.select(container).selectAll('*').remove();
   const svg = d3
@@ -442,6 +514,21 @@ export function renderWhiteboard(
       width,
       palette.text
     );
+  }
+
+  if (legend && legendConfig) {
+    const legendG = svg
+      .append('g')
+      .attr('class', 'whiteboard-legend')
+      .attr('transform', `translate(0,${titleOffset + WHITEBOARD_MARGIN / 2})`);
+    if (!legend.named) legendG.attr('opacity', LEGEND_FAINT_OPACITY);
+    renderIntegratedLegend(legendG, {
+      ...legendConfig,
+      activeGroup: legend.group.name,
+      palette,
+      isDark,
+      width,
+    });
   }
 
   const canvas = svg
@@ -526,6 +613,9 @@ export function renderWhiteboard(
       .append('g')
       .attr('class', `whiteboard-${el.kind === 'shape' ? el.shape : el.kind}`)
       .attr('data-line-number', el.lineNumber);
+    // Pairs the element with its colour's legend entry on hover.
+    const lc = legend && legendColor(el);
+    if (lc) g.attr('data-wb-meaning', legend.entryOf.get(lc) ?? '');
     switch (el.kind) {
       case 'shape': {
         const hue = colorOf(el.color);

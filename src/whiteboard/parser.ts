@@ -36,6 +36,11 @@ import { makeDgmoError, makeFail, suggest } from '../diagnostics';
 import type { Writable } from '../utils/brand';
 import { parseFirstLine, recognizeGlobalBoolean } from '../utils/parsing';
 import {
+  matchTagBlockHeading,
+  type TagEntry,
+  type TagGroup,
+} from '../utils/tag-groups';
+import {
   WHITEBOARD_DIAGNOSTIC_CODES as CODES,
   whiteboardMessage,
 } from './diagnostics';
@@ -197,6 +202,7 @@ export function parseWhiteboard(
     titleLineNumber: null,
     elements,
     options,
+    tagGroups: [],
     diagnostics: [],
     error: null,
   };
@@ -379,6 +385,49 @@ export function parseWhiteboard(
     const sp = trimmed.search(/\s/);
     const word = (sp === -1 ? trimmed : trimmed.slice(0, sp)).toLowerCase();
     const rest = sp === -1 ? '' : trimmed.slice(sp + 1).trim();
+
+    // §1.3 `tag` block: each entry gives a colour a meaning (`Blocked red`).
+    // The name attaches to the colour, so an entry must end with one.
+    if (word === 'tag') {
+      const heading = matchTagBlockHeading(trimmed);
+      if (heading) {
+        const entries: TagEntry[] = [];
+        const addEntry = (raw: string, line: number): void => {
+          const text = raw.trim();
+          const sp2 = text.lastIndexOf(' ');
+          const color = sp2 === -1 ? '' : text.slice(sp2 + 1);
+          const value = sp2 === -1 ? '' : text.slice(0, sp2).trim();
+          if (!value || !isWhiteboardColor(color) || color === 'ink') {
+            warn(line, CODES.BAD_TAG_ENTRY, { entry: text });
+            return;
+          }
+          entries.push({
+            value,
+            color,
+            authoredColor: color,
+            lineNumber: line,
+          });
+        };
+        for (const v of heading.inlineValues ?? []) addEntry(v, lineNumber);
+        const base = indentOf(lines[i]!);
+        for (let j = i + 1; j < lines.length; j++) {
+          const raw = lines[j]!;
+          if (!raw.trim()) continue;
+          if (indentOf(raw) <= base) break;
+          i = j;
+          if (raw.trim().startsWith('//')) continue;
+          addEntry(raw, j + 1);
+        }
+        const group: TagGroup = {
+          name: heading.name,
+          ...(heading.alias !== undefined && { alias: heading.alias }),
+          entries,
+          lineNumber,
+        };
+        result.tagGroups.push(group);
+        continue;
+      }
+    }
 
     // Every element line owns the lines indented under it — consumed here,
     // so a skipped element takes its body with it.

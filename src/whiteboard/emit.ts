@@ -104,6 +104,11 @@ export function emitWhiteboard(board: ParsedWhiteboard): string {
   ];
   if (board.options.noTitle) out.push('no-title');
   if (board.options.noNotes) out.push('no-notes');
+  for (const g of board.tagGroups) {
+    const name = /\s/.test(g.name) ? `"${g.name}"` : g.name;
+    out.push(g.alias ? `tag ${name} as ${g.alias}` : `tag ${name}`);
+    for (const e of g.entries) out.push(`  ${e.value} ${e.color}`);
+  }
   for (const el of board.elements) out.push(emitWhiteboardElement(el));
   return out.join('\n') + '\n';
 }
@@ -116,6 +121,11 @@ export function sameWhiteboard(
   const strip = (p: ParsedWhiteboard): unknown => ({
     title: p.title,
     options: p.options,
+    tagGroups: p.tagGroups.map((g) => ({
+      name: g.name,
+      alias: g.alias,
+      entries: g.entries.map((e) => [e.value, e.color]),
+    })),
     elements: p.elements.map((el) => {
       const rest: Record<string, unknown> = { ...el };
       delete rest['lineNumber'];

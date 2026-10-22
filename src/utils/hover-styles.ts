@@ -581,6 +581,15 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     legend: true,
     emphasis: 'dim',
   },
+  // A whiteboard's legend names its colours (#1344); each coloured element
+  // carries its colour's entry.
+  whiteboard: {
+    markSelector: '[data-wb-meaning]',
+    strategy: 'enumerated',
+    groupAttr: 'data-wb-meaning',
+    emphasis: 'dim',
+    legend: true,
+  },
   sketch: {
     markSelector: '.sk-node',
     strategy: 'connection',

@@ -1039,6 +1039,8 @@ export const STRUCTURAL_KEYWORDS = new Map<string, string[]>([
       'text',
       'image',
       'ink',
+      // A `tag` block names colours (#1344).
+      'tag',
     ],
   ],
   ['boxes-and-lines', ['tag']],
