@@ -3,6 +3,7 @@
 // ============================================================
 
 import { makeDgmoError, makeFail } from '../diagnostics';
+import { extractPaletteDirective } from '../palettes/directive';
 import type { Writable } from '../utils/brand';
 import {
   measureIndent,
@@ -51,7 +52,12 @@ export function parsePyramid(content: string): ParsedPyramid {
     error: null,
   };
 
-  const lines = content.split('\n');
+  // The `palette` line is every chart type's (src/palettes/directive.ts).
+  // The app preview calls this parser on raw source, so lift it here too
+  // (#1469); lifting is idempotent, so the palette warnings are raised once.
+  const directive = extractPaletteDirective(content);
+  result.diagnostics.push(...directive.diagnostics);
+  const lines = directive.content.split('\n');
   let headerParsed = false;
   let currentLayer: Writable<PyramidLayer> | null = null;
 
