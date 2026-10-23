@@ -6,6 +6,7 @@ import { inferParticipantType } from './participant-inference';
 import type { Brand, Writable } from '../utils/brand';
 import type { DgmoError } from '../diagnostics';
 import type { PaletteColors } from '../palettes/types';
+import { extractPaletteDirective } from '../palettes/directive';
 import {
   formatDgmoError,
   makeDgmoError,
@@ -529,7 +530,15 @@ export function parseSequenceDgmo(
     return fail(0, 'Empty content');
   }
 
-  const lines = content.split('\n');
+  // The `palette` line is every chart type's (src/palettes/directive.ts).
+  // `render()` and `parseDgmo()` lift it before this parser runs, but the app
+  // preview calls this parser on raw source, where the line would be an
+  // unexpected one (#1469). Lifting is idempotent: an already-lifted line is
+  // `//`, so the palette warnings are raised once, by whoever lifts first.
+  const directive = extractPaletteDirective(content);
+  result.diagnostics.push(...directive.diagnostics);
+
+  const lines = directive.content.split('\n');
   let hasExplicitChart = false;
   let contentStarted = false;
   let activeTagOptionLine = 0;
