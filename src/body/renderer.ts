@@ -44,8 +44,15 @@ import type { LegendGroupData } from '../utils/legend-types';
 import { getFigure, getPartGeom, resolvePartKey } from './catalog';
 import type { BodyFigure, BodyPart, BodyView, ParsedBody } from './types';
 
+// Escapes both text and double-quoted attribute values: a tag value lands in
+// `data-emph-key="…"`, so a bare `"` in it would close the attribute and let
+// the rest of the value write new ones (diagrammo/diagrammo#1501).
 const esc = (s: string): string =>
-  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 
 /** The attributes every `.dgmo-body-part` mark carries. `tagAttr` is the active
  *  tag group's `data-tag-<slug>`, the attr the baked legend hover pairs each
