@@ -50,14 +50,14 @@ dgmo diagram.dgmo --theme dark --palette catppuccin
 
 ## Structure
 
-One directory per chart type under `src/` (`sequence/`, `map/`, `sketch/`, `treemap/`, `swimlane/`, …) — `ls src/` is the current list, and it changes often enough that a copy here would lie. Each holds its own parser, layout and renderer.
+One directory per chart type under `src/` (`sequence/`, `map/`, `sketch/`, `treemap/`, `swimlane/`, …) — `ls src/` is the current list, and it changes often enough that a copy here would lie. Each holds its own parser, layout and renderer, and its export handler in `export.ts` — the function `renderForExport` dispatches to (#1362).
 
 Shared at the root of `src/`:
 
 - `dgmo-router.ts` — dispatches on the first line, or infers from content when absent
 - `render.ts` — unified `render()` entry · `cli.ts` → `cli/dist/cli.cjs` (a separate npm package; see the top of this file)
 - `data-chart-parser.ts` + `charts-d3/` — the data-chart family (bar, line, pie, scatter, sankey, heatmap, funnel, radar, …), all D3
-- `d3.ts` — older shared D3 helpers; newer chart types own their directory instead
+- `d3.ts` — `renderForExport` and its dispatch table `DIAGRAM_EXPORT_HANDLERS`, plus a re-export barrel. It holds no handler: a new chart type's handler goes in its own `src/<chart>/export.ts`, and what every handler shares (`ExportContext`, `ctxTagOverride`) is in `utils/export-context.ts`
 - `*-registry.ts` — `chart-type-registry`, `completion-registry`, `diagnostics-registry`, `directives-registry`. **A new chart type or directive registers here**, and several consumers read these registries rather than hard-coding lists
 - `palettes/` — one file per palette plus `color-utils.ts`; each palette ships light/dark/transparent themes
 - `editor/` — CodeMirror grammar + highlight helpers · `completion.ts` — symbol extraction
