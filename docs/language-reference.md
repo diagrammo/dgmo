@@ -4667,6 +4667,8 @@ The directive set is **13, all colon-free**: six naming intent the renderer can'
 
 A pointer to a diagram published at Diagrammo Cloud — the file holds no drawing of its own, and whoever opens it sees the publisher's current version. Renders as a reference card until a host resolves it.
 
+**Where the link comes from.** In the Diagrammo app, open the diagram and press Share on the left rail (or ⌘E / Ctrl+E), then "Show on the web" in the Live link row; or right-click the diagram in the file list and choose "Show and copy link". Either route copies the link to the clipboard. A diagram that is shown on the web wears an amber globe; pressing the lit amber globe on the left rail copies the link again.
+
 **Do not author one from scratch.** A pointer needs a diagram id only the publisher can hand out, so it arrives by being saved from a shared link. It is not offered in any chart-type picker for that reason.
 
 Two forms. The titled form names the diagram and carries a `url` directive:
@@ -4680,6 +4682,12 @@ The shorthand form is one line, and is what a docs-site fence contains:
 
 ```
 live-link dgm_01M1JBN56CAVS728HPWDACVNMC
+```
+
+In a docs-site or Obsidian fence the bare link on a line of its own does the same job:
+
+```
+https://online.diagrammo.app/d/dgm_01M1JBN56CAVS728HPWDACVNMC
 ```
 
 The id may be the whole share link instead — `live-link ` followed by a paste resolves exactly as the id does:
