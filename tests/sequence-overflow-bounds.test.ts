@@ -198,3 +198,40 @@ describe('sequence canvas width fits the container', () => {
     });
   }
 });
+
+// Sentence-length labels at fixed 12px do not shrink with the factor, so a
+// proportional refit crawled and stopped short (a fixed 476px canvas in a
+// 450px container), and a canvas fitted to its container clipped a label 3px
+// past its edge (#1510 review). From stress/sequence/long-labels--participants-and-messages.dgmo.
+const LONG_LABEL_SEQ = `sequence Order Fulfilment
+Customer Mobile Application
+Order Management Service (EU region)
+Warehouse Robotics Controller
+Customer Mobile Application -submit order with saved card and default shipping address-> Order Management Service (EU region)
+Order Management Service (EU region) -reserve stock across both fulfilment centres, preferring the nearest-> Warehouse Robotics Controller
+Warehouse Robotics Controller -reservation confirmed-> Order Management Service (EU region)
+Order Management Service (EU region) -push notification: your order is confirmed and will ship tomorrow-> Customer Mobile Application`;
+
+describe('sequence canvas fit with sentence-length labels', () => {
+  for (const width of [430, 443, 450, 456, 469, 482, 495, 520]) {
+    it(`never scrolls sideways or clips a label at ${width}px`, () => {
+      const svg = renderAtWidth(LONG_LABEL_SEQ, width);
+      const [, , vbW] = svg.getAttribute('viewBox')!.split(' ').map(Number);
+      // Either fixed and no wider than the container, or fluid at the floor.
+      const attrW = svg.getAttribute('width');
+      if (attrW !== '100%') expect(Number(attrW)).toBeLessThanOrEqual(width);
+      for (const el of svg.querySelectorAll('text.message-label')) {
+        const x = parseFloat(el.getAttribute('x')!);
+        const fontSize = parseFloat(el.getAttribute('font-size')!);
+        const w = measureText(el.textContent ?? '', fontSize);
+        const anchor = el.getAttribute('text-anchor');
+        const left =
+          anchor === 'middle' ? x - w / 2 : anchor === 'end' ? x - w : x;
+        const right =
+          anchor === 'middle' ? x + w / 2 : anchor === 'end' ? x : x + w;
+        expect(left, `left of "${el.textContent}"`).toBeGreaterThanOrEqual(0);
+        expect(right, `right of "${el.textContent}"`).toBeLessThanOrEqual(vbW!);
+      }
+    });
+  }
+});

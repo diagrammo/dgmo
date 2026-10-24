@@ -1311,20 +1311,41 @@ export function layoutSequence(
   let layout = layoutSequencePass(parsed, containerWidth, options);
   if (options?.exportWidth) return layout;
   // The first factor fits `participants × gap` only; the margins added after
-  // it (group frames, box overhang, edge pad) do not shrink at the same rate,
-  // so the canvas can still come out wider than the container and the preview
-  // scrolls sideways (#1510). Re-measure and tighten until it fits or hits
-  // the floor, where the root goes fluid instead. Aim a pixel inside: the
-  // margins shrink slower than the factor, so an exact aim only converges
-  // from above and never lands.
+  // it (group frames, box overhang, edge pad, unscaled 12px message labels)
+  // do not shrink at the same rate, so the canvas can still come out wider
+  // than the container and the preview scrolls sideways (#1510). Re-measure
+  // and tighten until it fits. Width is close to linear in the factor with a
+  // large fixed part, so after the first step each step is a secant one — a
+  // proportional step crawled (537, 511, 495, 484, 476 in a 450px container).
+  // Aim a pixel inside, or the steps only converge from above.
+  const target = containerWidth - 1;
+  let prev: SequenceLayout | null = null;
   for (let i = 0; i < 4 && layout && !layout.ctx.isBelowFloor; i++) {
-    if (layout.svgWidth <= containerWidth) break;
-    const refit = (containerWidth - 1) / layout.svgWidth;
+    if (layout.svgWidth <= containerWidth) return layout;
+    let factor = (layout.ctx.factor * target) / layout.svgWidth;
+    if (prev && prev.ctx.factor !== layout.ctx.factor) {
+      const slope =
+        (prev.svgWidth - layout.svgWidth) /
+        (prev.ctx.factor - layout.ctx.factor);
+      if (slope > 0)
+        factor = layout.ctx.factor - (layout.svgWidth - target) / slope;
+    }
+    prev = layout;
     layout = layoutSequencePass(
       parsed,
       containerWidth,
       options,
-      ScaleContext.fromFactor(layout.ctx.factor * refit)
+      ScaleContext.fromFactor(factor)
+    );
+  }
+  // Still wider: take the floor, where the root goes fluid and the viewBox
+  // scales into the container — never a fixed width past it.
+  if (layout && !layout.ctx.isBelowFloor && layout.svgWidth > containerWidth) {
+    layout = layoutSequencePass(
+      parsed,
+      containerWidth,
+      options,
+      ScaleContext.fromFactor(0)
     );
   }
   return layout;
@@ -2397,10 +2418,14 @@ function layoutSequencePass(
   //      absorbs a fraction of a one-shot pad, so left content can still poke
   //      out negative.
   // Re-scanning in the shifted frame until stable resolves both. Padding only
-  // ever grows, so this converges; cap it for safety. While centered, a pad
-  // moves the content only half its size, so each pass halves what is left:
-  // four passes left a label 1px past the edge of a 1500px canvas once the
-  // canvas was fitted to its container (#1510), so the cap is eight.
+  // ever grows, so this converges in a couple of passes; cap it for safety.
+  //
+  // 🔴 Overflow is measured against the diagram's OWN extent — `totalWidth`,
+  // starting at the centering shift — never the centered canvas. Measured
+  // against the canvas, a pad on one side recentres the grid by half of it,
+  // and pads on both sides cancel: a label stayed 3px past a canvas fitted to
+  // its container however many passes ran (#1510). Content inside the extent
+  // is inside the canvas too, which is the extent plus the shift each side.
   //
   // The activation-width safety margin covers a second mismatch: the scan places
   // message labels at the lifeline-center midpoint, but the renderer anchors
@@ -2439,9 +2464,11 @@ function layoutSequencePass(
       }
     }
   };
-  for (let pass = 0; pass < 8; pass++) {
-    let contentLeft = 0;
-    let contentRight = svgWidth;
+  for (let pass = 0; pass < 4; pass++) {
+    const extentLeft = offsetX - leftMargin;
+    const extentRight = extentLeft + totalWidth;
+    let contentLeft = extentLeft;
+    let contentRight = extentRight;
     for (const step of renderSteps) {
       const displayLabel = displayMessageLabel(step);
       if (!displayLabel) continue;
@@ -2477,8 +2504,8 @@ function layoutSequencePass(
       scanNotes(elements, acc);
       contentRight = acc.right;
     }
-    const neededLeftPad = Math.max(0, -contentLeft);
-    const neededRightPad = Math.max(0, contentRight - svgWidth);
+    const neededLeftPad = Math.max(0, extentLeft - contentLeft);
+    const neededRightPad = Math.max(0, contentRight - extentRight);
     if (neededLeftPad <= 0.5 && neededRightPad <= 0.5) break;
     leftMargin += neededLeftPad;
     rightMargin += neededRightPad;
