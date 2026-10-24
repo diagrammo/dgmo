@@ -1,5 +1,4 @@
 import type { PaletteConfig } from './types';
-import { registerPalette } from './registry';
 
 // ============================================================
 // Slate Palette Definition
@@ -69,5 +68,3 @@ export const slatePalette: PaletteConfig = {
     },
   },
 };
-
-registerPalette(slatePalette);

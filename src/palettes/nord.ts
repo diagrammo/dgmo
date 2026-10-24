@@ -1,5 +1,4 @@
 import type { PaletteConfig } from './types';
-import { registerPalette } from './registry';
 
 // ============================================================
 // Nord Palette Definition
@@ -63,5 +62,3 @@ export const nordPalette: PaletteConfig = {
     },
   },
 };
-
-registerPalette(nordPalette);

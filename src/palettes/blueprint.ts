@@ -1,5 +1,4 @@
 import type { PaletteConfig } from './types';
-import { registerPalette } from './registry';
 
 // ============================================================
 // Blueprint Palette Definition
@@ -69,5 +68,3 @@ export const blueprintPalette: PaletteConfig = {
     },
   },
 };
-
-registerPalette(blueprintPalette);

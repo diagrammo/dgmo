@@ -1,5 +1,4 @@
 import type { PaletteConfig } from './types';
-import { registerPalette } from './registry';
 
 // ============================================================
 // Catppuccin Palette Definition
@@ -80,5 +79,3 @@ export const catppuccinPalette: PaletteConfig = {
     },
   },
 };
-
-registerPalette(catppuccinPalette);

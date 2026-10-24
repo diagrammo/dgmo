@@ -1,4 +1,11 @@
 import type { PaletteConfig, PaletteColors } from './types';
+import { atlasPalette } from './atlas';
+import { blueprintPalette } from './blueprint';
+import { catppuccinPalette } from './catppuccin';
+import { nordPalette } from './nord';
+import { slatePalette } from './slate';
+import { tidewaterPalette } from './tidewater';
+import { tokyoNightPalette } from './tokyo-night';
 
 // ============================================================
 // Constants
@@ -87,7 +94,7 @@ function validatePaletteColors(
 // ============================================================
 
 /**
- * Register a palette. Called at module initialization.
+ * Register a palette. The built-ins are registered at the bottom of this module.
  * Validates that all 23 color fields per mode are present and valid hex.
  * Throws on malformed palettes to catch errors at startup, not at render time.
  */
@@ -127,4 +134,20 @@ export function getAvailablePalettes(): PaletteConfig[] {
   return Array.from(PALETTE_REGISTRY.values()).sort((a, b) =>
     a.name.localeCompare(b.name)
   );
+}
+
+// The built-ins are registered HERE, by the module every lookup goes through,
+// never by a palette file registering itself on import. A bundler that trusts
+// `sideEffects` drops an import whose exports go unused, and Vite 8.3 did:
+// the web editor booted with an empty registry and a white screen (#1517).
+for (const palette of [
+  atlasPalette,
+  blueprintPalette,
+  catppuccinPalette,
+  nordPalette,
+  slatePalette,
+  tidewaterPalette,
+  tokyoNightPalette,
+]) {
+  registerPalette(palette);
 }

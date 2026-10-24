@@ -23,7 +23,6 @@ import { render } from '../render';
 import { startCountdowns } from '../countdown/ticker';
 import { startClocks } from '../clock/ticker';
 import { getAvailablePalettes } from '../palettes/registry';
-import '../palettes';
 import type { DgmoError } from '../diagnostics';
 import {
   VERSION,

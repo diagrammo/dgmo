@@ -77,10 +77,6 @@
     "docs/*.md",
     "gallery/fixtures"
   ],
-  "sideEffects": [
-    "./src/palettes/*.ts",
-    "./dist/palettes/*"
-  ],
   "scripts": {
     "codegen": "lezer-generator src/editor/dgmo.grammar -o src/editor/dgmo.grammar.js",
     "fonts": "node scripts/build-fonts.mjs",

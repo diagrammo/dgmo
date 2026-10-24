@@ -1,5 +1,4 @@
 import type { PaletteConfig } from './types';
-import { registerPalette } from './registry';
 
 // ============================================================
 // Atlas Palette Definition
@@ -73,5 +72,3 @@ export const atlasPalette: PaletteConfig = {
     },
   },
 };
-
-registerPalette(atlasPalette);

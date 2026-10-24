@@ -1,5 +1,4 @@
 import type { PaletteConfig } from './types';
-import { registerPalette } from './registry';
 
 // ============================================================
 // Tokyo Night Palette Definition
@@ -82,5 +81,3 @@ export const tokyoNightPalette: PaletteConfig = {
     },
   },
 };
-
-registerPalette(tokyoNightPalette);

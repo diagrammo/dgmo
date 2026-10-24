@@ -85,7 +85,6 @@ import {
 import { fetchLiveLink } from '../live-link/resolve';
 import { referenceShareUrl } from '../cloud-reference';
 import type { MapData } from '../map/resolved-types';
-import '../palettes';
 import {
   VERSION,
   EDITOR_BASE_URL,
