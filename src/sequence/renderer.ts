@@ -2422,7 +2422,7 @@ function layoutSequencePass(
   //
   // 🔴 Overflow is measured against the diagram's OWN extent — `totalWidth`,
   // starting at the centering shift — never the centered canvas. Measured
-  // against the canvas, a pad on one side recentres the grid by half of it,
+  // against the canvas, a pad on one side re-centres the grid by half of it,
   // and pads on both sides cancel: a label stayed 3px past a canvas fitted to
   // its container however many passes ran (#1510). Content inside the extent
   // is inside the canvas too, which is the extent plus the shift each side.
