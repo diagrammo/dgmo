@@ -1308,6 +1308,34 @@ export function layoutSequence(
   containerWidth: number,
   options?: SequenceRenderOptions
 ): SequenceLayout | null {
+  let layout = layoutSequencePass(parsed, containerWidth, options);
+  if (options?.exportWidth) return layout;
+  // The first factor fits `participants × gap` only; the margins added after
+  // it (group frames, box overhang, edge pad) do not shrink at the same rate,
+  // so the canvas can still come out wider than the container and the preview
+  // scrolls sideways (#1510). Re-measure and tighten until it fits or hits
+  // the floor, where the root goes fluid instead. Aim a pixel inside: the
+  // margins shrink slower than the factor, so an exact aim only converges
+  // from above and never lands.
+  for (let i = 0; i < 4 && layout && !layout.ctx.isBelowFloor; i++) {
+    if (layout.svgWidth <= containerWidth) break;
+    const refit = (containerWidth - 1) / layout.svgWidth;
+    layout = layoutSequencePass(
+      parsed,
+      containerWidth,
+      options,
+      ScaleContext.fromFactor(layout.ctx.factor * refit)
+    );
+  }
+  return layout;
+}
+
+function layoutSequencePass(
+  parsed: ParsedSequenceDgmo,
+  containerWidth: number,
+  options: SequenceRenderOptions | undefined,
+  fit?: ScaleContext
+): SequenceLayout | null {
   const { title, options: parsedOptions } = parsed;
 
   // Effective collapsed groups. `options.collapsedGroups` is the AUTHORITATIVE
@@ -1414,9 +1442,11 @@ export function layoutSequence(
     participants.length * effectiveGap,
     uniformBoxWidth + 40
   );
-  const ctx = options?.exportWidth
-    ? ScaleContext.identity()
-    : ScaleContext.from(containerWidth, idealWidth);
+  const ctx =
+    fit ??
+    (options?.exportWidth
+      ? ScaleContext.identity()
+      : ScaleContext.from(containerWidth, idealWidth));
 
   const sGap = ctx.structural(effectiveGap);
   const sBoxW = ctx.structural(uniformBoxWidth);
@@ -2367,7 +2397,10 @@ export function layoutSequence(
   //      absorbs a fraction of a one-shot pad, so left content can still poke
   //      out negative.
   // Re-scanning in the shifted frame until stable resolves both. Padding only
-  // ever grows, so this converges in a couple of passes; cap it for safety.
+  // ever grows, so this converges; cap it for safety. While centered, a pad
+  // moves the content only half its size, so each pass halves what is left:
+  // four passes left a label 1px past the edge of a 1500px canvas once the
+  // canvas was fitted to its container (#1510), so the cap is eight.
   //
   // The activation-width safety margin covers a second mismatch: the scan places
   // message labels at the lifeline-center midpoint, but the renderer anchors
@@ -2406,7 +2439,7 @@ export function layoutSequence(
       }
     }
   };
-  for (let pass = 0; pass < 4; pass++) {
+  for (let pass = 0; pass < 8; pass++) {
     let contentLeft = 0;
     let contentRight = svgWidth;
     for (const step of renderSteps) {

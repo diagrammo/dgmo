@@ -123,3 +123,78 @@ describe('sequence message-label overflow bounds', () => {
     });
   }
 });
+
+// The in-app report (#1510), verbatim: trailing spaces and all, since any
+// change to a label's length moves the fit. Three groups and wide margins,
+// but well above the scale floor — the first-pass factor fit only
+// `participants × gap`, so the margins pushed the canvas ~12px past the
+// container and the preview scrolled sideways.
+const REPORTED_SEQ = `sequence GAEv2
+
+tag Owner as o
+  MLB
+  NEC blue
+
+ProVenue position: -1
+ACP/NIDP position: -2
+ACPL position: -3
+GalleryDB is a cache position: -4
+FacialMatch position: -5
+
+[Edge]
+  Camera
+  GAESW
+  FanScreen
+  [NEC] o: NEC
+    ZMQ
+    FacialCapture
+
+[IT Closet] o: NEC
+  ACPL
+  FacialMatch
+  GalleryDB
+
+[Cloud]
+  [NEC] o: NEC
+    ACP/NIDP
+  ProVenue
+
+== Event Setup ==
+ProVenue -Create Galleries -> ACP/NIDP
+note left
+  - All Galleries
+  - All Parks
+ACP/NIDP -ingest -> ACPL
+note left
+  - Active Galleries
+  - Specific Park
+
+ACPL -save -> GalleryDB
+GalleryDB -sync -> FacialMatch
+
+== Ingress == 
+Fan -> Camera
+Camera -liveStream -> FanScreen
+Camera -liveStream -> FacialCapture
+
+FacialCapture -findMatch (template) -> FacialMatch
+
+FacialMatch -personId -> FacialCapture
+FacialCapture -faceImage + personId -> ZMQ
+
+ZMQ -faceImage + personId -> GAESW
+GAESW -validate personId -> ProVenue
+GAESW -showGreen -> FanScreen
+FanScreen -> Fan`;
+
+describe('sequence canvas width fits the container', () => {
+  for (const width of [1046, 1400]) {
+    it(`is no wider than a ${width}px container`, () => {
+      const svg = renderAtWidth(REPORTED_SEQ, width);
+      const [, , vbW] = svg.getAttribute('viewBox')!.split(' ').map(Number);
+      expect(svg.getAttribute('width')).not.toBe('100%');
+      expect(Number(svg.getAttribute('width'))).toBeLessThanOrEqual(width);
+      expect(vbW).toBeLessThanOrEqual(width);
+    });
+  }
+});
