@@ -1,6 +1,5 @@
 er Customer Support Data Model
 // stress: long-labels — 40+ character table, column and relationship names
-// known: diagrammo/diagrammo#1535
 
 customer_support_tickets
   id int pk

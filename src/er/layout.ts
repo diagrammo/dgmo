@@ -61,6 +61,16 @@ const HEADER_BASE = 36;
 const TABLE_FONT_SIZE = 13;
 const COLUMN_FONT_SIZE = 11;
 const EDGE_LABEL_FONT_SIZE = 11;
+// Rank gap and edge-label room (#1535). dagre halves RANKSEP and doubles every
+// edge's minlen, so two adjacent tables sit RANKSEP apart around a label rank.
+// A label that would leave under EDGE_LABEL_MIN_ROOM of edge at either end
+// gets a label node sized so EDGE_LABEL_MARKER_ROOM shows at each end; the
+// node widens the gap by its own width. Shorter labels pass no size, so their
+// layout is unchanged.
+const RANKSEP = 80;
+const EDGE_LABEL_MIN_ROOM = 10;
+const EDGE_LABEL_MARKER_ROOM = 24; // renderer's fork reaches 18px from the table
+const EDGE_LABEL_BOX_HEIGHT = 16; // renderer's label background height
 // Renderer offsets column text by 16px when a constraint icon is present.
 const CONSTRAINT_ICON_WIDTH = 16;
 const MEMBER_LINE_HEIGHT = 18;
@@ -223,7 +233,7 @@ function layoutComponent(
       rankdir: 'LR',
       ranker,
       nodesep: 40,
-      ranksep: 80,
+      ranksep: RANKSEP,
       edgesep: 20,
     });
     g.setDefaultEdgeLabel(() => ({}));
@@ -233,10 +243,24 @@ function layoutComponent(
     }
     // Use lineNumber as edge name to support multigraph (multiple edges between same pair)
     for (const rel of ord(rels)) {
+      const box = rel.label
+        ? measureText(rel.label, EDGE_LABEL_FONT_SIZE) + 8
+        : 0;
+      const excess =
+        box + 2 * EDGE_LABEL_MIN_ROOM > RANKSEP
+          ? box + 2 * EDGE_LABEL_MARKER_ROOM - RANKSEP
+          : 0;
       g.setEdge(
         rel.source,
         rel.target,
-        { label: rel.label ?? '' },
+        excess > 0
+          ? {
+              label: rel.label,
+              width: excess,
+              height: EDGE_LABEL_BOX_HEIGHT,
+              labelpos: 'c',
+            }
+          : { label: rel.label ?? '' },
         String(rel.lineNumber)
       );
     }
