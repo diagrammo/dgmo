@@ -1,0 +1,6 @@
+line Weekly Signups, First Week After Launch
+// stress: few-items — a single data point, so no line can be drawn
+x-label Week
+y-label Signups
+
+Week 1 214

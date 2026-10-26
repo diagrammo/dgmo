@@ -1,0 +1,16 @@
+sankey Where the Regional Health Authority Budget Goes
+// stress: long-labels — node names of 40–70 characters on both sides of a flow
+Provincial operating grant from the Ministry of Health
+  Acute care hospital inpatient and emergency services 4200
+  Community mental health and addictions programs 900
+  Long-term care and assisted living subsidies 1300
+Federal health transfer for primary care renewal
+  Community mental health and addictions programs 350
+  Primary care clinics and nurse practitioner networks 800
+Acute care hospital inpatient and emergency services
+  Salaries and benefits for clinical staff 3100
+  Medical and surgical supplies and pharmaceuticals 1200
+  Facilities maintenance and equipment leasing 1100
+Long-term care and assisted living subsidies
+  Salaries and benefits for clinical staff 700
+  Facilities maintenance and equipment leasing 600

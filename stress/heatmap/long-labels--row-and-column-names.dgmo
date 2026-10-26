@@ -1,0 +1,14 @@
+heatmap Incident Count by Service Owner Team and Failure Category
+// stress: long-labels — row names of 40+ characters and column names of 25+ characters
+// known: diagrammo/diagrammo#1543
+columns
+  Configuration drift after deployment
+  Upstream dependency timeout
+  Expired credentials or certificates
+  Capacity exhaustion under load
+
+Payments platform reliability engineering team 4 9 2 7
+Customer identity and access management squad 6 3 11 1
+Search and recommendations infrastructure group 2 8 1 12
+Mobile client release and distribution engineering 7 1 5 2
+Data warehouse and analytics pipelines team 3 6 4 9
