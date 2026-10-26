@@ -1,6 +1,5 @@
 sequence Order Fulfilment
 // stress: long-labels — long participant names and sentence-length messages
-// known: diagrammo/diagrammo#1421
 Customer Mobile Application
 Order Management Service (EU region)
 Warehouse Robotics Controller

@@ -138,6 +138,16 @@ function wrapTextLines(
  */
 const labelTextWidth = (boxW: number): number => boxW - 10;
 
+/** Vertical inset between a box edge and its outermost label line. */
+const PARTICIPANT_LABEL_PAD_V = 2;
+
+/**
+ * Box height that holds `lines` label lines at `fontSize` (line height
+ * `fontSize + 2`, as drawn). Three lines at 13px fit the 50px default.
+ */
+const participantLabelHeight = (lines: number, fontSize: number): number =>
+  lines * (fontSize + 2) + PARTICIPANT_LABEL_PAD_V * 2;
+
 /**
  * Split a participant label into multiple lines if it exceeds the box width.
  * Splits on spaces first, then dashes, then camelCase boundaries.
@@ -149,9 +159,9 @@ function splitParticipantLabel(
 ): string[] {
   if (measureText(label, fontSize) <= maxWidth) return [label];
 
-  // Split on spaces
+  // Split on spaces — the space is kept when words share a line
   if (label.includes(' ')) {
-    return wrapLabelWords(label.split(' '), maxWidth, fontSize);
+    return wrapLabelWords(label.split(' '), maxWidth, fontSize, ' ');
   }
 
   // Split on dashes/underscores/colons/slashes
@@ -172,16 +182,21 @@ function splitParticipantLabel(
   return [label];
 }
 
-/** Greedily join word parts into lines that fit within maxWidth pixels. */
+/**
+ * Greedily join word parts into lines that fit within maxWidth pixels.
+ * `sep` re-joins parts that share a line: a space for space-split words,
+ * nothing for dash and camelCase parts.
+ */
 function wrapLabelWords(
   words: string[],
   maxWidth: number,
-  fontSize: number
+  fontSize: number,
+  sep = ''
 ): string[] {
   const lines: string[] = [];
   let current = '';
   for (const word of words) {
-    const test = current ? current + word : word;
+    const test = current ? current + sep + word : word;
     if (measureText(test, fontSize) > maxWidth && current) {
       lines.push(current);
       current = word;
@@ -1471,7 +1486,6 @@ function layoutSequencePass(
 
   const sGap = ctx.structural(effectiveGap);
   const sBoxW = ctx.structural(uniformBoxWidth);
-  const sBoxH = ctx.structural(PARTICIPANT_BOX_HEIGHT);
   const sTopMargin = ctx.aesthetic(TOP_MARGIN);
   const sTitleHeight = ctx.aesthetic(TITLE_HEIGHT);
   const sParticipantYOffset = ctx.aesthetic(PARTICIPANT_Y_OFFSET);
@@ -1496,6 +1510,23 @@ function layoutSequencePass(
   const sLabelFontSize = ctx.text(LABEL_FONT_SIZE);
   // Pixel width available for a participant label inside the scaled box.
   const sLabelTextWidth = labelTextWidth(sBoxW);
+  // Every box in the row takes the height of the tallest wrapped label drawn
+  // inside one, so no header line leaves its box (#1421). Actor labels sit
+  // below the figure and do not count.
+  let maxInBoxLines = 1;
+  for (const p of participants) {
+    if (p.type === 'actor') continue;
+    const n = splitParticipantLabel(
+      p.label,
+      sLabelTextWidth,
+      sLabelFontSize
+    ).length;
+    maxInBoxLines = Math.max(maxInBoxLines, n);
+  }
+  const sBoxH = Math.max(
+    ctx.structural(PARTICIPANT_BOX_HEIGHT),
+    participantLabelHeight(maxInBoxLines, sLabelFontSize)
+  );
 
   // Participant index lookup — used to clamp note width within one lane
   const participantIndexMap = new Map<string, number>();
