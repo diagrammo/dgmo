@@ -1,6 +1,5 @@
 quadrant Roadmap Candidates
 // stress: many-items — nine points clustered within 0.04 of the centre of the matrix
-// known: diagrammo/diagrammo#1536
 
 x-label Low Effort, High Effort
 y-label Low Impact, High Impact

@@ -238,7 +238,27 @@ export function computeQuadrantPointLabels(
   }));
 
   const placedLabels: LabelRect[] = [];
+  const placedLeaders: Leader[] = [];
   const results: PlacedQuadrantLabel[] = [];
+
+  // A label pushed past immediate adjacency is drawn with a leader from the
+  // point's edge to the nearest edge of its box. Computed here so the leader
+  // a candidate is judged by is exactly the one that gets drawn.
+  const leaderFor = (
+    pt: QuadrantLabelPoint,
+    rect: LabelRect,
+    textX: number,
+    textY: number
+  ): Leader => {
+    const angle = Math.atan2(textY - pt.cy, textX - pt.cx);
+    const ptR = pt.r ?? pointRadius;
+    return [
+      pt.cx + Math.cos(angle) * ptR,
+      pt.cy + Math.sin(angle) * ptR,
+      Math.max(rect.x, Math.min(pt.cx, rect.x + rect.w)),
+      Math.max(rect.y, Math.min(pt.cy, rect.y + rect.h)),
+    ];
+  };
 
   for (let i = 0; i < points.length; i++) {
     const pt = points[i]!; // In-bounds by loop guard.
@@ -344,52 +364,82 @@ export function computeQuadrantPointLabels(
       },
     ];
 
-    for (const { gen } of directions) {
-      for (let offset = minGap; ; offset += stepSize) {
-        const cand = gen(offset);
-        if (!cand) break; // out of bounds in this direction
+    // First pass keeps leaders clear of boxes and of each other; when that
+    // leaves no spot, a second pass drops the leader checks rather than let
+    // the label fall back onto another box.
+    for (const avoidLeaders of [true, false]) {
+      if (best) break;
+      for (const { gen } of directions) {
+        for (let offset = minGap; ; offset += stepSize) {
+          const cand = gen(offset);
+          if (!cand) break; // out of bounds in this direction
 
-        // Check collisions with placed labels
-        let collision = false;
-        for (const pl of placedLabels) {
-          if (rectsOverlap(cand.rect, pl)) {
-            collision = true;
-            break;
-          }
-        }
-
-        // Check collisions with point circles
-        if (!collision) {
-          for (const circle of pointCircles) {
-            if (rectCircleOverlap(cand.rect, circle)) {
+          // Check collisions with placed labels
+          let collision = false;
+          for (const pl of placedLabels) {
+            if (rectsOverlap(cand.rect, pl)) {
               collision = true;
               break;
             }
           }
-        }
 
-        // Check collisions with obstacle rects (quadrant labels)
-        if (!collision) {
-          for (const obs of obstacles) {
-            if (rectsOverlap(cand.rect, obs)) {
-              collision = true;
-              break;
+          // Check collisions with point circles
+          if (!collision) {
+            for (const circle of pointCircles) {
+              if (rectCircleOverlap(cand.rect, circle)) {
+                collision = true;
+                break;
+              }
             }
           }
-        }
 
-        if (!collision) {
-          const dist = offset;
-          if (!best || dist < best.dist) {
-            best = {
-              rect: cand.rect,
-              textX: cand.textX,
-              textY: cand.textY,
-              anchor: cand.anchor,
-              dist,
-            };
+          // Check collisions with obstacle rects (quadrant labels)
+          if (!collision) {
+            for (const obs of obstacles) {
+              if (rectsOverlap(cand.rect, obs)) {
+                collision = true;
+                break;
+              }
+            }
           }
-          break; // best for this direction found
+
+          // Check leaders: an earlier leader must not run through this box,
+          // and this candidate's own leader (when it needs one) must neither
+          // run through a placed box nor cross an earlier leader.
+          if (!collision && avoidLeaders) {
+            collision = placedLeaders.some(([x0, y0, x1, y1]) =>
+              segmentRectOverlap(x0, y0, x1, y1, cand.rect)
+            );
+          }
+          if (!collision && avoidLeaders && offset > minGap + stepSize) {
+            const [x0, y0, x1, y1] = leaderFor(
+              pt,
+              cand.rect,
+              cand.textX,
+              cand.textY
+            );
+            collision =
+              placedLabels.some((pl) =>
+                segmentRectOverlap(x0, y0, x1, y1, pl)
+              ) ||
+              placedLeaders.some((l) =>
+                segmentsCross(x0, y0, x1, y1, l[0], l[1], l[2], l[3])
+              );
+          }
+
+          if (!collision) {
+            const dist = offset;
+            if (!best || dist < best.dist) {
+              best = {
+                rect: cand.rect,
+                textX: cand.textX,
+                textY: cand.textY,
+                anchor: cand.anchor,
+                dist,
+              };
+            }
+            break; // best for this direction found
+          }
         }
       }
     }
@@ -412,24 +462,9 @@ export function computeQuadrantPointLabels(
     // Connector line when label is pushed beyond immediate adjacency
     let connectorLine: PlacedQuadrantLabel['connectorLine'];
     if (best.dist > minGap + stepSize) {
-      // Determine connector endpoints: from point edge to label edge
-      const dx = best.textX - pt.cx;
-      const dy = best.textY - pt.cy;
-      const angle = Math.atan2(dy, dx);
-      const ptR = pt.r ?? pointRadius;
-      const x1 = pt.cx + Math.cos(angle) * ptR;
-      const y1 = pt.cy + Math.sin(angle) * ptR;
-
-      // Label edge: closest point on label rect to the point
-      const x2 = Math.max(
-        best.rect.x,
-        Math.min(pt.cx, best.rect.x + best.rect.w)
-      );
-      const y2 = Math.max(
-        best.rect.y,
-        Math.min(pt.cy, best.rect.y + best.rect.h)
-      );
-
+      const leader = leaderFor(pt, best.rect, best.textX, best.textY);
+      placedLeaders.push(leader);
+      const [x1, y1, x2, y2] = leader;
       connectorLine = { x1, y1, x2, y2 };
     }
 

@@ -573,7 +573,10 @@ export function renderQuadrant(
       .attr('dy', `${POINT_LABEL_FONT_SIZE}px`)
       .attr('font-size', ctx.text(10))
       .attr('font-weight', 'normal')
-      .attr('opacity', 0)
+      // `visibility`, not `opacity`: resvg ignores opacity on a <tspan>, so
+      // every PNG drew the coords as a second line the label placement never
+      // reserved, over the neighbouring labels (diagrammo/diagrammo#1536).
+      .attr('visibility', 'hidden')
       .text(`${point.x.toFixed(2)}, ${point.y.toFixed(2)}`);
 
     const COORDS_LINE_H = ctx.structural(14);
@@ -584,7 +587,7 @@ export function renderQuadrant(
       .on('mouseenter', () => {
         pointG.select('circle').attr('r', ctx.structural(8));
         labelText.attr('y', placed.y + bumpDy);
-        coordsTspan.attr('opacity', 1);
+        coordsTspan.attr('visibility', 'visible');
         quadrantRects.attr('opacity', (qd) =>
           qd.position === quadrant ? 1 : 0.3
         );
@@ -599,7 +602,7 @@ export function renderQuadrant(
       .on('mouseleave', () => {
         pointG.select('circle').attr('r', POINT_RADIUS);
         labelText.attr('y', placed.y);
-        coordsTspan.attr('opacity', 0);
+        coordsTspan.attr('visibility', 'hidden');
         quadrantRects.attr('opacity', 1);
         quadrantLabelTexts.attr('opacity', 1);
         pointsG.selectAll('g.point-group').attr('opacity', 1);

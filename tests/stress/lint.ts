@@ -144,6 +144,9 @@ function invisible(el: Element): boolean {
     if (HIDDEN_BY_STYLE.has(n)) return true;
     if (styleProp(n, 'display') === 'none') return true;
     if (styleProp(n, 'visibility') === 'hidden') return true;
+    // resvg ignores `opacity` on a <tspan> and draws it anyway, so only a
+    // container's opacity hides text (diagrammo/diagrammo#1536).
+    if (n.tagName.toLowerCase() === 'tspan') continue;
     const op = styleProp(n, 'opacity');
     if (op !== null && parseFloat(op) === 0) return true;
   }

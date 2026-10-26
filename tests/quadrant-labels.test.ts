@@ -342,3 +342,84 @@ describe('placeScatterHoverValue', () => {
     expect(res.rect.y).toBeGreaterThan(400); // sanity: placed near the point, not fallback garbage
   });
 });
+
+// The stress fixture with nine points within 0.04 of the centre (#1536). Every
+// label line that is DRAWN — by resvg, which ignores `opacity` on a <tspan> —
+// must clear every other label line and every point marker.
+describe('quadrant clustered points (stress fixture)', () => {
+  it('no drawn label line overlaps another or a point marker', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const { JSDOM } = await import('jsdom');
+    const { render } = await import('../src/render');
+    const { measureText } = await import('../src/utils/text-measure');
+    const { rectCircleOverlap } = await import('../src/label-layout');
+
+    const source = readFileSync(
+      resolve(
+        __dirname,
+        '../stress/quadrant/many-items--clustered-points.dgmo'
+      ),
+      'utf8'
+    );
+    const { svg } = await render(source, { theme: 'light', palette: 'nord' });
+    const doc = new JSDOM(svg, { contentType: 'image/svg+xml' }).window
+      .document;
+    const groups = Array.from(doc.querySelectorAll('g.point-group'));
+    expect(groups).toHaveLength(9);
+
+    const markers = groups.map((g) => {
+      const c = g.querySelector('circle')!;
+      return {
+        cx: Number(c.getAttribute('cx')),
+        cy: Number(c.getAttribute('cy')),
+        r: Number(c.getAttribute('r')),
+      };
+    });
+
+    // A tspan is drawn unless `visibility` or `fill-opacity` hides it.
+    const drawn = (t: Element): boolean =>
+      t.getAttribute('visibility') !== 'hidden' &&
+      t.getAttribute('fill-opacity') !== '0';
+
+    const boxes: { owner: number; text: string; rect: LabelRect }[] = [];
+    groups.forEach((g, owner) => {
+      const text = g.querySelector('text')!;
+      const anchor = text.getAttribute('text-anchor');
+      const x = Number(text.getAttribute('x'));
+      let y = Number(text.getAttribute('y'));
+      const nameFs = Number(text.getAttribute('font-size'));
+      for (const t of Array.from(text.querySelectorAll('tspan'))) {
+        const fs = Number(t.getAttribute('font-size') ?? nameFs);
+        const dy = t.getAttribute('dy');
+        if (dy) y += parseFloat(dy);
+        if (!drawn(t)) continue;
+        const s = t.textContent ?? '';
+        const w = measureText(s, fs, {
+          bold: t.getAttribute('font-weight') !== 'normal',
+        });
+        const x0 =
+          anchor === 'middle' ? x - w / 2 : anchor === 'end' ? x - w : x;
+        boxes.push({
+          owner,
+          text: s,
+          rect: { x: x0, y: y - fs / 2, w, h: fs },
+        });
+      }
+    });
+
+    const hits: string[] = [];
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        if (boxes[i].owner === boxes[j].owner) continue;
+        if (rectsOverlap(boxes[i].rect, boxes[j].rect))
+          hits.push(`"${boxes[i].text}" overlaps "${boxes[j].text}"`);
+      }
+      markers.forEach((m, k) => {
+        if (rectCircleOverlap(boxes[i].rect, m))
+          hits.push(`"${boxes[i].text}" overlaps marker ${k}`);
+      });
+    }
+    expect(hits).toEqual([]);
+  });
+});
