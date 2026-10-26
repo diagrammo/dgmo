@@ -196,7 +196,14 @@ describe('the first rotated label stays inside the SVG', () => {
 
   for (const kind of ['bar', 'line']) {
     it(`${kind}: a long first label does not cross the left edge`, async () => {
-      const svg = await renderDataChartD3(`${kind} Tokens\n\n${body}`, 'light');
+      // A bar chart at its natural 480×320 now cuts these names short enough
+      // to lie flat (#1422); a taller canvas keeps them rotated and whole.
+      const svg = await renderDataChartD3(
+        `${kind} Tokens\n\n${body}`,
+        'light',
+        undefined,
+        kind === 'bar' ? { width: 480, height: 800 } : undefined
+      );
       expect(svg).toContain('rotate(-40)');
       expect(firstLabelLeft(svg)).toBeGreaterThanOrEqual(0);
     });

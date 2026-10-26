@@ -15,6 +15,7 @@ import type { ParsedChart } from '../chart';
 import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
 import { shapeFill } from '../palettes/color-utils';
+import { truncateText } from '../utils/text-measure';
 import {
   type Svg,
   type Margins,
@@ -31,6 +32,14 @@ import {
   planLabelsFitLeft,
   drawCategoryLabels,
 } from './shared';
+
+// Long category names must not size the chart (#1422). Their region is capped
+// at a share of the canvas: rotated names below vertical bars by height, the
+// name column beside horizontal bars by width. Rotated names also give way
+// while the plot would be under PLOT_MIN_SHARE of the height. Longer names end
+// in `…` and keep their full text as a hover title.
+const LABEL_REGION_SHARE = 0.35;
+const PLOT_MIN_SHARE = 0.6;
 
 function seriesValues(
   pt: { value: number; extraValues?: number[] },
@@ -119,15 +128,28 @@ export function renderBar(
 
   // Left margin must fit the rotated y-title + the left-edge labels: category
   // names for horizontal bars, value ticks for vertical.
+  const catLabels = data.map((d) => d.label);
+  const sideShown = horizontal
+    ? catLabels.map((t) =>
+        truncateText(t, TICK_FONT, width * LABEL_REGION_SHARE)
+      )
+    : catLabels;
   const leftLabels = horizontal
-    ? data.map((d) => d.label)
+    ? sideShown
     : [fmtNum(niceMax), fmtNum(niceMax / 2), fmtNum(loVal), fmtNum(loVal / 2)];
   const mLeft0 = computeLeftMargin(chart.ylabel, leftLabels);
   // Vertical bars carry their category names under the axis, so they need the
   // same fit treatment as line. Horizontal bars put them in the left gutter,
   // which computeLeftMargin already sizes. Rotated labels hang left of the
   // first bar, so the margin may grow to keep them inside the SVG.
-  const catLabels = data.map((d) => d.label);
+  const mTop = top + 8;
+  const xTitleBand = chart.xlabel ? 40 : 18;
+  const labelCap = Math.floor(
+    Math.min(
+      height * LABEL_REGION_SHARE,
+      height * (1 - PLOT_MIN_SHARE) - mTop - xTitleBand
+    )
+  );
   const fit = horizontal
     ? null
     : planLabelsFitLeft(
@@ -136,17 +158,18 @@ export function renderBar(
         (ml) => width - ml - 32,
         (pw) => (data.length === 0 ? Infinity : pw / data.length),
         // scaleBand padding 0.3: first centre sits 0.65 steps in
-        (pw) => (pw / (data.length + 0.3)) * 0.65
+        (pw) => (pw / (data.length + 0.3)) * 0.65,
+        TICK_FONT,
+        labelCap
       );
   const mLeft = fit ? fit.mLeft : mLeft0;
   const plotW = fit ? fit.plotW : width - mLeft - 32;
   const labelPlan = fit?.plan ?? planCategoryLabels(catLabels, Infinity);
+  const shown = fit?.shown ?? sideShown;
   const m: Margins = {
-    top: top + 8,
+    top: mTop,
     right: 32,
-    bottom: horizontal
-      ? 64
-      : Math.max(64, labelPlan.height + (chart.xlabel ? 40 : 18)),
+    bottom: horizontal ? 64 : Math.max(64, labelPlan.height + xTitleBand),
     left: mLeft,
   };
 
@@ -210,9 +233,9 @@ export function renderBar(
 
   // category labels
   if (horiz) {
-    for (const d of data) {
+    data.forEach((d, i) => {
       const c = (cat(d.label) ?? 0) + cat.bandwidth() / 2;
-      svg
+      const t = svg
         .append('text')
         .attr('x', m.left - 10)
         .attr('y', c + 4)
@@ -220,18 +243,21 @@ export function renderBar(
         .attr('fill', textColor)
         .attr('font-size', TICK_FONT)
         .attr('font-family', FONT_FAMILY)
-        .text(d.label);
-    }
+        .text(shown[i]!);
+      if (shown[i] !== d.label) t.append('title').text(d.label);
+    });
   } else {
     // Thinned, and rotated when thinning alone would cost too many. See
     // planCategoryLabels in ./shared.
     drawCategoryLabels(
       svg,
-      data.map((d) => d.label),
+      shown,
       labelPlan,
       (i) => (cat(data[i]!.label) ?? 0) + cat.bandwidth() / 2,
       m.top + plotH,
-      textColor
+      textColor,
+      TICK_FONT,
+      catLabels
     );
   }
 

@@ -10,7 +10,7 @@
 
 import type * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
-import { measureText } from '../utils/text-measure';
+import { measureText, truncateText } from '../utils/text-measure';
 import type { ParsedChart } from '../chart';
 import type { PaletteColors } from '../palettes';
 import { getSimpleChartLegendGroups } from '../data-chart-parser';
@@ -380,6 +380,10 @@ const NEVER_THIN_MAX = 12;
 const LABEL_GAP = 8;
 /** A rotated label occupies its line height along the axis, not its width. */
 const LABEL_LINE_HEIGHT = 1.25;
+/** Room below the axis a rotated label region adds to the labels' drop. */
+const ROTATED_LABEL_PAD = 12;
+/** A capped rotated label keeps at least this much text before its `…`. */
+const MIN_CAPPED_LABEL_W = 40;
 
 export interface CategoryLabelPlan {
   /** Draw the labels rotated by LABEL_ROTATE_DEG rather than flat. */
@@ -462,7 +466,7 @@ export function planCategoryLabels(
   return {
     rotate: true,
     stride,
-    height: Math.round(widest * Math.sin(rad)) + 12,
+    height: Math.round(widest * Math.sin(rad)) + ROTATED_LABEL_PAD,
     keep: all(stride),
   };
 }
@@ -491,6 +495,10 @@ function rotatedLeftReach(
  *
  * `plotWFor(mLeft)` is the plot width at that margin; `firstOffset(plotW)` is
  * the distance from the plot's left edge to the first category's centre.
+ *
+ * `maxHeight` caps the rotated label region (#1422): when the longest name
+ * would drop further than that, every label is cut to the length that fits and
+ * ends in `…`. `shown` is the text to draw, index for index with `labels`.
  */
 export function planLabelsFitLeft(
   labels: string[],
@@ -498,22 +506,38 @@ export function planLabelsFitLeft(
   plotWFor: (mLeft: number) => number,
   slotFor: (plotW: number) => number,
   firstOffset: (plotW: number) => number,
-  font: number = TICK_FONT
-): { mLeft: number; plotW: number; plan: CategoryLabelPlan } {
+  font: number = TICK_FONT,
+  maxHeight: number = Infinity
+): {
+  mLeft: number;
+  plotW: number;
+  plan: CategoryLabelPlan;
+  shown: string[];
+} {
   const EDGE = 4;
-  let mLeft = mLeft0;
-  let plotW = plotWFor(mLeft);
-  let plan = planCategoryLabels(labels, slotFor(plotW), font);
-  for (let i = 0; i < 6; i++) {
-    const reach = rotatedLeftReach(labels[0], plan, font);
-    const need = Math.ceil(reach + EDGE - firstOffset(plotW));
-    const next = Math.max(mLeft0, need);
-    if (next === mLeft) break;
-    mLeft = next;
-    plotW = plotWFor(mLeft);
-    plan = planCategoryLabels(labels, slotFor(plotW), font);
-  }
-  return { mLeft, plotW, plan };
+  const settle = (shown: string[]) => {
+    let mLeft = mLeft0;
+    let plotW = plotWFor(mLeft);
+    let plan = planCategoryLabels(shown, slotFor(plotW), font);
+    for (let i = 0; i < 6; i++) {
+      const reach = rotatedLeftReach(shown[0], plan, font);
+      const need = Math.ceil(reach + EDGE - firstOffset(plotW));
+      const next = Math.max(mLeft0, need);
+      if (next === mLeft) break;
+      mLeft = next;
+      plotW = plotWFor(mLeft);
+      plan = planCategoryLabels(shown, slotFor(plotW), font);
+    }
+    return { mLeft, plotW, plan, shown };
+  };
+  const fit = settle(labels);
+  if (!fit.plan.rotate || fit.plan.height <= maxHeight) return fit;
+  const rad = (LABEL_ROTATE_DEG * Math.PI) / 180;
+  const maxW = Math.max(
+    MIN_CAPPED_LABEL_W,
+    Math.floor((maxHeight - ROTATED_LABEL_PAD) / Math.sin(rad))
+  );
+  return settle(labels.map((t) => truncateText(t, font, maxW)));
 }
 
 /** True when the label at `i` survives the plan's thinning. */
@@ -523,7 +547,8 @@ export function labelSurvives(plan: CategoryLabelPlan, i: number): boolean {
 
 /**
  * Draw a horizontal category axis' labels according to `plan`. `xFor` gives the
- * center of category `i`; `baseline` is the y of the axis line.
+ * center of category `i`; `baseline` is the y of the axis line. A label drawn
+ * shorter than its `full` text keeps the full text as a hover title.
  */
 export function drawCategoryLabels(
   svg: Svg,
@@ -532,7 +557,8 @@ export function drawCategoryLabels(
   xFor: (i: number) => number,
   baseline: number,
   textColor: string,
-  font: number = TICK_FONT
+  font: number = TICK_FONT,
+  full: string[] = labels
 ): void {
   labels.forEach((label, i) => {
     if (!labelSurvives(plan, i)) return;
@@ -543,6 +569,8 @@ export function drawCategoryLabels(
       .attr('font-size', font)
       .attr('font-family', FONT_FAMILY)
       .text(label);
+    const whole = full[i];
+    if (whole !== undefined && whole !== label) t.append('title').text(whole);
     if (plan.rotate) {
       t.attr(
         'transform',
