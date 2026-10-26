@@ -25,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nothing. The registry now registers the seven built-ins itself.
 - **A sequence diagram fits its container** — no sideways scroll in a
   preview — and a fitted canvas clips no label.
+- **A wrapped participant name keeps its space** in a sequence diagram,
+  and its box grows to fit it.
+- **An ER diagram widens the gap between ranks** when a relationship
+  label does not fit it.
 - **A `palette` line no longer becomes a node** when a chart parser is
   called directly: sequence, journey map, cycle, ring, pyramid, RACI and
   whiteboard each lift it themselves.
