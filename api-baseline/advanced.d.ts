@@ -1001,8 +1001,15 @@ interface TickLabelFit {
  * Optional boundary parameters add ticks at exact data start/end:
  * - boundaryStart/boundaryEnd: numeric date values
  * - boundaryStartLabel/boundaryEndLabel: formatted labels for those dates
+ *
+ * `converters` maps Dates to domain values and back. It defaults to the
+ * approximate `month/12 + (day-1)/365` formula the timeline uses; gantt
+ * passes its exact elapsed-time pair (#1414).
  */
-declare function computeTimeTicks(domainMin: number, domainMax: number, scale: d3Scale.ScaleLinear<number, number>, boundaryStart?: number, boundaryEnd?: number, boundaryStartLabel?: string, boundaryEndLabel?: string, labelFit?: TickLabelFit): {
+declare function computeTimeTicks(domainMin: number, domainMax: number, scale: d3Scale.ScaleLinear<number, number>, boundaryStart?: number, boundaryEnd?: number, boundaryStartLabel?: string, boundaryEndLabel?: string, labelFit?: TickLabelFit, converters?: {
+    toFractionalYear: (d: Date) => number;
+    fromFractionalYear: (frac: number) => Date;
+}): {
     pos: number;
     label: string;
 }[];
