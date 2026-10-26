@@ -319,5 +319,39 @@ describe('renderFlowchart', () => {
       // The raw green intent must appear as a fill — confirms the option flows through the export path.
       expect(svg).toContain(`fill="${testPalette.colors.green}"`);
     });
+
+    // #1420: the export canvas shrinks to a narrow diagram, so a title centred
+    // on the pre-fit width (1200) sat at x=600 in a 480-wide viewBox.
+    function titleGeometry(svg: string) {
+      const viewW = Number(/viewBox="0 0 ([\d.]+) /.exec(svg)![1]);
+      const titleX = Number(
+        /class="chart-title"[^>]*? x="([\d.]+)"/.exec(svg)![1]
+      );
+      return { viewW, titleX };
+    }
+
+    it('centres the title on the final canvas width of a narrow export', () => {
+      const svg = renderFlowchartForExport(
+        'flowchart Basic Flow\n(Start) -> [Process] -> (End)',
+        'light',
+        testPalette
+      );
+      const { viewW, titleX } = titleGeometry(svg);
+      expect(viewW).toBeLessThan(1200);
+      expect(titleX).toBe(viewW / 2);
+    });
+
+    it('widens a narrow export canvas to a title wider than the diagram', () => {
+      const title =
+        'A deliberately long flowchart title that is far wider than its diagram';
+      const svg = renderFlowchartForExport(
+        `flowchart ${title}\n(Start) -> (End)`,
+        'light',
+        testPalette
+      );
+      const { viewW, titleX } = titleGeometry(svg);
+      expect(viewW).toBeGreaterThan(480);
+      expect(titleX).toBe(viewW / 2);
+    });
   });
 });

@@ -7,6 +7,11 @@ import * as d3Selection from 'd3-selection';
 import { fillModeFromOptions } from '../utils/parsing';
 import { appendArrowheadMarkers } from '../utils/arrow-markers';
 import { fitDiagramToCanvas } from '../utils/fit-canvas';
+import {
+  INLINE_HEADER_PAD,
+  layoutInlineHeader,
+  measureTitleWidth,
+} from '../utils/inline-header';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
 import { contrastText, shapeFill } from '../palettes/color-utils';
@@ -514,17 +519,40 @@ export function renderFlowchart(
 
   const diagramW = layout.width;
   const diagramH = layout.height;
-  const { scale, offsetX, offsetY, canvasHeight, canvasWidth } =
-    fitDiagramToCanvas({
-      width,
-      height,
-      diagramW,
-      diagramH,
-      padding: sDiagramPadding,
-      titleHeight,
-      maxScale: MAX_SCALE,
-      exportMode: !!exportDims,
-    });
+  const fit = fitDiagramToCanvas({
+    width,
+    height,
+    diagramW,
+    diagramH,
+    padding: sDiagramPadding,
+    titleHeight,
+    maxScale: MAX_SCALE,
+    exportMode: !!exportDims,
+  });
+  const { scale, offsetY, canvasHeight } = fit;
+  let { offsetX, canvasWidth } = fit;
+  // An export canvas shrinks to the content, so the title is centred on the
+  // FINAL width, never the pre-fit `width` — that drew it off-canvas on every
+  // narrow flowchart (#1420). A title wider than the diagram widens the canvas.
+  if (showTitle && exportDims) {
+    const titleW = Math.ceil(
+      measureTitleWidth(graph.title, sTitleFontSize) + INLINE_HEADER_PAD * 2
+    );
+    if (titleW > canvasWidth) {
+      offsetX += (titleW - canvasWidth) / 2;
+      canvasWidth = titleW;
+    }
+  }
+  const header = layoutInlineHeader({
+    requested: false,
+    title: graph.title ?? '',
+    hasLegend: false,
+    legendWidth: 0,
+    legendHeight: 0,
+    containerWidth: canvasWidth,
+    titleBandHeight: titleHeight,
+    legendReserve: 0,
+  });
 
   const svg = d3Selection
     .select(container)
@@ -554,9 +582,9 @@ export function renderFlowchart(
     const titleEl = svg
       .append('text')
       .attr('class', 'chart-title')
-      .attr('x', width / 2)
+      .attr('x', header.titleX)
       .attr('y', sTitleY)
-      .attr('text-anchor', 'middle')
+      .attr('text-anchor', header.titleAnchor)
       .attr('fill', palette.text)
       .attr('font-size', sTitleFontSize)
       .attr('font-weight', TITLE_FONT_WEIGHT)

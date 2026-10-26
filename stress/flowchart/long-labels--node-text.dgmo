@@ -1,6 +1,5 @@
 flowchart Refund Decision
 // stress: long-labels — node text of a full sentence, and a title on a narrow chart
-// known: diagrammo/diagrammo#1420
 (Customer asks for a refund through the support portal) -> <Was the purchase made within the last thirty days?>
 <Was the purchase made within the last thirty days?> -yes-> [Issue a full refund to the original payment method automatically]
 <Was the purchase made within the last thirty days?> -no-> [Escalate to a support lead who reviews the account history]
