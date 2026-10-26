@@ -1,0 +1,16 @@
+er Customer Support Data Model
+// stress: long-labels — 40+ character table, column and relationship names
+// known: diagrammo/diagrammo#1535
+
+customer_support_tickets
+  id int pk
+  customer_account_identifier_from_billing_system varchar
+  most_recent_agent_reply_timestamp_in_utc timestamp
+  escalation_reason_entered_by_support_lead varchar
+  1-raised_by_the_customer_through_the_portal-* ticket_comments_and_internal_notes
+
+ticket_comments_and_internal_notes
+  id int pk
+  ticket_id int fk
+  comment_body_as_entered_by_the_agent text
+  visible_to_customer_after_review boolean

@@ -1,0 +1,12 @@
+kanban Platform Reliability Quarter
+// stress: long-labels — card titles of 90-100 characters under a narrow column
+
+[Backlog] red
+  Replace the hand-rolled retry loop in the billing webhook consumer with the shared backoff library
+  Investigate why p99 latency on the search service doubles every Monday morning after the weekly reindex
+  Write a runbook for failing over the primary Postgres cluster to the secondary region
+[In Progress] orange wip: 2
+  Migrate the nightly export job from cron on a single VM to the managed scheduler with alerting
+  Audit every service that still reads credentials from environment variables instead of the secret store
+[Done] green
+  Upgrade Node to the current LTS across all build images
