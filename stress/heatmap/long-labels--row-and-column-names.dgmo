@@ -1,6 +1,6 @@
 heatmap Incident Count by Service Owner Team and Failure Category
 // stress: long-labels — row names of 40+ characters and column names of 25+ characters
-// known: diagrammo/diagrammo#1543
+// known: diagrammo/diagrammo#1420
 columns
   Configuration drift after deployment
   Upstream dependency timeout

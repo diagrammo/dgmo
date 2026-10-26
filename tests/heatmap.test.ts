@@ -5,6 +5,7 @@ import { describe, it, expect } from 'vitest';
 import { render } from '../src/render';
 import { getPalette } from '../src/palettes';
 import { mix, shapeFill, themeBaseBg } from '../src/palettes/color-utils';
+import { lintSvg } from './stress/lint';
 
 // Two values spanning the whole range: 5 → t=0 (primary stop), 8 → t=1
 // (orange stop), so the expected ramp colors are exact palette stops.
@@ -118,5 +119,51 @@ describe('heatmap fill family', () => {
     for (const r of rects) {
       expect(r.getAttribute('stroke')).toBe(slateLight.bg);
     }
+  });
+});
+
+// #1543: a long row label sized the plot, and rotated column labels rose
+// through the title and ran past the right edge. Both are now capped and end
+// in `…`, with the full text kept as a hover title.
+describe('heatmap long labels (#1543)', () => {
+  const ROW = 'Customer identity and access management squad lead'; // 50 chars
+  const COL = 'Configuration drift after deployment'; // 36 chars
+  const LONG = `heatmap Load
+columns
+  ${COL}
+  Upstream dependency timeout
+  Expired credentials or certificates
+  Capacity exhaustion under load
+${ROW} 4 9 2 7
+Short 6 3 11 1`;
+
+  it('#1543 keeps every text inside the canvas', async () => {
+    expect(ROW.length).toBe(50);
+    expect(COL.length).toBe(36);
+    const { svg, diagnostics } = await render(LONG, OPTS);
+    expect(diagnostics.filter((d) => d.severity === 'error')).toEqual([]);
+    expect(lintSvg(svg).filter((f) => f.rule === 'text-outside')).toEqual([]);
+  });
+
+  it('#1543 truncates long labels with an ellipsis and keeps the full text', async () => {
+    const { svg } = await render(LONG, OPTS);
+    const div = document.createElement('div');
+    div.innerHTML = svg;
+    // Axis labels carry their key as data-filter-value, cells as data-*-key.
+    const axis = (v: string) =>
+      div.querySelector(`text[data-filter-value="${v}"]`)!;
+    const row = axis(ROW);
+    const col = axis(COL);
+    for (const [el, full] of [
+      [row, ROW],
+      [col, COL],
+    ] as const) {
+      expect(el.firstChild?.textContent).toMatch(/…$/);
+      expect(el.querySelector('title')?.textContent).toBe(full);
+    }
+    // A short label is drawn whole, with no hover title.
+    const short = axis('Short');
+    expect(short.textContent).toBe('Short');
+    expect(short.querySelector('title')).toBeNull();
   });
 });

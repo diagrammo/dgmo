@@ -14,9 +14,21 @@ import {
   hslToHex,
   themeBaseBg,
 } from '../palettes/color-utils';
-import { measureText } from '../utils/text-measure';
+import { measureText, truncateText } from '../utils/text-measure';
 import type { Svg } from './shared';
 import { fmtNum, tagDatum } from './shared';
+
+// Long labels must not size the chart (#1543). The row-label column is capped
+// at a share of the canvas width, and a rotated column label at a share of the
+// canvas height (and at about 22 characters); longer labels end in `…` and keep
+// their full text as a hover title.
+const ROW_LABEL_SHARE = 0.35;
+const COL_LABEL_MAX_W = 140;
+const COL_BAND_SHARE = 0.3;
+const COL_ANGLE = (40 * Math.PI) / 180;
+const ROW_FONT = 13;
+const COL_FONT = 12;
+const EDGE_GAP = 4;
 
 export function renderHeatmap(
   svg: Svg,
@@ -74,12 +86,51 @@ export function renderHeatmap(
     return hslToHex(h, targetS, targetL);
   };
 
+  const rowLabelMax = width * ROW_LABEL_SHARE;
+  const rowShown = rows.map((r) =>
+    truncateText(r.label, ROW_FONT, rowLabelMax)
+  );
   const rowLabelW =
-    Math.max(0, ...rows.map((r) => measureText(r.label, 13))) + 16;
+    Math.max(0, ...rowShown.map((t) => measureText(t, ROW_FONT))) + 16;
   const left = 20 + rowLabelW;
-  const top = topInset + 28; // room for column labels
-  const right = 24;
   const bottom = 24;
+
+  // Column labels rotate when one is wider than its cell at the default margin.
+  const cw0 = (width - left - 24) / ncols;
+  const rotate = cols.some((c) => measureText(c, COL_FONT) > cw0 * 0.85);
+  const colShown = rotate
+    ? cols.map((c) =>
+        truncateText(
+          c,
+          COL_FONT,
+          Math.min(
+            COL_LABEL_MAX_W,
+            (height * COL_BAND_SHARE) / Math.sin(COL_ANGLE)
+          )
+        )
+      )
+    : cols;
+  const colW = colShown.map((c) => measureText(c, COL_FONT));
+  const sin = Math.sin(COL_ANGLE);
+  const cos = Math.cos(COL_ANGLE);
+  // Rotated: the band above the plot holds the tallest label's rise (baseline
+  // 8px above the plot, plus the glyphs' ascent turned through the angle).
+  const band = rotate
+    ? Math.max(28, 8 + Math.max(0, ...colW) * sin + COL_FONT * cos + EDGE_GAP)
+    : 28;
+  const top = topInset + band;
+  // Rotated: widen the right margin until no label's right end passes the
+  // canvas. Label i is anchored at the middle of column i, so its anchor moves
+  // with the margin: solve left + (i + 0.5) * (P - right) / n + reach <= width - gap.
+  let right = 24;
+  if (rotate) {
+    const P = width - left;
+    colW.forEach((w, i) => {
+      const reach = w * cos + COL_FONT * 0.25 * sin;
+      const need = P - (ncols * (P - EDGE_GAP - reach)) / (i + 0.5);
+      right = Math.max(right, need);
+    });
+  }
   const plotW = width - left - right;
   const plotH = height - top - bottom;
   const cw = plotW / ncols;
@@ -101,7 +152,6 @@ export function renderHeatmap(
   );
 
   // column labels (rotate if wide) — clickable: pins emphasis to the column
-  const rotate = cols.some((c) => measureText(c, 12) > cw * 0.85);
   cols.forEach((c, ci) => {
     const x = left + ci * cw + cw / 2;
     const t = svg
@@ -110,9 +160,10 @@ export function renderHeatmap(
       .attr('data-filter-attr', 'data-col-key')
       .attr('data-filter-value', c)
       .attr('fill', textColor)
-      .attr('font-size', 12)
+      .attr('font-size', COL_FONT)
       .attr('font-family', FONT_FAMILY)
-      .text(c);
+      .text(colShown[ci]!);
+    if (colShown[ci] !== c) t.append('title').text(c);
     if (rotate) {
       t.attr('transform', `translate(${x},${top - 8}) rotate(-40)`).attr(
         'text-anchor',
@@ -127,7 +178,7 @@ export function renderHeatmap(
 
   rows.forEach((row, ri) => {
     // row label — hover/click emphasizes the row
-    svg
+    const rowLabel = svg
       .append('text')
       .attr('class', 'dgmo-axis-label')
       .attr('data-filter-attr', 'data-row-key')
@@ -136,9 +187,10 @@ export function renderHeatmap(
       .attr('y', top + ri * ch + ch / 2 + 4)
       .attr('text-anchor', 'end')
       .attr('fill', textColor)
-      .attr('font-size', 13)
+      .attr('font-size', ROW_FONT)
       .attr('font-family', FONT_FAMILY)
-      .text(row.label);
+      .text(rowShown[ri]!);
+    if (rowShown[ri] !== row.label) rowLabel.append('title').text(row.label);
 
     row.values.forEach((v, ci) => {
       const t =
