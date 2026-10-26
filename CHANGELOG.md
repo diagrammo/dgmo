@@ -5,6 +5,47 @@ All notable changes to `@diagrammo/dgmo` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.93.0] - 2026-10-26
+
+### Added
+
+- **A whiteboard names its colours.** A tag block whose entries name
+  colours (`tag Meaning` / `  Blocked red`) gives each colour a meaning,
+  and a board with two or more colours draws a legend above it. Pointing
+  at a legend entry highlights the elements that wear it.
+- **`@diagrammo/dgmo/advanced` exports the palette reader** —
+  `extractPaletteDirective`, `choosePalette` and the `PaletteDirective`
+  type — so a caller of the per-chart renderers reads a file's `palette`
+  line the same way `render()` does.
+
+### Fixed
+
+- **The built-in palettes survive a bundler that honours `sideEffects`.**
+  Vite 8.3 dropped their self-registration and `getPalette()` returned
+  nothing. The registry now registers the seven built-ins itself.
+- **A sequence diagram fits its container** — no sideways scroll in a
+  preview — and a fitted canvas clips no label.
+- **A `palette` line no longer becomes a node** when a chart parser is
+  called directly: sequence, journey map, cycle, ring, pyramid, RACI and
+  whiteboard each lift it themselves.
+- **A short category axis never drops a name.** Twelve categories or
+  fewer rotate their labels instead of skipping every other one.
+- **A body chart escapes double quotes in tag values** written into
+  attributes, so a tag value cannot add an attribute of its own.
+- **A countdown's calendar band redraws itself** once its day has passed
+  on a page built earlier.
+- **Map clock cards keep their time** under the live ticker on a
+  prerendered page, and are sized for the widest status they can show.
+
+### Changed
+
+- Flowchart, state, class and ER layouts stop trying shuffled seeds after
+  two in a row that do not improve, so a diagram that cannot reach zero
+  crossings renders faster. The chosen layout is unchanged on every
+  gallery fixture and example.
+- Each chart's export handler lives beside the chart instead of in one
+  shared file. No import path changes.
+
 ## [0.92.1] - 2026-10-20
 
 ### Fixed
