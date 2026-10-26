@@ -243,6 +243,26 @@ Task B 10d`;
     expect(labels[0].textContent).toBe('blocks');
   });
 
+  it('puts a time-axis tick at the x of a bar starting on its date, after January (#1414)', () => {
+    // Ticks once used the approximate month/12 + (day-1)/365 scale while bars
+    // used the exact one, so in March "Mar 8" sat about two days left of Mar 8.
+    const input = `gantt
+start 2026-03-02
+Setup 6d
+  -> Build
+Build 40d`;
+    const container = renderFromInput(input);
+    const build = container.querySelector(
+      'g.gantt-task[data-task-name="Build"] rect'
+    );
+    const barX = Number(build?.getAttribute('x'));
+    const mar8 = [...container.querySelectorAll('text.gantt-scale-tick')].find(
+      (t) => t.textContent === 'Mar 8'
+    );
+    expect(mar8).toBeDefined();
+    expect(Number(mar8?.getAttribute('x'))).toBeCloseTo(barX, 6);
+  });
+
   // ── Phase 3 tests ────────────────────────────────────────
 
   it('renders era backgrounds', () => {

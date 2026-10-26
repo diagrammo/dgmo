@@ -63,6 +63,28 @@ function dateToFractionalYear(d: Date): number {
   );
 }
 
+/**
+ * How an axis maps Dates to its fractional-year values. A caller whose data
+ * uses another formula than the approximate default passes its own pair, so
+ * the ticks sit on the same scale as what it draws (#1414).
+ */
+type FractionalYearConverters = {
+  toFractionalYear: (d: Date) => number;
+  fromFractionalYear: (frac: number) => Date;
+};
+
+const APPROXIMATE_CONVERTERS: FractionalYearConverters = {
+  toFractionalYear: dateToFractionalYear,
+  fromFractionalYear: fractionalYearToDate,
+};
+
+/** Midnight on a calendar day, with years 0–99 kept as written. */
+function calendarDay(year: number, month0: number, day: number): Date {
+  const d = new Date(2000, month0, day);
+  d.setFullYear(year);
+  return d;
+}
+
 /** Year axis label: negative years render as `N BCE`. */
 function formatYearTick(y: number): string {
   return y < 0 ? `${-y} BCE` : String(y);
@@ -76,6 +98,10 @@ function formatYearTick(y: number): string {
  * Optional boundary parameters add ticks at exact data start/end:
  * - boundaryStart/boundaryEnd: numeric date values
  * - boundaryStartLabel/boundaryEndLabel: formatted labels for those dates
+ *
+ * `converters` maps Dates to domain values and back. It defaults to the
+ * approximate `month/12 + (day-1)/365` formula the timeline uses; gantt
+ * passes its exact elapsed-time pair (#1414).
  */
 export function computeTimeTicks(
   domainMin: number,
@@ -85,8 +111,20 @@ export function computeTimeTicks(
   boundaryEnd?: number,
   boundaryStartLabel?: string,
   boundaryEndLabel?: string,
-  labelFit: TickLabelFit = { fontSize: 10 }
+  labelFit: TickLabelFit = { fontSize: 10 },
+  converters?: {
+    toFractionalYear: (d: Date) => number;
+    fromFractionalYear: (frac: number) => Date;
+  }
 ): { pos: number; label: string }[] {
+  const { toFractionalYear, fromFractionalYear } =
+    converters ?? APPROXIMATE_CONVERTERS;
+  // The default formula is evaluated directly, so the timeline's ticks are
+  // unchanged to the bit, including years 0–99.
+  const dayValue = (y: number, month0: number, day: number): number =>
+    converters
+      ? toFractionalYear(calendarDay(y, month0, day))
+      : y + month0 / 12 + (day - 1) / 365;
   const minYear = Math.floor(domainMin);
   const maxYear = Math.floor(domainMax);
   const span = domainMax - domainMin;
@@ -127,7 +165,7 @@ export function computeTimeTicks(
     const crossesYear = maxYear > minYear;
     for (let y = minYear; y <= maxYear + 1; y++) {
       for (let m = 1; m <= 12; m++) {
-        const val = y + (m - 1) / 12;
+        const val = dayValue(y, m - 1, 1);
         if (val > domainMax) break;
         if (val >= domainMin) {
           // m is 1..12, so MONTH_ABBR[m-1] is always defined.
@@ -150,7 +188,7 @@ export function computeTimeTicks(
     else if (spanSec > 60) stepSec = 15;
     else if (spanSec > 30) stepSec = 10;
 
-    const startDate = fractionalYearToDate(domainMin);
+    const startDate = fromFractionalYear(domainMin);
     // Round down to nearest step boundary
     startDate.setSeconds(
       Math.floor(startDate.getSeconds() / stepSec) * stepSec,
@@ -158,7 +196,7 @@ export function computeTimeTicks(
     );
 
     while (true) {
-      const val = dateToFractionalYear(startDate);
+      const val = toFractionalYear(startDate);
       if (val > domainMax) break;
       if (val >= domainMin) {
         const hh = String(startDate.getHours()).padStart(2, '0');
@@ -182,7 +220,7 @@ export function computeTimeTicks(
     else if (spanHours > 0.5) stepMin = 10;
 
     // Iterate from the start hour boundary
-    const startDate = fractionalYearToDate(domainMin);
+    const startDate = fromFractionalYear(domainMin);
     // Round down to nearest step boundary
     startDate.setMinutes(
       Math.floor(startDate.getMinutes() / stepMin) * stepMin,
@@ -191,7 +229,7 @@ export function computeTimeTicks(
     );
 
     while (true) {
-      const val = dateToFractionalYear(startDate);
+      const val = toFractionalYear(startDate);
       if (val > domainMax) break;
       if (val >= domainMin) {
         const hh = String(startDate.getHours()).padStart(2, '0');
@@ -216,7 +254,7 @@ export function computeTimeTicks(
     // For single-day spans, just show HH:MM without the date prefix
     const singleDay = spanHours <= 24;
 
-    const startDate = fractionalYearToDate(domainMin);
+    const startDate = fromFractionalYear(domainMin);
     // Round down to nearest step boundary
     startDate.setHours(
       Math.floor(startDate.getHours() / stepHour) * stepHour,
@@ -226,7 +264,7 @@ export function computeTimeTicks(
     );
 
     while (true) {
-      const val = dateToFractionalYear(startDate);
+      const val = toFractionalYear(startDate);
       if (val > domainMax) break;
       if (val >= domainMin) {
         const hh = String(startDate.getHours()).padStart(2, '0');
@@ -254,7 +292,7 @@ export function computeTimeTicks(
     for (let y = minYear; y <= maxYear + 1; y++) {
       for (let m = 1; m <= 12; m++) {
         for (const d of [1, 8, 15, 22]) {
-          const val = y + (m - 1) / 12 + (d - 1) / 365;
+          const val = dayValue(y, m - 1, d);
           if (val > domainMax) break;
           if (val >= domainMin) {
             ticks.push({

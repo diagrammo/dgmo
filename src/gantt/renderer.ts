@@ -3684,6 +3684,22 @@ function dateToFractionalYear(d: Date): number {
   return y + fraction;
 }
 
+/** Inverse of `dateToFractionalYear`, so axis ticks share the bars' scale (#1414). */
+function fractionalYearToDate(frac: number): Date {
+  const y = Math.floor(frac);
+  const startOfYear = new Date(y, 0, 1);
+  const endOfYear = new Date(y + 1, 0, 1);
+  return new Date(
+    startOfYear.getTime() +
+      (frac - y) * (endOfYear.getTime() - startOfYear.getTime())
+  );
+}
+
+const EXACT_FRACTIONAL_YEAR = {
+  toFractionalYear: dateToFractionalYear,
+  fromFractionalYear: fractionalYearToDate,
+};
+
 function diamondPoints(cx: number, cy: number, size: number): string {
   const half = size / 2;
   return `${cx},${cy - half} ${cx + half},${cy} ${cx},${cy + half} ${cx - half},${cy}`;
@@ -3883,7 +3899,17 @@ function renderTimeScaleHorizontal(
   // In-bounds: d3 ScaleLinear.domain() returns at least 2 elements.
   const domainMin = domain[0]!;
   const domainMax = domain[1]!;
-  const ticks = computeTimeTicks(domainMin, domainMax, scale);
+  const ticks = computeTimeTicks(
+    domainMin,
+    domainMax,
+    scale,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    EXACT_FRACTIONAL_YEAR
+  );
   if (ticks.length < 2) return;
 
   const tickLen = 6;
