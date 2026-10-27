@@ -40,6 +40,9 @@ import {
 import { parseInfra } from './parser';
 import { computeInfra } from './compute';
 import { layoutInfra } from './layout';
+import { placeEdgeLabels } from '../boxes-and-lines/label-placement';
+import type { BLLayoutResult } from '../boxes-and-lines/layout';
+import type { BLGroup } from '../boxes-and-lines/types';
 import {
   LEGEND_HEIGHT,
   LEGEND_PILL_PAD,
@@ -1429,6 +1432,78 @@ function renderEdgePaths(
   }
 }
 
+/**
+ * Centre of each labelled edge's label box, keyed by edge index. Runs the
+ * labels through boxes-and-lines' collision-avoiding placement (#1427): each
+ * starts at its drawn route's arc-length midpoint, slides off node boxes, group
+ * titles and the interior of a group its edge only crosses, and stacked labels
+ * are pulled apart. Placing every label on its route's middle waypoint drew
+ * five of seven over a node box in gallery infra-full ("analytics" over
+ * ClickHouse's RPS line, "payment.confirmed" over EventBus).
+ *
+ * Labels stay one line (an unbounded wrap width), so the box drawn below is
+ * the one infra always drew; only its position comes from here.
+ */
+function placeInfraEdgeLabels(
+  routes: readonly (readonly Pt[])[],
+  edges: readonly InfraLayoutEdge[],
+  nodes: readonly InfraLayoutNode[],
+  groups: readonly InfraLayoutGroup[],
+  fontSize: number
+): Map<number, Pt> {
+  // Infra groups are positioned by top-left; boxes-and-lines' by centre.
+  const adapted: BLLayoutResult = {
+    nodes: nodes.map((n) => ({
+      label: n.id,
+      x: n.x,
+      y: n.y,
+      width: n.width,
+      height: n.height,
+    })),
+    groups: groups.map((g) => ({
+      label: g.id,
+      lineNumber: g.lineNumber,
+      x: g.x + g.width / 2,
+      y: g.y + g.height / 2,
+      width: g.width,
+      height: g.height,
+      collapsed: false,
+    })),
+    width: 0,
+    height: 0,
+    edges: edges.map((e, idx) => ({
+      source: e.sourceId,
+      target: e.targetId,
+      ...(e.label && { label: e.label }),
+      bidirectional: false,
+      lineNumber: e.lineNumber,
+      points: routes[idx] ?? [],
+      yOffset: 0,
+      parallelCount: 1,
+      metadata: {},
+    })),
+  };
+  // Membership, so a label on an edge that lives inside a group may use that
+  // group's interior while one that crosses its border may not.
+  const blGroups: BLGroup[] = groups.map((g) => ({
+    label: g.id,
+    children: nodes.filter((n) => n.groupId === g.id).map((n) => n.id),
+    lineNumber: g.lineNumber,
+    metadata: {},
+  }));
+  const placed = placeEdgeLabels(adapted, {
+    fontSize,
+    maxWidth: Number.POSITIVE_INFINITY,
+    groups: blGroups,
+  });
+  const out = new Map<number, Pt>();
+  placed.layout.edges.forEach((e, idx) => {
+    if (e.labelX !== undefined && e.labelY !== undefined)
+      out.set(idx, { x: e.labelX, y: e.labelY });
+  });
+  return out;
+}
+
 function renderEdgeLabels(
   svg: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   edges: readonly InfraLayoutEdge[],
@@ -1442,16 +1517,14 @@ function renderEdgeLabels(
 ) {
   const nodeMap = nodeMapWithGroups(nodes, groups);
   const { srcPts, tgtPts } = computePortPts(edges, nodeMap, direction);
-  for (const edge of edges) {
-    if (edge.points.length === 0) continue;
-    if (!edge.label) continue;
-
+  // Every drawn route, labelled or not: placement keeps labels off other lines.
+  const routes: Pt[][] = edges.map((edge) => {
+    if (edge.points.length === 0) return [];
     const sourceNode = nodeMap.get(edge.sourceId);
     const targetNode = nodeMap.get(edge.targetId);
-    if (!sourceNode || !targetNode) continue;
-
+    if (!sourceNode || !targetNode) return [];
     const key = `${edge.sourceId}:${edge.targetId}`;
-    const wps = edgeWaypoints(
+    return edgeWaypoints(
       sourceNode,
       targetNode,
       groups,
@@ -1461,7 +1534,18 @@ function renderEdgeLabels(
       srcPts.get(key),
       tgtPts.get(key)
     );
-    const midPt = wps[Math.floor(wps.length / 2)];
+  });
+  const labelPts = placeInfraEdgeLabels(
+    routes,
+    edges,
+    nodes,
+    groups,
+    EDGE_LABEL_FONT_SIZE
+  );
+  for (const [idx, edge] of edges.entries()) {
+    if (!edge.label) continue;
+    const wps = routes[idx]!;
+    const midPt = labelPts.get(idx);
     if (!midPt) continue;
     const labelText = edge.label;
 

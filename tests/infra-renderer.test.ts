@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 import { parseInfra } from '../src/infra/parser';
 import { computeInfra } from '../src/infra/compute';
 import { layoutInfra } from '../src/infra/layout';
@@ -711,5 +713,50 @@ Database`);
     // The edge into the group must be drawn with its label.
     expect(svg).toMatch(/data-from="edge" data-to="\[services\]"/);
     expect(svg).toMatch(/>api</);
+  });
+});
+
+describe('infra renderer edge labels (#1427)', () => {
+  it('draws no edge label box over a node box in gallery infra-full', () => {
+    const source = readFileSync(
+      resolve(__dirname, '../gallery/fixtures/infra-full.dgmo'),
+      'utf8'
+    );
+    const host = document.createElement('div');
+    host.innerHTML = renderToSvg(source);
+    const box = (r: Element) => ({
+      x: Number(r.getAttribute('x')),
+      y: Number(r.getAttribute('y')),
+      w: Number(r.getAttribute('width')),
+      h: Number(r.getAttribute('height')),
+    });
+    const nodes = [...host.querySelectorAll('g.infra-node')].map((g) => ({
+      id: g.getAttribute('data-infra-node') ?? '',
+      ...box(g.querySelector(':scope > rect')!),
+    }));
+    const labelTexts = new Set(
+      parseInfra(source)
+        .edges.map((e) => e.label)
+        .filter(Boolean)
+    );
+    const labels = [...host.querySelectorAll('text')]
+      .filter((t) => labelTexts.has(t.textContent ?? ''))
+      .map((t) => ({
+        text: t.textContent ?? '',
+        ...box(t.previousElementSibling!),
+      }));
+    expect(nodes.length).toBeGreaterThan(10);
+    expect(labels.length).toBe(labelTexts.size);
+    const hits: string[] = [];
+    for (const l of labels)
+      for (const n of nodes)
+        if (
+          l.x < n.x + n.w &&
+          n.x < l.x + l.w &&
+          l.y < n.y + n.h &&
+          n.y < l.y + l.h
+        )
+          hits.push(`${l.text} over ${n.id}`);
+    expect(hits).toEqual([]);
   });
 });
