@@ -244,6 +244,7 @@ export function whiteboardBounds(
     maxY: -Infinity,
   };
   const elements = visibleWhiteboardElements(parsed, options);
+  const labelAt = placeConnectorLabels(elements);
   for (const el of elements) {
     switch (el.kind) {
       case 'shape':
@@ -275,7 +276,7 @@ export function whiteboardBounds(
         }
         if (el.label) {
           const lines = labelLines(el.label);
-          const { x: mx, y: my } = whiteboardSegmentMidpoint(s);
+          const { x: mx, y: my } = labelAt.get(el)!;
           const hw = widest(lines, LABEL_FONT) / 2 + 4;
           const hh =
             LABEL_FONT + ((lines.length - 1) * LABEL_FONT * LABEL_LINE) / 2;
@@ -335,6 +336,113 @@ function curveTrim(s: WhiteboardSegment, end: 0 | 1, len: number): number {
     else far = m;
   }
   return (near + far) / 2;
+}
+
+/** How far along its connector a label slides per try, as a fraction of t. */
+const LABEL_SLIDE_STEP = 0.05;
+/** Tries each way from the midpoint — the label stays within t ∈ [0.1, 0.9]. */
+const LABEL_SLIDE_TRIES = 8;
+/**
+ * Clearance kept around an edge label, px: half its halo stroke (the
+ * knock-out reaches 2 px) plus a gap, so it does not read as one block with
+ * the text beside it.
+ */
+const LABEL_CLEAR = 5;
+
+interface TextBox {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
+function boxesOverlap(a: TextBox, b: TextBox): boolean {
+  return a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+}
+
+/** An edge label's drawn block, halo included, centred on (x, y). */
+function connectorLabelBox(
+  lines: readonly string[],
+  x: number,
+  y: number
+): TextBox {
+  const hw = widest(lines, LABEL_FONT) / 2 + LABEL_CLEAR;
+  const hh = (lines.length * LABEL_FONT * LABEL_LINE) / 2 + LABEL_CLEAR;
+  return { x0: x - hw, y0: y - hh, x1: x + hw, y1: y + hh };
+}
+
+/** The author-placed text an edge label must not cover. */
+function authoredTextBoxes(elements: readonly WhiteboardElement[]): TextBox[] {
+  const boxes: TextBox[] = [];
+  for (const el of elements) {
+    if (el.kind === 'text') {
+      const lines = labelLines(el.text);
+      boxes.push({
+        x0: el.x,
+        y0: el.y,
+        x1: el.x + widest(lines, WHITEBOARD_TEXT_FONT),
+        y1: el.y + lines.length * WHITEBOARD_TEXT_FONT * LABEL_LINE,
+      });
+    } else if (el.kind === 'note') {
+      boxes.push({
+        x0: el.x,
+        y0: el.y,
+        x1: el.x + el.width,
+        y1: el.y + Math.max(el.height, noteTextHeight(el)),
+      });
+    } else if (el.kind === 'shape' && el.label) {
+      const { lines, font } = fitWhiteboardLabel(el.label, el);
+      if (lines.length === 0) continue;
+      const cx = el.x + el.width / 2 + whiteboardLabelShift(el);
+      const cy = el.y + el.height / 2;
+      const hw = widest(lines, font) / 2;
+      const hh = (lines.length * font * LABEL_LINE) / 2;
+      boxes.push({ x0: cx - hw, y0: cy - hh, x1: cx + hw, y1: cy + hh });
+    }
+  }
+  return boxes;
+}
+
+/**
+ * Where each connector's label is centred. The midpoint unless that covers
+ * other text — author-placed text, a note, a shape's label, or a label placed
+ * before it — in which case it slides along its own connector to the nearest
+ * point that clears, trying each way in turn. No point clears → the midpoint,
+ * whose halo keeps it legible. Author-placed elements never move.
+ */
+function placeConnectorLabels(
+  elements: readonly WhiteboardElement[]
+): Map<WhiteboardElement, WhiteboardPoint> {
+  const placed = new Map<WhiteboardElement, WhiteboardPoint>();
+  const taken = authoredTextBoxes(elements);
+  for (const el of elements) {
+    if ((el.kind !== 'arrow' && el.kind !== 'line') || !el.label) continue;
+    const lines = labelLines(el.label);
+    const s = clipWhiteboardConnector(el, elements);
+    const mid = whiteboardSegmentMidpoint(s);
+    let at = mid;
+    const clears = (p: WhiteboardPoint): boolean => {
+      const box = connectorLabelBox(lines, p.x, p.y);
+      return !taken.some((t) => boxesOverlap(box, t));
+    };
+    if (!clears(mid)) {
+      search: for (let k = 1; k <= LABEL_SLIDE_TRIES; k++) {
+        for (const t of [
+          0.5 - k * LABEL_SLIDE_STEP,
+          0.5 + k * LABEL_SLIDE_STEP,
+        ]) {
+          const p = segmentPoint(s, t);
+          if (clears(p)) {
+            at = p;
+            break search;
+          }
+        }
+      }
+    }
+    placed.set(el, at);
+    taken.push(connectorLabelBox(lines, at.x, at.y));
+  }
+  return placed;
 }
 
 /** What to draw for a connector: one stroke (a line or a curve) and its heads. */
@@ -471,6 +579,7 @@ export function renderWhiteboard(
   const titleOffset = showTitle ? TITLE_BAND : 0;
   const elements = visibleWhiteboardElements(parsed, options);
   const b = whiteboardBounds(parsed, options);
+  const labelAt = placeConnectorLabels(elements);
   const contentW = b.maxX - b.minX;
   const contentH = b.maxY - b.minY;
   const titleW = showTitle
@@ -754,10 +863,11 @@ export function renderWhiteboard(
           g.append('polygon').attr('points', points).attr('fill', color);
         }
         if (el.label) {
-          // The block of lines is centred on the midpoint; the halo stroke
-          // knocks the line out behind every one of them.
+          // The block of lines is centred on its placed point (the midpoint
+          // unless that covers other text); the halo stroke knocks the line
+          // out behind every one of them.
           const lines = labelLines(el.label);
-          const mid = whiteboardSegmentMidpoint(s);
+          const mid = labelAt.get(el)!;
           const mx = round2(mid.x);
           const lh = LABEL_FONT * LABEL_LINE;
           const firstY =

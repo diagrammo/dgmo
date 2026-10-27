@@ -215,6 +215,47 @@ describe('whiteboard renderer', () => {
     expect(single.textContent).toBe('go');
   });
 
+  it('slides an arrow label off a text note along its own arrow (#1428)', () => {
+    // Midpoint (0, 100) lands on the note, whose block spans y 92–112.
+    const src =
+      'whiteboard\narrow emails a code from: 0 0, to: 0 200\ntext keep it to ONE screen at: -60 92';
+    const svg = draw(src);
+    const label = svg.querySelector('.whiteboard-arrow .whiteboard-label')!;
+    // Still on the arrow, now above the note with clearance; the nearest
+    // clear point up the arrow wins over the one down it.
+    expect(label.getAttribute('x')).toBe('0');
+    const centre = Number(label.getAttribute('y')) - 14 * 0.35;
+    expect(centre).toBeCloseTo(70);
+    expect(centre + (14 * 1.25) / 2).toBeLessThan(92);
+    // The author's note never moves.
+    const note = svg.querySelector('.whiteboard-text text')!;
+    expect(note.getAttribute('x')).toBe('-60');
+    expect(Number(note.getAttribute('y'))).toBeCloseTo(92 + 16 * 0.8);
+  });
+
+  it('keeps an arrow label at the midpoint when no point along it clears', () => {
+    const tall = Array.from({ length: 12 }, () => '  wall of text').join('\n');
+    const src = `whiteboard\narrow go from: 0 0, to: 0 200\ntext at: -60 -10\n${tall}`;
+    const label = draw(src).querySelector(
+      '.whiteboard-arrow .whiteboard-label'
+    )!;
+    expect(Number(label.getAttribute('y'))).toBeCloseTo(100 + 14 * 0.35);
+    expect(label.getAttribute('paint-order')).toBe('stroke');
+  });
+
+  it('slides a label off one placed before it', () => {
+    const src =
+      'whiteboard\narrow first from: 0 0, to: 0 200\narrow second from: -100 100, to: 100 100';
+    const labels = [
+      ...draw(src).querySelectorAll('.whiteboard-arrow .whiteboard-label'),
+    ];
+    expect(labels).toHaveLength(2);
+    // The first keeps its midpoint; the second moves along its own arrow.
+    expect(Number(labels[0]!.getAttribute('y'))).toBeCloseTo(100 + 14 * 0.35);
+    expect(Number(labels[1]!.getAttribute('y'))).toBeCloseTo(100 + 14 * 0.35);
+    expect(labels[1]!.getAttribute('x')).not.toBe('0');
+  });
+
   it('anchors multi-line text top-left, 20px apart, and sizes the bounds', () => {
     const src = 'whiteboard\ntext at: 10 20\n  first\n  second';
     const t = draw(src).querySelector('.whiteboard-text text')!;
