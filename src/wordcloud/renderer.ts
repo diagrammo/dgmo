@@ -53,13 +53,25 @@ type PlacedCloudWord = WordCloudWord & {
   rotate: number;
 };
 
+// A word is drawn with its BASELINE at its y, so its glyphs run from
+// y - ascent to y + descent, not y ± size/2 (#1429: a large word's top reached
+// into the small word above it). Inter's ink extent, in em.
+const WORD_ASCENT = 0.78;
+const WORD_DESCENT = 0.22;
+// When a word cannot be placed, the whole cloud shrinks by this factor and is
+// packed again, so every word stays rather than one being dropped.
+const CLOUD_SHRINK = 0.9;
+const CLOUD_SHRINK_TRIES = 6;
+
 /**
  * Canvas-free word-cloud layout. Places the largest words first at the centre
  * and walks an Archimedean spiral outward, using axis-aligned bounding-box
  * overlap tests (text width estimated from font metrics). Returns words in
  * placement order with `x`/`y` relative to the cloud centre — the same shape
  * d3-cloud hands to its `end` callback — so the existing draw code is reused.
- * Words that can't be placed within the box are dropped, matching d3-cloud.
+ * If a word does not fit, every word is scaled down and the cloud is packed
+ * again; only after the last try are words that still don't fit dropped,
+ * matching d3-cloud.
  */
 function layoutWordsNoCanvas(
   words: Array<WordCloudWord & { size: number }>,
@@ -68,8 +80,33 @@ function layoutWordsNoCanvas(
   padding: number,
   rotateFn: () => number
 ): PlacedCloudWord[] {
+  let placed: PlacedCloudWord[] = [];
+  for (let attempt = 0, scale = 1; attempt <= CLOUD_SHRINK_TRIES; attempt++) {
+    placed = packWords(
+      words.map((w) => ({ ...w, size: w.size * scale })),
+      width,
+      height,
+      padding,
+      rotateFn
+    );
+    if (placed.length === words.length) break;
+    scale *= CLOUD_SHRINK;
+  }
+  return placed;
+}
+
+function packWords(
+  words: Array<WordCloudWord & { size: number }>,
+  width: number,
+  height: number,
+  padding: number,
+  rotateFn: () => number
+): PlacedCloudWord[] {
   const sorted = [...words].sort((a, b) => b.size - a.size);
-  const placed: Array<PlacedCloudWord & { halfW: number; halfH: number }> = [];
+  // cx/cy: centre of the word's box, which sits above its anchor point.
+  const placed: Array<
+    PlacedCloudWord & { cx: number; cy: number; halfW: number; halfH: number }
+  > = [];
   const maxR = Math.sqrt(width * width + height * height) / 2;
   // Bias the spiral to the box aspect so wide clouds spread horizontally.
   const aspect = width > 0 ? height / width : 1;
@@ -77,12 +114,16 @@ function layoutWordsNoCanvas(
   for (const w of sorted) {
     const rotate = rotateFn();
     const rawW = estimateWordWidth(w.text, w.size) + padding * 2;
-    const rawH = w.size + padding * 2;
+    const rawH = (WORD_ASCENT + WORD_DESCENT) * w.size + padding * 2;
     const rad = (rotate * Math.PI) / 180;
     const cos = Math.abs(Math.cos(rad));
     const sin = Math.abs(Math.sin(rad));
     const halfW = (rawW * cos + rawH * sin) / 2;
     const halfH = (rawW * sin + rawH * cos) / 2;
+    // The box centre in the word's own frame is (0, off); rotate it with the word.
+    const off = ((WORD_DESCENT - WORD_ASCENT) / 2) * w.size;
+    const offX = -off * Math.sin(rad);
+    const offY = off * Math.cos(rad);
 
     let spot: { x: number; y: number } | null = null;
     for (let t = 0; t < 4000; t++) {
@@ -91,19 +132,21 @@ function layoutWordsNoCanvas(
       if (r > maxR) break;
       const x = Math.cos(a) * r;
       const y = Math.sin(a) * r * aspect;
+      const cx = x + offX;
+      const cy = y + offY;
       if (
-        x - halfW < -width / 2 ||
-        x + halfW > width / 2 ||
-        y - halfH < -height / 2 ||
-        y + halfH > height / 2
+        cx - halfW < -width / 2 ||
+        cx + halfW > width / 2 ||
+        cy - halfH < -height / 2 ||
+        cy + halfH > height / 2
       ) {
         continue;
       }
       let collides = false;
       for (const p of placed) {
         if (
-          Math.abs(x - p.x) < halfW + p.halfW &&
-          Math.abs(y - p.y) < halfH + p.halfH
+          Math.abs(cx - p.cx) < halfW + p.halfW &&
+          Math.abs(cy - p.cy) < halfH + p.halfH
         ) {
           collides = true;
           break;
@@ -115,7 +158,16 @@ function layoutWordsNoCanvas(
       }
     }
     if (!spot) continue;
-    placed.push({ ...w, rotate, x: spot.x, y: spot.y, halfW, halfH });
+    placed.push({
+      ...w,
+      rotate,
+      x: spot.x,
+      y: spot.y,
+      cx: spot.x + offX,
+      cy: spot.y + offY,
+      halfW,
+      halfH,
+    });
   }
   return placed;
 }

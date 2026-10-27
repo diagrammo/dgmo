@@ -1,0 +1,63 @@
+wordcloud Platform Team Retro Keywords
+// stress: many-items — sixty terms, weights from 99 down to 1
+
+Kubernetes 99
+Latency 96
+Onboarding 93
+Incidents 90
+Deploys 88
+On-call 85
+Flaky Tests 83
+Observability 80
+Migrations 78
+Postgres 75
+Caching 73
+Terraform 70
+Runbooks 68
+Alerts 66
+Budgets 64
+Code Review 62
+Pairing 60
+Docs 58
+Hiring 56
+Roadmap 54
+Kafka 52
+Retries 50
+Timeouts 48
+Feature Flags 46
+Canary 44
+Rollbacks 42
+Secrets 40
+IAM 38
+Backups 36
+Load Tests 34
+SLOs 32
+Error Budget 30
+Tracing 29
+Dashboards 28
+Pagers 27
+Toil 26
+Queues 25
+Webhooks 24
+gRPC 23
+Protobuf 22
+Helm 21
+Istio 20
+Envoy 19
+DNS 18
+TLS 17
+CDN 16
+Redis 15
+S3 14
+Lambda 13
+Cron 12
+Vault 11
+Linting 10
+Monorepo 9
+Bazel 8
+Nix 7
+eBPF 6
+WASM 5
+Rust 4
+Zig 3
+COBOL 1
