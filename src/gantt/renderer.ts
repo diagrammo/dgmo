@@ -2575,15 +2575,22 @@ function renderErasAndMarkers(
       .attr('opacity', baseEraOpacity);
 
     // Era label sits in the era row (one row above markers when both present).
-    // Truncate to fit the era's own span (with breathing room) so labels stay
+    // It is centred on the part of the band the plot area shows: an era
+    // reaching past the last task is drawn past the canvas edge, and a label
+    // at its full centre is never seen (#1424). No visible part, no label.
+    const [plotStart, plotEnd] = xScale.range() as [number, number];
+    const vsx = Math.max(sx, plotStart);
+    const vex = Math.min(ex, plotEnd);
+    if (vex <= vsx) continue;
+    // Truncate to fit the visible span (with breathing room) so labels stay
     // confined to their tinted band. Full text is restored on hover.
-    const eraLabelMaxW = Math.max(0, ex - sx - 8);
+    const eraLabelMaxW = Math.max(0, vex - vsx - 8);
     const eraDisplayLabel = truncateLegendText(era.label, 10, eraLabelMaxW);
     const eraTruncated = eraDisplayLabel !== era.label;
     const eraLabel = eraG
       .append('text')
       .attr('class', 'gantt-era-label')
-      .attr('x', (sx + ex) / 2)
+      .attr('x', (vsx + vex) / 2)
       .attr('y', eraLabelY)
       .attr('text-anchor', 'middle')
       .attr('font-size', 10)

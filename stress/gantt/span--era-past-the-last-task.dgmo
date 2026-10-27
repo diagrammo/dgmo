@@ -1,0 +1,16 @@
+gantt Website Relaunch
+// stress: span — eras that start after the last task ends, or run past it
+start-date 2024-09-02
+
+era 2024-09-02 -> 2024-09-20 Discovery
+era 2024-09-23 -> 2024-10-25 Launch Window
+era 2024-11-25 -> 2025-01-03 Holiday Code Freeze
+
+[Design]
+  Audit current site 5bd
+  Wireframes 8bd
+  Visual design 10bd
+
+[Build]
+  Templates 12bd
+  Content migration 6bd

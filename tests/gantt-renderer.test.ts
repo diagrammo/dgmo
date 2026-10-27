@@ -361,6 +361,38 @@ Long Task 200d`;
     expect(eraLabel?.textContent).toBe('Phase One');
   });
 
+  // #1424: an era past the last task was labelled at its full centre,
+  // off the canvas edge, where it never shows.
+  it('draws no label for an era that starts after the last task', () => {
+    const input = `gantt
+start 2024-01-01
+era 2024-01-01 -> 2024-01-10 Kickoff
+era 2024-06-01 -> 2024-06-30 Storm Season
+Short Task 20d`;
+    const container = renderFromInput(input);
+    const texts = Array.from(
+      container.querySelectorAll('.gantt-era-label')
+    ).map((l) => l.textContent);
+    expect(texts).toEqual(['Kickoff']);
+  });
+
+  it('centres an era label on the visible part of an era that runs past the last task', () => {
+    const input = `gantt
+start 2024-01-01
+era 2024-01-15 -> 2024-12-31 Long Tail
+Short Task 30d`;
+    const container = renderFromInput(input);
+    const rect = container.querySelector('.gantt-era')!;
+    const label = container.querySelector('.gantt-era-label')!;
+    const rx = Number(rect.getAttribute('x'));
+    const rw = Number(rect.getAttribute('width'));
+    const lx = Number(label.getAttribute('x'));
+    // The band reaches far past the plot; the label stays inside it,
+    // well left of the band's full centre.
+    expect(lx).toBeGreaterThan(rx);
+    expect(lx).toBeLessThan(rx + rw / 4);
+  });
+
   it('restores full marker label on hover and re-truncates on leave', () => {
     const input = `gantt
 start 2024-01-01
