@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 import { parseSitemap } from '../src/sitemap/parser';
 import { layoutSitemap } from '../src/sitemap/layout';
 import { renderSitemap } from '../src/sitemap/renderer';
@@ -113,6 +115,42 @@ describe('renderSitemap', () => {
     const texts = node!.querySelectorAll('text');
     // Label + 2 key texts + 2 value texts = 5
     expect(texts.length).toBeGreaterThanOrEqual(3);
+    document.body.removeChild(container);
+  });
+});
+
+describe('renderSitemap edge labels (#1425)', () => {
+  it('draws no edge label badge over another in gallery sitemap-full', () => {
+    const source = readFileSync(
+      resolve(__dirname, '../gallery/fixtures/sitemap-full.dgmo'),
+      'utf8'
+    );
+    const { container } = renderToContainer(source);
+    const badges = [
+      ...container.querySelectorAll('.sitemap-edge-label-bg'),
+    ].map((r) => {
+      const x = Number(r.getAttribute('x'));
+      const y = Number(r.getAttribute('y'));
+      const w = Number(r.getAttribute('width'));
+      const h = Number(r.getAttribute('height'));
+      return { x, y, w, h, text: r.nextElementSibling?.textContent ?? '' };
+    });
+    expect(badges.length).toBeGreaterThan(40);
+    const overlapping: string[] = [];
+    for (let i = 0; i < badges.length; i++) {
+      for (let j = i + 1; j < badges.length; j++) {
+        const a = badges[i]!;
+        const b = badges[j]!;
+        if (
+          a.x < b.x + b.w &&
+          b.x < a.x + a.w &&
+          a.y < b.y + b.h &&
+          b.y < a.y + a.h
+        )
+          overlapping.push(`${a.text} / ${b.text}`);
+      }
+    }
+    expect(overlapping).toEqual([]);
     document.body.removeChild(container);
   });
 });

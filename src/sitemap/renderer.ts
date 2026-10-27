@@ -25,6 +25,8 @@ import type { SitemapLayoutResult, SitemapLegendGroup } from './layout';
 import { renderInlineText } from '../utils/inline-markdown';
 import { preprocessDescriptionLine } from '../utils/description-helpers';
 import { measureText } from '../utils/text-measure';
+import { placeEdgeLabels } from '../boxes-and-lines/label-placement';
+import type { BLLayoutResult } from '../boxes-and-lines/layout';
 import {
   LEGEND_HEIGHT,
   LEGEND_GROUP_GAP,
@@ -122,6 +124,71 @@ const lineGeneratorLinear = d3Shape
   .x((d) => d.x)
   .y((d) => d.y)
   .curve(d3Shape.curveLinear);
+
+// ============================================================
+// Edge label placement
+// ============================================================
+
+/**
+ * Centre of each labelled edge's badge, keyed by edge index. Runs the labels
+ * through boxes-and-lines' collision-avoiding placement (#1425): each starts at
+ * its edge's arc-length midpoint, slides off page cards and container headers,
+ * and stacked labels are pulled apart. Placing every label on its edge's middle
+ * point drew six pairs on top of each other in gallery sitemap-full.
+ *
+ * Labels stay one line (an unbounded wrap width), so the badge drawn below is
+ * the one sitemap always drew; only its position comes from here.
+ */
+function placeSitemapEdgeLabels(
+  layout: SitemapLayoutResult,
+  fontSize: number
+): Map<number, { x: number; y: number }> {
+  // Page cards are positioned by top-centre; a container's header (its title
+  // and metadata rows) is the part of it a label must not cover.
+  const nodes = [
+    ...layout.nodes.map((n) => ({
+      label: n.id,
+      x: n.x,
+      y: n.y + n.height / 2,
+      width: n.width,
+      height: n.height,
+    })),
+    ...layout.containers.map((c) => ({
+      label: c.nodeId,
+      x: c.x + c.width / 2,
+      y: c.y + c.labelHeight / 2,
+      width: c.width,
+      height: c.labelHeight,
+    })),
+  ];
+  const adapted: BLLayoutResult = {
+    nodes,
+    groups: [],
+    width: layout.width,
+    height: layout.height,
+    edges: layout.edges.map((e) => ({
+      source: e.sourceId,
+      target: e.targetId,
+      ...(e.label !== undefined && { label: e.label }),
+      bidirectional: false,
+      lineNumber: e.lineNumber,
+      points: e.points,
+      yOffset: 0,
+      parallelCount: 1,
+      metadata: {},
+    })),
+  };
+  const placed = placeEdgeLabels(adapted, {
+    fontSize,
+    maxWidth: Number.POSITIVE_INFINITY,
+  });
+  const out = new Map<number, { x: number; y: number }>();
+  placed.layout.edges.forEach((e, idx) => {
+    if (e.labelX !== undefined && e.labelY !== undefined)
+      out.set(idx, { x: e.labelX, y: e.labelY });
+  });
+  return out;
+}
 
 // ============================================================
 // Main Renderer
@@ -465,7 +532,8 @@ export function renderSitemap(
   }
 
   // --- Render edges (middle layer) ---
-  for (const edge of layout.edges) {
+  const labelCentres = placeSitemapEdgeLabels(layout, sEdgeLabelFontSize);
+  for (const [edgeIdx, edge] of layout.edges.entries()) {
     if (edge.points.length < 2) continue;
 
     const edgeG = contentG
@@ -493,8 +561,8 @@ export function renderSitemap(
     }
 
     // Edge label with background badge
-    if (edge.label && edge.points.length >= 2) {
-      const mid = edge.points[Math.floor(edge.points.length / 2)]!;
+    const mid = labelCentres.get(edgeIdx);
+    if (edge.label && mid) {
       const labelW = measureText(edge.label, sEdgeLabelFontSize) + 10;
       const labelH = sEdgeLabelFontSize + 6;
 
