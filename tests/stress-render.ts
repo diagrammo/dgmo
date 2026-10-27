@@ -10,20 +10,19 @@
 // limits the run to ids containing any of the substrings (a rota turn renders
 // only what it added or re-checks).
 import { test } from 'vitest';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { Resvg } from '@resvg/resvg-js';
 import { loadCorpus, renderFixture } from './stress/corpus';
+import { requireStressFonts } from './stress/fonts';
 
 const ROOT = resolve(__dirname, '..');
-const FONT_FILES = ['Inter-Regular.ttf', 'Inter-Bold.ttf']
-  .map((f) => join(ROOT, 'fonts', f))
-  .filter((f) => existsSync(f));
 
 /** PNG zoom. 1.5 keeps 10px text legible on the sheet without doubling its weight in git. */
 const ZOOM = 1.5;
 
 test('render the stress corpus', async () => {
+  const fontFiles = requireStressFonts(join(ROOT, 'fonts'));
   const out = process.env.STRESS_OUT;
   if (!out) throw new Error('STRESS_OUT=<dir> is required');
   mkdirSync(out, { recursive: true });
@@ -44,7 +43,7 @@ test('render the stress corpus', async () => {
         // System fonts on, always — see dgmo CLAUDE.md → Rendering constraints.
         font: {
           loadSystemFonts: true,
-          fontFiles: FONT_FILES,
+          fontFiles,
           defaultFontFamily: 'Inter',
           sansSerifFamily: 'Inter',
         },

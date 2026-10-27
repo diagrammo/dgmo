@@ -38,7 +38,7 @@ Use these names; add one only when none fits, and add it here.
 ## Gates
 
 - `pnpm test` runs `tests/stress-corpus.test.ts`: every fixture renders with no error diagnostic; a fixture with no `known:` line passes every geometry lint (`tests/stress/lint.ts` — text past the canvas, text over text, text under 7px, blank render).
-- `STRESS_OUT=<dir> pnpm stress:render` writes a PNG, an SVG and `report.json` per fixture (`STRESS_FILTER=<a>,<b>` narrows it to ids containing any of them). The PNG is the vision pass's input and the contact sheet's image.
+- `STRESS_OUT=<dir> pnpm stress:render` writes a PNG, an SVG and `report.json` per fixture (`STRESS_FILTER=<a>,<b>` narrows it to ids containing any of them). The PNG is the vision pass's input and the contact sheet's image. It needs the bundled Inter TTFs in `fonts/` (gitignored, built by `pnpm fonts`) and exits non-zero naming `pnpm fonts` when they are missing, rather than drawing in a fallback face (#1478).
 
 ## The vision pass — what to judge
 
