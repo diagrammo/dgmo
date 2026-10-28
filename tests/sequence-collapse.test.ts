@@ -1324,3 +1324,50 @@ FacialCapture -image -> ZMQ
     }
   );
 });
+
+describe('two groups that share a name (#1560)', () => {
+  const SRC = `sequence
+[Edge]
+  Camera
+  [NEC]
+    ZMQ
+    FacialCapture
+[IT Closet]
+  ACPL
+[Cloud]
+  [NEC]
+    ACP/NIDP
+  ProVenue
+
+Camera -> ZMQ
+FacialCapture -> ACPL
+ACPL -> ACP/NIDP
+ProVenue -> ACP/NIDP
+`;
+
+  it('collapse into two columns, each inside its own frame', () => {
+    const parsed = parseSequenceDgmo(SRC);
+    expect(parsed.error).toBeNull();
+    const necs = parsed.groups.filter((g) => g.name === 'NEC');
+    expect(necs).toHaveLength(2);
+    const view = applyCollapseProjection(
+      parsed,
+      new Set(necs.map((g) => g.lineNumber))
+    );
+    const order = foldCollapsedParticipants(parsed, view);
+    expect(order.map((p) => p.label)).toEqual([
+      'Camera',
+      'NEC',
+      'ACPL',
+      'NEC',
+      'ProVenue',
+    ]);
+    const [edgeNec, cloudNec] = [order[1]!.id, order[3]!.id];
+    expect(edgeNec).not.toBe(cloudNec);
+    const members = (name: string) =>
+      view.groups.find((g) => g.name === name)!.participantIds;
+    expect(members('Edge')).toEqual(['Camera', edgeNec]);
+    expect(members('IT Closet')).toEqual(['ACPL']);
+    expect(members('Cloud')).toEqual([cloudNec, 'ProVenue']);
+  });
+});

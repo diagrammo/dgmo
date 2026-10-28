@@ -31,7 +31,7 @@ import type {
   SequenceBlock,
 } from './parser';
 import { isSequenceBlock, isSequenceSection, isSequenceNote } from './parser';
-import { applyCollapseProjection } from './collapse';
+import { applyCollapseProjection, collapsedGroupId } from './collapse';
 import type { CollapsedView } from './collapse';
 import {
   wrapDescriptionLines,
@@ -1203,6 +1203,8 @@ interface GroupFrame {
 
 /** A collapsed group, drawn as one box standing in its participant column. */
 interface CollapsedGroupBox {
+  /** The group's name — its label. Keyed by collapsedGroupId, which may differ. */
+  name: string;
   lineNumber: number;
   depth: number;
   participantIds: readonly string[];
@@ -2616,7 +2618,8 @@ function layoutSequencePass(
       : 0;
     const height = sBoxH + padTop + padBottom;
     const barHeight = ctx.structural(COLLAPSE_BAR_HEIGHT);
-    collapsedGroupBoxes.set(group.name, {
+    collapsedGroupBoxes.set(collapsedGroupId(group, parsed.groups), {
+      name: group.name,
       lineNumber: group.lineNumber,
       depth: group.depth,
       participantIds: group.participantIds,
@@ -3615,10 +3618,7 @@ export function renderSequenceDiagram(
         .attr('tabindex', '0')
         .attr('role', 'button')
         .attr('aria-expanded', 'false')
-        .attr(
-          'aria-label',
-          groupToggleName(participant.id, meta.participantIds)
-        )
+        .attr('aria-label', groupToggleName(meta.name, meta.participantIds))
         .attr('cursor', 'pointer');
 
       // Overlay rect replacing the standard participant box

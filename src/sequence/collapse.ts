@@ -21,8 +21,23 @@ export interface CollapsedView {
   messages: readonly SequenceMessage[];
   elements: readonly SequenceElement[];
   groups: readonly SequenceGroup[];
-  /** Maps member participant ID → collapsed group name (as a virtual ParticipantId). */
+  /** Maps member participant ID → its collapsed group's virtual ParticipantId. */
   collapsedGroupIds: Map<ParticipantId, ParticipantId>;
+}
+
+/**
+ * The virtual ParticipantId a collapsed group stands as. Its name, unless
+ * another group shares that name — two `[NEC]` groups collapsed together
+ * would otherwise merge into one column. The label stays the name.
+ */
+export function collapsedGroupId(
+  group: SequenceGroup,
+  groups: readonly SequenceGroup[]
+): ParticipantId {
+  const shared = groups.some((g) => g !== group && g.name === group.name);
+  return (
+    shared ? `${group.name}@${group.lineNumber}` : group.name
+  ) as ParticipantId;
 }
 
 /**
@@ -66,9 +81,9 @@ export function applyCollapseProjection(
     return false;
   };
 
-  // Build memberToGroup map: participantId → group name (as virtual ParticipantId).
-  // Group names become virtual participant IDs post-collapse — they're minted here
-  // and the rest of the pipeline treats them as bona fide ParticipantIds.
+  // Build memberToGroup map: participantId → the group's virtual ParticipantId
+  // (collapsedGroupId). Minted here; the rest of the pipeline treats them as
+  // bona fide ParticipantIds.
   //
   // 🔴 Shallowest group first, and a member already claimed is never
   // re-claimed: when both a group and one nested inside it are collapsed, the
@@ -76,15 +91,18 @@ export function applyCollapseProjection(
   // otherwise the inner group would mint a virtual participant that the outer
   // one has already swallowed, and the same lifeline would be drawn twice.
   const memberToGroup = new Map<ParticipantId, ParticipantId>();
-  const collapsedGroupNames = new Set<string>();
+  const virtualIds = new Set<string>();
+  const groupById = new Map<ParticipantId, SequenceGroup>();
   const byDepth = [...parsed.groups].sort((a, b) => a.depth - b.depth);
   for (const group of byDepth) {
     if (!collapsedGroups.has(group.lineNumber)) continue;
     if (insideCollapsed(group)) continue;
-    collapsedGroupNames.add(group.name);
+    const id = collapsedGroupId(group, parsed.groups);
+    virtualIds.add(id);
+    groupById.set(id, group);
     for (const memberId of group.participantIds) {
       if (!memberToGroup.has(memberId)) {
-        memberToGroup.set(memberId, group.name as ParticipantId);
+        memberToGroup.set(memberId, id);
       }
     }
   }
@@ -95,25 +113,23 @@ export function applyCollapseProjection(
   const insertedGroups = new Set<string>();
 
   for (const p of parsed.participants) {
-    const groupName = memberToGroup.get(p.id);
-    if (groupName) {
+    const groupId = memberToGroup.get(p.id);
+    if (groupId) {
       // Replace first occurrence with virtual group participant
-      if (!insertedGroups.has(groupName)) {
-        insertedGroups.add(groupName);
-        const group = parsed.groups.find(
-          (g) => g.name === groupName && collapsedGroups.has(g.lineNumber)
-        )!;
+      if (!insertedGroups.has(groupId)) {
+        insertedGroups.add(groupId);
+        const group = groupById.get(groupId)!;
         // No position: the renderer orders the expanded diagram and folds
         // this box into its first member's slot (foldCollapsedParticipants).
         participants.push({
-          id: groupName, // already ParticipantId from memberToGroup value type
-          label: groupName,
+          id: groupId,
+          label: group.name,
           type: 'default',
           lineNumber: group.lineNumber,
         });
       }
       // Skip member — it's absorbed into the group
-    } else if (collapsedGroupNames.has(p.id)) {
+    } else if (virtualIds.has(p.id)) {
       // Skip — participant name collides with a collapsed group name;
       // the virtual group participant takes precedence
     } else {
