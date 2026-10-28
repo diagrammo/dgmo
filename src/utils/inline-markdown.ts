@@ -19,7 +19,7 @@ export function parseInlineMarkdown(text: string): InlineSpan[] {
   const spans: InlineSpan[] = [];
   // The link branch must fail fast: link text stops at the next bracket and
   // the URL at the next unbalanced paren, so a line of `[` or `[](` costs one
-  // pass. With lazy `.+?` in both parts it rescanned the rest of the line from
+  // pass. With lazy `.+?` in both parts it scanned the rest of the line again from
   // every `[` and every `](` — quadratic for `[`, cubic for `[](` (#1557). A
   // `[` that opens no link is kept as text (the last alternative of group 9).
   const regex =
