@@ -5,6 +5,31 @@ All notable changes to `@diagrammo/dgmo` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.94.0] - 2026-10-28
+
+### Changed
+
+- **A sequence group with one member cannot collapse.** Collapsing it
+  would only swap the participant's name for the group's, so the
+  request is ignored and its frame carries no toggle.
+
+### Fixed
+
+- **Collapsing a sequence group no longer moves the other columns.** The
+  collapsed box keeps the slot of its first member, and two collapsed
+  groups that share a name stay two columns.
+- **Inline markdown no longer stalls on a line of unmatched `[` or `](`.**
+  The link scan was quadratic to cubic in line length; it is now linear.
+- **Edge labels stay clear of boxes** in infra, sitemap and whiteboard
+  diagrams.
+- **Quadrant point labels no longer collide** when points cluster.
+- **Heatmap axis labels are capped** so a long one cannot size the plot
+  or leave the canvas.
+- **Gantt axis ticks sit on the bars' exact dates**, and an era is
+  labelled on the part of its band the plot shows.
+- **A flowchart's export title is centred** on the fitted canvas.
+- **Word cloud words no longer overlap** where their glyphs are drawn.
+
 ## [0.93.0] - 2026-10-26
 
 ### Added
