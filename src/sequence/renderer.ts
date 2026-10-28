@@ -31,7 +31,11 @@ import type {
   SequenceBlock,
 } from './parser';
 import { isSequenceBlock, isSequenceSection, isSequenceNote } from './parser';
-import { applyCollapseProjection, collapsedGroupId } from './collapse';
+import {
+  applyCollapseProjection,
+  collapsedGroupId,
+  isCollapsibleGroup,
+} from './collapse';
 import type { CollapsedView } from './collapse';
 import {
   wrapDescriptionLines,
@@ -1412,11 +1416,23 @@ function layoutSequencePass(
   // so it must NOT be XOR'd against the syntax-declared set (doing so cancelled
   // a seeded set back to expanded). With no set supplied (bare render / CLI),
   // default to the syntax-declared collapsed groups. Mirrors gantt/kanban/state.
-  const effectiveCollapsedGroups = options?.collapsedGroups
+  // A one-member group never collapses, whoever asked (isCollapsibleGroup).
+  const requestedCollapsedGroups = options?.collapsedGroups
     ? new Set(options.collapsedGroups)
     : new Set(
         parsed.groups.filter((g) => g.collapsed).map((g) => g.lineNumber)
       );
+  const collapsibleGroupLines = new Set(
+    parsed.groups.filter(isCollapsibleGroup).map((g) => g.lineNumber)
+  );
+  const effectiveCollapsedGroups = new Set(
+    parsed.groups
+      .map((g) => g.lineNumber)
+      .filter(
+        (line) =>
+          requestedCollapsedGroups.has(line) && collapsibleGroupLines.has(line)
+      )
+  );
 
   // Apply collapse projection before participant ordering
   const collapsed: CollapsedView | null =
@@ -3497,13 +3513,19 @@ export function renderSequenceDiagram(
     const groupG = svg
       .append('g')
       .attr('class', 'group-box-wrapper')
-      .attr('data-group-toggle', '')
-      .attr('data-group-line', String(group.lineNumber))
-      .attr('tabindex', '0')
-      .attr('role', 'button')
-      .attr('aria-expanded', 'true')
-      .attr('aria-label', groupToggleName(group.name, group.participantIds))
-      .attr('cursor', 'pointer');
+      .attr('data-group-line', String(group.lineNumber));
+    // The source group, not this projected one: a collapsed inner group counts
+    // as one member here but still holds several.
+    const source = parsed.groups.find((g) => g.lineNumber === group.lineNumber);
+    if (source && isCollapsibleGroup(source)) {
+      groupG
+        .attr('data-group-toggle', '')
+        .attr('tabindex', '0')
+        .attr('role', 'button')
+        .attr('aria-expanded', 'true')
+        .attr('aria-label', groupToggleName(group.name, group.participantIds))
+        .attr('cursor', 'pointer');
+    }
 
     // Visual group frame — pointer-events:none so it never intercepts clicks.
     // The box is rendered behind the participant shapes, so the only reliable

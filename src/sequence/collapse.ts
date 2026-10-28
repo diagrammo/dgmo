@@ -26,6 +26,14 @@ export interface CollapsedView {
 }
 
 /**
+ * Can this group collapse? Not with one member: the box would only swap that
+ * participant's name for the group's, hiding nothing.
+ */
+export function isCollapsibleGroup(group: SequenceGroup): boolean {
+  return group.participantIds.length > 1;
+}
+
+/**
  * The virtual ParticipantId a collapsed group stands as. Its name, unless
  * another group shares that name — two `[NEC]` groups collapsed together
  * would otherwise merge into one column. The label stays the name.
@@ -44,13 +52,19 @@ export function collapsedGroupId(
  * Project a parsed sequence diagram into a collapsed view.
  *
  * @param parsed - The immutable parsed sequence diagram
- * @param collapsedGroups - Set of group lineNumbers that should be collapsed
+ * @param requestedGroups - Set of group lineNumbers to collapse; a group that
+ *   cannot collapse (isCollapsibleGroup) is ignored
  * @returns A new CollapsedView with remapped participants, messages, elements, and groups
  */
 export function applyCollapseProjection(
   parsed: ParsedSequenceDgmo,
-  collapsedGroups: Set<number>
+  requestedGroups: Set<number>
 ): CollapsedView {
+  const collapsedGroups = new Set(
+    parsed.groups
+      .filter((g) => requestedGroups.has(g.lineNumber) && isCollapsibleGroup(g))
+      .map((g) => g.lineNumber)
+  );
   if (collapsedGroups.size === 0) {
     return {
       participants: parsed.participants,

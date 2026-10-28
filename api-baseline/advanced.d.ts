@@ -7576,10 +7576,11 @@ interface CollapsedView {
  * Project a parsed sequence diagram into a collapsed view.
  *
  * @param parsed - The immutable parsed sequence diagram
- * @param collapsedGroups - Set of group lineNumbers that should be collapsed
+ * @param requestedGroups - Set of group lineNumbers to collapse; a group that
+ *   cannot collapse (isCollapsibleGroup) is ignored
  * @returns A new CollapsedView with remapped participants, messages, elements, and groups
  */
-declare function applyCollapseProjection(parsed: ParsedSequenceDgmo, collapsedGroups: Set<number>): CollapsedView;
+declare function applyCollapseProjection(parsed: ParsedSequenceDgmo, requestedGroups: Set<number>): CollapsedView;
 
 interface SectionMessageGroup {
     section: SequenceSection;

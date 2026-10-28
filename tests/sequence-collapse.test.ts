@@ -200,7 +200,7 @@ describe('applyCollapseProjection', () => {
   });
 
   describe('single-member group', () => {
-    it('group with one member collapses identically', () => {
+    it('group with one member does not collapse', () => {
       const dgmo = [
         '[Backend] collapsed: true',
         '  API',
@@ -208,9 +208,9 @@ describe('applyCollapseProjection', () => {
       ].join('\n');
       const { view } = collapseFixture(dgmo);
       const ids = view.participants.map((p) => p.id);
-      expect(ids).toContain('Backend');
-      expect(ids).not.toContain('API');
-      expect(view.messages[0].to).toBe('Backend');
+      expect(ids).not.toContain('Backend');
+      expect(ids).toContain('API');
+      expect(view.messages[0].to).toBe('API');
     });
   });
 
@@ -1337,6 +1337,7 @@ describe('two groups that share a name (#1560)', () => {
 [Cloud]
   [NEC]
     ACP/NIDP
+    Gateway
   ProVenue
 
 Camera -> ZMQ
@@ -1369,5 +1370,42 @@ ProVenue -> ACP/NIDP
     expect(members('Edge')).toEqual(['Camera', edgeNec]);
     expect(members('IT Closet')).toEqual(['ACPL']);
     expect(members('Cloud')).toEqual([cloudNec, 'ProVenue']);
+  });
+});
+
+describe('a one-member group cannot collapse', () => {
+  const SRC = [
+    '[Cloud]',
+    '  [NEC] collapsed: true',
+    '    ACP',
+    '  ProVenue',
+    '[Edge]',
+    '  [Inner]',
+    '    Camera',
+    '    ZMQ',
+    'ProVenue -> ACP',
+    'Camera -> ZMQ',
+  ].join('\n');
+  const wrapper = (svg: SVGSVGElement, line: number) =>
+    svg.querySelector(`.group-box-wrapper[data-group-line="${line}"]`)!;
+
+  it('ignores collapsed: true and draws no toggle on its frame', () => {
+    const svg = renderToSvg(SRC)!;
+    expect(svg.querySelector('[data-participant-id="NEC"]')).toBeNull();
+    expect(svg.querySelector('[data-participant-id="ACP"]')).not.toBeNull();
+    expect(wrapper(svg, 2).hasAttribute('data-group-toggle')).toBe(false);
+    expect(wrapper(svg, 2).getAttribute('role')).toBeNull();
+    expect(wrapper(svg, 1).getAttribute('data-group-toggle')).toBe('');
+  });
+
+  it('ignores a collapse request from the app', () => {
+    const svg = renderToSvg(SRC, { collapsedGroups: new Set([2]) })!;
+    expect(svg.querySelector('[data-participant-id="ACP"]')).not.toBeNull();
+  });
+
+  it('keeps the toggle on a group whose many members fold into one inner box', () => {
+    const svg = renderToSvg(SRC, { collapsedGroups: new Set([6]) })!;
+    expect(svg.querySelector('[data-participant-id="Inner"]')).not.toBeNull();
+    expect(wrapper(svg, 5).getAttribute('data-group-toggle')).toBe('');
   });
 });
