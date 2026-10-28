@@ -947,6 +947,36 @@ export function applyPositionOverrides(
 }
 
 // Group Ordering
+/**
+ * Column order for a collapsed view.
+ *
+ * 🔴 Order the EXPANDED diagram, then fold. Positions are slot indices, and
+ * collapsing removes slots, so ordering the projected participants shifts
+ * every positioned column — a collapsed group would push an unpositioned
+ * neighbour past it and tear the frames around it (#1560). Folding keeps
+ * every other column where it was; each collapsed group takes the slot of
+ * its first member.
+ */
+export function foldCollapsedParticipants(
+  parsed: ParsedSequenceDgmo,
+  view: CollapsedView
+): SequenceParticipant[] {
+  const expanded = applyPositionOverrides(
+    applyGroupOrdering(parsed.participants, parsed.groups, parsed.messages)
+  );
+  const byId = new Map(view.participants.map((p) => [p.id, p]));
+  const result: SequenceParticipant[] = [];
+  const placed = new Set<string>();
+  for (const p of expanded) {
+    const id = view.collapsedGroupIds.get(p.id) ?? p.id;
+    const target = byId.get(id);
+    if (!target || placed.has(id)) continue;
+    placed.add(id);
+    result.push(target);
+  }
+  return result;
+}
+
 // ============================================================
 
 /**
@@ -1418,12 +1448,11 @@ function layoutSequencePass(
     return step.label ? `${number}. ${step.label}` : String(number);
   };
 
-  const sourceParticipants = collapsed
-    ? collapsed.participants
-    : parsed.participants;
-  const participants = applyPositionOverrides(
-    applyGroupOrdering(sourceParticipants, groups, messages)
-  );
+  const participants = collapsed
+    ? foldCollapsedParticipants(parsed, collapsed)
+    : applyPositionOverrides(
+        applyGroupOrdering(parsed.participants, parsed.groups, parsed.messages)
+      );
   if (participants.length === 0) return null;
 
   // Compute group boundaries for inter-group spacing redistribution.

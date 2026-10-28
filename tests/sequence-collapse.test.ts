@@ -10,6 +10,8 @@ import {
   renderSequenceDiagram,
   summarizeSectionParticipation,
   applyPositionOverrides,
+  applyGroupOrdering,
+  foldCollapsedParticipants,
 } from '../src/sequence/renderer';
 import type { SequenceRenderOptions } from '../src/sequence/renderer';
 import { getPalette } from '../src/palettes';
@@ -1289,25 +1291,36 @@ ACP/NIDP -ingest -> ACPL
 ACPL -save -> GalleryDB
 GalleryDB -sync -> FacialMatch
 Camera -liveStream -> FanScreen
+Camera -liveStream -> FacialCapture
+FacialCapture -findMatch -> FacialMatch
+FacialCapture -image -> ZMQ
 `;
 
-  const order = (view: { participants: readonly { id: string }[] }) =>
-    applyPositionOverrides(view.participants as never).map((p) => p.id);
+  const expandedOrder = (parsed: ReturnType<typeof parseSequenceDgmo>) =>
+    applyPositionOverrides(
+      applyGroupOrdering(parsed.participants, parsed.groups, parsed.messages)
+    ).map((p) => p.id as string);
 
-  it.each([
-    ['Cloud', 'ACP/NIDP'],
-    ['IT Closet', 'ACPL'],
-  ])('collapsing [%s] lands at slot of %s', (name, first) => {
-    const parsed = parseSequenceDgmo(SRC);
-    expect(parsed.error).toBeNull();
-    const expanded = order({ participants: parsed.participants });
-    const group = parsed.groups.find((g) => g.name === name)!;
-    const view = applyCollapseProjection(parsed, new Set([group.lineNumber]));
-    const collapsed = order(view);
-    // Slot counted from the right (positions here are negative), which is
-    // stable across the shrinking participant count.
-    const fromRight = (ids: string[], id: string) =>
-      ids.length - ids.indexOf(id);
-    expect(fromRight(collapsed, name)).toBe(fromRight(expanded, first));
-  });
+  // Every column outside the group keeps its place; the group takes its
+  // first member's slot. Positions are negative here, so ordering the
+  // shrunken projection instead pushed FacialCapture past [Cloud].
+  it.each(['Cloud', 'IT Closet', 'Edge'])(
+    'collapsing [%s] leaves every other column where it was',
+    (name) => {
+      const parsed = parseSequenceDgmo(SRC);
+      expect(parsed.error).toBeNull();
+      const group = parsed.groups.find((g) => g.name === name)!;
+      const members = new Set<string>(group.participantIds);
+      const expected: string[] = [];
+      for (const id of expandedOrder(parsed)) {
+        const to = members.has(id) ? name : id;
+        if (!expected.includes(to)) expected.push(to);
+      }
+      const view = applyCollapseProjection(parsed, new Set([group.lineNumber]));
+      const collapsed = foldCollapsedParticipants(parsed, view).map(
+        (p) => p.id as string
+      );
+      expect(collapsed).toEqual(expected);
+    }
+  );
 });
