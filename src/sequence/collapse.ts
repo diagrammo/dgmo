@@ -103,11 +103,17 @@ export function applyCollapseProjection(
         const group = parsed.groups.find(
           (g) => g.name === groupName && collapsedGroups.has(g.lineNumber)
         )!;
+        // Inherit the first positioned member's override so the collapsed box
+        // stays where the expanded group sat instead of falling to slot 0.
+        const memberPosition = group.participantIds
+          .map((id) => parsed.participants.find((q) => q.id === id)?.position)
+          .find((pos) => pos !== undefined);
         participants.push({
           id: groupName, // already ParticipantId from memberToGroup value type
           label: groupName,
           type: 'default',
           lineNumber: group.lineNumber,
+          ...(memberPosition !== undefined ? { position: memberPosition } : {}),
         });
       }
       // Skip member — it's absorbed into the group

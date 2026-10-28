@@ -9,6 +9,7 @@ import type { SequenceNote, SequenceSection } from '../src/sequence/parser';
 import {
   renderSequenceDiagram,
   summarizeSectionParticipation,
+  applyPositionOverrides,
 } from '../src/sequence/renderer';
 import type { SequenceRenderOptions } from '../src/sequence/renderer';
 import { getPalette } from '../src/palettes';
@@ -1249,5 +1250,64 @@ describe('an expanded section below collapsed ones', () => {
       gapUnderAfterPurchase([]),
       6
     );
+  });
+});
+
+describe('collapsed group keeps its slot (#1560)', () => {
+  const SRC = `sequence GAEv2
+
+tag Owner as o
+  MLB
+  NEC blue
+
+ProVenue position: -1
+ACP/NIDP position: -2
+ACPL position: -3
+GalleryDB is a cache position: -4
+FacialMatch position: -5
+
+[Edge]
+  Camera
+  GAESW
+  FanScreen
+  [NEC] o: NEC
+    ZMQ
+    FacialCapture
+
+[IT Closet] o: NEC
+  ACPL
+  FacialMatch
+  GalleryDB
+
+[Cloud]
+  [NEC] o: NEC
+    ACP/NIDP
+  ProVenue
+
+ProVenue -Create Galleries -> ACP/NIDP
+ACP/NIDP -ingest -> ACPL
+ACPL -save -> GalleryDB
+GalleryDB -sync -> FacialMatch
+Camera -liveStream -> FanScreen
+`;
+
+  const order = (view: { participants: readonly { id: string }[] }) =>
+    applyPositionOverrides(view.participants as never).map((p) => p.id);
+
+  it.each([
+    ['Cloud', 'ACP/NIDP'],
+    ['IT Closet', 'ACPL'],
+  ])('collapsing [%s] lands at slot of %s', (name, first) => {
+    const parsed = parseSequenceDgmo(SRC);
+    expect(parsed.error).toBeNull();
+    const expanded = order({ participants: parsed.participants });
+    const group = parsed.groups.find((g) => g.name === name)!;
+    const view = applyCollapseProjection(parsed, new Set([group.lineNumber]));
+    const collapsed = order(view);
+    // Slot counted from the right (positions here are negative), which is
+    // stable across the shrinking participant count.
+    const fromRight = (ids: string[], id: string) =>
+      ids.length - ids.indexOf(id);
+    expect(fromRight(collapsed, name)).toBe(fromRight(expanded, first));
   });
 });
