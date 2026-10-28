@@ -59,6 +59,13 @@ import type { CountryCandidate } from './context-labels';
 import { layoutCityDots } from './city-dots';
 import type { MapLayoutCityDot } from './city-dots';
 import { layoutEdgeLabels } from './edge-labels';
+import {
+  DOT_LABEL_GAP,
+  dotLabelFits,
+  dotLabelRect,
+  placeDotLabel,
+} from './dot-labels';
+import type { DotLabelSide } from './dot-labels';
 import { buildConnectorLegs, W_MIN } from './connectors';
 import { layoutInsets } from './insets';
 import { captureMapProjection, createMapProjection } from './projection';
@@ -3089,23 +3096,9 @@ export function layoutMap(
       const text = labelText(p);
       return { text, w: measureLegendText(text, FONT) };
     };
-    // Candidate inline placements around a marker, in escalation order: the four
-    // cardinal sides first (most legible — horizontal flanks, then above/below for
-    // a hub whose edges leave sideways and block both flanks, e.g. a POI fed by
-    // routes from the east AND west). The four DIAGONAL corners are a fallback tier
-    // (standard 8-position cartographic placement): a route hub fed from several
-    // cardinal directions leaves the diagonal gaps open, so a corner label clears
-    // the arrows + neighbour dots instead of being dumped on top of them.
-    type Side =
-      | 'right'
-      | 'left'
-      | 'above'
-      | 'below'
-      | 'below-right'
-      | 'below-left'
-      | 'above-right'
-      | 'above-left';
-    const GAP = 3;
+    // Escalation order and geometry live in ./dot-labels.
+    type Side = DotLabelSide;
+    const GAP = DOT_LABEL_GAP;
     // Comfort buffer between any dot/label and the canvas edge — canvas-proportional
     // (≈3% of the shorter axis, floored) so a big preview pane breathes more than a
     // thumbnail. Used BOTH by the leader-column clamp (so a column never seats hard
@@ -3128,46 +3121,8 @@ export function layoutMap(
       if (arr) arr.push(p);
       else clusterMembersById.set(p.clusterId, [p]);
     }
-    const inlineRect = (p: MapLayoutPoi, w: number, side: Side): LabelRect => {
-      switch (side) {
-        case 'right':
-          return { x: p.cx + p.r + GAP, y: p.cy - poiLabH / 2, w, h: poiLabH };
-        case 'left':
-          return {
-            x: p.cx - p.r - GAP - w,
-            y: p.cy - poiLabH / 2,
-            w,
-            h: poiLabH,
-          };
-        case 'above':
-          return {
-            x: p.cx - w / 2,
-            y: p.cy - p.r - GAP - poiLabH,
-            w,
-            h: poiLabH,
-          };
-        case 'below':
-          return { x: p.cx - w / 2, y: p.cy + p.r + GAP, w, h: poiLabH };
-        // Diagonal corners: offset both axes by (r+GAP)/√2 so the box's near
-        // corner clears the dot rim by the same gap as a cardinal side.
-        case 'below-right': {
-          const d = (p.r + GAP) * 0.7071;
-          return { x: p.cx + d, y: p.cy + d, w, h: poiLabH };
-        }
-        case 'below-left': {
-          const d = (p.r + GAP) * 0.7071;
-          return { x: p.cx - d - w, y: p.cy + d, w, h: poiLabH };
-        }
-        case 'above-right': {
-          const d = (p.r + GAP) * 0.7071;
-          return { x: p.cx + d, y: p.cy - d - poiLabH, w, h: poiLabH };
-        }
-        case 'above-left': {
-          const d = (p.r + GAP) * 0.7071;
-          return { x: p.cx - d - w, y: p.cy - d - poiLabH, w, h: poiLabH };
-        }
-      }
-    };
+    const inlineRect = (p: MapLayoutPoi, w: number, side: Side): LabelRect =>
+      dotLabelRect(p, w, poiLabH, side);
     const pushInline = (
       p: MapLayoutPoi,
       text: string,
@@ -3199,17 +3154,6 @@ export function layoutMap(
         ...(clusterId !== undefined && { clusterMember: clusterId }),
       });
     };
-    const inlineFits = (p: MapLayoutPoi, w: number, side: Side): boolean => {
-      const rect = inlineRect(p, w, side);
-      return (
-        rect.x >= 0 &&
-        rect.x + rect.w <= width &&
-        rect.y >= 0 &&
-        rect.y + rect.h <= height &&
-        !collides(rect)
-      );
-    };
-
     // Pre-group POIs by proximity. A tight cluster (offshore platforms, a metro
     // of offices) gets ONE tidy callout column so its labels never pile up; an
     // isolated POI gets a normal inline label. This keeps the whole cluster's
@@ -3371,7 +3315,7 @@ export function layoutMap(
     // Hover-only fallback: a single inline label beside the dot (no leader),
     // emitted invisible and revealed on hover. NOT added to obstacles (it's
     // invisible and must not displace visible labels). y is clamped on-canvas
-    // because we skip the inlineFits four-edge check (F8).
+    // because we skip the dotLabelFits four-edge check (F8).
     const pushHidden = (p: MapLayoutPoi): void => {
       const { text, w } = labelInfo(p);
       let x = p.cx + p.r + GAP;
@@ -3438,11 +3382,7 @@ export function layoutMap(
         const side = order.find((s) => {
           const rect = inlineRect(p, w, s);
           return (
-            rect.x >= 0 &&
-            rect.x + rect.w <= width &&
-            rect.y >= 0 &&
-            rect.y + rect.h <= height &&
-            !collides(rect) &&
+            dotLabelFits(rect, width, height, collides) &&
             !temp.some((t) => rectsOverlap(t, rect))
           );
         });
@@ -3475,70 +3415,6 @@ export function layoutMap(
       commitColumn(items, side, clusterId);
     }
 
-    // Placement quality for a singleton's inline label. Beyond the hard collision
-    // veto (inlineFits already drops any slot that overlaps a dot/label/arrow), we
-    // rank the SURVIVING candidates so the label takes the roomiest slot, not just
-    // the first clean cardinal flank. Three terms:
-    //   • clearance (PRIMARY) — how far the slot sits from the NEAREST other POI
-    //     dot and the nearest connector arrow (capped). This is what makes a hub
-    //     run its label out into the open AWAY from a neighbour cluster + the legs,
-    //     rather than hugging them on a technically-clean flank.
-    //   • openness (secondary tiebreaker) — water-facing + canvas-edge clearance
-    //     (existing helper), down-weighted so a roomy slot beats a cramped one even
-    //     when the cramped slot sits over slightly more open water.
-    //   • legibility (tertiary) — a mild prior: horizontal flanks read best, then
-    //     above/below, then the diagonal corners. Breaks near-ties toward the
-    //     conventional layout without overriding a clearly roomier slot.
-    const CLEAR_CAP = 48; // px past which a slot already reads as wide-open
-    const CLEAR_W = 8; // weight on clearance (CLEAR_CAP·W ≈ 384 — the dominant term)
-    const WATER_W = 0.25; // down-weight the openness term to a tiebreaker (≤ ~250)
-    const ptSegDist = (
-      px: number,
-      py: number,
-      ax: number,
-      ay: number,
-      bx: number,
-      by: number
-    ): number => {
-      const dx = bx - ax;
-      const dy = by - ay;
-      const len2 = dx * dx + dy * dy;
-      let t = len2 > 0 ? ((px - ax) * dx + (py - ay) * dy) / len2 : 0;
-      t = Math.max(0, Math.min(1, t));
-      return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
-    };
-    const clearanceOf = (rect: LabelRect, ownId: string): number => {
-      const cxL = rect.x + rect.w / 2;
-      const cyL = rect.y + rect.h / 2;
-      let d = CLEAR_CAP;
-      for (const q of pois) {
-        if (q.id === ownId) continue; // its own dot is meant to be adjacent
-        d = Math.min(d, Math.hypot(q.cx - cxL, q.cy - cyL) - q.r);
-      }
-      for (const s of legSegments)
-        d = Math.min(d, ptSegDist(cxL, cyL, s[0], s[1], s[2], s[3]));
-      return Math.max(0, d);
-    };
-    const LEGIBILITY: Record<Side, number> = {
-      right: 160,
-      left: 160,
-      above: 100,
-      below: 100,
-      'below-right': 0,
-      'below-left': 0,
-      'above-right': 0,
-      'above-left': 0,
-    };
-    const ALL_SIDES = Object.keys(LEGIBILITY) as Side[];
-    const placementScore = (p: MapLayoutPoi, w: number, side: Side): number => {
-      const rect = inlineRect(p, w, side);
-      return (
-        CLEAR_W * clearanceOf(rect, p.id) +
-        WATER_W * openness(rect) +
-        LEGIBILITY[side]
-      );
-    };
-
     // Per-render extent threshold (resolution-relative; Decision #1, F9).
     const maxExtent = MAX_CLUSTER_EXTENT_FACTOR * Math.min(width, height);
     // Pass 1: place singletons (unchanged); for ≥2 clusters resolve gate
@@ -3552,21 +3428,25 @@ export function layoutMap(
         // Singleton: inline if it fits, else today's single-row callout —
         // always placed, never hover-only (Decision #2 / AC9).
         const { p, text, w } = items[0]!;
-        // Score every clean candidate (4 cardinal + 4 diagonal) and take the
-        // roomiest — see placementScore. A route hub blocked on every side falls
-        // to the always-placed leader column (a singleton is never hover-only).
-        const scored = ALL_SIDES.filter((s) => inlineFits(p, w, s)).map(
-          (s) => ({
-            s,
-            v: placementScore(p, w, s),
-          })
-        );
-        if (scored.length === 0) {
+        // Take the roomiest clean candidate (4 cardinal + 4 diagonal) — see
+        // placeDotLabel. A route hub blocked on every side falls to the
+        // always-placed leader column (a singleton is never hover-only).
+        const placed = placeDotLabel({
+          dot: p,
+          w,
+          h: poiLabH,
+          width,
+          height,
+          collides,
+          dots: pois,
+          segments: legSegments,
+          openness,
+        });
+        if (placed === null) {
           commitColumn(items, defaultColumnSide(items));
           continue;
         }
-        const side = scored.reduce((b, c) => (c.v > b.v ? c : b)).s;
-        pushInline(p, text, w, side);
+        pushInline(p, text, w, placed.side);
         continue;
       }
       // Gate (a): bounding-box diagonal over marker extents — a sprawling chain
