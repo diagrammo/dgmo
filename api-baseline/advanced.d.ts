@@ -7569,7 +7569,7 @@ interface CollapsedView {
     messages: readonly SequenceMessage[];
     elements: readonly SequenceElement[];
     groups: readonly SequenceGroup[];
-    /** Maps member participant ID → collapsed group name (as a virtual ParticipantId). */
+    /** Maps member participant ID → its collapsed group's virtual ParticipantId. */
     collapsedGroupIds: Map<ParticipantId, ParticipantId>;
 }
 /**
