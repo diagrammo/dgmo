@@ -60,7 +60,7 @@ Shared at the root of `src/`:
 - `d3.ts` — `renderForExport` and its dispatch table `DIAGRAM_EXPORT_HANDLERS`, plus a re-export barrel. It holds no handler: a new chart type's handler goes in its own `src/<chart>/export.ts`, and what every handler shares (`ExportContext`, `ctxTagOverride`) is in `utils/export-context.ts`
 - `*-registry.ts` — `chart-type-registry`, `completion-registry`, `diagnostics-registry`, `directives-registry`. **A new chart type or directive registers here**, and several consumers read these registries rather than hard-coding lists
 - `palettes/` — one file per palette plus `color-utils.ts`; each palette ships light/dark/transparent themes
-- `editor/` — CodeMirror grammar + highlight helpers · `completion.ts` — symbol extraction
+- `editor/` — CodeMirror grammar + highlight helpers · editor symbol extraction lives in `diagrammo-app/src/features/editor/completion/extractors.ts`, not here
 - `diagnostics.ts` — `DgmoError`, severity, `suggest()`
 
 ## Sweeping `src/` — pass `-a` or the sweep lies

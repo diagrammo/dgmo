@@ -3,7 +3,7 @@
 // Each fixture is a hand-curated transcription of what the canonical spec
 // (docs/dgmo-language-spec.md §24A) says completion *should* surface for
 // this chart type. The test harness diffs this against the live registry
-// in dgmo/src/completion.ts. Drift in either direction fails the test:
+// in dgmo/src/completion-registry.ts. Drift in either direction fails the test:
 //
 //   - Items in `expected` but missing from the registry → completion gap
 //     (a documented thing users can't autocomplete).

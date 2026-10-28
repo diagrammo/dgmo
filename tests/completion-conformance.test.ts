@@ -2,7 +2,7 @@
  * Completion-conformance harness.
  *
  * For each chart-type fixture under tests/fixtures/completion-conformance/,
- * this suite asserts that dgmo/src/completion.ts surfaces exactly what the
+ * this suite asserts that dgmo/src/completion-registry.ts surfaces exactly what the
  * language spec documents — no missing tokens, no stale entries.
  *
  * Adding a chart type to coverage:
@@ -11,25 +11,23 @@
  *   3. Add an import below.
  *
  * Failures point at one of three things to fix:
- *   - completion.ts is missing a documented directive/pipe key
- *   - completion.ts has an entry that's not in the spec (rename, remove,
+ *   - completion-registry.ts is missing a documented directive/pipe key
+ *   - completion-registry.ts has an entry that's not in the spec (rename, remove,
  *     or document)
  *   - the fixture got out of sync with the spec
  */
 import { describe, expect, it } from 'vitest';
 
-// Completion now lives in the app; dgmo no longer re-exports it from /internal
-// (ADR-001). dgmo keeps src/completion.ts internally as the home of the 5
-// parser-integrated extractors' registrations, so this drift-guard imports the
-// completion symbols directly from the module.
+// The symbol extractors live in the app (ADR-001); their drift-guard is
+// diagrammo-app/tests/features/editor/completion/conformance.test.ts. dgmo
+// owns the registry data, which this suite checks against the spec.
 import {
   COMPLETION_REGISTRY,
   PIPE_METADATA,
   STRUCTURAL_KEYWORDS,
   TAG_SUPPORTING_TYPES,
   REFERENCE_GRAMMAR,
-  extractDiagramSymbols,
-} from '../src/completion';
+} from '../src/completion-registry';
 import { ALL_CHART_TYPES } from '../src/advanced';
 import { getAvailablePalettes } from '../src/palettes';
 
@@ -147,7 +145,7 @@ for (const f of fixtures) {
 
       expect(
         { missing, stale },
-        `Directive drift in '${f.chartType}'. Missing entries are documented in spec §${f.specSection} but not registered. Stale entries are registered but not in the spec — either document them in the fixture, add to allowExtras, or remove from completion.ts.`
+        `Directive drift in '${f.chartType}'. Missing entries are documented in spec §${f.specSection} but not registered. Stale entries are registered but not in the spec — either document them in the fixture, add to allowExtras, or remove from completion-registry.ts.`
       ).toEqual({ missing: [], stale: [] });
     });
 
@@ -248,62 +246,17 @@ for (const f of fixtures) {
 }
 
 // ============================================================
-// Generative reference-grammar drift-guard (NOT the hand-maintained list above)
+// Generative reference-grammar descriptors (NOT the hand-maintained list above)
 // ============================================================
 //
-// The fixture suite above only covers a type once someone hand-adds an import,
-// so it can never catch a forgotten chart type. This block iterates
-// ALL_CHART_TYPES DIRECTLY and asserts the slot-5 invariant: every type whose
-// REFERENCE_GRAMMAR declares `hasReferenceGrammar: true` MUST have a registered
-// extractor that returns ≥1 entity on a reference fixture. A new `chartTypes`
-// entry with a reference grammar but no working extractor fails here at CI —
-// the "new chart type, forgot completion" failure class dies.
-//
-// Fixtures are minimal current-spec snippets (parser-verified). When a new
-// reference-grammar type lands, add its fixture here or the guard goes red.
-const REFERENCE_FIXTURES: Record<string, string> = {
-  sequence: 'sequence\nAuth -> API\n',
-  flowchart: 'flowchart\nStart -> End\n',
-  state: 'state\nIdle -> Running\n',
-  sitemap: 'sitemap\nHome\nAbout\n',
-  c4: 'c4\nperson User\nsystem App\nUser -> App\n',
-  er: 'er\nUsers\nOrders\nUsers 1--* Orders\n',
-  class: 'class\nUser\nOrder\nUser --|> Order\n',
-  infra: 'infra\nAPI\nCache\n  API -> Cache\n',
-  gantt: 'gantt\nDesign duration: 5d\nBuild duration: 3d\n',
-  pert: 'pert\nDesign 1 2 3\nBuild 2 3 4\n',
-  arc: 'arc\nA -> B\n',
-  sankey: 'sankey\nA -> B 10\n',
-  'boxes-and-lines': 'boxes-and-lines\nA -> B\n',
-  swimlane: 'swimlane\nlane Writer\n  Draft -> Review\n',
-  sketch: 'sketch\nA at: 0 0\n  -> b\nB as b at: 2 0\n',
-  venn: 'venn\nSwordsmanship as sw\nNavigation as nav\nsw + nav Overlap\n',
-  family: 'family\nAlice + Bob\n  Carol\n',
-};
+// Iterates ALL_CHART_TYPES directly, so a new chart type cannot be forgotten.
+// That each reference-grammar type has a working extractor is checked where
+// the extractors live: the app's completion conformance test.
 
-describe('reference-grammar drift-guard (generative over ALL_CHART_TYPES)', () => {
+describe('reference-grammar descriptors (generative over ALL_CHART_TYPES)', () => {
   for (const type of ALL_CHART_TYPES) {
     const grammar = REFERENCE_GRAMMAR.get(type);
     if (!grammar?.hasReferenceGrammar) continue;
-
-    it(`'${type}' has a working extractor (slot-5 reference invariant)`, () => {
-      const fixture = REFERENCE_FIXTURES[type];
-      expect(
-        fixture,
-        `'${type}' declares hasReferenceGrammar: true in REFERENCE_GRAMMAR but has no reference fixture in this test. Add one so the drift-guard can prove its extractor works.`
-      ).toBeDefined();
-      if (!fixture) return;
-
-      const symbols = extractDiagramSymbols(fixture);
-      expect(
-        symbols,
-        `'${type}' has a reference grammar but extractDiagramSymbols returned null — no registered extractor. Register one in completion.ts.`
-      ).not.toBeNull();
-      expect(
-        symbols!.entities.length,
-        `'${type}' reference extractor returned zero entities for a fixture that declares some. Reference completion will never fire.`
-      ).toBeGreaterThanOrEqual(1);
-    });
 
     it(`'${type}' declares at least one reference operator`, () => {
       expect(
@@ -319,7 +272,7 @@ describe('reference-grammar drift-guard (generative over ALL_CHART_TYPES)', () =
     );
     expect(
       missing,
-      `These chart types have no REFERENCE_GRAMMAR entry — the auto-fill loop in completion.ts should cover every registered type.`
+      `These chart types have no REFERENCE_GRAMMAR entry — the auto-fill loop in completion-registry.ts should cover every registered type.`
     ).toEqual([]);
   });
 });

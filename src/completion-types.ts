@@ -4,8 +4,7 @@
 //
 // Lives in its own leaf module so chart-type parsers (Class, ER,
 // Flowchart, Infra, Pert) can `import type { DiagramSymbols }` here
-// without depending on completion.ts — which itself imports those
-// parsers' extractSymbols() functions, producing a cycle hub.
+// without a cycle. The app's editor extractors consume these types.
 //
 // Keep this file dependency-free.
 
@@ -23,5 +22,3 @@ export interface DiagramSymbols {
    */
   aliases?: Record<string, string>;
 }
-
-export type ExtractFn = (docText: string) => DiagramSymbols;

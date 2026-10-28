@@ -4,7 +4,7 @@ import { parseRing } from '../src/ring/parser';
 import { renderRing } from '../src/ring/renderer';
 import { getPalette } from '../src/palettes';
 import { getRenderCategory, parseDgmo } from '../src/dgmo-router';
-import { COMPLETION_REGISTRY, PIPE_METADATA } from '../src/completion';
+import { COMPLETION_REGISTRY, PIPE_METADATA } from '../src/completion-registry';
 import { CHART_TYPES as EDITOR_CHART_TYPES } from '../src/editor/keywords';
 
 beforeAll(() => {

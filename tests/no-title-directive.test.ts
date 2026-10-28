@@ -25,7 +25,7 @@ import { renderPyramid } from '../src/pyramid/renderer';
 import { layoutJourneyMap } from '../src/journey-map/layout';
 
 import { encodeDiagramUrl, decodeDiagramUrl } from '../src/sharing';
-import { COMPLETION_REGISTRY } from '../src/completion';
+import { COMPLETION_REGISTRY } from '../src/completion-registry';
 import { DIRECTIVE_KEYWORDS } from '../src/editor/keywords';
 import { GLOBAL_BOOLEANS } from '../src/utils/parsing';
 import { parsePyramid } from '../src/pyramid/parser';

@@ -47,7 +47,7 @@ export interface ConformanceFixture {
    * data zone (block openers, section headers, `tag` declaration, etc.) — the
    * exact set the editor's structural-keyword popup should offer. Omit (or use
    * `[]`) for chart types with no structural keywords. Validated against
-   * STRUCTURAL_KEYWORDS in completion.ts; every token must be parser-recognized.
+   * STRUCTURAL_KEYWORDS in completion-registry.ts; every token must be parser-recognized.
    */
   structuralKeywords?: string[];
 
