@@ -703,8 +703,8 @@ describe('goal renderer — a note of unmatched link openers', () => {
         renderGoal(makeContainer(), parsed, nordLight, false)
       );
     };
-    const small = 300;
-    const large = 3_000;
+    const small = 125;
+    const large = 1_000;
     const exponent = growthExponent(
       { n: small, ms: cost(small) },
       { n: large, ms: cost(large) }

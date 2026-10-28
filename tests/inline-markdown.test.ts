@@ -125,32 +125,44 @@ describe('parseInlineMarkdown', () => {
   });
 });
 
-// Lazy `.+?` in the link branch rescanned the rest of the line from every
-// `[` and every `](`: quadratic for `[`, cubic for `[](` (#1557).
+// Lazy `.+?` in the link branch scanned the rest of the line again from every
+// `[` and every `](`: quadratic for `[`, cubic for `[](` (#1557). Each case is
+// sized so the old scan fails in seconds rather than hours.
 describe('inline markdown on a line of unmatched link openers', () => {
-  const lines: Record<string, (n: number) => string> = {
-    '[': (n) => '['.repeat(n),
-    '[](': (n) => '[]('.repeat(n),
-    '[a](': (n) => '[a]('.repeat(n),
-    '[a](x(': (n) => '[a](x('.repeat(n),
-  };
+  /** Per-call cost, repeated until a sample is long enough to time. */
+  function perCallMs(fn: (line: string) => unknown, line: string): number {
+    const runs = (reps: number) =>
+      fastestOf(1, () => {
+        for (let i = 0; i < reps; i++) fn(line);
+      });
+    let reps = 1;
+    while (runs(reps) < 5 && reps < 1 << 20) reps *= 2;
+    return (
+      fastestOf(3, () => {
+        for (let i = 0; i < reps; i++) fn(line);
+      }) / reps
+    );
+  }
+
+  // [unit, small and large line length in characters]
+  const lines: [string, number, number][] = [
+    ['[', 2_000, 20_000],
+    ['[](', 375, 3_000],
+    ['[a](', 375, 3_000],
+    ['[a](x(', 375, 3_000],
+  ];
   const run: Record<string, (line: string) => unknown> = {
     parseInlineMarkdown,
     stripInlineMarkdown,
   };
 
-  for (const [unit, makeLine] of Object.entries(lines)) {
+  for (const [unit, small, large] of lines) {
+    const line = (chars: number) => unit.repeat(Math.ceil(chars / unit.length));
     for (const [name, fn] of Object.entries(run)) {
       it(`${name} grows linearly in a line of ${unit}`, () => {
-        const cost = (n: number) => {
-          const line = makeLine(n);
-          return fastestOf(5, () => fn(line));
-        };
-        const small = 2_000;
-        const large = 20_000;
         const exponent = growthExponent(
-          { n: small, ms: cost(small) },
-          { n: large, ms: cost(large) }
+          { n: small, ms: perCallMs(fn, line(small)) },
+          { n: large, ms: perCallMs(fn, line(large)) }
         );
         expect(exponent).toBeLessThan(1.5);
       });
