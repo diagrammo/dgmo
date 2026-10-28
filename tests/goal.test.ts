@@ -8,6 +8,7 @@ import { mix, themeBaseBg } from '../src/palettes/color-utils';
 import { resolveColor } from '../src/colors';
 import { getRenderCategory } from '../src/dgmo-router';
 import { measureText } from '../src/utils/text-measure';
+import { fastestOf, growthExponent } from './perf-helpers';
 
 beforeAll(() => {
   const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
@@ -687,5 +688,27 @@ describe('goal render() pipeline', () => {
     const { svg, diagnostics } = await render(`goal Broken\nnow 3`);
     expect(diagnostics.some((d) => d.severity === 'error')).toBe(true);
     expect(svg).toMatch(/<svg/);
+  });
+});
+
+// The note wrapper's display-length strip used lazy `.+?` for a link, so a
+// whitespace-free note of `[](` was cubic in its length (#1557).
+describe('goal renderer — a note of unmatched link openers', () => {
+  it('renders in time linear in the note length', () => {
+    const cost = (n: number) => {
+      const parsed = parseGoal(
+        `goal T\nnow 1\ntarget 4\nnote ${'[]('.repeat(n)}`
+      );
+      return fastestOf(3, () =>
+        renderGoal(makeContainer(), parsed, nordLight, false)
+      );
+    };
+    const small = 300;
+    const large = 3_000;
+    const exponent = growthExponent(
+      { n: small, ms: cost(small) },
+      { n: large, ms: cost(large) }
+    );
+    expect(exponent).toBeLessThan(1.5);
   });
 });

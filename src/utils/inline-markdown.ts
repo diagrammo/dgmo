@@ -17,8 +17,13 @@ export interface InlineSpan {
 
 export function parseInlineMarkdown(text: string): InlineSpan[] {
   const spans: InlineSpan[] = [];
+  // The link branch must fail fast: link text stops at the next bracket and
+  // the URL at the next unbalanced paren, so a line of `[` or `[](` costs one
+  // pass. With lazy `.+?` in both parts it rescanned the rest of the line from
+  // every `[` and every `](` — quadratic for `[`, cubic for `[](` (#1557). A
+  // `[` that opens no link is kept as text (the last alternative of group 9).
   const regex =
-    /\*\*(.+?)\*\*|__(.+?)__|\*(.+?)\*|_(.+?)_|`(.+?)`|\[(.+?)\]\((.+?)\)|(https?:\/\/[^\s)>\]]+|www\.[^\s)>\]]+)|([^*_`[]+?(?=https?:\/\/|www\.|$)|[^*_`[]+)/g;
+    /\*\*(.+?)\*\*|__(.+?)__|\*(.+?)\*|_(.+?)_|`(.+?)`|\[([^[\]\n\r]+)\]\(((?:[^()\n\r]|\([^()\n\r]*\))+)\)|(https?:\/\/[^\s)>\]]+|www\.[^\s)>\]]+)|([^*_`[]+?(?=https?:\/\/|www\.|$)|[^*_`[]+|\[)/g;
   let match;
   while ((match = regex.exec(text)) !== null) {
     if (match[1])
@@ -68,7 +73,7 @@ export function truncateBareUrl(url: string): string {
  */
 export function stripInlineMarkdown(text: string): string {
   return text
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1')
+    .replace(/\[([^[\]\n\r]+)\]\((?:[^()\n\r]|\([^()\n\r]*\))+\)/g, '$1')
     .replace(/https?:\/\/[^\s)>\]]+|www\.[^\s)>\]]+/g, (u) =>
       truncateBareUrl(u)
     )

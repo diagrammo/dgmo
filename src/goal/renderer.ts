@@ -179,9 +179,12 @@ export function renderGoalForExport(
 // ── Shared label helpers ─────────────────────────────────────
 /** Display length of a token, ignoring inline-markdown markers. */
 function displayLen(token: string): number {
-  return token
-    .replace(/\[(.+?)\]\((.+?)\)/g, '$1')
-    .replace(/\*\*|__|\*|_|`/g, '').length;
+  return (
+    token
+      // parseInlineMarkdown's link shape; lazy `.+?` was cubic (#1557).
+      .replace(/\[([^[\]\n\r]+)\]\((?:[^()\n\r]|\([^()\n\r]*\))+\)/g, '$1')
+      .replace(/\*\*|__|\*|_|`/g, '').length
+  );
 }
 
 /** Greedy word-wrap into lines of at most `maxChars` display characters. */
