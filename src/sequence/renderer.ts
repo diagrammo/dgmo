@@ -3510,16 +3510,15 @@ export function renderSequenceDiagram(
         : palette.bg;
     const strokeColor = groupTagColor ?? palette.textMuted;
 
-    const groupG = svg
-      .append('g')
-      .attr('class', 'group-box-wrapper')
-      .attr('data-group-line', String(group.lineNumber));
     // The source group, not this projected one: a collapsed inner group counts
     // as one member here but still holds several.
     const source = parsed.groups.find((g) => g.lineNumber === group.lineNumber);
-    if (source && isCollapsibleGroup(source)) {
+    const collapsible = source !== undefined && isCollapsibleGroup(source);
+    const groupG = svg.append('g').attr('class', 'group-box-wrapper');
+    if (collapsible) groupG.attr('data-group-toggle', '');
+    groupG.attr('data-group-line', String(group.lineNumber));
+    if (collapsible) {
       groupG
-        .attr('data-group-toggle', '')
         .attr('tabindex', '0')
         .attr('role', 'button')
         .attr('aria-expanded', 'true')
