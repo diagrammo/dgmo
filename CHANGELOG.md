@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A whiteboard container rectangle labels itself at the top.** A
   rectangle that encloses another shape, note or image draws its label
   top centre in 16px semibold, clear of the shapes inside it. `label:
-  top` or `label: middle` overrides the automatic choice.
+top` or `label: middle` overrides the automatic choice.
 
 ### Changed
 
