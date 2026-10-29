@@ -427,3 +427,64 @@ describe('flowchart texts state that nothing points back at the start node (#144
     );
   });
 });
+
+// #1466: a first-try model read `note <NodeId> text` in the reference and
+// wrote `note <Email exists?> …` on a decision, copying the shape's brackets,
+// which fails with "unknown node id". Both texts a model reads must show a note
+// on a decision named by its bare label and say so, and that note must parse.
+describe('flowchart texts show a note on a decision by its label (#1466)', () => {
+  const ref = workspaceReference() ?? '';
+  const skill = readFileSync(join(here, '..', 'SKILL.md'), 'utf8');
+  const texts: Array<[string, string]> = [
+    [
+      'get_language_reference flowchart',
+      extractSection(ref, 'flowchart') ?? '',
+    ],
+    ['SKILL.md', skill],
+  ];
+  const decisionNote = /^note "([^"]+\?)" \S/m;
+
+  for (const [name, text] of texts) {
+    it(`${name}: states that a note names the node without its brackets`, () => {
+      expect(text).toMatch(
+        /A note names the node by its\s+label, without the shape's brackets/
+      );
+      expect(text).not.toMatch(/note <NodeId>/);
+      expect(text).not.toMatch(/^note </m);
+    });
+
+    it(`${name}: an example puts a note on a decision and it parses clean`, () => {
+      const m = text.match(decisionNote);
+      expect(m, `${name} has no note on a decision`).toBeTruthy();
+      const flow = [
+        'flowchart Notes',
+        '',
+        `(Start) -> <${m![1]}>`,
+        '  -yes-> (Done)',
+        '  -no-> (Stop)',
+        m![0] + ' here',
+      ].join('\n');
+      expect(validateDgmoSource(flow).errors).toEqual([]);
+    });
+  }
+
+  it('a note that copies the decision brackets is still refused', () => {
+    const bracketed = [
+      'flowchart Notes',
+      '',
+      '(Start) -> <Email exists?>',
+      '  -yes-> (Done)',
+      '  -no-> (Stop)',
+      'note <Email exists?> checks the users table',
+    ].join('\n');
+    expect(
+      validateDgmoSource(bracketed).errors.map(
+        (e: { message: string }) => e.message
+      )
+    ).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/unknown node id "<Email"/),
+      ])
+    );
+  });
+});

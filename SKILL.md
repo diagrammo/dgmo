@@ -494,9 +494,12 @@ flowchart Process
 (Start) -> <Valid?>
   -yes-> [Process] -> (Done)
   -no-> /Get Input/ -> <Valid?>
+note "Valid?" checks the required fields
 ```
 
 Begin at one start terminal `(Start)`. Nothing points back at the start node: no arrow may end at `(Start)`, so a loop returns to a step after it, as `/Get Input/ -> <Valid?>` does above.
+
+A note names the node by its label, without the shape's brackets: `note "Valid?" …` for the decision `<Valid?>`, never `note <Valid?> …`.
 
 ### Bar chart
 ```dgmo

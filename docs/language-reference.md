@@ -1042,13 +1042,16 @@ Bracket syntax only.
 
 ### 4.7 Notes (Nodes)
 
-Attach an annotation to a node with `note <NodeId> text` (quote the id
-for multi-word labels). The note renders as a folded-corner box beside
-the node, expanded at rest.
+Attach an annotation to a node with `note NodeLabel text` (quote the
+label when it has more than one word). A note names the node by its
+label, without the shape's brackets: the decision `<Email exists?>` takes
+`note "Email exists?" …`, never `note <Email exists?> …`. The note renders
+as a folded-corner box beside the node, expanded at rest.
 
 ```
 note Validate checks the payload schema
 note "Read Map" the map is half-burned
+note "Email exists?" checks the users table
 ```
 
 Indent lines below the heading for a multi-line body (bullets + inline
