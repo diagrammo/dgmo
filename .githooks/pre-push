@@ -32,6 +32,12 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 # in the main dgmo repo or in a worktree sibling of it.
 WORKSPACE=$(dirname "$REPO_ROOT")
 
+# 🔴 Gate in a cleared environment (diagrammo#1592): an exported override such as
+# DGMO_ALLOW_SHARED_LINK=1 once reached this gate and failed a test that asserts
+# the guard refuses. Re-exec under the workspace allowlist; stdin carries over.
+GATE_ENV="$WORKSPACE/scripts/gate-env.sh"
+if [ -r "$GATE_ENV" ]; then . "$GATE_ENV"; gate_env_exec "$0" "$@"; fi
+
 # Git hands a pre-push hook "<local ref> <local sha> <remote ref> <remote sha>"
 # per ref on stdin. It can only be read once, so capture it up front.
 refs=$(cat)
