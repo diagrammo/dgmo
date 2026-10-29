@@ -3086,14 +3086,15 @@ interface WhiteboardShapeLabel {
 }
 /**
  * How shape `el`'s label is drawn on `elements`, with `text` in place of
- * its label (the app's text field passes its draft). A middle label is the
- * fit to the shape, centred. A top label (#1601) is
- * `WHITEBOARD_CONTAINER_FONT` semibold and never runs into another shape
- * (#1605): it fits the strip above the highest shape, note or image
- * overlapping the box (one that encloses the box does not count); with no
- * room there, the strip below the lowest; with no room in either, one line
- * set into the top border. Each fit wraps, then shrinks to the floor, then
- * ends in `…`.
+ * its label (the app's text field passes its draft). No label runs into
+ * another shape (#1605): a shape, note or image overlapping the box is an
+ * obstacle, unless it encloses the box. A top label (#1601) is
+ * `WHITEBOARD_CONTAINER_FONT` semibold and fits the strip above the highest
+ * obstacle, else the strip below the lowest. A middle label fits the clear
+ * strip holding the box's centre, else the tallest clear strip, centred as
+ * near the middle as that strip allows; with no obstacle, that is the whole
+ * box, as before. With no room anywhere, either is one line set into the
+ * top border. Each fit wraps, then shrinks to the floor, then ends in `…`.
  */
 declare function whiteboardShapeLabel(el: WhiteboardShape, elements: readonly WhiteboardElement[], text?: string): WhiteboardShapeLabel;
 

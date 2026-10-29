@@ -251,6 +251,18 @@ describe('a top label never runs into another shape (#1605)', () => {
     expect(label.lines[0]).toMatch(/\u2026$/);
   });
 
+  it('an explicit middle label moves to the clear strip nearest the centre', () => {
+    const { label } = layout(
+      'rectangle OCI at: 0 0, size: 260 280, label: middle',
+      'rectangle PV at: 80 110, size: 100 60'
+    );
+    expect(label).toMatchObject({ font: 14, bold: false, onEdge: false });
+    const { top, bottom } = span(label);
+    expect(bottom <= 106 || top >= 174).toBe(true);
+    const plain = layout('rectangle Box at: 0 0, size: 100 50').label;
+    expect(plain.cy).toBe(25);
+  });
+
   it('an enclosing container does not count; an enclosed one does', () => {
     const els = board(
       'rectangle Region at: 0 0, size: 300 300',
@@ -264,7 +276,7 @@ describe('a top label never runs into another shape (#1605)', () => {
     expect(span(inner).bottom).toBeLessThanOrEqual(140);
   });
 
-  it('across random boards, every top label stays inside its box and off every other shape', () => {
+  it('across random boards, every top or middle label stays inside its box and off every other shape', () => {
     let seed = 1601;
     const rnd = (n: number) => {
       seed = (seed * 1103515245 + 12345) % 2147483648;
@@ -288,7 +300,8 @@ describe('a top label never runs into another shape (#1605)', () => {
         { length: 1 + rnd(12) },
         () => words[rnd(words.length)]
       ).join(' ');
-      const lines = [`rectangle ${name} at: 0 0, size: ${w} ${h}`];
+      const middle = k % 2 ? ', label: middle' : '';
+      const lines = [`rectangle ${name} at: 0 0, size: ${w} ${h}${middle}`];
       for (let c = 0; c < 1 + rnd(3); c++) {
         const cw = 10 + rnd(Math.max(1, w - 20));
         const ch = 10 + rnd(Math.max(1, h - 20));
