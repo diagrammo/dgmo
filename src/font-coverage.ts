@@ -178,3 +178,94 @@ export function fontPortabilityWarning(
     `Install a font covering them wherever this runs, or check the output there.`
   );
 }
+
+/**
+ * One emoji, as the PNG renderer would meet it: a keycap (`1️⃣`), or a pictograph
+ * with its optional skin tone, variation selector 16 and tag run (subdivision
+ * flags), chained by zero-width joiners (`👩‍💻`). Regional indicators (flags)
+ * pair up as one atom. A lone ZWJ is never touched — Devanagari and Malayalam
+ * shape with it.
+ *
+ * A pictograph counts when it is emoji BY DEFAULT (`Emoji_Presentation`), when
+ * VS16 asks for emoji style, or when it sits in the U+1F000–U+1FFFF block. A bare
+ * text-style pictograph — ©, ™, ↔, ★, ✔ — is left alone: Inter or a system
+ * symbol font draws it, and stripping it would lose a character that renders.
+ */
+const EMOJI_ATOM = [
+  '[\\u{1F1E6}-\\u{1F1FF}]{2}', // a flag: two regional indicators
+  '[0-9#*]\\uFE0F?\\u20E3', // a keycap
+  '(?:\\p{Emoji_Presentation}|\\p{Extended_Pictographic}(?=\\uFE0F)|(?=\\p{Extended_Pictographic})[\\u{1F000}-\\u{1FFFF}])' +
+    '[\\u{1F3FB}-\\u{1F3FF}]?\\uFE0F?[\\u{E0020}-\\u{E007F}]*',
+].join('|');
+const EMOJI = new RegExp(
+  `(?:${EMOJI_ATOM})(?:\\u200D(?:${EMOJI_ATOM}))*`,
+  'gu'
+);
+
+/** The emoji in `text`, deduplicated, in first-seen order. */
+export function emojiIn(text: string): string[] {
+  return [...new Set(text.match(EMOJI) ?? [])];
+}
+
+/**
+ * `text` with every emoji removed and the gap closed: `A 🏢 B` becomes `A B`.
+ * A gap that held a space keeps exactly one, so words either side never merge.
+ */
+function closeGaps(text: string): string {
+  EMOJI.lastIndex = 0;
+  if (!EMOJI.test(text)) return text;
+  return text
+    .replace(EMOJI, '\0')
+    .replace(/[ \0]*\0[ \0]*/g, (gap) => (gap.includes(' ') ? ' ' : ''));
+}
+
+/**
+ * `text` with every emoji removed, the gap closed, and a space the removal
+ * left at either end dropped (`🏢 Office` → `Office`).
+ */
+export function stripEmoji(text: string): string {
+  const closed = closeGaps(text);
+  if (closed === text) return text;
+  return closed.replace(/^ | $/g, '');
+}
+
+/**
+ * An SVG with every emoji removed from its drawn text, for the PNG renderer.
+ *
+ * 🔴 resvg 2.6.2 cannot draw a colour-bitmap emoji font (#1423). On macOS
+ * fallback lands on Apple Color Emoji (`sbix`) for the WHOLE `<text>`, so one
+ * emoji turns every glyph of the label — Latin and CJK included — into a
+ * missing-glyph box; a separate `<tspan>` does not help. On Linux (Noto Color
+ * Emoji, CBDT) the emoji alone draws nothing. Dropping the emoji keeps the text.
+ * PNG only: SVG output is never passed through this.
+ *
+ * Only text nodes inside `<text>` are touched (that covers their `<tspan>`s);
+ * attributes, `<title>` and everything else stay byte-identical. A space left
+ * at a node's edge stays, so words across a `<tspan>` boundary never merge —
+ * SVG's default whitespace handling drops it at the label's ends.
+ */
+export function stripEmojiFromSvg(svg: string): string {
+  return svg.replace(
+    /(<text\b[^>]*>)([\s\S]*?)(<\/text>)/g,
+    (_, open: string, inner: string, close: string) =>
+      open +
+      inner.replace(
+        /(^|>)([^<]+)/g,
+        (_m, lead: string, node: string) => lead + closeGaps(node)
+      ) +
+      close
+  );
+}
+
+/** The warning for emoji left out of a PNG, or `undefined` when there are none. */
+export function emojiOmittedWarning(text: string): string | undefined {
+  const found = emojiIn(text);
+  if (found.length === 0) return undefined;
+  const sample = found.slice(0, 6).join('');
+  const more = found.length > 6 ? ` +${found.length - 6} more` : '';
+  return (
+    `Emoji are left out of PNG output (${sample}${more}): the PNG renderer cannot draw ` +
+    `colour emoji fonts, and on macOS one emoji would turn the whole label into boxes. ` +
+    `Export to .svg to keep them.`
+  );
+}

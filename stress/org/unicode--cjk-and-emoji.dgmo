@@ -1,6 +1,5 @@
 org 東京オフィス 🏢
 // stress: unicode — CJK names, emoji and accented Latin side by side
-// known: diagrammo/diagrammo#1423
 山田 太郎
   role: 代表取締役社長
 
