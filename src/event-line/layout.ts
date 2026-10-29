@@ -4,7 +4,9 @@
 //
 // Everything the renderer needs to know about WHERE things go, computed as data
 // before anything is drawn: each slot's card size, its x on the spine, its side,
-// lane and left edge, and the canvas size and spine y that follow from them.
+// lane and left edge, and the canvas size and spine y that follow from them;
+// then the drawing-time geometry those imply — card boxes and leaders, the
+// spine's extent, the era bracket runs and the `now` marker's slot.
 // No DOM is touched here; `renderer.ts` reads the result and draws it.
 
 import {
@@ -26,6 +28,7 @@ import {
   type WrappedDescLine,
 } from '../utils/wrapped-desc';
 import { formatDateLabel } from '../timeline/renderer';
+import { parseTimelineDate } from '../timeline/parser';
 import {
   resolveTagColor,
   type TagGroup,
@@ -63,6 +66,14 @@ const FAN_GAP = 6;
 export const DATE_SUBTITLE_H = 15;
 // Era `]` bracket band: depth reserved on the side opposite the cards.
 const ERA_BLOCK = 30;
+export const DOT_R = 5.5;
+// Padding each era bracket extends past its first/last member dot, and the gap
+// kept on each side of a seam when two adjacent brackets are clamped apart.
+const ERA_BRACKET_PAD = 14;
+const ERA_SEAM_GAP = 3;
+// Collapsed era: the `⊓` bar floats this far off the spine (on the card's side);
+// its legs drop from the bar to rest their feet ON the timeline.
+const ERA_LEG = 13;
 
 export type Side = 'above' | 'below';
 
@@ -116,6 +127,53 @@ export interface EventLineLayoutOptions {
   activeGroup: string | null;
   /** Height used by the title and legend bands above the content. */
   topUsed: number;
+  /** Clock for a computed `now` marker (§28.6b); defaults to the wall clock. */
+  nowDate?: Date | undefined;
+}
+
+/** One card's box and leader, in `placed` order. */
+export interface CardGeometry {
+  p: Placed;
+  /** y of the card's spine-side edge, where its leader ends. */
+  near: number;
+  top: number;
+  /** y where the leader starts: the spine, or a collapsed era's `⊓` bar. */
+  leaderFrom: number;
+  /** The leader passes through ANOTHER card's box. */
+  leaderCrossesCard: boolean;
+  /** Collapsed era only: the `⊓` bar's ends and y, clamped to the spine. */
+  eraBar: { x0: number; x1: number; y: number } | null;
+}
+
+export interface SpineGeometry {
+  left: number;
+  right: number;
+  /** End of the solid stroke; past it the spine is dashed (trailing TBD). */
+  solidRight: number;
+  dashed: boolean;
+}
+
+/** An expanded era's `]` bracket: its run of member dots and its clamped ends. */
+export interface EraBracket {
+  era: EventLineEra;
+  firstX: number;
+  lastX: number;
+  x0: number;
+  x1: number;
+}
+
+/** The `now` marker (§28.6b): pin x on the spine, its tab's box and its stem. */
+export interface NowMarkerGeometry {
+  x: number;
+  label: string;
+  pillW: number;
+  pillH: number;
+  /** Tab centre x, kept inside the canvas. */
+  pillCX: number;
+  y0: number;
+  y1: number;
+  stemFrom: number;
+  stemTo: number;
 }
 
 export interface EventLineLayout {
@@ -132,6 +190,13 @@ export interface EventLineLayout {
   eraBaseY: number;
   /** Distance from the spine to the spine-side edge of `p`'s card. */
   laneNear: (p: Placed) => number;
+  cards: CardGeometry[];
+  spine: SpineGeometry;
+  /** Expanded eras only, left to right; collapsed eras draw as `eraBar`. */
+  eraBrackets: EraBracket[];
+  /** Null when there is no `now` directive, the axis is not to scale, or
+   *  there is no dated event to interpolate over. */
+  now: NowMarkerGeometry | null;
 }
 
 export function layoutEventLine(
@@ -140,8 +205,15 @@ export function layoutEventLine(
   isDark: boolean,
   opts: EventLineLayoutOptions
 ): EventLineLayout {
-  const { width, heightHint, exportMode, hiddenSet, activeGroup, topUsed } =
-    opts;
+  const {
+    width,
+    heightHint,
+    exportMode,
+    hiddenSet,
+    activeGroup,
+    topUsed,
+    nowDate,
+  } = opts;
   const seriesColors = getSeriesColors(palette);
   const accent = seriesColors[0]!;
 
@@ -641,6 +713,9 @@ export function layoutEventLine(
     }
   }
 
+  const { contentW, totalH, spineY, laneNear } = layout;
+  const spine = layoutSpine(placed, scaled);
+  const cards = layoutCards(placed, spineY, laneNear, spine);
   return {
     placed,
     scaled,
@@ -648,6 +723,19 @@ export function layoutEventLine(
     eraSide,
     eraByName,
     ...layout,
+    cards,
+    spine,
+    eraBrackets: hasEras ? layoutEraBrackets(placed, eraByName, contentW) : [],
+    now:
+      parsed.now && scaled
+        ? layoutNowMarker(parsed, placed, cards, {
+            spineY,
+            contentW,
+            totalH,
+            topUsed,
+            nowDate,
+          })
+        : null,
   };
 }
 
@@ -666,11 +754,297 @@ function eventTagHidden(
   return false;
 }
 
-// Reconcile the rendered SVG to the container's hidden set: collapse matching
-
 function wrapDescription(
   lines: readonly string[],
   charsPerLine: number
 ): WrappedDescLine[] {
   return wrapDescriptionLines([...lines], charsPerLine);
+}
+
+// ── Drawing-time geometry ── what follows from the placement above: the
+// spine's extent, each card's box and leader, the era runs and the `now` tab.
+
+function layoutSpine(
+  placed: readonly Placed[],
+  scaled: boolean
+): SpineGeometry {
+  // Extend to cover collapsed-era brackets, which reach p.x ± spanHalf.
+  const x0 = Math.min(...placed.map((p) => p.x - p.spanHalf));
+  const x1 = Math.max(...placed.map((p) => p.x + p.spanHalf));
+  const left = x0 - 20;
+  const right = x1 + 20;
+  // A trailing TBD (open horizon) turns the spine DASHED past the last real
+  // event — the timeline literally trails off into the unscheduled future.
+  const dashed = scaled && placed.some((p) => p.future && !p.futureSpan);
+  const realRightX = placed.length
+    ? Math.max(
+        left,
+        ...placed.filter((p) => !p.future).map((p) => p.x + p.spanHalf)
+      )
+    : right;
+  return { left, right, solidRight: dashed ? realRightX : right, dashed };
+}
+
+function layoutCards(
+  placed: readonly Placed[],
+  spineY: number,
+  laneNear: (p: Placed) => number,
+  spine: SpineGeometry
+): CardGeometry[] {
+  // Box geometry up front so leaders can test box crossings.
+  const boxes = placed.map((p) => {
+    const near =
+      p.side === 'above' ? spineY - laneNear(p) : spineY + laneNear(p);
+    const top = p.side === 'above' ? near - p.cardH : near;
+    return { p, near, top };
+  });
+  // A leader runs vertically at its dot's x from the spine to its card. If that
+  // segment passes through ANOTHER card's box, it is faded so the text stays clear.
+  const leaderCrossesBox = (owner: Placed, near: number): boolean => {
+    const lo = Math.min(spineY, near);
+    const hi = Math.max(spineY, near);
+    return boxes.some(
+      (g) =>
+        g.p !== owner &&
+        owner.x > g.p.left &&
+        owner.x < g.p.left + CARD_W &&
+        hi > g.top &&
+        lo < g.top + g.p.cardH
+    );
+  };
+  // A collapsed era's `⊓` bar floats on the card's side; the era card's leader
+  // stops AT the bar rather than running to the spine.
+  const eraBarY = (p: Placed): number =>
+    spineY + ERA_LEG * (p.side === 'above' ? -1 : 1);
+
+  return boxes.map(({ p, near, top }) => {
+    let eraBar: CardGeometry['eraBar'] = null;
+    if (p.kind === 'era') {
+      // The `⊓` stretches across the folded date range (`p.spanHalf`); a minimum
+      // width keeps a single-date era visible. Its legs are clamped to the drawn
+      // spine extent so the feet always land ON the line.
+      const half = Math.max(16, p.spanHalf);
+      eraBar = {
+        x0: Math.max(spine.left, p.x - half),
+        x1: Math.min(spine.right, p.x + half),
+        y: eraBarY(p),
+      };
+    }
+    return {
+      p,
+      near,
+      top,
+      leaderFrom: p.kind === 'era' ? eraBarY(p) : spineY,
+      leaderCrossesCard: leaderCrossesBox(p, near),
+      eraBar,
+    };
+  });
+}
+
+function layoutEraBrackets(
+  placed: readonly Placed[],
+  eraByName: ReadonlyMap<string, EventLineEra>,
+  contentW: number
+): EraBracket[] {
+  interface EraRun {
+    era: EventLineEra;
+    collapsed: boolean;
+    firstX: number;
+    lastX: number;
+  }
+  const runs: EraRun[] = [];
+  let prevName: string | null = null;
+  for (const p of placed) {
+    const name = p.eraName;
+    if (name && eraByName.has(name)) {
+      if (prevName === name && runs.length > 0) {
+        const r = runs[runs.length - 1]!;
+        r.firstX = Math.min(r.firstX, p.x);
+        r.lastX = Math.max(r.lastX, p.x);
+      } else {
+        runs.push({
+          era: eraByName.get(name)!,
+          collapsed: p.kind === 'era',
+          firstX: p.x,
+          lastX: p.x,
+        });
+      }
+      prevName = name;
+    } else {
+      prevName = null;
+    }
+  }
+  const clampX = (v: number): number => Math.max(4, Math.min(contentW - 4, v));
+  // Each expanded era's bracket pads its run by ±ERA_BRACKET_PAD. When two
+  // adjacent eras' boundary events sit close on the date scale those pads
+  // collide, so split the seam at the midpoint between the runs (kept outside
+  // each run's own dots) — neighbouring brackets then never overlap.
+  const drawn = runs
+    .filter((r) => !r.collapsed) // collapsed eras are marked on the spine instead
+    .map((r) => ({
+      era: r.era,
+      firstX: r.firstX,
+      lastX: r.lastX,
+      x0: clampX(r.firstX - ERA_BRACKET_PAD),
+      x1: clampX(r.lastX + ERA_BRACKET_PAD),
+    }))
+    .sort((a, b) => a.firstX - b.firstX);
+  for (let i = 1; i < drawn.length; i++) {
+    const prev = drawn[i - 1]!;
+    const cur = drawn[i]!;
+    if (prev.x1 <= cur.x0) continue;
+    const mid = (prev.lastX + cur.firstX) / 2;
+    prev.x1 = Math.max(prev.lastX, Math.min(prev.x1, mid - ERA_SEAM_GAP));
+    cur.x0 = Math.min(cur.firstX, Math.max(cur.x0, mid + ERA_SEAM_GAP));
+  }
+  return drawn;
+}
+
+// A pin planted ON the spine with a short stem to a labeled tab, dropped into a
+// lane the cards don't occupy. To-scale only; its x is interpolated over the
+// placed DATED events (so it honors the broken axis), riding onto a trailing-TBD
+// open horizon when `now` is past the last date.
+function layoutNowMarker(
+  parsed: ParsedEventLine,
+  placed: readonly Placed[],
+  cards: readonly CardGeometry[],
+  frame: {
+    spineY: number;
+    contentW: number;
+    totalH: number;
+    topUsed: number;
+    nowDate: Date | undefined;
+  }
+): NowMarkerGeometry | null {
+  const now = parsed.now!;
+  const { spineY, contentW, totalH, topUsed } = frame;
+  let nowValue: number | null = now.dateValue;
+  let nowIso: string | null = now.date;
+  if (now.computed) {
+    const d = frame.nowDate ?? new Date();
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    nowIso = iso;
+    const v = parseTimelineDate(iso);
+    nowValue = Number.isFinite(v) ? v : null;
+  }
+  const dated = placed
+    .filter((p) => p.kind !== 'era' && !p.future && p.dateValue !== null)
+    .sort((a, b) => a.dateValue! - b.dateValue!);
+  let nowX = nowValue === null ? null : valueToSpineX(nowValue, dated);
+  // Past the last DATED event with a trailing-TBD open horizon: ride the pin
+  // out onto that tail ("now, in the unscheduled-future era") rather than
+  // clamping back to the last real dot. TBD positions are inferred, so anchor
+  // to the nearest trailing-TBD dot.
+  const lastReal = dated[dated.length - 1];
+  if (
+    nowX !== null &&
+    nowValue !== null &&
+    lastReal &&
+    nowValue > lastReal.dateValue!
+  ) {
+    const trailing = placed
+      .filter((p) => p.future && !p.futureSpan)
+      .map((p) => p.x);
+    if (trailing.length) nowX = Math.min(...trailing);
+  }
+  if (nowX === null) return null;
+
+  // The tab says WHEN, not just "here": a caption reading `now` is equally
+  // true on the day it was drawn and two years later, so a reader cannot
+  // tell a diagram that redraws from a picture of a dead one. The date is
+  // formatted exactly as the event cards format theirs, so the pin and the
+  // cards can never disagree about how a date looks. An explicit caption
+  // (`now 2023-06-01 Today`) still wins.
+  const label = now.label ?? (nowIso ? formatDateLabel(nowIso) : 'now');
+  const pillH = 18;
+  const pillW = Math.max(28, label.length * 6.6 + 16);
+  const PIN_GAP = 6; // clearance spine↔pill and card↔pill
+  const xHalf = pillW / 2 + 4;
+  const xLo = nowX - xHalf;
+  const xHi = nowX + xHalf;
+
+  // The only obstacles are card boxes sharing the pill's x-span.
+  const boxes = cards.map((g) => ({
+    side: g.p.side,
+    top: g.top,
+    bot: g.top + g.p.cardH,
+    left: g.p.left,
+    right: g.p.left + CARD_W,
+  }));
+  type Box = (typeof boxes)[number];
+  const overlapsX = (b: Box): boolean => b.left < xHi && b.right > xLo;
+
+  // Candidate tab slots: spine-adjacent on each side, plus just beyond every
+  // overlapping card. Keep the CLEAR slot with the shortest stem — the pin
+  // hugs the spine when the lane is empty and only reaches past a card when
+  // it must.
+  type Slot = { y0: number; y1: number; stem: number };
+  const cands: Slot[] = [];
+  const addAbove = (pillBottom: number): void => {
+    const y0 = pillBottom - pillH;
+    if (y0 > topUsed + 1)
+      cands.push({ y0, y1: pillBottom, stem: spineY - pillBottom });
+  };
+  const addBelow = (pillTop: number): void => {
+    const y1 = pillTop + pillH;
+    if (y1 < totalH - 1)
+      cands.push({ y0: pillTop, y1, stem: pillTop - spineY });
+  };
+  // Preferred slot: the tab centered in the spine→event-row gap — equidistant
+  // to the spine and where event cards begin (their near edge sits LEADER_*
+  // off the spine). The pill fits inside that gap, so it clears the cards
+  // even when one shares the marker's x. Beyond-card fallbacks handle the
+  // rare tighter case.
+  addAbove(spineY - LEADER_ABOVE / 2 + pillH / 2);
+  addBelow(spineY + LEADER_BELOW / 2 - pillH / 2);
+  for (const b of boxes) {
+    if (!overlapsX(b)) continue;
+    if (b.side === 'above') addAbove(b.top - PIN_GAP);
+    else addBelow(b.bot + PIN_GAP);
+  }
+  const isClear = (c: Slot): boolean =>
+    !boxes.some((b) => overlapsX(b) && b.bot > c.y0 && b.top < c.y1);
+  const byStem = (a: Slot, b: Slot): number => a.stem - b.stem;
+  const slot: Slot = cands.filter(isClear).sort(byStem)[0] ??
+    cands.sort(byStem)[0] ?? {
+      y0: spineY - PIN_GAP - pillH,
+      y1: spineY - PIN_GAP,
+      stem: PIN_GAP + pillH,
+    };
+
+  const above = slot.y1 <= spineY;
+  return {
+    x: nowX,
+    label,
+    pillW,
+    pillH,
+    pillCX: Math.max(pillW / 2 + 2, Math.min(nowX, contentW - pillW / 2 - 2)),
+    y0: slot.y0,
+    y1: slot.y1,
+    stemFrom: above ? spineY - DOT_R : spineY + DOT_R,
+    stemTo: above ? slot.y1 : slot.y0,
+  };
+}
+
+// Map a date value to a spine x by piecewise-linear interpolation over the
+// PLACED dated events (already sorted here). Because event x's already encode
+// the broken axis (collapsed-era capsules, per-run scaling), interpolating
+// between them keeps the `now` rule consistent with the drawn dots. Values
+// before the first / after the last dated event clamp to that endpoint.
+function valueToSpineX(v: number, dated: Placed[]): number | null {
+  if (!dated.length) return null;
+  const first = dated[0]!;
+  const last = dated[dated.length - 1]!;
+  if (v <= first.dateValue!) return first.x;
+  if (v >= last.dateValue!) return last.x;
+  for (let i = 0; i < dated.length - 1; i++) {
+    const a = dated[i]!;
+    const b = dated[i + 1]!;
+    if (v >= a.dateValue! && v <= b.dateValue!) {
+      const span = b.dateValue! - a.dateValue!;
+      if (span <= 0) return a.x;
+      return a.x + ((v - a.dateValue!) / span) * (b.x - a.x);
+    }
+  }
+  return last.x;
 }

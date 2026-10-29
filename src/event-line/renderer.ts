@@ -40,18 +40,18 @@ import { renderIntegratedLegend } from '../utils/legend-integration';
 import { getLegendExtent } from '../utils/legend-layout';
 import { layoutInlineHeader } from '../utils/inline-header';
 import { formatDateLabel } from '../timeline/renderer';
-import { parseTimelineDate } from '../timeline/parser';
 import type { LegendGroupData } from '../utils/legend-types';
 import { resolveActiveTagGroup, tagAttrKey } from '../utils/tag-groups';
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
-import type { EventLineEra, ParsedEventLine } from './types';
+import type { ParsedEventLine } from './types';
 import {
   CARD_PAD,
   CARD_W,
   DATE_SUBTITLE_H,
   DESC_FONT,
   DESC_LINE_H,
+  DOT_R,
   LEADER_ABOVE,
   LEADER_BELOW,
   TITLE_LINE_H,
@@ -64,7 +64,6 @@ import {
 const TITLE_AREA = 48;
 const LEGEND_BAND = 34;
 const CARD_BODY_TOP = HEADER_HEIGHT + SEPARATOR_GAP;
-const DOT_R = 5.5;
 const DATE_SUBTITLE_FONT = 10;
 // `no-box` only: a soft tag-tinted "shelf" sits behind the title + date so the
 // header reads as a unit, and a full-strength colored bar on its spine-side edge
@@ -87,19 +86,12 @@ const SHELF_EDGE = 4;
 const SHELF_EDGE_STYLE: 'none' | 'spine' | 'left' = 'spine';
 const SHELF_LIP = 2;
 const ERA_BRACKET_CAP = 8;
-// Padding each era bracket extends past its first/last member dot, and the gap
-// kept on each side of a seam when two adjacent brackets are clamped apart.
-const ERA_BRACKET_PAD = 14;
-const ERA_SEAM_GAP = 3;
 // Collapsed-era axis-break glyph (`≈` rotated 90°): two short parallel wavy
 // strokes that cross the spine, with the spine blanked between them so the
 // timeline visibly breaks where the folded span is.
 const BREAK_HALF_H = 6; // squiggle extends this far above AND below the spine
 const BREAK_AMP = 2.6; // horizontal wave amplitude
 const BREAK_GAP = 5; // spacing between the two waves (= the spine gap width)
-// Collapsed era: the `⊓` bar floats this far off the spine (on the card's side);
-// its legs drop from the bar to rest their feet ON the timeline.
-const ERA_LEG = 13;
 const ERA_LABEL_FONT = 11.5;
 
 // ── Hover interactivity (preview only — inert in the resvg export path) ───────
@@ -215,17 +207,17 @@ export function renderEventLine(
   // ── Layout ── every position is computed as data first (./layout); the
   // rest of this function only draws what it returns.
   const {
-    placed,
-    scaled,
     hasEras,
     eraSide,
-    eraByName,
     contentW,
     contentH,
     totalH,
     spineY,
     eraBaseY,
-    laneNear,
+    cards,
+    spine,
+    eraBrackets,
+    now,
   } = layoutEventLine(parsed, palette, isDark, {
     width,
     heightHint,
@@ -233,6 +225,7 @@ export function renderEventLine(
     hiddenSet,
     activeGroup,
     topUsed,
+    nowDate,
   });
 
   // ── SVG root ──
@@ -320,37 +313,23 @@ export function renderEventLine(
   }
 
   // ── Spine ──
-  // Extend to cover collapsed-era brackets, which reach p.x ± spanHalf.
-  const x0 = Math.min(...placed.map((p) => p.x - p.spanHalf));
-  const x1 = Math.max(...placed.map((p) => p.x + p.spanHalf));
-  const spineLeft = x0 - 20;
-  const spineRight = x1 + 20;
   // A trailing TBD (open horizon) turns the spine DASHED past the last real
   // event — the timeline literally trails off into the unscheduled future.
-  const hasTrailingFuture =
-    scaled && placed.some((p) => p.future && !p.futureSpan);
-  const realRightX = placed.length
-    ? Math.max(
-        spineLeft,
-        ...placed.filter((p) => !p.future).map((p) => p.x + p.spanHalf)
-      )
-    : spineRight;
-  const solidRight = hasTrailingFuture ? realRightX : spineRight;
   svg
     .append('line')
-    .attr('x1', spineLeft)
+    .attr('x1', spine.left)
     .attr('y1', spineY)
-    .attr('x2', solidRight)
+    .attr('x2', spine.solidRight)
     .attr('y2', spineY)
     .attr('stroke', palette.text)
     .attr('stroke-width', 2.5)
     .attr('stroke-linecap', 'round');
-  if (hasTrailingFuture) {
+  if (spine.dashed) {
     svg
       .append('line')
-      .attr('x1', solidRight)
+      .attr('x1', spine.solidRight)
       .attr('y1', spineY)
-      .attr('x2', spineRight)
+      .attr('x2', spine.right)
       .attr('y2', spineY)
       .attr('stroke', palette.text)
       .attr('stroke-width', 2.5)
@@ -367,50 +346,20 @@ export function renderEventLine(
   // "somewhere in here" whisker is drawn across the spine.
 
   // ── Leaders + cards ──
-  // Box geometry up front so leaders can test box crossings and so leaders draw
-  // BEHIND every card (a card always covers the leaders beneath it).
-  const geo = placed.map((p) => {
-    const near =
-      p.side === 'above' ? spineY - laneNear(p) : spineY + laneNear(p);
-    const top = p.side === 'above' ? near - p.cardH : near;
-    return { p, near, top };
-  });
-  // A leader runs vertically at its dot's x from the spine to its card. If that
-  // segment passes through ANOTHER card's box, fade it so the text stays clear.
-  const leaderCrossesBox = (owner: Placed, near: number): boolean => {
-    const lo = Math.min(spineY, near);
-    const hi = Math.max(spineY, near);
-    return geo.some(
-      (g) =>
-        g.p !== owner &&
-        owner.x > g.p.left &&
-        owner.x < g.p.left + CARD_W &&
-        hi > g.top &&
-        lo < g.top + g.p.cardH
-    );
-  };
-
-  // A collapsed era's `⊓` bar floats on the card's side; the era card's leader
-  // stops AT the bar rather than running to the spine.
-  const eraBarY = (p: Placed): number =>
-    spineY + ERA_LEG * (p.side === 'above' ? -1 : 1);
-
-  // Leaders first (behind all cards).
-  for (const { p, near } of geo) {
-    const spineEnd = p.kind === 'era' ? eraBarY(p) : spineY;
+  // Leaders draw BEHIND every card (a card always covers the leaders beneath
+  // it). A leader that passes through another card's box is faded so the text
+  // stays clear; a collapsed era's leader stops AT its `⊓` bar.
+  for (const { p, near, leaderFrom, leaderCrossesCard } of cards) {
     const leader = svg
       .append('line')
       .attr('class', 'dgmo-event-leader')
       .attr('x1', p.x)
-      .attr('y1', spineEnd)
+      .attr('y1', leaderFrom)
       .attr('x2', p.x)
       .attr('y2', near)
       .attr('stroke', p.color)
       .attr('stroke-width', 1.5)
-      .attr(
-        'stroke-opacity',
-        leaderCrossesBox(p, near) ? 0.18 : p.future ? 0.4 : 0.65
-      );
+      .attr('stroke-opacity', leaderCrossesCard ? 0.18 : p.future ? 0.4 : 0.65);
     // A future (TBD) event's leader stays SOLID but faded to 40% — the tentative
     // read comes from the fade, matching the faded card bar and dot (no dashes).
     applyHoverHooks(leader, p);
@@ -418,7 +367,7 @@ export function renderEventLine(
 
   // Cards on top.
   let shelfClipSeq = 0;
-  for (const { p, top } of geo) {
+  for (const { p, top } of cards) {
     const left = p.left;
 
     const cardG = svg
@@ -644,24 +593,16 @@ export function renderEventLine(
   // not a measured date axis).
 
   // ── Dots (events) + span brackets (collapsed eras) on the spine ──
-  for (const p of placed) {
-    if (p.kind === 'era') {
+  for (const { p, eraBar } of cards) {
+    if (eraBar) {
       // A collapsed era terminates on the spine as a `⊓` stretched across its
-      // folded date range (`p.spanHalf`), so it keeps its true timeline footprint;
-      // a minimum width keeps a single-date era visible. No dot, no separate bottom
-      // bracket — the card title names it. Matches the card's color so the leader
-      // reads straight through.
+      // folded date range, so it keeps its true timeline footprint. No dot, no
+      // separate bottom bracket — the card title names it. Matches the card's
+      // color so the leader reads straight through.
       const col = p.color;
-      const half = Math.max(16, p.spanHalf);
-      // Clamp the legs to the drawn spine extent so the feet always land ON the
-      // line (never poking off the left/right end of the timeline).
-      const spineLeft = x0 - 20;
-      const spineRight = x1 + 20;
-      const bx0 = Math.max(spineLeft, p.x - half);
-      const bx1 = Math.min(spineRight, p.x + half);
       // A `⊓`: the bar floats off the spine on the card's side (where the leader
       // lands), and a leg drops from each end down to rest its foot ON the spine.
-      const barY = eraBarY(p);
+      const { x0: bx0, x1: bx1, y: barY } = eraBar;
       const eg = svg
         .append('g')
         .attr('class', 'dgmo-event-era')
@@ -741,58 +682,9 @@ export function renderEventLine(
   // so the era stays on the timeline even when folded. No chevrons — the bracket
   // (and the summary card) are the affordance; the app wires click-to-toggle.
   if (hasEras) {
-    interface EraRun {
-      era: EventLineEra;
-      collapsed: boolean;
-      firstX: number;
-      lastX: number;
-    }
-    const runs: EraRun[] = [];
-    let prevName: string | null = null;
-    for (const p of placed) {
-      const name = p.eraName;
-      if (name && eraByName.has(name)) {
-        if (prevName === name && runs.length > 0) {
-          const r = runs[runs.length - 1]!;
-          r.firstX = Math.min(r.firstX, p.x);
-          r.lastX = Math.max(r.lastX, p.x);
-        } else {
-          runs.push({
-            era: eraByName.get(name)!,
-            collapsed: p.kind === 'era',
-            firstX: p.x,
-            lastX: p.x,
-          });
-        }
-        prevName = name;
-      } else {
-        prevName = null;
-      }
-    }
-    const clampX = (v: number): number =>
-      Math.max(4, Math.min(contentW - 4, v));
     const cap = eraSide === 'above' ? 1 : -1; // bracket caps point toward the spine
-    // Each expanded era's bracket pads its run by ±ERA_BRACKET_PAD. When two
-    // adjacent eras' boundary events sit close on the date scale those pads
-    // collide, so split the seam at the midpoint between the runs (kept outside
-    // each run's own dots) — neighbouring brackets then never overlap.
-    const drawn = runs
-      .filter((r) => !r.collapsed) // collapsed eras are marked on the spine instead
-      .map((r) => ({
-        run: r,
-        x0: clampX(r.firstX - ERA_BRACKET_PAD),
-        x1: clampX(r.lastX + ERA_BRACKET_PAD),
-      }))
-      .sort((a, b) => a.run.firstX - b.run.firstX);
-    for (let i = 1; i < drawn.length; i++) {
-      const prev = drawn[i - 1]!;
-      const cur = drawn[i]!;
-      if (prev.x1 <= cur.x0) continue;
-      const mid = (prev.run.lastX + cur.run.firstX) / 2;
-      prev.x1 = Math.max(prev.run.lastX, Math.min(prev.x1, mid - ERA_SEAM_GAP));
-      cur.x0 = Math.min(cur.run.firstX, Math.max(cur.x0, mid + ERA_SEAM_GAP));
-    }
-    for (const { run: r, x0, x1 } of drawn) {
+    for (const r of eraBrackets) {
+      const { x0, x1 } = r;
       const neutral = !r.era.color;
       const col = neutral
         ? palette.text
@@ -803,7 +695,7 @@ export function renderEventLine(
         .append('g')
         .attr('class', 'dgmo-event-era')
         .attr('data-era', r.era.name)
-        .attr('data-era-collapsed', String(r.collapsed))
+        .attr('data-era-collapsed', 'false')
         .attr('data-line-number', r.era.lineNumber);
       eg.append('path')
         .attr(
@@ -835,260 +727,158 @@ export function renderEventLine(
 
   // ── `now` marker (§28.6b) — a "grounded pin" ──
   // A pin planted ON the spine (a small diamond) with a short stem up/down to a
-  // labeled tab, dropped into a lane the cards don't occupy. To-scale only; its
-  // x is interpolated over the placed DATED events (so it honors the broken
-  // axis), riding onto a trailing-TBD open horizon when `now` is past the last
-  // date. Drawn last so nothing hides it and the finished card boxes are known.
-  if (parsed.now && scaled) {
-    let nowValue: number | null = parsed.now.dateValue;
-    let nowIso: string | null = parsed.now.date;
-    if (parsed.now.computed) {
-      const d = nowDate ?? new Date();
-      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      nowIso = iso;
-      const v = parseTimelineDate(iso);
-      nowValue = Number.isFinite(v) ? v : null;
-    }
-    const dated = placed
-      .filter((p) => p.kind !== 'era' && !p.future && p.dateValue !== null)
-      .sort((a, b) => a.dateValue! - b.dateValue!);
-    let nowX = nowValue === null ? null : valueToSpineX(nowValue, dated);
-    // Past the last DATED event with a trailing-TBD open horizon: ride the pin
-    // out onto that tail ("now, in the unscheduled-future era") rather than
-    // clamping back to the last real dot. TBD positions are inferred, so anchor
-    // to the nearest trailing-TBD dot.
-    const lastReal = dated[dated.length - 1];
-    if (
-      nowX !== null &&
-      nowValue !== null &&
-      lastReal &&
-      nowValue > lastReal.dateValue!
-    ) {
-      const trailing = placed
-        .filter((p) => p.future && !p.futureSpan)
-        .map((p) => p.x);
-      if (trailing.length) nowX = Math.min(...trailing);
-    }
-    if (nowX !== null) {
-      // The marker reads as a "today line": palette-native RED
-      // (`palette.destructive`) — the Gantt today-line convention users already
-      // parse as "right now." On-palette in every palette; distinct from the
-      // green/orange/blue tag rotation. The fill family below softens the tab
-      // FILL, but text/stroke/diamond/rule stay at full destructive ink.
-      // A named color on the directive (§28.6b) replaces the red, for the
-      // timeline whose own tags already use it — the shape carries the meaning.
-      const base = themeBaseBg(palette, isDark);
-      const nowColor = parsed.now.color
-        ? (resolveColor(parsed.now.color, palette) ?? palette.destructive)
-        : palette.destructive;
-      // The tab honors the §1.9 fill family, mirroring the event cards: solid =
-      // flooded, outline = hollow (bg fill + colored stroke), tint (default) =
-      // soft fill with a hairline edge. The diamond + stem stay solid, like the
-      // event dots. Text stays full-ink graphite in every mode except solid (where
-      // the flooded chip needs light text), so the label never washes out.
-      const fillMode = parsed.options.fillMode;
-      const pillFill = shapeFill(palette, nowColor, isDark, { mode: fillMode });
-      const pillStroke =
-        fillMode === 'solid'
-          ? 'none'
-          : fillMode === 'outline'
-            ? nowColor
-            : mix(nowColor, base, 55); // tint: hairline so the chip edge reads
-      const pillStrokeW =
-        fillMode === 'solid' ? 0 : fillMode === 'outline' ? 1.3 : 1;
-      const pillText =
-        fillMode === 'solid'
-          ? contrastText(
-              pillFill,
-              palette.textOnFillLight,
-              palette.textOnFillDark
-            )
-          : nowColor;
-      // The tab says WHEN, not just "here": a caption reading `now` is equally
-      // true on the day it was drawn and two years later, so a reader cannot
-      // tell a diagram that redraws from a picture of a dead one. The date is
-      // formatted exactly as the event cards below format theirs, so the pin
-      // and the cards can never disagree about how a date looks. An explicit
-      // caption (`now 2023-06-01 Today`) still wins.
-      const label =
-        parsed.now.label ?? (nowIso ? formatDateLabel(nowIso) : 'now');
-      const pillH = 18;
-      const pillW = Math.max(28, label.length * 6.6 + 16);
-      const PIN_GAP = 6; // clearance spine↔pill and card↔pill
-      const xHalf = pillW / 2 + 4;
-      const xLo = nowX - xHalf;
-      const xHi = nowX + xHalf;
+  // labeled tab, dropped into a lane the cards don't occupy (its x and slot come
+  // from the layout). Drawn last so nothing hides it.
+  if (parsed.now && now) {
+    const nowX = now.x;
+    // The marker reads as a "today line": palette-native RED
+    // (`palette.destructive`) — the Gantt today-line convention users already
+    // parse as "right now." On-palette in every palette; distinct from the
+    // green/orange/blue tag rotation. The fill family below softens the tab
+    // FILL, but text/stroke/diamond/rule stay at full destructive ink.
+    // A named color on the directive (§28.6b) replaces the red, for the
+    // timeline whose own tags already use it — the shape carries the meaning.
+    const base = themeBaseBg(palette, isDark);
+    const nowColor = parsed.now.color
+      ? (resolveColor(parsed.now.color, palette) ?? palette.destructive)
+      : palette.destructive;
+    // The tab honors the §1.9 fill family, mirroring the event cards: solid =
+    // flooded, outline = hollow (bg fill + colored stroke), tint (default) =
+    // soft fill with a hairline edge. The diamond + stem stay solid, like the
+    // event dots. Text stays full-ink graphite in every mode except solid (where
+    // the flooded chip needs light text), so the label never washes out.
+    const fillMode = parsed.options.fillMode;
+    const pillFill = shapeFill(palette, nowColor, isDark, { mode: fillMode });
+    const pillStroke =
+      fillMode === 'solid'
+        ? 'none'
+        : fillMode === 'outline'
+          ? nowColor
+          : mix(nowColor, base, 55); // tint: hairline so the chip edge reads
+    const pillStrokeW =
+      fillMode === 'solid' ? 0 : fillMode === 'outline' ? 1.3 : 1;
+    const pillText =
+      fillMode === 'solid'
+        ? contrastText(
+            pillFill,
+            palette.textOnFillLight,
+            palette.textOnFillDark
+          )
+        : nowColor;
+    const { label, pillW, pillH, pillCX, y0, stemFrom, stemTo } = now;
 
-      // The only obstacles are card boxes (from `geo`) sharing the pill's x-span.
-      const boxes = geo.map((g) => ({
-        side: g.p.side,
-        top: g.top,
-        bot: g.top + g.p.cardH,
-        left: g.p.left,
-        right: g.p.left + CARD_W,
-      }));
-      type Box = (typeof boxes)[number];
-      const overlapsX = (b: Box): boolean => b.left < xHi && b.right > xLo;
+    const nowG = svg
+      .append('g')
+      .attr('class', 'evt-now')
+      .attr('data-now-x', nowX.toFixed(2));
+    // DOTTED "today line" grounded at the spine. It dies quickly — faded to
+    // nothing within the spine→card leader gap (`FADE_SPAN`), so it never
+    // paints over an event card. The full-height reveal is HOVER-only (below):
+    // at rest the rule stays in its own lane. (resvg supports linearGradient +
+    // per-stop stop-opacity, so the resting rule exports.)
+    const FADE_SPAN = Math.min(LEADER_ABOVE, LEADER_BELOW); // dies where cards begin
+    const ruleTop = spineY - FADE_SPAN;
+    const ruleBot = spineY + FADE_SPAN;
+    const gradId = `evt-now-fade-${nowX.toFixed(0)}`;
+    const grad = nowG
+      .append('defs')
+      .append('linearGradient')
+      .attr('id', gradId)
+      .attr('gradientUnits', 'userSpaceOnUse')
+      .attr('x1', 0)
+      .attr('y1', ruleTop)
+      .attr('x2', 0)
+      .attr('y2', ruleBot);
+    grad
+      .append('stop')
+      .attr('offset', '0%')
+      .attr('stop-color', nowColor)
+      .attr('stop-opacity', 0);
+    grad
+      .append('stop')
+      .attr('offset', '50%')
+      .attr('stop-color', nowColor)
+      .attr('stop-opacity', 0.9);
+    grad
+      .append('stop')
+      .attr('offset', '100%')
+      .attr('stop-color', nowColor)
+      .attr('stop-opacity', 0);
+    nowG
+      .append('line')
+      .attr('x1', nowX)
+      .attr('y1', ruleTop)
+      .attr('x2', nowX)
+      .attr('y2', ruleBot)
+      .attr('stroke', `url(#${gradId})`)
+      .attr('stroke-width', 1.6)
+      .attr('stroke-dasharray', HAIRLINE_DASH)
+      .attr('stroke-linecap', 'round');
+    // Diamond planted on the spine — the exact "you are here" point.
+    nowG
+      .append('path')
+      .attr('d', `M${nowX} ${spineY - 5} l5 5 l-5 5 l-5 -5 z`)
+      .attr('fill', nowColor);
+    // Stem from the spine to the tab.
+    nowG
+      .append('line')
+      .attr('x1', nowX)
+      .attr('y1', stemFrom)
+      .attr('x2', nowX)
+      .attr('y2', stemTo)
+      .attr('stroke', nowColor)
+      .attr('stroke-width', 1.6);
+    // Labeled tab.
+    nowG
+      .append('rect')
+      .attr('x', pillCX - pillW / 2)
+      .attr('y', y0)
+      .attr('width', pillW)
+      .attr('height', pillH)
+      .attr('rx', pillH / 2)
+      .attr('fill', pillFill)
+      .attr('stroke', pillStroke)
+      .attr('stroke-width', pillStrokeW);
+    nowG
+      .append('text')
+      .attr('x', pillCX)
+      .attr('y', y0 + pillH / 2)
+      .attr('text-anchor', 'middle')
+      .attr('dominant-baseline', 'central')
+      .attr('font-family', FONT_FAMILY)
+      .attr('font-size', 10.5)
+      .attr('font-weight', 'bold')
+      .attr('fill', pillText)
+      .text(label);
 
-      // Candidate tab slots: spine-adjacent on each side, plus just beyond every
-      // overlapping card. Keep the CLEAR slot with the shortest stem — the pin
-      // hugs the spine when the lane is empty and only reaches past a card when
-      // it must.
-      type Slot = { y0: number; y1: number; stem: number };
-      const cands: Slot[] = [];
-      const addAbove = (pillBottom: number): void => {
-        const y0 = pillBottom - pillH;
-        if (y0 > topUsed + 1)
-          cands.push({ y0, y1: pillBottom, stem: spineY - pillBottom });
-      };
-      const addBelow = (pillTop: number): void => {
-        const y1 = pillTop + pillH;
-        if (y1 < totalH - 1)
-          cands.push({ y0: pillTop, y1, stem: pillTop - spineY });
-      };
-      // Preferred slot: the tab centered in the spine→event-row gap — equidistant
-      // to the spine and where event cards begin (their near edge sits LEADER_*
-      // off the spine). The pill fits inside that gap, so it clears the cards
-      // even when one shares the marker's x. Beyond-card fallbacks handle the
-      // rare tighter case.
-      addAbove(spineY - LEADER_ABOVE / 2 + pillH / 2);
-      addBelow(spineY + LEADER_BELOW / 2 - pillH / 2);
-      for (const b of boxes) {
-        if (!overlapsX(b)) continue;
-        if (b.side === 'above') addAbove(b.top - PIN_GAP);
-        else addBelow(b.bot + PIN_GAP);
-      }
-      const isClear = (c: Slot): boolean =>
-        !boxes.some((b) => overlapsX(b) && b.bot > c.y0 && b.top < c.y1);
-      const byStem = (a: Slot, b: Slot): number => a.stem - b.stem;
-      const slot: Slot = cands.filter(isClear).sort(byStem)[0] ??
-        cands.sort(byStem)[0] ?? {
-          y0: spineY - PIN_GAP - pillH,
-          y1: spineY - PIN_GAP,
-          stem: PIN_GAP + pillH,
-        };
-
-      const above = slot.y1 <= spineY;
-      const stemFrom = above ? spineY - DOT_R : spineY + DOT_R;
-      const stemTo = above ? slot.y1 : slot.y0;
-      const pillCX = Math.max(
-        pillW / 2 + 2,
-        Math.min(nowX, contentW - pillW / 2 - 2)
-      );
-
-      const nowG = svg
-        .append('g')
-        .attr('class', 'evt-now')
-        .attr('data-now-x', nowX.toFixed(2));
-      // DOTTED "today line" grounded at the spine. It dies quickly — faded to
-      // nothing within the spine→card leader gap (`FADE_SPAN`), so it never
-      // paints over an event card. The full-height reveal is HOVER-only (below):
-      // at rest the rule stays in its own lane. (resvg supports linearGradient +
-      // per-stop stop-opacity, so the resting rule exports.)
-      const FADE_SPAN = Math.min(LEADER_ABOVE, LEADER_BELOW); // dies where cards begin
-      const ruleTop = spineY - FADE_SPAN;
-      const ruleBot = spineY + FADE_SPAN;
-      const gradId = `evt-now-fade-${nowX.toFixed(0)}`;
-      const grad = nowG
-        .append('defs')
-        .append('linearGradient')
-        .attr('id', gradId)
-        .attr('gradientUnits', 'userSpaceOnUse')
-        .attr('x1', 0)
-        .attr('y1', ruleTop)
-        .attr('x2', 0)
-        .attr('y2', ruleBot);
-      grad
-        .append('stop')
-        .attr('offset', '0%')
-        .attr('stop-color', nowColor)
-        .attr('stop-opacity', 0);
-      grad
-        .append('stop')
-        .attr('offset', '50%')
-        .attr('stop-color', nowColor)
-        .attr('stop-opacity', 0.9);
-      grad
-        .append('stop')
-        .attr('offset', '100%')
-        .attr('stop-color', nowColor)
-        .attr('stop-opacity', 0);
-      nowG
+    // HOVER reveal (preview only): a full-height dotted rule that appears only
+    // while the pointer is over the marker, so at rest the today-line never
+    // sits atop cards. Lowered within nowG so it rides ABOVE cards but BELOW
+    // the diamond/tab. Static exports skip it — nothing to hover.
+    if (!exportMode) {
+      const hoverRule = nowG
         .append('line')
+        .attr('class', 'evt-now-rule-full')
         .attr('x1', nowX)
-        .attr('y1', ruleTop)
+        .attr('y1', Math.max(topUsed, 2))
         .attr('x2', nowX)
-        .attr('y2', ruleBot)
-        .attr('stroke', `url(#${gradId})`)
-        .attr('stroke-width', 1.6)
-        .attr('stroke-dasharray', HAIRLINE_DASH)
-        .attr('stroke-linecap', 'round');
-      // Diamond planted on the spine — the exact "you are here" point.
-      nowG
-        .append('path')
-        .attr('d', `M${nowX} ${spineY - 5} l5 5 l-5 5 l-5 -5 z`)
-        .attr('fill', nowColor);
-      // Stem from the spine to the tab.
-      nowG
-        .append('line')
-        .attr('x1', nowX)
-        .attr('y1', stemFrom)
-        .attr('x2', nowX)
-        .attr('y2', stemTo)
+        .attr('y2', totalH - 2)
         .attr('stroke', nowColor)
-        .attr('stroke-width', 1.6);
-      // Labeled tab.
-      nowG
-        .append('rect')
-        .attr('x', pillCX - pillW / 2)
-        .attr('y', slot.y0)
-        .attr('width', pillW)
-        .attr('height', pillH)
-        .attr('rx', pillH / 2)
-        .attr('fill', pillFill)
-        .attr('stroke', pillStroke)
-        .attr('stroke-width', pillStrokeW);
-      nowG
-        .append('text')
-        .attr('x', pillCX)
-        .attr('y', slot.y0 + pillH / 2)
-        .attr('text-anchor', 'middle')
-        .attr('dominant-baseline', 'central')
-        .attr('font-family', FONT_FAMILY)
-        .attr('font-size', 10.5)
-        .attr('font-weight', 'bold')
-        .attr('fill', pillText)
-        .text(label);
-
-      // HOVER reveal (preview only): a full-height dotted rule that appears only
-      // while the pointer is over the marker, so at rest the today-line never
-      // sits atop cards. Lowered within nowG so it rides ABOVE cards but BELOW
-      // the diamond/tab. Static exports skip it — nothing to hover.
-      if (!exportMode) {
-        const hoverRule = nowG
-          .append('line')
-          .attr('class', 'evt-now-rule-full')
-          .attr('x1', nowX)
-          .attr('y1', Math.max(topUsed, 2))
-          .attr('x2', nowX)
-          .attr('y2', totalH - 2)
-          .attr('stroke', nowColor)
-          .attr('stroke-width', 1.4)
-          .attr('stroke-dasharray', HAIRLINE_DASH)
-          .attr('stroke-linecap', 'round')
-          .attr('opacity', 0)
-          .style('transition', 'opacity 120ms ease')
-          .style('pointer-events', 'none');
-        hoverRule.lower();
-        const nowNode = nowG.node();
-        if (nowNode) {
-          nowNode.addEventListener('mouseenter', () =>
-            hoverRule.attr('opacity', 0.5)
-          );
-          nowNode.addEventListener('mouseleave', () =>
-            hoverRule.attr('opacity', 0)
-          );
-        }
+        .attr('stroke-width', 1.4)
+        .attr('stroke-dasharray', HAIRLINE_DASH)
+        .attr('stroke-linecap', 'round')
+        .attr('opacity', 0)
+        .style('transition', 'opacity 120ms ease')
+        .style('pointer-events', 'none');
+      hoverRule.lower();
+      const nowNode = nowG.node();
+      if (nowNode) {
+        nowNode.addEventListener('mouseenter', () =>
+          hoverRule.attr('opacity', 0.5)
+        );
+        nowNode.addEventListener('mouseleave', () =>
+          hoverRule.attr('opacity', 0)
+        );
       }
     }
   }
@@ -1293,6 +1083,9 @@ function addLegendEntryHitAreas(
         .attr('data-legend-hit', '');
     });
 }
+
+// Reconcile the rendered SVG to the container's hidden set: collapse matching
+// cards/leaders (never the dot) and mark the matching legend entries muted
 // (struck label + hollow swatch). The collapsed-era BULLETS are handled at build
 // time (excluded from the summary card); this covers the live event cards and
 // the legend chrome. Idempotent — safe to call on every render.
@@ -1460,29 +1253,6 @@ export function renderEventLineForExport(
 }
 
 // ── helpers ──
-
-// Map a date value to a spine x by piecewise-linear interpolation over the
-// PLACED dated events (already sorted here). Because event x's already encode
-// the broken axis (collapsed-era capsules, per-run scaling), interpolating
-// between them keeps the `now` rule consistent with the drawn dots. Values
-// before the first / after the last dated event clamp to that endpoint.
-function valueToSpineX(v: number, dated: Placed[]): number | null {
-  if (!dated.length) return null;
-  const first = dated[0]!;
-  const last = dated[dated.length - 1]!;
-  if (v <= first.dateValue!) return first.x;
-  if (v >= last.dateValue!) return last.x;
-  for (let i = 0; i < dated.length - 1; i++) {
-    const a = dated[i]!;
-    const b = dated[i + 1]!;
-    if (v >= a.dateValue! && v <= b.dateValue!) {
-      const span = b.dateValue! - a.dateValue!;
-      if (span <= 0) return a.x;
-      return a.x + ((v - a.dateValue!) / span) * (b.x - a.x);
-    }
-  }
-  return last.x;
-}
 
 // A vertical "≈ rotated 90°" axis-break glyph: two parallel wavy strokes that
 // cross the timeline at a collapsed era to signal the span there is folded and

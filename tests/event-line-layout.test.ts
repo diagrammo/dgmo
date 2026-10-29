@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { parseEventLine } from '../src/event-line/parser';
 import {
   CARD_W,
+  DOT_R,
   layoutEventLine,
   type EventLineLayout,
   type Placed,
@@ -13,7 +14,12 @@ import { getPalette } from '../src/palettes';
 
 const nordLight = getPalette('nord').light;
 
-function layout(src: string, width = 1200, heightHint = 600): EventLineLayout {
+function layout(
+  src: string,
+  width = 1200,
+  heightHint = 600,
+  nowDate?: Date
+): EventLineLayout {
   return layoutEventLine(parseEventLine(src, nordLight), nordLight, false, {
     width,
     heightHint,
@@ -21,6 +27,7 @@ function layout(src: string, width = 1200, heightHint = 600): EventLineLayout {
     hiddenSet: new Set(),
     activeGroup: null,
     topUsed: 0,
+    nowDate,
   });
 }
 
@@ -182,5 +189,147 @@ side above
     const tallest = Math.max(...l.placed.map((p) => l.laneNear(p) + p.cardH));
     expect(l.spineY).toBeGreaterThanOrEqual(tallest);
     for (const p of l.placed) expect(box(l, p).bottom).toBeLessThan(l.spineY);
+  });
+});
+
+describe('layoutEventLine — drawing-time geometry', () => {
+  // Four January/February events crowd into lanes 0–3 above the spine; Far
+  // sits alone on the right.
+  const CLUSTER = `event-line T
+side above
+
+2020-01-01 One
+  body
+2020-01-15 Two
+  body
+2020-02-01 Three
+  body
+2020-02-10 Four
+  body
+2023-06-01 Far
+  body`;
+
+  it('gives each card its box and a leader from the spine to its near edge', () => {
+    const l = layout(CLUSTER);
+    expect(l.cards.map((c) => c.p)).toEqual(l.placed);
+    for (const c of l.cards) {
+      const b = box(l, c.p);
+      expect(c.top).toBe(b.top);
+      expect(c.near).toBe(b.bottom); // above the spine: the near edge is the bottom
+      expect(c.leaderFrom).toBe(l.spineY);
+      expect(c.eraBar).toBeNull();
+    }
+  });
+
+  it('marks a leader that runs through another card, and only that one', () => {
+    const l = layout(CLUSTER);
+    // Lanes 1–3 reach past the lane-0 card stacked below them; lane 0 and the
+    // lone Far card run clear.
+    expect(l.cards.map((c) => [c.p.lane, c.leaderCrossesCard])).toEqual([
+      [0, false],
+      [1, true],
+      [2, true],
+      [3, true],
+      [0, false],
+    ]);
+  });
+
+  it('spans the spine 20px past the outer dots and dashes it after the last real event', () => {
+    const l = layout(`event-line T
+
+2020-01-01 a
+2021-01-01 b
+TBD c`);
+    const xs = l.placed.map((p) => p.x);
+    expect(l.spine.left).toBe(Math.min(...xs) - 20);
+    expect(l.spine.right).toBe(Math.max(...xs) + 20);
+    expect(l.spine.dashed).toBe(true);
+    const lastReal = l.placed.find((p) => p.label === 'b')!;
+    expect(l.spine.solidRight).toBe(lastReal.x);
+
+    const solid = layout(`event-line T
+
+2020-01-01 a
+2021-01-01 b`);
+    expect(solid.spine.dashed).toBe(false);
+    expect(solid.spine.solidRight).toBe(solid.spine.right);
+  });
+
+  it('floats a collapsed era bar off the spine, inside the spine, and ends its leader there', () => {
+    const l = layout(`event-line T
+side above
+
+[Alpha] collapsed: true
+  2020-01-01 a1
+  2020-06-01 a2
+2021-01-01 z`);
+    const era = l.cards.find((c) => c.p.kind === 'era')!;
+    const bar = era.eraBar!;
+    expect(bar.y).toBe(l.spineY - 13); // above: ERA_LEG toward the card
+    expect(era.leaderFrom).toBe(bar.y);
+    expect(bar.x0).toBeGreaterThanOrEqual(l.spine.left);
+    expect(bar.x1).toBeLessThanOrEqual(l.spine.right);
+    expect(bar.x1 - bar.x0).toBeGreaterThanOrEqual(32); // ≥ the 16px half-width floor
+  });
+
+  it('pads era brackets past their dots and splits a crowded seam between two eras', () => {
+    const l = layout(`event-line T
+
+[Early]
+  2020-01-01 a
+  2020-06-01 b
+[Late]
+  2020-06-10 c
+  2021-01-01 d
+2022-01-01 e`);
+    const [early, late] = l.eraBrackets;
+    expect([early!.era.name, late!.era.name]).toEqual(['Early', 'Late']);
+    // Outer ends carry the full 14px pad.
+    expect(early!.x0).toBe(early!.firstX - 14);
+    expect(late!.x1).toBe(late!.lastX + 14);
+    // The runs sit closer than two pads, so the seam is split at their midpoint
+    // with a 3px gap each side — the brackets never overlap.
+    expect(late!.firstX - early!.lastX).toBeLessThan(28);
+    const mid = (early!.lastX + late!.firstX) / 2;
+    expect(early!.x1).toBeCloseTo(mid - 3, 9);
+    expect(late!.x0).toBeCloseTo(mid + 3, 9);
+    expect(early!.x1).toBeLessThan(late!.x0);
+  });
+
+  it('pins `now` at its interpolated x with a tab clear of every card', () => {
+    const l = layout(`event-line T
+now 2021-01-01
+
+2020-01-01 a
+2022-01-01 b`);
+    const [a, b] = l.placed;
+    const now = l.now!;
+    expect(now.x).toBe((a!.x + b!.x) / 2);
+    expect(now.label).toBe('Jan 1, 2021');
+    expect(now.y1 - now.y0).toBe(now.pillH);
+    for (const c of l.cards) {
+      const overlapsX =
+        c.p.left < now.x + now.pillW / 2 &&
+        c.p.left + CARD_W > now.x - now.pillW / 2;
+      const overlapsY = c.top < now.y1 && c.top + c.p.cardH > now.y0;
+      expect(overlapsX && overlapsY).toBe(false);
+    }
+    // The stem joins the diamond's rim to the tab's spine-side edge.
+    const above = now.y1 <= l.spineY;
+    expect(now.stemFrom).toBe(above ? l.spineY - DOT_R : l.spineY + DOT_R);
+    expect(now.stemTo).toBe(above ? now.y1 : now.y0);
+  });
+
+  it('reads a computed `now` from the injected clock, and drops it off-scale', () => {
+    const src = `event-line T
+now
+
+2020-01-01 a
+2022-01-01 b`;
+    const l = layout(src, 1200, 600, new Date(2021, 0, 1));
+    expect(l.now!.label).toBe('Jan 1, 2021');
+    expect(l.now!.x).toBe((l.placed[0]!.x + l.placed[1]!.x) / 2);
+    const offScale = layout(src.replace('now\n', 'no-scale\nnow 2021-01-01\n'));
+    expect(offScale.now).toBeNull();
   });
 });
