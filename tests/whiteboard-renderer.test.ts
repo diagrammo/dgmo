@@ -364,7 +364,7 @@ describe('whiteboard renderer', () => {
     expect(svg).toContain('data:image/png;base64,AAAA');
   });
 
-  it('draws by kind band, file order inside a band (#1222)', () => {
+  it('draws by kind band, file order inside a band (#1222, #1609)', () => {
     // File order puts the frame over its contents, the arrow and text under
     // the shapes, the image over everything and the ink at the bottom.
     const svg = draw(
@@ -388,10 +388,34 @@ describe('whiteboard renderer', () => {
       'whiteboard-rectangle@5',
       'whiteboard-note@6',
       'whiteboard-ellipse@7',
+      // Its head ends inside the frame, so it draws just above the frame.
       'whiteboard-arrow@4',
       'whiteboard-line@8',
       'whiteboard-text@3',
       'whiteboard-ink@2',
+    ]);
+  });
+
+  it('an arrow draws just above the latest box it is attached to (#1609)', () => {
+    // The arrow comes first in the file but ends inside B, so it draws above
+    // B; the note after B still draws over it.
+    const svg = draw(
+      [
+        'whiteboard',
+        'arrow from: 50 25, to: 250 25',
+        'rectangle A at: 0 0, size: 100 50',
+        'rectangle B at: 200 0, size: 100 50',
+        'note N at: 120 0, size: 60 60',
+      ].join('\n')
+    );
+    const drawn = [...svg.querySelectorAll('g[data-line-number]')].map(
+      (g) => `${g.getAttribute('class')}@${g.getAttribute('data-line-number')}`
+    );
+    expect(drawn).toEqual([
+      'whiteboard-rectangle@3',
+      'whiteboard-rectangle@4',
+      'whiteboard-arrow@2',
+      'whiteboard-note@5',
     ]);
   });
 

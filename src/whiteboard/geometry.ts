@@ -585,3 +585,47 @@ export function whiteboardSegmentMidpoint(
     y: (s.y1 + 2 * s.cy + s.y2) / 4,
   };
 }
+
+/**
+ * The kind bands, bottom to top (spec §39.2): images; shapes, sticky notes,
+ * arrows and lines; text; ink. A band always draws above the one before it.
+ */
+const DRAW_BAND: Readonly<Record<WhiteboardElement['kind'], number>> = {
+  image: 0,
+  shape: 1,
+  note: 1,
+  arrow: 1,
+  line: 1,
+  text: 2,
+  ink: 3,
+};
+
+/** The band `el` paints in; a band always paints above the one before it. */
+export function whiteboardDrawBand(el: WhiteboardElement): number {
+  return DRAW_BAND[el.kind];
+}
+
+/**
+ * The element indices in paint order, bottom first (spec §39.2): by band,
+ * file order inside a band — except that an arrow or line always paints
+ * just above the latest shape or note it is attached to, so a box never
+ * hides its own connector's head. The renderer and the app canvas share it.
+ */
+export function whiteboardDrawOrder(
+  elements: readonly WhiteboardElement[]
+): number[] {
+  const key = elements.map((el, i) => {
+    if (el.kind !== 'arrow' && el.kind !== 'line') return i;
+    const { from, to } = whiteboardConnectorAttachments(el, elements);
+    const last = Math.max(from, to);
+    return last > i ? last + 0.5 : i;
+  });
+  return elements
+    .map((_, i) => i)
+    .sort(
+      (a, b) =>
+        DRAW_BAND[elements[a]!.kind] - DRAW_BAND[elements[b]!.kind] ||
+        key[a]! - key[b]! ||
+        a - b
+    );
+}

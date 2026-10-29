@@ -314,11 +314,11 @@ describe('the whiteboard slice states the kind-band drawing order (#1222)', () =
   const ref = workspaceReference();
   const anchored = ref != null && /<!--\s*TYPE:/.test(ref);
 
-  it('names the five bands, bottom to top, and file order inside a band', () => {
+  it('names the four bands, bottom to top, and file order inside a band', () => {
     if (!anchored) return;
     const block = extractSection(ref as string, 'whiteboard') ?? '';
     expect(block).toMatch(
-      /kind bands, bottom to top: images, shapes and sticky notes .*, arrows and lines, text, ink/
+      /kind bands, bottom to top: images; shapes, sticky notes, arrows and lines .*; text; ink/
     );
     expect(block).toMatch(/Inside a band, file order decides/);
     expect(block).not.toMatch(/Element order is drawing order/);

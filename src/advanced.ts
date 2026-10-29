@@ -417,6 +417,8 @@ export { CYLINDER_RY, QUEUE_CAP } from './shape-caps';
 export {
   clipWhiteboardConnector,
   whiteboardConnectorAttachments,
+  whiteboardDrawBand,
+  whiteboardDrawOrder,
   whiteboardShapeAt,
   whiteboardShapeContains,
   whiteboardNoteFold,
