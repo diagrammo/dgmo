@@ -19,16 +19,25 @@
  * would not survive.
  */
 
+/** A window that may lack ClipboardItem (older Firefox, a partial DOM). */
+type ClipboardWindow = Window & { ClipboardItem?: typeof ClipboardItem };
+
 const SVG_NS = 'http://www.w3.org/2000/svg';
 /** Device-pixel multiplier for the copied PNG — matches the app's PNG export. */
 const COPY_IMAGE_SCALE = 2;
 
-/** True when this browser can put a PNG on the clipboard. Hide the button if not. */
-export function canCopyDiagramImage(): boolean {
+/**
+ * True when this browser can put a PNG on the clipboard. Hide the button if not.
+ * Pass the block's own window for a pop-out (Obsidian): the write is refused
+ * unless it goes through the window whose document has focus.
+ */
+export function canCopyDiagramImage(
+  view: Window | null = typeof window === 'undefined' ? null : window
+): boolean {
   return (
-    typeof navigator !== 'undefined' &&
-    typeof navigator.clipboard?.write === 'function' &&
-    typeof ClipboardItem !== 'undefined'
+    !!view &&
+    typeof view.navigator?.clipboard?.write === 'function' &&
+    typeof (view as ClipboardWindow).ClipboardItem !== 'undefined'
   );
 }
 
@@ -38,13 +47,15 @@ export function canCopyDiagramImage(): boolean {
  * from an external `<image>`, a refused clipboard) — never throws.
  */
 export function copyDiagramImage(fromButton: Element): Promise<boolean> {
-  if (!canCopyDiagramImage()) return Promise.resolve(false);
+  const view = fromButton.ownerDocument.defaultView;
+  if (!view || !canCopyDiagramImage(view)) return Promise.resolve(false);
   const found = visibleSvg(fromButton);
   if (!found) return Promise.resolve(false);
   try {
-    return navigator.clipboard
+    const Item = (view as ClipboardWindow).ClipboardItem!;
+    return view.navigator.clipboard
       .write([
-        new ClipboardItem({
+        new Item({
           'image/png': svgToPngBlob(found.svg, found.background),
         }),
       ])

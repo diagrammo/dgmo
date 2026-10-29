@@ -18,8 +18,12 @@
  * a system font stack, so labels still match; a host font injected by page CSS
  * would not survive.
  */
-/** True when this browser can put a PNG on the clipboard. Hide the button if not. */
-declare function canCopyDiagramImage(): boolean;
+/**
+ * True when this browser can put a PNG on the clipboard. Hide the button if not.
+ * Pass the block's own window for a pop-out (Obsidian): the write is refused
+ * unless it goes through the window whose document has focus.
+ */
+declare function canCopyDiagramImage(view?: Window | null): boolean;
 /**
  * Copy the diagram in the `.dgmo` block containing `fromButton` to the
  * clipboard as a PNG. Resolves false on any failure (no SVG, a tainted canvas
