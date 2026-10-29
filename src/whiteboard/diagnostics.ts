@@ -94,7 +94,7 @@ export const WHITEBOARD_DIAGNOSTICS: DiagnosticSpec[] = [
     title: 'Unknown whiteboard value',
     message: (p) =>
       `Unknown ${s(p.key)}: "${s(p.value)}" — ${s(p.fallback)} used instead (valid: ${s(p.valid)})${p.hint ? `. ${s(p.hint)}` : ''}`,
-    hint: 'Shapes take `fill: solid` or `fill: outline`; arrows take `heads: both`; arrows and lines take `bend:` as a whole number.',
+    hint: 'Shapes take `fill: solid` or `fill: outline`, and `label: top` or `label: middle`; arrows take `heads: both`; arrows and lines take `bend:` as a whole number.',
     example: 'whiteboard\nrectangle at: 0 0, size: 100 60, fill: hatched',
   },
   {

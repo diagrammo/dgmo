@@ -72,6 +72,16 @@ export const WHITEBOARD_FILLS = ['tint', 'solid', 'outline'] as const;
 export type WhiteboardFill = (typeof WHITEBOARD_FILLS)[number];
 
 /**
+ * Where a shape's label sits, top centre or middle centre. Left off, it is
+ * automatic: a rectangle enclosing another shape, note or image draws its
+ * label at the top, everything else in the middle (#1601). `label:` is
+ * written only when it differs from the automatic answer.
+ */
+export const WHITEBOARD_LABEL_POSITIONS = ['top', 'middle'] as const;
+export type WhiteboardLabelPosition =
+  (typeof WHITEBOARD_LABEL_POSITIONS)[number];
+
+/**
  * Which ends of an arrow carry a head. `end` (at `to:`) is the default and
  * never written; `both` is written `heads: both`. A head at `from:` alone is
  * never stored — the canvas swaps the ends and writes an `end` arrow.
@@ -92,6 +102,8 @@ export interface WhiteboardShape {
   readonly color: WhiteboardColor;
   /** How the inside is filled; `tint` unless `fill:` says otherwise. */
   readonly fill: WhiteboardFill;
+  /** `label:` as written; absent means automatic (`whiteboardLabelPosition`). */
+  readonly labelPosition?: WhiteboardLabelPosition;
   readonly lineNumber: number;
 }
 

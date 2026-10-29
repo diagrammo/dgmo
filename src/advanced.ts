@@ -354,6 +354,7 @@ export type {
   WhiteboardLine,
   WhiteboardStrokeStyle,
   WhiteboardFill,
+  WhiteboardLabelPosition,
   WhiteboardHeads,
   WhiteboardText,
   WhiteboardImage,
@@ -368,6 +369,7 @@ export {
   WHITEBOARD_ELEMENT_KEYWORDS,
   WHITEBOARD_STROKE_STYLES,
   WHITEBOARD_FILLS,
+  WHITEBOARD_LABEL_POSITIONS,
   WHITEBOARD_HEADS,
   WHITEBOARD_NOTE_WIDTH,
   WHITEBOARD_NOTE_HEIGHT,
@@ -393,6 +395,7 @@ export type {
 export {
   fitWhiteboardLabel,
   wrapWhiteboardLabel,
+  whiteboardLabelCentreY,
   whiteboardLabelHeight,
   whiteboardLabelWidth,
   whiteboardLabelShift,
@@ -412,6 +415,7 @@ export {
   whiteboardNoteFold,
   whiteboardBendHandle,
   whiteboardBendFor,
+  whiteboardLabelPosition,
   whiteboardSegmentMidpoint,
 } from './whiteboard/geometry';
 export type {

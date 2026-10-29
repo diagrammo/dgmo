@@ -32,6 +32,7 @@ import {
   RECT_RADIUS,
   clipWhiteboardConnector,
   whiteboardConnectorAttachments,
+  whiteboardLabelPosition,
   whiteboardNoteFold,
   whiteboardSegmentMidpoint,
   type WhiteboardPoint,
@@ -43,6 +44,7 @@ import {
   WHITEBOARD_LABEL_LINE as LABEL_LINE,
   WHITEBOARD_NOTE_PAD as NOTE_PAD,
   fitWhiteboardLabel,
+  whiteboardLabelCentreY,
   whiteboardLabelShift,
 } from './label';
 import type {
@@ -244,7 +246,7 @@ export function whiteboardBounds(
     maxY: -Infinity,
   };
   const elements = visibleWhiteboardElements(parsed, options);
-  const labelAt = placeConnectorLabels(elements);
+  const labelAt = placeConnectorLabels(elements, parsed.elements);
   for (const el of elements) {
     switch (el.kind) {
       case 'shape':
@@ -372,7 +374,10 @@ function connectorLabelBox(
 }
 
 /** The author-placed text an edge label must not cover. */
-function authoredTextBoxes(elements: readonly WhiteboardElement[]): TextBox[] {
+function authoredTextBoxes(
+  elements: readonly WhiteboardElement[],
+  all: readonly WhiteboardElement[]
+): TextBox[] {
   const boxes: TextBox[] = [];
   for (const el of elements) {
     if (el.kind === 'text') {
@@ -394,9 +399,13 @@ function authoredTextBoxes(elements: readonly WhiteboardElement[]): TextBox[] {
       const { lines, font } = fitWhiteboardLabel(el.label, el);
       if (lines.length === 0) continue;
       const cx = el.x + el.width / 2 + whiteboardLabelShift(el);
-      const cy = el.y + el.height / 2;
-      const hw = widest(lines, font) / 2;
       const hh = (lines.length * font * LABEL_LINE) / 2;
+      const cy = whiteboardLabelCentreY(
+        el,
+        whiteboardLabelPosition(el, all),
+        hh * 2
+      );
+      const hw = widest(lines, font) / 2;
       boxes.push({ x0: cx - hw, y0: cy - hh, x1: cx + hw, y1: cy + hh });
     }
   }
@@ -411,10 +420,11 @@ function authoredTextBoxes(elements: readonly WhiteboardElement[]): TextBox[] {
  * whose halo keeps it legible. Author-placed elements never move.
  */
 function placeConnectorLabels(
-  elements: readonly WhiteboardElement[]
+  elements: readonly WhiteboardElement[],
+  all: readonly WhiteboardElement[]
 ): Map<WhiteboardElement, WhiteboardPoint> {
   const placed = new Map<WhiteboardElement, WhiteboardPoint>();
-  const taken = authoredTextBoxes(elements);
+  const taken = authoredTextBoxes(elements, all);
   for (const el of elements) {
     if ((el.kind !== 'arrow' && el.kind !== 'line') || !el.label) continue;
     const lines = labelLines(el.label);
@@ -579,7 +589,7 @@ export function renderWhiteboard(
   const titleOffset = showTitle ? TITLE_BAND : 0;
   const elements = visibleWhiteboardElements(parsed, options);
   const b = whiteboardBounds(parsed, options);
-  const labelAt = placeConnectorLabels(elements);
+  const labelAt = placeConnectorLabels(elements, parsed.elements);
   const contentW = b.maxX - b.minX;
   const contentH = b.maxY - b.minY;
   const titleW = showTitle
@@ -774,11 +784,16 @@ export function renderWhiteboard(
             drawQueueCard(inner, el.width, el.height, fill, stroke);
           }
         }
+        const fitted = fitWhiteboardLabel(el.label, el);
         centredLabel(
           g,
-          fitWhiteboardLabel(el.label, el),
+          fitted,
           cx + whiteboardLabelShift(el),
-          cy,
+          whiteboardLabelCentreY(
+            el,
+            whiteboardLabelPosition(el, parsed.elements),
+            fitted.lines.length * fitted.font * LABEL_LINE
+          ),
           labelColor,
           fill === 'none' ? halo : fill
         );

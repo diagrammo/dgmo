@@ -52,10 +52,12 @@ import type {
   WhiteboardElement,
   WhiteboardFill,
   WhiteboardHeads,
+  WhiteboardLabelPosition,
   WhiteboardStrokeStyle,
 } from './types';
 import {
   WHITEBOARD_COLORS,
+  WHITEBOARD_LABEL_POSITIONS,
   WHITEBOARD_ELEMENT_KEYWORDS,
   WHITEBOARD_NOTE_COLOR,
   WHITEBOARD_NOTE_HEIGHT,
@@ -85,8 +87,14 @@ const WRITTEN_STYLES = ['dashed'] as const;
 /** Fill values accepted in source; `tint` is implied, never written. */
 const WRITTEN_FILLS = ['solid', 'outline'] as const;
 
+/** A shape's `label:` field, present only when written (absent = automatic). */
+const labelPart = (
+  p: WhiteboardLabelPosition | undefined
+): { labelPosition?: WhiteboardLabelPosition } =>
+  p ? { labelPosition: p } : {};
+
 const KEYS_BY_KIND: Record<string, readonly string[]> = {
-  shape: ['at', 'size', 'color', 'fill'],
+  shape: ['at', 'size', 'color', 'fill', 'label'],
   note: ['at', 'size', 'color'],
   arrow: ['from', 'to', 'color', 'style', 'heads', 'bend'],
   line: ['from', 'to', 'color', 'style', 'bend'],
@@ -264,6 +272,24 @@ export function parseWhiteboard(
       hint: suggest(v, WRITTEN_FILLS) ?? '',
     });
     return 'tint';
+  };
+
+  /** `label:` — absent means automatic, so a bad value falls back to that. */
+  const readLabelPosition = (
+    raw: string | undefined,
+    line: number
+  ): WhiteboardLabelPosition | undefined => {
+    if (raw === undefined) return undefined;
+    const v = raw.trim().toLowerCase();
+    if (v === 'top' || v === 'middle') return v;
+    warn(line, CODES.BAD_VALUE, {
+      key: 'label',
+      value: raw,
+      fallback: 'automatic',
+      valid: WHITEBOARD_LABEL_POSITIONS.join(', '),
+      hint: suggest(v, WHITEBOARD_LABEL_POSITIONS) ?? '',
+    });
+    return undefined;
   };
 
   /** `heads:` — only `both` is ever written; a head at `to:` is the default. */
@@ -513,6 +539,7 @@ export function parseWhiteboard(
         label: joinLabel(name, body),
         color: readColor(meta.get('color'), lineNumber),
         fill: readFill(meta.get('fill'), lineNumber),
+        ...labelPart(readLabelPosition(meta.get('label'), lineNumber)),
         lineNumber,
       });
       continue;

@@ -16,7 +16,11 @@
 
 import { CYLINDER_RY, QUEUE_CAP } from '../shape-caps';
 import { measureText, wrapTextToWidth } from '../utils/text-measure';
-import type { WhiteboardNote, WhiteboardShape } from './types';
+import type {
+  WhiteboardLabelPosition,
+  WhiteboardNote,
+  WhiteboardShape,
+} from './types';
 
 /** Shape label font size, px. */
 export const WHITEBOARD_LABEL_FONT = 14;
@@ -176,4 +180,19 @@ export function fitWhiteboardLabel(
     last = [...last].slice(0, -1).join('');
   kept[room - 1] = `${last.trimEnd()}\u2026`;
   return { lines: kept, font, top };
+}
+
+/**
+ * The vertical centre of a shape label's drawn block, `blockHeight` tall.
+ * `middle` centres it in the shape; `top` sets it against the top of the
+ * inner box, the same padding the wrap leaves (#1601).
+ */
+export function whiteboardLabelCentreY(
+  box: WhiteboardFitBox & { readonly y: number },
+  position: WhiteboardLabelPosition,
+  blockHeight: number
+): number {
+  if (position === 'middle') return box.y + box.height / 2;
+  const innerTop = box.y + (box.height - whiteboardLabelHeight(box)) / 2;
+  return innerTop + blockHeight / 2;
 }

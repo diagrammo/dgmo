@@ -13,7 +13,7 @@
 // order, `color:` omitted when it is the default (`ink`, or `yellow` on a
 // note), a note's `size:` omitted when it is the default 160 × 99, `style:`,
 // `fill:`, `heads:` and `bend:` omitted at their defaults (`solid`, `tint`,
-// `end`, 0), ink payloads verbatim. A one-line label is
+// `end`, 0), a shape's `label:` only when written, ink payloads verbatim. A one-line label is
 // written inline; a label of two or more lines is written as indented body
 // lines (two spaces) under an element line that carries no inline label.
 // Emitting the parse of canonical text reproduces it byte for byte.
@@ -62,6 +62,7 @@ export function emitWhiteboardElement(el: WhiteboardElement): string {
         `size: ${el.width} ${el.height}`,
         ...colorPart(el.color),
         ...(el.fill === 'tint' ? [] : [`fill: ${el.fill}`]),
+        ...(el.labelPosition ? [`label: ${el.labelPosition}`] : []),
       ]);
     case 'note':
       return line('note', el.text, [

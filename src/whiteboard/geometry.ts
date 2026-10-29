@@ -28,6 +28,7 @@ import { CYLINDER_RY, QUEUE_CAP } from '../shape-caps';
 import type {
   WhiteboardArrow,
   WhiteboardElement,
+  WhiteboardLabelPosition,
   WhiteboardLine,
   WhiteboardNote,
   WhiteboardShape,
@@ -217,6 +218,47 @@ export function whiteboardShapeContains(
   point: WhiteboardPoint
 ): boolean {
   return piecesOf(shape).some((p) => pieceContains(p, point.x, point.y));
+}
+
+/**
+ * Where a shape's label sits: as written, else automatic — top when the
+ * shape is a rectangle enclosing another shape, sticky note or image (every
+ * edge on or inside it, and not the same box), middle otherwise (#1601).
+ * Read off the geometry every time, like attachment, so dragging a child out
+ * of a container brings its label back to the middle.
+ */
+export function whiteboardLabelPosition(
+  shape: WhiteboardShape,
+  elements: readonly WhiteboardElement[]
+): WhiteboardLabelPosition {
+  if (shape.labelPosition) return shape.labelPosition;
+  return shape.shape === 'rectangle' && whiteboardEnclosesAny(shape, elements)
+    ? 'top'
+    : 'middle';
+}
+
+/** Whether `outer` encloses any shape, sticky note or image in `elements`. */
+function whiteboardEnclosesAny(
+  outer: WhiteboardShape,
+  elements: readonly WhiteboardElement[]
+): boolean {
+  const x1 = outer.x + outer.width;
+  const y1 = outer.y + outer.height;
+  return elements.some(
+    (el) =>
+      el !== outer &&
+      (el.kind === 'shape' || el.kind === 'note' || el.kind === 'image') &&
+      el.x >= outer.x &&
+      el.y >= outer.y &&
+      el.x + el.width <= x1 &&
+      el.y + el.height <= y1 &&
+      !(
+        el.x === outer.x &&
+        el.y === outer.y &&
+        el.width === outer.width &&
+        el.height === outer.height
+      )
+  );
 }
 
 /**

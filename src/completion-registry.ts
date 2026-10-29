@@ -1267,6 +1267,10 @@ export const PIPE_METADATA = new Map<string, PipeContextMap>([
           description:
             'Shape fill: `solid` or `outline` (a pale tint is the default)',
         },
+        label: {
+          description:
+            'Shape label position: `top` or `middle` (automatic: top on a rectangle holding shapes)',
+        },
       },
     },
   ],
