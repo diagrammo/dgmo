@@ -28,6 +28,10 @@ import {
   isExampleFor,
   EXAMPLES_SHOWN,
 } from '../src/agent-reference';
+import {
+  extractDgmoFences,
+  validateDgmoSource,
+} from '../scripts/lib/fence-validate.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -324,4 +328,52 @@ describe('the whiteboard slice states the kind-band drawing order (#1222)', () =
     expect(block).not.toMatch(/Element order is drawing order/);
     expect(block).not.toMatch(/topmost wins/);
   });
+});
+
+// #1446: a first-try model read `get_language_reference sequence` and still put
+// `active-tag` after the participants and wrote `else <label>`. Both texts a
+// model reads must SHOW the two rules in a sequence example that parses clean
+// (a misplaced option or a labelled else is a parse error, so 0 errors proves
+// the placement), and neither may teach `else <label>`.
+describe('sequence examples show active-tag placement and else if (#1446)', () => {
+  const ref = workspaceReference() ?? '';
+  const skill = readFileSync(join(here, '..', 'SKILL.md'), 'utf8');
+  const texts: Array<[string, string]> = [
+    ['get_language_reference sequence', extractSection(ref, 'sequence') ?? ''],
+    ['SKILL.md', skill],
+  ];
+
+  for (const [name, text] of texts) {
+    const sequenceFences = extractDgmoFences(text, name)
+      .map((f: { source: string }) => f.source)
+      .filter((s: string) => /^sequence\b/.test(s.trimStart()));
+
+    it(`${name}: a sequence example with active-tag, else if and bare else parses clean`, () => {
+      const shows = sequenceFences.filter(
+        (s: string) =>
+          /^active-tag \S/m.test(s) &&
+          /^\s+else if \S/m.test(s) &&
+          /^\s+else\s*$/m.test(s)
+      );
+      expect(shows.length, `${name} has no such example`).toBeGreaterThan(0);
+      for (const s of shows) {
+        const lines = s.split('\n');
+        const tagAt = lines.findIndex((l) => /^active-tag \S/.test(l));
+        const firstMessage = lines.findIndex((l) => /-\S*->/.test(l));
+        expect(tagAt).toBeLessThan(firstMessage);
+        expect(validateDgmoSource(s).errors).toEqual([]);
+      }
+    });
+
+    it(`${name}: no sequence example writes else with a label`, () => {
+      for (const s of sequenceFences) {
+        expect(s).not.toMatch(/^\s*else (?!if\b)\S/m);
+      }
+    });
+
+    it(`${name}: states the placement rule in prose`, () => {
+      expect(text).toMatch(/before the first participant declaration/);
+      expect(text).toMatch(/else if <condition>/);
+    });
+  }
 });

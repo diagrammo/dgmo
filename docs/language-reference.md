@@ -772,6 +772,7 @@ parallel label
 ```
 
 - `parallel` requires a label
+- `else` is bare. A second condition is `else if <condition>`; `else <label>` is an error (`'else' does not take a label`)
 - Blocks nest via indentation
 - **No `end`/terminator keyword** — a block closes by dedenting (like multi-line notes). `end` and `activate`/`deactivate` are not dgmo syntax (a bare `end` line is rejected); activation is controlled by the `activations` option (§2.7), not per-message keywords.
 - **Tags apply to participants, not messages** — there is no per-message tag/color. Color a participant by category with `<Participant> <tagAlias>: <Value>` after declaring a `tag <Name> as <alias>` group (§1.3). Message text is just the arrow label.
@@ -782,6 +783,27 @@ parallel label
 - `activations` / `no-activations`
 - `collapse-notes` / `no-collapse-notes`
 - `active-tag GroupName`
+
+Options go in the header. Put every option line — `active-tag` included — after the `tag` groups and before the first participant declaration, `[Group]`, divider or message. An option after any of those is an error (`Options like 'active-tag Zone' must appear before the first message or declaration`).
+
+```dgmo
+sequence Checkout
+tag Zone as z
+  Internal blue
+  External orange
+active-tag Zone
+
+Shop is a service z: Internal
+Bank is a service z: External
+
+Shop -charge-> Bank
+  if approved
+    Bank -receipt-> Shop
+  else if declined
+    Bank -decline code-> Shop
+  else
+    Bank -timeout-> Shop
+```
 
 ---
 

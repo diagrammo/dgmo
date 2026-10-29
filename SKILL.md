@@ -465,15 +465,27 @@ Other tools (use only when the user asks for them):
 ```dgmo
 sequence Auth Flow
 autonumber
+tag Zone as z
+  Internal blue
+  External orange
+active-tag Zone
+
+User z: External
+API z: Internal
+DB z: Internal
 
 User -Login-> API
 API -Find user-> DB
 DB -user-> API
   if valid
     API -200 OK-> User
+  else if locked
+    API -423 Locked-> User
   else
     API -401-> User
 ```
+
+Options such as `autonumber` and `active-tag` go before the first participant declaration or message. `else` is bare; a second condition is `else if <condition>`, never `else <label>`.
 
 ### Flowchart
 ```dgmo
