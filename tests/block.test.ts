@@ -219,6 +219,38 @@ describe('renderDgmoBlock — standard embed block', () => {
     expect(copyOnly.html).not.toContain('dgmo-open');
   });
 
+  it('copy-as-image button follows showCopy unless set on its own', async () => {
+    const showcase = await renderDgmoBlock(PIE, { mode: 'showcase' });
+    expect(showcase.html).toContain(
+      'class="dgmo-toolbar-btn dgmo-copy-image" aria-label="Copy as image"'
+    );
+    // sits right after copy-source
+    expect(showcase.html.indexOf('dgmo-copy-image')).toBeGreaterThan(
+      showcase.html.indexOf('dgmo-toolbar-btn dgmo-copy"')
+    );
+
+    const noCopy = await renderDgmoBlock(PIE, {
+      mode: 'showcase',
+      showCopy: false,
+    });
+    expect(noCopy.html).not.toContain('dgmo-copy-image');
+
+    const imageOnly = await renderDgmoBlock(PIE, {
+      mode: 'showcase',
+      showCopy: false,
+      showCopyImage: true,
+    });
+    expect(imageOnly.html).toContain('dgmo-copy-image');
+    expect(imageOnly.html).not.toContain('dgmo-toolbar-btn dgmo-copy"');
+
+    const sourceOnly = await renderDgmoBlock(PIE, {
+      mode: 'showcase',
+      showCopyImage: false,
+    });
+    expect(sourceOnly.html).not.toContain('dgmo-copy-image');
+    expect(sourceOnly.html).toContain('dgmo-toolbar-btn dgmo-copy"');
+  });
+
   it('unknown palette warns via onWarn and falls back', async () => {
     const warnings: string[] = [];
     const { html } = await renderDgmoBlock(PIE, {

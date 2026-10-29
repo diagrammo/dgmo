@@ -96,6 +96,12 @@ export interface DgmoBlockOptions {
   /** Default: true in showcase mode, false in diagram mode. */
   showCopy?: boolean;
   /**
+   * Show the copy-as-image toolbar button. Default: follows `showCopy`. Needs
+   * the client handler from `@diagrammo/dgmo/copy-image`; markup-only surfaces
+   * can omit it.
+   */
+  showCopyImage?: boolean;
+  /**
    * Show the expand (full-screen) toolbar button. Default: true in showcase
    * mode, false in diagram mode. Needs the client lightbox handler to do
    * anything (mirrored across surfaces); markup-only surfaces can omit it.
@@ -172,6 +178,7 @@ function resolveBlockOptions(opts: DgmoBlockOptions): ResolvedBlockOptions {
     showSource: (opts.showSource ?? showcase) || !!opts.sourceOpen,
     sourceOpen: opts.sourceOpen ?? false,
     showCopy: opts.showCopy ?? showcase,
+    showCopyImage: opts.showCopyImage ?? opts.showCopy ?? showcase,
     showExpand: opts.showExpand ?? showcase,
     showOpenInEditor: opts.showOpenInEditor ?? showcase,
     editorBaseUrl: opts.editorBaseUrl ?? EDITOR_BASE_URL,
@@ -415,6 +422,8 @@ function dataAttributeString(attrs: Record<string, string>): string {
 const CODE_ICON = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10 4.5 4 3.5-4 3.5"/><path d="m6 4.5-4 3.5 4 3.5"/></svg>`;
 const COPY_ICON = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V3a1.5 1.5 0 0 0-1.5-1.5H3A1.5 1.5 0 0 0 1.5 3v6A1.5 1.5 0 0 0 3 10.5h2.5"/></svg>`;
 const EXTERNAL_ICON = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 2.5h4v4"/><path d="M13.5 2.5 7 9"/><path d="M12.5 9.5v3a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1h3"/></svg>`;
+// Picture frame with a sun and a hill — copy-as-image, distinct from copy-source.
+const IMAGE_ICON = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5"/><circle cx="5.5" cy="6" r="1.25"/><path d="m14.5 11-3.5-3.5-6.5 6"/></svg>`;
 // Maximize / "arrows out to corners" — the full-screen expand affordance.
 const EXPAND_ICON = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 2.5h4v4"/><path d="M6.5 13.5h-4v-4"/><path d="M13.5 2.5 9 7"/><path d="M2.5 13.5 7 9"/></svg>`;
 
@@ -429,7 +438,8 @@ const EXPAND_ICON = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none"
  *   `.dgmo-toolbar-btn` class — client copy/open handlers preventDefault on
  *   `.dgmo-toolbar-btn` inside a `<summary>` (to not also toggle), and the
  *   toggle must keep the default.
- * - `showExpand` / `showCopy` / `showOpenInEditor` — the respective buttons.
+ * - `showExpand` / `showCopy` / `showCopyImage` / `showOpenInEditor` — the
+ *   respective buttons.
  *
  * When the source toggle is off but another button is on, there's no
  * `<details>` to drive, so the wrapper is a plain `<div>` (same
@@ -447,6 +457,10 @@ function sourceDisclosure(source: string, opts: ResolvedBlockOptions): string {
 
   const copyButton = opts.showCopy
     ? `<button type="button" class="dgmo-toolbar-btn dgmo-copy" aria-label="Copy DGMO source" data-dgmo-source="${escapeAttr(source)}">${COPY_ICON}</button>`
+    : '';
+
+  const copyImageButton = opts.showCopyImage
+    ? `<button type="button" class="dgmo-toolbar-btn dgmo-copy-image" aria-label="Copy as image">${IMAGE_ICON}</button>`
     : '';
 
   let openButton = '';
@@ -467,7 +481,7 @@ function sourceDisclosure(source: string, opts: ResolvedBlockOptions): string {
     }
   }
 
-  const buttons = `${toggle}${expandButton}${copyButton}${openButton}`;
+  const buttons = `${toggle}${expandButton}${copyButton}${copyImageButton}${openButton}`;
   if (!buttons) return '';
 
   // No source-view toggle → no <details> to drive; render a plain toolbar

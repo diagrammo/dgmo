@@ -42,7 +42,7 @@ normalize_chunk_hashes() {
 # implementation detail, not public API, and their hash shifts whenever an
 # unrelated type in the chunk moves — baselining them would make this tripwire
 # fire on every such edit. Restrict the snapshot to the known entries.
-ENTRIES="index block advanced editor highlight pert cloud-reference live-link-resolve"
+ENTRIES="index block advanced editor highlight pert cloud-reference live-link-resolve copy-image"
 
 # Print the list of entry dts files (both .d.ts and .d.cts) that exist in $1.
 entry_dts_files() {

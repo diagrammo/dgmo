@@ -100,6 +100,12 @@ interface DgmoBlockOptions {
     /** Default: true in showcase mode, false in diagram mode. */
     showCopy?: boolean;
     /**
+     * Show the copy-as-image toolbar button. Default: follows `showCopy`. Needs
+     * the client handler from `@diagrammo/dgmo/copy-image`; markup-only surfaces
+     * can omit it.
+     */
+    showCopyImage?: boolean;
+    /**
      * Show the expand (full-screen) toolbar button. Default: true in showcase
      * mode, false in diagram mode. Needs the client lightbox handler to do
      * anything (mirrored across surfaces); markup-only surfaces can omit it.

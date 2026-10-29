@@ -322,6 +322,14 @@ const BUILDS: Options[] = [
     external: ['jsdom'],
   },
   {
+    // Copy-as-image for the embed toolbar — zero-import browser runtime, so
+    // remark-dgmo's client and the Obsidian plugin share one rasterizer.
+    entry: { 'copy-image': 'src/embed/copy-image.ts' },
+    format: ['esm'],
+    dts: true,
+    sourcemap: true,
+  },
+  {
     entry: { editor: 'src/editor/index.ts' },
     format: ['esm'],
     dts: true,

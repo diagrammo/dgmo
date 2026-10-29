@@ -57,6 +57,10 @@
       "types": "./dist/clock.d.ts",
       "default": "./dist/clock.js"
     },
+    "./copy-image": {
+      "types": "./dist/copy-image.d.ts",
+      "default": "./dist/copy-image.js"
+    },
     "./pert": {
       "types": "./dist/pert.d.ts",
       "default": "./dist/pert.js"

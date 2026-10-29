@@ -14,6 +14,7 @@ import { encodeDiagramUrl } from '../sharing';
 import { buildDgmoBlockHtml, errorBlockHtml } from '../embed';
 import { CSS } from './styles';
 import { safeHref } from '../utils/safe-href';
+import { canCopyDiagramImage, copyDiagramImage } from '../embed/copy-image';
 
 declare const __DGMO_VERSION__: string;
 
@@ -178,6 +179,8 @@ export function buildRenderedBlock(opts: RenderedBlockOptions): HTMLElement {
   // user-supplied strings escaped; the SVG slot is empty at this point.
   holder.innerHTML = html;
   const wrapper = holder.firstElementChild as HTMLElement;
+  if (!canCopyDiagramImage())
+    wrapper.querySelector('.dgmo-copy-image')?.remove();
 
   // Mount the sanitized SVG node directly (no serialize/re-parse round trip).
   wrapper.querySelector('.dgmo-svg')?.appendChild(opts.svgEl);
@@ -249,6 +252,11 @@ async function handleToolbarClick(e: Event): Promise<void> {
     return;
   }
 
+  if (btn.matches('button.dgmo-copy-image')) {
+    flashCopied(btn, await copyDiagramImage(btn));
+    return;
+  }
+
   if (btn.matches('button.dgmo-copy')) {
     const copied = await copyText(btn.dataset['dgmoSource'] ?? '');
     if (copied) {
@@ -273,6 +281,18 @@ async function handleToolbarClick(e: Event): Promise<void> {
       );
     }
   }
+}
+
+function flashCopied(btn: HTMLElement, copied: boolean): void {
+  if (!copied) {
+    sharedWarn('image copy failed');
+    return;
+  }
+  btn.classList.add('dgmo-copy--success');
+  setTimeout(
+    () => btn.classList.remove('dgmo-copy--success'),
+    COPIED_INTERACTION_MS
+  );
 }
 
 async function copyText(text: string): Promise<boolean> {
