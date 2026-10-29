@@ -46,6 +46,9 @@ describe.skipIf(!existsSync(GATE_ENV))('pre-push gate environment', () => {
     };
     delete env.GIT_DIR;
     delete env.GIT_WORK_TREE;
+    // Inside a real gate this process already runs cleared; the hook under
+    // test must not take that marker as its own.
+    delete env.GATE_ENV_CLEARED;
     const r = spawnSync('.githooks/pre-push', ['origin', 'url'], {
       cwd: repo,
       env,
