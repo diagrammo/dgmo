@@ -3861,7 +3861,6 @@ export function renderSequenceDiagram(
       .attr('data-section-toggle', '')
       .attr('data-line-number', String(sec.lineNumber))
       .attr('data-section', '')
-      .attr('tabindex', '0')
       .attr('role', 'button')
       .attr('aria-expanded', String(!isCollapsed));
 

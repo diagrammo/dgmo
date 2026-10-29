@@ -459,7 +459,6 @@ export function renderMindmap(
     if (node.hasChildren) {
       nodeG
         .attr('data-node-toggle', node.id)
-        .attr('tabindex', '0')
         .attr('role', 'button')
         .attr(
           'aria-expanded',

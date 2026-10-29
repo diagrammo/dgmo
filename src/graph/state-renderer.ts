@@ -329,7 +329,6 @@ export function renderState(
       .attr('data-line-number', String(group.lineNumber))
       .attr('data-group-id', group.id)
       .attr('data-group-toggle', group.id)
-      .attr('tabindex', '0')
       .attr('role', 'button')
       .attr('aria-expanded', 'true')
       .attr('aria-label', `Collapse group ${group.label}`)
@@ -541,7 +540,6 @@ export function renderState(
     if (isCollapsedGroup) {
       nodeG
         .attr('data-group-toggle', node.id)
-        .attr('tabindex', '0')
         .attr('role', 'button')
         .attr('aria-expanded', 'false')
         .attr('aria-label', `Expand group ${node.label}`);

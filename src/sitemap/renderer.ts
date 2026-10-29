@@ -432,7 +432,6 @@ export function renderSitemap(
 
     if (c.hasChildren) {
       cG.attr('data-node-toggle', c.nodeId)
-        .attr('tabindex', '0')
         .attr('role', 'button')
         .attr('aria-expanded', String(!c.hiddenCount))
         .attr('aria-label', c.label);
@@ -601,7 +600,6 @@ export function renderSitemap(
     if (node.hasChildren) {
       nodeG
         .attr('data-node-toggle', node.id)
-        .attr('tabindex', '0')
         .attr('role', 'button')
         .attr('aria-expanded', String(!node.hiddenCount));
     }

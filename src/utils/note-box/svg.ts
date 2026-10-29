@@ -164,7 +164,6 @@ export function renderNoteBox(
     noteG
       .style('cursor', 'pointer')
       .attr('role', 'button')
-      .attr('tabindex', '0')
       .attr('aria-expanded', 'true')
       .attr('aria-label', 'Collapse note');
   }
@@ -274,7 +273,6 @@ export function renderNoteBadge(
     .attr('opacity', NOTE_BADGE_OPACITY)
     .style('cursor', 'pointer')
     .attr('role', 'button')
-    .attr('tabindex', '0')
     .attr('aria-expanded', 'false')
     .attr('aria-label', 'Expand note');
   if (opts.lineNumber !== undefined) {
