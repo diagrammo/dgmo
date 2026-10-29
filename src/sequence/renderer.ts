@@ -1681,6 +1681,7 @@ function layoutSequencePass(
     ? []
     : computeActivations(allRenderSteps).map((a) => {
         const closingStep = allRenderSteps[a.endStep];
+        const openingStep = allRenderSteps[a.startStep];
         return {
           ...a,
           startStep: clampStep(allToFiltered[a.startStep] ?? 0),
@@ -1689,11 +1690,16 @@ function layoutSequencePass(
           // layout, so `endStep` is not the bar's own event but whatever
           // happens next. The bar has to stop short of it — see the render.
           implicitEnd: closingStep !== undefined && !stepSurvives(closingStep),
-          // True when nothing laid out follows the dropped return — the bar
-          // belongs to the diagram's last unreturned call. `endStep` clamps
-          // back onto the bar's own start, so the bar ends where a next
-          // step WOULD sit instead (#1436); it used to draw 0 tall.
-          endsAfterLast: (allToFiltered[a.endStep] ?? 0) >= renderSteps.length,
+          // True when nothing laid out follows the dropped return, so
+          // `endStep` clamps back onto the last step and the bar ends where
+          // a next step WOULD sit instead (#1436); a last unreturned call's
+          // bar used to draw 0 tall. Only for a bar whose own call is laid
+          // out: one opened inside a collapsed section clamps onto a step
+          // that is not its own, and stays the 0-tall bar it always was.
+          endsAfterLast:
+            openingStep !== undefined &&
+            stepSurvives(openingStep) &&
+            (allToFiltered[a.endStep] ?? 0) >= renderSteps.length,
         };
       });
   // Vertical spacing is NOT compressed by ScaleContext — the container scrolls

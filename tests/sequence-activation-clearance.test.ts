@@ -364,4 +364,35 @@ describe('activation bar on the last unreturned call', () => {
     expect(activationBars(render('A -ask-> B\nB -ok-> A'))).toHaveLength(1);
     expect(activationBars(render('A -ping~> B'))).toHaveLength(0);
   });
+
+  it('leaves a bar opened inside a collapsed section 0 tall, as before', () => {
+    // C's call to D and D's to E are hidden; their bars clamp onto the last
+    // visible step, which is not theirs, so they must not grow (review r1).
+    const input = [
+      'A -a-> B',
+      '== S1 ==',
+      'B -b-> C',
+      '== S2 ==',
+      'C -c-> D',
+      'D -d-> E',
+    ].join('\n');
+    const parsed = parseSequenceDgmo(input);
+    expect(parsed.error).toBeNull();
+    const s2 = parsed.elements.find(
+      (el) => el.kind === 'section' && el.label === 'S2'
+    )!.lineNumber;
+    const container = doc.createElement('div') as unknown as HTMLDivElement;
+    doc.body.appendChild(container);
+    renderSequenceDiagram(container, parsed, palette, false, undefined, {
+      exportWidth: 1400,
+      collapsedSections: new Set([s2]),
+    });
+    const drawn = new Set(
+      [...container.querySelectorAll('rect.activation')]
+        .filter((r) => Number(r.getAttribute('height')) > 0)
+        .map((r) => r.getAttribute('data-participant-id'))
+    );
+    doc.body.removeChild(container);
+    expect([...drawn].sort()).toEqual(['B', 'C']);
+  });
 });
