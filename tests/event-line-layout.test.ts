@@ -18,15 +18,15 @@ function layout(
   src: string,
   width = 1200,
   heightHint = 600,
-  nowDate?: Date
+  nowDate?: Date,
+  activeGroup: string | null = null
 ): EventLineLayout {
   return layoutEventLine(parseEventLine(src, nordLight), nordLight, false, {
     width,
     heightHint,
     exportMode: true,
     hiddenSet: new Set(),
-    activeGroup: null,
-    topUsed: 0,
+    activeGroup,
     nowDate,
   });
 }
@@ -331,5 +331,72 @@ now
     expect(l.now!.x).toBe((l.placed[0]!.x + l.placed[1]!.x) / 2);
     const offScale = layout(src.replace('now\n', 'no-scale\nnow 2021-01-01\n'));
     expect(offScale.now).toBeNull();
+  });
+
+  it("pins `now` onto a card's x-span and still clears the card", () => {
+    // `now` falls on event a's date, so a's card shares the pin's x-span: the
+    // spine-adjacent slot sits inside the leader gap and must stay clear.
+    const l = layout(`event-line T
+now 2020-01-01
+
+2020-01-01 a
+2022-01-01 b`);
+    const now = l.now!;
+    expect(now.x).toBe(l.placed[0]!.x);
+    const sharing = l.cards.filter(
+      (c) =>
+        c.p.left < now.x + now.pillW / 2 &&
+        c.p.left + CARD_W > now.x - now.pillW / 2
+    );
+    expect(sharing.length).toBeGreaterThan(0);
+    for (const c of sharing)
+      expect(c.top < now.y1 && c.top + c.p.cardH > now.y0).toBe(false);
+  });
+});
+
+describe('layoutEventLine — title and legend band', () => {
+  const body = `
+tag Genre as g
+  Pop blue
+  R&B teal
+
+2012-02-05 XLVI  g: Pop
+2013-02-03 XLVII  g: R&B`;
+
+  it('reserves the title band, then the stacked legend band below it', () => {
+    const bare = layout(`event-line\nno-title\n${body}`);
+    expect(bare.header.showTitle).toBe(false);
+    expect(bare.header.hasLegend).toBe(false);
+    expect(bare.header.topUsed).toBe(0);
+
+    const titled = layout(`event-line Shows\n${body}`);
+    expect(titled.header.showTitle).toBe(true);
+    expect(titled.header.titleH).toBe(48);
+    expect(titled.header.topUsed).toBe(48);
+    expect(titled.spineY - bare.spineY).toBe(48);
+
+    const legend = layout(
+      `event-line Shows\n${body}`,
+      1200,
+      600,
+      undefined,
+      'g'
+    );
+    expect(legend.header.hasLegend).toBe(true);
+    expect(legend.header.placement.inline).toBe(false);
+    expect(legend.header.topUsed).toBe(48 + 34);
+    expect(legend.spineY - bare.spineY).toBe(48 + 34);
+  });
+
+  it('drops the legend band when the legend is off', () => {
+    const l = layout(
+      `event-line Shows\nno-legend\n${body}`,
+      1200,
+      600,
+      undefined,
+      'g'
+    );
+    expect(l.header.hasLegend).toBe(false);
+    expect(l.header.topUsed).toBe(48);
   });
 });

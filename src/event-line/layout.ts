@@ -6,7 +6,8 @@
 // before anything is drawn: each slot's card size, its x on the spine, its side,
 // lane and left edge, and the canvas size and spine y that follow from them;
 // then the drawing-time geometry those imply — card boxes and leaders, the
-// spine's extent, the era bracket runs and the `now` marker's slot.
+// spine's extent, the era bracket runs and the `now` marker's slot — and the
+// title/legend band above it all.
 // No DOM is touched here; `renderer.ts` reads the result and draws it.
 
 import {
@@ -23,6 +24,12 @@ import {
 } from '../palettes/color-utils';
 import { resolveColor } from '../colors';
 import { CHAR_WIDTH_RATIO, wrapTextToWidth } from '../utils/text-measure';
+import { TITLE_FONT_SIZE, TITLE_Y } from '../utils/title-constants';
+import { getLegendExtent } from '../utils/legend-layout';
+import {
+  layoutInlineHeader,
+  type InlineHeaderGeometry,
+} from '../utils/inline-header';
 import {
   wrapDescriptionLines,
   type WrappedDescLine,
@@ -117,7 +124,7 @@ export interface Placed {
   spanHalf: number;
 }
 
-/** What the renderer knows before layout: the panel and the chrome above it. */
+/** What the renderer knows before layout: the panel and the legend state. */
 export interface EventLineLayoutOptions {
   width: number;
   heightHint: number;
@@ -125,10 +132,20 @@ export interface EventLineLayoutOptions {
   /** Legend-muted `group:value` keys; their members drop out of era cards. */
   hiddenSet: ReadonlySet<string>;
   activeGroup: string | null;
-  /** Height used by the title and legend bands above the content. */
-  topUsed: number;
   /** Clock for a computed `now` marker (§28.6b); defaults to the wall clock. */
   nowDate?: Date | undefined;
+}
+
+/** The title and legend band above the content. */
+export interface HeaderBand {
+  showTitle: boolean;
+  hasLegend: boolean;
+  /** Height of the title band; 0 with no title. */
+  titleH: number;
+  /** Height used by the title and legend bands above the content. */
+  topUsed: number;
+  /** Inline (title left, legend flushed right) or stacked placement. */
+  placement: InlineHeaderGeometry;
 }
 
 /** One card's box and leader, in `placed` order. */
@@ -177,6 +194,7 @@ export interface NowMarkerGeometry {
 }
 
 export interface EventLineLayout {
+  header: HeaderBand;
   /** One entry per slot, in source order, with x, side, lane and left set. */
   placed: Placed[];
   scaled: boolean;
@@ -205,15 +223,10 @@ export function layoutEventLine(
   isDark: boolean,
   opts: EventLineLayoutOptions
 ): EventLineLayout {
-  const {
-    width,
-    heightHint,
-    exportMode,
-    hiddenSet,
-    activeGroup,
-    topUsed,
-    nowDate,
-  } = opts;
+  const { width, heightHint, exportMode, hiddenSet, activeGroup, nowDate } =
+    opts;
+  const header = layoutHeader(parsed, activeGroup, width, exportMode);
+  const { topUsed } = header;
   const seriesColors = getSeriesColors(palette);
   const accent = seriesColors[0]!;
 
@@ -717,6 +730,7 @@ export function layoutEventLine(
   const spine = layoutSpine(placed, scaled);
   const cards = layoutCards(placed, spineY, laneNear, spine);
   return {
+    header,
     placed,
     scaled,
     hasEras,
@@ -737,6 +751,62 @@ export function layoutEventLine(
           })
         : null,
   };
+}
+
+const TITLE_AREA = 48;
+const LEGEND_BAND = 34;
+
+// §1.9 `legend-inline` (decision #50): try a one-line header (title left,
+// legend flushed right). Falls back to the stacked band when it can't fit.
+// NOTE: EventLineOptions exposes no shared-options record, so this reads an
+// empty one and stays dormant (stacked, byte-identical) until the parser
+// surfaces `legend-inline` — matching the bracket renderer. The header uses
+// the panel `width` (not the grown `contentW`, which is only known after the
+// layout search) so `placement.inline` is known before the offset math.
+function layoutHeader(
+  parsed: ParsedEventLine,
+  activeGroup: string | null,
+  width: number,
+  exportMode: boolean
+): HeaderBand {
+  const showTitle = !!parsed.title && !parsed.options.noTitle;
+  const hasLegend =
+    parsed.tagGroups.length > 0 &&
+    activeGroup !== null &&
+    !parsed.options.noLegend;
+  const titleH = showTitle ? TITLE_AREA : 0;
+  const legendH = hasLegend ? LEGEND_BAND : 0;
+  const inlineRequested = parsed.options.legendInline === true;
+  const legendExtent =
+    inlineRequested && hasLegend
+      ? getLegendExtent(
+          {
+            groups: parsed.tagGroups,
+            position: {
+              placement: 'top-center',
+              titleRelation: 'inline-with-title',
+            },
+            mode: exportMode ? 'export' : 'preview',
+          },
+          { activeGroup: activeGroup ?? null },
+          width
+        )
+      : { width: 0, height: 0 };
+  const placement = layoutInlineHeader({
+    requested: inlineRequested,
+    title: parsed.title ?? '',
+    hasLegend,
+    legendWidth: legendExtent.width,
+    legendHeight: legendExtent.height,
+    containerWidth: width,
+    titleBandHeight: titleH,
+    legendReserve: legendH,
+    titleBaselineY: TITLE_Y,
+    titleFontSize: TITLE_FONT_SIZE,
+  });
+  // Inline → one band (title only); stacked → title + legend band.
+  const topUsed = placement.inline ? titleH : titleH + legendH;
+  return { showTitle, hasLegend, titleH, topUsed, placement };
 }
 
 // True when an event carries any legend-muted `group:value`. The keying matches

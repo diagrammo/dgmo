@@ -37,8 +37,6 @@ import { renderNodeCard } from '../utils/card';
 import { renderInlineText } from '../utils/inline-markdown';
 import type { WrappedDescLine } from '../utils/wrapped-desc';
 import { renderIntegratedLegend } from '../utils/legend-integration';
-import { getLegendExtent } from '../utils/legend-layout';
-import { layoutInlineHeader } from '../utils/inline-header';
 import { formatDateLabel } from '../timeline/renderer';
 import type { LegendGroupData } from '../utils/legend-types';
 import { resolveActiveTagGroup, tagAttrKey } from '../utils/tag-groups';
@@ -61,8 +59,6 @@ import {
 
 // ── Geometry constants ───────────────────────────────────────
 // The card and lane geometry the layout also reads lives in `./layout`.
-const TITLE_AREA = 48;
-const LEGEND_BAND = 34;
 const CARD_BODY_TOP = HEADER_HEIGHT + SEPARATOR_GAP;
 const DATE_SUBTITLE_FONT = 10;
 // `no-box` only: a soft tag-tinted "shelf" sits behind the title + date so the
@@ -158,55 +154,10 @@ export function renderEventLine(
     tagOverride
   );
 
-  const showTitle = !!parsed.title && !parsed.options.noTitle;
-  const hasLegend =
-    parsed.tagGroups.length > 0 &&
-    activeGroup !== null &&
-    !parsed.options.noLegend;
-  const titleH = showTitle ? TITLE_AREA : 0;
-  const legendH = hasLegend ? LEGEND_BAND : 0;
-
-  // §1.9 `legend-inline` (decision #50): try a one-line header (title left,
-  // legend flushed right). Falls back to the stacked band when it can't fit.
-  // NOTE: EventLineOptions exposes no shared-options record, so this reads an
-  // empty one and stays dormant (stacked, byte-identical) until the parser
-  // surfaces `legend-inline` — matching the bracket renderer. The header uses
-  // the panel `width` (not the grown `contentW`, which is only known after the
-  // layout search) so `header.inline` is available for the offset math below.
-  const inlineRequested = parsed.options.legendInline === true;
-  const legendExtent =
-    inlineRequested && hasLegend
-      ? getLegendExtent(
-          {
-            groups: parsed.tagGroups,
-            position: {
-              placement: 'top-center',
-              titleRelation: 'inline-with-title',
-            },
-            mode: exportMode ? 'export' : 'preview',
-          },
-          { activeGroup: activeGroup ?? null },
-          width
-        )
-      : { width: 0, height: 0 };
-  const header = layoutInlineHeader({
-    requested: inlineRequested,
-    title: parsed.title ?? '',
-    hasLegend,
-    legendWidth: legendExtent.width,
-    legendHeight: legendExtent.height,
-    containerWidth: width,
-    titleBandHeight: titleH,
-    legendReserve: legendH,
-    titleBaselineY: TITLE_Y,
-    titleFontSize: TITLE_FONT_SIZE,
-  });
-  // Inline → one band (title only); stacked → title + legend band.
-  const topUsed = header.inline ? titleH : titleH + legendH;
-
   // ── Layout ── every position is computed as data first (./layout); the
   // rest of this function only draws what it returns.
   const {
+    header: band,
     hasEras,
     eraSide,
     contentW,
@@ -224,9 +175,9 @@ export function renderEventLine(
     exportMode,
     hiddenSet,
     activeGroup,
-    topUsed,
     nowDate,
   });
+  const { showTitle, hasLegend, titleH, topUsed, placement: header } = band;
 
   // ── SVG root ──
   const svg = d3Selection
