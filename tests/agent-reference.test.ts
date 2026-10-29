@@ -32,6 +32,7 @@ import {
   extractDgmoFences,
   validateDgmoSource,
 } from '../scripts/lib/fence-validate.mjs';
+import { validateFlowchartStructure } from '../src/validate-diagram';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -376,4 +377,53 @@ describe('sequence examples show active-tag placement and else if (#1446)', () =
       expect(text).toMatch(/else if <condition>/);
     });
   }
+});
+
+// #1448: a first-try flowchart ended `[Request another] -> (Request reset)`,
+// pointing back at its own start node, and failed with "no entry point". The
+// reference said "begin at one start terminal" but neither text said the start
+// takes no incoming arrow. Both texts a model reads must state that rule, and
+// the validator must still refuse the shape the rule forbids.
+describe('flowchart texts state that nothing points back at the start node (#1448)', () => {
+  const ref = workspaceReference() ?? '';
+  const skill = readFileSync(join(here, '..', 'SKILL.md'), 'utf8');
+  const texts: Array<[string, string]> = [
+    [
+      'get_language_reference flowchart',
+      extractSection(ref, 'flowchart') ?? '',
+    ],
+    ['SKILL.md', skill],
+  ];
+
+  for (const [name, text] of texts) {
+    it(`${name}: states the start-terminal rule`, () => {
+      expect(text).toMatch(/Nothing points back at the start node/);
+      expect(text).toMatch(/a loop returns to a step after it/);
+    });
+  }
+
+  it('SKILL.md: its flowchart example obeys the rule and parses clean', () => {
+    const fences = extractDgmoFences(skill, 'SKILL.md')
+      .map((f: { source: string }) => f.source)
+      .filter((s: string) => /^flowchart\b/.test(s.trimStart()));
+    expect(fences.length).toBeGreaterThan(0);
+    for (const s of fences) {
+      expect(s).not.toMatch(/->\s*\(Start\)/);
+      expect(validateDgmoSource(s).errors).toEqual([]);
+      expect(validateFlowchartStructure(s)).toEqual([]);
+    }
+  });
+
+  it('the validator refuses a flowchart whose loop points back at the start', () => {
+    const looped = [
+      'flowchart Reset',
+      '',
+      '(Request reset) -> [Send email] -> <Clicked?>',
+      '  -yes-> (Done)',
+      '  -no-> [Request another] -> (Request reset)',
+    ].join('\n');
+    expect(validateFlowchartStructure(looped).map((e) => e.message)).toEqual(
+      expect.arrayContaining([expect.stringMatching(/no entry point/)])
+    );
+  });
 });

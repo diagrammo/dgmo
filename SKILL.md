@@ -496,6 +496,8 @@ flowchart Process
   -no-> /Get Input/ -> <Valid?>
 ```
 
+Begin at one start terminal `(Start)`. Nothing points back at the start node: no arrow may end at `(Start)`, so a loop returns to a step after it, as `/Get Input/ -> <Valid?>` does above.
+
 ### Bar chart
 ```dgmo
 bar Revenue
