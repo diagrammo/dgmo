@@ -5,6 +5,32 @@ All notable changes to `@diagrammo/dgmo` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.95.0] - 2026-10-29
+
+### Added
+
+- **Copy a diagram as an image.** The embed toolbar gains a picture
+  button beside copy-source. It puts the diagram, as currently shown in
+  light or dark, on the clipboard as a 2x PNG on its palette
+  background. `showCopyImage` follows `showCopy` unless set. Client
+  surfaces share the handler through the new zero-import
+  `@diagrammo/dgmo/copy-image` entry; the button is removed where the
+  browser cannot write a PNG to the clipboard.
+- **A whiteboard container rectangle labels itself at the top.** A
+  rectangle that encloses another shape, note or image draws its label
+  top centre in 16px semibold, clear of the shapes inside it. `label:
+  top` or `label: middle` overrides the automatic choice.
+
+### Changed
+
+- **Whiteboard drawing bands.** Shapes, sticky notes, arrows and lines
+  share one band, so file order decides which sits on top. An arrow or
+  line always paints just above the latest box it is attached to.
+- **A whiteboard middle label keeps clear of overlapping shapes.**
+- **Collapse toggles no longer take a Tab stop.** The preview's arrow,
+  j and k selection reaches them instead, including sequence group
+  toggles.
+
 ## [0.94.0] - 2026-10-28
 
 ### Changed
