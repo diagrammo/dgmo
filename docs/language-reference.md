@@ -4060,7 +4060,7 @@ The label is optional on shapes, notes, arrows and lines. `at:` is a top-left co
 
 Arrows and lines take `style: dashed` for a dashed stroke. Solid is the default and is never written; `dashed` is the only value `style:` accepts.
 
-An `arrow` takes `heads: both` for a head at each end. Arrows and lines take `bend: N` (whole px) to curve: the curve's middle sits `N` px to the right of travel from `from:` to `to:` (negative bends left); `0` is straight and never written. There are no elbow connectors. Shapes take `fill: solid` (filled with their colour) or `fill: outline` (hollow); the pale `tint` is the default and never written. Shapes take `label: top` or `label: middle` to place the label at the top centre or the middle; left off it is automatic — top on a rectangle that encloses another shape, note or image, middle otherwise.
+An `arrow` takes `heads: both` for a head at each end. Arrows and lines take `bend: N` (whole px) to curve: the curve's middle sits `N` px to the right of travel from `from:` to `to:` (negative bends left); `0` is straight and never written. There are no elbow connectors. Shapes take `fill: solid` (filled with their colour) or `fill: outline` (hollow); the pale `tint` is the default and never written. Shapes take `label: top` or `label: middle` to place the label at the top centre or the middle; left off it is automatic — top on a rectangle that encloses another shape, note or image, middle otherwise. A top label is larger and semibold, and fits the space above the shapes inside — it shrinks and ends in `…` rather than running into them.
 
 ### Colours
 

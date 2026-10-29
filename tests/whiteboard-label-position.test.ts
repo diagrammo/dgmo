@@ -3,7 +3,14 @@ import { describe, expect, it } from 'vitest';
 import { getPalette } from '../src/palettes';
 import { emitWhiteboard } from '../src/whiteboard/emit';
 import { whiteboardLabelPosition } from '../src/whiteboard/geometry';
-import { whiteboardLabelCentreY } from '../src/whiteboard/label';
+import {
+  WHITEBOARD_CONTAINER_FONT,
+  WHITEBOARD_LABEL_LINE,
+  whiteboardLabelCentreY,
+  whiteboardLabelWidth,
+  whiteboardShapeLabel,
+} from '../src/whiteboard/label';
+import { measureText } from '../src/utils/text-measure';
 import { parseWhiteboard } from '../src/whiteboard/parser';
 import { renderWhiteboard } from '../src/whiteboard/renderer';
 import type { WhiteboardShape } from '../src/whiteboard/types';
@@ -178,5 +185,136 @@ describe('drawing', () => {
     };
     expect(container('')).toBeLessThan(40);
     expect(container(', label: middle')).toBeGreaterThan(140);
+  });
+});
+
+describe('a top label never runs into another shape (#1605)', () => {
+  const layout = (...lines: string[]) => {
+    const els = board(...lines);
+    return { els, label: whiteboardShapeLabel(els[0] as WhiteboardShape, els) };
+  };
+  const span = (l: ReturnType<typeof whiteboardShapeLabel>) => {
+    const h = l.lines.length * l.font * WHITEBOARD_LABEL_LINE;
+    return { top: l.cy - h / 2, bottom: l.cy + h / 2 };
+  };
+  const LONG =
+    'Oracle Cloud Infrastructure us-ashburn-1 production tenancy shared services compartment owned by SysEng';
+
+  it('a short top label is 16px semibold; a middle one stays 14px regular', () => {
+    const { label } = layout(
+      'rectangle OCI at: 0 0, size: 260 280',
+      'rectangle PV at: 80 100, size: 100 50'
+    );
+    expect(label).toMatchObject({
+      lines: ['OCI'],
+      font: WHITEBOARD_CONTAINER_FONT,
+      bold: true,
+      onEdge: false,
+    });
+    const plain = layout('rectangle Box at: 0 0, size: 100 50').label;
+    expect(plain).toMatchObject({ font: 14, bold: false });
+  });
+
+  it('a long label fits the strip above the first child, shrinking, then …', () => {
+    const { label } = layout(
+      `rectangle ${LONG} at: 0 0, size: 260 280`,
+      'rectangle PVO at: 80 60, size: 100 50'
+    );
+    expect(span(label).bottom).toBeLessThanOrEqual(60);
+    expect(label.font).toBeLessThan(WHITEBOARD_CONTAINER_FONT);
+    const tight = layout(
+      `rectangle ${LONG} at: 0 0, size: 260 280`,
+      'rectangle PVO at: 80 32, size: 100 50'
+    ).label;
+    expect(span(tight).bottom).toBeLessThanOrEqual(32);
+    expect(tight.lines.at(-1)).toMatch(/\u2026$/);
+  });
+
+  it('with a child against the top, the label moves below the children', () => {
+    const { label } = layout(
+      'rectangle OCI at: 0 0, size: 260 280',
+      'rectangle PVO at: 80 4, size: 100 50',
+      'rectangle PV at: 80 150, size: 100 50'
+    );
+    expect(span(label).top).toBeGreaterThanOrEqual(200);
+    expect(span(label).bottom).toBeLessThanOrEqual(280);
+  });
+
+  it('with no room above or below, one line sits in the top border, ending in …', () => {
+    const { label } = layout(
+      `rectangle ${LONG} at: 0 0, size: 260 120`,
+      'rectangle Full at: 20 4, size: 220 112'
+    );
+    expect(label.onEdge).toBe(true);
+    expect(label.cy).toBe(0);
+    expect(label.lines).toHaveLength(1);
+    expect(label.lines[0]).toMatch(/\u2026$/);
+  });
+
+  it('an enclosing container does not count; an enclosed one does', () => {
+    const els = board(
+      'rectangle Region at: 0 0, size: 300 300',
+      'rectangle VCN at: 20 40, size: 260 240',
+      'rectangle PV at: 100 140, size: 100 50'
+    );
+    const outer = whiteboardShapeLabel(els[0] as WhiteboardShape, els);
+    const inner = whiteboardShapeLabel(els[1] as WhiteboardShape, els);
+    expect(span(outer).bottom).toBeLessThanOrEqual(40);
+    expect(span(inner).top).toBeGreaterThan(40);
+    expect(span(inner).bottom).toBeLessThanOrEqual(140);
+  });
+
+  it('across random boards, every top label stays inside its box and off every other shape', () => {
+    let seed = 1601;
+    const rnd = (n: number) => {
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      return Math.floor((seed / 2147483648) * n);
+    };
+    const words = [
+      'OCI',
+      'Oracle',
+      'Cloud',
+      'us-ashburn-1',
+      'production',
+      'shared',
+      'services',
+      'Kubernetes',
+      'cluster',
+    ];
+    for (let k = 0; k < 300; k++) {
+      const w = 80 + rnd(260);
+      const h = 60 + rnd(260);
+      const name = Array.from(
+        { length: 1 + rnd(12) },
+        () => words[rnd(words.length)]
+      ).join(' ');
+      const lines = [`rectangle ${name} at: 0 0, size: ${w} ${h}`];
+      for (let c = 0; c < 1 + rnd(3); c++) {
+        const cw = 10 + rnd(Math.max(1, w - 20));
+        const ch = 10 + rnd(Math.max(1, h - 20));
+        const cx = rnd(Math.max(1, w - cw));
+        const cy = rnd(Math.max(1, h - ch));
+        lines.push(`rectangle c at: ${cx} ${cy}, size: ${cw} ${ch}`);
+      }
+      const els = parseWhiteboard(['whiteboard', ...lines].join('\n')).elements;
+      const box = els[0] as WhiteboardShape;
+      const l = whiteboardShapeLabel(box, els);
+      if (l.lines.length === 0) continue;
+      const { top, bottom } = span(l);
+      const width = Math.max(
+        ...l.lines.map((t) => measureText(t, l.font, { bold: l.bold }))
+      );
+      expect(width).toBeLessThanOrEqual(whiteboardLabelWidth(box) + 0.01);
+      if (l.onEdge) {
+        expect(l.cy).toBe(box.y);
+        continue;
+      }
+      expect(top).toBeGreaterThanOrEqual(box.y);
+      expect(bottom).toBeLessThanOrEqual(box.y + box.height);
+      for (const o of els.slice(1) as WhiteboardShape[]) {
+        const clear = bottom <= o.y || top >= o.y + o.height;
+        expect(clear, `${lines.join(' | ')}`).toBe(true);
+      }
+    }
   });
 });

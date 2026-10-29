@@ -16,7 +16,9 @@
 
 import { CYLINDER_RY, QUEUE_CAP } from '../shape-caps';
 import { measureText, wrapTextToWidth } from '../utils/text-measure';
+import { whiteboardLabelPosition } from './geometry';
 import type {
+  WhiteboardElement,
   WhiteboardLabelPosition,
   WhiteboardNote,
   WhiteboardShape,
@@ -24,6 +26,12 @@ import type {
 
 /** Shape label font size, px. */
 export const WHITEBOARD_LABEL_FONT = 14;
+/** A top (container) label's font size, px, drawn semibold (#1605). */
+export const WHITEBOARD_CONTAINER_FONT = 16;
+/** A top label's weight: semibold, measured with the bold widths. */
+export const WHITEBOARD_CONTAINER_WEIGHT = 600;
+/** Clear space between a top label and the first shape under it, px. */
+const CONTAINER_GAP = 4;
 /** Sticky note text font size, px — smaller than a shape label. */
 export const WHITEBOARD_NOTE_FONT = 12;
 /** Shape label line height, as a multiple of the font size. */
@@ -137,19 +145,31 @@ export function wrapWhiteboardLabel(
  */
 export function fitWhiteboardLabel(
   label: string,
-  box: WhiteboardFitBox
+  box: WhiteboardFitBox,
+  opts: {
+    /** The size to start from, instead of the kind's own. */
+    readonly font?: number;
+    /** Measured, and so wrapped, at the bold widths. */
+    readonly bold?: boolean;
+    /** The height to fit, instead of the inner box's. */
+    readonly height?: number;
+  } = {}
 ): { lines: string[]; font: number; top: number } {
   const isNote = 'kind' in box && box.kind === 'note';
-  const full = isNote ? WHITEBOARD_NOTE_FONT : WHITEBOARD_LABEL_FONT;
+  const full =
+    opts.font ?? (isNote ? WHITEBOARD_NOTE_FONT : WHITEBOARD_LABEL_FONT);
   const pad = isNote ? WHITEBOARD_NOTE_PAD : LABEL_PAD;
   if (!label) return { lines: [], font: full, top: pad };
+  const bold = opts.bold ?? false;
   const width = whiteboardLabelWidth(box);
-  const height = whiteboardLabelHeight(box);
+  const height = opts.height ?? whiteboardLabelHeight(box);
+  const measure = (l: string, font: number): number =>
+    measureText(l, font, { bold });
   const wrap = (font: number, hardBreak: boolean): string[] =>
     label
       .split('\n')
       .flatMap((line) =>
-        line ? wrapTextToWidth(line, font, width, { hardBreak }) : ['']
+        line ? wrapTextToWidth(line, font, width, { hardBreak, bold }) : ['']
       );
   const tall = (n: number, font: number): boolean =>
     n * font * WHITEBOARD_LABEL_LINE > height;
@@ -157,7 +177,7 @@ export function fitWhiteboardLabel(
     const lines = wrap(font, false);
     if (
       !tall(lines.length, font) &&
-      lines.every((l) => measureText(l, font) <= width)
+      lines.every((l) => measure(l, font) <= width)
     )
       return { lines, font, top: pad };
   }
@@ -176,7 +196,7 @@ export function fitWhiteboardLabel(
   if (lines.length <= room) return { lines, font, top };
   const kept = lines.slice(0, room);
   let last = kept[room - 1]!;
-  while (last && measureText(`${last}\u2026`, font) > width)
+  while (last && measure(`${last}\u2026`, font) > width)
     last = [...last].slice(0, -1).join('');
   kept[room - 1] = `${last.trimEnd()}\u2026`;
   return { lines: kept, font, top };
@@ -195,4 +215,106 @@ export function whiteboardLabelCentreY(
   if (position === 'middle') return box.y + box.height / 2;
   const innerTop = box.y + (box.height - whiteboardLabelHeight(box)) / 2;
   return innerTop + blockHeight / 2;
+}
+
+/** A shape label as drawn: its lines, font, weight and vertical centre. */
+export interface WhiteboardShapeLabel {
+  readonly lines: string[];
+  readonly font: number;
+  readonly bold: boolean;
+  /** Vertical centre of the drawn block, canvas px. */
+  readonly cy: number;
+  /** Set into the top border: no room inside, so it halos in the ground. */
+  readonly onEdge: boolean;
+}
+
+/**
+ * How shape `el`'s label is drawn on `elements`, with `text` in place of
+ * its label (the app's text field passes its draft). A middle label is the
+ * fit to the shape, centred. A top label (#1601) is
+ * `WHITEBOARD_CONTAINER_FONT` semibold and never runs into another shape
+ * (#1605): it fits the strip above the highest shape, note or image
+ * overlapping the box (one that encloses the box does not count); with no
+ * room there, the strip below the lowest; with no room in either, one line
+ * set into the top border. Each fit wraps, then shrinks to the floor, then
+ * ends in `…`.
+ */
+export function whiteboardShapeLabel(
+  el: WhiteboardShape,
+  elements: readonly WhiteboardElement[],
+  text: string = el.label
+): WhiteboardShapeLabel {
+  const block = (n: number, font: number): number =>
+    n * font * WHITEBOARD_LABEL_LINE;
+  if (whiteboardLabelPosition(el, elements) === 'middle') {
+    const { lines, font } = fitWhiteboardLabel(text, el);
+    return {
+      lines,
+      font,
+      bold: false,
+      cy: el.y + el.height / 2,
+      onEdge: false,
+    };
+  }
+  const inset = (el.height - whiteboardLabelHeight(el)) / 2;
+  const innerTop = el.y + inset;
+  const innerBottom = el.y + el.height - inset;
+  let obstacleTop = innerBottom + CONTAINER_GAP;
+  let obstacleBottom = innerTop - CONTAINER_GAP;
+  for (const o of elements) {
+    if (o === el) continue;
+    if (o.kind !== 'shape' && o.kind !== 'note' && o.kind !== 'image') continue;
+    const ox1 = o.x + o.width;
+    const oy1 = o.y + o.height;
+    const overlaps =
+      o.x < el.x + el.width &&
+      ox1 > el.x &&
+      o.y < el.y + el.height &&
+      oy1 > el.y;
+    const encloses =
+      o.x <= el.x &&
+      o.y <= el.y &&
+      ox1 >= el.x + el.width &&
+      oy1 >= el.y + el.height;
+    if (!overlaps || encloses) continue;
+    obstacleTop = Math.min(obstacleTop, o.y);
+    obstacleBottom = Math.max(obstacleBottom, oy1);
+  }
+  const floorLine = block(1, WHITEBOARD_LABEL_MIN_FONT);
+  const opts = { font: WHITEBOARD_CONTAINER_FONT, bold: true };
+  const above = obstacleTop - CONTAINER_GAP - innerTop;
+  if (above >= floorLine) {
+    const fit = fitWhiteboardLabel(text, el, { ...opts, height: above });
+    const h = block(fit.lines.length, fit.font);
+    return {
+      lines: fit.lines,
+      font: fit.font,
+      bold: true,
+      cy: innerTop + h / 2,
+      onEdge: false,
+    };
+  }
+  const below = innerBottom - (obstacleBottom + CONTAINER_GAP);
+  if (below >= floorLine) {
+    const fit = fitWhiteboardLabel(text, el, { ...opts, height: below });
+    const h = block(fit.lines.length, fit.font);
+    return {
+      lines: fit.lines,
+      font: fit.font,
+      bold: true,
+      cy: innerBottom - h / 2,
+      onEdge: false,
+    };
+  }
+  const fit = fitWhiteboardLabel(text.replace(/\n/g, ' '), el, {
+    ...opts,
+    height: block(1, WHITEBOARD_CONTAINER_FONT),
+  });
+  return {
+    lines: fit.lines.slice(0, 1),
+    font: fit.font,
+    bold: true,
+    cy: el.y,
+    onEdge: true,
+  };
 }

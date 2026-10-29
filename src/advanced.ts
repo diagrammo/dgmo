@@ -396,13 +396,20 @@ export {
   fitWhiteboardLabel,
   wrapWhiteboardLabel,
   whiteboardLabelCentreY,
+  whiteboardShapeLabel,
+  WHITEBOARD_CONTAINER_FONT,
+  WHITEBOARD_CONTAINER_WEIGHT,
   whiteboardLabelHeight,
   whiteboardLabelWidth,
   whiteboardLabelShift,
   WHITEBOARD_LABEL_MIN_FONT,
   WHITEBOARD_NOTE_FONT,
 } from './whiteboard/label';
-export type { WhiteboardFitBox, WhiteboardLabelBox } from './whiteboard/label';
+export type {
+  WhiteboardFitBox,
+  WhiteboardLabelBox,
+  WhiteboardShapeLabel,
+} from './whiteboard/label';
 // Containment is the binding: an arrow/line end inside a shape attaches to it
 // and is drawn to its border. The app canvas reuses these to draw and to move
 // attached ends with their shape.

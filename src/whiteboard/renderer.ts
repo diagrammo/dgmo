@@ -32,7 +32,6 @@ import {
   RECT_RADIUS,
   clipWhiteboardConnector,
   whiteboardConnectorAttachments,
-  whiteboardLabelPosition,
   whiteboardNoteFold,
   whiteboardSegmentMidpoint,
   type WhiteboardPoint,
@@ -43,9 +42,10 @@ import {
   WHITEBOARD_LABEL_FONT as LABEL_FONT,
   WHITEBOARD_LABEL_LINE as LABEL_LINE,
   WHITEBOARD_NOTE_PAD as NOTE_PAD,
+  WHITEBOARD_CONTAINER_WEIGHT,
   fitWhiteboardLabel,
-  whiteboardLabelCentreY,
   whiteboardLabelShift,
+  whiteboardShapeLabel,
 } from './label';
 import type {
   ParsedWhiteboard,
@@ -210,8 +210,8 @@ function labelLines(label: string): string[] {
 }
 
 /** Widest of `lines` at `font` px. */
-function widest(lines: readonly string[], font: number): number {
-  return Math.max(0, ...lines.map((l) => measureText(l, font)));
+function widest(lines: readonly string[], font: number, bold = false): number {
+  return Math.max(0, ...lines.map((l) => measureText(l, font, { bold })));
 }
 
 interface Bounds {
@@ -396,16 +396,11 @@ function authoredTextBoxes(
         y1: el.y + Math.max(el.height, noteTextHeight(el)),
       });
     } else if (el.kind === 'shape' && el.label) {
-      const { lines, font } = fitWhiteboardLabel(el.label, el);
+      const { lines, font, bold, cy } = whiteboardShapeLabel(el, all);
       if (lines.length === 0) continue;
       const cx = el.x + el.width / 2 + whiteboardLabelShift(el);
       const hh = (lines.length * font * LABEL_LINE) / 2;
-      const cy = whiteboardLabelCentreY(
-        el,
-        whiteboardLabelPosition(el, all),
-        hh * 2
-      );
-      const hw = widest(lines, font) / 2;
+      const hw = widest(lines, font, bold) / 2;
       boxes.push({ x0: cx - hw, y0: cy - hh, x1: cx + hw, y1: cy + hh });
     }
   }
@@ -660,7 +655,11 @@ export function renderWhiteboard(
   /** A shape label: fitted to the shape (#1225), centred as a block. */
   const centredLabel = (
     g: GSel,
-    { lines, font }: { lines: readonly string[]; font: number },
+    {
+      lines,
+      font,
+      bold,
+    }: { lines: readonly string[]; font: number; bold: boolean },
     cx: number,
     cy: number,
     color: string,
@@ -681,6 +680,7 @@ export function renderWhiteboard(
       .attr('stroke-width', LABEL_HALO)
       .attr('stroke-linejoin', 'round')
       .attr('paint-order', 'stroke');
+    if (bold) t.attr('font-weight', WHITEBOARD_CONTAINER_WEIGHT);
     appendLines(t, lines, cx, top, lh);
   };
 
@@ -784,18 +784,14 @@ export function renderWhiteboard(
             drawQueueCard(inner, el.width, el.height, fill, stroke);
           }
         }
-        const fitted = fitWhiteboardLabel(el.label, el);
+        const label = whiteboardShapeLabel(el, parsed.elements);
         centredLabel(
           g,
-          fitted,
+          label,
           cx + whiteboardLabelShift(el),
-          whiteboardLabelCentreY(
-            el,
-            whiteboardLabelPosition(el, parsed.elements),
-            fitted.lines.length * fitted.font * LABEL_LINE
-          ),
+          label.cy,
           labelColor,
-          fill === 'none' ? halo : fill
+          label.onEdge || fill === 'none' ? halo : fill
         );
         break;
       }
