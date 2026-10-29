@@ -3995,7 +3995,7 @@ In the desktop and web app a sketch opens in the **canvas editor** (the code pan
 
 <!-- TIPS end -->
 
-A **free-form whiteboard** on an infinite canvas: rectangles, ellipses, databases, queues, sticky notes, free arrows and lines, text, pasted images and freehand ink, each at absolute pixel positions. Shapes are clean vector outlines; only ink looks hand-made. The export is cropped to the drawing plus a margin. Elements draw in kind bands, bottom to top: images, shapes (`rectangle`, `ellipse`, `database`, `queue`), sticky notes, arrows and lines, text, ink. A band always draws above the one before it, so a frame drawn after its contents never hides them. Inside a band, file order decides: a later line draws on top. No syntax sets the band.
+A **free-form whiteboard** on an infinite canvas: rectangles, ellipses, databases, queues, sticky notes, free arrows and lines, text, pasted images and freehand ink, each at absolute pixel positions. Shapes are clean vector outlines; only ink looks hand-made. The export is cropped to the drawing plus a margin. Elements draw in kind bands, bottom to top: images, shapes and sticky notes (`rectangle`, `ellipse`, `database`, `queue`, `note`), arrows and lines, text, ink. A band always draws above the one before it, so a frame drawn after its contents never hides them. Inside a band, file order decides: a later line draws on top, so a shape and a note stack either way. No syntax sets the band.
 
 ### Declaration
 

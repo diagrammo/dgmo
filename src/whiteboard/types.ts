@@ -5,7 +5,7 @@
 // Free placement on an infinite canvas: shapes, free arrows and lines, free
 // text, images and freehand ink. Every element carries absolute integer canvas pixels; the
 // renderer crops to the content. The renderer draws in kind bands (spec §39.2:
-// images, shapes, notes, arrows and lines, text, ink), file order inside a band,
+// images, shapes and notes, arrows and lines, text, ink), file order inside a band,
 // so the model keeps one ordered list rather than one list per kind.
 
 import type { DgmoError } from '../diagnostics';

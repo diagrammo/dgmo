@@ -386,8 +386,8 @@ describe('whiteboard renderer', () => {
     expect(drawn).toEqual([
       'whiteboard-image@9',
       'whiteboard-rectangle@5',
-      'whiteboard-ellipse@7',
       'whiteboard-note@6',
+      'whiteboard-ellipse@7',
       'whiteboard-arrow@4',
       'whiteboard-line@8',
       'whiteboard-text@3',

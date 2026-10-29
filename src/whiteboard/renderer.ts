@@ -935,19 +935,19 @@ export function renderWhiteboard(
 }
 
 /**
- * The kind bands, bottom to top (spec §39.2): images, shapes, sticky notes,
- * arrows and lines, text, ink. A band always draws above the one before it,
+ * The kind bands, bottom to top (spec §39.2): images, shapes and sticky
+ * notes, arrows and lines, text, ink. A band always draws above the one before it,
  * so a frame drawn after its contents never hides them and a connector never
  * hides under a shape it crosses.
  */
 const DRAW_BAND: Readonly<Record<WhiteboardElement['kind'], number>> = {
   image: 0,
   shape: 1,
-  note: 2,
-  arrow: 3,
-  line: 3,
-  text: 4,
-  ink: 5,
+  note: 1,
+  arrow: 2,
+  line: 2,
+  text: 3,
+  ink: 4,
 };
 
 /** The elements by band, file order kept inside each band. */
