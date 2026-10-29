@@ -1288,7 +1288,10 @@ interface SequenceLayout {
   stepLabels: string[];
   stepYPositions: number[];
   labelRoomBefore: number[];
-  activations: (Activation & { implicitEnd: boolean })[];
+  activations: (Activation & {
+    implicitEnd: boolean;
+    endsAfterLast: boolean;
+  })[];
   /** `null` for a bar whose participant has no column in this view. */
   activationBars: (ActivationBar | null)[];
   /** `null` for a step drawn by another (a self-call's return) or off the view. */
@@ -1686,6 +1689,11 @@ function layoutSequencePass(
           // layout, so `endStep` is not the bar's own event but whatever
           // happens next. The bar has to stop short of it — see the render.
           implicitEnd: closingStep !== undefined && !stepSurvives(closingStep),
+          // True when nothing laid out follows the dropped return — the bar
+          // belongs to the diagram's last unreturned call. `endStep` clamps
+          // back onto the bar's own start, so the bar ends where a next
+          // step WOULD sit instead (#1436); it used to draw 0 tall.
+          endsAfterLast: (allToFiltered[a.endStep] ?? 0) >= renderSteps.length,
         };
       });
   // Vertical spacing is NOT compressed by ScaleContext — the container scrolls
@@ -2194,7 +2202,8 @@ function layoutSequencePass(
       }
     });
     for (const act of activations) {
-      if (!act.implicitEnd || act.endStep <= act.startStep) continue;
+      if (!act.implicitEnd || act.endsAfterLast) continue;
+      if (act.endStep <= act.startStep) continue;
       const step = renderSteps[act.endStep];
       if (!step || step.from === step.to) continue;
       // Its own arrow is supposed to touch it
@@ -2238,6 +2247,7 @@ function layoutSequencePass(
   const stepYPositions: number[] = [];
   const sectionYPositions = new Map<number, number>(); // section lineNumber → Y
   let layoutEndY: number; // final Y after all steps and trailing sections
+  let stepsEndY: number; // where a step after the last one would sit
   {
     let curY = lifelineStartY0 + messageStartOffset;
     for (let i = 0; i < renderSteps.length; i++) {
@@ -2264,6 +2274,7 @@ function layoutSequencePass(
       const isSelfCall = step.type === 'call' && step.from === step.to;
       curY += isSelfCall ? sSelfCallHeight + 25 : stepSpacing;
     }
+    stepsEndY = curY;
     // Handle trailing sections (after all steps)
     for (const sec of trailingSections) {
       const bandPad = collapsedBandPad(sec);
@@ -3036,9 +3047,11 @@ function layoutSequencePass(
     // with it. What extra space does fix is a crossing LABEL, so the room
     // `labelRoomBefore` inserted before the next step lies below every
     // implicitly-ended bar: the bar ends where it would have, the row moves.
-    const rawY2 = stepY(act.endStep);
-    const implicitY2 =
-      rawY2 - labelRoomBefore[act.endStep]! - ACTIVATION_IMPLICIT_END_CLEARANCE;
+    // A bar with nothing after it ends where the next step would sit, so it
+    // is as tall as any other unreturned bar followed by a plain step.
+    const rawY2 = act.endsAfterLast ? stepsEndY : stepY(act.endStep);
+    const roomBefore = act.endsAfterLast ? 0 : labelRoomBefore[act.endStep]!;
+    const implicitY2 = rawY2 - roomBefore - ACTIVATION_IMPLICIT_END_CLEARANCE;
     const y2 =
       act.implicitEnd && implicitY2 > y1 + sActivationWidth
         ? implicitY2

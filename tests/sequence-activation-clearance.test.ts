@@ -296,3 +296,72 @@ describe('activation bars and message labels', () => {
     for (const gap of gaps) expect(gap).toBe(35);
   });
 });
+
+// ============================================================
+// The last unreturned call still gets a bar (#1436)
+// ============================================================
+//
+// A bar with no return ends where the next step sits. The diagram's last call
+// has no next step, so its end clamped back onto its own start and the bar drew
+// 0 tall — inferred, and invisible. It now ends where a next step WOULD sit.
+
+describe('activation bar on the last unreturned call', () => {
+  // Exactly what the reporter had, from the app (#1436).
+  const reported = [
+    'sequence Guest Checkout',
+    '// high level',
+    '',
+    '== Buy Tickets ==',
+    'Fan -fill cart-> MPV',
+    'Fan -guest checkout-> MPV',
+    'note',
+    '  - ReCaptcha',
+    '  - Real-Time Fraud',
+    'MPV -checkout-> PV',
+    'PV -send email-> Mandril',
+    'note Has to be branded for client',
+    '',
+    '== Access Tickets in MPV ==',
+    'Fan -get email-> Mandril',
+    'Fan -follow link-> MPV',
+    'Fan -authenticate-> MPV',
+    'note  Fan needs to auth or create an account',
+    'Fan -ticket access-> MPV',
+  ].join('\n');
+
+  const height = (b: Bar): number => b.bottom - b.top;
+
+  it('draws the last call its bar, as tall as an earlier unreturned one', () => {
+    const bars = activationBars(render('A -one-> B\nA -last-> B'));
+    expect(bars).toHaveLength(2);
+    const [first, last] = [...bars].sort((a, b) => a.top - b.top);
+    expect(height(first!)).toBeGreaterThan(0);
+    expect(height(last!)).toBeCloseTo(height(first!), 5);
+  });
+
+  it("draws the reporter's 'ticket access' bar where that arrow lands", () => {
+    const svg = render(reported);
+    const lastLine = Math.max(...messageLines(svg).map((l) => l.y));
+    const bar = activationBars(svg).find(
+      (b) => Math.abs(b.top - lastLine) < 0.5
+    );
+    expect(bar).toBeDefined();
+    const shortBar = activationBars(render('A -one-> B\nA -last-> B'))[0]!;
+    expect(height(bar!)).toBeGreaterThan(0);
+    expect(height(bar!)).toBeCloseTo(height(shortBar), 5);
+  });
+
+  it('covers its own outgoing last message on the sender', () => {
+    // B is still busy when it calls C, so B's bar runs past that arrow.
+    const svg = render('A -ask-> B\nB -fetch-> C');
+    const lastLine = Math.max(...messageLines(svg).map((l) => l.y));
+    const bars = activationBars(svg);
+    expect(bars).toHaveLength(2);
+    for (const bar of bars) expect(bar.bottom).toBeGreaterThan(lastLine);
+  });
+
+  it('still draws no bar when the last message is a return or async', () => {
+    expect(activationBars(render('A -ask-> B\nB -ok-> A'))).toHaveLength(1);
+    expect(activationBars(render('A -ping~> B'))).toHaveLength(0);
+  });
+});
