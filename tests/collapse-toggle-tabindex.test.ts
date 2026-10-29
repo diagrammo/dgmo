@@ -5,9 +5,10 @@
 // every node of a big chart before it leaves the preview. It keeps its role,
 // aria-expanded and aria-label: the role is how the app finds it.
 //
-// Four toggles the selection cannot reach (no data-line-number) keep their
-// Tab stop, since it is the keyboard's only way in: the two sequence group
-// toggles, the legend pills and the swimlane icons.
+// The two sequence group toggles joined them by their `[Name]` line (#1435).
+// The toggles the selection cannot reach (no data-line-number) keep their
+// Tab stop, since it is the keyboard's only way in: the legend pills and the
+// swimlane icons.
 import { describe, it, expect, beforeAll } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { select } from 'd3-selection';
@@ -149,6 +150,29 @@ describe('toggles the selection reaches take no Tab stop (#1434)', () => {
     expectNoTabStop(only(doc, '[data-section-toggle]'));
   });
 
+  it('sequence — the expanded group box and the collapsed group participant (#1435)', async () => {
+    const GROUP_LINE = '2'; // `[Backend]`
+    const expanded = only(
+      await svgOf(SEQUENCE),
+      '.group-box-wrapper[data-group-toggle]'
+    );
+    const collapsed = only(
+      await svgOf(SEQUENCE, { cg: [GROUP_LINE] }),
+      '.participant[data-group-toggle]'
+    );
+    for (const el of [expanded, collapsed]) {
+      expect(el.getAttribute('data-line-number')).toBe(GROUP_LINE);
+      expect(el.getAttribute('data-group-line')).toBe(GROUP_LINE);
+      expectNoTabStop(el);
+      expect(el.hasAttribute('aria-label')).toBe(true);
+      // Only the toggle carries the line: a child with one would take the
+      // click as line navigation before it reached data-group-toggle.
+      expect(el.querySelector('[data-line-number]')).toBeNull();
+    }
+    expect(expanded.getAttribute('aria-expanded')).toBe('true');
+    expect(collapsed.getAttribute('aria-expanded')).toBe('false');
+  });
+
   it('note box — the expanded box and the collapsed badge', () => {
     const palette = getPalette('nord').light;
     const svg = select(document.body).append('svg');
@@ -171,13 +195,6 @@ describe('toggles the selection reaches take no Tab stop (#1434)', () => {
 });
 
 describe('toggles the selection cannot reach keep their Tab stop (#1434)', () => {
-  it('sequence — the expanded group box and the collapsed group participant', async () => {
-    const expanded = await svgOf(SEQUENCE);
-    expectTabStop(only(expanded, '.group-box-wrapper[data-group-toggle]'));
-    const collapsed = await svgOf(SEQUENCE, { cg: ['2'] }); // group's line
-    expectTabStop(only(collapsed, '.participant[data-group-toggle]'));
-  });
-
   it('legend — the tag-group pill', () => {
     const svg = select(document.body).append('svg');
     const g = svg.append('g');

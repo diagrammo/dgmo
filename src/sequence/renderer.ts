@@ -3518,8 +3518,13 @@ export function renderSequenceDiagram(
     if (collapsible) groupG.attr('data-group-toggle', '');
     groupG.attr('data-group-line', String(group.lineNumber));
     if (collapsible) {
+      // The `[Name]` line puts the toggle in reach of the preview selection,
+      // which walks data-line-number and operates the line's role="button" on
+      // Enter — so it takes no Tab stop of its own (#1090, #1435). Only this
+      // <g> carries it: a child with one would resolve to line navigation
+      // before the click walk-up reaches data-group-toggle.
       groupG
-        .attr('tabindex', '0')
+        .attr('data-line-number', String(group.lineNumber))
         .attr('role', 'button')
         .attr('aria-expanded', 'true')
         .attr('aria-label', groupToggleName(group.name, group.participantIds))
@@ -3636,7 +3641,9 @@ export function renderSequenceDiagram(
       participantG
         .attr('data-group-toggle', '')
         .attr('data-group-line', String(meta.lineNumber))
-        .attr('tabindex', '0')
+        // In the selection's reach by its `[Name]` line, like the expanded
+        // wrapper above, so no Tab stop (#1435).
+        .attr('data-line-number', String(meta.lineNumber))
         .attr('role', 'button')
         .attr('aria-expanded', 'false')
         .attr('aria-label', groupToggleName(meta.name, meta.participantIds))
