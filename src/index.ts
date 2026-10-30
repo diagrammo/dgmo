@@ -282,6 +282,17 @@ export {
   defaultEmbedBackground,
 } from './utils/svg-embed';
 export type { NormalizeSvgForEmbedOptions } from './utils/svg-embed';
+// Export framing (#1638): render() and renderForExport() already apply it;
+// exported for a host that serializes its own live SVG for export.
+export {
+  fitSvgToContent,
+  measureSvgContent,
+  EXPORT_FIT_PAD,
+} from './utils/export-fit';
+export type {
+  FitSvgToContentOptions,
+  ContentMeasurement,
+} from './utils/export-fit';
 
 // ============================================================
 // Map chart-type completion (gazetteer-fed; §24B.5/.8)

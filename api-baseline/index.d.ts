@@ -64,6 +64,42 @@ declare function getEmbedSvgViewBox(svg: string): {
     height: number;
 } | null;
 
+/** Air left around the measured content, in px — a little more than the embed's 16. */
+declare const EXPORT_FIT_PAD = 24;
+interface Box {
+    x0: number;
+    y0: number;
+    x1: number;
+    y1: number;
+}
+interface ContentMeasurement {
+    /** Union of everything drawn, in root user space; null when nothing was. */
+    box: Box | null;
+    /** False when some drawn element could not be placed — do not trim. */
+    complete: boolean;
+}
+/**
+ * Measure what an SVG draws, in root user space, composing every transform.
+ * `complete` is false when something drawn could not be placed.
+ */
+declare function measureSvgContent(svg: string): ContentMeasurement;
+interface FitSvgToContentOptions {
+    /** The width the caller asked the renderer for, if any. */
+    width?: number;
+    /** The height the caller asked the renderer for, if any. */
+    height?: number;
+}
+/**
+ * Shrink an exported SVG's frame to what it draws plus EXPORT_FIT_PAD, under
+ * the trust rule at the top of this file. Returns the input unchanged when
+ * the measurement is incomplete or the trim would be too small to matter.
+ *
+ * A caller that asked for a size gets it: when the renderer drew onto the
+ * requested canvas, the fitted frame is scaled back up to that width (and/or
+ * height, whichever binds first) — fit first, then the requested scale.
+ */
+declare function fitSvgToContent(svg: string, opts?: FitSvgToContentOptions): string;
+
 interface MountD3Opts {
     theme?: 'light' | 'dark' | 'transparent';
     palette?: string;
@@ -295,5 +331,5 @@ interface DecodedDiagramUrl {
  */
 declare function decodeDiagramUrl(url: string): DecodedDiagramUrl | null;
 
-export { CompactViewState, D3_DATA_CHART_TYPES, DgmoError, DiagnosticSpec, MapDataSource, PaletteConfig, Theme, attachDataChartInteractions, decodeDiagramUrl, defaultEmbedBackground, encodeDiagramUrl, getDiagnosticSpec, getEmbedSvgViewBox, listDiagnosticCodes, mountD3DataChart, normalizeSvgForEmbed, render, sanitizeSvgInPlace, supportsD3DataChart };
-export type { DataChartInteractionOpts, DecodedDiagramUrl, EncodeDiagramUrlOptions, MountD3Opts, MountedD3Chart, NormalizeSvgForEmbedOptions, RenderOptions, RenderResult };
+export { CompactViewState, D3_DATA_CHART_TYPES, DgmoError, DiagnosticSpec, EXPORT_FIT_PAD, MapDataSource, PaletteConfig, Theme, attachDataChartInteractions, decodeDiagramUrl, defaultEmbedBackground, encodeDiagramUrl, fitSvgToContent, getDiagnosticSpec, getEmbedSvgViewBox, listDiagnosticCodes, measureSvgContent, mountD3DataChart, normalizeSvgForEmbed, render, sanitizeSvgInPlace, supportsD3DataChart };
+export type { ContentMeasurement, DataChartInteractionOpts, DecodedDiagramUrl, EncodeDiagramUrlOptions, FitSvgToContentOptions, MountD3Opts, MountedD3Chart, NormalizeSvgForEmbedOptions, RenderOptions, RenderResult };

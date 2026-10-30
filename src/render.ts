@@ -1,5 +1,6 @@
 import { renderForExport, resolveArcChordOverride } from './d3';
 import { renderDataChartD3 } from './charts-d3';
+import { fitSvgToContent } from './utils/export-fit';
 import { injectHoverStyles } from './utils/hover-styles';
 import { applyRootA11y, applyRootDesc } from './utils/root-a11y';
 import { summarizeDiagram } from './utils/diagram-summary';
@@ -362,10 +363,20 @@ export async function render(
     // All data-chart types render through the hand-built D3 engine (no ECharts).
     await acquireDom();
     try {
-      const raw = await renderDataChartD3(renderContent, theme, paletteColors, {
+      const sizeRequest = {
         ...(options?.width !== undefined && { width: options.width }),
         ...(options?.height !== undefined && { height: options.height }),
-      });
+      };
+      // Framed to what it draws (#1638), as renderForExport frames the rest.
+      const raw = fitSvgToContent(
+        await renderDataChartD3(
+          renderContent,
+          theme,
+          paletteColors,
+          sizeRequest
+        ),
+        sizeRequest
+      );
       // Bake pure-CSS hover while jsdom is still installed (the injector scans
       // the SVG DOM for group values). No-op unless `chartType` has a registry
       // row and `bakeHover` is on.

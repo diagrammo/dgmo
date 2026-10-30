@@ -5,6 +5,25 @@ All notable changes to `@diagrammo/dgmo` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **An export is framed to its diagram, not to the sheet it was drawn
+  on** (minor: export output changes). Charts that centre their drawing
+  on the 1200 x 800 export sheet — sequence, ring, pyramid, cycle, venn,
+  pie, radar, funnel and others — used to export with bands of
+  background on either side. `renderForExport()` and `render()` (so the
+  CLI and the MCP server too) now shrink the frame to what is drawn plus
+  `EXPORT_FIT_PAD`, repaint the background at the new bounds, and size
+  the root width and height to match, so a PNG is the size of the
+  diagram. A requested `width` / `height` still applies, after the fit.
+  The frame only shrinks when every drawn element could be measured; a
+  chart that cannot be (a map) keeps its canvas. Charts that already
+  size themselves from their content are unchanged. `fitSvgToContent`
+  and `measureSvgContent` are exported for a host that serializes its
+  own live SVG for export.
+
 ## [0.95.0] - 2026-10-29
 
 ### Added

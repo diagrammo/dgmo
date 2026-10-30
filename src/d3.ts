@@ -13,6 +13,10 @@ import type { PaletteColors } from './palettes';
 import type { CompactViewState } from './sharing';
 import { parseArc } from './arc/parser';
 import { EXPORT_HEIGHT, EXPORT_WIDTH } from './utils/d3-helpers';
+import {
+  fitSvgToContent,
+  type FitSvgToContentOptions,
+} from './utils/export-fit';
 import type {
   DiagramExportHandler,
   ExportContext,
@@ -199,10 +203,13 @@ export async function renderForExport(
       // 2026-08-29, so a data chart routed through renderForExport — the app's
       // markdown export, the marketing site's hero — silently ignored a
       // requested width that `render()` honoured (#532).
-      return renderDataChartD3(renderContent, theme, palette, {
-        ...(options?.width !== undefined && { width: options.width }),
-        ...(options?.height !== undefined && { height: options.height }),
-      });
+      return fitSvgToContent(
+        await renderDataChartD3(renderContent, theme, palette, {
+          ...(options?.width !== undefined && { width: options.width }),
+          ...(options?.height !== undefined && { height: options.height }),
+        }),
+        exportFitRequest(options)
+      );
     }
   }
   const ctx: ExportContext = {
@@ -240,5 +247,19 @@ export async function renderForExport(
   // exportVisualization.
   const handler =
     detectedType !== null ? DIAGRAM_EXPORT_HANDLERS[detectedType] : undefined;
-  return (handler ?? exportVisualization)(ctx);
+  // Every export leaves here framed to what it draws, not to the sheet it was
+  // drawn on (#1638) — see the trust rule in utils/export-fit.ts.
+  return fitSvgToContent(
+    await (handler ?? exportVisualization)(ctx),
+    exportFitRequest(options)
+  );
+}
+
+function exportFitRequest(
+  options?: RenderForExportOptions
+): FitSvgToContentOptions {
+  return {
+    ...(options?.width !== undefined && { width: options.width }),
+    ...(options?.height !== undefined && { height: options.height }),
+  };
 }

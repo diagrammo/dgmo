@@ -166,7 +166,7 @@ function stripRootBackground(svg: string): string {
 function isFullCanvasFill(
   tag: string,
   bgColor: string,
-  canvas: { w: number; h: number }
+  canvas: { x: number; y: number; w: number; h: number }
 ): boolean {
   const fm = tag.match(/\bfill="([^"]*)"/);
   if (!fm || normalizeColor(fm[1]!) !== bgColor) return false;
@@ -177,22 +177,30 @@ function isFullCanvasFill(
   const y = numAttr(tag, 'y') ?? 0;
   const T = 1.5; // sub-pixel tolerance
   return (
-    Math.abs(x) <= T &&
-    Math.abs(y) <= T &&
+    Math.abs(x - canvas.x) <= T &&
+    Math.abs(y - canvas.y) <= T &&
     Math.abs(w - canvas.w) <= T &&
     Math.abs(h - canvas.h) <= T
   );
 }
 
+/**
+ * The canvas the root background was painted over. The viewBox wins: an
+ * export fitted to its content (utils/export-fit.ts) has a viewBox that need
+ * not start at 0,0 and a root size that may be scaled, and its background
+ * rect is painted over the viewBox.
+ */
 function rootCanvas(
   rootTag: string,
   svg: string
-): { w: number; h: number } | null {
+): { x: number; y: number; w: number; h: number } | null {
+  const vb = readViewBox(svg);
+  if (vb) return { x: vb.x, y: vb.y, w: vb.width, h: vb.height };
   const wm = rootTag.match(/\bwidth="([\d.]+)"/);
   const hm = rootTag.match(/\bheight="([\d.]+)"/);
-  if (wm && hm) return { w: parseFloat(wm[1]!), h: parseFloat(hm[1]!) };
-  const vb = readViewBox(svg);
-  return vb ? { w: vb.width, h: vb.height } : null;
+  if (wm && hm)
+    return { x: 0, y: 0, w: parseFloat(wm[1]!), h: parseFloat(hm[1]!) };
+  return null;
 }
 
 function numAttr(tag: string, name: string): number | null {
@@ -241,7 +249,7 @@ export function getEmbedSvgViewBox(
 }
 
 /** Read the root `<svg>` viewBox as numbers, if present and well-formed. */
-function readViewBox(
+export function readViewBox(
   svg: string
 ): { x: number; y: number; width: number; height: number } | null {
   const m = svg.match(/<svg[^>]*?\bviewBox="([^"]+)"/);
