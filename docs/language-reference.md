@@ -431,6 +431,25 @@ A block must have every key, hex only, text readable on its fills, and a name th
 
 **Who wins**, highest first: an explicit choice where the diagram is shown (a fence `palette=` attribute, `--palette` on the command line), then the file's palette, then the site's or app's own setting, then Slate. `theme` is retired — the mode word on the palette line does its job.
 
+### 1.11 Line Breaks in Description and Note Bodies
+
+A line break in the source is **not** a line break in the drawing. Consecutive body lines join into one paragraph and re-wrap to fit the card, so you can break prose wherever is comfortable in the editor. Two things keep a break:
+
+- **A blank line** starts a new paragraph, with a gap above it.
+- **A trailing `\`** breaks the line without starting a new paragraph (markdown's hard break).
+
+A `- ` line always starts its own bullet. A plain line straight after a bullet continues that bullet; a blank line returns to prose.
+
+```
+2026-09-28 67.10.0 deployed
+  *9:00 AM* \
+  Existing refresh code already deletes opted-out cards.
+```
+
+Without the `\`, the time and the sentence join into one line: `9:00 AM Existing refresh code…`.
+
+This applies to event-line descriptions, pyramid, ring and cycle descriptions, boxes-and-lines descriptions, and multi-line note bodies (sequence, flowchart, state, class, ER, journey-map, countdown).
+
 ---
 
 ## 2. Universal Name Handling
@@ -753,6 +772,7 @@ Content formatting:
 - Inline markdown: `**bold**`, `*italic*`, `` `code` ``
 - Links: `[text](url)` and bare URLs (auto-truncated in display)
 - The note ends where the indentation does — there is **no `end` terminator** (a bare `end` line is rejected).
+- Body lines join into one paragraph — a blank line or a trailing `\` keeps a break (§1.11).
 
 ### 2.6 Structural Blocks
 
@@ -2765,7 +2785,7 @@ tag Genre as g
 - **Date** — optional, ISO only (`YYYY`, `YYYY-MM`, `YYYY-MM-DD`, `+HH:MM` / `+HH:MM:SS`, plus `YYYY BCE`/`BC`/`CE`/`AD`), formatted for reading as the card subtitle (`2008-09-02` → `Sep 2, 2008`). No `date:` key; no `M/D/YYYY`.
 - **`TBD` (future events)** — write the literal `TBD` (case-insensitive) in the date slot for a **not-yet-scheduled** event: `TBD Console Port  t: Engine`. Its caption reads `TBD` and it draws a **hollow dot + faded leader** (a faded shelf edge in `no-box`) so it reads as pending. To scale, its position is **inferred from its source-order dated neighbors**: a `TBD` followed by a dated event is interpolated into that gap; a **trailing** `TBD` (nothing dated after it) parks past the last real date and the spine **trails off dashed** — the open horizon. `TBD`s never trip the bad-date / out-of-order warnings.
 - **Tag** — trailing same-line metadata (`g: Pop`), like timeline; colors the dot, leader, and card.
-- **Description** — bare indented body lines (like `pyramid`/`ring`); `- ` makes a bullet; inline markdown (`**bold**`, `*italic*`, `` `code` ``) supported.
+- **Description** — bare indented body lines (like `pyramid`/`ring`); `- ` makes a bullet; inline markdown (`**bold**`, `*italic*`, `` `code` ``) supported. Lines join into one paragraph — a blank line or a trailing `\` keeps a break (§1.11).
 
 #### Eras
 
@@ -3352,7 +3372,7 @@ Act red
 
 ### Descriptions
 
-Indented lines under a node become the description. Inline markdown is supported (`**bold**`, `*italic*`, `` `code` ``, `[links](url)`), and `- item` renders as `• item`.
+Indented lines under a node become the description. Inline markdown is supported (`**bold**`, `*italic*`, `` `code` ``, `[links](url)`), and `- item` renders as `• item`. Lines join into one paragraph — a blank line or a trailing `\` keeps a break (§1.11).
 
 ```
 Observe
@@ -3635,7 +3655,7 @@ Physiological orange
 
 ### Descriptions
 
-Indented lines under a layer are description text. Markdown inline formatting (`**bold**`, `*italic*`, `` `code` ``, `[links](url)`) is supported. Bullets written as `- item` render as `• item`.
+Indented lines under a layer are description text. Markdown inline formatting (`**bold**`, `*italic*`, `` `code` ``, `[links](url)`) is supported. Bullets written as `- item` render as `• item`. Lines join into one paragraph — a blank line or a trailing `\` keeps a break (§1.11).
 
 ### Directives
 
@@ -3704,7 +3724,7 @@ The Open Sea cyan
 
 ### Descriptions
 
-Indented lines under a layer are description text. Markdown inline formatting is supported. Bullets written as `- item` render as `• item`. Descriptions appear in a stacked side list with colored accent bars.
+Indented lines under a layer are description text. Markdown inline formatting is supported. Bullets written as `- item` render as `• item`. Lines join into one paragraph — a blank line or a trailing `\` keeps a break (§1.11). Descriptions appear in a stacked side list with colored accent bars.
 
 ### Directives
 
