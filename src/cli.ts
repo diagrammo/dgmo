@@ -31,6 +31,7 @@ import { encodeDiagramUrl } from './sharing';
 import { resolveOrgImports } from './org/resolver';
 import { normalizePertSourceForShare } from './pert/share-normalize';
 import { renderBanner } from './cli-banner';
+import { skillsInstallNote } from './cli-install-notes';
 import { owningPackageManager, linuxClipboardCommand } from './cli-host';
 import { runCloudCommand } from './cli-cloud';
 import { searchMapLocations } from './map/completion';
@@ -74,7 +75,7 @@ const readClaudeSkill = (): string =>
 const readCodexSkill = (): string => readPackagedFile('SKILL.md');
 
 // Sibling Claude Code slash-command files shipped alongside dgmo.md
-// (dgmo-diagram-this, dgmo-document-project, dgmo-codebase-report, ...). dgmo.md
+// (dgmo-diagram-this, dgmo-document-project, ...). dgmo.md
 // is single-sourced via readClaudeSkill(); these are copied verbatim. Returns
 // the *.md basenames in .claude/commands, dgmo.md excluded.
 const listPackagedCommands = (): string[] => {
@@ -86,12 +87,6 @@ const listPackagedCommands = (): string[] => {
     return [];
   }
 };
-
-// The /dgmo-codebase-report command, re-skinned as a Codex skill: same body,
-// single-sourced from the Claude command file, with Codex frontmatter prepended
-// so it never drifts from the maintained original.
-const readCodexCodebaseReportSkill = (): string =>
-  `---\nname: dgmo-codebase-report\ndescription: Use when the user wants an architecture or onboarding report for a codebase — a single Markdown document explaining how the system works, with embedded DGMO diagrams (module/dependency map, C4, sequence, ER, infra). Produces committable Markdown with \`\`\`dgmo fences, not images.\n---\n\n${readPackagedFile('.claude', 'commands', 'dgmo-codebase-report.md')}`;
 
 const CODEX_AGENTS_NOTE_MARKER = '<!-- dgmo-integration -->';
 const CODEX_AGENTS_NOTE = `${CODEX_AGENTS_NOTE_MARKER}
@@ -833,6 +828,7 @@ function runInstallCommand(args: string[]): void {
     runOneInstall(target, opts);
     console.log('\nRestart the assistant to activate the dgmo tools.');
     console.log('(Re-run `dgmo install` after upgrading dgmo to refresh.)');
+    for (const line of skillsInstallNote()) console.log(line);
     return;
   }
 
@@ -853,6 +849,7 @@ function runInstallCommand(args: string[]): void {
   }
   console.log('Done. Restart your AI assistant(s) to activate the dgmo tools.');
   console.log('(Re-run `dgmo install` after upgrading dgmo to refresh.)');
+  for (const line of skillsInstallNote()) console.log(line);
 }
 
 function installClaudeCode(opts: InstallOpts): void {
@@ -864,8 +861,7 @@ function installClaudeCode(opts: InstallOpts): void {
     readClaudeSkill(),
     'Skill → ~/.claude/commands/dgmo.md'
   );
-  // Sibling slash commands (/dgmo-codebase-report, /dgmo-diagram-this,
-  // /dgmo-document-project). They ship in the package but were previously never
+  // Sibling slash commands (/dgmo-diagram-this, /dgmo-document-project). They ship in the package but were previously never
   // installed — copy them so the commands actually land for the user.
   for (const name of listPackagedCommands()) {
     writeOut(
@@ -919,14 +915,6 @@ function installCodex(opts: InstallOpts): void {
     join(homedir(), '.codex', 'skills', 'dgmo-diagramming', 'SKILL.md'),
     readCodexSkill(),
     'Skill → ~/.codex/skills/dgmo-diagramming/SKILL.md'
-  );
-
-  // Codebase-report skill (single-sourced from the Claude command file).
-  writeOut(
-    opts,
-    join(homedir(), '.codex', 'skills', 'dgmo-codebase-report', 'SKILL.md'),
-    readCodexCodebaseReportSkill(),
-    'Skill → ~/.codex/skills/dgmo-codebase-report/SKILL.md'
   );
 
   // Non-destructive AGENTS.md note: only append to an existing file, never create.

@@ -25,7 +25,6 @@ const SURFACES = [
   '.windsurfrules',
   '.github/copilot-instructions.md',
   '.claude/commands/dgmo.md',
-  '.claude/commands/dgmo-codebase-report.md',
 ];
 
 describe('CLI install instructions (#921)', () => {
