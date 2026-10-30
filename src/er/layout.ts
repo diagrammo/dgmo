@@ -1,4 +1,11 @@
 import dagre from '@dagrejs/dagre';
+import type {
+  EdgeLabel,
+  Graph,
+  GraphLabel,
+  NodeLabel,
+  Point,
+} from '@dagrejs/dagre';
 import {
   searchPlacement,
   type Pt,
@@ -157,8 +164,19 @@ function findConnectedComponents(
 // Per-component layout (independent dagre run)
 // ============================================================
 
-const newDagreGraph = () => new dagre.graphlib.Graph({ multigraph: true });
-type DagreGraph = ReturnType<typeof newDagreGraph>;
+const newDagreGraph = () =>
+  new dagre.graphlib.Graph<GraphLabel, NodeLabel, EdgeLabel>({
+    multigraph: true,
+  });
+// Read only after `layoutInPlace`, so every node has its x and y.
+type DagreGraph = Graph<GraphLabel, NodeLabel & Point, EdgeLabel>;
+
+/** Runs `dagre.layout()` on `g`, which sets every node's x and y in place. */
+function layoutInPlace(
+  g: Graph<GraphLabel, NodeLabel, EdgeLabel>
+): asserts g is DagreGraph {
+  dagre.layout(g);
+}
 
 interface ComponentLayout {
   /** Node center positions relative to this component's top-left origin */
@@ -226,7 +244,10 @@ function layoutComponent(
   // One dagre placement. `shuffle` (a seeded search candidate, #1240) varies
   // the insertion order of tables and relationships, which is what dagre's
   // within-rank ordering starts from.
-  const place = (ranker: string, shuffle?: Shuffle): DagreGraph => {
+  const place = (
+    ranker: NonNullable<GraphLabel['ranker']>,
+    shuffle?: Shuffle
+  ): DagreGraph => {
     const ord = shuffle ?? (<T>(a: readonly T[]): T[] => a.slice());
     const g = newDagreGraph();
     g.setGraph({
@@ -264,7 +285,7 @@ function layoutComponent(
         String(rel.lineNumber)
       );
     }
-    dagre.layout(g);
+    layoutInPlace(g);
     return g;
   };
 
@@ -278,8 +299,7 @@ function layoutComponent(
     edges: rels.map((r) => ({
       source: r.source,
       target: r.target,
-      points: (lay.edge(r.source, r.target, String(r.lineNumber))?.points ??
-        []) as Pt[],
+      points: lay.edge(r.source, r.target, String(r.lineNumber))?.points ?? [],
     })),
   }));
   const routeOf = (i: number, rel: ERRelationship): Pt[] =>

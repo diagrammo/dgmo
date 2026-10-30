@@ -60,10 +60,12 @@ export default tseslint.config(
       '@typescript-eslint/restrict-template-expressions': 'error',
       // Every site removed by its autofix (#1393); now an error so none return.
       '@typescript-eslint/no-unnecessary-type-assertion': 'error',
-      // Disable noisy type-checked rules that don't catch real bugs
+      // Still off, by their site counts on 2026-10-30 (#1530):
+      // no-unsafe-assignment 128, no-unsafe-member-access 272.
       '@typescript-eslint/no-unsafe-assignment': 'off',
       '@typescript-eslint/no-unsafe-member-access': 'off',
-      '@typescript-eslint/no-unsafe-argument': 'off',
+      // Every site typed (#1530); now an error so none return.
+      '@typescript-eslint/no-unsafe-argument': 'error',
     },
   },
   security.configs.recommended,

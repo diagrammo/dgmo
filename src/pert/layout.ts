@@ -6,7 +6,13 @@
 // in its own store and feeds an override map into `relayoutPert`.
 
 import dagre from '@dagrejs/dagre';
-import type { EdgeLabel, GraphLabel, NodeLabel, Point } from '@dagrejs/dagre';
+import type {
+  EdgeLabel,
+  Graph,
+  GraphLabel,
+  NodeLabel,
+  Point,
+} from '@dagrejs/dagre';
 import type {
   ResolvedPert,
   LayoutResult,
@@ -25,9 +31,14 @@ import { measureText } from '../utils/text-measure';
 
 // The post-layout passes below read nodes after `dagre.layout()`, which
 // sets every node's x and y.
-type DagreGraph = InstanceType<
-  typeof dagre.graphlib.Graph<GraphLabel, NodeLabel & Point, EdgeLabel>
->;
+type DagreGraph = Graph<GraphLabel, NodeLabel & Point, EdgeLabel>;
+
+/** Runs `dagre.layout()` on `g`, which sets every node's x and y in place. */
+function layoutInPlace(
+  g: Graph<GraphLabel, NodeLabel, EdgeLabel>
+): asserts g is DagreGraph {
+  dagre.layout(g);
+}
 
 // Textbook 3×3 PERT/CPM box: top row [ES | dur | EF], middle row
 // [name spanning all three columns], bottom row [LS | slack | LF].
@@ -258,7 +269,7 @@ export function relayoutPert(
   }
   const dagreId = (id: string): string => memberToGroup.get(id) ?? id;
 
-  const g = new dagre.graphlib.Graph();
+  const g = new dagre.graphlib.Graph<GraphLabel, NodeLabel, EdgeLabel>();
   g.setGraph({
     rankdir: resolved.options.direction,
     nodesep: 50,
@@ -307,7 +318,7 @@ export function relayoutPert(
     g.setEdge(src, tgt, {});
   }
 
-  dagre.layout(g);
+  layoutInPlace(g);
 
   // When the diagram has any expanded group, switch to swim-lane layout:
   // ungrouped activities merge into the largest group's lane (the

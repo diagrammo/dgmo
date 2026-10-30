@@ -17,6 +17,7 @@ import {
   searchBudget,
 } from '../boxes-and-lines/layout-search';
 import type { BLLayoutResult } from '../boxes-and-lines/layout';
+import type { GraphLabel } from '@dagrejs/dagre';
 
 export type Pt = { readonly x: number; readonly y: number };
 
@@ -41,7 +42,9 @@ export interface ScoredPlacement {
   }[];
 }
 
-const SEARCH_RANKERS = ['tight-tree', 'longest-path'];
+type Ranker = NonNullable<GraphLabel['ranker']>;
+
+const SEARCH_RANKERS: Ranker[] = ['tight-tree', 'longest-path'];
 // Seed-shuffles tried, below the boxes-and-lines count. The callers lay out
 // synchronously, so every candidate (~27 ms of dagre on a 9-node state
 // diagram) blocks the editor. On the 13 flowchart and state fixtures every
@@ -86,7 +89,7 @@ function shuffler(seed: number): Shuffle {
  */
 export function searchPlacement<G>(
   direction: string,
-  place: (ranker: string, shuffle?: Shuffle) => G,
+  place: (ranker: Ranker, shuffle?: Shuffle) => G,
   score: (g: G) => ScoredPlacement
 ): { g: G; edgePoints?: Pt[][] } {
   const asScored = (g: G): BLLayoutResult => {
@@ -125,11 +128,11 @@ export function searchPlacement<G>(
   const plainBack = backward(bestLay);
 
   const budget = searchBudget(bestLay.nodes.length, bestLay.edges.length);
-  const configs: { ranker: string; seed?: number }[] = [
+  const configs: { ranker: Ranker; seed?: number }[] = [
     ...SEARCH_RANKERS.map((ranker) => ({ ranker })),
     ...Array.from(
       { length: Math.min(budget.seeds, SEARCH_SEEDS) },
-      (_, seed) => ({
+      (_, seed): { ranker: Ranker; seed: number } => ({
         ranker: 'network-simplex',
         seed,
       })

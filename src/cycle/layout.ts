@@ -233,19 +233,19 @@ export function computeCycleLayout(
   // Iteratively refine: estimate footprints at current positions, redistribute
   // with uniform gaps, then recompute footprints at the new positions. Converges
   // in 2-3 iterations so positions and footprints are self-consistent.
-  const nodeAngles = new Array(nodeCount);
+  const nodeAngles = new Array<number>(nodeCount);
   for (let i = 0; i < nodeCount; i++) {
     nodeAngles[i] =
       -Math.PI / 2 + i * ((2 * Math.PI) / nodeCount) * (isClockwise ? 1 : -1);
   }
 
   const ITERATIONS = 3;
-  const footprints = new Array(nodeCount);
+  const footprints = new Array<number>(nodeCount);
 
   for (let iter = 0; iter < ITERATIONS; iter++) {
     // Compute footprints at current estimated positions
     for (let i = 0; i < nodeCount; i++) {
-      const theta = nodeAngles[i];
+      const theta = nodeAngles[i]!;
       const approxX = cx + radius * Math.cos(theta);
       const approxY = cy + radius * Math.sin(theta);
       // In-bounds by loop guard.
@@ -284,10 +284,7 @@ export function computeCycleLayout(
     }
 
     // Distribute remaining arc as gaps (weighted by span)
-    const totalFootprint = footprints.reduce(
-      (s: number, f: number) => s + f,
-      0
-    );
+    const totalFootprint = footprints.reduce((s, f) => s + f, 0);
     const totalGapAngle = Math.max(0, 2 * Math.PI - totalFootprint);
     const gapAngles = parsed.nodes.map(
       (n) => (n.span / totalSpan) * totalGapAngle
@@ -300,7 +297,7 @@ export function computeCycleLayout(
       const nextIdx = (i + 1) % nodeCount;
       // In-bounds: i, nextIdx in [0, nodeCount); arrays sized to nodeCount.
       const advance =
-        footprints[i] / 2 + gapAngles[i]! + footprints[nextIdx] / 2;
+        footprints[i]! / 2 + gapAngles[i]! + footprints[nextIdx]! / 2;
       cumAngle += isClockwise ? advance : -advance;
     }
   }
@@ -309,7 +306,7 @@ export function computeCycleLayout(
   const layoutNodes: Writable<CycleLayoutNode>[] = [];
   for (let i = 0; i < nodeCount; i++) {
     // In-bounds by loop guard; all arrays sized to nodeCount.
-    const angle = nodeAngles[i];
+    const angle = nodeAngles[i]!;
     layoutNodes.push({
       label: parsed.nodes[i]!.label,
       x: cx + radius * Math.cos(angle),
@@ -349,8 +346,8 @@ export function computeCycleLayout(
     // Reposition nodes on the smaller circle
     for (let i = 0; i < nodeCount; i++) {
       // In-bounds by loop guard.
-      layoutNodes[i]!.x = cx + radius * Math.cos(nodeAngles[i]);
-      layoutNodes[i]!.y = cy + radius * Math.sin(nodeAngles[i]);
+      layoutNodes[i]!.x = cx + radius * Math.cos(nodeAngles[i]!);
+      layoutNodes[i]!.y = cy + radius * Math.sin(nodeAngles[i]!);
     }
     layoutEdges = computeEdgePaths(
       layoutNodes,

@@ -56,7 +56,11 @@ import {
   keepSwimlaneToggleFocus,
   wireSwimlaneToggle,
 } from '../utils/legend-integration';
-import type { LegendConfig, LegendCallbacks } from '../utils/legend-types';
+import type {
+  D3Sel,
+  LegendConfig,
+  LegendCallbacks,
+} from '../utils/legend-types';
 
 /** Top tick: tick (6) + gap (4) + 10px label + breathing room. */
 const MIN_TOP_SCALE_BAND = 26;
@@ -1269,8 +1273,10 @@ function renderTimelineTagLegendOverlay(
     let currentSwimlaneGroup: string | null = swimlaneTagGroup ?? null;
 
     /** Render the swimlane icon (3 horizontal bars of varying width) */
+    // `parent` is the legend's group, which `LegendCallbacks.onGroupRendered`
+    // hands out as a `D3Sel`.
     function drawSwimlaneIcon(
-      parent: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
+      parent: D3Sel,
       x: number,
       y: number,
       isSwimActive: boolean

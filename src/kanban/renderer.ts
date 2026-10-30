@@ -1468,7 +1468,7 @@ function computeSwimlaneLayout(
 }
 
 function renderSwimlaneBoard(
-  svg: D3Sel,
+  svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
   parsed: ParsedKanban,
   baseLayout: {
     columns: ColumnLayout[];
@@ -1872,7 +1872,7 @@ function renderSwimlaneBoard(
 }
 
 function renderSwimlaneCard(
-  parent: D3Sel,
+  parent: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   cardLayout: CardLayout,
   tagGroups: readonly KanbanTagGroup[],
   activeTagGroup: string | null,

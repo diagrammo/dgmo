@@ -56,6 +56,7 @@ import {
 import { layoutInlineHeader, INLINE_HEADER_PAD } from '../utils/inline-header';
 import type {
   ControlsGroupToggle,
+  D3Sel,
   LegendCallbacks,
 } from '../utils/legend-types';
 import {
@@ -2125,13 +2126,15 @@ function resetHighlightAll(
 
 // ── Swimlane Icon Helper ─────────────────────────────────────
 
+// `parent` is the legend's group, which `LegendCallbacks.onGroupRendered`
+// hands out as a `D3Sel`.
 function drawSwimlaneIcon(
-  parent: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
+  parent: D3Sel,
   x: number,
   y: number,
   isActive: boolean,
   palette: PaletteColors
-): d3Selection.Selection<SVGGElement, unknown, null, undefined> {
+): D3Sel {
   const iconG = parent
     .append('g')
     .attr('class', 'gantt-swimlane-icon')

@@ -5,6 +5,7 @@ import type {
   GraphEdge,
   GraphGroup,
   GraphShape,
+  GraphNote,
 } from './types';
 import { resolveNotes } from './notes';
 import { noteBoxSize } from '../utils/note-box';
@@ -207,7 +208,7 @@ export function layoutGraph(
   const notesSuppressed = graph.options?.['no-notes'] === 'on';
   const noteByNode =
     notesSuppressed || !graph.notes
-      ? new Map()
+      ? new Map<string, GraphNote>()
       : resolveNotes(graph.notes, graph.nodes);
 
   // Pre-computed note geometry, keyed by node id, threaded into LayoutNode.

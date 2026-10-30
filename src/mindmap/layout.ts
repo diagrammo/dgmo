@@ -584,7 +584,8 @@ function offsetPath(path: string, dx: number, dy: number): string {
   if (dx === 0 && dy === 0) return path;
   return path.replace(
     /([ML])\s*([\d.e+-]+)\s+([\d.e+-]+)/g,
-    (_, cmd, x, y) => `${cmd} ${parseFloat(x) + dx} ${parseFloat(y) + dy}`
+    (_, cmd: string, x: string, y: string) =>
+      `${cmd} ${parseFloat(x) + dx} ${parseFloat(y) + dy}`
   );
 }
 

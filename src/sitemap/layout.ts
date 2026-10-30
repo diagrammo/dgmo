@@ -11,6 +11,13 @@ import {
 } from '../utils/visual-conventions';
 import { tagAttrKey } from '../utils/tag-groups';
 import dagre from '@dagrejs/dagre';
+import type {
+  EdgeLabel,
+  Graph,
+  GraphLabel,
+  NodeLabel,
+  Point,
+} from '@dagrejs/dagre';
 import type { Writable } from '../utils/brand';
 import type { ParsedSitemap, SitemapNode } from './types';
 import type { TagGroup } from '../utils/tag-groups';
@@ -112,6 +119,19 @@ export interface SitemapLayoutResult {
   readonly legend: readonly SitemapLegendGroup[];
   readonly width: number;
   readonly height: number;
+}
+
+// Read only after `layoutInPlace`, so every node has its x and y.
+type DagreGraph = Graph<GraphLabel, NodeLabel & Point, EdgeLabel>;
+
+/**
+ * Runs `dagre.layout()` on `g`, which sets every node's x and y in place, and
+ * the width and height of each container.
+ */
+function layoutInPlace(
+  g: Graph<GraphLabel, Partial<NodeLabel>, EdgeLabel>
+): asserts g is DagreGraph {
+  dagre.layout(g);
 }
 
 /**
@@ -409,7 +429,13 @@ export function layoutSitemap(
   // Collapsed containers (no children) are added as regular nodes.
   // Multigraph: collapsed edges can produce multiple edges between the same pair
   // (e.g. Dashboard→Account for both "settings" and "billing").
-  const g = new dagre.graphlib.Graph({ compound: true, multigraph: true });
+  // Container nodes carry no width or height until dagre sizes them.
+  const g = new dagre.graphlib.Graph<GraphLabel, Partial<NodeLabel>, EdgeLabel>(
+    {
+      compound: true,
+      multigraph: true,
+    }
+  );
   g.setGraph({
     rankdir: parsed.direction,
     nodesep: 50,
@@ -535,7 +561,7 @@ export function layoutSitemap(
   // 62 candidates tried — the other rankers and 60 seed-shuffles, the best at
   // 8. At the shared budget the search changed no crossing on any sitemap in
   // the gallery, tests or docs, and made sitemap-full's layout ~8× slower.
-  dagre.layout(g);
+  layoutInPlace(g);
 
   // Extract layout results — all positions from dagre
   const layoutNodes: Writable<SitemapLayoutNode>[] = [];
