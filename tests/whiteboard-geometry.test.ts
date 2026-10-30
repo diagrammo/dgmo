@@ -110,6 +110,25 @@ describe('whiteboard connector geometry', () => {
     expect(clip(q, 'arrow from: 100 -50, to: 100 30').y2).toBeCloseTo(0);
   });
 
+  it('clips a file at its wavy bottom, as drawn', () => {
+    const f = 'file at: 0 0, size: 200 80'; // wave 10 deep, straight at y 70
+    const wave = advanced.whiteboardFileWavePoints(0, 0, 200, 80, 256);
+    // The bottom dips below the straight line on the right, rises on the left.
+    expect(Math.max(...wave.map((p) => p.y))).toBeGreaterThan(75);
+    expect(Math.min(...wave.map((p) => p.y))).toBeLessThan(69);
+    // An attached end is aimed at the centre and stops on the wave itself.
+    for (const x of [20, 100, 160]) {
+      const s = clip(f, `arrow from: ${x} 200, to: 100 40`);
+      const off = Math.min(
+        ...wave.map((p) => Math.hypot(p.x - s.x2, p.y - s.y2))
+      );
+      expect(off, `x ${x}`).toBeLessThan(1);
+    }
+    // The flat top and the straight sides.
+    expect(clip(f, 'arrow from: 100 -50, to: 100 40').y2).toBeCloseTo(0);
+    expect(clip(f, 'arrow from: 300 40, to: 100 40').x2).toBeCloseTo(200);
+  });
+
   it('clips both ends, each against its own shape', () => {
     expect(
       clip(

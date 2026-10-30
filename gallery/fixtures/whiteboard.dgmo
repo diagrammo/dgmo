@@ -9,6 +9,7 @@ rectangle Magic link at: 60 250, size: 180 70, color: green
 arrow emails a code from: 150 95, to: 150 285, color: green
 database Users at: 420 160, size: 140 100, color: purple, fill: solid
 queue Email jobs at: 300 380, size: 200 64, color: orange
+file Audit log at: 60 400, size: 140 80, color: gray
 arrow from: 150 285, to: 400 412, color: orange, bend: 50
 text keep it to ONE screen at: 62 184
 text 2FA here?? at: 560 -4, color: red

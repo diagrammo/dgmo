@@ -33,6 +33,7 @@ import {
   clipWhiteboardConnector,
   whiteboardConnectorAttachments,
   whiteboardDrawOrder,
+  whiteboardFilePath,
   whiteboardNoteFold,
   whiteboardSegmentMidpoint,
   type WhiteboardPoint,
@@ -772,6 +773,12 @@ export function renderWhiteboard(
             .attr('cy', cy)
             .attr('rx', el.width / 2)
             .attr('ry', el.height / 2)
+            .attr('fill', fill)
+            .attr('stroke', stroke)
+            .attr('stroke-width', SHAPE_STROKE);
+        } else if (el.shape === 'file') {
+          g.append('path')
+            .attr('d', whiteboardFilePath(el.x, el.y, el.width, el.height))
             .attr('fill', fill)
             .attr('stroke', stroke)
             .attr('stroke-width', SHAPE_STROKE);

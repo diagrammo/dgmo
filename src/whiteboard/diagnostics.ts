@@ -33,7 +33,7 @@ export const WHITEBOARD_DIAGNOSTICS: DiagnosticSpec[] = [
     chartType: 'whiteboard',
     title: 'Unknown whiteboard element',
     message: (p) =>
-      `Unknown element "${s(p.word)}" — a whiteboard line starts with rectangle, ellipse, database, queue, note, arrow, line, text, image or ink; line skipped${p.hint ? `. ${s(p.hint)}` : ''}`,
+      `Unknown element "${s(p.word)}" — a whiteboard line starts with rectangle, ellipse, database, queue, file, note, arrow, line, text, image or ink; line skipped${p.hint ? `. ${s(p.hint)}` : ''}`,
     hint: 'Start the line with one of the ten element keywords.',
     example: 'whiteboard\nsquare Start at: 0 0, size: 120 60',
   },

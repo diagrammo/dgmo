@@ -210,7 +210,7 @@ const chartTypesData = [
   {
     id: 'whiteboard',
     description:
-      'Free-form whiteboard on an infinite canvas: rectangles, ellipses, databases, queues, free arrows, text, pasted images and freehand ink at pixel positions — drawn in the canvas; AI writes shapes, arrows and text, never ink',
+      'Free-form whiteboard on an infinite canvas: rectangles, ellipses, databases, queues, files, free arrows, text, pasted images and freehand ink at pixel positions — drawn in the canvas; AI writes shapes, arrows and text, never ink',
     beta: true,
   },
   {

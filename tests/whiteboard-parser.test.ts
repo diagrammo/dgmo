@@ -37,6 +37,7 @@ describe('parseWhiteboard — elements', () => {
         'arrow',
         'database',
         'ellipse',
+        'file',
         'image',
         'ink',
         'note',

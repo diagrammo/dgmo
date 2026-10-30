@@ -39,6 +39,7 @@ export const WHITEBOARD_SHAPE_KINDS = [
   'ellipse',
   'database',
   'queue',
+  'file',
 ] as const;
 
 export type WhiteboardShapeKind = (typeof WHITEBOARD_SHAPE_KINDS)[number];

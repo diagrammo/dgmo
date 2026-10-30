@@ -76,7 +76,7 @@ describe('whiteboard renderer', () => {
 
   it('outlines a solid shape apart from its fill, so its caps still read', () => {
     for (const isDark of [false, true]) {
-      for (const shape of ['database', 'queue', 'ellipse'] as const) {
+      for (const shape of ['database', 'queue', 'file', 'ellipse'] as const) {
         const svg = draw(
           `whiteboard\n${shape} at: 0 0, size: 80 50, color: blue, fill: solid`,
           isDark
@@ -115,6 +115,7 @@ describe('whiteboard renderer', () => {
       'ellipse',
       'database',
       'queue',
+      'file',
       'arrow',
       'text',
       'image',

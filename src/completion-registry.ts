@@ -1033,6 +1033,7 @@ export const STRUCTURAL_KEYWORDS = new Map<string, string[]>([
       'ellipse',
       'database',
       'queue',
+      'file',
       'note',
       'arrow',
       'line',

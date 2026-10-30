@@ -20,3 +20,9 @@ export const CYLINDER_RY = 8;
  * override.
  */
 export const QUEUE_CAP = 16;
+
+/**
+ * Depth of a whiteboard file's wavy bottom edge, before clamping to a quarter
+ * of its height — the flowchart document symbol's `DOC_WAVE_HEIGHT`.
+ */
+export const FILE_WAVE = 10;

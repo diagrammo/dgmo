@@ -18,13 +18,15 @@
 //   ellipse   — the ellipse
 //   database  — the body rectangle plus the top and bottom cap ellipses
 //   queue     — the body rectangle plus the left and right cap ellipses
+//   file      — the body rectangle down to the wave's highest point, plus one
+//               vertical-sided strip per sampled step of the wavy bottom
 //   note      — a sticky note's card: a rectangle with its top-right corner
 //               cut on the diagonal (the fold), one convex polygon
 //
 // A sticky note is attachable exactly like a shape: "shape" below means any
 // boxed element a connector end can sit in.
 
-import { CYLINDER_RY, QUEUE_CAP } from '../shape-caps';
+import { CYLINDER_RY, FILE_WAVE, QUEUE_CAP } from '../shape-caps';
 import type {
   WhiteboardArrow,
   WhiteboardElement,
@@ -132,6 +134,61 @@ function roundedRect(
   ];
 }
 
+/** Depth of a file's wavy bottom: `FILE_WAVE`, at most a quarter of `h`. */
+export function whiteboardFileWave(h: number): number {
+  return Math.max(0, Math.min(FILE_WAVE, h / 4));
+}
+
+/** Steps a file's wavy bottom is sampled in, for clipping and hit tests. */
+const FILE_WAVE_STEPS = 16;
+
+/**
+ * Points along a file's wavy bottom, right to left: the cubic the renderer
+ * draws (`whiteboardFilePath`), sampled in `steps` steps. It dips below the
+ * straight bottom on the right and rises above it on the left.
+ */
+export function whiteboardFileWavePoints(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  steps = FILE_WAVE_STEPS
+): WhiteboardPoint[] {
+  const wave = whiteboardFileWave(h);
+  const b = y + h - wave;
+  const xs = [x + w, x + w * 0.75, x + w * 0.25, x];
+  const ys = [b, b + 2 * wave, b - wave, b];
+  const out: WhiteboardPoint[] = [];
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const u = 1 - t;
+    const k = [u * u * u, 3 * u * u * t, 3 * u * t * t, t * t * t];
+    out.push({
+      x: k[0]! * xs[0]! + k[1]! * xs[1]! + k[2]! * xs[2]! + k[3]! * xs[3]!,
+      y: k[0]! * ys[0]! + k[1]! * ys[1]! + k[2]! * ys[2]! + k[3]! * ys[3]!,
+    });
+  }
+  return out;
+}
+
+/**
+ * A file's outline as an SVG path: a page whose bottom edge is one wave, as
+ * the flowchart document symbol is drawn.
+ */
+export function whiteboardFilePath(
+  x: number,
+  y: number,
+  w: number,
+  h: number
+): string {
+  const wave = whiteboardFileWave(h);
+  const b = y + h - wave;
+  return (
+    `M ${x} ${y} L ${x + w} ${y} L ${x + w} ${b} ` +
+    `C ${x + w * 0.75} ${b + 2 * wave}, ${x + w * 0.25} ${b - wave}, ${x} ${b} Z`
+  );
+}
+
 /** The element's drawn outline as a union of convex pieces. */
 function piecesOf(s: WhiteboardAttachable): Piece[] {
   const { x, y, width: w, height: h } = s;
@@ -172,6 +229,28 @@ function piecesOf(s: WhiteboardAttachable): Piece[] {
         ...ellipse(x + cap, cy, cap, h / 2),
         ...ellipse(x + w - cap, cy, cap, h / 2),
       ];
+    }
+    case 'file': {
+      // whiteboardFilePath: the body down to the wave's highest point, then
+      // one strip per sampled step, each running down to the wave.
+      const pts = whiteboardFileWavePoints(x, y, w, h);
+      const top = Math.min(...pts.map((p) => p.y));
+      const strips: Piece[] = [];
+      for (let i = pts.length - 1; i > 0; i--) {
+        const a = pts[i]!;
+        const b = pts[i - 1]!;
+        if (b.x - a.x < EPS || Math.max(a.y, b.y) - top < EPS) continue;
+        strips.push({
+          kind: 'poly',
+          pts: [
+            { x: a.x, y: top },
+            { x: b.x, y: top },
+            { x: b.x, y: Math.max(b.y, top) },
+            { x: a.x, y: Math.max(a.y, top) },
+          ],
+        });
+      }
+      return [...rect(x, y, x + w, top), ...strips];
     }
   }
 }

@@ -15,6 +15,7 @@
 // break a label at the same words.
 
 import { CYLINDER_RY, QUEUE_CAP } from '../shape-caps';
+import { whiteboardFileWave } from './geometry';
 import { measureText, wrapTextToWidth } from '../utils/text-measure';
 import { whiteboardLabelPosition } from './geometry';
 import type {
@@ -93,7 +94,8 @@ export type WhiteboardFitBox = WhiteboardLabelBox &
   Pick<WhiteboardShape, 'height'>;
 
 /** Height a label fits inside `box`, px — the box less its padding, an
- *  ellipse's curve and a database's two caps. Never below zero. */
+ *  ellipse's curve, a database's two caps and a file's wavy bottom. Never
+ *  below zero. */
 export function whiteboardLabelHeight(box: WhiteboardFitBox): number {
   if ('kind' in box && box.kind === 'note') {
     return Math.max(box.height - 2 * WHITEBOARD_NOTE_PAD, 0);
@@ -104,7 +106,9 @@ export function whiteboardLabelHeight(box: WhiteboardFitBox): number {
       ? box.height * ELLIPSE_INSET
       : shape === 'database'
         ? 2 * CYLINDER_RY
-        : 0;
+        : shape === 'file'
+          ? whiteboardFileWave(box.height) / 2
+          : 0;
   return Math.max(box.height - 2 * (LABEL_PAD + inset), 0);
 }
 
