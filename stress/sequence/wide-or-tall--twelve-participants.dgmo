@@ -1,0 +1,30 @@
+sequence Checkout Across Twelve Services
+// stress: wide-or-tall — twelve participants in one flow, so the diagram is far wider than a screen
+Browser
+Edge CDN
+API Gateway
+Auth Service
+Cart Service
+Pricing Service
+Inventory Service
+Payment Service
+Fraud Check
+Order Service
+Notification Service
+Data Warehouse
+
+Browser -GET /checkout-> Edge CDN
+Edge CDN -forward-> API Gateway
+API Gateway -verify session-> Auth Service
+Auth Service -session ok-> API Gateway
+API Gateway -load cart-> Cart Service
+Cart Service -price lines-> Pricing Service
+Cart Service -check stock-> Inventory Service
+Inventory Service -in stock-> Cart Service
+Browser -pay-> API Gateway
+API Gateway -charge-> Payment Service
+Payment Service -score-> Fraud Check
+Fraud Check -approved-> Payment Service
+Payment Service -paid-> Order Service
+Order Service -email receipt-> Notification Service
+Order Service -emit event-> Data Warehouse

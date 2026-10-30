@@ -1,0 +1,38 @@
+kanban Release Triage, Thirty-Three Open Items
+// stress: many-items — one column with far more cards than the others
+[Triage] red
+  Crash on export to PDF
+  Slow startup on Windows
+  Tooltip clipped on small screens
+  Undo loses last edit
+  Dark mode legend unreadable
+  Autosave conflicts on shared files
+  Gantt era label overlap
+  Sequence note offset
+  Org chart drag jitter
+  Heatmap legend wrap
+  Pie label collision
+  Sankey node order flips
+  Timeline zoom resets
+  Kanban column width jumps
+  Sitemap arrow into empty space
+  ER label cut off
+  Flowchart title off canvas
+  Word cloud overlap
+  Quadrant label overlap
+  Infra edge label over node
+  Bar axis name missing
+  Line chart single point
+  Export dialog focus trap
+  Share link copy fails
+  Embed height collapses
+  Font fallback in PNG
+  Emoji boxes in PNG
+  Theme switch flashes
+  Cursor jumps in editor
+  Minimap stale after paste
+[Doing] orange
+  Fix retry loop
+  Reindex search
+[Done] green
+  Upgrade Node

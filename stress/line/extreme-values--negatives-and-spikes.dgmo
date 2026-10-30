@@ -1,0 +1,12 @@
+line Daily Net Cash Position, Q3 Trading Desk
+// stress: extreme-values — negative values and one spike three orders of magnitude above the rest
+x-label Day
+y-label Net position (USD)
+
+Mon -1200
+Tue 800
+Wed -45000
+Thu 950
+Fri 1300
+Sat -700
+Sun 2400000
