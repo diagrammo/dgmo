@@ -13,6 +13,23 @@ import { parseCycle } from '../src/cycle/parser';
 // Sequence: unused participants
 // ============================================================
 
+// diagrammo/diagrammo#1575: a header-only sequence draws nothing, so the
+// parser has to say why or the preview is an empty pane.
+describe('sequence: nothing to draw', () => {
+  it('warns when a sequence has only its header', () => {
+    const result = parseSequenceDgmo('sequence Treasure Voyage');
+    expect(result.error).toBeNull();
+    expect(result.diagnostics.map((d) => d.message)).toEqual([
+      "No participants or messages found. Add a message like 'Alice -> Bob'.",
+    ]);
+  });
+
+  it('stays quiet when participants are declared without messages', () => {
+    const result = parseSequenceDgmo('sequence\nCaptain is an actor');
+    expect(result.diagnostics).toEqual([]);
+  });
+});
+
 describe('sequence: unused participant warnings', () => {
   it('warns about declared-but-unused participant', () => {
     const result = parseSequenceDgmo(
@@ -282,6 +299,13 @@ describe('non-fatal validation warnings', () => {
     expect(warnings).toHaveLength(1);
     expect(warnings[0].message).toContain('No data points found');
     expect(warnings[0].line).toBe(1);
+  });
+
+  // diagrammo/diagrammo#1575: the app shows this in an otherwise empty preview.
+  it('warns when a pie keeps its header and one blank line', () => {
+    const result = parseChart('pie Crew Roles Distribution\n');
+    expect(result.error).toBeNull();
+    expect(result.diagnostics[0]?.message).toContain('No data points found');
   });
 
   it('warns about series count mismatch and filters data', () => {

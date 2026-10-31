@@ -1624,6 +1624,20 @@ export function parseSequenceDgmo(
     }
   }
 
+  // Nothing to draw: say so, or the preview is an empty pane with no reason
+  // (diagrammo/diagrammo#1575). Participants alone still draw their columns,
+  // and an earlier diagnostic already gives the reason.
+  if (
+    result.messages.length === 0 &&
+    result.participants.length === 0 &&
+    result.diagnostics.length === 0
+  ) {
+    pushWarning(
+      1,
+      "No participants or messages found. Add a message like 'Alice -> Bob'."
+    );
+  }
+
   // Warn about unused participants (only when the diagram has messages)
   if (result.messages.length > 0) {
     const usedIds = new Set<string>();
