@@ -119,6 +119,14 @@ gate=
 # wait past its ceiling all proceed unlocked and say so.
 GATE_LOCK="$WORKSPACE/scripts/gate-lock.sh"
 
+# #1655: a nightly-verify.sh pass at this same TREE left a receipt of every command it ran.
+# run_checks accepts those steps instead of running them a second time; everything the verify
+# did not run still runs. Without the script every step runs, as before. The receipt is keyed
+# by tree and checked for age, a clean tree and linked siblings — see gate-receipt.sh.
+GATE_RECEIPT="$WORKSPACE/scripts/gate-receipt.sh"
+if [ -r "$GATE_RECEIPT" ]; then . "$GATE_RECEIPT"
+else receipt_load() { :; }; receipt_covers() { return 1; }; receipt_run() { "$@"; }; fi
+
 cleanup() {
   # The exit status and the worktree go to the gate ledger (#1588): with no
   # status a failed gate would record as unknown, and with no worktree, no sha.
@@ -145,53 +153,68 @@ GATE_SWEEP="$WORKSPACE/scripts/gate-sweep.sh"
 if [ -x "$GATE_SWEEP" ]; then "$GATE_SWEEP" || true; fi
 
 run_checks() {
+  # Every step goes through receipt_run (#1655): a step the verify passed at this tree
+  # prints one line and is not run again; any other runs exactly as written.
   echo "→ installed dependency tree"
-  pnpm check:install-lock
+  receipt_run pnpm check:install-lock
 
   echo "→ formatting"
-  pnpm format:check
+  receipt_run pnpm format:check
 
   echo "→ hygiene"
-  pnpm check:deadcode
-  pnpm check:duplication
-  pnpm check:deps
+  receipt_run pnpm check:deadcode
+  receipt_run pnpm check:duplication
+  receipt_run pnpm check:deps
 
   echo "→ spelling"
-  pnpm check:spelling
+  receipt_run pnpm check:spelling
 
   echo "→ circular dependencies"
-  pnpm check:circular
+  receipt_run pnpm check:circular
 
   echo "→ dependency ranges"
-  pnpm check:dep-ranges
+  receipt_run pnpm check:dep-ranges
 
   echo "→ legacy alias syntaxes"
-  bash scripts/lint-no-legacy-alias.sh
+  receipt_run bash scripts/lint-no-legacy-alias.sh
 
   echo "→ typecheck"
-  pnpm typecheck
+  receipt_run pnpm typecheck
 
   echo "→ lint"
-  pnpm lint
+  receipt_run pnpm lint
 
   echo "→ test"
-  pnpm test
+  receipt_run pnpm test
 
-  echo "→ build"
-  pnpm build
-
-  # These three need dist/, which the build above just produced. Called as
+  # The three after the build need dist/, which only the build produces, so the
+  # build is skipped only when all three are covered too. They are called as
   # scripts rather than via `pnpm check:size` / `check:api` / `gallery:snapshot`,
-  # each of which would run a second build.
+  # each of which would run a second build; the verify's check-all runs the
+  # snapshot as `pnpm gallery:snapshot` (#1618), which is why that step accepts
+  # either spelling.
+  echo "→ build"
+  if receipt_covers pnpm build && receipt_covers node scripts/check-bundle-size.cjs \
+     && receipt_covers node --test scripts/check-api.test.mjs && receipt_covers bash scripts/check-api.sh check \
+     && { receipt_covers node scripts/gallery-snapshot.mjs || receipt_covers pnpm gallery:snapshot; }; then
+    echo "pre-push: pnpm build — passed in the verify at this tree, and so did every step that reads dist/; not re-run (receipt)"
+  else
+    pnpm build
+  fi
+
   echo "→ bundle size"
-  node scripts/check-bundle-size.cjs
+  receipt_run node scripts/check-bundle-size.cjs
 
   echo "→ public API surface"
-  node --test scripts/check-api.test.mjs
-  bash scripts/check-api.sh check
+  receipt_run node --test scripts/check-api.test.mjs
+  receipt_run bash scripts/check-api.sh check
 
   echo "→ gallery snapshot"
-  node scripts/gallery-snapshot.mjs
+  if receipt_covers pnpm gallery:snapshot; then
+    echo "pre-push: node scripts/gallery-snapshot.mjs — passed in the verify at this tree as pnpm gallery:snapshot, not re-run (receipt)"
+  else
+    receipt_run node scripts/gallery-snapshot.mjs
+  fi
 }
 
 run_gate() {
@@ -218,6 +241,7 @@ run_gate() {
   # record, so the install has to be frozen for the first step to pass.
   (cd "$gate" && pnpm install --frozen-lockfile --prefer-offline --reporter=silent)
 
+  receipt_load "$gate" "$sha"
   (cd "$gate" && run_checks)
   cleanup
 }
