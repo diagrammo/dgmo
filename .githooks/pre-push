@@ -120,7 +120,10 @@ gate=
 GATE_LOCK="$WORKSPACE/scripts/gate-lock.sh"
 
 cleanup() {
-  if [ -x "$GATE_LOCK" ]; then "$GATE_LOCK" release $$ || true; fi
+  # The exit status and the worktree go to the gate ledger (#1588): with no
+  # status a failed gate would record as unknown, and with no worktree, no sha.
+  gate_rc=$?
+  if [ -x "$GATE_LOCK" ]; then "$GATE_LOCK" release $$ "$gate_rc" "$gate" || true; fi
   [ -n "$gate" ] || return 0
   git worktree remove --force "$gate" >/dev/null 2>&1 || true
   git worktree prune >/dev/null 2>&1 || true
