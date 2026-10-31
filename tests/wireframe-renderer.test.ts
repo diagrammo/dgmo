@@ -71,6 +71,19 @@ describe('wireframe renderer', () => {
       expect(svg.tagName).toBe('svg');
     });
 
+    it('never sets height="auto" in non-export mode (#1574)', () => {
+      const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
+      const container = dom.window.document.createElement('div');
+      dom.window.document.body.appendChild(container);
+      const parsed = parseWireframe('wireframe Test\nHello');
+      const layout = layoutWireframe(parsed);
+      renderWireframe(container, parsed, layout, testPalette, false);
+      const svg = container.querySelector('svg')!;
+      const height = svg.getAttribute('height');
+      expect(svg.getAttribute('width')).toBe('100%');
+      expect(height === null || /^\d+(\.\d+)?$/.test(height)).toBe(true);
+    });
+
     it('renders title text', () => {
       const { svg } = renderToSvg('wireframe My Page\nHello');
       const texts = svg.querySelectorAll('text');

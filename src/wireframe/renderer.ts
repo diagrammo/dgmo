@@ -114,7 +114,7 @@ export function renderWireframe(
   if (isExport) {
     svg.attr('width', width).attr('height', height);
   } else {
-    svg.attr('width', '100%').attr('height', 'auto').style('display', 'block');
+    svg.attr('width', '100%').style('display', 'block');
   }
 
   const ctx: RenderContext = {
