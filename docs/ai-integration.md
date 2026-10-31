@@ -505,10 +505,10 @@ The easiest way to set these up is `dgmo install` — it does the right thing pe
 ```bash
 dgmo install cursor      # wires MCP (~/.cursor/mcp.json) + drops .cursorrules
 dgmo install windsurf    # wires MCP (~/.codeium/windsurf/mcp_config.json) + .windsurfrules
-dgmo install copilot     # writes ./.github/copilot-instructions.md (Copilot has no MCP)
+dgmo install copilot     # wires MCP (~/.copilot/mcp-config.json) + .github/copilot-instructions.md in a repo
 ```
 
-Cursor and Windsurf speak MCP, so `dgmo install` gives them the full render/share tools (pointed at `dgmo mcp`), plus the inline rules file. Copilot is guidance-only. `dgmo install` with no target also writes Copilot's file automatically when the current repo has a `.github` directory. To set the context files up by hand instead:
+Cursor, Windsurf and Copilot CLI speak MCP, so `dgmo install` gives them the full render/share tools (pointed at `dgmo mcp`), plus the inline rules file. For Copilot, `--scope project` writes the MCP entry to `.github/mcp.json` instead, and the instructions file is written only in a repo (a `.github` directory in the current directory, or `--scope project`). `dgmo install` with no target sets Copilot up when `~/.copilot` exists or the current repo has a `.github` directory. To set the context files up by hand instead:
 
 ```bash
 # From node_modules (if installed as a dependency)

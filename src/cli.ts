@@ -32,6 +32,11 @@ import { resolveOrgImports } from './org/resolver';
 import { normalizePertSourceForShare } from './pert/share-normalize';
 import { renderBanner } from './cli-banner';
 import { skillsInstallNote } from './cli-install-notes';
+import {
+  COPILOT_MCP_ENTRY,
+  MCP_LAUNCH,
+  withDgmoMcpServer,
+} from './cli-mcp-config';
 import { owningPackageManager, linuxClipboardCommand } from './cli-host';
 import { runCloudCommand } from './cli-cloud';
 import { searchMapLocations } from './map/completion';
@@ -550,7 +555,7 @@ function runShareCommand(args: string[]): void {
 // binary and that's it. (The server itself still lives in the
 // @diagrammo/dgmo-mcp package, which depends on this library; `dgmo mcp` locates
 // and execs it, so there's no dependency cycle and no extra deps bundled here.)
-const MCP_LAUNCH = { command: 'dgmo', args: ['mcp'] } as const;
+// MCP_LAUNCH lives in cli-mcp-config.ts.
 
 const INSTALL_TARGETS = [
   'claude-code',
@@ -725,7 +730,11 @@ function writeOut(
 
 // Merge `{ mcpServers: { dgmo: dgmo mcp } }` into a JSON config (Claude Code /
 // Claude Desktop style), preserving any other entries.
-function upsertJsonMcp(opts: InstallOpts, path: string): void {
+function upsertJsonMcp(
+  opts: InstallOpts,
+  path: string,
+  entry: object = MCP_LAUNCH
+): void {
   let cfg: Record<string, unknown> = {};
   if (existsSync(path)) {
     const raw = readFileSync(path, 'utf-8');
@@ -740,10 +749,7 @@ function upsertJsonMcp(opts: InstallOpts, path: string): void {
       }
     }
   }
-  const servers =
-    (cfg['mcpServers'] as Record<string, unknown> | undefined) ?? {};
-  servers['dgmo'] = MCP_LAUNCH;
-  cfg['mcpServers'] = servers;
+  cfg = withDgmoMcpServer(cfg, entry);
   writeOut(
     opts,
     path,
@@ -766,8 +772,13 @@ function detectSurfaces(): InstallTarget[] {
     existsSync(join(homedir(), '.codeium'))
   )
     found.push('windsurf');
-  // Copilot is project-scoped: only when the current repo has a .github dir.
-  if (existsSync(join(process.cwd(), '.github'))) found.push('copilot');
+  // Copilot: its CLI's config dir, or a repo with a .github dir to hold the
+  // instructions file.
+  if (
+    existsSync(join(homedir(), '.copilot')) ||
+    existsSync(join(process.cwd(), '.github'))
+  )
+    found.push('copilot');
   return found;
 }
 
@@ -973,8 +984,18 @@ function installWindsurf(opts: InstallOpts): void {
   );
 }
 
-// Copilot has no MCP path — ship the project-root instructions file it auto-loads.
+// Copilot CLI reads MCP servers from ~/.copilot/mcp-config.json (user) or
+// .github/mcp.json (project). The instructions file it auto-loads goes in only
+// for a repo — never a stray .github/ in whatever directory install ran from.
 function installCopilot(opts: InstallOpts): void {
+  ensureDgmoMcp(opts);
+  const path =
+    opts.scope === 'project'
+      ? join(process.cwd(), '.github', 'mcp.json')
+      : join(homedir(), '.copilot', 'mcp-config.json');
+  upsertJsonMcp(opts, path, COPILOT_MCP_ENTRY);
+  if (opts.scope !== 'project' && !existsSync(join(process.cwd(), '.github')))
+    return;
   writeOut(
     opts,
     join(process.cwd(), '.github', 'copilot-instructions.md'),
