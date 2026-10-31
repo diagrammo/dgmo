@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`dgmo install copilot` wires up the MCP server** for GitHub Copilot
+  CLI. It adds a `dgmo` entry to `~/.copilot/mcp-config.json`, or to
+  `.github/mcp.json` with `--scope project`, and keeps every other
+  server in the file. A bare `dgmo install` now detects Copilot from
+  `~/.copilot`, and the Copilot instructions file is written only
+  inside a repo.
+
 ### Changed
 
 - **An export is framed to its diagram, not to the sheet it was drawn
