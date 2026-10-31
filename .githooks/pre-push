@@ -42,6 +42,14 @@ if [ -r "$GATE_ENV" ]; then . "$GATE_ENV"; gate_env_exec "$0" "$@"; fi
 # per ref on stdin. It can only be read once, so capture it up front.
 refs=$(cat)
 
+# A tag-only push of a commit this hook already passed on this machine is the
+# same gate again: release.sh pushes the branch, then the tag (#1654). The
+# workspace gate ledger decides, and its OUTPUT is the answer — an older copy
+# of the script exits 0 on an action it does not know.
+tag_skip=$(printf '%s\n' "$refs" |
+  "$(dirname "$REPO_ROOT")/scripts/gate-timing.sh" tag-skip "$REPO_ROOT" 2>/dev/null || true)
+case "$tag_skip" in *", skipping"*) printf '%s\n' "$tag_skip"; exit 0 ;; esac
+
 # 🔴 A push can lose the race for main while it waits for the gate lock, and
 # used to find out only AFTER the gate — four refusals in five attempts on one
 # change, 8 to 20 minutes of queue each (#680). So the remote is asked where the
