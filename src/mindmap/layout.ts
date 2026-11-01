@@ -19,6 +19,7 @@ import type { PaletteColors } from '../palettes';
 import type { TagGroup } from '../utils/tag-groups';
 import { resolveTagColor, injectDefaultTagMetadata } from '../utils/tag-groups';
 import { computeNodeText } from './text-wrap';
+import { isTitleRoot } from './title-root';
 import { ScaleContext } from '../utils/scaling';
 
 // ============================================================
@@ -142,7 +143,7 @@ export function layoutMindmap(
   // is the `mindmap <title>` declaration, which carries no `collapsed` marker,
   // so a collapse saved there became title text and expanding found nothing
   // to remove. A root inferred from a real node line keeps its toggle.
-  const titleRootId = roots.find((r) => r.fromTitle)?.id;
+  const titleRootId = roots.find(isTitleRoot)?.id;
   if (titleRootId === undefined) return result;
   return {
     ...result,

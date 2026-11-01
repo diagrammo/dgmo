@@ -4,6 +4,7 @@
 
 import type { MindmapNode } from './types';
 import type { Writable } from '../utils/brand';
+import { isTitleRoot, markTitleRoot } from './title-root';
 import {
   collapseTree,
   type TreeCollapseShape,
@@ -25,7 +26,7 @@ export interface CollapsedMindmapResult {
 // ============================================================
 
 function cloneNode(node: MindmapNode): Writable<MindmapNode> {
-  return {
+  const clone: Writable<MindmapNode> = {
     id: node.id,
     label: node.label,
     ...(node.description !== undefined && {
@@ -37,8 +38,8 @@ function cloneNode(node: MindmapNode): Writable<MindmapNode> {
     lineNumber: node.lineNumber,
     ...(node.color !== undefined && { color: node.color }),
     ...(node.collapsed !== undefined && { collapsed: node.collapsed }),
-    ...(node.fromTitle !== undefined && { fromTitle: node.fromTitle }),
   };
+  return isTitleRoot(node) ? markTitleRoot(clone) : clone;
 }
 
 /** Mindmap shape: every node counts toward the hidden tally (no containers). */

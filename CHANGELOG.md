@@ -40,8 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `collapsed` marker, so collapsing it wrote `collapsed: true` into the
   title and expanding could not bring the branches back. The title-derived
   root now draws no `data-node-toggle`; a root inferred from a real node
-  line (a mindmap with no title) still collapses as before. `MindmapNode`
-  gains an optional `fromTitle` flag, set only on that title root.
+  line (a mindmap with no title) still collapses as before.
 
 ## [0.95.0] - 2026-10-29
 

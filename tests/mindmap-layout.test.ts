@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { parseMindmap } from '../src/mindmap/parser';
 import { layoutMindmap } from '../src/mindmap/layout';
+import { collapseMindmapTree } from '../src/mindmap/collapse';
 import { getPalette } from '../src/palettes';
 
 const palette = getPalette('bold').light;
@@ -186,6 +187,28 @@ Root
     const parent = layout.nodes.find((n) => n.label === 'Parent')!;
     expect(root.hasChildren).toBe(false);
     expect(parent.hasChildren).toBe(true);
+  });
+
+  it('the title root stays toggle-free once a branch is collapsed (cloned tree)', () => {
+    const parsed = parseMindmap(
+      `mindmap Root
+  Parent
+    Child
+  Leaf`
+    );
+    const parentId = parsed.roots[0].children[0].id;
+    const { roots, hiddenCounts } = collapseMindmapTree(
+      parsed.roots,
+      new Set([parentId])
+    );
+    const layout = layoutMindmap({ ...parsed, roots }, palette, {
+      hiddenCounts,
+    });
+    const root = layout.nodes.find((n) => n.label === 'Root')!;
+    const parent = layout.nodes.find((n) => n.label === 'Parent')!;
+    expect(root.hasChildren).toBe(false);
+    expect(parent.hasChildren).toBe(true);
+    expect(parent.hiddenCount).toBe(1);
   });
 
   it('no node overlaps', () => {

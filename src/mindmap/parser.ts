@@ -33,6 +33,7 @@ import {
   withTagAliases,
 } from '../utils/reserved-key-registry';
 import type { MindmapNode, ParsedMindmap } from './types';
+import { markTitleRoot } from './title-root';
 import { tryStripDescriptionKeyword } from '../utils/description-helpers';
 
 // ============================================================
@@ -139,8 +140,8 @@ export function parseMindmap(
             children: [],
             parentId: null,
             lineNumber,
-            fromTitle: true,
           };
+          markTitleRoot(titleRoot);
           result.roots.push(titleRoot);
           // Push title root onto indent stack at indent -1 so all indent-0 lines become children
           indentStack.push({ node: titleRoot, indent: -1 });
