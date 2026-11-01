@@ -153,8 +153,10 @@ Q2 Goals
   });
 
   it('hasChildren flag set on nodes with children', () => {
+    // No title: `Root` is a real node line, so it keeps its toggle.
     const parsed = parseMindmap(
-      `mindmap Root
+      `mindmap
+Root
   Parent
     Child
   Leaf`
@@ -166,6 +168,24 @@ Q2 Goals
     expect(root.hasChildren).toBe(true);
     expect(parent.hasChildren).toBe(true);
     expect(leaf.hasChildren).toBe(false);
+  });
+
+  // #1571: the title root's source line is the `mindmap <title>` declaration,
+  // which cannot carry a `collapsed` marker, so it must offer no toggle.
+  it('the title-derived root has no collapse toggle, its branches keep theirs', () => {
+    const parsed = parseMindmap(
+      `mindmap Root
+  Parent
+    Child
+  Leaf`
+    );
+    const layout = layoutMindmap(parsed, palette, {
+      hiddenCounts: new Map([[parsed.roots[0].id, 3]]),
+    });
+    const root = layout.nodes.find((n) => n.label === 'Root')!;
+    const parent = layout.nodes.find((n) => n.label === 'Parent')!;
+    expect(root.hasChildren).toBe(false);
+    expect(parent.hasChildren).toBe(true);
   });
 
   it('no node overlaps', () => {

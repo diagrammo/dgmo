@@ -37,6 +37,7 @@ function cloneNode(node: MindmapNode): Writable<MindmapNode> {
     lineNumber: node.lineNumber,
     ...(node.color !== undefined && { color: node.color }),
     ...(node.collapsed !== undefined && { collapsed: node.collapsed }),
+    ...(node.fromTitle !== undefined && { fromTitle: node.fromTitle }),
   };
 }
 

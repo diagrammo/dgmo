@@ -33,6 +33,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `measureSvgContent` are exported for a host that serializes its
   own live SVG for export.
 
+### Fixed
+
+- **A mindmap's title root no longer offers a collapse toggle.** Its
+  source line is the `mindmap <title>` declaration, which cannot carry a
+  `collapsed` marker, so collapsing it wrote `collapsed: true` into the
+  title and expanding could not bring the branches back. The title-derived
+  root now draws no `data-node-toggle`; a root inferred from a real node
+  line (a mindmap with no title) still collapses as before. `MindmapNode`
+  gains an optional `fromTitle` flag, set only on that title root.
+
 ## [0.95.0] - 2026-10-29
 
 ### Added

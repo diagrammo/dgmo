@@ -11,6 +11,12 @@ export interface MindmapNode {
   readonly lineNumber: number;
   readonly color?: string;
   readonly collapsed?: boolean;
+  /**
+   * True only on the root built from the `mindmap <title>` declaration. That
+   * line can carry no `collapsed` marker, so this root offers no collapse
+   * toggle (#1571). A root inferred from a real node line leaves it unset.
+   */
+  readonly fromTitle?: boolean;
 }
 
 export interface ParsedMindmap {

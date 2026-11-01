@@ -45,12 +45,31 @@ describe('mindmap renderer', () => {
   });
 
   it('nodes with children have data-node-toggle attributes', () => {
+    // No title, so `Root` is a real node line and keeps its toggle.
+    const svg = renderMindmapForExport(
+      'mindmap\nRoot\n  Only Child',
+      'light',
+      palette
+    );
+    expect(svg).toContain('data-node-toggle=');
+  });
+
+  // #1571: collapsing the title root wrote `collapsed: true` into the title.
+  it('the title-derived root draws no collapse toggle', () => {
     const content = readFileSync(
       resolve(FIXTURE_DIR, 'one-child.dgmo'),
       'utf-8'
     );
-    const svg = renderMindmapForExport(content, 'light', palette);
-    expect(svg).toContain('data-node-toggle=');
+    expect(renderMindmapForExport(content, 'light', palette)).not.toContain(
+      'data-node-toggle='
+    );
+    const nested = renderMindmapForExport(
+      'mindmap Root\n  Branch\n    Leaf',
+      'light',
+      palette
+    );
+    expect(nested.match(/data-node-toggle=/g)).toHaveLength(1);
+    expect(nested).toMatch(/data-node-toggle="[^"]+"[^>]*aria-label="Branch"/);
   });
 
   it('renders elbow-style edges', () => {

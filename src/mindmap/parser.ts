@@ -139,6 +139,7 @@ export function parseMindmap(
             children: [],
             parentId: null,
             lineNumber,
+            fromTitle: true,
           };
           result.roots.push(titleRoot);
           // Push title root onto indent stack at indent -1 so all indent-0 lines become children

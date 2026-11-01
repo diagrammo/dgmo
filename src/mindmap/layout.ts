@@ -118,25 +118,38 @@ export function layoutMindmap(
 
   const tagGroups = parsed.tagGroups;
 
-  if (roots.length === 1) {
-    return layoutSingleRoot(
-      roots[0]!,
-      hiddenCounts,
-      hideDescriptions,
-      tagGroups,
-      activeTagGroup,
-      sc
-    );
-  }
-  return layoutMultiRoot(
-    roots,
-    parsed,
-    hiddenCounts,
-    hideDescriptions,
-    tagGroups,
-    activeTagGroup,
-    sc
-  );
+  const result =
+    roots.length === 1
+      ? layoutSingleRoot(
+          roots[0]!,
+          hiddenCounts,
+          hideDescriptions,
+          tagGroups,
+          activeTagGroup,
+          sc
+        )
+      : layoutMultiRoot(
+          roots,
+          parsed,
+          hiddenCounts,
+          hideDescriptions,
+          tagGroups,
+          activeTagGroup,
+          sc
+        );
+
+  // The title-derived root draws no collapse toggle (#1571). Its source line
+  // is the `mindmap <title>` declaration, which carries no `collapsed` marker,
+  // so a collapse saved there became title text and expanding found nothing
+  // to remove. A root inferred from a real node line keeps its toggle.
+  const titleRootId = roots.find((r) => r.fromTitle)?.id;
+  if (titleRootId === undefined) return result;
+  return {
+    ...result,
+    nodes: result.nodes.map((n) =>
+      n.id === titleRootId ? { ...n, hasChildren: false } : n
+    ),
+  };
 }
 
 // ============================================================
