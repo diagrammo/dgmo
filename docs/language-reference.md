@@ -4769,16 +4769,16 @@ API description: Main gateway
 
 Some constructs _look_ universal but are scoped to specific chart types. Don't transplant them across charts.
 
-| Construct                                     | Scope                                                                                                                                     |
-| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Construct                                     | Scope                                                                                                                             |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | Bare `collapsed` trailing flag (§1.8)         | sequence, infra, gantt, kanban, mindmap, pert, state, c4, event-line (eras), block, wireframe. Legacy: `collapsed: true` metadata |
-| Same-line / indented metadata on declarations | all chart types except flowchart, state, data charts (§1.4)                                                                               |
-| Trailing-keyword flag list                    | wireframe only (§19)                                                                                                                      |
-| `progress: <N>` key                           | gantt only (§13)                                                                                                                          |
-| `score: <N>` + `emotion: <Word>` keys         | journey-map only (§22)                                                                                                                    |
-| `description: <text>` shorthand for layers    | pyramid, ring (§23, §24)                                                                                                                  |
-| `milestone` keyword                           | **removed** — use `<name> 0` (§13A)                                                                                                       |
-| `\|` operator as metadata delimiter           | **removed** (§1.4). Surviving uses: wireframe `{A \| B}` braces, in-arrow `A -file\|name-> B`, quoted `"Order \| Items"`                  |
+| Same-line / indented metadata on declarations | all chart types except flowchart, state, data charts (§1.4)                                                                       |
+| Trailing-keyword flag list                    | wireframe only (§19)                                                                                                              |
+| `progress: <N>` key                           | gantt only (§13)                                                                                                                  |
+| `score: <N>` + `emotion: <Word>` keys         | journey-map only (§22)                                                                                                            |
+| `description: <text>` shorthand for layers    | pyramid, ring (§23, §24)                                                                                                          |
+| `milestone` keyword                           | **removed** — use `<name> 0` (§13A)                                                                                               |
+| `\|` operator as metadata delimiter           | **removed** (§1.4). Surviving uses: wireframe `{A \| B}` braces, in-arrow `A -file\|name-> B`, quoted `"Order \| Items"`          |
 
 ### 26.4 Quoted Names + Aliases — Pick One
 
