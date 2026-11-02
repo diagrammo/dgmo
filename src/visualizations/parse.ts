@@ -7,7 +7,7 @@
 // parseVisualization from this module, not from d3.ts. Behavior is identical.
 // ============================================================
 
-import { chartTypes } from '../chart-types';
+import { chartTypes, RETIRED_CHART_TYPES } from '../chart-types';
 import type { PaletteColors } from '../palettes';
 import { resolveColorWithDiagnostic } from '../colors';
 import {
@@ -1376,7 +1376,10 @@ function parseVisualizationFull(
     // opening move was a wrong answer, offering a seventh of what it can draw
     // and omitting `flowchart`, the likeliest thing the person was typing.
     const word = firstNonEmpty.split(/\s/)[0]!;
-    const hint = suggest(word.toLowerCase(), allChartTypeIds);
+    const successor = RETIRED_CHART_TYPES[word.toLowerCase()];
+    const hint = successor
+      ? `Did you mean '${successor}'?`
+      : suggest(word.toLowerCase(), allChartTypeIds);
     let msg = `'${word}' is not a chart type`;
     msg += hint
       ? `. ${hint}`

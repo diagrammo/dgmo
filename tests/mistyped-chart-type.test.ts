@@ -33,6 +33,14 @@ describe('a first line that almost names a chart type', () => {
     expect(d!.message).toContain("Did you mean 'flowchart'?");
   });
 
+  // `sketch` was retired for `whiteboard` (#1669); a file that still opens
+  // with it is no longer a chart type and should be pointed at its successor.
+  it('points the retired `sketch` at `whiteboard`', () => {
+    const [d] = found('sketch\n[A] -> [B]');
+    expect(d!.message).toContain("'sketch' is not a chart type");
+    expect(d!.message).toContain("Did you mean 'whiteboard'?");
+  });
+
   it('says nothing when the chart type is spelled correctly', () => {
     expect(found('flowchart Deploy\n[A] -> [B]')).toHaveLength(0);
   });
@@ -79,6 +87,11 @@ describe('the message when no chart type resolves at all', () => {
   it('corrects a real typo', () => {
     expect(first('ba Sales\nQ1 10')).toContain("Did you mean 'bar'?");
     expect(first('flowchar')).toContain("Did you mean 'flowchart'?");
+  });
+
+  it('answers a bare retired `sketch` with `whiteboard`', () => {
+    expect(first('sketch')).toContain("'sketch' is not a chart type");
+    expect(first('sketch')).toContain("Did you mean 'whiteboard'?");
   });
 
   it('says what line 1 is for when there is nothing to correct', () => {

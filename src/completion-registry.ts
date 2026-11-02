@@ -798,17 +798,6 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     }),
   ],
   [
-    'sketch',
-    // GUI-first canvas: shapes carry their own metadata (shape:/at:); the only
-    // directives are legend/fill/description toggles.
-    withGlobals({
-      'no-legend': { description: 'Hide the tag legend' },
-      'no-descriptions': {
-        description: 'Hide card metadata rows — the name fills each card',
-      },
-    }),
-  ],
-  [
     'whiteboard',
     // Canvas-authored free placement: every line is an element; the only
     // directives are the universal set plus `no-notes`, the two that act.
@@ -902,7 +891,6 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
 // (`fill`) charts; line/function area fills and sankey ribbons honor
 // `fill-solid` but ignore `fill-outline` (the fill is the data surface).
 const FILL_FAMILY_CAPABLE = new Set([
-  'sketch',
   'flowchart',
   'state',
   'sequence',
@@ -1025,7 +1013,6 @@ export const STRUCTURAL_KEYWORDS = new Map<string, string[]>([
   ['mindmap', ['tag']],
   ['treemap', ['tag']],
   ['block', ['tag']],
-  ['sketch', ['tag']],
   [
     'whiteboard',
     [
@@ -1152,15 +1139,6 @@ export const REFERENCE_GRAMMAR = new Map<string, ReferenceGrammar>([
     'boxes-and-lines',
     { hasReferenceGrammar: true, referenceOperators: ['->', '<->'] },
   ],
-  // Sketch edges reference aliases / unambiguous labels (spec §31.4);
-  // includes the net-new headless forms.
-  [
-    'sketch',
-    {
-      hasReferenceGrammar: true,
-      referenceOperators: ['->', '<->', '~>', '<~>', '--', '~~'],
-    },
-  ],
   // Venn references prior sets via the `+` intersection operator (not an arrow).
   ['venn', { hasReferenceGrammar: true, referenceOperators: ['+'] }],
   // Family unions reference a prior/again-named person via the `+` couple operator.
@@ -1271,20 +1249,6 @@ export const PIPE_METADATA = new Map<string, PipeContextMap>([
         label: {
           description:
             'Shape label position: `top` or `middle` (automatic: top on a rectangle holding shapes)',
-        },
-      },
-    },
-  ],
-  [
-    'sketch',
-    {
-      node: {
-        at: {
-          description:
-            'Half-slot position `at: C R` (integers; omit to flow-place)',
-        },
-        collapsed: {
-          description: 'Bare flag on a [Box] line — start folded',
         },
       },
     },

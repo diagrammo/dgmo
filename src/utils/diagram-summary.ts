@@ -69,7 +69,6 @@ import { parseRaci } from '../raci/parser';
 import { parseSequenceDgmo } from '../sequence/parser';
 import { parseSitemap } from '../sitemap/parser';
 import type { SitemapNode } from '../sitemap/types';
-import { parseSketch } from '../sketch/parser';
 import { parseWhiteboard } from '../whiteboard/parser';
 import { parseSwimlane } from '../swimlane/parser';
 import { parseVersionControl } from '../version-control/parser';
@@ -363,13 +362,6 @@ function summarizeBoxesAndLines(content: string): string | null {
   if (parsed.error) return null;
   const names = parsed.nodes.map((n) => n.label);
   return `Boxes and lines diagram of ${namedCount(names, 'box', 'boxes')}, with ${plural(parsed.edges.length, 'line', 'lines')}.`;
-}
-
-function summarizeSketch(content: string): string | null {
-  const parsed = parseSketch(content);
-  if (parsed.error) return null;
-  const names = parsed.nodes.map((n) => n.label);
-  return `Sketch of ${namedCount(names, 'shape', 'shapes')}, with ${plural(parsed.edges.length, 'connection', 'connections')}.`;
 }
 
 function summarizeWhiteboard(content: string): string | null {
@@ -947,7 +939,6 @@ const SUMMARIZERS: Record<ChartTypeId, Summarizer> = {
   gantt: summarizeGantt,
   pert: summarizePert,
   'boxes-and-lines': summarizeBoxesAndLines,
-  sketch: summarizeSketch,
   whiteboard: summarizeWhiteboard,
   swimlane: summarizeSwimlane,
   family: summarizeFamily,

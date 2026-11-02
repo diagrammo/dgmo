@@ -302,41 +302,6 @@ export {
 
 export { collapseBoxesAndLines } from './boxes-and-lines/collapse';
 
-// ── Sketch (BL-115, spec §31) — the app canvas editor consumes the parser,
-// layout, renderer, AND the slot-geometry constants through this entrypoint
-// (one drawing code path, decision 21; constants never redefined, Task 5).
-export { parseSketch } from './sketch/parser';
-export { emitSketch, canonicalSketch, sameSketch } from './sketch/emit';
-export type {
-  ParsedSketch,
-  SketchNode,
-  SketchEdge,
-  SketchBox,
-  SketchAt,
-  SketchEdgeHeads,
-  SketchOptions,
-} from './sketch/types';
-export { layoutSketch, SKETCH_AUTO_LAYOUT_DEFAULTS } from './sketch/layout';
-export type {
-  SketchLayout,
-  SketchLayoutNode,
-  SketchLayoutBox,
-  SketchLayoutOptions,
-  SketchAutoLayoutFlags,
-} from './sketch/layout';
-export {
-  renderSketch,
-  renderSketchForExport,
-  sketchEdgeGeometry,
-  sketchLabelSpot,
-} from './sketch/renderer';
-export type {
-  SketchRenderOptions,
-  SketchEdgeBoard,
-  SketchEdgeGeometry,
-} from './sketch/renderer';
-export { collapseSketch } from './sketch/collapse';
-
 // ── Whiteboard (spec §39) — parser, emitter and renderer for the app canvas.
 // The ink codec is on the main entry (`encodeInk` / `decodeInk`).
 export { parseWhiteboard, isWhiteboardImageRef } from './whiteboard/parser';
@@ -436,18 +401,6 @@ export type {
   WhiteboardConnectorAttachments,
   WhiteboardAttachable,
 } from './whiteboard/geometry';
-export type { SketchCollapseResult } from './sketch/collapse';
-export {
-  SKETCH_GEOMETRY,
-  SKETCH_FOOT_W,
-  SKETCH_FOOT_H,
-  SKETCH_HALF_SLOT_X,
-  SKETCH_HALF_SLOT_Y,
-  SKETCH_SLOT_X,
-  SKETCH_SLOT_Y,
-  SKETCH_SEP,
-  sketchSlotToPx,
-} from './sketch/geometry';
 export type { BLCollapseResult } from './boxes-and-lines/collapse';
 export { focusBoxesAndLines } from './boxes-and-lines/focus';
 export type { FocusTarget, FocusResult } from './boxes-and-lines/focus';
@@ -999,32 +952,13 @@ export type { LegendGroupData } from './utils/legend-types';
 // restate those numbers, which is how a legend comes to look almost right.
 // Added 2026-08-26 for the app's live sketch canvas, the one legend in the
 // product dgmo does not draw (diagrammo/diagrammo#514).
-// The sketch chart type's visual weights, so a SECOND drawer of the same
-// chart cannot pick different ones (diagrammo/diagrammo#502).
-export { SKETCH_VISUALS } from './sketch/visuals';
-// 🔴 The sketch colour model, exported for the app's live canvas — the one
-// drawing surface here that is not a renderer. It had invented its own (the raw
-// tag colour at 25% alpha for a shape, 12% for a container) against these
-// opaque `shapeFill` blends, so a tinted container bled through every child
-// (#516). Cite it; never restate it.
-export {
-  CONTAINER_FILL_OPACITY,
-  CONTAINER_STROKE_OPACITY,
-  CONTAINER_STROKE_WIDTH,
-  sketchColors,
-  sketchContainerFill,
-  sketchNeutralFill,
-  type SketchFillMode,
-  type SketchNodeColors,
-} from './sketch/colors';
 // 🔴 The DIAGRAM typeface, and it is not the host's. A page's own font stack is
 // chrome; every renderer here writes this onto the SVG it emits so diagram text
 // resolves to the two-weight family whatever the host sets. Exported 2026-08-27
 // because the app draws a sketch by hand on a live canvas — the one drawing
 // surface that is not a renderer — and was inheriting the app's chrome family,
 // so a sketch looked like one typeface while you edited it and another once it
-// was exported. Same reason `SKETCH_VISUALS` is exported above: cite it, never
-// restate it.
+// was exported. Cite it, never restate it.
 export { DEFAULT_FONT_NAME, FONT_FAMILY } from './fonts';
 
 export {

@@ -270,16 +270,6 @@ arrow from: 120 30, to: 200 30, color: blue
 text note at: 0 80
 `,
 
-  sketch: `sketch Test Sketch
-
-tag Crew
-  Deck
-
-Spyglass Feed shape: cloud, at: 0 0, crew: Deck
-  -sightings-> con
-Captain Console as con at: 2 0
-`,
-
   block: `block Test Block
 
 tag Layer as l

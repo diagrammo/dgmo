@@ -43,7 +43,6 @@ const CASES: Record<string, string> = {
   kanban: `kanban\n  Todo\n    ${HOSTILE}\n`,
   mindmap: `mindmap\n  Root\n    ${HOSTILE}\n`,
   org: `org\n  ${HOSTILE}\n`,
-  sketch: `sketch\n  ${HOSTILE}\n`,
   timeline: `timeline\n  2020 ${HOSTILE}\n  2021 Thing\n`,
 };
 

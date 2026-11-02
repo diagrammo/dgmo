@@ -37,7 +37,6 @@ import { PERT_DIAGNOSTICS } from './pert/diagnostics';
 import { GRAPH_DIAGNOSTICS } from './graph/diagnostics';
 import { COLOR_DIAGNOSTICS } from './colors-diagnostics';
 import { SEQUENCE_DIAGNOSTICS } from './sequence/diagnostics';
-import { SKETCH_DIAGNOSTICS } from './sketch/diagnostics';
 import { WHITEBOARD_DIAGNOSTICS } from './whiteboard/diagnostics';
 import { FAMILY_DIAGNOSTICS } from './family/diagnostics';
 import { ALIAS_DIAGNOSTICS } from './alias-diagnostics';
@@ -177,7 +176,6 @@ const REGISTRY: DiagnosticSpec[] = [
   ...GRAPH_DIAGNOSTICS,
   ...COLOR_DIAGNOSTICS,
   ...SEQUENCE_DIAGNOSTICS,
-  ...SKETCH_DIAGNOSTICS,
   ...WHITEBOARD_DIAGNOSTICS,
   ...FAMILY_DIAGNOSTICS,
   ...ALIAS_DIAGNOSTICS,

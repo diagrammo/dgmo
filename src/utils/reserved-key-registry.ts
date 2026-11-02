@@ -215,16 +215,6 @@ export const BOXES_AND_LINES_REGISTRY: ReservedKeyRegistry = staticRegistry([
  */
 export const STATE_REGISTRY: ReservedKeyRegistry = staticRegistry([]);
 
-// Sketch (spec §31): `shape` is reserved only so the parser can report it as
-// unsupported (E_SKETCH_SHAPE_UNSUPPORTED, #1048), `at` is the half-slot
-// coordinate, `collapsed` is normally a bare flag on box lines but
-// the colon form is tolerated here so it never warns as unknown.
-export const SKETCH_REGISTRY: ReservedKeyRegistry = staticRegistry([
-  'shape',
-  'at',
-  'collapsed',
-]);
-
 export const TIMELINE_REGISTRY: ReservedKeyRegistry = staticRegistry([
   'color',
   'description',

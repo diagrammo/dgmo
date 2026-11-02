@@ -54,7 +54,6 @@ import { exportRaci } from './raci/export';
 import { exportRing } from './ring/export';
 import { exportVisualization } from './sequence/export';
 import { exportSitemap } from './sitemap/export';
-import { exportSketch } from './sketch/export';
 import { exportSlope } from './slope/export';
 import { exportSwimlane } from './swimlane/export';
 import { exportTechRadar } from './tech-radar/export';
@@ -103,7 +102,6 @@ export const DIAGRAM_EXPORT_HANDLERS: Record<string, DiagramExportHandler> = {
   class: exportClass,
   er: exportEr,
   'boxes-and-lines': exportBoxesAndLines,
-  sketch: exportSketch,
   whiteboard: exportWhiteboard,
   swimlane: exportSwimlane,
   family: exportFamily,

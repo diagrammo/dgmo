@@ -24,7 +24,7 @@ import {
 } from './diagnostics';
 import { attachHints } from './diagnostics-registry';
 import type { DgmoError } from './diagnostics';
-import { chartTypes } from './chart-types';
+import { chartTypes, RETIRED_CHART_TYPES } from './chart-types';
 import {
   CHART_TYPE_REGISTRY,
   REGISTRY_BY_ID,
@@ -215,7 +215,7 @@ function detectMistypedChartType(
     // `graph` is four edits from `gantt` and nowhere near `flowchart` — and
     // arriving from Mermaid is the single likeliest way to type a first line
     // DGMO does not know.
-    const alias = MERMAID_FIRST_WORDS[word];
+    const alias = MERMAID_FIRST_WORDS[word] ?? RETIRED_CHART_TYPES[word];
     const suggestion = alias
       ? `Did you mean '${alias}'?`
       : suggest(word, [...ALL_KNOWN_TYPES]);

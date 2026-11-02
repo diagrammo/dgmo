@@ -95,7 +95,7 @@ export interface HoverDerived {
   /** The tag attr the LEGEND pairs against, when it is not the same attr the
    *  strategy enumerates. Set only for charts whose legend is a tag-group
    *  legend while their cross rules key off something else — the graph family
-   *  (org, c4, sitemap, sequence, sketch, boxes-and-lines: cross rules are
+   *  (org, c4, sitemap, sequence, boxes-and-lines: cross rules are
    *  node→edge) and gantt (cross rules key off `data-group`). Left undefined
    *  for the tag-active enumerated charts, whose `groupAttr` already IS the
    *  tag attr and whose legend rules the enumerated branch emits. */
@@ -589,17 +589,6 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     groupAttr: 'data-wb-meaning',
     emphasis: 'dim',
     legend: true,
-  },
-  sketch: {
-    markSelector: '.sk-node',
-    strategy: 'connection',
-    hoverSelector: '.sk-node',
-    hoverAttr: 'data-node-id',
-    edgeSelector: '.sk-edge-group',
-    fromAttr: 'data-from',
-    toAttr: 'data-to',
-    legend: true,
-    emphasis: 'dim',
   },
   infra: {
     markSelector: '.infra-node',

@@ -633,8 +633,8 @@ describe("each TYPE block's ### Example parses with no errors and no warnings", 
     return m ? [{ id, source: m[1] }] : [];
   });
 
-  it('found the sketch example (non-vacuous)', () => {
-    expect(examples.map((e) => e.id)).toContain('sketch');
+  it('found the whiteboard example (non-vacuous)', () => {
+    expect(examples.map((e) => e.id)).toContain('whiteboard');
   });
 
   for (const { id, source } of examples) {
@@ -644,19 +644,4 @@ describe("each TYPE block's ### Example parses with no errors and no warnings", 
       expect(errors.length + warnings.length, `${id}:\n  ${msgs}`).toBe(0);
     });
   }
-});
-
-describe('the sketch reference offers no shape kinds (#1048)', () => {
-  const refMd = readRepoFile('docs/language-reference.md') ?? '';
-  const sketch =
-    typeBlocks(refMd).find(({ id }) => id === 'sketch')?.block ?? '';
-
-  it('found the sketch block (non-vacuous)', () => {
-    expect(sketch).toContain('### Shapes');
-  });
-
-  it('writes no shape: kind and lists no shape key', () => {
-    expect(sketch).not.toMatch(/shape: (database|queue|person|document|note)/);
-    expect(sketch).not.toMatch(/^\| `shape`/m);
-  });
 });

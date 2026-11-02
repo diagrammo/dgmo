@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import * as advanced from '../src/advanced';
-import { SKETCH_VISUALS } from '../src/sketch/visuals';
-import { TITLE_FONT_WEIGHT } from '../src/utils/title-constants';
 
 describe('every visual constant is a value, not a word coerced to one', () => {
   // 🔴 `titleFontWeight` was `Number(TITLE_FONT_WEIGHT)` and the shared constant
@@ -53,10 +51,5 @@ describe('every visual constant is a value, not a word coerced to one', () => {
       }
     }
     expect(bad.join('\n')).toBe('');
-  });
-
-  it('the sketch title is bold, at the shared weight', () => {
-    expect(SKETCH_VISUALS.titleFontWeight).toBe(700);
-    expect(TITLE_FONT_WEIGHT).toBe('bold');
   });
 });

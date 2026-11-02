@@ -98,7 +98,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 - **Always title it.** Every diagram gets a short title on the type-declaration line (`flowchart Checkout Flow`, `sequence Checkout`, `boxes-and-lines Service Map`) so it is self-describing — never leave the bare type keyword alone. Infer a fitting title from the request when the user gives none.
   <!-- TITLE end -->
   <!-- CATEGORIZE start -->
-- **Categorize and color — by default, not only when obvious.** Before drawing, find the axis that sorts the items into kinds and color by it: layer (frontend / backend / data), role (client / service / datastore), trust zone (internal / external / third-party), status (done / active / blocked), owner/team, or read-path vs write-path. Almost every diagram has such an axis — actively look for one rather than leaving everything monochrome. Express it with a **tag group**, never ad-hoc per-node colors: declare `tag <Axis> as t` (the name is a single word — `tag TrustZone as tz` — or quote a multi-word name: `tag "Trust Zone" as tz`), indent the category values (a trailing color is optional — bare values auto-pick a palette color), set `active-tag <Axis>` in the header — after the tag group and before the first element, because a type such as c4 refuses it after content — then assign each item `Node t: <Category>` (see the tag-group syntax in the per-type section below). **Bracket, block, body, event-line, family, sketch and whiteboard** take the tag group but no `active-tag` line — declare the group and stop there; on event-line, family and sketch the line would be drawn as an element. **Class, flowchart, wireframe, raci, cycle, pyramid, ring, sankey, tech-radar, venn, version-control, wordcloud, arc, bar, clock, countdown, funnel, function, goal, heatmap, line, pie, polar-area, quadrant, radar, scatter and slope** take no tag group at all — skip this rule for them. Most report the lines; cycle, pyramid, ring, sankey, venn, version-control and wordcloud read them as content, and flowchart and tech-radar drop them without a word. Only the 11 named palette colors exist, and they re-resolve per palette/theme. Color the grouping so the categories — and the boundaries between them — read at a glance. **Buckets, not name tags — never 1:1.** A tag group must have _fewer_ values than it has members: each color should bucket two or more items so the palette compresses the diagram into a few meaningful kinds (aim for ~2–4 categories, and keep distinct colors well under half the item count). If you find yourself giving nearly every item its own value, you've enumerated, not categorized — merge the singletons up a level until each color groups at least two (a `cache` and a `database` are both `datastore`; a caller and a gateway are both `client`; two microservices are both `service`). One color per item is the same visual noise as random colors — the grouping only earns its place when a color means "these belong together." Leave items uncolored only when they genuinely form a single undifferentiated kind, or the user asked for no color.
+- **Categorize and color — by default, not only when obvious.** Before drawing, find the axis that sorts the items into kinds and color by it: layer (frontend / backend / data), role (client / service / datastore), trust zone (internal / external / third-party), status (done / active / blocked), owner/team, or read-path vs write-path. Almost every diagram has such an axis — actively look for one rather than leaving everything monochrome. Express it with a **tag group**, never ad-hoc per-node colors: declare `tag <Axis> as t` (the name is a single word — `tag TrustZone as tz` — or quote a multi-word name: `tag "Trust Zone" as tz`), indent the category values (a trailing color is optional — bare values auto-pick a palette color), set `active-tag <Axis>` in the header — after the tag group and before the first element, because a type such as c4 refuses it after content — then assign each item `Node t: <Category>` (see the tag-group syntax in the per-type section below). **Bracket, block, body, event-line, family and whiteboard** take the tag group but no `active-tag` line — declare the group and stop there; on event-line and family the line would be drawn as an element. **Class, flowchart, wireframe, raci, cycle, pyramid, ring, sankey, tech-radar, venn, version-control, wordcloud, arc, bar, clock, countdown, funnel, function, goal, heatmap, line, pie, polar-area, quadrant, radar, scatter and slope** take no tag group at all — skip this rule for them. Most report the lines; cycle, pyramid, ring, sankey, venn, version-control and wordcloud read them as content, and flowchart and tech-radar drop them without a word. Only the 11 named palette colors exist, and they re-resolve per palette/theme. Color the grouping so the categories — and the boundaries between them — read at a glance. **Buckets, not name tags — never 1:1.** A tag group must have _fewer_ values than it has members: each color should bucket two or more items so the palette compresses the diagram into a few meaningful kinds (aim for ~2–4 categories, and keep distinct colors well under half the item count). If you find yourself giving nearly every item its own value, you've enumerated, not categorized — merge the singletons up a level until each color groups at least two (a `cache` and a `database` are both `datastore`; a caller and a gateway are both `client`; two microservices are both `service`). One color per item is the same visual noise as random colors — the grouping only earns its place when a color means "these belong together." Leave items uncolored only when they genuinely form a single undifferentiated kind, or the user asked for no color.
 <!-- CATEGORIZE end -->
 - **Keep labels short.** A few words per node. Move detail into notes or metadata, never a full sentence inside a label.
 - **Let the defaults show.** Don't add `no-*` opt-outs unless the user asked to hide or disable something — they strip helpful labels, values, and color.
@@ -141,7 +141,6 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `ring`            | concentric rings of nested categories                                                                                                                         |
 | `treemap`         | nested rectangles sized by value (budgets, disk usage, portfolios)                                                                                            |
 | `block`           | author-controlled grid of nested, collapsible blocks (system / architecture layouts)                                                                          |
-| `sketch`          | GUI-first free-placement canvas: uniform shapes on a snap grid, arrows, tags (markup is app-generated)                                                        |
 | `whiteboard`      | free-form infinite canvas: shapes, sticky notes, free arrows, text, images and freehand ink at pixel positions (canvas-drawn; AI writes all but ink)          |
 | `goal`            | single progress-toward-a-target value (`now` vs `target`) as a progress bar, thermometer, or gauge — KPIs, fundraising, quotas                                |
 | `countdown`       | live "N days until X" that ticks every second and is accurate on every load — trip dates, launches, deadlines; the only dynamic chart type                    |
@@ -215,7 +214,7 @@ tag GroupName as <alias>
 - Must appear before diagram content
 - Bare shorthand is not an alias (TD-18): `tag Priority p` declares a group _named_ "Priority p" — no alias registers, so `p:` assignments silently miss. The parser warns on this shape (spaced name, no alias, alias-shaped trailing word), suggesting `tag Priority as p` or a quoted name
 
-**Diagram types that support tags**: the tag model is near-universal across the structural types — sequence, infra, org, c4, er, kanban, gantt, sitemap, timeline, boxes-and-lines, state (§5.7), pert, swimlane, mindmap, journey-map, event-line, treemap, map, block, sketch, bracket, family and whiteboard all accept `tag <Group> as <alias>` blocks (a whiteboard's names its colours — §24Ea). Check the per-type Options section for the exact directive set; if a type draws a tag legend, it takes tags. **Flowchart, wireframe, raci and class take no tags** — a `tag` block or `active-tag` on any of them is ignored with a warning, because what an element looks like is fixed by what it is (a flowchart's shape, a wireframe's state keywords, a class's trailing colour word) or by the roles (raci).
+**Diagram types that support tags**: the tag model is near-universal across the structural types — sequence, infra, org, c4, er, kanban, gantt, sitemap, timeline, boxes-and-lines, state (§5.7), pert, swimlane, mindmap, journey-map, event-line, treemap, map, block, bracket, family and whiteboard all accept `tag <Group> as <alias>` blocks (a whiteboard's names its colours — §24Ea). Check the per-type Options section for the exact directive set; if a type draws a tag legend, it takes tags. **Flowchart, wireframe, raci and class take no tags** — a `tag` block or `active-tag` on any of them is ignored with a warning, because what an element looks like is fixed by what it is (a flowchart's shape, a wireframe's state keywords, a class's trailing colour word) or by the roles (raci).
 
 ### 1.4 Same-Line Metadata
 
@@ -285,7 +284,7 @@ Two narrow exceptions accept same-line-metadata-only color: **cycle edges** (no 
 - Indented content below belongs to the group
 - **A tag value on the group line colors the group's own frame**, and cascades
   to its children: `[Backend] s: Red`. Supported on boxes-and-lines, infra, c4,
-  state, pert, kanban, gantt, sequence, org, block and sketch. Two rules: a
+  state, pert, kanban, gantt, sequence, org and block. Two rules: a
   group never picks up the tag group's first-value default (an untagged group
   stays neutral grey), and a value the tag group does not recognize leaves it
   neutral rather than painting a fallback shade.
@@ -3948,86 +3947,6 @@ In the desktop app a block diagram is interactive: click a container header to c
 
 ---
 
-## 24E. Sketch Diagrams
-
-<!-- TYPE:sketch -->
-
-**Beta — expect rough edges and syntax changes.**
-
-<!-- TIPS start -->
-
-**Styling tips:** Sketch is a GUI-authored format — the desktop and web canvas editors generate this markup, so hand-writing it is the exception. If you generate it anyway: keep it SMALL (sketches read best under ~15 shapes), and either omit `at:` everywhere (shapes flow into rows) or use integer half-slot coordinates with shapes **at least 3 half-slots apart** on one axis (a footprint spans 2 half-units and the mandatory gap adds 1 more, so each shape claims a 3×3 block; 2 apart overlaps). A `[Box]` may hold another `[Box]`, to **depth 2** — a third level is refused and its shapes join the box above it. Alias any shape an edge references (`as con`). Never write `size:`, `shape:`, colors, or fonts — every shape is the same plain card. In sketch, `~` dashed means secondary emphasis, NOT async. Categorize with a tag group — kind-of-thing is meaning, and meaning lives in tags. Reach for `sketch` when the drawing itself is the content; reach for `boxes-and-lines` when topology should auto-lay-out.
-
-<!-- TIPS end -->
-
-A **GUI-first constrained canvas**: uniformly-sized shapes placed freely on a snap grid, arrows between them, meaning through tags. The renderer owns all styling — authors own placement, connection, naming, and tags. Every shape has ONE universal footprint (no resizing); text always fits (shrink → smart-wrap → `…`). Pick `sketch` when the spatial arrangement is yours to decide; pick `boxes-and-lines` when topology should auto-lay-out.
-
-### Declaration
-
-```
-sketch [Title]
-```
-
-### Example
-
-```
-sketch Plunder Pipeline
-
-tag Crew
-  Deck
-  Hold
-
-Spyglass Feed at: 0 0, crew: Deck
-  -sightings-> con
-Captain's Console as con at: 2 0, crew: Deck
-  -orders-> bq
-Divvy Service as dvy at: 4 0, crew: Hold
-
-[Below Decks] at: 2 2, crew: Hold
-  Booty Queue as bq at: 0 0
-    ~haul~> dvy
-  Ship Ledger as ledger at: 2 0
-
-[Armory] as armory at: 0 2, collapsed
-  Powder Store at: 0 0
-```
-
-### Shapes
-
-One top-level line = one shape — a **bare name** plus same-line `key: value` metadata. Every shape is the same plain card — there are no shape kinds, and a `shape:` clause is an error (`E_SKETCH_SHAPE_UNSUPPORTED`); the shape still draws, without it. Duplicate labels are legal **when aliased** (`Cache as c1` / `Cache as c2`); unaliased duplicates merge (standard dgmo semantics).
-
-### Coordinates — `at: C R`
-
-Integer **half-slot steps** (a slot = one footprint + the mandatory gap), origin-normalized; box children are relative to the box origin. `at:` is **optional** — un-positioned shapes flow-place in rows below existing content. Hand-authored overlap auto-resolves with a warning; nothing renders broken.
-
-### Lines
-
-Indented under the source shape, targeting an alias (or an unambiguous bare label). Six forms: `-label->` one head · `<-label->` both heads · `-label-` no heads, plus `~` dashed twins. Unlabeled headless lines are `--` / `~~`. No left-pointing arrows — write `B -> A`, never `A <- B`. A tag on the edge tail (`crew: Hold`) colors the line. Both ends must attach.
-
-### Boxes
-
-`[Brackets]` = a **box** (labeled group frame) — the only bracket meaning in sketch. Label mandatory; one level only (no nested boxes); taggable (frame tints, cascades to children, individual overrides); bare `collapsed` folds it to a card with the collapse-bar and edges re-target the card. Interactive fold/unfold in the app; static export renders the authored state.
-
-### Node Metadata
-
-| Key         | Type           | Default                 | Description                                              |
-| ----------- | -------------- | ----------------------- | -------------------------------------------------------- |
-| `at`        | `C R` integers | flow-placed             | Half-slot position (origin-normalized)                   |
-| `collapsed` | flag           | —                       | Box only — start folded (collapse-bar)                   |
-| `<tag>`     | declared value | untagged (neutral gray) | Tag value (cascades from box; edge tails color the line) |
-
-### Directives
-
-| Directive   | Effect               |
-| ----------- | -------------------- |
-| `no-legend` | Hide the tag legend. |
-
-### Interactivity vs export
-
-In the desktop and web app a sketch opens in the **canvas editor** (the code pane hides behind a toggle); boxes fold/unfold interactively. Static SVG / PNG export renders the authored state — the same interactive-vs-export split the map, treemap, and block charts use.
-
----
-
 ## 24Ea. Whiteboard Diagrams
 
 <!-- TYPE:whiteboard -->
@@ -4036,7 +3955,7 @@ In the desktop and web app a sketch opens in the **canvas editor** (the code pan
 
 <!-- TIPS start -->
 
-**Styling tips:** Whiteboard is a canvas-first format: people draw on it, and pen strokes (`ink` lines) only ever come from drawing — never write an `ink` line. Generate the readable parts only: `rectangle`, `ellipse`, `database`, `queue`, `file` (a page with a wavy bottom, for a document or file) with a label, `at: X Y` (top-left, integer pixels) and `size: W H`; `arrow` with `from: X Y, to: X Y` and an optional label, or `line` the same way for a connection with no head; add `style: dashed` to an arrow or line for a tentative or optional link; `heads: both` for a two-way arrow; `bend: 40` (px, sign picks the side) to curve a link around something in its way; `text` at a point; `note` with `at: X Y` for a sticky-note comment or open question (a 160 × 99 yellow card by default; `size:` and `color:` are optional). A shape label or a note wraps to its width on its own, so never break a sentence by hand to fit; for separate lines (a heading, a list), drop the inline label and indent each line two spaces under the element line. Leave ~40px between shapes and keep boards small (under ~15 elements). Colours are palette names (red, green, blue, teal, purple, orange, yellow, cyan, gray); leave colour off for the default ink. An arrow or line end placed inside a shape or note attaches to it and is drawn to its border, so point ends at shape centres. `no-notes` hides every note when the board is shown. Reach for `whiteboard` for a loose drawing someone will scribble over; reach for `sketch` for tagged shapes on a grid, and `boxes-and-lines` when topology should auto-lay-out.
+**Styling tips:** Whiteboard is a canvas-first format: people draw on it, and pen strokes (`ink` lines) only ever come from drawing — never write an `ink` line. Generate the readable parts only: `rectangle`, `ellipse`, `database`, `queue`, `file` (a page with a wavy bottom, for a document or file) with a label, `at: X Y` (top-left, integer pixels) and `size: W H`; `arrow` with `from: X Y, to: X Y` and an optional label, or `line` the same way for a connection with no head; add `style: dashed` to an arrow or line for a tentative or optional link; `heads: both` for a two-way arrow; `bend: 40` (px, sign picks the side) to curve a link around something in its way; `text` at a point; `note` with `at: X Y` for a sticky-note comment or open question (a 160 × 99 yellow card by default; `size:` and `color:` are optional). A shape label or a note wraps to its width on its own, so never break a sentence by hand to fit; for separate lines (a heading, a list), drop the inline label and indent each line two spaces under the element line. Leave ~40px between shapes and keep boards small (under ~15 elements). Colours are palette names (red, green, blue, teal, purple, orange, yellow, cyan, gray); leave colour off for the default ink. An arrow or line end placed inside a shape or note attaches to it and is drawn to its border, so point ends at shape centres. `no-notes` hides every note when the board is shown. Reach for `whiteboard` for a loose drawing someone will scribble over; reach for `boxes-and-lines` when topology should auto-lay-out.
 
 <!-- TIPS end -->
 
@@ -4852,7 +4771,7 @@ Some constructs _look_ universal but are scoped to specific chart types. Don't t
 
 | Construct                                     | Scope                                                                                                                                     |
 | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Bare `collapsed` trailing flag (§1.8)         | sequence, infra, gantt, kanban, mindmap, pert, state, c4, event-line (eras), block, sketch, wireframe. Legacy: `collapsed: true` metadata |
+| Bare `collapsed` trailing flag (§1.8)         | sequence, infra, gantt, kanban, mindmap, pert, state, c4, event-line (eras), block, wireframe. Legacy: `collapsed: true` metadata |
 | Same-line / indented metadata on declarations | all chart types except flowchart, state, data charts (§1.4)                                                                               |
 | Trailing-keyword flag list                    | wireframe only (§19)                                                                                                                      |
 | `progress: <N>` key                           | gantt only (§13)                                                                                                                          |

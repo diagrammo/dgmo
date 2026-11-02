@@ -73,7 +73,6 @@ import { fixture as ganttFixture } from './fixtures/completion-conformance/gantt
 import { fixture as boxesAndLinesFixture } from './fixtures/completion-conformance/boxes-and-lines';
 import { fixture as pertFixture } from './fixtures/completion-conformance/pert';
 import { fixture as wireframeFixture } from './fixtures/completion-conformance/wireframe';
-import { fixture as sketchFixture } from './fixtures/completion-conformance/sketch';
 
 const fixtures: ConformanceFixture[] = [
   raciFixture,
@@ -114,7 +113,6 @@ const fixtures: ConformanceFixture[] = [
   infraFixture,
   ganttFixture,
   boxesAndLinesFixture,
-  sketchFixture,
   pertFixture,
   wireframeFixture,
 ];

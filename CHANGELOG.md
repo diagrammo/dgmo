@@ -33,6 +33,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `measureSvgContent` are exported for a host that serializes its
   own live SVG for export.
 
+### Removed
+
+- **The `sketch` chart type is gone; `whiteboard` is the one canvas**
+  (breaking; the sketch retirement, #1669). A file whose first line is
+  `sketch` no longer parses: it fails as an unknown chart type, and the
+  message suggests `whiteboard`. The `advanced` entry point no longer
+  exports the sketch parser, emitter, layout, renderer, collapse,
+  geometry, visuals and colour model (`parseSketch`, `renderSketch`,
+  `SKETCH_GEOMETRY`, `SKETCH_VISUALS`, `sketchColors`,
+  `CONTAINER_FILL_OPACITY` and the rest).
+
 ### Fixed
 
 - **A mindmap's title root no longer offers a collapse toggle.** Its

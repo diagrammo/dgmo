@@ -52,7 +52,6 @@ const TAG_CAPABLE = [
   'treemap',
   'map',
   'block',
-  'sketch',
   'bracket',
   'family',
 ];

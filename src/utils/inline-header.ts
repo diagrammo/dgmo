@@ -38,7 +38,6 @@ export const LEGEND_INLINE_SUPPORTED: ReadonlySet<string> = new Set([
   'family',
   'infra',
   'sequence',
-  'sketch',
   'bracket',
   'gantt',
   'pert',

@@ -397,7 +397,7 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'mobile', category: 'control' },
   // Whiteboard element leaders (§39). `image` is shared with wireframe above
   // and `text` stays an ER modifier; `database` / `queue` are left plain
-  // because sketch and sequence use them as values, not line leaders.
+  // because sequence uses them as values, not line leaders.
   { token: 'rectangle', category: 'control' },
   { token: 'ellipse', category: 'control' },
   { token: 'arrow', category: 'control' },

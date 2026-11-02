@@ -259,7 +259,7 @@ export const ATTRIBUTE_KEYS = new Set([
   'value',
   'label',
   'style',
-  // Sketch (§31): shape morph + half-slot coordinate keys
+  // Shape morph + coordinate keys (`at:` is whiteboard's position)
   'shape',
   'at',
   // Treemap + boxes-and-lines + map colour-by-value channel key
