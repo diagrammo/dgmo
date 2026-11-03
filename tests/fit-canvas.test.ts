@@ -11,7 +11,12 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { render } from '../src/render';
-import { fitDiagramToCanvas, MIN_CANVAS_WIDTH } from '../src/utils/fit-canvas';
+import {
+  fitDiagramToCanvas,
+  MIN_CANVAS_WIDTH,
+  MIN_DRAWN_TEXT_PX,
+} from '../src/utils/fit-canvas';
+import { MIN_FONT_PX, lintSvg } from './stress/lint';
 
 const FLOWCHART_BASIC = readFileSync(
   join(__dirname, '../gallery/fixtures/flowchart-basic.dgmo'),
@@ -49,10 +54,74 @@ describe('fitDiagramToCanvas', () => {
     expect(fit.canvasWidth).toBe(600 + 20 * 2);
   });
 
+  it('export keeps the smallest text at the floor and grows past the asked width', () => {
+    const fit = fitDiagramToCanvas({
+      ...NARROW,
+      diagramW: 2000,
+      smallestTextPx: 10,
+      exportMode: true,
+    });
+    expect(fit.scale * 10).toBeCloseTo(MIN_DRAWN_TEXT_PX, 10);
+    expect(fit.canvasWidth).toBe(Math.round(2000 * fit.scale + 20 * 2));
+    expect(fit.canvasWidth).toBeGreaterThan(NARROW.width);
+    expect(fit.offsetX).toBeCloseTo(20, 0);
+  });
+
+  it('export above the floor still fits the asked width', () => {
+    const fit = fitDiagramToCanvas({
+      ...NARROW,
+      diagramW: 1400,
+      smallestTextPx: 11,
+      exportMode: true,
+    });
+    expect(fit.scale).toBeCloseTo((1200 - 20 * 2) / 1400, 10);
+    expect(fit.canvasWidth).toBe(1200);
+  });
+
+  it('the preview is not held at the floor: it still fits its pane', () => {
+    const fit = fitDiagramToCanvas({
+      ...NARROW,
+      diagramW: 4000,
+      smallestTextPx: 11,
+      exportMode: false,
+    });
+    expect(fit.scale * 11).toBeLessThan(MIN_DRAWN_TEXT_PX);
+    expect(fit.canvasWidth).toBe(1200);
+  });
+
+  it('the floor is the one the stress lint measures', () => {
+    expect(MIN_DRAWN_TEXT_PX).toBe(MIN_FONT_PX);
+  });
+
   it('the preview still fits a small diagram to its pane', () => {
     const fit = fitDiagramToCanvas({ ...NARROW, exportMode: false });
     expect(fit.scale).toBeGreaterThan(1);
     expect(fit.canvasHeight).toBe(800);
+  });
+});
+
+/** A flowchart whose rank is wider than the sheet can fit at 7px text. */
+function fanOut(lines: (i: number) => string): string {
+  const rows = Array.from({ length: 24 }, (_, i) => lines(i + 1));
+  return `flowchart Fan\n\n${rows.join('\n')}\n`;
+}
+
+describe('an exported wide flowchart keeps its smallest text at the floor (#1688)', () => {
+  it.each([
+    ['nodes alone', (i: number) => `[Start] -> [Validator ${i}]`, 13],
+    ['edge labels', (i: number) => `[Start] -yes-> [Validator ${i}]`, 11],
+    [
+      'an open note',
+      (i: number) =>
+        `[Start] -> [Validator ${i}]${i === 1 ? '\nnote Start check the queue' : ''}`,
+      10,
+    ],
+  ])('%s', async (_name, row, smallest) => {
+    const { svg } = await render(fanOut(row), { width: 1200 });
+    const m = measure(svg);
+    expect(m.scale * smallest).toBeCloseTo(MIN_DRAWN_TEXT_PX, 6);
+    expect(m.canvasWidth).toBeGreaterThan(1200);
+    expect(lintSvg(svg).filter((f) => f.rule === 'text-tiny')).toEqual([]);
   });
 });
 

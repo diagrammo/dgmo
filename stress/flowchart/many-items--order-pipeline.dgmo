@@ -1,6 +1,5 @@
 flowchart Order Pipeline With Fan-Out
 // stress: many-items — forty-plus nodes in one flowchart, three layers of fan-out and a shared sink
-// known: diagrammo/diagrammo#1688
 [Intake] -> [Validator 1]
 [Intake] -> [Validator 2]
 [Intake] -> [Validator 3]

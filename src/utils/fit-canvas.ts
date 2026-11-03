@@ -15,9 +15,19 @@
  */
 export const MIN_CANVAS_WIDTH = 480;
 
+/**
+ * The smallest size text may draw at in an export, after scaling. Below it a
+ * label is unreadable at the export's own size, so the canvas grows instead.
+ * `MIN_FONT_PX` in `tests/stress/lint.ts` measures the same floor.
+ */
+export const MIN_DRAWN_TEXT_PX = 7;
+
 export interface CanvasFit {
   scale: number;
-  /** Canvas width — the scaled content plus padding, never wider than asked. */
+  /**
+   * Canvas width — the scaled content plus padding. Wider than asked only when
+   * `smallestTextPx` holds the scale above what the width would fit.
+   */
   canvasWidth: number;
   offsetX: number;
   offsetY: number;
@@ -38,6 +48,11 @@ export interface FitDiagramParams {
   titleHeight: number;
   /** Upper bound on scale. */
   maxScale: number;
+  /**
+   * Smallest font size drawn inside the scaled content. In export mode the scale
+   * never takes it below `MIN_DRAWN_TEXT_PX`. Omit to fit to the width alone.
+   */
+  smallestTextPx?: number;
   /** True when rendering to a fixed export canvas. */
   exportMode: boolean;
 }
@@ -63,11 +78,18 @@ export function fitDiagramToCanvas(p: FitDiagramParams): CanvasFit {
     // and it came out at scale 3 on a 1200x1670 sheet, so a declared
     // `font-size: 13` rendered at 39 and the apparent size of its text moved
     // with the canvas instead of with the diagram (#532).
-    scale = Math.min(p.maxScale, scaleX, 1);
+    //
+    // Never shrink text under the floor either. Twelve nodes on one rank fitted
+    // to 1200 drew every label under 7px and left the sheet half empty (#1688).
+    // The width gives way instead: the viewer scrolls and zooms.
+    const minScale = p.smallestTextPx
+      ? MIN_DRAWN_TEXT_PX / p.smallestTextPx
+      : 0;
+    scale = Math.max(Math.min(p.maxScale, scaleX, 1), minScale);
     canvasHeight = p.titleHeight + p.diagramH * scale + p.padding * 2;
     canvasWidth = Math.round(
       Math.min(
-        p.width,
+        scale > scaleX ? Infinity : p.width,
         Math.max(MIN_CANVAS_WIDTH, p.diagramW * scale + p.padding * 2)
       )
     );

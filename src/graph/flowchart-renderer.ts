@@ -33,6 +33,7 @@ import {
   renderNoteBadge,
   noteConnectorPoints,
   NOTE_BADGE_RADIUS,
+  NOTE_FONT_SIZE,
 } from '../utils/note-box';
 
 // ============================================================
@@ -519,6 +520,16 @@ export function renderFlowchart(
 
   const diagramW = layout.width;
   const diagramH = layout.height;
+  // The floor holds for the smallest text this diagram really draws, so one
+  // with no edge labels or open notes is not widened on their account.
+  const smallestTextPx = Math.min(
+    sNodeFontSize,
+    layout.edges.some((e) => e.label) ? sEdgeLabelFontSize : Infinity,
+    graph.options?.['no-notes'] !== 'on' &&
+      layout.nodes.some((n) => n.note && !n.note.collapsed)
+      ? NOTE_FONT_SIZE
+      : Infinity
+  );
   const fit = fitDiagramToCanvas({
     width,
     height,
@@ -527,6 +538,7 @@ export function renderFlowchart(
     padding: sDiagramPadding,
     titleHeight,
     maxScale: MAX_SCALE,
+    smallestTextPx,
     exportMode: !!exportDims,
   });
   const { scale, offsetY, canvasHeight } = fit;
