@@ -268,6 +268,9 @@ interface CardLayout {
   card: KanbanCard;
 }
 
+/** A title whose first letter reads right to left, Hebrew or Arabic. */
+const RTL_START = /^[\P{L}]*[\u0590-\u08ff\ufb1d-\ufdff\ufe70-\ufeff]/u;
+
 /**
  * Draw a card title, truncating with an ellipsis when it outruns the card.
  *
@@ -275,6 +278,11 @@ interface CardLayout {
  * cutting the raw source could land inside `**` or a link and print the markup,
  * so it is measured and cut with the markup stripped, and the full text stays on
  * the title element as its tooltip.
+ *
+ * 🔴 A right-to-left title takes its ellipsis as a separate element, on its left,
+ * where that script's reading ends. In the same element resvg draws the ellipsis
+ * and silently drops every Arabic letter (verified 2026-11-03, #1687), and bidi
+ * would put it on the right, where the title starts.
  */
 function renderCardTitle(
   titleEl: d3Selection.Selection<SVGTextElement, unknown, null, undefined>,
@@ -289,7 +297,16 @@ function renderCardTitle(
       .join('');
     const shown = truncateText(plain, fontSize, maxWidth);
     if (shown !== plain) {
-      titleEl.text(shown);
+      if (RTL_START.test(plain)) {
+        const x = Number(titleEl.attr('x'));
+        const ellipsisEl = titleEl.clone(false).text('…');
+        ellipsisEl.attr('x', x);
+        titleEl
+          .attr('x', x + measureText('…', fontSize))
+          .text(shown.slice(0, -1));
+      } else {
+        titleEl.text(shown);
+      }
       titleEl.append('title').text(plain);
       return;
     }

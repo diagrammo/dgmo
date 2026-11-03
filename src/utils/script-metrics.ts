@@ -62,11 +62,10 @@ type ScriptWidth = readonly [number, number, number];
  * lets the text run out of it (#1687, a kanban card's title past its card).
  *
  * Measured 2026-11-03 through resvg on Linux, five samples, per letter with the
- * spaces taken out: DejaVu Sans (what resvg falls back to there, and on a bare
- * runner) 0.51–0.66, the four Noto Arabic faces installed there 0.30–0.57. A
- * sentence runs wider than a short word in the same face, so the
- * 0.447 this replaced, taken from one short word on macOS, was low everywhere
- * DejaVu draws: a 37-character title drew 1.42 times its measured width.
+ * spaces taken out: DejaVu Sans (what resvg falls back to there) 0.51–0.66, the
+ * four Noto Arabic faces installed there 0.30–0.57. The 0.447 this replaced was
+ * measured on macOS, and low wherever DejaVu draws: a 37-character title drew
+ * 1.42 times its measured width.
  */
 const ARABIC_W = 0.66;
 

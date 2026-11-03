@@ -3,6 +3,7 @@ import { JSDOM } from 'jsdom';
 import { parseKanban } from '../src/kanban/parser';
 import { renderKanban } from '../src/kanban/renderer';
 import { getPalette } from '../src/palettes';
+import { Resvg } from '@resvg/resvg-js';
 import { measureText } from '../src/utils/text-measure';
 
 // Set up jsdom globals
@@ -626,6 +627,47 @@ describe('a card title that outruns its card (#1687)', () => {
     expect(measureText(drawnText(text), FONT)).toBeLessThanOrEqual(
       rectWidth - PADDING * 2
     );
+  });
+
+  describe('a truncated right-to-left title', () => {
+    const ARABIC = 'إصلاح اتجاه النص في صفحة الملف الشخصي '.repeat(3).trim();
+
+    it('takes its ellipsis as a separate element on its left, where it reads last', () => {
+      const container = draw(`kanban B\n[Todo]\n  ${ARABIC}\n`);
+      const texts = container.querySelectorAll('.kanban-card text');
+      expect(texts).toHaveLength(2);
+      const [title, ellipsis] = [texts[0]!, texts[1]!];
+      expect(ellipsis.textContent).toBe('…');
+      expect(drawnText(title)).not.toContain('…');
+      expect(ARABIC.startsWith(drawnText(title))).toBe(true);
+      expect(Number(ellipsis.getAttribute('x'))).toBeLessThan(
+        Number(title.getAttribute('x'))
+      );
+      expect(title.querySelector('title')?.textContent).toBe(ARABIC);
+    });
+
+    it('still draws its letters when rasterised, not just the ellipsis', ({
+      skip,
+    }) => {
+      const svg = draw(`kanban B\n[Todo]\n  ${ARABIC}\n`)
+        .querySelector('.kanban-card text')!
+        .cloneNode(true) as Element;
+      svg.querySelector('title')?.remove();
+      const box = new Resvg(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="900" height="60">${svg.outerHTML}</svg>`,
+        { font: { loadSystemFonts: true } }
+      ).getBBox();
+      if (!box) {
+        skip('no font for Arabic on this machine — nothing drew');
+        return;
+      }
+      expect(box.width).toBeGreaterThan(100);
+    });
+
+    it('leaves a truncated left-to-right title in one element', () => {
+      const container = draw(`kanban B\n[Todo]\n  ${LONG}\n`);
+      expect(container.querySelectorAll('.kanban-card text')).toHaveLength(1);
+    });
   });
 
   it('gives an Arabic title a card that holds it, with no truncation', () => {
