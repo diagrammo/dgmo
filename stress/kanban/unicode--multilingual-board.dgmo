@@ -1,0 +1,13 @@
+kanban 多言語サポートボード
+// stress: unicode — CJK, Hangul, Arabic, Devanagari and emoji in column names and card titles
+// known: diagrammo/diagrammo#1687
+[待機中 · 대기 중] red
+  ログイン画面の文字化けを修正 🐛
+  결제 페이지의 오류 메시지 번역
+  إصلاح اتجاه النص في صفحة الملف الشخصي
+[進行中 · प्रगति में] yellow
+  डैशबोर्ड में हिंदी तारीख़ प्रारूप जोड़ें
+  绘制中文报表的页眉 📊
+[完了 · 완료] green
+  Emoji picker 👨‍👩‍👧‍👦 combining marks é̃ ǹ
+  שיפור יישור ימין לשמאל בטבלאות

@@ -1,0 +1,35 @@
+er Library Catalogue With Repeated Names
+// stress: duplicate-names — every table has the same id, name and created_at columns, and two tables share the word "record"
+
+author
+  id int pk
+  name varchar
+  created_at timestamp
+  1-writes-* book
+
+book
+  id int pk
+  name varchar
+  author_id int fk
+  created_at timestamp
+  1-has-* loan_record
+
+member
+  id int pk
+  name varchar
+  created_at timestamp
+  1-borrows-* loan_record
+
+loan_record
+  id int pk
+  name varchar
+  book_id int fk
+  member_id int fk
+  created_at timestamp
+  1-generates-* fine_record
+
+fine_record
+  id int pk
+  name varchar
+  loan_record_id int fk
+  created_at timestamp

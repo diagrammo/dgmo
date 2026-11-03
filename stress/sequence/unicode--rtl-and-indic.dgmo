@@ -1,0 +1,15 @@
+sequence Multilingual Order Confirmation
+// stress: unicode — Arabic and Hebrew (RTL), Devanagari and Hangul participant names and messages mixed with Latin
+Customer
+متجر الكتب
+שירות משלוחים
+भुगतान सेवा
+알림 서비스
+
+Customer -ضع الطلب رقم 4821-> متجر الكتب
+متجر الكتب -בדוק כתובת משלוח-> שירות משלוחים
+שירות משלוחים -כתובת תקפה-> متجر الكتب
+متجر الكتب -भुगतान अधिकृत करें-> भुगतान सेवा
+भुगतान सेवा -भुगतान सफल रहा-> متجر الكتب
+متجر الكتب -주문 확인 메시지 보내기-> 알림 서비스
+알림 서비스 -배송 안내 전송 완료-> Customer
