@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A kanban card holds its title in Arabic and at any length.** Arabic text
+  is now measured at the width it draws, so a card sized from it no longer
+  lets the title run past its edge. A title longer than the card's limit
+  ends in `…`, with the full text in its tooltip, instead of widening the
+  whole column.
+
 ## [0.96.0] - 2026-11-02
 
 ### Added

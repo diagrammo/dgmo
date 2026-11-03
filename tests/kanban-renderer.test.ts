@@ -3,6 +3,7 @@ import { JSDOM } from 'jsdom';
 import { parseKanban } from '../src/kanban/parser';
 import { renderKanban } from '../src/kanban/renderer';
 import { getPalette } from '../src/palettes';
+import { measureText } from '../src/utils/text-measure';
 
 // Set up jsdom globals
 beforeAll(() => {
@@ -542,5 +543,96 @@ tag Crew
 
     // Should render normally, no crash
     expect(container.querySelectorAll('.kanban-card').length).toBe(3);
+  });
+});
+
+describe('a card title that outruns its card (#1687)', () => {
+  const palette = getPalette('nord');
+  const FONT = 12;
+  const PADDING = 10;
+  const LONG =
+    'Reconcile the quarterly ledger exports against every regional warehouse before the auditors arrive on site';
+
+  const draw = (source: string, currentSwimlaneGroup?: string) => {
+    const container = document.createElement('div');
+    renderKanban(
+      container,
+      parseKanban(source, palette.light),
+      palette.light,
+      false,
+      {
+        exportDims: { width: 1600, height: 600 },
+        currentSwimlaneGroup,
+      }
+    );
+    return container;
+  };
+  const cardOf = (container: Element, index = 0) => {
+    const card = container.querySelectorAll('.kanban-card')[index]!;
+    return {
+      rectWidth: Number(card.querySelector('rect')!.getAttribute('width')),
+      text: card.querySelector('text')!,
+    };
+  };
+  const drawnText = (el: Element) => {
+    const clone = el.cloneNode(true) as Element;
+    clone.querySelector('title')?.remove();
+    return clone.textContent ?? '';
+  };
+
+  it('truncates with an ellipsis, inside the card, and keeps the whole title as its tooltip', () => {
+    const { rectWidth, text } = cardOf(draw(`kanban B\n[Todo]\n  ${LONG}\n`));
+    const shown = drawnText(text);
+    expect(shown.endsWith('…')).toBe(true);
+    expect(LONG.startsWith(shown.slice(0, -1))).toBe(true);
+    expect(measureText(shown, FONT)).toBeLessThanOrEqual(
+      rectWidth - PADDING * 2
+    );
+    expect(text.querySelector('title')?.textContent).toBe(LONG);
+  });
+
+  it('stops the longest title setting the width of its column', () => {
+    const capped = cardOf(draw(`kanban B\n[Todo]\n  ${LONG}\n`));
+    const longer = cardOf(draw(`kanban B\n[Todo]\n  ${LONG} ${LONG}\n`));
+    expect(capped.rectWidth).toBe(longer.rectWidth);
+    expect(capped.rectWidth).toBeLessThan(measureText(LONG, FONT));
+  });
+
+  it('leaves a title that fits exactly as it was, with no tooltip', () => {
+    const title = 'Repair hull damage';
+    const { rectWidth, text } = cardOf(draw(`kanban B\n[Todo]\n  ${title}\n`));
+    expect(drawnText(text)).toBe(title);
+    expect(text.querySelector('title')).toBeNull();
+    expect(rectWidth).toBe(200 - 12 * 2);
+  });
+
+  it('keeps inline formatting on a title that fits', () => {
+    const { text } = cardOf(draw('kanban B\n[Todo]\n  Fix **the** hull\n'));
+    expect(drawnText(text)).toBe('Fix the hull');
+    expect(text.querySelector('tspan[font-weight="bold"]')).not.toBeNull();
+  });
+
+  it('never cuts through markup: a truncated title is drawn and tipped plain', () => {
+    const { text } = cardOf(draw(`kanban B\n[Todo]\n  **${LONG}**\n`));
+    expect(drawnText(text)).not.toContain('*');
+    expect(drawnText(text).endsWith('…')).toBe(true);
+    expect(text.querySelector('title')?.textContent).toBe(LONG);
+  });
+
+  it('truncates the same way on a swimlane board', () => {
+    const source = `kanban B\ntag Team\n  Core blue\n[Todo]\n  ${LONG} team: Core\n`;
+    const { rectWidth, text } = cardOf(draw(source, 'Team'));
+    expect(drawnText(text).endsWith('…')).toBe(true);
+    expect(measureText(drawnText(text), FONT)).toBeLessThanOrEqual(
+      rectWidth - PADDING * 2
+    );
+  });
+
+  it('gives an Arabic title a card that holds it, with no truncation', () => {
+    const title = 'إصلاح اتجاه النص في صفحة الملف الشخصي';
+    const { rectWidth, text } = cardOf(draw(`kanban B\n[Todo]\n  ${title}\n`));
+    expect(drawnText(text)).toBe(title);
+    // DejaVu Sans, the widest face measured, draws this at 22.11 em.
+    expect(rectWidth - PADDING).toBeGreaterThanOrEqual(22.11 * FONT);
   });
 });

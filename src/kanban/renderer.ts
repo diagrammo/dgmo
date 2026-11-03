@@ -14,7 +14,10 @@ import {
   shapeFill,
   themeBaseBg,
 } from '../palettes/color-utils';
-import { renderInlineText } from '../utils/inline-markdown';
+import {
+  parseInlineMarkdown,
+  renderInlineText,
+} from '../utils/inline-markdown';
 import type {
   ParsedKanban,
   KanbanColumn,
@@ -37,7 +40,7 @@ import type {
   D3Sel,
 } from '../utils/legend-types';
 import { ScaleContext } from '../utils/scaling';
-import { measureText } from '../utils/text-measure';
+import { measureText, truncateText } from '../utils/text-measure';
 
 // ============================================================
 // Public options object
@@ -64,6 +67,10 @@ const COLUMN_GAP = 16;
 const COLUMN_HEADER_HEIGHT = 36;
 const COLUMN_PADDING = 12;
 const COLUMN_MIN_WIDTH = 200;
+// A column is sized FROM its cards, so its longest title sets the board's width
+// unless something stops it. A title may take this much before it truncates with
+// an ellipsis: twice the narrowest column, past every title the gallery draws.
+const CARD_TITLE_MAX_WIDTH = COLUMN_MIN_WIDTH * 2;
 const CARD_HEADER_HEIGHT = 24;
 const CARD_META_LINE_HEIGHT = 14;
 const CARD_SEPARATOR_GAP = 4;
@@ -261,6 +268,35 @@ interface CardLayout {
   card: KanbanCard;
 }
 
+/**
+ * Draw a card title, truncating with an ellipsis when it outruns the card.
+ *
+ * A title that fits keeps its inline formatting. A truncated one is drawn plain:
+ * cutting the raw source could land inside `**` or a link and print the markup,
+ * so it is measured and cut with the markup stripped, and the full text stays on
+ * the title element as its tooltip.
+ */
+function renderCardTitle(
+  titleEl: d3Selection.Selection<SVGTextElement, unknown, null, undefined>,
+  title: string,
+  palette: PaletteColors,
+  fontSize: number,
+  maxWidth: number
+): void {
+  if (measureText(title, fontSize) > maxWidth) {
+    const plain = parseInlineMarkdown(title)
+      .map((span) => span.text)
+      .join('');
+    const shown = truncateText(plain, fontSize, maxWidth);
+    if (shown !== plain) {
+      titleEl.text(shown);
+      titleEl.append('title').text(plain);
+      return;
+    }
+  }
+  renderInlineText(titleEl, title, palette, fontSize);
+}
+
 function computeLayout(
   parsed: ParsedKanban,
   _palette: PaletteColors,
@@ -285,7 +321,8 @@ function computeLayout(
   activeTagGroup: string | null = null,
   sCollapsedChipHeight = COLLAPSED_CHIP_HEIGHT,
   sCollapsedChipGap = COLLAPSED_CHIP_GAP,
-  sCollapsedNameGap = COLLAPSED_NAME_GAP
+  sCollapsedNameGap = COLLAPSED_NAME_GAP,
+  sCardTitleMaxWidth = CARD_TITLE_MAX_WIDTH
 ): { columns: ColumnLayout[]; totalWidth: number; totalHeight: number } {
   const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
   const headerHeight = showTitle ? sTitleHeight + 8 : 0;
@@ -321,7 +358,10 @@ function computeLayout(
     let cardY = sColumnHeaderHeight + sColumnPadding;
 
     for (const card of col.cards) {
-      const titleWidth = measureText(card.title, sCardTitleFontSize);
+      const titleWidth = Math.min(
+        measureText(card.title, sCardTitleFontSize),
+        sCardTitleMaxWidth
+      );
       maxCardTextWidth = Math.max(
         maxCardTextWidth,
         titleWidth + sCardPaddingX * 2
@@ -555,7 +595,10 @@ function drawKanban(
     activeTagGroup,
     sCollapsedChipHeight,
     sCollapsedChipGap,
-    sCollapsedNameGap
+    sCollapsedNameGap,
+    // Reserved at the size the title is DRAWN at, which a shrunken screen layout
+    // does not shrink as far as its boxes, so the cap holds the same characters.
+    CARD_TITLE_MAX_WIDTH * (sCardTitleFontSize / CARD_TITLE_FONT_SIZE)
   );
 
   const width = exportDims?.width ?? layout.totalWidth;
@@ -1003,7 +1046,13 @@ function drawKanban(
         .attr('font-size', sCardTitleFontSize)
         .attr('font-weight', 'normal')
         .attr('fill', onCardText);
-      renderInlineText(titleEl, card.title, palette, sCardTitleFontSize);
+      renderCardTitle(
+        titleEl,
+        card.title,
+        palette,
+        sCardTitleFontSize,
+        cardLayout.width - sCardPaddingX * 2
+      );
 
       if (hasMeta) {
         const separatorY = cy + sCardHeaderHeight;
@@ -1943,7 +1992,13 @@ function renderSwimlaneCard(
     .attr('font-size', sCardTitleFontSize)
     .attr('font-weight', 'normal')
     .attr('fill', onCardText);
-  renderInlineText(titleEl, card.title, palette, sCardTitleFontSize);
+  renderCardTitle(
+    titleEl,
+    card.title,
+    palette,
+    sCardTitleFontSize,
+    cardLayout.width - sCardPaddingX * 2
+  );
 
   if (hasMeta) {
     const separatorY = cy + sCardHeaderHeight;

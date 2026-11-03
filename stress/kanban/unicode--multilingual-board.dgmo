@@ -1,6 +1,5 @@
 kanban 多言語サポートボード
 // stress: unicode — CJK, Hangul, Arabic, Devanagari and emoji in column names and card titles
-// known: diagrammo/diagrammo#1687
 [待機中 · 대기 중] red
   ログイン画面の文字化けを修正 🐛
   결제 페이지의 오류 메시지 번역

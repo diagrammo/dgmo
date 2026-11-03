@@ -15,7 +15,7 @@
 //   - CJK, Kana and Hangul are FULL-WIDTH — 1.000 em per character — so a
 //     Japanese label measured 40% narrow, wrapped a long way past its box and
 //     truncated to something that still did not fit.
-//   - Devanagari, Thai and Arabic render several codepoints as one cluster, so
+//   - Devanagari, Thai and Arabic render several codepoints as one cluster, so, on macOS,
 //     charging 0.603 per codepoint measured them 45–63% too WIDE: they wrapped
 //     far too early and any box sized from the measurement came out huge.
 //
@@ -57,6 +57,20 @@ import { INTER_DEFAULT_W } from './inter-metrics';
 type ScriptWidth = readonly [number, number, number];
 
 /**
+ * Arabic, per base letter. The WIDEST real face rather than a mean, as with
+ * Hangul below: over-charging only makes a box roomier, while under-charging
+ * lets the text run out of it (#1687, a kanban card's title past its card).
+ *
+ * Measured 2026-11-03 through resvg on Linux, five samples, per letter with the
+ * spaces taken out: DejaVu Sans (what resvg falls back to there, and on a bare
+ * runner) 0.51–0.66, Noto Kufi 0.40–0.57, Noto Naskh 0.38–0.46, Nastaliq
+ * 0.30–0.40. A sentence runs wider than a short word in the same face, so the
+ * 0.447 this replaced, taken from one short word on macOS, was low everywhere
+ * DejaVu draws: a 37-character title drew 1.42 times its measured width.
+ */
+const ARABIC_W = 0.66;
+
+/**
  * Per-script advance, as a fraction of font size. Ordered by codepoint so the
  * scan below can stop early; kept coarse on purpose, one entry per Unicode
  * block, because this replaces a single flat guess rather than shaping text.
@@ -69,9 +83,9 @@ const SCRIPT_W: readonly ScriptWidth[] = [
   // fallback already gave them.
   [0x0400, 0x052f, 0.604],
   [0x0590, 0x05ff, 0.499], // Hebrew
-  [0x0600, 0x06ff, 0.447], // Arabic
-  [0x0750, 0x077f, 0.447], // Arabic Supplement
-  [0x08a0, 0x08ff, 0.447], // Arabic Extended-A
+  [0x0600, 0x06ff, ARABIC_W], // Arabic
+  [0x0750, 0x077f, ARABIC_W], // Arabic Supplement
+  [0x08a0, 0x08ff, ARABIC_W], // Arabic Extended-A
   [0x0900, 0x097f, 0.553], // Devanagari
   [0x0e00, 0x0e7f, 0.589], // Thai
   [0x1100, 0x11ff, 1.0], // Hangul, conjoining letters
@@ -88,8 +102,8 @@ const SCRIPT_W: readonly ScriptWidth[] = [
   [0xa960, 0xa97f, 1.0], // Hangul, extended letters A
   [0xac00, 0xd7ff, 1.0], // Hangul syllables, and extended letters B
   [0xf900, 0xfaff, 1.0], // CJK Compatibility Ideographs
-  [0xfb50, 0xfdff, 0.447], // Arabic Presentation Forms-A
-  [0xfe70, 0xfeff, 0.447], // Arabic Presentation Forms-B
+  [0xfb50, 0xfdff, ARABIC_W], // Arabic Presentation Forms-A
+  [0xfe70, 0xfeff, ARABIC_W], // Arabic Presentation Forms-B
   // Full-width forms only. The half-width tail (U+FF61 onward) is half an em
   // and is left to the default rather than given a wrong full-width ratio.
   [0xff01, 0xff60, 1.0],

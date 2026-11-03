@@ -153,8 +153,11 @@ const SAMPLES: readonly {
     beatsFlat: false,
   },
   {
+    // A sentence, not a word: a short word draws narrower than a sentence in the
+    // same face (0.507 against 0.598 em per letter through DejaVu Sans), so a
+    // word cannot stand for the running text a label actually holds (#1687).
     script: 'Arabic',
-    text: 'مرحبا',
+    text: 'تقرير المبيعات الشهري',
     band: 0.35,
     beatsFlat: false,
   },
@@ -182,6 +185,27 @@ const SAMPLES: readonly {
     beatsFlat: false,
   },
 ];
+
+describe('Arabic is never charged narrower than it draws (#1687)', () => {
+  const TITLE = 'إصلاح اتجاه النص في صفحة الملف الشخصي';
+
+  it('charges the sentence that overflowed its kanban card its drawn width', () => {
+    // DejaVu Sans draws this at 22.11 em. Pinned as a number as well as
+    // rasterised below, because a machine with no Arabic font skips the raster.
+    expect(measureText(TITLE, FONT_SIZE) / FONT_SIZE).toBeGreaterThanOrEqual(
+      22.11
+    );
+  });
+
+  it('holds against whichever face this machine draws it in', ({ skip }) => {
+    const drawn = ink(TITLE);
+    if (drawn === undefined) {
+      skip('no font for Arabic on this machine — nothing drew');
+      return;
+    }
+    expect(measureText(TITLE, FONT_SIZE)).toBeGreaterThanOrEqual(drawn);
+  });
+});
 
 describe('the width model against rasterised advances, per script', () => {
   for (const { script, text, band, beatsFlat } of SAMPLES) {
