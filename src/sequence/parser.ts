@@ -1264,13 +1264,12 @@ export function parseSequenceDgmo(
       // In-bounds by the length check above.
       const top = blockStack[blockStack.length - 1]!;
       if (indent > top.indent) break;
-      // Keep block on stack when 'else' or 'else if' matches current indent — handled below
+      // Keep block on stack when an 'else' line matches current indent — handled below
       if (
         indent === top.indent &&
         (top.block.type === 'if' || top.block.type === 'parallel')
       ) {
-        const lower = trimmed.toLowerCase();
-        if (lower === 'else' || lower.startsWith('else if ')) break;
+        if (/^else(\s+\S.*)?$/i.test(trimmed)) break;
       }
       blockStack.pop();
     }
@@ -1463,8 +1462,15 @@ export function parseSequenceDgmo(
       continue;
     }
 
-    // Parse 'else if <label>' keyword (must come before bare 'else')
-    const elseIfMatch = trimmed.match(/^else\s+if\s+(.+)$/i);
+    // 'else if' with nothing after it is not the label "if".
+    if (/^else\s+if$/i.test(trimmed)) {
+      pushError(lineNumber, "'else if' needs a condition.");
+      continue;
+    }
+
+    // Parse 'else if <label>', and 'else <label>', which means the same (#1131).
+    // Must come before bare 'else'.
+    const elseIfMatch = trimmed.match(/^else\s+(if\s+)?(.+)$/i);
     if (elseIfMatch) {
       if (
         blockStack.length > 0 &&
@@ -1482,8 +1488,8 @@ export function parseSequenceDgmo(
         }
         if (top.block.type === 'if') {
           const branch: Writable<ElseIfBranch> = {
-            // Capture group 1 guaranteed present after successful match.
-            label: elseIfMatch[1]!.trim(),
+            // Capture group 2 guaranteed present after successful match.
+            label: elseIfMatch[2]!.trim(),
             children: [],
             lineNumber,
           };
@@ -1496,6 +1502,11 @@ export function parseSequenceDgmo(
           top.activeElseIfBranch = branch;
           top.inElse = false;
         }
+      } else if (!elseIfMatch[1]) {
+        pushError(
+          lineNumber,
+          `'${trimmed}' has no matching 'if' at this indent.`
+        );
       }
       continue;
     }
@@ -1534,18 +1545,6 @@ export function parseSequenceDgmo(
       pushError(
         lineNumber,
         `'elif' is not a keyword. Did you mean 'else if${tail}'?`
-      );
-      continue;
-    }
-
-    // 'else <text>' (where text isn't 'if …') → suggest 'else if <text>'
-    const elseLabelMatch = trimmed.match(/^else\s+(.+)$/i);
-    if (elseLabelMatch) {
-      // Capture group 1 guaranteed present after successful match.
-      const tail = elseLabelMatch[1]!.trim();
-      pushError(
-        lineNumber,
-        `'else' does not take a label. Did you mean 'else if ${tail}'?`
       );
       continue;
     }

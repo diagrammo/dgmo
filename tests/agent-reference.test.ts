@@ -334,8 +334,9 @@ describe('the whiteboard slice states the kind-band drawing order (#1222)', () =
 // #1446: a first-try model read `get_language_reference sequence` and still put
 // `active-tag` after the participants and wrote `else <label>`. Both texts a
 // model reads must SHOW the two rules in a sequence example that parses clean
-// (a misplaced option or a labelled else is a parse error, so 0 errors proves
-// the placement), and neither may teach `else <label>`.
+// (a misplaced option is a parse error, so 0 errors proves the placement).
+// `else <label>` now parses as `else if <label>` (#1131), but `else if` stays
+// the form the examples teach, so neither may write `else <label>`.
 describe('sequence examples show active-tag placement and else if (#1446)', () => {
   const ref = workspaceReference() ?? '';
   const skill = readFileSync(join(here, '..', 'SKILL.md'), 'utf8');

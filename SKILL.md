@@ -484,7 +484,7 @@ DB -user-> API
     API -401-> User
 ```
 
-Options such as `autonumber` and `active-tag` go before the first participant declaration or message. `else` is bare; a second condition is `else if <condition>`, never `else <label>`.
+Options such as `autonumber` and `active-tag` go before the first participant declaration or message. `else` is bare; a second condition is `else if <condition>` (`else <label>` means the same).
 
 ### Flowchart
 ```dgmo

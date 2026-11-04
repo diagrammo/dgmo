@@ -900,18 +900,78 @@ describe('elif / else <text> diagnostics', () => {
     );
   });
 
-  it('AC 5: `else bar baz` emits diagnostic suggesting `else if bar baz`', () => {
-    const content = [
-      'if foo',
-      '  A -yes-> B',
-      'else bar baz',
-      '  A -no-> C',
-    ].join('\n');
-    const result = parseSequenceDgmo(content);
-    expect(result.diagnostics[0].message).toMatch(
-      /'else' does not take a label/
+  // #1131: 6 of 32 first-try sequence replies with an else line wrote
+  // `else <label>` even with the reference in context, so it reads as `else if`.
+  it('AC 5: `else bar baz` opens the same branch as `else if bar baz`', () => {
+    const labelled = parseSequenceDgmo(
+      ['if foo', '  A -yes-> B', 'else bar baz', '  A -no-> C'].join('\n')
     );
-    expect(result.diagnostics[0].message).toMatch(/'else if bar baz'/);
+    const canonical = parseSequenceDgmo(
+      ['if foo', '  A -yes-> B', 'else if bar baz', '  A -no-> C'].join('\n')
+    );
+    expect(labelled.diagnostics).toEqual([]);
+    expect(labelled.error).toBeNull();
+    expect(labelled.elements).toEqual(canonical.elements);
+    const block = labelled.elements[0] as SequenceBlock;
+    expect(block.elseIfBranches?.[0]?.label).toBe('bar baz');
+    expect(block.elseIfBranches?.[0]?.children).toHaveLength(1);
+  });
+
+  it('AC 5b: `else <label>` then a bare `else` keeps both branches in order', () => {
+    const result = parseSequenceDgmo(
+      [
+        'if a',
+        '  A -one-> B',
+        'ELSE  b',
+        '  A -two-> C',
+        'else',
+        '  A -three-> D',
+      ].join('\n')
+    );
+    expect(result.diagnostics).toEqual([]);
+    const block = result.elements[0] as SequenceBlock;
+    expect(block.elseIfBranches?.map((b) => b.label)).toEqual(['b']);
+    expect(block.elseChildren).toHaveLength(1);
+  });
+
+  it('AC 5c: `else <label>` with no open `if` is still an error, not a lost line', () => {
+    for (const lines of [
+      ['A -one-> B', 'else orphan', '  A -two-> B'],
+      ['loop forever', '  A -one-> B', 'else orphan', '  A -two-> B'],
+      ['if a', '  A -one-> B', '  else orphan', '  A -two-> B'],
+    ]) {
+      const { diagnostics } = parseSequenceDgmo(lines.join('\n'));
+      expect(diagnostics.map((d) => d.message)).toEqual([
+        "'else orphan' has no matching 'if' at this indent.",
+      ]);
+    }
+  });
+
+  it('AC 5d: `else <label>` on a parallel block is refused like `else if`', () => {
+    const { diagnostics } = parseSequenceDgmo(
+      ['parallel fan', '  A -one-> B', 'else other', '  A -two-> C'].join('\n')
+    );
+    expect(diagnostics[0]?.message).toMatch(
+      /parallel blocks don't support else/
+    );
+  });
+
+  it('AC 5e: `else if` with no condition is an error', () => {
+    const { diagnostics } = parseSequenceDgmo(
+      ['if a', '  A -one-> B', 'else if', '  A -two-> C'].join('\n')
+    );
+    expect(diagnostics.map((d) => d.message)).toEqual([
+      "'else if' needs a condition.",
+    ]);
+  });
+
+  it('AC 5f: a message from a participant named else is still a message', () => {
+    const result = parseSequenceDgmo(['else -hello-> B'].join('\n'));
+    expect(result.diagnostics).toEqual([]);
+    expect(result.elements[0]).toMatchObject({
+      kind: 'message',
+      label: 'hello',
+    });
   });
 
   it('AC 6: valid `if / else if / else` still parses cleanly (regression)', () => {

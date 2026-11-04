@@ -791,7 +791,7 @@ parallel label
 ```
 
 - `parallel` requires a label
-- `else` is bare. A second condition is `else if <condition>`; `else <label>` is an error (`'else' does not take a label`)
+- `else` is bare. A second condition is `else if <condition>`; `else <label>` means the same and draws as `else if <label>`
 - Blocks nest via indentation
 - **No `end`/terminator keyword** — a block closes by dedenting (like multi-line notes). `end` and `activate`/`deactivate` are not dgmo syntax (a bare `end` line is rejected); activation is controlled by the `activations` option (§2.7), not per-message keywords.
 - **Tags apply to participants, not messages** — there is no per-message tag/color. Color a participant by category with `<Participant> <tagAlias>: <Value>` after declaring a `tag <Name> as <alias>` group (§1.3). Message text is just the arrow label.

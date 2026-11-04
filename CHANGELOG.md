@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`else <label>` in a sequence diagram now parses as `else if <label>`.**
+  It was an error, and agents kept writing it even with the language
+  reference in context. With no open `if` at that indent it is still an error.
+  `else if` with no condition now says so.
+
 ### Fixed
 
 - **A kanban card holds its title in Arabic and at any length.** Arabic text
