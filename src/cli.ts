@@ -348,7 +348,10 @@ function copyToClipboard(text: string): boolean {
     } else {
       const cmd = linuxClipboardCommand(commandExists);
       if (!cmd) return false;
-      execSync(cmd, { input: text });
+      // wl-copy forks a daemon to hold the selection and xclip stays in the
+      // background. A child that inherits execSync's output pipes keeps them
+      // open, so EOF never comes and the command hangs (#1692).
+      execSync(cmd, { input: text, stdio: ['pipe', 'ignore', 'ignore'] });
     }
     return true;
   } catch {
