@@ -7,6 +7,10 @@ export const TITLE_FONT_SIZE = 20;
 export const TITLE_FONT_WEIGHT = 'bold';
 export const TITLE_Y = 30;
 export const TITLE_OFFSET = 40;
+// A title wider than the canvas less this much a side wraps (#1718).
+export const TITLE_SIDE_PAD = 12;
+// Baseline-to-baseline step of a wrapped title's second line.
+export const TITLE_LINE_HEIGHT = 24;
 
 // Caption — supplementary banner text. In pert these size the header
 // bands and inner padding of the analysis blocks (Field labels, Tornado,

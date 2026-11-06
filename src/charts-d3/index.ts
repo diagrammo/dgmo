@@ -193,8 +193,19 @@ function renderInto(
     // can lay title + legend on one row. Only the top-center-legend types honour
     // it; everyone else renders a centered title here as before.
     const inlineTitle = inlineTitleFor(std, hasTitle, textColor);
-    if (hasTitle && !inlineTitle)
-      renderChartTitle(s, std.title, std.titleLineNumber, width, textColor);
+    // A wrapped title pushes the plot down by its extra line (#1718).
+    const titleExtra =
+      hasTitle && !inlineTitle
+        ? renderChartTitle(
+            s,
+            std.title,
+            std.titleLineNumber,
+            width,
+            textColor,
+            undefined,
+            2
+          )
+        : 0;
     switch (std.type) {
       case 'bar':
         renderBar(
@@ -236,7 +247,7 @@ function renderInto(
           palette,
           isDark,
           textColor,
-          hasTitle ? 52 : 24
+          (hasTitle ? 52 : 24) + titleExtra
         );
         return true;
       case 'radar': {
@@ -278,7 +289,7 @@ function renderInto(
           palette,
           isDark,
           textColor,
-          hasTitle ? 52 : 24
+          (hasTitle ? 52 : 24) + titleExtra
         );
         return true;
     }
@@ -290,8 +301,18 @@ function renderInto(
   const seriesColors = getSeriesColors(palette);
   const hasTitle = !ext.noTitle && !!ext.title;
   const inlineTitle = inlineTitleFor(ext, hasTitle, textColor);
-  if (hasTitle && !inlineTitle)
-    renderChartTitle(s, ext.title, ext.titleLineNumber, width, textColor);
+  const titleExtra =
+    hasTitle && !inlineTitle
+      ? renderChartTitle(
+          s,
+          ext.title,
+          ext.titleLineNumber,
+          width,
+          textColor,
+          undefined,
+          2
+        )
+      : 0;
 
   switch (ext.type) {
     case 'funnel':
@@ -303,7 +324,7 @@ function renderInto(
         seriesColors,
         palette,
         isDark,
-        hasTitle ? 52 : 24
+        (hasTitle ? 52 : 24) + titleExtra
       );
       return true;
     case 'heatmap':
@@ -316,7 +337,7 @@ function renderInto(
         isDark,
         textColor,
         bgColor,
-        hasTitle ? 52 : 24
+        (hasTitle ? 52 : 24) + titleExtra
       );
       return true;
     case 'scatter': {
@@ -355,7 +376,7 @@ function renderInto(
         seriesColors,
         bgColor,
         textColor,
-        hasTitle ? 52 : 24
+        (hasTitle ? 52 : 24) + titleExtra
       );
       return true;
     case 'chord':
@@ -368,7 +389,7 @@ function renderInto(
         palette,
         isDark,
         textColor,
-        hasTitle ? 52 : 24
+        (hasTitle ? 52 : 24) + titleExtra
       );
       return true;
     case 'function': {

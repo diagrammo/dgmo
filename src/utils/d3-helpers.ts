@@ -15,10 +15,27 @@ import { paintRootBackground } from './export-container';
 import type { PaletteColors } from '../palettes';
 import { getSeriesColors } from '../palettes';
 import type { D3ExportDimensions } from './d3-types';
-import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT, TITLE_Y } from './title-constants';
+import {
+  TITLE_FONT_SIZE,
+  TITLE_FONT_WEIGHT,
+  TITLE_LINE_HEIGHT,
+  TITLE_SIDE_PAD,
+  TITLE_Y,
+} from './title-constants';
+import { fitWrapped, measureText, wrapTextToWidth } from './text-measure';
 
 /**
  * Renders a chart title on the SVG with optional click interaction.
+ *
+ * A title wider than the canvas less `TITLE_SIDE_PAD` a side is fitted, never
+ * left to run off both edges (#1718): wrapped at a word break into at most
+ * `maxLines` lines, the last ending in `…` when even those do not hold it. A
+ * truncated title keeps its full text in a hover `<title>`. A title that fits
+ * is drawn exactly as before, as one plain `<text>`.
+ *
+ * Returns the height the title takes BELOW its usual one-line band — 0 unless
+ * it wrapped — for the caller to push its plot down by. Only a caller that
+ * does that may pass `maxLines` above 1; the default truncates in place.
  */
 export function renderChartTitle(
   svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
@@ -26,9 +43,24 @@ export function renderChartTitle(
   titleLineNumber: number | undefined | null,
   width: number,
   textColor: string,
-  onClickItem?: (lineNumber: number) => void
-): void {
-  if (!title) return;
+  onClickItem?: (lineNumber: number) => void,
+  maxLines = 1
+): number {
+  if (!title) return 0;
+  const maxWidth = Math.max(0, width - 2 * TITLE_SIDE_PAD);
+  const fits = measureText(title, TITLE_FONT_SIZE, { bold: true }) <= maxWidth;
+  const lineCap = Math.max(1, maxLines);
+  // One font size, so fitWrapped only wraps, then ellipsizes past lineCap.
+  const lines = fits
+    ? [title]
+    : fitWrapped(title, maxWidth, TITLE_FONT_SIZE, TITLE_FONT_SIZE, lineCap)
+        .lines;
+  const truncated =
+    !fits &&
+    wrapTextToWidth(title, TITLE_FONT_SIZE, maxWidth, {
+      bold: true,
+      hardBreak: true,
+    }).length > lineCap;
   const titleEl = svg
     .append('text')
     .attr('class', 'chart-title')
@@ -38,8 +70,17 @@ export function renderChartTitle(
     .attr('fill', textColor)
     .attr('font-size', TITLE_FONT_SIZE)
     .attr('font-weight', TITLE_FONT_WEIGHT)
-    .style('cursor', onClickItem && titleLineNumber ? 'pointer' : 'default')
-    .text(title);
+    .style('cursor', onClickItem && titleLineNumber ? 'pointer' : 'default');
+  if (lines.length === 1) titleEl.text(lines[0]!);
+  else
+    lines.forEach((line, i) => {
+      titleEl
+        .append('tspan')
+        .attr('x', width / 2)
+        .attr('dy', i === 0 ? 0 : TITLE_LINE_HEIGHT)
+        .text(line);
+    });
+  if (truncated) titleEl.append('title').text(title);
   if (titleLineNumber) {
     titleEl.attr('data-line-number', titleLineNumber);
     if (onClickItem) {
@@ -53,6 +94,19 @@ export function renderChartTitle(
         });
     }
   }
+  return (lines.length - 1) * TITLE_LINE_HEIGHT;
+}
+
+/**
+ * The height a title drawn by {@link renderChartTitle} takes below its
+ * one-line band, read back from the drawn element so a layout that reserves
+ * the band later reserves what was actually drawn.
+ */
+export function drawnTitleExtraHeight(
+  svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>
+): number {
+  const lines = svg.select('text.chart-title').selectAll('tspan').size();
+  return lines > 1 ? (lines - 1) * TITLE_LINE_HEIGHT : 0;
 }
 
 /**

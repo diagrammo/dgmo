@@ -16,7 +16,7 @@ import type { PaletteColors } from '../palettes';
 import { getSimpleChartLegendGroups } from '../data-chart-parser';
 import { renderLegendSvg } from '../utils/legend-svg';
 import type { LegendGroupData } from '../utils/legend-types';
-import { renderChartTitle } from '../utils/d3-helpers';
+import { drawnTitleExtraHeight, renderChartTitle } from '../utils/d3-helpers';
 import { layoutInlineHeader } from '../utils/inline-header';
 import {
   TITLE_FONT_SIZE,
@@ -202,11 +202,15 @@ export function injectLegendGroups(
       inlineTitle.title,
       inlineTitle.titleLineNumber,
       width,
-      inlineTitle.textColor
+      inlineTitle.textColor,
+      undefined,
+      2
     );
   }
 
-  const titleH = hasTitle ? 40 : 0;
+  // The title is drawn by now, by the dispatcher or just above; reserve what it
+  // took, so a wrapped title pushes the legend down (#1718).
+  const titleH = hasTitle ? 40 + drawnTitleExtraHeight(svg) : 0;
   if (groups.length === 0) return hasTitle ? titleH + 12 : 24;
 
   const legendY = 8 + titleH;
