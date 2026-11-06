@@ -1,0 +1,26 @@
+mindmap Engineering Handbook
+// stress: deep-nesting — branches eight levels deep beside a one-level branch
+
+Handbook
+  Delivery
+    Planning
+      Quarterly goals
+        Team objectives
+          Key results
+            Leading indicators
+              Weekly check-in
+    Release
+      Branching
+        Trunk-based
+          Feature flags
+            Flag cleanup
+              Stale flag report
+  Operations
+    On-call
+      Rotation
+        Primary
+          Escalation
+            Incident commander
+              Status page update
+    Runbooks
+  Hiring

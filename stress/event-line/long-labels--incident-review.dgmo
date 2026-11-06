@@ -1,0 +1,22 @@
+event-line Payments Platform Incident Review, Third Quarter
+// stress: long-labels — event names of 60–110 characters with multi-line descriptions
+
+tag Severity as s
+  Sev1 red
+  Sev2 orange
+  Follow-up blue
+
+2024-07-03 Card authorisations time out for every European merchant during the morning peak  s: Sev1
+  The regional gateway's connection pool was sized for half the traffic it saw.
+  **38 minutes** of declined payments before the pool was raised by hand.
+2024-07-19 Pool sizing moves from a hand-edited config file into the autoscaler policy  s: Follow-up
+  Every region now scales its pool on request rate rather than a fixed number.
+2024-08-06 Duplicate refunds issued when the ledger service retried a request it had already committed  s: Sev2
+  Idempotency keys were dropped by a proxy that rewrote headers.
+  1,204 customers were refunded twice; finance reversed them over two days.
+2024-08-27 Idempotency keys travel in the request body so no proxy between services can strip them  s: Follow-up
+  A contract test now fails the build when a key is missing.
+2024-09-12 Settlement files for three acquiring banks generated with the wrong cut-off timezone  s: Sev2
+  The daylight-saving rule was read from the server, not the bank's own calendar.
+2024-09-30 Quarterly game day rehearses a full regional failover with live traffic for the first time  s: Follow-up
+  Failover took **11 minutes**, inside the 15-minute objective.

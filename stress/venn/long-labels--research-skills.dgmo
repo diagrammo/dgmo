@@ -1,0 +1,12 @@
+venn Skills Shared Across the Research Organisation
+// stress: long-labels — set names and overlap labels of 40–70 characters
+// known: diagrammo/diagrammo#1717
+
+Statistical modelling and experimental design as st blue
+Large-scale data engineering and pipeline operations as de green
+Domain expertise in clinical trials and patient outcomes as cl orange
+
+st + de Reproducible analysis pipelines that run on every data refresh
+de + cl Trial data platforms that meet regulatory audit requirements
+st + cl Biostatistics for adaptive and multi-arm trial designs
+st + de + cl Translational research teams that ship evidence to clinicians
