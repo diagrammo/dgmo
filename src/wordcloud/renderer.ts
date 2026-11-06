@@ -200,8 +200,6 @@ export function renderWordCloud(
     ? ScaleContext.identity()
     : ScaleContext.from(width, idealWidth);
 
-  const sTitleHeight = title ? ctx.aesthetic(40) : 0;
-  const cloudHeight = height - sTitleHeight;
   const sPadding = ctx.structural(2);
 
   svg.attr('preserveAspectRatio', 'xMidYMid meet');
@@ -224,14 +222,19 @@ export function renderWordCloud(
 
   const rotateFn = getRotateFn(cloudOptions.rotate);
 
-  renderChartTitle(
+  // A wrapped title's extra line, drawn at full size, pushes the cloud down
+  // (#1718).
+  const titleExtra = renderChartTitle(
     svg,
     title,
     parsed.titleLineNumber,
     width,
     textColor,
-    onClickItem
+    onClickItem,
+    2
   );
+  const sTitleHeight = title ? ctx.aesthetic(40) + titleExtra : 0;
+  const cloudHeight = height - sTitleHeight;
 
   const g = svg
     .append('g')
@@ -320,9 +323,6 @@ export function renderWordCloudAsync(
       return;
     }
 
-    const titleHeight = title ? 40 : 0;
-    const cloudHeight = height - titleHeight;
-
     const textColor = palette.text;
     const bgColor = palette.bg;
     const colors = getSeriesColors(palette);
@@ -349,7 +349,17 @@ export function renderWordCloudAsync(
       .attr('preserveAspectRatio', 'xMidYMid meet')
       .style('background', bgColor);
 
-    renderChartTitle(svg, title, parsed.titleLineNumber, width, textColor);
+    const titleExtra = renderChartTitle(
+      svg,
+      title,
+      parsed.titleLineNumber,
+      width,
+      textColor,
+      undefined,
+      2
+    );
+    const titleHeight = title ? 40 + titleExtra : 0;
+    const cloudHeight = height - titleHeight;
 
     const g = svg
       .append('g')

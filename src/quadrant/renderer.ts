@@ -69,10 +69,22 @@ export function renderQuadrant(
     palette.colors.purple,
   ];
 
+  // Title — drawn before the layout so a wrapped title's extra line, drawn
+  // at full size (unscaled), pushes the chart down (#1718).
+  const titleExtra = renderChartTitle(
+    svg,
+    title,
+    quadrantTitleLineNumber,
+    width,
+    textColor,
+    onClickItem,
+    2
+  );
+
   const hasXAxis = !!quadrantXAxis;
   const hasYAxis = !!quadrantYAxis;
   const margin = {
-    top: title ? ctx.aesthetic(60) : ctx.aesthetic(30),
+    top: (title ? ctx.aesthetic(60) : ctx.aesthetic(30)) + titleExtra,
     right: ctx.aesthetic(30),
     bottom: hasXAxis ? ctx.aesthetic(70) : ctx.aesthetic(40),
     left: hasYAxis ? ctx.aesthetic(80) : ctx.aesthetic(40),
@@ -83,16 +95,6 @@ export function renderQuadrant(
   // Scales: data uses 0-1 range
   const xScale = d3Scale.scaleLinear().domain([0, 1]).range([0, chartWidth]);
   const yScale = d3Scale.scaleLinear().domain([0, 1]).range([chartHeight, 0]);
-
-  // Title
-  renderChartTitle(
-    svg,
-    title,
-    quadrantTitleLineNumber,
-    width,
-    textColor,
-    onClickItem
-  );
 
   // Chart group (translated by margins)
   const chartG = svg

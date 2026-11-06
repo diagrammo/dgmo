@@ -210,8 +210,22 @@ export function renderArcDiagram(
     svg.attr('width', '100%');
   }
 
+  const g = svg.append('g');
+
+  // Title — drawn before the layout so a wrapped title's extra line, drawn
+  // at full size, pushes the plot down (#1718).
+  const titleExtra = renderChartTitle(
+    svg,
+    title,
+    parsed.titleLineNumber,
+    width,
+    textColor,
+    onClickItem,
+    2
+  );
+
   const margin = {
-    top: sMarginTop,
+    top: sMarginTop + titleExtra,
     right: sMarginRight,
     bottom: sMarginBottom,
     left: sMarginLeft,
@@ -243,19 +257,7 @@ export function renderArcDiagram(
     .domain([minVal, maxVal])
     .range([sStrokeMin, sStrokeMax]);
 
-  const g = svg
-    .append('g')
-    .attr('transform', `translate(${margin.left},${margin.top})`);
-
-  // Title
-  renderChartTitle(
-    svg,
-    title,
-    parsed.titleLineNumber,
-    width,
-    textColor,
-    onClickItem
-  );
+  g.attr('transform', `translate(${margin.left},${margin.top})`);
 
   // Build adjacency map for hover interactions
   const neighbors = new Map<string, Set<string>>();

@@ -99,6 +99,21 @@ export function renderSlopeChart(
     svg.attr('width', '100%');
   }
 
+  const g = svg.append('g');
+
+  // Title — drawn before the layout so a wrapped title's extra line, drawn
+  // at full size, pushes the plot down (#1718).
+  const titleExtra = renderChartTitle(
+    svg,
+    title,
+    parsed.titleLineNumber,
+    width,
+    textColor,
+    onClickItem,
+    2
+  );
+  const sPlotTop = sMarginTop + titleExtra;
+
   // Compute right margin from the longest end-of-line label
   const maxLabelText = data.reduce((longest, item) => {
     const text = `${item.values[item.values.length - 1]} — ${item.label}`;
@@ -112,7 +127,7 @@ export function renderSlopeChart(
   );
 
   const innerWidth = width - sMarginLeft - rightMargin;
-  const innerHeight = height - sMarginTop - sMarginBottom;
+  const innerHeight = height - sPlotTop - sMarginBottom;
 
   // Scales
   const allValues = data.flatMap((d) => d.values);
@@ -130,22 +145,10 @@ export function renderSlopeChart(
     .range([0, innerWidth])
     .padding(0);
 
-  const g = svg
-    .append('g')
-    .attr('transform', `translate(${sMarginLeft},${sMarginTop})`);
+  g.attr('transform', `translate(${sMarginLeft},${sPlotTop})`);
 
   // Tooltip
   const tooltip = createTooltip(container, palette, isDark);
-
-  // Title
-  renderChartTitle(
-    svg,
-    title,
-    parsed.titleLineNumber,
-    width,
-    textColor,
-    onClickItem
-  );
 
   // Period column headers
   for (const period of periods) {

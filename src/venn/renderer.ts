@@ -147,12 +147,30 @@ export function renderVenn(
     ? ScaleContext.identity()
     : ScaleContext.from(width, idealWidth);
 
-  const sTitleHeight = title ? ctx.aesthetic(40) : 0;
-
   svg.attr('preserveAspectRatio', 'xMidYMid meet');
   if (ctx.isBelowFloor) {
     svg.attr('width', '100%');
   }
+
+  // Suppress WebKit focus ring on interactive SVG elements
+  svg
+    .append('style')
+    .text(
+      'circle:focus, circle:focus-visible { outline-solid: none !important; }'
+    );
+
+  // Title — drawn before the layout so a wrapped title's extra line, drawn
+  // at full size, pushes the circles down (#1718).
+  const titleExtra = renderChartTitle(
+    svg,
+    title,
+    parsed.titleLineNumber,
+    width,
+    textColor,
+    onClickItem,
+    2
+  );
+  const sTitleHeight = title ? ctx.aesthetic(40) + titleExtra : 0;
 
   // ── Equal-radius layout with ~30% overlap depth ──
   // All circles share the same base radius; center distance = 1.4r gives ~30% penetration
@@ -328,23 +346,6 @@ export function renderVenn(
 
   // circles is non-empty: vennSets.length >= 2 guard above ensures rawCircles is sized.
   const scaledR = circles[0]!.r;
-
-  // Suppress WebKit focus ring on interactive SVG elements
-  svg
-    .append('style')
-    .text(
-      'circle:focus, circle:focus-visible { outline-solid: none !important; }'
-    );
-
-  // Title
-  renderChartTitle(
-    svg,
-    title,
-    parsed.titleLineNumber,
-    width,
-    textColor,
-    onClickItem
-  );
 
   // ── Semi-transparent filled circles (non-interactive) ──
   const circleEls: d3Selection.Selection<

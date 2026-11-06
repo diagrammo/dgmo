@@ -16,6 +16,7 @@ import { measureText } from '../utils/text-measure';
 import { capLabelColumn, showFullOnHover } from '../utils/label-column';
 import {
   createTooltip,
+  drawnTitleExtraHeight,
   hideTooltip,
   renderChartTitle,
   showTooltip,
@@ -66,6 +67,34 @@ import type {
 const MIN_TOP_SCALE_BAND = 26;
 /** Bottom tick: tick (6) + label baseline (12) + descent and room below. */
 const MIN_BOTTOM_BAND = 30;
+
+/**
+ * The height a title takes below its one-line band once `renderChartTitle`
+ * wraps it to two lines (#1718). The margin is set before the SVG exists, so
+ * the title is drawn once into a detached SVG to read what the real draw will
+ * return. Drawn at full size, so the extra is never scaled.
+ */
+function wrappedTitleExtra(
+  title: string | null | undefined,
+  width: number
+): number {
+  if (!title) return 0;
+  const probe = d3Selection.create('svg') as unknown as d3Selection.Selection<
+    SVGSVGElement,
+    unknown,
+    null,
+    undefined
+  >;
+  return renderChartTitle(
+    probe,
+    title,
+    null,
+    width,
+    'currentColor',
+    undefined,
+    2
+  );
+}
 
 /**
  * Renders semi-transparent era background bands behind timeline events.
@@ -1241,7 +1270,8 @@ function renderTimelineTagLegendOverlay(
   const mainG = mainSvg.select<SVGGElement>('g');
   if (!mainSvg.empty() && !mainG.empty()) {
     // Position legend at top, below title
-    const legendY = title ? 50 : 10;
+    // Below the title, and below its second line when it wrapped (#1718).
+    const legendY = title ? 50 + drawnTitleExtraHeight(mainSvg) : 10;
 
     // Pre-compute group widths (minified and expanded)
     type LegendGroup = {
@@ -1611,6 +1641,7 @@ function renderTimelineHorizontalTimeSort(
   const margin = {
     top:
       50 +
+      wrappedTitleExtra(title, width) +
       (hasGroupLegend ? 54 : ctx.aesthetic(54)) +
       topScaleH +
       eraReserve +
@@ -1677,7 +1708,8 @@ function renderTimelineHorizontalTimeSort(
     parsed.titleLineNumber,
     width,
     textColor,
-    onClickItem
+    onClickItem,
+    2
   );
 
   renderEras(
@@ -2027,7 +2059,9 @@ function renderTimelineHorizontalGrouped(
   );
   const dynamicLeftMargin = labelColumn.width;
   // The title is drawn at full size (renderChartTitle), so its band is too.
-  const baseTopMargin = title ? 50 : ctx.aesthetic(20);
+  const baseTopMargin = title
+    ? 50 + wrappedTitleExtra(title, width)
+    : ctx.aesthetic(20);
   const margin = {
     top:
       baseTopMargin + topScaleH + eraReserve + markerReserve + tagLegendReserve,
@@ -2087,7 +2121,8 @@ function renderTimelineHorizontalGrouped(
     parsed.titleLineNumber,
     width,
     textColor,
-    onClickItem
+    onClickItem,
+    2
   );
 
   renderEras(
@@ -2520,7 +2555,11 @@ function renderTimelineVertical(
     const scaleMargin = timelineScale ? ctx.aesthetic(40) : 0;
     const markerMargin = timelineMarkers.length > 0 ? ctx.aesthetic(30) : 0;
     const margin = {
-      top: ctx.aesthetic(104) + markerMargin + tagLegendReserve,
+      top:
+        ctx.aesthetic(104) +
+        wrappedTitleExtra(title, width) +
+        markerMargin +
+        tagLegendReserve,
       right: ctx.aesthetic(40) + scaleMargin,
       bottom: ctx.aesthetic(40),
       left: ctx.aesthetic(60) + scaleMargin,
@@ -2552,7 +2591,8 @@ function renderTimelineVertical(
       parsed.titleLineNumber,
       width,
       textColor,
-      onClickItem
+      onClickItem,
+      2
     );
 
     renderEras(
@@ -2788,7 +2828,11 @@ function renderTimelineVertical(
     const scaleMargin = timelineScale ? ctx.aesthetic(40) : 0;
     const markerMargin = timelineMarkers.length > 0 ? ctx.aesthetic(30) : 0;
     const margin = {
-      top: ctx.aesthetic(104) + markerMargin + tagLegendReserve,
+      top:
+        ctx.aesthetic(104) +
+        wrappedTitleExtra(title, width) +
+        markerMargin +
+        tagLegendReserve,
       right: ctx.aesthetic(200),
       bottom: ctx.aesthetic(40),
       left: ctx.aesthetic(60) + scaleMargin,
@@ -2824,7 +2868,8 @@ function renderTimelineVertical(
       parsed.titleLineNumber,
       width,
       textColor,
-      onClickItem
+      onClickItem,
+      2
     );
 
     renderEras(

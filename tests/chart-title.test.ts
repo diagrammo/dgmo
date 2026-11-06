@@ -10,6 +10,8 @@ import {
   renderChartTitle,
 } from '../src/utils/d3-helpers';
 import { measureText } from '../src/utils/text-measure';
+import { JSDOM } from 'jsdom';
+import { lintSvg, parseTransform } from './stress/lint';
 import {
   TITLE_FONT_SIZE,
   TITLE_LINE_HEIGHT,
@@ -107,4 +109,103 @@ describe('a wrapped title pushes the chart down', () => {
     const dy = firstCellY(long.svg) - firstCellY(short.svg);
     expect(dy).toBeCloseTo(TITLE_LINE_HEIGHT, 5);
   });
+});
+
+// The top edge of everything drawn below the title: circles, rects and text,
+// in canvas coordinates. Full-width backgrounds and the title are skipped.
+function plotTop(svg: string): number {
+  const doc = new JSDOM(svg, { contentType: 'image/svg+xml' }).window.document;
+  const root = doc.documentElement;
+  const vbW = Number((root.getAttribute('viewBox') ?? '').split(/[\s,]+/)[2]);
+  const yOf = (el: Element, x: number, y: number) => {
+    let m = [1, 0, 0, 1, 0, 0];
+    const chain: Element[] = [];
+    for (let n: Element | null = el; n; n = n.parentElement) chain.push(n);
+    for (const n of chain.reverse()) {
+      const t = parseTransform(n.getAttribute('transform'));
+      m = [
+        m[0]! * t[0] + m[2]! * t[1],
+        m[1]! * t[0] + m[3]! * t[1],
+        m[0]! * t[2] + m[2]! * t[3],
+        m[1]! * t[2] + m[3]! * t[3],
+        m[0]! * t[4] + m[2]! * t[5] + m[4]!,
+        m[1]! * t[4] + m[3]! * t[5] + m[5]!,
+      ];
+    }
+    return m[1]! * x + m[3]! * y + m[5]!;
+  };
+  const num = (el: Element, a: string) => parseFloat(el.getAttribute(a) ?? '');
+  let top = Infinity;
+  for (const el of Array.from(doc.querySelectorAll('circle, rect, text'))) {
+    if (el.closest('text.chart-title, defs, clipPath, mask, title')) continue;
+    if (el.getAttribute('opacity') === '0') continue;
+    const tag = el.tagName.toLowerCase();
+    let y: number;
+    if (tag === 'circle') {
+      const cx = num(el, 'cx') || 0;
+      y = yOf(el, cx, (num(el, 'cy') || 0) - num(el, 'r'));
+    } else if (tag === 'rect') {
+      const w = num(el, 'width');
+      if (!(w > 0) || w >= vbW * 0.95) continue;
+      y = yOf(el, num(el, 'x') || 0, num(el, 'y') || 0);
+    } else {
+      // Positioned by its own y, its first tspan's, or its own transform.
+      const at = el.hasAttribute('y') ? el : el.querySelector('tspan[y]');
+      if (!el.textContent?.trim()) continue;
+      if (!at && !el.hasAttribute('transform')) continue;
+      const fs = parseFloat(el.getAttribute('font-size') ?? '') || 12;
+      y = at
+        ? yOf(el, num(at, 'x') || 0, num(at, 'y')) - fs * 0.8
+        : yOf(el, 0, 0) - fs * 0.8;
+    }
+    if (Number.isFinite(y)) top = Math.min(top, y);
+  }
+  return top;
+}
+
+describe('every renderer that draws a chart title wraps it and pushes its plot down', () => {
+  // Wider than any export canvas, so every renderer must wrap it.
+  const HUGE =
+    'Quarterly Incident Count by Service Owner Team and Failure Category Across Every Production Region With Escalations and Rollbacks Broken Out Separately';
+  const cases = [
+    'arc',
+    'slope',
+    'quadrant',
+    'venn',
+    'wordcloud',
+    'timeline',
+    'timeline-grouped',
+  ];
+  const opts = { theme: 'light', palette: 'nord' } as const;
+  const titleLines = (svg: string) => {
+    const t = /<text class="chart-title"[^>]*>([\s\S]*?)<\/text>/.exec(svg);
+    return t ? (t[1]!.match(/<tspan/g) ?? []).length : -1;
+  };
+  const key = (f: { rule: string; detail: string }) => `${f.rule}: ${f.detail}`;
+
+  it.each(cases)(
+    '%s: a title wider than the canvas takes two lines, pushes the plot down and adds no lint finding',
+    async (name) => {
+      const src = readFileSync(
+        join(__dirname, '..', 'gallery', 'fixtures', `${name}.dgmo`),
+        'utf8'
+      );
+      const withTitle = (t: string) =>
+        src.replace(/^(\w+) .*$/m, (_m, kw: string) => `${kw} ${t}`);
+      const long = await render(withTitle(HUGE), opts);
+      const short = await render(withTitle('Short'), opts);
+      expect(long.svg).not.toBe('');
+      expect(titleLines(long.svg)).toBe(2);
+      const before = new Set(lintSvg(short.svg).map(key));
+      const added = lintSvg(long.svg)
+        .map(key)
+        .filter((k) => !before.has(k) && !k.includes('Short'));
+      expect(added).toEqual([]);
+      // The plot moves down: by the whole extra line where it is top-anchored,
+      // by about half where it is centred in what is left (wordcloud).
+      expect(plotTop(long.svg) - plotTop(short.svg)).toBeGreaterThanOrEqual(
+        TITLE_LINE_HEIGHT / 2 - 1
+      );
+    }
+  );
 });
