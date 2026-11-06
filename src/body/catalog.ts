@@ -101,22 +101,6 @@ const ALIAS: Readonly<Record<string, string | readonly string[]>> = {
 };
 
 /**
- * Every name a user may type on a body part line — canonical muscles, surface
- * landmarks, formal-anatomical + gym aliases, and the `left`/`right` side
- * modifier. Single source for editor autocomplete and syntax highlighting.
- */
-export const BODY_TERMS: readonly string[] = [
-  ...new Set([
-    ...Object.values(FIGURES).flatMap((f) => Object.keys(f.parts)),
-    ...Object.values(SURFACE).flatMap((f) => Object.keys(f)),
-    ...Object.keys(ANATOMICAL),
-    ...Object.keys(ALIAS),
-    'left',
-    'right',
-  ]),
-].sort();
-
-/**
  * Normalize a user-typed name to a catalog key present in `figure`, or null.
  * Tries: verbatim (muscle or surface), formal anatomical, alias candidates,
  * then the fine-deltoid fallback.

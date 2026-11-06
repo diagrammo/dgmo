@@ -44,7 +44,6 @@
     // dependency or leaves with the script.
     "linkedom",
   ],
-  "ignoreBinaries": ["du", "vite"],
   "ignore": [
     "src/editor/tokens.ts",
     // The `prepack` gate for @diagrammo/dgmo-cli — it renders one gallery
@@ -71,22 +70,17 @@
     "scripts/dom-shim-diff.mjs",
     "scripts/audit-solid-fill-contrast.ts",
     "scripts/generate-examples-gallery.mjs",
-    "scripts/check-bundle-size.cjs",
     "scripts/migrate-as-aliases.mjs",
-    "scripts/migrate-as-aliases.test.mjs",
     "scripts/build-airports-snapshot.mjs",
     "scripts/gen-ai-core.mjs",
-    "scripts/eval-ai-generation.mjs",
-    "scripts/eval-tools.mjs",
     "scripts/gen-body-surface.mjs",
     "scripts/enrich-gazetteer-tz.mjs",
     "api-baseline/**",
-    "tools/**",
   ],
   "ignoreExportsUsedInFile": true,
   "rules": {
     "duplicates": "off",
-    "exports": "warn",
+    "exports": "error",
     "types": "warn",
   },
 }
