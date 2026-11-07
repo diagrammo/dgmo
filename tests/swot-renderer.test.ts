@@ -132,6 +132,22 @@ strengths
     ).toBe(mix(palette.colors.green, panelFill, 38));
   });
 
+  it('draws every tag group, so a click can switch to another', () => {
+    const c = draw(`swot
+tag Priority as p
+  High red
+tag Owner as o
+  Eng blue
+active-tag Priority
+strengths
+  A p: High, o: Eng
+`);
+    const groups = [...c.querySelectorAll('[data-legend-group]')].map((e) =>
+      e.getAttribute('data-legend-group')
+    );
+    expect(groups).toEqual(['priority', 'owner']);
+  });
+
   it('no-legend hides the legend', () => {
     const c = draw('swot\ntag P\n  A red\nno-legend\n\nstrengths\n  x P: A\n');
     expect(c.querySelector('.swot-legend')).toBeNull();

@@ -162,6 +162,10 @@ export function renderSwot(
     groups: parsed.tagGroups,
     position: { placement: 'top-center', titleRelation: 'inline-with-title' },
     mode: options?.exportMode ? 'export' : 'preview',
+    // Every other group as a pill beside the active capsule, so a click can
+    // switch to it — as family and c4 do. Export still shows only the active
+    // group (legend-layout drops the rest before consulting this).
+    showInactivePills: true,
   };
   const legendHeight = showLegend
     ? getMaxLegendReservedHeight(legendConfig, legendWidth)
