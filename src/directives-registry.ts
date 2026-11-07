@@ -997,6 +997,7 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'opportunities', category: 'control', chartTypes: ['swot'] },
   { token: 'threats', category: 'control', chartTypes: ['swot'] },
   { token: 'no-axes', category: 'directive', chartTypes: ['swot'] },
+  { token: 'no-tint-items', category: 'directive', chartTypes: ['swot'] },
 
   // ── Kanban status keywords (STATUS) ──────────────────────
   { token: 'na', category: 'status', chartTypes: ['kanban'] },

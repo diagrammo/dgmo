@@ -389,6 +389,9 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'no-axes': {
         description: 'Hide the axis labels; wins over x-label and y-label',
       },
+      'no-tint-items': {
+        description: "Don't tint a tagged item's row in its tag colour",
+      },
     }),
   ],
   // RACI / RASCI / DACI — one chart type (`raci`); the variant (RACI, RASCI,

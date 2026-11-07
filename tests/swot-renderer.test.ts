@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { renderForExport } from '../src/d3';
 import { getPalette } from '../src/palettes';
 import { render } from '../src/render';
-import { mix } from '../src/palettes/color-utils';
+import { mix, shapeFill } from '../src/palettes/color-utils';
 import { parseSwot } from '../src/swot/parser';
 import { renderSwot } from '../src/swot/renderer';
 import { hoverCssFor } from '../src/utils/hover-styles';
@@ -146,6 +146,28 @@ strengths
       e.getAttribute('data-legend-group')
     );
     expect(groups).toEqual(['priority', 'owner']);
+  });
+
+  it('tints a tagged row in its tag colour; no-tint-items turns it off', () => {
+    const src = `swot
+tag Priority as p
+  High red
+active-tag Priority
+strengths
+  Tagged p: High
+  Untagged
+`;
+    const on = draw(src);
+    const tints = on.querySelectorAll('.swot-item-tint');
+    expect(tints).toHaveLength(1);
+    expect(tints[0]!.getAttribute('fill')).toBe(
+      shapeFill(palette, palette.colors.red, false)
+    );
+    const off = draw(
+      src.replace('active-tag Priority', 'active-tag Priority\nno-tint-items')
+    );
+    expect(off.querySelectorAll('.swot-item-tint')).toHaveLength(0);
+    expect(off.querySelectorAll('.swot-item circle')).toHaveLength(2);
   });
 
   it('no-legend hides the legend', () => {

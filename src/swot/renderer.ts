@@ -5,7 +5,7 @@
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
-import { contrastText, mix } from '../palettes/color-utils';
+import { contrastText, mix, shapeFill } from '../palettes/color-utils';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import { getMaxLegendReservedHeight } from '../utils/legend-layout';
 import type { LegendConfig } from '../utils/legend-types';
@@ -49,6 +49,12 @@ const AXIS_HEADER_GAP = 6; // band → panel
 const AXIS_HEADER_RADIUS = 5;
 const AXIS_BAND = AXIS_HEADER_SIZE + AXIS_HEADER_GAP;
 const EMPTY_TEXT = 'None listed';
+// A tagged item is tinted in its tag's colour across the row, as kanban tints
+// a tagged card (shapeFill: 25% over the theme base), so the tag reads at a
+// glance and not only through a 7px dot. `no-tint-items` turns it off.
+const TINT_INSET = 5;
+const TINT_PAD_Y = 3;
+const TINT_RADIUS = 4;
 
 const ITEM_TEXT_WIDTH =
   PANEL_WIDTH - 2 * PANEL_PADDING - 2 * DOT_RADIUS - DOT_GAP;
@@ -140,6 +146,7 @@ export function renderSwot(
 ): void {
   const activeTagGroup = options?.activeTagGroup ?? null;
   const showAxes = parsed.options['no-axes'] !== 'on';
+  const tintItems = parsed.options['no-tint-items'] !== 'on';
   const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
   const showLegend =
     parsed.tagGroups.length > 0 && !legendSuppressed(parsed.options);
@@ -388,12 +395,32 @@ export function renderSwot(
         if (value) itemG.attr(`data-tag-${key}`, value.toLowerCase());
       }
 
+      const fill = itemColor(item, section, parsed, activeTagGroup);
+      const tagged =
+        !!activeTagGroup && !!item.tags[tagAttrKey(activeTagGroup)];
+      if (tagged && tintItems) {
+        itemG
+          .append('rect')
+          .attr('class', 'swot-item-tint')
+          .attr('x', x + TINT_INSET)
+          .attr('y', cursorY - TINT_PAD_Y)
+          .attr('width', PANEL_WIDTH - 2 * TINT_INSET)
+          .attr(
+            'height',
+            itemLayout.titleLines.length * ITEM_LINE_HEIGHT +
+              itemLayout.detailLines.length * DETAIL_LINE_HEIGHT +
+              2 * TINT_PAD_Y
+          )
+          .attr('rx', TINT_RADIUS)
+          .attr('fill', shapeFill(palette, fill, isDark));
+      }
+
       itemG
         .append('circle')
         .attr('cx', dotX)
         .attr('cy', cursorY + ITEM_LINE_HEIGHT / 2)
         .attr('r', DOT_RADIUS)
-        .attr('fill', itemColor(item, section, parsed, activeTagGroup));
+        .attr('fill', fill);
 
       for (const line of itemLayout.titleLines) {
         itemG

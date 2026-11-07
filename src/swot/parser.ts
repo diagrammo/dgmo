@@ -57,6 +57,7 @@ const SECTION_KEYS = SECTION_DEFAULTS.map((s) => s.key) as readonly string[];
 const VALUE_OPTIONS = new Set(['active-tag', 'palette']);
 const BOOLEAN_OPTIONS = new Set([
   'no-axes',
+  'no-tint-items',
   'no-title',
   'no-legend',
   'legend-inline',
