@@ -274,6 +274,7 @@ const INVENTORY = {
     'no-region-labels',
     'no-relief',
     'no-sun',
+    'no-tint-items',
     'no-title',
     'no-value',
     'no-values',
