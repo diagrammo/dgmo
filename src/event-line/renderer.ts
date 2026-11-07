@@ -33,7 +33,11 @@ import {
   themeBaseBg,
 } from '../palettes/color-utils';
 import { resolveColor } from '../colors';
-import { renderNodeCard, renderCollapseBar } from '../utils/card';
+import {
+  collapseBarHeight,
+  renderNodeCard,
+  renderCollapseBar,
+} from '../utils/card';
 import { renderInlineText } from '../utils/inline-markdown';
 import type { WrappedDescLine } from '../utils/wrapped-desc';
 import { renderIntegratedLegend } from '../utils/legend-integration';
@@ -701,6 +705,20 @@ export function renderEventLine(
         .attr('fill', col)
         .attr('fill-opacity', neutral ? 0.85 : 1)
         .text(r.era.name);
+      // An expanded era has no card, only its bracket — so its hover preview
+      // of the bar lies along the bracket's run, on the cap side (#1741).
+      const barH = collapseBarHeight();
+      renderCollapseBar(eg, {
+        expanded: true,
+        x: x0,
+        y: cap > 0 ? y : y - barH,
+        width: x1 - x0,
+        height: barH,
+        rx: 0,
+        fill: col,
+        clipId: `dgmo-evt-era-preview-clip-${r.era.lineNumber}`,
+        prefix: 'evt',
+      });
       if (onClickItem) {
         const ln = r.era.lineNumber;
         eg.style('cursor', 'pointer').on('click', () => onClickItem(ln));

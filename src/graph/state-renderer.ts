@@ -358,6 +358,20 @@ export function renderState(
       .attr('opacity', 0.7)
       .attr('class', 'st-group-label')
       .text(group.label);
+
+    // An expanded group folds: its hover preview of the bar (#1741).
+    renderCollapseBar(groupWrapper, {
+      expanded: true,
+      x: gx,
+      y: gy,
+      width: gw,
+      height: gh,
+      rx: 6,
+      fill: strokeColor,
+      clipId: `st-group-clip-${group.id.replace(/[[\]:\s]/g, '')}`,
+      prefix: 'state',
+      scale: ctx,
+    });
   }
 
   const LABEL_PAD = 8;

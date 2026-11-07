@@ -3575,10 +3575,11 @@ export function renderSequenceDiagram(
         .attr('cursor', 'pointer');
     }
 
-    // Visual group frame — pointer-events:none so it never intercepts clicks.
-    // The box is rendered behind the participant shapes, so the only reliable
-    // toggle target is the header strip above the participants (hit area below).
-    groupG
+    // Visual group frame. It is the toggle's hit area (#1741): the whole frame
+    // around the members — header strip, side and bottom padding — answers the
+    // click. The member boxes are drawn after it, so they keep their own
+    // clicks. A group that does not fold keeps the frame inert.
+    const frameRect = groupG
       .append('rect')
       .attr('x', frame.x)
       .attr('y', frame.y)
@@ -3589,8 +3590,8 @@ export function renderSequenceDiagram(
       .attr('stroke', strokeColor)
       .attr('stroke-width', 1)
       .attr('stroke-opacity', 0.5)
-      .attr('pointer-events', 'none')
       .attr('class', 'group-box');
+    if (!collapsible) frameRect.attr('pointer-events', 'none');
 
     // Transparent hit area over the header strip (above the participant boxes,
     // so it is never occluded). Gives the toggle a generous, discoverable
@@ -3617,6 +3618,22 @@ export function renderSequenceDiagram(
       .attr('pointer-events', 'none')
       .attr('class', 'group-label')
       .text(group.name);
+
+    // An expanded group that folds: its hover preview of the bar (#1741).
+    if (collapsible) {
+      renderCollapseBar(groupG, {
+        expanded: true,
+        x: frame.x,
+        y: frame.y,
+        width: frame.width,
+        height: frame.height,
+        rx: 6,
+        fill: strokeColor,
+        clipId: `clip-group-frame-${group.lineNumber}`,
+        prefix: 'sequence',
+        scale: ctx,
+      });
+    }
   }
 
   // Render each participant
@@ -3932,20 +3949,19 @@ export function renderSequenceDiagram(
 
     // A folded section carries the collapse bar along the band's bottom edge,
     // like every other folded thing (conventions §3); the hidden-message count
-    // in the label stays.
-    if (isCollapsed) {
-      renderCollapseBar(sectionG, {
-        x: band.x,
-        y: secY - BAND_HEIGHT / 2,
-        width: band.width,
-        height: BAND_HEIGHT,
-        rx: 2,
-        fill: lineColor,
-        clipId: `seq-section-clip-${sec.lineNumber}`,
-        prefix: 'sequence-section',
-        scale: ctx,
-      });
-    }
+    // in the label stays. Expanded: the bar's hover preview instead (#1741).
+    renderCollapseBar(sectionG, {
+      expanded: !isCollapsed,
+      x: band.x,
+      y: secY - BAND_HEIGHT / 2,
+      width: band.width,
+      height: BAND_HEIGHT,
+      rx: 2,
+      fill: lineColor,
+      clipId: `seq-section-clip-${sec.lineNumber}`,
+      prefix: 'sequence-section',
+      scale: ctx,
+    });
 
     // Build display label. Centred in both states — the lifelines are cut
     // around it (see sectionLabelBoxes) rather than the label moving aside,
@@ -4390,8 +4406,10 @@ export function renderSequenceDiagram(
           renderInlineText(textEl, line.text, palette, sNoteFontSize);
         }
 
-        if (box.folded) {
+        // Expanded: the bar's hover preview instead (#1741).
+        if (box.foldable) {
           renderCollapseBar(noteG, {
+            expanded: !box.folded,
             x: noteX,
             y: noteTopY,
             width: noteW,

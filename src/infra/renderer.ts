@@ -1319,6 +1319,20 @@ function renderGroups(
       .attr('fill', palette.text)
       .text(group.label);
 
+    // An expanded group folds: its hover preview of the bar (#1741).
+    renderCollapseBar(g, {
+      expanded: true,
+      x: group.x,
+      y: group.y,
+      width: group.width,
+      height: group.height,
+      rx: 6,
+      fill: frameStroke,
+      clipId: `clip-group-${group.id.replace(/[^A-Za-z0-9_-]/g, '')}`,
+      prefix: 'infra',
+      scale: sc.scale,
+    });
+
     const gi =
       typeof group.instances === 'number'
         ? group.instances

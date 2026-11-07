@@ -185,6 +185,14 @@ export interface CollapseBarOptions {
    * height is `COLLAPSE_BAR_HEIGHT` through it. Omitted = unscaled.
    */
   scale?: { structural(value: number): number } | number;
+  /**
+   * The foldable thing is EXPANDED: draw the bar's hover preview instead of
+   * the solid bar — same geometry, class `<prefix>-collapse-bar-preview
+   * dgmo-collapse-bar-preview`, `opacity="0"` at rest. The baked toggle cue
+   * (`toggleCueCss`) fades it in while the toggle is hovered. The preview
+   * must be a direct child of the toggle element for that rule to reach it.
+   */
+  expanded?: boolean;
 }
 
 /** The scaled collapse-bar height — for layout code that reserves room for it. */
@@ -218,13 +226,78 @@ export function renderCollapseBar(
     .attr('height', opts.height)
     .attr('rx', opts.rx);
 
-  return container
+  const bar = container
     .append('rect')
     .attr('x', x)
     .attr('y', y + opts.height - barHeight)
     .attr('width', opts.width)
     .attr('height', barHeight)
     .attr('fill', opts.fill)
-    .attr('clip-path', `url(#${opts.clipId})`)
-    .attr('class', `${opts.prefix}-collapse-bar dgmo-collapse-bar`);
+    .attr('clip-path', `url(#${opts.clipId})`);
+  if (!opts.expanded) {
+    return bar.attr('class', `${opts.prefix}-collapse-bar dgmo-collapse-bar`);
+  }
+  return bar
+    .attr(
+      'class',
+      `${opts.prefix}-collapse-bar-preview dgmo-collapse-bar-preview`
+    )
+    .attr('opacity', 0)
+    .attr('pointer-events', 'none');
+}
+
+/** Every toggle attribute the fold contract defines (#1741). */
+export const TOGGLE_ATTRS = [
+  'data-node-toggle',
+  'data-group-toggle',
+  'data-section-toggle',
+  'data-note-toggle',
+] as const;
+
+/** Opacity the expanded-state bar preview fades to while its toggle is hovered. */
+export const COLLAPSE_PREVIEW_HOVER_OPACITY = 0.35;
+
+/**
+ * The fold cue every static host gets baked in (#1741, decided 2026-11-07):
+ * a pointer cursor on every toggle; on hover the toggle's card (its first
+ * `rect`/`path` child) brightens a step and an expanded thing's bar preview
+ * fades in at its bottom edge; a focus ring for hosts that add `tabindex`.
+ * Nothing is drawn at rest. Light themes darken a step (the app's own
+ * `brightness(0.95)`), dark themes lighten one, so the step reads on both. A
+ * transparent hit rect as the first child takes a faint tint instead, since a
+ * filter on a transparent fill shows nothing.
+ */
+export function toggleCueCss(theme: string = 'light'): string {
+  const t = TOGGLE_ATTRS.map((a) => `[${a}]`);
+  const on = (suffix: string): string => t.map((s) => s + suffix).join(',');
+  const step = theme === 'dark' ? 1.2 : 0.95;
+  return (
+    `${t.join(',')}{cursor:pointer}` +
+    `${on(':hover>rect:first-child')},${on(':hover>path:first-child')}{filter:brightness(${step})}` +
+    // A toggle whose first child is a transparent hit rect (gantt and timeline
+    // lanes, whose band is drawn outside the toggle) tints that rect instead.
+    `${on(':hover>rect[fill=transparent]:first-child')}{fill:${theme === 'dark' ? '#fff' : '#000'};fill-opacity:${theme === 'dark' ? 0.08 : 0.05}}` +
+    `.dgmo-collapse-bar-preview{transition:opacity 120ms ease-out}` +
+    `${on(':hover>.dgmo-collapse-bar-preview')}{opacity:${COLLAPSE_PREVIEW_HOVER_OPACITY}}` +
+    `${on(':focus-visible')}{outline:2px solid currentColor;outline-offset:2px}` +
+    `@media (prefers-reduced-motion:reduce){.dgmo-collapse-bar-preview{transition:none}}`
+  );
+}
+
+/**
+ * Splice {@link toggleCueCss} into a rendered SVG string as its own `<style>`,
+ * right after the opening `<svg …>` tag. No-op when the SVG has no toggle.
+ */
+export function injectToggleCue(svg: string, theme?: string): string {
+  if (!svg || !TOGGLE_ATTRS.some((a) => svg.includes(`${a}=`))) return svg;
+  const open = svg.match(/<svg\b[^>]*>/);
+  if (open?.index == null) return svg;
+  const at = open.index + open[0].length;
+  const css = toggleCueCss(theme);
+  // One `<style>` per SVG: join the baked hover block when it is already there.
+  if (svg.startsWith('<style>', at)) {
+    const end = svg.indexOf('</style>', at);
+    if (end !== -1) return `${svg.slice(0, end)}${css}${svg.slice(end)}`;
+  }
+  return `${svg.slice(0, at)}<style>${css}</style>${svg.slice(at)}`;
 }

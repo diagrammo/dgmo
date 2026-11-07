@@ -1213,8 +1213,10 @@ function renderPhaseBar(
 
   // A folded phase: the collapse bar along the band's bottom edge, in the
   // phase's own colour (conventions §3); the hidden-task count stays.
-  if (collapsed) {
+  // Expanded: the bar's hover preview instead (#1741).
+  if (phase.tasks.length > 0) {
     renderCollapseBar(phaseG, {
+      expanded: !collapsed,
       x,
       y: y + 4,
       width,

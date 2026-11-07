@@ -168,7 +168,7 @@ function renderLabelBand(
   bandAccentW = BAND_ACCENT_W,
   collapsed = false,
   scale?: ScaleContext
-): void {
+): LabelBandGeometry {
   const bandX = 5;
   const bandW = leftMargin - 7;
   const bandY = y - barH / 2;
@@ -225,6 +225,63 @@ function renderLabelBand(
       prefix: 'gantt',
       ...(scale && { scale }),
     }).style('pointer-events', 'none');
+  }
+  return {
+    x: bandX,
+    y: bandY,
+    width: bandW,
+    height: barH,
+    rx: bandRadius,
+    color,
+    clipId,
+  };
+}
+
+/** Where `renderLabelBand` drew a band — for the toggle drawn over it. */
+interface LabelBandGeometry {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rx: number;
+  color: string;
+  clipId: string;
+}
+
+/**
+ * The fold toggle over a group's label band (#1741): a transparent hit rect
+ * spanning the whole band, so the band — not only the label glyphs — answers
+ * the click, and for an EXPANDED group the collapse bar's hover preview.
+ * Both go inside the toggle element, where the baked hover rule reaches them.
+ */
+function renderBandToggleTarget(
+  toggle: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
+  band: LabelBandGeometry,
+  collapsed: boolean,
+  scale?: ScaleContext
+): void {
+  toggle
+    .append('rect')
+    .attr('class', 'gantt-group-label-hit')
+    .attr('x', band.x)
+    .attr('y', band.y)
+    .attr('width', band.width)
+    .attr('height', band.height)
+    .attr('rx', band.rx)
+    .attr('fill', 'transparent');
+  if (!collapsed) {
+    renderCollapseBar(toggle, {
+      expanded: true,
+      x: band.x,
+      y: band.y,
+      width: band.width,
+      height: band.height,
+      rx: band.rx,
+      fill: band.color,
+      clipId: `${band.clipId}-bar`,
+      prefix: 'gantt',
+      ...(scale && { scale }),
+    });
   }
 }
 
@@ -966,7 +1023,7 @@ function drawGantt(
         tagColor && tagColor !== UNTAGGED_TAG_COLOR
           ? tagColor
           : (group.color ?? palette.textMuted);
-      renderLabelBand(
+      const groupBand = renderLabelBand(
         svg,
         sMarginTop + yOffset + sBarH / 2,
         leftMargin,
@@ -991,7 +1048,8 @@ function drawGantt(
         .attr('role', 'button')
         .attr('aria-expanded', String(!isCollapsed))
         .attr('aria-label', group.name)
-        .style('cursor', onToggleGroup ? 'pointer' : 'default')
+        // A pointer in every render mode: hosts bind the toggle (#1741).
+        .style('cursor', 'pointer')
         .on('click', () => {
           if (onToggleGroup) onToggleGroup(group.name);
         })
@@ -1010,6 +1068,8 @@ function drawGantt(
           resetHighlight(g, svg);
           hideGanttDateIndicators(g);
         });
+
+      renderBandToggleTarget(labelG, groupBand, isCollapsed, ctx);
 
       const groupIndent =
         group.depth <= 2 ? group.depth * 14 : 2 * 14 + (group.depth - 2) * 8;

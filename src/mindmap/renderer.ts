@@ -606,9 +606,11 @@ export function renderMindmap(
       }
     }
 
-    // Collapse bar — every render mode (conventions §3).
-    if (node.hiddenCount != null && node.hiddenCount > 0) {
+    // Collapse bar — every render mode (conventions §3). An expanded node with
+    // children carries its hover preview instead (#1741).
+    if (node.hasChildren) {
       renderCollapseBar(nodeG, {
+        expanded: !(node.hiddenCount != null && node.hiddenCount > 0),
         x: node.x,
         y: node.y,
         width: node.width,

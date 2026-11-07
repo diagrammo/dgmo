@@ -896,6 +896,20 @@ export function renderBoxesAndLines(
         .attr('font-weight', 'bold')
         .attr('fill', palette.text)
         .text(group.label);
+
+      // An expanded group folds: its hover preview of the bar (#1741).
+      renderCollapseBar(groupG, {
+        expanded: true,
+        x: gx,
+        y: gy,
+        width: group.width,
+        height: groupHeight,
+        rx: GROUP_RX,
+        fill: groupStroke(palette, groupTagColor),
+        clipId: `bl-clip-${group.label.replace(/[[\]\s]/g, '')}`,
+        prefix: 'bl',
+        scale: sctx,
+      });
     }
   }
 

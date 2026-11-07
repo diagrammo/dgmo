@@ -1020,6 +1020,20 @@ function drawKanban(
         .text(badgeText);
     }
 
+    // An expanded column folds: its hover preview of the bar (#1741).
+    renderCollapseBar(g, {
+      expanded: true,
+      x: colLayout.x,
+      y: colLayout.y,
+      width: colLayout.width,
+      height: colLayout.height,
+      rx: sColumnRadius,
+      fill: colColor ?? wellStroke,
+      clipId: `kanban-col-clip-${col.id.replace(/[^A-Za-z0-9_-]/g, '_')}`,
+      prefix: 'kanban',
+      scale: ctx,
+    });
+
     for (const cardLayout of colLayout.cardLayouts) {
       const card = cardLayout.card;
       const resolvedColor = resolveCardTagColor(

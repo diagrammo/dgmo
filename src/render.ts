@@ -2,6 +2,7 @@ import { renderForExport, resolveArcChordOverride } from './d3';
 import { renderDataChartD3 } from './charts-d3';
 import { fitSvgToContent } from './utils/export-fit';
 import { injectHoverStyles } from './utils/hover-styles';
+import { injectToggleCue } from './utils/card';
 import { applyRootA11y, applyRootDesc } from './utils/root-a11y';
 import { summarizeDiagram } from './utils/diagram-summary';
 import { REGISTRY_BY_ID } from './chart-type-registry';
@@ -445,7 +446,14 @@ export async function render(
     // detected `chartType` has a registry row and `bakeHover` is on).
     svg = applyRootDesc(
       applyRootA11y(
-        injectHoverStyles(svg, chartType, { bakeHover }),
+        // The fold cue (#1741) rides the same gate: a host that opts out of
+        // baked hover opts out of every baked hover rule.
+        bakeHover
+          ? injectToggleCue(
+              injectHoverStyles(svg, chartType, { bakeHover }),
+              theme
+            )
+          : svg,
         chartType,
         diagramTitle(content, parsed.chartType)
       ),

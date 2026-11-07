@@ -750,10 +750,12 @@ export function renderJourneyMap(
         });
       }
 
-      if (isCollapsed) {
-        // The collapse bar along the folded phase column's bottom edge, in
-        // its header colour (conventions §3).
+      // The collapse bar along the folded phase column's bottom edge, in its
+      // header colour (conventions §3); an expanded phase that folds carries
+      // its hover preview instead (#1741).
+      if (pl.phase.steps.length > 0) {
         renderCollapseBar(phaseG, {
+          expanded: !isCollapsed,
           x: pl.x,
           y: pl.y,
           width: pl.width,
@@ -763,6 +765,9 @@ export function renderJourneyMap(
           clipId: `journey-phase-clip-${pl.phase.lineNumber}`,
           prefix: 'journey',
         });
+      }
+
+      if (isCollapsed) {
         // Collapsed: mini card rows with colored border matching active tag
         const COLLAPSED_CARD_H = 26;
         const COLLAPSED_GAP = 6;

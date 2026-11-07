@@ -2278,6 +2278,22 @@ function renderTimelineHorizontalGrouped(
         .attr('width', bandW)
         .attr('height', bandH)
         .attr('fill', 'transparent');
+      // An expanded lane that folds: its hover preview of the bar, inside the
+      // toggle so the baked hover rule reaches it (#1741).
+      if (!isCollapsed && headerLine !== undefined) {
+        renderCollapseBar(headerG, {
+          expanded: true,
+          x: bandX,
+          y: bandY,
+          width: bandW,
+          height: bandH,
+          rx: sBandRx,
+          fill: laneColor,
+          clipId: `${clipId}-bar`,
+          prefix: 'tl',
+          scale: ctx,
+        });
+      }
     }
 
     const headerText = headerG

@@ -1486,6 +1486,20 @@ function renderGroups(
       .attr('font-size', sCLFS)
       .attr('font-weight', 'bold')
       .text(label);
+
+    // An expanded group folds: its hover preview of the bar (#1741).
+    renderCollapseBar(g, {
+      expanded: true,
+      x: grp.x,
+      y: grp.y,
+      width: grp.width,
+      height: grp.height,
+      rx: sCR,
+      fill: containerStroke,
+      clipId: `pert-group-clip-${grp.id.replace(/[^A-Za-z0-9_-]/g, '_')}`,
+      prefix: 'pert',
+      ...(sc.scale && { scale: sc.scale }),
+    });
   }
 }
 

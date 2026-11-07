@@ -13,6 +13,10 @@ import { join, relative } from 'node:path';
 import { JSDOM } from 'jsdom';
 import { render } from '../src/render';
 import { COLLAPSE_BAR_HEIGHT } from '../src/utils/visual-conventions';
+import {
+  COLLAPSE_PREVIEW_HOVER_OPACITY,
+  TOGGLE_ATTRS,
+} from '../src/utils/card';
 
 const BAR = '.dgmo-collapse-bar';
 
@@ -193,13 +197,6 @@ describe('one collapse bar per folded thing, in the static render (#1741)', () =
   }
 });
 
-const TOGGLE_ATTRS = [
-  'data-node-toggle',
-  'data-group-toggle',
-  'data-section-toggle',
-  'data-note-toggle',
-];
-
 async function toggleAt(source: string, line: number): Promise<Element[]> {
   const { svg } = await render(source, { theme: 'light', palette: 'nord' });
   const doc = new win.DOMParser().parseFromString(svg, 'image/svg+xml');
@@ -230,6 +227,101 @@ describe('the marker line carries the toggle, folded and expanded (#1741)', () =
       });
     }
   }
+});
+
+async function staticDoc(source: string, viewState?: StaticCase['viewState']) {
+  const { svg } = await render(source, {
+    theme: 'light',
+    palette: 'nord',
+    ...(viewState && { viewState }),
+  });
+  return new win.DOMParser().parseFromString(svg, 'image/svg+xml');
+}
+
+const TOGGLE_SELECTOR = TOGGLE_ATTRS.map((a) => `[${a}]`).join(',');
+const PREVIEW = 'dgmo-collapse-bar-preview';
+
+describe('every expanded foldable carries one bar preview (#1741)', () => {
+  for (const [name, c] of Object.entries(STATIC)) {
+    // Wireframe groups carry no toggle markup, so nothing previews.
+    if (name === 'wireframe') continue;
+    for (const [state, source] of [
+      ['folded', c.folded],
+      ['expanded', c.expanded],
+    ] as const) {
+      it(`${name} — ${state}`, async () => {
+        const doc = await staticDoc(
+          source,
+          state === 'folded' ? c.viewState : undefined
+        );
+        const toggles = [...doc.querySelectorAll(TOGGLE_SELECTOR)];
+        const expanded = toggles.filter(
+          (t) => t.getAttribute('aria-expanded') === 'true'
+        );
+        if (state === 'expanded')
+          expect(expanded.length, `${name} ${state}`).toBeGreaterThan(0);
+        for (const t of toggles) {
+          // A direct child — the baked `:hover > .dgmo-collapse-bar-preview`
+          // rule reaches nothing deeper.
+          const previews = [...t.children].filter((el) =>
+            el.classList.contains(PREVIEW)
+          );
+          const want = t.getAttribute('aria-expanded') === 'true' ? 1 : 0;
+          expect(
+            previews.length,
+            `${name} ${state} ${t.outerHTML.slice(0, 120)}`
+          ).toBe(want);
+          for (const p of previews) {
+            expect(p.getAttribute('opacity')).toBe('0');
+            expect(p.classList.contains('dgmo-collapse-bar')).toBe(false);
+            expect(Number(p.getAttribute('height'))).toBe(COLLAPSE_BAR_HEIGHT);
+          }
+        }
+        expect(
+          doc.querySelectorAll(`.${PREVIEW}`).length,
+          `${name} ${state}`
+        ).toBe(expanded.length);
+      });
+    }
+  }
+});
+
+describe('the baked toggle cue (#1741)', () => {
+  it('is emitted once when the SVG has a toggle, and holds every rule', async () => {
+    const { svg } = await render(STATIC.org!.expanded, { theme: 'light' });
+    const css = [...svg.matchAll(/<style>([^<]*)<\/style>/g)]
+      .map((m) => m[1]!)
+      .filter((c) => c.includes(PREVIEW));
+    expect(css.length).toBe(1);
+    const cue = css[0]!;
+    for (const a of TOGGLE_ATTRS) {
+      expect(cue).toContain(`[${a}]:hover>.${PREVIEW}`);
+      expect(cue).toContain(`[${a}]:hover>rect:first-child`);
+      expect(cue).toContain(`[${a}]:focus-visible`);
+    }
+    expect(cue).toContain('cursor:pointer');
+    expect(cue).toContain(':hover>rect[fill=transparent]:first-child');
+    expect(cue).toContain('filter:brightness(0.95)');
+    expect(cue).toContain(`opacity:${COLLAPSE_PREVIEW_HOVER_OPACITY}`);
+    expect(cue).toContain('transition:opacity');
+    expect(cue).toContain('@media (prefers-reduced-motion:reduce)');
+  });
+
+  it('lightens a step on a dark theme instead of darkening', async () => {
+    const { svg } = await render(STATIC.org!.expanded, { theme: 'dark' });
+    expect(svg).toContain('filter:brightness(1.2)');
+    expect(svg).not.toContain('filter:brightness(0.95)');
+  });
+
+  it('is left out when the SVG has no toggle', async () => {
+    const { svg } = await render('org Crew\n\nCaptain', { theme: 'light' });
+    expect(svg).not.toContain(PREVIEW);
+  });
+
+  it('follows the bakeHover opt-out', async () => {
+    const { svg } = await render(STATIC.org!.expanded, { bakeHover: false });
+    expect(svg).not.toContain(`:hover>.${PREVIEW}`);
+  });
 });
 
 describe('no renderer draws its own collapse bar (#1741)', () => {

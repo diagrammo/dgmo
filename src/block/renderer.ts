@@ -415,7 +415,20 @@ function drawItems(
         .attr('fill', palette.text)
         .attr('opacity', headerOpacity)
         .text(clipLabel(it.label ?? '', it.w - 24, headerFs));
-      bindToggle(cell, it, ctx, BLOCK_HEADER_H);
+      if (bindToggle(cell, it, ctx, BLOCK_HEADER_H)) {
+        // An expanded container folds: its hover preview of the bar (#1741).
+        renderCollapseBar(cell, {
+          expanded: true,
+          x: it.x,
+          y: it.y,
+          width: it.w,
+          height: it.h,
+          rx: 10,
+          fill: fillMode === 'solid' && color ? palette.text : stroke,
+          clipId: `dgmo-block-clip-${clipCounter++}`,
+          prefix: 'block',
+        });
+      }
       // Children are flat siblings in `g` (drawn after → painted on top of the
       // container background), each carrying this container's id in their path.
       if (it.inner) drawItems(g, it.inner, ctx, itemPath);
@@ -462,8 +475,8 @@ function bindToggle(
   it: BlockLayoutItem,
   ctx: DrawCtx,
   hitH: number
-): void {
-  if (!it.node || it.lineNumber === undefined) return;
+): boolean {
+  if (!it.node || it.lineNumber === undefined) return false;
   const id = it.node.id;
   const ln = it.lineNumber;
   // Toggle markup in every render mode — hosts (Obsidian, docs sites) bind by
@@ -474,7 +487,7 @@ function bindToggle(
     .attr('role', 'button')
     .attr('aria-expanded', String(it.type !== 'collapsed'))
     .attr('aria-label', it.label ?? id);
-  if (!ctx.onToggle) return;
+  if (!ctx.onToggle) return true;
   cell
     .append('rect')
     .attr('x', it.x)
@@ -485,6 +498,7 @@ function bindToggle(
     .attr('fill', 'transparent')
     .style('cursor', 'pointer')
     .on('click', () => ctx.onToggle!(id, ln));
+  return true;
 }
 
 // ============================================================

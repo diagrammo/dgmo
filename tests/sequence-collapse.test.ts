@@ -713,10 +713,14 @@ describe('Collapse rendering', () => {
     expect(wrapper.getAttribute('aria-expanded')).toBe('true');
     // Generous, non-occluded click target over the header strip
     expect(svg.querySelector('.group-label-hit')).not.toBeNull();
-    // Visible frame must not steal clicks (it sits behind the participants)
+    // The whole frame is the hit area (#1741): it answers the click around
+    // the member boxes, which are drawn after it and keep their own.
     expect(
       svg.querySelector('.group-box')!.getAttribute('pointer-events')
-    ).toBe('none');
+    ).toBeNull();
+    expect(
+      wrapper.querySelector(':scope > .dgmo-collapse-bar-preview')
+    ).not.toBeNull();
     // Label is centered across the header strip (no chevron affordance)
     expect(svg.querySelector('.group-chevron')).toBeNull();
     expect(svg.querySelector('.group-label')!.getAttribute('text-anchor')).toBe(

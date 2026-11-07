@@ -422,8 +422,10 @@ export function renderOrg(
       }
     }
 
-    if (c.hiddenCount && c.hiddenCount > 0) {
+    // Folded: the bar. Expanded: its hover preview (#1741).
+    if (c.hasChildren) {
       renderCollapseBar(cG, {
+        expanded: !c.hiddenCount,
         width: c.width,
         height: c.height,
         rx: sContainerRadius,
@@ -589,8 +591,10 @@ export function renderOrg(
       }),
     });
 
-    if (node.hiddenCount && node.hiddenCount > 0) {
+    // Folded: the bar. Expanded: its hover preview (#1741).
+    if (node.hasChildren) {
       renderCollapseBar(nodeG, {
+        expanded: !node.hiddenCount,
         width: node.width,
         height: node.height,
         rx: sCardRadius,

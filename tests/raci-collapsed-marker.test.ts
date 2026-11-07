@@ -41,7 +41,7 @@ async function svgOf(
   return svg;
 }
 const bars = (svg: string): number =>
-  (svg.match(/dgmo-collapse-bar/g) ?? []).length;
+  (svg.match(/dgmo-collapse-bar"/g) ?? []).length;
 const toggles = (svg: string): Element[] => [
   ...new DOMParser()
     .parseFromString(svg, 'image/svg+xml')

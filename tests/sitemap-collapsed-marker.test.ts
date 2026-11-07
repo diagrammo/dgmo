@@ -39,7 +39,7 @@ function toggles(svg: string): Record<string, string>[] {
   }
   return out;
 }
-const bars = (svg: string) => (svg.match(/dgmo-collapse-bar/g) ?? []).length;
+const bars = (svg: string) => (svg.match(/dgmo-collapse-bar"/g) ?? []).length;
 
 describe('sitemap page `collapsed` marker', () => {
   it.each([

@@ -510,8 +510,10 @@ export function renderSitemap(
       }
     }
 
-    if (c.hiddenCount && c.hiddenCount > 0) {
+    // Folded: the bar. Expanded: its hover preview (#1741).
+    if (c.hasChildren) {
       renderCollapseBar(cG, {
+        expanded: !c.hiddenCount,
         width: c.width,
         height: c.height,
         rx: CONTAINER_RADIUS,
@@ -716,8 +718,10 @@ export function renderSitemap(
       }
     }
 
-    if (node.hiddenCount && node.hiddenCount > 0) {
+    // Folded: the bar. Expanded: its hover preview (#1741).
+    if (node.hasChildren) {
       renderCollapseBar(nodeG, {
+        expanded: !node.hiddenCount,
         width: node.width,
         height: node.height,
         rx: CARD_RADIUS,
