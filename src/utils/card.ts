@@ -14,7 +14,7 @@
 // attributes, same values. Scaled numbers are passed IN (the door never calls
 // ScaleContext), so rounding order is unchanged.
 
-import { EDGE_DASH } from './visual-conventions';
+import { COLLAPSE_BAR_HEIGHT, EDGE_DASH } from './visual-conventions';
 import type { D3Sel } from './legend-types';
 import { measureText } from './text-measure';
 
@@ -164,47 +164,67 @@ export function renderNodeCard(container: D3Sel, opts: NodeCardOptions): void {
 }
 
 export interface CollapseBarOptions {
-  /** Card width. */
+  /** Card origin x in the container's coordinates (default 0). */
+  x?: number;
+  /** Card origin y in the container's coordinates (default 0). */
+  y?: number;
+  /** Card width (the bar spans all of it — inset 0). */
   width: number;
-  /** Card height (the bar sits at the bottom). */
+  /** Card height (the bar sits at the bottom edge). */
   height: number;
-  /** Scaled bar height. */
-  barHeight: number;
-  /** Scaled horizontal inset from each edge (usually 0). */
-  inset: number;
   /** Scaled corner radius for the clip rect (matches the card). */
   rx: number;
-  /** Bar fill (callers pass `solid ? labelColor : stroke`). */
+  /** Bar fill: the card's own stroke/outline colour. */
   fill: string;
   /** Unique clip-path id (kept renderer-local to avoid collisions). */
   clipId: string;
-  /** Wrapper class for the bar rect (e.g. `org-collapse-bar`). */
-  className: string;
+  /** Chart prefix; the bar gets `<prefix>-collapse-bar dgmo-collapse-bar`. */
+  prefix: string;
+  /**
+   * The chart's structural scale (a ScaleContext, or a plain factor). The bar
+   * height is `COLLAPSE_BAR_HEIGHT` through it. Omitted = unscaled.
+   */
+  scale?: { structural(value: number): number } | number;
+}
+
+/** The scaled collapse-bar height — for layout code that reserves room for it. */
+export function collapseBarHeight(scale?: CollapseBarOptions['scale']): number {
+  if (scale === undefined) return COLLAPSE_BAR_HEIGHT;
+  if (typeof scale === 'number') return COLLAPSE_BAR_HEIGHT * scale;
+  return scale.structural(COLLAPSE_BAR_HEIGHT);
 }
 
 /**
- * Draw the collapse accent bar (conventions §3) at the bottom of a card,
- * clipped to the card's rounded corners. Reproduces the prior inline code.
+ * Draw THE collapse bar (conventions §3) — the one mark every chart type uses
+ * for "this is folded". Full card width, at the card's bottom edge, clipped to
+ * its rounded corners, full opacity, `COLLAPSE_BAR_HEIGHT` through the chart's
+ * structural scale. Drawn in every render mode. No renderer draws its own: the
+ * conformance test (tests/collapse-bar-conformance.test.ts) fails one that does.
  */
 export function renderCollapseBar(
   container: D3Sel,
   opts: CollapseBarOptions
-): void {
+): D3Sel {
+  const x = opts.x ?? 0;
+  const y = opts.y ?? 0;
+  const barHeight = collapseBarHeight(opts.scale);
   container
     .append('clipPath')
     .attr('id', opts.clipId)
     .append('rect')
+    .attr('x', x)
+    .attr('y', y)
     .attr('width', opts.width)
     .attr('height', opts.height)
     .attr('rx', opts.rx);
 
-  container
+  return container
     .append('rect')
-    .attr('x', opts.inset)
-    .attr('y', opts.height - opts.barHeight)
-    .attr('width', opts.width - opts.inset * 2)
-    .attr('height', opts.barHeight)
+    .attr('x', x)
+    .attr('y', y + opts.height - barHeight)
+    .attr('width', opts.width)
+    .attr('height', barHeight)
     .attr('fill', opts.fill)
     .attr('clip-path', `url(#${opts.clipId})`)
-    .attr('class', opts.className);
+    .attr('class', `${opts.prefix}-collapse-bar dgmo-collapse-bar`);
 }

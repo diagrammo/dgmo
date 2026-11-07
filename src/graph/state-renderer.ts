@@ -43,6 +43,7 @@ import {
   TITLE_Y,
 } from '../utils/title-constants';
 import { ScaleContext } from '../utils/scaling';
+import { renderCollapseBar } from '../utils/card';
 import { measureText } from '../utils/text-measure';
 import {
   renderNoteBox,
@@ -572,7 +573,6 @@ export function renderState(
         mode: fillMode,
       });
       const strokeColor = groupColor;
-      const COLLAPSE_BAR_H = 6;
 
       nodeG
         .append('rect')
@@ -586,25 +586,17 @@ export function renderState(
         .attr('stroke', strokeColor)
         .attr('stroke-width', sNodeStrokeWidth);
 
-      const clipId = `st-clip-${node.id.replace(/[[\]:\s]/g, '')}`;
-      nodeG
-        .append('clipPath')
-        .attr('id', clipId)
-        .append('rect')
-        .attr('x', -w / 2)
-        .attr('y', -h / 2)
-        .attr('width', w)
-        .attr('height', h)
-        .attr('rx', sStateCornerRadius);
-      nodeG
-        .append('rect')
-        .attr('x', -w / 2)
-        .attr('y', h / 2 - COLLAPSE_BAR_H)
-        .attr('width', w)
-        .attr('height', COLLAPSE_BAR_H)
-        .attr('fill', strokeColor)
-        .attr('opacity', 0.5)
-        .attr('clip-path', `url(#${clipId})`);
+      renderCollapseBar(nodeG, {
+        x: -w / 2,
+        y: -h / 2,
+        width: w,
+        height: h,
+        rx: sStateCornerRadius,
+        fill: strokeColor,
+        clipId: `st-clip-${node.id.replace(/[[\]:\s]/g, '')}`,
+        prefix: 'state',
+        scale: ctx,
+      });
 
       nodeG
         .append('text')

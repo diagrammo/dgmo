@@ -12,6 +12,7 @@ import { FONT_FAMILY } from '../fonts';
 import { MONTH_ABBR, computeTimeTicks } from '../utils/time-ticks';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import { ScaleContext } from '../utils/scaling';
+import { renderCollapseBar } from '../utils/card';
 import { measureText } from '../utils/text-measure';
 import { capLabelColumn, showFullOnHover } from '../utils/label-column';
 import {
@@ -2181,7 +2182,6 @@ function renderTimelineHorizontalGrouped(
   for (const lane of lanes) {
     const laneColor = groupColorMap.get(lane.name) ?? textColor;
     const isCollapsed = collapsedGroups.has(lane.name);
-    const toggleIcon = isCollapsed ? '▶' : '▼';
 
     // Header label band — gantt-style: spans only the left label column.
     // Band height matches the event bar height (sBarH) instead of the full
@@ -2225,6 +2225,22 @@ function renderTimelineHorizontalGrouped(
       .attr('clip-path', `url(#${clipId})`)
       .style('pointer-events', 'none');
 
+    // A folded lane: the collapse bar along the band's bottom edge, in the
+    // band's own accent colour (conventions §3).
+    if (isCollapsed) {
+      renderCollapseBar(g, {
+        x: bandX,
+        y: bandY,
+        width: bandW,
+        height: bandH,
+        rx: sBandRx,
+        fill: laneColor,
+        clipId: `${clipId}-bar`,
+        prefix: 'tl',
+        scale: ctx,
+      }).style('pointer-events', 'none');
+    }
+
     const headerG = g
       .append('g')
       .attr('class', 'tl-group-header')
@@ -2245,7 +2261,7 @@ function renderTimelineHorizontalGrouped(
       .attr('fill', textColor)
       .attr('font-size', sLaneHeaderFont)
       .attr('font-weight', 'bold');
-    const headerFull = `${toggleIcon} ${lane.name}`;
+    const headerFull = lane.name;
     showFullOnHover(
       headerG,
       headerText,

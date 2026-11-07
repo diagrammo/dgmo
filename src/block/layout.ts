@@ -18,7 +18,6 @@ export const BLOCK_PAD = 10;
 export const BLOCK_LEAF_H = 46;
 export const BLOCK_HEADER_H = 28;
 export const BLOCK_COLLAPSED_H = 46;
-export const BLOCK_BAR_H = 6; // collapse accent bar — COLLAPSE_BAR_HEIGHT convention
 const MIN_COL = 104;
 const MAX_COL = 250;
 const LABEL_FS = 13;

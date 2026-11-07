@@ -40,6 +40,7 @@ import type {
   D3Sel,
 } from '../utils/legend-types';
 import { ScaleContext } from '../utils/scaling';
+import { renderCollapseBar } from '../utils/card';
 import { measureText, truncateText } from '../utils/text-measure';
 
 // ============================================================
@@ -800,6 +801,13 @@ function drawKanban(
       .attr('class', 'kanban-column')
       .attr('data-column-id', col.id)
       .attr('data-line-number', col.lineNumber);
+    // Toggle markup in every render mode — hosts (Obsidian, docs sites) bind
+    // by these attributes. No tabindex: the preview selection reaches the
+    // column by its data-line-number (#1434).
+    g.attr('data-group-toggle', col.id)
+      .attr('role', 'button')
+      .attr('aria-expanded', String(!isColCollapsed))
+      .attr('aria-label', col.name);
 
     const thisColBg = defaultColBg;
     // A tag value on the column line wins over the §1.8 trailing color word
@@ -859,6 +867,20 @@ function drawKanban(
         .attr('text-anchor', 'middle')
         .attr('writing-mode', 'tb')
         .text(col.name);
+
+      // The collapse bar along the folded column's bottom edge (conventions
+      // §3); the rotated name and the chips stay.
+      renderCollapseBar(g, {
+        x: colLayout.x,
+        y: colLayout.y,
+        width: sCollapsedColumnWidth,
+        height: colLayout.height,
+        rx: sColumnRadius,
+        fill: colColor ?? wellStroke,
+        clipId: `kanban-col-clip-${col.id.replace(/[^A-Za-z0-9_-]/g, '_')}`,
+        prefix: 'kanban',
+        scale: ctx,
+      });
 
       const chips = collapsedChips(col.cards, activeGroup);
       if (chips.length > 0) {

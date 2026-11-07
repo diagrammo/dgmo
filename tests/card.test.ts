@@ -135,17 +135,15 @@ describe('renderNodeCard', () => {
 });
 
 describe('renderCollapseBar', () => {
-  it('appends a clipPath then a clipped, classed bar at the card bottom', () => {
+  it('appends a clipPath then a clipped, classed 4px bar at the card bottom', () => {
     const g = makeGroup();
     renderCollapseBar(g, {
       width: 120,
       height: 60,
-      barHeight: 6,
-      inset: 0,
       rx: 6,
       fill: '#123456',
       clipId: 'clip-x',
-      className: 'org-collapse-bar',
+      prefix: 'org',
     });
 
     const children = g.node()!.childNodes;
@@ -156,28 +154,31 @@ describe('renderCollapseBar', () => {
     expect(clipRect.attr('rx')).toBe('6');
 
     const bar = g.select('rect.org-collapse-bar');
-    expect(bar.attr('y')).toBe('54'); // height - barHeight
-    expect(bar.attr('height')).toBe('6');
+    expect(bar.attr('y')).toBe('56'); // height - COLLAPSE_BAR_HEIGHT
+    expect(bar.attr('height')).toBe('4');
     expect(bar.attr('width')).toBe('120');
     expect(bar.attr('fill')).toBe('#123456');
     expect(bar.attr('clip-path')).toBe('url(#clip-x)');
-    expect(bar.attr('class')).toBe('org-collapse-bar');
+    expect(bar.attr('class')).toBe('org-collapse-bar dgmo-collapse-bar');
   });
 
-  it('honors a non-zero inset on both sides', () => {
+  it('offsets bar and clip by the card origin and scales the height', () => {
     const g = makeGroup();
     renderCollapseBar(g, {
+      x: 10,
+      y: 20,
       width: 120,
       height: 60,
-      barHeight: 6,
-      inset: 4,
       rx: 6,
       fill: '#000000',
       clipId: 'clip-y',
-      className: 'bl-collapse-bar',
+      prefix: 'bl',
+      scale: 0.5,
     });
     const bar = g.select('rect.bl-collapse-bar');
-    expect(bar.attr('x')).toBe('4');
-    expect(bar.attr('width')).toBe('112'); // width - inset*2
+    expect(bar.attr('x')).toBe('10');
+    expect(bar.attr('height')).toBe('2');
+    expect(bar.attr('y')).toBe('78'); // 20 + 60 - 2
+    expect(g.select('clipPath rect').attr('x')).toBe('10');
   });
 });

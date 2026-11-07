@@ -44,6 +44,7 @@ import type {
 import { allTasks } from './parser';
 import { VARIANTS } from './variants';
 import { ScaleContext } from '../utils/scaling';
+import { renderCollapseBar } from '../utils/card';
 import {
   measureText,
   truncateText,
@@ -822,7 +823,8 @@ export function renderRaci(
         sPhaseHeight,
         sPhaseFont,
         sColumnInset,
-        sNodeRadius
+        sNodeRadius,
+        ctx
       );
     } else {
       renderTaskRow(
@@ -1153,7 +1155,8 @@ function renderPhaseBar(
   sPhaseHeight: number,
   sPhaseFont: number,
   sColumnInset: number,
-  sNodeRadius: number
+  sNodeRadius: number,
+  scale: ScaleContext
 ): void {
   const phaseG = svg
     .append('g')
@@ -1185,23 +1188,25 @@ function renderPhaseBar(
     phaseRect.attr('stroke', phaseColor).attr('stroke-width', 1.25);
   }
 
-  const chevX = x + 12;
-  const chevY = y + sPhaseHeight / 2;
-  phaseG
-    .append('text')
-    .attr('x', chevX)
-    .attr('y', chevY)
-    .attr('text-anchor', 'middle')
-    .attr('dominant-baseline', 'central')
-    .attr('font-family', FONT_FAMILY)
-    .attr('font-size', 9)
-    .attr('fill', palette.text)
-    .attr('opacity', 0.6)
-    .text(collapsed ? '▶' : '▼');
+  // A folded phase: the collapse bar along the band's bottom edge, in the
+  // phase's own colour (conventions §3); the hidden-task count stays.
+  if (collapsed) {
+    renderCollapseBar(phaseG, {
+      x,
+      y: y + 4,
+      width,
+      height: sPhaseHeight - 8,
+      rx: 4,
+      fill: phaseColor,
+      clipId: `raci-phase-clip-${phase.id.replace(/[^A-Za-z0-9_-]/g, '_')}`,
+      prefix: 'raci',
+      scale,
+    });
+  }
 
   phaseG
     .append('text')
-    .attr('x', x + 26)
+    .attr('x', x + 12)
     .attr('y', y + (sPhaseHeight - 4) / 2 + 2)
     .attr('dominant-baseline', 'central')
     .attr('font-size', sPhaseFont)
@@ -1219,7 +1224,7 @@ function renderPhaseBar(
       });
       phaseG
         .append('text')
-        .attr('x', x + 26 + labelTextWidth + 10)
+        .attr('x', x + 12 + labelTextWidth + 10)
         .attr('y', y + (sPhaseHeight - 4) / 2 + 2)
         .attr('dominant-baseline', 'central')
         .attr('font-size', sPhaseFont - 1)

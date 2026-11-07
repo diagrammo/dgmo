@@ -387,9 +387,9 @@ describe('Collapse rendering', () => {
     expect(ids).not.toContain('DB');
   });
 
-  it('drill-bar is present on collapsed group participant', () => {
+  it('collapse bar is present on collapsed group participant', () => {
     const svg = renderToSvg(collapseDiagram)!;
-    const drillBars = svg.querySelectorAll('.sequence-drill-bar');
+    const drillBars = svg.querySelectorAll('.sequence-collapse-bar');
     expect(drillBars.length).toBeGreaterThan(0);
     // data-group-toggle is on the participant <g> wrapper
     const participant = svg.querySelector(
@@ -593,7 +593,7 @@ describe('Collapse rendering', () => {
     // renderers import it. Sequence hardcoded a matching 6, so a deliberate
     // cross-chart change to the constant would have silently skipped it.
     const svg = renderToSvg(collapseDiagram)!;
-    const bar = svg.querySelector('.sequence-drill-bar')!;
+    const bar = svg.querySelector('.sequence-collapse-bar')!;
     expect(Number(bar.getAttribute('height'))).toBe(COLLAPSE_BAR_HEIGHT);
   });
 
@@ -603,7 +603,7 @@ describe('Collapse rendering', () => {
     // `textMuted` at full strength — the one place the two disagreed, and the
     // heaviest ink on the canvas. It now sits between them.
     const svg = renderToSvg(collapseDiagram)!;
-    const bar = svg.querySelector('.sequence-drill-bar')!;
+    const bar = svg.querySelector('.sequence-collapse-bar')!;
     const fill = bar.getAttribute('fill')!;
     expect(fill).not.toBe(palette.textMuted);
     expect(fill).toBe(mix(palette.textMuted, themeBaseBg(palette, false), 55));
@@ -623,7 +623,7 @@ describe('Collapse rendering', () => {
     ].join('\n');
     const svg = renderToSvg(tagged)!;
     const g = svg.querySelector('.participant[data-participant-id="Backend"]')!;
-    const bar = g.querySelector('.sequence-drill-bar')!;
+    const bar = g.querySelector('.sequence-collapse-bar')!;
     const overlay = Array.from(g.querySelectorAll('rect')).find(
       (r) => r.getAttribute('rx') === '6'
     )!;

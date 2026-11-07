@@ -12,6 +12,7 @@ import { measureText } from '../utils/text-measure';
 import type { WireframeElement, ParsedWireframe } from './types';
 import type { WireframeLayout, WireframeLayoutNode } from './layout';
 import { ScaleContext } from '../utils/scaling';
+import { renderCollapseBar } from '../utils/card';
 
 // ============================================================
 // Constants
@@ -53,6 +54,9 @@ function getElementSemanticColor(
 // ============================================================
 
 type GSelection = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
+
+/** Unique clip ids for collapse bars across renders on one page. */
+let wfClipCounter = 0;
 
 interface RenderContext {
   palette: PaletteColors;
@@ -117,6 +121,7 @@ export function renderWireframe(
     svg.attr('width', '100%').style('display', 'block');
   }
 
+  wfClipCounter = 0;
   const ctx: RenderContext = {
     palette,
     isTransparent: effectiveTheme === 'transparent',
@@ -321,15 +326,16 @@ function renderGroup(
       .text(el.label.toUpperCase());
   }
 
-  // Collapsed indicator
+  // Collapsed: the collapse bar along the bottom edge (conventions §3).
   if (el.states.includes('collapsed')) {
-    g.append('text')
-      .attr('x', node.width - 20)
-      .attr('y', 18)
-      .attr('fill', palette.textMuted)
-      .attr('font-size', 12)
-      .attr('opacity', 0.6)
-      .text('▶');
+    renderCollapseBar(g, {
+      width: node.width,
+      height: node.height,
+      rx: GROUP_CORNER,
+      fill: palette.border,
+      clipId: `wf-collapse-clip-${wfClipCounter++}`,
+      prefix: 'wf',
+    });
     return;
   }
 

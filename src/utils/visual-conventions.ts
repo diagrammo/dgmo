@@ -18,7 +18,7 @@
 //      DOCUMENTED intentional deviation and keep a local override (with a
 //      comment saying why):
 //        - infra: META_FONT_SIZE 10 / META_LINE_HEIGHT 14 (denser meta rows)
-//        - boxes-and-lines: COLLAPSE_BAR_HEIGHT 4 / SEPARATOR_GAP 4
+//        - boxes-and-lines: SEPARATOR_GAP 4
 //        - cycle, raci: HEADER_HEIGHT 36 (not label+meta cards)
 //      Those overrides are the exception that proves the rule — they stay local
 //      and visible, not hidden inside a re-declared full constant set.
@@ -33,8 +33,13 @@ export const EDGE_STROKE_WIDTH = 1.5;
 export const CARD_RADIUS = 6;
 /** Group / container corner radius. */
 export const CONTAINER_RADIUS = 8;
-/** Collapse accent bar horizontal inset from the card edges. */
-export const COLLAPSE_BAR_INSET = 0;
+/**
+ * Collapse bar height — THE folded mark, one value for every chart type, in
+ * every render mode (owner, 2026-11-07, diagrammo/diagrammo#1741). Drawn only by
+ * `renderCollapseBar` in utils/card.ts, scaled through the chart's structural
+ * scale, full card width (no inset). No chart overrides it.
+ */
+export const COLLAPSE_BAR_HEIGHT = 4;
 /**
  * Opacity of the `palette.bg` rect knocked out behind an edge label that sits
  * on its own connector.
@@ -125,8 +130,6 @@ export const META_FONT_SIZE = 11;
 export const META_LINE_HEIGHT = 16;
 /** Gap between the header separator and the first metadata row. */
 export const SEPARATOR_GAP = 6;
-/** Collapse accent bar height. */
-export const COLLAPSE_BAR_HEIGHT = 6;
 
 /** Group / container reserved header band height. */
 export const CONTAINER_HEADER_HEIGHT = 28;

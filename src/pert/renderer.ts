@@ -49,6 +49,7 @@ import {
   groupFill,
 } from '../palettes/color-utils';
 import { ScaleContext } from '../utils/scaling';
+import { renderCollapseBar } from '../utils/card';
 import {
   measureText,
   truncateText,
@@ -113,7 +114,6 @@ import {
   CONTAINER_RADIUS,
   CONTAINER_LABEL_FONT_SIZE,
   CONTAINER_HEADER_HEIGHT,
-  COLLAPSE_BAR_HEIGHT,
   ARROWHEAD_WIDTH,
   ARROWHEAD_HEIGHT,
   EDGE_DASH,
@@ -150,9 +150,9 @@ const NODE_BOTTOM_ROW_HEIGHT = 26;
 // Group-rect treatment per §2: neutral surface fill on textMuted stroke,
 // solid border, rx=8, top-center 13pt 'bold' label inside a reserved
 // 28px header band — exactly matching org's container recipe.
-// CONTAINER_RADIUS/LABEL_FONT_SIZE/HEADER_HEIGHT + COLLAPSE_BAR_HEIGHT now
-// imported from utils/visual-conventions (Story 111.1). Group-rect treatment
-// per §2; collapse-bar height matches org per §3 Pattern A/B.
+// CONTAINER_RADIUS/LABEL_FONT_SIZE/HEADER_HEIGHT imported from
+// utils/visual-conventions (Story 111.1). Group-rect treatment per §2; the
+// collapse bar is the shared renderCollapseBar (§3).
 // Always-on fade applied to bottom-20% (by duration) activity nodes
 // so the eye is drawn to the longer, schedule-dominating work first.
 // Less aggressive than FADE_OPACITY because these cards still need to
@@ -273,7 +273,8 @@ interface ScaledGroupConstants extends ScaledNodeConstants {
   containerRadius?: number;
   containerLabelFontSize?: number;
   containerHeaderHeight?: number;
-  collapseBarHeight?: number;
+  /** Structural scale — the collapse bar draws through it. */
+  scale?: ScaleContext;
 }
 
 interface ScaledEdgeConstants {
@@ -507,7 +508,6 @@ export function renderPert(
   const sContainerRadius = ctx.structural(CONTAINER_RADIUS);
   const sContainerLabelFontSize = ctx.text(CONTAINER_LABEL_FONT_SIZE);
   const sContainerHeaderHeight = ctx.structural(CONTAINER_HEADER_HEIGHT);
-  const sCollapseBarHeight = ctx.structural(COLLAPSE_BAR_HEIGHT);
   const sPinIconW = ctx.structural(PIN_ICON_W);
   const sPinIconH = ctx.structural(PIN_ICON_H);
 
@@ -630,7 +630,7 @@ export function renderPert(
       containerRadius: sContainerRadius,
       containerLabelFontSize: sContainerLabelFontSize,
       containerHeaderHeight: sContainerHeaderHeight,
-      collapseBarHeight: sCollapseBarHeight,
+      scale: ctx,
       nodeTopRowHeight: sNodeTopRowHeight,
       nodeBottomRowHeight: sNodeBottomRowHeight,
       nodeFontSize: sNodeFontSize,
@@ -1415,7 +1415,6 @@ function renderGroups(
         palette.textOnFillDark
       );
       const sNR = sc.nodeRadius ?? CARD_RADIUS;
-      const sCBH = sc.collapseBarHeight ?? COLLAPSE_BAR_HEIGHT;
       drawTextbookCard(g, {
         width: grp.width,
         height: grp.height,
@@ -1445,24 +1444,17 @@ function renderGroups(
       });
 
       const safeGroupId = grp.id.replace(/[^A-Za-z0-9_-]/g, '_');
-      const clipId = `pert-group-clip-${safeGroupId}`;
-      g.append('clipPath')
-        .attr('id', clipId)
-        .append('rect')
-        .attr('x', grp.x)
-        .attr('y', grp.y)
-        .attr('width', grp.width)
-        .attr('height', grp.height)
-        .attr('rx', sNR)
-        .attr('ry', sNR);
-      g.append('rect')
-        .attr('class', 'pert-collapse-bar')
-        .attr('x', grp.x)
-        .attr('y', grp.y + grp.height - sCBH)
-        .attr('width', grp.width)
-        .attr('height', sCBH)
-        .attr('fill', cardBaseColor)
-        .attr('clip-path', `url(#${clipId})`);
+      renderCollapseBar(g, {
+        x: grp.x,
+        y: grp.y,
+        width: grp.width,
+        height: grp.height,
+        rx: sNR,
+        fill: cardBaseColor,
+        clipId: `pert-group-clip-${safeGroupId}`,
+        prefix: 'pert',
+        ...(sc.scale && { scale: sc.scale }),
+      });
       continue;
     }
 

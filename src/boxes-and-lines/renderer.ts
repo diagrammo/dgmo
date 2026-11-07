@@ -66,6 +66,7 @@ import {
 import type { ParsedBoxesAndLines, BLNode } from './types';
 import type { BLLayoutResult, BLLayoutNode, BLLayoutEdge } from './layout';
 import { ScaleContext } from '../utils/scaling';
+import { renderCollapseBar } from '../utils/card';
 import { FULL_TEXT_ATTR, fullNodeText, isCutShort } from '../utils/full-text';
 import {
   CHAR_WIDTH_RATIO,
@@ -95,9 +96,6 @@ import {
 // than a decision. `org` and `sketch` both take the shared value; this was the
 // only card-shaped renderer rounder than the rest (2026-08-27).
 const NODE_RX = CARD_RADIUS;
-// Intentional deviation (conventions §3): boxes-and-lines uses a 4px collapse
-// bar (and 4px separator gap in layout.ts) — denser than the 6px default.
-const COLLAPSE_BAR_HEIGHT = 4;
 const DESC_FONT_SIZE = 10; // matches infra META_FONT_SIZE
 const DESC_LINE_HEIGHT = 1.4; // 14px row height at 10px font (matches infra META_LINE_HEIGHT)
 const MAX_DESC_LINES = 6;
@@ -471,7 +469,6 @@ export function renderBoxesAndLines(
   const sEdgeLabelFontSize = sctx.text(EDGE_LABEL_FONT_SIZE);
   const sEdgeStrokeWidth = sctx.structural(EDGE_STROKE_WIDTH);
   const sNodeStrokeWidth = sctx.structural(NODE_STROKE_WIDTH);
-  const sCollapseBarHeight = sctx.structural(COLLAPSE_BAR_HEIGHT);
   const sDescFontSize = sctx.text(DESC_FONT_SIZE);
   const sGroupLabelFontSize = sctx.text(GROUP_LABEL_FONT_SIZE);
   const sGroupLabelZone = sctx.structural(GROUP_LABEL_ZONE);
@@ -776,7 +773,7 @@ export function renderBoxesAndLines(
       .style('cursor', 'pointer');
 
     if (group.collapsed) {
-      // Collapsed: solid rounded rect matching node style + 6px collapse bar.
+      // Collapsed: solid rounded rect matching node style + the collapse bar.
       // A tinted group keeps its color when folded, so collapsing does not
       // silently drop the one thing the author set (#585) — the same rule
       // pert's collapsed card already follows for the critical-path band.
@@ -797,25 +794,17 @@ export function renderBoxesAndLines(
         .attr('stroke', strokeColor)
         .attr('stroke-width', sNodeStrokeWidth);
 
-      const clipId = `bl-clip-${group.label.replace(/[[\]\s]/g, '')}`;
-      groupG
-        .append('clipPath')
-        .attr('id', clipId)
-        .append('rect')
-        .attr('x', gx)
-        .attr('y', gy)
-        .attr('width', group.width)
-        .attr('height', group.height)
-        .attr('rx', NODE_RX);
-      groupG
-        .append('rect')
-        .attr('x', gx)
-        .attr('y', gy + group.height - sCollapseBarHeight)
-        .attr('width', group.width)
-        .attr('height', sCollapseBarHeight)
-        .attr('fill', strokeColor)
-        .attr('clip-path', `url(#${clipId})`)
-        .attr('class', 'bl-collapse-bar');
+      renderCollapseBar(groupG, {
+        x: gx,
+        y: gy,
+        width: group.width,
+        height: group.height,
+        rx: NODE_RX,
+        fill: strokeColor,
+        clipId: `bl-clip-${group.label.replace(/[[\]\s]/g, '')}`,
+        prefix: 'bl',
+        scale: sctx,
+      });
 
       const maxLabelLines = Math.max(
         2,

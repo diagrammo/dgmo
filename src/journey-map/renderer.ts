@@ -1,6 +1,7 @@
 import { serializeSvg } from '../utils/svg-serialize';
 import { tagAttrKey } from '../utils/tag-groups';
 import { fillModeFromOptions } from '../utils/parsing';
+import { renderCollapseBar } from '../utils/card';
 import * as d3 from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import type { PaletteColors } from '../palettes';
@@ -740,6 +741,18 @@ export function renderJourneyMap(
       }
 
       if (isCollapsed) {
+        // The collapse bar along the folded phase column's bottom edge, in
+        // its header colour (conventions §3).
+        renderCollapseBar(phaseG, {
+          x: pl.x,
+          y: pl.y,
+          width: pl.width,
+          height: pl.height,
+          rx: CONTAINER_RADIUS,
+          fill: pl.headerColor,
+          clipId: `journey-phase-clip-${pl.phase.lineNumber}`,
+          prefix: 'journey',
+        });
         // Collapsed: mini card rows with colored border matching active tag
         const COLLAPSED_CARD_H = 26;
         const COLLAPSED_GAP = 6;

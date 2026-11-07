@@ -6,6 +6,7 @@ import { parseSequenceDgmo } from '../src/sequence/parser';
 import type { SequenceSection } from '../src/sequence/parser';
 import { layoutSequence } from '../src/sequence/renderer';
 import type { SequenceRenderOptions } from '../src/sequence/renderer';
+import { COLLAPSE_BAR_HEIGHT } from '../src/utils/visual-conventions';
 
 const WIDTH = 1200;
 
@@ -431,8 +432,10 @@ describe('layoutSequence', () => {
       });
       const box = l.collapsedGroupBoxes.get('G')!;
       expect(box.height).toBe(l.sBoxH + box.padTop + box.padBottom);
-      expect(box.barY + box.barHeight).toBe(-box.padTop + box.height);
-      expect(box.nameY).toBe(-box.padTop + (box.height - box.barHeight) / 2);
+      // The name centres in the box above the shared collapse bar.
+      expect(box.nameY).toBe(
+        -box.padTop + (box.height - COLLAPSE_BAR_HEIGHT) / 2
+      );
     });
 
     it("marks every column on a collapsed section, and the fold's reach", () => {

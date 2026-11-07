@@ -41,6 +41,10 @@ import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
 // Constants
 // ============================================================
 
+// The drill bar marks a C4 element that opens to a deeper diagram level — a
+// DIFFERENT concept from the collapse bar (utils/card.ts renderCollapseBar),
+// so it keeps its own height rather than the shared COLLAPSE_BAR_HEIGHT.
+const C4_DRILL_BAR_HEIGHT = 6;
 const DIAGRAM_PADDING = 20;
 const MAX_SCALE = 3;
 const TITLE_HEIGHT = 30;
@@ -59,7 +63,6 @@ import {
   ARROWHEAD_HEIGHT,
   EDGE_DASH,
   CONTAINER_RADIUS,
-  COLLAPSE_BAR_HEIGHT,
   LABEL_FONT_SIZE,
 } from '../utils/visual-conventions'; // shared (Story 111.1)
 const CARD_H_PAD = 20;
@@ -601,9 +604,9 @@ export function renderC4Context(
       nodeG
         .append('rect')
         .attr('x', -w / 2)
-        .attr('y', h / 2 - COLLAPSE_BAR_HEIGHT)
+        .attr('y', h / 2 - C4_DRILL_BAR_HEIGHT)
         .attr('width', w)
-        .attr('height', COLLAPSE_BAR_HEIGHT)
+        .attr('height', C4_DRILL_BAR_HEIGHT)
         // In solid mode, `stroke` matches the fill — drill-bar disappears.
         // Use the contrast text color so the indicator stays visible.
         .attr('fill', fillMode === 'solid' ? onFillText : stroke)
@@ -1929,9 +1932,9 @@ export function renderC4Containers(
       nodeG
         .append('rect')
         .attr('x', -w / 2)
-        .attr('y', h / 2 - COLLAPSE_BAR_HEIGHT)
+        .attr('y', h / 2 - C4_DRILL_BAR_HEIGHT)
         .attr('width', w)
-        .attr('height', COLLAPSE_BAR_HEIGHT)
+        .attr('height', C4_DRILL_BAR_HEIGHT)
         // In solid mode, `stroke` matches the fill — drill-bar disappears.
         // Use the contrast text color so the indicator stays visible.
         .attr('fill', fillMode === 'solid' ? onFillText : stroke)

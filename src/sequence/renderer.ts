@@ -45,10 +45,10 @@ import { measureText, truncateText } from '../utils/text-measure';
 import {
   ARROWHEAD_HEIGHT,
   ARROWHEAD_WIDTH,
-  COLLAPSE_BAR_HEIGHT,
   EDGE_DASH,
   HAIRLINE_DASH,
 } from '../utils/visual-conventions';
+import { collapseBarHeight, renderCollapseBar } from '../utils/card';
 import { resolveSequenceTags } from './tag-resolution';
 import type { ResolvedTagMap } from './tag-resolution';
 import { resolveActiveTagGroup } from '../utils/tag-groups';
@@ -1220,8 +1220,6 @@ interface CollapsedGroupBox {
   height: number;
   /** The name's centre line, in the box above the collapse bar. */
   nameY: number;
-  barY: number;
-  barHeight: number;
 }
 
 /** Text set inside a frame, at its baseline's left end. */
@@ -2650,7 +2648,7 @@ function layoutSequencePass(
       ? groupBottomPad(group.depth, maxGroupDepth)
       : 0;
     const height = sBoxH + padTop + padBottom;
-    const barHeight = ctx.structural(COLLAPSE_BAR_HEIGHT);
+    const barHeight = collapseBarHeight(ctx);
     collapsedGroupBoxes.set(collapsedGroupId(group, parsed.groups), {
       name: group.name,
       lineNumber: group.lineNumber,
@@ -2663,8 +2661,6 @@ function layoutSequencePass(
       // Centred in the box ABOVE the bar, so the bar does not push the name
       // off-centre the way it would if the whole box were used.
       nameY: -padTop + (height - barHeight) / 2,
-      barY: -padTop + height - barHeight,
-      barHeight,
     });
   }
 
@@ -3630,8 +3626,7 @@ export function renderSequenceDiagram(
       const meta = collapsedGroupBoxes.get(participant.id)!;
       // The collapse bar is a mark the whole system shares — COLLAPSE_BAR_HEIGHT
       // in utils/visual-conventions.ts, drawn by renderCollapseBar in
-      // utils/card.ts, and carried by infra, boxes-and-lines, org, sitemap,
-      // mindmap, pert, sketch, block and C4. In every one of those the bar
+      // utils/card.ts for every chart type that folds. In every one the bar
       // takes the CARD'S OWN OUTLINE COLOUR, so it lands as an accent on a box
       // that already wears that hue.
       //
@@ -3649,7 +3644,7 @@ export function renderSequenceDiagram(
         mix(palette.textMuted, themeBaseBg(palette, isDark), 55);
       const boxW = sBoxW;
       // Sized against the rest of the row — see `collapsedGroupBoxes`.
-      const { padTop, height: fullH, nameY, barY, barHeight } = meta;
+      const { padTop, height: fullH, nameY } = meta;
       const clipId = `clip-drill-group-${participant.id.replace(/[^a-zA-Z0-9-]/g, '-')}`;
 
       // Add toggle attributes to the participant <g> so any click on it
@@ -3709,26 +3704,17 @@ export function renderSequenceDiagram(
         .attr('class', 'collapsed-group-label')
         .text(truncateText(participant.label, sLabelFontSize, sLabelTextWidth));
 
-      // Collapse bar along the bottom edge, clipped to the box's radius.
-      participantG
-        .append('clipPath')
-        .attr('id', clipId)
-        .append('rect')
-        .attr('x', -boxW / 2)
-        .attr('y', -padTop)
-        .attr('width', boxW)
-        .attr('height', fullH)
-        .attr('rx', 6);
-
-      participantG
-        .append('rect')
-        .attr('class', 'sequence-drill-bar')
-        .attr('x', -boxW / 2)
-        .attr('y', barY)
-        .attr('width', boxW)
-        .attr('height', barHeight)
-        .attr('fill', drillColor)
-        .attr('clip-path', `url(#${clipId})`);
+      renderCollapseBar(participantG, {
+        x: -boxW / 2,
+        y: -padTop,
+        width: boxW,
+        height: fullH,
+        rx: 6,
+        fill: drillColor,
+        clipId,
+        prefix: 'sequence',
+        scale: ctx,
+      });
     }
 
     const llColor = effectiveTagColor ?? palette.textMuted;
@@ -3914,6 +3900,23 @@ export function renderSequenceDiagram(
       .attr('rx', 2)
       .attr('pointer-events', 'none')
       .attr('class', 'section-divider');
+
+    // A folded section carries the collapse bar along the band's bottom edge,
+    // like every other folded thing (conventions §3); the hidden-message count
+    // in the label stays.
+    if (isCollapsed) {
+      renderCollapseBar(sectionG, {
+        x: band.x,
+        y: secY - BAND_HEIGHT / 2,
+        width: band.width,
+        height: BAND_HEIGHT,
+        rx: 2,
+        fill: lineColor,
+        clipId: `seq-section-clip-${sec.lineNumber}`,
+        prefix: 'sequence-section',
+        scale: ctx,
+      });
+    }
 
     // Build display label. Centred in both states — the lifelines are cut
     // around it (see sectionLabelBoxes) rather than the label moving aside,

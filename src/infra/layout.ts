@@ -8,6 +8,7 @@
 import dagre from '@dagrejs/dagre';
 import type { Writable } from '../utils/brand';
 import type { ComputedInfraModel, ComputedInfraNode } from './types';
+import { COLLAPSE_BAR_HEIGHT } from '../utils/visual-conventions';
 import {
   measureText,
   truncateText,
@@ -93,7 +94,6 @@ const META_LINE_HEIGHT = 14;
 const NODE_SEPARATOR_GAP = 4;
 const NODE_PAD_BOTTOM = 10;
 const ROLE_DOT_ROW = 12;
-const COLLAPSE_BAR_HEIGHT = 6;
 // Font sizes used when sizing nodes from text — must match renderer.ts
 // (NODE_FONT_SIZE / META_FONT_SIZE) so measured widths agree.
 const NODE_FONT_SIZE = 13;

@@ -41,7 +41,7 @@ import {
   getLegendExtent,
 } from '../utils/legend-layout';
 import { ScaleContext } from '../utils/scaling';
-import { renderNodeCard } from '../utils/card';
+import { renderNodeCard, renderCollapseBar } from '../utils/card';
 
 // ============================================================
 // Constants
@@ -67,7 +67,6 @@ import {
   CONTAINER_META_FONT_SIZE,
   CONTAINER_META_LINE_HEIGHT,
   CONTAINER_HEADER_HEIGHT,
-  COLLAPSE_BAR_HEIGHT,
   EDGE_LABEL_KNOCKOUT_OPACITY,
   ARROWHEAD_WIDTH,
   ARROWHEAD_HEIGHT,
@@ -230,7 +229,6 @@ export function renderSitemap(
   const sContainerHeaderHeight = ctx.structural(CONTAINER_HEADER_HEIGHT);
   const sTitleFontSize = ctx.text(TITLE_FONT_SIZE);
   const sTitleHeight = ctx.structural(TITLE_HEIGHT);
-  const sCollapseBarHeight = ctx.structural(COLLAPSE_BAR_HEIGHT);
   const sLegendFixedGap = ctx.aesthetic(LEGEND_FIXED_GAP);
 
   const noLegend = legendSuppressed(parsed.options);
@@ -512,21 +510,16 @@ export function renderSitemap(
       }
     }
 
-    if (!exportDims && c.hiddenCount && c.hiddenCount > 0) {
-      const clipId = `clip-${c.nodeId}`;
-      cG.append('clipPath')
-        .attr('id', clipId)
-        .append('rect')
-        .attr('width', c.width)
-        .attr('height', c.height)
-        .attr('rx', CONTAINER_RADIUS);
-      cG.append('rect')
-        .attr('y', c.height - sCollapseBarHeight)
-        .attr('width', c.width)
-        .attr('height', sCollapseBarHeight)
-        .attr('fill', stroke)
-        .attr('clip-path', `url(#${clipId})`)
-        .attr('class', 'sitemap-collapse-bar');
+    if (c.hiddenCount && c.hiddenCount > 0) {
+      renderCollapseBar(cG, {
+        width: c.width,
+        height: c.height,
+        rx: CONTAINER_RADIUS,
+        fill: stroke,
+        clipId: `clip-${c.nodeId}`,
+        prefix: 'sitemap',
+        scale: ctx,
+      });
     }
   }
 
@@ -722,26 +715,16 @@ export function renderSitemap(
       }
     }
 
-    if (!exportDims && node.hiddenCount && node.hiddenCount > 0) {
-      const clipId = `clip-${node.id}`;
-      nodeG
-        .append('clipPath')
-        .attr('id', clipId)
-        .append('rect')
-        .attr('width', node.width)
-        .attr('height', node.height)
-        .attr('rx', CARD_RADIUS);
-      nodeG
-        .append('rect')
-        .attr('y', node.height - sCollapseBarHeight)
-        .attr('width', node.width)
-        .attr('height', sCollapseBarHeight)
-        .attr(
-          'fill',
-          fillMode === 'solid' ? labelColor : (node.color ?? palette.primary)
-        )
-        .attr('opacity', 0.5)
-        .attr('clip-path', `url(#${clipId})`);
+    if (node.hiddenCount && node.hiddenCount > 0) {
+      renderCollapseBar(nodeG, {
+        width: node.width,
+        height: node.height,
+        rx: CARD_RADIUS,
+        fill: fillMode === 'solid' ? labelColor : stroke,
+        clipId: `clip-${node.id}`,
+        prefix: 'sitemap',
+        scale: ctx,
+      });
     }
   }
 

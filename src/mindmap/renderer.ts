@@ -37,6 +37,7 @@ import {
 import { layoutInlineHeader } from '../utils/inline-header';
 import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
 import { ScaleContext } from '../utils/scaling';
+import { renderCollapseBar } from '../utils/card';
 import { FULL_TEXT_ATTR, fullNodeText, isCutShort } from '../utils/full-text';
 
 // ============================================================
@@ -51,7 +52,6 @@ const ROOT_STROKE_WIDTH = 2.5;
 import {
   NODE_STROKE_WIDTH,
   EDGE_STROKE_WIDTH,
-  COLLAPSE_BAR_HEIGHT,
   CARD_RADIUS,
   HEADER_HEIGHT,
 } from '../utils/visual-conventions'; // shared (Story 111.1)
@@ -606,31 +606,19 @@ export function renderMindmap(
       }
     }
 
-    // Collapse drill-bar (interactive mode only)
-    if (!isExport && node.hiddenCount != null && node.hiddenCount > 0) {
-      // Clip path for rounded bottom
-      const clipId = `collapse-clip-${node.id}`;
-      const defs = mainG.append('defs');
-      defs
-        .append('clipPath')
-        .attr('id', clipId)
-        .append('rect')
-        .attr('x', node.x)
-        .attr('y', node.y)
-        .attr('width', node.width)
-        .attr('height', node.height)
-        .attr('rx', CARD_RADIUS)
-        .attr('ry', CARD_RADIUS);
-
-      nodeG
-        .append('rect')
-        .attr('class', 'collapse-bar')
-        .attr('x', node.x)
-        .attr('y', node.y + node.height - COLLAPSE_BAR_HEIGHT)
-        .attr('width', node.width)
-        .attr('height', COLLAPSE_BAR_HEIGHT)
-        .attr('fill', stroke)
-        .attr('clip-path', `url(#${clipId})`);
+    // Collapse bar — every render mode (conventions §3).
+    if (node.hiddenCount != null && node.hiddenCount > 0) {
+      renderCollapseBar(nodeG, {
+        x: node.x,
+        y: node.y,
+        width: node.width,
+        height: node.height,
+        rx: CARD_RADIUS,
+        fill: stroke,
+        clipId: `collapse-clip-${node.id}`,
+        prefix: 'mindmap',
+        scale: ctx,
+      });
     }
 
     // Click handler

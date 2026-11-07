@@ -86,11 +86,11 @@ import {
   EDGE_STROKE_WIDTH,
   NODE_STROKE_WIDTH,
   COLLAPSE_BAR_HEIGHT,
-  COLLAPSE_BAR_INSET,
   ARROWHEAD_WIDTH,
   ARROWHEAD_HEIGHT,
   EDGE_DASH,
 } from '../utils/visual-conventions'; // shared (Story 111.1)
+import { renderCollapseBar } from '../utils/card';
 const OVERLOAD_STROKE_WIDTH = 3;
 const ROLE_DOT_RADIUS = 3;
 const NODE_HEADER_HEIGHT = 28;
@@ -116,7 +116,8 @@ interface ScaledInfraConstants {
   sNodeSeparatorGap: number;
   sNodePadBottom: number;
   sCollapseBarHeight: number;
-  sCollapseBarInset: number;
+  /** The structural scale — the collapse bar draws through it. */
+  scale: ScaleContext;
   sParticleR: number;
   sRejectParticleR: number;
   sRejectDropDistance: number;
@@ -140,7 +141,7 @@ function buildScaledConstants(ctx: ScaleContext): ScaledInfraConstants {
     sNodeSeparatorGap: ctx.structural(NODE_SEPARATOR_GAP),
     sNodePadBottom: ctx.structural(NODE_PAD_BOTTOM),
     sCollapseBarHeight: ctx.structural(COLLAPSE_BAR_HEIGHT),
-    sCollapseBarInset: ctx.structural(COLLAPSE_BAR_INSET),
+    scale: ctx,
     sParticleR: ctx.structural(PARTICLE_R),
     sRejectParticleR: ctx.structural(PARTICLE_R),
     sRejectDropDistance: ctx.structural(REJECT_DROP_DISTANCE),
@@ -1284,6 +1285,9 @@ function renderGroups(
       .attr('class', 'infra-group')
       .attr('data-line-number', group.lineNumber)
       .attr('data-node-toggle', group.id)
+      .attr('role', 'button')
+      .attr('aria-expanded', 'true')
+      .attr('aria-label', group.label)
       .style('cursor', 'pointer');
 
     // §4.6 of the spec has promised "group coloring via tags" since before
@@ -1665,7 +1669,10 @@ function renderNodes(
 
     // Collapsed group nodes: toggle attribute
     if (node.id.startsWith('[')) {
-      g.attr('data-node-toggle', node.id);
+      g.attr('data-node-toggle', node.id)
+        .attr('role', 'button')
+        .attr('aria-expanded', 'false')
+        .attr('aria-label', node.label);
     }
 
     // Expose tag values for legend hover dimming. The parser keys the bag by
@@ -2044,23 +2051,17 @@ function renderNodes(
       }
 
       if (isCollapsedGroup) {
-        const clipId = `clip-${node.id.replace(/[[\]\s]/g, '')}`;
-        g.append('clipPath')
-          .attr('id', clipId)
-          .append('rect')
-          .attr('x', x)
-          .attr('y', y)
-          .attr('width', node.width)
-          .attr('height', node.height)
-          .attr('rx', sc.sNodeBorderRadius);
-        g.append('rect')
-          .attr('x', x + sc.sCollapseBarInset)
-          .attr('y', y + node.height - sc.sCollapseBarHeight)
-          .attr('width', node.width - sc.sCollapseBarInset * 2)
-          .attr('height', sc.sCollapseBarHeight)
-          .attr('fill', stroke)
-          .attr('clip-path', `url(#${clipId})`)
-          .attr('class', 'infra-collapse-bar');
+        renderCollapseBar(g, {
+          x,
+          y,
+          width: node.width,
+          height: node.height,
+          rx: sc.sNodeBorderRadius,
+          fill: stroke,
+          clipId: `clip-${node.id.replace(/[[\]\s]/g, '')}`,
+          prefix: 'infra',
+          scale: sc.scale,
+        });
       }
     }
   }

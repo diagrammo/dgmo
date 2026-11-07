@@ -21,6 +21,7 @@ import {
 import { normalizeName } from '../utils/name-normalize';
 import { resolveTagColor, resolveActiveTagGroup } from '../utils/tag-groups';
 import { ScaleContext } from '../utils/scaling';
+import { renderCollapseBar } from '../utils/card';
 import { computeTimeTicks, MONTH_ABBR } from '../utils/time-ticks';
 import {
   measureText,
@@ -164,7 +165,9 @@ function renderLabelBand(
   fillMode?: 'solid' | 'outline',
   barH = BAR_H,
   bandRadius = BAND_RADIUS,
-  bandAccentW = BAND_ACCENT_W
+  bandAccentW = BAND_ACCENT_W,
+  collapsed = false,
+  scale?: ScaleContext
 ): void {
   const bandX = 5;
   const bandW = leftMargin - 7;
@@ -206,6 +209,22 @@ function renderLabelBand(
   if (dataAttr) {
     tint.attr(dataAttr.key, dataAttr.value);
     accent.attr(dataAttr.key, dataAttr.value);
+  }
+
+  // A folded group or lane: the collapse bar along the band's bottom edge, in
+  // the band's own accent colour (conventions §3).
+  if (collapsed) {
+    renderCollapseBar(svg, {
+      x: bandX,
+      y: bandY,
+      width: bandW,
+      height: barH,
+      rx: bandRadius,
+      fill: color,
+      clipId: `${clipId}-bar`,
+      prefix: 'gantt',
+      ...(scale && { scale }),
+    }).style('pointer-events', 'none');
   }
 }
 
@@ -794,7 +813,6 @@ function drawGantt(
         row.laneColor === UNTAGGED_TAG_COLOR
           ? palette.textMuted
           : row.laneColor;
-      const toggleIcon = row.isCollapsed ? '▶' : '▼';
       const labelX = 10;
 
       let lx1 = 0;
@@ -824,7 +842,9 @@ function drawGantt(
         fillMode,
         sBarH,
         sBandRadius,
-        sBandAccentW
+        sBandAccentW,
+        row.isCollapsed,
+        ctx
       );
       const labelG = svg
         .append('g')
@@ -854,8 +874,6 @@ function drawGantt(
         });
 
       const laneFullText =
-        toggleIcon +
-        ' ' +
         row.laneName +
         (row.aggregateProgress !== null
           ? ` ${Math.round(row.aggregateProgress)}%`
@@ -936,7 +954,6 @@ function drawGantt(
     } else if (row.type === 'group') {
       const group = row.group;
       const isCollapsed = collapsedGroups?.has(group.name) ?? false;
-      const toggleIcon = isCollapsed ? '▶' : '▼';
 
       // Group label with toggle — resolve tag color from group metadata
       const tagColor = resolveTagColor(
@@ -961,13 +978,19 @@ function drawGantt(
         fillMode,
         sBarH,
         sBandRadius,
-        sBandAccentW
+        sBandAccentW,
+        isCollapsed,
+        ctx
       );
       const labelG = svg
         .append('g')
         .attr('class', 'gantt-group-label')
         .attr('data-group', group.name)
         .attr('data-line-number', String(group.lineNumber))
+        .attr('data-group-toggle', group.name)
+        .attr('role', 'button')
+        .attr('aria-expanded', String(!isCollapsed))
+        .attr('aria-label', group.name)
         .style('cursor', onToggleGroup ? 'pointer' : 'default')
         .on('click', () => {
           if (onToggleGroup) onToggleGroup(group.name);
@@ -992,8 +1015,6 @@ function drawGantt(
         group.depth <= 2 ? group.depth * 14 : 2 * 14 + (group.depth - 2) * 8;
       const labelX = 10 + groupIndent;
       const groupFullText =
-        toggleIcon +
-        ' ' +
         group.name +
         (group.progress !== null ? ` ${Math.round(group.progress)}%` : '');
       const groupText = labelG

@@ -33,7 +33,7 @@ import {
   themeBaseBg,
 } from '../palettes/color-utils';
 import { resolveColor } from '../colors';
-import { renderNodeCard } from '../utils/card';
+import { renderNodeCard, renderCollapseBar } from '../utils/card';
 import { renderInlineText } from '../utils/inline-markdown';
 import type { WrappedDescLine } from '../utils/wrapped-desc';
 import { renderIntegratedLegend } from '../utils/legend-integration';
@@ -70,11 +70,8 @@ const SHELF_TINT = 13; // % of the tag color mixed over the theme base
 // as part of the rounded rect — a thinner lip therefore also means slightly
 // tighter shelf corners, which keeps the carry-through clean.
 const SHELF_EDGE = 4;
-// How the tag color is anchored on a no-box shelf. The old spine-side lip landed
-// at a card's BOTTOM whenever the card sat above the spine — pixel-identical to
-// the collapse-accent bar (utils/card.ts) that means "collapsed, click to
-// expand" in org/sitemap/sketch, so it read as a false affordance. Options kept
-// switchable while we settle the look:
+// How the tag color is anchored on a no-box shelf. Options kept switchable
+// while we settle the look:
 //   'none'  — shaded shelf only, no colored lip (the leader still carries color)
 //   'spine' — the original full-width lip on the shelf's spine-side edge
 //   'left'  — a vertical lip on the card's spine-relative leading edge
@@ -329,7 +326,15 @@ export function renderEventLine(
     applyHoverHooks(cardG, p);
     if (p.kind === 'era') {
       // App hook: a collapsed-era summary card toggles back open on click.
-      cardG.attr('data-era', p.era!.name).attr('data-era-collapsed', 'true');
+      // Toggle markup for hosts (Obsidian, docs sites); no tabindex — the
+      // preview selection reaches the card by its data-line-number (#1434).
+      cardG
+        .attr('data-era', p.era!.name)
+        .attr('data-era-collapsed', 'true')
+        .attr('data-group-toggle', p.era!.name)
+        .attr('role', 'button')
+        .attr('aria-expanded', 'false')
+        .attr('aria-label', p.era!.name);
     }
     if (onClickItem) {
       const ln = p.lineNumber;
@@ -486,6 +491,18 @@ export function renderEventLine(
           p.bulletMeta
         );
       }
+      if (p.kind === 'era') {
+        // A folded era: the collapse bar along the card's bottom edge
+        // (conventions §3), in the era's own colour.
+        renderCollapseBar(cardG, {
+          width: CARD_W,
+          height: p.cardH,
+          rx: SHELF_EDGE,
+          fill: p.color,
+          clipId: `dgmo-evt-era-clip-${shelfClipSeq++}`,
+          prefix: 'evt',
+        });
+      }
     } else {
       // Org-card chrome: rect + bold centered title (reuses utils/card.ts).
       renderNodeCard(cardG, {
@@ -501,6 +518,17 @@ export function renderEventLine(
         labelFontSize: LABEL_FONT_SIZE,
         headerHeight: p.headerH,
       });
+      if (p.kind === 'era') {
+        // A folded era: the collapse bar (conventions §3).
+        renderCollapseBar(cardG, {
+          width: CARD_W,
+          height: p.cardH,
+          rx: CARD_RADIUS,
+          fill: p.color,
+          clipId: `dgmo-evt-era-clip-${shelfClipSeq++}`,
+          prefix: 'evt',
+        });
+      }
 
       if (dateStr) {
         cardG
@@ -647,7 +675,11 @@ export function renderEventLine(
         .attr('class', 'dgmo-event-era')
         .attr('data-era', r.era.name)
         .attr('data-era-collapsed', 'false')
-        .attr('data-line-number', r.era.lineNumber);
+        .attr('data-line-number', r.era.lineNumber)
+        .attr('data-group-toggle', r.era.name)
+        .attr('role', 'button')
+        .attr('aria-expanded', 'true')
+        .attr('aria-label', r.era.name);
       eg.append('path')
         .attr(
           'd',

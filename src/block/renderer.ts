@@ -10,6 +10,7 @@
 // parser), resolved here via the shared tag-color helper.
 
 import { EDGE_DASH } from '../utils/visual-conventions';
+import { renderCollapseBar } from '../utils/card';
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import { mix, themeBaseBg } from '../palettes/color-utils';
@@ -32,12 +33,7 @@ import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import type { ParsedBlock, BlockNode } from './types';
 import { isBlockNode } from './types';
-import {
-  layoutBlock,
-  type BlockLayoutItem,
-  BLOCK_BAR_H,
-  BLOCK_HEADER_H,
-} from './layout';
+import { layoutBlock, type BlockLayoutItem, BLOCK_HEADER_H } from './layout';
 
 const PADDING = 12;
 const TITLE_BAND = 36;
@@ -345,16 +341,6 @@ function drawItems(
             ? themeBaseBg(palette, ctx.isDark)
             : mix(color, palette.bg, 12)
         : palette.surface;
-      const cid = `dgmo-block-clip-${clipCounter++}`;
-      cell
-        .append('clipPath')
-        .attr('id', cid)
-        .append('rect')
-        .attr('x', it.x)
-        .attr('y', it.y)
-        .attr('width', it.w)
-        .attr('height', it.h)
-        .attr('rx', 10);
       cell
         .append('rect')
         .attr('x', it.x)
@@ -374,17 +360,18 @@ function drawItems(
         .attr('font-weight', 'bold')
         .attr('fill', palette.text)
         .text(clipLabel(it.label ?? '', it.w - 24, 12.5));
-      // Collapse-bar (org / sitemap / mindmap precedent).
-      cell
-        .append('rect')
-        .attr('x', it.x)
-        .attr('y', it.y + it.h - BLOCK_BAR_H)
-        .attr('width', it.w)
-        .attr('height', BLOCK_BAR_H)
-        // §3 convention: solid bar = card stroke; in fill-solid mode the stroke
-        // equals the fill, so fall back to the label color to keep the bar visible.
-        .attr('fill', fillMode === 'solid' && color ? palette.text : stroke)
-        .attr('clip-path', `url(#${cid})`);
+      // The collapse bar (conventions §3). In fill-solid mode the stroke
+      // equals the fill, so the bar takes the label colour to stay visible.
+      renderCollapseBar(cell, {
+        x: it.x,
+        y: it.y,
+        width: it.w,
+        height: it.h,
+        rx: 10,
+        fill: fillMode === 'solid' && color ? palette.text : stroke,
+        clipId: `dgmo-block-clip-${clipCounter++}`,
+        prefix: 'block',
+      });
       bindToggle(cell, it, ctx, it.h);
       continue;
     }
@@ -476,9 +463,18 @@ function bindToggle(
   ctx: DrawCtx,
   hitH: number
 ): void {
-  if (!ctx.onToggle || !it.node || it.lineNumber === undefined) return;
+  if (!it.node || it.lineNumber === undefined) return;
   const id = it.node.id;
   const ln = it.lineNumber;
+  // Toggle markup in every render mode — hosts (Obsidian, docs sites) bind by
+  // these attributes. No tabindex: the preview selection reaches the cell by
+  // its data-line-number (#1434).
+  cell
+    .attr('data-group-toggle', id)
+    .attr('role', 'button')
+    .attr('aria-expanded', String(it.type !== 'collapsed'))
+    .attr('aria-label', it.label ?? id);
+  if (!ctx.onToggle) return;
   cell
     .append('rect')
     .attr('x', it.x)

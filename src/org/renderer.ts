@@ -61,8 +61,6 @@ import {
   CONTAINER_META_FONT_SIZE,
   CONTAINER_META_LINE_HEIGHT,
   CONTAINER_HEADER_HEIGHT,
-  COLLAPSE_BAR_HEIGHT,
-  COLLAPSE_BAR_INSET,
 } from '../utils/visual-conventions';
 
 // Ancestor breadcrumb trail (focus mode)
@@ -176,8 +174,6 @@ export function renderOrg(
   const sContainerMetaFontSize = ctx.text(CONTAINER_META_FONT_SIZE);
   const sContainerMetaLineHeight = ctx.structural(CONTAINER_META_LINE_HEIGHT);
   const sContainerHeaderHeight = ctx.structural(CONTAINER_HEADER_HEIGHT);
-  const sCollapseBarHeight = ctx.structural(COLLAPSE_BAR_HEIGHT);
-  const sCollapseBarInset = ctx.structural(COLLAPSE_BAR_INSET);
   const sAncestorDotR = ctx.structural(ANCESTOR_DOT_R);
   const sAncestorLabelFontSize = ctx.text(ANCESTOR_LABEL_FONT_SIZE);
   const sAncestorRowHeight = ctx.structural(ANCESTOR_ROW_HEIGHT);
@@ -426,16 +422,15 @@ export function renderOrg(
       }
     }
 
-    if (!exportDims && c.hiddenCount && c.hiddenCount > 0) {
+    if (c.hiddenCount && c.hiddenCount > 0) {
       renderCollapseBar(cG, {
         width: c.width,
         height: c.height,
-        barHeight: sCollapseBarHeight,
-        inset: sCollapseBarInset,
         rx: sContainerRadius,
         fill: containerStroke(palette, colorOff ? undefined : c.color),
         clipId: `clip-${c.nodeId}`,
-        className: 'org-collapse-bar',
+        prefix: 'org',
+        scale: ctx,
       });
     }
 
@@ -594,19 +589,18 @@ export function renderOrg(
       }),
     });
 
-    if (!exportDims && node.hiddenCount && node.hiddenCount > 0) {
+    if (node.hiddenCount && node.hiddenCount > 0) {
       renderCollapseBar(nodeG, {
         width: node.width,
         height: node.height,
-        barHeight: sCollapseBarHeight,
-        inset: sCollapseBarInset,
         rx: sCardRadius,
         fill:
           fillMode === 'solid'
             ? labelColor
             : nodeStroke(palette, colorOff ? undefined : node.color),
         clipId: `clip-${node.id}`,
-        className: 'org-collapse-bar',
+        prefix: 'org',
+        scale: ctx,
       });
     }
 

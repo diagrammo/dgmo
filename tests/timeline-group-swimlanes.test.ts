@@ -73,11 +73,12 @@ describe('timeline group swimlanes', () => {
     expect(accentRects.length).toBe(2);
   });
 
-  it('renders toggle icon ▼ in expanded headers', () => {
+  it('expanded headers carry no arrow and no collapse bar', () => {
     const container = renderToContainer(GROUPED_SRC);
     const headers = container.querySelectorAll('.tl-group-header text');
     const texts = Array.from(headers).map((h) => h.textContent ?? '');
-    expect(texts.every((t) => t.startsWith('▼'))).toBe(true);
+    expect(texts.some((t) => /[▶▼]/.test(t))).toBe(false);
+    expect(container.querySelectorAll('.dgmo-collapse-bar').length).toBe(0);
   });
 
   it('sort time opts out of swimlanes', () => {
@@ -178,7 +179,7 @@ describe('timeline group collapse', () => {
     expect(summary).not.toBeNull();
   });
 
-  it('collapsed header shows ▶ icon', () => {
+  it('a collapsed header carries the collapse bar', () => {
     const container = renderToContainer(GROUPED_SRC);
     const alphaHeader = container.querySelector(
       '.tl-group-header[data-group="Alpha"]'
@@ -188,7 +189,8 @@ describe('timeline group collapse', () => {
     const headerText = container.querySelector(
       '.tl-group-header[data-group="Alpha"] text'
     );
-    expect(headerText?.textContent).toMatch(/^▶/);
+    expect(headerText?.textContent).not.toMatch(/[▶▼]/);
+    expect(container.querySelectorAll('.tl-collapse-bar').length).toBe(1);
   });
 
   it('collapsed header shows group name', () => {
@@ -201,7 +203,7 @@ describe('timeline group collapse', () => {
     const headerText = container.querySelector(
       '.tl-group-header[data-group="Alpha"] text'
     );
-    expect(headerText?.textContent).toBe('▶ Alpha');
+    expect(headerText?.textContent).toBe('Alpha');
   });
 
   it('collapse state persists across re-renders on same container', () => {
