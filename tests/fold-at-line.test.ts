@@ -291,3 +291,10 @@ describe('foldAtLine refuses what folds nothing', () => {
     );
   });
 });
+
+describe('the block entry carries foldAtLine (#1741)', () => {
+  it('is the same function the main entry exports', async () => {
+    const block = await import('../src/embed/index');
+    expect(block.foldAtLine).toBe(foldAtLine);
+  });
+});

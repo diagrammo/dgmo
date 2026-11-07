@@ -40,6 +40,15 @@ import { escapeHtml, escapeAttr } from './escape';
 export { BLOCK_CSS } from './css';
 
 /**
+ * The host fold edit (#1741), re-exported here so a browser host that already
+ * reaches this entry to re-render a block — remark-dgmo's client, on a fold
+ * toggle — gets the edit from the same import. Its graph is the chart-type
+ * detector, three parsers and the marker helpers, all of which this entry
+ * already carries; the main entry would add everything else dgmo exports.
+ */
+export { foldAtLine } from '../utils/fold-at-line';
+
+/**
  * The shape `mapData` accepts. A TYPE export, deliberately — `loadMapData`
  * itself is NOT re-exported here and must not be. This entry is loaded in
  * browsers (the `<dgmo-diagram>` element, and remark-dgmo's opt-in client
