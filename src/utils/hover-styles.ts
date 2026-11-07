@@ -968,22 +968,36 @@ function deriveFromSvg(svg: string, spec: HoverSpec): HoverDerived {
  * opening `<svg …>` tag — the rest of the markup is byte-for-byte untouched, so
  * a render snapshot diff is purely the added style block.
  */
-export function injectHoverStyles(
+/**
+ * The hover CSS a rendered chart would get baked in, without the SVG around
+ * it — for a host that draws into a live DOM node (the app's preview) and so
+ * never goes through `render()`'s `injectHoverStyles`. Empty when the chart
+ * type has no hover spec or nothing to pair.
+ */
+export function hoverCssFor(
   svg: string,
   chartType: string | null | undefined,
-  opts?: InjectHoverOptions
+  emphasis?: HoverEmphasis
 ): string {
-  if (!opts?.bakeHover || !svg || !chartType) return svg;
+  if (!svg || !chartType) return '';
   const spec = HOVER_SPECS[chartType];
-  if (!spec) return svg;
-
+  if (!spec) return '';
   const derived = deriveFromSvg(svg, spec);
   // A tag-active chart resolves its group attr at scan time; fold it into the
   // spec so the pure formatter keys off the real attr name.
   const eff = derived.groupAttr
     ? { ...spec, groupAttr: derived.groupAttr }
     : spec;
-  const css = buildHoverCss(eff, derived, opts.emphasis);
+  return buildHoverCss(eff, derived, emphasis);
+}
+
+export function injectHoverStyles(
+  svg: string,
+  chartType: string | null | undefined,
+  opts?: InjectHoverOptions
+): string {
+  if (!opts?.bakeHover) return svg;
+  const css = hoverCssFor(svg, chartType, opts.emphasis);
   if (!css) return svg;
 
   const open = svg.match(/<svg\b[^>]*>/);

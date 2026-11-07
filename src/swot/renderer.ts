@@ -38,8 +38,16 @@ const DOT_RADIUS = 3.5;
 const DOT_GAP = 8;
 const DETAIL_FONT_SIZE = 11;
 const DETAIL_LINE_HEIGHT = 15;
-const AXIS_FONT_SIZE = 11;
-const AXIS_BAND = 20;
+// Axes are drawn as the textbook matrix's table headers (#1742): a filled
+// band over each column and a filled rail beside each row, aligned to the
+// panels. Loose 11px captions read as stray text.
+const AXIS_FONT_SIZE = 10.5;
+const AXIS_FONT_WEIGHT = 600;
+const AXIS_LETTER_SPACING = 1.2;
+const AXIS_HEADER_SIZE = 22; // band height / rail width
+const AXIS_HEADER_GAP = 6; // band → panel
+const AXIS_HEADER_RADIUS = 5;
+const AXIS_BAND = AXIS_HEADER_SIZE + AXIS_HEADER_GAP;
 const EMPTY_TEXT = 'None listed';
 
 const ITEM_TEXT_WIDTH =
@@ -223,36 +231,67 @@ export function renderSwot(
   const rowY = [gridTop, gridTop + topHeight + PANEL_GAP] as const;
   const rowHeight = [topHeight, bottomHeight] as const;
 
-  if (showAxes) {
-    const axes = svg.append('g').attr('class', 'swot-axes');
-    const axisText = () =>
-      axes
-        .append('text')
-        .attr('font-size', AXIS_FONT_SIZE)
-        .attr('fill', palette.textMuted)
-        .attr('text-anchor', 'middle');
-    for (const column of [0, 1] as const) {
-      axisText()
-        .attr('x', columnX[column] + PANEL_WIDTH / 2)
-        .attr('y', gridTop - AXIS_BAND / 2)
-        .attr('dominant-baseline', 'central')
-        .text(parsed.xLabels[column]);
-    }
-    for (const row of [0, 1] as const) {
-      const x = gridLeft - AXIS_BAND / 2;
-      const y = rowY[row] + rowHeight[row] / 2;
-      axisText()
-        .attr('x', x)
-        .attr('y', y)
-        .attr('dominant-baseline', 'central')
-        .attr('transform', `rotate(-90 ${x} ${y})`)
-        .text(parsed.yLabels[row]);
-    }
-  }
-
   const panelFill = isDark
     ? mix(palette.surface, palette.bg, 50)
     : mix(palette.surface, palette.bg, 30);
+
+  if (showAxes) {
+    const axes = svg.append('g').attr('class', 'swot-axes');
+    const headerFill = mix(palette.textMuted, panelFill, 12);
+    const header = (
+      x: number,
+      y: number,
+      w: number,
+      h: number,
+      label: string,
+      rotate: boolean
+    ) => {
+      axes
+        .append('rect')
+        .attr('class', 'swot-axis-header')
+        .attr('x', x)
+        .attr('y', y)
+        .attr('width', w)
+        .attr('height', h)
+        .attr('rx', AXIS_HEADER_RADIUS)
+        .attr('fill', headerFill);
+      const cx = x + w / 2;
+      const cy = y + h / 2;
+      const text = axes
+        .append('text')
+        .attr('class', 'swot-axis-label')
+        .attr('x', cx)
+        .attr('y', cy)
+        .attr('font-size', AXIS_FONT_SIZE)
+        .attr('font-weight', AXIS_FONT_WEIGHT)
+        .attr('letter-spacing', AXIS_LETTER_SPACING)
+        .attr('fill', palette.textMuted)
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'central')
+        .text(label.toUpperCase());
+      if (rotate) text.attr('transform', `rotate(-90 ${cx} ${cy})`);
+    };
+    for (const column of [0, 1] as const) {
+      header(
+        columnX[column],
+        gridTop - AXIS_BAND,
+        PANEL_WIDTH,
+        AXIS_HEADER_SIZE,
+        parsed.xLabels[column],
+        false
+      );
+    }
+    for (const row of [0, 1] as const) {
+      header(
+        gridLeft - AXIS_BAND,
+        rowY[row],
+        AXIS_HEADER_SIZE,
+        rowHeight[row],
+        parsed.yLabels[row],
+        true
+      );
+    }
+  }
 
   panels.forEach((panel, index) => {
     const section = panel.section;

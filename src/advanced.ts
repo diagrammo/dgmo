@@ -666,6 +666,7 @@ export { renderPyramid, renderPyramidForExport } from './pyramid/renderer';
 export type { ParsedPyramid, PyramidLayer } from './pyramid/types';
 
 export { parseSwot } from './swot/parser';
+export { hoverCssFor } from './utils/hover-styles';
 export { renderSwot } from './swot/renderer';
 export type { SwotRenderOptions } from './swot/renderer';
 export type {

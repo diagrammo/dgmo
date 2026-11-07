@@ -6,6 +6,7 @@ import { render } from '../src/render';
 import { mix } from '../src/palettes/color-utils';
 import { parseSwot } from '../src/swot/parser';
 import { renderSwot } from '../src/swot/renderer';
+import { hoverCssFor } from '../src/utils/hover-styles';
 import { resolveActiveTagGroup } from '../src/utils/tag-groups';
 
 const palette = getPalette('nord').light;
@@ -141,9 +142,28 @@ strengths
     const onAxes = [...on.querySelectorAll('.swot-axes text')].map(
       (t) => t.textContent
     );
-    expect(onAxes).toEqual(['Helpful', 'Harmful', 'Internal', 'External']);
+    expect(onAxes).toEqual(['HELPFUL', 'HARMFUL', 'INTERNAL', 'EXTERNAL']);
     const rotated = on.querySelectorAll('.swot-axes text')[2]!;
     expect(rotated.getAttribute('transform')).toContain('rotate(-90');
+    // Drawn as matrix headers (#1742): a filled band over each column with
+    // the panel's x and width, and a rail beside each row with its height.
+    const headers = [...on.querySelectorAll('.swot-axis-header')];
+    expect(headers).toHaveLength(4);
+    const s = rectOf(on, 'strengths');
+    const w = rectOf(on, 'weaknesses');
+    const o = rectOf(on, 'opportunities');
+    const attr = (el: Element, k: string) => Number(el.getAttribute(k));
+    expect(attr(headers[0]!, 'x')).toBe(s.x);
+    expect(attr(headers[0]!, 'width')).toBe(s.width);
+    expect(attr(headers[1]!, 'x')).toBe(w.x);
+    expect(attr(headers[0]!, 'y') + attr(headers[0]!, 'height')).toBeLessThan(
+      s.y
+    );
+    expect(attr(headers[2]!, 'y')).toBe(s.y);
+    expect(attr(headers[3]!, 'y')).toBe(o.y);
+    expect(attr(headers[2]!, 'x') + attr(headers[2]!, 'width')).toBeLessThan(
+      s.x
+    );
     const off = draw(
       `swot\nno-axes\nx-label A, B\ny-label C, D\n${FULL.slice(7)}`
     );
@@ -212,6 +232,25 @@ strengths
     expect(svg).toMatch(/\.swot-panel/);
     expect(svg).toMatch(/svg:has\(\.swot-panel:hover\)/);
     expect(svg).toContain('.swot-item');
+  });
+
+  it('hoverCssFor hands a live render the same hover CSS render() bakes in', async () => {
+    const src = `swot
+tag Priority as p
+  High red
+  Low gray
+
+strengths
+  A p: High
+`;
+    const { svg } = await render(src);
+    const baked = svg.match(
+      /<style>([^<]*swot-panel:hover[^<]*)<\/style>/
+    )?.[1];
+    const live = draw(src).querySelector('svg')!.outerHTML;
+    expect(baked).toBeTruthy();
+    expect(hoverCssFor(live, 'swot')).toBe(baked);
+    expect(hoverCssFor(live, 'no-such-chart')).toBe('');
   });
 
   it('an error exports nothing', async () => {

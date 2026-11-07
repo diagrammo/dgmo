@@ -4734,8 +4734,8 @@ threats
 | Option              | Effect                                                                                                                                              |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `tag`, `active-tag` | A tag recolours an item's dot and adds the legend. An untagged item keeps its section's colour, and the header bands always keep the section colour |
-| `x-label A, B`      | Column labels above the top row. Default `Helpful, Harmful`                                                                                         |
-| `y-label A, B`      | Row labels left of each row, rotated. Default `Internal, External`                                                                                  |
+| `x-label A, B`      | Column headers: a filled band over each column, in small caps. Default `Helpful, Harmful`                                                           |
+| `y-label A, B`      | Row headers: a filled rail beside each row, rotated, in small caps. Default `Internal, External`                                                    |
 | `no-axes`           | Hide the axis labels. Wins over `x-label` and `y-label`                                                                                             |
 | `no-legend`         | Hide the tag legend                                                                                                                                 |
 | `palette`           | Draw in a built-in palette                                                                                                                          |
