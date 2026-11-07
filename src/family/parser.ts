@@ -22,7 +22,7 @@
 // bare name (quote / `as`-alias / trailing color); per-side key:value metadata
 // is NOT supported (declare persons standalone).
 
-import { emit, type DgmoError } from '../diagnostics';
+import { emit, makeDgmoError, type DgmoError } from '../diagnostics';
 import { FAMILY_DX } from './diagnostics';
 import {
   measureIndent,
@@ -49,6 +49,7 @@ import {
   finalizeAutoTagColors,
   AUTO_TAG_COLOR_SENTINEL,
   tagAttrKey,
+  activeTagNoMatchMessage,
   type TagGroup,
 } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
@@ -107,6 +108,10 @@ function matchFamilyOption(
   const h = line.match(/^highlight\s+(.+)$/i);
   if (h) return { key: 'highlight', value: h[1]!.trim() };
   if (/^generations$/i.test(line)) return { key: 'generations', value: 'true' };
+  // Pick which tag group colours the cards. Written by the app when a legend
+  // pill is clicked, so export and share links draw the same group.
+  const at = line.match(/^active-tag\s+(.+)$/i);
+  if (at) return { key: 'active-tag', value: at[1]!.trim() };
   // Turn off the deceased dagger (†) marker.
   if (/^no-daggers$/i.test(line)) return { key: 'no-daggers', value: 'true' };
   return null;
@@ -121,6 +126,7 @@ export function parseFamily(
   const unions: FamilyUnion[] = [];
   const tagGroups: Writable<TagGroup>[] = [];
   const options: Record<string, string> = {};
+  let activeTagLine = 0;
 
   const rawLines = content.split('\n');
 
@@ -216,6 +222,7 @@ export function parseFamily(
       const fam = matchFamilyOption(trimmed);
       if (fam) {
         options[fam.key] = fam.value;
+        if (fam.key === 'active-tag') activeTagLine = lineNum;
         continue;
       }
     }
@@ -637,6 +644,22 @@ export function parseFamily(
       );
       delete options['highlight'];
     }
+  }
+
+  // ── `active-tag` must name a declared group (warn, never error) ──
+  const activeTagWarning = activeTagNoMatchMessage(
+    options['active-tag'],
+    tagGroups
+  );
+  if (activeTagWarning) {
+    diagnostics.push(
+      makeDgmoError(
+        activeTagLine || 1,
+        activeTagWarning,
+        'warning',
+        'W_ACTIVE_TAG_NO_MATCH'
+      )
+    );
   }
 
   // ── Ancestry cycle = quotient cycle (fatal; renderer bails on error) ──

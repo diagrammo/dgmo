@@ -206,3 +206,34 @@ CousinA + CousinB
     );
   });
 });
+
+describe('family parser — active-tag (diagrammo/diagrammo#1745)', () => {
+  const SRC = `family
+tag Side as s
+  Mum red
+tag Gen as g
+  Old blue
+active-tag Gen
+
+Ann s: Mum, g: Old`;
+
+  it('reads active-tag as an option, not as a person', () => {
+    const p = parseFamily(SRC);
+    expect(p.options['active-tag']).toBe('Gen');
+    expect([...p.persons.keys()]).toEqual(['ann']);
+    expect(p.diagnostics).toHaveLength(0);
+  });
+
+  it('warns when active-tag names no declared group', () => {
+    const p = parseFamily(SRC.replace('active-tag Gen', 'active-tag Nope'));
+    const d = p.diagnostics.find((x) => x.code === 'W_ACTIVE_TAG_NO_MATCH');
+    expect(d?.line).toBe(6);
+    expect(d?.severity).toBe('warning');
+  });
+
+  it('accepts active-tag none and the built-in Sex group', () => {
+    expect(codes(SRC.replace('active-tag Gen', 'active-tag none'))).toEqual([]);
+    const sexed = `family\nactive-tag Sex\n\nAnn sex: f`;
+    expect(codes(sexed)).toEqual([]);
+  });
+});
