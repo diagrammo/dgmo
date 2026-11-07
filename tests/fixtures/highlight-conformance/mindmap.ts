@@ -16,8 +16,11 @@ Research
   Competitor Analysis collapsed
 Development
   MVP Features
+  Review the roles list
 `,
   assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'roles', role: 'default' },
     { text: 'mindmap', role: 'chartType' },
     { text: 'description', role: 'propertyName' },
     { text: 'collapsed', role: 'modifier' },

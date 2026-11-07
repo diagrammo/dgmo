@@ -17,8 +17,11 @@ rings
 
 Tools | quadrant: top-left
   Vite | ring: Adopt, trend: up
+  Review the roles list
 `,
   assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'roles', role: 'default' },
     { text: 'tech-radar', role: 'chartType' },
     { text: 'show-blip-legend', role: 'keyword' },
     { text: 'rings', role: 'keyword' },

@@ -10,8 +10,11 @@ fill-solid
 Captain | color: red
 Crew | description: Deckhands
 The Sea | color: blue
+Review the roles list
 `,
   assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'roles', role: 'default' },
     { text: 'ring', role: 'chartType' },
     { text: 'fill-solid', role: 'keyword' },
     { text: 'color', role: 'keyword' },

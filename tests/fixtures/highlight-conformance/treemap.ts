@@ -13,8 +13,11 @@ tag Sector as s
 Tech s: Tech
   AAPL 180 heat: -2.4
   NVDA 220 heat: 4.1
+  Review the roles list
 `,
   assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'roles', role: 'default' },
     { text: 'treemap', role: 'chartType' },
     { text: 'tag', role: 'definitionKeyword' },
     { text: 'heat', role: 'propertyName' },

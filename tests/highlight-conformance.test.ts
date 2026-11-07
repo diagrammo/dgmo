@@ -16,6 +16,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { chartTypes } from '../src/chart-types';
+import { REGISTRY_TOKEN_CHART_TYPES } from '../src/directives-registry';
 import { highlightDgmo } from '../src/editor/highlight-api';
 
 import type { HighlightFixture } from './fixtures/highlight-conformance/_types';
@@ -40,6 +41,35 @@ describe('highlight conformance — coverage', () => {
         fixturesByChartType.has(ct.id),
         `Missing highlight-conformance fixture for chart type '${ct.id}'. Add tests/fixtures/highlight-conformance/${ct.id}.ts.`
       ).toBe(true);
+    });
+  }
+});
+
+// Every fixture proves the chart-type scope (#1734): it names a token that is
+// a keyword in some other chart type and asserts it is NOT one here.
+const KEYWORD_ROLES = new Set([
+  'keyword',
+  'controlKeyword',
+  'modifier',
+  'definitionKeyword',
+]);
+
+describe('highlight conformance — chart-type scope', () => {
+  for (const f of fixturesByChartType.values()) {
+    it(`'${f.chartType}' asserts a keyword of another chart type stays text`, () => {
+      const scoped = f.assertions.filter((a) => {
+        const scope = REGISTRY_TOKEN_CHART_TYPES.get(a.text);
+        return (
+          scope !== undefined &&
+          scope !== 'all' &&
+          !scope.has(f.chartType) &&
+          !KEYWORD_ROLES.has(a.role)
+        );
+      });
+      expect(
+        scoped.length,
+        `Fixture '${f.chartType}' needs one assertion on a registry token scoped to other chart types (for example 'roles'), with a non-keyword role.`
+      ).toBeGreaterThan(0);
     });
   }
 });

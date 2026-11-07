@@ -16,8 +16,11 @@ active-tag X
   logo
   nav
     Dashboard
+    Review the roles list
 `,
   assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'roles', role: 'default' },
     { text: 'wireframe', role: 'chartType' },
     { text: 'mobile', role: 'controlKeyword' },
     { text: 'active-tag', role: 'keyword' },

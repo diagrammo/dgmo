@@ -14,8 +14,11 @@ Elizabeth Swann b: 1687, sex: f, loyalty: Brethren
 Elizabeth Swann + "Will Turner" m: 1729
   Henry Turner sex: m
   Anna adopted
+  Review the roles list
 `,
   assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'roles', role: 'default' },
     { text: 'family', role: 'chartType' },
     { text: 'tag', role: 'definitionKeyword' },
   ],

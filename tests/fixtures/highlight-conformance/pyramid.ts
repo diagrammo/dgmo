@@ -10,8 +10,11 @@ inverted
 Self-Actualization | color: purple
 Esteem | color: blue
 Safety | description: Security and health
+Review the roles list
 `,
   assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'roles', role: 'default' },
     { text: 'pyramid', role: 'chartType' },
     { text: 'inverted', role: 'keyword' },
     { text: 'color', role: 'keyword' },

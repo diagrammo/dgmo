@@ -12,8 +12,11 @@ User
 App
   tech: React
   technology: TypeScript
+  Review the roles list
 `,
   assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'roles', role: 'default' },
     { text: 'c4', role: 'chartType' },
     { text: 'direction-tb', role: 'keyword' },
     { text: 'active-tag', role: 'keyword' },

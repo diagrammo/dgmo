@@ -11,8 +11,11 @@ hide tag:Past
 API
   description: Gateway
 DB
+Review the roles list
 `,
   assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'roles', role: 'default' },
     { text: 'boxes-and-lines', role: 'chartType' },
     { text: 'direction', role: 'keyword' },
     { text: 'active-tag', role: 'keyword' },

@@ -12,8 +12,11 @@ tag Layer as l
 
 [Clients] l: Edge
   [Web] [Mobile]
+  Review the roles list
 `,
   assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'roles', role: 'default' },
     { text: 'block', role: 'chartType' },
     { text: 'tag', role: 'definitionKeyword' },
   ],

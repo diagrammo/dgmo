@@ -13,8 +13,11 @@ bottom-right Watch purple
 bottom-left Maroon red
 
 Quartermaster 0.9 0.95
+Review the roles list
 `,
   assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'roles', role: 'default' },
     { text: 'quadrant', role: 'chartType' },
     { text: 'x-label', role: 'keyword' },
     { text: 'y-label', role: 'keyword' },

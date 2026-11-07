@@ -20,8 +20,11 @@ edge
 API
   latency-ms: 50
   uptime: 0.99
+  Review the roles list
 `,
   assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'roles', role: 'default' },
     { text: 'infra', role: 'chartType' },
     { text: 'direction-tb', role: 'keyword' },
     { text: 'default-rps', role: 'keyword' },

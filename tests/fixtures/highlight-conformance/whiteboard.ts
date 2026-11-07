@@ -14,8 +14,11 @@ line from: 240 300, to: 300 400
 note ask legal at: 600 40, color: blue
 image login-ideas.assets/9f3c2a71.webp at: 420 200, size: 250 170
 ink red 3 AZwE2AQYJDAWaqMBHQ
+Review the roles list
 `,
   assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'roles', role: 'default' },
     { text: 'whiteboard', role: 'chartType' },
     { text: 'rectangle', role: 'controlKeyword' },
     { text: 'ellipse', role: 'controlKeyword' },

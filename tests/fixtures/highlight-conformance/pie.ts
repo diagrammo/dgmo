@@ -10,8 +10,11 @@ no-percent
 
 A 30
 B 70
+Review the roles list
 `,
   assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'roles', role: 'default' },
     { text: 'pie', role: 'chartType' },
     { text: 'no-name', role: 'keyword' },
     { text: 'no-value', role: 'keyword' },

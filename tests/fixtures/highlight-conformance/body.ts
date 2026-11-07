@@ -13,8 +13,11 @@ tag Effort as e
 
 chest  e: Primary
   Barbell bench press — 4×8
+  Review the roles list
 `,
   assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'roles', role: 'default' },
     { text: 'body', role: 'chartType' },
     { text: 'tag', role: 'definitionKeyword' },
   ],

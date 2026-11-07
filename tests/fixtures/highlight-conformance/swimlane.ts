@@ -15,8 +15,11 @@ Editor
   <Review>
 
 Draft Post -> <Review>
+Review the roles list
 `,
   assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'roles', role: 'default' },
     { text: 'swimlane', role: 'chartType' },
     { text: 'direction', role: 'keyword' },
     { text: 'lane', role: 'keyword' },

@@ -10,8 +10,11 @@ size-label Crew
 no-name
 
 Pirate 90 8500
+Review the roles list
 `,
   assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'roles', role: 'default' },
     { text: 'scatter', role: 'chartType' },
     { text: 'x-label', role: 'keyword' },
     { text: 'y-label', role: 'keyword' },

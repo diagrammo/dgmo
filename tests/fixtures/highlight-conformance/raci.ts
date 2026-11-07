@@ -19,8 +19,11 @@ roles
   Plot the course
     Cap: A R
     Bos: C
+    Review the hours list
 `,
   assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'hours', role: 'default' },
     // First-line chart-type keyword
     { text: 'raci', role: 'chartType' },
 

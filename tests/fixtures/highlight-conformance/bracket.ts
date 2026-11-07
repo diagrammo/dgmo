@@ -14,6 +14,11 @@ rounds Semis, Final
   Black Pearl beats Salty Dog 6-5
 
 Black Pearl vs Kraken
+Review the roles list
 `,
-  assertions: [{ text: 'bracket', role: 'chartType' }],
+  assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'roles', role: 'default' },
+    { text: 'bracket', role: 'chartType' },
+  ],
 };

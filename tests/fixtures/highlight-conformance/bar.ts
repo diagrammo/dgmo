@@ -11,8 +11,11 @@ no-value
 
 North 850
 South 620
+Review the roles list
 `,
   assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'roles', role: 'default' },
     { text: 'bar', role: 'chartType' },
     { text: 'series', role: 'keyword' },
     { text: 'no-value', role: 'keyword' },

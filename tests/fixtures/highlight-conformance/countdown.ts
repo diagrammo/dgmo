@@ -10,6 +10,11 @@ export const fixture: HighlightFixture = {
 target 2026-08-21
 units days
 expired Now!
+Review the roles list
 `,
-  assertions: [{ text: 'countdown', role: 'chartType' }],
+  assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'roles', role: 'default' },
+    { text: 'countdown', role: 'chartType' },
+  ],
 };

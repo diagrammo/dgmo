@@ -20,8 +20,11 @@ recruit crew 1 2 4 as rc
   -> sail
 
 sail 3 5 8
+Review the roles list
 `,
   assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'roles', role: 'default' },
     { text: 'pert', role: 'chartType' },
     { text: 'time-unit', role: 'keyword' },
     { text: 'default-confidence', role: 'keyword' },

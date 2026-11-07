@@ -27,6 +27,8 @@
 // is mechanical follow-up work, not a correctness gap (the Phase 1b guard
 // covers them via rendered-role assertions).
 
+import type { ChartTypeId } from './chart-types';
+
 /** Highlight role family for a bare (non-colon) token. */
 export type HighlightCategory = 'directive' | 'control' | 'modifier' | 'status';
 
@@ -58,6 +60,18 @@ export interface RegistryEntry {
   readonly gantt?: readonly GanttScope[];
   /** Map `DIRECTIVE_SET` membership. */
   readonly map?: boolean;
+  /**
+   * The chart types in which the bare form highlights as a keyword (#1734).
+   * `'all'` means every chart type. The editor's context tracker
+   * (`editor/tokens.ts`) reads the chart type off the document's first line
+   * and leaves a token as plain text in a chart type this list does not
+   * name. A document whose first line names no chart type highlights every
+   * token, as before. Derived 2026-11-06 from `COMPLETION_REGISTRY`,
+   * `STRUCTURAL_KEYWORDS`, `ENTITY_TYPES`, `PIPE_METADATA`, the infra / gantt
+   * / map fields above, and the section comments; `'all'` where none of
+   * those named a type. Highlighting only — no parser reads it.
+   */
+  readonly chartTypes: readonly ChartTypeId[] | 'all';
 }
 
 // ============================================================
@@ -69,9 +83,21 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   // Accepted in every date-bearing chart (gantt, pert, countdown, timeline,
   // event-line). Handled inline by each parser's prescan — no parser-Set
   // membership here — so they only contribute highlighting (DIRECTIVE_KEYWORDS).
-  { token: 'year', category: 'directive' },
-  { token: 'date-order', category: 'directive' },
-  { token: 'no-current-year', category: 'directive' },
+  {
+    token: 'year',
+    category: 'directive',
+    chartTypes: ['countdown', 'event-line', 'gantt', 'pert', 'timeline'],
+  },
+  {
+    token: 'date-order',
+    category: 'directive',
+    chartTypes: ['countdown', 'event-line', 'gantt', 'pert', 'timeline'],
+  },
+  {
+    token: 'no-current-year',
+    category: 'directive',
+    chartTypes: ['countdown', 'event-line', 'gantt', 'pert', 'timeline'],
+  },
 
   // ── Infra ────────────────────────────────────────────────
   // Top-level SLO options that are ALSO accepted as node colon-properties
@@ -81,93 +107,414 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
     token: 'slo-availability',
     category: 'directive',
     infra: ['top-level', 'behavior'],
+    chartTypes: ['infra'],
   },
   {
     token: 'slo-p90-latency-ms',
     category: 'directive',
     infra: ['top-level', 'behavior'],
+    chartTypes: ['infra'],
   },
   {
     token: 'slo-warning-margin',
     category: 'directive',
     infra: ['top-level', 'behavior'],
+    chartTypes: ['infra'],
   },
   // Top-level-only options (space-separated, bare).
-  { token: 'default-latency-ms', category: 'directive', infra: ['top-level'] },
-  { token: 'default-uptime', category: 'directive', infra: ['top-level'] },
-  { token: 'default-rps', category: 'directive', infra: ['top-level'] },
+  {
+    token: 'default-latency-ms',
+    category: 'directive',
+    infra: ['top-level'],
+    chartTypes: ['infra'],
+  },
+  {
+    token: 'default-uptime',
+    category: 'directive',
+    infra: ['top-level'],
+    chartTypes: ['infra'],
+  },
+  {
+    token: 'default-rps',
+    category: 'directive',
+    infra: ['top-level'],
+    chartTypes: ['infra'],
+  },
   // `active-tag` is shared with gantt + map (see below).
   // Node behavior colon-keys — highlight as propertyName.
-  { token: 'latency-ms', colonKey: true, infra: ['behavior'] },
-  { token: 'uptime', colonKey: true, infra: ['behavior'] },
-  { token: 'instances', colonKey: true, infra: ['behavior'] },
-  { token: 'max-rps', colonKey: true, infra: ['behavior'] },
-  { token: 'cache-hit', colonKey: true, infra: ['behavior'] },
-  { token: 'firewall-block', colonKey: true, infra: ['behavior'] },
-  { token: 'ratelimit-rps', colonKey: true, infra: ['behavior'] },
-  { token: 'buffer', colonKey: true, infra: ['behavior'] },
-  { token: 'drain-rate', colonKey: true, infra: ['behavior'] },
-  { token: 'retention-hours', colonKey: true, infra: ['behavior'] },
-  { token: 'partitions', colonKey: true, infra: ['behavior'] },
-  { token: 'concurrency', colonKey: true, infra: ['behavior'] },
-  { token: 'duration-ms', colonKey: true, infra: ['behavior'] },
-  { token: 'cold-start-ms', colonKey: true, infra: ['behavior'] },
-  { token: 'cb-error-threshold', colonKey: true, infra: ['behavior'] },
-  { token: 'cb-latency-threshold-ms', colonKey: true, infra: ['behavior'] },
+  {
+    token: 'latency-ms',
+    colonKey: true,
+    infra: ['behavior'],
+    chartTypes: ['infra'],
+  },
+  {
+    token: 'uptime',
+    colonKey: true,
+    infra: ['behavior'],
+    chartTypes: ['infra'],
+  },
+  {
+    token: 'instances',
+    colonKey: true,
+    infra: ['behavior'],
+    chartTypes: ['infra'],
+  },
+  {
+    token: 'max-rps',
+    colonKey: true,
+    infra: ['behavior'],
+    chartTypes: ['infra'],
+  },
+  {
+    token: 'cache-hit',
+    colonKey: true,
+    infra: ['behavior'],
+    chartTypes: ['infra'],
+  },
+  {
+    token: 'firewall-block',
+    colonKey: true,
+    infra: ['behavior'],
+    chartTypes: ['infra'],
+  },
+  {
+    token: 'ratelimit-rps',
+    colonKey: true,
+    infra: ['behavior'],
+    chartTypes: ['infra'],
+  },
+  {
+    token: 'buffer',
+    colonKey: true,
+    infra: ['behavior'],
+    chartTypes: ['infra'],
+  },
+  {
+    token: 'drain-rate',
+    colonKey: true,
+    infra: ['behavior'],
+    chartTypes: ['infra'],
+  },
+  {
+    token: 'retention-hours',
+    colonKey: true,
+    infra: ['behavior'],
+    chartTypes: ['infra'],
+  },
+  {
+    token: 'partitions',
+    colonKey: true,
+    infra: ['behavior'],
+    chartTypes: ['infra'],
+  },
+  {
+    token: 'concurrency',
+    colonKey: true,
+    infra: ['behavior'],
+    chartTypes: ['infra'],
+  },
+  {
+    token: 'duration-ms',
+    colonKey: true,
+    infra: ['behavior'],
+    chartTypes: ['infra'],
+  },
+  {
+    token: 'cold-start-ms',
+    colonKey: true,
+    infra: ['behavior'],
+    chartTypes: ['infra'],
+  },
+  {
+    token: 'cb-error-threshold',
+    colonKey: true,
+    infra: ['behavior'],
+    chartTypes: ['infra'],
+  },
+  {
+    token: 'cb-latency-threshold-ms',
+    colonKey: true,
+    infra: ['behavior'],
+    chartTypes: ['infra'],
+  },
   // Edge-only colon-key.
-  { token: 'rps', colonKey: true, infra: ['edge'] },
+  { token: 'rps', colonKey: true, infra: ['edge'], chartTypes: ['infra'] },
 
   // ── Gantt ────────────────────────────────────────────────
-  { token: 'start', category: 'directive', gantt: ['option'] },
+  {
+    token: 'start',
+    category: 'directive',
+    gantt: ['option'],
+    chartTypes: ['gantt'],
+  },
   {
     token: 'today-marker',
     category: 'directive',
     gantt: ['option', 'boolean'],
+    chartTypes: ['gantt'],
   },
   {
     token: 'critical-path',
     category: 'directive',
     gantt: ['option', 'boolean'],
+    chartTypes: ['gantt'],
   },
-  { token: 'sprint-length', category: 'directive', gantt: ['option'] },
-  { token: 'sprint-number', category: 'directive', gantt: ['option'] },
-  { token: 'sprint-start', category: 'directive', gantt: ['option'] },
-  { token: 'fill-tint', category: 'directive', gantt: ['boolean'] },
-  { token: 'fill-solid', category: 'directive', gantt: ['boolean'] },
-  { token: 'fill-outline', category: 'directive', gantt: ['boolean'] },
+  {
+    token: 'sprint-length',
+    category: 'directive',
+    gantt: ['option'],
+    chartTypes: ['gantt', 'pert'],
+  },
+  {
+    token: 'sprint-number',
+    category: 'directive',
+    gantt: ['option'],
+    chartTypes: ['gantt', 'pert'],
+  },
+  {
+    token: 'sprint-start',
+    category: 'directive',
+    gantt: ['option'],
+    chartTypes: ['gantt', 'pert'],
+  },
+  {
+    token: 'fill-tint',
+    category: 'directive',
+    gantt: ['boolean'],
+    chartTypes: [
+      'arc',
+      'bar',
+      'block',
+      'body',
+      'boxes-and-lines',
+      'bracket',
+      'c4',
+      'class',
+      'clock',
+      'countdown',
+      'cycle',
+      'er',
+      'event-line',
+      'family',
+      'flowchart',
+      'funnel',
+      'gantt',
+      'goal',
+      'heatmap',
+      'journey-map',
+      'kanban',
+      'line',
+      'mindmap',
+      'org',
+      'pert',
+      'pie',
+      'polar-area',
+      'pyramid',
+      'quadrant',
+      'raci',
+      'radar',
+      'ring',
+      'scatter',
+      'sequence',
+      'sitemap',
+      'state',
+      'swimlane',
+      'timeline',
+      'treemap',
+      'venn',
+      'wireframe',
+    ],
+  },
+  {
+    token: 'fill-solid',
+    category: 'directive',
+    gantt: ['boolean'],
+    chartTypes: [
+      'arc',
+      'bar',
+      'block',
+      'body',
+      'boxes-and-lines',
+      'bracket',
+      'c4',
+      'class',
+      'clock',
+      'countdown',
+      'cycle',
+      'er',
+      'event-line',
+      'family',
+      'flowchart',
+      'funnel',
+      'gantt',
+      'goal',
+      'heatmap',
+      'journey-map',
+      'kanban',
+      'line',
+      'mindmap',
+      'org',
+      'pert',
+      'pie',
+      'polar-area',
+      'pyramid',
+      'quadrant',
+      'raci',
+      'radar',
+      'ring',
+      'scatter',
+      'sequence',
+      'sitemap',
+      'state',
+      'swimlane',
+      'timeline',
+      'treemap',
+      'venn',
+      'wireframe',
+    ],
+  },
+  {
+    token: 'fill-outline',
+    category: 'directive',
+    gantt: ['boolean'],
+    chartTypes: [
+      'arc',
+      'bar',
+      'block',
+      'body',
+      'boxes-and-lines',
+      'bracket',
+      'c4',
+      'class',
+      'clock',
+      'countdown',
+      'cycle',
+      'er',
+      'event-line',
+      'family',
+      'flowchart',
+      'funnel',
+      'gantt',
+      'goal',
+      'heatmap',
+      'journey-map',
+      'kanban',
+      'line',
+      'mindmap',
+      'org',
+      'pert',
+      'pie',
+      'polar-area',
+      'pyramid',
+      'quadrant',
+      'raci',
+      'radar',
+      'ring',
+      'scatter',
+      'sequence',
+      'sitemap',
+      'state',
+      'swimlane',
+      'timeline',
+      'treemap',
+      'venn',
+      'wireframe',
+    ],
+  },
   // `chart` is a wireframe element keyword (CONTROL); gantt also accepts it as
   // an option. Highlight family is control.
-  { token: 'chart', category: 'control', gantt: ['option'] },
+  {
+    token: 'chart',
+    category: 'control',
+    gantt: ['option'],
+    chartTypes: ['gantt', 'wireframe'],
+  },
   // `dependencies` is ON by default → almost never written bare (authors write
   // `no-dependencies`, which DOES highlight). Bare word collides with prose and
-  // the specializer is context-free, so it stays plain. Present for parser
-  // Set derivation only.
-  { token: 'dependencies', noHighlight: true, gantt: ['option', 'boolean'] },
+  // it would colour in every gantt task name, so it stays plain. Present for
+  // parser Set derivation only.
+  {
+    token: 'dependencies',
+    noHighlight: true,
+    gantt: ['option', 'boolean'],
+    chartTypes: ['gantt'],
+  },
 
   // ── Map ──────────────────────────────────────────────────
   // Per-element value→channel ramps (decision #20): the directive names the
   // visual channel — `region-heat` (colour), `poi-size` (marker area),
   // `flow-width` (stroke). The per-element key mirrors it (`heat:`/`size:`/`width:`).
-  { token: 'region-heat', category: 'directive', map: true },
-  { token: 'poi-size', category: 'directive', map: true },
-  { token: 'flow-width', category: 'directive', map: true },
-  { token: 'locale', category: 'directive', map: true },
-  { token: 'caption', category: 'directive', map: true },
-  { token: 'no-coastline', category: 'directive', map: true },
-  { token: 'no-relief', category: 'directive', map: true },
-  { token: 'no-context-labels', category: 'directive', map: true },
-  { token: 'no-region-labels', category: 'directive', map: true },
-  { token: 'no-region-heat-value', category: 'directive', map: true },
-  { token: 'no-poi-labels', category: 'directive', map: true },
-  { token: 'no-colorize', category: 'directive', map: true },
-  { token: 'no-cities', category: 'directive', map: true },
-  { token: 'no-cluster-pois', category: 'directive', map: true },
+  {
+    token: 'region-heat',
+    category: 'directive',
+    map: true,
+    chartTypes: ['map'],
+  },
+  { token: 'poi-size', category: 'directive', map: true, chartTypes: ['map'] },
+  {
+    token: 'flow-width',
+    category: 'directive',
+    map: true,
+    chartTypes: ['map'],
+  },
+  { token: 'locale', category: 'directive', map: true, chartTypes: ['map'] },
+  { token: 'caption', category: 'directive', map: true, chartTypes: ['map'] },
+  {
+    token: 'no-coastline',
+    category: 'directive',
+    map: true,
+    chartTypes: ['map'],
+  },
+  { token: 'no-relief', category: 'directive', map: true, chartTypes: ['map'] },
+  {
+    token: 'no-context-labels',
+    category: 'directive',
+    map: true,
+    chartTypes: ['map'],
+  },
+  {
+    token: 'no-region-labels',
+    category: 'directive',
+    map: true,
+    chartTypes: ['map'],
+  },
+  {
+    token: 'no-region-heat-value',
+    category: 'directive',
+    map: true,
+    chartTypes: ['map'],
+  },
+  {
+    token: 'no-poi-labels',
+    category: 'directive',
+    map: true,
+    chartTypes: ['map'],
+  },
+  {
+    token: 'no-colorize',
+    category: 'directive',
+    map: true,
+    chartTypes: ['map'],
+  },
+  { token: 'no-cities', category: 'directive', map: true, chartTypes: ['map'] },
+  {
+    token: 'no-cluster-pois',
+    category: 'directive',
+    map: true,
+    chartTypes: ['map'],
+  },
   // ── Clock channel (BL-122): live local-time cards on POIs flagged `clock` ──
   // Activation is the per-POI `clock` flag (peeled in the map parser, not a
   // directive). `hours 9-17` / `days mon-fri` are the global availability
   // window (reused verbatim from the clock chart type).
-  { token: 'hours', category: 'directive', map: true },
-  { token: 'days', category: 'directive', map: true },
+  {
+    token: 'hours',
+    category: 'directive',
+    map: true,
+    chartTypes: ['clock', 'map'],
+  },
+  { token: 'days', category: 'directive', map: true, chartTypes: ['map'] },
 
   // ── Shared across types ──────────────────────────────────
   // `active-tag`: infra top-level option + gantt option + map directive.
@@ -180,23 +527,73 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
     infra: ['top-level'],
     gantt: ['option'],
     map: true,
+    chartTypes: [
+      'body',
+      'boxes-and-lines',
+      'c4',
+      'er',
+      'event-line',
+      'family',
+      'gantt',
+      'infra',
+      'journey-map',
+      'kanban',
+      'map',
+      'mindmap',
+      'org',
+      'pert',
+      'sequence',
+      'sitemap',
+      'state',
+      'swimlane',
+      'timeline',
+      'treemap',
+      'wireframe',
+    ],
   },
   // `title`: gantt option. (The data-chart `title` directive was removed in
   // decision #48 — it now raises E_TITLE_DIRECTIVE; the token stays here for
   // gantt.)
-  { token: 'title', category: 'directive', gantt: ['option'] },
+  {
+    token: 'title',
+    category: 'directive',
+    gantt: ['option'],
+    chartTypes: ['gantt'],
+  },
   // `sort`: gantt option (also general, hand-listed).
-  { token: 'sort', category: 'directive', gantt: ['option'] },
+  {
+    token: 'sort',
+    category: 'directive',
+    gantt: ['option'],
+    chartTypes: 'all',
+  },
   // `lane-by <group>`: swimlane axis (view-state). NB not `swimlane` — that's a
   // chart type. Kanban reads it via its own KNOWN_OPTIONS; gantt via the switch.
-  { token: 'lane-by', category: 'directive', gantt: ['option'] },
+  {
+    token: 'lane-by',
+    category: 'directive',
+    gantt: ['option'],
+    chartTypes: 'all',
+  },
   // `no-title`: gantt boolean + map directive (also general, hand-listed).
-  { token: 'no-title', category: 'directive', gantt: ['boolean'], map: true },
+  {
+    token: 'no-title',
+    category: 'directive',
+    gantt: ['boolean'],
+    map: true,
+    chartTypes: 'all',
+  },
   // `no-legend`: universal (decision #48) — every chart that renders a legend
   // accepts it, and charts without one take it as a harmless no-op. Parsed for
   // most types via GLOBAL_BOOLEANS in utils/parsing; gantt derives its boolean
   // Set from here, and map from `map: true`.
-  { token: 'no-legend', category: 'directive', gantt: ['boolean'], map: true },
+  {
+    token: 'no-legend',
+    category: 'directive',
+    gantt: ['boolean'],
+    map: true,
+    chartTypes: 'all',
+  },
   // `legend-inline`: universal §1.9 boolean (decision #50) — the top-center-
   // legend data charts (bar/line/radar/scatter/function) render the title and
   // legend on one line; every other chart accepts it as a harmless no-op.
@@ -205,6 +602,7 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
     category: 'directive',
     gantt: ['boolean'],
     map: true,
+    chartTypes: 'all',
   },
 
   // ══════════════════════════════════════════════════════════
@@ -216,40 +614,69 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   // type. Categories route to the specializer-read sets in keywords.ts.
 
   // ── Gantt (extras beyond the option/boolean Sets) ────────
-  { token: 'era', category: 'directive' },
-  { token: 'marker', category: 'directive' },
-  { token: 'holiday', category: 'directive' },
+  {
+    token: 'era',
+    category: 'directive',
+    chartTypes: [
+      'bar',
+      'gantt',
+      'line',
+      'pie',
+      'polar-area',
+      'radar',
+      'timeline',
+    ],
+  },
+  { token: 'marker', category: 'directive', chartTypes: ['gantt', 'timeline'] },
+  { token: 'holiday', category: 'directive', chartTypes: ['gantt'] },
   // `workweek` is also the canonical weekday-window directive on clock and map
   // clock-cards (decision #48; `days` stays as the legacy alias).
-  { token: 'workweek', category: 'directive', map: true },
-  { token: 'no-dependencies', category: 'directive' },
+  {
+    token: 'workweek',
+    category: 'directive',
+    map: true,
+    chartTypes: ['clock', 'gantt', 'map'],
+  },
+  { token: 'no-dependencies', category: 'directive', chartTypes: ['gantt'] },
   // ── Tech-radar ───────────────────────────────────────────
-  { token: 'rings', category: 'directive' },
+  { token: 'rings', category: 'directive', chartTypes: ['tech-radar'] },
   // Blip listing is default-on everywhere (decision #48): `no-blip-legend`
   // suppresses it; `show-blip-legend` stays as the parse-accepted legacy no-op.
-  { token: 'no-blip-legend', category: 'directive' },
-  { token: 'show-blip-legend', category: 'directive' },
-  { token: 'trend', category: 'directive' },
+  {
+    token: 'no-blip-legend',
+    category: 'directive',
+    chartTypes: ['tech-radar'],
+  },
+  {
+    token: 'show-blip-legend',
+    category: 'directive',
+    chartTypes: ['tech-radar'],
+  },
+  { token: 'trend', category: 'directive', chartTypes: ['tech-radar'] },
   // ── Tags / shared directives ─────────────────────────────
-  { token: 'tags', category: 'directive' },
-  { token: 'import', category: 'directive' },
-  { token: 'hide', category: 'directive' },
+  { token: 'tags', category: 'directive', chartTypes: 'all' },
+  { token: 'import', category: 'directive', chartTypes: 'all' },
+  {
+    token: 'hide',
+    category: 'directive',
+    chartTypes: ['boxes-and-lines', 'kanban', 'org'],
+  },
   // `focus <name>`: org subtree drill-down (view-state, source-backed) — the
   // export re-roots to that person/team with the ancestor breadcrumb trail.
   // Org reads it via its own KNOWN_OPTIONS; registered here for highlighting.
-  { token: 'focus', category: 'directive' },
-  { token: 'direction', category: 'directive' },
+  { token: 'focus', category: 'directive', chartTypes: ['org'] },
+  { token: 'direction', category: 'directive', chartTypes: 'all' },
   // ── Clock ────────────────────────────────────────────────
   // The board's flat directives — highlight-only (the parser validates them
   // inline, no extractable Set). `no-title` + `direction` are already listed
   // above (shared). Values (analog is a bare flag; color-by's
   // place|work|daylight|time|none) highlight as plain tokens.
-  { token: 'analog', category: 'directive' },
-  { token: 'hours', category: 'directive' },
-  { token: 'days', category: 'directive' },
-  { token: 'no-sun', category: 'directive' },
-  { token: 'time-24', category: 'directive' },
-  { token: 'color-by', category: 'directive' },
+  { token: 'analog', category: 'directive', chartTypes: ['clock'] },
+  { token: 'hours', category: 'directive', chartTypes: ['clock'] },
+  { token: 'days', category: 'directive', chartTypes: ['clock'] },
+  { token: 'no-sun', category: 'directive', chartTypes: ['clock'] },
+  { token: 'time-24', category: 'directive', chartTypes: ['clock'] },
+  { token: 'color-by', category: 'directive', chartTypes: ['clock'] },
   // ── Boxes-and-lines ──────────────────────────────────────
   // `heat <Label> [low] [high]` is the value→colour ramp directive, but `heat`
   // is NOT registered as a directive keyword: it is dual-use with the `heat:`
@@ -259,72 +686,186 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   // as a property in both positions — exactly the treemap `heat` precedent.
   // Box values render by default since decision #48; `show-values` stays as
   // the parse-accepted legacy no-op (suppress with the shared `no-value`).
-  { token: 'show-values', category: 'directive' },
+  {
+    token: 'show-values',
+    category: 'directive',
+    chartTypes: ['boxes-and-lines'],
+  },
   // Treemap's legacy plural spelling of the same suppression (decision #48
   // made the shared singular `no-value` canonical). Registered so a legacy
   // document still highlights it as a directive rather than plain text.
-  { token: 'no-values', category: 'directive' },
+  { token: 'no-values', category: 'directive', chartTypes: ['treemap'] },
   // ── Swimlane ─────────────────────────────────────────────
-  { token: 'lane', category: 'directive' },
+  { token: 'lane', category: 'directive', chartTypes: ['swimlane'] },
   // ── ER ───────────────────────────────────────────────────
-  { token: 'notation', category: 'directive' },
+  { token: 'notation', category: 'directive', chartTypes: ['er'] },
   // ── Class ────────────────────────────────────────────────
-  { token: 'extends', category: 'directive' },
-  { token: 'implements', category: 'directive' },
-  { token: 'abstract', category: 'directive' },
-  { token: 'interface', category: 'directive' },
-  { token: 'enum', category: 'directive' },
+  { token: 'extends', category: 'directive', chartTypes: ['class'] },
+  { token: 'implements', category: 'directive', chartTypes: ['class'] },
+  { token: 'abstract', category: 'directive', chartTypes: ['class'] },
+  { token: 'interface', category: 'directive', chartTypes: ['class'] },
+  { token: 'enum', category: 'directive', chartTypes: ['class'] },
   // ── C4 ───────────────────────────────────────────────────
-  { token: 'containers', category: 'directive' },
-  { token: 'components', category: 'directive' },
-  { token: 'deployment', category: 'directive' },
-  { token: 'technology', category: 'directive' },
+  { token: 'containers', category: 'directive', chartTypes: ['c4'] },
+  { token: 'components', category: 'directive', chartTypes: ['c4'] },
+  { token: 'deployment', category: 'directive', chartTypes: ['c4'] },
+  { token: 'technology', category: 'directive', chartTypes: ['c4'] },
   // ── Infra (directives beyond the option/behavior Sets) ───
-  { token: 'sub-node-label', category: 'directive' },
-  { token: 'show-sub-node-count', category: 'directive' },
-  { token: 'animate', category: 'directive' },
+  { token: 'sub-node-label', category: 'directive', chartTypes: ['org'] },
+  { token: 'show-sub-node-count', category: 'directive', chartTypes: ['org'] },
+  { token: 'animate', category: 'directive', chartTypes: ['infra'] },
   // ── Sequence ─────────────────────────────────────────────
-  { token: 'activations', category: 'directive' },
-  { token: 'no-activations', category: 'directive' },
-  { token: 'autonumber', category: 'directive' },
+  { token: 'activations', category: 'directive', chartTypes: ['sequence'] },
+  { token: 'no-activations', category: 'directive', chartTypes: ['sequence'] },
+  { token: 'autonumber', category: 'directive', chartTypes: ['sequence'] },
   // ── Map element leaders (not in DIRECTIVE_SET) ───────────
-  { token: 'poi', category: 'directive' },
-  { token: 'route', category: 'directive' },
+  { token: 'poi', category: 'directive', chartTypes: ['map'] },
+  { token: 'route', category: 'directive', chartTypes: ['map'] },
   // ── Data charts ──────────────────────────────────────────
-  { token: 'stacked', category: 'directive' },
-  { token: 'no-name', category: 'directive' },
-  { token: 'no-value', category: 'directive' },
-  { token: 'no-percent', category: 'directive' },
-  { token: 'series', category: 'directive' },
-  { token: 'orientation', category: 'directive' },
-  { token: 'x-label', category: 'directive' },
-  { token: 'y-label', category: 'directive' },
-  { token: 'size-label', category: 'directive' },
-  { token: 'columns', category: 'directive' },
-  { token: 'rows', category: 'directive' },
-  { token: 'labels', category: 'directive' },
-  { token: 'rotate', category: 'directive' },
-  { token: 'scale', category: 'directive' },
-  { token: 'values', category: 'directive' },
-  { token: 'orientation-horizontal', category: 'directive' },
+  { token: 'stacked', category: 'directive', chartTypes: 'all' },
+  {
+    token: 'no-name',
+    category: 'directive',
+    chartTypes: ['funnel', 'pie', 'polar-area', 'scatter'],
+  },
+  {
+    token: 'no-value',
+    category: 'directive',
+    chartTypes: [
+      'bar',
+      'boxes-and-lines',
+      'funnel',
+      'goal',
+      'heatmap',
+      'line',
+      'pie',
+      'polar-area',
+      'radar',
+      'treemap',
+    ],
+  },
+  {
+    token: 'no-percent',
+    category: 'directive',
+    chartTypes: ['funnel', 'goal', 'pie', 'polar-area', 'treemap'],
+  },
+  {
+    token: 'series',
+    category: 'directive',
+    chartTypes: [
+      'bar',
+      'function',
+      'funnel',
+      'heatmap',
+      'line',
+      'pie',
+      'polar-area',
+      'radar',
+      'sankey',
+      'scatter',
+    ],
+  },
+  { token: 'orientation', category: 'directive', chartTypes: 'all' },
+  {
+    token: 'x-label',
+    category: 'directive',
+    chartTypes: ['bar', 'function', 'line', 'quadrant', 'scatter'],
+  },
+  {
+    token: 'y-label',
+    category: 'directive',
+    chartTypes: ['bar', 'function', 'line', 'quadrant', 'scatter'],
+  },
+  { token: 'size-label', category: 'directive', chartTypes: ['scatter'] },
+  { token: 'columns', category: 'directive', chartTypes: ['block', 'heatmap'] },
+  { token: 'rows', category: 'directive', chartTypes: 'all' },
+  { token: 'labels', category: 'directive', chartTypes: 'all' },
+  { token: 'rotate', category: 'directive', chartTypes: ['wordcloud'] },
+  { token: 'scale', category: 'directive', chartTypes: 'all' },
+  {
+    token: 'values',
+    category: 'directive',
+    chartTypes: ['pert', 'tech-radar'],
+  },
+  {
+    token: 'orientation-horizontal',
+    category: 'directive',
+    chartTypes: ['bar'],
+  },
   // ── Slope ────────────────────────────────────────────────
-  { token: 'period', category: 'directive' },
+  { token: 'period', category: 'directive', chartTypes: 'all' },
   // ── Quadrant ─────────────────────────────────────────────
-  { token: 'x-axis', category: 'directive' },
-  { token: 'y-axis', category: 'directive' },
-  { token: 'top-right', category: 'directive' },
-  { token: 'top-left', category: 'directive' },
-  { token: 'bottom-right', category: 'directive' },
-  { token: 'bottom-left', category: 'directive' },
+  { token: 'x-axis', category: 'directive', chartTypes: 'all' },
+  { token: 'y-axis', category: 'directive', chartTypes: 'all' },
+  {
+    token: 'top-right',
+    category: 'directive',
+    chartTypes: ['quadrant', 'tech-radar'],
+  },
+  {
+    token: 'top-left',
+    category: 'directive',
+    chartTypes: ['quadrant', 'tech-radar'],
+  },
+  {
+    token: 'bottom-right',
+    category: 'directive',
+    chartTypes: ['quadrant', 'tech-radar'],
+  },
+  {
+    token: 'bottom-left',
+    category: 'directive',
+    chartTypes: ['quadrant', 'tech-radar'],
+  },
   // ── Layout (cross-chart) ─────────────────────────────────
-  { token: 'direction-tb', category: 'directive' },
-  { token: 'direction-lr', category: 'directive' },
-  { token: 'orientation-vertical', category: 'directive' },
+  {
+    token: 'direction-tb',
+    category: 'directive',
+    chartTypes: [
+      'boxes-and-lines',
+      'c4',
+      'clock',
+      'flowchart',
+      'infra',
+      'org',
+      'pert',
+      'sitemap',
+      'state',
+      'swimlane',
+      'version-control',
+    ],
+  },
+  {
+    token: 'direction-lr',
+    category: 'directive',
+    chartTypes: [
+      'boxes-and-lines',
+      'c4',
+      'clock',
+      'flowchart',
+      'infra',
+      'org',
+      'pert',
+      'sitemap',
+      'state',
+      'swimlane',
+      'version-control',
+    ],
+  },
+  { token: 'orientation-vertical', category: 'directive', chartTypes: 'all' },
   // ── Pyramid ──────────────────────────────────────────────
-  { token: 'inverted', category: 'directive' },
+  { token: 'inverted', category: 'directive', chartTypes: ['pyramid'] },
   // ── Color / notes (cross-chart) ──────────────────────────
-  { token: 'color', category: 'directive' },
-  { token: 'no-notes', category: 'directive' },
+  {
+    token: 'color',
+    category: 'directive',
+    chartTypes: 'all',
+  },
+  {
+    token: 'no-notes',
+    category: 'directive',
+    chartTypes: ['flowchart', 'goal', 'state', 'whiteboard'],
+  },
   // ── Emphasis family (§1.11, decision #49) ────────────────
   // `highlight <Name>…` / `dim <Name>…` — the figure/ground axis, orthogonal
   // to color (§1.5) and to the chart-wide `fill-*` family (§1.9). Both are
@@ -337,81 +878,128 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   // tokens are registered together so the whole family lights up at once.
   //
   // Supported on `sankey` and `family` today; every further chart type is a
-  // separate decision. Registering them globally is correct regardless: the
-  // Lezer specializer is context-free (it cannot know the chart type), and the
-  // same is already true of every other chart-scoped token here.
-  { token: 'highlight', category: 'directive' },
-  { token: 'dim', category: 'directive' },
+  // separate decision, made by adding it to `chartTypes` below (#1734).
+  {
+    token: 'highlight',
+    category: 'directive',
+    chartTypes: ['family', 'sankey'],
+  },
+  { token: 'dim', category: 'directive', chartTypes: ['family', 'sankey'] },
   // ── RACI ─────────────────────────────────────────────────
-  { token: 'roles', category: 'directive' },
+  { token: 'roles', category: 'directive', chartTypes: ['raci'] },
   // ── Cycle ────────────────────────────────────────────────
-  { token: 'direction-counterclockwise', category: 'directive' },
-  { token: 'circle-nodes', category: 'directive' },
+  {
+    token: 'direction-counterclockwise',
+    category: 'directive',
+    chartTypes: ['cycle'],
+  },
+  { token: 'circle-nodes', category: 'directive', chartTypes: ['cycle'] },
   // ── Journey-map ──────────────────────────────────────────
-  { token: 'persona', category: 'directive' },
+  { token: 'persona', category: 'directive', chartTypes: ['journey-map'] },
   // ── Function ─────────────────────────────────────────────
-  { token: 'x', category: 'directive' },
-  { token: 'fill', category: 'directive' },
+  { token: 'x', category: 'directive', chartTypes: ['function'] },
+  {
+    token: 'fill',
+    category: 'directive',
+    chartTypes: ['function', 'line', 'whiteboard'],
+  },
   // ── Wordcloud ────────────────────────────────────────────
-  { token: 'max', category: 'directive' },
-  { token: 'size', category: 'directive' },
+  { token: 'max', category: 'directive', chartTypes: ['wordcloud'] },
+  {
+    token: 'size',
+    category: 'directive',
+    chartTypes: ['whiteboard', 'wordcloud'],
+  },
   // ── Arc ──────────────────────────────────────────────────
-  { token: 'order', category: 'directive' },
+  { token: 'order', category: 'directive', chartTypes: ['arc'] },
   // ── PERT ─────────────────────────────────────────────────
-  { token: 'time-unit', category: 'directive' },
-  { token: 'default-confidence', category: 'directive' },
-  { token: 'node-detail', category: 'directive' },
-  { token: 'trials', category: 'directive' },
-  { token: 'seed', category: 'directive' },
-  { token: 'scrubber-trials', category: 'directive' },
+  { token: 'time-unit', category: 'directive', chartTypes: ['pert'] },
+  { token: 'default-confidence', category: 'directive', chartTypes: ['pert'] },
+  { token: 'node-detail', category: 'directive', chartTypes: ['pert'] },
+  { token: 'trials', category: 'directive', chartTypes: ['pert'] },
+  { token: 'seed', category: 'directive', chartTypes: ['bracket', 'pert'] },
+  { token: 'scrubber-trials', category: 'directive', chartTypes: ['pert'] },
   // `start-date` is also gantt's canonical project-start option (decision #48;
   // bare `start` above stays as the legacy alias).
-  { token: 'start-date', category: 'directive', gantt: ['option'] },
-  { token: 'end-date', category: 'directive' },
+  {
+    token: 'start-date',
+    category: 'directive',
+    gantt: ['option'],
+    chartTypes: ['gantt', 'pert'],
+  },
+  { token: 'end-date', category: 'directive', chartTypes: ['pert'] },
   // ── Goal ─────────────────────────────────────────────────
   // Mode flags, value-key leaders, and opt-outs. `now`/`target` collide with
   // label prose ("start now", "on target"), but the arrow-label demotion pass
   // (see highlight-api LABEL_WORD_NODES) treats any keyword-bearing label as
   // text and demotes them, so they highlight only as line leaders.
-  { token: 'thermometer', category: 'directive' },
-  { token: 'gauge', category: 'directive' },
-  { token: 'now', category: 'directive' },
-  { token: 'target', category: 'directive' },
-  { token: 'no-note', category: 'directive' },
-  { token: 'no-auto-color', category: 'directive' },
+  { token: 'thermometer', category: 'directive', chartTypes: ['goal'] },
+  { token: 'gauge', category: 'directive', chartTypes: ['goal'] },
+  {
+    token: 'now',
+    category: 'directive',
+    chartTypes: ['event-line', 'goal', 'pert'],
+  },
+  { token: 'target', category: 'directive', chartTypes: ['countdown', 'goal'] },
+  { token: 'no-note', category: 'directive', chartTypes: ['goal'] },
+  { token: 'no-auto-color', category: 'directive', chartTypes: ['goal'] },
 
   // ── Control-flow + wireframe element keywords (CONTROL) ──
-  { token: 'if', category: 'control' },
-  { token: 'else', category: 'control' },
-  { token: 'loop', category: 'control' },
-  { token: 'parallel', category: 'control' },
-  { token: 'note', category: 'control' },
-  { token: 'nav', category: 'control' },
-  { token: 'tabs', category: 'control' },
-  { token: 'table', category: 'control' },
-  { token: 'image', category: 'control' },
-  { token: 'modal', category: 'control' },
-  { token: 'skeleton', category: 'control' },
-  { token: 'alert', category: 'control' },
-  { token: 'progress', category: 'control' },
-  { token: 'mobile', category: 'control' },
+  { token: 'if', category: 'control', chartTypes: ['sequence'] },
+  { token: 'else', category: 'control', chartTypes: ['sequence'] },
+  { token: 'loop', category: 'control', chartTypes: ['sequence'] },
+  { token: 'parallel', category: 'control', chartTypes: ['gantt', 'sequence'] },
+  {
+    token: 'note',
+    category: 'control',
+    chartTypes: [
+      'boxes-and-lines',
+      'class',
+      'countdown',
+      'er',
+      'flowchart',
+      'goal',
+      'sequence',
+      'state',
+      'swimlane',
+      'version-control',
+      'whiteboard',
+    ],
+  },
+  { token: 'nav', category: 'control', chartTypes: ['wireframe'] },
+  { token: 'tabs', category: 'control', chartTypes: ['wireframe'] },
+  { token: 'table', category: 'control', chartTypes: ['wireframe'] },
+  {
+    token: 'image',
+    category: 'control',
+    chartTypes: ['whiteboard', 'wireframe'],
+  },
+  { token: 'modal', category: 'control', chartTypes: ['wireframe'] },
+  { token: 'skeleton', category: 'control', chartTypes: ['wireframe'] },
+  { token: 'alert', category: 'control', chartTypes: ['wireframe'] },
+  {
+    token: 'progress',
+    category: 'control',
+    chartTypes: ['gantt', 'wireframe'],
+  },
+  { token: 'mobile', category: 'control', chartTypes: ['wireframe'] },
   // Whiteboard element leaders (§39). `image` is shared with wireframe above
   // and `text` stays an ER modifier; `database` / `queue` are left plain
   // because sequence uses them as values, not line leaders.
-  { token: 'rectangle', category: 'control' },
-  { token: 'ellipse', category: 'control' },
-  { token: 'arrow', category: 'control' },
-  { token: 'ink', category: 'control' },
+  { token: 'rectangle', category: 'control', chartTypes: ['whiteboard'] },
+  { token: 'ellipse', category: 'control', chartTypes: ['whiteboard'] },
+  { token: 'arrow', category: 'control', chartTypes: ['whiteboard'] },
+  { token: 'ink', category: 'control', chartTypes: ['whiteboard'] },
 
   // ── Kanban status keywords (STATUS) ──────────────────────
-  { token: 'na', category: 'status' },
-  { token: 'todo', category: 'status' },
-  { token: 'wip', category: 'status' },
-  { token: 'done', category: 'status' },
-  { token: 'blocked', category: 'status' },
-  { token: 'in-progress', category: 'status' },
-  { token: 'backlog', category: 'status' },
-  { token: 'ready', category: 'status' },
+  { token: 'na', category: 'status', chartTypes: ['kanban'] },
+  { token: 'todo', category: 'status', chartTypes: ['kanban'] },
+  { token: 'wip', category: 'status', chartTypes: ['kanban'] },
+  { token: 'done', category: 'status', chartTypes: ['kanban'] },
+  { token: 'blocked', category: 'status', chartTypes: ['kanban'] },
+  { token: 'in-progress', category: 'status', chartTypes: ['kanban'] },
+  { token: 'backlog', category: 'status', chartTypes: ['kanban'] },
+  { token: 'ready', category: 'status', chartTypes: ['kanban'] },
 
   // ── Modifiers + ER column types/modifiers (MODIFIER) ─────
   // `collapsed` is the bare trailing group-line flag made canonical by
@@ -419,37 +1007,41 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   // MODIFIER rather than a colon key: the legacy `collapsed: true` form still
   // parses and still highlights (as `modifier` instead of `propertyName`),
   // whereas leaving it colon-only left the canonical bare form as plain text.
-  { token: 'collapsed', category: 'modifier' },
-  { token: 'as', category: 'modifier' },
-  { token: 'alias', category: 'modifier' },
-  { token: 'aka', category: 'modifier' },
-  { token: 'position', category: 'modifier' },
-  { token: 'default', category: 'modifier' },
-  { token: 'pk', category: 'modifier' },
-  { token: 'fk', category: 'modifier' },
-  { token: 'nullable', category: 'modifier' },
-  { token: 'unique', category: 'modifier' },
-  { token: 'int', category: 'modifier' },
-  { token: 'varchar', category: 'modifier' },
-  { token: 'text', category: 'modifier' },
-  { token: 'boolean', category: 'modifier' },
-  { token: 'date', category: 'modifier' },
-  { token: 'timestamp', category: 'modifier' },
-  { token: 'float', category: 'modifier' },
-  { token: 'decimal', category: 'modifier' },
+  { token: 'collapsed', category: 'modifier', chartTypes: 'all' },
+  { token: 'as', category: 'modifier', chartTypes: 'all' },
+  { token: 'alias', category: 'modifier', chartTypes: 'all' },
+  { token: 'aka', category: 'modifier', chartTypes: 'all' },
+  { token: 'position', category: 'modifier', chartTypes: 'all' },
+  { token: 'default', category: 'modifier', chartTypes: 'all' },
+  { token: 'pk', category: 'modifier', chartTypes: ['er'] },
+  { token: 'fk', category: 'modifier', chartTypes: ['er'] },
+  { token: 'nullable', category: 'modifier', chartTypes: ['er'] },
+  { token: 'unique', category: 'modifier', chartTypes: ['er'] },
+  { token: 'int', category: 'modifier', chartTypes: ['class', 'er'] },
+  { token: 'varchar', category: 'modifier', chartTypes: ['class', 'er'] },
+  {
+    token: 'text',
+    category: 'modifier',
+    chartTypes: ['class', 'er', 'whiteboard'],
+  },
+  { token: 'boolean', category: 'modifier', chartTypes: ['class', 'er'] },
+  { token: 'date', category: 'modifier', chartTypes: ['class', 'er'] },
+  { token: 'timestamp', category: 'modifier', chartTypes: ['class', 'er'] },
+  { token: 'float', category: 'modifier', chartTypes: ['class', 'er'] },
+  { token: 'decimal', category: 'modifier', chartTypes: ['class', 'er'] },
 
   // ── Bracket ──────────────────────────────────────────────
   // `beats` / `vs` are the infix match keywords; the rest are line directives.
   // (`seed` and `no-legend` already appear above — shared, not re-listed.)
-  { token: 'beats', category: 'control' },
-  { token: 'vs', category: 'control' },
-  { token: 'rounds', category: 'directive' },
-  { token: 'accent', category: 'directive' },
-  { token: 'no-round', category: 'modifier' },
-  { token: 'no-rounds', category: 'modifier' },
-  { token: 'single-elim', category: 'modifier' },
-  { token: 'double-elim', category: 'modifier' },
-  { token: 'seeded', category: 'modifier' },
+  { token: 'beats', category: 'control', chartTypes: ['bracket'] },
+  { token: 'vs', category: 'control', chartTypes: ['bracket'] },
+  { token: 'rounds', category: 'directive', chartTypes: ['bracket'] },
+  { token: 'accent', category: 'directive', chartTypes: 'all' },
+  { token: 'no-round', category: 'modifier', chartTypes: ['bracket'] },
+  { token: 'no-rounds', category: 'modifier', chartTypes: ['bracket'] },
+  { token: 'single-elim', category: 'modifier', chartTypes: ['bracket'] },
+  { token: 'double-elim', category: 'modifier', chartTypes: ['bracket'] },
+  { token: 'seeded', category: 'modifier', chartTypes: ['bracket'] },
 
   // ── Live link (§38) ──────────────────────────────────────
   // The pointer type's one directive. Registered so it highlights and
@@ -457,7 +1049,7 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   // "the ordinary DGMO directive shape", and an unregistered `url` would make
   // that sentence false in the editor: `editor/tokens.ts` specializes only
   // against the keyword registries, so it would render as plain identifier text.
-  { token: 'url', category: 'directive' },
+  { token: 'url', category: 'directive', chartTypes: ['live-link'] },
 ];
 
 // ============================================================
@@ -520,6 +1112,30 @@ export const REGISTRY_STATUS_TOKENS = tokensWhere(
 export const REGISTRY_MODIFIER_TOKENS = tokensWhere(
   (e) => e.category === 'modifier' && !e.colonKey && !e.noHighlight
 );
+/**
+ * Token → the chart types it highlights in as a bare keyword, or `'all'`
+ * (#1734). A token listed in several entries takes the union; one `'all'`
+ * entry makes it global. Read by the editor's keyword specializer.
+ */
+export const REGISTRY_TOKEN_CHART_TYPES: ReadonlyMap<
+  string,
+  ReadonlySet<string> | 'all'
+> = (() => {
+  const out = new Map<string, Set<string> | 'all'>();
+  for (const e of DIRECTIVES_REGISTRY) {
+    const prev = out.get(e.token);
+    if (prev === 'all') continue;
+    if (e.chartTypes === 'all') {
+      out.set(e.token, 'all');
+      continue;
+    }
+    const set = prev ?? new Set<string>();
+    for (const t of e.chartTypes) set.add(t);
+    out.set(e.token, set);
+  }
+  return out;
+})();
+
 /** Colon `key: value` tokens that highlight as propertyName (→ ATTRIBUTE_KEYS). */
 export const REGISTRY_COLON_KEY_TOKENS = tokensWhere((e) => !!e.colonKey);
 /** Parser-accepted tokens deliberately excluded from every highlight set. */

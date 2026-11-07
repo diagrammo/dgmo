@@ -9,8 +9,11 @@ export const fixture: HighlightFixture = {
   // directives-registry.ts exists to prevent.
   source: `live-link Platform architecture
 url https://online.diagrammo.app/d/dgm_7f2a91
+Review the roles list
 `,
   assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'roles', role: 'default' },
     { text: 'live-link', role: 'chartType' },
     { text: 'url', role: 'keyword' },
   ],

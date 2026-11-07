@@ -10,8 +10,11 @@ region-heat Sales
 
 California heat: 92
 poi Denver label: HQ
+Review the roles list
 `,
   assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'roles', role: 'default' },
     { text: 'map', role: 'chartType' },
     { text: 'heat', role: 'propertyName' },
     { text: ':', role: 'separator' },

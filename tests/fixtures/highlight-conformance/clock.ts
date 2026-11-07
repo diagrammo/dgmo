@@ -13,6 +13,11 @@ days mon-fri
 
 London as UK team
 New York as Dani (NY)
+Review the roles list
 `,
-  assertions: [{ text: 'clock', role: 'chartType' }],
+  assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'roles', role: 'default' },
+    { text: 'clock', role: 'chartType' },
+  ],
 };

@@ -16,6 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The editor colours a chart-specific keyword only in its own chart type.**
+  A word like `roles` (raci) or `hours` (clock) was coloured as a keyword in
+  every diagram, so a kanban card reading "Review the roles model" showed one
+  word in keyword colour. The highlighter now reads the chart type from the
+  first line. A diagram whose first line names no chart type is coloured as
+  before.
+
 - **A kanban card holds its title in Arabic and at any length.** Arabic text
   is now measured at the width it draws, so a card sized from it no longer
   lets the title run past its edge. A title longer than the card's limit

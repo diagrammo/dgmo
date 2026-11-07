@@ -16,8 +16,11 @@ active-tag X
 
 Task1 2bd
 Task2 3bd
+Review the roles list
 `,
   assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'roles', role: 'default' },
     { text: 'gantt', role: 'chartType' },
     { text: 'start', role: 'keyword' },
     { text: 'today-marker', role: 'keyword' },

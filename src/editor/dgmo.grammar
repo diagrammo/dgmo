@@ -83,6 +83,8 @@ contentPart {
   }
 }
 
+@context chartTypeContext from "./tokens"
+
 @external specialize {Identifier} specializeKeyword from "./tokens" {
   ChartType, TagKeyword, DirectiveKeyword, ControlKeyword, ModifierKeyword
 }

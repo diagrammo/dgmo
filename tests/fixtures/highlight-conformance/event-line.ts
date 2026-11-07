@@ -12,8 +12,11 @@ tag Genre as g
 
 2012-02-05 XLVI  g: Pop
   Madonna with LMFAO and Nicki Minaj.
+  Review the roles list
 `,
   assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'roles', role: 'default' },
     { text: 'event-line', role: 'chartType' },
     { text: 'tag', role: 'definitionKeyword' },
   ],

@@ -11,8 +11,11 @@ active-tag Priority
   Task | priority: High
 [Doing]
   Other Task
+  Review the roles list
 `,
   assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'roles', role: 'default' },
     { text: 'kanban', role: 'chartType' },
     { text: 'hide', role: 'keyword' },
     { text: 'active-tag', role: 'keyword' },

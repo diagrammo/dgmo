@@ -8,6 +8,11 @@ export const fixture: HighlightFixture = {
 User
   + name: string
   + age: int
+  Review the roles list
 `,
-  assertions: [{ text: 'class', role: 'chartType' }],
+  assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'roles', role: 'default' },
+    { text: 'class', role: 'chartType' },
+  ],
 };

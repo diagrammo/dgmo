@@ -15,8 +15,11 @@ develop from main
 
 main
   merge develop tag: v1.0.0
+  Review the roles list
 `,
   assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'roles', role: 'default' },
     { text: 'version-control', role: 'chartType' },
     { text: 'direction', role: 'keyword' },
   ],

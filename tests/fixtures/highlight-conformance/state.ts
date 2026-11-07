@@ -9,8 +9,11 @@ fill-solid
 
 [*] -> Pending
 Pending -submit-> Validating
+Review the roles list
 `,
   assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'roles', role: 'default' },
     { text: 'state', role: 'chartType' },
     { text: 'direction-tb', role: 'keyword' },
     { text: 'fill-solid', role: 'keyword' },

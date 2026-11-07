@@ -15,8 +15,11 @@ persona Tech-Savvy Shopper
     pain: Too many options
 [Purchase]
   Add to cart | score: 3
+  Review the roles list
 `,
   assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'roles', role: 'default' },
     { text: 'journey-map', role: 'chartType' },
     { text: 'persona', role: 'keyword' },
     { text: 'score', role: 'propertyName' },

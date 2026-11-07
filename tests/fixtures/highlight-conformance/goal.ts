@@ -11,6 +11,11 @@ thermometer
 
 now 6400
 target 10000
+Review the roles list
 `,
-  assertions: [{ text: 'goal', role: 'chartType' }],
+  assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'roles', role: 'default' },
+    { text: 'goal', role: 'chartType' },
+  ],
 };

@@ -12,8 +12,11 @@ no-value
 
 Q1 100
 Q2 200
+Review the roles list
 `,
   assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'roles', role: 'default' },
     { text: 'line', role: 'chartType' },
     { text: 'series', role: 'keyword' },
     { text: 'x-label', role: 'keyword' },

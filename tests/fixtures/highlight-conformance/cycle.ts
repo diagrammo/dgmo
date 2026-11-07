@@ -13,8 +13,11 @@ Observe | color: blue, span: 2
 Orient | color: green
 Decide | color: orange
 Act | color: red
+Review the roles list
 `,
   assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'roles', role: 'default' },
     { text: 'cycle', role: 'chartType' },
     { text: 'direction-counterclockwise', role: 'keyword' },
     { text: 'circle-nodes', role: 'keyword' },

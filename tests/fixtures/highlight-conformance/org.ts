@@ -13,8 +13,11 @@ active-tag Department
 CEO
   VP Engineering
     Team Lead A
+    Review the roles list
 `,
   assertions: [
+    // A keyword in another chart type stays text here (#1734).
+    { text: 'roles', role: 'default' },
     { text: 'org', role: 'chartType' },
     { text: 'direction-tb', role: 'keyword' },
     { text: 'sub-node-label', role: 'keyword' },
