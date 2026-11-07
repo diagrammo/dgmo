@@ -157,6 +157,13 @@ export interface DgmoBlockOptions {
    * fetches it.
    */
   mapData?: MapDataSource;
+  /**
+   * Whether fold toggles answer a click on this surface (#1741). Default:
+   * true. A host with no fold handler passes `false`, and each SVG is drawn
+   * without the toggles' pointer cursor, hover cue and button markup; the
+   * collapse bar stays. Forwarded to `render()`.
+   */
+  interactiveFolds?: boolean;
   /** Receives palette-fallback warnings. Default: console.warn. */
   onWarn?: (message: string) => void;
 }
@@ -197,6 +204,7 @@ function resolveBlockOptions(opts: DgmoBlockOptions): ResolvedBlockOptions {
     dataAttributes: opts.dataAttributes ?? {},
     title: opts.title,
     mapData: opts.mapData,
+    interactiveFolds: opts.interactiveFolds ?? true,
 
     onWarn: opts.onWarn ?? ((message) => console.warn(message)),
   };
@@ -271,6 +279,7 @@ export async function renderDgmoBlock(
       ...(override !== undefined && { paletteOverride: override.id }),
       theme,
       ...(opts.mapData !== undefined ? { mapData: opts.mapData } : {}),
+      ...(!opts.interactiveFolds && { interactiveFolds: false }),
     });
     chartType = r.chartType;
     diagnostics.push(...r.diagnostics);

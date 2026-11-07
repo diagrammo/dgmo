@@ -518,3 +518,27 @@ describe('BLOCK_CSS ↔ role-style parity (drift guard)', () => {
     );
   });
 });
+
+describe('renderDgmoBlock — interactiveFolds (#1741)', () => {
+  const MINDMAP =
+    'mindmap Crew\n\nCaptain\n  Mate collapsed\n    Bosun\n  Cook\n';
+
+  it('default: both colour modes carry the toggle button markup and cue', async () => {
+    const { html } = await renderDgmoBlock(MINDMAP);
+    expect(html.match(/role="button"/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(html).toContain('dgmo-collapse-bar-preview');
+  });
+
+  it('false: both colour modes keep the bar and lose the button', async () => {
+    const { html } = await renderDgmoBlock(MINDMAP, {
+      interactiveFolds: false,
+    });
+    expect(html).toContain('class="dgmo-light"');
+    expect(html).toContain('class="dgmo-dark"');
+    expect(html.match(/dgmo-collapse-bar"/g)?.length).toBe(2);
+    expect(html).toContain('data-node-toggle=');
+    expect(html).not.toContain('role="button"');
+    expect(html).not.toContain('aria-expanded');
+    expect(html).not.toContain('dgmo-collapse-bar-preview');
+  });
+});

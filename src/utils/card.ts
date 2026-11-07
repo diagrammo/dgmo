@@ -301,3 +301,54 @@ export function injectToggleCue(svg: string, theme?: string): string {
   }
   return `${svg.slice(0, at)}<style>${css}</style>${svg.slice(at)}`;
 }
+
+const TOGGLE_OPEN_TAG =
+  /<[a-zA-Z][\w:-]*\b(?=[^>]*\sdata-(?:node|group|section|note)-toggle=)[^>]*>/g;
+const PREVIEW_BAR =
+  /<rect\b[^>]*\bdgmo-collapse-bar-preview\b[^>]*>(?:<\/rect>)?/g;
+
+/**
+ * Take the fold AFFORDANCE out of a rendered SVG and keep the fold INFORMATION
+ * (#1741): for a host where a click on a toggle does nothing, a pointer
+ * cursor, a hover preview and a `button` role all promise an action that is
+ * not there. Removes, on every toggle element, `role="button"`,
+ * `aria-expanded`, `tabindex` and a `cursor` attribute or style, drops the verb
+ * from an action-worded `aria-label` ("Collapse note" → "Note"), and removes every expanded
+ * bar preview with the clip path only it used. Keeps the solid collapse bar,
+ * `data-line-number` and the toggle attributes themselves. `render()` applies
+ * it under `interactiveFolds: false`, which also skips {@link toggleCueCss}.
+ */
+export function stripFoldAffordance(svg: string): string {
+  if (!TOGGLE_ATTRS.some((a) => svg.includes(`${a}=`))) return svg;
+  const clipIds = new Set<string>();
+  let out = svg.replace(PREVIEW_BAR, (rect) => {
+    const id = /clip-path="url\(#([^)"]+)\)"/.exec(rect)?.[1];
+    if (id) clipIds.add(id);
+    return '';
+  });
+  for (const id of clipIds) {
+    if (out.includes(`url(#${id})`)) continue;
+    const esc = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    out = out.replace(
+      new RegExp(`<clipPath\\b[^>]*\\sid="${esc}"[^>]*>[\\s\\S]*?</clipPath>`),
+      ''
+    );
+  }
+  return out.replace(TOGGLE_OPEN_TAG, (tag) =>
+    tag
+      .replace(
+        /\s(?:role="button"|aria-expanded="[^"]*"|tabindex="[^"]*"|cursor="[^"]*")/g,
+        ''
+      )
+      // "Collapse group Fulfillment" names an action the page cannot take;
+      // the thing itself is still a group (state groups, notes).
+      .replace(
+        /(\saria-label=")(?:Collapse|Expand) (\w)/,
+        (_m, head: string, first: string) => head + first.toUpperCase()
+      )
+      .replace(/(\sstyle=")([^"]*)"/, (_m, head: string, body: string) => {
+        const rest = body.replace(/\s*cursor\s*:\s*[^;"]*;?/g, '').trim();
+        return rest ? `${head}${rest}"` : '';
+      })
+  );
+}

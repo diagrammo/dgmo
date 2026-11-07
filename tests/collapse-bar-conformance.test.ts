@@ -324,6 +324,75 @@ describe('the baked toggle cue (#1741)', () => {
   });
 });
 
+describe('interactiveFolds: false — the bar without the button (#1741)', () => {
+  async function both(source: string, viewState?: StaticCase['viewState']) {
+    const opts = {
+      theme: 'light' as const,
+      palette: 'nord',
+      ...(viewState && { viewState }),
+    };
+    const on = (await render(source, opts)).svg;
+    const off = (await render(source, { ...opts, interactiveFolds: false }))
+      .svg;
+    const parse = (svg: string) =>
+      new win.DOMParser().parseFromString(svg, 'image/svg+xml');
+    return { on, off, onDoc: parse(on), offDoc: parse(off) };
+  }
+
+  for (const [name, c] of Object.entries(STATIC)) {
+    if (name === 'wireframe') continue;
+    for (const [state, source] of [
+      ['folded', c.folded],
+      ['expanded', c.expanded],
+    ] as const) {
+      it(`${name} — ${state}`, async () => {
+        const { off, onDoc, offDoc } = await both(
+          source,
+          state === 'folded' ? c.viewState : undefined
+        );
+        const offToggles = [...offDoc.querySelectorAll(TOGGLE_SELECTOR)];
+        // Positive control: the toggles are still there to inspect.
+        expect(offToggles.length).toBe(
+          onDoc.querySelectorAll(TOGGLE_SELECTOR).length
+        );
+        expect(offToggles.length, name).toBeGreaterThan(0);
+        for (const t of offToggles) {
+          const at = t.outerHTML.slice(0, 120);
+          expect(t.hasAttribute('role'), at).toBe(false);
+          expect(t.hasAttribute('aria-expanded'), at).toBe(false);
+          expect(t.hasAttribute('tabindex'), at).toBe(false);
+          expect(t.hasAttribute('cursor'), at).toBe(false);
+          expect(t.getAttribute('style') ?? '', at).not.toMatch(/cursor/);
+          expect(t.getAttribute('aria-label') ?? '', at).not.toMatch(
+            /^(Collapse|Expand) /
+          );
+          expect(t.hasAttribute('data-line-number'), at).toBe(true);
+        }
+        expect(off).not.toContain(PREVIEW);
+        expect(off).not.toContain(':hover>');
+        expect(off).not.toContain('{cursor:pointer}');
+        // The bar is information and stays.
+        expect(offDoc.querySelectorAll(BAR).length).toBe(
+          onDoc.querySelectorAll(BAR).length
+        );
+        // Every clip path left behind is still used by something.
+        for (const cp of offDoc.querySelectorAll('clipPath')) {
+          expect(off).toContain(`url(#${cp.getAttribute('id')})`);
+        }
+      });
+    }
+  }
+
+  it('leaves an SVG with no toggle byte-for-byte alone', async () => {
+    const source = 'org Crew\n\nCaptain';
+    const on = (await render(source, { theme: 'light' })).svg;
+    const off = (
+      await render(source, { theme: 'light', interactiveFolds: false })
+    ).svg;
+    expect(off).toBe(on);
+  });
+});
+
 describe('no renderer draws its own collapse bar (#1741)', () => {
   it('only utils/card.ts creates an element with a collapse-bar class', () => {
     const root = join(__dirname, '../src');

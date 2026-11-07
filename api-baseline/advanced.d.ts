@@ -423,6 +423,15 @@ declare function render(source: string, options?: {
      *  entry), so it keeps its JS emphasis; pass `false` to opt out. */
     bakeHover?: boolean;
     /**
+     * Whether a fold toggle in this SVG answers a click (#1741). Default ON.
+     * Pass `false` for a host that shows the SVG without fold handling, such
+     * as a docs site that did not opt in to folding: the SVG then has no
+     * pointer cursor, hover cue or bar preview on a toggle, and no
+     * `role="button"` / `aria-expanded` / `tabindex`. The collapse bar on a
+     * folded thing, `data-line-number` and the `data-*-toggle` attributes stay.
+     */
+    interactiveFolds?: boolean;
+    /**
      * Canvas to draw onto, in px. Defaults to the 1200x800 export sheet.
      *
      * Fitting that sheet to a narrow column inherits its ASPECT, which is how a

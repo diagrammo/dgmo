@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`interactiveFolds: false` draws the fold bar without the button.** A new
+  option on `render()` and on the block renderer (`renderDgmoBlock` from
+  `@diagrammo/dgmo/block`), default `true`. Pass `false` where a click on a
+  fold toggle does nothing, such as a docs site that has not turned folding
+  on. The SVG then has no toggle cue (pointer cursor, hover highlight, bar
+  preview), and its toggles lose `role="button"`, `aria-expanded`, `tabindex`
+  and an action-worded label ("Collapse note" reads "Note"). The collapse bar
+  on a folded thing stays, with `data-line-number` and the `data-*-toggle`
+  attributes. An SVG with no toggle is unchanged.
 - **Every foldable chart type now takes a `collapsed` source marker.** Add the
   bare `collapsed` flag (or `collapsed: true`) to a sitemap page or
   `[Container]`, a boxes-and-lines `[Group]`, a timeline `[Lane]`, a

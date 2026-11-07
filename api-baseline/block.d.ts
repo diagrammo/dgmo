@@ -153,6 +153,13 @@ interface DgmoBlockOptions {
      * fetches it.
      */
     mapData?: MapDataSource;
+    /**
+     * Whether fold toggles answer a click on this surface (#1741). Default:
+     * true. A host with no fold handler passes `false`, and each SVG is drawn
+     * without the toggles' pointer cursor, hover cue and button markup; the
+     * collapse bar stays. Forwarded to `render()`.
+     */
+    interactiveFolds?: boolean;
     /** Receives palette-fallback warnings. Default: console.warn. */
     onWarn?: (message: string) => void;
 }

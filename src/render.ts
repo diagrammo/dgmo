@@ -2,7 +2,7 @@ import { renderForExport, resolveArcChordOverride } from './d3';
 import { renderDataChartD3 } from './charts-d3';
 import { fitSvgToContent } from './utils/export-fit';
 import { injectHoverStyles } from './utils/hover-styles';
-import { injectToggleCue } from './utils/card';
+import { injectToggleCue, stripFoldAffordance } from './utils/card';
 import { applyRootA11y, applyRootDesc } from './utils/root-a11y';
 import { summarizeDiagram } from './utils/diagram-summary';
 import { REGISTRY_BY_ID } from './chart-type-registry';
@@ -223,6 +223,15 @@ export async function render(
      *  app renders its live preview through direct renderer calls (not this
      *  entry), so it keeps its JS emphasis; pass `false` to opt out. */
     bakeHover?: boolean;
+    /**
+     * Whether a fold toggle in this SVG answers a click (#1741). Default ON.
+     * Pass `false` for a host that shows the SVG without fold handling, such
+     * as a docs site that did not opt in to folding: the SVG then has no
+     * pointer cursor, hover cue or bar preview on a toggle, and no
+     * `role="button"` / `aria-expanded` / `tabindex`. The collapse bar on a
+     * folded thing, `data-line-number` and the `data-*-toggle` attributes stay.
+     */
+    interactiveFolds?: boolean;
     /**
      * Canvas to draw onto, in px. Defaults to the 1200x800 export sheet.
      *
@@ -448,12 +457,17 @@ export async function render(
       applyRootA11y(
         // The fold cue (#1741) rides the same gate: a host that opts out of
         // baked hover opts out of every baked hover rule.
-        bakeHover
-          ? injectToggleCue(
-              injectHoverStyles(svg, chartType, { bakeHover }),
-              theme
+        // `interactiveFolds: false` drops it, and the toggles' button markup.
+        options?.interactiveFolds === false
+          ? stripFoldAffordance(
+              injectHoverStyles(svg, chartType, { bakeHover })
             )
-          : svg,
+          : bakeHover
+            ? injectToggleCue(
+                injectHoverStyles(svg, chartType, { bakeHover }),
+                theme
+              )
+            : svg,
         chartType,
         diagramTitle(content, parsed.chartType)
       ),
