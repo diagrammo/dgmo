@@ -657,6 +657,16 @@ export { parsePyramid } from './pyramid/parser';
 export { renderPyramid, renderPyramidForExport } from './pyramid/renderer';
 export type { ParsedPyramid, PyramidLayer } from './pyramid/types';
 
+export { parseSwot } from './swot/parser';
+export { renderSwot } from './swot/renderer';
+export type { SwotRenderOptions } from './swot/renderer';
+export type {
+  ParsedSwot,
+  SwotItem,
+  SwotSection,
+  SwotSectionKey,
+} from './swot/types';
+
 export { parseEventLine } from './event-line/parser';
 export {
   renderEventLine,
