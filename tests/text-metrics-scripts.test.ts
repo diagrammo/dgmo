@@ -78,6 +78,11 @@ const SAMPLES: readonly {
   text: string;
   /** Tolerance on model ÷ real. */
   band: number;
+  /**
+   * The allowance when the model charges MORE than drew, where it differs from
+   * `band`. Only for a script whose width is deliberately the widest real face.
+   */
+  over?: number;
   /** Must the new model beat the flat 0.603 it replaced? */
   beatsFlat: boolean;
 }[] = [
@@ -159,6 +164,14 @@ const SAMPLES: readonly {
     script: 'Arabic',
     text: 'تقرير المبيعات الشهري',
     band: 0.35,
+    // ARABIC_W is the WIDEST real face on purpose (#1687): too roomy is
+    // harmless, too tight overflows. So the model may run well over a narrower
+    // face. Both faces measured 2026-11-07 through resvg on this sentence: the
+    // model charges 1310 px, anchor's DejaVu Sans draws 1170 (0.12 over), the
+    // Mac's SF Arabic draws 796 (0.645 over). A symmetric 0.35 failed every Mac
+    // push (#1739). Charging narrower than drawn is still held at `band`, and
+    // separately at zero by the #1687 block below.
+    over: 0.75,
     beatsFlat: false,
   },
   {
@@ -208,7 +221,7 @@ describe('Arabic is never charged narrower than it draws (#1687)', () => {
 });
 
 describe('the width model against rasterised advances, per script', () => {
-  for (const { script, text, band, beatsFlat } of SAMPLES) {
+  for (const { script, text, band, over, beatsFlat } of SAMPLES) {
     it(`measures ${script} (${text}) close to what actually draws`, ({
       skip,
     }) => {
@@ -218,8 +231,9 @@ describe('the width model against rasterised advances, per script', () => {
         return;
       }
 
-      const off = Math.abs(measureText(text, FONT_SIZE) / real - 1);
-      expect(off).toBeLessThan(band);
+      const ratio = measureText(text, FONT_SIZE) / real;
+      const off = Math.abs(ratio - 1);
+      expect(off).toBeLessThan(ratio > 1 && over !== undefined ? over : band);
       if (beatsFlat) {
         expect(off).toBeLessThan(Math.abs(flatModel(text) / real - 1));
       }
