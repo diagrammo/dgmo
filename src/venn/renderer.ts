@@ -554,6 +554,35 @@ export function renderVenn(
   type Bbox = { x: number; y: number; w: number; h: number };
   const setLabelBBoxes: Array<Bbox | null> = circles.map(() => null);
 
+  // A labelled all-sets overlap in a 3-set venn draws its leader straight up
+  // from the triple centroid (see overlapOutwardDir), through the diagram.
+  // An external set-name stub must not lie on that line (#1717): two leaders
+  // on one line read as one.
+  const tripleLeader =
+    n === 3 &&
+    vennOverlaps.some((ov) => ov.label && new Set(ov.sets).size === 3)
+      ? regionCentroid(circles, [true, true, true])
+      : null;
+  const LEADER_CLEARANCE = ctx.structural(6);
+  const TRIPLE_DODGE = Math.PI / 6;
+  // Horizontal gap between a stub and the triple leader, or Infinity when
+  // the stub sits wholly below the triple centroid (the leader runs upward).
+  const gapToTripleLeader = (
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number
+  ) => {
+    if (!tripleLeader || Math.min(y1, y2) >= tripleLeader.y) return Infinity;
+    const lo = Math.min(x1, x2);
+    const hi = Math.max(x1, x2);
+    if (tripleLeader.x >= lo && tripleLeader.x <= hi) return 0;
+    return Math.min(
+      Math.abs(lo - tripleLeader.x),
+      Math.abs(hi - tripleLeader.x)
+    );
+  };
+
   // Set name labels: prefer inside exclusive region, fall back to external leader line
   circles.forEach((c, i) => {
     // vennSets.length === circles.length by construction.
@@ -610,6 +639,42 @@ export function renderVenn(
       } else {
         dx /= mag;
         dy /= mag;
+      }
+
+      // The stub runs from edgePad to edgePad + stubLen past the circle.
+      const stubAt = (ux: number, uy: number) => {
+        const near = c.r + edgePad;
+        const far = near + stubLen;
+        return gapToTripleLeader(
+          c.x + ux * near,
+          c.y + uy * near,
+          c.x + ux * far,
+          c.y + uy * far
+        );
+      };
+      if (stubAt(dx, dy) < LEADER_CLEARANCE) {
+        // Swing the stub around the circle, off the triple leader's line,
+        // to whichever side leaves it more room and stays outside the
+        // other circles. Ties go right, where the text is anchored.
+        let best: { x: number; y: number; gap: number } | null = null;
+        for (const turn of [TRIPLE_DODGE, -TRIPLE_DODGE]) {
+          const cos = Math.cos(turn);
+          const sin = Math.sin(turn);
+          const ux = dx * cos - dy * sin;
+          const uy = dx * sin + dy * cos;
+          const exit = { x: c.x + ux * c.r, y: c.y + uy * c.r };
+          const blocked = circles.some(
+            (o, j) => j !== i && pointInCircle(exit, o)
+          );
+          if (blocked) continue;
+          const gap = stubAt(ux, uy);
+          if (!best || gap > best.gap || (gap === best.gap && ux > best.x))
+            best = { x: ux, y: uy, gap };
+        }
+        if (best && best.gap >= LEADER_CLEARANCE) {
+          dx = best.x;
+          dy = best.y;
+        }
       }
 
       const exitX = c.x + dx * c.r;
