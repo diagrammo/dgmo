@@ -207,6 +207,44 @@ declare function supportsD3DataChart(type: string): boolean;
 declare function sanitizeSvgInPlace(root: Element): void;
 
 /**
+ * Add or remove the `collapsed: true` view-state marker on an element's source
+ * line (mindmap node label, or a `[group]` header via the group-header variant),
+ * preserving any other same-line metadata. This is what makes a host's (the app's, Obsidian's)
+ * automatic write-through (collapse in the preview → mutate the source) land as
+ * clean, hand-editable dgmo rather than a naive append.
+ *
+ * `collapsed` is a reserved key, so dgmo's parser cuts the label at the first
+ * `collapsed:` regardless of comma placement — but a SECOND metadata key must be
+ * comma-separated from the first, so we comma-join when the line already carries
+ * metadata and space-append when it doesn't.
+ *
+ * Hand-written dgmo usually carries the bare trailing flag instead (`Gold
+ * collapsed`, `Wine w: Prized, collapsed`), which dgmo's
+ * `peelTrailingCollapsedFlag` reads as the same thing. Treating it as metadata
+ * wrote `Gold collapsed, collapsed: true`, which parses to the label
+ * `Gold collapsed,` (#1571).
+ */
+/** Toggle the `collapsed: true` marker on a single line, given the node's label. */
+declare function applyCollapsedMarker(line: string, label: string, collapse: boolean): string;
+/** Apply {@link applyCollapsedMarker} to the given 1-based line of a document. */
+declare function applyCollapsedMarkerAtLine(text: string, lineNumber: number, label: string, collapse: boolean): string;
+/**
+ * Toggle `collapsed: true` on a bracketed group-header line (`[Name]` →
+ * `[Name] collapsed: true`), used by sequence/gantt/etc. where the collapse
+ * marker rides on the group header rather than a node label. The `]` is the
+ * label/metadata boundary, so no separate label argument is needed.
+ */
+declare function applyGroupHeaderCollapsedMarkerAtLine(text: string, lineNumber: number, collapse: boolean): string;
+/**
+ * Toggle `collapsed: true` as an INDENTED property line under a `[group]`
+ * header (infra's form — the header itself doesn't take same-line metadata).
+ * Collapse inserts `  collapsed: true` as the group's first child; expand
+ * removes the immediate-child `collapsed:` line. Child indent is inferred from
+ * the group's existing first child (falls back to header indent + 2).
+ */
+declare function applyIndentedGroupCollapsedMarkerAtLine(text: string, headerLineNumber: number, collapse: boolean): string;
+
+/**
  * The full diagnostic catalog, sorted by code. Every coded diagnostic
  * dgmo can emit — its severity, owning chart type, canonical message,
  * fix hint, and a triggering example. This is the enumerable source of
@@ -331,5 +369,5 @@ interface DecodedDiagramUrl {
  */
 declare function decodeDiagramUrl(url: string): DecodedDiagramUrl | null;
 
-export { CompactViewState, D3_DATA_CHART_TYPES, DgmoError, DiagnosticSpec, EXPORT_FIT_PAD, MapDataSource, PaletteConfig, Theme, attachDataChartInteractions, decodeDiagramUrl, defaultEmbedBackground, encodeDiagramUrl, fitSvgToContent, getDiagnosticSpec, getEmbedSvgViewBox, listDiagnosticCodes, measureSvgContent, mountD3DataChart, normalizeSvgForEmbed, render, sanitizeSvgInPlace, supportsD3DataChart };
+export { CompactViewState, D3_DATA_CHART_TYPES, DgmoError, DiagnosticSpec, EXPORT_FIT_PAD, MapDataSource, PaletteConfig, Theme, applyCollapsedMarker, applyCollapsedMarkerAtLine, applyGroupHeaderCollapsedMarkerAtLine, applyIndentedGroupCollapsedMarkerAtLine, attachDataChartInteractions, decodeDiagramUrl, defaultEmbedBackground, encodeDiagramUrl, fitSvgToContent, getDiagnosticSpec, getEmbedSvgViewBox, listDiagnosticCodes, measureSvgContent, mountD3DataChart, normalizeSvgForEmbed, render, sanitizeSvgInPlace, supportsD3DataChart };
 export type { ContentMeasurement, DataChartInteractionOpts, DecodedDiagramUrl, EncodeDiagramUrlOptions, FitSvgToContentOptions, MountD3Opts, MountedD3Chart, NormalizeSvgForEmbedOptions, RenderOptions, RenderResult };

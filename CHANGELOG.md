@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The four collapse-marker source edits are public exports.**
+  `applyCollapsedMarker`, `applyCollapsedMarkerAtLine`,
+  `applyGroupHeaderCollapsedMarkerAtLine` and
+  `applyIndentedGroupCollapsedMarkerAtLine` add or remove the `collapsed`
+  marker on one source line. A host that binds the static SVG's collapse
+  toggles writes their result back to its document. They moved here from the
+  desktop app so the Obsidian plugin can share them.
+
 ### Changed
 
 - **`else <label>` in a sequence diagram now parses as `else if <label>`.**

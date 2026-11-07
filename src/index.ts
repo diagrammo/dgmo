@@ -365,6 +365,21 @@ export { supportsD3DataChart, D3_DATA_CHART_TYPES } from './charts-d3';
 export { sanitizeSvgInPlace } from './utils/sanitize-svg';
 
 // ============================================================
+// Collapse write-through — host-side source edits
+// ============================================================
+// Pure line edits that add or remove the `collapsed` marker on a node line, a
+// `[group]` header, or an indented group property line. A host that binds the
+// static SVG's collapse toggles (`data-node-toggle` / `data-group-toggle`)
+// writes the result back to its document, so the fold lives in the source.
+// ============================================================
+export {
+  applyCollapsedMarker,
+  applyCollapsedMarkerAtLine,
+  applyGroupHeaderCollapsedMarkerAtLine,
+  applyIndentedGroupCollapsedMarkerAtLine,
+} from './utils/collapse-marker';
+
+// ============================================================
 // Public types
 // ============================================================
 
