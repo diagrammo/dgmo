@@ -250,6 +250,16 @@ strengths
     expect(svg).toContain('.swot-item');
   });
 
+  it('an axis header keeps the two panels it heads and dims the rest', async () => {
+    const { svg } = await render(FULL);
+    expect(svg).toContain('data-swot-axis="col-0"');
+    expect(svg).toContain('data-swot-col="0"');
+    expect(svg).toContain(
+      'svg:has(.swot-axis[data-swot-axis="col-0"]:hover) :is(.swot-panel:not([data-swot-col="0"]),.swot-axis:not([data-swot-axis="col-0"])){opacity:0.4}'
+    );
+    expect(svg).toContain('[data-swot-axis="row-1"]:hover');
+  });
+
   it('hoverCssFor hands a live render the same hover CSS render() bakes in', async () => {
     const src = `swot
 tag Priority as p

@@ -69,6 +69,9 @@ export interface HoverSpec {
   legendMarkSelector?: string;
   /** Emit the `${mark}:hover` self rule. Default true. */
   selfEmphasis?: boolean;
+  /** Chart-specific cross rules the strategies cannot express, appended
+   *  inside the `@media (hover:hover)` block. Given the dim opacity. */
+  extraCross?: (dimOpacity: number) => readonly string[];
   /** Chart already animates opacity (infra pulse) — skip the transition. */
   animatesOpacity?: boolean;
   // ── connection strategy (graph-family node→edge highlight) ──
@@ -364,6 +367,7 @@ export function buildHoverCss(
   // hover, so `@media (hover:hover)` prevents stuck/absent dimming there. Self
   // emphasis is intentionally global (a tap counts as :hover on touch).
   const parts = [...base];
+  if (spec.extraCross) cross.push(...spec.extraCross(dimOpacity));
   if (cross.length) parts.push(`@media (hover:hover){${cross.join('')}}`);
   return parts.join('');
 }
@@ -715,6 +719,17 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     selfEmphasis: false,
     legend: true,
     legendMarkSelector: '.swot-item',
+    // An axis header keeps the two panels it heads (#1742): HELPFUL → S and
+    // O, INTERNAL → S and W. The other two panels and headers dim.
+    extraCross: (dim) =>
+      (['col', 'row'] as const).flatMap((axis) =>
+        [0, 1].map(
+          (i) =>
+            `svg:has(.swot-axis[data-swot-axis="${axis}-${i}"]:hover) ` +
+            `:is(.swot-panel:not([data-swot-${axis}="${i}"]),` +
+            `.swot-axis:not([data-swot-axis="${axis}-${i}"])){opacity:${dim}}`
+        )
+      ),
   },
   // line: each series is a `g.dgmo-series` wrapping its line + data dots + an
   // invisible fat hit corridor (`.dgmo-series-hit`, renderer-baked) — without

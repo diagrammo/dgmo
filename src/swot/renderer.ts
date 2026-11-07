@@ -248,9 +248,16 @@ export function renderSwot(
       w: number,
       h: number,
       label: string,
-      rotate: boolean
+      rotate: boolean,
+      key: string
     ) => {
-      axes
+      // One <g> per header: hovering it keeps the two panels it heads and
+      // dims the other two (hover-styles.ts → swot).
+      const cell = axes
+        .append('g')
+        .attr('class', 'swot-axis')
+        .attr('data-swot-axis', key);
+      cell
         .append('rect')
         .attr('class', 'swot-axis-header')
         .attr('x', x)
@@ -261,7 +268,7 @@ export function renderSwot(
         .attr('fill', headerFill);
       const cx = x + w / 2;
       const cy = y + h / 2;
-      const text = axes
+      const text = cell
         .append('text')
         .attr('class', 'swot-axis-label')
         .attr('x', cx)
@@ -282,7 +289,8 @@ export function renderSwot(
         PANEL_WIDTH,
         AXIS_HEADER_SIZE,
         parsed.xLabels[column],
-        false
+        false,
+        `col-${column}`
       );
     }
     for (const row of [0, 1] as const) {
@@ -292,7 +300,8 @@ export function renderSwot(
         AXIS_HEADER_SIZE,
         rowHeight[row],
         parsed.yLabels[row],
-        true
+        true,
+        `row-${row}`
       );
     }
   }
@@ -307,7 +316,9 @@ export function renderSwot(
     const g = svg
       .append('g')
       .attr('class', 'swot-panel')
-      .attr('data-section', section.key);
+      .attr('data-section', section.key)
+      .attr('data-swot-col', column)
+      .attr('data-swot-row', row);
     if (section.lineNumber > 0) {
       g.attr('data-line-number', section.lineNumber);
     }
