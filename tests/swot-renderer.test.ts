@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { renderForExport } from '../src/d3';
 import { getPalette } from '../src/palettes';
 import { render } from '../src/render';
-import { mix, shapeFill } from '../src/palettes/color-utils';
+import { mix } from '../src/palettes/color-utils';
 import { parseSwot } from '../src/swot/parser';
 import { renderSwot } from '../src/swot/renderer';
 import { hoverCssFor } from '../src/utils/hover-styles';
@@ -160,8 +160,11 @@ strengths
     const on = draw(src);
     const tints = on.querySelectorAll('.swot-item-tint');
     expect(tints).toHaveLength(1);
+    // 12% over the panel fill — weaker than a kanban card's 25%, because the
+    // header band already carries the section colour.
+    const panelFill = mix(palette.surface, palette.bg, 30);
     expect(tints[0]!.getAttribute('fill')).toBe(
-      shapeFill(palette, palette.colors.red, false)
+      mix(palette.colors.red, panelFill, 12)
     );
     const off = draw(
       src.replace('active-tag Priority', 'active-tag Priority\nno-tint-items')

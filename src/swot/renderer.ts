@@ -5,7 +5,7 @@
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
-import { contrastText, mix, shapeFill } from '../palettes/color-utils';
+import { contrastText, mix } from '../palettes/color-utils';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import { getMaxLegendReservedHeight } from '../utils/legend-layout';
 import type { LegendConfig } from '../utils/legend-types';
@@ -49,9 +49,11 @@ const AXIS_HEADER_GAP = 6; // band → panel
 const AXIS_HEADER_RADIUS = 5;
 const AXIS_BAND = AXIS_HEADER_SIZE + AXIS_HEADER_GAP;
 const EMPTY_TEXT = 'None listed';
-// A tagged item is tinted in its tag's colour across the row, as kanban tints
-// a tagged card (shapeFill: 25% over the theme base), so the tag reads at a
-// glance and not only through a 7px dot. `no-tint-items` turns it off.
+// A tagged item is tinted in its tag's colour across the row, so the tag reads
+// at a glance and not only through a 7px dot. Weaker than kanban's 25% card
+// tint: the header bands already carry colour, and two strong tints in one
+// panel read as busy. `no-tint-items` turns it off.
+const ROW_TINT_PCT = 12;
 const TINT_INSET = 5;
 const TINT_PAD_Y = 3;
 const TINT_RADIUS = 4;
@@ -412,7 +414,7 @@ export function renderSwot(
               2 * TINT_PAD_Y
           )
           .attr('rx', TINT_RADIUS)
-          .attr('fill', shapeFill(palette, fill, isDark));
+          .attr('fill', mix(fill, panelFill, ROW_TINT_PCT));
       }
 
       itemG

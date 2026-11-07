@@ -4731,15 +4731,15 @@ threats
 
 ### 25B.3 Options
 
-| Option              | Effect                                                                                                                                                                                            |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tag`, `active-tag` | A tag recolours an item's dot, tints its row in the tag colour, and adds the legend. An untagged item keeps its section's colour and no tint, and the header bands always keep the section colour |
-| `x-label A, B`      | Column headers: a filled band over each column, in small caps. Default `Helpful, Harmful`                                                                                                         |
-| `y-label A, B`      | Row headers: a filled rail beside each row, rotated, in small caps. Default `Internal, External`                                                                                                  |
-| `no-axes`           | Hide the axis labels. Wins over `x-label` and `y-label`                                                                                                                                           |
-| `no-tint-items`     | Don't tint tagged rows; the dot alone carries the tag                                                                                                                                             |
-| `no-legend`         | Hide the tag legend                                                                                                                                                                               |
-| `palette`           | Draw in a built-in palette                                                                                                                                                                        |
+| Option              | Effect                                                                                                                                                                                                    |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tag`, `active-tag` | A tag recolours an item's dot, tints its row faintly in the tag colour, and adds the legend. An untagged item keeps its section's colour and no tint, and the header bands always keep the section colour |
+| `x-label A, B`      | Column headers: a filled band over each column, in small caps. Default `Helpful, Harmful`                                                                                                                 |
+| `y-label A, B`      | Row headers: a filled rail beside each row, rotated, in small caps. Default `Internal, External`                                                                                                          |
+| `no-axes`           | Hide the axis labels. Wins over `x-label` and `y-label`                                                                                                                                                   |
+| `no-tint-items`     | Don't tint tagged rows; the dot alone carries the tag                                                                                                                                                     |
+| `no-legend`         | Hide the tag legend                                                                                                                                                                                       |
+| `palette`           | Draw in a built-in palette                                                                                                                                                                                |
 
 The TOWS strategy cross-matrix, scores or weights are not part of this chart.
 
