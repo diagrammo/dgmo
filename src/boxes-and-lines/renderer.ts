@@ -770,6 +770,9 @@ export function renderBoxesAndLines(
       .attr('data-line-number', String(group.lineNumber))
       .attr('data-node-id', group.label)
       .attr('data-group-toggle', group.label)
+      .attr('role', 'button')
+      .attr('aria-expanded', group.collapsed ? 'false' : 'true')
+      .attr('aria-label', group.label)
       .style('cursor', 'pointer');
 
     if (group.collapsed) {

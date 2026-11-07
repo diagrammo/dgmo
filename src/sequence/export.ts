@@ -46,6 +46,14 @@ export async function exportVisualization(ctx: ExportContext): Promise<string> {
   const collapsedGroups = viewState?.cg
     ? new Set(viewState.cg.map(Number).filter((n) => Number.isFinite(n)))
     : undefined;
+  // Folded notes = source markers ∪ runtime lines (#1741). Notes and groups
+  // are both keyed by source line, so a share link's `cg` carries note lines
+  // too; a line that is not a foldable note's opening line is ignored.
+  const { unionCollapsedSequenceNotes } = await import('./collapse');
+  const collapsedNotes = unionCollapsedSequenceNotes(
+    seqParsed,
+    viewState?.cg?.map(Number).filter((n) => Number.isFinite(n))
+  );
   const seqActiveTagGroup = ctxTagOverride(ctx);
   renderSequenceDiagram(
     container,
@@ -60,6 +68,7 @@ export async function exportVisualization(ctx: ExportContext): Promise<string> {
       }),
       ...(collapsedSections !== undefined && { collapsedSections }),
       ...(collapsedGroups !== undefined && { collapsedGroups }),
+      collapsedNotes,
     }
   );
 

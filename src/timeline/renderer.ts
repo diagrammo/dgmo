@@ -2029,6 +2029,12 @@ function renderTimelineHorizontalGrouped(
     }));
   }
 
+  // `[Lane]` header line per source group — the line the fold marker
+  // belongs on. Tag lanes and `(Other)` have no header line.
+  const laneLineNumber = new Map<string, string>(
+    tagLanes ? [] : timelineGroups.map((gr) => [gr.name, String(gr.lineNumber)])
+  );
+
   const totalRows = lanes.reduce((s, l) => {
     if (collapsedGroups.has(l.name)) return s + 1;
     return s + l.events.length + 1;
@@ -2249,6 +2255,30 @@ function renderTimelineHorizontalGrouped(
       .on('mouseenter', () => fadeToGroup(g, lane.name))
       .on('mouseleave', () => fadeReset(g))
       .on('click', () => toggleGroup(lane.name));
+
+    // Fold toggle contract (#1741): only a lane with events folds, and the
+    // hit area is the whole header band, not just the label text. Toggle
+    // markup goes only on a lane with a `[Lane]` header line for the marker
+    // (tag lanes and `(Other)` fold at runtime but have no such line).
+    if (lane.events.length > 0) {
+      const headerLine = laneLineNumber.get(lane.name);
+      if (headerLine !== undefined) {
+        headerG
+          .attr('data-group-toggle', lane.name)
+          .attr('data-line-number', headerLine)
+          .attr('role', 'button')
+          .attr('aria-expanded', isCollapsed ? 'false' : 'true')
+          .attr('aria-label', lane.name);
+      }
+      headerG
+        .append('rect')
+        .attr('class', 'tl-group-header-hit')
+        .attr('x', bandX)
+        .attr('y', bandY)
+        .attr('width', bandW)
+        .attr('height', bandH)
+        .attr('fill', 'transparent');
+    }
 
     const headerText = headerG
       .append('text')
@@ -3108,7 +3138,26 @@ function renderTimelineVertical(
   }
 }
 
-const timelineCollapseState = new WeakMap<HTMLDivElement, Set<string>>();
+/**
+ * Per-container lane fold state. The renderer owns it (clicks toggle
+ * `collapsed` locally). `markers` remembers the source `collapsed` markers
+ * last seen, so a marker added or removed in source folds or unfolds that
+ * lane once, while a click can still expand a marker-folded lane.
+ */
+interface TimelineFoldState {
+  collapsed: Set<string>;
+  markers: Set<string>;
+}
+const timelineCollapseState = new WeakMap<HTMLDivElement, TimelineFoldState>();
+
+/** Lane names whose `[Lane]` header line carries a `collapsed` marker (#1741). */
+export function collapsedTimelineGroupsFromSource(
+  parsed: Pick<ParsedTimeline, 'timelineGroups'>
+): Set<string> {
+  return new Set(
+    parsed.timelineGroups.filter((g) => g.collapsed).map((g) => g.name)
+  );
+}
 let tlBandClipCounter = 0;
 
 export function renderTimeline(
@@ -3175,15 +3224,24 @@ function drawTimeline(
   const { isVertical, tagLanes } = setup;
   const hovers = makeTimelineHoverHelpers();
 
-  let collapsedGroups = timelineCollapseState.get(container);
-  if (!collapsedGroups) {
-    collapsedGroups = new Set<string>();
-    timelineCollapseState.set(container, collapsedGroups);
+  let foldState = timelineCollapseState.get(container);
+  if (!foldState) {
+    foldState = { collapsed: new Set<string>(), markers: new Set<string>() };
+    timelineCollapseState.set(container, foldState);
   }
+  // Seed from source markers: a new marker folds its lane, a removed one
+  // unfolds it; unchanged markers leave the runtime (clicked) state alone.
+  const markers = collapsedTimelineGroupsFromSource(parsed);
+  for (const m of markers)
+    if (!foldState.markers.has(m)) foldState.collapsed.add(m);
+  for (const m of foldState.markers)
+    if (!markers.has(m)) foldState.collapsed.delete(m);
+  foldState.markers = markers;
+  const collapsedGroups = foldState.collapsed;
 
   function toggleGroup(name: string) {
-    if (collapsedGroups!.has(name)) collapsedGroups!.delete(name);
-    else collapsedGroups!.add(name);
+    if (collapsedGroups.has(name)) collapsedGroups.delete(name);
+    else collapsedGroups.add(name);
     renderTimeline(
       container,
       parsed,

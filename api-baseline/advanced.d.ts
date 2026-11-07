@@ -9,8 +9,8 @@ import { InkPoint } from './index.js';
 export { C as CHART_TYPE_DESCRIPTIONS, M as MapCompletionOptions, d as MapLocationMatch, e as MapPlaceCompletion, f as MapRegionCompletion, R as RenderCategory, T as Theme, l as chartTypeParsers, g as completeMapPlaces, h as completeMapRegions, m as getAllChartTypes, n as getRenderCategory, o as isExtendedChartType, q as knownChartTypeIds, p as palettes, k as parseDgmo, s as searchMapLocations, t as themes, k as validate } from './themes-DoLdhUXV.js';
 import { Selection } from 'd3-selection';
 import * as d3Scale from 'd3-scale';
-import { P as ParsedOrg, F as FillMode, R as RaciMarker, a as ParsedRaci, b as RaciVariant, c as RaciTask } from './chart-meta-CuvzznNf.js';
-export { A as ALL_CHART_TYPES, I as ImportSource, O as OrgNode, d as RaciPhase, e as RaciRoleAssignment, f as ReadFileFn, g as ResolveImportsResult, h as contrastText, i as findOrgNodeIdByName, j as getSeriesColors, k as hexToHSL, l as hexToHSLString, m as hslToHex, n as mix, o as normalizePertSourceForShare, p as parseDgmoChartType, q as parseFirstLine, r as parseOrg, s as parseRaci, t as resolveOrgImports, u as shade, v as shapeFill, w as tint } from './chart-meta-CuvzznNf.js';
+import { P as ParsedOrg, F as FillMode, R as RaciMarker, a as ParsedRaci, b as RaciVariant, c as RaciTask } from './chart-meta-B7niEd52.js';
+export { A as ALL_CHART_TYPES, I as ImportSource, O as OrgNode, d as RaciPhase, e as RaciRoleAssignment, f as ReadFileFn, g as ResolveImportsResult, h as contrastText, i as findOrgNodeIdByName, j as getSeriesColors, k as hexToHSL, l as hexToHSLString, m as hslToHex, n as mix, o as normalizePertSourceForShare, p as parseDgmoChartType, q as parseFirstLine, r as parseOrg, s as parseRaci, t as resolveOrgImports, u as shade, v as shapeFill, w as tint } from './chart-meta-B7niEd52.js';
 import { GeoProjection } from 'd3-geo';
 
 /**
@@ -138,6 +138,8 @@ interface TimelineGroup {
     color: string | null;
     metadata: Record<string, string>;
     lineNumber: number;
+    /** Source `collapsed` marker on the `[Lane]` header line (#1741). */
+    collapsed?: boolean;
 }
 interface TimelineEra {
     startDate: string;
@@ -1100,6 +1102,12 @@ interface SequenceNote {
     readonly participantId: ParticipantId;
     readonly lineNumber: number;
     readonly endLineNumber: number;
+    /**
+     * Authored collapse marker (#1741) on a multi-line note's opening line:
+     * the bare trailing `collapsed` flag or `collapsed: true`. Never set on a
+     * single-line note — its text is prose (see {@link peelNoteHeadMarker}).
+     */
+    readonly collapsed?: boolean;
 }
 type SequenceElement = SequenceMessage | SequenceBlock | SequenceSection | SequenceNote;
 declare function isSequenceBlock(el: SequenceElement): el is SequenceBlock;
@@ -2115,6 +2123,8 @@ interface BLGroup {
     readonly children: readonly string[];
     readonly lineNumber: number;
     readonly metadata: Readonly<Record<string, string>>;
+    /** Source `collapsed` fold marker on the `[Group]` header line (#1741). */
+    readonly collapsed?: boolean;
     readonly parentGroup?: string;
 }
 interface ParsedBoxesAndLines {
@@ -2279,6 +2289,12 @@ interface BLCollapseResult {
  * - Collapsed groups removed from groups[] (layout handles as nodes)
  */
 declare function collapseBoxesAndLines(parsed: ParsedBoxesAndLines, collapsedGroups: Set<string>): BLCollapseResult;
+/**
+ * Group labels whose `[Group]` header carries the source `collapsed` marker
+ * (#1741). The app seeds its runtime collapsed set from this; the static
+ * export unions it with `viewState.cg` via {@link unionCollapsedBLGroups}.
+ */
+declare function collapsedBLGroupsFromSource(parsed: ParsedBoxesAndLines): Set<string>;
 
 /**
  * Colour NAMES — never values. `ink` is the palette's text colour, so it flips
@@ -3109,6 +3125,12 @@ interface SitemapNode {
     readonly isContainer: boolean;
     readonly lineNumber: number;
     readonly color?: string;
+    /**
+     * Folded by source — the bare trailing `collapsed` flag or `collapsed: true`
+     * (same-line or indented) on the page/container. `false` = explicit
+     * `collapsed: false`; absent = no marker.
+     */
+    readonly collapsed?: boolean;
 }
 interface SitemapEdge {
     readonly sourceId: string;
@@ -3225,6 +3247,14 @@ interface CollapsedSitemapResult {
     /** nodeId → count of hidden descendants */
     hiddenCounts: Map<string, number>;
 }
+/**
+ * The ids of every page and container the SOURCE marks collapsed (bare
+ * `collapsed` flag or `collapsed: true`), optionally unioned with an
+ * interactive set (share link `viewState.cg`, or the app's runtime set).
+ * Sitemap analogue of `unionCollapsedOrgNodes`. The static export calls it;
+ * the app seeds its runtime set from `unionCollapsedSitemapNodes(parsed)`.
+ */
+declare function unionCollapsedSitemapNodes(parsed: ParsedSitemap, interactive?: readonly string[]): Set<string>;
 declare function collapseSitemapTree(original: ParsedSitemap, collapsedIds: Set<string>): CollapsedSitemapResult;
 
 /** Namespaced behavior property keys recognized by the parser. */
@@ -4251,6 +4281,12 @@ declare function layoutPert(resolved: ResolvedPert): LayoutResult;
 declare function relayoutPert(resolved: ResolvedPert, overrides: LayoutOverrides, collapsedGroupIds?: ReadonlySet<string>): LayoutResult;
 
 /**
+ * Group ids whose `[Group]` header carries the source `collapsed` marker
+ * (#1741). The app seeds its runtime collapsed set from this.
+ */
+declare function collapsedPertGroupIdsFromSource(parsed: ParsedPert): Set<string>;
+
+/**
  * mulberry32: 32-bit seedable PRNG. Portable, deterministic, ~10 lines.
  * Returns a function that yields [0, 1).
  */
@@ -4870,6 +4906,8 @@ interface JourneyMapPhase {
     readonly name: string;
     readonly steps: readonly JourneyMapStep[];
     readonly lineNumber: number;
+    /** Source `collapsed` marker on the `[Phase]` header line (#1741). */
+    readonly collapsed?: boolean;
 }
 interface JourneyMapPersona {
     readonly name: string;
@@ -4939,6 +4977,14 @@ declare function layoutJourneyMap(parsed: ParsedJourneyMap, palette: PaletteColo
     collapsedPhases?: Set<string>;
     isDark?: boolean;
 }): JourneyMapLayout;
+
+/**
+ * Names of every phase the SOURCE marks collapsed (`[Phase] collapsed`),
+ * unioned with an optional runtime set (share link `viewState.cg`, the app).
+ * The static export folds from this; the app seeds its own `collapsedPhases`
+ * state from it so a click can still expand.
+ */
+declare function collapsedJourneyPhasesFromSource(parsed: ParsedJourneyMap, interactive?: Iterable<string>): Set<string>;
 
 interface JourneyMapInteractiveOptions {
     onNavigateToLine?: (line: number) => void;
@@ -6881,7 +6927,16 @@ interface RaciInteractionHandlers {
  * Layout is computed once and laid out as SVG; no animation.
  */
 declare function renderRaci(container: HTMLDivElement, parsed: ParsedRaci, palette: PaletteColors, isDark: boolean, handlers?: RaciInteractionHandlers | ((lineNumber: number) => void), exportDims?: D3ExportDimensions): void;
-declare function renderRaciForExport(container: HTMLDivElement, parsed: ParsedRaci, palette: PaletteColors, isDark: boolean, exportDims?: D3ExportDimensions): void;
+declare function renderRaciForExport(container: HTMLDivElement, parsed: ParsedRaci, palette: PaletteColors, isDark: boolean, exportDims?: D3ExportDimensions, interactiveCollapsedLines?: readonly number[]): void;
+
+/**
+ * Ids of every phase the SOURCE marks collapsed (`[Phase] collapsed`),
+ * unioned with optional runtime phases given as header LINE NUMBERS — the
+ * form a share link carries them in (`viewState.cs`). The static export folds
+ * from this; the app seeds its own `collapsedPhases` state from it (no second
+ * argument) so a click can still expand.
+ */
+declare function collapsedRaciPhasesFromSource(parsed: ParsedRaci, interactiveLines?: Iterable<number>): Set<string>;
 
 /**
  * Set the markers on a cell to exactly `[marker]`, replacing whatever
@@ -7147,6 +7202,23 @@ interface CollapsedView {
  * @returns A new CollapsedView with remapped participants, messages, elements, and groups
  */
 declare function applyCollapseProjection(parsed: ParsedSequenceDgmo, requestedGroups: Set<number>): CollapsedView;
+/**
+ * A note folds only when it has something to hide: a body of more than one
+ * line. Folded, it shows its first line plus the collapse bar (#1741).
+ */
+declare function isFoldableSequenceNote(note: SequenceNote): boolean;
+/**
+ * The opening lines of the foldable notes whose source carries the
+ * `collapsed` marker (#1741). The app seeds its runtime note set from this;
+ * the static render folds these when no runtime set is supplied.
+ */
+declare function collapsedSequenceNoteLinesFromSource(parsed: ParsedSequenceDgmo): Set<number>;
+/**
+ * The note lines a static export folds: source markers ∪ runtime lines
+ * (mirrors org's `unionCollapsedOrgNodes`). A runtime line that is not a
+ * foldable note's opening line is ignored.
+ */
+declare function unionCollapsedSequenceNotes(parsed: ParsedSequenceDgmo, runtime: Iterable<number> | undefined): Set<number>;
 
 interface SectionMessageGroup {
     section: SequenceSection;
@@ -7155,6 +7227,12 @@ interface SectionMessageGroup {
 interface SequenceRenderOptions {
     collapsedSections?: Set<number>;
     collapsedGroups?: Set<number>;
+    /**
+     * Folded notes, keyed by the note's opening line. AUTHORITATIVE when
+     * supplied (the app's runtime set, seeded from
+     * `collapsedSequenceNoteLinesFromSource`); absent, the source markers fold.
+     */
+    collapsedNotes?: Set<number>;
     exportWidth?: number;
     activeTagGroup?: string | null;
 }
@@ -7485,5 +7563,5 @@ declare function getSpaceDiagram(target: CloudSpaceTarget, which: {
 /** Every diagram in the space, sorted by folder path then title. */
 declare function listSpaceDiagrams(target: CloudSpaceTarget): Promise<SpaceDiagramSummary[]>;
 
-export { ARROW_DIAGNOSTIC_CODES, CLOUD_API, CYLINDER_RY, CloudSpaceError, CompactViewState, DEFAULT_FONT_NAME, DgmoError, EXAMPLES_SHOWN, FILE_WAVE, FLOWCHART_STRUCTURE_CODE, FONT_FAMILY, GeoExtent, DEFAULT_DIM_OPACITY as HOVER_DIM_OPACITY, IMAGE_NOT_UPLOADED, INFRA_BEHAVIOR_KEYS, INVALID_COLOR_CODE, INVALID_CSS_COLOR_HEX, LEGEND_CAPSULE_PAD, LEGEND_DOT_R, LEGEND_ENTRY_DOT_GAP, LEGEND_ENTRY_FONT_SIZE, LEGEND_ENTRY_TRAIL, LEGEND_GEAR_PILL_W, LEGEND_GROUP_GAP, LEGEND_HEIGHT, LEGEND_MAX_ENTRY_ROWS, LEGEND_PILL_FONT_SIZE, LEGEND_PILL_PAD, MapData, MapLayoutLegend, PaletteColors, PaletteConfig, ParsedMap, ParsedOrg, ParsedRaci, QUEUE_CAP, RACI_ERROR_CODES, VARIANTS as RACI_VARIANTS, RACI_WARNING_CODES, RECOGNIZED_COLOR_NAMES, RULE_COUNT, RaciMarker, RaciTask, RaciVariant, ResolvedMap, ScaleContext, TagEntry, TagGroup, WHITEBOARD_COLORS, WHITEBOARD_CONTAINER_FONT, WHITEBOARD_CONTAINER_WEIGHT, WHITEBOARD_ELEMENT_KEYWORDS, WHITEBOARD_FILLS, WHITEBOARD_HEADS, WHITEBOARD_LABEL_MIN_FONT, WHITEBOARD_LABEL_POSITIONS, WHITEBOARD_NOTE_COLOR, WHITEBOARD_NOTE_FONT, WHITEBOARD_NOTE_HEIGHT, WHITEBOARD_NOTE_WIDTH, WHITEBOARD_SHAPE_KINDS, WHITEBOARD_STROKE_STYLES, addDurationToDate, albersSkewFallback, analyzePert, applyCollapseProjection, applyGroupOrdering, applyPositionOverrides, atlasPalette, authoredCollapsedIds, blueprintPalette, breakAtoms, buildNoteMessageMap, buildRenderSequence, buildSimulationContext, buildTagLaneRowList, calculateSchedule, catppuccinPalette, choosePalette, clearEventLineMuted, clipWhiteboardConnector, collapseBoxesAndLines, collapseMindmapTree, collapseOrgTree, collapseSitemapTree, collapseStateGroups, collectDiagramRoles, collectTasks, colorNames, computeActivations, computeCardArchive, computeCardMove, computeCycleLayout, computeInfra, computeInfraLegendGroups, computeLegendLayout, computeRadarLayout, computeTimeTicks, controlsGroupCapsuleWidth, createMapGeoQuery, createMapGeoQueryForLayout, displayName, emitWhiteboard, emitWhiteboardElement, extractCategorizeRule, extractSymbols$2 as extractClassSymbols, extractColorRule, extractSymbols$1 as extractErSymbols, extractSymbols$3 as extractFlowchartSymbols, extractSymbols as extractInfraSymbols, extractPaletteDirective, extractPertSymbols, extractSection, extractTitleRule, fitWhiteboardLabel, fitWrapped, focusBoxesAndLines, focusEventLine, focusOrgTree, fontPortabilityWarning, formatChartTypeList, formatDateLabel, formatDiagramValidation, formatExamples, formatOffsetLabel, getExtendedChartLegendGroups, getLegendReservedHeight, getOrCreateName, getRadarGeometry, getSimpleChartLegendGroups, getSpaceDiagram, groupMessagesBySection, inferParticipantType, inferRoles, inkOutlinePath, invalidColorDiagnostic, isArchiveColumn, isExampleFor, isInvalidColorToken, isRecognizedColorName, isSequenceBlock, isSequenceNote, isWhiteboardColor, isWhiteboardImageRef, isWhiteboardShapeKind, layoutBlock, layoutBoxesAndLines, layoutBracket, layoutC4Components, layoutC4Containers, layoutC4Context, layoutC4Deployment, layoutClassDiagram, layoutERDiagram, layoutFamily, layoutGraph, layoutInfra, layoutJourneyMap, layoutMap, layoutMindmap, layoutOrg, layoutPert, layoutSitemap, layoutSwimlane, layoutTreemap, layoutTreemapRadial, layoutWireframe, legendEntryWidth, listSpaceDiagrams, loadMapData, looksLikeClassDiagram, looksLikeERDiagram, looksLikeFlowchart, looksLikeMap, looksLikePert, looksLikeSequence, looksLikeSitemap, looksLikeState, mapBackgroundColor, mapContentAspect, mapExportDimensions, mapNeutralLandColor, measurePertAnalysisBlock, measureText, mulberry32, nearestNamedColor, nord, nordPalette, normalizeName, normalizePlace, orderArcNodes, parseAndLayoutInfra, parseBlock, parseBody, parseBoxesAndLines, parseBracket, parseC4, parseChart, parseClassDiagram, parseClock, parseCountdown, parseCycle, parseDataRowValues, parseERDiagram, parseEventLine, parseExtendedChart, parseFamily, parseFixedOffset, parseFlowchart, parseGantt, parseGoal, parseInArrowLabel, parseInfra, parseInlineMarkdown, parseJourneyMap, parseKanban, parseLiveLink, parseMap, parseMindmap, parsePert, parsePyramid, parseRing, parseSequenceDgmo, parseSequenceDgmo as parseSequenceDiagram, parseSitemap, parseState, parseSwimlane, parseSwot, parseTechRadar, parseTimelineDate, parseTreemap, parseTypeAliases, parseVersionControl, parseVisualization, parseWhiteboard, parseWireframe, putSpaceDiagram, cellAppendMarker as raciCellAppendMarker, cellCycle as raciCellCycle, cellRemove as raciCellRemove, cellReplace as raciCellReplace, rebuildMapProjection, referenceForChartType, relayoutPert, render, renderArcDiagram, renderBlock, renderBlockForExport, renderBody, renderBodyForExport, renderBoxesAndLines, renderBoxesAndLinesForExport, renderBracket, renderBracketForExport, renderC4ComponentsForExport, renderC4Containers, renderC4ContainersForExport, renderC4Context, renderC4ContextForExport, renderC4Deployment, renderC4DeploymentForExport, renderClassDiagram, renderClassDiagramForExport, renderClock, renderClockForExport, renderCountdown, renderCountdownForExport, renderCycle, renderCycleForExport, renderERDiagram, renderERDiagramForExport, renderEventLine, renderEventLineForExport, renderFamily, renderFamilyForExport, renderFlowchart, renderFlowchartForExport, renderForExport, renderGantt, renderGoal, renderGoalForExport, renderInfra, renderJourneyMap, renderJourneyMapForExport, renderKanban, renderKanbanForExport, renderLegendD3, renderLegendSvg, renderLegendSvgFromConfig, renderLiveLinkCard, renderMap, renderMapForExport, renderMapLayout, renderMindmap, renderMindmapForExport, renderOrg, renderOrgForExport, renderPert, renderPertAnalysisBlock, renderPertForExport, renderPyramid, renderPyramidForExport, renderQuadrant, renderQuadrantFocus, renderQuadrantFocusForExport, renderRaci, renderRaciForExport, renderRing, renderRingForExport, renderSequenceDiagram, renderSitemap, renderSitemapForExport, renderSlopeChart, renderState, renderStateForExport, renderSwimlaneForExport, renderSwot, renderTechRadar, renderTechRadarForExport, renderTimeline, renderTreemap, renderTreemapForExport, renderTreemapRadial, renderTreemapRadialForExport, renderVenn, renderVersionControl, renderVersionControlForExport, renderWhiteboard, renderWireframe, renderWordCloud, resolveColor, resolveColorWithDiagnostic, resolveMap, resolvePlace, resolveTaskName, rollUpContextRelationships, sameWhiteboard, sampleBetaPert, searchZones, seriesColors, simulateCanonical, simulateFast, slatePalette, startClocks, startCountdowns, targetToMs, textFromSvg, tickClocks, tickCountdowns, tidewaterPalette, tokyoNightPalette, truncateBareUrl, truncateText, uncoveredCharacters, validateComputed, validateDiagram, validateFlowchartStructure, validateInfra, validateLabelCharacters, validateThemeFile, visibleWhiteboardElements, visibleWhiteboardIndices, whiteboardBendFor, whiteboardBendHandle, whiteboardBounds, whiteboardConnectorAttachments, whiteboardConnectorPaint, whiteboardDrawBand, whiteboardDrawOrder, whiteboardFilePath, whiteboardFileWave, whiteboardFileWavePoints, whiteboardLabelCentreY, whiteboardLabelHeight, whiteboardLabelPosition, whiteboardLabelShift, whiteboardLabelWidth, whiteboardNoteFold, whiteboardSegmentMidpoint, whiteboardShapeAt, whiteboardShapeContains, whiteboardShapeLabel, wrapTextToWidth, wrapWhiteboardLabel };
+export { ARROW_DIAGNOSTIC_CODES, CLOUD_API, CYLINDER_RY, CloudSpaceError, CompactViewState, DEFAULT_FONT_NAME, DgmoError, EXAMPLES_SHOWN, FILE_WAVE, FLOWCHART_STRUCTURE_CODE, FONT_FAMILY, GeoExtent, DEFAULT_DIM_OPACITY as HOVER_DIM_OPACITY, IMAGE_NOT_UPLOADED, INFRA_BEHAVIOR_KEYS, INVALID_COLOR_CODE, INVALID_CSS_COLOR_HEX, LEGEND_CAPSULE_PAD, LEGEND_DOT_R, LEGEND_ENTRY_DOT_GAP, LEGEND_ENTRY_FONT_SIZE, LEGEND_ENTRY_TRAIL, LEGEND_GEAR_PILL_W, LEGEND_GROUP_GAP, LEGEND_HEIGHT, LEGEND_MAX_ENTRY_ROWS, LEGEND_PILL_FONT_SIZE, LEGEND_PILL_PAD, MapData, MapLayoutLegend, PaletteColors, PaletteConfig, ParsedMap, ParsedOrg, ParsedRaci, QUEUE_CAP, RACI_ERROR_CODES, VARIANTS as RACI_VARIANTS, RACI_WARNING_CODES, RECOGNIZED_COLOR_NAMES, RULE_COUNT, RaciMarker, RaciTask, RaciVariant, ResolvedMap, ScaleContext, TagEntry, TagGroup, WHITEBOARD_COLORS, WHITEBOARD_CONTAINER_FONT, WHITEBOARD_CONTAINER_WEIGHT, WHITEBOARD_ELEMENT_KEYWORDS, WHITEBOARD_FILLS, WHITEBOARD_HEADS, WHITEBOARD_LABEL_MIN_FONT, WHITEBOARD_LABEL_POSITIONS, WHITEBOARD_NOTE_COLOR, WHITEBOARD_NOTE_FONT, WHITEBOARD_NOTE_HEIGHT, WHITEBOARD_NOTE_WIDTH, WHITEBOARD_SHAPE_KINDS, WHITEBOARD_STROKE_STYLES, addDurationToDate, albersSkewFallback, analyzePert, applyCollapseProjection, applyGroupOrdering, applyPositionOverrides, atlasPalette, authoredCollapsedIds, blueprintPalette, breakAtoms, buildNoteMessageMap, buildRenderSequence, buildSimulationContext, buildTagLaneRowList, calculateSchedule, catppuccinPalette, choosePalette, clearEventLineMuted, clipWhiteboardConnector, collapseBoxesAndLines, collapseMindmapTree, collapseOrgTree, collapseSitemapTree, collapseStateGroups, collapsedBLGroupsFromSource, collapsedJourneyPhasesFromSource, collapsedPertGroupIdsFromSource, collapsedRaciPhasesFromSource, collapsedSequenceNoteLinesFromSource, collectDiagramRoles, collectTasks, colorNames, computeActivations, computeCardArchive, computeCardMove, computeCycleLayout, computeInfra, computeInfraLegendGroups, computeLegendLayout, computeRadarLayout, computeTimeTicks, controlsGroupCapsuleWidth, createMapGeoQuery, createMapGeoQueryForLayout, displayName, emitWhiteboard, emitWhiteboardElement, extractCategorizeRule, extractSymbols$2 as extractClassSymbols, extractColorRule, extractSymbols$1 as extractErSymbols, extractSymbols$3 as extractFlowchartSymbols, extractSymbols as extractInfraSymbols, extractPaletteDirective, extractPertSymbols, extractSection, extractTitleRule, fitWhiteboardLabel, fitWrapped, focusBoxesAndLines, focusEventLine, focusOrgTree, fontPortabilityWarning, formatChartTypeList, formatDateLabel, formatDiagramValidation, formatExamples, formatOffsetLabel, getExtendedChartLegendGroups, getLegendReservedHeight, getOrCreateName, getRadarGeometry, getSimpleChartLegendGroups, getSpaceDiagram, groupMessagesBySection, inferParticipantType, inferRoles, inkOutlinePath, invalidColorDiagnostic, isArchiveColumn, isExampleFor, isFoldableSequenceNote, isInvalidColorToken, isRecognizedColorName, isSequenceBlock, isSequenceNote, isWhiteboardColor, isWhiteboardImageRef, isWhiteboardShapeKind, layoutBlock, layoutBoxesAndLines, layoutBracket, layoutC4Components, layoutC4Containers, layoutC4Context, layoutC4Deployment, layoutClassDiagram, layoutERDiagram, layoutFamily, layoutGraph, layoutInfra, layoutJourneyMap, layoutMap, layoutMindmap, layoutOrg, layoutPert, layoutSitemap, layoutSwimlane, layoutTreemap, layoutTreemapRadial, layoutWireframe, legendEntryWidth, listSpaceDiagrams, loadMapData, looksLikeClassDiagram, looksLikeERDiagram, looksLikeFlowchart, looksLikeMap, looksLikePert, looksLikeSequence, looksLikeSitemap, looksLikeState, mapBackgroundColor, mapContentAspect, mapExportDimensions, mapNeutralLandColor, measurePertAnalysisBlock, measureText, mulberry32, nearestNamedColor, nord, nordPalette, normalizeName, normalizePlace, orderArcNodes, parseAndLayoutInfra, parseBlock, parseBody, parseBoxesAndLines, parseBracket, parseC4, parseChart, parseClassDiagram, parseClock, parseCountdown, parseCycle, parseDataRowValues, parseERDiagram, parseEventLine, parseExtendedChart, parseFamily, parseFixedOffset, parseFlowchart, parseGantt, parseGoal, parseInArrowLabel, parseInfra, parseInlineMarkdown, parseJourneyMap, parseKanban, parseLiveLink, parseMap, parseMindmap, parsePert, parsePyramid, parseRing, parseSequenceDgmo, parseSequenceDgmo as parseSequenceDiagram, parseSitemap, parseState, parseSwimlane, parseSwot, parseTechRadar, parseTimelineDate, parseTreemap, parseTypeAliases, parseVersionControl, parseVisualization, parseWhiteboard, parseWireframe, putSpaceDiagram, cellAppendMarker as raciCellAppendMarker, cellCycle as raciCellCycle, cellRemove as raciCellRemove, cellReplace as raciCellReplace, rebuildMapProjection, referenceForChartType, relayoutPert, render, renderArcDiagram, renderBlock, renderBlockForExport, renderBody, renderBodyForExport, renderBoxesAndLines, renderBoxesAndLinesForExport, renderBracket, renderBracketForExport, renderC4ComponentsForExport, renderC4Containers, renderC4ContainersForExport, renderC4Context, renderC4ContextForExport, renderC4Deployment, renderC4DeploymentForExport, renderClassDiagram, renderClassDiagramForExport, renderClock, renderClockForExport, renderCountdown, renderCountdownForExport, renderCycle, renderCycleForExport, renderERDiagram, renderERDiagramForExport, renderEventLine, renderEventLineForExport, renderFamily, renderFamilyForExport, renderFlowchart, renderFlowchartForExport, renderForExport, renderGantt, renderGoal, renderGoalForExport, renderInfra, renderJourneyMap, renderJourneyMapForExport, renderKanban, renderKanbanForExport, renderLegendD3, renderLegendSvg, renderLegendSvgFromConfig, renderLiveLinkCard, renderMap, renderMapForExport, renderMapLayout, renderMindmap, renderMindmapForExport, renderOrg, renderOrgForExport, renderPert, renderPertAnalysisBlock, renderPertForExport, renderPyramid, renderPyramidForExport, renderQuadrant, renderQuadrantFocus, renderQuadrantFocusForExport, renderRaci, renderRaciForExport, renderRing, renderRingForExport, renderSequenceDiagram, renderSitemap, renderSitemapForExport, renderSlopeChart, renderState, renderStateForExport, renderSwimlaneForExport, renderSwot, renderTechRadar, renderTechRadarForExport, renderTimeline, renderTreemap, renderTreemapForExport, renderTreemapRadial, renderTreemapRadialForExport, renderVenn, renderVersionControl, renderVersionControlForExport, renderWhiteboard, renderWireframe, renderWordCloud, resolveColor, resolveColorWithDiagnostic, resolveMap, resolvePlace, resolveTaskName, rollUpContextRelationships, sameWhiteboard, sampleBetaPert, searchZones, seriesColors, simulateCanonical, simulateFast, slatePalette, startClocks, startCountdowns, targetToMs, textFromSvg, tickClocks, tickCountdowns, tidewaterPalette, tokyoNightPalette, truncateBareUrl, truncateText, uncoveredCharacters, unionCollapsedSequenceNotes, unionCollapsedSitemapNodes, validateComputed, validateDiagram, validateFlowchartStructure, validateInfra, validateLabelCharacters, validateThemeFile, visibleWhiteboardElements, visibleWhiteboardIndices, whiteboardBendFor, whiteboardBendHandle, whiteboardBounds, whiteboardConnectorAttachments, whiteboardConnectorPaint, whiteboardDrawBand, whiteboardDrawOrder, whiteboardFilePath, whiteboardFileWave, whiteboardFileWavePoints, whiteboardLabelCentreY, whiteboardLabelHeight, whiteboardLabelPosition, whiteboardLabelShift, whiteboardLabelWidth, whiteboardNoteFold, whiteboardSegmentMidpoint, whiteboardShapeAt, whiteboardShapeContains, whiteboardShapeLabel, wrapTextToWidth, wrapWhiteboardLabel };
 export type { Activation, AncestorInfo, ArcLink, ArcNodeGroup, BLCollapseResult, BLEdge, BLGroup, BLLayoutEdge, BLLayoutGroup, BLLayoutNode, BLLayoutResult, BLNode, BlipTrend, BlockCell, BlockGrid, BlockLayoutItem, BlockLayoutResult, BlockNode, BlockOptions, BodyFigure, BodyOptions, BodyPart, BracketMode, BracketSide, C4ArrowType, C4DeploymentNode, C4Element, C4ElementType, C4Group, C4LayoutBoundary, C4LayoutEdge, C4LayoutNode, C4LayoutResult, C4LegendEntry, C4LegendGroup, C4Relationship, C4Shape, C4TagEntry, C4TagGroup, ChartDataPoint, ChartEra, ChartType$1 as ChartType, ClassLayoutEdge, ClassLayoutNode, ClassLayoutResult, ClassMember, ClassModifier, ClassNode, ClassRelationship, ClockEntry, ClockFace, ClockZoneKind, CloudSpaceTarget, CodepointRange, CollapsedMindmapResult, CollapsedOrgResult, CollapsedSitemapResult, CollapsedView, ComputedInfraEdge, ComputedInfraModel, ComputedInfraNode, ContextRelationship, CountUnits, CreateMapGeoQueryOptions, CycleEdge, CycleLayoutEdge, CycleLayoutNode, CycleLayoutResult, CycleNode, CycleRenderOptions, D3ExportDimensions, DiagramSymbols, DiagramValidation, Duration, DurationUnit, ERCardinality, ERColumn, ERConstraint, ERLayoutEdge, ERLayoutNode, ERLayoutResult, ERRelationship, ERTable, ElseIfBranch, EventLineEra, EventLineEvent, EventLineFocus, EventLineOptions, ExpandedActivity, ExtendedChartType, FamilyChild, FamilyChildEdge, FamilyLayoutNode, FamilyLayoutResult, FamilyMarriageBar, FamilyPerson, FamilySex, FamilyUnion, FocusOrgResult, FocusResult, FocusTarget, FontCoverage, GanttDependency, GanttEra, GanttGroup, GroupRow as GanttGroupRow, GanttHolidays, GanttInteractiveOptions, LaneHeaderRow as GanttLaneHeaderRow, GanttMarker, GanttNode, GanttOptions, Row as GanttRow, GanttTask, TaskRow as GanttTaskRow, GetOrCreateNameResult, GoalMode, GoalOptions, GraphDirection, GraphEdge, GraphGroup, GraphNode, GraphShape, InfraAvailabilityPercentiles, InfraBehaviorKey, InfraCbState, InfraComputeParams, InfraDiagnostic, InfraEdge, InfraGroup, InfraLatencyPercentiles, InfraLayoutEdge, InfraLayoutGroup, InfraLayoutNode, InfraLayoutResult, InfraLegendGroup, InfraNode, InfraPlaybackState, InfraProperty, InfraRole, InfraTagGroup, InlineSpan, JourneyMapAnnotation, JourneyMapInteractiveOptions, JourneyMapLayout, JourneyMapPersona, JourneyMapPhase, JourneyMapStep, KanbanCard, KanbanColumn, KanbanTagEntry, KanbanTagGroup, LayoutEdge, LayoutGroup, LayoutNode, LayoutOptions$1 as LayoutOptions, LayoutResult$1 as LayoutResult, LegendCallbacks, LegendConfig, LegendControl, LegendGroupData, LegendHandle, LegendLayout, LegendMode, LegendPalette, LegendPosition, LegendState, MapExportDimensions, MapGeoQuery, MapLayout, MapLayoutInset, MapLayoutLeg, MapLayoutPoi, MapLayoutRegion, MapLayoutStretch, MapProjectionKind, MapProjectionParams, MapProjectionSpec, MemberVisibility, MindmapLayoutEdge, MindmapLayoutNode, MindmapLayoutResult, MindmapNode, MonteCarloResult, NameEntry, NearestCity, NodeDetail, OrgContainerBounds, OrgLayoutEdge, OrgLayoutNode, OrgLayoutResult, PaletteDirective, ParseInArrowLabelResult, ParsedBlock, ParsedBody, ParsedBoxesAndLines, ParsedBracket, ParsedC4, ParsedChart, ParsedClassDiagram, ParsedClock, ParsedCountdown, ParsedCycle, ParsedERDiagram, ParsedEventLine, ParsedExtendedChart, ParsedFamily, ParsedGantt, ParsedGoal, ParsedGraph, ParsedInfra, ParsedJourneyMap, ParsedKanban, ParsedLiveLink, ParsedMindmap, ParsedPert, ParsedPyramid, ParsedRing, ParsedSequenceDgmo, ParsedSitemap, ParsedSwimlane, ParsedSwot, ParsedTechRadar, ParsedTreemap, ParsedVersionControl, ParsedVisualization, ParsedWhiteboard, ParsedWireframe, ParticipantType, PertActivity, Anchor as PertAnchor, PertDirection, PertEdge, PertGroup, PertLayoutEdge, PertLayoutGroup, PertLayoutNode, LayoutOverrides as PertLayoutOverrides, LayoutResult as PertLayoutResult, PertMilestone, PertOptions, PertRenderOptions, PlaceResolution, PlacedLabel, ProjectedCity, PyramidLayer, QuadrantPosition, RaciDragSource, RaciInteractionHandlers, RadialCell, RadialLayoutResult, RawMatch, RawSeed, RecurRule, RegionToken, RelationshipType, RenderStep, ResolvedActivity, ResolvedGroup$1 as ResolvedGroup, ResolvedPert, ResolvedGroup as ResolvedPertGroup, ResolvedSchedule, ResolvedTask, ResultCard, ResultTokens, RingLayer, RoundMode, SectionMessageGroup, SequenceBlock, SequenceElement, SequenceGroup, SequenceMessage, SequenceNote, SequenceParticipant, SequenceRenderOptions, SequenceSection, SimulateOptions, SitemapContainerBounds, SitemapDirection, SitemapEdge, SitemapLayoutEdge, SitemapLayoutNode, SitemapLayoutResult, SitemapLegendEntry, SitemapLegendGroup, SitemapNode, SpaceDiagram, SpaceDiagramSummary, SpacePutResult, StateCollapseResult, SwimEdge, SwimEvent, SwimLane, SwimNode, SwimPhase, SwimShape, LayoutBand as SwimlaneLayoutBand, SwimlaneLayoutResult, SwotItem, SwotRenderOptions, SwotSection, SwotSectionKey, TechRadarBlip, TechRadarLayoutPoint, TechRadarQuadrant, TechRadarRing, ThemeFileResult, TreemapCell, TreemapColorMode, TreemapLayoutResult, TreemapNode, TreemapOptions, UncoveredRun, VCBranch, VCNode, VCNote, VCOptions, VCRef, ValidateDiagramOptions, VisualizationType, WhiteboardArrow, WhiteboardAttachable, WhiteboardColor, WhiteboardConnectorAttachments, WhiteboardConnectorPaint, WhiteboardElement, WhiteboardFill, WhiteboardFitBox, WhiteboardHeads, WhiteboardImage, WhiteboardInk, WhiteboardLabelBox, WhiteboardLabelPosition, WhiteboardLine, WhiteboardNote, WhiteboardOptions, WhiteboardPoint, WhiteboardRenderOptions, WhiteboardSegment, WhiteboardShape, WhiteboardShapeKind, WhiteboardShapeLabel, WhiteboardStrokeStyle, WhiteboardText, WireframeElement, WireframeElementType, WireframeFormFactor, WireframeLayout, WireframeLayoutNode, WorkWindow, ZoneSuggestion };

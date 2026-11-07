@@ -15,6 +15,7 @@ import {
   splitNameAndMeta,
   warnUnknownMetaKeys,
   peelTrailingColorName,
+  peelTrailingCollapsedFlag,
 } from '../utils/parsing';
 import {
   matchTagBlockHeading,
@@ -47,7 +48,8 @@ import type { DgmoError } from '../diagnostics';
 // Regex patterns
 // ============================================================
 
-const PHASE_RE = /^\[(.+?)\]$/;
+/** `[Name]`, optionally followed by a same-line tail (the `collapsed` marker). */
+const PHASE_RE = /^\[(.+?)\](?:[ \t]+(.*))?$/;
 const ANNOTATION_RE = /^(pain|opportunity|thought)\s*:\s*(.+)$/i;
 
 /** Known journey-map options (key-value). */
@@ -313,6 +315,37 @@ export function parseJourneyMap(
       }
       currentStep = null;
 
+      // Header tail: the bare `collapsed` flag and/or `collapsed: true`
+      // metadata (#1741). Nothing else rides on a phase header.
+      let collapsed = false;
+      let tail = (phaseMatch[2] ?? '').trim();
+      const barePeel = peelTrailingCollapsedFlag(tail);
+      if (barePeel.collapsed) {
+        collapsed = true;
+        tail = barePeel.rest.trim();
+      }
+      if (tail) {
+        const split = splitNameAndMeta(
+          `_ ${tail}`,
+          JOURNEY_MAP_REGISTRY,
+          new Map(),
+          undefined,
+          result.diagnostics,
+          lineNumber
+        );
+        const meta = { ...split.meta };
+        if ('collapsed' in meta) {
+          collapsed = meta['collapsed'].trim().toLowerCase() === 'true';
+          delete meta['collapsed'];
+        }
+        if (split.name !== '_' || Object.keys(meta).length > 0) {
+          warn(
+            lineNumber,
+            `Unexpected text after phase header "[${phaseMatch[1]!.trim()}]" — only \`collapsed\` may follow it.`
+          );
+        }
+      }
+
       phaseCounter++;
       currentPhase = {
         id: `phase-${phaseCounter}`,
@@ -320,6 +353,7 @@ export function parseJourneyMap(
         name: phaseMatch[1]!.trim(),
         steps: [],
         lineNumber,
+        ...(collapsed && { collapsed: true }),
       };
       result.phases.push(currentPhase);
       continue;

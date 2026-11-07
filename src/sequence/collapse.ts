@@ -12,6 +12,7 @@ import type {
   SequenceElement,
   SequenceGroup,
   SequenceMessage,
+  SequenceNote,
   SequenceParticipant,
 } from './parser';
 import { isSequenceBlock, isSequenceNote, isSequenceSection } from './parser';
@@ -243,4 +244,64 @@ function remapElements(
   }
 
   return result;
+}
+
+/**
+ * A note folds only when it has something to hide: a body of more than one
+ * line. Folded, it shows its first line plus the collapse bar (#1741).
+ */
+export function isFoldableSequenceNote(note: SequenceNote): boolean {
+  return note.text.includes('\n');
+}
+
+/** Every note in an element tree, block branches included, in source order. */
+function collectNotes(
+  els: readonly SequenceElement[],
+  out: SequenceNote[]
+): SequenceNote[] {
+  for (const el of els) {
+    if (isSequenceNote(el)) out.push(el);
+    else if (isSequenceBlock(el)) {
+      collectNotes(el.children, out);
+      for (const branch of el.elseIfBranches ?? [])
+        collectNotes(branch.children, out);
+      collectNotes(el.elseChildren, out);
+    }
+  }
+  return out;
+}
+
+/**
+ * The opening lines of the foldable notes whose source carries the
+ * `collapsed` marker (#1741). The app seeds its runtime note set from this;
+ * the static render folds these when no runtime set is supplied.
+ */
+export function collapsedSequenceNoteLinesFromSource(
+  parsed: ParsedSequenceDgmo
+): Set<number> {
+  return new Set(
+    collectNotes(parsed.elements, [])
+      .filter((n) => n.collapsed === true && isFoldableSequenceNote(n))
+      .map((n) => n.lineNumber)
+  );
+}
+
+/**
+ * The note lines a static export folds: source markers ∪ runtime lines
+ * (mirrors org's `unionCollapsedOrgNodes`). A runtime line that is not a
+ * foldable note's opening line is ignored.
+ */
+export function unionCollapsedSequenceNotes(
+  parsed: ParsedSequenceDgmo,
+  runtime: Iterable<number> | undefined
+): Set<number> {
+  const out = collapsedSequenceNoteLinesFromSource(parsed);
+  if (runtime === undefined) return out;
+  const foldable = new Set(
+    collectNotes(parsed.elements, [])
+      .filter(isFoldableSequenceNote)
+      .map((n) => n.lineNumber)
+  );
+  for (const line of runtime) if (foldable.has(line)) out.add(line);
+  return out;
 }

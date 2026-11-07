@@ -49,6 +49,8 @@ export interface RaciPhase {
   readonly tasks: readonly RaciTask[];
   readonly lineNumber: number;
   readonly endLineNumber: number;
+  /** Source `collapsed` marker on the `[Phase]` header line (#1741). */
+  readonly collapsed?: boolean;
 }
 
 /** Top-level parse result. */

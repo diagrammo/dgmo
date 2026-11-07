@@ -38,6 +38,7 @@ import {
   ALL_CHART_TYPES,
   tryParseSharedOption,
   warnUnknownMetaKeys,
+  peelTrailingCollapsedFlag,
 } from '../utils/parsing';
 import type { SitemapNode, ParsedSitemap } from './types';
 import { tryStripDescriptionKeyword } from '../utils/description-helpers';
@@ -328,7 +329,9 @@ export function parseSitemap(
       measureIndent(line) === 0 &&
       !trimmed.includes('|') &&
       !trimmed.includes('->') &&
-      !trimmed.includes(':')
+      !trimmed.includes(':') &&
+      // `Home collapsed` is a page carrying the bare fold flag, not an option.
+      !/[ \t]collapsed$/.test(trimmed)
     ) {
       // Bare booleans: direction-lr / direction-tb (§1.9, last one wins;
       // direction-lr restates the LR default)
@@ -413,8 +416,13 @@ export function parseSitemap(
       // Capture groups 1 and 2 present by regex shape.
       const label = peelQuotedName(asMatch ? asMatch[1]!.trim() : rawLabel);
 
-      // Parse the tail after `]`: optional same-line metadata per §1.4.
-      const tail = (containerMatch[2] ?? '').trim();
+      // Parse the tail after `]`: an optional trailing bare `collapsed` flag
+      // (§1.8, decision #48: `[Shop] collapsed`, `[Shop] owner: Ann collapsed`),
+      // then optional same-line metadata per §1.4.
+      const barePeel = peelTrailingCollapsedFlag(
+        (containerMatch[2] ?? '').trim()
+      );
+      const tail = barePeel.rest.trim();
       const containerMetadata: Record<string, string> = {};
       if (tail.length > 0) {
         Object.assign(
@@ -422,6 +430,11 @@ export function parseSitemap(
           parseSitemapMetaTail(tail, metaAliasMap)
         );
       }
+      // Lifted before attachNode so the marker never cascades to members.
+      const containerCollapsed = liftCollapsed(
+        containerMetadata,
+        barePeel.collapsed
+      );
 
       containerCounter++;
       const containerId = `container-${containerCounter}`;
@@ -435,6 +448,9 @@ export function parseSitemap(
         parentId: null,
         isContainer: true,
         lineNumber,
+        ...(containerCollapsed !== undefined && {
+          collapsed: containerCollapsed,
+        }),
       };
 
       attachNode(node, indent, indentStack, result);
@@ -454,6 +470,11 @@ export function parseSitemap(
           lineNumber,
           "Metadata 'key: value' must be indented under a page — no page precedes it."
         );
+      } else if (key === 'collapsed') {
+        // Indented `collapsed: true` under a page/container — the same fold
+        // marker as the same-line form, never drawn as a metadata row (and
+        // never cascaded from a container to its members).
+        parent.collapsed = value.toLowerCase() === 'true';
       } else {
         parent.metadata = { ...parent.metadata, [key]: value };
       }
@@ -630,8 +651,13 @@ function parseNodeLabel(
     new Set(metaAliasMap.keys())
   );
   const id = `node-${counter}`;
+  // Canonical bare `collapsed` trailing flag (§1.8, decision #48) — peeled
+  // before the metadata split. Lowercase only, and never empties the name:
+  // a page called `collapsed` stays a page.
+  const barePeel = peelTrailingCollapsedFlag(trimmed);
+  const bareCollapsed = barePeel.collapsed && barePeel.rest.trim() !== '';
   const split = splitNameAndMeta(
-    trimmed,
+    bareCollapsed ? barePeel.rest : trimmed,
     registry,
     metaAliasMap,
     undefined,
@@ -664,17 +690,36 @@ function parseNodeLabel(
     }
     delete metadata['description'];
   }
+  const collapsed = liftCollapsed(metadata, bareCollapsed);
 
   return {
     id,
     label,
     metadata,
+    ...(collapsed !== undefined && { collapsed }),
     ...(description !== undefined && { description }),
     children: [],
     parentId: null,
     isContainer: false,
     lineNumber,
   };
+}
+
+/**
+ * Move the `collapsed` fold marker out of `metadata` (so it is not drawn as a
+ * row) and combine it with the bare trailing flag. `undefined` = no marker.
+ */
+function liftCollapsed(
+  metadata: Record<string, string>,
+  bare: boolean
+): boolean | undefined {
+  let collapsed: boolean | undefined = bare ? true : undefined;
+  const raw = metadata['collapsed'];
+  if (raw !== undefined) {
+    collapsed ??= raw.toLowerCase() === 'true';
+    delete metadata['collapsed'];
+  }
+  return collapsed;
 }
 
 /**

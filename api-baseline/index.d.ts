@@ -243,6 +243,14 @@ declare function applyGroupHeaderCollapsedMarkerAtLine(text: string, lineNumber:
  * the group's existing first child (falls back to header indent + 2).
  */
 declare function applyIndentedGroupCollapsedMarkerAtLine(text: string, headerLineNumber: number, collapse: boolean): string;
+/**
+ * Toggle the collapse marker on a multi-line note's opening line (`note right
+ * of A` → `note right of A collapsed: true`), used by sequence notes (#1741).
+ * The line minus any marker is the label, so the bare flag a hand-written note
+ * carries (`note right of A collapsed`) is recognised and removed cleanly.
+ * Leaves a line that is not a `note` head untouched.
+ */
+declare function applyNoteCollapsedMarkerAtLine(text: string, lineNumber: number, collapse: boolean): string;
 
 /**
  * The full diagnostic catalog, sorted by code. Every coded diagnostic
@@ -369,5 +377,5 @@ interface DecodedDiagramUrl {
  */
 declare function decodeDiagramUrl(url: string): DecodedDiagramUrl | null;
 
-export { CompactViewState, D3_DATA_CHART_TYPES, DgmoError, DiagnosticSpec, EXPORT_FIT_PAD, MapDataSource, PaletteConfig, Theme, applyCollapsedMarker, applyCollapsedMarkerAtLine, applyGroupHeaderCollapsedMarkerAtLine, applyIndentedGroupCollapsedMarkerAtLine, attachDataChartInteractions, decodeDiagramUrl, defaultEmbedBackground, encodeDiagramUrl, fitSvgToContent, getDiagnosticSpec, getEmbedSvgViewBox, listDiagnosticCodes, measureSvgContent, mountD3DataChart, normalizeSvgForEmbed, render, sanitizeSvgInPlace, supportsD3DataChart };
+export { CompactViewState, D3_DATA_CHART_TYPES, DgmoError, DiagnosticSpec, EXPORT_FIT_PAD, MapDataSource, PaletteConfig, Theme, applyCollapsedMarker, applyCollapsedMarkerAtLine, applyGroupHeaderCollapsedMarkerAtLine, applyIndentedGroupCollapsedMarkerAtLine, applyNoteCollapsedMarkerAtLine, attachDataChartInteractions, decodeDiagramUrl, defaultEmbedBackground, encodeDiagramUrl, fitSvgToContent, getDiagnosticSpec, getEmbedSvgViewBox, listDiagnosticCodes, measureSvgContent, mountD3DataChart, normalizeSvgForEmbed, render, sanitizeSvgInPlace, supportsD3DataChart };
 export type { ContentMeasurement, DataChartInteractionOpts, DecodedDiagramUrl, EncodeDiagramUrlOptions, FitSvgToContentOptions, MountD3Opts, MountedD3Chart, NormalizeSvgForEmbedOptions, RenderOptions, RenderResult };

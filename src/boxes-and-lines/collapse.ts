@@ -94,3 +94,24 @@ export function collapseBoxesAndLines(
     originalGroups,
   };
 }
+
+/**
+ * Group labels whose `[Group]` header carries the source `collapsed` marker
+ * (#1741). The app seeds its runtime collapsed set from this; the static
+ * export unions it with `viewState.cg` via {@link unionCollapsedBLGroups}.
+ */
+export function collapsedBLGroupsFromSource(
+  parsed: ParsedBoxesAndLines
+): Set<string> {
+  return new Set(parsed.groups.filter((g) => g.collapsed).map((g) => g.label));
+}
+
+/** Export collapsed set = source markers ∪ runtime group labels. */
+export function unionCollapsedBLGroups(
+  parsed: ParsedBoxesAndLines,
+  runtime?: Iterable<string>
+): Set<string> {
+  const set = collapsedBLGroupsFromSource(parsed);
+  for (const label of runtime ?? []) set.add(label);
+  return set;
+}

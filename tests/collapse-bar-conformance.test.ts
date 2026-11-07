@@ -4,32 +4,17 @@
 // export scale, in every render mode — and an expanded thing draws none.
 //
 // The static path (`render()`) is the one Obsidian, the docs sites, the CLI and
-// every PNG/SVG export draw through, so it is the path under test. Types whose
-// fold is runtime-only today (sitemap, boxes-and-lines, timeline, journey-map,
-// raci, pert) are driven through the collapsed set their renderer accepts.
+// every PNG/SVG export draw through, so it is the path under test. Every type
+// is driven through its SOURCE `collapsed` marker (slice 3a) — no runtime set —
+// except sequence sections, which still fold through the share-link view state.
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { JSDOM } from 'jsdom';
 import { render } from '../src/render';
-import { getPalette } from '../src/palettes';
 import { COLLAPSE_BAR_HEIGHT } from '../src/utils/visual-conventions';
-import { parseVisualization, renderTimeline } from '../src/d3';
-import { parseBoxesAndLines } from '../src/boxes-and-lines/parser';
-import { collapseBoxesAndLines } from '../src/boxes-and-lines/collapse';
-import { layoutBoxesAndLines } from '../src/boxes-and-lines/layout';
-import { renderBoxesAndLines } from '../src/boxes-and-lines/renderer';
-import { parseJourneyMap } from '../src/journey-map/parser';
-import { renderJourneyMap } from '../src/journey-map/renderer';
-import { parseRaci } from '../src/raci/parser';
-import { renderRaci } from '../src/raci/renderer';
-import { parsePert } from '../src/pert/parser';
-import { analyzePert } from '../src/pert/analyzer';
-import { relayoutPert } from '../src/pert/layout';
-import { renderPert } from '../src/pert/renderer';
 
 const BAR = '.dgmo-collapse-bar';
-const palette = getPalette('nord').light;
 
 let win: JSDOM['window'];
 beforeAll(() => {
@@ -70,12 +55,6 @@ async function staticBars(
   return [...doc.querySelectorAll(BAR)];
 }
 
-function mount(): HTMLDivElement {
-  const c = document.createElement('div') as HTMLDivElement;
-  document.body.appendChild(c);
-  return c;
-}
-
 function expectBars(bars: readonly Element[], count: number, label: string) {
   expect(bars.length, label).toBe(count);
   for (const bar of bars) {
@@ -92,6 +71,11 @@ interface StaticCase {
   expanded: string;
   viewState?: Parameters<typeof staticBars>[1];
 }
+
+const PERT = readFileSync(
+  join(__dirname, '../test-fixtures/pert/with-groups.dgmo'),
+  'utf8'
+);
 
 const STATIC: Record<string, StaticCase> = {
   org: {
@@ -156,21 +140,52 @@ const STATIC: Record<string, StaticCase> = {
       'event-line X\nno-scale\n\n[Phase One]\n  2020 A\n    one\n\n[Phase Two]\n  2021 B\n    two',
   },
   sitemap: {
-    folded: 'sitemap Site\n\nHome\n  Products\n    Widgets\n  About',
+    folded: 'sitemap Site\n\nHome\n  Products collapsed\n    Widgets\n  About',
     expanded: 'sitemap Site\n\nHome\n  Products\n    Widgets\n  About',
+  },
+  'sitemap container': {
+    folded:
+      'sitemap Site\n\nHome\n  [Shop] collapsed: true\n    Cart\n    Checkout',
+    expanded: 'sitemap Site\n\nHome\n  [Shop]\n    Cart\n    Checkout',
+  },
+  'boxes-and-lines': {
+    folded: 'boxes-and-lines Sys\n\n[Core] collapsed\n  A\n  B\nA -> B\nC -> A',
+    expanded: 'boxes-and-lines Sys\n\n[Core]\n  A\n  B\nA -> B\nC -> A',
+  },
+  timeline: {
+    folded:
+      'timeline\n\n[Alpha] collapsed\n  2020 Kickoff\n  2021 Launch\n[Beta]\n  2020 Draft',
+    expanded:
+      'timeline\n\n[Alpha]\n  2020 Kickoff\n  2021 Launch\n[Beta]\n  2020 Draft',
+  },
+  'journey-map': {
+    folded:
+      'journey-map Trip\n\n[Discover] collapsed\n  Search\n  Compare\n[Book]\n  Pay',
+    expanded:
+      'journey-map Trip\n\n[Discover]\n  Search\n  Compare\n[Book]\n  Pay',
+  },
+  raci: {
+    folded:
+      'raci Project\n\nroles\n  Dev\n  PM\n\n[Plan] collapsed\n  Scope\n    Dev: R\n    PM: A\n[Build]\n  Code\n    Dev: R',
+    expanded:
+      'raci Project\n\nroles\n  Dev\n  PM\n\n[Plan]\n  Scope\n    Dev: R\n    PM: A\n[Build]\n  Code\n    Dev: R',
+  },
+  pert: {
+    folded: PERT.replace('[outfit ship]', '[outfit ship] collapsed'),
+    expanded: PERT,
+  },
+  'sequence note': {
+    folded:
+      'sequence Flow\nAPI -> DB\nnote right of DB collapsed\n  First line\n  Second line\nDB -> API',
+    expanded:
+      'sequence Flow\nAPI -> DB\nnote right of DB\n  First line\n  Second line\nDB -> API',
   },
 };
 
 describe('one collapse bar per folded thing, in the static render (#1741)', () => {
   for (const [name, c] of Object.entries(STATIC)) {
     it(`${name} — folded draws one bar`, async () => {
-      // Sequence sections fold through the share-link view state, sitemap
-      // through its collapsed-node set (no source marker yet: slice 3).
-      const viewState =
-        name === 'sitemap'
-          ? { cg: await sitemapFoldId(c.folded) }
-          : c.viewState;
-      expectBars(await staticBars(c.folded, viewState), 1, name);
+      expectBars(await staticBars(c.folded, c.viewState), 1, name);
     });
     it(`${name} — expanded draws none`, async () => {
       expectBars(await staticBars(c.expanded), 0, name);
@@ -178,107 +193,43 @@ describe('one collapse bar per folded thing, in the static render (#1741)', () =
   }
 });
 
-/** The id of the sitemap's "Products" node, which the fixture folds. */
-async function sitemapFoldId(source: string): Promise<string[]> {
-  const { svg } = await render(source, { theme: 'light' });
+const TOGGLE_ATTRS = [
+  'data-node-toggle',
+  'data-group-toggle',
+  'data-section-toggle',
+  'data-note-toggle',
+];
+
+async function toggleAt(source: string, line: number): Promise<Element[]> {
+  const { svg } = await render(source, { theme: 'light', palette: 'nord' });
   const doc = new win.DOMParser().parseFromString(svg, 'image/svg+xml');
-  const ids = [...doc.querySelectorAll('[data-node-id]')]
-    .filter((el) => el.textContent?.trim().startsWith('Products'))
-    .map((el) => el.getAttribute('data-node-id')!);
-  expect(ids.length).toBeGreaterThan(0);
-  return [ids[0]!];
+  return [...doc.querySelectorAll(`[data-line-number="${line}"]`)].filter(
+    (el) => TOGGLE_ATTRS.some((a) => el.hasAttribute(a))
+  );
 }
 
-describe('one collapse bar per folded thing, runtime-folded types (#1741)', () => {
-  it('boxes-and-lines — a folded group', async () => {
-    const src = 'boxes-and-lines Sys\n\n[Core]\n  A\n  B\nA -> B\nC -> A';
-    for (const folded of [true, false]) {
-      const parsed = parseBoxesAndLines(src);
-      const cr = collapseBoxesAndLines(parsed, new Set(folded ? ['Core'] : []));
-      const layout = await layoutBoxesAndLines(cr.parsed, {
-        collapsedChildCounts: cr.collapsedChildCounts,
-        originalGroups: cr.originalGroups,
+describe('the marker line carries the toggle, folded and expanded (#1741)', () => {
+  for (const [name, c] of Object.entries(STATIC)) {
+    if (c.viewState) continue; // sequence sections: no source marker
+    // Wireframe groups carry no toggle markup yet (not in slice 3a).
+    if (name === 'wireframe') continue;
+    const line =
+      c.folded.split('\n').findIndex((l) => /\bcollapsed\b/.test(l)) + 1;
+    for (const [state, source, expanded] of [
+      ['folded', c.folded, 'false'],
+      ['expanded', c.expanded, 'true'],
+    ] as const) {
+      it(`${name} — ${state}`, async () => {
+        const toggles = await toggleAt(source, line);
+        expect(toggles.length, `${name} ${state} line ${line}`).toBe(1);
+        const t = toggles[0]!;
+        expect(t.getAttribute('aria-expanded')).toBe(expanded);
+        expect(t.getAttribute('role')).toBe('button');
+        expect(t.getAttribute('aria-label') ?? '').not.toBe('');
+        expect(t.hasAttribute('tabindex')).toBe(false);
       });
-      const c = mount();
-      renderBoxesAndLines(c, cr.parsed, layout, palette, false, {
-        exportDims: { width: 800, height: 600 },
-      });
-      expectBars([...c.querySelectorAll(BAR)], folded ? 1 : 0, 'bl');
     }
-  });
-
-  it('timeline — a folded lane', () => {
-    const src =
-      'timeline\n\n[Alpha]\n  2020 Kickoff\n  2021 Launch\n[Beta]\n  2020 Draft';
-    const c = mount();
-    renderTimeline(
-      c,
-      parseVisualization(src, palette),
-      palette,
-      false,
-      undefined,
-      {
-        width: 1200,
-        height: 600,
-      }
-    );
-    expectBars([...c.querySelectorAll(BAR)], 0, 'timeline expanded');
-    c.querySelector('.tl-group-header[data-group="Alpha"]')!.dispatchEvent(
-      new win.Event('click')
-    );
-    expectBars([...c.querySelectorAll(BAR)], 1, 'timeline folded');
-  });
-
-  it('journey-map — a folded phase', () => {
-    const src =
-      'journey-map Trip\n\n[Discover]\n  Search\n  Compare\n[Book]\n  Pay';
-    const parsed = parseJourneyMap(src, palette);
-    for (const folded of [true, false]) {
-      const c = mount();
-      renderJourneyMap(c, parsed, palette, false, {
-        exportDims: { width: 1000, height: 600 },
-        collapsedPhases: new Set(folded ? ['Discover'] : []),
-      });
-      expectBars([...c.querySelectorAll(BAR)], folded ? 1 : 0, 'journey');
-    }
-  });
-
-  it('raci — a folded phase', () => {
-    const src =
-      'raci Project\n\nroles\n  Dev\n  PM\n\n[Plan]\n  Scope\n    Dev: R\n    PM: A\n[Build]\n  Code\n    Dev: R';
-    const parsed = parseRaci(src, palette);
-    const phaseId = parsed.phases[0]!.id;
-    for (const folded of [true, false]) {
-      const c = mount();
-      renderRaci(
-        c,
-        parsed,
-        palette,
-        false,
-        { collapsedPhases: new Set(folded ? [phaseId] : []) },
-        { width: 1000, height: 600 }
-      );
-      expectBars([...c.querySelectorAll(BAR)], folded ? 1 : 0, 'raci');
-    }
-  });
-
-  it('pert — a folded group', () => {
-    const src = readFileSync(
-      join(__dirname, '../test-fixtures/pert/with-groups.dgmo'),
-      'utf8'
-    );
-    const resolved = analyzePert(parsePert(src));
-    const groupId = resolved.groups[0]!.group.id;
-    for (const folded of [true, false]) {
-      const ids = new Set(folded ? [groupId] : []);
-      const c = mount();
-      renderPert(c, resolved, relayoutPert(resolved, {}, ids), palette, false, {
-        collapsedGroupIds: [...ids],
-        exportDims: { width: 1200, height: 800 },
-      });
-      expectBars([...c.querySelectorAll(BAR)], folded ? 1 : 0, 'pert');
-    }
-  });
+  }
 });
 
 describe('no renderer draws its own collapse bar (#1741)', () => {

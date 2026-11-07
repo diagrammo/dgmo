@@ -7,6 +7,7 @@ import {
   applyCollapsedMarkerAtLine,
   applyGroupHeaderCollapsedMarkerAtLine,
   applyIndentedGroupCollapsedMarkerAtLine,
+  applyNoteCollapsedMarkerAtLine,
 } from '../src/utils/collapse-marker';
 
 describe('applyCollapsedMarker — the bare trailing flag', () => {
@@ -181,5 +182,50 @@ describe('applyIndentedGroupCollapsedMarkerAtLine', () => {
     const on = applyIndentedGroupCollapsedMarkerAtLine(doc, 3, true);
     // header at line 3; its child block ends before the blank line + Lighthouse.
     expect(on.split('\n')[3]).toBe('  collapsed: true');
+  });
+});
+
+describe('applyNoteCollapsedMarkerAtLine — a multi-line note head', () => {
+  const at = (line: string, collapse: boolean) =>
+    applyNoteCollapsedMarkerAtLine(
+      `A -> B\n${line}\n  body`,
+      2,
+      collapse
+    ).split('\n')[1];
+
+  it('adds and removes `collapsed: true`, keeping indentation', () => {
+    expect(at('  note right of B', true)).toBe(
+      '  note right of B collapsed: true'
+    );
+    expect(at('  note right of B collapsed: true', false)).toBe(
+      '  note right of B'
+    );
+    expect(at('note', true)).toBe('note collapsed: true');
+  });
+
+  it('recognises the bare flag', () => {
+    expect(at('note left B collapsed', true)).toBe('note left B collapsed');
+    expect(at('note left B collapsed', false)).toBe('note left B');
+    expect(at('note collapsed', false)).toBe('note');
+  });
+
+  it('leaves a non-note line untouched', () => {
+    expect(at('A -> B', true)).toBe('A -> B');
+  });
+});
+
+describe('a trailing colour after the parsed label is not metadata (#1741)', () => {
+  it('space-appends after a colour word when given the parsed label', () => {
+    expect(applyCollapsedMarker('  Products blue', 'Products', true)).toBe(
+      '  Products blue collapsed: true'
+    );
+    expect(
+      applyCollapsedMarker('  Products blue collapsed: true', 'Products', false)
+    ).toBe('  Products blue');
+  });
+  it('still comma-joins onto real metadata', () => {
+    expect(applyCollapsedMarker('  Wine w: Prized', 'Wine', true)).toBe(
+      '  Wine w: Prized, collapsed: true'
+    );
   });
 });

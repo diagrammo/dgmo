@@ -181,6 +181,7 @@ export const SITEMAP_REGISTRY: ReservedKeyRegistry = staticRegistry([
   'color',
   'description',
   'status',
+  'collapsed', // page / `[Container]` view-state marker (#1741)
 ]);
 
 export const GANTT_REGISTRY: ReservedKeyRegistry = staticRegistry([
@@ -209,6 +210,7 @@ export const BOXES_AND_LINES_REGISTRY: ReservedKeyRegistry = staticRegistry([
   'color',
   'description',
   'heat',
+  'collapsed', // `[Group] collapsed: true` view-state marker (#1741)
 ]);
 
 /**
@@ -225,6 +227,7 @@ export const TIMELINE_REGISTRY: ReservedKeyRegistry = staticRegistry([
   'color',
   'description',
   'duration',
+  'collapsed', // `[Lane] collapsed: true` view-state marker (#1741)
 ]);
 
 export const MINDMAP_REGISTRY: ReservedKeyRegistry = staticRegistry([
@@ -261,6 +264,7 @@ export const JOURNEY_MAP_REGISTRY: ReservedKeyRegistry = staticRegistry([
   'pain',
   'opportunity',
   'thought',
+  'collapsed', // `[Phase] collapsed: true` view-state marker (#1741)
 ]);
 
 export const PYRAMID_REGISTRY: ReservedKeyRegistry = staticRegistry([
@@ -288,6 +292,7 @@ export const TREEMAP_REGISTRY: ReservedKeyRegistry = staticRegistry(['heat']);
 export const RACI_REGISTRY: ReservedKeyRegistry = staticRegistry([
   'color',
   'description',
+  'collapsed', // `[Phase] collapsed: true` view-state marker (#1741)
 ]);
 
 // Family (genealogy): TWO registries. `FAMILY_PERSON_REGISTRY` holds every

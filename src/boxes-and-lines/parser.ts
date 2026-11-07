@@ -26,6 +26,7 @@ import {
   parseFirstLine,
   OPTION_NOCOLON_RE,
   peelRampColors,
+  peelTrailingCollapsedFlag,
   peelQuotedName,
   splitNameAndMeta,
   tryParseSharedOption,
@@ -571,10 +572,15 @@ export function parseBoxesAndLines(
         continue;
       }
 
-      const groupMeta = parseTailMeta(
-        groupMatch[2] ?? '',
-        metaAliasMap
-      ).metadata;
+      // `collapsed` fold marker (#1741): the bare trailing flag
+      // (`[Core] collapsed`, `[Core] color: blue, collapsed`) or the
+      // `collapsed: true` metadata form. Removed from the metadata so it
+      // neither cascades to members nor draws as a value.
+      const groupPeel = peelTrailingCollapsedFlag(groupMatch[2] ?? '');
+      const groupMeta = parseTailMeta(groupPeel.rest, metaAliasMap).metadata;
+      const groupCollapsed =
+        groupPeel.collapsed || groupMeta['collapsed'] === 'true';
+      delete groupMeta['collapsed'];
 
       const parentGs = currentGroupState();
       const group: MutBLGroup = {
@@ -582,6 +588,7 @@ export function parseBoxesAndLines(
         children: [],
         lineNumber: lineNum,
         metadata: groupMeta,
+        ...(groupCollapsed && { collapsed: true }),
         ...(parentGs ? { parentGroup: parentGs.group.label } : {}),
       };
 

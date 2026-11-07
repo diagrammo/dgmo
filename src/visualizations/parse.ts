@@ -26,6 +26,7 @@ import {
   normalizeNumericToken,
   parseFirstLine,
   peelTrailingColorName,
+  peelTrailingCollapsedFlag,
   splitNameAndMeta,
 } from '../utils/parsing';
 import {
@@ -335,7 +336,11 @@ function parseVisualizationFull(
       const tlGroupMatch = line.match(/^\[(.+?)\]\s*(.*?)\s*$/);
       if (tlGroupMatch) {
         const name = tlGroupMatch[1]!.trim();
-        const trailing = tlGroupMatch[2] ?? '';
+        // Bare `collapsed` fold marker (#1741) — peeled before the colour /
+        // metadata tail so `[Alpha] blue collapsed` keeps its colour.
+        const lanePeel = peelTrailingCollapsedFlag(tlGroupMatch[2] ?? '');
+        const trailing = lanePeel.rest;
+        let collapsed = lanePeel.collapsed;
         let color: string | null = null;
         let groupMeta: Record<string, string> = {};
 
@@ -387,11 +392,19 @@ function parseVisualizationFull(
           }
         }
 
+        // `collapsed: true` metadata form; dropped from the lane metadata so
+        // it is neither drawn nor inherited by the lane's events.
+        if (groupMeta['collapsed'] !== undefined) {
+          if (groupMeta['collapsed'].toLowerCase() === 'true') collapsed = true;
+          delete groupMeta['collapsed'];
+        }
+
         result.timelineGroups.push({
           name,
           color,
           metadata: groupMeta,
           lineNumber,
+          ...(collapsed && { collapsed: true }),
         });
         currentTimelineGroup = name;
         currentTimelineGroupMeta = groupMeta;

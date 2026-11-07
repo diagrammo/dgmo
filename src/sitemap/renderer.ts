@@ -594,7 +594,8 @@ export function renderSitemap(
       nodeG
         .attr('data-node-toggle', node.id)
         .attr('role', 'button')
-        .attr('aria-expanded', String(!node.hiddenCount));
+        .attr('aria-expanded', String(!node.hiddenCount))
+        .attr('aria-label', node.label);
     }
 
     if (onClickItem) {

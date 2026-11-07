@@ -1506,6 +1506,10 @@ export const PIPE_METADATA = new Map<string, PipeContextMap>([
       node: {
         description: { description: 'Page description' },
         status: { description: 'Page status' },
+        collapsed: {
+          description:
+            'Legacy `collapsed: true` — canonical is the bare trailing `collapsed` flag on the line',
+        },
       },
     },
   ],

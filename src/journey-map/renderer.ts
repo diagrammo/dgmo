@@ -2,6 +2,7 @@ import { serializeSvg } from '../utils/svg-serialize';
 import { tagAttrKey } from '../utils/tag-groups';
 import { fillModeFromOptions } from '../utils/parsing';
 import { renderCollapseBar } from '../utils/card';
+import { collapsedJourneyPhasesFromSource } from './collapse';
 import * as d3 from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import type { PaletteColors } from '../palettes';
@@ -662,6 +663,15 @@ export function renderJourneyMap(
         .append('g')
         .attr('class', 'journey-phase')
         .attr('data-line-number', pl.phase.lineNumber);
+      // Fold toggle contract (#1741): the whole column is the hit area; the
+      // value is the phase name — the id `collapsedPhases` holds.
+      if (pl.phase.steps.length > 0) {
+        phaseG
+          .attr('data-group-toggle', pl.phase.name)
+          .attr('aria-expanded', String(!isCollapsed))
+          .attr('role', 'button')
+          .attr('aria-label', pl.phase.name);
+      }
 
       // Column background (no stroke — matches kanban)
       const colBg = isDark
@@ -1638,12 +1648,15 @@ export function renderJourneyMapForExport(
   }
 
   const isDark = theme === 'dark';
-  const layout = layoutJourneyMap(parsed, palette, { isDark });
+  // Static render: fold from the source `collapsed` markers (#1741).
+  const collapsedPhases = collapsedJourneyPhasesFromSource(parsed);
+  const layout = layoutJourneyMap(parsed, palette, { isDark, collapsedPhases });
 
   const container = document.createElement('div');
   renderJourneyMap(container, parsed, palette, isDark, {
     exportDims: { width: layout.totalWidth, height: layout.totalHeight },
     exportMode: true,
+    collapsedPhases,
   });
 
   const svgEl = container.querySelector('svg');

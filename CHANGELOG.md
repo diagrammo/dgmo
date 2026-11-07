@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Every foldable chart type now takes a `collapsed` source marker.** Add the
+  bare `collapsed` flag (or `collapsed: true`) to a sitemap page or
+  `[Container]`, a boxes-and-lines `[Group]`, a timeline `[Lane]`, a
+  journey-map or raci `[Phase]`, or the opening line of a multi-line sequence
+  note. The thing then starts folded in every render path, with the collapse
+  bar: the app, Obsidian, the docs sites, the CLI and every export. A pert
+  `[group] collapsed` is now honoured by the export too. Each fold carries the
+  full toggle markup (`data-line-number` names the marker's line). New exports
+  seed a host's fold state from the source:
+  `unionCollapsedSitemapNodes`, `collapsedBLGroupsFromSource`,
+  `collapsedPertGroupIdsFromSource`, `collapsedJourneyPhasesFromSource`,
+  `collapsedRaciPhasesFromSource` and `collapsedSequenceNoteLinesFromSource`.
+  `applyNoteCollapsedMarkerAtLine` writes the note marker. c4 groups take no
+  fold: c4 folds by drill level.
+
 - **The four collapse-marker source edits are public exports.**
   `applyCollapsedMarker`, `applyCollapsedMarkerAtLine`,
   `applyGroupHeaderCollapsedMarkerAtLine` and
@@ -18,6 +33,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   desktop app so the Obsidian plugin can share them.
 
 ### Changed
+
+- **A raci phase's toggle is `data-group-toggle`, not `data-section-toggle`.**
+  It now matches every other group fold.
+- **`applyCollapsedMarker` treats only a `key:` after the label as metadata.**
+  Given the parsed label of `Products blue`, it now writes
+  `Products blue collapsed: true`. It used to write
+  `Products blue, collapsed: true`, which parsed as a page named
+  `Products blue,`.
 
 - **`else <label>` in a sequence diagram now parses as `else if <label>`.**
   It was an error, and agents kept writing it even with the language

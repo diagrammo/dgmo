@@ -1577,7 +1577,11 @@ export async function layoutBoxesAndLinesSearch(
       const p = g.node(gid(label));
       groups.push({
         label,
-        lineNumber: 0,
+        // The `[Group]` header line, so the folded pill's toggle points at the
+        // line the `collapsed` marker belongs on (#1741).
+        lineNumber:
+          collapseInfo?.originalGroups.find((og) => og.label === label)
+            ?.lineNumber ?? 0,
         x: p.x,
         y: p.y,
         width: p.width,

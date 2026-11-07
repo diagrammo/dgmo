@@ -300,7 +300,10 @@ export {
   renderBoxesAndLinesForExport,
 } from './boxes-and-lines/renderer';
 
-export { collapseBoxesAndLines } from './boxes-and-lines/collapse';
+export {
+  collapseBoxesAndLines,
+  collapsedBLGroupsFromSource,
+} from './boxes-and-lines/collapse';
 
 // ── Whiteboard (spec §39) — parser, emitter and renderer for the app canvas.
 // The ink codec is on the main entry (`encodeInk` / `decodeInk`).
@@ -456,7 +459,10 @@ export type {
 
 export { renderSitemap, renderSitemapForExport } from './sitemap/renderer';
 
-export { collapseSitemapTree } from './sitemap/collapse';
+export {
+  collapseSitemapTree,
+  unionCollapsedSitemapNodes,
+} from './sitemap/collapse';
 
 // ── Infra Chart ────────────────────────────────────────────
 export { parseInfra } from './infra/parser';
@@ -534,6 +540,7 @@ export { analyzePert } from './pert/analyzer';
 export { layoutPert, relayoutPert } from './pert/layout';
 export type { LayoutOverrides as PertLayoutOverrides } from './pert/internal';
 export { normalizePertSourceForShare } from './pert/share-normalize';
+export { collapsedPertGroupIdsFromSource } from './pert/export';
 
 // Monte Carlo simulator surface (formerly the `/pert` subpath, now folded
 // in here since there were zero subpath consumers and modern tree-shaking
@@ -639,6 +646,7 @@ export type {
 
 export { parseJourneyMap } from './journey-map/parser';
 export { layoutJourneyMap } from './journey-map/layout';
+export { collapsedJourneyPhasesFromSource } from './journey-map/collapse';
 export type { JourneyMapLayout } from './journey-map/layout';
 export {
   renderJourneyMap,
@@ -914,6 +922,7 @@ export {
   cellAppendMarker as raciCellAppendMarker,
   cellRemove as raciCellRemove,
   cellCycle as raciCellCycle,
+  collapsedRaciPhasesFromSource,
 } from './raci';
 export type {
   ParsedRaci,
@@ -1049,7 +1058,12 @@ export type {
   SequenceRenderOptions,
 } from './sequence/renderer';
 
-export { applyCollapseProjection } from './sequence/collapse';
+export {
+  applyCollapseProjection,
+  collapsedSequenceNoteLinesFromSource,
+  isFoldableSequenceNote,
+  unionCollapsedSequenceNotes,
+} from './sequence/collapse';
 export type { CollapsedView } from './sequence/collapse';
 
 // ============================================================

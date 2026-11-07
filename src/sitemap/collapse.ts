@@ -38,6 +38,7 @@ function cloneNode(node: SitemapNode): Writable<SitemapNode> {
     isContainer: node.isContainer,
     lineNumber: node.lineNumber,
     ...(node.color !== undefined && { color: node.color }),
+    ...(node.collapsed !== undefined && { collapsed: node.collapsed }),
   };
 }
 
@@ -65,6 +66,28 @@ const SITEMAP_EDGE_SHAPE: EdgeEndpointShape<SitemapEdge> = {
 // ============================================================
 // Main
 // ============================================================
+
+/**
+ * The ids of every page and container the SOURCE marks collapsed (bare
+ * `collapsed` flag or `collapsed: true`), optionally unioned with an
+ * interactive set (share link `viewState.cg`, or the app's runtime set).
+ * Sitemap analogue of `unionCollapsedOrgNodes`. The static export calls it;
+ * the app seeds its runtime set from `unionCollapsedSitemapNodes(parsed)`.
+ */
+export function unionCollapsedSitemapNodes(
+  parsed: ParsedSitemap,
+  interactive?: readonly string[]
+): Set<string> {
+  const ids = new Set<string>(interactive ?? []);
+  const walk = (nodes: readonly SitemapNode[]): void => {
+    for (const node of nodes) {
+      if (node.collapsed) ids.add(node.id);
+      walk(node.children);
+    }
+  };
+  walk(parsed.roots);
+  return ids;
+}
 
 export function collapseSitemapTree(
   original: ParsedSitemap,

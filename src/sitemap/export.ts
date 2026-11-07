@@ -19,7 +19,8 @@ export async function exportSitemap(ctx: ExportContext): Promise<string> {
   const { content, theme, palette, viewState, exportMode } = ctx;
   const { parseSitemap } = await import('./parser');
   const { layoutSitemap } = await import('./layout');
-  const { collapseSitemapTree } = await import('./collapse');
+  const { collapseSitemapTree, unionCollapsedSitemapNodes } =
+    await import('./collapse');
   const { renderSitemap } = await import('./renderer');
 
   const isDark = ctx.isDark;
@@ -28,8 +29,11 @@ export async function exportSitemap(ctx: ExportContext): Promise<string> {
   const sitemapParsed = parseSitemap(content, effectivePalette);
   if (sitemapParsed.error || sitemapParsed.roots.length === 0) return '';
 
-  // Apply interactive collapse state when provided (read from unified viewState)
-  const collapsedNodes = viewState?.cg ? new Set(viewState.cg) : undefined;
+  // Source `collapsed` markers ∪ interactive collapse state (viewState.cg).
+  const collapsedNodes = unionCollapsedSitemapNodes(
+    sitemapParsed,
+    viewState?.cg
+  );
   const activeTagGroup = resolveActiveTagGroup(
     sitemapParsed.tagGroups,
     sitemapParsed.options['active-tag'],
@@ -41,7 +45,7 @@ export async function exportSitemap(ctx: ExportContext): Promise<string> {
   );
 
   const { parsed: effectiveParsed, hiddenCounts } =
-    collapsedNodes && collapsedNodes.size > 0
+    collapsedNodes.size > 0
       ? collapseSitemapTree(sitemapParsed, collapsedNodes)
       : { parsed: sitemapParsed, hiddenCounts: new Map<string, number>() };
 

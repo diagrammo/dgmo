@@ -34,7 +34,9 @@ import { isSequenceBlock, isSequenceSection, isSequenceNote } from './parser';
 import {
   applyCollapseProjection,
   collapsedGroupId,
+  collapsedSequenceNoteLinesFromSource,
   isCollapsibleGroup,
+  isFoldableSequenceNote,
 } from './collapse';
 import type { CollapsedView } from './collapse';
 import {
@@ -528,6 +530,12 @@ export interface SectionMessageGroup {
 export interface SequenceRenderOptions {
   collapsedSections?: Set<number>; // keyed by section lineNumber
   collapsedGroups?: Set<number>; // keyed by group lineNumber
+  /**
+   * Folded notes, keyed by the note's opening line. AUTHORITATIVE when
+   * supplied (the app's runtime set, seeded from
+   * `collapsedSequenceNoteLinesFromSource`); absent, the source markers fold.
+   */
+  collapsedNotes?: Set<number>;
   exportWidth?: number; // Explicit width for CLI/export rendering (bypasses getBoundingClientRect)
   activeTagGroup?: string | null; // Active tag group name for tag-driven recoloring; null = explicitly none
 }
@@ -1136,6 +1144,10 @@ interface NoteLayout {
 
 /** A note's folded-corner box and the lines of text set in it. */
 interface NoteBox {
+  /** It has more than one line, so it carries the fold toggle. */
+  foldable: boolean;
+  /** Folded: only its first line is drawn, over the collapse bar. */
+  folded: boolean;
   x: number;
   y: number;
   width: number;
@@ -1445,6 +1457,14 @@ function layoutSequencePass(
   const elements = collapsed ? collapsed.elements : parsed.elements;
   const groups = collapsed ? collapsed.groups : parsed.groups;
   const collapsedSections = options?.collapsedSections;
+  // Folded notes (#1741): the runtime set when supplied, else the source
+  // markers. A folded note draws its first line only.
+  const collapsedNoteLines =
+    options?.collapsedNotes ?? collapsedSequenceNoteLinesFromSource(parsed);
+  const isNoteFolded = (note: SequenceNote): boolean =>
+    isFoldableSequenceNote(note) && collapsedNoteLines.has(note.lineNumber);
+  const shownNoteText = (note: SequenceNote): string =>
+    isNoteFolded(note) ? note.text.split('\n')[0]! : note.text;
   const autonumber = parsedOptions['autonumber']?.toLowerCase() === 'on';
   const sourceMessageNumberByLine = new Map(
     parsed.messages.map((message, index) => [message.lineNumber, index + 1])
@@ -1894,7 +1914,10 @@ function layoutSequencePass(
           const note = els[j]! as SequenceNote;
           const sc = isNoteAfterSelfCall(note);
           const maxW = noteEffectiveMaxW(note.participantId, note.position, sc);
-          const noteH = computeNoteHeight(note.text, noteTextWidth(maxW));
+          const noteH = computeNoteHeight(
+            shownNoteText(note),
+            noteTextWidth(maxW)
+          );
           totalExtent += noteH + NOTE_OFFSET_BELOW;
           j++;
         }
@@ -2367,7 +2390,7 @@ function layoutSequencePass(
       effectiveNotePosition(note),
       isNoteAfterSelfCall(note)
     );
-    const noteH = computeNoteHeight(note.text, noteTextWidth(maxW));
+    const noteH = computeNoteHeight(shownNoteText(note), noteTextWidth(maxW));
     contentBottomY = Math.max(
       contentBottomY,
       noteTopY + noteH + NOTE_TRAILING_GAP
@@ -3136,7 +3159,11 @@ function layoutSequencePass(
     if (px === undefined) continue;
     const { topY, position, afterSelfCall, maxW, textWidth } = noteLayout;
     const isRight = position === 'right';
-    const wrappedLines = wrapTextLines(note.text, textWidth, sNoteFontSize);
+    const wrappedLines = wrapTextLines(
+      shownNoteText(note),
+      textWidth,
+      sNoteFontSize
+    );
     const noteH = wrappedLines.length * sNoteLineH + sNotePadV * 2;
     const maxLineW = Math.max(
       ...wrappedLines.map((l) => measureText(l.text, sNoteFontSize))
@@ -3154,6 +3181,8 @@ function layoutSequencePass(
       ? px + rightOffset
       : px - sActivationWidth - sNoteGap - noteW;
     noteBoxes.set(note, {
+      foldable: isFoldableSequenceNote(note),
+      folded: isNoteFolded(note),
       x: noteX,
       y: topY,
       width: noteW,
@@ -4288,10 +4317,20 @@ export function renderSequenceDiagram(
 
         const noteG = svg
           .append('g')
-          .attr('class', 'note')
-          .attr('data-note-toggle', '')
+          .attr('class', box.folded ? 'note note-collapsed' : 'note')
           .attr('data-line-number', String(el.lineNumber))
           .attr('data-line-end', String(el.endLineNumber));
+        // Only a note with more than one line folds (#1741). The whole box is
+        // the hit area; the toggle value is the runtime set's key, the note's
+        // opening line, which is where the `collapsed` marker goes.
+        if (box.foldable) {
+          noteG
+            .attr('data-note-toggle', String(el.lineNumber))
+            .attr('role', 'button')
+            .attr('aria-expanded', box.folded ? 'false' : 'true')
+            .attr('aria-label', el.text.split('\n')[0]!)
+            .style('cursor', 'pointer');
+        }
 
         // Folded-corner path
         noteG
@@ -4349,6 +4388,20 @@ export function renderSequenceDiagram(
             .attr('font-size', sNoteFontSize)
             .attr('class', 'note-text');
           renderInlineText(textEl, line.text, palette, sNoteFontSize);
+        }
+
+        if (box.folded) {
+          renderCollapseBar(noteG, {
+            x: noteX,
+            y: noteTopY,
+            width: noteW,
+            height: noteH,
+            rx: 0,
+            fill: palette.textMuted,
+            clipId: `clip-note-${String(el.lineNumber)}`,
+            prefix: 'sequence-note',
+            scale: ctx,
+          });
         }
       } else if (isSequenceBlock(el)) {
         renderNoteElements(el.children);

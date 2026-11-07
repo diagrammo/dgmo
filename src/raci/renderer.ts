@@ -17,8 +17,8 @@
 // in a future iteration only changes the cell-paint code path.
 //
 // SVG attribute conventions (per `sequence/renderer.ts:2310-2317`):
-//   - Each phase `<g>` carries `data-section`, `data-section-toggle`,
-//     `data-line-number`. Children carry `data-line-number` only.
+//   - Each phase `<g>` carries `data-section`, `data-group-toggle` (phase
+//     id, foldable phases only), `data-line-number`. Children carry `data-line-number` only.
 //   - Task rows carry `data-line-number` for editor highlighting.
 //   - Cells carry `data-line-number` to the role-assignment line so
 //     click → editor cursor jumps to the source.
@@ -45,6 +45,7 @@ import { allTasks } from './parser';
 import { VARIANTS } from './variants';
 import { ScaleContext } from '../utils/scaling';
 import { renderCollapseBar } from '../utils/card';
+import { collapsedRaciPhasesFromSource } from './collapse';
 import {
   measureText,
   truncateText,
@@ -1127,9 +1128,23 @@ export function renderRaciForExport(
   parsed: ParsedRaci,
   palette: PaletteColors,
   isDark: boolean,
-  exportDims?: D3ExportDimensions
+  exportDims?: D3ExportDimensions,
+  interactiveCollapsedLines?: readonly number[]
 ): void {
-  renderRaci(container, parsed, palette, isDark, {}, exportDims);
+  // Static render: fold from the source `collapsed` markers ∪ any runtime
+  // phase line numbers (share link `viewState.cs`) (#1741).
+  const collapsedPhases = collapsedRaciPhasesFromSource(
+    parsed,
+    interactiveCollapsedLines
+  );
+  renderRaci(
+    container,
+    parsed,
+    palette,
+    isDark,
+    { collapsedPhases },
+    exportDims
+  );
 }
 
 // ── Phase bar ────────────────────────────────────────────────
@@ -1162,11 +1177,19 @@ function renderPhaseBar(
     .append('g')
     .attr('class', 'raci-phase')
     .attr('data-section', `phase-${phase.id}`)
-    .attr('data-section-toggle', '')
     .attr('data-line-number', String(phase.lineNumber))
     .attr('data-phase-id', phase.id)
     .attr('data-collapsed', collapsed ? '1' : '0')
     .style('cursor', 'pointer');
+  // Fold toggle contract (#1741): the whole phase band is the hit area; the
+  // value is the phase id — the id `collapsedPhases` holds.
+  if (phase.tasks.length > 0) {
+    phaseG
+      .attr('data-group-toggle', phase.id)
+      .attr('aria-expanded', String(!collapsed))
+      .attr('role', 'button')
+      .attr('aria-label', phase.displayName);
+  }
 
   // Phase color rules: explicit `[Voyage] | color: blue` wins; absent
   // that, fall back to the marker-safe auto-accent so each phase bar

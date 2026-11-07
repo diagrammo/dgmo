@@ -377,6 +377,7 @@ export {
   applyCollapsedMarkerAtLine,
   applyGroupHeaderCollapsedMarkerAtLine,
   applyIndentedGroupCollapsedMarkerAtLine,
+  applyNoteCollapsedMarkerAtLine,
 } from './utils/collapse-marker';
 
 // ============================================================

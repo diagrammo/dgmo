@@ -23,6 +23,8 @@ export interface JourneyMapPhase {
   readonly name: string;
   readonly steps: readonly JourneyMapStep[];
   readonly lineNumber: number;
+  /** Source `collapsed` marker on the `[Phase]` header line (#1741). */
+  readonly collapsed?: boolean;
 }
 
 export interface JourneyMapPersona {

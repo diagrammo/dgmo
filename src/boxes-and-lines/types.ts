@@ -26,6 +26,8 @@ export interface BLGroup {
   readonly children: readonly string[];
   readonly lineNumber: number;
   readonly metadata: Readonly<Record<string, string>>;
+  /** Source `collapsed` fold marker on the `[Group]` header line (#1741). */
+  readonly collapsed?: boolean;
   readonly parentGroup?: string;
 }
 

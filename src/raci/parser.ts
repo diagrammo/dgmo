@@ -27,6 +27,7 @@ import {
   measureIndent,
   parseFirstLine,
   splitNameAndMeta,
+  peelTrailingCollapsedFlag,
   OPTION_NOCOLON_RE,
   tryParseSharedOption,
   warnUnknownMetaKeys,
@@ -440,9 +441,29 @@ export function parseRaci(
           errorAt(lineNumber, 'Phase label is empty.');
           continue;
         }
-        // Parse tail: optional trailing-token color.
+        // Parse tail: the `collapsed` marker (bare flag or `collapsed: true`,
+        // #1741), then an optional trailing-token color.
         let phaseColor: string | undefined;
-        const tail = (phaseMatch[2] ?? '').trim();
+        let tail = (phaseMatch[2] ?? '').trim();
+        let collapsed = false;
+        const barePeel = peelTrailingCollapsedFlag(tail);
+        if (barePeel.collapsed) {
+          collapsed = true;
+          tail = barePeel.rest.trim();
+        }
+        if (/(?:^|[\s,])collapsed\s*:/.test(tail)) {
+          const split = splitNameAndMeta(
+            `_ ${tail}`,
+            RACI_REGISTRY,
+            new Map(),
+            undefined,
+            result.diagnostics,
+            lineNumber
+          );
+          if ('collapsed' in split.meta) {
+            collapsed = split.meta['collapsed'].trim().toLowerCase() === 'true';
+          }
+        }
         const colorMatch = tail.match(PHASE_PALETTE_COLOR_RE);
         if (colorMatch) {
           phaseColor = resolveColorWithDiagnostic(
@@ -459,6 +480,7 @@ export function parseRaci(
           tasks: [],
           lineNumber,
           endLineNumber: lineNumber,
+          ...(collapsed && { collapsed: true }),
         };
         result.phases.push(currentPhase);
         continue;

@@ -348,7 +348,11 @@ export function tryStableCollapseLayout(
     const r = shift(rects.get(gid(label))!);
     groups.push({
       label,
-      lineNumber: 0,
+      // The `[Group]` header line, so the folded pill's toggle points at the
+      // line the `collapsed` marker belongs on (#1741).
+      lineNumber:
+        collapseInfo.originalGroups.find((og) => og.label === label)
+          ?.lineNumber ?? 0,
       x: r.x,
       y: r.y,
       width: r.width,

@@ -4,6 +4,7 @@
 
 export { parseRaci, allTasks } from './parser';
 export { renderRaci, renderRaciForExport } from './renderer';
+export { collapsedRaciPhasesFromSource } from './collapse';
 export type { RaciDragSource, RaciInteractionHandlers } from './renderer';
 export {
   cellReplace,

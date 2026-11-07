@@ -16,6 +16,12 @@ export interface SitemapNode {
   readonly isContainer: boolean;
   readonly lineNumber: number;
   readonly color?: string;
+  /**
+   * Folded by source — the bare trailing `collapsed` flag or `collapsed: true`
+   * (same-line or indented) on the page/container. `false` = explicit
+   * `collapsed: false`; absent = no marker.
+   */
+  readonly collapsed?: boolean;
 }
 
 export interface SitemapEdge {

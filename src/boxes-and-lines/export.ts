@@ -28,7 +28,18 @@ export async function exportBoxesAndLines(ctx: ExportContext): Promise<string> {
 
   const { renderBoxesAndLinesForExport } = await import('./renderer');
   const { layoutBoxesAndLines } = await import('./layout');
-  const blLayout = await layoutBoxesAndLines(blParsed);
+  const { collapseBoxesAndLines, unionCollapsedBLGroups } =
+    await import('./collapse');
+  // Fold = source `collapsed` markers ∪ runtime `viewState.cg` (#1741), so a
+  // plain static render honours the marker with no runtime state.
+  const cr = collapseBoxesAndLines(
+    blParsed,
+    unionCollapsedBLGroups(blParsed, viewState?.cg)
+  );
+  const blLayout = await layoutBoxesAndLines(cr.parsed, {
+    collapsedChildCounts: cr.collapsedChildCounts,
+    originalGroups: cr.originalGroups,
+  });
   const PADDING = 20;
   const titleOffset = blParsed.title ? 40 : 0;
   const exportWidth = blLayout.width + PADDING * 2;
@@ -38,7 +49,7 @@ export async function exportBoxesAndLines(ctx: ExportContext): Promise<string> {
   const blActiveTagGroup = ctxTagOverride(ctx);
   renderBoxesAndLinesForExport(
     container,
-    blParsed,
+    cr.parsed,
     blLayout,
     effectivePalette,
     ctx.isDark,

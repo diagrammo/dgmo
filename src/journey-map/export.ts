@@ -11,10 +11,11 @@ import {
 import type { ExportContext } from '../utils/export-context';
 
 export async function exportJourneyMap(ctx: ExportContext): Promise<string> {
-  const { content, theme, palette, exportMode } = ctx;
+  const { content, theme, palette, exportMode, viewState } = ctx;
   const { parseJourneyMap } = await import('./parser');
   const { renderJourneyMap } = await import('./renderer');
   const { layoutJourneyMap } = await import('./layout');
+  const { collapsedJourneyPhasesFromSource } = await import('./collapse');
 
   const effectivePalette = await resolveExportPalette(theme, palette);
   const jmParsed = parseJourneyMap(content, effectivePalette);
@@ -24,8 +25,14 @@ export async function exportJourneyMap(ctx: ExportContext): Promise<string> {
   )
     return '';
 
+  // Source `collapsed` markers ∪ runtime phase names from a share link (#1741).
+  const collapsedPhases = collapsedJourneyPhasesFromSource(
+    jmParsed,
+    viewState?.cg
+  );
   const jmLayout = layoutJourneyMap(jmParsed, effectivePalette, {
     isDark: ctx.isDark,
+    collapsedPhases,
   });
   const container = createExportContainer(
     jmLayout.totalWidth,
@@ -34,6 +41,7 @@ export async function exportJourneyMap(ctx: ExportContext): Promise<string> {
   renderJourneyMap(container, jmParsed, effectivePalette, ctx.isDark, {
     exportDims: { width: jmLayout.totalWidth, height: jmLayout.totalHeight },
     exportMode,
+    collapsedPhases,
   });
   return finalizeSvgExport(container, theme, effectivePalette);
 }

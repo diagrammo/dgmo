@@ -773,6 +773,7 @@ Content formatting:
 - Links: `[text](url)` and bare URLs (auto-truncated in display)
 - The note ends where the indentation does — there is **no `end` terminator** (a bare `end` line is rejected).
 - Body lines join into one paragraph — a blank line or a trailing `\` keeps a break (§1.11).
+- **Fold a multi-line note** with a bare `collapsed` flag (or `collapsed: true`) at the end of its opening line: `note right of API collapsed`. It draws only the first body line, with the collapse bar. The flag counts only on a line followed by an indented body, so `note right of DB collapsed` with no body is a note that reads "collapsed".
 
 ### 2.6 Structural Blocks
 
@@ -1636,6 +1637,8 @@ All permutations supported: node→group, group→node, group→group. Brackets 
   Pricing Auth: Public
 ```
 
+**Collapse:** a bare `collapsed` flag at the end of a page line or a `[Container]` line (`Products collapsed`, `[Shop] collapsed`; legacy `collapsed: true`) starts it folded. Every render path draws the fold with the collapse bar and a hidden-page count. Only a page with children or a container with pages folds.
+
 ### 11.5 Node Descriptions
 
 ```
@@ -2148,6 +2151,8 @@ Nested groups (max depth 2):
 
 Group metadata cascades to children (node metadata overrides). Nodes already declared above can be referenced inside groups to assign membership.
 
+A bare `collapsed` flag on the group line (`[AWS] collapsed`, or `[AWS] color: blue, collapsed`; legacy `collapsed: true`) starts the group folded: it draws as one pill with a member count and the collapse bar, and its edges end on the pill.
+
 ### 13.5 Group-Targeted Edges
 
 Node-to-group and group-to-group edges use bracket syntax `[Group Name]`:
@@ -2356,6 +2361,8 @@ marker
 [Royal Navy]
   1718-07 Woodes Rogers arrives
 ```
+
+A bare `collapsed` flag on the lane line (`[Royal Navy] collapsed`, `[Royal Navy] blue collapsed`; legacy `collapsed: true`) starts the lane folded to one summary row with the collapse bar. Lanes fold only in the grouped swimlane layout.
 
 ### 14.6 Options (Space-Separated, NO Colon)
 
@@ -3508,6 +3515,8 @@ persona Captain Mara
 
 Phases are `[Bracket]` headers at indent 0. Steps live indented under them. Phases are optional — omit them for a continuous flat flow.
 
+A bare `collapsed` flag on the phase line (`[Research] collapsed`; legacy `collapsed: true`) starts the phase folded to a narrow column with the collapse bar. Nothing else may follow a phase header.
+
 ```
 [Research]
   Compare specs score: 4
@@ -4439,6 +4448,8 @@ Phase headers accept a trailing-token color for per-phase styling:
 
 The phase bar tints to a soft mix of the color over the background. Phases without a color fall back to the neutral gray bar.
 
+A bare `collapsed` flag on the phase line (`[Departure] collapsed`, `[Departure] teal collapsed`; legacy `collapsed: true`) starts the phase folded: its task rows hide and the band keeps its summary chips and the collapse bar.
+
 ### Display vs source ordering
 
 Markers in cells are always **rendered in canonical alphabet order** (`R A C I`, `R A S C I`, `D A C I`) regardless of source order. Source casing and order are preserved in the file; mutations operate on source order to keep round-trips byte-stable except for the cell that changed.
@@ -4840,16 +4851,16 @@ API description: Main gateway
 
 Some constructs _look_ universal but are scoped to specific chart types. Don't transplant them across charts.
 
-| Construct                                     | Scope                                                                                                                             |
-| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| Bare `collapsed` trailing flag (§1.8)         | sequence, infra, gantt, kanban, mindmap, pert, state, c4, event-line (eras), block, wireframe. Legacy: `collapsed: true` metadata |
-| Same-line / indented metadata on declarations | all chart types except flowchart, state, data charts (§1.4)                                                                       |
-| Trailing-keyword flag list                    | wireframe only (§19)                                                                                                              |
-| `progress: <N>` key                           | gantt only (§13)                                                                                                                  |
-| `score: <N>` + `emotion: <Word>` keys         | journey-map only (§22)                                                                                                            |
-| `description: <text>` shorthand for layers    | pyramid, ring (§23, §24)                                                                                                          |
-| `milestone` keyword                           | **removed** — use `<name> 0` (§13A)                                                                                               |
-| `\|` operator as metadata delimiter           | **removed** (§1.4). Surviving uses: wireframe `{A \| B}` braces, in-arrow `A -file\|name-> B`, quoted `"Order \| Items"`          |
+| Construct                                     | Scope                                                                                                                                                                                                                                                                             |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Bare `collapsed` trailing flag (§1.8)         | sequence (groups, multi-line notes), infra, gantt, kanban, mindmap, pert, state, event-line (eras), block, wireframe, sitemap, boxes-and-lines, timeline (lanes), journey-map, raci. c4 parses it but draws nothing (c4 folds by drill level). Legacy: `collapsed: true` metadata |
+| Same-line / indented metadata on declarations | all chart types except flowchart, state, data charts (§1.4)                                                                                                                                                                                                                       |
+| Trailing-keyword flag list                    | wireframe only (§19)                                                                                                                                                                                                                                                              |
+| `progress: <N>` key                           | gantt only (§13)                                                                                                                                                                                                                                                                  |
+| `score: <N>` + `emotion: <Word>` keys         | journey-map only (§22)                                                                                                                                                                                                                                                            |
+| `description: <text>` shorthand for layers    | pyramid, ring (§23, §24)                                                                                                                                                                                                                                                          |
+| `milestone` keyword                           | **removed** — use `<name> 0` (§13A)                                                                                                                                                                                                                                               |
+| `\|` operator as metadata delimiter           | **removed** (§1.4). Surviving uses: wireframe `{A \| B}` braces, in-arrow `A -file\|name-> B`, quoted `"Order \| Items"`                                                                                                                                                          |
 
 ### 26.4 Quoted Names + Aliases — Pick One
 

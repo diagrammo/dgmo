@@ -15,6 +15,8 @@ export interface TimelineGroup {
   color: string | null;
   metadata: Record<string, string>;
   lineNumber: number;
+  /** Source `collapsed` marker on the `[Lane]` header line (#1741). */
+  collapsed?: boolean;
 }
 
 export interface TimelineEra {

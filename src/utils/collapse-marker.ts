@@ -19,6 +19,7 @@
 
 const MARKER_VALUE = /collapsed:\s*\S+/;
 const BARE_FLAG = /(?:\s*,)?[ \t]+collapsed\s*$/;
+const META_KEY = /(?:^|[\s,|])[\w-]+\s*:/;
 
 /** A line that is only the label carries no flag: `collapsed` is its name. */
 const hasBareFlag = (line: string, label: string): boolean =>
@@ -38,8 +39,12 @@ export function applyCollapsedMarker(
     if (hasBareFlag(line, label)) return line;
     const stripped = line.replace(/\s+$/, '');
     const body = line.trimStart();
+    // Only a `key:` after the label is metadata to comma-join onto. A bare
+    // trailing token (a colour: `Products blue`) is part of the name region,
+    // so a host passing the PARSED label still writes `Products blue
+    // collapsed: true`, not `Products blue, collapsed: true` (#1741).
     const hasMeta =
-      body.startsWith(label) && body.slice(label.length).trim().length > 0;
+      body.startsWith(label) && META_KEY.test(body.slice(label.length));
     return hasMeta
       ? `${stripped}, collapsed: true`
       : `${stripped} collapsed: true`;
@@ -146,4 +151,29 @@ export function applyIndentedGroupCollapsedMarkerAtLine(
     }
   }
   return text;
+}
+
+/**
+ * Toggle the collapse marker on a multi-line note's opening line (`note right
+ * of A` → `note right of A collapsed: true`), used by sequence notes (#1741).
+ * The line minus any marker is the label, so the bare flag a hand-written note
+ * carries (`note right of A collapsed`) is recognised and removed cleanly.
+ * Leaves a line that is not a `note` head untouched.
+ */
+export function applyNoteCollapsedMarkerAtLine(
+  text: string,
+  lineNumber: number,
+  collapse: boolean
+): string {
+  const lines = text.split('\n');
+  const idx = lineNumber - 1;
+  const target = lines[idx];
+  if (target === undefined) return text;
+  const head = target
+    .trim()
+    .replace(/(?:\s*,)?\s+collapsed:\s*\S+$/, '')
+    .replace(BARE_FLAG, '');
+  if (!/^note(\s|$)/i.test(head)) return text;
+  lines[idx] = applyCollapsedMarker(target, head, collapse);
+  return lines.join('\n');
 }

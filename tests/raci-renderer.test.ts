@@ -116,20 +116,22 @@ describe('renderRaci — SVG attribute conventions', () => {
   Task B
     Cap: A`;
 
-  it('phase <g> carries data-section, data-section-toggle, data-line-number', () => {
+  it('phase <g> carries data-section, data-group-toggle, data-line-number', () => {
     const c = render(source);
     const phase = c.querySelector('.raci-phase');
     expect(phase).toBeTruthy();
     expect(phase!.getAttribute('data-section')).toBeTruthy();
-    expect(phase!.hasAttribute('data-section-toggle')).toBe(true);
+    expect(phase!.getAttribute('data-group-toggle')).toBe(
+      phase!.getAttribute('data-phase-id')
+    );
     expect(phase!.getAttribute('data-line-number')).toBe('3');
   });
 
-  it('phase children do NOT carry data-section-toggle', () => {
+  it('phase children do NOT carry data-group-toggle', () => {
     const c = render(source);
     const phase = c.querySelector('.raci-phase')!;
     for (const child of phase.querySelectorAll('*')) {
-      expect(child.hasAttribute('data-section-toggle')).toBe(false);
+      expect(child.hasAttribute('data-group-toggle')).toBe(false);
     }
   });
 

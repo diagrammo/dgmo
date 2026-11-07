@@ -168,6 +168,12 @@ export interface SequenceNote {
   readonly participantId: ParticipantId;
   readonly lineNumber: number;
   readonly endLineNumber: number;
+  /**
+   * Authored collapse marker (#1741) on a multi-line note's opening line:
+   * the bare trailing `collapsed` flag or `collapsed: true`. Never set on a
+   * single-line note — its text is prose (see {@link peelNoteHeadMarker}).
+   */
+  readonly collapsed?: boolean;
 }
 
 export type SequenceElement =
@@ -270,6 +276,31 @@ const ARROW_PATTERN = /\S+\s*(?:<-\S+-|<~\S+~|-\S+->|~\S+~>|->|~>|<-|<~)\s*\S+/;
 // structure here and resolve participant vs text in the parsing logic.
 const NOTE_BARE = /^note\s+(.+)$/i;
 const NOTE_MULTI = /^note(?:\s+(right|left)(?:\s+(?:of\s+)?(.+?))?)?\s*$/i;
+
+/**
+ * Peel the collapse marker off a note's opening line (#1741): the bare
+ * trailing `collapsed` flag, or a `collapsed: <v>` metadata tail. Returns null
+ * when the line carries neither. The caller only asks for a line with an
+ * indented body, and only keeps the result when the peeled line is a
+ * multi-line note head — a single-line note's text is prose, so
+ * `note right of A collapsed` with no body stays a note reading "collapsed".
+ */
+function peelNoteHeadMarker(
+  trimmed: string
+): { head: string; collapsed: boolean } | null {
+  const bare = peelTrailingCollapsedFlag(trimmed);
+  if (bare.collapsed && bare.rest !== '') {
+    return { head: bare.rest, collapsed: true };
+  }
+  const { meta } = splitNameAndMeta(trimmed, SEQUENCE_REGISTRY);
+  const keys = Object.keys(meta);
+  if (keys.length !== 1 || keys[0] !== 'collapsed') return null;
+  const at = trimmed.lastIndexOf('collapsed:');
+  if (at <= 0) return null;
+  const head = trimmed.slice(0, at).trimEnd().replace(/,\s*$/, '');
+  if (head === '') return null;
+  return { head, collapsed: meta['collapsed']?.toLowerCase() === 'true' };
+}
 
 /** Result of parseNoteLine — indicates what the parser should do. */
 type NoteParseResult =
@@ -1235,7 +1266,12 @@ export function parseSequenceDgmo(
         alias: bareAlias,
       } = splitPipe(trimmed, lineNumber);
       const inGroup = activeGroup() !== null && measureIndent(raw) > 0;
+      // `note collapsed: true` is a folded note head (#1741), not a
+      // participant named `note` carrying metadata.
+      const isNoteHead =
+        /^note$/i.test(bareCore) && bareMeta?.['collapsed'] !== undefined;
       if (
+        !isNoteHead &&
         /^\S+$/.test(bareCore) &&
         !ARROW_PATTERN.test(bareCore) &&
         (inGroup || !bodyStarted || bareMeta)
@@ -1555,8 +1591,33 @@ export function parseSequenceDgmo(
     // 2. For positioned: `note left [of] X text` — needs participant lookup to split name vs text
     // 3. Multi-line: `note`, `note right`, `note right [of] X` (body indented below)
     {
+      // A multi-line note's opening line may carry the collapse marker.
+      let noteLine = trimmed;
+      let noteCollapsed = false;
+      const bodyRaw = lines[i + 1];
+      if (
+        /^note(\s|$)/i.test(trimmed) &&
+        bodyRaw !== undefined &&
+        bodyRaw.trim() !== '' &&
+        measureIndent(bodyRaw) > indent
+      ) {
+        const peeled = peelNoteHeadMarker(trimmed);
+        if (
+          peeled &&
+          parseNoteLine(
+            peeled.head,
+            result.participants,
+            participantIds,
+            getSortedParticipants(),
+            lastMsgFrom
+          )?.kind === 'multi-head'
+        ) {
+          noteLine = peeled.head;
+          noteCollapsed = peeled.collapsed;
+        }
+      }
       const noteParsed = parseNoteLine(
-        trimmed,
+        noteLine,
         result.participants,
         participantIds,
         getSortedParticipants(),
@@ -1597,6 +1658,7 @@ export function parseSequenceDgmo(
             participantId: noteParsed.participantId,
             lineNumber,
             endLineNumber: i + 1, // i has advanced past the body lines (1-based)
+            ...(noteCollapsed && { collapsed: true }),
           };
           bodyStarted = true;
           currentContainer().push(note);

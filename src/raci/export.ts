@@ -11,7 +11,7 @@ import {
 import type { ExportContext } from '../utils/export-context';
 
 export async function exportRaci(ctx: ExportContext): Promise<string> {
-  const { content, theme, palette } = ctx;
+  const { content, theme, palette, viewState } = ctx;
   const { parseRaci } = await import('./parser');
   const { renderRaciForExport } = await import('./renderer');
 
@@ -20,9 +20,13 @@ export async function exportRaci(ctx: ExportContext): Promise<string> {
   if (raciParsed.error) return '';
 
   const container = createExportContainer(ctx.width, ctx.height);
-  renderRaciForExport(container, raciParsed, effectivePalette, ctx.isDark, {
-    width: ctx.width,
-    height: ctx.height,
-  });
+  renderRaciForExport(
+    container,
+    raciParsed,
+    effectivePalette,
+    ctx.isDark,
+    { width: ctx.width, height: ctx.height },
+    viewState?.cs
+  );
   return finalizeSvgExport(container, theme, effectivePalette);
 }
