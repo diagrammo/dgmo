@@ -6,7 +6,7 @@ When the user asks for a diagram, visualization, or chart, generate a `.dgmo` fi
 <!-- DGMO-AI-CORE:START -->
 ## DGMO AI Core
 
-_Generated from `language-reference.md` — the anti-patterns and 50-type index below are identical across every DGMO AI surface._
+_Generated from `language-reference.md` — the anti-patterns and 51-type index below are identical across every DGMO AI surface._
 
 ### Disambiguation — where DGMO diverges from LLM priors
 
@@ -79,6 +79,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `family`          | family tree / genealogy: unions (couples), children, remarriage, adoption, GEDCOM-style metadata                                                              |
 | `bracket`         | single-elimination tournament bracket: winners auto-advance; seed the field for a day-0 skeleton or list results casually; two sides mirror to a championship |
 | `kanban`          | task-board columns                                                                                                                                            |
+| `swot`            | SWOT analysis: strengths, weaknesses, opportunities, threats in four fixed panels on helpful/harmful and internal/external axes |
 | `gantt`           | project scheduling with task dependencies and milestones                                                                                                      |
 | `pert`            | project network with three-point estimates and critical path                                                                                                  |
 | `swimlane`        | cross-functional process flow with lanes, phases and gateways (BPMN-style)                                                                                    |
@@ -122,7 +123,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 
 ### Common examples (curated, parse-clean)
 
-_The most common types, inline so you can generate them without a fetch. For the other 42, get the per-type section (see below)._
+_The most common types, inline so you can generate them without a fetch. For the other 43, get the per-type section (see below)._
 
 #### journey-map
 

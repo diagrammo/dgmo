@@ -27,6 +27,7 @@ import {
 } from './diagnostics';
 import { SWIMLANE_DIAGNOSTICS } from './swimlane/diagnostics';
 import { RACI_DIAGNOSTICS } from './raci/diagnostics';
+import { SWOT_DIAGNOSTICS } from './swot/diagnostics';
 import { TREEMAP_DIAGNOSTICS } from './treemap/diagnostics';
 import { EVENT_LINE_DIAGNOSTICS } from './event-line/diagnostics';
 import { BODY_DIAGNOSTICS } from './body/diagnostics';
@@ -166,6 +167,7 @@ const REGISTRY: DiagnosticSpec[] = [
   ...UNIVERSAL_DIAGNOSTICS,
   ...SWIMLANE_DIAGNOSTICS,
   ...RACI_DIAGNOSTICS,
+  ...SWOT_DIAGNOSTICS,
   ...TREEMAP_DIAGNOSTICS,
   ...EVENT_LINE_DIAGNOSTICS,
   ...BODY_DIAGNOSTICS,

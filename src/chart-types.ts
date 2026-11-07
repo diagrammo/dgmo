@@ -162,6 +162,11 @@ const chartTypesData = [
     description: 'Task board columns',
   },
   {
+    id: 'swot',
+    description:
+      'SWOT analysis: strengths, weaknesses, opportunities and threats in four fixed panels on helpful/harmful and internal/external axes',
+  },
+  {
     id: 'raci',
     description: 'Tasks × roles responsibility matrix with constraint linting',
   },

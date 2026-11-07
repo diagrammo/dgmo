@@ -991,6 +991,13 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'arrow', category: 'control', chartTypes: ['whiteboard'] },
   { token: 'ink', category: 'control', chartTypes: ['whiteboard'] },
 
+  // ── SWOT section keywords (CONTROL) ──────────────────────
+  { token: 'strengths', category: 'control', chartTypes: ['swot'] },
+  { token: 'weaknesses', category: 'control', chartTypes: ['swot'] },
+  { token: 'opportunities', category: 'control', chartTypes: ['swot'] },
+  { token: 'threats', category: 'control', chartTypes: ['swot'] },
+  { token: 'no-axes', category: 'directive', chartTypes: ['swot'] },
+
   // ── Kanban status keywords (STATUS) ──────────────────────
   { token: 'na', category: 'status', chartTypes: ['kanban'] },
   { token: 'todo', category: 'status', chartTypes: ['kanban'] },

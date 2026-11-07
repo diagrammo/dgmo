@@ -705,6 +705,17 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     legend: true,
     legendMarkSelector: '.kanban-card',
   },
+  // swot: as kanban — hovering anywhere in a panel dims the other three, and the
+  // tag legend pairs on the items, which carry `data-tag-<slug>`.
+  swot: {
+    markSelector: '.swot-panel',
+    strategy: 'structural',
+    groupSelector: '.swot-panel',
+    emphasis: 'dim',
+    selfEmphasis: false,
+    legend: true,
+    legendMarkSelector: '.swot-item',
+  },
   // line: each series is a `g.dgmo-series` wrapping its line + data dots + an
   // invisible fat hit corridor (`.dgmo-series-hit`, renderer-baked) — without
   // the corridor only the 2.5px stroke and 4px dots were hittable, so the

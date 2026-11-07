@@ -66,6 +66,7 @@ import { parseOrg } from '../org/parser';
 import type { OrgNode } from '../org/parser';
 import { parsePert } from '../pert/parser';
 import { parseRaci } from '../raci/parser';
+import { parseSwot } from '../swot/parser';
 import { parseSequenceDgmo } from '../sequence/parser';
 import { parseSitemap } from '../sitemap/parser';
 import type { SitemapNode } from '../sitemap/types';
@@ -458,6 +459,14 @@ function summarizeJourneyMap(content: string): string | null {
   const phases = parsed.phases.map((p) => p.name);
   const who = parsed.persona ? ` for ${parsed.persona.name}` : '';
   return `Journey map${who} of ${plural(steps, 'step', 'steps')}${phases.length > 0 ? ` across ${namedCount(phases, 'phase', 'phases')}` : ''}.`;
+}
+
+function summarizeSwot(content: string): string | null {
+  const parsed = parseSwot(content);
+  if (parsed.error) return null;
+  const counts = parsed.sections.map((s) => `${s.label} ${s.items.length}`);
+  const total = parsed.sections.reduce((n, s) => n + s.items.length, 0);
+  return `SWOT analysis with ${plural(total, 'item', 'items')}: ${counts.join(', ')}.`;
 }
 
 function summarizeRaci(content: string): string | null {
@@ -947,6 +956,7 @@ const SUMMARIZERS: Record<ChartTypeId, Summarizer> = {
   wireframe: summarizeWireframe,
   'journey-map': summarizeJourneyMap,
   raci: summarizeRaci,
+  swot: summarizeSwot,
   body: summarizeBody,
   bracket: summarizeBracket,
   'live-link': summarizeLiveLink,

@@ -34,6 +34,7 @@ import { getAvailablePalettes } from '../src/palettes';
 import type { ConformanceFixture } from './fixtures/completion-conformance/_types';
 
 import { fixture as raciFixture } from './fixtures/completion-conformance/raci';
+import { fixture as swotFixture } from './fixtures/completion-conformance/swot';
 import { fixture as ringFixture } from './fixtures/completion-conformance/ring';
 import { fixture as pyramidFixture } from './fixtures/completion-conformance/pyramid';
 import { fixture as cycleFixture } from './fixtures/completion-conformance/cycle';
@@ -76,6 +77,7 @@ import { fixture as wireframeFixture } from './fixtures/completion-conformance/w
 
 const fixtures: ConformanceFixture[] = [
   raciFixture,
+  swotFixture,
   ringFixture,
   pyramidFixture,
   cycleFixture,

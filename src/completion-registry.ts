@@ -375,6 +375,22 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'active-tag': { description: 'Active tag group name' },
     }),
   ],
+  [
+    'swot',
+    withGlobals({
+      'no-legend': { description: 'Hide the legend' },
+      'active-tag': { description: 'Active tag group name' },
+      'x-label': {
+        description: 'Column labels (default: Helpful, Harmful)',
+      },
+      'y-label': {
+        description: 'Row labels (default: Internal, External)',
+      },
+      'no-axes': {
+        description: 'Hide the axis labels; wins over x-label and y-label',
+      },
+    }),
+  ],
   // RACI / RASCI / DACI — one chart type (`raci`); the variant (RACI, RASCI,
   // or DACI) is inferred from the markers used (D → DACI, S → RASCI).
   [
@@ -1007,6 +1023,7 @@ export const STRUCTURAL_KEYWORDS = new Map<string, string[]>([
   ['org', ['tag']],
   ['family', ['tag']],
   ['kanban', ['tag']],
+  ['swot', ['tag', 'strengths', 'weaknesses', 'opportunities', 'threats']],
   ['sitemap', ['tag']],
   ['infra', ['tag']],
   ['pert', ['tag']],

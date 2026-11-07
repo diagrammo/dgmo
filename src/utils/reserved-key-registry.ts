@@ -171,6 +171,12 @@ export const KANBAN_REGISTRY: ReservedKeyRegistry = staticRegistry([
   'collapsed', // `[Column] collapsed: true` view-state marker
 ]);
 
+/**
+ * Empty on purpose: a SWOT item is prose, so `Cost: 20% below rivals` and
+ * `Due: Friday` stay whole. Only a declared tag alias cuts metadata.
+ */
+export const SWOT_REGISTRY: ReservedKeyRegistry = staticRegistry([]);
+
 export const SITEMAP_REGISTRY: ReservedKeyRegistry = staticRegistry([
   'color',
   'description',

@@ -51,6 +51,7 @@ import { exportPert } from './pert/export';
 import { exportPyramid } from './pyramid/export';
 import { exportQuadrant } from './quadrant/export';
 import { exportRaci } from './raci/export';
+import { exportSwot } from './swot/export';
 import { exportRing } from './ring/export';
 import { exportVisualization } from './sequence/export';
 import { exportSitemap } from './sitemap/export';
@@ -127,6 +128,7 @@ export const DIAGRAM_EXPORT_HANDLERS: Record<string, DiagramExportHandler> = {
   clock: exportClock,
   bracket: exportBracket,
   raci: exportRaci,
+  swot: exportSwot,
   body: exportBody,
   'live-link': exportLiveLink,
   // D3 visualizations — own handler per type (Story 109.2). Only `sequence`

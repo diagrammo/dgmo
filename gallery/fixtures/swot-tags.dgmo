@@ -1,0 +1,16 @@
+swot Tortuga Rum Co.
+tag Priority as p
+  High red
+  Low gray
+active-tag Priority
+x-label Helpful, Harmful
+y-label Internal, External
+
+strengths
+  Oldest still on the island p: Low
+  Crew of 40 sworn tasters
+    Trained in three ports
+weaknesses Soft spots yellow
+  One barrel supplier p: High
+opportunities
+  Navy rum ration contract

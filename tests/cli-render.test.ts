@@ -306,6 +306,16 @@ Black Pearl beats Sea Serpent 5-3
 Salty Dog beats Kraken 4-2
 Black Pearl beats Salty Dog 6-5`,
 
+  swot: `swot Test SWOT
+strengths
+  Loyal crew
+weaknesses
+  Old sails
+opportunities
+  New route
+threats
+  The navy
+`,
   raci: `raci Test RACI
 roles Cap, QM, Bos
 

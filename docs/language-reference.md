@@ -125,6 +125,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `family`          | family tree / genealogy: unions (couples), children, remarriage, adoption, GEDCOM-style metadata                                                              |
 | `bracket`         | single-elimination tournament bracket: winners auto-advance; seed the field for a day-0 skeleton or list results casually; two sides mirror to a championship |
 | `kanban`          | task-board columns                                                                                                                                            |
+| `swot`            | SWOT analysis: strengths, weaknesses, opportunities, threats in four fixed panels on helpful/harmful and internal/external axes                               |
 | `gantt`           | project scheduling with task dependencies and milestones                                                                                                      |
 | `pert`            | project network with three-point estimates and critical path                                                                                                  |
 | `swimlane`        | cross-functional process flow with lanes, phases and gateways (BPMN-style)                                                                                    |
@@ -214,7 +215,7 @@ tag GroupName as <alias>
 - Must appear before diagram content
 - Bare shorthand is not an alias (TD-18): `tag Priority p` declares a group _named_ "Priority p" — no alias registers, so `p:` assignments silently miss. The parser warns on this shape (spaced name, no alias, alias-shaped trailing word), suggesting `tag Priority as p` or a quoted name
 
-**Diagram types that support tags**: the tag model is near-universal across the structural types — sequence, infra, org, c4, er, kanban, gantt, sitemap, timeline, boxes-and-lines, state (§5.7), pert, swimlane, mindmap, journey-map, event-line, treemap, map, block, bracket, family and whiteboard all accept `tag <Group> as <alias>` blocks (a whiteboard's names its colours — §24Ea). Check the per-type Options section for the exact directive set; if a type draws a tag legend, it takes tags. **Flowchart, wireframe, raci and class take no tags** — a `tag` block or `active-tag` on any of them is ignored with a warning, because what an element looks like is fixed by what it is (a flowchart's shape, a wireframe's state keywords, a class's trailing colour word) or by the roles (raci).
+**Diagram types that support tags**: the tag model is near-universal across the structural types — sequence, infra, org, c4, er, kanban, gantt, sitemap, timeline, boxes-and-lines, state (§5.7), pert, swimlane, mindmap, journey-map, event-line, treemap, map, block, bracket, family, swot and whiteboard all accept `tag <Group> as <alias>` blocks (a whiteboard's names its colours — §24Ea). Check the per-type Options section for the exact directive set; if a type draws a tag legend, it takes tags. **Flowchart, wireframe, raci and class take no tags** — a `tag` block or `active-tag` on any of them is ignored with a warning, because what an element looks like is fixed by what it is (a flowchart's shape, a wireframe's state keywords, a class's trailing colour word) or by the roles (raci).
 
 ### 1.4 Same-Line Metadata
 
@@ -4667,6 +4668,76 @@ The title slot is the only one in the language that can hold a target instead of
 The one directive is `url`. There are no elements, no indentation and no colons.
 
 ---
+
+## 25B. SWOT Analysis
+
+<!-- TYPE:swot -->
+
+<!-- TIPS start -->
+
+**Styling tips:** Keep items to a few words, and let the section colours stand: a tag group earns its place only when the items sort into kinds, such as priority or owner. Declare the sections in any order; they always draw S W / O T.
+
+<!-- TIPS end -->
+
+### 25B.1 Declaration
+
+```
+swot [Title]
+```
+
+A SWOT analysis names four fixed panels: **strengths** and **weaknesses** are internal, **opportunities** and **threats** are external; strengths and opportunities help, weaknesses and threats harm. The panels always draw as a 2×2 in the order S W / O T, whatever order the source uses. At phone width the chart stays 2×2 and scales as a whole.
+
+### 25B.2 Sections and items
+
+```
+swot Tortuga Rum Co.
+tag Priority as p
+  High red
+  Low gray
+active-tag Priority
+x-label Helpful, Harmful
+y-label Internal, External
+
+strengths
+  Oldest still on the island p: Low
+  Crew of 40 sworn tasters
+    Trained in three ports
+weaknesses Soft spots yellow
+  One barrel supplier p: High
+opportunities
+  Navy rum ration contract
+threats
+  Royal Navy blockade
+```
+
+- **Section line**, indent 0: `strengths|weaknesses|opportunities|threats [Label] [color]`. The keyword is case-insensitive. The label defaults to Strengths, Weaknesses, Opportunities, Threats; the colour defaults to green, yellow, blue, red. Sections are keywords, never `[brackets]`.
+- **Item line**: indented under a section. Text is literal, so colons and commas stay (`Cost: 20% below rivals, margins thin`) unless the key is a declared tag alias (`p: High`). A colour word ending an item stays in the text (`Margins are in the red`). A leading `- ` is removed.
+- **Detail line**: indented one level under an item; drawn smaller and muted. There is one detail level.
+- A missing or empty section still draws its panel, with a muted "None listed".
+- Long text wraps and the panel grows; nothing is truncated. A row takes its tallest panel's height, and the two columns stay equal.
+
+### 25B.3 Options
+
+| Option              | Effect                                                                                                                                              |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tag`, `active-tag` | A tag recolours an item's dot and adds the legend. An untagged item keeps its section's colour, and the header bands always keep the section colour |
+| `x-label A, B`      | Column labels above the top row. Default `Helpful, Harmful`                                                                                         |
+| `y-label A, B`      | Row labels left of each row, rotated. Default `Internal, External`                                                                                  |
+| `no-axes`           | Hide the axis labels. Wins over `x-label` and `y-label`                                                                                             |
+| `no-legend`         | Hide the tag legend                                                                                                                                 |
+| `palette`           | Draw in a built-in palette                                                                                                                          |
+
+The TOWS strategy cross-matrix, scores or weights are not part of this chart.
+
+### 25B.4 Diagnostics
+
+| Code                       | Fires on                                                                                                   |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `E_SWOT_UNKNOWN_SECTION`   | an unknown word at indent 0, including `[Strengths]` and `strength`; the message names the nearest keyword |
+| `E_SWOT_DUPLICATE_SECTION` | the same section twice                                                                                     |
+| `E_SWOT_ORPHAN_ITEM`       | an item before any section                                                                                 |
+| `E_SWOT_TOO_DEEP`          | nesting below the detail level                                                                             |
+| `W_SWOT_EMPTY_SECTION`     | a missing or empty section; its panel still draws                                                          |
 
 ## 26. Colon Usage Summary
 

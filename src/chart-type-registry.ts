@@ -81,6 +81,7 @@ import { parseCountdown } from './countdown/parser';
 import { parseClock } from './clock/parser';
 import { parseBracket } from './bracket/parser';
 import { parseRaci } from './raci/parser';
+import { parseSwot } from './swot/parser';
 import { parseBody } from './body/parser';
 import { parseLiveLink } from './live-link/parser';
 import type { DgmoError } from './diagnostics';
@@ -129,6 +130,7 @@ const REGISTRY: Record<ChartTypeId, Omit<ChartTypeDescriptor, 'id'>> = {
   wireframe: { category: 'diagram', parse: parseWireframe },
   'journey-map': { category: 'diagram', parse: parseJourneyMap },
   raci: { category: 'diagram', parse: parseRaci },
+  swot: { category: 'diagram', parse: parseSwot },
 
   // ── Standard ECharts charts (parseChart) ──────────────────
   bar: { category: 'data-chart', parse: parseChart },
