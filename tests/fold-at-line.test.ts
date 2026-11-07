@@ -162,6 +162,14 @@ const CASES: Record<string, Case> = {
     handFolded:
       'gantt\n[Backend] collapsed\n  API duration: 5d\n[Frontend]\n  UI duration: 3d',
   },
+  'gantt group with a start offset': {
+    source:
+      'gantt\nstart 2024-01-01\n[Backend]\n  API 5d\n+2d [Frontend]\n  UI 3d',
+    line: 5,
+    kind: 'data-group-toggle',
+    handFolded:
+      'gantt\nstart 2024-01-01\n[Backend]\n  API 5d\n+2d [Frontend] collapsed\n  UI 3d',
+  },
   kanban: {
     source: 'kanban\n[To Do]\n  Task 1\n[Done]\n  Task 2',
     line: 2,

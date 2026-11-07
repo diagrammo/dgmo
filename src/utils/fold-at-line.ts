@@ -52,6 +52,9 @@ const GROUP_HEADER_TYPES: ReadonlySet<string> = new Set([
   'timeline',
 ]);
 
+/** A `[group]` header, with gantt's optional start offset (`+7d [Blockade]`). */
+const GROUP_HEAD = /^(?:[+-]\S*\s+)?\[/;
+
 /** A sequence section divider, with or without its marker. */
 const SECTION_LINE = /^==\s+\S/;
 const SECTION_MARKER = /(?:\s*,)?\s+collapsed(?::\s*\S+)?\s*$/;
@@ -115,7 +118,7 @@ export function foldAtLine(
   const trimmed = text.trim();
 
   let next: string | null = null;
-  if (trimmed.startsWith('[')) {
+  if (GROUP_HEAD.test(trimmed)) {
     if (GROUP_HEADER_TYPES.has(chartType)) {
       next = foldGroupHeader(source, chartType, line, collapse);
     }
