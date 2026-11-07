@@ -6,6 +6,7 @@ import { M as MapDataSource } from './export-context-Ceh3wr0E.js';
 export { G as Gazetteer, a as GazetteerEntry, b as MapData, R as RegionName, c as RegionNames } from './export-context-Ceh3wr0E.js';
 import { a as DiagnosticSpec, D as DgmoError } from './tag-groups-DydewK3D.js';
 export { b as DgmoSeverity, c as DiagnosticParams, E as EmitOptions, e as emit, f as formatDgmoError } from './tag-groups-DydewK3D.js';
+export { f as foldAtLine } from './fold-at-line-DmSAa1eU.js';
 
 /**
  * Make an SVG produced by `@diagrammo/dgmo`'s static `render()` suitable for
@@ -253,16 +254,6 @@ declare function applyIndentedGroupCollapsedMarkerAtLine(text: string, headerLin
 declare function applyNoteCollapsedMarkerAtLine(text: string, lineNumber: number, collapse: boolean): string;
 
 /**
- * The DGMO `source` with the fold on its 1-based `line` set to `collapse`
- * (true folds, false unfolds), or null when the chart type folds nothing on
- * that line or the line already has that state.
- *
- * `line` is a toggle's `data-line-number`; `collapse` is the toggle's
- * `aria-expanded === "true"`.
- */
-declare function foldAtLine(source: string, line: number, collapse: boolean): string | null;
-
-/**
  * The full diagnostic catalog, sorted by code. Every coded diagnostic
  * dgmo can emit — its severity, owning chart type, canonical message,
  * fix hint, and a triggering example. This is the enumerable source of
@@ -387,5 +378,5 @@ interface DecodedDiagramUrl {
  */
 declare function decodeDiagramUrl(url: string): DecodedDiagramUrl | null;
 
-export { CompactViewState, D3_DATA_CHART_TYPES, DgmoError, DiagnosticSpec, EXPORT_FIT_PAD, MapDataSource, PaletteConfig, Theme, applyCollapsedMarker, applyCollapsedMarkerAtLine, applyGroupHeaderCollapsedMarkerAtLine, applyIndentedGroupCollapsedMarkerAtLine, applyNoteCollapsedMarkerAtLine, attachDataChartInteractions, decodeDiagramUrl, defaultEmbedBackground, encodeDiagramUrl, fitSvgToContent, foldAtLine, getDiagnosticSpec, getEmbedSvgViewBox, listDiagnosticCodes, measureSvgContent, mountD3DataChart, normalizeSvgForEmbed, render, sanitizeSvgInPlace, supportsD3DataChart };
+export { CompactViewState, D3_DATA_CHART_TYPES, DgmoError, DiagnosticSpec, EXPORT_FIT_PAD, MapDataSource, PaletteConfig, Theme, applyCollapsedMarker, applyCollapsedMarkerAtLine, applyGroupHeaderCollapsedMarkerAtLine, applyIndentedGroupCollapsedMarkerAtLine, applyNoteCollapsedMarkerAtLine, attachDataChartInteractions, decodeDiagramUrl, defaultEmbedBackground, encodeDiagramUrl, fitSvgToContent, getDiagnosticSpec, getEmbedSvgViewBox, listDiagnosticCodes, measureSvgContent, mountD3DataChart, normalizeSvgForEmbed, render, sanitizeSvgInPlace, supportsD3DataChart };
 export type { ContentMeasurement, DataChartInteractionOpts, DecodedDiagramUrl, EncodeDiagramUrlOptions, FitSvgToContentOptions, MountD3Opts, MountedD3Chart, NormalizeSvgForEmbedOptions, RenderOptions, RenderResult };

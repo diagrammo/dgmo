@@ -1,4 +1,5 @@
 import { M as MapDataSource } from './export-context-Ceh3wr0E.js';
+export { f as foldAtLine } from './fold-at-line-DmSAa1eU.js';
 import './tag-groups-DydewK3D.js';
 
 /**
