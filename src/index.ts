@@ -379,6 +379,9 @@ export {
   applyIndentedGroupCollapsedMarkerAtLine,
   applyNoteCollapsedMarkerAtLine,
 } from './utils/collapse-marker';
+// The one fold edit a static host needs: give it a toggle's line and state,
+// it detects the chart type and returns the edited source (#1741).
+export { foldAtLine } from './utils/fold-at-line';
 
 // ============================================================
 // Public types

@@ -406,7 +406,8 @@ function parseRow(
 }
 
 /** Parse the metadata tail after a `]`: comma-separated `key: value` pairs
- *  (boxes-and-lines idiom), plus the `span:` key and a bare `collapsed` flag. */
+ *  (boxes-and-lines idiom), plus the `span:` key and the `collapsed` marker —
+ *  the bare flag or `collapsed: <v>`. */
 function parseBlockTail(
   tail: string,
   aliasMap: Map<string, string>
@@ -429,6 +430,9 @@ function parseBlockTail(
     if (rawKey === 'span') {
       const num = parseInt(value, 10);
       if (Number.isFinite(num) && num >= 1) span = num;
+    } else if (rawKey === 'collapsed') {
+      // The metadata form every host writes back (#1741), same as the flag.
+      collapsed = value.toLowerCase() === 'true';
     } else if (value) {
       meta[aliasMap.get(rawKey) ?? rawKey] = value;
     }

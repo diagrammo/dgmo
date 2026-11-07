@@ -305,3 +305,15 @@ export function unionCollapsedSequenceNotes(
   for (const line of runtime) if (foldable.has(line)) out.add(line);
   return out;
 }
+
+/**
+ * The section divider lines whose source carries the `collapsed` marker
+ * (#1741). The static render folds these together with a share link's `cs`.
+ */
+export function collapsedSequenceSectionLinesFromSource(
+  parsed: ParsedSequenceDgmo
+): Set<number> {
+  return new Set(
+    parsed.sections.filter((s) => s.collapsed === true).map((s) => s.lineNumber)
+  );
+}

@@ -156,6 +156,11 @@ export interface SequenceSection {
   readonly kind: 'section';
   readonly label: string;
   readonly lineNumber: number;
+  /**
+   * Folded by source — the bare trailing `collapsed` flag or `collapsed: true`
+   * after the divider (`== Phase == collapsed`, #1741). Absent = no marker.
+   */
+  readonly collapsed?: boolean;
 }
 
 /**
@@ -300,6 +305,26 @@ function peelNoteHeadMarker(
   const head = trimmed.slice(0, at).trimEnd().replace(/,\s*$/, '');
   if (head === '') return null;
   return { head, collapsed: meta['collapsed']?.toLowerCase() === 'true' };
+}
+
+/**
+ * Peel the collapse marker off a section divider (#1741): `== Phase ==
+ * collapsed`, `== Phase == collapsed: true`, or the same without the closing
+ * `==`. Returns null when the line carries no marker, or when peeling it would
+ * leave no divider — `== collapsed ==` is a section named "collapsed".
+ */
+function peelSectionMarker(
+  trimmed: string
+): { line: string; collapsed: boolean } | null {
+  const meta = /^(.*?)(?:\s*,)?\s+collapsed:\s*(\S+)\s*$/.exec(trimmed);
+  if (meta && SECTION_PATTERN.test(meta[1]!)) {
+    return { line: meta[1]!, collapsed: meta[2]!.toLowerCase() === 'true' };
+  }
+  const bare = peelTrailingCollapsedFlag(trimmed);
+  if (bare.collapsed && SECTION_PATTERN.test(bare.rest)) {
+    return { line: bare.rest, collapsed: true };
+  }
+  return null;
 }
 
 /** Result of parseNoteLine — indicates what the parser should do. */
@@ -1045,7 +1070,10 @@ export function parseSequenceDgmo(
 
     // Parse section dividers — "== Label ==" or "== Label(color) =="
     // Close blocks first — sections at indent 0 should not nest inside blocks
-    const sectionMatch = trimmed.match(SECTION_PATTERN);
+    const sectionPeel = trimmed.startsWith('==')
+      ? peelSectionMarker(trimmed)
+      : null;
+    const sectionMatch = (sectionPeel?.line ?? trimmed).match(SECTION_PATTERN);
     if (sectionMatch) {
       const sectionIndent = measureIndent(raw);
       while (blockStack.length > 0) {
@@ -1073,6 +1101,7 @@ export function parseSequenceDgmo(
         // Capture group 1 guaranteed present after successful match.
         label: colorMatch ? colorMatch[1]!.trim() : labelRaw,
         lineNumber,
+        ...(sectionPeel?.collapsed && { collapsed: true }),
       };
       result.sections.push(section);
       currentContainer().push(section);

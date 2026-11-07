@@ -746,6 +746,8 @@ tag Security as sec
 
 Trailing `==` is optional.
 
+- **Fold a section** with a bare `collapsed` flag (or `collapsed: true`) after the divider: `== Checkout == collapsed`. The messages under it fold away until the next divider. `== collapsed ==` is a section named "collapsed".
+
 ### 2.5 Notes
 
 ```
@@ -4851,16 +4853,16 @@ API description: Main gateway
 
 Some constructs _look_ universal but are scoped to specific chart types. Don't transplant them across charts.
 
-| Construct                                     | Scope                                                                                                                                                                                                                                                                             |
-| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Bare `collapsed` trailing flag (§1.8)         | sequence (groups, multi-line notes), infra, gantt, kanban, mindmap, pert, state, event-line (eras), block, wireframe, sitemap, boxes-and-lines, timeline (lanes), journey-map, raci. c4 parses it but draws nothing (c4 folds by drill level). Legacy: `collapsed: true` metadata |
-| Same-line / indented metadata on declarations | all chart types except flowchart, state, data charts (§1.4)                                                                                                                                                                                                                       |
-| Trailing-keyword flag list                    | wireframe only (§19)                                                                                                                                                                                                                                                              |
-| `progress: <N>` key                           | gantt only (§13)                                                                                                                                                                                                                                                                  |
-| `score: <N>` + `emotion: <Word>` keys         | journey-map only (§22)                                                                                                                                                                                                                                                            |
-| `description: <text>` shorthand for layers    | pyramid, ring (§23, §24)                                                                                                                                                                                                                                                          |
-| `milestone` keyword                           | **removed** — use `<name> 0` (§13A)                                                                                                                                                                                                                                               |
-| `\|` operator as metadata delimiter           | **removed** (§1.4). Surviving uses: wireframe `{A \| B}` braces, in-arrow `A -file\|name-> B`, quoted `"Order \| Items"`                                                                                                                                                          |
+| Construct                                     | Scope                                                                                                                                                                                                                                                                                       |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Bare `collapsed` trailing flag (§1.8)         | sequence (groups, sections, multi-line notes), infra, gantt, kanban, mindmap, pert, state, event-line (eras), block, wireframe, sitemap, boxes-and-lines, timeline (lanes), journey-map, raci. c4 parses it but draws nothing (c4 folds by drill level). Legacy: `collapsed: true` metadata |
+| Same-line / indented metadata on declarations | all chart types except flowchart, state, data charts (§1.4)                                                                                                                                                                                                                                 |
+| Trailing-keyword flag list                    | wireframe only (§19)                                                                                                                                                                                                                                                                        |
+| `progress: <N>` key                           | gantt only (§13)                                                                                                                                                                                                                                                                            |
+| `score: <N>` + `emotion: <Word>` keys         | journey-map only (§22)                                                                                                                                                                                                                                                                      |
+| `description: <text>` shorthand for layers    | pyramid, ring (§23, §24)                                                                                                                                                                                                                                                                    |
+| `milestone` keyword                           | **removed** — use `<name> 0` (§13A)                                                                                                                                                                                                                                                         |
+| `\|` operator as metadata delimiter           | **removed** (§1.4). Surviving uses: wireframe `{A \| B}` braces, in-arrow `A -file\|name-> B`, quoted `"Order \| Items"`                                                                                                                                                                    |
 
 ### 26.4 Quoted Names + Aliases — Pick One
 

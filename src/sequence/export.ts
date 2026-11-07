@@ -42,14 +42,19 @@ export async function exportVisualization(ctx: ExportContext): Promise<string> {
   // Apply interactive view state from share links (read from unified viewState).
   // Sequences key both sections and groups by source line number; `cg` is the
   // shared string[] field, so coerce its entries back to numbers.
-  const collapsedSections = viewState?.cs ? new Set(viewState.cs) : undefined;
+  const {
+    unionCollapsedSequenceNotes,
+    collapsedSequenceSectionLinesFromSource,
+  } = await import('./collapse');
+  // Folded sections = source markers ∪ a share link's `cs` (#1741).
+  const collapsedSections = collapsedSequenceSectionLinesFromSource(seqParsed);
+  for (const line of viewState?.cs ?? []) collapsedSections.add(line);
   const collapsedGroups = viewState?.cg
     ? new Set(viewState.cg.map(Number).filter((n) => Number.isFinite(n)))
     : undefined;
   // Folded notes = source markers ∪ runtime lines (#1741). Notes and groups
   // are both keyed by source line, so a share link's `cg` carries note lines
   // too; a line that is not a foldable note's opening line is ignored.
-  const { unionCollapsedSequenceNotes } = await import('./collapse');
   const collapsedNotes = unionCollapsedSequenceNotes(
     seqParsed,
     viewState?.cg?.map(Number).filter((n) => Number.isFinite(n))
@@ -66,7 +71,7 @@ export async function exportVisualization(ctx: ExportContext): Promise<string> {
       ...(seqActiveTagGroup !== undefined && {
         activeTagGroup: seqActiveTagGroup,
       }),
-      ...(collapsedSections !== undefined && { collapsedSections }),
+      ...(collapsedSections.size > 0 && { collapsedSections }),
       ...(collapsedGroups !== undefined && { collapsedGroups }),
       collapsedNotes,
     }

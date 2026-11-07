@@ -1061,6 +1061,7 @@ export type {
 export {
   applyCollapseProjection,
   collapsedSequenceNoteLinesFromSource,
+  collapsedSequenceSectionLinesFromSource,
   isFoldableSequenceNote,
   unionCollapsedSequenceNotes,
 } from './sequence/collapse';
