@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **New chart type: `swot`.** A SWOT analysis in four fixed panels:
+  strengths and weaknesses on top (internal), opportunities and threats
+  below (external), whatever the source order. Each section is a keyword
+  line (`strengths`, `weaknesses`, `opportunities`, `threats`) with an
+  optional label and colour; items indent under it and take kanban-style
+  metadata. `tag`, `active-tag`, `palette`, `x-label`, `y-label`,
+  `no-axes` and `no-tint-items` are supported. A tagged row is tinted
+  12% of its tag colour. Hovering a panel dims the other three, and a
+  legend entry dims the items without its value. `parseSwot` and
+  `renderSwot` are exported from `@diagrammo/dgmo/advanced`.
 - **`interactiveFolds: false` draws the fold bar without the button.** A new
   option on `render()` and on the block renderer (`renderDgmoBlock` from
   `@diagrammo/dgmo/block`), default `true`. Pass `false` where a click on a
