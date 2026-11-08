@@ -73,6 +73,12 @@
     "scripts/migrate-as-aliases.mjs",
     "scripts/build-airports-snapshot.mjs",
     "scripts/gen-ai-core.mjs",
+    // 🔴 Both import ../../dgmo-mcp/dist, a SIBLING repo's build. On a
+    // workspace laptop it exists, so knip calls these entries unneeded; in CI
+    // the sibling is absent and knip fails on an unresolved import. Removed
+    // once on that local evidence (#1716) and CI stayed red 2026-11-05 → 11-08.
+    "scripts/eval-ai-generation.mjs",
+    "scripts/eval-tools.mjs",
     "scripts/gen-body-surface.mjs",
     "scripts/enrich-gazetteer-tz.mjs",
     "api-baseline/**",
