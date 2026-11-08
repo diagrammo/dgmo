@@ -327,3 +327,63 @@ export function renderNoteBadge(
 
   return g;
 }
+
+/** A node's placed note, as every node/edge chart's layout attaches it. */
+export interface NodeNote extends NoteRect {
+  readonly side: 'above' | 'below' | 'left' | 'right';
+  /** Resolved hex accent; default yellow if absent. */
+  readonly color?: string;
+  readonly lines: readonly WrappedDescLine[];
+  readonly lineNumber: number;
+  readonly endLineNumber: number;
+  /** Collapsed → a corner badge; the box geometry is unused. */
+  readonly collapsed?: boolean;
+}
+
+/**
+ * Draw a node's note into its center-translated `<g>`: a collapsed note is a
+ * badge in the node's top-right corner; an expanded one is a solid tether
+ * from the shape edge to the floated box, on the side the placer chose. The
+ * node keeps its position either way.
+ */
+export function renderNodeNote(
+  nodeG: GSelection,
+  node: { readonly width: number; readonly height: number },
+  note: NodeNote,
+  palette: PaletteColors,
+  isDark: boolean
+): void {
+  const accent = note.color ? { color: note.color } : {};
+  if (note.collapsed) {
+    renderNoteBadge(
+      nodeG,
+      {
+        x: node.width / 2 - NOTE_BADGE_RADIUS - 3,
+        y: -node.height / 2 + NOTE_BADGE_RADIUS + 3,
+      },
+      palette,
+      {
+        isDark,
+        ...accent,
+        lineNumber: note.lineNumber,
+        endLineNumber: note.endLineNumber,
+      }
+    );
+    return;
+  }
+  const [x1, y1, x2, y2] = noteConnectorPoints(node, note);
+  renderNoteConnector(nodeG, x1, y1, x2, y2, palette);
+  renderNoteBox(
+    nodeG,
+    { x: note.x, y: note.y, width: note.width, height: note.height },
+    note.lines,
+    palette,
+    {
+      isDark,
+      ...accent,
+      lineNumber: note.lineNumber,
+      endLineNumber: note.endLineNumber,
+      interactive: true,
+    }
+  );
+}

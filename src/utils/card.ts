@@ -163,6 +163,105 @@ export function renderNodeCard(container: D3Sel, opts: NodeCardOptions): void {
   }
 }
 
+/** One container metadata row: display key, value, and the value's color. */
+export type ContainerMetaRow = readonly [
+  displayKey: string,
+  value: string,
+  valueColor: string,
+];
+
+export interface ContainerCardOptions {
+  /** Container width (already laid out). */
+  width: number;
+  /** Container height (already laid out). */
+  height: number;
+  /** Scaled corner radius. */
+  rx: number;
+  /** Resolved container fill. */
+  fill: string;
+  /** Resolved container stroke, drawn at 0.35 opacity. */
+  stroke: string;
+  /** Scaled stroke width. */
+  strokeWidth: number;
+  /** Label text (single line), centered in the header band. */
+  label: string;
+  /** Label color. */
+  labelColor: string;
+  /** Scaled label font size. */
+  labelFontSize: number;
+  /** Scaled header band height. */
+  headerHeight: number;
+  /** Metadata rows in display order; empty for none. */
+  rows: readonly ContainerMetaRow[];
+  /** Key-column text color. */
+  keyColor: string;
+  /** Scaled metadata font size. */
+  metaFontSize: number;
+  /** Scaled metadata line height. */
+  metaLineHeight: number;
+}
+
+/**
+ * Draw a container card (rect at 0.35 stroke opacity → header label →
+ * metadata rows, no separator) into `container`, the org and sitemap
+ * container recipe. Byte-identical to the inline code it replaced.
+ */
+export function renderContainerCard(
+  container: D3Sel,
+  opts: ContainerCardOptions
+): void {
+  container
+    .append('rect')
+    .attr('x', 0)
+    .attr('y', 0)
+    .attr('width', opts.width)
+    .attr('height', opts.height)
+    .attr('rx', opts.rx)
+    .attr('fill', opts.fill)
+    .attr('stroke', opts.stroke)
+    .attr('stroke-opacity', 0.35)
+    .attr('stroke-width', opts.strokeWidth);
+
+  container
+    .append('text')
+    .attr('x', opts.width / 2)
+    .attr('y', opts.headerHeight / 2)
+    .attr('dominant-baseline', 'central')
+    .attr('text-anchor', 'middle')
+    .attr('fill', opts.labelColor)
+    .attr('font-size', opts.labelFontSize)
+    .attr('font-weight', 'bold')
+    .text(opts.label);
+
+  if (opts.rows.length === 0) return;
+  const maxKeyWidth = Math.max(
+    ...opts.rows.map(([key]) => measureText(`${key}: `, opts.metaFontSize))
+  );
+  const valueX = 10 + maxKeyWidth;
+  const metaStartY = opts.headerHeight + opts.metaFontSize - 2;
+
+  for (let i = 0; i < opts.rows.length; i++) {
+    const [displayKey, value, valueColor] = opts.rows[i]!;
+    const rowY = metaStartY + i * opts.metaLineHeight;
+
+    container
+      .append('text')
+      .attr('x', 10)
+      .attr('y', rowY)
+      .attr('fill', opts.keyColor)
+      .attr('font-size', opts.metaFontSize)
+      .text(`${displayKey}: `);
+
+    container
+      .append('text')
+      .attr('x', valueX)
+      .attr('y', rowY)
+      .attr('fill', valueColor)
+      .attr('font-size', opts.metaFontSize)
+      .text(value);
+  }
+}
+
 export interface CollapseBarOptions {
   /** Card origin x in the container's coordinates (default 0). */
   x?: number;

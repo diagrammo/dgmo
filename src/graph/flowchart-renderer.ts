@@ -19,22 +19,12 @@ import type { ParsedGraph, GraphShape } from './types';
 import type { LayoutResult, LayoutNode } from './layout';
 import { parseFlowchart } from './flowchart-parser';
 import { layoutGraph, NODE_LABEL_LINE_HEIGHT, wrapNodeLabel } from './layout';
+import { renderGraphTitle } from './title';
 import { edgeSplinePath } from './edge-spline';
-import {
-  TITLE_FONT_SIZE,
-  TITLE_FONT_WEIGHT,
-  TITLE_Y,
-} from '../utils/title-constants';
+import { TITLE_FONT_SIZE, TITLE_Y } from '../utils/title-constants';
 import { ScaleContext } from '../utils/scaling';
 import { measureText } from '../utils/text-measure';
-import {
-  renderNoteBox,
-  renderNoteConnector,
-  renderNoteBadge,
-  noteConnectorPoints,
-  NOTE_BADGE_RADIUS,
-  NOTE_FONT_SIZE,
-} from '../utils/note-box';
+import { renderNodeNote, NOTE_FONT_SIZE } from '../utils/note-box';
 
 // ============================================================
 // Constants
@@ -591,34 +581,16 @@ export function renderFlowchart(
   });
 
   if (showTitle) {
-    const titleEl = svg
-      .append('text')
-      .attr('class', 'chart-title')
-      .attr('x', header.titleX)
-      .attr('y', sTitleY)
-      .attr('text-anchor', header.titleAnchor)
-      .attr('fill', palette.text)
-      .attr('font-size', sTitleFontSize)
-      .attr('font-weight', TITLE_FONT_WEIGHT)
-      .style(
-        'cursor',
-        onClickItem && graph.titleLineNumber ? 'pointer' : 'default'
-      )
-      .text(graph.title);
-
-    if (graph.titleLineNumber) {
-      titleEl.attr('data-line-number', graph.titleLineNumber);
-      if (onClickItem) {
-        titleEl
-          .on('click', () => onClickItem(graph.titleLineNumber!))
-          .on('mouseenter', function () {
-            d3Selection.select(this).attr('opacity', 0.7);
-          })
-          .on('mouseleave', function () {
-            d3Selection.select(this).attr('opacity', 1);
-          });
-      }
-    }
+    renderGraphTitle(svg, {
+      title: graph.title ?? '',
+      titleLineNumber: graph.titleLineNumber,
+      x: header.titleX,
+      y: sTitleY,
+      anchor: header.titleAnchor,
+      fontSize: sTitleFontSize,
+      color: palette.text,
+      onClickItem,
+    });
   }
 
   const contentG = svg
@@ -862,46 +834,7 @@ export function renderFlowchart(
     }
 
     if (hasNote && node.note) {
-      if (node.note.collapsed) {
-        // Collapsed → comment-bubble badge in the node's top-right corner.
-        renderNoteBadge(
-          nodeG,
-          {
-            x: node.width / 2 - NOTE_BADGE_RADIUS - 3,
-            y: -node.height / 2 + NOTE_BADGE_RADIUS + 3,
-          },
-          palette,
-          {
-            isDark,
-            ...(node.note.color && { color: node.note.color }),
-            lineNumber: node.note.lineNumber,
-            endLineNumber: node.note.endLineNumber,
-          }
-        );
-      } else {
-        // Solid tether from the shape edge to the floated note, on whichever
-        // side the collision-aware placement chose.
-        const [cx1, cy1, cx2, cy2] = noteConnectorPoints(node, node.note);
-        renderNoteConnector(nodeG, cx1, cy1, cx2, cy2, palette);
-        renderNoteBox(
-          nodeG,
-          {
-            x: node.note.x,
-            y: node.note.y,
-            width: node.note.width,
-            height: node.note.height,
-          },
-          node.note.lines,
-          palette,
-          {
-            isDark,
-            ...(node.note.color && { color: node.note.color }),
-            lineNumber: node.note.lineNumber,
-            endLineNumber: node.note.endLineNumber,
-            interactive: true,
-          }
-        );
-      }
+      renderNodeNote(nodeG, node, node.note, palette, isDark);
     }
   }
 }

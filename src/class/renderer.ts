@@ -35,13 +35,7 @@ import { parseClassDiagram } from './parser';
 import { layoutClassDiagram } from './layout';
 import { ScaleContext } from '../utils/scaling';
 import { measureText } from '../utils/text-measure';
-import {
-  renderNoteBox,
-  renderNoteConnector,
-  renderNoteBadge,
-  noteConnectorPoints,
-  NOTE_BADGE_RADIUS,
-} from '../utils/note-box';
+import { renderNodeNote } from '../utils/note-box';
 
 // ============================================================
 // Constants
@@ -757,46 +751,13 @@ export function renderClassDiagram(
     // space chosen by the collision-aware placer. Coords are node-center
     // -local (the node `<g>` is translated to the center).
     if (node.note) {
-      if (node.note.collapsed) {
-        renderNoteBadge(
-          nodeG,
-          {
-            x: w / 2 - NOTE_BADGE_RADIUS - 3,
-            y: -h / 2 + NOTE_BADGE_RADIUS + 3,
-          },
-          palette,
-          {
-            isDark,
-            ...(node.note.color && { color: node.note.color }),
-            lineNumber: node.note.lineNumber,
-            endLineNumber: node.note.endLineNumber,
-          }
-        );
-      } else {
-        const [cx1, cy1, cx2, cy2] = noteConnectorPoints(
-          { width: w, height: h },
-          node.note
-        );
-        renderNoteConnector(nodeG, cx1, cy1, cx2, cy2, palette);
-        renderNoteBox(
-          nodeG,
-          {
-            x: node.note.x,
-            y: node.note.y,
-            width: node.note.width,
-            height: node.note.height,
-          },
-          node.note.lines,
-          palette,
-          {
-            isDark,
-            ...(node.note.color && { color: node.note.color }),
-            lineNumber: node.note.lineNumber,
-            endLineNumber: node.note.endLineNumber,
-            interactive: true,
-          }
-        );
-      }
+      renderNodeNote(
+        nodeG,
+        { width: w, height: h },
+        node.note,
+        palette,
+        isDark
+      );
     }
   }
 }

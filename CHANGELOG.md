@@ -53,6 +53,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Node notes, org/sitemap containers and the flowchart/state title each
+  have one drawer.** Output is byte-identical. Five renderers call
+  `renderNodeNote`, org and sitemap call `renderContainerCard`, and
+  flowchart and state share `renderGraphTitle`.
 - **Sequence participant shapes are drawn from data by one drawer.** Output
   is byte-identical. The cylinder cap sizes are now the shared constants
   `SEQUENCE_CYLINDER_RY` and `SEQUENCE_QUEUE_CAP` in `shape-caps.ts`.

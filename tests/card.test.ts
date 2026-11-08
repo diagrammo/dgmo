@@ -3,8 +3,10 @@ import { JSDOM } from 'jsdom';
 import * as d3 from 'd3-selection';
 import {
   renderNodeCard,
+  renderContainerCard,
   renderCollapseBar,
   type NodeCardOptions,
+  type ContainerCardOptions,
 } from '../src/utils/card';
 
 // Set up jsdom globals (mirrors the other renderer tests).
@@ -131,6 +133,66 @@ describe('renderNodeCard', () => {
     const keyX = Number((texts[1] as Element).getAttribute('x'));
     const valueX = Number((texts[2] as Element).getAttribute('x'));
     expect(valueX).toBeGreaterThan(keyX);
+  });
+});
+
+const CONTAINER: ContainerCardOptions = {
+  width: 200,
+  height: 90,
+  rx: 8,
+  fill: '#eeeeee',
+  stroke: '#336699',
+  strokeWidth: 1.5,
+  label: 'Team',
+  labelColor: '#111111',
+  labelFontSize: 13,
+  headerHeight: 30,
+  rows: [],
+  keyColor: '#777777',
+  metaFontSize: 11,
+  metaLineHeight: 16,
+};
+
+describe('renderContainerCard', () => {
+  it('draws the rect at 0.35 stroke opacity, then a bold centred label', () => {
+    const g = makeGroup();
+    renderContainerCard(g, CONTAINER);
+
+    const children = g.node()!.childNodes;
+    expect(children).toHaveLength(2);
+    const rect = g.select('rect');
+    expect(rect.attr('fill')).toBe('#eeeeee');
+    expect(rect.attr('stroke')).toBe('#336699');
+    expect(rect.attr('stroke-opacity')).toBe('0.35');
+    expect(rect.attr('stroke-width')).toBe('1.5');
+    const label = g.select('text');
+    expect(label.text()).toBe('Team');
+    expect(label.attr('x')).toBe('100');
+    expect(label.attr('y')).toBe('15');
+    expect(label.attr('font-weight')).toBe('bold');
+  });
+
+  it('draws one muted key and one coloured value per row, with no separator', () => {
+    const g = makeGroup();
+    renderContainerCard(g, {
+      ...CONTAINER,
+      rows: [
+        ['Lead', 'Ada', '#aa0000'],
+        ['Size', '4', '#111111'],
+      ],
+    });
+
+    expect(g.select('line').empty()).toBe(true);
+    const texts = g.selectAll('text').nodes() as Element[];
+    expect(texts).toHaveLength(5);
+    expect(texts[1]!.textContent).toBe('Lead: ');
+    expect(texts[1]!.getAttribute('fill')).toBe('#777777');
+    expect(texts[2]!.textContent).toBe('Ada');
+    expect(texts[2]!.getAttribute('fill')).toBe('#aa0000');
+    // First baseline = headerHeight + metaFontSize - 2 = 30 + 11 - 2.
+    expect(texts[1]!.getAttribute('y')).toBe('39');
+    expect(texts[3]!.getAttribute('y')).toBe('55');
+    expect(Number(texts[2]!.getAttribute('x'))).toBeGreaterThan(10);
   });
 });
 

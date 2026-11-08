@@ -41,7 +41,11 @@ import {
   getLegendExtent,
 } from '../utils/legend-layout';
 import { ScaleContext } from '../utils/scaling';
-import { renderNodeCard, renderCollapseBar } from '../utils/card';
+import {
+  renderNodeCard,
+  renderContainerCard,
+  renderCollapseBar,
+} from '../utils/card';
 
 // ============================================================
 // Constants
@@ -452,63 +456,29 @@ export function renderSitemap(
     const fill = containerFill(palette, isDark, c.color);
     const stroke = containerStroke(palette, c.color);
 
-    cG.append('rect')
-      .attr('x', 0)
-      .attr('y', 0)
-      .attr('width', c.width)
-      .attr('height', c.height)
-      .attr('rx', CONTAINER_RADIUS)
-      .attr('fill', fill)
-      .attr('stroke', stroke)
-      .attr('stroke-opacity', 0.35)
-      .attr('stroke-width', sNodeStrokeWidth);
-
-    cG.append('text')
-      .attr('x', c.width / 2)
-      .attr('y', sContainerHeaderHeight / 2)
-      .attr('dominant-baseline', 'central')
-      .attr('text-anchor', 'middle')
-      .attr('fill', palette.text)
-      .attr('font-size', sContainerLabelFontSize)
-      .attr('font-weight', 'bold')
-      .text(c.label);
-
-    const metaEntries = Object.entries(c.metadata);
-    if (metaEntries.length > 0) {
-      const metaDisplayKeys = metaEntries.map(
-        ([k]) => displayNames.get(k) ?? k
-      );
-      const maxKeyWidth = Math.max(
-        ...metaDisplayKeys.map((k) =>
-          measureText(`${k}: `, sContainerMetaFontSize)
-        )
-      );
-      const valueX = 10 + maxKeyWidth;
-      const metaStartY = sContainerHeaderHeight + sContainerMetaFontSize - 2;
-
-      for (let i = 0; i < metaEntries.length; i++) {
-        // In-bounds by loop guard.
-        const [key, value] = metaEntries[i]!;
-        const displayKey = metaDisplayKeys[i];
-        const rowY = metaStartY + i * sContainerMetaLineHeight;
-        const valColor =
-          tagColors.get(`${key}:${value.toLowerCase()}`) ?? palette.text;
-
-        cG.append('text')
-          .attr('x', 10)
-          .attr('y', rowY)
-          .attr('fill', palette.textMuted)
-          .attr('font-size', sContainerMetaFontSize)
-          .text(`${displayKey}: `);
-
-        cG.append('text')
-          .attr('x', valueX)
-          .attr('y', rowY)
-          .attr('fill', valColor)
-          .attr('font-size', sContainerMetaFontSize)
-          .text(value);
-      }
-    }
+    renderContainerCard(cG, {
+      width: c.width,
+      height: c.height,
+      rx: CONTAINER_RADIUS,
+      fill,
+      stroke,
+      strokeWidth: sNodeStrokeWidth,
+      label: c.label,
+      labelColor: palette.text,
+      labelFontSize: sContainerLabelFontSize,
+      headerHeight: sContainerHeaderHeight,
+      rows: Object.entries(c.metadata).map(
+        ([key, value]) =>
+          [
+            displayNames.get(key) ?? key,
+            value,
+            tagColors.get(`${key}:${value.toLowerCase()}`) ?? palette.text,
+          ] as const
+      ),
+      keyColor: palette.textMuted,
+      metaFontSize: sContainerMetaFontSize,
+      metaLineHeight: sContainerMetaLineHeight,
+    });
 
     // Folded: the bar. Expanded: its hover preview (#1741).
     if (c.hasChildren) {
