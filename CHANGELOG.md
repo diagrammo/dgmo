@@ -53,6 +53,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Sequence participant shapes are drawn from data by one drawer.** Output
+  is byte-identical. The cylinder cap sizes are now the shared constants
+  `SEQUENCE_CYLINDER_RY` and `SEQUENCE_QUEUE_CAP` in `shape-caps.ts`.
 - **A raci phase's toggle is `data-group-toggle`, not `data-section-toggle`.**
   It now matches every other group fold.
 - **`applyCollapsedMarker` treats only a `key:` after the label as metadata.**
