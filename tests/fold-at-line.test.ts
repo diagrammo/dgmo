@@ -95,6 +95,13 @@ const CASES: Record<string, Case> = {
     handFolded:
       'org Crew\n\nCaptain\n  [Deck] collapsed: true\n    Mate\n    Deckhand',
   },
+  'org container, bare flag': {
+    source: 'org Crew\n\nCaptain\n  [Deck]\n    Mate\n    Deckhand',
+    line: 4,
+    kind: 'data-node-toggle',
+    handFolded:
+      'org Crew\n\nCaptain\n  [Deck] collapsed\n    Mate\n    Deckhand',
+  },
   sitemap: {
     source: 'sitemap Site\n\nHome\n  Products\n    Widgets\n  About',
     line: 4,
@@ -248,6 +255,60 @@ describe('foldAtLine folds and unfolds every toggle kind (#1741)', () => {
       expect(opened, name).toBe(c.source);
     });
   }
+});
+
+describe('unfold removes an indented `collapsed: true` line (#1741)', () => {
+  const INDENTED: Record<string, { source: string; line: number }> = {
+    org: {
+      source: 'org Crew\n\nCaptain\n  Mate\n    Deckhand\n  Cook',
+      line: 4,
+    },
+    'org container': {
+      source: 'org Crew\n\nCaptain\n  [Deck]\n    Mate\n    Deckhand',
+      line: 4,
+    },
+    sitemap: {
+      source: 'sitemap Site\n\nHome\n  Products\n    Widgets\n  About',
+      line: 4,
+    },
+    'sitemap container': {
+      source: 'sitemap Site\n\nHome\n  [Shop]\n    Cart\n    Checkout',
+      line: 4,
+    },
+    infra: {
+      source:
+        'infra Net\n\nEdge\n  -> Api\n\n[Backend]\n  Api\n    -> Db\n  Db',
+      line: 6,
+    },
+  };
+  for (const [name, c] of Object.entries(INDENTED)) {
+    it(name, async () => {
+      const lines = c.source.split('\n');
+      const child = lines[c.line]!;
+      const indent = child.slice(0, child.length - child.trimStart().length);
+      lines.splice(c.line, 0, `${indent}collapsed: true`);
+      const folded = lines.join('\n');
+      const shut = await toggleAt(folded, c.line);
+      expect(shut.getAttribute('aria-expanded')).toBe('false');
+      expect(foldAtLine(folded, c.line, false)).toBe(c.source);
+    });
+  }
+
+  it("leaves a nested node's marker alone", () => {
+    const src =
+      'org Crew\n\nCaptain\n  Mate\n    collapsed: true\n    Deckhand\n      collapsed: true\n      Boy';
+    expect(foldAtLine(src, 4, false)).toBe(
+      'org Crew\n\nCaptain\n  Mate\n    Deckhand\n      collapsed: true\n      Boy'
+    );
+  });
+
+  it('removes both forms when a line carries both', () => {
+    const src =
+      'sitemap Site\n\nHome\n  Products collapsed\n    collapsed: true\n    Widgets';
+    expect(foldAtLine(src, 4, false)).toBe(
+      'sitemap Site\n\nHome\n  Products\n    Widgets'
+    );
+  });
 });
 
 describe('every rendered toggle writes something (#1741)', () => {

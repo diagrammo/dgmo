@@ -240,7 +240,7 @@ declare function applyGroupHeaderCollapsedMarkerAtLine(text: string, lineNumber:
  * Toggle `collapsed: true` as an INDENTED property line under a `[group]`
  * header (infra's form — the header itself doesn't take same-line metadata).
  * Collapse inserts `  collapsed: true` as the group's first child; expand
- * removes the immediate-child `collapsed:` line. Child indent is inferred from
+ * removes the immediate-child `collapsed:` line (never a deeper one). Child indent is inferred from
  * the group's existing first child (falls back to header indent + 2).
  */
 declare function applyIndentedGroupCollapsedMarkerAtLine(text: string, headerLineNumber: number, collapse: boolean): string;

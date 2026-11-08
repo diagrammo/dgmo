@@ -203,7 +203,7 @@ export {
 export { DEFAULT_DIM_OPACITY as HOVER_DIM_OPACITY } from './utils/hover-styles';
 // The fold cue render() bakes in (#1741), for a host that draws into a live
 // node (the app's preview) and so never goes through render().
-export { toggleCueCss } from './utils/card';
+export { toggleCueCss, TOGGLE_CUE_ATTR } from './utils/card';
 
 export { parseInlineMarkdown, truncateBareUrl } from './utils/inline-markdown';
 export type { InlineSpan } from './utils/inline-markdown';

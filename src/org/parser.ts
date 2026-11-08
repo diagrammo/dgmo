@@ -75,12 +75,12 @@ export interface ParsedOrg {
 // ============================================================
 
 // A container header, optionally carrying the same-line collapse marker
-// (§6.4.1). Deliberately narrow: ONLY `collapsed: <val>` may follow the
-// bracket, so no other trailing text becomes legal on a container line and
-// nothing else about container parsing moves. C4's CONTAINER_RE has the same
-// shape (it also takes a bare `collapsed` flag, which org does not — see the
-// colon-form-only ruling in decision #55).
-const CONTAINER_RE = /^\[([^\]]+)\](?:\s+collapsed:\s*(\S+))?$/;
+// (§6.4.1): `collapsed: <val>` or the bare `collapsed` flag (#1741). Deliberately
+// narrow: nothing else may follow the bracket, so no other trailing text
+// becomes legal on a container line. The bare flag is safe HERE because the
+// `]` ends the name; a PERSON line stays colon-form only, since a trailing
+// bare word could be part of a name (the colon-form-only ruling, decision #55).
+const CONTAINER_RE = /^\[([^\]]+)\](?:\s+collapsed:\s*(\S+)|\s+(collapsed))?$/;
 const METADATA_RE = /^([^:]+):\s*(.+)$/;
 
 /** Known org chart options (key-value). */
@@ -377,7 +377,9 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
         metadata:
           containerMatch[2] !== undefined
             ? { collapsed: containerMatch[2] }
-            : {},
+            : containerMatch[3] !== undefined
+              ? { collapsed: 'true' }
+              : {},
         children: [],
         parentId: null,
         isContainer: true,

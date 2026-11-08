@@ -68,6 +68,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Unfolding removes an indented `collapsed: true` line.** `foldAtLine`
+  edited only the folded line itself, so in org, sitemap and infra an
+  indented marker under a node or `[group]` survived the unfold click and the
+  thing stayed folded. Only the immediate child line is removed, never a
+  nested node's own marker.
+- **An org `[Team]` header takes the bare `collapsed` flag.** `[Gun Deck]
+  collapsed` now folds the team, as it does in sitemap and c4. A person's line
+  stays colon-form only, since a trailing word could be part of a name.
+- **The fold cue no longer leaks between diagrams on one page.** The cue's
+  `<style>` applied to the whole page, so a dark and a light diagram shared
+  the last one's hover step. Its rules are now scoped to
+  `[data-dgmo-cue="light"|"dark"]`, which `render()` sets on the SVG root. A
+  host inserting `toggleCueCss()` itself sets that attribute (exported as
+  `TOGGLE_CUE_ATTR` from `@diagrammo/dgmo/advanced`) on the diagram's
+  container.
 - **The editor colours a chart-specific keyword only in its own chart type.**
   A word like `roles` (raci) or `hours` (clock) was coloured as a keyword in
   every diagram, so a kanban card reading "Review the roles model" showed one

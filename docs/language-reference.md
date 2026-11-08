@@ -1255,7 +1255,7 @@ Blackbeard
     Powder Monkey
 ```
 
-**Colon form only** — org has no bare trailing `collapsed` flag (mindmap/gantt/kanban do), because an org label is a person's name and a trailing bare word cannot be told from part of one. Only the literal `true` collapses; the key is reserved, so it never becomes part of a label and never draws as an attribute row. Honoured by every render path, so a folded chart survives save, export, share link and embed; applied before `focus`.
+**Colon form only on a person** — a person's line takes no bare trailing `collapsed` flag (mindmap/gantt/kanban do), because an org label is a person's name and a trailing bare word cannot be told from part of one. A `[Team]` header does take it (`[Gun Deck] collapsed`), since the `]` ends the name. Only the literal `true` collapses; the key is reserved, so it never becomes part of a label and never draws as an attribute row. Honoured by every render path, so a folded chart survives save, export, share link and embed; applied before `focus`.
 
 ### 6.5 Options
 

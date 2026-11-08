@@ -82,18 +82,22 @@ function foldSection(
   return applyCollapsedMarkerAtLine(source, line, label, collapse);
 }
 
+/**
+ * Chart types that also read an indented `collapsed: true` property line under
+ * the folded thing — a node or a `[group]` header alike. The same-line edit
+ * cannot see that form, so unfolding removes it as well.
+ */
+const INDENTED_MARKER_TYPES: ReadonlySet<string> = new Set([
+  'infra',
+  'org',
+  'sitemap',
+]);
+
 function foldGroupHeader(
   source: string,
-  chartType: string,
   line: number,
   collapse: boolean
 ): string {
-  // Infra also reads the legacy indented `collapsed: true` child line, which
-  // the header edit cannot see, so expanding tries that form first.
-  if (chartType === 'infra' && !collapse) {
-    const next = applyIndentedGroupCollapsedMarkerAtLine(source, line, false);
-    if (next !== source) return next;
-  }
   return applyGroupHeaderCollapsedMarkerAtLine(source, line, collapse);
 }
 
@@ -120,7 +124,7 @@ export function foldAtLine(
   let next: string | null = null;
   if (GROUP_HEAD.test(trimmed)) {
     if (GROUP_HEADER_TYPES.has(chartType)) {
-      next = foldGroupHeader(source, chartType, line, collapse);
+      next = foldGroupHeader(source, line, collapse);
     }
   } else if (chartType === 'sequence') {
     if (SECTION_LINE.test(trimmed)) {
@@ -134,6 +138,12 @@ export function foldAtLine(
     if (label !== null) {
       next = applyCollapsedMarkerAtLine(source, line, label, collapse);
     }
+  }
+  // Unfold also drops an indented marker line, for the types that read one.
+  if (!collapse && INDENTED_MARKER_TYPES.has(chartType)) {
+    const base = next ?? source;
+    const lifted = applyIndentedGroupCollapsedMarkerAtLine(base, line, false);
+    if (lifted !== base) next = lifted;
   }
   return next === null || next === source ? null : next;
 }

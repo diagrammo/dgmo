@@ -105,7 +105,7 @@ const COLLAPSED_LINE = /^\s*collapsed:\s*\S+\s*$/;
  * Toggle `collapsed: true` as an INDENTED property line under a `[group]`
  * header (infra's form — the header itself doesn't take same-line metadata).
  * Collapse inserts `  collapsed: true` as the group's first child; expand
- * removes the immediate-child `collapsed:` line. Child indent is inferred from
+ * removes the immediate-child `collapsed:` line (never a deeper one). Child indent is inferred from
  * the group's existing first child (falls back to header indent + 2).
  */
 export function applyIndentedGroupCollapsedMarkerAtLine(
@@ -144,8 +144,11 @@ export function applyIndentedGroupCollapsedMarkerAtLine(
     lines.splice(hIdx + 1, 0, `${indentStr}collapsed: true`);
     return lines.join('\n');
   }
+  // Only an IMMEDIATE child line is this header's marker: a deeper one
+  // belongs to a nested node or group and must survive.
   for (let i = hIdx + 1; i < blockEnd; i++) {
-    if (COLLAPSED_LINE.test(lines[i] as string)) {
+    const l = lines[i] as string;
+    if (INDENT(l) === childIndent && COLLAPSED_LINE.test(l)) {
       lines.splice(i, 1);
       return lines.join('\n');
     }

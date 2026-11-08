@@ -254,6 +254,13 @@ export const TOGGLE_ATTRS = [
   'data-note-toggle',
 ] as const;
 
+/**
+ * The attribute {@link toggleCueCss} scopes its rules to. A host that inserts
+ * that CSS itself puts `data-dgmo-cue="light"|"dark"` on the element that
+ * holds the diagram; {@link injectToggleCue} sets it on the SVG root.
+ */
+export const TOGGLE_CUE_ATTR = 'data-dgmo-cue';
+
 /** Opacity the expanded-state bar preview fades to while its toggle is hovered. */
 export const COLLAPSE_PREVIEW_HOVER_OPACITY = 0.35;
 
@@ -268,32 +275,45 @@ export const COLLAPSE_PREVIEW_HOVER_OPACITY = 0.35;
  * filter on a transparent fill shows nothing.
  */
 export function toggleCueCss(theme: string = 'light'): string {
-  const t = TOGGLE_ATTRS.map((a) => `[${a}]`);
+  const cue = theme === 'dark' ? 'dark' : 'light';
+  // Every rule is scoped to an element carrying `data-dgmo-cue="<theme>"`: a
+  // `<style>` in an inline SVG applies to the whole page, so two diagrams with
+  // different themes on one page would otherwise share the last one's cue.
+  const scope = `[${TOGGLE_CUE_ATTR}="${cue}"] `;
+  const t = TOGGLE_ATTRS.map((a) => `${scope}[${a}]`);
   const on = (suffix: string): string => t.map((s) => s + suffix).join(',');
-  const step = theme === 'dark' ? 1.2 : 0.95;
+  const step = cue === 'dark' ? 1.2 : 0.95;
   return (
     `${t.join(',')}{cursor:pointer}` +
     `${on(':hover>rect:first-child')},${on(':hover>path:first-child')}{filter:brightness(${step})}` +
     // A toggle whose first child is a transparent hit rect (gantt and timeline
     // lanes, whose band is drawn outside the toggle) tints that rect instead.
-    `${on(':hover>rect[fill=transparent]:first-child')}{fill:${theme === 'dark' ? '#fff' : '#000'};fill-opacity:${theme === 'dark' ? 0.08 : 0.05}}` +
-    `.dgmo-collapse-bar-preview{transition:opacity 120ms ease-out}` +
+    `${on(':hover>rect[fill=transparent]:first-child')}{fill:${cue === 'dark' ? '#fff' : '#000'};fill-opacity:${cue === 'dark' ? 0.08 : 0.05}}` +
+    `${scope}.dgmo-collapse-bar-preview{transition:opacity 120ms ease-out}` +
     `${on(':hover>.dgmo-collapse-bar-preview')}{opacity:${COLLAPSE_PREVIEW_HOVER_OPACITY}}` +
     `${on(':focus-visible')}{outline:2px solid currentColor;outline-offset:2px}` +
-    `@media (prefers-reduced-motion:reduce){.dgmo-collapse-bar-preview{transition:none}}`
+    `@media (prefers-reduced-motion:reduce){${scope}.dgmo-collapse-bar-preview{transition:none}}`
   );
 }
 
 /**
  * Splice {@link toggleCueCss} into a rendered SVG string as its own `<style>`,
- * right after the opening `<svg …>` tag. No-op when the SVG has no toggle.
+ * right after the opening `<svg …>` tag, and mark that tag with
+ * {@link TOGGLE_CUE_ATTR} so the rules reach this SVG only. No-op when the SVG
+ * has no toggle.
  */
 export function injectToggleCue(svg: string, theme?: string): string {
   if (!svg || !TOGGLE_ATTRS.some((a) => svg.includes(`${a}=`))) return svg;
-  const open = svg.match(/<svg\b[^>]*>/);
-  if (open?.index == null) return svg;
-  const at = open.index + open[0].length;
-  const css = toggleCueCss(theme);
+  const found = svg.match(/<svg\b[^>]*>/);
+  if (found?.index == null) return svg;
+  const cue = theme === 'dark' ? 'dark' : 'light';
+  const tag = found[0].includes(`${TOGGLE_CUE_ATTR}=`)
+    ? found[0]
+    : found[0].replace(/^<svg\b/, `<svg ${TOGGLE_CUE_ATTR}="${cue}"`);
+  svg =
+    svg.slice(0, found.index) + tag + svg.slice(found.index + found[0].length);
+  const at = found.index + tag.length;
+  const css = toggleCueCss(cue);
   // One `<style>` per SVG: join the baked hover block when it is already there.
   if (svg.startsWith('<style>', at)) {
     const end = svg.indexOf('</style>', at);
