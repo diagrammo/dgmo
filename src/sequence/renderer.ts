@@ -32,6 +32,11 @@ import type {
 } from './parser';
 import { isSequenceBlock, isSequenceSection, isSequenceNote } from './parser';
 import {
+  PARTICIPANT_BOX_HEIGHT,
+  participantShape,
+  type ParticipantShape,
+} from './participant-shapes';
+import {
   applyCollapseProjection,
   collapsedGroupId,
   collapsedSequenceNoteLinesFromSource,
@@ -79,7 +84,6 @@ import { ScaleContext } from '../utils/scaling';
 
 const PARTICIPANT_GAP = 160;
 const PARTICIPANT_BOX_WIDTH = 120;
-const PARTICIPANT_BOX_HEIGHT = 50;
 const LABEL_FONT_SIZE = 13;
 const TOP_MARGIN = 20;
 const TITLE_HEIGHT = 30;
@@ -232,290 +236,34 @@ const fill = (
       : mix(palette.bg, palette.surface, 50);
 const stroke = (palette: PaletteColors, color?: string): string =>
   color ?? palette.border;
-const SW = 1.5;
 const W = PARTICIPANT_BOX_WIDTH;
 const H = PARTICIPANT_BOX_HEIGHT;
 
-// ============================================================
-// Participant Shape Renderers
-// ============================================================
-
-function renderRectParticipant(
+/**
+ * The one participant drawer (#1732): every shape is a list of parts from
+ * `participantShape`, and fill, stroke and the highlight class are applied
+ * here and nowhere else.
+ */
+function drawParticipantShape(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
-  palette: PaletteColors,
-  isDark: boolean,
-  color?: string,
-  fillMode?: 'solid' | 'outline',
-  w: number = W,
-  h: number = H
+  shape: ParticipantShape,
+  fillColor: string,
+  strokeColor: string
 ): void {
-  g.append('rect')
-    .attr('x', -w / 2)
-    .attr('y', 0)
-    .attr('width', w)
-    .attr('height', h)
-    .attr('rx', 2)
-    .attr('ry', 2)
-    .attr('fill', fill(palette, isDark, color, fillMode))
-    .attr('stroke', stroke(palette, color))
-    .attr('stroke-width', SW);
-}
-
-function renderActorParticipant(
-  g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
-  palette: PaletteColors,
-  color?: string,
-  h: number = H
-): void {
-  // Stick figure — no background. Every dimension is scaled by sc = h / H so
-  // the figure keeps its proportions at any box height. The box height itself
-  // is compressed by ScaleContext when the diagram is wider than its container;
-  // scaling head/arms/legs by the same factor (instead of hardcoding 8/16/12)
-  // prevents the head from ballooning over a collapsed body when compressed.
-  const sc = h / H;
-  const headR = 8 * sc;
-  const cx = 0;
-  const headY = 10 * sc;
-  const bodyTopY = 19 * sc;
-  const bodyBottomY = h * 0.65;
-  const legY = h - 2 * sc;
-  const armY = 24 * sc;
-  const armSpan = 16 * sc;
-  const legSpan = 12 * sc;
-  const s = stroke(palette, color);
-  const actorSW = Math.max(1.2, 2.5 * sc);
-
-  g.append('circle')
-    .attr('cx', cx)
-    .attr('cy', headY)
-    .attr('r', headR)
-    .attr('fill', 'none')
-    .attr('stroke', s)
-    .attr('stroke-width', actorSW);
-
-  g.append('line')
-    .attr('x1', cx)
-    .attr('y1', bodyTopY)
-    .attr('x2', cx)
-    .attr('y2', bodyBottomY)
-    .attr('stroke', s)
-    .attr('stroke-width', actorSW);
-
-  g.append('line')
-    .attr('x1', cx - armSpan)
-    .attr('y1', armY)
-    .attr('x2', cx + armSpan)
-    .attr('y2', armY)
-    .attr('stroke', s)
-    .attr('stroke-width', actorSW);
-
-  g.append('line')
-    .attr('x1', cx)
-    .attr('y1', bodyBottomY)
-    .attr('x2', cx - legSpan)
-    .attr('y2', legY)
-    .attr('stroke', s)
-    .attr('stroke-width', actorSW);
-
-  g.append('line')
-    .attr('x1', cx)
-    .attr('y1', bodyBottomY)
-    .attr('x2', cx + legSpan)
-    .attr('y2', legY)
-    .attr('stroke', s)
-    .attr('stroke-width', actorSW);
-}
-
-function renderDatabaseParticipant(
-  g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
-  palette: PaletteColors,
-  isDark: boolean,
-  color?: string,
-  fillMode?: 'solid' | 'outline',
-  w: number = W,
-  h: number = H
-): void {
-  // Cylinder fitting within w x h
-  const ry = 7;
-  const topY = ry;
-  const bodyH = h - ry * 2;
-  const f = fill(palette, isDark, color, fillMode);
-  const s = stroke(palette, color);
-
-  // Bottom ellipse (drawn first — rect will cover its top arc)
-  g.append('ellipse')
-    .attr('cx', 0)
-    .attr('cy', topY + bodyH)
-    .attr('rx', w / 2)
-    .attr('ry', ry)
-    .attr('fill', f)
-    .attr('stroke', s)
-    .attr('stroke-width', SW);
-
-  // Filled body (no stroke) to hide the top arc of the bottom ellipse
-  g.append('rect')
-    .attr('class', 'participant-body')
-    .attr('x', -w / 2)
-    .attr('y', topY)
-    .attr('width', w)
-    .attr('height', bodyH)
-    .attr('fill', f)
-    .attr('stroke', 'none');
-
-  // Side lines
-  g.append('line')
-    .attr('x1', -w / 2)
-    .attr('y1', topY)
-    .attr('x2', -w / 2)
-    .attr('y2', topY + bodyH)
-    .attr('stroke', s)
-    .attr('stroke-width', SW);
-  g.append('line')
-    .attr('x1', w / 2)
-    .attr('y1', topY)
-    .attr('x2', w / 2)
-    .attr('y2', topY + bodyH)
-    .attr('stroke', s)
-    .attr('stroke-width', SW);
-
-  // Top ellipse cap (drawn last, on top)
-  g.append('ellipse')
-    .attr('cx', 0)
-    .attr('cy', topY)
-    .attr('rx', w / 2)
-    .attr('ry', ry)
-    .attr('fill', f)
-    .attr('stroke', s)
-    .attr('stroke-width', SW);
-}
-
-function renderQueueParticipant(
-  g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
-  palette: PaletteColors,
-  isDark: boolean,
-  color?: string,
-  fillMode?: 'solid' | 'outline',
-  w: number = W,
-  h: number = H
-): void {
-  // Horizontal cylinder (pipe) — like database rotated 90 degrees
-  const rx = 10;
-  const leftX = -w / 2 + rx;
-  const bodyW = w - rx * 2;
-  const f = fill(palette, isDark, color, fillMode);
-  const s = stroke(palette, color);
-
-  // Right ellipse (back face, drawn first — rect will cover its left arc)
-  g.append('ellipse')
-    .attr('cx', leftX + bodyW)
-    .attr('cy', h / 2)
-    .attr('rx', rx)
-    .attr('ry', h / 2)
-    .attr('fill', f)
-    .attr('stroke', s)
-    .attr('stroke-width', SW);
-
-  // Body rect (no stroke) to hide left arc of right ellipse
-  g.append('rect')
-    .attr('class', 'participant-body')
-    .attr('x', leftX)
-    .attr('y', 0)
-    .attr('width', bodyW)
-    .attr('height', h)
-    .attr('fill', f)
-    .attr('stroke', 'none');
-
-  // Top and bottom lines
-  g.append('line')
-    .attr('x1', leftX)
-    .attr('y1', 0)
-    .attr('x2', leftX + bodyW)
-    .attr('y2', 0)
-    .attr('stroke', s)
-    .attr('stroke-width', SW);
-  g.append('line')
-    .attr('x1', leftX)
-    .attr('y1', h)
-    .attr('x2', leftX + bodyW)
-    .attr('y2', h)
-    .attr('stroke', s)
-    .attr('stroke-width', SW);
-
-  // Left ellipse (front face, drawn last)
-  g.append('ellipse')
-    .attr('cx', leftX)
-    .attr('cy', h / 2)
-    .attr('rx', rx)
-    .attr('ry', h / 2)
-    .attr('fill', f)
-    .attr('stroke', s)
-    .attr('stroke-width', SW);
-}
-
-function renderCacheParticipant(
-  g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
-  palette: PaletteColors,
-  isDark: boolean,
-  color?: string,
-  fillMode?: 'solid' | 'outline',
-  w: number = W,
-  h: number = H
-): void {
-  // Dashed cylinder — variation of database to convey ephemeral storage
-  const ry = 7;
-  const topY = ry;
-  const bodyH = h - ry * 2;
-  const f = fill(palette, isDark, color, fillMode);
-  const s = stroke(palette, color);
-  const dash = EDGE_DASH;
-
-  // Bottom ellipse (back face)
-  g.append('ellipse')
-    .attr('cx', 0)
-    .attr('cy', topY + bodyH)
-    .attr('rx', w / 2)
-    .attr('ry', ry)
-    .attr('fill', f)
-    .attr('stroke', s)
-    .attr('stroke-width', SW)
-    .attr('stroke-dasharray', dash);
-
-  g.append('rect')
-    .attr('class', 'participant-body')
-    .attr('x', -w / 2)
-    .attr('y', topY)
-    .attr('width', w)
-    .attr('height', bodyH)
-    .attr('fill', f)
-    .attr('stroke', 'none');
-
-  g.append('line')
-    .attr('x1', -w / 2)
-    .attr('y1', topY)
-    .attr('x2', -w / 2)
-    .attr('y2', topY + bodyH)
-    .attr('stroke', s)
-    .attr('stroke-width', SW)
-    .attr('stroke-dasharray', dash);
-  g.append('line')
-    .attr('x1', w / 2)
-    .attr('y1', topY)
-    .attr('x2', w / 2)
-    .attr('y2', topY + bodyH)
-    .attr('stroke', s)
-    .attr('stroke-width', SW)
-    .attr('stroke-dasharray', dash);
-
-  // Top ellipse cap
-  g.append('ellipse')
-    .attr('cx', 0)
-    .attr('cy', topY)
-    .attr('rx', w / 2)
-    .attr('ry', ry)
-    .attr('fill', f)
-    .attr('stroke', s)
-    .attr('stroke-width', SW)
-    .attr('stroke-dasharray', dash);
+  for (const part of shape.parts) {
+    const el = g.append(part.tag);
+    if (part.paint === 'body') el.attr('class', 'participant-body');
+    for (const [name, value] of Object.entries(part.attrs))
+      el.attr(name, value);
+    if (part.paint === 'body') {
+      el.attr('fill', fillColor).attr('stroke', 'none');
+      continue;
+    }
+    if (part.paint !== 'line')
+      el.attr('fill', part.paint === 'ring' ? 'none' : fillColor);
+    el.attr('stroke', strokeColor).attr('stroke-width', shape.strokeWidth);
+    if (shape.dashed) el.attr('stroke-dasharray', EDGE_DASH);
+  }
 }
 
 // ============================================================
@@ -4544,32 +4292,12 @@ function renderParticipant(
   // the rect inside it.
   if (overlaid) return;
 
-  // Render shape based on type
-  switch (participant.type) {
-    case 'actor':
-      renderActorParticipant(g, palette, color, boxH);
-      break;
-    case 'database':
-      renderDatabaseParticipant(
-        g,
-        palette,
-        isDark,
-        color,
-        fillMode,
-        boxW,
-        boxH
-      );
-      break;
-    case 'queue':
-      renderQueueParticipant(g, palette, isDark, color, fillMode, boxW, boxH);
-      break;
-    case 'cache':
-      renderCacheParticipant(g, palette, isDark, color, fillMode, boxW, boxH);
-      break;
-    default:
-      renderRectParticipant(g, palette, isDark, color, fillMode, boxW, boxH);
-      break;
-  }
+  drawParticipantShape(
+    g,
+    participantShape(participant.type, boxW, boxH),
+    fill(palette, isDark, color, fillMode),
+    stroke(palette, color)
+  );
 
   // Render label — below the shape for actors, centered inside for others
   const isActor = participant.type === 'actor';

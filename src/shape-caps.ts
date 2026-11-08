@@ -1,4 +1,4 @@
-// Cylinder cap sizes shared by c4 cards and whiteboard shapes. A leaf
+// Cylinder cap sizes for c4 cards, whiteboard shapes and sequence participants. A leaf
 // module, so pure geometry can import them without the c4 renderer.
 
 /** A database's (cylinder's) cap, half-height. */
@@ -26,3 +26,14 @@ export const QUEUE_CAP = 16;
  * of its height — the flowchart document symbol's `DOC_WAVE_HEIGHT`.
  */
 export const FILE_WAVE = 10;
+
+/**
+ * A sequence database or cache participant's cap, half-height — and a
+ * sequence queue's end-cap half-width. Smaller than `CYLINDER_RY` and
+ * `QUEUE_CAP`: a participant box (120 × 50) is a quarter of a c4 card's
+ * area. They were literals in the sequence renderer until #1732, which moved
+ * them here so every cap size sits in this one file; adopting the c4 values
+ * would redraw every sequence snapshot that has a cylinder.
+ */
+export const SEQUENCE_CYLINDER_RY = 7;
+export const SEQUENCE_QUEUE_CAP = 10;
