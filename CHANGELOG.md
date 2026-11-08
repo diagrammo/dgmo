@@ -73,9 +73,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   indented marker under a node or `[group]` survived the unfold click and the
   thing stayed folded. Only the immediate child line is removed, never a
   nested node's own marker.
-- **An org `[Team]` header takes the bare `collapsed` flag.** `[Gun Deck]
-  collapsed` now folds the team, as it does in sitemap and c4. A person's line
-  stays colon-form only, since a trailing word could be part of a name.
+- **An org `[Team]` header takes the bare `collapsed` flag.** A header
+  written `[Gun Deck] collapsed` now folds the team, as it does in sitemap and
+  c4. A person's line stays colon-form only, since a trailing word could be
+  part of a name.
 - **The fold cue no longer leaks between diagrams on one page.** The cue's
   `<style>` applied to the whole page, so a dark and a light diagram shared
   the last one's hover step. Its rules are now scoped to
