@@ -53,6 +53,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`dgmo install codex` installs the Diagrammo Codex plugin.** It adds the
+  `diagrammo/skills` marketplace and installs `diagrammo@diagrammo` — the dgmo
+  MCP server and the `dgmo-diagramming` skill in one package — then removes
+  the `~/.codex/skills/dgmo-diagramming` copy and `[mcp_servers.dgmo]` entry
+  an earlier install wrote. The copied skill never updated, so it kept
+  offering chart types dgmo had moved past. Update the plugin with
+  `codex plugin marketplace upgrade diagrammo`. `--scope project`, or a Codex
+  without `codex plugin`, keeps the file copy.
+
 - **Node notes, org/sitemap containers and the flowchart/state title each
   have one drawer.** Output is byte-identical. Five renderers call
   `renderNodeNote`, org and sitemap call `renderContainerCard`, and
