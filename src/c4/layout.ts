@@ -3,6 +3,7 @@
 // ============================================================
 
 import { CLOUD_BUMP, QUEUE_CAP } from '../shape-caps';
+import { Bounds, translateInPlace } from '../utils/bounds';
 import { META_FONT_SIZE, META_LINE_HEIGHT } from '../utils/visual-conventions';
 import { tagAttrKey, UNTAGGED_TAG_COLOR } from '../utils/tag-groups';
 import dagre from '@dagrejs/dagre';
@@ -989,47 +990,26 @@ export function layoutC4Context(
   );
 
   // Compute bounding box of all content (nodes + edge points)
-  let minX = Infinity,
-    minY = Infinity,
-    maxX = -Infinity,
-    maxY = -Infinity;
+  const bb = new Bounds();
   for (const node of nodes) {
-    const left = node.x - node.width / 2;
-    const top = node.y - node.height / 2;
-    const right = node.x + node.width / 2;
-    const bottom = node.y + node.height / 2;
-    if (left < minX) minX = left;
-    if (top < minY) minY = top;
-    if (right > maxX) maxX = right;
-    if (bottom > maxY) maxY = bottom;
+    bb.addCentred(node);
   }
   for (const edge of edges) {
-    for (const pt of edge.points) {
-      if (pt.x < minX) minX = pt.x;
-      if (pt.y < minY) minY = pt.y;
-      if (pt.x > maxX) maxX = pt.x;
-      if (pt.y > maxY) maxY = pt.y;
-    }
+    bb.addPoints(edge.points);
   }
 
   // Shift everything so content starts at (MARGIN, MARGIN)
   if (nodes.length > 0) {
-    const shiftX = MARGIN - minX;
-    const shiftY = MARGIN - minY;
-    for (const node of nodes) {
-      node.x += shiftX;
-      node.y += shiftY;
-    }
+    const shiftX = MARGIN - bb.minX;
+    const shiftY = MARGIN - bb.minY;
+    translateInPlace(nodes, shiftX, shiftY);
     for (const edge of edges) {
-      for (const pt of edge.points) {
-        pt.x += shiftX;
-        pt.y += shiftY;
-      }
+      translateInPlace(edge.points, shiftX, shiftY);
     }
   }
 
-  let totalWidth = nodes.length > 0 ? maxX - minX + MARGIN * 2 : 0;
-  let totalHeight = nodes.length > 0 ? maxY - minY + MARGIN * 2 : 0;
+  let totalWidth = nodes.length > 0 ? bb.maxX - bb.minX + MARGIN * 2 : 0;
+  let totalHeight = nodes.length > 0 ? bb.maxY - bb.minY + MARGIN * 2 : 0;
 
   // Legend: show all defined tag groups and entries so users see the full
   // tag vocabulary regardless of which elements are visible at this view level.
@@ -1385,29 +1365,16 @@ export function layoutC4Containers(
 
   // Compute boundary box from container nodes only
   const containerNodes = nodes.filter((n) => n.type === 'container');
-  let bMinX = Infinity,
-    bMinY = Infinity,
-    bMaxX = -Infinity,
-    bMaxY = -Infinity;
+  const bBounds = new Bounds();
   for (const n of containerNodes) {
-    const left = n.x - n.width / 2;
-    const top = n.y - n.height / 2;
-    const right = n.x + n.width / 2;
-    const bottom = n.y + n.height / 2;
-    if (left < bMinX) bMinX = left;
-    if (top < bMinY) bMinY = top;
-    if (right > bMaxX) bMaxX = right;
-    if (bottom > bMaxY) bMaxY = bottom;
+    bBounds.addCentred(n);
   }
 
   const boundary: Writable<C4LayoutBoundary> = {
     label: system.name,
     typeLabel: 'system',
     lineNumber: system.lineNumber,
-    x: bMinX - BOUNDARY_PAD,
-    y: bMinY - BOUNDARY_PAD,
-    width: bMaxX - bMinX + BOUNDARY_PAD * 2,
-    height: bMaxY - bMinY + BOUNDARY_PAD * 2,
+    ...bBounds.padded(BOUNDARY_PAD),
   };
 
   // Compute group boundaries from member node positions
@@ -1436,89 +1403,45 @@ export function layoutC4Containers(
     }
     for (const [groupName, { lineNumber, members, metadata }] of seenGroups) {
       if (members.length === 0) continue;
-      let gMinX = Infinity,
-        gMinY = Infinity,
-        gMaxX = -Infinity,
-        gMaxY = -Infinity;
+      const gBounds = new Bounds();
       for (const m of members) {
-        const left = m.x - m.width / 2;
-        const top = m.y - m.height / 2;
-        const right = m.x + m.width / 2;
-        const bottom = m.y + m.height / 2;
-        if (left < gMinX) gMinX = left;
-        if (top < gMinY) gMinY = top;
-        if (right > gMaxX) gMaxX = right;
-        if (bottom > gMaxY) gMaxY = bottom;
+        gBounds.addCentred(m);
       }
       groupBoundaries.push({
         label: groupName,
         typeLabel: 'group',
         lineNumber,
-        x: gMinX - GROUP_BOUNDARY_PAD,
-        y: gMinY - GROUP_BOUNDARY_PAD,
-        width: gMaxX - gMinX + GROUP_BOUNDARY_PAD * 2,
-        height: gMaxY - gMinY + GROUP_BOUNDARY_PAD * 2,
+        ...gBounds.padded(GROUP_BOUNDARY_PAD),
         ...(metadata && { metadata }),
       });
     }
   }
 
   // Compute bounding box of all content (nodes + boundary + group boundaries + edge points)
-  let minX = Infinity,
-    minY = Infinity,
-    maxX = -Infinity,
-    maxY = -Infinity;
+  const bb = new Bounds();
   for (const node of nodes) {
-    const left = node.x - node.width / 2;
-    const top = node.y - node.height / 2;
-    const right = node.x + node.width / 2;
-    const bottom = node.y + node.height / 2;
-    if (left < minX) minX = left;
-    if (top < minY) minY = top;
-    if (right > maxX) maxX = right;
-    if (bottom > maxY) maxY = bottom;
+    bb.addCentred(node);
   }
-  if (boundary.x < minX) minX = boundary.x;
-  if (boundary.y < minY) minY = boundary.y;
-  if (boundary.x + boundary.width > maxX) maxX = boundary.x + boundary.width;
-  if (boundary.y + boundary.height > maxY) maxY = boundary.y + boundary.height;
+  bb.addRect(boundary);
   for (const gb of groupBoundaries) {
-    if (gb.x < minX) minX = gb.x;
-    if (gb.y < minY) minY = gb.y;
-    if (gb.x + gb.width > maxX) maxX = gb.x + gb.width;
-    if (gb.y + gb.height > maxY) maxY = gb.y + gb.height;
+    bb.addRect(gb);
   }
   for (const edge of edges) {
-    for (const pt of edge.points) {
-      if (pt.x < minX) minX = pt.x;
-      if (pt.y < minY) minY = pt.y;
-      if (pt.x > maxX) maxX = pt.x;
-      if (pt.y > maxY) maxY = pt.y;
-    }
+    bb.addPoints(edge.points);
   }
 
   // Shift everything so content starts at (MARGIN, MARGIN)
-  const shiftX = MARGIN - minX;
-  const shiftY = MARGIN - minY;
-  for (const node of nodes) {
-    node.x += shiftX;
-    node.y += shiftY;
-  }
-  boundary.x += shiftX;
-  boundary.y += shiftY;
-  for (const gb of groupBoundaries) {
-    gb.x += shiftX;
-    gb.y += shiftY;
-  }
+  const shiftX = MARGIN - bb.minX;
+  const shiftY = MARGIN - bb.minY;
+  translateInPlace(nodes, shiftX, shiftY);
+  translateInPlace([boundary], shiftX, shiftY);
+  translateInPlace(groupBoundaries, shiftX, shiftY);
   for (const edge of edges) {
-    for (const pt of edge.points) {
-      pt.x += shiftX;
-      pt.y += shiftY;
-    }
+    translateInPlace(edge.points, shiftX, shiftY);
   }
 
-  let totalWidth = maxX - minX + MARGIN * 2;
-  let totalHeight = maxY - minY + MARGIN * 2;
+  let totalWidth = bb.maxX - bb.minX + MARGIN * 2;
+  let totalHeight = bb.maxY - bb.minY + MARGIN * 2;
 
   const legendGroups = computeLegendGroups(
     legendSuppressed(parsed.options) ? [] : parsed.tagGroups
@@ -1952,29 +1875,16 @@ export function layoutC4Components(
 
   // Compute boundary box from component nodes only
   const componentNodes = nodes.filter((n) => n.type === 'component');
-  let bMinX = Infinity,
-    bMinY = Infinity,
-    bMaxX = -Infinity,
-    bMaxY = -Infinity;
+  const bBounds = new Bounds();
   for (const n of componentNodes) {
-    const left = n.x - n.width / 2;
-    const top = n.y - n.height / 2;
-    const right = n.x + n.width / 2;
-    const bottom = n.y + n.height / 2;
-    if (left < bMinX) bMinX = left;
-    if (top < bMinY) bMinY = top;
-    if (right > bMaxX) bMaxX = right;
-    if (bottom > bMaxY) bMaxY = bottom;
+    bBounds.addCentred(n);
   }
 
   const boundary: Writable<C4LayoutBoundary> = {
     label: targetContainer.name,
     typeLabel: 'container',
     lineNumber: targetContainer.lineNumber,
-    x: bMinX - BOUNDARY_PAD,
-    y: bMinY - BOUNDARY_PAD,
-    width: bMaxX - bMinX + BOUNDARY_PAD * 2,
-    height: bMaxY - bMinY + BOUNDARY_PAD * 2,
+    ...bBounds.padded(BOUNDARY_PAD),
   };
 
   // Compute group boundaries from member node positions
@@ -2003,89 +1913,45 @@ export function layoutC4Components(
     }
     for (const [groupName, { lineNumber, members, metadata }] of seenGroups) {
       if (members.length === 0) continue;
-      let gMinX = Infinity,
-        gMinY = Infinity,
-        gMaxX = -Infinity,
-        gMaxY = -Infinity;
+      const gBounds = new Bounds();
       for (const m of members) {
-        const left = m.x - m.width / 2;
-        const top = m.y - m.height / 2;
-        const right = m.x + m.width / 2;
-        const bottom = m.y + m.height / 2;
-        if (left < gMinX) gMinX = left;
-        if (top < gMinY) gMinY = top;
-        if (right > gMaxX) gMaxX = right;
-        if (bottom > gMaxY) gMaxY = bottom;
+        gBounds.addCentred(m);
       }
       groupBoundaries.push({
         label: groupName,
         typeLabel: 'group',
         lineNumber,
-        x: gMinX - GROUP_BOUNDARY_PAD,
-        y: gMinY - GROUP_BOUNDARY_PAD,
-        width: gMaxX - gMinX + GROUP_BOUNDARY_PAD * 2,
-        height: gMaxY - gMinY + GROUP_BOUNDARY_PAD * 2,
+        ...gBounds.padded(GROUP_BOUNDARY_PAD),
         ...(metadata && { metadata }),
       });
     }
   }
 
   // Compute bounding box of all content (nodes + boundary + group boundaries + edge points)
-  let minX = Infinity,
-    minY = Infinity,
-    maxX = -Infinity,
-    maxY = -Infinity;
+  const bb = new Bounds();
   for (const node of nodes) {
-    const left = node.x - node.width / 2;
-    const top = node.y - node.height / 2;
-    const right = node.x + node.width / 2;
-    const bottom = node.y + node.height / 2;
-    if (left < minX) minX = left;
-    if (top < minY) minY = top;
-    if (right > maxX) maxX = right;
-    if (bottom > maxY) maxY = bottom;
+    bb.addCentred(node);
   }
-  if (boundary.x < minX) minX = boundary.x;
-  if (boundary.y < minY) minY = boundary.y;
-  if (boundary.x + boundary.width > maxX) maxX = boundary.x + boundary.width;
-  if (boundary.y + boundary.height > maxY) maxY = boundary.y + boundary.height;
+  bb.addRect(boundary);
   for (const gb of groupBoundaries) {
-    if (gb.x < minX) minX = gb.x;
-    if (gb.y < minY) minY = gb.y;
-    if (gb.x + gb.width > maxX) maxX = gb.x + gb.width;
-    if (gb.y + gb.height > maxY) maxY = gb.y + gb.height;
+    bb.addRect(gb);
   }
   for (const edge of edges) {
-    for (const pt of edge.points) {
-      if (pt.x < minX) minX = pt.x;
-      if (pt.y < minY) minY = pt.y;
-      if (pt.x > maxX) maxX = pt.x;
-      if (pt.y > maxY) maxY = pt.y;
-    }
+    bb.addPoints(edge.points);
   }
 
   // Shift everything so content starts at (MARGIN, MARGIN)
-  const shiftX = MARGIN - minX;
-  const shiftY = MARGIN - minY;
-  for (const node of nodes) {
-    node.x += shiftX;
-    node.y += shiftY;
-  }
-  boundary.x += shiftX;
-  boundary.y += shiftY;
-  for (const gb of groupBoundaries) {
-    gb.x += shiftX;
-    gb.y += shiftY;
-  }
+  const shiftX = MARGIN - bb.minX;
+  const shiftY = MARGIN - bb.minY;
+  translateInPlace(nodes, shiftX, shiftY);
+  translateInPlace([boundary], shiftX, shiftY);
+  translateInPlace(groupBoundaries, shiftX, shiftY);
   for (const edge of edges) {
-    for (const pt of edge.points) {
-      pt.x += shiftX;
-      pt.y += shiftY;
-    }
+    translateInPlace(edge.points, shiftX, shiftY);
   }
 
-  let totalWidth = maxX - minX + MARGIN * 2;
-  let totalHeight = maxY - minY + MARGIN * 2;
+  let totalWidth = bb.maxX - bb.minX + MARGIN * 2;
+  let totalHeight = bb.maxY - bb.minY + MARGIN * 2;
 
   const legendGroups = computeLegendGroups(
     legendSuppressed(parsed.options) ? [] : parsed.tagGroups
@@ -2414,24 +2280,14 @@ export function layoutC4Deployment(
   ): { x: number; y: number; width: number; height: number } | null {
     if (infraBounds.has(infraId)) return infraBounds.get(infraId)!;
 
-    let bMinX = Infinity,
-      bMinY = Infinity,
-      bMaxX = -Infinity,
-      bMaxY = -Infinity;
+    const bBounds = new Bounds();
     let hasContent = false;
 
     // Direct container ref members
     const members = infraMembers.get(infraId) ?? [];
     for (const m of members) {
       hasContent = true;
-      const left = m.x - m.width / 2;
-      const top = m.y - m.height / 2;
-      const right = m.x + m.width / 2;
-      const bottom = m.y + m.height / 2;
-      if (left < bMinX) bMinX = left;
-      if (top < bMinY) bMinY = top;
-      if (right > bMaxX) bMaxX = right;
-      if (bottom > bMaxY) bMaxY = bottom;
+      bBounds.addCentred(m);
     }
 
     // Child infra node boundaries
@@ -2440,12 +2296,7 @@ export function layoutC4Deployment(
         const childBounds = computeInfraBounds(childId);
         if (childBounds) {
           hasContent = true;
-          if (childBounds.x < bMinX) bMinX = childBounds.x;
-          if (childBounds.y < bMinY) bMinY = childBounds.y;
-          if (childBounds.x + childBounds.width > bMaxX)
-            bMaxX = childBounds.x + childBounds.width;
-          if (childBounds.y + childBounds.height > bMaxY)
-            bMaxY = childBounds.y + childBounds.height;
+          bBounds.addRect(childBounds);
         }
       }
     }
@@ -2453,10 +2304,7 @@ export function layoutC4Deployment(
     if (!hasContent) return null;
 
     const bounds = {
-      x: bMinX - BOUNDARY_PAD,
-      y: bMinY - BOUNDARY_PAD,
-      width: bMaxX - bMinX + BOUNDARY_PAD * 2,
-      height: bMaxY - bMinY + BOUNDARY_PAD * 2,
+      ...bBounds.padded(BOUNDARY_PAD),
     };
     infraBounds.set(infraId, bounds);
     return bounds;
@@ -2480,55 +2328,28 @@ export function layoutC4Deployment(
   groupBoundaries.sort((a, b) => b.width * b.height - a.width * a.height);
 
   // Compute total bounding box
-  let minX = Infinity,
-    minY = Infinity,
-    maxX = -Infinity,
-    maxY = -Infinity;
+  const bb = new Bounds();
   for (const node of nodes) {
-    const left = node.x - node.width / 2;
-    const top = node.y - node.height / 2;
-    const right = node.x + node.width / 2;
-    const bottom = node.y + node.height / 2;
-    if (left < minX) minX = left;
-    if (top < minY) minY = top;
-    if (right > maxX) maxX = right;
-    if (bottom > maxY) maxY = bottom;
+    bb.addCentred(node);
   }
   for (const gb of groupBoundaries) {
-    if (gb.x < minX) minX = gb.x;
-    if (gb.y < minY) minY = gb.y;
-    if (gb.x + gb.width > maxX) maxX = gb.x + gb.width;
-    if (gb.y + gb.height > maxY) maxY = gb.y + gb.height;
+    bb.addRect(gb);
   }
   for (const edge of edges) {
-    for (const pt of edge.points) {
-      if (pt.x < minX) minX = pt.x;
-      if (pt.y < minY) minY = pt.y;
-      if (pt.x > maxX) maxX = pt.x;
-      if (pt.y > maxY) maxY = pt.y;
-    }
+    bb.addPoints(edge.points);
   }
 
   // Shift everything so content starts at (MARGIN, MARGIN)
-  const shiftX = MARGIN - minX;
-  const shiftY = MARGIN - minY;
-  for (const node of nodes) {
-    node.x += shiftX;
-    node.y += shiftY;
-  }
-  for (const gb of groupBoundaries) {
-    gb.x += shiftX;
-    gb.y += shiftY;
-  }
+  const shiftX = MARGIN - bb.minX;
+  const shiftY = MARGIN - bb.minY;
+  translateInPlace(nodes, shiftX, shiftY);
+  translateInPlace(groupBoundaries, shiftX, shiftY);
   for (const edge of edges) {
-    for (const pt of edge.points) {
-      pt.x += shiftX;
-      pt.y += shiftY;
-    }
+    translateInPlace(edge.points, shiftX, shiftY);
   }
 
-  let totalWidth = maxX - minX + MARGIN * 2;
-  let totalHeight = maxY - minY + MARGIN * 2;
+  let totalWidth = bb.maxX - bb.minX + MARGIN * 2;
+  let totalHeight = bb.maxY - bb.minY + MARGIN * 2;
 
   const legendGroups = computeLegendGroups(
     legendSuppressed(parsed.options) ? [] : parsed.tagGroups

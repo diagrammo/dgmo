@@ -1,4 +1,5 @@
 import dagre from '@dagrejs/dagre';
+import { Bounds, shiftLayout } from '../utils/bounds';
 import {
   searchPlacement,
   type Pt,
@@ -297,25 +298,11 @@ export function layoutClassDiagram(
   // note placed above/left can land at negative coords, and so can an edge
   // the placement search bent around a class; when either does, shift
   // everything so nothing clips. Otherwise min ≥ 0 → no shift.
-  let bbMinX = Infinity;
-  let bbMinY = Infinity;
-  let bbMaxX = -Infinity;
-  let bbMaxY = -Infinity;
-  const extend = (l: number, t: number, r: number, b: number): void => {
-    if (l < bbMinX) bbMinX = l;
-    if (t < bbMinY) bbMinY = t;
-    if (r > bbMaxX) bbMaxX = r;
-    if (b > bbMaxY) bbMaxY = b;
-  };
+  const bb = new Bounds();
   for (const node of layoutNodes) {
-    extend(
-      node.x - node.width / 2,
-      node.y - node.height / 2,
-      node.x + node.width / 2,
-      node.y + node.height / 2
-    );
+    bb.addCentred(node);
     if (node.note && !node.note.collapsed) {
-      extend(
+      bb.add(
         node.x + node.note.x,
         node.y + node.note.y,
         node.x + node.note.x + node.note.width,
@@ -324,30 +311,21 @@ export function layoutClassDiagram(
     }
   }
   for (const edge of layoutEdges) {
-    for (const pt of edge.points) extend(pt.x, pt.y, pt.x, pt.y);
+    bb.addPoints(edge.points);
   }
-  if (!Number.isFinite(bbMinX)) {
-    bbMinX = 0;
-    bbMinY = 0;
-    bbMaxX = 0;
-    bbMaxY = 0;
-  }
+  bb.orZero();
 
-  const { shiftX, shiftY } = noteCanvasShift(bbMinX, bbMinY);
-  const shifted = shiftX !== 0 || shiftY !== 0;
-  const finalNodes = shifted
-    ? layoutNodes.map((n) => ({ ...n, x: n.x + shiftX, y: n.y + shiftY }))
-    : layoutNodes;
-  const finalEdges = shifted
-    ? layoutEdges.map((e) => ({
-        ...e,
-        points: e.points.map((pt) => ({ x: pt.x + shiftX, y: pt.y + shiftY })),
-      }))
-    : layoutEdges;
+  const { shiftX, shiftY } = noteCanvasShift(bb.minX, bb.minY);
+  const { nodes: finalNodes, edges: finalEdges } = shiftLayout(
+    shiftX,
+    shiftY,
+    layoutNodes,
+    layoutEdges
+  );
 
   // Totals: max extent (incl. notes) + the prior 40 px margin.
-  const totalWidth = bbMaxX + shiftX + 40;
-  const totalHeight = bbMaxY + shiftY + 40;
+  const totalWidth = bb.maxX + shiftX + 40;
+  const totalHeight = bb.maxY + shiftY + 40;
 
   return {
     nodes: finalNodes,

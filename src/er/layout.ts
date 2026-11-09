@@ -1,4 +1,5 @@
 import dagre from '@dagrejs/dagre';
+import { Bounds, shiftLayout } from '../utils/bounds';
 import type {
   EdgeLabel,
   Graph,
@@ -552,25 +553,11 @@ export function layoutERDiagram(
   });
 
   // ── 7. Content bbox (incl. floated notes) + off-canvas shift ─────────────────
-  let bbMinX = Infinity;
-  let bbMinY = Infinity;
-  let bbMaxX = -Infinity;
-  let bbMaxY = -Infinity;
-  const extend = (l: number, t: number, r: number, b: number): void => {
-    if (l < bbMinX) bbMinX = l;
-    if (t < bbMinY) bbMinY = t;
-    if (r > bbMaxX) bbMaxX = r;
-    if (b > bbMaxY) bbMaxY = b;
-  };
+  const bb = new Bounds();
   for (const node of notedNodes) {
-    extend(
-      node.x - node.width / 2,
-      node.y - node.height / 2,
-      node.x + node.width / 2,
-      node.y + node.height / 2
-    );
+    bb.addCentred(node);
     if (node.note && !node.note.collapsed) {
-      extend(
+      bb.add(
         node.x + node.note.x,
         node.y + node.note.y,
         node.x + node.note.x + node.note.width,
@@ -579,31 +566,22 @@ export function layoutERDiagram(
     }
   }
   for (const edge of layoutEdges) {
-    for (const pt of edge.points) extend(pt.x, pt.y, pt.x, pt.y);
+    bb.addPoints(edge.points);
   }
-  if (!Number.isFinite(bbMinX)) {
-    bbMinX = 0;
-    bbMinY = 0;
-    bbMaxX = 0;
-    bbMaxY = 0;
-  }
+  bb.orZero();
 
-  const { shiftX, shiftY } = noteCanvasShift(bbMinX, bbMinY);
-  const shifted = shiftX !== 0 || shiftY !== 0;
-  const finalNodes = shifted
-    ? notedNodes.map((n) => ({ ...n, x: n.x + shiftX, y: n.y + shiftY }))
-    : notedNodes;
-  const finalEdges = shifted
-    ? layoutEdges.map((e) => ({
-        ...e,
-        points: e.points.map((pt) => ({ x: pt.x + shiftX, y: pt.y + shiftY })),
-      }))
-    : layoutEdges;
+  const { shiftX, shiftY } = noteCanvasShift(bb.minX, bb.minY);
+  const { nodes: finalNodes, edges: finalEdges } = shiftLayout(
+    shiftX,
+    shiftY,
+    notedNodes,
+    layoutEdges
+  );
 
   return {
     nodes: finalNodes,
     edges: finalEdges,
-    width: bbMaxX + shiftX + HALF_MARGIN,
-    height: bbMaxY + shiftY + HALF_MARGIN,
+    width: bb.maxX + shiftX + HALF_MARGIN,
+    height: bb.maxY + shiftY + HALF_MARGIN,
   };
 }

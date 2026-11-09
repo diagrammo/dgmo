@@ -1,4 +1,5 @@
 import dagre from '@dagrejs/dagre';
+import { Bounds, shiftLayout } from '../utils/bounds';
 import type {
   ParsedGraph,
   GraphNode,
@@ -483,21 +484,8 @@ export function layoutGraph(
         continue;
       }
 
-      let minX = Infinity;
-      let minY = Infinity;
-      let maxX = -Infinity;
-      let maxY = -Infinity;
-
-      for (const member of members) {
-        const left = member.x - member.width / 2;
-        const right = member.x + member.width / 2;
-        const top = member.y - member.height / 2;
-        const bottom = member.y + member.height / 2;
-        if (left < minX) minX = left;
-        if (right > maxX) maxX = right;
-        if (top < minY) minY = top;
-        if (bottom > maxY) maxY = bottom;
-      }
+      const box = new Bounds();
+      for (const member of members) box.addCentred(member);
 
       layoutGroups.push({
         id: group.id,
@@ -505,10 +493,7 @@ export function layoutGraph(
         ...(group.color !== undefined && { color: group.color }),
         ...(group.metadata && { metadata: group.metadata }),
         lineNumber: group.lineNumber,
-        x: minX - GROUP_PADDING,
-        y: minY - GROUP_PADDING,
-        width: maxX - minX + GROUP_PADDING * 2,
-        height: maxY - minY + GROUP_PADDING * 2,
+        ...box.padded(GROUP_PADDING),
       });
     }
   }
@@ -524,25 +509,11 @@ export function layoutGraph(
   // `TB`) and reserves rank space for them, but that space lies wholly
   // outside every node box — so a bbox over nodes alone puts the loop
   // exactly on the canvas edge and clips it.
-  let bbMinX = Infinity;
-  let bbMinY = Infinity;
-  let bbMaxX = -Infinity;
-  let bbMaxY = -Infinity;
-  const extend = (l: number, t: number, r: number, b: number): void => {
-    if (l < bbMinX) bbMinX = l;
-    if (t < bbMinY) bbMinY = t;
-    if (r > bbMaxX) bbMaxX = r;
-    if (b > bbMaxY) bbMaxY = b;
-  };
+  const bb = new Bounds();
   for (const node of layoutNodes) {
-    extend(
-      node.x - node.width / 2,
-      node.y - node.height / 2,
-      node.x + node.width / 2,
-      node.y + node.height / 2
-    );
+    bb.addCentred(node);
     if (node.note) {
-      extend(
+      bb.add(
         node.x + node.note.x,
         node.y + node.note.y,
         node.x + node.note.x + node.note.width,
@@ -551,39 +522,26 @@ export function layoutGraph(
     }
   }
   for (const group of layoutGroups) {
-    extend(group.x, group.y, group.x + group.width, group.y + group.height);
+    bb.addRect(group);
   }
   for (const edge of layoutEdges) {
     if (edge.source !== edge.target) continue;
-    for (const pt of edge.points) extend(pt.x, pt.y, pt.x, pt.y);
+    bb.addPoints(edge.points);
   }
-  if (!Number.isFinite(bbMinX)) {
-    bbMinX = 0;
-    bbMinY = 0;
-    bbMaxX = 0;
-    bbMaxY = 0;
-  }
+  bb.orZero();
 
   // Shift only when content runs off the top/left (note placed above/left).
-  const { shiftX, shiftY } = noteCanvasShift(bbMinX, bbMinY);
+  const { shiftX, shiftY } = noteCanvasShift(bb.minX, bb.minY);
 
-  const shifted = shiftX !== 0 || shiftY !== 0;
-  const finalNodes = shifted
-    ? layoutNodes.map((n) => ({ ...n, x: n.x + shiftX, y: n.y + shiftY }))
-    : layoutNodes;
-  const finalEdges = shifted
-    ? layoutEdges.map((e) => ({
-        ...e,
-        points: e.points.map((pt) => ({ x: pt.x + shiftX, y: pt.y + shiftY })),
-      }))
-    : layoutEdges;
-  const finalGroups = shifted
-    ? layoutGroups.map((gr) => ({ ...gr, x: gr.x + shiftX, y: gr.y + shiftY }))
-    : layoutGroups;
+  const {
+    nodes: finalNodes,
+    edges: finalEdges,
+    groups: finalGroups,
+  } = shiftLayout(shiftX, shiftY, layoutNodes, layoutEdges, layoutGroups);
 
   // Add margin (matches prior behavior: max-edge + 40).
-  const totalWidth = bbMaxX + shiftX + 40;
-  const totalHeight = bbMaxY + shiftY + 40;
+  const totalWidth = bb.maxX + shiftX + 40;
+  const totalHeight = bb.maxY + shiftY + 40;
 
   return {
     nodes: finalNodes,
