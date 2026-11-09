@@ -1,0 +1,12 @@
+class Payment Orchestration Domain Model With Verbose Member Names
+// stress: long-labels — member signatures of 50–90 characters
+
+PaymentAuthorisationCoordinatorWithRetryAndFallbackBehaviour
+  idempotencyKeyDerivedFromMerchantReferenceAndAttemptNumber: string
+  acquiringBankRoutingDecisionRecordedForSettlementReconciliation: string
+  authoriseAndCapture(amountInMinorUnits: number, currencyIsoCode: string, customerPaymentMethodToken: string): AuthorisationOutcome
+  reverseAuthorisationAfterPartialCaptureFailure(reason: string): void
+
+CardNotPresentAuthorisation extends PaymentAuthorisationCoordinatorWithRetryAndFallbackBehaviour
+  threeDomainSecureChallengeRequiredByIssuerPolicy: boolean
+  completeChallengeAndResumeAuthorisation(challengeResultPayload: string): void

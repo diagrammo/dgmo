@@ -1,0 +1,46 @@
+scatter Service Latency vs Request Rate Across the Fleet
+// stress: many-items — dozens of labelled points in three groups, clustered
+x-label Requests per second
+y-label p99 latency (ms)
+
+[Edge] blue
+  edge-01 1200 38
+  edge-02 1180 41
+  edge-03 1210 36
+  edge-04 1150 44
+  edge-05 1230 35
+  edge-06 1190 40
+  edge-07 1175 43
+  edge-08 1205 37
+  edge-09 1160 45
+  edge-10 1220 39
+  edge-11 1195 42
+  edge-12 1185 40
+
+[API] green
+  api-01 640 120
+  api-02 655 118
+  api-03 630 125
+  api-04 648 121
+  api-05 662 116
+  api-06 635 124
+  api-07 650 119
+  api-08 645 122
+  api-09 658 117
+  api-10 638 123
+  api-11 652 120
+  api-12 643 121
+
+[Batch] red
+  batch-01 90 880
+  batch-02 95 860
+  batch-03 88 900
+  batch-04 92 870
+  batch-05 97 850
+  batch-06 85 910
+  batch-07 93 865
+  batch-08 91 875
+  batch-09 96 855
+  batch-10 89 895
+  batch-11 94 862
+  batch-12 640 118
