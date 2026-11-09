@@ -10,9 +10,84 @@ import type { ParsedChart } from '../chart';
 import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
 import { shapeFill } from '../palettes/color-utils';
+import {
+  measureText,
+  truncateText,
+  wrapTextToWidth,
+} from '../utils/text-measure';
 import { type Svg, fmtNum, tagDatum } from './shared';
 
 const RINGS = 5;
+
+// Axis names (#1764): drawn at the axis tip, capped to the room between the
+// tip and the canvas edge — wrapped at word breaks into at most
+// LABEL_MAX_LINES, the last line ellipsized. When even that does not fit, the
+// radius shrinks (down to RADIUS_FLOOR of its first value) until it does.
+const LABEL_FONT = 14;
+const LABEL_LINE_H = 17;
+const LABEL_MAX_LINES = 3;
+const LABEL_GAP = 18;
+const LABEL_MARGIN = 8;
+const RADIUS_STEP = 4;
+const RADIUS_FLOOR = 0.5;
+
+interface AxisLabel {
+  lines: string[];
+  x: number;
+  /** Baseline of the first line. */
+  y: number;
+  anchor: 'start' | 'middle' | 'end';
+  truncated: boolean;
+  fits: boolean;
+}
+
+/** Lay out one axis name at tip (lx, ly) along direction (c, s). */
+function layoutAxisLabel(
+  label: string,
+  lx: number,
+  ly: number,
+  c: number,
+  s: number,
+  width: number,
+  height: number,
+  topInset: number
+): AxisLabel {
+  const anchor = Math.abs(c) < 0.3 ? 'middle' : c > 0 ? 'start' : 'end';
+  const room =
+    anchor === 'start'
+      ? width - LABEL_MARGIN - lx
+      : anchor === 'end'
+        ? lx - LABEL_MARGIN
+        : 2 * Math.min(lx - LABEL_MARGIN, width - LABEL_MARGIN - lx);
+  let lines = [label];
+  let truncated = false;
+  if (measureText(label, LABEL_FONT) > room) {
+    lines = room > 0 ? wrapTextToWidth(label, LABEL_FONT, room) : [label];
+    if (lines.length > LABEL_MAX_LINES) {
+      const rest = lines.slice(LABEL_MAX_LINES - 1).join(' ');
+      lines = [
+        ...lines.slice(0, LABEL_MAX_LINES - 1),
+        truncateText(rest, LABEL_FONT, room),
+      ];
+      truncated = true;
+    }
+  }
+  const k = lines.length;
+  // Top axes grow upward from the tip, bottom axes downward, side axes centre.
+  const y =
+    s < -0.3
+      ? ly + 4 - (k - 1) * LABEL_LINE_H
+      : s > 0.3
+        ? ly + 4
+        : ly + 4 - ((k - 1) * LABEL_LINE_H) / 2;
+  const widest = Math.max(...lines.map((l) => measureText(l, LABEL_FONT)));
+  const fits =
+    lines.every((l) => l !== '') &&
+    widest <= room + 0.5 &&
+    y - LABEL_FONT * 0.78 >= topInset &&
+    y + (k - 1) * LABEL_LINE_H + LABEL_FONT * 0.22 <= height - LABEL_MARGIN;
+  return { lines, x: lx, y, anchor, truncated, fits };
+}
 
 /** Value of data point `d` for series index `s` (0 = primary, rest = extraValues). */
 function seriesValue(
@@ -67,13 +142,37 @@ export function renderRadar(
   const cx = width / 2;
   const top = topInset + 8;
   const cy = top + (height - top) / 2;
-  const radius = Math.min(width / 2 - 130, (height - top) / 2 - 50);
+  const firstRadius = Math.min(width / 2 - 130, (height - top) / 2 - 50);
 
   const angle = (i: number) => -Math.PI / 2 + (i * 2 * Math.PI) / n;
   const pt = (i: number, r: number): [number, number] => [
     cx + Math.cos(angle(i)) * r,
     cy + Math.sin(angle(i)) * r,
   ];
+
+  const layoutLabels = (r: number): AxisLabel[] =>
+    data.map((d, i) => {
+      const [lx, ly] = pt(i, r + LABEL_GAP);
+      return layoutAxisLabel(
+        d.label,
+        lx,
+        ly,
+        Math.cos(angle(i)),
+        Math.sin(angle(i)),
+        width,
+        height,
+        topInset
+      );
+    });
+  let radius = firstRadius;
+  let labels = layoutLabels(radius);
+  while (
+    !labels.every((l) => l.fits) &&
+    radius - RADIUS_STEP >= firstRadius * RADIUS_FLOOR
+  ) {
+    radius -= RADIUS_STEP;
+    labels = layoutLabels(radius);
+  }
 
   // grid rings (polygons) + spokes
   for (let l = 1; l <= RINGS; l++) {
@@ -97,20 +196,22 @@ export function renderRadar(
       .attr('stroke', mutedColor)
       .attr('stroke-opacity', 0.4);
     // axis name
-    const [lx, ly] = pt(i, radius + 18);
-    const c = Math.cos(angle(i));
-    svg
+    const label = labels[i]!;
+    const t = svg
       .append('text')
-      .attr('x', lx)
-      .attr('y', ly + 4)
-      .attr(
-        'text-anchor',
-        Math.abs(c) < 0.3 ? 'middle' : c > 0 ? 'start' : 'end'
-      )
+      .attr('x', label.x)
+      .attr('y', label.y)
+      .attr('text-anchor', label.anchor)
       .attr('fill', textColor)
-      .attr('font-size', 14)
-      .attr('font-family', FONT_FAMILY)
-      .text(data[i]!.label);
+      .attr('font-size', LABEL_FONT)
+      .attr('font-family', FONT_FAMILY);
+    if (label.lines.length === 1) t.text(label.lines[0]!);
+    else
+      label.lines.forEach((line, j) => {
+        const span = t.append('tspan').text(line);
+        if (j > 0) span.attr('x', label.x).attr('dy', LABEL_LINE_H);
+      });
+    if (label.truncated) t.append('title').text(data[i]!.label);
   });
 
   // one polygon (+ point markers + value labels) per series
