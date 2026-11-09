@@ -2,7 +2,8 @@
 // C4 Context Diagram SVG Renderer
 // ============================================================
 
-import { CYLINDER_RY, QUEUE_CAP } from '../shape-caps';
+import { CYLINDER_RY } from '../shape-caps';
+import { drawCylinderCard, drawQueueCard } from '../shapes/draw';
 import { serializeSvg } from '../utils/svg-serialize';
 import { tagAttrKey, resolveGroupTagColor } from '../utils/tag-groups';
 import { fillModeFromOptions } from '../utils/parsing';
@@ -694,51 +695,6 @@ export function renderC4ContextForExport(
 // ============================================================
 
 /**
- * Draw a cylinder-shaped card background (for database/cache shapes).
- * Replaces the simple rounded rect with a cylinder shape.
- */
-export function drawCylinderCard(
-  nodeG: GSelection,
-  w: number,
-  h: number,
-  fill: string,
-  stroke: string,
-  dashed: boolean
-): void {
-  const ry = CYLINDER_RY;
-  // Build cylinder path: top ellipse, sides, bottom ellipse
-  const path = [
-    `M ${-w / 2} ${-h / 2 + ry}`,
-    `A ${w / 2} ${ry} 0 0 1 ${w / 2} ${-h / 2 + ry}`,
-    `L ${w / 2} ${h / 2 - ry}`,
-    `A ${w / 2} ${ry} 0 0 1 ${-w / 2} ${h / 2 - ry}`,
-    'Z',
-  ].join(' ');
-
-  const el = nodeG
-    .append('path')
-    .attr('d', path)
-    .attr('fill', fill)
-    .attr('stroke', stroke)
-    .attr('stroke-width', NODE_STROKE_WIDTH);
-
-  if (dashed) {
-    el.attr('stroke-dasharray', EDGE_DASH);
-  }
-
-  // Top ellipse highlight (inner curve)
-  nodeG
-    .append('ellipse')
-    .attr('cx', 0)
-    .attr('cy', -h / 2 + ry)
-    .attr('rx', w / 2)
-    .attr('ry', ry)
-    .attr('fill', fill)
-    .attr('stroke', stroke)
-    .attr('stroke-width', NODE_STROKE_WIDTH);
-}
-
-/**
  * The radius of a circular arc with chord `chord` bulging `sag` past it.
  *
  * Both cloud lobes and queue caps are specified by how far they bulge, which
@@ -802,62 +758,6 @@ function drawCloudCard(
     .attr('d', path)
     .attr('data-c4-shape', 'cloud')
     .attr('fill', fill)
-    .attr('stroke', stroke)
-    .attr('stroke-width', NODE_STROKE_WIDTH);
-}
-
-/**
- * Draw a queue card — a cylinder on its side (#654).
- *
- * Not drawn, for the same reason `cloud` was not, and found the same way:
- * the issue
- * suspected it and reading the shape branch confirmed it.
- *
- * The near cap is a second arc rather than a full ellipse, which is what makes
- * it read as a pipe seen end-on rather than as a lozenge. `computeC4NodeDimensions`
- * pays for both caps in width, so the name never sits on top of that arc.
- */
-export function drawQueueCard(
-  nodeG: GSelection,
-  w: number,
-  h: number,
-  fill: string,
-  stroke: string
-): void {
-  const cap = QUEUE_CAP;
-  const xL = -w / 2 + cap;
-  const xR = w / 2 - cap;
-  const ry = h / 2;
-
-  const path = [
-    `M ${xL} ${-ry}`,
-    `L ${xR} ${-ry}`,
-    `A ${cap} ${ry} 0 0 1 ${xR} ${ry}`,
-    `L ${xL} ${ry}`,
-    `A ${cap} ${ry} 0 0 1 ${xL} ${-ry}`,
-    'Z',
-  ].join(' ');
-
-  nodeG
-    .append('path')
-    .attr('d', path)
-    .attr('data-c4-shape', 'queue')
-    .attr('fill', fill)
-    .attr('stroke', stroke)
-    .attr('stroke-width', NODE_STROKE_WIDTH);
-
-  // The near cap, bulging INTO the body — the whole difference between a pipe
-  // and a lozenge.
-  //
-  // 🔴 Sweep 1 while going DOWN. The outline's own left cap is also sweep
-  // 1 but travels UP, so it bulges the other way; drawn with sweep 0 this arc
-  // lands exactly on top of it and disappears, which is what it did until it
-  // was rendered and looked at. Reasoning about it gave the wrong answer
-  // twice — the direction of travel is half the flag's meaning.
-  nodeG
-    .append('path')
-    .attr('d', `M ${xL} ${-ry} A ${cap} ${ry} 0 0 1 ${xL} ${ry}`)
-    .attr('fill', 'none')
     .attr('stroke', stroke)
     .attr('stroke-width', NODE_STROKE_WIDTH);
 }

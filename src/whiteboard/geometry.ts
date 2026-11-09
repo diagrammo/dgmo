@@ -14,6 +14,8 @@
 // (axis-aligned rectangles and ellipses) whose UNION is the shape. The first
 // point where a segment enters a union of convex pieces is the earliest entry
 // into any one of them, so the clip is exact for every kind:
+// The database, queue and file outlines come from `shapes/geometry.ts`,
+// shared with the c4 and flowchart renderers that draw the same symbols.
 //   rectangle — two rectangles plus four corner circles (the rounded corners)
 //   ellipse   — the ellipse
 //   database  — the body rectangle plus the top and bottom cap ellipses
@@ -26,7 +28,18 @@
 // A sticky note is attachable exactly like a shape: "shape" below means any
 // boxed element a connector end can sit in.
 
-import { CYLINDER_RY, FILE_WAVE, QUEUE_CAP } from '../shape-caps';
+import { CYLINDER_RY, DOCUMENT_WAVE, QUEUE_CAP } from '../shape-caps';
+import {
+  DOCUMENT_WAVE_STEPS,
+  cylinderPieces,
+  documentPath,
+  documentPieces,
+  documentWavePoints,
+  ellipsePiece,
+  queuePieces,
+  rectPiece,
+  type ShapePiece,
+} from '../shapes/geometry';
 import type {
   WhiteboardArrow,
   WhiteboardElement,
@@ -85,34 +98,9 @@ export interface WhiteboardConnectorAttachments {
   readonly to: number;
 }
 
-type Piece =
-  | {
-      readonly kind: 'rect';
-      readonly x0: number;
-      readonly y0: number;
-      readonly x1: number;
-      readonly y1: number;
-    }
-  | {
-      readonly kind: 'ellipse';
-      readonly cx: number;
-      readonly cy: number;
-      readonly rx: number;
-      readonly ry: number;
-    }
-  | {
-      /** A convex polygon, corners clockwise on screen (y down). */
-      readonly kind: 'poly';
-      readonly pts: readonly WhiteboardPoint[];
-    };
-
-function rect(x0: number, y0: number, x1: number, y1: number): Piece[] {
-  return x1 >= x0 && y1 >= y0 ? [{ kind: 'rect', x0, y0, x1, y1 }] : [];
-}
-
-function ellipse(cx: number, cy: number, rx: number, ry: number): Piece[] {
-  return rx > 0 && ry > 0 ? [{ kind: 'ellipse', cx, cy, rx, ry }] : [];
-}
+type Piece = ShapePiece;
+const rect = rectPiece;
+const ellipse = ellipsePiece;
 
 /** A rounded rectangle as a union of convex pieces. */
 function roundedRect(
@@ -134,46 +122,28 @@ function roundedRect(
   ];
 }
 
-/** Depth of a file's wavy bottom: `FILE_WAVE`, at most a quarter of `h`. */
+/** Depth of a file's wavy bottom: `DOCUMENT_WAVE`, at most a quarter of `h`. */
 export function whiteboardFileWave(h: number): number {
-  return Math.max(0, Math.min(FILE_WAVE, h / 4));
+  return Math.max(0, Math.min(DOCUMENT_WAVE, h / 4));
 }
-
-/** Steps a file's wavy bottom is sampled in, for clipping and hit tests. */
-const FILE_WAVE_STEPS = 16;
 
 /**
  * Points along a file's wavy bottom, right to left: the cubic the renderer
- * draws (`whiteboardFilePath`), sampled in `steps` steps. It dips below the
- * straight bottom on the right and rises above it on the left.
+ * draws (`whiteboardFilePath`), sampled in `steps` steps.
  */
 export function whiteboardFileWavePoints(
   x: number,
   y: number,
   w: number,
   h: number,
-  steps = FILE_WAVE_STEPS
+  steps = DOCUMENT_WAVE_STEPS
 ): WhiteboardPoint[] {
-  const wave = whiteboardFileWave(h);
-  const b = y + h - wave;
-  const xs = [x + w, x + w * 0.75, x + w * 0.25, x];
-  const ys = [b, b + 2 * wave, b - wave, b];
-  const out: WhiteboardPoint[] = [];
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps;
-    const u = 1 - t;
-    const k = [u * u * u, 3 * u * u * t, 3 * u * t * t, t * t * t];
-    out.push({
-      x: k[0]! * xs[0]! + k[1]! * xs[1]! + k[2]! * xs[2]! + k[3]! * xs[3]!,
-      y: k[0]! * ys[0]! + k[1]! * ys[1]! + k[2]! * ys[2]! + k[3]! * ys[3]!,
-    });
-  }
-  return out;
+  return documentWavePoints(x, y, w, h, whiteboardFileWave(h), steps);
 }
 
 /**
- * A file's outline as an SVG path: a page whose bottom edge is one wave, as
- * the flowchart document symbol is drawn.
+ * A file's outline as an SVG path: a page whose bottom edge is one wave —
+ * the flowchart document symbol, from the same `documentPath`.
  */
 export function whiteboardFilePath(
   x: number,
@@ -181,12 +151,7 @@ export function whiteboardFilePath(
   w: number,
   h: number
 ): string {
-  const wave = whiteboardFileWave(h);
-  const b = y + h - wave;
-  return (
-    `M ${x} ${y} L ${x + w} ${y} L ${x + w} ${b} ` +
-    `C ${x + w * 0.75} ${b + 2 * wave}, ${x + w * 0.25} ${b - wave}, ${x} ${b} Z`
-  );
+  return documentPath(x, y, w, h, whiteboardFileWave(h));
 }
 
 /** The element's drawn outline as a union of convex pieces. */
@@ -211,47 +176,12 @@ function piecesOf(s: WhiteboardAttachable): Piece[] {
       return roundedRect(x, y, w, h, RECT_RADIUS);
     case 'ellipse':
       return ellipse(cx, cy, w / 2, h / 2);
-    case 'database': {
-      // drawCylinderCard: sides from y+ry to y+h-ry, a full cap ellipse on
-      // top and a half one below, both w/2 × ry.
-      const ry = CYLINDER_RY;
-      return [
-        ...rect(x, y + ry, x + w, y + h - ry),
-        ...ellipse(cx, y + ry, w / 2, ry),
-        ...ellipse(cx, y + h - ry, w / 2, ry),
-      ];
-    }
-    case 'queue': {
-      // drawQueueCard: a body between two caps of half-width QUEUE_CAP.
-      const cap = QUEUE_CAP;
-      return [
-        ...rect(x + cap, y, x + w - cap, y + h),
-        ...ellipse(x + cap, cy, cap, h / 2),
-        ...ellipse(x + w - cap, cy, cap, h / 2),
-      ];
-    }
-    case 'file': {
-      // whiteboardFilePath: the body down to the wave's highest point, then
-      // one strip per sampled step, each running down to the wave.
-      const pts = whiteboardFileWavePoints(x, y, w, h);
-      const top = Math.min(...pts.map((p) => p.y));
-      const strips: Piece[] = [];
-      for (let i = pts.length - 1; i > 0; i--) {
-        const a = pts[i]!;
-        const b = pts[i - 1]!;
-        if (b.x - a.x < EPS || Math.max(a.y, b.y) - top < EPS) continue;
-        strips.push({
-          kind: 'poly',
-          pts: [
-            { x: a.x, y: top },
-            { x: b.x, y: top },
-            { x: b.x, y: Math.max(b.y, top) },
-            { x: a.x, y: Math.max(a.y, top) },
-          ],
-        });
-      }
-      return [...rect(x, y, x + w, top), ...strips];
-    }
+    case 'database':
+      return cylinderPieces(x, y, w, h, CYLINDER_RY);
+    case 'queue':
+      return queuePieces(x, y, w, h, QUEUE_CAP);
+    case 'file':
+      return documentPieces(x, y, w, h, whiteboardFileWave(h));
   }
 }
 

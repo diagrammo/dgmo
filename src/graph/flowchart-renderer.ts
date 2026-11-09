@@ -16,6 +16,8 @@ import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
 import { contrastText, shapeFill } from '../palettes/color-utils';
 import type { ParsedGraph, GraphShape } from './types';
+import { documentPath } from '../shapes/geometry';
+import { DOCUMENT_WAVE } from '../shape-caps';
 import type { LayoutResult, LayoutNode } from './layout';
 import { parseFlowchart } from './flowchart-parser';
 import { layoutGraph, NODE_LABEL_LINE_HEIGHT, wrapNodeLabel } from './layout';
@@ -43,7 +45,7 @@ import {
 } from '../utils/visual-conventions'; // shared (Story 111.1)
 const IO_SKEW = 15;
 const SUBROUTINE_INSET = 8;
-const DOC_WAVE_HEIGHT = 10;
+const DOC_WAVE_HEIGHT = DOCUMENT_WAVE;
 
 // ============================================================
 // Edge endpoint clipping
@@ -347,19 +349,8 @@ function renderDocument(
 ): void {
   const w = node.width;
   const h = node.height;
-  const waveH = sDocWaveHeight;
-  const left = -w / 2;
-  const right = w / 2;
-  const top = -h / 2;
-  const bottom = h / 2 - waveH;
-
-  const d = [
-    `M ${left} ${top}`,
-    `L ${right} ${top}`,
-    `L ${right} ${bottom}`,
-    `C ${right - w * 0.25} ${bottom + waveH * 2}, ${left + w * 0.25} ${bottom - waveH}, ${left} ${bottom}`,
-    'Z',
-  ].join(' ');
+  // Shared with the whiteboard `file` shape (#1760).
+  const d = documentPath(-w / 2, -h / 2, w, h, sDocWaveHeight);
 
   g.append('path')
     .attr('d', d)

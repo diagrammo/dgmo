@@ -21,7 +21,7 @@ import {
   shapeFill,
   themeBaseBg,
 } from '../palettes/color-utils';
-import { drawCylinderCard, drawQueueCard } from '../c4/renderer';
+import { drawCylinderCard, drawQueueCard } from '../shapes/draw';
 import { renderChartTitle } from '../utils/d3-helpers';
 import { measureText } from '../utils/text-measure';
 import { TITLE_FONT_SIZE } from '../utils/title-constants';

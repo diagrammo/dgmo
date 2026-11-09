@@ -1,4 +1,4 @@
-// Cylinder cap sizes for c4 cards, whiteboard shapes and sequence participants. A leaf
+// Shape tuning sizes for c4 cards, flowchart nodes, whiteboard shapes and sequence participants. A leaf
 // module, so pure geometry can import them without the c4 renderer.
 
 /** A database's (cylinder's) cap, half-height. */
@@ -22,10 +22,10 @@ export const CYLINDER_RY = 8;
 export const QUEUE_CAP = 16;
 
 /**
- * Depth of a whiteboard file's wavy bottom edge, before clamping to a quarter
- * of its height — the flowchart document symbol's `DOC_WAVE_HEIGHT`.
+ * Depth of a document's wavy bottom edge: the flowchart `document` node and
+ * the whiteboard `file` shape (which clamps it to a quarter of its height).
  */
-export const FILE_WAVE = 10;
+export const DOCUMENT_WAVE = 10;
 
 /**
  * A sequence database or cache participant's cap, half-height — and a
