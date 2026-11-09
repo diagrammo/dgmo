@@ -69,7 +69,12 @@ export function renderFunnel(
     const { topW, botW } = bandWidthsAt(plotW, i);
     const wMid = (topW + botW) / 2;
     const label = fmtNum(sorted[i]!.value);
-    const fitByWidth = (wMid - 16) / (label.length * 0.6);
+    // The baseline sits 0.35·size below mid-height, where a narrowing band
+    // has lost (topW − botW)·0.35·size/bandH of width. Fit the value to the
+    // band's width THERE, or a steep band's value spills past its slanted
+    // edge toward the name (#1765). Equal bands lose nothing.
+    const narrowing = (Math.max(0, topW - botW) * 0.35) / bandH;
+    const fitByWidth = (wMid - 16) / (label.length * 0.6 + narrowing);
     // Fill the band with the value: ~55% of band height, shrink to fit.
     return Math.min(bandH * 0.55, fitByWidth);
   };

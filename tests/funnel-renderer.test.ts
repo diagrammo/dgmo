@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderDataChartD3 } from '../src/charts-d3';
 import { render } from '../src/render';
+import { measureText } from '../src/utils/text-measure';
 
 const SRC = [
   'funnel Pirate Recruitment Pipeline',
@@ -90,6 +91,42 @@ describe('funnel renderer labels', () => {
       const estimated = content!.length * size * 0.65; // generous glyph width
       if (anchor === 'end') expect(x - estimated).toBeGreaterThanOrEqual(-2);
       else expect(x + estimated).toBeLessThanOrEqual(width + 2);
+    }
+  });
+
+  // #1765: a steep band (stages orders of magnitude apart) narrows fast, so
+  // a value sized to the band's mid-height width spilled past the slanted
+  // edge at its baseline, onto the background beside the stage name.
+  it('an in-band value stays inside its band at its baseline', async () => {
+    const steep = [
+      'funnel Adoption',
+      'Registry search impressions 48000000',
+      'README views 2100000',
+      'Installs 310000',
+      'Paid support contracts 3',
+    ].join('\n');
+    for (const src of [steep, SRC]) {
+      const { svg } = await render(src);
+      const bands = [...svg.matchAll(/<polygon[^>]*points="([^"]+)"/g)].map(
+        (m) => m[1]!.split(' ').map((pt) => pt.split(',').map(Number))
+      );
+      const values = [
+        ...svg.matchAll(
+          /<text x="([^"]+)" y="([^"]+)" text-anchor="middle"[^>]*font-size="([^"]+)" font-weight="bold"[^>]*>([^<]+)<\/text>/g
+        ),
+      ];
+      expect(values.length).toBeGreaterThan(0);
+      for (const [, xs, ys, fs, text] of values) {
+        const [x, y, size] = [Number(xs), Number(ys), Number(fs)];
+        const band = bands.find((b) => b[0]![1]! <= y && b[2]![1]! >= y);
+        if (!band) continue; // the title, centred above the bands
+        const f = (y - band[0]![1]!) / (band[2]![1]! - band[0]![1]!);
+        const left = band[0]![0]! + (band[3]![0]! - band[0]![0]!) * f;
+        const half = measureText(text!, size, { bold: true }) / 2;
+        expect(x - half, `${text} at its baseline`).toBeGreaterThanOrEqual(
+          left
+        );
+      }
     }
   });
 });
