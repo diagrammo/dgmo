@@ -1,8 +1,9 @@
 import dagre from '@dagrejs/dagre';
 import { Bounds, shiftLayout } from '../utils/bounds';
 import {
+  dagreScored,
   searchPlacement,
-  type Pt,
+  sourceOrder,
   type Shuffle,
 } from '../utils/placement-search';
 import { measureText } from '../utils/text-measure';
@@ -194,7 +195,7 @@ export function layoutClassDiagram(
   // the insertion order of nodes and edges, which is what dagre's within-rank
   // ordering starts from.
   const place = (ranker: string, shuffle?: Shuffle): DagreGraph => {
-    const ord = shuffle ?? (<T>(a: readonly T[]): T[] => a.slice());
+    const ord = shuffle ?? sourceOrder;
     const g = newDagreGraph();
     g.setGraph({
       rankdir: 'TB',
@@ -221,17 +222,9 @@ export function layoutClassDiagram(
 
   // The placement search (#1240). The scorers read the edges in
   // `parsed.relationships` order, so a rerouted edge maps back by index.
-  const { g, edgePoints } = searchPlacement('TB', place, (lay) => ({
-    nodes: parsed.classes.map((n) => {
-      const p = lay.node(n.id);
-      return { id: n.id, x: p.x, y: p.y, width: p.width, height: p.height };
-    }),
-    edges: parsed.relationships.map((r) => ({
-      source: r.source,
-      target: r.target,
-      points: (lay.edge(r.source, r.target)?.points ?? []) as Pt[],
-    })),
-  }));
+  const { g, edgePoints } = searchPlacement('TB', place, (lay) =>
+    dagreScored(lay, parsed.classes, parsed.relationships)
+  );
 
   // ── Notes ──────────────────────────────────────────────────
   // Resolve note anchors (no diagnostics here — the parser already emitted

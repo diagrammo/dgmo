@@ -8,7 +8,9 @@ import type {
   Point,
 } from '@dagrejs/dagre';
 import {
+  dagreScored,
   searchPlacement,
+  sourceOrder,
   type Pt,
   type Shuffle,
 } from '../utils/placement-search';
@@ -249,7 +251,7 @@ function layoutComponent(
     ranker: NonNullable<GraphLabel['ranker']>,
     shuffle?: Shuffle
   ): DagreGraph => {
-    const ord = shuffle ?? (<T>(a: readonly T[]): T[] => a.slice());
+    const ord = shuffle ?? sourceOrder;
     const g = newDagreGraph();
     g.setGraph({
       rankdir: 'LR',
@@ -292,17 +294,9 @@ function layoutComponent(
 
   // The placement search (#1240). The scorers read the edges in `rels`
   // order, so a rerouted edge maps back by index.
-  const { g, edgePoints: bent } = searchPlacement('LR', place, (lay) => ({
-    nodes: tables.map((t) => {
-      const p = lay.node(t.id);
-      return { id: t.id, x: p.x, y: p.y, width: p.width, height: p.height };
-    }),
-    edges: rels.map((r) => ({
-      source: r.source,
-      target: r.target,
-      points: lay.edge(r.source, r.target, String(r.lineNumber))?.points ?? [],
-    })),
-  }));
+  const { g, edgePoints: bent } = searchPlacement('LR', place, (lay) =>
+    dagreScored(lay, tables, rels, (r) => String(r.lineNumber))
+  );
   const routeOf = (i: number, rel: ERRelationship): Pt[] =>
     bent?.[i] ??
     (g.edge(rel.source, rel.target, String(rel.lineNumber))?.points as

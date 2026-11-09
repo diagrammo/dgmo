@@ -44,6 +44,52 @@ export interface ScoredPlacement {
 
 type Ranker = NonNullable<GraphLabel['ranker']>;
 
+/** The plain placement's insertion order: the list as given. */
+export const sourceOrder: Shuffle = <T>(a: readonly T[]): T[] => a.slice();
+
+/** The read side of a laid-out dagre graph, as `dagreScored` uses it. */
+interface LaidOut {
+  node(id: string): {
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+  };
+  edge(
+    v: string,
+    w: string,
+    name?: string
+  ): { readonly points?: readonly Pt[] } | undefined;
+}
+
+/**
+ * `searchPlacement`'s `score` for a plain dagre run: each node's box and each
+ * edge's route, in the orders given — a rerouted edge maps back by index.
+ * `edgeName` keys a multigraph's edges (ER passes the line number).
+ */
+export function dagreScored<E extends { source: string; target: string }>(
+  lay: LaidOut,
+  nodes: readonly { readonly id: string }[],
+  edges: readonly E[],
+  edgeName?: (e: E) => string
+): ScoredPlacement {
+  return {
+    nodes: nodes.map((n) => {
+      const p = lay.node(n.id);
+      return { id: n.id, x: p.x, y: p.y, width: p.width, height: p.height };
+    }),
+    edges: edges.map((e) => ({
+      source: e.source,
+      target: e.target,
+      points:
+        (edgeName
+          ? lay.edge(e.source, e.target, edgeName(e))
+          : lay.edge(e.source, e.target)
+        )?.points ?? [],
+    })),
+  };
+}
+
 const SEARCH_RANKERS: Ranker[] = ['tight-tree', 'longest-path'];
 // Seed-shuffles tried, below the boxes-and-lines count. The callers lay out
 // synchronously, so every candidate (~27 ms of dagre on a 9-node state

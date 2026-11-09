@@ -13,7 +13,9 @@ import { noteBoxSize } from '../utils/note-box';
 import { placeNotes, noteCanvasShift } from '../utils/notes';
 import type { WrappedDescLine } from '../utils/wrapped-desc';
 import {
+  dagreScored,
   searchPlacement,
+  sourceOrder,
   type Pt,
   type Shuffle,
 } from '../utils/placement-search';
@@ -271,7 +273,7 @@ export function layoutGraph(
   // insertion order of nodes and edges, which is what dagre's within-rank
   // ordering starts from; without it the order is the source-order bias above.
   const place = (ranker: string, shuffle?: Shuffle): DagreGraph => {
-    const ord = shuffle ?? (<T>(a: readonly T[]): T[] => a.slice());
+    const ord = shuffle ?? sourceOrder;
     const g = newDagreGraph();
     g.setGraph({
       rankdir: graph.direction,
@@ -319,17 +321,9 @@ export function layoutGraph(
 
   // The scorers read the nodes as boxes and the edges in `graph.edges` order,
   // so a rerouted edge maps back by index.
-  const { g, edgePoints } = searchPlacement(graph.direction, place, (lay) => ({
-    nodes: allNodes.map((n) => {
-      const p = lay.node(n.id);
-      return { id: n.id, x: p.x, y: p.y, width: p.width, height: p.height };
-    }),
-    edges: graph.edges.map((e) => ({
-      source: e.source,
-      target: e.target,
-      points: (lay.edge(e.source, e.target)?.points ?? []) as Pt[],
-    })),
-  }));
+  const { g, edgePoints } = searchPlacement(graph.direction, place, (lay) =>
+    dagreScored(lay, allNodes, graph.edges)
+  );
 
   // Extract positioned nodes
   const collapsedGroupIds = collapsedChildCounts

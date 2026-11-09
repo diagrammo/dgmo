@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
+  dagreScored,
   searchPlacement,
+  sourceOrder,
   type ScoredPlacement,
   type Shuffle,
 } from '../src/utils/placement-search';
@@ -113,5 +115,39 @@ describe('searchPlacement — when the seed-shuffles stop (#1281)', () => {
     const { g } = searchPlacement('TB', place, (p) => p);
     expect(g).toBe(CLEAN);
     expect(calls.at(-1)).toBe('seed1');
+  });
+});
+
+describe('dagreScored', () => {
+  const lay = {
+    node: (id: string) => ({ x: id.length, y: 1, width: 2, height: 3 }),
+    edge: (v: string, w: string, name?: string) =>
+      name === undefined
+        ? { points: [{ x: 0, y: 0 }] }
+        : name === '7'
+          ? { points: [{ x: 7, y: 7 }] }
+          : undefined,
+  };
+
+  it('reads node boxes and edge routes in the orders given', () => {
+    const s = dagreScored(lay, [{ id: 'ab' }], [{ source: 'ab', target: 'c' }]);
+    expect(s.nodes).toEqual([{ id: 'ab', x: 2, y: 1, width: 2, height: 3 }]);
+    expect(s.edges[0]!.points).toEqual([{ x: 0, y: 0 }]);
+  });
+
+  it('keys multigraph edges by name, and a missing edge has no route', () => {
+    const edges = [
+      { source: 'a', target: 'b', n: 7 },
+      { source: 'a', target: 'b', n: 8 },
+    ];
+    const s = dagreScored(lay, [], edges, (e) => String(e.n));
+    expect(s.edges.map((e) => e.points)).toEqual([[{ x: 7, y: 7 }], []]);
+  });
+
+  it('sourceOrder copies without reordering', () => {
+    const a = [3, 1, 2];
+    const out = sourceOrder(a);
+    expect(out).toEqual(a);
+    expect(out).not.toBe(a);
   });
 });
