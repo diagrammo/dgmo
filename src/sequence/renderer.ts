@@ -3019,9 +3019,17 @@ export function renderSequenceDiagram(
   // Clear previous content
   d3Selection.select(container).selectAll('*').remove();
 
+  // 🔴 Layout pixels, not on-screen pixels. `getBoundingClientRect` carries
+  // every CSS transform above the container, so a host that draws the
+  // diagram at full size and scales it down — the app's finder fits a 900px
+  // canvas into its slot at ~0.35 — laid the diagram out at the SCALED width
+  // and drew it a third of the size (#1767). `clientWidth` is free of
+  // transforms; the rect stays as the fallback where there is no layout box
+  // (jsdom, a detached container), which reports 0 for both.
   const layout = layoutSequence(
     parsed,
-    options?.exportWidth ?? container.getBoundingClientRect().width,
+    options?.exportWidth ??
+      (container.clientWidth || container.getBoundingClientRect().width),
     options
   );
   if (!layout) return;
