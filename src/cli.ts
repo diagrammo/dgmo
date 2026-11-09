@@ -39,6 +39,7 @@ import {
 } from './cli-mcp-config';
 import { owningPackageManager, linuxClipboardCommand } from './cli-host';
 import { runCloudCommand } from './cli-cloud';
+import { installCodexPlugin } from './cli-codex-plugin';
 import { searchMapLocations } from './map/completion';
 import { loadMapData } from './map/load-data';
 
@@ -903,6 +904,24 @@ function installClaudeCode(opts: InstallOpts): void {
 }
 
 function installCodex(opts: InstallOpts): void {
+  const usedPlugin =
+    opts.scope === 'user' &&
+    commandExists('codex') &&
+    installCodexPlugin({
+      dryRun: opts.dryRun,
+      home: homedir(),
+      codex: (args) =>
+        spawnSync('codex', args, {
+          stdio: 'pipe',
+          encoding: 'utf-8',
+          shell: process.platform === 'win32',
+        }),
+      log: (line) => console.log(line),
+    });
+  if (usedPlugin) {
+    appendCodexAgentsNote(opts);
+    return;
+  }
   ensureDgmoMcp(opts);
 
   // MCP config (TOML). The block migrates in place if a legacy entry exists.
@@ -930,8 +949,11 @@ function installCodex(opts: InstallOpts): void {
     readCodexSkill(),
     'Skill → ~/.codex/skills/dgmo-diagramming/SKILL.md'
   );
+  appendCodexAgentsNote(opts);
+}
 
-  // Non-destructive AGENTS.md note: only append to an existing file, never create.
+// Non-destructive AGENTS.md note: only append to an existing file, never create.
+function appendCodexAgentsNote(opts: InstallOpts): void {
   const agentsPath = join(process.cwd(), 'AGENTS.md');
   if (!opts.dryRun && existsSync(agentsPath)) {
     const existingAgents = readFileSync(agentsPath, 'utf-8');
