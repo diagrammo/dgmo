@@ -14,6 +14,7 @@ import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
 import { contrastText, shapeFill } from '../palettes/color-utils';
 import { type Svg, fmtNum, tagDatum } from './shared';
+import { measureText } from '../utils/text-measure';
 
 const PAD = 12;
 const MARGIN = 8;
@@ -69,14 +70,23 @@ export function renderFunnel(
     const { topW, botW } = bandWidthsAt(plotW, i);
     const wMid = (topW + botW) / 2;
     const label = fmtNum(sorted[i]!.value);
-    // The baseline sits 0.35·size below mid-height, where a narrowing band
-    // has lost (topW − botW)·0.35·size/bandH of width. Fit the value to the
-    // band's width THERE, or a steep band's value spills past its slanted
-    // edge toward the name (#1765). Equal bands lose nothing.
-    const narrowing = (Math.max(0, topW - botW) * 0.35) / bandH;
-    const fitByWidth = (wMid - 16) / (label.length * 0.6 + narrowing);
+    const perChar = label.length * 0.6;
     // Fill the band with the value: ~55% of band height, shrink to fit.
-    return Math.min(bandH * 0.55, fitByWidth);
+    const size = Math.min(bandH * 0.55, (wMid - 16) / perChar);
+    // The baseline sits 0.35·size below mid-height, where a narrowing band
+    // has lost (topW − botW)·0.35·size/bandH of width. Only when the value's
+    // ink would cross the band's outline THERE — a steep band, stages orders
+    // of magnitude apart (#1765) — refit it to that width; every other band
+    // keeps the mid-height fit. Ink starts ~0.04·size inside the measured
+    // advance (Inter Bold digits' side bearing is 0.037–0.054 em) and the
+    // 2px outline reaches 1px past the edge, so that much overhang is drawn
+    // inside the shape.
+    const narrowing = (Math.max(0, topW - botW) * 0.35) / bandH;
+    const overhang =
+      (measureText(label, size, { bold: true }) - (wMid - narrowing * size)) /
+      2;
+    if (overhang <= 1 + 0.04 * size) return size;
+    return Math.min(bandH * 0.55, (wMid - 16) / (perChar + narrowing));
   };
   const valueInsideAt = (plotW: number, i: number) =>
     !chart.noValue && valueSizeAt(plotW, i) >= 13;
