@@ -37,3 +37,16 @@ export const DOCUMENT_WAVE = 10;
  */
 export const SEQUENCE_CYLINDER_RY = 7;
 export const SEQUENCE_QUEUE_CAP = 10;
+
+/**
+ * How far each cloud lobe bulges past the card's text box (#654).
+ *
+ * 🔴 The outline stays INSIDE `w × h`, exactly as `drawCardRect` does — the
+ * lobes reach the card's own edges and the text box is inset by this much top
+ * and bottom. A shape that drew outside its node would overlap its neighbours,
+ * because dagre spaces nodes by the box it was given.
+ *
+ * `computeC4NodeDimensions` adds `CLOUD_BUMP * 2` to a cloud's height, so the
+ * inset is paid for rather than taken out of the card's padding.
+ */
+export const CLOUD_BUMP = 7;

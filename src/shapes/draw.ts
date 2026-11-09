@@ -3,9 +3,10 @@
 // draws centred on the group's origin.
 
 import type * as d3Selection from 'd3-selection';
-import { CYLINDER_RY, QUEUE_CAP } from '../shape-caps';
+import { CLOUD_BUMP, CYLINDER_RY, QUEUE_CAP } from '../shape-caps';
 import { EDGE_DASH, NODE_STROKE_WIDTH } from '../utils/visual-conventions';
 import {
+  cloudPath,
   cylinderPath,
   cylinderTopCap,
   queueNearCapPath,
@@ -74,6 +75,26 @@ export function drawQueueCard(
     .append('path')
     .attr('d', queueNearCapPath(x, y, h, QUEUE_CAP))
     .attr('fill', 'none')
+    .attr('stroke', stroke)
+    .attr('stroke-width', NODE_STROKE_WIDTH);
+}
+
+/**
+ * A cloud card (#654). Every lobe's radius is derived from the card's own
+ * size, so a wide card gets wide lobes rather than a row of circles.
+ */
+export function drawCloudCard(
+  nodeG: GSelection,
+  w: number,
+  h: number,
+  fill: string,
+  stroke: string
+): void {
+  nodeG
+    .append('path')
+    .attr('d', cloudPath(-w / 2, -h / 2, w, h, CLOUD_BUMP))
+    .attr('data-c4-shape', 'cloud')
+    .attr('fill', fill)
     .attr('stroke', stroke)
     .attr('stroke-width', NODE_STROKE_WIDTH);
 }

@@ -16,7 +16,11 @@ import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
 import { contrastText, shapeFill } from '../palettes/color-utils';
 import type { ParsedGraph, GraphShape } from './types';
-import { documentPath } from '../shapes/geometry';
+import {
+  diamondPoints,
+  documentPath,
+  parallelogramPoints,
+} from '../shapes/geometry';
 import { DOCUMENT_WAVE } from '../shape-caps';
 import type { LayoutResult, LayoutNode } from './layout';
 import { parseFlowchart } from './flowchart-parser';
@@ -219,11 +223,7 @@ function renderDecision(
   fillMode?: 'solid' | 'outline',
   sNodeStrokeWidth = NODE_STROKE_WIDTH
 ): void {
-  const w = node.width / 2;
-  const h = node.height / 2;
-  const points = [`${0},${-h}`, `${w},${0}`, `${0},${h}`, `${-w},${0}`].join(
-    ' '
-  );
+  const points = diamondPoints(0, 0, node.width / 2, node.height / 2);
   g.append('polygon')
     .attr('points', points)
     .attr(
@@ -255,15 +255,13 @@ function renderIO(
   sNodeStrokeWidth = NODE_STROKE_WIDTH,
   sIoSkew = IO_SKEW
 ): void {
-  const w = node.width / 2;
-  const h = node.height / 2;
-  const sk = sIoSkew;
-  const points = [
-    `${-w + sk},${-h}`,
-    `${w + sk},${-h}`,
-    `${w - sk},${h}`,
-    `${-w - sk},${h}`,
-  ].join(' ');
+  const points = parallelogramPoints(
+    0,
+    0,
+    node.width / 2,
+    node.height / 2,
+    sIoSkew
+  );
   g.append('polygon')
     .attr('points', points)
     .attr(

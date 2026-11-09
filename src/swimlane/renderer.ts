@@ -8,6 +8,7 @@
 // (double border). Fill cascade: active tag value → event/symbol type → lane
 // shade. resvg has no `color-mix()` — all blends go through `mix()`.
 
+import { diamondPoints } from '../shapes/geometry';
 import * as d3Selection from 'd3-selection';
 import { fillModeFromOptions } from '../utils/parsing';
 import { FONT_FAMILY } from '../fonts';
@@ -532,10 +533,7 @@ export function renderSwimlaneForExport(
     if (n.shape === 'exclusive' || n.shape === 'parallel') {
       const r = n.width / 2;
       g.append('polygon')
-        .attr(
-          'points',
-          `${cx},${cy - r} ${cx + r},${cy} ${cx},${cy + r} ${cx - r},${cy}`
-        )
+        .attr('points', diamondPoints(cx, cy, r, r))
         .attr('fill', fill)
         .attr('stroke', stroke)
         .attr('stroke-width', NODE_STROKE);

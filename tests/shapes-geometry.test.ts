@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  cloudPath,
   cylinderPath,
   cylinderPieces,
   cylinderTopCap,
+  diamondPoints,
   documentPath,
   documentPieces,
   documentWavePoints,
+  parallelogramPoints,
   queueNearCapPath,
   queuePath,
   queuePieces,
@@ -101,5 +104,48 @@ describe('queue', () => {
       'ellipse',
       'ellipse',
     ]);
+  });
+});
+
+describe('diamondPoints', () => {
+  it('matches the flowchart decision node, centred', () => {
+    const w = W / 2;
+    const h = H / 2;
+    expect(diamondPoints(0, 0, w, h)).toBe(
+      [`${0},${-h}`, `${w},${0}`, `${0},${h}`, `${-w},${0}`].join(' ')
+    );
+  });
+
+  it('matches the class marker, anchored at its top-left', () => {
+    const DW = 12;
+    const DH = 8;
+    expect(diamondPoints(DW / 2, DH / 2, DW / 2, DH / 2)).toBe(
+      `${DW / 2},0 ${DW},${DH / 2} ${DW / 2},${DH} 0,${DH / 2}`
+    );
+  });
+});
+
+describe('parallelogramPoints', () => {
+  it('matches the flowchart io node, centred', () => {
+    const w = W / 2;
+    const h = H / 2;
+    const sk = 15;
+    expect(parallelogramPoints(0, 0, w, h, sk)).toBe(
+      [
+        `${-w + sk},${-h}`,
+        `${w + sk},${-h}`,
+        `${w - sk},${h}`,
+        `${-w - sk},${h}`,
+      ].join(' ')
+    );
+  });
+});
+
+describe('cloudPath', () => {
+  it('starts and ends on the inset top-left corner, inside the box', () => {
+    const d = cloudPath(-W / 2, -H / 2, W, H, 7);
+    expect(d.startsWith(`M ${-W / 2 + 7} ${-H / 2 + 7} A`)).toBe(true);
+    expect(d.endsWith(`${-W / 2 + 7} ${-H / 2 + 7} Z`)).toBe(true);
+    expect(d.match(/A /g)).toHaveLength(8);
   });
 });

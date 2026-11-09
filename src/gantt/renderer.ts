@@ -2,6 +2,7 @@
 // Gantt Chart Renderer
 // ============================================================
 
+import { diamondPoints } from '../shapes/geometry';
 import {
   EDGE_DASH,
   GRID_DASH,
@@ -1352,7 +1353,10 @@ function drawGantt(
         const my = yOffset + sBarH / 2;
         g.append('polygon')
           .attr('class', 'gantt-milestone')
-          .attr('points', diamondPoints(mx, my, sMilestoneSize))
+          .attr(
+            'points',
+            diamondPoints(mx, my, sMilestoneSize / 2, sMilestoneSize / 2)
+          )
           .attr('fill', barColor)
           .attr('stroke', barColor)
           .attr('stroke-width', 1.5)
@@ -3790,11 +3794,6 @@ const EXACT_FRACTIONAL_YEAR = {
   toFractionalYear: dateToFractionalYear,
   fromFractionalYear: fractionalYearToDate,
 };
-
-function diamondPoints(cx: number, cy: number, size: number): string {
-  const half = size / 2;
-  return `${cx},${cy - half} ${cx + half},${cy} ${cx},${cy + half} ${cx - half},${cy}`;
-}
 
 // ── Hover Date Indicators ───────────────────────────────────
 

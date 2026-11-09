@@ -260,3 +260,89 @@ export function queuePieces(
     ...ellipsePiece(x + w - cap, cy, cap, h / 2),
   ];
 }
+
+// ── Diamond ─────────────────────────────────────────────────
+// Flowchart `decision`, gantt milestone, swimlane gateway, class
+// aggregation/composition markers.
+
+/**
+ * A diamond's corners as SVG `points`, top, right, bottom, left, centred on
+ * `cx cy` with half-width `hw` and half-height `hh`.
+ */
+export function diamondPoints(
+  cx: number,
+  cy: number,
+  hw: number,
+  hh: number
+): string {
+  return `${cx},${cy - hh} ${cx + hw},${cy} ${cx},${cy + hh} ${cx - hw},${cy}`;
+}
+
+// ── Parallelogram ───────────────────────────────────────────
+// Flowchart `io`.
+
+/**
+ * A parallelogram's corners as SVG `points`, centred on `cx cy`: the top edge
+ * shifted right by `skew` and the bottom edge left by it.
+ */
+export function parallelogramPoints(
+  cx: number,
+  cy: number,
+  hw: number,
+  hh: number,
+  skew: number
+): string {
+  return [
+    `${cx - hw + skew},${cy - hh}`,
+    `${cx + hw + skew},${cy - hh}`,
+    `${cx + hw - skew},${cy + hh}`,
+    `${cx - hw - skew},${cy + hh}`,
+  ].join(' ');
+}
+
+// ── Cloud ───────────────────────────────────────────────────
+// C4 `cloud`.
+
+/**
+ * The radius of a circular arc with chord `chord` bulging `sag` past it.
+ * Lobes are specified by how far they bulge, which has to stay constant as a
+ * card grows — a fixed radius would make a wide card's lobes shallow.
+ */
+function arcRadius(chord: number, sag: number): number {
+  return (chord * chord) / 4 / (2 * sag) + sag / 2;
+}
+
+/**
+ * A cloud's outline: eight lobes — three along the top, three along the
+ * bottom, one per side — each bulging `bump` outward from a chord inset by
+ * `bump`, so the outline touches the box's edges and never leaves them.
+ */
+export function cloudPath(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  bump: number
+): string {
+  const xL = x + bump;
+  const xR = x + w - bump;
+  const yTop = y + bump;
+  const yBot = y + h - bump;
+  const topChord = (xR - xL) / 3;
+  const rTop = arcRadius(topChord, bump);
+  const rSide = arcRadius(yBot - yTop, bump);
+  // Sweep 1 throughout: the path runs clockwise, so every arc bulges away
+  // from the middle without needing a per-edge flag.
+  return [
+    `M ${xL} ${yTop}`,
+    `A ${rTop} ${rTop} 0 0 1 ${xL + topChord} ${yTop}`,
+    `A ${rTop} ${rTop} 0 0 1 ${xL + topChord * 2} ${yTop}`,
+    `A ${rTop} ${rTop} 0 0 1 ${xR} ${yTop}`,
+    `A ${rSide} ${rSide} 0 0 1 ${xR} ${yBot}`,
+    `A ${rTop} ${rTop} 0 0 1 ${xL + topChord * 2} ${yBot}`,
+    `A ${rTop} ${rTop} 0 0 1 ${xL + topChord} ${yBot}`,
+    `A ${rTop} ${rTop} 0 0 1 ${xL} ${yBot}`,
+    `A ${rSide} ${rSide} 0 0 1 ${xL} ${yTop}`,
+    'Z',
+  ].join(' ');
+}

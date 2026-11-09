@@ -2,6 +2,7 @@
 // Class Diagram SVG Renderer
 // ============================================================
 
+import { diamondPoints } from '../shapes/geometry';
 import * as d3Selection from 'd3-selection';
 import {
   fillModeFromOptions,
@@ -363,7 +364,7 @@ export function renderClassDiagram(
     .attr('markerHeight', DH)
     .attr('orient', 'auto')
     .append('polygon')
-    .attr('points', `${DW / 2},0 ${DW},${DH / 2} ${DW / 2},${DH} 0,${DH / 2}`)
+    .attr('points', diamondPoints(DW / 2, DH / 2, DW / 2, DH / 2))
     .attr('fill', palette.textMuted)
     .attr('stroke', palette.textMuted)
     .attr('stroke-width', 1);
@@ -379,7 +380,7 @@ export function renderClassDiagram(
     .attr('markerHeight', DH)
     .attr('orient', 'auto')
     .append('polygon')
-    .attr('points', `${DW / 2},0 ${DW},${DH / 2} ${DW / 2},${DH} 0,${DH / 2}`)
+    .attr('points', diamondPoints(DW / 2, DH / 2, DW / 2, DH / 2))
     .attr('fill', palette.bg)
     .attr('stroke', palette.textMuted)
     .attr('stroke-width', 1);
