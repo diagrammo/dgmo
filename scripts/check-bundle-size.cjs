@@ -3,14 +3,22 @@
 /**
  * Bundle-size regression guard (deterministic — gzip level 9, no timing).
  *
- * Sums the gzipped size of every published JavaScript file under dist/
- * (all *.js + *.cjs, excluding the static map-data/ assets) and fails if the
- * total has grown past the recorded baseline by more than `budget` bytes.
+ * Sums the gzipped size of every published JavaScript file in the three
+ * packages this repo builds — the library's dist/, standalone/dist/ and
+ * cli/dist/ (all *.js + *.cjs, excluding the static map-data/ assets) — and
+ * fails if the total has grown past the recorded baseline by more than
+ * `budget` bytes.
  *
- * Why the whole dist and not one entry: the package is code-split (0.47), so a
+ * Why every package and not one entry: the library is code-split (0.47), so a
  * core regression lands in shared chunks and is re-bundled into the three
- * self-contained outputs (auto.js, element.js, cli.cjs). Summing everything
- * makes any real growth visible; a single entry file would hide it.
+ * self-contained outputs (standalone/dist/auto.js, standalone/dist/element.js,
+ * cli/dist/cli.cjs). Summing everything makes any real growth visible.
+ *
+ * 🔴 A new build output directory goes in OUT_DIRS. When the self-contained
+ * bundles left dist/ (2026-08-06/07) this list was not updated, and the guard
+ * sat 1.6 MB under a stale baseline for three months, unable to fire
+ * (diagrammo/diagrammo#1772). measure() refuses a missing directory for the
+ * same reason.
  *
  * Deterministic on purpose: gzip size is stable across machines, unlike
  * runtime-timing benches (which flake in CI). This is the 1.0 perf guard.
@@ -28,7 +36,9 @@ const zlib = require('node:zlib');
 
 const repo = path.resolve(__dirname, '..');
 const baselinePath = path.join(repo, '.bundle-baseline.json');
-const distDir = path.join(repo, 'dist');
+const OUT_DIRS = ['dist', 'standalone/dist', 'cli/dist'].map((d) =>
+  path.join(repo, d)
+);
 
 // Growth (bytes, gzip) allowed above the baseline before CI fails. ~60 KB
 // absorbs normal churn; a whole chart-type's worth of growth trips it, which
@@ -60,14 +70,19 @@ function collectJsFiles(dir) {
 }
 
 function measure() {
-  if (!fs.existsSync(distDir)) {
-    console.error('Missing dist/; run `pnpm build` first.');
-    process.exit(1);
-  }
-  const files = collectJsFiles(distDir);
-  if (files.length === 0) {
-    console.error('No JS files under dist/; run `pnpm build` first.');
-    process.exit(1);
+  const files = [];
+  for (const dir of OUT_DIRS) {
+    const rel = path.relative(repo, dir);
+    if (!fs.existsSync(dir)) {
+      console.error(`Missing ${rel}/; run \`pnpm build\` first.`);
+      process.exit(1);
+    }
+    const found = collectJsFiles(dir);
+    if (found.length === 0) {
+      console.error(`No JS files under ${rel}/; run \`pnpm build\` first.`);
+      process.exit(1);
+    }
+    files.push(...found);
   }
   let rawTotal = 0;
   let gzipTotal = 0;
@@ -77,7 +92,7 @@ function measure() {
     const gz = gzipLen(buf);
     rawTotal += buf.length;
     gzipTotal += gz;
-    per.push({ name: path.relative(distDir, f), raw: buf.length, gzip: gz });
+    per.push({ name: path.relative(repo, f), raw: buf.length, gzip: gz });
   }
   per.sort((a, b) => b.gzip - a.gzip);
   return { fileCount: files.length, rawTotal, gzipTotal, per };
@@ -105,7 +120,7 @@ function main() {
       budget: DEFAULT_BUDGET,
       measuredAt: new Date().toISOString().slice(0, 10),
       notes:
-        'Sum of gzip(level 9) over all dist/**/*.{js,cjs} except map-data/. ' +
+        'Sum of gzip(level 9) over {dist,standalone/dist,cli/dist}/**/*.{js,cjs} except map-data/. ' +
         'Regenerate with `pnpm check:size:update` after an intended size change.',
     };
     fs.writeFileSync(baselinePath, JSON.stringify(baseline, null, 2) + '\n');
