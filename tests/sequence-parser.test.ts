@@ -1456,6 +1456,38 @@ describe('pipe metadata on participants', () => {
     expect(result.groups[0].participantIds).not.toContain('Tapin2');
   });
 
+  // #1823: a multi-word name was rejected as "Unexpected line", so its tag
+  // never attached, though messages create multi-word participants freely.
+  it('parses metadata on a multi-word bare participant', () => {
+    const content = [
+      'tag Who as w',
+      '  Cloud blue',
+      '  Invited green',
+      '',
+      'Diagrammo Cloud w: Cloud',
+      '[People]',
+      '  Your teammate w: Invited',
+      '',
+      'Diagrammo Cloud -Email-> Your teammate',
+    ].join('\n');
+    const result = parseSequenceDgmo(content);
+    expect(result.diagnostics).toEqual([]);
+    const cloud = result.participants.find((p) => p.id === 'Diagrammo Cloud');
+    expect(cloud?.metadata).toEqual({ who: 'Cloud' });
+    const mate = result.participants.find((p) => p.id === 'Your teammate');
+    expect(mate?.metadata).toEqual({ who: 'Invited' });
+    expect(result.groups[0].participantIds).toContain('Your teammate');
+    expect(result.participants).toHaveLength(2);
+  });
+
+  it('still rejects a multi-word line that carries no metadata', () => {
+    const content = ['Diagrammo Cloud', '', 'User -call-> API'].join('\n');
+    const result = parseSequenceDgmo(content);
+    expect(result.participants.map((p) => p.id)).not.toContain(
+      'Diagrammo Cloud'
+    );
+  });
+
   it('parses bare top-level participant without metadata', () => {
     const content = ['MyService', '', 'User -call-> MyService'].join('\n');
     const result = parseSequenceDgmo(content);

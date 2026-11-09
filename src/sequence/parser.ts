@@ -1298,10 +1298,13 @@ export function parseSequenceDgmo(
       // `note collapsed: true` is a folded note head (#1741), not a
       // participant named `note` carrying metadata.
       const isNoteHead =
-        /^note$/i.test(bareCore) && bareMeta?.['collapsed'] !== undefined;
+        /^note(\s|$)/i.test(bareCore) && bareMeta?.['collapsed'] !== undefined;
       if (
         !isNoteHead &&
-        /^\S+$/.test(bareCore) &&
+        // A metadata-bearing line may name a multi-word participant, as a
+        // message can (#1823); without metadata one token is required so a
+        // stray prose line is not read as a declaration.
+        (bareMeta ? /^\S(.*\S)?$/.test(bareCore) : /^\S+$/.test(bareCore)) &&
         !ARROW_PATTERN.test(bareCore) &&
         (inGroup || !bodyStarted || bareMeta)
       ) {
