@@ -1,0 +1,17 @@
+# Keeps the commit-SHA pins in .github/workflows current (diagrammo/diagrammo#1779).
+# Every `uses:` is pinned to a full 40-hex commit SHA with the release it is in
+# as a trailing comment, so a retagged or hijacked action cannot run inside the
+# release job, which holds npm Trusted Publishing (OIDC) publish rights. A pin
+# never moves on its own, so this entry is what moves it: Dependabot opens a PR
+# that bumps the SHA and the comment together. tests/workflow-pins.test.ts fails
+# on any `uses:` that is not pinned this way.
+#
+# Security-update PRs for npm need no entry here; they are switched on in the
+# repository's settings.
+
+version: 2
+updates:
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
