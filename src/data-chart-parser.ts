@@ -104,6 +104,9 @@ export interface ParsedExtendedBase {
    *  mutually exclusive, last-one-wins. Resolved against real element names at
    *  render time via `resolveEmphasis`. */
   emphasis?: EmphasisDirective;
+  /** The three maps below are keyed by author-written names, so they are
+   *  created with `Object.create(null)`: a node or category named
+   *  `constructor` must read `undefined`, not an inherited member (#1866). */
   categoryColors?: Record<string, string>;
   categoryLineNumbers?: Record<string, number>;
   nodeColors?: Record<string, string>;
@@ -504,10 +507,13 @@ function parseExtendedChartFull(
           ) ?? null)
         : null;
       if (catColor) {
-        result.categoryColors ??= {};
+        result.categoryColors ??= Object.create(null) as Record<string, string>;
         result.categoryColors[catName] = catColor;
       }
-      result.categoryLineNumbers ??= {};
+      result.categoryLineNumbers ??= Object.create(null) as Record<
+        string,
+        number
+      >;
       result.categoryLineNumbers[catName] = lineNumber;
       currentCategory = catName;
       continue;
@@ -547,7 +553,7 @@ function parseExtendedChartFull(
         lineNumber
       );
       if (sourceColor || targetColor) {
-        result.nodeColors ??= {};
+        result.nodeColors ??= Object.create(null) as Record<string, string>;
         if (sourceColor) result.nodeColors[source] = sourceColor;
         if (targetColor) result.nodeColors[target] = targetColor;
       }
@@ -633,7 +639,10 @@ function parseExtendedChartFull(
               lineNumber
             );
             if (targetColor) {
-              result.nodeColors ??= {};
+              result.nodeColors ??= Object.create(null) as Record<
+                string,
+                string
+              >;
               result.nodeColors[target] = targetColor;
             }
             // In-bounds by values.length === 1 guard above.
@@ -697,7 +706,7 @@ function parseExtendedChartFull(
           lineNumber
         );
         if (nodeColor) {
-          result.nodeColors ??= {};
+          result.nodeColors ??= Object.create(null) as Record<string, string>;
           result.nodeColors[nodeName] = nodeColor;
         }
         sankeyStack.push({ name: nodeName, indent });

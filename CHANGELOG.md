@@ -84,6 +84,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A sankey node or scatter category named `constructor` no longer crashes
+  the render.** Node and category colours were kept in a plain object, so a
+  name such as `constructor`, `toString` or `__proto__` read an inherited
+  member instead of falling back to the palette, and `mix()` threw. The maps
+  now have no prototype.
 - **Unfolding removes an indented `collapsed: true` line.** `foldAtLine`
   edited only the folded line itself, so in org, sitemap and infra an
   indented marker under a node or `[group]` survived the unfold click and the
