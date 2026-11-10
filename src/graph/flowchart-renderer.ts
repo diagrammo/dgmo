@@ -27,6 +27,7 @@ import { parseFlowchart } from './flowchart-parser';
 import { layoutGraph, NODE_LABEL_LINE_HEIGHT, wrapNodeLabel } from './layout';
 import { renderGraphTitle } from './title';
 import { edgeSplinePath } from './edge-spline';
+import { withoutApproach } from './edge-ports';
 import { TITLE_FONT_SIZE, TITLE_Y } from '../utils/title-constants';
 import { ScaleContext } from '../utils/scaling';
 import { measureText } from '../utils/text-measure';
@@ -602,12 +603,15 @@ export function renderFlowchart(
   for (let ei = 0; ei < layout.edges.length; ei++) {
     const edge = layout.edges[ei]!;
     if (!edge.label || edge.points.length < 2) continue;
-    const midIdx = Math.floor(edge.points.length / 2);
-    const midPt = edge.points[midIdx]!;
+    // The label sits on dagre's middle waypoint, not one a square arrival
+    // added near the arrowhead (#1839).
+    const route = withoutApproach(edge.points);
+    const midIdx = Math.floor(route.length / 2);
+    const midPt = route[midIdx]!;
     const bgW = measureText(edge.label, sEdgeLabelFontSize) + LABEL_PAD;
 
-    const prev = edge.points[Math.max(0, midIdx - 1)]!;
-    const next = edge.points[Math.min(edge.points.length - 1, midIdx + 1)]!;
+    const prev = route[Math.max(0, midIdx - 1)]!;
+    const next = route[Math.min(route.length - 1, midIdx + 1)]!;
     const dx = next.x - prev.x;
     const dy = next.y - prev.y;
     const len = Math.sqrt(dx * dx + dy * dy);

@@ -237,6 +237,33 @@ function approach(
 }
 
 /**
+ * `pts` without the two approach waypoints a square arrival added
+ * (`approach`), as the route was before it: what a renderer reads when it
+ * anchors on the route's middle waypoint (the edge label), since the two
+ * extra points would move that middle toward the arrowhead. A route with no
+ * approach comes back as is. The approach is recognised by its build: two
+ * points stepping back from the end in equal steps of `MIN_APPROACH` to
+ * `APPROACH` px.
+ */
+export function withoutApproach<P extends Pt>(pts: readonly P[]): readonly P[] {
+  const n = pts.length;
+  if (n < 4) return pts;
+  const end = pts[n - 1]!;
+  const a1 = pts[n - 2]!;
+  const a2 = pts[n - 3]!;
+  const step = Math.hypot(a1.x - end.x, a1.y - end.y);
+  const eps = 1e-6;
+  if (
+    step < MIN_APPROACH - eps ||
+    step > APPROACH + eps ||
+    Math.abs(a2.x - a1.x - (a1.x - end.x)) > eps ||
+    Math.abs(a2.y - a1.y - (a1.y - end.y)) > eps
+  )
+    return pts;
+  return [...pts.slice(0, n - 3), end];
+}
+
+/**
  * `pts` turned to meet its end square-on: along the outward normal of the
  * box face it lands on, or the centre's ray for a circle. An edge that
  * arrives almost along its face — too little room in front of it — moves to

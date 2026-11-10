@@ -38,6 +38,7 @@ import { parseState } from './state-parser';
 import { layoutGraph } from './layout';
 import { renderGraphTitle } from './title';
 import { edgeSplinePath, selfLoopArcPath } from './edge-spline';
+import { withoutApproach } from './edge-ports';
 import { TITLE_FONT_SIZE, TITLE_Y } from '../utils/title-constants';
 import { ScaleContext } from '../utils/scaling';
 import { renderCollapseBar } from '../utils/card';
@@ -370,10 +371,13 @@ export function renderState(
     let lx: number, ly: number;
 
     if (edge.points.length >= 2) {
-      const midIdx = Math.floor(edge.points.length / 2);
-      const midPt = edge.points[midIdx]!;
-      const prev = edge.points[Math.max(0, midIdx - 1)]!;
-      const next = edge.points[Math.min(edge.points.length - 1, midIdx + 1)]!;
+      // The label sits on dagre's middle waypoint, not one a square arrival
+      // added near the arrowhead (#1839).
+      const route = withoutApproach(edge.points);
+      const midIdx = Math.floor(route.length / 2);
+      const midPt = route[midIdx]!;
+      const prev = route[Math.max(0, midIdx - 1)]!;
+      const next = route[Math.min(route.length - 1, midIdx + 1)]!;
       const self = edge.source === edge.target;
       const node = self ? nodeCenters.get(edge.source) : undefined;
       if (self && node) {

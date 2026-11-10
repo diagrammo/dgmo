@@ -5,7 +5,10 @@ import { layoutGraph, type LayoutResult } from '../src/graph/layout';
 import { parseState } from '../src/graph/state-parser';
 import { parseFlowchart } from '../src/graph/flowchart-parser';
 import { edgeSplinePath } from '../src/graph/edge-spline';
-import { unbundleEdges } from '../src/graph/edge-ports';
+import { unbundleEdges, withoutApproach } from '../src/graph/edge-ports';
+import { renderFlowchart } from '../src/graph/flowchart-renderer';
+import { renderState } from '../src/graph/state-renderer';
+import { getPalette } from '../src/palettes';
 import { ARROWHEAD_WIDTH } from '../src/utils/visual-conventions';
 
 type Pt = { x: number; y: number };
@@ -200,4 +203,79 @@ describe('graph arrows meet their target square-on (#1839)', () => {
       route,
     ]);
   });
+});
+
+describe('a squared arrival leaves its edge label where dagre put it (#1839)', () => {
+  const P = getPalette('nord').light;
+
+  /** Each labelled edge's label box, by edge, as the renderer draws `lay`. */
+  function labelBoxes(name: string, strip: boolean): string[] {
+    const src = readFileSync(resolve(GALLERY, `${name}.dgmo`), 'utf8');
+    const state = name.startsWith('state');
+    const parsed = state ? parseState(src, P) : parseFlowchart(src, P);
+    const lay = layoutGraph(parsed);
+    const drawn = strip
+      ? {
+          ...lay,
+          edges: lay.edges.map((e) => ({
+            ...e,
+            points: withoutApproach(e.points),
+          })),
+        }
+      : lay;
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+    (state ? renderState : renderFlowchart)(
+      el,
+      parsed,
+      drawn,
+      P,
+      false,
+      undefined,
+      {
+        width: 1200,
+        height: 1200,
+      }
+    );
+    const pre = state ? 'st' : 'fc';
+    const out = [...el.querySelectorAll(`.${pre}-edge-label-bg`)].map(
+      (r) =>
+        `${r.parentElement!.getAttribute('data-source')} -> ${r.parentElement!.getAttribute('data-target')} @ ${r.getAttribute('x')},${r.getAttribute('y')}`
+    );
+    el.remove();
+    return out;
+  }
+
+  it('round-trips a squared route back to the route it was given', () => {
+    const route = [
+      { x: 0, y: 20 },
+      { x: 150, y: 100 },
+      { x: 280, y: 180 },
+    ];
+    const boxes = new Map([
+      ['a', { x: 0, y: 0, width: 100, height: 40 }],
+      ['b', { x: 300, y: 200, width: 100, height: 40 }],
+    ]);
+    const [r] = unbundleEdges(
+      [{ source: 'a', target: 'b' }],
+      [route],
+      boxes,
+      () => 0
+    );
+    expect(r!.length).toBe(5);
+    expect(withoutApproach(r!)).toEqual(route);
+    // A route with no approach is its own.
+    expect(withoutApproach(route)).toBe(route);
+  });
+
+  it.each(['flowchart-full', 'flowchart-complex', 'state-tags', 'state'])(
+    '%s: labels sit where they would on the routes before squaring',
+    (f) => {
+      // The label anchors on the route's middle waypoint; the two waypoints a
+      // squared arrival adds must not pull it toward the arrowhead.
+      const squared = labelBoxes(f, false);
+      expect(squared.length).toBeGreaterThan(0);
+      expect(squared).toEqual(labelBoxes(f, true));
+    }
+  );
 });
