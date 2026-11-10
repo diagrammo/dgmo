@@ -18,6 +18,14 @@
 //    overlap and read as one. Arrivals on one side closer than
 //    `MIN_ARRIVAL_GAP` are spread apart along that side, unless that adds a
 //    crossing anywhere in the diagram.
+// 3. Oblique arrivals. dagre aims an edge's last segment at its target's
+//    centre, so an edge coming in from the side meets the box face at a
+//    slant — up to 72° off square in the gallery — and the arrowhead, which
+//    follows the curve's end tangent, points into the box at that slant. Two
+//    waypoints are inserted on the line square to the face (the centre's ray
+//    for a pseudostate's circle), so the curve turns before it arrives and
+//    runs straight in, `APPROACH` px, under its arrowhead. Kept unless it
+//    adds a crossing.
 //
 // Only edges with something to fix move; every other route is returned as is.
 
@@ -29,6 +37,12 @@ export interface PortBox {
   readonly y: number;
   readonly width: number;
   readonly height: number;
+  /**
+   * The node's shape. A `pseudostate` (a circle) is arrived at along its
+   * centre's ray; a `decision` keeps its route, since the renderer
+   * re-projects its endpoint onto the diamond. Any other shape is a box.
+   */
+  readonly shape?: string;
 }
 
 /** Space between the routes of a parallel pair — dagre's own `edgesep`. */
@@ -37,6 +51,17 @@ const PARALLEL_GAP = 20;
 const MIN_ARRIVAL_GAP = 14;
 /** An endpoint keeps at least this far from its side's corners. */
 const CORNER_MARGIN = 4;
+/**
+ * How long the straight run is that an arrival ends on, square to its
+ * target's face: longer than the arrowhead (`ARROWHEAD_WIDTH`, 10), so the
+ * curve is straight under the whole head. Capped at 0.4 of the room the
+ * last waypoint leaves in front of the face.
+ */
+const APPROACH = 12;
+/** Below this straight run an arrival keeps dagre's slant. */
+const MIN_APPROACH = 8;
+/** An arrival whose last segment is this close to square is left alone. */
+const SQUARE_SLACK = 0.5;
 
 type Side = 'left' | 'right' | 'top' | 'bottom';
 
@@ -173,11 +198,100 @@ function spreadClusters(
   return moved;
 }
 
+/** The outward normal of a box face. */
+function faceNormal(side: Side): Pt {
+  if (vertical(side)) return { x: side === 'left' ? -1 : 1, y: 0 };
+  return { x: 0, y: side === 'top' ? -1 : 1 };
+}
+
+/**
+ * `pts` ending at `end` and arriving square to the outward normal `nv`: two
+ * waypoints on the square line, `d` and `2d` out — a basis curve whose last
+ * three control points are collinear runs straight over its last `d`.
+ * `'square'` when the last segment already is, null when the last waypoint
+ * leaves too little room in front of the face.
+ */
+function approach(
+  pts: readonly Pt[],
+  end: Pt,
+  nv: Pt
+): readonly Pt[] | 'square' | null {
+  const prev = pts[pts.length - 2]!;
+  const dx = prev.x - end.x;
+  const dy = prev.y - end.y;
+  // How far out in front of the face the last waypoint sits, and how far
+  // off the square line through the end.
+  const room = dx * nv.x + dy * nv.y;
+  if (room <= 0) return null;
+  if (Math.abs(dx * nv.y - dy * nv.x) < SQUARE_SLACK) return 'square';
+  const d = Math.min(APPROACH, room * 0.4);
+  // Too little room to straighten under the head: a slant reads better than
+  // a curve that bends beneath its arrowhead.
+  if (d < MIN_APPROACH) return null;
+  return [
+    ...pts.slice(0, -1),
+    { x: end.x + nv.x * 2 * d, y: end.y + nv.y * 2 * d },
+    { x: end.x + nv.x * d, y: end.y + nv.y * d },
+    end,
+  ];
+}
+
+/**
+ * `pts` turned to meet its end square-on: along the outward normal of the
+ * box face it lands on, or the centre's ray for a circle. An edge that
+ * arrives almost along its face — too little room in front of it — moves to
+ * the face its last waypoint sits out from, at the point facing it, unless
+ * that lands within `MIN_ARRIVAL_GAP` of an endpoint in `taken`. Unchanged
+ * when it is already square, when the target is a diamond, or when no face
+ * leaves room.
+ */
+function squareArrival(
+  pts: readonly Pt[],
+  box: PortBox,
+  taken: readonly Pt[]
+): readonly Pt[] {
+  const n = pts.length;
+  if (n < 2 || box.shape === 'decision') return pts;
+  const end = pts[n - 1]!;
+  if (box.shape === 'pseudostate') {
+    const len = Math.hypot(end.x - box.x, end.y - box.y);
+    if (len === 0) return pts;
+    const r = approach(pts, end, {
+      x: (end.x - box.x) / len,
+      y: (end.y - box.y) / len,
+    });
+    return Array.isArray(r) ? r : pts;
+  }
+  const side = sideOf(end, box);
+  const r = approach(pts, end, faceNormal(side));
+  if (r !== null) return r === 'square' ? pts : r;
+  const prev = pts[n - 2]!;
+  for (const s of ['left', 'right', 'top', 'bottom'] as const) {
+    if (s === side) continue;
+    const nv = faceNormal(s);
+    const onFace = {
+      x: box.x + (nv.x * box.width) / 2,
+      y: box.y + (nv.y * box.height) / 2,
+    };
+    const at = slide(onFace, box, s, along(prev, s));
+    if (taken.some((t) => Math.hypot(t.x - at.x, t.y - at.y) < MIN_ARRIVAL_GAP))
+      continue;
+    const moved = [...pts.slice(0, -1), at];
+    const r2 = approach(moved, at, nv);
+    if (r2 === 'square') return moved;
+    if (r2) return r2;
+  }
+  return pts;
+}
+
 /**
  * The routes with parallel edges fanned apart and converging arrivals spread
- * along their target's side. `routes[i]` is `edges[i]`'s route; `boxes` holds
+ * along their target's side, and every arrival turned square to the face it
+ * lands on. `routes[i]` is `edges[i]`'s route; `boxes` holds
  * every node box by id; `crossings` counts the true crossings of a set of
- * routes, and the spread is dropped if it raises that count. A route that
+ * routes, and the spread or the squaring is dropped if it raises that count;
+ * `pierces` counts curves through a node box, and the squaring is dropped if
+ * it raises that one too. A route that
  * needs nothing comes back unchanged.
  */
 export function unbundleEdges(
@@ -188,7 +302,14 @@ export function unbundleEdges(
   }[],
   routes: readonly (readonly Pt[])[],
   boxes: ReadonlyMap<string, PortBox>,
-  crossings: (routes: readonly (readonly Pt[])[]) => number
+  crossings: (
+    routes: readonly (readonly Pt[])[],
+    only?: readonly number[]
+  ) => number,
+  pierces: (
+    routes: readonly (readonly Pt[])[],
+    only?: readonly number[]
+  ) => number = () => 0
 ): Pt[][] {
   let out: Pt[][] = routes.map((r) => r.slice());
 
@@ -244,8 +365,88 @@ export function unbundleEdges(
   });
   for (const { box, side, idx } of bySide.values())
     if (idx.length > 1 && spreadSide(out, idx, box, side)) spread = true;
-  if (!spread) return fanned;
-  // A restated edge follows the edge it restates.
-  for (const [i, first] of twin) out[i] = out[first]!.slice();
-  return crossings(out) > crossings(fanned) ? fanned : out;
+  if (spread) {
+    // A restated edge follows the edge it restates.
+    for (const [i, first] of twin) out[i] = out[first]!.slice();
+    if (crossings(out) > crossings(fanned)) out = fanned;
+  } else out = fanned;
+
+  // 3. Oblique arrivals, turned square to their target's face. All at once
+  // when that adds no crossing and pierces no node; otherwise one edge at a
+  // time, each kept only if neither count rises.
+  // Every endpoint on each node, which an arrival moved to another face
+  // keeps clear of.
+  const ends = new Map<string, { i: number; p: Pt }[]>();
+  const put = (id: string, i: number, p: Pt | undefined): void => {
+    if (!p) return;
+    const list = ends.get(id);
+    if (list) list.push({ i, p });
+    else ends.set(id, [{ i, p }]);
+  };
+  edges.forEach((e, i) => {
+    put(e.source, i, out[i]![0]);
+    put(e.target, i, out[i]!.at(-1));
+  });
+  const squared = out.map((r, i) => {
+    const e = edges[i]!;
+    const box = boxes.get(e.target);
+    if (e.source === e.target || !box || twin.has(i)) return r;
+    const taken = (ends.get(e.target) ?? [])
+      .filter((t) => t.i !== i && twin.get(t.i) !== i)
+      .map((t) => t.p);
+    return squareArrival(r, box, taken) as Pt[];
+  });
+  // A restated edge turns with the edge it restates.
+  for (const [i, first] of twin)
+    squared[i] =
+      squared[first] === out[first] ? out[i]! : squared[first]!.slice();
+  if (squared.every((r, i) => r === out[i])) return out;
+  if (crossings(squared) <= crossings(out) && pierces(squared) <= pierces(out))
+    return squared;
+  // One edge at a time. Only edge `i`'s curve moves, so a trial is scored on
+  // the pairs of `i` with each curve its waypoints' box overlaps (a basis
+  // curve stays in its waypoints' hull): every other pair scores the same.
+  const bbox = (r: readonly Pt[]): [number, number, number, number] => {
+    let x0 = Infinity,
+      y0 = Infinity,
+      x1 = -Infinity,
+      y1 = -Infinity;
+    for (const p of r) {
+      x0 = Math.min(x0, p.x);
+      y0 = Math.min(y0, p.y);
+      x1 = Math.max(x1, p.x);
+      y1 = Math.max(y1, p.y);
+    }
+    return [x0, y0, x1, y1];
+  };
+  for (let i = 0; i < out.length; i++) {
+    if (squared[i] === out[i] || twin.has(i)) continue;
+    const trial = out.slice();
+    const moved = [i];
+    trial[i] = squared[i]!;
+    // A restated edge turns with the edge it restates.
+    for (const [j, first] of twin)
+      if (first === i) {
+        trial[j] = squared[j]!;
+        moved.push(j);
+      }
+    const [ax0, ay0, ax1, ay1] = bbox([...out[i]!, ...squared[i]!]);
+    const near = moved.slice();
+    out.forEach((r, j) => {
+      if (moved.includes(j) || r.length < 2) return;
+      const [bx0, by0, bx1, by1] = bbox(r);
+      if (bx1 >= ax0 && ax1 >= bx0 && by1 >= ay0 && ay1 >= by0) near.push(j);
+    });
+    // Pair by pair: only the pairs a moved curve is in can change.
+    let delta = 0;
+    for (let a = 0; a < moved.length; a++)
+      for (let b = a + 1; b < near.length; b++) {
+        const pair = [moved[a]!, near[b]!];
+        delta += crossings(trial, pair) - crossings(out, pair);
+      }
+    if (delta > 0) continue;
+    if (pierces(trial, moved) > pierces(out, moved)) continue;
+    out = trial;
+  }
+  return out;
 }

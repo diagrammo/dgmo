@@ -100,15 +100,16 @@ describe('graph edges into one node are unbundled (#1839)', () => {
       ['b', { x: 0, y: 200, width: 100, height: 40 }],
       ['c', { x: 200, y: 0, width: 100, height: 40 }],
     ]);
+    // Both arrive square to b's top face, 60 px apart.
     const routes = [
       [
         { x: 0, y: 20 },
-        { x: 0, y: 100 },
+        { x: -30, y: 100 },
         { x: -30, y: 180 },
       ],
       [
         { x: 200, y: 20 },
-        { x: 120, y: 100 },
+        { x: 30, y: 100 },
         { x: 30, y: 180 },
       ],
     ];
@@ -131,9 +132,10 @@ describe('graph edges into one node are unbundled (#1839)', () => {
         { x: 0, y: 100 },
         { x: 0, y: 180 },
       ],
+      // Square to b's top face, like the first, so only the spread moves it.
       [
         { x: 200, y: 20 },
-        { x: 100, y: 100 },
+        { x: 2, y: 100 },
         { x: 2, y: 180 },
       ],
     ];

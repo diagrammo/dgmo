@@ -12,7 +12,10 @@ import { resolveNotes } from './notes';
 import { noteBoxSize } from '../utils/note-box';
 import { placeNotes, noteCanvasShift } from '../utils/notes';
 import { unbundleEdges } from './edge-ports';
-import { countSplineCrossings } from '../boxes-and-lines/layout-search';
+import {
+  countEdgeNodePierces,
+  countSplineCrossings,
+} from '../boxes-and-lines/layout-search';
 import type { BLLayoutResult } from '../boxes-and-lines/layout';
 import type { WrappedDescLine } from '../utils/wrapped-desc';
 import {
@@ -361,23 +364,35 @@ export function layoutGraph(
   });
 
   // The final edge routes, in `graph.edges` order: the search's bent copies
-  // or dagre's own, with parallel edges fanned apart and arrivals that land
-  // on one spot spread along their target's side (#1839).
+  // or dagre's own, with parallel edges fanned apart, arrivals that land on
+  // one spot spread along their target's side, and every arrival turned
+  // square to the face it meets (#1839).
+  // A scoring view of a set of routes; `only` limits it to those edges.
+  const scored = (
+    rs: readonly (readonly Pt[])[],
+    only?: readonly number[]
+  ): BLLayoutResult =>
+    ({
+      nodes: basePositioned.map((p) => ({ ...p, label: p.node.id })),
+      edges: (only ?? graph.edges.map((_, i) => i)).map((i) => ({
+        ...graph.edges[i]!,
+        points: rs[i],
+      })),
+      groups: [],
+      width: 0,
+      height: 0,
+    }) as unknown as BLLayoutResult;
   const routes = unbundleEdges(
     graph.edges,
     graph.edges.map(
       (e, i) =>
         (edgePoints?.[i] ?? g.edge(e.source, e.target)?.points ?? []) as Pt[]
     ),
-    new Map(basePositioned.map((p) => [p.node.id, p])),
-    (rs) =>
-      countSplineCrossings({
-        nodes: basePositioned.map((p) => ({ ...p, label: p.node.id })),
-        edges: graph.edges.map((e, i) => ({ ...e, points: rs[i] })),
-        groups: [],
-        width: 0,
-        height: 0,
-      } as unknown as BLLayoutResult)
+    new Map(
+      basePositioned.map((p) => [p.node.id, { ...p, shape: p.node.shape }])
+    ),
+    (rs, only) => countSplineCrossings(scored(rs, only)),
+    (rs, only) => countEdgeNodePierces(scored(rs, only))
   );
 
   // ── Collision-aware note placement (shared `utils/notes`) ───
