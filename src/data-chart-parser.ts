@@ -104,9 +104,9 @@ export interface ParsedExtendedBase {
    *  mutually exclusive, last-one-wins. Resolved against real element names at
    *  render time via `resolveEmphasis`. */
   emphasis?: EmphasisDirective;
-  /** The three maps below are keyed by author-written names, so they are
-   *  created with `Object.create(null)`: a node or category named
-   *  `constructor` must read `undefined`, not an inherited member (#1866). */
+  // The three maps below are keyed by author-written names, so they are
+  // created with `Object.create(null)`: a node or category named
+  // `constructor` must read `undefined`, not an inherited member (#1866).
   categoryColors?: Record<string, string>;
   categoryLineNumbers?: Record<string, number>;
   nodeColors?: Record<string, string>;
