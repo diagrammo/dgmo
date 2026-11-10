@@ -13,9 +13,12 @@ import {
   countSplineCrossings,
   countEdgeOverlaps,
   countEdgeNodePierces,
+  countForeignGroupCrossings,
   deroutePierces,
+  derouteForeignGroups,
   searchBudget,
 } from '../boxes-and-lines/layout-search';
+import type { BLGroup } from '../boxes-and-lines/types';
 import type { BLLayoutResult } from '../boxes-and-lines/layout';
 import type { GraphLabel } from '@dagrejs/dagre';
 
@@ -39,6 +42,19 @@ export interface ScoredPlacement {
     readonly source: string;
     readonly target: string;
     readonly points: readonly Pt[];
+  }[];
+  /**
+   * The group boxes as drawn, centred on (x, y), with the node ids each holds.
+   * An edge through a box that holds neither of its endpoints counts as badness
+   * (#1839), so the search prefers placements whose curves go around groups.
+   */
+  readonly groups?: readonly {
+    readonly id: string;
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+    readonly members: readonly string[];
   }[];
 }
 
@@ -138,18 +154,35 @@ export function searchPlacement<G>(
   place: (ranker: Ranker, shuffle?: Shuffle) => G,
   score: (g: G) => ScoredPlacement
 ): { g: G; edgePoints?: Pt[][] } {
+  // Which nodes each group holds — the same for every candidate, so read once.
+  let held: BLGroup[] | undefined;
   const asScored = (g: G): BLLayoutResult => {
     const s = score(g);
+    held ??= (s.groups ?? []).map((gr) => ({
+      label: gr.id,
+      children: gr.members,
+      lineNumber: 0,
+      metadata: {},
+    }));
     return {
       nodes: s.nodes.map((n) => ({ ...n, label: n.id })),
       edges: s.edges,
-      groups: [],
+      groups: (s.groups ?? []).map((gr) => ({
+        label: gr.id,
+        x: gr.x,
+        y: gr.y,
+        width: gr.width,
+        height: gr.height,
+        collapsed: false,
+      })),
       width: 0,
       height: 0,
     } as unknown as BLLayoutResult;
   };
   const rest = (lay: BLLayoutResult): number =>
-    countEdgeOverlaps(lay) + countEdgeNodePierces(lay);
+    countEdgeOverlaps(lay) +
+    countEdgeNodePierces(lay) +
+    (held?.length ? countForeignGroupCrossings(lay, held) : 0);
   // Edges drawn against the flow (target before source on the rank axis).
   // dagre picks which edge of a cycle to reverse from insertion order, so a
   // shuffled candidate can turn the main path around — the state fixture's
@@ -166,12 +199,38 @@ export function searchPlacement<G>(
     return out;
   };
 
+  // A candidate whose curves still run through a foreign group box is also
+  // tried with those edges bent around it (#1839); the bent copy stands in for
+  // the candidate when it scores better on the same terms.
+  const withGroupDetour = (
+    lay: BLLayoutResult,
+    floor: number,
+    bad: number
+  ): { lay: BLLayoutResult; bad: number } => {
+    if (!held?.length) return { lay, bad };
+    const bent = derouteForeignGroups(lay, held);
+    if (bent === lay) return { lay, bad };
+    const x = countSplineCrossings(bent, floor);
+    if (x > floor) return { lay, bad };
+    const b = x + rest(bent);
+    return b < bad ? { lay: bent, bad: b } : { lay, bad };
+  };
+
   let best = place('network-simplex');
-  let bestLay = asScored(best);
-  const plainX = countSplineCrossings(bestLay);
-  let bestBad = plainX + rest(bestLay);
-  if (bestBad === 0) return { g: best };
-  const plainBack = backward(bestLay);
+  const plainLay = asScored(best);
+  const plainX = countSplineCrossings(plainLay);
+  const plainBad = plainX + rest(plainLay);
+  if (plainBad === 0) return { g: best };
+  const plainBack = backward(plainLay);
+  let { lay: bestLay, bad: bestBad } = withGroupDetour(
+    plainLay,
+    plainX,
+    plainBad
+  );
+  // Set while the best candidate is a bent copy: its routes replace dagre's.
+  const routesOf = (lay: BLLayoutResult, raw: BLLayoutResult) =>
+    lay === raw ? undefined : lay.edges.map((e) => e.points as Pt[]);
+  let rerouted = routesOf(bestLay, plainLay);
 
   const budget = searchBudget(bestLay.nodes.length, bestLay.edges.length);
   const configs: { ranker: Ranker; seed?: number }[] = [
@@ -201,17 +260,18 @@ export function searchPlacement<G>(
     } catch {
       continue; // some rankers choke on odd graphs
     }
-    const lay = asScored(g);
-    if ([...backward(lay)].some((i) => !plainBack.has(i))) continue;
+    const raw = asScored(g);
+    if ([...backward(raw)].some((i) => !plainBack.has(i))) continue;
     // Past `floor` it cannot win: more crossings than plain, or no lower badness.
     const floor = Math.min(plainX, bestBad - 1);
-    const x = countSplineCrossings(lay, floor);
+    const x = countSplineCrossings(raw, floor);
     if (x > floor) continue;
-    const bad = x + rest(lay);
+    const { lay, bad } = withGroupDetour(raw, floor, x + rest(raw));
     if (bad < bestBad) {
       best = g;
       bestLay = lay;
       bestBad = bad;
+      rerouted = routesOf(lay, raw);
       losingSeeds = 0;
     }
   }
@@ -228,5 +288,5 @@ export function searchPlacement<G>(
         edgePoints: bent.edges.map((e) => e.points as Pt[]),
       };
   }
-  return { g: best };
+  return rerouted ? { g: best, edgePoints: rerouted } : { g: best };
 }

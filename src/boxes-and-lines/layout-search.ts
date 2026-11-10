@@ -916,12 +916,21 @@ export function countForeignGroupCrossings(
   groups: readonly BLGroup[],
   opts?: { minDepth?: number }
 ): number {
+  return detectForeignGroupCrossings(layout, groups, opts).length;
+}
+
+// The (edge index, group label) pairs `countForeignGroupCrossings` counts.
+function detectForeignGroupCrossings(
+  layout: BLLayoutResult,
+  groups: readonly BLGroup[],
+  opts?: { minDepth?: number }
+): { edgeIdx: number; group: string }[] {
   const d = opts?.minDepth ?? FOREIGN_GROUP_MIN_DEPTH;
   const boxes = layout.groups.filter((g) => !g.collapsed);
-  if (boxes.length === 0) return 0;
+  if (boxes.length === 0) return [];
   const holdings = groupHoldings(groups);
   const polys = flatPolys(layout);
-  let count = 0;
+  const out: { edgeIdx: number; group: string }[] = [];
   layout.edges.forEach((e, idx) => {
     const poly = polys[idx]!;
     if (poly.pts.length < 2) return;
@@ -938,12 +947,187 @@ export function countForeignGroupCrossings(
         continue;
       for (let i = 0; i + 1 < poly.pts.length; i++)
         if (segmentEntersRect(poly.pts[i]!, poly.pts[i + 1]!, l, t, r, b)) {
-          count++;
+          out.push({ edgeIdx: idx, group: g.label });
           break;
         }
     }
   });
-  return count;
+  return out;
+}
+
+/**
+ * Re-routed copy of a layout that bends each edge around every expanded group
+ * box it runs through while holding neither of its endpoints — the pairs
+ * `countForeignGroupCrossings` counts (#1839). Same smooth hump as
+ * `deroutePierces`, sized to the group box. Returned as an ALTERNATIVE
+ * candidate: the caller keeps it only if badness drops, so a detour that trades
+ * the group pass for a crossing is rejected. Returns the input unchanged when
+ * no edge passes through a foreign group.
+ */
+export function derouteForeignGroups(
+  layout: BLLayoutResult,
+  groups: readonly BLGroup[]
+): BLLayoutResult {
+  const passes = detectForeignGroupCrossings(layout, groups);
+  if (!passes.length) return layout;
+  const rect = new Map<string, Rect>();
+  for (const g of layout.groups)
+    if (!g.collapsed)
+      rect.set(g.label, { x: g.x, y: g.y, w: g.width, h: g.height });
+  const byEdge = new Map<number, string[]>();
+  for (const p of passes) {
+    const arr = byEdge.get(p.edgeIdx);
+    if (arr) arr.push(p.group);
+    else byEdge.set(p.edgeIdx, [p.group]);
+  }
+  const edges = layout.edges.map((e, idx) => {
+    const labels = byEdge.get(idx);
+    if (!labels) return e;
+    let pts: Pt[] = e.points.map((p) => ({ x: p.x, y: p.y }));
+    for (const label of labels) {
+      const r = rect.get(label);
+      if (r) pts = detourAroundBox(pts, r) ?? detourAround(pts, r);
+    }
+    return { ...e, points: pts };
+  });
+  return { ...layout, edges };
+}
+
+// How far outside a group box a detour runs.
+const GROUP_DETOUR_MARGIN = 16;
+
+// Route a waypoint polyline around a box instead of through it: where it first
+// enters the box (grown by the margin) and where it last leaves, keep those two
+// boundary points and walk the box's perimeter between them the shorter way,
+// through its corners. curveBasis then rounds the corners into a gentle arc
+// that hugs the box. Null when the waypoints themselves never cross the
+// boundary twice (only the smoothed curve clips the box) — the caller then
+// falls back to the hump.
+function detourAroundBox(pts: Pt[], r: Rect): Pt[] | null {
+  const m = GROUP_DETOUR_MARGIN;
+  const l = r.x - r.w / 2 - m,
+    rt = r.x + r.w / 2 + m,
+    t = r.y - r.h / 2 - m,
+    b = r.y + r.h / 2 + m;
+  const inside = (p: Pt): boolean => p.x > l && p.x < rt && p.y > t && p.y < b;
+  // Where segment a→c crosses the boundary, as a fraction along it; the
+  // smallest when `first`, else the largest.
+  const cross = (a: Pt, c: Pt, first: boolean): number | null => {
+    const hits: number[] = [];
+    const dx = c.x - a.x,
+      dy = c.y - a.y;
+    const tryAt = (u: number): void => {
+      if (!(u >= 0 && u <= 1)) return;
+      const x = a.x + u * dx,
+        y = a.y + u * dy;
+      if (x >= l - 1e-6 && x <= rt + 1e-6 && y >= t - 1e-6 && y <= b + 1e-6)
+        hits.push(u);
+    };
+    if (dx !== 0) {
+      tryAt((l - a.x) / dx);
+      tryAt((rt - a.x) / dx);
+    }
+    if (dy !== 0) {
+      tryAt((t - a.y) / dy);
+      tryAt((b - a.y) / dy);
+    }
+    if (!hits.length) return null;
+    return first ? Math.min(...hits) : Math.max(...hits);
+  };
+  const at = (a: Pt, c: Pt, u: number): Pt => ({
+    x: a.x + u * (c.x - a.x),
+    y: a.y + u * (c.y - a.y),
+  });
+  if (pts.length < 2 || inside(pts[0]!) || inside(pts[pts.length - 1]!))
+    return null;
+  let i = -1;
+  let entry: Pt | null = null;
+  for (let k = 0; k + 1 < pts.length && i < 0; k++) {
+    const u = cross(pts[k]!, pts[k + 1]!, true);
+    if (u !== null) {
+      i = k;
+      entry = at(pts[k]!, pts[k + 1]!, u);
+    }
+  }
+  let j = -1;
+  let exit: Pt | null = null;
+  for (let k = pts.length - 2; k >= 0 && j < 0; k--) {
+    const u = cross(pts[k]!, pts[k + 1]!, false);
+    if (u !== null) {
+      j = k;
+      exit = at(pts[k]!, pts[k + 1]!, u);
+    }
+  }
+  if (!entry || !exit || j < i) return null;
+  if (Math.hypot(exit.x - entry.x, exit.y - entry.y) < 1) return null;
+  // Perimeter position, clockwise from the top-left corner.
+  const W = rt - l,
+    H = b - t,
+    P = 2 * (W + H);
+  const pos = (p: Pt): number => {
+    const dl = Math.abs(p.x - l),
+      dr = Math.abs(p.x - rt),
+      dt = Math.abs(p.y - t),
+      db = Math.abs(p.y - b);
+    const min = Math.min(dl, dr, dt, db);
+    if (min === dt) return p.x - l;
+    if (min === dr) return W + (p.y - t);
+    if (min === db) return W + H + (rt - p.x);
+    return 2 * W + H + (b - p.y);
+  };
+  const corners: [number, Pt][] = [
+    [0, { x: l, y: t }],
+    [W, { x: rt, y: t }],
+    [W + H, { x: rt, y: b }],
+    [2 * W + H, { x: l, y: b }],
+  ];
+  const s0 = pos(entry),
+    s1 = pos(exit);
+  const cw = (s1 - s0 + P) % P;
+  const way: Pt[] = [];
+  if (cw <= P - cw) {
+    for (const [cp, c] of [
+      ...corners,
+      ...corners.map(([q, c2]) => [q + P, c2] as [number, Pt]),
+    ])
+      if (cp > s0 && cp < s0 + cw) way.push(c);
+  } else {
+    const ccw = P - cw;
+    for (const [cp, c] of [
+      ...corners.map(([q, c2]) => [q - P, c2] as [number, Pt]),
+      ...corners,
+    ].reverse())
+      if (cp < s0 && cp > s0 - ccw) way.push(c);
+  }
+  // Drop the boundary point on either side when the path can reach its first
+  // (last) corner straight from the waypoint before (after) it without
+  // entering the box — no doubling back along a side.
+  const clears = (a: Pt, c: Pt): boolean =>
+    !segmentEntersRect(a, c, l + 1, t + 1, rt - 1, b - 1);
+  const before = pts[i]!,
+    after = pts[j + 1]!;
+  const path: Pt[] = [];
+  if (!way.length || !clears(before, way[0]!)) path.push(entry);
+  path.push(...way);
+  if (!way.length || !clears(way[way.length - 1]!, after)) path.push(exit);
+  // Pin each corner with a waypoint either side of it, so curveBasis rounds
+  // the corner tightly instead of cutting across the box's own corner.
+  const pinned: Pt[] = [];
+  const all = [before, ...path, after];
+  for (let k = 1; k + 1 < all.length; k++) {
+    const c = all[k]!;
+    if (!way.includes(c)) {
+      pinned.push(c);
+      continue;
+    }
+    const toward = (q: Pt): Pt => {
+      const len = Math.hypot(q.x - c.x, q.y - c.y);
+      const u = len > 0 ? Math.min(2 * m, len / 2) / len : 0;
+      return { x: c.x + (q.x - c.x) * u, y: c.y + (q.y - c.y) * u };
+    };
+    pinned.push(toward(all[k - 1]!), c, toward(all[k + 1]!));
+  }
+  return [...pts.slice(0, i + 1), ...pinned, ...pts.slice(j + 1)];
 }
 
 /**

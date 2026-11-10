@@ -321,9 +321,30 @@ export function layoutGraph(
 
   // The scorers read the nodes as boxes and the edges in `graph.edges` order,
   // so a rerouted edge maps back by index.
-  const { g, edgePoints } = searchPlacement(graph.direction, place, (lay) =>
-    dagreScored(lay, allNodes, graph.edges)
-  );
+  // Each group box as it will be drawn (members' bounds, padded), so an edge
+  // run through a group holding neither endpoint counts against a placement.
+  const scoredGroups = (graph.groups ?? []).filter((gr) => gr.nodeIds.length);
+  const { g, edgePoints } = searchPlacement(graph.direction, place, (lay) => ({
+    ...dagreScored(lay, allNodes, graph.edges),
+    groups: scoredGroups.map((gr) => {
+      const box = new Bounds();
+      for (const id of gr.nodeIds) {
+        const n = lay.node(id) as
+          | Parameters<Bounds['addCentred']>[0]
+          | undefined;
+        if (n) box.addCentred(n);
+      }
+      const r = box.padded(GROUP_PADDING);
+      return {
+        id: gr.id,
+        x: r.x + r.width / 2,
+        y: r.y + r.height / 2,
+        width: r.width,
+        height: r.height,
+        members: gr.nodeIds,
+      };
+    }),
+  }));
 
   // Extract positioned nodes
   const collapsedGroupIds = collapsedChildCounts

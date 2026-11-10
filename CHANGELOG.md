@@ -84,6 +84,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **State and flowchart curves go around groups they do not belong to.** An
+  edge between two states outside a group no longer cuts through that group's
+  box: the layout search now counts such passes against a placement, and an
+  edge no placement can keep clear is bent around the box's nearest side. In
+  the published ship-battle state example, the Combat edges into Losses no
+  longer run through Aftermath. This is the first part of the spline-routing
+  work (diagrammo/diagrammo#1839).
+
 - **A sankey node or scatter category named `constructor` no longer crashes
   the render.** Node and category colours were kept in a plain object, so a
   name such as `constructor`, `toString` or `__proto__` read an inherited
