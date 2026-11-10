@@ -11,6 +11,9 @@ import type {
 import { resolveNotes } from './notes';
 import { noteBoxSize } from '../utils/note-box';
 import { placeNotes, noteCanvasShift } from '../utils/notes';
+import { unbundleEdges } from './edge-ports';
+import { countSplineCrossings } from '../boxes-and-lines/layout-search';
+import type { BLLayoutResult } from '../boxes-and-lines/layout';
 import type { WrappedDescLine } from '../utils/wrapped-desc';
 import {
   dagreScored,
@@ -357,6 +360,26 @@ export function layoutGraph(
     return { node, x: pos.x, y: pos.y, width: pos.width, height: pos.height };
   });
 
+  // The final edge routes, in `graph.edges` order: the search's bent copies
+  // or dagre's own, with parallel edges fanned apart and arrivals that land
+  // on one spot spread along their target's side (#1839).
+  const routes = unbundleEdges(
+    graph.edges,
+    graph.edges.map(
+      (e, i) =>
+        (edgePoints?.[i] ?? g.edge(e.source, e.target)?.points ?? []) as Pt[]
+    ),
+    new Map(basePositioned.map((p) => [p.node.id, p])),
+    (rs) =>
+      countSplineCrossings({
+        nodes: basePositioned.map((p) => ({ ...p, label: p.node.id })),
+        edges: graph.edges.map((e, i) => ({ ...e, points: rs[i] })),
+        groups: [],
+        width: 0,
+        height: 0,
+      } as unknown as BLLayoutResult)
+  );
+
   // ── Collision-aware note placement (shared `utils/notes`) ───
   // The note floats beside its node WITHOUT moving it: try the default
   // side, flip to the opposite, then push outward past blockers — each
@@ -383,10 +406,7 @@ export function layoutGraph(
     })),
     noteRequests,
     graph.direction === 'LR' ? 'LR' : 'TB',
-    graph.edges.map(
-      (e, i) =>
-        (edgePoints?.[i] ?? g.edge(e.source, e.target)?.points ?? []) as Pt[]
-    )
+    routes
   );
 
   const layoutNodes: LayoutNode[] = basePositioned.map((p): LayoutNode => {
@@ -438,11 +458,10 @@ export function layoutGraph(
 
   // Extract edge waypoints
   const layoutEdges: LayoutEdge[] = graph.edges.map((edge, i): LayoutEdge => {
-    const edgeData = g.edge(edge.source, edge.target);
     return {
       source: edge.source,
       target: edge.target,
-      points: edgePoints?.[i] ?? edgeData?.points ?? [],
+      points: routes[i]!,
       ...(edge.label !== undefined && { label: edge.label }),
       lineNumber: edge.lineNumber,
     };
