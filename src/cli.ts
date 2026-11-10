@@ -32,7 +32,7 @@ import { resolveOrgImports } from './org/resolver';
 import { normalizePertSourceForShare } from './pert/share-normalize';
 import { renderBanner } from './cli-banner';
 import { skillsInstallNote } from './cli-install-notes';
-import { symlinkUnder } from './cli-install-guard';
+import { cwdHoldsHome, symlinkOutside } from './cli-install-guard';
 import {
   COPILOT_MCP_ENTRY,
   MCP_LAUNCH,
@@ -717,14 +717,18 @@ function ensureDgmoMcp(opts: InstallOpts): void {
   }
 }
 
-// A path in the current directory that runs through a symlink is refused, not
-// followed: the repo could have committed the link to point at a file of the
-// user's outside it (#1867). Throws, so the install stops and exits non-zero.
+// A path in the current directory that runs through a symlink to somewhere
+// outside it is refused, not followed: the repo could have committed the link
+// to point at a file of the user's (#1867). Throws, so the install stops and
+// exits non-zero. Run from the home directory, nothing is checked: those files
+// are the user's own.
 function refuseSymlinkInCwd(path: string): void {
-  const link = symlinkUnder(process.cwd(), path);
+  const cwd = process.cwd();
+  if (cwdHoldsHome(cwd, homedir())) return;
+  const link = symlinkOutside(cwd, path);
   if (link) {
     throw new Error(
-      `refusing to write ${path}: ${link} is a symbolic link. Remove it or replace it with a regular file, then re-run.`
+      `refusing to write ${path}: ${link} is a symbolic link to outside ${cwd}. Remove it or replace it with a regular file, then re-run.`
     );
   }
 }
@@ -971,6 +975,7 @@ function installCodex(opts: InstallOpts): void {
 function appendCodexAgentsNote(opts: InstallOpts): void {
   const agentsPath = join(process.cwd(), 'AGENTS.md');
   if (!opts.dryRun && existsSync(agentsPath)) {
+    refuseSymlinkInCwd(agentsPath);
     const existingAgents = readFileSync(agentsPath, 'utf-8');
     if (!existingAgents.includes(CODEX_AGENTS_NOTE_MARKER)) {
       const separator = existingAgents.endsWith('\n') ? '\n' : '\n\n';

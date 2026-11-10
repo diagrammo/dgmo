@@ -16,7 +16,10 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { build } from 'esbuild';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { symlinkUnder } from '../src/cli-install-guard';
+import type * as GuardModule from '../src/cli-install-guard';
+// Imported lazily, inside the unit tests: with the fix reverted the module is
+// gone, and the CLI tests below must still run and fail on what install does.
+let guard: typeof GuardModule;
 
 // ============================================================
 // `dgmo install` must not write through a symlink in the directory it runs in
@@ -49,9 +52,15 @@ const CASES = [
 let pkg: string;
 let cli: string;
 let bin: string;
+const tops: string[] = [];
+
+afterAll(() => {
+  for (const top of tops) rmSync(top, { recursive: true, force: true });
+});
 
 function scratch(): { cwd: string; home: string; outside: string } {
   const top = mkdtempSync(join(tmpdir(), 'dgmo-install-symlink-'));
+  tops.push(top);
   const cwd = join(top, 'repo');
   const home = join(top, 'home');
   mkdirSync(cwd);
@@ -80,21 +89,54 @@ function install(target: string, cwd: string, home: string) {
   );
 }
 
-describe('symlinkUnder', () => {
-  it('finds a link at the leaf or on the way to it, and nothing outside the root', () => {
+describe('symlinkOutside', () => {
+  beforeAll(async () => {
+    guard = await import('../src/cli-install-guard');
+  });
+
+  it('finds a link leaving the root, at the leaf or on the way to it', () => {
     const { cwd, outside } = scratch();
-    expect(symlinkUnder(cwd, join(cwd, 'missing', 'file'))).toBeNull();
+    expect(guard.symlinkOutside(cwd, join(cwd, 'missing', 'file'))).toBeNull();
     writeFileSync(join(cwd, 'plain'), 'x');
-    expect(symlinkUnder(cwd, join(cwd, 'plain'))).toBeNull();
+    expect(guard.symlinkOutside(cwd, join(cwd, 'plain'))).toBeNull();
     symlinkSync(outside, join(cwd, 'leaf'));
-    expect(symlinkUnder(cwd, join(cwd, 'leaf'))).toBe(join(cwd, 'leaf'));
+    expect(guard.symlinkOutside(cwd, join(cwd, 'leaf'))).toBe(
+      join(cwd, 'leaf')
+    );
     symlinkSync(resolve(outside, '..'), join(cwd, 'dir'));
-    expect(symlinkUnder(cwd, join(cwd, 'dir', 'outside.txt'))).toBe(
+    expect(guard.symlinkOutside(cwd, join(cwd, 'dir', 'outside.txt'))).toBe(
       join(cwd, 'dir')
     );
+    // A dangling link would create its target wherever it points.
+    symlinkSync(join(cwd, '..', 'nowhere'), join(cwd, 'dangling'));
+    expect(guard.symlinkOutside(cwd, join(cwd, 'dangling'))).toBe(
+      join(cwd, 'dangling')
+    );
     // A path outside the root is not the guard's business (the home configs).
-    expect(symlinkUnder(cwd, outside)).toBeNull();
-    expect(symlinkUnder(join(cwd, 'dir'), join(cwd, 'dir'))).toBeNull();
+    expect(guard.symlinkOutside(cwd, outside)).toBeNull();
+  });
+
+  it('follows a link that stays inside the root', () => {
+    const { cwd } = scratch();
+    writeFileSync(join(cwd, 'CLAUDE.md'), 'x');
+    symlinkSync('CLAUDE.md', join(cwd, 'AGENTS.md'));
+    expect(guard.symlinkOutside(cwd, join(cwd, 'AGENTS.md'))).toBeNull();
+    mkdirSync(join(cwd, 'real'));
+    symlinkSync(join(cwd, 'real'), join(cwd, 'alias'));
+    expect(guard.symlinkOutside(cwd, join(cwd, 'alias', 'f'))).toBeNull();
+  });
+});
+
+describe('cwdHoldsHome', () => {
+  beforeAll(async () => {
+    guard = await import('../src/cli-install-guard');
+  });
+
+  it('is true at the home directory and above it, false below it', () => {
+    expect(guard.cwdHoldsHome('/home/u', '/home/u')).toBe(true);
+    expect(guard.cwdHoldsHome('/home', '/home/u')).toBe(true);
+    expect(guard.cwdHoldsHome('/home/u/repo', '/home/u')).toBe(false);
+    expect(guard.cwdHoldsHome('/srv/repo', '/home/u')).toBe(false);
   });
 });
 
@@ -128,6 +170,9 @@ describe.runIf(process.platform !== 'win32')(
         writeFileSync(join(bin, name), '#!/bin/sh\nexit 0\n');
         chmodSync(join(bin, name), 0o755);
       }
+      // No Codex plugin support: the codex target takes its file-writing path.
+      writeFileSync(join(bin, 'codex'), '#!/bin/sh\nexit 1\n');
+      chmodSync(join(bin, 'codex'), 0o755);
     }, 60_000);
 
     afterAll(() => {
@@ -188,6 +233,48 @@ describe.runIf(process.platform !== 'win32')(
         }
       }
     );
+
+    it('codex: AGENTS.md as a symlink to outside fails and leaves the file alone', () => {
+      const { cwd, home, outside } = scratch();
+      symlinkSync(outside, join(cwd, 'AGENTS.md'));
+      const run = install('codex', cwd, home);
+      expect(run.status, run.stdout + run.stderr).not.toBe(0);
+      expect(run.stderr).toContain(join(cwd, 'AGENTS.md'));
+      expect(readFileSync(outside, 'utf-8')).toBe(OUTSIDE_TEXT);
+    });
+
+    it('a link that stays inside the directory is followed as before', () => {
+      const { cwd, home } = scratch();
+      writeFileSync(join(cwd, 'CLAUDE.md'), '# repo notes\n');
+      symlinkSync('CLAUDE.md', join(cwd, 'AGENTS.md'));
+      const codex = install('codex', cwd, home);
+      expect(codex.status, codex.stdout + codex.stderr).toBe(0);
+      expect(readFileSync(join(cwd, 'CLAUDE.md'), 'utf-8')).toContain(
+        '# repo notes'
+      );
+      expect(
+        readFileSync(join(cwd, 'CLAUDE.md'), 'utf-8').length
+      ).toBeGreaterThan('# repo notes\n'.length);
+
+      mkdirSync(join(cwd, 'rules'));
+      writeFileSync(join(cwd, 'rules', 'cursor.md'), 'old\n');
+      symlinkSync(join('rules', 'cursor.md'), join(cwd, '.cursorrules'));
+      const cursor = install('cursor', cwd, home);
+      expect(cursor.status, cursor.stdout + cursor.stderr).toBe(0);
+      expect(readFileSync(join(cwd, 'rules', 'cursor.md'), 'utf-8')).toBe(
+        readFileSync(join(pkg, '.cursorrules'), 'utf-8')
+      );
+    });
+
+    it('run from the home directory, nothing is checked', () => {
+      const { home, outside } = scratch();
+      symlinkSync(outside, join(home, '.cursorrules'));
+      const run = install('cursor', home, home);
+      expect(run.status, run.stdout + run.stderr).toBe(0);
+      expect(readFileSync(outside, 'utf-8')).toBe(
+        readFileSync(join(pkg, '.cursorrules'), 'utf-8')
+      );
+    });
 
     it('--dry-run is unchanged: it reports, writes nothing and exits 0', () => {
       const { cwd, home, outside } = scratch();
