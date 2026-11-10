@@ -32,6 +32,7 @@ import { resolveOrgImports } from './org/resolver';
 import { normalizePertSourceForShare } from './pert/share-normalize';
 import { renderBanner } from './cli-banner';
 import { skillsInstallNote } from './cli-install-notes';
+import { symlinkUnder } from './cli-install-guard';
 import {
   COPILOT_MCP_ENTRY,
   MCP_LAUNCH,
@@ -716,6 +717,18 @@ function ensureDgmoMcp(opts: InstallOpts): void {
   }
 }
 
+// A path in the current directory that runs through a symlink is refused, not
+// followed: the repo could have committed the link to point at a file of the
+// user's outside it (#1867). Throws, so the install stops and exits non-zero.
+function refuseSymlinkInCwd(path: string): void {
+  const link = symlinkUnder(process.cwd(), path);
+  if (link) {
+    throw new Error(
+      `refusing to write ${path}: ${link} is a symbolic link. Remove it or replace it with a regular file, then re-run.`
+    );
+  }
+}
+
 // Write helper that honors --dry-run and creates parent dirs.
 function writeOut(
   opts: InstallOpts,
@@ -727,6 +740,7 @@ function writeOut(
     console.log(`  [dry-run] would write ${label}`);
     return;
   }
+  refuseSymlinkInCwd(path);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, content, 'utf-8');
   console.log(`✓ ${label}`);
@@ -739,6 +753,7 @@ function upsertJsonMcp(
   path: string,
   entry: object = MCP_LAUNCH
 ): void {
+  if (!opts.dryRun) refuseSymlinkInCwd(path);
   let cfg: Record<string, unknown> = {};
   if (existsSync(path)) {
     const raw = readFileSync(path, 'utf-8');
