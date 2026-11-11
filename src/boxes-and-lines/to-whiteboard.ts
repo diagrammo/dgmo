@@ -22,7 +22,11 @@
 //   what the colours mean.
 //
 // Collapsed groups are laid out EXPANDED: a whiteboard has no folding, and a
-// copy that dropped the hidden boxes would lose them. Notes are not copied.
+// copy that dropped the hidden boxes would lose them.
+// - A note (`note <Box> …`) becomes a whiteboard sticky note where the layout
+//   floated it beside its box, every note expanded, with its colour by name
+//   (the whiteboard's yellow when none) (#1922). `no-notes` places none, so
+//   none is copied.
 
 import type { PaletteColors } from '../palettes';
 import type { TagGroup } from '../utils/tag-groups';
@@ -33,7 +37,11 @@ import type {
   WhiteboardColor,
   WhiteboardElement,
 } from '../whiteboard/types';
-import { WHITEBOARD_COLORS, isWhiteboardColor } from '../whiteboard/types';
+import {
+  WHITEBOARD_COLORS,
+  WHITEBOARD_NOTE_COLOR,
+  isWhiteboardColor,
+} from '../whiteboard/types';
 import { resolveColor } from '../colors';
 import { emitWhiteboard } from '../whiteboard/emit';
 
@@ -179,13 +187,20 @@ export function boxesAndLinesLayoutToWhiteboard(
   palette?: PaletteColors
 ): ParsedWhiteboard {
   // Shift so the copy starts at the canvas origin.
+  const floated = layout.nodes.flatMap((n) =>
+    n.note && !n.note.collapsed
+      ? [{ x: n.x + n.note.x, y: n.y + n.note.y, note: n.note }]
+      : []
+  );
   const lefts = [
     ...layout.nodes.map((n) => n.x - n.width / 2),
     ...layout.groups.map((g) => g.x - g.width / 2),
+    ...floated.map((f) => f.x),
   ];
   const tops = [
     ...layout.nodes.map((n) => n.y - n.height / 2),
     ...layout.groups.map((g) => g.y - g.height / 2),
+    ...floated.map((f) => f.y),
   ];
   const ox = lefts.length ? Math.min(...lefts) : 0;
   const oy = tops.length ? Math.min(...tops) : 0;
@@ -273,6 +288,29 @@ export function boxesAndLinesLayoutToWhiteboard(
       style: 'solid',
       heads: e.bidirectional ? 'both' : 'end',
       bend: bendOf(a, b, e.points),
+      lineNumber: 0,
+    });
+  }
+
+  // Notes last: they never sit over a box centre, so no arrow end moves.
+  const byValue = colorNamesByValue(palette);
+  const noteByLine = new Map(
+    (parsed.notes ?? []).map((n) => [n.lineNumber, n])
+  );
+  for (const f of floated) {
+    const src = noteByLine.get(f.note.lineNumber);
+    const text = src?.body ?? f.note.lines.map((l) => l.text).join('\n');
+    const hex = f.note.color ?? src?.color;
+    elements.push({
+      kind: 'note',
+      x: X(f.x),
+      y: Y(f.y),
+      width: Math.round(f.note.width),
+      height: Math.round(f.note.height),
+      text,
+      color:
+        (hex ? byValue.get(hex.toLowerCase()) : undefined) ??
+        WHITEBOARD_NOTE_COLOR,
       lineNumber: 0,
     });
   }

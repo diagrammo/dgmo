@@ -4,7 +4,11 @@ import { parseBoxesAndLines } from '../src/boxes-and-lines/parser';
 import { layoutBoxesAndLines } from '../src/boxes-and-lines/layout';
 import { parseWhiteboard } from '../src/whiteboard/parser';
 import { whiteboardConnectorAttachments } from '../src/whiteboard/geometry';
-import type { WhiteboardArrow, WhiteboardShape } from '../src/whiteboard/types';
+import type {
+  WhiteboardArrow,
+  WhiteboardNote,
+  WhiteboardShape,
+} from '../src/whiteboard/types';
 
 const SOURCE = `boxes-and-lines Pirate Fleet
 
@@ -148,6 +152,49 @@ describe('boxes-and-lines → whiteboard copy (#1884)', () => {
       e.kind === 'shape' ? [e.label] : []
     );
     expect(labels).toEqual(expect.arrayContaining(['Fort', 'Tower']));
+  });
+
+  it('copies each note as a sticky note where the layout floated it (#1922)', async () => {
+    const src = `${SOURCE}\nnote Flagship the admiral sails here\nnote Fort red\n  walls cracked\n`;
+    const parsed = parseBoxesAndLines(src);
+    const layout = await layoutBoxesAndLines(parsed);
+    const { back } = await convert(src);
+    expect(back.diagnostics).toEqual([]);
+    const notes = back.elements.filter(
+      (e): e is WhiteboardNote => e.kind === 'note'
+    );
+    expect(notes.map((n) => [n.text, n.color])).toEqual(
+      expect.arrayContaining([
+        ['the admiral sails here', 'yellow'],
+        ['walls cracked', 'red'],
+      ])
+    );
+    expect(notes).toHaveLength(2);
+
+    // Same offset from its box as the layout gave it.
+    const shapes = back.elements.filter(
+      (e): e is WhiteboardShape => e.kind === 'shape'
+    );
+    const flagship = shapes.find((s) => s.label === 'Flagship')!;
+    const placed = layout.nodes.find((n) => n.label === 'Flagship')!;
+    const note = notes.find((n) => n.text === 'the admiral sails here')!;
+    // Each position is rounded on its own, so the offset may differ by one.
+    expect(
+      Math.abs(note.x - flagship.x - (placed.note!.x + placed.width / 2))
+    ).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs(note.y - flagship.y - (placed.note!.y + placed.height / 2))
+    ).toBeLessThanOrEqual(1);
+  });
+
+  it('copies no notes from a source that says no-notes', async () => {
+    const src =
+      SOURCE.replace(
+        'boxes-and-lines Pirate Fleet\n',
+        'boxes-and-lines Pirate Fleet\nno-notes\n'
+      ) + '\nnote Flagship hidden\n';
+    const { back } = await convert(src);
+    expect(back.elements.some((e) => e.kind === 'note')).toBe(false);
   });
 
   it('returns null for a source with no boxes', async () => {
