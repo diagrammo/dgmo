@@ -258,13 +258,13 @@ fill-outline
       palette.text
     );
 
-    // Role columns: body + header drop their tints; role color on the stroke.
+    // Role columns: body + header drop their tints; uncolored roles take the neutral stroke.
     const body = c.querySelector('.raci-column-body')!;
     expect(body.getAttribute('fill')).toBe(baseBg);
-    expect(body.getAttribute('stroke')).toBe(palette.colors.blue);
+    expect(body.getAttribute('stroke')).toBe(palette.textMuted);
     const header = c.querySelector('.raci-column-header')!;
     expect(header.getAttribute('fill')).toBe(baseBg);
-    expect(header.getAttribute('stroke')).toBe(palette.colors.blue);
+    expect(header.getAttribute('stroke')).toBe(palette.textMuted);
 
     // Phase band: bg fill + colored stroke.
     const phaseRect = c.querySelector('.raci-phase rect')!;
@@ -422,5 +422,35 @@ Chart the route
       .join('');
     expect(regular).toContain('Unexpected line after role assignments');
     expect(regular).not.toContain('Chart');
+  });
+});
+
+describe('role headers', () => {
+  const src = [
+    'raci Crew',
+    'roles',
+    '  Captain red',
+    '  Chief Quartermaster of the Fleet blue',
+    '',
+    'Plot the course',
+    '  Captain: A',
+    '  Chief Quartermaster of the Fleet: R',
+  ].join('\n');
+
+  it('uses one neutral fill for every header, whatever the role color', () => {
+    const fills = [...render(src).querySelectorAll('.raci-column-header')].map(
+      (e) => e.getAttribute('fill')
+    );
+    expect(fills.length).toBe(2);
+    expect(new Set(fills).size).toBe(1);
+  });
+
+  it('wraps a long role name instead of truncating it', () => {
+    const labels = [...render(src).querySelectorAll('.raci-column-label')].map(
+      (e) => e.textContent ?? ''
+    );
+    expect(labels.join('')).not.toContain('…');
+    expect(labels.join(' ')).toContain('Chief');
+    expect(labels.join(' ')).toContain('Fleet');
   });
 });

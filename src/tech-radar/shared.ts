@@ -1,6 +1,7 @@
 import type * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
+import { mix } from '../palettes/color-utils';
 import type { QuadrantPosition, BlipTrend } from './types';
 
 /** Default quadrant colors by position when not overridden. */
@@ -148,4 +149,22 @@ export function createTooltip(
     : '0 2px 6px rgba(0,0,0,0.12)';
   container.appendChild(tip);
   return tip;
+}
+
+/** Share of palette.border in an alternate ring band (rest is palette.bg). */
+const RING_BAND_BORDER_PCT = 12;
+
+/** Share of palette.text in a ring label (rest is palette.bg). */
+const RING_LABEL_TEXT_PCT = 92;
+
+/** Fill of ring band `ri`: even bands plain ground, odd bands a faint tint. */
+export function ringBandFill(palette: PaletteColors, ri: number): string {
+  return ri % 2 === 0
+    ? palette.bg
+    : mix(palette.border, palette.bg, RING_BAND_BORDER_PCT);
+}
+
+/** Ring label ink: a solid text/ground mix, never an opacity. */
+export function ringLabelColor(palette: PaletteColors): string {
+  return mix(palette.text, palette.bg, RING_LABEL_TEXT_PCT);
 }
