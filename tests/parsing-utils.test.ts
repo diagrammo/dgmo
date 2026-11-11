@@ -394,6 +394,18 @@ describe('tokenizeQuoteAware', () => {
 describe('detectBadChartTypeDeclaration', () => {
   const NO_OPTIONS = new Set<string>();
 
+  it('still flags a glyph word leading a title line (#1845)', () => {
+    // `server`, `cloud`, `shapes` are whiteboard-only registry tokens; as a
+    // first line they are a botched declaration, as they were before the
+    // glyph keywords joined the registry.
+    expect(detectBadChartTypeDeclaration('server Production', NO_OPTIONS)).toBe(
+      'server'
+    );
+    expect(
+      detectBadChartTypeDeclaration('cloud Infrastructure', NO_OPTIONS)
+    ).toBe('cloud');
+  });
+
   it('flags a bare unknown chart type', () => {
     expect(detectBadChartTypeDeclaration('bubble', NO_OPTIONS)).toBe('bubble');
   });

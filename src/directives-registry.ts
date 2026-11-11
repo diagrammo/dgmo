@@ -1088,6 +1088,20 @@ function tokensWhere(pred: (e: RegistryEntry) => boolean): Set<string> {
   return out;
 }
 
+// A whiteboard-only `shapes` / glyph keyword (`server`, `cloud`, `user`, …).
+// These are everyday words, so they must not suppress the bad-chart-type
+// warning on a first line like `server Production` (#1845). A token another
+// chart type also registers (`mobile`) still counts through that entry.
+function isWhiteboardGlyphEntry(e: RegistryEntry): boolean {
+  return (
+    Array.isArray(e.chartTypes) &&
+    e.chartTypes.length === 1 &&
+    e.chartTypes[0] === 'whiteboard' &&
+    (e.token === 'shapes' ||
+      (GLYPH_NAMES as readonly string[]).includes(e.token))
+  );
+}
+
 // ── Parser-facing Sets (replace the deleted local literals) ──
 
 /**
@@ -1095,7 +1109,9 @@ function tokensWhere(pred: (e: RegistryEntry) => boolean): Set<string> {
  * negative filter: a line leading with one of these is an option/directive
  * line, never a chart-type declaration.
  */
-export const ALL_REGISTRY_TOKENS: ReadonlySet<string> = tokensWhere(() => true);
+export const ALL_REGISTRY_TOKENS: ReadonlySet<string> = tokensWhere(
+  (e) => !isWhiteboardGlyphEntry(e)
+);
 
 /** Infra top-level option keys (space-separated). */
 export const INFRA_TOP_LEVEL_OPTION_SET = tokensWhere(

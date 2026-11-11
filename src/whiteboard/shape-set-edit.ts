@@ -106,17 +106,31 @@ export function shapeSetEdits(
     // Delete the line with its newline: the one after it, or — on the last
     // line — the one before it, so no blank line is left behind.
     const next = l.start + l.text.length;
-    if (next < source.length) {
-      const nl = source.indexOf('\n', next);
+    const nl = next < source.length ? source.indexOf('\n', next) : -1;
+    if (nl !== -1) {
       edits.push({ from: l.start, to: nl + 1, insert: '' });
-    } else {
-      const crlf = l.start >= 2 && source[l.start - 2] === '\r';
-      edits.push({
-        from: Math.max(0, l.start - (crlf ? 2 : 1)),
-        to: next,
-        insert: '',
-      });
+      continue;
     }
+    const crlf = l.start >= 2 && source[l.start - 2] === '\r';
+    const from = Math.max(0, l.start - (crlf ? 2 : 1));
+    const prev = edits[edits.length - 1];
+    if (prev && prev.to > from) {
+      // The newline before this line is already inside the edit that deletes
+      // the line above; extend that edit over this one instead of overlapping.
+      if (prev.insert === '') {
+        const prevCrlf = prev.from >= 2 && source[prev.from - 2] === '\r';
+        edits[edits.length - 1] = {
+          from: Math.max(0, prev.from - (prevCrlf ? 2 : 1)),
+          to: source.length,
+          insert: '',
+        };
+      } else {
+        edits.push({ from: prev.to, to: source.length, insert: '' });
+      }
+      continue;
+    }
+    // A trailing lone `\r` belongs to this line, so it goes with it.
+    edits.push({ from, to: source.length, insert: '' });
   }
   return edits;
 }

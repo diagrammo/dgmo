@@ -150,4 +150,33 @@ describe('shapeSetEdits', () => {
     const src = 'whiteboard Net\nrectangle A at: 0 0, size: 10 10\n';
     expect(off(on(src))).toBe(src);
   });
+
+  it('never overlaps edits when two adjacent set-only lines end the file', () => {
+    const src = 'whiteboard\nshapes network\nshapes network';
+    const edits = shapeSetEdits(src, 'network', false);
+    for (let k = 1; k < edits.length; k++) {
+      expect(edits[k]!.from).toBeGreaterThanOrEqual(edits[k - 1]!.to);
+    }
+    expect(off(src)).toBe('whiteboard');
+  });
+
+  it('keeps edits ordered when a kept-ids line precedes a set-only last line', () => {
+    const src = 'whiteboard\nshapes network, aws\nshapes network';
+    const edits = shapeSetEdits(src, 'network', false);
+    for (let k = 1; k < edits.length; k++) {
+      expect(edits[k]!.from).toBeGreaterThanOrEqual(edits[k - 1]!.to);
+    }
+    expect(off(src)).toBe('whiteboard\nshapes aws');
+  });
+
+  it('gives a valid range when the source ends in a lone CR after a shapes line', () => {
+    const src = 'whiteboard\nshapes network\r';
+    const edits = shapeSetEdits(src, 'network', false);
+    for (const e of edits) {
+      expect(e.from).toBeGreaterThanOrEqual(0);
+      expect(e.to).toBeGreaterThanOrEqual(e.from);
+      expect(e.to).toBeLessThanOrEqual(src.length);
+    }
+    expect(off(src)).toBe('whiteboard');
+  });
 });
