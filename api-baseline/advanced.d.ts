@@ -464,6 +464,22 @@ declare function render(source: string, options?: {
     chartType: string | undefined;
 }>;
 
+/** One note line under the plot (`note` is repeatable). */
+interface ChartFrameNote {
+    text: string;
+    lineNumber: number;
+}
+/** The `subtitle`, `source`, `note` and `byline` directives of one chart. */
+interface ChartFrame {
+    subtitle?: string;
+    subtitleLineNumber?: number;
+    source?: string;
+    sourceLineNumber?: number;
+    byline?: string;
+    bylineLineNumber?: number;
+    notes?: ChartFrameNote[];
+}
+
 type ChartType$1 = 'bar' | 'line' | 'pie' | 'polar-area' | 'radar';
 interface ChartDataPoint {
     label: string;
@@ -484,6 +500,8 @@ interface ParsedChart {
     type: ChartType$1;
     title?: string;
     titleLineNumber?: number;
+    /** `subtitle`, `source`, `note`, `byline` (#1827). */
+    frame?: ChartFrame;
     series?: string;
     seriesLineNumber?: number;
     xlabel?: string;
@@ -907,6 +925,8 @@ interface ParsedHeatmapRow {
 interface ParsedExtendedBase {
     title?: string;
     titleLineNumber?: number;
+    /** `subtitle`, `source`, `note`, `byline` (#1827). */
+    frame?: ChartFrame;
     series?: string;
     seriesLineNumber?: number;
     seriesNames?: string[];
