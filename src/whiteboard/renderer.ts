@@ -22,6 +22,12 @@ import {
   themeBaseBg,
 } from '../palettes/color-utils';
 import { drawCylinderCard, drawQueueCard } from '../shapes/draw';
+import {
+  GLYPH_STROKE,
+  GLYPH_VIEWBOX,
+  glyphPaths,
+  type GlyphName,
+} from '../glyphs/registry';
 import { renderChartTitle } from '../utils/d3-helpers';
 import { measureText } from '../utils/text-measure';
 import { TITLE_FONT_SIZE } from '../utils/title-constants';
@@ -55,6 +61,7 @@ import type {
   WhiteboardElement,
   WhiteboardImage,
   WhiteboardNote,
+  WhiteboardShape,
 } from './types';
 import { WHITEBOARD_COLORS, WHITEBOARD_NOTE_COLOR } from './types';
 
@@ -236,6 +243,34 @@ function noteTextHeight(el: WhiteboardNote): number {
   return 2 * top + lines.length * font * LABEL_LINE;
 }
 
+/** Gap between a glyph's box and the first line of its label, px. */
+const GLYPH_CAPTION_GAP = 4;
+/** Widest a glyph's line is drawn, in multiples of SHAPE_STROKE. */
+const GLYPH_STROKE_MAX = 2;
+
+/** A glyph shape — a line icon with its label beneath its box. */
+type WhiteboardGlyph = WhiteboardShape & { readonly glyph: GlyphName };
+
+function isGlyph(el: WhiteboardElement): el is WhiteboardGlyph {
+  return el.kind === 'shape' && el.glyph !== undefined;
+}
+
+/** A glyph's label: written lines, centred under its box, never wrapped. */
+function glyphCaption(el: WhiteboardGlyph): {
+  lines: string[];
+  top: number;
+  width: number;
+  height: number;
+} {
+  const lines = el.label ? labelLines(el.label) : [];
+  return {
+    lines,
+    top: el.y + el.height + GLYPH_CAPTION_GAP,
+    width: widest(lines, LABEL_FONT),
+    height: lines.length * LABEL_FONT * LABEL_LINE,
+  };
+}
+
 /** Content bounds of every drawn element, in canvas px. */
 export function whiteboardBounds(
   parsed: ParsedWhiteboard,
@@ -254,6 +289,20 @@ export function whiteboardBounds(
       case 'shape':
       case 'image':
         grow(b, el.x, el.y, el.x + el.width, el.y + el.height);
+        if (isGlyph(el)) {
+          // The label hangs below the box and stays in the crop.
+          const c = glyphCaption(el);
+          const cx = el.x + el.width / 2;
+          if (c.lines.length > 0) {
+            grow(
+              b,
+              cx - c.width / 2,
+              c.top,
+              cx + c.width / 2,
+              c.top + c.height
+            );
+          }
+        }
         break;
       case 'note':
         // Text longer than the card runs on below it, and stays in the crop.
@@ -807,7 +856,10 @@ export function renderWhiteboard(
   const drawElement = (el: WhiteboardElement): void => {
     const g = canvas
       .append('g')
-      .attr('class', `whiteboard-${el.kind === 'shape' ? el.shape : el.kind}`)
+      .attr(
+        'class',
+        `whiteboard-${el.kind === 'shape' ? (el.glyph ?? el.shape) : el.kind}`
+      )
       .attr('data-line-number', el.lineNumber);
     // Pairs the element with its colour's legend entry on hover.
     const lc = legend && legendColor(el);
@@ -832,6 +884,39 @@ export function renderWhiteboard(
           el.fill === 'solid' ? mix(hue, labelColor, SOLID_EDGE) : hue;
         const cx = el.x + el.width / 2;
         const cy = el.y + el.height / 2;
+        if (isGlyph(el)) {
+          // A line icon scaled to fit its box, centred, in the shape's colour.
+          // Its line thickens with size up to GLYPH_STROKE_MAX strokes.
+          const k = Math.min(el.width, el.height) / GLYPH_VIEWBOX;
+          const drawn = Math.min(
+            GLYPH_STROKE * k,
+            GLYPH_STROKE_MAX * SHAPE_STROKE
+          );
+          const icon = g
+            .append('g')
+            .attr('class', 'whiteboard-glyph')
+            .attr(
+              'transform',
+              `translate(${round2(cx - (GLYPH_VIEWBOX * k) / 2)},${round2(cy - (GLYPH_VIEWBOX * k) / 2)}) scale(${round2(k)})`
+            )
+            .attr('fill', 'none')
+            .attr('stroke', hue)
+            .attr('stroke-width', round2(drawn / k))
+            .attr('stroke-linecap', 'round')
+            .attr('stroke-linejoin', 'round');
+          for (const d of glyphPaths(el.glyph))
+            icon.append('path').attr('d', d);
+          const c = glyphCaption(el);
+          centredLabel(
+            g,
+            { lines: c.lines, font: LABEL_FONT, bold: false },
+            cx,
+            c.top + c.height / 2,
+            palette.text,
+            halo
+          );
+          break;
+        }
         if (el.shape === 'rectangle') {
           g.append('rect')
             .attr('x', el.x)

@@ -2344,6 +2344,9 @@ declare function collapseBoxesAndLines(parsed: ParsedBoxesAndLines, collapsedGro
  */
 declare function collapsedBLGroupsFromSource(parsed: ParsedBoxesAndLines): Set<string>;
 
+/** A glyph's source keyword (`router`, `access-point`). */
+type GlyphName = 'router' | 'switch' | 'firewall' | 'server' | 'access-point' | 'cloud' | 'globe' | 'lock' | 'user' | 'users' | 'laptop' | 'mobile' | 'storage';
+
 /**
  * Colour NAMES — never values. `ink` is the palette's text colour, so it flips
  * near-black ↔ near-white with the theme; every other name takes the palette's
@@ -2388,6 +2391,7 @@ declare const WHITEBOARD_HEADS: readonly ["end", "both"];
 type WhiteboardHeads = (typeof WHITEBOARD_HEADS)[number];
 interface WhiteboardShape {
     readonly kind: 'shape';
+    /** The outline the shape is drawn, attached and hit-tested by. */
     readonly shape: WhiteboardShapeKind;
     /** Top-left corner, canvas px. */
     readonly x: number;
@@ -2401,6 +2405,14 @@ interface WhiteboardShape {
     readonly fill: WhiteboardFill;
     /** `label:` as written; absent means automatic (`whiteboardLabelPosition`). */
     readonly labelPosition?: WhiteboardLabelPosition;
+    /**
+     * A glyph from a bundled set (`../glyphs/registry`), written as its own
+     * keyword (`router Edge at: …`). It is drawn as a line icon in the box with
+     * its label beneath; `shape` is then `rectangle`, the box arrows attach to,
+     * so a host that draws no glyphs still shows it as a labelled box. It takes
+     * `color:` but no `fill:` or `label:`. Absent on the five built-in shapes.
+     */
+    readonly glyph?: GlyphName;
     readonly lineNumber: number;
 }
 /** A sticky note's size when `size:` is left off, px. */
@@ -2520,6 +2532,11 @@ interface ParsedWhiteboard {
      * one the legend shows.
      */
     readonly tagGroups: readonly TagGroup[];
+    /**
+     * The `shapes` line's set ids (`shapes network`), in written order: the
+     * glyph sets this file turns on. Empty when there is no `shapes` line.
+     */
+    readonly shapeSets: readonly string[];
     readonly diagnostics: readonly DgmoError[];
     readonly error: string | null;
 }

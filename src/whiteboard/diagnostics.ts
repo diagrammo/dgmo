@@ -21,6 +21,8 @@ export const WHITEBOARD_DIAGNOSTIC_CODES = {
   EMPTY_TEXT: 'W_WHITEBOARD_EMPTY_TEXT',
   UNEXPECTED_BODY: 'W_WHITEBOARD_UNEXPECTED_BODY',
   BAD_TAG_ENTRY: 'W_WHITEBOARD_BAD_TAG_ENTRY',
+  UNKNOWN_SHAPE_SET: 'W_WHITEBOARD_UNKNOWN_SHAPE_SET',
+  SHAPE_SET_OFF: 'W_WHITEBOARD_SHAPE_SET_OFF',
 } as const;
 
 const s = (v: unknown): string =>
@@ -145,6 +147,26 @@ export const WHITEBOARD_DIAGNOSTICS: DiagnosticSpec[] = [
       `Tag entry "${s(p.entry)}" names no colour — ignored (end it with one of: red, green, blue, teal, purple, orange, yellow, cyan, gray)`,
     hint: 'A whiteboard tag entry gives a colour a meaning, so it ends with the colour it names: `Blocked red`.',
     example: 'whiteboard\ntag Meaning\n  Blocked',
+  },
+  {
+    code: WHITEBOARD_DIAGNOSTIC_CODES.UNKNOWN_SHAPE_SET,
+    severity: 'warning',
+    chartType: 'whiteboard',
+    title: 'Unknown shape set',
+    message: (p) =>
+      `Unknown shape set "${s(p.set)}" — ignored (sets: ${s(p.valid)})${p.hint ? `. ${s(p.hint)}` : ''}`,
+    hint: 'A `shapes` line names bundled glyph sets, separated by commas: `shapes network`.',
+    example: 'whiteboard\nshapes netwrk',
+  },
+  {
+    code: WHITEBOARD_DIAGNOSTIC_CODES.SHAPE_SET_OFF,
+    severity: 'warning',
+    chartType: 'whiteboard',
+    title: 'Glyph used without its shape set',
+    message: (p) =>
+      `${s(p.glyph)} is in the ${s(p.label)} shape set — add \`shapes ${s(p.set)}\` to this file; drawn anyway`,
+    hint: 'A glyph draws without its `shapes` line, but the line is what turns the set on in the editor. Add it under the title.',
+    example: 'whiteboard\nrouter Edge at: 0 0, size: 48 48',
   },
 ];
 

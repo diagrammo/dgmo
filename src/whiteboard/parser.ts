@@ -65,6 +65,14 @@ import {
   isWhiteboardColor,
   isWhiteboardShapeKind,
 } from './types';
+import {
+  GLYPH_NAMES,
+  GLYPH_SETS,
+  glyphSetById,
+  glyphSetOf,
+  isGlyphName,
+  type GlyphName,
+} from '../glyphs/registry';
 
 /**
  * Coordinates and sizes stay within this many px of the origin. Far past any
@@ -95,6 +103,8 @@ const labelPart = (
 
 const KEYS_BY_KIND: Record<string, readonly string[]> = {
   shape: ['at', 'size', 'color', 'fill', 'label'],
+  // A glyph is a line icon with its label beneath: no fill, no label position.
+  glyph: ['at', 'size', 'color'],
   note: ['at', 'size', 'color'],
   arrow: ['from', 'to', 'color', 'style', 'heads', 'bend'],
   line: ['from', 'to', 'color', 'style', 'bend'],
@@ -212,9 +222,13 @@ export function parseWhiteboard(
     elements,
     options,
     tagGroups: [],
+    shapeSets: [],
     diagnostics: [],
     error: null,
   };
+  const shapeSets: string[] = result.shapeSets;
+  /** Each glyph line, checked against the `shapes` line once all are read. */
+  const glyphUses: { name: GlyphName; line: number }[] = [];
   const fail = makeFail(result);
   const warn = (
     line: number,
@@ -474,6 +488,26 @@ export function parseWhiteboard(
       }
     };
 
+    // `shapes network, …` turns bundled glyph sets on for this file (#1845).
+    if (word === 'shapes') {
+      noBody('shapes');
+      for (const raw of rest.split(/[\s,]+/)) {
+        const id = raw.toLowerCase();
+        if (!id) continue;
+        if (!glyphSetById(id)) {
+          const ids = GLYPH_SETS.map((st) => st.id);
+          warn(lineNumber, CODES.UNKNOWN_SHAPE_SET, {
+            set: raw,
+            valid: ids.join(', '),
+            hint: suggest(id, ids) ?? '',
+          });
+          continue;
+        }
+        if (!shapeSets.includes(id)) shapeSets.push(id);
+      }
+      continue;
+    }
+
     if (word === 'ink') {
       noBody('ink');
       const m = INK_LINE_RE.exec(rest);
@@ -540,6 +574,32 @@ export function parseWhiteboard(
         color: readColor(meta.get('color'), lineNumber),
         fill: readFill(meta.get('fill'), lineNumber),
         ...labelPart(readLabelPosition(meta.get('label'), lineNumber)),
+        lineNumber,
+      });
+      continue;
+    }
+
+    // A glyph from a bundled set. It draws whether or not its set is on; a
+    // missing `shapes` line is a warning, raised after every line is read.
+    if (isGlyphName(word)) {
+      const { name, meta } = splitLine(rest);
+      checkKeys(meta, 'glyph', word, lineNumber);
+      const at = readPair(meta, 'at', word, lineNumber, false);
+      if (!at) continue;
+      const size = readPair(meta, 'size', word, lineNumber, true);
+      if (!size) continue;
+      glyphUses.push({ name: word, line: lineNumber });
+      elements.push({
+        kind: 'shape',
+        shape: 'rectangle',
+        x: at[0],
+        y: at[1],
+        width: size[0],
+        height: size[1],
+        label: joinLabel(name, body),
+        color: readColor(meta.get('color'), lineNumber),
+        fill: 'tint',
+        glyph: word,
         lineNumber,
       });
       continue;
@@ -646,11 +706,22 @@ export function parseWhiteboard(
 
     warn(lineNumber, CODES.UNKNOWN_ELEMENT, {
       word,
-      hint: suggest(word, WHITEBOARD_ELEMENT_KEYWORDS) ?? '',
+      hint:
+        suggest(word, [...WHITEBOARD_ELEMENT_KEYWORDS, ...GLYPH_NAMES]) ?? '',
     });
   }
 
   if (!firstLineSeen) return fail(0, 'No content provided');
+
+  for (const use of glyphUses) {
+    const set = glyphSetOf(use.name);
+    if (shapeSets.includes(set.id)) continue;
+    warn(use.line, CODES.SHAPE_SET_OFF, {
+      glyph: use.name,
+      label: set.label,
+      set: set.id,
+    });
+  }
 
   // An empty board is valid: a blank canvas is where drawing starts, and
   // erasing everything must not turn the file into an error (#1248).

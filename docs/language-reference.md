@@ -4030,6 +4030,7 @@ A **shape** label, and a note's text, wraps to its width: each written line is k
 | `text <words> at: X Y`                 | Free text; `at:` is the top-left of its first line                                  |
 | `image <ref> at: X Y, size: W H`       | Picture; `<ref>` is a relative path (`board.assets/9f3c.webp`) or an `https://` URL |
 | `ink <colour> <width> <path>`          | One freehand stroke — **canvas-written only**                                       |
+| `router <label> at: X Y, size: W H`    | A glyph from a shape set (see _Shape sets_); any glyph keyword leads the same way   |
 
 An `arrow` or `line` end inside a shape or a sticky note attaches to it and is drawn to its border (where shapes overlap, the one latest in the file wins; not when both ends are inside the same one).
 
@@ -4055,6 +4056,26 @@ rectangle Copy at: 200 0, size: 160 80, color: green
 ```
 
 With two or more colours on the board, a legend sits centred above it, below the title, one dot per colour. A colour with an entry shows its name; while no colour is named the legend is drawn faintly, as bare dots. Under two colours there is no legend. `ink` is no colour, and a note in its default yellow does not count. An entry must end with one of the nine colour names, or it is ignored with a warning. Only the first `tag` block is shown.
+
+### Shape sets
+
+A whiteboard draws its five shapes and notes by default. A `shapes` line turns on bundled glyph sets for that file, separated by commas:
+
+```
+whiteboard Office network
+shapes network
+router Edge at: 120 40, size: 48 48
+server App at: 300 40, size: 48 48, color: blue
+arrow from: 144 64, to: 324 64
+```
+
+| Set       | Glyph keywords                                                                                                                     |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `network` | `router`, `switch`, `firewall`, `server`, `access-point`, `cloud`, `globe`, `lock`, `user`, `users`, `laptop`, `mobile`, `storage` |
+
+A glyph is a line icon, scaled to the shorter side of its box and centred in it, in its `color:` (default `ink`). Its label is drawn beneath the box, one line per written line, never wrapped. It takes `at:`, `size:` and `color:` only — no `fill:` or `label:`. An arrow or line end inside a glyph's box attaches to the box. Database, queue and file are already whiteboard shapes, so no set repeats them.
+
+A glyph used without its set's `shapes` line still draws, with a warning naming the line to add. An unknown set name is a warning and is ignored. The line may sit anywhere in the file; it is written under the title.
 
 ### Images
 

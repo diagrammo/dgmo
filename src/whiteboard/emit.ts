@@ -57,7 +57,8 @@ function line(keyword: string, name: string, meta: string[]): string {
 export function emitWhiteboardElement(el: WhiteboardElement): string {
   switch (el.kind) {
     case 'shape':
-      return line(el.shape, el.label, [
+      // A glyph is written as its own keyword, with no fill or label position.
+      return line(el.glyph ?? el.shape, el.label, [
         `at: ${el.x} ${el.y}`,
         `size: ${el.width} ${el.height}`,
         ...colorPart(el.color),
@@ -105,6 +106,9 @@ export function emitWhiteboard(board: ParsedWhiteboard): string {
   ];
   if (board.options.noTitle) out.push('no-title');
   if (board.options.noNotes) out.push('no-notes');
+  if (board.shapeSets.length > 0) {
+    out.push(`shapes ${board.shapeSets.join(', ')}`);
+  }
   for (const g of board.tagGroups) {
     const name = /\s/.test(g.name) ? `"${g.name}"` : g.name;
     out.push(g.alias ? `tag ${name} as ${g.alias}` : `tag ${name}`);
@@ -122,6 +126,7 @@ export function sameWhiteboard(
   const strip = (p: ParsedWhiteboard): unknown => ({
     title: p.title,
     options: p.options,
+    shapeSets: p.shapeSets,
     tagGroups: p.tagGroups.map((g) => ({
       name: g.name,
       alias: g.alias,
