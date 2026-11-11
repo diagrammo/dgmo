@@ -1,7 +1,7 @@
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import { TITLE_FONT_SIZE } from '../utils/title-constants';
-import { contrastText, mix, shapeFill } from '../palettes/color-utils';
+import { contrastText, shapeFill } from '../palettes/color-utils';
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import type { CompactViewState } from '../sharing';
@@ -25,6 +25,8 @@ import {
 } from './layout';
 import {
   resolveQuadrantColor,
+  ringBandFill,
+  ringLabelColor,
   renderTrendIndicator,
   DIM_OPACITY,
   TREND_ITEMS,
@@ -296,8 +298,7 @@ export function renderTechRadar(
   for (let ri = parsed.rings.length - 1; ri >= 0; ri--) {
     const innerR = ri * ringBandWidth;
     const outerR = (ri + 1) * ringBandWidth;
-    const fillColor =
-      ri % 2 === 0 ? palette.bg : mix(palette.bg, palette.border, 0.15);
+    const fillColor = ringBandFill(palette, ri);
     // In-bounds by loop guard (ri in [0, parsed.rings.length)).
     const ringName = parsed.rings[ri]!.name;
 
@@ -354,11 +355,10 @@ export function renderTechRadar(
         .attr('y', cy)
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'central')
-        .attr('fill', textColor)
+        .attr('fill', ringLabelColor(palette))
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', sRingLabelFontSize)
         .attr('font-weight', 'bold')
-        .attr('opacity', 0.5)
         // In-bounds by loop guard (ri < parsed.rings.length).
         .text(parsed.rings[ri]!.name);
     } else {
@@ -369,11 +369,10 @@ export function renderTechRadar(
         .attr('y', cy - rCenter)
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'central')
-        .attr('fill', textColor)
+        .attr('fill', ringLabelColor(palette))
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', sRingLabelFontSize)
         .attr('font-weight', 'bold')
-        .attr('opacity', 0.5)
         // In-bounds by loop guard (ri < parsed.rings.length).
         .text(parsed.rings[ri]!.name);
 
@@ -384,11 +383,10 @@ export function renderTechRadar(
         .attr('y', cy + rCenter)
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'central')
-        .attr('fill', textColor)
+        .attr('fill', ringLabelColor(palette))
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', sRingLabelFontSize)
         .attr('font-weight', 'bold')
-        .attr('opacity', 0.5)
         // In-bounds by loop guard (ri < parsed.rings.length).
         .text(parsed.rings[ri]!.name);
     }
