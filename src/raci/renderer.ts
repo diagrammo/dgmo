@@ -488,7 +488,21 @@ export function renderRaci(
   const titleArea = hasTopRow ? sTitleAreaHeight : sVMargin;
   const legendY = (sTitleAreaHeight - sLegendHeight) / 2;
   const headerY = titleArea + sVMargin;
-  const bodyTop = headerY + sHeaderHeight;
+  // Role names wrap onto extra lines instead of truncating; the header band
+  // grows to the longest wrapped name so every column keeps one flat edge.
+  const headerLineH = sRoleHeaderFont * 1.25;
+  const headerLines = parsed.roleDisplayNames.map((name) =>
+    wrapTextToWidth(name, sRoleHeaderFont, roleColW - 2 * sCellPad, {
+      bold: true,
+    })
+  );
+  const headerH = Math.max(
+    sHeaderHeight,
+    Math.max(1, ...headerLines.map((l) => l.length)) * headerLineH +
+      sHeaderHeight -
+      sRoleHeaderFont * 1.25
+  );
+  const bodyTop = headerY + headerH;
   let cursorY = bodyTop;
   const rowYs: number[] = [];
   // Pre-compute wrapped task content once: both the y-cursor pass and
@@ -703,7 +717,9 @@ export function renderRaci(
     // one, it wins; otherwise rotate through marker-safe accents so
     // each column has a subtle visual identity instead of every column
     // reading as the same neutral gray.
-    const roleColor = parsed.roleColors[i] ?? autoAccent(i, palette);
+    // Headers share one neutral style; only a role the author coloured
+    // tints its column body, so unstyled columns do not each pick a pastel.
+    const roleColor = parsed.roleColors[i] ?? palette.textMuted;
     const outline = fillMode === 'outline';
     // Outline treatment: body + header drop their tints in favor of the
     // theme base bg; the role color is carried entirely by the stroke. The
@@ -714,7 +730,7 @@ export function renderRaci(
       : mix(roleColor, themeBaseBg(palette, isDark), 16);
     const headerFill = outline
       ? surfaceBg
-      : mix(roleColor, themeBaseBg(palette, isDark), 30);
+      : mix(palette.textMuted, themeBaseBg(palette, isDark), 24);
     const colG = columnsG
       .append('g')
       .attr('class', 'raci-column')
@@ -737,33 +753,31 @@ export function renderRaci(
     const headerPath = colG
       .append('path')
       .attr('class', 'raci-column-header')
-      .attr(
-        'd',
-        topRoundedRectPath(cx, headerY, cw, sHeaderHeight, sColumnRadius)
-      )
+      .attr('d', topRoundedRectPath(cx, headerY, cw, headerH, sColumnRadius))
       .attr('fill', headerFill);
     if (outline) {
       headerPath.attr('stroke', roleColor).attr('stroke-width', 1);
     }
     const cxText = roleX(i) + roleColW / 2;
-    colG
+    const lines = headerLines[i] ?? [''];
+    const label = colG
       .append('text')
       .attr('class', 'raci-column-label')
       .attr('x', cxText)
-      .attr('y', headerY + sHeaderHeight / 2)
       .attr('text-anchor', 'middle')
-      .attr('dominant-baseline', 'central')
       .attr('font-size', sRoleHeaderFont)
       .attr('font-weight', 'bold')
-      .attr('fill', palette.text)
-      .text(
-        truncateText(
-          parsed.roleDisplayNames[i] ?? '',
-          sRoleHeaderFont,
-          roleColW - 2 * sCellPad,
-          { bold: true }
-        )
-      );
+      .attr('fill', palette.text);
+    const firstY =
+      headerY + headerH / 2 - ((lines.length - 1) * headerLineH) / 2;
+    lines.forEach((line, li) => {
+      label
+        .append('tspan')
+        .attr('x', cxText)
+        .attr('y', firstY + li * headerLineH)
+        .attr('dominant-baseline', 'central')
+        .text(line);
+    });
   });
 
   // ── Body: phases + task rows ───────────────────────────────
