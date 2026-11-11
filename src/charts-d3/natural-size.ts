@@ -21,6 +21,8 @@
 
 import { parseChart } from '../chart';
 import { parseExtendedChart } from '../data-chart-parser';
+import type { ChartFrame } from '../utils/chart-frame';
+import { reserveChartFrame } from '../utils/chart-frame';
 import { EXPORT_HEIGHT, EXPORT_WIDTH } from '../utils/d3-helpers';
 import { MIN_CANVAS_WIDTH } from '../utils/fit-canvas';
 import type { PaletteColors } from '../palettes';
@@ -89,10 +91,26 @@ export function naturalDataChartSize(
 ): { width: number; height: number } | null {
   const width = naturalDataChartWidth(content, palette);
   if (width === null) return null;
+  // A chart frame (#1827) adds its bands to the canvas it chooses, so the
+  // plot keeps the height it has without one.
+  const reserve = reserveChartFrame(frameOf(content, palette), width);
   return {
     width,
-    height: Math.round((width * EXPORT_HEIGHT) / EXPORT_WIDTH),
+    height:
+      Math.round((width * EXPORT_HEIGHT) / EXPORT_WIDTH) +
+      (reserve ? reserve.top + reserve.bottom : 0),
   };
+}
+
+/** The chart frame `renderInto` will draw, read the way it routes. */
+function frameOf(
+  content: string,
+  palette: PaletteColors
+): ChartFrame | undefined {
+  if (!/^(subtitle|source|note|byline)\s/m.test(content)) return undefined;
+  const std = parseChart(content, palette);
+  if (std && !std.error && std.data.length > 0) return std.frame;
+  return parseExtendedChart(content, palette).frame;
 }
 
 function naturalDataChartWidth(

@@ -1,4 +1,5 @@
 import type { ConformanceFixture } from './_types';
+import { FRAME_DIRECTIVES } from './_frame';
 
 // Spec §16 / §15.4. Functional family — colon REQUIRED between name and
 // expression (§15.4). `x` declares the x-axis range; `fill` shades the
@@ -7,6 +8,13 @@ export const fixture: ConformanceFixture = {
   chartType: 'function',
   specSection: '16',
   firstLineKeyword: 'function',
-  directives: ['no-legend', 'x', 'x-label', 'y-label', 'fill'],
+  directives: [
+    ...FRAME_DIRECTIVES,
+    'no-legend',
+    'x',
+    'x-label',
+    'y-label',
+    'fill',
+  ],
   pipeKeys: {},
 };

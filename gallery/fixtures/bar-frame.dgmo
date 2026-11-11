@@ -1,0 +1,14 @@
+bar Revenue by Region
+subtitle Fiscal 2025, in millions of dollars
+x-label Region
+y-label Revenue ($M)
+
+North 120
+South 95
+East 140
+West 80
+
+note Figures are unaudited.
+note West excludes the Pacific territories.
+source Company annual report
+byline Chart: Diagrammo

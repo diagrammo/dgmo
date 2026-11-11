@@ -1,4 +1,5 @@
 import type { ConformanceFixture } from './_types';
+import { FRAME_DIRECTIVES } from './_frame';
 
 // Spec §16 / §15.3. `columns` declares column labels; `no-value` suppresses
 // cell value text. the fill family saturates the heat gradient.
@@ -7,6 +8,7 @@ export const fixture: ConformanceFixture = {
   specSection: '16',
   firstLineKeyword: 'heatmap',
   directives: [
+    ...FRAME_DIRECTIVES,
     'columns',
     'no-value',
     'fill-tint',

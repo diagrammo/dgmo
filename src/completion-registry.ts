@@ -93,6 +93,15 @@ const GLOBAL_DIRECTIVES: Record<string, DirectiveValueSpec> = {
   },
 };
 
+// Chart frame (#1827): the furniture around a published chart. Spread into
+// each chart type that draws it — the data charts so far.
+const FRAME_DIRECTIVES: Record<string, DirectiveValueSpec> = {
+  subtitle: { description: 'A deck line under the title' },
+  source: { description: 'Where the data comes from, under the chart' },
+  note: { description: 'A footnote under the chart (repeatable)' },
+  byline: { description: 'Who made the chart, on the last footer line' },
+};
+
 function withGlobals(
   directives: Record<string, DirectiveValueSpec> = {}
 ): DirectiveSpec {
@@ -123,6 +132,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'bar',
     withGlobals({
+      ...FRAME_DIRECTIVES,
       'no-legend': { description: 'Hide the legend' },
       stack: {
         description:
@@ -142,6 +152,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'line',
     withGlobals({
+      ...FRAME_DIRECTIVES,
       'no-legend': { description: 'Hide the legend' },
       series: { description: 'Series name(s)' },
       fill: { description: 'Fill under the line (area chart)' },
@@ -156,6 +167,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'pie',
     withGlobals({
+      ...FRAME_DIRECTIVES,
       hole: {
         description:
           'Doughnut ring (optional ratio 0–0.9); shows the total in center',
@@ -177,6 +189,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'polar-area',
     withGlobals({
+      ...FRAME_DIRECTIVES,
       'no-name': { description: 'Hide name from segment labels' },
       'no-value': { description: 'Hide value from segment labels' },
       'no-percent': { description: 'Hide percent from segment labels' },
@@ -185,6 +198,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'radar',
     withGlobals({
+      ...FRAME_DIRECTIVES,
       'no-legend': { description: 'Hide the legend' },
       'no-value': { description: 'Hide value labels at each vertex' },
     }),
@@ -194,6 +208,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'scatter',
     withGlobals({
+      ...FRAME_DIRECTIVES,
       'no-legend': { description: 'Hide the legend' },
       'no-name': { description: 'Hide point labels' },
       'x-label': { description: 'X-axis label' },
@@ -204,6 +219,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'heatmap',
     withGlobals({
+      ...FRAME_DIRECTIVES,
       columns: { description: 'Column labels (required)' },
       'no-value': { description: 'Hide cell value text' },
     }),
@@ -214,6 +230,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     // named node's whole upstream+downstream flow closure and recedes the rest;
     // `dim` recedes exactly the named nodes. Mutually exclusive, last-one-wins.
     withGlobals({
+      ...FRAME_DIRECTIVES,
       highlight: {
         description:
           'Light the named flow and recede everything else (highlight Barrel Aging)',
@@ -227,6 +244,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'funnel',
     withGlobals({
+      ...FRAME_DIRECTIVES,
       'no-name': { description: 'Hide left-side stage names' },
       'no-value': { description: 'Hide in-band values' },
       'no-percent': { description: 'Hide right-side conversion percentages' },
@@ -235,6 +253,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'function',
     withGlobals({
+      ...FRAME_DIRECTIVES,
       'no-legend': { description: 'Hide the legend' },
       x: { description: 'X-axis range (start to end)' },
       'x-label': { description: 'X-axis label' },

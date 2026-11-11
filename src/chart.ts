@@ -21,11 +21,15 @@ export interface ChartEra {
 }
 
 import type { DgmoError } from './diagnostics';
+import type { ChartFrame } from './utils/chart-frame';
+import { parseChartFrameLine } from './utils/chart-frame';
 
 export interface ParsedChart {
   type: ChartType;
   title?: string;
   titleLineNumber?: number;
+  /** `subtitle`, `source`, `note`, `byline` (#1827). */
+  frame?: ChartFrame;
   series?: string;
   seriesLineNumber?: number;
   xlabel?: string;
@@ -421,6 +425,10 @@ export function parseChart(
       }
       continue;
     }
+
+    // Frame directives: subtitle, source, note, byline (#1827).
+    if (parseChartFrameLine(result, lines[i]!, lineNumber, result.diagnostics))
+      continue;
 
     // Known option with a value
     if (KNOWN_OPTIONS.has(firstToken) && spaceIdx >= 0) {

@@ -1,4 +1,5 @@
 import type { ConformanceFixture } from './_types';
+import { FRAME_DIRECTIVES } from './_frame';
 
 // Spec §16 / §15.1 (Simple Charts). Cartesian family — `no-value` only.
 export const fixture: ConformanceFixture = {
@@ -6,6 +7,7 @@ export const fixture: ConformanceFixture = {
   specSection: '16',
   firstLineKeyword: 'bar',
   directives: [
+    ...FRAME_DIRECTIVES,
     'no-legend',
     // Multi-series is declared by a `stack` or `group` layout header (#24);
     // `series` is rejected on bar.

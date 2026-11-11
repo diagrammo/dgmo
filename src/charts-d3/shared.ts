@@ -148,7 +148,9 @@ function renderInlineHeader(
   if (node) {
     node.insertAdjacentHTML(
       'beforeend',
-      `<g transform="translate(${geom.legendX},${geom.legendY})">${legendSvg}</g>`
+      // `data-chart-header`: this row stays put when a chart frame moves the
+      // plot down under a subtitle (#1827, `applyChartFrame`).
+      `<g data-chart-header="" transform="translate(${geom.legendX},${geom.legendY})">${legendSvg}</g>`
     );
   }
   // Single header row: plot begins just below the title band.

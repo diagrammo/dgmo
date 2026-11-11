@@ -59,6 +59,8 @@ interface ParsedHeatmapRow {
 }
 
 import type { DgmoError } from './diagnostics';
+import type { ChartFrame } from './utils/chart-frame';
+import { parseChartFrameLine } from './utils/chart-frame';
 
 // ============================================================
 // Discriminated union — Story 109.2a (arch-review). Each extended data-chart
@@ -71,6 +73,8 @@ import type { DgmoError } from './diagnostics';
 export interface ParsedExtendedBase {
   title?: string;
   titleLineNumber?: number;
+  /** `subtitle`, `source`, `note`, `byline` (#1827). */
+  frame?: ChartFrame;
   series?: string;
   seriesLineNumber?: number;
   seriesNames?: string[];
@@ -588,6 +592,12 @@ function parseExtendedChartFull(
       });
       continue;
     }
+
+    // Frame directives: subtitle, source, note, byline (#1827). After the
+    // flow rows, so `source -> Sink 5` stays a flow; before the sankey bare
+    // label, which would otherwise read `source Census` as a node.
+    if (parseChartFrameLine(result, lines[i]!, lineNumber, result.diagnostics))
+      continue;
 
     // Sankey: bare label (no numeric value) at any indent = source node for indented children
     if (result.type === 'sankey') {

@@ -450,6 +450,34 @@ Without the `\`, the time and the sentence join into one line: `9:00 AM Existing
 
 This applies to event-line descriptions, pyramid, ring and cycle descriptions, boxes-and-lines descriptions, and multi-line note bodies (sequence, flowchart, state, class, ER, journey-map, countdown).
 
+### 1.12 Chart Frame — Subtitle, Source, Notes, Byline
+
+A published chart stacks a title, a subtitle (deck), the chart, then notes, a source line and a byline. Four directives draw that frame, each followed by its text on the same line:
+
+```
+bar Revenue by region
+subtitle Fiscal 2025, in millions of dollars
+note Figures are unaudited.
+note EMEA includes the Gulf states.
+source Company annual report
+byline Chart: Jane Doe
+
+North 120
+South 95
+```
+
+| Directive         | Drawn                                                                          |
+| ----------------- | ------------------------------------------------------------------------------ |
+| `subtitle <text>` | Under the title, smaller than it and larger than body text; wraps to two lines |
+| `note <text>`     | A footer line under the chart; repeatable, in source order                     |
+| `source <text>`   | A footer line under the notes, drawn as `Source: <text>`                       |
+| `byline <text>`   | The last footer line, drawn exactly as written                                 |
+
+- The frame follows the title's alignment: centred under a centred title, flush left under a `legend-inline` title. A chart that sizes itself grows by the frame; at a size the caller sets, the plot shrinks to make room.
+- The keyword is lowercase and starts the line. `Source 12` (capitalised) and an indented `source 5` stay data rows, and `source -> Grid 5` stays a flow.
+- `subtitle`, `source` and `byline` given twice: the last one is used, with a warning.
+- **Chart types:** the data charts — `bar`, `line`, `pie`, `polar-area`, `radar`, `scatter`, `heatmap`, `sankey`, `funnel`, `function`. Other chart types do not accept the frame yet.
+
 ---
 
 ## 2. Universal Name Handling

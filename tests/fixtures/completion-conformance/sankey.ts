@@ -1,4 +1,5 @@
 import type { ConformanceFixture } from './_types';
+import { FRAME_DIRECTIVES } from './_frame';
 
 // Spec §16 / §15.5. Flow family — name suppression deferred to Phase 2c
 // (§15.1 table). The emphasis family (§1.11, decision #49) is sankey's only
@@ -9,6 +10,6 @@ export const fixture: ConformanceFixture = {
   chartType: 'sankey',
   specSection: '16',
   firstLineKeyword: 'sankey',
-  directives: ['highlight', 'dim'],
+  directives: [...FRAME_DIRECTIVES, 'highlight', 'dim'],
   pipeKeys: {},
 };

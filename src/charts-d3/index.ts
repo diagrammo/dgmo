@@ -32,6 +32,11 @@ import {
   type Svg,
   type InlineTitleInfo,
 } from './shared';
+import {
+  applyChartFrame,
+  reserveChartFrame,
+  type ChartFrameReserve,
+} from '../utils/chart-frame';
 import { renderBar } from './bar';
 import { renderLine } from './line';
 import { renderPie } from './pie';
@@ -175,6 +180,11 @@ export async function renderDataChartD3(
   return finalizeSvgExport(container, theme, effectivePalette);
 }
 
+/**
+ * Draw one data chart, then its frame (#1827): the plot is laid out into the
+ * canvas less the subtitle and footer bands, and `applyChartFrame` places the
+ * subtitle, notes, source and byline around it.
+ */
 function renderInto(
   s: Svg,
   content: string,
@@ -187,6 +197,43 @@ function renderInto(
   bgColor: string,
   colors: string[]
 ): boolean {
+  const frame: FrameSlot = {};
+  const ok = renderPlot(
+    s,
+    content,
+    palette,
+    isDark,
+    width,
+    height,
+    textColor,
+    mutedColor,
+    bgColor,
+    colors,
+    frame
+  );
+  if (ok && frame.reserve)
+    applyChartFrame(s, frame.reserve, width, height, palette);
+  return ok;
+}
+
+/** Where `renderPlot` leaves the frame it reserved, for `renderInto`. */
+interface FrameSlot {
+  reserve?: ChartFrameReserve | undefined;
+}
+
+function renderPlot(
+  s: Svg,
+  content: string,
+  palette: PaletteColors,
+  isDark: boolean,
+  width: number,
+  height: number,
+  textColor: string,
+  mutedColor: string,
+  bgColor: string,
+  colors: string[],
+  frame: FrameSlot
+): boolean {
   // Route by the declared first-token type. Extended types (incl. the `chord`
   // circular preset re-emitted by the arc `layout chord` override, #29) MUST go
   // to parseExtendedChart — `chord` is no longer a top-level keyword, so the
@@ -197,6 +244,8 @@ function renderInto(
   // Standard (parseChart) path.
   const std = forceExtended ? null : parseChart(content, palette);
   if (std && !std.error && std.data.length > 0 && STANDARD.has(std.type)) {
+    frame.reserve = reserveChartFrame(std.frame, width);
+    if (frame.reserve) height -= frame.reserve.top + frame.reserve.bottom;
     const hasTitle = !std.noTitle && !!std.title;
     // §1.9 `legend-inline` (decision #50): the legend path owns the title so it
     // can lay title + legend on one row. Only the top-center-legend types honour
@@ -307,6 +356,8 @@ function renderInto(
   // Extended (parseExtendedChart) path.
   const ext = parseExtendedChart(content, palette);
   if (ext.error || !EXTENDED.has(ext.type)) return false;
+  frame.reserve = reserveChartFrame(ext.frame, width);
+  if (frame.reserve) height -= frame.reserve.top + frame.reserve.bottom;
   const seriesColors = getSeriesColors(palette);
   const hasTitle = !ext.noTitle && !!ext.title;
   const inlineTitle = inlineTitleFor(ext, hasTitle, textColor);
