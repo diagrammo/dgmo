@@ -40,6 +40,7 @@ const SHELF_PAD = 8; // horizontal text inset inside a shelf
 const SHELF_H = 21; // single-line shelf height
 const LEADER_GAP = 22; // lanes-bottom → first shelf row
 const ROW_GAP = 7; // vertical gap between stacked shelf rows
+const SCAN_REACH = 40; // how far past the dot a shelf may hang in the fine scan
 
 interface Badge {
   kind: 'tag' | 'ref' | 'head' | 'note';
@@ -176,6 +177,7 @@ export function renderVersionControl(
   const K = nodes.length;
   const pos = new Map<number, { x: number; y: number }>();
   const placements: Placement[] = [];
+  let shiftX = 0;
   let contentW: number,
     contentH: number,
     gutter: number,
@@ -272,6 +274,9 @@ export function renderVersionControl(
     const hit = (a: Box, list: readonly Box[]): boolean =>
       list.some((o) => a.l < o.r && a.r > o.l && a.t < o.b && a.b > o.t);
     const shelves: Box[] = [];
+    const shelfRects: Box[] = [];
+    let minLeft = Infinity,
+      maxRight = 0;
     const sorted = [...nodes].sort(
       (a, b) => pos.get(a.key)!.x - pos.get(b.key)!.x
     );
@@ -280,14 +285,47 @@ export function renderVersionControl(
       const p = pos.get(n.key)!;
       const w = label.get(n.key)!.lw + SHELF_PAD * 2;
       const near = p.y + DOT + 8;
-      const lefts = [
+      const aboveNear = p.y - DOT - 8 - SHELF_H;
+      const preferred = [
         p.x - w / 2,
         p.x - 10,
         p.x - w + 10,
         p.x + DOT + 6,
         p.x - w - DOT - 6,
       ];
-      const tops = [near, near + SHELF_H + ROW_GAP];
+      // Leader endpoint on the shelf's near edge, clamped inside its corners.
+      const leadX = (left: number): number =>
+        Math.min(Math.max(p.x, left + 6), left + w - 6);
+      const leadOf = (
+        left: number,
+        top: number
+      ): { x1: number; y1: number; x2: number; y2: number } =>
+        top > p.y
+          ? { x1: p.x, y1: p.y + DOT, x2: leadX(left), y2: top }
+          : { x1: p.x, y1: p.y - DOT, x2: leadX(left), y2: top + SHELF_H };
+      // Candidates, best first: the original five beside the dot below the
+      // lane (then one row lower), the same five above the lane, then a fine
+      // scan of every nearby offset ranked by leader length. A shelf may run
+      // past the left edge; the whole graph shifts right to make room.
+      const cands: { left: number; top: number }[] = [];
+      for (const top of [near, near + SHELF_H + ROW_GAP])
+        for (const left of preferred) cands.push({ left, top });
+      if (aboveNear >= 4)
+        for (const left of preferred) cands.push({ left, top: aboveNear });
+      const scan: { left: number; top: number; cost: number }[] = [];
+      for (const top of [near, near + SHELF_H + ROW_GAP, aboveNear]) {
+        if (top < 4) continue;
+        for (
+          let left = p.x - w - SCAN_REACH;
+          left <= p.x + SCAN_REACH;
+          left += 2
+        ) {
+          const L = leadOf(left, top);
+          scan.push({ left, top, cost: Math.hypot(L.x2 - L.x1, L.y2 - L.y1) });
+        }
+      }
+      scan.sort((a, b) => a.cost - b.cost);
+      cands.push(...scan);
       // The node's own dot and the lines meeting it are not obstacles for its
       // own shelf's leader, only for the shelf body.
       const slot = (left: number, top: number): Box => ({
@@ -297,24 +335,16 @@ export function renderVersionControl(
         b: top + SHELF_H + 2,
       });
       let chosen: { left: number; top: number } | null = null;
-      search: for (const top of tops)
-        for (const l of lefts) {
-          const left = Math.max(4, l);
-          const lx = Math.min(Math.max(p.x, left + 6), left + w - 6);
-          const lead = {
-            l: Math.min(p.x, lx) - 1,
-            t: p.y + DOT,
-            r: Math.max(p.x, lx) + 1,
-            b: top,
-          };
-          if (hit(slot(left, top), blocked) || hit(slot(left, top), shelves))
-            continue;
-          if (hit(lead, shelves)) continue;
-          chosen = { left, top };
-          break search;
-        }
+      for (const c of cands) {
+        const box = slot(c.left, c.top);
+        if (hit(box, blocked) || hit(box, shelves)) continue;
+        const L = leadOf(c.left, c.top);
+        if (shelfRects.some((r) => segHitsBox(L, r))) continue;
+        chosen = c;
+        break;
+      }
       if (!chosen) {
-        const left = Math.max(4, p.x - w / 2);
+        const left = p.x - w / 2;
         for (let row = 0; !chosen; row++) {
           const top = bandTop + row * (SHELF_H + ROW_GAP);
           if (!hit(slot(left, top), shelves)) chosen = { left, top };
@@ -322,6 +352,9 @@ export function renderVersionControl(
       }
       const { left, top } = chosen;
       shelves.push(slot(left, top));
+      shelfRects.push({ l: left, t: top, r: left + w, b: top + SHELF_H });
+      minLeft = Math.min(minLeft, left);
+      maxRight = Math.max(maxRight, left + w);
       bottom = Math.max(bottom, top + SHELF_H);
       placements.push({
         node: n,
@@ -332,12 +365,7 @@ export function renderVersionControl(
         shelfLeft: left,
         shelfTop: top,
         shelfW: w,
-        leader: {
-          x1: p.x,
-          y1: p.y + DOT,
-          x2: Math.min(Math.max(p.x, left + 6), left + w - 6),
-          y2: top,
-        },
+        leader: leadOf(left, top),
       });
       const stack = above.get(n.key) ?? [];
       stack.forEach((it, j) =>
@@ -370,8 +398,12 @@ export function renderVersionControl(
         along0 + (K - 1) * step + DOT + 40,
         ...[...pos.entries()].map(
           ([k, p]) => p.x + label.get(k)!.lw / 2 + SHELF_PAD + 8
-        )
+        ),
+        maxRight + 8
       ) + 8;
+    // A shelf hanging past the left edge shifts the whole graph right.
+    shiftX = Number.isFinite(minLeft) ? Math.max(0, 4 - minLeft) : 0;
+    contentW += shiftX;
     contentH = bottom + 8;
     if (parsed.notes.length) {
       captionY = contentH + 4;
@@ -467,7 +499,9 @@ export function renderVersionControl(
     }
   }
 
-  const g = svg.append('g').attr('transform', `translate(0, ${titleH})`);
+  const g = svg
+    .append('g')
+    .attr('transform', `translate(${shiftX}, ${titleH})`);
   drawGraph(
     g,
     parsed,
@@ -482,6 +516,20 @@ export function renderVersionControl(
     captionY,
     onClickItem && !exportMode ? onClickItem : undefined
   );
+}
+
+/** Does segment (x1,y1)→(x2,y2) pass through box b? Sampled; leaders are short. */
+function segHitsBox(
+  L: { x1: number; y1: number; x2: number; y2: number },
+  b: Box
+): boolean {
+  const steps = Math.max(2, Math.ceil(Math.hypot(L.x2 - L.x1, L.y2 - L.y1)));
+  for (let i = 0; i <= steps; i++) {
+    const x = L.x1 + ((L.x2 - L.x1) * i) / steps;
+    const y = L.y1 + ((L.y2 - L.y1) * i) / steps;
+    if (x > b.l && x < b.r && y > b.t && y < b.b) return true;
+  }
+  return false;
 }
 
 function abText(ab: { ahead: number; behind: number }): string {
@@ -851,9 +899,12 @@ function drawGraph(
           .attr('fill', gh ? palette.bg : mix(c, palette.bg, SHELF_TINT))
           .attr('data-branch', n.branch)
           .attr('opacity', gh ? 0.5 : 1);
+        // The lip faces the dot: on top for a shelf below the lane, on the
+        // bottom for one above it.
+        const above = pl.leader != null && pl.leader.y2 < pl.leader.y1;
         g.append('rect')
           .attr('x', left)
-          .attr('y', top)
+          .attr('y', above ? top + SHELF_H - SHELF_LIP : top)
           .attr('width', w)
           .attr('height', SHELF_LIP)
           .attr('clip-path', `url(#${clipId})`)
