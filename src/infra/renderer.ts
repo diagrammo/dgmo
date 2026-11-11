@@ -12,6 +12,7 @@ import {
   contrastText,
   mix,
   shapeFill,
+  themeBaseBg,
   groupFill,
   groupStroke,
 } from '../palettes/color-utils';
@@ -1167,6 +1168,21 @@ function worstNodeSeverity(
   return worst;
 }
 
+/** Pill style for a severity row: tint of the intent color over the theme
+ *  surface (stronger than the 25% node tint so it reads against it) plus the
+ *  on-fill ink that scores the best APCA contrast on that tint. */
+export function severityPillStyle(
+  palette: PaletteColors,
+  isDark: boolean,
+  intent: string
+): { fill: string; text: string } {
+  const fill = mix(intent, themeBaseBg(palette, isDark), 40);
+  return {
+    fill,
+    text: contrastText(fill, palette.textOnFillLight, palette.textOnFillDark),
+  };
+}
+
 function nodeColor(
   _node: InfraLayoutNode,
   palette: PaletteColors,
@@ -1962,6 +1978,10 @@ function renderNodes(
             rowY += sc.sNodeSeparatorGap;
           }
           if (row.inverted && row.invertedBg) {
+            // Severity pill: tinted fill + intent-color outline, ink picked
+            // for contrast on the tint (full-saturation red/amber/green
+            // fills failed the contrast floor with either ink).
+            const pill = severityPillStyle(palette, isDark, row.invertedBg);
             const pillH = sc.sMetaLineHeight - 1;
             const pillPad = 4;
             const pillX = x + pillPad;
@@ -1973,15 +1993,10 @@ function renderNodes(
               .attr('width', pillW)
               .attr('height', pillH)
               .attr('rx', 3)
-              .attr('fill', row.invertedBg)
-              .attr('opacity', 0.9);
-            // Inverted text: whichever of the palette's on-fill inks reads
-            // best on THIS pill, rather than a fixed white/dark by theme.
-            const pillTextColor = contrastText(
-              row.invertedBg,
-              palette.textOnFillLight,
-              palette.textOnFillDark
-            );
+              .attr('fill', pill.fill)
+              .attr('stroke', row.invertedBg)
+              .attr('stroke-width', 1);
+            const pillTextColor = pill.text;
             // Key — same x as normal rows
             g.append('text')
               .attr('x', x + 10)

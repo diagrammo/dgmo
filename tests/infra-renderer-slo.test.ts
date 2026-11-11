@@ -114,10 +114,10 @@ function findP90SloColor(container: HTMLElement): string | null {
     if (textEl.textContent !== 'p90: ') continue;
     const parent = textEl.parentElement;
     if (!parent) continue;
-    // Case 1: inverted pill — a rect sibling with an SLO fill color
+    // Case 1: inverted pill — a rect sibling whose outline is the SLO color (fill is a tint)
     for (const sibling of Array.from(parent.children)) {
       if (sibling.tagName.toLowerCase() !== 'rect') continue;
-      const fill = sibling.getAttribute('fill');
+      const fill = sibling.getAttribute('stroke');
       if (fill && SLO_COLORS.has(fill)) return fill;
     }
     // Case 2: non-inverted colored value — the next text sibling carries the SLO fill
