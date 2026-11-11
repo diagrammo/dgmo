@@ -198,7 +198,7 @@ export function renderLegendSvgInMode(
     mode,
   };
   const state: LegendState = { activeGroup: activeGroup ?? null };
-  // A data chart's one group is the synthetic "Series": its key is captionless.
+  // A data chart's one group is the synthetic "Series": its key has no caption.
   const layout = computeLegendLayoutWith(config, state, wrapWidth, false);
 
   if (!layout.activeCapsule && layout.pills.length === 0) {
