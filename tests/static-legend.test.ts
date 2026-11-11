@@ -9,6 +9,7 @@ import { JSDOM } from 'jsdom';
 import { render } from '../src/render';
 import { loadMapData } from '../src/map/load-data';
 import { renderDataChartD3 } from '../src/charts-d3';
+import { parseTransform } from './stress/lint';
 
 const FIXTURES = join(__dirname, '..', 'gallery', 'fixtures');
 
@@ -145,5 +146,112 @@ describe("the app's live preview keeps its capsule", () => {
         .filter((p) => p.startsWith('pill'));
     expect(pills(preview).length).toBeGreaterThan(0);
     expect(pills(stat)).toEqual([]);
+  });
+});
+
+// ── A key taller than the preview's row cap still fits its band ─────────
+
+type M = ReturnType<typeof parseTransform>;
+const mul = (p: M, q: M): M => [
+  p[0] * q[0] + p[2] * q[1],
+  p[1] * q[0] + p[3] * q[1],
+  p[0] * q[2] + p[2] * q[3],
+  p[1] * q[2] + p[3] * q[3],
+  p[0] * q[4] + p[2] * q[5] + p[4],
+  p[1] * q[4] + p[3] * q[5] + p[5],
+];
+/** The element's transform to the root, composed from every ancestor. */
+function toRoot(el: Element): M {
+  let m: M = [1, 0, 0, 1, 0, 0];
+  const chain: Element[] = [];
+  for (let e: Element | null = el; e; e = e.parentElement) chain.unshift(e);
+  for (const e of chain)
+    m = mul(m, parseTransform(e.getAttribute('transform')));
+  return m;
+}
+const absY = (el: Element, y: number): number => {
+  const m = toRoot(el);
+  return m[1] * 0 + m[3] * y + m[5];
+};
+
+/** Bottom of the legend key and top of everything else that draws text. */
+function keyAndContent(svg: string): { keyBottom: number; contentTop: number } {
+  const doc = new JSDOM(svg, { contentType: 'image/svg+xml' }).window.document;
+  let keyBottom = -Infinity;
+  for (const hit of doc.querySelectorAll('[data-legend-entry] rect')) {
+    const y = Number(hit.getAttribute('y') ?? 0);
+    const h = Number(hit.getAttribute('height') ?? 0);
+    keyBottom = Math.max(keyBottom, absY(hit, y + h));
+  }
+  let contentTop = Infinity;
+  for (const t of doc.querySelectorAll('text')) {
+    if (t.closest('[data-legend-group], .dgmo-legend, [class*="title"]'))
+      continue;
+    if (!(t.textContent ?? '').trim()) continue;
+    contentTop = Math.min(
+      contentTop,
+      absY(t, Number(t.getAttribute('y') ?? 0))
+    );
+  }
+  return { keyBottom, contentTop };
+}
+
+const COLORS = ['blue', 'green', 'orange', 'red', 'purple', 'yellow'];
+const TALL = Array.from(
+  { length: 14 },
+  (_, i) => `Responsibility Area Number ${i + 1}`
+);
+const tagBlock = (name: string, alias: string): string =>
+  [
+    `tag ${name} as ${alias}`,
+    ...TALL.map((v, i) => `  ${v} ${COLORS[i % 6]}`),
+  ].join('\n');
+
+describe('a static key taller than three rows stays above the chart (#1826)', () => {
+  const cases: Array<[string, string]> = [
+    [
+      'block',
+      [
+        'block Tall key',
+        '',
+        tagBlock('Area', 'a'),
+        '',
+        ...TALL.map((v, i) => `[Unit ${i + 1}] a: ${v}`),
+      ].join('\n'),
+    ],
+    [
+      'treemap',
+      [
+        'treemap Tall key',
+        '',
+        tagBlock('Area', 'a'),
+        '',
+        ...TALL.flatMap((v, i) => [
+          `Group ${i + 1} a: ${v}`,
+          `  Leaf ${i + 1} ${10 + i}`,
+        ]),
+      ].join('\n'),
+    ],
+    [
+      'bracket',
+      [
+        'bracket Tall key',
+        '',
+        tagBlock('Area', 'a'),
+        '',
+        ...TALL.map((v, i) => `Team ${i + 1} a: ${v}`),
+        ...TALL.filter((_, i) => i % 2 === 0).map(
+          (_, k) => `Team ${2 * k + 1} beats Team ${2 * k + 2} 2-1`
+        ),
+      ].join('\n'),
+    ],
+  ];
+
+  it.each(cases)('%s', async (_type, src) => {
+    const { svg } = await render(src, { theme: 'light', width: 420 });
+    const { keyBottom, contentTop } = keyAndContent(svg ?? '');
+    // More than the preview's three rows, so the case tests the static key.
+    expect(keyBottom).toBeGreaterThan(3 * 28 + 28);
+    expect(contentTop).toBeGreaterThanOrEqual(keyBottom);
   });
 });

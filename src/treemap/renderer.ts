@@ -123,7 +123,12 @@ export function renderTreemap(
   // mindmap/org/map (top-center, below-title). The treemap fills the rest.
   const legendReserve = legend
     ? getMaxLegendReservedHeight(
-        { groups: legend.groups, position: LEGEND_POSITION, mode: 'preview' },
+        {
+          groups: legend.groups,
+          position: LEGEND_POSITION,
+          // The draw's own mode: a static key wraps past the row cap (#1826).
+          mode: exportMode ? 'export' : 'preview',
+        },
         width
       ) + LEGEND_GROUP_GAP
     : 0;

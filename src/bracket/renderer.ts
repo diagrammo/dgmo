@@ -225,7 +225,12 @@ export function renderBracket(
   const legendReserve =
     legendGroups.length > 0
       ? getMaxLegendReservedHeight(
-          { groups: legendGroups, position: LEGEND_POSITION, mode: 'preview' },
+          {
+            groups: legendGroups,
+            position: LEGEND_POSITION,
+            // The draw's own mode: a static key wraps past the row cap (#1826).
+            mode: exportMode ? 'export' : 'preview',
+          },
           width
         ) + LEGEND_GROUP_GAP
       : 0;

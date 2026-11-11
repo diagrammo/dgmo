@@ -496,7 +496,8 @@ function drawGantt(
             entries: tg.entries,
           })),
           position: { placement: 'top-center', titleRelation: 'below-title' },
-          mode: 'preview',
+          // The draw's own mode: a static key wraps past the row cap (#1826).
+          mode: options?.exportMode ? 'export' : 'preview',
           capsulePillAddonWidth: LEGEND_ICON_W,
         },
         containerWidth
