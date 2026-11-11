@@ -452,6 +452,77 @@ function placeConnectorLabels(
   return placed;
 }
 
+/** Radius of the semicircle a connector makes to hop over an earlier one, px. */
+export const WHITEBOARD_HOP_RADIUS = 5;
+
+/**
+ * Where a straight stroke crosses the straight connectors drawn before it —
+ * distances along the stroke, ascending, each at least a hop clear of both
+ * ends and of the previous hop. Curved connectors and parallel ones never hop.
+ */
+export function whiteboardHopStops(
+  line: {
+    readonly x1: number;
+    readonly y1: number;
+    readonly x2: number;
+    readonly y2: number;
+  },
+  earlier: readonly WhiteboardSegment[]
+): number[] {
+  const dx = line.x2 - line.x1;
+  const dy = line.y2 - line.y1;
+  const len = Math.hypot(dx, dy);
+  const r = WHITEBOARD_HOP_RADIUS;
+  if (len <= 2 * r) return [];
+  const found: number[] = [];
+  for (const o of earlier) {
+    if (o.cx !== undefined && o.cy !== undefined) continue;
+    const ex = o.x2 - o.x1;
+    const ey = o.y2 - o.y1;
+    const den = dx * ey - dy * ex;
+    if (Math.abs(den) < 1e-9) continue;
+    const t = ((o.x1 - line.x1) * ey - (o.y1 - line.y1) * ex) / den;
+    const u = ((o.x1 - line.x1) * dy - (o.y1 - line.y1) * dx) / den;
+    if (u < 0 || u > 1) continue;
+    const d = t * len;
+    if (d >= r && d <= len - r) found.push(d);
+  }
+  found.sort((a, b) => a - b);
+  const stops: number[] = [];
+  for (const d of found) {
+    if (stops.length === 0 || d - stops[stops.length - 1]! >= 2 * r) {
+      stops.push(d);
+    }
+  }
+  return stops;
+}
+
+/** A straight stroke as an `M … A …` path hopping its crossings, or null. */
+function hoppedLinePath(
+  line: {
+    readonly x1: number;
+    readonly y1: number;
+    readonly x2: number;
+    readonly y2: number;
+  },
+  earlier: readonly WhiteboardSegment[]
+): string | null {
+  if (earlier.length === 0) return null;
+  const stops = whiteboardHopStops(line, earlier);
+  if (stops.length === 0) return null;
+  const len = Math.hypot(line.x2 - line.x1, line.y2 - line.y1);
+  const ux = (line.x2 - line.x1) / len;
+  const uy = (line.y2 - line.y1) / len;
+  const r = WHITEBOARD_HOP_RADIUS;
+  const at = (d: number): string =>
+    `${round2(line.x1 + ux * d)} ${round2(line.y1 + uy * d)}`;
+  let d = `M${round2(line.x1)} ${round2(line.y1)}`;
+  for (const stop of stops) {
+    d += `L${at(stop - r)}A${r} ${r} 0 0 1 ${at(stop + r)}`;
+  }
+  return `${d}L${round2(line.x2)} ${round2(line.y2)}`;
+}
+
 /** What to draw for a connector: one stroke (a line or a curve) and its heads. */
 export interface WhiteboardConnectorPaint {
   /** A straight stroke, coordinates rounded to 0.01 px. */
@@ -474,7 +545,8 @@ export interface WhiteboardConnectorPaint {
  */
 export function whiteboardConnectorPaint(
   s: WhiteboardSegment,
-  heads: { readonly start: boolean; readonly end: boolean }
+  heads: { readonly start: boolean; readonly end: boolean },
+  earlier: readonly WhiteboardSegment[] = []
 ): WhiteboardConnectorPaint {
   const polygon = (
     tip: WhiteboardPoint,
@@ -501,15 +573,16 @@ export function whiteboardConnectorPaint(
     const out: string[] = [];
     if (heads.end) out.push(polygon({ x: s.x2, y: s.y2 }, ux, uy, head));
     if (heads.start) out.push(polygon({ x: s.x1, y: s.y1 }, -ux, -uy, headS));
-    return {
-      line: {
-        x1: round2(s.x1 + ux * headS),
-        y1: round2(s.y1 + uy * headS),
-        x2: round2(s.x2 - ux * head),
-        y2: round2(s.y2 - uy * head),
-      },
-      heads: out,
+    const line = {
+      x1: round2(s.x1 + ux * headS),
+      y1: round2(s.y1 + uy * headS),
+      x2: round2(s.x2 - ux * head),
+      y2: round2(s.y2 - uy * head),
     };
+    const hopped = hoppedLinePath(line, earlier);
+    return hopped === null
+      ? { line, heads: out }
+      : { path: hopped, heads: out };
   }
   const tEnd = heads.end ? curveTrim(s, 1, ARROW_HEAD_LEN) : 1;
   const tStart = heads.start ? curveTrim(s, 0, ARROW_HEAD_LEN) : 0;
@@ -729,6 +802,8 @@ export function renderWhiteboard(
       .text(IMAGE_NOT_UPLOADED);
   };
 
+  /** Connectors drawn so far, as drawn — a later one hops over these. */
+  const drawnConnectors: WhiteboardSegment[] = [];
   const drawElement = (el: WhiteboardElement): void => {
     const g = canvas
       .append('g')
@@ -847,10 +922,15 @@ export function renderWhiteboard(
         const color = colorOf(el.color);
         // An end inside a shape is attached and drawn to its border.
         const s = clipWhiteboardConnector(el, elements);
-        const paint = whiteboardConnectorPaint(s, {
-          start: el.kind === 'arrow' && el.heads === 'both',
-          end: el.kind === 'arrow',
-        });
+        const paint = whiteboardConnectorPaint(
+          s,
+          {
+            start: el.kind === 'arrow' && el.heads === 'both',
+            end: el.kind === 'arrow',
+          },
+          drawnConnectors
+        );
+        drawnConnectors.push(s);
         let stroke: d3.Selection<SVGElement, unknown, null, undefined> | null =
           null;
         if (paint.line) {

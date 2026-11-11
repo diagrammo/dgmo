@@ -9,6 +9,8 @@ import {
   IMAGE_NOT_UPLOADED,
   renderWhiteboard,
   whiteboardBounds,
+  whiteboardConnectorPaint,
+  whiteboardHopStops,
 } from '../src/whiteboard/renderer';
 import { wrapWhiteboardLabel } from '../src/whiteboard/label';
 import type { WhiteboardShape } from '../src/whiteboard/types';
@@ -428,5 +430,64 @@ describe('whiteboard renderer', () => {
         expect(svg, `${id}/${theme}`).not.toMatch(/NaN|undefined/);
       }
     }
+  });
+});
+
+describe('whiteboard connector hops (diagrammo/diagrammo#1892)', () => {
+  const heads = { start: false, end: false };
+  const across = { x1: 50, y1: -50, x2: 50, y2: 50 };
+
+  it('hops a crossing with a semicircle arc', () => {
+    const p = whiteboardConnectorPaint(
+      { x1: 0, y1: 0, x2: 100, y2: 0 },
+      heads,
+      [across]
+    );
+    expect(p.line).toBeUndefined();
+    expect(p.path).toBe('M0 0L45 0A5 5 0 0 1 55 0L100 0');
+  });
+
+  it('leaves a non-crossing connector as a plain line', () => {
+    const p = whiteboardConnectorPaint(
+      { x1: 0, y1: 0, x2: 100, y2: 0 },
+      heads,
+      [{ x1: 50, y1: 10, x2: 50, y2: 90 }]
+    );
+    expect(p.path).toBeUndefined();
+    expect(p.line).toEqual({ x1: 0, y1: 0, x2: 100, y2: 0 });
+    expect(
+      whiteboardConnectorPaint({ x1: 0, y1: 0, x2: 100, y2: 0 }, heads)
+    ).toEqual(p);
+  });
+
+  it('ignores parallel and curved connectors, and crossings at the ends', () => {
+    const line = { x1: 0, y1: 0, x2: 100, y2: 0 };
+    expect(
+      whiteboardHopStops(line, [
+        { x1: 0, y1: 5, x2: 100, y2: 5 },
+        { x1: 50, y1: -50, x2: 50, y2: 50, cx: 80, cy: 0 },
+        { x1: 2, y1: -50, x2: 2, y2: 50 },
+      ])
+    ).toEqual([]);
+  });
+
+  it('merges hops closer than a hop diameter', () => {
+    const stops = whiteboardHopStops({ x1: 0, y1: 0, x2: 100, y2: 0 }, [
+      { x1: 40, y1: -9, x2: 40, y2: 9 },
+      { x1: 45, y1: -9, x2: 45, y2: 9 },
+      { x1: 80, y1: -9, x2: 80, y2: 9 },
+    ]);
+    expect(stops).toEqual([40, 80]);
+  });
+
+  it('draws the later connector hopping and the earlier one straight', () => {
+    const svg = draw(
+      'whiteboard\n\nline from: 0 50, to: 100 50\nline from: 50 0, to: 50 100\n'
+    );
+    const g = [...svg.querySelectorAll('.whiteboard-line')];
+    expect(g).toHaveLength(2);
+    expect(g[0]!.querySelector('line')).not.toBeNull();
+    expect(g[0]!.querySelector('path')).toBeNull();
+    expect(g[1]!.querySelector('path')!.getAttribute('d')).toContain('A5 5');
   });
 });
