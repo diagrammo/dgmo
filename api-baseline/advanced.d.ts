@@ -4904,6 +4904,8 @@ interface CycleLayoutResult {
  * cycle Title
  *
  * direction-counterclockwise
+ * center PDCA
+ * autonumber
  *
  * NodeLabel color: blue, span: 3
  *   Description line (indented under node)

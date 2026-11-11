@@ -717,7 +717,11 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   // ── Sequence ─────────────────────────────────────────────
   { token: 'activations', category: 'directive', chartTypes: ['sequence'] },
   { token: 'no-activations', category: 'directive', chartTypes: ['sequence'] },
-  { token: 'autonumber', category: 'directive', chartTypes: ['sequence'] },
+  {
+    token: 'autonumber',
+    category: 'directive',
+    chartTypes: ['sequence', 'cycle'],
+  },
   // ── Map element leaders (not in DIRECTIVE_SET) ───────────
   { token: 'poi', category: 'directive', chartTypes: ['map'] },
   { token: 'route', category: 'directive', chartTypes: ['map'] },
@@ -894,6 +898,7 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
     chartTypes: ['cycle'],
   },
   { token: 'circle-nodes', category: 'directive', chartTypes: ['cycle'] },
+  { token: 'center', category: 'directive', chartTypes: ['cycle'] },
   // ── Journey-map ──────────────────────────────────────────
   { token: 'persona', category: 'directive', chartTypes: ['journey-map'] },
   // ── Function ─────────────────────────────────────────────

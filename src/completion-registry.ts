@@ -608,6 +608,8 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'circle-nodes': {
         description: 'Render nodes as circles instead of rectangles',
       },
+      center: { description: 'Text in the middle of the ring (center PDCA)' },
+      autonumber: { description: 'Number the steps in source order' },
     }),
   ],
   [
@@ -1059,7 +1061,10 @@ export const STRUCTURAL_KEYWORDS = new Map<string, string[]>([
     ['merge', 'cherry-pick', 'rebase', 'reset', 'revert', 'ref', 'note'],
   ],
   ['er', ['tag']],
-  ['cycle', ['direction-counterclockwise', 'circle-nodes']],
+  [
+    'cycle',
+    ['direction-counterclockwise', 'circle-nodes', 'center', 'autonumber'],
+  ],
   ['journey-map', ['persona', 'tag']],
   ['raci', ['roles']],
   ['tech-radar', ['rings']],

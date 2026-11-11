@@ -39,6 +39,8 @@ const DESC_FONT_SIZE = 11;
 const EDGE_LABEL_FONT_SIZE = 13;
 const DESC_LINE_HEIGHT = 15;
 const TITLE_AREA_HEIGHT = 50;
+const CENTER_FONT_SIZE = 36;
+const CENTER_FONT_MIN = 12;
 
 export interface CycleRenderOptions {
   onClickItem?: (lineNumber: number) => void;
@@ -479,6 +481,78 @@ export function renderCycle(
         renderInlineText(labelText, node.label, palette, scaledNodeFont);
       }
     }
+  }
+
+  // ── Step numbers (autonumber): a badge on each node's outer edge ──
+  if (parsed.options['autonumber'] === 'on') {
+    const badgeR = Math.max(7, 10 * layout.scale);
+    const badgeFont = Math.max(7, Math.round(11 * layout.scale));
+    const badgeLayer = g.append('g').attr('class', 'cycle-step-numbers');
+    for (let i = 0; i < layout.nodes.length; i++) {
+      const ln = layout.nodes[i]!;
+      const node = parsed.nodes[i]!;
+      const solidColor = resolveNodeColor(
+        node.color,
+        palette,
+        defaultNodeColor
+      );
+      // The badge sits on the node's outline, on the side facing away from
+      // the ring's centre. The ring's arrows leave and enter along the
+      // tangent, so that side is the one place they never cross.
+      const ux = Math.cos(ln.angle);
+      const uy = Math.sin(ln.angle);
+      const reach = ln.isCircle
+        ? ln.width / 2
+        : Math.min(
+            ux === 0 ? Infinity : ln.width / 2 / Math.abs(ux),
+            uy === 0 ? Infinity : ln.height / 2 / Math.abs(uy)
+          );
+      const bx = ln.x + ux * (reach + badgeR * 0.4);
+      const by = ln.y + uy * (reach + badgeR * 0.4);
+      badgeLayer
+        .append('circle')
+        .attr('cx', bx)
+        .attr('cy', by)
+        .attr('r', badgeR)
+        .attr('fill', solidColor)
+        .attr('stroke', palette.bg)
+        .attr('stroke-width', 2);
+      badgeLayer
+        .append('text')
+        .attr('x', bx)
+        .attr('y', by + badgeFont / 3)
+        .attr('text-anchor', 'middle')
+        .attr('fill', contrastText(solidColor, '#ffffff', '#000000'))
+        .attr('font-family', FONT_FAMILY)
+        .attr('font-size', badgeFont)
+        .attr('font-weight', 'bold')
+        .text(String(i + 1));
+    }
+  }
+
+  // ── Centre text: one line in the middle of the ring ──
+  const centerText = parsed.options['center'];
+  if (centerText) {
+    // Free width: the ring's inner clearance, never wider than the ring itself.
+    const maxNodeHalf = Math.max(
+      ...layout.nodes.map((n) => Math.max(n.width, n.height) / 2)
+    );
+    const availW = Math.max(60, 2 * (layout.radius - maxNodeHalf) * 0.9);
+    const natural = measureText(centerText, CENTER_FONT_SIZE, { bold: true });
+    const font = Math.max(
+      CENTER_FONT_MIN,
+      Math.min(CENTER_FONT_SIZE, (CENTER_FONT_SIZE * availW) / natural)
+    );
+    g.append('text')
+      .attr('class', 'cycle-center')
+      .attr('x', layout.cx)
+      .attr('y', layout.cy + font / 3)
+      .attr('text-anchor', 'middle')
+      .attr('fill', palette.text)
+      .attr('font-family', FONT_FAMILY)
+      .attr('font-size', font)
+      .attr('font-weight', 'bold')
+      .text(centerText);
   }
 
   // ── Render edge labels (in a new group appended after nodes so they sit

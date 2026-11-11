@@ -7,6 +7,8 @@ export const fixture: HighlightFixture = {
   source: `cycle OODA Loop
 direction-counterclockwise
 circle-nodes
+center OODA
+autonumber
 
 Observe | color: blue, span: 2
   Gather signals
@@ -21,6 +23,8 @@ Review the roles list
     { text: 'cycle', role: 'chartType' },
     { text: 'direction-counterclockwise', role: 'keyword' },
     { text: 'circle-nodes', role: 'keyword' },
+    { text: 'center', role: 'keyword' },
+    { text: 'autonumber', role: 'keyword' },
     { text: 'color', role: 'keyword' },
     { text: 'span', role: 'propertyName' },
   ],

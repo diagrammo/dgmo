@@ -20,6 +20,8 @@ import type { ParsedCycle, CycleNode, CycleEdge } from './types';
 const BARE_EDGE_RE = /^->\s*(.*)?$/;
 // Labeled: `-Label-> [Target] [meta]`
 const LABELED_EDGE_RE = /^-(.+?)->\s*(.*)?$/;
+// `center PDCA` / `center "PDCA"` (lowercase keyword, text required)
+const CENTER_RE = /^center\s+(.+)$/;
 
 /**
  * Parse a `.dgmo` cycle diagram document.
@@ -29,6 +31,8 @@ const LABELED_EDGE_RE = /^-(.+?)->\s*(.*)?$/;
  * cycle Title
  *
  * direction-counterclockwise
+ * center PDCA
+ * autonumber
  *
  * NodeLabel color: blue, span: 3
  *   Description line (indented under node)
@@ -134,6 +138,26 @@ export function parseCycle(content: string): ParsedCycle {
     // ── Bare keyword: circle-nodes ──
     if (indent === 0 && trimmed.toLowerCase() === 'circle-nodes') {
       options['circle-nodes'] = 'true';
+      continue;
+    }
+
+    // ── Bare keyword: autonumber (step numbers on the nodes) ──
+    if (indent === 0 && trimmed.toLowerCase() === 'autonumber') {
+      options['autonumber'] = 'on';
+      continue;
+    }
+
+    // ── `center TEXT` — text in the middle of the ring ──
+    // Lowercase only, so a step called "Center ..." stays a step. Quotes
+    // around the text are optional.
+    const centerMatch = indent === 0 ? trimmed.match(CENTER_RE) : null;
+    if (centerMatch) {
+      const text = centerMatch[1]!
+        .trim()
+        .replace(/^"(.*)"$/, '$1')
+        .trim();
+      if (text) options['center'] = text;
+      else warn(lineNum, 'center needs text — write: center PDCA');
       continue;
     }
 

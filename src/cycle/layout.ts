@@ -615,7 +615,15 @@ function circleNodeExitAngle(
   return nodeAngle + direction * halfAngle;
 }
 
-/** Is the point (px, py) inside the rect centered at (rx, ry) with half-dims (hw, hh)? */
+/** Corner radius of a rectangular node (renderer draws rx = ry = 6). */
+const NODE_CORNER_RADIUS = 6;
+
+/**
+ * Is the point (px, py) inside the rounded rect centered at (rx, ry) with
+ * half-dims (hw, hh)? Rounded, because the arrow must meet the outline the
+ * renderer draws — a square-corner test leaves a gap where the ring crosses
+ * near a corner.
+ */
 function insideRect(
   px: number,
   py: number,
@@ -624,7 +632,16 @@ function insideRect(
   hw: number,
   hh: number
 ): boolean {
-  return Math.abs(px - rx) < hw && Math.abs(py - ry) < hh;
+  const dx = Math.abs(px - rx);
+  const dy = Math.abs(py - ry);
+  if (dx >= hw || dy >= hh) return false;
+  const r = Math.min(NODE_CORNER_RADIUS, hw, hh);
+  const cornerDx = dx - (hw - r);
+  const cornerDy = dy - (hh - r);
+  if (cornerDx > 0 && cornerDy > 0) {
+    return cornerDx * cornerDx + cornerDy * cornerDy < r * r;
+  }
+  return true;
 }
 
 /**
