@@ -904,6 +904,60 @@ function segmentEntersRect(
 }
 
 /**
+ * How far a layout's cross-axis order strays from source order (#1887): the
+ * number of pairs drawn in the reverse of their declaration order. Two kinds of
+ * pair count. Sibling groups (same parent, or both top level) whose rank-axis
+ * extents overlap, so one stacks beside the other. And nodes in the same rank
+ * (same rank-axis centre) with the same direct group, or both ungrouped. The
+ * search uses it only to break a badness tie — it never trades a crossing for
+ * source order.
+ */
+export function countOrderInversions(
+  layout: BLLayoutResult,
+  parsed: Pick<ParsedBoxesAndLines, 'nodes' | 'groups' | 'direction'>
+): number {
+  const isTB = parsed.direction === 'TB';
+  const rankC = (p: { x: number; y: number }) => (isTB ? p.y : p.x);
+  const crossC = (p: { x: number; y: number }) => (isTB ? p.x : p.y);
+  let inv = 0;
+
+  const groupIdx = new Map(parsed.groups.map((g, i) => [g.label, i]));
+  const parentOf = new Map(
+    parsed.groups.map((g) => [g.label, g.parentGroup ?? ''])
+  );
+  const gs = layout.groups
+    .filter((g) => groupIdx.has(g.label))
+    .sort((a, b) => groupIdx.get(a.label)! - groupIdx.get(b.label)!);
+  for (let i = 0; i < gs.length; i++)
+    for (let j = i + 1; j < gs.length; j++) {
+      const a = gs[i]!,
+        b = gs[j]!;
+      if (parentOf.get(a.label) !== parentOf.get(b.label)) continue;
+      const ha = (isTB ? a.height : a.width) / 2;
+      const hb = (isTB ? b.height : b.width) / 2;
+      if (Math.abs(rankC(a) - rankC(b)) >= ha + hb) continue;
+      if (crossC(b) < crossC(a)) inv++;
+    }
+
+  const nodeIdx = new Map(parsed.nodes.map((n, i) => [n.label, i]));
+  const directGroup = new Map<string, string>();
+  for (const g of parsed.groups)
+    for (const c of g.children) directGroup.set(c, g.label);
+  const ns = layout.nodes
+    .filter((n) => nodeIdx.has(n.label))
+    .sort((a, b) => nodeIdx.get(a.label)! - nodeIdx.get(b.label)!);
+  for (let i = 0; i < ns.length; i++)
+    for (let j = i + 1; j < ns.length; j++) {
+      const a = ns[i]!,
+        b = ns[j]!;
+      if (Math.abs(rankC(a) - rankC(b)) > 0.5) continue;
+      if (directGroup.get(a.label) !== directGroup.get(b.label)) continue;
+      if (crossC(b) < crossC(a)) inv++;
+    }
+  return inv;
+}
+
+/**
  * Count of (edge, group) pairs where the edge's drawn path passes through an
  * expanded group box that holds neither of its endpoints — reaching more than
  * `minDepth` px inside it. An edge leaving its own group, or any enclosing
@@ -2058,13 +2112,19 @@ export async function layoutBoxesAndLinesSearch(
   // routes against-tier edges around the periphery. Additive — kept only on a
   // strict badness win. Skipped when any group is collapsed (the generator
   // models fully-expanded groups only).
+  // Tier candidates may also win a perfect-badness tie on source order (#1887);
+  // the flat layered ones may not — they ignore `reserveEdgeLabels`, so a tie
+  // won by one would undo the label-reserving relayout.
+  const tierCands = new Set<BLLayoutResult>();
   if (parsed.groups.length > 0 && collapsedGroupLabels.size === 0) {
     try {
+      const tier = groupedTierCandidates(parsed, sizes, { reserveEdgeLabels });
+      for (const t of tier) tierCands.add(t);
       layered = layered.concat(
         // The reservation is passed on: a tier candidate that wins the pool on
         // badness is the layout that gets drawn, so a relayout asked to open a
         // corridor for a label has to reach this generator too (#778).
-        groupedTierCandidates(parsed, sizes, { reserveEdgeLabels })
+        tier
       );
     } catch {
       /* ignore */
@@ -2092,22 +2152,31 @@ export async function layoutBoxesAndLinesSearch(
   let bestObj = Infinity;
   let bestBad = Infinity;
   let bestForeign = Infinity;
+  let bestInv = Infinity;
   const consider = (lay: BLLayoutResult): void => {
     const bad = badness(lay, bestBad);
     if (bad === Infinity || bad > bestBad) return;
     const foreign = countForeignGroupCrossings(lay, parsed.groups);
+    const inv = countOrderInversions(lay, parsed);
     const sc = objective(lay, bad);
-    // Only a badness tie with different foreign passes skips the objective.
-    // Everything else compares exactly as before, so a NaN objective (an edge
-    // dagre left without coordinates) still wins nothing.
+    // A badness tie is broken by foreign passes, then — between two perfect
+    // layouts only — by source order (#1887), and only then by the objective.
+    // Below 0 the winner still goes through sifting and the de-piercing and
+    // band-separating passes, so a tie there is not final and is left to the
+    // objective as before. Everything else compares exactly as before, so a
+    // NaN objective (an edge dagre left without coordinates) still wins
+    // nothing.
     const wins =
       bad === bestBad && foreign !== bestForeign
         ? foreign < bestForeign && !Number.isNaN(sc)
-        : sc < bestObj;
+        : bad === 0 && bestBad === 0 && inv !== bestInv
+          ? inv < bestInv && !Number.isNaN(sc)
+          : sc < bestObj;
     if (wins) {
       bestObj = sc;
       bestBad = bad;
       bestForeign = foreign;
+      bestInv = inv;
       best = lay;
     }
   };
@@ -2173,8 +2242,13 @@ export async function layoutBoxesAndLinesSearch(
 
   // Layered candidates (and their better-routed, de-pierced variants) replace
   // the dagre winner ONLY on a STRICT total-badness reduction — never on an
-  // edge-length tiebreak. They're few, so de-piercing each is cheap.
+  // edge-length tiebreak. They're few, so de-piercing each is cheap. The one
+  // tie a TIER candidate may win is source order (#1887): both perfect, no more foreign
+  // passes, and strictly fewer pairs drawn out of declaration order. Dagre has
+  // no notion of source order between disconnected groups, so without this a
+  // diagram of independent panels came out in whatever order dagre chose.
   for (const lay of layered) {
+    const mayTie = tierCands.has(lay);
     const variants = [lay];
     const dp = deroutePierces(lay);
     if (dp !== lay) variants.push(dp);
@@ -2187,11 +2261,26 @@ export async function layoutBoxesAndLinesSearch(
       // in the diagram vanishes at once (#625). Clipping before scoring also
       // means badness judges the geometry that will actually be drawn.
       const v = clipLayoutEdgesToNodes(raw);
-      const bad = badness(v, bestBad - 1);
+      const bad = badness(v, bestBad);
+      if (bad === Infinity || bad > bestBad) continue;
       if (bad < bestBad) {
         bestBad = bad;
+        bestForeign = countForeignGroupCrossings(v, parsed.groups);
+        bestInv = countOrderInversions(v, parsed);
         best = v;
+        continue;
       }
+      // Only between two perfect layouts: below that, the dagre winner still
+      // gets the de-piercing and band-separating passes further down, which a
+      // tie taken here would forgo.
+      if (bestBad > 0 || !mayTie) continue;
+      const inv = countOrderInversions(v, parsed);
+      if (inv >= bestInv) continue;
+      const foreign = countForeignGroupCrossings(v, parsed.groups);
+      if (foreign > bestForeign) continue;
+      bestForeign = foreign;
+      bestInv = inv;
+      best = v;
     }
   }
 

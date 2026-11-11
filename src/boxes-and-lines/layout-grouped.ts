@@ -472,7 +472,31 @@ export function groupedTierCandidates(
   }
 
   // ── Ordering: wmedian + transpose (crossing minimization) ──
+  // Source order wins every crossing tie (#1887). Restart 0 is seeded from
+  // declaration order (node insertion order above). wmedian's sort is stable
+  // and transpose swaps only on a strict drop, so a tie never moves a node off
+  // that order, and a restart keeps its first snapshot unless crossings fall.
+  // A crossing is never traded for source order.
   const orderOf = new Map<string, number>();
+  const declIdx = new Map(parsed.nodes.map((n, i) => [n.label, i]));
+  // Pairs of real nodes in one rank drawn against declaration order.
+  const orderInversions = (ord: ReadonlyMap<string, number>): number => {
+    let c = 0;
+    for (const ids of ranks) {
+      const real = ids.filter((id) => declIdx.has(id));
+      for (let i = 0; i < real.length; i++)
+        for (let j = i + 1; j < real.length; j++) {
+          const a = real[i]!,
+            b = real[j]!;
+          if (
+            (declIdx.get(a)! - declIdx.get(b)!) * (ord.get(a)! - ord.get(b)!) <
+            0
+          )
+            c++;
+        }
+    }
+    return c;
+  };
   const gapCrossings = (r: number): number => {
     const lower = ranks[r + 1];
     if (!lower) return 0;
@@ -561,12 +585,17 @@ export function groupedTierCandidates(
   const restarts =
     opts?.restarts ?? (nCount <= 16 ? 20 : nCount <= 30 ? 12 : 6);
   const keepK = opts?.keepK ?? 3;
-  const found: { sig: string; cross: number; order: Map<string, number> }[] =
-    [];
+  const found: {
+    sig: string;
+    cross: number;
+    inv: number;
+    order: Map<string, number>;
+  }[] = [];
   for (let s = 0; s < restarts; s++) {
     initOrder(s);
     let best = totalCrossings();
     let bestSnap = new Map(orderOf);
+
     for (let iter = 0; iter < 8; iter++) {
       if (iter % 2 === 0)
         for (let r = 1; r <= maxRank; r++) wmedianRank(r, true);
@@ -584,10 +613,25 @@ export function groupedTierCandidates(
       ranks[r]!.sort((a, b) => orderOf.get(a)! - orderOf.get(b)!);
     const sig = ranks.map((r) => r.join(',')).join('|');
     if (!found.some((f) => f.sig === sig))
-      found.push({ sig, cross: best, order: new Map(bestSnap) });
+      found.push({
+        sig,
+        cross: best,
+        inv: orderInversions(bestSnap),
+        order: new Map(bestSnap),
+      });
   }
   found.sort((a, b) => a.cross - b.cross);
   const keep = found.slice(0, keepK);
+  // The fewest-crossings ordering closest to source order always survives, so
+  // the search can pick it on a tie (#1887). Added beside the top K, never in
+  // place of one, so no candidate the search could pick before is lost.
+  const minCross = found[0]?.cross;
+  const closest = found
+    .filter((f) => f.cross === minCross)
+    .reduce<
+      (typeof found)[number] | undefined
+    >((m, f) => (m === undefined || f.inv < m.inv ? f : m), undefined);
+  if (closest && !keep.includes(closest)) keep.push(closest);
   if (keep.length === 0) return [];
 
   // ── Realize each kept ordering ─────────────────────────────

@@ -1,0 +1,61 @@
+boxes-and-lines Four independent panels
+// Shape of a user report (#1887): four groups with no edges between them.
+// They must stack in the order they are written, under either direction.
+
+tag Kind as k
+  Workload blue
+  Service green
+  Control orange
+
+active-tag Kind
+direction-lr
+no-value
+
+[1. First panel]
+  Lane host k: Workload, description: Runs two software packages side by side. One produces a short-lived record and waits for a reply from the back room before it continues.
+  Camera k: Workload, description: Plugs straight into the lane host. The physical interface and the video transport are still to be decided.
+  Back room rules k: Control, description: Proposed rules between the lane host and the back room server. The transport is suspected but unconfirmed, and ports are open.
+  Back room matching k: Service, description: Matching service in the back room. It compares records against stored collections that are held in memory.
+  Operator tablet k: Workload, description: Probably receives a result feed from the lane host. The route and the transport are both provisional for now.
+
+[2. Second panel]
+  Lane and tablet clients k: Workload, description: The same lane and tablet as the first panel. Each has its own destination permissions on the way out.
+  Egress firewall k: Control, description: Proposed boundary to the wide area network. Per-source destination lists, with translation and inspection to be decided.
+  Document store k: Service, description: Cloud store for configuration and outcomes. Production identities and permissions still need confirmation.
+  Ticketing API k: Service, description: External provider. The lane signs in and validates admission. The exact production host name is to be decided.
+  Telemetry intake k: Service, description: Metrics intake. The port and the exact hosts need confirming for each platform. Exclude every photo.
+  Fleet updates k: Service, description: Fleet management. Endpoints and ports depend on the platform chosen for the lane and the tablet.
+
+[3. Third panel]
+  Event source k: Service, description: Event source from the reference design. Transport, initiator and topic ownership are all to be decided.
+  Collection pipeline k: Service, description: Cloud pipeline that subscribes to events, projects them and syncs collections on a daily schedule.
+  Provisioning boundary k: Control, description: Proposed policy point for provisioning. The route, the session initiator and private links are open.
+  Local provisioning k: Service, description: Back room zone. It keeps its own integration and collection database outside the cloud path.
+  Stored collections k: Service, description: The reference collections used by matching in the first panel. Copies, retention and recovery are open.
+
+[4. Fourth panel]
+  Support client k: Workload, description: An administrator from either team. Approved roles and the scope of access are still to be decided.
+  VPN and bastion k: Control, description: Proposed support boundary. Second factor, audit records and downstream protocols need confirmation.
+  Admin targets k: Workload, description: The lane and back room hosts from the first and third panels. Each target needs its own rules.
+  Venue clients k: Workload, description: The lane host, the back room hosts and the tablet. Each needs approved resolver and time routing.
+  Name and time k: Service, description: Venue endpoints with access lists still to be decided. Names use port 53 and time uses port 123.
+
+Camera -Direct connection; video to host-> Lane host
+Lane host <-Record out; reply back-> Back room rules
+Back room rules <-Transport to be decided-> Back room matching
+Lane host -Result feed proposed; transport open-> Operator tablet
+
+Lane and tablet clients -Source-specific egress-> Egress firewall
+Egress firewall -Config and outcomes; TLS 443-> Document store
+Egress firewall -Lane admission; HTTPS 443-> Ticketing API
+Egress firewall -Telemetry; TLS 443 candidate-> Telemetry intake
+Egress firewall -Management; ports open-> Fleet updates
+
+Event source -Events; transport open-> Collection pipeline
+Collection pipeline -Provisioning; initiator open-> Provisioning boundary
+Provisioning boundary -Collection updates; port open-> Local provisioning
+Local provisioning -Synchronization; ports open-> Stored collections
+
+Support client -Authenticated support-> VPN and bastion
+VPN and bastion -Target-specific admin; ports open-> Admin targets
+Venue clients -Port 53 and 123; proposed-> Name and time
