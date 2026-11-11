@@ -36,6 +36,25 @@ export interface DgmoError {
    * "tidy" this away as unused — the app reads it.
    */
   hint?: string;
+  /**
+   * A one-step repair an editor can offer as a quick fix (#1845). It names
+   * WHAT to change, never offsets: the document has usually moved on since
+   * the parse, so the editor computes the edit against its current text.
+   */
+  fix?: DgmoFix;
+}
+
+/**
+ * The quick fixes a diagnostic can carry, by `kind`.
+ *
+ * - `shape-set` — turn bundled glyph set `set` on: apply
+ *   `shapeSetEdits(doc, set, true)` from `@diagrammo/dgmo/completion`.
+ *   `title` is the action's label, e.g. "Add `shapes network`".
+ */
+export interface DgmoFix {
+  kind: 'shape-set';
+  set: string;
+  title: string;
 }
 
 export function makeDgmoError(

@@ -388,7 +388,7 @@ export { foldAtLine } from './utils/fold-at-line';
 // ============================================================
 
 export type { PaletteConfig, PaletteColors } from './palettes/types';
-export type { DgmoError, DgmoSeverity } from './diagnostics';
+export type { DgmoError, DgmoFix, DgmoSeverity } from './diagnostics';
 export { emit } from './diagnostics';
 export type {
   DiagnosticSpec,

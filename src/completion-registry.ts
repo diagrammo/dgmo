@@ -29,6 +29,29 @@ import {
 import { chartTypes } from './chart-types';
 import { withoutInternalChartTypes } from './utils/offered-types';
 import { BUILT_IN_PALETTE_IDS } from './palettes/built-in-ids';
+import { GLYPH_SETS, type GlyphSet } from './glyphs/registry';
+
+// ============================================================
+// Whiteboard shape sets (#1845)
+// ============================================================
+
+export type { GlyphSet };
+export type { SourceEdit } from './whiteboard/shape-set-edit';
+/**
+ * The edits that turn a glyph set's `shapes` line on or off. Every editor
+ * path that writes the line uses it: accepting a glyph from completion, the
+ * `shape-set` quick fix (`DgmoFix`), and the Shape sets picker.
+ */
+export { shapeSetEdits } from './whiteboard/shape-set-edit';
+
+/**
+ * Every bundled glyph set, in picker order: its `shapes` id, display name
+ * and glyph keywords. Completion offers every set's glyphs on a whiteboard
+ * line, labelled `<label> shapes` (`router — Network shapes`), whether the
+ * set is on or not; accepting one from a set that is off also applies
+ * `shapeSetEdits(doc, set.id, true)`.
+ */
+export const SHAPE_SETS: readonly GlyphSet[] = GLYPH_SETS;
 
 // ============================================================
 // Completion registry
@@ -1049,6 +1072,8 @@ export const STRUCTURAL_KEYWORDS = new Map<string, string[]>([
       'ink',
       // A `tag` block names colours (#1344).
       'tag',
+      // Turns bundled glyph sets on (#1845); the glyphs are SHAPE_SETS'.
+      'shapes',
     ],
   ],
   ['boxes-and-lines', ['tag']],

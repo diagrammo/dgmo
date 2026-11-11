@@ -19,7 +19,7 @@
 // ============================================================
 
 export { makeDgmoError, formatDgmoError } from './diagnostics';
-export type { DgmoError, DgmoSeverity } from './diagnostics';
+export type { DgmoError, DgmoFix, DgmoSeverity } from './diagnostics';
 
 // ============================================================
 // Arrow helpers (in-arrow label validation)

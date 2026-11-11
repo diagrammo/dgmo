@@ -4077,6 +4077,8 @@ A glyph is a line icon, scaled to the shorter side of its box and centred in it,
 
 A glyph used without its set's `shapes` line still draws, with a warning naming the line to add. An unknown set name is a warning and is ignored. The line may sit anywhere in the file; it is written under the title.
 
+For editors: `@diagrammo/dgmo/completion` exports `SHAPE_SETS` (each set's id, label and glyph keywords, for completion) and `shapeSetEdits(source, set, on)`, the text edits that add a set to the `shapes` line or remove it. A new line goes under the title; an existing line is appended to; a line left empty is deleted. The missing-line warning carries `fix: { kind: 'shape-set', set, title }`, which an editor applies with `shapeSetEdits(doc, set, true)`.
+
 ### Images
 
 An image whose ref cannot be loaded — a local file that is not there, or a copied fence — draws a plain box at its size labelled _image not uploaded_. It is never an error.

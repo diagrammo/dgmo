@@ -32,7 +32,7 @@
 // whiteboard first line or a board with no elements is fatal.
 
 import type { PaletteColors } from '../palettes';
-import { makeDgmoError, makeFail, suggest } from '../diagnostics';
+import { makeDgmoError, makeFail, suggest, type DgmoFix } from '../diagnostics';
 import { extractPaletteDirective } from '../palettes/directive';
 import type { Writable } from '../utils/brand';
 import { parseFirstLine, recognizeGlobalBoolean } from '../utils/parsing';
@@ -233,11 +233,16 @@ export function parseWhiteboard(
   const warn = (
     line: number,
     code: (typeof CODES)[keyof typeof CODES],
-    params: Record<string, unknown>
+    params: Record<string, unknown>,
+    fix?: DgmoFix
   ): void => {
-    result.diagnostics.push(
-      makeDgmoError(line, whiteboardMessage(code, params), 'warning', code)
+    const d = makeDgmoError(
+      line,
+      whiteboardMessage(code, params),
+      'warning',
+      code
     );
+    result.diagnostics.push(fix ? { ...d, fix } : d);
   };
 
   if (!content?.trim()) return fail(0, 'No content provided');
@@ -716,11 +721,13 @@ export function parseWhiteboard(
   for (const use of glyphUses) {
     const set = glyphSetOf(use.name);
     if (shapeSets.includes(set.id)) continue;
-    warn(use.line, CODES.SHAPE_SET_OFF, {
-      glyph: use.name,
-      label: set.label,
-      set: set.id,
-    });
+    // The quick fix names what to add, never where (DgmoFix).
+    warn(
+      use.line,
+      CODES.SHAPE_SET_OFF,
+      { glyph: use.name, label: set.label, set: set.id },
+      { kind: 'shape-set', set: set.id, title: `Add \`shapes ${set.id}\`` }
+    );
   }
 
   // An empty board is valid: a blank canvas is where drawing starts, and

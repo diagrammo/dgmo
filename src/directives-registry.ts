@@ -28,6 +28,7 @@
 // covers them via rendered-role assertions).
 
 import type { ChartTypeId } from './chart-types';
+import { GLYPH_NAMES } from './glyphs/registry';
 
 /** Highlight role family for a bare (non-colon) token. */
 export type HighlightCategory = 'directive' | 'control' | 'modifier' | 'status';
@@ -990,6 +991,18 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'ellipse', category: 'control', chartTypes: ['whiteboard'] },
   { token: 'arrow', category: 'control', chartTypes: ['whiteboard'] },
   { token: 'ink', category: 'control', chartTypes: ['whiteboard'] },
+  // `shapes network` turns a glyph set on, and each glyph keyword leads a line
+  // like `rectangle` does (#1845). Derived from the glyph registry, so a new
+  // glyph highlights with no edit here. `mobile` is wireframe's too; the
+  // chart-type lists take the union.
+  { token: 'shapes', category: 'directive', chartTypes: ['whiteboard'] },
+  ...GLYPH_NAMES.map(
+    (token): RegistryEntry => ({
+      token,
+      category: 'control',
+      chartTypes: ['whiteboard'],
+    })
+  ),
 
   // ── SWOT section keywords (CONTROL) ──────────────────────
   { token: 'strengths', category: 'control', chartTypes: ['swot'] },
