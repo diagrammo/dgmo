@@ -88,7 +88,6 @@ interface Paint {
   hair: string;
   /** Connector/wire color — darker than box hairlines. */
   wire: string;
-  track: string;
   tint: string;
 }
 
@@ -107,7 +106,6 @@ function paintForAccent(
     // they stay legible on top of a colored, shaded column band.
     hair: mix(palette.text, base, 34),
     wire: mix(palette.text, base, 30),
-    track: mix(palette.border, base, 55),
     // §1.9 fill family rides through shapeFill: solid ⇒ raw accent,
     // outline ⇒ theme base bg (accent stays on the stroke), absent ⇒ 25% tint.
     tint: shapeFill(palette, accent, isDark, { mode: fillMode }),
@@ -599,8 +597,9 @@ function drawBox(
     sw = 3;
     weight = 'bold';
   } else if (isTBD) {
-    fill = paint.track;
-    dash = '4 4';
+    // Unplayed slot: a light dashed outline, no fill — structure, not content.
+    sw = 1;
+    dash = '3 3';
     textColor = paint.muted;
     weight = 'normal';
   } else if (info.isWinner) {

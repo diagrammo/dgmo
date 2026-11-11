@@ -4315,7 +4315,7 @@ Each row's time comes from `Intl.DateTimeFormat` with that row's zone, so DST is
 
 <!-- TIPS end -->
 
-A single-elimination tournament bracket. Winners auto-advance up a tree that builds itself from the results — a one-sided ladder for a simple pool, or two `[Side]` columns that mirror inward and meet at a championship (MLB / NBA / NCAA-style). Any `seed` line switches on **seeded mode** (day-0 skeleton); otherwise the bracket is **casual** (structure inferred from `beats` / `vs` lines).
+A single-elimination tournament bracket. Winners auto-advance up a tree that builds itself from the results — a one-sided ladder for a simple pool, or two `[Side]` columns that mirror inward and meet at a championship (MLB / NBA / NCAA-style). A side-less field of 16 or more entrants splits at its final the same way, so a 64-team draw reads wider than tall. The center column takes the round name after the last per-side round, else `Final`. Any `seed` line switches on **seeded mode** (day-0 skeleton); otherwise the bracket is **casual** (structure inferred from `beats` / `vs` lines).
 
 ### Declaration
 

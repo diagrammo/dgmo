@@ -14,7 +14,8 @@
 //
 // Placement: round-1 matches take vertical slots top→bottom (source order);
 // each parent sits at the mean y of its feeders (classic bracket midpoint).
-// Two `[Side]` columns mirror around a center championship node.
+// Two `[Side]` columns mirror around a center championship node; a side-less
+// ladder of MIRROR_MIN_FIELD+ entrants is split at its final the same way.
 
 import { makeDgmoError } from '../diagnostics';
 import type { DgmoError } from '../diagnostics';
@@ -30,6 +31,8 @@ export const PAIR_GAP = 8;
 export const ROW = 82;
 /** Center-to-center horizontal spacing of adjacent rounds. */
 export const COL_W = 220;
+/** ROW for fields of MIRROR_MIN_FIELD+ — leaves ~20px between match pairs. */
+const ROW_COMPACT = (2 * BOX_H + PAIR_GAP + 20) / 2;
 /** Max width a commentary caption wraps to — a hair under the box width, so a
  *  wrapped line stays strictly inside its column band (never the connectors). */
 export const COMMENT_W = BOX_W - 14;
@@ -142,6 +145,21 @@ interface Node {
   isChampionship: boolean;
   y: number; // slot units, set by positioning
   x: number; // absolute px, set by assembly
+}
+
+/** A side-less ladder with at least this many entrants mirrors two halves
+ *  inward to a center final instead of stacking as one tall column. */
+const MIRROR_MIN_FIELD = 16;
+
+/** Entrants in the field: seed lines when seeded, else distinct names. */
+function fieldSize(parsed: ParsedBracket): number {
+  if (parsed.seeded) return parsed.seeds.length;
+  const names = new Set<string>();
+  for (const m of parsed.matches) {
+    names.add(m.p1);
+    names.add(m.p2);
+  }
+  return names.size;
 }
 
 function mean(xs: number[]): number {
@@ -574,6 +592,38 @@ export function layoutBracket(parsed: ParsedBracket): BracketLayout {
     for (const s of parsed.sides) buildFor(s.label, s.color);
   }
 
+  // A large single ladder (no `[Side]` headers) renders as a tall tower, so
+  // split it at the final: each semifinal subtree becomes a half that mirrors
+  // inward, and the original final node sits in the center column.
+  let splitFinal: Node | null = null;
+  if (parsed.sides.length === 0 && groups.length === 1) {
+    const g = groups[0]!.built;
+    const byId = new Map(g.nodes.map((n) => [n.id, n]));
+    const root = g.rootId !== null ? byId.get(g.rootId) : undefined;
+    if (
+      root?.topChildId != null &&
+      root.botChildId != null &&
+      fieldSize(parsed) >= MIRROR_MIN_FIELD
+    ) {
+      const half = (id: number): BuiltSide => {
+        const nodes: Node[] = [];
+        const walk = (nid: number): void => {
+          const n = byId.get(nid)!;
+          nodes.push(n);
+          if (n.topChildId !== null) walk(n.topChildId);
+          if (n.botChildId !== null) walk(n.botChildId);
+        };
+        walk(id);
+        const rounds = nodes.reduce((m, x) => Math.max(m, x.round), 0);
+        return { nodes, rootId: id, rounds };
+      };
+      groups.length = 0;
+      groups.push({ label: null, built: half(root.topChildId) });
+      groups.push({ label: null, built: half(root.botChildId) });
+      splitFinal = root;
+    }
+  }
+
   // Row spacing grows to fit commentary so captions never overlap the next
   // match. Compute it BEFORE positioning: the bye-alignment offset is a fraction
   // of this final row height, so positioning must know it up front.
@@ -581,13 +631,17 @@ export function layoutBracket(parsed: ParsedBracket): BracketLayout {
     0,
     ...groups.flatMap((g) =>
       g.built.nodes.map((n) => commentaryLineCount(n.commentary))
-    )
+    ),
+    splitFinal ? commentaryLineCount(splitFinal.commentary) : 0
   );
   const COMMENT_LH = 15;
+  // A large field packs its matches tighter: ROW leaves a full box of air
+  // between round-1 pairs, which is what made a 64-entrant field a tower.
+  const baseRow = fieldSize(parsed) >= MIRROR_MIN_FIELD ? ROW_COMPACT : ROW;
   const rowScale =
     maxComment > 0
-      ? Math.max(ROW, 2 * BOX_H + PAIR_GAP + maxComment * COMMENT_LH + 16)
-      : ROW;
+      ? Math.max(baseRow, 2 * BOX_H + PAIR_GAP + maxComment * COMMENT_LH + 16)
+      : baseRow;
 
   for (const g of groups) positionSide(g.built, rowScale);
 
@@ -701,28 +755,35 @@ export function layoutBracket(parsed: ParsedBracket): BracketLayout {
       left.built.rootId !== null ? nodeById.get(left.built.rootId)! : null;
     const rightRoot =
       right.built.rootId !== null ? nodeById.get(right.built.rootId)! : null;
-    const cid = nextId();
-    const champNode: Node = {
-      id: cid,
-      round: 0,
-      side: null,
-      topSeedName: null,
-      botSeedName: null,
-      topChildId: leftRoot ? leftRoot.id : null,
-      botChildId: rightRoot ? rightRoot.id : null,
-      topName: leftRoot ? winnerNameOf(leftRoot) : null,
-      botName: rightRoot ? winnerNameOf(rightRoot) : null,
-      winner: null,
-      score: null,
-      commentary: [],
-      homeName: null,
-      lineNumber: null,
-      isChampionship: true,
-      x: centerX,
-      y: mean([leftRoot?.y ?? 0, rightRoot?.y ?? 0]),
-    };
-    // Apply the championship result.
-    for (const r of champResults) {
+    const cid = splitFinal ? splitFinal.id : nextId();
+    const champNode: Node = splitFinal
+      ? Object.assign(splitFinal, {
+          round: 0,
+          isChampionship: true,
+          x: centerX,
+          y: mean([leftRoot?.y ?? 0, rightRoot?.y ?? 0]),
+        })
+      : {
+          id: cid,
+          round: 0,
+          side: null,
+          topSeedName: null,
+          botSeedName: null,
+          topChildId: leftRoot ? leftRoot.id : null,
+          botChildId: rightRoot ? rightRoot.id : null,
+          topName: leftRoot ? winnerNameOf(leftRoot) : null,
+          botName: rightRoot ? winnerNameOf(rightRoot) : null,
+          winner: null,
+          score: null,
+          commentary: [],
+          homeName: null,
+          lineNumber: null,
+          isChampionship: true,
+          x: centerX,
+          y: mean([leftRoot?.y ?? 0, rightRoot?.y ?? 0]),
+        };
+    // Apply the championship result (a split ladder's final already has it).
+    for (const r of splitFinal ? [] : champResults) {
       if (!r.decided) continue;
       if (champNode.topName === r.p1 && champNode.botName === r.p2) {
         champNode.winner = 'top';
@@ -739,7 +800,8 @@ export function layoutBracket(parsed: ParsedBracket): BracketLayout {
     allNodes.push(champNode);
     nodeById.set(cid, champNode);
     // The center column is a distinct round — take the round def AFTER the
-    // per-side rounds if the author supplied one, else fall back to the title.
+    // per-side rounds if the author supplied one, else a generic "Final" (the
+    // title already heads the chart; repeating it here doubled it).
     const centerDef = parsed.roundNames[L];
     addColLabel(
       centerX,
@@ -747,7 +809,7 @@ export function layoutBracket(parsed: ParsedBracket): BracketLayout {
         ? centerDef.color !== undefined
           ? { label: centerDef.name, color: centerDef.color }
           : { label: centerDef.name }
-        : { label: parsed.title ?? 'Final' }
+        : { label: 'Final' }
     );
     champion = winnerNameOf(champNode);
   }
