@@ -52,6 +52,12 @@ export interface ParsedChart {
   /** Suppress the pie center total (bare `no-center-total`). The total
    *  shows by default whenever a hole is present. (#23) */
   noCenterTotal?: boolean;
+  /** Pie slice order: `sort` / `sort desc` = largest first, `sort asc` =
+   *  smallest first. Absent ⇒ source order. */
+  sort?: 'asc' | 'desc';
+  /** Pie `other-below N%`: slices under N% of the total merge into one
+   *  trailing "Other" slice. Stored as the percentage N. */
+  otherBelow?: number;
   /** Render a line chart filled, i.e. as an area (bare `fill`). (#25) */
   fill?: boolean;
   orientation?: 'horizontal' | 'vertical';
@@ -250,6 +256,8 @@ export function parseChart(
 ): ParsedChart {
   const lines = content.split('\n');
   const parsedEras: ChartEra[] = [];
+  const pieOnlyLines: [number, string][] = [];
+  let otherLine = 0;
   const rawEras: {
     start: string;
     afterArrow: string;
@@ -365,6 +373,22 @@ export function parseChart(
           lineNumber,
         });
       }
+      continue;
+    }
+
+    // Pie-only directives. Matched case-sensitively on the whole line so a data
+    // row labelled "Other 30" or "Sort 5" still parses as data.
+    const sortMatch = trimmed.match(/^sort(?:\s+(asc|desc))?$/);
+    if (sortMatch) {
+      result.sort = (sortMatch[1] as 'asc' | 'desc' | undefined) ?? 'desc';
+      pieOnlyLines.push([lineNumber, 'sort']);
+      continue;
+    }
+    const otherMatch = trimmed.match(/^other-below\s+(\d+(?:\.\d+)?)\s*%?$/);
+    if (otherMatch) {
+      result.otherBelow = parseFloat(otherMatch[1]!);
+      otherLine = lineNumber;
+      pieOnlyLines.push([lineNumber, 'other-below']);
       continue;
     }
 
@@ -623,6 +647,44 @@ export function parseChart(
     const hint = suggest(firstToken, [...KNOWN_OPTIONS, ...KNOWN_BOOLEANS]);
     if (hint) msg += ` ${hint}`;
     result.diagnostics.push(makeDgmoError(lineNumber, msg, 'warning'));
+  }
+
+  // Pie-only directives: warn elsewhere, otherwise bucket small slices and sort.
+  if (result.type !== 'pie') {
+    for (const [ln, name] of pieOnlyLines) {
+      result.diagnostics.push(
+        makeDgmoError(
+          ln,
+          `"${name}" is only supported on pie charts; ignoring it.`,
+          'warning'
+        )
+      );
+    }
+    delete result.sort;
+    delete result.otherBelow;
+  } else {
+    if (result.otherBelow !== undefined) {
+      const total = result.data.reduce((a, d) => a + d.value, 0);
+      const small = result.data.filter(
+        (d) => total > 0 && (d.value / total) * 100 < result.otherBelow!
+      );
+      if (small.length >= 2) {
+        const merged = small.reduce((a, d) => a + d.value, 0);
+        result.data = [
+          ...result.data.filter((d) => !small.includes(d)),
+          { label: 'Other', value: merged, lineNumber: otherLine },
+        ];
+      }
+    }
+    if (result.sort) {
+      const dir = result.sort === 'asc' ? 1 : -1;
+      const last = result.otherBelow !== undefined ? result.data.at(-1) : null;
+      const keep =
+        last?.label === 'Other' && last.lineNumber === otherLine ? last : null;
+      const body = keep ? result.data.slice(0, -1) : [...result.data];
+      body.sort((a, b) => dir * (a.value - b.value));
+      result.data = keep ? [...body, keep] : body;
+    }
   }
 
   // Resolve raw eras against known data labels (longest-prefix match for multi-word labels)

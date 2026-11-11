@@ -166,6 +166,41 @@ describe('1. Valid syntax', () => {
       expect(r.noCenterTotal).toBe(true);
     });
 
+    it('pie sort orders slices, other-below buckets small ones last', () => {
+      const src = 'pie Spend\nsort\nA 5\nB 50\nC 3\nD 2\nE 40';
+      const sorted = parseChart(src, palette);
+      expect(hasNoErrors(sorted)).toBe(true);
+      expect(sorted.data.map((d) => d.label)).toEqual([
+        'B',
+        'E',
+        'A',
+        'C',
+        'D',
+      ]);
+      const asc = parseChart(src.replace('sort', 'sort asc'), palette);
+      expect(asc.data.map((d) => d.label)).toEqual(['D', 'C', 'A', 'E', 'B']);
+      const other = parseChart(`${src}\nother-below 6%`, palette);
+      expect(hasNoErrors(other)).toBe(true);
+      expect(other.data.map((d) => [d.label, d.value])).toEqual([
+        ['B', 50],
+        ['E', 40],
+        ['Other', 10],
+      ]);
+    });
+
+    it('pie other-below leaves a lone small slice and data rows named Other alone', () => {
+      const r = parseChart('pie S\nother-below 10%\nOther 1\nA 99', palette);
+      expect(hasNoErrors(r)).toBe(true);
+      expect(r.data.map((d) => d.label)).toEqual(['Other', 'A']);
+    });
+
+    it('sort and other-below warn outside pie', () => {
+      const r = parseChart('bar S\nsort\nA 1\nB 2', palette);
+      expect(
+        r.diagnostics.some((d) => /only supported on pie/.test(d.message))
+      ).toBe(true);
+    });
+
     it('line with fill directive (area)', () => {
       const r = parseChart('line Users\nfill\nWk1 12\nWk2 14', palette);
       expect(hasNoErrors(r)).toBe(true);

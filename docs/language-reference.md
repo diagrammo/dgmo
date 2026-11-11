@@ -2470,6 +2470,8 @@ orientation-horizontal   // bar: horizontal bars
 fill                     // line: fill the area under the line
 hole                     // pie: doughnut ring (optional ratio, e.g. `hole 0.5`)
 no-center-total          // pie: hide the center total (shown by default when `hole` is set)
+sort                     // pie: order slices largest first (`sort asc` = smallest first)
+other-below 5%           // pie: merge slices under 5% of the total into one "Other"
 no-auto-y                // line: anchor the y-axis at 0 (opt out of auto-fit)
 ```
 
@@ -2478,6 +2480,11 @@ no-auto-y                // line: anchor the y-axis at 0 (opt out of auto-fit)
 - `hole` (pie; renders the doughnut ring — bare `hole`, or `hole <0–0.9>` for a
   custom inner-radius ratio. The value total shows in the center by default;
   suppress with `no-center-total`)
+- `sort` (pie; slices largest first — `sort asc` for smallest first; default is
+  source order)
+- `other-below N%` (pie; slices under N% of the total merge into one trailing
+  **Other** slice, placed last even under `sort`; needs at least two slices to
+  qualify, otherwise nothing merges)
 - `no-auto-y` (**line only**) — by default a line chart auto-fits its y-axis to a
   padded window around the data (min→max across all series, not a forced 0
   baseline), so a tight high-valued series fills the plot. `no-auto-y` restores
