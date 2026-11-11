@@ -50,6 +50,10 @@ const DESC_ACCENT_GAP = 12;
 /** Pixel offset between bullet glyph column and body-text column. */
 const BULLET_BODY_INDENT = 10;
 
+/** Horizontal padding a label needs inside its band. */
+const LABEL_FIT_PAD = 12;
+/** Length of the leader line from a band edge to an outside label. */
+const LEADER_LEN = 14;
 const LABEL_FONT_MIN = 12;
 const LABEL_FONT_MAX = 22;
 const DESC_FONT_MIN = 11;
@@ -249,32 +253,56 @@ export function renderPyramid(
     // contrast (dark halo around light text or vice versa) so the spilled
     // portion stays readable. Only when needed — wide segments don't need
     // the visual noise of a stroke.
-    const labelFitsInside =
-      Math.min(topHalf, botHalf) * 2 >
-      measureText(layer.label, layout.labelFont, { bold: true });
-    const haloColor =
-      textColor === palette.textOnFillLight
-        ? palette.textOnFillDark
-        : palette.textOnFillLight;
+    const labelW = measureText(layer.label, layout.labelFont, { bold: true });
+    // Fit test at the NARROW end of the text's vertical extent, so a label
+    // that fits at mid-band but clips at its cap line still counts as spilling.
+    const narrowY = parsed.inverted
+      ? midY + layout.labelFont * 0.5
+      : midY - layout.labelFont * 0.5;
+    const halfAtY = (y: number): number => {
+      const f = clamp((y - layout.pyramidTop) / layout.pyramidH, 0, 1);
+      return ((parsed.inverted ? 1 - f : f) * layout.baseWidth) / 2;
+    };
+    const labelFitsInside = halfAtY(narrowY) * 2 > labelW + LABEL_FIT_PAD;
+    // A label that cannot fit moves outside the triangle on the side opposite
+    // its description, tied to its band by a short leader line.
+    const descSide: Side = useAlternate
+      ? i % 2 === 0
+        ? 'right'
+        : 'left'
+      : 'right';
+    const labelSide: Side =
+      layer.description.length > 0 && descSide === 'left' ? 'right' : 'left';
+    const edgeHalf = halfAtY(midY);
+    const sign = labelSide === 'right' ? 1 : -1;
+    const edgeX = layout.pyramidCx + sign * edgeHalf;
+    if (!labelFitsInside) {
+      layerG
+        .append('line')
+        .attr('x1', edgeX)
+        .attr('x2', edgeX + sign * LEADER_LEN)
+        .attr('y1', midY)
+        .attr('y2', midY)
+        .attr('stroke', solidColor)
+        .attr('stroke-width', 2);
+    }
 
     const labelText = layerG
       .append('text')
-      .attr('x', layout.pyramidCx)
+      .attr(
+        'x',
+        labelFitsInside ? layout.pyramidCx : edgeX + sign * (LEADER_LEN + 6)
+      )
       .attr('y', midY)
       .attr('dy', '0.35em')
-      .attr('text-anchor', 'middle')
-      .attr('fill', textColor)
+      .attr(
+        'text-anchor',
+        labelFitsInside ? 'middle' : labelSide === 'right' ? 'start' : 'end'
+      )
+      .attr('fill', labelFitsInside ? textColor : palette.text)
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', layout.labelFont)
       .attr('font-weight', 'bold');
-    if (!labelFitsInside) {
-      labelText
-        .attr('paint-order', 'stroke fill')
-        .attr('stroke', haloColor)
-        .attr('stroke-width', 3)
-        .attr('stroke-linejoin', 'round')
-        .attr('stroke-opacity', 0.6);
-    }
     renderInlineText(labelText, layer.label, palette);
 
     // Description: render both short (truncated) and full variants.
@@ -286,6 +314,23 @@ export function renderPyramid(
           : 'left'
         : 'right';
       const wrap = layout.wraps[i]!;
+      // Connector tying the description to its band across the gap.
+      const descEdgeX =
+        layout.pyramidCx + (side === 'right' ? 1 : -1) * halfAtY(midY);
+      const descBarX =
+        side === 'right'
+          ? layout.rightAccentX - 6
+          : layout.leftAccentX + DESC_ACCENT_WIDTH + 6;
+      layerG
+        .append('line')
+        .attr('x1', descEdgeX)
+        .attr('x2', descBarX)
+        .attr('y1', midY)
+        .attr('y2', midY)
+        .attr('stroke', solidColor)
+        .attr('stroke-width', 1)
+        .attr('stroke-dasharray', '2 3')
+        .attr('stroke-opacity', 0.7);
       renderLayerDescriptions(
         diagramG,
         layer,
@@ -384,7 +429,8 @@ function computeLayout(input: LayoutInput): PyramidLayout {
     pyramidCx = sideMargin + pyramidBandWidth / 2;
   }
 
-  const pyramidTop = bodyTop + (bodyHeight - pyramidH) / 2;
+  // Top-aligned: centring a height-slack pyramid leaves a dead band under the title.
+  const pyramidTop = bodyTop;
   const layerH = pyramidH / N;
 
   // Font sizes scale with layer height.
