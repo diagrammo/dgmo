@@ -358,6 +358,7 @@ export {
   visibleWhiteboardElements,
   visibleWhiteboardIndices,
   whiteboardBounds,
+  whiteboardConnectorLabelPoints,
   whiteboardConnectorPaint,
   whiteboardHopStops,
   WHITEBOARD_HOP_RADIUS,

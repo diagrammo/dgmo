@@ -39,6 +39,7 @@ import {
   clipWhiteboardConnector,
   whiteboardConnectorAttachments,
   whiteboardDrawOrder,
+  whiteboardEnclosesAny,
   whiteboardFilePath,
   whiteboardNoteFold,
   whiteboardSegmentMidpoint,
@@ -401,6 +402,19 @@ const LABEL_SLIDE_TRIES = 8;
  * the text beside it.
  */
 const LABEL_CLEAR = 5;
+/** Gap between a label set beside its connector and the stroke, px. */
+const LABEL_SIDE_GAP = 2;
+/** How far around a candidate box the "how busy is this side" count looks, px. */
+const LABEL_BUSY_REACH = 14;
+/**
+ * Cost of a candidate placement, in slide steps. Any overlap outweighs every
+ * clean placement; a beside-the-line placement costs a few slide steps, so a
+ * short slide wins over stepping off the line, and stepping off wins over a
+ * long slide; nearby clutter breaks ties toward the quieter side.
+ */
+const LABEL_HIT_COST = 1000;
+const LABEL_SIDE_COST = 3;
+const LABEL_BUSY_COST = 0.25;
 
 interface TextBox {
   x0: number;
@@ -411,6 +425,68 @@ interface TextBox {
 
 function boxesOverlap(a: TextBox, b: TextBox): boolean {
   return a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+}
+
+function grownBox(b: TextBox, by: number): TextBox {
+  return { x0: b.x0 - by, y0: b.y0 - by, x1: b.x1 + by, y1: b.y1 + by };
+}
+
+/** Whether the segment a→b passes through `box` (Liang–Barsky clip). */
+function segmentMeetsBox(
+  a: WhiteboardPoint,
+  b: WhiteboardPoint,
+  box: TextBox
+): boolean {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  let t0 = 0;
+  let t1 = 1;
+  const edges: [number, number][] = [
+    [-dx, a.x - box.x0],
+    [dx, box.x1 - a.x],
+    [-dy, a.y - box.y0],
+    [dy, box.y1 - a.y],
+  ];
+  for (const [p, q] of edges) {
+    if (p === 0) {
+      if (q < 0) return false;
+      continue;
+    }
+    const r = q / p;
+    if (p < 0) {
+      if (r > t1) return false;
+      if (r > t0) t0 = r;
+    } else {
+      if (r < t0) return false;
+      if (r < t1) t1 = r;
+    }
+  }
+  return t0 <= t1;
+}
+
+/** A drawn segment as a polyline: its ends, or its curve sampled. */
+function segmentPolyline(s: WhiteboardSegment): WhiteboardPoint[] {
+  if (s.cx === undefined || s.cy === undefined) {
+    return [
+      { x: s.x1, y: s.y1 },
+      { x: s.x2, y: s.y2 },
+    ];
+  }
+  const pts: WhiteboardPoint[] = [];
+  for (let k = 0; k <= CURVE_BOUND_STEPS; k++) {
+    pts.push(segmentPoint(s, k / CURVE_BOUND_STEPS));
+  }
+  return pts;
+}
+
+function polylineMeetsBox(
+  pts: readonly WhiteboardPoint[],
+  box: TextBox
+): boolean {
+  for (let k = 1; k < pts.length; k++) {
+    if (segmentMeetsBox(pts[k - 1]!, pts[k]!, box)) return true;
+  }
+  return false;
 }
 
 /** An edge label's drawn block, halo included, centred on (x, y). */
@@ -459,47 +535,120 @@ function authoredTextBoxes(
 }
 
 /**
- * Where each connector's label is centred. The midpoint unless that covers
- * other text — author-placed text, a note, a shape's label, or a label placed
- * before it — in which case it slides along its own connector to the nearest
- * point that clears, trying each way in turn. No point clears → the midpoint,
- * whose halo keeps it legible. Author-placed elements never move.
+ * The bodies an edge label must not sit on: every shape and image, except a
+ * container (it encloses another element — the label may sit in its empty
+ * interior) and except one holding both of this connector's ends.
  */
-function placeConnectorLabels(
+function bodyBoxes(
   elements: readonly WhiteboardElement[],
   all: readonly WhiteboardElement[]
+): { el: WhiteboardElement; box: TextBox }[] {
+  const out: { el: WhiteboardElement; box: TextBox }[] = [];
+  for (const el of elements) {
+    if (el.kind !== 'shape' && el.kind !== 'image') continue;
+    if (el.kind === 'shape' && whiteboardEnclosesAny(el, all)) continue;
+    out.push({
+      el,
+      box: { x0: el.x, y0: el.y, x1: el.x + el.width, y1: el.y + el.height },
+    });
+  }
+  return out;
+}
+
+function boxHolds(b: TextBox, x: number, y: number): boolean {
+  return x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1;
+}
+
+/**
+ * Where each connector's label is centred (#1923). Candidates run along the
+ * connector from its midpoint out to t ∈ [0.1, 0.9], each either on the line
+ * (its halo knocks the stroke out) or set just beside it on either side. A
+ * candidate is scored by what its box hits — other text, earlier labels,
+ * shape bodies, and every OTHER connector's stroke, so a label never sits on
+ * a crossing and cannot be read as naming the wrong line — then by how far it
+ * slid, whether it stepped off the line, and how busy its surroundings are,
+ * so a label stepping off goes to the quieter side. Nothing clean → the
+ * least-bad candidate. Author-placed elements never move. The renderer and
+ * the app canvas both place from this, so they cannot disagree.
+ */
+export function whiteboardConnectorLabelPoints(
+  elements: readonly WhiteboardElement[],
+  all: readonly WhiteboardElement[] = elements
 ): Map<WhiteboardElement, WhiteboardPoint> {
   const placed = new Map<WhiteboardElement, WhiteboardPoint>();
   const taken = authoredTextBoxes(elements, all);
+  const bodies = bodyBoxes(elements, all);
+  const strokes: { el: WhiteboardElement; pts: WhiteboardPoint[] }[] = [];
+  const segments = new Map<WhiteboardElement, WhiteboardSegment>();
+  for (const el of elements) {
+    if (el.kind !== 'arrow' && el.kind !== 'line') continue;
+    const s = clipWhiteboardConnector(el, elements);
+    segments.set(el, s);
+    strokes.push({ el, pts: segmentPolyline(s) });
+  }
   for (const el of elements) {
     if ((el.kind !== 'arrow' && el.kind !== 'line') || !el.label) continue;
     const lines = labelLines(el.label);
-    const s = clipWhiteboardConnector(el, elements);
-    const mid = whiteboardSegmentMidpoint(s);
-    let at = mid;
-    const clears = (p: WhiteboardPoint): boolean => {
-      const box = connectorLabelBox(lines, p.x, p.y);
-      return !taken.some((t) => boxesOverlap(box, t));
+    const s = segments.get(el)!;
+    const own = connectorLabelBox(lines, 0, 0);
+    const hw = own.x1;
+    const hh = own.y1;
+    const mine = bodies.filter(
+      (b) => !(boxHolds(b.box, el.x1, el.y1) && boxHolds(b.box, el.x2, el.y2))
+    );
+    const others = strokes.filter((o) => o.el !== el);
+    const hits = (box: TextBox): number => {
+      let n = 0;
+      for (const t of taken) if (boxesOverlap(box, t)) n++;
+      for (const b of mine) if (boxesOverlap(box, b.box)) n++;
+      for (const o of others) if (polylineMeetsBox(o.pts, box)) n++;
+      return n;
     };
-    if (!clears(mid)) {
-      search: for (let k = 1; k <= LABEL_SLIDE_TRIES; k++) {
-        for (const t of [
-          0.5 - k * LABEL_SLIDE_STEP,
-          0.5 + k * LABEL_SLIDE_STEP,
-        ]) {
-          const p = segmentPoint(s, t);
-          if (clears(p)) {
-            at = p;
-            break search;
-          }
-        }
+    let best: WhiteboardPoint = whiteboardSegmentMidpoint(s);
+    let bestCost = Infinity;
+    const consider = (
+      p: WhiteboardPoint,
+      steps: number,
+      side: boolean
+    ): void => {
+      const box = connectorLabelBox(lines, p.x, p.y);
+      let cost = LABEL_HIT_COST * hits(box) + steps;
+      if (side) {
+        cost +=
+          LABEL_SIDE_COST +
+          LABEL_BUSY_COST * hits(grownBox(box, LABEL_BUSY_REACH));
+      }
+      if (cost < bestCost) {
+        bestCost = cost;
+        best = p;
+      }
+    };
+    for (let k = 0; k <= LABEL_SLIDE_TRIES; k++) {
+      for (const t of k === 0
+        ? [0.5]
+        : [0.5 - k * LABEL_SLIDE_STEP, 0.5 + k * LABEL_SLIDE_STEP]) {
+        const p = segmentPoint(s, t);
+        consider(p, k, false);
+        // The connector's direction at t, for setting the label beside it.
+        const a = segmentPoint(s, Math.max(0, t - 0.01));
+        const b = segmentPoint(s, Math.min(1, t + 0.01));
+        const len = Math.hypot(b.x - a.x, b.y - a.y);
+        if (len < 1e-9) continue;
+        const nx = -(b.y - a.y) / len;
+        const ny = (b.x - a.x) / len;
+        // Far enough along the normal that the box just clears the stroke.
+        const d = hw * Math.abs(nx) + hh * Math.abs(ny) + LABEL_SIDE_GAP;
+        consider({ x: p.x + nx * d, y: p.y + ny * d }, k, true);
+        consider({ x: p.x - nx * d, y: p.y - ny * d }, k, true);
       }
     }
-    placed.set(el, at);
-    taken.push(connectorLabelBox(lines, at.x, at.y));
+    placed.set(el, best);
+    taken.push(connectorLabelBox(lines, best.x, best.y));
   }
   return placed;
 }
+
+const placeConnectorLabels = whiteboardConnectorLabelPoints;
 
 /** Radius of the semicircle a connector makes to hop over an earlier one, px. */
 export const WHITEBOARD_HOP_RADIUS = 5;

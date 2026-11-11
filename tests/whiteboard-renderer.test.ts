@@ -246,17 +246,22 @@ describe('whiteboard renderer', () => {
     expect(label.getAttribute('paint-order')).toBe('stroke');
   });
 
-  it('slides a label off one placed before it', () => {
+  it('moves both labels of two crossing arrows off the crossing (#1923)', () => {
     const src =
       'whiteboard\narrow first from: 0 0, to: 0 200\narrow second from: -100 100, to: 100 100';
     const labels = [
       ...draw(src).querySelectorAll('.whiteboard-arrow .whiteboard-label'),
     ];
     expect(labels).toHaveLength(2);
-    // The first keeps its midpoint; the second moves along its own arrow.
-    expect(Number(labels[0]!.getAttribute('y'))).toBeCloseTo(100 + 14 * 0.35);
-    expect(Number(labels[1]!.getAttribute('y'))).toBeCloseTo(100 + 14 * 0.35);
-    expect(labels[1]!.getAttribute('x')).not.toBe('0');
+    const [first, second] = labels.map((l) => ({
+      x: Number(l.getAttribute('x')),
+      y: Number(l.getAttribute('y')) - 14 * 0.35,
+    }));
+    // Each stays on its own arrow, clear of the crossing at (0, 100).
+    expect(first!.x).toBe(0);
+    expect(Math.abs(first!.y - 100)).toBeGreaterThan(14);
+    expect(second!.y).toBeCloseTo(100);
+    expect(Math.abs(second!.x)).toBeGreaterThan(20);
   });
 
   it('anchors multi-line text top-left, 20px apart, and sizes the bounds', () => {

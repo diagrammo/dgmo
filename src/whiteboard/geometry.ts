@@ -247,7 +247,7 @@ export function whiteboardLabelPosition(
 }
 
 /** Whether `outer` encloses any shape, sticky note or image in `elements`. */
-function whiteboardEnclosesAny(
+export function whiteboardEnclosesAny(
   outer: WhiteboardShape,
   elements: readonly WhiteboardElement[]
 ): boolean {
