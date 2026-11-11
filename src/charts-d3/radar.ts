@@ -24,6 +24,7 @@ const RINGS = 5;
 // LABEL_MAX_LINES, the last line ellipsized. When even that does not fit, the
 // radius shrinks (down to RADIUS_FLOOR of its first value) until it does.
 const LABEL_FONT = 14;
+const SCALE_FONT = 10;
 const LABEL_LINE_H = 17;
 const LABEL_MAX_LINES = 3;
 const LABEL_GAP = 18;
@@ -282,5 +283,31 @@ export function renderRadar(
           .text(fmtNum(v));
       }
     });
+  }
+
+  // scale labels: ring values along one ray, drawn over the series
+  for (let l = 1; l <= RINGS; l++) {
+    const r = (radius * l) / RINGS;
+    // Along the ray midway between spokes 0 and 1 (the ring edge's midpoint),
+    // so the numbers never sit under a vertex value label.
+    const mid = angle(0) + Math.PI / n;
+    const rm = r * Math.cos(Math.PI / n);
+    const sx = cx + Math.cos(mid) * rm;
+    const sy = cy + Math.sin(mid) * rm;
+    svg
+      .append('text')
+      .attr('class', 'dgmo-radar-scale')
+      .attr('x', sx + 3)
+      .attr('y', sy - 2)
+      .attr('text-anchor', 'start')
+      .attr('fill', textColor)
+      .attr('fill-opacity', 0.6)
+      .attr('font-size', SCALE_FONT)
+      .attr('font-family', FONT_FAMILY)
+      .attr('stroke', palette.bg)
+      .attr('stroke-width', 3)
+      .attr('stroke-linejoin', 'round')
+      .attr('paint-order', 'stroke')
+      .text(fmtNum(Number(((maxValue * l) / RINGS).toPrecision(2))));
   }
 }
