@@ -19,28 +19,21 @@ import { extractSymbols as extractInfraSymbols } from '../src/infra/parser';
 import { extractSymbols as extractClassSymbols } from '../src/class/parser';
 import { ALL_CHART_TYPES } from '../src/utils/parsing';
 import { chartTypes } from '../src/chart-types';
-import { fastestOf, growthExponent } from './perf-helpers';
-
-function extractorCost(
-  size: number,
-  makeDocument: (size: number) => string,
-  extract: (document: string) => unknown
-): number {
-  const document = makeDocument(size);
-  return fastestOf(5, () => extract(document));
-}
+import { measureGrowth } from './perf-helpers';
 
 function expectSubquadraticGrowth(
   makeDocument: (size: number) => string,
   extract: (document: string) => unknown
 ): void {
-  const small = 300;
-  const large = 3000;
-  const exponent = growthExponent(
-    { n: small, ms: extractorCost(small, makeDocument, extract) },
-    { n: large, ms: extractorCost(large, makeDocument, extract) }
-  );
-  expect(exponent).toBeLessThan(1.7);
+  const limit = 1.7;
+  const exponent = measureGrowth({
+    small: 300,
+    large: 3000,
+    prepare: makeDocument,
+    run: extract,
+    limit,
+  });
+  expect(exponent).toBeLessThan(limit);
 }
 
 // ============================================================

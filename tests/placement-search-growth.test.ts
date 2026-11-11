@@ -1,7 +1,7 @@
 import dagre from '@dagrejs/dagre';
 import { describe, expect, it } from 'vitest';
 import { dagreScored, searchPlacement } from '../src/utils/placement-search';
-import { growthExponent } from './perf-helpers';
+import { measureGrowth } from './perf-helpers';
 
 // The issue's cyclic generator (#1890): node i leads to i + 1 and to
 // (7i + 3) mod n, so the graph never reaches zero crossings and a search
@@ -36,22 +36,6 @@ function search(d: ReturnType<typeof cyclic>): number {
   return placed;
 }
 
-// A search past the size limit takes microseconds, below what one timing
-// resolves, so each sample repeats it for at least 20 ms and divides.
-function perCall(run: () => void): number {
-  let fastest = Infinity;
-  for (let sample = 0; sample < 3; sample++) {
-    const started = performance.now();
-    let calls = 0;
-    do {
-      run();
-      calls++;
-    } while (performance.now() - started < 20);
-    fastest = Math.min(fastest, (performance.now() - started) / calls);
-  }
-  return fastest;
-}
-
 describe('searchPlacement on a large diagram (#1890)', () => {
   const small = cyclic(30);
   const large = cyclic(90);
@@ -61,10 +45,16 @@ describe('searchPlacement on a large diagram (#1890)', () => {
   });
 
   it('costs about linearly in the diagram size, not with its square', () => {
-    const exponent = growthExponent(
-      { n: 30, ms: perCall(() => search(small)) },
-      { n: 90, ms: perCall(() => search(large)) }
-    );
+    // A search past the size limit takes microseconds; measureGrowth repeats
+    // each sample past timer resolution and interleaves the sizes.
+    const exponent = measureGrowth({
+      small: 30,
+      large: 90,
+      prepare: (n) => (n === 30 ? small : large),
+      run: search,
+      limit: 1.5,
+      minMs: 20,
+    });
     expect(exponent).toBeLessThan(1.5);
   });
 });

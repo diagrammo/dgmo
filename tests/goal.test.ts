@@ -8,7 +8,7 @@ import { mix, themeBaseBg } from '../src/palettes/color-utils';
 import { resolveColor } from '../src/colors';
 import { getRenderCategory } from '../src/dgmo-router';
 import { measureText } from '../src/utils/text-measure';
-import { fastestOf, growthExponent } from './perf-helpers';
+import { measureGrowth } from './perf-helpers';
 
 beforeAll(() => {
   const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
@@ -695,20 +695,14 @@ describe('goal render() pipeline', () => {
 // whitespace-free note of `[](` was cubic in its length (#1557).
 describe('goal renderer — a note of unmatched link openers', () => {
   it('renders in time linear in the note length', () => {
-    const cost = (n: number) => {
-      const parsed = parseGoal(
-        `goal T\nnow 1\ntarget 4\nnote ${'[]('.repeat(n)}`
-      );
-      return fastestOf(3, () =>
-        renderGoal(makeContainer(), parsed, nordLight, false)
-      );
-    };
-    const small = 125;
-    const large = 1_000;
-    const exponent = growthExponent(
-      { n: small, ms: cost(small) },
-      { n: large, ms: cost(large) }
-    );
+    const exponent = measureGrowth({
+      small: 125,
+      large: 1_000,
+      prepare: (n) =>
+        parseGoal(`goal T\nnow 1\ntarget 4\nnote ${'[]('.repeat(n)}`),
+      run: (parsed) => renderGoal(makeContainer(), parsed, nordLight, false),
+      limit: 1.5,
+    });
     expect(exponent).toBeLessThan(1.5);
   });
 });

@@ -4,7 +4,7 @@ import {
   stripInlineMarkdown,
   truncateBareUrl,
 } from '../src/utils/inline-markdown';
-import { fastestOf, growthExponent } from './perf-helpers';
+import { measureGrowth } from './perf-helpers';
 
 describe('parseInlineMarkdown', () => {
   it('returns plain text as a single span', () => {
@@ -129,44 +129,6 @@ describe('parseInlineMarkdown', () => {
 // `[` and every `](`: quadratic for `[`, cubic for `[](` (#1557). Each case is
 // sized so the old scan fails in seconds rather than hours.
 describe('inline markdown on a line of unmatched link openers', () => {
-  /**
-   * Per-call cost of the small and the large line, sampled INTERLEAVED and
-   * reduced to the fastest of each. Timing one size to completion and then
-   * the other let a load burst land on one sample only: on a busy pre-push
-   * gate that skewed the ratio past the 1.5 limit (8^0.5 = 2.8x) for a
-   * linear scan (diagrammo/diagrammo#1746).
-   */
-  function perCallMsPair(
-    fn: (line: string) => unknown,
-    smallLine: string,
-    largeLine: string
-  ): [number, number] {
-    const repsFor = (line: string) => {
-      let reps = 1;
-      while (
-        fastestOf(1, () => {
-          for (let i = 0; i < reps; i++) fn(line);
-        }) < 5 &&
-        reps < 1 << 20
-      )
-        reps *= 2;
-      return reps;
-    };
-    const sample = (line: string, reps: number) =>
-      fastestOf(1, () => {
-        for (let i = 0; i < reps; i++) fn(line);
-      }) / reps;
-    const rs = repsFor(smallLine);
-    const rl = repsFor(largeLine);
-    let small = Infinity;
-    let large = Infinity;
-    for (let round = 0; round < 7; round++) {
-      small = Math.min(small, sample(smallLine, rs));
-      large = Math.min(large, sample(largeLine, rl));
-    }
-    return [small, large];
-  }
-
   // [unit, small and large line length in characters]
   const lines: [string, number, number][] = [
     ['[', 2_000, 20_000],
@@ -183,11 +145,15 @@ describe('inline markdown on a line of unmatched link openers', () => {
     const line = (chars: number) => unit.repeat(Math.ceil(chars / unit.length));
     for (const [name, fn] of Object.entries(run)) {
       it(`${name} grows linearly in a line of ${unit}`, () => {
-        const [smallMs, largeMs] = perCallMsPair(fn, line(small), line(large));
-        const exponent = growthExponent(
-          { n: small, ms: smallMs },
-          { n: large, ms: largeMs }
-        );
+        // Calibrated, interleaved sampling (diagrammo/diagrammo#1746, #1921).
+        const exponent = measureGrowth({
+          small,
+          large,
+          prepare: line,
+          run: fn,
+          limit: 1.5,
+          rounds: 7,
+        });
         expect(exponent).toBeLessThan(1.5);
       });
     }
