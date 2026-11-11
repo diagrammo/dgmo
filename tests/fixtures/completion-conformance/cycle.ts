@@ -8,13 +8,20 @@ import type { ConformanceFixture } from './_types';
 // stale from when cycle was §20. Tracked separately.
 export const fixture: ConformanceFixture = {
   chartType: 'cycle',
-  structuralKeywords: ['direction-counterclockwise', 'circle-nodes'],
+  structuralKeywords: [
+    'direction-counterclockwise',
+    'circle-nodes',
+    'center',
+    'autonumber',
+  ],
   specSection: '21',
   firstLineKeyword: 'cycle',
 
   directives: [
     'direction-counterclockwise',
     'circle-nodes',
+    'center',
+    'autonumber',
     'fill-tint',
     'fill-solid',
     'fill-outline', // working but not documented in §21.5

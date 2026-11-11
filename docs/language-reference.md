@@ -3426,10 +3426,12 @@ Act red
 
 ### Shape and Direction Directives
 
-| Directive                    | Effect                                                                 |
-| ---------------------------- | ---------------------------------------------------------------------- |
-| `circle-nodes`               | Render nodes as uniform-diameter circles instead of rounded rectangles |
-| `direction-counterclockwise` | Reverse the cycle (default: clockwise)                                 |
+| Directive                    | Effect                                                                             |
+| ---------------------------- | ---------------------------------------------------------------------------------- |
+| `circle-nodes`               | Render nodes as uniform-diameter circles instead of rounded rectangles             |
+| `direction-counterclockwise` | Reverse the cycle (default: clockwise)                                             |
+| `center TEXT`                | Text in the middle of the ring (`center PDCA`; quotes optional, lowercase keyword) |
+| `autonumber`                 | Number the steps 1, 2, 3… in source order, as a badge on each node's outer edge    |
 
 ### Span Metadata
 

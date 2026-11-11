@@ -725,3 +725,105 @@ C`);
     }
   });
 });
+
+// ============================================================
+// Centre text, step numbers, arrows meeting node outlines
+// ============================================================
+
+describe('cycle — center text and autonumber', () => {
+  it('parses `center` with and without quotes', () => {
+    expect(parseCycle('cycle T\ncenter PDCA\nA\nB').options['center']).toBe(
+      'PDCA'
+    );
+    expect(
+      parseCycle('cycle T\ncenter "Deming wheel"\nA\nB').options.center
+    ).toBe('Deming wheel');
+  });
+
+  it('keeps a step called "Center" as a step', () => {
+    const parsed = parseCycle('cycle T\nCenter\nA');
+    expect(parsed.nodes.map((n) => n.label)).toEqual(['Center', 'A']);
+    expect(parsed.options['center']).toBeUndefined();
+  });
+
+  it('parses autonumber', () => {
+    expect(parseCycle('cycle T\nautonumber\nA\nB').options.autonumber).toBe(
+      'on'
+    );
+  });
+
+  function render(src: string): HTMLDivElement {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    renderCycle(container, parseCycle(src), nordLight, false, undefined, {
+      width: 800,
+      height: 600,
+    });
+    return container;
+  }
+
+  it('draws centre text only when given', () => {
+    expect(render('cycle T\nA\nB').querySelector('.cycle-center')).toBeNull();
+    const c = render('cycle T\ncenter PDCA\nA\nB');
+    expect(c.querySelector('.cycle-center')!.textContent).toBe('PDCA');
+  });
+
+  it('draws one numbered badge per step when autonumber is on', () => {
+    expect(
+      render('cycle T\nA\nB').querySelector('.cycle-step-numbers')
+    ).toBeNull();
+    const c = render('cycle T\nautonumber\nA\nB\nC');
+    const nums = [...c.querySelectorAll('.cycle-step-numbers text')].map(
+      (t) => t.textContent
+    );
+    expect(nums).toEqual(['1', '2', '3']);
+  });
+});
+
+describe('cycle layout — arrows touch the target outline', () => {
+  // Distance from (px,py) to the outline of an axis-aligned rect (rounding
+  // ignored: at most a couple of pixels at the corners).
+  function outlineDistance(
+    n: { x: number; y: number; width: number; height: number },
+    px: number,
+    py: number
+  ): number {
+    const dx = Math.abs(px - n.x) - n.width / 2;
+    const dy = Math.abs(py - n.y) - n.height / 2;
+    return Math.abs(Math.max(dx, dy));
+  }
+
+  for (const dirLine of ['', 'direction-counterclockwise\n']) {
+    it(`arrow tip lands on the node edge (${dirLine ? 'ccw' : 'cw'})`, () => {
+      const parsed = parseCycle(`cycle T
+${dirLine}Plan
+  -Define scope-> width: 6
+Do
+  Execute the plan with a lot of detail that wraps over several lines
+Check
+Act
+  Standardise
+Observe
+Orient
+Decide`);
+      const layout = computeCycleLayout(parsed, { width: 900, height: 700 });
+      const dir = parsed.direction === 'clockwise' ? 1 : -1;
+      parsed.edges.forEach((edge, i) => {
+        const m = layout.edges[i]!.path.match(
+          /A [\d.]+ [\d.]+ 0 \d \d ([-\d.e]+) ([-\d.e]+)$/
+        )!;
+        const ex = Number(m[1]);
+        const ey = Number(m[2]);
+        const stroke = Math.max(edge.width ?? 3, 2);
+        const arrowLen = (8 + 6 * Math.sqrt(stroke)) * 0.9;
+        const a =
+          Math.atan2(ey - layout.cy, ex - layout.cx) +
+          (dir * arrowLen) / layout.radius;
+        const tipX = layout.cx + layout.radius * Math.cos(a);
+        const tipY = layout.cy + layout.radius * Math.sin(a);
+        const tgt = layout.nodes[edge.targetIndex]!;
+        expect(outlineDistance(tgt, tipX, tipY)).toBeLessThan(2.5);
+      });
+    });
+  }
+});
