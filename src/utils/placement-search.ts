@@ -120,6 +120,13 @@ const SEARCH_SEEDS = 6;
 // class and ER gallery and example fixtures, every winning seed came first or
 // straight after one losing seed. The rankers always run.
 const SEED_PATIENCE = 2;
+// Above this many nodes plus edges the plain placement is drawn as is, with no
+// search and no scoring (#1890). Every candidate is scored by an all-pairs
+// crossing count, so the search grew with about the square of the diagram:
+// at 90 states it took ~2.4 s against ~0.2 s for the plain layout (2026-11-10).
+// The largest flowchart, state, class or ER diagram in the test suite is 76
+// (31 nodes, 45 edges), so every one of them keeps the layout it had.
+const SEARCH_SIZE_LIMIT = 80;
 
 function seeded(s: number): () => number {
   return () => {
@@ -217,6 +224,10 @@ export function searchPlacement<G>(
   };
 
   let best = place('network-simplex');
+  const plain = score(best);
+  if (plain.nodes.length + plain.edges.length > SEARCH_SIZE_LIMIT) {
+    return { g: best };
+  }
   const plainLay = asScored(best);
   const plainX = countSplineCrossings(plainLay);
   const plainBad = plainX + rest(plainLay);

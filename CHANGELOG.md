@@ -84,6 +84,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A large state, flowchart, class or ER diagram no longer stalls in the
+  layout search.** Past 80 nodes plus edges the plain layout is drawn as is,
+  without trying and scoring alternative placements, whose crossing count grew
+  with the square of the diagram. Smaller diagrams keep the layout they had.
 - **State and flowchart curves go around groups they do not belong to.** An
   edge between two states outside a group no longer cuts through that group's
   box: the layout search now counts such passes against a placement, and an
