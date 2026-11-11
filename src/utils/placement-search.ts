@@ -126,7 +126,7 @@ const SEED_PATIENCE = 2;
 // at 90 states it took ~2.4 s against ~0.2 s for the plain layout (2026-11-10).
 // The largest flowchart, state, class or ER diagram in the test suite is 76
 // (31 nodes, 45 edges), so every one of them keeps the layout it had.
-const SEARCH_SIZE_LIMIT = 80;
+export const SEARCH_SIZE_LIMIT = 80;
 
 function seeded(s: number): () => number {
   return () => {

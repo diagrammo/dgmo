@@ -21,6 +21,7 @@ import type { WrappedDescLine } from '../utils/wrapped-desc';
 import {
   dagreScored,
   searchPlacement,
+  SEARCH_SIZE_LIMIT,
   sourceOrder,
   type Pt,
   type Shuffle,
@@ -391,7 +392,12 @@ export function layoutGraph(
     new Map(
       basePositioned.map((p) => [p.node.id, { ...p, shape: p.node.shape }])
     ),
-    (rs, only) => countSplineCrossings(scored(rs, only)),
+    // Past the search's size limit the arrivals are squared all at once and
+    // only node pierces are checked: scoring each one by an all-pairs
+    // crossing count grew with the square of the diagram (#1890).
+    graph.nodes.length + graph.edges.length > SEARCH_SIZE_LIMIT
+      ? () => 0
+      : (rs, only) => countSplineCrossings(scored(rs, only)),
     (rs, only) => countEdgeNodePierces(scored(rs, only))
   );
 
