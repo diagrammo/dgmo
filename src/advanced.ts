@@ -354,6 +354,8 @@ export {
   visibleWhiteboardIndices,
   whiteboardBounds,
   whiteboardConnectorPaint,
+  whiteboardHopStops,
+  WHITEBOARD_HOP_RADIUS,
   inkOutlinePath,
   IMAGE_NOT_UPLOADED,
 } from './whiteboard/renderer';
