@@ -156,7 +156,7 @@ export const WHITEBOARD_DIAGNOSTICS: DiagnosticSpec[] = [
     message: (p) =>
       `Unknown shape set "${s(p.set)}" — ignored (sets: ${s(p.valid)})${p.hint ? `. ${s(p.hint)}` : ''}`,
     hint: 'A `shapes` line names bundled glyph sets, separated by commas: `shapes network`.',
-    example: 'whiteboard\nshapes netwrk',
+    example: 'whiteboard\nshapes networks',
   },
   {
     code: WHITEBOARD_DIAGNOSTIC_CODES.SHAPE_SET_OFF,
