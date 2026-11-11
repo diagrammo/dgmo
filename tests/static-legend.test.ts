@@ -255,3 +255,56 @@ describe('a static key taller than three rows stays above the chart (#1826)', ()
     expect(contentTop).toBeGreaterThanOrEqual(keyBottom);
   });
 });
+
+describe('a static gantt key is placed inside the canvas (#1826)', () => {
+  const absX = (el: Element, x: number): number => {
+    const m = toRoot(el);
+    return m[0] * x + m[4];
+  };
+  /** [left, right] of every legend entry, and the canvas width. */
+  function entrySpans(svg: string): {
+    spans: Array<[number, number]>;
+    w: number;
+  } {
+    const doc = new JSDOM(svg, { contentType: 'image/svg+xml' }).window
+      .document;
+    const vb = (doc.documentElement.getAttribute('viewBox') ?? '').split(/\s+/);
+    const spans: Array<[number, number]> = [];
+    for (const hit of doc.querySelectorAll('[data-legend-entry] rect')) {
+      const x = Number(hit.getAttribute('x') ?? 0);
+      const w = Number(hit.getAttribute('width') ?? 0);
+      spans.push([absX(hit, x), absX(hit, x + w)]);
+    }
+    return { spans, w: Number(vb[2]) };
+  }
+  const gantt = (n: number, inline: boolean): string =>
+    [
+      'gantt Wide key',
+      ...(inline ? ['legend-inline'] : []),
+      '',
+      'start-date 2026-01-05',
+      '',
+      'tag Role as r',
+      ...TALL.slice(0, n).map((v, i) => `  ${v} ${COLORS[i % 6]}`),
+      '',
+      ...TALL.slice(0, n).map((v, i) => `Task ${i + 1} 3d r: ${v}`),
+    ].join('\n');
+
+  it.each([
+    [14, 600, false],
+    [8, 600, false],
+    [5, 800, false],
+    [2, 1200, true],
+  ] as const)(
+    '%i entries at width %i (inline %s)',
+    async (n, width, inline) => {
+      const { svg } = await render(gantt(n, inline), { theme: 'light', width });
+      const { spans, w } = entrySpans(svg ?? '');
+      expect(spans).toHaveLength(n);
+      for (const [l, r] of spans) {
+        expect(l).toBeGreaterThanOrEqual(0);
+        expect(r).toBeLessThanOrEqual(w + 0.5);
+      }
+    }
+  );
+});

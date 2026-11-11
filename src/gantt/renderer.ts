@@ -557,7 +557,8 @@ function drawGantt(
             placement: 'top-center',
             titleRelation: 'inline-with-title',
           },
-          mode: 'preview',
+          // Probed in the mode it is drawn in (#1826).
+          mode: options?.exportMode ? 'export' : 'preview',
           capsulePillAddonWidth: LEGEND_ICON_W,
         },
         { activeGroup: currentActiveGroup },
@@ -2408,9 +2409,36 @@ function renderTagLegend(
 
   // Center over full container (matching title centering); inline → flush right.
   const containerWidth = chartLeftMargin + chartInnerWidth + RIGHT_MARGIN;
-  const legendX = inlineHeader
-    ? containerWidth - INLINE_HEADER_PAD - totalW
-    : (containerWidth - totalW) / 2;
+  // A static render draws the plain key (#1826): it wraps at the chart's width
+  // and the layout engine centres it, so it is measured by that engine rather
+  // than by the preview capsule's one-row sum above. Inline, it is placed
+  // flush right at its own measured width.
+  const staticKeyW =
+    exportMode && visibleGroups.length > 0
+      ? getLegendExtent(
+          {
+            groups: visibleGroups.map((g) => ({
+              name: g.name,
+              entries: filteredEntries.get(tagAttrKey(g.name)) ?? g.entries,
+            })),
+            position: {
+              placement: 'top-center',
+              titleRelation: inlineHeader ? 'inline-with-title' : 'below-title',
+            },
+            mode: 'export',
+          },
+          { activeGroup: activeGroupName },
+          containerWidth
+        ).width
+      : null;
+  const legendX =
+    staticKeyW !== null
+      ? inlineHeader
+        ? containerWidth - INLINE_HEADER_PAD - staticKeyW
+        : 0
+      : inlineHeader
+        ? containerWidth - INLINE_HEADER_PAD - totalW
+        : (containerWidth - totalW) / 2;
 
   const legendRow = svg
     .append('g')
@@ -2566,7 +2594,14 @@ function renderTagLegend(
       groups: legendGroups,
       palette,
       isDark,
-      width: tagGroupsW,
+      // Static: the chart's width, or inline the key's own (+0.5 so its one
+      // row is never re-wrapped by float drift).
+      width:
+        staticKeyW !== null
+          ? inlineHeader
+            ? staticKeyW + 0.5
+            : containerWidth
+          : tagGroupsW,
       mode: exportMode ? 'export' : 'preview',
       capsulePillAddonWidth: iconReserve,
       ...(inlineHeader && {
