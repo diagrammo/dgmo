@@ -1,10 +1,20 @@
 name: CI
 
+# Pull requests only, plus a manual run (diagrammo/diagrammo#1821). Every push
+# to main has already passed .githooks/pre-push, which runs each step below in
+# the same order, so a push-triggered run repeated it — 55 of them in
+# 2026-11-01..09, ~7 min each, most of the org's free Actions minutes, and the
+# org budget hard-stops every workflow when those run out.
+#
+# What only this workflow proves, kept here on purpose: a clean ubuntu machine,
+# Node 22 (the gate runs whatever Node the pushing box has) and a fresh
+# --frozen-lockfile install against an empty store. A pull request is where
+# that still earns its minutes: Dependabot's, and dependabot-automerge.yml,
+# which already fires only on a CI run whose event is pull_request.
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
