@@ -47,6 +47,12 @@ interface Badge {
   w: number;
   remote?: boolean;
 }
+interface Box {
+  l: number;
+  t: number;
+  r: number;
+  b: number;
+}
 interface Placement {
   node: VCNode;
   kind: 'msg' | 'tag' | 'ref' | 'head' | 'note' | 'ab';
@@ -191,36 +197,147 @@ export function renderVersionControl(
     const lanesBottom = cross0 + (laneCount - 1) * laneGap;
     const bandTop = lanesBottom + LEADER_GAP;
 
-    // Row-pack horizontal message shelves (event-line style): a commit's dot
-    // stays centered on its date; overlap resolves in depth (rows), never by
-    // rotating text. Sort by x, drop each shelf into the first row it clears.
+    // Message shelves sit BESIDE their dot: first free slot just under the
+    // commit's own lane (short leader), tried centered, then hanging right,
+    // then hanging left, then one row lower. Only when every nearby slot is
+    // taken (other shelves, dots, lane/connector lines, badges, branch names)
+    // does a shelf drop to the shared band below the lanes.
     const shelfGap = 6;
-    const rowRight: number[] = [];
+    const P0 = (k: number): { x: number; y: number } => pos.get(k)!;
+    const blocked: Box[] = [];
+    const seg = (x1: number, y1: number, x2: number, y2: number): void => {
+      blocked.push({
+        l: Math.min(x1, x2) - 3,
+        t: Math.min(y1, y2) - 3,
+        r: Math.max(x1, x2) + 3,
+        b: Math.max(y1, y2) + 3,
+      });
+    };
+    const legs = (a: VCNode, b: VCNode, cx: number, cy: number): void => {
+      const A = P0(a.key),
+        B = P0(b.key);
+      seg(A.x, A.y, cx, cy);
+      seg(cx, cy, B.x, B.y);
+    };
+    for (const n of nodes) {
+      const N = P0(n.key);
+      blocked.push({
+        l: N.x - DOT - 3,
+        t: N.y - DOT - 3,
+        r: N.x + DOT + 3,
+        b: N.y + DOT + 3,
+      });
+      if (n.prev != null) seg(P0(n.prev).x, P0(n.prev).y, N.x, N.y);
+      if (n.parent != null) legs(byKey(n.parent), n, P0(n.parent).x, N.y);
+      if (n.mergeFrom != null)
+        legs(byKey(n.mergeFrom), n, N.x, P0(n.mergeFrom).y);
+      for (const from of [n.cherryFrom, n.revertFrom, n.squashFrom])
+        if (from != null) legs(byKey(from), n, N.x, P0(from).y);
+      if (n.movedTo != null) legs(n, byKey(n.movedTo), P0(n.movedTo).x, N.y);
+      (above.get(n.key) ?? []).forEach((it, j) => {
+        const cy = N.y - DOT - 12 - j * STACK;
+        blocked.push({
+          l: N.x - it.w / 2 - 2,
+          t: cy - 10,
+          r: N.x + it.w / 2 + 2,
+          b: cy + 10,
+        });
+      });
+    }
+    if (!parsed.options.noLanes)
+      for (const b of parsed.branches) {
+        let first: VCNode | null = null;
+        for (const n of nodes)
+          if (n.branch === b.name && (first === null || n.seq < first.seq))
+            first = n;
+        if (!first) continue;
+        const fp = P0(first.key);
+        blocked.push({
+          l: fp.x - DOT - 2,
+          t: fp.y - DOT - 22,
+          r: fp.x - DOT + b.name.length * 8 + 4,
+          b: fp.y - DOT - 2,
+        });
+      }
+    for (const b of parsed.branches) {
+      if (!b.ab || b.ab.ahead + b.ab.behind === 0 || b.tip == null) continue;
+      const tip = P0(b.tip);
+      blocked.push({
+        l: tip.x + DOT + 6,
+        t: tip.y - 9,
+        r: tip.x + DOT + 10 + abText(b.ab).length * 7 + 4,
+        b: tip.y + 9,
+      });
+    }
+    const hit = (a: Box, list: readonly Box[]): boolean =>
+      list.some((o) => a.l < o.r && a.r > o.l && a.t < o.b && a.b > o.t);
+    const shelves: Box[] = [];
     const sorted = [...nodes].sort(
       (a, b) => pos.get(a.key)!.x - pos.get(b.key)!.x
     );
+    let bottom = bandTop;
     for (const n of sorted) {
       const p = pos.get(n.key)!;
       const w = label.get(n.key)!.lw + SHELF_PAD * 2;
-      const left = p.x - w / 2;
-      let row = rowRight.length;
-      for (let l = 0; l < rowRight.length; l++)
-        if (rowRight[l]! + shelfGap <= left) {
-          row = l;
-          break;
+      const near = p.y + DOT + 8;
+      const lefts = [
+        p.x - w / 2,
+        p.x - 10,
+        p.x - w + 10,
+        p.x + DOT + 6,
+        p.x - w - DOT - 6,
+      ];
+      const tops = [near, near + SHELF_H + ROW_GAP];
+      // The node's own dot and the lines meeting it are not obstacles for its
+      // own shelf's leader, only for the shelf body.
+      const slot = (left: number, top: number): Box => ({
+        l: left - shelfGap / 2,
+        t: top - 2,
+        r: left + w + shelfGap / 2,
+        b: top + SHELF_H + 2,
+      });
+      let chosen: { left: number; top: number } | null = null;
+      search: for (const top of tops)
+        for (const l of lefts) {
+          const left = Math.max(4, l);
+          const lx = Math.min(Math.max(p.x, left + 6), left + w - 6);
+          const lead = {
+            l: Math.min(p.x, lx) - 1,
+            t: p.y + DOT,
+            r: Math.max(p.x, lx) + 1,
+            b: top,
+          };
+          if (hit(slot(left, top), blocked) || hit(slot(left, top), shelves))
+            continue;
+          if (hit(lead, shelves)) continue;
+          chosen = { left, top };
+          break search;
         }
-      const top = bandTop + row * (SHELF_H + ROW_GAP);
-      rowRight[row] = left + w;
+      if (!chosen) {
+        const left = Math.max(4, p.x - w / 2);
+        for (let row = 0; !chosen; row++) {
+          const top = bandTop + row * (SHELF_H + ROW_GAP);
+          if (!hit(slot(left, top), shelves)) chosen = { left, top };
+        }
+      }
+      const { left, top } = chosen;
+      shelves.push(slot(left, top));
+      bottom = Math.max(bottom, top + SHELF_H);
       placements.push({
         node: n,
         kind: 'msg',
         x: p.x,
         y: top,
         anchor: 'start',
-        shelfLeft: Math.max(4, left),
+        shelfLeft: left,
         shelfTop: top,
         shelfW: w,
-        leader: { x1: p.x, y1: p.y + DOT, x2: p.x, y2: top },
+        leader: {
+          x1: p.x,
+          y1: p.y + DOT,
+          x2: Math.min(Math.max(p.x, left + 6), left + w - 6),
+          y2: top,
+        },
       });
       const stack = above.get(n.key) ?? [];
       stack.forEach((it, j) =>
@@ -236,7 +353,6 @@ export function renderVersionControl(
         })
       );
     }
-    const rowCount = rowRight.length;
     for (const b of parsed.branches) {
       if (!b.ab || b.ab.ahead + b.ab.behind === 0 || b.tip == null) continue;
       const tip = pos.get(b.tip)!;
@@ -256,7 +372,7 @@ export function renderVersionControl(
           ([k, p]) => p.x + label.get(k)!.lw / 2 + SHELF_PAD + 8
         )
       ) + 8;
-    contentH = bandTop + rowCount * (SHELF_H + ROW_GAP) + 8;
+    contentH = bottom + 8;
     if (parsed.notes.length) {
       captionY = contentH + 4;
       contentH += 8 + parsed.notes.length * 16 + 8;
