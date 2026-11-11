@@ -1,5 +1,5 @@
 // ============================================================
-// Boxes and Lines — stable collapse layout (anchor + gap-close)
+// Boxes and Lines — stable collapse layout (anchor + compaction)
 // ============================================================
 //
 // When a group collapses interactively, a full placement search moves every
@@ -7,12 +7,14 @@
 // "teleports". This path instead:
 //
 //   1. Freezes every surviving node at its previous position.
-//   2. Places the collapsed pill at the centre of its members' previous
-//      bounding box (or at its own previous position when it was already
-//      collapsed).
-//   3. Runs a gap-close pass per newly collapsed group: rigid units (top-level
-//      groups move as one) that sit entirely beyond the vacated span slide
-//      back along each axis to reclaim it, clamped so nothing collides.
+//   2. Places a newly collapsed TOP-LEVEL pill at the top-left of its group's
+//      old frame — the group's slot — and a nested one at its members' old
+//      bounding-box centre. An already-collapsed pill keeps its own previous
+//      position.
+//   3. Compacts per axis, keeping the ORDER rather than the coordinates: rigid
+//      units (top-level groups move as one) that sat after a shrunken group
+//      close up to their old spacing from it, and nothing passes anything
+//      (#1784).
 //   4. Rebuilds expanded-group container rects from their (frozen) members and
 //      routes edges as straight border-to-border segments.
 //
@@ -67,6 +69,16 @@ function bboxOf(rects: readonly Rect[]): Rect {
     y: (y0 + y1) / 2,
     width: x1 - x0,
     height: y1 - y0,
+  };
+}
+
+/** A group frame around its members' bounding box: padding plus label zone. */
+function padFrame(b: Rect): Rect {
+  return {
+    x: b.x,
+    y: b.y - GROUP_LABEL_ZONE / 2,
+    width: b.width + 2 * GROUP_PAD,
+    height: b.height + 2 * GROUP_PAD + GROUP_LABEL_ZONE,
   };
 }
 
@@ -136,47 +148,92 @@ export function tryStableCollapseLayout(
 
   // ── Pills: anchor each collapsed group ──
   // Previously collapsed → its own previous pill position. Newly collapsed →
-  // centre of its members' previous bounding box (members approximated at node
-  // size — their true sizes left the size map with the collapse transform).
-  const newlyCollapsed: { label: string; memberBbox: Rect }[] = [];
+  // members approximated at the largest surviving node size (their true sizes
+  // left the size map with the collapse transform). A TOP-LEVEL pill takes its
+  // group's slot: it sits at the top-left of the group's old frame, and the
+  // compaction pass below closes the rest of the frame up (#1784). A pill
+  // nested in an expanded group sits at its members' old bounding-box centre.
+  let estW = NODE_WIDTH;
+  let estH = NODE_HEIGHT;
+  for (const s of sizes.values()) {
+    estW = Math.max(estW, s.width);
+    estH = Math.max(estH, s.height);
+  }
+  /** Each collapsed pill's extent BEFORE this collapse: the group's old frame
+   *  when newly collapsed, else the pill itself. Read by the compaction pass. */
+  const pillOrigin = new Map<string, Rect>();
+  /** A node's rect before this collapse — its own, or estimated for a member. */
+  const origNodeRect = (label: string): Rect | null => {
+    const r = rects.get(label);
+    if (r) return r;
+    const p = prev.get(label);
+    return p ? { x: p.x, y: p.y, width: estW, height: estH } : null;
+  };
+  /** An original group's frame before this collapse. */
+  const origFrame = (label: string, seen = new Set<string>()): Rect | null => {
+    if (seen.has(label)) return null;
+    seen.add(label);
+    if (collapsedGroupLabels.has(label) && prev.has(gid(label)))
+      return rects.get(gid(label)) ?? null;
+    const g = ogByLabel.get(label);
+    if (!g) return null;
+    const parts: Rect[] = [];
+    for (const c of g.children) {
+      const r = ogByLabel.has(c) ? origFrame(c, seen) : origNodeRect(c);
+      if (r) parts.push(r);
+    }
+    return parts.length > 0 ? padFrame(bboxOf(parts)) : null;
+  };
+  // Previously collapsed pills first, so `origFrame` can read their rects.
   for (const label of collapsedGroupLabels) {
     const own = prev.get(gid(label));
-    if (own) {
-      rects.set(gid(label), {
-        x: own.x,
-        y: own.y,
-        width: NODE_WIDTH,
-        height: NODE_HEIGHT,
-      });
-      continue;
-    }
+    if (!own) continue;
+    const r = { x: own.x, y: own.y, width: NODE_WIDTH, height: NODE_HEIGHT };
+    rects.set(gid(label), r);
+    pillOrigin.set(gid(label), r);
+  }
+  for (const label of collapsedGroupLabels) {
+    if (rects.has(gid(label))) continue;
     const members = descendantNodes(label);
     if (members.length === 0) return null;
-    const memberRects: Rect[] = [];
-    for (const m of members) {
-      const p = prev.get(m);
-      if (!p) return null;
-      memberRects.push({
-        x: p.x,
-        y: p.y,
-        width: NODE_WIDTH,
-        height: NODE_HEIGHT,
-      });
-    }
-    const bbox = bboxOf(memberRects);
+    if (members.some((m) => !prev.has(m))) return null;
+    const frame = origFrame(label);
+    if (!frame) return null;
+    const topLevel = !ogByLabel.get(label)?.parentGroup;
+    const at = topLevel
+      ? { x: left(frame) + NODE_WIDTH / 2, y: top(frame) + NODE_HEIGHT / 2 }
+      : bboxOf(members.map((m) => origNodeRect(m)!));
     rects.set(gid(label), {
-      x: bbox.x,
-      y: bbox.y,
+      x: at.x,
+      y: at.y,
       width: NODE_WIDTH,
       height: NODE_HEIGHT,
     });
-    newlyCollapsed.push({ label, memberBbox: bbox });
+    pillOrigin.set(gid(label), topLevel ? frame : rects.get(gid(label))!);
   }
 
-  // ── Rigid units for the gap-close pass ──
-  // A top-level expanded group slides as one unit (member nodes + pills of
-  // collapsed sub-groups); ungrouped nodes and top-level pills slide alone.
+  // ── Rigid units for the compaction pass ──
+  // A top-level expanded group moves as one unit (member nodes + pills of
+  // collapsed sub-groups); ungrouped nodes and top-level pills move alone.
   const groupByLabel = new Map(parsed.groups.map((g) => [g.label, g]));
+  /** Frame of a current expanded group, built from the current rects. */
+  const currentFrame = (
+    label: string,
+    seen = new Set<string>()
+  ): Rect | null => {
+    if (seen.has(label)) return null;
+    seen.add(label);
+    const g = groupByLabel.get(label);
+    if (!g) return null;
+    const parts: Rect[] = [];
+    for (const c of g.children) {
+      const r = groupByLabel.has(c)
+        ? currentFrame(c, seen)
+        : (rects.get(c) ?? rects.get(gid(c)) ?? null);
+      if (r) parts.push(r);
+    }
+    return parts.length > 0 ? padFrame(bboxOf(parts)) : null;
+  };
   const inUnit = new Set<string>();
   const unitKeys = (label: string, seen = new Set<string>()): string[] => {
     if (seen.has(label)) return [];
@@ -191,59 +248,105 @@ export function tryStableCollapseLayout(
     }
     return out;
   };
-  const units: string[][] = [];
+  interface Unit {
+    keys: string[];
+    /** Extent before this collapse — fixes the order and the spacing. */
+    orig: Rect;
+    /** Current extent; recomputed as the unit moves. */
+    cur: () => Rect;
+  }
+  const units: Unit[] = [];
   for (const g of parsed.groups) {
     if (g.parentGroup) continue;
     const keys = unitKeys(g.label);
     if (keys.length === 0) continue;
     for (const k of keys) inUnit.add(k);
-    units.push(keys);
+    const orig = origFrame(g.label);
+    if (!orig) return null;
+    const label = g.label;
+    units.push({ keys, orig, cur: () => currentFrame(label)! });
   }
-  for (const key of rects.keys()) if (!inUnit.has(key)) units.push([key]);
+  for (const key of rects.keys()) {
+    if (inUnit.has(key)) continue;
+    units.push({
+      keys: [key],
+      orig: pillOrigin.get(key) ?? rects.get(key)!,
+      cur: () => rects.get(key)!,
+    });
+  }
 
-  // ── Gap-close: slide far-side units back toward each vacated span ──
-  const axes: ('x' | 'y')[] = ['x', 'y'];
-  for (const { label, memberBbox } of newlyCollapsed) {
-    const pill = rects.get(gid(label))!;
-    for (const axis of axes) {
-      const size = axis === 'x' ? 'width' : 'height';
-      const perpMin = axis === 'x' ? top : left;
-      const perpMax = axis === 'x' ? bottom : right;
-      const axMin = axis === 'x' ? left : top;
-      const axMax = axis === 'x' ? right : bottom;
-      const reclaim = memberBbox[size] - pill[size];
-      if (reclaim <= 0) continue;
-
-      const unitBbox = (keys: string[]): Rect =>
-        bboxOf(keys.map((k) => rects.get(k)!));
-      const sliding: string[][] = [];
-      const staticRects: Rect[] = [];
-      for (const u of units) {
-        const b = unitBbox(u);
-        // A unit slides only when it sits entirely beyond the vacated centre.
-        if (axMin(b) >= pill[axis] && !u.includes(gid(label))) sliding.push(u);
-        else staticRects.push(...u.map((k) => rects.get(k)!));
-      }
-      if (sliding.length === 0) continue;
-
-      // Clamp the slide so no sliding unit lands within MIN_GAP of static
-      // content it overlaps on the perpendicular axis.
-      let delta = reclaim;
-      for (const u of sliding) {
-        const b = unitBbox(u);
-        for (const s of staticRects) {
-          const overlaps =
-            perpMin(b) < perpMax(s) - 4 && perpMax(b) > perpMin(s) + 4;
-          if (!overlaps || axMax(s) > axMin(b)) continue;
-          delta = Math.min(delta, axMin(b) - axMax(s) - MIN_GAP);
+  // ── Compaction: keep the ORDER, not the coordinates (#1784) ──
+  // Per axis, unit j must stay after unit i when i sat wholly before j and the
+  // two overlapped on the other axis before the collapse. An adjacent pair
+  // keeps its old spacing; a pair with another unit between them only has to
+  // stay clear. A unit with no such predecessor stays put. Nothing therefore
+  // moves away, nothing passes anything, and a gap closes only where space was
+  // freed by a group shrinking to its pill. Pairs that overlap on the other
+  // axis only NOW (after the first pass) are kept clear as well.
+  for (const axis of ['x', 'y'] as const) {
+    const perp = axis === 'x' ? 'y' : 'x';
+    const lo = (r: Rect, a: 'x' | 'y'): number =>
+      a === 'x' ? left(r) : top(r);
+    const hi = (r: Rect, a: 'x' | 'y'): number =>
+      a === 'x' ? right(r) : bottom(r);
+    const perpOverlap = (a: Rect, b: Rect): boolean =>
+      lo(a, perp) < hi(b, perp) - 4 && hi(a, perp) > lo(b, perp) + 4;
+    const n = units.length;
+    const cur = units.map((u) => u.cur());
+    const before = (i: number, j: number): boolean =>
+      i !== j &&
+      hi(units[i]!.orig, axis) <= lo(units[j]!.orig, axis) + 0.5 &&
+      perpOverlap(units[i]!.orig, units[j]!.orig);
+    const preds: { i: number; gap: number }[][] = units.map(() => []);
+    for (let j = 0; j < n; j++)
+      for (let i = 0; i < n; i++) {
+        if (i === j) continue;
+        if (before(i, j)) {
+          const gap = lo(units[j]!.orig, axis) - hi(units[i]!.orig, axis);
+          let between = false;
+          for (let k = 0; k < n && !between; k++)
+            between = before(i, k) && before(k, j);
+          preds[j]!.push({ i, gap: between ? Math.min(gap, MIN_GAP) : gap });
+        } else if (
+          !before(j, i) &&
+          perpOverlap(cur[i]!, cur[j]!) &&
+          hi(cur[i]!, axis) <= lo(cur[j]!, axis) + 0.5
+        ) {
+          const gap = lo(cur[j]!, axis) - hi(cur[i]!, axis);
+          preds[j]!.push({ i, gap: Math.min(gap, MIN_GAP) });
         }
       }
-      if (delta <= 0) continue;
-      for (const u of sliding)
-        for (const k of u) {
-          const r = rects.get(k)!;
-          rects.set(k, { ...r, [axis]: r[axis] - delta });
-        }
+    // Topological order over the constraints; a cycle means the old layout
+    // was not separable on this axis, so fall back to the placement search.
+    const indeg = preds.map((p) => p.length);
+    const succ: number[][] = units.map(() => []);
+    for (let j = 0; j < n; j++) for (const { i } of preds[j]!) succ[i]!.push(j);
+    const queue: number[] = [];
+    for (let j = 0; j < n; j++) if (indeg[j] === 0) queue.push(j);
+    const newLo: number[] = cur.map((r) => lo(r, axis));
+    let done = 0;
+    while (queue.length > 0) {
+      const j = queue.shift()!;
+      done++;
+      if (preds[j]!.length > 0) {
+        let at = -Infinity;
+        for (const { i, gap } of preds[j]!)
+          at = Math.max(
+            at,
+            newLo[i]! + (hi(cur[i]!, axis) - lo(cur[i]!, axis)) + gap
+          );
+        newLo[j] = at;
+      }
+      for (const k of succ[j]!) if (--indeg[k]! === 0) queue.push(k);
+    }
+    if (done < n) return null;
+    for (let j = 0; j < n; j++) {
+      const delta = newLo[j]! - lo(cur[j]!, axis);
+      if (delta === 0) continue;
+      for (const k of units[j]!.keys) {
+        const r = rects.get(k)!;
+        rects.set(k, { ...r, [axis]: r[axis] + delta });
+      }
     }
   }
 
@@ -267,13 +370,7 @@ export function tryStableCollapseLayout(
       else if (rects.has(gid(c))) memberRects.push(rects.get(gid(c))!);
     }
     if (memberRects.length === 0) return null;
-    const b = bboxOf(memberRects);
-    const rect: Rect = {
-      x: b.x,
-      y: b.y - GROUP_LABEL_ZONE / 2,
-      width: b.width + 2 * GROUP_PAD,
-      height: b.height + 2 * GROUP_PAD + GROUP_LABEL_ZONE,
-    };
+    const rect = padFrame(bboxOf(memberRects));
     groupRect.set(label, rect);
     return rect;
   };
