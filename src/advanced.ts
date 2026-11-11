@@ -292,6 +292,11 @@ export type {
   BLGroup,
 } from './boxes-and-lines/types';
 export { layoutBoxesAndLines } from './boxes-and-lines/layout';
+export {
+  boxesAndLinesToWhiteboard,
+  boxesAndLinesLayoutToWhiteboard,
+} from './boxes-and-lines/to-whiteboard';
+export type { BoxesAndLinesToWhiteboardResult } from './boxes-and-lines/to-whiteboard';
 export type {
   BLLayoutResult,
   BLLayoutNode,
