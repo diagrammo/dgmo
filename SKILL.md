@@ -356,7 +356,7 @@ Edge
 
 SignalFlags f: Blackbeard
   description: Flag semaphore relay — ship-to-ship messaging
-  latency-ms: 30000
+  latency-ms: 3000
   -> Flagship
   -> ScoutShip
 
@@ -364,7 +364,7 @@ Flagship f: Blackbeard
   description: Command vessel — decrypts and routes all intelligence
   instances: 1
   max-rps: 50
-  latency-ms: 5000
+  latency-ms: 500
   -> CarrierPigeons
   -> RumRunner
 
@@ -372,7 +372,7 @@ ScoutShip f: Bonny
   description: Fast sloop for reconnaissance
   instances: 2
   max-rps: 30
-  latency-ms: 8000
+  latency-ms: 800
   -> Flagship
 
 CarrierPigeons f: Rackham
@@ -388,12 +388,12 @@ CarrierPigeons f: Rackham
   TavernNetwork f: Rackham
     description: Dockside tavern informants across the Caribbean
     max-rps: 20
-    latency-ms: 86400000
+    latency-ms: 9000
 
 RumRunner f: Bonny
   description: Smuggler supply line — moves coded messages in rum barrels
   concurrency: 4
-  duration-ms: 172800000
+  duration-ms: 12000
   -> TavernNetwork
 ```
 #### gantt
