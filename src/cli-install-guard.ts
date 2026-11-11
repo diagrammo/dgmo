@@ -8,7 +8,15 @@
 // followed as before.
 
 import { lstatSync, realpathSync } from 'node:fs';
-import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import {
+  basename,
+  dirname,
+  isAbsolute,
+  join,
+  relative,
+  resolve,
+  sep,
+} from 'node:path';
 
 function inside(root: string, path: string): boolean {
   const rel = relative(root, path);
@@ -58,5 +66,19 @@ export function symlinkOutside(root: string, path: string): string | null {
  * configs there are the user's own, often dotfile-manager symlinks.
  */
 export function cwdHoldsHome(cwd: string, home: string): boolean {
-  return inside(resolve(cwd), resolve(home));
+  // Compared as real paths: `process.cwd()` is already resolved, and a HOME
+  // reached through a symlink (macOS's `/var` → `/private/var`) never matched.
+  return inside(real(cwd), real(home));
+}
+
+// The deepest existing ancestor resolved, the rest appended, so a path that
+// does not exist yet compares the same way as one that does.
+function real(path: string): string {
+  const abs = resolve(path);
+  try {
+    return realpathSync(abs);
+  } catch {
+    const parent = dirname(abs);
+    return parent === abs ? abs : join(real(parent), basename(abs));
+  }
 }
