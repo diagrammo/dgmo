@@ -163,6 +163,12 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'no-center-total': {
         description: 'Hide the center total on a doughnut/hole pie',
       },
+      sort: {
+        description: 'Order slices by value: sort (largest first) or sort asc',
+      },
+      'other-below': {
+        description: 'Merge slices under N% into one "Other" (other-below 5%)',
+      },
       'no-name': { description: 'Hide name from segment labels' },
       'no-value': { description: 'Hide value from segment labels' },
       'no-percent': { description: 'Hide percent from segment labels' },

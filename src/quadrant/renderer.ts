@@ -120,6 +120,9 @@ export function renderQuadrant(
     return mix(getQuadrantColor(label, defaultIdx), bg, 30);
   };
 
+  // Quadrant names sit small in each quadrant's OUTER corner, behind the points.
+  const LABEL_INSET = ctx.aesthetic(14);
+
   // Quadrant definitions: position, rect bounds, label position
   const quadrantDefs: {
     position: QuadrantPosition;
@@ -138,7 +141,7 @@ export function renderQuadrant(
       y: 0,
       w: chartWidth / 2,
       h: chartHeight / 2,
-      labelX: chartWidth / 4,
+      labelX: LABEL_INSET,
       labelY: chartHeight / 4,
       label: quadrantLabels.topLeft,
       colorIdx: 1, // green
@@ -149,7 +152,7 @@ export function renderQuadrant(
       y: 0,
       w: chartWidth / 2,
       h: chartHeight / 2,
-      labelX: (chartWidth * 3) / 4,
+      labelX: chartWidth - LABEL_INSET,
       labelY: chartHeight / 4,
       label: quadrantLabels.topRight,
       colorIdx: 0, // blue
@@ -160,7 +163,7 @@ export function renderQuadrant(
       y: chartHeight / 2,
       w: chartWidth / 2,
       h: chartHeight / 2,
-      labelX: chartWidth / 4,
+      labelX: LABEL_INSET,
       labelY: (chartHeight * 3) / 4,
       label: quadrantLabels.bottomLeft,
       colorIdx: 2, // yellow
@@ -171,7 +174,7 @@ export function renderQuadrant(
       y: chartHeight / 2,
       w: chartWidth / 2,
       h: chartHeight / 2,
-      labelX: (chartWidth * 3) / 4,
+      labelX: chartWidth - LABEL_INSET,
       labelY: (chartHeight * 3) / 4,
       label: quadrantLabels.bottomRight,
       colorIdx: 3, // purple
@@ -198,12 +201,12 @@ export function renderQuadrant(
   const shadowColor = isDark ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.4)';
 
   // Single muted shade of textColor — watermark-style, readable against any quadrant fill
-  const quadrantLabelColor = mix(textColor, bg, 35);
+  const quadrantLabelColor = mix(textColor, bg, 55);
 
   // Scale label font size to fit within quadrant bounds, wrapping into multiple lines if needed
-  const LABEL_MAX_FONT = ctx.text(48);
-  const LABEL_MIN_FONT = ctx.text(14);
-  const LABEL_PAD = ctx.aesthetic(40);
+  const LABEL_MAX_FONT = ctx.text(18);
+  const LABEL_MIN_FONT = ctx.text(12);
+  const LABEL_PAD = LABEL_INSET * 2;
 
   interface QuadrantLabelLayout {
     lines: string[];
@@ -216,7 +219,7 @@ export function renderQuadrant(
     qh: number
   ): QuadrantLabelLayout => {
     const availW = qw - LABEL_PAD;
-    const availH = qh - LABEL_PAD;
+    const availH = qh / 3;
 
     // Try single line first
     // The watermark is drawn at 700 (see the quadrant-label render below).
@@ -267,6 +270,19 @@ export function renderQuadrant(
     ])
   );
 
+  // Anchor each name to its outer corner: left quadrants start-aligned at the
+  // left edge, right quadrants end-aligned at the right edge; top quadrants
+  // hang from the top, bottom quadrants stand on the bottom.
+  const labelAnchor = (d: (typeof quadrantDefs)[number]) =>
+    d.position.endsWith('left') ? 'start' : 'end';
+  for (const d of quadrantDefsWithLabel) {
+    const layout = labelLayouts.get(d.label!.text)!;
+    const totalH = layout.lines.length * layout.fontSize * 1.2;
+    d.labelY = d.position.startsWith('top')
+      ? LABEL_INSET + totalH / 2
+      : chartHeight - LABEL_INSET - totalH / 2;
+  }
+
   // Renders the original watermark content (quadrant name) into a text element.
   // Extracted so point hover can swap it for a hover state and restore on leave.
   const renderWatermarkOriginal = (
@@ -302,9 +318,10 @@ export function renderQuadrant(
     .attr('class', 'quadrant-label')
     .attr('x', (d) => d.labelX)
     .attr('y', (d) => d.labelY)
-    .attr('text-anchor', 'middle')
+    .attr('text-anchor', labelAnchor)
     .attr('dominant-baseline', 'central')
     .attr('fill', quadrantLabelColor)
+    .attr('fill-opacity', 0.7)
     .attr('data-line-number', (d) =>
       d.label?.lineNumber ? String(d.label.lineNumber) : null
     )
@@ -480,7 +497,7 @@ export function renderQuadrant(
     );
     const totalH = layout.lines.length * layout.fontSize * 1.2;
     return {
-      x: d.labelX - totalW / 2,
+      x: labelAnchor(d) === 'start' ? d.labelX : d.labelX - totalW,
       y: d.labelY - totalH / 2,
       w: totalW,
       h: totalH,

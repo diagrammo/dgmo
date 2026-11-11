@@ -81,7 +81,6 @@ export function renderSlopeChart(
 
   const sMarginTop = ctx.aesthetic(SLOPE_MARGIN.top);
   const sMarginBottom = ctx.aesthetic(SLOPE_MARGIN.bottom);
-  const sMarginLeft = ctx.aesthetic(SLOPE_MARGIN.left);
   const sLabelFontSize = ctx.text(SLOPE_LABEL_FONT_SIZE);
   const sPeriodFont = ctx.text(18);
   const sValueFont = ctx.text(16);
@@ -91,7 +90,6 @@ export function renderSlopeChart(
   const sHitWidth = ctx.structural(14);
   const sPointR = ctx.structural(4);
   const sPointStroke = ctx.structural(1.5);
-  const sValueLabelXOff = ctx.structural(10);
   const sLabelGap = ctx.structural(10);
 
   svg.attr('preserveAspectRatio', 'xMidYMin meet');
@@ -125,6 +123,21 @@ export function renderSlopeChart(
     Math.max(estimatedLabelWidth + ctx.aesthetic(30), ctx.aesthetic(120)),
     maxRightMargin
   );
+
+  // Left margin holds the first column's "name — value" labels
+  const maxLeftText = data.reduce((longest, item) => {
+    const text = `${item.label} — ${item.values[0]}`;
+    return text.length > longest.length ? text : longest;
+  }, '');
+  const sLeftGap = ctx.structural(10);
+  const sMarginLeft = Math.min(
+    Math.max(
+      measureText(maxLeftText, sLabelFontSize) + sLeftGap + ctx.aesthetic(15),
+      ctx.aesthetic(SLOPE_MARGIN.left)
+    ),
+    Math.floor(width * 0.35)
+  );
+  const leftAvailableWidth = sMarginLeft - sLeftGap - ctx.aesthetic(10);
 
   const innerWidth = width - sMarginLeft - rightMargin;
   const innerHeight = height - sPlotTop - sMarginBottom;
@@ -211,6 +224,16 @@ export function renderSlopeChart(
     const labelHeight =
       labelLineCount === 1 ? sLabelFontSize : labelLineCount * lineHeight;
 
+    // Left-side label (first column): "name — value", wraps like the right side
+    const leftText = `${item.label} — ${firstVal}`;
+    const leftLines =
+      measureText(leftText, sLabelFontSize) > leftAvailableWidth
+        ? wrapTextToWidth(leftText, sLabelFontSize, leftAvailableWidth)
+        : null;
+    const leftHeight = leftLines
+      ? leftLines.length * lineHeight
+      : sLabelFontSize;
+
     return {
       item,
       idx,
@@ -222,6 +245,9 @@ export function renderSlopeChart(
       labelText,
       wrappedLines,
       labelHeight,
+      leftText,
+      leftLines,
+      leftHeight,
     };
   });
 
@@ -232,7 +258,13 @@ export function renderSlopeChart(
     const entries = data.map((item) => ({
       // pi is in-bounds by loop guard against periods.length, and each data row has periods.length values.
       naturalY: yScale(item.values[pi]!),
-      height: leftLabelHeight,
+      height:
+        pi === 0
+          ? Math.max(
+              ...seriesInfo.map((si) => si.leftHeight),
+              sLabelFontSize * 1.4
+            )
+          : leftLabelHeight,
     }));
     leftLabelCollisions.set(
       pi,
@@ -325,15 +357,41 @@ export function renderSlopeChart(
       if (!isLast) {
         // leftLabelCollisions was set for every i in [0, periods.length-1); idx is in-bounds by data.map.
         const adjustedY = leftLabelCollisions.get(i)![idx]!;
-        seriesG
-          .append('text')
-          .attr('x', isFirst ? x - sValueLabelXOff : x)
-          .attr('y', adjustedY)
-          .attr('dy', '0.35em')
-          .attr('text-anchor', isFirst ? 'end' : 'middle')
-          .attr('fill', color)
-          .attr('font-size', sValueFont)
-          .text(val.toString());
+        if (isFirst) {
+          const leftEl = seriesG
+            .append('text')
+            .attr('x', x - sLeftGap)
+            .attr('y', adjustedY)
+            .attr('text-anchor', 'end')
+            .attr('fill', color)
+            .attr('font-size', sLabelFontSize);
+          if (!si.leftLines) {
+            leftEl.attr('dy', '0.35em').text(si.leftText);
+          } else {
+            const lh = sLabelFontSize * 1.2;
+            const startDy = (-(si.leftLines.length - 1) * lh) / 2;
+            si.leftLines.forEach((line, li) => {
+              leftEl
+                .append('tspan')
+                .attr('x', x - sLeftGap)
+                .attr(
+                  'dy',
+                  li === 0 ? `${startDy + sLabelFontSize * 0.35}px` : `${lh}px`
+                )
+                .text(line);
+            });
+          }
+        } else {
+          seriesG
+            .append('text')
+            .attr('x', x)
+            .attr('y', adjustedY)
+            .attr('dy', '0.35em')
+            .attr('text-anchor', 'middle')
+            .attr('fill', color)
+            .attr('font-size', sValueFont)
+            .text(val.toString());
+        }
       }
     });
 

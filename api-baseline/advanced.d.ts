@@ -510,6 +510,12 @@ interface ParsedChart {
     /** Suppress the pie center total (bare `no-center-total`). The total
      *  shows by default whenever a hole is present. (#23) */
     noCenterTotal?: boolean;
+    /** Pie slice order: `sort` / `sort desc` = largest first, `sort asc` =
+     *  smallest first. Absent ⇒ source order. */
+    sort?: 'asc' | 'desc';
+    /** Pie `other-below N%`: slices under N% of the total merge into one
+     *  trailing "Other" slice. Stored as the percentage N. */
+    otherBelow?: number;
     /** Render a line chart filled, i.e. as an area (bare `fill`). (#25) */
     fill?: boolean;
     orientation?: 'horizontal' | 'vertical';

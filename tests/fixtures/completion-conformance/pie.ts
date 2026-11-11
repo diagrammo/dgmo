@@ -8,6 +8,8 @@ export const fixture: ConformanceFixture = {
   directives: [
     'hole',
     'no-center-total',
+    'sort',
+    'other-below',
     'no-name',
     'no-value',
     'no-percent',
