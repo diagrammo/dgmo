@@ -102,3 +102,31 @@ describe('root aria-label names the diagram (#948)', () => {
     expect(rootLabel(svg)).toBe('Sequence diagram');
   });
 });
+
+// diagrammo/diagrammo#1868 — a `$'` or `$&` in a title is a replacement pattern
+// when spliced as a STRING, and copied the root tag's attributes (or the rest
+// of the document) into the aria-label.
+describe('a replacement pattern in the title stays literal (#1868)', () => {
+  it.each(["Foo$'", 'Foo$&', 'Foo$`', 'Foo$$'])(
+    'title %s lands in the label verbatim',
+    (title) => {
+      const svg =
+        '<svg xmlns="http://www.w3.org/2000/svg" width="10"><g/></svg>';
+      const out = applyRootA11y(svg, 'pie', title);
+      const root = out.match(/<svg\b[^>]*>/)![0];
+      const escaped = title.replace(/&/g, '&amp;');
+      expect(rootLabel(out)).toBe(`${escaped} — Pie diagram`);
+      expect(root).toBe(
+        `<svg role="img" aria-label="${escaped} — Pie diagram" xmlns="http://www.w3.org/2000/svg" width="10">`
+      );
+      expect(out.endsWith('<g/></svg>')).toBe(true);
+    }
+  );
+
+  it("render() keeps the root tag whole for a `$'` title", async () => {
+    const { svg } = await render("pie Foo$'\nA 1\nB 2");
+    expect(rootLabel(svg)).toBe("Foo$' — Pie diagram");
+    expect(svg.match(/<svg\b/g)!.length).toBeGreaterThan(0);
+    expect(svg.match(/<svg\b[^>]*>/)![0]).not.toMatch(/aria-label="[^"]*xmlns/);
+  });
+});

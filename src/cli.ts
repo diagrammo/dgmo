@@ -29,6 +29,7 @@ import { setPinnedNow } from './utils/now';
 import { svgToPng } from './svg-to-png';
 import { encodeDiagramUrl } from './sharing';
 import { resolveOrgImports } from './org/resolver';
+import { containedReader } from './cli-contained-read';
 import { normalizePertSourceForShare } from './pert/share-normalize';
 import { renderBanner } from './cli-banner';
 import { skillsInstallNote } from './cli-install-notes';
@@ -296,7 +297,7 @@ function cliImageResolver(
       return undefined;
     }
     try {
-      const bytes = readFileSync(resolve(dirname(inputPath), ref));
+      const bytes = containedReader(dirname(inputPath))(ref);
       return `data:${mime};base64,${bytes.toString('base64')}`;
     } catch {
       return undefined;
@@ -1137,8 +1138,9 @@ async function main(): Promise<void> {
   // Resolve org chart imports (tags and import directives)
   if (opts.input && parseDgmoChartType(content) === 'org') {
     const inputPath = resolve(opts.input);
+    const read = containedReader(dirname(inputPath));
     const resolved = await resolveOrgImports(content, inputPath, (p) =>
-      readFileSync(p, 'utf-8')
+      read(p).toString('utf-8')
     );
     for (const diag of resolved.diagnostics) {
       console.error(formatDgmoError(diag));

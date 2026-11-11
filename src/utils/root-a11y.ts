@@ -33,11 +33,12 @@ export function applyRootA11y(
   if (/\brole=/.test(rootTag) || /\baria-label=/.test(rootTag)) return svg;
   const typeLabel = `${chartType.charAt(0).toUpperCase()}${chartType.slice(1)} diagram`;
   const label = title ? `${title} — ${typeLabel}` : typeLabel;
-  const withA11y = rootTag.replace(
-    /^<svg\b/,
-    `<svg role="img" aria-label="${escapeAttr(label)}"`
-  );
-  return svg.replace(rootTag, withA11y);
+  // Functions, not strings, in both replaces: the label carries the author's
+  // title, and a `$'` or `$&` in a replacement STRING splices the root tag's
+  // own attributes or the rest of the document into the aria-label.
+  const opening = `<svg role="img" aria-label="${escapeAttr(label)}"`;
+  const withA11y = rootTag.replace(/^<svg\b/, () => opening);
+  return svg.replace(rootTag, () => withA11y);
 }
 
 /**
