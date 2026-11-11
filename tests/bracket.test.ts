@@ -240,8 +240,70 @@ describe('bracket layout — (1) seeded day-0 skeleton', () => {
     expect(labels).toContain('Wild Card');
     expect(labels).toContain('Division');
     expect(labels).toContain('Championship');
-    // Center column = the bracket title.
-    expect(labels).toContain('World Series');
+    // Center column = a generic "Final", never a repeat of the chart title.
+    expect(labels).toContain('Final');
+    expect(labels).not.toContain('World Series');
+  });
+});
+
+describe('bracket layout — large side-less field mirrors inward (#1842)', () => {
+  const field = (n: number, rounds = ''): string =>
+    [
+      `bracket Big Dance`,
+      rounds,
+      ...Array.from({ length: n }, (_, i) => `seed ${i + 1} Team ${i + 1}`),
+      ...Array.from(
+        { length: n / 2 },
+        (_, i) => `Team ${i + 1} beats Team ${n - i} 70-60`
+      ),
+    ].join('\n');
+
+  it('a 64-team field renders wider than tall', () => {
+    const layout = layoutBracket(parseBracket(field(64)));
+    expect(layout.width).toBeGreaterThan(layout.height);
+  });
+
+  it('splits at the final: two mirrored halves around a center node', () => {
+    const layout = layoutBracket(parseBracket(field(64)));
+    const champ = layout.matches.filter((m) => m.isChampionship);
+    expect(champ).toHaveLength(1);
+    const cx = champ[0]!.x;
+    const left = layout.matches.filter((m) => !m.isChampionship && m.x < cx);
+    const right = layout.matches.filter((m) => !m.isChampionship && m.x > cx);
+    // 63 matches total: 31 per half plus the final.
+    expect(left).toHaveLength(31);
+    expect(right).toHaveLength(31);
+  });
+
+  it('the title appears once; the center column is "Final"', () => {
+    const layout = layoutBracket(parseBracket(field(64)));
+    const labels = layout.columns.map((c) => c.label);
+    expect(labels).toContain('Final');
+    expect(labels).not.toContain('Big Dance');
+    const c = makeContainer();
+    renderBracket(c, parseBracket(field(64)), nordLight, false);
+    const svg = c.querySelector('svg')!;
+    expect(texts(svg).filter((t) => t === 'Big Dance')).toHaveLength(1);
+  });
+
+  it('a small side-less field stays a one-sided ladder', () => {
+    const layout = layoutBracket(parseBracket(field(8)));
+    expect(layout.matches.some((m) => m.isChampionship)).toBe(false);
+  });
+
+  it('unplayed slots are unfilled light outlines', () => {
+    const c = makeContainer();
+    renderBracket(c, parseBracket(field(16)), nordLight, false);
+    const svg = c.querySelector('svg')!;
+    const tbd = Array.from(svg.querySelectorAll('.dgmo-bracket-box')).filter(
+      (b) => b.querySelector('text')?.textContent === 'TBD'
+    );
+    expect(tbd.length).toBeGreaterThan(0);
+    for (const b of tbd) {
+      const r = b.querySelector('rect')!;
+      expect(r.getAttribute('fill')).toBe('none');
+      expect(r.getAttribute('stroke-dasharray')).not.toBeNull();
+    }
   });
 });
 
