@@ -14,7 +14,7 @@ import { measureText, truncateText } from '../utils/text-measure';
 import type { ParsedChart } from '../chart';
 import type { PaletteColors } from '../palettes';
 import { getSimpleChartLegendGroups } from '../data-chart-parser';
-import { renderLegendSvg } from '../utils/legend-svg';
+import { renderLegendSvgInMode } from '../utils/legend-svg';
 import type { LegendGroupData } from '../utils/legend-types';
 import { drawnTitleExtraHeight, renderChartTitle } from '../utils/d3-helpers';
 import { layoutInlineHeader } from '../utils/inline-header';
@@ -57,6 +57,25 @@ export function fmtNum(n: number): string {
  * is passed, the DISPATCHER must NOT also render a centered title — the legend
  * path renders the title itself (left-aligned inline, or centered on fallback).
  */
+/**
+ * Chart roots drawn for the app's live preview. Every other data-chart render
+ * is static — the CLI, an export, an embed — and its legend is the plain key
+ * (#1826), never the preview's capsule. Keyed on the root node, so no render
+ * can leak its mode into another.
+ */
+const PREVIEW_LEGEND_ROOTS = new WeakSet<Element>();
+
+/** Mark `svg` as a live preview, so its series legend draws the capsule. */
+export function markPreviewLegend(svg: Svg): void {
+  const node = svg.node();
+  if (node) PREVIEW_LEGEND_ROOTS.add(node);
+}
+
+function legendModeOf(svg: Svg): 'preview' | 'export' {
+  const node = svg.node();
+  return node && PREVIEW_LEGEND_ROOTS.has(node) ? 'preview' : 'export';
+}
+
 export interface InlineTitleInfo {
   title: string;
   titleLineNumber?: number;
@@ -84,14 +103,18 @@ function renderInlineHeader(
     svg: legendSvg,
     height: legendH,
     width: legendW,
-  } = renderLegendSvg(groups, {
-    palette,
-    isDark,
-    containerWidth: width,
-    activeGroup: groups[0]!.name,
-    className: 'chart-legend',
-    align: 'left',
-  });
+  } = renderLegendSvgInMode(
+    groups,
+    {
+      palette,
+      isDark,
+      containerWidth: width,
+      activeGroup: groups[0]!.name,
+      className: 'chart-legend',
+      align: 'left',
+    },
+    legendModeOf(svg)
+  );
   if (!legendSvg) return null;
 
   const geom = layoutInlineHeader({
@@ -214,13 +237,17 @@ export function injectLegendGroups(
   if (groups.length === 0) return hasTitle ? titleH + 12 : 24;
 
   const legendY = 8 + titleH;
-  const { svg: legendSvg, height: legendH } = renderLegendSvg(groups, {
-    palette,
-    isDark,
-    containerWidth: width,
-    activeGroup: groups[0]!.name,
-    className: 'chart-legend',
-  });
+  const { svg: legendSvg, height: legendH } = renderLegendSvgInMode(
+    groups,
+    {
+      palette,
+      isDark,
+      containerWidth: width,
+      activeGroup: groups[0]!.name,
+      className: 'chart-legend',
+    },
+    legendModeOf(svg)
+  );
   const node = svg.node();
   if (node && legendSvg) {
     node.insertAdjacentHTML(

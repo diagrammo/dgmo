@@ -1873,7 +1873,10 @@ function layoutSequencePass(
   const legendConfig: LegendConfig = {
     groups: resolvedGroups,
     position: { placement: 'top-center', titleRelation: 'below-title' },
-    mode: 'preview',
+    // `exportWidth` is set by the export handler alone (the CLI, embeds, the
+    // app's export); a static render draws the plain key, never the app's
+    // group pill (#1826).
+    mode: options?.exportWidth ? 'export' : 'preview',
   };
   // §1.9 `no-legend` — suppress the legend and collapse the band reserved for
   // it above the participant row.

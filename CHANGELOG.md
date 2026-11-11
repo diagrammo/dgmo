@@ -53,6 +53,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **A static render draws its legend as a plain key.** The CLI, `render()`,
+  exports and embeds no longer draw the app's interactive legend: no group
+  pill, no capsule behind it, no swimlane or eye switch, and no inactive
+  group pills. The key is the group's name as a caption, then a swatch and
+  the full label per entry, wrapped onto as many rows as it needs — never
+  truncated with an ellipsis and never cut to "+N more". A data chart's series
+  key has no caption. `render()` now renders with `exportMode` on, as the
+  app's export always has. The app's live preview is unchanged.
 - **`dgmo install codex` installs the Diagrammo Codex plugin.** It adds the
   `diagrammo/skills` marketplace and installs `diagrammo@diagrammo` — the dgmo
   MCP server and the `dgmo-diagramming` skill in one package — then removes

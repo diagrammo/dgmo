@@ -355,6 +355,21 @@ export function computeLegendLayout(
   state: LegendState,
   containerWidth: number
 ): LegendLayout {
+  return computeLegendLayoutWith(config, state, containerWidth, true);
+}
+
+/**
+ * `computeLegendLayout`, choosing whether an export-mode key opens with its
+ * group's name as a caption. A tag group's name says what its colours mean
+ * ("Trust Zone"); a data chart's single series group is the synthetic
+ * "Series", and its string renderer passes `false`. Module-internal.
+ */
+export function computeLegendLayoutWith(
+  config: LegendConfig,
+  state: LegendState,
+  containerWidth: number,
+  staticCaption: boolean
+): LegendLayout {
   const { groups, controls: configControls, mode } = config;
   const isExport = mode === 'export';
 
@@ -473,12 +488,14 @@ export function computeLegendLayout(
     if (isExport && !isActive) continue;
 
     if (isActive) {
-      activeCapsule = buildCapsuleLayout(
-        g,
-        groupAvailW,
-        config.capsulePillAddonWidth ?? 0,
-        config.capsuleTrailingAddonWidth ?? 0
-      );
+      activeCapsule = isExport
+        ? buildStaticKeyLayout(g, groupAvailW, staticCaption)
+        : buildCapsuleLayout(
+            g,
+            groupAvailW,
+            config.capsulePillAddonWidth ?? 0,
+            config.capsuleTrailingAddonWidth ?? 0
+          );
     } else if (!activeGroupName || config.showInactivePills) {
       const pw = pillWidth(g.name);
       pills.push({
@@ -508,7 +525,11 @@ export function computeLegendLayout(
   // App-hosted controls: the controlsGroup was dropped above (no gear), and the
   // app overlay strip pins itself to the top edge of the preview — dgmo reserves
   // no row and emits no anchor, so the chart reclaims that space.
-  const height = rows.length * LEGEND_HEIGHT;
+  // A static key wraps onto as many rows as its labels need (no row cap, no
+  // truncation), so in export the band is as tall as the key actually is.
+  const keyBottom =
+    isExport && activeCapsule ? activeCapsule.y + activeCapsule.height : 0;
+  const height = Math.max(rows.length * LEGEND_HEIGHT, keyBottom);
   const width = containerWidth;
 
   return {
@@ -521,6 +542,81 @@ export function computeLegendLayout(
     ...(controlsGroupLayout !== undefined && {
       controlsGroup: controlsGroupLayout,
     }),
+  };
+}
+
+// ── Static key for export (#1826) ───────────────────────────
+
+/** Gap between a static key's caption and its first entry. */
+const STATIC_CAPTION_GAP = 8;
+
+/**
+ * The legend of a STATIC render — CLI, export, embed: a plain key, swatch plus
+ * the full label, with none of the preview's controls. No group pill (that is
+ * the button that switches groups in the app), no capsule background, no addon
+ * icons, never an ellipsis and never a "+N more": entries wrap onto as many
+ * rows as they need. A label wider than a whole row gets a row to itself and
+ * runs to its natural width. A continuous ramp keeps its own layout; the
+ * renderer draws its group name as plain text rather than as a pill.
+ *
+ * With `caption`, the group's name opens the key as plain text and wrapped rows
+ * hang under the first entry. The caption reuses the `pill` slot — x, y and the
+ * text's width — so every renderer and the row layout read the same
+ * `LegendCapsuleLayout` shape; without it the pill is zero-width at the origin.
+ */
+function buildStaticKeyLayout(
+  group: LegendGroupData,
+  containerWidth: number,
+  caption: boolean
+): LegendCapsuleLayout {
+  if (group.gradient) return buildGradientCapsuleLayout(group, group.gradient);
+
+  const captionW = caption
+    ? measureLegendText(group.name, LEGEND_PILL_FONT_SIZE)
+    : 0;
+  const start = caption ? captionW + STATIC_CAPTION_GAP : 0;
+  const entries: LegendEntryLayout[] = [];
+  let rowX = start;
+  let row = 0;
+  let widest = start;
+  for (const entry of group.entries) {
+    const ew = entryWidth(entry.value);
+    // Tolerate sub-pixel drift, as capsuleWidth does for a single row.
+    if (rowX > start && rowX + ew > containerWidth + 0.5) {
+      row++;
+      rowX = start;
+    }
+    const ey = row * LEGEND_HEIGHT;
+    entries.push({
+      value: entry.value,
+      color: entry.color,
+      x: rowX,
+      y: ey,
+      width: ew,
+      dotCx: rowX + LEGEND_DOT_R,
+      dotCy: ey + LEGEND_HEIGHT / 2,
+      textX: rowX + LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP,
+      textY: ey + LEGEND_HEIGHT / 2,
+    });
+    rowX += ew;
+    widest = Math.max(widest, rowX);
+  }
+
+  return {
+    groupName: group.name,
+    x: 0,
+    y: 0,
+    width: widest,
+    height: (row + 1) * LEGEND_HEIGHT,
+    pill: {
+      groupName: group.name,
+      x: 0,
+      y: 0,
+      width: captionW,
+      height: caption ? LEGEND_HEIGHT : 0,
+      isActive: true,
+    },
+    entries,
   };
 }
 
@@ -791,8 +887,11 @@ export function getMaxLegendReservedHeight(
   let max = LEGEND_HEIGHT;
   for (const g of groups) {
     if (g.entries.length === 0) continue;
-    const info = capsuleWidth(g.name, g.entries, containerWidth, addon, trail);
-    const h = info.entryRows * LEGEND_HEIGHT;
+    const h =
+      config.mode === 'export'
+        ? buildStaticKeyLayout(g, containerWidth, true).height
+        : capsuleWidth(g.name, g.entries, containerWidth, addon, trail)
+            .entryRows * LEGEND_HEIGHT;
     if (h > max) max = h;
   }
   return max;

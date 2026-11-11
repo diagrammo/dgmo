@@ -287,8 +287,13 @@ function renderCapsule(
   const g = parent
     .append('g')
     .attr('transform', `translate(${capsule.x},${capsule.y})`)
-    .attr('data-legend-group', tagAttrKey(capsule.groupName))
-    .style('cursor', 'pointer');
+    .attr('data-legend-group', tagAttrKey(capsule.groupName));
+
+  if (!interactive) {
+    renderStaticKey(g, capsule, palette, isDark, callbacks);
+    return;
+  }
+  g.style('cursor', 'pointer');
 
   // Outer capsule background
   g.append('rect')
@@ -333,7 +338,61 @@ function renderCapsule(
     .attr('font-family', FONT_FAMILY)
     .text(capsule.groupName);
 
-  // Continuous ramp (choropleth group): min | gradient | max, in place of dots.
+  renderGradientRamp(g, capsule, palette, isDark);
+  renderEntries(g, capsule, palette, true, callbacks);
+
+  // Click handler on pill
+  if (callbacks?.onGroupToggle) {
+    const cb = callbacks.onGroupToggle;
+    const name = capsule.groupName;
+    g.on('click', () => cb(name));
+  }
+
+  // Post-render callback for chart-specific addons
+  if (callbacks?.onGroupRendered) {
+    callbacks.onGroupRendered(capsule.groupName, g, true);
+  }
+}
+
+/**
+ * The export-mode view of the active group: a plain key (#1826). The layout
+ * engine already dropped the pill, the row cap and truncation
+ * (`buildStaticKeyLayout`); this draws no capsule, no pill and no button, and
+ * runs no `onGroupRendered` addon — those are the preview's switches (gantt's
+ * swimlane toggle, org's eye). Entries keep their `data-legend-entry` /
+ * `data-series-name` attributes, which baked embed hover pairs against.
+ */
+function renderStaticKey(
+  g: D3Sel,
+  capsule: LegendCapsuleLayout,
+  palette: LegendPalette,
+  isDark: boolean,
+  callbacks?: LegendCallbacks
+): void {
+  // The group's name, as a caption rather than a pill: a tag group's name says
+  // what its colours mean, and a ramp is unreadable without its metric's name.
+  if (capsule.gradient || capsule.pill.width > 0) {
+    g.append('text')
+      .attr('x', capsule.pill.x)
+      .attr('y', LEGEND_HEIGHT / 2)
+      .call(centerText)
+      .attr('font-size', LEGEND_PILL_FONT_SIZE)
+      .attr('font-weight', 'normal')
+      .attr('fill', palette.text)
+      .attr('font-family', FONT_FAMILY)
+      .text(capsule.groupName);
+  }
+  renderGradientRamp(g, capsule, palette, isDark);
+  renderEntries(g, capsule, palette, false, callbacks);
+}
+
+/** Continuous ramp (choropleth group): min | gradient | max, in place of dots. */
+function renderGradientRamp(
+  g: D3Sel,
+  capsule: LegendCapsuleLayout,
+  palette: LegendPalette,
+  isDark: boolean
+): void {
   if (capsule.gradient) {
     const gr = capsule.gradient;
     const gradId = `dgmo-legend-ramp-${tagAttrKey(capsule.groupName).replace(/[^a-z0-9]+/g, '-')}`;
@@ -377,14 +436,22 @@ function renderCapsule(
       .attr('font-family', FONT_FAMILY)
       .text(gr.maxText);
   }
+}
 
-  // Entry dots + labels
+/** Entry dots + labels. */
+function renderEntries(
+  g: D3Sel,
+  capsule: LegendCapsuleLayout,
+  palette: LegendPalette,
+  interactive: boolean,
+  callbacks?: LegendCallbacks
+): void {
   for (const entry of capsule.entries) {
     const entryG = g
       .append('g')
       .attr('data-legend-entry', entry.value.toLowerCase())
-      .attr('data-series-name', entry.value)
-      .style('cursor', 'pointer');
+      .attr('data-series-name', entry.value);
+    if (interactive) entryG.style('cursor', 'pointer');
 
     // Transparent hit-rect spanning the whole entry so hover/click land on the
     // full pill area, not only the dot/text glyphs. Same numbers the string
@@ -427,18 +494,6 @@ function renderCapsule(
         .on('mouseenter', () => onHover(groupName, entryValue))
         .on('mouseleave', () => onHover(groupName, null));
     }
-  }
-
-  // Click handler on pill
-  if (callbacks?.onGroupToggle) {
-    const cb = callbacks.onGroupToggle;
-    const name = capsule.groupName;
-    g.on('click', () => cb(name));
-  }
-
-  // Post-render callback for chart-specific addons
-  if (callbacks?.onGroupRendered) {
-    callbacks.onGroupRendered(capsule.groupName, g, true);
   }
 }
 

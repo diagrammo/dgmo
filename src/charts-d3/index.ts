@@ -26,7 +26,12 @@ import {
   EXPORT_WIDTH,
   EXPORT_HEIGHT,
 } from '../utils/d3-helpers';
-import { injectLegendGroups, type Svg, type InlineTitleInfo } from './shared';
+import {
+  injectLegendGroups,
+  markPreviewLegend,
+  type Svg,
+  type InlineTitleInfo,
+} from './shared';
 import { renderBar } from './bar';
 import { renderLine } from './line';
 import { renderPie } from './pie';
@@ -116,7 +121,10 @@ export async function renderDataChartD3(
   content: string,
   theme: 'light' | 'dark' | 'transparent',
   palette?: PaletteColors,
-  dims?: { width?: number; height?: number }
+  dims?: { width?: number; height?: number },
+  /** True only for the app's live preview (`mountD3DataChart`). Every other
+   *  caller is a static render, whose legend is the plain key (#1826). */
+  preview = false
 ): Promise<string> {
   const effectivePalette = await resolveExportPalette(theme, palette);
   const isDark = theme === 'dark';
@@ -146,6 +154,7 @@ export async function renderDataChartD3(
     return '';
   }
   const { svg, width, height, textColor, mutedColor, bgColor, colors } = init;
+  if (preview) markPreviewLegend(svg);
 
   const ok = renderInto(
     svg,

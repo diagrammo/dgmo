@@ -21,6 +21,7 @@ import type {
   LegendCapsuleLayout,
   LegendPillLayout,
   LegendGroupData,
+  LegendMode,
 } from './legend-types';
 import {
   LEGEND_HEIGHT,
@@ -29,7 +30,7 @@ import {
   LEGEND_ENTRY_FONT_SIZE,
   legendChromeColors,
 } from './legend-constants';
-import { computeLegendLayout } from './legend-layout';
+import { computeLegendLayoutWith } from './legend-layout';
 import { FONT_FAMILY } from '../fonts';
 
 /** Vertical centring, matching legend-d3.ts's `centerText`. */
@@ -73,6 +74,45 @@ function esc(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
+/** Wrapped colored-dot entries → SVG strings. */
+function emitEntries(
+  capsule: LegendCapsuleLayout,
+  palette: LegendRenderOptions['palette'],
+  interactive: boolean
+): string[] {
+  const out: string[] = [];
+  const cursor = interactive ? ' style="cursor:pointer"' : '';
+  for (const entry of capsule.entries) {
+    const label = entry.displayValue ?? entry.value;
+    // Transparent hit-rect spanning the whole entry so hover/click land on the
+    // full pill area, not only the dot/text glyphs (legend-hover emphasis in
+    // charts-d3/interactions.ts needs a filled mouseenter target).
+    const hit =
+      entry.width != null
+        ? `<rect x="${entry.x}" y="${entry.y}" width="${entry.width}" height="${LEGEND_HEIGHT}" fill="transparent"/>`
+        : '';
+    out.push(
+      `<g data-legend-entry="${esc(entry.value.toLowerCase())}" data-series-name="${esc(entry.value)}"${cursor}>` +
+        hit +
+        `<circle cx="${entry.dotCx}" cy="${entry.dotCy}" r="${LEGEND_DOT_R}" fill="${esc(entry.color)}"/>` +
+        `<text x="${entry.textX}" y="${entry.dotCy}" ${CENTER} font-size="${LEGEND_ENTRY_FONT_SIZE}" fill="${esc(palette.textMuted)}" font-family="${esc(FONT_FAMILY)}">${esc(label)}</text>` +
+        `</g>`
+    );
+  }
+  return out;
+}
+
+/**
+ * Export-mode active group → a plain key (#1826): entries only, no capsule, no
+ * group pill. The layout engine already removed the row cap and truncation.
+ */
+function emitStaticKey(
+  capsule: LegendCapsuleLayout,
+  palette: LegendRenderOptions['palette']
+): string {
+  return `<g transform="translate(${capsule.x},${capsule.y})" data-legend-group="${esc(tagAttrKey(capsule.groupName))}">${emitEntries(capsule, palette, false).join('')}</g>`;
+}
+
 /** Active capsule (group pill + wrapped colored-dot entries) → SVG string. */
 function emitCapsule(
   capsule: LegendCapsuleLayout,
@@ -100,23 +140,7 @@ function emitCapsule(
   );
 
   // Wrapped entries — dots + labels positioned by the layout engine.
-  for (const entry of capsule.entries) {
-    const label = entry.displayValue ?? entry.value;
-    // Transparent hit-rect spanning the whole entry so hover/click land on the
-    // full pill area, not only the dot/text glyphs (legend-hover emphasis in
-    // charts-d3/interactions.ts needs a filled mouseenter target).
-    const hit =
-      entry.width != null
-        ? `<rect x="${entry.x}" y="${entry.y}" width="${entry.width}" height="${LEGEND_HEIGHT}" fill="transparent"/>`
-        : '';
-    inner.push(
-      `<g data-legend-entry="${esc(entry.value.toLowerCase())}" data-series-name="${esc(entry.value)}" style="cursor:pointer">` +
-        hit +
-        `<circle cx="${entry.dotCx}" cy="${entry.dotCy}" r="${LEGEND_DOT_R}" fill="${esc(entry.color)}"/>` +
-        `<text x="${entry.textX}" y="${entry.dotCy}" ${CENTER} font-size="${LEGEND_ENTRY_FONT_SIZE}" fill="${esc(palette.textMuted)}" font-family="${esc(FONT_FAMILY)}">${esc(label)}</text>` +
-        `</g>`
-    );
-  }
+  inner.push(...emitEntries(capsule, palette, true));
 
   return `<g transform="translate(${capsule.x},${capsule.y})" data-legend-group="${esc(tagAttrKey(capsule.groupName))}" style="cursor:pointer">${inner.join('')}</g>`;
 }
@@ -141,6 +165,20 @@ export function renderLegendSvg(
   groups: readonly LegendGroupData[],
   options: LegendRenderOptions
 ): LegendRenderResult {
+  return renderLegendSvgInMode(groups, options, 'preview');
+}
+
+/**
+ * `renderLegendSvg` with the legend mode chosen by the caller. `'export'` is a
+ * static render — the CLI, an export, an embed — and draws the plain key
+ * (#1826); `'preview'` draws the app's capsule. Module-internal: the data-chart
+ * engine is its one caller, and the package surface stays `renderLegendSvg`.
+ */
+export function renderLegendSvgInMode(
+  groups: readonly LegendGroupData[],
+  options: LegendRenderOptions,
+  mode: LegendMode
+): LegendRenderResult {
   if (groups.length === 0) return { svg: '', height: 0, width: 0 };
 
   const { palette, isDark, containerWidth, activeGroup, className } = options;
@@ -157,10 +195,11 @@ export function renderLegendSvg(
       titleRelation:
         options.align === 'left' ? 'inline-with-title' : 'below-title',
     },
-    mode: 'preview',
+    mode,
   };
   const state: LegendState = { activeGroup: activeGroup ?? null };
-  const layout = computeLegendLayout(config, state, wrapWidth);
+  // A data chart's one group is the synthetic "Series": its key is captionless.
+  const layout = computeLegendLayoutWith(config, state, wrapWidth, false);
 
   if (!layout.activeCapsule && layout.pills.length === 0) {
     return { svg: '', height: 0, width: 0 };
@@ -181,7 +220,11 @@ export function renderLegendSvg(
 
   if (layout.activeCapsule) {
     const c = layout.activeCapsule;
-    parts.push(emitCapsule(c, palette, groupBg, pillBorder));
+    parts.push(
+      mode === 'export'
+        ? emitStaticKey(c, palette)
+        : emitCapsule(c, palette, groupBg, pillBorder)
+    );
     track(c.x, c.y, c.width, c.height);
   }
   for (const pill of layout.pills) {

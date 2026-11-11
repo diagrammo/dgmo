@@ -84,7 +84,8 @@ export function mountD3DataChart(
       text,
       current.theme ?? 'light',
       paletteOf(current),
-      dims
+      dims,
+      true
     );
     // Fallback (parse error / unsupported type) → error card via render().
     if (!svg) {

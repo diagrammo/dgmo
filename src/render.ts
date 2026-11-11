@@ -431,6 +431,11 @@ export async function render(
       paletteColors,
       viewState,
       {
+        // `render()` returns a static SVG string — the CLI, embeds, the MCP
+        // server — so it renders the way the app's export does. Unset, every
+        // renderer that keys its legend on this flag drew the app's capsule,
+        // group button and swimlane switch into a PNG (#1826).
+        exportMode: true,
         ...(options?.c4Level !== undefined && { c4Level: options.c4Level }),
         ...(options?.c4System !== undefined && { c4System: options.c4System }),
         ...(options?.c4Container !== undefined && {
