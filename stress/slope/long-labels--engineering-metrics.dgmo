@@ -1,0 +1,12 @@
+slope Engineering Health Metrics Across Three Annual Reviews
+
+period FY2023 FY2024 FY2025
+
+// stress: long-labels — series names of 50–70 characters at both ends of the slope
+// known: diagrammo/diagrammo#1946
+
+Median pull request cycle time in hours from first commit to merge blue 42 31 19
+Percentage of production deploys followed by a rollback within a day red 11 14 6
+Customer-reported defects per thousand active accounts per quarter orange 8 9 4
+On-call pages per engineer per week outside business hours green 5 6 3
+New hire time to first merged change in working days purple 14 11 8

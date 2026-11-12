@@ -1,0 +1,51 @@
+pyramid Capability Maturity of a Platform Engineering Organisation
+
+// stress: many-items — twelve tiers, each with a two-line description
+
+Autonomous purple
+  Teams ship without platform tickets.
+  Guardrails enforce policy automatically.
+
+Predictive blue
+  Capacity and cost forecast ahead of demand.
+  Incidents are caught before customers notice.
+
+Optimised cyan
+  Golden paths cover most new services.
+  Unit economics are tracked per team.
+
+Measured green
+  DORA metrics are reported quarterly.
+  Error budgets drive release decisions.
+
+Governed yellow
+  Security reviews are part of the pipeline.
+  Every service has a named owner.
+
+Self-service orange
+  Environments are created from a catalogue.
+  Access is requested and granted in minutes.
+
+Automated red
+  Builds, tests and deploys run on every merge.
+  Infrastructure is declared in code.
+
+Standardised purple
+  One language per layer, one pipeline template.
+  Shared libraries replace copied code.
+
+Documented blue
+  Runbooks exist for the top ten failure modes.
+  Architecture diagrams are kept in the repo.
+
+Visible cyan
+  Logs, metrics and traces reach one place.
+  Alerts page a person, not a channel.
+
+Repeatable green
+  Releases follow the same steps each time.
+  Rollbacks have been rehearsed once.
+
+Ad hoc yellow
+  Each team builds and ships its own way.
+  Knowledge lives in a few heads.

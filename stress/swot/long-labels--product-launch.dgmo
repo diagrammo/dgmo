@@ -1,0 +1,16 @@
+swot Regional Rollout of the Offline-First Field Inspection App
+
+// stress: long-labels — bullets of 80–110 characters under each quadrant
+
+strengths
+  Inspectors can complete a full site visit with no signal and sync automatically when they return to coverage
+  The photo annotation tools were built with the safety team and match the paper checklists they replace
+weaknesses
+  Conflict resolution when two inspectors edit the same asset offline is still manual and takes support staff to resolve
+  Only the three largest tablet models have been tested against the sixty-day battery and storage targets
+opportunities
+  Two municipal water authorities have asked to run a pilot if we can export reports in their regulatory template format
+  A partnership with the equipment vendor would put the app on every new device before it leaves the warehouse
+threats
+  The incumbent vendor has announced a free tier aimed squarely at contractors with fewer than ten inspectors
+  New data residency rules in two target regions may require storing synced records on in-country servers by next year
