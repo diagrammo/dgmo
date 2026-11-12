@@ -657,40 +657,95 @@ export const WHITEBOARD_HOP_RADIUS = 5;
 /** sin of the shallowest crossing angle that hops (5°); shallower is parallel. */
 const HOP_MIN_SIN = Math.sin((5 * Math.PI) / 180);
 
+/** Samples taken along a curve to find where it crosses another stroke. */
+const HOP_CURVE_STEPS = 48;
+
+/** A stroke as a polyline, with each vertex's `t` and distance along it. */
+interface HopTrace {
+  readonly pts: readonly WhiteboardPoint[];
+  readonly ts: readonly number[];
+  readonly at: readonly number[];
+  readonly x0: number;
+  readonly y0: number;
+  readonly x1: number;
+  readonly y1: number;
+}
+
+function hopTrace(s: WhiteboardSegment): HopTrace {
+  const curved = s.cx !== undefined && s.cy !== undefined;
+  const n = curved ? HOP_CURVE_STEPS : 1;
+  const pts: WhiteboardPoint[] = [];
+  const ts: number[] = [];
+  const at: number[] = [];
+  let x0 = Infinity;
+  let y0 = Infinity;
+  let x1 = -Infinity;
+  let y1 = -Infinity;
+  for (let k = 0; k <= n; k++) {
+    const t = k / n;
+    const p = segmentPoint(s, t);
+    const prev = pts[k - 1];
+    at.push(prev ? at[k - 1]! + Math.hypot(p.x - prev.x, p.y - prev.y) : 0);
+    pts.push(p);
+    ts.push(t);
+    x0 = Math.min(x0, p.x);
+    y0 = Math.min(y0, p.y);
+    x1 = Math.max(x1, p.x);
+    y1 = Math.max(y1, p.y);
+  }
+  return { pts, ts, at, x0, y0, x1, y1 };
+}
+
 /**
- * Where a straight stroke crosses the straight connectors drawn before it —
- * distances along the stroke, ascending, each at least a hop clear of both
- * ends and of the previous hop. Curved connectors, and ones within 5° of
- * parallel, never hop.
+ * Where a stroke — straight or curved — crosses the connectors drawn before
+ * it, as distances along the stroke, ascending, each at least a hop clear of
+ * both ends and of the previous hop. A crossing within 5° of parallel never
+ * hops.
  */
 export function whiteboardHopStops(
-  line: {
-    readonly x1: number;
-    readonly y1: number;
-    readonly x2: number;
-    readonly y2: number;
-  },
+  stroke: WhiteboardSegment,
   earlier: readonly WhiteboardSegment[]
 ): number[] {
-  const dx = line.x2 - line.x1;
-  const dy = line.y2 - line.y1;
-  const len = Math.hypot(dx, dy);
   const r = WHITEBOARD_HOP_RADIUS;
+  const me = hopTrace(stroke);
+  const len = me.at[me.at.length - 1]!;
   if (len <= 2 * r) return [];
   const found: number[] = [];
   for (const o of earlier) {
-    if (o.cx !== undefined && o.cy !== undefined) continue;
-    const ex = o.x2 - o.x1;
-    const ey = o.y2 - o.y1;
-    const den = dx * ey - dy * ex;
-    // Near-parallel strokes (an overlapping pair mid-drag) meet at a point
-    // that means nothing; only a real crossing hops.
-    if (Math.abs(den) <= HOP_MIN_SIN * len * Math.hypot(ex, ey)) continue;
-    const t = ((o.x1 - line.x1) * ey - (o.y1 - line.y1) * ex) / den;
-    const u = ((o.x1 - line.x1) * dy - (o.y1 - line.y1) * dx) / den;
-    if (u < 0 || u > 1) continue;
-    const d = t * len;
-    if (d >= r && d <= len - r) found.push(d);
+    const other = hopTrace(o);
+    if (
+      other.x1 < me.x0 ||
+      other.x0 > me.x1 ||
+      other.y1 < me.y0 ||
+      other.y0 > me.y1
+    ) {
+      continue;
+    }
+    for (let i = 1; i < me.pts.length; i++) {
+      const a = me.pts[i - 1]!;
+      const dx = me.pts[i]!.x - a.x;
+      const dy = me.pts[i]!.y - a.y;
+      const al = Math.hypot(dx, dy);
+      if (al === 0) continue;
+      for (let j = 1; j < other.pts.length; j++) {
+        const b = other.pts[j - 1]!;
+        const ex = other.pts[j]!.x - b.x;
+        const ey = other.pts[j]!.y - b.y;
+        const den = dx * ey - dy * ex;
+        // Near-parallel strokes (an overlapping pair mid-drag) meet at a
+        // point that means nothing; only a real crossing hops.
+        if (Math.abs(den) <= HOP_MIN_SIN * al * Math.hypot(ex, ey)) continue;
+        const t = ((b.x - a.x) * ey - (b.y - a.y) * ex) / den;
+        const u = ((b.x - a.x) * dy - (b.y - a.y) * dx) / den;
+        // Half-open except on the last piece, so a crossing at a shared
+        // vertex counts once.
+        const tOver = i === me.pts.length - 1 ? t > 1 : t >= 1;
+        const uOver = j === other.pts.length - 1 ? u > 1 : u >= 1;
+        if (t < 0 || tOver || u < 0 || uOver) continue;
+        const d = me.at[i - 1]! + t * al;
+        if (d >= r && d <= len - r) found.push(d);
+      }
+    }
   }
   found.sort((a, b) => a - b);
   const stops: number[] = [];
@@ -702,30 +757,66 @@ export function whiteboardHopStops(
   return stops;
 }
 
-/** A straight stroke as an `M … A …` path hopping its crossings, or null. */
-function hoppedLinePath(
-  line: {
-    readonly x1: number;
-    readonly y1: number;
-    readonly x2: number;
-    readonly y2: number;
-  },
+/** The `t` at distance `d` along a traced stroke. */
+function traceT(tr: HopTrace, d: number): number {
+  let k = 1;
+  while (k < tr.at.length - 1 && tr.at[k]! < d) k++;
+  const a = tr.at[k - 1]!;
+  const b = tr.at[k]!;
+  const f = b > a ? (d - a) / (b - a) : 0;
+  return tr.ts[k - 1]! + f * (tr.ts[k]! - tr.ts[k - 1]!);
+}
+
+/**
+ * A stroke as a path hopping its crossings with a semicircle each — `M … L …
+ * A …` for a straight one, `M … Q … A …` for a curve — or null when nothing
+ * is crossed.
+ */
+function hoppedStrokePath(
+  s: WhiteboardSegment,
   earlier: readonly WhiteboardSegment[]
 ): string | null {
   if (earlier.length === 0) return null;
-  const stops = whiteboardHopStops(line, earlier);
+  const stops = whiteboardHopStops(s, earlier);
   if (stops.length === 0) return null;
-  const len = Math.hypot(line.x2 - line.x1, line.y2 - line.y1);
-  const ux = (line.x2 - line.x1) / len;
-  const uy = (line.y2 - line.y1) / len;
   const r = WHITEBOARD_HOP_RADIUS;
-  const at = (d: number): string =>
-    `${round2(line.x1 + ux * d)} ${round2(line.y1 + uy * d)}`;
-  let d = `M${round2(line.x1)} ${round2(line.y1)}`;
-  for (const stop of stops) {
-    d += `L${at(stop - r)}A${r} ${r} 0 0 1 ${at(stop + r)}`;
+  const pt = (p: WhiteboardPoint): string => `${round2(p.x)} ${round2(p.y)}`;
+  if (s.cx === undefined || s.cy === undefined) {
+    const len = Math.hypot(s.x2 - s.x1, s.y2 - s.y1);
+    const ux = (s.x2 - s.x1) / len;
+    const uy = (s.y2 - s.y1) / len;
+    const at = (d: number): string =>
+      pt({ x: s.x1 + ux * d, y: s.y1 + uy * d });
+    let d = `M${pt({ x: s.x1, y: s.y1 })}`;
+    for (const stop of stops) {
+      d += `L${at(stop - r)}A${r} ${r} 0 0 1 ${at(stop + r)}`;
+    }
+    return `${d}L${pt({ x: s.x2, y: s.y2 })}`;
   }
-  return `${d}L${round2(line.x2)} ${round2(line.y2)}`;
+  const tr = hopTrace(s);
+  // Control point of the sub-curve [ta, tb] (its blossom).
+  const ctrl = (ta: number, tb: number): WhiteboardPoint => {
+    const w0 = (1 - ta) * (1 - tb);
+    const w1 = (1 - ta) * tb + ta * (1 - tb);
+    const w2 = ta * tb;
+    return {
+      x: w0 * s.x1 + w1 * s.cx! + w2 * s.x2,
+      y: w0 * s.y1 + w1 * s.cy! + w2 * s.y2,
+    };
+  };
+  let d = `M${pt({ x: s.x1, y: s.y1 })}`;
+  let from = 0;
+  for (const stop of stops) {
+    const tIn = traceT(tr, stop - r);
+    const tOut = traceT(tr, stop + r);
+    const pIn = segmentPoint(s, tIn);
+    const pOut = segmentPoint(s, tOut);
+    // Radius from the chord, so the arc is a true semicircle on the curve.
+    const rr = round2(Math.hypot(pOut.x - pIn.x, pOut.y - pIn.y) / 2);
+    d += `Q${pt(ctrl(from, tIn))} ${pt(pIn)}A${rr} ${rr} 0 0 1 ${pt(pOut)}`;
+    from = tOut;
+  }
+  return `${d}Q${pt(ctrl(from, 1))} ${pt({ x: s.x2, y: s.y2 })}`;
 }
 
 /** What to draw for a connector: one stroke (a line or a curve) and its heads. */
@@ -784,7 +875,7 @@ export function whiteboardConnectorPaint(
       x2: round2(s.x2 - ux * head),
       y2: round2(s.y2 - uy * head),
     };
-    const hopped = hoppedLinePath(line, earlier);
+    const hopped = hoppedStrokePath(line, earlier);
     return hopped === null
       ? { line, heads: out }
       : { path: hopped, heads: out };
@@ -809,8 +900,11 @@ export function whiteboardConnectorPaint(
   };
   if (heads.end) along({ x: s.x2, y: s.y2 }, p1);
   if (heads.start) along({ x: s.x1, y: s.y1 }, p0);
+  const drawn = { x1: p0.x, y1: p0.y, cx: qx, cy: qy, x2: p1.x, y2: p1.y };
   return {
-    path: `M${round2(p0.x)} ${round2(p0.y)}Q${round2(qx)} ${round2(qy)} ${round2(p1.x)} ${round2(p1.y)}`,
+    path:
+      hoppedStrokePath(drawn, earlier) ??
+      `M${round2(p0.x)} ${round2(p0.y)}Q${round2(qx)} ${round2(qy)} ${round2(p1.x)} ${round2(p1.y)}`,
     heads: out,
   };
 }

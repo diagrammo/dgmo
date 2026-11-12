@@ -465,12 +465,11 @@ describe('whiteboard connector hops (diagrammo/diagrammo#1892)', () => {
     ).toEqual(p);
   });
 
-  it('ignores parallel and curved connectors, and crossings at the ends', () => {
+  it('ignores parallel connectors and crossings at the ends', () => {
     const line = { x1: 0, y1: 0, x2: 100, y2: 0 };
     expect(
       whiteboardHopStops(line, [
         { x1: 0, y1: 5, x2: 100, y2: 5 },
-        { x1: 50, y1: -50, x2: 50, y2: 50, cx: 80, cy: 0 },
         { x1: 2, y1: -50, x2: 2, y2: 50 },
       ])
     ).toEqual([]);
@@ -508,5 +507,91 @@ describe('whiteboard connector hops (diagrammo/diagrammo#1892)', () => {
     expect(g[0]!.querySelector('line')).not.toBeNull();
     expect(g[0]!.querySelector('path')).toBeNull();
     expect(g[1]!.querySelector('path')!.getAttribute('d')).toContain('A5 5');
+  });
+});
+
+describe('whiteboard hops on curved connectors (diagrammo/diagrammo#1898)', () => {
+  const heads = { start: false, end: false };
+  // Crosses y = 0 at t = 0.5, x = 65.
+  const bow = { x1: 50, y1: -50, x2: 50, y2: 50, cx: 80, cy: 0 };
+  const onBow = (x: number, y: number): number => {
+    // Distance from (x, y) to the nearest sample of the bow.
+    let best = Infinity;
+    for (let k = 0; k <= 2000; k++) {
+      const t = k / 2000;
+      const u = 1 - t;
+      const bx = u * u * 50 + 2 * u * t * 80 + t * t * 50;
+      const by = u * u * -50 + 2 * u * t * 0 + t * t * 50;
+      best = Math.min(best, Math.hypot(bx - x, by - y));
+    }
+    return best;
+  };
+
+  it('hops a straight connector over an earlier curve', () => {
+    const p = whiteboardConnectorPaint(
+      { x1: 0, y1: 0, x2: 100, y2: 0 },
+      heads,
+      [bow]
+    );
+    expect(p.path).toBe('M0 0L60 0A5 5 0 0 1 70 0L100 0');
+  });
+
+  it('hops a curve over an earlier straight connector, staying on the curve', () => {
+    const p = whiteboardConnectorPaint(bow, heads, [
+      { x1: 0, y1: 0, x2: 100, y2: 0 },
+    ]);
+    const m = p.path!.match(
+      /^M50 -50Q(\S+) (\S+) (\S+) (\S+)A(\S+) \S+ 0 0 1 (\S+) (\S+)Q\S+ \S+ 50 50$/
+    );
+    expect(m, p.path).not.toBeNull();
+    const [inX, inY, rr, outX, outY] = [3, 4, 5, 6, 7].map((k) => +m![k]!);
+    expect(onBow(inX, inY)).toBeLessThan(0.1);
+    expect(onBow(outX, outY)).toBeLessThan(0.1);
+    // The hop straddles the crossing at (65, 0), a semicircle about 5 px.
+    expect(Math.abs(rr - 5)).toBeLessThan(0.2);
+    expect(Math.hypot((inX + outX) / 2 - 65, (inY + outY) / 2)).toBeLessThan(
+      0.5
+    );
+  });
+
+  it('hops a curve over an earlier curve', () => {
+    const across = { x1: 0, y1: 0, x2: 100, y2: 0, cx: 50, cy: -20 };
+    const stops = whiteboardHopStops(across, [bow]);
+    expect(stops).toHaveLength(1);
+    const p = whiteboardConnectorPaint(across, heads, [bow]);
+    expect(p.path).toMatch(/^M0 0Q[^A]+A[^A]+Q[^A]+ 100 0$/);
+  });
+
+  it('hops a curve twice where it crosses one connector twice', () => {
+    const arch = { x1: 0, y1: 20, x2: 100, y2: 20, cx: 50, cy: -60 };
+    const stops = whiteboardHopStops(arch, [{ x1: 0, y1: 0, x2: 100, y2: 0 }]);
+    expect(stops).toHaveLength(2);
+  });
+
+  it('leaves a non-crossing curve as one quadratic', () => {
+    const p = whiteboardConnectorPaint(bow, heads, [
+      { x1: 0, y1: 100, x2: 100, y2: 100 },
+    ]);
+    expect(p.path).toBe('M50 -50Q80 0 50 50');
+  });
+
+  it('draws the later connector hopping and the earlier one plain, in the SVG', () => {
+    const svg = draw(
+      [
+        'whiteboard',
+        'line from: 50 0, to: 50 100, bend: 30',
+        'line from: 0 50, to: 100 50',
+        'line from: 25 0, to: 25 100, bend: -20',
+      ].join('\n')
+    );
+    const d = [...svg.querySelectorAll('.whiteboard-line')].map(
+      (g) =>
+        g.querySelector('path')?.getAttribute('d') ??
+        (g.querySelector('line') ? 'line' : '')
+    );
+    expect(d).toHaveLength(3);
+    expect(d[0]).toMatch(/^M[^A]*Q[^A]*$/);
+    expect(d[1]).toMatch(/^M[^Q]*A5 5/);
+    expect(d[2]).toMatch(/Q.*A.*Q/);
   });
 });

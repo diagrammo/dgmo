@@ -2775,17 +2775,12 @@ declare function whiteboardConnectorLabelPoints(elements: readonly WhiteboardEle
 /** Radius of the semicircle a connector makes to hop over an earlier one, px. */
 declare const WHITEBOARD_HOP_RADIUS = 5;
 /**
- * Where a straight stroke crosses the straight connectors drawn before it —
- * distances along the stroke, ascending, each at least a hop clear of both
- * ends and of the previous hop. Curved connectors, and ones within 5° of
- * parallel, never hop.
+ * Where a stroke — straight or curved — crosses the connectors drawn before
+ * it, as distances along the stroke, ascending, each at least a hop clear of
+ * both ends and of the previous hop. A crossing within 5° of parallel never
+ * hops.
  */
-declare function whiteboardHopStops(line: {
-    readonly x1: number;
-    readonly y1: number;
-    readonly x2: number;
-    readonly y2: number;
-}, earlier: readonly WhiteboardSegment[]): number[];
+declare function whiteboardHopStops(stroke: WhiteboardSegment, earlier: readonly WhiteboardSegment[]): number[];
 /** What to draw for a connector: one stroke (a line or a curve) and its heads. */
 interface WhiteboardConnectorPaint {
     /** A straight stroke, coordinates rounded to 0.01 px. */
