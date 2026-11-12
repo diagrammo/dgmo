@@ -19,6 +19,9 @@ export const fixture: ConformanceFixture = {
     'fill-tint',
     'fill-solid',
     'fill-outline',
+    // §1.11 emphasis, adopted on bar, line and pie by #1829 (the root spec's
+    // table gains the rows in that row's last slice).
+    'highlight',
   ],
   pipeKeys: {},
 };

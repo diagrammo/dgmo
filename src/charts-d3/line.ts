@@ -11,6 +11,11 @@ import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
 import { mix, shapeFill } from '../palettes/color-utils';
 import {
+  EMPHASIS_DIM_OPACITY,
+  EMPHASIS_DIM_TEXT_OPACITY,
+  resolveEmphasis,
+} from '../utils/emphasis';
+import {
   type Svg,
   type Margins,
   type InlineTitleInfo,
@@ -252,10 +257,19 @@ export function renderLine(
     .attr('height', plotH)
     .attr('fill', 'transparent');
 
+  // §1.11 emphasis (#1829): `highlight` names series. Every other series —
+  // its line, area, points and value labels — recedes.
+  const nameOf = (s: number) => seriesNames[s] ?? `Series ${s + 1}`;
+  const { dimmed } = resolveEmphasis(
+    chart.emphasis,
+    Array.from({ length: seriesCount }, (_, s) => nameOf(s))
+  );
+
   for (let s = 0; s < seriesCount; s++) {
     const color = seriesColor(s);
     const yy = yFor(s);
-    const name = seriesNames[s] ?? `Series ${s + 1}`;
+    const name = nameOf(s);
+    const dim = dimmed.has(name);
     const pts = data.map((d, i) => ({
       label: d.label,
       v: seriesValue(d, s),
@@ -271,6 +285,8 @@ export function renderLine(
       .attr('data-color', color);
     const seriesLine = chart.seriesNameLineNumbers?.[s];
     if (seriesLine !== undefined) g.attr('data-line-number', seriesLine);
+    // A receded series keeps its paint: the dim is a baked opacity (§1.11).
+    if (dim) g.attr('opacity', EMPHASIS_DIM_OPACITY);
 
     if (isArea) {
       const areaGen = d3area<(typeof pts)[number]>()
@@ -333,7 +349,7 @@ export function renderLine(
           x(p.label) ?? 0,
           yy(p.v) - 10,
           labelColor
-        );
+        ).attr('opacity', dim ? EMPHASIS_DIM_TEXT_OPACITY : null);
       }
     }
   }

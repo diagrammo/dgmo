@@ -153,6 +153,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'orientation-horizontal': { description: 'Switch to horizontal bars' },
       'no-value': { description: 'Hide value labels atop each bar' },
       color: { description: 'Bar color override' },
+      highlight: {
+        description:
+          'Keep the named bars or series and recede the rest (highlight Nassau)',
+      },
     }),
   ],
   [
@@ -167,6 +171,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description: 'Right y-axis label (dual-axis; group series beneath it)',
       },
       'no-value': { description: 'Hide value labels at each point' },
+      highlight: {
+        description:
+          'Keep the named series and recede the rest (highlight Revenue)',
+      },
     }),
   ],
   [
@@ -188,6 +196,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'no-name': { description: 'Hide name from segment labels' },
       'no-value': { description: 'Hide value from segment labels' },
       'no-percent': { description: 'Hide percent from segment labels' },
+      highlight: {
+        description:
+          'Keep the named slices and recede the rest (highlight Rum)',
+      },
     }),
   ],
   [

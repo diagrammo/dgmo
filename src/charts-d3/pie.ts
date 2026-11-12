@@ -10,6 +10,11 @@ import type { PaletteColors } from '../palettes';
 import { getSegmentColors, shapeFill } from '../palettes/color-utils';
 import { FONT_FAMILY } from '../fonts';
 import { type Svg, fmtNum, tagDatum } from './shared';
+import {
+  EMPHASIS_DIM_OPACITY,
+  EMPHASIS_DIM_TEXT_OPACITY,
+  resolveEmphasis,
+} from '../utils/emphasis';
 
 const LABEL_FONT = 14;
 
@@ -109,9 +114,17 @@ export function renderPie(
     y: number;
     label: string;
     stroke: string;
+    dim: boolean;
     tag: Record<string, unknown>;
   };
   const labelInfos: LabelInfo[] = [];
+
+  // §1.11 emphasis (#1829): `highlight` names slices. Every other slice, its
+  // leader line and its label recede.
+  const { dimmed } = resolveEmphasis(
+    chart.emphasis,
+    data.map((d) => d.label)
+  );
 
   arcs.forEach((a, i) => {
     const stroke = strokeFor(i, data[i]!.color);
@@ -123,6 +136,9 @@ export function renderPie(
       .attr('fill', fill)
       .attr('stroke', stroke)
       .attr('stroke-width', 1.5);
+    const dim = dimmed.has(data[i]!.label);
+    // A receded slice keeps its paint: the dim is a baked opacity (§1.11).
+    if (dim) slice.attr('opacity', EMPHASIS_DIM_OPACITY);
     tagDatum(slice, {
       line: data[i]!.lineNumber,
       key: data[i]!.label,
@@ -147,6 +163,7 @@ export function renderPie(
       y: 0,
       label,
       stroke,
+      dim,
       // Tag the leader-line + label with the same emph-key as the wedge so
       // hover (baked-CSS :has() and the app's JS dim) emphasizes all three
       // together; colour the label text to match its segment.
@@ -206,7 +223,8 @@ export function renderPie(
             .attr('points', `${l.x0},${l.y0} ${xr},${l.y} ${tx},${l.y}`)
             .attr('fill', 'none')
             .attr('stroke', l.stroke)
-            .attr('stroke-width', 1),
+            .attr('stroke-width', 1)
+            .attr('opacity', l.dim ? EMPHASIS_DIM_OPACITY : null),
           l.tag
         );
         tagDatum(
@@ -218,6 +236,7 @@ export function renderPie(
             .attr('fill', l.stroke)
             .attr('font-size', font)
             .attr('font-family', FONT_FAMILY)
+            .attr('opacity', l.dim ? EMPHASIS_DIM_TEXT_OPACITY : null)
             .text(l.label),
           l.tag
         );

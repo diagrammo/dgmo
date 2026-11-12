@@ -23,6 +23,8 @@ export interface ChartEra {
 import type { DgmoError } from './diagnostics';
 import type { ChartFrame } from './utils/chart-frame-parse';
 import { parseChartFrameLine } from './utils/chart-frame-parse';
+import type { EmphasisDirective } from './utils/emphasis';
+import { parseEmphasisDirective } from './utils/emphasis';
 
 export interface ParsedChart {
   type: ChartType;
@@ -89,6 +91,10 @@ export interface ParsedChart {
    *  baseline at 0 (magnitude honesty / old ECharts-parity behavior). By
    *  default a line chart fits a padded data-min→max window (§15.1). */
   noAutoY?: boolean;
+  /** §1.11 emphasis: `highlight <Name>[, <Name>…]` on bar, line and pie
+   *  (#1829). Last one wins. Resolved against the categories, series or
+   *  slices at render time via `resolveEmphasis`. */
+  emphasis?: EmphasisDirective;
   data: ChartDataPoint[];
   eras?: ChartEra[];
   diagnostics: DgmoError[];
@@ -109,6 +115,9 @@ import {
   TITLE_DIRECTIVE_DX,
   NEGATIVE_VALUE_DX,
 } from './diagnostics';
+
+/** Chart types in this parser that take `highlight` (§1.11, #1829). */
+const EMPHASIS_TYPES: ReadonlySet<ChartType> = new Set(['bar', 'line', 'pie']);
 
 // Channel wording for the negative-value diagnostic (E_VALUE_NEGATIVE).
 const CHANNEL_NAME: Record<string, string> = {
@@ -429,6 +438,18 @@ export function parseChart(
     // Frame directives: subtitle, source, footnote, byline (#1827).
     if (parseChartFrameLine(result, lines[i]!, lineNumber, result.diagnostics))
       continue;
+
+    // §1.11 emphasis (#1829): `highlight A, B` keeps the named categories,
+    // series or slices at full strength and recedes the rest. Only the chart
+    // types that adopted it reserve the token; `dim` is not adopted here. The
+    // keyword is lowercase, so a category named `Highlight Reel` stays data.
+    if (/^highlight\s/.test(trimmed) && EMPHASIS_TYPES.has(result.type)) {
+      const directive = parseEmphasisDirective(trimmed, lineNumber);
+      if (directive) {
+        result.emphasis = directive;
+        continue;
+      }
+    }
 
     // Known option with a value
     if (KNOWN_OPTIONS.has(firstToken) && spaceIdx >= 0) {

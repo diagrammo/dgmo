@@ -349,7 +349,8 @@ export function tagDatum<E extends Element>(
   return sel;
 }
 
-/** Draw a value label (data point / bar) in the given color. */
+/** Draw a value label (data point / bar) in the given color. Returns the
+ *  label so a caller can recede it (§1.11 emphasis). */
 export function drawValueLabel(
   svg: Svg,
   text: string,
@@ -357,8 +358,8 @@ export function drawValueLabel(
   y: number,
   color: string,
   anchor: 'middle' | 'start' | 'end' = 'middle'
-): void {
-  svg
+): d3Selection.Selection<SVGTextElement, unknown, null, undefined> {
+  return svg
     .append('text')
     .attr('x', x)
     .attr('y', y)

@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`highlight` on `bar`, `line` and `pie` (#1829).** `highlight Nassau` (or
+  a comma list) keeps the named categories, series or slices at full strength
+  and recedes the rest at reduced opacity; a receded element keeps its colour.
+  On a stacked or grouped bar a series name works too. Documented once, in the
+  language reference's new §1.13, with the other chart types that take it.
 - **Chart frame: `subtitle`, `source`, `footnote` and `byline` on every
   chart type.** A subtitle draws under the title; footnotes (repeatable), a
   `Source: …` line and a byline draw under the chart, in that order, in one

@@ -23,6 +23,9 @@ export const fixture: ConformanceFixture = {
     // Color is in completion as a bar override; not formally documented in
     // §15.1 but tolerated for back-compat.
     'color',
+    // §1.11 emphasis, adopted on bar, line and pie by #1829 (the root spec's
+    // table gains the rows in that row's last slice).
+    'highlight',
   ],
   pipeKeys: {},
 };

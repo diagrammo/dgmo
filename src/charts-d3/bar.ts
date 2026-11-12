@@ -17,6 +17,11 @@ import { FONT_FAMILY } from '../fonts';
 import { shapeFill } from '../palettes/color-utils';
 import { truncateText } from '../utils/text-measure';
 import {
+  EMPHASIS_DIM_OPACITY,
+  EMPHASIS_DIM_TEXT_OPACITY,
+  resolveEmphasis,
+} from '../utils/emphasis';
+import {
   type Svg,
   type Margins,
   type InlineTitleInfo,
@@ -101,6 +106,16 @@ export function renderBar(
   };
   const fillOf = (c: string) =>
     shapeFill(palette, c, isDark, { mode: fillMode });
+
+  // §1.11 emphasis (#1829): `highlight` names categories or, on a multi-series
+  // bar, series. A segment stays at full strength when its category or its
+  // series is named; every other segment and its value label recede.
+  const { dimmed } = resolveEmphasis(chart.emphasis, [
+    ...data.map((d) => d.label),
+    ...(multiSeries ? seriesNames : []),
+  ]);
+  const recedes = (category: string, series: string) =>
+    dimmed.has(category) && (!multiSeries || dimmed.has(series));
 
   const top = reserveHeader(
     svg,
@@ -284,6 +299,7 @@ export function renderBar(
       const stroke = colorFor(s, v, seriesCount === 1 ? d.color : undefined);
       const fill = fillOf(stroke);
       const sName = seriesNames[s] ?? '';
+      const dim = recedes(d.label, sName);
       const tag = {
         line: d.lineNumber,
         key: multiSeries ? sName : d.label,
@@ -307,7 +323,8 @@ export function renderBar(
             cat.bandwidth(),
             fill,
             stroke,
-            tag
+            tag,
+            dim
           );
           if (Math.abs(x1 - x0) > 26)
             drawValueLabel(
@@ -316,7 +333,7 @@ export function renderBar(
               (x0 + x1) / 2,
               base + cat.bandwidth() / 2 + 4,
               textColor
-            );
+            ).attr('opacity', dim ? EMPHASIS_DIM_TEXT_OPACITY : null);
         } else {
           const y0 = val(acc);
           const y1 = val(acc + v);
@@ -328,7 +345,8 @@ export function renderBar(
             Math.abs(y1 - y0),
             fill,
             stroke,
-            tag
+            tag,
+            dim
           );
           if (Math.abs(y1 - y0) > 18)
             drawValueLabel(
@@ -337,7 +355,7 @@ export function renderBar(
               base + cat.bandwidth() / 2,
               (y0 + y1) / 2 + 4,
               textColor
-            );
+            ).attr('opacity', dim ? EMPHASIS_DIM_TEXT_OPACITY : null);
         }
         if (v < 0) accNeg += v;
         else accPos += v;
@@ -354,7 +372,8 @@ export function renderBar(
             bw,
             fill,
             stroke,
-            tag
+            tag,
+            dim
           );
           // Negative bars grow left — the label sits off the bar's free end,
           // flipped inside the bar when it would leave the plot (the min-value
@@ -370,7 +389,7 @@ export function renderBar(
             base + off + bw / 2 + 4,
             textColor,
             v < 0 !== inside ? 'end' : 'start'
-          );
+          ).attr('opacity', dim ? EMPHASIS_DIM_TEXT_OPACITY : null);
         } else {
           const y1 = val(v);
           rect(
@@ -381,7 +400,8 @@ export function renderBar(
             Math.abs(zero - y1),
             fill,
             stroke,
-            tag
+            tag,
+            dim
           );
           // Negative bars grow down — the label sits below the bar's free end,
           // flipped inside the bar when it would leave the plot (the min-value
@@ -394,7 +414,7 @@ export function renderBar(
             base + off + bw / 2,
             yInside ? (v < 0 ? y1 - 6 : y1 + 14) : yOut,
             textColor
-          );
+          ).attr('opacity', dim ? EMPHASIS_DIM_TEXT_OPACITY : null);
         }
       }
     });
@@ -425,7 +445,8 @@ function rect(
     value: number;
     color: string;
     seriesName?: string | undefined;
-  }
+  },
+  dim: boolean
 ): void {
   const r = svg
     .append('rect')
@@ -436,5 +457,7 @@ function rect(
     .attr('fill', fill)
     .attr('stroke', stroke)
     .attr('stroke-width', 1.5);
+  // A receded bar keeps its paint: the dim is a baked opacity (§1.11).
+  if (dim) r.attr('opacity', EMPHASIS_DIM_OPACITY);
   tagDatum(r, tag);
 }

@@ -491,6 +491,35 @@ South 95
 - `subtitle`, `source` and `byline` given twice: the last one is used, with a warning.
 - **Chart types:** the data charts — `bar`, `line`, `pie`, `polar-area`, `radar`, `scatter`, `heatmap`, `sankey`, `funnel`, `function`. Other chart types do not accept the frame yet.
 
+### 1.13 Emphasis — `highlight`
+
+`highlight` keeps the named elements at full strength and recedes everything else, so one item stands out against the rest. It is a chart-level directive on its own line, anywhere in the file:
+
+```
+bar Treasure Hauls by Port
+highlight Nassau
+
+Port Royal 850
+Tortuga 620
+Nassau 1100
+Havana 400
+```
+
+| Chart type | What a name matches                                    | What recedes                                                                       |
+| ---------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| `bar`      | a category; on a `stack` or `group` bar, also a series | every other bar or segment and its value label                                     |
+| `line`     | a series                                               | every other series: its line, area, points and value labels                        |
+| `pie`      | a slice                                                | every other slice, its leader line and its label                                   |
+| `sankey`   | a node                                                 | everything outside the node's upstream and downstream flow; `dim` is also accepted |
+| `family`   | a person                                               | everyone outside that person's bloodline (§13AA)                                   |
+
+- **A receded element keeps its colour.** It is drawn at reduced opacity, never repainted grey, so the brand colour survives and the output is the same in PNG and SVG exports.
+- **Several names take a comma** on `bar`, `line`, `pie` and `sankey`: `highlight Nassau, Havana`. Without a comma the whole argument is ONE name (`highlight Port Royal`).
+- On those four, matching ignores case and extra spaces. A name that matches nothing is ignored; when no name matches, nothing recedes.
+- On a stacked or grouped bar, a segment stays lit when its category OR its series is named.
+- The keyword is lowercase and starts the line. A category named `Highlight Reel` (capitalised) stays data.
+- `dim <Name>` (recede only the named elements) exists on `sankey` alone. Other chart types do not take `highlight` yet.
+
 ---
 
 ## 2. Universal Name Handling

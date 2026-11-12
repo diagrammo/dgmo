@@ -886,12 +886,13 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   // never registered — it had completions but highlighted as plain text. Both
   // tokens are registered together so the whole family lights up at once.
   //
-  // Supported on `sankey` and `family` today; every further chart type is a
-  // separate decision, made by adding it to `chartTypes` below (#1734).
+  // Supported on `sankey` and `family`, and `highlight` alone on `bar`, `line`
+  // and `pie` (#1829); every further chart type is a separate decision, made
+  // by adding it to `chartTypes` below (#1734).
   {
     token: 'highlight',
     category: 'directive',
-    chartTypes: ['family', 'sankey'],
+    chartTypes: ['family', 'sankey', 'bar', 'line', 'pie'],
   },
   { token: 'dim', category: 'directive', chartTypes: ['family', 'sankey'] },
   // ── RACI ─────────────────────────────────────────────────
