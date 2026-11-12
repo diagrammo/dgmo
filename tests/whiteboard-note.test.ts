@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 import * as advanced from '../src/advanced';
 import { render } from '../src/index';
@@ -206,8 +208,8 @@ describe('whiteboard sticky notes — render', () => {
     expect(svg.textContent).not.toContain('why');
   });
 
-  it('hides a connector whose end the hidden note held over a shape', () => {
-    // The note sits on top of the box, so it — not the box — holds the end.
+  it('keeps a connector whose end lies in a note laid over a shape', () => {
+    // The note sits on top of the box, but the box holds the end (#1926).
     const p = parseWhiteboard(
       wb(
         'rectangle A at: 0 0, size: 200 200',
@@ -215,7 +217,7 @@ describe('whiteboard sticky notes — render', () => {
         'arrow from: 50 50, to: 400 50'
       )
     );
-    expect(visibleWhiteboardIndices(p, { showNotes: false })).toEqual([0]);
+    expect(visibleWhiteboardIndices(p, { showNotes: false })).toEqual([0, 2]);
   });
 
   it('grows the crop only by the one line a too-short card still keeps', () => {
@@ -269,5 +271,58 @@ describe('whiteboard sticky notes — attached ends', () => {
       'arrow from: 0 50, to: 150 50'
     );
     expect(draw(src).querySelector('.whiteboard-arrow')).toBeNull();
+  });
+});
+
+describe('a note laid over a shape does not take its connectors (#1926)', () => {
+  const src = readFileSync(
+    join(__dirname, 'fixtures/whiteboard-note-over-shape-1926.dgmo'),
+    'utf8'
+  );
+  const parsed = parseWhiteboard(src);
+  const els = parsed.elements;
+  const named = (label: string): number =>
+    els.findIndex((e) => e.kind === 'shape' && e.label === label);
+  const fromAskMlb = els
+    .map((e, i) => ({ e, i }))
+    .filter(({ e }) => e.kind === 'arrow' && e.x1 === 75 && e.y1 === 449);
+
+  it('attaches the Ask MLB arrows to Ask MLB, not the note above it', () => {
+    expect(fromAskMlb.length).toBe(5);
+    const ask = named('Ask MLB');
+    expect(ask).toBeGreaterThanOrEqual(0);
+    for (const { e } of fromAskMlb) {
+      const { from } = advanced.whiteboardConnectorAttachments(
+        e as WhiteboardArrow,
+        els
+      );
+      expect(from).toBe(ask);
+    }
+  });
+
+  it('keeps them drawn with notes hidden', () => {
+    const shown = visibleWhiteboardIndices(parsed, { showNotes: false });
+    for (const { i } of fromAskMlb) expect(shown).toContain(i);
+  });
+
+  it('a point only in a note still attaches to the note', () => {
+    const p = parseWhiteboard(
+      wb(
+        'rectangle A at: 0 0, size: 100 100',
+        'note N at: 200 0, size: 100 100',
+        'note M at: 50 50, size: 100 100',
+        'arrow from: 250 50, to: 120 120'
+      )
+    );
+    const a = p.elements[3] as WhiteboardArrow;
+    expect(advanced.whiteboardConnectorAttachments(a, p.elements)).toEqual({
+      from: 1,
+      to: 2,
+    });
+    // A point in both A and M goes to A, though M is on top.
+    expect(
+      advanced.whiteboardAttachTargetAt({ x: 75, y: 75 }, p.elements)
+    ).toBe(0);
+    expect(whiteboardShapeAt({ x: 75, y: 75 }, p.elements)).toBe(2);
   });
 });

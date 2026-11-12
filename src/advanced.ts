@@ -398,6 +398,7 @@ export {
   whiteboardConnectorAttachments,
   whiteboardDrawBand,
   whiteboardDrawOrder,
+  whiteboardAttachTargetAt,
   whiteboardShapeAt,
   whiteboardShapeContains,
   whiteboardNoteFold,

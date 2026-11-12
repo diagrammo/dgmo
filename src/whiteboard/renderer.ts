@@ -88,8 +88,9 @@ export interface WhiteboardRenderOptions {
  * element, less the sticky notes when they are hidden (see
  * {@link WhiteboardRenderOptions.showNotes}) and less every arrow or line with
  * an end on a hidden note — a connector drawn from a note goes with it, label
- * and all. Attachment is read on the WHOLE board, so an end the note held is
- * not re-attached to whatever lies beneath it.
+ * and all. Attachment is read on the WHOLE board. A note holds an end only
+ * where no shape does (`whiteboardAttachTargetAt`), so hiding it never
+ * re-attaches an end elsewhere.
  */
 export function visibleWhiteboardIndices(
   parsed: ParsedWhiteboard,

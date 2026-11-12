@@ -286,9 +286,29 @@ export function whiteboardShapeAt(
 }
 
 /**
+ * Index of the element a connector end at `point` attaches to: the topmost
+ * shape containing it, or — only when no shape does — the topmost sticky note.
+ * A note laid over a shape must not take the shape's connectors (#1926).
+ * -1 when the point is on neither.
+ */
+export function whiteboardAttachTargetAt(
+  point: WhiteboardPoint,
+  elements: readonly WhiteboardElement[]
+): number {
+  let note = -1;
+  for (let i = elements.length - 1; i >= 0; i--) {
+    const el = elements[i]!;
+    if (!isAttachable(el) || !whiteboardShapeContains(el, point)) continue;
+    if (el.kind !== 'note') return i;
+    if (note < 0) note = i;
+  }
+  return note;
+}
+
+/**
  * Which shape each end of `connector` is attached to. An end attaches to the
- * topmost shape containing it — unless the other end lies inside that same
- * shape, in which case the end stays free.
+ * element `whiteboardAttachTargetAt` names — unless the other end lies inside
+ * that same element, in which case the end stays free.
  */
 export function whiteboardConnectorAttachments(
   connector: WhiteboardArrow | WhiteboardLine,
@@ -297,7 +317,7 @@ export function whiteboardConnectorAttachments(
   const a = { x: connector.x1, y: connector.y1 };
   const b = { x: connector.x2, y: connector.y2 };
   const attach = (end: WhiteboardPoint, other: WhiteboardPoint): number => {
-    const i = whiteboardShapeAt(end, elements);
+    const i = whiteboardAttachTargetAt(end, elements);
     if (i < 0) return -1;
     return whiteboardShapeContains(elements[i] as WhiteboardAttachable, other)
       ? -1
