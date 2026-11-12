@@ -26,6 +26,7 @@ import type { LayoutResult, LayoutNode } from './layout';
 import { parseFlowchart } from './flowchart-parser';
 import { layoutGraph, NODE_LABEL_LINE_HEIGHT, wrapNodeLabel } from './layout';
 import { renderGraphTitle } from './title';
+import { growChartFrame } from '../utils/chart-frame';
 import { edgeSplinePath } from './edge-spline';
 import { withoutApproach } from './edge-ports';
 import { TITLE_FONT_SIZE, TITLE_Y } from '../utils/title-constants';
@@ -830,6 +831,11 @@ export function renderFlowchart(
       renderNodeNote(nodeG, node, node.note, palette, isDark);
     }
   }
+
+  // Chart frame (#1827): subtitle under the title, footer under the chart.
+  growChartFrame(svg.node(), graph.frame, palette, {
+    size: exportDims ? 'grow' : 'fit',
+  });
 }
 
 // ============================================================

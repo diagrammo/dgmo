@@ -9,6 +9,7 @@ import { measureText } from '../utils/text-measure';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import { ScaleContext } from '../utils/scaling';
 import { initD3Chart, renderChartTitle } from '../utils/d3-helpers';
+import { growChartFrame } from '../utils/chart-frame';
 import type {
   ParsedWordcloud,
   WordCloudWord,
@@ -276,6 +277,10 @@ export function renderWordCloud(
         const ln = (d as WordCloudWord).lineNumber;
         if (onClickItem && ln) onClickItem(ln);
       });
+    // Chart frame (#1827): subtitle under the title, footer under the cloud.
+    growChartFrame(svg.node(), parsed.frame, palette, {
+      size: exportDims ? 'grow' : 'fit',
+    });
   };
 
   // No real 2D canvas (headless Node) → fall back to the spiral packer.
@@ -393,6 +398,10 @@ export function renderWordCloudAsync(
           (d) => `translate(${d.x},${d.y}) rotate(${d.rotate})`
         )
         .text((d) => d.text!);
+      // Chart frame (#1827): subtitle under the title, footer under the cloud.
+      growChartFrame(svg.node(), parsed.frame, palette, {
+        size: exportDims ? 'grow' : 'fit',
+      });
       resolve();
     };
 

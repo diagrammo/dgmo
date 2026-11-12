@@ -1,4 +1,5 @@
 import type { ConformanceFixture } from './_types';
+import { FRAME_DIRECTIVES } from './_frame';
 
 // Spec §24 (Ring Diagrams). Two layer-pipe keys (color, description) and
 // the fill family. `inverted` is explicitly
@@ -8,7 +9,7 @@ export const fixture: ConformanceFixture = {
   specSection: '24',
   firstLineKeyword: 'ring',
 
-  directives: ['fill-tint', 'fill-solid', 'fill-outline'],
+  directives: [...FRAME_DIRECTIVES, 'fill-tint', 'fill-solid', 'fill-outline'],
 
   pipeKeys: {
     layer: ['color', 'description'],

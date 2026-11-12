@@ -45,6 +45,8 @@ import {
 } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
 import type { PaletteColors } from '../palettes';
+import type { ChartFrame } from '../utils/chart-frame-parse';
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
 import type {
   ParsedSwimlane,
   SwimDirection,
@@ -258,11 +260,19 @@ export function parseSwimlane(
   // Done first so the main pass can disambiguate lane-context lines.
   let currentTagGroup: Writable<TagGroup> | null = null;
   let sawContent = false;
+  // Chart frame lines (#1827) are read here and skipped by the later passes.
+  const frameHolder: { frame?: ChartFrame } = {};
+  const frameLines = new Set<number>();
   for (let i = startIdx; i < rawLines.length; i++) {
     const raw = rawLines[i]!;
     const lineNum = i + 1;
     const trimmed = raw.trim();
     if (!trimmed || trimmed.startsWith('//')) continue;
+    if (parseChartFrameLine(frameHolder, raw, lineNum, diagnostics)) {
+      frameLines.add(lineNum);
+      currentTagGroup = null;
+      continue;
+    }
     const indent = measureIndent(raw);
 
     // Tag group heading.
@@ -670,6 +680,7 @@ export function parseSwimlane(
     const lineNum = i + 1;
     let trimmed = raw.trim();
     if (!trimmed || trimmed.startsWith('//')) continue;
+    if (frameLines.has(lineNum)) continue;
     const cIdx = trimmed.indexOf('//');
     if (cIdx > 0) trimmed = trimmed.slice(0, cIdx).trim();
     if (!trimmed) continue;
@@ -869,6 +880,7 @@ export function parseSwimlane(
     tagGroups,
     options,
     diagnostics,
+    ...(frameHolder.frame && { frame: frameHolder.frame }),
     error: null,
   };
 }

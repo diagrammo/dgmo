@@ -27,6 +27,7 @@
 import type { PaletteColors } from '../palettes';
 import { makeDgmoError, makeFail } from '../diagnostics';
 import type { Writable } from '../utils/brand';
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
 import {
   extractColor,
   fillModeFromToken,
@@ -233,6 +234,9 @@ export function parseCountdown(
     const rest = restTokens.join(' ').trim();
     // Any top-level line closes an open note block.
     if (key !== 'note') inNote = false;
+
+    // Chart frame: subtitle, source, footnote, byline (#1827), column 1.
+    if (parseChartFrameLine(result, raw, lineNum, result.diagnostics)) continue;
 
     switch (key) {
       // ── One-shot target ──

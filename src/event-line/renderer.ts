@@ -47,6 +47,7 @@ import { resolveActiveTagGroup, tagAttrKey } from '../utils/tag-groups';
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import type { ParsedEventLine } from './types';
+import { growChartFrame, reserveChartFrame } from '../utils/chart-frame';
 import {
   CARD_PAD,
   CARD_W,
@@ -909,6 +910,23 @@ export function renderEventLine(
       // cards collapse-to-dot + legend entries struck/hollow). Era bullets are
       // already excluded at build time above.
       applyEvtHidden(container, root);
+    }
+  }
+
+  // Chart frame (#1827): subtitle under the title, footer under the drawing.
+  // The preview canvas is padded to the panel, so the frame uses that slack
+  // first ('fit' keeps the canvas size); the tight height capture-based
+  // exporters crop to grows by the bands the frame adds.
+  const reserve = reserveChartFrame(parsed.frame, contentW);
+  if (reserve) {
+    growChartFrame(svg.node(), parsed.frame, palette, {
+      size: exportMode ? 'grow' : 'fit',
+    });
+    if (!exportMode && totalH > contentH) {
+      svg.attr(
+        'data-content-height',
+        Math.ceil(contentH + reserve.top + reserve.bottom)
+      );
     }
   }
 }

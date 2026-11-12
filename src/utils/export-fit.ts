@@ -72,8 +72,8 @@ const NON_RENDERING = new Set([
   'script',
 ]);
 
-type Matrix = [number, number, number, number, number, number];
-const IDENTITY: Matrix = [1, 0, 0, 1, 0, 0];
+export type Matrix = [number, number, number, number, number, number];
+export const IDENTITY: Matrix = [1, 0, 0, 1, 0, 0];
 
 interface Box {
   x0: number;
@@ -120,7 +120,7 @@ export interface ContentMeasurement {
   complete: boolean;
 }
 
-function multiply(p: Matrix, q: Matrix): Matrix {
+export function multiply(p: Matrix, q: Matrix): Matrix {
   return [
     p[0] * q[0] + p[2] * q[1],
     p[1] * q[0] + p[3] * q[1],
@@ -138,7 +138,7 @@ function nums(s: string): number[] {
 }
 
 /** Parse an SVG `transform` list; null when any part is not understood. */
-function parseTransform(value: string): Matrix | null {
+export function parseTransform(value: string): Matrix | null {
   let m: Matrix = IDENTITY;
   const re =
     /\s*(matrix|translate|scale|rotate|skewX|skewY)\s*\(([^)]*)\)\s*,?/gy;

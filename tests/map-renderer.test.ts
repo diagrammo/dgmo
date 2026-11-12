@@ -266,9 +266,15 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
     expect(el.querySelector('svg')).toBeTruthy();
   });
 
-  it('renders the caption directive (AC4)', () => {
-    const svg = render('map My Title\ncaption A note\npoi Tokyo');
-    expect(svg.textContent).toContain('A note');
+  it('draws the chart frame: subtitle in the banner, footer under the map (#1827)', () => {
+    const svg = render(
+      'map My Title\nsubtitle The deck\nfootnote A note\nsource ACME\npoi Tokyo'
+    );
+    expect(svg.querySelector('.chart-subtitle')?.textContent).toBe('The deck');
+    expect(svg.querySelector('.chart-footnote')?.textContent).toBe('A note');
+    expect(svg.querySelector('.chart-source')?.textContent).toBe(
+      'Source: ACME'
+    );
   });
 
   it('relief default-on (dataless world); no-relief removes it (AC8)', () => {

@@ -51,6 +51,22 @@ interface DgmoFix {
     title: string;
 }
 
+/** One footnote under the plot (`footnote` is repeatable). */
+interface ChartFrameFootnote {
+    text: string;
+    lineNumber: number;
+}
+/** The `subtitle`, `source`, `footnote` and `byline` directives of one chart. */
+interface ChartFrame {
+    subtitle?: string;
+    subtitleLineNumber?: number;
+    source?: string;
+    sourceLineNumber?: number;
+    byline?: string;
+    bylineLineNumber?: number;
+    footnotes?: ChartFrameFootnote[];
+}
+
 /** A single entry inside a tag group: `Value color` */
 interface TagEntry {
     readonly value: string;
@@ -289,6 +305,8 @@ interface PertGroup {
 interface ParsedPert {
     /** Optional title parsed from `pert <title>`. */
     readonly title: string | null;
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    readonly frame?: ChartFrame;
     readonly options: PertOptions;
     readonly activities: readonly PertActivity[];
     readonly edges: readonly PertEdge[];
@@ -450,6 +468,8 @@ interface PertExpandedActivity {
 }
 interface ResolvedPert {
     options: PertOptions;
+    /** The chart frame, copied from the parsed source (#1827). */
+    frame?: ChartFrame;
     activities: ResolvedActivity[];
     edges: PertEdge[];
     groups: ResolvedGroup[];

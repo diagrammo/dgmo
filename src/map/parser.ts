@@ -8,6 +8,7 @@ import {
   emit,
   NEGATIVE_VALUE_DX,
 } from '../diagnostics';
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
 import { MAP_DIRECTIVE_KEY_SET } from '../directives-registry';
 import type { Writable } from '../utils/brand';
 import type { PaletteColors } from '../palettes/types';
@@ -254,7 +255,9 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
 
     const firstWord = trimmed.split(/\s+/)[0]!;
 
-    // (2) Keyword lines.
+    // (2) Keyword lines. The chart frame first (#1827): `subtitle`, `source`,
+    // `footnote`, `byline` — `source` and `footnote` replaced `caption`.
+    if (parseChartFrameLine(result, cleaned, lineNumber, diagnostics)) continue;
     if (firstWord === 'tag') {
       handleTag(trimmed, lineNumber);
       continue;
@@ -405,10 +408,6 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
         dup(d.activeTag);
         d.activeTag = value;
         activeTagOptionLine = line;
-        break;
-      case 'caption':
-        dup(d.caption);
-        d.caption = value;
         break;
       // ── Cosmetic `no-*` opt-outs: bare flags, idempotent (mirror `no-legend`,
       //    no dup warning); each defaults the feature ON when absent. ──

@@ -66,7 +66,17 @@ export async function exportInfra(ctx: ExportContext): Promise<string> {
   const infraSvg = container.querySelector('svg');
   if (infraSvg) {
     infraSvg.setAttribute('width', String(exportWidth));
-    infraSvg.setAttribute('height', String(exportHeight));
+    // A chart frame (#1827) grew the viewBox; keep the height in step.
+    const vbHeight = Number(
+      infraSvg
+        .getAttribute('viewBox')
+        ?.trim()
+        .split(/[\s,]+/)[3]
+    );
+    infraSvg.setAttribute(
+      'height',
+      String(infraLayout.frame && vbHeight > 0 ? vbHeight : exportHeight)
+    );
   }
   return finalizeSvgExport(container, theme, effectivePalette);
 }

@@ -2,6 +2,7 @@
 // Infra Chart Types
 // ============================================================
 
+import type { ChartFrame } from '../utils/chart-frame-parse';
 import type { DgmoError } from '../diagnostics';
 import {
   INFRA_BEHAVIOR_KEY_SET,
@@ -100,6 +101,8 @@ export interface ParsedInfra {
   readonly tagGroups: readonly InfraTagGroup[];
   readonly options: Readonly<Record<string, string>>;
   readonly diagnostics: readonly DgmoError[];
+  /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+  readonly frame?: ChartFrame;
   readonly error: string | null;
 }
 
@@ -203,6 +206,8 @@ export interface ComputedInfraModel {
   groups: InfraGroup[];
   tagGroups: InfraTagGroup[];
   title: string | null;
+  /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+  frame?: ChartFrame;
   direction: 'LR' | 'TB';
   /** Diagram-level options (e.g., default-latency-ms, default-uptime). */
   options: Record<string, string>;

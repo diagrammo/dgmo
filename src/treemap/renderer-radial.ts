@@ -16,6 +16,7 @@
 import * as d3Selection from 'd3-selection';
 import { arc as d3arc } from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
+import { growChartFrame } from '../utils/chart-frame';
 import {
   contrastText,
   contrastRatio,
@@ -265,6 +266,11 @@ export function renderTreemapRadial(
       showEmptyGroups: !exportMode,
     });
   }
+
+  // Chart frame (#1827): subtitle under the title, footer under the chart.
+  growChartFrame(svg.node(), parsed.frame, palette, {
+    size: exportDims ? 'grow' : 'fit',
+  });
 }
 
 // ============================================================

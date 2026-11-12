@@ -22,6 +22,8 @@
 // bare name (quote / `as`-alias / trailing color); per-side key:value metadata
 // is NOT supported (declare persons standalone).
 
+import type { ChartFrame } from '../utils/chart-frame-parse';
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
 import { emit, makeDgmoError, type DgmoError } from '../diagnostics';
 import { FAMILY_DX } from './diagnostics';
 import {
@@ -151,12 +153,22 @@ export function parseFamily(
   const aliasKeys = new Set<string>();
   let currentTagGroup: Writable<TagGroup> | null = null;
   let sawContent = false;
+  const frameHolder: { frame?: ChartFrame } = {};
+  const frameLines = new Set<number>();
   for (let i = startIdx; i < rawLines.length; i++) {
     const raw = rawLines[i]!;
     const lineNum = i + 1;
     const trimmed = raw.trim();
     if (!trimmed || trimmed.startsWith('//')) continue;
     const indent = measureIndent(raw);
+
+    // Chart frame: subtitle, source, footnote, byline (#1827), column 1.
+    // Read here, anywhere in the file; pass 2 skips these lines.
+    if (parseChartFrameLine(frameHolder, raw, lineNum, diagnostics)) {
+      frameLines.add(lineNum);
+      currentTagGroup = null;
+      continue;
+    }
 
     const tagMatch = matchTagBlockHeading(trimmed);
     if (tagMatch && indent === 0 && !sawContent) {
@@ -456,6 +468,8 @@ export function parseFamily(
     if (!trimmed) continue;
     const indent = measureIndent(raw);
 
+    if (frameLines.has(lineNum)) continue;
+
     // Skip pass-1 declarations (tags + bare options).
     if (indent === 0 && matchTagBlockHeading(trimmed)) {
       inTagBlock = true;
@@ -679,6 +693,7 @@ export function parseFamily(
     tagGroups,
     options,
     diagnostics,
+    ...(frameHolder.frame && { frame: frameHolder.frame }),
     error,
   };
 }

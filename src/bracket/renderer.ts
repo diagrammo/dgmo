@@ -12,6 +12,7 @@
 
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
+import { growChartFrame } from '../utils/chart-frame';
 import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
@@ -529,6 +530,11 @@ export function renderBracket(
     if (isUpset) drawUpset(root, m, sidePaint);
     if (m.commentary.length) drawCommentary(root, m, palette);
   }
+
+  // Chart frame (#1827): subtitle under the title, footer under the chart.
+  growChartFrame(svg.node(), parsed.frame, palette, {
+    size: exportDims ? 'grow' : 'fit',
+  });
 }
 
 function drawConnector(

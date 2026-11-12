@@ -8,6 +8,7 @@
 // how AST is built, `mutations.ts` for source-text edits.
 
 import type { DgmoError } from '../diagnostics';
+import type { ChartFrame } from '../utils/chart-frame-parse';
 
 /** Marker alphabet member for any variant. */
 export type RaciMarker = 'R' | 'A' | 'S' | 'C' | 'I' | 'D';
@@ -56,6 +57,8 @@ export interface RaciPhase {
 /** Top-level parse result. */
 export interface ParsedRaci {
   readonly type: 'raci';
+  /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+  readonly frame?: ChartFrame;
   /** Optional title from the chart-type header line. */
   readonly title?: string;
   readonly titleLineNumber?: number;

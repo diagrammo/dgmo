@@ -80,6 +80,7 @@ import { CARD_RADIUS } from '../utils/visual-conventions'; // shared (Story 111.
 const CARD_PADDING_X = 10;
 const CARD_PADDING_Y = 6;
 const CARD_STROKE_WIDTH = 1.5;
+import { growChartFrame } from '../utils/chart-frame';
 import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
 const TITLE_HEIGHT = 30;
 const COLUMN_HEADER_FONT_SIZE = 13;
@@ -751,6 +752,8 @@ function drawKanban(
         fontSize: sCardMetaFontSize,
       }
     );
+    // Chart frame (#1827): subtitle under the title, footer under the chart.
+    growChartFrame(svg.node(), parsed.frame, palette, { size: 'grow' });
     return;
   }
 
@@ -1154,6 +1157,9 @@ function drawKanban(
       }
     }
   }
+
+  // Chart frame (#1827): subtitle under the title, footer under the chart.
+  growChartFrame(svg.node(), parsed.frame, palette, { size: 'grow' });
 }
 
 // ============================================================

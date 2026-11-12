@@ -28,6 +28,7 @@ import type {
   GraphNote,
 } from './types';
 import { tryCollectNote, resolveNotes } from './notes';
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
 
 // ============================================================
 // Helpers
@@ -573,6 +574,11 @@ export function parseFlowchart(
         }
         continue;
       }
+    }
+
+    // Chart frame: subtitle, source, footnote, byline (#1827), column 1.
+    if (parseChartFrameLine(result, raw, lineNumber, result.diagnostics)) {
+      continue;
     }
 
     // Note annotation: `note <ref> [inline body]` + optional indented

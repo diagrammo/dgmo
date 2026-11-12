@@ -8,6 +8,7 @@
 // ============================================================
 
 import type { DgmoError } from '../diagnostics';
+import type { ChartFrame } from '../utils/chart-frame-parse';
 import type {
   TimelineSort,
   TimelineEvent,
@@ -130,6 +131,8 @@ export interface ParsedVizBase {
    * circles); a no-op for line/point types. Absent ⇒ canonical muted tint.
    */
   fillMode?: 'solid' | 'outline';
+  /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+  frame?: ChartFrame;
   diagnostics: DgmoError[];
   error: string | null;
 }

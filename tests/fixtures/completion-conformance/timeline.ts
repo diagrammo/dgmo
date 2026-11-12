@@ -1,4 +1,5 @@
 import type { ConformanceFixture } from './_types';
+import { FRAME_DIRECTIVES } from './_frame';
 
 // Spec §15 (Timeline). `era` and `marker` are structural keywords that
 // declare era bands and event markers — not directives.
@@ -8,6 +9,7 @@ export const fixture: ConformanceFixture = {
   specSection: '15',
   firstLineKeyword: 'timeline',
   directives: [
+    ...FRAME_DIRECTIVES,
     'no-legend',
     'active-tag',
     'fill-tint',

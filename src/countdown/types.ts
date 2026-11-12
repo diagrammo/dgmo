@@ -1,4 +1,5 @@
 import type { DgmoError } from '../diagnostics';
+import type { ChartFrame } from '../utils/chart-frame-parse';
 import type { FillMode } from '../utils/parsing';
 import type { CountUnits, Field, RecurRule, RoundMode } from './resolve';
 
@@ -21,6 +22,8 @@ import type { CountUnits, Field, RecurRule, RoundMode } from './resolve';
 
 export interface ParsedCountdown {
   readonly type: 'countdown';
+  /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+  readonly frame?: ChartFrame;
   readonly title: string | null;
   readonly titleLineNumber: number | null;
 

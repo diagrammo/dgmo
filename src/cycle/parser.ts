@@ -3,6 +3,7 @@
 // ============================================================
 
 import { makeDgmoError, makeFail } from '../diagnostics';
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
 import { extractPaletteDirective } from '../palettes/directive';
 import {
   measureIndent,
@@ -119,6 +120,13 @@ export function parseCycle(content: string): ParsedCycle {
         continue;
       }
       return fail(lineNum, 'Expected "cycle [Title]" as the first line.');
+    }
+
+    // Chart frame: subtitle, source, footnote, byline (#1827), column 1.
+    // A column-1 line closes the open node, as a node declaration would.
+    if (parseChartFrameLine(result, raw, lineNum, result.diagnostics)) {
+      flushNode();
+      continue;
     }
 
     // ── Directive: direction-counterclockwise ──

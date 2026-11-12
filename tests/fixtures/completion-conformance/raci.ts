@@ -15,6 +15,7 @@
 // `allowExtras` — the test ignores those rather than failing.
 
 import type { ConformanceFixture } from './_types';
+import { FRAME_DIRECTIVES } from './_frame';
 
 export const fixture: ConformanceFixture = {
   chartType: 'raci',
@@ -30,7 +31,14 @@ export const fixture: ConformanceFixture = {
   // Directives the spec documents (no-title/legend-inline are universal —
   // included automatically by the harness for every chart type).
   // No `active-tag`: raci declares no tag groups at all (#251).
-  directives: ['no-legend', 'roles', 'fill-tint', 'fill-solid', 'fill-outline'],
+  directives: [
+    ...FRAME_DIRECTIVES,
+    'no-legend',
+    'roles',
+    'fill-tint',
+    'fill-solid',
+    'fill-outline',
+  ],
 
   // Pipe metadata, scoped by what the line is attached to. RACI uses pipe
   // metadata in two contexts:

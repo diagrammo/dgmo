@@ -28,13 +28,13 @@ describe('parseMap — declaration & title (AC1)', () => {
 describe('parseMap — directives (AC2, AC20)', () => {
   it('captures the surviving intent directives', () => {
     const r = parseMap(
-      'map\nregion-heat Sales ($M)\nlocale US\nno-legend\ncaption src ACME'
+      'map\nregion-heat Sales ($M)\nlocale US\nno-legend\nsource ACME'
     );
     expect(r.error).toBeNull();
     expect(r.directives.regionMetric).toBe('Sales ($M)');
     expect(r.directives.locale).toBe('US');
     expect(r.directives.noLegend).toBe(true);
-    expect(r.directives.caption).toBe('src ACME');
+    expect(r.frame?.source).toBe('ACME');
   });
   it('merges country + subdivision into the one `locale` field', () => {
     expect(parseMap('map\nlocale US').directives.locale).toBe('US');
@@ -90,21 +90,21 @@ describe('parseMap — directives (AC2, AC20)', () => {
     );
   });
   it('a duplicated value-directive still warns / last-wins (AC13)', () => {
-    const r = parseMap('map\ncaption A\ncaption B');
-    expect(r.directives.caption).toBe('B');
+    const r = parseMap('map\nlocale US\nlocale FR');
+    expect(r.directives.locale).toBe('FR');
     expect(
       r.diagnostics.some((d) => /Duplicate directive/.test(d.message))
     ).toBe(true);
   });
   it('hard break: removed directive tokens are no longer directives (AC3)', () => {
-    // projection / scale / subtitle / coastline / relief / context-labels /
+    // projection / scale / caption / coastline / relief / context-labels /
     // region-labels / poi-labels are gone ENTIRELY — a line beginning with one
     // is treated as content (a region-fill), never a directive (no silent
     // accept, no compat shim). The resolver then errors on the bogus region.
     const lines = [
       'projection mercator',
       'scale 0 100',
-      'subtitle Q3 plan',
+      'caption Q3 plan',
       'coastline',
       'relief',
       'context-labels on',

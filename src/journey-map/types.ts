@@ -1,4 +1,5 @@
 import type { DgmoError } from '../diagnostics';
+import type { ChartFrame } from '../utils/chart-frame-parse';
 import type { TagGroup } from '../utils/tag-groups';
 
 export interface JourneyMapAnnotation {
@@ -45,5 +46,7 @@ export interface ParsedJourneyMap {
   readonly tagGroups: readonly TagGroup[];
   readonly options: Readonly<Record<string, string>>;
   readonly diagnostics: readonly DgmoError[];
+  /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+  readonly frame?: ChartFrame;
   readonly error: string | null;
 }

@@ -34,6 +34,7 @@ import { getSeriesColors, mix, themeBaseBg } from '../palettes/color-utils';
 import type { FillMode } from '../utils/parsing';
 import { resolveColor } from '../colors';
 import { FONT_FAMILY } from '../fonts';
+import { growChartFrame } from '../utils/chart-frame';
 import {
   resolveActiveTagGroup,
   resolveTagColor,
@@ -551,8 +552,9 @@ export function renderBody(
   svg.append('g').html(body); // figures + labels
 
   // Title (centered over the whole canvas).
+  let titleNode: SVGTextElement | null = null;
   if (parsed.title && !parsed.options.noTitle) {
-    svg
+    titleNode = svg
       .append('text')
       .attr('x', totalW / 2)
       .attr('y', 40)
@@ -560,7 +562,8 @@ export function renderBody(
       .attr('font-size', 34)
       .attr('font-weight', 'bold')
       .attr('fill', palette.text)
-      .text(parsed.title);
+      .text(parsed.title)
+      .node();
   }
 
   // ── Shared tag legend, in a band below the title ──
@@ -586,6 +589,12 @@ export function renderBody(
       activeGroup,
     });
   }
+
+  // Chart frame (#1827): subtitle under the title, footer under the chart.
+  growChartFrame(svg.node(), parsed.frame, palette, {
+    size: 'grow',
+    title: titleNode,
+  });
 }
 
 export function renderBodyForExport(

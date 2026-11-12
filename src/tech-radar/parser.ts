@@ -1,4 +1,5 @@
 import { makeDgmoError, makeFail, suggest } from '../diagnostics';
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
 import { TECH_RADAR_REGISTRY } from '../utils/reserved-key-registry';
 import {
   measureIndent,
@@ -138,6 +139,13 @@ export function parseTechRadar(content: string): ParsedTechRadar {
         continue;
       }
       return fail(lineNumber, 'Expected "tech-radar" chart type declaration');
+    }
+
+    // --- Chart frame: subtitle, source, footnote, byline (#1827), column 1 ---
+    if (parseChartFrameLine(result, line, lineNumber, result.diagnostics)) {
+      inRingsBlock = false;
+      currentBlip = null;
+      continue;
     }
 
     // --- Rings block ---

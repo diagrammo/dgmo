@@ -10,6 +10,7 @@
 import type { DgmoError } from '../diagnostics';
 import type { Duration } from '../gantt/types';
 import type { TagGroup } from '../utils/tag-groups';
+import type { ChartFrame } from '../utils/chart-frame-parse';
 import type { DurationEstimate } from './internal';
 
 // ── Directives ──────────────────────────────────────────────
@@ -203,6 +204,8 @@ export interface PertGroup {
 export interface ParsedPert {
   /** Optional title parsed from `pert <title>`. */
   readonly title: string | null;
+  /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+  readonly frame?: ChartFrame;
   readonly options: PertOptions;
   readonly activities: readonly PertActivity[];
   readonly edges: readonly PertEdge[];
@@ -372,6 +375,8 @@ export interface PertExpandedActivity {
 
 export interface ResolvedPert {
   options: PertOptions;
+  /** The chart frame, copied from the parsed source (#1827). */
+  frame?: ChartFrame;
   activities: ResolvedActivity[];
   edges: PertEdge[];
   groups: ResolvedGroup[];

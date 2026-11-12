@@ -42,6 +42,7 @@ import type {
   BlockNode,
 } from './types';
 import { isBlockNode } from './types';
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
 
 type ContentLine = { indent: number; trimmed: string; lineNumber: number };
 
@@ -92,6 +93,13 @@ export function parseBlock(
       continue;
     }
     if (trimmed.startsWith('//')) continue;
+
+    // Chart frame: subtitle, source, footnote, byline (#1827), column 1.
+    if (
+      i > 0 &&
+      parseChartFrameLine(result, line, lineNumber, result.diagnostics)
+    )
+      continue;
 
     // --- Header phase ---
     if (!contentStarted) {

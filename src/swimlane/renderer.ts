@@ -31,6 +31,7 @@ import {
   UNTAGGED_TAG_COLOR,
 } from '../utils/tag-groups';
 import type { PaletteColors } from '../palettes';
+import { growChartFrame } from '../utils/chart-frame';
 import type {
   ParsedSwimlane,
   SwimlaneLayoutResult,
@@ -654,6 +655,9 @@ export function renderSwimlaneForExport(
       drawCenteredLabel(g, n.label, cx, cy, textColor, NODE_FONT_SIZE);
     }
   }
+
+  // Chart frame (#1827): subtitle under the title, footer under the chart.
+  growChartFrame(svg.node(), parsed.frame, palette, { size: 'grow' });
 }
 
 /** Draw a one/two-line centered label inside a node. */

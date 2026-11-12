@@ -20,6 +20,7 @@ import {
 import type { DgmoError } from '../diagnostics';
 import { TREEMAP_DX } from './diagnostics';
 import type { Writable } from '../utils/brand';
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
 import type { TagGroup } from '../utils/tag-groups';
 import {
   matchTagBlockHeading,
@@ -149,6 +150,14 @@ export function parseTreemap(
         result.titleLineNumber = lineNumber;
         continue;
       }
+    }
+
+    // Chart frame: subtitle, source, footnote, byline (#1827), column 1.
+    // A column-1 line closes the open tag group and the node nesting.
+    if (parseChartFrameLine(result, line, lineNumber, result.diagnostics)) {
+      currentTagGroup = null;
+      indentStack.length = 0;
+      continue;
     }
 
     // Tag group heading: `tag Team as t`

@@ -12,6 +12,8 @@
 
 import { emit, makeDgmoError, suggest } from '../diagnostics';
 import type { DgmoError } from '../diagnostics';
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import type { ChartFrame } from '../utils/chart-frame-parse';
 import { PERT_DX } from './diagnostics';
 import { parseDuration } from '../utils/duration';
 import { parseDateToken, toInternal, type DateOrder } from '../utils/date';
@@ -571,6 +573,8 @@ export function parsePert(
 ): ParsedPert {
   const lines = content.split('\n');
   const diagnostics: DgmoError[] = [];
+  // The chart frame (#1827): subtitle, source, footnote, byline.
+  const frameHolder: { frame?: ChartFrame } = {};
   const error = (line: number, msg: string, code?: string): void => {
     diagnostics.push(makeDgmoError(line, msg, 'error', code));
   };
@@ -717,6 +721,9 @@ export function parsePert(
       // inferred via `looksLikePert`. We don't error here; the dispatch
       // layer is responsible for routing.
     }
+
+    if (parseChartFrameLine(frameHolder, rawLine, lineNumber, diagnostics))
+      continue;
 
     // ── Tag-block phase. `tag Priority as p\n  High red\n  Low green`
     // lives BEFORE diagram content; once any group / activity / arrow
@@ -1367,6 +1374,7 @@ export function parsePert(
   const firstFatal = diagnostics.find((d) => d.severity === 'error');
   return {
     title,
+    ...(frameHolder.frame && { frame: frameHolder.frame }),
     options,
     activities,
     edges,

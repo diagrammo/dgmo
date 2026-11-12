@@ -1,4 +1,5 @@
 import type { DgmoError } from '../diagnostics';
+import type { ChartFrame } from '../utils/chart-frame-parse';
 
 // ============================================================
 // Goal chart — Parsed Types
@@ -29,6 +30,8 @@ export interface GoalOptions {
 
 export interface ParsedGoal {
   readonly type: 'goal';
+  /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+  readonly frame?: ChartFrame;
   readonly title: string | null;
   readonly titleLineNumber: number | null;
   /** Optional free-text caption shown under the value (via `note <text>`). */

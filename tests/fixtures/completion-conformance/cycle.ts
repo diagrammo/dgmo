@@ -1,4 +1,5 @@
 import type { ConformanceFixture } from './_types';
+import { FRAME_DIRECTIVES } from './_frame';
 
 // Spec §21 (Cycle Diagrams). Three chart-specific directives plus
 // the fill family (via FILL_FAMILY_CAPABLE — not yet documented in §21.5).
@@ -18,6 +19,7 @@ export const fixture: ConformanceFixture = {
   firstLineKeyword: 'cycle',
 
   directives: [
+    ...FRAME_DIRECTIVES,
     'direction-counterclockwise',
     'circle-nodes',
     'center',

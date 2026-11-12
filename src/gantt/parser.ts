@@ -2,6 +2,7 @@
 // Gantt Chart Parser
 // ============================================================
 
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
 import { formatDgmoError, makeDgmoError } from '../diagnostics';
 import {
   GANTT_REGISTRY,
@@ -400,6 +401,23 @@ export function parseGantt(
         }
         continue;
       }
+    }
+
+    // ── Chart frame: subtitle, source, footnote, byline (#1827) ──
+    // Column 1, so it closes the open blocks the way an empty line does.
+
+    if (parseChartFrameLine(result, rawLine, lineNumber, result.diagnostics)) {
+      inHolidaysBlock = false;
+      inEraBlock = false;
+      inMarkerBlock = false;
+      if (inTagBlock) {
+        inTagBlock = false;
+        if (currentTagGroup) {
+          result.tagGroups.push(currentTagGroup);
+          currentTagGroup = null;
+        }
+      }
+      continue;
     }
 
     // ── Holidays block ────────────────────────────────────

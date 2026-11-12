@@ -5,6 +5,7 @@
 import * as d3Selection from 'd3-selection';
 import { fillModeFromOptions } from '../utils/parsing';
 import { FONT_FAMILY } from '../fonts';
+import { growChartFrame } from '../utils/chart-frame';
 import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
@@ -137,6 +138,7 @@ export function renderCycle(
     .attr('height', height)
     .attr('fill', palette.bg);
 
+  let titleNode: SVGTextElement | null = null;
   if (showTitle) {
     const titleText = svg
       .append('text')
@@ -150,6 +152,7 @@ export function renderCycle(
       .attr('data-line-number', parsed.titleLineNumber)
       .text(parsed.title)
       .style('cursor', onClickItem ? 'pointer' : 'default');
+    titleNode = titleText.node();
     if (onClickItem) {
       titleText.on('click', () => onClickItem(parsed.titleLineNumber));
     }
@@ -638,6 +641,12 @@ export function renderCycle(
       textY += scaledEdgeLineH;
     }
   }
+
+  // Chart frame (#1827): subtitle under the title, footer under the chart.
+  growChartFrame(svg.node(), parsed.frame, palette, {
+    size: exportDims ? 'grow' : 'fit',
+    title: titleNode,
+  });
 }
 
 /**

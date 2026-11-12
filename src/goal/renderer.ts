@@ -11,6 +11,7 @@
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import { TITLE_FONT_WEIGHT } from '../utils/title-constants';
+import { growChartFrame } from '../utils/chart-frame';
 import {
   mix,
   shapeFill,
@@ -164,6 +165,9 @@ export function renderGoal(
     .attr('width', vw)
     .attr('height', vh)
     .attr('fill', palette.bg);
+
+  // Chart frame (#1827): subtitle under the title, footer under the chart.
+  growChartFrame(svg.node(), parsed.frame, palette, { size: 'grow' });
 }
 
 export function renderGoalForExport(

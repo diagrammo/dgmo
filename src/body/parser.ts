@@ -15,6 +15,8 @@ import type { PaletteColors } from '../palettes';
 import { emit } from '../diagnostics';
 import type { DgmoError } from '../diagnostics';
 import type { Writable } from '../utils/brand';
+import type { ChartFrame } from '../utils/chart-frame-parse';
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
 import type { TagGroup } from '../utils/tag-groups';
 import {
   matchTagBlockHeading,
@@ -66,6 +68,7 @@ export function parseBody(
   let currentTagGroup: Writable<TagGroup> | null = null;
   let currentPart: Writable<BodyPart> | null = null;
   let contentStarted = false;
+  const frameHolder: { frame?: ChartFrame } = {};
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!;
@@ -98,6 +101,14 @@ export function parseBody(
         diagnostics,
         error: emit(BODY_DX.EXPECTED_HEADER, lineNumber),
       };
+    }
+
+    // Chart frame: subtitle, source, footnote, byline (#1827), column 1.
+    // A column-1 line closes the open tag group and part, as a directive does.
+    if (parseChartFrameLine(frameHolder, line, lineNumber, diagnostics)) {
+      currentTagGroup = null;
+      currentPart = null;
+      continue;
     }
 
     // ── Bare directives (before content) ──
@@ -254,5 +265,6 @@ export function parseBody(
     tagGroups,
     parts,
     diagnostics,
+    ...(frameHolder.frame && { frame: frameHolder.frame }),
   };
 }

@@ -36,6 +36,7 @@ import {
 } from './layout';
 import { LEGEND_HEIGHT } from '../utils/legend-constants';
 import { renderIntegratedLegend } from '../utils/legend-integration';
+import { growChartFrame } from '../utils/chart-frame';
 import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
 
 // ============================================================
@@ -626,6 +627,11 @@ export function renderC4Context(
       exportMode
     );
   }
+
+  // Chart frame (#1827): subtitle under the title, footer under the chart.
+  growChartFrame(svg.node(), parsed.frame, palette, {
+    size: exportDims ? 'grow' : 'fit',
+  });
 }
 
 // ============================================================
@@ -1785,6 +1791,11 @@ export function renderC4Containers(
       exportMode
     );
   }
+
+  // Chart frame (#1827): subtitle under the title, footer under the chart.
+  growChartFrame(svg.node(), parsed.frame, palette, {
+    size: exportDims ? 'grow' : 'fit',
+  });
 }
 
 // ============================================================

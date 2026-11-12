@@ -1,4 +1,5 @@
 import type { ConformanceFixture } from './_types';
+import { FRAME_DIRECTIVES } from './_frame';
 
 // Spec §17 / §16.5. Axis labels are comma-separated low/high pairs.
 // Position labels (top-right, top-left, etc.) declare quadrant names —
@@ -7,6 +8,13 @@ export const fixture: ConformanceFixture = {
   chartType: 'quadrant',
   specSection: '17',
   firstLineKeyword: 'quadrant',
-  directives: ['x-label', 'y-label', 'fill-tint', 'fill-solid', 'fill-outline'],
+  directives: [
+    ...FRAME_DIRECTIVES,
+    'x-label',
+    'y-label',
+    'fill-tint',
+    'fill-solid',
+    'fill-outline',
+  ],
   pipeKeys: {},
 };

@@ -1,4 +1,5 @@
 import type { DgmoError } from '../diagnostics';
+import type { ChartFrame } from '../utils/chart-frame-parse';
 import type { TagGroup, TagEntry } from '../utils/tag-groups';
 
 /** @deprecated Use `TagEntry` from `utils/tag-groups` */
@@ -35,5 +36,7 @@ export interface ParsedKanban {
   readonly tagGroups: readonly KanbanTagGroup[];
   readonly options: Readonly<Record<string, string>>;
   readonly diagnostics: readonly DgmoError[];
+  /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+  readonly frame?: ChartFrame;
   readonly error: string | null;
 }

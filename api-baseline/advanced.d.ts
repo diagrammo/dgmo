@@ -1,16 +1,16 @@
-import { D as DgmoError, T as TagGroup, g as TagEntry } from './tag-groups-BUohVKID.js';
-export { b as DgmoFix, c as DgmoSeverity, h as autoTagColorCycle, f as formatDgmoError, m as makeDgmoError, r as resolveActiveTagGroup, i as resolveTagColor, j as resolveTagValue, t as tagAttrKey } from './tag-groups-BUohVKID.js';
+import { D as DgmoError, C as ChartFrame, T as TagGroup, g as TagEntry } from './tag-groups-CkLDJ7z0.js';
+export { b as DgmoFix, c as DgmoSeverity, h as autoTagColorCycle, f as formatDgmoError, m as makeDgmoError, r as resolveActiveTagGroup, i as resolveTagColor, j as resolveTagValue, t as tagAttrKey } from './tag-groups-CkLDJ7z0.js';
 import { P as PaletteConfig, c as PaletteColors, C as CompactViewState } from './chart-types-Dxtv4XSz.js';
 export { a as ChartTypeId, b as ChartTypeMeta, D as DecodedDiagramUrl, E as EncodeDiagramUrlOptions, e as EncodeDiagramUrlResult, d as chartTypes, f as decodeDiagramUrl, h as decodeViewState, i as encodeDiagramUrl, j as encodeViewState, k as getAvailablePalettes, g as getPalette, l as isValidHex, m as registerPalette } from './chart-types-Dxtv4XSz.js';
-import { d as RenderForExportOptions, b as MapData, P as ParsedMap, e as ResolvedMap, f as MapLayoutLegend, g as GeoExtent } from './export-context-DCBbrXaA.js';
+import { d as RenderForExportOptions, b as MapData, P as ParsedMap, e as ResolvedMap, f as MapLayoutLegend, g as GeoExtent } from './export-context-lJl-acbN.js';
 import { MapDataSource } from './block.js';
-export { A as AirportData, B as BoundaryTopology, G as Gazetteer, a as GazetteerEntry, h as MapDirectives, i as MapEdge, j as MapPoi, k as MapRegion, l as MapRoute, m as PoiPos, n as ProjectionFamily, R as RegionName, c as RegionNames, o as ResolvedEdge, p as ResolvedPoi, q as ResolvedRegion, r as ResolvedRoute } from './export-context-DCBbrXaA.js';
+export { A as AirportData, B as BoundaryTopology, G as Gazetteer, a as GazetteerEntry, h as MapDirectives, i as MapEdge, j as MapPoi, k as MapRegion, l as MapRoute, m as PoiPos, n as ProjectionFamily, R as RegionName, c as RegionNames, o as ResolvedEdge, p as ResolvedPoi, q as ResolvedRegion, r as ResolvedRoute } from './export-context-lJl-acbN.js';
 import { InkPoint } from './index.js';
-export { C as CHART_TYPE_DESCRIPTIONS, M as MapCompletionOptions, d as MapLocationMatch, e as MapPlaceCompletion, f as MapRegionCompletion, R as RenderCategory, T as Theme, l as chartTypeParsers, g as completeMapPlaces, h as completeMapRegions, m as getAllChartTypes, n as getRenderCategory, o as isExtendedChartType, q as knownChartTypeIds, p as palettes, k as parseDgmo, s as searchMapLocations, t as themes, k as validate } from './themes-Dyke6aVB.js';
+export { C as CHART_TYPE_DESCRIPTIONS, M as MapCompletionOptions, d as MapLocationMatch, e as MapPlaceCompletion, f as MapRegionCompletion, R as RenderCategory, T as Theme, l as chartTypeParsers, g as completeMapPlaces, h as completeMapRegions, m as getAllChartTypes, n as getRenderCategory, o as isExtendedChartType, q as knownChartTypeIds, p as palettes, k as parseDgmo, s as searchMapLocations, t as themes, k as validate } from './themes-CQJBic_r.js';
 import { Selection } from 'd3-selection';
 import * as d3Scale from 'd3-scale';
-import { P as ParsedOrg, F as FillMode, R as RaciMarker, a as ParsedRaci, b as RaciVariant, c as RaciTask } from './chart-meta-WYKBmZCK.js';
-export { A as ALL_CHART_TYPES, I as ImportSource, O as OrgNode, d as RaciPhase, e as RaciRoleAssignment, f as ReadFileFn, g as ResolveImportsResult, h as contrastText, i as findOrgNodeIdByName, j as getSeriesColors, k as hexToHSL, l as hexToHSLString, m as hslToHex, n as mix, o as normalizePertSourceForShare, p as parseDgmoChartType, q as parseFirstLine, r as parseOrg, s as parseRaci, t as resolveOrgImports, u as shade, v as shapeFill, w as tint } from './chart-meta-WYKBmZCK.js';
+import { P as ParsedOrg, F as FillMode, R as RaciMarker, a as ParsedRaci, b as RaciVariant, c as RaciTask } from './chart-meta-K_gYeV2G.js';
+export { A as ALL_CHART_TYPES, I as ImportSource, O as OrgNode, d as RaciPhase, e as RaciRoleAssignment, f as ReadFileFn, g as ResolveImportsResult, h as contrastText, i as findOrgNodeIdByName, j as getSeriesColors, k as hexToHSL, l as hexToHSLString, m as hslToHex, n as mix, o as normalizePertSourceForShare, p as parseDgmoChartType, q as parseFirstLine, r as parseOrg, s as parseRaci, t as resolveOrgImports, u as shade, v as shapeFill, w as tint } from './chart-meta-K_gYeV2G.js';
 import { GlyphName } from './index.js';
 import { GeoProjection } from 'd3-geo';
 
@@ -230,6 +230,8 @@ interface ParsedVizBase {
      * circles); a no-op for line/point types. Absent ⇒ canonical muted tint.
      */
     fillMode?: 'solid' | 'outline';
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    frame?: ChartFrame;
     diagnostics: DgmoError[];
     error: string | null;
 }
@@ -464,22 +466,6 @@ declare function render(source: string, options?: {
     chartType: string | undefined;
 }>;
 
-/** One note line under the plot (`note` is repeatable). */
-interface ChartFrameNote {
-    text: string;
-    lineNumber: number;
-}
-/** The `subtitle`, `source`, `note` and `byline` directives of one chart. */
-interface ChartFrame {
-    subtitle?: string;
-    subtitleLineNumber?: number;
-    source?: string;
-    sourceLineNumber?: number;
-    byline?: string;
-    bylineLineNumber?: number;
-    notes?: ChartFrameNote[];
-}
-
 type ChartType$1 = 'bar' | 'line' | 'pie' | 'polar-area' | 'radar';
 interface ChartDataPoint {
     label: string;
@@ -500,7 +486,7 @@ interface ParsedChart {
     type: ChartType$1;
     title?: string;
     titleLineNumber?: number;
-    /** `subtitle`, `source`, `note`, `byline` (#1827). */
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
     frame?: ChartFrame;
     series?: string;
     seriesLineNumber?: number;
@@ -925,7 +911,7 @@ interface ParsedHeatmapRow {
 interface ParsedExtendedBase {
     title?: string;
     titleLineNumber?: number;
-    /** `subtitle`, `source`, `note`, `byline` (#1827). */
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
     frame?: ChartFrame;
     series?: string;
     seriesLineNumber?: number;
@@ -1190,6 +1176,8 @@ interface ParsedSequenceDgmo {
     readonly tagGroups: readonly TagGroup[];
     readonly options: Readonly<Record<string, string>>;
     readonly diagnostics: readonly DgmoError[];
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    readonly frame?: ChartFrame;
     readonly error: string | null;
 }
 /**
@@ -1282,6 +1270,8 @@ interface ParsedGraph {
     readonly tagGroups?: readonly TagGroup[];
     readonly options: Readonly<Record<string, string>>;
     readonly diagnostics: readonly DgmoError[];
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    readonly frame?: ChartFrame;
     readonly error: string | null;
 }
 
@@ -1502,6 +1492,8 @@ interface ParsedClassDiagram {
     /** Generic node notes (`note <ClassName> …`); resolved in layout. */
     readonly notes?: readonly DiagramNote[];
     readonly diagnostics: readonly DgmoError[];
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    readonly frame?: ChartFrame;
     readonly error: string | null;
 }
 
@@ -1600,6 +1592,8 @@ interface ParsedERDiagram {
     /** Generic node notes (`note <Table> …`); resolved in layout. */
     readonly notes?: readonly DiagramNote[];
     readonly diagnostics: readonly DgmoError[];
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    readonly frame?: ChartFrame;
     readonly error: string | null;
 }
 
@@ -1931,6 +1925,8 @@ interface ParsedKanban {
     readonly tagGroups: readonly KanbanTagGroup[];
     readonly options: Readonly<Record<string, string>>;
     readonly diagnostics: readonly DgmoError[];
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    readonly frame?: ChartFrame;
     readonly error: string | null;
 }
 
@@ -2045,6 +2041,8 @@ interface ParsedC4 {
     readonly relationships: readonly C4Relationship[];
     readonly deployment: readonly C4DeploymentNode[];
     readonly diagnostics: readonly DgmoError[];
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    readonly frame?: ChartFrame;
     readonly error: string | null;
 }
 
@@ -2229,6 +2227,8 @@ interface ParsedBoxesAndLines {
      */
     readonly showValues?: boolean;
     readonly diagnostics: readonly DgmoError[];
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    readonly frame?: ChartFrame;
     readonly error: string | null;
 }
 
@@ -2503,6 +2503,8 @@ interface ParsedWhiteboard {
      */
     readonly shapeSets: readonly string[];
     readonly diagnostics: readonly DgmoError[];
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    readonly frame?: ChartFrame;
     readonly error: string | null;
 }
 declare function isWhiteboardColor(value: string): value is WhiteboardColor;
@@ -3025,6 +3027,8 @@ interface ParsedSwimlane {
     readonly tagGroups: readonly TagGroup[];
     readonly options: Readonly<Record<string, string>>;
     readonly diagnostics: readonly DgmoError[];
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    readonly frame?: ChartFrame;
     readonly error?: string | null;
 }
 /**
@@ -3155,6 +3159,8 @@ interface ParsedFamily {
     readonly tagGroups: readonly TagGroup[];
     readonly options: Readonly<Record<string, string>>;
     readonly diagnostics: readonly DgmoError[];
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    readonly frame?: ChartFrame;
     /** Set (fatal) on an ancestry cycle — the renderer bails before layout. */
     readonly error?: string | null;
 }
@@ -3303,6 +3309,8 @@ interface ParsedSitemap {
     readonly tagGroups: readonly TagGroup[];
     readonly options: Readonly<Record<string, string>>;
     readonly diagnostics: readonly DgmoError[];
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    readonly frame?: ChartFrame;
     readonly error: string | null;
 }
 
@@ -3475,6 +3483,8 @@ interface ParsedInfra {
     readonly tagGroups: readonly InfraTagGroup[];
     readonly options: Readonly<Record<string, string>>;
     readonly diagnostics: readonly DgmoError[];
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    readonly frame?: ChartFrame;
     readonly error: string | null;
 }
 interface InfraComputeParams {
@@ -3559,6 +3569,8 @@ interface ComputedInfraModel {
     groups: InfraGroup[];
     tagGroups: InfraTagGroup[];
     title: string | null;
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    frame?: ChartFrame;
     direction: 'LR' | 'TB';
     /** Diagram-level options (e.g., default-latency-ms, default-uptime). */
     options: Record<string, string>;
@@ -3644,6 +3656,8 @@ interface InfraLayoutResult {
     readonly groups: readonly InfraLayoutGroup[];
     /** Diagram-level options (e.g., default-latency-ms, default-uptime). */
     readonly options: Readonly<Record<string, string>>;
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    readonly frame?: ChartFrame;
     readonly direction: 'LR' | 'TB';
     readonly width: number;
     readonly height: number;
@@ -3827,6 +3841,8 @@ interface ParsedGantt {
     readonly markers: readonly GanttMarker[];
     readonly options: GanttOptions;
     readonly diagnostics: readonly DgmoError[];
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    readonly frame?: ChartFrame;
     readonly error: string | null;
     readonly syntaxMode: 'new' | 'legacy';
 }
@@ -3868,6 +3884,8 @@ interface ResolvedSchedule {
     sprints: ResolvedSprint[];
     options: GanttOptions;
     diagnostics: DgmoError[];
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    frame?: ChartFrame;
     error: string | null;
 }
 
@@ -4155,6 +4173,8 @@ interface PertGroup {
 interface ParsedPert {
     /** Optional title parsed from `pert <title>`. */
     readonly title: string | null;
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    readonly frame?: ChartFrame;
     readonly options: PertOptions;
     readonly activities: readonly PertActivity[];
     readonly edges: readonly PertEdge[];
@@ -4316,6 +4336,8 @@ interface PertExpandedActivity {
 }
 interface ResolvedPert {
     options: PertOptions;
+    /** The chart frame, copied from the parsed source (#1827). */
+    frame?: ChartFrame;
     activities: ResolvedActivity[];
     edges: PertEdge[];
     groups: ResolvedGroup[];
@@ -4620,6 +4642,8 @@ interface ParsedMindmap {
     readonly tagGroups: readonly TagGroup[];
     readonly options: Readonly<Record<string, string>>;
     readonly diagnostics: readonly DgmoError[];
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    readonly frame?: ChartFrame;
     readonly error: string | null;
 }
 interface MindmapLayoutNode {
@@ -4787,6 +4811,8 @@ interface ParsedWireframe {
     readonly modals: readonly WireframeElement[];
     readonly options: Readonly<Record<string, string>>;
     readonly diagnostics: readonly DgmoError[];
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    readonly frame?: ChartFrame;
     readonly error: string | null;
 }
 
@@ -4862,6 +4888,8 @@ interface ParsedTechRadar {
     readonly quadrants: readonly TechRadarQuadrant[];
     readonly options: Readonly<Record<string, string>>;
     readonly diagnostics: readonly DgmoError[];
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    readonly frame?: ChartFrame;
     readonly error: string | null;
 }
 interface TechRadarLayoutPoint {
@@ -4945,6 +4973,8 @@ interface CycleEdge {
 }
 interface ParsedCycle {
     readonly type: 'cycle';
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    readonly frame?: ChartFrame;
     readonly title: string;
     readonly titleLineNumber: number;
     readonly nodes: readonly CycleNode[];
@@ -5081,6 +5111,8 @@ interface ParsedJourneyMap {
     readonly tagGroups: readonly TagGroup[];
     readonly options: Readonly<Record<string, string>>;
     readonly diagnostics: readonly DgmoError[];
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    readonly frame?: ChartFrame;
     readonly error: string | null;
 }
 
@@ -5172,6 +5204,8 @@ interface PyramidLayer {
 }
 interface ParsedPyramid {
     readonly type: 'pyramid';
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    readonly frame?: ChartFrame;
     readonly title: string;
     readonly titleLineNumber: number;
     readonly layers: readonly PyramidLayer[];
@@ -5234,6 +5268,8 @@ interface SwotSection {
 }
 interface ParsedSwot {
     readonly type: 'swot';
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    readonly frame?: ChartFrame;
     readonly title?: string;
     readonly titleLineNumber?: number;
     /** Always all four, in S W O T order, whatever the source order. */
@@ -5353,6 +5389,8 @@ interface ParsedEventLine {
     readonly now: EventLineNow | null;
     readonly tagGroups: readonly TagGroup[];
     readonly options: EventLineOptions;
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    readonly frame?: ChartFrame;
     readonly diagnostics: readonly DgmoError[];
     readonly error: string | null;
 }
@@ -5426,6 +5464,8 @@ type Field = 'd' | 'h' | 'm' | 's';
 
 interface ParsedCountdown {
     readonly type: 'countdown';
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    readonly frame?: ChartFrame;
     readonly title: string | null;
     readonly titleLineNumber: number | null;
     /**
@@ -5582,6 +5622,8 @@ interface ClockEntry {
 }
 interface ParsedClock {
     readonly type: 'clock';
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    readonly frame?: ChartFrame;
     readonly title: string | null;
     readonly titleLineNumber: number | null;
     /** Board-level face. Default `digital`. */
@@ -5711,6 +5753,8 @@ interface BodyOptions {
     readonly fillMode?: FillMode;
 }
 interface ParsedBody {
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    readonly frame?: ChartFrame;
     readonly title: string | null;
     readonly titleLineNumber: number | null;
     readonly options: BodyOptions;
@@ -5816,6 +5860,8 @@ interface GoalOptions {
 }
 interface ParsedGoal {
     readonly type: 'goal';
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    readonly frame?: ChartFrame;
     readonly title: string | null;
     readonly titleLineNumber: number | null;
     /** Optional free-text caption shown under the value (via `note <text>`). */
@@ -5877,6 +5923,8 @@ interface RoundDef {
 }
 interface ParsedBracket {
     readonly type: 'bracket';
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    readonly frame?: ChartFrame;
     readonly title: string | null;
     readonly titleLineNumber: number | null;
     readonly mode: BracketMode;
@@ -6054,6 +6102,8 @@ interface ParsedVersionControl {
     readonly notes: readonly VCNote[];
     readonly options: VCOptions;
     readonly diagnostics: readonly DgmoError[];
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    readonly frame?: ChartFrame;
     readonly error: string | null;
 }
 
@@ -6074,6 +6124,8 @@ interface RingLayer {
 }
 interface ParsedRing {
     readonly type: 'ring';
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    readonly frame?: ChartFrame;
     readonly title: string;
     readonly titleLineNumber: number;
     /** Source order: layers[0] = innermost (filled disc); last = outermost ring. */
@@ -6137,6 +6189,8 @@ interface TreemapOptions {
 }
 interface ParsedTreemap {
     readonly type: 'treemap';
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    readonly frame?: ChartFrame;
     readonly title: string | null;
     readonly titleLineNumber: number | null;
     readonly roots: TreemapNode[];
@@ -6328,6 +6382,8 @@ interface ParsedBlock {
     readonly tagGroups: TagGroup[];
     readonly options: BlockOptions;
     readonly diagnostics: DgmoError[];
+    /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+    readonly frame?: ChartFrame;
     readonly error: string | null;
 }
 
@@ -6782,7 +6838,6 @@ interface MapLayout {
     readonly background: string;
     readonly title: string | null;
     readonly subtitle?: string;
-    readonly caption?: string;
     readonly regions: readonly MapLayoutRegion[];
     /** Major river centerlines, drawn over land/lakes and under POIs/edges. */
     readonly rivers: readonly MapLayoutRiver[];

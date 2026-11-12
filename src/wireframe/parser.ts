@@ -3,6 +3,8 @@
 // ============================================================
 
 import type { DgmoError } from '../diagnostics';
+import type { ChartFrame } from '../utils/chart-frame-parse';
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
 import { formatDgmoError, makeDgmoError } from '../diagnostics';
 import type { Writable } from '../utils/brand';
 import { isTagBlockHeading } from '../utils/tag-groups';
@@ -669,6 +671,7 @@ export function parseWireframe(content: string): ParsedWireframe {
   const roots: MutableWireframeElement[] = [];
   const modals: MutableWireframeElement[] = [];
   const options: Record<string, string> = {};
+  const frameHolder: { frame?: ChartFrame } = {};
 
   // Parsing state
   let phase: 'header' | 'content' = 'header';
@@ -805,6 +808,10 @@ export function parseWireframe(content: string): ParsedWireframe {
       if (indent > 0) continue;
       swallowingTagBlock = false;
     }
+
+    // Chart frame: subtitle, source, footnote, byline (#1827), column 1.
+    if (parseChartFrameLine(frameHolder, line, lineNumber, diagnostics))
+      continue;
 
     // ── Header phase ──────────────────────────────────────
     if (phase === 'header') {
@@ -999,6 +1006,7 @@ export function parseWireframe(content: string): ParsedWireframe {
     modals,
     options,
     diagnostics,
+    ...(frameHolder.frame && { frame: frameHolder.frame }),
     error,
   };
 }

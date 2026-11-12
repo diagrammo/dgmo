@@ -2,6 +2,8 @@
 // Sequence Diagram Parser (.dgmo format)
 // ============================================================
 
+import type { ChartFrame } from '../utils/chart-frame-parse';
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
 import { inferParticipantType } from './participant-inference';
 import type { Brand, Writable } from '../utils/brand';
 import type { DgmoError } from '../diagnostics';
@@ -237,6 +239,8 @@ export interface ParsedSequenceDgmo {
   readonly tagGroups: readonly TagGroup[];
   readonly options: Readonly<Record<string, string>>;
   readonly diagnostics: readonly DgmoError[];
+  /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+  readonly frame?: ChartFrame;
   readonly error: string | null;
 }
 
@@ -1005,6 +1009,12 @@ export function parseSequenceDgmo(
     // Reject # as comment syntax
     if (trimmed.startsWith('#')) {
       pushError(lineNumber, 'Use // for comments');
+      continue;
+    }
+
+    // Chart frame: subtitle, source, footnote, byline (#1827), column 1.
+    if (parseChartFrameLine(result, raw, lineNumber, result.diagnostics)) {
+      currentTagGroup = null;
       continue;
     }
 

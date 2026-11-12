@@ -2,6 +2,7 @@
 // Infra Chart SVG Renderer
 // ============================================================
 
+import { growChartFrame } from '../utils/chart-frame';
 import { tagAttrKey } from '../utils/tag-groups';
 import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
@@ -2840,6 +2841,11 @@ export function renderInfra(
       );
     }
   }
+
+  // Chart frame (#1827): subtitle under the title, footer under the chart.
+  // The root is sized by its viewBox (width/height are percentages), so it
+  // always grows by viewBox; the export handler reads the new height back.
+  growChartFrame(rootSvg.node(), layout.frame, palette, { size: 'fit' });
 }
 
 // ============================================================

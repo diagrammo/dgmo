@@ -284,9 +284,12 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
 
   const result: Writable<ResolvedMap> = {
     title: parsed.title,
-    ...(parsed.directives.caption !== undefined && {
-      caption: parsed.directives.caption,
+    // The chart frame (#1827): the subtitle rides the map's own banner slot
+    // under the title; the footer is drawn by growChartFrame.
+    ...(parsed.frame?.subtitle !== undefined && {
+      subtitle: parsed.frame.subtitle,
     }),
+    ...(parsed.frame !== undefined && { frame: parsed.frame }),
     tagGroups: [...parsed.tagGroups],
     // Shallow-copy so the resolved model never aliases the parser's mutable
     // directives object (#11). NOTE: tag→region-fill COLOR binding is the

@@ -1,4 +1,5 @@
 import type { ConformanceFixture } from './_types';
+import { FRAME_DIRECTIVES } from './_frame';
 
 // Spec §19. Layout/form-factor option: `mobile`.
 // fill family via FILL_FAMILY_CAPABLE. Pipe metadata uses flag keywords (not
@@ -21,6 +22,12 @@ export const fixture: ConformanceFixture = {
   ],
   specSection: '19',
   firstLineKeyword: 'wireframe',
-  directives: ['mobile', 'fill-tint', 'fill-solid', 'fill-outline'],
+  directives: [
+    ...FRAME_DIRECTIVES,
+    'mobile',
+    'fill-tint',
+    'fill-solid',
+    'fill-outline',
+  ],
   pipeKeys: {},
 };

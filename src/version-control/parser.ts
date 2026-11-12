@@ -12,6 +12,7 @@
 // docs/version-control-syntax-mockups.html parse().
 
 import type { PaletteColors } from '../palettes';
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
 import { emit, formatDgmoError, makeFail, suggest } from '../diagnostics';
 import { VERSION_CONTROL_DX } from './diagnostics';
 import type { Writable } from '../utils/brand';
@@ -232,6 +233,10 @@ export function parseVersionControl(
       if (hint) msg += ` ${hint}`;
       return fail(lineNumber, msg);
     }
+
+    // Chart frame: subtitle, source, footnote, byline (#1827), column 1.
+    if (parseChartFrameLine(result, line, lineNumber, result.diagnostics))
+      continue;
 
     // ── Directives ──
     // Layout direction — canonical booleans `direction-lr` / `direction-tb`

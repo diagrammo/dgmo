@@ -1,4 +1,5 @@
 import type { ConformanceFixture } from './_types';
+import { FRAME_DIRECTIVES } from './_frame';
 
 // Spec §21 (PERT Charts). Directives: time-unit, confidence, direction
 // booleans (§1.9; key+value `direction LR|TB` parses as legacy),
@@ -10,6 +11,7 @@ export const fixture: ConformanceFixture = {
   specSection: '21',
   firstLineKeyword: 'pert',
   directives: [
+    ...FRAME_DIRECTIVES,
     'no-legend',
     'time-unit',
     'confidence',

@@ -35,6 +35,7 @@ import {
 import type { TagGroup } from '../utils/tag-groups';
 import { tryCollectNote, resolveNotes, type DiagramNote } from '../utils/notes';
 import type { Writable } from '../utils/brand';
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
 import type {
   ParsedERDiagram,
   ERTable,
@@ -363,6 +364,13 @@ export function parseERDiagram(
       }
       // Not an explicit `er` first line — that's OK, treat as implicit
       firstLineParsed = true;
+    }
+
+    // Chart frame: subtitle, source, footnote, byline (#1827), column 1.
+    if (parseChartFrameLine(result, raw, lineNumber, result.diagnostics)) {
+      currentTable = null;
+      currentTagGroup = null;
+      continue;
     }
 
     // Tag group heading — `tag Name`

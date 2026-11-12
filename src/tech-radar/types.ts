@@ -1,4 +1,5 @@
 import type { DgmoError } from '../diagnostics';
+import type { ChartFrame } from '../utils/chart-frame-parse';
 
 // ============================================================
 // Tech Radar — Parsed Types
@@ -44,6 +45,8 @@ export interface ParsedTechRadar {
   readonly quadrants: readonly TechRadarQuadrant[];
   readonly options: Readonly<Record<string, string>>;
   readonly diagnostics: readonly DgmoError[];
+  /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+  readonly frame?: ChartFrame;
   readonly error: string | null;
 }
 

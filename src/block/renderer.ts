@@ -33,6 +33,7 @@ import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import type { ParsedBlock, BlockNode } from './types';
 import { isBlockNode } from './types';
+import { growChartFrame } from '../utils/chart-frame';
 import { layoutBlock, type BlockLayoutItem, BLOCK_HEADER_H } from './layout';
 
 const PADDING = 12;
@@ -247,6 +248,11 @@ export function renderBlock(
       activeGroup: legend.activeGroup,
     });
   }
+
+  // Chart frame (#1827): subtitle under the title, footer under the chart.
+  growChartFrame(svg.node(), parsed.frame, palette, {
+    size: options.exportMode ? 'grow' : 'fit',
+  });
 }
 
 // ============================================================

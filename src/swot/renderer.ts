@@ -4,6 +4,7 @@
 
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
+import { growChartFrame } from '../utils/chart-frame';
 import type { PaletteColors } from '../palettes';
 import { contrastText, mix } from '../palettes/color-utils';
 import { renderIntegratedLegend } from '../utils/legend-integration';
@@ -450,4 +451,7 @@ export function renderSwot(
       cursorY += ITEM_GAP;
     }
   });
+
+  // Chart frame (#1827): subtitle under the title, footer under the chart.
+  growChartFrame(svg.node(), parsed.frame, palette, { size: 'grow' });
 }

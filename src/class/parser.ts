@@ -18,6 +18,7 @@ import { normalizeName, displayName } from '../utils/name-normalize';
 import { tryCollectNote, resolveNotes, type DiagramNote } from '../utils/notes';
 import { isTagBlockHeading } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
 import type {
   ParsedClassDiagram,
   ClassNode,
@@ -338,6 +339,12 @@ export function parseClassDiagram(
         }
         continue;
       }
+    }
+
+    // Chart frame: subtitle, source, footnote, byline (#1827), column 1.
+    if (parseChartFrameLine(result, raw, lineNumber, result.diagnostics)) {
+      currentClass = null;
+      continue;
     }
 
     // Space-separated options before content (new syntax): `no-auto-color`

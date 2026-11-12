@@ -2,6 +2,7 @@
 // C4 Architecture Diagram — Types
 // ============================================================
 
+import type { ChartFrame } from '../utils/chart-frame-parse';
 import type { TagGroup, TagEntry } from '../utils/tag-groups';
 import type { DgmoError } from '../diagnostics';
 
@@ -106,5 +107,7 @@ export interface ParsedC4 {
   readonly relationships: readonly C4Relationship[];
   readonly deployment: readonly C4DeploymentNode[];
   readonly diagnostics: readonly DgmoError[];
+  /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+  readonly frame?: ChartFrame;
   readonly error: string | null;
 }

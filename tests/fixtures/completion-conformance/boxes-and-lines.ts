@@ -1,4 +1,5 @@
 import type { ConformanceFixture } from './_types';
+import { FRAME_DIRECTIVES } from './_frame';
 
 // Spec §14 §13.6 + §13.8. Directives: direction booleans (§1.9; key+value
 // `direction TB|LR` parses as legacy). Options:
@@ -10,6 +11,7 @@ export const fixture: ConformanceFixture = {
   specSection: '14',
   firstLineKeyword: 'boxes-and-lines',
   directives: [
+    ...FRAME_DIRECTIVES,
     'no-legend',
     'direction-tb',
     'direction-lr',

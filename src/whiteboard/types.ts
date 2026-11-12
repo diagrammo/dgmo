@@ -12,6 +12,7 @@ import type { DgmoError } from '../diagnostics';
 import type { InkPoint } from './ink-codec';
 import type { TagGroup } from '../utils/tag-groups';
 import type { GlyphName } from '../glyphs/registry';
+import type { ChartFrame } from '../utils/chart-frame-parse';
 
 /**
  * Colour NAMES — never values. `ink` is the palette's text colour, so it flips
@@ -257,6 +258,8 @@ export interface ParsedWhiteboard {
    */
   readonly shapeSets: readonly string[];
   readonly diagnostics: readonly DgmoError[];
+  /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+  readonly frame?: ChartFrame;
   readonly error: string | null;
 }
 

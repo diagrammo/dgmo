@@ -39,6 +39,7 @@ import {
 } from '../utils/reserved-key-registry';
 import { tryCollectNote, resolveNotes, type DiagramNote } from '../utils/notes';
 import type { PaletteColors } from '../palettes';
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
 
 const MAX_GROUP_DEPTH = 2;
 
@@ -262,6 +263,11 @@ export function parseBoxesAndLines(
 
     // Skip blanks and comments
     if (!trimmed || trimmed.startsWith('//')) continue;
+
+    // Chart frame: subtitle, source, footnote, byline (#1827), column 1.
+    // Before the first-line check, which would read `subtitle Foo` as a chart type.
+    if (i > 0 && parseChartFrameLine(result, raw, lineNum, result.diagnostics))
+      continue;
 
     // First line: `boxes-and-lines [Title]`
     const firstLineResult = parseFirstLine(trimmed);

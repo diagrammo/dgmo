@@ -36,6 +36,7 @@ export interface ERRelationship {
 import type { DgmoError } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
 import type { DiagramNote } from '../utils/notes';
+import type { ChartFrame } from '../utils/chart-frame-parse';
 
 export interface ParsedERDiagram {
   readonly type: 'er';
@@ -48,5 +49,7 @@ export interface ParsedERDiagram {
   /** Generic node notes (`note <Table> …`); resolved in layout. */
   readonly notes?: readonly DiagramNote[];
   readonly diagnostics: readonly DgmoError[];
+  /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+  readonly frame?: ChartFrame;
   readonly error: string | null;
 }

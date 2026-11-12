@@ -14,6 +14,7 @@
 
 import type { DgmoError } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
+import type { ChartFrame } from '../utils/chart-frame-parse';
 
 /**
  * v1 node vocabulary (closed). Inclusive (`<o>`) and event-based (`<*>`)
@@ -90,6 +91,8 @@ export interface ParsedSwimlane {
   readonly tagGroups: readonly TagGroup[];
   readonly options: Readonly<Record<string, string>>;
   readonly diagnostics: readonly DgmoError[];
+  /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+  readonly frame?: ChartFrame;
   readonly error?: string | null;
 }
 

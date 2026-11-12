@@ -12,6 +12,7 @@
 // Coordinate convention: layout `nodes` carry TOP-LEFT x/y (mirrors org's
 // `LayoutNode`), so the renderer translates the card `<g>` directly to `(x, y)`.
 
+import type { ChartFrame } from '../utils/chart-frame-parse';
 import type { DgmoError } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
 
@@ -76,6 +77,8 @@ export interface ParsedFamily {
   readonly tagGroups: readonly TagGroup[];
   readonly options: Readonly<Record<string, string>>;
   readonly diagnostics: readonly DgmoError[];
+  /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+  readonly frame?: ChartFrame;
   /** Set (fatal) on an ancestry cycle — the renderer bails before layout. */
   readonly error?: string | null;
 }

@@ -28,6 +28,7 @@ import {
   TITLE_FONT_WEIGHT,
   TITLE_Y,
 } from '../utils/title-constants';
+import { growChartFrame } from '../utils/chart-frame';
 import {
   shapeFill,
   contrastText,
@@ -646,6 +647,11 @@ export function renderFamilyForExport(
         .text(a.label);
     }
   }
+
+  // Chart frame (#1827): subtitle under the title, footer under the chart.
+  growChartFrame(svg.node(), parsed.frame, palette, {
+    size: opts.fit ? 'fit' : 'grow',
+  });
 }
 
 /** App-preview entry: scales the diagram to fit the container. */

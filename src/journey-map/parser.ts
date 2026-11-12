@@ -42,6 +42,7 @@ import type {
 } from './types';
 import type { TagGroup } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
 import type { DgmoError } from '../diagnostics';
 
 // ============================================================
@@ -151,6 +152,12 @@ export function parseJourneyMap(
         }
         continue;
       }
+    }
+
+    // Chart frame: subtitle, source, footnote, byline (#1827), column 1.
+    if (parseChartFrameLine(result, line, lineNumber, result.diagnostics)) {
+      inPersona = false;
+      continue;
     }
 
     // Persona keyword

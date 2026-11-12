@@ -3,6 +3,7 @@
 // ============================================================
 
 import { makeDgmoError, makeFail } from '../diagnostics';
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
 import { extractPaletteDirective } from '../palettes/directive';
 import type { Writable } from '../utils/brand';
 import {
@@ -98,6 +99,13 @@ export function parsePyramid(content: string): ParsedPyramid {
         continue;
       }
       return fail(lineNum, 'Expected "pyramid [Title]" as the first line.');
+    }
+
+    // Chart frame: subtitle, source, footnote, byline (#1827), column 1.
+    // A column-1 line closes the open layer, as a layer declaration would.
+    if (parseChartFrameLine(result, raw, lineNum, result.diagnostics)) {
+      flushLayer();
+      continue;
     }
 
     // ── Bare directive: inverted ──

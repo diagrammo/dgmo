@@ -1,4 +1,5 @@
 import type { ConformanceFixture } from './_types';
+import { FRAME_DIRECTIVES } from './_frame';
 
 // Spec §12 §11.5 Options: direction-tb, active-tag.
 // fill family via FILL_FAMILY_CAPABLE.
@@ -8,6 +9,7 @@ export const fixture: ConformanceFixture = {
   specSection: '12',
   firstLineKeyword: 'sitemap',
   directives: [
+    ...FRAME_DIRECTIVES,
     'no-legend',
     'direction-tb',
     'direction-lr',

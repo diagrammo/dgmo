@@ -57,6 +57,7 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
     sprints: [],
     options: parsed.options,
     diagnostics,
+    ...(parsed.frame && { frame: parsed.frame }),
     error: parsed.error,
   };
 

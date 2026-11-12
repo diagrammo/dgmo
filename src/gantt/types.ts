@@ -2,6 +2,7 @@
 // Gantt Chart Types
 // ============================================================
 
+import type { ChartFrame } from '../utils/chart-frame-parse';
 import type { DgmoError } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
 
@@ -160,6 +161,8 @@ export interface ParsedGantt {
   readonly markers: readonly GanttMarker[];
   readonly options: GanttOptions;
   readonly diagnostics: readonly DgmoError[];
+  /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+  readonly frame?: ChartFrame;
   readonly error: string | null;
   readonly syntaxMode: 'new' | 'legacy';
 }
@@ -207,5 +210,7 @@ export interface ResolvedSchedule {
   sprints: ResolvedSprint[];
   options: GanttOptions;
   diagnostics: DgmoError[];
+  /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+  frame?: ChartFrame;
   error: string | null;
 }

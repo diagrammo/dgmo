@@ -7,6 +7,7 @@
 
 import dagre from '@dagrejs/dagre';
 import type { Writable } from '../utils/brand';
+import type { ChartFrame } from '../utils/chart-frame-parse';
 import type { ComputedInfraModel, ComputedInfraNode } from './types';
 import { COLLAPSE_BAR_HEIGHT } from '../utils/visual-conventions';
 import {
@@ -79,6 +80,8 @@ export interface InfraLayoutResult {
   readonly groups: readonly InfraLayoutGroup[];
   /** Diagram-level options (e.g., default-latency-ms, default-uptime). */
   readonly options: Readonly<Record<string, string>>;
+  /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+  readonly frame?: ChartFrame;
   readonly direction: 'LR' | 'TB';
   readonly width: number;
   readonly height: number;
@@ -626,6 +629,7 @@ export function layoutInfra(
       edges: [],
       groups: [],
       options: {},
+      ...(computed.frame && { frame: computed.frame }),
       direction: computed.direction,
       width: 0,
       height: 0,
@@ -900,6 +904,7 @@ export function layoutInfra(
     edges: layoutEdges,
     groups: layoutGroups,
     options: computed.options,
+    ...(computed.frame && { frame: computed.frame }),
     direction: computed.direction,
     width: totalWidth,
     height: totalHeight,

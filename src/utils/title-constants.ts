@@ -17,7 +17,6 @@ export const TITLE_LINE_HEIGHT = 24;
 // S-curve). Pixel `dy` (not `'1.2em'`) so layout math and rendered text
 // never drift between JSDOM and resvg.
 export const CAPTION_FONT_SIZE = 13;
-export const CAPTION_FONT_WEIGHT = 'normal';
 export const CAPTION_LINE_HEIGHT = 18;
 export const CAPTION_TOP_GAP = 12;
 // Inner padding for the caption rectangle. X = horizontal inset from

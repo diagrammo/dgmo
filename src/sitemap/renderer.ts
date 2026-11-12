@@ -53,6 +53,7 @@ import {
 
 const DIAGRAM_PADDING = 20;
 const MAX_SCALE = 3;
+import { growChartFrame } from '../utils/chart-frame';
 import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
 const TITLE_HEIGHT = 30;
 // Shared card / group / collapse constants (Story 111.1). sitemap matches every
@@ -769,6 +770,11 @@ export function renderSitemap(
       header.inline
     );
   }
+
+  // Chart frame (#1827): subtitle under the title, footer under the chart.
+  growChartFrame(svg.node(), parsed.frame, palette, {
+    size: exportDims ? 'grow' : 'fit',
+  });
 }
 
 // ============================================================

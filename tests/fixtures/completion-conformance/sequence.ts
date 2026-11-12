@@ -1,4 +1,5 @@
 import type { ConformanceFixture } from './_types';
+import { FRAME_DIRECTIVES } from './_frame';
 
 // Spec §3 (Sequence) §2.7 Options: autonumber, activations, active-tag.
 // the fill family via FILL_FAMILY_CAPABLE.
@@ -8,6 +9,7 @@ export const fixture: ConformanceFixture = {
   specSection: '3',
   firstLineKeyword: 'sequence',
   directives: [
+    ...FRAME_DIRECTIVES,
     'no-legend',
     'autonumber',
     'activations',

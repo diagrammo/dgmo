@@ -1,4 +1,5 @@
 import type { DgmoError } from '../diagnostics';
+import type { ChartFrame } from '../utils/chart-frame-parse';
 
 // ============================================================
 // Pyramid Diagram — Parsed Types
@@ -17,6 +18,8 @@ export interface PyramidLayer {
 
 export interface ParsedPyramid {
   readonly type: 'pyramid';
+  /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+  readonly frame?: ChartFrame;
   readonly title: string;
   readonly titleLineNumber: number;
   readonly layers: readonly PyramidLayer[];

@@ -1,4 +1,5 @@
 import type { DgmoError } from '../diagnostics';
+import type { ChartFrame } from '../utils/chart-frame-parse';
 
 // ============================================================
 // Cycle Diagram — Parsed Types
@@ -26,6 +27,8 @@ export interface CycleEdge {
 
 export interface ParsedCycle {
   readonly type: 'cycle';
+  /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+  readonly frame?: ChartFrame;
   readonly title: string;
   readonly titleLineNumber: number;
   readonly nodes: readonly CycleNode[];

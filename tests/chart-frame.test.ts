@@ -14,13 +14,13 @@ import {
 } from '../src/utils/chart-frame';
 import { TITLE_FONT_SIZE } from '../src/utils/title-constants';
 
-// The chart frame (#1827): `subtitle`, `source`, `note` and `byline`, drawn by
+// The chart frame (#1827): `subtitle`, `source`, `footnote` and `byline`, drawn by
 // one shared component around every data chart.
 
 const FRAME = [
   'subtitle Share of revenue by region, fiscal 2025',
-  'note Figures are unaudited.',
-  'note EMEA includes the Gulf states.',
+  'footnote Figures are unaudited.',
+  'footnote EMEA includes the Gulf states.',
   'source Company annual report',
   'byline Chart: Jane Doe',
 ].join('\n');
@@ -77,7 +77,7 @@ describe('chart frame — parsing', () => {
     expect(p.frame).toEqual({
       subtitle: 'Share of revenue by region, fiscal 2025',
       subtitleLineNumber: 8,
-      notes: [
+      footnotes: [
         { text: 'Figures are unaudited.', lineNumber: 9 },
         { text: 'EMEA includes the Gulf states.', lineNumber: 10 },
       ],
@@ -99,19 +99,25 @@ describe('chart frame — parsing', () => {
     const p = parseExtendedChart(`${fixture('scatter')}\n${FRAME}`);
     expect(p.error).toBeFalsy();
     expect(p.frame?.subtitle).toBe('Share of revenue by region, fiscal 2025');
-    expect(p.frame?.notes).toHaveLength(2);
+    expect(p.frame?.footnotes).toHaveLength(2);
     expect(p.frame?.source).toBe('Company annual report');
     expect(p.frame?.byline).toBe('Chart: Jane Doe');
   });
 
   it('leaves a capitalised data row a data row', () => {
-    const p = parseChart('bar Sizes\nSource 12\nNote 3\nByline 4');
+    const p = parseChart('bar Sizes\nSource 12\nNote 3\nByline 4\nFootnote 5');
     expect(p.frame).toBeUndefined();
     expect(p.data.map((d) => [d.label, d.value])).toEqual([
       ['Source', 12],
       ['Note', 3],
       ['Byline', 4],
+      ['Footnote', 5],
     ]);
+  });
+
+  it('reads `note` on a data chart as data, not a footnote', () => {
+    const p = parseChart('bar Sizes\nnote 3\nB 4');
+    expect(p.frame).toBeUndefined();
   });
 
   it('leaves a sankey flow from a node named source a flow', () => {
@@ -147,7 +153,7 @@ describe('chart frame — parsing', () => {
   it('is offered by completion on every data chart type', () => {
     for (const type of DATA_TYPES) {
       const spec = COMPLETION_REGISTRY.get(type)!;
-      for (const token of ['subtitle', 'source', 'note', 'byline'])
+      for (const token of ['subtitle', 'source', 'footnote', 'byline'])
         expect(spec.directives[token], `${type} ${token}`).toBeDefined();
     }
   });
@@ -158,7 +164,7 @@ describe('chart frame — rendering', () => {
     const svg = parse(await renderDataChartD3(fixture('bar'), 'light'));
     expect(svg.querySelector('.chart-frame-body')).toBeNull();
     expect(
-      svg.querySelector('.chart-subtitle, .chart-note, .chart-source')
+      svg.querySelector('.chart-subtitle, .chart-footnote, .chart-source')
     ).toBeNull();
   });
 
@@ -214,7 +220,7 @@ describe('chart frame — rendering', () => {
 
       const footer = [
         ...framed.querySelectorAll(
-          'text.chart-note, text.chart-source, text.chart-byline'
+          'text.chart-footnote, text.chart-source, text.chart-byline'
         ),
       ];
       expect(footer.map((t) => t.textContent)).toEqual([
@@ -243,7 +249,7 @@ describe('chart frame — rendering', () => {
         .map((t) => num(t, 'y'))
         .filter((y) => Number.isFinite(y))
     );
-    const firstFooter = framed.querySelector('text.chart-note')!;
+    const firstFooter = framed.querySelector('text.chart-footnote')!;
     expect(lowest + shift).toBeLessThan(
       num(firstFooter, 'y') - FOOTER_FONT_SIZE
     );

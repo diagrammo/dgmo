@@ -24,6 +24,7 @@
 import type { PaletteColors } from '../palettes';
 import { makeDgmoError, makeFail } from '../diagnostics';
 import type { Writable } from '../utils/brand';
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
 import {
   extractColor,
   fillModeFromToken,
@@ -208,6 +209,15 @@ export function parseBracket(
       }
       result.titleLineNumber = lineNum;
       headerParsed = true;
+      continue;
+    }
+
+    // Chart frame: subtitle, source, footnote, byline (#1827), column 1.
+    // A column-1 line closes the open blocks, as any other directive does.
+    if (parseChartFrameLine(result, raw, lineNum, result.diagnostics)) {
+      currentTagGroup = null;
+      commentaryTarget = null;
+      inRoundsBlock = false;
       continue;
     }
 

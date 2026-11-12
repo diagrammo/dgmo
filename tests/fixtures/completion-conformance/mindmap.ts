@@ -1,4 +1,5 @@
 import type { ConformanceFixture } from './_types';
+import { FRAME_DIRECTIVES } from './_frame';
 
 // Spec §18 (Mindmap Diagrams). Two directives plus the fill family (via
 // FILL_FAMILY_CAPABLE). Two static node-pipe keys; tag aliases are
@@ -13,6 +14,7 @@ export const fixture: ConformanceFixture = {
   firstLineKeyword: 'mindmap',
 
   directives: [
+    ...FRAME_DIRECTIVES,
     'no-legend',
     'active-tag',
     'fill-tint',

@@ -1,4 +1,5 @@
 import type { DgmoError } from '../diagnostics';
+import type { ChartFrame } from '../utils/chart-frame-parse';
 
 // ============================================================
 // Version-Control — Parsed Types (spec §29)
@@ -96,5 +97,7 @@ export interface ParsedVersionControl {
   readonly notes: readonly VCNote[];
   readonly options: VCOptions;
   readonly diagnostics: readonly DgmoError[];
+  /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+  readonly frame?: ChartFrame;
   readonly error: string | null;
 }

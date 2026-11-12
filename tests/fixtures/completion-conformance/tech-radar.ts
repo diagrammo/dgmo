@@ -1,4 +1,5 @@
 import type { ConformanceFixture } from './_types';
+import { FRAME_DIRECTIVES } from './_frame';
 
 // Spec §20 (Tech Radar). One directive: no-blip-legend (listing default-on
 // per decision #48; legacy `show-blip-legend` is a no-op). `rings` is a
@@ -9,7 +10,7 @@ export const fixture: ConformanceFixture = {
   structuralKeywords: ['rings'],
   specSection: '20',
   firstLineKeyword: 'tech-radar',
-  directives: ['no-legend', 'no-blip-legend'],
+  directives: [...FRAME_DIRECTIVES, 'no-legend', 'no-blip-legend'],
   pipeKeys: {
     // Stuffed into `node` until PIPE_METADATA gains real
     // quadrant/blip contexts. Spec defines:

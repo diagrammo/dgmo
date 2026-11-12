@@ -1,0 +1,10 @@
+flowchart Order Fulfilment
+subtitle How an order moves from checkout to the customer's door
+
+(Checkout) -> [Reserve stock] -> <In stock?>
+  -yes-> [Pick and pack] -> [Ship] -> (Delivered)
+  -no-> [Backorder] -> [Reserve stock]
+
+footnote Backorders retry every six hours.
+source Warehouse operations handbook, 2025
+byline Chart: Diagrammo

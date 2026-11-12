@@ -39,6 +39,7 @@ import { normalizeName, displayName } from '../utils/name-normalize';
 import type { Writable } from '../utils/brand';
 import type { ParsedGraph, GraphNode, GraphGroup, GraphNote } from './types';
 import { tryCollectNote, resolveNotes } from './notes';
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
 
 // ============================================================
 // Constants
@@ -380,6 +381,12 @@ export function parseState(
         }
         continue;
       }
+    }
+
+    // Chart frame: subtitle, source, footnote, byline (#1827), column 1.
+    if (parseChartFrameLine(result, raw, lineNumber, result.diagnostics)) {
+      currentTagGroup = null;
+      continue;
     }
 
     // Tag group heading — `tag <Group> as <alias>` (decision #48). Checked

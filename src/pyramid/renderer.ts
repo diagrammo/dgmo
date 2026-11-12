@@ -5,6 +5,7 @@
 import * as d3Selection from 'd3-selection';
 import { fillModeFromOptions } from '../utils/parsing';
 import { FONT_FAMILY } from '../fonts';
+import { growChartFrame } from '../utils/chart-frame';
 import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
@@ -346,6 +347,11 @@ export function renderPyramid(
       );
     }
   }
+
+  // Chart frame (#1827): subtitle under the title, footer under the chart.
+  growChartFrame(svg.node(), parsed.frame, palette, {
+    size: exportDims ? 'grow' : 'fit',
+  });
 }
 
 /**

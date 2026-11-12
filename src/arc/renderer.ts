@@ -9,6 +9,7 @@ import * as d3Array from 'd3-array';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import { ScaleContext } from '../utils/scaling';
 import { initD3Chart, renderChartTitle } from '../utils/d3-helpers';
+import { growChartFrame } from '../utils/chart-frame';
 import type {
   ParsedArc,
   ArcLink,
@@ -783,6 +784,11 @@ export function renderArcDiagram(
       }
     }
   }
+
+  // Chart frame (#1827): subtitle under the title, footer under the chart.
+  growChartFrame(svg.node(), parsed.frame, palette, {
+    size: exportDims ? 'grow' : 'fit',
+  });
 }
 
 // ============================================================

@@ -19,6 +19,7 @@
 // See `docs/dgmo-language-spec.md` § "RACI Matrix".
 
 import { emit, makeDgmoError, makeFail, suggest } from '../diagnostics';
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
 import { extractPaletteDirective } from '../palettes/directive';
 import { RACI_DX } from './diagnostics';
 import { resolveColorWithDiagnostic } from '../colors';
@@ -333,6 +334,13 @@ export function parseRaci(
 
     if (!trimmed) continue;
     if (trimmed.startsWith('//')) continue;
+
+    // Chart frame: subtitle, source, footnote, byline (#1827), column 1.
+    // A column-1 line closes the open task and phase, as a new one would.
+    if (parseChartFrameLine(result, raw, lineNumber, result.diagnostics)) {
+      finalizePhase(lineNumber);
+      continue;
+    }
 
     // ── Directives (header window only, indent === 0) ──────────
     if (!bodyStarted && indent === 0 && !PHASE_RE.test(trimmed)) {

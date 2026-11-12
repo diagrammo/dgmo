@@ -25,6 +25,7 @@ import {
   TITLE_FONT_WEIGHT,
   TITLE_Y,
 } from '../utils/title-constants';
+import { growChartFrame } from '../utils/chart-frame';
 import { ScaleContext } from '../utils/scaling';
 import { measureText } from '../utils/text-measure';
 import { renderNodeNote } from '../utils/note-box';
@@ -710,6 +711,11 @@ export function renderERDiagram(
     });
     legendG.selectAll('[data-legend-group]').classed('er-legend-group', true);
   }
+
+  // Chart frame (#1827): subtitle under the title, footer under the chart.
+  growChartFrame(svg.node(), parsed.frame, palette, {
+    size: exportDims ? 'grow' : 'fit',
+  });
 }
 
 // ============================================================

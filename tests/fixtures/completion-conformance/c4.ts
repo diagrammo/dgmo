@@ -1,4 +1,5 @@
 import type { ConformanceFixture } from './_types';
+import { FRAME_DIRECTIVES } from './_frame';
 
 // Spec §8 §7.7 Options: direction-tb, active-tag. fill family via
 // FILL_FAMILY_CAPABLE. Pipe metadata in PIPE_METADATA: description, tech.
@@ -8,6 +9,7 @@ export const fixture: ConformanceFixture = {
   specSection: '8',
   firstLineKeyword: 'c4',
   directives: [
+    ...FRAME_DIRECTIVES,
     'no-legend',
     'direction-tb',
     'direction-lr',

@@ -32,6 +32,7 @@
 // whiteboard first line or a board with no elements is fatal.
 
 import type { PaletteColors } from '../palettes';
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
 import { makeDgmoError, makeFail, suggest, type DgmoFix } from '../diagnostics';
 import { extractPaletteDirective } from '../palettes/directive';
 import type { Writable } from '../utils/brand';
@@ -423,6 +424,10 @@ export function parseWhiteboard(
       result.titleLineNumber = lineNumber;
       continue;
     }
+
+    // Chart frame: subtitle, source, footnote, byline (#1827), column 1.
+    if (parseChartFrameLine(result, lines[i]!, lineNumber, result.diagnostics))
+      continue;
 
     // §1.9 universal flags — `no-title` and `no-notes` mean something here,
     // the rest are harmless no-ops rather than unknown elements.

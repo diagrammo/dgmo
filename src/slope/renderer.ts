@@ -2,6 +2,7 @@
 // Slope renderer — Story 109.2 (arch-review). Extracted from d3.ts.
 // ============================================================
 
+import { growChartFrame } from '../utils/chart-frame';
 import { GRID_DASH, scaleDash } from '../utils/visual-conventions';
 import * as d3Scale from 'd3-scale';
 import * as d3Shape from 'd3-shape';
@@ -428,6 +429,11 @@ export function renderSlopeChart(
           .text(line);
       });
     }
+  });
+
+  // Chart frame (#1827): subtitle under the title, footer under the chart.
+  growChartFrame(svg.node(), parsed.frame, palette, {
+    size: exportDims ? 'grow' : 'fit',
   });
 }
 

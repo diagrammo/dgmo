@@ -7,6 +7,7 @@ import { measureText, wrapTextToWidth } from '../utils/text-measure';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import { ScaleContext } from '../utils/scaling';
 import { initD3Chart, renderChartTitle } from '../utils/d3-helpers';
+import { growChartFrame } from '../utils/chart-frame';
 import type { ParsedVenn, VennOverlap } from '../visualizations/types';
 import type { PaletteColors } from '../palettes';
 import { mix } from '../palettes/color-utils';
@@ -1108,6 +1109,11 @@ export function renderVenn(
         if (onClickItem && declaredOv) onClickItem(declaredOv.lineNumber);
       });
   }
+
+  // Chart frame (#1827): subtitle under the title, footer under the circles.
+  growChartFrame(svg.node(), parsed.frame, palette, {
+    size: exportDims ? 'grow' : 'fit',
+  });
 }
 
 // ============================================================

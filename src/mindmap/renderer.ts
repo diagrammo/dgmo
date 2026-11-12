@@ -35,6 +35,7 @@ import {
   getLegendExtent,
 } from '../utils/legend-layout';
 import { layoutInlineHeader } from '../utils/inline-header';
+import { growChartFrame } from '../utils/chart-frame';
 import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
 import { ScaleContext } from '../utils/scaling';
 import { renderCollapseBar } from '../utils/card';
@@ -648,6 +649,11 @@ export function renderMindmap(
         });
     }
   }
+
+  // Chart frame (#1827): subtitle under the title, footer under the chart.
+  growChartFrame(svg.node(), parsed.frame, palette, {
+    size: exportDims ? 'grow' : 'fit',
+  });
 }
 
 // ============================================================

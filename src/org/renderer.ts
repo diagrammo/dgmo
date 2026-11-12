@@ -47,6 +47,7 @@ import type { LegendConfig } from '../utils/legend-types';
 const DIAGRAM_PADDING = 20;
 const MAX_SCALE = 3;
 import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
+import { growChartFrame } from '../utils/chart-frame';
 const TITLE_HEIGHT = 30;
 // Shared card / group / collapse constants (Story 111.1). org matches every
 // convention default, so it imports the full set.
@@ -835,6 +836,9 @@ export function renderOrg(
       }
     }
   }
+
+  // Chart frame (#1827): subtitle under the title, footer under the chart.
+  growChartFrame(svg.node(), parsed.frame, palette, { size: 'fit' });
 }
 
 // ============================================================

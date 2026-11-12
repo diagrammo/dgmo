@@ -14,6 +14,7 @@
 import type { DgmoError } from '../diagnostics';
 import type { FillMode } from '../utils/parsing';
 import type { TagGroup } from '../utils/tag-groups';
+import type { ChartFrame } from '../utils/chart-frame-parse';
 
 /** A named part annotation (`chest e: Primary` + bare-body notes). */
 export interface BodyPart {
@@ -53,6 +54,8 @@ export interface BodyOptions {
 }
 
 export interface ParsedBody {
+  /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+  readonly frame?: ChartFrame;
   readonly title: string | null;
   readonly titleLineNumber: number | null;
   readonly options: BodyOptions;

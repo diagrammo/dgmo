@@ -1,4 +1,5 @@
 import type { DgmoError } from '../diagnostics';
+import type { ChartFrame } from '../utils/chart-frame-parse';
 import type { TagGroup } from '../utils/tag-groups';
 
 // ============================================================
@@ -108,6 +109,8 @@ export interface ParsedEventLine {
   readonly now: EventLineNow | null;
   readonly tagGroups: readonly TagGroup[];
   readonly options: EventLineOptions;
+  /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+  readonly frame?: ChartFrame;
   readonly diagnostics: readonly DgmoError[];
   readonly error: string | null;
 }

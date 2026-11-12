@@ -14,6 +14,7 @@ import { parseInArrowLabel } from '../utils/arrows';
 import { normalizeName } from '../utils/name-normalize';
 import type { TagGroup } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
 import {
   matchTagBlockHeading,
   stripDefaultModifier,
@@ -394,6 +395,12 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         }
         continue;
       }
+    }
+
+    // Chart frame: subtitle, source, footnote, byline (#1827), column 1.
+    if (parseChartFrameLine(result, line, lineNumber, result.diagnostics)) {
+      currentTagGroup = null;
+      continue;
     }
 
     // Tag group heading — `tag Name as <alias>`

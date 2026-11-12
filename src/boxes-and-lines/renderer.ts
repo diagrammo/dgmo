@@ -60,6 +60,7 @@ import {
 import type { ParsedBoxesAndLines, BLNode } from './types';
 import type { BLLayoutResult, BLLayoutNode, BLLayoutEdge } from './layout';
 import { ScaleContext } from '../utils/scaling';
+import { growChartFrame } from '../utils/chart-frame';
 import { renderCollapseBar } from '../utils/card';
 import { FULL_TEXT_ATTR, fullNodeText, isCutShort } from '../utils/full-text';
 import {
@@ -1501,6 +1502,12 @@ export function renderBoxesAndLines(
   // per node (~4k elements on a large graph). Appended to the SVG root so the
   // app positions it in root (screen-mapped) coordinates, counter-scaled to a
   // constant size regardless of fit. Excluded from export like org's icon.
+  // Chart frame (#1827): subtitle under the title, footer under the chart.
+  // Before the focus icon, which the app positions in root coordinates.
+  growChartFrame(svg.node(), parsed.frame, palette, {
+    size: exportDims ? 'grow' : 'fit',
+  });
+
   if (!exportDims && !exportMode) {
     const iconSize = 14;
     const focusG = svg

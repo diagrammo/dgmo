@@ -33,6 +33,7 @@ import {
 } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
 import { SWOT_DX } from './diagnostics';
 import type {
   ParsedSwot,
@@ -221,6 +222,14 @@ export function parseSwot(
         }
         continue;
       }
+    }
+
+    // Chart frame: subtitle, source, footnote, byline (#1827), column 1.
+    // A column-1 line closes the open tag group and item.
+    if (parseChartFrameLine(result, line, lineNumber, diagnostics)) {
+      currentTagGroup = null;
+      currentItem = null;
+      continue;
     }
 
     const indent = measureIndent(line);

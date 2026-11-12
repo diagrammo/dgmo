@@ -4,6 +4,7 @@
 
 import type { DgmoError } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
+import type { ChartFrame } from '../utils/chart-frame-parse';
 
 export interface SitemapNode {
   readonly id: string;
@@ -44,5 +45,7 @@ export interface ParsedSitemap {
   readonly tagGroups: readonly TagGroup[];
   readonly options: Readonly<Record<string, string>>;
   readonly diagnostics: readonly DgmoError[];
+  /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+  readonly frame?: ChartFrame;
   readonly error: string | null;
 }

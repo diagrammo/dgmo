@@ -1,4 +1,5 @@
 import type { DgmoError } from '../diagnostics';
+import type { ChartFrame } from '../utils/chart-frame-parse';
 import type { FillMode } from '../utils/parsing';
 import type { TagGroup } from '../utils/tag-groups';
 
@@ -59,6 +60,8 @@ export interface RoundDef {
 
 export interface ParsedBracket {
   readonly type: 'bracket';
+  /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+  readonly frame?: ChartFrame;
   readonly title: string | null;
   readonly titleLineNumber: number | null;
   readonly mode: BracketMode;

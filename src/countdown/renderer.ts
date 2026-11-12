@@ -15,6 +15,7 @@
 
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
+import { growChartFrame } from '../utils/chart-frame';
 import { now as currentTimeMs } from '../utils/now';
 import {
   contrastText,
@@ -1800,6 +1801,9 @@ export function renderCountdown(
       .attr('data-dgmo-countdown-detail', '');
     paintClock(detailSel, subText, Math.round(detailFont * 0.66), bandC.now);
   }
+
+  // Chart frame (#1827): subtitle under the title, footer under the chart.
+  growChartFrame(svg.node(), parsed.frame, palette, { size: 'grow' });
 }
 
 export function renderCountdownForExport(

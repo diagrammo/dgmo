@@ -2,6 +2,7 @@
 // Sequence Diagram SVG Renderer
 // ============================================================
 
+import { growChartFrame } from '../utils/chart-frame';
 import { tagAttrKey } from '../utils/tag-groups';
 import { fillModeFromOptions } from '../utils/parsing';
 import * as d3Selection from 'd3-selection';
@@ -4228,6 +4229,9 @@ export function renderSequenceDiagram(
       callbacks: legendCallbacks,
     });
   }
+
+  // Chart frame (#1827): subtitle under the title, footer under the chart.
+  growChartFrame(svg.node(), parsed.frame, palette, { size: 'grow' });
 }
 
 /**

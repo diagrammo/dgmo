@@ -10,6 +10,8 @@ import {
 import { ORG_REGISTRY, withTagAliases } from '../utils/reserved-key-registry';
 import type { TagGroup } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
+import type { ChartFrame } from '../utils/chart-frame-parse';
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
 import {
   isTagBlockHeading,
   matchTagBlockHeading,
@@ -67,6 +69,8 @@ export interface ParsedOrg {
    */
   readonly direction: 'LR' | 'TB';
   readonly diagnostics: readonly DgmoError[];
+  /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+  readonly frame?: ChartFrame;
   readonly error: string | null;
 }
 
@@ -227,6 +231,10 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
         continue;
       }
     }
+
+    // Chart frame: subtitle, source, footnote, byline (#1827), column 1.
+    if (parseChartFrameLine(result, line, lineNumber, result.diagnostics))
+      continue;
 
     // Tag group heading — `tag Name as <alias>`.
     // Must be checked BEFORE OPTION_RE to prevent `tag: Rank` being swallowed as option `tag=Rank`

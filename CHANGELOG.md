@@ -9,16 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Chart frame: `subtitle`, `source`, `note` and `byline` on the data
-  charts.** A subtitle draws under the title; notes (repeatable), a
-  `Source: …` line and a byline draw under the chart, in that order. One
-  shared component places them on every data chart (`bar`, `line`, `pie`,
-  `polar-area`, `radar`, `scatter`, `heatmap`, `sankey`, `funnel`,
-  `function`), following the title's alignment. A chart that sizes itself grows by
-  the frame; at a size the caller sets, the plot shrinks to make room. **Breaking:** a lowercase `source …`,
-  `note …`, `subtitle …` or `byline …` row at the start of a line in a data
-  chart is now the directive, not a data row; capitalise the label
-  (`Source 12`) to keep it as data. Other chart types follow (#1827).
+- **Chart frame: `subtitle`, `source`, `footnote` and `byline` on every
+  chart type.** A subtitle draws under the title; footnotes (repeatable), a
+  `Source: …` line and a byline draw under the chart, in that order, in one
+  type scale (title 20 > subtitle 15 > body 13 > footer 11). One shared
+  component places them on every chart, following the title's alignment. A
+  chart that sizes itself grows by the frame; at a size the caller sets, the
+  drawing shrinks to make room. PERT's project summary line now sits in the
+  frame's subtitle slot, in its type, and an authored `subtitle` replaces it
+  (#1827).
+  - **Breaking:** a lowercase `subtitle …`, `source …`, `footnote …` or
+    `byline …` line starting in column 1 is now the directive in every chart
+    type, not a data row, node, task or participant. Capitalise the name
+    (`Source 12`, a node `Footnote`) to keep it as content.
+  - **Breaking:** the footer note is spelled `footnote`, not `note`, in every
+    chart type — the data charts' `note` directive (unreleased) is renamed
+    with no alias. `note` stays the note-card element only.
+  - **Breaking:** map's `caption` directive is removed with no alias; write
+    `source …` or `footnote …` instead.
 - **New chart type: `swot`.** A SWOT analysis in four fixed panels:
   strengths and weaknesses on top (internal), opportunities and threats
   below (external), whatever the source order. Each section is a keyword

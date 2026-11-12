@@ -1,0 +1,14 @@
+map Data Center Footprint
+subtitle Requests per second by site
+poi-size Requests/s
+
+poi Denver as hub size: 90
+poi Dallas size: 320
+poi Seattle size: 180
+
+hub -> Dallas
+hub -> Seattle
+
+footnote Peak hour, weekday average.
+source Platform telemetry, Q3 2025
+byline Chart: Diagrammo

@@ -28,6 +28,7 @@
 import type { PaletteColors } from '../palettes';
 import { makeDgmoError, makeFail } from '../diagnostics';
 import type { Writable } from '../utils/brand';
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
 import {
   extractColor,
   fillModeFromToken,
@@ -225,6 +226,9 @@ export function parseClock(
       headerParsed = true;
       continue;
     }
+
+    // Chart frame: subtitle, source, footnote, byline (#1827), column 1.
+    if (parseChartFrameLine(result, raw, lineNum, result.diagnostics)) continue;
 
     const tokens = trimmed.split(/\s+/);
     const key = tokens[0]!.toLowerCase();

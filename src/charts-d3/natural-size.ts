@@ -21,7 +21,7 @@
 
 import { parseChart } from '../chart';
 import { parseExtendedChart } from '../data-chart-parser';
-import type { ChartFrame } from '../utils/chart-frame';
+import type { ChartFrame } from '../utils/chart-frame-parse';
 import { reserveChartFrame } from '../utils/chart-frame';
 import { EXPORT_HEIGHT, EXPORT_WIDTH } from '../utils/d3-helpers';
 import { MIN_CANVAS_WIDTH } from '../utils/fit-canvas';
@@ -107,7 +107,7 @@ function frameOf(
   content: string,
   palette: PaletteColors
 ): ChartFrame | undefined {
-  if (!/^(subtitle|source|note|byline)\s/m.test(content)) return undefined;
+  if (!/^(subtitle|source|footnote|byline)\s/m.test(content)) return undefined;
   const std = parseChart(content, palette);
   if (std && !std.error && std.data.length > 0) return std.frame;
   return parseExtendedChart(content, palette).frame;

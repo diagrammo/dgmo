@@ -1,4 +1,5 @@
 import type { ConformanceFixture } from './_types';
+import { FRAME_DIRECTIVES } from './_frame';
 
 // Spec §4 §3.6 Infra Options. Many performance/SLO knobs.
 export const fixture: ConformanceFixture = {
@@ -7,6 +8,7 @@ export const fixture: ConformanceFixture = {
   specSection: '4',
   firstLineKeyword: 'infra',
   directives: [
+    ...FRAME_DIRECTIVES,
     'no-legend',
     'direction-tb',
     'direction-lr',

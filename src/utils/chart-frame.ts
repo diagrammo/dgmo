@@ -1,44 +1,47 @@
 // ============================================================
 // Chart frame — the publication furniture around a chart (#1827).
 //
-// A published chart stacks: title, subtitle (deck), the plot, then notes, a
-// source line and a byline. The title is drawn by each renderer as before;
+// A published chart stacks: title, subtitle (deck), the plot, then footnotes,
+// a source line and a byline. The title is drawn by each renderer as before;
 // everything else in the frame is parsed by `parseChartFrameLine` and drawn by
 // `applyChartFrame`, once, for every chart type that adopts it — so the frame
 // is placed identically everywhere.
 //
-// How a renderer adopts it: reserve the bands with `reserveChartFrame`, draw
-// the plot into `height - reserve.top - reserve.bottom`, then call
-// `applyChartFrame`. It moves everything but the title row down by
-// `reserve.top`, draws the subtitle under the title and the footer at the
-// bottom, so the canvas keeps the size it was given and the renderer itself
-// changes nothing.
+// Two ways a renderer adopts it:
+//   - The data charts reserve the bands with `reserveChartFrame`, draw the
+//     plot into `height - reserve.top - reserve.bottom`, then call
+//     `applyChartFrame`. It moves everything but the title row down by
+//     `reserve.top`, draws the subtitle under the title and the footer at the
+//     bottom, so the canvas keeps the size it was given.
+//   - Every other chart type draws as it always has, then calls
+//     `growChartFrame` on the finished SVG. It reads where the title and the
+//     drawing ended up, opens the subtitle band under the title, puts the
+//     footer under the drawing, and grows the viewBox by what did not fit.
+//
+// The footer note is spelled `footnote` in every chart type, because `note`
+// is the note-card element in eleven of them (owner, 2026-11-11).
 // ============================================================
 
 import type * as d3Selection from 'd3-selection';
-import type { DgmoError } from '../diagnostics';
-import { makeDgmoError } from '../diagnostics';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
+import {
+  IDENTITY,
+  measureSvgContent,
+  multiply,
+  parseTransform,
+  type Matrix,
+} from './export-fit';
 import { fitWrapped } from './text-measure';
 import { TITLE_LINE_HEIGHT, TITLE_SIDE_PAD, TITLE_Y } from './title-constants';
+import { hasChartFrame, type ChartFrame } from './chart-frame-parse';
 
-/** One note line under the plot (`note` is repeatable). */
-export interface ChartFrameNote {
-  text: string;
-  lineNumber: number;
-}
-
-/** The `subtitle`, `source`, `note` and `byline` directives of one chart. */
-export interface ChartFrame {
-  subtitle?: string;
-  subtitleLineNumber?: number;
-  source?: string;
-  sourceLineNumber?: number;
-  byline?: string;
-  bylineLineNumber?: number;
-  notes?: ChartFrameNote[];
-}
+export {
+  hasChartFrame,
+  parseChartFrameLine,
+  type ChartFrame,
+  type ChartFrameFootnote,
+} from './chart-frame-parse';
 
 // Type scale: title (20, bold) > subtitle > body (13) > footer.
 export const SUBTITLE_FONT_SIZE = 15;
@@ -47,8 +50,12 @@ export const SUBTITLE_LINE_HEIGHT = 20;
 export const SUBTITLE_MAX_LINES = 2;
 export const FOOTER_FONT_SIZE = 11;
 export const FOOTER_LINE_HEIGHT = 15;
-/** Lines one note may wrap to before it ends in `…`. */
-export const NOTE_MAX_LINES = 3;
+/** Lines one footnote may wrap to before it ends in `…`. */
+export const FOOTNOTE_MAX_LINES = 3;
+/** Lines the `Source: …` line may wrap to before it ends in `…`. */
+export const SOURCE_MAX_LINES = 2;
+/** The byline is fitted to one line and ends in `…` past it. */
+export const BYLINE_MAX_LINES = 1;
 /** Space between the bottom of the plot band and the first footer line. */
 export const FOOTER_TOP_GAP = 10;
 /** Space between the last footer baseline and the canvas edge. */
@@ -57,79 +64,6 @@ export const FOOTER_BOTTOM_PAD = 12;
 export const SUBTITLE_BOTTOM_GAP = 6;
 /** First subtitle baseline when the chart draws no title. */
 const SUBTITLE_Y_NO_TITLE = 24;
-
-/**
- * Read one frame directive into `holder.frame`, creating it on the first one.
- * Returns true when `rawLine` was one. A directive starts in column 1: an
- * indented line is a child row (a sankey target, a series value) and is
- * never one.
- *
- * The keyword is matched case-sensitively, as written in the language
- * reference, so a data row labelled `Source 12` or `Note 3` stays a data row
- * (the pie-only directives follow the same rule). A line with an arrow
- * (`source -> Sink 5`) is never a directive: it is a flow row of a sankey or
- * chord whose node is named `source`, and stays the parser's to read.
- */
-export function parseChartFrameLine(
-  holder: { frame?: ChartFrame },
-  rawLine: string,
-  lineNumber: number,
-  diagnostics: DgmoError[]
-): boolean {
-  const m = /^(subtitle|source|note|byline)(?:\s+(.*))?$/.exec(
-    rawLine.trimEnd()
-  );
-  if (!m) return false;
-  const token = m[1]!;
-  const value = (m[2] ?? '').trim();
-  if (value.includes('->')) return false;
-  if (!value) {
-    diagnostics.push(
-      makeDgmoError(
-        lineNumber,
-        `"${token}" needs its text on the same line, e.g. "${token} ${EXAMPLE[token]}".`,
-        'warning'
-      )
-    );
-    return true;
-  }
-  const frame = (holder.frame ??= {});
-  if (token === 'note') {
-    (frame.notes ??= []).push({ text: value, lineNumber });
-    return true;
-  }
-  const key = token as 'subtitle' | 'source' | 'byline';
-  if (frame[key] !== undefined) {
-    diagnostics.push(
-      makeDgmoError(
-        lineNumber,
-        `"${key}" is given more than once; the last one is used.`,
-        'warning'
-      )
-    );
-  }
-  frame[key] = value;
-  frame[`${key}LineNumber`] = lineNumber;
-  return true;
-}
-
-const EXAMPLE: Record<string, string> = {
-  subtitle: 'Quarterly revenue, 2024–2025',
-  source: 'Company filings',
-  note: 'Figures are unaudited.',
-  byline: 'Chart: Jane Doe',
-};
-
-/** True when `frame` has anything to draw. */
-export function hasChartFrame(frame: ChartFrame | undefined): boolean {
-  return (
-    !!frame &&
-    (!!frame.subtitle ||
-      !!frame.source ||
-      !!frame.byline ||
-      (frame.notes?.length ?? 0) > 0)
-  );
-}
 
 interface FrameLine {
   text: string;
@@ -175,17 +109,17 @@ export function reserveChartFrame(
       }))
     : [];
   const footerLines: FrameLine[] = [];
-  for (const note of frame.notes ?? []) {
+  for (const footnote of frame.footnotes ?? []) {
     for (const text of fitLines(
-      note.text,
+      footnote.text,
       maxWidth,
       FOOTER_FONT_SIZE,
-      NOTE_MAX_LINES
+      FOOTNOTE_MAX_LINES
     ))
       footerLines.push({
         text,
-        className: 'chart-note',
-        lineNumber: note.lineNumber,
+        className: 'chart-footnote',
+        lineNumber: footnote.lineNumber,
       });
   }
   if (frame.source) {
@@ -193,7 +127,7 @@ export function reserveChartFrame(
       `Source: ${frame.source}`,
       maxWidth,
       FOOTER_FONT_SIZE,
-      2
+      SOURCE_MAX_LINES
     ))
       footerLines.push({
         text,
@@ -202,7 +136,12 @@ export function reserveChartFrame(
       });
   }
   if (frame.byline) {
-    for (const text of fitLines(frame.byline, maxWidth, FOOTER_FONT_SIZE, 1))
+    for (const text of fitLines(
+      frame.byline,
+      maxWidth,
+      FOOTER_FONT_SIZE,
+      BYLINE_MAX_LINES
+    ))
       footerLines.push({
         text,
         className: 'chart-byline',
@@ -291,7 +230,7 @@ export function applyChartFrame(
 }
 
 function drawLine(
-  node: SVGSVGElement,
+  node: Element,
   line: FrameLine,
   x: number,
   y: number,
@@ -311,4 +250,265 @@ function drawLine(
     el.setAttribute('data-line-number', String(line.lineNumber));
   el.textContent = line.text;
   node.appendChild(el);
+}
+
+/** The frame without its subtitle, for a chart that draws the subtitle itself. */
+export function footerOnly(frame: ChartFrame): ChartFrame {
+  const footer: ChartFrame = { ...frame };
+  delete footer.subtitle;
+  delete footer.subtitleLineNumber;
+  return footer;
+}
+
+// ============================================================
+// growChartFrame — the frame for every chart that is not a data chart
+// ============================================================
+
+/** How `growChartFrame` treats the root `<svg>`'s width and height. */
+export interface GrowChartFrameOptions {
+  /**
+   * The chart's title element, when it is not the first `text.chart-title`.
+   * Pass null for a chart that draws no title row the frame can hang from.
+   */
+  title?: Element | null;
+  /**
+   * `'grow'` (the default) for a chart that sizes itself: the root `width`
+   * and `height` grow with the viewBox. `'fit'` for a canvas the caller sized
+   * (a preview pane, a requested export size): they stay, and the drawing
+   * scales down inside them to make room.
+   */
+  size?: 'grow' | 'fit';
+}
+
+interface Box {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+function readRootBox(node: SVGSVGElement): Box | null {
+  const raw = node.getAttribute('viewBox');
+  if (raw) {
+    const n = raw
+      .trim()
+      .split(/[\s,]+/)
+      .map(Number);
+    if (
+      n.length === 4 &&
+      n.every((v) => Number.isFinite(v)) &&
+      n[2]! > 0 &&
+      n[3]! > 0
+    )
+      return { x: n[0]!, y: n[1]!, width: n[2]!, height: n[3]! };
+    return null;
+  }
+  const w = Number(node.getAttribute('width'));
+  const h = Number(node.getAttribute('height'));
+  if (!(w > 0) || !(h > 0)) return null;
+  return { x: 0, y: 0, width: w, height: h };
+}
+
+/** The element's transform from its own user space to the root's, or null. */
+function ctmOf(el: Element, root: Element): Matrix | null {
+  const chain: Element[] = [];
+  for (let e: Element | null = el; e && e !== root; e = e.parentElement)
+    chain.unshift(e);
+  let m: Matrix = IDENTITY;
+  for (const e of chain) {
+    const t = e.getAttribute('transform');
+    if (!t) continue;
+    const local = parseTransform(t);
+    if (!local) return null;
+    m = multiply(m, local);
+  }
+  return m;
+}
+
+/** A root-level rect that paints the whole canvas (a background). */
+function isCanvasRect(el: Element, vb: Box): boolean {
+  if (el.tagName.toLowerCase() !== 'rect') return false;
+  if ((el.getAttribute('class') ?? '').includes('dgmo-canvas-bg')) return true;
+  const w = el.getAttribute('width');
+  const h = el.getAttribute('height');
+  const full = (v: string | null, n: number) =>
+    v === '100%' || (v !== null && Math.abs(Number(v) - n) < 0.5);
+  const x = Number(el.getAttribute('x') ?? 0);
+  const y = Number(el.getAttribute('y') ?? 0);
+  return (
+    full(w, vb.width) &&
+    full(h, vb.height) &&
+    (w === '100%' || Math.abs(x - vb.x) < 0.5) &&
+    (h === '100%' || Math.abs(y - vb.y) < 0.5)
+  );
+}
+
+/**
+ * Draw the frame onto a chart that has already drawn itself (#1827).
+ *
+ * - The subtitle goes under the title row. Everything except the title (and
+ *   any `[data-chart-header]` element beside it) moves down to make room.
+ * - The footer goes under the drawing, measured from what was drawn, so a
+ *   drawing centred on a large canvas does not leave its footer stranded at
+ *   the canvas edge. The viewBox grows only by what does not fit in the
+ *   space already below the drawing.
+ * - The frame follows the title: its alignment (centred, or flush left with
+ *   a left-aligned title) and its scale, so a chart that scales its whole
+ *   drawing, title included, keeps the type scale title > subtitle > footer.
+ *
+ * Does nothing when `frame` has nothing to draw, so a chart without the
+ * directives renders byte for byte as before.
+ */
+export function growChartFrame(
+  node: SVGSVGElement | null | undefined,
+  frame: ChartFrame | undefined,
+  palette: PaletteColors,
+  opts: GrowChartFrameOptions = {}
+): void {
+  if (!node || !frame || !hasChartFrame(frame)) return;
+  const vb = readRootBox(node);
+  if (!vb) return;
+  const doc = node.ownerDocument;
+
+  const titleCandidate =
+    opts.title !== undefined
+      ? opts.title
+      : node.querySelector<SVGTextElement>('text.chart-title');
+  const titleCtm = titleCandidate ? ctmOf(titleCandidate, node) : null;
+  // A title under a rotation or skew cannot anchor the frame; treat the chart
+  // as untitled rather than guess.
+  const title =
+    titleCandidate && titleCtm?.[1] === 0 && titleCtm[2] === 0
+      ? titleCandidate
+      : null;
+  const m: Matrix = title ? titleCtm! : IDENTITY;
+  const scale = title && m[3] > 0 ? m[3] : 1;
+
+  const reserve = reserveChartFrame(frame, vb.width / scale);
+  if (!reserve) return;
+
+  // Where the drawing ends, measured without the canvas background (which
+  // spans the whole canvas and would hide any room left below the drawing).
+  const backgrounds = Array.from(node.children).filter((c) =>
+    isCanvasRect(c, vb)
+  );
+  const placeholders = backgrounds.map((bg) => {
+    const ph = doc.createComment('bg');
+    node.replaceChild(ph, bg);
+    return ph;
+  });
+  const measured = measureSvgContent(node.outerHTML);
+  placeholders.forEach((ph, i) => node.replaceChild(backgrounds[i]!, ph));
+  const vbBottom = vb.y + vb.height;
+  const drawnBottom =
+    measured.complete && measured.box
+      ? Math.min(measured.box.y1, vbBottom)
+      : vbBottom;
+
+  // The title row, in root units.
+  let x = vb.x + vb.width / 2;
+  let anchor: 'middle' | 'start' = 'middle';
+  let subtitleY = vb.y + SUBTITLE_Y_NO_TITLE * scale;
+  if (title) {
+    const tx = Number(title.getAttribute('x') ?? 0);
+    const ty = Number(title.getAttribute('y') ?? 0);
+    const lines = Math.max(1, title.querySelectorAll('tspan').length);
+    const baseline = ty + (lines - 1) * TITLE_LINE_HEIGHT;
+    const a = title.getAttribute('text-anchor') ?? 'start';
+    anchor = a === 'middle' ? 'middle' : 'start';
+    x = m[0] * tx + m[4];
+    subtitleY = m[3] * baseline + m[5] + (SUBTITLE_LINE_HEIGHT + 2) * scale;
+  }
+
+  // Open the subtitle band: everything but the title row and the canvas
+  // background moves down.
+  const top = reserve.top * scale;
+  if (top > 0) {
+    const body = doc.createElementNS(SVG_NS, 'g');
+    body.setAttribute('class', 'chart-frame-body');
+    body.setAttribute('transform', `translate(0,${top})`);
+    const keep = new Set<Node>(backgrounds);
+    for (const child of Array.from(node.childNodes)) {
+      if (keep.has(child)) continue;
+      if (child === title) continue;
+      if ((child as Element).hasAttribute?.('data-chart-header')) continue;
+      body.appendChild(child);
+    }
+    node.appendChild(body);
+    // A title nested in a moved group is moved back up by the same amount.
+    const pinned = title
+      ? [title, ...Array.from(body.querySelectorAll('[data-chart-header]'))]
+      : Array.from(body.querySelectorAll('[data-chart-header]'));
+    for (const el of pinned) {
+      if (!body.contains(el)) continue;
+      // The shift is written in the parent's user space, so divide by its scale.
+      const parent = el.parentElement ? ctmOf(el.parentElement, node) : null;
+      const sy = parent && parent[3] > 0 ? parent[3] : 1;
+      const prev = el.getAttribute('transform');
+      el.setAttribute(
+        'transform',
+        `translate(0,${-top / sy})${prev ? ` ${prev}` : ''}`
+      );
+    }
+  }
+
+  const g = doc.createElementNS(SVG_NS, 'g');
+  g.setAttribute('class', 'chart-frame');
+  node.appendChild(g);
+  const lineH = SUBTITLE_LINE_HEIGHT * scale;
+  reserve.subtitleLines.forEach((line, i) => {
+    drawLine(
+      g,
+      line,
+      x,
+      subtitleY + i * lineH,
+      anchor,
+      SUBTITLE_FONT_SIZE * scale,
+      palette.text
+    );
+  });
+
+  // The footer under the drawing.
+  let newBottom: number;
+  const n = reserve.footerLines.length;
+  if (n > 0) {
+    const first =
+      drawnBottom + top + (FOOTER_TOP_GAP + FOOTER_FONT_SIZE) * scale;
+    reserve.footerLines.forEach((line, i) => {
+      drawLine(
+        g,
+        line,
+        x,
+        first + i * FOOTER_LINE_HEIGHT * scale,
+        anchor,
+        FOOTER_FONT_SIZE * scale,
+        palette.textMuted
+      );
+    });
+    const footerEnd =
+      first + (n - 1) * FOOTER_LINE_HEIGHT * scale + FOOTER_BOTTOM_PAD * scale;
+    newBottom = Math.max(vbBottom, footerEnd);
+  } else {
+    // No footer: keep the margin the drawing had below it, up to a pad.
+    const margin = Math.min(vbBottom - drawnBottom, FOOTER_BOTTOM_PAD * 2);
+    newBottom = Math.max(vbBottom, drawnBottom + top + margin);
+  }
+
+  const newHeight = newBottom - vb.y;
+  if (newHeight === vb.height) return;
+  node.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.width} ${newHeight}`);
+  for (const bg of backgrounds) {
+    if (bg.getAttribute('height') !== '100%')
+      bg.setAttribute('height', String(newHeight));
+  }
+  if ((opts.size ?? 'grow') === 'grow') {
+    const h = Number(node.getAttribute('height'));
+    if (h > 0)
+      node.setAttribute(
+        'height',
+        String(Math.round((h * newHeight) / vb.height))
+      );
+  } else if (!node.getAttribute('preserveAspectRatio')) {
+    node.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+  }
 }

@@ -1,4 +1,5 @@
 import type { ConformanceFixture } from './_types';
+import { FRAME_DIRECTIVES } from './_frame';
 
 // Spec §5 §4.6 Options: direction-lr, the fill family, no-notes. fill family
 // via FILL_FAMILY_CAPABLE. The phantom `orientation-vertical` (spec'd +
@@ -8,6 +9,7 @@ export const fixture: ConformanceFixture = {
   specSection: '5',
   firstLineKeyword: 'flowchart',
   directives: [
+    ...FRAME_DIRECTIVES,
     'direction-lr',
     'direction-tb',
     'fill-tint',

@@ -1,4 +1,5 @@
 import type { DgmoError } from '../diagnostics';
+import type { ChartFrame } from '../utils/chart-frame-parse';
 
 // ============================================================
 // Ring Diagram — Parsed Types
@@ -17,6 +18,8 @@ export interface RingLayer {
 
 export interface ParsedRing {
   readonly type: 'ring';
+  /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+  readonly frame?: ChartFrame;
   readonly title: string;
   readonly titleLineNumber: number;
   /** Source order: layers[0] = innermost (filled disc); last = outermost ring. */

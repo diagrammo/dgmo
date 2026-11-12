@@ -34,6 +34,7 @@ import { TITLE_FONT_SIZE } from '../utils/title-constants';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import { getMaxLegendReservedHeight } from '../utils/legend-layout';
 import type { LegendGroupData } from '../utils/legend-types';
+import { growChartFrame } from '../utils/chart-frame';
 import {
   RECT_RADIUS,
   clipWhiteboardConnector,
@@ -1355,6 +1356,9 @@ export function renderWhiteboard(
   };
 
   for (const el of inDrawOrder(elements)) drawElement(el);
+
+  // Chart frame (#1827): subtitle under the title, footer under the chart.
+  growChartFrame(svg.node(), parsed.frame, palette, { size: 'grow' });
 }
 
 /** The elements in paint order, bottom first (`whiteboardDrawOrder`). */

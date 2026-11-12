@@ -1,6 +1,7 @@
 import type { TagGroup } from '../utils/tag-groups';
 import type { DgmoError } from '../diagnostics';
 import type { DiagramNote } from '../utils/notes';
+import type { ChartFrame } from '../utils/chart-frame-parse';
 
 export interface BLNode {
   readonly label: string;
@@ -58,5 +59,7 @@ export interface ParsedBoxesAndLines {
    */
   readonly showValues?: boolean;
   readonly diagnostics: readonly DgmoError[];
+  /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+  readonly frame?: ChartFrame;
   readonly error: string | null;
 }

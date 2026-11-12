@@ -12,6 +12,7 @@ import { measureText } from '../utils/text-measure';
 import type { WireframeElement, ParsedWireframe } from './types';
 import type { WireframeLayout, WireframeLayoutNode } from './layout';
 import { ScaleContext } from '../utils/scaling';
+import { growChartFrame } from '../utils/chart-frame';
 import { renderCollapseBar } from '../utils/card';
 
 // ============================================================
@@ -144,10 +145,11 @@ export function renderWireframe(
 
   // Title — only rendered in SVG for export; live preview renders in HTML
   let titleOffset = 0;
+  let titleNode: SVGTextElement | null = null;
   const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
   const sTitleFontSize = sctx.text(TITLE_FONT_SIZE);
   if (isExport && showTitle) {
-    mainG
+    const titleSel = mainG
       .append('text')
       .attr('x', 0)
       .attr('y', sTitleFontSize)
@@ -155,6 +157,7 @@ export function renderWireframe(
       .attr('font-size', sTitleFontSize)
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .text(parsed.title);
+    titleNode = titleSel.node();
     titleOffset = layout.titleHeight;
   }
 
@@ -174,6 +177,13 @@ export function renderWireframe(
       renderModal(modalG, modalNode, ctx);
     }
   }
+
+  // Chart frame (#1827): subtitle under the title, footer under the chart.
+  // The live preview draws its title in HTML, so the SVG has none.
+  growChartFrame(svg.node(), parsed.frame, palette, {
+    title: titleNode,
+    size: isExport ? 'grow' : 'fit',
+  });
 }
 
 // ============================================================

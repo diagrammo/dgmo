@@ -1,4 +1,5 @@
 import type { DgmoError } from '../diagnostics';
+import type { ChartFrame } from '../utils/chart-frame-parse';
 import type { FillMode } from '../utils/parsing';
 
 // ============================================================
@@ -83,6 +84,8 @@ export interface ClockEntry {
 
 export interface ParsedClock {
   readonly type: 'clock';
+  /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+  readonly frame?: ChartFrame;
   readonly title: string | null;
   readonly titleLineNumber: number | null;
 

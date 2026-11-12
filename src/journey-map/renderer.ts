@@ -1,4 +1,5 @@
 import { serializeSvg } from '../utils/svg-serialize';
+import { growChartFrame } from '../utils/chart-frame';
 import { tagAttrKey } from '../utils/tag-groups';
 import { fillModeFromOptions } from '../utils/parsing';
 import { renderCollapseBar } from '../utils/card';
@@ -1111,6 +1112,13 @@ export function renderJourneyMap(
         });
     });
   }
+
+  // Chart frame (#1827): subtitle under the title, footer under the chart.
+  // The title is a group holding the text, so pass the text itself.
+  growChartFrame(svg.node(), parsed.frame, palette, {
+    title: svg.select<SVGTextElement>('.chart-title text').node(),
+    size: useContainerFit ? 'fit' : 'grow',
+  });
 }
 
 // ============================================================

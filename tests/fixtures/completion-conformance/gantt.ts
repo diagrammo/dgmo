@@ -1,4 +1,5 @@
 import type { ConformanceFixture } from './_types';
+import { FRAME_DIRECTIVES } from './_frame';
 
 // Spec §13 §12.2 Options. `dependencies` in current completion is the
 // inverse of spec's `no-dependencies` — kept in allowExtras as legacy.
@@ -15,6 +16,7 @@ export const fixture: ConformanceFixture = {
   specSection: '13',
   firstLineKeyword: 'gantt',
   directives: [
+    ...FRAME_DIRECTIVES,
     'no-legend',
     'start-date',
     'today-marker',

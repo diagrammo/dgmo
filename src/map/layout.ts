@@ -567,7 +567,6 @@ export interface MapLayout {
   readonly background: string;
   readonly title: string | null;
   readonly subtitle?: string;
-  readonly caption?: string;
   readonly regions: readonly MapLayoutRegion[];
   /** Major river centerlines, drawn over land/lakes and under POIs/edges. */
   readonly rivers: readonly MapLayoutRiver[];
@@ -3850,7 +3849,6 @@ export function layoutMap(
     background: water,
     title: shownTitle,
     ...(resolved.subtitle !== undefined && { subtitle: resolved.subtitle }),
-    ...(resolved.caption !== undefined && { caption: resolved.caption }),
     regions,
     rivers,
     relief,

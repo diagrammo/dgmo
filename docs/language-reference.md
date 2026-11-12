@@ -450,15 +450,15 @@ Without the `\`, the time and the sentence join into one line: `9:00 AM Existing
 
 This applies to event-line descriptions, pyramid, ring and cycle descriptions, boxes-and-lines descriptions, and multi-line note bodies (sequence, flowchart, state, class, ER, journey-map, countdown).
 
-### 1.12 Chart Frame — Subtitle, Source, Notes, Byline
+### 1.12 Chart Frame — Subtitle, Source, Footnotes, Byline
 
-A published chart stacks a title, a subtitle (deck), the chart, then notes, a source line and a byline. Four directives draw that frame, each followed by its text on the same line:
+A published chart stacks a title, a subtitle (deck), the chart, then footnotes, a source line and a byline. Four directives draw that frame, each followed by its text on the same line, in **every chart type**:
 
 ```
 bar Revenue by region
 subtitle Fiscal 2025, in millions of dollars
-note Figures are unaudited.
-note EMEA includes the Gulf states.
+footnote Figures are unaudited.
+footnote EMEA includes the Gulf states.
 source Company annual report
 byline Chart: Jane Doe
 
@@ -466,12 +466,25 @@ North 120
 South 95
 ```
 
-| Directive         | Drawn                                                                          |
-| ----------------- | ------------------------------------------------------------------------------ |
+| Directive         | Drawn                                                                            |
+| ----------------- | -------------------------------------------------------------------------------- |
+| `subtitle <text>` | Under the title, smaller than it and larger than body text; wraps to two lines   |
+| `footnote <text>` | A footer line under the chart; repeatable, in source order; wraps to three lines |
+| `source <text>`   | A footer line under the footnotes, drawn as `Source: <text>`; wraps to two lines |
+| `byline <text>`   | The last footer line, fitted to one line (a longer byline ends in `…`)           |
+
+- Type scale, the same in every chart: title 20 > subtitle 15 > body 13 > footer 11.
+- The frame follows the title's alignment: centred under a centred title, flush left under a left-aligned (`legend-inline`) title. A chart that sizes itself grows by the frame; at a size the caller sets, the drawing shrinks to make room. The footer sits under the drawing, not at the far edge of a larger canvas.
+- The keyword is lowercase and starts the line, anywhere in the file (a footer usually goes last). `Source 12`, a node named `Footnote` (capitalised) and an indented `source 5` stay content, and `source -> Grid 5` stays a flow.
+- The footer note is `footnote`, never `note`: `note` is the note-card element in boxes-and-lines, class, countdown, er, flowchart, goal, sequence, state, swimlane, version-control and whiteboard.
+- `subtitle`, `source` and `byline` given twice: the last one is used, with a warning. A directive with no text warns and draws nothing.
+- **Chart types:** all of them. `map` draws the subtitle in its title banner and the footer under the map (it has no `caption`); `pert` draws an authored `subtitle` in place of its project summary line, which fills the subtitle slot otherwise. `live-link` is a pointer to a published diagram, not a chart, and takes no frame.
+
+----------------- | ------------------------------------------------------------------------------ |
 | `subtitle <text>` | Under the title, smaller than it and larger than body text; wraps to two lines |
-| `note <text>`     | A footer line under the chart; repeatable, in source order                     |
-| `source <text>`   | A footer line under the notes, drawn as `Source: <text>`                       |
-| `byline <text>`   | The last footer line, drawn exactly as written                                 |
+| `note <text>` | A footer line under the chart; repeatable, in source order |
+| `source <text>` | A footer line under the notes, drawn as `Source: <text>` |
+| `byline <text>` | The last footer line, drawn exactly as written |
 
 - The frame follows the title's alignment: centred under a centred title, flush left under a `legend-inline` title. A chart that sizes itself grows by the frame; at a size the caller sets, the plot shrinks to make room.
 - The keyword is lowercase and starts the line. `Source 12` (capitalised) and an indented `source 5` stay data rows, and `source -> Grid 5` stays a flow.
@@ -4673,7 +4686,7 @@ cove -> hav l: March    # the LINE turns green
 
 ### Labels, legend & chrome
 
-- Title is the declaration line; `caption` (data-source attribution, travels with the exported PNG) is the only chrome directive. There is no `subtitle`.
+- Title is the declaration line. The chart frame (§1.12) is the chrome: `subtitle` in the title banner, `footnote` / `source` / `byline` under the map. There is no `caption`.
 - Legend auto-composes below the title: the heat ramp + `region-heat` and each tag group are **selectable colouring groups** (collapse/activate to flip the fill); POI size (`poi-size`) and edge thickness (`flow-width`) are self-evident from scale and carry no legend key in v1. `no-legend` suppresses all of it.
 - **Region and POI labels are on by default.** Region labels auto-fit **full → abbrev → hide** (a US-state 2-letter abbreviation is tried when the full name doesn't fit; other regions degrade full → hide); POI labels are collision-managed. Labels render **on the map** (export-safe), escalating inline → leader line → numbered pin in dense clusters; markers never move. A wide map in a narrow column (< ~480px) prefers abbreviations and drops reference relief, as if zoomed out.
 - **Cosmetic features are on by default**; the only switches are bare `no-*` opt-outs (no positive opt-in flag): `no-coastline`, `no-relief`, `no-context-labels`, `no-region-labels`, `no-poi-labels`, `no-legend`, `no-colorize`. A plain look = the four basemap flags together (`no-colorize` is **not** one of the four — it toggles region _fill style_, not a basemap backdrop layer).
@@ -4696,7 +4709,7 @@ cove -> hav l: March    # the LINE turns green
 
 ### Directives & reserved keys
 
-The directive set is **13, all colon-free**: six naming intent the renderer can't infer — `region-heat`, `poi-size`, `flow-width`, `locale`, `active-tag`, `caption` — and seven `no-*` cosmetic opt-outs — `no-legend`, `no-coastline`, `no-relief`, `no-context-labels`, `no-region-labels`, `no-poi-labels`, `no-colorize`. There is **no** `projection`, `scale`, `subtitle`, `surface`, `region`, or label-enum directive, and cosmetics have no positive opt-in form. Reserved metadata keys (need colons) are the per-element numeric channels plus `label`, `style`: `heat:` (region choropleth shade), `size:` (POI marker radius), `width:` (edge/leg thickness) — a channel key on the wrong element kind errors; `surface:` is no longer recognized. A bare US state postal code resolves to that state (`poi Portland OR` → Oregon; `CA` = California). Coordinates are positional (no `at:` key). Projection is inferred from extent + whether the map carries data (US → albers-usa; world data → Equal Earth; world reference → natural-earth; regional → mercator) and cannot be overridden.
+The map's own directive set is **all colon-free**: five naming intent the renderer can't infer — `region-heat`, `poi-size`, `flow-width`, `locale`, `active-tag` — plus the chart frame (§1.12), and seven `no-*` cosmetic opt-outs — `no-legend`, `no-coastline`, `no-relief`, `no-context-labels`, `no-region-labels`, `no-poi-labels`, `no-colorize`. There is **no** `projection`, `scale`, `caption`, `surface`, `region`, or label-enum directive, and cosmetics have no positive opt-in form. Reserved metadata keys (need colons) are the per-element numeric channels plus `label`, `style`: `heat:` (region choropleth shade), `size:` (POI marker radius), `width:` (edge/leg thickness) — a channel key on the wrong element kind errors; `surface:` is no longer recognized. A bare US state postal code resolves to that state (`poi Portland OR` → Oregon; `CA` = California). Coordinates are positional (no `at:` key). Projection is inferred from extent + whether the map carries data (US → albers-usa; world data → Equal Earth; world reference → natural-earth; regional → mercator) and cannot be overridden.
 
 ---
 

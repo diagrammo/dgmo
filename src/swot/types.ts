@@ -1,4 +1,5 @@
 import type { DgmoError } from '../diagnostics';
+import type { ChartFrame } from '../utils/chart-frame-parse';
 import type { TagGroup } from '../utils/tag-groups';
 
 export type SwotSectionKey =
@@ -27,6 +28,8 @@ export interface SwotSection {
 
 export interface ParsedSwot {
   readonly type: 'swot';
+  /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+  readonly frame?: ChartFrame;
   readonly title?: string;
   readonly titleLineNumber?: number;
   /** Always all four, in S W O T order, whatever the source order. */

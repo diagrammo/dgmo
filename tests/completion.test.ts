@@ -500,7 +500,7 @@ describe('COMPLETION_REGISTRY', () => {
     expect(refContent).toContain('critical-path');
   });
 
-  it('map registry lists the 13 map directives incl. active-tag + no-* (AC10)', () => {
+  it('map registry lists the map directives incl. active-tag, the chart frame + no-* (AC10)', () => {
     const mapSpec = COMPLETION_REGISTRY.get('map')!;
     // Surviving intent directives + the 7 `no-*` cosmetic opt-outs.
     for (const k of [
@@ -509,7 +509,10 @@ describe('COMPLETION_REGISTRY', () => {
       'flow-width',
       'locale',
       'active-tag',
-      'caption',
+      'subtitle',
+      'source',
+      'footnote',
+      'byline',
       'no-legend',
       'no-coastline',
       'no-relief',
@@ -523,7 +526,7 @@ describe('COMPLETION_REGISTRY', () => {
     for (const k of [
       'projection',
       'scale',
-      'subtitle',
+      'caption',
       'relief',
       'coastline',
       'context-labels',

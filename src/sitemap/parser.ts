@@ -18,6 +18,7 @@ import {
 import { normalizeName } from '../utils/name-normalize';
 import type { TagGroup } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
 import {
   isTagBlockHeading,
   matchTagBlockHeading,
@@ -253,6 +254,12 @@ export function parseSitemap(
         }
         continue;
       }
+    }
+
+    // Chart frame: subtitle, source, footnote, byline (#1827), column 1.
+    if (parseChartFrameLine(result, line, lineNumber, result.diagnostics)) {
+      currentTagGroup = null;
+      continue;
     }
 
     // Tag group heading

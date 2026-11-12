@@ -19,6 +19,7 @@ import {
 import { getSeriesColors, mix } from '../palettes/color-utils';
 import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes';
+import { growChartFrame } from '../utils/chart-frame';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import type { ParsedVersionControl, VCBranch, VCNode } from './types';
 
@@ -516,6 +517,11 @@ export function renderVersionControl(
     captionY,
     onClickItem && !exportMode ? onClickItem : undefined
   );
+
+  // Chart frame (#1827): subtitle under the title, footer under the chart.
+  growChartFrame(svg.node(), parsed.frame, palette, {
+    size: exportMode ? 'grow' : 'fit',
+  });
 }
 
 /** Does segment (x1,y1)→(x2,y2) pass through box b? Sampled; leaders are short. */

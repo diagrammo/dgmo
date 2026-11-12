@@ -4,6 +4,7 @@
 // are the resolver's job (step 3). Rendering is step 4. See spec §24B.
 import type { DgmoError } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
+import type { ChartFrame } from '../utils/chart-frame-parse';
 
 /** A POI / route-stop position: gazetteer name (+ optional ISO scope) or coords. */
 export type PoiPos =
@@ -36,8 +37,7 @@ export interface MapDirectives {
    *  prefers that state. Inferred from content; explicit only to steer a guess. */
   locale?: string;
   activeTag?: string;
-  caption?: string;
-  /** `no-title` — suppress the title banner (the subtitle/caption, if any, still
+  /** `no-title` — suppress the title banner (the chart frame, if any, still
    *  render). Mirrors the `no-title` directive across the other chart types. */
   noTitle?: boolean;
   /** `no-legend` — suppress the legend (default-on). */
@@ -181,6 +181,8 @@ export interface ParsedMap {
   readonly options: Readonly<Record<string, string>>;
   readonly diagnostics: readonly DgmoError[];
   readonly error: string | null;
+  /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+  readonly frame?: ChartFrame;
 }
 
 /** Legend descriptor for a rendered map (a layout-stage output, re-exported from

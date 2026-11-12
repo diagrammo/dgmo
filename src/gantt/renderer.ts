@@ -2,6 +2,7 @@
 // Gantt Chart Renderer
 // ============================================================
 
+import { growChartFrame } from '../utils/chart-frame';
 import { diamondPoints } from '../shapes/geometry';
 import {
   EDGE_DASH,
@@ -1697,6 +1698,13 @@ function drawGantt(
       ).attr('display', 'none');
     }
   }
+
+  // Chart frame (#1827): subtitle under the title, footer under the chart.
+  // The root has no height attribute (the viewBox sizes it), so only the
+  // viewBox grows.
+  growChartFrame(svg.node(), resolved.frame, palette, {
+    size: exportDims ? 'grow' : 'fit',
+  });
 }
 
 // ── Weekend Band Rendering ──────────────────────────────────

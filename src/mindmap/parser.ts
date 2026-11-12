@@ -7,6 +7,7 @@ import {
 } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
 import {
   matchTagBlockHeading,
   validateTagValues,
@@ -148,6 +149,12 @@ export function parseMindmap(
         }
         continue;
       }
+    }
+
+    // Chart frame: subtitle, source, footnote, byline (#1827), column 1.
+    if (parseChartFrameLine(result, line, lineNumber, result.diagnostics)) {
+      currentTagGroup = null;
+      continue;
     }
 
     // Tag group heading

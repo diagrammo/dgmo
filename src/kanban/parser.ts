@@ -32,6 +32,7 @@ import {
 } from '../utils/parsing';
 import { normalizeName } from '../utils/name-normalize';
 import type { Writable } from '../utils/brand';
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
 import type { DgmoError } from '../diagnostics';
 import type {
   ParsedKanban,
@@ -162,6 +163,12 @@ export function parseKanban(
         }
         continue;
       }
+    }
+
+    // Chart frame: subtitle, source, footnote, byline (#1827), column 1.
+    if (parseChartFrameLine(result, line, lineNumber, result.diagnostics)) {
+      currentTagGroup = null;
+      continue;
     }
 
     // Tag group heading — `tag Name`

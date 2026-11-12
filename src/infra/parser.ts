@@ -47,6 +47,7 @@ import type {
 import { INFRA_BEHAVIOR_KEYS, EDGE_ONLY_KEYS } from './types';
 import { INFRA_TOP_LEVEL_OPTION_SET } from '../directives-registry';
 import type { Writable } from '../utils/brand';
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
 
 // ============================================================
 // Regex patterns
@@ -493,6 +494,11 @@ export function parseInfra(content: string): ParsedInfra {
           }
           continue;
         }
+      }
+
+      // Chart frame: subtitle, source, footnote, byline (#1827), column 1.
+      if (parseChartFrameLine(result, raw, lineNumber, result.diagnostics)) {
+        continue;
       }
 
       // direction-lr / direction-tb — bare booleans (§1.9, last one wins;

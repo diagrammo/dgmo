@@ -394,7 +394,7 @@ A
     // contain the subtitle and the chart body.
     const svg = renderForTest(loadFixture('monte-carlo.dgmo'));
     expect(svg).toContain('<svg');
-    expect(svg).toContain('class="pert-subtitle"');
+    expect(svg).toContain('class="pert-subtitle chart-subtitle"');
     expect(svg).toContain('class="pert-node"');
   });
 
@@ -673,14 +673,16 @@ describe('pert renderer — date anchoring', () => {
     // "Expected finish: <date>" framing. A separate "Forward from
     // start-date …" note lived in the Summary card and went with it
     // when the card was deleted (#455).
-    const subtitle = svg.match(/class="pert-subtitle"[^>]*>([^<]*)/)?.[1] ?? '';
+    const subtitle =
+      svg.match(/class="pert-subtitle chart-subtitle"[^>]*>([^<]*)/)?.[1] ?? '';
     expect(subtitle).toMatch(/^Expected finish: \d{4}-\d{2}-\d{2} · /);
     expect(svg).not.toContain('Backward-anchored');
   });
 
   it('backward anchor: the subtitle frames the schedule as a lead time', () => {
     const svg = renderForTest(loadFixture('end-date.dgmo'));
-    const subtitle = svg.match(/class="pert-subtitle"[^>]*>([^<]*)/)?.[1] ?? '';
+    const subtitle =
+      svg.match(/class="pert-subtitle chart-subtitle"[^>]*>([^<]*)/)?.[1] ?? '';
     expect(subtitle).toMatch(/^Expected start: \d{4}-\d{2}-\d{2} · /);
     expect(subtitle).toContain('lead time');
     // ⚠️ Nothing names the end-date the schedule was pinned to, and nothing

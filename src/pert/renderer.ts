@@ -60,12 +60,17 @@ import {
   TITLE_FONT_WEIGHT,
   TITLE_Y,
   CAPTION_FONT_SIZE,
-  CAPTION_FONT_WEIGHT,
   CAPTION_LINE_HEIGHT,
   CAPTION_TOP_GAP,
   CAPTION_BOX_PADDING_X,
   CAPTION_BOX_PADDING_Y,
 } from '../utils/title-constants';
+import {
+  footerOnly,
+  growChartFrame,
+  SUBTITLE_FONT_SIZE,
+  SUBTITLE_LINE_HEIGHT,
+} from '../utils/chart-frame';
 import { LEGEND_HEIGHT as LEGEND_HEIGHT_CONST } from '../utils/legend-constants';
 import {
   resolveActiveTagGroup,
@@ -424,7 +429,10 @@ export function renderPert(
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
   const effectiveTitle = options.title;
-  const effectiveSubtitle = options.subtitle ?? null;
+  // The subtitle slot is the chart frame's (#1827): an authored `subtitle`
+  // wins, and the project summary (μ ± σ) fills it otherwise.
+  const authoredSubtitle = resolved.frame?.subtitle ?? null;
+  const effectiveSubtitle = authoredSubtitle ?? options.subtitle ?? null;
   const titleHeight = effectiveTitle ? 80 : effectiveSubtitle ? 50 : 0;
 
   const collapsedSet = new Set(options.collapsedGroupIds ?? []);
@@ -489,7 +497,7 @@ export function renderPert(
   const sTitleHeight = ctx.aesthetic(titleHeight);
   const sTitleFontSize = ctx.text(TITLE_FONT_SIZE);
   const sTitleY = ctx.aesthetic(TITLE_Y);
-  const sSubtitleFontSize = ctx.text(13);
+  const sSubtitleFontSize = ctx.text(SUBTITLE_FONT_SIZE);
   const sLegendTopGap = ctx.aesthetic(LEGEND_TOP_GAP);
   const sLegendBottomGap = ctx.aesthetic(LEGEND_BOTTOM_GAP);
   const sLegendPillHeight = ctx.structural(LEGEND_PILL_HEIGHT);
@@ -580,17 +588,22 @@ export function renderPert(
       .text(effectiveTitle);
   }
   if (effectiveSubtitle) {
-    const subtitleY = effectiveTitle ? sTitleY + ctx.aesthetic(26) : sTitleY;
-    svg
+    // In the chart frame's type and place: under the title, following its
+    // alignment (#1827).
+    const subtitleY = effectiveTitle
+      ? sTitleY + ctx.aesthetic(SUBTITLE_LINE_HEIGHT + 2)
+      : sTitleY;
+    const subtitleEl = svg
       .append('text')
-      .attr('class', 'pert-subtitle')
-      .attr('x', svgW / 2)
+      .attr('class', 'pert-subtitle chart-subtitle')
+      .attr('x', effectiveTitle ? header.titleX : svgW / 2)
       .attr('y', subtitleY)
-      .attr('text-anchor', 'middle')
-      .attr('fill', palette.textMuted)
+      .attr('text-anchor', effectiveTitle ? header.titleAnchor : 'middle')
+      .attr('fill', palette.text)
       .attr('font-size', sSubtitleFontSize)
-      .attr('font-weight', CAPTION_FONT_WEIGHT)
       .text(effectiveSubtitle);
+    if (authoredSubtitle && resolved.frame?.subtitleLineNumber)
+      subtitleEl.attr('data-line-number', resolved.frame.subtitleLineNumber);
   }
 
   const offsetX = Math.max(sDiagramPad, (svgW - layout.width) / 2);
@@ -677,6 +690,11 @@ export function renderPert(
     offsetY + layout.height,
     svgW - 2 * sDiagramPad
   );
+
+  // The chart frame's footer (#1827); the subtitle is drawn above.
+  if (resolved.frame) {
+    growChartFrame(svg.node(), footerOnly(resolved.frame), palette);
+  }
 }
 
 export function renderPertForExport(

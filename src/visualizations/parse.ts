@@ -42,6 +42,7 @@ import {
 } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
 import { parseTimelineEventLine, type DatePrefixCtx } from '../timeline/parser';
 import {
   parseDateToken,
@@ -265,6 +266,22 @@ function parseVisualizationFull(
         continue;
       }
       // Not a bare chart type — fall through to normal parsing
+    }
+
+    // Chart frame: subtitle, source, footnote, byline (#1827), column 1.
+    // A column-1 line closes every open block, as any other directive does.
+    if (
+      indent === 0 &&
+      parseChartFrameLine(result, line, lineNumber, result.diagnostics)
+    ) {
+      currentArcGroup = null;
+      currentTimelineGroup = null;
+      currentTimelineGroupMeta = {};
+      currentTimelineTagGroup = null;
+      inTimelineEraBlock = false;
+      inTimelineMarkerBlock = false;
+      inSlopePeriodBlock = false;
+      continue;
     }
 
     // Timeline tag group heading: `tag Name [alias X]`

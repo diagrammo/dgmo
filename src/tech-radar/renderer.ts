@@ -1,4 +1,5 @@
 import * as d3Selection from 'd3-selection';
+import { growChartFrame } from '../utils/chart-frame';
 import { FONT_FAMILY } from '../fonts';
 import { TITLE_FONT_SIZE } from '../utils/title-constants';
 import { contrastText, shapeFill } from '../palettes/color-utils';
@@ -168,8 +169,9 @@ export function renderTechRadar(
   // ── Title ──
   const titleY = 24;
   const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
+  let titleEl: SVGTextElement | null = null;
   if (showTitle) {
-    svg
+    titleEl = svg
       .append('text')
       .attr('x', radarWidth / 2)
       .attr('y', titleY)
@@ -178,7 +180,8 @@ export function renderTechRadar(
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', sTitleFontSize)
       .attr('font-weight', 'bold')
-      .text(parsed.title);
+      .text(parsed.title)
+      .node();
   }
 
   // ── Legend controls (centered, standard legend system) ──
@@ -668,6 +671,12 @@ export function renderTechRadar(
       sListingBlipR
     );
   }
+
+  // Chart frame (#1827): subtitle under the title, footer under the chart.
+  growChartFrame(svg.node(), parsed.frame, palette, {
+    title: titleEl,
+    size: exportDims ? 'grow' : 'fit',
+  });
 }
 
 // ============================================================

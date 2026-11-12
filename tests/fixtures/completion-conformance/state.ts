@@ -1,4 +1,5 @@
 import type { ConformanceFixture } from './_types';
+import { FRAME_DIRECTIVES } from './_frame';
 
 // Spec §6 §5.6 Options: direction-tb, fill family, no-notes, active-tag.
 // Decision #48 granted state the standard tag system (§5.7 "Tags"), so it
@@ -10,6 +11,7 @@ export const fixture: ConformanceFixture = {
   specSection: '6',
   firstLineKeyword: 'state',
   directives: [
+    ...FRAME_DIRECTIVES,
     'no-legend',
     'direction-tb',
     'direction-lr',

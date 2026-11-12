@@ -3,6 +3,7 @@
 // ============================================================
 
 import { makeDgmoError, makeFail, suggest } from '../diagnostics';
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
 import { extractPaletteDirective } from '../palettes/directive';
 import { resolveColor, RECOGNIZED_COLOR_NAMES } from '../colors';
 import {
@@ -84,6 +85,13 @@ export function parseRing(content: string): ParsedRing {
         continue;
       }
       return fail(lineNum, 'Expected "ring [Title]" as the first line.');
+    }
+
+    // Chart frame: subtitle, source, footnote, byline (#1827), column 1.
+    // A column-1 line closes the open layer, as a layer declaration would.
+    if (parseChartFrameLine(result, raw, lineNum, result.diagnostics)) {
+      flushLayer();
+      continue;
     }
 
     // ── Stray pyramid directive: explicitly diagnose and discard so users

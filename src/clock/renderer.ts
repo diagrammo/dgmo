@@ -20,6 +20,7 @@
 
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
+import { growChartFrame } from '../utils/chart-frame';
 import { now as currentTimeMs } from '../utils/now';
 import { contrastText, mix, themeBaseBg } from '../palettes/color-utils';
 import { resolveColor } from '../colors';
@@ -454,6 +455,11 @@ export function renderClock(
   svg.attr('height', bannerH).attr('viewBox', `0 0 ${width} ${bannerH}`);
   bgRect.attr('height', bannerH);
   card.attr('height', bannerH - 2 * cardM);
+
+  // Chart frame (#1827): subtitle under the title, footer under the chart.
+  growChartFrame(svg.node() as SVGSVGElement | null, parsed.frame, palette, {
+    size: 'grow',
+  });
 }
 
 interface Geom {

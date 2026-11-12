@@ -16,6 +16,7 @@
 import type { PaletteColors } from '../palettes';
 import { makeDgmoError, makeFail } from '../diagnostics';
 import type { Writable } from '../utils/brand';
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
 import {
   extractColor,
   measureIndent,
@@ -107,6 +108,9 @@ export function parseGoal(
       headerParsed = true;
       continue;
     }
+
+    // Chart frame: subtitle, source, footnote, byline (#1827), column 1.
+    if (parseChartFrameLine(result, raw, lineNum, result.diagnostics)) continue;
 
     // ── `note` — free-text caption. Either inline (`note <text>`) or a block
     //    header followed by indented body lines (multi-line, simple markdown,

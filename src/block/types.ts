@@ -1,5 +1,6 @@
 import type { DgmoError } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
+import type { ChartFrame } from '../utils/chart-frame-parse';
 
 // ============================================================
 // Block diagram — Parsed Types
@@ -60,6 +61,8 @@ export interface ParsedBlock {
   readonly tagGroups: TagGroup[];
   readonly options: BlockOptions;
   readonly diagnostics: DgmoError[];
+  /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+  readonly frame?: ChartFrame;
   readonly error: string | null;
 }
 

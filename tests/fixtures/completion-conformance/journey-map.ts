@@ -1,4 +1,5 @@
 import type { ConformanceFixture } from './_types';
+import { FRAME_DIRECTIVES } from './_frame';
 
 // Spec §22 (Journey Map Diagrams). Directives: active-tag,
 // plus the fill family via FILL_FAMILY_CAPABLE.
@@ -9,6 +10,7 @@ export const fixture: ConformanceFixture = {
   firstLineKeyword: 'journey-map',
 
   directives: [
+    ...FRAME_DIRECTIVES,
     'no-legend',
     'active-tag',
     'fill-tint',

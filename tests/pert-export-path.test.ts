@@ -40,7 +40,7 @@ async function svgFor(content: string): Promise<string> {
 describe('pert export path — the project duration always reaches the page', () => {
   it('draws the μ ± σ subtitle under the title', async () => {
     const svg = await svgFor(BASIC);
-    expect(svg).toContain('class="pert-subtitle"');
+    expect(svg).toContain('class="pert-subtitle chart-subtitle"');
     expect(svg).toMatch(
       /pert-subtitle[^>]*>≈ [\d.]+ weeks \(± [\d.]+ weeks?\)/
     );
@@ -48,7 +48,8 @@ describe('pert export path — the project duration always reaches the page', ()
 
   it('gives σ its unit, so the parenthetical is not a bare number', async () => {
     const svg = await svgFor(BASIC);
-    const subtitle = svg.match(/class="pert-subtitle"[^>]*>([^<]*)/)?.[1] ?? '';
+    const subtitle =
+      svg.match(/class="pert-subtitle chart-subtitle"[^>]*>([^<]*)/)?.[1] ?? '';
     expect(subtitle).not.toMatch(/\(± [\d.]+\)/);
     expect(subtitle).toMatch(/\(± [\d.]+ (week|weeks|day|days)\)/);
   });
@@ -65,7 +66,7 @@ describe('pert export path — the project duration always reaches the page', ()
     const svg = await svgFor(
       BASIC.replace('time-unit w', 'time-unit w\nno-analysis')
     );
-    expect(svg).toContain('class="pert-subtitle"');
+    expect(svg).toContain('class="pert-subtitle chart-subtitle"');
     expect(svg).toMatch(/pert-subtitle[^>]*>≈ [\d.]+ weeks/);
     expect(svg).not.toContain('pert-tornado-block');
     expect(svg).not.toContain('pert-scurve-block');
@@ -76,14 +77,15 @@ describe('pert export path — the project duration always reaches the page', ()
       BASIC.replace('time-unit w', 'time-unit w\nno-title')
     );
     expect(svg).not.toContain('class="pert-title chart-title"');
-    expect(svg).toContain('class="pert-subtitle"');
+    expect(svg).toContain('class="pert-subtitle chart-subtitle"');
   });
 
   it('drops the ± in analytical mode — no simulation, no spread', async () => {
     const svg = await svgFor(
       BASIC.replace('time-unit w', 'time-unit w\ntrials 50')
     );
-    const subtitle = svg.match(/class="pert-subtitle"[^>]*>([^<]*)/)?.[1] ?? '';
+    const subtitle =
+      svg.match(/class="pert-subtitle chart-subtitle"[^>]*>([^<]*)/)?.[1] ?? '';
     expect(subtitle).toMatch(/^≈ [\d.]+ weeks$/);
     expect(svg).not.toContain('±');
   });
@@ -92,7 +94,8 @@ describe('pert export path — the project duration always reaches the page', ()
     const svg = await svgFor(
       BASIC.replace('time-unit w', 'time-unit w\nstart-date 2026-06-01')
     );
-    const subtitle = svg.match(/class="pert-subtitle"[^>]*>([^<]*)/)?.[1] ?? '';
+    const subtitle =
+      svg.match(/class="pert-subtitle chart-subtitle"[^>]*>([^<]*)/)?.[1] ?? '';
     expect(subtitle).toMatch(/^Expected finish: \d{4}-\d{2}-\d{2} · ≈ /);
     expect(subtitle).toContain('of work');
   });

@@ -1,6 +1,7 @@
 // Resolved model produced by resolveMap (src/map/resolver.ts) — the contract the
 // layout/renderer (step 4) consumes. Regions are bound to ISO geometry, POIs are
 // geocoded, the basemap/extent/projection are chosen. See §24B.2/.8.
+import type { ChartFrame } from '../utils/chart-frame-parse';
 import type { DgmoError } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
 import type { MapDirectives } from './types';
@@ -144,11 +145,10 @@ export type GeoExtent = [[number, number], [number, number]];
 
 export interface ResolvedMap {
   readonly title: string | null;
-  /** DEAD — the `subtitle` directive was removed (2026-06-02 defaults-on review).
-   *  Never populated; the renderer's subtitle branch is now unreachable. Left for
-   *  a later cleanup pass. */
+  /** The chart frame's `subtitle` (#1827), drawn in the banner under the title. */
   readonly subtitle?: string;
-  readonly caption?: string;
+  /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
+  readonly frame?: ChartFrame;
   readonly tagGroups: readonly TagGroup[];
   readonly directives: MapDirectives;
   readonly basemaps: Basemaps;

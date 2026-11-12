@@ -9,10 +9,17 @@ import { FONT_FAMILY } from '../fonts';
 import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
+  TITLE_SIDE_PAD,
   TITLE_Y,
 } from '../utils/title-constants';
 import { mix } from '../palettes/color-utils';
-import { measureText } from '../utils/text-measure';
+import { fitWrapped, measureText } from '../utils/text-measure';
+import {
+  footerOnly,
+  growChartFrame,
+  SUBTITLE_FONT_SIZE,
+  SUBTITLE_LINE_HEIGHT,
+} from '../utils/chart-frame';
 import { renderClockCards } from './clock-card';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import type { LegendConfig } from '../utils/legend-types';
@@ -346,7 +353,7 @@ function drawMap(
   // land and ocean.
   const haloColor = palette.bg;
 
-  // Title / subtitle / caption are rendered LAST (see end of function) so they
+  // Title / subtitle are rendered LAST (see end of function) so they
   // sit in the foreground above the basemap, POIs, and labels.
 
   // ── Regions ──
@@ -1373,10 +1380,10 @@ function drawMap(
     }
   }
 
-  // ── Title / subtitle / caption (foreground — drawn last so they sit above the
+  // ── Title / subtitle (foreground — drawn last so they sit above the
   // basemap, POIs, and labels; layout reserves top padding so POIs clear them) ──
   // Soft bg halo so the banner stays legible over busy land/water (the muted
-  // subtitle/caption otherwise wash out on mid-toned palettes like nord).
+  // subtitle otherwise washes out on mid-toned palettes like nord).
   if (layout.title) {
     svg
       .append('text')
@@ -1394,36 +1401,45 @@ function drawMap(
       .attr('stroke-opacity', 0.7)
       .text(layout.title);
   }
+  // The chart frame's subtitle (#1827), in the frame's type and place, fitted
+  // to the one line the layout reserves for it.
   if (layout.subtitle) {
-    svg
+    const subtitleY = layout.title
+      ? TITLE_Y + SUBTITLE_LINE_HEIGHT + 2
+      : TITLE_Y;
+    const subtitleText =
+      fitWrapped(
+        layout.subtitle,
+        Math.max(0, width - 2 * TITLE_SIDE_PAD),
+        SUBTITLE_FONT_SIZE,
+        SUBTITLE_FONT_SIZE,
+        1,
+        { bold: false }
+      ).lines[0] ?? layout.subtitle;
+    const subtitleLine = resolved.frame?.subtitleLineNumber;
+    const subtitleEl = svg
       .append('text')
-      .attr('class', 'dgmo-map-subtitle')
+      .attr('class', 'dgmo-map-subtitle chart-subtitle')
       .attr('x', width / 2)
-      .attr('y', TITLE_Y + TITLE_FONT_SIZE)
+      .attr('y', subtitleY)
       .attr('text-anchor', 'middle')
-      .attr('font-size', LABEL_FONT + 1)
-      .attr('fill', palette.textMuted)
+      .attr('font-size', SUBTITLE_FONT_SIZE)
+      .attr('fill', palette.text)
       .attr('paint-order', 'stroke fill')
       .attr('stroke', palette.bg)
       .attr('stroke-width', 3)
       .attr('stroke-linejoin', 'round')
       .attr('stroke-opacity', 0.7)
-      .text(layout.subtitle);
+      .text(subtitleText);
+    if (subtitleLine) subtitleEl.attr('data-line-number', subtitleLine);
   }
-  if (layout.caption) {
-    svg
-      .append('text')
-      .attr('x', width / 2)
-      .attr('y', height - 8)
-      .attr('text-anchor', 'middle')
-      .attr('font-size', LABEL_FONT)
-      .attr('fill', palette.textMuted)
-      .attr('paint-order', 'stroke fill')
-      .attr('stroke', palette.bg)
-      .attr('stroke-width', 3)
-      .attr('stroke-linejoin', 'round')
-      .attr('stroke-opacity', 0.7)
-      .text(layout.caption);
+
+  // The chart frame's footer (#1827) — footnotes, `Source: …`, byline — under
+  // the map. The subtitle is the banner's, above, so it is left out here.
+  if (resolved.frame) {
+    growChartFrame(svg.node(), footerOnly(resolved.frame), palette, {
+      title: null,
+    });
   }
 }
 

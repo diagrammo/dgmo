@@ -2,6 +2,7 @@
 // Timeline renderer — Story 109.2 (arch-review). Extracted from d3.ts.
 // ============================================================
 
+import { growChartFrame } from '../utils/chart-frame';
 import { escapeHtml } from '../embed/escape';
 import { tagAttrKey } from '../utils/tag-groups';
 import { GRID_DASH, EDGE_DASH, scaleDash } from '../utils/visual-conventions';
@@ -3192,7 +3193,7 @@ export function renderTimeline(
   viewMode?: boolean,
   exportMode?: boolean
 ): void {
-  keepSwimlaneToggleFocus(container, () =>
+  keepSwimlaneToggleFocus(container, () => {
     drawTimeline(
       container,
       parsed,
@@ -3205,8 +3206,21 @@ export function renderTimeline(
       onTagStateChange,
       viewMode,
       exportMode
-    )
-  );
+    );
+    // Chart frame (#1827): subtitle under the title, footer under the chart.
+    // Every layout (vertical, grouped, time-sort) ends here. A preview whose
+    // content is taller than the pane is scaled down to the pane (height attr
+    // below the viewBox height); that canvas keeps its size ('fit').
+    const root = container.querySelector<SVGSVGElement>('svg');
+    if (root) {
+      const vbHeight = Number(root.getAttribute('viewBox')?.split(/\s+/)[3]);
+      const attrHeight = Number(root.getAttribute('height'));
+      const clamped = attrHeight > 0 && attrHeight < vbHeight - 0.5;
+      growChartFrame(root, parsed.frame, palette, {
+        size: !exportDims && clamped ? 'fit' : 'grow',
+      });
+    }
+  });
 }
 
 function drawTimeline(

@@ -22,6 +22,7 @@ import {
 import type { DgmoError } from '../diagnostics';
 import { EVENT_LINE_DX } from './diagnostics';
 import type { Writable } from '../utils/brand';
+import { parseChartFrameLine } from '../utils/chart-frame-parse';
 import type { TagGroup } from '../utils/tag-groups';
 import {
   matchTagBlockHeading,
@@ -220,6 +221,15 @@ export function parseEventLine(
       const hint = suggest(firstLine?.chartType ?? trimmed, ['event-line']);
       if (hint) msg += ` ${hint}`;
       return fail(lineNumber, msg);
+    }
+
+    // ── Chart frame: subtitle, source, footnote, byline (#1827), column 1 ──
+    if (
+      indent === 0 &&
+      parseChartFrameLine(result, trimmed, lineNumber, result.diagnostics)
+    ) {
+      currentTagGroup = null;
+      continue;
     }
 
     // ── Tag group heading: `tag Genre as g` (before content) ──

@@ -1,4 +1,5 @@
 import type { ConformanceFixture } from './_types';
+import { FRAME_DIRECTIVES } from './_frame';
 
 // Spec §23 (Pyramid Diagrams). Layer pipe metadata and one explicit
 // directive (inverted). the fill family works on pyramid via FILL_FAMILY_CAPABLE
@@ -10,6 +11,7 @@ export const fixture: ConformanceFixture = {
   firstLineKeyword: 'pyramid',
 
   directives: [
+    ...FRAME_DIRECTIVES,
     'inverted',
     'fill-tint',
     'fill-solid',
