@@ -15,7 +15,9 @@ import type { ParsedChart } from '../chart';
 import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
 import { shapeFill } from '../palettes/color-utils';
-import { truncateText } from '../utils/text-measure';
+import { fitLabel } from '../utils/fit-label';
+import { measureText } from '../utils/text-measure';
+import { createLabelPlacement, type LabelRect } from '../label-layout';
 import {
   EMPHASIS_DIM_OPACITY,
   EMPHASIS_DIM_TEXT_OPACITY,
@@ -26,6 +28,7 @@ import {
   type Margins,
   type InlineTitleInfo,
   TICK_FONT,
+  VALUE_FONT,
   fmtNum,
   reserveHeader,
   computeLeftMargin,
@@ -36,15 +39,23 @@ import {
   planCategoryLabels,
   planLabelsFitLeft,
   drawCategoryLabels,
+  NEVER_THIN_MAX,
 } from './shared';
 
 // Long category names must not size the chart (#1422). Their region is capped
 // at a share of the canvas: rotated names below vertical bars by height, the
 // name column beside horizontal bars by width. Rotated names also give way
-// while the plot would be under PLOT_MIN_SHARE of the height. Longer names end
-// in `…` and keep their full text as a hover title.
+// while the plot would be under PLOT_MIN_SHARE of the height. Names in the
+// column wrap first (#1828); only what still does not fit ends in `…`, and
+// keeps its full text as a hover title.
 const LABEL_REGION_SHARE = 0.35;
 const PLOT_MIN_SHARE = 0.6;
+/** A vertical bar axis this short flips horizontal rather than rotate (#1828). */
+const FLIP_MAX_CATEGORIES = NEVER_THIN_MAX;
+/** Most lines one horizontal-bar name may wrap to before it ends in `…`. */
+const NAME_MAX_LINES = 3;
+/** Baseline-to-baseline distance of a wrapped name's lines. */
+const NAME_LINE_PX = Math.round(TICK_FONT * 1.2);
 
 function seriesValues(
   pt: { value: number; extraValues?: number[] },
@@ -85,7 +96,7 @@ export function renderBar(
           1 + Math.max(0, ...data.map((d) => d.extraValues?.length ?? 0))
         )
       : 1;
-  const horizontal = chart.orientation === 'horizontal';
+  const authoredHorizontal = chart.orientation === 'horizontal';
   const multiSeries = seriesCount > 1;
   const fillMode = chart.fillMode;
 
@@ -150,15 +161,12 @@ export function renderBar(
   // Left margin must fit the rotated y-title + the left-edge labels: category
   // names for horizontal bars, value ticks for vertical.
   const catLabels = data.map((d) => d.label);
-  const sideShown = horizontal
-    ? catLabels.map((t) =>
-        truncateText(t, TICK_FONT, width * LABEL_REGION_SHARE)
-      )
-    : catLabels;
-  const leftLabels = horizontal
-    ? sideShown
-    : [fmtNum(niceMax), fmtNum(niceMax / 2), fmtNum(loVal), fmtNum(loVal / 2)];
-  const mLeft0 = computeLeftMargin(chart.ylabel, leftLabels);
+  const valueTicks = [
+    fmtNum(niceMax),
+    fmtNum(niceMax / 2),
+    fmtNum(loVal),
+    fmtNum(loVal / 2),
+  ];
   // Vertical bars carry their category names under the axis, so they need the
   // same fit treatment as line. Horizontal bars put them in the left gutter,
   // which computeLeftMargin already sizes. Rotated labels hang left of the
@@ -171,11 +179,11 @@ export function renderBar(
       height * (1 - PLOT_MIN_SHARE) - mTop - xTitleBand
     )
   );
-  const fit = horizontal
+  const verticalFit = authoredHorizontal
     ? null
     : planLabelsFitLeft(
         catLabels,
-        mLeft0,
+        computeLeftMargin(chart.ylabel, valueTicks),
         (ml) => width - ml - 32,
         (pw) => (data.length === 0 ? Infinity : pw / data.length),
         // scaleBand padding 0.3: first centre sits 0.65 steps in
@@ -183,10 +191,47 @@ export function renderBar(
         TICK_FONT,
         labelCap
       );
+  // A short axis whose names would have to rotate turns horizontal instead
+  // (#1828): names read flat in the left column, wrapped rather than cut. A
+  // long axis (dates, many points) keeps thinning and rotating.
+  // A plan that cut its names counts too: once cut short they may fit flat.
+  const flipped =
+    verticalFit !== null &&
+    data.length <= FLIP_MAX_CATEGORIES &&
+    (verticalFit.plan.rotate ||
+      verticalFit.shown.some((s, i) => s !== catLabels[i]));
+  const horizontal = authoredHorizontal || flipped;
+  // Axis titles name the axis they sit on: after a flip the categories run
+  // down the left, so the authored x-label moves there and y-label goes below.
+  const bottomTitle = flipped ? chart.ylabel : chart.xlabel;
+  const leftTitle = flipped ? chart.xlabel : chart.ylabel;
+
+  // Horizontal names wrap to as many lines as one band's step holds (up to
+  // NAME_MAX_LINES) inside the name column, and only then end in `…`.
+  const sideSteps = data.length === 0 ? 1 : data.length + 0.3;
+  const nameLines = Math.max(
+    1,
+    Math.min(
+      NAME_MAX_LINES,
+      Math.floor((height - mTop - 64) / sideSteps / NAME_LINE_PX)
+    )
+  );
+  const sideFit = horizontal
+    ? catLabels.map((t) =>
+        fitLabel(t, TICK_FONT, width * LABEL_REGION_SHARE, nameLines)
+      )
+    : [];
+  const mLeft0 = horizontal
+    ? computeLeftMargin(
+        leftTitle,
+        sideFit.flatMap((f) => f.lines)
+      )
+    : computeLeftMargin(chart.ylabel, valueTicks);
+  const fit = horizontal ? null : verticalFit;
   const mLeft = fit ? fit.mLeft : mLeft0;
   const plotW = fit ? fit.plotW : width - mLeft - 32;
   const labelPlan = fit?.plan ?? planCategoryLabels(catLabels, Infinity);
-  const shown = fit?.shown ?? sideShown;
+  const shown = fit?.shown ?? catLabels;
   const m: Margins = {
     top: mTop,
     right: 32,
@@ -256,16 +301,25 @@ export function renderBar(
   if (horiz) {
     data.forEach((d, i) => {
       const c = (cat(d.label) ?? 0) + cat.bandwidth() / 2;
+      const { lines, truncated } = sideFit[i]!;
       const t = svg
         .append('text')
         .attr('x', m.left - 10)
-        .attr('y', c + 4)
+        .attr('y', c + 4 - ((lines.length - 1) * NAME_LINE_PX) / 2)
         .attr('text-anchor', 'end')
         .attr('fill', textColor)
         .attr('font-size', TICK_FONT)
-        .attr('font-family', FONT_FAMILY)
-        .text(shown[i]!);
-      if (shown[i] !== d.label) t.append('title').text(d.label);
+        .attr('font-family', FONT_FAMILY);
+      if (lines.length === 1) t.text(lines[0]!);
+      else
+        lines.forEach((line, k) =>
+          t
+            .append('tspan')
+            .attr('x', m.left - 10)
+            .attr('dy', k === 0 ? 0 : NAME_LINE_PX)
+            .text(line)
+        );
+      if (truncated) t.append('title').text(d.label);
     });
   } else {
     // Thinned, and rotated when thinning alone would cost too many. See
@@ -290,9 +344,51 @@ export function renderBar(
         .range([0, cat.bandwidth()])
         .padding(0.12);
 
+  // Where a side-by-side bar's value label goes. Negative bars grow left (or
+  // down): the label sits off the bar's free end, flipped inside the bar when
+  // it would leave the plot (the extreme bar ends exactly at the plot edge and
+  // would hit the category name).
+  const valueSpot = (base: number, s: number, v: number): ValueSpot => {
+    const off = inner!(s) ?? 0;
+    const bw = inner!.bandwidth();
+    const text = fmtNum(v);
+    if (horiz) {
+      const x1 = val(v);
+      const approxW = text.length * 7 + 6;
+      const inside =
+        v < 0 ? x1 - approxW < m.left : x1 + approxW > m.left + plotW;
+      return {
+        text,
+        x: v < 0 ? (inside ? x1 + 6 : x1 - 6) : inside ? x1 - 6 : x1 + 6,
+        y: base + off + bw / 2 + 4,
+        anchor: v < 0 !== inside ? 'end' : 'start',
+        keep: true,
+      };
+    }
+    const y1 = val(v);
+    const yOut = v < 0 ? y1 + 14 : y1 - 6;
+    const yInside = v < 0 ? yOut > m.top + plotH - 2 : yOut < m.top + 2;
+    return {
+      text,
+      x: base + off + bw / 2,
+      y: yInside ? (v < 0 ? y1 - 6 : y1 + 14) : yOut,
+      anchor: 'middle',
+      keep: true,
+    };
+  };
+
   data.forEach((d) => {
     const base = cat(d.label) ?? 0;
     const vals = seriesValues(d, seriesCount);
+    // One category's labels collide when its bars are thinner than the type:
+    // the larger value keeps its label, a smaller one that would touch it is
+    // dropped (#1828). Its value stays on the bar's hover.
+    const spots = stacked
+      ? []
+      : dropColliding(
+          vals.map((v, s) => valueSpot(base, s, v)),
+          vals
+        );
     let accPos = 0;
     let accNeg = 0;
     vals.forEach((v, s) => {
@@ -375,21 +471,16 @@ export function renderBar(
             tag,
             dim
           );
-          // Negative bars grow left — the label sits off the bar's free end,
-          // flipped inside the bar when it would leave the plot (the min-value
-          // bar ends exactly at the plot edge and would hit the category name).
-          const txt = fmtNum(v);
-          const approxW = txt.length * 7 + 6;
-          const inside =
-            v < 0 ? x1 - approxW < m.left : x1 + approxW > m.left + plotW;
-          drawValueLabel(
-            svg,
-            txt,
-            v < 0 ? (inside ? x1 + 6 : x1 - 6) : inside ? x1 - 6 : x1 + 6,
-            base + off + bw / 2 + 4,
-            textColor,
-            v < 0 !== inside ? 'end' : 'start'
-          ).attr('opacity', dim ? EMPHASIS_DIM_TEXT_OPACITY : null);
+          const spot = spots[s]!;
+          if (spot.keep)
+            drawValueLabel(
+              svg,
+              spot.text,
+              spot.x,
+              spot.y,
+              textColor,
+              spot.anchor
+            ).attr('opacity', dim ? EMPHASIS_DIM_TEXT_OPACITY : null);
         } else {
           const y1 = val(v);
           rect(
@@ -403,18 +494,16 @@ export function renderBar(
             tag,
             dim
           );
-          // Negative bars grow down — the label sits below the bar's free end,
-          // flipped inside the bar when it would leave the plot (the min-value
-          // bar reaches the plot floor and would hit the category name).
-          const yOut = v < 0 ? y1 + 14 : y1 - 6;
-          const yInside = v < 0 ? yOut > m.top + plotH - 2 : yOut < m.top + 2;
-          drawValueLabel(
-            svg,
-            fmtNum(v),
-            base + off + bw / 2,
-            yInside ? (v < 0 ? y1 - 6 : y1 + 14) : yOut,
-            textColor
-          ).attr('opacity', dim ? EMPHASIS_DIM_TEXT_OPACITY : null);
+          const spot = spots[s]!;
+          if (spot.keep)
+            drawValueLabel(
+              svg,
+              spot.text,
+              spot.x,
+              spot.y,
+              textColor,
+              spot.anchor
+            ).attr('opacity', dim ? EMPHASIS_DIM_TEXT_OPACITY : null);
         }
       }
     });
@@ -422,12 +511,46 @@ export function renderBar(
 
   drawXAxisTitle(
     svg,
-    chart.xlabel,
+    bottomTitle,
     m.left + plotW / 2,
     m.top + plotH + 46,
     textColor
   );
-  drawYAxisTitle(svg, chart.ylabel, m.top + plotH / 2, 20, textColor);
+  drawYAxisTitle(svg, leftTitle, m.top + plotH / 2, 20, textColor);
+}
+
+interface ValueSpot {
+  text: string;
+  x: number;
+  y: number;
+  anchor: 'middle' | 'start' | 'end';
+  keep: boolean;
+}
+
+/** A value label's box, from its baseline anchor (VALUE_FONT tall). */
+function spotBox(spot: ValueSpot): LabelRect {
+  const w = measureText(spot.text, VALUE_FONT);
+  const x =
+    spot.anchor === 'middle'
+      ? spot.x - w / 2
+      : spot.anchor === 'end'
+        ? spot.x - w
+        : spot.x;
+  return { x, y: spot.y - VALUE_FONT * 0.8, w, h: VALUE_FONT };
+}
+
+/** Keep labels in order of |value|, dropping any that would touch a kept one. */
+function dropColliding(spots: ValueSpot[], vals: number[]): ValueSpot[] {
+  const placement = createLabelPlacement();
+  const order = spots
+    .map((_, i) => i)
+    .sort((a, b) => Math.abs(vals[b]!) - Math.abs(vals[a]!) || a - b);
+  for (const i of order) {
+    const box = spotBox(spots[i]!);
+    if (placement.hitsPlaced(box)) spots[i]!.keep = false;
+    else placement.commit(box);
+  }
+  return spots;
 }
 
 function rect(

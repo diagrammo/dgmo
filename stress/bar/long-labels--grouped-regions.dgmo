@@ -1,0 +1,14 @@
+bar Visitors by Region
+// stress: long-labels — grouped bars with region names wider than their band, plus an axis title
+x-label Region
+y-label Visitors (K)
+
+group
+  2023 blue
+  2024 green
+  2025 orange
+
+Queensland Coast and Great Barrier Reef Islands 120 140 160
+Royal Highlands 90 95 110
+Northern Territory Outback 60 70 75
+Tasmania Wilderness 40 55 65

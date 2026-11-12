@@ -1,0 +1,15 @@
+bar Revenue by Region
+// stress: long-labels — ten region names of 30+ characters that once rotated and were cut
+x-label Region
+y-label Revenue
+
+Greater Metropolitan Northeastern Corridor 120
+Southern Coastal Agricultural Districts 90
+Central Highlands Mining Communities 60
+Western Desert Frontier Settlements 40
+Northern Tropical Rainforest Provinces 75
+Eastern Seaboard Industrial Belt 88
+Island Territories and Dependencies 33
+Mountain Valley Wine Regions 51
+River Delta Fishing Villages 47
+Capital Administrative Region 99

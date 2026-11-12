@@ -409,7 +409,7 @@ const LABEL_ROTATE_DEG = 40;
  * rotates them, all of them. Longer axes (dates, many points) still thin by 2
  * before rotating, and thin the rotated labels when rotation is not enough.
  */
-const NEVER_THIN_MAX = 12;
+export const NEVER_THIN_MAX = 12;
 /** Clear space between two adjacent flat labels before they read as touching. */
 const LABEL_GAP = 8;
 /** A rotated label occupies its line height along the axis, not its width. */
