@@ -84,14 +84,20 @@ export function renderBar(
   const multiSeries = seriesCount > 1;
   const fillMode = chart.fillMode;
 
-  // Single series → each category gets its own palette color (ECharts parity).
-  // Multi series → color by series index.
-  const colorFor = (seriesIdx: number, catIdx: number, override?: string) => {
+  // Multi series → color by series index. Single series → ONE hue, because a
+  // hue per category encodes nothing (#1829): the palette's primary, and its
+  // red for a negative bar, the diverging hue. An author's color — on the row,
+  // the chart's `color`, or the lone series' — still wins.
+  const colorFor = (seriesIdx: number, value: number, override?: string) => {
     if (override) return override;
-    return multiSeries
-      ? (chart.seriesNameColors?.[seriesIdx] ??
-          colors[seriesIdx % colors.length]!)
-      : colors[catIdx % colors.length]!;
+    if (multiSeries)
+      return (
+        chart.seriesNameColors?.[seriesIdx] ??
+        colors[seriesIdx % colors.length]!
+      );
+    const authored = chart.color ?? chart.seriesNameColors?.[0];
+    if (authored) return authored;
+    return value < 0 ? palette.colors.red : palette.primary;
   };
   const fillOf = (c: string) =>
     shapeFill(palette, c, isDark, { mode: fillMode });
@@ -269,13 +275,13 @@ export function renderBar(
         .range([0, cat.bandwidth()])
         .padding(0.12);
 
-  data.forEach((d, ci) => {
+  data.forEach((d) => {
     const base = cat(d.label) ?? 0;
     const vals = seriesValues(d, seriesCount);
     let accPos = 0;
     let accNeg = 0;
     vals.forEach((v, s) => {
-      const stroke = colorFor(s, ci, seriesCount === 1 ? d.color : undefined);
+      const stroke = colorFor(s, v, seriesCount === 1 ? d.color : undefined);
       const fill = fillOf(stroke);
       const sName = seriesNames[s] ?? '';
       const tag = {

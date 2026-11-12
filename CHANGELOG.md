@@ -71,6 +71,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **A single-series bar chart draws in one hue.** Every bar used to take the
+  next palette colour, so the hues meant nothing and the first bar was red
+  whatever its value. Positive bars now take the palette's primary and
+  negative bars its red, the diverging hue. A row's own colour, the chart's
+  `color` directive and a lone series' colour still win; multi-series bars
+  keep one hue per series (#1829).
 - **A static render draws its legend as a plain key.** The CLI, `render()`,
   exports and embeds no longer draw the app's interactive legend: no group
   pill, no capsule behind it, no swimlane or eye switch, and no inactive
