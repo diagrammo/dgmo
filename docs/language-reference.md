@@ -2810,6 +2810,7 @@ navigation 88
 
 - Data: space-separated only (`word value`)
 - Options: `rotate none|mixed|angled`, `max N`, `size min max`
+- Colour: every word is drawn in one hue, the palette's primary — size carries the weight, so a hue per word would mean nothing. There is no per-word colour.
 
 ### 16.3 Arc Diagrams
 

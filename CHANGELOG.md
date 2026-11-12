@@ -80,6 +80,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`wordcloud` draws every word in one hue (#1931).** Words took the next
+  palette colour each, so the hues encoded nothing; size already carries the
+  weight. Every word is now the palette's primary, the same default a
+  single-series `bar` takes. Gallery `wordcloud` re-baselined.
 - **A single-series bar chart draws in one hue.** Every bar used to take the
   next palette colour, so the hues meant nothing and the first bar was red
   whatever its value. Positive bars now take the palette's primary and

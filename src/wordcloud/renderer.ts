@@ -16,7 +16,6 @@ import type {
   WordCloudRotate,
 } from '../visualizations/types';
 import type { PaletteColors } from '../palettes';
-import { getSeriesColors } from '../palettes';
 
 function getRotateFn(mode: WordCloudRotate): () => number {
   if (mode === 'mixed') return () => (Math.random() > 0.5 ? 0 : 90);
@@ -194,7 +193,10 @@ export function renderWordCloud(
 
   const init = initD3Chart(container, palette, exportDims);
   if (!init) return;
-  const { svg, width, height, textColor, colors } = init;
+  const { svg, width, height, textColor } = init;
+  // One hue for every word: size carries the weight, so a per-word hue would
+  // encode nothing (#1931). Same default hue as a single-series bar.
+  const wordColor = palette.primary;
 
   const idealWidth = Math.max(400, words.length * 30);
   const ctx = exportDims
@@ -261,8 +263,7 @@ export function renderWordCloud(
       .style('font-size', (d) => `${d.size}px`)
       .style('font-family', FONT_FAMILY)
       .style('font-weight', 'bold')
-      // colors is non-empty; modulo guarantees in-bounds.
-      .style('fill', (_d, i) => colors[i % colors.length]!)
+      .style('fill', wordColor)
       .style('cursor', (d) =>
         onClickItem && (d as WordCloudWord).lineNumber ? 'pointer' : 'default'
       )
@@ -330,7 +331,7 @@ export function renderWordCloudAsync(
 
     const textColor = palette.text;
     const bgColor = palette.bg;
-    const colors = getSeriesColors(palette);
+    const wordColor = palette.primary;
 
     const { minSize, maxSize } = cloudOptions;
     const weights = words.map((w) => w.weight);
@@ -390,8 +391,7 @@ export function renderWordCloudAsync(
         .style('font-size', (d) => `${d.size}px`)
         .style('font-family', FONT_FAMILY)
         .style('font-weight', 'bold')
-        // colors is non-empty; modulo guarantees in-bounds.
-        .style('fill', (_d, i) => colors[i % colors.length]!)
+        .style('fill', wordColor)
         .attr('text-anchor', 'middle')
         .attr(
           'transform',
