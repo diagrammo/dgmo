@@ -653,10 +653,14 @@ const placeConnectorLabels = whiteboardConnectorLabelPoints;
 /** Radius of the semicircle a connector makes to hop over an earlier one, px. */
 export const WHITEBOARD_HOP_RADIUS = 5;
 
+/** sin of the shallowest crossing angle that hops (5°); shallower is parallel. */
+const HOP_MIN_SIN = Math.sin((5 * Math.PI) / 180);
+
 /**
  * Where a straight stroke crosses the straight connectors drawn before it —
  * distances along the stroke, ascending, each at least a hop clear of both
- * ends and of the previous hop. Curved connectors and parallel ones never hop.
+ * ends and of the previous hop. Curved connectors, and ones within 5° of
+ * parallel, never hop.
  */
 export function whiteboardHopStops(
   line: {
@@ -678,7 +682,9 @@ export function whiteboardHopStops(
     const ex = o.x2 - o.x1;
     const ey = o.y2 - o.y1;
     const den = dx * ey - dy * ex;
-    if (Math.abs(den) < 1e-9) continue;
+    // Near-parallel strokes (an overlapping pair mid-drag) meet at a point
+    // that means nothing; only a real crossing hops.
+    if (Math.abs(den) <= HOP_MIN_SIN * len * Math.hypot(ex, ey)) continue;
     const t = ((o.x1 - line.x1) * ey - (o.y1 - line.y1) * ex) / den;
     const u = ((o.x1 - line.x1) * dy - (o.y1 - line.y1) * dx) / den;
     if (u < 0 || u > 1) continue;

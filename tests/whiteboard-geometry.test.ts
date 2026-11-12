@@ -11,6 +11,8 @@ import {
   whiteboardBendFor,
   whiteboardBendHandle,
   whiteboardSegmentMidpoint,
+  whiteboardDrawnBend,
+  WHITEBOARD_FAN_SPACING,
 } from '../src/whiteboard/geometry';
 import { parseWhiteboard } from '../src/whiteboard/parser';
 import { renderWhiteboard, whiteboardBounds } from '../src/whiteboard/renderer';
@@ -356,5 +358,92 @@ describe('bent connectors', () => {
     const els = board('arrow from: 10 10, to: 110 110, bend: 25');
     const c = els[0] as WhiteboardArrow;
     expect(whiteboardBendFor(c, els, whiteboardBendHandle(c, els))).toBe(25);
+  });
+});
+
+describe('whiteboardDrawnBend — connectors sharing two shapes fan apart (#1928)', () => {
+  const pair = [
+    'rectangle A at: 0 0, size: 100 60',
+    'rectangle B at: 300 0, size: 100 60',
+  ];
+
+  it('bows a two-way pair to opposite sides, so the strokes separate', () => {
+    const els = board(
+      ...pair,
+      'arrow there from: 50 30, to: 350 30',
+      'arrow back from: 350 30, to: 50 30'
+    );
+    const there = els[2] as WhiteboardArrow;
+    const back = els[3] as WhiteboardArrow;
+    const h = WHITEBOARD_FAN_SPACING / 2;
+    // The same signed bend, but back runs the other way, so its right-hand
+    // normal is flipped and the two bow to opposite sides.
+    expect(whiteboardDrawnBend(there, els)).toBe(-h);
+    expect(whiteboardDrawnBend(back, els)).toBe(-h);
+    const a = whiteboardBendHandle(there, els);
+    const b = whiteboardBendHandle(back, els);
+    expect(Math.abs(a.y - b.y)).toBe(WHITEBOARD_FAN_SPACING);
+    expect(clipWhiteboardConnector(there, els).cy).toBeDefined();
+  });
+
+  it('keeps a lone connector, and the middle of an odd group, straight', () => {
+    const one = board(...pair, 'arrow only from: 50 30, to: 350 30');
+    expect(whiteboardDrawnBend(one[2] as WhiteboardArrow, one)).toBe(0);
+    expect(clipWhiteboardConnector(one[2] as WhiteboardArrow, one).cx).toBe(
+      undefined
+    );
+    const three = board(
+      ...pair,
+      'arrow p from: 50 30, to: 350 30',
+      'arrow q from: 50 30, to: 350 30',
+      'line r from: 50 30, to: 350 30'
+    );
+    const bends = [2, 3, 4].map((i) =>
+      whiteboardDrawnBend(three[i] as WhiteboardArrow, three)
+    );
+    expect(bends).toEqual([-WHITEBOARD_FAN_SPACING, 0, WHITEBOARD_FAN_SPACING]);
+  });
+
+  it('leaves an authored bend alone and fans only the straight ones', () => {
+    const els = board(
+      ...pair,
+      'arrow bent from: 50 30, to: 350 30, bend: 40',
+      'arrow there from: 50 30, to: 350 30'
+    );
+    expect(whiteboardDrawnBend(els[2] as WhiteboardArrow, els)).toBe(40);
+    expect(whiteboardDrawnBend(els[3] as WhiteboardArrow, els)).toBe(0);
+  });
+
+  it('finds a moved copy of a group member (the canvas mid-drag)', () => {
+    const els = board(
+      ...pair,
+      'arrow there from: 50 30, to: 350 30',
+      'arrow back from: 350 30, to: 50 30'
+    );
+    const copy = { ...(els[2] as WhiteboardArrow) };
+    expect(whiteboardDrawnBend(copy, els)).toBe(-WHITEBOARD_FAN_SPACING / 2);
+    const other = { ...(els[3] as WhiteboardArrow) };
+    expect(whiteboardDrawnBend(other, els)).toBe(-WHITEBOARD_FAN_SPACING / 2);
+    expect(whiteboardBendHandle(copy, els)).not.toEqual(
+      whiteboardBendHandle(other, els)
+    );
+  });
+
+  it('draws the Mutiny Cycle pair as two curves with no hop', () => {
+    const svg = draw(
+      [
+        'whiteboard',
+        'rectangle Quartermaster at: -193 73, size: 128 80',
+        'rectangle Crew at: 192 252, size: 128 80',
+        'arrow rallies from: 256 292, to: -129 113',
+        'arrow arms from: -129 113, to: 256 292',
+      ].join('\n')
+    );
+    const paths = [...svg.querySelectorAll('path')].map(
+      (p) => p.getAttribute('d') ?? ''
+    );
+    const strokes = paths.filter((d) => d.includes('Q'));
+    expect(strokes.length).toBe(2);
+    expect(paths.some((d) => d.includes('A5 5'))).toBe(false);
   });
 });

@@ -307,6 +307,58 @@ export function whiteboardConnectorAttachments(
 }
 
 /**
+ * Px between neighbouring strokes, at their middles, when straight connectors
+ * joining the same two shapes are fanned apart. Boxes-and-lines uses 22
+ * (PARALLEL_SPACING); a whiteboard stroke carries a label beside it, so wider.
+ */
+export const WHITEBOARD_FAN_SPACING = 28;
+
+/**
+ * The bend a connector is DRAWN with. A `bend:` the author set is kept. A
+ * straight connector that shares its two attached shapes with other straight
+ * ones (either direction) would draw on top of them, so the group is fanned:
+ * spread `WHITEBOARD_FAN_SPACING` apart at the middle, symmetric about the
+ * chord, in element order. An odd group keeps its middle one straight. The
+ * file is untouched — this is drawing only.
+ */
+export function whiteboardDrawnBend(
+  connector: WhiteboardArrow | WhiteboardLine,
+  elements: readonly WhiteboardElement[]
+): number {
+  if (connector.bend !== 0) return connector.bend;
+  const { from, to } = whiteboardConnectorAttachments(connector, elements);
+  if (from < 0 || to < 0 || from === to) return 0;
+  const lo = Math.min(from, to);
+  const hi = Math.max(from, to);
+  const group: (WhiteboardArrow | WhiteboardLine)[] = [];
+  for (const el of elements) {
+    if ((el.kind !== 'arrow' && el.kind !== 'line') || el.bend !== 0) continue;
+    const at = whiteboardConnectorAttachments(el, elements);
+    if (Math.min(at.from, at.to) === lo && Math.max(at.from, at.to) === hi) {
+      group.push(el);
+    }
+  }
+  if (group.length < 2) return 0;
+  let k = group.indexOf(connector);
+  if (k < 0) {
+    // A copy (the canvas mid-drag): the first one equal to it.
+    k = group.findIndex(
+      (g) =>
+        g.kind === connector.kind &&
+        g.x1 === connector.x1 &&
+        g.y1 === connector.y1 &&
+        g.x2 === connector.x2 &&
+        g.y2 === connector.y2
+    );
+    if (k < 0) return 0;
+  }
+  const offset = (k - (group.length - 1) / 2) * WHITEBOARD_FAN_SPACING;
+  // Offsets are measured on the lo → hi side; a connector running hi → lo has
+  // its right-hand normal flipped, so its bend flips too.
+  return Math.round(from === lo ? offset : -offset);
+}
+
+/**
  * Parameter interval [tIn, tOut] where `a + t·(b − a)` is inside `p`, or null.
  */
 function interval(
@@ -401,7 +453,8 @@ export function clipWhiteboardConnector(
   const stored = { x1, y1, x2, y2 };
   if (Math.hypot(x2 - x1, y2 - y1) < EPS) return stored;
   const { from, to } = whiteboardConnectorAttachments(connector, elements);
-  if (connector.bend !== 0) return clipCurve(connector, elements, from, to);
+  const bend = whiteboardDrawnBend(connector, elements);
+  if (bend !== 0) return clipCurve({ ...connector, bend }, elements, from, to);
   if (from < 0 && to < 0) return stored;
   const { a, b } = aimedEnds(connector, elements, from, to);
   if (Math.hypot(b.x - a.x, b.y - a.y) < EPS) return stored;
@@ -470,7 +523,7 @@ function bendFrame(
 
 /**
  * Where a connector's bend handle sits: on the curve, halfway along it —
- * `bend` px off the middle of the aimed chord. A straight connector's handle
+ * its drawn bend (`whiteboardDrawnBend`) px off the middle of the aimed chord. A straight connector's handle
  * is the chord's midpoint.
  */
 export function whiteboardBendHandle(
@@ -479,9 +532,10 @@ export function whiteboardBendHandle(
 ): WhiteboardPoint {
   const f = bendFrame(connector, elements);
   if (!f) return { x: connector.x1, y: connector.y1 };
+  const bend = whiteboardDrawnBend(connector, elements);
   return {
-    x: f.mid.x + f.nx * connector.bend,
-    y: f.mid.y + f.ny * connector.bend,
+    x: f.mid.x + f.nx * bend,
+    y: f.mid.y + f.ny * bend,
   };
 }
 

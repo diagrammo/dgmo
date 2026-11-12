@@ -405,6 +405,8 @@ export {
   whiteboardFileWave,
   whiteboardFileWavePoints,
   whiteboardBendHandle,
+  whiteboardDrawnBend,
+  WHITEBOARD_FAN_SPACING,
   whiteboardBendFor,
   whiteboardLabelPosition,
   whiteboardSegmentMidpoint,

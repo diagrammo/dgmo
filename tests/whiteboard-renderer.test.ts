@@ -476,6 +476,20 @@ describe('whiteboard connector hops (diagrammo/diagrammo#1892)', () => {
     ).toEqual([]);
   });
 
+  it('does not hop a near-parallel stroke (an overlapping pair mid-drag, #1928)', () => {
+    const line = { x1: 0, y1: 0, x2: 300, y2: 0 };
+    // 1° off parallel: the lines "meet" mid-stroke, but nothing crosses there.
+    const t = Math.tan(Math.PI / 180);
+    expect(
+      whiteboardHopStops(line, [{ x1: 0, y1: -150 * t, x2: 300, y2: 150 * t }])
+    ).toEqual([]);
+    // 10° still hops.
+    const u = Math.tan(Math.PI / 18);
+    expect(
+      whiteboardHopStops(line, [{ x1: 0, y1: -150 * u, x2: 300, y2: 150 * u }])
+    ).toEqual([150]);
+  });
+
   it('merges hops closer than a hop diameter', () => {
     const stops = whiteboardHopStops({ x1: 0, y1: 0, x2: 100, y2: 0 }, [
       { x1: 40, y1: -9, x2: 40, y2: 9 },
