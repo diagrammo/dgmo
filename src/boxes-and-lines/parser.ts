@@ -34,6 +34,7 @@ import {
 } from '../utils/parsing';
 import {
   BOXES_AND_LINES_REGISTRY,
+  isReservedKey,
   withTagAliases,
 } from '../utils/reserved-key-registry';
 import { tryCollectNote, resolveNotes, type DiagramNote } from '../utils/notes';
@@ -65,7 +66,8 @@ function measureIndent(line: string): number {
  */
 function parseTailMeta(
   rawTail: string,
-  metaAliasMap: Map<string, string>
+  metaAliasMap: Map<string, string>,
+  warnUnknown?: (message: string) => void
 ): { metadata: Record<string, string>; description?: string[] } {
   const segment = rawTail.trim();
   if (!segment) return { metadata: {} };
@@ -83,6 +85,16 @@ function parseTailMeta(
       const value = trimmed.slice(colonIdx + 1).trim();
       if (rawKey === 'description') {
         description = [value];
+      } else if (warnUnknown && !isKnownTailKey(rawKey, metaAliasMap)) {
+        // An undeclared key is dropped with a warning, never kept as silent
+        // tag data that cascades to members and draws nothing (#1929).
+        const hint = suggest(rawKey, [
+          ...BOXES_AND_LINES_REGISTRY.keys,
+          ...metaAliasMap.keys(),
+        ]);
+        warnUnknown(
+          `Unknown metadata key "${rawKey}" — ignored.${hint ? ' ' + hint : ''}`
+        );
       } else {
         const resolvedKey = metaAliasMap.get(rawKey) ?? rawKey;
         metadata[resolvedKey] = value;
@@ -92,6 +104,18 @@ function parseTailMeta(
   }
 
   return { metadata, ...(description !== undefined && { description }) };
+}
+
+/** A tail key is known when it is reserved or names a declared tag group. */
+function isKnownTailKey(
+  rawKey: string,
+  metaAliasMap: Map<string, string>
+): boolean {
+  const registry = withTagAliases(
+    BOXES_AND_LINES_REGISTRY,
+    new Set(metaAliasMap.keys())
+  );
+  return isReservedKey(registry, rawKey);
 }
 
 /** Convert group label to internal ID */
@@ -504,7 +528,9 @@ export function parseBoxesAndLines(
       const targetLabel = groupEdgeMatch[3];
       const rawTail = groupEdgeMatch[4] ?? '';
 
-      const edgeMeta = parseTailMeta(rawTail, metaAliasMap).metadata;
+      const edgeMeta = parseTailMeta(rawTail, metaAliasMap, (msg) =>
+        pushWarning(lineNum, msg)
+      ).metadata;
 
       result.edges.push({
         // Regex capture groups present after successful match.
@@ -530,7 +556,9 @@ export function parseBoxesAndLines(
       const targetLabel = labeledGroupEdgeMatch[4];
       const rawTail = labeledGroupEdgeMatch[5] ?? '';
 
-      const edgeMeta = parseTailMeta(rawTail, metaAliasMap).metadata;
+      const edgeMeta = parseTailMeta(rawTail, metaAliasMap, (msg) =>
+        pushWarning(lineNum, msg)
+      ).metadata;
 
       const labeledEdgeLabel = (biLabel ?? uniLabel)?.trim();
       result.edges.push({
@@ -577,7 +605,9 @@ export function parseBoxesAndLines(
       // `collapsed: true` metadata form. Removed from the metadata so it
       // neither cascades to members nor draws as a value.
       const groupPeel = peelTrailingCollapsedFlag(groupMatch[2] ?? '');
-      const groupMeta = parseTailMeta(groupPeel.rest, metaAliasMap).metadata;
+      const groupMeta = parseTailMeta(groupPeel.rest, metaAliasMap, (msg) =>
+        pushWarning(lineNum, msg)
+      ).metadata;
       const groupCollapsed =
         groupPeel.collapsed || groupMeta['collapsed'] === 'true';
       delete groupMeta['collapsed'];
@@ -845,11 +875,11 @@ function parseNodeLine(
     diagnostics,
     lineNum
   );
-  warnUnknownMetaKeys(
-    split.meta,
-    registry,
-    (msg) => diagnostics.push(makeDgmoError(lineNum, msg, 'warning')),
-    split.name
+  warnUnknownMetaKeys(split.meta, registry, (msg) =>
+    diagnostics.push(makeDgmoError(lineNum, msg, 'warning'))
+  );
+  warnColonInName(split.name, registry, (msg) =>
+    diagnostics.push(makeDgmoError(lineNum, msg, 'warning'))
   );
 
   let label = peelQuotedName(split.name);
@@ -912,7 +942,8 @@ function parseNodeLine(
  */
 function splitTargetAndMeta(
   rest: string,
-  metaAliasMap: Map<string, string>
+  metaAliasMap: Map<string, string>,
+  warn?: (message: string) => void
 ): { target: string; metadata: Record<string, string> } {
   // §1.4 same-line: cut at the first reserved-key colon. If the
   // target is wrapped in `[brackets]` (group endpoint), keep the
@@ -922,6 +953,7 @@ function splitTargetAndMeta(
     new Set(metaAliasMap.keys())
   );
   const split = splitNameAndMeta(rest, registry, metaAliasMap);
+  if (warn) warnColonInName(split.name, registry, warn);
   let target = split.name;
   if (split.color !== undefined) {
     // Colors as trailing tokens stay on the target literal for
@@ -987,7 +1019,8 @@ function parseEdgeLine(
 
     const { target: biTarget, metadata } = splitTargetAndMeta(
       rest,
-      metaAliasMap
+      metaAliasMap,
+      (msg) => diagnostics.push(makeDgmoError(lineNum, msg, 'warning'))
     );
     warnUnknownMetaKeys(metadata, edgeRegistry, (msg) =>
       diagnostics.push(makeDgmoError(lineNum, msg, 'warning'))
@@ -1030,7 +1063,8 @@ function parseEdgeLine(
 
     const { target: plainTarget, metadata } = splitTargetAndMeta(
       rest,
-      metaAliasMap
+      metaAliasMap,
+      (msg) => diagnostics.push(makeDgmoError(lineNum, msg, 'warning'))
     );
     warnUnknownMetaKeys(metadata, edgeRegistry, (msg) =>
       diagnostics.push(makeDgmoError(lineNum, msg, 'warning'))
@@ -1078,7 +1112,8 @@ function parseEdgeLine(
     if (label) {
       const { target: labeledTarget, metadata } = splitTargetAndMeta(
         rest,
-        metaAliasMap
+        metaAliasMap,
+        (msg) => diagnostics.push(makeDgmoError(lineNum, msg, 'warning'))
       );
       warnUnknownMetaKeys(metadata, edgeRegistry, (msg) =>
         diagnostics.push(makeDgmoError(lineNum, msg, 'warning'))
@@ -1130,7 +1165,8 @@ function parseEdgeLine(
 
   const { target: plainTarget, metadata } = splitTargetAndMeta(
     rest,
-    metaAliasMap
+    metaAliasMap,
+    (msg) => diagnostics.push(makeDgmoError(lineNum, msg, 'warning'))
   );
   warnUnknownMetaKeys(metadata, edgeRegistry, (msg) =>
     diagnostics.push(makeDgmoError(lineNum, msg, 'warning'))
@@ -1159,4 +1195,30 @@ function parseEdgeLine(
     lineNumber: lineNum,
     metadata,
   };
+}
+
+/**
+ * §1.4.1 cuts metadata only at a reserved key or a declared tag alias, so an
+ * unquoted `word:` that is neither stays in the box name. That is the grammar,
+ * but silently it reads as a dropped key and draws a second box when an edge
+ * names the short form (#1929). Warn, and say how to keep the colon on purpose.
+ */
+const NAME_KEY_RE = /(?:^|\s)([a-z][\w-]*):(?=\s|$)/;
+function warnColonInName(
+  name: string,
+  registry: ReturnType<typeof withTagAliases>,
+  warn: (message: string) => void
+): void {
+  const trimmed = name.trim();
+  if (trimmed.startsWith('"')) return;
+  const m = trimmed.match(NAME_KEY_RE);
+  if (!m) return;
+  const key = m[1]!;
+  if (isReservedKey(registry, key)) return;
+  const hint = suggest(key, [...registry.keys, ...registry.tagAliases]);
+  warn(
+    `"${key}:" is not a metadata key here, so it stays in the box name "${trimmed}". ` +
+      `Declare a tag group for it, or quote the name to keep the colon.` +
+      (hint ? ' ' + hint : '')
+  );
 }

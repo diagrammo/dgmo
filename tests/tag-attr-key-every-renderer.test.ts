@@ -228,7 +228,9 @@ describe('a multi-word tag group with a non-name character', () => {
 });
 
 describe('a metadata key that is not a tag group', () => {
-  it('boxes-and-lines stamps it by the slug — the reported crash', async () => {
+  // Since #1929 an undeclared group key is dropped with a warning, so it can
+  // no longer reach the renderer at all; the crash guard still holds.
+  it('boxes-and-lines drops it instead of stamping it — the reported crash', async () => {
     const src = [
       'boxes-and-lines',
       '',
@@ -239,6 +241,6 @@ describe('a metadata key that is not a tag group', () => {
     ].join('\n');
     const svg = await renderForExport(src, 'light', palette);
     expect(badTagAttrs(svg)).toEqual([]);
-    expect(carries(svg, 'data-tag-heat-intel-x')).toBe(true);
+    expect(carries(svg, 'data-tag-heat-intel-x')).toBe(false);
   });
 });

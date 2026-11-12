@@ -175,14 +175,14 @@ describe('boxes-and-lines parser', () => {
 
     it('parses group with same-line metadata', () => {
       const result = parseBoxesAndLines(
-        'boxes-and-lines\n[AWS] region: us-east-1\n  API'
+        'boxes-and-lines\ntag Region as region us-east-1\n[AWS] region: us-east-1\n  API'
       );
       expect(result.groups[0].metadata.region).toBe('us-east-1');
     });
 
     it('cascades group metadata to children', () => {
       const result = parseBoxesAndLines(
-        'boxes-and-lines\n[AWS] team: Infra\n  API'
+        'boxes-and-lines\ntag Team as team Infra\n[AWS] team: Infra\n  API'
       );
       expect(result.nodes.find((n) => n.label === 'API')?.metadata.team).toBe(
         'Infra'
