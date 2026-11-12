@@ -184,43 +184,60 @@ export function renderPie(
   // their own heights rather than sharing a column.
   if (showLabels && labelInfos.length > 0) {
     const labelX = radius + elbowOut + elbowRun;
-    const minGap = font * 1.18;
-    const bound = availH / 2 - font;
+    const bound = availH / 2 - font * 0.5;
+    // A side with more labels than its height holds at the normal gap gets a
+    // smaller font, so the labels shrink rather than stack. The font is shared
+    // by both sides so the figure reads as one piece.
+    const perSide = Math.max(
+      ...[true, false].map(
+        (s) => labelInfos.filter((l) => l.rightSide === s).length
+      )
+    );
+    const fitFont =
+      perSide > 1 ? (2 * bound) / ((perSide - 1) * 1.18 + 0.01) : font;
+    const labelFont = Math.min(font, fitFont);
+    const minGap = labelFont * 1.18;
     for (const side of [true, false]) {
-      const group = labelInfos.filter((l) => l.rightSide === side);
+      const group = labelInfos
+        .filter((l) => l.rightSide === side)
+        .sort((a, b) => a.idealY - b.idealY); // top to bottom
       if (group.length === 0) continue;
 
-      // Top half fans up (toward the pole), bottom half fans down — always
-      // AWAY from the equator so stubs only lengthen and bends stay outside
-      // the arc. Process each half from the label nearest the equator outward.
-      const topHalf = group
-        .filter((l) => l.idealY < 0)
-        .sort((a, b) => b.idealY - a.idealY); // nearest equator first
-      const botHalf = group
-        .filter((l) => l.idealY >= 0)
-        .sort((a, b) => a.idealY - b.idealY); // nearest equator first
-      topHalf.forEach((l, i) => {
-        l.y =
-          i === 0 ? l.idealY : Math.min(l.idealY, topHalf[i - 1]!.y - minGap);
-        l.y = Math.max(l.y, -bound);
+      // One top-to-bottom pass per side, inside [-bound, bound]. The forward
+      // pass pushes each label down off the one above it. The backward pass
+      // pulls the column up where the bottom overran the bound. Clamping each
+      // half separately (the old way) stacked every overrun label on the same
+      // row at the bound (#1941).
+      group.forEach((l, i) => {
+        const floor = i === 0 ? -bound : group[i - 1]!.y + minGap;
+        l.y = Math.max(l.idealY, floor);
       });
-      botHalf.forEach((l, i) => {
-        l.y =
-          i === 0 ? l.idealY : Math.max(l.idealY, botHalf[i - 1]!.y + minGap);
-        l.y = Math.min(l.y, bound);
-      });
+      for (let i = group.length - 1; i >= 0; i--) {
+        const ceil = i === group.length - 1 ? bound : group[i + 1]!.y - minGap;
+        group[i]!.y = Math.min(group[i]!.y, ceil);
+      }
 
       const sx = side ? 1 : -1;
       const tx = sx * labelX;
       for (const l of group) {
         // Bend point rides the radial ray (collinear with the centre) at the
-        // label's height — keeps the stub perfectly radial. Fall back to the
-        // fixed stub tip for a centroid sitting on the horizontal axis.
-        const xr = Math.abs(l.y0) < 0.001 ? l.x1 : (l.y * l.x0) / l.y0;
+        // label's height — keeps the stub perfectly radial. That only works
+        // when the label moved AWAY from the equator and the ray reaches the
+        // label's height before the text column. Otherwise keep the fixed
+        // radial stub and run a straight segment from its tip to the label.
+        const rayX = Math.abs(l.y0) < 0.001 ? NaN : (l.y * l.x0) / l.y0;
+        const onRay =
+          Number.isFinite(rayX) &&
+          Math.sign(l.y) === Math.sign(l.y0) &&
+          Math.abs(l.y) >= Math.abs(l.y1) &&
+          Math.abs(rayX) <= labelX - elbowRun * 0.25;
+        const points = onRay
+          ? `${l.x0},${l.y0} ${rayX},${l.y} ${tx},${l.y}`
+          : `${l.x0},${l.y0} ${l.x1},${l.y1} ${tx},${l.y}`;
         tagDatum(
           g
             .append('polyline')
-            .attr('points', `${l.x0},${l.y0} ${xr},${l.y} ${tx},${l.y}`)
+            .attr('points', points)
             .attr('fill', 'none')
             .attr('stroke', l.stroke)
             .attr('stroke-width', 1)
@@ -230,11 +247,11 @@ export function renderPie(
         tagDatum(
           g
             .append('text')
-            .attr('x', tx + sx * font * 0.3)
-            .attr('y', l.y + font * 0.3)
+            .attr('x', tx + sx * labelFont * 0.3)
+            .attr('y', l.y + labelFont * 0.3)
             .attr('text-anchor', side ? 'start' : 'end')
             .attr('fill', l.stroke)
-            .attr('font-size', font)
+            .attr('font-size', labelFont)
             .attr('font-family', FONT_FAMILY)
             .attr('opacity', l.dim ? EMPHASIS_DIM_TEXT_OPACITY : null)
             .text(l.label),

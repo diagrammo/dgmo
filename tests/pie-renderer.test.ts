@@ -106,3 +106,58 @@ describe('renderPie — proportional scaling', () => {
     expect(radiusOf(tiny)).toBeGreaterThan(8);
   });
 });
+
+// #1941 — small slices bunched at the top pole were clamped onto the same row
+// at the canvas bound, drawing one label on top of the other.
+describe('renderPie — labels never overlap', () => {
+  const rows = (svg: string) => {
+    const re =
+      /<text[^>]*\by="([-\d.]+)"[^>]*text-anchor="(start|end)"[^>]*font-size="([\d.]+)"[^>]*class="dgmo-datum"/g;
+    const out: { y: number; side: string; font: number }[] = [];
+    for (let m; (m = re.exec(svg)); )
+      out.push({ y: parseFloat(m[1]!), side: m[2]!, font: parseFloat(m[3]!) });
+    return out;
+  };
+  const assertNoOverlap = (svg: string, expected: number) => {
+    const labels = rows(svg);
+    expect(labels.length).toBe(expected);
+    for (const side of ['start', 'end']) {
+      const ys = labels
+        .filter((l) => l.side === side)
+        .map((l) => l.y)
+        .sort((a, b) => a - b);
+      const font = labels[0]!.font;
+      for (let i = 1; i < ys.length; i++)
+        expect(ys[i]! - ys[i - 1]!).toBeGreaterThanOrEqual(font);
+    }
+  };
+
+  it('separates two small slices at the top pole', async () => {
+    const src = `pie Fan Usage of Linked Accounts
+
+Single 90
+Two 9
+More than 2 1`;
+    for (const [width, height] of [
+      [1380, 640],
+      [800, 450],
+      [560, 450],
+    ] as const) {
+      const svg = await renderDataChartD3(src, 'light', undefined, {
+        width,
+        height,
+      });
+      assertNoOverlap(svg, 3);
+    }
+  });
+
+  it('separates many tiny slices on one side', async () => {
+    const tiny = Array.from({ length: 14 }, (_, i) => `Tiny ${i + 1} 1`);
+    const src = ['pie Many', '', 'Big 500', ...tiny].join('\n');
+    const svg = await renderDataChartD3(src, 'light', undefined, {
+      width: 900,
+      height: 450,
+    });
+    assertNoOverlap(svg, 15);
+  });
+});
