@@ -98,6 +98,18 @@ describe('whiteboard shapes line and glyphs', () => {
     ).not.toBeNull();
   });
 
+  it('warns once per set that is off, at its first glyph', () => {
+    const parsed = parseWhiteboard(
+      'whiteboard\nrouter A at: 0 0, size: 48 48\nserver B at: 80 0, size: 48 48\nrouter C at: 160 0, size: 48 48\n'
+    );
+    expect(parsed.elements).toHaveLength(3);
+    expect(parsed.diagnostics).toHaveLength(1);
+    expect(parsed.diagnostics[0]).toMatchObject({
+      code: 'W_WHITEBOARD_SHAPE_SET_OFF',
+      line: 2,
+    });
+  });
+
   it('accepts the shapes line after the glyphs it turns on', () => {
     expect(
       codes('whiteboard\nrouter at: 0 0, size: 48 48\nshapes network\n')

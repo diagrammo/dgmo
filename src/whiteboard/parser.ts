@@ -718,9 +718,13 @@ export function parseWhiteboard(
 
   if (!firstLineSeen) return fail(0, 'No content provided');
 
+  // One warning per set that is off, at its first glyph: a board of twenty
+  // routers needs one `shapes network` line, not twenty warnings saying so.
+  const warnedSets = new Set<string>();
   for (const use of glyphUses) {
     const set = glyphSetOf(use.name);
-    if (shapeSets.includes(set.id)) continue;
+    if (shapeSets.includes(set.id) || warnedSets.has(set.id)) continue;
+    warnedSets.add(set.id);
     // The quick fix names what to add, never where (DgmoFix).
     warn(
       use.line,

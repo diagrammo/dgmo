@@ -344,6 +344,11 @@ export type {
   InkDecodeResult,
 } from './whiteboard/ink-codec';
 
+// Whiteboard glyphs (#1924) — public so the app's canvas, rail and tool
+// cursor draw the very paths dgmo's renderer draws.
+export { GLYPH_VIEWBOX, GLYPH_STROKE, glyphPaths } from './glyphs/registry';
+export type { GlyphName } from './glyphs/registry';
+
 // ============================================================
 // SPIKE: hand-built D3 data-chart engine — interactive mount + adapter
 // (browser-runtime; lets hosts replace the ECharts live-preview path)

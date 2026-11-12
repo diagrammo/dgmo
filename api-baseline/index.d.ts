@@ -6,6 +6,7 @@ import { M as MapDataSource } from './export-context-DCBbrXaA.js';
 export { G as Gazetteer, a as GazetteerEntry, b as MapData, R as RegionName, c as RegionNames } from './export-context-DCBbrXaA.js';
 import { a as DiagnosticSpec, D as DgmoError } from './tag-groups-BUohVKID.js';
 export { b as DgmoFix, c as DgmoSeverity, d as DiagnosticParams, E as EmitOptions, e as emit, f as formatDgmoError } from './tag-groups-BUohVKID.js';
+export { a as GLYPH_STROKE, b as GLYPH_VIEWBOX, c as GlyphName, g as glyphPaths } from './registry-B4obA3gD.js';
 export { f as foldAtLine } from './fold-at-line-DmSAa1eU.js';
 
 /**
