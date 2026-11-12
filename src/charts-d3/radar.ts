@@ -6,6 +6,7 @@
 // injected by the dispatcher (charts-d3/index.ts). Single-series is unchanged.
 // ============================================================
 
+import type * as d3Selection from 'd3-selection';
 import type { ParsedChart } from '../chart';
 import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
@@ -15,6 +16,8 @@ import {
   truncateText,
   wrapTextToWidth,
 } from '../utils/text-measure';
+import { labelBox, placeLabels, type LabelSpot } from '../utils/place-labels';
+import type { LabelRect } from '../label-layout';
 import { type Svg, fmtNum, tagDatum } from './shared';
 
 const RINGS = 5;
@@ -31,6 +34,16 @@ const LABEL_GAP = 18;
 const LABEL_MARGIN = 8;
 const RADIUS_STEP = 4;
 const RADIUS_FLOOR = 0.5;
+
+// Vertex values (#1828): every series' values are placed together, clear of
+// each other, the axis names, the ring scale and every vertex dot. A value
+// tries past its dot along the spoke, then inside it, then beside, above and
+// below; one with no clear spot is dropped — smallest first — and keeps its
+// value on the vertex's hover.
+const VALUE_FONT = 12;
+const VALUE_GAP = 14;
+const VALUE_SIDE_GAP = 8;
+const VERTEX_R = 4;
 
 interface AxisLabel {
   lines: string[];
@@ -215,6 +228,65 @@ export function renderRadar(
     if (label.truncated) t.append('title').text(data[i]!.label);
   });
 
+  // The ring scale's numbers, laid out first so the vertex values clear them.
+  // Along the ray midway between spokes 0 and 1 (the ring edge's midpoint),
+  // so the numbers never sit under a vertex value label.
+  const ringLabels = Array.from({ length: RINGS }, (_, k) => {
+    const r = (radius * (k + 1)) / RINGS;
+    const mid = angle(0) + Math.PI / n;
+    const rm = r * Math.cos(Math.PI / n);
+    return {
+      x: cx + Math.cos(mid) * rm + 3,
+      y: cy + Math.sin(mid) * rm - 2,
+      text: fmtNum(Number(((maxValue * (k + 1)) / RINGS).toPrecision(2))),
+    };
+  });
+  // In a small view the rings sit closer than a number is tall: keep the
+  // outermost number and each one inward that clears the last kept.
+  const scaleLabels: typeof ringLabels = [];
+  let lastBox: LabelRect | null = null;
+  for (const l of [...ringLabels].reverse()) {
+    const box = labelBox(
+      l.text,
+      { x: l.x, y: l.y, anchor: 'start' },
+      SCALE_FONT
+    );
+    if (
+      lastBox &&
+      box.x < lastBox.x + lastBox.w &&
+      lastBox.x < box.x + box.w &&
+      box.y < lastBox.y + lastBox.h &&
+      lastBox.y < box.y + box.h
+    )
+      continue;
+    scaleLabels.unshift(l);
+    lastBox = box;
+  }
+  const reserved: LabelRect[] = [
+    ...labels.flatMap((label) =>
+      label.lines.map((line, j) =>
+        labelBox(
+          line,
+          { x: label.x, y: label.y + j * LABEL_LINE_H, anchor: label.anchor },
+          LABEL_FONT
+        )
+      )
+    ),
+    ...scaleLabels.map((l) =>
+      labelBox(l.text, { x: l.x, y: l.y, anchor: 'start' }, SCALE_FONT)
+    ),
+  ];
+  const values: {
+    g: d3Selection.Selection<SVGGElement, unknown, null, undefined>;
+    vtx: SVGCircleElement;
+    text: string;
+    v: number;
+    x: number;
+    y: number;
+    spots: LabelSpot[];
+    color: string;
+  }[] = [];
+
   // one polygon (+ point markers + value labels) per series
   for (let s = 0; s < seriesCount; s++) {
     const color = seriesColor(s);
@@ -255,7 +327,7 @@ export function renderRadar(
         .append('circle')
         .attr('cx', x)
         .attr('cy', y)
-        .attr('r', 4)
+        .attr('r', VERTEX_R)
         .attr('fill', color);
       tagDatum(vtx, {
         line: d.lineNumber,
@@ -265,40 +337,83 @@ export function renderRadar(
         color,
       });
       if (!chart.noValue) {
-        // Place the value label just past the dot, along the spoke away from
-        // center, so each number reads outward from its vertex.
-        const [lx, ly] = pt(i, (v / maxValue) * radius + 14);
+        const r = (v / maxValue) * radius;
         const c = Math.cos(angle(i));
-        const s = Math.sin(angle(i));
-        g.append('text')
-          .attr('x', lx)
-          .attr('y', ly + (s < -0.3 ? 0 : s > 0.3 ? 11 : 4))
-          .attr(
-            'text-anchor',
-            Math.abs(c) < 0.3 ? 'middle' : c > 0 ? 'start' : 'end'
-          )
-          .attr('fill', multi ? color : textColor)
-          .attr('font-size', 12)
-          .attr('font-family', FONT_FAMILY)
-          .text(fmtNum(v));
+        const sn = Math.sin(angle(i));
+        // Past the dot along the spoke, reading outward from its vertex.
+        const [ox, oy] = pt(i, r + VALUE_GAP);
+        // Inside the dot, reading inward: the anchor and baseline mirror.
+        const [ix, iy] = pt(i, Math.max(0, r - VALUE_GAP));
+        const vy = y + VALUE_FONT * 0.3;
+        values.push({
+          g,
+          vtx: vtx.node()!,
+          text: fmtNum(v),
+          v,
+          x,
+          y,
+          color: multi ? color : textColor,
+          spots: [
+            {
+              x: ox,
+              y: oy + (sn < -0.3 ? 0 : sn > 0.3 ? 11 : 4),
+              anchor: Math.abs(c) < 0.3 ? 'middle' : c > 0 ? 'start' : 'end',
+            },
+            {
+              x: ix,
+              y: iy + (sn < -0.3 ? 11 : sn > 0.3 ? 0 : 4),
+              anchor: Math.abs(c) < 0.3 ? 'middle' : c > 0 ? 'end' : 'start',
+            },
+            { x: x + VALUE_SIDE_GAP, y: vy, anchor: 'start' },
+            { x: x - VALUE_SIDE_GAP, y: vy, anchor: 'end' },
+            { x, y: y - VALUE_SIDE_GAP - 2, anchor: 'middle' },
+            {
+              x,
+              y: y + VALUE_SIDE_GAP + VALUE_FONT * 0.8,
+              anchor: 'middle',
+            },
+          ],
+        });
       }
     });
   }
 
+  const placed = placeLabels(
+    values.map((l) => ({
+      text: l.text,
+      priority: Math.abs(l.v),
+      spots: l.spots,
+    })),
+    {
+      fontSize: VALUE_FONT,
+      reserved,
+      markers: values.map((l) => ({ cx: l.x, cy: l.y, r: VERTEX_R + 1 })),
+      bounds: { left: 0, top: topInset, right: width, bottom: height },
+    }
+  );
+  values.forEach((l, k) => {
+    const spot = placed[k]!.spot;
+    if (!spot) return;
+    // Right after its own dot, so the drawing order is the one a vertex
+    // value has always had.
+    l.g
+      .insert('text', () => l.vtx.nextSibling as Element | null)
+      .attr('x', spot.x)
+      .attr('y', spot.y)
+      .attr('text-anchor', spot.anchor)
+      .attr('fill', l.color)
+      .attr('font-size', VALUE_FONT)
+      .attr('font-family', FONT_FAMILY)
+      .text(l.text);
+  });
+
   // scale labels: ring values along one ray, drawn over the series
-  for (let l = 1; l <= RINGS; l++) {
-    const r = (radius * l) / RINGS;
-    // Along the ray midway between spokes 0 and 1 (the ring edge's midpoint),
-    // so the numbers never sit under a vertex value label.
-    const mid = angle(0) + Math.PI / n;
-    const rm = r * Math.cos(Math.PI / n);
-    const sx = cx + Math.cos(mid) * rm;
-    const sy = cy + Math.sin(mid) * rm;
+  for (const l of scaleLabels) {
     svg
       .append('text')
       .attr('class', 'dgmo-radar-scale')
-      .attr('x', sx + 3)
-      .attr('y', sy - 2)
+      .attr('x', l.x)
+      .attr('y', l.y)
       .attr('text-anchor', 'start')
       .attr('fill', textColor)
       .attr('fill-opacity', 0.6)
@@ -308,6 +423,6 @@ export function renderRadar(
       .attr('stroke-width', 3)
       .attr('stroke-linejoin', 'round')
       .attr('paint-order', 'stroke')
-      .text(fmtNum(Number(((maxValue * l) / RINGS).toPrecision(2))));
+      .text(l.text);
   }
 }

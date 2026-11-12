@@ -48,11 +48,16 @@ export interface PlaceLabelsOptions {
   bounds?: { left: number; top: number; right: number; bottom: number };
 }
 
-/** Px trimmed from each side of a box before the hit test. */
+/**
+ * Px trimmed from the top and bottom of a box before the hit test. Only
+ * vertically: the box is a full em tall and digits are shorter, but its width
+ * is the text's advance, so a horizontal trim let a narrow value such as "3"
+ * sit 2px into its neighbour.
+ */
 const HIT_INSET = 1;
 
 function inset(r: LabelRect, d: number): LabelRect {
-  return { x: r.x + d, y: r.y + d, w: r.w - 2 * d, h: r.h - 2 * d };
+  return { x: r.x, y: r.y + d, w: r.w, h: r.h - 2 * d };
 }
 
 /** A label's box from its baseline anchor, `fontSize` tall. */
@@ -111,7 +116,7 @@ export function placeLabels(
       .map((spot) => ({ spot, box: labelBox(c.text, spot, opts.fontSize) }))
       .find(({ box }) => {
         // The box is a full em tall and digits are shorter, so two boxes
-        // meeting at a corner sliver are not a collision.
+        // meeting at a top or bottom sliver are not a collision.
         const core = inset(box, HIT_INSET);
         return (
           inside(box) &&

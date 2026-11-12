@@ -1,0 +1,12 @@
+radar Crew Skills by Watch
+// stress: extreme-values — two series a few tenths apart on every axis
+
+series
+  Larboard Watch blue
+  Starboard Watch green
+
+Gunnery    7.8 7.6
+Rigging    6.1 6.3
+Navigation 8.4 8.2
+Boarding   5.0 5.1
+Cooking    3.2 3.0
