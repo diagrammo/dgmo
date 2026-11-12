@@ -18,6 +18,11 @@ import {
   showTooltip,
 } from '../utils/d3-helpers';
 import type { ParsedSlope } from '../visualizations/types';
+import {
+  EMPHASIS_DIM_OPACITY,
+  EMPHASIS_DIM_TEXT_OPACITY,
+  resolveEmphasis,
+} from '../utils/emphasis';
 import type { PaletteColors } from '../palettes';
 
 // ============================================================
@@ -284,11 +289,22 @@ export function renderSlopeChart(
     innerHeight
   );
 
+  // §1.11 emphasis (#1829): `highlight` names series. Every other series —
+  // its line, points and labels — recedes; a receded series keeps its colour.
+  const { dimmed } = resolveEmphasis(
+    parsed.emphasis,
+    data.map((d) => d.label)
+  );
+  const shapeOpacity = (dim: boolean) => (dim ? EMPHASIS_DIM_OPACITY : null);
+  const textOpacity = (dim: boolean) =>
+    dim ? EMPHASIS_DIM_TEXT_OPACITY : null;
+
   // Render each data series
   data.forEach((item, idx) => {
     // seriesInfo was built by data.map() above, so idx is in-bounds.
     const si = seriesInfo[idx]!;
     const color = si.color;
+    const dim = dimmed.has(item.label);
 
     // Wrap each series in a group with data-line-number for sync adapter
     const seriesG = g
@@ -303,6 +319,7 @@ export function renderSlopeChart(
       .attr('fill', 'none')
       .attr('stroke', color)
       .attr('stroke-width', sLineStroke)
+      .attr('opacity', shapeOpacity(dim))
       .attr('d', lineGen);
 
     // Invisible wider path for easier hover targeting
@@ -340,6 +357,7 @@ export function renderSlopeChart(
         .attr('fill', color)
         .attr('stroke', bgColor)
         .attr('stroke-width', sPointStroke)
+        .attr('opacity', shapeOpacity(dim))
         .style('cursor', onClickItem ? 'pointer' : 'default')
         .on('mouseenter', (event: MouseEvent) =>
           showTooltip(tooltip, si.tipHtml, event)
@@ -365,7 +383,8 @@ export function renderSlopeChart(
             .attr('y', adjustedY)
             .attr('text-anchor', 'end')
             .attr('fill', color)
-            .attr('font-size', sLabelFontSize);
+            .attr('font-size', sLabelFontSize)
+            .attr('opacity', textOpacity(dim));
           if (!si.leftLines) {
             leftEl.attr('dy', '0.35em').text(si.leftText);
           } else {
@@ -391,6 +410,7 @@ export function renderSlopeChart(
             .attr('text-anchor', 'middle')
             .attr('fill', color)
             .attr('font-size', sValueFont)
+            .attr('opacity', textOpacity(dim))
             .text(val.toString());
         }
       }
@@ -407,7 +427,8 @@ export function renderSlopeChart(
       .attr('text-anchor', 'start')
       .attr('fill', color)
       .attr('font-size', sLabelFontSize)
-      .attr('font-weight', 'normal');
+      .attr('font-weight', 'normal')
+      .attr('opacity', textOpacity(dim));
 
     if (!si.wrappedLines) {
       labelEl.attr('dy', '0.35em').text(si.labelText);

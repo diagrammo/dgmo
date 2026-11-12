@@ -227,6 +227,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'x-label': { description: 'X-axis label' },
       'y-label': { description: 'Y-axis label' },
       'size-label': { description: 'Size axis label' },
+      highlight: {
+        description:
+          'Keep the named points or categories and recede the rest (highlight Nassau)',
+      },
     }),
   ],
   [
@@ -274,7 +278,15 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
 
   // ── Visualizations ───────────────────────────────────────
-  ['slope', withGlobals()],
+  [
+    'slope',
+    withGlobals({
+      highlight: {
+        description:
+          'Keep the named series and recede the rest (highlight Nassau)',
+      },
+    }),
+  ],
   [
     'wordcloud',
     withGlobals({
@@ -718,6 +730,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'no-value': { description: 'Hide value labels' },
       'no-percent': { description: 'Hide percentage labels' },
       'no-headers': { description: 'Hide parent header bars' },
+      highlight: {
+        description:
+          'Keep the named nodes and what they contain; recede the rest (highlight Rum)',
+      },
       'no-legend': { description: 'Hide the legend' },
       radial: {
         description:

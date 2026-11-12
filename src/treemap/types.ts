@@ -1,5 +1,6 @@
 import type { DgmoError } from '../diagnostics';
 import type { ChartFrame } from '../utils/chart-frame-parse';
+import type { EmphasisDirective } from '../utils/emphasis';
 import type { TagGroup } from '../utils/tag-groups';
 
 // ============================================================
@@ -56,6 +57,8 @@ export interface ParsedTreemap {
   readonly titleLineNumber: number | null;
   readonly roots: TreemapNode[];
   readonly tagGroups: TagGroup[];
+  /** §1.11 emphasis: `highlight <Name>[, <Name>…]` names nodes (#1829). */
+  readonly emphasis?: EmphasisDirective;
   /** True when any `heat:` value or a `heat` directive was declared. */
   readonly hasHeat: boolean;
   /** Raw `active-tag` directive value (§24C.6) — source-level pre-selection of

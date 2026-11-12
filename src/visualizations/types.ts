@@ -9,6 +9,7 @@
 
 import type { DgmoError } from '../diagnostics';
 import type { ChartFrame } from '../utils/chart-frame-parse';
+import type { EmphasisDirective } from '../utils/emphasis';
 import type {
   TimelineSort,
   TimelineEvent,
@@ -141,6 +142,8 @@ export interface ParsedSlope extends ParsedVizBase {
   type: 'slope';
   periods: string[];
   data: D3DataItem[];
+  /** §1.11 emphasis: `highlight <Name>[, <Name>…]` names series (#1829). */
+  emphasis?: EmphasisDirective;
   noName?: boolean;
   noValue?: boolean;
   noPercent?: boolean;
@@ -237,6 +240,8 @@ export interface ParsedVizFull extends ParsedVizBase {
   orientation: 'horizontal' | 'vertical';
   periods: string[];
   data: D3DataItem[];
+  /** §1.11 emphasis — read by slope only (#1829). */
+  emphasis?: EmphasisDirective;
   words: WordCloudWord[];
   cloudOptions: WordCloudOptions;
   links: ArcLink[];

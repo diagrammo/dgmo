@@ -21,6 +21,7 @@ import type { DgmoError } from '../diagnostics';
 import { TREEMAP_DX } from './diagnostics';
 import type { Writable } from '../utils/brand';
 import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import { parseEmphasisDirective } from '../utils/emphasis';
 import type { TagGroup } from '../utils/tag-groups';
 import {
   matchTagBlockHeading,
@@ -158,6 +159,19 @@ export function parseTreemap(
       currentTagGroup = null;
       indentStack.length = 0;
       continue;
+    }
+
+    // §1.11 emphasis (#1829): `highlight A, B` keeps the named nodes and
+    // everything inside them, and recedes the rest. Column 1 and lowercase,
+    // like the frame lines above, so a root named `Highlight Reel` stays data.
+    if (measureIndent(line) === 0 && /^highlight\s/.test(trimmed)) {
+      const directive = parseEmphasisDirective(trimmed, lineNumber);
+      if (directive) {
+        result.emphasis = directive;
+        currentTagGroup = null;
+        indentStack.length = 0;
+        continue;
+      }
     }
 
     // Tag group heading: `tag Team as t`

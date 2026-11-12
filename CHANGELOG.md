@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`highlight` on `scatter`, `slope` and `treemap` (#1829).** A scatter
+  takes a point or a category name, a slope a series, and a treemap a node:
+  naming a branch keeps everything inside it. The rest recedes at reduced
+  opacity and keeps its colour, as on `bar`, `line` and `pie`.
 - **`highlight` on `bar`, `line` and `pie` (#1829).** `highlight Nassau` (or
   a comma list) keeps the named categories, series or slices at full strength
   and recedes the rest at reduced opacity; a receded element keeps its colour.

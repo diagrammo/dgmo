@@ -45,7 +45,9 @@ import {
   resolveColorMode,
   type CellColorContext,
   mutedFill,
+  treemapRecedes,
 } from './treemap-shared';
+import { EMPHASIS_DIM_OPACITY } from '../utils/emphasis';
 
 const PADDING = 12;
 const HEADER_H = 18;
@@ -256,6 +258,7 @@ export function renderTreemap(
   };
 
   // ── Cells ──────────────────────────────────────────────────
+  const recedes = treemapRecedes(parsed);
   for (const cell of layout.cells) {
     const w = Math.max(0, cell.x1 - cell.x0);
     const h = Math.max(0, cell.y1 - cell.y0);
@@ -293,6 +296,9 @@ export function renderTreemap(
       const tagVal = cell.node.metadata[key];
       if (tagVal) g.attr(`data-tag-${tagAttrKey(key)}`, tagVal);
     }
+    // §1.11 emphasis (#1829): a receded cell keeps its paint and fades whole,
+    // label included — the family chart's card treatment.
+    if (recedes(cell)) g.attr('opacity', EMPHASIS_DIM_OPACITY);
 
     const rect = g
       .append('rect')

@@ -510,14 +510,18 @@ Havana 400
 | `bar`      | a category; on a `stack` or `group` bar, also a series | every other bar or segment and its value label                                     |
 | `line`     | a series                                               | every other series: its line, area, points and value labels                        |
 | `pie`      | a slice                                                | every other slice, its leader line and its label                                   |
+| `scatter`  | a point, or a category                                 | every other point, its label and its leader line                                   |
+| `slope`    | a series                                               | every other series: its line, points and labels                                    |
+| `treemap`  | a node; a branch keeps everything inside it            | every other cell with its label, including the branches that hold a named node     |
 | `sankey`   | a node                                                 | everything outside the node's upstream and downstream flow; `dim` is also accepted |
 | `family`   | a person                                               | everyone outside that person's bloodline (§13AA)                                   |
 
 - **A receded element keeps its colour.** It is drawn at reduced opacity, never repainted grey, so the brand colour survives and the output is the same in PNG and SVG exports.
-- **Several names take a comma** on `bar`, `line`, `pie` and `sankey`: `highlight Nassau, Havana`. Without a comma the whole argument is ONE name (`highlight Port Royal`).
-- On those four, matching ignores case and extra spaces. A name that matches nothing is ignored; when no name matches, nothing recedes.
-- On a stacked or grouped bar, a segment stays lit when its category OR its series is named.
-- The keyword is lowercase and starts the line. A category named `Highlight Reel` (capitalised) stays data.
+- **Several names take a comma** on every chart type above except `family`: `highlight Nassau, Havana`. Without a comma the whole argument is ONE name (`highlight Port Royal`).
+- On those, matching ignores case and extra spaces. A name that matches nothing is ignored; when no name matches, nothing recedes.
+- On a stacked or grouped bar, a segment stays lit when its category OR its series is named. On a `scatter`, a point stays lit when its name OR its category is named.
+- On a `treemap`, a block that `depth` collapses stays lit when a named node is inside it.
+- The keyword starts the line (on `slope` and `treemap`, in column 1). On `bar`, `line`, `pie`, `slope` and `treemap` it is lowercase, so a category named `Highlight Reel` (capitalised) stays data. On `scatter` and `sankey` it matches in any case, so a point or node cannot be named `Highlight …`.
 - `dim <Name>` (recede only the named elements) exists on `sankey` alone. Other chart types do not take `highlight` yet.
 
 ---

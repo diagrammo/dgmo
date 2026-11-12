@@ -28,6 +28,11 @@ import {
   drawYAxisTitle,
   tagDatum,
 } from './shared';
+import {
+  EMPHASIS_DIM_OPACITY,
+  EMPHASIS_DIM_TEXT_OPACITY,
+  resolveEmphasis,
+} from '../utils/emphasis';
 
 const FILL_OPACITY = 0.65;
 const DEFAULT_SIZE = 15; // diameter
@@ -163,6 +168,17 @@ export function renderScatter(
   const catColor = (cat: string, i: number) =>
     chart.categoryColors?.[cat] ?? colors[i % colors.length]!;
   const catIndex = new Map(categories.map((c, i) => [c, i]));
+
+  // §1.11 emphasis (#1829): `highlight` names points or categories. A point
+  // stays at full strength when its name or its category is named; every
+  // other point, its label and its leader line recede. Only `highlight` is
+  // adopted here — the shared parser also reads `dim`, which scatter ignores.
+  const { dimmed } = resolveEmphasis(
+    chart.emphasis?.kind === 'highlight' ? chart.emphasis : undefined,
+    [...points.map((p) => p.name), ...categories]
+  );
+  const recedes = (p: (typeof points)[number]) =>
+    dimmed.has(p.name) && (!p.category || dimmed.has(p.category));
 
   const xs = points.map((p) => p.x);
   const ys = points.map((p) => p.y);
@@ -327,6 +343,9 @@ export function renderScatter(
       .attr('fill-opacity', FILL_OPACITY)
       .attr('stroke', stroke)
       .attr('stroke-width', 2);
+    const dim = recedes(p);
+    // A receded point keeps its paint: the dim is a baked opacity (§1.11).
+    if (dim) dot.attr('opacity', EMPHASIS_DIM_OPACITY);
     tagDatum(dot, {
       line: p.lineNumber,
       key: p.name,
@@ -388,7 +407,7 @@ export function renderScatter(
           .attr('y2', placed.connectorLine.y2)
           .attr('stroke', stroke)
           .attr('stroke-width', 1)
-          .attr('opacity', 0.5);
+          .attr('opacity', dim ? 0.5 * EMPHASIS_DIM_OPACITY : 0.5);
       }
       svg
         .append('text')
@@ -401,6 +420,7 @@ export function renderScatter(
         .attr('fill', stroke)
         .attr('font-size', LABEL_FONT)
         .attr('font-family', FONT_FAMILY)
+        .attr('opacity', dim ? EMPHASIS_DIM_TEXT_OPACITY : null)
         .text(p.name);
     }
   });

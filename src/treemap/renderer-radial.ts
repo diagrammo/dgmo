@@ -45,7 +45,9 @@ import {
   resolveColorMode,
   type CellColorContext,
   mutedFill,
+  treemapRecedes,
 } from './treemap-shared';
+import { EMPHASIS_DIM_OPACITY } from '../utils/emphasis';
 
 const PADDING = 12;
 
@@ -192,6 +194,7 @@ export function renderTreemapRadial(
   // ── Arcs ───────────────────────────────────────────────────
   let labelSeq = 0;
   if (!layout.isEmpty) {
+    const recedes = treemapRecedes(parsed);
     for (const cell of layout.cells) {
       const fill = resolveCellColor(cell, colorCtx);
       const g = plot
@@ -209,6 +212,8 @@ export function renderTreemapRadial(
         const tagVal = cell.node.metadata[key];
         if (tagVal) g.attr(`data-tag-${tagAttrKey(key)}`, tagVal);
       }
+      // §1.11 emphasis (#1829): a receded arc keeps its paint and fades whole.
+      if (recedes(cell)) g.attr('opacity', EMPHASIS_DIM_OPACITY);
 
       g.append('path')
         .attr(

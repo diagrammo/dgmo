@@ -124,6 +124,23 @@ interface D3ExportDimensions {
     preferContain?: boolean;
 }
 
+/** A parsed emphasis directive: which dual, and the names it lists. */
+interface EmphasisDirective {
+    readonly kind: 'highlight' | 'dim';
+    readonly names: readonly string[];
+    /**
+     * True when the author used no comma, so `names` is a *guess* — `dim Ship
+     * Provisions` is one two-word element far more often than two one-word ones.
+     * Resolution tries the whole phrase first and only falls back to these
+     * tokens, which means a comma is never required for the common single-name
+     * case but always disambiguates when an author wants several.
+     */
+    readonly ambiguous: boolean;
+    /** The directive's argument text, verbatim — the whole-phrase candidate. */
+    readonly raw: string;
+    readonly lineNumber: number;
+}
+
 type TimelineSort = 'time' | 'group' | 'tag';
 interface TimelineEvent {
     date: string;
@@ -239,6 +256,8 @@ interface ParsedSlope extends ParsedVizBase {
     type: 'slope';
     periods: string[];
     data: D3DataItem[];
+    /** §1.11 emphasis: `highlight <Name>[, <Name>…]` names series (#1829). */
+    emphasis?: EmphasisDirective;
     noName?: boolean;
     noValue?: boolean;
     noPercent?: boolean;
@@ -465,23 +484,6 @@ declare function render(source: string, options?: {
      *  failed. Embed callers use it to pick the default embed background. */
     chartType: string | undefined;
 }>;
-
-/** A parsed emphasis directive: which dual, and the names it lists. */
-interface EmphasisDirective {
-    readonly kind: 'highlight' | 'dim';
-    readonly names: readonly string[];
-    /**
-     * True when the author used no comma, so `names` is a *guess* — `dim Ship
-     * Provisions` is one two-word element far more often than two one-word ones.
-     * Resolution tries the whole phrase first and only falls back to these
-     * tokens, which means a comma is never required for the common single-name
-     * case but always disambiguates when an author wants several.
-     */
-    readonly ambiguous: boolean;
-    /** The directive's argument text, verbatim — the whole-phrase candidate. */
-    readonly raw: string;
-    readonly lineNumber: number;
-}
 
 type ChartType$1 = 'bar' | 'line' | 'pie' | 'polar-area' | 'radar';
 interface ChartDataPoint {
@@ -6199,6 +6201,8 @@ interface ParsedTreemap {
     readonly titleLineNumber: number | null;
     readonly roots: TreemapNode[];
     readonly tagGroups: TagGroup[];
+    /** §1.11 emphasis: `highlight <Name>[, <Name>…]` names nodes (#1829). */
+    readonly emphasis?: EmphasisDirective;
     /** True when any `heat:` value or a `heat` directive was declared. */
     readonly hasHeat: boolean;
     /** Raw `active-tag` directive value (§24C.6) — source-level pre-selection of

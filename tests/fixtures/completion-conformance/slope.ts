@@ -7,6 +7,7 @@ export const fixture: ConformanceFixture = {
   chartType: 'slope',
   specSection: '17',
   firstLineKeyword: 'slope',
-  directives: [...FRAME_DIRECTIVES],
+  // §1.11 emphasis, adopted on slope by #1829.
+  directives: [...FRAME_DIRECTIVES, 'highlight'],
   pipeKeys: {},
 };

@@ -17,6 +17,8 @@ export const fixture: ConformanceFixture = {
     'fill-tint',
     'fill-solid',
     'fill-outline',
+    // §1.11 emphasis, adopted on scatter by #1829.
+    'highlight',
   ],
   pipeKeys: {},
 };

@@ -16,6 +16,7 @@ import type { TagGroup } from '../utils/tag-groups';
 import type { LegendGroupData } from '../utils/legend-types';
 import type { PaletteColors } from '../palettes';
 import type { ParsedTreemap, TreemapColorMode, TreemapNode } from './types';
+import { resolveEmphasis } from '../utils/emphasis';
 
 /**
  * Fill for cells with no resolvable colour (missing heat / tag / node).
@@ -266,6 +267,37 @@ export interface TreemapLegend {
   activeGroup: string | null;
   /** Legend group name → the color mode it selects (for the click callback). */
   modeByName: Map<string, TreemapColorMode>;
+}
+
+/**
+ * §1.11 emphasis (#1829): which cells recede under `highlight`. A cell stays
+ * lit when its path (its ancestors and itself) holds a named node, so naming a
+ * branch keeps everything inside it; a collapsed block (`depth`) also stays
+ * lit when a named node is hidden inside it. Everything else recedes — the
+ * ancestors of a named leaf too, because a full-strength container behind
+ * translucent siblings would read as colour, not as ground. A name that
+ * matches nothing dims nothing. Returns a predicate over a cell.
+ */
+export function treemapRecedes(
+  parsed: ParsedTreemap
+): (cell: {
+  readonly path: readonly string[];
+  readonly node?: TreemapNode | null;
+  readonly isCollapsed: boolean;
+}) => boolean {
+  const names: string[] = [];
+  const walk = (n: TreemapNode): void => {
+    names.push(n.label);
+    n.children.forEach(walk);
+  };
+  parsed.roots.forEach(walk);
+  const { dimmed } = resolveEmphasis(parsed.emphasis, names);
+  if (dimmed.size === 0) return () => false;
+  const hidesHit = (n: TreemapNode): boolean =>
+    n.children.some((c) => !dimmed.has(c.label) || hidesHit(c));
+  return (cell) =>
+    cell.path.every((label) => dimmed.has(label)) &&
+    !(cell.isCollapsed && cell.node && hidesHit(cell.node));
 }
 
 /**

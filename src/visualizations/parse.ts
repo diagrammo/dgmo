@@ -43,6 +43,7 @@ import {
 import type { TagGroup } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
 import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import { parseEmphasisDirective } from '../utils/emphasis';
 import { parseTimelineEventLine, type DatePrefixCtx } from '../timeline/parser';
 import {
   parseDateToken,
@@ -282,6 +283,18 @@ function parseVisualizationFull(
       inTimelineMarkerBlock = false;
       inSlopePeriodBlock = false;
       continue;
+    }
+
+    // §1.11 emphasis (#1829): `highlight A, B` on slope keeps the named series
+    // and recedes the rest. Column 1, lowercase, like the frame lines above, so
+    // a series named `Highlight Reel` stays data. `dim` is not adopted here.
+    if (result.type === 'slope' && indent === 0 && /^highlight\s/.test(line)) {
+      const directive = parseEmphasisDirective(line, lineNumber);
+      if (directive) {
+        result.emphasis = directive;
+        inSlopePeriodBlock = false;
+        continue;
+      }
     }
 
     // Timeline tag group heading: `tag Name [alias X]`
