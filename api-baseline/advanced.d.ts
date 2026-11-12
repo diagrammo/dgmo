@@ -466,6 +466,23 @@ declare function render(source: string, options?: {
     chartType: string | undefined;
 }>;
 
+/** A parsed emphasis directive: which dual, and the names it lists. */
+interface EmphasisDirective {
+    readonly kind: 'highlight' | 'dim';
+    readonly names: readonly string[];
+    /**
+     * True when the author used no comma, so `names` is a *guess* — `dim Ship
+     * Provisions` is one two-word element far more often than two one-word ones.
+     * Resolution tries the whole phrase first and only falls back to these
+     * tokens, which means a comma is never required for the common single-name
+     * case but always disambiguates when an author wants several.
+     */
+    readonly ambiguous: boolean;
+    /** The directive's argument text, verbatim — the whole-phrase candidate. */
+    readonly raw: string;
+    readonly lineNumber: number;
+}
+
 type ChartType$1 = 'bar' | 'line' | 'pie' | 'polar-area' | 'radar';
 interface ChartDataPoint {
     label: string;
@@ -547,6 +564,10 @@ interface ParsedChart {
      *  baseline at 0 (magnitude honesty / old ECharts-parity behavior). By
      *  default a line chart fits a padded data-min→max window (§15.1). */
     noAutoY?: boolean;
+    /** §1.11 emphasis: `highlight <Name>[, <Name>…]` on bar, line and pie
+     *  (#1829). Last one wins. Resolved against the categories, series or
+     *  slices at render time via `resolveEmphasis`. */
+    emphasis?: EmphasisDirective;
     data: ChartDataPoint[];
     eras?: ChartEra[];
     diagnostics: DgmoError[];
@@ -853,23 +874,6 @@ interface LegendHandle {
     getLayout: () => LegendLayout;
 }
 type D3Sel = Selection<any, unknown, any, unknown>;
-
-/** A parsed emphasis directive: which dual, and the names it lists. */
-interface EmphasisDirective {
-    readonly kind: 'highlight' | 'dim';
-    readonly names: readonly string[];
-    /**
-     * True when the author used no comma, so `names` is a *guess* — `dim Ship
-     * Provisions` is one two-word element far more often than two one-word ones.
-     * Resolution tries the whole phrase first and only falls back to these
-     * tokens, which means a comma is never required for the common single-name
-     * case but always disambiguates when an author wants several.
-     */
-    readonly ambiguous: boolean;
-    /** The directive's argument text, verbatim — the whole-phrase candidate. */
-    readonly raw: string;
-    readonly lineNumber: number;
-}
 
 type ExtendedChartType = 'sankey' | 'chord' | 'function' | 'scatter' | 'heatmap' | 'funnel';
 interface ExtendedChartDataPoint {
