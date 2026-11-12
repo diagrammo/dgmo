@@ -323,144 +323,31 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
     expect(
       render('map\nno-coastline').querySelector('.dgmo-map-water-lines')
     ).toBeNull();
-    expect(
-      render('map\nno-coastline').querySelector(
-        'mask[id^="dgmo-map-water-mask__m"]'
-      )
-    ).toBeNull();
   });
 
-  it('`coastline` → masked water-lines group with stroked region paths (AC1)', () => {
+  it('`coastline` → unmasked water-lines group, one thin stroked ring per line (AC1, #1770)', () => {
     const svg = render('map');
-    const group = svg.querySelector('.dgmo-map-water-lines');
+    const group = svg.querySelector('.dgmo-map-water-lines')!;
     expect(group).toBeTruthy();
-    // Masked to the water side (NOT a clipPath — a mask can subtract land).
-    expect(group!.getAttribute('mask')).toMatch(
-      /^url\(#dgmo-map-water-mask__m\d+\)$/
-    );
-    // 2 lines × (colour + water overdraw) passes → multiple stroked paths.
-    expect(group!.getAttribute('fill')).toBe('none'); // rings stroked, not filled
-    const paths = group!.querySelectorAll('path');
-    expect(paths.length).toBeGreaterThan(0);
-    expect(paths[0]!.getAttribute('stroke-linejoin')).toBe('round');
-  });
-
-  it('water mask = white canvas − black land + userSpaceOnUse (AC2)', () => {
-    const svg = render('map');
-    const mask = svg.querySelector('mask[id^="dgmo-map-water-mask__m"]')!;
-    expect(mask).toBeTruthy();
-    // userSpaceOnUse so the reveal reaches the canvas edges (round-2 #2).
-    expect(mask.getAttribute('maskUnits')).toBe('userSpaceOnUse');
-    // White reveal rect + ≥1 black land path (land + its borders self-remove).
-    const whites = [...mask.querySelectorAll('rect, path')].filter(
-      (n) => n.getAttribute('fill') === 'white'
-    );
-    const blacks = [...mask.querySelectorAll('rect, path')].filter(
-      (n) => n.getAttribute('fill') === 'black'
-    );
-    expect(whites.length).toBeGreaterThan(0);
-    expect(blacks.length).toBeGreaterThan(0);
-    // A land region's geometry appears (black) in the mask, so any band along
-    // its land/land border falls on hidden land (AC2). Land fills are merged
-    // into one compound black path for perf, so the region's `d` is a SUBSTRING
-    // of that path rather than a standalone element.
-    const usD = svg
-      .querySelector<SVGPathElement>('.dgmo-map-regions path')!
-      .getAttribute('d')!;
-    const blackDs = blacks.map((p) => p.getAttribute('d') ?? '');
-    expect(blackDs.some((d) => d.includes(usD))).toBe(true);
+    // Rings are traced on the water side in layout — no mask, no erase pass.
+    expect(group.getAttribute('mask')).toBeNull();
+    expect(svg.querySelector('mask[id^="dgmo-map-water-mask__m"]')).toBeNull();
+    expect(group.querySelector('use')).toBeNull();
+    expect(group.getAttribute('fill')).toBe('none');
+    // This fixture's boxes wind as whole-canvas land, so no water is left to
+    // ring; real-geometry ring counts are pinned in map-layout.test.ts.
+    const paths = [...group.querySelectorAll('path')];
+    expect(paths.length).toBeLessThanOrEqual(5);
+    for (const p of paths) {
+      expect(p.getAttribute('d')).toMatch(/^M/);
+      expect(p.getAttribute('stroke-linejoin')).toBe('round');
+    }
   });
 
   it('water-lines are decorative — no data attributes (AC1)', () => {
     const group = render('map').querySelector('.dgmo-map-water-lines')!;
     expect(group.querySelector('[data-line-number]')).toBeNull();
     expect(group.querySelector('[data-region]')).toBeNull();
-  });
-
-  it('outer band is the widest stroke + each colour band exceeds its overdraw → a ring survives (AC1)', () => {
-    const group = render('map').querySelector('.dgmo-map-water-lines')!;
-    // Bands are `<use>` refs to a single shared coast path (dedup); the coast
-    // restrokes that follow are plain `<path>` — so query the uses to isolate the
-    // colour/overdraw bands.
-    const paths = [...group.querySelectorAll('use')];
-    // Colour bands carry stroke-opacity; flat-water overdraws do not.
-    const colour = paths.filter((p) => p.getAttribute('stroke-opacity'));
-    const water = paths.filter((p) => !p.getAttribute('stroke-opacity'));
-    expect(colour.length).toBeGreaterThan(0);
-    expect(water.length).toBeGreaterThan(0);
-    const cw = colour.map((p) => Number(p.getAttribute('stroke-width')));
-    const ww = water.map((p) => Number(p.getAttribute('stroke-width')));
-    const all = paths.map((p) => Number(p.getAttribute('stroke-width')));
-    // One distinct colour-band width per ring: 2·(d_k+t), d_k stepping outward.
-    expect(new Set(cw).size).toBe(5);
-    // The widest stroke overall is a colour band (the outer line) — NOT a water
-    // overdraw — so the outer ring is never fully eroded.
-    expect(Math.max(...cw)).toBe(Math.max(...all));
-    expect(Math.max(...cw)).toBeGreaterThan(Math.max(...ww));
-  });
-
-  it('water mask is a single white reveal rect with NO frame band — rings carry to every edge (AC2b)', () => {
-    const mask = render('map').querySelector(
-      'mask[id^="dgmo-map-water-mask__m"]'
-    )!;
-    const rects = [...mask.querySelectorAll('rect')];
-    // Exactly one white full-canvas reveal rect; no black frame-band rects (the
-    // mask's black land paths already hide any synthetic frame-cut edge).
-    expect(
-      rects.filter((r) => r.getAttribute('fill') === 'white')
-    ).toHaveLength(1);
-    expect(
-      rects.filter((r) => r.getAttribute('fill') === 'black')
-    ).toHaveLength(0);
-  });
-
-  it('re-strokes coast outlines inside the masked group so coastlines stay crisp (not faded by the erosion overdraw)', () => {
-    const group = render('map').querySelector('.dgmo-map-water-lines')!;
-    // The restroke pass appends one plain region outline per region (stroke, no
-    // stroke-opacity, width 0.5) on TOP of the ring passes.
-    const restrokes = [...group.querySelectorAll('path')].filter(
-      (p) =>
-        !p.getAttribute('stroke-opacity') &&
-        p.getAttribute('stroke-width') === '0.5'
-    );
-    expect(restrokes.length).toBeGreaterThan(0);
-  });
-
-  it('lakes are re-revealed as water in the mask (white path), land stays black (AC5)', () => {
-    const data: MapData = {
-      ...DATA,
-      lakes: rectTopo('lakes', [
-        { id: 'lake-0', name: 'Big Lake', box: [-100, 38, -95, 43] },
-      ]),
-    };
-    const el = document.createElement('div');
-    renderMap(
-      el,
-      resolveMap(parseMap('map'), data),
-      data,
-      P,
-      false,
-      undefined,
-      DIMS
-    );
-    const mask = el.querySelector('mask[id^="dgmo-map-water-mask__m"]')!;
-    const whitePaths = [...mask.querySelectorAll('path')].filter(
-      (p) => p.getAttribute('fill') === 'white'
-    );
-    const blackPaths = [...mask.querySelectorAll('path')].filter(
-      (p) => p.getAttribute('fill') === 'black'
-    );
-    expect(whitePaths.length).toBeGreaterThan(0); // lake interior re-revealed
-    expect(blackPaths.length).toBeGreaterThan(0); // land hidden
-    // Control: no lakes → no white PATHS (only the white reveal rect).
-    const noLake = render('map').querySelector(
-      'mask[id^="dgmo-map-water-mask__m"]'
-    )!;
-    expect(
-      [...noLake.querySelectorAll('path')].filter(
-        (p) => p.getAttribute('fill') === 'white'
-      )
-    ).toHaveLength(0);
   });
 
   it('categorical group + score ramp both render in the top legend (AC24)', () => {

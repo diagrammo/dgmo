@@ -1492,9 +1492,44 @@ describe('layout — coastline water-lines style (AC2, AC8)', () => {
     const src = 'map';
     expect(JSON.stringify(lay(src))).toBe(JSON.stringify(lay(src)));
   });
-  it('holds the load-bearing invariant d_k + thickness < d_(k+1) for every ring (a ring never reaches the next out)', () => {
-    // The renderer draws outer→inner and erodes each band to radius d_k; if a
-    // ring's d_k+thickness reached d_(k+1) the inner overdraw would erase it.
+  it('traces every ring on real geometry, with a far smaller path than the coast it follows (#1770)', async () => {
+    const { loadMapData } = await import('../src/map/load-data');
+    const data = await loadMapData();
+    const r = layoutMap(
+      resolveMap(parseMap('map\npoi Tokyo\npoi Osaka'), data),
+      data,
+      { width: 800, height: 600 },
+      { palette: P, isDark: false }
+    );
+    const lines = r.coastlineStyle!.lines;
+    expect(lines).toHaveLength(5);
+    for (const l of lines) expect(l.path).toMatch(/^M\d/);
+    expect(lines.every((l) => l.insetPath === '')).toBe(true);
+  });
+  it('albers-usa: the AK/HI insets carry their own rings (#1770)', async () => {
+    const { loadMapData } = await import('../src/map/load-data');
+    const data = await loadMapData();
+    const r = layoutMap(
+      resolveMap(
+        parseMap('map\nCalifornia heat: 50\nMaine heat: 20\nAlaska heat: 10'),
+        data
+      ),
+      data,
+      { width: 960, height: 600 },
+      { palette: P, isDark: false }
+    );
+    expect(r.insets.length).toBeGreaterThan(0);
+    const lines = r.coastlineStyle!.lines;
+    expect(lines[0]!.insetPath).toMatch(/^M\d/);
+    // Inset rings stay inside their boxes.
+    const inBox = (x: number, y: number) =>
+      r.insets.some(
+        (b) => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h
+      );
+    for (const m of lines[0]!.insetPath.matchAll(/([\d.]+),([\d.]+)/g))
+      expect(inBox(Number(m[1]), Number(m[2]))).toBe(true);
+  });
+  it('holds the invariant d_k + thickness < d_(k+1) for every ring (rings never touch)', () => {
     const lines = lay('map').coastlineStyle!.lines;
     for (let k = 1; k < lines.length; k++)
       expect(lines[k - 1]!.d + lines[k - 1]!.thickness).toBeLessThan(

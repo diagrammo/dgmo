@@ -6821,20 +6821,25 @@ interface MapLayoutReliefHatch {
     readonly width: number;
 }
 /** Style object for the opt-in coastline water-lines (`coastline`, §24B.2).
- *  `null` when the flag is off. Carries only STYLE — no geometry; the renderer
- *  buffers the existing region paths (`layout.regions[].d`) and masks them to the
- *  water side. `d`/`thickness` are absolute SCREEN px (already resolved from a
+ *  `null` when the flag is off. Each line carries its traced ring geometry
+ *  (`path`), so the renderer only strokes it — no buffering, no mask.
+ *  `d`/`thickness` are absolute SCREEN px (already resolved from a
  *  fraction of the fitted canvas, so they stay proportional across export sizes —
  *  ADR-3). */
 interface MapLayoutCoastlineStyle {
     /** Water-toned line colour (a touch more contrast than `lakeStroke`). */
     readonly color: string;
-    /** The 2 coast-parallel lines, inner→outer. `d` = offshore distance,
-     *  `thickness` = ring width (both screen px), `opacity` fades seaward. */
+    /** The coast-parallel lines, inner→outer. `d` = offshore distance of the
+     *  ring's inner edge, `thickness` = ring width (both screen px), `opacity`
+     *  fades seaward. `path` is the ring itself — the offset iso-line at
+     *  `d + thickness/2`, traced once here (`coast-rings.ts`) and stroked
+     *  `thickness` wide; `insetPath` the same inside the AK/HI boxes (#1770). */
     readonly lines: ReadonlyArray<{
         readonly d: number;
         readonly thickness: number;
         readonly opacity: number;
+        readonly path: string;
+        readonly insetPath: string;
     }>;
     /** Per-subpath bbox-extent floor (screen px): rings smaller than this are
      *  dropped (de-noise tiny islands, bound the stroke cost — R5/R11). */
@@ -6855,9 +6860,8 @@ interface MapLayout {
     readonly relief: readonly MapLayoutRelief[];
     /** Hachure style for the relief lines (null = relief off / none survived). */
     readonly reliefHatch: MapLayoutReliefHatch | null;
-    /** Style for the opt-in coastline water-lines (null = `coastline` off). The
-     *  renderer buffers `regions[]`/`insetRegions[]` paths against this style and
-     *  masks them to the water side. */
+    /** Style + traced rings for the opt-in coastline water-lines (null =
+     *  `coastline` off). */
     readonly coastlineStyle: MapLayoutCoastlineStyle | null;
     readonly legs: readonly MapLayoutLeg[];
     readonly pois: readonly MapLayoutPoi[];

@@ -73,6 +73,7 @@ import type { MapProjectionParams, MapProjectionSpec } from './projection';
 import { createLabelMetrics, FONT, VALUE_GAP } from './label-metrics';
 import { FIT_PAD, WORLD_LABEL_ANCHORS } from './layout-constants';
 import { placeRegionLabels } from './region-labels';
+import { coastOuterRings, coastSources, traceCoastRings } from './coast-rings';
 
 // Minimal GeoJSON shapes (avoid a hard @types/geojson dep; cast at d3 calls).
 export interface GeoFeature {
@@ -541,20 +542,25 @@ export interface MapLayoutReliefHatch {
 }
 
 /** Style object for the opt-in coastline water-lines (`coastline`, §24B.2).
- *  `null` when the flag is off. Carries only STYLE — no geometry; the renderer
- *  buffers the existing region paths (`layout.regions[].d`) and masks them to the
- *  water side. `d`/`thickness` are absolute SCREEN px (already resolved from a
+ *  `null` when the flag is off. Each line carries its traced ring geometry
+ *  (`path`), so the renderer only strokes it — no buffering, no mask.
+ *  `d`/`thickness` are absolute SCREEN px (already resolved from a
  *  fraction of the fitted canvas, so they stay proportional across export sizes —
  *  ADR-3). */
 export interface MapLayoutCoastlineStyle {
   /** Water-toned line colour (a touch more contrast than `lakeStroke`). */
   readonly color: string;
-  /** The 2 coast-parallel lines, inner→outer. `d` = offshore distance,
-   *  `thickness` = ring width (both screen px), `opacity` fades seaward. */
+  /** The coast-parallel lines, inner→outer. `d` = offshore distance of the
+   *  ring's inner edge, `thickness` = ring width (both screen px), `opacity`
+   *  fades seaward. `path` is the ring itself — the offset iso-line at
+   *  `d + thickness/2`, traced once here (`coast-rings.ts`) and stroked
+   *  `thickness` wide; `insetPath` the same inside the AK/HI boxes (#1770). */
   readonly lines: ReadonlyArray<{
     readonly d: number;
     readonly thickness: number;
     readonly opacity: number;
+    readonly path: string;
+    readonly insetPath: string;
   }>;
   /** Per-subpath bbox-extent floor (screen px): rings smaller than this are
    *  dropped (de-noise tiny islands, bound the stroke cost — R5/R11). */
@@ -576,9 +582,8 @@ export interface MapLayout {
   readonly relief: readonly MapLayoutRelief[];
   /** Hachure style for the relief lines (null = relief off / none survived). */
   readonly reliefHatch: MapLayoutReliefHatch | null;
-  /** Style for the opt-in coastline water-lines (null = `coastline` off). The
-   *  renderer buffers `regions[]`/`insetRegions[]` paths against this style and
-   *  masks them to the water side. */
+  /** Style + traced rings for the opt-in coastline water-lines (null =
+   *  `coastline` off). */
   readonly coastlineStyle: MapLayoutCoastlineStyle | null;
   readonly legs: readonly MapLayoutLeg[];
   readonly pois: readonly MapLayoutPoi[];
@@ -1244,6 +1249,96 @@ function dropAntimeridianWrapSlivers(
       (r) => r.map((p, i) => (i ? 'L' : 'M') + p[0] + ',' + p[1]).join('') + 'Z'
     )
     .join('');
+}
+
+// Grid spacing for the coast-ring field: a fixed fraction of the canvas' short
+// side (rings are fractions of it too, ADR-3), coarsened only if the sample count
+// would pass COAST_FIELD_MAX_SAMPLES on a very wide or very large canvas.
+const COAST_FIELD_CELL = 0.002; // frac of min(w,h)
+const COAST_FIELD_MAX_SAMPLES = 4_000_000;
+
+type CoastPt = readonly [number, number];
+type CoastStyleDraft = Omit<MapLayoutCoastlineStyle, 'lines'> & {
+  lines: Array<{ d: number; thickness: number; opacity: number }>;
+};
+
+/** Trace every coastline ring once, here in layout (the app runs layout in a
+ *  worker), as real offset iso-lines (`coast-rings.ts`, #1770). Semantics match
+ *  the old buffered-stroke + mask drawing: sources are every region's outer
+ *  rings (lakes included, so lake shores ring inward), land is non-lake fill,
+ *  lakes are water, and the AK/HI boxes keep a moat of `reach` around them. */
+function withCoastRings(
+  style: CoastStyleDraft,
+  regions: readonly MapLayoutRegion[],
+  insets: readonly MapLayoutInset[],
+  insetRegions: readonly MapLayoutRegion[],
+  width: number,
+  height: number
+): MapLayoutCoastlineStyle {
+  const minDim = Math.min(width, height);
+  const cell = Math.max(
+    COAST_FIELD_CELL * minDim,
+    Math.sqrt((width * height) / COAST_FIELD_MAX_SAMPLES)
+  );
+  const levels = style.lines.map((l) => l.d + l.thickness / 2);
+  const reach = Math.max(0, ...style.lines.map((l) => l.d + l.thickness));
+  const ringsOf = (r: MapLayoutRegion): ReadonlyArray<ReadonlyArray<CoastPt>> =>
+    r.rings ?? parsePathRings(r.d);
+  const fields = (rs: readonly MapLayoutRegion[]) => {
+    const all = rs.map(ringsOf);
+    const landOuter = coastOuterRings(
+      rs.filter((r) => r.id !== 'lake').map(ringsOf),
+      style.minExtent
+    );
+    return {
+      all,
+      land: landOuter.map((ring) => [ring]),
+      water: rs.filter((r) => r.id === 'lake').map(ringsOf),
+    };
+  };
+  const main = fields(regions);
+  const mainPaths = traceCoastRings({
+    bounds: [0, 0, width, height],
+    sources: coastSources(coastOuterRings(main.all, style.minExtent), {
+      w: width,
+      h: height,
+    }),
+    land: main.land,
+    water: main.water,
+    masked: [],
+    ...(insets.length && {
+      maskInside: { quads: insets.map((b) => ({ points: b.points })), reach },
+    }),
+    levels,
+    cell,
+  });
+  const insetPaths = levels.map(() => [] as string[]);
+  if (insets.length && insetRegions.length) {
+    const ins = fields(insetRegions);
+    const sources = coastSources(coastOuterRings(ins.all, style.minExtent));
+    for (const box of insets) {
+      const traced = traceCoastRings({
+        bounds: [box.x, box.y, box.x + box.w, box.y + box.h],
+        sources,
+        land: ins.land,
+        water: ins.water,
+        // Neighbour land (Canada beside Alaska) is not coast: rings stop at it.
+        masked: box.contextLand ? [parsePathRings(box.contextLand.d)] : [],
+        keepInside: { quad: { points: box.points }, reach },
+        levels,
+        cell,
+      });
+      traced.forEach((d, k) => d && insetPaths[k]!.push(d));
+    }
+  }
+  return {
+    ...style,
+    lines: style.lines.map((l, k) => ({
+      ...l,
+      path: mainPaths[k]!,
+      insetPath: insetPaths[k]!.join(''),
+    })),
+  };
 }
 
 /** True when an `albers-usa` map should fall back to a geographic conic for this
@@ -2570,7 +2665,11 @@ export function layoutMap(
   // constant fraction of the canvas at any export size — ADR-3). Differs from
   // relief: a touch more contrast than `lakeStroke` so the offshore lines read as
   // distinct from the coast stroke (R10/F14).
-  let coastlineStyle: MapLayoutCoastlineStyle | null = null;
+  let coastlineStyle:
+    | (Omit<MapLayoutCoastlineStyle, 'lines'> & {
+        lines: Array<{ d: number; thickness: number; opacity: number }>;
+      })
+    | null = null;
   if (resolved.directives.noCoastline !== true) {
     const minDim = Math.min(width, height);
     coastlineStyle = {
@@ -3853,7 +3952,16 @@ export function layoutMap(
     rivers,
     relief,
     reliefHatch,
-    coastlineStyle,
+    coastlineStyle: coastlineStyle
+      ? withCoastRings(
+          coastlineStyle,
+          regions,
+          insets,
+          insetRegions,
+          width,
+          height
+        )
+      : null,
     legs,
     pois,
     cityDots,
