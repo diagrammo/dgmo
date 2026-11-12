@@ -26,7 +26,7 @@ import { listDiagnosticCodes } from './diagnostics-registry';
 import { getPalette, getAvailablePalettes } from './palettes';
 import { choosePalette, extractPaletteDirective } from './palettes/directive';
 import { setPinnedNow } from './utils/now';
-import { svgToPng } from './svg-to-png';
+import { svgToPng, DEFAULT_PNG_SCALE } from './svg-to-png';
 import { encodeDiagramUrl } from './sharing';
 import { resolveOrgImports } from './org/resolver';
 import { containedReader } from './cli-contained-read';
@@ -137,6 +137,9 @@ Render options:
                        content does not fit
   --height <px>        Canvas height. Most chart types derive it from the
                        content and ignore this
+  --scale <n>          PNG pixels per canvas pixel (default: ${DEFAULT_PNG_SCALE}). A
+                       1200x800 diagram at --scale 3 is a 3600x2400 PNG.
+                       PNG only; SVG has no pixel size
   --now <instant>      Pin "now" to a fixed date-time for chart types that
                        draw the current instant (clock, countdown), so their
                        output is reproducible. Any Date-parseable string,
@@ -164,6 +167,7 @@ function parseArgs(argv: string[]): {
   json: boolean;
   width: number | undefined;
   height: number | undefined;
+  scale: number | undefined;
 } {
   const result = {
     input: undefined as string | undefined,
@@ -175,6 +179,7 @@ function parseArgs(argv: string[]): {
     json: false,
     width: undefined as number | undefined,
     height: undefined as number | undefined,
+    scale: undefined as number | undefined,
   };
 
   const args = argv.slice(2); // skip node + script
@@ -223,6 +228,22 @@ function parseArgs(argv: string[]): {
       }
       if (arg === '--width') result.width = Math.round(n);
       else result.height = Math.round(n);
+      i++;
+    } else if (arg === '--scale') {
+      const val = args[++i];
+      const n = Number(val);
+      if (
+        val === undefined ||
+        val.trim() === '' ||
+        !Number.isFinite(n) ||
+        n <= 0
+      ) {
+        console.error(
+          `Error: --scale needs a positive number, got "${val ?? ''}". Try --scale 3 for a PNG three times the canvas size.`
+        );
+        process.exit(1);
+      }
+      result.scale = n;
       i++;
     } else if (arg === '--now') {
       const val = args[++i];
@@ -1281,6 +1302,12 @@ async function main(): Promise<void> {
 
   // Determine output destination
   const pngBg = chosen.theme === 'transparent' ? undefined : paletteColors.bg;
+  const pngScale = opts.scale ?? DEFAULT_PNG_SCALE;
+  if (opts.scale !== undefined && format === 'svg') {
+    console.error(
+      'Warning: --scale applies to PNG output only; the SVG is written at its canvas size.'
+    );
+  }
 
   if (opts.json) {
     // JSON mode: write file as normal but output JSON result to stdout
@@ -1290,11 +1317,11 @@ async function main(): Promise<void> {
       if (format === 'svg') {
         writeFileSync(outputPath, svg, 'utf-8');
       } else {
-        writeFileSync(outputPath, svgToPng(svg, pngBg));
+        writeFileSync(outputPath, svgToPng(svg, pngBg, pngScale));
       }
     } else if (inputBasename) {
       outputPath = resolve(`${inputBasename}.png`);
-      writeFileSync(outputPath, svgToPng(svg, pngBg));
+      writeFileSync(outputPath, svgToPng(svg, pngBg, pngScale));
     }
     process.stdout.write(
       JSON.stringify(
@@ -1313,17 +1340,17 @@ async function main(): Promise<void> {
     if (format === 'svg') {
       writeFileSync(outputPath, svg, 'utf-8');
     } else {
-      writeFileSync(outputPath, svgToPng(svg, pngBg));
+      writeFileSync(outputPath, svgToPng(svg, pngBg, pngScale));
     }
     console.error(`Wrote ${outputPath}`);
   } else if (inputBasename) {
     // File input, no -o → write <basename>.png in cwd
     const outputPath = resolve(`${inputBasename}.png`);
-    writeFileSync(outputPath, svgToPng(svg, pngBg));
+    writeFileSync(outputPath, svgToPng(svg, pngBg, pngScale));
     console.error(`Wrote ${outputPath}`);
   } else {
     // Stdin input, no -o → write PNG to stdout
-    process.stdout.write(svgToPng(svg, pngBg));
+    process.stdout.write(svgToPng(svg, pngBg, pngScale));
   }
 }
 

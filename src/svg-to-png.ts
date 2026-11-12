@@ -25,7 +25,14 @@ const BUNDLED_FONTS = [
 
 const BUNDLED_COVERAGE = join(__dirname, '..', 'fonts', 'coverage.json');
 
-export function svgToPng(svg: string, background?: string): Buffer {
+/** PNG pixels per SVG unit when the CLI is given no `--scale`. */
+export const DEFAULT_PNG_SCALE = 2;
+
+export function svgToPng(
+  svg: string,
+  background?: string,
+  scale: number = DEFAULT_PNG_SCALE
+): Buffer {
   // Emoji are dropped before resvg sees them — see stripEmojiFromSvg (#1423).
   // SVG output never comes through here, so it keeps them.
   const omitted = emojiOmittedWarning(textFromSvg(svg));
@@ -34,7 +41,7 @@ export function svgToPng(svg: string, background?: string): Buffer {
   warnOnUncoveredGlyphs(raster);
   const fontFiles = BUNDLED_FONTS.filter((f) => existsSync(f));
   const resvg = new Resvg(raster, {
-    fitTo: { mode: 'zoom', value: 2 },
+    fitTo: { mode: 'zoom', value: scale },
     ...(background ? { background } : {}),
     font: {
       // 🔴 Always on, even though the bundled Inter was found. It used to be

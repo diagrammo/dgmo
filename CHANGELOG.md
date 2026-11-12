@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **CLI `--scale <n>` sets the PNG's pixel density (#1833).** PNG export was
+  fixed at 2x; it is still the default. `--scale 3` turns a 1200x800 canvas
+  into a 3600x2400 PNG, `--scale 1` into a 1200x800 one, and fractions work.
+  The layout does not change. With an `.svg` output the flag warns and the
+  SVG is unchanged.
 - **`highlight` on `scatter`, `slope` and `treemap` (#1829).** A scatter
   takes a point or a category name, a slope a series, and a treemap a node:
   naming a branch keeps everything inside it. The rest recedes at reduced
