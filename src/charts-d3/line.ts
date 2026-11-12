@@ -20,6 +20,7 @@ import {
   type Margins,
   type InlineTitleInfo,
   TICK_FONT,
+  VALUE_FONT,
   fmtNum,
   reserveHeader,
   computeLeftMargin,
@@ -29,6 +30,8 @@ import {
   planLabelsFitLeft,
   drawCategoryLabels,
 } from './shared';
+import { labelBox, placeLabels } from '../utils/place-labels';
+import type { LabelRect } from '../label-layout';
 
 function seriesValue(
   pt: { value: number; extraValues?: number[] },
@@ -169,7 +172,9 @@ export function renderLine(
   const leftTint = dual ? soleAxisColor('left') : undefined;
   const rightTint = soleAxisColor('right');
 
-  // era bands (markArea parity) — positioned on the left axis
+  // era bands (markArea parity) — positioned on the left axis. Their titles
+  // are text the point values must clear.
+  const eraTitles: LabelRect[] = [];
   if (chart.eras?.length) {
     chart.eras.forEach((era, i) => {
       const xs = x(era.start);
@@ -193,6 +198,13 @@ export function renderLine(
         .attr('font-family', FONT_FAMILY)
         .attr('opacity', 0.8)
         .text(era.label);
+      eraTitles.push(
+        labelBox(
+          era.label,
+          { x: (xs + xe) / 2, y: m.top + 14, anchor: 'middle' },
+          TICK_FONT
+        )
+      );
     });
   }
 
@@ -265,6 +277,15 @@ export function renderLine(
     Array.from({ length: seriesCount }, (_, s) => nameOf(s))
   );
 
+  const valueLabels: {
+    text: string;
+    cx: number;
+    cy: number;
+    v: number;
+    endpoint: boolean;
+    color: string;
+    dim: boolean;
+  }[] = [];
   for (let s = 0; s < seriesCount; s++) {
     const color = seriesColor(s);
     const yy = yFor(s);
@@ -343,16 +364,57 @@ export function renderLine(
         .attr('stroke', color)
         .attr('stroke-width', 2);
       if (!chart.noValue) {
-        drawValueLabel(
-          svg,
-          fmtNum(p.v),
-          x(p.label) ?? 0,
-          yy(p.v) - 10,
-          labelColor
-        ).attr('opacity', dim ? EMPHASIS_DIM_TEXT_OPACITY : null);
+        valueLabels.push({
+          text: fmtNum(p.v),
+          cx: x(p.label) ?? 0,
+          cy: yy(p.v),
+          v: p.v,
+          endpoint: p.xIndex === 0 || p.xIndex === pts.length - 1,
+          color: labelColor,
+          dim,
+        });
       }
     }
   }
+
+  // Point values (#1828): every series' labels are placed together, so one
+  // series' value never prints over another's. A label goes above its point,
+  // else below, right or left; one with no clear spot is dropped — smallest
+  // |value| first — and its value stays on the point's hover.
+  const placed = placeLabels(
+    valueLabels.map((l) => ({
+      text: l.text,
+      priority: Math.abs(l.v),
+      endpoint: l.endpoint,
+      spots: [
+        { x: l.cx, y: l.cy - 10, anchor: 'middle' as const },
+        { x: l.cx, y: l.cy + 10 + VALUE_FONT * 0.8, anchor: 'middle' as const },
+        { x: l.cx + 7, y: l.cy + VALUE_FONT * 0.3, anchor: 'start' as const },
+        { x: l.cx - 7, y: l.cy + VALUE_FONT * 0.3, anchor: 'end' as const },
+      ],
+    })),
+    {
+      fontSize: VALUE_FONT,
+      reserved: eraTitles,
+      markers: valueLabels.map((l) => ({ cx: l.cx, cy: l.cy, r: 4.5 })),
+      bounds: {
+        // The y tick labels end 10px left of the plot.
+        left: m.left - 8,
+        top: 0,
+        // A dual chart's right axis ticks sit past the plot.
+        right: dual ? m.left + plotW : width,
+        bottom: m.top + plotH,
+      },
+    }
+  );
+  valueLabels.forEach((l, i) => {
+    const spot = placed[i]!.spot;
+    if (!spot) return;
+    drawValueLabel(svg, l.text, spot.x, spot.y, l.color, spot.anchor).attr(
+      'opacity',
+      l.dim ? EMPHASIS_DIM_TEXT_OPACITY : null
+    );
+  });
 
   drawXAxisTitle(
     svg,

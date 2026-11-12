@@ -2549,7 +2549,10 @@ other-below 5%           // pie: merge slices under 5% of the total into one "Ot
 no-auto-y                // line: anchor the y-axis at 0 (opt out of auto-fit)
 ```
 
-- `orientation-horizontal` (bar; default is vertical bars)
+- `orientation-horizontal` (bar; default is vertical bars). A vertical bar
+  chart of up to 12 categories whose names would have to rotate or be cut
+  draws as horizontal bars on its own, and its axis titles move with the
+  axes; longer axes (dates, many points) still thin and rotate their labels
 - `fill` (line; fills the area under the line)
 - `hole` (pie; renders the doughnut ring — bare `hole`, or `hole <0–0.9>` for a
   custom inner-radius ratio. The value total shows in the center by default;
@@ -2592,7 +2595,10 @@ Each chart honors the subset of flags that has a renderable atom on it:
 - heatmap: `no-value`
 - sankey, arc, slope, quadrant, venn: name-suppression deferred — names render by default and cannot yet be hidden
 
-`no-percent` on a chart with no percent atom is silently ignored. Cartesian charts (bar, line) render values on each bar / point by default.
+`no-percent` on a chart with no percent atom is silently ignored. Cartesian charts (bar, line) render values on each bar / point by default. When two values would print over each other — two line series a few
+pixels apart, thin side-by-side bars — one moves aside (a line value goes below,
+right or left of its point), and where no room is left the smaller value is
+dropped; it still shows on hover.
 
 **Eras (line only):**
 
