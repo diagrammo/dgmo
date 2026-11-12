@@ -98,11 +98,26 @@ export interface DecodedFeature {
   readonly geometry: unknown;
 }
 
-/** Decode every feature of a topology into GeoJSON, keyed nowhere — returned as a
- *  flat array so the geo-query can decode ONCE at construction and reuse the
- *  result across every `regionAt` call (no per-click re-decode). Uses this
- *  module's own `geomObject`/`feature` (never layout.ts's private decoder). */
+// One decode per topology object for the life of the page (#1943). The resolver
+// asks for both basemaps on every resolve of a POI-only map — every keystroke in
+// the app's preview — and decoding them took ~10 ms of each keystroke's task on
+// anchor. Keyed by identity, so a different topology decodes on its own. A stable
+// array also keeps `planarBboxCache` (keyed by feature) hitting across resolves.
+const decodedCache = new WeakMap<BoundaryTopology, DecodedFeature[]>();
+
+/** Decode every feature of a topology into GeoJSON, as a flat array, ONCE per
+ *  topology: a repeat call returns the same array. It is shared, so callers
+ *  must not mutate it. Uses this module's own `geomObject`/`feature` (never
+ *  layout.ts's private decoder). */
 export function decodeFeatures(topo: BoundaryTopology): DecodedFeature[] {
+  const hit = decodedCache.get(topo);
+  if (hit) return hit;
+  const decoded = decodeFeaturesUncached(topo);
+  decodedCache.set(topo, decoded);
+  return decoded;
+}
+
+function decodeFeaturesUncached(topo: BoundaryTopology): DecodedFeature[] {
   return geomObject(topo).geometries.map((g) => {
     const f = feature(topo as never, g as never) as unknown as {
       geometry: unknown;
