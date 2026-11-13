@@ -2596,6 +2596,7 @@ Each chart honors the subset of flags that has a renderable atom on it:
 - bar / line / radar: `no-value`
 - scatter: `no-name`
 - heatmap: `no-value`
+- sankey: `no-value` (the node values)
 - sankey, arc, slope, quadrant, venn: name-suppression deferred — names render by default and cannot yet be hidden
 
 `no-percent` on a chart with no percent atom is silently ignored. Cartesian charts (bar, line) render values on each bar / point by default. When two values would print over each other — two line series a few
@@ -2709,7 +2710,7 @@ locale de-DE             // separators and currency placement: 1.234,5 · 1.200 
 ```
 
 - **Where.** bar, line, pie, polar-area, radar, scatter, function, heatmap,
-  funnel and slope. On scatter and function the format applies to the y
+  funnel, sankey and slope. On scatter and function the format applies to the y
   values; x stays plain.
 - **Decimals.** A named format with no count trims trailing zeros: currency
   shows up to 2 decimals, percent and compact up to 1. A count fixes them.
@@ -2840,6 +2841,8 @@ Source -- Target 2000
 ```
 
 `->` = directed, `--` = undirected. Values follow §15 Rule A.
+
+Each node's label carries its throughput in bold after the name — the larger of what flows in and what flows out (`Landing Page 1,120`), in the chart's number format (`format`, `unit`, `locale`). A long name is truncated; the value never is. `no-value` takes the values off. Link values are not drawn.
 
 ### 15.6 Funnel Charts
 

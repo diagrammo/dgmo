@@ -17,13 +17,19 @@ interface Box {
 function labelBoxes(svg: string): { boxes: Box[]; width: number } {
   const width = Number(/<svg[^>]*\swidth="([\d.]+)"/.exec(svg)![1]);
   const boxes: Box[] = [];
-  for (const m of svg.matchAll(/<text([^>]*)>([^<]*)/g)) {
+  // A node's value rides in a bold <tspan> after its name (#1837); the box
+  // covers both, or a value running into its neighbour would go unseen.
+  for (const m of svg.matchAll(
+    /<text([^>]*)>([^<]*)(?:<tspan[^>]*>([^<]*)<\/tspan>)?/g
+  )) {
     const attrs = m[1]!;
     if (!attrs.includes('font-size="13"')) continue;
     const x = Number(/\sx="([^"]*)"/.exec(attrs)![1]);
     const y = Number(/\sy="([^"]*)"/.exec(attrs)![1]);
     const end = attrs.includes('text-anchor="end"');
-    const w = measureText(m[2]!, 13);
+    const w =
+      measureText(m[2]!, 13) +
+      (m[3] ? measureText(m[3], 13, { bold: true }) : 0);
     boxes.push({
       text: m[2]!,
       x0: end ? x - w : x,

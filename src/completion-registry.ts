@@ -343,6 +343,13 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     // named node's whole upstream+downstream flow closure and recedes the rest;
     // `dim` recedes exactly the named nodes. Mutually exclusive, last-one-wins.
     withGlobals({
+      format: {
+        description:
+          'Number format: currency USD, percent 1, compact, or a quoted pattern',
+      },
+      unit: { description: 'Text after every number (unit ms)' },
+      locale: { description: 'Separators and currency style (locale de-DE)' },
+      'no-value': { description: 'Hide the value beside each node name' },
       highlight: {
         description:
           'Light the named flow and recede everything else (highlight Barrel Aging)',

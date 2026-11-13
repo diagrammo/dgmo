@@ -1134,6 +1134,7 @@ const FORMATTED_TYPES: ReadonlySet<ExtendedChartType> = new Set([
   'function',
   'heatmap',
   'funnel',
+  'sankey',
 ]);
 /** The numeric axes each extended chart type has (#1830). */
 const EXTENDED_AXES: Partial<Record<ExtendedChartType, ReadonlySet<AxisName>>> =

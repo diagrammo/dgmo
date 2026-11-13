@@ -10,7 +10,7 @@ import type { ParsedSankey } from '../data-chart-parser';
 import { FONT_FAMILY } from '../fonts';
 import { mix } from '../palettes/color-utils';
 import { measureText, truncateText } from '../utils/text-measure';
-import { type Svg, tagDatum } from './shared';
+import { type Svg, chartFormatter, tagDatum } from './shared';
 import {
   EMPHASIS_DIM_OPACITY,
   EMPHASIS_DIM_TEXT_OPACITY,
@@ -34,6 +34,8 @@ interface SNode {
   name: string;
   rank: number;
   value: number;
+  /** The node's throughput as written — `value` before its 1-unit floor. */
+  flow: number;
   order: number;
   x: number;
   y: number;
@@ -66,6 +68,14 @@ export function renderSankey(
   if (links.length === 0) return;
   // Ribbons ARE the data surface — fill-outline ignored (§1.9).
   const solid = chart.fillMode === 'solid';
+  // Each node's label carries its throughput (#1837): the larger of what flows
+  // in and what flows out, through the chart's own number format. `no-value`
+  // takes it off. The value is never truncated — the name gives way first.
+  const fmt = chartFormatter(chart);
+  const valueText = (n: SNode): string =>
+    chart.noValue ? '' : ` ${fmt(n.flow)}`;
+  const valueW = (n: SNode): number =>
+    chart.noValue ? 0 : measureText(valueText(n), LABEL_FONT, { bold: true });
 
   const names = Array.from(new Set(links.flatMap((l) => [l.source, l.target])));
 
@@ -114,6 +124,7 @@ export function renderSankey(
       name,
       rank: 0,
       value: 0,
+      flow: 0,
       order: i,
       x: 0,
       y: 0,
@@ -174,7 +185,8 @@ export function renderSankey(
     const inc = links
       .filter((l) => l.target === n.name)
       .reduce((a, l) => a + l.value, 0);
-    n.value = Math.max(out, inc, 1);
+    n.flow = Math.max(out, inc);
+    n.value = Math.max(n.flow, 1);
   }
 
   const maxRank = Math.max(...[...node.values()].map((n) => n.rank));
@@ -199,6 +211,7 @@ export function renderSankey(
           name: `${l.source}␟${l.target}␟${r}`,
           rank: r,
           value: l.value,
+          flow: l.value,
           order: prev.order,
           x: 0,
           y: 0,
@@ -263,7 +276,7 @@ export function renderSankey(
   for (const n of layers[maxRank]!) {
     labelMargin = Math.max(
       labelMargin,
-      labelOffset(n) - NODE_W + measureText(n.name, LABEL_FONT)
+      labelOffset(n) - NODE_W + measureText(n.name, LABEL_FONT) + valueW(n)
     );
   }
   labelMargin = Math.min(labelMargin, width * MAX_LABEL_MARGIN);
@@ -441,7 +454,7 @@ export function renderSankey(
       (n.rank === maxRank ? width - rightPad / 2 : layerX(n.rank + 1)) -
       LABEL_PAD -
       labelX;
-    const shown = truncateText(n.name, LABEL_FONT, room);
+    const shown = truncateText(n.name, LABEL_FONT, room - valueW(n));
     const label = svg
       .append('text')
       .attr('x', labelX)
@@ -451,6 +464,9 @@ export function renderSankey(
       .attr('font-size', LABEL_FONT)
       .attr('font-family', FONT_FAMILY)
       .text(shown);
+    if (!chart.noValue) {
+      label.append('tspan').attr('font-weight', 'bold').text(valueText(n));
+    }
     if (shown !== n.name) label.append('title').text(n.name);
     if (nodeDim) label.attr('opacity', EMPHASIS_DIM_TEXT_OPACITY);
   }
