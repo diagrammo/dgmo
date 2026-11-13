@@ -26,7 +26,7 @@ import { listDiagnosticCodes } from './diagnostics-registry';
 import { getPalette, getAvailablePalettes } from './palettes';
 import { choosePalette, extractPaletteDirective } from './palettes/directive';
 import { setPinnedNow } from './utils/now';
-import { svgToPng, DEFAULT_PNG_SCALE } from './svg-to-png';
+import { svgToPng, outlineText, DEFAULT_PNG_SCALE } from './svg-to-png';
 import { svgToPdf } from './svg-to-pdf';
 import { embedFonts, bundledFaces } from './svg-embed-font';
 import { encodeDiagramUrl } from './sharing';
@@ -146,6 +146,9 @@ Render options:
                        1200x800 diagram at --scale 3 is a 3600x2400 PNG.
                        In a PDF it sets the image's resolution, not the
                        page size. PNG and PDF only; SVG has no pixel size
+  --outline-text       SVG only: draw every label as filled paths instead of
+                       text, for print and vector editors. The file then needs
+                       no font; its text can no longer be selected or edited
   --now <instant>      Pin "now" to a fixed date-time for chart types that
                        draw the current instant (clock, countdown), so their
                        output is reproducible. Any Date-parseable string,
@@ -174,6 +177,7 @@ function parseArgs(argv: string[]): {
   width: number | undefined;
   height: number | undefined;
   scale: number | undefined;
+  outlineText: boolean;
 } {
   const result = {
     input: undefined as string | undefined,
@@ -186,6 +190,7 @@ function parseArgs(argv: string[]): {
     width: undefined as number | undefined,
     height: undefined as number | undefined,
     scale: undefined as number | undefined,
+    outlineText: false,
   };
 
   const args = argv.slice(2); // skip node + script
@@ -234,6 +239,9 @@ function parseArgs(argv: string[]): {
       }
       if (arg === '--width') result.width = Math.round(n);
       else result.height = Math.round(n);
+      i++;
+    } else if (arg === '--outline-text') {
+      result.outlineText = true;
       i++;
     } else if (arg === '--scale') {
       const val = args[++i];
@@ -1322,10 +1330,18 @@ async function main(): Promise<void> {
       'Warning: PDF has no transparent background; the diagram is drawn on the light background.'
     );
   }
+  if (opts.outlineText && format !== 'svg') {
+    console.error(
+      'Warning: --outline-text applies to SVG output only; PNG and PDF already draw text as pixels.'
+    );
+  }
   // A standalone .svg carries the Inter it names, subset to its own text, so
   // it draws the same on a machine without Inter (#1834). PNG and PDF draw
-  // from the bundled TTFs already; only the SVG file needs it.
-  if (format === 'svg' && opts.output) {
+  // from the bundled TTFs already; only the SVG file needs it. An outlined
+  // SVG has no text left, so it needs no font at all.
+  if (format === 'svg' && opts.outlineText) {
+    svg = outlineText(svg);
+  } else if (format === 'svg' && opts.output) {
     svg = await embedFonts(svg, bundledFaces());
   }
   const writeRaster = (outputPath: string) =>

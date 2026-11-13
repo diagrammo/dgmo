@@ -62,25 +62,10 @@ export function rasterize(
   if (omitted) console.error(`Warning: ${omitted}`);
   const raster = omitted ? stripEmojiFromSvg(svg) : svg;
   warnOnUncoveredGlyphs(raster);
-  const fontFiles = BUNDLED_FONTS.filter((f) => existsSync(f));
   const resvg = new Resvg(raster, {
     fitTo: { mode: 'zoom', value: scale },
     ...(background ? { background } : {}),
-    font: {
-      // 🔴 Always on, even though the bundled Inter was found. It used to be
-      // `fontFiles.length === 0` — system fonts off precisely BECAUSE we had
-      // our own — which made the `system-ui, …, sans-serif` tail of
-      // FONT_FAMILY inert and left every script Inter lacks drawing NOTHING:
-      // no box, no warning, exit 0. Measured 2026-08-07, a bar labelled 日本語
-      // rasterised identically to one labelled with an unassigned Private Use
-      // codepoint. Turning it on costs nothing for Latin — Inter is still
-      // loaded explicitly and named as both default and sans-serif family, and
-      // the Latin output is byte-identical across the change.
-      loadSystemFonts: true,
-      ...(fontFiles.length > 0 ? { fontFiles } : {}),
-      defaultFontFamily: DEFAULT_FONT_NAME,
-      sansSerifFamily: DEFAULT_FONT_NAME,
-    },
+    font: resvgFontOptions(),
   });
   const pixels = resvg.width * scale * (resvg.height * scale);
   if (pixels > MAX_RASTER_PIXELS) {
@@ -95,6 +80,49 @@ export function rasterize(
     );
   }
   return resvg.render();
+}
+
+/**
+ * The fonts resvg draws with — shared by rasterising and by `--outline-text`,
+ * so an outlined SVG has the same glyphs, at the same widths, as the PNG.
+ */
+function resvgFontOptions() {
+  const fontFiles = BUNDLED_FONTS.filter((f) => existsSync(f));
+  return {
+    // 🔴 Always on, even though the bundled Inter was found. It used to be
+    // `fontFiles.length === 0` — system fonts off precisely BECAUSE we had
+    // our own — which made the `system-ui, …, sans-serif` tail of
+    // FONT_FAMILY inert and left every script Inter lacks drawing NOTHING:
+    // no box, no warning, exit 0. Measured 2026-08-07, a bar labelled 日本語
+    // rasterised identically to one labelled with an unassigned Private Use
+    // codepoint. Turning it on costs nothing for Latin — Inter is still
+    // loaded explicitly and named as both default and sans-serif family, and
+    // the Latin output is byte-identical across the change.
+    loadSystemFonts: true,
+    ...(fontFiles.length > 0 ? { fontFiles } : {}),
+    defaultFontFamily: DEFAULT_FONT_NAME,
+    sansSerifFamily: DEFAULT_FONT_NAME,
+  };
+}
+
+/**
+ * The SVG with every text element replaced by filled paths (`--outline-text`,
+ * #1834). For print shops and vector editors: nothing in the file depends on a
+ * font any more, so it draws the same everywhere, at the cost of text that
+ * can no longer be selected, searched or edited as text.
+ *
+ * resvg parses the SVG into its simplified tree, shapes the text with the same
+ * fonts a PNG export uses, and writes the tree back out. The result is a
+ * rewritten SVG: styles are resolved onto each element, and what resvg
+ * does not keep (`<title>`, links) is gone. Emoji are dropped with a warning,
+ * as in a PNG — resvg cannot draw colour glyphs as outlines.
+ */
+export function outlineText(svg: string): string {
+  const omitted = emojiOmittedWarning(textFromSvg(svg));
+  if (omitted) console.error(`Warning: ${omitted}`);
+  const source = omitted ? stripEmojiFromSvg(svg) : svg;
+  warnOnUncoveredGlyphs(source);
+  return new Resvg(source, { font: resvgFontOptions() }).toString();
 }
 
 /**

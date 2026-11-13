@@ -19,8 +19,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   file (37 KB on average). `@diagrammo/dgmo-cli` gains the `subset-font`
   dependency. PNG, PDF and the library's `render()` are unchanged. Each
   embedded face keeps Inter's copyright notice and its SIL Open Font License
-  in its name table. Not yet done: `--outline-text` (text as paths) and the
-  app's SVG export, which still names Inter without embedding it.
+  in its name table. Not yet done: the app's SVG export, which still names
+  Inter without embedding it.
+- **CLI `--outline-text` writes an SVG's labels as paths (#1834).** For print
+  and vector editors: every text element becomes filled outlines shaped from
+  the same bundled Inter the PNG uses, so the file needs no font at all and
+  carries no `@font-face`. The text can no longer be selected, searched or
+  edited, and the file is rewritten in a simplified form: styles are resolved
+  onto each element, and `<title>` and links are dropped. Emoji are dropped
+  with a warning, as in a PNG. With PNG or PDF output the flag warns and does
+  nothing.
 - **CLI `--scale <n>` sets the PNG's pixel density (#1833).** PNG export was
   fixed at 2x; it is still the default. `--scale 3` turns a 1200x800 canvas
   into a 3600x2400 PNG, `--scale 1` into a 1200x800 one, and fractions work.
