@@ -395,37 +395,44 @@ RumRunner f: Bonny
 
 ```dgmo
 gantt Blackbeard's Blockade — 1718
-
 start-date 1718-05-01
 today-marker 1718-05-15
+critical-path
 
 tag Role as r
   Command red
   Crew blue
   Captives orange
 
+era 1718-05-07 -> 1718-05-16 Blockade Active blue
 marker 1718-05-14 Ransom Deadline red
-era 1718-05-08 -> 1718-05-17 Blockade Active blue
 
-[Preparation] r: Command
-  Provision Ship 3d r: Crew, progress: 100
-    -> Anchor Fleet 2d r: Crew, progress: 100
-  Scout Harbor 3d r: Crew, progress: 100
-    -> Position Cannons 3d r: Crew, progress: 100
-  Recruit Hands 5d r: Crew, progress: 100
+[Preparation] r: Crew
+  Provision Ship 3d progress: 100
+    -> Anchor Fleet 2d progress: 100
+      -> [Blockade].Seize Merchants
+  Scout Harbor 3d progress: 100
+    -> Position Cannons 3d progress: 100
+      -> [Blockade].Seize Merchants
+  Recruit Hands 5d progress: 100
+    -> [Blockade].Patrol Perimeter
 
-+7d [Blockade] r: Crew
-  Seize Merchants 4d progress: 100
-    -> Hold Hostages 5d r: Captives, progress: 60
-  Patrol Perimeter 9d progress: 75
-  Demand Medicine 4d r: Command, progress: 100
-    -> Threaten Executions 3d? r: Command, progress: 90
+[Blockade] r: Crew
+  Seize Merchants 3d progress: 100
+    -> Demand Medicine 2d r: Command, progress: 100
+      -> Threaten Executions 2d r: Command, progress: 100
+        -> [Resolution].Receive Ransom
+    -> Hold Hostages 6d r: Captives, progress: 80
+      -> [Resolution].Release Prisoners
+  Patrol Perimeter 8d progress: 100
+    -> [Resolution].Set Sail
 
-+17d [Resolution] r: Command
-  Receive Ransom 2d r: Captives
+[Resolution] r: Command
+  Receive Ransom 1d r: Captives, progress: 50
     -> Release Prisoners 1d r: Captives
       -> Set Sail 0d
-  Burn Evidence 2d r: Crew
+    -> Burn Evidence 1d r: Crew
+      -> Set Sail
 ```
 
 **Fetch more:** the full per-type reference is at https://diagrammo.app/docs — fetch a type's section when the index + anti-patterns above aren't enough.

@@ -20,7 +20,7 @@ import {
   shapeFill,
   getEraColors,
 } from '../palettes/color-utils';
-import { normalizeName } from '../utils/name-normalize';
+import { isResolverError, resolveTaskName } from './resolver';
 import { resolveTagColor, resolveActiveTagGroup } from '../utils/tag-groups';
 import { ScaleContext } from '../utils/scaling';
 import { renderCollapseBar } from '../utils/card';
@@ -97,6 +97,8 @@ type BarLabelPlacement = {
   anchor: 'start' | 'end';
   fill: string;
   text: string;
+  /** True when the label sits inside its bar, false when on the ground beside it. */
+  inside: boolean;
 };
 
 function computeBarLabel(
@@ -122,15 +124,28 @@ function computeBarLabel(
       anchor: 'start',
       fill: onFillColor ?? textColor,
       text: label,
+      inside: true,
     };
   }
 
   if (x2 + labelGap + textWidth <= innerWidth) {
-    return { x: x2 + labelGap, anchor: 'start', fill: textColor, text: label };
+    return {
+      x: x2 + labelGap,
+      anchor: 'start',
+      fill: textColor,
+      text: label,
+      inside: false,
+    };
   }
 
   if (x1 - labelGap - textWidth >= 0) {
-    return { x: x1 - labelGap, anchor: 'end', fill: textColor, text: label };
+    return {
+      x: x1 - labelGap,
+      anchor: 'end',
+      fill: textColor,
+      text: label,
+      inside: false,
+    };
   }
 
   const availWidth = x1 - labelGap;
@@ -143,6 +158,7 @@ function computeBarLabel(
       anchor: 'end',
       fill: textColor,
       text: truncated,
+      inside: false,
     };
   }
 
@@ -1585,7 +1601,7 @@ function drawGantt(
           sLabelGap
         );
         if (labelPlacement) {
-          taskG
+          const labelEl = taskG
             .append('text')
             .attr('x', labelPlacement.x)
             .attr('y', yOffset + sBarH / 2)
@@ -1595,6 +1611,16 @@ function drawGantt(
             .attr('fill', labelPlacement.fill)
             .attr('pointer-events', 'none')
             .text(labelPlacement.text);
+          // A name printed beside its bar sits on the chart ground, where a
+          // dependency arrow can run through it — halo it (#1958).
+          if (!labelPlacement.inside) {
+            labelEl
+              .attr('class', 'gantt-bar-label-beside')
+              .attr('stroke', palette.bg)
+              .attr('stroke-width', 3)
+              .attr('stroke-linejoin', 'round')
+              .attr('paint-order', 'stroke');
+          }
         }
 
         taskPositions.set(task.id, {
@@ -1679,8 +1705,13 @@ function drawGantt(
   // ── Dependency arrows ───────────────────────────────────
 
   if (resolved.options.dependencies) {
+    // Arrows go in a layer beneath the bars and their labels, so a curve
+    // into a task never paints over the task's name (#1958).
+    const depLayer = g
+      .insert('g', '.gantt-task')
+      .attr('class', 'gantt-dep-layer');
     renderDependencyArrows(
-      g,
+      depLayer,
       resolved,
       taskPositions,
       groupPositions,
@@ -2006,14 +2037,7 @@ function renderDependencyArrows(
 
     for (const dep of rt.task.dependencies) {
       // Find target task — forgiving normalization per universal name handling
-      const depKey = normalizeName(dep.targetName);
-      const targetTask = resolved.tasks.find(
-        (t) =>
-          normalizeName(t.task.label) === depKey ||
-          normalizeName(`${t.groupPath.join('.')}.${t.task.label}`).endsWith(
-            depKey
-          )
-      );
+      const targetTask = resolveDepTarget(dep.targetName, resolved);
       if (!targetTask) continue;
 
       const targetPos =
@@ -2049,7 +2073,7 @@ function renderDependencyArrows(
 
       const path = `M ${sx} ${sy} C ${sx + cpOffset} ${sy}, ${tx - cpOffset} ${ty}, ${tx} ${ty}`;
 
-      const arrowColor = mix(palette.text, palette.bg, 50);
+      const arrowColor = mix(palette.text, palette.bg, DEP_ARROW_TEXT_PCT);
       const isCpArrow = rt.isCriticalPath && targetTask.isCriticalPath;
 
       g.append('path')
@@ -2062,7 +2086,7 @@ function renderDependencyArrows(
         .attr('fill', 'none')
         .attr('stroke', arrowColor)
         .attr('stroke-width', 1.5)
-        .attr('opacity', 0.5);
+        .attr('opacity', DEP_ARROW_OPACITY);
 
       // Arrowhead — always horizontal arrival (bezier cp2 has same Y as endpoint)
       const headSize = 5;
@@ -2075,7 +2099,7 @@ function renderDependencyArrows(
         .attr('data-critical-path', isCpArrow ? 'true' : null)
         .attr('points', arrowheadPoints(tx, ty, headSize, angle))
         .attr('fill', arrowColor)
-        .attr('opacity', 0.5);
+        .attr('opacity', DEP_ARROW_OPACITY);
 
       // Label at midpoint of the dependency path
       if (dep.label) {
@@ -2216,7 +2240,7 @@ function resetHighlightAll(
     .attr('opacity', 1);
   chartG
     .selectAll<SVGElement, unknown>('.gantt-dep-arrow, .gantt-dep-arrowhead')
-    .attr('opacity', 0.5);
+    .attr('opacity', DEP_ARROW_OPACITY);
 }
 
 // ── Swimlane Icon Helper ─────────────────────────────────────
@@ -3209,7 +3233,33 @@ function parseDateToFractionalYear(s: string): number {
 
 // ── Dependency Hover Helpers ─────────────────────────────────
 
+/**
+ * The task a dependency points at, found the way the scheduler finds it
+ * (`resolveTaskName`), so an arrow is drawn exactly when the schedule obeys
+ * the link — `[Group].Task` references included (#1961).
+ */
+function resolveDepTarget(
+  targetName: string,
+  resolved: ResolvedSchedule
+): ResolvedSchedule['tasks'][number] | undefined {
+  const result = resolveTaskName(
+    targetName,
+    resolved.tasks.map((t) => t.task)
+  );
+  if (isResolverError(result)) return undefined;
+  return resolved.tasks.find((t) => t.task.id === result.task.id);
+}
+
 const FADE_OPACITY = 0.1;
+
+/**
+ * Dependency arrows are drawn opaque in a colour mixed toward the ground, so
+ * they read in an exported image as well as on hover (#1958). They used to sit
+ * at half of a 50% mix — a quarter of the text's contrast — which was fine
+ * while exports hid them and too faint once they became the default.
+ */
+const DEP_ARROW_OPACITY = 1;
+const DEP_ARROW_TEXT_PCT = 45;
 
 function highlightDeps(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
@@ -3225,25 +3275,14 @@ function highlightDeps(
   // Predecessors: tasks whose deps point to this task
   for (const rt of resolved.tasks) {
     for (const dep of rt.task.dependencies) {
-      // Check if this dep points to our task (forgiving normalization)
-      const depKey = normalizeName(dep.targetName);
-      if (
-        depKey === normalizeName(task.task.label) ||
-        normalizeName(
-          `${task.groupPath.join('.')}.${task.task.label}`
-        ).endsWith(depKey)
-      ) {
+      if (resolveDepTarget(dep.targetName, resolved)?.task.id === taskId) {
         related.add(rt.task.id);
       }
     }
   }
   // Successors: tasks this task has deps pointing to
   for (const dep of task.task.dependencies) {
-    const target = resolved.tasks.find(
-      (t) =>
-        t.task.label === dep.targetName ||
-        `${t.groupPath.join('.')}.${t.task.label}`.endsWith(dep.targetName)
-    );
+    const target = resolveDepTarget(dep.targetName, resolved);
     if (target) related.add(target.task.id);
   }
 
@@ -3279,7 +3318,7 @@ function highlightDeps(
     const from = el.attr('data-dep-from');
     const to = el.attr('data-dep-to');
     const isRelated = (from && related.has(from)) || (to && related.has(to));
-    el.attr('opacity', isRelated ? 0.5 : FADE_OPACITY);
+    el.attr('opacity', isRelated ? DEP_ARROW_OPACITY : FADE_OPACITY);
   });
   // Fade markers
   g.selectAll<SVGElement, unknown>('.gantt-marker-group').attr(
@@ -3585,7 +3624,7 @@ function resetHighlight(
   ).attr('opacity', 1);
   g.selectAll<SVGElement, unknown>(
     '.gantt-dep-arrow, .gantt-dep-arrowhead'
-  ).attr('opacity', 0.5);
+  ).attr('opacity', DEP_ARROW_OPACITY);
   g.selectAll<SVGElement, unknown>('.gantt-marker-group').attr('opacity', 1);
   g.selectAll<SVGElement, unknown>('.gantt-era-group').attr('opacity', 1);
 }

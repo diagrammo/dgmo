@@ -4,6 +4,7 @@ import { parseGantt } from '../src/gantt/parser';
 import { calculateSchedule } from '../src/gantt/calculator';
 import { renderGantt, buildTagLaneRowList } from '../src/gantt/renderer';
 import { getPalette } from '../src/palettes';
+import { renderForExport } from '../src/d3';
 import type { GanttInteractiveOptions } from '../src/gantt/renderer';
 
 const palette = getPalette('nord').light;
@@ -1232,5 +1233,76 @@ describe('gantt preview layout (tall chart, scaled context)', () => {
       .split(' ')
       .map(Number);
     expect(w).toBe(800);
+  });
+});
+
+// ── Cross-group arrows and exported arrows (#1961, #1958) ────
+
+const CROSS_GROUP_INPUT = `gantt
+start-date 2024-01-15
+
+[Build]
+  Hull 5d
+    -> [Sail].Launch
+
+[Sail]
+  Launch 3d`;
+
+describe('cross-group dependency arrows', () => {
+  it('draws an arrow for a [Group].Task reference the schedule obeys', () => {
+    const container = renderFromInput(CROSS_GROUP_INPUT);
+    const arrows = [...container.querySelectorAll('.gantt-dep-arrow')];
+    const hull = container.querySelector('[data-task-name="Hull"]');
+    const launch = container.querySelector('[data-task-name="Launch"]');
+    expect(
+      arrows.filter(
+        (a) =>
+          a.getAttribute('data-dep-from') ===
+            hull?.getAttribute('data-task-id') &&
+          a.getAttribute('data-dep-to') === launch?.getAttribute('data-task-id')
+      )
+    ).toHaveLength(1);
+  });
+
+  it('puts arrows in a layer beneath the task bars and their labels', () => {
+    const container = renderFromInput(CROSS_GROUP_INPUT);
+    const layer = container.querySelector('.gantt-dep-layer');
+    const firstTask = container.querySelector('.gantt-task');
+    expect(layer).not.toBeNull();
+    expect(
+      layer!.compareDocumentPosition(firstTask!) &
+        layer!.ownerDocument.defaultView!.Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+});
+
+describe('exported gantt arrows', () => {
+  it('shows dependency arrows in an export', async () => {
+    const svg = await renderForExport(CROSS_GROUP_INPUT, 'light');
+    expect(svg).toMatch(/class="gantt-dep-arrow"/);
+    expect(svg).not.toMatch(/class="gantt-dep-arrow"[^>]*display="none"/);
+  });
+
+  it('leaves them out under no-dependencies', async () => {
+    const svg = await renderForExport(
+      CROSS_GROUP_INPUT.replace(
+        'start-date 2024-01-15',
+        'start-date 2024-01-15\nno-dependencies'
+      ),
+      'light'
+    );
+    expect(svg).not.toMatch(/class="gantt-dep-arrow"/);
+  });
+});
+
+describe('task names printed beside their bar', () => {
+  it('get a halo so an arrow running through them stays legible', () => {
+    const container = renderFromInput(`gantt
+start-date 2024-01-15
+A Very Long Task Name That Cannot Fit 1d
+Long Enough Task 60d`);
+    const beside = container.querySelectorAll('.gantt-bar-label-beside');
+    expect(beside.length).toBe(1);
+    expect(beside[0]!.getAttribute('paint-order')).toBe('stroke');
   });
 });

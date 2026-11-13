@@ -64,6 +64,9 @@ export async function exportGantt(ctx: ExportContext): Promise<string> {
         ctxTagOverride(ctx)
       ),
       exportMode,
+      // An exported image has no toggle, so it shows the arrows the source
+      // asks for; `no-dependencies` is the way to leave them out (#1958).
+      dependenciesActive: true,
     },
     { width: EXPORT_W, height: EXPORT_H }
   );
