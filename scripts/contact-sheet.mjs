@@ -13,7 +13,13 @@
 // Output: gallery/output/contact-sheet.html (gitignored — built on demand,
 // never committed; owner, 2026-11-13).
 // ============================================================
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { join, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -44,10 +50,20 @@ function sourceFor(type) {
   const names = readdirSync(GALLERY).filter((f) => f.endsWith('.dgmo'));
   const pick =
     names.find((f) => f === `${type}.dgmo`) ??
-    names.find((f) => f.startsWith(`${type}-`) && firstWord(join(GALLERY, f)) === type);
-  if (pick) return { file: `gallery/fixtures/${pick}`, text: readFileSync(join(GALLERY, pick), 'utf8') };
+    names.find(
+      (f) => f.startsWith(`${type}-`) && firstWord(join(GALLERY, f)) === type
+    );
+  if (pick)
+    return {
+      file: `gallery/fixtures/${pick}`,
+      text: readFileSync(join(GALLERY, pick), 'utf8'),
+    };
   const conf = join(CONFORMANCE, `${type}.dgmo`);
-  if (existsSync(conf)) return { file: `tests/fixtures/conformance/${type}.dgmo`, text: readFileSync(conf, 'utf8') };
+  if (existsSync(conf))
+    return {
+      file: `tests/fixtures/conformance/${type}.dgmo`,
+      text: readFileSync(conf, 'utf8'),
+    };
   return null;
 }
 
@@ -70,10 +86,20 @@ function matrixOf(t) {
   let m = [1, 0, 0, 1, 0, 0];
   const mul = (q) => {
     const [a, b, c, d, e, f] = m;
-    m = [a * q[0] + c * q[1], b * q[0] + d * q[1], a * q[2] + c * q[3], b * q[2] + d * q[3], a * q[4] + c * q[5] + e, b * q[4] + d * q[5] + f];
+    m = [
+      a * q[0] + c * q[1],
+      b * q[0] + d * q[1],
+      a * q[2] + c * q[3],
+      b * q[2] + d * q[3],
+      a * q[4] + c * q[5] + e,
+      b * q[4] + d * q[5] + f,
+    ];
   };
   for (const [, fn, args] of (t ?? '').matchAll(/(\w+)\(([^)]*)\)/g)) {
-    const n = args.split(/[\s,]+/).filter(Boolean).map(Number);
+    const n = args
+      .split(/[\s,]+/)
+      .filter(Boolean)
+      .map(Number);
     if (fn === 'translate') mul([1, 0, 0, 1, n[0] ?? 0, n[1] ?? 0]);
     else if (fn === 'scale') mul([n[0], 0, 0, n[1] ?? n[0], 0, 0]);
     else if (fn === 'matrix') mul(n);
@@ -88,18 +114,27 @@ function titleOf(svg) {
   if (!el) return null;
   let m = [1, 0, 0, 1, 0, 0];
   const chain = [];
-  for (let e = el; e && e.tagName !== 'svg'; e = e.parentElement) chain.unshift(e);
+  for (let e = el; e && e.tagName !== 'svg'; e = e.parentElement)
+    chain.unshift(e);
   for (const e of chain) {
     const q = matrixOf(e.getAttribute('transform'));
     const [a, b, c, d, ee, f] = m;
-    m = [a * q[0] + c * q[1], b * q[0] + d * q[1], a * q[2] + c * q[3], b * q[2] + d * q[3], a * q[4] + c * q[5] + ee, b * q[4] + d * q[5] + f];
+    m = [
+      a * q[0] + c * q[1],
+      b * q[0] + d * q[1],
+      a * q[2] + c * q[3],
+      b * q[2] + d * q[3],
+      a * q[4] + c * q[5] + ee,
+      b * q[4] + d * q[5] + f,
+    ];
   }
   const x = Number(el.getAttribute('x') ?? 0);
   const y = Number(el.getAttribute('y') ?? 0);
   return {
     x: m[0] * x + m[4],
     y: m[3] * y + m[5],
-    size: Math.round(Number(el.getAttribute('font-size') ?? 0) * m[3] * 100) / 100,
+    size:
+      Math.round(Number(el.getAttribute('font-size') ?? 0) * m[3] * 100) / 100,
     anchor: el.getAttribute('text-anchor') ?? 'start',
   };
 }
@@ -120,13 +155,17 @@ function withGuides(svg, vb) {
 // chart; what must hold everywhere is the baseline, the size, and that the
 // title starts no closer than FRAME_INSET to the canvas edge.
 function verdict(type, title, vb) {
-  if (HERO_TITLE_TYPES.includes(type)) return { ok: true, note: 'hero title — exempt' };
+  if (HERO_TITLE_TYPES.includes(type))
+    return { ok: true, note: 'hero title — exempt' };
   if (!title) return { ok: true, note: 'no title' };
   const off = [];
   if (Math.abs(title.y - TITLE_Y) > 0.5) off.push(`y ${title.y}`);
   if (title.size !== TITLE_FONT_SIZE) off.push(`${title.size}px`);
-  if (vb && title.anchor === 'start' && title.x < vb.x + FRAME_INSET - 0.5) off.push(`x ${title.x}`);
-  return off.length ? { ok: false, note: `off band: ${off.join(', ')}` } : { ok: true, note: '' };
+  if (vb && title.anchor === 'start' && title.x < vb.x + FRAME_INSET - 0.5)
+    off.push(`x ${title.x}`);
+  return off.length
+    ? { ok: false, note: `off band: ${off.join(', ')}` }
+    : { ok: true, note: '' };
 }
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
@@ -136,7 +175,12 @@ for (const { id: type } of chartTypes) {
   if (type === 'live-link') continue;
   const src = sourceFor(type);
   if (!src) {
-    tiles.push({ type, file: '—', cells: [], verdict: { ok: false, note: 'no fixture' } });
+    tiles.push({
+      type,
+      file: '—',
+      cells: [],
+      verdict: { ok: false, note: 'no fixture' },
+    });
     continue;
   }
   const cells = [];
@@ -155,7 +199,12 @@ for (const { id: type } of chartTypes) {
       cells.push({ theme, svg: `<pre>${esc(e.message)}</pre>` });
     }
   }
-  tiles.push({ type, file: src.file, cells, verdict: v ?? { ok: false, note: 'did not render' } });
+  tiles.push({
+    type,
+    file: src.file,
+    cells,
+    verdict: v ?? { ok: false, note: 'did not render' },
+  });
 }
 
 const off = tiles.filter((t) => !t.verdict.ok);
@@ -197,5 +246,7 @@ ${tiles
 
 mkdirSync(OUT_DIR, { recursive: true });
 writeFileSync(OUT, html);
-console.log(`contact sheet: ${tiles.length} types, ${off.length} off the band → ${OUT}`);
+console.log(
+  `contact sheet: ${tiles.length} types, ${off.length} off the band → ${OUT}`
+);
 if (process.argv.includes('--open')) execFileSync('open', [OUT]);
