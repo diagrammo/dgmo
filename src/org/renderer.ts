@@ -23,7 +23,7 @@ import type { ParsedOrg } from './parser';
 import type { OrgLayoutResult } from './layout';
 import type { AncestorInfo } from './collapse';
 import { parseOrg } from './parser';
-import { layoutOrg } from './layout';
+import { layoutOrg, MARGIN as LAYOUT_MARGIN } from './layout';
 import {
   LEGEND_HEIGHT,
   LEGEND_EYE_SIZE,
@@ -50,9 +50,17 @@ import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
   TITLE_Y,
+  FRAME_BODY_TOP,
 } from '../utils/title-constants';
 import { growChartFrame } from '../utils/chart-frame';
 const TITLE_HEIGHT = 30;
+/**
+ * The band an exported title adds above the diagram (#1838). The layout's own
+ * top MARGIN already carries the first card to the shared band, so a title
+ * alone adds nothing; over a legend row it adds the title's baseline depth.
+ */
+export const embeddedTitleBand = (legendDrawn: boolean): number =>
+  legendDrawn ? TITLE_Y : FRAME_BODY_TOP - DIAGRAM_PADDING - LAYOUT_MARGIN;
 // Shared card / group / collapse constants (Story 111.1). org matches every
 // convention default, so it imports the full set.
 import {
@@ -189,7 +197,9 @@ export function renderOrg(
   const sLegendFixedGap = ctx.aesthetic(LEGEND_FIXED_GAP);
 
   const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
-  const titleOffset = showTitle ? sTitleHeight : 0;
+  const embeddedTitle = showTitle
+    ? embeddedTitleBand(layout.legendShift > 0)
+    : 0;
   const legendOnly = layout.nodes.length === 0;
   const hasLegend = layout.legend.length > 0;
 
@@ -255,7 +265,10 @@ export function renderOrg(
 
   const diagramW = layout.width;
   const diagramH =
-    layout.height + (fixedTitle ? 0 : titleOffset) - legendUnshift + trailShift;
+    layout.height +
+    (fixedTitle ? 0 : embeddedTitle) -
+    legendUnshift +
+    trailShift;
   const availH = height - sDiagramPadding * 2 - legendReserve - titleReserve;
   const scaleX = (width - sDiagramPadding * 2) / diagramW;
   const scaleY = availH / diagramH;
@@ -327,7 +340,7 @@ export function renderOrg(
   // Content group: title band, less the in-diagram legend band the fixed legend
   // makes redundant, plus whatever the breadcrumb trail still needs above it.
   const contentYShift =
-    (fixedTitle ? 0 : titleOffset) - legendUnshift + trailShift;
+    (fixedTitle ? 0 : embeddedTitle) - legendUnshift + trailShift;
   const contentG = mainG
     .append('g')
     .attr('transform', `translate(0, ${contentYShift})`);
@@ -869,7 +882,9 @@ export function renderOrgForExport(
   const isDark = theme === 'dark';
 
   const titleOffset =
-    parsed.title && parsed.options['no-title'] !== 'on' ? TITLE_HEIGHT : 0;
+    parsed.title && parsed.options['no-title'] !== 'on'
+      ? embeddedTitleBand(layout.legendShift > 0)
+      : 0;
   const exportWidth = layout.width + DIAGRAM_PADDING * 2;
   const exportHeight = layout.height + DIAGRAM_PADDING * 2 + titleOffset;
 

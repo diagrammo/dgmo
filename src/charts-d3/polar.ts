@@ -10,6 +10,9 @@ import { FONT_FAMILY } from '../fonts';
 import { getSegmentColors, shapeFill } from '../palettes/color-utils';
 import { type Svg, chartFormatter, tagDatum } from './shared';
 
+// Label text top above its anchor: cap height of the 13px label less its +4 baseline drop.
+const LABEL_TOP_ABOVE_ANCHOR = 5.4;
+
 export function renderPolarArea(
   svg: Svg,
   chart: ParsedChart,
@@ -31,8 +34,20 @@ export function renderPolarArea(
 
   const cx = width / 2;
   const top = topInset + 8;
-  const cy = top + (height - top) / 2;
   const outerR = Math.min(width / 2 - 200, (height - top) / 2 - 40);
+  // Top-aligned on the body band (#1838): the highest of the wedges' corners
+  // and the labels (14 past the ring, at each sector's mid-angle) sets the top.
+  const rOf = (v: number) => outerR * 0.14 + (v / maxValue) * (outerR * 0.86);
+  const rise = Math.max(
+    ...data.map((d, i) => {
+      const a = (k: number) => (k * 2 * Math.PI) / n;
+      const wedge = Math.max(Math.cos(a(i)), Math.cos(a(i + 1))) * rOf(d.value);
+      const label =
+        Math.cos(a(i + 0.5)) * (outerR + 14) + LABEL_TOP_ABOVE_ANCHOR;
+      return Math.max(wedge, label);
+    })
+  );
+  const cy = top + rise;
   const innerR = outerR * 0.14;
 
   const segColors = getSegmentColors(palette, n);

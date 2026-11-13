@@ -16,7 +16,7 @@ export async function exportMindmap(ctx: ExportContext): Promise<string> {
   const { parseMindmap } = await import('./parser');
   const { layoutMindmap } = await import('./layout');
   const { collapseMindmapTree } = await import('./collapse');
-  const { renderMindmap } = await import('./renderer');
+  const { renderMindmap, EMBEDDED_TITLE_BAND } = await import('./renderer');
 
   const isDark = ctx.isDark;
   const effectivePalette = await resolveExportPalette(theme, palette);
@@ -60,7 +60,7 @@ export async function exportMindmap(ctx: ExportContext): Promise<string> {
   });
 
   const PADDING = 20;
-  const titleOffset = effectiveParsed.title ? 30 : 0;
+  const titleOffset = effectiveParsed.title ? EMBEDDED_TITLE_BAND : 0;
   const exportWidth = mmLayout.width + PADDING * 2;
   const exportHeight = mmLayout.height + PADDING * 2 + titleOffset;
   const container = createExportContainer(exportWidth, exportHeight);

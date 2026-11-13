@@ -24,12 +24,14 @@ import {
   getLegendExtent,
 } from '../utils/legend-layout';
 import { layoutInlineHeader } from '../utils/inline-header';
-import { LEGEND_GROUP_GAP } from '../utils/legend-constants';
+import { LEGEND_GROUP_GAP, legendInkBottom } from '../utils/legend-constants';
 import type { LegendPosition } from '../utils/legend-types';
 import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
   TITLE_Y,
+  FRAME_BODY_TOP,
+  LEGEND_BODY_GAP,
 } from '../utils/title-constants';
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
@@ -176,16 +178,38 @@ export function renderTreemap(
   const headerH = opts.noHeaders ? 0 : HEADER_H;
   const areaX = PADDING;
   // Inline → one band (title only); stacked → title + legend band.
-  const areaY = (header.inline ? titleH : titleH + legendReserve) + PADDING;
+  // With a title the cells start at a fixed line (#1838): the shared body top,
+  // or LEGEND_BODY_GAP under the legend's bottom (its text reaches 0.71 em
+  // below the row's midline).
+  const areaY = !showTitle
+    ? (header.inline ? titleH : titleH + legendReserve) + PADDING
+    : legend && !header.inline
+      ? titleH +
+        legendInkBottom(legendReserve - LEGEND_GROUP_GAP) +
+        LEGEND_BODY_GAP
+      : FRAME_BODY_TOP;
   const areaW = Math.max(1, width - PADDING * 2);
   const areaH = Math.max(1, height - areaY - PADDING);
 
-  const layout = layoutTreemap(parsed.roots, {
+  const layoutOpts = {
     width: areaW,
-    height: areaH,
     headerH,
     ...(options.maxDepth !== undefined && { maxDepth: options.maxDepth }),
-  });
+  };
+  let layout = layoutTreemap(parsed.roots, { ...layoutOpts, height: areaH });
+  // The root's own top gutter leaves the first cell below the area's top. With
+  // a title, lift the area by that gutter and grow it to match, so the cells
+  // start at areaY and still end where they did.
+  let rootTop = 0;
+  if (showTitle) {
+    rootTop = layout.cells.reduce((m, c) => Math.min(m, c.y0), Infinity);
+    if (!Number.isFinite(rootTop) || rootTop < 0) rootTop = 0;
+    if (rootTop > 0)
+      layout = layoutTreemap(parsed.roots, {
+        ...layoutOpts,
+        height: areaH + rootTop,
+      });
+  }
 
   // ── SVG root ───────────────────────────────────────────────
   const svg = d3Selection
@@ -233,7 +257,7 @@ export function renderTreemap(
   const root = svg
     .append('g')
     .attr('class', 'dgmo-treemap-cells')
-    .attr('transform', `translate(${areaX},${areaY})`);
+    .attr('transform', `translate(${areaX},${areaY - rootTop})`);
 
   const seriesColors = seriesColorsTop;
   const colorOffset = options.colorOffset ?? 0;

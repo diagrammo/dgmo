@@ -1222,6 +1222,8 @@ export {
   TITLE_Y,
   TITLE_FONT_SIZE,
   FRAME_INSET,
+  FRAME_BODY_TOP,
+  LEGEND_BODY_GAP,
   HERO_TITLE_TYPES,
 } from './utils/title-constants';
 export { setPinnedNow } from './utils/now';

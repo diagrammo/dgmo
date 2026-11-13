@@ -294,6 +294,8 @@ const FRAME_PART_SELECTOR = [
   '.chart-legend',
   '[data-chart-header]',
   '[data-frame-legend]',
+  // Anything else a chart draws in its title row, outside the drawing.
+  '[data-frame-part]',
 ].join(',');
 
 /**

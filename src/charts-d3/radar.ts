@@ -157,7 +157,8 @@ export function renderRadar(
 
   const cx = width / 2;
   const top = topInset + 8;
-  const cy = top + (height - top) / 2;
+  // Top-aligned on the body band (#1838): `dropFigure` sets cy from the radius.
+  let cy = 0;
   const firstRadius = Math.min(width / 2 - 130, (height - top) / 2 - 50);
 
   const angle = (i: number) => -Math.PI / 2 + (i * 2 * Math.PI) / n;
@@ -180,14 +181,22 @@ export function renderRadar(
         topInset
       );
     });
+  // Lay the labels out around cy = 0, then drop the figure so the highest thing
+  // drawn (a top label or the rim) sits on `top`.
+  const dropFigure = (r: number): AxisLabel[] => {
+    cy = 0;
+    const hi = Math.min(-r, ...layoutLabels(r).map((l) => l.y - LABEL_FONT));
+    cy = top - hi;
+    return layoutLabels(r);
+  };
   let radius = firstRadius;
-  let labels = layoutLabels(radius);
+  let labels = dropFigure(radius);
   while (
     !labels.every((l) => l.fits) &&
     radius - RADIUS_STEP >= firstRadius * RADIUS_FLOOR
   ) {
     radius -= RADIUS_STEP;
-    labels = layoutLabels(radius);
+    labels = dropFigure(radius);
   }
 
   // grid rings (polygons) + spokes

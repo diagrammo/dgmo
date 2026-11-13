@@ -47,6 +47,7 @@ import {
   LEGEND_GROUP_GAP,
   LEGEND_ICON_W,
   LEGEND_GEAR_PILL_W,
+  legendInkBottom,
   measureLegendText,
   truncateLegendText,
 } from '../utils/legend-constants';
@@ -70,6 +71,8 @@ import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
   TITLE_Y,
+  FRAME_BODY_TOP,
+  LEGEND_BODY_GAP,
 } from '../utils/title-constants';
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
@@ -503,32 +506,46 @@ function drawGantt(
   // Vertical layout — matches timeline pattern (d3.ts:3649-3655)
   const title = resolved.options.title;
   const showTitle = !!title && !resolved.options.noTitle;
-  const titleHeight = showTitle ? 50 : 20;
+  const HEADER_ROW_H = 18; // height per reserved label row
+  const eraReserve = resolved.eras.length > 0 ? HEADER_ROW_H : 0;
+  const markerReserve = resolved.markers.length > 0 ? HEADER_ROW_H : 0;
+  const todayReserve = resolvedTodayDate ? HEADER_ROW_H : 0;
+  // The topmost ink starts this far under the top of the reserve: the date
+  // labels' 2; a header label row (era, marker, today) is centred on its row
+  // and its 10 px text rises above that centre by its size, so it starts
+  // above the row's centre line and ends up above the reserve's top.
+  const AXIS_INK_INSET =
+    eraReserve + markerReserve + todayReserve > 0 ? HEADER_ROW_H / 2 - 10 : 2;
+  const titleHeight = showTitle ? FRAME_BODY_TOP - AXIS_INK_INSET : 20;
   // §1.9 `no-legend` suppresses the whole legend row (tag capsules + the
   // critical-path/dependencies controls) and collapses its reserved band.
   const hasTagLegend =
     !resolved.options.noLegend &&
     (resolved.tagGroups.length > 0 || hasCriticalPath || hasDependencies);
-  const tagLegendReserve = hasTagLegend
-    ? getMaxLegendReservedHeight(
-        {
-          groups: resolved.tagGroups.map((tg) => ({
-            name: tg.name,
-            entries: tg.entries,
-          })),
-          position: { placement: 'top-center', titleRelation: 'below-title' },
-          // The draw's own mode: a static key wraps past the row cap (#1826).
-          mode: options?.exportMode ? 'export' : 'preview',
-          capsulePillAddonWidth: LEGEND_ICON_W,
-        },
-        containerWidth
-      ) + 8
+  // The controls-only legend (gear pill) is interactive: an export draws
+  // nothing there, so it reserves nothing.
+  const legendDraws =
+    hasTagLegend && (!options?.exportMode || resolved.tagGroups.length > 0);
+  const tagLegendReserve = legendDraws
+    ? legendInkBottom(
+        getMaxLegendReservedHeight(
+          {
+            groups: resolved.tagGroups.map((tg) => ({
+              name: tg.name,
+              entries: tg.entries,
+            })),
+            position: { placement: 'top-center', titleRelation: 'below-title' },
+            // The draw's own mode: a static key wraps past the row cap (#1826).
+            mode: options?.exportMode ? 'export' : 'preview',
+            capsulePillAddonWidth: LEGEND_ICON_W,
+          },
+          containerWidth
+        )
+      ) +
+      LEGEND_BODY_GAP -
+      AXIS_INK_INSET
     : 0;
   const topDateLabelReserve = 22; // tick (6) + gap (4) + label height (~12)
-  const HEADER_ROW_H = 18; // height per reserved label row
-  const eraReserve = resolved.eras.length > 0 ? HEADER_ROW_H : 0;
-  const markerReserve = resolved.markers.length > 0 ? HEADER_ROW_H : 0;
-  const todayReserve = resolvedTodayDate ? HEADER_ROW_H : 0;
   const sprintLabelReserve = resolved.sprints.length > 0 ? 16 : 0; // sprint hover label above date labels
   const CONTENT_TOP_PAD = 16; // breathing room between scale labels and first row
 

@@ -15,6 +15,7 @@ import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
   TITLE_Y,
+  FRAME_BODY_TOP,
 } from '../utils/title-constants';
 import { getSeriesColors, mix } from '../palettes/color-utils';
 import { resolveColor } from '../colors';
@@ -32,7 +33,10 @@ const DOT = 5.5; // commit dot radius (event-line DOT_R)
 const CORNER = 10; // elbow radius
 const STACK = 19; // above-dot badge stack step
 const CIRCLED = '①②③④⑤⑥⑦⑧⑨';
-const TITLE_AREA = 40;
+// Where the first ink sits under the content origin (the first dot's top).
+const CONTENT_INK_TOP = 22.5;
+// Lands the first ink on the shared band under a title (#1838).
+const TITLE_AREA = FRAME_BODY_TOP - CONTENT_INK_TOP;
 // Message-shelf (event-line no-box) constants.
 const SHELF_TINT = 13; // % branch color mixed over bg for the shelf fill
 const SHELF_EDGE = 4; // shelf corner radius

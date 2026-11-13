@@ -9,11 +9,14 @@ import type { PaletteColors } from '../palettes';
 import { contrastText, mix } from '../palettes/color-utils';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import { getMaxLegendReservedHeight } from '../utils/legend-layout';
+import { legendInkBottom } from '../utils/legend-constants';
 import type { LegendConfig } from '../utils/legend-types';
 import { legendSuppressed } from '../utils/parsing';
 import { tagAttrKey } from '../utils/tag-groups';
 import { measureText, wrapTextToWidth } from '../utils/text-measure';
 import {
+  FRAME_BODY_TOP,
+  LEGEND_BODY_GAP,
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
   TITLE_Y,
@@ -26,8 +29,6 @@ export interface SwotRenderOptions {
 }
 
 const DIAGRAM_PADDING = 20;
-const TITLE_HEIGHT = 30;
-const LEGEND_GAP = 8;
 const PANEL_WIDTH = 300;
 const PANEL_GAP = 12;
 const PANEL_RADIUS = 8;
@@ -187,10 +188,11 @@ export function renderSwot(
   const legendY =
     TITLE_Y - TITLE_FONT_SIZE + (TITLE_FONT_SIZE - legendHeight) / 2;
 
-  const headerBottom = Math.max(
-    showTitle || showLegend ? DIAGRAM_PADDING + TITLE_HEIGHT : DIAGRAM_PADDING,
-    showLegend ? legendY + legendHeight + LEGEND_GAP : 0
-  );
+  const headerBottom = showLegend
+    ? legendY + legendInkBottom(legendHeight) + LEGEND_BODY_GAP
+    : showTitle
+      ? FRAME_BODY_TOP
+      : DIAGRAM_PADDING;
   const gridTop = headerBottom + axisBand;
   const gridLeft = DIAGRAM_PADDING + axisBand;
 

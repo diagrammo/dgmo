@@ -28,6 +28,8 @@ import {
   TITLE_FONT_WEIGHT,
   TITLE_Y,
   TITLE_OFFSET,
+  FRAME_BODY_TOP,
+  LEGEND_BODY_GAP,
 } from '../utils/title-constants';
 
 export type Svg = d3Selection.Selection<
@@ -253,7 +255,8 @@ export function injectLegendGroups(
   // The title is drawn by now, by the dispatcher or just above; reserve what it
   // took, so a wrapped title pushes the legend down (#1718).
   const titleH = hasTitle ? 40 + drawnTitleExtraHeight(svg) : 0;
-  if (groups.length === 0) return hasTitle ? titleH + 12 : 24;
+  if (groups.length === 0)
+    return hasTitle ? titleH + FRAME_BODY_TOP - TITLE_OFFSET - 8 : 24;
 
   const legendY = 8 + titleH;
   const { svg: legendSvg, height: legendH } = renderLegendSvgInMode(
@@ -276,7 +279,8 @@ export function injectLegendGroups(
       `<g transform="translate(0,${legendY})">${legendSvg}</g>`
     );
   }
-  return legendY + legendH + 14;
+  // Every caller adds its own 8 on top of this.
+  return legendY + legendH + LEGEND_BODY_GAP - 8;
 }
 
 /**

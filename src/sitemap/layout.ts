@@ -164,7 +164,7 @@ function clipToRectBorder(
 const CARD_H_PAD = 20;
 const CARD_V_PAD = 10;
 const MIN_CARD_WIDTH = 140;
-const MARGIN = 40;
+export const MARGIN = 40;
 const CONTAINER_PAD_X = 24;
 const CONTAINER_PAD_TOP = 40;
 const CONTAINER_PAD_BOTTOM = 24;

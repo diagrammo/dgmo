@@ -40,6 +40,7 @@ const {
   TITLE_Y,
   TITLE_FONT_SIZE,
   FRAME_INSET,
+  FRAME_BODY_TOP,
   HERO_TITLE_TYPES,
 } = await import(join(ROOT, 'dist', 'advanced.js'));
 // Clock and countdown draw the current instant; pin it like the snapshots do.
@@ -147,6 +148,7 @@ function withGuides(svg, vb) {
     `<g pointer-events="none" opacity="0.7">` +
     `<line x1="${vb.x}" x2="${vb.x + vb.w}" y1="${y0}" y2="${y0}" stroke="#d33" stroke-width="1" stroke-dasharray="6 4"/>` +
     `<line x1="${x0}" x2="${x0}" y1="${vb.y}" y2="${vb.y + vb.h}" stroke="#d33" stroke-width="1" stroke-dasharray="6 4"/>` +
+    `<line x1="${vb.x}" x2="${vb.x + vb.w}" y1="${vb.y + FRAME_BODY_TOP}" y2="${vb.y + FRAME_BODY_TOP}" stroke="#36c" stroke-width="1" stroke-dasharray="2 4"/>` +
     `</g>`;
   return svg.replace(/<\/svg>\s*$/, `${g}</svg>`);
 }
@@ -230,7 +232,7 @@ const html = `<!doctype html>
   .cell svg { width: 100%; height: 100%; }
 </style></head><body>
 <h1>dgmo contact sheet</h1>
-<p class="sum">${tiles.length} chart types · red dashes: title baseline (y ${TITLE_Y}) and the closest a part may come to the canvas edge (x ${FRAME_INSET}) ·
+<p class="sum">${tiles.length} chart types · red dashes: title baseline (y ${TITLE_Y}); blue dots: where the drawing starts (y ${FRAME_BODY_TOP}) and the closest a part may come to the canvas edge (x ${FRAME_INSET}) ·
 ${off.length ? `<b class="bad">${off.length} off the band: ${off.map((t) => esc(t.type)).join(', ')}</b>` : '<b>all on the band</b>'}</p>
 <div class="grid">
 ${tiles

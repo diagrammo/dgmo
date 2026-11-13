@@ -192,6 +192,31 @@ export function renderLine(
     ),
     left: mLeft,
   };
+  // The highest value label sits 10 above its point and VALUE_FONT tall. The
+  // drawing starts on the body band (#1838), so push the plot down until that
+  // label's top is on it. A point at fraction f from the plot top lands at
+  // m.top + f * (height - m.bottom - m.top).
+  if (!chart.noValue) {
+    const probeLeft = leftAxis([0, 1]);
+    const probeR = dual
+      ? buildValueAxis(loR, hiR, undefined, [0, 1], { nice: true })
+      : null;
+    let f = 1;
+    for (const d of data)
+      for (let s = 0; s < seriesCount; s++) {
+        const ax = dual && axisOf(s) === 'right' && probeR ? probeR : probeLeft;
+        f = Math.min(f, 1 - ax(seriesValue(d, s)));
+      }
+    // A plot too short to keep its ticks apart is not squeezed further.
+    const need =
+      f < 1 ? (m.top + 10 + VALUE_FONT - f * (height - m.bottom)) / (1 - f) : 0;
+    if (
+      need > m.top &&
+      (height - m.bottom - need) / Math.max(1, probeL.length - 1) >=
+        TICK_FONT + 4
+    )
+      m.top = need;
+  }
   const plotH = height - m.top - m.bottom;
 
   const pointX = scalePoint<string>()

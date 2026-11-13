@@ -19,7 +19,7 @@ import { contrastText, shapeFill } from '../palettes/color-utils';
 import type { ParsedMindmap } from './types';
 import type { MindmapLayoutResult } from './types';
 import { parseMindmap } from './parser';
-import { layoutMindmap } from './layout';
+import { layoutMindmap, MARGIN as LAYOUT_MARGIN } from './layout';
 import { computeNodeText } from './text-wrap';
 import { renderInlineText } from '../utils/inline-markdown';
 import { preprocessDescriptionLine } from '../utils/description-helpers';
@@ -40,6 +40,7 @@ import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
   TITLE_Y,
+  FRAME_BODY_TOP,
 } from '../utils/title-constants';
 import { ScaleContext } from '../utils/scaling';
 import { renderCollapseBar } from '../utils/card';
@@ -51,6 +52,13 @@ import { FULL_TEXT_ATTR, fullNodeText, isCutShort } from '../utils/full-text';
 
 const DIAGRAM_PADDING = 20;
 const TITLE_HEIGHT = 30;
+/**
+ * The band an exported title adds above the diagram (#1838). The layout's own
+ * top MARGIN already carries the first node to the shared band, so a title
+ * adds nothing. The fixed preview strip keeps TITLE_HEIGHT.
+ */
+export const EMBEDDED_TITLE_BAND =
+  FRAME_BODY_TOP - DIAGRAM_PADDING - LAYOUT_MARGIN;
 const LABEL_LINE_HEIGHT = 18;
 const DESC_LINE_HEIGHT = 14;
 const ROOT_STROKE_WIDTH = 2.5;
@@ -680,7 +688,9 @@ export function renderMindmapForExport(
   });
 
   const titleOffset =
-    parsed.title && parsed.options['no-title'] !== 'on' ? TITLE_HEIGHT : 0;
+    parsed.title && parsed.options['no-title'] !== 'on'
+      ? EMBEDDED_TITLE_BAND
+      : 0;
   const exportWidth = layout.width + DIAGRAM_PADDING * 2;
   const exportHeight = layout.height + DIAGRAM_PADDING * 2 + titleOffset;
 

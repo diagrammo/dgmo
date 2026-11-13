@@ -39,9 +39,8 @@ export function renderPie(
   const total = data.reduce((a, d) => a + d.value, 0);
 
   const cx = width / 2;
-  const top = topInset + 12;
+  const top = topInset + 8;
   const availH = height - top;
-  const cy = top + availH / 2;
 
   // Precompute the external label strings up front so the radius can reserve
   // horizontal room for the ACTUAL longest one. The elbow gutter alone (~1.2r)
@@ -101,6 +100,8 @@ export function renderPie(
     .innerRadius(hasHole ? radius * holeRatio : 0)
     .outerRadius(radius);
 
+  // Top-aligned on the body band, not centred in the canvas (#1838).
+  const cy = top + radius;
   const g = svg.append('g').attr('transform', `translate(${cx},${cy})`);
 
   // Collected label placements — deferred so we can run a vertical

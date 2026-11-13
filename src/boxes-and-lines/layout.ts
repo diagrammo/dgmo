@@ -7,6 +7,7 @@
 // this module owns node sizing, parallel-edge fan offsets, and note floating —
 // the engine-agnostic post-passes applied to whatever the engine returns.
 
+import { LAYOUT_MARGIN } from './types';
 import type { ParsedBoxesAndLines, BLNode, BLGroup } from './types';
 import type { BLSearchConfig } from './layout-search';
 import { NODE_HEIGHT, NODE_WIDTH } from './node-metrics';
@@ -20,7 +21,7 @@ import {
 } from '../utils/notes';
 
 // ── Constants ──────────────────────────────────────────────
-const MARGIN = 40;
+const MARGIN = LAYOUT_MARGIN;
 const MAX_PARALLEL_EDGES = 5;
 const PARALLEL_SPACING = 22;
 // A route bowing further than two lanes off its port-to-port line was sent round

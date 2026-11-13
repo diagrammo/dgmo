@@ -26,7 +26,11 @@ import type {
 } from './types';
 import { parseKanban } from './parser';
 import { isArchiveColumn } from './mutations';
-import { LEGEND_HEIGHT, measureLegendText } from '../utils/legend-constants';
+import {
+  LEGEND_HEIGHT,
+  legendInkBottom,
+  measureLegendText,
+} from '../utils/legend-constants';
 import { getMaxLegendReservedHeight } from '../utils/legend-layout';
 import { legendSuppressed } from '../utils/parsing';
 import {
@@ -85,8 +89,12 @@ import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
   TITLE_Y,
+  FRAME_BODY_TOP,
+  LEGEND_BODY_GAP,
 } from '../utils/title-constants';
-const TITLE_HEIGHT = 30;
+// Title band, plus the 8 every header adds under it, lands the first column
+// on the shared band (#1838).
+const TITLE_HEIGHT = FRAME_BODY_TOP - DIAGRAM_PADDING - 8;
 const COLUMN_HEADER_FONT_SIZE = 13;
 const CARD_TITLE_FONT_SIZE = 12;
 const CARD_META_FONT_SIZE = 10;
@@ -672,8 +680,17 @@ function drawKanban(
       legendConfig,
       width - legendX - sDiagramPadding
     );
-    const legendY =
-      ctx.structural(TITLE_Y) - sTitleFontSize + (sTitleFontSize - legendH) / 2;
+    // Titled: the legend's ink ends one body gap above where the drawing
+    // starts (#1838); otherwise it sits centred on the title line.
+    const legendY = showTopTitle
+      ? sDiagramPadding +
+        sTitleHeight +
+        8 -
+        LEGEND_BODY_GAP -
+        legendInkBottom(legendH)
+      : ctx.structural(TITLE_Y) -
+        sTitleFontSize +
+        (sTitleFontSize - legendH) / 2;
     const legendG = svg
       .append('g')
       .attr('class', 'kanban-legend')

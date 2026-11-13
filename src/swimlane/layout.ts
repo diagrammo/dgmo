@@ -25,7 +25,7 @@ import type {
   LayoutBand,
 } from './types';
 
-const MARGIN = 30;
+export const MARGIN = 30;
 const COL_GAP = 64; // flow-axis gap between rank columns
 const NODE_W = 124;
 const NODE_H = 44;

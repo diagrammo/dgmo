@@ -15,7 +15,7 @@ import {
   runInExportContainer,
   extractExportSvg,
 } from '../utils/export-container';
-import { LEGEND_HEIGHT } from '../utils/legend-constants';
+import { LEGEND_INK_BOTTOM } from '../utils/legend-constants';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import { getLegendExtent } from '../utils/legend-layout';
 import { layoutInlineHeader } from '../utils/inline-header';
@@ -23,6 +23,7 @@ import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
   TITLE_Y,
+  LEGEND_BODY_GAP,
 } from '../utils/title-constants';
 import { growChartFrame } from '../utils/chart-frame';
 import type { PaletteColors } from '../palettes';
@@ -232,7 +233,6 @@ export function renderClassDiagram(
   const sMemberPaddingX = ctx.structural(MEMBER_PADDING_X);
   const sTitleFontSize = ctx.text(TITLE_FONT_SIZE);
   const sTitleY = ctx.structural(TITLE_Y);
-  const sLegendHeight = ctx.structural(LEGEND_HEIGHT);
 
   const legendEntries = collectClassTypes(parsed);
   const hasLegend =
@@ -240,9 +240,12 @@ export function renderClassDiagram(
 
   const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
   const titleHeight = showTitle ? 40 : 0;
-  const LEGEND_FIXED_GAP = 8;
-  const sLegendFixedGap = ctx.aesthetic(LEGEND_FIXED_GAP);
-  const legendReserve = hasLegend ? sLegendHeight + sLegendFixedGap : 0;
+  // The drawing starts LEGEND_BODY_GAP under the legend's bottom (#1838): the
+  // legend text reaches 0.71 em below the row's midline. The sum below adds
+  // the diagram padding back, so it comes out of the reserve here.
+  const legendReserve = hasLegend
+    ? LEGEND_INK_BOTTOM + LEGEND_BODY_GAP - sDiagramPadding
+    : 0;
 
   // legendActive: true = expanded (default), false = collapsed pill only
   const isLegendExpanded = legendActive !== false;
@@ -786,10 +789,9 @@ export function renderClassDiagramForExport(
   const isDark = theme === 'dark';
 
   const legendEntries = collectClassTypes(parsed);
-  const EXPORT_LEGEND_GAP = 8;
   const legendReserve =
     legendEntries.length > 1 && !legendSuppressed(parsed.options)
-      ? LEGEND_HEIGHT + EXPORT_LEGEND_GAP
+      ? LEGEND_INK_BOTTOM + LEGEND_BODY_GAP - DIAGRAM_PADDING
       : 0;
   const exportWidth = layout.width + DIAGRAM_PADDING * 2;
   const exportHeight =

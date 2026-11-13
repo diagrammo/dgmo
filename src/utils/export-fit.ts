@@ -192,10 +192,58 @@ export function parseTransform(value: string): Matrix | null {
   return value.slice(consumed).trim() === '' ? m : null;
 }
 
+/** Points on a Bézier where one axis turns: t in (0, 1), roots of B'(t). */
+function bezierTurns(p: readonly number[]): number[] {
+  const out: number[] = [];
+  const push = (t: number) => {
+    if (t > 0 && t < 1) out.push(t);
+  };
+  if (p.length === 3) {
+    const den = p[0]! - 2 * p[1]! + p[2]!;
+    if (den !== 0) push((p[0]! - p[1]!) / den);
+    return out;
+  }
+  const a = -p[0]! + 3 * p[1]! - 3 * p[2]! + p[3]!;
+  const b = 2 * (p[0]! - 2 * p[1]! + p[2]!);
+  const c = p[1]! - p[0]!;
+  if (Math.abs(a) < 1e-12) {
+    if (b !== 0) push(-c / b);
+    return out;
+  }
+  const disc = b * b - 4 * a * c;
+  if (disc < 0) return out;
+  const q = Math.sqrt(disc);
+  push((-b + q) / (2 * a));
+  push((-b - q) / (2 * a));
+  return out;
+}
+
+/** A Bézier's value on one axis at t. */
+function bezierAt(p: readonly number[], t: number): number {
+  const u = 1 - t;
+  return p.length === 3
+    ? u * u * p[0]! + 2 * u * t * p[1]! + t * t * p[2]!
+    : u * u * u * p[0]! +
+        3 * u * u * t * p[1]! +
+        3 * u * t * t * p[2]! +
+        t * t * t * p[3]!;
+}
+
+/** Add a Bézier's true extent: its ends and every turning point. */
+function bezierExtent(
+  xs: readonly number[],
+  ys: readonly number[],
+  add: (x: number, y: number) => void
+): void {
+  for (const t of [...bezierTurns(xs), ...bezierTurns(ys)])
+    add(bezierAt(xs, t), bezierAt(ys, t));
+}
+
 /**
  * Path data → its local bounding box, or null when it cannot be parsed.
- * Curves contribute their control points and arcs their whole circle, so the
- * box can only be too big, never too small.
+ * Curves contribute their true extent (#1838: a hull of control points put a
+ * tall arc's box far above the arc); arcs their whole circle, so an arc's
+ * box can be too big, never too small.
  */
 function pathBox(d: string): Box | null {
   let i = 0;
@@ -240,6 +288,9 @@ function pathBox(d: string): Box | null {
   let sx = 0;
   let sy = 0;
   let cmd = '';
+  // The previous segment's last control point, for S and T reflection.
+  let lastC: [number, number] | null = null;
+  let lastQ: [number, number] | null = null;
   while (true) {
     skipSep();
     if (i >= n) break;
@@ -288,11 +339,43 @@ function pathBox(d: string): Box | null {
         arcExtent(cx, cy, a[0]!, a[1]!, a[2]!, a[3]!, a[4]!, x2, y2, add);
         cx = x2;
         cy = y2;
+      } else if (up === 'C' || up === 'S') {
+        const c1: [number, number] =
+          up === 'C'
+            ? [a[0]! + ox, a[1]! + oy]
+            : lastC
+              ? [2 * cx - lastC[0], 2 * cy - lastC[1]]
+              : [cx, cy];
+        const o = up === 'C' ? 2 : 0;
+        const c2: [number, number] = [a[o]! + ox, a[o + 1]! + oy];
+        const end: [number, number] = [a[o + 2]! + ox, a[o + 3]! + oy];
+        bezierExtent(
+          [cx, c1[0], c2[0], end[0]],
+          [cy, c1[1], c2[1], end[1]],
+          add
+        );
+        cx = end[0];
+        cy = end[1];
+      } else if (up === 'Q' || up === 'T') {
+        const c1: [number, number] =
+          up === 'Q'
+            ? [a[0]! + ox, a[1]! + oy]
+            : lastQ
+              ? [2 * cx - lastQ[0], 2 * cy - lastQ[1]]
+              : [cx, cy];
+        const o = up === 'Q' ? 2 : 0;
+        const end: [number, number] = [a[o]! + ox, a[o + 1]! + oy];
+        bezierExtent([cx, c1[0], end[0]], [cy, c1[1], end[1]], add);
+        lastQ = c1;
+        cx = end[0];
+        cy = end[1];
       } else {
-        for (let j = 0; j + 1 < k; j += 2) add(a[j]! + ox, a[j + 1]! + oy);
         cx = a[k - 2]! + ox;
         cy = a[k - 1]! + oy;
       }
+      if (up === 'C' || up === 'S') lastC = [a[k - 4]! + ox, a[k - 3]! + oy];
+      else lastC = null;
+      if (up !== 'Q' && up !== 'T') lastQ = null;
       add(cx, cy);
       if (up === 'M') {
         sx = cx;

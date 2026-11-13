@@ -7,6 +7,7 @@ import { measureText, wrapTextToWidth } from '../utils/text-measure';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import { ScaleContext } from '../utils/scaling';
 import { initD3Chart, renderChartTitle } from '../utils/d3-helpers';
+import { FRAME_BODY_TOP } from '../utils/title-constants';
 import { growChartFrame } from '../utils/chart-frame';
 import type { ParsedVenn, VennOverlap } from '../visualizations/types';
 import type { PaletteColors } from '../palettes';
@@ -344,6 +345,13 @@ export function renderVenn(
     marginTop,
     marginBottom
   ).map((c) => ({ ...c, y: c.y + sTitleHeight }));
+  // Top-align on the band: the fit centres the figure, and a height-slack
+  // figure leaves a dead band under the title.
+  if (title) {
+    const figureTop = Math.min(...circles.map((c) => c.y - c.r));
+    const lift = figureTop - (FRAME_BODY_TOP + titleExtra);
+    if (lift > 0) for (const c of circles) c.y -= lift;
+  }
 
   // circles is non-empty: vennSets.length >= 2 guard above ensures rawCircles is sized.
   const scaledR = circles[0]!.r;

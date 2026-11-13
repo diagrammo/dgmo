@@ -906,8 +906,9 @@ Alice  location: NY
     // Legend should exist and be positioned at top
     expect(layout.legend).toHaveLength(1);
     expect(layout.legend[0].y).toBe(40); // MARGIN
-    // First node should be pushed down by LEGEND_HEIGHT (28) + LEGEND_GROUP_GAP (12)
-    expect(layout.nodes[0].y).toBeGreaterThanOrEqual(40 + 28 + 12);
+    // First node is pushed down by the legend shift (#1838): LEGEND_HEIGHT (28)
+    // less its 7 slack, plus LEGEND_BODY_GAP (24), less MARGIN (40) = 5
+    expect(layout.nodes[0].y).toBeGreaterThanOrEqual(40 + 5);
   });
 
   it('legend groups have data-legend-group attributes', () => {

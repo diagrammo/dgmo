@@ -70,9 +70,10 @@ import {
   type InlineHeaderGeometry,
 } from '../utils/inline-header';
 import { renderIntegratedLegend } from '../utils/legend-integration';
-import { legendChromeColors } from '../utils/legend-constants';
+import { legendChromeColors, legendInkBottom } from '../utils/legend-constants';
 import type { LegendCallbacks, LegendConfig } from '../utils/legend-types';
 import {
+  LEGEND_BODY_GAP,
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
   TITLE_Y,
@@ -1887,6 +1888,17 @@ function layoutSequencePass(
       ? getMaxLegendReservedHeight(legendConfig, containerWidth) +
         LEGEND_FIXED_GAP
       : 0;
+  // With a legend above the participants the drawing starts LEGEND_BODY_GAP
+  // under the legend's ink (#1838). The band is the legend's own row start, so
+  // what the participant offset and a group's empty label strip already add
+  // below it comes off the reserve.
+  const legendBand =
+    legendTopSpace > 0
+      ? legendInkBottom(legendTopSpace - LEGEND_FIXED_GAP) +
+        LEGEND_BODY_GAP -
+        sParticipantYOffset -
+        (parsed.groups.length > 0 ? GROUP_LABEL_SIZE : 0)
+      : 0;
   // §1.9 `legend-inline` (decision #50): try a one-line header (title left,
   // legend flushed right). Falls back to the stacked band when the legend can't
   // fit beside the title. The header is laid out against `containerWidth` — the
@@ -1937,7 +1949,7 @@ function layoutSequencePass(
   const participantStartY =
     sTopMargin +
     titleOffset +
-    (header.inline ? 0 : legendTopSpace) +
+    (header.inline ? 0 : legendBand) +
     sParticipantYOffset +
     groupOffset;
   const lifelineStartY0 = participantStartY + sBoxH;

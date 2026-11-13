@@ -16,7 +16,7 @@ import type { PaletteColors } from '../palettes';
 import { contrastText, shapeFill } from '../palettes/color-utils';
 import { getSeriesColors } from '../palettes';
 import { resolveTagColor } from '../utils/tag-groups';
-import { LEGEND_HEIGHT } from '../utils/legend-constants';
+import { LEGEND_HEIGHT, LEGEND_INK_BOTTOM } from '../utils/legend-constants';
 import { getLegendExtent } from '../utils/legend-layout';
 import { layoutInlineHeader } from '../utils/inline-header';
 import { renderIntegratedLegend } from '../utils/legend-integration';
@@ -24,6 +24,8 @@ import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
   TITLE_Y,
+  FRAME_BODY_TOP,
+  LEGEND_BODY_GAP,
 } from '../utils/title-constants';
 import { growChartFrame } from '../utils/chart-frame';
 import { ScaleContext } from '../utils/scaling';
@@ -32,7 +34,7 @@ import { renderNodeNote } from '../utils/note-box';
 import type { ParsedERDiagram, ERConstraint } from './types';
 import type { ERLayoutResult } from './layout';
 import { parseERDiagram } from './parser';
-import { layoutERDiagram } from './layout';
+import { layoutERDiagram, HALF_MARGIN } from './layout';
 import {
   classifyEREntities,
   ROLE_COLORS,
@@ -341,8 +343,20 @@ export function renderERDiagram(
   // the content offset. Stacked → unchanged.
   const effectiveReserveH = header.inline ? 0 : legendReserveH;
 
+  // With a title the first thing drawn starts at a fixed line (#1838): the
+  // shared body top, or LEGEND_BODY_GAP under the legend's bottom (its text
+  // reaches 0.71 em below the row's midline). The layout's own top margin
+  // scales with the content, so it is cut from the scaled part.
+  const bodyTop = !showTitle
+    ? null
+    : effectiveReserveH > 0
+      ? sDiagramPadding + titleHeight + LEGEND_INK_BOTTOM + LEGEND_BODY_GAP
+      : FRAME_BODY_TOP;
+
   const naturalH =
-    diagramH + titleHeight + effectiveReserveH + sDiagramPadding * 2;
+    bodyTop === null
+      ? diagramH + titleHeight + effectiveReserveH + sDiagramPadding * 2
+      : diagramH - HALF_MARGIN + bodyTop + sDiagramPadding;
 
   let viewW: number;
   let viewH: number;
@@ -355,17 +369,26 @@ export function renderERDiagram(
     viewH = exportDims.height ?? naturalH;
     const availH = viewH - titleHeight - effectiveReserveH;
     const scaleX = (viewW - sDiagramPadding * 2) / diagramW;
-    const scaleY = (availH - sDiagramPadding * 2) / diagramH;
+    const scaleY =
+      bodyTop === null
+        ? (availH - sDiagramPadding * 2) / diagramH
+        : (viewH - bodyTop - sDiagramPadding) / (diagramH - HALF_MARGIN);
     scale = Math.min(MAX_SCALE, scaleX, scaleY);
     const scaledW = diagramW * scale;
     offsetX = (viewW - scaledW) / 2;
-    offsetY = titleHeight + effectiveReserveH + sDiagramPadding;
+    offsetY =
+      bodyTop === null
+        ? titleHeight + effectiveReserveH + sDiagramPadding
+        : bodyTop - HALF_MARGIN * scale;
   } else {
     viewW = naturalW;
     viewH = naturalH;
     scale = 1;
     offsetX = sDiagramPadding;
-    offsetY = titleHeight + effectiveReserveH + sDiagramPadding;
+    offsetY =
+      bodyTop === null
+        ? titleHeight + effectiveReserveH + sDiagramPadding
+        : bodyTop - HALF_MARGIN;
   }
 
   if (viewW <= 0 || viewH <= 0) return;

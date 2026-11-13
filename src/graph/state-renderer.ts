@@ -40,7 +40,12 @@ import { renderGraphTitle } from './title';
 import { growChartFrame } from '../utils/chart-frame';
 import { edgeSplinePath, selfLoopArcPath } from './edge-spline';
 import { withoutApproach } from './edge-ports';
-import { TITLE_FONT_SIZE, TITLE_Y } from '../utils/title-constants';
+import {
+  LEGEND_BODY_GAP,
+  TITLE_FONT_SIZE,
+  TITLE_Y,
+} from '../utils/title-constants';
+import { legendInkBottom } from '../utils/legend-constants';
 import { ScaleContext } from '../utils/scaling';
 import { renderCollapseBar } from '../utils/card';
 import { measureText } from '../utils/text-measure';
@@ -184,20 +189,125 @@ export function renderState(
     titleFontSize: sTitleFontSize,
   });
 
+  const LABEL_PAD = 8;
+  const LABEL_H = 16;
+  const PERP_OFFSET = 10;
+
+  const nodeCenters = new Map<string, LayoutNode>();
+  for (const node of layout.nodes) nodeCenters.set(node.id, node);
+
+  interface LabelPos {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    edgeIdx: number;
+  }
+  const labelPositions: LabelPos[] = [];
+
+  for (let ei = 0; ei < layout.edges.length; ei++) {
+    const edge = layout.edges[ei]!;
+    if (!edge.label) continue;
+    const bgW = measureText(edge.label, sEdgeLabelFontSize) + LABEL_PAD;
+    let lx: number, ly: number;
+
+    if (edge.points.length >= 2) {
+      // The label sits on dagre's middle waypoint, not one a square arrival
+      // added near the arrowhead (#1839).
+      const route = withoutApproach(edge.points);
+      const midIdx = Math.floor(route.length / 2);
+      const midPt = route[midIdx]!;
+      const prev = route[Math.max(0, midIdx - 1)]!;
+      const next = route[Math.min(route.length - 1, midIdx + 1)]!;
+      const self = edge.source === edge.target;
+      const node = self ? nodeCenters.get(edge.source) : undefined;
+      if (self && node) {
+        // A self-loop's midpoint is the far apex of the arc, and the two
+        // waypoints around it are parallel to the node's edge — so the
+        // perpendicular used below is ambiguous in sign and half the time
+        // pushes the label back over the node. Push it straight out from
+        // the node center instead, which is correct in every `rankdir`.
+        const ox = midPt.x - node.x;
+        const oy = midPt.y - node.y;
+        const olen = Math.sqrt(ox * ox + oy * oy);
+        if (olen > 0) {
+          lx = midPt.x + (ox / olen) * PERP_OFFSET;
+          ly = midPt.y + (oy / olen) * PERP_OFFSET;
+        } else {
+          lx = midPt.x;
+          ly = midPt.y;
+        }
+      } else {
+        const dx = next.x - prev.x;
+        const dy = next.y - prev.y;
+        const len = Math.sqrt(dx * dx + dy * dy);
+        if (len > 0) {
+          lx = midPt.x + (-dy / len) * PERP_OFFSET;
+          ly = midPt.y + (dx / len) * PERP_OFFSET;
+        } else {
+          lx = midPt.x;
+          ly = midPt.y;
+        }
+      }
+    } else {
+      continue;
+    }
+    labelPositions.push({ x: lx, y: ly, w: bgW, h: LABEL_H, edgeIdx: ei });
+  }
+
+  labelPositions.sort((a, b) => a.y - b.y);
+  for (let i = 0; i < labelPositions.length; i++) {
+    for (let j = i + 1; j < labelPositions.length; j++) {
+      const a = labelPositions[i]!;
+      const b = labelPositions[j]!;
+      const overlapX = Math.abs(a.x - b.x) < (a.w + b.w) / 2;
+      const overlapY = Math.abs(a.y - b.y) < (a.h + b.h) / 2;
+      if (overlapX && overlapY) {
+        b.y = a.y + (a.h + b.h) / 2 + 2;
+      }
+    }
+  }
+
+  const labelPosMap = new Map<number, LabelPos>();
+  for (const lp of labelPositions) labelPosMap.set(lp.edgeIdx, lp);
+
+  // With a title the first thing drawn starts at the fixed line under the
+  // title band (#1838). An edge label or curve can reach above the top node,
+  // so that room is reserved too and the plot moves down, not the label.
+  let poke = 0;
+  if (showTitle) {
+    let top = 0;
+    for (const lp of labelPositions) top = Math.min(top, lp.y - lp.h / 2 - 1);
+    // An edge's curve stays inside its points; allow for the stroke.
+    for (const e of layout.edges)
+      for (const pt of e.points) top = Math.min(top, pt.y - 1);
+    // A group's box reaches above its top state by its padding and label.
+    for (const g of layout.groups)
+      top = Math.min(top, g.y - sGroupExtraPadding - sGroupLabelFontSize - 4);
+    poke = -top;
+  }
+  // With a title, the drawing starts LEGEND_BODY_GAP under the legend's ink
+  // (#1838). The legend is drawn 4 below the title band; the drawing sits one
+  // padding under the band this reserves.
+  const stackedLegendBand =
+    hasLegend && showTitle
+      ? legendInkBottom(legendH - 8) + LEGEND_BODY_GAP + 4 - sDiagramPadding
+      : legendH;
   const diagramW = layout.width;
-  const diagramH = layout.height;
-  const { scale, offsetX, offsetY, canvasHeight, canvasWidth } =
-    fitDiagramToCanvas({
-      width,
-      height,
-      diagramW,
-      diagramH,
-      padding: sDiagramPadding,
-      // Inline → one band (title only); stacked → title + legend band.
-      titleHeight: header.inline ? titleHeight : titleHeight + legendH,
-      maxScale: MAX_SCALE,
-      exportMode: !!exportDims,
-    });
+  const diagramH = layout.height + poke;
+  const fit = fitDiagramToCanvas({
+    width,
+    height,
+    diagramW,
+    diagramH,
+    padding: sDiagramPadding,
+    // Inline → one band (title only); stacked → title + legend band.
+    titleHeight: header.inline ? titleHeight : titleHeight + stackedLegendBand,
+    maxScale: MAX_SCALE,
+    exportMode: !!exportDims,
+  });
+  const { scale, offsetX, canvasHeight, canvasWidth } = fit;
+  const offsetY = fit.offsetY + poke * scale;
 
   const svg = d3Selection
     .select(container)
@@ -349,88 +459,6 @@ export function renderState(
       scale: ctx,
     });
   }
-
-  const LABEL_PAD = 8;
-  const LABEL_H = 16;
-  const PERP_OFFSET = 10;
-
-  const nodeCenters = new Map<string, LayoutNode>();
-  for (const node of layout.nodes) nodeCenters.set(node.id, node);
-
-  interface LabelPos {
-    x: number;
-    y: number;
-    w: number;
-    h: number;
-    edgeIdx: number;
-  }
-  const labelPositions: LabelPos[] = [];
-
-  for (let ei = 0; ei < layout.edges.length; ei++) {
-    const edge = layout.edges[ei]!;
-    if (!edge.label) continue;
-    const bgW = measureText(edge.label, sEdgeLabelFontSize) + LABEL_PAD;
-    let lx: number, ly: number;
-
-    if (edge.points.length >= 2) {
-      // The label sits on dagre's middle waypoint, not one a square arrival
-      // added near the arrowhead (#1839).
-      const route = withoutApproach(edge.points);
-      const midIdx = Math.floor(route.length / 2);
-      const midPt = route[midIdx]!;
-      const prev = route[Math.max(0, midIdx - 1)]!;
-      const next = route[Math.min(route.length - 1, midIdx + 1)]!;
-      const self = edge.source === edge.target;
-      const node = self ? nodeCenters.get(edge.source) : undefined;
-      if (self && node) {
-        // A self-loop's midpoint is the far apex of the arc, and the two
-        // waypoints around it are parallel to the node's edge — so the
-        // perpendicular used below is ambiguous in sign and half the time
-        // pushes the label back over the node. Push it straight out from
-        // the node center instead, which is correct in every `rankdir`.
-        const ox = midPt.x - node.x;
-        const oy = midPt.y - node.y;
-        const olen = Math.sqrt(ox * ox + oy * oy);
-        if (olen > 0) {
-          lx = midPt.x + (ox / olen) * PERP_OFFSET;
-          ly = midPt.y + (oy / olen) * PERP_OFFSET;
-        } else {
-          lx = midPt.x;
-          ly = midPt.y;
-        }
-      } else {
-        const dx = next.x - prev.x;
-        const dy = next.y - prev.y;
-        const len = Math.sqrt(dx * dx + dy * dy);
-        if (len > 0) {
-          lx = midPt.x + (-dy / len) * PERP_OFFSET;
-          ly = midPt.y + (dx / len) * PERP_OFFSET;
-        } else {
-          lx = midPt.x;
-          ly = midPt.y;
-        }
-      }
-    } else {
-      continue;
-    }
-    labelPositions.push({ x: lx, y: ly, w: bgW, h: LABEL_H, edgeIdx: ei });
-  }
-
-  labelPositions.sort((a, b) => a.y - b.y);
-  for (let i = 0; i < labelPositions.length; i++) {
-    for (let j = i + 1; j < labelPositions.length; j++) {
-      const a = labelPositions[i]!;
-      const b = labelPositions[j]!;
-      const overlapX = Math.abs(a.x - b.x) < (a.w + b.w) / 2;
-      const overlapY = Math.abs(a.y - b.y) < (a.h + b.h) / 2;
-      if (overlapX && overlapY) {
-        b.y = a.y + (a.h + b.h) / 2 + 2;
-      }
-    }
-  }
-
-  const labelPosMap = new Map<number, LabelPos>();
-  for (const lp of labelPositions) labelPosMap.set(lp.edgeIdx, lp);
 
   for (let ei = 0; ei < layout.edges.length; ei++) {
     const edge = layout.edges[ei]!;

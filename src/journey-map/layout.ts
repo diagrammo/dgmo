@@ -1,6 +1,8 @@
 import type { PaletteColors } from '../palettes';
 import { fillModeFromOptions } from '../utils/parsing';
 import { mix, shapeFill } from '../palettes/color-utils';
+import { LEGEND_HEIGHT } from '../utils/legend-constants';
+import { FRAME_BODY_TOP, LEGEND_BODY_GAP } from '../utils/title-constants';
 import { measureText, wrapTextToWidth } from '../utils/text-measure';
 import type {
   ParsedJourneyMap,
@@ -60,6 +62,10 @@ export interface JourneyMapLayout {
 
 const PADDING = 24;
 const TITLE_HEIGHT = 36;
+const LEGEND_BOX_SLACK = 7; // LEGEND_HEIGHT exceeds the legend's ink by this much
+const LEGEND_TOP_PAD = 20; // renderer DIAGRAM_PADDING
+const LEGEND_TITLE_FONT_SIZE = 18; // renderer FONT_SIZE_TITLE
+const CURVE_INK_ABOVE = 5.5; // top face ink above the curve area
 const PERSONA_HEIGHT = 48;
 // Must match renderer.ts persona panel width
 const PERSONA_PANEL_WIDTH = 280;
@@ -151,7 +157,23 @@ export function layoutJourneyMap(
   // Reserve top headroom so an expanded thought bubble — which always pops
   // ABOVE its face — clears the title + persona band, even when it hangs above
   // the highest (score-5) face. Mirrors the renderer's bubble metrics.
-  const baseTop = PADDING + titleHeight + personaHeight;
+  // With a title, the top face's ink starts CURVE_INK_ABOVE above the curve
+  // area; it lands on the shared band (#1838) — FRAME_BODY_TOP, or
+  // LEGEND_BODY_GAP under the tag legend, which the renderer draws under the
+  // title at its padding + title font size + 8.
+  const hasLegend =
+    parsed.tagGroups.length > 0 && parsed.options['no-legend'] !== 'on';
+  const legendBottom =
+    LEGEND_TOP_PAD +
+    LEGEND_TITLE_FONT_SIZE +
+    8 +
+    LEGEND_HEIGHT -
+    LEGEND_BOX_SLACK;
+  const baseTop = hasTitle
+    ? (hasLegend ? legendBottom + LEGEND_BODY_GAP : FRAME_BODY_TOP) +
+      CURVE_INK_ABOVE +
+      personaHeight
+    : PADDING + personaHeight;
   let topHeadroom = 0;
   if (hasThoughts) {
     const THOUGHT_MAX_W = 200;

@@ -1,7 +1,12 @@
 import * as d3Selection from 'd3-selection';
 import { growChartFrame } from '../utils/chart-frame';
 import { FONT_FAMILY } from '../fonts';
-import { TITLE_FONT_SIZE, TITLE_Y } from '../utils/title-constants';
+import {
+  FRAME_BODY_TOP,
+  LEGEND_BODY_GAP,
+  TITLE_FONT_SIZE,
+  TITLE_Y,
+} from '../utils/title-constants';
 import { contrastText, shapeFill } from '../palettes/color-utils';
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
@@ -280,7 +285,14 @@ export function renderTechRadar(
     legendReservedHeight = getMaxLegendReservedHeight(legendConfig, width) + 8;
   }
 
-  const radarTop = (showTitle ? titleY + 16 : 8) + legendReservedHeight;
+  const radarTop =
+    legendReservedHeight > 0
+      ? (showTitle ? titleY + 8 : 4) +
+        (legendReservedHeight - 8) +
+        LEGEND_BODY_GAP
+      : showTitle
+        ? FRAME_BODY_TOP
+        : 8;
   const radarAreaHeight = radarHeight - radarTop;
   const radarAreaWidth = radarWidth;
 
@@ -289,7 +301,14 @@ export function renderTechRadar(
     radarAreaHeight,
     parsed.rings.length
   );
-  const offsetY = radarTop;
+  // Top-aligned: the ring sits centred in its box, so lift it by the slack
+  // above it and the top of the ring lands on the band.
+  // A top-corner quadrant label's cap rises above the ring when it is
+  // taller than its baseline offset (16); reserve that too.
+  const labelPoke = Math.max(0, sQuadrantLabelFontSize - 16);
+  const offsetY = showTitle
+    ? radarTop - (cy - maxRadius) + labelPoke
+    : radarTop;
 
   const radarGroup = svg
     .append('g')

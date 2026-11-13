@@ -18,6 +18,7 @@ import type {
 } from '../visualizations/types';
 import type { PaletteColors } from '../palettes';
 import { themeBaseBg } from '../palettes/color-utils';
+import { FRAME_BODY_TOP } from '../utils/title-constants';
 
 export function orderArcNodes(
   links: ArcLink[],
@@ -226,7 +227,7 @@ export function renderArcDiagram(
   );
 
   const margin = {
-    top: sMarginTop + titleExtra,
+    top: (title ? FRAME_BODY_TOP : sMarginTop) + titleExtra,
     right: sMarginRight,
     bottom: sMarginBottom,
     left: sMarginLeft,
@@ -599,22 +600,24 @@ export function renderArcDiagram(
       ? nodeLabelDepth + groupNameGap + sGroupLabelFont * 0.25
       : Math.max(sBandHalfH, nodeLabelDepth);
 
-    // Live preview centers the baseline in the host container; export sizes the
-    // canvas to the arc band so the SVG carries no dead whitespace (arcs bow up
-    // by ~distance*0.2 above the baseline, labels/bands sit just below it).
-    let baseY = innerHeight / 2;
+    // The baseline sits as far below the top of the drawing as its tallest
+    // part rises: an arc apex (a quadratic's apex is half its control height,
+    // distance*0.2, plus half its stroke), a node, or a group band. Preview and
+    // export share it, so the drawing starts on the shared band in both.
+    let above = sNodeRadius;
+    for (const l of links) {
+      const x1 = posX(l.source);
+      const x2 = posX(l.target);
+      if (x1 != null && x2 != null)
+        above = Math.max(
+          above,
+          Math.abs(x2 - x1) * 0.2 + strokeScale(l.value) / 2
+        );
+    }
+    if (hasGroups) above = Math.max(above, sBandHalfH);
+    const baseY = above;
     if (exportDims) {
-      let maxDist = 0;
-      for (const l of links) {
-        const a = posX(l.source);
-        const b = posX(l.target);
-        if (a != null && b != null)
-          maxDist = Math.max(maxDist, Math.abs(b - a));
-      }
-      const above = maxDist * 0.2 + sNodeRadius;
-      const below = belowExtent;
-      baseY = above;
-      const tightHeight = margin.top + above + below + margin.bottom;
+      const tightHeight = margin.top + above + belowExtent + margin.bottom;
       svg
         .attr('height', tightHeight)
         .attr('viewBox', `0 0 ${width} ${tightHeight}`);

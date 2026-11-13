@@ -27,6 +27,8 @@ import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
   TITLE_Y,
+  FRAME_BODY_TOP,
+  LEGEND_BODY_GAP,
 } from '../utils/title-constants';
 import { growChartFrame } from '../utils/chart-frame';
 import {
@@ -46,7 +48,7 @@ import {
   getMaxLegendReservedHeight,
   getLegendExtent,
 } from '../utils/legend-layout';
-import { LEGEND_GROUP_GAP } from '../utils/legend-constants';
+import { LEGEND_GROUP_GAP, legendInkBottom } from '../utils/legend-constants';
 import type { LegendConfig } from '../utils/legend-types';
 import { measureText } from '../utils/text-measure';
 import {
@@ -223,16 +225,43 @@ export function renderFamilyForExport(
 
   // Inline → one band (title only); stacked → title + legend band.
   const chrome = titleReserve + (header.inline ? 0 : legendReserve);
+  // With a title the first thing drawn starts at a fixed line (#1838): the
+  // shared body top, or LEGEND_BODY_GAP under the legend's bottom (its text
+  // reaches 0.71 em below the row's midline). The layout leaves room above its
+  // first row, so that room is cut from the scaled content.
+  let contentTop = Math.min(...layout.nodes.map((n) => n.y));
+  for (const a of layout.ancestors) contentTop = Math.min(contentTop, a.y - 7);
+  // A marriage year sits above its bar and can reach above the top row.
+  for (const b of layout.bars)
+    contentTop = Math.min(
+      contentTop,
+      b.year ? b.y - BAR_DOT_R - 3 - META_FONT_SIZE : b.y - BAR_DOT_R
+    );
+  if (parsed.options['generations'] === 'true' && layout.rows[0])
+    contentTop = Math.min(contentTop, layout.rows[0].y - 12);
+  if (!Number.isFinite(contentTop)) contentTop = 0;
+  const bodyTop = !parsed.title
+    ? null
+    : hasLegend && !header.inline
+      ? titleReserve +
+        legendInkBottom(legendReserve - LEGEND_GROUP_GAP) +
+        LEGEND_BODY_GAP
+      : FRAME_BODY_TOP;
+  const above = bodyTop ?? chrome + PAD;
   let scale = 1;
   let H: number;
   if (opts.fit) {
     H = opts.fit.height;
     const availW = Math.max(1, W - PAD * 2);
-    const availH = Math.max(1, H - chrome - PAD * 2);
-    scale = Math.min(MAX_SCALE, availW / contentW, availH / contentH);
+    const availH = Math.max(1, H - above - PAD);
+    const drawnH = bodyTop === null ? contentH : contentH - contentTop;
+    scale = Math.min(MAX_SCALE, availW / contentW, availH / drawnH);
     if (!Number.isFinite(scale) || scale <= 0) scale = 1;
   } else {
-    H = contentH + chrome + PAD * 2;
+    H =
+      bodyTop === null
+        ? contentH + chrome + PAD * 2
+        : contentH - contentTop + bodyTop + PAD;
   }
 
   const svg = d3Selection
@@ -308,7 +337,7 @@ export function renderFamilyForExport(
     .append('g')
     .attr(
       'transform',
-      `translate(${contentX}, ${chrome + PAD}) scale(${scale})`
+      `translate(${contentX}, ${bodyTop === null ? chrome + PAD : bodyTop - contentTop * scale}) scale(${scale})`
     );
 
   // ── Generation zebra bands (opt-in `generations`) ──

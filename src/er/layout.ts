@@ -87,7 +87,7 @@ const MEMBER_LINE_HEIGHT = 18;
 const COMPARTMENT_PADDING_Y = 8;
 const SEPARATOR_HEIGHT = 1;
 
-const HALF_MARGIN = 30;
+export const HALF_MARGIN = 30;
 const COMP_GAP = 60; // gap between packed components
 
 // ============================================================

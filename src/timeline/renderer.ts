@@ -41,6 +41,7 @@ import {
 } from '../palettes/color-utils';
 import { resolveTagColor } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
+import { FRAME_BODY_TOP } from '../utils/title-constants';
 import {
   LEGEND_HEIGHT as TL_LEGEND_HEIGHT,
   LEGEND_PILL_PAD as TL_LEGEND_PILL_PAD,
@@ -1632,6 +1633,8 @@ function renderTimelineHorizontalTimeSort(
   const ERA_ROW_H = ctx.structural(22);
   const MARKER_ROW_H = ctx.structural(22);
   const eraReserve = timelineEras.length > 0 ? ERA_ROW_H : 0;
+  // The era label (13px, baseline on the row's middle) rises above its row.
+  const eraLabelPoke = eraReserve ? Math.max(0, 13 - ERA_ROW_H / 2) : 0;
   const markerReserve = timelineMarkers.length > 0 ? MARKER_ROW_H : 0;
   // The top tick labels are drawn at full size (renderTimeScale), so their
   // band may shrink with the layout but never below the labels themselves.
@@ -1643,7 +1646,8 @@ function renderTimelineHorizontalTimeSort(
   const hasGroupLegend = timelineGroups.length > 0 && !parsed.noLegend;
   const margin = {
     top:
-      50 +
+      FRAME_BODY_TOP +
+      eraLabelPoke +
       wrappedTitleExtra(title, width) +
       (hasGroupLegend ? 54 : ctx.aesthetic(54)) +
       topScaleH +
@@ -2047,6 +2051,8 @@ function renderTimelineHorizontalGrouped(
   const ERA_ROW_H = ctx.structural(22);
   const MARKER_ROW_H = ctx.structural(22);
   const eraReserve = timelineEras.length > 0 ? ERA_ROW_H : 0;
+  // The era label (13px, baseline on the row's middle) rises above its row.
+  const eraLabelPoke = eraReserve ? Math.max(0, 13 - ERA_ROW_H / 2) : 0;
   const markerReserve = timelineMarkers.length > 0 ? MARKER_ROW_H : 0;
   // The top tick labels are drawn at full size (renderTimeScale), so their
   // band may shrink with the layout but never below the labels themselves.
@@ -2069,7 +2075,7 @@ function renderTimelineHorizontalGrouped(
   const dynamicLeftMargin = labelColumn.width;
   // The title is drawn at full size (renderChartTitle), so its band is too.
   const baseTopMargin = title
-    ? 50 + wrappedTitleExtra(title, width)
+    ? FRAME_BODY_TOP + eraLabelPoke + wrappedTitleExtra(title, width)
     : ctx.aesthetic(20);
   const margin = {
     top:

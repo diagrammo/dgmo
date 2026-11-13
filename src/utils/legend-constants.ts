@@ -6,6 +6,25 @@
 export const LEGEND_HEIGHT = 28;
 export const LEGEND_PILL_PAD = 16;
 export const LEGEND_PILL_FONT_SIZE = 11;
+
+/**
+ * How far below a legend row's top its ink ends (#1838): the row's midline
+ * plus the label's descent, 0.71 em. What a drawing below the legend measures
+ * its LEGEND_BODY_GAP from.
+ */
+export const LEGEND_INK_BOTTOM =
+  LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE * 0.71;
+
+/**
+ * Where a legend `legendHeight` tall ends in ink, from its top (#1838): its
+ * last row's text, not the row box. One row gives LEGEND_INK_BOTTOM; a static
+ * key that wraps adds its extra rows.
+ */
+export function legendInkBottom(legendHeight: number = LEGEND_HEIGHT): number {
+  return (
+    Math.max(LEGEND_HEIGHT, legendHeight) - LEGEND_HEIGHT + LEGEND_INK_BOTTOM
+  );
+}
 export const LEGEND_CAPSULE_PAD = 4;
 export const LEGEND_DOT_R = 4;
 export const LEGEND_ENTRY_FONT_SIZE = 10;

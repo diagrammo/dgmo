@@ -15,7 +15,8 @@ export async function exportSwimlane(ctx: ExportContext): Promise<string> {
   const { content, theme, palette } = ctx;
   const { parseSwimlane } = await import('./parser');
   const { layoutSwimlane } = await import('./layout');
-  const { renderSwimlaneForExport } = await import('./renderer');
+  const { renderSwimlaneForExport, swimlaneTitleBand } =
+    await import('./renderer');
 
   const effectivePalette = await resolveExportPalette(theme, palette);
   const swimParsed = parseSwimlane(content, effectivePalette);
@@ -23,7 +24,9 @@ export async function exportSwimlane(ctx: ExportContext): Promise<string> {
 
   const swimLayout = layoutSwimlane(swimParsed);
   const PADDING = 20;
-  const titleOffset = swimParsed.title ? 40 : 0;
+  const titleOffset = swimParsed.title
+    ? swimlaneTitleBand(swimParsed.phases.length > 0)
+    : 0;
   const exportWidth = swimLayout.width + PADDING * 2;
   const exportHeight = swimLayout.height + PADDING * 2 + titleOffset;
   const container = createExportContainer(exportWidth, exportHeight);

@@ -20,6 +20,7 @@ import {
   showTooltip,
 } from '../utils/d3-helpers';
 import type { ParsedSlope } from '../visualizations/types';
+import { FRAME_BODY_TOP } from '../utils/title-constants';
 import {
   EMPHASIS_DIM_OPACITY,
   EMPHASIS_DIM_TEXT_OPACITY,
@@ -118,7 +119,10 @@ export function renderSlopeChart(
     onClickItem,
     2
   );
-  const sPlotTop = sMarginTop + titleExtra;
+  // The period headers rise above the plot; the band starts at the headers.
+  const sPlotTop =
+    (title ? FRAME_BODY_TOP + sPeriodHeaderY + sPeriodFont : sMarginTop) +
+    titleExtra;
 
   // Compute right margin from the longest end-of-line label
   // The author's `format` / `unit` / `locale` (#1831); plain values otherwise.

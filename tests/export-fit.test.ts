@@ -244,3 +244,27 @@ describe('export fit — callers that ask for a size', () => {
     expect(embed).not.toMatch(/background:/);
   });
 });
+
+describe('curve extents (#1838)', () => {
+  const box = (d: string) =>
+    measureSvgContent(
+      `<svg viewBox="0 0 400 400"><path d="${d}" stroke-width="0"/></svg>`
+    ).box!;
+
+  it('takes a quadratic at its peak, not its control point', () => {
+    // Apex of M 0,100 Q 100,-100 200,100 is y = 0.
+    expect(box('M 0,100 Q 100,-100 200,100').y0).toBeCloseTo(0, 6);
+  });
+
+  it('takes a cubic at its turning points', () => {
+    // M 0,0 C 0,-100 100,-100 100,0 peaks at y = -75.
+    expect(box('M 0,0 C 0,-100 100,-100 100,0').y0).toBeCloseTo(-75, 6);
+  });
+
+  it('reflects the control point of S and T', () => {
+    const s = box('M 0,0 C 0,-100 100,-100 100,0 S 200,100 200,0');
+    expect(s.y1).toBeCloseTo(75, 6);
+    const t = box('M 0,100 Q 100,-100 200,100 T 400,100');
+    expect(t.y1).toBeCloseTo(200, 6);
+  });
+});

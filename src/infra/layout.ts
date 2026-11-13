@@ -105,7 +105,7 @@ const EDGE_LABEL_FONT_SIZE = 11;
 const PADDING_X = 24;
 const GROUP_PADDING = 20;
 const GROUP_HEADER_HEIGHT = 24;
-const EDGE_MARGIN = 60;
+export const EDGE_MARGIN = 60;
 
 // ============================================================
 // Node sizing

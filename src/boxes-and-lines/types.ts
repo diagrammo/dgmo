@@ -63,3 +63,6 @@ export interface ParsedBoxesAndLines {
   readonly frame?: ChartFrame;
   readonly error: string | null;
 }
+
+/** The blank margin the layout leaves around its content, top and bottom. */
+export const LAYOUT_MARGIN = 40;

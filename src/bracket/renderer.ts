@@ -17,6 +17,7 @@ import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
   TITLE_Y,
+  FRAME_BODY_TOP,
 } from '../utils/title-constants';
 import {
   contrastText,
@@ -53,7 +54,9 @@ import {
 } from './layout';
 
 const PADDING = 16;
-const TITLE_BAND = 40;
+// First ink of the layout (its round labels) sits this far under its origin.
+const LAYOUT_INK_TOP = 7;
+const TITLE_BAND = FRAME_BODY_TOP - PADDING - LAYOUT_INK_TOP;
 const HALF_SPAN = (BOX_H + PAIR_GAP) / 2;
 const COMMENT_LH = 15;
 const LEGEND_POSITION: LegendPosition = {

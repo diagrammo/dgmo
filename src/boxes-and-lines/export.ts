@@ -8,6 +8,8 @@ import {
   finalizeSvgExport,
   resolveExportPalette,
 } from '../utils/d3-helpers';
+import { FRAME_BODY_TOP } from '../utils/title-constants';
+import { LAYOUT_MARGIN } from './types';
 import { ctxTagOverride, type ExportContext } from '../utils/export-context';
 
 export async function exportBoxesAndLines(ctx: ExportContext): Promise<string> {
@@ -43,7 +45,12 @@ export async function exportBoxesAndLines(ctx: ExportContext): Promise<string> {
   const PADDING = 20;
   const titleOffset = blParsed.title ? 40 : 0;
   const exportWidth = blLayout.width + PADDING * 2;
-  const exportHeight = blLayout.height + PADDING * 2 + titleOffset;
+  // Titled: the drawing starts at the shared body top, not under the layout's
+  // own top margin (#1838).
+  const exportHeight =
+    blParsed.title && blParsed.options['no-title'] !== 'on'
+      ? blLayout.height - LAYOUT_MARGIN + FRAME_BODY_TOP + PADDING
+      : blLayout.height + PADDING * 2 + titleOffset;
   const container = createExportContainer(exportWidth, exportHeight);
 
   const blActiveTagGroup = ctxTagOverride(ctx);

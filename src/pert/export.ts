@@ -36,7 +36,8 @@ export async function exportPert(ctx: ExportContext): Promise<string> {
   const { parsePert } = await import('./parser');
   const { analyzePert } = await import('./analyzer');
   const { relayoutPert } = await import('./layout');
-  const { renderPert, measurePertAnalysisBlock } = await import('./renderer');
+  const { renderPert, measurePertAnalysisBlock, pertTitleBand } =
+    await import('./renderer');
 
   const effectivePalette = await resolveExportPalette(theme, palette);
   const pertParsed = parsePert(content, { palette: effectivePalette });
@@ -55,7 +56,11 @@ export async function exportPert(ctx: ExportContext): Promise<string> {
   // moves up into the title's slot. 80 with a title above it, 50 on
   // its own, 0 when the analyzer produced neither.
   const hasSubtitle = pertResolved.projectSubtitle !== null;
-  const titleHeight = hasTitle ? 80 : hasSubtitle ? 50 : 0;
+  const titleHeight = pertTitleBand(
+    hasTitle,
+    hasSubtitle,
+    pertResolved.tagGroups.length > 0 && !pertResolved.options.noLegend
+  );
   const PERT_PADDING = 20;
   // Analysis layer renders by default whenever MC ran. Precedence:
   // an explicit viewState.an (app toggle / share link) wins; else the

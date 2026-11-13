@@ -30,6 +30,8 @@ import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
   TITLE_Y,
+  FRAME_BODY_TOP,
+  LEGEND_BODY_GAP,
 } from '../utils/title-constants';
 import {
   contrastText,
@@ -59,6 +61,8 @@ import {
 } from '../utils/wrapped-desc';
 import type { ParsedBoxesAndLines, BLNode } from './types';
 import type { BLLayoutResult, BLLayoutNode, BLLayoutEdge } from './layout';
+import { legendInkBottom } from '../utils/legend-constants';
+import { LAYOUT_MARGIN } from './types';
 import { ScaleContext } from '../utils/scaling';
 import { growChartFrame } from '../utils/chart-frame';
 import { renderCollapseBar } from '../utils/card';
@@ -659,16 +663,48 @@ export function renderBoxesAndLines(
   // the scaled content overshoots the viewport and the diagram bleeds past the
   // bottom edge. Clamp the numerator so a viewport shorter than the overhead
   // still yields a positive scale instead of flipping the content inside-out.
+  // With a title the first thing drawn starts at a fixed line (#1838): the
+  // shared body top, or the legend's bottom plus the shared gap. The layout's
+  // own top margin scales with the content, so it is cut from the scaled part.
+  const bodyTop = !showTitle
+    ? null
+    : needsLegend && !header.inline
+      ? titleOffset + 4 + legendInkBottom(sLegendHeight) + LEGEND_BODY_GAP
+      : FRAME_BODY_TOP;
+  // A group box can stand above the layout's top margin; the first thing
+  // drawn is what lands on bodyTop.
+  const extraTopGroups = new Set(
+    parsed.groups
+      .filter((g) => g.children.some((c) => groupLabelsSet.has(c)))
+      .map((g) => g.label)
+  );
+  const layoutTop = Math.min(
+    LAYOUT_MARGIN,
+    ...layout.groups.map(
+      (g) =>
+        g.y -
+        g.height / 2 -
+        (!g.collapsed && extraTopGroups.has(g.label) ? sGroupLabelZone : 0)
+    ),
+    ...layout.nodes.map((n) => n.y - n.height / 2)
+  );
   const vOverhead =
-    titleOffset + (header.inline ? 0 : legendH) + labelZoneExtension;
-  const availH = Math.max(1, height - vOverhead - sDiagramPadding * 2);
+    bodyTop ?? titleOffset + (header.inline ? 0 : legendH) + labelZoneExtension;
+  const availH =
+    bodyTop === null
+      ? Math.max(1, height - vOverhead - sDiagramPadding * 2)
+      : Math.max(1, height - vOverhead - labelZoneExtension - sDiagramPadding);
 
   const scaleX = width / (contentW + sDiagramPadding * 2);
-  const scaleY = availH / layout.height;
+  const scaleY =
+    availH / (bodyTop === null ? layout.height : layout.height - layoutTop);
   const scale = Math.min(scaleX, scaleY, 3);
 
   const offsetX = (width - contentW * scale) / 2;
-  const offsetY = sDiagramPadding + titleOffset + (header.inline ? 0 : legendH);
+  const offsetY =
+    bodyTop === null
+      ? sDiagramPadding + titleOffset + (header.inline ? 0 : legendH)
+      : bodyTop - layoutTop * scale;
 
   const svg: D3Svg = d3Selection
     .select(container)

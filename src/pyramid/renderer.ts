@@ -7,6 +7,7 @@ import { fillModeFromOptions } from '../utils/parsing';
 import { FONT_FAMILY } from '../fonts';
 import { growChartFrame } from '../utils/chart-frame';
 import {
+  FRAME_BODY_TOP,
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
   TITLE_Y,
@@ -29,7 +30,6 @@ import type { ParsedPyramid, PyramidLayer } from './types';
 import { ScaleContext } from '../utils/scaling';
 
 // ── Constants ────────────────────────────────────────────────
-const TITLE_AREA_HEIGHT = 50;
 /** Side margin as fraction of viewport. */
 const H_MARGIN_FRAC = 0.03;
 /** Vertical breathing room above/below the pyramid body. */
@@ -97,13 +97,12 @@ export function renderPyramid(
 
   const sTitleFontSize = sctx.text(TITLE_FONT_SIZE);
   const sTitleY = sctx.structural(TITLE_Y);
-  const sTitleAreaHeight = sctx.structural(TITLE_AREA_HEIGHT);
   const sVMargin = sctx.aesthetic(V_MARGIN);
 
   const hasAnyDescription = parsed.layers.some((l) => l.description.length > 0);
 
   const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
-  const titleH = showTitle ? sTitleAreaHeight : 0;
+  const titleH = showTitle ? FRAME_BODY_TOP - sVMargin : 0;
   const bodyTop = titleH + sVMargin;
   const bodyBottom = height - sVMargin;
   const bodyHeight = Math.max(60, bodyBottom - bodyTop);

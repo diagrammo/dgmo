@@ -36,7 +36,7 @@ const NODE_V_PAD = 10;
 
 const H_GAP = 40; // horizontal gap between parent edge and child edge
 const V_GAP = 12; // vertical gap between sibling nodes
-const MARGIN = 40;
+export const MARGIN = 40;
 const MULTI_ROOT_GAP = 60; // horizontal gap between independent root trees
 
 interface ScaledConstants {

@@ -24,7 +24,12 @@ import {
 } from '../palettes/color-utils';
 import { resolveColor } from '../colors';
 import { CHAR_WIDTH_RATIO, wrapTextToWidth } from '../utils/text-measure';
-import { TITLE_FONT_SIZE, TITLE_Y } from '../utils/title-constants';
+import { LEGEND_INK_BOTTOM } from '../utils/legend-constants';
+import {
+  LEGEND_BODY_GAP,
+  TITLE_FONT_SIZE,
+  TITLE_Y,
+} from '../utils/title-constants';
 import { getLegendExtent } from '../utils/legend-layout';
 import {
   layoutInlineHeader,
@@ -668,7 +673,6 @@ export function layoutEventLine(
       contentAbove + (hasExpandedEra && eraSide === 'above' ? ERA_BLOCK : 0);
     const belowExt =
       contentBelow + (hasExpandedEra && eraSide === 'below' ? ERA_BLOCK : 0);
-    const TOP_PAD = 14;
     const BOT_PAD = 14;
     const spineY = topUsed + TOP_PAD + aboveExt;
     const eraBaseY =
@@ -754,7 +758,12 @@ export function layoutEventLine(
 }
 
 const TITLE_AREA = 48;
-const LEGEND_BAND = 34;
+// The first card starts TOP_PAD under the band.
+const TOP_PAD = 14;
+// From the legend row's top to where the band below it ends: the legend's ink,
+// the shared body gap, less TOP_PAD, which the drawing adds under the band
+// (#1838).
+const LEGEND_BAND = LEGEND_INK_BOTTOM + LEGEND_BODY_GAP - TOP_PAD;
 
 // §1.9 `legend-inline` (decision #50): try a one-line header (title left,
 // legend flushed right). Falls back to the stacked band when it can't fit.

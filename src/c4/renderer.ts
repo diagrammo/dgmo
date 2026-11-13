@@ -34,10 +34,15 @@ import {
   layoutC4Deployment,
   collectCardMetadata,
 } from './layout';
-import { LEGEND_HEIGHT } from '../utils/legend-constants';
+import { LEGEND_HEIGHT, LEGEND_INK_BOTTOM } from '../utils/legend-constants';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import { growChartFrame, type ChartFrame } from '../utils/chart-frame';
-import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
+import {
+  TITLE_FONT_SIZE,
+  TITLE_FONT_WEIGHT,
+  FRAME_BODY_TOP,
+  LEGEND_BODY_GAP,
+} from '../utils/title-constants';
 
 // ============================================================
 // Constants
@@ -250,14 +255,29 @@ export function renderC4Context(
   const diagramH = fixedLegend
     ? layout.height - legendLayoutSpace
     : layout.height;
+  // With a title the first thing drawn starts at a fixed line (#1838): the
+  // shared body top, or the fixed legend's bottom plus the shared gap. The
+  // layout's own top margin scales with the content, so it is cut from there.
+  const bodyTop =
+    titleHeight === 0
+      ? null
+      : hasLegend
+        ? DIAGRAM_PADDING + titleHeight + LEGEND_INK_BOTTOM + LEGEND_BODY_GAP
+        : FRAME_BODY_TOP;
   const availH = height - titleHeight - legendReserveH;
   const scaleX = (width - DIAGRAM_PADDING * 2) / diagramW;
-  const scaleY = (availH - DIAGRAM_PADDING * 2) / diagramH;
+  const scaleY =
+    bodyTop === null
+      ? (availH - DIAGRAM_PADDING * 2) / diagramH
+      : (height - bodyTop - DIAGRAM_PADDING) / (diagramH - C4_LAYOUT_MARGIN);
   const scale = Math.min(MAX_SCALE, scaleX, scaleY);
 
   const scaledW = diagramW * scale;
   const offsetX = (width - scaledW) / 2;
-  const offsetY = titleHeight + DIAGRAM_PADDING + legendReserveH;
+  const offsetY =
+    bodyTop === null
+      ? titleHeight + DIAGRAM_PADDING + legendReserveH
+      : bodyTop - C4_LAYOUT_MARGIN * scale;
 
   const svg = d3Selection
     .select(container)
@@ -613,7 +633,15 @@ export function renderC4Context(
           .append('g')
           .attr('class', 'c4-legend-fixed')
           .attr('transform', `translate(0, ${DIAGRAM_PADDING + titleHeight})`)
-      : contentG.append('g').attr('class', 'c4-legend');
+      : contentG
+          .append('g')
+          .attr('class', 'c4-legend')
+          // Titled: the legend sits under the title, one body gap above the
+          // drawing, which starts C4_LAYOUT_MARGIN down in the content (#1838).
+          .attr(
+            'transform',
+            `translate(0, ${bodyTop === null ? 0 : C4_LAYOUT_MARGIN - LEGEND_INK_BOTTOM - LEGEND_BODY_GAP})`
+          );
     if (activeTagGroup) {
       legendParent.attr('data-legend-active', tagAttrKey(activeTagGroup));
     }
@@ -1289,14 +1317,29 @@ export function renderC4Containers(
   const diagramH = fixedLegend
     ? layout.height - legendLayoutSpace
     : layout.height;
+  // With a title the first thing drawn starts at a fixed line (#1838): the
+  // shared body top, or the fixed legend's bottom plus the shared gap. The
+  // layout's own top margin scales with the content, so it is cut from there.
+  const bodyTop =
+    titleHeight === 0
+      ? null
+      : hasLegend
+        ? DIAGRAM_PADDING + titleHeight + LEGEND_INK_BOTTOM + LEGEND_BODY_GAP
+        : FRAME_BODY_TOP;
   const availH = height - titleHeight - legendReserveH;
   const scaleX = (width - DIAGRAM_PADDING * 2) / diagramW;
-  const scaleY = (availH - DIAGRAM_PADDING * 2) / diagramH;
+  const scaleY =
+    bodyTop === null
+      ? (availH - DIAGRAM_PADDING * 2) / diagramH
+      : (height - bodyTop - DIAGRAM_PADDING) / (diagramH - C4_LAYOUT_MARGIN);
   const scale = Math.min(MAX_SCALE, scaleX, scaleY);
 
   const scaledW = diagramW * scale;
   const offsetX = (width - scaledW) / 2;
-  const offsetY = titleHeight + DIAGRAM_PADDING + legendReserveH;
+  const offsetY =
+    bodyTop === null
+      ? titleHeight + DIAGRAM_PADDING + legendReserveH
+      : bodyTop - C4_LAYOUT_MARGIN * scale;
 
   const svg = d3Selection
     .select(container)
@@ -1780,7 +1823,15 @@ export function renderC4Containers(
           .append('g')
           .attr('class', 'c4-legend-fixed')
           .attr('transform', `translate(0, ${DIAGRAM_PADDING + titleHeight})`)
-      : contentG.append('g').attr('class', 'c4-legend');
+      : contentG
+          .append('g')
+          .attr('class', 'c4-legend')
+          // Titled: the legend sits under the title, one body gap above the
+          // drawing, which starts C4_LAYOUT_MARGIN down in the content (#1838).
+          .attr(
+            'transform',
+            `translate(0, ${bodyTop === null ? 0 : C4_LAYOUT_MARGIN - LEGEND_INK_BOTTOM - LEGEND_BODY_GAP})`
+          );
     if (activeTagGroup) {
       legendParent.attr('data-legend-active', tagAttrKey(activeTagGroup));
     }

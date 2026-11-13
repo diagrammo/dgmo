@@ -9,6 +9,7 @@
 // shade. resvg has no `color-mix()` — all blends go through `mix()`.
 
 import { diamondPoints } from '../shapes/geometry';
+import { MARGIN as LAYOUT_MARGIN } from './layout';
 import * as d3Selection from 'd3-selection';
 import { fillModeFromOptions } from '../utils/parsing';
 import { FONT_FAMILY } from '../fonts';
@@ -22,6 +23,7 @@ import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
   TITLE_Y,
+  FRAME_BODY_TOP,
 } from '../utils/title-constants';
 import { mix, contrastText, themeBaseBg } from '../palettes/color-utils';
 import { resolveColor, CATEGORICAL_COLOR_ORDER } from '../colors';
@@ -139,6 +141,19 @@ interface EventColors {
   neutral: string;
 }
 
+/**
+ * The band a title adds above the layout (#1838): the layout's first ink sits
+ * its MARGIN plus a 1.5 stroke under its origin.
+ */
+export const SWIMLANE_TITLE_BAND = FRAME_BODY_TOP - LAYOUT_MARGIN - 1.5;
+/**
+ * With phases the first ink is the phase header, drawn at the layout's origin
+ * with a half-unit stroke above it, so the band is the whole body top plus
+ * that stroke (#1838).
+ */
+export const swimlaneTitleBand = (hasPhases: boolean): number =>
+  hasPhases ? FRAME_BODY_TOP + 0.5 : SWIMLANE_TITLE_BAND;
+
 export function renderSwimlaneForExport(
   container: HTMLElement,
   parsed: ParsedSwimlane,
@@ -151,7 +166,9 @@ export function renderSwimlaneForExport(
   // don't stack SVGs. Export uses a throwaway container, so this is a no-op there.
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
-  const titleOffset = parsed.title ? 40 : 0;
+  const titleOffset = parsed.title
+    ? swimlaneTitleBand(parsed.phases.length > 0)
+    : 0;
   const width = opts.exportDims?.width ?? layout.width;
   const height = (opts.exportDims?.height ?? layout.height) + 0;
 

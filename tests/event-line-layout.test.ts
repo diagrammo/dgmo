@@ -8,6 +8,8 @@ import {
   type Placed,
 } from '../src/event-line/layout';
 import { getPalette } from '../src/palettes';
+import { LEGEND_INK_BOTTOM } from '../src/utils/legend-constants';
+import { LEGEND_BODY_GAP } from '../src/utils/title-constants';
 
 // Layout is computed as data before anything is drawn, so these tests read
 // coordinates straight off `layoutEventLine` — no DOM, no SVG parsing.
@@ -384,8 +386,11 @@ tag Genre as g
     );
     expect(legend.header.hasLegend).toBe(true);
     expect(legend.header.placement.inline).toBe(false);
-    expect(legend.header.topUsed).toBe(48 + 34);
-    expect(legend.spineY - bare.spineY).toBe(48 + 34);
+    // The legend band ends one body gap under the legend's ink, less the 14
+    // the first card adds under the band (#1838).
+    const band = 48 + LEGEND_INK_BOTTOM + LEGEND_BODY_GAP - 14;
+    expect(legend.header.topUsed).toBeCloseTo(band, 5);
+    expect(legend.spineY - bare.spineY).toBeCloseTo(band, 5);
   });
 
   it('drops the legend band when the legend is off', () => {

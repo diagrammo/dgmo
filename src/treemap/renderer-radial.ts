@@ -29,7 +29,8 @@ import { tagAttrKey } from '../utils/tag-groups';
 import { measureText } from '../utils/text-measure';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import { getMaxLegendReservedHeight } from '../utils/legend-layout';
-import { LEGEND_GROUP_GAP } from '../utils/legend-constants';
+import { LEGEND_GROUP_GAP, legendInkBottom } from '../utils/legend-constants';
+import { LEGEND_BODY_GAP } from '../utils/title-constants';
 import type { LegendPosition } from '../utils/legend-types';
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
@@ -131,12 +132,18 @@ export function renderTreemapRadial(
 
   // Plot area below the (optional) legend band. The chart title lives in the
   // center disc for radial mode, so no top title band is reserved.
-  const areaY = legendReserve + PADDING;
+  // Under a legend the disc's top sits LEGEND_BODY_GAP below the legend's ink
+  // (#1838), so it is top-aligned in the area, not centred.
+  const areaY = legend
+    ? legendInkBottom(legendReserve - LEGEND_GROUP_GAP) +
+      LEGEND_BODY_GAP -
+      PADDING
+    : legendReserve + PADDING;
   const areaW = Math.max(1, width - PADDING * 2);
   const areaH = Math.max(1, height - areaY - PADDING);
   const radius = Math.max(1, Math.min(areaW, areaH) / 2 - PADDING);
   const cx = width / 2;
-  const cy = areaY + areaH / 2;
+  const cy = legend ? areaY + PADDING + radius : areaY + areaH / 2;
 
   const layout = layoutTreemapRadial(parsed.roots, {
     radius,

@@ -41,7 +41,7 @@ import {
 } from './roles';
 import { parseInfra } from './parser';
 import { computeInfra } from './compute';
-import { layoutInfra } from './layout';
+import { layoutInfra, EDGE_MARGIN } from './layout';
 import { placeEdgeLabels } from '../boxes-and-lines/label-placement';
 import type { BLLayoutResult } from '../boxes-and-lines/layout';
 import type { BLGroup } from '../boxes-and-lines/types';
@@ -67,6 +67,8 @@ import {
   TITLE_FONT_WEIGHT,
   TITLE_Y,
   TITLE_OFFSET,
+  FRAME_BODY_TOP,
+  LEGEND_BODY_GAP,
 } from '../utils/title-constants';
 import { ScaleContext } from '../utils/scaling';
 import { legendSuppressed, legendInlineRequested } from '../utils/parsing';
@@ -99,6 +101,8 @@ const NODE_HEADER_HEIGHT = 28;
 const NODE_SEPARATOR_GAP = 4;
 const NODE_PAD_BOTTOM = 10;
 
+// The legend's reserved height exceeds its drawn height by about this much.
+const LEGEND_SLACK = 7;
 const LEGEND_FIXED_GAP = 16; // gap between fixed legend and scaled diagram — local, not shared
 const SPEED_BADGE_H_PAD = 5; // horizontal padding inside active speed badge
 const SPEED_BADGE_V_PAD = 3; // vertical padding inside active speed badge
@@ -2567,7 +2571,12 @@ export function renderInfra(
         container.clientWidth || layout.width
       )
     : LEGEND_HEIGHT;
-  const legendOffset = hasLegend && !fixedLegend ? legendDynamicH : 0;
+  // An export draws a legend only for the active group (or playback): with
+  // neither, the band would stay empty, so it reserves nothing.
+  const legendDrawn =
+    hasLegend &&
+    (!exportMode || !!activeGroup || (!!playback && !appHostedPlayback));
+  const legendOffset = legendDrawn && !fixedLegend ? legendDynamicH : 0;
 
   const titleOffset = title ? TITLE_OFFSET : 0;
   const totalWidth = layout.width;
@@ -2615,8 +2624,21 @@ export function renderInfra(
     titleFontSize: sc.sTitleFontSize,
   });
 
-  const totalHeight =
-    layout.height + titleOffset + (header.inline ? 0 : legendOffset);
+  // The layout leaves EDGE_MARGIN above its first node; the stroke's outer
+  // half reaches 1.5 into it. A titled stack puts that first ink on the
+  // shared band (#1838).
+  const layoutTopInk = EDGE_MARGIN - 1.5;
+  const topShift =
+    title && !fixedLegend && !header.inline
+      ? legendOffset > 0
+        ? titleOffset +
+          legendOffset +
+          LEGEND_BODY_GAP -
+          LEGEND_SLACK -
+          layoutTopInk
+        : FRAME_BODY_TOP - layoutTopInk
+      : titleOffset + (header.inline ? 0 : legendOffset);
+  const totalHeight = layout.height + topShift;
 
   const shouldAnimate = animate !== false;
 
@@ -2711,13 +2733,9 @@ export function renderInfra(
     `);
   }
 
-  const contentTitleOffset = fixedTitleH ? 0 : titleOffset;
   const svg = rootSvg
     .append('g')
-    .attr(
-      'transform',
-      `translate(0, ${contentTitleOffset + (header.inline ? 0 : legendOffset)})`
-    );
+    .attr('transform', `translate(0, ${fixedTitleH ? 0 : topShift})`);
 
   if (title && !fixedTitleH) {
     rootSvg

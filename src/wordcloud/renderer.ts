@@ -10,6 +10,7 @@ import type { D3ExportDimensions } from '../utils/d3-types';
 import { ScaleContext } from '../utils/scaling';
 import { initD3Chart, renderChartTitle } from '../utils/d3-helpers';
 import { growChartFrame } from '../utils/chart-frame';
+import { FRAME_BODY_TOP } from '../utils/title-constants';
 import type {
   ParsedWordcloud,
   WordCloudWord,
@@ -257,6 +258,31 @@ export function renderWordCloud(
       rotate?: number;
     }>
   ): void => {
+    // Top-align on the band: the cloud is packed around its centre, and a
+    // height-slack cloud leaves a dead band under the title.
+    if (title) {
+      let top = Infinity;
+      for (const d of layoutWords) {
+        const size = d.size ?? 0;
+        const hw = estimateWordWidth(d.text ?? '', size) / 2;
+        const rad = ((d.rotate ?? 0) * Math.PI) / 180;
+        for (const [px, py] of [
+          [-hw, -size],
+          [hw, -size],
+          [-hw, WORD_DESCENT * size],
+          [hw, WORD_DESCENT * size],
+        ] as const)
+          top = Math.min(
+            top,
+            (d.y ?? 0) + px * Math.sin(rad) + py * Math.cos(rad)
+          );
+      }
+      if (Number.isFinite(top))
+        g.attr(
+          'transform',
+          `translate(${width / 2},${Math.min(sTitleHeight + cloudHeight / 2, FRAME_BODY_TOP + titleExtra - top)})`
+        );
+    }
     g.selectAll('text')
       .data(layoutWords)
       .join('text')
@@ -385,6 +411,31 @@ export function renderWordCloudAsync(
         rotate?: number;
       }>
     ): void => {
+      // Top-align on the band: the cloud is packed around its centre, and a
+      // height-slack cloud leaves a dead band under the title.
+      if (title) {
+        let top = Infinity;
+        for (const d of layoutWords) {
+          const size = d.size ?? 0;
+          const hw = estimateWordWidth(d.text ?? '', size) / 2;
+          const rad = ((d.rotate ?? 0) * Math.PI) / 180;
+          for (const [px, py] of [
+            [-hw, -size],
+            [hw, -size],
+            [-hw, WORD_DESCENT * size],
+            [hw, WORD_DESCENT * size],
+          ] as const)
+            top = Math.min(
+              top,
+              (d.y ?? 0) + px * Math.sin(rad) + py * Math.cos(rad)
+            );
+        }
+        if (Number.isFinite(top))
+          g.attr(
+            'transform',
+            `translate(${width / 2},${Math.min(titleHeight + cloudHeight / 2, FRAME_BODY_TOP + titleExtra - top)})`
+          );
+      }
       g.selectAll('text')
         .data(layoutWords)
         .join('text')

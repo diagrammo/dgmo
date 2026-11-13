@@ -22,6 +22,7 @@ import {
 } from '../palettes/color-utils';
 import type { ParsedSitemap } from './types';
 import type { SitemapLayoutResult, SitemapLegendGroup } from './layout';
+import { MARGIN as LAYOUT_MARGIN } from './layout';
 import { renderInlineText } from '../utils/inline-markdown';
 import { preprocessDescriptionLine } from '../utils/description-helpers';
 import { measureText } from '../utils/text-measure';
@@ -30,6 +31,7 @@ import type { BLLayoutResult } from '../boxes-and-lines/layout';
 import {
   LEGEND_HEIGHT,
   LEGEND_GROUP_GAP,
+  LEGEND_INK_BOTTOM,
   LEGEND_EYE_SIZE,
   LEGEND_EYE_GAP,
   EYE_OPEN_PATH,
@@ -58,8 +60,34 @@ import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
   TITLE_Y,
+  LEGEND_BODY_GAP,
+  bodyBandShift,
+  scaleUnderBand,
 } from '../utils/title-constants';
 const TITLE_HEIGHT = 30;
+/**
+ * The band an embedded title adds above the diagram (#1838). The layout's own
+ * top MARGIN already carries the first card to the shared band, so a title
+ * adds nothing. The fixed preview strip keeps TITLE_HEIGHT.
+ */
+export const EMBEDDED_TITLE_BAND = bodyBandShift(
+  DIAGRAM_PADDING,
+  1,
+  LAYOUT_MARGIN
+);
+/**
+ * With a legend drawn at the content group's origin, how far the legend sits
+ * above its own origin so the cards land LEGEND_BODY_GAP under its ink while
+ * the layout's top MARGIN still sits above them (#1838).
+ */
+const LEGEND_LIFT = LEGEND_INK_BOTTOM + LEGEND_BODY_GAP - LAYOUT_MARGIN;
+/**
+ * The band an exported title adds above the content group. Over a legend row
+ * the legend sits TITLE_Y below the padding (under the title), and the cards
+ * follow it.
+ */
+export const embeddedTitleBand = (legendDrawn: boolean): number =>
+  legendDrawn ? TITLE_Y + LEGEND_LIFT : EMBEDDED_TITLE_BAND;
 // Shared card / group / collapse constants (Story 111.1). sitemap matches every
 // convention default, so it imports the full set.
 import {
@@ -309,22 +337,40 @@ export function renderSitemap(
     ? fixedTitleH
     : fixedTitleH + legendReserveH;
   const fixedReserveBottom = 0;
-  const titleOffset = !fixedTitle && showTitle ? sTitleHeight : 0;
+  // An embedded title: the drawing's top lands on FRAME_BODY_TOP at whatever
+  // scale it is drawn (#1838), so the band is worked out with the scale.
+  const embeddedTitle = !fixedTitle && showTitle;
+  // A legend drawn in the content group sits under the title (#1838).
+  const embeddedLegend = embeddedTitle && !!exportDims && hasLegend;
 
   const diagramW = layout.width;
-  let diagramH = layout.height + titleOffset;
+  let diagramH = layout.height;
   if (fixedLegend || suppressedLegendBand) {
     diagramH -= layoutLegendShift;
   }
+  const offsetY = sDiagramPadding + fixedReserveTop;
   const availH =
     height - sDiagramPadding * 2 - fixedReserveTop - fixedReserveBottom;
   const scaleX = (width - sDiagramPadding * 2) / diagramW;
-  const scaleY = availH / diagramH;
+  const scaleY = embeddedLegend
+    ? availH / (diagramH + embeddedTitleBand(true))
+    : embeddedTitle
+      ? scaleUnderBand(
+          height - sDiagramPadding,
+          offsetY,
+          diagramH,
+          LAYOUT_MARGIN
+        )
+      : availH / diagramH;
   const scale = Math.min(MAX_SCALE, scaleX, scaleY);
+  const titleOffset = embeddedLegend
+    ? embeddedTitleBand(true)
+    : embeddedTitle
+      ? bodyBandShift(offsetY, scale, LAYOUT_MARGIN)
+      : 0;
 
   const scaledW = diagramW * scale;
   const offsetX = (width - scaledW) / 2;
-  const offsetY = sDiagramPadding + fixedReserveTop;
 
   const svg = d3Selection
     .select(container)
@@ -711,8 +757,11 @@ export function renderSitemap(
   // --- Render legend ---
   if (exportDims && hasLegend) {
     // Export mode: render inside the scaled content group
+    const legendG = embeddedLegend
+      ? contentG.append('g').attr('transform', `translate(0, ${-LEGEND_LIFT})`)
+      : contentG;
     renderLegend(
-      contentG,
+      legendG,
       layout.legend,
       palette,
       isDark,
@@ -898,7 +947,11 @@ export async function renderSitemapForExport(
   const sitemapLayout = layoutSitemap(parsed, undefined, null, undefined, true);
 
   const PADDING = 20;
-  const titleOffset = parsed.title ? 30 : 0;
+  const titleOffset = parsed.title
+    ? embeddedTitleBand(
+        sitemapLayout.legend.length > 0 && parsed.options['no-legend'] !== 'on'
+      )
+    : 0;
   const exportWidth = sitemapLayout.width + PADDING * 2;
   const exportHeight = sitemapLayout.height + PADDING * 2 + titleOffset;
 

@@ -31,6 +31,7 @@ import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
   TITLE_Y,
+  FRAME_BODY_TOP,
 } from '../utils/title-constants';
 import { contrastText, mix, themeBaseBg } from '../palettes/color-utils';
 import type { PaletteColors } from '../palettes';
@@ -188,11 +189,12 @@ export const MARKER_LABELS: Readonly<
 
 // ── Layout constants ─────────────────────────────────────────
 
-const TITLE_AREA_HEIGHT = 50;
 /** Left/right page margin. */
 const H_MARGIN = 24;
 /** Top breathing room below title. */
 const V_MARGIN = 16;
+/** The title row; the role headers start FRAME_BODY_TOP under the top (#1838). */
+const TITLE_AREA_HEIGHT = FRAME_BODY_TOP - V_MARGIN;
 /**
  * Marker palette / legend chip height. Matches the in-cell marker
  * slice height (`ROW_HEIGHT - 2 * CELL_PAD = 28`) so legend chips
@@ -981,6 +983,7 @@ function renderLegend(
   const legendG = svg
     .append('g')
     .attr('class', 'raci-legend')
+    .attr('data-frame-part', '')
     .attr('aria-label', `${variant.toUpperCase()} marker legend`);
 
   markers.forEach((marker, i) => {

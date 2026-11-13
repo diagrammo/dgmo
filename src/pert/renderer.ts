@@ -59,6 +59,8 @@ import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
   TITLE_Y,
+  FRAME_BODY_TOP,
+  LEGEND_BODY_GAP,
   CAPTION_FONT_SIZE,
   CAPTION_LINE_HEIGHT,
   CAPTION_TOP_GAP,
@@ -180,7 +182,27 @@ const LEGEND_PILL_HEIGHT = LEGEND_HEIGHT_CONST;
 // the pills from the diagram body. Together with LEGEND_PILL_HEIGHT
 // they make up the block's reserved height.
 const LEGEND_TOP_GAP = 12;
-const LEGEND_BOTTOM_GAP = 12;
+// dagre's marginy (DIAGRAM_PADDING) less the 0.75 a stroke reaches into it:
+// where the first drawn ink sits under the layout's origin.
+const LAYOUT_TOP_INK = DIAGRAM_PADDING - 0.75;
+// Lands the drawing LEGEND_BODY_GAP under the pills (#1838); the layout's own
+// top margin pays for most of it.
+const LEGEND_BOTTOM_GAP = LEGEND_BODY_GAP - LAYOUT_TOP_INK;
+
+/**
+ * The band above the layout (#1838). A title puts the first ink on
+ * FRAME_BODY_TOP: the layout's own top margin pays for part of it, unless a
+ * legend row sits in between and needs the room. A subtitle alone keeps 50.
+ */
+export function pertTitleBand(
+  hasTitle: boolean,
+  hasSubtitle: boolean,
+  hasLegend: boolean
+): number {
+  if (hasTitle)
+    return FRAME_BODY_TOP - DIAGRAM_PADDING - (hasLegend ? 0 : LAYOUT_TOP_INK);
+  return hasSubtitle ? 50 : 0;
+}
 
 // Field-reference legend — a 3×2 mini-card that mirrors the schedule
 // cells of the textbook PERT card so readers can map each cell's value
@@ -434,7 +456,6 @@ export function renderPert(
   // wins, and the project summary (μ ± σ) fills it otherwise.
   const authoredSubtitle = resolved.frame?.subtitle ?? null;
   const effectiveSubtitle = authoredSubtitle ?? options.subtitle ?? null;
-  const titleHeight = effectiveTitle ? 80 : effectiveSubtitle ? 50 : 0;
 
   const collapsedSet = new Set(options.collapsedGroupIds ?? []);
   const analysisLayer = computeAnalysisLayer(resolved, {
@@ -459,6 +480,11 @@ export function renderPert(
   );
   const showTagLegend =
     showLegend && !resolved.options.noLegend && resolved.tagGroups.length > 0;
+  const titleHeight = pertTitleBand(
+    !!effectiveTitle,
+    !!effectiveSubtitle,
+    showTagLegend
+  );
   const legendBlockHeight = showTagLegend
     ? LEGEND_TOP_GAP + LEGEND_PILL_HEIGHT + LEGEND_BOTTOM_GAP
     : 0;
@@ -727,7 +753,11 @@ export function renderPertForExport(
   // the title but the subtitle (project μ ± σ) is project-level and stays.
   const hasTitle = !!parsed.title && !resolved.options.noTitle;
   const hasSubtitle = resolved.projectSubtitle !== null;
-  const titleHeight = hasTitle ? 80 : hasSubtitle ? 50 : 0;
+  const titleHeight = pertTitleBand(
+    hasTitle,
+    hasSubtitle,
+    resolved.tagGroups.length > 0 && !resolved.options.noLegend
+  );
   // Mirror renderPert's tag-legend reservation so the offscreen
   // container matches the natural canvas height.
   const legendBlockHeight =

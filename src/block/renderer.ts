@@ -21,9 +21,11 @@ import {
   getMaxLegendReservedHeight,
   getLegendExtent,
 } from '../utils/legend-layout';
-import { LEGEND_GROUP_GAP } from '../utils/legend-constants';
+import { LEGEND_GROUP_GAP, legendInkBottom } from '../utils/legend-constants';
 import type { LegendGroupData, LegendPosition } from '../utils/legend-types';
 import {
+  FRAME_BODY_TOP,
+  LEGEND_BODY_GAP,
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
   TITLE_Y,
@@ -147,7 +149,15 @@ export function renderBlock(
     titleFontSize: TITLE_FONT_SIZE,
   });
 
-  const areaY = (header.inline ? titleH : titleH + legendReserve) + PADDING;
+  const areaY = header.inline
+    ? titleH + PADDING
+    : legend
+      ? titleH +
+        legendInkBottom(legendReserve - LEGEND_GROUP_GAP) +
+        LEGEND_BODY_GAP -
+        // the block's own top margin, as in the no-legend case below
+        (FRAME_BODY_TOP - TITLE_BAND - PADDING)
+      : titleH + PADDING;
   if (options.exportMode) {
     height = areaY + layout.height + PADDING;
   } else {

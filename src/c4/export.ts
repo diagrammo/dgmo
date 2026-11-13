@@ -8,6 +8,8 @@ import {
   finalizeSvgExport,
   resolveExportPalette,
 } from '../utils/d3-helpers';
+import { LEGEND_INK_BOTTOM } from '../utils/legend-constants';
+import { FRAME_BODY_TOP, LEGEND_BODY_GAP } from '../utils/title-constants';
 import { ctxTagOverride, type ExportContext } from '../utils/export-context';
 import { resolveActiveTagGroup } from '../utils/tag-groups';
 
@@ -53,7 +55,17 @@ export async function exportC4(ctx: ExportContext): Promise<string> {
   const PADDING = 20;
   const titleOffset = c4Parsed.title ? 40 : 0;
   const exportWidth = c4Layout.width + PADDING * 2;
-  const exportHeight = c4Layout.height + PADDING * 2 + titleOffset;
+  // Titled: the drawing starts at the shared body top, not under the layout's
+  // own 40-unit top margin (#1838).
+  const exportHeight =
+    c4Parsed.title && c4Parsed.options['no-title'] !== 'on'
+      ? c4Layout.height -
+        40 +
+        (c4Layout.legend.length > 0
+          ? PADDING + titleOffset + LEGEND_INK_BOTTOM + LEGEND_BODY_GAP
+          : FRAME_BODY_TOP) +
+        PADDING
+      : c4Layout.height + PADDING * 2 + titleOffset;
   const container = createExportContainer(exportWidth, exportHeight);
 
   const renderFn =

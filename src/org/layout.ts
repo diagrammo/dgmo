@@ -31,6 +31,7 @@ import {
   measureLegendText,
 } from '../utils/legend-constants';
 import { measureText } from '../utils/text-measure';
+import { LEGEND_BODY_GAP } from '../utils/title-constants';
 
 // ============================================================
 // Types
@@ -125,7 +126,9 @@ const CARD_V_PAD = 10;
 const MIN_CARD_WIDTH = 140;
 const H_GAP = 30;
 const V_GAP = 50;
-const MARGIN = 40;
+export const MARGIN = 40;
+// LEGEND_HEIGHT exceeds the legend's drawn height by about this much.
+const LEGEND_BOX_SLACK = 7;
 const CONTAINER_PAD_X = 24;
 const CONTAINER_PAD_BOTTOM = 24;
 const CONTAINER_LABEL_HEIGHT = 28;
@@ -1402,7 +1405,11 @@ export function layoutOrg(
   let appliedLegendShift = 0;
   if (visibleGroups.length > 0) {
     // Top: horizontal row above chart content, left-aligned
-    const legendShift = LEGEND_HEIGHT + LEGEND_GROUP_GAP;
+    // The legend row hangs from the top of the box; the card edge lands
+    // LEGEND_BODY_GAP under its drawn height (#1838), MARGIN already
+    // sitting above the cards.
+    const legendShift =
+      LEGEND_HEIGHT - LEGEND_BOX_SLACK + LEGEND_BODY_GAP - MARGIN;
     appliedLegendShift = legendShift;
 
     // Push all chart content down

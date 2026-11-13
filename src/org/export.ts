@@ -22,7 +22,8 @@ export async function exportOrg(ctx: ExportContext): Promise<string> {
   const { layoutOrg } = await import('./layout');
   const { collapseOrgTree, focusOrgTree, unionCollapsedOrgNodes } =
     await import('./collapse');
-  const { renderOrg, ancestorTrailReserve } = await import('./renderer');
+  const { renderOrg, ancestorTrailReserve, embeddedTitleBand } =
+    await import('./renderer');
 
   const isDark = ctx.isDark;
   const effectivePalette = await resolveExportPalette(theme, palette);
@@ -80,7 +81,9 @@ export async function exportOrg(ctx: ExportContext): Promise<string> {
   );
 
   const PADDING = 20;
-  const titleOffset = effectiveParsed.title ? 30 : 0;
+  const titleOffset = effectiveParsed.title
+    ? embeddedTitleBand(orgLayout.legendShift > 0)
+    : 0;
   // Only the part of the breadcrumb trail that overshoots the space already
   // above the focused root grows the canvas — the layout's top margin, and the
   // legend band when the legend draws inside the diagram, pay for the rest.

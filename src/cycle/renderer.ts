@@ -10,6 +10,8 @@ import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
   TITLE_Y,
+  FRAME_BODY_TOP,
+  LEGEND_BODY_GAP,
 } from '../utils/title-constants';
 import { LEGEND_HEIGHT } from '../utils/legend-constants';
 import { ARROWHEAD_HEIGHT, ARROWHEAD_WIDTH } from '../utils/visual-conventions';
@@ -208,7 +210,22 @@ export function renderCycle(
     });
   }
 
-  const diagramTop = (showTitle ? sTitleAreaHeight : 0) + legendOffset;
+  // With a title the first thing drawn starts at a fixed line (#1838): the
+  // shared body top, or the legend's bottom plus the shared gap. The layout
+  // centres the circle in its box, so lift the group by the room above it.
+  let diagramTop = (showTitle ? sTitleAreaHeight : 0) + legendOffset;
+  if (showTitle) {
+    let contentTop = Infinity;
+    for (const n of layout.nodes)
+      contentTop = Math.min(contentTop, n.y - n.height / 2);
+    for (const le of layout.edges)
+      if (le.label) contentTop = Math.min(contentTop, le.labelY - 12);
+    if (Number.isFinite(contentTop))
+      diagramTop =
+        (hasLegend
+          ? sTitleAreaHeight + 4 + sLegendHeight + LEGEND_BODY_GAP
+          : FRAME_BODY_TOP) - contentTop;
+  }
   const g = svg.append('g').attr('transform', `translate(0, ${diagramTop})`);
 
   // Defs for arrowheads

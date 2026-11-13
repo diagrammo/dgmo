@@ -21,7 +21,7 @@ export async function exportSitemap(ctx: ExportContext): Promise<string> {
   const { layoutSitemap } = await import('./layout');
   const { collapseSitemapTree, unionCollapsedSitemapNodes } =
     await import('./collapse');
-  const { renderSitemap } = await import('./renderer');
+  const { renderSitemap, embeddedTitleBand } = await import('./renderer');
 
   const isDark = ctx.isDark;
   const effectivePalette = await resolveExportPalette(theme, palette);
@@ -58,7 +58,12 @@ export async function exportSitemap(ctx: ExportContext): Promise<string> {
   );
 
   const PADDING = 20;
-  const titleOffset = effectiveParsed.title ? 30 : 0;
+  const titleOffset = effectiveParsed.title
+    ? embeddedTitleBand(
+        sitemapLayout.legend.length > 0 &&
+          effectiveParsed.options['no-legend'] !== 'on'
+      )
+    : 0;
   // Layout appends a legend band to its height whenever tag groups exist; with
   // `no-legend` nothing renders there, so drop the band from the canvas too.
   const {
