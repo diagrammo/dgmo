@@ -44,7 +44,7 @@
   },
   "scripts": {
     "prepack": "node ../scripts/prepack-cli.mjs && node ../scripts/prepack-sourcemaps.mjs .",
-    "postinstall": "node -e \"console.log('\\n\ud83d\udca1 Claude Code user? Run: dgmo install claude-code\\n')\""
+    "postinstall": "node -e \"console.log('\\n💡 Claude Code user? Run: dgmo install claude-code\\n')\""
   },
   "publishConfig": {
     "access": "public"

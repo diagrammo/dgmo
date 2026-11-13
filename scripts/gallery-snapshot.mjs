@@ -156,11 +156,26 @@ function renderOne(fixturePath, outputPath) {
         if (err) {
           res({ ok: false, error: stderr || err.message });
         } else {
+          stripEmbeddedFonts(outputPath);
           res({ ok: true });
         }
       }
     );
   });
+}
+
+// The CLI's `.svg` output carries base64 Inter subset to its own text
+// (src/svg-embed-font.ts, #1834): ~37 KB of font bytes per file, rewritten
+// whenever a label's characters change or the subsetter is bumped. Those bytes are
+// not the render this gate guards, and tests/svg-embed-font.test.ts checks
+// them; drop the one `<style data-dgmo-fonts>` element so every baseline
+// stays the layout alone. Everything else is still byte-compared.
+const EMBEDDED_FONTS_RE = /<style data-dgmo-fonts="">[^<]*<\/style>/;
+
+function stripEmbeddedFonts(path) {
+  const svg = readFileSync(path, 'utf8');
+  const stripped = svg.replace(EMBEDDED_FONTS_RE, '');
+  if (stripped !== svg) writeFileSync(path, stripped);
 }
 
 // ============================================================
