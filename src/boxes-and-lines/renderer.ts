@@ -1473,6 +1473,7 @@ export function renderBoxesAndLines(
           : `translate(0,${titleOffset + 4})`
       );
     renderIntegratedLegend(legendG, {
+      frame: parsed.frame,
       groups: legendGroups,
       activeGroup,
       mode: exportMode ? 'export' : 'preview',

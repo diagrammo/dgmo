@@ -2,7 +2,7 @@
 // Infra Chart SVG Renderer
 // ============================================================
 
-import { growChartFrame } from '../utils/chart-frame';
+import { growChartFrame, type ChartFrame } from '../utils/chart-frame';
 import { tagAttrKey } from '../utils/tag-groups';
 import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
@@ -2354,7 +2354,8 @@ function renderLegend(
   // caller) and the legend left-aligns via the `inline-with-title` relation.
   // Both default to their prior values so every existing call is byte-identical.
   legendX = 0,
-  inlineHeader = false
+  inlineHeader = false,
+  frame?: ChartFrame
 ) {
   if (legendGroups.length === 0 && !playback) return;
   // App-hosted playback: the play/pause + speed UI lives in the app overlay
@@ -2381,6 +2382,7 @@ function renderLegend(
   }
 
   renderIntegratedLegend(legendG, {
+    frame,
     groups: allGroups,
     activeGroup,
     mode: exportMode ? 'export' : 'preview',
@@ -2816,7 +2818,10 @@ export function renderInfra(
         activeGroup ?? null,
         playback ?? undefined,
         exportMode,
-        controlsHost
+        controlsHost,
+        undefined,
+        undefined,
+        layout.frame
       );
       // Re-enable pointer events on interactive legend elements
       legendSvg
@@ -2837,7 +2842,8 @@ export function renderInfra(
         exportMode,
         controlsHost,
         header.inline ? header.legendX : 0,
-        header.inline
+        header.inline,
+        layout.frame
       );
     }
   }

@@ -15,6 +15,7 @@
 // position default matches the value every D3 renderer used.
 
 import { renderLegendD3 } from './legend-d3';
+import { frameAlign, type ChartFrame } from './chart-frame-parse';
 import type {
   ControlsGroupConfig,
   D3Sel,
@@ -43,6 +44,12 @@ export interface IntegratedLegendOptions {
   mode: LegendMode;
   /** Defaults to top-center / below-title (the value all D3 renderers used). */
   position?: LegendPosition;
+  /**
+   * The chart's frame lines (#1838): `legend-align` / `align` set the row
+   * edge, `legend-box` / `legend-pill` frame a static key. Left and bare
+   * without it.
+   */
+  frame?: ChartFrame | undefined;
   activeGroup?: string | null;
   callbacks?: LegendCallbacks;
   // ── Optional config passthroughs (spread only when provided) ──
@@ -72,6 +79,10 @@ export function renderIntegratedLegend(
       groups: opts.groups,
       position: opts.position ?? DEFAULT_POSITION,
       mode: opts.mode,
+      align: frameAlign(opts.frame, 'legend'),
+      ...(opts.frame?.legendStyle !== undefined && {
+        keyStyle: opts.frame.legendStyle,
+      }),
       ...(opts.controls !== undefined && { controls: opts.controls }),
       ...(opts.controlsGroup !== undefined && {
         controlsGroup: opts.controlsGroup,

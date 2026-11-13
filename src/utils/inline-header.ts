@@ -9,6 +9,7 @@
 // renderer hand-rolls it. Rendering stays per-path; this is pure math.
 // ============================================================
 
+import { FRAME_INSET } from './title-constants';
 import { LEGEND_HEIGHT } from './legend-constants';
 import { measureText } from './text-measure';
 import { TITLE_FONT_SIZE, TITLE_Y } from './title-constants';
@@ -52,8 +53,8 @@ export function legendInlineSupported(type: string): boolean {
   return LEGEND_INLINE_SUPPORTED.has(type.toLowerCase());
 }
 
-/** Left inset for the inline title; matches the legend band's own 8px. */
-export const INLINE_HEADER_PAD = 8;
+/** Inset for the inline title and legend: the frame inset (#1838). */
+export const INLINE_HEADER_PAD = FRAME_INSET;
 /** Minimum gap between the inline title and the legend. */
 export const INLINE_HEADER_GAP = 16;
 /** A legend narrower than this beside the title isn't worth inlining. */

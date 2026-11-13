@@ -579,6 +579,7 @@ export function renderBody(
       })),
     }));
     renderIntegratedLegend(legendG, {
+      frame: parsed.frame,
       groups,
       palette,
       isDark: _isDark,
@@ -594,6 +595,7 @@ export function renderBody(
   growChartFrame(svg.node(), parsed.frame, palette, {
     size: 'grow',
     title: titleNode,
+    keepTitle: true,
   });
 }
 

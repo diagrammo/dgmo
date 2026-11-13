@@ -91,6 +91,7 @@
     "predev": "pnpm fonts",
     "dev": "DGMO_DEV_RELOAD=1 tsup --watch",
     "pretest": "pnpm codegen && pnpm fonts",
+    "contact-sheet": "pnpm build && node scripts/contact-sheet.mjs",
     "test": "TZ=UTC vitest run --coverage",
     "bench:perf": "vitest run --config vitest.perf.config.ts tests/perf-bench.ts",
     "bench:bl": "vitest run --config vitest.bench.config.ts tests/bl-layout-bench.ts",

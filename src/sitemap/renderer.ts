@@ -53,8 +53,12 @@ import {
 
 const DIAGRAM_PADDING = 20;
 const MAX_SCALE = 3;
-import { growChartFrame } from '../utils/chart-frame';
-import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
+import { growChartFrame, type ChartFrame } from '../utils/chart-frame';
+import {
+  TITLE_FONT_SIZE,
+  TITLE_FONT_WEIGHT,
+  TITLE_Y,
+} from '../utils/title-constants';
 const TITLE_HEIGHT = 30;
 // Shared card / group / collapse constants (Story 111.1). sitemap matches every
 // convention default, so it imports the full set.
@@ -297,7 +301,7 @@ export function renderSitemap(
     containerWidth: width,
     titleBandHeight: fixedTitleH,
     legendReserve: legendReserveH,
-    titleBaselineY: sDiagramPadding + sTitleFontSize,
+    titleBaselineY: ctx.structural(TITLE_Y),
     titleFontSize: sTitleFontSize,
   });
 
@@ -386,7 +390,7 @@ export function renderSitemap(
     const titleEl = mainG
       .append('text')
       .attr('x', diagramW / 2)
-      .attr('y', sTitleFontSize)
+      .attr('y', (TITLE_Y - offsetY) / scale) // mainG is translated and scaled
       .attr('text-anchor', 'middle')
       .attr('fill', palette.text)
       .attr('font-size', sTitleFontSize)
@@ -715,7 +719,9 @@ export function renderSitemap(
       activeTagGroup,
       undefined,
       hiddenAttributes,
-      exportMode
+      exportMode,
+      undefined,
+      parsed.frame
     );
   }
 
@@ -767,7 +773,8 @@ export function renderSitemap(
       width,
       hiddenAttributes,
       exportMode,
-      header.inline
+      header.inline,
+      parsed.frame
     );
   }
 
@@ -790,7 +797,8 @@ function renderLegend(
   fixedWidth?: number,
   hiddenAttributes?: Set<string>,
   exportMode?: boolean,
-  inlineHeader?: boolean
+  inlineHeader?: boolean,
+  frame?: ChartFrame
 ): void {
   if (legendGroups.length === 0) return;
 
@@ -807,6 +815,7 @@ function renderLegend(
     fixedWidth ?? legendGroups[0]!.x + (legendGroups[0]!.width ?? 200);
 
   const legendHandle = renderIntegratedLegend(parent, {
+    frame,
     groups,
     activeGroup: activeTagGroup ?? null,
     mode: exportMode ? 'export' : 'preview',

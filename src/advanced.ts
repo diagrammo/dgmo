@@ -1214,3 +1214,14 @@ export {
   type SpaceDiagramSummary,
   type SpacePutResult,
 } from './cloud-space';
+
+// The shared title band (#1838), for the contact sheet and for consumers
+// that lay furniture out beside a chart. `setPinnedNow` pins the instant clock
+// and countdown draw, as the CLI's `--now` does.
+export {
+  TITLE_Y,
+  TITLE_FONT_SIZE,
+  FRAME_INSET,
+  HERO_TITLE_TYPES,
+} from './utils/title-constants';
+export { setPinnedNow } from './utils/now';

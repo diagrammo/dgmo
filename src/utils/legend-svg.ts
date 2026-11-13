@@ -55,6 +55,10 @@ interface LegendRenderOptions {
    * caller can translate it beside a left-aligned title (§1.9 `legend-inline`).
    */
   align?: 'center' | 'left';
+  /** Row edge of a stacked legend (#1838). Default left. */
+  rowAlign?: 'left' | 'center' | 'right';
+  /** `legend-box` / `legend-pill` round a static key (#1838). */
+  keyStyle?: 'box' | 'pill' | undefined;
 }
 
 interface LegendRenderResult {
@@ -108,9 +112,17 @@ function emitEntries(
  */
 function emitStaticKey(
   capsule: LegendCapsuleLayout,
-  palette: LegendRenderOptions['palette']
+  palette: LegendRenderOptions['palette'],
+  keyStyle?: 'box' | 'pill',
+  groupBg?: string,
+  pillBorder?: string
 ): string {
-  return `<g transform="translate(${capsule.x},${capsule.y})" data-legend-group="${esc(tagAttrKey(capsule.groupName))}">${emitEntries(capsule, palette, false).join('')}</g>`;
+  // The author's frame round the key (#1838); matches legend-d3's drawKeyFrame.
+  const pad = 6;
+  const frame = keyStyle
+    ? `<rect class="dgmo-legend-key-${keyStyle}" x="${-pad}" y="0" width="${capsule.width + pad * 2}" height="${capsule.height}" rx="${keyStyle === 'pill' ? Math.min(capsule.height / 2, LEGEND_HEIGHT / 2) : 3}" fill="${keyStyle === 'pill' ? groupBg : 'none'}" stroke="${pillBorder}" stroke-width="${keyStyle === 'pill' ? 0.5 : 0.75}"/>`
+    : '';
+  return `<g transform="translate(${capsule.x},${capsule.y})" data-legend-group="${esc(tagAttrKey(capsule.groupName))}">${frame}${emitEntries(capsule, palette, false).join('')}</g>`;
 }
 
 /** Active capsule (group pill + wrapped colored-dot entries) → SVG string. */
@@ -195,6 +207,7 @@ export function renderLegendSvgInMode(
       titleRelation:
         options.align === 'left' ? 'inline-with-title' : 'below-title',
     },
+    align: options.rowAlign ?? 'left',
     mode,
   };
   const state: LegendState = { activeGroup: activeGroup ?? null };
@@ -222,7 +235,7 @@ export function renderLegendSvgInMode(
     const c = layout.activeCapsule;
     parts.push(
       mode === 'export'
-        ? emitStaticKey(c, palette)
+        ? emitStaticKey(c, palette, options.keyStyle, groupBg, pillBorder)
         : emitCapsule(c, palette, groupBg, pillBorder)
     );
     track(c.x, c.y, c.width, c.height);
@@ -236,7 +249,12 @@ export function renderLegendSvgInMode(
   const activeAttr = activeGroup
     ? ` data-legend-active="${esc(tagAttrKey(activeGroup))}"`
     : '';
-  const svg = `<g${classAttr}${activeAttr}>${parts.join('')}</g>`;
+  // The extent drawn, for the frame to put on its edge (#1838).
+  const extentAttr =
+    left === Infinity
+      ? ''
+      : ` data-legend-left="${left}" data-legend-right="${right}"`;
+  const svg = `<g${classAttr}${activeAttr}${extentAttr}>${parts.join('')}</g>`;
 
   return {
     svg,

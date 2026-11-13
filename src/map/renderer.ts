@@ -1029,6 +1029,7 @@ function drawMap(
         exportDims ? 'export' : 'preview'
       );
       renderIntegratedLegend(legendG, {
+        frame: resolved.frame,
         ...config,
         palette,
         isDark,

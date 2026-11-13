@@ -669,6 +669,7 @@ export function renderERDiagram(
           : `translate(0,${legendY})`
       );
     renderIntegratedLegend(legendG, {
+      frame: parsed.frame,
       groups: parsed.tagGroups,
       activeGroup: activeTagGroup ?? null,
       mode: exportMode ? 'export' : 'preview',
@@ -698,6 +699,7 @@ export function renderERDiagram(
           : `translate(0,${legendY})`
       );
     renderIntegratedLegend(legendG, {
+      frame: parsed.frame,
       groups: semanticGroups,
       activeGroup: semanticActive ? 'Role' : null,
       mode: exportMode ? 'export' : 'preview',

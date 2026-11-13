@@ -7,6 +7,22 @@ export const TITLE_FONT_SIZE = 20;
 export const TITLE_FONT_WEIGHT = 'bold';
 export const TITLE_Y = 30;
 export const TITLE_OFFSET = 40;
+/**
+ * The canvas edge a left- or right-aligned frame part sits in from (#1838):
+ * title, subtitle, legend and footer share it.
+ */
+export const FRAME_INSET = 20;
+/**
+ * Chart types whose title is part of the face, drawn large and placed by the
+ * chart itself. They keep it and ignore the alignment lines (owner,
+ * 2026-11-13).
+ */
+export const HERO_TITLE_TYPES: readonly string[] = [
+  'goal',
+  'countdown',
+  'body',
+  'clock',
+];
 // A title wider than the canvas less this much a side wraps (#1718).
 export const TITLE_SIDE_PAD = 12;
 // Baseline-to-baseline step of a wrapped title's second line.

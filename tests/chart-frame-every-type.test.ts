@@ -131,8 +131,10 @@ describe('growChartFrame', () => {
     );
     growChartFrame(svg, frame, palette);
     const sub = svg.querySelector('.chart-subtitle')!;
-    expect(sub.getAttribute('x')).toBe('200');
-    expect(sub.getAttribute('text-anchor')).toBe('middle');
+    // Left by default (#1838): the drawing starts at 10, inside the 20 inset.
+    expect(sub.getAttribute('x')).toBe('20');
+    expect(sub.getAttribute('text-anchor')).toBe('start');
+    expect(svg.querySelector('.chart-title')!.getAttribute('x')).toBe('20');
     expect(Number(sub.getAttribute('y'))).toBeGreaterThan(30);
     // The drawing moved down; the title did not.
     expect(svg.querySelector('.chart-frame-body rect')).not.toBeNull();
@@ -181,8 +183,11 @@ describe('growChartFrame', () => {
     );
     growChartFrame(svg, frame, palette);
     const sub = svg.querySelector('.chart-subtitle')!;
-    expect(Number(sub.getAttribute('x'))).toBe(60);
+    // On the left edge, in root units, whatever the title's own transform.
+    expect(Number(sub.getAttribute('x'))).toBe(20);
     expect(Number(sub.getAttribute('font-size'))).toBe(7.5);
+    const t = svg.querySelector('.chart-title')!;
+    expect(10 + 0.5 * Number(t.getAttribute('x'))).toBe(20);
     // The title is held where it was drawn.
     const title = svg.querySelector('.chart-title')!;
     expect(title.getAttribute('transform')).toMatch(/^translate\(0,-/);

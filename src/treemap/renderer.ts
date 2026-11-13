@@ -503,6 +503,7 @@ export function renderTreemap(
           : `translate(0, ${titleH})`
       );
     renderIntegratedLegend(legendG, {
+      frame: parsed.frame,
       groups: legend.groups,
       palette: {
         bg: palette.bg,

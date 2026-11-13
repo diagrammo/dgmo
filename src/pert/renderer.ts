@@ -68,6 +68,7 @@ import {
 import {
   footerOnly,
   growChartFrame,
+  placeFrameTitle,
   SUBTITLE_FONT_SIZE,
   SUBTITLE_LINE_HEIGHT,
 } from '../utils/chart-frame';
@@ -694,6 +695,8 @@ export function renderPert(
   // The chart frame's footer (#1827); the subtitle is drawn above.
   if (resolved.frame) {
     growChartFrame(svg.node(), footerOnly(resolved.frame), palette);
+  } else {
+    placeFrameTitle(svg.node(), resolved.frame); // #1838
   }
 }
 
@@ -2521,6 +2524,7 @@ function renderTagLegendRow(
     .attr('transform', `translate(${x}, ${y})`);
 
   renderIntegratedLegend(block, {
+    frame: resolved.frame,
     groups,
     mode: exportMode ? 'export' : 'preview',
     palette,

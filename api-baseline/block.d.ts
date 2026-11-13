@@ -1,6 +1,6 @@
-import { M as MapDataSource } from './export-context-lJl-acbN.js';
+import { M as MapDataSource } from './export-context-DGUqyWaT.js';
 export { f as foldAtLine } from './fold-at-line-DmSAa1eU.js';
-import './tag-groups-CkLDJ7z0.js';
+import './tag-groups-COyUupuj.js';
 
 /**
  * Canonical stylesheet for the standard DGMO embed block (BL-114).

@@ -254,6 +254,7 @@ export function renderTreemapRadial(
       .attr('class', 'dgmo-treemap-legend')
       .attr('transform', 'translate(0, 0)');
     renderIntegratedLegend(legendG, {
+      frame: parsed.frame,
       groups: legend.groups,
       palette: {
         bg: palette.bg,

@@ -35,6 +35,8 @@ import {
 import {
   applyChartFrame,
   reserveChartFrame,
+  placeFrameTitle,
+  type ChartFrame,
   type ChartFrameReserve,
 } from '../utils/chart-frame';
 import { renderBar } from './bar';
@@ -212,13 +214,16 @@ function renderInto(
     frame
   );
   if (ok && frame.reserve)
-    applyChartFrame(s, frame.reserve, width, height, palette);
+    applyChartFrame(s, frame.reserve, width, height, palette, frame.frame);
+  // The title's edge (#1838), frame lines or not.
+  if (ok) placeFrameTitle(s.node(), frame.frame);
   return ok;
 }
 
 /** Where `renderPlot` leaves the frame it reserved, for `renderInto`. */
 interface FrameSlot {
   reserve?: ChartFrameReserve | undefined;
+  frame?: ChartFrame | undefined;
 }
 
 function renderPlot(
@@ -244,6 +249,7 @@ function renderPlot(
   // Standard (parseChart) path.
   const std = forceExtended ? null : parseChart(content, palette);
   if (std && !std.error && std.data.length > 0 && STANDARD.has(std.type)) {
+    frame.frame = std.frame;
     frame.reserve = reserveChartFrame(std.frame, width);
     if (frame.reserve) height -= frame.reserve.top + frame.reserve.bottom;
     const hasTitle = !std.noTitle && !!std.title;
@@ -322,7 +328,8 @@ function renderPlot(
           isDark,
           hasTitle,
           width,
-          inlineTitle
+          inlineTitle,
+          std.frame
         );
         renderRadar(
           s,
@@ -356,6 +363,7 @@ function renderPlot(
   // Extended (parseExtendedChart) path.
   const ext = parseExtendedChart(content, palette);
   if (ext.error || !EXTENDED.has(ext.type)) return false;
+  frame.frame = ext.frame;
   frame.reserve = reserveChartFrame(ext.frame, width);
   if (frame.reserve) height -= frame.reserve.top + frame.reserve.bottom;
   const seriesColors = getSeriesColors(palette);
@@ -411,7 +419,8 @@ function renderPlot(
         isDark,
         hasTitle,
         width,
-        inlineTitle
+        inlineTitle,
+        ext.frame
       );
       renderScatter(
         s,
@@ -463,7 +472,8 @@ function renderPlot(
         isDark,
         hasTitle,
         width,
-        inlineTitle
+        inlineTitle,
+        ext.frame
       );
       renderFunction(
         s,

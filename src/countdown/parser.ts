@@ -236,7 +236,12 @@ export function parseCountdown(
     if (key !== 'note') inNote = false;
 
     // Chart frame: subtitle, source, footnote, byline (#1827), column 1.
-    if (parseChartFrameLine(result, raw, lineNum, result.diagnostics)) continue;
+    if (
+      parseChartFrameLine(result, raw, lineNum, result.diagnostics, {
+        heroTitle: 'Countdown',
+      })
+    )
+      continue;
 
     switch (key) {
       // ── One-shot target ──

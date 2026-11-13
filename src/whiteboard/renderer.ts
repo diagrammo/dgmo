@@ -1012,6 +1012,7 @@ export function renderWhiteboard(
       .attr('transform', `translate(0,${titleOffset + WHITEBOARD_MARGIN / 2})`);
     if (!legend.named) legendG.attr('opacity', LEGEND_FAINT_OPACITY);
     renderIntegratedLegend(legendG, {
+      frame: parsed.frame,
       ...legendConfig,
       activeGroup: legend.group.name,
       palette,

@@ -13,7 +13,11 @@ import type { LegendConfig } from '../utils/legend-types';
 import { legendSuppressed } from '../utils/parsing';
 import { tagAttrKey } from '../utils/tag-groups';
 import { measureText, wrapTextToWidth } from '../utils/text-measure';
-import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
+import {
+  TITLE_FONT_SIZE,
+  TITLE_FONT_WEIGHT,
+  TITLE_Y,
+} from '../utils/title-constants';
 import type { ParsedSwot, SwotItem, SwotSection } from './types';
 
 export interface SwotRenderOptions {
@@ -180,7 +184,8 @@ export function renderSwot(
   const legendHeight = showLegend
     ? getMaxLegendReservedHeight(legendConfig, legendWidth)
     : 0;
-  const legendY = DIAGRAM_PADDING + (TITLE_FONT_SIZE - legendHeight) / 2;
+  const legendY =
+    TITLE_Y - TITLE_FONT_SIZE + (TITLE_FONT_SIZE - legendHeight) / 2;
 
   const headerBottom = Math.max(
     showTitle || showLegend ? DIAGRAM_PADDING + TITLE_HEIGHT : DIAGRAM_PADDING,
@@ -220,7 +225,7 @@ export function renderSwot(
       .attr('class', 'chart-title')
       .attr('data-line-number', parsed.titleLineNumber ?? 0)
       .attr('x', DIAGRAM_PADDING)
-      .attr('y', DIAGRAM_PADDING + TITLE_FONT_SIZE)
+      .attr('y', TITLE_Y)
       .attr('font-size', TITLE_FONT_SIZE)
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .attr('fill', palette.text)
@@ -233,6 +238,7 @@ export function renderSwot(
       .attr('class', 'swot-legend')
       .attr('transform', `translate(${legendX},${legendY})`);
     renderIntegratedLegend(legendG, {
+      frame: parsed.frame,
       ...legendConfig,
       palette,
       isDark,

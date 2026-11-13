@@ -123,7 +123,7 @@ describe('journey-map text stays inside the rect it belongs to', () => {
 
   it('keeps the diagram title clear of the persona panel', () => {
     const svg = render(SRC);
-    const title = svg.querySelector('.chart-title text')!;
+    const title = svg.querySelector('text.chart-title')!;
     const panelRect = svg.querySelector('.journey-persona rect')!;
     const panelX = Number(panelRect.getAttribute('x'));
 

@@ -56,6 +56,21 @@ interface ChartFrameFootnote {
     text: string;
     lineNumber: number;
 }
+/** Which edge a part of the frame sits on (#1838). Default `left`. */
+type FrameAlign = 'left' | 'center' | 'right';
+/**
+ * The alignment lines of one chart (#1838): `align` for the whole frame,
+ * `<part>-align` to override one part. Line numbers let a chart type that
+ * ignores them say which line.
+ */
+interface ChartFrameAlign {
+    all?: FrameAlign;
+    title?: FrameAlign;
+    subtitle?: FrameAlign;
+    legend?: FrameAlign;
+    footer?: FrameAlign;
+    lineNumbers: number[];
+}
 /** The `subtitle`, `source`, `footnote` and `byline` directives of one chart. */
 interface ChartFrame {
     subtitle?: string;
@@ -65,6 +80,14 @@ interface ChartFrame {
     byline?: string;
     bylineLineNumber?: number;
     footnotes?: ChartFrameFootnote[];
+    /** `align`, `title-align`, … (#1838). */
+    align?: ChartFrameAlign;
+    /**
+     * How a static legend is drawn (#1838): a bare key (the default), or
+     * `legend-box` / `legend-pill`. The app's interactive legend is unchanged.
+     */
+    legendStyle?: 'box' | 'pill';
+    legendStyleLineNumber?: number;
 }
 
 /** A single entry inside a tag group: `Value color` */

@@ -103,8 +103,9 @@ describe('a wrapped title pushes the chart down', () => {
       fixture.replace(/^heatmap .*$/m, 'heatmap Incidents'),
       { theme: 'light', palette: 'nord' }
     );
-    expect(long.svg).toContain(
-      '<tspan x="240" dy="24">Failure Category</tspan>'
+    // The second line hangs under the first, on the title's left edge.
+    expect(long.svg).toMatch(
+      /<tspan x="[\d.]+" dy="24">Failure Category<\/tspan>/
     );
     const dy = firstCellY(long.svg) - firstCellY(short.svg);
     expect(dy).toBeCloseTo(TITLE_LINE_HEIGHT, 5);

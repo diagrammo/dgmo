@@ -222,15 +222,22 @@ describe('computeLegendLayout', () => {
     expect(layout.controlsGroup).toBeUndefined();
   });
 
-  it('export mode centers a single active capsule within containerWidth', () => {
+  it('puts the rows on the edge `align` names (#1838), left by default', () => {
     const groups = makeGroups(2);
-    const config = defaultConfig(groups, { mode: 'export' });
     const state: LegendState = { activeGroup: 'Group1' };
     const containerWidth = 1200;
-    const layout = computeLegendLayout(config, state, containerWidth);
-    const capsule = layout.activeCapsule!;
-    const centerX = capsule.x + capsule.width / 2;
-    expect(Math.abs(centerX - containerWidth / 2)).toBeLessThan(0.5);
+    const at = (align?: 'left' | 'center' | 'right') =>
+      computeLegendLayout(
+        defaultConfig(groups, { mode: 'export', ...(align && { align }) }),
+        state,
+        containerWidth
+      ).activeCapsule!;
+    expect(at().x).toBe(0);
+    expect(at('left').x).toBe(0);
+    const c = at('center');
+    expect(Math.abs(c.x + c.width / 2 - containerWidth / 2)).toBeLessThan(0.5);
+    const r = at('right');
+    expect(Math.abs(r.x + r.width - containerWidth)).toBeLessThan(0.5);
   });
 
   // ── Height reservation ───────────────────────────────────

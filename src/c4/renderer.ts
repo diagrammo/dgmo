@@ -36,7 +36,7 @@ import {
 } from './layout';
 import { LEGEND_HEIGHT } from '../utils/legend-constants';
 import { renderIntegratedLegend } from '../utils/legend-integration';
-import { growChartFrame } from '../utils/chart-frame';
+import { growChartFrame, type ChartFrame } from '../utils/chart-frame';
 import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
 
 // ============================================================
@@ -624,7 +624,8 @@ export function renderC4Context(
       isDark,
       activeTagGroup,
       fixedLegend ? width : null,
-      exportMode
+      exportMode,
+      parsed.frame
     );
   }
 
@@ -1214,7 +1215,8 @@ function renderLegend(
   isDark: boolean,
   activeTagGroup?: string | null,
   fixedWidth?: number | null,
-  exportMode?: boolean
+  exportMode?: boolean,
+  frame?: ChartFrame
 ): void {
   const groups = layout.legend.map((g) => ({
     name: g.name,
@@ -1222,6 +1224,7 @@ function renderLegend(
   }));
   const containerWidth = fixedWidth ?? layout.width;
   renderIntegratedLegend(parent, {
+    frame,
     groups,
     activeGroup: activeTagGroup ?? null,
     mode: exportMode ? 'export' : 'preview',
@@ -1788,7 +1791,8 @@ export function renderC4Containers(
       isDark,
       activeTagGroup,
       fixedLegend ? width : null,
-      exportMode
+      exportMode,
+      parsed.frame
     );
   }
 

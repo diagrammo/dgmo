@@ -34,6 +34,10 @@ function legendGroupCount(svg: string): number {
 }
 
 /** First x-translate of a `chart-legend` group wrapper, or null. */
+function titleX(svg: string): number {
+  return Number(/<text class="chart-title" x="([\d.]+)"/.exec(svg)?.[1]);
+}
+
 function legendGroupX(svg: string): number | null {
   // The legend `<g class="chart-legend">` is wrapped in a positioning `<g
   // transform="translate(x,y)">`. Find the translate immediately before it.
@@ -68,22 +72,22 @@ function withInline(src: string): string {
 }
 
 describe('legend-inline (spec §1.9, decision #50)', () => {
-  it('default header is centered with a stacked legend', async () => {
+  it('default header is left-aligned with a stacked legend (#1838)', async () => {
     const { svg, errors } = await renderOk(INLINE_FITS);
     expect(errors).toEqual([]);
-    expect(titleTag(svg)).toContain('text-anchor="middle"');
+    expect(titleTag(svg)).toContain('text-anchor="start"');
     expect(legendGroupCount(svg)).toBeGreaterThan(0);
-    // Stacked legend sits at x=0.
-    expect(legendGroupX(svg)).toBe(0);
+    // The stacked legend starts on the title's edge (#1838).
+    expect(legendGroupX(svg)).toBeCloseTo(titleX(svg), 3);
   });
 
   it('puts title left + legend right on one row when it fits', async () => {
     const { svg, errors } = await renderOk(withInline(INLINE_FITS));
     expect(errors).toEqual([]);
     const tag = titleTag(svg);
-    // Left-aligned title: no centered anchor, origin at the 8px inset.
+    // Left-aligned title: no centered anchor, origin at the frame inset.
     expect(tag).not.toContain('text-anchor="middle"');
-    expect(tag).toContain('x="8"');
+    expect(tag).toContain('x="20"');
     // Legend still rendered, now flushed to the RIGHT edge — past the short
     // title, in the right half of the canvas. Measured against the canvas the
     // chart actually chose, not a hardcoded 1200: a data chart sizes itself
@@ -100,10 +104,12 @@ describe('legend-inline (spec §1.9, decision #50)', () => {
   it('falls back to the stacked header when the legend cannot fit', async () => {
     const { svg, errors } = await renderOk(withInline(INLINE_OVERFLOWS));
     expect(errors).toEqual([]);
-    // Fallback → centered title + legend back at x=0.
-    expect(titleTag(svg)).toContain('text-anchor="middle"');
+    // Fallback → the stacked header, title on the left edge.
+    expect(titleTag(svg)).toContain('text-anchor="start"');
     expect(legendGroupCount(svg)).toBeGreaterThan(0);
-    expect(legendGroupX(svg)).toBe(0);
+    // A title too long for the drawing slides in to fit; the legend keeps the
+    // drawing's edge, inside the frame inset.
+    expect(legendGroupX(svg)!).toBeGreaterThanOrEqual(20);
   });
 
   it('parses `legend-inline` without any diagnostic', async () => {
@@ -119,8 +125,8 @@ North 10
 South 15`;
     const { svg, errors } = await renderOk(src);
     expect(errors).toEqual([]);
-    // No series legend exists, so the title stays centered.
-    expect(titleTag(svg)).toContain('text-anchor="middle"');
+    // No series legend exists: the ordinary left-aligned title.
+    expect(titleTag(svg)).toContain('text-anchor="start"');
   });
 
   it('is a no-op on a legend-less chart type (pie)', async () => {
@@ -133,10 +139,10 @@ Pears 50`;
     const { svg, errors } = await renderOk(src);
     expect(errors).toEqual([]);
     expect(svg).toContain('<svg');
-    expect(titleTag(svg)).toContain('text-anchor="middle"');
+    expect(titleTag(svg)).toContain('text-anchor="start"');
   });
 
-  it('inline + no-legend suppresses the legend and centers the title', async () => {
+  it('inline + no-legend suppresses the legend and keeps the title left', async () => {
     const src = `bar Sales
 legend-inline
 no-legend
@@ -149,6 +155,6 @@ South 15 25`;
     const { svg, errors } = await renderOk(src);
     expect(errors).toEqual([]);
     expect(legendGroupCount(svg)).toBe(0);
-    expect(titleTag(svg)).toContain('text-anchor="middle"');
+    expect(titleTag(svg)).toContain('text-anchor="start"');
   });
 });

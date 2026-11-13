@@ -22,6 +22,7 @@ import { renderLegendSvgInMode } from '../utils/legend-svg';
 import type { LegendGroupData } from '../utils/legend-types';
 import { drawnTitleExtraHeight, renderChartTitle } from '../utils/d3-helpers';
 import { layoutInlineHeader } from '../utils/inline-header';
+import { frameAlign, type ChartFrame } from '../utils/chart-frame-parse';
 import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
@@ -199,7 +200,8 @@ export function reserveHeader(
     isDark,
     hasTitle,
     width,
-    inlineTitle
+    inlineTitle,
+    chart.frame
   );
 }
 
@@ -220,7 +222,8 @@ export function injectLegendGroups(
   isDark: boolean,
   hasTitle: boolean,
   width: number,
-  inlineTitle?: InlineTitleInfo
+  inlineTitle?: InlineTitleInfo,
+  frame?: ChartFrame
 ): number {
   if (inlineTitle && groups.length > 0) {
     const inset = renderInlineHeader(
@@ -261,6 +264,8 @@ export function injectLegendGroups(
       containerWidth: width,
       activeGroup: groups[0]!.name,
       className: 'chart-legend',
+      rowAlign: frameAlign(frame, 'legend'),
+      keyStyle: frame?.legendStyle,
     },
     legendModeOf(svg)
   );

@@ -36,7 +36,11 @@ import {
 } from '../utils/legend-layout';
 import { layoutInlineHeader } from '../utils/inline-header';
 import { growChartFrame } from '../utils/chart-frame';
-import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
+import {
+  TITLE_FONT_SIZE,
+  TITLE_FONT_WEIGHT,
+  TITLE_Y,
+} from '../utils/title-constants';
 import { ScaleContext } from '../utils/scaling';
 import { renderCollapseBar } from '../utils/card';
 import { FULL_TEXT_ATTR, fullNodeText, isCutShort } from '../utils/full-text';
@@ -190,7 +194,7 @@ export function renderMindmap(
     containerWidth,
     titleBandHeight: titleReserve,
     legendReserve,
-    titleBaselineY: DIAGRAM_PADDING + TITLE_FONT_SIZE,
+    titleBaselineY: TITLE_Y,
     titleFontSize: TITLE_FONT_SIZE,
   });
 
@@ -279,9 +283,7 @@ export function renderMindmap(
   if (showTitle) {
     const titleParent = fixedTitle ? svg : mainG;
     const titleX = fixedTitle ? header.titleX : renderLayout.width / 2;
-    const titleY = fixedTitle
-      ? DIAGRAM_PADDING + TITLE_FONT_SIZE
-      : TITLE_FONT_SIZE;
+    const titleY = fixedTitle ? TITLE_Y : (TITLE_Y - offsetY) / fitScale; // mainG is translated by offsetY
     const titleText = titleParent
       .append('text')
       .attr('x', titleX)
@@ -393,6 +395,7 @@ export function renderMindmap(
       },
     };
     renderIntegratedLegend(legendG, {
+      frame: parsed.frame,
       ...legendConfig,
       palette: legendPalette,
       isDark,

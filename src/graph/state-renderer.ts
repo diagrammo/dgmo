@@ -246,6 +246,7 @@ export function renderState(
           : `translate(0, ${titleHeight + 4})`
       );
     renderIntegratedLegend(legendG, {
+      frame: graph.frame,
       groups: legendGroups,
       activeGroup: activeTagGroup,
       mode: exportDims ? 'export' : 'preview',

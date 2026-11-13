@@ -7,7 +7,11 @@ import { fillModeFromOptions } from '../utils/parsing';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
 import { contrastText, mix, shapeFill } from '../palettes/color-utils';
-import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
+import {
+  TITLE_FONT_SIZE,
+  TITLE_FONT_WEIGHT,
+  TITLE_Y,
+} from '../utils/title-constants';
 import { measureText } from '../utils/text-measure';
 import type { WireframeElement, ParsedWireframe } from './types';
 import type { WireframeLayout, WireframeLayoutNode } from './layout';
@@ -151,8 +155,9 @@ export function renderWireframe(
   if (isExport && showTitle) {
     const titleSel = mainG
       .append('text')
+      .attr('class', 'chart-title')
       .attr('x', 0)
-      .attr('y', sTitleFontSize)
+      .attr('y', TITLE_Y - 20) // mainG is translated by (20, 20)
       .attr('fill', palette.text)
       .attr('font-size', sTitleFontSize)
       .attr('font-weight', TITLE_FONT_WEIGHT)

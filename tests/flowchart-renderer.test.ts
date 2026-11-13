@@ -330,7 +330,7 @@ describe('renderFlowchart', () => {
       return { viewW, titleX };
     }
 
-    it('centres the title on the final canvas width of a narrow export', () => {
+    it('puts the title on the left edge of a narrow export (#1838)', () => {
       const svg = renderFlowchartForExport(
         'flowchart Basic Flow\n(Start) -> [Process] -> (End)',
         'light',
@@ -338,7 +338,8 @@ describe('renderFlowchart', () => {
       );
       const { viewW, titleX } = titleGeometry(svg);
       expect(viewW).toBeLessThan(1200);
-      expect(titleX).toBe(viewW / 2);
+      expect(titleX).toBeGreaterThanOrEqual(20);
+      expect(titleX).toBeLessThan(viewW / 2);
     });
 
     it('widens a narrow export canvas to a title wider than the diagram', () => {
@@ -351,7 +352,8 @@ describe('renderFlowchart', () => {
       );
       const { viewW, titleX } = titleGeometry(svg);
       expect(viewW).toBeGreaterThan(480);
-      expect(titleX).toBe(viewW / 2);
+      // The title fills the widened canvas, starting at the frame inset.
+      expect(titleX).toBeCloseTo(20, 0);
     });
   });
 });

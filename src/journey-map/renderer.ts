@@ -35,6 +35,7 @@ import { wrapNoteBody, NOTE_BULLET_INDENT } from '../utils/note-box';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import { resolveActiveTagGroup } from '../utils/tag-groups';
 import { ScaleContext } from '../utils/scaling';
+import { TITLE_FONT_SIZE, TITLE_Y } from '../utils/title-constants';
 import {
   measureText,
   wrapTextToWidth,
@@ -187,7 +188,7 @@ export function renderJourneyMap(
   // ── Title ────────────────────────────────────────────────
   const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
   if (showTitle) {
-    const titleG = svg.append('g').attr('class', 'chart-title');
+    const titleG = svg.append('g');
     if (parsed.titleLineNumber) {
       titleG.attr('data-line-number', parsed.titleLineNumber);
     }
@@ -204,13 +205,14 @@ export function renderJourneyMap(
     );
     titleG
       .append('text')
+      .attr('class', 'chart-title')
       .attr('x', PADDING)
-      .attr('y', PADDING + FONT_SIZE_TITLE)
-      .attr('font-size', FONT_SIZE_TITLE)
+      .attr('y', TITLE_Y)
+      .attr('font-size', TITLE_FONT_SIZE)
       .attr('font-weight', 'bold')
       .attr('fill', palette.text)
       .text(
-        truncateToWidth(parsed.title, FONT_SIZE_TITLE, titleMaxW, {
+        truncateToWidth(parsed.title, TITLE_FONT_SIZE, titleMaxW, {
           bold: true,
         })
       );
@@ -462,6 +464,7 @@ export function renderJourneyMap(
     };
 
     renderIntegratedLegend(legendG, {
+      frame: parsed.frame,
       groups: parsed.tagGroups,
       activeGroup: effectiveActiveGroup,
       mode: options?.exportMode ? 'export' : 'preview',
@@ -1116,7 +1119,7 @@ export function renderJourneyMap(
   // Chart frame (#1827): subtitle under the title, footer under the chart.
   // The title is a group holding the text, so pass the text itself.
   growChartFrame(svg.node(), parsed.frame, palette, {
-    title: svg.select<SVGTextElement>('.chart-title text').node(),
+    title: svg.select<SVGTextElement>('text.chart-title').node(),
     size: useContainerFit ? 'fit' : 'grow',
   });
 }

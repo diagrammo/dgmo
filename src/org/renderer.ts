@@ -46,7 +46,11 @@ import type { LegendConfig } from '../utils/legend-types';
 
 const DIAGRAM_PADDING = 20;
 const MAX_SCALE = 3;
-import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
+import {
+  TITLE_FONT_SIZE,
+  TITLE_FONT_WEIGHT,
+  TITLE_Y,
+} from '../utils/title-constants';
 import { growChartFrame } from '../utils/chart-frame';
 const TITLE_HEIGHT = 30;
 // Shared card / group / collapse constants (Story 111.1). org matches every
@@ -288,8 +292,8 @@ export function renderOrg(
     const titleParent = fixedTitle ? svg : mainG;
     const titleX = fixedTitle ? width / 2 : diagramW / 2;
     const titleY = fixedTitle
-      ? sDiagramPadding + TITLE_FONT_SIZE
-      : TITLE_FONT_SIZE;
+      ? ctx.structural(TITLE_Y)
+      : (TITLE_Y - offsetY) / scale; // mainG is translated and scaled
     const titleEl = titleParent
       .append('text')
       .attr('x', titleX)
@@ -760,6 +764,7 @@ export function renderOrg(
           .append('g')
           .attr('transform', `translate(${lg.x}, ${lg.y})`);
         renderIntegratedLegend(groupG, {
+          frame: parsed.frame,
           ...singleConfig,
           palette,
           isDark,
@@ -779,6 +784,7 @@ export function renderOrg(
         capsulePillAddonWidth: eyeAddonWidth,
       };
       legendHandle = renderIntegratedLegend(legendParentBase, {
+        frame: parsed.frame,
         ...legendConfig,
         palette,
         isDark,

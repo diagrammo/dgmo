@@ -117,6 +117,20 @@ export function renderLegendD3(
     const { groupBg, pillBorder } = legendChromeColors(palette, isDark);
     const interactive = config.mode !== 'export';
 
+    // The extent the groups were laid out across, for the frame to put on
+    // its edge (#1838). Controls are not counted: they ride the far edge.
+    const items = currentLayout.rows.flatMap((row) =>
+      row.items.filter((it) => 'groupName' in it)
+    );
+    if (items.length) {
+      legendG
+        .attr('data-legend-left', Math.min(...items.map((it) => it.x)))
+        .attr(
+          'data-legend-right',
+          Math.max(...items.map((it) => it.x + it.width))
+        );
+    }
+
     // Render active capsule
     if (currentLayout.activeCapsule) {
       renderCapsule(
@@ -127,7 +141,8 @@ export function renderLegendD3(
         pillBorder,
         isDark,
         interactive,
-        callbacks
+        callbacks,
+        config.keyStyle
       );
     }
 
@@ -282,7 +297,8 @@ function renderCapsule(
   pillBorder: string,
   isDark: boolean,
   interactive: boolean,
-  callbacks?: LegendCallbacks
+  callbacks?: LegendCallbacks,
+  keyStyle?: 'box' | 'pill'
 ): void {
   const g = parent
     .append('g')
@@ -290,6 +306,7 @@ function renderCapsule(
     .attr('data-legend-group', tagAttrKey(capsule.groupName));
 
   if (!interactive) {
+    if (keyStyle) drawKeyFrame(g, capsule, keyStyle, groupBg, pillBorder);
     renderStaticKey(g, capsule, palette, isDark, callbacks);
     return;
   }
@@ -362,6 +379,34 @@ function renderCapsule(
  * swimlane toggle, org's eye). Entries keep their `data-legend-entry` /
  * `data-series-name` attributes, which baked embed hover pairs against.
  */
+/** Padding between a framed static key and its frame (#1838). */
+const KEY_FRAME_PAD = 6;
+
+/**
+ * The author's frame round a static key (#1838): `legend-box` draws a
+ * hairline box, `legend-pill` a faint rounded band. Neither carries the app's
+ * group button, so neither reads as something to press.
+ */
+function drawKeyFrame(
+  g: D3Sel,
+  capsule: LegendCapsuleLayout,
+  style: 'box' | 'pill',
+  groupBg: string,
+  pillBorder: string
+): void {
+  const h = capsule.height;
+  g.append('rect')
+    .attr('class', `dgmo-legend-key-${style}`)
+    .attr('x', -KEY_FRAME_PAD)
+    .attr('y', 0)
+    .attr('width', capsule.width + KEY_FRAME_PAD * 2)
+    .attr('height', h)
+    .attr('rx', style === 'pill' ? Math.min(h / 2, LEGEND_HEIGHT / 2) : 3)
+    .attr('fill', style === 'pill' ? groupBg : 'none')
+    .attr('stroke', pillBorder)
+    .attr('stroke-width', style === 'pill' ? 0.5 : 0.75);
+}
+
 function renderStaticKey(
   g: D3Sel,
   capsule: LegendCapsuleLayout,

@@ -4213,6 +4213,7 @@ export function renderSequenceDiagram(
           : `translate(0,${legendY})`
       );
     renderIntegratedLegend(legendG, {
+      frame: parsed.frame,
       ...legendConfig,
       // Inline → left-origin so the wrapper's right-flush translate lands the
       // legend at the header's right edge; stacked → centered below the title

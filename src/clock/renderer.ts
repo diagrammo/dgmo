@@ -459,6 +459,7 @@ export function renderClock(
   // Chart frame (#1827): subtitle under the title, footer under the chart.
   growChartFrame(svg.node() as SVGSVGElement | null, parsed.frame, palette, {
     size: 'grow',
+    keepTitle: true,
   });
 }
 

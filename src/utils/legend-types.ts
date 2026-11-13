@@ -99,9 +99,16 @@ export interface LegendGroupData {
 
 // ── Config ──────────────────────────────────────────────────
 
+/** Which edge a legend's rows sit on (#1838). */
+export type LegendAlign = 'left' | 'center' | 'right';
+
 export interface LegendConfig {
   groups: readonly LegendGroupData[];
   position: LegendPosition;
+  /** Row alignment, default left (#1838). Ignored beside an inline title. */
+  align?: LegendAlign;
+  /** A static key's frame (#1838): none, a hairline box, or a faint pill. */
+  keyStyle?: 'box' | 'pill';
   controls?: LegendControl[];
   controlsGroup?: ControlsGroupConfig;
   mode: LegendMode;

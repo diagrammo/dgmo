@@ -474,22 +474,23 @@ South 95
 | `byline <text>`   | The last footer line, fitted to one line (a longer byline ends in `…`)           |
 
 - Type scale, the same in every chart: title 20 > subtitle 15 > body 13 > footer 11.
-- The frame follows the title's alignment: centred under a centred title, flush left under a left-aligned (`legend-inline`) title. A chart that sizes itself grows by the frame; at a size the caller sets, the drawing shrinks to make room. The footer sits under the drawing, not at the far edge of a larger canvas.
+- The title is 20 bold on one baseline in every chart, except the large titles of `goal`, `countdown`, `body` and `clock`. A chart that sizes itself grows by the frame; at a size the caller sets, the drawing shrinks to make room. The footer sits under the drawing, not at the far edge of a larger canvas.
+- **Left by default.** The title, subtitle, legend and footer line up on the drawing's own left edge, at least 20 in from the canvas edge. A title wider than the drawing slides inward to stay on the canvas. Move them with `left`, `center` or `right`:
+
+| Directive               | Moves                                                              |
+| ----------------------- | ------------------------------------------------------------------ |
+| `align <edge>`          | The title, subtitle, legend and footer together                    |
+| `title-align <edge>`    | The title; the subtitle follows it unless `subtitle-align` says so |
+| `subtitle-align <edge>` | The subtitle                                                       |
+| `legend-align <edge>`   | The legend's rows                                                  |
+| `footer-align <edge>`   | The footnotes, source and byline                                   |
+
+- A part's own directive wins over `align`. Any other value warns and the line is ignored. On `goal`, `countdown`, `body` and `clock`, `align` and `title-align` warn and are ignored. `legend-inline` keeps its title-left, legend-right row.
+- An exported legend is a plain key. `legend-box` draws a hairline box round it; `legend-pill` a faint rounded band behind it. The app's interactive legend is unchanged.
 - The keyword is lowercase and starts the line, anywhere in the file (a footer usually goes last). `Source 12`, a node named `Footnote` (capitalised) and an indented `source 5` stay content, and `source -> Grid 5` stays a flow.
 - The footer note is `footnote`, never `note`: `note` is the note-card element in boxes-and-lines, class, countdown, er, flowchart, goal, sequence, state, swimlane, version-control and whiteboard.
 - `subtitle`, `source` and `byline` given twice: the last one is used, with a warning. A directive with no text warns and draws nothing.
 - **Chart types:** all of them. `map` draws the subtitle in its title banner and the footer under the map (it has no `caption`); `pert` draws an authored `subtitle` in place of its project summary line, which fills the subtitle slot otherwise. `live-link` is a pointer to a published diagram, not a chart, and takes no frame.
-
------------------ | ------------------------------------------------------------------------------ |
-| `subtitle <text>` | Under the title, smaller than it and larger than body text; wraps to two lines |
-| `note <text>` | A footer line under the chart; repeatable, in source order |
-| `source <text>` | A footer line under the notes, drawn as `Source: <text>` |
-| `byline <text>` | The last footer line, drawn exactly as written |
-
-- The frame follows the title's alignment: centred under a centred title, flush left under a `legend-inline` title. A chart that sizes itself grows by the frame; at a size the caller sets, the plot shrinks to make room.
-- The keyword is lowercase and starts the line. `Source 12` (capitalised) and an indented `source 5` stay data rows, and `source -> Grid 5` stays a flow.
-- `subtitle`, `source` and `byline` given twice: the last one is used, with a warning.
-- **Chart types:** the data charts — `bar`, `line`, `pie`, `polar-area`, `radar`, `scatter`, `heatmap`, `sankey`, `funnel`, `function`. Other chart types do not accept the frame yet.
 
 ### 1.13 Emphasis — `highlight`
 

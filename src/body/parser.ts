@@ -105,7 +105,11 @@ export function parseBody(
 
     // Chart frame: subtitle, source, footnote, byline (#1827), column 1.
     // A column-1 line closes the open tag group and part, as a directive does.
-    if (parseChartFrameLine(frameHolder, line, lineNumber, diagnostics)) {
+    if (
+      parseChartFrameLine(frameHolder, line, lineNumber, diagnostics, {
+        heroTitle: 'Body',
+      })
+    ) {
       currentTagGroup = null;
       currentPart = null;
       continue;

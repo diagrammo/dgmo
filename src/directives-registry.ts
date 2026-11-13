@@ -482,6 +482,14 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'source', category: 'directive', chartTypes: 'all' },
   { token: 'footnote', category: 'directive', chartTypes: 'all' },
   { token: 'byline', category: 'directive', chartTypes: 'all' },
+  // Frame alignment and the static key's frame (#1838).
+  { token: 'align', category: 'directive', chartTypes: 'all' },
+  { token: 'title-align', category: 'directive', chartTypes: 'all' },
+  { token: 'subtitle-align', category: 'directive', chartTypes: 'all' },
+  { token: 'legend-align', category: 'directive', chartTypes: 'all' },
+  { token: 'footer-align', category: 'directive', chartTypes: 'all' },
+  { token: 'legend-box', category: 'directive', chartTypes: 'all' },
+  { token: 'legend-pill', category: 'directive', chartTypes: 'all' },
   {
     token: 'no-coastline',
     category: 'directive',

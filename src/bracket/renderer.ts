@@ -328,6 +328,7 @@ export function renderBracket(
           : `translate(0, ${titleH})`
       );
     renderIntegratedLegend(legendG, {
+      frame: parsed.frame,
       groups: legendGroups,
       palette: {
         bg: palette.bg,

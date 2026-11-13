@@ -32,11 +32,24 @@ import {
   parseTransform,
   type Matrix,
 } from './export-fit';
-import { fitWrapped } from './text-measure';
-import { TITLE_LINE_HEIGHT, TITLE_SIDE_PAD, TITLE_Y } from './title-constants';
-import { hasChartFrame, type ChartFrame } from './chart-frame-parse';
+import { fitWrapped, measureText } from './text-measure';
+import {
+  FRAME_INSET,
+  TITLE_FONT_SIZE,
+  TITLE_LINE_HEIGHT,
+  TITLE_SIDE_PAD,
+  TITLE_Y,
+} from './title-constants';
+import {
+  frameAlign,
+  type FramePart,
+  hasChartFrame,
+  type ChartFrame,
+  type FrameAlign,
+} from './chart-frame-parse';
 
 export {
+  frameAlign,
   hasChartFrame,
   parseChartFrameLine,
   type ChartFrame,
@@ -179,16 +192,16 @@ export function applyChartFrame(
   reserve: ChartFrameReserve,
   width: number,
   height: number,
-  palette: PaletteColors
+  palette: PaletteColors,
+  frame?: ChartFrame
 ): void {
   const node = svg.node();
   if (!node) return;
   const doc = node.ownerDocument;
   const title = node.querySelector<SVGTextElement>('text.chart-title');
-  const titleAnchor = title?.getAttribute('text-anchor') ?? 'start';
-  const centred = !title || titleAnchor === 'middle';
-  const x = centred ? width / 2 : Number(title.getAttribute('x') ?? 0);
-  const anchor = centred ? 'middle' : 'start';
+  const edges = canvasEdges(0, width);
+  const sub = edge(frameAlign(frame, 'subtitle'), edges);
+  const foot = edge(frameAlign(frame, 'footer'), edges);
 
   if (reserve.top > 0) {
     const body = doc.createElementNS(SVG_NS, 'g');
@@ -209,7 +222,15 @@ export function applyChartFrame(
     ? TITLE_Y + (titleLines - 1) * TITLE_LINE_HEIGHT + SUBTITLE_LINE_HEIGHT + 2
     : SUBTITLE_Y_NO_TITLE;
   for (const line of reserve.subtitleLines) {
-    drawLine(node, line, x, y, anchor, SUBTITLE_FONT_SIZE, palette.text);
+    drawLine(
+      node,
+      line,
+      sub.x,
+      y,
+      sub.anchor,
+      SUBTITLE_FONT_SIZE,
+      palette.text
+    );
     y += SUBTITLE_LINE_HEIGHT;
   }
 
@@ -220,13 +241,240 @@ export function applyChartFrame(
     drawLine(
       node,
       line,
-      x,
+      foot.x,
       baseline,
-      anchor,
+      foot.anchor,
       FOOTER_FONT_SIZE,
       palette.textMuted
     );
   });
+}
+
+type SvgAnchor = 'start' | 'middle' | 'end';
+
+const ANCHOR_OF: Record<FrameAlign, SvgAnchor> = {
+  left: 'start',
+  center: 'middle',
+  right: 'end',
+};
+
+/** The left and right edges the frame lines up on, in root units. */
+export interface FrameEdges {
+  left: number;
+  right: number;
+}
+
+/** Where an edge puts a frame part between `edges`. */
+function edge(
+  align: FrameAlign,
+  edges: FrameEdges
+): { x: number; anchor: SvgAnchor } {
+  const x =
+    align === 'center'
+      ? (edges.left + edges.right) / 2
+      : align === 'right'
+        ? edges.right
+        : edges.left;
+  return { x, anchor: ANCHOR_OF[align] };
+}
+
+/** The canvas less `FRAME_INSET` a side. */
+function canvasEdges(x0: number, width: number): FrameEdges {
+  return { left: x0 + FRAME_INSET, right: x0 + width - FRAME_INSET };
+}
+
+/** Elements that belong to the frame, not the drawing. */
+const FRAME_PART_SELECTOR = [
+  'text.chart-title',
+  '.chart-subtitle',
+  '.chart-footnote',
+  '.chart-source',
+  '.chart-byline',
+  '.dgmo-legend',
+  '.chart-legend',
+  '[data-chart-header]',
+  '[data-frame-legend]',
+].join(',');
+
+/**
+ * The edges of the drawing itself (#1838): what was drawn, less the title,
+ * legend and frame text, kept `FRAME_INSET` inside the canvas. A diagram drawn
+ * small in the middle of a wide canvas gets its title over its own left edge,
+ * so the export, trimmed to the drawing, keeps the title flush with it. When
+ * the drawing cannot be measured, the canvas edges stand in.
+ */
+export function drawingEdges(node: SVGSVGElement, vb: Box): FrameEdges {
+  const canvas = canvasEdges(vb.x, vb.width);
+  const doc = node.ownerDocument;
+  const removed: { el: Element; ph: Comment }[] = [];
+  const hide = (el: Element) => {
+    if (!el.parentNode || !node.contains(el)) return;
+    const ph = doc.createComment('frame');
+    el.parentNode.replaceChild(ph, el);
+    removed.push({ el, ph });
+  };
+  for (const c of Array.from(node.children)) if (isCanvasRect(c, vb)) hide(c);
+  // A hidden ancestor hides its descendants; `hide` skips those.
+  for (const el of Array.from(node.querySelectorAll(FRAME_PART_SELECTOR)))
+    hide(el);
+  const measured = measureSvgContent(node.outerHTML);
+  for (const { el, ph } of removed.reverse())
+    ph.parentNode?.replaceChild(el, ph);
+  const box = measured.complete ? measured.box : null;
+  if (!box || !(box.x1 > box.x0)) return canvas;
+  return {
+    left: Math.max(canvas.left, Math.min(box.x0, canvas.right)),
+    right: Math.min(canvas.right, Math.max(box.x1, canvas.left)),
+  };
+}
+
+/**
+ * Keep a part `width` wide at `x` (anchored `anchor`) inside the canvas less
+ * the inset: a long title over a narrow drawing slides inward rather than
+ * running off the edge.
+ */
+function clampX(
+  x: number,
+  anchor: SvgAnchor,
+  width: number,
+  canvas: FrameEdges
+): number {
+  const before =
+    anchor === 'start' ? 0 : anchor === 'middle' ? width / 2 : width;
+  const lo = canvas.left + before;
+  const hi = canvas.right - (width - before);
+  if (hi < lo) return lo;
+  return Math.min(hi, Math.max(lo, x));
+}
+
+/**
+ * Put the title and the legend on their edges (#1838): left by default, or
+ * where `align` / `<part>-align` say. Every chart type reaches this through
+ * `growChartFrame` or the data-chart path, frame lines or not, so the frame
+ * sits the same way on every chart. Only x moves — each renderer keeps the
+ * heights it laid out. A title beside an inline legend (`legend-inline`) is
+ * already placed and stays. Returns the edges, for the subtitle and footer.
+ */
+export function placeFrameTitle(
+  node: SVGSVGElement | null | undefined,
+  frame: ChartFrame | undefined,
+  opts: { title?: Element | null; edges?: FrameEdges; keepTitle?: boolean } = {}
+): FrameEdges | null {
+  if (!node) return null;
+  const vb = readRootBox(node);
+  if (!vb) return null;
+  const canvas = canvasEdges(vb.x, vb.width);
+  const title =
+    opts.title !== undefined
+      ? opts.title
+      : node.querySelector<SVGTextElement>('text.chart-title');
+  const inline = !!node.querySelector('[data-chart-header]');
+  // Measuring the drawing scans the whole SVG; skip it when nothing would
+  // be placed by it.
+  const placesSomething =
+    !!title || !!frame || !!node.querySelector('g.dgmo-legend, g.chart-legend');
+  if (!placesSomething && !opts.edges) return canvas;
+  let edges = opts.edges ?? drawingEdges(node, vb);
+  // Beside an inline legend the title keeps its place, and the subtitle and
+  // footer line up under it.
+  if (title && inline) {
+    const m = ctmOf(title, node);
+    const tx = Number(title.getAttribute('x') ?? 0);
+    if (m) edges = { left: m[0] * tx + m[4], right: edges.right };
+  }
+  if (title && !inline && !opts.keepTitle) {
+    const m = ctmOf(title, node);
+    if (m?.[1] === 0 && m[2] === 0 && m[0] > 0) {
+      const { x, anchor } = edge(frameAlign(frame, 'title'), edges);
+      const size = Number(title.getAttribute('font-size')) || TITLE_FONT_SIZE;
+      const spans = Array.from(title.querySelectorAll('tspan'));
+      const texts = spans.length
+        ? spans.map((t) => t.textContent ?? '')
+        : [title.textContent ?? ''];
+      const w =
+        Math.max(...texts.map((t) => measureText(t, size, { bold: true }))) *
+        m[0];
+      const local = String((clampX(x, anchor, w, canvas) - m[4]) / m[0]);
+      title.setAttribute('x', local);
+      title.setAttribute('text-anchor', anchor);
+      for (const span of spans)
+        if (span.hasAttribute('x')) span.setAttribute('x', local);
+    }
+  }
+  if (!inline) placeFrameLegend(node, frame, edges);
+  placeFrameText(node, frame, edges);
+  return edges;
+}
+
+/**
+ * Put subtitle and footer lines already drawn on the same edges as the title.
+ * The data-chart path draws them before the drawing is measured; the other
+ * path draws them after, at these edges, and this finds none yet.
+ */
+function placeFrameText(
+  node: SVGSVGElement,
+  frame: ChartFrame | undefined,
+  edges: FrameEdges
+): void {
+  const parts: [string, FramePart][] = [
+    ['text.chart-subtitle', 'subtitle'],
+    ['text.chart-footnote', 'footer'],
+    ['text.chart-source', 'footer'],
+    ['text.chart-byline', 'footer'],
+  ];
+  for (const [sel, part] of parts) {
+    for (const el of Array.from(node.querySelectorAll(sel))) {
+      const m = ctmOf(el, node);
+      if (m?.[1] !== 0 || m[2] !== 0 || !(m[0] > 0)) continue;
+      const { x, anchor } = edge(frameAlign(frame, part), edges);
+      const local = String((x - m[4]) / m[0]);
+      el.setAttribute('x', local);
+      el.setAttribute('text-anchor', anchor);
+      for (const span of Array.from(el.querySelectorAll('tspan')))
+        if (span.hasAttribute('x')) span.setAttribute('x', local);
+    }
+  }
+}
+
+/**
+ * Shift the top legend onto its edge. The legend lays its rows out against
+ * its own container (`data-legend-left` / `-right` record the extent it
+ * drew), so one translate on a wrapper puts it on the frame's edge, and keeps
+ * it there when the legend redraws itself on a click.
+ */
+function placeFrameLegend(
+  node: SVGSVGElement,
+  frame: ChartFrame | undefined,
+  edges: FrameEdges
+): void {
+  const legend = node.querySelector<SVGGElement>(
+    'g.dgmo-legend, g.chart-legend'
+  );
+  if (!legend) return;
+  if (legend.getAttribute('data-legend-title-relation') === 'inline-with-title')
+    return;
+  const lo = Number(legend.getAttribute('data-legend-left'));
+  const hi = Number(legend.getAttribute('data-legend-right'));
+  if (!Number.isFinite(lo) || !Number.isFinite(hi) || !(hi > lo)) return;
+  const m = ctmOf(legend, node);
+  if (m?.[1] !== 0 || m[2] !== 0 || !(m[0] > 0)) return;
+  const align = frameAlign(frame, 'legend');
+  const at = align === 'center' ? (lo + hi) / 2 : align === 'right' ? hi : lo;
+  const { x } = edge(align, edges);
+  const dx = (x - (m[0] * at + m[4])) / m[0];
+  if (Math.abs(dx) < 0.01) return;
+  const parent = legend.parentElement;
+  let wrap: Element;
+  if (parent?.hasAttribute('data-frame-legend')) wrap = parent;
+  else {
+    wrap = node.ownerDocument.createElementNS(SVG_NS, 'g');
+    wrap.setAttribute('data-frame-legend', '');
+    legend.parentNode!.replaceChild(wrap, legend);
+    wrap.appendChild(legend);
+  }
+  const total = Number(wrap.getAttribute('data-dx') ?? 0) + dx;
+  wrap.setAttribute('data-dx', String(total));
+  wrap.setAttribute('transform', `translate(${total},0)`);
 }
 
 function drawLine(
@@ -234,7 +482,7 @@ function drawLine(
   line: FrameLine,
   x: number,
   y: number,
-  anchor: 'middle' | 'start',
+  anchor: SvgAnchor,
   fontSize: number,
   fill: string
 ): void {
@@ -278,6 +526,11 @@ export interface GrowChartFrameOptions {
    * scales down inside them to make room.
    */
   size?: 'grow' | 'fit';
+  /**
+   * A hero title (goal, countdown, body, clock: `HERO_TITLE_TYPES`) is part of
+   * the chart's own design and stays where the renderer drew it (#1838).
+   */
+  keepTitle?: boolean;
 }
 
 interface Box {
@@ -365,7 +618,12 @@ export function growChartFrame(
   palette: PaletteColors,
   opts: GrowChartFrameOptions = {}
 ): void {
-  if (!node || !frame || !hasChartFrame(frame)) return;
+  if (!node) return;
+  const edges = placeFrameTitle(node, frame, {
+    ...(opts.title !== undefined && { title: opts.title }),
+    ...(opts.keepTitle && { keepTitle: true }),
+  });
+  if (!frame || !hasChartFrame(frame) || !edges) return;
   const vb = readRootBox(node);
   if (!vb) return;
   const doc = node.ownerDocument;
@@ -405,18 +663,15 @@ export function growChartFrame(
       ? Math.min(measured.box.y1, vbBottom)
       : vbBottom;
 
-  // The title row, in root units.
-  let x = vb.x + vb.width / 2;
-  let anchor: 'middle' | 'start' = 'middle';
+  // The title row, in root units. The subtitle and footer sit on their own
+  // edges (#1838), not wherever the title happens to be.
+  const sub = edge(frameAlign(frame, 'subtitle'), edges);
+  const foot = edge(frameAlign(frame, 'footer'), edges);
   let subtitleY = vb.y + SUBTITLE_Y_NO_TITLE * scale;
   if (title) {
-    const tx = Number(title.getAttribute('x') ?? 0);
     const ty = Number(title.getAttribute('y') ?? 0);
     const lines = Math.max(1, title.querySelectorAll('tspan').length);
     const baseline = ty + (lines - 1) * TITLE_LINE_HEIGHT;
-    const a = title.getAttribute('text-anchor') ?? 'start';
-    anchor = a === 'middle' ? 'middle' : 'start';
-    x = m[0] * tx + m[4];
     subtitleY = m[3] * baseline + m[5] + (SUBTITLE_LINE_HEIGHT + 2) * scale;
   }
 
@@ -460,9 +715,9 @@ export function growChartFrame(
     drawLine(
       g,
       line,
-      x,
+      sub.x,
       subtitleY + i * lineH,
-      anchor,
+      sub.anchor,
       SUBTITLE_FONT_SIZE * scale,
       palette.text
     );
@@ -478,9 +733,9 @@ export function growChartFrame(
       drawLine(
         g,
         line,
-        x,
+        foot.x,
         first + i * FOOTER_LINE_HEIGHT * scale,
-        anchor,
+        foot.anchor,
         FOOTER_FONT_SIZE * scale,
         palette.textMuted
       );

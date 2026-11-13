@@ -81,7 +81,11 @@ const CARD_PADDING_X = 10;
 const CARD_PADDING_Y = 6;
 const CARD_STROKE_WIDTH = 1.5;
 import { growChartFrame } from '../utils/chart-frame';
-import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
+import {
+  TITLE_FONT_SIZE,
+  TITLE_FONT_WEIGHT,
+  TITLE_Y,
+} from '../utils/title-constants';
 const TITLE_HEIGHT = 30;
 const COLUMN_HEADER_FONT_SIZE = 13;
 const CARD_TITLE_FONT_SIZE = 12;
@@ -647,7 +651,7 @@ function drawKanban(
       .attr('class', 'chart-title')
       .attr('data-line-number', parsed.titleLineNumber ?? 0)
       .attr('x', sDiagramPadding)
-      .attr('y', sDiagramPadding + sTitleFontSize)
+      .attr('y', ctx.structural(TITLE_Y))
       .attr('font-size', sTitleFontSize)
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .attr('fill', palette.text)
@@ -668,7 +672,8 @@ function drawKanban(
       legendConfig,
       width - legendX - sDiagramPadding
     );
-    const legendY = sDiagramPadding + (sTitleFontSize - legendH) / 2;
+    const legendY =
+      ctx.structural(TITLE_Y) - sTitleFontSize + (sTitleFontSize - legendH) / 2;
     const legendG = svg
       .append('g')
       .attr('class', 'kanban-legend')
@@ -699,6 +704,7 @@ function drawKanban(
       : undefined;
 
     renderIntegratedLegend(legendG, {
+      frame: parsed.frame,
       ...legendConfig,
       palette,
       isDark,

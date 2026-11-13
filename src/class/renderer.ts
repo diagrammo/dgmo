@@ -462,6 +462,7 @@ export function renderClassDiagram(
           : `translate(0,${titleHeight})`
       );
     renderIntegratedLegend(legendG, {
+      frame: parsed.frame,
       groups: legendGroups,
       activeGroup: isLegendExpanded ? LEGEND_GROUP_NAME : null,
       mode: exportMode ? 'export' : 'preview',

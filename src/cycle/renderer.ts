@@ -142,6 +142,7 @@ export function renderCycle(
   if (showTitle) {
     const titleText = svg
       .append('text')
+      .attr('class', 'chart-title')
       .attr('x', width / 2)
       .attr('y', sTitleY)
       .attr('text-anchor', 'middle')
@@ -189,6 +190,7 @@ export function renderCycle(
       .append('g')
       .attr('transform', `translate(0, ${titleOffsetForLegend + 4})`);
     renderIntegratedLegend(legendG, {
+      frame: parsed.frame,
       groups: [],
       activeGroup: null,
       mode: renderOptions?.exportMode ? 'export' : 'preview',

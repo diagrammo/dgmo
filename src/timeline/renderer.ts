@@ -1510,6 +1510,7 @@ function renderTimelineTagLegendOverlay(
         .append('g')
         .attr('transform', `translate(0, ${legendY})`);
       renderIntegratedLegend(legendInnerG, {
+        frame: parsed.frame,
         ...centralConfig,
         palette,
         isDark,

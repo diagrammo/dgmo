@@ -1,7 +1,7 @@
 import * as d3Selection from 'd3-selection';
 import { growChartFrame } from '../utils/chart-frame';
 import { FONT_FAMILY } from '../fonts';
-import { TITLE_FONT_SIZE } from '../utils/title-constants';
+import { TITLE_FONT_SIZE, TITLE_Y } from '../utils/title-constants';
 import { contrastText, shapeFill } from '../palettes/color-utils';
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
@@ -167,12 +167,13 @@ export function renderTechRadar(
   const radarWidth = width;
 
   // ── Title ──
-  const titleY = 24;
+  const titleY = TITLE_Y;
   const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
   let titleEl: SVGTextElement | null = null;
   if (showTitle) {
     titleEl = svg
       .append('text')
+      .attr('class', 'chart-title')
       .attr('x', radarWidth / 2)
       .attr('y', titleY)
       .attr('text-anchor', 'middle')
@@ -265,6 +266,7 @@ export function renderTechRadar(
     };
 
     renderIntegratedLegend(legendG, {
+      frame: parsed.frame,
       ...legendConfig,
       palette: legendPalette,
       isDark,

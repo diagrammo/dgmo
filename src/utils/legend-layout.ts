@@ -23,6 +23,7 @@ import {
 import { compactNumber } from './number-format';
 import type { LegendGroupData } from './legend-types';
 import type {
+  LegendAlign,
   LegendConfig,
   LegendState,
   LegendLayout,
@@ -510,7 +511,12 @@ export function computeLegendLayoutWith(
   }
 
   // Position elements in rows
-  const alignLeft = config.position.titleRelation === 'inline-with-title';
+  // Beside an inline title the legend runs from its left edge; otherwise it
+  // sits on the frame's edge (#1838), left unless the author said otherwise.
+  const rowAlign =
+    config.position.titleRelation === 'inline-with-title'
+      ? 'left'
+      : (config.align ?? 'left');
   const rows = layoutRows(
     activeCapsule,
     pills,
@@ -518,7 +524,7 @@ export function computeLegendLayoutWith(
     groupAvailW,
     containerWidth,
     totalControlsW,
-    alignLeft,
+    rowAlign,
     controlsGroupLayout
   );
 
@@ -736,7 +742,7 @@ function layoutRows(
   groupAvailW: number,
   containerWidth: number,
   totalControlsW: number,
-  alignLeft = false,
+  rowAlign: LegendAlign = 'left',
   controlsGroup?: ControlsGroupLayout
 ): Array<{
   y: number;
@@ -766,13 +772,14 @@ function layoutRows(
     const itemW = item.width + LEGEND_GROUP_GAP;
     if (currentRowW + item.width > groupAvailW && currentRowItems.length > 0) {
       // Commit current row (row 0 needs gear space deducted for centering)
-      if (!alignLeft) {
+      if (rowAlign !== 'left') {
         const rowGearW = rows.length === 0 ? gearW : 0;
-        centerRowItems(
+        alignRowItems(
           currentRowItems,
           containerWidth,
           totalControlsW,
-          rowGearW
+          rowGearW,
+          rowAlign
         );
       }
       rows.push({ y: rowY, items: currentRowItems });
@@ -809,8 +816,14 @@ function layoutRows(
 
   // Commit last row
   if (currentRowItems.length > 0) {
-    if (!alignLeft) {
-      centerRowItems(currentRowItems, containerWidth, totalControlsW, gearW);
+    if (rowAlign !== 'left') {
+      alignRowItems(
+        currentRowItems,
+        containerWidth,
+        totalControlsW,
+        gearW,
+        rowAlign
+      );
     }
     rows.push({ y: rowY, items: currentRowItems });
   }
@@ -837,11 +850,12 @@ function layoutRows(
   return rows;
 }
 
-function centerRowItems(
+function alignRowItems(
   items: Array<LegendPillLayout | LegendCapsuleLayout | LegendControlLayout>,
   containerWidth: number,
   totalControlsW: number,
-  controlsGroupW = 0
+  controlsGroupW: number,
+  rowAlign: LegendAlign
 ): void {
   // Only center group items (pills and capsules), not controls
   const groupItems = items.filter((it) => 'groupName' in it);
@@ -856,7 +870,8 @@ function centerRowItems(
     containerWidth -
     (totalControlsW > 0 ? totalControlsW + LEGEND_GROUP_GAP * 2 : 0) -
     controlsGroupW;
-  const offset = Math.max(0, (availW - totalGroupW) / 2);
+  const slack = Math.max(0, availW - totalGroupW);
+  const offset = rowAlign === 'right' ? slack : slack / 2;
 
   let x = offset;
   for (const item of groupItems) {

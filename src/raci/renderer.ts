@@ -629,6 +629,7 @@ export function renderRaci(
   if (parsed.title && !hideTitle) {
     svg
       .append('text')
+      .attr('class', 'chart-title')
       .attr('x', sHMargin)
       .attr('y', sTitleY)
       .attr('text-anchor', 'start')

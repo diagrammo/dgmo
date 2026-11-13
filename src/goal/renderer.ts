@@ -167,7 +167,10 @@ export function renderGoal(
     .attr('fill', palette.bg);
 
   // Chart frame (#1827): subtitle under the title, footer under the chart.
-  growChartFrame(svg.node(), parsed.frame, palette, { size: 'grow' });
+  growChartFrame(svg.node(), parsed.frame, palette, {
+    size: 'grow',
+    keepTitle: true,
+  });
 }
 
 export function renderGoalForExport(

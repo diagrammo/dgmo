@@ -47,7 +47,11 @@ import { resolveActiveTagGroup, tagAttrKey } from '../utils/tag-groups';
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import type { ParsedEventLine } from './types';
-import { growChartFrame, reserveChartFrame } from '../utils/chart-frame';
+import {
+  growChartFrame,
+  placeFrameTitle,
+  reserveChartFrame,
+} from '../utils/chart-frame';
 import {
   CARD_PAD,
   CARD_W,
@@ -243,6 +247,7 @@ export function renderEventLine(
       })),
     }));
     renderIntegratedLegend(legendG, {
+      frame: parsed.frame,
       groups,
       palette,
       isDark,
@@ -918,6 +923,8 @@ export function renderEventLine(
   // first ('fit' keeps the canvas size); the tight height capture-based
   // exporters crop to grows by the bands the frame adds.
   const reserve = reserveChartFrame(parsed.frame, contentW);
+  // The title's edge (#1838), frame lines or not.
+  if (!reserve) placeFrameTitle(svg.node(), parsed.frame);
   if (reserve) {
     growChartFrame(svg.node(), parsed.frame, palette, {
       size: exportMode ? 'grow' : 'fit',

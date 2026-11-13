@@ -284,6 +284,7 @@ export function renderFamilyForExport(
           : `translate(0, ${titleReserve})`
       );
     renderIntegratedLegend(legendParent, {
+      frame: parsed.frame,
       ...legendConfig,
       // Inline → left-origin so the wrapper's right-flush translate lands the
       // legend at the chart's right edge; stacked → centered below the title.

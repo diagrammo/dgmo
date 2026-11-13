@@ -2,7 +2,7 @@
 // Gantt Chart Renderer
 // ============================================================
 
-import { growChartFrame } from '../utils/chart-frame';
+import { growChartFrame, type ChartFrame } from '../utils/chart-frame';
 import { diamondPoints } from '../shapes/geometry';
 import {
   EDGE_DASH,
@@ -729,7 +729,8 @@ function drawGantt(
         },
         options?.exportMode ?? false,
         controlsHost,
-        header.inline
+        header.inline,
+        resolved.frame
       );
     }
   }
@@ -2346,7 +2347,8 @@ function renderTagLegend(
   onControlsToggle?: (toggleId: string, active: boolean) => void,
   exportMode = false,
   controlsHost: 'app' | 'inline' = 'inline',
-  inlineHeader = false
+  inlineHeader = false,
+  frame?: ChartFrame
 ): void {
   // Build visible groups: active group expanded + swimlane group as compact pill
   let visibleGroups: TagGroup[];
@@ -2627,6 +2629,7 @@ function renderTagLegend(
     };
 
     renderIntegratedLegend(tagGroupG, {
+      frame,
       groups: legendGroups,
       palette,
       isDark,
@@ -2667,6 +2670,7 @@ function renderTagLegend(
 
     const tagGroupG = legendRow.append('g');
     renderIntegratedLegend(tagGroupG, {
+      frame,
       groups: [],
       palette,
       isDark,
