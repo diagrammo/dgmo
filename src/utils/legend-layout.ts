@@ -120,6 +120,7 @@ function buildGradientCapsuleLayout(
       textY: LEGEND_HEIGHT / 2,
       low: gradient.low,
       high: gradient.high,
+      ...(gradient.stops && { stops: gradient.stops }),
     },
   };
 }

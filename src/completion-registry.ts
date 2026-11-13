@@ -335,6 +335,11 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       locale: { description: 'Separators and currency style (locale de-DE)' },
       columns: { description: 'Column labels (required)' },
       'no-value': { description: 'Hide cell value text' },
+      scale: {
+        description:
+          'Two hues meeting at a neutral midpoint (scale diverging 0)',
+        values: ['diverging'],
+      },
     }),
   ],
   [

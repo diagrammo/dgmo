@@ -83,8 +83,8 @@ export interface LegendGroupData {
   }>;
   /** Continuous (choropleth) groups carry a gradient ramp instead of discrete
    *  entries — its active capsule renders `min ▭gradient▭ max` rather than dots.
-   *  Additive: only the map sets it; every other caller omits it and renders
-   *  unchanged. When set, `entries` is empty. */
+   *  Additive: the map, treemap and heatmap set it; every other caller omits it
+   *  and renders unchanged. When set, `entries` is empty. */
   readonly gradient?: {
     readonly min: number;
     readonly max: number;
@@ -94,6 +94,14 @@ export interface LegendGroupData {
     readonly low: string;
     /** Resolved hex of the HIGH (t=1) endpoint (the named hue). */
     readonly high: string;
+    /** The ramp's own stops (offset 0–1 along min→max), for a ramp that is
+     *  not a straight `low → high` fade: heatmap's four-hue ramp, or a
+     *  diverging ramp whose neutral sits at its midpoint. Absent → the
+     *  legend fades `low → high`. */
+    readonly stops?: ReadonlyArray<{
+      readonly offset: number;
+      readonly color: string;
+    }>;
   };
 }
 
@@ -216,6 +224,8 @@ export interface LegendCapsuleLayout {
      *  ramp between them via `valueRampStops`. */
     low: string;
     high: string;
+    /** The group's own stops, when its ramp is not a two-endpoint fade. */
+    stops?: ReadonlyArray<{ readonly offset: number; readonly color: string }>;
   };
 }
 

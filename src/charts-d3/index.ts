@@ -45,7 +45,7 @@ import { renderPie } from './pie';
 import { renderRadar } from './radar';
 import { renderPolarArea } from './polar';
 import { renderFunnel } from './funnel';
-import { renderHeatmap } from './heatmap';
+import { renderHeatmap, heatmapLegendGroups } from './heatmap';
 import { renderScatter } from './scatter';
 import { renderSankey } from './sankey';
 import { renderChord } from './chord';
@@ -395,7 +395,24 @@ function renderPlot(
         (hasTitle ? 52 : 24) + titleExtra
       );
       return true;
-    case 'heatmap':
+    case 'heatmap': {
+      // A colour bar keys the ramp (#1837); `no-legend` drops it and the band.
+      const groups = ext.noLegend
+        ? []
+        : heatmapLegendGroups(ext, palette, isDark);
+      const top =
+        groups.length > 0
+          ? injectLegendGroups(
+              s,
+              groups,
+              palette,
+              isDark,
+              hasTitle,
+              width,
+              inlineTitle,
+              ext.frame
+            ) + 8
+          : (hasTitle ? 52 : 24) + titleExtra;
       renderHeatmap(
         s,
         ext,
@@ -405,9 +422,10 @@ function renderPlot(
         isDark,
         textColor,
         bgColor,
-        (hasTitle ? 52 : 24) + titleExtra
+        top
       );
       return true;
+    }
     case 'scatter': {
       const groups = ext.noLegend
         ? []

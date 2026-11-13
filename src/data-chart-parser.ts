@@ -155,6 +155,8 @@ export interface ParsedHeatmap extends ParsedExtendedBase {
   heatmapRows?: ParsedHeatmapRow[];
   columns?: string[];
   rows?: string[];
+  /** `scale diverging [<mid>]` (#1837): two hues meeting at a neutral `mid`. */
+  heatmapScale?: { kind: 'diverging'; mid: number };
 }
 
 export interface ParsedFunnel extends ParsedExtendedBase {
@@ -186,6 +188,7 @@ export interface ParsedExtendedChartFull extends ParsedExtendedBase {
   heatmapRows?: ParsedHeatmapRow[];
   columns?: string[];
   rows?: string[];
+  heatmapScale?: { kind: 'diverging'; mid: number };
   xRange?: { min: number; max: number };
   sizelabel?: string;
 }
@@ -204,6 +207,7 @@ import {
   emit,
   TITLE_DIRECTIVE_DX,
   NEGATIVE_VALUE_DX,
+  HEATMAP_SCALE_DX,
 } from './diagnostics';
 import { resolveColorWithDiagnostic } from './colors';
 import {
@@ -626,6 +630,22 @@ function parseExtendedChartFull(
       )
     )
       continue;
+
+    // Heatmap colour scale (#1837): `scale diverging [<mid>]`. Lowercase at
+    // column 1 only, like the number format. A line naming `scale` that cannot
+    // be read warns and is consumed, so it never becomes a row named "scale".
+    if (result.type === 'heatmap' && /^scale(?:\s|$)/.test(trimmed)) {
+      const m = trimmed.match(/^scale\s+diverging(?:\s+(-?\d+(?:\.\d+)?))?$/);
+      if (m) {
+        result.heatmapScale = {
+          kind: 'diverging',
+          mid: m[1] !== undefined ? parseFloat(m[1]) : 0,
+        };
+      } else {
+        result.diagnostics.push(emit(HEATMAP_SCALE_DX, lineNumber));
+      }
+      continue;
+    }
 
     // Sankey: bare label (no numeric value) at any indent = source node for indented children
     if (result.type === 'sankey') {

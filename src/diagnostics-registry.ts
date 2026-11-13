@@ -24,6 +24,7 @@ import {
   MISTYPED_CHART_TYPE_DX,
   TITLE_DIRECTIVE_DX,
   NEGATIVE_VALUE_DX,
+  HEATMAP_SCALE_DX,
 } from './diagnostics';
 import { SWIMLANE_DIAGNOSTICS } from './swimlane/diagnostics';
 import { AXIS_DIAGNOSTICS } from './utils/axis-spec';
@@ -164,6 +165,9 @@ export const UNIVERSAL_DIAGNOSTICS: DiagnosticSpec[] = [
 
   // ── Number format (#1831) ──
   NUMBER_FORMAT_DX,
+
+  // ── Heatmap colour scale (#1837) ──
+  HEATMAP_SCALE_DX,
 
   // ── Negative value on a magnitude channel (pie/polar-area/radar/funnel/
   //    sankey/arc/wordcloud/treemap size/map size:/width:) ──

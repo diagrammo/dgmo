@@ -31,6 +31,7 @@ import {
   legendChromeColors,
 } from './legend-constants';
 import { computeLegendLayoutWith } from './legend-layout';
+import { valueRampStops } from '../palettes/color-utils';
 import { FONT_FAMILY } from '../fonts';
 
 /** Vertical centring, matching legend-d3.ts's `centerText`. */
@@ -107,12 +108,50 @@ function emitEntries(
 }
 
 /**
+ * A continuous-ramp group's `min ▭ramp▭ max` swatch → SVG string; the string
+ * twin of legend-d3's `renderGradientRamp`. The gradient id carries a hash of
+ * the stops, so two charts on one page with differently coloured ramps never
+ * borrow each other's `<linearGradient>`.
+ */
+function emitGradient(
+  capsule: LegendCapsuleLayout,
+  palette: LegendRenderOptions['palette'],
+  isDark: boolean
+): string {
+  const gr = capsule.gradient;
+  if (!gr) return '';
+  const stops = gr.stops ?? valueRampStops(gr.low, gr.high, { isDark });
+  let h = 0;
+  for (const ch of stops.map((st) => `${st.offset}${st.color}`).join('|'))
+    h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const id = `dgmo-legend-ramp-${tagAttrKey(capsule.groupName).replace(/[^a-z0-9]+/g, '-')}-${h.toString(36)}`;
+  const text = (x: number, label: string): string =>
+    `<text x="${x}" y="${gr.textY}" ${CENTER} font-size="${LEGEND_ENTRY_FONT_SIZE}" fill="${esc(palette.textMuted)}" pointer-events="none" font-family="${esc(FONT_FAMILY)}">${esc(label)}</text>`;
+  return (
+    `<defs><linearGradient id="${id}">` +
+    stops
+      .map(
+        (st) =>
+          `<stop offset="${st.offset * 100}%" stop-color="${esc(st.color)}"/>`
+      )
+      .join('') +
+    `</linearGradient></defs>` +
+    text(gr.minX, gr.minText) +
+    `<rect class="dgmo-legend-gradient-ramp" data-ramp-min="${gr.min}" data-ramp-max="${gr.max}" x="${gr.rampX}" y="${gr.rampY}" width="${gr.rampW}" height="${gr.rampH}" rx="2" fill="url(#${id})"/>` +
+    text(gr.maxX, gr.maxText)
+  );
+}
+
+/**
  * Export-mode active group → a plain key (#1826): entries only, no capsule, no
- * group pill. The layout engine already removed the row cap and truncation.
+ * group pill. The layout engine already removed the row cap and truncation. A
+ * ramp keeps its group's name as a caption: a colour bar is unreadable without
+ * the name of what it measures.
  */
 function emitStaticKey(
   capsule: LegendCapsuleLayout,
   palette: LegendRenderOptions['palette'],
+  isDark: boolean,
   keyStyle?: 'box' | 'pill',
   groupBg?: string,
   pillBorder?: string
@@ -122,13 +161,17 @@ function emitStaticKey(
   const frame = keyStyle
     ? `<rect class="dgmo-legend-key-${keyStyle}" x="${-pad}" y="0" width="${capsule.width + pad * 2}" height="${capsule.height}" rx="${keyStyle === 'pill' ? Math.min(capsule.height / 2, LEGEND_HEIGHT / 2) : 3}" fill="${keyStyle === 'pill' ? groupBg : 'none'}" stroke="${pillBorder}" stroke-width="${keyStyle === 'pill' ? 0.5 : 0.75}"/>`
     : '';
-  return `<g transform="translate(${capsule.x},${capsule.y})" data-legend-group="${esc(tagAttrKey(capsule.groupName))}">${frame}${emitEntries(capsule, palette, false).join('')}</g>`;
+  const caption = capsule.gradient
+    ? `<text x="${capsule.pill.x}" y="${LEGEND_HEIGHT / 2}" ${CENTER} font-size="${LEGEND_PILL_FONT_SIZE}" font-weight="normal" fill="${esc(palette.text)}" font-family="${esc(FONT_FAMILY)}">${esc(capsule.groupName)}</text>`
+    : '';
+  return `<g transform="translate(${capsule.x},${capsule.y})" data-legend-group="${esc(tagAttrKey(capsule.groupName))}">${frame}${caption}${emitGradient(capsule, palette, isDark)}${emitEntries(capsule, palette, false).join('')}</g>`;
 }
 
 /** Active capsule (group pill + wrapped colored-dot entries) → SVG string. */
 function emitCapsule(
   capsule: LegendCapsuleLayout,
   palette: LegendRenderOptions['palette'],
+  isDark: boolean,
   groupBg: string,
   pillBorder: string
 ): string {
@@ -150,6 +193,9 @@ function emitCapsule(
   inner.push(
     `<text x="${pill.x + pill.width / 2}" y="${LEGEND_HEIGHT / 2}" ${CENTER} font-size="${LEGEND_PILL_FONT_SIZE}" font-weight="normal" fill="${esc(palette.text)}" text-anchor="middle" font-family="${esc(FONT_FAMILY)}">${esc(capsule.groupName)}</text>`
   );
+
+  // A continuous-ramp group draws its colour bar where entries would go.
+  inner.push(emitGradient(capsule, palette, isDark));
 
   // Wrapped entries — dots + labels positioned by the layout engine.
   inner.push(...emitEntries(capsule, palette, true));
@@ -235,8 +281,15 @@ export function renderLegendSvgInMode(
     const c = layout.activeCapsule;
     parts.push(
       mode === 'export'
-        ? emitStaticKey(c, palette, options.keyStyle, groupBg, pillBorder)
-        : emitCapsule(c, palette, groupBg, pillBorder)
+        ? emitStaticKey(
+            c,
+            palette,
+            isDark,
+            options.keyStyle,
+            groupBg,
+            pillBorder
+          )
+        : emitCapsule(c, palette, isDark, groupBg, pillBorder)
     );
     track(c.x, c.y, c.width, c.height);
   }

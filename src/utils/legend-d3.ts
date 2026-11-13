@@ -442,9 +442,11 @@ function renderGradientRamp(
     const gr = capsule.gradient;
     const gradId = `dgmo-legend-ramp-${tagAttrKey(capsule.groupName).replace(/[^a-z0-9]+/g, '-')}`;
     const def = g.append('defs').append('linearGradient').attr('id', gradId);
-    // Sample the SAME ramp the fills use (direct = 2 endpoints; diverging =
-    // stops through the neutral midpoint), so the legend matches the basemap.
-    for (const stop of valueRampStops(gr.low, gr.high, { isDark })) {
+    // Sample the SAME ramp the fills use (direct = 2 endpoints; a group with
+    // its own stops — heatmap's ramp, a diverging ramp — draws those), so the
+    // legend matches what it keys.
+    for (const stop of gr.stops ??
+      valueRampStops(gr.low, gr.high, { isDark })) {
       def
         .append('stop')
         .attr('offset', `${stop.offset * 100}%`)

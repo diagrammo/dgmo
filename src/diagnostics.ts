@@ -416,6 +416,18 @@ export const MISTYPED_CHART_TYPE_DX: DiagnosticSpec = {
   example: 'flowchar Deploy\n[A] -> [B]',
 };
 
+/** A heatmap `scale` line that names no scale it knows (#1837). */
+export const HEATMAP_SCALE_DX: DiagnosticSpec = {
+  code: 'W_HEATMAP_SCALE_INVALID',
+  severity: 'warning',
+  chartType: 'heatmap',
+  title: 'Heatmap scale not applied',
+  message:
+    'scale: expected `scale diverging` or `scale diverging <midpoint>` — the line is ignored and the default ramp is used.',
+  hint: 'Write `scale diverging 0` to colour values below and above 0 in two hues, with a neutral at 0.',
+  example: 'heatmap Load\ncolumns Mon Tue\nscale binned\nA 1 2',
+};
+
 export const TITLE_DIRECTIVE_DX: DiagnosticSpec = {
   code: 'E_TITLE_DIRECTIVE',
   severity: 'error',

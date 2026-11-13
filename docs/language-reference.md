@@ -2788,6 +2788,18 @@ Short one-line form is tolerated: `columns Jan Feb Mar`.
 RowLabel 5 4 3
 ```
 
+**Colour bar.** A legend above the grid keys the colours: `Value`, the lowest value, the ramp, the highest value. `no-legend` removes it.
+
+**Diverging scale** — `scale diverging <mid>` colours values below `mid` blue and above it red, through a neutral at `mid`. Use it when the values are a change, a gap or a margin, where above and below the midpoint mean opposite things. `mid` defaults to 0; a `mid` outside the data widens the colour bar to include it. Without the line the ramp runs primary → cyan → yellow → orange from the lowest value to the highest.
+
+```
+heatmap Margin vs Plan
+scale diverging 0
+columns Q1 Q2 Q3
+North -4 0 8
+South 2 -1 4
+```
+
 ### 15.4 Function Charts (Colon REQUIRED)
 
 <!-- TYPE:function -->
