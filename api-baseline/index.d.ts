@@ -98,7 +98,9 @@ interface FitSvgToContentOptions {
  *
  * A caller that asked for a size gets it: when the renderer drew onto the
  * requested canvas, the fitted frame is scaled back up to that width (and/or
- * height, whichever binds first) — fit first, then the requested scale.
+ * height, whichever binds first) — fit first, then the requested scale. A
+ * caller that asked for BOTH, on a renderer that drew onto exactly that
+ * canvas, gets the canvas back untouched: the exact size it named.
  */
 declare function fitSvgToContent(svg: string, opts?: FitSvgToContentOptions): string;
 
