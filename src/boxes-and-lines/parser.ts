@@ -2,7 +2,8 @@
 // Boxes and Lines Diagram — Parser
 // ============================================================
 
-import { makeDgmoError, suggest } from '../diagnostics';
+import { makeDgmoError, suggest, emit } from '../diagnostics';
+import { BL_PIPE_IN_NAME_DX } from './diagnostics';
 import type { DgmoError } from '../diagnostics';
 import { parseInArrowLabel } from '../utils/arrows';
 import { normalizeName } from '../utils/name-normalize';
@@ -689,7 +690,15 @@ export function parseBoxesAndLines(
         nameAliasMap
       );
       if (edge) {
-        result.edges.push(edge);
+        result.edges.push({
+          ...edge,
+          // An indented edge borrows its source from the line above, already
+          // checked there; only a source written on this line is checked.
+          source: trimmed.includes(edge.source)
+            ? cutPipe(edge.source, trimmed, lineNum, result.diagnostics)
+            : edge.source,
+          target: cutPipe(edge.target, trimmed, lineNum, result.diagnostics),
+        });
         // Add to current group if indented
         // (edges don't become group children, but their nodes might)
       }
@@ -713,6 +722,7 @@ export function parseBoxesAndLines(
       );
       continue;
     }
+    node.label = cutPipe(node.label, trimmed, lineNum, result.diagnostics);
     lastNodeLabel = node.label;
     lastSourceIsGroup = false;
     lastNodeIndent = indent;
@@ -860,6 +870,26 @@ export function parseBoxesAndLines(
 // ============================================================
 // Line parsers
 // ============================================================
+
+/**
+ * An unquoted `|` in a box name is the retired pipe-metadata form (#1974).
+ * Raise `E_BL_PIPE_IN_NAME` and recover by cutting the name at the pipe, so
+ * `AuthMS | s:doing` and an edge to `AuthMS` still meet at one box. A quoted
+ * name (`"Order | Items"`) keeps its pipe.
+ */
+function cutPipe(
+  label: string,
+  raw: string,
+  lineNum: number,
+  diagnostics: DgmoError[]
+): string {
+  const at = label.indexOf('|');
+  if (at < 0 || raw.includes(`"${label}"`)) return label;
+  const name = label.slice(0, at).trim();
+  if (!name) return label;
+  diagnostics.push(emit(BL_PIPE_IN_NAME_DX, lineNum, { label, name }));
+  return name;
+}
 
 /**
  * Parse a node line. Supports both the new §1.4 same-line form

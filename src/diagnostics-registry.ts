@@ -38,6 +38,7 @@ import { ARROW_DIAGNOSTICS } from './utils/arrows-diagnostics';
 import { MAP_DIAGNOSTICS } from './map/diagnostics';
 import { PERT_DIAGNOSTICS } from './pert/diagnostics';
 import { GRAPH_DIAGNOSTICS } from './graph/diagnostics';
+import { BOXES_AND_LINES_DIAGNOSTICS } from './boxes-and-lines/diagnostics';
 import { COLOR_DIAGNOSTICS } from './colors-diagnostics';
 import { SEQUENCE_DIAGNOSTICS } from './sequence/diagnostics';
 import { WHITEBOARD_DIAGNOSTICS } from './whiteboard/diagnostics';
@@ -184,6 +185,7 @@ const REGISTRY: DiagnosticSpec[] = [
   ...MAP_DIAGNOSTICS,
   ...PERT_DIAGNOSTICS,
   ...GRAPH_DIAGNOSTICS,
+  ...BOXES_AND_LINES_DIAGNOSTICS,
   ...COLOR_DIAGNOSTICS,
   ...SEQUENCE_DIAGNOSTICS,
   ...WHITEBOARD_DIAGNOSTICS,

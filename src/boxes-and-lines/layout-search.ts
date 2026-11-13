@@ -36,6 +36,12 @@ const DEFAULT_LAMBDA = 4;
 // whose base-budget badness is at least ESCALATE_THRESHOLD spend an extra seed
 // batch; ESCALATE_MAX_N bounds it so huge graphs don't blow the time budget.
 const ESCALATE_THRESHOLD = 4;
+/** Fewest edgeless members a group needs before they wrap into a grid (#1974). */
+const WRAP_MIN_ISOLATED = 4;
+/** A frozen collapse layout may cover at most this multiple of a fresh
+ *  layout's area (#1974). Measured 2026-11-13: an ordinary freeze (the
+ *  stable-collapse fixture) runs ~2.8×; the owner's unreadable one ran 7.6×. */
+const STABLE_COLLAPSE_MAX_WASTE = 4;
 const ESCALATE_MAX_N = 45;
 const ESCALATE_SEEDS = 18;
 const ESCALATE_REFINE = 10;
@@ -1610,7 +1616,20 @@ export async function layoutBoxesAndLinesSearch(
       sizes,
       rankdir,
     });
-    if (stable) return stable;
+    if (stable) {
+      // Freezing keeps the expanded geometry, so a collapse that empties most
+      // of the canvas leaves pills stranded across it with long diagonals
+      // (#1974). Past STABLE_COLLAPSE_MAX_WASTE × a fresh layout's area, the
+      // fresh one wins: a jump costs less than a diagram nobody can read.
+      const fresh = await layoutBoxesAndLinesSearch(parsed, collapseInfo, {
+        ...opts,
+        stableCollapse: false,
+      });
+      return stable.width * stable.height >
+        STABLE_COLLAPSE_MAX_WASTE * fresh.width * fresh.height
+        ? fresh
+        : stable;
+    }
   }
 
   // Group-incident edges: dagre cannot attach edges to a compound cluster node
@@ -1717,6 +1736,28 @@ export async function layoutBoxesAndLinesSearch(
 
   const realBoxes = new Set(parsed.nodes.map((n) => n.label));
 
+  // A group's edgeless members all share one rank, so eight of them draw as
+  // one tall column (#1974). Chain them into rows of ceil(sqrt(n)) with edges
+  // that only dagre sees — never routed, scored or drawn — so they wrap into a
+  // grid. Row-major in source order; `rankdir` turns a row into a column.
+  const wrapChains: string[][] = [];
+  {
+    const touched = new Set<string>();
+    for (const e of parsed.edges) {
+      touched.add(srcRep(e.source));
+      touched.add(tgtRep(e.target));
+    }
+    for (const grp of parsed.groups) {
+      const iso = grp.children.filter(
+        (c) => realBoxes.has(c) && !touched.has(c)
+      );
+      if (iso.length < WRAP_MIN_ISOLATED) continue;
+      const cols = Math.ceil(Math.sqrt(iso.length));
+      for (let i = 0; i < iso.length; i += cols)
+        wrapChains.push(iso.slice(i, i + cols));
+    }
+  }
+
   /** `plan` set: run dagre's ordering, then record (`plan.captured`) and
    *  optionally force (`plan.forced`) the sibling order of every rank — the
    *  sifting pass's two uses. Unset, dagre runs exactly as it always has. */
@@ -1777,6 +1818,9 @@ export async function layoutBoxesAndLinesSearch(
         g.setEdge(s, t, edgeLabel, edgeKey(e));
       }
     }
+    for (const [ci, chain] of wrapChains.entries())
+      for (let i = 1; i < chain.length; i++)
+        g.setEdge(chain[i - 1]!, chain[i]!, {}, `__wrap_${ci}_${i}`);
     if (plan)
       dagre.layout(g, {
         customOrder: (lg, order) => {
