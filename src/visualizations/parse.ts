@@ -44,6 +44,7 @@ import type { TagGroup } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
 import { parseChartFrameLine } from '../utils/chart-frame-parse';
 import { parseEmphasisDirective } from '../utils/emphasis';
+import { parseAxisLine, settleAxisSpec } from '../utils/axis-spec';
 import { parseTimelineEventLine, type DatePrefixCtx } from '../timeline/parser';
 import {
   parseDateToken,
@@ -63,6 +64,9 @@ import {
 } from './types';
 
 const allChartTypeIds: readonly string[] = chartTypes.map((c) => c.id);
+
+/** The numeric axes slope has (#1830). */
+const SLOPE_AXES: ReadonlySet<'x' | 'y'> = new Set(['y']);
 
 /**
  * Parses D3 chart text format into structured data. Returns the discriminated
@@ -288,6 +292,23 @@ function parseVisualizationFull(
     // §1.11 emphasis (#1829): `highlight A, B` on slope keeps the named series
     // and recedes the rest. Column 1, lowercase, like the frame lines above, so
     // a series named `Highlight Reel` stays data. `dim` is not adopted here.
+    // Axis directives on slope (#1830): `y-scale log`, `y-min`, `y-max` set
+    // the vertical range, so two slope charts can share one scale.
+    if (
+      result.type === 'slope' &&
+      indent === 0 &&
+      parseAxisLine(
+        line,
+        lineNumber,
+        (result.axes ??= {}),
+        SLOPE_AXES,
+        result.diagnostics
+      )
+    ) {
+      inSlopePeriodBlock = false;
+      continue;
+    }
+
     if (result.type === 'slope' && indent === 0 && /^highlight\s/.test(line)) {
       const directive = parseEmphasisDirective(line, lineNumber);
       if (directive) {
@@ -1621,6 +1642,12 @@ function parseVisualizationFull(
   }
   result.data = result.data.filter(
     (item) => item.values.length === result.periods.length
+  );
+  settleAxisSpec(
+    'y',
+    result.axes?.y,
+    result.data.flatMap((d) => d.values),
+    result.diagnostics
   );
 
   return result;

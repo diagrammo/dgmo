@@ -4,7 +4,8 @@
 // dual y-axis (§15.1: y-label / y-right-label grouped series).
 // ============================================================
 
-import { scalePoint, scaleLinear, type ScaleLinear } from 'd3-scale';
+import { scalePoint } from 'd3-scale';
+import { buildValueAxis, type ValueAxis } from './value-axis';
 import { line as d3line, area as d3area } from 'd3-shape';
 import type { ParsedChart } from '../chart';
 import type { PaletteColors } from '../palettes';
@@ -123,6 +124,26 @@ export function renderLine(
     return [lo, hi];
   };
   const [loL, hiL] = extentFor('left');
+  // Left axis (#1830): `y-scale log`, `y-min`, `y-max`. The right axis of a
+  // dual-axis chart keeps its auto-fit. Probed on a unit range so the margin
+  // is sized from the labels the axis will really draw.
+  const ySpec = chart.axes?.y;
+  let dataLoL = Infinity;
+  let dataHiL = -Infinity;
+  for (const d of data)
+    for (let s = 0; s < seriesCount; s++)
+      if (axisOf(s) === 'left') {
+        const v = seriesValue(d, s);
+        dataLoL = Math.min(dataLoL, v);
+        dataHiL = Math.max(dataHiL, v);
+      }
+  const leftAxis = (range: [number, number]) =>
+    buildValueAxis(loL, hiL, ySpec, range, {
+      nice: true,
+      dataLo: dataLoL,
+      dataHi: dataHiL,
+    });
+  const probeL = leftAxis([0, 1]).ticks(6);
   const [loR, hiR] = dual ? extentFor('right') : [0, 1];
 
   // Horizontal margins first: the category-label plan needs the plot width to
@@ -131,7 +152,7 @@ export function renderLine(
   const mRight = dual
     ? computeLeftMargin(chart.yrlabel, [fmtNum(hiR), fmtNum(loR)])
     : 32;
-  const mLeft0 = computeLeftMargin(chart.ylabel, [fmtNum(hiL), fmtNum(loL)]);
+  const mLeft0 = computeLeftMargin(chart.ylabel, probeL.map(fmtNum));
   // scalePoint with padding(0.5) puts one slot's worth of space between
   // adjacent points, and half a slot at each end. Rotated labels hang left of
   // the first point, so the margin may grow to keep them inside the SVG.
@@ -157,17 +178,13 @@ export function renderLine(
     .domain(data.map((d) => d.label))
     .range([m.left, m.left + plotW])
     .padding(0.5);
-  const yL = scaleLinear()
-    .domain([loL, hiL])
-    .nice()
-    .range([m.top + plotH, m.top]);
-  const yR: ScaleLinear<number, number> | null = dual
-    ? scaleLinear()
-        .domain([loR, hiR])
-        .nice()
-        .range([m.top + plotH, m.top])
+  const yL = leftAxis([m.top + plotH, m.top]);
+  const yR: ValueAxis | null = dual
+    ? buildValueAxis(loR, hiR, undefined, [m.top + plotH, m.top], {
+        nice: true,
+      })
     : null;
-  const yFor = (s: number): ScaleLinear<number, number> =>
+  const yFor = (s: number): ValueAxis =>
     dual && axisOf(s) === 'right' && yR ? yR : yL;
   const leftTint = dual ? soleAxisColor('left') : undefined;
   const rightTint = soleAxisColor('right');
@@ -312,7 +329,7 @@ export function renderLine(
     if (isArea) {
       const areaGen = d3area<(typeof pts)[number]>()
         .x((p) => x(p.label) ?? 0)
-        .y0(yy(Math.max(yy.domain()[0]!, 0)))
+        .y0(yy(yy.baseline))
         .y1((p) => yy(p.v));
       g.append('path')
         .attr('class', 'dgmo-series-area')

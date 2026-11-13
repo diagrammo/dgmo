@@ -5,7 +5,8 @@
 // greedy collision graphic.)
 // ============================================================
 
-import { scaleLinear, scaleSqrt } from 'd3-scale';
+import { scaleSqrt } from 'd3-scale';
+import { buildValueAxis } from './value-axis';
 import {
   computeQuadrantPointLabels,
   rectsOverlap,
@@ -193,10 +194,18 @@ export function renderScatter(
     top: topInset + 8,
     right: 32,
     bottom: 64,
-    left: computeLeftMargin(chart.ylabel, [
-      fmtNum(Math.ceil(yMax + yPad)),
-      fmtNum(Math.floor(yMin - yPad)),
-    ]),
+    left: computeLeftMargin(
+      chart.ylabel,
+      buildValueAxis(
+        Math.floor(yMin - yPad),
+        Math.ceil(yMax + yPad),
+        chart.axes?.y,
+        [0, 1],
+        { dataLo: yMin, dataHi: yMax }
+      )
+        .ticks(6)
+        .map(fmtNum)
+    ),
   };
   const plotW = width - m.left - m.right;
   const plotH = height - m.top - m.bottom;
@@ -219,12 +228,21 @@ export function renderScatter(
   // the pane, whichever point sits at an axis extreme.
   const rInset = Math.max(...radii) + 4;
 
-  const x = scaleLinear()
-    .domain([Math.floor(xMin - xPad), Math.ceil(xMax + xPad)])
-    .range([m.left + rInset, m.left + plotW - rInset]);
-  const y = scaleLinear()
-    .domain([Math.floor(yMin - yPad), Math.ceil(yMax + yPad)])
-    .range([m.top + plotH - rInset, m.top + rInset]);
+  // Both axes take `x-`/`y-scale log`, `-min` and `-max` (#1830).
+  const x = buildValueAxis(
+    Math.floor(xMin - xPad),
+    Math.ceil(xMax + xPad),
+    chart.axes?.x,
+    [m.left + rInset, m.left + plotW - rInset],
+    { dataLo: xMin, dataHi: xMax }
+  );
+  const y = buildValueAxis(
+    Math.floor(yMin - yPad),
+    Math.ceil(yMax + yPad),
+    chart.axes?.y,
+    [m.top + plotH - rInset, m.top + rInset],
+    { dataLo: yMin, dataHi: yMax }
+  );
 
   // Hit/bounds target so the interaction adapter knows axis positions for the
   // dotted leader-line + on-axis value projection.

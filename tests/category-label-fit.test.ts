@@ -223,7 +223,10 @@ describe('the first rotated label stays inside the SVG', () => {
         'light'
       );
       const x1Long = Number(long.match(/<line[^>]*x1="([\d.]+)"/)![1]);
-      expect(x1Long).toBeGreaterThan(x1);
+      // The margin is sized from the tick labels the axis draws (#1830), so
+      // rotation may or may not need more room; it never needs less.
+      expect(x1Long).toBeGreaterThanOrEqual(x1);
+      expect(x1).toBe(56);
     });
   }
 });

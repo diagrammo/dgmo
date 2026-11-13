@@ -2625,6 +2625,40 @@ The right axis may hold more than one series; data rows stay positional across b
 
 > **Migrated in 1.0:** the former standalone `area`, `multi-line`, and `doughnut` chart types were removed. Use `line` + `fill` (area), `line` + a `series` block (multi-line), and `pie` + `hole` (doughnut). `bar-stacked` became `bar` + a `stack` header.
 
+#### 15.1.2 Axis range and scale (bar, line, scatter, function, slope)
+
+Three directives set a numeric axis. Space-separated, no colon, lowercase at
+column 1 (#1830):
+
+```
+y-scale log      // or: y-scale linear (the default)
+y-min 0          // fix the lower end
+y-max 1,000,000  // fix the upper end
+```
+
+- **Where.** `y-` forms work on bar, line, scatter, function and slope. The
+  `x-` forms (`x-scale`, `x-min`, `x-max`) work on **scatter only**, the one
+  chart type with a numeric x-axis. A function chart's x range stays
+  `x <min> to <max>` (§15.4). On a horizontal bar, `y-` still names the value
+  axis. On a dual-axis line (§15.1.1) they set the **left** axis; the right
+  axis keeps its auto-fit. A directive for an axis the chart type does not
+  have warns (`W_AXIS_DIRECTIVE_INVALID`) and is ignored.
+- **`y-min` / `y-max`** replace the auto-fit end they name and are drawn as
+  labelled ticks; a free end still rounds outward. They override `no-auto-y`
+  and the bar 0 baseline: a bar whose axis starts above 0 grows from the axis
+  floor. Values outside the range are cut off at the edge, and the chart warns
+  (`W_AXIS_DATA_OUTSIDE_RANGE`). A function curve breaks at the edge instead.
+  Slope draws no tick axis; there the bounds fix the vertical range, so two
+  slope charts can share one scale. A number may use `,` or `_` separators.
+  `y-min` at or above `y-max` drops both (`W_AXIS_DIRECTIVE_INVALID`).
+- **`y-scale log`** draws a base-10 log axis. Ticks fall on every power of ten
+  in range; under three decades, the 2× and 5× steps are added. Unbounded ends
+  round out to whole decades. Every value and bound must be above 0. Otherwise
+  the axis stays linear and the chart warns (`W_AXIS_LOG_NOT_POSITIVE`). A
+  function chart plots only the samples above 0. **A stacked bar cannot be
+  log**: its segments would not add up, so it warns and stays linear.
+- **Not here:** number format for tick labels (#1831) and date ticks (#1880).
+
 ### 15.2 Scatter / Bubble Charts
 
 <!-- TYPE:scatter -->
@@ -2656,6 +2690,7 @@ x-label Weight
 y-label Height
 size-label Crew
 no-name
+x-scale log      // §15.1.2: x-/y-scale, -min, -max on both axes
 ```
 
 Point names render by default. Use `no-name` to hide them.
@@ -2711,6 +2746,7 @@ The colon between name and expression is **required** — both sides can contain
 
 **Options:**
 
+- `y-scale log`, `y-min`, `y-max` (§15.1.2) — the x range stays `x <min> to <max>`
 - `fill` (boolean; off by default) — shades the area below each curve down to the y=0 baseline, the same directive as the `line` chart. Soft 25% tint by default; opaque under `fill-solid` (`fill-outline` is ignored — hollowing the band would erase it)
 
 ### 15.5 Sankey Charts
@@ -2793,6 +2829,7 @@ Roberts 12 52
 - Thousands commas are removed — write `1000`, not `1,000` (underscore grouping `1_000` is accepted)
 - Color annotations: `Label color value1 value2` (trailing color word before numeric values)
 - Minimum 2 periods required
+- `y-scale log`, `y-min`, `y-max` (§15.1.2) fix the vertical range, so two slope charts can share one scale
 
 ### 16.2 Wordcloud
 

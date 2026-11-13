@@ -4,6 +4,7 @@
 // ============================================================
 
 import { scaleLinear } from 'd3-scale';
+import { buildValueAxis } from './value-axis';
 import { line as d3line, area as d3area } from 'd3-shape';
 import type { ParsedFunctionChart } from '../data-chart-parser';
 import type { PaletteColors } from '../palettes';
@@ -65,21 +66,34 @@ export function renderFunction(
   }
   if (yLo === yHi) yHi = yLo + 1;
 
+  // `y-scale log`, `y-min`, `y-max` (#1830). A log axis plots only the
+  // samples above 0; its floor comes from the smallest of those.
+  const ySpec = chart.axes?.y;
+  let posLo = Infinity;
+  for (const c of curves)
+    for (const [, v] of c.pts)
+      if (isFinite(v) && v > 0) posLo = Math.min(posLo, v);
+  const yAxis = (range: [number, number]) =>
+    buildValueAxis(yLo, yHi, ySpec, range, {
+      nice: true,
+      dataLo: ySpec?.scale === 'log' ? posLo : yLo,
+      dataHi: yHi,
+    });
+
   const m: Margins = {
     top: topInset + 8,
     right: 32,
     bottom: 64,
-    left: computeLeftMargin(chart.ylabel, [fmtNum(yHi), fmtNum(yLo)]),
+    left: computeLeftMargin(chart.ylabel, yAxis([0, 1]).ticks(8).map(fmtNum)),
   };
   const plotW = width - m.left - m.right;
   const plotH = height - m.top - m.bottom;
   const x = scaleLinear()
     .domain([xr.min, xr.max])
     .range([m.left, m.left + plotW]);
-  const y = scaleLinear()
-    .domain([yLo, yHi])
-    .nice()
-    .range([m.top + plotH, m.top]);
+  const y = yAxis([m.top + plotH, m.top]);
+  const [yD0, yD1] = y.domain();
+  const fixedY = ySpec?.min !== undefined || ySpec?.max !== undefined;
 
   // gridlines + ticks
   for (const t of y.ticks(8)) {
@@ -125,8 +139,13 @@ export function renderFunction(
       .text(fmtNum(t));
   }
 
+  // Off-axis samples break the curve rather than run flat along an edge.
   const inRange = (p: [number, number]) =>
-    isFinite(p[1]) && p[1] >= yLo - 1 && p[1] <= yHi + 1;
+    isFinite(p[1]) &&
+    (!y.isLog || p[1] > 0) &&
+    (fixedY || y.isLog
+      ? p[1] >= yD0 - 1e-9 && p[1] <= yD1 + 1e-9
+      : p[1] >= yLo - 1 && p[1] <= yHi + 1);
 
   // `fill` shades the band between each curve and the y=0 baseline (or the
   // bottom of the scale when 0 is out of range) — parity with line + `fill`
@@ -138,7 +157,7 @@ export function renderFunction(
     const areaGen = d3area<[number, number]>()
       .defined(inRange)
       .x((p) => x(p[0]))
-      .y0(y(Math.max(y.domain()[0]!, 0)))
+      .y0(y(y.baseline))
       .y1((p) => y(p[1]));
     for (const c of curves) {
       svg

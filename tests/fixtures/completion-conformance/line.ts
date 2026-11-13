@@ -1,5 +1,5 @@
 import type { ConformanceFixture } from './_types';
-import { FRAME_DIRECTIVES } from './_frame';
+import { FRAME_DIRECTIVES, Y_AXIS_DIRECTIVES } from './_frame';
 
 // Spec §16 / §15.1. Cartesian — `no-value` only. `era` is a structural
 // keyword (declares an era band), not a directive.
@@ -9,6 +9,8 @@ export const fixture: ConformanceFixture = {
   firstLineKeyword: 'line',
   directives: [
     ...FRAME_DIRECTIVES,
+    // #1830 axis range and scale.
+    ...Y_AXIS_DIRECTIVES,
     'no-legend',
     'series',
     'fill',

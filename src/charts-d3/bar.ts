@@ -9,7 +9,8 @@
 // positive and negative runs separately.
 // ============================================================
 
-import { scaleBand, scaleLinear } from 'd3-scale';
+import { scaleBand } from 'd3-scale';
+import { buildValueAxis } from './value-axis';
 import { max as d3max, min as d3min } from 'd3-array';
 import type { ParsedChart } from '../chart';
 import type { PaletteColors } from '../palettes';
@@ -157,16 +158,21 @@ export function renderBar(
   const hiVal = Math.max(0, maxVal);
   const loVal = Math.min(0, minVal);
   const niceMax = hiVal === 0 && loVal === 0 ? 1 : hiVal;
+  // Value axis (#1830): `y-scale log`, `y-min`, `y-max`. Built once on a unit
+  // range to size the margin from its real tick labels, then on the plot.
+  const ySpec = chart.axes?.y;
+  const valueAxis = (range: [number, number]) =>
+    buildValueAxis(loVal, niceMax, ySpec, range, {
+      nice: true,
+      dataLo: Math.min(...perCat.flat().filter((v) => v > 0)),
+      dataHi: maxVal,
+    });
+  const probeTicks = valueAxis([0, 1]).ticks(6);
 
   // Left margin must fit the rotated y-title + the left-edge labels: category
   // names for horizontal bars, value ticks for vertical.
   const catLabels = data.map((d) => d.label);
-  const valueTicks = [
-    fmtNum(niceMax),
-    fmtNum(niceMax / 2),
-    fmtNum(loVal),
-    fmtNum(loVal / 2),
-  ];
+  const valueTicks = probeTicks.map(fmtNum);
   // Vertical bars carry their category names under the axis, so they need the
   // same fit treatment as line. Horizontal bars put them in the left gutter,
   // which computeLeftMargin already sizes. Rotated labels hang left of the
@@ -252,7 +258,7 @@ export function renderBar(
   const valRange: [number, number] = horiz
     ? [m.left, m.left + plotW]
     : [m.top + plotH, m.top];
-  const val = scaleLinear().domain([loVal, niceMax]).nice().range(valRange);
+  const val = valueAxis(valRange);
 
   // value-axis gridlines + ticks
   for (const t of val.ticks(6)) {
@@ -265,7 +271,7 @@ export function renderBar(
         .attr('y1', m.top)
         .attr('y2', m.top + plotH)
         .attr('stroke', mutedColor)
-        .attr('stroke-opacity', t === 0 ? 0.6 : 0.25);
+        .attr('stroke-opacity', t === val.baseline ? 0.6 : 0.25);
       svg
         .append('text')
         .attr('x', x)
@@ -284,7 +290,7 @@ export function renderBar(
         .attr('y1', y)
         .attr('y2', y)
         .attr('stroke', mutedColor)
-        .attr('stroke-opacity', t === 0 ? 0.6 : 0.25);
+        .attr('stroke-opacity', t === val.baseline ? 0.6 : 0.25);
       svg
         .append('text')
         .attr('x', m.left - 10)
@@ -336,7 +342,7 @@ export function renderBar(
     );
   }
 
-  const zero = val(0);
+  const zero = val(val.baseline);
   const inner = stacked
     ? null
     : scaleBand<number>()

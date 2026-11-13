@@ -5,6 +5,7 @@
 import { growChartFrame } from '../utils/chart-frame';
 import { GRID_DASH, scaleDash } from '../utils/visual-conventions';
 import * as d3Scale from 'd3-scale';
+import { buildValueAxis } from '../charts-d3/value-axis';
 import * as d3Shape from 'd3-shape';
 import * as d3Array from 'd3-array';
 import { measureText, wrapTextToWidth } from '../utils/text-measure';
@@ -153,10 +154,15 @@ export function renderSlopeChart(
   const [minVal, maxVal] = d3Array.extent(allValues) as [number, number];
   const valuePadding = (maxVal - minVal) * 0.1 || 1;
 
-  const yScale = d3Scale
-    .scaleLinear()
-    .domain([minVal - valuePadding, maxVal + valuePadding])
-    .range([innerHeight, 0]);
+  // `y-scale log`, `y-min`, `y-max` set the vertical range (#1830). Slope
+  // draws no tick axis, so the range only places the lines.
+  const yScale = buildValueAxis(
+    minVal - valuePadding,
+    maxVal + valuePadding,
+    parsed.axes?.y,
+    [innerHeight, 0],
+    { dataLo: minVal, dataHi: maxVal }
+  );
 
   const xScale = d3Scale
     .scalePoint<string>()

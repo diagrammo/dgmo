@@ -141,6 +141,18 @@ interface EmphasisDirective {
     readonly lineNumber: number;
 }
 
+type AxisName = 'x' | 'y';
+type AxisScaleKind = 'linear' | 'log';
+/** What the author asked of one numeric axis. Every field is optional. */
+interface AxisSpec {
+    scale?: AxisScaleKind;
+    min?: number;
+    max?: number;
+    /** Line of the first axis directive, for data-check diagnostics. */
+    lineNumber?: number;
+}
+type AxisSpecs = Partial<Record<AxisName, AxisSpec>>;
+
 type TimelineSort = 'time' | 'group' | 'tag';
 interface TimelineEvent {
     date: string;
@@ -258,6 +270,8 @@ interface ParsedSlope extends ParsedVizBase {
     data: D3DataItem[];
     /** §1.11 emphasis: `highlight <Name>[, <Name>…]` names series (#1829). */
     emphasis?: EmphasisDirective;
+    /** `y-scale` / `y-min` / `y-max`: the vertical range (#1830). */
+    axes?: AxisSpecs;
     noName?: boolean;
     noValue?: boolean;
     noPercent?: boolean;
@@ -570,6 +584,9 @@ interface ParsedChart {
      *  (#1829). Last one wins. Resolved against the categories, series or
      *  slices at render time via `resolveEmphasis`. */
     emphasis?: EmphasisDirective;
+    /** `y-scale` / `y-min` / `y-max` on bar and line (#1830). On a dual-axis
+     *  line they set the left axis; the right axis keeps its auto-fit. */
+    axes?: AxisSpecs;
     data: ChartDataPoint[];
     eras?: ChartEra[];
     diagnostics: DgmoError[];
@@ -934,6 +951,8 @@ interface ParsedExtendedBase {
         min: number;
         max: number;
     };
+    /** `y-scale` / `y-min` / `y-max`, and the `x-` forms on scatter (#1830). */
+    axes?: AxisSpecs;
     noName?: boolean;
     noValue?: boolean;
     noPercent?: boolean;

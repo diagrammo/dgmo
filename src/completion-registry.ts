@@ -151,6 +151,12 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'x-label': { description: 'X-axis label' },
       'y-label': { description: 'Y-axis label' },
       'orientation-horizontal': { description: 'Switch to horizontal bars' },
+      'y-scale': {
+        description: 'Value axis scale: log for data spanning decades',
+        values: ['log', 'linear'],
+      },
+      'y-min': { description: 'Value axis lower end (y-min 0)' },
+      'y-max': { description: 'Value axis upper end (y-max 100)' },
       'no-value': { description: 'Hide value labels atop each bar' },
       color: { description: 'Bar color override' },
       highlight: {
@@ -167,6 +173,12 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       fill: { description: 'Fill under the line (area chart)' },
       'x-label': { description: 'X-axis label' },
       'y-label': { description: 'Y-axis label (left axis)' },
+      'y-scale': {
+        description: 'Value axis scale: log for data spanning decades',
+        values: ['log', 'linear'],
+      },
+      'y-min': { description: 'Value axis lower end (y-min 0)' },
+      'y-max': { description: 'Value axis upper end (y-max 100)' },
       'y-right-label': {
         description: 'Right y-axis label (dual-axis; group series beneath it)',
       },
@@ -227,6 +239,18 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'x-label': { description: 'X-axis label' },
       'y-label': { description: 'Y-axis label' },
       'size-label': { description: 'Size axis label' },
+      'y-scale': {
+        description: 'Value axis scale: log for data spanning decades',
+        values: ['log', 'linear'],
+      },
+      'y-min': { description: 'Value axis lower end (y-min 0)' },
+      'y-max': { description: 'Value axis upper end (y-max 100)' },
+      'x-scale': {
+        description: 'X-axis scale: log for data spanning decades',
+        values: ['log', 'linear'],
+      },
+      'x-min': { description: 'X-axis lower end (x-min 0)' },
+      'x-max': { description: 'X-axis upper end (x-max 100)' },
       highlight: {
         description:
           'Keep the named points or categories and recede the rest (highlight Nassau)',
@@ -269,6 +293,12 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     withGlobals({
       'no-legend': { description: 'Hide the legend' },
       x: { description: 'X-axis range (start to end)' },
+      'y-scale': {
+        description: 'Value axis scale: log for data spanning decades',
+        values: ['log', 'linear'],
+      },
+      'y-min': { description: 'Value axis lower end (y-min 0)' },
+      'y-max': { description: 'Value axis upper end (y-max 100)' },
       'x-label': { description: 'X-axis label' },
       'y-label': { description: 'Y-axis label' },
       fill: {
@@ -281,6 +311,12 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'slope',
     withGlobals({
+      'y-scale': {
+        description: 'Vertical range scale: log for data spanning decades',
+        values: ['log', 'linear'],
+      },
+      'y-min': { description: 'Vertical range lower end (y-min 0)' },
+      'y-max': { description: 'Vertical range upper end (y-max 100)' },
       highlight: {
         description:
           'Keep the named series and recede the rest (highlight Nassau)',

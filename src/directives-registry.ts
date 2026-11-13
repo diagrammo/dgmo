@@ -786,6 +786,25 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
     chartTypes: ['bar', 'function', 'line', 'quadrant', 'scatter'],
   },
   { token: 'size-label', category: 'directive', chartTypes: ['scatter'] },
+  // Axis directives (#1830).
+  {
+    token: 'y-scale',
+    category: 'directive',
+    chartTypes: ['bar', 'function', 'line', 'scatter', 'slope'],
+  },
+  {
+    token: 'y-min',
+    category: 'directive',
+    chartTypes: ['bar', 'function', 'line', 'scatter', 'slope'],
+  },
+  {
+    token: 'y-max',
+    category: 'directive',
+    chartTypes: ['bar', 'function', 'line', 'scatter', 'slope'],
+  },
+  { token: 'x-scale', category: 'directive', chartTypes: ['scatter'] },
+  { token: 'x-min', category: 'directive', chartTypes: ['scatter'] },
+  { token: 'x-max', category: 'directive', chartTypes: ['scatter'] },
   { token: 'columns', category: 'directive', chartTypes: ['block', 'heatmap'] },
   { token: 'rows', category: 'directive', chartTypes: 'all' },
   { token: 'labels', category: 'directive', chartTypes: 'all' },

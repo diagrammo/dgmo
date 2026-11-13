@@ -25,6 +25,12 @@ import type { ChartFrame } from './utils/chart-frame-parse';
 import { parseChartFrameLine } from './utils/chart-frame-parse';
 import type { EmphasisDirective } from './utils/emphasis';
 import { parseEmphasisDirective } from './utils/emphasis';
+import type { AxisName, AxisSpecs } from './utils/axis-spec';
+import {
+  AXIS_DIRECTIVE_DX,
+  parseAxisLine,
+  settleAxisSpec,
+} from './utils/axis-spec';
 
 export interface ParsedChart {
   type: ChartType;
@@ -95,6 +101,9 @@ export interface ParsedChart {
    *  (#1829). Last one wins. Resolved against the categories, series or
    *  slices at render time via `resolveEmphasis`. */
   emphasis?: EmphasisDirective;
+  /** `y-scale` / `y-min` / `y-max` on bar and line (#1830). On a dual-axis
+   *  line they set the left axis; the right axis keeps its auto-fit. */
+  axes?: AxisSpecs;
   data: ChartDataPoint[];
   eras?: ChartEra[];
   diagnostics: DgmoError[];
@@ -437,6 +446,18 @@ export function parseChart(
 
     // Frame directives: subtitle, source, footnote, byline (#1827).
     if (parseChartFrameLine(result, lines[i]!, lineNumber, result.diagnostics))
+      continue;
+
+    // Axis directives (#1830): `y-scale log`, `y-min N`, `y-max N`.
+    if (
+      parseAxisLine(
+        trimmed,
+        lineNumber,
+        (result.axes ??= {}),
+        AXIS_TYPES[result.type],
+        result.diagnostics
+      )
+    )
       continue;
 
     // §1.11 emphasis (#1829): `highlight A, B` keeps the named categories,
@@ -804,7 +825,50 @@ export function parseChart(
     );
   }
 
+  if (!result.error) settleChartAxes(result);
+
   return result;
+}
+
+/** The numeric axes each simple chart type has (#1830). */
+const AXIS_TYPES: Record<ChartType, ReadonlySet<AxisName>> = {
+  bar: new Set(['y']),
+  line: new Set(['y']),
+  pie: new Set(),
+  'polar-area': new Set(),
+  radar: new Set(),
+};
+
+/** Check the axis directives against the values each axis has to show. */
+function settleChartAxes(result: ParsedChart): void {
+  const y = result.axes?.y;
+  if (!y) return;
+  const rows = result.data.map((d) => [d.value, ...(d.extraValues ?? [])]);
+  let values: number[];
+  if (result.type === 'bar' && result.barLayout === 'stack') {
+    if (y.scale === 'log') {
+      result.diagnostics.push(
+        emit(AXIS_DIRECTIVE_DX, y.lineNumber ?? 1, {
+          directive: 'y-scale',
+          reason:
+            'a stacked bar cannot use a log scale, because its segments would not add up',
+        })
+      );
+      delete y.scale;
+    }
+    values = rows
+      .flatMap((r) => [
+        r.filter((v) => v > 0).reduce((a, b) => a + b, 0),
+        r.filter((v) => v < 0).reduce((a, b) => a + b, 0),
+      ])
+      .filter((v, i) => i % 2 === 0 || v < 0);
+  } else if (result.type === 'line' && result.seriesAxes) {
+    const axes = result.seriesAxes;
+    values = rows.flatMap((r) => r.filter((_, s) => axes[s] !== 'right'));
+  } else {
+    values = rows.flat();
+  }
+  settleAxisSpec('y', y, values, result.diagnostics);
 }
 
 // ============================================================

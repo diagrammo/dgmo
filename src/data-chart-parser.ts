@@ -61,6 +61,8 @@ interface ParsedHeatmapRow {
 import type { DgmoError } from './diagnostics';
 import type { ChartFrame } from './utils/chart-frame-parse';
 import { parseChartFrameLine } from './utils/chart-frame-parse';
+import type { AxisName, AxisSpecs } from './utils/axis-spec';
+import { parseAxisLine, settleAxisSpec } from './utils/axis-spec';
 
 // ============================================================
 // Discriminated union — Story 109.2a (arch-review). Each extended data-chart
@@ -87,6 +89,8 @@ export interface ParsedExtendedBase {
   ylabelLineNumber?: number;
   /** X-axis range — read by both function plots and scatter. */
   xRange?: { min: number; max: number };
+  /** `y-scale` / `y-min` / `y-max`, and the `x-` forms on scatter (#1830). */
+  axes?: AxisSpecs;
   noName?: boolean;
   noValue?: boolean;
   noPercent?: boolean;
@@ -599,6 +603,19 @@ function parseExtendedChartFull(
     if (parseChartFrameLine(result, lines[i]!, lineNumber, result.diagnostics))
       continue;
 
+    // Axis directives (#1830). Only scatter and function draw a numeric
+    // value axis; the other extended types warn and drop the line.
+    if (
+      parseAxisLine(
+        trimmed,
+        lineNumber,
+        (result.axes ??= {}),
+        EXTENDED_AXES[result.type] ?? NO_AXES,
+        result.diagnostics
+      )
+    )
+      continue;
+
     // Sankey: bare label (no numeric value) at any indent = source node for indented children
     if (result.type === 'sankey') {
       // In-bounds by loop guard (i < lines.length).
@@ -1078,8 +1095,34 @@ function parseExtendedChartFull(
   // source has been read.
   result.diagnostics.push(...nameAliasMap.finish());
 
+  if (!result.error && result.axes) {
+    const pts = result.scatterPoints ?? [];
+    // A function's values are only known once it is sampled at render time,
+    // so only its bounds are checked here.
+    settleAxisSpec(
+      'y',
+      result.axes.y,
+      pts.map((p) => p.y),
+      result.diagnostics
+    );
+    settleAxisSpec(
+      'x',
+      result.axes.x,
+      pts.map((p) => p.x),
+      result.diagnostics
+    );
+  }
+
   return result;
 }
+
+const NO_AXES: ReadonlySet<AxisName> = new Set();
+/** The numeric axes each extended chart type has (#1830). */
+const EXTENDED_AXES: Partial<Record<ExtendedChartType, ReadonlySet<AxisName>>> =
+  {
+    scatter: new Set(['x', 'y']),
+    function: new Set(['y']),
+  };
 
 // ============================================================
 // ECharts Option Builder
