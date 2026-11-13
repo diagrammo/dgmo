@@ -11,6 +11,7 @@
  * hundred bytes of PDF syntax, and resvg already hands back raw pixels to
  * deflate. Bundled into the CLI only, like `svg-to-png.ts`.
  */
+// cspell:ignore Flate endobj nendobj startxref nstartxref -- PDF syntax
 import { deflateSync } from 'node:zlib';
 import { rasterize, DEFAULT_PNG_SCALE } from './svg-to-png';
 
