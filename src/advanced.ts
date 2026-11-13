@@ -1123,6 +1123,7 @@ export {
   blueprintPalette,
   slatePalette,
   tidewaterPalette,
+  broadsheetPalette,
 } from './palettes';
 
 export type { PaletteConfig, PaletteColors } from './palettes';

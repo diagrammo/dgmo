@@ -216,7 +216,7 @@ Key options:
 
 - `-o <file>` — output file; format inferred from extension (`.svg` → SVG, else PNG)
 - `--theme <theme>` — `light` (default), `dark`, `transparent`
-- `--palette <name>` — `slate` (default), `atlas`, `blueprint`, `catppuccin`, `nord`, `tidewater`, `tokyo-night`
+- `--palette <name>` — `slate` (default), `atlas`, `blueprint`, `broadsheet`, `catppuccin`, `nord`, `tidewater`, `tokyo-night`
 - `--json` — output structured JSON
 
 ## Supported Chart Types

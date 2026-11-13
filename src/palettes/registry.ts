@@ -5,6 +5,7 @@ import { catppuccinPalette } from './catppuccin';
 import { nordPalette } from './nord';
 import { slatePalette } from './slate';
 import { tidewaterPalette } from './tidewater';
+import { broadsheetPalette } from './broadsheet';
 import { tokyoNightPalette } from './tokyo-night';
 
 // ============================================================
@@ -147,6 +148,7 @@ for (const palette of [
   nordPalette,
   slatePalette,
   tidewaterPalette,
+  broadsheetPalette,
   tokyoNightPalette,
 ]) {
   registerPalette(palette);

@@ -10,6 +10,7 @@ import { catppuccinPalette } from '../src/palettes/catppuccin';
 import { nordPalette } from '../src/palettes/nord';
 import { slatePalette } from '../src/palettes/slate';
 import { tidewaterPalette } from '../src/palettes/tidewater';
+import { broadsheetPalette } from '../src/palettes/broadsheet';
 import { tokyoNightPalette } from '../src/palettes/tokyo-night';
 import type { PaletteColors } from '../src/palettes/types';
 
@@ -26,6 +27,7 @@ const PALETTES = [
   { name: 'blueprint', cfg: blueprintPalette },
   { name: 'slate', cfg: slatePalette },
   { name: 'tidewater', cfg: tidewaterPalette },
+  { name: 'broadsheet', cfg: broadsheetPalette },
   { name: 'catppuccin', cfg: catppuccinPalette },
   { name: 'nord', cfg: nordPalette },
   { name: 'tokyo-night', cfg: tokyoNightPalette },

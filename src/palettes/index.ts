@@ -36,6 +36,7 @@ export { catppuccinPalette } from './catppuccin';
 export { nordPalette } from './nord';
 export { slatePalette } from './slate';
 export { tidewaterPalette } from './tidewater';
+export { broadsheetPalette } from './broadsheet';
 export { tokyoNightPalette } from './tokyo-night';
 
 // ============================================================
@@ -48,6 +49,7 @@ import { catppuccinPalette } from './catppuccin';
 import { nordPalette } from './nord';
 import { slatePalette } from './slate';
 import { tidewaterPalette } from './tidewater';
+import { broadsheetPalette } from './broadsheet';
 import { tokyoNightPalette } from './tokyo-night';
 
 import type { PaletteConfig } from './types';
@@ -66,6 +68,7 @@ export const palettes = {
   blueprint: blueprintPalette,
   slate: slatePalette,
   tidewater: tidewaterPalette,
+  broadsheet: broadsheetPalette,
   nord: nordPalette,
   catppuccin: catppuccinPalette,
   tokyoNight: tokyoNightPalette,

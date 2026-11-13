@@ -19,6 +19,7 @@ describe('palette registry', () => {
     ).toEqual([
       'atlas',
       'blueprint',
+      'broadsheet',
       'catppuccin',
       'nord',
       'slate',

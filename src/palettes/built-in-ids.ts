@@ -12,6 +12,7 @@
 export const BUILT_IN_PALETTE_IDS: ReadonlySet<string> = new Set([
   'atlas',
   'blueprint',
+  'broadsheet',
   'catppuccin',
   'nord',
   'slate',

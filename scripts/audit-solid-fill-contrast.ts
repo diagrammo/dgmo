@@ -21,6 +21,7 @@ import {
   nordPalette,
   slatePalette,
   tidewaterPalette,
+  broadsheetPalette,
   tokyoNightPalette,
 } from '../src/palettes';
 import type { PaletteColors, PaletteConfig } from '../src/palettes/types';
@@ -33,6 +34,7 @@ const PALETTES: PaletteConfig[] = [
   nordPalette,
   slatePalette,
   tidewaterPalette,
+  broadsheetPalette,
   tokyoNightPalette,
 ];
 

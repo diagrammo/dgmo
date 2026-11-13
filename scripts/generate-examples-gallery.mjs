@@ -40,6 +40,7 @@ const PALETTES = [
   'atlas',
   'blueprint',
   'tidewater',
+  'broadsheet',
   'nord',
   'catppuccin',
   'tokyo-night',

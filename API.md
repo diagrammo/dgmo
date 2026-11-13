@@ -176,6 +176,7 @@ palettes.atlas;
 palettes.blueprint;
 palettes.slate;
 palettes.tidewater;
+palettes.broadsheet;
 palettes.catppuccin;
 palettes.tokyoNight;
 ```

@@ -394,7 +394,7 @@ palette nord          // a built-in palette, in the reader's own light/dark
 palette nord dark     // a built-in, pinned to dark (or light)
 ```
 
-Built-in palettes: `atlas`, `blueprint`, `catppuccin`, `nord`, `slate`, `tidewater`, `tokyo-night`.
+Built-in palettes: `atlas`, `blueprint`, `broadsheet`, `catppuccin`, `nord`, `slate`, `tidewater`, `tokyo-night`.
 
 A palette of your own is an indented block — the same content as a desktop theme file. Each `light` / `dark` section holds the twelve role keys and a `colors` section with the eleven colour names; a block with only one section is that mode only. **Hex is allowed inside this block and nowhere else.**
 
