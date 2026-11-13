@@ -131,7 +131,7 @@ describe('dgmo --scale', () => {
     expect(run('-o', plain).status).toBe(0);
     const r = run('--scale', '3', '-o', scaled);
     expect(r.status, r.stderr).toBe(0);
-    expect(r.stderr).toContain('--scale applies to PNG output only');
+    expect(r.stderr).toContain('--scale applies to PNG and PDF output only');
     expect(readFileSync(scaled, 'utf8')).toBe(readFileSync(plain, 'utf8'));
   });
 

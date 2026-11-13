@@ -27,6 +27,7 @@ import { getPalette, getAvailablePalettes } from './palettes';
 import { choosePalette, extractPaletteDirective } from './palettes/directive';
 import { setPinnedNow } from './utils/now';
 import { svgToPng, DEFAULT_PNG_SCALE } from './svg-to-png';
+import { svgToPdf } from './svg-to-pdf';
 import { encodeDiagramUrl } from './sharing';
 import { resolveOrgImports } from './org/resolver';
 import { containedReader } from './cli-contained-read';
@@ -128,7 +129,8 @@ Commands:
 
 Render options:
   -o <file>            Output file (default: <input>.png in cwd)
-                       Format inferred from extension: .svg → SVG, else PNG
+                       Format inferred from extension: .svg → SVG,
+                       .pdf → PDF (one page, the canvas size), else PNG
                        With stdin and no -o, PNG is written to stdout
   --theme <theme>      Theme: ${THEMES.join(', ')} (default: light)
   --palette <name>     Palette: ${PALETTES.join(', ')} — beats the file's own palette line (default: the file's, else slate)
@@ -139,7 +141,8 @@ Render options:
                        content and ignore this
   --scale <n>          PNG pixels per canvas pixel (default: ${DEFAULT_PNG_SCALE}). A
                        1200x800 diagram at --scale 3 is a 3600x2400 PNG.
-                       PNG only; SVG has no pixel size
+                       In a PDF it sets the image's resolution, not the
+                       page size. PNG and PDF only; SVG has no pixel size
   --now <instant>      Pin "now" to a fixed date-time for chart types that
                        draw the current instant (clock, countdown), so their
                        output is reproducible. Any Date-parseable string,
@@ -271,10 +274,10 @@ function parseArgs(argv: string[]): {
   return result;
 }
 
-function inferFormat(outputPath: string | undefined): 'svg' | 'png' {
-  if (outputPath && extname(outputPath).toLowerCase() === '.svg') {
-    return 'svg';
-  }
+function inferFormat(outputPath: string | undefined): 'svg' | 'png' | 'pdf' {
+  const ext = outputPath ? extname(outputPath).toLowerCase() : '';
+  if (ext === '.svg') return 'svg';
+  if (ext === '.pdf') return 'pdf';
   return 'png';
 }
 
@@ -312,7 +315,7 @@ function cliImageResolver(
       if (!warnedWebpPng) {
         warnedWebpPng = true;
         console.error(
-          '⚠ WebP images cannot be drawn into a PNG — they show as placeholders. Export to .svg to keep them.'
+          '⚠ WebP images cannot be drawn into a PNG or PDF — they show as placeholders. Export to .svg to keep them.'
         );
       }
       return undefined;
@@ -1245,9 +1248,10 @@ async function main(): Promise<void> {
     // longer reaches for itself. Passed as the function, not its result — it
     // runs only if the content turns out to be a map.
     mapData: loadMapData,
+    // A PDF is a raster too (svg-to-pdf.ts), so it resolves images as PNG does.
     resolveImage: cliImageResolver(
       opts.input ? resolve(opts.input) : undefined,
-      format
+      format === 'svg' ? 'svg' : 'png'
     ),
   });
   let svg = rendered.svg;
@@ -1305,9 +1309,23 @@ async function main(): Promise<void> {
   const pngScale = opts.scale ?? DEFAULT_PNG_SCALE;
   if (opts.scale !== undefined && format === 'svg') {
     console.error(
-      'Warning: --scale applies to PNG output only; the SVG is written at its canvas size.'
+      'Warning: --scale applies to PNG and PDF output only; the SVG is written at its canvas size.'
     );
   }
+  // A PDF page has no transparency: a transparent theme is drawn on the
+  // palette's light background, as the app's PDF export does.
+  if (format === 'pdf' && chosen.theme === 'transparent') {
+    console.error(
+      'Warning: PDF has no transparent background; the diagram is drawn on the light background.'
+    );
+  }
+  const writeRaster = (outputPath: string) =>
+    writeFileSync(
+      outputPath,
+      format === 'pdf'
+        ? svgToPdf(svg, paletteColors.bg, pngScale)
+        : svgToPng(svg, pngBg, pngScale)
+    );
 
   if (opts.json) {
     // JSON mode: write file as normal but output JSON result to stdout
@@ -1317,7 +1335,7 @@ async function main(): Promise<void> {
       if (format === 'svg') {
         writeFileSync(outputPath, svg, 'utf-8');
       } else {
-        writeFileSync(outputPath, svgToPng(svg, pngBg, pngScale));
+        writeRaster(outputPath);
       }
     } else if (inputBasename) {
       outputPath = resolve(`${inputBasename}.png`);
@@ -1340,7 +1358,7 @@ async function main(): Promise<void> {
     if (format === 'svg') {
       writeFileSync(outputPath, svg, 'utf-8');
     } else {
-      writeFileSync(outputPath, svgToPng(svg, pngBg, pngScale));
+      writeRaster(outputPath);
     }
     console.error(`Wrote ${outputPath}`);
   } else if (inputBasename) {

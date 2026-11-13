@@ -13,7 +13,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fixed at 2x; it is still the default. `--scale 3` turns a 1200x800 canvas
   into a 3600x2400 PNG, `--scale 1` into a 1200x800 one, and fractions work.
   The layout does not change. With an `.svg` output the flag warns and the
-  SVG is unchanged.
+  SVG is unchanged. A scale whose image would pass 16384 x 16384 pixels exits
+  1 naming the largest scale that fits, where `--scale 1e6` used to abort
+  inside resvg with no message.
+- **CLI `-o file.pdf` writes a PDF (#1833).** A `.pdf` output path used to
+  get PNG bytes under a `.pdf` name. It is now a one-page PDF the size of the
+  canvas at 96 dpi (a 1200x800 canvas is a 900x600 pt page), holding the
+  diagram as one image at `--scale` pixels per canvas pixel (default 2), the
+  same shape as the app's PDF export. A transparent theme warns and draws on
+  the light background.
 - **`highlight` on `scatter`, `slope` and `treemap` (#1829).** A scatter
   takes a point or a category name, a slope a series, and a treemap a node:
   naming a branch keeps everything inside it. The rest recedes at reduced

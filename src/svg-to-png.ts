@@ -7,7 +7,7 @@
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { Resvg } from '@resvg/resvg-js';
+import { Resvg, type RenderedImage } from '@resvg/resvg-js';
 import { DEFAULT_FONT_NAME } from './fonts';
 import {
   textFromSvg,
@@ -28,11 +28,34 @@ const BUNDLED_COVERAGE = join(__dirname, '..', 'fonts', 'coverage.json');
 /** PNG pixels per SVG unit when the CLI is given no `--scale`. */
 export const DEFAULT_PNG_SCALE = 2;
 
+/**
+ * The most pixels the CLI will rasterise: 16384 x 16384, 1 GiB as RGBA.
+ * Past a cap like this resvg does not fail
+ * cleanly: at `--scale 1e6` it aborts the whole process in Rust ("memory
+ * allocation of 240000000000000000 bytes failed") with no message (#1833
+ * slice (a) review). An area, not a side: a very wide diagram such as a large
+ * org chart passes 16384 px across at the default scale and is still small.
+ */
+export const MAX_RASTER_PIXELS = 16384 * 16384;
+
 export function svgToPng(
   svg: string,
   background?: string,
   scale: number = DEFAULT_PNG_SCALE
 ): Buffer {
+  return rasterize(svg, background, scale).asPng();
+}
+
+/**
+ * The SVG as resvg's RGBA image, `scale` pixels per SVG unit. PNG and PDF
+ * output both start here, so they rasterise identically. Throws, naming the
+ * largest scale that fits, when the image would pass `MAX_RASTER_PIXELS`.
+ */
+export function rasterize(
+  svg: string,
+  background: string | undefined,
+  scale: number
+): RenderedImage {
   // Emoji are dropped before resvg sees them — see stripEmojiFromSvg (#1423).
   // SVG output never comes through here, so it keeps them.
   const omitted = emojiOmittedWarning(textFromSvg(svg));
@@ -59,8 +82,19 @@ export function svgToPng(
       sansSerifFamily: DEFAULT_FONT_NAME,
     },
   });
-  const rendered = resvg.render();
-  return rendered.asPng();
+  const pixels = resvg.width * scale * (resvg.height * scale);
+  if (pixels > MAX_RASTER_PIXELS) {
+    const fits =
+      Math.floor(
+        Math.sqrt(MAX_RASTER_PIXELS / (resvg.width * resvg.height)) * 100
+      ) / 100;
+    throw new Error(
+      `--scale ${scale} would make a ${Math.round(resvg.width * scale)}x${Math.round(resvg.height * scale)} image, ` +
+        `more than the ${MAX_RASTER_PIXELS} pixels dgmo rasterises. ` +
+        `This ${Math.round(resvg.width)}x${Math.round(resvg.height)} diagram fits up to --scale ${fits}.`
+    );
+  }
+  return resvg.render();
 }
 
 /**
