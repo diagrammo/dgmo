@@ -170,6 +170,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A day-scale date axis starting on the 1st of a month drew no ticks.**
+  Since the date tick density change (#1830), a gantt, timeline or dated line
+  chart spanning up to about three months and starting on the 1st came back
+  with an empty axis: the day before the 1st was computed as 31 December of
+  the same year instead of the year before, so ticks started a year late.
+
 - **A node or tag value named after a chart type no longer breaks the diagram (#1942).**
   In boxes-and-lines, org, mindmap, kanban and journey-map, a `Family`,
   `Kanban` or `Timeline` line near the top was read as a second chart

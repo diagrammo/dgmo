@@ -202,3 +202,26 @@ describe('computeTimeTicks density', () => {
     ]);
   });
 });
+
+describe('computeTimeTicks day axis starting on the 1st of a month', () => {
+  // Day 0 of a month is the last day of the month before. calendarDay once
+  // rolled it over in the year 2000 and set the year afterwards, so 1 Jan
+  // 2024 started the loop at 31 Dec 2024 and the axis came back empty.
+  it('draws ticks from the first day, with either converter', () => {
+    for (const conv of [undefined, EXACT]) {
+      const ticks = computeTimeTicks(
+        JAN_2024,
+        JAN_2024 + 0.15,
+        axis(JAN_2024, JAN_2024 + 0.15, 700),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        conv
+      );
+      expect(ticks.length).toBeGreaterThanOrEqual(2);
+      expect(ticks[0]!.label).toBe('Jan 1');
+    }
+  });
+});

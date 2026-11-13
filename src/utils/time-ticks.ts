@@ -82,10 +82,17 @@ const APPROXIMATE_CONVERTERS: FractionalYearConverters = {
   fromFractionalYear: fractionalYearToDate,
 };
 
-/** Midnight on a calendar day, with years 0–99 kept as written. */
+/**
+ * Midnight on a calendar day, with years 0–99 kept as written. A month or day
+ * out of range rolls over in `year` — day 0 of January is 31 December of the
+ * year before. Setting all three at once matters: building the date in 2000
+ * and setting the year afterwards turned that into 31 December of `year`
+ * itself, so a day axis starting on the 1st began a year late and drew no
+ * ticks at all.
+ */
 function calendarDay(year: number, month0: number, day: number): Date {
-  const d = new Date(2000, month0, day);
-  d.setFullYear(year);
+  const d = new Date(2000, 0, 1);
+  d.setFullYear(year, month0, day);
   return d;
 }
 
