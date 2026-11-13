@@ -580,6 +580,11 @@ interface ParsedChart {
      *  baseline at 0 (magnitude honesty / old ECharts-parity behavior). By
      *  default a line chart fits a padded data-min→max window (§15.1). */
     noAutoY?: boolean;
+    /** Line only (#1880): draw each series as steps. `after` (bare `step`)
+     *  starts a value on its own x; `before` (`step-before`) reaches it there. */
+    step?: 'after' | 'before';
+    /** Line of the step flag, for its diagnostics. */
+    stepLineNumber?: number;
     /** §1.11 emphasis: `highlight <Name>[, <Name>…]` on bar, line and pie
      *  (#1829). Last one wins. Resolved against the categories, series or
      *  slices at render time via `resolveEmphasis`. */

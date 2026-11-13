@@ -117,7 +117,10 @@ describe('which labels survive thinning', () => {
 });
 
 describe('the rendered axis', () => {
-  const rows = DATES.map((d, i) => `"${d}" ${(i % 9) + 1}`).join('\n');
+  // ISO dates now get a time axis on line (#1880), so the category-label
+  // cases use day-first dates, which are not ISO.
+  const DAY_FIRST = DATES.map((d) => d.split('-').reverse().join('-'));
+  const rows = DAY_FIRST.map((d, i) => `"${d}" ${(i % 9) + 1}`).join('\n');
 
   it('no longer stacks 29 date labels on top of each other', async () => {
     const svg = await renderDataChartD3(
@@ -127,7 +130,17 @@ describe('the rendered axis', () => {
     // Every surviving label is rotated, so none sits flat on the baseline.
     expect(svg).toContain('rotate(-40)');
     // and nothing was dropped — rotation bought enough room on its own.
-    for (const d of DATES) expect(svg).toContain(`>${d}<`);
+    for (const d of DAY_FIRST) expect(svg).toContain(`>${d}<`);
+  });
+
+  it('gives 29 ISO dates a flat time axis instead (#1880)', async () => {
+    const iso = DATES.map((d, i) => `${d} ${(i % 9) + 1}`).join('\n');
+    const svg = await renderDataChartD3(
+      `line Active installs\n\n${iso}`,
+      'light'
+    );
+    expect(svg).not.toContain('rotate(-40)');
+    expect(svg).not.toContain(`>${DATES[3]}<`);
   });
 
   it('leaves a four-category chart flat and unthinned', async () => {

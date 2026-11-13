@@ -97,6 +97,11 @@ export interface ParsedChart {
    *  baseline at 0 (magnitude honesty / old ECharts-parity behavior). By
    *  default a line chart fits a padded data-min→max window (§15.1). */
   noAutoY?: boolean;
+  /** Line only (#1880): draw each series as steps. `after` (bare `step`)
+   *  starts a value on its own x; `before` (`step-before`) reaches it there. */
+  step?: 'after' | 'before';
+  /** Line of the step flag, for its diagnostics. */
+  stepLineNumber?: number;
   /** §1.11 emphasis: `highlight <Name>[, <Name>…]` on bar, line and pie
    *  (#1829). Last one wins. Resolved against the categories, series or
    *  slices at render time via `resolveEmphasis`. */
@@ -187,6 +192,8 @@ const KNOWN_BOOLEANS = new Set([
   'no-legend',
   'legend-inline',
   'no-auto-y',
+  'step',
+  'step-before',
   'fill',
   'hole',
 ]);
@@ -436,6 +443,19 @@ export function parseChart(
         result.legendInline = true;
       } else if (firstToken === 'no-auto-y') {
         result.noAutoY = true;
+      } else if (firstToken === 'step' || firstToken === 'step-before') {
+        const want = firstToken === 'step' ? 'after' : 'before';
+        if (result.step !== undefined && result.step !== want) {
+          result.diagnostics.push(
+            makeDgmoError(
+              lineNumber,
+              '`step` and `step-before` cannot both be set — keep one.',
+              'error'
+            )
+          );
+        }
+        result.step = want;
+        result.stepLineNumber = lineNumber;
       } else if (firstToken === 'fill') {
         result.fill = true;
       } else if (firstToken === 'hole') {
@@ -826,6 +846,15 @@ export function parseChart(
   }
 
   if (!result.error) settleChartAxes(result);
+
+  // `step` and `step-before` draw a line's segments (#1880); nowhere else.
+  if (result.step !== undefined && result.type !== 'line') {
+    warn(
+      result.stepLineNumber ?? 1,
+      `\`${result.step === 'after' ? 'step' : 'step-before'}\` applies only to line charts; ignoring it on "${result.type}".`
+    );
+    delete result.step;
+  }
 
   return result;
 }

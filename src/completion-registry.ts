@@ -171,6 +171,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'no-legend': { description: 'Hide the legend' },
       series: { description: 'Series name(s)' },
       fill: { description: 'Fill under the line (area chart)' },
+      step: { description: 'Hold each value until the next point' },
+      'step-before': {
+        description: 'Steps that reach each value at its own point',
+      },
       'x-label': { description: 'X-axis label' },
       'y-label': { description: 'Y-axis label (left axis)' },
       'y-scale': {

@@ -6,7 +6,17 @@
 
 import { scalePoint } from 'd3-scale';
 import { buildValueAxis, type ValueAxis } from './value-axis';
-import { line as d3line, area as d3area } from 'd3-shape';
+import {
+  line as d3line,
+  area as d3area,
+  curveLinear,
+  curveStepAfter,
+  curveStepBefore,
+} from 'd3-shape';
+import { buildDateAxis, isoDatesOf } from './date-axis';
+
+/** Gap between a time axis's first/last point and the plot edge (#1880). */
+const DATE_AXIS_INSET = 16;
 import type { ParsedChart } from '../chart';
 import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
@@ -156,28 +166,60 @@ export function renderLine(
   // scalePoint with padding(0.5) puts one slot's worth of space between
   // adjacent points, and half a slot at each end. Rotated labels hang left of
   // the first point, so the margin may grow to keep them inside the SVG.
-  const fit = planLabelsFitLeft(
-    data.map((d) => d.label),
-    mLeft0,
-    (ml) => width - ml - mRight,
-    (pw) => (data.length > 0 ? pw / data.length : pw),
-    (pw) => (data.length > 0 ? pw / data.length : pw) * 0.5
-  );
-  const mLeft = fit.mLeft;
-  const plotW = fit.plotW;
-  const labelPlan = fit.plan;
+  // A time axis when every row is an ISO date (#1880); else categories. A
+  // time axis labels its own ticks flat, so it needs no label fit.
+  const dates = isoDatesOf(data.map((d) => d.label));
+  const fit = dates
+    ? null
+    : planLabelsFitLeft(
+        data.map((d) => d.label),
+        mLeft0,
+        (ml) => width - ml - mRight,
+        (pw) => (data.length > 0 ? pw / data.length : pw),
+        (pw) => (data.length > 0 ? pw / data.length : pw) * 0.5
+      );
+  const mLeft = fit ? fit.mLeft : mLeft0;
+  const plotW = fit ? fit.plotW : width - mLeft0 - mRight;
+  const labelPlan = fit?.plan;
   const m: Margins = {
     top: top + 8,
     right: mRight,
-    bottom: Math.max(64, labelPlan.height + (chart.xlabel ? 40 : 18)),
+    bottom: Math.max(
+      64,
+      (labelPlan?.height ?? TICK_FONT + 10) + (chart.xlabel ? 40 : 18)
+    ),
     left: mLeft,
   };
   const plotH = height - m.top - m.bottom;
 
-  const x = scalePoint<string>()
+  const pointX = scalePoint<string>()
     .domain(data.map((d) => d.label))
     .range([m.left, m.left + plotW])
     .padding(0.5);
+  // Inset so the first and last points never sit on the plot's edge.
+  const dateAxis = dates
+    ? buildDateAxis(
+        dates,
+        [m.left + DATE_AXIS_INSET, m.left + plotW - DATE_AXIS_INSET],
+        { fontSize: TICK_FONT }
+      )
+    : null;
+  /** Row → x. Dated rows sit at their time; category rows at their slot. */
+  const xOfRow = (i: number): number =>
+    dateAxis && dates ? dateAxis.x(dates[i]!) : (pointX(data[i]!.label) ?? 0);
+  const xOfLabel = (label: string): number | undefined => {
+    if (!dateAxis) return pointX(label);
+    const i = data.findIndex((d) => d.label === label);
+    return i < 0 ? undefined : xOfRow(i);
+  };
+  // `step` / `step-before` (#1880): each value holds until the next point;
+  // the last one stops at the last point.
+  const curve =
+    chart.step === 'after'
+      ? curveStepAfter
+      : chart.step === 'before'
+        ? curveStepBefore
+        : curveLinear;
   const yL = leftAxis([m.top + plotH, m.top]);
   const yR: ValueAxis | null = dual
     ? buildValueAxis(loR, hiR, undefined, [m.top + plotH, m.top], {
@@ -194,8 +236,8 @@ export function renderLine(
   const eraTitles: LabelRect[] = [];
   if (chart.eras?.length) {
     chart.eras.forEach((era, i) => {
-      const xs = x(era.start);
-      const xe = x(era.end);
+      const xs = xOfLabel(era.start);
+      const xe = xOfLabel(era.end);
       if (xs == null || xe == null) return;
       const fill = era.color ?? colors[i % colors.length]!;
       svg
@@ -266,14 +308,38 @@ export function renderLine(
 
   // x category labels — thinned, and rotated when thinning alone would cost too
   // many of them. See planCategoryLabels in ./shared.
-  drawCategoryLabels(
-    svg,
-    data.map((d) => d.label),
-    labelPlan,
-    (i) => x(data[i]!.label) ?? 0,
-    m.top + plotH,
-    textColor
-  );
+  if (dateAxis) {
+    // Time ticks: a short mark on the axis and a flat label beneath it.
+    for (const t of dateAxis.ticks) {
+      svg
+        .append('line')
+        .attr('x1', t.pos)
+        .attr('x2', t.pos)
+        .attr('y1', m.top + plotH)
+        .attr('y2', m.top + plotH + 4)
+        .attr('stroke', mutedColor)
+        .attr('stroke-opacity', 0.6);
+      svg
+        .append('text')
+        .attr('class', 'dgmo-tick')
+        .attr('x', t.pos)
+        .attr('y', m.top + plotH + TICK_FONT + 6)
+        .attr('text-anchor', 'middle')
+        .attr('fill', textColor)
+        .attr('font-size', TICK_FONT)
+        .attr('font-family', FONT_FAMILY)
+        .text(t.label);
+    }
+  } else if (labelPlan) {
+    drawCategoryLabels(
+      svg,
+      data.map((d) => d.label),
+      labelPlan,
+      xOfRow,
+      m.top + plotH,
+      textColor
+    );
+  }
 
   // Transparent hit-target over the plot area — the interaction adapter reads
   // its bounds for crosshair extent and snapping (see charts-d3/interactions.ts).
@@ -328,9 +394,10 @@ export function renderLine(
 
     if (isArea) {
       const areaGen = d3area<(typeof pts)[number]>()
-        .x((p) => x(p.label) ?? 0)
+        .x((p) => xOfRow(p.xIndex))
         .y0(yy(yy.baseline))
-        .y1((p) => yy(p.v));
+        .y1((p) => yy(p.v))
+        .curve(curve);
       g.append('path')
         .attr('class', 'dgmo-series-area')
         .attr('d', areaGen(pts) ?? '')
@@ -339,8 +406,9 @@ export function renderLine(
     }
 
     const lineGen = d3line<(typeof pts)[number]>()
-      .x((p) => x(p.label) ?? 0)
-      .y((p) => yy(p.v));
+      .x((p) => xOfRow(p.xIndex))
+      .y((p) => yy(p.v))
+      .curve(curve);
     g.append('path')
       .attr('class', 'dgmo-series-line')
       .attr('d', lineGen(pts) ?? '')
@@ -374,7 +442,7 @@ export function renderLine(
         .attr('data-x-label', p.label)
         .attr('data-value', p.v)
         .attr('data-line-number', p.lineNumber)
-        .attr('cx', x(p.label) ?? 0)
+        .attr('cx', xOfRow(p.xIndex))
         .attr('cy', yy(p.v))
         .attr('r', 3.5)
         .attr('fill', bgColor)
@@ -383,7 +451,7 @@ export function renderLine(
       if (!chart.noValue) {
         valueLabels.push({
           text: fmtNum(p.v),
-          cx: x(p.label) ?? 0,
+          cx: xOfRow(p.xIndex),
           cy: yy(p.v),
           v: p.v,
           endpoint: p.xIndex === 0 || p.xIndex === pts.length - 1,

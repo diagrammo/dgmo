@@ -24,7 +24,11 @@ import { isResolverError, resolveTaskName } from './resolver';
 import { resolveTagColor, resolveActiveTagGroup } from '../utils/tag-groups';
 import { ScaleContext } from '../utils/scaling';
 import { renderCollapseBar } from '../utils/card';
-import { computeTimeTicks, MONTH_ABBR } from '../utils/time-ticks';
+import {
+  computeTimeTicks,
+  EXACT_FRACTIONAL_YEAR,
+  MONTH_ABBR,
+} from '../utils/time-ticks';
 import {
   measureText,
   truncateText,
@@ -3852,31 +3856,8 @@ function durationWeightedProgress(tasks: ResolvedTask[]): number | null {
     : null;
 }
 
-function dateToFractionalYear(d: Date): number {
-  const y = d.getFullYear();
-  const startOfYear = new Date(y, 0, 1);
-  const endOfYear = new Date(y + 1, 0, 1);
-  const fraction =
-    (d.getTime() - startOfYear.getTime()) /
-    (endOfYear.getTime() - startOfYear.getTime());
-  return y + fraction;
-}
-
-/** Inverse of `dateToFractionalYear`, so axis ticks share the bars' scale (#1414). */
-function fractionalYearToDate(frac: number): Date {
-  const y = Math.floor(frac);
-  const startOfYear = new Date(y, 0, 1);
-  const endOfYear = new Date(y + 1, 0, 1);
-  return new Date(
-    startOfYear.getTime() +
-      (frac - y) * (endOfYear.getTime() - startOfYear.getTime())
-  );
-}
-
-const EXACT_FRACTIONAL_YEAR = {
-  toFractionalYear: dateToFractionalYear,
-  fromFractionalYear: fractionalYearToDate,
-};
+// Exact converters, shared with line's date axis (#1880).
+const dateToFractionalYear = EXACT_FRACTIONAL_YEAR.toFractionalYear;
 
 // ── Hover Date Indicators ───────────────────────────────────
 

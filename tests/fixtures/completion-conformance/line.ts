@@ -14,6 +14,9 @@ export const fixture: ConformanceFixture = {
     'no-legend',
     'series',
     'fill',
+    // #1880 step line.
+    'step',
+    'step-before',
     'x-label',
     'y-label',
     'y-right-label',

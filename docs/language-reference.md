@@ -2547,6 +2547,8 @@ no-center-total          // pie: hide the center total (shown by default when `h
 sort                     // pie: order slices largest first (`sort asc` = smallest first)
 other-below 5%           // pie: merge slices under 5% of the total into one "Other"
 no-auto-y                // line: anchor the y-axis at 0 (opt out of auto-fit)
+step                     // line: hold each value until the next point (§15.1.3)
+step-before              // line: steps that reach each value at its own point
 ```
 
 - `orientation-horizontal` (bar; default is vertical bars). A vertical bar
@@ -2658,6 +2660,37 @@ y-max 1,000,000  // fix the upper end
   function chart plots only the samples above 0. **A stacked bar cannot be
   log**: its segments would not add up, so it warns and stays linear.
 - **Not here:** number format for tick labels (#1831) and date ticks (#1880).
+
+#### 15.1.3 Time axis and steps (line)
+
+**Time axis.** When **every** row's label is an ISO date — `YYYY-MM-DD` or
+`YYYY-MM` — a line chart places each row at its date, not in an evenly spaced
+slot (#1880). The axis labels its own ticks, picked by span (years, months,
+weeks, days), with the same generator gantt and timeline use. Anything else
+keeps the category axis: bare years (`2024`), quarter names, a mix of dates
+and words, or an impossible date (`2023-02-30`). Eras (§15.1) on a time axis
+span from their start row's date to their end row's date.
+
+**Steps.** Two bare flags draw every series as steps — each value holds flat
+until the next point, then jumps:
+
+```
+line Fed funds rate
+step             // or: step-before
+y-label Rate (%)
+2022-01 0.25
+2022-03 0.50
+2023-07 5.50
+```
+
+- `step` — the new value starts on its own x (horizontal, then vertical).
+- `step-before` — the new value is reached on its own x (vertical, then
+  horizontal), as for a balance at month end.
+- Setting both is an error. On any chart type but line they warn and are
+  ignored.
+- The flag covers the whole chart. They combine with `series`, `fill` and the
+  time axis. The last value stops at the last point; nothing is drawn past it.
+- Points, hover and value labels stay on the data values at each row.
 
 ### 15.2 Scatter / Bubble Charts
 

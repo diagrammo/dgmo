@@ -394,3 +394,24 @@ function fitTickLabels(
   }
   return withPinned([]).map(strip);
 }
+
+/**
+ * Exact calendar converters: a date's real share of its own year. Gantt places
+ * bars with them (#1414) and line places dated rows with them (#1880), so the
+ * same date sits at the same x and the ticks share the marks' scale. Pass as
+ * `computeTimeTicks`'s `converters`. Local time, like every dgmo date.
+ */
+export const EXACT_FRACTIONAL_YEAR = {
+  toFractionalYear(this: void, d: Date): number {
+    const y = d.getFullYear();
+    const start = new Date(y, 0, 1).getTime();
+    const end = new Date(y + 1, 0, 1).getTime();
+    return y + (d.getTime() - start) / (end - start);
+  },
+  fromFractionalYear(this: void, frac: number): Date {
+    const y = Math.floor(frac);
+    const start = new Date(y, 0, 1).getTime();
+    const end = new Date(y + 1, 0, 1).getTime();
+    return new Date(start + (frac - y) * (end - start));
+  },
+};
