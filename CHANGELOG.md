@@ -93,6 +93,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`--width` with `--height` comes back exactly that size (#1833).** A
+  chart type that lays out onto the canvas — pie, polar area, radar, funnel,
+  venn, chord and the radial treemap — was trimmed to its content and scaled
+  back up, so only one side matched: `--width 1000 --height 600` gave a pie
+  978x600 and a venn 518x600. With both sides asked for, `render()` now keeps
+  that canvas, in SVG, PNG and PDF alike. The data charts already did; chart
+  types that size themselves from their content (flowchart, org, sequence,
+  map and others) are unchanged.
 - **`wordcloud` draws every word in one hue (#1931).** Words took the next
   palette colour each, so the hues encoded nothing; size already carries the
   weight. Every word is now the palette's primary, the same default a

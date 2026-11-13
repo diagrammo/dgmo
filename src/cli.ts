@@ -137,8 +137,10 @@ Render options:
   --width <px>         Canvas width. Chart types that size themselves from
                        their content treat it as a maximum and warn if their
                        content does not fit
-  --height <px>        Canvas height. Most chart types derive it from the
-                       content and ignore this
+  --height <px>        Canvas height. With --width too, chart types that lay
+                       out onto the canvas (data charts, pie, radar, venn, …)
+                       come back exactly that size; types that size
+                       themselves from their content still ignore it
   --scale <n>          PNG pixels per canvas pixel (default: ${DEFAULT_PNG_SCALE}). A
                        1200x800 diagram at --scale 3 is a 3600x2400 PNG.
                        In a PDF it sets the image's resolution, not the

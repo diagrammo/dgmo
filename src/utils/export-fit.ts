@@ -850,7 +850,9 @@ function setRootAttr(root: string, name: string, value: string): string {
  *
  * A caller that asked for a size gets it: when the renderer drew onto the
  * requested canvas, the fitted frame is scaled back up to that width (and/or
- * height, whichever binds first) — fit first, then the requested scale.
+ * height, whichever binds first) — fit first, then the requested scale. A
+ * caller that asked for BOTH, on a renderer that drew onto exactly that
+ * canvas, gets the canvas back untouched: the exact size it named.
  */
 export function fitSvgToContent(
   svg: string,
@@ -863,6 +865,21 @@ export function fitSvgToContent(
   if (/\sdata-export-(?:width|height)=/.test(root)) return svg;
   const canvas = readViewBox(svg);
   if (!canvas) return svg;
+
+  const rootW = Number(attrOf(root.slice(4), 'width'));
+  const rootH = Number(attrOf(root.slice(4), 'height'));
+  // Both sides asked for, and the renderer drew onto exactly that canvas: the
+  // caller named the frame, so it is kept (#1833). Trimming to the content
+  // and scaling back up would honour only whichever side binds first.
+  if (
+    opts.width &&
+    opts.width > 0 &&
+    opts.height &&
+    opts.height > 0 &&
+    Math.abs(rootW - opts.width) <= 1 &&
+    Math.abs(rootH - opts.height) <= 1
+  )
+    return svg;
 
   const { box, complete } = measureSvgContent(svg);
   if (!complete || !box) return svg;
@@ -903,8 +920,6 @@ export function fitSvgToContent(
   const h = y1 - y0;
 
   // Root size follows the frame, at the renderer's own px-per-unit ratio.
-  const rootW = Number(attrOf(root.slice(4), 'width'));
-  const rootH = Number(attrOf(root.slice(4), 'height'));
   const sx = rootW > 0 ? rootW / canvas.width : 1;
   const sy = rootH > 0 ? rootH / canvas.height : 1;
   let outW = w * sx;
