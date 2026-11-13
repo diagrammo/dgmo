@@ -55,9 +55,9 @@ export function bundledFaces(): EmbedFace[] {
 /**
  * Inter is under the SIL Open Font License 1.1, which lets a subset travel
  * inside a file provided each copy carries the copyright notice and the
- * licence, and allows the font's own metadata fields to carry them. harfbuzz
- * keeps name IDs 0-6 (the copyright among them) and drops the rest; 13 and 14
- * are the licence description and its URL.
+ * license, and allows the font's own metadata fields to carry them.
+ * subset-font keeps name IDs 0-6 (the copyright among them) and drops the
+ * rest; 13 and 14 are the license description and its URL.
  */
 const OFL_NAME_IDS = [13, 14];
 
