@@ -8,6 +8,10 @@
 // repo so the output matches the ECharts path's house style.
 // ============================================================
 
+import {
+  makeNumberFormatter,
+  type NumberFormatSpec,
+} from '../utils/number-format';
 import type * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import { measureText, truncateText } from '../utils/text-measure';
@@ -43,6 +47,16 @@ export interface Margins {
 export const AXIS_LABEL_FONT = 13;
 export const TICK_FONT = 12;
 export const VALUE_FONT = 12;
+
+/**
+ * The number formatter for one chart (#1831): the author's `format`, `unit`
+ * and `locale`, or `fmtNum` when none is set.
+ */
+export function chartFormatter(chart: {
+  numberFormat?: NumberFormatSpec | undefined;
+}): (n: number) => string {
+  return makeNumberFormatter(chart.numberFormat, fmtNum);
+}
 
 /** Format a numeric tick/value: trim trailing zeros, keep it compact. */
 export function fmtNum(n: number): string {

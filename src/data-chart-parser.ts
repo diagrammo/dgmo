@@ -63,6 +63,8 @@ import type { ChartFrame } from './utils/chart-frame-parse';
 import { parseChartFrameLine } from './utils/chart-frame-parse';
 import type { AxisName, AxisSpecs } from './utils/axis-spec';
 import { parseAxisLine, settleAxisSpec } from './utils/axis-spec';
+import type { NumberFormatSpec } from './utils/number-format';
+import { parseNumberFormatLine } from './utils/number-format';
 
 // ============================================================
 // Discriminated union — Story 109.2a (arch-review). Each extended data-chart
@@ -91,6 +93,8 @@ export interface ParsedExtendedBase {
   xRange?: { min: number; max: number };
   /** `y-scale` / `y-min` / `y-max`, and the `x-` forms on scatter (#1830). */
   axes?: AxisSpecs;
+  /** `format`, `unit`, `locale` (#1831) on the types that print values. */
+  numberFormat?: NumberFormatSpec;
   noName?: boolean;
   noValue?: boolean;
   noPercent?: boolean;
@@ -601,6 +605,13 @@ function parseExtendedChartFull(
     // flow rows, so `source -> Sink 5` stays a flow; before the sankey bare
     // label, which would otherwise read `source Census` as a node.
     if (parseChartFrameLine(result, lines[i]!, lineNumber, result.diagnostics))
+      continue;
+
+    // Number format (#1831), on the types that print numbers.
+    if (
+      FORMATTED_TYPES.has(result.type) &&
+      parseNumberFormatLine(trimmed, lineNumber, result, result.diagnostics)
+    )
       continue;
 
     // Axis directives (#1830). Only scatter and function draw a numeric
@@ -1117,6 +1128,13 @@ function parseExtendedChartFull(
 }
 
 const NO_AXES: ReadonlySet<AxisName> = new Set();
+/** Extended types whose printed numbers take `format` / `unit` / `locale`. */
+const FORMATTED_TYPES: ReadonlySet<ExtendedChartType> = new Set([
+  'scatter',
+  'function',
+  'heatmap',
+  'funnel',
+]);
 /** The numeric axes each extended chart type has (#1830). */
 const EXTENDED_AXES: Partial<Record<ExtendedChartType, ReadonlySet<AxisName>>> =
   {

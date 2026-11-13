@@ -30,7 +30,7 @@ import {
   type InlineTitleInfo,
   TICK_FONT,
   VALUE_FONT,
-  fmtNum,
+  chartFormatter,
   reserveHeader,
   computeLeftMargin,
   drawXAxisTitle,
@@ -80,6 +80,8 @@ export function renderBar(
   hasTitle: boolean,
   inlineTitle?: InlineTitleInfo
 ): void {
+  // The author's `format` / `unit` / `locale` (#1831).
+  const fmt = chartFormatter(chart);
   const data = chart.data;
   const seriesNames = chart.seriesNames?.length
     ? chart.seriesNames
@@ -172,7 +174,7 @@ export function renderBar(
   // Left margin must fit the rotated y-title + the left-edge labels: category
   // names for horizontal bars, value ticks for vertical.
   const catLabels = data.map((d) => d.label);
-  const valueTicks = probeTicks.map(fmtNum);
+  const valueTicks = probeTicks.map(fmt);
   // Vertical bars carry their category names under the axis, so they need the
   // same fit treatment as line. Horizontal bars put them in the left gutter,
   // which computeLeftMargin already sizes. Rotated labels hang left of the
@@ -280,7 +282,7 @@ export function renderBar(
         .attr('fill', textColor)
         .attr('font-size', TICK_FONT)
         .attr('font-family', FONT_FAMILY)
-        .text(fmtNum(t));
+        .text(fmt(t));
     } else {
       const y = val(t);
       svg
@@ -299,7 +301,7 @@ export function renderBar(
         .attr('fill', textColor)
         .attr('font-size', TICK_FONT)
         .attr('font-family', FONT_FAMILY)
-        .text(fmtNum(t));
+        .text(fmt(t));
     }
   }
 
@@ -357,7 +359,7 @@ export function renderBar(
   const valueSpot = (base: number, s: number, v: number): ValueSpot => {
     const off = inner!(s) ?? 0;
     const bw = inner!.bandwidth();
-    const text = fmtNum(v);
+    const text = fmt(v);
     if (horiz) {
       const x1 = val(v);
       const approxW = text.length * 7 + 6;
@@ -431,7 +433,7 @@ export function renderBar(
           if (Math.abs(x1 - x0) > 26)
             drawValueLabel(
               svg,
-              fmtNum(v),
+              fmt(v),
               (x0 + x1) / 2,
               base + cat.bandwidth() / 2 + 4,
               textColor
@@ -453,7 +455,7 @@ export function renderBar(
           if (Math.abs(y1 - y0) > 18)
             drawValueLabel(
               svg,
-              fmtNum(v),
+              fmt(v),
               base + cat.bandwidth() / 2,
               (y0 + y1) / 2 + 4,
               textColor

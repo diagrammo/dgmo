@@ -27,6 +27,7 @@ import {
 } from './diagnostics';
 import { SWIMLANE_DIAGNOSTICS } from './swimlane/diagnostics';
 import { AXIS_DIAGNOSTICS } from './utils/axis-spec';
+import { NUMBER_FORMAT_DX } from './utils/number-format';
 import { RACI_DIAGNOSTICS } from './raci/diagnostics';
 import { SWOT_DIAGNOSTICS } from './swot/diagnostics';
 import { TREEMAP_DIAGNOSTICS } from './treemap/diagnostics';
@@ -159,6 +160,9 @@ export const UNIVERSAL_DIAGNOSTICS: DiagnosticSpec[] = [
 
   // ── Axis directives (#1830) ──
   ...AXIS_DIAGNOSTICS,
+
+  // ── Number format (#1831) ──
+  NUMBER_FORMAT_DX,
 
   // ── Negative value on a magnitude channel (pie/polar-area/radar/funnel/
   //    sankey/arc/wordcloud/treemap size/map size:/width:) ──

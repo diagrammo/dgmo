@@ -18,7 +18,7 @@ import {
 } from '../utils/text-measure';
 import { labelBox, placeLabels, type LabelSpot } from '../utils/place-labels';
 import type { LabelRect } from '../label-layout';
-import { type Svg, fmtNum, tagDatum } from './shared';
+import { type Svg, chartFormatter, tagDatum } from './shared';
 
 const RINGS = 5;
 
@@ -123,6 +123,8 @@ export function renderRadar(
   mutedColor: string,
   topInset: number
 ): void {
+  // The author's `format` / `unit` / `locale` (#1831).
+  const fmt = chartFormatter(chart);
   const data = chart.data;
   const n = data.length;
   if (n < 3) return;
@@ -238,7 +240,7 @@ export function renderRadar(
     return {
       x: cx + Math.cos(mid) * rm + 3,
       y: cy + Math.sin(mid) * rm - 2,
-      text: fmtNum(Number(((maxValue * (k + 1)) / RINGS).toPrecision(2))),
+      text: fmt(Number(((maxValue * (k + 1)) / RINGS).toPrecision(2))),
     };
   });
   // In a small view the rings sit closer than a number is tall: keep the
@@ -333,7 +335,7 @@ export function renderRadar(
         line: d.lineNumber,
         key: multi ? `${name} ${d.label}` : d.label,
         name: multi ? `${name} — ${d.label}` : d.label,
-        value: fmtNum(v),
+        value: fmt(v),
         color,
       });
       if (!chart.noValue) {
@@ -348,7 +350,7 @@ export function renderRadar(
         values.push({
           g,
           vtx: vtx.node()!,
-          text: fmtNum(v),
+          text: fmt(v),
           v,
           x,
           y,

@@ -11,6 +11,7 @@ import type { DgmoError } from '../diagnostics';
 import type { ChartFrame } from '../utils/chart-frame-parse';
 import type { EmphasisDirective } from '../utils/emphasis';
 import type { AxisSpecs } from '../utils/axis-spec';
+import type { NumberFormatSpec } from '../utils/number-format';
 import type {
   TimelineSort,
   TimelineEvent,
@@ -147,6 +148,8 @@ export interface ParsedSlope extends ParsedVizBase {
   emphasis?: EmphasisDirective;
   /** `y-scale` / `y-min` / `y-max`: the vertical range (#1830). */
   axes?: AxisSpecs;
+  /** `format`, `unit`, `locale` (#1831). */
+  numberFormat?: NumberFormatSpec;
   noName?: boolean;
   noValue?: boolean;
   noPercent?: boolean;
@@ -247,6 +250,8 @@ export interface ParsedVizFull extends ParsedVizBase {
   emphasis?: EmphasisDirective;
   /** Axis directives — read by slope only (#1830). */
   axes?: AxisSpecs;
+  /** Number format — read by slope only (#1831). */
+  numberFormat?: NumberFormatSpec;
   words: WordCloudWord[];
   cloudOptions: WordCloudOptions;
   links: ArcLink[];

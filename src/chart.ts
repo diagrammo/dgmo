@@ -26,6 +26,8 @@ import { parseChartFrameLine } from './utils/chart-frame-parse';
 import type { EmphasisDirective } from './utils/emphasis';
 import { parseEmphasisDirective } from './utils/emphasis';
 import type { AxisName, AxisSpecs } from './utils/axis-spec';
+import type { NumberFormatSpec } from './utils/number-format';
+import { parseNumberFormatLine } from './utils/number-format';
 import {
   AXIS_DIRECTIVE_DX,
   parseAxisLine,
@@ -109,6 +111,8 @@ export interface ParsedChart {
   /** `y-scale` / `y-min` / `y-max` on bar and line (#1830). On a dual-axis
    *  line they set the left axis; the right axis keeps its auto-fit. */
   axes?: AxisSpecs;
+  /** `format`, `unit`, `locale` (#1831): how every printed number reads. */
+  numberFormat?: NumberFormatSpec;
   data: ChartDataPoint[];
   eras?: ChartEra[];
   diagnostics: DgmoError[];
@@ -466,6 +470,10 @@ export function parseChart(
 
     // Frame directives: subtitle, source, footnote, byline (#1827).
     if (parseChartFrameLine(result, lines[i]!, lineNumber, result.diagnostics))
+      continue;
+
+    // Number format (#1831): `format …`, `unit …`, `locale …`.
+    if (parseNumberFormatLine(trimmed, lineNumber, result, result.diagnostics))
       continue;
 
     // Axis directives (#1830): `y-scale log`, `y-min N`, `y-max N`.

@@ -3,6 +3,7 @@ import {
   FRAME_DIRECTIVES,
   X_AXIS_DIRECTIVES,
   Y_AXIS_DIRECTIVES,
+  NUMBER_FORMAT_DIRECTIVES,
 } from './_frame';
 
 // Spec §16 / §15.2. Point-cloud — supports `no-name`. `size-label` for
@@ -13,6 +14,8 @@ export const fixture: ConformanceFixture = {
   firstLineKeyword: 'scatter',
   directives: [
     ...FRAME_DIRECTIVES,
+    // #1831 number format.
+    ...NUMBER_FORMAT_DIRECTIVES,
     // #1830 axis range and scale.
     ...Y_AXIS_DIRECTIVES,
     ...X_AXIS_DIRECTIVES,

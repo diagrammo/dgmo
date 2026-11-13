@@ -153,6 +153,20 @@ interface AxisSpec {
 }
 type AxisSpecs = Partial<Record<AxisName, AxisSpec>>;
 
+interface NumberFormatSpec {
+    kind?: 'currency' | 'percent' | 'compact' | 'pattern';
+    /** ISO 4217 code for `format currency`. */
+    currency?: string;
+    /** Fixed decimal places, when the author gave a count. */
+    decimals?: number;
+    /** The d3-format string of `format "…"`. */
+    pattern?: string;
+    /** Text after every number: `unit ms` → `3 ms`. */
+    unit?: string;
+    /** BCP 47 tag for separators and currency placement. Default `en-US`. */
+    locale?: string;
+}
+
 type TimelineSort = 'time' | 'group' | 'tag';
 interface TimelineEvent {
     date: string;
@@ -272,6 +286,8 @@ interface ParsedSlope extends ParsedVizBase {
     emphasis?: EmphasisDirective;
     /** `y-scale` / `y-min` / `y-max`: the vertical range (#1830). */
     axes?: AxisSpecs;
+    /** `format`, `unit`, `locale` (#1831). */
+    numberFormat?: NumberFormatSpec;
     noName?: boolean;
     noValue?: boolean;
     noPercent?: boolean;
@@ -592,6 +608,8 @@ interface ParsedChart {
     /** `y-scale` / `y-min` / `y-max` on bar and line (#1830). On a dual-axis
      *  line they set the left axis; the right axis keeps its auto-fit. */
     axes?: AxisSpecs;
+    /** `format`, `unit`, `locale` (#1831): how every printed number reads. */
+    numberFormat?: NumberFormatSpec;
     data: ChartDataPoint[];
     eras?: ChartEra[];
     diagnostics: DgmoError[];
@@ -958,6 +976,8 @@ interface ParsedExtendedBase {
     };
     /** `y-scale` / `y-min` / `y-max`, and the `x-` forms on scatter (#1830). */
     axes?: AxisSpecs;
+    /** `format`, `unit`, `locale` (#1831) on the types that print values. */
+    numberFormat?: NumberFormatSpec;
     noName?: boolean;
     noValue?: boolean;
     noPercent?: boolean;

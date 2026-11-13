@@ -32,7 +32,7 @@ import {
   type InlineTitleInfo,
   TICK_FONT,
   VALUE_FONT,
-  fmtNum,
+  chartFormatter,
   reserveHeader,
   computeLeftMargin,
   drawXAxisTitle,
@@ -65,6 +65,8 @@ export function renderLine(
   hasTitle: boolean,
   inlineTitle?: InlineTitleInfo
 ): void {
+  // The author's `format` / `unit` / `locale` (#1831).
+  const fmt = chartFormatter(chart);
   const data = chart.data;
   // `line` + a `fill` directive → filled (area) rendering. (#25)
   const isArea = chart.fill === true;
@@ -160,9 +162,9 @@ export function renderLine(
   // know how much room one category owns, and the bottom margin then follows
   // from the plan (rotated labels stand taller than flat ones).
   const mRight = dual
-    ? computeLeftMargin(chart.yrlabel, [fmtNum(hiR), fmtNum(loR)])
+    ? computeLeftMargin(chart.yrlabel, [fmt(hiR), fmt(loR)])
     : 32;
-  const mLeft0 = computeLeftMargin(chart.ylabel, probeL.map(fmtNum));
+  const mLeft0 = computeLeftMargin(chart.ylabel, probeL.map(fmt));
   // scalePoint with padding(0.5) puts one slot's worth of space between
   // adjacent points, and half a slot at each end. Rotated labels hang left of
   // the first point, so the margin may grow to keep them inside the SVG.
@@ -287,7 +289,7 @@ export function renderLine(
       .attr('fill', leftTint ?? textColor)
       .attr('font-size', TICK_FONT)
       .attr('font-family', FONT_FAMILY)
-      .text(fmtNum(t));
+      .text(fmt(t));
   }
 
   // right y ticks (no gridlines)
@@ -302,7 +304,7 @@ export function renderLine(
         .attr('fill', rightTint ?? textColor)
         .attr('font-size', TICK_FONT)
         .attr('font-family', FONT_FAMILY)
-        .text(fmtNum(t));
+        .text(fmt(t));
     }
   }
 
@@ -450,7 +452,7 @@ export function renderLine(
         .attr('stroke-width', 2);
       if (!chart.noValue) {
         valueLabels.push({
-          text: fmtNum(p.v),
+          text: fmt(p.v),
           cx: xOfRow(p.xIndex),
           cy: yy(p.v),
           v: p.v,

@@ -8,7 +8,7 @@ import type { ParsedChart } from '../chart';
 import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
 import { getSegmentColors, shapeFill } from '../palettes/color-utils';
-import { type Svg, fmtNum, tagDatum } from './shared';
+import { type Svg, chartFormatter, tagDatum } from './shared';
 
 export function renderPolarArea(
   svg: Svg,
@@ -20,6 +20,8 @@ export function renderPolarArea(
   textColor: string,
   topInset: number
 ): void {
+  // The author's `format` / `unit` / `locale` (#1831).
+  const fmt = chartFormatter(chart);
   const data = chart.data.filter((d) => d.value > 0);
   const n = data.length;
   if (n === 0) return;
@@ -58,7 +60,7 @@ export function renderPolarArea(
       line: d.lineNumber,
       key: d.label,
       name: d.label,
-      value: `${fmtNum(d.value)} (${pct}%)`,
+      value: `${fmt(d.value)} (${pct}%)`,
       color: stroke,
     });
 
@@ -69,7 +71,7 @@ export function renderPolarArea(
     const ly = Math.sin(mid) * (outerR + 14);
     const nm = chart.noName ? '' : d.label;
     const tail = [
-      chart.noValue ? '' : fmtNum(d.value),
+      chart.noValue ? '' : fmt(d.value),
       chart.noPercent ? '' : `(${pct}%)`,
     ]
       .filter(Boolean)

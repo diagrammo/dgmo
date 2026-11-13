@@ -6,6 +6,7 @@ import { growChartFrame } from '../utils/chart-frame';
 import { GRID_DASH, scaleDash } from '../utils/visual-conventions';
 import * as d3Scale from 'd3-scale';
 import { buildValueAxis } from '../charts-d3/value-axis';
+import { makeNumberFormatter } from '../utils/number-format';
 import * as d3Shape from 'd3-shape';
 import * as d3Array from 'd3-array';
 import { measureText, wrapTextToWidth } from '../utils/text-measure';
@@ -120,8 +121,10 @@ export function renderSlopeChart(
   const sPlotTop = sMarginTop + titleExtra;
 
   // Compute right margin from the longest end-of-line label
+  // The author's `format` / `unit` / `locale` (#1831); plain values otherwise.
+  const fmt = makeNumberFormatter(parsed.numberFormat, String);
   const maxLabelText = data.reduce((longest, item) => {
-    const text = `${item.values[item.values.length - 1]} — ${item.label}`;
+    const text = `${fmt(item.values[item.values.length - 1]!)} — ${item.label}`;
     return text.length > longest.length ? text : longest;
   }, '');
   const estimatedLabelWidth = measureText(maxLabelText, sLabelFontSize);
@@ -133,7 +136,7 @@ export function renderSlopeChart(
 
   // Left margin holds the first column's "name — value" labels
   const maxLeftText = data.reduce((longest, item) => {
-    const text = `${item.label} — ${item.values[0]}`;
+    const text = `${item.label} — ${fmt(item.values[0]!)}`;
     return text.length > longest.length ? text : longest;
   }, '');
   const sLeftGap = ctx.structural(10);
@@ -215,14 +218,17 @@ export function renderSlopeChart(
     const absChange = lastVal - firstVal;
     const pctChange = firstVal !== 0 ? (absChange / firstVal) * 100 : null;
     const sign = absChange > 0 ? '+' : '';
-    const tipLines = [`${sign}${parseFloat(absChange.toFixed(2))}`];
+    const change = parsed.numberFormat
+      ? fmt(absChange)
+      : String(parseFloat(absChange.toFixed(2)));
+    const tipLines = [`${sign}${change}`];
     if (pctChange !== null) tipLines.push(`${sign}${pctChange.toFixed(1)}%`);
     const tipHtml = tipLines.join('<br>');
 
     // Compute right-side label text and wrapping info
     // periods is non-empty (slope requires P >= 2 periods).
     const lastX = xScale(periods[periods.length - 1]!)!;
-    const labelText = `${lastVal} — ${item.label}`;
+    const labelText = `${fmt(lastVal)} — ${item.label}`;
     const availableWidth = rightMargin - ctx.aesthetic(15);
 
     let labelLineCount = 1;
@@ -237,7 +243,7 @@ export function renderSlopeChart(
       labelLineCount === 1 ? sLabelFontSize : labelLineCount * lineHeight;
 
     // Left-side label (first column): "name — value", wraps like the right side
-    const leftText = `${item.label} — ${firstVal}`;
+    const leftText = `${item.label} — ${fmt(firstVal)}`;
     const leftLines =
       measureText(leftText, sLabelFontSize) > leftAvailableWidth
         ? wrapTextToWidth(leftText, sLabelFontSize, leftAvailableWidth)
@@ -417,7 +423,7 @@ export function renderSlopeChart(
             .attr('fill', color)
             .attr('font-size', sValueFont)
             .attr('opacity', textOpacity(dim))
-            .text(val.toString());
+            .text(fmt(val));
         }
       }
     });

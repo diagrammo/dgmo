@@ -16,7 +16,7 @@ import {
 } from '../palettes/color-utils';
 import { measureText, truncateText } from '../utils/text-measure';
 import type { Svg } from './shared';
-import { fmtNum, tagDatum } from './shared';
+import { chartFormatter, tagDatum } from './shared';
 
 // Long labels must not size the chart (#1543). The row-label column is capped
 // at a share of the canvas width, and a rotated column label at a share of the
@@ -41,6 +41,8 @@ export function renderHeatmap(
   bgColor: string,
   topInset: number
 ): void {
+  // The author's `format` / `unit` / `locale` (#1831).
+  const fmt = chartFormatter(chart);
   const rows = chart.heatmapRows ?? [];
   if (rows.length === 0) return;
   const ncols = Math.max(
@@ -143,7 +145,7 @@ export function renderHeatmap(
     // Cell values are drawn at 600; the row and column labels around them are
     // not, which is why only this measurement is bold.
     ...rows.flatMap((r) =>
-      r.values.map((v) => measureText(fmtNum(v), REF, { bold: true }))
+      r.values.map((v) => measureText(fmt(v), REF, { bold: true }))
     )
   );
   const cellFont = Math.max(
@@ -218,7 +220,7 @@ export function renderHeatmap(
         line: row.lineNumber,
         key: cellKey,
         name: cellKey,
-        value: fmtNum(v),
+        value: fmt(v),
         color: ramp,
       });
       if (!chart.noValue) {
@@ -231,12 +233,12 @@ export function renderHeatmap(
           .attr('font-size', cellFont)
           .attr('font-weight', 'bold')
           .attr('font-family', FONT_FAMILY)
-          .text(fmtNum(v));
+          .text(fmt(v));
         tagDatum(label, {
           line: row.lineNumber,
           key: cellKey,
           name: cellKey,
-          value: fmtNum(v),
+          value: fmt(v),
           color: ramp,
         });
         label.attr('data-row-key', row.label).attr('data-col-key', colLabel);

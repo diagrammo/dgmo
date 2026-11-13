@@ -9,7 +9,7 @@ import type { ParsedChart } from '../chart';
 import type { PaletteColors } from '../palettes';
 import { getSegmentColors, shapeFill } from '../palettes/color-utils';
 import { FONT_FAMILY } from '../fonts';
-import { type Svg, fmtNum, tagDatum } from './shared';
+import { type Svg, chartFormatter, tagDatum } from './shared';
 import {
   EMPHASIS_DIM_OPACITY,
   EMPHASIS_DIM_TEXT_OPACITY,
@@ -28,6 +28,8 @@ export function renderPie(
   textColor: string,
   topInset: number
 ): void {
+  // The author's `format` / `unit` / `locale` (#1831).
+  const fmt = chartFormatter(chart);
   const data = chart.data.filter((d) => d.value > 0);
   if (data.length === 0) return;
   // A hole turns the pie into a ring — `pie` + a `hole` directive. (#23)
@@ -49,7 +51,7 @@ export function renderPie(
     const pct = Math.round((d.value / total) * 100);
     const nm = chart.noName ? '' : d.label;
     const tail = [
-      chart.noValue ? '' : fmtNum(d.value),
+      chart.noValue ? '' : fmt(d.value),
       chart.noPercent ? '' : `(${pct}%)`,
     ]
       .filter(Boolean)
@@ -143,7 +145,7 @@ export function renderPie(
       line: data[i]!.lineNumber,
       key: data[i]!.label,
       name: data[i]!.label,
-      value: `${fmtNum(data[i]!.value)} (${pct}%)`,
+      value: `${fmt(data[i]!.value)} (${pct}%)`,
       color: stroke,
     });
 
@@ -171,7 +173,7 @@ export function renderPie(
         line: data[i]!.lineNumber,
         key: data[i]!.label,
         name: data[i]!.label,
-        value: `${fmtNum(data[i]!.value)} (${pct}%)`,
+        value: `${fmt(data[i]!.value)} (${pct}%)`,
         color: stroke,
       },
     });
@@ -271,6 +273,6 @@ export function renderPie(
       .attr('font-size', Math.max(11, 26 * labelScale))
       .attr('font-weight', 'bold')
       .attr('font-family', FONT_FAMILY)
-      .text(fmtNum(total));
+      .text(fmt(total));
   }
 }

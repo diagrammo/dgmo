@@ -45,6 +45,7 @@ import type { Writable } from '../utils/brand';
 import { parseChartFrameLine } from '../utils/chart-frame-parse';
 import { parseEmphasisDirective } from '../utils/emphasis';
 import { parseAxisLine, settleAxisSpec } from '../utils/axis-spec';
+import { parseNumberFormatLine } from '../utils/number-format';
 import { parseTimelineEventLine, type DatePrefixCtx } from '../timeline/parser';
 import {
   parseDateToken,
@@ -292,6 +293,16 @@ function parseVisualizationFull(
     // §1.11 emphasis (#1829): `highlight A, B` on slope keeps the named series
     // and recedes the rest. Column 1, lowercase, like the frame lines above, so
     // a series named `Highlight Reel` stays data. `dim` is not adopted here.
+    // Number format on slope (#1831): `format …`, `unit …`, `locale …`.
+    if (
+      result.type === 'slope' &&
+      indent === 0 &&
+      parseNumberFormatLine(line, lineNumber, result, result.diagnostics)
+    ) {
+      inSlopePeriodBlock = false;
+      continue;
+    }
+
     // Axis directives on slope (#1830): `y-scale log`, `y-min`, `y-max` set
     // the vertical range, so two slope charts can share one scale.
     if (

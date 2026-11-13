@@ -1,5 +1,9 @@
 import type { ConformanceFixture } from './_types';
-import { FRAME_DIRECTIVES, Y_AXIS_DIRECTIVES } from './_frame';
+import {
+  FRAME_DIRECTIVES,
+  Y_AXIS_DIRECTIVES,
+  NUMBER_FORMAT_DIRECTIVES,
+} from './_frame';
 
 // Spec §16 / §15.1 (Simple Charts). Cartesian family — `no-value` only.
 export const fixture: ConformanceFixture = {
@@ -8,6 +12,8 @@ export const fixture: ConformanceFixture = {
   firstLineKeyword: 'bar',
   directives: [
     ...FRAME_DIRECTIVES,
+    // #1831 number format.
+    ...NUMBER_FORMAT_DIRECTIVES,
     // #1830 axis range and scale.
     ...Y_AXIS_DIRECTIVES,
     'no-legend',

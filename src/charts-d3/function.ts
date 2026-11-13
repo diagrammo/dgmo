@@ -16,6 +16,7 @@ import {
   type Margins,
   TICK_FONT,
   fmtNum,
+  chartFormatter,
   computeLeftMargin,
   drawXAxisTitle,
   drawYAxisTitle,
@@ -36,6 +37,8 @@ export function renderFunction(
   palette: PaletteColors,
   isDark: boolean
 ): void {
+  // The author's `format` / `unit` / `locale` (#1831).
+  const fmt = chartFormatter(chart);
   const fns = chart.functions ?? [];
   if (fns.length === 0) return;
   const xr = chart.xRange ?? { min: -10, max: 10 };
@@ -84,7 +87,7 @@ export function renderFunction(
     top: topInset + 8,
     right: 32,
     bottom: 64,
-    left: computeLeftMargin(chart.ylabel, yAxis([0, 1]).ticks(8).map(fmtNum)),
+    left: computeLeftMargin(chart.ylabel, yAxis([0, 1]).ticks(8).map(fmt)),
   };
   const plotW = width - m.left - m.right;
   const plotH = height - m.top - m.bottom;
@@ -115,7 +118,7 @@ export function renderFunction(
       .attr('fill', textColor)
       .attr('font-size', TICK_FONT)
       .attr('font-family', FONT_FAMILY)
-      .text(fmtNum(t));
+      .text(fmt(t));
   }
   for (const t of x.ticks(10)) {
     const xx = x(t);

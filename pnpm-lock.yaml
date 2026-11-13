@@ -29,6 +29,9 @@ importers:
       d3-cloud:
         specifier: ^1.2.9
         version: 1.2.9
+      d3-format:
+        specifier: ^3.1.2
+        version: 3.1.2
       d3-geo:
         specifier: ^3.1.1
         version: 3.1.1
@@ -78,6 +81,9 @@ importers:
       '@types/d3-cloud':
         specifier: ^1.2.9
         version: 1.2.9
+      '@types/d3-format':
+        specifier: ^3.0.4
+        version: 3.0.4
       '@types/d3-geo':
         specifier: ^3.1.0
         version: 3.1.0
@@ -2039,6 +2045,9 @@ packages:
 
   '@types/d3-cloud@1.2.9':
     resolution: {integrity: sha512-5EWJvnlCrqTThGp8lYHx+DL00sOjx2HTlXH1WRe93k5pfOIhPQaL63NttaKYIbT7bTXp/USiunjNS/N4ipttIQ==}
+
+  '@types/d3-format@3.0.4':
+    resolution: {integrity: sha512-fALi2aI6shfg7vM5KiR1wNJnZ7r6UuggVqtDA+xiEdPZQwy/trcQaHnwShLuLdta2rTymCNpxYTiMZX/e09F4g==}
 
   '@types/d3-geo@3.1.0':
     resolution: {integrity: sha512-856sckF0oP/diXtS4jNsiQw/UuK5fQG8l/a9VVLeSouf1/PPbBE1i1W852zVwKwYCBkFJJB7nCFTbk6UMEXBOQ==}
@@ -6312,6 +6321,8 @@ snapshots:
   '@types/d3-cloud@1.2.9':
     dependencies:
       '@types/d3': 3.5.53
+
+  '@types/d3-format@3.0.4': {}
 
   '@types/d3-geo@3.1.0':
     dependencies:

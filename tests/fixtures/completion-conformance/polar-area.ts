@@ -1,5 +1,5 @@
 import type { ConformanceFixture } from './_types';
-import { FRAME_DIRECTIVES } from './_frame';
+import { FRAME_DIRECTIVES, NUMBER_FORMAT_DIRECTIVES } from './_frame';
 
 // Spec §16 / §15.1. Share-of-total — same shape as pie.
 export const fixture: ConformanceFixture = {
@@ -8,6 +8,8 @@ export const fixture: ConformanceFixture = {
   firstLineKeyword: 'polar-area',
   directives: [
     ...FRAME_DIRECTIVES,
+    // #1831 number format.
+    ...NUMBER_FORMAT_DIRECTIVES,
     'no-name',
     'no-value',
     'no-percent',

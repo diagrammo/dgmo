@@ -24,6 +24,7 @@ import {
   type Margins,
   TICK_FONT,
   fmtNum,
+  chartFormatter,
   computeLeftMargin,
   drawXAxisTitle,
   drawYAxisTitle,
@@ -158,6 +159,8 @@ export function renderScatter(
   mutedColor: string,
   topInset: number
 ): void {
+  // The author's `format` / `unit` / `locale` (#1831).
+  const fmt = chartFormatter(chart);
   const points = chart.scatterPoints ?? [];
   if (points.length === 0) return;
   const fillMode = chart.fillMode;
@@ -204,7 +207,7 @@ export function renderScatter(
         { dataLo: yMin, dataHi: yMax }
       )
         .ticks(6)
-        .map(fmtNum)
+        .map(fmt)
     ),
   };
   const plotW = width - m.left - m.right;
@@ -276,7 +279,7 @@ export function renderScatter(
       .attr('fill', textColor)
       .attr('font-size', TICK_FONT)
       .attr('font-family', FONT_FAMILY)
-      .text(fmtNum(t));
+      .text(fmt(t));
   }
   for (const t of x.ticks(6)) {
     const xx = x(t);
@@ -370,12 +373,12 @@ export function renderScatter(
       name: p.category ? `${p.name} · ${p.category}` : p.name,
       value:
         p.size !== undefined
-          ? `(${fmtNum(p.x)}, ${fmtNum(p.y)}) · ${chart.sizelabel ?? 'size'}: ${fmtNum(p.size)}`
-          : `(${fmtNum(p.x)}, ${fmtNum(p.y)})`,
+          ? `(${fmtNum(p.x)}, ${fmt(p.y)}) · ${chart.sizelabel ?? 'size'}: ${fmtNum(p.size)}`
+          : `(${fmtNum(p.x)}, ${fmt(p.y)})`,
       color: stroke,
     });
     // Per-axis values for the adapter's on-axis projection (no tooltip).
-    dot.attr('data-axval-x', fmtNum(p.x)).attr('data-axval-y', fmtNum(p.y));
+    dot.attr('data-axval-x', fmtNum(p.x)).attr('data-axval-y', fmt(p.y));
     // Size has no axis to project onto — the adapter prints it next to the
     // hovered point instead, labeled by `size-label` when declared.
     if (p.size !== undefined) {

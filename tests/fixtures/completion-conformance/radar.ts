@@ -1,5 +1,5 @@
 import type { ConformanceFixture } from './_types';
-import { FRAME_DIRECTIVES } from './_frame';
+import { FRAME_DIRECTIVES, NUMBER_FORMAT_DIRECTIVES } from './_frame';
 
 // Spec §16 / §15.1. Cartesian — `no-value` only.
 export const fixture: ConformanceFixture = {
@@ -8,6 +8,8 @@ export const fixture: ConformanceFixture = {
   firstLineKeyword: 'radar',
   directives: [
     ...FRAME_DIRECTIVES,
+    // #1831 number format.
+    ...NUMBER_FORMAT_DIRECTIVES,
     'no-legend',
     'no-value',
     'fill-tint',

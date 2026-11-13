@@ -74,7 +74,7 @@ import { parseWhiteboard } from '../whiteboard/parser';
 import { parseSwimlane } from '../swimlane/parser';
 import { parseVersionControl } from '../version-control/parser';
 import { parseWireframe } from '../wireframe/parser';
-import { compactNumber } from './number-format';
+import { compactNumber, makeNumberFormatter } from './number-format';
 
 type Summarizer = (content: string) => string | null;
 
@@ -124,17 +124,22 @@ function seriesPhrase(parsed: ParsedChart): string {
   return one ? ` of ${one}` : '';
 }
 
-function rangePhrase(values: readonly number[]): string {
+function rangePhrase(
+  values: readonly number[],
+  fmt: (n: number) => string
+): string {
   const lo = Math.min(...values);
   const hi = Math.max(...values);
   return lo === hi
-    ? `every value is ${compactNumber(lo)}`
-    : `values range from ${compactNumber(lo)} to ${compactNumber(hi)}`;
+    ? `every value is ${fmt(lo)}`
+    : `values range from ${fmt(lo)} to ${fmt(hi)}`;
 }
 
 function summarizeChart(content: string): string | null {
   const parsed = parseChart(content);
   if (parsed.error) return null;
+  // The author's `format` / `unit` / `locale` (#1831), else compact numbers.
+  const fmt = makeNumberFormatter(parsed.numberFormat, compactNumber);
   const noun = chartNoun(parsed.type);
   const points = parsed.data;
   if (points.length === 0) return `${noun} with no data.`;
@@ -151,25 +156,25 @@ function summarizeChart(content: string): string | null {
       const largest = points.reduce((a, b) => (b.value > a.value ? b : a));
       if (total <= 0) return `${noun} with ${parts}, all zero.`;
       const pct = Math.round((largest.value / total) * 100);
-      return `${noun} with ${parts} totalling ${compactNumber(total)}; the largest is ${largest.label} at ${pct}%.`;
+      return `${noun} with ${parts} totalling ${fmt(total)}; the largest is ${largest.label} at ${pct}%.`;
     }
     case 'radar':
-      return `${noun}${seriesPhrase(parsed)} across ${plural(points.length, 'axis', 'axes')}; ${rangePhrase(allValues(parsed))}.`;
+      return `${noun}${seriesPhrase(parsed)} across ${plural(points.length, 'axis', 'axes')}; ${rangePhrase(allValues(parsed), fmt)}.`;
     case 'line': {
       const first = points[0]!.label;
       const last = points[points.length - 1]!.label;
       const span =
         points.length === 1 ? `at ${first}` : `from ${first} to ${last}`;
-      return `${noun}${seriesPhrase(parsed)} over ${plural(points.length, 'point', 'points')}, ${span}; ${rangePhrase(allValues(parsed))}.`;
+      return `${noun}${seriesPhrase(parsed)} over ${plural(points.length, 'point', 'points')}, ${span}; ${rangePhrase(allValues(parsed), fmt)}.`;
     }
     case 'bar': {
       const head = `${noun}${seriesPhrase(parsed)} for ${plural(points.length, 'category', 'categories')}`;
       if (seriesNames(parsed).length > 1 || points.length === 1) {
-        return `${head}; ${rangePhrase(allValues(parsed))}.`;
+        return `${head}; ${rangePhrase(allValues(parsed), fmt)}.`;
       }
       const lo = points.reduce((a, b) => (b.value < a.value ? b : a));
       const hi = points.reduce((a, b) => (b.value > a.value ? b : a));
-      return `${head}, from ${lo.label} at ${compactNumber(lo.value)} to ${hi.label} at ${compactNumber(hi.value)}.`;
+      return `${head}, from ${lo.label} at ${fmt(lo.value)} to ${hi.label} at ${fmt(hi.value)}.`;
     }
   }
 }
@@ -512,12 +517,16 @@ function summarizeLiveLink(content: string): string | null {
 }
 
 /** `Funding ($M) ranges from 3.5 to 60` — the axis named by its label, else `x`. */
-function axisRange(name: string, values: readonly number[]): string {
+function axisRange(
+  name: string,
+  values: readonly number[],
+  fmt: (n: number) => string = compactNumber
+): string {
   const lo = Math.min(...values);
   const hi = Math.max(...values);
   return lo === hi
-    ? `${name} is ${compactNumber(lo)} throughout`
-    : `${name} ranges from ${compactNumber(lo)} to ${compactNumber(hi)}`;
+    ? `${name} is ${fmt(lo)} throughout`
+    : `${name} ranges from ${fmt(lo)} to ${fmt(hi)}`;
 }
 
 function summarizeScatter(content: string): string | null {
@@ -538,7 +547,9 @@ function summarizeScatter(content: string): string | null {
   );
   const y = axisRange(
     parsed.ylabel ?? 'y',
-    points.map((p) => p.y)
+    points.map((p) => p.y),
+    // y takes the author's `format` (#1831); x stays plain, as on the chart.
+    makeNumberFormatter(parsed.numberFormat, compactNumber)
   );
   return `Scatter chart of ${plural(points.length, 'point', 'points')}${groups}; ${x} and ${y}.`;
 }
@@ -571,24 +582,29 @@ function summarizeHeatmap(content: string): string | null {
   const head = `Heatmap of ${plural(rows.length, 'row', 'rows')} by ${plural(columns.length, 'column', 'columns')}`;
   if (hot.value === -Infinity) return `${head}, with no values.`;
   const where = columns[hot.col] ? `${hot.row}, ${columns[hot.col]}` : hot.row;
-  return `${head}; ${rangePhrase(rows.flatMap((r) => r.values))}, highest at ${where}.`;
+  const fmt = makeNumberFormatter(parsed.numberFormat, compactNumber);
+  return `${head}; ${rangePhrase(
+    rows.flatMap((r) => r.values),
+    fmt
+  )}, highest at ${where}.`;
 }
 
 function summarizeFunnel(content: string): string | null {
   const parsed = parseFunnel(content);
   if (parsed.error) return null;
+  const fmt = makeNumberFormatter(parsed.numberFormat, compactNumber);
   const stages = parsed.data;
   if (stages.length === 0) return 'Funnel chart with no stages.';
   const first = stages[0]!;
   const last = stages[stages.length - 1]!;
   if (stages.length === 1) {
-    return `Funnel chart of 1 stage, ${first.label} at ${compactNumber(first.value)}.`;
+    return `Funnel chart of 1 stage, ${first.label} at ${fmt(first.value)}.`;
   }
   const kept =
     first.value > 0
       ? ` (${Math.round((last.value / first.value) * 100)}% of the first)`
       : '';
-  return `Funnel chart of ${plural(stages.length, 'stage', 'stages')}, from ${first.label} at ${compactNumber(first.value)} to ${last.label} at ${compactNumber(last.value)}${kept}.`;
+  return `Funnel chart of ${plural(stages.length, 'stage', 'stages')}, from ${first.label} at ${fmt(first.value)} to ${last.label} at ${fmt(last.value)}${kept}.`;
 }
 
 function summarizeFunction(content: string): string | null {

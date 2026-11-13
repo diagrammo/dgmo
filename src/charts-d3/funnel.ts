@@ -13,7 +13,7 @@ import type { ParsedFunnel } from '../data-chart-parser';
 import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
 import { contrastText, shapeFill } from '../palettes/color-utils';
-import { type Svg, fmtNum, tagDatum } from './shared';
+import { type Svg, chartFormatter, tagDatum } from './shared';
 import { measureText } from '../utils/text-measure';
 
 const PAD = 12;
@@ -29,6 +29,8 @@ export function renderFunnel(
   isDark: boolean,
   topInset: number
 ): void {
+  // The author's `format` / `unit` / `locale` (#1831).
+  const fmt = chartFormatter(chart);
   const sorted = [...chart.data].sort((a, b) => b.value - a.value);
   const n = sorted.length;
   if (n === 0) return;
@@ -50,7 +52,7 @@ export function renderFunnel(
   };
   const rightTextFor = (i: number, valueInside: boolean) => {
     const parts: string[] = [];
-    if (!chart.noValue && !valueInside) parts.push(fmtNum(sorted[i]!.value));
+    if (!chart.noValue && !valueInside) parts.push(fmt(sorted[i]!.value));
     if (!chart.noPercent && i > 0) parts.push(pctLabelFor(i));
     return parts.join(' · ');
   };
@@ -69,7 +71,7 @@ export function renderFunnel(
   const valueSizeAt = (plotW: number, i: number) => {
     const { topW, botW } = bandWidthsAt(plotW, i);
     const wMid = (topW + botW) / 2;
-    const label = fmtNum(sorted[i]!.value);
+    const label = fmt(sorted[i]!.value);
     const perChar = label.length * 0.6;
     // Fill the band with the value: ~55% of band height, shrink to fit.
     const size = Math.min(bandH * 0.55, (wMid - 16) / perChar);
@@ -138,7 +140,7 @@ export function renderFunnel(
       line: d.lineNumber,
       key: d.label,
       name: d.label,
-      value: fmtNum(d.value),
+      value: fmt(d.value),
       color: stroke,
     });
 
@@ -174,7 +176,7 @@ export function renderFunnel(
         .attr('font-size', valueSize)
         .attr('font-weight', 'bold')
         .attr('font-family', FONT_FAMILY)
-        .text(fmtNum(d.value));
+        .text(fmt(d.value));
     }
     const showValueRight = !chart.noValue && !valueInside;
     if (showValueRight || showPct) {
@@ -187,7 +189,7 @@ export function renderFunnel(
         .attr('font-weight', 'bold')
         .attr('font-family', FONT_FAMILY);
       if (showValueRight) {
-        text.append('tspan').attr('fill', stroke).text(fmtNum(d.value));
+        text.append('tspan').attr('fill', stroke).text(fmt(d.value));
       }
       if (showPct) {
         text

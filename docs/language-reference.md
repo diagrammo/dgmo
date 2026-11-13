@@ -2692,6 +2692,37 @@ y-label Rate (%)
   time axis. The last value stops at the last point; nothing is drawn past it.
 - Points, hover and value labels stay on the data values at each row.
 
+#### 15.1.4 Number format (every data chart)
+
+How every number a chart prints reads — axis ticks, value labels, hover text,
+the pie centre total and the generated description (#1831, decided
+2026-11-10). Space-separated, no colon, lowercase at column 1:
+
+```
+format currency USD      // $1,200 — any ISO 4217 code; `format currency EUR 2` fixes 2 decimals
+format percent 1         // 12.5 prints as 12.5% — values are percentages as written
+format compact           // 1.2K, 39.5M, 2.3B — `format compact 2` for two decimals
+format ",.2f"            // any d3-format pattern, quoted: the escape hatch
+unit ms                  // text after every number: 120 ms (a symbol unit takes no space: 21°)
+locale de-DE             // separators and currency placement: 1.234,5 · 1.200 €
+```
+
+- **Where.** bar, line, pie, polar-area, radar, scatter, function, heatmap,
+  funnel and slope. On scatter and function the format applies to the y
+  values; x stays plain.
+- **Decimals.** A named format with no count trims trailing zeros: currency
+  shows up to 2 decimals, percent and compact up to 1. A count fixes them.
+- **Data held as fractions** (0.125 for 12.5%) takes the pattern form:
+  `format ".1%"` multiplies by 100.
+- **The pattern** is a d3-format specifier. Its separators follow `locale`;
+  `$` in a pattern is always the dollar sign — use `format currency` for any
+  other currency.
+- **Last one wins** among `format` lines; `unit` and `locale` combine with any
+  format. `unit` or `locale` alone keep the default number style.
+- **Not read:** a line that names `format`, `unit` or `locale` but cannot be
+  read warns (`W_NUMBER_FORMAT_INVALID`) and is ignored. Without any of the
+  three, numbers print as before.
+
 ### 15.2 Scatter / Bubble Charts
 
 <!-- TYPE:scatter -->
