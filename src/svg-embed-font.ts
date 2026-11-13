@@ -24,7 +24,7 @@ import subsetFont from 'subset-font';
 import { DEFAULT_FONT_NAME } from './fonts';
 
 /** One TTF to embed and the CSS weight range it answers. */
-export interface EmbedFace {
+interface EmbedFace {
   path: string;
   /** CSS `font-weight` descriptor, a single weight or a range: `'100 500'`. */
   weight: string;
@@ -81,7 +81,7 @@ function decodeEntities(s: string): string {
  * outside `<style>` and `<script>`. Over-inclusion only costs a few glyphs, so
  * `<title>` and `<desc>` are not filtered out.
  */
-export function svgTextCharacters(svg: string): string {
+function svgTextCharacters(svg: string): string {
   const body = svg
     .replace(/<style\b[\s\S]*?<\/style>/gi, '')
     .replace(/<script\b[\s\S]*?<\/script>/gi, '')
@@ -96,7 +96,7 @@ export function svgTextCharacters(svg: string): string {
 }
 
 /** True when the SVG asks for a weight the Bold face draws (600 and up). */
-export function svgUsesBold(svg: string): boolean {
+function svgUsesBold(svg: string): boolean {
   return /font-weight\s*[:=]\s*["']?\s*(bold|bolder|[6-9]00)\b/i.test(svg);
 }
 
