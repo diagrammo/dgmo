@@ -295,11 +295,17 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
     const clip = svg.querySelector('defs clipPath[id^="dgmo-relief-clip__m"]');
     expect(clip).toBeTruthy();
     expect(clip!.querySelectorAll('path').length).toBeGreaterThan(0);
-    // Horizontal hachure lines (x spans, y constant).
-    const lines = group!.querySelectorAll('line');
-    expect(lines.length).toBeGreaterThan(0);
-    const ln = lines[0]!;
-    expect(ln.getAttribute('y1')).toBe(ln.getAttribute('y2'));
+    // Horizontal hachure lines (x spans, y constant): one path of full-width
+    // `M0 y H<width>` runs (#1943), never a `<line>` per run.
+    expect(group!.querySelectorAll('line')).toHaveLength(0);
+    const paths = group!.querySelectorAll('path');
+    expect(paths).toHaveLength(1);
+    const width = svg.getAttribute('width');
+    const runs = paths[0]!.getAttribute('d')!.match(/M[^M]+/g)!;
+    expect(runs.length).toBeGreaterThan(0);
+    for (const run of runs) {
+      expect(run).toMatch(new RegExp(`^M0 [\\d.]+H${width}$`));
+    }
     // Decorative — no click target / line-number.
     expect(group!.querySelector('[data-line-number]')).toBeNull();
   });

@@ -69,6 +69,17 @@ function appendWaterLines(
 // renders, so re-renders (legend flips) and same-page siblings never collide.
 let mapInstanceCounter = 0;
 
+/** Remove the previous drawing, keeping the tooltip. Direct children only:
+ *  removing the old `<svg>` takes its whole subtree, while a bare `:not(…)`
+ *  matched every descendant and removed each of the ~1,400 elements of a world
+ *  map one call at a time (#1943). */
+function clearMapContainer(container: HTMLDivElement): void {
+  d3Selection
+    .select(container)
+    .selectAll(':scope > :not([data-d3-tooltip])')
+    .remove();
+}
+
 /** Render a resolved map into `container` (d3-selection appends an `<svg>`). */
 export function renderMap(
   container: HTMLDivElement,
@@ -81,7 +92,7 @@ export function renderMap(
   /** Live override of the active colouring group (interactive legend flip). */
   activeGroupOverride?: string | null
 ): void {
-  d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
+  clearMapContainer(container);
   const width = exportDims?.width ?? container.clientWidth;
   const height = exportDims?.height ?? container.clientHeight;
   if (width <= 0 || height <= 0) return;
@@ -130,7 +141,7 @@ export function renderMapLayout(
   isDark: boolean,
   onClickItem?: (lineNumber: number) => void
 ): void {
-  d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
+  clearMapContainer(container);
   if (layout.width <= 0 || layout.height <= 0) return;
   drawMap(container, layout, resolved, palette, isDark, onClickItem, undefined);
 }
@@ -280,14 +291,14 @@ function drawMap(
       // no moire). NOT crispEdges — that snaps to a solid ~1px in WebKit and
       // reads far too heavy; plain AA keeps the sub-pixel lines whisper-thin.
       .attr('vector-effect', 'non-scaling-stroke');
+    // ONE path of full-width horizontal runs, not a `<line>` per run: a world
+    // map has ~340 of them, and creating and attributing each one was a
+    // quarter of the redraw's DOM work (#1943). Same geometry, same stroke.
+    let hatch = '';
     for (let y = h.spacing; y < height; y += h.spacing) {
-      gRelief
-        .append('line')
-        .attr('x1', 0)
-        .attr('y1', y)
-        .attr('x2', width)
-        .attr('y2', y);
+      hatch += `M0 ${y}H${width}`;
     }
+    if (hatch) gRelief.append('path').attr('d', hatch).attr('fill', 'none');
   }
 
   // ── Coastline water-lines (faint nautical-chart lines on the WATER side) ──
