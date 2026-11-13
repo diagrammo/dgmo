@@ -1,0 +1,90 @@
+boxes-and-lines Box Office Platform
+// stress: grouped-flow — five groups, two linked both ways, many arrows into one box
+// known: diagrammo/diagrammo#1975
+
+tag Type as t
+  Web red
+  Service blue
+  Mobile green
+
+tag Owner as o
+  Platform red
+  Web green
+  Edge blue
+  League yellow
+  Vendor purple
+
+[Admin Console] o:Web
+  AdminApp
+    -> OrderSync
+    -> Orders
+    -> ConfigStore
+
+  ConfigStore
+
+  ConfigCLI
+    -> ConfigStore
+
+  PromoUI
+    -> PromoService
+
+  PromoService
+    -> BoxOffice
+
+[Ticketing Core]
+  OrderSync t:Service
+    -> Orders
+
+  Orders t:Service
+    -> Ledger
+
+  Ledger t:Service
+    -> CardVault
+    -> PayGateway
+    -> Catalog
+
+  PayGateway
+    -> CardVault
+
+  CardVault o:Vendor
+
+Notifier
+
+Partners
+  -> Ledger
+  -> Contracts
+
+Contracts
+  -> ESign
+
+[Media]
+  Publisher
+    -> Catalog
+    -> Notifier
+    -> Ledger
+  Catalog
+
+StatsFeed o:League
+  -> ScheduleQueue
+
+[Middleware]
+  TicketClient
+  BoxOffice
+    -> Ledger
+  StatsProcessor
+    -> ScheduleQueue
+    -> Wallet
+  Wallet
+
+VenueApp t:Mobile, o:League
+  -> VenueServices
+  -> TicketClient
+  -> BoxOffice
+
+VenueServices o:League
+  -> BoxOffice
+
+[Ingress] o:Edge
+  MobileGate t:Mobile
+  WebGate
+  -> Ledger

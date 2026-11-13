@@ -1,0 +1,35 @@
+boxes-and-lines Storefront Rebuild
+// stress: grouped-flow — three groups in a chain, eight unlinked boxes in one, every collapse state
+// known: diagrammo/diagrammo#1975
+
+tag Status as s
+  todo red
+  doing yellow
+  done green
+  na gray default
+
+[Frontends]
+  LoginUI s:doing
+    -> AuthService s:doing
+
+  Shell s:doing
+  AccountUI s:doing
+  ShopUI s:todo
+  OrdersUI s:todo
+  PaymentsUI s:todo
+  CartUI s:todo
+  GroupsUI s:todo
+  GiftUI s:todo
+
+[Identity]
+  AuthService s:doing
+    -> Orders s:doing
+
+[Core]
+  Orders
+    -> Ledger
+  OrderSync
+    -> Orders
+  Ledger
+  Profiles
+  Settings

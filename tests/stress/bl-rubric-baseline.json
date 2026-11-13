@@ -1,0 +1,46 @@
+{
+  "storefront-rebuild": {
+    "expanded": {
+      "1": 0,
+      "2": 0,
+      "3": 0
+    },
+    "Frontends collapsed": {
+      "1": 0,
+      "2": 0,
+      "3": 0
+    },
+    "Frontends+Core collapsed": {
+      "1": 1,
+      "2": 0,
+      "3": 0
+    },
+    "Identity collapsed": {
+      "1": 0,
+      "2": 0,
+      "3": 1
+    }
+  },
+  "box-office-platform": {
+    "expanded": {
+      "1": 0,
+      "2": 2,
+      "3": 0
+    },
+    "Ticketing Core collapsed": {
+      "1": 4,
+      "2": 3,
+      "3": 6
+    },
+    "Middleware collapsed": {
+      "1": 2,
+      "2": 3,
+      "3": 4
+    },
+    "Media collapsed": {
+      "1": 1,
+      "2": 3,
+      "3": 4
+    }
+  }
+}

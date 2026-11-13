@@ -34,6 +34,7 @@ Use these names; add one only when none fits, and add it here.
 | `wide-or-tall`    | a chart forced very wide or very tall by its content                                     |
 | `duplicate-names` | the same label used for different things                                                 |
 | `long-title`      | a title longer than the chart is wide                                                    |
+| `grouped-flow`    | groups linked across each other, two-way links between groups, every collapse state      |
 
 ## Gates
 
