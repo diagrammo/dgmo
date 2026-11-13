@@ -1,0 +1,18 @@
+map Change in Median Rent, 2025 to 2026, by State (percent)
+// stress: extreme-values — signed changes split at 0 by `scale diverging`, one state far from the rest
+region-heat Change in median rent (%)
+scale diverging 0
+
+California heat: -3.8
+Oregon heat: -1.25
+Washington heat: -0.4
+Nevada heat: 0
+Arizona heat: 2.1
+Utah heat: 1.6
+Idaho heat: 4.75
+Montana heat: 0.3
+Colorado heat: -2.2
+New Mexico heat: 0.9
+Texas heat: 3.4
+Florida heat: 18.5
+Maine heat: -0.05

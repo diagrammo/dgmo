@@ -97,13 +97,14 @@ describe('parseMap — directives (AC2, AC20)', () => {
     ).toBe(true);
   });
   it('hard break: removed directive tokens are no longer directives (AC3)', () => {
-    // projection / scale / caption / coastline / relief / context-labels /
+    // projection / caption / coastline / relief / context-labels /
     // region-labels / poi-labels are gone ENTIRELY — a line beginning with one
     // is treated as content (a region-fill), never a directive (no silent
     // accept, no compat shim). The resolver then errors on the bogus region.
+    // `scale` came back as `scale diverging <mid>` (diagrammo/diagrammo#1837);
+    // its old range form warns — see the next test.
     const lines = [
       'projection mercator',
-      'scale 0 100',
       'caption Q3 plan',
       'coastline',
       'relief',
@@ -125,6 +126,12 @@ describe('parseMap — directives (AC2, AC20)', () => {
       // Not recognized as a directive → parsed as a region-fill line.
       expect(r.regions).toHaveLength(1);
     }
+  });
+  it('the old `scale <min> <max>` range form warns W_MAP_SCALE_INVALID (#1837)', () => {
+    const r = parseMap('map\nscale 0 100');
+    expect(r.directives.regionScale).toBeUndefined();
+    expect(r.regions).toHaveLength(0);
+    expect(r.diagnostics.map((d) => d.code)).toEqual(['W_MAP_SCALE_INVALID']);
   });
   it('removed `muted` / `natural` flags now parse as region-fill lines', () => {
     // No basemap-dress directive any more — a bare `muted` line is just a name.

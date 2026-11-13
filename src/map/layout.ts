@@ -1500,8 +1500,17 @@ export function layoutMap(
   // comparability (the old 0-anchor, "decision C") is intentionally dropped: a
   // shared baseline only helped side-by-side maps and flattened single-map
   // contrast. Equal-value data (rampMin === rampMax) falls back to t = 1 below.
-  const rampMin = values.length > 0 ? Math.min(...values) : 0;
-  const rampMax = Math.max(...values);
+  // `scale diverging <mid>` (#1837) widens the range to take `mid` in, so the
+  // neutral always sits on the legend bar even when every value is one side.
+  const regionScale = resolved.directives.regionScale;
+  const rampMin =
+    values.length > 0
+      ? Math.min(...values, ...(regionScale ? [regionScale.mid] : []))
+      : 0;
+  const rampMax = Math.max(
+    ...values,
+    ...(regionScale && values.length > 0 ? [regionScale.mid] : [])
+  );
   // Value ramp defaults to red so valued regions stand out against the blue
   // water (palette.primary is a blue in most palettes and would blend in). A
   // trailing color on `region-heat` (§24B.3) overrides the hue idiomatically.
@@ -1710,7 +1719,27 @@ export function layoutMap(
   // Floored neutral the single-colour ramp blends up from — also the LOW
   // endpoint the legend shows when no explicit low colour was given.
   const rampLowFloor = mix(rampHue, rampBase, RAMP_FLOOR);
+  // Diverging ramp (#1837): the low colour (explicit, else blue) below `mid`,
+  // the high colour above, the neutral ramp base at `mid`. Each side spans its
+  // own distance from `mid` — the heatmap and treemap heat ramps' rule — so the
+  // deepest blue is the lowest value and the deepest red the highest.
+  const divergingLow = regionScale
+    ? (rampLow ?? palette.colors.blue)
+    : undefined;
+  const divergingMidAt =
+    regionScale && rampMax > rampMin
+      ? (regionScale.mid - rampMin) / (rampMax - rampMin)
+      : 0.5;
   const fillForValue = (s: number): string => {
+    if (regionScale && divergingLow !== undefined) {
+      const mid = regionScale.mid;
+      if (s < mid) {
+        const t = mid > rampMin ? (mid - s) / (mid - rampMin) : 0;
+        return valueRampColor(rampBase, divergingLow, t, { isDark });
+      }
+      const t = rampMax > mid ? (s - mid) / (rampMax - mid) : 0;
+      return valueRampColor(rampBase, rampHue, t, { isDark });
+    }
     const t = rampMax > rampMin ? (s - rampMin) / (rampMax - rampMin) : 1;
     // Two-colour ramp: shared low→high interpolation (direct or via midpoint).
     if (rampLow !== undefined)
@@ -1852,8 +1881,15 @@ export function layoutMap(
             }),
             min: rampMin,
             max: rampMax,
-            low: rampLow ?? rampLowFloor,
+            low: divergingLow ?? rampLow ?? rampLowFloor,
             high: rampHue,
+            ...(divergingLow !== undefined && {
+              stops: [
+                { offset: 0, color: divergingLow },
+                { offset: divergingMidAt, color: rampBase },
+                { offset: 1, color: rampHue },
+              ],
+            }),
           },
         }),
       };

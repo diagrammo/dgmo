@@ -208,6 +208,19 @@ export const MAP_DX = {
     hint: 'In Node: `render(src, { mapData: loadMapData })` with `loadMapData` from `@diagrammo/dgmo/advanced`. In a browser or Worker: pass your bundled `MapData`. If you already do, the assets are missing from the installed package rather than from your code.',
     example: 'map\nDenver heat: 2',
   },
+  SCALE_INVALID: {
+    // Runtime severity: 'warning' (matches W_ prefix). Emitted by the parser on
+    // a `scale` line it cannot read (#1837); the line is consumed, so it never
+    // becomes a region named "scale".
+    code: 'W_MAP_SCALE_INVALID',
+    severity: 'warning',
+    chartType: 'map',
+    title: 'Map scale not applied',
+    message: (p) =>
+      `scale ${p.value ?? ''}: expected \`scale diverging\` or \`scale diverging <midpoint>\` — the line is ignored and the one-way ramp is used.`,
+    hint: 'Write `scale diverging 0` to colour regions below and above 0 in two hues, with a neutral at 0.',
+    example: 'map\nscale binned\nCalifornia heat: 3',
+  },
 } satisfies Record<string, DiagnosticSpec>;
 
 export const MAP_DIAGNOSTICS: DiagnosticSpec[] = Object.values(MAP_DX);

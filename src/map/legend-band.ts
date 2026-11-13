@@ -41,6 +41,7 @@ export function mapLegendGroups(legend: MapLayoutLegend): LegendGroupData[] {
           max: ramp.max,
           low: ramp.low,
           high: ramp.high,
+          ...(ramp.stops && { stops: ramp.stops }),
         },
       }
     : null;

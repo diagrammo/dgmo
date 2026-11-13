@@ -1,0 +1,12 @@
+map Budget Margin by State
+region-heat Margin (%)
+scale diverging 0
+
+California heat: -6
+Oregon heat: -2.5
+Nevada heat: 0
+Arizona heat: 1.5
+Texas heat: 4
+Florida heat: 9
+Georgia heat: -1
+Maine heat: 3

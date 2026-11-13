@@ -871,7 +871,7 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'rows', category: 'directive', chartTypes: 'all' },
   { token: 'labels', category: 'directive', chartTypes: 'all' },
   { token: 'rotate', category: 'directive', chartTypes: ['wordcloud'] },
-  { token: 'scale', category: 'directive', chartTypes: 'all' },
+  { token: 'scale', category: 'directive', map: true, chartTypes: 'all' },
   {
     token: 'values',
     category: 'directive',

@@ -9,6 +9,7 @@ import {
   NEGATIVE_VALUE_DX,
 } from '../diagnostics';
 import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import { MAP_DX } from './diagnostics';
 import { MAP_DIRECTIVE_KEY_SET } from '../directives-registry';
 import type { Writable } from '../utils/brand';
 import type { PaletteColors } from '../palettes/types';
@@ -390,6 +391,21 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
         d.regionMetric = rmLabel;
         if (rmHigh) d.regionMetricColor = rmHigh;
         if (rmLow) d.regionMetricLowColor = rmLow;
+        break;
+      }
+      case 'scale': {
+        // `scale diverging [<mid>]` (#1837): the region ramp splits at `mid`.
+        // Any other form warns and keeps the one-way ramp.
+        dup(d.regionScale);
+        const m = value.match(/^diverging(?:\s+(-?\d+(?:\.\d+)?))?$/);
+        if (m) {
+          d.regionScale = {
+            kind: 'diverging',
+            mid: m[1] !== undefined ? parseFloat(m[1]) : 0,
+          };
+        } else {
+          diagnostics.push(emit(MAP_DX.SCALE_INVALID, line, { value }));
+        }
         break;
       }
       case 'poi-size':

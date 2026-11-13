@@ -505,6 +505,7 @@ describe('COMPLETION_REGISTRY', () => {
     // Surviving intent directives + the 7 `no-*` cosmetic opt-outs.
     for (const k of [
       'region-heat',
+      'scale',
       'poi-size',
       'flow-width',
       'locale',
@@ -523,9 +524,9 @@ describe('COMPLETION_REGISTRY', () => {
     ])
       expect(mapSpec.directives[k]).toBeDefined();
     // Removed tokens are gone entirely.
+    // `scale` came back as `scale diverging <mid>` (diagrammo/diagrammo#1837).
     for (const k of [
       'projection',
-      'scale',
       'caption',
       'relief',
       'coastline',

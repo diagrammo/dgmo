@@ -4727,7 +4727,19 @@ Florida heat: 51
 ```
 
 - `region-heat <label> [low] [high]` labels the ramp in the legend; one trailing color sets the high hue over a neutral low (`region-heat Sales ($M) blue` → blue ramp, default red), two set explicit `low high` endpoints (`region-heat Peril green red` → green→red, routed through a neutral midpoint). Order is literal — polarity is your choice.
-- The ramp **auto-fits**: all-non-negative data anchors the low end at **0** (shared baseline); mixed-sign data fits data-min→data-max. There is no `scale` directive.
+- The ramp **auto-fits** from the lowest value to the highest.
+- **Diverging scale** — `scale diverging <mid>` colours regions below `mid` blue and above it red, through a neutral at `mid`; the legend bar shows the same three colours. Use it when the values are a change, a gap or a margin, where above and below the midpoint mean opposite things. `mid` defaults to 0, and each side spans its own distance from `mid`. Two `region-heat` colours replace blue and red (`region-heat Net green purple`). A `mid` outside the data widens the range to include it. Any other `scale` form warns `W_MAP_SCALE_INVALID` and the one-way ramp draws.
+
+```
+map Budget Margin by State
+region-heat Margin (%)
+scale diverging 0
+
+California heat: -4
+Texas heat: 0
+Florida heat: 8
+```
+
 - A subdivision with no `heat:`/tag renders as the neutral base.
 
 ### Region fill — categorical (tags)
@@ -4866,7 +4878,7 @@ cove -> hav l: March    # the LINE turns green
 
 ### Directives & reserved keys
 
-The map's own directive set is **all colon-free**: five naming intent the renderer can't infer — `region-heat`, `poi-size`, `flow-width`, `locale`, `active-tag` — plus the chart frame (§1.12), and seven `no-*` cosmetic opt-outs — `no-legend`, `no-coastline`, `no-relief`, `no-context-labels`, `no-region-labels`, `no-poi-labels`, `no-colorize`. There is **no** `projection`, `scale`, `caption`, `surface`, `region`, or label-enum directive, and cosmetics have no positive opt-in form. Reserved metadata keys (need colons) are the per-element numeric channels plus `label`, `style`: `heat:` (region choropleth shade), `size:` (POI marker radius), `width:` (edge/leg thickness) — a channel key on the wrong element kind errors; `surface:` is no longer recognized. A bare US state postal code resolves to that state (`poi Portland OR` → Oregon; `CA` = California). Coordinates are positional (no `at:` key). Projection is inferred from extent + whether the map carries data (US → albers-usa; world data → Equal Earth; world reference → natural-earth; regional → mercator) and cannot be overridden.
+The map's own directive set is **all colon-free**: six naming intent the renderer can't infer — `region-heat`, `scale`, `poi-size`, `flow-width`, `locale`, `active-tag` — plus the chart frame (§1.12), and seven `no-*` cosmetic opt-outs — `no-legend`, `no-coastline`, `no-relief`, `no-context-labels`, `no-region-labels`, `no-poi-labels`, `no-colorize`. There is **no** `projection`, `caption`, `surface`, `region`, or label-enum directive, and cosmetics have no positive opt-in form. Reserved metadata keys (need colons) are the per-element numeric channels plus `label`, `style`: `heat:` (region choropleth shade), `size:` (POI marker radius), `width:` (edge/leg thickness) — a channel key on the wrong element kind errors; `surface:` is no longer recognized. A bare US state postal code resolves to that state (`poi Portland OR` → Oregon; `CA` = California). Coordinates are positional (no `at:` key). Projection is inferred from extent + whether the map carries data (US → albers-usa; world data → Equal Earth; world reference → natural-earth; regional → mercator) and cannot be overridden.
 
 ---
 

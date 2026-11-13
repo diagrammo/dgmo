@@ -1050,6 +1050,11 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description:
           'Label for the region value→colour ramp, with an optional trailing [low] [high] color pair (pairs with the `heat:` key)',
       },
+      scale: {
+        description:
+          'Region colours split at a midpoint: two hues meeting at a neutral (scale diverging 0)',
+        values: ['diverging'],
+      },
       'poi-size': {
         description:
           'Label for the POI value→marker-size channel (pairs with the `size:` key)',

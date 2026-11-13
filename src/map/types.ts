@@ -27,6 +27,10 @@ export interface MapDirectives {
    *  left-of-two trailing colors on `region-heat`, §24B.3). Absent ⇒ the low
    *  end is the implied floored neutral (today's single-colour behaviour). */
   regionMetricLowColor?: string;
+  /** `scale diverging [<mid>]` — the region ramp splits at `mid` (default 0):
+   *  the low colour below it, the high colour above, a neutral at `mid`, each
+   *  side spanning its own distance from `mid` (§24B.3, #1837). */
+  regionScale?: { kind: 'diverging'; mid: number };
   /** Legend label for the POI value (marker size) channel (`poi-size`). */
   poiMetric?: string;
   /** Legend label for the edge/leg value (thickness) channel (`flow-width`). */
@@ -204,5 +208,8 @@ export interface MapLayoutLegend {
     low: string;
     /** Resolved hex of the HIGH (t=1) endpoint (the named ramp hue). */
     high: string;
+    /** The ramp's own stops (offset 0–1 along min→max) when it is not a
+     *  two-endpoint fade — `scale diverging` puts a neutral at its midpoint. */
+    stops?: ReadonlyArray<{ offset: number; color: string }>;
   };
 }
