@@ -52,6 +52,15 @@ export function bundledFaces(): EmbedFace[] {
   return faces.filter((f) => existsSync(f.path));
 }
 
+/**
+ * Inter is under the SIL Open Font License 1.1, which lets a subset travel
+ * inside a file provided each copy carries the copyright notice and the
+ * licence, and allows the font's own metadata fields to carry them. harfbuzz
+ * keeps name IDs 0-6 (the copyright among them) and drops the rest; 13 and 14
+ * are the licence description and its URL.
+ */
+const OFL_NAME_IDS = [13, 14];
+
 const ENTITY: Record<string, string> = {
   amp: '&',
   lt: '<',
@@ -120,6 +129,7 @@ export async function embedFonts(
     if (face.bold && !bold) continue;
     const woff2 = await subsetFont(readFileSync(face.path), chars, {
       targetFormat: 'woff2',
+      preserveNameIds: OFL_NAME_IDS,
     });
     rules.push(
       `@font-face{font-family:'${DEFAULT_FONT_NAME}';font-style:normal;` +

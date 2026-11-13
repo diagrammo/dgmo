@@ -17,7 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   browser with no Inter installed, 106 of the 107 gallery fixtures now draw
   every text element at the same width as with Inter. It adds 3-53 KB per
   file (37 KB on average). `@diagrammo/dgmo-cli` gains the `subset-font`
-  dependency. PNG, PDF and the library's `render()` are unchanged.
+  dependency. PNG, PDF and the library's `render()` are unchanged. Each
+  embedded face keeps Inter's copyright notice and its SIL Open Font License
+  in its name table. Not yet done: `--outline-text` (text as paths) and the
+  app's SVG export, which still names Inter without embedding it.
 - **CLI `--scale <n>` sets the PNG's pixel density (#1833).** PNG export was
   fixed at 2x; it is still the default. `--scale 3` turns a 1200x800 canvas
   into a 3600x2400 PNG, `--scale 1` into a 1200x800 one, and fractions work.

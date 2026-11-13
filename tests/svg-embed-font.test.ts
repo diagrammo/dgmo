@@ -118,6 +118,23 @@ describe('dgmo -o file.svg embeds Inter', () => {
     }
   });
 
+  it('keeps the copyright notice and the licence in each embedded face', async () => {
+    // The SIL Open Font License travels with every copy, here in the font's
+    // own name table (IDs 0 and 13), as the licence allows.
+    const svg = exportSvg('bar-licence', 'bar Sales\nNorth: 10\nSouth: 20\n');
+    const fontverter = fromSubsetFont('fontverter') as {
+      convert(b: Buffer, to: 'sfnt'): Promise<Buffer>;
+    };
+    const utf16be = (t: string) => Buffer.from(t, 'utf16le').swap16();
+    const faces = embeddedFaces(svg);
+    expect(faces).toHaveLength(2);
+    for (const face of faces) {
+      const sfnt = await fontverter.convert(face.bytes, 'sfnt');
+      expect(sfnt.includes(utf16be('The Inter Project Authors'))).toBe(true);
+      expect(sfnt.includes(utf16be('SIL Open Font License'))).toBe(true);
+    }
+  });
+
   it('subsets to the text, far below the whole face', async () => {
     const svg = exportSvg('small', 'flowchart\n[A] -> [B]\n');
     const regular = embeddedFaces(svg).find((f) => f.weight === '100 500');
