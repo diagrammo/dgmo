@@ -247,9 +247,10 @@ Task B 10d`;
   it('puts a time-axis tick at the x of a bar starting on its date, after January (#1414)', () => {
     // Ticks once used the approximate month/12 + (day-1)/365 scale while bars
     // used the exact one, so in March "Mar 8" sat about two days left of Mar 8.
+    // Ticks sit on Mondays since #1830, so the bar starts Monday Mar 9.
     const input = `gantt
 start 2026-03-02
-Setup 6d
+Setup 7d
   -> Build
 Build 40d`;
     const container = renderFromInput(input);
@@ -258,7 +259,7 @@ Build 40d`;
     );
     const barX = Number(build?.getAttribute('x'));
     const mar8 = [...container.querySelectorAll('text.gantt-scale-tick')].find(
-      (t) => t.textContent === 'Mar 8'
+      (t) => t.textContent === 'Mar 9'
     );
     expect(mar8).toBeDefined();
     expect(Number(mar8?.getAttribute('x'))).toBeCloseTo(barX, 6);

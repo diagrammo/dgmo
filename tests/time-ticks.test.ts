@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { scaleLinear } from 'd3-scale';
-import { computeTimeTicks } from '../src/utils/time-ticks';
+import {
+  computeTimeTicks,
+  EXACT_FRACTIONAL_YEAR as EXACT,
+} from '../src/utils/time-ticks';
 import { measureText } from '../src/utils/text-measure';
 
 // #1426: tick labels are measured, and the axis steps to a coarser interval
@@ -135,5 +138,67 @@ describe('computeTimeTicks label fitting', () => {
     for (let i = 1; i < pos.length; i++) {
       expect(pos[i]! - pos[i - 1]!).toBeGreaterThanOrEqual(FONT * 1.2 + GAP);
     }
+  });
+});
+
+// Tick density by span (#1830): a 4-week plan reads by week, a short one by
+// day, an 18-month roadmap by month.
+describe('computeTimeTicks density', () => {
+  const labelsFor = (from: Date, to: Date, width = 1000): string[] => {
+    const a = EXACT.toFractionalYear(from);
+    const b = EXACT.toFractionalYear(to);
+    const s = scaleLinear().domain([a, b]).range([0, width]);
+    return computeTimeTicks(
+      a,
+      b,
+      s,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      EXACT
+    ).map((t) => t.label);
+  };
+
+  it('ticks every day over a short span', () => {
+    expect(labelsFor(new Date(2026, 2, 2), new Date(2026, 2, 12))).toEqual(
+      Array.from({ length: 11 }, (_, i) => `Mar ${i + 2}`)
+    );
+  });
+
+  it('ticks every Monday over four weeks', () => {
+    // 2026-03-02 is a Monday.
+    expect(labelsFor(new Date(2026, 2, 1), new Date(2026, 2, 29))).toEqual([
+      'Mar 2',
+      'Mar 9',
+      'Mar 16',
+      'Mar 23',
+    ]);
+  });
+
+  it('thins weeks to fortnights on a narrow axis, still on Mondays', () => {
+    const l = labelsFor(new Date(2026, 2, 1), new Date(2026, 4, 25), 300);
+    expect(l.length).toBeGreaterThanOrEqual(3);
+    for (const label of l) {
+      const [mon, day] = label.split(' ');
+      const d = new Date(`${mon} ${day} 2026`);
+      expect(d.getDay(), label).toBe(1);
+    }
+  });
+
+  it('ticks months, not one year, over eighteen months', () => {
+    const l = labelsFor(new Date(2024, 0, 1), new Date(2025, 5, 30));
+    expect(l.length).toBeGreaterThanOrEqual(6);
+    expect(l).toContain("Jan '25");
+  });
+
+  it('ticks years from three year boundaries up', () => {
+    expect(labelsFor(new Date(2020, 0, 1), new Date(2023, 0, 1))).toEqual([
+      '2020',
+      '2021',
+      '2022',
+      '2023',
+    ]);
   });
 });

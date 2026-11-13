@@ -62,7 +62,8 @@ describe('line time axis', () => {
   it('labels the axis with time ticks, not the row labels', async () => {
     const svg = await renderDataChartD3(RATES, 'light', palette);
     expect(svg).not.toContain('>2022-03<');
-    expect(svg).toMatch(/>2023</);
+    // Under three years the axis ticks months, thinned to fit (#1830).
+    expect(svg).toMatch(/>\w{3} '23</);
   });
 
   it('keeps even spacing for bare years', async () => {

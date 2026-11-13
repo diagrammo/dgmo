@@ -15,6 +15,10 @@ export interface TickLabelFit {
 
 /** Clear space kept between neighbouring tick labels — the category axis's. */
 const TICK_LABEL_GAP = 8;
+/** Year ticks need this many year boundaries past the first (#1830). */
+const YEAR_TICKS_FROM = 3;
+/** Days from 1970-01-01 to Monday 1970-01-05: day slots count from it. */
+const MONDAY_EPOCH_DAY = 4;
 
 type SlottedTick = { pos: number; label: string; slot: number };
 
@@ -138,7 +142,9 @@ export function computeTimeTicks(
   // Year ticks for multi-year spans (need at least 2 boundaries)
   const firstYear = Math.ceil(domainMin);
   const lastYear = Math.floor(domainMax);
-  if (lastYear >= firstYear + 1) {
+  // Year ticks from three year boundaries up. Below that a year tick or two
+  // says almost nothing, so months take over and thin to quarters (#1830).
+  if (lastYear >= firstYear + YEAR_TICKS_FROM) {
     // Decimate ticks for long spans so labels don't overlap. The ladder runs
     // up to century/bicentury steps so millennium-scale spans (and BCE labels,
     // which are ~2× wider) stay legible.
@@ -161,7 +167,9 @@ export function computeTimeTicks(
       ticks.push({ pos: scale(y), label: formatYearTick(y), slot: y });
     }
   } else if (span > 0.25) {
-    // Month ticks for spans > ~3 months
+    // Month ticks for spans > ~3 months; strides 3 and 12 land on quarters
+    // and on Januaries.
+    strides = [1, 2, 3, 6, 12];
     const crossesYear = maxYear > minYear;
     for (let y = minYear; y <= maxYear + 1; y++) {
       for (let m = 1; m <= 12; m++) {
@@ -288,21 +296,30 @@ export function computeTimeTicks(
       startDate.setHours(startDate.getHours() + stepHour);
     }
   } else {
-    // Week ticks for spans ≤ ~3 months (1st, 8th, 15th, 22nd of each month)
-    for (let y = minYear; y <= maxYear + 1; y++) {
-      for (let m = 1; m <= 12; m++) {
-        for (const d of [1, 8, 15, 22]) {
-          const val = dayValue(y, m - 1, d);
-          if (val > domainMax) break;
-          if (val >= domainMin) {
-            ticks.push({
-              pos: scale(val),
-              label: `${MONTH_ABBR[m - 1]} ${d}`,
-              slot: ticks.length,
-            });
-          }
-        }
+    // Day ticks for spans ≤ ~3 months (#1830). Slots count days from a
+    // Monday, so a stride of 7 keeps Mondays: daily ticks thin to weeks,
+    // fortnights and four-week steps as the width demands.
+    strides = [1, 7, 14, 28];
+    const first = fromFractionalYear(domainMin);
+    const day = calendarDay(
+      first.getFullYear(),
+      first.getMonth(),
+      first.getDate() - 1
+    );
+    for (;;) {
+      const y = day.getFullYear();
+      const m0 = day.getMonth();
+      const d = day.getDate();
+      const val = dayValue(y, m0, d);
+      if (val > domainMax) break;
+      if (val >= domainMin) {
+        ticks.push({
+          pos: scale(val),
+          label: `${MONTH_ABBR[m0]} ${d}`,
+          slot: Math.round(Date.UTC(y, m0, d) / 86_400_000) - MONDAY_EPOCH_DAY,
+        });
       }
+      day.setDate(d + 1);
     }
   }
 
