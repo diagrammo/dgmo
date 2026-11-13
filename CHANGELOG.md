@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **CLI `-o file.svg` embeds the Inter it uses (#1834).** An exported SVG
+  named Inter and carried none of it, so on a machine without Inter every
+  label fell back to another face and its measured width was wrong. The file
+  now carries Inter Regular (and Bold, when the diagram uses bold) as base64
+  WOFF2 `@font-face` rules, subset to the characters its own text draws. In a
+  browser with no Inter installed, 106 of the 107 gallery fixtures now draw
+  every text element at the same width as with Inter. It adds 3-53 KB per
+  file (37 KB on average). `@diagrammo/dgmo-cli` gains the `subset-font`
+  dependency. PNG, PDF and the library's `render()` are unchanged.
 - **CLI `--scale <n>` sets the PNG's pixel density (#1833).** PNG export was
   fixed at 2x; it is still the default. `--scale 3` turns a 1200x800 canvas
   into a 3600x2400 PNG, `--scale 1` into a 1200x800 one, and fractions work.

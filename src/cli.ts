@@ -28,6 +28,7 @@ import { choosePalette, extractPaletteDirective } from './palettes/directive';
 import { setPinnedNow } from './utils/now';
 import { svgToPng, DEFAULT_PNG_SCALE } from './svg-to-png';
 import { svgToPdf } from './svg-to-pdf';
+import { embedFonts, bundledFaces } from './svg-embed-font';
 import { encodeDiagramUrl } from './sharing';
 import { resolveOrgImports } from './org/resolver';
 import { containedReader } from './cli-contained-read';
@@ -1320,6 +1321,12 @@ async function main(): Promise<void> {
     console.error(
       'Warning: PDF has no transparent background; the diagram is drawn on the light background.'
     );
+  }
+  // A standalone .svg carries the Inter it names, subset to its own text, so
+  // it draws the same on a machine without Inter (#1834). PNG and PDF draw
+  // from the bundled TTFs already; only the SVG file needs it.
+  if (format === 'svg' && opts.output) {
+    svg = await embedFonts(svg, bundledFaces());
   }
   const writeRaster = (outputPath: string) =>
     writeFileSync(

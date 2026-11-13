@@ -39,11 +39,12 @@
   "dependencies": {
     "@diagrammo/dgmo-mcp": ">=0.29.15 <1",
     "@resvg/resvg-js": "^2.6.2",
-    "jsdom": "^29.1.1"
+    "jsdom": "^29.1.1",
+    "subset-font": "^2.5.0"
   },
   "scripts": {
     "prepack": "node ../scripts/prepack-cli.mjs && node ../scripts/prepack-sourcemaps.mjs .",
-    "postinstall": "node -e \"console.log('\\n💡 Claude Code user? Run: dgmo install claude-code\\n')\""
+    "postinstall": "node -e \"console.log('\\n\ud83d\udca1 Claude Code user? Run: dgmo install claude-code\\n')\""
   },
   "publishConfig": {
     "access": "public"

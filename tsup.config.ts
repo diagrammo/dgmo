@@ -384,8 +384,10 @@ const BUILDS: Options[] = [
     sourcemap: false,
     splitting: false,
     banner: { js: '#!/usr/bin/env node' },
-    noExternal: [/^(?!@resvg\/|jsdom$)/],
-    external: ['@resvg/resvg-js', 'jsdom'],
+    // `subset-font` stays a runtime dependency: harfbuzzjs reads its
+    // `hb-subset.wasm` through `require.resolve`, which a bundle breaks (#1834).
+    noExternal: [/^(?!@resvg\/|jsdom$|subset-font$)/],
+    external: ['@resvg/resvg-js', 'jsdom', 'subset-font'],
     minify: true,
     esbuildPlugins: [fixJsdomXhrWorker, inlineJsdomStylesheet],
     onSuccess: stageCliAssets,
