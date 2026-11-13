@@ -45,8 +45,8 @@ exports[`centred labels sit on the band centre > infra — every centred label, 
 
 exports[`centred labels sit on the band centre > journey-map — every centred label, with the y it was given 1`] = `
 [
-  "y=380 size=13 "Discover"",
-  "y=380 size=13 "Try"",
+  "y=385.5 size=13 "Discover"",
+  "y=385.5 size=13 "Try"",
 ]
 `;
 
@@ -56,12 +56,12 @@ exports[`centred labels sit on the band centre > kanban — every centred label,
   "y=14 size=10 "Low"",
   "y=14 size=10 "Urgent"",
   "y=14 size=10 "High"",
-  "y=76 size=13 "Awaiting Orders"",
-  "y=76 size=10 "3"",
-  "y=76 size=13 "Underway"",
-  "y=76 size=10 "2/2"",
-  "y=76 size=13 "Done"",
-  "y=76 size=10 "2"",
+  "y=78 size=13 "Awaiting Orders"",
+  "y=78 size=10 "3"",
+  "y=78 size=13 "Underway"",
+  "y=78 size=10 "2/2"",
+  "y=78 size=13 "Done"",
+  "y=78 size=10 "2"",
 ]
 `;
 
@@ -77,25 +77,25 @@ exports[`centred labels sit on the band centre > org — every centred label, wi
 
 exports[`centred labels sit on the band centre > pert — every centred label, with the y it was given 1`] = `
 [
-  "y=469 size=13 "sail to atoll"",
-  "y=469 size=13 "−2.17"",
-  "y=469 size=13 "+2.83"",
-  "y=495 size=13 "count gold"",
-  "y=495 size=13 "+2.83"",
-  "y=521 size=13 "repair hull"",
-  "y=521 size=13 "−0.58"",
-  "y=521 size=13 "+1.83"",
-  "y=547 size=13 "careen hull"",
-  "y=547 size=13 "+2.33"",
-  "y=573 size=13 "recruit crew"",
-  "y=573 size=13 "−0.23"",
-  "y=573 size=13 "+1.83"",
-  "y=599 size=13 "divvy shares"",
-  "y=599 size=13 "−1"",
-  "y=599 size=13 "+1"",
-  "y=625 size=13 "load powder"",
-  "y=625 size=13 "−0.58"",
-  "y=625 size=13 "+0.92"",
+  "y=409.75 size=13 "sail to atoll"",
+  "y=409.75 size=13 "−2.17"",
+  "y=409.75 size=13 "+2.83"",
+  "y=435.75 size=13 "count gold"",
+  "y=435.75 size=13 "+2.83"",
+  "y=461.75 size=13 "repair hull"",
+  "y=461.75 size=13 "−0.58"",
+  "y=461.75 size=13 "+1.83"",
+  "y=487.75 size=13 "careen hull"",
+  "y=487.75 size=13 "+2.33"",
+  "y=513.75 size=13 "recruit crew"",
+  "y=513.75 size=13 "−0.23"",
+  "y=513.75 size=13 "+1.83"",
+  "y=539.75 size=13 "divvy shares"",
+  "y=539.75 size=13 "−1"",
+  "y=539.75 size=13 "+1"",
+  "y=565.75 size=13 "load powder"",
+  "y=565.75 size=13 "−0.58"",
+  "y=565.75 size=13 "+0.92"",
 ]
 `;
 
