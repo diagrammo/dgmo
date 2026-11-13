@@ -338,7 +338,7 @@ tag Environment
       // this used to assert `undefined`, which is what made the legend drop
       // every colorless entry and then drop the whole group.
       expect(result.tagGroups[0].values[0].color).toBe('red');
-      expect(result.tagGroups[0].values[1].color).toBe('green');
+      expect(result.tagGroups[0].values[1].color).toBe('blue');
     });
   });
 

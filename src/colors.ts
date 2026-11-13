@@ -65,20 +65,24 @@ export const RECOGNIZED_COLOR_NAMES = Object.freeze([
  * auto-assigned: tag/group swatches (`autoTagColorCycle`) and data-chart
  * series colors (`getSeriesColors`) both derive their rotation from this list.
  *
- * Seeded with the RGB primaries (`red, green, blue`) for an unmistakable first
- * three, then each subsequent hue is chosen to fill the widest remaining gap on
- * the color wheel — maximizing contrast between adjacent swatches. Neutrals
- * (`gray`/`black`/`white`) are intentionally excluded so auto-picked colors
- * always read as distinct legend swatches.
+ * Chosen so neighbours stay apart for colour-blind readers in every built-in
+ * palette (#1835). Red stays first; blue and yellow follow because red, blue
+ * and yellow stay apart for red-blind and green-blind readers. Red no longer
+ * sits beside green, which collapsed to one colour in slate (colour difference 1.3).
+ * Only red-first and yellow-first orders clear both floors. Every adjacent pair
+ * clears CVD_ADJACENT_FLOOR and the first three clear CVD_FIRST_THREE_FLOOR
+ * under normal, red-blind and green-blind simulation — tests/palette-cvd.test.ts.
+ * Neutrals (`gray`/`black`/`white`) are excluded so auto-picked colors always
+ * read as distinct legend swatches. Reordering changes no palette colour.
  */
 export const CATEGORICAL_COLOR_ORDER = Object.freeze([
   'red',
-  'green',
   'blue',
   'yellow',
   'teal',
-  'purple',
   'orange',
+  'purple',
+  'green',
   'cyan',
 ] as const);
 
