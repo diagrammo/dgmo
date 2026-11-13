@@ -269,3 +269,32 @@ describe('stable collapse closes the gaps and keeps the order (#1784)', () => {
     }
   });
 });
+
+// A unit beside the collapsing group (no overlap across the axis) still keeps
+// its order with the units that close up past it (#1975, rule 3): F sat below
+// E, so F may rise into the freed space but never above E.
+describe('stable collapse keeps side-by-side order', () => {
+  const SRC = ['boxes-and-lines', '[G]', '  B', '  C', 'E', 'F'].join('\n');
+  const PREV2 = new Map([
+    ['B', { x: 300, y: 60 }],
+    ['C', { x: 300, y: 400 }],
+    ['E', { x: 100, y: 300 }],
+    ['F', { x: 300, y: 600 }],
+  ]);
+  it('a unit closing up never rises past a neighbour it sat below', async () => {
+    const parsed = parseBoxesAndLines(SRC);
+    const cr = collapseBoxesAndLines(parsed, new Set(['G']));
+    const layout = await layoutBoxesAndLines(
+      cr.parsed,
+      {
+        collapsedChildCounts: cr.collapsedChildCounts,
+        originalGroups: cr.originalGroups,
+      },
+      { previousPositions: PREV2, stableCollapse: true }
+    );
+    const at = (l: string) => layout.nodes.find((n) => n.label === l)!;
+    expect(at('F').y).toBeGreaterThanOrEqual(at('E').y - 1);
+    // F still closed up some of the space G freed.
+    expect(at('F').y - at('E').y).toBeLessThan(300);
+  });
+});

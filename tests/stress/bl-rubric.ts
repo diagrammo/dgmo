@@ -193,10 +193,15 @@ function checkState(v: View, expanded?: View): Map<RuleId, string[]> {
         const [ca, cb] = [v.unitRect(a), v.unitRect(b)];
         const [ea, eb] = [expanded.unitRect(a), expanded.unitRect(b)];
         if (!ca || !cb || !ea || !eb) continue;
+        // Two units have an order on an axis only when they were apart on it
+        // before the collapse; a box above a group's frame is neither before
+        // nor after it on x. Ordered pairs must keep their centre order.
         for (const ax of ['cx', 'cy'] as const) {
+          const [lo, hi] = ax === 'cx' ? [left, right] : [top, bottom];
+          const apart = hi(ea) <= lo(eb) || hi(eb) <= lo(ea);
           const before = ea[ax] - eb[ax];
           const after = ca[ax] - cb[ax];
-          if (Math.abs(before) > 1 && Math.abs(after) > 1 && before * after < 0)
+          if (apart && Math.abs(after) > 1 && before * after < 0)
             fail(3, `${a} and ${b} swap order on ${ax === 'cx' ? 'x' : 'y'}`);
         }
       }

@@ -297,7 +297,12 @@ export function tryStableCollapseLayout(
       i !== j &&
       hi(units[i]!.orig, axis) <= lo(units[j]!.orig, axis) + 0.5 &&
       perpOverlap(units[i]!.orig, units[j]!.orig);
-    const preds: { i: number; gap: number }[][] = units.map(() => []);
+    const size = (k: number): number => hi(cur[k]!, axis) - lo(cur[k]!, axis);
+    /** newLo[j] ≥ newLo[i] + off. An `order` constraint only stops a unit
+     *  passing its neighbour; it never pulls the unit toward it. */
+    const preds: { i: number; off: number; order?: true }[][] = units.map(
+      () => []
+    );
     for (let j = 0; j < n; j++)
       for (let i = 0; i < n; i++) {
         if (i === j) continue;
@@ -306,14 +311,29 @@ export function tryStableCollapseLayout(
           let between = false;
           for (let k = 0; k < n && !between; k++)
             between = before(i, k) && before(k, j);
-          preds[j]!.push({ i, gap: between ? Math.min(gap, MIN_GAP) : gap });
+          preds[j]!.push({
+            i,
+            off: size(i) + (between ? Math.min(gap, MIN_GAP) : gap),
+          });
+        } else if (
+          hi(units[i]!.orig, axis) <= lo(units[j]!.orig, axis) + 0.5 &&
+          !perpOverlap(units[i]!.orig, units[j]!.orig)
+        ) {
+          // Wholly before but beside, not in line: they cannot collide, so
+          // no spacing is owed — only the order. j's centre stays at or after
+          // i's, so a unit closing up never rises past a neighbour it sat
+          // below (#1975, rule 3).
+          // If the first pass brought them in line, they need clearance too.
+          if (perpOverlap(cur[i]!, cur[j]!))
+            preds[j]!.push({ i, off: size(i) + MIN_GAP });
+          else preds[j]!.push({ i, off: (size(i) - size(j)) / 2, order: true });
         } else if (
           !before(j, i) &&
           perpOverlap(cur[i]!, cur[j]!) &&
           hi(cur[i]!, axis) <= lo(cur[j]!, axis) + 0.5
         ) {
           const gap = lo(cur[j]!, axis) - hi(cur[i]!, axis);
-          preds[j]!.push({ i, gap: Math.min(gap, MIN_GAP) });
+          preds[j]!.push({ i, off: size(i) + Math.min(gap, MIN_GAP) });
         }
       }
     // Topological order over the constraints; a cycle means the old layout
@@ -329,12 +349,11 @@ export function tryStableCollapseLayout(
       const j = queue.shift()!;
       done++;
       if (preds[j]!.length > 0) {
-        let at = -Infinity;
-        for (const { i, gap } of preds[j]!)
-          at = Math.max(
-            at,
-            newLo[i]! + (hi(cur[i]!, axis) - lo(cur[i]!, axis)) + gap
-          );
+        const pulls = preds[j]!.filter((p) => !p.order);
+        let at = pulls.length > 0 ? -Infinity : newLo[j]!;
+        for (const { i, off } of pulls) at = Math.max(at, newLo[i]! + off);
+        for (const { i, off, order } of preds[j]!)
+          if (order) at = Math.max(at, newLo[i]! + off);
         newLo[j] = at;
       }
       for (const k of succ[j]!) if (--indeg[k]! === 0) queue.push(k);

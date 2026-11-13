@@ -68,6 +68,8 @@ describe('grouped layout rubric — engine ratchet', () => {
         }
       }
       console.warn(report.join('\n'));
-    });
+      // Four layouts of a 25-box diagram: seconds alone, far more under a
+      // loaded parallel suite. A "must not hang" bound, never a speed check.
+    }, 300_000);
   }
 });
