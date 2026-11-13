@@ -1,292 +1,284 @@
 {
- "layout": {
-  "nodes": [
-   {
-    "label": "Shell",
-    "x": 86.0,
-    "y": 86.0,
-    "width": 100,
-    "height": 44
-   },
-   {
-    "label": "AccountUI",
-    "x": 202.0,
-    "y": 86.0,
-    "width": 100,
-    "height": 44
-   },
-   {
-    "label": "ShopUI",
-    "x": 318.0,
-    "y": 86.0,
-    "width": 100,
-    "height": 44
-   },
-   {
-    "label": "OrdersUI",
-    "x": 86.0,
-    "y": 146.0,
-    "width": 100,
-    "height": 44
-   },
-   {
-    "label": "PaymentsUI",
-    "x": 202.0,
-    "y": 146.0,
-    "width": 100,
-    "height": 44
-   },
-   {
-    "label": "CartUI",
-    "x": 318.0,
-    "y": 146.0,
-    "width": 100,
-    "height": 44
-   },
-   {
-    "label": "GroupsUI",
-    "x": 86.0,
-    "y": 206.0,
-    "width": 100,
-    "height": 44
-   },
-   {
-    "label": "GiftUI",
-    "x": 202.0,
-    "y": 206.0,
-    "width": 100,
-    "height": 44
-   },
-   {
-    "label": "LoginUI",
-    "x": 434.0,
-    "y": 86.0,
-    "width": 100,
-    "height": 44
-   },
-   {
-    "label": "AuthService",
-    "x": 606.0,
-    "y": 86.0,
-    "width": 100,
-    "height": 44
-   },
-   {
-    "label": "OrderSync",
-    "x": 778.0,
-    "y": 146.0,
-    "width": 100,
-    "height": 44
-   },
-   {
-    "label": "Orders",
-    "x": 894.0,
-    "y": 146.0,
-    "width": 100,
-    "height": 44
-   },
-   {
-    "label": "Ledger",
-    "x": 1010.0,
-    "y": 146.0,
-    "width": 100,
-    "height": 44
-   },
-   {
-    "label": "Profiles",
-    "x": 778.0,
-    "y": 206.0,
-    "width": 100,
-    "height": 44
-   },
-   {
-    "label": "Settings",
-    "x": 894.0,
-    "y": 206.0,
-    "width": 100,
-    "height": 44
-   }
-  ],
+  "layout": {
+    "nodes": [
+      {
+        "label": "Shell",
+        "x": 86.0,
+        "y": 86.0,
+        "width": 100,
+        "height": 44
+      },
+      {
+        "label": "AccountUI",
+        "x": 202.0,
+        "y": 86.0,
+        "width": 100,
+        "height": 44
+      },
+      {
+        "label": "ShopUI",
+        "x": 318.0,
+        "y": 86.0,
+        "width": 100,
+        "height": 44
+      },
+      {
+        "label": "OrdersUI",
+        "x": 86.0,
+        "y": 146.0,
+        "width": 100,
+        "height": 44
+      },
+      {
+        "label": "PaymentsUI",
+        "x": 202.0,
+        "y": 146.0,
+        "width": 100,
+        "height": 44
+      },
+      {
+        "label": "CartUI",
+        "x": 318.0,
+        "y": 146.0,
+        "width": 100,
+        "height": 44
+      },
+      {
+        "label": "GroupsUI",
+        "x": 86.0,
+        "y": 206.0,
+        "width": 100,
+        "height": 44
+      },
+      {
+        "label": "GiftUI",
+        "x": 202.0,
+        "y": 206.0,
+        "width": 100,
+        "height": 44
+      },
+      {
+        "label": "LoginUI",
+        "x": 434.0,
+        "y": 86.0,
+        "width": 100,
+        "height": 44
+      },
+      {
+        "label": "AuthService",
+        "x": 606.0,
+        "y": 86.0,
+        "width": 100,
+        "height": 44
+      },
+      {
+        "label": "OrderSync",
+        "x": 778.0,
+        "y": 146.0,
+        "width": 100,
+        "height": 44
+      },
+      {
+        "label": "Orders",
+        "x": 894.0,
+        "y": 146.0,
+        "width": 100,
+        "height": 44
+      },
+      {
+        "label": "Ledger",
+        "x": 1010.0,
+        "y": 146.0,
+        "width": 100,
+        "height": 44
+      },
+      {
+        "label": "Profiles",
+        "x": 778.0,
+        "y": 206.0,
+        "width": 100,
+        "height": 44
+      },
+      {
+        "label": "Settings",
+        "x": 894.0,
+        "y": 206.0,
+        "width": 100,
+        "height": 44
+      }
+    ],
+    "groups": [
+      {
+        "label": "Frontends",
+        "lineNumber": 0,
+        "x": 260.0,
+        "y": 142.0,
+        "width": 480,
+        "height": 204,
+        "collapsed": false
+      },
+      {
+        "label": "Identity",
+        "lineNumber": 0,
+        "x": 606.0,
+        "y": 82.0,
+        "width": 132,
+        "height": 84,
+        "collapsed": false
+      },
+      {
+        "label": "Core",
+        "lineNumber": 0,
+        "x": 894.0,
+        "y": 172.0,
+        "width": 364,
+        "height": 144,
+        "collapsed": false
+      }
+    ],
+    "edges": [
+      {
+        "source": "LoginUI",
+        "target": "AuthService",
+        "points": [
+          {
+            "x": 484,
+            "y": 86
+          },
+          {
+            "x": 556,
+            "y": 86
+          }
+        ]
+      },
+      {
+        "source": "AuthService",
+        "target": "Orders",
+        "points": [
+          {
+            "x": 656.0,
+            "y": 86.0
+          },
+          {
+            "x": 684.8203125,
+            "y": 86.1484375
+          },
+          {
+            "x": 711.78125,
+            "y": 86.59375
+          },
+          {
+            "x": 736.8828125,
+            "y": 87.3359375
+          },
+          {
+            "x": 760.125,
+            "y": 88.375
+          },
+          {
+            "x": 781.5078125,
+            "y": 89.7109375
+          },
+          {
+            "x": 801.03125,
+            "y": 91.34375
+          },
+          {
+            "x": 818.6953125,
+            "y": 93.2734375
+          },
+          {
+            "x": 834.5,
+            "y": 95.5
+          },
+          {
+            "x": 848.4453125,
+            "y": 98.0234375
+          },
+          {
+            "x": 860.53125,
+            "y": 100.84375
+          },
+          {
+            "x": 870.7578125,
+            "y": 103.9609375
+          },
+          {
+            "x": 879.125,
+            "y": 107.375
+          },
+          {
+            "x": 885.6328125,
+            "y": 111.0859375
+          },
+          {
+            "x": 890.28125,
+            "y": 115.09375
+          },
+          {
+            "x": 893.0703125,
+            "y": 119.3984375
+          },
+          {
+            "x": 894.0,
+            "y": 124.0
+          }
+        ]
+      },
+      {
+        "source": "OrderSync",
+        "target": "Orders",
+        "points": [
+          {
+            "x": 828,
+            "y": 146
+          },
+          {
+            "x": 844,
+            "y": 146
+          }
+        ]
+      },
+      {
+        "source": "Orders",
+        "target": "Ledger",
+        "points": [
+          {
+            "x": 944,
+            "y": 146
+          },
+          {
+            "x": 960,
+            "y": 146
+          }
+        ]
+      }
+    ],
+    "width": 1096,
+    "height": 264
+  },
   "groups": [
-   {
-    "label": "Frontends",
-    "lineNumber": 0,
-    "x": 260.0,
-    "y": 142.0,
-    "width": 480,
-    "height": 204,
-    "collapsed": false
-   },
-   {
-    "label": "Identity",
-    "lineNumber": 0,
-    "x": 606.0,
-    "y": 82.0,
-    "width": 132,
-    "height": 84,
-    "collapsed": false
-   },
-   {
-    "label": "Core",
-    "lineNumber": 0,
-    "x": 894.0,
-    "y": 172.0,
-    "width": 364,
-    "height": 144,
-    "collapsed": false
-   }
-  ],
-  "edges": [
-   {
-    "source": "LoginUI",
-    "target": "AuthService",
-    "points": [
-     {
-      "x": 484,
-      "y": 86
-     },
-     {
-      "x": 556,
-      "y": 86
-     }
-    ]
-   },
-   {
-    "source": "AuthService",
-    "target": "Orders",
-    "points": [
-     {
-      "x": 656.0,
-      "y": 86.0
-     },
-     {
-      "x": 684.8203125,
-      "y": 86.1484375
-     },
-     {
-      "x": 711.78125,
-      "y": 86.59375
-     },
-     {
-      "x": 736.8828125,
-      "y": 87.3359375
-     },
-     {
-      "x": 760.125,
-      "y": 88.375
-     },
-     {
-      "x": 781.5078125,
-      "y": 89.7109375
-     },
-     {
-      "x": 801.03125,
-      "y": 91.34375
-     },
-     {
-      "x": 818.6953125,
-      "y": 93.2734375
-     },
-     {
-      "x": 834.5,
-      "y": 95.5
-     },
-     {
-      "x": 848.4453125,
-      "y": 98.0234375
-     },
-     {
-      "x": 860.53125,
-      "y": 100.84375
-     },
-     {
-      "x": 870.7578125,
-      "y": 103.9609375
-     },
-     {
-      "x": 879.125,
-      "y": 107.375
-     },
-     {
-      "x": 885.6328125,
-      "y": 111.0859375
-     },
-     {
-      "x": 890.28125,
-      "y": 115.09375
-     },
-     {
-      "x": 893.0703125,
-      "y": 119.3984375
-     },
-     {
-      "x": 894.0,
-      "y": 124.0
-     }
-    ]
-   },
-   {
-    "source": "OrderSync",
-    "target": "Orders",
-    "points": [
-     {
-      "x": 828,
-      "y": 146
-     },
-     {
-      "x": 844,
-      "y": 146
-     }
-    ]
-   },
-   {
-    "source": "Orders",
-    "target": "Ledger",
-    "points": [
-     {
-      "x": 944,
-      "y": 146
-     },
-     {
-      "x": 960,
-      "y": 146
-     }
-    ]
-   }
-  ],
-  "width": 1096,
-  "height": 264
- },
- "groups": [
-  {
-   "label": "Frontends",
-   "children": [
-    "LoginUI",
-    "Shell",
-    "AccountUI",
-    "ShopUI",
-    "OrdersUI",
-    "PaymentsUI",
-    "CartUI",
-    "GroupsUI",
-    "GiftUI"
-   ]
-  },
-  {
-   "label": "Identity",
-   "children": [
-    "AuthService"
-   ]
-  },
-  {
-   "label": "Core",
-   "children": [
-    "Orders",
-    "OrderSync",
-    "Ledger",
-    "Profiles",
-    "Settings"
-   ]
-  }
- ]
+    {
+      "label": "Frontends",
+      "children": [
+        "LoginUI",
+        "Shell",
+        "AccountUI",
+        "ShopUI",
+        "OrdersUI",
+        "PaymentsUI",
+        "CartUI",
+        "GroupsUI",
+        "GiftUI"
+      ]
+    },
+    {
+      "label": "Identity",
+      "children": ["AuthService"]
+    },
+    {
+      "label": "Core",
+      "children": ["Orders", "OrderSync", "Ledger", "Profiles", "Settings"]
+    }
+  ]
 }
