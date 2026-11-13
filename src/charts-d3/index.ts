@@ -46,6 +46,7 @@ import { renderRadar } from './radar';
 import { renderPolarArea } from './polar';
 import { renderFunnel } from './funnel';
 import { renderHeatmap, heatmapLegendGroups } from './heatmap';
+import { LEGEND_HEIGHT, LEGEND_INK_BOTTOM } from '../utils/legend-constants';
 import { renderScatter } from './scatter';
 import { renderSankey } from './sankey';
 import { renderChord } from './chord';
@@ -400,6 +401,10 @@ function renderPlot(
       const groups = ext.noLegend
         ? []
         : heatmapLegendGroups(ext, palette, isDark);
+      // The grid's first ink (its column labels) sits 8 below the inset, as
+      // under a bare title. Under a legend the gap is LEGEND_BODY_GAP from the
+      // legend's INK, not its row box (#1838), so give back the box's un-inked
+      // bottom.
       const top =
         groups.length > 0
           ? injectLegendGroups(
@@ -411,7 +416,8 @@ function renderPlot(
               width,
               inlineTitle,
               ext.frame
-            ) + 8
+            ) -
+            (LEGEND_HEIGHT - LEGEND_INK_BOTTOM)
           : (hasTitle ? 52 : 24) + titleExtra;
       renderHeatmap(
         s,

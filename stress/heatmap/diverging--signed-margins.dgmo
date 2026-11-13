@@ -1,0 +1,14 @@
+heatmap Margin vs Plan by Region and Quarter (percentage points)
+// stress: diverging — signed values split at 0 (#1837), a colour bar above rotated column labels
+scale diverging 0
+unit pp
+columns
+  Q1 Fiscal 2026 (restated)
+  Q2 Fiscal 2026
+  Q3 Fiscal 2026 (preliminary)
+  Q4 Fiscal 2026 (forecast)
+
+North America and Caribbean -4.5 -1.2 0 2.8
+Europe, Middle East and Africa 1.5 3.25 -0.75 6
+Asia Pacific (excluding Japan) -8 -2.5 1 4
+Japan 0.5 -0.25 2 -3
