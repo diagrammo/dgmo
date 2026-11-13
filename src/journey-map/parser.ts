@@ -101,6 +101,7 @@ export function parseJourneyMap(
   result.diagnostics.push(...directive.diagnostics);
   const lines = directive.content.split('\n');
   let contentStarted = false;
+  let headerLineSeen = false;
   let activeTagOptionLine = 0;
   let currentTagGroup: Writable<TagGroup> | null = null;
   let inPersona = false;
@@ -130,6 +131,10 @@ export function parseJourneyMap(
 
     // Skip comments
     if (trimmed.startsWith('//')) continue;
+    // Only the first content line can be the chart declaration (#1942):
+    // a later `Family` or `Kanban` is a node or tag value, not a chart type.
+    const isHeaderLine = !headerLineSeen;
+    headerLineSeen = true;
 
     const indent = measureIndent(line);
 
@@ -137,7 +142,7 @@ export function parseJourneyMap(
 
     // Extract chart type + title from first line
     if (!contentStarted && !currentTagGroup && !inPersona) {
-      const firstLine = parseFirstLine(trimmed);
+      const firstLine = isHeaderLine ? parseFirstLine(trimmed) : null;
       if (firstLine) {
         if (firstLine.chartType !== 'journey-map') {
           const allTypes = ['journey-map', 'kanban', 'sequence', 'flowchart'];

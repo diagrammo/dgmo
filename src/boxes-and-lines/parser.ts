@@ -201,6 +201,7 @@ export function parseBoxesAndLines(
 
   // Tag block state
   let contentStarted = false;
+  let headerLineSeen = false;
   let activeTagOptionLine = 0;
   let currentTagGroup: Writable<TagGroup> | null = null;
   // metaAliasMap: tag-group metadata-key aliases (per A1).
@@ -263,6 +264,10 @@ export function parseBoxesAndLines(
 
     // Skip blanks and comments
     if (!trimmed || trimmed.startsWith('//')) continue;
+    // Only the first content line can be the chart declaration (#1942):
+    // a later `Family` or `Kanban` is a node or tag value, not a chart type.
+    const isHeaderLine = !headerLineSeen;
+    headerLineSeen = true;
 
     // Chart frame: subtitle, source, footnote, byline (#1827), column 1.
     // Before the first-line check, which would read `subtitle Foo` as a chart type.
@@ -270,8 +275,8 @@ export function parseBoxesAndLines(
       continue;
 
     // First line: `boxes-and-lines [Title]`
-    const firstLineResult = parseFirstLine(trimmed);
-    if (firstLineResult && !contentStarted && i < 5) {
+    const firstLineResult = isHeaderLine ? parseFirstLine(trimmed) : null;
+    if (firstLineResult && !contentStarted) {
       if (firstLineResult.chartType !== 'boxes-and-lines') {
         const diag = makeDgmoError(
           lineNum,

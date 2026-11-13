@@ -158,6 +158,7 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
 
   const lines = content.split('\n');
   let contentStarted = false;
+  let headerLineSeen = false;
   let nodeCounter = 0;
   let containerCounter = 0;
   let focusOptionLine = 0;
@@ -195,12 +196,16 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
 
     // Skip comments
     if (trimmed.startsWith('//')) continue;
+    // Only the first content line can be the chart declaration (#1942):
+    // a later `Family` or `Kanban` is a node or tag value, not a chart type.
+    const isHeaderLine = !headerLineSeen;
+    headerLineSeen = true;
 
     // --- Header phase ---
 
     // Extract chart type + title from first line (e.g. `org My Org Chart`)
     if (!contentStarted) {
-      const firstLine = parseFirstLine(trimmed);
+      const firstLine = isHeaderLine ? parseFirstLine(trimmed) : null;
       if (firstLine) {
         if (firstLine.chartType !== 'org') {
           const allTypes = [

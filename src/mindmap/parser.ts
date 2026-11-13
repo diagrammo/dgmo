@@ -81,6 +81,7 @@ export function parseMindmap(
 
   const lines = content.split('\n');
   let contentStarted = false;
+  let headerLineSeen = false;
   let activeTagOptionLine = 0;
   let nodeCounter = 0;
 
@@ -113,12 +114,16 @@ export function parseMindmap(
 
     // Skip comments
     if (trimmed.startsWith('//')) continue;
+    // Only the first content line can be the chart declaration (#1942):
+    // a later `Family` or `Kanban` is a node or tag value, not a chart type.
+    const isHeaderLine = !headerLineSeen;
+    headerLineSeen = true;
 
     // --- Header phase ---
 
     if (!contentStarted) {
       // Extract chart type + title from first line
-      const firstLine = parseFirstLine(trimmed);
+      const firstLine = isHeaderLine ? parseFirstLine(trimmed) : null;
       if (firstLine) {
         if (firstLine.chartType !== 'mindmap') {
           let msg = `Expected chart type "mindmap", got "${firstLine.chartType}"`;

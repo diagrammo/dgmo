@@ -102,6 +102,7 @@ export function parseKanban(
 
   const lines = content.split('\n');
   let contentStarted = false;
+  let headerLineSeen = false;
   let activeTagOptionLine = 0;
   let currentTagGroup: Writable<KanbanTagGroup> | null = null;
   let currentColumn: Writable<KanbanColumn> | null = null;
@@ -133,12 +134,16 @@ export function parseKanban(
 
     // Skip comments
     if (trimmed.startsWith('//')) continue;
+    // Only the first content line can be the chart declaration (#1942):
+    // a later `Family` or `Kanban` is a node or tag value, not a chart type.
+    const isHeaderLine = !headerLineSeen;
+    headerLineSeen = true;
 
     // --- Header phase ---
 
     // Extract chart type + title from first line (e.g. `kanban Sprint 12`)
     if (!contentStarted && !currentTagGroup) {
-      const firstLine = parseFirstLine(trimmed);
+      const firstLine = isHeaderLine ? parseFirstLine(trimmed) : null;
       if (firstLine) {
         if (firstLine.chartType !== 'kanban') {
           const allTypes = [

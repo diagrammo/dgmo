@@ -134,6 +134,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A node or tag value named after a chart type no longer breaks the diagram (#1942).**
+  In boxes-and-lines, org, mindmap, kanban and journey-map, a `Family`,
+  `Kanban` or `Timeline` line near the top was read as a second chart
+  declaration and failed with `Expected chart type ..., got "family"`. Only
+  the first content line is the declaration now.
+
 - **A large state, flowchart, class or ER diagram no longer stalls in the
   layout search.** Past 80 nodes plus edges the plain layout is drawn as is,
   without trying and scoring alternative placements, whose crossing count grew
