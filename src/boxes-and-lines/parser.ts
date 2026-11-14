@@ -201,6 +201,13 @@ export function parseBoxesAndLines(
   }
   const groupStack: GroupState[] = [];
 
+  // `same-rank` / `order` lines, names resolved; matched to boxes at the end.
+  const rankHints: {
+    kind: 'same-rank' | 'order';
+    lineNumber: number;
+    names: string[];
+  }[] = [];
+
   // Tag block state
   let contentStarted = false;
   let headerLineSeen = false;
@@ -303,6 +310,24 @@ export function parseBoxesAndLines(
       if (dirMatch) {
         // Regex capture group present after successful match.
         result.direction = dirMatch[1]!.toUpperCase() as 'LR' | 'TB';
+        continue;
+      }
+
+      // Rank hints (#1840): `same-rank A, B, …` and `order A, B, …`. `order`
+      // needs a comma, so a box named `order queue` stays a box.
+      const hintMatch = trimmed.match(
+        /^(same-rank|order)\s+([^,]+(?:,[^,]*)+)$/
+      );
+      if (hintMatch && !/->|<-|~/.test(trimmed)) {
+        rankHints.push({
+          kind: hintMatch[1] as 'same-rank' | 'order',
+          lineNumber: lineNum,
+          names: hintMatch[2]!
+            .split(',')
+            .map((s) => s.trim())
+            .filter((s) => s.length > 0)
+            .map((s) => resolveEndpoint(s, lineNum, nameAliasMap)),
+        });
         continue;
       }
 
@@ -809,6 +834,8 @@ export function parseBoxesAndLines(
   }
   result.edges = validEdges;
 
+  if (rankHints.length > 0) resolveRankHints(result, rankHints, pushWarning);
+
   // Resolve note refs against box labels (forward refs OK). The id→note
   // binding is recomputed in layout; this pass surfaces diagnostics.
   if (notes.length > 0) {
@@ -866,6 +893,100 @@ export function parseBoxesAndLines(
   result.diagnostics.push(...nameAliasMap.finish());
 
   return result;
+}
+
+/**
+ * Match `same-rank` / `order` names to boxes (#1840). A hint names boxes only,
+ * never creates one; a name that is no box, or a group, is warned and left
+ * out, and a hint left with fewer than two boxes is dropped. A `same-rank` set
+ * where one member reaches another along the lines cannot share a rank, so it
+ * is warned and dropped whole.
+ */
+function resolveRankHints(
+  result: Writable<ParsedBoxesAndLines>,
+  hints: readonly {
+    kind: 'same-rank' | 'order';
+    lineNumber: number;
+    names: readonly string[];
+  }[],
+  warn: (lineNumber: number, message: string) => void
+): void {
+  const byKey = new Map(
+    result.nodes.map((n) => [normalizeName(n.label), n.label])
+  );
+  const boxOf = (name: string): string | undefined =>
+    byKey.get(normalizeName(name));
+  const succ = new Map<string, string[]>();
+  for (const e of result.edges) {
+    const s = boxOf(e.source);
+    const t = boxOf(e.target);
+    if (s === undefined || t === undefined) continue;
+    (succ.get(s) ?? succ.set(s, []).get(s)!).push(t);
+    if (e.bidirectional) (succ.get(t) ?? succ.set(t, []).get(t)!).push(s);
+  }
+  const reaches = (
+    from: string,
+    targets: ReadonlySet<string>
+  ): string | null => {
+    const seen = new Set<string>([from]);
+    const stack = [...(succ.get(from) ?? [])];
+    while (stack.length > 0) {
+      const v = stack.pop()!;
+      if (targets.has(v)) return v;
+      if (seen.has(v)) continue;
+      seen.add(v);
+      stack.push(...(succ.get(v) ?? []));
+    }
+    return null;
+  };
+
+  const sameRank: string[][] = [];
+  const rankOrder: string[][] = [];
+  for (const hint of hints) {
+    const labels: string[] = [];
+    for (const name of hint.names) {
+      if (name.startsWith('__group_')) {
+        warn(
+          hint.lineNumber,
+          `${hint.kind} names the group [${name.slice('__group_'.length)}] — it takes boxes only`
+        );
+        continue;
+      }
+      const label = boxOf(name);
+      if (label === undefined) {
+        let msg = `${hint.kind} names '${name}', which is not a box`;
+        const s = suggest(normalizeName(name), [...byKey.keys()]);
+        if (s) msg += `. ${s}`;
+        warn(hint.lineNumber, msg);
+        continue;
+      }
+      if (!labels.includes(label)) labels.push(label);
+    }
+    if (labels.length < 2) {
+      warn(hint.lineNumber, `${hint.kind} needs at least two boxes — ignored`);
+      continue;
+    }
+    if (hint.kind === 'same-rank') {
+      const clash = labels
+        .map(
+          (a) =>
+            [a, reaches(a, new Set(labels.filter((b) => b !== a)))] as const
+        )
+        .find(([, b]) => b !== null);
+      if (clash) {
+        warn(
+          hint.lineNumber,
+          `same-rank ${labels.join(', ')}: a line runs from '${clash[0]}' to '${clash[1]}', so they cannot share a rank — ignored`
+        );
+        continue;
+      }
+      sameRank.push(labels);
+    } else {
+      rankOrder.push(labels);
+    }
+  }
+  if (sameRank.length > 0) result.sameRank = sameRank;
+  if (rankOrder.length > 0) result.rankOrder = rankOrder;
 }
 
 // ============================================================

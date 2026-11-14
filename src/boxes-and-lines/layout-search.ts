@@ -26,6 +26,7 @@ import { clipEndpointsToNodes } from './edge-clip';
 import { measureEdgeLabel, EDGE_LABEL_FONT_SIZE } from './label-placement';
 import { tryStableCollapseLayout } from './layout-stable-collapse';
 import { layoutRankdir } from './rankdir';
+import { rankWithHints, applyRankOrder } from './rank-hints';
 
 type Pt = { x: number; y: number };
 
@@ -1736,6 +1737,11 @@ export async function layoutBoxesAndLinesSearch(
     Math.abs(p.y - rect.y) <= rect.h / 2;
 
   const realBoxes = new Set(parsed.nodes.map((n) => n.label));
+  const sameRank = parsed.sameRank ?? [];
+  const rankOrder = parsed.rankOrder ?? [];
+  // The home-grown layered and tier engines rank and order boxes their own
+  // way and know nothing of the hints, so a hinted diagram is dagre's alone.
+  const hinted = sameRank.length > 0 || rankOrder.length > 0;
 
   // A group's edgeless members all share one rank, so eight of them draw as
   // one tall column (#1974). Chain them into rows of ceil(sqrt(n)) with edges
@@ -1780,7 +1786,18 @@ export async function layoutBoxesAndLinesSearch(
     const g = new dagre.graphlib.Graph({ compound: true, multigraph: true });
     g.setGraph({
       rankdir,
-      ranker: cfg.ranker,
+      // A `same-rank` hint replaces dagre's ranker with ours (#1840); dagre
+      // 3.1.1 calls a function `ranker` on its internal graph. Its typings
+      // still say string.
+      ranker:
+        sameRank.length > 0
+          ? (((lg: Parameters<typeof rankWithHints>[0]) =>
+              rankWithHints(
+                lg,
+                sameRank,
+                cfg.ranker !== 'longest-path'
+              )) as unknown as string)
+          : cfg.ranker,
       nodesep: cfg.nodesep,
       ranksep: cfg.ranksep,
       edgesep: 20,
@@ -1830,11 +1847,15 @@ export async function layoutBoxesAndLinesSearch(
     for (const [ci, chain] of wrapChains.entries())
       for (let i = 1; i < chain.length; i++)
         g.setEdge(chain[i - 1]!, chain[i]!, {}, `__wrap_${ci}_${i}`);
-    if (plan)
+    if (plan || rankOrder.length > 0)
       dagre.layout(g, {
         customOrder: (lg, order) => {
           order(lg, {});
-          applyOrderPlan(lg, realBoxes, plan.forced, plan.captured);
+          // `order` hints (#1840) before the plan, so a captured plan records
+          // the hinted order, and after it, so a forced plan cannot undo them.
+          applyRankOrder(lg, rankOrder);
+          if (plan) applyOrderPlan(lg, realBoxes, plan.forced, plan.captured);
+          applyRankOrder(lg, rankOrder);
         },
       });
     else dagre.layout(g);
@@ -2150,7 +2171,7 @@ export async function layoutBoxesAndLinesSearch(
   // every collapsed-group box AND its incident edges, then win on badness for
   // exactly those missing lines — leaving the diagram with no collapsed groups.
   let layered: BLLayoutResult[] = [];
-  if (collapsedGroupLabels.size === 0) {
+  if (collapsedGroupLabels.size === 0 && !hinted) {
     try {
       layered = layeredCandidates(parsed, sizes);
     } catch {
@@ -2169,7 +2190,7 @@ export async function layoutBoxesAndLinesSearch(
   // the flat layered ones may not — they ignore `reserveEdgeLabels`, so a tie
   // won by one would undo the label-reserving relayout.
   const tierCands = new Set<BLLayoutResult>();
-  if (parsed.groups.length > 0 && collapsedGroupLabels.size === 0) {
+  if (parsed.groups.length > 0 && collapsedGroupLabels.size === 0 && !hinted) {
     try {
       const tier = groupedTierCandidates(parsed, sizes, { reserveEdgeLabels });
       for (const t of tier) tierCands.add(t);

@@ -304,6 +304,7 @@ const INVENTORY = {
     'rounds',
     'route',
     'rows',
+    'same-rank',
     'scale',
     'scrubber-trials',
     'seed',

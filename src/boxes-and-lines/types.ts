@@ -45,6 +45,12 @@ export interface ParsedBoxesAndLines {
   readonly notes?: readonly DiagramNote[];
   readonly initialHiddenTagValues: ReadonlyMap<string, ReadonlySet<string>>;
   readonly direction: 'LR' | 'TB';
+  /** `same-rank A, B, …` lines (#1840): each set of box labels is laid out
+   *  on one rank. Absent when the source has none. */
+  readonly sameRank?: readonly (readonly string[])[];
+  /** `order A, B, …` lines (#1840): boxes of one set that share a rank (and a
+   *  group) keep this order across it. Absent when the source has none. */
+  readonly rankOrder?: readonly (readonly string[])[];
   /** `heat <label> [low] [high]` — names the value-ramp dimension and
    *  optionally sets its endpoint colours. One color = high hue over a neutral
    *  low; two = explicit `low high`. Mirror of map's `region-heat`. */

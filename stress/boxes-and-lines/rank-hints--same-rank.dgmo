@@ -1,0 +1,11 @@
+boxes-and-lines Read and write paths
+// stress: rank hints — `same-rank` puts both stores on one row (#1840)
+direction-tb
+
+Client -> API
+API -> DB
+Client -> Cache
+Cache -> Worker
+Worker -> Queue
+
+same-rank DB, Queue
