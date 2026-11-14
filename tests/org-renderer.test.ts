@@ -76,11 +76,14 @@ describe('layoutOrg', () => {
   });
 
   it('uses bus pattern for multiple children (no overlapping edges)', () => {
-    const parsed = parseOrg('org\nAlice\n  Bob\n  Carol\n  Dave');
+    // Zed keeps Alice's reports from being all leaves, which a wide chart
+    // would stack in a column instead (#1841).
+    const parsed = parseOrg('org\nAlice\n  Bob\n  Carol\n  Dave\n    Zed');
     const layout = layoutOrg(parsed);
 
-    // Bus pattern: 1 trunk + 1 horizontal bus + 3 drops = 5 edges
-    expect(layout.edges).toHaveLength(5);
+    // Bus pattern: 1 trunk + 1 horizontal bus + 3 drops = 5 edges,
+    // then Dave's single elbow to Zed.
+    expect(layout.edges).toHaveLength(6);
 
     const trunk = layout.edges[0];
     expect(trunk.points).toHaveLength(2);
@@ -104,7 +107,10 @@ describe('layoutOrg', () => {
   });
 
   it('centers parent exactly between direct children', () => {
-    const parsed = parseOrg('org\nAlice\n  Bob\n  Carol\n  Dave\n  Eve');
+    // Zed keeps the four reports in a row rather than a stack (#1841).
+    const parsed = parseOrg(
+      'org\nAlice\n  Bob\n  Carol\n  Dave\n  Eve\n    Zed'
+    );
     const layout = layoutOrg(parsed);
 
     const alice = layout.nodes.find((n) => n.label === 'Alice')!;

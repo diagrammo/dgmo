@@ -1281,6 +1281,7 @@ CEO
 ```
 
 - Node coloring: per-node indented metadata `\n  color: blue` (deferred to a follow-up spec; tag groups inside org also work)
+- Compact leaves: when a chart would render more than twice as wide as it is deep, every person whose reports are all leaves (two or more, no reports of their own) gets them stacked in a column beneath, joined by a line down the side. Under `direction-lr` the stack runs as a row. Smaller charts keep the row.
 - Same-line metadata: `Alice role: CEO, t: Exec`
 
 **Color by team / department** — declare a `tag <Name> as <alias>` group (§1.3) with palette colors, then assign each person the tag as metadata (`<alias>: <Value>`, indented under the node or same-line). There is **no `#team` or roster syntax** — a `#` line is not a grouping operator and renders as a stray node:

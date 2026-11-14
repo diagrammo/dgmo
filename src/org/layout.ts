@@ -134,6 +134,12 @@ const CONTAINER_PAD_BOTTOM = 24;
 const CONTAINER_LABEL_HEIGHT = 28;
 const CONTAINER_META_LINE_HEIGHT = 16;
 const STACK_V_GAP = 20;
+// A person's stacked reports sit this far in from the stack's near edge
+// along the cross axis, leaving a lane for the trunk line that feeds them.
+const STACK_INDENT = 24;
+// Cross-axis to depth-axis ratio (width:height under TB) past which an org
+// chart's all-leaf report groups are stacked (#1841).
+const TARGET_ASPECT = 2;
 
 // Legend (kanban-style pills)
 
@@ -391,6 +397,43 @@ export function layoutOrg(
   hiddenAttributes?: Set<string>,
   expandAllLegend?: boolean
 ): OrgLayoutResult {
+  const spread = layoutOrgPass(
+    parsed,
+    hiddenCounts,
+    activeTagGroup,
+    hiddenAttributes,
+    expandAllLegend,
+    false
+  );
+  // A tree whose leaves fan out across one rank grows far wider than it is
+  // deep (#1841: 45 people at 13:1). Past TARGET_ASPECT, lay it out again
+  // with every person's all-leaf reports stacked in a column under them,
+  // and keep that layout when it is narrower across the cross axis.
+  const isLR = parsed.direction === 'LR';
+  const cross = (r: OrgLayoutResult): number => (isLR ? r.height : r.width);
+  const depth = (r: OrgLayoutResult): number => (isLR ? r.width : r.height);
+  if (depth(spread) <= 0 || cross(spread) / depth(spread) <= TARGET_ASPECT) {
+    return spread;
+  }
+  const stacked = layoutOrgPass(
+    parsed,
+    hiddenCounts,
+    activeTagGroup,
+    hiddenAttributes,
+    expandAllLegend,
+    true
+  );
+  return cross(stacked) < cross(spread) ? stacked : spread;
+}
+
+function layoutOrgPass(
+  parsed: ParsedOrg,
+  hiddenCounts: Map<string, number> | undefined,
+  activeTagGroup: string | null | undefined,
+  hiddenAttributes: Set<string> | undefined,
+  expandAllLegend: boolean | undefined,
+  stackPersonLeaves: boolean
+): OrgLayoutResult {
   if (parsed.roots.length === 0) {
     // Legend-only: compute and position legend groups even without nodes
     const showEyeIcons = hiddenAttributes !== undefined;
@@ -547,23 +590,34 @@ export function layoutOrg(
   // the d3 tree allocates a thin run along the depth axis rather than a
   // broad one across the cross axis. Under TB that reads as the familiar
   // narrow column instead of a wide row; under LR it is the transpose.
+  //
+  // With `stackPersonLeaves`, a PERSON whose reports are two or more leaf
+  // people is stacked the same way (#1841), indented by STACK_INDENT so a
+  // trunk line can run down beside the column and tick into each card.
   const leafStacks = new Map<
     string,
-    { children: TreeNode[]; placeholderId: string }
+    { children: TreeNode[]; placeholderId: string; person: boolean }
   >();
 
   const collapseLeafContainers = (tn: TreeNode): void => {
     for (const child of tn.children) collapseLeafContainers(child);
 
-    if (
-      tn.orgNode.isContainer &&
+    const allLeaves =
       tn.children.length > 0 &&
-      tn.children.every((c) => c.children.length === 0)
-    ) {
+      tn.children.every((c) => c.children.length === 0);
+    const person =
+      stackPersonLeaves &&
+      allLeaves &&
+      !tn.orgNode.isContainer &&
+      tn.orgNode.id !== '__virtual_root__' &&
+      tn.children.length >= 2 &&
+      tn.children.every((c) => !c.orgNode.isContainer);
+    if ((tn.orgNode.isContainer && allLeaves) || person) {
       const placeholderId = `__stack_${tn.orgNode.id}`;
       leafStacks.set(tn.orgNode.id, {
         children: [...tn.children],
         placeholderId,
+        person,
       });
 
       const maxW = Math.max(...tn.children.map((c) => c.width));
@@ -576,7 +630,9 @@ export function layoutOrg(
       const stackDepth =
         tn.children.reduce((s, c) => s + depthExtent(c), 0) +
         (tn.children.length - 1) * STACK_V_GAP;
-      const stackCross = Math.max(...tn.children.map((c) => crossExtent(c)));
+      const stackCross =
+        Math.max(...tn.children.map((c) => crossExtent(c))) +
+        (person ? STACK_INDENT : 0);
 
       tn.children = [
         {
@@ -850,6 +906,15 @@ export function layoutOrg(
     cy: number;
   }
   const expandedChildren: ExpandedChild[] = [];
+  // Abstract-space geometry of each person's stack, for its edges below.
+  const personStacks: {
+    parentId: string;
+    parentX: number;
+    parentBottomY: number;
+    stackTopY: number;
+    trunkX: number;
+    ticks: { id: string; near: number; mid: number }[];
+  }[] = [];
 
   for (const d of h.descendants()) {
     if (d.data.orgNode.id === '__virtual_root__') continue;
@@ -860,16 +925,36 @@ export function layoutOrg(
     if (!stack) continue;
 
     // Lay the stacked leaves out along the depth axis, in abstract space.
+    // A person's stack shifts its cards STACK_INDENT/2 along the cross axis
+    // (the placeholder was made STACK_INDENT wider) to clear the trunk lane.
+    const cx = d.x! + (stack.person ? STACK_INDENT / 2 : 0);
+    const ticks: { id: string; near: number; mid: number }[] = [];
     let currentY = d.y!;
     for (const child of stack.children) {
       expandedChildren.push({
         orgNode: child.orgNode,
         width: child.width,
         height: child.height,
-        cx: d.x!,
+        cx,
         cy: currentY,
       });
+      ticks.push({
+        id: child.orgNode.id,
+        near: cx - crossExtent(child) / 2,
+        mid: currentY + depthExtent(child) / 2,
+      });
       currentY += depthExtent(child) + STACK_V_GAP;
+    }
+    const parent = d.parent;
+    if (stack.person && parent && ticks.length > 0) {
+      personStacks.push({
+        parentId: containerId,
+        parentX: parent.x!,
+        parentBottomY: parent.y! + depthExtent(parent.data),
+        stackTopY: d.y!,
+        trunkX: ticks[0]!.near - STACK_INDENT / 2,
+        ticks,
+      });
     }
   }
 
@@ -1046,6 +1131,30 @@ export function layoutOrg(
         id: orgNode.id,
         x: d.x!,
         topY: d.y!,
+      });
+    }
+  }
+
+  // A person's stacked reports: an elbow from the parent's far edge into the
+  // trunk lane, the trunk down beside the column, and a tick into each card.
+  for (const ps of personStacks) {
+    const midY = (ps.parentBottomY + ps.stackTopY) / 2;
+    const last = ps.ticks[ps.ticks.length - 1]!;
+    layoutEdges.push({
+      sourceId: ps.parentId,
+      targetId: ps.parentId,
+      points: [
+        placePoint(ps.parentX, ps.parentBottomY),
+        placePoint(ps.parentX, midY),
+        placePoint(ps.trunkX, midY),
+        placePoint(ps.trunkX, last.mid),
+      ],
+    });
+    for (const t of ps.ticks) {
+      layoutEdges.push({
+        sourceId: ps.parentId,
+        targetId: t.id,
+        points: [placePoint(ps.trunkX, t.mid), placePoint(t.near, t.mid)],
       });
     }
   }
