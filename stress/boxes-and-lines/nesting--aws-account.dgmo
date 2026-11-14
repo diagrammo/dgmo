@@ -1,0 +1,22 @@
+boxes-and-lines AWS Account
+// stress: nesting — groups four deep: account, VPC, subnet, service (#1840)
+
+[Production Account]
+  [VPC]
+    [Public Subnet]
+      [Edge]
+        Load Balancer
+        Gateway
+    [Private Subnet]
+      [App Tier]
+        API
+        Worker
+      [Data Tier]
+        DB
+        Cache
+
+Load Balancer -> API
+Gateway -> API
+API -> DB
+API -> Cache
+Worker -> DB

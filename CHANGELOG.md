@@ -113,6 +113,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Boxes-and-lines groups nest four deep (#1840).** The cap was two, too
+  shallow for account → VPC → subnet → service; a third `[Group]` was dropped
+  with a warning. Groups now nest to depth 4, and a fifth level is refused
+  with the same warning.
+
 - **`--width` with `--height` comes back exactly that size (#1833).** A
   chart type that lays out onto the canvas — pie, polar area, radar, funnel,
   venn, chord and the radial treemap — was trimmed to its content and scaled

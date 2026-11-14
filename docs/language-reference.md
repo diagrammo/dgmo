@@ -2218,13 +2218,15 @@ A -reads-> DB frequency: High
   indented nodes...
 ```
 
-Nested groups (max depth 2):
+Nested groups (max depth 4; a fifth level is refused with a warning):
 
 ```
 [AWS]
   [us-east-1]
-    API
-    DB
+    [Private Subnet]
+      [App Tier]
+        API
+        DB
 ```
 
 Group metadata cascades to children (node metadata overrides). Nodes already declared above can be referenced inside groups to assign membership.

@@ -221,9 +221,9 @@ describe('boxes-and-lines parser', () => {
       expect(outer!.parentGroup).toBeUndefined();
     });
 
-    it('warns on 3-level nesting (exceeds max depth)', () => {
+    it('warns on 5-level nesting (exceeds max depth)', () => {
       const result = parseBoxesAndLines(
-        'boxes-and-lines\n[A]\n  [B]\n    [C]\n      X'
+        'boxes-and-lines\n[A]\n  [B]\n    [C]\n      [D]\n        [E]\n          X'
       );
       expect(
         result.diagnostics.some((d) => d.message.includes('maximum depth'))

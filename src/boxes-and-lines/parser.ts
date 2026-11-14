@@ -42,7 +42,8 @@ import { tryCollectNote, resolveNotes, type DiagramNote } from '../utils/notes';
 import type { PaletteColors } from '../palettes';
 import { parseChartFrameLine } from '../utils/chart-frame-parse';
 
-const MAX_GROUP_DEPTH = 2;
+// Deep enough for account → VPC → subnet → service (#1840).
+const MAX_GROUP_DEPTH = 4;
 
 /** Boxes-and-lines requires explicit first line — no heuristic detection. */
 export function looksLikeBoxesAndLines(_content: string): boolean {
