@@ -25,6 +25,7 @@ import { groupedTierCandidates } from './layout-grouped';
 import { clipEndpointsToNodes } from './edge-clip';
 import { measureEdgeLabel, EDGE_LABEL_FONT_SIZE } from './label-placement';
 import { tryStableCollapseLayout } from './layout-stable-collapse';
+import { layoutRankdir } from './rankdir';
 
 type Pt = { x: number; y: number };
 
@@ -1599,7 +1600,7 @@ export async function layoutBoxesAndLinesSearch(
       }
 
   const gid = (label: string) => `__group_${label}`;
-  const rankdir = parsed.direction === 'TB' ? 'TB' : 'LR';
+  const rankdir = layoutRankdir(parsed);
 
   // Interactive collapse: freeze-and-anchor fast path (see layout-stable-collapse).
   if (
@@ -1739,7 +1740,10 @@ export async function layoutBoxesAndLinesSearch(
   // A group's edgeless members all share one rank, so eight of them draw as
   // one tall column (#1974). Chain them into rows of ceil(sqrt(n)) with edges
   // that only dagre sees — never routed, scored or drawn — so they wrap into a
-  // grid. Row-major in source order; `rankdir` turns a row into a column.
+  // grid. A chain runs along `rankdir`, so with the author's axis it is a
+  // row under `lr` and a column under `tb`. A diagram with no lines lays out
+  // on the swapped axis (#1999); there the chains take every `cols`-th box,
+  // so the grid still reads row-major under `lr` and column-major under `tb`.
   const wrapChains: string[][] = [];
   {
     const touched = new Set<string>();
@@ -1753,8 +1757,13 @@ export async function layoutBoxesAndLinesSearch(
       );
       if (iso.length < WRAP_MIN_ISOLATED) continue;
       const cols = Math.ceil(Math.sqrt(iso.length));
-      for (let i = 0; i < iso.length; i += cols)
-        wrapChains.push(iso.slice(i, i + cols));
+      if (rankdir === (parsed.direction === 'TB' ? 'TB' : 'LR')) {
+        for (let i = 0; i < iso.length; i += cols)
+          wrapChains.push(iso.slice(i, i + cols));
+      } else {
+        for (let c = 0; c < cols; c++)
+          wrapChains.push(iso.filter((_, i) => i % cols === c));
+      }
     }
   }
 

@@ -70,7 +70,8 @@ describe('edgeless group members wrap into a grid', () => {
       ['boxes-and-lines', '[G]', '  A', '  B', '  C'].join('\n')
     );
     const lay = await layoutBoxesAndLines(p);
-    expect(new Set(lay.nodes.map((n) => Math.round(n.x))).size).toBe(1);
+    // No lines under the default `lr`: one unwrapped row (#1999).
+    expect(new Set(lay.nodes.map((n) => Math.round(n.y))).size).toBe(1);
   });
 });
 

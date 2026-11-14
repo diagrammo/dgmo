@@ -8,6 +8,7 @@
 // the engine-agnostic post-passes applied to whatever the engine returns.
 
 import { LAYOUT_MARGIN } from './types';
+import { layoutRankdir } from './rankdir';
 import type { ParsedBoxesAndLines, BLNode, BLGroup } from './types';
 import type { BLSearchConfig } from './layout-search';
 import { NODE_HEIGHT, NODE_WIDTH } from './node-metrics';
@@ -326,7 +327,7 @@ function attachNotes(
       height: n.height,
     })),
     noteByNode,
-    parsed.direction === 'TB' ? 'TB' : 'LR',
+    layoutRankdir(parsed),
     collapsedNotes
   );
   const notedNodes: BLLayoutNode[] = layout.nodes.map((n) => {
