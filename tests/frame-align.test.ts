@@ -126,4 +126,17 @@ Captain
       expect(pill, head).toContain('dgmo-legend-key-pill');
     }
   });
+
+  // The app's export fast path rebuilds the legend from the DOM and reads
+  // these back (#2014); without them the frame and alignment were lost.
+  it('stamps the frame directives on the legend wrapper only when set', async () => {
+    const [head, ...rest] = ORG.split('\n');
+    const bare = await exportSvg(ORG);
+    expect(bare).not.toMatch(/data-legend-(key-style|align)=/);
+    const framed = await exportSvg(
+      [head, 'legend-box', 'legend-align right', ...rest].join('\n')
+    );
+    expect(framed).toContain('data-legend-key-style="box"');
+    expect(framed).toContain('data-legend-align="right"');
+  });
 });

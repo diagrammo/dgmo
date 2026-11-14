@@ -100,6 +100,12 @@ export function renderLegendD3(
       'data-legend-capsule-addon-width',
       String(config.capsulePillAddonWidth ?? 0)
     );
+  // The frame directives (#1838), stamped so a consumer that re-renders this
+  // legend from the DOM (the app's export fast path) can carry them (#2014).
+  // Written only when set, so a legend without them is unchanged.
+  if (config.keyStyle) legendG.attr('data-legend-key-style', config.keyStyle);
+  if (config.align && config.align !== 'left')
+    legendG.attr('data-legend-align', config.align);
 
   function render() {
     currentLayout = computeLegendLayout(config, currentState, width);
