@@ -75,3 +75,62 @@ export function measureGrowth<T>(opts: {
   }
   return best;
 }
+
+/** Calls per sample so one sample lasts at least `minMs`, for an async `run`. */
+async function callsForAsync(
+  run: () => Promise<void>,
+  minMs: number
+): Promise<number> {
+  let calls = 1;
+  while (calls < 1 << 20) {
+    const started = performance.now();
+    for (let i = 0; i < calls; i++) await run();
+    if (performance.now() - started >= minMs) break;
+    calls *= 2;
+  }
+  return calls;
+}
+
+/** {@link measureGrowth} for an async `run`, such as the full `render()` pipeline. */
+export async function measureGrowthAsync<T>(opts: {
+  small: number;
+  large: number;
+  prepare: (n: number) => T;
+  run: (input: T) => Promise<unknown>;
+  limit: number;
+  rounds?: number;
+  attempts?: number;
+  minMs?: number;
+}): Promise<number> {
+  const { small, large, prepare, run, limit } = opts;
+  const rounds = opts.rounds ?? 5;
+  const attempts = opts.attempts ?? 3;
+  const minMs = opts.minMs ?? 5;
+  const smallInput = prepare(small);
+  const largeInput = prepare(large);
+  const runSmall = async () => void (await run(smallInput));
+  const runLarge = async () => void (await run(largeInput));
+  const sample = async (fn: () => Promise<void>, calls: number) => {
+    const started = performance.now();
+    for (let i = 0; i < calls; i++) await fn();
+    return (performance.now() - started) / calls;
+  };
+
+  let best = Infinity;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const smallCalls = await callsForAsync(runSmall, minMs);
+    const largeCalls = await callsForAsync(runLarge, minMs);
+    let smallMs = Infinity;
+    let largeMs = Infinity;
+    for (let round = 0; round < rounds; round++) {
+      smallMs = Math.min(smallMs, await sample(runSmall, smallCalls));
+      largeMs = Math.min(largeMs, await sample(runLarge, largeCalls));
+    }
+    best = Math.min(
+      best,
+      growthExponent({ n: small, ms: smallMs }, { n: large, ms: largeMs })
+    );
+    if (best < limit) break;
+  }
+  return best;
+}

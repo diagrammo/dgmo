@@ -93,6 +93,7 @@
     "pretest": "pnpm codegen && pnpm fonts",
     "contact-sheet": "pnpm build && node scripts/contact-sheet.mjs",
     "test": "TZ=UTC vitest run --coverage",
+    "test:growth": "TZ=UTC vitest run --config vitest.growth.config.ts",
     "bench:perf": "vitest run --config vitest.perf.config.ts tests/perf-bench.ts",
     "bench:bl": "vitest run --config vitest.bench.config.ts tests/bl-layout-bench.ts",
     "bench:bl-collapse": "vitest run --config vitest.bench.config.ts tests/bl-collapse-bench.ts",
