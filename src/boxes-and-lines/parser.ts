@@ -339,12 +339,20 @@ export function parseBoxesAndLines(
 
       // Invisible line (#2002): `A ~~ B` ranks B after A like a line would,
       // but nothing routes, scores or draws it.
-      const invisMatch = trimmed.match(/^([^~|]+?)\s*~~\s*([^~|]+)$/);
-      if (invisMatch && !/->|<-/.test(trimmed)) {
+      const invisibleMatch = trimmed.match(/^([^~|]+?)\s*~~\s*([^~|]+)$/);
+      if (invisibleMatch && !/->|<-/.test(trimmed)) {
         invisibleHints.push({
           lineNumber: lineNum,
-          source: resolveEndpoint(invisMatch[1]!.trim(), lineNum, nameAliasMap),
-          target: resolveEndpoint(invisMatch[2]!.trim(), lineNum, nameAliasMap),
+          source: resolveEndpoint(
+            invisibleMatch[1]!.trim(),
+            lineNum,
+            nameAliasMap
+          ),
+          target: resolveEndpoint(
+            invisibleMatch[2]!.trim(),
+            lineNum,
+            nameAliasMap
+          ),
         });
         continue;
       }
