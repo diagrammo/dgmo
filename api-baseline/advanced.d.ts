@@ -2,11 +2,11 @@ import { D as DgmoError, C as ChartFrame, T as TagGroup, g as TagEntry } from '.
 export { b as DgmoFix, c as DgmoSeverity, h as autoTagColorCycle, f as formatDgmoError, m as makeDgmoError, r as resolveActiveTagGroup, i as resolveTagColor, j as resolveTagValue, t as tagAttrKey } from './tag-groups-COyUupuj.js';
 import { P as PaletteConfig, c as PaletteColors, C as CompactViewState } from './chart-types-Dxtv4XSz.js';
 export { a as ChartTypeId, b as ChartTypeMeta, D as DecodedDiagramUrl, E as EncodeDiagramUrlOptions, e as EncodeDiagramUrlResult, d as chartTypes, f as decodeDiagramUrl, h as decodeViewState, i as encodeDiagramUrl, j as encodeViewState, k as getAvailablePalettes, g as getPalette, l as isValidHex, m as registerPalette } from './chart-types-Dxtv4XSz.js';
-import { d as RenderForExportOptions, b as MapData, P as ParsedMap, e as ResolvedMap, f as MapLayoutLegend, g as GeoExtent } from './export-context-DGUqyWaT.js';
+import { d as RenderForExportOptions, b as MapData, P as ParsedMap, e as ResolvedMap, f as MapLayoutLegend, g as GeoExtent } from './export-context-CMikqTMS.js';
 import { MapDataSource } from './block.js';
-export { A as AirportData, B as BoundaryTopology, G as Gazetteer, a as GazetteerEntry, h as MapDirectives, i as MapEdge, j as MapPoi, k as MapRegion, l as MapRoute, m as PoiPos, n as ProjectionFamily, R as RegionName, c as RegionNames, o as ResolvedEdge, p as ResolvedPoi, q as ResolvedRegion, r as ResolvedRoute } from './export-context-DGUqyWaT.js';
+export { A as AirportData, B as BoundaryTopology, G as Gazetteer, a as GazetteerEntry, h as MapDirectives, i as MapEdge, j as MapPoi, k as MapRegion, l as MapRoute, m as PoiPos, n as ProjectionFamily, R as RegionName, c as RegionNames, o as ResolvedEdge, p as ResolvedPoi, q as ResolvedRegion, r as ResolvedRoute } from './export-context-CMikqTMS.js';
 import { InkPoint } from './index.js';
-export { C as CHART_TYPE_DESCRIPTIONS, M as MapCompletionOptions, d as MapLocationMatch, e as MapPlaceCompletion, f as MapRegionCompletion, R as RenderCategory, T as Theme, l as chartTypeParsers, g as completeMapPlaces, h as completeMapRegions, m as getAllChartTypes, n as getRenderCategory, o as isExtendedChartType, q as knownChartTypeIds, p as palettes, k as parseDgmo, s as searchMapLocations, t as themes, k as validate } from './themes-DrWfFqk1.js';
+export { C as CHART_TYPE_DESCRIPTIONS, M as MapCompletionOptions, d as MapLocationMatch, e as MapPlaceCompletion, f as MapRegionCompletion, R as RenderCategory, T as Theme, l as chartTypeParsers, g as completeMapPlaces, h as completeMapRegions, m as getAllChartTypes, n as getRenderCategory, o as isExtendedChartType, q as knownChartTypeIds, p as palettes, k as parseDgmo, s as searchMapLocations, t as themes, k as validate } from './themes-B1gHwy4W.js';
 import { Selection } from 'd3-selection';
 import * as d3Scale from 'd3-scale';
 import { P as ParsedOrg, F as FillMode, R as RaciMarker, a as ParsedRaci, b as RaciVariant, c as RaciTask } from './chart-meta-D5ye0OQ0.js';
@@ -2289,6 +2289,12 @@ interface ParsedBoxesAndLines {
     readonly notes?: readonly DiagramNote[];
     readonly initialHiddenTagValues: ReadonlyMap<string, ReadonlySet<string>>;
     readonly direction: 'LR' | 'TB';
+    /** `same-rank A, B, …` lines (#1840): each set of box labels is laid out
+     *  on one rank. Absent when the source has none. */
+    readonly sameRank?: readonly (readonly string[])[];
+    /** `order A, B, …` lines (#1840): boxes of one set that share a rank (and a
+     *  group) keep this order across it. Absent when the source has none. */
+    readonly rankOrder?: readonly (readonly string[])[];
     /** `heat <label> [low] [high]` — names the value-ramp dimension and
      *  optionally sets its endpoint colours. One color = high hue over a neutral
      *  low; two = explicit `low high`. Mirror of map's `region-heat`. */
