@@ -2275,6 +2275,16 @@ order Cache, API
 
 Hints can go anywhere at column 0 and may name boxes declared after them. A diagram with a hint is laid out by the hint-aware engine alone, so adding one can move boxes it does not name.
 
+An invisible line `A ~~ B` at column 0 ranks and orders `B` after `A` exactly as `A -> B` would, but nothing is drawn: no path, no arrowhead, no label, and the layout's crossing and overlap scoring never sees it. Use it to push a box one rank on without connecting it. It names boxes only, never creates one, and may name boxes declared after it; an unknown name, a group, or a box joined to itself is warned and the line ignored. It counts as a line for `same-rank`, so `same-rank A, B` after `A ~~ B` is ignored with a warning. Like a hint, it hands the diagram to the hint-aware engine.
+
+```
+boxes-and-lines
+Client -> API
+API -> DB
+Client -> Docs
+DB ~~ Docs
+```
+
 ### 13.7 Options
 
 - `active-tag GroupName` — set active tag group for coloring

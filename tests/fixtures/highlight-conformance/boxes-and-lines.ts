@@ -11,6 +11,7 @@ hide tag:Past
 API
   description: Gateway
 DB
+API ~~ DB
 Review the roles list
 `,
   assertions: [
@@ -21,5 +22,7 @@ Review the roles list
     { text: 'active-tag', role: 'keyword' },
     { text: 'hide', role: 'keyword' },
     { text: 'description', role: 'propertyName' },
+    // The invisible line `A ~~ B` (#2002) reads as an operator, like `->`.
+    { text: '~', role: 'operator' },
   ],
 };

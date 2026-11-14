@@ -51,6 +51,13 @@ export interface ParsedBoxesAndLines {
   /** `order A, B, …` lines (#1840): boxes of one set that share a rank (and a
    *  group) keep this order across it. Absent when the source has none. */
   readonly rankOrder?: readonly (readonly string[])[];
+  /** `A ~~ B` lines (#2002): B is ranked after A as if a line ran between
+   *  them, but nothing routes, scores or draws one. Absent when the source
+   *  has none. */
+  readonly invisibleEdges?: readonly {
+    readonly source: string;
+    readonly target: string;
+  }[];
   /** `heat <label> [low] [high]` — names the value-ramp dimension and
    *  optionally sets its endpoint colours. One color = high hue over a neutral
    *  low; two = explicit `low high`. Mirror of map's `region-heat`. */

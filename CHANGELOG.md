@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **boxes-and-lines invisible lines: `A ~~ B` (#2002).** A line at column 0
+  written `A ~~ B` ranks and orders `B` after `A` as `A -> B` would, but is
+  never routed, scored or drawn, so a box can be pushed one rank on without
+  drawing a connection. It names boxes only and never creates one; an unknown
+  name, a group or a self-loop is warned and the line ignored. It counts as a
+  line for `same-rank`, and, like a rank hint, hands the diagram to the dagre
+  engine. Completion offers box names after `~~`. Pre-1.0 syntax: a box
+  literally named `A ~~ B` would now be read as an invisible line.
 - **boxes-and-lines rank hints: `same-rank` and `order` (#1840).** When the
   auto-layout puts two boxes on different ranks, `same-rank A, B, …` lays them
   out on one (one column in `LR`, one row in `TB`), across groups too.

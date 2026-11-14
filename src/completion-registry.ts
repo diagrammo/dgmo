@@ -1386,7 +1386,8 @@ export const REFERENCE_GRAMMAR = new Map<string, ReferenceGrammar>([
   ['sankey', { hasReferenceGrammar: true, referenceOperators: ['->', '--'] }],
   [
     'boxes-and-lines',
-    { hasReferenceGrammar: true, referenceOperators: ['->', '<->'] },
+    // `~~` is the invisible line (#2002): it names a prior box like `->`.
+    { hasReferenceGrammar: true, referenceOperators: ['->', '<->', '~~'] },
   ],
   // Venn references prior sets via the `+` intersection operator (not an arrow).
   ['venn', { hasReferenceGrammar: true, referenceOperators: ['+'] }],

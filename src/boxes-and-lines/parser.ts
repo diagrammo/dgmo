@@ -207,6 +207,12 @@ export function parseBoxesAndLines(
     lineNumber: number;
     names: string[];
   }[] = [];
+  // `A ~~ B` lines (#2002), names resolved; matched to boxes at the end.
+  const invisibleHints: {
+    lineNumber: number;
+    source: string;
+    target: string;
+  }[] = [];
 
   // Tag block state
   let contentStarted = false;
@@ -327,6 +333,18 @@ export function parseBoxesAndLines(
             .map((s) => s.trim())
             .filter((s) => s.length > 0)
             .map((s) => resolveEndpoint(s, lineNum, nameAliasMap)),
+        });
+        continue;
+      }
+
+      // Invisible line (#2002): `A ~~ B` ranks B after A like a line would,
+      // but nothing routes, scores or draws it.
+      const invisMatch = trimmed.match(/^([^~|]+?)\s*~~\s*([^~|]+)$/);
+      if (invisMatch && !/->|<-/.test(trimmed)) {
+        invisibleHints.push({
+          lineNumber: lineNum,
+          source: resolveEndpoint(invisMatch[1]!.trim(), lineNum, nameAliasMap),
+          target: resolveEndpoint(invisMatch[2]!.trim(), lineNum, nameAliasMap),
         });
         continue;
       }
@@ -834,6 +852,8 @@ export function parseBoxesAndLines(
   }
   result.edges = validEdges;
 
+  if (invisibleHints.length > 0)
+    resolveInvisibleEdges(result, invisibleHints, pushWarning);
   if (rankHints.length > 0) resolveRankHints(result, rankHints, pushWarning);
 
   // Resolve note refs against box labels (forward refs OK). The id→note
@@ -896,6 +916,50 @@ export function parseBoxesAndLines(
 }
 
 /**
+ * Match `A ~~ B` names to boxes (#2002). Like a rank hint, an invisible line
+ * names boxes only and never creates one: a name that is no box, or a group,
+ * is warned and the line dropped, and so is a line from a box to itself.
+ */
+function resolveInvisibleEdges(
+  result: Writable<ParsedBoxesAndLines>,
+  hints: readonly { lineNumber: number; source: string; target: string }[],
+  warn: (lineNumber: number, message: string) => void
+): void {
+  const byKey = new Map(
+    result.nodes.map((n) => [normalizeName(n.label), n.label])
+  );
+  const boxOf = (name: string, lineNumber: number): string | undefined => {
+    if (name.startsWith('__group_')) {
+      warn(
+        lineNumber,
+        `~~ names the group [${name.slice('__group_'.length)}] — it takes boxes only`
+      );
+      return undefined;
+    }
+    const label = byKey.get(normalizeName(name));
+    if (label === undefined) {
+      let msg = `~~ names '${name}', which is not a box`;
+      const s = suggest(normalizeName(name), [...byKey.keys()]);
+      if (s) msg += `. ${s}`;
+      warn(lineNumber, msg);
+    }
+    return label;
+  };
+  const edges: { source: string; target: string }[] = [];
+  for (const hint of hints) {
+    const source = boxOf(hint.source, hint.lineNumber);
+    const target = boxOf(hint.target, hint.lineNumber);
+    if (source === undefined || target === undefined) continue;
+    if (source === target) {
+      warn(hint.lineNumber, `~~ joins '${source}' to itself — ignored`);
+      continue;
+    }
+    edges.push({ source, target });
+  }
+  if (edges.length > 0) result.invisibleEdges = edges;
+}
+
+/**
  * Match `same-rank` / `order` names to boxes (#1840). A hint names boxes only,
  * never creates one; a name that is no box, or a group, is warned and left
  * out, and a hint left with fewer than two boxes is dropped. A `same-rank` set
@@ -924,6 +988,10 @@ function resolveRankHints(
     (succ.get(s) ?? succ.set(s, []).get(s)!).push(t);
     if (e.bidirectional) (succ.get(t) ?? succ.set(t, []).get(t)!).push(s);
   }
+  for (const e of result.invisibleEdges ?? [])
+    (succ.get(e.source) ?? succ.set(e.source, []).get(e.source)!).push(
+      e.target
+    );
   const reaches = (
     from: string,
     targets: ReadonlySet<string>

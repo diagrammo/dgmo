@@ -1739,9 +1739,11 @@ export async function layoutBoxesAndLinesSearch(
   const realBoxes = new Set(parsed.nodes.map((n) => n.label));
   const sameRank = parsed.sameRank ?? [];
   const rankOrder = parsed.rankOrder ?? [];
+  const invisibleEdges = parsed.invisibleEdges ?? [];
   // The home-grown layered and tier engines rank and order boxes their own
   // way and know nothing of the hints, so a hinted diagram is dagre's alone.
-  const hinted = sameRank.length > 0 || rankOrder.length > 0;
+  const hinted =
+    sameRank.length > 0 || rankOrder.length > 0 || invisibleEdges.length > 0;
 
   // A group's edgeless members all share one rank, so eight of them draw as
   // one tall column (#1974). Chain them into rows of ceil(sqrt(n)) with edges
@@ -1754,6 +1756,10 @@ export async function layoutBoxesAndLinesSearch(
   {
     const touched = new Set<string>();
     for (const e of parsed.edges) {
+      touched.add(srcRep(e.source));
+      touched.add(tgtRep(e.target));
+    }
+    for (const e of invisibleEdges) {
       touched.add(srcRep(e.source));
       touched.add(tgtRep(e.target));
     }
@@ -1847,6 +1853,14 @@ export async function layoutBoxesAndLinesSearch(
     for (const [ci, chain] of wrapChains.entries())
       for (let i = 1; i < chain.length; i++)
         g.setEdge(chain[i - 1]!, chain[i]!, {}, `__wrap_${ci}_${i}`);
+    // `A ~~ B` (#2002): like a wrap chain, an edge only dagre sees — it ranks
+    // and orders the boxes, and is never routed, scored or drawn.
+    for (const [ii, e] of invisibleEdges.entries()) {
+      const s = srcRep(e.source);
+      const t = tgtRep(e.target);
+      if (s !== t && g.hasNode(s) && g.hasNode(t))
+        g.setEdge(s, t, {}, `__invisible_${ii}`);
+    }
     if (plan || rankOrder.length > 0)
       dagre.layout(g, {
         customOrder: (lg, order) => {

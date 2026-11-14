@@ -1,0 +1,8 @@
+boxes-and-lines Docs after the database
+// stress: an invisible line `DB ~~ Docs` ranks Docs after DB, with no line drawn (#2002)
+
+Client -> API
+API -> DB
+Client -> Docs
+
+DB ~~ Docs
