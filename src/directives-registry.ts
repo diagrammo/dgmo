@@ -722,6 +722,12 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
     category: 'directive',
     chartTypes: ['boxes-and-lines'],
   },
+  // Rank hints (#1840): `same-rank A, B` and `order A, B`.
+  {
+    token: 'same-rank',
+    category: 'directive',
+    chartTypes: ['boxes-and-lines'],
+  },
   // Treemap's legacy plural spelling of the same suppression (decision #48
   // made the shared singular `no-value` canonical). Registered so a legacy
   // document still highlights it as a directive rather than plain text.
@@ -1013,7 +1019,11 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
     chartTypes: ['whiteboard', 'wordcloud'],
   },
   // ── Arc ──────────────────────────────────────────────────
-  { token: 'order', category: 'directive', chartTypes: ['arc'] },
+  {
+    token: 'order',
+    category: 'directive',
+    chartTypes: ['arc', 'boxes-and-lines'],
+  },
   // ── PERT ─────────────────────────────────────────────────
   { token: 'time-unit', category: 'directive', chartTypes: ['pert'] },
   { token: 'default-confidence', category: 'directive', chartTypes: ['pert'] },

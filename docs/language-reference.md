@@ -2258,6 +2258,22 @@ Indented shorthand also supports groups (place arrow directly after group header
 - `direction-tb` — top-to-bottom layout; `direction-lr` restates the `LR` default (booleans, last one wins; key+value `direction LR|TB` accepted legacy)
 - `heat <Label> [low] [high]` — name a numeric colour ramp (see §13.8); one trailing color sets the high hue over a neutral low, two set explicit `low high` ramp endpoints (pairs with the `heat:` key)
 - `no-value` — suppress the per-box numeric value labels (values render by default; legacy `show-values` is accepted as a no-op)
+- `same-rank A, B, …` — lay the named boxes out on one rank (one column in `LR`, one row in `TB`). Boxes only, two or more; a set where a line already runs from one member to another (directly or through other boxes) cannot share a rank, so it is ignored with a warning
+- `order A, B, …` — boxes of the set that share a rank and a group keep this order across it (top to bottom in `LR`, left to right in `TB`). The comma is required, so a box named `order queue` stays a box. Pair it with `same-rank` to pin both the rank and the order
+
+```
+boxes-and-lines
+direction-tb
+Client -> API
+API -> DB
+Client -> Cache
+Cache -> Worker
+Worker -> Queue
+same-rank DB, Queue
+order Cache, API
+```
+
+Hints can go anywhere at column 0 and may name boxes declared after them. A diagram with a hint is laid out by the hint-aware engine alone, so adding one can move boxes it does not name.
 
 ### 13.7 Options
 

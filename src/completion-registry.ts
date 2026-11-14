@@ -731,6 +731,8 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       // parses as legacy but is no longer offered.
       'direction-tb': { description: 'Switch to top-to-bottom layout' },
       'direction-lr': { description: 'Left-to-right layout (the default)' },
+      'same-rank': { description: 'Put boxes on one rank: same-rank A, B' },
+      order: { description: 'Order boxes that share a rank: order A, B' },
       'active-tag': { description: 'Active tag group name' },
       hide: { description: 'Hide tag:value pairs' },
       heat: {

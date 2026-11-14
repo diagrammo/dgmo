@@ -5,6 +5,8 @@ import { FRAME_DIRECTIVES } from './_frame';
 // `direction TB|LR` parses as legacy). Options:
 // active-tag, hide, heat, no-value (values default-on per decision #48;
 // legacy `show-values` is a no-op). fill family via FILL_FAMILY_CAPABLE.
+// Rank hints `same-rank` and `order` (#1840): dgmo's language reference
+// §13.6; the root spec's §14 does not list them yet.
 export const fixture: ConformanceFixture = {
   chartType: 'boxes-and-lines',
   structuralKeywords: ['tag'],
@@ -19,6 +21,8 @@ export const fixture: ConformanceFixture = {
     'hide',
     'heat',
     'no-value',
+    'same-rank',
+    'order',
     'fill-tint',
     'fill-solid',
     'fill-outline',

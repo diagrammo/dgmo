@@ -1,0 +1,10 @@
+boxes-and-lines Client apps
+// stress: rank hints — `order` puts Web before Mobile across their row (#1840)
+direction-tb
+
+Client -> Web
+Client -> Mobile
+Web -> CDN
+Mobile -> Push
+
+order Web, Mobile

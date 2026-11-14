@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **boxes-and-lines rank hints: `same-rank` and `order` (#1840).** When the
+  auto-layout puts two boxes on different ranks, `same-rank A, B, …` lays them
+  out on one (one column in `LR`, one row in `TB`), across groups too.
+  `order A, B, …` keeps boxes that share a rank and a group in that order
+  across it; pair the two to pin both. Hints name boxes only and never create
+  one; an unknown name or a group is warned and left out, and a `same-rank` set
+  whose members are already joined by a path is ignored with a warning. A
+  hinted diagram is laid out by the dagre engine alone, with its own ranker,
+  so adding a hint can move boxes it does not name. `order` needs its comma, so
+  a box named `order queue` stays a box. Pre-1.0 syntax: a box literally named
+  `same-rank A, B` would now be read as a hint.
 - **CLI `-o file.svg` embeds the Inter it uses (#1834).** An exported SVG
   named Inter and carried none of it, so on a machine without Inter every
   label fell back to another face and its measured width was wrong. The file
