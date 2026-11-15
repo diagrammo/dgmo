@@ -548,7 +548,7 @@ Havana 400
 | `band <from>..<to> [label] [color]` | a shaded range from `from` to `to`, drawn behind the gridlines and data, its label in its corner |
 
 - **The label is the rest of the line.** A trailing colour word (§1.5) colours the mark; without one a `ref-line` takes the text colour and a `band` a muted tint. Quote the label to keep a final colour word as text: `ref-line 50 "Code red"`.
-- **The value axis reaches every annotation.** A `ref-line` or `band` beyond the data widens the axis to include it, unless `y-min` / `y-max` fix the axis.
+- **The value axis reaches every annotation.** A `ref-line` or `band` beyond the data widens the axis to include it, on a log axis too. When `y-min` / `y-max` fix an end, a `ref-line` past it is not drawn and a `band` is cut at it. On a log axis a value at or below 0 is not drawn.
 - On a horizontal bar the value axis runs across, so a `ref-line` is vertical and a `band` is a column.
 - On a dual-axis `line`, annotations sit on the left axis.
 - Several of each are allowed. On any other chart type the directive is ignored with a warning.

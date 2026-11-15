@@ -178,8 +178,8 @@ export function renderBar(
   const valueAxis = (range: [number, number]) =>
     buildValueAxis(loVal, niceMax, ySpec, range, {
       nice: true,
-      dataLo: Math.min(...perCat.flat().filter((v) => v > 0)),
-      dataHi: maxVal,
+      dataLo: Math.min(...[...perCat.flat(), ...marked].filter((v) => v > 0)),
+      dataHi: Math.max(maxVal, ...marked),
     });
   const probeTicks = valueAxis([0, 1]).ticks(6);
 
@@ -275,6 +275,7 @@ export function renderBar(
   const val = valueAxis(valRange);
   const annotationFrame: ValueAxisFrame = {
     pos: (v) => val(v),
+    domain: val.domain(),
     left: m.left,
     top: m.top,
     width: plotW,

@@ -24,6 +24,9 @@ const BAND_TINT = 14;
 export interface ValueAxisFrame {
   /** Value → pixel along the value axis. */
   readonly pos: (v: number) => number;
+  /** The axis's value range. A fixed `y-min` / `y-max` clamps `pos`, so a
+   *  mark outside this range is not drawn rather than pinned to the edge. */
+  readonly domain: readonly [number, number];
   readonly left: number;
   readonly top: number;
   readonly width: number;
@@ -38,24 +41,26 @@ export interface AnnotationColors {
   readonly bg: string;
 }
 
-const clamp = (v: number, lo: number, hi: number) =>
-  Math.max(lo, Math.min(hi, v));
-
-/** Pixel span of [a, b] on the axis, cut to the plot; null when off it. */
+/** The part of [a, b] on the axis, as pixels; null when none of it is. */
 function span(
   frame: ValueAxisFrame,
   a: number,
   b: number
 ): [number, number] | null {
-  const pa = frame.pos(a);
-  const pb = frame.pos(b);
+  const [d0, d1] = frame.domain;
+  const lo = Math.max(Math.min(a, b), Math.min(d0, d1));
+  const hi = Math.min(Math.max(a, b), Math.max(d0, d1));
+  if (!(hi > lo)) return null;
+  const pa = frame.pos(lo);
+  const pb = frame.pos(hi);
   if (!Number.isFinite(pa) || !Number.isFinite(pb)) return null;
-  const [lo, hi] = frame.horizontal
-    ? [frame.left, frame.left + frame.width]
-    : [frame.top, frame.top + frame.height];
-  const s = clamp(Math.min(pa, pb), lo, hi);
-  const e = clamp(Math.max(pa, pb), lo, hi);
-  return e > s || pa === pb ? [s, e] : null;
+  return [Math.min(pa, pb), Math.max(pa, pb)];
+}
+
+/** True when `v` lies on the axis. */
+function onAxis(frame: ValueAxisFrame, v: number): boolean {
+  const [d0, d1] = frame.domain;
+  return v >= Math.min(d0, d1) && v <= Math.max(d0, d1);
 }
 
 /** Draws every `band`; returns the label boxes other labels must clear. */
@@ -125,12 +130,9 @@ export function drawRefLines(
     (a): a is ChartRefLine => a.kind === 'ref-line'
   );
   for (const r of lines) {
+    if (!onAxis(frame, r.value)) continue;
     const p = frame.pos(r.value);
     if (!Number.isFinite(p)) continue;
-    const [lo, hi] = frame.horizontal
-      ? [frame.left, frame.left + frame.width]
-      : [frame.top, frame.top + frame.height];
-    if (p < lo - 0.5 || p > hi + 0.5) continue;
     const stroke = r.color ?? colors.text;
     const g = svg
       .append('g')

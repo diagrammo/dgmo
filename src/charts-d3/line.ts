@@ -162,6 +162,12 @@ export function renderLine(
         dataLoL = Math.min(dataLoL, v);
         dataHiL = Math.max(dataHiL, v);
       }
+  // A log axis is bounded by these, not by the padded extent: let it reach a
+  // `ref-line` or `band` (#1832) too.
+  for (const v of annotationValues(chart.annotations)) {
+    if (v > 0) dataLoL = Math.min(dataLoL, v);
+    dataHiL = Math.max(dataHiL, v);
+  }
   const leftAxis = (range: [number, number]) =>
     buildValueAxis(loL, hiL, ySpec, range, {
       nice: true,
@@ -276,6 +282,7 @@ export function renderLine(
   const eraTitles: LabelRect[] = [];
   const annotationFrame: ValueAxisFrame = {
     pos: (v) => yL(v),
+    domain: yL.domain(),
     left: m.left,
     top: m.top,
     width: plotW,
