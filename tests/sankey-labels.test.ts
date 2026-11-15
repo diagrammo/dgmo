@@ -18,24 +18,41 @@ function labelBoxes(svg: string): { boxes: Box[]; width: number } {
   const width = Number(/<svg[^>]*\swidth="([\d.]+)"/.exec(svg)![1]);
   const boxes: Box[] = [];
   // A node's value rides in a bold <tspan> after its name (#1837); the box
-  // covers both, or a value running into its neighbour would go unseen.
-  for (const m of svg.matchAll(
-    /<text([^>]*)>([^<]*)(?:<tspan[^>]*>([^<]*)<\/tspan>)?/g
-  )) {
+  // covers both, or a value running into its neighbour would go unseen. A
+  // wrapped name (#1947) draws one line per <tspan dy>, and gets one box each.
+  for (const m of svg.matchAll(/<text([^>]*)>(.*?)<\/text>/g)) {
     const attrs = m[1]!;
     if (!attrs.includes('font-size="13"')) continue;
     const x = Number(/\sx="([^"]*)"/.exec(attrs)![1]);
-    const y = Number(/\sy="([^"]*)"/.exec(attrs)![1]);
+    let y = Number(/\sy="([^"]*)"/.exec(attrs)![1]);
     const end = attrs.includes('text-anchor="end"');
-    const w =
-      measureText(m[2]!, 13) +
-      (m[3] ? measureText(m[3], 13, { bold: true }) : 0);
-    boxes.push({
-      text: m[2]!,
-      x0: end ? x - w : x,
-      x1: end ? x : x + w,
-      y0: y - 10,
-      y1: y + 3,
+    const body = m[2]!.replace(/<title>.*?<\/title>/g, '');
+    const lines: { text: string; dy: number }[] = [];
+    const head = /^([^<]*)/.exec(body)![1]!;
+    if (head) lines.push({ text: head, dy: 0 });
+    let value = '';
+    for (const t of body.matchAll(/<tspan([^>]*)>([^<]*)<\/tspan>/g)) {
+      if (t[1]!.includes('font-weight')) value = t[2]!;
+      else
+        lines.push({
+          text: t[2]!,
+          dy: Number(/\sdy="([^"]*)"/.exec(t[1]!)?.[1] ?? 0),
+        });
+    }
+    lines.forEach((line, j) => {
+      y += line.dy;
+      const w =
+        measureText(line.text, 13) +
+        (j === lines.length - 1 && value
+          ? measureText(value, 13, { bold: true })
+          : 0);
+      boxes.push({
+        text: line.text,
+        x0: end ? x - w : x,
+        x1: end ? x : x + w,
+        y0: y - 10,
+        y1: y + 3,
+      });
     });
   }
   return { boxes, width };
@@ -96,14 +113,35 @@ describe('sankey labels', () => {
     expectNoCollisions(await renderDataChartD3(STATUS_MOVES, 'light'));
   });
 
-  it('a label too long for its room is truncated, with the full name kept', async () => {
+  it('a label too long for its room wraps, every word kept (#1947)', async () => {
     const svg = await renderDataChartD3(LONG, 'light');
     const boxes = expectNoCollisions(svg);
-    const long = boxes.find((b) => b.text.startsWith('A destination'))!;
-    expect(long.text.endsWith('…')).toBe(true);
-    expect(svg).toContain(
-      `<title>${'A destination whose name runs on for sixty characters, yes'.padEnd(60, '!')}</title>`
+    const long = boxes.filter(
+      (b) => !b.text.startsWith('Source') && b.text !== 'Long'
     );
+    expect(long.length).toBeGreaterThan(1);
+    expect(long.map((b) => b.text).join(' ')).toBe(
+      'A destination whose name runs on for sixty characters, yes'.padEnd(
+        60,
+        '!'
+      )
+    );
+    expect(svg).not.toContain('<title>');
+  });
+
+  it('a name its column cannot hold is cut on its last line, full name on hover', async () => {
+    const name = 'Regional office for planning and budget review number';
+    const src = `sankey Crowded\n\n${Array.from(
+      { length: 8 },
+      (_, i) => `Source -> ${name} ${i + 1} 1`
+    ).join('\n')}\n`;
+    const svg = await renderDataChartD3(src, 'light', undefined, {
+      width: 600,
+      height: 260,
+    });
+    const boxes = expectNoCollisions(svg);
+    expect(boxes.some((b) => b.text.endsWith('…'))).toBe(true);
+    expect(svg).toContain(`<title>${name} 1</title>`);
   });
 
   it('labels the last column to the right of its nodes', async () => {

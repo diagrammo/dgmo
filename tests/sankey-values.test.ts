@@ -56,15 +56,24 @@ describe('sankey node values', () => {
     expect([...labelValues(svg).keys()]).toContain('Salaries');
   });
 
-  it('a name too long for its room gives way; its value is kept whole', async () => {
+  it('a name too long for its room wraps (#1947); its value is kept whole', async () => {
     const long = 'A destination whose name runs on for sixty characters, yes!!';
     const svg = await renderDataChartD3(
       `sankey Long\n\nSource -> ${long} 1234\n`,
       'light'
     );
-    const values = labelValues(svg);
-    const name = [...values.keys()].find((k) => k.startsWith('A destination'))!;
-    expect(name.endsWith('…')).toBe(true);
-    expect(values.get(name)).toBe('1,234');
+    const text =
+      /<text[^>]*font-size="13"[^>]*>(<tspan>A destination.*?)<\/text>/.exec(
+        svg
+      )![1]!;
+    const spans = [...text.matchAll(/<tspan([^>]*)>([^<]*)<\/tspan>/g)];
+    const value = spans.find((t) => t[1]!.includes('font-weight'))!;
+    expect(value[2]!.trim()).toBe('1,234');
+    expect(
+      spans
+        .filter((t) => !t[1]!.includes('font-weight'))
+        .map((t) => t[2])
+        .join(' ')
+    ).toBe(long);
   });
 });

@@ -10,7 +10,11 @@ import type { PaletteColors } from '../palettes/types';
 import type { ParsedSankey } from '../data-chart-parser';
 import { FONT_FAMILY } from '../fonts';
 import { mix } from '../palettes/color-utils';
-import { measureText, truncateText } from '../utils/text-measure';
+import {
+  measureText,
+  truncateText,
+  wrapTextToWidth,
+} from '../utils/text-measure';
 import { type Svg, chartFormatter, tagDatum } from './shared';
 import {
   EMPHASIS_DIM_OPACITY,
@@ -27,6 +31,13 @@ const LOOP_GAP = 8;
 const LOOP_BEND = 1.25;
 const LABEL_FONT = 13;
 const LABEL_PAD = 6;
+/**
+ * A node name wraps at word breaks (#1947) into lines this far apart; each
+ * column's names are stacked clear of each other by `stackLabels`.
+ */
+const LABEL_LINE_H = 16;
+/** Space between two stacked names, so one name never reads as the next's. */
+const LABEL_BLOCK_GAP = 6;
 /** Most of the width the last column's labels may take as a right margin. */
 const MAX_LABEL_MARGIN = 0.4;
 /** Baseline ribbon translucency — dimming MULTIPLIES this, never replaces it. */
@@ -438,6 +449,32 @@ export function renderSankey(
     });
   }
 
+  const labelRoom = (n: SNode) =>
+    (n.rank === maxRank ? width - rightPad / 2 : layerX(n.rank + 1)) -
+    LABEL_PAD -
+    (n.x + labelOffset(n));
+
+  // Each real node's label lines and where its block starts (LABEL_LINE_H).
+  const placed = new Map<
+    SNode,
+    { lines: string[]; y0: number; cut: boolean }
+  >();
+  for (let r = 0; r <= maxRank; r++) {
+    const col = [...node.values()]
+      .filter((n) => n.rank === r)
+      .sort((a, b) => a.y - b.y);
+    const blocks = stackLabels(
+      col.map((n) => ({
+        name: n.name,
+        width: labelRoom(n) - valueW(n),
+        center: n.y + n.h / 2,
+      })),
+      top,
+      top + plotH
+    );
+    col.forEach((n, i) => placed.set(n, blocks[i]!));
+  }
+
   // nodes + labels
   for (const n of node.values()) {
     const nodeLine = links.find(
@@ -476,24 +513,88 @@ export function renderSankey(
     });
     // A label may run to the next column's nodes, or to the right edge.
     const labelX = n.x + labelOffset(n);
-    const room =
-      (n.rank === maxRank ? width - rightPad / 2 : layerX(n.rank + 1)) -
-      LABEL_PAD -
-      labelX;
-    const shown = truncateText(n.name, LABEL_FONT, room - valueW(n));
+    const fit = placed.get(n)!;
+    const k = fit.lines.length;
     const label = svg
       .append('text')
       .attr('x', labelX)
-      .attr('y', n.y + n.h / 2 + 4)
+      .attr('y', fit.y0 + LABEL_LINE_H / 2 + 4)
       .attr('text-anchor', 'start')
       .attr('fill', story.active && recede ? story.groundText : textColor)
       .attr('font-size', LABEL_FONT)
-      .attr('font-family', FONT_FAMILY)
-      .text(shown);
+      .attr('font-family', FONT_FAMILY);
+    if (k === 1) label.text(fit.lines[0]!);
+    else {
+      fit.lines.forEach((line, j) => {
+        const span = label.append('tspan').text(line);
+        if (j > 0) span.attr('x', labelX).attr('dy', LABEL_LINE_H);
+      });
+    }
     if (!chart.noValue) {
       label.append('tspan').attr('font-weight', 'bold').text(valueText(n));
     }
-    if (shown !== n.name) label.append('title').text(n.name);
+    if (fit.cut) label.append('title').text(n.name);
     if (nodeDim) label.attr('opacity', EMPHASIS_DIM_TEXT_OPACITY);
   }
+}
+
+/**
+ * One column's node names, wrapped at word breaks and stacked so no two
+ * blocks overlap (#1947). Each block starts centred on its node and moves
+ * the least it must to clear its neighbours, inside [lo, hi]. When the
+ * column cannot hold every line, the tallest blocks give up lines first, and
+ * only a block's last kept line is cut with "…". A single word wider than
+ * its room is cut on its own line.
+ */
+function stackLabels(
+  items: { name: string; width: number; center: number }[],
+  lo: number,
+  hi: number
+): { lines: string[]; y0: number; cut: boolean }[] {
+  const full = items.map((it) =>
+    it.width > 0 ? wrapTextToWidth(it.name, LABEL_FONT, it.width) : [it.name]
+  );
+  const k = full.map((l) => l.length);
+  const room = hi - lo - (items.length - 1) * LABEL_BLOCK_GAP;
+  const cap = Math.max(items.length, Math.floor(room / LABEL_LINE_H));
+  let total = k.reduce((a, b) => a + b, 0);
+  while (total > cap) {
+    let at = 0;
+    for (let i = 1; i < k.length; i++) if (k[i]! > k[at]!) at = i;
+    if (k[at]! <= 1) break;
+    k[at]!--;
+    total--;
+  }
+  const out = items.map((it, i) => {
+    let lines = full[i]!;
+    let cut = false;
+    if (lines.length > k[i]!) {
+      lines = [...lines.slice(0, k[i]! - 1), lines.slice(k[i]! - 1).join(' ')];
+      cut = true;
+    }
+    lines = lines.map((l) => {
+      const shown = truncateText(l, LABEL_FONT, it.width);
+      if (shown !== l) cut = true;
+      return shown;
+    });
+    return { lines, y0: it.center - (lines.length * LABEL_LINE_H) / 2, cut };
+  });
+  // Push down past the block above, then back up from the bottom edge. A
+  // column too short for one line each keeps every label on its node.
+  if (items.length * LABEL_LINE_H > room) return out;
+  for (let i = 0; i < out.length; i++) {
+    const floor =
+      i === 0
+        ? lo
+        : out[i - 1]!.y0 +
+          out[i - 1]!.lines.length * LABEL_LINE_H +
+          LABEL_BLOCK_GAP;
+    out[i]!.y0 = Math.max(out[i]!.y0, floor);
+  }
+  for (let i = out.length - 1; i >= 0; i--) {
+    const h = out[i]!.lines.length * LABEL_LINE_H;
+    const ceil = i === out.length - 1 ? hi : out[i + 1]!.y0 - LABEL_BLOCK_GAP;
+    out[i]!.y0 = Math.max(lo, Math.min(out[i]!.y0, ceil - h));
+  }
+  return out;
 }
