@@ -567,7 +567,13 @@ function aimedEnds(
  */
 function bendFrame(
   connector: WhiteboardArrow | WhiteboardLine,
-  elements: readonly WhiteboardElement[]
+  elements: readonly WhiteboardElement[],
+  // A caller holding a copy (clipCurve's `{ ...connector, bend }`) passes the
+  // original's attachments: the copy is not in the board's memo (#2024).
+  { from, to }: WhiteboardConnectorAttachments = whiteboardConnectorAttachments(
+    connector,
+    elements
+  )
 ): {
   a: WhiteboardPoint;
   b: WhiteboardPoint;
@@ -575,7 +581,6 @@ function bendFrame(
   nx: number;
   ny: number;
 } | null {
-  const { from, to } = whiteboardConnectorAttachments(connector, elements);
   const { a, b } = aimedEnds(connector, elements, from, to);
   const dx = b.x - a.x;
   const dy = b.y - a.y;
@@ -652,7 +657,7 @@ function clipCurve(
   to: number
 ): WhiteboardSegment {
   const { x1, y1, x2, y2 } = connector;
-  const f = bendFrame(connector, elements);
+  const f = bendFrame(connector, elements, { from, to });
   if (!f) return { x1, y1, x2, y2 };
   const { a, b } = f;
   const h = {
