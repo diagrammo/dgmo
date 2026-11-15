@@ -195,7 +195,6 @@ export const GENERATORS_A: Record<string, Generator> = {
   },
   // n components: an edge entry, a chain of services with splits and an async link.
   infra: {
-    known: 'diagrammo/diagrammo#2026',
     gen: (n) => {
       const lines = ['infra Growth', 'edge', '  rps: 1000', '  -> Svc0'];
       for (const i of range(n)) {

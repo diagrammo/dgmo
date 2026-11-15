@@ -194,6 +194,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **infra: split paths that rejoin no longer make compute exponential
+  (diagrammo/diagrammo#2026).** Each split that reconverged downstream doubled
+  the latency-path list, so a chain of twenty diamonds took about a second and
+  a few more never finished. Paths with the same latency, uptime and availability
+  now fold into one weighted entry; percentiles and averages are unchanged.
+
 - **A day-scale date axis starting on the 1st of a month drew no ticks.**
   Since the date tick density change (#1830), a gantt, timeline or dated line
   chart spanning up to about three months and starting on the 1st came back

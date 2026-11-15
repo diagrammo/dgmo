@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { parseInfra } from '../src/infra/parser';
 import { computeInfra } from '../src/infra/compute';
+import { measureGrowth } from './perf-helpers';
 
 function compute(source: string, params = {}) {
   const parsed = parseInfra(source);
@@ -2115,6 +2116,77 @@ Worker
 `);
       const checkout = node(result, 'Checkout');
       expect(checkout.computedLatencyPercentiles.p90).toBe(44);
+    });
+  });
+
+  // diagrammo/diagrammo#2026: each split that reconverges downstream doubled
+  // the leaf-path list, so the edge held 2^(diamonds) paths and compute went
+  // exponential. Paths with equal latency/uptime/availability now fold.
+  describe('leaf-path collection over reconverging splits', () => {
+    const diamonds = (count: number) => {
+      const lines = ['infra', 'edge', '  rps: 1000', '  -> J0'];
+      for (let i = 0; i < count; i++) {
+        lines.push(
+          `J${i}`,
+          '  latency-ms: 10',
+          `  -a-> A${i} split: 60%`,
+          `  -b-> B${i} split: 40%`,
+          `A${i}`,
+          '  latency-ms: 5',
+          `  -> J${i + 1}`,
+          `B${i}`,
+          '  latency-ms: 5',
+          `  -> J${i + 1}`
+        );
+      }
+      lines.push(`J${count}`, '  latency-ms: 10');
+      return lines.join('\n');
+    };
+
+    it('keeps percentiles exact when equal-latency branches fold together', () => {
+      const result = compute(diamonds(3));
+      // Every path: 4 joins × 10 + 3 branches × 5 = 55 ms.
+      expect(node(result, 'J0').computedLatencyPercentiles).toEqual({
+        p50: 55,
+        p90: 55,
+        p99: 55,
+      });
+    });
+
+    it('weights unequal branches by their split', () => {
+      const result = compute(`
+infra
+edge
+  rps: 1000
+  -> Gate
+Gate
+  latency-ms: 0
+  -fast-> Fast split: 60%
+  -slow-> Slow split: 40%
+Fast
+  latency-ms: 10
+  -> Db
+Slow
+  latency-ms: 100
+  -> Db
+Db
+  latency-ms: 1
+`);
+      const p = node(result, 'Gate').computedLatencyPercentiles;
+      expect(p.p50).toBe(11);
+      expect(p.p90).toBe(101);
+    });
+
+    it('collects leaf paths in less than n^1.5 over diamonds in series', () => {
+      const k = measureGrowth({
+        small: 8,
+        large: 16,
+        prepare: (n) => parseInfra(diamonds(n)),
+        run: (parsed) => computeInfra(parsed),
+        limit: 1.5,
+        minMs: 20,
+      });
+      expect(k, `leaf-path collection ∝ n^${k.toFixed(2)}`).toBeLessThan(1.5);
     });
   });
 });

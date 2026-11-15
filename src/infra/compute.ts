@@ -994,6 +994,25 @@ export function computeInfra(
   };
   const nodeLeafCache = new Map<string, LeafPath[]>();
 
+  /**
+   * Fold paths with the same (latency, uptime, availability) into one entry,
+   * summing their weights. Every reader of a node's paths — the percentiles
+   * and the weighted averages — sees only that weighted distribution, so the
+   * fold is exact. Without it each reconverging split doubles the list and
+   * the entry node holds 2^(diamonds) paths (diagrammo/diagrammo#2026).
+   */
+  function mergeLeafPaths(paths: LeafPath[]): LeafPath[] {
+    if (paths.length < 2) return paths;
+    const byKey = new Map<string, LeafPath>();
+    for (const p of paths) {
+      const key = `${p.latency}|${p.uptime}|${p.availability}`;
+      const prev = byKey.get(key);
+      if (prev) prev.weight += p.weight;
+      else byKey.set(key, { ...p });
+    }
+    return byKey.size === paths.length ? paths : [...byKey.values()];
+  }
+
   /** Collect leaf paths reachable from `nodeId` with accumulated extra latency/uptime. */
   function collectLeafPaths(nodeId: string, visited: Set<string>): LeafPath[] {
     if (nodeLeafCache.has(nodeId)) return nodeLeafCache.get(nodeId)!;
@@ -1123,8 +1142,9 @@ export function computeInfra(
       }
     }
 
-    nodeLeafCache.set(nodeId, paths);
-    return paths;
+    const merged = mergeLeafPaths(paths);
+    nodeLeafCache.set(nodeId, merged);
+    return merged;
   }
 
   /** Compute percentiles from weighted leaf paths. */
