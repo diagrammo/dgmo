@@ -543,6 +543,29 @@ declare function render(source: string, options?: {
     chartType: string | undefined;
 }>;
 
+/** `ref-line <value> [label] [color]` — a dashed line across the plot. */
+interface ChartRefLine {
+    readonly kind: 'ref-line';
+    readonly value: number;
+    readonly label: string;
+    /** Resolved CSS color, or null for the theme's text color. */
+    readonly color: string | null;
+    readonly lineNumber: number;
+}
+/** `band <from>..<to> [label] [color]` — a shaded value range. */
+interface ChartBand {
+    readonly kind: 'band';
+    /** Lower end; the parser orders the two ends. */
+    readonly from: number;
+    /** Upper end. */
+    readonly to: number;
+    readonly label: string;
+    /** Resolved CSS color, or null for the theme's muted text color. */
+    readonly color: string | null;
+    readonly lineNumber: number;
+}
+type ChartAnnotation = ChartRefLine | ChartBand;
+
 type ChartType$1 = 'bar' | 'line' | 'pie' | 'polar-area' | 'radar';
 interface ChartDataPoint {
     label: string;
@@ -640,6 +663,8 @@ interface ParsedChart {
     numberFormat?: NumberFormatSpec;
     data: ChartDataPoint[];
     eras?: ChartEra[];
+    /** `ref-line` and `band` (#1832), bar and line only. */
+    annotations?: ChartAnnotation[];
     diagnostics: DgmoError[];
     error: string | null;
 }

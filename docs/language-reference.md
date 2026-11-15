@@ -527,6 +527,32 @@ Havana 400
 - `dim <Name>` (recede only the named elements) exists on `sankey` alone. It fades them in place at reduced opacity and keeps their colour.
 - Other chart types do not take `highlight` yet: the line warns `highlight is not supported on <type> yet` and draws nothing.
 
+### 1.14 Annotations — `ref-line` and `band`
+
+Annotations mark a value on the value axis. They are chart-level directives on their own line, anywhere in the file, on `bar` and `line`:
+
+```
+bar Treasure Hauls by Port
+ref-line 900 Quota
+band 400..600 Usual haul green
+
+Port Royal 850
+Tortuga 620
+Nassau 1100
+Havana 400
+```
+
+| Directive                           | What it draws                                                                                    |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `ref-line <value> [label] [color]`  | a dashed line across the plot at `value`, drawn over the data, its label at the line's far end   |
+| `band <from>..<to> [label] [color]` | a shaded range from `from` to `to`, drawn behind the gridlines and data, its label in its corner |
+
+- **The label is the rest of the line.** A trailing colour word (§1.5) colours the mark; without one a `ref-line` takes the text colour and a `band` a muted tint. Quote the label to keep a final colour word as text: `ref-line 50 "Code red"`.
+- **The value axis reaches every annotation.** A `ref-line` or `band` beyond the data widens the axis to include it, unless `y-min` / `y-max` fix the axis.
+- On a horizontal bar the value axis runs across, so a `ref-line` is vertical and a `band` is a column.
+- On a dual-axis `line`, annotations sit on the left axis.
+- Several of each are allowed. On any other chart type the directive is ignored with a warning.
+
 ---
 
 ## 2. Universal Name Handling

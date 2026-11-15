@@ -658,6 +658,9 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
       'timeline',
     ],
   },
+  // ── Chart annotations (#1832) ─────────────────────────────
+  { token: 'ref-line', category: 'directive', chartTypes: ['bar', 'line'] },
+  { token: 'band', category: 'directive', chartTypes: ['bar', 'line'] },
   { token: 'marker', category: 'directive', chartTypes: ['gantt', 'timeline'] },
   { token: 'holiday', category: 'directive', chartTypes: ['gantt'] },
   // `workweek` is also the canonical weekday-window directive on clock and map

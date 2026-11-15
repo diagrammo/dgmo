@@ -191,6 +191,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'y-min': { description: 'Value axis lower end (y-min 0)' },
       'y-max': { description: 'Value axis upper end (y-max 100)' },
       'no-value': { description: 'Hide value labels atop each bar' },
+      'ref-line': {
+        description: 'Dashed line at a value (ref-line 50 Target)',
+      },
+      band: { description: 'Shaded value range (band 40..60 Normal range)' },
       color: { description: 'Bar color override' },
       highlight: {
         description:
@@ -226,6 +230,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description: 'Right y-axis label (dual-axis; group series beneath it)',
       },
       'no-value': { description: 'Hide value labels at each point' },
+      'ref-line': {
+        description: 'Dashed line at a value (ref-line 50 Target)',
+      },
+      band: { description: 'Shaded value range (band 40..60 Normal range)' },
       highlight: {
         description:
           'Keep the named series and recede the rest (highlight Revenue)',

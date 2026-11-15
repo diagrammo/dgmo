@@ -28,6 +28,8 @@ import { parseEmphasisDirective } from './utils/emphasis';
 import type { AxisName, AxisSpecs } from './utils/axis-spec';
 import type { NumberFormatSpec } from './utils/number-format';
 import { parseNumberFormatLine } from './utils/number-format';
+import type { ChartAnnotation } from './annotations/types';
+import { parseAnnotationLine } from './annotations/parse';
 import {
   AXIS_DIRECTIVE_DX,
   parseAxisLine,
@@ -115,6 +117,8 @@ export interface ParsedChart {
   numberFormat?: NumberFormatSpec;
   data: ChartDataPoint[];
   eras?: ChartEra[];
+  /** `ref-line` and `band` (#1832), bar and line only. */
+  annotations?: ChartAnnotation[];
   diagnostics: DgmoError[];
   error: string | null;
 }
@@ -290,6 +294,7 @@ export function parseChart(
   const lines = content.split('\n');
   const parsedEras: ChartEra[] = [];
   const pieOnlyLines: [number, string][] = [];
+  const annotations: ChartAnnotation[] = [];
   let otherLine = 0;
   const rawEras: {
     start: string;
@@ -370,6 +375,32 @@ export function parseChart(
         return fail(lineNumber, msg);
       }
       // Fall through — first line might be a data row or option
+    }
+
+    // Annotations (#1832): `ref-line <value> …`, `band <from>..<to> …`.
+    const annotation = parseAnnotationLine(
+      trimmed,
+      lineNumber,
+      result.diagnostics,
+      palette
+    );
+    if (annotation) {
+      annotations.push(annotation);
+      continue;
+    }
+    // A malformed one says what it needed. `band 5` (no `..`) is left to
+    // parse as a data row named "band".
+    if (/^ref-line(?:\s|$)/.test(trimmed) || /^band\s+\S*\.\./.test(trimmed)) {
+      result.diagnostics.push(
+        makeDgmoError(
+          lineNumber,
+          trimmed.startsWith('ref-line')
+            ? `'${trimmed}': ref-line needs a number — ref-line 50 Target.`
+            : `'${trimmed}': band needs two numbers — band 40..60 Normal range.`,
+          'warning'
+        )
+      );
+      continue;
     }
 
     // Era line (§1.5 trailing-token):
@@ -725,6 +756,21 @@ export function parseChart(
     const hint = suggest(firstToken, [...KNOWN_OPTIONS, ...KNOWN_BOOLEANS]);
     if (hint) msg += ` ${hint}`;
     result.diagnostics.push(makeDgmoError(lineNumber, msg, 'warning'));
+  }
+
+  // Annotations mark a value axis, which only bar and line have here.
+  if (result.type === 'bar' || result.type === 'line') {
+    if (annotations.length) result.annotations = annotations;
+  } else {
+    for (const a of annotations) {
+      result.diagnostics.push(
+        makeDgmoError(
+          a.lineNumber,
+          `"${a.kind}" is only supported on bar and line charts; ignoring it.`,
+          'warning'
+        )
+      );
+    }
   }
 
   // Pie-only directives: warn elsewhere, otherwise bucket small slices and sort.

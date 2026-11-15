@@ -21,6 +21,12 @@ import type { ParsedChart } from '../chart';
 import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
 import { mix, shapeFill } from '../palettes/color-utils';
+import { annotationValues } from '../annotations/parse';
+import {
+  drawBands,
+  drawRefLines,
+  type ValueAxisFrame,
+} from '../annotations/draw';
 import {
   EMPHASIS_DIM_OPACITY,
   EMPHASIS_DIM_TEXT_OPACITY,
@@ -122,6 +128,12 @@ export function renderLine(
           hi = Math.max(hi, v);
         }
     if (!isFinite(lo)) return [0, 1];
+    // A `ref-line` or `band` (#1832) sits on the left axis and widens it.
+    if (side === 'left')
+      for (const v of annotationValues(chart.annotations)) {
+        lo = Math.min(lo, v);
+        hi = Math.max(hi, v);
+      }
     if (chart.noAutoY) {
       // Opt-out: anchor baseline at 0 for non-negative data (ECharts parity).
       if (lo > 0) lo = 0;
@@ -262,6 +274,22 @@ export function renderLine(
   // era bands (markArea parity) — positioned on the left axis. Their titles
   // are text the point values must clear.
   const eraTitles: LabelRect[] = [];
+  const annotationFrame: ValueAxisFrame = {
+    pos: (v) => yL(v),
+    left: m.left,
+    top: m.top,
+    width: plotW,
+    height: plotH,
+    horizontal: false,
+  };
+  const annotationColors = {
+    text: textColor,
+    muted: palette.textMuted,
+    bg: bgColor,
+  };
+  eraTitles.push(
+    ...drawBands(svg, chart.annotations, annotationFrame, annotationColors)
+  );
   if (chart.eras?.length) {
     chart.eras.forEach((era, i) => {
       const xs = xOfLabel(era.start);
@@ -513,6 +541,10 @@ export function renderLine(
       }
     }
   }
+
+  eraTitles.push(
+    ...drawRefLines(svg, chart.annotations, annotationFrame, annotationColors)
+  );
 
   // Point values (#1828): every series' labels are placed together, so one
   // series' value never prints over another's. A label goes above its point,

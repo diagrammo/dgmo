@@ -15,7 +15,13 @@ import { max as d3max, min as d3min } from 'd3-array';
 import type { ParsedChart } from '../chart';
 import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
-import { contrastText, shapeFill } from '../palettes/color-utils';
+import { contrastText, shapeFill, themeBaseBg } from '../palettes/color-utils';
+import { annotationValues } from '../annotations/parse';
+import {
+  drawBands,
+  drawRefLines,
+  type ValueAxisFrame,
+} from '../annotations/draw';
 import { fitLabel } from '../utils/fit-label';
 import { measureText } from '../utils/text-measure';
 import { createLabelPlacement, type LabelRect } from '../label-layout';
@@ -161,8 +167,10 @@ export function renderBar(
     : (d3min(perCat, (vals) => d3min(vals) ?? 0) ?? 0);
   // Domain always includes 0 (bars encode magnitude from a 0 baseline); with
   // negative data it extends below so bars grow either direction from 0.
-  const hiVal = Math.max(0, maxVal);
-  const loVal = Math.min(0, minVal);
+  // A `ref-line` or `band` (#1832) beyond the data widens the axis to it.
+  const marked = annotationValues(chart.annotations);
+  const hiVal = Math.max(0, maxVal, ...marked);
+  const loVal = Math.min(0, minVal, ...marked);
   const niceMax = hiVal === 0 && loVal === 0 ? 1 : hiVal;
   // Value axis (#1830): `y-scale log`, `y-min`, `y-max`. Built once on a unit
   // range to size the margin from its real tick labels, then on the plot.
@@ -265,6 +273,20 @@ export function renderBar(
     ? [m.left, m.left + plotW]
     : [m.top + plotH, m.top];
   const val = valueAxis(valRange);
+  const annotationFrame: ValueAxisFrame = {
+    pos: (v) => val(v),
+    left: m.left,
+    top: m.top,
+    width: plotW,
+    height: plotH,
+    horizontal: horiz,
+  };
+  const annotationColors = {
+    text: textColor,
+    muted: palette.textMuted,
+    bg: themeBaseBg(palette, isDark),
+  };
+  drawBands(svg, chart.annotations, annotationFrame, annotationColors);
 
   // value-axis gridlines + ticks
   for (const t of val.ticks(6)) {
@@ -541,6 +563,8 @@ export function renderBar(
       }
     });
   });
+
+  drawRefLines(svg, chart.annotations, annotationFrame, annotationColors);
 
   drawXAxisTitle(
     svg,
