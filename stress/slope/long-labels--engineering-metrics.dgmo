@@ -3,7 +3,6 @@ slope Engineering Health Metrics Across Three Annual Reviews
 period FY2023 FY2024 FY2025
 
 // stress: long-labels — series names of 50–70 characters at both ends of the slope
-// known: diagrammo/diagrammo#1946
 
 Median pull request cycle time in hours from first commit to merge blue 42 31 19
 Percentage of production deploys followed by a rollback within a day red 11 14 6

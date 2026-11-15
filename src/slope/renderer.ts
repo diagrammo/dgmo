@@ -61,6 +61,30 @@ export function resolveVerticalCollisions(
   return adjustedY;
 }
 
+/**
+ * Which side of its point a middle-period value sits on (#1946). The value is
+ * offset `gap` above or below the point; each adjacent segment is checked at
+ * the label's half-width toward its neighbour, where it climbs furthest into
+ * the label box. The side the segments intrude on least wins; above on a tie.
+ */
+export function middleValueSide(
+  point: { x: number; y: number },
+  neighbours: { x: number; y: number }[],
+  halfWidth: number,
+  gap: number
+): 'above' | 'below' {
+  let above = 0;
+  let below = 0;
+  for (const n of neighbours) {
+    const dx = Math.abs(n.x - point.x);
+    if (dx === 0) continue;
+    const yAtEdge = point.y + ((n.y - point.y) * Math.min(halfWidth, dx)) / dx;
+    above = Math.max(above, point.y - gap - yAtEdge);
+    below = Math.max(below, yAtEdge - (point.y + gap));
+  }
+  return below < above ? 'below' : 'above';
+}
+
 const SLOPE_MARGIN = { top: 80, bottom: 40, left: 80 };
 const SLOPE_LABEL_FONT_SIZE = 14;
 
@@ -275,11 +299,29 @@ export function renderSlopeChart(
 
   // --- Resolve left-side label collisions per non-last period column ---
   const leftLabelHeight = sValueFont * 1.25;
+  // Middle-period values sit beside their point, never on it, so neither the
+  // series' own line nor its marker strikes through the digits (#1946).
+  const sMiddleGap = sPointR + ctx.structural(4);
+  const middleOffsetY = (item: (typeof data)[number], pi: number): number => {
+    const pt = (i: number) => ({
+      x: xScale(periods[i]!)!,
+      y: yScale(item.values[i]!),
+    });
+    const side = middleValueSide(
+      pt(pi),
+      [pt(pi - 1), pt(pi + 1)],
+      measureText(fmt(item.values[pi]!), sValueFont) / 2,
+      sMiddleGap
+    );
+    const shift = sMiddleGap + sValueFont / 2;
+    return side === 'above' ? -shift : shift;
+  };
   const leftLabelCollisions: Map<number, number[]> = new Map();
   for (let pi = 0; pi < periods.length - 1; pi++) {
     const entries = data.map((item) => ({
       // pi is in-bounds by loop guard against periods.length, and each data row has periods.length values.
-      naturalY: yScale(item.values[pi]!),
+      naturalY:
+        yScale(item.values[pi]!) + (pi === 0 ? 0 : middleOffsetY(item, pi)),
       height:
         pi === 0
           ? Math.max(
@@ -426,6 +468,10 @@ export function renderSlopeChart(
             .attr('text-anchor', 'middle')
             .attr('fill', color)
             .attr('font-size', sValueFont)
+            .attr('stroke', bgColor)
+            .attr('stroke-width', ctx.structural(3))
+            .attr('stroke-linejoin', 'round')
+            .attr('paint-order', 'stroke')
             .attr('opacity', textOpacity(dim))
             .text(fmt(val));
         }
