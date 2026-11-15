@@ -126,6 +126,32 @@ interface D3ExportDimensions {
     preferContain?: boolean;
 }
 
+/**
+ * §1.11 Emphasis family — `highlight <Name>…` / `dim <Name>…`.
+ *
+ * The one appearance axis that creates contrast *within* a chart. The `fill-*`
+ * family (§1.9) is chart-wide by construction, so it can state a treatment but
+ * never a hierarchy; color states *identity*, not weight. Emphasis is the third
+ * axis: which elements are figure and which are ground.
+ *
+ * Two duals, mutually exclusive (last-one-wins, per the `fill-*` precedent):
+ *   `highlight A B` — A and B are figure; EVERYTHING ELSE recedes.
+ *   `dim A B`       — A and B recede; everything else is untouched.
+ *
+ * Both are chart-level directives, never per-element trailing tokens: the
+ * trailing bare-token slot already belongs to color (§1.5), and a second
+ * trailing token would need ordered peeling plus a fresh label-collision
+ * hazard. Keeping emphasis at chart level also means it survives edits to the
+ * data rows and has exactly one home on chart types (sankey, chord) where an
+ * element is named by many lines rather than declared on one.
+ *
+ * Rendering contract: a resolved-dim is a BAKED opacity multiplier on the
+ * element's existing paint — never a color substitution. Hue is preserved, so
+ * `dim` composes with a brand color instead of competing with it, and the
+ * output is a static attribute that survives PNG/SVG export with no
+ * interactivity dependency (contrast with event-line's runtime legend muting).
+ */
+
 /** A parsed emphasis directive: which dual, and the names it lists. */
 interface EmphasisDirective {
     readonly kind: 'highlight' | 'dim';
