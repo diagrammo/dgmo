@@ -576,6 +576,28 @@ function boxHolds(b: TextBox, x: number, y: number): boolean {
 export function whiteboardConnectorLabelPoints(
   elements: readonly WhiteboardElement[],
   all: readonly WhiteboardElement[] = elements
+): ReadonlyMap<WhiteboardElement, WhiteboardPoint> {
+  // Placement scores every label against every stroke on the board; the
+  // canvas asks for it on every pointer event (#2024). Elements arrays are
+  // never mutated — an edit builds a new one — so the arrays are the key.
+  let byAll = LABEL_POINTS.get(elements);
+  if (!byAll) LABEL_POINTS.set(elements, (byAll = new WeakMap()));
+  let placed = byAll.get(all);
+  if (!placed) byAll.set(all, (placed = placeLabels(elements, all)));
+  return placed;
+}
+
+const LABEL_POINTS = new WeakMap<
+  readonly WhiteboardElement[],
+  WeakMap<
+    readonly WhiteboardElement[],
+    ReadonlyMap<WhiteboardElement, WhiteboardPoint>
+  >
+>();
+
+function placeLabels(
+  elements: readonly WhiteboardElement[],
+  all: readonly WhiteboardElement[]
 ): Map<WhiteboardElement, WhiteboardPoint> {
   const placed = new Map<WhiteboardElement, WhiteboardPoint>();
   const taken = authoredTextBoxes(elements, all);

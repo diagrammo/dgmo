@@ -148,3 +148,32 @@ describe('connector label placement (#1923)', () => {
     expect(p.y).toBeLessThan(100);
   });
 });
+
+// #2024: the canvas asks for label points on every pointer event, so they
+// are computed once per elements array and handed back after that.
+describe('label points are cached per elements array', () => {
+  it('returns the same placement for the same array', () => {
+    const { elements } = parseWhiteboard(TWIN_HOLDS);
+    const a = whiteboardConnectorLabelPoints(elements);
+    expect(whiteboardConnectorLabelPoints(elements)).toBe(a);
+  });
+
+  it('places afresh for a new array, so an edit is never stale', () => {
+    const { elements } = parseWhiteboard(TWIN_HOLDS);
+    const before = whiteboardConnectorLabelPoints(elements);
+    const moved = elements.map((el) =>
+      el.kind === 'arrow' && el.label === 'hauls'
+        ? { ...el, x1: el.x1 - 400, x2: el.x2 - 400 }
+        : el
+    );
+    const after = whiteboardConnectorLabelPoints(moved);
+    expect(after).not.toBe(before);
+    const hauls = moved.find(
+      (el) => el.kind === 'arrow' && el.label === 'hauls'
+    )!;
+    const old = elements.find(
+      (el) => el.kind === 'arrow' && el.label === 'hauls'
+    )!;
+    expect(after.get(hauls)!.x).toBeCloseTo(before.get(old)!.x - 400, -1);
+  });
+});

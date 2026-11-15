@@ -314,6 +314,62 @@ export function whiteboardConnectorAttachments(
   connector: WhiteboardArrow | WhiteboardLine,
   elements: readonly WhiteboardElement[]
 ): WhiteboardConnectorAttachments {
+  const memo = boardMemo(elements).attachments;
+  const hit = memo.get(connector);
+  if (hit) return hit;
+  const at = attachmentsOf(connector, elements);
+  // Only a connector in the board is memoised: a copy (the canvas mid-drag)
+  // is not keyed by anything the next call will hold.
+  if (elements.includes(connector)) memo.set(connector, at);
+  return at;
+}
+
+/**
+ * Work derived from one elements array, kept while the array lives (#2024).
+ * Every arrow asked "which shapes am I on" and "who shares my two shapes"
+ * of the whole board, per call, so drawing a board cost about n³. Elements
+ * arrays are never mutated after parsing — every edit builds a new one —
+ * so the array's identity is the cache key.
+ */
+interface BoardMemo {
+  attachments: Map<WhiteboardElement, WhiteboardConnectorAttachments>;
+  /** Straight connectors by their attached pair `lo,hi`, in element order. */
+  fanGroups: Map<string, (WhiteboardArrow | WhiteboardLine)[]> | null;
+}
+
+const BOARD_MEMO = new WeakMap<readonly WhiteboardElement[], BoardMemo>();
+
+function boardMemo(elements: readonly WhiteboardElement[]): BoardMemo {
+  let m = BOARD_MEMO.get(elements);
+  if (!m) {
+    m = { attachments: new Map(), fanGroups: null };
+    BOARD_MEMO.set(elements, m);
+  }
+  return m;
+}
+
+function fanGroups(
+  elements: readonly WhiteboardElement[]
+): Map<string, (WhiteboardArrow | WhiteboardLine)[]> {
+  const m = boardMemo(elements);
+  if (m.fanGroups) return m.fanGroups;
+  const groups = new Map<string, (WhiteboardArrow | WhiteboardLine)[]>();
+  for (const el of elements) {
+    if ((el.kind !== 'arrow' && el.kind !== 'line') || el.bend !== 0) continue;
+    const at = whiteboardConnectorAttachments(el, elements);
+    const key = `${Math.min(at.from, at.to)},${Math.max(at.from, at.to)}`;
+    const g = groups.get(key);
+    if (g) g.push(el);
+    else groups.set(key, [el]);
+  }
+  m.fanGroups = groups;
+  return groups;
+}
+
+function attachmentsOf(
+  connector: WhiteboardArrow | WhiteboardLine,
+  elements: readonly WhiteboardElement[]
+): WhiteboardConnectorAttachments {
   const a = { x: connector.x1, y: connector.y1 };
   const b = { x: connector.x2, y: connector.y2 };
   const attach = (end: WhiteboardPoint, other: WhiteboardPoint): number => {
@@ -350,14 +406,7 @@ export function whiteboardDrawnBend(
   if (from < 0 || to < 0 || from === to) return 0;
   const lo = Math.min(from, to);
   const hi = Math.max(from, to);
-  const group: (WhiteboardArrow | WhiteboardLine)[] = [];
-  for (const el of elements) {
-    if ((el.kind !== 'arrow' && el.kind !== 'line') || el.bend !== 0) continue;
-    const at = whiteboardConnectorAttachments(el, elements);
-    if (Math.min(at.from, at.to) === lo && Math.max(at.from, at.to) === hi) {
-      group.push(el);
-    }
-  }
+  const group = fanGroups(elements).get(`${lo},${hi}`) ?? [];
   if (group.length < 2) return 0;
   let k = group.indexOf(connector);
   if (k < 0) {
