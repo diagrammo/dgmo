@@ -137,9 +137,18 @@ const STACK_V_GAP = 20;
 // A person's stacked reports sit this far in from the stack's near edge
 // along the cross axis, leaving a lane for the trunk line that feeds them.
 const STACK_INDENT = 24;
-// Cross-axis to depth-axis ratio (width:height under TB) past which an org
-// chart's all-leaf report groups are stacked (#1841).
+// Page width:height past which an org chart's reports are hung off a trunk
+// instead of spread across a rank (#1841). Below 1:1 counts as too tall.
 const TARGET_ASPECT = 2;
+// A chart within this box already fits a slide at full size: it is never
+// too wide below FIT_WIDTH, nor too tall below FIT_HEIGHT, whatever its aspect.
+const FIT_WIDTH = 1200;
+const FIT_HEIGHT = 800;
+// A person's leaf reports hang in one column up to this many, two past it.
+const MAX_STACK_COLUMN = 6;
+// Gap between a hung manager's card and the reports hung beneath it, and
+// between rows of hung managers.
+const HANG_NEST_GAP = 30;
 
 // Legend (kanban-style pills)
 
@@ -397,33 +406,50 @@ export function layoutOrg(
   hiddenAttributes?: Set<string>,
   expandAllLegend?: boolean
 ): OrgLayoutResult {
-  const spread = layoutOrgPass(
-    parsed,
-    hiddenCounts,
-    activeTagGroup,
-    hiddenAttributes,
-    expandAllLegend,
-    false
-  );
-  // A tree whose leaves fan out across one rank grows far wider than it is
-  // deep (#1841: 45 people at 13:1). Past TARGET_ASPECT, lay it out again
-  // with every person's all-leaf reports stacked in a column under them,
-  // and keep that layout when it is narrower across the cross axis.
-  const isLR = parsed.direction === 'LR';
-  const cross = (r: OrgLayoutResult): number => (isLR ? r.height : r.width);
-  const depth = (r: OrgLayoutResult): number => (isLR ? r.width : r.height);
-  if (depth(spread) <= 0 || cross(spread) / depth(spread) <= TARGET_ASPECT) {
-    return spread;
+  // A tree whose reports fan out across one rank grows far wider than it is
+  // deep (#1841: 45 people at 13:1). Hang reports off a trunk instead, one
+  // level at a time from the leaves up (`hangLevel`), and keep the least
+  // compacted layout that lands closest to the [1, TARGET_ASPECT] band.
+  const pass = (hangLevel: number): OrgLayoutResult =>
+    layoutOrgPass(
+      parsed,
+      hiddenCounts,
+      activeTagGroup,
+      hiddenAttributes,
+      expandAllLegend,
+      hangLevel
+    );
+  // Scored on the page, not the tree's axes: a slide wants width:height in
+  // the band whichever way the tree runs.
+  const score = (r: OrgLayoutResult): number => {
+    if (r.width <= 0 || r.height <= 0) return 0;
+    const aspect = r.width / r.height;
+    if (aspect > TARGET_ASPECT && r.width > FIT_WIDTH)
+      return Math.log(aspect / TARGET_ASPECT);
+    if (aspect < 1 && r.height > FIT_HEIGHT) return Math.log(1 / aspect);
+    return 0;
+  };
+  let best = pass(0);
+  let bestScore = score(best);
+  const maxLevel = Math.max(0, ...parsed.roots.map(treeHeight)) - 1;
+  for (let level = 1; level <= maxLevel && bestScore > 0; level++) {
+    const next = pass(level);
+    const nextScore = score(next);
+    if (nextScore < bestScore) {
+      best = next;
+      bestScore = nextScore;
+    } else if (nextScore > bestScore) {
+      // Compacting further only overshoots into a tall chart.
+      break;
+    }
   }
-  const stacked = layoutOrgPass(
-    parsed,
-    hiddenCounts,
-    activeTagGroup,
-    hiddenAttributes,
-    expandAllLegend,
-    true
-  );
-  return cross(stacked) < cross(spread) ? stacked : spread;
+  return best;
+}
+
+/** Ranks below a node: 0 for a leaf. */
+function treeHeight(node: OrgNode): number {
+  if (node.children.length === 0) return 0;
+  return 1 + Math.max(...node.children.map(treeHeight));
 }
 
 function layoutOrgPass(
@@ -432,7 +458,7 @@ function layoutOrgPass(
   activeTagGroup: string | null | undefined,
   hiddenAttributes: Set<string> | undefined,
   expandAllLegend: boolean | undefined,
-  stackPersonLeaves: boolean
+  hangLevel: number
 ): OrgLayoutResult {
   if (parsed.roots.length === 0) {
     // Legend-only: compute and position legend groups even without nodes
@@ -590,13 +616,10 @@ function layoutOrgPass(
   // the d3 tree allocates a thin run along the depth axis rather than a
   // broad one across the cross axis. Under TB that reads as the familiar
   // narrow column instead of a wide row; under LR it is the transpose.
-  //
-  // With `stackPersonLeaves`, a PERSON whose reports are two or more leaf
-  // people is stacked the same way (#1841), indented by STACK_INDENT so a
-  // trunk line can run down beside the column and tick into each card.
+
   const leafStacks = new Map<
     string,
-    { children: TreeNode[]; placeholderId: string; person: boolean }
+    { children: TreeNode[]; placeholderId: string }
   >();
 
   const collapseLeafContainers = (tn: TreeNode): void => {
@@ -605,19 +628,11 @@ function layoutOrgPass(
     const allLeaves =
       tn.children.length > 0 &&
       tn.children.every((c) => c.children.length === 0);
-    const person =
-      stackPersonLeaves &&
-      allLeaves &&
-      !tn.orgNode.isContainer &&
-      tn.orgNode.id !== '__virtual_root__' &&
-      tn.children.length >= 2 &&
-      tn.children.every((c) => !c.orgNode.isContainer);
-    if ((tn.orgNode.isContainer && allLeaves) || person) {
+    if (tn.orgNode.isContainer && allLeaves) {
       const placeholderId = `__stack_${tn.orgNode.id}`;
       leafStacks.set(tn.orgNode.id, {
         children: [...tn.children],
         placeholderId,
-        person,
       });
 
       const maxW = Math.max(...tn.children.map((c) => c.width));
@@ -630,9 +645,7 @@ function layoutOrgPass(
       const stackDepth =
         tn.children.reduce((s, c) => s + depthExtent(c), 0) +
         (tn.children.length - 1) * STACK_V_GAP;
-      const stackCross =
-        Math.max(...tn.children.map((c) => crossExtent(c))) +
-        (person ? STACK_INDENT : 0);
+      const stackCross = Math.max(...tn.children.map((c) => crossExtent(c)));
 
       tn.children = [
         {
@@ -652,6 +665,237 @@ function layoutOrgPass(
       ];
     }
   };
+
+  // Hang reports off a trunk (#1841). Up to `hangLevel` ranks above the
+  // leaves, a person's reports stop spreading across a rank: each one is
+  // laid out as a block (its card with its own hung reports beneath it) and
+  // the blocks hang beside a trunk line — one column for a short run of leaf
+  // reports, two columns either side of the trunk otherwise. The topmost
+  // hung person's reports collapse into one placeholder the tidy tree sizes
+  // like a leaf; everything under it is placed here, in abstract space
+  // relative to that person's cross centre and the placeholder's near edge.
+  interface HangCard {
+    tn: TreeNode;
+    cx: number;
+    cy: number;
+  }
+  interface HangPoint {
+    x: number;
+    y: number;
+  }
+  interface HangEdge {
+    sourceId: string;
+    targetId: string;
+    points: HangPoint[];
+  }
+  interface HangArea {
+    cards: HangCard[];
+    edges: HangEdge[];
+    minX: number;
+    maxX: number;
+    depth: number;
+  }
+  type HangBlock = HangArea;
+
+  /**
+   * Lay out a hung person's reports. Coordinates are relative to the parent's
+   * cross centre (x = 0) and the area's near edge (y = 0); the parent's far
+   * edge sits `gapAbove` before it.
+   */
+  const hangArea = (
+    parentId: string,
+    kids: readonly TreeNode[],
+    gapAbove: number
+  ): HangArea => {
+    const blocks = kids.map(hangBlock);
+    const leavesOnly = kids.every((c) => c.children.length === 0);
+    const twoColumns = leavesOnly
+      ? blocks.length > MAX_STACK_COLUMN
+      : blocks.length >= 2;
+    const rowGap = leavesOnly ? STACK_V_GAP : HANG_NEST_GAP;
+    const cards: HangCard[] = [];
+    const edges: HangEdge[] = [];
+    const place = (blk: HangBlock, ox: number, oy: number): void => {
+      for (const c of blk.cards)
+        cards.push({ tn: c.tn, cx: c.cx + ox, cy: c.cy + oy });
+      for (const e of blk.edges)
+        edges.push({
+          ...e,
+          points: e.points.map((p) => ({ x: p.x + ox, y: p.y + oy })),
+        });
+    };
+    /** A tick from the trunk into a block's own card, at its mid-depth. */
+    const tick = (
+      child: TreeNode,
+      trunkX: number,
+      edgeX: number,
+      mid: number
+    ): void => {
+      edges.push({
+        sourceId: parentId,
+        targetId: child.orgNode.id,
+        points: [
+          { x: trunkX, y: mid },
+          { x: edgeX, y: mid },
+        ],
+      });
+    };
+
+    let lastMid = 0;
+    let y = 0;
+    let minX: number;
+    let maxX: number;
+    if (!twoColumns) {
+      // One column, indented STACK_INDENT past a trunk lane on its near side.
+      const colW = Math.max(...blocks.map((b) => b.maxX - b.minX));
+      const width = colW + STACK_INDENT;
+      minX = -width / 2;
+      maxX = width / 2;
+      const trunkX = minX + STACK_INDENT / 2;
+      blocks.forEach((blk, i) => {
+        const child = kids[i]!;
+        const ox = minX + STACK_INDENT - blk.minX;
+        place(blk, ox, y);
+        lastMid = y + depthExtent(child) / 2;
+        tick(child, trunkX, ox - crossExtent(child) / 2, lastMid);
+        y += blk.depth + rowGap;
+      });
+      const elbowY = -gapAbove / 2;
+      edges.unshift({
+        sourceId: parentId,
+        targetId: parentId,
+        points: [
+          { x: 0, y: -gapAbove },
+          { x: 0, y: elbowY },
+          { x: trunkX, y: elbowY },
+          { x: trunkX, y: lastMid },
+        ],
+      });
+    } else {
+      // Two columns either side of a trunk straight down from the parent,
+      // filled row by row: near column first.
+      const colW = Math.max(...blocks.map((b) => b.maxX - b.minX));
+      minX = -(colW + STACK_INDENT);
+      maxX = colW + STACK_INDENT;
+      for (let i = 0; i < blocks.length; i += 2) {
+        let rowDepth = 0;
+        for (let j = i; j < Math.min(i + 2, blocks.length); j++) {
+          const blk = blocks[j]!;
+          const child = kids[j]!;
+          const near = j === i;
+          const ox = near ? -STACK_INDENT - blk.maxX : STACK_INDENT - blk.minX;
+          place(blk, ox, y);
+          lastMid = Math.max(lastMid, y + depthExtent(child) / 2);
+          const half = crossExtent(child) / 2;
+          tick(
+            child,
+            0,
+            near ? ox + half : ox - half,
+            y + depthExtent(child) / 2
+          );
+          rowDepth = Math.max(rowDepth, blk.depth);
+        }
+        y += rowDepth + rowGap;
+      }
+      edges.unshift({
+        sourceId: parentId,
+        targetId: parentId,
+        points: [
+          { x: 0, y: -gapAbove },
+          { x: 0, y: lastMid },
+        ],
+      });
+    }
+    return { cards, edges, minX, maxX, depth: y - rowGap };
+  };
+
+  /** A report and everything hung beneath it, relative to its own card. */
+  const hangBlock = (tn: TreeNode): HangBlock => {
+    const half = crossExtent(tn) / 2;
+    const own: HangCard = { tn, cx: 0, cy: 0 };
+    if (tn.children.length === 0) {
+      return {
+        cards: [own],
+        edges: [],
+        minX: -half,
+        maxX: half,
+        depth: depthExtent(tn),
+      };
+    }
+    const top = depthExtent(tn) + HANG_NEST_GAP;
+    const area = hangArea(tn.orgNode.id, tn.children, HANG_NEST_GAP);
+    return {
+      cards: [own, ...area.cards.map((c) => ({ ...c, cy: c.cy + top }))],
+      edges: area.edges.map((e) => ({
+        ...e,
+        points: e.points.map((p) => ({ x: p.x, y: p.y + top })),
+      })),
+      minX: Math.min(-half, area.minX),
+      maxX: Math.max(half, area.maxX),
+      depth: top + area.depth,
+    };
+  };
+
+  const hangs = new Map<string, { parent: TreeNode; kids: TreeNode[] }>();
+  const heightMemo = new Map<TreeNode, number>();
+  const rankHeightOf = (tn: TreeNode): number => {
+    let v = heightMemo.get(tn);
+    if (v === undefined) {
+      v =
+        tn.children.length === 0
+          ? 0
+          : 1 + Math.max(...tn.children.map(rankHeightOf));
+      heightMemo.set(tn, v);
+    }
+    return v;
+  };
+  const containerMemo = new Map<TreeNode, boolean>();
+  const holdsContainer = (tn: TreeNode): boolean => {
+    let v = containerMemo.get(tn);
+    if (v === undefined) {
+      v = tn.orgNode.isContainer || tn.children.some(holdsContainer);
+      containerMemo.set(tn, v);
+    }
+    return v;
+  };
+  const applyHang = (tn: TreeNode): void => {
+    const ranks = rankHeightOf(tn);
+    const hung =
+      hangLevel > 0 &&
+      tn.orgNode.id !== '__virtual_root__' &&
+      ranks >= 1 &&
+      ranks <= hangLevel &&
+      (ranks >= 2 || tn.children.length >= 2) &&
+      !holdsContainer(tn);
+    if (!hung) {
+      for (const child of tn.children) applyHang(child);
+      return;
+    }
+    const placeholderId = `__stack_${tn.orgNode.id}`;
+    // Measured with a nominal gap; the real one is known after the solve
+    // and only moves the elbow, never the area's size.
+    const kids = tn.children;
+    const area = hangArea(tn.orgNode.id, kids, depthGap);
+    hangs.set(placeholderId, { parent: tn, kids });
+    const cross = area.maxX - area.minX;
+    tn.children = [
+      {
+        orgNode: {
+          id: placeholderId,
+          label: '',
+          metadata: {},
+          children: [],
+          parentId: tn.orgNode.id,
+          isContainer: false,
+          lineNumber: 0,
+        },
+        children: [],
+        width: isLR ? area.depth : cross,
+        height: isLR ? cross : area.depth,
+      },
+    ];
+  };
+  applyHang(root);
   collapseLeafContainers(root);
 
   // Reorder children: heaviest subtrees in center positions
@@ -906,55 +1150,55 @@ function layoutOrgPass(
     cy: number;
   }
   const expandedChildren: ExpandedChild[] = [];
-  // Abstract-space geometry of each person's stack, for its edges below.
-  const personStacks: {
-    parentId: string;
-    parentX: number;
-    parentBottomY: number;
-    stackTopY: number;
-    trunkX: number;
-    ticks: { id: string; near: number; mid: number }[];
-  }[] = [];
+  // Abstract-space edges of every hung area, emitted with the bus edges.
+  const hangEdges: HangEdge[] = [];
+  // Cards placed under each hung placeholder, for container bounds.
+  const hangCards = new Map<string, ExpandedChild[]>();
 
   for (const d of h.descendants()) {
     if (d.data.orgNode.id === '__virtual_root__') continue;
     if (!d.data.orgNode.id.startsWith('__stack_')) continue;
+
+    const hang = hangs.get(d.data.orgNode.id);
+    const parent = d.parent;
+    if (hang && parent) {
+      const ox = parent.x!;
+      const oy = d.y!;
+      const gap = oy - (parent.y! + depthExtent(parent.data));
+      const area = hangArea(hang.parent.orgNode.id, hang.kids, gap);
+      const placed: ExpandedChild[] = area.cards.map((c) => ({
+        orgNode: c.tn.orgNode,
+        width: c.tn.width,
+        height: c.tn.height,
+        cx: c.cx + ox,
+        cy: c.cy + oy,
+      }));
+      expandedChildren.push(...placed);
+      hangCards.set(d.data.orgNode.id, placed);
+      for (const e of area.edges) {
+        hangEdges.push({
+          ...e,
+          points: e.points.map((p) => ({ x: p.x + ox, y: p.y + oy })),
+        });
+      }
+      continue;
+    }
 
     const containerId = d.data.orgNode.id.replace('__stack_', '');
     const stack = leafStacks.get(containerId);
     if (!stack) continue;
 
     // Lay the stacked leaves out along the depth axis, in abstract space.
-    // A person's stack shifts its cards STACK_INDENT/2 along the cross axis
-    // (the placeholder was made STACK_INDENT wider) to clear the trunk lane.
-    const cx = d.x! + (stack.person ? STACK_INDENT / 2 : 0);
-    const ticks: { id: string; near: number; mid: number }[] = [];
     let currentY = d.y!;
     for (const child of stack.children) {
       expandedChildren.push({
         orgNode: child.orgNode,
         width: child.width,
         height: child.height,
-        cx,
+        cx: d.x!,
         cy: currentY,
       });
-      ticks.push({
-        id: child.orgNode.id,
-        near: cx - crossExtent(child) / 2,
-        mid: currentY + depthExtent(child) / 2,
-      });
       currentY += depthExtent(child) + STACK_V_GAP;
-    }
-    const parent = d.parent;
-    if (stack.person && parent && ticks.length > 0) {
-      personStacks.push({
-        parentId: containerId,
-        parentX: parent.x!,
-        parentBottomY: parent.y! + depthExtent(parent.data),
-        stackTopY: d.y!,
-        trunkX: ticks[0]!.near - STACK_INDENT / 2,
-        ticks,
-      });
     }
   }
 
@@ -1135,28 +1379,13 @@ function layoutOrgPass(
     }
   }
 
-  // A person's stacked reports: an elbow from the parent's far edge into the
-  // trunk lane, the trunk down beside the column, and a tick into each card.
-  for (const ps of personStacks) {
-    const midY = (ps.parentBottomY + ps.stackTopY) / 2;
-    const last = ps.ticks[ps.ticks.length - 1]!;
+  // Hung reports: the trunk and a tick into each card, laid out above.
+  for (const e of hangEdges) {
     layoutEdges.push({
-      sourceId: ps.parentId,
-      targetId: ps.parentId,
-      points: [
-        placePoint(ps.parentX, ps.parentBottomY),
-        placePoint(ps.parentX, midY),
-        placePoint(ps.trunkX, midY),
-        placePoint(ps.trunkX, last.mid),
-      ],
+      sourceId: e.sourceId,
+      targetId: e.targetId,
+      points: e.points.map((p) => placePoint(p.x, p.y)),
     });
-    for (const t of ps.ticks) {
-      layoutEdges.push({
-        sourceId: ps.parentId,
-        targetId: t.id,
-        points: [placePoint(ps.trunkX, t.mid), placePoint(t.near, t.mid)],
-      });
-    }
   }
 
   // Generate non-overlapping edges using bus pattern
@@ -1331,9 +1560,10 @@ function layoutOrgPass(
         // Use expanded children positions for stack placeholders
         const cid = desc.data.orgNode.id.replace('__stack_', '');
         const stack = leafStacks.get(cid);
-        if (stack) {
-          for (const ec of expandedChildren) {
-            if (ec.orgNode.parentId !== cid) continue;
+        const hung = hangCards.get(desc.data.orgNode.id);
+        if (stack || hung) {
+          for (const ec of hung ?? expandedChildren) {
+            if (!hung && ec.orgNode.parentId !== cid) continue;
             const r = screenRect(ec.cx, ec.cy, ec.width, ec.height);
             growDesc(
               r.left + offsetX,

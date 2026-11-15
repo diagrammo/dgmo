@@ -43,6 +43,17 @@ const ROW_GAP = 74; // vertical gap between generation rows (room for the bus)
 const KEY_VALUE_GAP = 6;
 const KEY_X = 10; // left inset of the key column (MUST match the renderer)
 const GUTTER_WIDTH = 72; // left band reserved for `generations` row labels
+// Page width:height past which a union's leaf children stack in a column
+// under their parents instead of spreading across the row (#1841). Below 1:1
+// counts as too tall. Matches the org chart's target.
+const TARGET_ASPECT = 2;
+// A chart within this box already fits a slide at full size: it is never
+// too wide below FIT_WIDTH, nor too tall below FIT_HEIGHT, whatever its aspect.
+const FIT_WIDTH = 1200;
+const FIT_HEIGHT = 800;
+const STACK_GAP = 16; // vertical gap between stacked siblings
+const STACK_INDENT = 24; // stacked cards sit this far past the trunk lane
+const ADOPTED_LANE = 52; // extra lane left of the trunk for an `adopted` label
 
 interface CardSize {
   width: number;
@@ -326,6 +337,28 @@ export function layoutFamily(
   parsed: ParsedFamily,
   focusId?: string | null
 ): FamilyLayoutResult {
+  // A generation of childless, unmarried siblings spreads the row wide
+  // (#1841). Past TARGET_ASPECT, stack each such sibling run in a column
+  // under its parents and keep that when it lands closer to the band.
+  const score = (r: FamilyLayoutResult): number => {
+    if (r.width <= 0 || r.height <= 0) return 0;
+    const aspect = r.width / r.height;
+    if (aspect > TARGET_ASPECT && r.width > FIT_WIDTH)
+      return Math.log(aspect / TARGET_ASPECT);
+    if (aspect < 1 && r.height > FIT_HEIGHT) return Math.log(1 / aspect);
+    return 0;
+  };
+  const spread = layoutFamilyPass(parsed, focusId, false);
+  if (score(spread) === 0) return spread;
+  const stacked = layoutFamilyPass(parsed, focusId, true);
+  return score(stacked) < score(spread) ? stacked : spread;
+}
+
+function layoutFamilyPass(
+  parsed: ParsedFamily,
+  focusId: string | null | undefined,
+  stackLeaves: boolean
+): FamilyLayoutResult {
   const focused = focusId ? focusFamily(parsed, focusId) : null;
   const persons = focused ? focused.persons : parsed.persons;
   // Children sorted eldest→left (by `b:`); the clone keeps the parsed model
@@ -405,6 +438,59 @@ export function layoutFamily(
   for (const [r, arr] of rowPersons) {
     rowPersons.set(r, orderRowSpouses(arr, spouseAdj, discoOf));
   }
+
+  // Stacked sibling runs (#1841): a union whose children are all leaves —
+  // no spouse, no children of their own — collapses to one tall slot in its
+  // row, expanded to a column of cards beside a trunk once placed.
+  interface SiblingStack {
+    unionId: string;
+    kids: string[];
+    adopted: boolean;
+  }
+  const stacks = new Map<string, SiblingStack>();
+  if (stackLeaves) {
+    const childOf = new Map<string, number>();
+    for (const u of unions)
+      for (const c of u.children)
+        childOf.set(c.personId, (childOf.get(c.personId) ?? 0) + 1);
+    const isLeaf = (id: string): boolean =>
+      persons.has(id) &&
+      !parentUnions.has(id) &&
+      !spouseAdj.has(id) &&
+      childOf.get(id) === 1 &&
+      id !== focusId;
+    for (const u of unions) {
+      const ids = u.children.map((c) => c.personId);
+      if (ids.length < 2 || !ids.every(isLeaf)) continue;
+      const r = rowOf(ids[0]!);
+      if (!ids.every((id) => rowOf(id) === r)) continue;
+      const row = rowPersons.get(r) ?? [];
+      const kids = row.filter((id) => ids.includes(id));
+      const sid = `__stack_${u.id}`;
+      const at = row.indexOf(kids[0]!);
+      rowPersons.set(
+        r,
+        row.flatMap((id, i) =>
+          i === at ? [sid] : ids.includes(id) ? [] : [id]
+        )
+      );
+      const adopted = u.children.some((c) => c.adopted);
+      sizes.set(sid, {
+        width:
+          Math.max(...kids.map((k) => sizes.get(k)!.width)) +
+          STACK_INDENT +
+          (adopted ? ADOPTED_LANE : 0),
+        height:
+          kids.reduce((acc, k) => acc + sizes.get(k)!.height, 0) +
+          STACK_GAP * (kids.length - 1),
+      });
+      stacks.set(sid, { unionId: u.id, kids, adopted });
+    }
+  }
+  const stackOfUnion = new Map(
+    [...stacks].map(([sid, st]) => [st.unionId, sid])
+  );
+  for (const [uid, sid] of stackOfUnion) unionChildren.set(uid, [sid]);
 
   // Row heights + y positions.
   const rowHeight = new Map<number, number>();
@@ -508,8 +594,7 @@ export function layoutFamily(
     for (let r = 1; r <= maxRow; r++) {
       const desired = new Map<string, number>();
       for (const u of unions) {
-        const kids = u.children
-          .map((c) => c.personId)
+        const kids = (unionChildren.get(u.id) ?? [])
           .filter((id) => rowOfPerson.get(id) === r && centerX.has(id))
           .sort((a, b) => centerX.get(a)! - centerX.get(b)!);
         if (kids.length === 0 || u.parents.every((p) => !centerX.has(p)))
@@ -530,7 +615,7 @@ export function layoutFamily(
 
   // Global shift so the leftmost card sits at MARGIN.
   let minLeft = Infinity;
-  for (const id of persons.keys())
+  for (const id of rowOfPerson.keys())
     minLeft = Math.min(minLeft, centerX.get(id)! - sizes.get(id)!.width / 2);
   const gutter = showGen ? GUTTER_WIDTH : 0;
   const dx = (Number.isFinite(minLeft) ? MARGIN - minLeft : MARGIN) + gutter;
@@ -538,31 +623,47 @@ export function layoutFamily(
   const nodes: FamilyLayoutNode[] = [];
   const topY = new Map<string, number>();
   const bottomY = new Map<string, number>();
+  const pushNode = (id: string, x: number, y: number, r: number): void => {
+    const p = persons.get(id)!;
+    const s = sizes.get(id)!;
+    centerX.set(id, x + s.width / 2); // absolute (shifted) for bar/bus math
+    topY.set(id, y);
+    bottomY.set(id, y + s.height);
+    nodes.push({
+      id: p.id,
+      label: p.label,
+      sex: p.sex,
+      metadata: p.metadata,
+      ...(p.color !== undefined && { color: p.color }),
+      tagMetadata: p.tagMetadata,
+      x,
+      y,
+      width: s.width,
+      height: s.height,
+      row: r,
+      ...(p.placeholder && { placeholder: true }),
+      ...(litSet && !litSet.has(id) && { dimmed: true }),
+      lineNumber: p.lineNumber,
+    });
+  };
+  // Trunk x of each stacked run, absolute, for its edges below.
+  const stackTrunkX = new Map<string, number>();
   for (let r = 0; r <= maxRow; r++) {
     for (const id of rowPersons.get(r) ?? []) {
-      const p = persons.get(id)!;
       const s = sizes.get(id)!;
       const x = centerX.get(id)! - s.width / 2 + dx;
-      const y = rowY.get(r)!;
-      centerX.set(id, x + s.width / 2); // absolute (shifted) for bar/bus math
-      topY.set(id, y);
-      bottomY.set(id, y + s.height);
-      nodes.push({
-        id: p.id,
-        label: p.label,
-        sex: p.sex,
-        metadata: p.metadata,
-        ...(p.color !== undefined && { color: p.color }),
-        tagMetadata: p.tagMetadata,
-        x,
-        y,
-        width: s.width,
-        height: s.height,
-        row: r,
-        ...(p.placeholder && { placeholder: true }),
-        ...(litSet && !litSet.has(id) && { dimmed: true }),
-        lineNumber: p.lineNumber,
-      });
+      const stack = stacks.get(id);
+      if (!stack) {
+        pushNode(id, x, rowY.get(r)!, r);
+        continue;
+      }
+      const lane = stack.adopted ? ADOPTED_LANE : 0;
+      stackTrunkX.set(id, x + lane + STACK_INDENT / 2);
+      let y = rowY.get(r)!;
+      for (const k of stack.kids) {
+        pushNode(k, x + lane + STACK_INDENT, y, r);
+        y += sizes.get(k)!.height + STACK_GAP;
+      }
     }
   }
   let contentRightEdge = 0;
@@ -634,6 +735,7 @@ export function layoutFamily(
     const kids = u.children.filter((c) => centerX.has(c.personId));
     if (kids.length === 0) continue;
     const childTop = Math.min(...kids.map((c) => topY.get(c.personId)!));
+    const sid = stackOfUnion.get(u.id);
     // The horizontal distribution bar must sit in the ROW GAP — below the
     // BOTTOM of the deepest parent card — not at the marriage-bar height (which
     // is inside tall cards). Otherwise the bus runs behind a parent node.
@@ -641,6 +743,29 @@ export function layoutFamily(
       ...u.parents.filter((p) => bottomY.has(p)).map((p) => bottomY.get(p)!)
     );
     const midY = (parentsBottom + childTop) / 2;
+    if (sid !== undefined) {
+      // Stacked run: elbow into the trunk lane, down it, a tick into each card.
+      const trunkX = stackTrunkX.get(sid)!;
+      for (const c of kids) {
+        const mid = topY.get(c.personId)! + HEADER_HEIGHT / 2;
+        const left =
+          centerX.get(c.personId)! - sizes.get(c.personId)!.width / 2;
+        edges.push({
+          unionId: u.id,
+          childId: c.personId,
+          points: [
+            { x: anchorX, y: anchorY },
+            { x: anchorX, y: midY },
+            { x: trunkX, y: midY },
+            { x: trunkX, y: mid },
+            { x: left, y: mid },
+          ],
+          adopted: c.adopted,
+          ...(litSet && !litSet.has(c.personId) && { dimmed: true }),
+        });
+      }
+      continue;
+    }
     for (const c of kids) {
       const cx = centerX.get(c.personId)!;
       const cTop = topY.get(c.personId)!;

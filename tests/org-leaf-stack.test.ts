@@ -118,4 +118,113 @@ describe('org leaf stacking (#1841)', () => {
     const ids = ['Bob', 'Carol', 'Dave'].map((l) => byLabel(layout, l).id);
     expect(layout.edges.some((e) => ids.includes(e.targetId))).toBe(false);
   });
+
+  // Slices (a) and (b): compaction above the leaf rank, two-column stacks.
+
+  type Layout = ReturnType<typeof layoutOrg>;
+  const overlaps = (layout: Layout): string[] => {
+    const bad: string[] = [];
+    const ns = layout.nodes;
+    for (let i = 0; i < ns.length; i++)
+      for (let j = i + 1; j < ns.length; j++) {
+        const a = ns[i]!;
+        const b = ns[j]!;
+        const ox =
+          Math.min(a.x + a.width / 2, b.x + b.width / 2) -
+          Math.max(a.x - a.width / 2, b.x - b.width / 2);
+        const oy =
+          Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+        if (ox > 0.5 && oy > 0.5) bad.push(`${a.label} / ${b.label}`);
+      }
+    return bad;
+  };
+  /** Edge segments that run through the inside of a card. */
+  const crossings = (layout: Layout): string[] => {
+    const bad: string[] = [];
+    for (const e of layout.edges) {
+      for (let k = 1; k < e.points.length; k++) {
+        const p = e.points[k - 1]!;
+        const q = e.points[k]!;
+        for (const n of layout.nodes) {
+          const l = n.x - n.width / 2 + 1;
+          const r = n.x + n.width / 2 - 1;
+          const t = n.y + 1;
+          const b = n.y + n.height - 1;
+          const sx0 = Math.min(p.x, q.x);
+          const sx1 = Math.max(p.x, q.x);
+          const sy0 = Math.min(p.y, q.y);
+          const sy1 = Math.max(p.y, q.y);
+          if (sx1 > l && sx0 < r && sy1 > t && sy0 < b)
+            bad.push(`${e.sourceId}->${e.targetId} through ${n.label}`);
+        }
+      }
+    }
+    return bad;
+  };
+
+  const shapes: [string, string][] = [
+    ['45 people', orgSource(4, 2, 4)],
+    ['106 people', orgSource(5, 4, 4)],
+    ['131 people', orgSource(5, 5, 4)],
+    ['103 people, ten per manager', orgSource(3, 3, 10)],
+    ['87 people, twenty per manager', orgSource(2, 2, 20)],
+    ['106 people, direction-lr', orgSource(5, 4, 4, 'direction-lr')],
+  ];
+  for (const [name, src] of shapes) {
+    it(`lays out ${name} with no card overlap and no line through a card`, () => {
+      const layout = layoutOrg(parseOrg(src));
+      expect(overlaps(layout)).toEqual([]);
+      expect(crossings(layout)).toEqual([]);
+    });
+  }
+
+  it('renders the 100-person probe under 3:1', () => {
+    const layout = layoutOrg(parseOrg(orgSource(5, 4, 4)));
+    expect(layout.nodes).toHaveLength(106);
+    const aspect = layout.width / layout.height;
+    expect(aspect).toBeLessThan(3);
+    expect(aspect).toBeGreaterThanOrEqual(1);
+  });
+
+  it("hangs a VP's managers in two columns either side of a trunk", () => {
+    const layout = layoutOrg(parseOrg(orgSource(5, 4, 4)));
+    const vp = byLabel(layout, 'VP 1');
+    const managers = [1, 2, 3, 4].map((b) => byLabel(layout, `Manager 1.${b}`));
+    const left = managers.filter((m) => m.x < vp.x);
+    const right = managers.filter((m) => m.x > vp.x);
+    expect(left).toHaveLength(2);
+    expect(right).toHaveLength(2);
+    const trunk = layout.edges.find(
+      (e) =>
+        e.sourceId === vp.id &&
+        e.targetId === vp.id &&
+        e.points.every((p) => p.x === vp.x)
+    );
+    expect(trunk).toBeDefined();
+    for (const m of managers) {
+      const tick = layout.edges.find(
+        (e) => e.sourceId === vp.id && e.targetId === m.id
+      )!;
+      const end = tick.points[tick.points.length - 1]!;
+      const side = m.x < vp.x ? m.x + m.width / 2 : m.x - m.width / 2;
+      expect(end.x).toBeCloseTo(side, 5);
+      expect(end.y).toBeCloseTo(m.y + m.height / 2, 5);
+    }
+  });
+
+  it('splits a long run of leaf reports into two columns', () => {
+    const layout = layoutOrg(parseOrg(orgSource(1, 1, 20)));
+    const xs = new Set(
+      layout.nodes.filter((n) => n.label.startsWith('Engineer')).map((n) => n.x)
+    );
+    expect(xs.size).toBe(2);
+  });
+
+  it('keeps a short run of leaf reports in one column', () => {
+    const layout = layoutOrg(parseOrg(orgSource(4, 2, 4)));
+    const xs = new Set(
+      [1, 2, 3, 4].map((c) => byLabel(layout, `Engineer 1.1.${c}`).x)
+    );
+    expect(xs.size).toBe(1);
+  });
 });

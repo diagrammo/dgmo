@@ -1281,7 +1281,7 @@ CEO
 ```
 
 - Node coloring: per-node indented metadata `\n  color: blue` (deferred to a follow-up spec; tag groups inside org also work)
-- Compact leaves: when a chart would render more than twice as wide as it is deep, every person whose reports are all leaves (two or more, no reports of their own) gets them stacked in a column beneath, joined by a line down the side. Under `direction-lr` the stack runs as a row. Smaller charts keep the row.
+- Compact layout: when a chart would render wider than a slide and more than twice as wide as it is tall, reports stop spreading across a row and hang off a line running down from their manager, starting at the leaves and working up only as far as the chart needs to fit. Leaf reports hang in one column, or two once there are more than six; managers hang in two columns either side of the line, each with their own reports beneath. Under `direction-lr` the columns become rows. Charts already within 2:1 keep the spread rows.
 - Same-line metadata: `Alice role: CEO, t: Exec`
 
 **Color by team / department** — declare a `tag <Name> as <alias>` group (§1.3) with palette colors, then assign each person the tag as metadata (`<alias>: <Value>`, indented under the node or same-line). There is **no `#team` or roster syntax** — a `#` line is not a grouping operator and renders as a stray node:
@@ -2087,6 +2087,7 @@ Henry Turner + Carina Smyth m: 1751
 - **Divorce:** a bare `divorced` token on a union line (`A + B m: 1980 divorced`) draws a dashed marriage bar; children still attach.
 - **Deceased:** a person with a death year (`d:`) is auto-marked with a muted dagger (†) — derived, no syntax; add `no-daggers` to hide it.
 - **Children** are auto-ordered eldest→left by birth year (`b:`); undated children keep declaration order.
+- **Compact siblings:** when a tree would render wider than a slide and more than twice as wide as it is tall, a couple's children who have no spouse and no children of their own stack in a column under them, eldest on top, joined by a line down the side. They stay in their generation's row.
 - **Unknown/private person:** a bare `?` renders a faint, solid-bordered, name-only placeholder card; each `?` is a distinct person.
 - **`generations`** (option): draws a left gutter of Roman-numeral generation labels (`Gen I`, `Gen II`, …) plus subtle zebra shading behind alternating generations.
 - **`highlight <name>`** (directive): dims everyone outside that person's bloodline (ancestors + descendants + spouses stay lit).

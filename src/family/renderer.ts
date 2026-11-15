@@ -400,7 +400,15 @@ export function renderFamilyForExport(
     const first = group[0]!;
     const allAdopted = group.every((e) => e.adopted);
     const trunkDimmed = group.every((e) => e.dimmed);
-    if (first.points.length > 2) {
+    if (first.points.length === 5) {
+      // Stacked siblings (#1841): one trunk down the lane to the last tick,
+      // then each child's own tick into its card.
+      const longest = group.reduce((a, e) =>
+        e.points[3]!.y > a.points[3]!.y ? e : a
+      );
+      line(longest.points.slice(0, 4), allAdopted, trunkDimmed);
+      for (const e of group) line(e.points.slice(3), e.adopted, !!e.dimmed);
+    } else if (first.points.length > 2) {
       // Shared trunk (anchor → the bus row), drawn once for the union.
       line(first.points.slice(0, 2), allAdopted, trunkDimmed);
       for (const e of group) line(e.points.slice(1), e.adopted, !!e.dimmed);
@@ -412,10 +420,14 @@ export function renderFamilyForExport(
       // Italic `adopted` label near the child drop.
       const last = e.points[e.points.length - 1]!;
       const prev = e.points[e.points.length - 2] ?? last;
+      // A stacked child's tick is horizontal: label it in the lane left of
+      // the trunk the layout reserved, not on the card.
+      const tick = last.y === prev.y;
       edgeG
         .append('text')
-        .attr('x', last.x + 5)
-        .attr('y', (last.y + prev.y) / 2)
+        .attr('x', tick ? prev.x - 4 : last.x + 5)
+        .attr('y', tick ? last.y + 3 : (last.y + prev.y) / 2)
+        .attr('text-anchor', tick ? 'end' : null)
         .attr('font-size', META_FONT_SIZE)
         .attr('font-style', 'italic')
         .attr('fill', palette.textMuted)
