@@ -11,6 +11,10 @@ import { measureText, truncateText } from '../utils/text-measure';
 
 const H_PAD = 16; // 8px padding each side
 const MAX_LABEL_LINES = 3;
+/** Lines a mindmap label may grow to at the smallest type before it is cut:
+ *  enough for 80 characters of the widest Latin glyph (W) in the narrowest
+ *  node (#1843). Longer labels keep the ellipsis and the full-text tooltip. */
+const MAX_WRAPPED_LABEL_LINES = 8;
 const MAX_DESC_LINES = 2;
 
 /** Split text into tokens, keeping hyphens attached to the left word. */
@@ -71,6 +75,29 @@ function tryWrap(
   return lines;
 }
 
+/** Break a token wider than availWidth into pieces that each fit it. A piece
+ *  is at least one character, so a node narrower than one glyph still ends. */
+function splitWideToken(
+  token: string,
+  availWidth: number,
+  fontSize: number,
+  bold: boolean
+): string[] {
+  if (measureText(token, fontSize, { bold }) <= availWidth) return [token];
+  const pieces: string[] = [];
+  let piece = '';
+  for (const ch of Array.from(token)) {
+    if (piece && measureText(piece + ch, fontSize, { bold }) > availWidth) {
+      pieces.push(piece);
+      piece = ch;
+    } else {
+      piece += ch;
+    }
+  }
+  if (piece) pieces.push(piece);
+  return pieces;
+}
+
 /** Truncate the last line of a lines array with ellipsis to fit maxWidth. */
 function truncateLastLine(
   lines: string[],
@@ -100,7 +127,10 @@ interface WrapResult {
  * Wrap text to fit within a node of the given maxWidth.
  * Tries wrapping at baseFontSize first. If text doesn't fit within
  * maxLines, reduces font size by 1px at a time down to minFontSize.
- * As a last resort, truncates the final line with ellipsis.
+ * As a last resort, truncates the final line with an ellipsis. With
+ * `overflow: 'wrap'` it first breaks a token wider than the node between
+ * characters and lets the text grow to MAX_WRAPPED_LABEL_LINES lines, so only
+ * text longer than that is cut.
  */
 export function wrapText(
   text: string,
@@ -110,7 +140,8 @@ export function wrapText(
   maxLines: number = MAX_LABEL_LINES,
   /** True where the renderer draws this text at 700 — only the root node's
    *  label is; every other label and every description line is regular. */
-  bold = false
+  bold = false,
+  overflow: 'ellipsis' | 'wrap' = 'ellipsis'
 ): WrapResult {
   if (!text) return { lines: [''], fontSize: baseFontSize };
 
@@ -119,7 +150,13 @@ export function wrapText(
   // Try at each font size from base down to min
   for (let fs = baseFontSize; fs >= minFontSize; fs--) {
     const lines = tryWrap(tokens, maxWidth, fs, maxLines, bold);
-    if (lines) {
+    // In 'wrap' mode a line still wider than the node (one long token) does
+    // not fit either: shrink, and at the last resort break the token.
+    const fits =
+      lines !== null &&
+      (overflow === 'ellipsis' ||
+        lines.every((l) => measureText(l, fs, { bold }) <= maxWidth - H_PAD));
+    if (lines && fits) {
       // Ensure each line fits (truncate overly long single tokens)
       return {
         lines: truncateLastLine(lines, maxWidth, fs, bold),
@@ -128,12 +165,27 @@ export function wrapText(
     }
   }
 
-  // Last resort: wrap at minFontSize with unlimited lines, then take first maxLines
-  const allLines = tryWrap(tokens, maxWidth, minFontSize, 999, bold) ?? [text];
-  const capped = allLines.slice(0, maxLines);
+  // In 'wrap' mode the last resort breaks over-wide tokens and allows up to
+  // MAX_WRAPPED_LABEL_LINES lines; only text longer than that is cut.
+  const lastTokens =
+    overflow === 'wrap'
+      ? tokens.flatMap((t) =>
+          splitWideToken(t, maxWidth - H_PAD, minFontSize, bold)
+        )
+      : tokens;
+  const lastMaxLines =
+    overflow === 'wrap'
+      ? Math.max(maxLines, MAX_WRAPPED_LABEL_LINES)
+      : maxLines;
+
+  // Last resort: wrap at minFontSize with unlimited lines, then take first lastMaxLines
+  const allLines = tryWrap(lastTokens, maxWidth, minFontSize, 999, bold) ?? [
+    text,
+  ];
+  const capped = allLines.slice(0, lastMaxLines);
   const truncated = truncateLastLine(capped, maxWidth, minFontSize, bold);
   // If we dropped lines, append ellipsis to indicate overflow
-  if (allLines.length > maxLines) {
+  if (allLines.length > lastMaxLines) {
     // In-bounds: truncated is derived from allLines which has at least one entry (allLines.length > maxLines >= 0).
     const last = truncated[truncated.length - 1]!;
     if (!last.endsWith('\u2026')) {
@@ -198,7 +250,11 @@ export function computeNodeText(
     MAX_LABEL_LINES,
     // The renderer draws the root node's label bold and every other label
     // normal, and a mindmap has exactly one node at depth 0.
-    depth === 0
+    depth === 0,
+    // Past MAX_LABEL_LINES at the smallest type a label grows taller rather
+    // than being cut, up to MAX_WRAPPED_LABEL_LINES (#1843). Descriptions
+    // keep their cap.
+    'wrap'
   );
 
   const descLines: string[] = [];

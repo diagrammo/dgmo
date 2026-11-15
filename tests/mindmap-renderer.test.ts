@@ -28,6 +28,19 @@ describe('mindmap renderer', () => {
     });
   }
 
+  it('draws an 80-character leaf label in full, with no ellipsis (#1843)', () => {
+    const label =
+      'Quarterly planning review with every regional lead and the finance partners now';
+    const content = `mindmap\nPlan\n  Team\n    ${label}\n`;
+    const svg = renderMindmapForExport(content, 'light', palette);
+    // Every drawn line, whether a <text> or a <tspan>; tooltips (<title>) excluded.
+    const drawn = [...svg.matchAll(/<(text|tspan)\b[^>]*>([^<]*)(?=<)/g)]
+      .map((m) => m[2])
+      .join(' ');
+    expect(drawn).not.toContain('\u2026');
+    for (const word of label.split(' ')) expect(drawn).toContain(word);
+  });
+
   it('root node has heavier stroke', () => {
     const content = readFileSync(resolve(FIXTURE_DIR, 'basic.dgmo'), 'utf-8');
     const svg = renderMindmapForExport(content, 'light', palette);

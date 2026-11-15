@@ -112,4 +112,62 @@ describe('computeNodeText', () => {
     const result = computeNodeText('Node', 'Description', 1, 150, true);
     expect(result.descLines).toEqual([]);
   });
+
+  // #1843: a label up to 80 characters is wrapped in full, never cut short
+  // with an ellipsis, at every depth and node width the layout uses.
+  const LONG_LABEL =
+    'Quarterly planning review with every regional lead and the finance partners now';
+  const WIDE_LABEL =
+    'WWWW MMMM WWWW MMMM WWWW MMMM WWWW MMMM WWWW MMMM WWWW MMMM WWWW MMMM WWWW MMMM';
+  const ONE_TOKEN = 'x'.repeat(40) + 'W'.repeat(40);
+  const WIDEST = 'W'.repeat(80);
+  const SIZES = [
+    [0, 180],
+    [1, 150],
+    [2, 120],
+    [3, 120],
+  ] as const;
+  for (const label of [LONG_LABEL, WIDE_LABEL, ONE_TOKEN, WIDEST]) {
+    for (const [depth, width] of SIZES) {
+      it(`keeps every character of a ${label.length}-char label at depth ${depth}`, () => {
+        expect(label.length).toBeLessThanOrEqual(80);
+        const { labelLines } = computeNodeText(
+          label,
+          undefined,
+          depth,
+          width,
+          true
+        );
+        expect(labelLines.join('')).not.toContain('\u2026');
+        expect(labelLines.join('').replace(/\s/g, '')).toBe(
+          label.replace(/\s/g, '')
+        );
+      });
+    }
+  }
+
+  it('a label that overflows grows taller rather than shorter', () => {
+    const { labelLines, labelFontSize } = computeNodeText(
+      LONG_LABEL,
+      undefined,
+      2,
+      120,
+      true
+    );
+    expect(labelLines.length).toBeGreaterThan(3);
+    expect(labelFontSize).toBe(9);
+  });
+
+  it('a label far past 80 characters is still cut at eight lines', () => {
+    const label = Array.from({ length: 40 }, (_, i) => `word${i}`).join(' ');
+    const { labelLines } = computeNodeText(label, undefined, 2, 120, true);
+    expect(labelLines.length).toBe(8);
+    expect(labelLines.join(' ').length).toBeLessThan(label.length);
+  });
+
+  it('a description keeps its two-line cap and ellipsis', () => {
+    const { descLines } = computeNodeText('Node', [LONG_LABEL], 2, 120, false);
+    expect(descLines.length).toBeLessThanOrEqual(2);
+    expect(descLines[descLines.length - 1]).toContain('\u2026');
+  });
 });

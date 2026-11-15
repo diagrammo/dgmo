@@ -194,6 +194,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **mindmap: a long label wraps instead of ending in "…"
+  (diagrammo/diagrammo#1843).** A label
+  that did not fit three lines at the smallest type was cut with an ellipsis,
+  so a 79-character leaf lost its last words. Past three lines the node now
+  grows taller, up to eight lines — enough for 80 characters of the widest
+  Latin glyph in the narrowest node — and a word wider than the node breaks
+  between characters. Only a label longer than that is still cut, with its
+  full text in the tooltip. Descriptions keep their two-line cap.
+
 - **infra: split paths that rejoin no longer make compute exponential
   (diagrammo/diagrammo#2026).** Each split that reconverged downstream doubled
   the latency-path list, so a chain of twenty diamonds took about a second and
