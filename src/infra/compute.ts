@@ -998,7 +998,7 @@ export function computeInfra(
    * Fold paths with the same (latency, uptime, availability) into one entry,
    * summing their weights. Every reader of a node's paths — the percentiles
    * and the weighted averages — sees only that weighted distribution, so the
-   * fold is exact. Without it each reconverging split doubles the list and
+   * fold is exact. Without it each split that rejoins downstream doubles the list and
    * the entry node holds 2^(diamonds) paths (diagrammo/diagrammo#2026).
    */
   function mergeLeafPaths(paths: LeafPath[]): LeafPath[] {
