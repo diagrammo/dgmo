@@ -10,6 +10,7 @@ import { parseVisualization } from './visualizations/parse';
 // its address for consumers and tests.
 import { parseDgmoChartType } from './chart-type-detect';
 import { extractPaletteDirective } from './palettes/directive';
+import { liftUnsupportedHighlight } from './utils/emphasis';
 export {
   parseDgmoChartType,
   looksLikeGantt,
@@ -147,26 +148,33 @@ function parseDgmoUndeduped(content: string): {
     };
   }
 
+  // A lowercase `highlight` line on a type that cannot read it is lifted out
+  // here, so it warns instead of drawing an element named "highlight …".
+  const lifted = liftUnsupportedHighlight(content, chartType);
+  const body = lifted.content;
+
   const parser = PARSER_BY_ID.get(chartType);
   if (parser) {
-    const result = parser(content);
+    const result = parser(body);
     const mistyped = detectMistypedChartType(content, chartType);
     return {
       diagnostics: [
         ...(mistyped ? [mistyped] : []),
+        ...lifted.diagnostics,
         ...result.diagnostics,
-        ...detectEmptyContent(content, chartType),
+        ...detectEmptyContent(body, chartType),
       ],
       chartType,
     };
   }
 
   // Unknown id (defensive): fall through to visualization parser.
-  const result = parseVisualization(content);
+  const result = parseVisualization(body);
   return {
     diagnostics: [
+      ...lifted.diagnostics,
       ...result.diagnostics,
-      ...detectEmptyContent(content, chartType),
+      ...detectEmptyContent(body, chartType),
     ],
     chartType,
   };

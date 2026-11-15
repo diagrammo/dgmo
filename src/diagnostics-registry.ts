@@ -96,6 +96,16 @@ export const UNIVERSAL_DIAGNOSTICS: DiagnosticSpec[] = [
       'org Crew\nactive-tag Rnak\n\ntag Rank as r\n  Captain red\n\nBlackbeard r: Captain\n',
   },
   {
+    code: 'W_HIGHLIGHT_UNSUPPORTED',
+    severity: 'warning',
+    chartType: null,
+    title: 'highlight not supported',
+    message: (p) =>
+      `highlight is not supported on ${String(p.chartType ?? 'this chart type')} yet`,
+    hint: 'Remove the highlight line; write Highlight with a capital H for content.',
+    example: 'flowchart\nhighlight Build\n(Start) -> [Build]',
+  },
+  {
     code: 'W_EMPTY_METADATA_VALUE',
     severity: 'warning',
     chartType: null,

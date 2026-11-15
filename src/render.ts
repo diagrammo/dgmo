@@ -12,6 +12,8 @@ import { makeDgmoError } from './diagnostics';
 import { legendInlineSupported } from './utils/inline-header';
 import { getPalette } from './palettes/registry';
 import { choosePalette, extractPaletteDirective } from './palettes/directive';
+import { liftUnsupportedHighlight } from './utils/emphasis';
+import { parseDgmoChartType } from './chart-type-detect';
 import type { CompactViewState } from './sharing';
 import type { MapDataSource } from './d3';
 import type * as Jsdom from 'jsdom';
@@ -266,7 +268,18 @@ export async function render(
 }> {
   // The file's `palette` line is lifted out before anything parses it; the
   // rest of this function only ever sees the source with that line commented.
-  const directive = extractPaletteDirective(source);
+  // So is a `highlight` line on a type that cannot read it (#2040): commented
+  // out here, its warning carried with the palette's so every branch keeps it.
+  const palette = extractPaletteDirective(source);
+  const lifted = liftUnsupportedHighlight(
+    palette.content,
+    parseDgmoChartType(palette.content)
+  );
+  const directive = {
+    ...palette,
+    content: lifted.content,
+    diagnostics: [...palette.diagnostics, ...lifted.diagnostics],
+  };
   const content = directive.content;
   const chosen = choosePalette(directive, {
     ...(options?.palette !== undefined && { palette: options.palette }),

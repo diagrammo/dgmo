@@ -24,6 +24,9 @@
  * interactivity dependency (contrast with event-line's runtime legend muting).
  */
 
+import type { DgmoError } from '../diagnostics';
+import { makeDgmoError } from '../diagnostics';
+
 /**
  * Opacity applied to receded elements. Matches the `family` chart's shipped
  * `DIM_OPACITY` (`src/family/renderer.ts`), which this family generalizes —
@@ -179,4 +182,56 @@ export function resolveEmphasis(
   const dimmed = new Set<string>();
   for (const name of byNorm.values()) if (!lit.has(name)) dimmed.add(name);
   return { dimmed, unknown };
+}
+
+/**
+ * The chart types whose parser reads a lowercase `highlight` line (#2040).
+ * Kept equal to the `highlight` entry's `chartTypes` in
+ * `src/directives-registry.ts` by `tests/highlight-unsupported.test.ts`; that
+ * registry is not imported here because it is the editor's, not the render
+ * path's.
+ */
+export const HIGHLIGHT_CHART_TYPES: ReadonlySet<string> = new Set([
+  'family',
+  'sankey',
+  'bar',
+  'line',
+  'pie',
+  'scatter',
+  'slope',
+  'treemap',
+]);
+
+const HIGHLIGHT_LINE_RE = /^highlight(?:\s|$)/;
+
+/**
+ * A lowercase `highlight` at the start of a line is reserved on every chart
+ * type (§1.13). On a type that does not read it yet, the line is commented out
+ * so it never becomes an element named "highlight …", and it warns once per
+ * line. A capitalised `Highlight …` is content and stays. With no chart type,
+ * or on a type in {@link HIGHLIGHT_CHART_TYPES}, the content comes back as is.
+ */
+export function liftUnsupportedHighlight(
+  content: string,
+  chartType: string | null
+): { content: string; diagnostics: DgmoError[] } {
+  const diagnostics: DgmoError[] = [];
+  if (!chartType || HIGHLIGHT_CHART_TYPES.has(chartType))
+    return { content, diagnostics };
+  const lines = content.split('\n');
+  lines.forEach((line, i) => {
+    if (!HIGHLIGHT_LINE_RE.test(line)) return;
+    lines[i] = '//';
+    diagnostics.push(
+      makeDgmoError(
+        i + 1,
+        `highlight is not supported on ${chartType} yet`,
+        'warning',
+        'W_HIGHLIGHT_UNSUPPORTED'
+      )
+    );
+  });
+  return diagnostics.length
+    ? { content: lines.join('\n'), diagnostics }
+    : { content, diagnostics };
 }
