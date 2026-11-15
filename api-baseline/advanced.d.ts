@@ -2862,7 +2862,7 @@ declare function whiteboardBounds(parsed: ParsedWhiteboard, options?: Pick<White
  * least-bad candidate. Author-placed elements never move. The renderer and
  * the app canvas both place from this, so they cannot disagree.
  */
-declare function whiteboardConnectorLabelPoints(elements: readonly WhiteboardElement[], all?: readonly WhiteboardElement[]): Map<WhiteboardElement, WhiteboardPoint>;
+declare function whiteboardConnectorLabelPoints(elements: readonly WhiteboardElement[], all?: readonly WhiteboardElement[]): ReadonlyMap<WhiteboardElement, WhiteboardPoint>;
 /** Radius of the semicircle a connector makes to hop over an earlier one, px. */
 declare const WHITEBOARD_HOP_RADIUS = 5;
 /**
