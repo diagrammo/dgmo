@@ -12,6 +12,7 @@ import { resolveNotes } from './notes';
 import { noteBoxSize } from '../utils/note-box';
 import { placeNotes, noteCanvasShift } from '../utils/notes';
 import { unbundleEdges } from './edge-ports';
+import { elbowRetryEdges } from './retry-elbow';
 import {
   countEdgeNodePierces,
   countSplineCrossings,
@@ -383,7 +384,7 @@ export function layoutGraph(
       width: 0,
       height: 0,
     }) as unknown as BLLayoutResult;
-  const routes = unbundleEdges(
+  const unbundled = unbundleEdges(
     graph.edges,
     graph.edges.map(
       (e, i) =>
@@ -399,6 +400,23 @@ export function layoutGraph(
       ? () => 0
       : (rs, only) => countSplineCrossings(scored(rs, only)),
     (rs, only) => countEdgeNodePierces(scored(rs, only))
+  );
+  // A flowchart's retry loop between adjacent ranks leaves its column as an
+  // elbow instead of running along the forward edge (#2034).
+  const routes =
+    graph.type === 'flowchart'
+      ? elbowRetryEdges(
+          graph.edges,
+          unbundled,
+          new Map(basePositioned.map((p) => [p.node.id, p])),
+          graph.direction,
+          graph.nodes.length + graph.edges.length > SEARCH_SIZE_LIMIT
+            ? () => 0
+            : (rs) => countSplineCrossings(scored(rs))
+        )
+      : unbundled;
+  const elbowed = new Set(
+    routes.flatMap((r, i) => (r !== unbundled[i] ? [i] : []))
   );
 
   // ── Collision-aware note placement (shared `utils/notes`) ───
@@ -579,10 +597,11 @@ export function layoutGraph(
   for (const group of layoutGroups) {
     bb.addRect(group);
   }
-  for (const edge of layoutEdges) {
-    if (edge.source !== edge.target) continue;
+  // An elbowed retry edge (#2034) also runs outside every node box.
+  layoutEdges.forEach((edge, i) => {
+    if (edge.source !== edge.target && !elbowed.has(i)) return;
     bb.addPoints(edge.points);
-  }
+  });
   bb.orZero();
 
   // Shift only when content runs off the top/left (note placed above/left).

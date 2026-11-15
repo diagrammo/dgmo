@@ -1,0 +1,5 @@
+flowchart Retry Until Paid
+
+(Start) -> [Pay] -> <OK?>
+<OK?> -no-> [Pay]
+<OK?> -yes-> (Done)

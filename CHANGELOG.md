@@ -194,6 +194,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **flowchart: a retry loop no longer runs along the edge it returns on
+  (diagrammo/diagrammo#2034).** A back edge between nodes in adjacent ranks, such as
+  `<OK?> -no-> [Pay]` after `[Pay] -> <OK?>`, now leaves the lower node's side
+  and returns as an elbow beside the column (below the row under
+  `direction-lr`), with its label on the elbow's leg. It was drawn a few pixels
+  from the forward edge, crossing it, with the label between the two. The
+  elbow is kept only where no other node is in its way and it adds no
+  crossing; back edges that skip ranks keep dagre's route. Gallery fixture
+  `flowchart-retry`.
+
 - **mindmap: a long label wraps instead of ending in "…"
   (diagrammo/diagrammo#1843).** A label
   that did not fit three lines at the smallest type was cut with an ellipsis,

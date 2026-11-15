@@ -14,6 +14,7 @@ const FIXTURE_FILES = [
   'flowchart-loop.dgmo',
   'flowchart-complex.dgmo',
   'flowchart-colors.dgmo',
+  'flowchart-retry.dgmo',
 ];
 
 describe('flowchart fixtures', () => {
