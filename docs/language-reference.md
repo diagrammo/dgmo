@@ -144,7 +144,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `treemap`         | nested rectangles sized by value (budgets, disk usage, portfolios)                                                                                            |
 | `block`           | author-controlled grid of nested, collapsible blocks (system / architecture layouts)                                                                          |
 | `whiteboard`      | free-form infinite canvas: shapes, sticky notes, free arrows, text, images and freehand ink at pixel positions (canvas-drawn; AI writes all but ink)          |
-| `goal`            | single progress-toward-a-target value (`now` vs `target`) as a progress bar, thermometer, or gauge — KPIs, fundraising, quotas                                |
+| `goal`            | progress-toward-a-target value (`actual` vs `target`) as a progress bar, thermometer, or gauge, with optional named `bands`; several `[Measure]` rows make a bullet chart — KPIs, dashboards, fundraising, quotas                                |
 | `countdown`       | live "N days until X" that ticks every second and is accurate on every load — trip dates, launches, deadlines; the only dynamic chart type                    |
 | `clock`           | live world-clock board: current time for people/places across time zones, ticking every second, with optional working-hours status and sundown line           |
 | `map`             | geographic concept map: regions, points, routes                                                                                                               |
@@ -4523,11 +4523,11 @@ A malformed line is a warning and is skipped; the rest of the board renders. Onl
 
 <!-- TIPS start -->
 
-**Styling tips:** A single progress-toward-a-target reading — one `now` against one `target`, answering "how close am I?". Reach for it for a KPI tile, a fundraising thermometer, a quarterly quota, or a completion percentage; there is no time axis, series, or milestones (use `line` for a trend, `countdown` for a live deadline). Put the **unit in the title** (`Marathon Fund ($)`, `Grog Barrel Fill (L)`) — there is no format/currency directive. `now` and `target` are **space-separated `key value`** directives, no colon (`now 6400` / `target 10000`); the percent is `now / target` and values auto-compact (`6.4k`, `1.2M`). Pick the face for the story with a bare flag on its own line: the default progress **bar** for a plain KPI, `thermometer` for fundraising/fill-the-tank framings, `gauge` for a speedometer/quota dial — all three read the same value pair. The fill is **auto traffic-light** by completion (`< 50%` red, `50–80%` orange, `≥ 80%` green; over-target stays green) so the color already reads the number's health — leave it unless you have reason to override with a trailing color on the title line (`goal Marathon Fund ($) green`) or `no-auto-color` (flat palette color). Over-target clamps the fill at 100% while the `%` label stays truthful (`120%`). Add a `note` — inline (`note Still waiting on three crews`) or a block header on its own line with an indented body — to caption the number with context (who's still owed, what's left); it takes simple markdown (`**bold**`, `*italic*`, `` `code` ``) and `- ` bullets. `fill-solid` for a bolder fill; `no-percent` / `no-value` / `no-title` / `no-notes` to drop labels.
+**Styling tips:** A progress-toward-a-target reading — one `actual` against one `target`, answering "how close am I?". Reach for it for a KPI tile, a fundraising thermometer, a quarterly quota, or a completion percentage; there is no time axis or series (use `line` for a trend, `countdown` for a live deadline). Put the **unit in the title** (`Marathon Fund ($)`, `Grog Barrel Fill (L)`) — there is no format/currency directive. `actual` and `target` are **space-separated `key value`** directives, no colon (`actual 6400` / `target 10000`); the percent is `actual / target` and values auto-compact (`6.4k`, `1.2M`). Pick the face for the story with a bare flag on its own line: the default progress **bar** for a plain KPI, `thermometer` for fundraising/fill-the-tank framings, `gauge` for a speedometer/quota dial — all three read the same value pair. With no `bands` the fill is **auto traffic-light** by completion (`< 50%` red, `50–80%` orange, `≥ 80%` green) — leave it unless you have reason to override with a trailing color on the title line (`goal Marathon Fund ($) green`) or `no-auto-color` (flat palette color). To name the zones, add a **`bands` block** (`4000 Poor red`, `6000 OK`, `80% Good`) — each edge is where a band starts; the fill takes the color of the band the actual is in, a thin ribbon maps the zones with labels, and the readout reads `64% · OK`. A last line with only a number (`12000`) closes the scale, so a band can run past the target; the target then draws as a tick. For **several measures at once — a bullet chart, a KPI dashboard — add `[Measure]` header rows**, each with its own `actual` / `target` / optional `bands`; top-level `bands` and `target` are the defaults for rows without their own. Add a `note` — inline (`note Still waiting on three crews`) or a block header on its own line with an indented body — to caption the chart (one note for the whole chart); it takes simple markdown (`**bold**`, `*italic*`, `` `code` ``) and `- ` bullets. `fill-solid` for a bolder fill; `no-percent` / `no-value` / `no-title` / `no-notes` to drop labels; `no-ribbon` / `no-ribbon-labels` to drop the ribbon or just its names.
 
 <!-- TIPS end -->
 
-A single progress-toward-a-target value: one `now` measured against one `target`, drawn in one of three static faces. No time axis, no series, no milestones — just "how close am I?". The face is a bare-flag mode directive under the title (like treemap's `radial`); all three faces consume the same value pair.
+A progress-toward-a-target value: one `actual` measured against one `target`, drawn in one of three static faces, optionally with named `bands`, and optionally with several `[Measure]` rows (a **bullet chart** is a goal with `[Measure]` rows — there is no `bullet` keyword). No time axis, no series — just "how close am I?". The face is a bare-flag mode directive under the title (like treemap's `radial`); all three faces consume the same value pair.
 
 ### Declaration
 
@@ -4535,8 +4535,15 @@ A single progress-toward-a-target value: one `now` measured against one `target`
 goal [Title with unit]
 
 [thermometer | gauge]     // omit for the default progress bar
-now <number>
+bands                     // optional
+  <edge> [Label] [color]  //   edge: number or N% of target
+  [<closing edge>]        //   last line, number only: sets the scale end
+actual <number>
 target <number>
+[Measure [color]]         // optional rows — the bullet chart
+actual <number>
+target <number>
+bands                     // optional, per measure
 ```
 
 ### Example
@@ -4546,7 +4553,7 @@ goal Doubloons Recovered ($)
 
 thermometer
 
-now 6400
+actual 6400
 target 10000
 ```
 
@@ -4555,14 +4562,19 @@ target 10000
 | Directive                              | Effect                                                                                                      |
 | -------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | `thermometer` / `gauge`                | Select the render face (bare flag; omit for the progress bar).                                              |
-| `now <number>`                         | Current value (required; may exceed the target).                                                            |
+| `actual <number>`                      | Current value (required; may exceed the target). `now` is an error naming `actual`.                         |
 | `target <number>`                      | Goal value (required; must be > 0).                                                                         |
-| `no-percent`                           | Hide the `%` label.                                                                                         |
-| `no-value`                             | Hide the raw `now / target` label.                                                                          |
+| `bands` + indented lines               | Named zones: `N [Label] [color]`, `N` a number or `80%` of target. See Bands.                               |
+| `[Measure] [color]`                    | Start a row (several measures = bullet chart). See Several measures.                                        |
+| `no-percent`                           | Hide the `%` label and the band name beside it.                                                             |
+| `no-value`                             | Hide the raw `actual / target` label.                                                                       |
 | `fill-solid`                           | Full-saturation fill instead of the default 25% tint (`fill-outline` hollows the meter — color on the rim). |
 | `no-title`                             | Hide the banner title.                                                                                      |
 | `no-notes`                             | Suppress the `note` block even if one is authored.                                                          |
-| `no-auto-color`                        | Disable the traffic-light bands; use the flat palette color.                                                |
+| `no-auto-color`                        | Disable the status color; use the flat palette color (an authored ribbon still draws).                      |
+| `no-ribbon`                            | Drop the ribbon and its labels; fill stays status-colored, readout keeps `· OK`.                            |
+| `no-ribbon-labels`                     | Keep the ribbon, hide the names on it.                                                                      |
+| `shared-scale`                         | Bullet chart only: every row on one scale (warning on a single goal).                                       |
 | `note <text>` / `note` + indented body | Free-text caption beside/below the face (§ note block).                                                     |
 
 ### Note block
@@ -4572,7 +4584,7 @@ An optional caption. Inline (`note Still waiting on three crews`) or a block hea
 ```
 goal Grog Barrel Fill (L)
 thermometer
-now 34
+actual 34
 target 50
 note
   **Great job, crew!** Still waiting on tallies from:
@@ -4580,15 +4592,75 @@ note
   - Columbus — *almost there!*
 ```
 
-The body supports inline `**bold**` / `*italic*` / `` `code` ``, `- `/`* ` bullets, and blank-line gaps. It renders in the left column for `thermometer`/`gauge` and under the bar for the default face. `no-notes` hides it even when authored.
+The body supports inline `**bold**` / `*italic*` / `` `code` ``, `- `/`* ` bullets, and blank-line gaps. It renders in the left column for `thermometer`/`gauge` and under the bar for the default face. `no-notes` hides it even when authored. A chart has one note; a `note` inside a `[Measure]` is a warning.
+
+### Bands
+
+An optional `bands` block names the zones. Each indented line is `N [Label] [color]`; label and color are optional. **An edge is where a band starts** and it runs to the next edge; the last band runs to the end of the scale. Edges must ascend. Below the first edge is a plain track (grey fill, no status). `80%` means 80% of `target`. A last line with only a number closes the last band and sets the scale end (needs at least two lines), so a band can run past the target. Colors not given follow a traffic light by position, worst first (1 band green; 2 red, green; 3 red, yellow, green; 4 red, orange, yellow, green; 5 or more interpolated, last blue).
+
+```dgmo
+goal Doubloons Plundered ($)
+
+bands
+  4000 Poor red
+  6000 OK yellow
+  7000 Good green
+
+actual 6400
+target 10000
+```
+
+The fill takes the color of the band the actual is in; a 5px ribbon maps the zones below the bar, left of the thermometer tube, or outside the gauge arc, with labels. The readout reads `64% · OK` (the gauge shows the band name under the hub). The scale runs to `max(target, closing edge, actual)`; when it runs past the target, the target draws as a dark tick.
+
+```dgmo
+goal Treasure Haul (chests)
+
+bands
+  40 Lean
+  80 Good
+  100 Target met blue
+  140
+
+actual 112
+target 100
+```
+
+### Several measures (bullet chart)
+
+A `[Measure]` header starts a row, and any header switches the chart to multi-measure mode. Each section holds `actual`, `target` and `bands`; a top-level `bands` and `target` apply to rows without their own. On the bar face each row shows the name, the bar with fill and ribbon, `/ <target>`, and the readout `84% · OK`; ribbon labels draw on the first row and on rows with their own bands. Each row has its own scale unless `shared-scale` is set. `thermometer` and `gauge` put the measures side by side, wrapping after 4. A color on a header (`[New customers green]`) sets that row's fill. Rows draw in source order. Errors: a measure with no `actual`, no `target` (and no top-level `target`), or a duplicate name.
+
+```dgmo
+goal Q3 targets
+
+bands
+  0% Poor
+  60% OK
+  90% Good
+
+[Revenue ($k)]
+actual 760
+target 900
+
+[NPS]
+actual 41
+target 45
+bands
+  0 Poor
+  30 OK
+  40 Good
+
+[New customers green]
+actual 1450
+target 1300
+```
 
 ### Values & color
 
-Values accept `_` separators (`10_000`) but not thousands commas; the unit lives in the title. Color precedence: (1) an explicit trailing color token on the title line (`goal Marathon Fund ($) green`, §1.5) always wins; (2) otherwise the **auto traffic-light** band by completion — `< 50%` red, `50–80%` orange, `≥ 80%` green (over-target stays green), which needs a `target`; (3) `no-auto-color` disables the bands and falls back to the palette series color. The fill is a 25% tint of the resolved color; `fill-solid` opts into full saturation; `fill-outline` hollows the meter (color on the rim, advancement reads from the outlined extent).
+Values accept `_` separators (`10_000`) but not thousands commas; the unit lives in the title. Color precedence: (1) an explicit trailing color token on the title line (`goal Marathon Fund ($) green`, §1.5), or on a `[Measure]` header, always wins for the fill; (2) otherwise the color of the band the `actual` is in — the authored `bands`, or with none the hidden default `< 50%` red, `50–80%` orange, `≥ 80%` green (no ribbon), which needs a `target`; (3) `no-auto-color` disables the status color and falls back to the palette series color. The fill is a 25% tint of the resolved color; `fill-solid` opts into full saturation; `fill-outline` hollows the meter (color on the rim, advancement reads from the outlined extent).
 
 ### Semantics
 
-Percent is `now / target`. Over-target clamps the fill at 100% while the `%` label shows the true value (e.g. `120%`); the gauge needle pins at max. A negative `now` clamps the fill to 0% but keeps the label truthful. A missing or ≤ 0 `target` emits an error-severity diagnostic and the chart falls back to a 0% shell; a missing `now` is treated as 0 with a warning.
+Percent is `actual / target`. Without bands, over-target clamps the fill at 100% while the `%` label shows the true value (e.g. `120%`); the gauge needle pins at max. A negative `actual` clamps the fill to 0% but keeps the label truthful. A missing or ≤ 0 `target` emits an error-severity diagnostic and the chart falls back to a 0% shell; a missing `actual` is treated as 0 with a warning.
 
 ---
 
@@ -4602,7 +4674,7 @@ Percent is `now / target`. Over-target clamps the fill at 100% while the `%` lab
 
 <!-- TIPS end -->
 
-The only _dynamic_ dgmo chart: a single "N days until X" recomputed against the viewer's clock on every load and ticking every second on any live surface. Distinct from `goal` (static) — a countdown has no `now`/`target` pair, just one future instant: either an absolute `target`, or the next occurrence of a recurring block anchored by `since`. The renderer bakes a whole-day fallback number (the no-JS floor); a tiny page-level ticker overwrites it live and, in `units full`, upgrades it to `Nd HH:MM:SS`.
+The only _dynamic_ dgmo chart: a single "N days until X" recomputed against the viewer's clock on every load and ticking every second on any live surface. Distinct from `goal` (static) — a countdown has no `actual`/`target` pair, just one future instant: either an absolute `target`, or the next occurrence of a recurring block anchored by `since`. The renderer bakes a whole-day fallback number (the no-JS floor); a tiny page-level ticker overwrites it live and, in `units full`, upgrades it to `Nd HH:MM:SS`.
 
 ### Declaration
 

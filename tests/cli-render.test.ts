@@ -286,7 +286,7 @@ tag Layer as l
 
 thermometer
 
-now 6400
+actual 6400
 target 10000`,
 
   countdown: `countdown Voyage to Tortuga

@@ -215,7 +215,7 @@ const chartTypesData = [
   {
     id: 'goal',
     description:
-      'Single progress-toward-a-target value (now vs target) as a progress bar, thermometer, or gauge — KPIs, fundraising, quotas, completion',
+      'Progress toward a target (actual vs target) as a progress bar, thermometer, or gauge, with optional poor/ok/good bands; several [Measure] rows make a bullet chart — KPIs, dashboards, fundraising, quotas, completion',
   },
   {
     id: 'countdown',

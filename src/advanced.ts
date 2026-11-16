@@ -746,7 +746,13 @@ export type { ParsedLiveLink } from './live-link/types';
 
 export { parseGoal } from './goal/parser';
 export { renderGoal, renderGoalForExport } from './goal/renderer';
-export type { ParsedGoal, GoalMode, GoalOptions } from './goal/types';
+export type {
+  ParsedGoal,
+  GoalMode,
+  GoalOptions,
+  GoalMeasure,
+  GoalBand,
+} from './goal/types';
 export { parseBracket } from './bracket/parser';
 export { renderBracket, renderBracketForExport } from './bracket/renderer';
 export { layoutBracket } from './bracket/layout';

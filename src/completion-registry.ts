@@ -929,23 +929,37 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
   [
     'goal',
-    // Single now/target value. Mode is a bare flag (thermometer/gauge; the
-    // progress bar is the default). Fill family/`no-title` come via globals.
+    // actual/target value, optional `bands` block (#1973), optional
+    // `[Measure]` rows — the bullet chart (#1851). Mode is a bare flag
+    // (thermometer/gauge; the progress bar is the default). Fill
+    // family/`no-title` come via globals.
     withGlobals({
       thermometer: { description: 'Render as a vertical thermometer' },
       gauge: { description: 'Render as a semicircular gauge dial' },
-      now: { description: 'Current value (key value; no colon)' },
+      actual: { description: 'Current value (key value; no colon)' },
       target: { description: 'Goal value (must be > 0)' },
+      bands: {
+        description:
+          'Zones block: indented "N [Label] [colour]" lines, N or N% of target; a band starts at its edge',
+      },
+      'no-ribbon': { description: 'Hide the band ribbon and its labels' },
+      'no-ribbon-labels': {
+        description: 'Keep the band ribbon, hide the names on it',
+      },
+      'shared-scale': {
+        description: 'Bullet chart: put every [Measure] row on one scale',
+      },
       note: {
         description: 'Free-text caption block (indented body, simple markdown)',
       },
       'no-percent': { description: 'Hide the % label' },
-      'no-value': { description: 'Hide the raw now / target label' },
+      'no-value': { description: 'Hide the raw actual value label' },
       // Canonical since decision #48; singular `no-note` parses as a legacy
       // alias but is no longer offered.
       'no-notes': { description: 'Suppress the note block even if present' },
       'no-auto-color': {
-        description: 'Disable traffic-light coloring; use the palette color',
+        description:
+          'Fill with the palette colour, not the band colour (the ribbon still draws)',
       },
     }),
   ],

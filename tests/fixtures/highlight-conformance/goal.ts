@@ -9,7 +9,7 @@ export const fixture: HighlightFixture = {
 
 thermometer
 
-now 6400
+actual 6400
 target 10000
 Review the roles list
 `,

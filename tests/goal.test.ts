@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { parseGoal } from '../src/goal/parser';
-import { renderGoal } from '../src/goal/renderer';
+import { renderGoal, bandRamp, statusIndex } from '../src/goal/renderer';
 import { render } from '../src/render';
 import { getPalette } from '../src/palettes';
 import { mix, themeBaseBg } from '../src/palettes/color-utils';
@@ -72,14 +72,14 @@ function barLevel(container: HTMLDivElement): SVGRectElement | null {
 describe('goal parser — basic', () => {
   it('parses title, now, target, default bar mode', () => {
     const r = parseGoal(`goal Books this month
-now 3
+actual 3
 target 5`);
     expect(r.type).toBe('goal');
     expect(r.title).toBe('Books this month');
     expect(r.mode).toBe('bar');
-    expect(r.now).toBe(3);
-    expect(r.target).toBe(5);
-    expect(r.hasTarget).toBe(true);
+    expect(r.measures[0]!.actual).toBe(3);
+    expect(r.measures[0]!.target).toBe(5);
+    expect(r.measures[0]!.hasTarget).toBe(true);
     expect(r.error).toBeNull();
     expect(errors(r.diagnostics)).toHaveLength(0);
   });
@@ -87,45 +87,45 @@ target 5`);
   it('selects thermometer mode via bare flag', () => {
     const r = parseGoal(`goal Marathon Fund ($)
 thermometer
-now 6400
+actual 6400
 target 10000`);
     expect(r.mode).toBe('thermometer');
-    expect(r.now).toBe(6400);
-    expect(r.target).toBe(10000);
+    expect(r.measures[0]!.actual).toBe(6400);
+    expect(r.measures[0]!.target).toBe(10000);
   });
 
   it('selects gauge mode via bare flag', () => {
     const r = parseGoal(`goal Quarterly Quota
 gauge
-now 64
+actual 64
 target 100`);
     expect(r.mode).toBe('gauge');
   });
 
   it('honors underscore and comma grouping separators', () => {
-    const ok = parseGoal(`goal Fund\nnow 6_400\ntarget 10_000`);
-    expect(ok.now).toBe(6400);
-    expect(ok.target).toBe(10000);
+    const ok = parseGoal(`goal Fund\nactual 6_400\ntarget 10_000`);
+    expect(ok.measures[0]!.actual).toBe(6400);
+    expect(ok.measures[0]!.target).toBe(10000);
 
     // Commas group thousands here just as they do on bar/pie/funnel/treemap.
-    const commas = parseGoal(`goal Fund\nnow 6,400\ntarget 1,000,000`);
+    const commas = parseGoal(`goal Fund\nactual 6,400\ntarget 1,000,000`);
     expect(errors(commas.diagnostics).length).toBe(0);
-    expect(commas.now).toBe(6400);
-    expect(commas.target).toBe(1000000);
+    expect(commas.measures[0]!.actual).toBe(6400);
+    expect(commas.measures[0]!.target).toBe(1000000);
 
     // Malformed grouping is still rejected rather than truncated to `6`.
-    const bad = parseGoal(`goal Fund\nnow 6,40\ntarget 10000`);
+    const bad = parseGoal(`goal Fund\nactual 6,40\ntarget 10000`);
     expect(errors(bad.diagnostics).length).toBeGreaterThan(0);
   });
 
   it('peels a trailing color token from the title (§1.5)', () => {
-    const r = parseGoal(`goal Marathon Fund ($) green\nnow 1\ntarget 2`);
+    const r = parseGoal(`goal Marathon Fund ($) green\nactual 1\ntarget 2`);
     expect(r.title).toBe('Marathon Fund ($)');
-    expect(r.color).toBeDefined();
+    expect(r.measures[0]!.color).toBeDefined();
   });
 
   it('rejects a non-goal first line', () => {
-    const r = parseGoal(`pyramid Nope\nnow 1\ntarget 2`);
+    const r = parseGoal(`pyramid Nope\nactual 1\ntarget 2`);
     expect(r.error).toMatch(/Expected "goal/);
   });
 });
@@ -137,7 +137,7 @@ no-percent
 no-value
 fill-solid
 no-title
-now 1
+actual 1
 target 4`);
     expect(r.options.noPercent).toBe(true);
     expect(r.options.noValue).toBe(true);
@@ -146,14 +146,16 @@ target 4`);
   });
 
   it('parses no-note flag (defaults false)', () => {
-    expect(parseGoal(`goal T\nnow 1\ntarget 4`).options.noNote).toBe(false);
-    const r = parseGoal(`goal T\nno-note\nnow 1\ntarget 4\nnote\n  hi crew`);
+    expect(parseGoal(`goal T\nactual 1\ntarget 4`).options.noNote).toBe(false);
+    const r = parseGoal(`goal T\nno-note\nactual 1\ntarget 4\nnote\n  hi crew`);
     expect(r.options.noNote).toBe(true);
     expect(r.description).toBe('hi crew');
   });
 
   it('parses canonical no-notes flag (decision #48; no-note stays legacy)', () => {
-    const r = parseGoal(`goal T\nno-notes\nnow 1\ntarget 4\nnote\n  hi crew`);
+    const r = parseGoal(
+      `goal T\nno-notes\nactual 1\ntarget 4\nnote\n  hi crew`
+    );
     expect(r.options.noNote).toBe(true);
     expect(r.description).toBe('hi crew');
     // Neither spelling falls through to the unrecognized-line warning.
@@ -161,17 +163,17 @@ target 4`);
   });
 
   it('parses no-auto-color flag (defaults false)', () => {
-    expect(parseGoal(`goal T\nnow 1\ntarget 4`).options.noAutoColor).toBe(
+    expect(parseGoal(`goal T\nactual 1\ntarget 4`).options.noAutoColor).toBe(
       false
     );
-    const r = parseGoal(`goal T\nno-auto-color\nnow 1\ntarget 4`);
+    const r = parseGoal(`goal T\nno-auto-color\nactual 1\ntarget 4`);
     expect(r.options.noAutoColor).toBe(true);
   });
 
   it('parses a `note` free-text description', () => {
     const r = parseGoal(`goal T
 thermometer
-now 34
+actual 34
 target 50
 note Great job crew, one more push to the goal`);
     expect(r.description).toBe('Great job crew, one more push to the goal');
@@ -181,13 +183,13 @@ note Great job crew, one more push to the goal`);
   });
 
   it('description defaults to null', () => {
-    const r = parseGoal(`goal T\nnow 1\ntarget 4`);
+    const r = parseGoal(`goal T\nactual 1\ntarget 4`);
     expect(r.description).toBeNull();
   });
 
   it('parses a `note` block with indented multi-line markdown body', () => {
     const r = parseGoal(`goal T
-now 1
+actual 1
 target 4
 note
   Great Job! We just need reports from:
@@ -205,7 +207,7 @@ note
   });
 
   it('warns on indented content (single-value type)', () => {
-    const r = parseGoal(`goal T\nnow 1\ntarget 4\n  child ignored`);
+    const r = parseGoal(`goal T\nactual 1\ntarget 4\n  child ignored`);
     expect(r.diagnostics.some((d) => /Indented content/.test(d.message))).toBe(
       true
     );
@@ -214,24 +216,24 @@ note
 
 describe('goal parser — edge cases', () => {
   it('missing target → error diagnostic but no fatal error (shell renders)', () => {
-    const r = parseGoal(`goal T\nnow 3`);
-    expect(r.hasTarget).toBe(false);
+    const r = parseGoal(`goal T\nactual 3`);
+    expect(r.measures[0]!.hasTarget).toBe(false);
     expect(r.error).toBeNull();
     expect(errors(r.diagnostics).length).toBeGreaterThan(0);
   });
 
   it('target ≤ 0 → error diagnostic, hasTarget false', () => {
-    const r = parseGoal(`goal T\nnow 3\ntarget 0`);
-    expect(r.hasTarget).toBe(false);
+    const r = parseGoal(`goal T\nactual 3\ntarget 0`);
+    expect(r.measures[0]!.hasTarget).toBe(false);
     expect(errors(r.diagnostics).length).toBeGreaterThan(0);
   });
 
-  it('missing now → warning, treated as 0', () => {
+  it('missing actual → warning, treated as 0', () => {
     const r = parseGoal(`goal T\ntarget 5`);
-    expect(r.now).toBe(0);
+    expect(r.measures[0]!.actual).toBe(0);
     expect(
       r.diagnostics.some(
-        (d) => d.severity === 'warning' && /now/.test(d.message)
+        (d) => d.severity === 'warning' && /actual/.test(d.message)
       )
     ).toBe(true);
   });
@@ -253,7 +255,7 @@ describe('goal router', () => {
 
 describe('goal renderer — faces', () => {
   it('bar: renders track + fill rects and truthful labels', () => {
-    const parsed = parseGoal(`goal Books\nnow 3\ntarget 5`);
+    const parsed = parseGoal(`goal Books\nactual 3\ntarget 5`);
     const c = makeContainer();
     renderGoal(c, parsed, nordLight, false);
     const svg = c.querySelector('svg')!;
@@ -281,7 +283,7 @@ describe('goal renderer — faces', () => {
       const c = makeContainer();
       renderGoal(
         c,
-        parseGoal(`goal R\nnow ${now}\ntarget 250`),
+        parseGoal(`goal R\nactual ${now}\ntarget 250`),
         nordLight,
         false
       );
@@ -294,7 +296,7 @@ describe('goal renderer — faces', () => {
 
   it('bar: the fill is clipped to the track, which is what rounds it', () => {
     const c = makeContainer();
-    renderGoal(c, parseGoal(`goal R\nnow 3\ntarget 250`), nordLight, false);
+    renderGoal(c, parseGoal(`goal R\nactual 3\ntarget 250`), nordLight, false);
     const clip = c.querySelector('.goal-bar clipPath rect')!;
     // The clip IS the track: same width and the track's radius.
     expect(clip.getAttribute('width')).toBe('620');
@@ -324,7 +326,12 @@ describe('goal renderer — faces', () => {
 
   it('bar: the value rides inside the fill, in the accent, when there is room', () => {
     const c = makeContainer();
-    renderGoal(c, parseGoal(`goal R\nnow 125\ntarget 250`), nordLight, false);
+    renderGoal(
+      c,
+      parseGoal(`goal R\nactual 125\ntarget 250`),
+      nordLight,
+      false
+    );
     const fill = barFill(c);
     const fillRight =
       Number(fill.getAttribute('x')) + Number(fill.getAttribute('width'));
@@ -337,7 +344,7 @@ describe('goal renderer — faces', () => {
 
   it('bar: at a low fill the value moves outside and drops the accent', () => {
     const c = makeContainer();
-    renderGoal(c, parseGoal(`goal R\nnow 3\ntarget 250`), nordLight, false);
+    renderGoal(c, parseGoal(`goal R\nactual 3\ntarget 250`), nordLight, false);
     const fill = barFill(c);
     const fillRight =
       Number(fill.getAttribute('x')) + Number(fill.getAttribute('width'));
@@ -354,14 +361,14 @@ describe('goal renderer — faces', () => {
     const short = makeContainer();
     renderGoal(
       short,
-      parseGoal(`goal R\nnow 12\ntarget 100`),
+      parseGoal(`goal R\nactual 12\ntarget 100`),
       nordLight,
       false
     );
     const long = makeContainer();
     renderGoal(
       long,
-      parseGoal(`goal R\nnow 123456\ntarget 1000000`),
+      parseGoal(`goal R\nactual 123456\ntarget 1000000`),
       nordLight,
       false
     );
@@ -381,7 +388,7 @@ describe('goal renderer — faces', () => {
     const partial = makeContainer();
     renderGoal(
       partial,
-      parseGoal(`goal R\nnow 125\ntarget 250`),
+      parseGoal(`goal R\nactual 125\ntarget 250`),
       nordLight,
       false
     );
@@ -398,7 +405,7 @@ describe('goal renderer — faces', () => {
     const full = makeContainer();
     renderGoal(
       full,
-      parseGoal(`goal R\nnow 250\ntarget 250`),
+      parseGoal(`goal R\nactual 250\ntarget 250`),
       nordLight,
       false
     );
@@ -409,7 +416,7 @@ describe('goal renderer — faces', () => {
     const c = makeContainer();
     renderGoal(
       c,
-      parseGoal(`goal R\nnow 3\ntarget 250\nfill-outline`),
+      parseGoal(`goal R\nactual 3\ntarget 250\nfill-outline`),
       nordLight,
       false
     );
@@ -424,7 +431,9 @@ describe('goal renderer — faces', () => {
   });
 
   it('thermometer: renders bulb + column silhouette and % label', () => {
-    const parsed = parseGoal(`goal Fund\nthermometer\nnow 6400\ntarget 10000`);
+    const parsed = parseGoal(
+      `goal Fund\nthermometer\nactual 6400\ntarget 10000`
+    );
     const c = makeContainer();
     renderGoal(c, parsed, nordLight, false);
     const svg = c.querySelector('svg')!;
@@ -435,7 +444,7 @@ describe('goal renderer — faces', () => {
   });
 
   it('gauge: renders arc paths + needle', () => {
-    const parsed = parseGoal(`goal Quota\ngauge\nnow 64\ntarget 100`);
+    const parsed = parseGoal(`goal Quota\ngauge\nactual 64\ntarget 100`);
     const c = makeContainer();
     renderGoal(c, parsed, nordLight, false);
     const svg = c.querySelector('svg')!;
@@ -482,7 +491,7 @@ describe('goal renderer — faces', () => {
 
   it('gauge: a long centre value clears the 25% and 75% shoulder labels (#690)', () => {
     const { value, all } = gaugeValueAndShoulders(
-      `goal Q3 New Bookings (USD)\nnow 780000\ntarget 1000000\ngauge`
+      `goal Q3 New Bookings (USD)\nactual 780000\ntarget 1000000\ngauge`
     );
     expect(value.textContent).toBe('780k');
     const shoulders = all.filter((t) =>
@@ -497,7 +506,7 @@ describe('goal renderer — faces', () => {
 
   it('gauge: long shoulder labels shrink the centre value further, still clear', () => {
     const { value, all } = gaugeValueAndShoulders(
-      `goal Big\ngauge\nnow 7800000000\ntarget 12300000000`
+      `goal Big\ngauge\nactual 7800000000\ntarget 12300000000`
     );
     const shoulders = all.filter((t) =>
       ['3.1B', '9.2B'].includes(t.textContent ?? '')
@@ -512,7 +521,7 @@ describe('goal renderer — faces', () => {
   it('gauge: a short centre value keeps its full size', () => {
     // 1-2 character values were never in the collision; r·0.62 binds there.
     const { value } = gaugeValueAndShoulders(
-      `goal Quota\ngauge\nnow 64\ntarget 100`
+      `goal Quota\ngauge\nactual 64\ntarget 100`
     );
     expect(parseFloat(value.getAttribute('font-size')!)).toBeCloseTo(
       210 * 0.62,
@@ -524,7 +533,7 @@ describe('goal renderer — faces', () => {
     // Regression: the semicircle sweep never exceeds 180°, so the SVG arc
     // large-arc flag must always be 0. A >0.5 test drew the reflex (major) arc
     // for any fill above 50%, ballooning it into a near-full circle.
-    const parsed = parseGoal(`goal Quota\ngauge\nnow 64\ntarget 100`);
+    const parsed = parseGoal(`goal Quota\ngauge\nactual 64\ntarget 100`);
     const c = makeContainer();
     renderGoal(c, parsed, nordLight, false);
     const svg = c.querySelector('svg')!;
@@ -538,7 +547,7 @@ describe('goal renderer — faces', () => {
   });
 
   it('over-target: bar fill clamps to the track width', () => {
-    const parsed = parseGoal(`goal Stretch\nnow 6\ntarget 5`);
+    const parsed = parseGoal(`goal Stretch\nactual 6\ntarget 5`);
     const c = makeContainer();
     renderGoal(c, parsed, nordLight, false);
     const svg = c.querySelector('svg')!;
@@ -549,7 +558,9 @@ describe('goal renderer — faces', () => {
   });
 
   it('no-percent / no-value suppress their labels', () => {
-    const parsed = parseGoal(`goal T\nno-percent\nno-value\nnow 1\ntarget 4`);
+    const parsed = parseGoal(
+      `goal T\nno-percent\nno-value\nactual 1\ntarget 4`
+    );
     const c = makeContainer();
     renderGoal(c, parsed, nordLight, false);
     const all = texts(c.querySelector('svg')!).join(' ');
@@ -558,7 +569,7 @@ describe('goal renderer — faces', () => {
   });
 
   it('missing target still renders a shell (track rect + now value)', () => {
-    const parsed = parseGoal(`goal T\nnow 3`);
+    const parsed = parseGoal(`goal T\nactual 3`);
     const c = makeContainer();
     renderGoal(c, parsed, nordLight, false);
     const svg = c.querySelector('svg')!;
@@ -570,7 +581,7 @@ describe('goal renderer — faces', () => {
   it('bar fill-outline: meter renders hollow with the band color on the border', () => {
     // 3/5 = 60% → auto traffic-light band is orange; in outline mode that
     // color moves to the border and the meter interior is the theme base bg.
-    const parsed = parseGoal(`goal Books\nfill-outline\nnow 3\ntarget 5`);
+    const parsed = parseGoal(`goal Books\nfill-outline\nactual 3\ntarget 5`);
     const c = makeContainer();
     renderGoal(c, parsed, nordLight, false);
     const band = resolveColor('orange', nordLight);
@@ -585,7 +596,7 @@ describe('goal renderer — faces', () => {
   });
 
   it('bar default (no fill directive) keeps the 25%-tint meter unchanged', () => {
-    const parsed = parseGoal(`goal Books\nnow 3\ntarget 5`);
+    const parsed = parseGoal(`goal Books\nactual 3\ntarget 5`);
     const c = makeContainer();
     renderGoal(c, parsed, nordLight, false);
     const band = resolveColor('orange', nordLight);
@@ -599,7 +610,7 @@ describe('goal renderer — faces', () => {
   it('thermometer fill-outline: mercury renders hollow, band color on the stroke', () => {
     // 6400/10000 = 64% → orange band.
     const parsed = parseGoal(
-      `goal Fund\nthermometer\nfill-outline\nnow 6400\ntarget 10000`
+      `goal Fund\nthermometer\nfill-outline\nactual 6400\ntarget 10000`
     );
     const c = makeContainer();
     renderGoal(c, parsed, nordLight, false);
@@ -617,7 +628,7 @@ describe('goal renderer — faces', () => {
     // full-width band in the band color, then 3px narrower in the theme base
     // bg — a hollow band with a ~1.5px rim whose extent reads the progress.
     const parsed = parseGoal(
-      `goal Quota\ngauge\nfill-outline\nnow 64\ntarget 100`
+      `goal Quota\ngauge\nfill-outline\nactual 64\ntarget 100`
     );
     const c = makeContainer();
     renderGoal(c, parsed, nordLight, false);
@@ -637,7 +648,7 @@ describe('goal renderer — faces', () => {
   });
 
   it('gauge default keeps a single tinted value arc unchanged', () => {
-    const parsed = parseGoal(`goal Quota\ngauge\nnow 64\ntarget 100`);
+    const parsed = parseGoal(`goal Quota\ngauge\nactual 64\ntarget 100`);
     const c = makeContainer();
     renderGoal(c, parsed, nordLight, false);
     const svg = c.querySelector('svg')!;
@@ -651,7 +662,7 @@ describe('goal renderer — faces', () => {
   });
 
   it('sets an aria-label describing the goal', () => {
-    const parsed = parseGoal(`goal Books\nnow 3\ntarget 5`);
+    const parsed = parseGoal(`goal Books\nactual 3\ntarget 5`);
     const c = makeContainer();
     renderGoal(c, parsed, nordLight, false);
     expect(c.querySelector('svg')!.getAttribute('aria-label')).toBe(
@@ -667,9 +678,9 @@ describe('goal renderer — faces', () => {
 describe('goal render() pipeline', () => {
   it('routes each face through renderForExport and emits a real SVG', async () => {
     for (const src of [
-      `goal Books\nnow 3\ntarget 5`,
-      `goal Fund ($)\nthermometer\nnow 6400\ntarget 10000`,
-      `goal Quota\ngauge\nnow 64\ntarget 100`,
+      `goal Books\nactual 3\ntarget 5`,
+      `goal Fund ($)\nthermometer\nactual 6400\ntarget 10000`,
+      `goal Quota\ngauge\nactual 64\ntarget 100`,
     ]) {
       const { svg } = await render(src, { theme: 'light', palette: 'slate' });
       expect(svg).toMatch(/<svg/);
@@ -679,13 +690,13 @@ describe('goal render() pipeline', () => {
   });
 
   it('over-target renders (no error card) with a truthful 120% label', async () => {
-    const { svg } = await render(`goal Stretch\nnow 6\ntarget 5`);
+    const { svg } = await render(`goal Stretch\nactual 6\ntarget 5`);
     expect(svg).toContain('120%');
     expect(svg).not.toMatch(/Parse error/i);
   });
 
   it('missing target surfaces an error-card via render() (error diagnostic)', async () => {
-    const { svg, diagnostics } = await render(`goal Broken\nnow 3`);
+    const { svg, diagnostics } = await render(`goal Broken\nactual 3`);
     expect(diagnostics.some((d) => d.severity === 'error')).toBe(true);
     expect(svg).toMatch(/<svg/);
   });
@@ -699,10 +710,419 @@ describe('goal renderer — a note of unmatched link openers', () => {
       small: 125,
       large: 1_000,
       prepare: (n) =>
-        parseGoal(`goal T\nnow 1\ntarget 4\nnote ${'[]('.repeat(n)}`),
+        parseGoal(`goal T\nactual 1\ntarget 4\nnote ${'[]('.repeat(n)}`),
       run: (parsed) => renderGoal(makeContainer(), parsed, nordLight, false),
       limit: 1.5,
     });
     expect(exponent).toBeLessThan(1.5);
+  });
+});
+
+// ── Bands (#1973) ───────────────────────────────────────────
+describe('goal parser — now is renamed actual', () => {
+  it('now is an error that names actual, and the value still draws', () => {
+    const r = parseGoal(`goal T\nnow 3\ntarget 4`);
+    const e = r.diagnostics.find((d) => /renamed "actual"/.test(d.message));
+    expect(e?.severity).toBe('error');
+    expect(r.measures[0]!.actual).toBe(3);
+  });
+});
+
+describe('goal parser — bands', () => {
+  const src = `goal Marathon Fund ($)
+bands
+  4000 Poor red
+  6000 OK yellow
+  7000 Good green
+actual 6400
+target 10000`;
+
+  it('reads edges, labels and colours', () => {
+    const m = parseGoal(src, nordLight).measures[0]!;
+    expect(m.explicitBands).toBe(true);
+    expect(m.bands.map((b) => [b.start, b.label])).toEqual([
+      [4000, 'Poor'],
+      [6000, 'OK'],
+      [7000, 'Good'],
+    ]);
+    expect(m.bands[0]!.color).toBe(resolveColor('red', nordLight));
+    expect(m.scaleEnd).toBe(10000);
+  });
+
+  it('label and colour are each optional; a lone colour word is a colour', () => {
+    const m = parseGoal(
+      `goal T\nbands\n  10\n  20 green\n  30 Fine\nactual 1\ntarget 40`,
+      nordLight
+    ).measures[0]!;
+    expect(m.bands.map((b) => [b.label, b.color])).toEqual([
+      [null, null],
+      [null, resolveColor('green', nordLight)],
+      ['Fine', null],
+    ]);
+  });
+
+  it('percent edges are a share of target, beside plain numbers', () => {
+    const m = parseGoal(
+      `goal T\nbands\n  0% Poor\n  600 OK\n  80% Good\nactual 1\ntarget 1000`
+    ).measures[0]!;
+    expect(m.bands.map((b) => b.start)).toEqual([0, 600, 800]);
+  });
+
+  it('a percent edge with no target is an error', () => {
+    const r = parseGoal(`goal T\nbands\n  80% Good\nactual 1`);
+    expect(
+      r.diagnostics.some((d) => /percent of the target/.test(d.message))
+    ).toBe(true);
+  });
+
+  it('edges that do not ascend are an error, and the band is dropped', () => {
+    const r = parseGoal(
+      `goal T\nbands\n  50 A\n  40 B\n  60 C\nactual 1\ntarget 100`
+    );
+    expect(r.diagnostics.some((d) => /must ascend/.test(d.message))).toBe(true);
+    expect(r.measures[0]!.bands.map((b) => b.label)).toEqual(['A', 'C']);
+  });
+
+  it('a last bare number closes the scale past the target', () => {
+    const m = parseGoal(
+      `goal T\nbands\n  4000 Poor\n  8000 Good\n  10000 Stretch\n  12000\nactual 6400\ntarget 8000`
+    ).measures[0]!;
+    expect(m.bands).toHaveLength(3);
+    expect(m.scaleEnd).toBe(12000);
+  });
+
+  it('a closing edge below the last band start is an error', () => {
+    const r = parseGoal(
+      `goal T\nbands\n  40 A\n  60 B\n  50\nactual 1\ntarget 100`
+    );
+    expect(r.diagnostics.some((d) => /closing edge/.test(d.message))).toBe(
+      true
+    );
+    expect(r.measures[0]!.scaleEnd).toBe(100);
+  });
+
+  it('an actual past target extends the scale only when bands are given', () => {
+    const banded = parseGoal(`goal T\nbands\n  0 A\nactual 150\ntarget 100`);
+    expect(banded.measures[0]!.scaleEnd).toBe(150);
+    const plain = parseGoal(`goal T\nactual 150\ntarget 100`);
+    expect(plain.measures[0]!.scaleEnd).toBe(100);
+  });
+
+  it('an unknown colour-like token is flagged', () => {
+    const r = parseGoal(
+      `goal T\nbands\n  10 Low #ff0000\nactual 1\ntarget 40`,
+      nordLight
+    );
+    expect(r.diagnostics.length).toBeGreaterThan(0);
+  });
+
+  it('no bands block → the hidden default 0/50/80%, not explicit', () => {
+    const m = parseGoal(`goal T\nactual 1\ntarget 10`).measures[0]!;
+    expect(m.explicitBands).toBe(false);
+    expect(m.bands.map((b) => b.start)).toEqual([0, 5, 8]);
+  });
+});
+
+describe('goal bands — status lookup and ramp', () => {
+  const bands = [{ start: 40 }, { start: 60 }, { start: 70 }];
+  it('below the first edge has no status', () => {
+    expect(statusIndex(bands, 39)).toBe(-1);
+  });
+  it('an edge belongs to the band it starts', () => {
+    expect(statusIndex(bands, 60)).toBe(1);
+  });
+  it('past the last edge stays in the last band', () => {
+    expect(statusIndex(bands, 1e9)).toBe(2);
+  });
+  it('ramps by position, worst first', () => {
+    const c = (n: string): string => resolveColor(n, nordLight)!;
+    expect(bandRamp(1, nordLight)).toEqual([c('green')]);
+    expect(bandRamp(2, nordLight)).toEqual([c('red'), c('green')]);
+    expect(bandRamp(3, nordLight)).toEqual([c('red'), c('yellow'), c('green')]);
+    expect(bandRamp(4, nordLight)).toEqual([
+      c('red'),
+      c('orange'),
+      c('yellow'),
+      c('green'),
+    ]);
+    const five = bandRamp(5, nordLight);
+    expect(five).toEqual([
+      c('red'),
+      c('orange'),
+      c('yellow'),
+      c('green'),
+      c('blue'),
+    ]);
+    const seven = bandRamp(7, nordLight);
+    expect(seven).toHaveLength(7);
+    expect(seven[0]).toBe(c('red'));
+    expect(seven[5]).toBe(c('green'));
+    expect(seven[6]).toBe(c('blue'));
+  });
+});
+
+describe('goal renderer — bands', () => {
+  const draw = (src: string): SVGSVGElement => {
+    const c = makeContainer();
+    renderGoal(c, parseGoal(src, nordLight), nordLight, false);
+    return c.querySelector('svg')!;
+  };
+  const banded = (extra = '', face = ''): string =>
+    `goal Fund\n${face}\nbands\n  4000 Poor\n  6000 OK\n  7000 Good\nactual 6400\ntarget 10000\n${extra}`;
+
+  for (const face of ['', 'thermometer', 'gauge']) {
+    const name = face || 'bar';
+    it(`${name}: draws a ribbon with one mark per zone and its labels`, () => {
+      const svg = draw(banded('', face));
+      const ribbon = svg.querySelector('.goal-ribbon')!;
+      expect(ribbon).not.toBeNull();
+      expect(ribbon.querySelectorAll('rect, path')).toHaveLength(3);
+      expect(
+        Array.from(ribbon.querySelectorAll('text')).map((t) => t.textContent)
+      ).toEqual(['Poor', 'OK', 'Good']);
+    });
+    it(`${name}: no-ribbon drops ribbon and labels`, () => {
+      expect(
+        draw(banded('no-ribbon', face)).querySelector('.goal-ribbon')
+      ).toBeNull();
+    });
+    it(`${name}: no-ribbon-labels keeps the ribbon, hides its names`, () => {
+      const ribbon = draw(banded('no-ribbon-labels', face)).querySelector(
+        '.goal-ribbon'
+      )!;
+      expect(ribbon.querySelectorAll('rect, path')).toHaveLength(3);
+      expect(ribbon.querySelectorAll('text')).toHaveLength(0);
+    });
+  }
+
+  it('the fill takes the status band colour (6400 is in OK → yellow)', () => {
+    const src = `goal Fund\nbands\n  4000 Poor red\n  6000 OK yellow\n  7000 Good green\nactual 6400\ntarget 10000\nfill-solid`;
+    const svg = draw(src);
+    const fill = svg.querySelector('g[clip-path] rect')!;
+    expect(fill.getAttribute('fill')).toBe(resolveColor('yellow', nordLight));
+  });
+
+  it('the readout appends the band name; no-percent hides both', () => {
+    expect(texts(draw(banded()))).toContain('64% · OK');
+    const hidden = texts(draw(banded('no-percent')));
+    expect(hidden.some((t) => /64%|· OK/.test(t))).toBe(false);
+  });
+
+  it('no-ribbon keeps the readout band name', () => {
+    expect(texts(draw(banded('no-ribbon')))).toContain('64% · OK');
+  });
+
+  it('below the first edge the fill is the neutral grey and there is no name', () => {
+    const svg = draw(
+      `goal Fund\nbands\n  4000 Poor\n  6000 OK\nactual 1000\ntarget 10000\nfill-solid`
+    );
+    const fill = svg.querySelector('g[clip-path] rect')!;
+    expect(fill.getAttribute('fill')).toBe(resolveColor('gray', nordLight));
+    expect(texts(svg)).toContain('10%');
+  });
+
+  it('no bands block draws no ribbon', () => {
+    expect(
+      draw(`goal T\nactual 1\ntarget 4`).querySelector('.goal-ribbon')
+    ).toBeNull();
+  });
+
+  for (const face of ['', 'thermometer', 'gauge']) {
+    it(`${face || 'bar'}: a scale past target draws a dark target tick`, () => {
+      const svg = draw(
+        `goal T\n${face}\nbands\n  4000 Poor\n  8000 Good\n  10000 Stretch blue\n  12000\nactual 6400\ntarget 8000`
+      );
+      expect(svg.querySelector('.goal-target-tick')).not.toBeNull();
+    });
+  }
+
+  it('no-auto-color with bands: palette fill, ribbon still draws', () => {
+    const svg = draw(banded('no-auto-color\nfill-solid'));
+    const fill = svg.querySelector('g[clip-path] rect')!;
+    expect(fill.getAttribute('fill')).not.toBe(
+      resolveColor('yellow', nordLight)
+    );
+    expect(svg.querySelector('.goal-ribbon')).not.toBeNull();
+  });
+});
+
+// ── Several measures: the bullet chart (#1851) ──────────────
+describe('goal parser — measures', () => {
+  const src = `goal Q3 targets
+bands
+  0% Poor
+  60% OK
+  90% Good
+
+[Revenue ($k)]
+actual 760
+target 900
+
+[NPS]
+actual 41
+target 45
+bands
+  0 Poor
+  30 OK
+  40 Good
+
+[New customers green]
+actual 1450
+target 1300`;
+
+  it('headers make rows, in source order', () => {
+    const r = parseGoal(src, nordLight);
+    expect(r.multi).toBe(true);
+    expect(r.measures.map((m) => m.name)).toEqual([
+      'Revenue ($k)',
+      'NPS',
+      'New customers',
+    ]);
+    expect(errors(r.diagnostics)).toEqual([]);
+  });
+
+  it('top-level percent bands resolve against each measure target', () => {
+    const r = parseGoal(src);
+    expect(r.measures[0]!.bands.map((b) => b.start)).toEqual([0, 540, 810]);
+    expect(r.measures[0]!.ownBands).toBe(false);
+    expect(r.measures[1]!.bands.map((b) => b.start)).toEqual([0, 30, 40]);
+    expect(r.measures[1]!.ownBands).toBe(true);
+  });
+
+  it('a header colour sets that row', () => {
+    expect(parseGoal(src, nordLight).measures[2]!.color).toBe(
+      resolveColor('green', nordLight)
+    );
+  });
+
+  it('a row past target runs its scale to the actual', () => {
+    expect(parseGoal(src).measures[2]!.scaleEnd).toBe(1450);
+  });
+
+  it('a top-level target applies to rows without one', () => {
+    const r = parseGoal(
+      `goal T\ntarget 10\n[A]\nactual 3\n[B]\nactual 4\ntarget 20`
+    );
+    expect(r.measures.map((m) => m.target)).toEqual([10, 20]);
+    expect(errors(r.diagnostics)).toEqual([]);
+  });
+
+  it('diagnoses a missing actual, a missing target, and a duplicate name', () => {
+    const r = parseGoal(
+      `goal T\n[A]\ntarget 5\n[B]\nactual 1\n[A]\nactual 1\ntarget 2`
+    );
+    const msgs = r.diagnostics.map((d) => d.message).join('\n');
+    expect(msgs).toMatch(/"A" has no "actual"/);
+    expect(msgs).toMatch(/"B" has no "target"/);
+    expect(msgs).toMatch(/Duplicate measure "A"/);
+  });
+
+  it('a note followed by more lines of the same measure is a warning', () => {
+    const r = parseGoal(`goal T\n[A]\nnote hi\nactual 1\ntarget 2`);
+    expect(r.description).toBe('hi');
+    expect(
+      r.diagnostics.some((d) => /note" inside measure/.test(d.message))
+    ).toBe(true);
+  });
+
+  it('a note at the end is the chart note, with no warning', () => {
+    const r = parseGoal(`goal T\n[A]\nactual 1\ntarget 2\nnote hi`);
+    expect(r.description).toBe('hi');
+    expect(r.diagnostics).toEqual([]);
+  });
+
+  it('shared-scale on a single goal is a warning', () => {
+    const r = parseGoal(`goal T\nshared-scale\nactual 1\ntarget 2`);
+    expect(
+      r.diagnostics.some(
+        (d) => d.severity === 'warning' && /shared-scale/.test(d.message)
+      )
+    ).toBe(true);
+  });
+});
+
+describe('goal renderer — measures', () => {
+  const src = `goal Q3
+bands
+  0% Poor
+  60% OK
+  90% Good
+[Revenue]
+actual 760
+target 900
+[NPS]
+actual 41
+target 45
+bands
+  0 Poor
+  30 OK
+  40 Good
+[Partners]
+actual 7
+target 12`;
+  const draw = (s: string): SVGSVGElement => {
+    const c = makeContainer();
+    renderGoal(c, parseGoal(s, nordLight), nordLight, false);
+    return c.querySelector('svg')!;
+  };
+
+  it('bar face: one row per measure with name, / target and readout', () => {
+    const svg = draw(src);
+    expect(svg.querySelectorAll('.goal-row')).toHaveLength(3);
+    const t = texts(svg);
+    expect(t).toEqual(
+      expect.arrayContaining([
+        'Revenue',
+        'NPS',
+        'Partners',
+        '/ 900',
+        '84% · OK',
+      ])
+    );
+  });
+
+  it('band labels on the first row and on rows with their own bands only', () => {
+    const rows = draw(src).querySelectorAll('.goal-row');
+    const labelled = Array.from(rows).map(
+      (r) => r.querySelectorAll('.goal-ribbon text').length > 0
+    );
+    expect(labelled).toEqual([true, true, false]);
+  });
+
+  it('each row gets its own clip', () => {
+    const ids = Array.from(draw(src).querySelectorAll('clipPath')).map(
+      (c) => c.id
+    );
+    expect(new Set(ids).size).toBe(3);
+  });
+
+  for (const face of ['thermometer', 'gauge']) {
+    it(`${face}: one cell per measure, wrapping after four`, () => {
+      const six =
+        `goal T\n${face}\n` +
+        [1, 2, 3, 4, 5, 6]
+          .map((i) => `[M${i}]\nactual ${i}\ntarget 10`)
+          .join('\n');
+      const svg = draw(six);
+      const cells = Array.from(svg.querySelectorAll('.goal-cell'));
+      expect(cells).toHaveLength(6);
+      const ty = (g: Element): number =>
+        Number(
+          /translate\([^,]+,([^)]+)\)/.exec(g.getAttribute('transform')!)![1]
+        );
+      expect(ty(cells[4]!)).toBeGreaterThan(ty(cells[3]!));
+      expect(ty(cells[1]!)).toBe(ty(cells[0]!));
+    });
+  }
+
+  it('shared-scale puts every row on the largest scale', () => {
+    const s = `goal T\nshared-scale\n[A]\nactual 50\ntarget 100\n[B]\nactual 100\ntarget 200`;
+    const svg = draw(s);
+    const fills = Array.from(
+      svg.querySelectorAll('g[clip-path] rect:first-child')
+    );
+    const w = fills.map((f) => Number(f.getAttribute('width')));
+    // 50 of a 200 scale is a quarter of 100 of 200.
+    expect(w[0]! * 2).toBeCloseTo(w[1]!, 5);
   });
 });

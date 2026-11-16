@@ -27,6 +27,7 @@ import {
 } from '../data-chart-parser';
 import { parseEventLine } from '../event-line/parser';
 import { parseGoal } from '../goal/parser';
+import type { GoalMeasure } from '../goal/types';
 import { parseMap } from '../map/parser';
 import type { PoiPos } from '../map/types';
 import { parsePyramid } from '../pyramid/parser';
@@ -783,10 +784,22 @@ function summarizeBlock(content: string): string | null {
 function summarizeGoal(content: string): string | null {
   const parsed = parseGoal(content);
   if (parsed.error) return null;
-  const now = compactNumber(parsed.now);
-  if (!parsed.hasTarget) return `Progress of ${now}, with no target set.`;
-  const pct = Math.round((parsed.now / parsed.target) * 100);
-  return `Progress toward a target of ${compactNumber(parsed.target)}: ${now} so far, ${pct}%.`;
+  const one = (m: GoalMeasure): string => {
+    const actual = compactNumber(m.actual);
+    if (!m.hasTarget) return `${actual}, with no target set`;
+    const pct = Math.round((m.actual / m.target) * 100);
+    return `${actual} of ${compactNumber(m.target)}, ${pct}%`;
+  };
+  if (parsed.multi) {
+    const rows = parsed.measures.map((m) => `${m.name} ${one(m)}`);
+    return `Progress on ${plural(rows.length, 'measure', 'measures')}: ${rows.join('; ')}.`;
+  }
+  const m = parsed.measures[0];
+  if (!m) return null;
+  const actual = compactNumber(m.actual);
+  if (!m.hasTarget) return `Progress of ${actual}, with no target set.`;
+  const pct = Math.round((m.actual / m.target) * 100);
+  return `Progress toward a target of ${compactNumber(m.target)}: ${actual} so far, ${pct}%.`;
 }
 
 const MONTHS = [

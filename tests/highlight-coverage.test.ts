@@ -202,11 +202,13 @@ const INVENTORY = {
     'accent',
     'activations',
     'active-tag',
+    'actual',
     'align',
     'analog',
     'animate',
     'autonumber',
     'band',
+    'bands',
     'bottom-left',
     'bottom-right',
     'byline',
@@ -282,6 +284,8 @@ const INVENTORY = {
     'no-region-heat-value',
     'no-region-labels',
     'no-relief',
+    'no-ribbon',
+    'no-ribbon-labels',
     'no-sun',
     'no-tint-items',
     'no-title',
@@ -312,6 +316,7 @@ const INVENTORY = {
     'seed',
     'series',
     'shapes',
+    'shared-scale',
     'show-blip-legend',
     'show-sub-node-count',
     'show-values',
@@ -516,9 +521,9 @@ describe('highlight coverage — label demotion (R3)', () => {
     expect(label[0]!.role).toBe('default');
   });
 
-  it('goal `now`/`target` highlight as leaders but demote inside labels', () => {
-    const goal = highlightDgmo('goal Quota\nnow 6400\ntarget 10000\n');
-    expect(goal.find((t) => t.text === 'now')!.role).toBe('keyword');
+  it('goal `actual`/`target` highlight as leaders but demote inside labels', () => {
+    const goal = highlightDgmo('goal Quota\nactual 6400\ntarget 10000\n');
+    expect(goal.find((t) => t.text === 'actual')!.role).toBe('keyword');
     expect(goal.find((t) => t.text === 'target')!.role).toBe('keyword');
 
     // Same words inside a flowchart arrow label must NOT light up.

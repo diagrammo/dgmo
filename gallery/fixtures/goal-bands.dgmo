@@ -1,0 +1,11 @@
+goal Doubloons Plundered ($)
+
+bands
+  4000 Poor red
+  6000 OK yellow
+  7000 Good green
+
+actual 6400
+target 10000
+note
+  **Rough seas off Tortuga.** The hold sits in the *OK* band at `6.4k` of `10k`.

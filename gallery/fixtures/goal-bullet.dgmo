@@ -1,0 +1,22 @@
+goal Q3 Fleet Report
+
+bands
+  0% Poor
+  60% OK
+  90% Good
+
+[Doubloons ($k)]
+actual 760
+target 900
+
+[Ships Repaired]
+actual 41
+target 45
+bands
+  0 Poor
+  30 OK
+  40 Good
+
+[New Recruits green]
+actual 1450
+target 1300

@@ -437,8 +437,12 @@ describe('COMPLETION_REGISTRY', () => {
     for (const key of [
       'thermometer',
       'gauge',
-      'now',
+      'actual',
       'target',
+      'bands',
+      'no-ribbon',
+      'no-ribbon-labels',
+      'shared-scale',
       'note',
       'no-percent',
       'no-value',

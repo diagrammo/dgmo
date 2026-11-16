@@ -17,6 +17,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reach the box. The language reference (§1.15) lists the twenty chart types
   that come back at exactly the requested width and height, and a test holds
   that list to what every gallery fixture renders.
+- **goal bands: an optional `bands` block (#1973).** Indented lines
+  `N [Label] [colour]` name zones; `N` may be a percent of `target`, and each
+  edge is where a band starts. The fill takes the colour of the band the
+  actual sits in, a 5px ribbon maps the zones on all three faces (below the
+  bar, left of the thermometer, outside the gauge), and the readout reads
+  `64% · OK`. Colours default to a red-to-green traffic light by position. A
+  last line with only a number closes the scale past the target, which then
+  draws as a dark tick. New flags `no-ribbon` and `no-ribbon-labels`. A goal
+  with no `bands` block renders exactly as before.
+- **goal bullet chart: `[Measure]` rows (#1851).** Each header starts a row
+  with its own `actual`, `target` and optional `bands`; a top-level `bands`
+  and `target` apply to rows without their own. The bar face draws one row
+  per measure (name, bar, ribbon, `/ target`, readout); thermometer and gauge
+  draw cells, four to a row. `shared-scale` puts every row on one scale.
+
 - **mindmap radial layout: the bare `radial` flag (#1843).** A line
   `radial` before the content puts the root at the centre and each depth on
   a ring around it. Every branch gets a share of the turn in proportion to
@@ -149,6 +164,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   desktop app so the Obsidian plugin can share them.
 
 ### Changed
+
+- **goal: `now` is renamed `actual` (#1973).** `now` is an error that names
+  `actual`. `ParsedGoal` now carries `measures` (one entry for a single goal)
+  instead of top-level `now` / `target` / `hasTarget` / `color`.
 
 - **Boxes-and-lines groups nest four deep (#1840).** The cap was two, too
   shallow for account → VPC → subnet → service; a third `[Group]` was dropped

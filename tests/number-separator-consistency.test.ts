@@ -78,15 +78,15 @@ MLBApp 13882,201`);
     expect(r.links![0]!.value).toBe(12400);
   });
 
-  it('goal accepts comma-grouped now/target', () => {
-    const r = parseGoal('goal T\n\nnow 12,400\ntarget 1,240,000\n');
-    expect(r.now).toBe(12400);
-    expect(r.target).toBe(1240000);
+  it('goal accepts comma-grouped actual/target', () => {
+    const r = parseGoal('goal T\n\nactual 12,400\ntarget 1,240,000\n');
+    expect(r.measures[0]!.actual).toBe(12400);
+    expect(r.measures[0]!.target).toBe(1240000);
   });
 
   it('goal still rejects malformed grouping rather than truncating', () => {
-    const r = parseGoal('goal T\n\nnow 1,5\ntarget 100\n');
-    expect(r.now).not.toBe(1);
+    const r = parseGoal('goal T\n\nactual 1,5\ntarget 100\n');
+    expect(r.measures[0]!.actual).not.toBe(1);
     expect(r.diagnostics.length).toBeGreaterThan(0);
   });
 });

@@ -1057,11 +1057,12 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   // text and demotes them, so they highlight only as line leaders.
   { token: 'thermometer', category: 'directive', chartTypes: ['goal'] },
   { token: 'gauge', category: 'directive', chartTypes: ['goal'] },
-  {
-    token: 'now',
-    category: 'directive',
-    chartTypes: ['event-line', 'goal', 'pert'],
-  },
+  { token: 'now', category: 'directive', chartTypes: ['event-line', 'pert'] },
+  { token: 'actual', category: 'directive', chartTypes: ['goal'] },
+  { token: 'bands', category: 'directive', chartTypes: ['goal'] },
+  { token: 'no-ribbon', category: 'directive', chartTypes: ['goal'] },
+  { token: 'no-ribbon-labels', category: 'directive', chartTypes: ['goal'] },
+  { token: 'shared-scale', category: 'directive', chartTypes: ['goal'] },
   { token: 'target', category: 'directive', chartTypes: ['countdown', 'goal'] },
   { token: 'no-note', category: 'directive', chartTypes: ['goal'] },
   { token: 'no-auto-color', category: 'directive', chartTypes: ['goal'] },
