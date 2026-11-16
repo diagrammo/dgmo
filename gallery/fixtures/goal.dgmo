@@ -1,4 +1,4 @@
 goal Doubloons Plundered ($) green
 actual 6400
 target 10000
-solid-fill
+fill-solid
