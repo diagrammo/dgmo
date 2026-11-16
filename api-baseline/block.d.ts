@@ -82,7 +82,7 @@ interface DgmoBlockOptions {
      */
     paletteOverride?: string;
     /**
-     * A per-embed `highlight` (#2042), such as a fence's `highlight="EMEA"`:
+     * A per-embed `highlight` (#2042), such as a fence's `highlight="Europe"`:
      * replaces the diagram's own `highlight` line; `none` clears it.
      */
     highlight?: string;
