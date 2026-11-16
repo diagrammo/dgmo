@@ -2496,6 +2496,12 @@ export async function layoutBoxesAndLinesSearch(
     if (separated !== best && badness(separated, bestBad - 1) < bestBad)
       best = separated;
   }
+  // The placement search only prefers fewer foreign-group passes on a badness
+  // tie, so the winner can still run an arrow straight through a group it
+  // neither leaves nor enters (#1975, rule 2). Bend those edges around the
+  // group, one at a time, keeping a bend only when it adds no crossing,
+  // overlap, pierce or group collision.
+  best = bendAroundForeignGroups(best, parsed.groups);
   opts?.onTopConfigs?.(topConfigs);
   // The last guard, and it covers the dagre winner too. dagre normally
   // clips for itself, but its `intersectRect` throws on some configurations

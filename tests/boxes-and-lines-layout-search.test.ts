@@ -688,6 +688,9 @@ describe('countForeignGroupCrossings', () => {
       ranksep: 60,
     });
     const realLayout = dagre.layout;
+    // The THROUGH route exactly as the mock hands it to the search, before
+    // the search bends it around G.
+    let throughRaw: { x: number; y: number }[] = [];
     const routeAB = (): void => {
       vi.spyOn(dagre, 'layout').mockImplementation((g, o) => {
         realLayout(g, o);
@@ -726,6 +729,8 @@ describe('countForeignGroupCrossings', () => {
                 { x: end.x - 10, y: b.y + 3000 },
                 end,
               ];
+        if ((g.graph() as { nodesep?: number }).nodesep === THROUGH)
+          throughRaw = points.map((p) => ({ ...p }));
         for (const e of g.edges()) Object.assign(g.edge(e), { points });
       });
     };
@@ -743,16 +748,35 @@ describe('countForeignGroupCrossings', () => {
     const search = (configs: BLSearchConfig[]) =>
       layoutBoxesAndLinesSearch(parsed, undefined, { configs, sift: false });
 
+    const withRoute = (l: BLLayoutResult, points: { x: number; y: number }[]) =>
+      ({
+        ...l,
+        edges: [{ ...l.edges[0]!, points }],
+      }) as BLLayoutResult;
+
     it('builds the tie it means to: equal badness, the pass-through shorter', async () => {
       routeAB();
-      const [through, around] = [
-        await search([cfg(THROUGH)]),
-        await search([cfg(AROUND)]),
-      ];
+      const through = withRoute(await search([cfg(THROUGH)]), throughRaw);
+      const around = await search([cfg(AROUND)]);
       expect([badness(through), badness(around)]).toEqual([0, 0]);
       expect(countForeignGroupCrossings(through, parsed.groups)).toBe(1);
       expect(countForeignGroupCrossings(around, parsed.groups)).toBe(0);
       expect(length(through)).toBeLessThan(length(around));
+    });
+
+    // The winner still bends a pass the tie could not avoid (#1975, rule 2):
+    // with the pass-through as the only candidate, the arrow comes back routed
+    // round G, ends where it started and ended, at no badness.
+    it('bends the winner around a group it does not belong to', async () => {
+      routeAB();
+      const lay = await search([cfg(THROUGH)]);
+      const pts = lay.edges[0]!.points;
+      expect(countForeignGroupCrossings(lay, parsed.groups)).toBe(0);
+      expect(badness(lay)).toBe(0);
+      expect([pts[0], pts[pts.length - 1]]).toEqual([
+        throughRaw[0],
+        throughRaw[throughRaw.length - 1],
+      ]);
     });
 
     it('keeps the candidate with fewer foreign passes, in either order', async () => {
@@ -764,6 +788,8 @@ describe('countForeignGroupCrossings', () => {
         const lay = await search(order.map(cfg));
         expect(badness(lay)).toBe(0);
         expect(countForeignGroupCrossings(lay, parsed.groups)).toBe(0);
+        // The around route itself, not the pass-through bent after it won.
+        expect(length(lay)).toBeCloseTo(length(await search([cfg(AROUND)])));
       }
     });
   });

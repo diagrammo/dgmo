@@ -21,8 +21,9 @@ const FIXTURES = {
 } as const;
 
 /** Blocking-rule failure counts on today's engine, per fixture and state.
- *  Measured 2026-11-13; rule 1 lowered to 0 and rule 2 to 7 on 2026-11-15. Lower a number
- *  when a fix lowers it; never raise one. */
+ *  Measured 2026-11-13; rule 1 lowered to 0 and rule 2 to 7 on 2026-11-15,
+ *  rule 2 to 6 on 2026-11-16. Lower a number when a fix lowers it; never
+ *  raise one. */
 const BASELINE: Record<
   string,
   Record<string, Partial<Record<number, number>>>
