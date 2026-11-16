@@ -24,6 +24,8 @@ export const fixture: ConformanceFixture = {
     'x-label',
     'y-label',
     'size-label',
+    // #1982 connected scatter.
+    'connect',
     'fill-tint',
     'fill-solid',
     'fill-outline',

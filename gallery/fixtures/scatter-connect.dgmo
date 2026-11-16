@@ -1,0 +1,11 @@
+scatter Black Pearl Voyage
+subtitle Ports in the order she called at them
+x-label Longitude (°W)
+y-label Latitude (°N)
+connect
+
+Port Royal 76.8 17.9
+Tortuga 72.8 20.0
+Nassau 77.3 25.0
+Havana 82.4 23.1
+Cartagena 75.5 10.4

@@ -38,6 +38,26 @@ import {
 } from '../utils/emphasis';
 
 const FILL_OPACITY = 0.65;
+/** Length of a `connect` path's arrowhead (#1982). */
+const ARROW_LEN = 9;
+
+/**
+ * Point indices of each `connect` path (#1982), in row order: one per
+ * category in first-appearance order, points outside any category together. A
+ * group of one point has no path. Exported for tests.
+ */
+export function connectPaths(
+  points: readonly { category?: string }[]
+): number[][] {
+  const groups = new Map<string, number[]>();
+  points.forEach((p, i) => {
+    const key = p.category ?? '';
+    const g = groups.get(key);
+    if (g) g.push(i);
+    else groups.set(key, [i]);
+  });
+  return [...groups.values()].filter((g) => g.length >= 2);
+}
 const DEFAULT_SIZE = 15; // diameter
 const LABEL_FONT = 11;
 // Must match the adapter's hover point-value styling: a big bold number line
@@ -308,27 +328,118 @@ export function renderScatter(
       .text(fmtNum(t));
   }
 
+  const pointColor = (p: (typeof points)[number], i: number): string =>
+    p.color ??
+    (p.category
+      ? catColor(p.category, catIndex.get(p.category) ?? 0)
+      : colors[i % colors.length]!);
+
+  // `connect` (#1982): one path per category (points outside any category share one),
+  // in row order. A path of one point draws nothing.
+  const paths = chart.connect ? connectPaths(points) : [];
+  // The first and last point of every path keep their names, even under
+  // `no-name`.
+  const pathEnds = new Set(paths.flatMap((ix) => [ix[0]!, ix[ix.length - 1]!]));
+  const labelled = points
+    .map((_, i) => i)
+    .filter((i) => !chart.noName || pathEnds.has(i));
+
   // Greedy collision-avoiding label placement (above/below/left/right + leader
-  // line when pushed) — replaces the spike's naive above-point labels.
-  const placedLabels = chart.noName
-    ? null
-    : computeQuadrantPointLabels(
-        points.map((p, i) => ({
-          label: p.name,
-          cx: x(p.x),
-          cy: y(p.y),
-          r: radii[i]!,
-        })),
-        {
-          left: m.left,
-          top: m.top,
-          right: m.left + plotW,
-          bottom: m.top + plotH,
-        },
-        [],
-        DEFAULT_SIZE / 2,
-        LABEL_FONT
-      );
+  // line when pushed) — replaces the spike's naive above-point labels. Every
+  // point stays an obstacle, labelled or not.
+  const placedSome =
+    labelled.length === 0
+      ? null
+      : computeQuadrantPointLabels(
+          labelled.map((i) => ({
+            label: points[i]!.name,
+            cx: x(points[i]!.x),
+            cy: y(points[i]!.y),
+            r: radii[i]!,
+          })),
+          {
+            left: m.left,
+            top: m.top,
+            right: m.left + plotW,
+            bottom: m.top + plotH,
+          },
+          chart.noName
+            ? points
+                .map((p, i) => ({ p, i }))
+                .filter(({ i }) => !pathEnds.has(i))
+                .map(({ p, i }) => ({
+                  x: x(p.x) - radii[i]!,
+                  y: y(p.y) - radii[i]!,
+                  w: radii[i]! * 2,
+                  h: radii[i]! * 2,
+                }))
+            : [],
+          DEFAULT_SIZE / 2,
+          LABEL_FONT
+        );
+  const placedLabels:
+    | (ReturnType<typeof computeQuadrantPointLabels>[number] | undefined)[]
+    | null = placedSome
+    ? points.map((_, i) => {
+        const k = labelled.indexOf(i);
+        return k < 0 ? undefined : placedSome[k];
+      })
+    : null;
+
+  // Paths sit beneath every point; a receded path is drawn first.
+  const pathRecedes = (ix: number[]) => ix.every((i) => recedes(points[i]!));
+  const pathOrder = [...paths].sort(
+    (a, b) => Number(pathRecedes(b)) - Number(pathRecedes(a))
+  );
+  for (const ix of pathOrder) {
+    const first = points[ix[0]!]!;
+    const own = first.category ? pointColor(first, ix[0]!) : mutedColor;
+    const recede = pathRecedes(ix);
+    const stroke = !story.active
+      ? own
+      : recede
+        ? story.groundStroke
+        : story.subject(own);
+    const g = svg
+      .append('g')
+      .attr('class', 'dgmo-scatter-path')
+      .attr('data-color', own);
+    if (first.category) g.attr('data-series-name', first.category);
+    if (recede && !story.active) g.attr('opacity', EMPHASIS_DIM_OPACITY);
+    const at = ix.map((i) => [x(points[i]!.x), y(points[i]!.y)] as const);
+    g.append('path')
+      .attr('class', 'dgmo-scatter-path-line')
+      .attr(
+        'd',
+        at.map(([px, py], k) => `${k ? 'L' : 'M'}${px},${py}`).join('')
+      )
+      .attr('fill', 'none')
+      .attr('stroke', stroke)
+      .attr('stroke-width', 1.5)
+      .attr('stroke-linejoin', 'round');
+    // Arrowhead on the last segment, its tip on the last point's rim.
+    const [x0, y0] = at[at.length - 2]!;
+    const [x1, y1] = at[at.length - 1]!;
+    const len = Math.hypot(x1 - x0, y1 - y0);
+    if (len > 0) {
+      const ux = (x1 - x0) / len;
+      const uy = (y1 - y0) / len;
+      const rim = radii[ix[ix.length - 1]!]! + 1;
+      const tx = x1 - ux * rim;
+      const ty = y1 - uy * rim;
+      const bx = tx - ux * ARROW_LEN;
+      const by = ty - uy * ARROW_LEN;
+      const w = ARROW_LEN * 0.45;
+      g.append('path')
+        .attr('class', 'dgmo-scatter-arrow')
+        .attr(
+          'd',
+          `M${tx},${ty}L${bx - uy * w},${by + ux * w}L${bx + uy * w},${by - ux * w}Z`
+        )
+        .attr('fill', stroke)
+        .attr('stroke', 'none');
+    }
+  }
 
   const plotBounds = {
     left: m.left,
@@ -360,11 +471,7 @@ export function renderScatter(
     );
   order.forEach((i) => {
     const p = points[i]!;
-    const own =
-      p.color ??
-      (p.category
-        ? catColor(p.category, catIndex.get(p.category) ?? 0)
-        : colors[i % colors.length]!);
+    const own = pointColor(p, i);
     const recede = recedes(p);
     const stroke = !story.active
       ? own
@@ -436,9 +543,8 @@ export function renderScatter(
       dot.attr('data-category', p.category);
       dot.attr('data-series-name', p.category);
     }
-    if (placedLabels) {
-      // Same length as points by construction.
-      const placed = placedLabels[i]!;
+    const placed = placedLabels?.[i];
+    if (placed) {
       // `dgmo-ptlabel` + line number let the interaction adapter fade every
       // other point's label while one bubble is hovered.
       if (placed.connectorLine) {

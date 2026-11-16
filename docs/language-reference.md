@@ -2931,10 +2931,24 @@ x-label Weight
 y-label Height
 size-label Crew
 no-name
+connect          // join the points in row order
 x-scale log      // §15.1.2: x-/y-scale, -min, -max on both axes
 ```
 
 Point names render by default. Use `no-name` to hide them.
+
+**Connected scatter** — a bare `connect` joins the points in row order with
+straight segments, to show a path through time (#1982):
+
+- An arrowhead on the last segment shows the direction.
+- The first and last points always show their names, even under `no-name`.
+- With `[Category]` groups, each category gets its own path in its colour, with
+  its own arrowhead and end names. Points outside any category share one muted
+  path.
+- On a bubble chart the segments join the point centres; sizes do not change.
+- A single point, or a category with one point, draws no path and no
+  arrowhead.
+- `highlight` greys the paths it does not name, with their points.
 
 ### 15.3 Heatmap
 

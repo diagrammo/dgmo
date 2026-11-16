@@ -1146,6 +1146,9 @@ interface ParsedScatter extends ParsedExtendedBase {
     type: 'scatter';
     scatterPoints?: ParsedScatterPoint[];
     sizelabel?: string;
+    /** Bare `connect` (#1982): join the points in row order, one path per
+     *  `[Category]`, with an arrowhead on the last segment. */
+    connect?: boolean;
 }
 interface ParsedHeatmap extends ParsedExtendedBase {
     type: 'heatmap';

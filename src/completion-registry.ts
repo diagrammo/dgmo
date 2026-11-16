@@ -332,6 +332,9 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'x-label': { description: 'X-axis label' },
       'y-label': { description: 'Y-axis label' },
       'size-label': { description: 'Size axis label' },
+      connect: {
+        description: 'Join the points in row order, with an arrow at the end',
+      },
       'y-scale': {
         description: 'Value axis scale: log for data spanning decades',
         values: ['log', 'linear'],

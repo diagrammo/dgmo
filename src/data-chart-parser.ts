@@ -148,6 +148,9 @@ export interface ParsedScatter extends ParsedExtendedBase {
   type: 'scatter';
   scatterPoints?: ParsedScatterPoint[];
   sizelabel?: string;
+  /** Bare `connect` (#1982): join the points in row order, one path per
+   *  `[Category]`, with an arrowhead on the last segment. */
+  connect?: boolean;
 }
 
 export interface ParsedHeatmap extends ParsedExtendedBase {
@@ -191,6 +194,7 @@ export interface ParsedExtendedChartFull extends ParsedExtendedBase {
   heatmapScale?: { kind: 'diverging'; mid: number };
   xRange?: { min: number; max: number };
   sizelabel?: string;
+  connect?: boolean;
 }
 
 // ============================================================
@@ -931,6 +935,10 @@ function parseExtendedChartFull(
     }
     if (firstToken === 'legend-inline' && spaceIdx < 0) {
       result.legendInline = true;
+      continue;
+    }
+    if (firstToken === 'connect' && spaceIdx < 0 && result.type === 'scatter') {
+      result.connect = true;
       continue;
     }
     // Silent-ignore unrecognized no-* flags (typos, future flags).
