@@ -568,7 +568,9 @@ A caller can ask for a canvas size: `--width` and `--height` on the CLI, `width`
 - **A width with a height is an exact canvas** — the SVG, the PNG at `--scale 1` and the PDF page come back at exactly that size — for these chart types only, which lay out onto the canvas they are given:
 
   <!-- exact-size-types:start -->
+
   `bar`, `arc layout chord`, `cycle`, `funnel`, `function`, `heatmap`, `line`, `pie`, `polar-area`, `pyramid`, `quadrant`, `radar`, `ring`, `sankey`, `scatter`, `slope`, `tech-radar`, `treemap`, `venn`, `wordcloud`
+
   <!-- exact-size-types:end -->
 
 - **Every other chart type sizes itself from its content** and stays tight to it: it is never padded with background to reach the box. A `map` takes the width and sets its height from the projection. When the height that comes out is not the one asked for, `W_CANVAS_HEIGHT_IGNORED` says so.
