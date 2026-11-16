@@ -2606,7 +2606,8 @@ fill                     // line: fill the area under the line
 hole                     // pie: doughnut ring (optional ratio, e.g. `hole 0.5`)
 no-center-total          // pie: hide the center total (shown by default when `hole` is set)
 waffle                   // pie: draw the rows as a 10×10 grid, one cell per percent
-sort                     // pie: order slices largest first (`sort asc` = smallest first)
+sort                     // pie, bar: largest first (`sort asc` = smallest first)
+sort Crew                // bar: order the categories by one series
 other-below 5%           // pie: merge slices under 5% of the total into one "Other"
 no-auto-y                // line: anchor the y-axis at 0 (opt out of auto-fit)
 step                     // line: hold each value until the next point (§15.1.3)
@@ -2629,8 +2630,14 @@ step-before              // line: steps that reach each value at its own point
   `Name — value (N%)`, where N is its cell count; `no-name` / `no-value` /
   `no-percent` and `highlight` work as on the pie. `hole` has no effect on a
   waffle and warns)
-- `sort` (pie; slices largest first — `sort asc` for smallest first; default is
-  source order)
+- `sort` (pie, bar; largest first — `sort asc` for smallest first; default is
+  source order). On a pie it orders the slices. On a bar it orders the
+  categories, in both orientations (a horizontal bar puts the first one at the
+  top): a single series by its value, a `group` by its first series, and a
+  `stack` by each category's total. `sort <series name>` orders a bar by that
+  series instead, and takes `asc` after the name (`sort Crew asc`). An
+  unknown name warns and falls back to the default. Ties keep source order.
+  Elsewhere `sort` warns and is ignored
 - `other-below N%` (pie; slices under N% of the total merge into one trailing
   **Other** slice, placed last even under `sort`; needs at least two slices to
   qualify, otherwise nothing merges)

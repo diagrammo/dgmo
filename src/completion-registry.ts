@@ -184,6 +184,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'x-label': { description: 'X-axis label' },
       'y-label': { description: 'Y-axis label' },
       'orientation-horizontal': { description: 'Switch to horizontal bars' },
+      sort: {
+        description:
+          'Order bars by value: sort (largest first), sort asc, or sort <series>',
+      },
       'y-scale': {
         description: 'Value axis scale: log for data spanning decades',
         values: ['log', 'linear'],

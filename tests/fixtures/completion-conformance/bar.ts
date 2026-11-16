@@ -24,6 +24,8 @@ export const fixture: ConformanceFixture = {
     'x-label',
     'y-label',
     'orientation-horizontal',
+    // #1978 category order.
+    'sort',
     'no-value',
     'fill-tint',
     'fill-solid',

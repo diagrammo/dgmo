@@ -71,9 +71,14 @@ export interface ParsedChart {
   /** Suppress the pie center total (bare `no-center-total`). The total
    *  shows by default whenever a hole is present. (#23) */
   noCenterTotal?: boolean;
-  /** Pie slice order: `sort` / `sort desc` = largest first, `sort asc` =
-   *  smallest first. Absent ⇒ source order. */
+  /** Pie slice / bar category order (#1978): `sort` / `sort desc` = largest
+   *  first, `sort asc` = smallest first. Absent ⇒ source order. */
   sort?: 'asc' | 'desc';
+  /** Bar `sort <series name>` (#1978): the series whose values order the
+   *  categories. Absent ⇒ the first series (group) or the total (stack). */
+  sortSeries?: string;
+  /** Line of the `sort` directive, for its diagnostics. */
+  sortLineNumber?: number;
   /** Pie `other-below N%`: slices under N% of the total merge into one
    *  trailing "Other" slice. Stored as the percentage N. */
   otherBelow?: number;
@@ -452,10 +457,20 @@ export function parseChart(
       pieOnlyLines.push([lineNumber, 'waffle']);
       continue;
     }
-    const sortMatch = trimmed.match(/^sort(?:\s+(asc|desc))?$/);
-    if (sortMatch) {
-      result.sort = (sortMatch[1] as 'asc' | 'desc' | undefined) ?? 'desc';
-      pieOnlyLines.push([lineNumber, 'sort']);
+    // `sort [<series name>] [asc|desc]` (pie, bar — #1978) and the pie-only
+    // `other-below`. Matched case-sensitively on the whole line so a data row
+    // labelled "Other 30" or "Sort 5" — anything ending in a number — still
+    // parses as data.
+    const sortMatch = trimmed.match(/^sort(?:\s+(.+))?$/);
+    if (sortMatch && !(sortMatch[1] && parseDataRowValues(trimmed))) {
+      const words = (sortMatch[1] ?? '').split(/\s+/).filter(Boolean);
+      const last = words.at(-1);
+      const dir = last === 'asc' || last === 'desc' ? last : undefined;
+      if (dir) words.pop();
+      result.sort = dir ?? 'desc';
+      if (words.length) result.sortSeries = words.join(' ');
+      else delete result.sortSeries;
+      result.sortLineNumber = lineNumber;
       continue;
     }
     const otherMatch = trimmed.match(/^other-below\s+(\d+(?:\.\d+)?)\s*%?$/);
@@ -783,6 +798,32 @@ export function parseChart(
     }
   }
 
+  // `sort` orders pie slices and bar categories (#1978); elsewhere it warns.
+  if (result.sort && result.type !== 'pie' && result.type !== 'bar') {
+    result.diagnostics.push(
+      makeDgmoError(
+        result.sortLineNumber ?? 1,
+        '"sort" is only supported on pie and bar charts; ignoring it.',
+        'warning'
+      )
+    );
+    delete result.sort;
+  }
+  if (result.sortSeries !== undefined && result.type === 'pie') {
+    result.diagnostics.push(
+      makeDgmoError(
+        result.sortLineNumber ?? 1,
+        `A pie has no series to sort by — "sort ${result.sortSeries}" sorts the slices by value.`,
+        'warning'
+      )
+    );
+    delete result.sortSeries;
+  }
+  if (result.type !== 'bar') {
+    delete result.sortSeries;
+    if (result.type !== 'pie') delete result.sortLineNumber;
+  }
+
   // Pie-only directives: warn elsewhere, otherwise bucket small slices and sort.
   if (result.type !== 'pie') {
     for (const [ln, name] of pieOnlyLines) {
@@ -794,7 +835,6 @@ export function parseChart(
         )
       );
     }
-    delete result.sort;
     delete result.otherBelow;
     delete result.waffle;
   } else {
@@ -920,6 +960,9 @@ export function parseChart(
     );
   }
 
+  if (!result.error && result.type === 'bar' && result.sort)
+    sortBarCategories(result);
+
   if (!result.error) settleChartAxes(result);
 
   // `step` and `step-before` draw a line's segments (#1880); nowhere else.
@@ -932,6 +975,44 @@ export function parseChart(
   }
 
   return result;
+}
+
+/**
+ * Bar `sort` (#1978): order the categories by one number each — the value
+ * (single series), the named series, the first series (`group`), or the
+ * total (`stack`). Ties keep source order.
+ */
+function sortBarCategories(result: ParsedChart): void {
+  const names = result.seriesNames ?? [];
+  const multi = names.length > 1;
+  let index: number | null = null;
+  if (result.sortSeries !== undefined) {
+    const want = result.sortSeries;
+    const known = multi ? names : [result.series ?? ''];
+    let at = known.indexOf(want);
+    if (at < 0)
+      at = known.findIndex((n) => n.toLowerCase() === want.toLowerCase());
+    if (at >= 0) index = at;
+    else {
+      let msg = `"sort ${want}": no series named "${want}"; sorting by the ${
+        multi && result.barLayout === 'stack' ? 'total' : 'first series'
+      }.`;
+      const hint = suggest(want, known.filter(Boolean));
+      if (hint) msg += ` ${hint}`;
+      result.diagnostics.push(
+        makeDgmoError(result.sortLineNumber ?? 1, msg, 'warning')
+      );
+    }
+  }
+  const values = (d: ChartDataPoint) => [d.value, ...(d.extraValues ?? [])];
+  const key = (d: ChartDataPoint): number => {
+    if (index !== null) return values(d)[index] ?? 0;
+    if (multi && result.barLayout === 'stack')
+      return values(d).reduce((a, v) => a + v, 0);
+    return d.value;
+  };
+  const dir = result.sort === 'asc' ? 1 : -1;
+  result.data = [...result.data].sort((a, b) => dir * (key(a) - key(b)));
 }
 
 /** The numeric axes each simple chart type has (#1830). */

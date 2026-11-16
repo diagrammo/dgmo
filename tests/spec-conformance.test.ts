@@ -194,11 +194,14 @@ describe('1. Valid syntax', () => {
       expect(r.data.map((d) => d.label)).toEqual(['Other', 'A']);
     });
 
-    it('sort and other-below warn outside pie', () => {
-      const r = parseChart('bar S\nsort\nA 1\nB 2', palette);
+    it('other-below warns outside pie; sort is pie and bar (#1978)', () => {
+      const r = parseChart('bar S\nother-below 5%\nA 1\nB 2', palette);
       expect(
         r.diagnostics.some((d) => /only supported on pie/.test(d.message))
       ).toBe(true);
+      const sorted = parseChart('bar S\nsort\nA 1\nB 2', palette);
+      expect(sorted.diagnostics).toEqual([]);
+      expect(sorted.data.map((d) => d.label)).toEqual(['B', 'A']);
     });
 
     it('line with fill directive (area)', () => {
