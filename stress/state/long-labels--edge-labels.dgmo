@@ -1,0 +1,24 @@
+state Ticket Workflow
+// stress: long-labels — transition labels of 20 to 40 characters between close states
+
+[*] -> Open
+
+Open
+  -assigned to the on-call engineer-> Triaged
+  -closed as a duplicate of another-> Closed
+
+Triaged
+  -reproduced on the staging cluster-> Fixing
+  -needs more information from customer-> Waiting
+
+Waiting
+  -customer replied with the logs-> Triaged
+
+Fixing
+  -patch merged and deployed to prod-> Resolved
+
+Resolved
+  -customer confirmed the fix works-> Closed
+  -regression found within a week-> Open
+
+Closed -> [*]

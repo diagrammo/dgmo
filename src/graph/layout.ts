@@ -12,6 +12,7 @@ import { resolveNotes } from './notes';
 import { noteBoxSize } from '../utils/note-box';
 import { placeNotes, noteCanvasShift } from '../utils/notes';
 import { unbundleEdges } from './edge-ports';
+import { measureText } from '../utils/text-measure';
 import { elbowRetryEdges } from './retry-elbow';
 import {
   countEdgeNodePierces,
@@ -27,6 +28,11 @@ import {
   type Pt,
   type Shuffle,
 } from '../utils/placement-search';
+
+/** The renderers' edge-label size, before canvas scaling. */
+const EDGE_LABEL_FONT_SIZE = 11;
+/** A label's padding (8) plus an 8 px run of edge either side of it. */
+const LABEL_RANK_ROOM = 24;
 
 export type NoteSide = 'above' | 'below' | 'left' | 'right';
 
@@ -277,6 +283,19 @@ export function layoutGraph(
   for (const group of outgoingBySource.values())
     for (let i = group.length - 1; i >= 0; i--) edgeOrder.push(group[i]!);
 
+  // Left to right, an edge label's width lies across the gap between ranks
+  // and routinely exceeds it, so the gap widens to the widest label plus room
+  // either side (#1948). Top to bottom the gap only has to fit a label's
+  // height, which the default already does.
+  let ranksep = 60;
+  if (graph.direction === 'LR')
+    for (const e of graph.edges)
+      if (e.label)
+        ranksep = Math.max(
+          ranksep,
+          measureText(e.label, EDGE_LABEL_FONT_SIZE) + LABEL_RANK_ROOM
+        );
+
   // One dagre placement. `shuffle` (a seeded search candidate) varies the
   // insertion order of nodes and edges, which is what dagre's within-rank
   // ordering starts from; without it the order is the source-order bias above.
@@ -287,7 +306,7 @@ export function layoutGraph(
       rankdir: graph.direction,
       ranker,
       nodesep: 50,
-      ranksep: 60,
+      ranksep,
       edgesep: 20,
     });
     g.setDefaultEdgeLabel(() => ({}));

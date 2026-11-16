@@ -42,6 +42,7 @@ import { renderGraphTitle } from './title';
 import { growChartFrame } from '../utils/chart-frame';
 import { edgeSplinePath, selfLoopArcPath } from './edge-spline';
 import { withoutApproach } from './edge-ports';
+import { clearEdgeLabel, type ObstacleBox } from './edge-label-place';
 import {
   LEGEND_BODY_GAP,
   TITLE_FONT_SIZE,
@@ -207,6 +208,24 @@ export function renderState(
   }
   const labelPositions: LabelPos[] = [];
 
+  // What an edge label must not cover: every state, and every group's title
+  // band (#1948).
+  const labelObstacles: ObstacleBox[] = layout.nodes.map((n) => ({
+    x: n.x - n.width / 2,
+    y: n.y - n.height / 2,
+    w: n.width,
+    h: n.height,
+  }));
+  for (const g of layout.groups) {
+    if (g.collapsed) continue;
+    labelObstacles.push({
+      x: g.x - sGroupExtraPadding,
+      y: g.y - sGroupExtraPadding - sGroupLabelFontSize - 4,
+      w: g.width + sGroupExtraPadding * 2,
+      h: sGroupLabelFontSize + 8,
+    });
+  }
+
   for (let ei = 0; ei < layout.edges.length; ei++) {
     const edge = layout.edges[ei]!;
     if (!edge.label) continue;
@@ -250,6 +269,14 @@ export function renderState(
           lx = midPt.x;
           ly = midPt.y;
         }
+        // A label on a state slides along its edge until it is clear (#1948).
+        ({ x: lx, y: ly } = clearEdgeLabel(
+          route,
+          { x: lx, y: ly },
+          bgW,
+          LABEL_H,
+          labelObstacles
+        ));
       }
     } else {
       continue;

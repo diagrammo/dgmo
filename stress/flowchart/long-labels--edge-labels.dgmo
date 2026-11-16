@@ -1,0 +1,11 @@
+flowchart Release Gate
+// stress: long-labels — edge labels of 20 to 40 characters between close nodes, left to right
+direction-lr
+(Start) -> <Tests pass?>
+<Tests pass?> -every suite is green on main-> <Review done?>
+<Tests pass?> -a flaky suite failed twice in a row-> [Quarantine]
+[Quarantine] -owner fixed the flaky test-> <Tests pass?>
+<Review done?> -two approvals and no open threads-> [Ship]
+<Review done?> -changes requested by a reviewer-> [Rework]
+[Rework] -author pushed a new revision-> <Review done?>
+[Ship] -> (Done)
