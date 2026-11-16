@@ -471,7 +471,7 @@ function layoutRadial(
     }
   }
 
-  // 4. Normalise to the margin.
+  // 4. Normalize to the margin.
   let minX = Infinity,
     minY = Infinity,
     maxX = -Infinity,
