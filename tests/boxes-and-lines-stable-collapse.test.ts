@@ -298,3 +298,45 @@ describe('stable collapse keeps side-by-side order', () => {
     expect(at('F').y - at('E').y).toBeLessThan(300);
   });
 });
+
+describe('stable collapse keeps arrows into a new pill with the flow (#1975, rule 1)', () => {
+  // G is wide: B on its left, C on its right. S sits above G, over C, and
+  // points into C. Collapsing G must not put the pill at the frame's
+  // top-left, behind S, or the arrow S → G runs against the LR flow.
+  const SRC = ['boxes-and-lines', 'S', '  -> C', '[G]', '  B', '  C', 'T'].join(
+    '\n'
+  );
+  const PREV3 = new Map([
+    ['S', { x: 600, y: 60 }],
+    ['B', { x: 200, y: 300 }],
+    ['C', { x: 600, y: 300 }],
+    ['T', { x: 200, y: 500 }],
+  ]);
+  async function collapsedG() {
+    const parsed = parseBoxesAndLines(SRC);
+    const cr = collapseBoxesAndLines(parsed, new Set(['G']));
+    return layoutBoxesAndLines(
+      cr.parsed,
+      {
+        collapsedChildCounts: cr.collapsedChildCounts,
+        originalGroups: cr.originalGroups,
+      },
+      { previousPositions: PREV3, stableCollapse: true }
+    );
+  }
+
+  it("the pill's centre is not before the source of its incoming arrow", async () => {
+    const layout = await collapsedG();
+    const pill = layout.groups.find((g) => g.label === 'G' && g.collapsed)!;
+    const s = layout.nodes.find((n) => n.label === 'S')!;
+    expect(pill).toBeDefined();
+    expect(pill.x).toBeGreaterThanOrEqual(s.x - 1);
+  });
+
+  it('a box with no arrow into the pill is not moved by it', async () => {
+    const layout = await collapsedG();
+    const at = (l: string) => layout.nodes.find((n) => n.label === l)!;
+    // S and T keep their old relative x: only the pill moved along the flow.
+    expect(at('S').x - at('T').x).toBeCloseTo(400, 5);
+  });
+});

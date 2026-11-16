@@ -14,7 +14,8 @@
 //   3. Compacts per axis, keeping the ORDER rather than the coordinates: rigid
 //      units (top-level groups move as one) that sat after a shrunken group
 //      close up to their old spacing from it, and nothing passes anything
-//      (#1784).
+//      (#1784). On the flow axis a new pill also moves up to the sources of
+//      its incoming arrows, so no arrow into it runs against the flow (#1975).
 //   4. Rebuilds expanded-group container rects from their (frozen) members and
 //      routes edges as straight border-to-border segments.
 //
@@ -162,6 +163,8 @@ export function tryStableCollapseLayout(
   /** Each collapsed pill's extent BEFORE this collapse: the group's old frame
    *  when newly collapsed, else the pill itself. Read by the compaction pass. */
   const pillOrigin = new Map<string, Rect>();
+  /** Top-level pills placed by this collapse (not frozen from before). */
+  const newTopPills = new Set<string>();
   /** A node's rect before this collapse — its own, or estimated for a member. */
   const origNodeRect = (label: string): Rect | null => {
     const r = rects.get(label);
@@ -210,6 +213,7 @@ export function tryStableCollapseLayout(
       height: NODE_HEIGHT,
     });
     pillOrigin.set(gid(label), topLevel ? frame : rects.get(gid(label))!);
+    if (topLevel) newTopPills.add(gid(label));
   }
 
   // ── Rigid units for the compaction pass ──
@@ -250,6 +254,8 @@ export function tryStableCollapseLayout(
   };
   interface Unit {
     keys: string[];
+    /** The top-level expanded group this unit is, if any. */
+    group?: string;
     /** Extent before this collapse — fixes the order and the spacing. */
     orig: Rect;
     /** Current extent; recomputed as the unit moves. */
@@ -264,7 +270,7 @@ export function tryStableCollapseLayout(
     const orig = origFrame(g.label);
     if (!orig) return null;
     const label = g.label;
-    units.push({ keys, orig, cur: () => currentFrame(label)! });
+    units.push({ keys, group: label, orig, cur: () => currentFrame(label)! });
   }
   for (const key of rects.keys()) {
     if (inUnit.has(key)) continue;
@@ -274,6 +280,39 @@ export function tryStableCollapseLayout(
       cur: () => rects.get(key)!,
     });
   }
+
+  // ── Arrows into a new pill, as unit pairs (#1975, rule 1) ──
+  // A new pill's place along the flow is a choice, not a frozen position: it
+  // must not sit before a box whose arrow points into it. Each entry is
+  // [source unit, pill unit, source endpoint]; the flow-axis pass keeps the
+  // pill's centre at or after the source endpoint's own centre.
+  const unitOfKey = new Map<string, number>();
+  units.forEach((u, i) => {
+    for (const k of u.keys) unitOfKey.set(k, i);
+  });
+  const topUnitOfGroup = new Map<string, number>();
+  units.forEach((u, i) => {
+    if (u.group !== undefined) topUnitOfGroup.set(u.group, i);
+  });
+  const unitOfEndpoint = (key: string): number | undefined => {
+    const direct = unitOfKey.get(key);
+    if (direct !== undefined) return direct;
+    let label = key.startsWith('__group_') ? key.slice(8) : key;
+    for (let g = groupByLabel.get(label); g?.parentGroup; ) {
+      label = g.parentGroup;
+      g = groupByLabel.get(label);
+    }
+    return topUnitOfGroup.get(label);
+  };
+  const intoNewPill: [number, number, string][] = [];
+  for (const e of parsed.edges) {
+    if (!newTopPills.has(e.target)) continue;
+    const s = unitOfEndpoint(e.source);
+    const t = unitOfKey.get(e.target);
+    if (s !== undefined && t !== undefined && s !== t)
+      intoNewPill.push([s, t, e.source]);
+  }
+  const flowAxis = input.rankdir === 'TB' ? 'y' : 'x';
 
   // ── Compaction: keep the ORDER, not the coordinates (#1784) ──
   // Per axis, unit j must stay after unit i when i sat wholly before j and the
@@ -338,27 +377,56 @@ export function tryStableCollapseLayout(
       }
     // Topological order over the constraints; a cycle means the old layout
     // was not separable on this axis, so fall back to the placement search.
-    const indeg = preds.map((p) => p.length);
-    const succ: number[][] = units.map(() => []);
-    for (let j = 0; j < n; j++) for (const { i } of preds[j]!) succ[i]!.push(j);
-    const queue: number[] = [];
-    for (let j = 0; j < n; j++) if (indeg[j] === 0) queue.push(j);
-    const newLo: number[] = cur.map((r) => lo(r, axis));
-    let done = 0;
-    while (queue.length > 0) {
-      const j = queue.shift()!;
-      done++;
-      if (preds[j]!.length > 0) {
-        const pulls = preds[j]!.filter((p) => !p.order);
-        let at = pulls.length > 0 ? -Infinity : newLo[j]!;
-        for (const { i, off } of pulls) at = Math.max(at, newLo[i]! + off);
-        for (const { i, off, order } of preds[j]!)
-          if (order) at = Math.max(at, newLo[i]! + off);
-        newLo[j] = at;
+    const solve = (
+      all: { i: number; off: number; order?: true }[][]
+    ): number[] | null => {
+      const indeg = all.map((p) => p.length);
+      const succ: number[][] = units.map(() => []);
+      for (let j = 0; j < n; j++) for (const { i } of all[j]!) succ[i]!.push(j);
+      const queue: number[] = [];
+      for (let j = 0; j < n; j++) if (indeg[j] === 0) queue.push(j);
+      const out: number[] = cur.map((r) => lo(r, axis));
+      let done = 0;
+      while (queue.length > 0) {
+        const j = queue.shift()!;
+        done++;
+        if (all[j]!.length > 0) {
+          const pulls = all[j]!.filter((p) => !p.order);
+          let at = pulls.length > 0 ? -Infinity : out[j]!;
+          for (const { i, off } of pulls) at = Math.max(at, out[i]! + off);
+          for (const { i, off, order } of all[j]!)
+            if (order) at = Math.max(at, out[i]! + off);
+          out[j] = at;
+        }
+        for (const k of succ[j]!) if (--indeg[k]! === 0) queue.push(k);
       }
-      for (const k of succ[j]!) if (--indeg[k]! === 0) queue.push(k);
+      return done < n ? null : out;
+    };
+    // On the flow axis, a new pill's centre stays at or after each source of
+    // an arrow into it. Order only: the pill is pushed, never pulled. If that
+    // closes a cycle (the pill sat before a unit it is linked from both
+    // ways), it is dropped and the compaction runs as before.
+    let newLo: number[] | null = null;
+    if (axis === flowAxis && intoNewPill.length > 0) {
+      const withFlow = preds.map((p) => [...p]);
+      for (const [i, j, key] of intoNewPill) {
+        // The endpoint's centre as an offset from its unit's leading edge;
+        // the unit moves rigidly, so the offset holds through the pass.
+        const r =
+          rects.get(key) ??
+          currentFrame(key.startsWith('__group_') ? key.slice(8) : key);
+        if (!r) continue;
+        const mid = (lo(r, axis) + hi(r, axis)) / 2;
+        withFlow[j]!.push({
+          i,
+          off: mid - lo(cur[i]!, axis) - size(j) / 2,
+          order: true,
+        });
+      }
+      newLo = solve(withFlow);
     }
-    if (done < n) return null;
+    newLo ??= solve(preds);
+    if (!newLo) return null;
     for (let j = 0; j < n; j++) {
       const delta = newLo[j]! - lo(cur[j]!, axis);
       if (delta === 0) continue;
