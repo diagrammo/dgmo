@@ -613,6 +613,13 @@ interface ParsedChart {
      *  (consolidation #24). Absent ⇒ single-series bar. Drives stacked vs
      *  clustered rendering in `charts-d3/bar.ts`. */
     barLayout?: 'stack' | 'group';
+    /** `stack diverging` (#1980): the stack is centred on 0 — series before
+     *  the neutral one grow left (down), series after it grow right (up). */
+    diverging?: boolean;
+    /** Index of the neutral series of a diverging stack, split half each side
+     *  of 0. Absent ⇒ even count, no flag: the split falls between the two
+     *  middle series. */
+    neutralSeries?: number;
     /** Pie hole inner-radius ratio (0–0.9), set by a `hole` directive
      *  (bare ⇒ default). Absent ⇒ solid pie. (#23) */
     hole?: number;
@@ -622,12 +629,22 @@ interface ParsedChart {
     /** Suppress the pie center total (bare `no-center-total`). The total
      *  shows by default whenever a hole is present. (#23) */
     noCenterTotal?: boolean;
-    /** Pie slice order: `sort` / `sort desc` = largest first, `sort asc` =
-     *  smallest first. Absent ⇒ source order. */
+    /** Pie slice / bar category order (#1978): `sort` / `sort desc` = largest
+     *  first, `sort asc` = smallest first. Absent ⇒ source order. */
     sort?: 'asc' | 'desc';
+    /** Bar `sort <series name>` (#1978): the series whose values order the
+     *  categories. Absent ⇒ the first series (group) or the total (stack). */
+    sortSeries?: string;
+    /** Line of the `sort` directive, for its diagnostics. */
+    sortLineNumber?: number;
     /** Pie `other-below N%`: slices under N% of the total merge into one
      *  trailing "Other" slice. Stored as the percentage N. */
     otherBelow?: number;
+    /** Bar (#1979): draw each bar as a thin stem with a dot at its value
+     *  (bare `lollipop`). Not with `stack`. */
+    lollipop?: boolean;
+    /** Line of the `lollipop` flag, for its diagnostics. */
+    lollipopLineNumber?: number;
     /** Render a line chart filled, i.e. as an area (bare `fill`). (#25) */
     fill?: boolean;
     orientation?: 'horizontal' | 'vertical';
