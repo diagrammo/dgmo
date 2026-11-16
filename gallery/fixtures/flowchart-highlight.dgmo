@@ -1,0 +1,7 @@
+flowchart Decision Flow
+
+highlight Start -> Get Input -> Valid? -no-> Show Error
+
+(Start) -> /Get Input/ -> <Valid?>
+  -yes-> [Process Data] -> (Done)
+  -no-> [Show Error] -> /Get Input/

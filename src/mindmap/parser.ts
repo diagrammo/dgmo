@@ -35,6 +35,12 @@ import {
 } from '../utils/reserved-key-registry';
 import type { MindmapNode, ParsedMindmap } from './types';
 import { markTitleRoot } from './title-root';
+import {
+  parseEmphasisDirective,
+  resolveHighlightPaths,
+  highlightPathWarnings,
+} from '../utils/emphasis';
+import type { ResolvedPaths } from '../utils/emphasis';
 import { tryStripDescriptionKeyword } from '../utils/description-helpers';
 
 // ============================================================
@@ -43,6 +49,76 @@ import { tryStripDescriptionKeyword } from '../utils/description-helpers';
 
 /** Known mindmap options (key-value). */
 const KNOWN_OPTIONS = new Set(['active-tag']);
+
+/** What a `highlight` lights on a mindmap: node ids and `parent>child` edge keys. */
+export interface MindmapHighlight {
+  readonly paths: ResolvedPaths;
+  readonly litIds: ReadonlySet<string>;
+  readonly litEdges: ReadonlySet<string>;
+}
+
+/**
+ * Resolves the map's `highlight` over the tree. A plain name lights the node
+ * and its whole subtree; a chain lights exactly its path. Names are labels or
+ * ids; edges run parent to child.
+ */
+export function resolveMindmapHighlight(
+  parsed: Pick<ParsedMindmap, 'roots' | 'emphasis'>
+): MindmapHighlight {
+  const byName = new Map<string, MindmapNode>();
+  const names: string[] = [];
+  const edges: { from: string; to: string }[] = [];
+  const keys: string[] = [];
+  const add = (n: MindmapNode) => {
+    for (const nm of [n.label, n.id]) {
+      if (!byName.has(nm)) {
+        byName.set(nm, n);
+        names.push(nm);
+      }
+    }
+  };
+  const walk = (n: MindmapNode) => {
+    add(n);
+    for (const c of n.children) {
+      for (const f of [n.label, n.id])
+        for (const t of [c.label, c.id]) {
+          edges.push({ from: f, to: t });
+          keys.push(`${n.id}>${c.id}`);
+        }
+      walk(c);
+    }
+  };
+  parsed.roots.forEach(walk);
+  const expand = (hits: ReadonlySet<string>): string[] => {
+    const out: string[] = [];
+    const down = (n: MindmapNode) => {
+      out.push(n.label, n.id);
+      n.children.forEach(down);
+    };
+    for (const h of hits) {
+      const n = byName.get(h);
+      if (n) down(n);
+    }
+    return out;
+  };
+  const paths = resolveHighlightPaths(
+    parsed.emphasis,
+    names,
+    edges,
+    expand,
+    'both'
+  );
+  const litIds = new Set<string>();
+  const litEdges = new Set<string>();
+  if (paths.active) {
+    for (const nm of paths.litNodes) {
+      const n = byName.get(nm);
+      if (n) litIds.add(n.id);
+    }
+    for (const i of paths.litEdges) litEdges.add(keys[i]!);
+  }
+  return { paths, litIds, litEdges };
+}
 
 // ============================================================
 // Parser
@@ -118,6 +194,14 @@ export function parseMindmap(
     // a later `Family` or `Kanban` is a node or tag value, not a chart type.
     const isHeaderLine = !headerLineSeen;
     headerLineSeen = true;
+
+    // Story-view `highlight` line (#2041): reserved, never a node.
+    if (!isHeaderLine && /^highlight(\s|$)/.test(line)) {
+      const d = parseEmphasisDirective(line, lineNumber);
+      if (d?.kind === 'highlight') result.emphasis = d;
+      currentTagGroup = null;
+      continue;
+    }
 
     // --- Header phase ---
 
@@ -368,6 +452,13 @@ export function parseMindmap(
       activeTagWarning,
       'W_ACTIVE_TAG_NO_MATCH'
     );
+  }
+
+  if (result.emphasis) {
+    for (const msg of highlightPathWarnings(
+      resolveMindmapHighlight(result).paths
+    ))
+      pushWarning(result.emphasis.lineNumber, msg);
   }
 
   return result;

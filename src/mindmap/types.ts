@@ -1,6 +1,7 @@
 import type { DgmoError } from '../diagnostics.js';
 import type { TagGroup } from '../utils/tag-groups.js';
 import type { ChartFrame } from '../utils/chart-frame.js';
+import type { EmphasisDirective } from '../utils/emphasis.js';
 
 export interface MindmapNode {
   readonly id: string;
@@ -23,6 +24,8 @@ export interface ParsedMindmap {
   readonly diagnostics: readonly DgmoError[];
   /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
   readonly frame?: ChartFrame;
+  /** Story-view `highlight` line (#2041). */
+  readonly emphasis?: EmphasisDirective;
   readonly error: string | null;
 }
 

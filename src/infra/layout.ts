@@ -7,6 +7,7 @@
 
 import dagre from '@dagrejs/dagre';
 import type { Writable } from '../utils/brand';
+import type { EmphasisDirective } from '../utils/emphasis';
 import type { ChartFrame } from '../utils/chart-frame-parse';
 import type { ComputedInfraModel, ComputedInfraNode } from './types';
 import { COLLAPSE_BAR_HEIGHT } from '../utils/visual-conventions';
@@ -82,6 +83,8 @@ export interface InfraLayoutResult {
   readonly options: Readonly<Record<string, string>>;
   /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
   readonly frame?: ChartFrame;
+  /** `highlight …` story-view directive (#2041). */
+  readonly emphasis?: EmphasisDirective;
   readonly direction: 'LR' | 'TB';
   readonly width: number;
   readonly height: number;
@@ -630,6 +633,7 @@ export function layoutInfra(
       groups: [],
       options: {},
       ...(computed.frame && { frame: computed.frame }),
+      ...(computed.emphasis && { emphasis: computed.emphasis }),
       direction: computed.direction,
       width: 0,
       height: 0,
@@ -905,6 +909,7 @@ export function layoutInfra(
     groups: layoutGroups,
     options: computed.options,
     ...(computed.frame && { frame: computed.frame }),
+    ...(computed.emphasis && { emphasis: computed.emphasis }),
     direction: computed.direction,
     width: totalWidth,
     height: totalHeight,

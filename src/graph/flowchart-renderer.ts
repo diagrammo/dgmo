@@ -15,6 +15,8 @@ import {
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
 import { contrastText, shapeFill } from '../palettes/color-utils';
+import { storyGround } from '../utils/emphasis';
+import { resolveGraphHighlight } from './highlight';
 import type { ParsedGraph, GraphShape } from './types';
 import {
   diamondPoints,
@@ -563,6 +565,10 @@ export function renderFlowchart(
   const defs = svg.append('defs');
 
   const edgeColors = new Set<string>();
+  // `highlight` story view (#2041): what is not lit is painted the ground.
+  const story = resolveGraphHighlight(graph.emphasis, graph.nodes, graph.edges);
+  const ground = story.active ? storyGround(palette, isDark) : null;
+  if (ground) edgeColors.add(ground.groundStroke);
   appendArrowheadMarkers(defs, {
     idPrefix: 'fc',
     width: sArrowheadW,
@@ -668,8 +674,11 @@ export function renderFlowchart(
       .attr('data-source', edge.source)
       .attr('data-target', edge.target);
 
-    const edgeColor = palette.textMuted;
-    const markerId = 'fc-arrow';
+    const edgeReceded = !!ground && !story.litEdgeIdx.has(ei);
+    const edgeColor = edgeReceded ? ground.groundStroke : palette.textMuted;
+    const markerId = edgeReceded
+      ? `fc-arrow-${ground.groundStroke.replace('#', '')}`
+      : 'fc-arrow';
 
     // Re-project endpoints that touch a diamond so the arrow meets the
     // slanted face instead of the (inscribing) bounding box.
@@ -733,7 +742,7 @@ export function renderFlowchart(
         .attr('x', lp.x)
         .attr('y', lp.y + 4)
         .attr('text-anchor', 'middle')
-        .attr('fill', edgeColor)
+        .attr('fill', edgeReceded ? ground.groundText : edgeColor)
         .attr('font-size', sEdgeLabelFontSize)
         .attr('class', 'fc-edge-label')
         .text(edge.label);
@@ -784,6 +793,15 @@ export function renderFlowchart(
       sDocWaveHeight
     );
 
+    const nodeReceded = !!ground && !story.litNodeIds.has(node.id);
+    if (nodeReceded) {
+      nodeG
+        .selectAll('rect, polygon, path, ellipse, circle')
+        .attr('fill', ground.groundFill)
+        .attr('stroke', ground.groundStroke);
+      nodeG.selectAll('line').attr('stroke', ground.groundStroke);
+    }
+
     const isEnd = endTerminalIds.has(node.id);
     const resolvedFill = nodeFill(
       palette,
@@ -802,11 +820,13 @@ export function renderFlowchart(
       .attr('dominant-baseline', 'central')
       .attr(
         'fill',
-        contrastText(
-          resolvedFill,
-          palette.textOnFillLight,
-          palette.textOnFillDark
-        )
+        nodeReceded
+          ? ground.groundText
+          : contrastText(
+              resolvedFill,
+              palette.textOnFillLight,
+              palette.textOnFillDark
+            )
       )
       .attr('font-size', sNodeFontSize);
     // The same lines the layout sized the shape from, centred on it.

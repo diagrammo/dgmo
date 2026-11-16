@@ -22,7 +22,8 @@ import { resolveTagColor } from '../utils/tag-groups';
 import type { ParsedOrg } from './parser';
 import type { OrgLayoutResult } from './layout';
 import type { AncestorInfo } from './collapse';
-import { parseOrg } from './parser';
+import { parseOrg, resolveOrgHighlight } from './parser';
+import { storyGround } from '../utils/emphasis';
 import { layoutOrg, MARGIN as LAYOUT_MARGIN } from './layout';
 import {
   LEGEND_HEIGHT,
@@ -351,6 +352,10 @@ export function renderOrg(
     displayNames.set(tagAttrKey(group.name), group.name);
   }
 
+  // Story view (#2041): a `highlight` recedes everything not lit to the ground.
+  const story = resolveOrgHighlight(parsed);
+  const ground = story.paths.active ? storyGround(palette, isDark) : null;
+
   // Render container backgrounds (bottom layer)
   const colorOff = parsed.options?.['color'] === 'off';
   for (const c of layout.containers) {
@@ -385,8 +390,13 @@ export function renderOrg(
       });
     }
 
-    const fill = containerFill(palette, isDark, colorOff ? undefined : c.color);
-    const stroke = containerStroke(palette, colorOff ? undefined : c.color);
+    const cReceded = ground !== null && !story.litIds.has(c.nodeId);
+    const fill = cReceded
+      ? ground.groundFill
+      : containerFill(palette, isDark, colorOff ? undefined : c.color);
+    const stroke = cReceded
+      ? ground.groundStroke
+      : containerStroke(palette, colorOff ? undefined : c.color);
 
     renderContainerCard(cG, {
       width: c.width,
@@ -396,13 +406,18 @@ export function renderOrg(
       stroke,
       strokeWidth: sNodeStrokeWidth,
       label: c.label,
-      labelColor: palette.text,
+      labelColor: cReceded ? ground.groundText : palette.text,
       labelFontSize: sContainerLabelFontSize,
       headerHeight: sContainerHeaderHeight,
       rows: Object.entries(c.metadata).map(
-        ([k, value]) => [displayNames.get(k) ?? k, value, palette.text] as const
+        ([k, value]) =>
+          [
+            displayNames.get(k) ?? k,
+            value,
+            cReceded ? ground.groundText : palette.text,
+          ] as const
       ),
-      keyColor: palette.textMuted,
+      keyColor: cReceded ? ground.groundText : palette.textMuted,
       metaFontSize: sContainerMetaFontSize,
       metaLineHeight: sContainerMetaLineHeight,
     });
@@ -414,7 +429,7 @@ export function renderOrg(
         width: c.width,
         height: c.height,
         rx: sContainerRadius,
-        fill: containerStroke(palette, colorOff ? undefined : c.color),
+        fill: stroke,
         clipId: `clip-${c.nodeId}`,
         prefix: 'org',
         scale: ctx,
@@ -485,7 +500,13 @@ export function renderOrg(
       .append('path')
       .attr('d', pathParts.join(' '))
       .attr('fill', 'none')
-      .attr('stroke', palette.textMuted)
+      .attr(
+        'stroke',
+        ground !== null &&
+          !story.litEdges.has(`${edge.sourceId}>${edge.targetId}`)
+          ? ground.groundStroke
+          : palette.textMuted
+      )
       .attr('stroke-width', sEdgeStrokeWidth)
       .attr('class', 'org-edge')
       // Endpoint node ids for baked-CSS connection-highlight (hover-styles.ts).
@@ -535,19 +556,17 @@ export function renderOrg(
 
     // Card background
     const fillMode = fillModeFromOptions(parsed.options);
-    const fill = nodeFill(
-      palette,
-      isDark,
-      colorOff ? undefined : node.color,
-      fillMode
-    );
-    const stroke = nodeStroke(palette, colorOff ? undefined : node.color);
+    const receded = ground !== null && !story.litIds.has(node.id);
+    const fill = receded
+      ? ground.groundFill
+      : nodeFill(palette, isDark, colorOff ? undefined : node.color, fillMode);
+    const stroke = receded
+      ? ground.groundStroke
+      : nodeStroke(palette, colorOff ? undefined : node.color);
 
-    const labelColor = contrastText(
-      fill,
-      palette.textOnFillLight,
-      palette.textOnFillDark
-    );
+    const labelColor = receded
+      ? ground.groundText
+      : contrastText(fill, palette.textOnFillLight, palette.textOnFillDark);
 
     const metaEntries = Object.entries(node.metadata);
     renderNodeCard(nodeG, {
@@ -583,10 +602,7 @@ export function renderOrg(
         width: node.width,
         height: node.height,
         rx: sCardRadius,
-        fill:
-          fillMode === 'solid'
-            ? labelColor
-            : nodeStroke(palette, colorOff ? undefined : node.color),
+        fill: fillMode === 'solid' ? labelColor : stroke,
         clipId: `clip-${node.id}`,
         prefix: 'org',
         scale: ctx,

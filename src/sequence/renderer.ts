@@ -31,7 +31,13 @@ import type {
   SequenceSection,
   SequenceBlock,
 } from './parser';
-import { isSequenceBlock, isSequenceSection, isSequenceNote } from './parser';
+import {
+  isSequenceBlock,
+  isSequenceSection,
+  isSequenceNote,
+  resolveSequenceHighlight,
+} from './parser';
+import { storyGround } from '../utils/emphasis';
 import {
   PARTICIPANT_BOX_HEIGHT,
   participantShape,
@@ -3126,6 +3132,16 @@ export function renderSequenceDiagram(
     svg.attr('width', '100%');
   }
 
+  // `highlight` story view (#2041): what is not lit is painted with the grey
+  // ground. Absent or resolving to nothing, `ground` is null and nothing changes.
+  const highlight = resolveSequenceHighlight(parsed);
+  const ground = highlight.paths.active ? storyGround(palette, isDark) : null;
+  const litLines = highlight.litLines;
+  const isLitParticipant = (id: string, memberIds?: readonly string[]) =>
+    !ground ||
+    highlight.paths.litNodes.has(id) ||
+    (memberIds?.some((m) => highlight.paths.litNodes.has(m)) ?? false);
+
   // Define arrowhead markers
   const defs = svg.append('defs');
 
@@ -3175,6 +3191,35 @@ export function renderSequenceDiagram(
     .attr('stroke', palette.text)
     .attr('stroke-width', 1.2);
 
+  // Receded arrowheads wear the ground, like the arrows they end.
+  if (ground) {
+    defs
+      .append('marker')
+      .attr('id', 'seq-arrowhead-ground')
+      .attr('viewBox', `0 0 ${sArrowheadW} ${sArrowheadH}`)
+      .attr('refX', sArrowheadW)
+      .attr('refY', sArrowheadH / 2)
+      .attr('markerWidth', sArrowheadW)
+      .attr('markerHeight', sArrowheadH)
+      .attr('orient', 'auto')
+      .append('polygon')
+      .attr('points', `0,0 ${sArrowheadW},${sArrowheadH / 2} 0,${sArrowheadH}`)
+      .attr('fill', ground.groundStroke);
+    defs
+      .append('marker')
+      .attr('id', 'seq-arrowhead-open-ground')
+      .attr('viewBox', `0 0 ${sArrowheadW} ${sArrowheadH}`)
+      .attr('refX', sArrowheadW)
+      .attr('refY', sArrowheadH / 2)
+      .attr('markerWidth', sArrowheadW)
+      .attr('markerHeight', sArrowheadH)
+      .attr('orient', 'auto')
+      .append('polyline')
+      .attr('points', `0,0 ${sArrowheadW},${sArrowheadH / 2} 0,${sArrowheadH}`)
+      .attr('fill', 'none')
+      .attr('stroke', ground.groundStroke)
+      .attr('stroke-width', 1.2);
+  }
   // Per-color arrowhead markers for tag-driven coloring
   const arrowPoints = `0,0 ${sArrowheadW},${sArrowheadH / 2} 0,${sArrowheadH}`;
   for (const [, color] of tagValueToColor) {
@@ -3227,8 +3272,14 @@ export function renderSequenceDiagram(
   // Helper: resolve marker ref for tag-colored arrows
   const coloredMarker = (
     type: 'call' | 'async' | 'return',
-    tagColor?: string
+    tagColor?: string,
+    receded = false
   ): string => {
+    if (receded && ground) {
+      return type === 'call'
+        ? 'url(#seq-arrowhead-ground)'
+        : 'url(#seq-arrowhead-open-ground)';
+    }
     if (tagColor) {
       const hex = tagColor.replace('#', '');
       switch (type) {
@@ -3325,6 +3376,8 @@ export function renderSequenceDiagram(
         ? palette.surface
         : palette.bg;
     const strokeColor = groupTagColor ?? palette.textMuted;
+    const frameFill = ground ? ground.groundFill : fillColor;
+    const frameStroke = ground ? ground.groundStroke : strokeColor;
 
     // The source group, not this projected one: a collapsed inner group counts
     // as one member here but still holds several.
@@ -3358,8 +3411,8 @@ export function renderSequenceDiagram(
       .attr('width', frame.width)
       .attr('height', frame.height)
       .attr('rx', 6)
-      .attr('fill', fillColor)
-      .attr('stroke', strokeColor)
+      .attr('fill', frameFill)
+      .attr('stroke', frameStroke)
       .attr('stroke-width', 1)
       .attr('stroke-opacity', 0.5)
       .attr('class', 'group-box');
@@ -3383,7 +3436,7 @@ export function renderSequenceDiagram(
       .attr('x', frame.labelX)
       .attr('y', frame.labelY)
       .attr('text-anchor', 'middle')
-      .attr('fill', strokeColor)
+      .attr('fill', ground ? ground.groundText : strokeColor)
       .attr('font-size', sGroupLabelSize)
       .attr('font-weight', GROUP_LABEL_WEIGHT)
       .attr('opacity', 0.7)
@@ -3400,7 +3453,7 @@ export function renderSequenceDiagram(
         width: frame.width,
         height: frame.height,
         rx: 6,
-        fill: strokeColor,
+        fill: frameStroke,
         clipId: `clip-group-frame-${group.lineNumber}`,
         prefix: 'sequence',
         scale: ctx,
@@ -3436,12 +3489,17 @@ export function renderSequenceDiagram(
       sBoxH,
       sLabelTextWidth,
       sLabelFontSize,
-      isCollapsedGroup
+      isCollapsedGroup,
+      ground && !isLitParticipant(participant.id) ? ground : undefined
     );
 
     // Collapsed group: overlay a group-shaped box carrying the collapse bar.
     if (isCollapsedGroup) {
       const meta = collapsedGroupBoxes.get(participant.id)!;
+      const pGround =
+        ground && !isLitParticipant(participant.id, meta.participantIds)
+          ? ground
+          : undefined;
       // The collapse bar is a mark the whole system shares — COLLAPSE_BAR_HEIGHT
       // in utils/visual-conventions.ts, drawn by renderCollapseBar in
       // utils/card.ts for every chart type that folds. In every one the bar
@@ -3457,9 +3515,10 @@ export function renderSequenceDiagram(
       // canvas. It now meets in the middle: textMuted mixed into the theme's
       // own ground, which is a real colour in both themes rather than an
       // opacity that would let the lifeline show through (#447).
-      const drillColor =
-        effectiveTagColor ??
-        mix(palette.textMuted, themeBaseBg(palette, isDark), 55);
+      const drillColor = pGround
+        ? pGround.groundStroke
+        : (effectiveTagColor ??
+          mix(palette.textMuted, themeBaseBg(palette, isDark), 55));
       const boxW = sBoxW;
       // Sized against the rest of the row — see `collapsedGroupBoxes`.
       const { padTop, height: fullH, nameY } = meta;
@@ -3488,6 +3547,8 @@ export function renderSequenceDiagram(
           ? mix(palette.overlay, palette.surface, 50)
           : mix(palette.bg, palette.surface, 50);
       const pStroke = effectiveTagColor ?? palette.border;
+      const boxFill = pGround ? pGround.groundFill : pFill;
+      const boxStroke = pGround ? pGround.groundStroke : pStroke;
 
       // Local coords — y=0 is the participant's own box top.
       participantG
@@ -3497,8 +3558,8 @@ export function renderSequenceDiagram(
         .attr('width', boxW)
         .attr('height', fullH)
         .attr('rx', 6)
-        .attr('fill', pFill)
-        .attr('stroke', pStroke)
+        .attr('fill', boxFill)
+        .attr('stroke', boxStroke)
         .attr('stroke-width', 1.5);
 
       participantG
@@ -3513,7 +3574,7 @@ export function renderSequenceDiagram(
         // see the note on GROUP_LABEL_SIZE for why that was reversed. The
         // swallowed members are no longer drawn at all; the toggle's
         // accessible name is where they live.
-        .attr('fill', palette.text)
+        .attr('fill', pGround ? pGround.groundText : palette.text)
         .attr('font-size', sLabelFontSize)
         .attr('font-weight', 'normal')
         // NOT `.group-label` — the app's cursor highlight selects that class
@@ -3535,7 +3596,14 @@ export function renderSequenceDiagram(
       });
     }
 
-    const llColor = effectiveTagColor ?? palette.textMuted;
+    const llLit = isLitParticipant(
+      participant.id,
+      collapsedGroupBoxes.get(participant.id)?.participantIds
+    );
+    const llColor =
+      ground && !llLit
+        ? ground.groundStroke
+        : (effectiveTagColor ?? palette.textMuted);
     // One line per run of dashes: a lifeline crossing a section label is cut
     // around it, so the label reads. Every segment carries the same class and
     // attributes, so anything selecting `.lifeline` still finds this
@@ -3571,7 +3639,7 @@ export function renderSequenceDiagram(
       .attr('width', frame.width)
       .attr('height', frame.height)
       .attr('fill', 'none')
-      .attr('stroke', palette.textMuted)
+      .attr('stroke', ground ? ground.groundStroke : palette.textMuted)
       .attr('stroke-width', 1)
       .attr('stroke-dasharray', HAIRLINE_DASH)
       .attr('rx', 3)
@@ -3606,6 +3674,7 @@ export function renderSequenceDiagram(
       : undefined;
     const actTagColor = getTagColor(actTagValue);
     const actBaseColor = actTagColor ?? palette.primary;
+    const actReceded = ground && !isLitParticipant(act.participantId);
 
     // Opaque background to mask the lifeline
     svg
@@ -3626,8 +3695,8 @@ export function renderSequenceDiagram(
       .attr('y', y1)
       .attr('width', bar.width)
       .attr('height', height)
-      .attr('fill', actFill)
-      .attr('stroke', actBaseColor)
+      .attr('fill', actReceded ? ground.groundFill : actFill)
+      .attr('stroke', actReceded ? ground.groundStroke : actBaseColor)
       .attr('stroke-width', 1)
       .attr('stroke-opacity', 0.5)
       .attr('data-participant-id', act.participantId)
@@ -3647,7 +3716,7 @@ export function renderSequenceDiagram(
       .attr('y1', divider.y)
       .attr('x2', divider.x2)
       .attr('y2', divider.y)
-      .attr('stroke', palette.textMuted)
+      .attr('stroke', ground ? ground.groundStroke : palette.textMuted)
       .attr('stroke-width', 1)
       .attr('stroke-dasharray', HAIRLINE_DASH)
       .attr('class', 'block-divider');
@@ -3666,7 +3735,7 @@ export function renderSequenceDiagram(
       .append('text')
       .attr('x', lbl.x)
       .attr('y', lbl.y)
-      .attr('fill', palette.text)
+      .attr('fill', ground ? ground.groundText : palette.text)
       .attr('font-size', 11)
       .attr('class', 'block-label')
       .text(lbl.text);
@@ -3680,7 +3749,7 @@ export function renderSequenceDiagram(
     const sec = band.region.section;
     const secY = band.y;
     const isCollapsed = band.collapsed;
-    const lineColor = palette.textMuted;
+    const lineColor = ground ? ground.groundStroke : palette.textMuted;
 
     // Wrap section elements in a <g> for toggle.
     // IMPORTANT: only the <g> carries data-line-number / data-section —
@@ -3811,7 +3880,9 @@ export function renderSequenceDiagram(
         continue;
       }
 
-      const markColor = participantTagColor(participantId) ?? palette.text;
+      const markColor = ground
+        ? ground.groundStroke
+        : (participantTagColor(participantId) ?? palette.text);
 
       // A transparent disc over the mark, because the mark itself is 3.5–6px
       // across and nobody hits that. It carries the destination rather than
@@ -3878,8 +3949,14 @@ export function renderSequenceDiagram(
     const msgTagValue = msg ? tagMap?.messages.get(msg.lineNumber) : undefined;
     const msgTagColor = getTagColor(msgTagValue);
 
+    // Receded: a message not on the highlighted path is painted with the ground.
+    const receded = !!ground && !litLines.has(msg.lineNumber);
+
     if (step.type === 'call') {
-      const arrowColor = msgTagColor ?? palette.text;
+      const arrowColor = receded
+        ? ground.groundStroke
+        : (msgTagColor ?? palette.text);
+      const labelColor = receded ? ground.groundText : arrowColor;
 
       if (arrow.kind === 'self') {
         // Self-call: loopback arrow — always loops to the right.
@@ -3905,7 +3982,7 @@ export function renderSequenceDiagram(
           .attr('fill', 'none')
           .attr('stroke', arrowColor)
           .attr('stroke-width', 1.2)
-          .attr('marker-end', coloredMarker('call', msgTagColor))
+          .attr('marker-end', coloredMarker('call', msgTagColor, receded))
           .attr('class', 'message-arrow self-call')
           .attr('data-line-number', String(msg.lineNumber))
           .attr('data-msg-index', String(step.messageIndex))
@@ -3926,7 +4003,7 @@ export function renderSequenceDiagram(
             .attr('x', label.x)
             .attr('y', label.y)
             .attr('text-anchor', 'start')
-            .attr('fill', arrowColor)
+            .attr('fill', labelColor)
             .attr('paint-order', 'stroke fill')
             .attr('stroke', palette.bg)
             .attr('stroke-width', 4)
@@ -3964,8 +4041,8 @@ export function renderSequenceDiagram(
           .attr('data-step-index', String(i));
 
         const markerRef = step.async
-          ? coloredMarker('async', msgTagColor)
-          : coloredMarker('call', msgTagColor);
+          ? coloredMarker('async', msgTagColor, receded)
+          : coloredMarker('call', msgTagColor, receded);
         const arrowEl = svg
           .append('line')
           .attr('x1', x1)
@@ -3995,7 +4072,7 @@ export function renderSequenceDiagram(
             .attr('x', label.x)
             .attr('y', label.y)
             .attr('text-anchor', 'middle')
-            .attr('fill', arrowColor)
+            .attr('fill', labelColor)
             .attr('paint-order', 'stroke fill')
             .attr('stroke', palette.bg)
             .attr('stroke-width', 4)
@@ -4020,7 +4097,9 @@ export function renderSequenceDiagram(
       // Return arrow, its ends on the activation bars' edges. A self-call's
       // return has no arrow of its own — its call's loop draws it.
       const { x1, x2 } = arrow;
-      const returnColor = msgTagColor ?? palette.textMuted;
+      const returnColor = receded
+        ? ground.groundStroke
+        : (msgTagColor ?? palette.textMuted);
 
       // Hit area for return arrow
       svg
@@ -4044,7 +4123,7 @@ export function renderSequenceDiagram(
         .attr('stroke', returnColor)
         .attr('stroke-width', 1)
         .attr('stroke-dasharray', EDGE_DASH)
-        .attr('marker-end', coloredMarker('return', msgTagColor))
+        .attr('marker-end', coloredMarker('return', msgTagColor, receded))
         .attr('class', 'return-arrow')
         .attr('data-line-number', String(msg.lineNumber))
         .attr('data-msg-index', String(step.messageIndex))
@@ -4065,7 +4144,7 @@ export function renderSequenceDiagram(
           .attr('x', label.x)
           .attr('y', label.y)
           .attr('text-anchor', 'middle')
-          .attr('fill', returnColor)
+          .attr('fill', receded ? ground.groundText : returnColor)
           .attr('paint-order', 'stroke fill')
           .attr('stroke', palette.bg)
           .attr('stroke-width', 4)
@@ -4102,6 +4181,8 @@ export function renderSequenceDiagram(
         const box = noteBoxes.get(el);
         if (box === undefined) continue;
         const { x: noteX, y: noteTopY, width: noteW, height: noteH } = box;
+        const noteGround =
+          ground && !isLitParticipant(el.participantId) ? ground : undefined;
 
         const noteG = svg
           .append('g')
@@ -4134,8 +4215,11 @@ export function renderSequenceDiagram(
               'Z',
             ].join(' ')
           )
-          .attr('fill', noteFill)
-          .attr('stroke', palette.textMuted)
+          .attr('fill', noteGround ? noteGround.groundFill : noteFill)
+          .attr(
+            'stroke',
+            noteGround ? noteGround.groundStroke : palette.textMuted
+          )
           .attr('stroke-width', 0.75)
           .attr('class', 'note-box');
 
@@ -4151,7 +4235,10 @@ export function renderSequenceDiagram(
             ].join(' ')
           )
           .attr('fill', 'none')
-          .attr('stroke', palette.textMuted)
+          .attr(
+            'stroke',
+            noteGround ? noteGround.groundStroke : palette.textMuted
+          )
           .attr('stroke-width', 0.75)
           .attr('class', 'note-fold');
 
@@ -4164,7 +4251,7 @@ export function renderSequenceDiagram(
               .append('text')
               .attr('x', line.bulletX)
               .attr('y', line.y)
-              .attr('fill', palette.text)
+              .attr('fill', noteGround ? noteGround.groundText : palette.text)
               .attr('font-size', sNoteFontSize)
               .text('\u2022');
           }
@@ -4172,10 +4259,15 @@ export function renderSequenceDiagram(
             .append('text')
             .attr('x', line.x)
             .attr('y', line.y)
-            .attr('fill', palette.text)
+            .attr('fill', noteGround ? noteGround.groundText : palette.text)
             .attr('font-size', sNoteFontSize)
             .attr('class', 'note-text');
           renderInlineText(textEl, line.text, palette, sNoteFontSize);
+          // Inline markdown paints its own spans (bold, links, code); a
+          // receded note's text takes the ground throughout.
+          if (noteGround) {
+            textEl.selectAll('tspan').attr('fill', noteGround.groundText);
+          }
         }
 
         // Expanded: the bar's hover preview instead (#1741).
@@ -4187,7 +4279,7 @@ export function renderSequenceDiagram(
             width: noteW,
             height: noteH,
             rx: 0,
-            fill: palette.textMuted,
+            fill: noteGround ? noteGround.groundStroke : palette.textMuted,
             clipId: `clip-note-${String(el.lineNumber)}`,
             prefix: 'sequence-note',
             scale: ctx,
@@ -4296,7 +4388,8 @@ function renderParticipant(
   boxH: number = H,
   labelTextW: number = labelTextWidth(W),
   labelFontSize: number = LABEL_FONT_SIZE,
-  overlaid: boolean = false
+  overlaid: boolean = false,
+  ground?: { groundFill: string; groundStroke: string; groundText: string }
 ): void {
   const g = svg
     .append('g')
@@ -4323,8 +4416,8 @@ function renderParticipant(
   drawParticipantShape(
     g,
     participantShape(participant.type, boxW, boxH),
-    fill(palette, isDark, color, fillMode),
-    stroke(palette, color)
+    ground ? ground.groundFill : fill(palette, isDark, color, fillMode),
+    ground ? ground.groundStroke : stroke(palette, color)
   );
 
   // Render label — below the shape for actors, centered inside for others
@@ -4336,13 +4429,15 @@ function renderParticipant(
   );
   const fontSize = labelFontSize;
   const lineHeight = fontSize + 2;
-  const labelFill = isActor
-    ? palette.text
-    : contrastText(
-        fill(palette, isDark, color, fillMode),
-        palette.textOnFillLight,
-        palette.textOnFillDark
-      );
+  const labelFill = ground
+    ? ground.groundText
+    : isActor
+      ? palette.text
+      : contrastText(
+          fill(palette, isDark, color, fillMode),
+          palette.textOnFillLight,
+          palette.textOnFillDark
+        );
   const textEl = g
     .append('text')
     .attr('x', 0)

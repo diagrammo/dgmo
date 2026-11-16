@@ -18,7 +18,8 @@ import type { PaletteColors } from '../palettes';
 import { contrastText, shapeFill } from '../palettes/color-utils';
 import type { ParsedMindmap } from './types';
 import type { MindmapLayoutResult } from './types';
-import { parseMindmap } from './parser';
+import { parseMindmap, resolveMindmapHighlight } from './parser';
+import { storyGround } from '../utils/emphasis';
 import { layoutMindmap, MARGIN as LAYOUT_MARGIN } from './layout';
 import { computeNodeText } from './text-wrap';
 import { renderInlineText } from '../utils/inline-markdown';
@@ -421,14 +422,21 @@ export function renderMindmap(
     });
   }
 
+  // Story view (#2041): a `highlight` recedes everything not lit to the ground.
+  const story = resolveMindmapHighlight(parsed);
+  const ground = story.paths.active ? storyGround(palette, isDark) : null;
+
   // Render edges (background layer)
   for (const edge of renderLayout.edges) {
+    const edgeReceded =
+      ground !== null &&
+      !story.litEdges.has(`${edge.sourceId}>${edge.targetId}`);
     mainG
       .append('path')
       .attr('class', 'mindmap-edge')
       .attr('d', edge.path)
       .attr('fill', 'none')
-      .attr('stroke', palette.textMuted)
+      .attr('stroke', edgeReceded ? ground.groundStroke : palette.textMuted)
       .attr('stroke-width', EDGE_STROKE_WIDTH)
       .attr('stroke-opacity', 0.5);
   }
@@ -440,18 +448,21 @@ export function renderMindmap(
     const effectiveColor = options?.colorByDepth
       ? depthColor(node.depth, palette)
       : node.color;
-    const fill = nodeFill(
-      palette,
-      isDark,
-      effectiveColor,
-      fillModeFromOptions(parsed.options)
-    );
-    const stroke = nodeStroke(palette, effectiveColor);
-    const onFillText = contrastText(
-      fill,
-      palette.textOnFillLight,
-      palette.textOnFillDark
-    );
+    const receded = ground !== null && !story.litIds.has(node.id);
+    const fill = receded
+      ? ground.groundFill
+      : nodeFill(
+          palette,
+          isDark,
+          effectiveColor,
+          fillModeFromOptions(parsed.options)
+        );
+    const stroke = receded
+      ? ground.groundStroke
+      : nodeStroke(palette, effectiveColor);
+    const onFillText = receded
+      ? ground.groundText
+      : contrastText(fill, palette.textOnFillLight, palette.textOnFillDark);
 
     const nodeG = mainG
       .append('g')

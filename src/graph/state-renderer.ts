@@ -36,6 +36,8 @@ import type { ParsedGraph } from './types';
 import type { LayoutResult, LayoutNode } from './layout';
 import { parseState } from './state-parser';
 import { layoutGraph } from './layout';
+import { storyGround } from '../utils/emphasis';
+import { resolveGraphHighlight } from './highlight';
 import { renderGraphTitle } from './title';
 import { growChartFrame } from '../utils/chart-frame';
 import { edgeSplinePath, selfLoopArcPath } from './edge-spline';
@@ -325,6 +327,10 @@ export function renderState(
   const defs = svg.append('defs');
 
   const edgeColors = new Set<string>();
+  // `highlight` story view (#2041): what is not lit is painted the ground.
+  const story = resolveGraphHighlight(graph.emphasis, graph.nodes, graph.edges);
+  const ground = story.active ? storyGround(palette, isDark) : null;
+  if (ground) edgeColors.add(ground.groundStroke);
   appendArrowheadMarkers(defs, {
     idPrefix: 'st',
     width: sArrowheadW,
@@ -408,7 +414,14 @@ export function renderState(
         : isDark
           ? palette.surface
           : mix(palette.border, palette.bg, 30);
-    const strokeColor = groupColor ?? palette.textMuted;
+    const frameReceded =
+      !!ground &&
+      !(graph.groups ?? [])
+        .find((g) => g.id === group.id)
+        ?.nodeIds.some((id) => story.litNodeIds.has(id));
+    const strokeColor = frameReceded
+      ? ground.groundStroke
+      : (groupColor ?? palette.textMuted);
 
     const groupWrapper = contentG
       .append('g')
@@ -428,7 +441,7 @@ export function renderState(
       .attr('width', gw)
       .attr('height', gh)
       .attr('rx', 6)
-      .attr('fill', fillColor)
+      .attr('fill', frameReceded ? ground.groundFill : fillColor)
       .attr('stroke', strokeColor)
       .attr('stroke-width', 1)
       .attr('stroke-opacity', 0.5)
@@ -470,8 +483,11 @@ export function renderState(
       .attr('data-source', edge.source)
       .attr('data-target', edge.target);
 
-    const edgeColor = palette.textMuted;
-    const markerId = 'st-arrow';
+    const edgeReceded = !!ground && !story.litEdgeIdx.has(ei);
+    const edgeColor = edgeReceded ? ground.groundStroke : palette.textMuted;
+    const markerId = edgeReceded
+      ? `st-arrow-${ground.groundStroke.replace('#', '')}`
+      : 'st-arrow';
 
     if (edge.points.length >= 2) {
       // A self-loop keeps dagre's placement but not its waypoints — see
@@ -508,7 +524,7 @@ export function renderState(
           .attr('x', lp.x)
           .attr('y', lp.y + 4)
           .attr('text-anchor', 'middle')
-          .attr('fill', edgeColor)
+          .attr('fill', edgeReceded ? ground.groundText : edgeColor)
           .attr('font-size', sEdgeLabelFontSize)
           .attr('class', 'st-edge-label')
           .text(edge.label);
@@ -540,6 +556,7 @@ export function renderState(
 
   for (const node of layout.nodes) {
     const isCollapsedGroup = collapsedGroupIds.has(node.id);
+    const nodeReceded = !!ground && !story.litNodeIds.has(node.id);
 
     const nodeG = contentG
       .append('g')
@@ -583,7 +600,7 @@ export function renderState(
         .attr('cx', 0)
         .attr('cy', 0)
         .attr('r', sPseudostateRadius)
-        .attr('fill', palette.text)
+        .attr('fill', nodeReceded ? ground.groundStroke : palette.text)
         .attr('stroke', 'none');
     } else if (isCollapsedGroup) {
       const w = node.width;
@@ -593,7 +610,7 @@ export function renderState(
       const fillColor = shapeFill(palette, groupColor, isDark, {
         mode: fillMode,
       });
-      const strokeColor = groupColor;
+      const strokeColor = nodeReceded ? ground.groundStroke : groupColor;
 
       nodeG
         .append('rect')
@@ -603,7 +620,7 @@ export function renderState(
         .attr('height', h)
         .attr('rx', sStateCornerRadius)
         .attr('ry', sStateCornerRadius)
-        .attr('fill', fillColor)
+        .attr('fill', nodeReceded ? ground.groundFill : fillColor)
         .attr('stroke', strokeColor)
         .attr('stroke-width', sNodeStrokeWidth);
 
@@ -627,11 +644,13 @@ export function renderState(
         .attr('dominant-baseline', 'central')
         .attr(
           'fill',
-          contrastText(
-            fillColor,
-            palette.textOnFillLight,
-            palette.textOnFillDark
-          )
+          nodeReceded
+            ? ground.groundText
+            : contrastText(
+                fillColor,
+                palette.textOnFillLight,
+                palette.textOnFillDark
+              )
         )
         .attr('font-size', sNodeFontSize)
         .text(node.label);
@@ -654,8 +673,13 @@ export function renderState(
         .attr('height', h)
         .attr('rx', sStateCornerRadius)
         .attr('ry', sStateCornerRadius)
-        .attr('fill', resolvedFill)
-        .attr('stroke', stateStroke(palette, intentColor, colorOff))
+        .attr('fill', nodeReceded ? ground.groundFill : resolvedFill)
+        .attr(
+          'stroke',
+          nodeReceded
+            ? ground.groundStroke
+            : stateStroke(palette, intentColor, colorOff)
+        )
         .attr('stroke-width', sNodeStrokeWidth);
 
       nodeG
@@ -666,11 +690,13 @@ export function renderState(
         .attr('dominant-baseline', 'central')
         .attr(
           'fill',
-          contrastText(
-            resolvedFill,
-            palette.textOnFillLight,
-            palette.textOnFillDark
-          )
+          nodeReceded
+            ? ground.groundText
+            : contrastText(
+                resolvedFill,
+                palette.textOnFillLight,
+                palette.textOnFillDark
+              )
         )
         .attr('font-size', sNodeFontSize)
         .text(node.label);

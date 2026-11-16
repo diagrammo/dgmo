@@ -292,6 +292,14 @@ export const HIGHLIGHT_CHART_TYPES: ReadonlySet<string> = new Set([
   'scatter',
   'slope',
   'treemap',
+  // Diagrams (#2041): a node, a link, an arrow chain, a participant, a branch.
+  'boxes-and-lines',
+  'infra',
+  'flowchart',
+  'state',
+  'sequence',
+  'org',
+  'mindmap',
 ]);
 
 const HIGHLIGHT_LINE_RE = /^highlight(?:\s|$)/;
@@ -466,7 +474,13 @@ export function resolveHighlightPaths(
   directive: EmphasisDirective | undefined,
   nodeNames: Iterable<string>,
   edges: ReadonlyArray<{ from: string; to: string; label?: string }>,
-  expandName?: (hits: ReadonlySet<string>) => Iterable<string>
+  expandName?: (hits: ReadonlySet<string>) => Iterable<string>,
+  /**
+   * `either`: a plain name also lights every link touching it, not only links
+   * whose both ends are lit. Sequence uses it, so naming a participant lights
+   * every message to or from it.
+   */
+  linkRule: 'both' | 'either' = 'both'
 ): ResolvedPaths {
   const none: ResolvedPaths = {
     active: false,
@@ -545,7 +559,11 @@ export function resolveHighlightPaths(
     const widened = expandName ? new Set(expandName(plainHits)) : plainHits;
     widened.forEach((n) => litNodes.add(n));
     edges.forEach((e, i) => {
-      if (widened.has(e.from) && widened.has(e.to)) litEdges.add(i);
+      const lit =
+        linkRule === 'either'
+          ? widened.has(e.from) || widened.has(e.to)
+          : widened.has(e.from) && widened.has(e.to);
+      if (lit) litEdges.add(i);
     });
   }
 
@@ -553,4 +571,17 @@ export function resolveHighlightPaths(
   return color
     ? { active, litNodes, litEdges, unknown, color }
     : { active, litNodes, litEdges, unknown };
+}
+
+/**
+ * The warnings a diagram's `highlight` owes (#2041): one per item that
+ * matched nothing, naming it. A link written `A -> B` that the diagram lacks
+ * is named as a link, so a typo in a chain is never a silent no-op.
+ */
+export function highlightPathWarnings(paths: ResolvedPaths): string[] {
+  return paths.unknown.map((u) =>
+    u.includes('->')
+      ? `highlight names a link this diagram does not have: ${u}`
+      : `highlight names nothing in this diagram: ${u}`
+  );
 }

@@ -1421,6 +1421,7 @@ export function computeInfra(
     tagGroups: [...effectiveParsed.tagGroups],
     title: effectiveParsed.title,
     ...(parsed.frame && { frame: parsed.frame }),
+    ...(parsed.emphasis && { emphasis: parsed.emphasis }),
     direction: effectiveParsed.direction,
     edgeLatency,
     systemUptime,

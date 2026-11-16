@@ -68,9 +68,9 @@ describe('highlight on a chart type that cannot read it (#2040)', () => {
 
   it('keeps line numbers: the lifted line becomes a comment', () => {
     const lifted = liftUnsupportedHighlight(
-      'flowchart\nhighlight A\n(Start) -> [A]',
-      'flowchart'
+      'timeline\nhighlight A\n2024-01-01 A',
+      'timeline'
     );
-    expect(lifted.content).toBe('flowchart\n//\n(Start) -> [A]');
+    expect(lifted.content).toBe('timeline\n//\n2024-01-01 A');
   });
 });

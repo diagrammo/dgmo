@@ -38,6 +38,11 @@ import {
   isReservedKey,
   withTagAliases,
 } from '../utils/reserved-key-registry';
+import {
+  parseEmphasisDirective,
+  resolveHighlightPaths,
+  highlightPathWarnings,
+} from '../utils/emphasis';
 import { tryCollectNote, resolveNotes, type DiagramNote } from '../utils/notes';
 import type { PaletteColors } from '../palettes';
 import { parseChartFrameLine } from '../utils/chart-frame-parse';
@@ -310,6 +315,13 @@ export function parseBoxesAndLines(
 
     // Directives (non-indented, before or during content)
     if (indent === 0) {
+      // Story view (#2041): `highlight <Box>` / `highlight A -> B`.
+      if (/^highlight(\s|$)/.test(trimmed)) {
+        const emphasis = parseEmphasisDirective(trimmed, lineNum);
+        if (emphasis?.kind === 'highlight') result.emphasis = emphasis;
+        continue;
+      }
+
       // Layout direction — canonical booleans `direction-lr` / `direction-tb`
       // (§1.9, last one wins); key+value `direction LR|TB` accepted legacy.
       const dirMatch = trimmed.match(/^direction[-\s]+(TB|LR)$/i);
@@ -914,6 +926,20 @@ export function parseBoxesAndLines(
       activeTagWarning,
       'W_ACTIVE_TAG_NO_MATCH'
     );
+  }
+
+  if (result.emphasis) {
+    const paths = resolveHighlightPaths(
+      result.emphasis,
+      result.nodes.map((n) => n.label),
+      result.edges.map((e) => ({
+        from: e.source,
+        to: e.target,
+        ...(e.label !== undefined && { label: e.label }),
+      }))
+    );
+    for (const msg of highlightPathWarnings(paths))
+      pushWarning(result.emphasis.lineNumber, msg);
   }
 
   // The alias namespace rules are decided over the whole source, so they can

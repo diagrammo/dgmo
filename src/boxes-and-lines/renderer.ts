@@ -44,6 +44,7 @@ import {
   groupStroke,
 } from '../palettes/color-utils';
 import { resolveColor } from '../colors';
+import { resolveHighlightPaths, storyGround } from '../utils/emphasis';
 import {
   resolveTagColor,
   resolveGroupTagColor,
@@ -740,17 +741,47 @@ export function renderBoxesAndLines(
     .append('g')
     .attr('transform', `translate(${offsetX},${offsetY}) scale(${scale})`);
 
+  // Story view (#2041): `highlight` lights a node, edge or chain; the rest
+  // takes the ground. A group recedes only when no member is lit.
+  const storyPaths = resolveHighlightPaths(
+    parsed.emphasis,
+    parsed.nodes.map((n) => n.label),
+    layout.edges.map((e) => ({
+      from: e.source,
+      to: e.target,
+      ...(e.label !== undefined && { label: e.label }),
+    }))
+  );
+  const story = storyPaths.active ? storyGround(palette, isDark) : null;
+  const nodeReceded = (label: string): boolean =>
+    story !== null && !storyPaths.litNodes.has(label);
+  const groupChildren = new Map<string, readonly string[]>(
+    parsed.groups.map((g) => [g.label, g.children])
+  );
+  const groupLit = (label: string, seen = new Set<string>()): boolean => {
+    if (seen.has(label)) return false;
+    seen.add(label);
+    return (groupChildren.get(label) ?? []).some((c) =>
+      groupChildren.has(c) ? groupLit(c, seen) : storyPaths.litNodes.has(c)
+    );
+  };
+  const groupReceded = (label: string): boolean =>
+    story !== null && !groupLit(label);
+
   // Collect all edge colors for arrowhead markers
   const arrowColors = new Set<string>();
   const edgeColorMap = new Map<number, string>();
   for (let i = 0; i < layout.edges.length; i++) {
-    const c = edgeColor(
-      // In-bounds by loop guard.
-      layout.edges[i]!,
-      parsed.tagGroups,
-      activeGroup,
-      palette
-    );
+    const c =
+      story && !storyPaths.litEdges.has(i)
+        ? story.groundStroke
+        : edgeColor(
+            // In-bounds by loop guard.
+            layout.edges[i]!,
+            parsed.tagGroups,
+            activeGroup,
+            palette
+          );
     arrowColors.add(c);
     edgeColorMap.set(i, c);
   }
@@ -782,6 +813,7 @@ export function renderBoxesAndLines(
       parsed.tagGroups,
       activeGroup
     );
+    const gGround = groupReceded(group.label) ? story : null;
     const gx = group.x - group.width / 2;
     // Only extend top for groups that contain sub-groups (dagre under-pads these)
     const needsExtra = !group.collapsed && hasSubGroups.has(group.label);
@@ -811,10 +843,14 @@ export function renderBoxesAndLines(
       // A tinted group keeps its color when folded, so collapsing does not
       // silently drop the one thing the author set (#585) — the same rule
       // pert's collapsed card already follows for the critical-path band.
-      const fillColor = groupTagColor
-        ? groupFill(palette, isDark, groupTagColor)
-        : themeBaseBg(palette, isDark);
-      const strokeColor = groupTagColor ?? palette.border;
+      const fillColor = gGround
+        ? gGround.groundFill
+        : groupTagColor
+          ? groupFill(palette, isDark, groupTagColor)
+          : themeBaseBg(palette, isDark);
+      const strokeColor = gGround
+        ? gGround.groundStroke
+        : (groupTagColor ?? palette.border);
 
       groupG
         .append('rect')
@@ -858,7 +894,7 @@ export function renderBoxesAndLines(
           .attr('font-family', FONT_FAMILY)
           .attr('font-size', fitted.fontSize)
           .attr('font-weight', 'bold')
-          .attr('fill', palette.text)
+          .attr('fill', gGround ? gGround.groundText : palette.text)
           // In-bounds by loop guard.
           .text(fitted.lines[li]!);
       }
@@ -908,13 +944,21 @@ export function renderBoxesAndLines(
         .attr('height', groupHeight)
         .attr('rx', GROUP_RX)
         .attr('ry', GROUP_RX)
-        .attr('fill', groupFill(palette, isDark, groupTagColor))
-        .attr('stroke', groupStroke(palette, groupTagColor))
+        .attr(
+          'fill',
+          gGround
+            ? themeBaseBg(palette, isDark)
+            : groupFill(palette, isDark, groupTagColor)
+        )
+        .attr(
+          'stroke',
+          gGround ? gGround.groundStroke : groupStroke(palette, groupTagColor)
+        )
         .attr('stroke-width', 1)
         // A colored frame draws its stroke at full strength; the 0.35 that
         // keeps an untagged frame recessive would wash the tag color out to
         // the point where the group reads as uncolored again.
-        .attr('stroke-opacity', groupTagColor ? 1 : 0.35);
+        .attr('stroke-opacity', groupTagColor && !gGround ? 1 : 0.35);
 
       groupG
         .append('text')
@@ -925,7 +969,7 @@ export function renderBoxesAndLines(
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', sGroupLabelFontSize)
         .attr('font-weight', 'bold')
-        .attr('fill', palette.text)
+        .attr('fill', gGround ? gGround.groundText : palette.text)
         .text(group.label);
 
       // An expanded group folds: its hover preview of the bar (#1741).
@@ -936,7 +980,9 @@ export function renderBoxesAndLines(
         width: group.width,
         height: groupHeight,
         rx: GROUP_RX,
-        fill: groupStroke(palette, groupTagColor),
+        fill: gGround
+          ? gGround.groundStroke
+          : groupStroke(palette, groupTagColor),
         clipId: `bl-clip-${group.label.replace(/[[\]\s]/g, '')}`,
         prefix: 'bl',
         scale: sctx,
@@ -1063,7 +1109,7 @@ export function renderBoxesAndLines(
     }
 
     const fillMode = fillModeFromOptions(parsed.options);
-    const colors = nodeColors(
+    const litColors = nodeColors(
       node,
       parsed.tagGroups,
       activeGroup,
@@ -1077,6 +1123,14 @@ export function renderBoxesAndLines(
       },
       fillMode
     );
+    const nGround = nodeReceded(node.label) ? story : null;
+    const colors = nGround
+      ? {
+          fill: nGround.groundFill,
+          stroke: nGround.groundStroke,
+          text: nGround.groundText,
+        }
+      : litColors;
     // Divider matches the org-card convention: the box stroke normally, but the
     // contrast text colour in solid mode (where stroke == fill and would vanish).
     const dividerStroke = fillMode === 'solid' ? colors.text : colors.stroke;
@@ -1224,8 +1278,9 @@ export function renderBoxesAndLines(
       // solid-fill) the fixed grey sinks in — switch to a muted tint of the
       // box's contrast-correct text colour so it reads while staying
       // subordinate to the title.
-      const descColor =
-        relativeLuminance(colors.fill) > 0.5
+      const descColor = nGround
+        ? nGround.groundText
+        : relativeLuminance(colors.fill) > 0.5
           ? palette.textMuted
           : mix(colors.text, colors.fill, 75);
 
@@ -1397,7 +1452,7 @@ export function renderBoxesAndLines(
   // still highlights the matching label.
   const labelLayer = diagramG.append('g').attr('class', 'bl-edge-labels');
   const labelLineHeight = sEdgeLabelFontSize * 1.3;
-  for (const le of layout.edges) {
+  for (const [edgeIdx, le] of layout.edges.entries()) {
     if (!le.labelLines || le.labelLines.length === 0) continue;
     if (le.labelX === undefined || le.labelY === undefined) continue;
     const lx = le.labelX;
@@ -1448,7 +1503,12 @@ export function renderBoxesAndLines(
       .attr('text-anchor', 'middle')
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', sEdgeLabelFontSize)
-      .attr('fill', palette.textMuted);
+      .attr(
+        'fill',
+        story && !storyPaths.litEdges.has(edgeIdx)
+          ? story.groundText
+          : palette.textMuted
+      );
     const firstY =
       ly - ((lines.length - 1) / 2) * labelLineHeight + sEdgeLabelFontSize / 3;
     lines.forEach((line, k) => {

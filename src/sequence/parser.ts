@@ -36,6 +36,13 @@ import {
   withTagAliases,
 } from '../utils/reserved-key-registry';
 import { SEQUENCE_DIAGNOSTIC_CODES } from './diagnostics';
+import {
+  parseEmphasisDirective,
+  parseHighlightChain,
+  resolveHighlightPaths,
+  highlightPathWarnings,
+} from '../utils/emphasis';
+import type { EmphasisDirective, ResolvedPaths } from '../utils/emphasis';
 import type { TagGroup } from '../utils/tag-groups';
 import {
   matchTagBlockHeading,
@@ -241,7 +248,52 @@ export interface ParsedSequenceDgmo {
   readonly diagnostics: readonly DgmoError[];
   /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
   readonly frame?: ChartFrame;
+  /** `highlight …` story-view directive (#2041); resolved by the renderer. */
+  readonly emphasis?: EmphasisDirective;
   readonly error: string | null;
+}
+
+/**
+ * What a `highlight` lights in a sequence diagram (#2041). A participant is
+ * named by its id or its label; a chain `A -> B` lights every message from A
+ * to B. `litLines` holds the source line of each lit message, which is stable
+ * across the collapsed views the renderer projects.
+ */
+export function resolveSequenceHighlight(parsed: ParsedSequenceDgmo): {
+  paths: ResolvedPaths;
+  litLines: ReadonlySet<number>;
+} {
+  const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
+  const idByName = new Map<string, string>();
+  for (const p of parsed.participants) {
+    idByName.set(norm(p.label), p.id);
+    idByName.set(norm(p.id), p.id);
+  }
+  const toId = (n: string) => idByName.get(norm(n)) ?? n;
+  const directive = parsed.emphasis;
+  const mapped: EmphasisDirective | undefined = directive && {
+    ...directive,
+    names: directive.names.map((item) => {
+      const chain = parseHighlightChain(item);
+      if (!chain) return toId(item);
+      return chain.nodes
+        .map((n, i) => {
+          const label = i > 0 ? chain.links[i - 1]!.label : undefined;
+          return (i > 0 ? (label ? ` -${label}-> ` : ' -> ') : '') + toId(n);
+        })
+        .join('');
+    }),
+  };
+  const paths = resolveHighlightPaths(
+    mapped,
+    parsed.participants.map((p) => p.id),
+    parsed.messages.map((m) => ({ from: m.from, to: m.to, label: m.label })),
+    undefined,
+    'either'
+  );
+  const litLines = new Set<number>();
+  paths.litEdges.forEach((i) => litLines.add(parsed.messages[i]!.lineNumber));
+  return { paths, litLines };
 }
 
 // "Name is a type" pattern — e.g. "Auth Server is a database"
@@ -890,6 +942,16 @@ export function parseSequenceDgmo(
 
     // Skip first line already handled as `sequence [Title]`
     if (i === firstLineIndex) continue;
+
+    // `highlight …` story view (#2041): consumed before any block or section
+    // matching, and it neither opens nor closes a block.
+    if (/^highlight(\s|$)/.test(raw)) {
+      const emphasis = parseEmphasisDirective(trimmed, lineNumber);
+      if (emphasis?.kind === 'highlight') {
+        result.emphasis = emphasis;
+        continue;
+      }
+    }
 
     // Parse group heading — [Group Name] or [Group Name] | k: v
     const groupMatch = trimmed.match(GROUP_HEADING_PATTERN);
@@ -1839,6 +1901,14 @@ export function parseSequenceDgmo(
   // Alias namespace rules (§2A.2) — decidable only once the whole
   // source has been read.
   result.diagnostics.push(...nameAliasMap.finish());
+
+  if (result.emphasis) {
+    for (const msg of highlightPathWarnings(
+      resolveSequenceHighlight(result).paths
+    )) {
+      pushWarning(result.emphasis.lineNumber, msg);
+    }
+  }
 
   return result;
 }

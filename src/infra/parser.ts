@@ -47,6 +47,11 @@ import type {
 import { INFRA_BEHAVIOR_KEYS, EDGE_ONLY_KEYS } from './types';
 import { INFRA_TOP_LEVEL_OPTION_SET } from '../directives-registry';
 import type { Writable } from '../utils/brand';
+import {
+  parseEmphasisDirective,
+  highlightPathWarnings,
+} from '../utils/emphasis';
+import { resolveInfraHighlight } from './highlight';
 import { parseChartFrameLine } from '../utils/chart-frame-parse';
 
 // ============================================================
@@ -492,6 +497,15 @@ export function parseInfra(content: string): ParsedInfra {
             result.title = firstLineResult.title;
             result.titleLineNumber = lineNumber;
           }
+          continue;
+        }
+      }
+
+      // `highlight A -> B` story view (#2041), lowercase at column 0.
+      if (/^highlight(\s|$)/.test(trimmed)) {
+        const hl = parseEmphasisDirective(trimmed, lineNumber);
+        if (hl?.kind === 'highlight') {
+          result.emphasis = hl;
           continue;
         }
       }
@@ -1258,6 +1272,22 @@ export function parseInfra(content: string): ParsedInfra {
 
   checkReachability(result);
   checkSplitSums(result);
+
+  if (result.emphasis) {
+    const hl = resolveInfraHighlight(result.emphasis, {
+      nodes: result.nodes,
+      groups: result.groups,
+      edges: result.edges,
+    });
+    for (const msg of highlightPathWarnings({
+      active: hl.active,
+      litNodes: new Set(),
+      litEdges: new Set(),
+      unknown: hl.unknown,
+    })) {
+      warn(result.emphasis.lineNumber, msg);
+    }
+  }
 
   // Alias namespace rules (§2A.2) — decidable only once the whole
   // source has been read.

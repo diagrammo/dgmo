@@ -3,6 +3,7 @@
 // ============================================================
 
 import type { ChartFrame } from '../utils/chart-frame-parse';
+import type { EmphasisDirective } from '../utils/emphasis';
 import type { DgmoError } from '../diagnostics';
 import {
   INFRA_BEHAVIOR_KEY_SET,
@@ -103,6 +104,8 @@ export interface ParsedInfra {
   readonly diagnostics: readonly DgmoError[];
   /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
   readonly frame?: ChartFrame;
+  /** `highlight …` story-view directive (#2041). */
+  readonly emphasis?: EmphasisDirective;
   readonly error: string | null;
 }
 
@@ -208,6 +211,8 @@ export interface ComputedInfraModel {
   title: string | null;
   /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
   frame?: ChartFrame;
+  /** `highlight …` story-view directive (#2041). */
+  emphasis?: EmphasisDirective;
   direction: 'LR' | 'TB';
   /** Diagram-level options (e.g., default-latency-ms, default-uptime). */
   options: Record<string, string>;

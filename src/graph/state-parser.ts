@@ -40,6 +40,8 @@ import type { Writable } from '../utils/brand';
 import type { ParsedGraph, GraphNode, GraphGroup, GraphNote } from './types';
 import { tryCollectNote, resolveNotes } from './notes';
 import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import { parseEmphasisDirective } from '../utils/emphasis';
+import { resolveGraphHighlight, graphHighlightWarnings } from './highlight';
 
 // ============================================================
 // Constants
@@ -387,6 +389,21 @@ export function parseState(
     if (parseChartFrameLine(result, raw, lineNumber, result.diagnostics)) {
       currentTagGroup = null;
       continue;
+    }
+
+    // `highlight A -> B` story view (#2041), lowercase at column 0. A state
+    // literally named "highlight" with a transition (`highlight -go-> X`)
+    // stays a state: the rest of the line then starts with `-`.
+    if (
+      indent === 0 &&
+      /^highlight(\s|$)/.test(trimmed) &&
+      !/^highlight\s+-/.test(trimmed)
+    ) {
+      const emphasis = parseEmphasisDirective(trimmed, lineNumber);
+      if (emphasis?.kind === 'highlight') {
+        result.emphasis = emphasis;
+        continue;
+      }
     }
 
     // Tag group heading — `tag <Group> as <alias>` (decision #48). Checked
@@ -772,6 +789,20 @@ export function parseState(
           )
         );
       }
+    }
+  }
+
+  // `highlight` story view (#2041): warn on names that match nothing.
+  if (result.emphasis) {
+    const h = resolveGraphHighlight(
+      result.emphasis,
+      result.nodes,
+      result.edges
+    );
+    for (const msg of graphHighlightWarnings(h)) {
+      result.diagnostics.push(
+        makeDgmoError(result.emphasis.lineNumber, msg, 'warning')
+      );
     }
   }
 

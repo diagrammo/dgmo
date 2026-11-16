@@ -66,6 +66,7 @@ export type GraphNote = DiagramNote;
 import type { DgmoError } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
 import type { ChartFrame } from '../utils/chart-frame-parse';
+import type { EmphasisDirective } from '../utils/emphasis';
 
 export interface ParsedGraph {
   readonly type: 'flowchart' | 'state';
@@ -85,5 +86,7 @@ export interface ParsedGraph {
   readonly diagnostics: readonly DgmoError[];
   /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
   readonly frame?: ChartFrame;
+  /** The `highlight` story-view directive (#2041), if authored. */
+  readonly emphasis?: EmphasisDirective;
   readonly error: string | null;
 }

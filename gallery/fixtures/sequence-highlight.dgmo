@@ -1,0 +1,37 @@
+sequence E-Commerce Checkout
+
+User is an actor
+App
+API
+Orders
+Payments
+DB is a database
+
+highlight Payments
+
+== Place Order ==
+User -click checkout-> App
+App -POST /orders-> API
+API -createOrder(items)-> Orders
+
+if items in stock
+  Orders -reserveStock(skus)-> DB
+  DB -ok-> Orders
+  Orders -POST /charges-> Payments
+  Payments -charge_id-> Orders
+
+  parallel Notify
+    Orders ~UPDATE analytics~> DB
+    Orders ~emit OrderPlaced~> API
+
+  API -order confirmation-> App
+  App -receipt page-> User
+else
+  Orders -409 Out of Stock-> API
+  API -error-> App
+  App -items unavailable-> User
+
+== Fulfillment ==
+loop Retry up to 3 times
+  API -reconcileCharge(id)-> Payments
+  Payments -status-> API

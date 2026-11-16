@@ -2,6 +2,7 @@ import type { TagGroup } from '../utils/tag-groups';
 import type { DgmoError } from '../diagnostics';
 import type { DiagramNote } from '../utils/notes';
 import type { ChartFrame } from '../utils/chart-frame-parse';
+import type { EmphasisDirective } from '../utils/emphasis';
 
 export interface BLNode {
   readonly label: string;
@@ -71,6 +72,9 @@ export interface ParsedBoxesAndLines {
    * `false`; legacy `show-values` sets `true` (a no-op). `undefined` = on.
    */
   readonly showValues?: boolean;
+  /** `highlight <Box>` / `highlight A -> B` line (#2041); resolved in the
+   *  renderer. Absent when the source has none. */
+  readonly emphasis?: EmphasisDirective;
   readonly diagnostics: readonly DgmoError[];
   /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
   readonly frame?: ChartFrame;

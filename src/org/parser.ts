@@ -33,6 +33,12 @@ import {
   warnUnknownMetaKeys,
 } from '../utils/parsing';
 import { normalizeName } from '../utils/name-normalize';
+import {
+  parseEmphasisDirective,
+  resolveHighlightPaths,
+  highlightPathWarnings,
+} from '../utils/emphasis';
+import type { EmphasisDirective, ResolvedPaths } from '../utils/emphasis';
 
 // ============================================================
 // Types
@@ -71,7 +77,81 @@ export interface ParsedOrg {
   readonly diagnostics: readonly DgmoError[];
   /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
   readonly frame?: ChartFrame;
+  /** Story-view `highlight` line (#2041); resolved by `resolveOrgHighlight`. */
+  readonly emphasis?: EmphasisDirective;
   readonly error: string | null;
+}
+
+/** What a `highlight` lights on an org chart: node ids and `parent>child` edge keys. */
+export interface OrgHighlight {
+  readonly paths: ResolvedPaths;
+  readonly litIds: ReadonlySet<string>;
+  readonly litEdges: ReadonlySet<string>;
+}
+
+/**
+ * Resolves the chart's `highlight` over the tree. A plain name lights the node
+ * and its whole subtree; a chain lights exactly its path. Names are labels or
+ * ids; edges run parent to child.
+ */
+export function resolveOrgHighlight(
+  parsed: Pick<ParsedOrg, 'roots' | 'emphasis'>
+): OrgHighlight {
+  const byName = new Map<string, OrgNode>();
+  const names: string[] = [];
+  const edges: { from: string; to: string }[] = [];
+  const keys: string[] = [];
+  const add = (n: OrgNode) => {
+    for (const nm of [n.label, n.id]) {
+      if (!byName.has(nm)) {
+        byName.set(nm, n);
+        names.push(nm);
+      }
+    }
+  };
+  const walk = (n: OrgNode) => {
+    add(n);
+    for (const c of n.children) {
+      for (const f of [n.label, n.id])
+        for (const t of [c.label, c.id]) {
+          edges.push({ from: f, to: t });
+          keys.push(`${n.id}>${c.id}`);
+        }
+      walk(c);
+    }
+  };
+  parsed.roots.forEach(walk);
+  const expand = (hits: ReadonlySet<string>): string[] => {
+    const out: string[] = [];
+    const down = (n: OrgNode) => {
+      out.push(n.label, n.id);
+      n.children.forEach(down);
+    };
+    for (const h of hits) {
+      const n = byName.get(h);
+      if (n) down(n);
+    }
+    return out;
+  };
+  const paths = resolveHighlightPaths(
+    parsed.emphasis,
+    names,
+    edges,
+    expand,
+    'both'
+  );
+  const litIds = new Set<string>();
+  const litEdges = new Set<string>();
+  if (paths.active) {
+    for (const nm of paths.litNodes) {
+      const n = byName.get(nm);
+      // Node ids are generated keys, not author-typed names.
+      // eslint-disable-next-line name-normalize/required-at-insertion
+      if (n) litIds.add(n.id);
+    }
+    for (const i of paths.litEdges) litEdges.add(keys[i]!);
+  }
+  return { paths, litIds, litEdges };
 }
 
 // ============================================================
@@ -200,6 +280,14 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
     // a later `Family` or `Kanban` is a node or tag value, not a chart type.
     const isHeaderLine = !headerLineSeen;
     headerLineSeen = true;
+
+    // Story-view `highlight` line (#2041): reserved, never a node.
+    if (!isHeaderLine && /^highlight(\s|$)/.test(line)) {
+      const d = parseEmphasisDirective(line, lineNumber);
+      if (d?.kind === 'highlight') result.emphasis = d;
+      currentTagGroup = null;
+      continue;
+    }
 
     // --- Header phase ---
 
@@ -524,6 +612,11 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
   // (§1.9, last one wins), so a lone presence check is sufficient.
   // Absent both, org charts keep their long-standing top-down orientation.
   result.direction = options['direction-lr'] ? 'LR' : 'TB';
+
+  if (result.emphasis) {
+    for (const msg of highlightPathWarnings(resolveOrgHighlight(result).paths))
+      pushWarning(result.emphasis.lineNumber, msg);
+  }
 
   // Alias namespace rules (§2A.2) — decidable only once the whole
   // source has been read.

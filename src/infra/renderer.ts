@@ -41,6 +41,8 @@ import {
 } from './roles';
 import { parseInfra } from './parser';
 import { computeInfra } from './compute';
+import { resolveInfraHighlight, type InfraHighlight } from './highlight';
+import { storyGround } from '../utils/emphasis';
 import { layoutInfra, EDGE_MARGIN } from './layout';
 import { placeEdgeLabels } from '../boxes-and-lines/label-placement';
 import type { BLLayoutResult } from '../boxes-and-lines/layout';
@@ -1188,6 +1190,16 @@ export function severityPillStyle(
   };
 }
 
+/** Story view (`highlight`, #2041): what is lit, and the ground paint the rest takes. */
+interface InfraStory {
+  readonly ground: ReturnType<typeof storyGround>;
+  readonly highlight: InfraHighlight;
+}
+
+function nodeReceded(story: InfraStory | undefined, nodeId: string): boolean {
+  return !!story && !story.highlight.litNodeIds.has(nodeId);
+}
+
 function nodeColor(
   _node: InfraLayoutNode,
   palette: PaletteColors,
@@ -1298,9 +1310,11 @@ function renderGroups(
   isDark: boolean,
   sc: ScaledInfraConstants = buildScaledConstants(ScaleContext.identity()),
   activeGroup?: string | null,
-  tagGroups?: readonly InfraTagGroup[]
+  tagGroups?: readonly InfraTagGroup[],
+  story?: InfraStory
 ) {
   for (const group of groups) {
+    const groupReceded = !!story && !story.highlight.litGroupIds.has(group.id);
     const g = svg
       .append('g')
       .attr('class', 'infra-group')
@@ -1317,8 +1331,12 @@ function renderGroups(
       activeGroup && tagGroups
         ? resolveGroupTagFill(group.metadata, activeGroup, tagGroups, palette)
         : null;
-    const frameFill = groupFill(palette, isDark, tagColor ?? undefined);
-    const frameStroke = groupStroke(palette, tagColor ?? undefined);
+    const frameFill = groupReceded
+      ? story.ground.groundFill
+      : groupFill(palette, isDark, tagColor ?? undefined);
+    const frameStroke = groupReceded
+      ? story.ground.groundStroke
+      : groupStroke(palette, tagColor ?? undefined);
     g.append('rect')
       .attr('x', group.x)
       .attr('y', group.y)
@@ -1327,7 +1345,7 @@ function renderGroups(
       .attr('rx', 6)
       .attr('fill', frameFill)
       .attr('stroke', frameStroke)
-      .attr('stroke-opacity', tagColor ? 1 : 0.35)
+      .attr('stroke-opacity', tagColor && !groupReceded ? 1 : 0.35)
       .attr('stroke-width', 1);
 
     g.append('text')
@@ -1337,7 +1355,7 @@ function renderGroups(
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', sc.sGroupLabelFontSize)
       .attr('font-weight', 'bold')
-      .attr('fill', palette.text)
+      .attr('fill', groupReceded ? story.ground.groundText : palette.text)
       .text(group.label);
 
     // An expanded group folds: its hover preview of the bar (#1741).
@@ -1367,7 +1385,10 @@ function renderGroups(
         .attr('text-anchor', 'end')
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', sc.sMetaFontSize)
-        .attr('fill', palette.textMuted)
+        .attr(
+          'fill',
+          groupReceded ? story.ground.groundText : palette.textMuted
+        )
         .text(`${gi}x`);
     }
   }
@@ -1383,7 +1404,8 @@ function renderEdgePaths(
   animate: boolean,
   direction: 'LR' | 'TB',
   speedMultiplier: number = 1,
-  sc: ScaledInfraConstants = buildScaledConstants(ScaleContext.identity())
+  sc: ScaledInfraConstants = buildScaledConstants(ScaleContext.identity()),
+  story?: InfraStory
 ) {
   const nodeMap = nodeMapWithGroups(nodes, groups);
   const maxRps = Math.max(...edges.map((e) => e.computedRps), 1);
@@ -1394,7 +1416,11 @@ function renderEdgePaths(
   // only by layout order and, when animating, by the particles. Same marker
   // box as every other chart type (utils/visual-conventions).
   const defs = svg.append('defs');
-  const edgeColors = new Set(edges.map((e) => edgeColor(e, palette)));
+  const edgePaint = (e: InfraLayoutEdge, i: number): string =>
+    story && !story.highlight.litEdges.has(i)
+      ? story.ground.groundStroke
+      : edgeColor(e, palette);
+  const edgeColors = new Set(edges.map((e, i) => edgePaint(e, i)));
   if (edgeColors.size > 0) {
     appendArrowheadMarkers(defs, {
       idPrefix: 'infra',
@@ -1405,12 +1431,13 @@ function renderEdgePaths(
     });
   }
 
-  for (const edge of edges) {
+  for (const [edgeIdx, edge] of edges.entries()) {
     if (edge.points.length === 0) continue;
 
     const targetNode = nodeMap.get(edge.targetId);
     const sourceNode = nodeMap.get(edge.sourceId);
-    const color = edgeColor(edge, palette);
+    const color = edgePaint(edge, edgeIdx);
+    const edgeReceded = !!story && !story.highlight.litEdges.has(edgeIdx);
     const strokeW = sc.sEdgeStrokeWidth;
 
     if (!sourceNode || !targetNode) continue;
@@ -1450,7 +1477,9 @@ function renderEdgePaths(
       const dur = speedMultiplier > 0 ? baseDur / speedMultiplier : baseDur;
 
       const count = particleCount(edge.computedRps, maxRps);
-      const particleColor = palette.colors.green;
+      const particleColor = edgeReceded
+        ? story.ground.groundStroke
+        : palette.colors.green;
 
       for (let i = 0; i < count; i++) {
         const delay = (dur / count) * i;
@@ -1552,7 +1581,8 @@ function renderEdgeLabels(
   _isDark: boolean,
   animate: boolean,
   direction: 'LR' | 'TB',
-  sc: ScaledInfraConstants = buildScaledConstants(ScaleContext.identity())
+  sc: ScaledInfraConstants = buildScaledConstants(ScaleContext.identity()),
+  story?: InfraStory
 ) {
   const nodeMap = nodeMapWithGroups(nodes, groups);
   const { srcPts, tgtPts } = computePortPts(edges, nodeMap, direction);
@@ -1606,7 +1636,12 @@ function renderEdgeLabels(
       .attr('text-anchor', 'middle')
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', sc.sEdgeLabelFontSize)
-      .attr('fill', palette.textMuted)
+      .attr(
+        'fill',
+        story && !story.highlight.litEdges.has(idx)
+          ? story.ground.groundText
+          : palette.textMuted
+      )
       .text(labelText);
 
     if (animate) {
@@ -1654,9 +1689,11 @@ function renderNodes(
   tagGroups?: readonly InfraTagGroup[],
   fanoutSourceIds?: Set<string>,
   scaledGroupIds?: Set<string>,
-  sc: ScaledInfraConstants = buildScaledConstants(ScaleContext.identity())
+  sc: ScaledInfraConstants = buildScaledConstants(ScaleContext.identity()),
+  story?: InfraStory
 ) {
   for (const node of nodes) {
+    const receded = nodeReceded(story, node.id);
     const slo =
       !node.isEdge && diagramOptions
         ? resolveNodeSlo(node, diagramOptions)
@@ -1668,7 +1705,7 @@ function renderNodes(
     // header/body/metrics panel structure. Solid fills collapse all of those
     // signals into one saturated rectangle, making the diagram unreadable.
     const nodeColors = nodeColor(node, palette, isDark, severity, undefined);
-    const textFill = nodeColors.textFill;
+    let textFill = nodeColors.textFill;
     let { fill, stroke } = nodeColors;
 
     // When a tag legend is active, override border color with tag color
@@ -1685,6 +1722,12 @@ function renderNodes(
         // muted 6-12% wash that read inconsistently against other charts.
         fill = shapeFill(palette, tagStroke, isDark);
       }
+    }
+    // Story view: a receded node gives way to the ground, severity included.
+    if (receded) {
+      fill = story!.ground.groundFill;
+      stroke = story!.ground.groundStroke;
+      textFill = story!.ground.groundText;
     }
     let cls = 'infra-node';
     if (animate && node.isEdge) {
@@ -1736,7 +1779,9 @@ function renderNodes(
     const y = node.y - node.height / 2;
     const isCollapsedGroup = node.id.startsWith('[');
     const strokeWidth =
-      severity !== 'normal' ? sc.sOverloadStrokeWidth : sc.sNodeStrokeWidth;
+      severity !== 'normal' && !receded
+        ? sc.sOverloadStrokeWidth
+        : sc.sNodeStrokeWidth;
 
     g.append('rect')
       .attr('x', x)
@@ -1881,13 +1926,14 @@ function renderNodes(
                     : rlSeverity === 'warning'
                       ? 'warning'
                       : 'normal';
-          const rpsColor =
-            rpsSeverity === 'overloaded'
+          const rpsColor = receded
+            ? textFill
+            : rpsSeverity === 'overloaded'
               ? COLOR_OVERLOADED
               : rpsSeverity === 'warning'
                 ? COLOR_WARNING
                 : textFill;
-          const rpsInverted = rpsSeverity !== 'normal';
+          const rpsInverted = rpsSeverity !== 'normal' && !receded;
           const rpsText =
             effectiveCap > 0 && !node.isEdge
               ? `${formatRpsShort(node.computedRps)} / ${formatRpsShort(effectiveCap)}`
@@ -1905,10 +1951,12 @@ function renderNodes(
           computedSection.push({
             key: cr.key,
             value: cr.value,
-            valueFill: cr.color ?? textFill,
+            valueFill: receded ? textFill : (cr.color ?? textFill),
             fontWeight: 'normal',
-            ...(cr.inverted !== undefined && { inverted: cr.inverted }),
+            ...(cr.inverted !== undefined &&
+              !receded && { inverted: cr.inverted }),
             ...(cr.inverted &&
+              !receded &&
               cr.color !== undefined && { invertedBg: cr.color }),
           });
         }
@@ -1928,7 +1976,9 @@ function renderNodes(
             if (ch > 0) preRl *= (100 - ch) / 100;
             const fw = getNodeNumProp(node, 'firewall-block', 0);
             if (fw > 0) preRl *= (100 - fw) / 100;
-            if (preRl > nodeRateLimit) {
+            if (receded) {
+              // story view: the ground wins over severity
+            } else if (preRl > nodeRateLimit) {
               propColor = COLOR_OVERLOADED;
               inverted = true;
               invertedBg = COLOR_OVERLOADED;
@@ -2080,7 +2130,12 @@ function renderNodes(
             .attr('cx', startX + i * (sc.sRoleDotRadius * 2 + 2))
             .attr('cy', dotY)
             .attr('r', sc.sRoleDotRadius)
-            .attr('fill', palette.colors[roles[i]!.colorToken]);
+            .attr(
+              'fill',
+              receded
+                ? story!.ground.groundStroke
+                : palette.colors[roles[i]!.colorToken]
+            );
         }
       }
 
@@ -2752,7 +2807,24 @@ export function renderInfra(
       .text(title);
   }
 
-  renderGroups(svg, layout.groups, palette, isDark, sc, activeGroup, tagGroups);
+  const highlight = resolveInfraHighlight(layout.emphasis, {
+    nodes: layout.nodes,
+    groups: layout.groups,
+    edges: layout.edges,
+  });
+  const story: InfraStory | undefined = highlight.active
+    ? { ground: storyGround(palette, isDark), highlight }
+    : undefined;
+  renderGroups(
+    svg,
+    layout.groups,
+    palette,
+    isDark,
+    sc,
+    activeGroup,
+    tagGroups,
+    story
+  );
   const speedMultiplier = playback?.speed ?? 1;
   renderEdgePaths(
     svg,
@@ -2764,7 +2836,8 @@ export function renderInfra(
     shouldAnimate,
     layout.direction,
     speedMultiplier,
-    sc
+    sc,
+    story
   );
   const fanoutSourceIds = collectFanoutSourceIds([...layout.edges]);
   const scaledGroupIds = new Set<string>(
@@ -2793,10 +2866,18 @@ export function renderInfra(
     tagGroups ?? [],
     fanoutSourceIds,
     scaledGroupIds,
-    sc
+    sc,
+    story
   );
   if (shouldAnimate) {
-    renderRejectParticles(svg, layout.nodes, speedMultiplier, sc);
+    renderRejectParticles(
+      svg,
+      story
+        ? layout.nodes.filter((n) => !nodeReceded(story, n.id))
+        : layout.nodes,
+      speedMultiplier,
+      sc
+    );
   }
   renderEdgeLabels(
     svg,
@@ -2807,7 +2888,8 @@ export function renderInfra(
     isDark,
     shouldAnimate,
     layout.direction,
-    sc
+    sc,
+    story
   );
 
   if (hasLegend) {

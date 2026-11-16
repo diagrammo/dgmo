@@ -29,6 +29,8 @@ import type {
 } from './types';
 import { tryCollectNote, resolveNotes } from './notes';
 import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import { parseEmphasisDirective } from '../utils/emphasis';
+import { resolveGraphHighlight, graphHighlightWarnings } from './highlight';
 
 // ============================================================
 // Helpers
@@ -581,6 +583,15 @@ export function parseFlowchart(
       continue;
     }
 
+    // `highlight A -> B` story view (#2041), lowercase at column 0.
+    if (indent === 0 && /^highlight(\s|$)/.test(trimmed)) {
+      const emphasis = parseEmphasisDirective(trimmed, lineNumber);
+      if (emphasis?.kind === 'highlight') {
+        result.emphasis = emphasis;
+        continue;
+      }
+    }
+
     // Note annotation: `note <ref> [inline body]` + optional indented
     // body. Handled before options so `note foo bar` is never mistaken
     // for an option. Only `note -> X` (arrow immediately after `note`) is
@@ -699,6 +710,20 @@ export function parseFlowchart(
           )
         );
       }
+    }
+  }
+
+  // `highlight` story view (#2041): warn on names that match nothing.
+  if (result.emphasis) {
+    const h = resolveGraphHighlight(
+      result.emphasis,
+      result.nodes,
+      result.edges
+    );
+    for (const msg of graphHighlightWarnings(h)) {
+      result.diagnostics.push(
+        makeDgmoError(result.emphasis.lineNumber, msg, 'warning')
+      );
     }
   }
 
