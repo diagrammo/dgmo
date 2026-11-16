@@ -1055,6 +1055,42 @@ export function derouteForeignGroups(
   return { ...layout, edges };
 }
 
+// Stable collapse routes every edge as one straight border-to-border segment,
+// so an arrow between two boxes on either side of an expanded group runs
+// straight through it (#1975, rule 2). Bend those edges around the group one
+// at a time, keeping each bend only when it lowers the foreign-group passes and
+// adds no crossing, overlap, pierce or group collision. One edge at a time,
+// because a bend that clears one group can cross the next edge's line.
+function bendAroundForeignGroups(
+  layout: BLLayoutResult,
+  groups: readonly BLGroup[]
+): BLLayoutResult {
+  const bentAll = derouteForeignGroups(layout, groups);
+  if (bentAll === layout) return layout;
+  const bad = (l: BLLayoutResult) =>
+    countSplineCrossings(l) +
+    countEdgeOverlaps(l) +
+    countEdgeNodePierces(l) +
+    countGroupOverlaps(l);
+  let cur = layout;
+  let curForeign = countForeignGroupCrossings(cur, groups);
+  let curBad = bad(cur);
+  bentAll.edges.forEach((e, idx) => {
+    if (e === layout.edges[idx]) return;
+    const edges = cur.edges.slice();
+    edges[idx] = e;
+    const next = { ...cur, edges };
+    const foreign = countForeignGroupCrossings(next, groups);
+    if (foreign >= curForeign) return;
+    const b = bad(next);
+    if (b > curBad) return;
+    cur = next;
+    curForeign = foreign;
+    curBad = b;
+  });
+  return cur;
+}
+
 // How far outside a group box a detour runs.
 const GROUP_DETOUR_MARGIN = 16;
 
@@ -1610,7 +1646,7 @@ export async function layoutBoxesAndLinesSearch(
     collapsedGroupLabels.size > 0 &&
     opts.previousPositions
   ) {
-    const stable = tryStableCollapseLayout({
+    const frozen = tryStableCollapseLayout({
       parsed,
       collapseInfo,
       collapsedGroupLabels,
@@ -1618,6 +1654,7 @@ export async function layoutBoxesAndLinesSearch(
       sizes,
       rankdir,
     });
+    const stable = frozen && bendAroundForeignGroups(frozen, parsed.groups);
     if (stable) {
       // Freezing keeps the expanded geometry, so a collapse that empties most
       // of the canvas leaves pills stranded across it with long diagonals

@@ -340,3 +340,58 @@ describe('stable collapse keeps arrows into a new pill with the flow (#1975, rul
     expect(at('S').x - at('T').x).toBeCloseTo(400, 5);
   });
 });
+
+describe('stable collapse bends an arrow around a group it does not belong to (#1975, rule 2)', () => {
+  // A and D sit level with the gap between B and C, on either side of G.
+  // Collapsing the unrelated group H takes the stable path, whose straight
+  // border-to-border A → D would run through G's frame.
+  const SRC = [
+    'boxes-and-lines',
+    'A',
+    '  -> D',
+    '[G]',
+    '  B',
+    '  C',
+    'D',
+    '[H]',
+    '  X',
+    '  Y',
+  ].join('\n');
+  const PREV4 = new Map([
+    ['A', { x: 100, y: 150 }],
+    ['B', { x: 300, y: 60 }],
+    ['C', { x: 300, y: 240 }],
+    ['D', { x: 500, y: 150 }],
+    ['X', { x: 300, y: 450 }],
+    ['Y', { x: 450, y: 450 }],
+  ]);
+
+  it('A → D does not pass through G', async () => {
+    const parsed = parseBoxesAndLines(SRC);
+    const cr = collapseBoxesAndLines(parsed, new Set(['H']));
+    const layout = await layoutBoxesAndLines(
+      cr.parsed,
+      {
+        collapsedChildCounts: cr.collapsedChildCounts,
+        originalGroups: cr.originalGroups,
+      },
+      { previousPositions: PREV4, stableCollapse: true }
+    );
+    // The stable path ran: the surviving boxes kept their spacing.
+    const at = (l: string) => layout.nodes.find((n) => n.label === l)!;
+    expect(at('D').x - at('A').x).toBeCloseTo(400, 5);
+    const g = layout.groups.find((x) => x.label === 'G' && !x.collapsed)!;
+    const e = layout.edges.find((x) => x.source === 'A' && x.target === 'D')!;
+    const inG = (x: number, y: number) =>
+      Math.abs(x - g.x) < g.width / 2 - 2 &&
+      Math.abs(y - g.y) < g.height / 2 - 2;
+    for (let i = 1; i < e.points.length; i++) {
+      const [p, q] = [e.points[i - 1]!, e.points[i]!];
+      for (let k = 0; k <= 100; k++) {
+        const x = p.x + ((q.x - p.x) * k) / 100;
+        const y = p.y + ((q.y - p.y) * k) / 100;
+        expect(inG(x, y), `segment ${i} enters G at (${x}, ${y})`).toBe(false);
+      }
+    }
+  });
+});
