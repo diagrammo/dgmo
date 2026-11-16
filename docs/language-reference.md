@@ -507,22 +507,22 @@ Nassau 1100
 Havana 400
 ```
 
-| Chart type | What a name matches                                    | What recedes                                                                       |
-| ---------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------- |
-| `bar`      | a category; on a `stack` or `group` bar, also a series | every other bar or segment and its value label                                     |
-| `line`     | a series                                               | every other series: its line, area, points and value labels                        |
-| `pie`      | a slice                                                | every other slice, its leader line and its label                                   |
-| `scatter`  | a point, or a category                                 | every other point, its label and its leader line                                   |
-| `slope`    | a series                                               | every other series: its line, points and labels                                    |
-| `treemap`  | a node; a branch keeps everything inside it            | every other cell with its label, including the branches that hold a named node     |
-| `sankey`   | a node                                                 | everything outside the node's upstream and downstream flow; `dim` is also accepted |
-| `family`   | a person                                               | everyone outside that person's bloodline (§13AA)                                   |
-| `boxes-and-lines`, `infra`, `flowchart`, `state` | a node, or a path written as an arrow chain | every node, edge and label off the named nodes and path |
-| `sequence` | a participant, or a chain of messages                  | every other participant, lifeline and message; a named participant keeps every message to or from it |
-| `org`, `mindmap` | a node; it keeps its whole branch                | everything outside the named branches                                              |
+| Chart type                                       | What a name matches                                    | What recedes                                                                                         |
+| ------------------------------------------------ | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `bar`                                            | a category; on a `stack` or `group` bar, also a series | every other bar or segment and its value label                                                       |
+| `line`                                           | a series                                               | every other series: its line, area, points and value labels                                          |
+| `pie`                                            | a slice                                                | every other slice, its leader line and its label                                                     |
+| `scatter`                                        | a point, or a category                                 | every other point, its label and its leader line                                                     |
+| `slope`                                          | a series                                               | every other series: its line, points and labels                                                      |
+| `treemap`                                        | a node; a branch keeps everything inside it            | every other cell with its label, including the branches that hold a named node                       |
+| `sankey`                                         | a node                                                 | everything outside the node's upstream and downstream flow; `dim` is also accepted                   |
+| `family`                                         | a person                                               | everyone outside that person's bloodline (§13AA)                                                     |
+| `boxes-and-lines`, `infra`, `flowchart`, `state` | a node, or a path written as an arrow chain            | every node, edge and label off the named nodes and path                                              |
+| `sequence`                                       | a participant, or a chain of messages                  | every other participant, lifeline and message; a named participant keeps every message to or from it |
+| `org`, `mindmap`                                 | a node; it keeps its whole branch                      | everything outside the named branches                                                                |
 
 - **Story view.** The named elements are drawn in their own colour, solid. Everything else turns one neutral grey (the palette's `gray` mixed toward the background), and receded legend entries turn grey too. The grey is baked in, so PNG and SVG exports match the preview. A file without a `highlight` line draws as before.
-- **A path is an arrow chain, written with the diagram's own arrows:** `highlight Edge -> API -> Cache` lights those nodes and the links between them, and nothing else. One link is `highlight Search -> Signup`; a labelled edge uses its label form, `highlight OK? -no-> Pay`. A chain whose link the diagram lacks warns and names it (`highlight names a link this diagram does not have: A -> B`); on `sankey` the warning says *flow*. On `sankey` a chain isolates exactly those flows, where a plain node name lights its whole upstream and downstream.
+- **A path is an arrow chain, written with the diagram's own arrows:** `highlight Edge -> API -> Cache` lights those nodes and the links between them, and nothing else. One link is `highlight Search -> Signup`; a labelled edge uses its label form, `highlight OK? -no-> Pay`. A chain whose link the diagram lacks warns and names it (`highlight names a link this diagram does not have: A -> B`); on `sankey` the warning says _flow_. On `sankey` a chain isolates exactly those flows, where a plain node name lights its whole upstream and downstream.
 - On diagrams (`boxes-and-lines` through `mindmap` above), a name that matches nothing warns: `highlight names nothing in this diagram: X`.
 - **A trailing colour paints the subject:** `highlight Nassau orange`. The colour word is read only when the names as written match nothing, so an element called `Agent Orange` still matches whole.
 - **Several names take a comma** on every chart type above except `family`: `highlight Nassau, Havana`. Without a comma the whole argument is ONE name (`highlight Port Royal`).
