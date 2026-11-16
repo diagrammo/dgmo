@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { parseMindmap } from '../src/mindmap/parser';
 import { layoutMindmap } from '../src/mindmap/layout';
 import { getPalette } from '../src/palettes';
@@ -177,12 +179,21 @@ describe('mindmap radial layout (#1843)', () => {
     ['trunk plus two branches', TRUNK_PLUS],
     ['three levels', DEEP],
     [
+      'the gallery fixture',
+      readFileSync(
+        join(__dirname, '../gallery/fixtures/mindmap-radial.dgmo'),
+        'utf8'
+      ),
+    ],
+    [
       'long labels',
       `mindmap Root\n${leaves(9, '  ', 'Quarterly planning review with every regional lead and the finance partners')}`,
     ],
   ] as const) {
     describe(`${name}`, () => {
-      const r = layout(src.replace('\n', '\nradial\n'));
+      const r = layout(
+        /^radial$/m.test(src) ? src : src.replace('\n', '\nradial\n')
+      );
 
       it('no two nodes overlap', () => {
         for (let i = 0; i < r.nodes.length; i++) {
