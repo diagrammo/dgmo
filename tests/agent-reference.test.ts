@@ -168,6 +168,19 @@ describe('title rule rides every per-type slice (always-title contract)', () => 
     expect(rule).toMatch(/title/i);
     expect(rule).not.toMatch(/<!--/); // markers stripped from the extracted rule
   });
+
+  // #1986: a chart of numbers is titled with its finding, and the frame
+  // carries what is measured and where it came from.
+  it('every bar/pie slice carries the title-is-the-finding rule', () => {
+    if (!anchored) return;
+    for (const type of ['bar', 'line', 'pie']) {
+      const slice = referenceForChartType(ref as string, type) ?? '';
+      expect(slice).toMatch(/title states the finding/i);
+      expect(slice).toMatch(/`subtitle`/);
+      expect(slice).toMatch(/`source`/);
+    }
+    expect(ref).toMatch(/### 26\.8 Title States the Finding/);
+  });
 });
 
 describe('categorize rule rides every per-type slice (color-by-grouping push)', () => {
