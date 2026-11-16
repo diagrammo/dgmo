@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **mindmap radial layout: the bare `radial` flag (#1843).** A line
+  `radial` before the content puts the root at the centre and each depth on
+  a ring around it. Every branch gets a share of the turn in proportion to
+  its leaf count, so one dominant trunk spreads its children around the root
+  instead of stacking them in one tall column. Edges leave a node along its
+  own angle, follow a clear band between two rings, and drop out to the
+  child, so no edge crosses a node of another branch. The whole picture
+  is turned to its most compact angle. Without the flag the two-sided
+  layout is unchanged. Pre-1.0 syntax: a root node literally named `radial` before
+  any content would now be read as the flag.
 - **boxes-and-lines invisible lines: `A ~~ B` (#2002).** A line at column 0
   written `A ~~ B` ranks and orders `B` after `A` as `A -> B` would, but is
   never routed, scored or drawn, so a box can be pushed one rank on without

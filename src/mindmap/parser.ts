@@ -250,6 +250,12 @@ export function parseMindmap(
         options['color-by-depth'] = 'on';
         continue;
       }
+      // Bare flag: radial layout — the root at the centre, branches around
+      // it by leaf count (#1843). Bare as treemap's `radial` is.
+      if (lower === 'radial') {
+        options['radial'] = 'on';
+        continue;
+      }
       if (tryParseSharedOption(trimmed, options)) {
         continue;
       }

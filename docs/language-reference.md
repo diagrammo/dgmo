@@ -3507,10 +3507,11 @@ Nice-to-haves p: Low collapsed
 
 ### Options
 
-| Option                 | Effect                                                               |
-| ---------------------- | -------------------------------------------------------------------- |
-| `active-tag GroupName` | Sets the default active tag group.                                   |
-| `color-by-depth`       | Bare flag; colour nodes by depth instead of by tag (off by default). |
+| Option                 | Effect                                                                                                                        |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `active-tag GroupName` | Sets the default active tag group.                                                                                            |
+| `color-by-depth`       | Bare flag; colour nodes by depth instead of by tag (off by default).                                                          |
+| `radial`               | Bare flag; the root at the centre, each depth on a ring around it, each branch given room by its leaf count (off by default). |
 
 The `palette` line applies as elsewhere (§1.10).
 

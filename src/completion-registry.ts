@@ -815,6 +815,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     withGlobals({
       'no-legend': { description: 'Hide the legend' },
       'active-tag': { description: 'Active tag group name' },
+      radial: {
+        description:
+          'Radial layout: the root at the centre, branches around it',
+      },
     }),
   ],
   [
