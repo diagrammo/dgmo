@@ -12,7 +12,10 @@ import { makeDgmoError } from './diagnostics';
 import { legendInlineSupported } from './utils/inline-header';
 import { getPalette } from './palettes/registry';
 import { choosePalette, extractPaletteDirective } from './palettes/directive';
-import { liftUnsupportedHighlight } from './utils/emphasis';
+import {
+  applyHighlightOverride,
+  liftUnsupportedHighlight,
+} from './utils/emphasis';
 import { parseDgmoChartType } from './chart-type-detect';
 import type { CompactViewState } from './sharing';
 import type { MapDataSource } from './d3';
@@ -197,6 +200,11 @@ export async function render(
      * first: this, the file's palette, `palette`, Slate (#1035).
      */
     paletteOverride?: string;
+    /**
+     * A per-export `highlight` (#2042): replaces the file's own `highlight`
+     * line; `none` clears it. A fence attribute, a CLI flag, an MCP parameter.
+     */
+    highlight?: string;
     c4Level?: 'context' | 'containers' | 'components' | 'deployment';
     c4System?: string;
     c4Container?: string;
@@ -270,7 +278,9 @@ export async function render(
   // rest of this function only ever sees the source with that line commented.
   // So is a `highlight` line on a type that cannot read it (#2040): commented
   // out here, its warning carried with the palette's so every branch keeps it.
-  const palette = extractPaletteDirective(source);
+  const palette = extractPaletteDirective(
+    applyHighlightOverride(source, options?.highlight)
+  );
   const lifted = liftUnsupportedHighlight(
     palette.content,
     parseDgmoChartType(palette.content)

@@ -525,6 +525,7 @@ Havana 400
 - On a `treemap`, a block that `depth` collapses stays lit when a named node is inside it.
 - The keyword starts the line (on `slope` and `treemap`, in column 1). On `bar`, `line`, `pie`, `slope` and `treemap` it is lowercase, so a category named `Highlight Reel` (capitalised) stays data. On `scatter` and `sankey` it matches in any case, so a point or node cannot be named `Highlight …`.
 - `dim <Name>` (recede only the named elements) exists on `sankey` alone. It fades them in place at reduced opacity and keeps their colour.
+- **Per export, without editing the file:** `dgmo chart.dgmo --highlight EMEA`, a docs code block's `highlight="EMEA"` attribute, or the AI tools' render `highlight` parameter. Each replaces the file's own `highlight` line rather than adding to it, and `none` clears it.
 - Other chart types do not take `highlight` yet: the line warns `highlight is not supported on <type> yet` and draws nothing.
 
 ### 1.14 Annotations — `ref-line` and `band`

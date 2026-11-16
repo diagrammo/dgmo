@@ -471,6 +471,11 @@ declare function render(source: string, options?: {
      * first: this, the file's palette, `palette`, Slate (#1035).
      */
     paletteOverride?: string;
+    /**
+     * A per-export `highlight` (#2042): replaces the file's own `highlight`
+     * line; `none` clears it. A fence attribute, a CLI flag, an MCP parameter.
+     */
+    highlight?: string;
     c4Level?: 'context' | 'containers' | 'components' | 'deployment';
     c4System?: string;
     c4Container?: string;

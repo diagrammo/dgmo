@@ -81,6 +81,11 @@ interface DgmoBlockOptions {
      * fall back, like `palette`.
      */
     paletteOverride?: string;
+    /**
+     * A per-embed `highlight` (#2042), such as a fence's `highlight="EMEA"`:
+     * replaces the diagram's own `highlight` line; `none` clears it.
+     */
+    highlight?: string;
     /** Default `auto` (dual light/dark render). */
     colorMode?: BlockColorMode;
     /**

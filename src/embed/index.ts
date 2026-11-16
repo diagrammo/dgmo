@@ -85,6 +85,11 @@ export interface DgmoBlockOptions {
    * fall back, like `palette`.
    */
   paletteOverride?: string;
+  /**
+   * A per-embed `highlight` (#2042), such as a fence's `highlight="EMEA"`:
+   * replaces the diagram's own `highlight` line; `none` clears it.
+   */
+  highlight?: string;
   /** Default `auto` (dual light/dark render). */
   colorMode?: BlockColorMode;
   /**
@@ -169,10 +174,14 @@ export interface DgmoBlockOptions {
 }
 
 type ResolvedBlockOptions = Required<
-  Omit<DgmoBlockOptions, 'title' | 'onWarn' | 'mapData' | 'paletteOverride'>
+  Omit<
+    DgmoBlockOptions,
+    'title' | 'onWarn' | 'mapData' | 'paletteOverride' | 'highlight'
+  >
 > & {
   title: string | undefined;
   paletteOverride: string | undefined;
+  highlight: string | undefined;
   mapData: MapDataSource | undefined;
   onWarn: (message: string) => void;
 };
@@ -189,6 +198,7 @@ function resolveBlockOptions(opts: DgmoBlockOptions): ResolvedBlockOptions {
     mode,
     palette: opts.palette ?? 'slate',
     paletteOverride: opts.paletteOverride,
+    highlight: opts.highlight,
     colorMode: opts.colorMode ?? 'auto',
     background: opts.background ?? 'auto',
     showSource: (opts.showSource ?? showcase) || !!opts.sourceOpen,
@@ -278,6 +288,7 @@ export async function renderDgmoBlock(
       palette: palette.id,
       ...(override !== undefined && { paletteOverride: override.id }),
       theme,
+      ...(opts.highlight !== undefined && { highlight: opts.highlight }),
       ...(opts.mapData !== undefined ? { mapData: opts.mapData } : {}),
       ...(!opts.interactiveFolds && { interactiveFolds: false }),
     });

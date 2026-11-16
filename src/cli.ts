@@ -1,4 +1,5 @@
 /* eslint-disable no-console */
+import { applyHighlightOverride } from './utils/emphasis';
 import {
   existsSync,
   mkdirSync,
@@ -135,6 +136,9 @@ Render options:
                        With stdin and no -o, PNG is written to stdout
   --theme <theme>      Theme: ${THEMES.join(', ')} (default: light)
   --palette <name>     Palette: ${PALETTES.join(', ')} — beats the file's own palette line (default: the file's, else slate)
+  --highlight <names>  Story view for this export: replaces the file's own
+                       highlight line (comma-separate several names);
+                       --highlight none clears it
   --width <px>         Canvas width. Chart types that size themselves from
                        their content treat it as a maximum and warn if their
                        content does not fit
@@ -171,6 +175,8 @@ function parseArgs(argv: string[]): {
   theme: (typeof THEMES)[number];
   /** Only when `--palette` was given: it then beats the file's own line. */
   palette: string | undefined;
+  /** `--highlight`: replaces the file's own `highlight` line (#2042). */
+  highlight: string | undefined;
   help: boolean;
   version: boolean;
   json: boolean;
@@ -184,6 +190,7 @@ function parseArgs(argv: string[]): {
     output: undefined as string | undefined,
     theme: 'light' as (typeof THEMES)[number],
     palette: undefined as string | undefined,
+    highlight: undefined as string | undefined,
     help: false,
     version: false,
     json: false,
@@ -228,6 +235,14 @@ function parseArgs(argv: string[]): {
       }
       result.palette = val;
       i++;
+    } else if (arg === '--highlight') {
+      const val = args[i + 1];
+      if (val === undefined || val.startsWith('-')) {
+        console.error('Error: --highlight needs a name, a comma list, or none');
+        process.exit(1);
+      }
+      result.highlight = val;
+      i += 2;
     } else if (arg === '--width' || arg === '--height') {
       const val = args[++i];
       const n = Number(val);
@@ -1182,6 +1197,10 @@ async function main(): Promise<void> {
     }
     content = resolved.content;
   }
+
+  // A per-export `--highlight` replaces the file's own line (#2042). Applied
+  // here so validation, warnings and the render all see the same source.
+  content = applyHighlightOverride(content, opts.highlight);
 
   // `-o url` was replaced by `dgmo share`; catch the old usage with a helpful
   // redirect instead of writing a file literally named "url".

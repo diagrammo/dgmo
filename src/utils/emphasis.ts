@@ -366,3 +366,25 @@ export function storyLegend<
     };
   });
 }
+
+/**
+ * A per-export `highlight` (#2042): the CLI's `--highlight`, a docs fence's
+ * `highlight="…"`, the MCP render parameter. It REPLACES the file's own
+ * `highlight` lines rather than merging with them; `none` only clears them.
+ *
+ * Line numbers never move: a replaced line becomes a comment in place and the
+ * new line is appended at the end, so diagnostics and click-to-source still
+ * point at the author's lines.
+ */
+export function applyHighlightOverride(
+  content: string,
+  override: string | undefined
+): string {
+  const value = override?.trim();
+  if (!value) return content;
+  const lines = content
+    .split('\n')
+    .map((line) => (HIGHLIGHT_LINE_RE.test(line) ? '//' : line));
+  if (value.toLowerCase() !== 'none') lines.push(`highlight ${value}`);
+  return lines.join('\n');
+}
