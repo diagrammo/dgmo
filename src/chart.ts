@@ -30,6 +30,7 @@ import type { NumberFormatSpec } from './utils/number-format';
 import { parseNumberFormatLine } from './utils/number-format';
 import type { ChartAnnotation } from './annotations/types';
 import { parseAnnotationLine } from './annotations/parse';
+import { divergingSpans } from './utils/diverging';
 import {
   AXIS_DIRECTIVE_DX,
   parseAxisLine,
@@ -62,6 +63,13 @@ export interface ParsedChart {
    *  (consolidation #24). Absent ⇒ single-series bar. Drives stacked vs
    *  clustered rendering in `charts-d3/bar.ts`. */
   barLayout?: 'stack' | 'group';
+  /** `stack diverging` (#1980): the stack is centred on 0 — series before
+   *  the neutral one grow left (down), series after it grow right (up). */
+  diverging?: boolean;
+  /** Index of the neutral series of a diverging stack, split half each side
+   *  of 0. Absent ⇒ even count, no flag: the split falls between the two
+   *  middle series. */
+  neutralSeries?: number;
   /** Pie hole inner-radius ratio (0–0.9), set by a `hole` directive
    *  (bare ⇒ default). Absent ⇒ solid pie. (#23) */
   hole?: number;
@@ -646,12 +654,16 @@ export function parseChart(
         firstToken === 'group'
       ) {
         const rejected = rejectSeriesHeader(result, firstToken, lineNumber);
+        // `stack diverging` (#1980) is a bare block header with a mode, not
+        // an inline series named "diverging".
+        const diverging = firstToken === 'stack' && value === 'diverging';
         const parsed = parseSeriesNames(
-          value,
+          diverging ? '' : value,
           lines,
           i,
           palette,
-          rejected ? undefined : result.diagnostics
+          rejected ? undefined : result.diagnostics,
+          diverging ? 'neutral' : undefined
         );
         i = parsed.newIndex; // consume the indented block even when rejected
         if (rejected) continue;
@@ -666,6 +678,10 @@ export function parseChart(
         applySeriesAxes(result, parsed, lineNumber);
         if (firstToken === 'stack' || firstToken === 'group')
           result.barLayout = firstToken;
+        delete result.diverging;
+        delete result.neutralSeries;
+        if (diverging && result.type === 'bar')
+          applyDivergingNeutral(result, parsed, lineNumber);
         continue;
       }
     }
@@ -717,6 +733,8 @@ export function parseChart(
       applySeriesAxes(result, parsed, lineNumber);
       if (firstToken === 'stack' || firstToken === 'group')
         result.barLayout = firstToken;
+      delete result.diverging;
+      delete result.neutralSeries;
       continue;
     }
 
@@ -1009,6 +1027,35 @@ export function parseChart(
 }
 
 /**
+ * `stack diverging` (#1980): pick the neutral series. One `neutral` flag
+ * names it; more than one is an error (the first wins). With no flag, an
+ * odd count makes the middle series neutral and an even count splits
+ * between the two middle series.
+ */
+function applyDivergingNeutral(
+  result: ParsedChart,
+  parsed: ReturnType<typeof parseSeriesNames>,
+  lineNumber: number
+): void {
+  result.diverging = true;
+  const flagged = parsed.flagged ?? [];
+  if (flagged.length > 1) {
+    result.diagnostics.push(
+      makeDgmoError(
+        parsed.nameLineNumbers[flagged[1]!] ?? lineNumber,
+        `Only one series can be \`neutral\` in a \`stack diverging\` — ${flagged
+          .map((f) => `"${parsed.names[f]}"`)
+          .join(', ')} are all flagged. Keep one.`,
+        'error'
+      )
+    );
+  }
+  const count = parsed.names.length;
+  if (flagged.length) result.neutralSeries = flagged[0]!;
+  else if (count % 2 === 1) result.neutralSeries = (count - 1) / 2;
+}
+
+/**
  * Bar `sort` (#1978): order the categories by one number each — the value
  * (single series), the named series, the first series (`group`), or the
  * total (`stack`). Ties keep source order.
@@ -1039,7 +1086,10 @@ function sortBarCategories(result: ParsedChart): void {
   const key = (d: ChartDataPoint): number => {
     if (index !== null) return values(d)[index] ?? 0;
     if (multi && result.barLayout === 'stack')
-      return values(d).reduce((a, v) => a + v, 0);
+      return values(d).reduce(
+        (a, v) => a + (result.diverging ? Math.abs(v) : v),
+        0
+      );
     return d.value;
   };
   const dir = result.sort === 'asc' ? 1 : -1;
@@ -1072,12 +1122,20 @@ function settleChartAxes(result: ParsedChart): void {
       );
       delete y.scale;
     }
-    values = rows
-      .flatMap((r) => [
-        r.filter((v) => v > 0).reduce((a, b) => a + b, 0),
-        r.filter((v) => v < 0).reduce((a, b) => a + b, 0),
-      ])
-      .filter((v, i) => i % 2 === 0 || v < 0);
+    values = result.diverging
+      ? rows.flatMap((r) => {
+          const spans = divergingSpans(r, result.neutralSeries);
+          return [
+            Math.min(0, ...spans.map((s) => s[0])),
+            Math.max(0, ...spans.map((s) => s[1])),
+          ];
+        })
+      : rows
+          .flatMap((r) => [
+            r.filter((v) => v > 0).reduce((a, b) => a + b, 0),
+            r.filter((v) => v < 0).reduce((a, b) => a + b, 0),
+          ])
+          .filter((v, i) => i % 2 === 0 || v < 0);
   } else if (result.type === 'line' && result.seriesAxes) {
     const axes = result.seriesAxes;
     values = rows.flatMap((r) => r.filter((_, s) => axes[s] !== 'right'));

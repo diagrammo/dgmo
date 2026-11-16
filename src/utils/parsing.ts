@@ -563,10 +563,15 @@ export function parseSeriesNames(
   lines: string[],
   lineIndex: number,
   palette?: PaletteColors,
-  diagnostics?: DgmoError[]
+  diagnostics?: DgmoError[],
+  /** A trailing word that marks a name, peeled before its color — bar
+   *  `stack diverging`'s `neutral` (#1980). Only the flat form reads it. */
+  flag?: string
 ): {
   series: string;
   names: string[];
+  /** Indices of the names that carried `flag`. */
+  flagged?: number[];
   nameColors: (string | undefined)[];
   nameLineNumbers: number[];
   newIndex: number;
@@ -649,10 +654,18 @@ export function parseSeriesNames(
 
   const names: string[] = [];
   const nameColors: (string | undefined)[] = [];
+  const flagged: number[] = [];
   for (let i = 0; i < rawNames.length; i++) {
     // Loop bound guarantees both are defined; nameLineNumbers is built
     // 1:1 with rawNames in both upstream branches.
-    const raw = rawNames[i]!;
+    let raw = rawNames[i]!;
+    if (flag) {
+      const m = raw.match(/^(.+?)\s+(\S+)$/);
+      if (m?.[2] === flag) {
+        raw = m[1]!;
+        flagged.push(i);
+      }
+    }
     const extracted = extractColor(
       raw,
       palette,
@@ -665,7 +678,14 @@ export function parseSeriesNames(
   if (names.length === 1) {
     series = names[0]!;
   }
-  return { series, names, nameColors, nameLineNumbers, newIndex };
+  return {
+    series,
+    names,
+    nameColors,
+    nameLineNumbers,
+    newIndex,
+    ...(flag && { flagged }),
+  };
 }
 
 /**

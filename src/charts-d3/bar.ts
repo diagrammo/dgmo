@@ -17,6 +17,7 @@ import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
 import { contrastText, shapeFill, themeBaseBg } from '../palettes/color-utils';
 import { annotationValues } from '../annotations/parse';
+import { divergingSpans } from '../utils/diverging';
 import {
   drawBands,
   drawRefLines,
@@ -98,6 +99,10 @@ export function renderBar(
     ? chart.seriesNames
     : [chart.series ?? ''];
   const stacked = chart.barLayout === 'stack';
+  // `stack diverging` (#1980): segments sit either side of 0 around the
+  // neutral series, and every printed number is a magnitude.
+  const diverging = stacked && !!chart.diverging;
+  const spansOf = (vals: number[]) => divergingSpans(vals, chart.neutralSeries);
   const grouped = chart.barLayout === 'group';
   // A `stack` or `group` block header makes it multi-series; plain `bar` (no
   // layout header) is single-series. `stack` sums into one bar; `group` draws
@@ -159,16 +164,20 @@ export function renderBar(
   const perCat = data.map((d) => seriesValues(d, seriesCount));
   // Stacked bars accumulate positive and negative values into separate runs,
   // so the extents are the per-category positive sum and negative sum.
-  const maxVal = stacked
-    ? (d3max(perCat, (vals) =>
-        vals.filter((v) => v > 0).reduce((a, b) => a + b, 0)
-      ) ?? 0)
-    : (d3max(perCat, (vals) => d3max(vals) ?? 0) ?? 0);
-  const minVal = stacked
-    ? (d3min(perCat, (vals) =>
-        vals.filter((v) => v < 0).reduce((a, b) => a + b, 0)
-      ) ?? 0)
-    : (d3min(perCat, (vals) => d3min(vals) ?? 0) ?? 0);
+  const maxVal = diverging
+    ? (d3max(perCat, (vals) => d3max(spansOf(vals), (s) => s[1]) ?? 0) ?? 0)
+    : stacked
+      ? (d3max(perCat, (vals) =>
+          vals.filter((v) => v > 0).reduce((a, b) => a + b, 0)
+        ) ?? 0)
+      : (d3max(perCat, (vals) => d3max(vals) ?? 0) ?? 0);
+  const minVal = diverging
+    ? (d3min(perCat, (vals) => d3min(spansOf(vals), (s) => s[0]) ?? 0) ?? 0)
+    : stacked
+      ? (d3min(perCat, (vals) =>
+          vals.filter((v) => v < 0).reduce((a, b) => a + b, 0)
+        ) ?? 0)
+      : (d3min(perCat, (vals) => d3min(vals) ?? 0) ?? 0);
   // Domain always includes 0 (bars encode magnitude from a 0 baseline); with
   // negative data it extends below so bars grow either direction from 0.
   // A `ref-line` or `band` (#1832) beyond the data widens the axis to it.
@@ -190,7 +199,9 @@ export function renderBar(
   // Left margin must fit the rotated y-title + the left-edge labels: category
   // names for horizontal bars, value ticks for vertical.
   const catLabels = data.map((d) => d.label);
-  const valueTicks = probeTicks.map(fmt);
+  // A diverging axis reads positive both ways from 0.
+  const tickFmt = diverging ? (t: number) => fmt(Math.abs(t)) : fmt;
+  const valueTicks = probeTicks.map(tickFmt);
   // Vertical bars carry their category names under the axis, so they need the
   // same fit treatment as line. Horizontal bars put them in the left gutter,
   // which computeLeftMargin already sizes. Rotated labels hang left of the
@@ -313,7 +324,7 @@ export function renderBar(
         .attr('fill', textColor)
         .attr('font-size', TICK_FONT)
         .attr('font-family', FONT_FAMILY)
-        .text(fmt(t));
+        .text(tickFmt(t));
     } else {
       const y = val(t);
       svg
@@ -332,7 +343,7 @@ export function renderBar(
         .attr('fill', textColor)
         .attr('font-size', TICK_FONT)
         .attr('font-family', FONT_FAMILY)
-        .text(fmt(t));
+        .text(tickFmt(t));
     }
   }
 
@@ -438,6 +449,7 @@ export function renderBar(
           vals.map((v, s) => valueSpot(base, s, v)),
           vals
         );
+    const dSpans = diverging ? spansOf(vals) : null;
     let accPos = 0;
     let accNeg = 0;
     vals.forEach((v, s) => {
@@ -470,7 +482,7 @@ export function renderBar(
         line: d.lineNumber,
         key: multiSeries ? sName : d.label,
         name: multiSeries ? `${d.label} · ${sName}` : d.label,
-        value: v,
+        value: diverging ? Math.abs(v) : v,
         color: own,
         seriesName: multiSeries ? sName : undefined,
       };
@@ -478,9 +490,11 @@ export function renderBar(
         // Positive segments stack up/right from 0, negative segments stack
         // down/left — the diverging-stack convention.
         const acc = v < 0 ? accNeg : accPos;
+        const [from, to] = dSpans ? dSpans[s]! : [acc, acc + v];
+        const segText = fmt(diverging ? Math.abs(v) : v);
         if (horiz) {
-          const x0 = val(acc);
-          const x1 = val(acc + v);
+          const x0 = val(from);
+          const x1 = val(to);
           rect(
             svg,
             Math.min(x0, x1),
@@ -495,14 +509,14 @@ export function renderBar(
           if (Math.abs(x1 - x0) > 26)
             drawValueLabel(
               svg,
-              fmt(v),
+              segText,
               (x0 + x1) / 2,
               base + cat.bandwidth() / 2 + 4,
               onBarColor
             ).attr('opacity', dim ? EMPHASIS_DIM_TEXT_OPACITY : null);
         } else {
-          const y0 = val(acc);
-          const y1 = val(acc + v);
+          const y0 = val(from);
+          const y1 = val(to);
           rect(
             svg,
             base,
@@ -517,7 +531,7 @@ export function renderBar(
           if (Math.abs(y1 - y0) > 18)
             drawValueLabel(
               svg,
-              fmt(v),
+              segText,
               base + cat.bandwidth() / 2,
               (y0 + y1) / 2 + 4,
               onBarColor

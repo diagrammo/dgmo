@@ -2567,6 +2567,38 @@ Parsers accept either form. The rules above are authoring guidance.
     Legacy Suite red
   ```
 
+  **`stack diverging`** (bar; survey / Likert form) replaces `stack` and
+  centres each bar on 0. In its series block, the neutral series carries a
+  trailing `neutral` flag, after its color:
+
+  ```
+  bar Crew Morale Survey
+  orientation-horizontal
+  stack diverging
+    Strongly disagree red
+    Disagree orange
+    Neutral gray neutral
+    Agree green
+    Strongly agree blue
+
+  Rations 10 20 10 30 30
+  ```
+
+  - Series declared before the neutral one grow left of 0 (down, on vertical
+    bars); series after it grow right (up). Each side stacks nearest to the
+    centre first, in declared order, so the bar reads in declared order.
+  - The neutral segment is split, half left and half right of 0.
+  - No `neutral` flag: with an even count the split falls between the two
+    middle series; with an odd count the middle series is neutral.
+  - More than one `neutral` flag is an error; the first one is used.
+  - Vertical and `orientation-horizontal` (the common survey form) both work.
+  - Values are magnitudes: value labels and hover show each segment's own
+    value, never negative, and the axis reads positive both ways from 0.
+    The legend lists the series in declared order. `sort` orders by each
+    bar's total; `lollipop` cannot draw it (it is a `stack`).
+  - `neutral` is a flag only under `stack diverging`; elsewhere it is part of
+    the series name.
+
 - **line** — use a `series` block (every series is plotted):
 
   ```

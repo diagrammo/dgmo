@@ -1,0 +1,13 @@
+bar Crew Morale Survey
+orientation-horizontal
+stack diverging
+  Strongly disagree red
+  Disagree orange
+  Neutral gray neutral
+  Agree green
+  Strongly agree blue
+
+Rations 10 20 10 30 30
+Shore leave 5 15 20 40 20
+Captain's orders 25 30 15 20 10
+Share of plunder 8 12 10 35 35

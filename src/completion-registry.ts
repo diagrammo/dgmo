@@ -175,7 +175,8 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'no-legend': { description: 'Hide the legend' },
       stack: {
         description:
-          'Multi-series block header → stacked bars (one bar/category)',
+          'Multi-series block header → stacked bars; `stack diverging` centres them on 0',
+        values: ['diverging'],
       },
       group: {
         description:
