@@ -594,6 +594,16 @@ interface SeriesBand {
     high: number;
     lineNumber: number;
 }
+/** A two-colour fill between two series (#1997). */
+interface FillBetween {
+    /** Series indices. */
+    a: number;
+    b: number;
+    /** Palette colour names: where A is above B, and where B is above A. */
+    ahead: string;
+    behind: string;
+    lineNumber: number;
+}
 
 interface ParsedChart {
     type: ChartType$1;
@@ -688,6 +698,10 @@ interface ParsedChart {
     /** Line only (#1981): `band <label> <low> <high>` shades between two
      *  series, which are then not drawn as lines. Indices into the series. */
     seriesBands?: SeriesBand[];
+    /** Line only (#1997): `fill-between A B [ahead] [behind]`, in source order. */
+    fillBetween?: FillBetween[];
+    /** Line of the bare `fill` flag, for its diagnostics. */
+    fillLineNumber?: number;
     /** §1.11 emphasis: `highlight <Name>[, <Name>…]` on bar, line and pie
      *  (#1829). Last one wins. Resolved against the categories, series or
      *  slices at render time via `resolveEmphasis`. */

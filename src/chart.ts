@@ -29,6 +29,17 @@ export interface SeriesBand {
   lineNumber: number;
 }
 
+/** A two-colour fill between two series (#1997). */
+export interface FillBetween {
+  /** Series indices. */
+  a: number;
+  b: number;
+  /** Palette colour names: where A is above B, and where B is above A. */
+  ahead: string;
+  behind: string;
+  lineNumber: number;
+}
+
 import type { DgmoError } from './diagnostics';
 import type { ChartFrame } from './utils/chart-frame-parse';
 import { parseChartFrameLine } from './utils/chart-frame-parse';
@@ -139,6 +150,10 @@ export interface ParsedChart {
   /** Line only (#1981): `band <label> <low> <high>` shades between two
    *  series, which are then not drawn as lines. Indices into the series. */
   seriesBands?: SeriesBand[];
+  /** Line only (#1997): `fill-between A B [ahead] [behind]`, in source order. */
+  fillBetween?: FillBetween[];
+  /** Line of the bare `fill` flag, for its diagnostics. */
+  fillLineNumber?: number;
   /** §1.11 emphasis: `highlight <Name>[, <Name>…]` on bar, line and pie
    *  (#1829). Last one wins. Resolved against the categories, series or
    *  slices at render time via `resolveEmphasis`. */
@@ -338,6 +353,7 @@ export function parseChart(
     lineNumber: number;
   }[] = [];
   const rawSeriesBands: { tokens: string[]; lineNumber: number }[] = [];
+  const rawFillBetween: { tokens: string[]; lineNumber: number }[] = [];
   const result: ParsedChart = {
     type: 'bar',
     data: [],
@@ -548,6 +564,7 @@ export function parseChart(
         result.lollipopLineNumber = lineNumber;
       } else if (firstToken === 'fill') {
         result.fill = true;
+        result.fillLineNumber = lineNumber;
       } else if (firstToken === 'hole') {
         result.hole = DEFAULT_HOLE;
       }
@@ -595,6 +612,15 @@ export function parseChart(
         rawSeriesBands.push({ tokens, lineNumber });
         continue;
       }
+    }
+
+    // Fill between two series (#1997): `fill-between A B [ahead] [behind]`.
+    if (firstToken === 'fill-between') {
+      rawFillBetween.push({
+        tokens: spaceIdx >= 0 ? trimmed.split(/\s+/).slice(1) : [],
+        lineNumber,
+      });
+      continue;
     }
 
     // Known option with a value
@@ -1038,7 +1064,7 @@ export function parseChart(
     }
   }
 
-  if (!result.error) settleSeriesFills(result, rawSeriesBands);
+  if (!result.error) settleSeriesFills(result, rawSeriesBands, rawFillBetween);
 
   // `step` and `step-before` draw a line's segments (#1880); nowhere else.
   if (result.step !== undefined && result.type !== 'line') {
@@ -1353,15 +1379,16 @@ function splitTwoSeries(
 }
 
 /**
- * Resolve `band <label> <low> <high>` (#1981) against the declared series.
- * Line-only; a name that is not a declared series is an error and drops the
- * line.
+ * Resolve `band <label> <low> <high>` (#1981) and `fill-between A B [ahead]
+ * [behind]` (#1997) against the declared series. Both are line-only; a name
+ * that is not a declared series is an error and drops the line.
  */
 function settleSeriesFills(
   result: ParsedChart,
-  rawBands: readonly { tokens: string[]; lineNumber: number }[]
+  rawBands: readonly { tokens: string[]; lineNumber: number }[],
+  rawFills: readonly { tokens: string[]; lineNumber: number }[]
 ): void {
-  if (rawBands.length === 0) return;
+  if (rawBands.length === 0 && rawFills.length === 0) return;
   const err = (line: number, message: string): void => {
     result.diagnostics.push(makeDgmoError(line, message, 'error'));
   };
@@ -1371,6 +1398,14 @@ function settleSeriesFills(
         makeDgmoError(
           r.lineNumber,
           `A series band applies only to line charts; ignoring it on "${result.type}".`,
+          'warning'
+        )
+      );
+    for (const r of rawFills)
+      result.diagnostics.push(
+        makeDgmoError(
+          r.lineNumber,
+          `\`fill-between\` applies only to line charts; ignoring it on "${result.type}".`,
           'warning'
         )
       );
@@ -1410,4 +1445,64 @@ function settleSeriesFills(
     else err(lineNumber, `band: ${unknown(tokens.slice(-2))}`);
   }
   if (bands.length) result.seriesBands = bands;
+
+  const fills: FillBetween[] = [];
+  for (const { tokens, lineNumber } of rawFills) {
+    let found: FillBetween | null = null;
+    // Up to two trailing colour words; the rest names A then B.
+    for (let c = Math.min(2, tokens.length - 2); c >= 0 && !found; c--) {
+      const colours = tokens
+        .slice(tokens.length - c)
+        .map((t) => t.toLowerCase());
+      if (
+        !colours.every((t) =>
+          RECOGNIZED_COLOR_NAMES.includes(
+            t as (typeof RECOGNIZED_COLOR_NAMES)[number]
+          )
+        )
+      )
+        continue;
+      const pair = splitTwoSeries(tokens.slice(0, tokens.length - c), index);
+      if (pair)
+        found = {
+          a: pair[0],
+          b: pair[1],
+          ahead: colours[0] ?? 'green',
+          behind: colours[1] ?? 'red',
+          lineNumber,
+        };
+    }
+    if (found) fills.push(found);
+    else if (tokens.length < 2)
+      err(
+        lineNumber,
+        '`fill-between` needs two series — fill-between Actual Plan green red.'
+      );
+    else {
+      let end = tokens.length;
+      while (
+        end > 2 &&
+        RECOGNIZED_COLOR_NAMES.includes(
+          tokens[
+            end - 1
+          ]!.toLowerCase() as (typeof RECOGNIZED_COLOR_NAMES)[number]
+        )
+      )
+        end--;
+      err(
+        lineNumber,
+        `fill-between: ${unknown(tokens.slice(0, Math.min(end, 2)))}`
+      );
+    }
+  }
+  if (fills.length) {
+    result.fillBetween = fills;
+    if (result.fill) {
+      err(
+        result.fillLineNumber ?? fills[0]!.lineNumber,
+        '`fill` and `fill-between` cannot both be set — keep one. Ignoring `fill`.'
+      );
+      delete result.fill;
+    }
+  }
 }

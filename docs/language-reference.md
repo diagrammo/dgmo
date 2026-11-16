@@ -2635,6 +2635,7 @@ x-label X Label
 y-label Y Label
 orientation-horizontal   // bar: horizontal bars
 fill                     // line: fill the area under the line
+fill-between A B         // line: shade between two series (§15.1.5)
 band Forecast Low High   // line: uncertainty band between two series (§15.1.5)
 hole                     // pie: doughnut ring (optional ratio, e.g. `hole 0.5`)
 no-center-total          // pie: hide the center total (shown by default when `hole` is set)
@@ -2844,7 +2845,7 @@ locale de-DE             // separators and currency placement: 1.234,5 · 1.200 
 
 #### 15.1.5 Bands and fills between series (line)
 
-A line directive shades between two declared series (#1981).
+Two line directives shade between two declared series (#1981, #1997).
 
 **Uncertainty band** — `band <label> <low series> <high series>`:
 
@@ -2871,7 +2872,31 @@ Feb 132 120 146
   joined by `..` make a value band, a label and two series make a series band.
 - A low or high name that is not a declared series is an error.
 
-**Gaps.** A row missing a value breaks the band there, as it breaks the
+**Fill between** — `fill-between A B [ahead] [behind]`:
+
+```
+series
+  Haul blue
+  Quota gray
+fill-between Haul Quota green red
+```
+
+- Shades the gap between series A and B: `ahead` where A is above B, `behind`
+  where B is above A. Both are palette colour names; omitted, they are green
+  and red. One colour alone sets `ahead`.
+- Where the lines cross, the colour switches at the crossing point. It follows
+  `step` / `step-before`.
+- It never extends the y-axis, with or without `no-auto-y`.
+- More than one `fill-between` is allowed (different pairs). Each draws in
+  declared order, beneath every line.
+- An unknown series name is an error. `fill` and `fill-between` together is an
+  error, and `fill` is ignored.
+
+**Layering**, bottom to top: value bands and eras, series bands, fills between
+series, then each series' `fill` area, line and points. A fill between series
+recedes under `highlight` only when both of its series do.
+
+**Gaps.** A row missing a value breaks the band or fill there, as it breaks the
 line. A data row cannot yet leave a value empty: a row with fewer values than
 series is dropped with a warning.
 

@@ -52,6 +52,7 @@ import {
   drawCategoryLabels,
 } from './shared';
 import { labelBox, placeLabels } from '../utils/place-labels';
+import { resolveColor } from '../colors';
 import type { LabelRect } from '../label-layout';
 
 function seriesValue(
@@ -490,6 +491,42 @@ export function renderLine(
       .attr('stroke', 'none');
   }
 
+  // Fill between two series (#1997), in declared order, above the bands and
+  // beneath every line: `ahead` where A is above B, `behind` where B is.
+  for (const fb of chart.fillBetween ?? []) {
+    const aAxis = yFor(fb.a);
+    const bAxis = yFor(fb.b);
+    const rows = data.map((d, i) => ({
+      x: xOfRow(i),
+      a: aAxis(seriesValue(d, fb.a)),
+      b: bAxis(seriesValue(d, fb.b)),
+    }));
+    const runs = fillBetweenRuns(rows, chart.step);
+    // It recedes only when both of its series do.
+    const recede = dimmed.has(nameOf(fb.a)) && dimmed.has(nameOf(fb.b));
+    const g = svg
+      .append('g')
+      .attr('class', 'dgmo-fill-between')
+      .attr('data-line-number', fb.lineNumber);
+    if (recede && !story.active) g.attr('opacity', EMPHASIS_DIM_OPACITY);
+    for (const side of ['ahead', 'behind'] as const) {
+      const d = runs
+        .filter((r) => r.ahead === (side === 'ahead'))
+        .map((r) => polygonPath(r.points))
+        .join('');
+      if (!d) continue;
+      const own =
+        resolveColor(fb[side], palette) ??
+        (side === 'ahead' ? palette.colors.green : palette.colors.red);
+      g.append('path')
+        .attr('class', `dgmo-fill-between-${side}`)
+        .attr('d', d)
+        .attr('fill', story.active && recede ? story.groundFill : own)
+        .attr('fill-opacity', story.active && recede ? 1 : BAND_OPACITY)
+        .attr('stroke', 'none');
+    }
+  }
+
   for (const s of seriesOrder) {
     if (boundSeries.has(s)) continue;
     const own = seriesColor(s);
@@ -696,3 +733,103 @@ export function renderLine(
       .attr('style', 'cursor:pointer');
   }
 }
+
+/** One same-sign stretch of a fill-between: its closed outline, A then B. */
+interface FillRun {
+  ahead: boolean;
+  points: [number, number][];
+}
+
+/**
+ * Split the gap between A and B (screen y, so smaller is higher) into runs of
+ * one sign (#1997). A crossing ends a run at the interpolated point and starts
+ * the next there; a row missing either value ends it with no fill across the
+ * gap. Under `step` / `step-before` the rows are expanded to the stepped
+ * corners first, so a sign change lands on the vertical jump.
+ */
+export function fillBetweenRuns(
+  rows: readonly { x: number; a: number; b: number }[],
+  step?: 'after' | 'before'
+): FillRun[] {
+  const runs: FillRun[] = [];
+  const ok = (r: { a: number; b: number }) =>
+    Number.isFinite(r.a) && Number.isFinite(r.b);
+  // Contiguous defined stretches, expanded to the drawn vertices.
+  const stretches: { x: number; a: number; b: number }[][] = [];
+  let cur: { x: number; a: number; b: number }[] = [];
+  rows.forEach((r, i) => {
+    if (!ok(r)) {
+      if (cur.length) stretches.push(cur);
+      cur = [];
+      return;
+    }
+    const prev = rows[i - 1];
+    if (cur.length && prev && step === 'after')
+      cur.push({ x: r.x, a: prev.a, b: prev.b });
+    else if (cur.length && prev && step === 'before')
+      cur.push({ x: prev.x, a: r.a, b: r.b });
+    cur.push(r);
+  });
+  if (cur.length) stretches.push(cur);
+
+  for (const pts of stretches) {
+    if (pts.length < 2) continue;
+    // A is above B on screen when its y is smaller.
+    const sign = (p: { a: number; b: number }) => Math.sign(p.b - p.a);
+    let top: [number, number][] = [];
+    let bottom: [number, number][] = [];
+    let runSign = 0;
+    const close = () => {
+      if (top.length >= 2 && runSign !== 0)
+        runs.push({
+          ahead: runSign > 0,
+          points: [...top, ...bottom.reverse()],
+        });
+      top = [];
+      bottom = [];
+    };
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i]!;
+      const sg = sign(p);
+      const q = pts[i - 1];
+      if (q && sign(q) !== 0 && sg !== 0 && sign(q) !== sg) {
+        // Crossing between q and p: where (b - a) reaches zero.
+        const dq = q.b - q.a;
+        const t = dq / (dq - (p.b - p.a));
+        const c: [number, number] = [
+          q.x + t * (p.x - q.x),
+          q.a + t * (p.a - q.a),
+        ];
+        top.push(c);
+        bottom.push(c);
+        close();
+        top.push(c);
+        bottom.push(c);
+        runSign = 0;
+      }
+      top.push([p.x, p.a]);
+      bottom.push([p.x, p.b]);
+      if (runSign === 0) runSign = sg;
+      // Touching without crossing: end the run here and start the next.
+      if (sg === 0 && top.length >= 2) {
+        close();
+        top.push([p.x, p.a]);
+        bottom.push([p.x, p.b]);
+        runSign = 0;
+      }
+    }
+    close();
+  }
+  return runs;
+}
+
+/** A closed SVG polygon through `points`. */
+function polygonPath(points: readonly [number, number][]): string {
+  return (
+    points
+      .map(([x, y], i) => `${i ? 'L' : 'M'}${round(x)},${round(y)}`)
+      .join('') + 'Z'
+  );
+}
+
+const round = (n: number): number => Math.round(n * 100) / 100;

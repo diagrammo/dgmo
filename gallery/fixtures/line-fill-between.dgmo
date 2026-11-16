@@ -1,0 +1,14 @@
+line Plunder vs Quota
+subtitle Green where the haul beat the quota, red where it fell short
+y-label Doubloons
+series
+  Haul blue
+  Quota gray
+fill-between Haul Quota
+
+Jan 420 400
+Feb 470 410
+Mar 380 420
+Apr 350 430
+May 460 440
+Jun 520 450

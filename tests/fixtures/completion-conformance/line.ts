@@ -20,6 +20,8 @@ export const fixture: ConformanceFixture = {
     'no-legend',
     'series',
     'fill',
+    // #1997 fill between two series.
+    'fill-between',
     // #1880 step line.
     'step',
     'step-before',
