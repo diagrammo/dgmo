@@ -230,6 +230,7 @@ import {
   type EmphasisDirective,
   isEmphasisToken,
   parseEmphasisDirective,
+  resolveHighlightPaths,
 } from './utils/emphasis';
 
 // ============================================================
@@ -1090,6 +1091,21 @@ function parseExtendedChartFull(
     if (result.type === 'sankey') {
       if (!result.links || result.links.length === 0) {
         warn(1, 'No links found. Add links in format: Source -> Target 123');
+      }
+      // A `highlight` chain (#2041) that names a flow the chart does not have
+      // warns and names that flow, so a typo never silently lights nothing.
+      const emph = result.emphasis;
+      if (emph && result.links?.length) {
+        const paths = resolveHighlightPaths(
+          emph,
+          result.links.flatMap((l) => [l.source, l.target]),
+          result.links.map((l) => ({ from: l.source, to: l.target }))
+        );
+        for (const missing of paths.unknown.filter((u) => u.includes('->')))
+          warn(
+            emph.lineNumber,
+            `highlight names a flow this chart does not have: ${missing}`
+          );
       }
     } else if (result.type === 'chord') {
       if (!result.links || result.links.length === 0) {

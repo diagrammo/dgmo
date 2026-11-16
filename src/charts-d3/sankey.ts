@@ -19,9 +19,12 @@ import { type Svg, chartFormatter, tagDatum } from './shared';
 import {
   EMPHASIS_DIM_OPACITY,
   EMPHASIS_DIM_TEXT_OPACITY,
+  parseHighlightChain,
   resolveEmphasis,
+  resolveHighlightPaths,
   storyPaint,
 } from '../utils/emphasis';
+import type { ResolvedEmphasis } from '../utils/emphasis';
 
 const NODE_W = 20;
 const NODE_GAP = 14;
@@ -127,15 +130,36 @@ export function renderSankey(
   };
   const flowClosure = (seeds: ReadonlySet<string>): Set<string> =>
     new Set([...walk(seeds, true), ...walk(seeds, false)]);
-  const emphasis = resolveEmphasis(chart.emphasis, names, flowClosure);
+  // An arrow chain (#2041) names flows exactly: `highlight Paid Ads ->
+  // Landing Page -> Sign Up` lights those two ribbons and nothing else.
+  const paths = resolveHighlightPaths(
+    chart.emphasis,
+    names,
+    links.map((l) => ({ from: l.source, to: l.target })),
+    flowClosure
+  );
+  const chained =
+    paths.active &&
+    chart.emphasis?.names.some((n) => parseHighlightChain(n) !== null) === true;
+  const emphasis: ResolvedEmphasis = chained
+    ? {
+        dimmed: new Set(names.filter((n) => !paths.litNodes.has(n))),
+        unknown: paths.unknown,
+        kind: 'highlight',
+        ...(paths.color !== undefined && { color: paths.color }),
+      }
+    : resolveEmphasis(chart.emphasis, names, flowClosure);
   const { dimmed } = emphasis;
+  const linkIndex = new Map(links.map((l, i) => [l, i]));
   // Story view (#2046): lit flows and nodes solid, the rest one grey ground.
   const story = storyPaint(emphasis, palette, isDark);
   // A flow is figure only when BOTH endpoints are figure: a ribbon landing in a
   // receded node is itself part of the background story. Same rule family uses
   // for marriage bars (lit only when both partners are lit).
   const linkDimmed = (l: { source: string; target: string }) =>
-    dimmed.has(l.source) || dimmed.has(l.target);
+    chained
+      ? !paths.litEdges.has(linkIndex.get(l as (typeof links)[number]) ?? -1)
+      : dimmed.has(l.source) || dimmed.has(l.target);
   const node = new Map<string, SNode>();
   names.forEach((name, i) =>
     node.set(name, {

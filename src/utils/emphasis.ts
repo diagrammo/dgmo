@@ -388,3 +388,169 @@ export function applyHighlightOverride(
   if (value.toLowerCase() !== 'none') lines.push(`highlight ${value}`);
   return lines.join('\n');
 }
+
+/**
+ * A `highlight` item written as an arrow chain (#2041), the same arrows a
+ * diagram is written with: `highlight Edge -> API -> Cache`, or with an edge
+ * label `highlight OK? -no-> Pay`. It lights those nodes and the links
+ * between consecutive ones — nothing upstream or downstream of them.
+ */
+export interface HighlightChain {
+  readonly nodes: readonly string[];
+  /** One per consecutive pair; `label` only when the arrow carried one. */
+  readonly links: ReadonlyArray<{
+    readonly from: string;
+    readonly to: string;
+    readonly label?: string;
+  }>;
+}
+
+const CHAIN_ARROW_RE = /\s+(?:-([^\s>-][^>]*?))?->\s+/;
+
+/** The chain an item spells, or null when it has no arrow. */
+export function parseHighlightChain(item: string): HighlightChain | null {
+  const parts = item.trim().split(CHAIN_ARROW_RE);
+  if (parts.length < 3) return null;
+  const nodes: string[] = [];
+  const labels: (string | undefined)[] = [];
+  parts.forEach((p, i) => {
+    if (i % 2 === 0) nodes.push((p ?? '').trim());
+    else labels.push(p?.trim() || undefined);
+  });
+  if (nodes.some((n) => !n)) return null;
+  const links = labels.map((label, i) =>
+    label
+      ? { from: nodes[i]!, to: nodes[i + 1]!, label }
+      : { from: nodes[i]!, to: nodes[i + 1]! }
+  );
+  return { nodes, links };
+}
+
+/** A directive's items split into plain names and arrow chains. */
+export function splitHighlightItems(directive: EmphasisDirective): {
+  names: string[];
+  chains: HighlightChain[];
+} {
+  const names: string[] = [];
+  const chains: HighlightChain[] = [];
+  for (const item of directive.names) {
+    const chain = parseHighlightChain(item);
+    if (chain) chains.push(chain);
+    else names.push(item);
+  }
+  return { names, chains };
+}
+
+/** What a `highlight` lights on a chart made of nodes and links (#2041). */
+export interface ResolvedPaths {
+  /** True when something is lit, so everything else recedes. */
+  readonly active: boolean;
+  readonly litNodes: ReadonlySet<string>;
+  /** Indexes into the `edges` passed in. */
+  readonly litEdges: ReadonlySet<number>;
+  /** Items that matched nothing: a name, or a link written `A -> B`. */
+  readonly unknown: readonly string[];
+  /** A trailing named colour on the directive, lower case. */
+  readonly color?: string;
+}
+
+/**
+ * Resolves `highlight` over a graph. A plain name lights that node (widened by
+ * `expandName` when the chart type has a notion of "its story", as sankey's
+ * flow closure); an arrow chain lights exactly its nodes and the links between
+ * consecutive ones. A link is lit when the chain names it, or when both of its
+ * ends were lit by plain names. A labelled arrow (`-no->`) matches only an
+ * edge carrying that label. Matching ignores case and extra spaces.
+ */
+export function resolveHighlightPaths(
+  directive: EmphasisDirective | undefined,
+  nodeNames: Iterable<string>,
+  edges: ReadonlyArray<{ from: string; to: string; label?: string }>,
+  expandName?: (hits: ReadonlySet<string>) => Iterable<string>
+): ResolvedPaths {
+  const none: ResolvedPaths = {
+    active: false,
+    litNodes: new Set(),
+    litEdges: new Set(),
+    unknown: [],
+  };
+  if (directive?.kind !== 'highlight') return none;
+
+  const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
+  const byNorm = new Map<string, string>();
+  for (const n of nodeNames) byNorm.set(norm(n), n);
+
+  // A trailing colour word rides on the last item: `highlight A -> B orange`.
+  let items = [...directive.names];
+  let color: string | undefined;
+  const lastItem = items[items.length - 1] ?? '';
+  const tailMatch = /\s+(\S+)$/.exec(lastItem);
+  if (tailMatch && isRecognizedColorName(tailMatch[1]!.toLowerCase())) {
+    const stripped = lastItem.slice(0, tailMatch.index);
+    const lastNode = (s: string) => {
+      const c = parseHighlightChain(s);
+      return c ? c.nodes[c.nodes.length - 1]! : s;
+    };
+    if (
+      !byNorm.has(norm(lastNode(lastItem))) &&
+      byNorm.has(norm(lastNode(stripped)))
+    ) {
+      items = [...items.slice(0, -1), stripped];
+      color = tailMatch[1]!.toLowerCase();
+    }
+  }
+
+  const litNodes = new Set<string>();
+  const litEdges = new Set<number>();
+  const unknown: string[] = [];
+  const plainHits = new Set<string>();
+
+  for (const item of items) {
+    const chain = parseHighlightChain(item);
+    if (!chain) {
+      const hit = byNorm.get(norm(item));
+      if (hit === undefined) unknown.push(item);
+      else plainHits.add(hit);
+      continue;
+    }
+    for (const link of chain.links) {
+      const from = byNorm.get(norm(link.from));
+      const to = byNorm.get(norm(link.to));
+      const idx =
+        from === undefined || to === undefined
+          ? []
+          : edges.flatMap((e, i) =>
+              e.from === from &&
+              e.to === to &&
+              (link.label === undefined ||
+                norm(e.label ?? '') === norm(link.label))
+                ? [i]
+                : []
+            );
+      if (idx.length === 0) {
+        unknown.push(
+          link.label
+            ? `${link.from} -${link.label}-> ${link.to}`
+            : `${link.from} -> ${link.to}`
+        );
+        continue;
+      }
+      idx.forEach((i) => litEdges.add(i));
+      litNodes.add(from!);
+      litNodes.add(to!);
+    }
+  }
+
+  if (plainHits.size > 0) {
+    const widened = expandName ? new Set(expandName(plainHits)) : plainHits;
+    widened.forEach((n) => litNodes.add(n));
+    edges.forEach((e, i) => {
+      if (widened.has(e.from) && widened.has(e.to)) litEdges.add(i);
+    });
+  }
+
+  const active = litNodes.size > 0 || litEdges.size > 0;
+  return color
+    ? { active, litNodes, litEdges, unknown, color }
+    : { active, litNodes, litEdges, unknown };
+}
