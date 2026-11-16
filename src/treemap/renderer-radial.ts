@@ -47,8 +47,9 @@ import {
   type CellColorContext,
   mutedFill,
   treemapRecedes,
+  treemapStory,
 } from './treemap-shared';
-import { EMPHASIS_DIM_OPACITY } from '../utils/emphasis';
+import { EMPHASIS_DIM_OPACITY, storyLegend } from '../utils/emphasis';
 
 const PADDING = 12;
 
@@ -117,6 +118,14 @@ export function renderTreemapRadial(
   const legend = !opts.noLegend
     ? buildLegend(mode, parsed, heat, seriesColors, options.colorOffset ?? 0)
     : null;
+  // Legends follow the drawing under story view (#2046).
+  if (legend)
+    legend.groups = storyLegend(
+      legend.groups,
+      parsed.emphasis,
+      palette,
+      isDark
+    );
 
   const legendReserve = legend
     ? getMaxLegendReservedHeight(
@@ -202,8 +211,18 @@ export function renderTreemapRadial(
   let labelSeq = 0;
   if (!layout.isEmpty) {
     const recedes = treemapRecedes(parsed);
+    // Story view (#2046): lit arcs solid, the rest one grey ground.
+    const story = treemapStory(parsed, palette, isDark);
     for (const cell of layout.cells) {
-      const fill = resolveCellColor(cell, colorCtx);
+      const recede = recedes(cell);
+      const own = resolveCellColor(cell, colorCtx);
+      const fill = !story.active
+        ? own
+        : recede
+          ? cell.isContainer
+            ? story.groundStroke
+            : story.groundFill
+          : story.subject(own);
       const g = plot
         .append('g')
         .attr('class', 'dgmo-treemap-cell')
@@ -220,7 +239,8 @@ export function renderTreemapRadial(
         if (tagVal) g.attr(`data-tag-${tagAttrKey(key)}`, tagVal);
       }
       // §1.11 emphasis (#1829): a receded arc keeps its paint and fades whole.
-      if (recedes(cell)) g.attr('opacity', EMPHASIS_DIM_OPACITY);
+      // Story view bakes the grey into the paint instead.
+      if (recede && !story.active) g.attr('opacity', EMPHASIS_DIM_OPACITY);
 
       g.append('path')
         .attr(

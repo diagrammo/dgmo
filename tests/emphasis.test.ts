@@ -8,6 +8,8 @@ import {
 } from '../src/utils/emphasis';
 import { parseExtendedChart } from '../src/data-chart-parser';
 import { renderDataChartD3 } from '../src/charts-d3';
+import { getPalette } from '../src/palettes';
+import { storyGround } from '../src/utils/emphasis';
 
 // ── Spike scope note ──────────────────────────────────────────────────────
 // §1.11 emphasis is prototyped on SANKEY ONLY. These tests pin the shared
@@ -23,6 +25,16 @@ Tortuga Distillery
   Barrel Aging 2000
   Spoilage 1000
 `;
+
+const ground = storyGround(getPalette('slate').light, false);
+
+/** Names of the nodes drawn by `pred`, from the `<rect data-name>` marks. */
+function nodeNames(svg: string, pred: (tag: string) => boolean): string[] {
+  return (svg.match(/<rect[^>]*data-emph-key="node:[^>]*>/g) ?? [])
+    .filter(pred)
+    .map((t) => /data-name="([^"]*)"/.exec(t)![1]!)
+    .sort();
+}
 
 function render(src: string): Promise<string> {
   return renderDataChartD3(src, 'light');
@@ -172,37 +184,55 @@ describe('sankey render output', async () => {
 
   it('highlight lights the flow closure, not just the named node', async () => {
     // `Barrel Aging` is fed by Tortuga, which is fed by Sugar Plantations.
-    // All three must stay lit — dimming a highlighted node's own inflows
+    // All three must stay lit — greying a highlighted node's own inflows
     // would delete the explanation the highlight exists to give.
     const svg = await render(`${FLOW}highlight Barrel Aging\n`);
     const litRibbons = svg.split('fill-opacity="0.6"').length - 1;
     expect(litRibbons).toBeGreaterThan(0);
-    // ...but the off-path Spoilage branch DOES recede.
-    expect(svg).toContain(`opacity="${EMPHASIS_DIM_OPACITY}"`);
+    // ...but the off-path Spoilage branch DOES recede: grey ribbons, no opacity.
+    expect(svg).toContain(`fill="${ground.groundStroke}" fill-opacity="0.6"`);
+    expect(svg).not.toContain(`opacity="${EMPHASIS_DIM_OPACITY}"`);
+    expect(
+      nodeNames(svg, (t) => t.includes(`fill="${ground.groundFill}"`))
+    ).toContain('Spoilage');
   });
 
   it('highlight does not leak sideways into unrelated siblings', async () => {
     // A naive bidirectional closure walks UP to Tortuga then back DOWN into
-    // Spoilage, lighting the whole connected component and dimming nothing.
+    // Spoilage, lighting the whole connected component and greying nothing.
     // Barrel Aging's real closure is {Sugar, Tortuga, Barrel Aging}, so the
     // off-path Nassau and Spoilage both recede — exactly two.
     const svg = await render(`${FLOW}highlight Barrel Aging\n`);
-    const dimCount = svg.split(`opacity="${EMPHASIS_DIM_OPACITY}"`).length - 1;
-    expect(dimCount).toBe(2);
+    const greyNodes = nodeNames(svg, (t) =>
+      t.includes(`fill="${ground.groundFill}"`)
+    );
+    expect(greyNodes).toEqual(['Nassau Distillery', 'Spoilage']);
+    // Their inflow ribbons recede with them: one each.
+    const greyRibbons =
+      svg.split(`fill="${ground.groundStroke}" fill-opacity="0.6"`).length - 1;
+    expect(greyRibbons).toBe(2);
   });
 
-  it('the duals are equivalent when they name the same ground', async () => {
-    // `highlight Barrel Aging` recedes Nassau + Spoilage; naming those two
-    // explicitly with `dim` must produce an identical render.
+  it('the duals recede the same set of elements', async () => {
+    // `highlight Barrel Aging` recedes Nassau + Spoilage by ground paint;
+    // naming those two explicitly with `dim` recedes the same nodes by opacity.
     const viaHighlight = await render(`${FLOW}highlight Barrel Aging\n`);
     const viaDim = await render(`${FLOW}dim Spoilage, Nassau Distillery\n`);
-    const count = (s: string, needle: string) => s.split(needle).length - 1;
-    expect(count(viaDim, 'fill-opacity="0.168"')).toBe(
-      count(viaHighlight, 'fill-opacity="0.168"')
+    expect(
+      nodeNames(viaHighlight, (t) => t.includes(`fill="${ground.groundFill}"`))
+    ).toEqual(
+      nodeNames(viaDim, (t) => t.includes(`opacity="${EMPHASIS_DIM_OPACITY}"`))
     );
-    expect(count(viaDim, `opacity="${EMPHASIS_DIM_OPACITY}"`)).toBe(
-      count(viaHighlight, `opacity="${EMPHASIS_DIM_OPACITY}"`)
+    // Dim keeps the old contract: baked opacity, no ground paint.
+    expect(viaDim).not.toContain(ground.groundFill);
+  });
+
+  it('a trailing colour word paints the lit nodes with that palette colour', async () => {
+    const svg = await render(`${FLOW}highlight Barrel Aging orange\n`);
+    const lit = nodeNames(svg, (t) =>
+      t.includes(`fill="${getPalette('slate').light.colors.orange}"`)
     );
+    expect(lit).toContain('Barrel Aging');
   });
 
   it('preserves hue — dimming is opacity, never a color substitution', async () => {

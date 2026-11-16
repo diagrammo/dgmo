@@ -18,6 +18,7 @@ import { measureText, truncateText } from '../utils/text-measure';
 import type { ParsedChart } from '../chart';
 import type { PaletteColors } from '../palettes';
 import { getSimpleChartLegendGroups } from '../data-chart-parser';
+import { storyLegend } from '../utils/emphasis';
 import { renderLegendSvgInMode } from '../utils/legend-svg';
 import type { LegendGroupData } from '../utils/legend-types';
 import { drawnTitleExtraHeight, renderChartTitle } from '../utils/d3-helpers';
@@ -197,7 +198,14 @@ export function reserveHeader(
     svg,
     // `no-legend` (#48) → pass no groups; injectLegendGroups then returns the
     // title-only top inset, so the legend band collapses rather than blanking.
-    chart.noLegend ? [] : getSimpleChartLegendGroups(chart, colors),
+    chart.noLegend
+      ? []
+      : storyLegend(
+          getSimpleChartLegendGroups(chart, colors),
+          chart.emphasis,
+          palette,
+          isDark
+        ),
     palette,
     isDark,
     hasTitle,

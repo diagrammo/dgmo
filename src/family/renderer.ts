@@ -62,7 +62,7 @@ import {
   EDGE_STROKE_WIDTH,
   EDGE_DASH,
 } from '../utils/visual-conventions';
-import { EMPHASIS_DIM_OPACITY } from '../utils/emphasis';
+import { storyGround } from '../utils/emphasis';
 import { familyCardRows, familyDisplayLabel } from './card-model';
 import type { PaletteColors } from '../palettes';
 import type {
@@ -76,18 +76,11 @@ const KEY_X = 10;
 const KEY_VALUE_GAP = 6;
 const BAR_DOT_R = 3.5;
 const TITLE_RESERVE = 40; // native vertical band for the title
-// Faded cards/edges outside the `highlight` bloodline. Sourced from the shared
-// §1.11 emphasis constant (decision #49) so a dimmed bloodline and a dimmed
-// sankey flow read at exactly the same weight — the value is unchanged (0.28),
-// which is where the shared constant came from in the first place.
-//
-// Only the CONSTANT is shared, deliberately: family resolves `highlight` to a
-// canonical person *id* through its alias map and normalizeName, then walks the
-// bloodline in layout, whereas `resolveEmphasis` matches display names and
-// splits on commas. Routing family through the shared resolver would change
-// which names match (aliases would stop resolving, a comma inside a name would
-// newly split), so the shipped behavior stays exactly as it is.
-const DIM_OPACITY = EMPHASIS_DIM_OPACITY;
+// Cards and edges outside the `highlight` bloodline take the shared story
+// ground (`storyGround`, #2046), so a receded bloodline and a receded sankey
+// flow read alike. Only the paint is shared: family resolves `highlight` to a
+// person id through its alias map and walks the bloodline in layout, which the
+// display-name `resolveEmphasis` cannot do without changing what matches.
 
 const ROMAN: ReadonlyArray<readonly [number, string]> = [
   [10, 'X'],
@@ -368,6 +361,9 @@ export function renderFamilyForExport(
   }
 
   // ── Children buses (drawn under cards) ──
+  // Story view (#2046): family has only `highlight`, so anything dimmed is
+  // ground — grey baked into the paint, never an opacity.
+  const ground = storyGround(palette, isDark);
   const edgeG = root.append('g').attr('class', 'family-edges');
   const pathD = (pts: ReadonlyArray<{ x: number; y: number }>): string =>
     pts.map((p, i) => `${i ? 'L' : 'M'}${p.x} ${p.y}`).join(' ');
@@ -380,10 +376,9 @@ export function renderFamilyForExport(
       .append('path')
       .attr('d', pathD(pts))
       .attr('fill', 'none')
-      .attr('stroke', palette.textMuted)
+      .attr('stroke', dimmed ? ground.groundStroke : palette.textMuted)
       .attr('stroke-width', EDGE_STROKE_WIDTH)
-      .attr('stroke-dasharray', dashed ? EDGE_DASH : null)
-      .attr('stroke-opacity', dimmed ? DIM_OPACITY : null);
+      .attr('stroke-dasharray', dashed ? EDGE_DASH : null);
   };
   // Group child edges by union so a union's shared bus TRUNK is drawn ONCE. The
   // trunk is dashed only when EVERY child is adopted (all-adopted union → fully
@@ -430,8 +425,7 @@ export function renderFamilyForExport(
         .attr('text-anchor', tick ? 'end' : null)
         .attr('font-size', META_FONT_SIZE)
         .attr('font-style', 'italic')
-        .attr('fill', palette.textMuted)
-        .attr('fill-opacity', e.dimmed ? DIM_OPACITY : null)
+        .attr('fill', e.dimmed ? ground.groundText : palette.textMuted)
         .text('adopted');
     }
   }
@@ -440,13 +434,13 @@ export function renderFamilyForExport(
   const barG = root.append('g').attr('class', 'family-bars');
   for (const bar of layout.bars) {
     const bg = barG.append('g');
-    if (bar.dimmed) bg.attr('opacity', DIM_OPACITY);
+    const barInk = bar.dimmed ? ground.groundStroke : palette.textMuted;
     bg.append('line')
       .attr('x1', bar.x1)
       .attr('y1', bar.y)
       .attr('x2', bar.x2)
       .attr('y2', bar.y)
-      .attr('stroke', palette.textMuted)
+      .attr('stroke', barInk)
       .attr('stroke-width', EDGE_STROKE_WIDTH)
       // Divorced/dissolved union → dashed marriage bar.
       .attr('stroke-dasharray', bar.divorced ? EDGE_DASH : null)
@@ -456,39 +450,20 @@ export function renderFamilyForExport(
       .attr('cx', bar.midX)
       .attr('cy', bar.y)
       .attr('r', BAR_DOT_R)
-      .attr('fill', palette.textMuted);
+      .attr('fill', barInk);
     if (bar.year) {
       bg.append('text')
         .attr('x', bar.labelX)
         .attr('y', bar.y - BAR_DOT_R - 3)
         .attr('text-anchor', 'middle')
         .attr('font-size', META_FONT_SIZE)
-        .attr('fill', palette.textMuted)
+        .attr('fill', bar.dimmed ? ground.groundText : palette.textMuted)
         .attr('stroke', baseBg)
         .attr('stroke-width', 3)
         .attr('stroke-linejoin', 'round')
         .attr('paint-order', 'stroke')
         .text(`m. ${bar.year}`);
     }
-  }
-
-  // ── Dim occluders ──
-  // A dimmed card is drawn translucent (opacity DIM_OPACITY), which would let
-  // the marriage bars / bus edges behind it show THROUGH the card. Lay an opaque
-  // background rect under each dimmed card first (above bars + edges, below the
-  // cards) so the card still reads dimmed against the page but no line bleeds
-  // through it.
-  const occludeG = root.append('g').attr('class', 'family-dim-occluders');
-  for (const node of layout.nodes) {
-    if (!node.dimmed) continue;
-    occludeG
-      .append('rect')
-      .attr('x', node.x)
-      .attr('y', node.y)
-      .attr('width', node.width)
-      .attr('height', node.height)
-      .attr('rx', CARD_RADIUS)
-      .attr('fill', baseBg);
   }
 
   // ── Person cards ──
@@ -498,20 +473,27 @@ export function renderFamilyForExport(
     const base = baseColor(node, parsed, palette, activeTagGroup);
     // Placeholder `?`: a fainter, name-only card with a SOLID (muted) border —
     // no color identity. (Dashing is reserved for adoption/divorce edges.)
-    const fill = isPh
-      ? mix(palette.textMuted, baseBg, 6)
-      : shapeFill(palette, base, isDark, { mode: fillMode });
-    const stroke = isPh ? palette.textMuted : base;
-    const labelColor = isPh
-      ? palette.textMuted
-      : contrastText(fill, palette.textOnFillLight, palette.textOnFillDark);
+    const fill = node.dimmed
+      ? ground.groundFill
+      : isPh
+        ? mix(palette.textMuted, baseBg, 6)
+        : shapeFill(palette, base, isDark, { mode: fillMode });
+    const stroke = node.dimmed
+      ? ground.groundStroke
+      : isPh
+        ? palette.textMuted
+        : base;
+    const labelColor = node.dimmed
+      ? ground.groundText
+      : isPh
+        ? palette.textMuted
+        : contrastText(fill, palette.textOnFillLight, palette.textOnFillDark);
     const g = cardsG
       .append('g')
       .attr('class', 'family-card')
       .attr('transform', `translate(${node.x}, ${node.y})`)
       .attr('data-line-number', String(node.lineNumber))
       .attr('data-person-id', node.id);
-    if (node.dimmed) g.attr('opacity', DIM_OPACITY);
     // Expose the active tag value for legend-entry hover-dim (org precedent).
     if (activeTagGroup) {
       const key = tagAttrKey(activeTagGroup);

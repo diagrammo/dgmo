@@ -14,6 +14,7 @@ import {
   EMPHASIS_DIM_OPACITY,
   EMPHASIS_DIM_TEXT_OPACITY,
   resolveEmphasis,
+  storyPaint,
 } from '../utils/emphasis';
 
 const LABEL_FONT = 14;
@@ -124,14 +125,27 @@ export function renderPie(
 
   // §1.11 emphasis (#1829): `highlight` names slices. Every other slice, its
   // leader line and its label recede.
-  const { dimmed } = resolveEmphasis(
+  const emphasis = resolveEmphasis(
     chart.emphasis,
     data.map((d) => d.label)
   );
+  const { dimmed } = emphasis;
+  // Story view (#2046): the subject slice solid, the rest one grey ground.
+  const story = storyPaint(emphasis, palette, isDark);
 
   arcs.forEach((a, i) => {
-    const stroke = strokeFor(i, data[i]!.color);
-    const fill = shapeFill(palette, stroke, isDark, { mode: fillMode });
+    const own = strokeFor(i, data[i]!.color);
+    const recede = dimmed.has(data[i]!.label);
+    const stroke = !story.active
+      ? own
+      : recede
+        ? story.groundStroke
+        : story.subject(own);
+    const fill = !story.active
+      ? shapeFill(palette, own, isDark, { mode: fillMode })
+      : recede
+        ? story.groundFill
+        : stroke;
     const pct = Math.round((data[i]!.value / total) * 100);
     const slice = g
       .append('path')
@@ -139,15 +153,15 @@ export function renderPie(
       .attr('fill', fill)
       .attr('stroke', stroke)
       .attr('stroke-width', 1.5);
-    const dim = dimmed.has(data[i]!.label);
-    // A receded slice keeps its paint: the dim is a baked opacity (§1.11).
+    // Story view bakes the grey into the paint; only `dim` uses opacity.
+    const dim = recede && !story.active;
     if (dim) slice.attr('opacity', EMPHASIS_DIM_OPACITY);
     tagDatum(slice, {
       line: data[i]!.lineNumber,
       key: data[i]!.label,
       name: data[i]!.label,
       value: `${fmt(data[i]!.value)} (${pct}%)`,
-      color: stroke,
+      color: own,
     });
 
     if (!showLabels) return;
@@ -175,7 +189,7 @@ export function renderPie(
         key: data[i]!.label,
         name: data[i]!.label,
         value: `${fmt(data[i]!.value)} (${pct}%)`,
-        color: stroke,
+        color: own,
       },
     });
   });

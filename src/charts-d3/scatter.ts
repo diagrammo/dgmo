@@ -34,6 +34,7 @@ import {
   EMPHASIS_DIM_OPACITY,
   EMPHASIS_DIM_TEXT_OPACITY,
   resolveEmphasis,
+  storyPaint,
 } from '../utils/emphasis';
 
 const FILL_OPACITY = 0.65;
@@ -177,10 +178,14 @@ export function renderScatter(
   // stays at full strength when its name or its category is named; every
   // other point, its label and its leader line recede. Only `highlight` is
   // adopted here — the shared parser also reads `dim`, which scatter ignores.
-  const { dimmed } = resolveEmphasis(
+  const emphasis = resolveEmphasis(
     chart.emphasis?.kind === 'highlight' ? chart.emphasis : undefined,
     [...points.map((p) => p.name), ...categories]
   );
+  const { dimmed } = emphasis;
+  // Story view (#2046): the subject solid, the rest one grey ground drawn
+  // first so the subject sits on top.
+  const story = storyPaint(emphasis, palette, isDark);
   const recedes = (p: (typeof points)[number]) =>
     dimmed.has(p.name) && (!p.category || dimmed.has(p.category));
 
@@ -348,24 +353,43 @@ export function renderScatter(
   };
 
   // points
-  points.forEach((p, i) => {
-    const stroke =
+  const order = points.map((_, i) => i);
+  if (story.active)
+    order.sort(
+      (a, b) => Number(recedes(points[b]!)) - Number(recedes(points[a]!))
+    );
+  order.forEach((i) => {
+    const p = points[i]!;
+    const own =
       p.color ??
       (p.category
         ? catColor(p.category, catIndex.get(p.category) ?? 0)
         : colors[i % colors.length]!);
+    const recede = recedes(p);
+    const stroke = !story.active
+      ? own
+      : recede
+        ? story.groundStroke
+        : story.subject(own);
     const r = radii[i]!;
     const dot = svg
       .append('circle')
       .attr('cx', x(p.x))
       .attr('cy', y(p.y))
       .attr('r', r)
-      .attr('fill', shapeFill(palette, stroke, isDark, { mode: fillMode }))
-      .attr('fill-opacity', FILL_OPACITY)
+      .attr(
+        'fill',
+        !story.active
+          ? shapeFill(palette, own, isDark, { mode: fillMode })
+          : recede
+            ? story.groundFill
+            : stroke
+      )
+      .attr('fill-opacity', story.active ? null : FILL_OPACITY)
       .attr('stroke', stroke)
       .attr('stroke-width', 2);
-    const dim = recedes(p);
-    // A receded point keeps its paint: the dim is a baked opacity (§1.11).
+    // Story view bakes the grey into the paint; only `dim` uses opacity.
+    const dim = recede && !story.active;
     if (dim) dot.attr('opacity', EMPHASIS_DIM_OPACITY);
     tagDatum(dot, {
       line: p.lineNumber,
@@ -375,7 +399,7 @@ export function renderScatter(
         p.size !== undefined
           ? `(${fmtNum(p.x)}, ${fmt(p.y)}) · ${chart.sizelabel ?? 'size'}: ${fmtNum(p.size)}`
           : `(${fmtNum(p.x)}, ${fmt(p.y)})`,
-      color: stroke,
+      color: own,
     });
     // Per-axis values for the adapter's on-axis projection (no tooltip).
     dot.attr('data-axval-x', fmtNum(p.x)).attr('data-axval-y', fmt(p.y));

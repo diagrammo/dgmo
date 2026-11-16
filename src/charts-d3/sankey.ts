@@ -6,6 +6,7 @@
 // ECharts house style: node tint mix(c,bg,75), link tint mix(c,bg,45) @0.6.
 // ============================================================
 
+import type { PaletteColors } from '../palettes/types';
 import type { ParsedSankey } from '../data-chart-parser';
 import { FONT_FAMILY } from '../fonts';
 import { mix } from '../palettes/color-utils';
@@ -15,6 +16,7 @@ import {
   EMPHASIS_DIM_OPACITY,
   EMPHASIS_DIM_TEXT_OPACITY,
   resolveEmphasis,
+  storyPaint,
 } from '../utils/emphasis';
 
 const NODE_W = 20;
@@ -62,7 +64,9 @@ export function renderSankey(
   colors: string[],
   bgColor: string,
   textColor: string,
-  topInset: number
+  topInset: number,
+  palette: PaletteColors,
+  isDark: boolean
 ): void {
   const links = chart.links ?? [];
   if (links.length === 0) return;
@@ -112,7 +116,10 @@ export function renderSankey(
   };
   const flowClosure = (seeds: ReadonlySet<string>): Set<string> =>
     new Set([...walk(seeds, true), ...walk(seeds, false)]);
-  const { dimmed } = resolveEmphasis(chart.emphasis, names, flowClosure);
+  const emphasis = resolveEmphasis(chart.emphasis, names, flowClosure);
+  const { dimmed } = emphasis;
+  // Story view (#2046): lit flows and nodes solid, the rest one grey ground.
+  const story = storyPaint(emphasis, palette, isDark);
   // A flow is figure only when BOTH endpoints are figure: a ribbon landing in a
   // receded node is itself part of the background story. Same rule family uses
   // for marriage bars (lit only when both partners are lit).
@@ -361,10 +368,18 @@ export function renderSankey(
     const sx = s.x + NODE_W;
     const tx = t.x;
     const raw = l.color ?? s.raw;
-    const color = solid ? raw : mix(raw, bgColor, 45);
-    const opacity = linkDimmed(l)
-      ? RIBBON_FILL_OPACITY * EMPHASIS_DIM_OPACITY
-      : RIBBON_FILL_OPACITY;
+    const color = !story.active
+      ? solid
+        ? raw
+        : mix(raw, bgColor, 45)
+      : linkDimmed(l)
+        ? story.groundStroke
+        : story.subject(raw);
+    // Story view bakes the grey into the paint; only `dim` uses opacity.
+    const opacity =
+      linkDimmed(l) && !story.active
+        ? RIBBON_FILL_OPACITY * EMPHASIS_DIM_OPACITY
+        : RIBBON_FILL_OPACITY;
     let ribbon;
     if (backEdges.has(l)) {
       const sy = slot(s, th, outOff);
@@ -428,15 +443,26 @@ export function renderSankey(
     const nodeLine = links.find(
       (l) => l.source === n.name || l.target === n.name
     )?.lineNumber;
-    const nodeDim = dimmed.has(n.name);
+    const recede = dimmed.has(n.name);
+    const nodeDim = recede && !story.active;
+    const lit = story.subject(n.raw);
     const nr = svg
       .append('rect')
       .attr('x', n.x)
       .attr('y', n.y)
       .attr('width', NODE_W)
       .attr('height', Math.max(1, n.h))
-      .attr('fill', solid ? n.raw : mix(n.raw, bgColor, 75))
-      .attr('stroke', n.raw)
+      .attr(
+        'fill',
+        !story.active
+          ? solid
+            ? n.raw
+            : mix(n.raw, bgColor, 75)
+          : recede
+            ? story.groundFill
+            : lit
+      )
+      .attr('stroke', !story.active ? n.raw : recede ? story.groundStroke : lit)
       .attr('stroke-width', 1);
     // Baked attribute, not a class or a color swap: hue survives (a receded
     // brand-red flow is still red) and the SVG needs no CSS or JS to export.
@@ -460,7 +486,7 @@ export function renderSankey(
       .attr('x', labelX)
       .attr('y', n.y + n.h / 2 + 4)
       .attr('text-anchor', 'start')
-      .attr('fill', textColor)
+      .attr('fill', story.active && recede ? story.groundText : textColor)
       .attr('font-size', LABEL_FONT)
       .attr('font-family', FONT_FAMILY)
       .text(shown);

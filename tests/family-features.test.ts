@@ -8,6 +8,7 @@ import { parseFamily } from '../src/family/parser';
 import { layoutFamily } from '../src/family/layout';
 import { renderFamilyForExport } from '../src/family/renderer';
 import { getPalette } from '../src/palettes';
+import { storyGround } from '../src/utils/emphasis';
 import { resolveActiveTagGroup } from '../src/utils/tag-groups';
 
 const codes = (src: string): string[] =>
@@ -250,25 +251,29 @@ Ned + Anne
     expect(dim('mabel')).toBe(true);
   });
 
-  it('fades the dimmed cards in the SVG', () => {
+  it('paints the dimmed cards with the grey ground, not an opacity', () => {
     const svg = render(SRC);
-    const faded = [...svg.querySelectorAll('.family-card')].filter(
-      (c) => c.getAttribute('opacity') === '0.28'
+    const ground = storyGround(getPalette('nord').light, false);
+    const cards = [...svg.querySelectorAll('.family-card')];
+    const greyed = cards.filter(
+      (c) => c.querySelector('rect')!.getAttribute('fill') === ground.groundFill
     );
-    expect(faded.length).toBeGreaterThanOrEqual(1);
+    expect(greyed.length).toBeGreaterThanOrEqual(1);
+    for (const c of greyed) {
+      expect(c.getAttribute('opacity')).toBeNull();
+      expect(c.querySelector('rect')!.getAttribute('stroke')).toBe(
+        ground.groundStroke
+      );
+    }
+    // Lit cards keep their own paint.
+    expect(greyed.length).toBeLessThan(cards.length);
   });
 
-  it('backs each dimmed card with an opaque occluder so no line bleeds through', () => {
+  it('draws no occluder rects behind dimmed cards', () => {
     const svg = render(SRC);
-    const faded = [...svg.querySelectorAll('.family-card')].filter(
-      (c) => c.getAttribute('opacity') === '0.28'
-    ).length;
-    const occ = svg.querySelectorAll('.family-dim-occluders rect');
-    expect(occ.length).toBe(faded);
-    // opaque (no opacity attr) and drawn before the cards so it occludes edges
-    expect([...occ].every((r) => r.getAttribute('opacity') === null)).toBe(
-      true
-    );
+    expect(svg.querySelector('.family-dim-occluders')).toBeNull();
+    for (const c of svg.querySelectorAll('.family-card'))
+      expect(c.getAttribute('opacity')).toBeNull();
   });
 
   it('warns and dims nothing when the target is unknown', () => {

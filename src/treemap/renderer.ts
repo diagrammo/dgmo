@@ -48,8 +48,9 @@ import {
   type CellColorContext,
   mutedFill,
   treemapRecedes,
+  treemapStory,
 } from './treemap-shared';
-import { EMPHASIS_DIM_OPACITY } from '../utils/emphasis';
+import { EMPHASIS_DIM_OPACITY, storyLegend } from '../utils/emphasis';
 
 const PADDING = 12;
 const HEADER_H = 18;
@@ -123,6 +124,14 @@ export function renderTreemap(
   const legend = !opts.noLegend
     ? buildLegend(mode, parsed, heat, seriesColorsTop, options.colorOffset ?? 0)
     : null;
+  // Legends follow the drawing under story view (#2046).
+  if (legend)
+    legend.groups = storyLegend(
+      legend.groups,
+      parsed.emphasis,
+      palette,
+      isDark
+    );
 
   // Reserve a band below the title for the standardized legend, exactly like
   // mindmap/org/map (top-center, below-title). The treemap fills the rest.
@@ -283,6 +292,8 @@ export function renderTreemap(
 
   // ── Cells ──────────────────────────────────────────────────
   const recedes = treemapRecedes(parsed);
+  // Story view (#2046): lit cells solid, the rest one grey ground.
+  const story = treemapStory(parsed, palette, isDark);
   for (const cell of layout.cells) {
     const w = Math.max(0, cell.x1 - cell.x0);
     const h = Math.max(0, cell.y1 - cell.y0);
@@ -291,10 +302,19 @@ export function renderTreemap(
     // Emphasis: the containing box (header band) is pure color; the internal
     // leaf cells are muted (mixed toward the background). Both are opaque so the
     // pure container behind a leaf doesn't bleed through.
-    const baseColor = resolveCellColor(cell, colorCtx);
+    const recede = recedes(cell);
+    const own = resolveCellColor(cell, colorCtx);
+    const baseColor = !story.active
+      ? own
+      : recede
+        ? story.groundStroke
+        : story.subject(own);
     // fill-outline (§1.9): background cells, color rides the cell stroke.
-    const fill =
-      fillMode === 'outline'
+    const fill = story.active
+      ? recede && !cell.isContainer
+        ? story.groundFill
+        : baseColor
+      : fillMode === 'outline'
         ? themeBaseBg(palette, isDark)
         : cell.isContainer
           ? baseColor
@@ -322,7 +342,8 @@ export function renderTreemap(
     }
     // §1.11 emphasis (#1829): a receded cell keeps its paint and fades whole,
     // label included — the family chart's card treatment.
-    if (recedes(cell)) g.attr('opacity', EMPHASIS_DIM_OPACITY);
+    // Story view bakes the grey into the paint instead.
+    if (recede && !story.active) g.attr('opacity', EMPHASIS_DIM_OPACITY);
 
     const rect = g
       .append('rect')

@@ -1,18 +1,17 @@
 // `highlight <Name>[, <Name>…]` on scatter, slope and treemap (#1829, spec
 // §1.11): the named points, series or nodes keep full strength and everything
-// else recedes. A receded element keeps its paint — the dim is a baked
-// `opacity` attribute, never a recolour — and a name that matches nothing
-// dims nothing.
+// else recedes. A receded element is painted with the grey ground
+// (`storyGround`, #2046) and carries no `opacity` attribute; the named ones
+// are drawn solid in their own colour; a name that matches nothing changes
+// nothing.
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render } from '../src/render';
 import { parseTreemap } from '../src/treemap/parser';
 import { parseSlope } from '../src/slope/parser';
 import { treemapRecedes } from '../src/treemap/treemap-shared';
 import '../src/palettes/index';
-import {
-  EMPHASIS_DIM_OPACITY,
-  EMPHASIS_DIM_TEXT_OPACITY,
-} from '../src/utils/emphasis';
+import { getPalette } from '../src/palettes';
+import { storyGround } from '../src/utils/emphasis';
 
 let host: HTMLDivElement;
 beforeEach(() => {
@@ -28,8 +27,7 @@ async function draw(src: string): Promise<HTMLDivElement> {
   return host;
 }
 
-const dimShape = String(EMPHASIS_DIM_OPACITY);
-const dimText = String(EMPHASIS_DIM_TEXT_OPACITY);
+const ground = storyGround(getPalette('slate').light, false);
 
 const withLine = (src: string, line: string) =>
   src.replace('\n\n', `\n${line}\n\n`);
@@ -52,70 +50,96 @@ const SCATTER_CATS = `scatter Ships by Navy
   Black Pearl 12 40
   Fancy 11 80`;
 
-/** Opacity of each point, keyed by its name. */
-async function pointOpacity(
-  src: string
-): Promise<Record<string, string | null>> {
+/** Fill of each point, keyed by its name; asserts none carries opacity. */
+async function pointFill(src: string): Promise<Record<string, string | null>> {
+  const h = await draw(src);
+  const out: Record<string, string | null> = {};
+  for (const c of h.querySelectorAll<SVGCircleElement>('circle[data-name]')) {
+    expect(c.getAttribute('opacity')).toBeNull();
+    out[c.getAttribute('data-name')!.split(' · ')[0]!] = c.getAttribute('fill');
+  }
+  return out;
+}
+
+/** Each point's own colour, keyed by its name. */
+async function pointOwn(src: string): Promise<Record<string, string | null>> {
   const h = await draw(src);
   const out: Record<string, string | null> = {};
   for (const c of h.querySelectorAll<SVGCircleElement>('circle[data-name]'))
     out[c.getAttribute('data-name')!.split(' · ')[0]!] =
-      c.getAttribute('opacity');
+      c.getAttribute('data-color');
   return out;
 }
 
 describe('highlight on scatter', () => {
-  it('keeps the named point and recedes the rest', async () => {
-    const o = await pointOpacity(withLine(SCATTER, 'highlight Fancy'));
-    expect(o['Fancy']).toBeNull();
-    expect(o['Black Pearl']).toBe(dimShape);
-    expect(o['Queen Anne']).toBe(dimShape);
-    expect(o['Ranger']).toBe(dimShape);
+  it('keeps the named point solid and greys the rest', async () => {
+    const src = withLine(SCATTER, 'highlight Fancy');
+    const f = await pointFill(src);
+    const own = await pointOwn(src);
+    expect(f['Fancy']).toBe(own['Fancy']);
+    expect(f['Black Pearl']).toBe(ground.groundFill);
+    expect(f['Queen Anne']).toBe(ground.groundFill);
+    expect(f['Ranger']).toBe(ground.groundFill);
   });
 
   it('takes a comma list, case-insensitively', async () => {
-    const o = await pointOpacity(
-      withLine(SCATTER, 'highlight black pearl, RANGER')
-    );
-    expect(o['Black Pearl']).toBeNull();
-    expect(o['Ranger']).toBeNull();
-    expect(o['Fancy']).toBe(dimShape);
+    const src = withLine(SCATTER, 'highlight black pearl, RANGER');
+    const f = await pointFill(src);
+    const own = await pointOwn(src);
+    expect(f['Black Pearl']).toBe(own['Black Pearl']);
+    expect(f['Ranger']).toBe(own['Ranger']);
+    expect(f['Fancy']).toBe(ground.groundFill);
   });
 
   it('keeps every point of a named category', async () => {
-    const o = await pointOpacity(withLine(SCATTER_CATS, 'highlight Pirate'));
-    expect(o['Black Pearl']).toBeNull();
-    expect(o['Fancy']).toBeNull();
-    expect(o['Dreadnought']).toBe(dimShape);
-    expect(o['Victory']).toBe(dimShape);
+    const src = withLine(SCATTER_CATS, 'highlight Pirate');
+    const f = await pointFill(src);
+    const own = await pointOwn(src);
+    expect(f['Black Pearl']).toBe(own['Black Pearl']);
+    expect(f['Fancy']).toBe(own['Fancy']);
+    expect(f['Dreadnought']).toBe(ground.groundFill);
+    expect(f['Victory']).toBe(ground.groundFill);
   });
 
-  it('never recolours a receded point, and recedes its label', async () => {
-    const plain = await draw(SCATTER);
-    const before = [...plain.querySelectorAll('circle[data-name]')].map((c) =>
-      c.getAttribute('stroke')
-    );
+  it('paints a receded point and its label with the grey ground', async () => {
     const h = await draw(withLine(SCATTER, 'highlight Fancy'));
-    const after = [...h.querySelectorAll('circle[data-name]')].map((c) =>
-      c.getAttribute('stroke')
+    const pt = (n: string) =>
+      [...h.querySelectorAll('circle[data-name]')].find((c) =>
+        c.getAttribute('data-name')!.startsWith(n)
+      )!;
+    expect(pt('Ranger').getAttribute('stroke')).toBe(ground.groundStroke);
+    expect(pt('Fancy').getAttribute('stroke')).toBe(
+      pt('Fancy').getAttribute('data-color')
     );
-    expect(after).toEqual(before);
     const label = (t: string) =>
       [...h.querySelectorAll('text.dgmo-ptlabel')].find(
         (e) => e.textContent === t
       );
     expect(label('Fancy')?.getAttribute('opacity') ?? null).toBeNull();
-    expect(label('Ranger')?.getAttribute('opacity')).toBe(dimText);
+    expect(label('Fancy')?.getAttribute('fill')).not.toBe(ground.groundText);
+    expect(label('Ranger')?.getAttribute('opacity') ?? null).toBeNull();
+    // A point label is coloured to match its point, so it greys with the stroke.
+    expect(label('Ranger')?.getAttribute('fill')).toBe(ground.groundStroke);
   });
 
-  it('dims nothing when no name matches', async () => {
-    const o = await pointOpacity(withLine(SCATTER, 'highlight Kraken'));
-    expect(Object.values(o).every((v) => v === null)).toBe(true);
+  it('draws receded points before the lit one', async () => {
+    const h = await draw(withLine(SCATTER, 'highlight Black Pearl'));
+    const names = [...h.querySelectorAll('circle[data-name]')].map(
+      (c) => c.getAttribute('data-name')!.split(' · ')[0]
+    );
+    expect(names[names.length - 1]).toBe('Black Pearl');
+  });
+
+  it('changes nothing when no name matches', async () => {
+    expect(await pointFill(withLine(SCATTER, 'highlight Kraken'))).toEqual(
+      await pointFill(SCATTER)
+    );
   });
 
   it('ignores dim, which scatter does not adopt', async () => {
-    const o = await pointOpacity(withLine(SCATTER, 'dim Fancy'));
-    expect(Object.values(o).every((v) => v === null)).toBe(true);
+    expect(await pointFill(withLine(SCATTER, 'dim Fancy'))).toEqual(
+      await pointFill(SCATTER)
+    );
   });
 });
 
@@ -129,19 +153,21 @@ Black Pearl 40 90
 Queen Anne 150 300
 Fancy 80 60`;
 
-/** Opacity of each series' line, keyed by series name. */
-async function slopeOpacity(
-  src: string
-): Promise<Record<string, string | null>> {
+const SLOPE_NAMES = ['Black Pearl', 'Queen Anne', 'Fancy'];
+
+/** Each series' group, keyed by series name (DOM order is not source order). */
+async function slopeGroups(src: string): Promise<Record<string, Element>> {
   const h = await draw(src);
-  const names = ['Black Pearl', 'Queen Anne', 'Fancy'];
-  const groups = [...h.querySelectorAll('g.slope-series')];
-  const out: Record<string, string | null> = {};
-  groups.forEach((g, i) => {
-    out[names[i]!] = g.querySelector('path')!.getAttribute('opacity');
-  });
+  const out: Record<string, Element> = {};
+  for (const g of h.querySelectorAll('g.slope-series')) {
+    const name = SLOPE_NAMES.find((n) => g.textContent!.includes(n))!;
+    out[name] = g;
+  }
   return out;
 }
+
+const slopeStroke = (g: Element) =>
+  g.querySelector('path')!.getAttribute('stroke');
 
 describe('highlight on slope', () => {
   it('parses the directive and keeps it out of the data', () => {
@@ -155,29 +181,42 @@ describe('highlight on slope', () => {
     expect(p.diagnostics.filter((d) => d.severity === 'error')).toEqual([]);
   });
 
-  it('keeps the named series and recedes the rest', async () => {
-    const o = await slopeOpacity(withLine(SLOPE, 'highlight Fancy'));
-    expect(o['Fancy']).toBeNull();
-    expect(o['Black Pearl']).toBe(dimShape);
-    expect(o['Queen Anne']).toBe(dimShape);
+  it('keeps the named series solid and greys the rest', async () => {
+    const g = await slopeGroups(withLine(SLOPE, 'highlight Fancy'));
+    expect(slopeStroke(g['Black Pearl']!)).toBe(ground.groundStroke);
+    expect(slopeStroke(g['Queen Anne']!)).toBe(ground.groundStroke);
+    expect(slopeStroke(g['Fancy']!)).not.toBe(ground.groundStroke);
+    for (const grp of Object.values(g))
+      expect(grp.querySelector('path')!.getAttribute('opacity')).toBeNull();
   });
 
-  it('recedes the points and labels of a receded series', async () => {
-    const h = await draw(withLine(SLOPE, 'highlight Fancy'));
-    const groups = [...h.querySelectorAll('g.slope-series')];
-    const pearl = groups[0]!;
-    for (const c of pearl.querySelectorAll('circle'))
-      expect(c.getAttribute('opacity')).toBe(dimShape);
-    for (const t of pearl.querySelectorAll('text'))
-      expect(t.getAttribute('opacity')).toBe(dimText);
-    const fancy = groups[2]!;
-    for (const t of fancy.querySelectorAll('text'))
+  it('paints the points and labels of a receded series with the ground', async () => {
+    const g = await slopeGroups(withLine(SLOPE, 'highlight Fancy'));
+    const pearl = g['Black Pearl']!;
+    for (const c of pearl.querySelectorAll('circle')) {
+      expect(c.getAttribute('opacity')).toBeNull();
+      expect(c.getAttribute('fill')).toBe(ground.groundStroke);
+    }
+    for (const t of pearl.querySelectorAll('text')) {
       expect(t.getAttribute('opacity')).toBeNull();
+      expect(t.getAttribute('fill')).toBe(ground.groundText);
+    }
+    const fancy = g['Fancy']!;
+    for (const t of fancy.querySelectorAll('text'))
+      expect(t.getAttribute('fill')).not.toBe(ground.groundText);
   });
 
-  it('dims nothing when no name matches', async () => {
-    const o = await slopeOpacity(withLine(SLOPE, 'highlight Kraken'));
-    expect(Object.values(o).every((v) => v === null)).toBe(true);
+  it('draws receded series before the lit one', async () => {
+    const h = await draw(withLine(SLOPE, 'highlight Black Pearl'));
+    const groups = [...h.querySelectorAll('g.slope-series')];
+    expect(groups[groups.length - 1]!.textContent).toContain('Black Pearl');
+  });
+
+  it('changes nothing when no name matches', async () => {
+    const g = await slopeGroups(withLine(SLOPE, 'highlight Kraken'));
+    const plain = await slopeGroups(SLOPE);
+    for (const n of SLOPE_NAMES)
+      expect(slopeStroke(g[n]!)).toBe(slopeStroke(plain[n]!));
   });
 });
 
@@ -192,14 +231,18 @@ Armament
   Powder 110
   Shot 90`;
 
-/** Opacity of each cell group, keyed by its node path. */
-async function cellOpacity(
-  src: string
-): Promise<Record<string, string | null>> {
+/** Fill of each cell's shape (rect or arc), keyed by node path. */
+async function cellFill(src: string): Promise<Record<string, string | null>> {
   const h = await draw(src);
   const out: Record<string, string | null> = {};
-  for (const g of h.querySelectorAll('g.dgmo-treemap-cell'))
-    out[g.getAttribute('data-node-path')!] = g.getAttribute('opacity');
+  for (const g of h.querySelectorAll('g.dgmo-treemap-cell')) {
+    expect(g.getAttribute('opacity')).toBeNull();
+    const shape = g.querySelector(
+      'rect.dgmo-treemap-rect, path.dgmo-treemap-arc'
+    )!;
+    expect(shape.getAttribute('opacity')).toBeNull();
+    out[g.getAttribute('data-node-path')!] = shape.getAttribute('fill');
+  }
   return out;
 }
 
@@ -211,24 +254,33 @@ describe('highlight on treemap', () => {
     expect(p.error).toBeNull();
   });
 
-  it('keeps the named leaf and recedes every other cell', async () => {
-    const o = await cellOpacity(withLine(TREEMAP, 'highlight Rum'));
-    expect(o['Provisions / Rum']).toBeNull();
-    expect(o['Provisions / Biscuit']).toBe(dimShape);
-    expect(o['Armament']).toBe(dimShape);
-    expect(o['Armament / Powder']).toBe(dimShape);
-    // The branch holding a named leaf recedes too: at full strength behind
-    // translucent siblings it would read as colour, not as ground.
-    expect(o['Provisions']).toBe(dimShape);
+  it('keeps the named leaf solid and greys every other cell', async () => {
+    const o = await cellFill(withLine(TREEMAP, 'highlight Rum'));
+    // The subject is drawn solid in its own colour: neither ground paint.
+    expect(o['Provisions / Rum']).not.toBe(ground.groundFill);
+    expect(o['Provisions / Rum']).not.toBe(ground.groundStroke);
+    expect(o['Provisions / Biscuit']).toBe(ground.groundFill);
+    expect(o['Armament / Powder']).toBe(ground.groundFill);
+    // Receded containers take the darker ground so leaves still read inside.
+    expect(o['Armament']).toBe(ground.groundStroke);
+    // The branch holding a named leaf recedes too.
+    expect(o['Provisions']).toBe(ground.groundStroke);
   });
 
   it('keeps a named branch and everything inside it', async () => {
-    const o = await cellOpacity(withLine(TREEMAP, 'highlight Armament'));
-    expect(o['Armament']).toBeNull();
-    expect(o['Armament / Powder']).toBeNull();
-    expect(o['Armament / Shot']).toBeNull();
-    expect(o['Provisions']).toBe(dimShape);
-    expect(o['Provisions / Rum']).toBe(dimShape);
+    const o = await cellFill(withLine(TREEMAP, 'highlight Armament'));
+    for (const k of ['Armament', 'Armament / Powder', 'Armament / Shot']) {
+      expect(o[k]).not.toBe(ground.groundFill);
+      expect(o[k]).not.toBe(ground.groundStroke);
+    }
+    expect(o['Provisions']).toBe(ground.groundStroke);
+    expect(o['Provisions / Rum']).toBe(ground.groundFill);
+  });
+
+  it('a trailing colour word paints the named leaf with that palette colour', async () => {
+    const o = await cellFill(withLine(TREEMAP, 'highlight Rum orange'));
+    expect(o['Provisions / Rum']).toBe(getPalette('slate').light.colors.orange);
+    expect(o['Provisions / Biscuit']).toBe(ground.groundFill);
   });
 
   it('keeps a collapsed block lit when a named node is inside it', () => {
@@ -250,24 +302,17 @@ describe('highlight on treemap', () => {
     ).toBe(true);
   });
 
-  it('recedes arcs in radial mode too', async () => {
-    const o = await cellOpacity(withLine(TREEMAP, 'radial\nhighlight Rum'));
-    expect(o['Provisions / Rum']).toBeNull();
-    expect(o['Armament / Shot']).toBe(dimShape);
+  it('greys arcs in radial mode too', async () => {
+    const o = await cellFill(withLine(TREEMAP, 'radial\nhighlight Rum'));
+    expect(o['Provisions / Rum']).not.toBe(ground.groundFill);
+    expect(o['Provisions / Rum']).not.toBe(ground.groundStroke);
+    expect(o['Provisions / Biscuit']).toBe(ground.groundFill);
+    expect(o['Armament']).toBe(ground.groundStroke);
   });
 
-  it('never recolours a receded cell', async () => {
-    const fills = async (src: string) =>
-      [...(await draw(src)).querySelectorAll('rect.dgmo-treemap-rect')].map(
-        (r) => r.getAttribute('fill')
-      );
-    expect(await fills(withLine(TREEMAP, 'highlight Rum'))).toEqual(
-      await fills(TREEMAP)
+  it('changes nothing when no name matches', async () => {
+    expect(await cellFill(withLine(TREEMAP, 'highlight Kraken'))).toEqual(
+      await cellFill(TREEMAP)
     );
-  });
-
-  it('dims nothing when no name matches', async () => {
-    const o = await cellOpacity(withLine(TREEMAP, 'highlight Kraken'));
-    expect(Object.values(o).every((v) => v === null)).toBe(true);
   });
 });

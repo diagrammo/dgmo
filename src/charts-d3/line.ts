@@ -25,6 +25,7 @@ import {
   EMPHASIS_DIM_OPACITY,
   EMPHASIS_DIM_TEXT_OPACITY,
   resolveEmphasis,
+  storyPaint,
 } from '../utils/emphasis';
 import {
   type Svg,
@@ -382,10 +383,19 @@ export function renderLine(
   // §1.11 emphasis (#1829): `highlight` names series. Every other series —
   // its line, area, points and value labels — recedes.
   const nameOf = (s: number) => seriesNames[s] ?? `Series ${s + 1}`;
-  const { dimmed } = resolveEmphasis(
+  const emphasis = resolveEmphasis(
     chart.emphasis,
     Array.from({ length: seriesCount }, (_, s) => nameOf(s))
   );
+  const { dimmed } = emphasis;
+  // Story view (#2046): the subject keeps its colour, the rest go grey and
+  // are drawn first so the subject sits on top.
+  const story = storyPaint(emphasis, palette, isDark);
+  const seriesOrder = Array.from({ length: seriesCount }, (_, s) => s);
+  if (story.active)
+    seriesOrder.sort(
+      (a, b) => Number(dimmed.has(nameOf(b))) - Number(dimmed.has(nameOf(a)))
+    );
 
   const valueLabels: {
     text: string;
@@ -396,11 +406,18 @@ export function renderLine(
     color: string;
     dim: boolean;
   }[] = [];
-  for (let s = 0; s < seriesCount; s++) {
-    const color = seriesColor(s);
+  for (const s of seriesOrder) {
+    const own = seriesColor(s);
     const yy = yFor(s);
     const name = nameOf(s);
-    const dim = dimmed.has(name);
+    const recede = dimmed.has(name);
+    const color = !story.active
+      ? own
+      : recede
+        ? story.groundStroke
+        : story.subject(own);
+    // Story view bakes the grey into the paint; only `dim` uses opacity.
+    const dim = recede && !story.active;
     const pts = data.map((d, i) => ({
       label: d.label,
       v: seriesValue(d, s),
@@ -413,7 +430,7 @@ export function renderLine(
       .attr('data-series-index', s)
       .attr('data-series-name', name)
       .attr('data-axis', axisOf(s))
-      .attr('data-color', color);
+      .attr('data-color', own);
     const seriesLine = chart.seriesNameLineNumbers?.[s];
     if (seriesLine !== undefined) g.attr('data-line-number', seriesLine);
     // A receded series keeps its paint: the dim is a baked opacity (§1.11).
@@ -428,7 +445,14 @@ export function renderLine(
       g.append('path')
         .attr('class', 'dgmo-series-area')
         .attr('d', areaGen(pts) ?? '')
-        .attr('fill', solid ? color : shapeFill(palette, color, isDark))
+        .attr(
+          'fill',
+          story.active && recede
+            ? story.groundFill
+            : solid
+              ? color
+              : shapeFill(palette, color, isDark)
+        )
         .attr('stroke', 'none');
     }
 
@@ -458,13 +482,14 @@ export function renderLine(
       .attr('stroke-linejoin', 'round')
       .attr('stroke-linecap', 'round');
 
-    const labelColor = mix(color, textColor, 60);
+    const labelColor =
+      story.active && recede ? story.groundText : mix(color, textColor, 60);
     for (const p of pts) {
       g.append('circle')
         .attr('class', 'dgmo-pt')
         .attr('data-series-index', s)
         .attr('data-series-name', name)
-        .attr('data-color', color)
+        .attr('data-color', own)
         .attr('data-x-index', p.xIndex)
         .attr('data-x-label', p.label)
         .attr('data-value', p.v)

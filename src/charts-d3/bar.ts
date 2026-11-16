@@ -15,7 +15,7 @@ import { max as d3max, min as d3min } from 'd3-array';
 import type { ParsedChart } from '../chart';
 import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
-import { shapeFill } from '../palettes/color-utils';
+import { contrastText, shapeFill } from '../palettes/color-utils';
 import { fitLabel } from '../utils/fit-label';
 import { measureText } from '../utils/text-measure';
 import { createLabelPlacement, type LabelRect } from '../label-layout';
@@ -23,6 +23,7 @@ import {
   EMPHASIS_DIM_OPACITY,
   EMPHASIS_DIM_TEXT_OPACITY,
   resolveEmphasis,
+  storyPaint,
 } from '../utils/emphasis';
 import {
   type Svg,
@@ -124,12 +125,15 @@ export function renderBar(
   // §1.11 emphasis (#1829): `highlight` names categories or, on a multi-series
   // bar, series. A segment stays at full strength when its category or its
   // series is named; every other segment and its value label recede.
-  const { dimmed } = resolveEmphasis(chart.emphasis, [
+  const emphasis = resolveEmphasis(chart.emphasis, [
     ...data.map((d) => d.label),
     ...(multiSeries ? seriesNames : []),
   ]);
+  const { dimmed } = emphasis;
   const recedes = (category: string, series: string) =>
     dimmed.has(category) && (!multiSeries || dimmed.has(series));
+  // Story view (#2046): the subject is solid, the rest one grey ground.
+  const story = storyPaint(emphasis, palette, isDark);
 
   const top = reserveHeader(
     svg,
@@ -400,16 +404,37 @@ export function renderBar(
     let accPos = 0;
     let accNeg = 0;
     vals.forEach((v, s) => {
-      const stroke = colorFor(s, v, seriesCount === 1 ? d.color : undefined);
-      const fill = fillOf(stroke);
+      const own = colorFor(s, v, seriesCount === 1 ? d.color : undefined);
       const sName = seriesNames[s] ?? '';
-      const dim = recedes(d.label, sName);
+      const recede = recedes(d.label, sName);
+      const stroke = !story.active
+        ? own
+        : recede
+          ? story.groundStroke
+          : story.subject(own);
+      const fill = !story.active
+        ? fillOf(own)
+        : recede
+          ? story.groundFill
+          : stroke;
+      // Story view bakes the grey into the paint; only `dim` uses opacity.
+      const dim = recede && !story.active;
+      const labelColor = !story.active
+        ? textColor
+        : recede
+          ? story.groundText
+          : textColor;
+      // A stacked label sits on its segment, which is solid when lit.
+      const onBarColor =
+        story.active && !recede
+          ? contrastText(fill, palette.textOnFillLight, palette.textOnFillDark)
+          : labelColor;
       const tag = {
         line: d.lineNumber,
         key: multiSeries ? sName : d.label,
         name: multiSeries ? `${d.label} · ${sName}` : d.label,
         value: v,
-        color: stroke,
+        color: own,
         seriesName: multiSeries ? sName : undefined,
       };
       if (stacked) {
@@ -436,7 +461,7 @@ export function renderBar(
               fmt(v),
               (x0 + x1) / 2,
               base + cat.bandwidth() / 2 + 4,
-              textColor
+              onBarColor
             ).attr('opacity', dim ? EMPHASIS_DIM_TEXT_OPACITY : null);
         } else {
           const y0 = val(acc);
@@ -458,7 +483,7 @@ export function renderBar(
               fmt(v),
               base + cat.bandwidth() / 2,
               (y0 + y1) / 2 + 4,
-              textColor
+              onBarColor
             ).attr('opacity', dim ? EMPHASIS_DIM_TEXT_OPACITY : null);
         }
         if (v < 0) accNeg += v;
@@ -486,7 +511,7 @@ export function renderBar(
               spot.text,
               spot.x,
               spot.y,
-              textColor,
+              labelColor,
               spot.anchor
             ).attr('opacity', dim ? EMPHASIS_DIM_TEXT_OPACITY : null);
         } else {
@@ -509,7 +534,7 @@ export function renderBar(
               spot.text,
               spot.x,
               spot.y,
-              textColor,
+              labelColor,
               spot.anchor
             ).attr('opacity', dim ? EMPHASIS_DIM_TEXT_OPACITY : null);
         }

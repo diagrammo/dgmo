@@ -47,6 +47,7 @@ import { renderPolarArea } from './polar';
 import { renderFunnel } from './funnel';
 import { renderHeatmap, heatmapLegendGroups } from './heatmap';
 import { LEGEND_HEIGHT, LEGEND_INK_BOTTOM } from '../utils/legend-constants';
+import { storyLegend } from '../utils/emphasis';
 import { renderScatter } from './scatter';
 import { renderSankey } from './sankey';
 import { renderChord } from './chord';
@@ -433,9 +434,15 @@ function renderPlot(
       return true;
     }
     case 'scatter': {
+      // Legends follow the drawing under story view (#2046).
       const groups = ext.noLegend
         ? []
-        : getExtendedChartLegendGroups(ext, seriesColors);
+        : storyLegend(
+            getExtendedChartLegendGroups(ext, seriesColors),
+            ext.emphasis?.kind === 'highlight' ? ext.emphasis : undefined,
+            palette,
+            isDark
+          );
       const top = injectLegendGroups(
         s,
         groups,
@@ -469,7 +476,9 @@ function renderPlot(
         seriesColors,
         bgColor,
         textColor,
-        (hasTitle ? 52 : 24) + titleExtra
+        (hasTitle ? 52 : 24) + titleExtra,
+        palette,
+        isDark
       );
       return true;
     case 'chord':

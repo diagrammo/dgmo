@@ -16,7 +16,8 @@ import type { TagGroup } from '../utils/tag-groups';
 import type { LegendGroupData } from '../utils/legend-types';
 import type { PaletteColors } from '../palettes';
 import type { ParsedTreemap, TreemapColorMode, TreemapNode } from './types';
-import { resolveEmphasis } from '../utils/emphasis';
+import { resolveEmphasis, storyPaint } from '../utils/emphasis';
+import type { StoryPaint } from '../utils/emphasis';
 
 /**
  * Fill for cells with no resolvable colour (missing heat / tag / node).
@@ -278,6 +279,24 @@ export interface TreemapLegend {
  * translucent siblings would read as colour, not as ground. A name that
  * matches nothing dims nothing. Returns a predicate over a cell.
  */
+/**
+ * Story-view paint for a treemap `highlight` (#2046), resolved over the same
+ * names {@link treemapRecedes} uses.
+ */
+export function treemapStory(
+  parsed: ParsedTreemap,
+  palette: PaletteColors,
+  isDark: boolean
+): StoryPaint {
+  const names: string[] = [];
+  const walk = (n: TreemapNode): void => {
+    names.push(n.label);
+    n.children.forEach(walk);
+  };
+  parsed.roots.forEach(walk);
+  return storyPaint(resolveEmphasis(parsed.emphasis, names), palette, isDark);
+}
+
 export function treemapRecedes(
   parsed: ParsedTreemap
 ): (cell: {

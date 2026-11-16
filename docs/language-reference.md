@@ -517,13 +517,15 @@ Havana 400
 | `sankey`   | a node                                                 | everything outside the node's upstream and downstream flow; `dim` is also accepted |
 | `family`   | a person                                               | everyone outside that person's bloodline (§13AA)                                   |
 
-- **A receded element keeps its colour.** It is drawn at reduced opacity, never repainted grey, so the brand colour survives and the output is the same in PNG and SVG exports.
+- **Story view.** The named elements are drawn in their own colour, solid. Everything else turns one neutral grey (the palette's `gray` mixed toward the background), and receded legend entries turn grey too. The grey is baked in, so PNG and SVG exports match the preview. A file without a `highlight` line draws as before.
+- **A trailing colour paints the subject:** `highlight Nassau orange`. The colour word is read only when the names as written match nothing, so an element called `Agent Orange` still matches whole.
 - **Several names take a comma** on every chart type above except `family`: `highlight Nassau, Havana`. Without a comma the whole argument is ONE name (`highlight Port Royal`).
 - On those, matching ignores case and extra spaces. A name that matches nothing is ignored; when no name matches, nothing recedes.
 - On a stacked or grouped bar, a segment stays lit when its category OR its series is named. On a `scatter`, a point stays lit when its name OR its category is named.
 - On a `treemap`, a block that `depth` collapses stays lit when a named node is inside it.
 - The keyword starts the line (on `slope` and `treemap`, in column 1). On `bar`, `line`, `pie`, `slope` and `treemap` it is lowercase, so a category named `Highlight Reel` (capitalised) stays data. On `scatter` and `sankey` it matches in any case, so a point or node cannot be named `Highlight …`.
-- `dim <Name>` (recede only the named elements) exists on `sankey` alone. Other chart types do not take `highlight` yet.
+- `dim <Name>` (recede only the named elements) exists on `sankey` alone. It fades them in place at reduced opacity and keeps their colour.
+- Other chart types do not take `highlight` yet: the line warns `highlight is not supported on <type> yet` and draws nothing.
 
 ---
 

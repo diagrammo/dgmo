@@ -26,6 +26,9 @@
 
 import type { DgmoError } from '../diagnostics';
 import { makeDgmoError } from '../diagnostics';
+import { isRecognizedColorName, resolveColor } from '../colors';
+import { mix, themeBaseBg } from '../palettes/color-utils';
+import type { PaletteColors } from '../palettes/types';
 
 /**
  * Opacity applied to receded elements. Matches the `family` chart's shipped
@@ -107,6 +110,14 @@ export interface ResolvedEmphasis {
   readonly dimmed: ReadonlySet<string>;
   /** Listed names matching no element — callers emit a warning per name. */
   readonly unknown: readonly string[];
+  /** Which dual resolved. Absent when there was no directive. */
+  readonly kind?: 'highlight' | 'dim';
+  /**
+   * A trailing named colour on `highlight` (`highlight Nassau orange`), lower
+   * case. Set only when stripping it made more names resolve, so an element
+   * really named "Agent Orange" still matches whole.
+   */
+  readonly color?: string;
 }
 
 const EMPTY: ResolvedEmphasis = { dimmed: new Set(), unknown: [] };
@@ -161,6 +172,27 @@ export function resolveEmphasis(
   };
 
   let { hit, unknown } = match(directive.names);
+  let color: string | undefined;
+
+  // `highlight Nassau orange`: a trailing named colour paints the subject.
+  // Tried only when the names as written miss, so a colour word that is part
+  // of a real element name keeps its meaning.
+  if (directive.kind === 'highlight' && unknown.length > 0) {
+    const last = directive.names[directive.names.length - 1]!;
+    const words = last.split(/\s+/);
+    const tail = words[words.length - 1]!.toLowerCase();
+    if (words.length > 1 && isRecognizedColorName(tail)) {
+      const names = [
+        ...directive.names.slice(0, -1),
+        words.slice(0, -1).join(' '),
+      ];
+      const retry = match(names);
+      if (retry.unknown.length < unknown.length) {
+        ({ hit, unknown } = retry);
+        color = tail;
+      }
+    }
+  }
 
   // No comma was written: the whole argument was tried as one name. If that
   // missed entirely, re-read it as a whitespace-separated list before giving up
@@ -176,12 +208,72 @@ export function resolveEmphasis(
   // Every listed name missed — degrade to no-emphasis, not to all-dimmed.
   if (hit.size === 0) return { dimmed: new Set(), unknown };
 
-  if (directive.kind === 'dim') return { dimmed: hit, unknown };
+  if (directive.kind === 'dim') return { dimmed: hit, unknown, kind: 'dim' };
 
   const lit = expandHighlight ? new Set(expandHighlight(hit)) : hit;
   const dimmed = new Set<string>();
   for (const name of byNorm.values()) if (!lit.has(name)) dimmed.add(name);
-  return { dimmed, unknown };
+  return color
+    ? { dimmed, unknown, kind: 'highlight', color }
+    : { dimmed, unknown, kind: 'highlight' };
+}
+
+/**
+ * Story-view paint for a resolved `highlight` (#2046).
+ *
+ * `dim` keeps the baked-opacity contract above. `highlight` is different: the
+ * subject is the only colour on the page, drawn solid, and everything else
+ * becomes one neutral ground — palette `gray` mixed toward the background and
+ * baked as hex, so SVG and PNG (resvg) match. Legends follow the drawing.
+ *
+ * Hover and editor-cursor dimming (utils/hover-styles.ts, charts-d3/mount.ts)
+ * are a separate, interactive opacity and never read this.
+ */
+export interface StoryPaint {
+  /** True when this is a `highlight` that recedes at least one element. */
+  readonly active: boolean;
+  /** Fill of a receded shape. */
+  readonly groundFill: string;
+  /** Stroke of a receded shape, line or legend swatch. */
+  readonly groundStroke: string;
+  /** Colour of a receded label. */
+  readonly groundText: string;
+  /** The subject's paint: the trailing colour when written, else its own. */
+  subject(own: string): string;
+}
+
+/** Percent of palette gray kept against the background, per role. */
+export const STORY_GROUND_FILL_PCT = 30;
+export const STORY_GROUND_STROKE_PCT = 55;
+export const STORY_GROUND_TEXT_PCT = 75;
+
+export function storyPaint(
+  resolved: ResolvedEmphasis,
+  palette: PaletteColors,
+  isDark: boolean
+): StoryPaint {
+  const override = resolved.color
+    ? (resolveColor(resolved.color, palette) ?? undefined)
+    : undefined;
+  return {
+    active: resolved.kind === 'highlight' && resolved.dimmed.size > 0,
+    ...storyGround(palette, isDark),
+    subject: (own) => override ?? own,
+  };
+}
+
+/** The three ground colours alone, for a renderer that resolves itself. */
+export function storyGround(
+  palette: PaletteColors,
+  isDark: boolean
+): Pick<StoryPaint, 'groundFill' | 'groundStroke' | 'groundText'> {
+  const bg = themeBaseBg(palette, isDark);
+  const gray = palette.colors.gray;
+  return {
+    groundFill: mix(gray, bg, STORY_GROUND_FILL_PCT),
+    groundStroke: mix(gray, bg, STORY_GROUND_STROKE_PCT),
+    groundText: mix(palette.textMuted, bg, STORY_GROUND_TEXT_PCT),
+  };
 }
 
 /**
@@ -234,4 +326,43 @@ export function liftUnsupportedHighlight(
   return diagnostics.length
     ? { content: lines.join('\n'), diagnostics }
     : { content, diagnostics };
+}
+
+/**
+ * Legends follow the drawing (#2046): under a story-view `highlight`, an entry
+ * whose value recedes goes to the ground colour and a lit entry takes the
+ * subject paint. Entries are resolved by their own values, so a `highlight`
+ * that names a category (not a series) leaves a series legend untouched.
+ */
+export function storyLegend<
+  G extends {
+    readonly entries: ReadonlyArray<{
+      readonly value: string;
+      readonly color: string;
+    }>;
+  },
+>(
+  groups: readonly G[],
+  directive: EmphasisDirective | undefined,
+  palette: PaletteColors,
+  isDark: boolean
+): G[] {
+  if (directive?.kind !== 'highlight') return [...groups];
+  return groups.map((g) => {
+    const resolved = resolveEmphasis(
+      directive,
+      g.entries.map((e) => e.value)
+    );
+    const paint = storyPaint(resolved, palette, isDark);
+    if (!paint.active) return g;
+    return {
+      ...g,
+      entries: g.entries.map((e) => ({
+        ...e,
+        color: resolved.dimmed.has(e.value)
+          ? paint.groundStroke
+          : paint.subject(e.color),
+      })),
+    };
+  });
 }

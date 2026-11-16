@@ -25,6 +25,7 @@ import {
   EMPHASIS_DIM_OPACITY,
   EMPHASIS_DIM_TEXT_OPACITY,
   resolveEmphasis,
+  storyPaint,
 } from '../utils/emphasis';
 import type { PaletteColors } from '../palettes';
 
@@ -349,20 +350,38 @@ export function renderSlopeChart(
 
   // §1.11 emphasis (#1829): `highlight` names series. Every other series —
   // its line, points and labels — recedes; a receded series keeps its colour.
-  const { dimmed } = resolveEmphasis(
+  const emphasis = resolveEmphasis(
     parsed.emphasis,
     data.map((d) => d.label)
   );
-  const shapeOpacity = (dim: boolean) => (dim ? EMPHASIS_DIM_OPACITY : null);
+  const { dimmed } = emphasis;
+  // Story view (#2046): the subject keeps its colour, the rest go grey. The
+  // grey is baked into the paint, so only `dim` uses opacity.
+  const story = storyPaint(emphasis, palette, isDark);
+  const shapeOpacity = (dim: boolean) =>
+    dim && !story.active ? EMPHASIS_DIM_OPACITY : null;
   const textOpacity = (dim: boolean) =>
-    dim ? EMPHASIS_DIM_TEXT_OPACITY : null;
+    dim && !story.active ? EMPHASIS_DIM_TEXT_OPACITY : null;
 
   // Render each data series
-  data.forEach((item, idx) => {
+  // Under story view the grey series are drawn first, so the subject is on top.
+  const slopeOrder = data.map((_, i) => i);
+  if (story.active)
+    slopeOrder.sort(
+      (a, b) =>
+        Number(dimmed.has(data[b]!.label)) - Number(dimmed.has(data[a]!.label))
+    );
+  slopeOrder.forEach((idx) => {
+    const item = data[idx]!;
     // seriesInfo was built by data.map() above, so idx is in-bounds.
     const si = seriesInfo[idx]!;
-    const color = si.color;
     const dim = dimmed.has(item.label);
+    const color = !story.active
+      ? si.color
+      : dim
+        ? story.groundStroke
+        : story.subject(si.color);
+    const textFill = story.active && dim ? story.groundText : color;
 
     // Wrap each series in a group with data-line-number for sync adapter
     const seriesG = g
@@ -440,7 +459,7 @@ export function renderSlopeChart(
             .attr('x', x - sLeftGap)
             .attr('y', adjustedY)
             .attr('text-anchor', 'end')
-            .attr('fill', color)
+            .attr('fill', textFill)
             .attr('font-size', sLabelFontSize)
             .attr('opacity', textOpacity(dim));
           if (!si.leftLines) {
@@ -466,7 +485,7 @@ export function renderSlopeChart(
             .attr('y', adjustedY)
             .attr('dy', '0.35em')
             .attr('text-anchor', 'middle')
-            .attr('fill', color)
+            .attr('fill', textFill)
             .attr('font-size', sValueFont)
             .attr('stroke', bgColor)
             .attr('stroke-width', ctx.structural(3))
@@ -487,7 +506,7 @@ export function renderSlopeChart(
       .attr('x', si.lastX + sLabelGap)
       .attr('y', adjustedLastY)
       .attr('text-anchor', 'start')
-      .attr('fill', color)
+      .attr('fill', textFill)
       .attr('font-size', sLabelFontSize)
       .attr('font-weight', 'normal')
       .attr('opacity', textOpacity(dim));
