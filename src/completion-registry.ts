@@ -241,7 +241,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'ref-line': {
         description: 'Dashed line at a value (ref-line 50 Target)',
       },
-      band: { description: 'Shaded value range (band 40..60 Normal range)' },
+      band: {
+        description:
+          'Shaded value range (band 40..60 Normal range), or between two series (band Forecast Low High)',
+      },
       highlight: {
         description:
           'Keep the named series and recede the rest (highlight Revenue)',

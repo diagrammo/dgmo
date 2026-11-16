@@ -1,0 +1,15 @@
+line Rum Sales Forecast
+subtitle Shaded range is the 80% forecast interval
+y-label Barrels
+series
+  Actual blue
+  Low teal
+  High teal
+band Forecast Low High
+
+Jan 120 112 128
+Feb 132 120 146
+Mar 128 112 150
+Apr 141 120 168
+May 150 124 182
+Jun 158 126 196

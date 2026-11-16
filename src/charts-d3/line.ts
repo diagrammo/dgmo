@@ -17,6 +17,9 @@ import { buildDateAxis, isoDatesOf } from './date-axis';
 
 /** Gap between a time axis's first/last point and the plot edge (#1880). */
 const DATE_AXIS_INSET = 16;
+/** Fill opacity of an uncertainty band (#1981): the low series' colour, faint
+ *  enough that the gridlines and any line inside it still read. */
+const BAND_OPACITY = 0.22;
 import type { ParsedChart } from '../chart';
 import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
@@ -124,6 +127,7 @@ export function renderLine(
       for (let s = 0; s < seriesCount; s++)
         if (axisOf(s) === side) {
           const v = seriesValue(d, s);
+          if (!Number.isFinite(v)) continue;
           lo = Math.min(lo, v);
           hi = Math.max(hi, v);
         }
@@ -159,6 +163,7 @@ export function renderLine(
     for (let s = 0; s < seriesCount; s++)
       if (axisOf(s) === 'left') {
         const v = seriesValue(d, s);
+        if (!Number.isFinite(v)) continue;
         dataLoL = Math.min(dataLoL, v);
         dataHiL = Math.max(dataHiL, v);
       }
@@ -224,7 +229,8 @@ export function renderLine(
     for (const d of data)
       for (let s = 0; s < seriesCount; s++) {
         const ax = dual && axisOf(s) === 'right' && probeR ? probeR : probeLeft;
-        f = Math.min(f, 1 - ax(seriesValue(d, s)));
+        const v = seriesValue(d, s);
+        if (Number.isFinite(v)) f = Math.min(f, 1 - ax(v));
       }
     // A plot too short to keep its ticks apart is not squeezed further.
     const need =
@@ -418,10 +424,15 @@ export function renderLine(
   // §1.11 emphasis (#1829): `highlight` names series. Every other series —
   // its line, area, points and value labels — recedes.
   const nameOf = (s: number) => seriesNames[s] ?? `Series ${s + 1}`;
-  const emphasis = resolveEmphasis(
-    chart.emphasis,
-    Array.from({ length: seriesCount }, (_, s) => nameOf(s))
-  );
+  // A band's bounds (#1981) are drawn only as the band, never as lines.
+  const bands = chart.seriesBands ?? [];
+  const boundSeries = new Set(bands.flatMap((b) => [b.low, b.high]));
+  const emphasis = resolveEmphasis(chart.emphasis, [
+    ...Array.from({ length: seriesCount }, (_, s) => s)
+      .filter((s) => !boundSeries.has(s))
+      .map(nameOf),
+    ...bands.map((b) => b.label),
+  ]);
   const { dimmed } = emphasis;
   // Story view (#2046): the subject keeps its colour, the rest go grey and
   // are drawn first so the subject sits on top.
@@ -441,7 +452,46 @@ export function renderLine(
     color: string;
     dim: boolean;
   }[] = [];
+  /** A missing value (non-finite) breaks a line, band or fill there. */
+  const has = (v: number): boolean => Number.isFinite(v);
+
+  // Uncertainty bands (#1981), beneath every fill and line: the low series'
+  // colour at reduced opacity, between the two bounds, in the lines' curve.
+  for (const band of bands) {
+    const own = seriesColor(band.low);
+    const recede = dimmed.has(band.label);
+    const lowAxis = yFor(band.low);
+    const highAxis = yFor(band.high);
+    const rows = data.map((d, i) => ({
+      i,
+      lo: seriesValue(d, band.low),
+      hi: seriesValue(d, band.high),
+    }));
+    const bandGen = d3area<(typeof rows)[number]>()
+      .defined((r) => has(r.lo) && has(r.hi))
+      .x((r) => xOfRow(r.i))
+      .y0((r) => lowAxis(r.lo))
+      .y1((r) => highAxis(r.hi))
+      .curve(curve);
+    const g = svg
+      .append('g')
+      .attr('class', 'dgmo-series-band')
+      .attr('data-series-name', band.label)
+      .attr('data-color', own)
+      .attr('data-line-number', band.lineNumber);
+    if (recede && !story.active) g.attr('opacity', EMPHASIS_DIM_OPACITY);
+    g.append('path')
+      .attr('d', bandGen(rows) ?? '')
+      .attr(
+        'fill',
+        story.active ? (recede ? story.groundFill : story.subject(own)) : own
+      )
+      .attr('fill-opacity', story.active && recede ? 1 : BAND_OPACITY)
+      .attr('stroke', 'none');
+  }
+
   for (const s of seriesOrder) {
+    if (boundSeries.has(s)) continue;
     const own = seriesColor(s);
     const yy = yFor(s);
     const name = nameOf(s);
@@ -473,6 +523,7 @@ export function renderLine(
 
     if (isArea) {
       const areaGen = d3area<(typeof pts)[number]>()
+        .defined((p) => has(p.v))
         .x((p) => xOfRow(p.xIndex))
         .y0(yy(yy.baseline))
         .y1((p) => yy(p.v))
@@ -492,6 +543,7 @@ export function renderLine(
     }
 
     const lineGen = d3line<(typeof pts)[number]>()
+      .defined((p) => has(p.v))
       .x((p) => xOfRow(p.xIndex))
       .y((p) => yy(p.v))
       .curve(curve);
@@ -520,6 +572,7 @@ export function renderLine(
     const labelColor =
       story.active && recede ? story.groundText : mix(color, textColor, 60);
     for (const p of pts) {
+      if (!has(p.v)) continue;
       g.append('circle')
         .attr('class', 'dgmo-pt')
         .attr('data-series-index', s)

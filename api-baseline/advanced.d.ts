@@ -586,6 +586,14 @@ interface ChartEra {
     color: string | null;
     lineNumber: number;
 }
+/** An uncertainty band between two series (#1981). */
+interface SeriesBand {
+    label: string;
+    /** Series indices of the lower and upper bound. */
+    low: number;
+    high: number;
+    lineNumber: number;
+}
 
 interface ParsedChart {
     type: ChartType$1;
@@ -677,6 +685,9 @@ interface ParsedChart {
     step?: 'after' | 'before';
     /** Line of the step flag, for its diagnostics. */
     stepLineNumber?: number;
+    /** Line only (#1981): `band <label> <low> <high>` shades between two
+     *  series, which are then not drawn as lines. Indices into the series. */
+    seriesBands?: SeriesBand[];
     /** §1.11 emphasis: `highlight <Name>[, <Name>…]` on bar, line and pie
      *  (#1829). Last one wins. Resolved against the categories, series or
      *  slices at render time via `resolveEmphasis`. */

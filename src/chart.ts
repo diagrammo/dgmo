@@ -20,6 +20,15 @@ export interface ChartEra {
   lineNumber: number;
 }
 
+/** An uncertainty band between two series (#1981). */
+export interface SeriesBand {
+  label: string;
+  /** Series indices of the lower and upper bound. */
+  low: number;
+  high: number;
+  lineNumber: number;
+}
+
 import type { DgmoError } from './diagnostics';
 import type { ChartFrame } from './utils/chart-frame-parse';
 import { parseChartFrameLine } from './utils/chart-frame-parse';
@@ -127,6 +136,9 @@ export interface ParsedChart {
   step?: 'after' | 'before';
   /** Line of the step flag, for its diagnostics. */
   stepLineNumber?: number;
+  /** Line only (#1981): `band <label> <low> <high>` shades between two
+   *  series, which are then not drawn as lines. Indices into the series. */
+  seriesBands?: SeriesBand[];
   /** §1.11 emphasis: `highlight <Name>[, <Name>…]` on bar, line and pie
    *  (#1829). Last one wins. Resolved against the categories, series or
    *  slices at render time via `resolveEmphasis`. */
@@ -325,6 +337,7 @@ export function parseChart(
     color: string | null;
     lineNumber: number;
   }[] = [];
+  const rawSeriesBands: { tokens: string[]; lineNumber: number }[] = [];
   const result: ParsedChart = {
     type: 'bar',
     data: [],
@@ -569,6 +582,17 @@ export function parseChart(
       const directive = parseEmphasisDirective(trimmed, lineNumber);
       if (directive) {
         result.emphasis = directive;
+        continue;
+      }
+    }
+
+    // Uncertainty band (#1981): `band <label> <low series> <high series>`.
+    // A value band (`band 40..60`) was taken above; a row ending in a number
+    // (`band 5`) stays a data row. Names resolve once every series is known.
+    if (firstToken === 'band' && spaceIdx >= 0) {
+      const tokens = trimmed.split(/\s+/).slice(1);
+      if (!isNumericToken(tokens[tokens.length - 1]!)) {
+        rawSeriesBands.push({ tokens, lineNumber });
         continue;
       }
     }
@@ -1014,6 +1038,8 @@ export function parseChart(
     }
   }
 
+  if (!result.error) settleSeriesFills(result, rawSeriesBands);
+
   // `step` and `step-before` draw a line's segments (#1880); nowhere else.
   if (result.step !== undefined && result.type !== 'line') {
     warn(
@@ -1301,4 +1327,87 @@ function trailingNumerics(tokens: string[], minIndex: number): number[] {
     values.unshift(num);
   }
   return values;
+}
+
+/** True when `tok` reads as a data value (`5`, `1_000`, `-2.5`). */
+function isNumericToken(tok: string): boolean {
+  const norm = normalizeNumericToken(tok) ?? tok;
+  return !isNaN(parseFloat(norm)) && isFinite(Number(norm));
+}
+
+/**
+ * Split `tokens` into two declared series names, first then second. Series
+ * names may hold spaces, so every boundary is tried. Returns the indices, or
+ * null when no split names two declared series.
+ */
+function splitTwoSeries(
+  tokens: readonly string[],
+  index: ReadonlyMap<string, number>
+): [number, number] | null {
+  for (let k = 1; k < tokens.length; k++) {
+    const a = index.get(tokens.slice(0, k).join(' ').toLowerCase());
+    const b = index.get(tokens.slice(k).join(' ').toLowerCase());
+    if (a !== undefined && b !== undefined) return [a, b];
+  }
+  return null;
+}
+
+/**
+ * Resolve `band <label> <low> <high>` (#1981) against the declared series.
+ * Line-only; a name that is not a declared series is an error and drops the
+ * line.
+ */
+function settleSeriesFills(
+  result: ParsedChart,
+  rawBands: readonly { tokens: string[]; lineNumber: number }[]
+): void {
+  if (rawBands.length === 0) return;
+  const err = (line: number, message: string): void => {
+    result.diagnostics.push(makeDgmoError(line, message, 'error'));
+  };
+  if (result.type !== 'line') {
+    for (const r of rawBands)
+      result.diagnostics.push(
+        makeDgmoError(
+          r.lineNumber,
+          `A series band applies only to line charts; ignoring it on "${result.type}".`,
+          'warning'
+        )
+      );
+    return;
+  }
+  const names = result.seriesNames ?? (result.series ? [result.series] : []);
+  const index = new Map(names.map((n, i) => [n.toLowerCase(), i] as const));
+  const unknown = (tokens: readonly string[]): string => {
+    const missing = tokens.filter((t) => !index.has(t.toLowerCase()));
+    const listed = (missing.length ? missing : tokens)
+      .map((t) => `"${t}"`)
+      .join(' and ');
+    const hint = missing.length === 1 ? suggest(missing[0]!, names) : null;
+    return `${listed} ${missing.length > 1 ? 'are not declared series' : 'is not a declared series'}.${hint ? ` ${hint}` : ''}`;
+  };
+
+  const bands: SeriesBand[] = [];
+  for (const { tokens, lineNumber } of rawBands) {
+    let found: SeriesBand | null = null;
+    // The label leads; the last two names are the bounds.
+    for (let i = tokens.length - 2; i >= 1 && !found; i--) {
+      const pair = splitTwoSeries(tokens.slice(i), index);
+      if (pair)
+        found = {
+          label: tokens.slice(0, i).join(' '),
+          low: pair[0],
+          high: pair[1],
+          lineNumber,
+        };
+    }
+    if (found) bands.push(found);
+    else if (tokens.length < 3)
+      err(
+        lineNumber,
+        'A series band needs a label and two series — band Forecast Low High.'
+      );
+    else err(lineNumber, `band: ${unknown(tokens.slice(-2))}`);
+  }
+  if (bands.length) result.seriesBands = bands;
 }

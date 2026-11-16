@@ -2635,6 +2635,7 @@ x-label X Label
 y-label Y Label
 orientation-horizontal   // bar: horizontal bars
 fill                     // line: fill the area under the line
+band Forecast Low High   // line: uncertainty band between two series (§15.1.5)
 hole                     // pie: doughnut ring (optional ratio, e.g. `hole 0.5`)
 no-center-total          // pie: hide the center total (shown by default when `hole` is set)
 waffle                   // pie: draw the rows as a 10×10 grid, one cell per percent
@@ -2840,6 +2841,39 @@ locale de-DE             // separators and currency placement: 1.234,5 · 1.200 
 - **Not read:** a line that names `format`, `unit` or `locale` but cannot be
   read warns (`W_NUMBER_FORMAT_INVALID`) and is ignored. Without any of the
   three, numbers print as before.
+
+#### 15.1.5 Bands and fills between series (line)
+
+A line directive shades between two declared series (#1981).
+
+**Uncertainty band** — `band <label> <low series> <high series>`:
+
+```
+line Rum sales forecast
+series
+  Actual blue
+  Low teal
+  High teal
+band Forecast Low High
+
+Jan 120 112 128
+Feb 132 120 146
+```
+
+- The band shades between the two named series, in the low series' colour at
+  reduced opacity. The low and high series are not drawn as lines.
+- The legend shows the band's label once, where the low series was declared;
+  the low and high series get no entry. `highlight` takes the band's label and
+  greys or keeps the band like a series.
+- The band counts toward the auto-fit y-axis. It follows `step` /
+  `step-before`.
+- A value band `band 40..60` (§1.14) is a different directive: two numbers
+  joined by `..` make a value band, a label and two series make a series band.
+- A low or high name that is not a declared series is an error.
+
+**Gaps.** A row missing a value breaks the band there, as it breaks the
+line. A data row cannot yet leave a value empty: a row with fewer values than
+series is dropped with a warning.
 
 ### 15.2 Scatter / Bubble Charts
 

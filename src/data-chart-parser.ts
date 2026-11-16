@@ -1176,14 +1176,23 @@ export function getSimpleChartLegendGroups(
   colors: string[]
 ): LegendGroupData[] {
   if (!parsed.seriesNames || parsed.seriesNames.length <= 1) return [];
+  // colors is a non-empty palette array; modulo index is always in-bounds.
+  const colorOf = (i: number): string =>
+    parsed.seriesNameColors?.[i] ?? colors[i % colors.length]!;
+  // A band (#1981) takes one entry in its low series' colour; its bounds none.
+  const bands = parsed.seriesBands ?? [];
+  const bounds = new Set(bands.flatMap((b) => [b.low, b.high]));
   return [
     {
       name: 'Series',
-      entries: parsed.seriesNames.map((name, i) => ({
-        value: name,
-        // colors is a non-empty palette array; modulo index is always in-bounds.
-        color: parsed.seriesNameColors?.[i] ?? colors[i % colors.length]!,
-      })),
+      // The band's entry stands where its low series was declared.
+      entries: parsed.seriesNames.flatMap((name, i) =>
+        bounds.has(i)
+          ? bands
+              .filter((b) => b.low === i)
+              .map((b) => ({ value: b.label, color: colorOf(i) }))
+          : [{ value: name, color: colorOf(i) }]
+      ),
     },
   ];
 }
