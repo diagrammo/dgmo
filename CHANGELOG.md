@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`W_CANVAS_HEIGHT_IGNORED`, and the list of chart types that take an exact
+  size (#1965).** With a width and a height both requested, a chart type that
+  sizes itself from its content (flowchart, org, sequence, map and the rest)
+  stays tight to its content as before, and now warns that the height was not
+  applied instead of ignoring it in silence. No chart type pads its output to
+  reach the box. The language reference (§1.15) lists the twenty chart types
+  that come back at exactly the requested width and height, and a test holds
+  that list to what every gallery fixture renders.
 - **mindmap radial layout: the bare `radial` flag (#1843).** A line
   `radial` before the content puts the root at the centre and each depth on
   a ring around it. Every branch gets a share of the turn in proportion to

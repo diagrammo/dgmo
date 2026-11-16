@@ -165,6 +165,16 @@ export const UNIVERSAL_DIAGNOSTICS: DiagnosticSpec[] = [
     hint: 'The width is a maximum for chart types that fit their content to it; one that lays out from its own nodes (org, sitemap, class, er, infra, and the rest of the structured family) is as wide as its content needs. Remove the width, or give the diagram less to draw.',
     example: 'org Team\nJane\n  Sam',
   },
+  {
+    code: 'W_CANVAS_HEIGHT_IGNORED',
+    severity: 'warning',
+    chartType: null,
+    title: 'Requested height not applied',
+    message: () =>
+      'This chart type sizes itself from its content, so the canvas did not come out at the height that was requested.',
+    hint: 'A width with a height is an exact canvas only for chart types that lay out onto it (the data charts, pie, radar, venn, treemap and the rest of §1.15 in the language reference). One that lays out from its own nodes stays tight to its content and is never padded to reach the box. Remove the height, or export a chart type that takes an exact size.',
+    example: 'flowchart Deploy\n(Start) -> [Build] -> (Done)',
+  },
 
   // ── Data-chart `title` directive (decision #48) ──
   MISTYPED_CHART_TYPE_DX,

@@ -560,6 +560,19 @@ Havana 400
 - On a dual-axis `line`, annotations sit on the left axis.
 - Several of each are allowed. On any other chart type the directive is ignored with a warning.
 
+### 1.15 Output Size — `--width` and `--height`
+
+A caller can ask for a canvas size: `--width` and `--height` on the CLI, `width` and `height` in `render()`'s options.
+
+- **A width alone** is a maximum for chart types that fit their content to it. A chart type that lays out from its own nodes is as wide as its content needs; when that is wider than the width asked for, `W_CANVAS_WIDTH_IGNORED` says so.
+- **A width with a height is an exact canvas** — the SVG, the PNG at `--scale 1` and the PDF page come back at exactly that size — for these chart types only, which lay out onto the canvas they are given:
+
+  <!-- exact-size-types:start -->
+  `bar`, `arc layout chord`, `cycle`, `funnel`, `function`, `heatmap`, `line`, `pie`, `polar-area`, `pyramid`, `quadrant`, `radar`, `ring`, `sankey`, `scatter`, `slope`, `tech-radar`, `treemap`, `venn`, `wordcloud`
+  <!-- exact-size-types:end -->
+
+- **Every other chart type sizes itself from its content** and stays tight to it: it is never padded with background to reach the box. A `map` takes the width and sets its height from the projection. When the height that comes out is not the one asked for, `W_CANVAS_HEIGHT_IGNORED` says so.
+
 ---
 
 ## 2. Universal Name Handling

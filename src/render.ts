@@ -378,6 +378,38 @@ export async function render(
     ];
   };
 
+  /**
+   * Tell the caller when `width` with `height` did not give that canvas
+   * (#1965). Chart types that lay out onto the canvas come back exactly WxH;
+   * the ones that size themselves from their content stay tight to it — they
+   * are never padded with background to reach the box — so their height is
+   * not the one asked for. Measured against the produced SVG, like the width
+   * warning above, so it cannot go stale. A height on its own is not a box
+   * request, so it says nothing.
+   */
+  const withCanvasHeightWarning = (
+    ds: DgmoError[],
+    svg: string
+  ): DgmoError[] => {
+    const askedW = options?.width;
+    const askedH = options?.height;
+    if (!askedW || askedW <= 0 || !askedH || askedH <= 0) return ds;
+    const vb = /viewBox="[-\d.]+ [-\d.]+ [\d.]+ ([\d.]+)"/.exec(svg);
+    const got = vb ? Number(vb[1]) : NaN;
+    if (!Number.isFinite(got) || Math.abs(got - askedH) <= 1) return ds;
+    return [
+      ...ds,
+      makeDgmoError(
+        1,
+        `This ${chartType ?? 'diagram'} is ${Math.round(got)}px tall — it sizes itself from its content, so the requested height of ${Math.round(askedH)}px was not applied.`,
+        'warning',
+        'W_CANVAS_HEIGHT_IGNORED'
+      ),
+    ];
+  };
+  const withCanvasWarnings = (ds: DgmoError[], svg: string): DgmoError[] =>
+    withCanvasHeightWarning(withCanvasWidthWarning(ds, svg), svg);
+
   // Build viewState from legendState (backwards compat) or use provided viewState
   const viewState: CompactViewState | undefined =
     options?.viewState ??
@@ -425,7 +457,7 @@ export async function render(
       );
       return {
         svg,
-        diagnostics: withCanvasWidthWarning(
+        diagnostics: withCanvasWarnings(
           withLegendInlineWarning(diagnostics),
           svg
         ),
@@ -515,10 +547,7 @@ export async function render(
 
   return {
     svg,
-    diagnostics: withCanvasWidthWarning(
-      withLegendInlineWarning(diagnostics),
-      svg
-    ),
+    diagnostics: withCanvasWarnings(withLegendInlineWarning(diagnostics), svg),
     chartType: chartType ?? undefined,
   };
 }
