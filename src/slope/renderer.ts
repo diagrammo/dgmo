@@ -387,7 +387,9 @@ export function renderSlopeChart(
     const seriesG = g
       .append('g')
       .attr('class', 'slope-series')
-      .attr('data-line-number', String(item.lineNumber));
+      .attr('data-line-number', String(item.lineNumber))
+      // The name a `highlight` line matches — the app's Spotlight reads it.
+      .attr('data-series-name', item.label);
 
     // Line
     seriesG

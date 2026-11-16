@@ -493,7 +493,9 @@ export function renderFamilyForExport(
       .attr('class', 'family-card')
       .attr('transform', `translate(${node.x}, ${node.y})`)
       .attr('data-line-number', String(node.lineNumber))
-      .attr('data-person-id', node.id);
+      .attr('data-person-id', node.id)
+      // The name a `highlight` line matches — the app's Spotlight reads it.
+      .attr('data-person-name', node.label);
     // Expose the active tag value for legend-entry hover-dim (org precedent).
     if (activeTagGroup) {
       const key = tagAttrKey(activeTagGroup);
