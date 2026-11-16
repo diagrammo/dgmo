@@ -11,6 +11,7 @@ export const fixture: ConformanceFixture = {
     // #1831 number format.
     ...NUMBER_FORMAT_DIRECTIVES,
     'hole',
+    'waffle',
     'no-center-total',
     'sort',
     'other-below',

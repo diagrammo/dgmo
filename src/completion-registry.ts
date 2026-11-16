@@ -253,6 +253,9 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description:
           'Doughnut ring (optional ratio 0–0.9); shows the total in center',
       },
+      waffle: {
+        description: 'Draw the rows as a 10×10 grid, one cell per percent',
+      },
       'no-center-total': {
         description: 'Hide the center total on a doughnut/hole pie',
       },

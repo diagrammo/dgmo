@@ -616,6 +616,9 @@ interface ParsedChart {
     /** Pie hole inner-radius ratio (0–0.9), set by a `hole` directive
      *  (bare ⇒ default). Absent ⇒ solid pie. (#23) */
     hole?: number;
+    /** Draw the pie's rows as a 10×10 waffle grid instead of wedges (bare
+     *  `waffle`, #1983). Each cell is one percent of the total. */
+    waffle?: boolean;
     /** Suppress the pie center total (bare `no-center-total`). The total
      *  shows by default whenever a hole is present. (#23) */
     noCenterTotal?: boolean;

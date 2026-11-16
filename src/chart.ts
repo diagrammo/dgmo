@@ -65,6 +65,9 @@ export interface ParsedChart {
   /** Pie hole inner-radius ratio (0–0.9), set by a `hole` directive
    *  (bare ⇒ default). Absent ⇒ solid pie. (#23) */
   hole?: number;
+  /** Draw the pie's rows as a 10×10 waffle grid instead of wedges (bare
+   *  `waffle`, #1983). Each cell is one percent of the total. */
+  waffle?: boolean;
   /** Suppress the pie center total (bare `no-center-total`). The total
    *  shows by default whenever a hole is present. (#23) */
   noCenterTotal?: boolean;
@@ -296,6 +299,7 @@ export function parseChart(
   const pieOnlyLines: [number, string][] = [];
   const annotations: ChartAnnotation[] = [];
   let otherLine = 0;
+  let waffleLine = 0;
   const rawEras: {
     start: string;
     afterArrow: string;
@@ -442,6 +446,12 @@ export function parseChart(
 
     // Pie-only directives. Matched case-sensitively on the whole line so a data
     // row labelled "Other 30" or "Sort 5" still parses as data.
+    if (trimmed === 'waffle') {
+      result.waffle = true;
+      waffleLine = lineNumber;
+      pieOnlyLines.push([lineNumber, 'waffle']);
+      continue;
+    }
     const sortMatch = trimmed.match(/^sort(?:\s+(asc|desc))?$/);
     if (sortMatch) {
       result.sort = (sortMatch[1] as 'asc' | 'desc' | undefined) ?? 'desc';
@@ -786,7 +796,18 @@ export function parseChart(
     }
     delete result.sort;
     delete result.otherBelow;
+    delete result.waffle;
   } else {
+    if (result.waffle && result.hole !== undefined) {
+      result.diagnostics.push(
+        makeDgmoError(
+          waffleLine,
+          '"hole" has no effect on a waffle; ignoring it.',
+          'warning'
+        )
+      );
+      delete result.hole;
+    }
     if (result.otherBelow !== undefined) {
       const total = result.data.reduce((a, d) => a + d.value, 0);
       const small = result.data.filter(

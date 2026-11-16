@@ -10,6 +10,7 @@ import type { PaletteColors } from '../palettes';
 import { getSegmentColors, shapeFill } from '../palettes/color-utils';
 import { FONT_FAMILY } from '../fonts';
 import { type Svg, chartFormatter, tagDatum } from './shared';
+import { renderWaffle } from './waffle';
 import {
   EMPHASIS_DIM_OPACITY,
   EMPHASIS_DIM_TEXT_OPACITY,
@@ -29,6 +30,11 @@ export function renderPie(
   textColor: string,
   topInset: number
 ): void {
+  // `pie` + bare `waffle` draws the same rows as a 10×10 grid (#1983).
+  if (chart.waffle) {
+    renderWaffle(svg, chart, width, height, palette, isDark, topInset);
+    return;
+  }
   // The author's `format` / `unit` / `locale` (#1831).
   const fmt = chartFormatter(chart);
   const data = chart.data.filter((d) => d.value > 0);

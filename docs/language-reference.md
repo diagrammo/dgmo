@@ -150,7 +150,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `wireframe`       | low-fidelity UI layout with panels and controls                                                                                                               |
 | `bar`             | categorical comparisons (multi-series via `stack` / `group`)                                                                                                  |
 | `line`            | trends over time (multiple series via a `series` block; filled via `fill`; dual y-axes via `y-label` / `y-right-label`)                                       |
-| `pie`             | part-to-whole proportions (ring/doughnut via `hole`)                                                                                                          |
+| `pie`             | part-to-whole proportions (ring/doughnut via `hole`; 10×10 grid via `waffle`)                                                                                 |
 | `radar`           | multi-dimensional metrics                                                                                                                                     |
 | `polar-area`      | radial bar chart                                                                                                                                              |
 | `scatter`         | 2D points or bubble chart                                                                                                                                     |
@@ -2604,6 +2604,7 @@ orientation-horizontal   // bar: horizontal bars
 fill                     // line: fill the area under the line
 hole                     // pie: doughnut ring (optional ratio, e.g. `hole 0.5`)
 no-center-total          // pie: hide the center total (shown by default when `hole` is set)
+waffle                   // pie: draw the rows as a 10×10 grid, one cell per percent
 sort                     // pie: order slices largest first (`sort asc` = smallest first)
 other-below 5%           // pie: merge slices under 5% of the total into one "Other"
 no-auto-y                // line: anchor the y-axis at 0 (opt out of auto-fit)
@@ -2619,6 +2620,14 @@ step-before              // line: steps that reach each value at its own point
 - `hole` (pie; renders the doughnut ring — bare `hole`, or `hole <0–0.9>` for a
   custom inner-radius ratio. The value total shows in the center by default;
   suppress with `no-center-total`)
+- `waffle` (pie; bare. Draws the same rows as a 10×10 grid of square cells
+  instead of wedges. Each cell is one percent of the total, rounded so the
+  cells always sum to 100 (largest remainder; a row under half a percent can
+  get none). Cells fill row by row from the top left in row order, so `sort`
+  and `other-below` apply. A key beside the grid names each row as
+  `Name — value (N%)`, where N is its cell count; `no-name` / `no-value` /
+  `no-percent` and `highlight` work as on the pie. `hole` has no effect on a
+  waffle and warns)
 - `sort` (pie; slices largest first — `sort asc` for smallest first; default is
   source order)
 - `other-below N%` (pie; slices under N% of the total merge into one trailing

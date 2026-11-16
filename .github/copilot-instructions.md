@@ -104,7 +104,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `wireframe`       | low-fidelity UI layout with panels and controls                                                                                                               |
 | `bar`             | categorical comparisons (multi-series via `stack` / `group`)                                                                                                  |
 | `line`            | trends over time (multiple series via a `series` block; filled via `fill`; dual y-axes via `y-label` / `y-right-label`)                                       |
-| `pie`             | part-to-whole proportions (ring/doughnut via `hole`)                                                                                                          |
+| `pie`             | part-to-whole proportions (ring/doughnut via `hole`; 10×10 grid via `waffle`)                                                                                 |
 | `radar`           | multi-dimensional metrics                                                                                                                                     |
 | `polar-area`      | radial bar chart                                                                                                                                              |
 | `scatter`         | 2D points or bubble chart                                                                                                                                     |

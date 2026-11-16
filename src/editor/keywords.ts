@@ -24,6 +24,7 @@ export const METADATA_KEYS = new Set([
   'stack',
   'group',
   'hole',
+  'waffle',
   'sort',
   'other-below',
   'fill',
