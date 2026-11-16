@@ -7,10 +7,10 @@ import { MapDataSource } from './block.js';
 export { A as AirportData, B as BoundaryTopology, G as Gazetteer, a as GazetteerEntry, h as MapDirectives, i as MapEdge, j as MapPoi, k as MapRegion, l as MapRoute, m as PoiPos, n as ProjectionFamily, R as RegionName, c as RegionNames, o as ResolvedEdge, p as ResolvedPoi, q as ResolvedRegion, r as ResolvedRoute } from './export-context-CMikqTMS.js';
 import { InkPoint } from './index.js';
 export { C as CHART_TYPE_DESCRIPTIONS, M as MapCompletionOptions, d as MapLocationMatch, e as MapPlaceCompletion, f as MapRegionCompletion, R as RenderCategory, T as Theme, l as chartTypeParsers, g as completeMapPlaces, h as completeMapRegions, m as getAllChartTypes, n as getRenderCategory, o as isExtendedChartType, q as knownChartTypeIds, p as palettes, k as parseDgmo, s as searchMapLocations, t as themes, k as validate } from './themes-B1gHwy4W.js';
+import { E as EmphasisDirective, P as ParsedOrg, F as FillMode, R as RaciMarker, a as ParsedRaci, b as RaciVariant, c as RaciTask } from './chart-meta-DJbZ1V21.js';
+export { A as ALL_CHART_TYPES, I as ImportSource, O as OrgNode, d as RaciPhase, e as RaciRoleAssignment, f as ReadFileFn, g as ResolveImportsResult, h as contrastText, i as findOrgNodeIdByName, j as getSeriesColors, k as hexToHSL, l as hexToHSLString, m as hslToHex, n as mix, o as normalizePertSourceForShare, p as parseDgmoChartType, q as parseFirstLine, r as parseOrg, s as parseRaci, t as resolveOrgImports, u as shade, v as shapeFill, w as tint } from './chart-meta-DJbZ1V21.js';
 import { Selection } from 'd3-selection';
 import * as d3Scale from 'd3-scale';
-import { P as ParsedOrg, F as FillMode, R as RaciMarker, a as ParsedRaci, b as RaciVariant, c as RaciTask } from './chart-meta-D5ye0OQ0.js';
-export { A as ALL_CHART_TYPES, I as ImportSource, O as OrgNode, d as RaciPhase, e as RaciRoleAssignment, f as ReadFileFn, g as ResolveImportsResult, h as contrastText, i as findOrgNodeIdByName, j as getSeriesColors, k as hexToHSL, l as hexToHSLString, m as hslToHex, n as mix, o as normalizePertSourceForShare, p as parseDgmoChartType, q as parseFirstLine, r as parseOrg, s as parseRaci, t as resolveOrgImports, u as shade, v as shapeFill, w as tint } from './chart-meta-D5ye0OQ0.js';
 import { GlyphName } from './index.js';
 import { GeoProjection } from 'd3-geo';
 
@@ -124,49 +124,6 @@ interface D3ExportDimensions {
      *  canvas was clamped/floored away from the map's content aspect, so the
      *  off-aspect canvas doesn't re-distort. Ignored by all non-map renderers. */
     preferContain?: boolean;
-}
-
-/**
- * §1.11 Emphasis family — `highlight <Name>…` / `dim <Name>…`.
- *
- * The one appearance axis that creates contrast *within* a chart. The `fill-*`
- * family (§1.9) is chart-wide by construction, so it can state a treatment but
- * never a hierarchy; color states *identity*, not weight. Emphasis is the third
- * axis: which elements are figure and which are ground.
- *
- * Two duals, mutually exclusive (last-one-wins, per the `fill-*` precedent):
- *   `highlight A B` — A and B are figure; EVERYTHING ELSE recedes.
- *   `dim A B`       — A and B recede; everything else is untouched.
- *
- * Both are chart-level directives, never per-element trailing tokens: the
- * trailing bare-token slot already belongs to color (§1.5), and a second
- * trailing token would need ordered peeling plus a fresh label-collision
- * hazard. Keeping emphasis at chart level also means it survives edits to the
- * data rows and has exactly one home on chart types (sankey, chord) where an
- * element is named by many lines rather than declared on one.
- *
- * Rendering contract: a resolved-dim is a BAKED opacity multiplier on the
- * element's existing paint — never a color substitution. Hue is preserved, so
- * `dim` composes with a brand color instead of competing with it, and the
- * output is a static attribute that survives PNG/SVG export with no
- * interactivity dependency (contrast with event-line's runtime legend muting).
- */
-
-/** A parsed emphasis directive: which dual, and the names it lists. */
-interface EmphasisDirective {
-    readonly kind: 'highlight' | 'dim';
-    readonly names: readonly string[];
-    /**
-     * True when the author used no comma, so `names` is a *guess* — `dim Ship
-     * Provisions` is one two-word element far more often than two one-word ones.
-     * Resolution tries the whole phrase first and only falls back to these
-     * tokens, which means a comma is never required for the common single-name
-     * case but always disambiguates when an author wants several.
-     */
-    readonly ambiguous: boolean;
-    /** The directive's argument text, verbatim — the whole-phrase candidate. */
-    readonly raw: string;
-    readonly lineNumber: number;
 }
 
 type AxisName = 'x' | 'y';
@@ -1358,6 +1315,8 @@ interface ParsedSequenceDgmo {
     readonly diagnostics: readonly DgmoError[];
     /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
     readonly frame?: ChartFrame;
+    /** `highlight …` story-view directive (#2041); resolved by the renderer. */
+    readonly emphasis?: EmphasisDirective;
     readonly error: string | null;
 }
 /**
@@ -1452,6 +1411,8 @@ interface ParsedGraph {
     readonly diagnostics: readonly DgmoError[];
     /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
     readonly frame?: ChartFrame;
+    /** The `highlight` story-view directive (#2041), if authored. */
+    readonly emphasis?: EmphasisDirective;
     readonly error: string | null;
 }
 
@@ -2419,6 +2380,9 @@ interface ParsedBoxesAndLines {
      * `false`; legacy `show-values` sets `true` (a no-op). `undefined` = on.
      */
     readonly showValues?: boolean;
+    /** `highlight <Box>` / `highlight A -> B` line (#2041); resolved in the
+     *  renderer. Absent when the source has none. */
+    readonly emphasis?: EmphasisDirective;
     readonly diagnostics: readonly DgmoError[];
     /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
     readonly frame?: ChartFrame;
@@ -3678,6 +3642,8 @@ interface ParsedInfra {
     readonly diagnostics: readonly DgmoError[];
     /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
     readonly frame?: ChartFrame;
+    /** `highlight …` story-view directive (#2041). */
+    readonly emphasis?: EmphasisDirective;
     readonly error: string | null;
 }
 interface InfraComputeParams {
@@ -3764,6 +3730,8 @@ interface ComputedInfraModel {
     title: string | null;
     /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
     frame?: ChartFrame;
+    /** `highlight …` story-view directive (#2041). */
+    emphasis?: EmphasisDirective;
     direction: 'LR' | 'TB';
     /** Diagram-level options (e.g., default-latency-ms, default-uptime). */
     options: Record<string, string>;
@@ -3851,6 +3819,8 @@ interface InfraLayoutResult {
     readonly options: Readonly<Record<string, string>>;
     /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
     readonly frame?: ChartFrame;
+    /** `highlight …` story-view directive (#2041). */
+    readonly emphasis?: EmphasisDirective;
     readonly direction: 'LR' | 'TB';
     readonly width: number;
     readonly height: number;
@@ -4837,6 +4807,8 @@ interface ParsedMindmap {
     readonly diagnostics: readonly DgmoError[];
     /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
     readonly frame?: ChartFrame;
+    /** Story-view `highlight` line (#2041). */
+    readonly emphasis?: EmphasisDirective;
     readonly error: string | null;
 }
 interface MindmapLayoutNode {
