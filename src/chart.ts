@@ -82,6 +82,11 @@ export interface ParsedChart {
   /** Pie `other-below N%`: slices under N% of the total merge into one
    *  trailing "Other" slice. Stored as the percentage N. */
   otherBelow?: number;
+  /** Bar (#1979): draw each bar as a thin stem with a dot at its value
+   *  (bare `lollipop`). Not with `stack`. */
+  lollipop?: boolean;
+  /** Line of the `lollipop` flag, for its diagnostics. */
+  lollipopLineNumber?: number;
   /** Render a line chart filled, i.e. as an area (bare `fill`). (#25) */
   fill?: boolean;
   orientation?: 'horizontal' | 'vertical';
@@ -212,6 +217,7 @@ const KNOWN_BOOLEANS = new Set([
   'step-before',
   'fill',
   'hole',
+  'lollipop',
 ]);
 
 /**
@@ -516,6 +522,9 @@ export function parseChart(
         }
         result.step = want;
         result.stepLineNumber = lineNumber;
+      } else if (firstToken === 'lollipop') {
+        result.lollipop = true;
+        result.lollipopLineNumber = lineNumber;
       } else if (firstToken === 'fill') {
         result.fill = true;
       } else if (firstToken === 'hole') {
@@ -964,6 +973,28 @@ export function parseChart(
     sortBarCategories(result);
 
   if (!result.error) settleChartAxes(result);
+
+  // `lollipop` redraws bars as stems and dots (#1979). A stack has no single
+  // value per bar for a dot to mark, so the pair is an error.
+  if (result.lollipop) {
+    const ln = result.lollipopLineNumber ?? 1;
+    if (result.type !== 'bar') {
+      warn(
+        ln,
+        `\`lollipop\` applies only to bar charts; ignoring it on "${result.type}".`
+      );
+      delete result.lollipop;
+    } else if (result.barLayout === 'stack') {
+      result.diagnostics.push(
+        makeDgmoError(
+          ln,
+          '`lollipop` cannot draw a `stack` — a stacked bar has no single value for the dot. Use `group`, or remove `lollipop`.',
+          'error'
+        )
+      );
+      delete result.lollipop;
+    }
+  }
 
   // `step` and `step-before` draw a line's segments (#1880); nowhere else.
   if (result.step !== undefined && result.type !== 'line') {

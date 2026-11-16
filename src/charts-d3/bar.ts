@@ -64,6 +64,10 @@ const FLIP_MAX_CATEGORIES = NEVER_THIN_MAX;
 const NAME_MAX_LINES = 3;
 /** Baseline-to-baseline distance of a wrapped name's lines. */
 const NAME_LINE_PX = Math.round(TICK_FONT * 1.2);
+/** Largest lollipop dot radius; thinner bands get a smaller dot (#1979). */
+const LOLLIPOP_DOT_MAX = 6;
+/** Lollipop stem width. */
+const LOLLIPOP_STEM = 2;
 
 function seriesValues(
   pt: { value: number; extraValues?: number[] },
@@ -378,6 +382,13 @@ export function renderBar(
         .domain(seriesNames.map((_, i) => i))
         .range([0, cat.bandwidth()])
         .padding(0.12);
+  // `lollipop` (#1979): a stem from 0 to the value with a dot on its end.
+  // The parser has already refused it on a stack.
+  const lollipop = !!chart.lollipop && inner !== null;
+  const dotR = inner
+    ? Math.max(3, Math.min(LOLLIPOP_DOT_MAX, inner.bandwidth() / 2))
+    : 0;
+  const pad = lollipop ? dotR : 0;
 
   // Where a side-by-side bar's value label goes. Negative bars grow left (or
   // down): the label sits off the bar's free end, flipped inside the bar when
@@ -391,22 +402,25 @@ export function renderBar(
       const x1 = val(v);
       const approxW = text.length * 7 + 6;
       const inside =
-        v < 0 ? x1 - approxW < m.left : x1 + approxW > m.left + plotW;
+        v < 0
+          ? x1 - pad - approxW < m.left
+          : x1 + pad + approxW > m.left + plotW;
+      const o = 6 + pad;
       return {
         text,
-        x: v < 0 ? (inside ? x1 + 6 : x1 - 6) : inside ? x1 - 6 : x1 + 6,
+        x: v < 0 ? (inside ? x1 + o : x1 - o) : inside ? x1 - o : x1 + o,
         y: base + off + bw / 2 + 4,
         anchor: v < 0 !== inside ? 'end' : 'start',
         keep: true,
       };
     }
     const y1 = val(v);
-    const yOut = v < 0 ? y1 + 14 : y1 - 6;
+    const yOut = v < 0 ? y1 + 14 + pad : y1 - 6 - pad;
     const yInside = v < 0 ? yOut > m.top + plotH - 2 : yOut < m.top + 2;
     return {
       text,
       x: base + off + bw / 2,
-      y: yInside ? (v < 0 ? y1 - 6 : y1 + 14) : yOut,
+      y: yInside ? (v < 0 ? y1 - 6 - pad : y1 + 14 + pad) : yOut,
       anchor: 'middle',
       keep: true,
     };
@@ -514,7 +528,29 @@ export function renderBar(
       } else {
         const off = inner!(s) ?? 0;
         const bw = inner!.bandwidth();
-        if (horiz) {
+        if (lollipop) {
+          const c = base + off + bw / 2;
+          const end = val(v);
+          stemAndDot(
+            svg,
+            horiz ? [zero, c, end, c] : [c, zero, c, end],
+            dotR,
+            fill,
+            stroke,
+            tag,
+            dim
+          );
+          const spot = spots[s]!;
+          if (spot.keep)
+            drawValueLabel(
+              svg,
+              spot.text,
+              spot.x,
+              spot.y,
+              labelColor,
+              spot.anchor
+            ).attr('opacity', dim ? EMPHASIS_DIM_TEXT_OPACITY : null);
+        } else if (horiz) {
           const x1 = val(v);
           rect(
             svg,
@@ -641,4 +677,53 @@ function rect(
   // A receded bar keeps its paint: the dim is a baked opacity (§1.11).
   if (dim) r.attr('opacity', EMPHASIS_DIM_OPACITY);
   tagDatum(r, tag);
+}
+
+/**
+ * One lollipop (#1979): a stem from the 0 baseline to the value, and a dot
+ * on its end. The dot carries the datum; the stem shares its line number so
+ * a click on either lands on the row, and both recede under `highlight`.
+ */
+function stemAndDot(
+  svg: Svg,
+  [x1, y1, x2, y2]: [number, number, number, number],
+  r: number,
+  fill: string,
+  stroke: string,
+  tag: {
+    line: number;
+    key: string;
+    name: string;
+    value: number;
+    color: string;
+    seriesName?: string | undefined;
+  },
+  dim: boolean
+): void {
+  const stem = svg
+    .append('line')
+    .attr('class', 'dgmo-lollipop-stem')
+    .attr('x1', x1)
+    .attr('y1', y1)
+    .attr('x2', x2)
+    .attr('y2', y2)
+    .attr('stroke', stroke)
+    .attr('stroke-width', LOLLIPOP_STEM)
+    .attr('data-line-number', tag.line)
+    .attr('data-emph-key', tag.key);
+  if (tag.seriesName != null) stem.attr('data-series-name', tag.seriesName);
+  const dot = svg
+    .append('circle')
+    .attr('class', 'dgmo-lollipop-dot')
+    .attr('cx', x2)
+    .attr('cy', y2)
+    .attr('r', r)
+    .attr('fill', fill)
+    .attr('stroke', stroke)
+    .attr('stroke-width', 1.5);
+  if (dim) {
+    stem.attr('opacity', EMPHASIS_DIM_OPACITY);
+    dot.attr('opacity', EMPHASIS_DIM_OPACITY);
+  }
+  tagDatum(dot, tag);
 }

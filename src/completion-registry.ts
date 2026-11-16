@@ -188,6 +188,9 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description:
           'Order bars by value: sort (largest first), sort asc, or sort <series>',
       },
+      lollipop: {
+        description: 'Draw each bar as a thin stem with a dot at its value',
+      },
       'y-scale': {
         description: 'Value axis scale: log for data spanning decades',
         values: ['log', 'linear'],

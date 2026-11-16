@@ -2608,6 +2608,7 @@ no-center-total          // pie: hide the center total (shown by default when `h
 waffle                   // pie: draw the rows as a 10×10 grid, one cell per percent
 sort                     // pie, bar: largest first (`sort asc` = smallest first)
 sort Crew                // bar: order the categories by one series
+lollipop                 // bar: a thin stem with a dot at each value
 other-below 5%           // pie: merge slices under 5% of the total into one "Other"
 no-auto-y                // line: anchor the y-axis at 0 (opt out of auto-fit)
 step                     // line: hold each value until the next point (§15.1.3)
@@ -2638,6 +2639,13 @@ step-before              // line: steps that reach each value at its own point
   series instead, and takes `asc` after the name (`sort Crew asc`). An
   unknown name warns and falls back to the default. Ties keep source order.
   Elsewhere `sort` warns and is ignored
+- `lollipop` (bar; draws each bar as a thin stem from 0 with a dot at its
+  value). Works vertical and `orientation-horizontal`, with `group` (the dots
+  of one category stand side by side, one stem each), with negative values
+  (the stem runs from 0 down or left to the dot), with `sort` and with
+  `highlight`, which recedes the other stems and dots as it does bars. With
+  `stack` it is an error and the chart draws ordinary stacked bars. On any
+  other chart type it warns and is ignored
 - `other-below N%` (pie; slices under N% of the total merge into one trailing
   **Other** slice, placed last even under `sort`; needs at least two slices to
   qualify, otherwise nothing merges)

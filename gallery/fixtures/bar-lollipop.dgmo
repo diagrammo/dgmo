@@ -1,0 +1,14 @@
+bar Cannons vs Crew by Ship
+lollipop
+sort Crew
+x-label Ship
+y-label Count
+
+group
+  Cannons blue
+  Crew green
+
+Queen Anne's Revenge 40 300
+Royal Fortune        34 262
+Whydah Gally         28 146
+Adventure Galley     46 152
