@@ -82,6 +82,7 @@ import { parseClock } from './clock/parser';
 import { parseBracket } from './bracket/parser';
 import { parseRaci } from './raci/parser';
 import { parseSwot } from './swot/parser';
+import { parseCalendarHeatmap } from './calendar-heatmap/parser';
 import { parseBody } from './body/parser';
 import { parseLiveLink } from './live-link/parser';
 import type { DgmoError } from './diagnostics';
@@ -164,6 +165,10 @@ const REGISTRY: Record<ChartTypeId, Omit<ChartTypeDescriptor, 'id'>> = {
   // Treemap: squarified hierarchy — fills whatever rectangle it's given and has
   // no intrinsic aspect/size (F11).
   treemap: { category: 'visualization', parse: parseTreemap },
+  'calendar-heatmap': {
+    category: 'visualization',
+    parse: parseCalendarHeatmap,
+  },
   // Block diagram: deterministic grid — sizes to content and is scaled to fit
   // whatever rectangle it's given.
   block: { category: 'visualization', parse: parseBlock },

@@ -31,6 +31,7 @@ import { AXIS_DIAGNOSTICS } from './utils/axis-spec';
 import { NUMBER_FORMAT_DX } from './utils/number-format';
 import { RACI_DIAGNOSTICS } from './raci/diagnostics';
 import { SWOT_DIAGNOSTICS } from './swot/diagnostics';
+import { CALENDAR_HEATMAP_DIAGNOSTICS } from './calendar-heatmap/diagnostics';
 import { TREEMAP_DIAGNOSTICS } from './treemap/diagnostics';
 import { EVENT_LINE_DIAGNOSTICS } from './event-line/diagnostics';
 import { BODY_DIAGNOSTICS } from './body/diagnostics';
@@ -201,6 +202,7 @@ const REGISTRY: DiagnosticSpec[] = [
   ...SWIMLANE_DIAGNOSTICS,
   ...RACI_DIAGNOSTICS,
   ...SWOT_DIAGNOSTICS,
+  ...CALENDAR_HEATMAP_DIAGNOSTICS,
   ...TREEMAP_DIAGNOSTICS,
   ...EVENT_LINE_DIAGNOSTICS,
   ...BODY_DIAGNOSTICS,

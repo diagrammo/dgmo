@@ -87,7 +87,14 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   {
     token: 'year',
     category: 'directive',
-    chartTypes: ['countdown', 'event-line', 'gantt', 'pert', 'timeline'],
+    chartTypes: [
+      'calendar-heatmap',
+      'countdown',
+      'event-line',
+      'gantt',
+      'pert',
+      'timeline',
+    ],
   },
   {
     token: 'date-order',
@@ -845,6 +852,7 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
     category: 'directive',
     chartTypes: [
       'bar',
+      'calendar-heatmap',
       'funnel',
       'function',
       'heatmap',
@@ -1022,7 +1030,11 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
     chartTypes: ['function', 'line', 'whiteboard'],
   },
   // ── Wordcloud ────────────────────────────────────────────
-  { token: 'max', category: 'directive', chartTypes: ['wordcloud'] },
+  {
+    token: 'max',
+    category: 'directive',
+    chartTypes: ['calendar-heatmap', 'wordcloud'],
+  },
   {
     token: 'size',
     category: 'directive',
@@ -1127,6 +1139,19 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
       chartTypes: ['whiteboard'],
     })
   ),
+
+  // ── Calendar heatmap header options (#1855) ──────────────
+  { token: 'from', category: 'directive', chartTypes: ['calendar-heatmap'] },
+  {
+    token: 'week-start',
+    category: 'directive',
+    chartTypes: ['calendar-heatmap'],
+  },
+  {
+    token: 'no-summary',
+    category: 'directive',
+    chartTypes: ['calendar-heatmap'],
+  },
 
   // ── SWOT section keywords (CONTROL) ──────────────────────
   { token: 'strengths', category: 'control', chartTypes: ['swot'] },

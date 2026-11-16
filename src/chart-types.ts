@@ -264,6 +264,11 @@ const chartTypesData = [
     description: 'Term frequency visualization',
   },
   {
+    id: 'calendar-heatmap',
+    description:
+      'Daily values across a year as a grid of squares — weeks across, weekdays down, five shades from none to busiest (activity, habits, runs)',
+  },
+  {
     id: 'heatmap',
     description: 'Matrix intensity visualization',
   },

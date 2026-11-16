@@ -31,7 +31,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `target` apply to rows without their own. The bar face draws one row
   per measure (name, bar, ribbon, `/ target`, readout); thermometer and gauge
   draw cells, four to a row. `shared-scale` puts every row on one scale.
-
+- **calendar-heatmap: a new chart type for daily values (#1855).** One
+  `date value` line per day draws a grid of squares — one column per week,
+  seven weekday rows, week one holding the span's first day — with month
+  names above and Mon, Wed and Fri down the side. A date is `YYYY-MM-DD`, or
+  `MM-DD` under `year YYYY`; a date not listed is zero and a date listed twice
+  adds up. `year` draws the whole year, `from … to …` trims it, and with
+  neither the chart spans the dates given; a short span draws bigger squares.
+  Five shades: grey for zero, then four equal-count bands of the days with a
+  value, or four equal ranges up to `max N`. A Less … More legend sits bottom
+  right (`no-legend`). The subtitle line shows the total and the busiest day
+  unless a `subtitle` is written or `no-summary` is set. `unit <noun>` names
+  what a value counts; `week-start monday` moves Monday to the top row. On
+  screen each day shows its value, unit and full weekday date on hover and
+  focus, and Tab moves along the days. The tag mode (year in pixels), the
+  guide page and examples in dgmo-content and the language-spec section follow.
 - **mindmap radial layout: the bare `radial` flag (#1843).** A line
   `radial` before the content puts the root at the centre and each depth on
   a ring around it. Every branch gets a share of the turn in proportion to

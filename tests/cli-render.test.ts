@@ -306,6 +306,12 @@ Black Pearl beats Sea Serpent 5-3
 Salty Dog beats Kraken 4-2
 Black Pearl beats Salty Dog 6-5`,
 
+  'calendar-heatmap': `calendar-heatmap Test Calendar
+year 2026
+unit run
+01-03 2
+03-10 5
+`,
   swot: `swot Test SWOT
 strengths
   Loyal crew

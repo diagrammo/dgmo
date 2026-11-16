@@ -1,0 +1,10 @@
+calendar-heatmap Minimal calendar
+year 2026
+unit run
+// The total-and-busiest-day line is the frame's subtitle, which moves the
+// drawing down by its band; off here so the band tests read the bare chart.
+no-summary
+
+01-03 2
+01-05 1
+03-10 5

@@ -631,6 +631,33 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       },
     }),
   ],
+  [
+    'calendar-heatmap',
+    withGlobals({
+      'no-legend': { description: 'Hide the Less … More legend' },
+      year: {
+        description:
+          'Draw this whole year; also the year of bare MM-DD dates (e.g. `year 2026`)',
+      },
+      unit: {
+        description: 'What a value counts, singular (e.g. `unit commit`)',
+      },
+      from: {
+        description:
+          'Trim the grid to a range: `from YYYY-MM-DD to YYYY-MM-DD`',
+      },
+      'week-start': {
+        description: 'Weekday on the top row (default sunday)',
+        values: ['sunday', 'monday'],
+      },
+      max: {
+        description: 'Pin the top shade at this value instead of the quartiles',
+      },
+      'no-summary': {
+        description: 'Hide the total and busiest day under the title',
+      },
+    }),
+  ],
   // RACI / RASCI / DACI — one chart type (`raci`); the variant (RACI, RASCI,
   // or DACI) is inferred from the markers used (D → DACI, S → RASCI).
   [

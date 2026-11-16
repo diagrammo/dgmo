@@ -68,6 +68,8 @@ import type { OrgNode } from '../org/parser';
 import { parsePert } from '../pert/parser';
 import { parseRaci } from '../raci/parser';
 import { parseSwot } from '../swot/parser';
+import { parseCalendarHeatmap } from '../calendar-heatmap/parser';
+import { calendarSummary } from '../calendar-heatmap/format';
 import { parseSequenceDgmo } from '../sequence/parser';
 import { parseSitemap } from '../sitemap/parser';
 import type { SitemapNode } from '../sitemap/types';
@@ -473,6 +475,14 @@ function summarizeSwot(content: string): string | null {
   const counts = parsed.sections.map((s) => `${s.label} ${s.items.length}`);
   const total = parsed.sections.reduce((n, s) => n + s.items.length, 0);
   return `SWOT analysis with ${plural(total, 'item', 'items')}: ${counts.join(', ')}.`;
+}
+
+function summarizeCalendarHeatmap(content: string): string | null {
+  const parsed = parseCalendarHeatmap(content);
+  if (parsed.error) return null;
+  const span = parsed.end - parsed.start + 1;
+  const summary = calendarSummary(parsed);
+  return `Calendar heatmap of ${plural(span, 'day', 'days')}, ${parsed.days.length} with an entry${summary ? `; ${summary}` : ''}.`;
 }
 
 function summarizeRaci(content: string): string | null {
@@ -986,6 +996,7 @@ const SUMMARIZERS: Record<ChartTypeId, Summarizer> = {
   'journey-map': summarizeJourneyMap,
   raci: summarizeRaci,
   swot: summarizeSwot,
+  'calendar-heatmap': summarizeCalendarHeatmap,
   body: summarizeBody,
   bracket: summarizeBracket,
   'live-link': summarizeLiveLink,
