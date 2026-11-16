@@ -434,21 +434,6 @@ export function parseHighlightChain(item: string): HighlightChain | null {
   return { nodes, links };
 }
 
-/** A directive's items split into plain names and arrow chains. */
-export function splitHighlightItems(directive: EmphasisDirective): {
-  names: string[];
-  chains: HighlightChain[];
-} {
-  const names: string[] = [];
-  const chains: HighlightChain[] = [];
-  for (const item of directive.names) {
-    const chain = parseHighlightChain(item);
-    if (chain) chains.push(chain);
-    else names.push(item);
-  }
-  return { names, chains };
-}
-
 /** What a `highlight` lights on a chart made of nodes and links (#2041). */
 export interface ResolvedPaths {
   /** True when something is lit, so everything else recedes. */
