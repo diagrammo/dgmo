@@ -151,7 +151,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `map`              | geographic concept map: regions, points, routes                                                                                                                                                                   |
 | `wireframe`        | low-fidelity UI layout with panels and controls                                                                                                                                                                   |
 | `bar`              | categorical comparisons (multi-series via `stack` / `group`)                                                                                                                                                      |
-| `line`             | trends over time (multiple series via a `series` block; filled via `fill`; stacked areas via `stack`; dual y-axes via `y-label` / `y-right-label`)                                                                 |
+| `line`             | trends over time (multiple series via a `series` block; filled via `fill`; stacked areas via `stack`; dual y-axes via `y-label` / `y-right-label`)                                                                |
 | `pie`              | part-to-whole proportions (ring/doughnut via `hole`; 10×10 grid via `waffle`)                                                                                                                                     |
 | `radar`            | multi-dimensional metrics                                                                                                                                                                                         |
 | `polar-area`       | radial bar chart                                                                                                                                                                                                  |
@@ -2620,12 +2620,12 @@ Parsers accept either form. The rules above are authoring guidance.
     bar's total; `lollipop` cannot draw it (it is a `stack`).
   - `neutral` is a flag only under `stack diverging`; elsewhere it is part of
     the series name.
-  **`stack 100%`** (bar and line, #1846) draws every category, or every x
-  position, as shares of its own total. The source keeps raw values. The value
-  axis reads 0–100% and ignores `y-scale`, `y-min` and `y-max` (a warning).
-  Segment labels on a bar show the share; hover shows the raw value and the
-  share (`120 · 46%`). A negative value is an error (`E_VALUE_NEGATIVE`) that
-  names the row and the series, and drops the row. `group 100%` is an error.
+    **`stack 100%`** (bar and line, #1846) draws every category, or every x
+    position, as shares of its own total. The source keeps raw values. The value
+    axis reads 0–100% and ignores `y-scale`, `y-min` and `y-max` (a warning).
+    Segment labels on a bar show the share; hover shows the raw value and the
+    share (`120 · 46%`). A negative value is an error (`E_VALUE_NEGATIVE`) that
+    names the row and the series, and drops the row. `group 100%` is an error.
 
 - **line** — use a `series` block (every series is plotted):
 
