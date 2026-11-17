@@ -168,6 +168,16 @@ export const UNIVERSAL_DIAGNOSTICS: DiagnosticSpec[] = [
     example: 'org Team\nJane\n  Sam',
   },
   {
+    code: 'W_TYPE_BELOW_MINIMUM',
+    severity: 'warning',
+    chartType: null,
+    title: 'Type too small at the requested width',
+    message: () =>
+      'This sequence or flowchart is so wide that, at the requested width, its type is drawn under 11px.',
+    hint: 'dgmo does not shrink type; the reader does, by fitting the wide canvas into the width. Split the diagram into two or more smaller ones, or give it fewer participants or nodes per row.',
+    example: 'sequence Wide\nA -go-> B',
+  },
+  {
     code: 'W_CANVAS_HEIGHT_IGNORED',
     severity: 'warning',
     chartType: null,

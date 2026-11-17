@@ -169,6 +169,9 @@ async function loadJsdom(): Promise<typeof Jsdom> {
   >;
 }
 
+/** Smallest type, in px, a wide sequence or flowchart may be read at (#1844). */
+const MIN_READABLE_TYPE_PX = 11;
+
 /**
  * Render DGMO source to an SVG string.
  *
@@ -417,8 +420,52 @@ export async function render(
       ),
     ];
   };
+
+  /**
+   * Warn when a wide sequence or flowchart would be read below
+   * `MIN_READABLE_TYPE_PX` at the stated width (#1844). dgmo never scales type
+   * down itself — the consumer shrinks the content-sized canvas into the width
+   * it has — so the effective size is the body type times asked/produced. Only
+   * a stated `options.width` counts; with none there is nothing to measure
+   * against. The body size is the most common `font-size` in the SVG.
+   */
+  const withMinTypeWarning = (ds: DgmoError[], svg: string): DgmoError[] => {
+    if (chartType !== 'sequence' && chartType !== 'flowchart') return ds;
+    const asked = options?.width;
+    if (!asked || asked <= 0) return ds;
+    const vb = /viewBox="[-\d.]+ [-\d.]+ ([\d.]+) /.exec(svg);
+    const got = vb ? Number(vb[1]) : NaN;
+    if (!Number.isFinite(got) || got <= asked + 1) return ds;
+    const counts = new Map<number, number>();
+    for (const m of svg.matchAll(/font-size="([\d.]+)"/g)) {
+      const px = Number(m[1]);
+      counts.set(px, (counts.get(px) ?? 0) + 1);
+    }
+    let body = 0;
+    let best = 0;
+    for (const [px, n] of counts) {
+      if (n > best) {
+        best = n;
+        body = px;
+      }
+    }
+    const effective = (body * asked) / got;
+    if (!(body > 0) || effective >= MIN_READABLE_TYPE_PX) return ds;
+    return [
+      ...ds,
+      makeDgmoError(
+        1,
+        `This ${chartType} is ${Math.round(got)}px wide, so at a width of ${Math.round(asked)}px its ${body}px type is drawn at about ${effective.toFixed(1)}px — under the ${MIN_READABLE_TYPE_PX}px minimum. Split it into smaller diagrams.`,
+        'warning',
+        'W_TYPE_BELOW_MINIMUM'
+      ),
+    ];
+  };
   const withCanvasWarnings = (ds: DgmoError[], svg: string): DgmoError[] =>
-    withCanvasHeightWarning(withCanvasWidthWarning(ds, svg), svg);
+    withMinTypeWarning(
+      withCanvasHeightWarning(withCanvasWidthWarning(ds, svg), svg),
+      svg
+    );
 
   // Build viewState from legendState (backwards compat) or use provided viewState
   const viewState: CompactViewState | undefined =
