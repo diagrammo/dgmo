@@ -19,6 +19,7 @@ import { contrastText, shapeFill, themeBaseBg } from '../palettes/color-utils';
 import { annotationValues } from '../annotations/parse';
 import { divergingSpans } from '../utils/diverging';
 import { shareText, toShares } from '../utils/stack-share';
+import { tabularText } from '../utils/tabular-figures';
 import {
   drawBands,
   drawRefLines,
@@ -109,8 +110,6 @@ export function renderBar(
     );
     return;
   }
-  // The author's `format` / `unit` / `locale` (#1831).
-  const fmt = chartFormatter(chart);
   const data = chart.data;
   const seriesNames = chart.seriesNames?.length
     ? chart.seriesNames
@@ -215,6 +214,12 @@ export function renderBar(
       dataHi: Math.max(maxVal, ...marked),
     });
   const probeTicks = valueAxis([0, 1]).ticks(6);
+  // The author's `format` / `unit` / `locale` (#1831), one compact unit for
+  // the whole value axis (#2036).
+  const fmt = chartFormatter(
+    chart,
+    diverging ? probeTicks.map(Math.abs) : probeTicks
+  );
 
   // Left margin must fit the rotated y-title + the left-edge labels: category
   // names for horizontal bars, value ticks for vertical.
@@ -242,7 +247,7 @@ export function renderBar(
     ? null
     : planLabelsFitLeft(
         catLabels,
-        computeLeftMargin(chart.ylabel, valueTicks),
+        computeLeftMargin(chart.ylabel, valueTicks, { tabular: true }),
         (ml) => width - ml - 32,
         (pw) => (data.length === 0 ? Infinity : pw / data.length),
         // scaleBand padding 0.3: first centre sits 0.65 steps in
@@ -285,7 +290,7 @@ export function renderBar(
         leftTitle,
         sideFit.flatMap((f) => f.lines)
       )
-    : computeLeftMargin(chart.ylabel, valueTicks);
+    : computeLeftMargin(chart.ylabel, valueTicks, { tabular: true });
   const fit = horizontal ? null : verticalFit;
   const mLeft = fit ? fit.mLeft : mLeft0;
   const plotW = fit ? fit.plotW : width - mLeft - 32;
@@ -348,7 +353,7 @@ export function renderBar(
         .attr('fill', textColor)
         .attr('font-size', TICK_FONT)
         .attr('font-family', FONT_FAMILY)
-        .text(tickFmt(t));
+        .call(tabularText(tickFmt(t), TICK_FONT));
     } else {
       const y = val(t);
       svg
@@ -367,7 +372,7 @@ export function renderBar(
         .attr('fill', textColor)
         .attr('font-size', TICK_FONT)
         .attr('font-family', FONT_FAMILY)
-        .text(tickFmt(t));
+        .call(tabularText(tickFmt(t), TICK_FONT));
     }
   }
 
@@ -799,7 +804,6 @@ function renderClusteredStack(
   hasTitle: boolean,
   inlineTitle?: InlineTitleInfo
 ): void {
-  const fmt = chartFormatter(chart);
   const clusters = chart.clusters!.map((c) => c.label);
   const periods = chart.periods ?? [];
   const seriesNames = chart.seriesNames?.length
@@ -853,6 +857,8 @@ function renderClusteredStack(
         nice: true,
       }
     );
+  // One compact unit for the whole value axis (#2036).
+  const fmt = chartFormatter(chart, valueAxis([0, 1]).ticks(6));
   const tickFmt = percent
     ? (t: number) => `${Math.round(t * 100) / 100}%`
     : fmt;
@@ -869,7 +875,7 @@ function renderClusteredStack(
       TICK_FONT +
       10 +
       (chart.xlabel ? 40 : 18),
-    left: computeLeftMargin(chart.ylabel, probeTicks),
+    left: computeLeftMargin(chart.ylabel, probeTicks, { tabular: true }),
   };
   const plotW = width - m.left - m.right;
   const plotH = height - m.top - m.bottom;
@@ -917,7 +923,7 @@ function renderClusteredStack(
       .attr('fill', textColor)
       .attr('font-size', TICK_FONT)
       .attr('font-family', FONT_FAMILY)
-      .text(tickFmt(t));
+      .call(tabularText(tickFmt(t), TICK_FONT));
   }
 
   // Two-level axis: periods under each column, then a bracket and the

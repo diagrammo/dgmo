@@ -1,3 +1,4 @@
+import { JSDOM } from 'jsdom';
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -42,11 +43,11 @@ Cannon Range    70  78  92`;
 
 /** Text drawn by the vertex values (12px, never a scale or an axis name). */
 function valueTexts(svg: string): string[] {
-  return [
-    ...svg.matchAll(
-      /<text(?![^>]*class=)[^>]*font-size="12"[^>]*>([^<]*)<\/text>/g
-    ),
-  ].map((m) => m[1]!);
+  // A value is one tspan per digit (#2035), so read each <text>'s content.
+  const doc = new JSDOM(svg, { contentType: 'image/svg+xml' }).window.document;
+  return [...doc.querySelectorAll('text:not([class])[font-size="12"]')].map(
+    (t) => t.textContent ?? ''
+  );
 }
 
 const overlaps = (svg: string) =>

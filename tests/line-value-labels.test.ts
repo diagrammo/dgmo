@@ -1,9 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { renderDataChartD3 } from '../src/charts-d3/index';
+import { renderDataChartD3 as renderDataChartD3Raw } from '../src/charts-d3/index';
+import { flattenTabular } from './helpers/tabular-text';
 import { lintSvg } from './stress/lint';
 import { placeLabels } from '../src/utils/place-labels';
+
+// Labels are digit cells (#2035); read their text as one string.
+const renderDataChartD3 = async (
+  ...a: Parameters<typeof renderDataChartD3Raw>
+): Promise<string> => flattenTabular(await renderDataChartD3Raw(...a));
 
 // A line chart's point values once printed wherever the point was, so two
 // series a few pixels apart printed "1.1" over "0.6" (#1828). All series'

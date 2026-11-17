@@ -180,10 +180,16 @@ function setKind(
  * The function every data chart prints its numbers with. With no spec it is
  * the long-standing default (`fallback`), so a chart without `format` /
  * `unit` / `locale` renders exactly as before.
+ *
+ * `basis` is the label set one axis prints — its ticks — or, on a chart with
+ * no axis, its values. Under `format compact` it fixes ONE unit and ONE
+ * decimal count for every number the formatter prints (#2036), so an axis
+ * reads `0, 0.4K, 0.8K, 1.2K` rather than `1.2K, 1K, 800`.
  */
 export function makeNumberFormatter(
   spec: NumberFormatSpec | undefined,
-  fallback: (n: number) => string
+  fallback: (n: number) => string,
+  basis?: readonly number[]
 ): (n: number) => string {
   if (!spec || (!spec.kind && !spec.unit && !spec.locale)) return fallback;
   const locale = spec.locale ?? DEFAULT_LOCALE;
@@ -212,6 +218,13 @@ export function makeNumberFormatter(
       break;
     }
     case 'compact': {
+      const shared = basis?.length
+        ? sharedCompact(locale, basis, fixed)
+        : undefined;
+      if (shared) {
+        body = shared;
+        break;
+      }
       const f = new Intl.NumberFormat(locale, {
         notation: 'compact',
         minimumFractionDigits: fixed ?? 0,
@@ -233,6 +246,86 @@ export function makeNumberFormatter(
   // A word unit takes a space (3 ms); a symbol does not (21°, 5‰).
   const sep = /^\p{L}/u.test(unit) ? ' ' : '';
   return (n) => (Number.isFinite(n) ? `${body(n)}${sep}${unit}` : '');
+}
+
+/** Most fraction digits a shared compact unit picks on its own. */
+const COMPACT_MAX_DECIMALS = 2;
+
+/**
+ * One compact unit for a whole label set (#2036, decided 2026-11-16): the unit
+ * the locale gives the largest |value|, and the fewest decimals (up to
+ * COMPACT_MAX_DECIMALS, default 1 when none is exact) that print every basis
+ * value exactly in it. An author's `format compact N` fixes the decimals.
+ * Zero prints bare. Returns undefined when the basis has no finite value.
+ */
+function sharedCompact(
+  locale: string,
+  basis: readonly number[],
+  fixed: number | undefined
+): ((n: number) => string) | undefined {
+  const finite = basis.filter((v) => Number.isFinite(v));
+  if (finite.length === 0) return undefined;
+  const ref = Math.max(...finite.map(Math.abs));
+  const compact = new Intl.NumberFormat(locale, { notation: 'compact' });
+  const suffixOf = (v: number) =>
+    compact
+      .formatToParts(v)
+      .filter((p) => p.type === 'compact')
+      .map((p) => p.value)
+      .join('');
+  // The unit's exponent: the smallest power of ten the locale names with the
+  // same word as the reference (K = 3 in en, 万 = 4 in ja).
+  let exp = 0;
+  let parts: Intl.NumberFormatPart[] = [];
+  const unit = ref > 0 ? suffixOf(ref) : '';
+  if (unit) {
+    for (let e = Math.floor(Math.log10(ref)); e >= 1; e--) {
+      if (suffixOf(10 ** e) !== unit) break;
+      exp = e;
+    }
+    parts = compact.formatToParts(10 ** exp);
+  }
+  const scale = 10 ** exp;
+  const isNum = (p: Intl.NumberFormatPart) =>
+    p.type === 'integer' ||
+    p.type === 'group' ||
+    p.type === 'decimal' ||
+    p.type === 'fraction';
+  const first = parts.findIndex(isNum);
+  const last = parts.length - 1 - [...parts].reverse().findIndex(isNum);
+  const prefix = parts
+    .slice(0, Math.max(0, first))
+    .map((p) => p.value)
+    .join('');
+  const suffix = parts
+    .slice(last + 1)
+    .map((p) => p.value)
+    .join('');
+  const exactAt = (d: number) =>
+    finite.every((v) => {
+      const s = v / scale;
+      return Math.abs(Math.round(s * 10 ** d) / 10 ** d - s) < 1e-9 * scale;
+    });
+  let decimals = fixed;
+  if (decimals === undefined) {
+    decimals = exp === 0 ? 0 : 1;
+    for (let d = 0; d <= COMPACT_MAX_DECIMALS; d++)
+      if (exactAt(d)) {
+        decimals = d;
+        break;
+      }
+    if (exp === 0 && !exactAt(decimals)) decimals = 1;
+  }
+  const plain = new Intl.NumberFormat(locale, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+  return (n) => {
+    if (n === 0) return plain.format(0).replace(/[.,]0+$/, '');
+    if (!unit) return plain.format(n);
+    const body = plain.format(Math.abs(n) / scale);
+    return `${n < 0 ? '-' : ''}${prefix}${body}${suffix}`;
+  };
 }
 
 /** A d3-format locale whose separators match `locale` (#1831). */

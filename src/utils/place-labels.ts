@@ -13,6 +13,7 @@ import {
   type PointCircle,
 } from '../label-layout';
 import { measureText } from './text-measure';
+import { measureTabular } from './tabular-figures';
 
 export type LabelAnchor = 'start' | 'middle' | 'end';
 
@@ -46,6 +47,8 @@ export interface PlaceLabelsOptions {
   markers?: readonly PointCircle[];
   /** A label box must lie inside this rectangle. */
   bounds?: { left: number; top: number; right: number; bottom: number };
+  /** The labels are drawn with tabular figures (`setTabularText`, #2035). */
+  tabular?: boolean;
 }
 
 /**
@@ -64,9 +67,12 @@ function inset(r: LabelRect, d: number): LabelRect {
 export function labelBox(
   text: string,
   spot: LabelSpot,
-  fontSize: number
+  fontSize: number,
+  tabular = false
 ): LabelRect {
-  const w = measureText(text, fontSize);
+  const w = tabular
+    ? measureTabular(text, fontSize)
+    : measureText(text, fontSize);
   const x =
     spot.anchor === 'middle'
       ? spot.x - w / 2
@@ -113,7 +119,10 @@ export function placeLabels(
   for (const i of order) {
     const c = candidates[i]!;
     const pick = c.spots
-      .map((spot) => ({ spot, box: labelBox(c.text, spot, opts.fontSize) }))
+      .map((spot) => ({
+        spot,
+        box: labelBox(c.text, spot, opts.fontSize, opts.tabular),
+      }))
       .find(({ box }) => {
         // The box is a full em tall and digits are shorter, so two boxes
         // meeting at a top or bottom sliver are not a collision.

@@ -1,7 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { renderDataChartD3 } from '../src/charts-d3/index';
+import { renderDataChartD3 as renderDataChartD3Raw } from '../src/charts-d3/index';
+import { flattenTabular } from './helpers/tabular-text';
+
+// Labels are digit cells (#2035); read their text as one string.
+const renderDataChartD3 = async (
+  ...a: Parameters<typeof renderDataChartD3Raw>
+): Promise<string> => flattenTabular(await renderDataChartD3Raw(...a));
 
 // Long category names must not size a bar chart (#1422): their region is
 // capped, and a name that still does not fit ends in `…`, keeping its full text
@@ -176,10 +182,15 @@ describe('bar chart names that once rotated or were cut (#1828)', () => {
     const src = fixture('grouped-regions');
     const svg = await renderDataChartD3(src, 'light');
     // 140 and 160 sit on adjacent thin bars; the larger keeps its label.
-    // Value labels start at the bar's end; the axis ticks are centred.
-    const values = [
-      ...svg.matchAll(/<text[^>]*text-anchor="(?:start|end)"[^>]*>([\d.]+)</g),
-    ].map((m) => m[1]);
+    // The axis ticks share one baseline under the plot; every other number
+    // is a value label (both are centred digit cells since #2035).
+    const nums = [
+      ...svg.matchAll(/<text[^>]*\by="([\d.]+)"[^>]*>([\d.]+)</g),
+    ].map((m) => ({ y: m[1]!, t: m[2]! }));
+    const count = new Map<string, number>();
+    for (const n of nums) count.set(n.y, (count.get(n.y) ?? 0) + 1);
+    const tickY = [...count].sort((a, b) => b[1] - a[1])[0]![0];
+    const values = nums.filter((n) => n.y !== tickY).map((n) => n.t);
     expect(values).toContain('160');
     expect(values).not.toContain('140');
   });

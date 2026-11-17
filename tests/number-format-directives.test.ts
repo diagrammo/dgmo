@@ -1,6 +1,7 @@
 // Number format (#1831): `format currency USD`, `format percent 1`,
 // `format compact`, `format "<d3-format>"`, `unit ms`, `locale de-DE`.
 import { describe, it, expect } from 'vitest';
+import { JSDOM } from 'jsdom';
 import { parseChart } from '../src/chart';
 import { parseExtendedChart } from '../src/data-chart-parser';
 import { parseVisualization } from '../src/visualizations/parse';
@@ -15,6 +16,14 @@ import { render } from '../src/render';
 import { summarizeDiagram } from '../src/utils/diagram-summary';
 
 const palette = getPalette('nord').light;
+
+/** Every `<text>`'s content: a tabular label is one tspan per digit (#2035). */
+const texts = (svg: string): string[] =>
+  [
+    ...new JSDOM(svg, {
+      contentType: 'image/svg+xml',
+    }).window.document.querySelectorAll('text'),
+  ].map((t) => t.textContent ?? '');
 
 const fmtOf = (src: string) =>
   makeNumberFormatter(parseChart(`bar X\n${src}\nA 1`).numberFormat, fmtNum);
@@ -142,9 +151,9 @@ describe('number format — render', () => {
       'light',
       palette
     );
-    expect(svg).toContain('>$1,200<');
-    expect(svg).toContain('>$2,500<');
-    expect(svg).toMatch(/>\$1,000</);
+    expect(texts(svg)).toContain('$1,200');
+    expect(texts(svg)).toContain('$2,500');
+    expect(texts(svg)).toContain('$1,000');
   });
 
   it('line: the unit follows every value label', async () => {
@@ -153,8 +162,8 @@ describe('number format — render', () => {
       'light',
       palette
     );
-    expect(svg).toContain('>120 ms<');
-    expect(svg).toContain('>95 ms<');
+    expect(texts(svg)).toContain('120 ms');
+    expect(texts(svg)).toContain('95 ms');
   });
 
   it('pie: the centre total takes the format', async () => {
@@ -163,7 +172,8 @@ describe('number format — render', () => {
       'light',
       palette
     );
-    expect(svg).toContain('>2M<');
+    // One unit and one decimal count for the chart (#2036).
+    expect(texts(svg)).toContain('2.0M');
   });
 
   it('scatter: y takes the format, x stays plain', async () => {
@@ -172,7 +182,7 @@ describe('number format — render', () => {
       'light',
       palette
     );
-    expect(svg).toMatch(/>\d+%</);
+    expect(texts(svg).some((t) => /^\d+%$/.test(t))).toBe(true);
     expect(svg).toContain('data-axval-x="10"');
     expect(svg).toContain('data-axval-y="20%"');
   });
@@ -181,8 +191,8 @@ describe('number format — render', () => {
     const { svg } = await render(
       'slope Fleet\nformat currency GBP\nperiod 2020 2024\nNassau 40 52'
     );
-    expect(svg).toContain('£52');
-    expect(svg).toContain('£40');
+    expect(texts(svg).join('|')).toContain('£52');
+    expect(texts(svg).join('|')).toContain('£40');
   });
 
   it('the generated description uses the format', () => {
@@ -192,5 +202,67 @@ describe('number format — render', () => {
     );
     expect(desc).toContain('$1,200');
     expect(desc).toContain('$2,500');
+  });
+});
+
+// One compact unit per axis (#2036, option 1 decided 2026-11-16).
+describe('number format — one compact unit per axis', () => {
+  const ticks = [0, 200, 400, 600, 800, 1000, 1200];
+  const compact = (spec: NumberFormatSpec, basis: number[]) =>
+    makeNumberFormatter(spec, fmtNum, basis);
+
+  it('prints every tick in the unit of the largest, with one decimal count', () => {
+    const f = compact({ kind: 'compact' }, ticks);
+    expect(ticks.map(f)).toEqual([
+      '0',
+      '0.2K',
+      '0.4K',
+      '0.6K',
+      '0.8K',
+      '1.0K',
+      '1.2K',
+    ]);
+  });
+
+  it('value labels follow the axis unit and decimals', () => {
+    const f = compact({ kind: 'compact' }, ticks);
+    expect([1200, 800, 420, 310].map(f)).toEqual([
+      '1.2K',
+      '0.8K',
+      '0.4K',
+      '0.3K',
+    ]);
+  });
+
+  it('an author decimal count wins', () => {
+    const f = compact({ kind: 'compact', decimals: 2 }, ticks);
+    expect(f(420)).toBe('0.42K');
+  });
+
+  it('an axis below the first unit stays plain', () => {
+    const f = compact({ kind: 'compact' }, [0, 250, 500]);
+    expect([0, 125, 500].map(f)).toEqual(['0', '125', '500']);
+  });
+
+  it('takes the locale unit and keeps a unit suffix', () => {
+    expect(
+      compact({ kind: 'compact', locale: 'ja-JP' }, [0, 20000, 40000])(30000)
+    ).toBe('3万');
+    expect(
+      compact({ kind: 'compact', unit: 'ms' }, [0, 50000, 100000])(-25000)
+    ).toBe('-25K ms');
+  });
+
+  it('bar: the axis and the bar labels share one unit', async () => {
+    const svg = await renderDataChartD3(
+      'bar Doubloons\nformat compact\nNassau 1200\nPort Royal 800\nTortuga 420\nHavana 310',
+      'light',
+      palette
+    );
+    const t = texts(svg);
+    for (const s of ['0', '0.4K', '0.8K', '1.2K', '0.3K'])
+      expect(t).toContain(s);
+    expect(t).not.toContain('800');
+    expect(t).not.toContain('1K');
   });
 });

@@ -1,7 +1,19 @@
 import { describe, it, expect } from 'vitest';
-import { renderDataChartD3 } from '../src/charts-d3';
-import { render } from '../src/render';
+import { renderDataChartD3 as renderDataChartD3Raw } from '../src/charts-d3';
+import { flattenTabular } from './helpers/tabular-text';
+import { render as renderRaw } from '../src/render';
 import { measureText } from '../src/utils/text-measure';
+
+// Labels are digit cells (#2035); read their text as one string.
+const renderDataChartD3 = async (
+  ...a: Parameters<typeof renderDataChartD3Raw>
+): Promise<string> => flattenTabular(await renderDataChartD3Raw(...a));
+const render = async (
+  ...a: Parameters<typeof renderRaw>
+): Promise<Awaited<ReturnType<typeof renderRaw>>> => {
+  const r = await renderRaw(...a);
+  return { ...r, svg: flattenTabular(r.svg) };
+};
 
 const SRC = [
   'funnel Pirate Recruitment Pipeline',
@@ -81,7 +93,7 @@ describe('funnel renderer labels', () => {
     });
     const texts = [
       ...svg.matchAll(
-        /<text([^>]*text-anchor="(end|start)"[^>]*)>(?:<tspan[^>]*>)?([^<]+)/g
+        /<text([^>]*text-anchor="(end|start|middle)"[^>]*)>(?:<tspan[^>]*>)?([^<]+)/g
       ),
     ];
     expect(texts.length).toBeGreaterThan(0);
@@ -90,7 +102,13 @@ describe('funnel renderer labels', () => {
       const size = parseFloat(attrs!.match(/font-size="([^"]+)"/)![1]!);
       const estimated = content!.length * size * 0.65; // generous glyph width
       if (anchor === 'end') expect(x - estimated).toBeGreaterThanOrEqual(-2);
-      else expect(x + estimated).toBeLessThanOrEqual(width + 2);
+      else if (anchor === 'start')
+        expect(x + estimated).toBeLessThanOrEqual(width + 2);
+      else {
+        // A centred value (digit cells, #2035) — both halves stay inside.
+        expect(x - estimated / 2).toBeGreaterThanOrEqual(-2);
+        expect(x + estimated / 2).toBeLessThanOrEqual(width + 2);
+      }
     }
   });
 

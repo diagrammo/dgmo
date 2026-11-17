@@ -89,7 +89,11 @@ export function renderSankey(
   // Each node's label carries its throughput (#1837): the larger of what flows
   // in and what flows out, through the chart's own number format. `no-value`
   // takes it off. The value is never truncated — the name gives way first.
-  const fmt = chartFormatter(chart);
+  // Under `format compact` every value prints in one unit (#2036).
+  const fmt = chartFormatter(
+    chart,
+    links.map((l) => l.value)
+  );
   const valueText = (n: SNode): string =>
     chart.noValue ? '' : ` ${fmt(n.flow)}`;
   const valueW = (n: SNode): number =>

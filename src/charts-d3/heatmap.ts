@@ -20,6 +20,7 @@ import type { LegendGroupData } from '../utils/legend-types';
 import { measureText, truncateText } from '../utils/text-measure';
 import type { Svg } from './shared';
 import { chartFormatter, tagDatum } from './shared';
+import { measureTabular, tabularText } from '../utils/tabular-figures';
 
 /** The colour bar's name in the legend. */
 const LEGEND_NAME = 'Value';
@@ -151,10 +152,14 @@ export function renderHeatmap(
   bgColor: string,
   topInset: number
 ): void {
-  // The author's `format` / `unit` / `locale` (#1831).
-  const fmt = chartFormatter(chart);
   const rows = chart.heatmapRows ?? [];
   if (rows.length === 0) return;
+  // The author's `format` / `unit` / `locale` (#1831); under `format compact`
+  // every cell prints in one unit (#2036).
+  const fmt = chartFormatter(
+    chart,
+    rows.flatMap((r) => r.values)
+  );
   const ncols = Math.max(
     chart.columns?.length ?? 0,
     ...rows.map((r) => r.values.length)
@@ -234,7 +239,7 @@ export function renderHeatmap(
     // Cell values are drawn at 600; the row and column labels around them are
     // not, which is why only this measurement is bold.
     ...rows.flatMap((r) =>
-      r.values.map((v) => measureText(fmt(v), REF, { bold: true }))
+      r.values.map((v) => measureTabular(fmt(v), REF, { bold: true }))
     )
   );
   const cellFont = Math.max(
@@ -320,7 +325,7 @@ export function renderHeatmap(
           .attr('font-size', cellFont)
           .attr('font-weight', 'bold')
           .attr('font-family', FONT_FAMILY)
-          .text(fmt(v));
+          .call(tabularText(fmt(v), cellFont, { bold: true }));
         tagDatum(label, {
           line: row.lineNumber,
           key: cellKey,

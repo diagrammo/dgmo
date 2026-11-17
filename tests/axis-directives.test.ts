@@ -5,9 +5,15 @@ import { describe, it, expect } from 'vitest';
 import { parseChart } from '../src/chart';
 import { parseExtendedChart } from '../src/data-chart-parser';
 import { parseVisualization } from '../src/visualizations/parse';
-import { renderDataChartD3 } from '../src/charts-d3';
+import { renderDataChartD3 as renderDataChartD3Raw } from '../src/charts-d3';
+import { flattenTabular } from './helpers/tabular-text';
 import { buildValueAxis, logTicks } from '../src/charts-d3/value-axis';
 import { getPalette } from '../src/palettes';
+
+// Labels are digit cells (#2035); read their text as one string.
+const renderDataChartD3 = async (
+  ...a: Parameters<typeof renderDataChartD3Raw>
+): Promise<string> => flattenTabular(await renderDataChartD3Raw(...a));
 
 const palette = getPalette('nord').light;
 

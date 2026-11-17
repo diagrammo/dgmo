@@ -23,9 +23,13 @@ export function renderPolarArea(
   textColor: string,
   topInset: number
 ): void {
-  // The author's `format` / `unit` / `locale` (#1831).
-  const fmt = chartFormatter(chart);
   const data = chart.data.filter((d) => d.value > 0);
+  // The author's `format` / `unit` / `locale` (#1831); under `format compact`
+  // every value prints in one unit (#2036).
+  const fmt = chartFormatter(
+    chart,
+    data.map((d) => d.value)
+  );
   const n = data.length;
   if (n === 0) return;
   const fillMode = chart.fillMode;

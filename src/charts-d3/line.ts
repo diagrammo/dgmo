@@ -52,6 +52,7 @@ import {
   drawCategoryLabels,
 } from './shared';
 import { labelBox, placeLabels } from '../utils/place-labels';
+import { tabularText } from '../utils/tabular-figures';
 import { resolveColor } from '../colors';
 import type { LabelRect } from '../label-layout';
 import { shareText, stackSpans, toShares } from '../utils/stack-share';
@@ -77,8 +78,6 @@ export function renderLine(
   hasTitle: boolean,
   inlineTitle?: InlineTitleInfo
 ): void {
-  // The author's `format` / `unit` / `locale` (#1831).
-  const fmt = chartFormatter(chart);
   const data = chart.data;
   // `line` + a `stack` block → stacked areas; `stack 100%` → each x position
   // as shares of its total (#1846). A stack always fills.
@@ -117,7 +116,6 @@ export function renderLine(
     spanRows ? spanRows[i]![s]![0] : 0;
   // A stacked area prints no point values; its hover carries value and share.
   const showValues = !chart.noValue && !stacked;
-  const tickFmt = percent ? (t: number) => `${round(t)}%` : fmt;
   const seriesColor = (s: number): string =>
     chart.seriesNameColors?.[s] ?? colors[s % colors.length]!;
 
@@ -210,14 +208,29 @@ export function renderLine(
     });
   const probeL = leftAxis([0, 1]).ticks(6);
   const [loR, hiR] = dual ? extentFor('right') : [0, 1];
+  // The author's `format` / `unit` / `locale` (#1831), with one compact unit
+  // per value axis (#2036): a point's label prints in its own axis's unit.
+  const fmt = chartFormatter(chart, probeL);
+  const fmtR = dual
+    ? chartFormatter(
+        chart,
+        buildValueAxis(loR, hiR, undefined, [0, 1], { nice: true }).ticks(6)
+      )
+    : fmt;
+  const fmtFor = (s: number) => (dual && axisOf(s) === 'right' ? fmtR : fmt);
+  const tickFmt = percent ? (t: number) => `${round(t)}%` : fmt;
 
   // Horizontal margins first: the category-label plan needs the plot width to
   // know how much room one category owns, and the bottom margin then follows
   // from the plan (rotated labels stand taller than flat ones).
   const mRight = dual
-    ? computeLeftMargin(chart.yrlabel, [fmt(hiR), fmt(loR)])
+    ? computeLeftMargin(chart.yrlabel, [fmtR(hiR), fmtR(loR)], {
+        tabular: true,
+      })
     : 32;
-  const mLeft0 = computeLeftMargin(chart.ylabel, probeL.map(tickFmt));
+  const mLeft0 = computeLeftMargin(chart.ylabel, probeL.map(tickFmt), {
+    tabular: true,
+  });
   // scalePoint with padding(0.5) puts one slot's worth of space between
   // adjacent points, and half a slot at each end. Rotated labels hang left of
   // the first point, so the margin may grow to keep them inside the SVG.
@@ -385,7 +398,7 @@ export function renderLine(
       .attr('fill', leftTint ?? textColor)
       .attr('font-size', TICK_FONT)
       .attr('font-family', FONT_FAMILY)
-      .text(tickFmt(t));
+      .call(tabularText(tickFmt(t), TICK_FONT));
   }
 
   // right y ticks (no gridlines)
@@ -400,7 +413,7 @@ export function renderLine(
         .attr('fill', rightTint ?? textColor)
         .attr('font-size', TICK_FONT)
         .attr('font-family', FONT_FAMILY)
-        .text(fmt(t));
+        .call(tabularText(fmtR(t), TICK_FONT));
     }
   }
 
@@ -650,7 +663,7 @@ export function renderLine(
         .attr(
           'data-value',
           shareRows
-            ? `${fmt(p.v)} · ${shareText(shareRows[p.xIndex]![s]!)}`
+            ? `${fmtFor(s)(p.v)} · ${shareText(shareRows[p.xIndex]![s]!)}`
             : p.v
         )
         .attr('data-line-number', p.lineNumber)
@@ -663,7 +676,7 @@ export function renderLine(
         .attr('stroke-width', 2);
       if (showValues) {
         valueLabels.push({
-          text: fmt(p.v),
+          text: fmtFor(s)(p.v),
           cx: xOfRow(p.xIndex),
           cy: yy(p.v),
           v: p.v,
@@ -697,6 +710,7 @@ export function renderLine(
     })),
     {
       fontSize: VALUE_FONT,
+      tabular: true,
       reserved: eraTitles,
       markers: valueLabels.map((l) => ({ cx: l.cx, cy: l.cy, r: 4.5 })),
       bounds: {

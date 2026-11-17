@@ -7,6 +7,7 @@
 
 import { scaleSqrt } from 'd3-scale';
 import { buildValueAxis } from './value-axis';
+import { tabularText } from '../utils/tabular-figures';
 import {
   computeQuadrantPointLabels,
   rectsOverlap,
@@ -180,8 +181,6 @@ export function renderScatter(
   mutedColor: string,
   topInset: number
 ): void {
-  // The author's `format` / `unit` / `locale` (#1831).
-  const fmt = chartFormatter(chart);
   const points = chart.scatterPoints ?? [];
   if (points.length === 0) return;
   const fillMode = chart.fillMode;
@@ -217,23 +216,22 @@ export function renderScatter(
   const yMax = Math.max(...ys);
   const xPad = (xMax - xMin) * 0.1 || 1;
   const yPad = (yMax - yMin) * 0.1 || 1;
+  const yTicks = buildValueAxis(
+    Math.floor(yMin - yPad),
+    Math.ceil(yMax + yPad),
+    chart.axes?.y,
+    [0, 1],
+    { dataLo: yMin, dataHi: yMax }
+  ).ticks(6);
+  // The author's `format` / `unit` / `locale` (#1831), one compact unit for
+  // the y axis (#2036).
+  const fmt = chartFormatter(chart, yTicks);
 
   const m: Margins = {
     top: topInset + 8,
     right: 32,
     bottom: 64,
-    left: computeLeftMargin(
-      chart.ylabel,
-      buildValueAxis(
-        Math.floor(yMin - yPad),
-        Math.ceil(yMax + yPad),
-        chart.axes?.y,
-        [0, 1],
-        { dataLo: yMin, dataHi: yMax }
-      )
-        .ticks(6)
-        .map(fmt)
-    ),
+    left: computeLeftMargin(chart.ylabel, yTicks.map(fmt), { tabular: true }),
   };
   const plotW = width - m.left - m.right;
   const plotH = height - m.top - m.bottom;
@@ -304,7 +302,7 @@ export function renderScatter(
       .attr('fill', textColor)
       .attr('font-size', TICK_FONT)
       .attr('font-family', FONT_FAMILY)
-      .text(fmt(t));
+      .call(tabularText(fmt(t), TICK_FONT));
   }
   for (const t of x.ticks(6)) {
     const xx = x(t);
@@ -325,7 +323,7 @@ export function renderScatter(
       .attr('fill', textColor)
       .attr('font-size', TICK_FONT)
       .attr('font-family', FONT_FAMILY)
-      .text(fmtNum(t));
+      .call(tabularText(fmtNum(t), TICK_FONT));
   }
 
   const pointColor = (p: (typeof points)[number], i: number): string =>

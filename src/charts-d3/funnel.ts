@@ -14,6 +14,7 @@ import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
 import { contrastText, shapeFill } from '../palettes/color-utils';
 import { type Svg, chartFormatter, tagDatum } from './shared';
+import { tabularText } from '../utils/tabular-figures';
 import { measureText } from '../utils/text-measure';
 
 const PAD = 12;
@@ -29,9 +30,13 @@ export function renderFunnel(
   isDark: boolean,
   topInset: number
 ): void {
-  // The author's `format` / `unit` / `locale` (#1831).
-  const fmt = chartFormatter(chart);
   const sorted = [...chart.data].sort((a, b) => b.value - a.value);
+  // The author's `format` / `unit` / `locale` (#1831); under `format compact`
+  // every value prints in one unit (#2036).
+  const fmt = chartFormatter(
+    chart,
+    sorted.map((d) => d.value)
+  );
   const n = sorted.length;
   if (n === 0) return;
   const fillMode = chart.fillMode;
@@ -176,7 +181,7 @@ export function renderFunnel(
         .attr('font-size', valueSize)
         .attr('font-weight', 'bold')
         .attr('font-family', FONT_FAMILY)
-        .text(fmt(d.value));
+        .call(tabularText(fmt(d.value), valueSize, { bold: true }));
     }
     const showValueRight = !chart.noValue && !valueInside;
     if (showValueRight || showPct) {
@@ -188,15 +193,13 @@ export function renderFunnel(
         .attr('font-size', sideFont)
         .attr('font-weight', 'bold')
         .attr('font-family', FONT_FAMILY);
-      if (showValueRight) {
-        text.append('tspan').attr('fill', stroke).text(fmt(d.value));
-      }
-      if (showPct) {
-        text
-          .append('tspan')
-          .attr('fill', stroke)
-          .text(showValueRight ? ` · ${pctLabelFor(i)}` : pctLabelFor(i));
-      }
+      const parts = [
+        ...(showValueRight ? [fmt(d.value)] : []),
+        ...(showPct ? [pctLabelFor(i)] : []),
+      ];
+      text
+        .attr('fill', stroke)
+        .call(tabularText(parts.join(' · '), sideFont, { bold: true }));
     }
   });
 }

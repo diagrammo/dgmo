@@ -11,6 +11,7 @@ import type { PaletteColors } from '../palettes';
 import { shapeFill } from '../palettes/color-utils';
 import { FONT_FAMILY } from '../fonts';
 import { evaluateExpression } from '../utils/expr-eval';
+import { tabularText } from '../utils/tabular-figures';
 import {
   type Svg,
   type Margins,
@@ -37,8 +38,6 @@ export function renderFunction(
   palette: PaletteColors,
   isDark: boolean
 ): void {
-  // The author's `format` / `unit` / `locale` (#1831).
-  const fmt = chartFormatter(chart);
   const fns = chart.functions ?? [];
   if (fns.length === 0) return;
   const xr = chart.xRange ?? { min: -10, max: 10 };
@@ -83,11 +82,15 @@ export function renderFunction(
       dataHi: yHi,
     });
 
+  const yTicks = yAxis([0, 1]).ticks(8);
+  // The author's `format` / `unit` / `locale` (#1831), one compact unit for
+  // the y axis (#2036).
+  const fmt = chartFormatter(chart, yTicks);
   const m: Margins = {
     top: topInset + 8,
     right: 32,
     bottom: 64,
-    left: computeLeftMargin(chart.ylabel, yAxis([0, 1]).ticks(8).map(fmt)),
+    left: computeLeftMargin(chart.ylabel, yTicks.map(fmt), { tabular: true }),
   };
   const plotW = width - m.left - m.right;
   const plotH = height - m.top - m.bottom;
@@ -118,7 +121,7 @@ export function renderFunction(
       .attr('fill', textColor)
       .attr('font-size', TICK_FONT)
       .attr('font-family', FONT_FAMILY)
-      .text(fmt(t));
+      .call(tabularText(fmt(t), TICK_FONT));
   }
   for (const t of x.ticks(10)) {
     const xx = x(t);
@@ -139,7 +142,7 @@ export function renderFunction(
       .attr('fill', textColor)
       .attr('font-size', TICK_FONT)
       .attr('font-family', FONT_FAMILY)
-      .text(fmtNum(t));
+      .call(tabularText(fmtNum(t), TICK_FONT));
   }
 
   // Off-axis samples break the curve rather than run flat along an edge.

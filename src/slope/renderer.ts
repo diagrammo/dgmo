@@ -7,9 +7,10 @@ import { GRID_DASH, scaleDash } from '../utils/visual-conventions';
 import * as d3Scale from 'd3-scale';
 import { buildValueAxis } from '../charts-d3/value-axis';
 import { makeNumberFormatter } from '../utils/number-format';
+import { measureTabular, tabularText } from '../utils/tabular-figures';
 import * as d3Shape from 'd3-shape';
 import * as d3Array from 'd3-array';
-import { measureText, wrapTextToWidth } from '../utils/text-measure';
+import { wrapTextToWidth } from '../utils/text-measure';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import { ScaleContext } from '../utils/scaling';
 import {
@@ -151,12 +152,17 @@ export function renderSlopeChart(
 
   // Compute right margin from the longest end-of-line label
   // The author's `format` / `unit` / `locale` (#1831); plain values otherwise.
-  const fmt = makeNumberFormatter(parsed.numberFormat, String);
+  // Under `format compact` every value prints in one unit (#2036).
+  const fmt = makeNumberFormatter(
+    parsed.numberFormat,
+    String,
+    data.flatMap((d) => d.values)
+  );
   const maxLabelText = data.reduce((longest, item) => {
     const text = `${fmt(item.values[item.values.length - 1]!)} — ${item.label}`;
     return text.length > longest.length ? text : longest;
   }, '');
-  const estimatedLabelWidth = measureText(maxLabelText, sLabelFontSize);
+  const estimatedLabelWidth = measureTabular(maxLabelText, sLabelFontSize);
   const maxRightMargin = Math.floor(width * 0.35);
   const rightMargin = Math.min(
     Math.max(estimatedLabelWidth + ctx.aesthetic(30), ctx.aesthetic(120)),
@@ -171,7 +177,9 @@ export function renderSlopeChart(
   const sLeftGap = ctx.structural(10);
   const sMarginLeft = Math.min(
     Math.max(
-      measureText(maxLeftText, sLabelFontSize) + sLeftGap + ctx.aesthetic(15),
+      measureTabular(maxLeftText, sLabelFontSize) +
+        sLeftGap +
+        ctx.aesthetic(15),
       ctx.aesthetic(SLOPE_MARGIN.left)
     ),
     Math.floor(width * 0.35)
@@ -262,7 +270,7 @@ export function renderSlopeChart(
 
     let labelLineCount = 1;
     let wrappedLines: string[] | null = null;
-    if (measureText(labelText, sLabelFontSize) > availableWidth) {
+    if (measureTabular(labelText, sLabelFontSize) > availableWidth) {
       const lines = wrapTextToWidth(labelText, sLabelFontSize, availableWidth);
       labelLineCount = lines.length;
       wrappedLines = lines;
@@ -274,7 +282,7 @@ export function renderSlopeChart(
     // Left-side label (first column): "name — value", wraps like the right side
     const leftText = `${item.label} — ${fmt(firstVal)}`;
     const leftLines =
-      measureText(leftText, sLabelFontSize) > leftAvailableWidth
+      measureTabular(leftText, sLabelFontSize) > leftAvailableWidth
         ? wrapTextToWidth(leftText, sLabelFontSize, leftAvailableWidth)
         : null;
     const leftHeight = leftLines
@@ -311,7 +319,7 @@ export function renderSlopeChart(
     const side = middleValueSide(
       pt(pi),
       [pt(pi - 1), pt(pi + 1)],
-      measureText(fmt(item.values[pi]!), sValueFont) / 2,
+      measureTabular(fmt(item.values[pi]!), sValueFont) / 2,
       sMiddleGap
     );
     const shift = sMiddleGap + sValueFont / 2;
@@ -465,7 +473,9 @@ export function renderSlopeChart(
             .attr('font-size', sLabelFontSize)
             .attr('opacity', textOpacity(dim));
           if (!si.leftLines) {
-            leftEl.attr('dy', '0.35em').text(si.leftText);
+            leftEl
+              .attr('dy', '0.35em')
+              .call(tabularText(si.leftText, sLabelFontSize));
           } else {
             const lh = sLabelFontSize * 1.2;
             const startDy = (-(si.leftLines.length - 1) * lh) / 2;
@@ -494,7 +504,7 @@ export function renderSlopeChart(
             .attr('stroke-linejoin', 'round')
             .attr('paint-order', 'stroke')
             .attr('opacity', textOpacity(dim))
-            .text(fmt(val));
+            .call(tabularText(fmt(val), sValueFont));
         }
       }
     });
@@ -514,7 +524,9 @@ export function renderSlopeChart(
       .attr('opacity', textOpacity(dim));
 
     if (!si.wrappedLines) {
-      labelEl.attr('dy', '0.35em').text(si.labelText);
+      labelEl
+        .attr('dy', '0.35em')
+        .call(tabularText(si.labelText, sLabelFontSize));
     } else {
       const lineHeight = sLabelFontSize * 1.2;
       const totalHeight = (si.wrappedLines.length - 1) * lineHeight;

@@ -15,6 +15,7 @@ import {
 import type * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import { measureText, truncateText } from '../utils/text-measure';
+import { measureTabular, setTabularText } from '../utils/tabular-figures';
 import type { ParsedChart } from '../chart';
 import type { PaletteColors } from '../palettes';
 import { getSimpleChartLegendGroups } from '../data-chart-parser';
@@ -54,12 +55,17 @@ export const VALUE_FONT = 12;
 
 /**
  * The number formatter for one chart (#1831): the author's `format`, `unit`
- * and `locale`, or `fmtNum` when none is set.
+ * and `locale`, or `fmtNum` when none is set. `basis` is the axis's ticks (or
+ * the chart's values when it has no axis): under `format compact` every
+ * number then shares one unit and one decimal count (#2036).
  */
-export function chartFormatter(chart: {
-  numberFormat?: NumberFormatSpec | undefined;
-}): (n: number) => string {
-  return makeNumberFormatter(chart.numberFormat, fmtNum);
+export function chartFormatter(
+  chart: {
+    numberFormat?: NumberFormatSpec | undefined;
+  },
+  basis?: readonly number[]
+): (n: number) => string {
+  return makeNumberFormatter(chart.numberFormat, fmtNum, basis);
 }
 
 /** Format a numeric tick/value: trim trailing zeros, keep it compact. */
@@ -295,15 +301,18 @@ export function injectLegendGroups(
  * Compute a left margin that fits both the rotated y-axis title (when present)
  * and the widest left-edge label (value ticks for vertical charts, category
  * names for horizontal bars). Fixes axis-title / tick-label collisions.
+ * Pass `tabular` when the labels are number ticks drawn by `setTabularText`.
  */
 export function computeLeftMargin(
   yLabel: string | undefined,
-  leftLabels: string[]
+  leftLabels: string[],
+  opts: { tabular?: boolean } = {}
 ): number {
   const pad = 16;
   const titleBand = yLabel ? 22 : 0;
+  const measure = opts.tabular ? measureTabular : measureText;
   const labelW = leftLabels.length
-    ? Math.max(...leftLabels.map((t) => measureText(t, TICK_FONT)))
+    ? Math.max(...leftLabels.map((t) => measure(t, TICK_FONT)))
     : 0;
   return Math.max(56, pad + titleBand + labelW + 14);
 }
@@ -398,7 +407,7 @@ export function drawValueLabel(
     .attr('fill', color)
     .attr('font-size', VALUE_FONT)
     .attr('font-family', FONT_FAMILY)
-    .text(text);
+    .call((t) => setTabularText(t, text, VALUE_FONT));
 }
 
 // ============================================================

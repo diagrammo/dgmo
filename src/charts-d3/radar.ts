@@ -19,6 +19,7 @@ import {
 import { labelBox, placeLabels, type LabelSpot } from '../utils/place-labels';
 import type { LabelRect } from '../label-layout';
 import { type Svg, chartFormatter, tagDatum } from './shared';
+import { tabularText } from '../utils/tabular-figures';
 
 const RINGS = 5;
 
@@ -123,8 +124,6 @@ export function renderRadar(
   mutedColor: string,
   topInset: number
 ): void {
-  // The author's `format` / `unit` / `locale` (#1831).
-  const fmt = chartFormatter(chart);
   const data = chart.data;
   const n = data.length;
   if (n < 3) return;
@@ -154,6 +153,14 @@ export function renderRadar(
   for (const d of data)
     for (let s = 0; s < seriesCount; s++) allValues.push(seriesValue(d, s));
   const maxValue = Math.max(...allValues) * 1.15 || 1;
+  const ringValue = (k: number) =>
+    Number(((maxValue * (k + 1)) / RINGS).toPrecision(2));
+  // The author's `format` / `unit` / `locale` (#1831); the ring scale is the
+  // axis, so its values fix the one compact unit (#2036).
+  const fmt = chartFormatter(
+    chart,
+    Array.from({ length: RINGS }, (_, k) => ringValue(k))
+  );
 
   const cx = width / 2;
   const top = topInset + 8;
@@ -249,7 +256,7 @@ export function renderRadar(
     return {
       x: cx + Math.cos(mid) * rm + 3,
       y: cy + Math.sin(mid) * rm - 2,
-      text: fmt(Number(((maxValue * (k + 1)) / RINGS).toPrecision(2))),
+      text: fmt(ringValue(k)),
     };
   });
   // In a small view the rings sit closer than a number is tall: keep the
@@ -260,7 +267,8 @@ export function renderRadar(
     const box = labelBox(
       l.text,
       { x: l.x, y: l.y, anchor: 'start' },
-      SCALE_FONT
+      SCALE_FONT,
+      true
     );
     if (
       lastBox &&
@@ -284,7 +292,7 @@ export function renderRadar(
       )
     ),
     ...scaleLabels.map((l) =>
-      labelBox(l.text, { x: l.x, y: l.y, anchor: 'start' }, SCALE_FONT)
+      labelBox(l.text, { x: l.x, y: l.y, anchor: 'start' }, SCALE_FONT, true)
     ),
   ];
   const values: {
@@ -397,6 +405,7 @@ export function renderRadar(
     })),
     {
       fontSize: VALUE_FONT,
+      tabular: true,
       reserved,
       markers: values.map((l) => ({ cx: l.x, cy: l.y, r: VERTEX_R + 1 })),
       bounds: { left: 0, top: topInset, right: width, bottom: height },
@@ -415,7 +424,7 @@ export function renderRadar(
       .attr('fill', l.color)
       .attr('font-size', VALUE_FONT)
       .attr('font-family', FONT_FAMILY)
-      .text(l.text);
+      .call(tabularText(l.text, VALUE_FONT));
   });
 
   // scale labels: ring values along one ray, drawn over the series
@@ -434,6 +443,6 @@ export function renderRadar(
       .attr('stroke-width', 3)
       .attr('stroke-linejoin', 'round')
       .attr('paint-order', 'stroke')
-      .text(l.text);
+      .call(tabularText(l.text, SCALE_FONT));
   }
 }

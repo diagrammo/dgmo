@@ -10,6 +10,7 @@ import type { PaletteColors } from '../palettes';
 import { getSegmentColors, shapeFill } from '../palettes/color-utils';
 import { FONT_FAMILY } from '../fonts';
 import { type Svg, chartFormatter, tagDatum } from './shared';
+import { tabularText } from '../utils/tabular-figures';
 import { renderWaffle } from './waffle';
 import {
   EMPHASIS_DIM_OPACITY,
@@ -35,10 +36,14 @@ export function renderPie(
     renderWaffle(svg, chart, width, height, palette, isDark, topInset);
     return;
   }
-  // The author's `format` / `unit` / `locale` (#1831).
-  const fmt = chartFormatter(chart);
   const data = chart.data.filter((d) => d.value > 0);
   if (data.length === 0) return;
+  // The author's `format` / `unit` / `locale` (#1831); under `format compact`
+  // every value prints in one unit (#2036).
+  const fmt = chartFormatter(
+    chart,
+    data.map((d) => d.value)
+  );
   // A hole turns the pie into a ring — `pie` + a `hole` directive. (#23)
   const holeRatio = chart.hole;
   const hasHole = holeRatio !== undefined;
@@ -294,6 +299,8 @@ export function renderPie(
       .attr('font-size', Math.max(11, 26 * labelScale))
       .attr('font-weight', 'bold')
       .attr('font-family', FONT_FAMILY)
-      .text(fmt(total));
+      .call(
+        tabularText(fmt(total), Math.max(11, 26 * labelScale), { bold: true })
+      );
   }
 }
