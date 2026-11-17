@@ -132,3 +132,39 @@ describe('swimlane layout — bbox', () => {
     expect(Number.isFinite(layout.height)).toBe(true);
   });
 });
+
+describe('swimlane layout — boundary events sit on the bottom edge (#1874)', () => {
+  const claims = readFileSync(
+    join(__dirname, '..', 'gallery', 'fixtures', 'swimlane-bpmn.dgmo'),
+    'utf8'
+  );
+  const tbSource = claims.replace(/^(swimlane[^\n]*)\n/, '$1\ndirection-tb\n');
+
+  it.each([
+    ['LR', claims],
+    ['TB', tbSource],
+  ])(
+    '%s: each boundary event centres on its task bottom, inside its width',
+    (_dir, src) => {
+      const layout = layoutSwimlane(parseSwimlane(src));
+      const byId = new Map(layout.nodes.map((n) => [n.id, n]));
+      const boundaries = layout.nodes.filter((n) => n.boundaryOf !== undefined);
+      expect(boundaries.length).toBeGreaterThan(0);
+      for (const b of boundaries) {
+        const host = byId.get(b.boundaryOf!)!;
+        expect(b.y).toBeCloseTo(host.y + host.height / 2, 5);
+        expect(Math.abs(b.x - host.x)).toBeLessThan(host.width / 2);
+      }
+    }
+  );
+
+  it('TB: the exception path leaves the boundary event downward', () => {
+    const layout = layoutSwimlane(parseSwimlane(tbSource));
+    const b = layout.nodes.find((n) => n.boundaryOf !== undefined)!;
+    const edge = layout.edges.find((e) => e.source === b.id)!;
+    const [p0, p1] = edge.points;
+    expect(p0!.y).toBeCloseTo(b.y + b.height / 2, 5);
+    expect(p1!.x).toBeCloseTo(p0!.x, 5);
+    expect(p1!.y).toBeGreaterThan(p0!.y);
+  });
+});

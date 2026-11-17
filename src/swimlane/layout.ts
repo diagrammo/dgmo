@@ -353,7 +353,10 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
   const colFlowLen: number[] = Array.from({ length: R }, () => 0);
   for (const id of [...rankIds, ...allArts.map((a) => a.id)]) {
     const ri = riOf(allArts.find((a) => a.id === id)?.host ?? id);
-    colFlowLen[ri] = Math.max(colFlowLen[ri]!, flowLenOf(id));
+    // Top-down, a task's boundary events hang below it on the flow axis, so
+    // its column keeps that room on both sides to stay centred.
+    const room = !isLR && boundariesOf.has(id) ? 2 * BOUNDARY_ROOM : 0;
+    colFlowLen[ri] = Math.max(colFlowLen[ri]!, flowLenOf(id) + room);
   }
   const flowCenter: number[] = [];
   const colLen: number[] = [];
@@ -407,7 +410,8 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
       }
       pos.push(c);
       c += crossLenOf(it.id);
-      if (!it.art) pendingRoom = boundariesOf.has(it.id);
+      // Left-right, boundary events hang below the task on the cross axis.
+      if (!it.art) pendingRoom = isLR && boundariesOf.has(it.id);
     });
     if (pendingRoom) c += BOUNDARY_ROOM;
     return { pos, len: c, single: arr.filter((x) => !x.art).length === 1 };
@@ -503,16 +507,21 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
       nodeFlow.set(it.id, flowCenter[riOf(hostId)]!);
     });
   }
-  // Boundary events sit on their task's cross-far edge (the bottom in LR).
+  // Boundary events sit on their task's bottom edge: the cross-far edge in
+  // LR, the flow-far edge in TB.
   for (const [h, bs] of boundariesOf) {
     const hf = nodeFlow.get(h);
     const hc = nodeCross.get(h);
     if (hf === undefined || hc === undefined) continue;
-    const half = flowLenOf(h) / 2;
     bs.forEach((b, k) => {
       const frac = bs.length === 1 ? 0.45 : -0.55 + (1.1 * k) / (bs.length - 1);
-      nodeFlow.set(b, hf + half * frac);
-      nodeCross.set(b, hc + crossLenOf(h) / 2);
+      if (isLR) {
+        nodeFlow.set(b, hf + (flowLenOf(h) / 2) * frac);
+        nodeCross.set(b, hc + crossLenOf(h) / 2);
+      } else {
+        nodeFlow.set(b, hf + flowLenOf(h) / 2);
+        nodeCross.set(b, hc + (crossLenOf(h) / 2) * frac);
+      }
     });
   }
 
@@ -785,12 +794,14 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
     let pts: Pt[];
     let back = false;
     if (isBoundary(s.id) || isBoundary(t.id)) {
-      // The exception path leaves the boundary event downward (cross-far),
-      // then the router finds the clear way to the target.
+      // The exception path leaves the boundary event downward (cross-far in
+      // LR, flow-far in TB), then the router finds the clear way to the target.
       const sPort: Port | null = isBoundary(s.id)
         ? {
-            at: project(sFlow, sCross + sCrossHalf),
-            out: crossOut(1),
+            at: isLR
+              ? project(sFlow, sCross + sCrossHalf)
+              : project(sFlow + sFlowHalf, sCross),
+            out: { dx: 0, dy: 1 },
           }
         : null;
       const tPort: Port | null =
