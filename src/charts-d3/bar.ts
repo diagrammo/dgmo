@@ -26,6 +26,13 @@ import {
   type ValueAxisFrame,
 } from '../annotations/draw';
 import { drawChartNotes, type PlacedNoteDatum } from '../annotations/notes';
+import {
+  drawOverlayLabels,
+  drawOverlayLevels,
+  overlayLevels,
+  targetOf,
+} from '../overlays/draw';
+import { reachesTarget } from '../overlays/compute';
 import { labelBox } from '../utils/place-labels';
 import { mix } from '../palettes/color-utils';
 import { fitLabel } from '../utils/fit-label';
@@ -182,10 +189,16 @@ export function renderBar(
     ...(multiSeries ? seriesNames : []),
   ]);
   const { dimmed } = emphasis;
-  const recedes = (category: string, series: string) =>
-    dimmed.has(category) && (!multiSeries || dimmed.has(series));
+  // `target N` (#1954): a bar that reaches it is lit, the rest recede.
+  const target = stacked ? undefined : targetOf(chart.overlays);
+  const missesTarget = (v: number) =>
+    !!target && !reachesTarget(v, target.value!, target.below);
+  const recedes = (category: string, series: string, v: number) =>
+    (dimmed.has(category) && (!multiSeries || dimmed.has(series))) ||
+    missesTarget(v);
   // Story view (#2046): the subject is solid, the rest one grey ground.
-  const story = storyPaint(emphasis, palette, isDark);
+  const story0 = storyPaint(emphasis, palette, isDark);
+  const story = target ? { ...story0, active: true } : story0;
 
   const top = reserveHeader(
     svg,
@@ -219,7 +232,10 @@ export function renderBar(
   // Domain always includes 0 (bars encode magnitude from a 0 baseline); with
   // negative data it extends below so bars grow either direction from 0.
   // A `marker` or `band` (#1832) beyond the data widens the axis to it.
-  const marked = annotationValues(chart.annotations);
+  const marked = [
+    ...annotationValues(chart.annotations),
+    ...(target ? [target.value!] : []),
+  ];
   const hiVal = Math.max(0, maxVal, ...marked);
   const loVal = Math.min(0, minVal, ...marked);
   const niceMax = hiVal === 0 && loVal === 0 ? 1 : hiVal;
@@ -436,6 +452,23 @@ export function renderBar(
     }
   }
 
+  // Statistics overlays (#1954): one mean / median per series, in its
+  // colour on a multi-series bar, behind the bars.
+  const overlayLabels = drawOverlayLevels(
+    svg,
+    overlayLevels(
+      stacked ? undefined : chart.overlays,
+      Array.from({ length: seriesCount }, (_, s) => ({
+        ...(multiSeries && { name: seriesNames[s] ?? '' }),
+        values: rawCat.map((vals) => vals[s]!),
+        color: multiSeries ? colorFor(s, 1) : textColor,
+      })),
+      fmt,
+      palette.colors.red
+    ),
+    annotationFrame
+  );
+
   // category labels
   if (horiz) {
     data.forEach((d, i) => {
@@ -550,7 +583,7 @@ export function renderBar(
     vals.forEach((v, s) => {
       const own = colorFor(s, v, seriesCount === 1 ? d.color : undefined);
       const sName = seriesNames[s] ?? '';
-      const recede = recedes(d.label, sName);
+      const recede = recedes(d.label, sName, v);
       const stroke = !story.active
         ? own
         : recede
@@ -720,12 +753,15 @@ export function renderBar(
     });
   });
 
-  const markerLabels = drawMarkers(
-    svg,
-    chart.annotations,
-    annotationFrame,
-    annotationColors
-  );
+  const markerLabels = [
+    ...drawMarkers(svg, chart.annotations, annotationFrame, annotationColors),
+    ...drawOverlayLabels(
+      svg,
+      overlayLabels,
+      annotationFrame,
+      annotationColors.bg
+    ),
+  ];
 
   // Notes (#2039): a ring on the bar's end, the text in clear plot space.
   // A value label a note lands on yields to it.

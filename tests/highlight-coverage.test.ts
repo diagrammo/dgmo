@@ -265,6 +265,8 @@ const INVENTORY = {
     'locale',
     'marker',
     'max',
+    'mean',
+    'median',
     'no-activations',
     'no-auto-color',
     'no-axes',

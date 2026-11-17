@@ -212,6 +212,16 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description:
           'Ring a datum and write beside it (note Q2 Frankfurt opens, note Atlantic @ Q2 …)',
       },
+      mean: {
+        description: 'Dashed line at the mean of each series, labelled',
+      },
+      median: {
+        description: 'Dotted line at the median of each series, labelled',
+      },
+      target: {
+        description:
+          'Line at a goal; bars that reach it stay lit (target 100, target 5 below)',
+      },
       'no-notes': { description: 'Hide every note' },
       color: { description: 'Bar color override' },
       highlight: {
@@ -264,6 +274,16 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       note: {
         description:
           'Ring a datum and write beside it (note Q2 Frankfurt opens, note Atlantic @ Q2 …)',
+      },
+      mean: {
+        description: 'Dashed line at the mean of each series, labelled',
+      },
+      median: {
+        description: 'Dotted line at the median of each series, labelled',
+      },
+      target: {
+        description:
+          'Line at a goal; points that reach it are filled (target 100, target 5 below)',
       },
       'no-notes': { description: 'Hide every note' },
       band: {

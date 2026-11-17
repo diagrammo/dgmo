@@ -75,6 +75,12 @@ import {
   warnUnsupported,
 } from './annotations/parse';
 import { divergingSpans } from './utils/diverging';
+import type { ChartOverlay } from './overlays/types';
+import {
+  parseOverlayLine,
+  settleOverlays,
+  unknownOverlay,
+} from './overlays/parse';
 import {
   AXIS_DIRECTIVE_DX,
   parseAxisLine,
@@ -156,6 +162,9 @@ export interface ParsedChart {
   lollipop?: boolean;
   /** Line of the `lollipop` flag, for its diagnostics. */
   lollipopLineNumber?: number;
+  /** Statistics overlays (#1954): `mean`, `median`, `target N`. Only the
+   *  ones this chart draws survive parsing. */
+  overlays?: ChartOverlay[];
   /** Render a line chart filled, i.e. as an area (bare `fill`). (#25) */
   fill?: boolean;
   orientation?: 'horizontal' | 'vertical';
@@ -417,6 +426,7 @@ export function parseChart(
   const widthForms: { share: boolean; lineNumber: number }[] = [];
   let orientationLine = 1;
   const rawFillBetween: { tokens: string[]; lineNumber: number }[] = [];
+  const rawOverlays: ChartOverlay[] = [];
   const result: ParsedChart = {
     type: 'bar',
     data: [],
@@ -590,6 +600,13 @@ export function parseChart(
       result.otherBelow = parseFloat(otherMatch[1]!);
       otherLine = lineNumber;
       pieOnlyLines.push([lineNumber, 'other-below']);
+      continue;
+    }
+
+    // Statistics overlays (#1954): `mean`, `median`, `target N [below]`.
+    const overlay = parseOverlayLine(trimmed, lineNumber, result.diagnostics);
+    if (overlay) {
+      if (overlay !== true) rawOverlays.push(overlay);
       continue;
     }
 
@@ -1029,7 +1046,13 @@ export function parseChart(
       continue;
     }
 
-    // Catch-all: nothing matched this line
+    // Catch-all: nothing matched this line. A word that reads like an
+    // overlay says which overlays exist (#1954).
+    const notOverlay = unknownOverlay(trimmed, lineNumber);
+    if (notOverlay) {
+      result.diagnostics.push(notOverlay);
+      continue;
+    }
     let msg = `Unexpected line: '${trimmed}'.`;
     const hint = suggest(firstToken, [...KNOWN_OPTIONS, ...KNOWN_BOOLEANS]);
     if (hint) msg += ` ${hint}`;
@@ -1245,6 +1268,19 @@ export function parseChart(
 
   if (!result.error && clusteredRows > 0)
     settleClusters(result, rawClusters, flatRows, orientationLine);
+
+  if (rawOverlays.length) {
+    const kept = settleOverlays(
+      rawOverlays,
+      {
+        type: result.type,
+        stacked:
+          result.barLayout === 'stack' || (result.clusters?.length ?? 0) > 0,
+      },
+      result.diagnostics
+    );
+    if (kept.length) result.overlays = kept;
+  }
 
   if (!result.error && result.type === 'bar' && result.sort)
     sortBarCategories(result);

@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Statistics overlays on bar and line (#1954).** Bare `mean` and `median`
+  draw a dashed and a dotted line at the value computed from the chart's data,
+  labelled at its right end in its colour (`mean 441`), one per series on a
+  multi-series chart. `target N` draws a line at N and lights the bars or
+  points that reach it, greying the rest; `target N below` makes at or under
+  N the good side. No legend entry. Diagnostics: `W_OVERLAY_UNKNOWN`
+  (`average`, `mode`, a misspelling), `W_OVERLAY_UNSUPPORTED` (pie, stacked
+  charts), `E_OVERLAY_BAD_N`.
 - **Theme style: `radius`, `stroke-weight` and `background` on a custom
   palette (#1836).** An embedded `palette` block takes `radius 0` (px for a
   standard card corner; every corner scales with it), `stroke-weight 1` (px

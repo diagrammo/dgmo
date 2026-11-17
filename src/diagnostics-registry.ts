@@ -47,6 +47,7 @@ import { SEQUENCE_DIAGNOSTICS } from './sequence/diagnostics';
 import { WHITEBOARD_DIAGNOSTICS } from './whiteboard/diagnostics';
 import { FAMILY_DIAGNOSTICS } from './family/diagnostics';
 import { ALIAS_DIAGNOSTICS } from './alias-diagnostics';
+import { OVERLAY_DIAGNOSTICS } from './overlays/parse';
 
 // ── Universal codes (chartType: null) ───────────────────────
 // Name handling, alias syntax, and metadata grammar apply to every
@@ -204,6 +205,9 @@ export const UNIVERSAL_DIAGNOSTICS: DiagnosticSpec[] = [
   // ── Negative value on a magnitude channel (pie/polar-area/radar/funnel/
   //    sankey/arc/wordcloud/treemap size/map size:/width:) ──
   NEGATIVE_VALUE_DX,
+
+  // ── Statistics overlays on bar, line and scatter (#1954) ──
+  ...OVERLAY_DIAGNOSTICS,
 ];
 
 // ── Aggregate ───────────────────────────────────────────────

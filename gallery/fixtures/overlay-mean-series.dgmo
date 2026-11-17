@@ -1,0 +1,15 @@
+line Net promoter score by region
+mean
+target 40 below
+series
+  EU blue
+  US orange
+
+Q1-24 54 38
+Q2-24 56 36
+Q3-24 52 40
+Q4-24 58 37
+Q1-25 60 34
+Q2-25 57 36
+Q3-25 61 32
+Q4-25 57 32

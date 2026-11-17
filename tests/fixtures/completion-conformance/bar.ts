@@ -29,6 +29,10 @@ export const fixture: ConformanceFixture = {
     // #1979 stem-and-dot bars.
     'lollipop',
     'widths',
+    // #1954 statistics overlays.
+    'mean',
+    'median',
+    'target',
     'no-value',
     'fill-tint',
     'fill-solid',

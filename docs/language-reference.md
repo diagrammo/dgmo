@@ -3090,6 +3090,46 @@ recedes under `highlight` only when both of its series do.
 line. A data row cannot yet leave a value empty: a row with fewer values than
 series is dropped with a warning.
 
+#### 15.1.6 Statistics overlays (bar, line)
+
+One bare directive per overlay (#1954). dgmo computes the value from the
+chart's own data and draws it as a reference line behind the series.
+
+```
+line New sign-ups, 2026
+mean
+median
+
+Jan 310
+Feb 295
+Mar 340
+Apr 1180
+May 360
+```
+
+| Directive        | Charts    | Draws                                                                |
+| ---------------- | --------- | -------------------------------------------------------------------- |
+| `mean`           | line, bar | a dashed horizontal line at the mean                                 |
+| `median`         | line, bar | a dotted horizontal line at the median                               |
+| `target N`       | line, bar | a line at N; bars and points that reach it are lit, the rest go grey |
+| `target N below` | line, bar | the same, but at or under N is good (costs, error rates)             |
+
+- Each overlay is labelled at the right end of its line, in the line's colour:
+  `mean 441`, `median 380`, `target 100`. There is no legend entry. Labels
+  round to a whole number above 100, else three significant figures, and
+  follow the chart's `format` / `unit`.
+- On a chart of several series, `mean` and `median` draw one line per series in
+  the series' colour, labelled with its name (`EU mean 56.9`). A dual-axis line
+  draws each on its own axis. `target` is one line on the left axis.
+- A `target` beyond the data widens the value axis to reach it.
+- Overlays are lowercase and stand alone on their line, so a data row named
+  `Target 120` or `mean 40` stays data.
+- There is no `average` (write `mean`) and no mode. An unknown overlay word
+  warns and is ignored; `target` without a number is an error.
+- Overlays do not apply to stacked charts (`stack`, `stack 100%`, Marimekko,
+  rows under categories), nor to pie, polar-area or radar; they warn and are
+  ignored there.
+
 ### 15.2 Scatter / Bubble Charts
 
 <!-- TYPE:scatter -->

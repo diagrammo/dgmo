@@ -39,6 +39,14 @@ import {
   type PlacedNoteDatum,
 } from '../annotations/notes';
 import { resolveVerticalCollisions } from '../slope/renderer';
+import {
+  drawOverlayLabels,
+  drawOverlayLevels,
+  overlayLevels,
+  targetOf,
+  type OverlayLabel,
+} from '../overlays/draw';
+import { reachesTarget } from '../overlays/compute';
 import { measureText } from '../utils/text-measure';
 import {
   EMPHASIS_DIM_OPACITY,
@@ -126,6 +134,13 @@ export function renderLine(
     spanRows ? spanRows[i]![s]![0] : 0;
   // A stacked area prints no point values; its hover carries value and share.
   const showValues = !chart.noValue && !stacked;
+  // `target N` (#1954): a point that reaches it is lit, the rest go grey.
+  const target = stacked ? undefined : targetOf(chart.overlays);
+  /** Values on the left axis that are not data: marks and the target. */
+  const marked = [
+    ...annotationValues(chart.annotations),
+    ...(target ? [target.value!] : []),
+  ];
   const seriesColor = (s: number): string =>
     chart.seriesNameColors?.[s] ?? colors[s % colors.length]!;
 
@@ -170,7 +185,7 @@ export function renderLine(
     if (!isFinite(lo)) return [0, 1];
     // A `marker` or `band` (#1832) sits on the left axis and widens it.
     if (side === 'left')
-      for (const v of annotationValues(chart.annotations)) {
+      for (const v of marked) {
         lo = Math.min(lo, v);
         hi = Math.max(hi, v);
       }
@@ -206,7 +221,7 @@ export function renderLine(
       }
   // A log axis is bounded by these, not by the padded extent: let it reach a
   // `marker` or `band` (#1832) too.
-  for (const v of annotationValues(chart.annotations)) {
+  for (const v of marked) {
     if (v > 0) dataLoL = Math.min(dataLoL, v);
     dataHiL = Math.max(dataHiL, v);
   }
@@ -551,6 +566,38 @@ export function renderLine(
   /** A missing value (non-finite) breaks a line, band or fill there. */
   const has = (v: number): boolean => Number.isFinite(v);
 
+  // Statistics overlays (#1954), behind every series: one mean / median per
+  // drawn series on its own axis, in its colour when there are several.
+  const overlayLabels: OverlayLabel[] = [];
+  if (chart.overlays?.length && !stacked) {
+    const drawn = drawnSeries;
+    const multi = drawn.length > 1;
+    for (const side of ['left', 'right'] as const) {
+      const own = drawn.filter((s) => axisOf(s) === side);
+      const axis = side === 'right' ? yR : yL;
+      if (!axis || (own.length === 0 && side === 'right')) continue;
+      const levels = overlayLevels(
+        side === 'right'
+          ? chart.overlays.filter((o) => o.kind !== 'target')
+          : chart.overlays,
+        own.map((s) => ({
+          ...(multi && { name: nameOf(s) }),
+          values: rawRows.map((r) => r[s]!),
+          color: multi ? seriesColor(s) : textColor,
+        })),
+        side === 'right' ? fmtR : fmt,
+        palette.colors.red
+      );
+      overlayLabels.push(
+        ...drawOverlayLevels(svg, levels, {
+          ...annotationFrame,
+          pos: (v) => axis(v),
+          domain: axis.domain(),
+        })
+      );
+    }
+  }
+
   // Uncertainty bands (#1981), beneath every fill and line: the low series'
   // colour at reduced opacity, between the two bounds, in the lines' curve.
   for (const band of bands) {
@@ -719,6 +766,9 @@ export function renderLine(
       });
     for (const p of pts) {
       if (!has(p.v)) continue;
+      const lit = target
+        ? reachesTarget(p.v, target.value!, target.below)
+        : null;
       g.append('circle')
         .attr('class', 'dgmo-pt')
         .attr('data-series-index', s)
@@ -737,8 +787,8 @@ export function renderLine(
         .attr('cy', yy(p.y))
         // A stacked area marks no points; hover grows the nearest one.
         .attr('r', stacked ? 0 : 3.5)
-        .attr('fill', bgColor)
-        .attr('stroke', color)
+        .attr('fill', lit ? color : bgColor)
+        .attr('stroke', lit === false ? story.groundStroke : color)
         .attr('stroke-width', 2);
       if (showValues) {
         valueLabels.push({
@@ -755,7 +805,8 @@ export function renderLine(
   }
 
   eraTitles.push(
-    ...drawMarkers(svg, chart.annotations, annotationFrame, annotationColors)
+    ...drawMarkers(svg, chart.annotations, annotationFrame, annotationColors),
+    ...drawOverlayLabels(svg, overlayLabels, annotationFrame, bgColor)
   );
 
   // End-of-line series names (#1950), nudged apart so none prints over

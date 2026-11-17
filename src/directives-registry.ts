@@ -669,6 +669,9 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
       'timeline',
     ],
   },
+  // ── Statistics overlays (#1954) ───────────────────────────
+  { token: 'mean', category: 'directive', chartTypes: ['bar', 'line'] },
+  { token: 'median', category: 'directive', chartTypes: ['bar', 'line'] },
   // ── Chart annotations (#1832, #2039) ──────────────────────
   {
     token: 'band',
@@ -1096,7 +1099,12 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'no-ribbon', category: 'directive', chartTypes: ['goal'] },
   { token: 'no-ribbon-labels', category: 'directive', chartTypes: ['goal'] },
   { token: 'shared-scale', category: 'directive', chartTypes: ['goal'] },
-  { token: 'target', category: 'directive', chartTypes: ['countdown', 'goal'] },
+  {
+    token: 'target',
+    category: 'directive',
+    // `target N` is also a statistics overlay on bar and line (#1954).
+    chartTypes: ['bar', 'countdown', 'goal', 'line'],
+  },
   { token: 'no-note', category: 'directive', chartTypes: ['goal'] },
   { token: 'no-auto-color', category: 'directive', chartTypes: ['goal'] },
 

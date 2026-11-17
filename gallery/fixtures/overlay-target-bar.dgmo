@@ -1,0 +1,10 @@
+bar Q3 sales by region (% of plan)
+unit %
+target 100
+
+North 118
+South 86
+East 104
+West 72
+Central 97
+Online 131
