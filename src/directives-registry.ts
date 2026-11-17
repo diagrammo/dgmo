@@ -672,6 +672,8 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   // ── Statistics overlays (#1954) ───────────────────────────
   { token: 'mean', category: 'directive', chartTypes: ['bar', 'line'] },
   { token: 'median', category: 'directive', chartTypes: ['bar', 'line'] },
+  { token: 'moving-average', category: 'directive', chartTypes: ['line'] },
+  { token: 'extremes', category: 'directive', chartTypes: ['line'] },
   // ── Chart annotations (#1832, #2039) ──────────────────────
   {
     token: 'band',

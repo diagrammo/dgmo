@@ -41,9 +41,14 @@ import {
 import { resolveVerticalCollisions } from '../slope/renderer';
 import {
   drawOverlayLabels,
+  drawExtremes,
   drawOverlayLevels,
   drawOverlayPaths,
+  extremeRows,
+  movingAveragePaths,
   overlayLevels,
+  RAW_UNDER_AVERAGE_STROKE,
+  type ExtremeMark,
   targetOf,
   trendPaths,
   trendUnit,
@@ -616,10 +621,40 @@ export function renderLine(
             trendUnit(chart.xlabel)
           ),
           frame
+        ),
+        // `moving-average N`: a heavier copy in the series' own colour.
+        ...drawOverlayPaths(
+          svg,
+          movingAveragePaths(
+            chart.overlays,
+            own.map((s) => ({
+              ...(multi && { name: nameOf(s) }),
+              values: rawRows.map((r) => r[s]!),
+              color: seriesColor(s),
+            })),
+            xAtRow,
+            trendUnit(chart.xlabel)
+          ),
+          frame
         )
       );
     }
   }
+  // `moving-average N` keeps the raw series, drawn thinner (#1954).
+  const averaged =
+    !stacked && !!chart.overlays?.some((o) => o.kind === 'moving-average');
+  // `extremes` (#1954): each drawn series' highest and lowest row. Their
+  // value labels give way to the extremes' own.
+  const extremeAt =
+    !stacked && chart.overlays?.some((o) => o.kind === 'extremes')
+      ? extremeRows(
+          drawnSeries.map((s) => ({
+            s,
+            values: rawRows.map((r) => r[s]!),
+          }))
+        )
+      : new Map<string, boolean>();
+  const extremeMarks: ExtremeMark[] = [];
 
   // Uncertainty bands (#1981), beneath every fill and line: the low series'
   // colour at reduced opacity, between the two bounds, in the lines' curve.
@@ -756,7 +791,10 @@ export function renderLine(
       .attr('d', lineGen(pts) ?? '')
       .attr('fill', 'none')
       .attr('stroke', color)
-      .attr('stroke-width', stacked ? 1.75 : 2.5)
+      .attr(
+        'stroke-width',
+        stacked ? 1.75 : averaged ? RAW_UNDER_AVERAGE_STROKE : 2.5
+      )
       .attr('stroke-linejoin', 'round')
       .attr('stroke-linecap', 'round');
 
@@ -809,11 +847,23 @@ export function renderLine(
         .attr('cx', xOfRow(p.xIndex))
         .attr('cy', yy(p.y))
         // A stacked area marks no points; hover grows the nearest one.
-        .attr('r', stacked ? 0 : 3.5)
+        .attr('r', stacked ? 0 : averaged ? 2.5 : 3.5)
         .attr('fill', lit ? color : bgColor)
         .attr('stroke', lit === false ? story.groundStroke : color)
         .attr('stroke-width', 2);
-      if (showValues) {
+      const high = extremeAt.get(`${s}:${p.xIndex}`);
+      if (high !== undefined)
+        extremeMarks.push({
+          x: xOfRow(p.xIndex),
+          y: yy(p.y),
+          high,
+          text: `${high ? 'peak' : 'low'} ${fmtFor(s)(p.v)} ${p.label}`,
+          fill: color,
+          color: drawnSeries.length > 1 ? labelColor : textColor,
+          lineNumber: chart.overlays!.find((o) => o.kind === 'extremes')!
+            .lineNumber,
+        });
+      if (showValues && high === undefined) {
         valueLabels.push({
           text: fmtFor(s)(p.v),
           cx: xOfRow(p.xIndex),
@@ -829,7 +879,18 @@ export function renderLine(
 
   eraTitles.push(
     ...drawMarkers(svg, chart.annotations, annotationFrame, annotationColors),
-    ...drawOverlayLabels(svg, overlayLabels, annotationFrame, bgColor)
+    ...drawOverlayLabels(svg, overlayLabels, annotationFrame, bgColor),
+    ...drawExtremes(
+      svg,
+      extremeMarks,
+      {
+        left: m.left,
+        top: m.top,
+        right: m.left + plotW,
+        bottom: m.top + plotH,
+      },
+      bgColor
+    )
   );
 
   // End-of-line series names (#1950), nudged apart so none prints over

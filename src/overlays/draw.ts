@@ -16,7 +16,14 @@ import {
   GRID_DASH,
   HAIRLINE_DASH,
 } from '../utils/visual-conventions';
-import { linearFit, mean, median, roundStat } from './compute';
+import {
+  extremes,
+  linearFit,
+  mean,
+  median,
+  movingAverage,
+  roundStat,
+} from './compute';
 import type { ChartOverlay, OverlayKind } from './types';
 
 /** Gap between a line and its label. */
@@ -24,6 +31,12 @@ const LABEL_GAP = 4;
 /** An overlay line's stroke; a target is drawn heavier. */
 const OVERLAY_STROKE = 1.5;
 const TARGET_STROKE = 2;
+/** A moving average is drawn heavier than the raw series it smooths. */
+const AVERAGE_STROKE = 3;
+/** The raw series under a moving average, drawn thinner. */
+export const RAW_UNDER_AVERAGE_STROKE = 1.25;
+/** An `extremes` marker: a filled dot with a ground-coloured ring. */
+const EXTREME_R = 5.5;
 
 /** Dash pattern per overlay; absent = solid. */
 const DASH: Partial<Record<OverlayKind, string>> = {
@@ -236,6 +249,8 @@ export interface OverlayPath {
   readonly label: string;
   readonly color: string;
   readonly lineNumber: number;
+  /** Stroke width; absent = the overlay default. */
+  readonly width?: number;
 }
 
 /**
@@ -305,8 +320,9 @@ export function drawOverlayPaths(
       .attr('d', pts.map(([x, y], k) => `${k ? 'L' : 'M'}${x},${y}`).join(''))
       .attr('fill', 'none')
       .attr('stroke', path.color)
-      .attr('stroke-width', OVERLAY_STROKE)
-      .attr('stroke-linejoin', 'round');
+      .attr('stroke-width', path.width ?? OVERLAY_STROKE)
+      .attr('stroke-linejoin', 'round')
+      .attr('stroke-linecap', 'round');
     const dash = DASH[path.kind];
     if (dash) line.attr('stroke-dasharray', dash);
     if (!path.label) continue;
@@ -372,4 +388,134 @@ export function trendPaths(
     });
   }
   return out;
+}
+
+/**
+ * `moving-average N` on a line (#1954): each series' trailing N-point
+ * average, in the series' colour, drawn heavier than the raw line.
+ */
+export function movingAveragePaths(
+  overlays: readonly ChartOverlay[] | undefined,
+  series: readonly OverlaySeries[],
+  cross: (i: number) => number,
+  unit: string
+): OverlayPath[] {
+  const ma = overlays?.find((o) => o.kind === 'moving-average');
+  if (!ma) return [];
+  const n = ma.value!;
+  const span = unit === 'step' ? 'pt' : unit;
+  return series.flatMap((s) => {
+    const avg = movingAverage(s.values, n);
+    const points = avg.flatMap((v, i) =>
+      Number.isFinite(v) ? [{ at: cross(i), v }] : []
+    );
+    if (points.length < 2) return [];
+    return [
+      {
+        kind: 'moving-average' as const,
+        points,
+        label: `${s.name ? `${s.name} ` : ''}${n}-${span} avg`,
+        color: s.color,
+        lineNumber: ma.lineNumber,
+        width: AVERAGE_STROKE,
+      },
+    ];
+  });
+}
+
+/** One `extremes` mark: a series' highest or lowest point. */
+export interface ExtremeMark {
+  readonly x: number;
+  readonly y: number;
+  readonly high: boolean;
+  readonly text: string;
+  /** The dot's fill: the series' colour. */
+  readonly fill: string;
+  /** The label's colour. */
+  readonly color: string;
+  readonly lineNumber: number;
+}
+
+/** The rows each series marks: `series:row` keys, for value labels to skip. */
+export function extremeRows(
+  series: readonly { readonly s: number; readonly values: readonly number[] }[]
+): Map<string, boolean> {
+  const out = new Map<string, boolean>();
+  for (const { s, values } of series) {
+    const e = extremes(values);
+    if (!e) continue;
+    out.set(`${s}:${e.high}`, true);
+    if (e.low !== e.high) out.set(`${s}:${e.low}`, false);
+  }
+  return out;
+}
+
+/**
+ * Draws `extremes` (#1954): a filled dot on each mark, `peak` labelled above
+ * it and `low` below, kept inside the plot. Returns the label boxes.
+ */
+export function drawExtremes(
+  svg: Svg,
+  marks: readonly ExtremeMark[],
+  plot: {
+    readonly left: number;
+    readonly top: number;
+    readonly right: number;
+    readonly bottom: number;
+  },
+  bg: string
+): LabelRect[] {
+  const boxes: LabelRect[] = [];
+  const h = ANNOTATION_FONT + 2;
+  for (const m of marks) {
+    const g = svg
+      .append('g')
+      .attr('class', `dgmo-overlay dgmo-overlay-extremes`)
+      .attr('data-line-number', m.lineNumber);
+    g.append('circle')
+      .attr('class', m.high ? 'dgmo-extreme-high' : 'dgmo-extreme-low')
+      .attr('cx', m.x)
+      .attr('cy', m.y)
+      .attr('r', EXTREME_R)
+      .attr('fill', m.fill)
+      .attr('stroke', bg)
+      .attr('stroke-width', 2);
+    const w = measureText(m.text, ANNOTATION_FONT, { bold: true });
+    const gap = EXTREME_R + LABEL_GAP;
+    const above = m.y - gap - h;
+    const below = m.y + gap;
+    let top = m.high ? above : below;
+    if (top < plot.top) top = below;
+    if (top + h > plot.bottom) top = above;
+    const anchor =
+      m.x - w / 2 < plot.left
+        ? 'start'
+        : m.x + w / 2 > plot.right
+          ? 'end'
+          : 'middle';
+    const x =
+      anchor === 'start'
+        ? m.x - EXTREME_R
+        : anchor === 'end'
+          ? m.x + EXTREME_R
+          : m.x;
+    const y = top + ANNOTATION_FONT;
+    g.append('text')
+      .attr('class', 'dgmo-overlay-label dgmo-overlay-extremes-label')
+      .attr('x', x)
+      .attr('y', y)
+      .attr('text-anchor', anchor)
+      .attr('fill', m.color)
+      .attr('font-size', ANNOTATION_FONT)
+      .attr('font-weight', 600)
+      .attr('font-family', FONT_FAMILY)
+      .attr('stroke', bg)
+      .attr('stroke-width', 3)
+      .attr('stroke-linejoin', 'round')
+      .attr('paint-order', 'stroke')
+      .text(m.text);
+    const x0 = anchor === 'start' ? x : anchor === 'end' ? x - w : x - w / 2;
+    boxes.push({ x: x0, y: top, w, h });
+  }
+  return boxes;
 }

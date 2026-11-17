@@ -87,3 +87,37 @@ export function linearFit(
     r2: syy === 0 ? 1 : (sxy * sxy) / (sxx * syy),
   };
 }
+
+/**
+ * Trailing N-point average: entry i is the mean of rows i-N+1..i, NaN until
+ * N rows have passed or while any row in the window is missing.
+ */
+export function movingAverage(values: readonly number[], n: number): number[] {
+  return values.map((_, i) => {
+    if (i < n - 1) return NaN;
+    let sum = 0;
+    for (let k = i - n + 1; k <= i; k++) {
+      const v = values[k]!;
+      if (!Number.isFinite(v)) return NaN;
+      sum += v;
+    }
+    return sum / n;
+  });
+}
+
+/**
+ * Rows of the highest and lowest finite value; the first wins a tie. Null
+ * when there is no finite value.
+ */
+export function extremes(
+  values: readonly number[]
+): { readonly high: number; readonly low: number } | null {
+  let high = -1;
+  let low = -1;
+  values.forEach((v, i) => {
+    if (!Number.isFinite(v)) return;
+    if (high < 0 || v > values[high]!) high = i;
+    if (low < 0 || v < values[low]!) low = i;
+  });
+  return high < 0 ? null : { high, low };
+}

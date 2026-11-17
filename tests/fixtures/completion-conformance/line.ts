@@ -47,6 +47,8 @@ export const fixture: ConformanceFixture = {
     'median',
     'target',
     'trend',
+    'moving-average',
+    'extremes',
   ],
   pipeKeys: {},
 };

@@ -17,6 +17,8 @@ export const OVERLAY_CHARTS: Readonly<Record<OverlayKind, readonly string[]>> =
     median: ['line', 'bar'],
     target: ['line', 'bar'],
     trend: ['line', 'bar', 'scatter'],
+    'moving-average': ['line'],
+    extremes: ['line'],
   };
 
 /** How each overlay is written, for messages and completion. */
@@ -25,6 +27,8 @@ export const OVERLAY_FORMS: Readonly<Record<OverlayKind, string>> = {
   median: 'median',
   target: 'target N',
   trend: 'trend',
+  'moving-average': 'moving-average N',
+  extremes: 'extremes',
 };
 
 const KINDS = Object.keys(OVERLAY_CHARTS) as OverlayKind[];
@@ -45,6 +49,11 @@ const NEAR_MISSES: Readonly<Record<string, string | undefined>> = {
   trendline: 'trend',
   'trend-line': 'trend',
   regression: 'trend',
+  'moving-avg': 'moving-average',
+  'rolling-average': 'moving-average',
+  extreme: 'extremes',
+  extrema: 'extremes',
+  'min-max': 'extremes',
 };
 
 export const OVERLAY_UNKNOWN_DX: DiagnosticSpec = {
@@ -122,6 +131,20 @@ export function parseOverlayLine(
       return true;
     }
     return { kind, value, ...(below && { below }), lineNumber };
+  }
+  if (kind === 'moving-average') {
+    const n = num(tokens[1]);
+    if (tokens.length !== 2 || n === null || !Number.isInteger(n) || n < 2) {
+      diagnostics.push(
+        emit(OVERLAY_BAD_N_DX, lineNumber, {
+          overlay: 'moving-average',
+          need: 'a whole number of points, 2 or more',
+          form: 'moving-average 3',
+        })
+      );
+      return true;
+    }
+    return { kind, value: n, lineNumber };
   }
   // A bare overlay takes nothing after it; a number makes it a data row.
   if (tokens.length > 1) return null;

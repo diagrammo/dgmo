@@ -5,9 +5,11 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { parseChart } from '../src/chart';
 import { renderDataChartD3 } from '../src/charts-d3/index';
 import {
+  extremes,
   linearFit,
   mean,
   median,
+  movingAverage,
   reachesTarget,
   roundStat,
 } from '../src/overlays/compute';
@@ -352,5 +354,100 @@ trend
     const p = parseScatter('scatter X\ntrendline\nA 1 2\nB 2 3');
     expect(p.diagnostics.map((d) => d.code)).toEqual(['W_OVERLAY_UNKNOWN']);
     expect(p.diagnostics[0]!.message).toContain("'trend'");
+  });
+});
+
+/** Phoenix average daily highs (°C), Jan–Dec. Peak 41 in Jul; 19 in Jan and
+ *  Dec ties for the low, and the first one wins. */
+const PHOENIX = [19, 21, 25, 29, 34, 39, 41, 40, 37, 31, 24, 19];
+
+describe('moving average and extremes numbers', () => {
+  it('trailing 3-point average of 2 4 5 4 5', () => {
+    const ma = movingAverage(WOBBLE, 3);
+    expect(ma.slice(0, 2)).toEqual([NaN, NaN]);
+    // (2+4+5)/3, (4+5+4)/3, (5+4+5)/3
+    expect(ma[2]).toBeCloseTo(11 / 3, 12);
+    expect(ma[3]).toBeCloseTo(13 / 3, 12);
+    expect(ma[4]).toBeCloseTo(14 / 3, 12);
+  });
+  it('a window over a missing row is missing', () => {
+    expect(movingAverage([1, NaN, 3, 5, 7], 2)).toEqual([NaN, NaN, NaN, 4, 6]);
+  });
+  it('extremes are the first highest and first lowest rows', () => {
+    expect(extremes(PHOENIX)).toEqual({ high: 6, low: 0 });
+    expect(extremes([NaN, NaN])).toBeNull();
+  });
+});
+
+describe('moving-average and extremes', () => {
+  const PHX = `line Average daily high, Phoenix\nextremes\n\n${rows(PHOENIX)}`;
+  it('parses moving-average N and refuses a bad N', () => {
+    expect(parseChart('line X\nmoving-average 3\nA 1').overlays).toEqual([
+      { kind: 'moving-average', value: 3, lineNumber: 2 },
+    ]);
+    for (const bad of [
+      'moving-average',
+      'moving-average 1',
+      'moving-average 2.5',
+      'moving-average x',
+    ])
+      expect(
+        parseChart(`line X\n${bad}\nA 1`).diagnostics.map((d) => d.code)
+      ).toEqual(['E_OVERLAY_BAD_N']);
+  });
+  it('moving-average and extremes are line only', () => {
+    const p = parseChart('bar X\nmoving-average 3\nextremes\nA 1');
+    expect(p.overlays).toBeUndefined();
+    expect(p.diagnostics.map((d) => d.code)).toEqual([
+      'W_OVERLAY_UNSUPPORTED',
+      'W_OVERLAY_UNSUPPORTED',
+    ]);
+  });
+  it('draws the average heavier and the raw line thinner', async () => {
+    const svg = await draw(
+      `line Teams\nmoving-average 3\n\n${WOBBLE.map((v, i) => `W${i + 1} ${v}`).join('\n')}`
+    );
+    const avg = svg.querySelector('g.dgmo-overlay-moving-average path')!;
+    const raw = svg.querySelector('path.dgmo-series-line')!;
+    expect(Number(avg.getAttribute('stroke-width'))).toBeGreaterThan(
+      Number(raw.getAttribute('stroke-width'))
+    );
+    expect(avg.getAttribute('stroke')).toBe(raw.getAttribute('stroke'));
+    // Three averaged rows: W3, W4, W5.
+    expect(avg.getAttribute('d')!.match(/[ML]/g)).toHaveLength(3);
+    expect(texts(svg, '.dgmo-overlay-label')).toEqual(['3-pt avg']);
+  });
+  it('names the window after a one-word x-label', async () => {
+    const svg = await draw(
+      `line Teams\nx-label Week\nmoving-average 3\n\n${WOBBLE.map((v, i) => `W${i + 1} ${v}`).join('\n')}`
+    );
+    expect(texts(svg, '.dgmo-overlay-label')).toEqual(['3-week avg']);
+  });
+  it('marks the peak and the low with their value and row', async () => {
+    const svg = await draw(PHX);
+    expect(svg.querySelectorAll('circle.dgmo-extreme-high')).toHaveLength(1);
+    expect(svg.querySelectorAll('circle.dgmo-extreme-low')).toHaveLength(1);
+    expect(texts(svg, '.dgmo-overlay-extremes-label')).toEqual([
+      'low 19 Jan',
+      'peak 41 Jul',
+    ]);
+  });
+  it('the marked points lose their plain value label', async () => {
+    const svg = await draw(PHX);
+    const values = texts(svg, 'text').filter((t) => t === '41');
+    expect(values).toEqual([]);
+  });
+  it('a multi-series line marks each series', async () => {
+    const svg = await draw(`line X
+extremes
+series
+  A
+  B
+
+P 1 9
+Q 3 7
+R 2 8`);
+    expect(svg.querySelectorAll('circle.dgmo-extreme-high')).toHaveLength(2);
+    expect(svg.querySelectorAll('circle.dgmo-extreme-low')).toHaveLength(2);
   });
 });

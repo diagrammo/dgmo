@@ -21,6 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   per series, labelled with its slope per x step (`trend +1.68/step`, the
   step named by a one-word `x-label`). On scatter, one line per `[Category]`
   labelled with its R² (`Mentored R² 0.95`).
+- **`moving-average N` and `extremes` on line (#1954).** `moving-average 3`
+  draws each series' trailing 3-point average in its colour, heavier than the
+  raw line, which stays and is drawn thinner (`3-pt avg`, or `3-week avg`
+  with `x-label Week`). `extremes` puts a filled marker on each series'
+  highest and lowest point, labelled `peak 41 Jul` and `low 19 Jan`.
 - **Theme style: `radius`, `stroke-weight` and `background` on a custom
   palette (#1836).** An embedded `palette` block takes `radius 0` (px for a
   standard card corner; every corner scales with it), `stroke-weight 1` (px

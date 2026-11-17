@@ -3107,13 +3107,15 @@ Apr 1180
 May 360
 ```
 
-| Directive        | Charts    | Draws                                                                               |
-| ---------------- | --------- | ----------------------------------------------------------------------------------- |
-| `mean`           | line, bar | a dashed horizontal line at the mean                                                |
-| `median`         | line, bar | a dotted horizontal line at the median                                              |
-| `target N`       | line, bar | a line at N; bars and points that reach it are lit, the rest go grey                |
-| `target N below` | line, bar | the same, but at or under N is good (costs, error rates)                            |
-| `trend`          | line, bar | a dashed least-squares line through each series, labelled with its slope per x step |
+| Directive          | Charts    | Draws                                                                                   |
+| ------------------ | --------- | --------------------------------------------------------------------------------------- |
+| `mean`             | line, bar | a dashed horizontal line at the mean                                                    |
+| `median`           | line, bar | a dotted horizontal line at the median                                                  |
+| `target N`         | line, bar | a line at N; bars and points that reach it are lit, the rest go grey                    |
+| `target N below`   | line, bar | the same, but at or under N is good (costs, error rates)                                |
+| `trend`            | line, bar | a dashed least-squares line through each series, labelled with its slope per x step     |
+| `moving-average N` | line      | each series' trailing N-point average, drawn heavier; the raw line stays, drawn thinner |
+| `extremes`         | line      | a filled marker and a label on each series' highest and lowest point                    |
 
 - Each overlay is labelled at the right end of its line, in the line's colour:
   `mean 441`, `median 380`, `target 100`. There is no legend entry. Labels
@@ -3128,6 +3130,13 @@ May 360
   (`x-label Week` → `trend +1.68/week`). The line runs from the first row with
   a value to the last, and stops at the plot edge. On scatter it is one line
   per category, labelled with its R² (§15.2).
+- `moving-average N` averages each row with the N-1 rows before it, so the
+  smoothed line starts at row N. N is a whole number, 2 or more. A window over
+  a missing row is missing. The label reads `3-pt avg`, or `3-week avg` with
+  `x-label Week`.
+- `extremes` labels the highest point `peak 41 Jul` above it and the lowest
+  `low 19 Jan` below it; a tie goes to the first row. The point's own value
+  label gives way to it.
 - Overlays are lowercase and stand alone on their line, so a data row named
   `Target 120` or `mean 40` stays data.
 - There is no `average` (write `mean`) and no mode. An unknown overlay word

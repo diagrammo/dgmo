@@ -289,6 +289,14 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description:
           'Line at a goal; points that reach it are filled (target 100, target 5 below)',
       },
+      'moving-average': {
+        description:
+          'Trailing N-point average per series, drawn over a thinner raw line (moving-average 3)',
+      },
+      extremes: {
+        description:
+          'Mark and label the highest and lowest point of each series',
+      },
       trend: {
         description:
           'Least-squares trend line per series, labelled with its slope per step',

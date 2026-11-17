@@ -10,14 +10,22 @@
 //   target N [below]     line, bar   an authored line; what reaches it is lit
 //   trend                line, bar,  least-squares line; slope label on line
 //                        scatter     and bar, R² per category on scatter
+//   moving-average N     line        trailing N-point average, drawn thicker
+//   extremes             line        highest and lowest point of each series
 
 /** Every overlay directive dgmo knows. */
-export type OverlayKind = 'mean' | 'median' | 'target' | 'trend';
+export type OverlayKind =
+  | 'mean'
+  | 'median'
+  | 'target'
+  | 'trend'
+  | 'moving-average'
+  | 'extremes';
 
 /** One parsed overlay directive. */
 export interface ChartOverlay {
   readonly kind: OverlayKind;
-  /** `target N`: the authored value. */
+  /** `target N`: the authored value. `moving-average N`: the window. */
   readonly value?: number;
   /** `target N below`: at or under N is good. */
   readonly below?: boolean;
