@@ -1,105 +1,103 @@
 // ============================================================
-// Chart annotations — parsing (#1832)
+// Chart annotations — parsing (#1832, #2039)
 // ============================================================
 //
-//   ref-line 50
-//   ref-line 50 Target
-//   ref-line 50 "Target" red
-//   band 40..60 Normal range
-//   band 40..60 "Normal range" green
+//   marker 50 Target              a value-axis line
+//   marker Q3 "Price change" red  a category-axis line
+//   marker x 2020 Launch          the axis named, for numeric categories
+//   band 40..60 Normal range      a value range
+//   note Q2 Frankfurt opens       a named datum (single series)
+//   note Atlantic @ Q2 Frankfurt opens  a series at a position
 //
-// The label is everything after the value. A trailing color word colors the
-// mark, as on `era`; quote the label to keep a final color word as text.
+// A label is everything after the position. A trailing color word colors the
+// mark; quote the label to keep a final color word as text. The parser reads
+// the line; each chart resolves positions and targets against its own data.
 
 import { resolveColorWithDiagnostic, RECOGNIZED_COLOR_NAMES } from '../colors';
-import type { DgmoError } from '../diagnostics';
-import type { ChartAnnotation } from './types';
+import { makeDgmoError, type DgmoError } from '../diagnostics';
+import type { PaletteColors } from '../palettes';
+import { extractColor } from '../utils/parsing';
+import { collectNoteBody, parseNoteHeader } from '../utils/notes/parse';
+import type {
+  ChartAnnotation,
+  ChartMarker,
+  ChartNote,
+  RawAnnotation,
+  RawChartNote,
+} from './types';
 
 const NUM = '-?(?:\\d+(?:\\.\\d+)?|\\.\\d+)';
-const REF_LINE_RE = new RegExp(`^ref-line\\s+(${NUM})(?:\\s+(.*))?$`);
+const NUM_RE = new RegExp(`^${NUM}$`);
+const MARKER_RE = /^marker(?:\s+(x|y))?\s+(.+)$/;
 const BAND_RE = new RegExp(
-  `^band\\s+(${NUM})\\s*\\.\\.\\s*(${NUM})(?:\\s+(.*))?$`
+  `^band(?:\\s+(x|y))?\\s+(${NUM})\\s*\\.\\.\\s*(${NUM})(?:\\s+(.*))?$`
 );
 
-/** Splits `rest` into a label and an optional trailing color word. */
-function splitLabel(
-  rest: string | undefined,
+type Palette = { colors: Record<string, string> };
+
+/** Peels a trailing color word off `text`, unless it closes a quoted label. */
+function peelColor(
+  text: string,
   lineNumber: number,
   diagnostics: DgmoError[],
-  palette?: { colors: Record<string, string> }
-): { label: string; color: string | null } {
-  const text = (rest ?? '').trim();
-  if (!text) return { label: '', color: null };
-  const quoted = text.match(/^"([^"]*)"(?:\s+(\S+))?$/);
-  let label = text;
-  let colorWord: string | undefined;
-  if (quoted) {
-    label = quoted[1]!;
-    colorWord = quoted[2];
-  } else {
-    const lastSpace = text.lastIndexOf(' ');
-    const last = lastSpace < 0 ? text : text.substring(lastSpace + 1);
-    if (
-      RECOGNIZED_COLOR_NAMES.includes(
-        last as (typeof RECOGNIZED_COLOR_NAMES)[number]
-      )
-    ) {
-      colorWord = last;
-      label = lastSpace < 0 ? '' : text.substring(0, lastSpace).trimEnd();
-    }
-  }
-  const color = colorWord
-    ? (resolveColorWithDiagnostic(
-        colorWord,
-        lineNumber,
-        diagnostics,
-        palette
-      ) ?? null)
-    : null;
-  return { label, color };
+  palette?: Palette
+): { text: string; color: string | null } {
+  const t = text.trim();
+  const lastSpace = t.lastIndexOf(' ');
+  if (lastSpace < 0) return { text: t, color: null };
+  const last = t.substring(lastSpace + 1);
+  if (
+    !RECOGNIZED_COLOR_NAMES.includes(
+      last as (typeof RECOGNIZED_COLOR_NAMES)[number]
+    )
+  )
+    return { text: t, color: null };
+  const color =
+    resolveColorWithDiagnostic(last, lineNumber, diagnostics, palette) ?? null;
+  return { text: t.substring(0, lastSpace).trimEnd(), color };
+}
+
+/** `"Code red"` → `Code red`; anything else unchanged. */
+function unquote(s: string): string {
+  const t = s.trim();
+  const m = t.match(/^"([^"]*)"$/);
+  return m ? m[1]! : t;
 }
 
 /**
- * Parses one trimmed line as a `ref-line` or `band` directive. Returns null
+ * Parses one trimmed line as a `marker` or `band` directive. Returns null
  * when the line is neither, so the caller's other matchers run.
  */
 export function parseAnnotationLine(
   trimmed: string,
   lineNumber: number,
   diagnostics: DgmoError[],
-  palette?: { colors: Record<string, string> }
-): ChartAnnotation | null {
-  const ref = trimmed.match(REF_LINE_RE);
-  if (ref) {
-    const { label, color } = splitLabel(
-      ref[2],
-      lineNumber,
-      diagnostics,
-      palette
-    );
+  palette?: Palette
+): RawAnnotation | null {
+  const mk = trimmed.match(MARKER_RE);
+  if (mk) {
+    const { text, color } = peelColor(mk[2]!, lineNumber, diagnostics, palette);
     return {
-      kind: 'ref-line',
-      value: Number(ref[1]),
-      label,
+      kind: 'marker',
+      axisHint: (mk[1] as 'x' | 'y' | undefined) ?? null,
+      text,
       color,
       lineNumber,
     };
   }
   const band = trimmed.match(BAND_RE);
   if (band) {
-    const a = Number(band[1]);
-    const b = Number(band[2]);
-    const { label, color } = splitLabel(
-      band[3],
-      lineNumber,
-      diagnostics,
-      palette
-    );
+    const a = Number(band[2]);
+    const b = Number(band[3]);
+    const { text, color } = band[4]
+      ? peelColor(band[4], lineNumber, diagnostics, palette)
+      : { text: '', color: null };
     return {
       kind: 'band',
+      axisHint: (band[1] as 'x' | 'y' | undefined) ?? null,
       from: Math.min(a, b),
       to: Math.max(a, b),
-      label,
+      label: unquote(text),
       color,
       lineNumber,
     };
@@ -107,14 +105,345 @@ export function parseAnnotationLine(
   return null;
 }
 
-/** Every value an annotation marks — what a value axis must reach. */
+/** True for a line that starts like an annotation but did not parse. */
+export function malformedAnnotation(trimmed: string): string | null {
+  if (/^marker\s*(?:x|y)?\s*$/.test(trimmed))
+    return `'${trimmed}': marker needs a position — marker 50 Target, or marker Q3 Launch.`;
+  if (/^band(?:\s+(?:x|y))?\s+\S*\.\./.test(trimmed))
+    return `'${trimmed}': band needs two numbers — band 40..60 Normal range.`;
+  return null;
+}
+
+/** What a chart's axes are, for resolving marker positions. */
+export interface MarkerAxes {
+  /** The category names on the cross axis; null when it is numeric. */
+  readonly categories: readonly string[] | null;
+}
+
+/** The longest run of leading words of `text` that names a category. */
+function matchCategory(
+  text: string,
+  categories: readonly string[]
+): { category: string; rest: string } | null {
+  const quoted = text.match(/^"([^"]+)"\s*(.*)$/);
+  if (quoted) {
+    return categories.includes(quoted[1]!)
+      ? { category: quoted[1]!, rest: quoted[2]! }
+      : null;
+  }
+  const words = text.split(/\s+/);
+  for (let w = words.length; w >= 1; w--) {
+    const cand = words.slice(0, w).join(' ');
+    if (categories.includes(cand))
+      return { category: cand, rest: words.slice(w).join(' ') };
+  }
+  return null;
+}
+
+function splitNumber(text: string): { value: number; rest: string } | null {
+  const sp = text.indexOf(' ');
+  const head = sp < 0 ? text : text.substring(0, sp);
+  if (!NUM_RE.test(head)) return null;
+  return { value: Number(head), rest: sp < 0 ? '' : text.substring(sp + 1) };
+}
+
+/**
+ * Resolves the raw annotations against a chart's axes. A marker that names
+ * nothing on the chart warns on its line and is dropped.
+ */
+export function resolveAnnotations(
+  raws: readonly RawAnnotation[],
+  axes: MarkerAxes,
+  diagnostics: DgmoError[]
+): ChartAnnotation[] {
+  const out: ChartAnnotation[] = [];
+  const warn = (line: number, msg: string) =>
+    diagnostics.push(makeDgmoError(line, msg, 'warning'));
+  const cats = axes.categories;
+  const numericCats =
+    cats !== null && cats.length > 0 && cats.every((c) => NUM_RE.test(c));
+  for (const raw of raws) {
+    if (raw.kind === 'band') {
+      if (raw.axisHint === 'x' && cats !== null) {
+        warn(
+          raw.lineNumber,
+          'band x needs a numeric x axis (scatter); band marks the value axis here — band 40..60 Normal range.'
+        );
+        continue;
+      }
+      const { axisHint, ...rest } = raw;
+      out.push({ ...rest, axis: axisHint === 'x' ? 'cross' : 'value' });
+      continue;
+    }
+    const num = splitNumber(raw.text);
+    const value = (v: { value: number; rest: string }): ChartMarker => ({
+      kind: 'marker',
+      axis: 'value',
+      at: v.value,
+      label: unquote(v.rest),
+      color: raw.color,
+      lineNumber: raw.lineNumber,
+    });
+    if (raw.axisHint === 'y') {
+      if (num) out.push(value(num));
+      else
+        warn(
+          raw.lineNumber,
+          `'marker y ${raw.text}': marker y needs a number — marker y 50 Target.`
+        );
+      continue;
+    }
+    if (cats === null) {
+      // Scatter: both axes are numeric; a bare number is the y axis.
+      if (!num) {
+        warn(
+          raw.lineNumber,
+          `'marker ${raw.text}': marker needs a number on this chart — marker 50 Target, or marker x 5 Launch.`
+        );
+        continue;
+      }
+      out.push(
+        raw.axisHint === 'x' ? { ...value(num), axis: 'cross' } : value(num)
+      );
+      continue;
+    }
+    if (raw.axisHint === null && num && numericCats) {
+      warn(
+        raw.lineNumber,
+        `'marker ${raw.text}': the categories are numbers, so say which axis — marker x ${num.value} … for the category, marker y ${num.value} … for the value.`
+      );
+      continue;
+    }
+    if (raw.axisHint === null && num) {
+      out.push(value(num));
+      continue;
+    }
+    const hit = matchCategory(raw.text, cats);
+    if (!hit) {
+      warn(
+        raw.lineNumber,
+        `'marker ${raw.text}': no category by that name — nothing is drawn.`
+      );
+      continue;
+    }
+    out.push({
+      kind: 'marker',
+      axis: 'cross',
+      at: hit.category,
+      label: unquote(hit.rest),
+      color: raw.color,
+      lineNumber: raw.lineNumber,
+    });
+  }
+  return out;
+}
+
+/** Every value-axis value an annotation marks — what the axis must reach. */
 export function annotationValues(
-  annotations: readonly ChartAnnotation[] | undefined
+  annotations: readonly ChartAnnotation[] | undefined,
+  axis: 'value' | 'cross' = 'value'
 ): number[] {
   const out: number[] = [];
   for (const a of annotations ?? []) {
-    if (a.kind === 'ref-line') out.push(a.value);
-    else out.push(a.from, a.to);
+    if (a.axis !== axis) continue;
+    if (a.kind === 'marker') {
+      if (typeof a.at === 'number') out.push(a.at);
+    } else out.push(a.from, a.to);
   }
   return out;
+}
+
+// ── note ────────────────────────────────────────────────────
+
+/**
+ * Parses a `note` line at `lines[index]` with its indented body. Returns null
+ * when the line is not a note. Lowercase only, so a data row "Note 5" stays
+ * data.
+ */
+export function parseChartNoteLine(
+  lines: readonly string[],
+  index: number,
+  indent: number,
+  diagnostics: DgmoError[],
+  palette?: PaletteColors
+): { note: RawChartNote; lastIndex: number } | null {
+  const trimmed = lines[index]!.trim();
+  const m = trimmed.match(/^note(?:\s+(.*))?$/);
+  if (!m) return null;
+  const lineNumber = index + 1;
+  const { label: header, color } = extractColor(
+    (m[1] ?? '').trim(),
+    palette,
+    diagnostics,
+    lineNumber
+  );
+  let series: string | null = null;
+  let rest = header;
+  const at = header.match(/^(?:("[^"]+"|[^\s@]+)\s+)?@\s+(.*)$/);
+  if (at) {
+    series = at[1] ? unquote(at[1]) : null;
+    rest = at[2]!;
+  }
+  const { ref, inlineBody } = rest
+    ? parseNoteHeader(rest)
+    : { ref: '', inlineBody: '' };
+  const body = collectNoteBody(lines, index, indent, inlineBody);
+  return {
+    note: {
+      series,
+      target: ref,
+      text: body.body,
+      color: color ?? null,
+      lineNumber,
+    },
+    lastIndex: body.lastIndex,
+  };
+}
+
+/** The data a note may name, for {@link resolveChartNotes}. */
+export interface NoteTargets {
+  /** Positions along the cross axis (categories, periods). */
+  readonly positions: readonly string[];
+  /** Series names, in index order. One entry on a single-series chart. */
+  readonly series: readonly string[];
+  /** True when a bare position names a column rather than one datum. */
+  readonly multiSeries: boolean;
+}
+
+/**
+ * Resolves raw notes to data points on a category chart (bar, line, slope).
+ * A note that names nothing, only a column, or no target warns on its line.
+ */
+export function resolveChartNotes(
+  raws: readonly RawChartNote[],
+  targets: NoteTargets,
+  diagnostics: DgmoError[]
+): ChartNote[] {
+  const out: ChartNote[] = [];
+  const warn = (line: number, msg: string) =>
+    diagnostics.push(makeDgmoError(line, msg, 'warning'));
+  for (const raw of raws) {
+    if (!checkNote(raw, warn)) continue;
+    const ci = targets.positions.indexOf(raw.target);
+    if (raw.series !== null) {
+      let si = targets.series.indexOf(raw.series);
+      if (si < 0 && !targets.multiSeries) si = 0;
+      if (si < 0) {
+        warn(
+          raw.lineNumber,
+          `Note on "${raw.series} @ ${raw.target}": no series named "${raw.series}" — nothing is drawn.`
+        );
+        continue;
+      }
+      if (ci < 0) {
+        warn(
+          raw.lineNumber,
+          `Note on "${raw.series} @ ${raw.target}": nothing at "${raw.target}" — nothing is drawn.`
+        );
+        continue;
+      }
+      out.push(toNote(raw, si, ci));
+      continue;
+    }
+    if (ci >= 0 && !targets.multiSeries) {
+      out.push(toNote(raw, 0, ci));
+      continue;
+    }
+    if (ci >= 0) {
+      warn(
+        raw.lineNumber,
+        `Note on "${raw.target}" names a whole column — name one point with note <series> @ ${raw.target}, or mark the column with marker ${raw.target}.`
+      );
+      continue;
+    }
+    if (targets.multiSeries && targets.series.includes(raw.target)) {
+      warn(
+        raw.lineNumber,
+        `Note on "${raw.target}" names a whole series — name one point with note ${raw.target} @ <position>.`
+      );
+      continue;
+    }
+    warn(
+      raw.lineNumber,
+      `Note on "${raw.target}" matches nothing on the chart — nothing is drawn.`
+    );
+  }
+  return out;
+}
+
+/**
+ * Resolves raw notes to named points (scatter). `group @ name` picks the
+ * point in that `[group]`.
+ */
+export function resolvePointNotes(
+  raws: readonly RawChartNote[],
+  points: readonly { name: string; category?: string | undefined }[],
+  diagnostics: DgmoError[]
+): ChartNote[] {
+  const out: ChartNote[] = [];
+  const warn = (line: number, msg: string) =>
+    diagnostics.push(makeDgmoError(line, msg, 'warning'));
+  for (const raw of raws) {
+    if (!checkNote(raw, warn)) continue;
+    const idx = points.findIndex(
+      (p) =>
+        p.name === raw.target &&
+        (raw.series === null || p.category === raw.series)
+    );
+    if (idx < 0) {
+      const name =
+        raw.series === null ? raw.target : `${raw.series} @ ${raw.target}`;
+      warn(
+        raw.lineNumber,
+        `Note on "${name}" matches no point — nothing is drawn.`
+      );
+      continue;
+    }
+    out.push(toNote(raw, 0, idx));
+  }
+  return out;
+}
+
+function checkNote(
+  raw: RawChartNote,
+  warn: (line: number, msg: string) => void
+): boolean {
+  if (!raw.target) {
+    warn(
+      raw.lineNumber,
+      'A note needs a datum — note <name> text. For a line of text with no target, use footnote.'
+    );
+    return false;
+  }
+  if (!raw.text.trim()) {
+    warn(raw.lineNumber, `Note on "${raw.target}" has no text — ignored.`);
+    return false;
+  }
+  return true;
+}
+
+function toNote(raw: RawChartNote, series: number, index: number): ChartNote {
+  return {
+    series,
+    index,
+    text: raw.text,
+    color: raw.color,
+    lineNumber: raw.lineNumber,
+  };
+}
+
+/** Warns once per annotation on a chart type that does not take them. */
+export function warnUnsupported(
+  kinds: readonly { kind: string; lineNumber: number }[],
+  where: string,
+  diagnostics: DgmoError[]
+): void {
+  for (const a of kinds)
+    diagnostics.push(
+      makeDgmoError(
+        a.lineNumber,
+        `"${a.kind}" is only supported on ${where}; ignoring it.`,
+        'warning'
+      )
+    );
 }

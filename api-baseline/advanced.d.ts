@@ -184,6 +184,47 @@ interface TimelineMarker {
     lineNumber: number;
 }
 
+/** Which axis a mark sits on. `value` is the value axis (y on a vertical
+ *  chart). `cross` is the other one: categories on bar, line and slope, the
+ *  numeric x axis on scatter. */
+type AnnotationAxis = 'value' | 'cross';
+/** `marker <position> [label] [color]` — a dashed line across the plot. */
+interface ChartMarker {
+    readonly kind: 'marker';
+    readonly axis: AnnotationAxis;
+    /** A number on a numeric axis; a category name on a category axis. */
+    readonly at: number | string;
+    readonly label: string;
+    /** Resolved CSS color, or null for the theme's text color. */
+    readonly color: string | null;
+    readonly lineNumber: number;
+}
+/** `band <from>..<to> [label] [color]` — a shaded value range. */
+interface ChartBand {
+    readonly kind: 'band';
+    /** `cross` only on scatter (`band x 2..4`). */
+    readonly axis: AnnotationAxis;
+    /** Lower end; the parser orders the two ends. */
+    readonly from: number;
+    /** Upper end. */
+    readonly to: number;
+    readonly label: string;
+    /** Resolved CSS color, or null for the theme's muted text color. */
+    readonly color: string | null;
+    readonly lineNumber: number;
+}
+type ChartAnnotation = ChartMarker | ChartBand;
+/** `note <datum> [text]` resolved to one datum on the chart. */
+interface ChartNote {
+    /** Series index (bar, line), or row index on slope; 0 on scatter. */
+    readonly series: number;
+    /** Category index (bar, line), period index (slope), point index (scatter). */
+    readonly index: number;
+    readonly text: string;
+    readonly color: string | null;
+    readonly lineNumber: number;
+}
+
 type VisualizationType = 'slope' | 'wordcloud' | 'arc' | 'timeline' | 'venn' | 'quadrant' | 'sequence' | 'tech-radar' | 'cycle' | 'pyramid' | 'ring';
 interface D3DataItem {
     label: string;
@@ -273,6 +314,12 @@ interface ParsedSlope extends ParsedVizBase {
     axes?: AxisSpecs;
     /** `format`, `unit`, `locale` (#1831). */
     numberFormat?: NumberFormatSpec;
+    /** `marker` and `band` (#2039). */
+    annotations?: ChartAnnotation[];
+    /** `note <series> @ <period> …` (#2039). */
+    notes?: ChartNote[];
+    /** `no-notes` (#2039). */
+    noNotes?: boolean;
     noName?: boolean;
     noValue?: boolean;
     noPercent?: boolean;
@@ -505,29 +552,6 @@ declare function render(source: string, options?: {
     chartType: string | undefined;
 }>;
 
-/** `ref-line <value> [label] [color]` — a dashed line across the plot. */
-interface ChartRefLine {
-    readonly kind: 'ref-line';
-    readonly value: number;
-    readonly label: string;
-    /** Resolved CSS color, or null for the theme's text color. */
-    readonly color: string | null;
-    readonly lineNumber: number;
-}
-/** `band <from>..<to> [label] [color]` — a shaded value range. */
-interface ChartBand {
-    readonly kind: 'band';
-    /** Lower end; the parser orders the two ends. */
-    readonly from: number;
-    /** Upper end. */
-    readonly to: number;
-    readonly label: string;
-    /** Resolved CSS color, or null for the theme's muted text color. */
-    readonly color: string | null;
-    readonly lineNumber: number;
-}
-type ChartAnnotation = ChartRefLine | ChartBand;
-
 type ChartType$1 = 'bar' | 'line' | 'pie' | 'polar-area' | 'radar';
 interface ChartDataPoint {
     label: string;
@@ -689,8 +713,12 @@ interface ParsedChart {
     numberFormat?: NumberFormatSpec;
     data: ChartDataPoint[];
     eras?: ChartEra[];
-    /** `ref-line` and `band` (#1832), bar and line only. */
+    /** `marker` and `band` (#1832, #2039), bar and line only. */
     annotations?: ChartAnnotation[];
+    /** `note <datum> …` (#2039), bar and line only. */
+    notes?: ChartNote[];
+    /** `no-notes`: draw no `note` (#2039). */
+    noNotes?: boolean;
     diagnostics: DgmoError[];
     error: string | null;
 }
@@ -1120,6 +1148,12 @@ interface ParsedFunctionChart extends ParsedExtendedBase {
 }
 interface ParsedScatter extends ParsedExtendedBase {
     type: 'scatter';
+    /** `marker` and `band` on either axis (#2039). */
+    annotations?: ChartAnnotation[];
+    /** `note <point> …` (#2039). */
+    notes?: ChartNote[];
+    /** `no-notes` (#2039). */
+    noNotes?: boolean;
     scatterPoints?: ParsedScatterPoint[];
     sizelabel?: string;
     /** Bare `connect` (#1982): join the points in row order, one path per

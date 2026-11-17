@@ -536,14 +536,15 @@ Havana 400
 - **Per export, without editing the file:** `dgmo chart.dgmo --highlight EMEA`, a docs code block's `highlight="EMEA"` attribute, or the AI tools' render `highlight` parameter. Each replaces the file's own `highlight` line rather than adding to it, and `none` clears it.
 - Other chart types do not take `highlight` yet: the line warns `highlight is not supported on <type> yet` and draws nothing.
 
-### 1.14 Annotations — `ref-line` and `band`
+### 1.14 Annotations — `marker`, `band`, `era` and `note`
 
-Annotations mark a value on the value axis. They are chart-level directives on their own line, anywhere in the file, on `bar` and `line`:
+Annotations mark a data chart. They are chart-level directives on their own line, anywhere in the file, on `bar`, `line`, `scatter` and `slope`:
 
 ```
 bar Treasure Hauls by Port
-ref-line 900 Quota
+marker 900 Quota
 band 400..600 Usual haul green
+note Nassau Record haul after the Spanish fleet ran aground
 
 Port Royal 850
 Tortuga 620
@@ -551,15 +552,22 @@ Nassau 1100
 Havana 400
 ```
 
-| Directive                           | What it draws                                                                                    |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `ref-line <value> [label] [color]`  | a dashed line across the plot at `value`, drawn over the data, its label at the line's far end   |
-| `band <from>..<to> [label] [color]` | a shaded range from `from` to `to`, drawn behind the gridlines and data, its label in its corner |
+| Directive                            | Charts                    | What it draws                                                                                   |
+| ------------------------------------ | ------------------------- | ----------------------------------------------------------------------------------------------- |
+| `marker <value> [label] [color]`     | bar, line, scatter, slope | a dashed line across the plot at a value-axis position, over the data, its label at its far end |
+| `marker <category> [label] [color]`  | bar, line, slope          | a dashed line at a category, its label at its top                                               |
+| `band <from>..<to> [label] [color]`  | bar, line, scatter, slope | a shaded value range, behind the gridlines and data, its label in its corner                    |
+| `era <from> -> <to> [label] [color]` | bar, line                 | a shaded span of categories on the ordered axis                                                 |
+| `note <datum> [text]`                | bar, line, scatter, slope | a ring on one datum and its text in clear plot space, joined by a leader line                   |
 
-- **The label is the rest of the line.** A trailing colour word (§1.5) colours the mark; without one a `ref-line` takes the text colour and a `band` a muted tint. Quote the label to keep a final colour word as text: `ref-line 50 "Code red"`.
-- **The value axis reaches every annotation.** A `ref-line` or `band` beyond the data widens the axis to include it, on a log axis too. When `y-min` / `y-max` fix an end, a `ref-line` past it is not drawn and a `band` is cut at it. On a log axis a value at or below 0 is not drawn.
-- On a horizontal bar the value axis runs across, so a `ref-line` is vertical and a `band` is a column.
+- **The label is the rest of the line.** A trailing colour word (§1.5) colours the mark; without one a `marker` takes the text colour and a `band` a muted tint. Quote the label to keep a final colour word as text: `marker 50 "Code red"`.
+- **Which axis a `marker` sits on.** A number is a value-axis position and a known category is a category position. A multi-word category matches before the label: `marker Port Royal Raid`. When the categories are themselves numbers (years), say which axis: `marker x 2021 Launch` for the category, `marker y 50 Target` for the value — a bare number then warns. On `scatter` both axes are numeric: `marker 50` is y, `marker x 5` is x, and `band x 2..4` shades an x range.
+- **The value axis reaches every annotation.** A `marker` or `band` beyond the data widens the axis to include it, on a log axis too. When `y-min` / `y-max` fix an end, a `marker` past it is not drawn and a `band` is cut at it. On a log axis a value at or below 0 is not drawn.
+- On a horizontal bar the value axis runs across, so a value `marker` is vertical and a `band` is a column.
 - On a dual-axis `line`, annotations sit on the left axis.
+- **`note` names one datum.** A bare name is a named datum: a bar's category, a point on a single-series line, a scatter point. On a chart of several series, write `series @ position`: `note EMEA @ Q2 Frankfurt opens`, `note Rust @ 2025 Overtakes Go` on slope; on scatter `[group] @ name` picks a point in that group. Quote a multi-word name: `note "Port Royal" Sacked`. Lines indented under the note continue its text, with inline markdown.
+- **Every note is drawn.** It takes clear space in the plot, and the side margin only when the plot has none. A point value under a note yields to it. Notes stay full strength under `highlight`. `no-notes` hides them all.
+- **A note that misses warns.** No target (suggests `footnote`), a name that matches nothing, or a name that is a whole column or series on a multi-series chart (suggests `marker` or `@`) draws nothing.
 - Several of each are allowed. On any other chart type the directive is ignored with a warning.
 
 ### 1.15 Output Size — `--width` and `--height`
@@ -2919,6 +2927,12 @@ y-max 1,000,000  // fix the upper end
   function chart plots only the samples above 0. **A stacked bar cannot be
   log**: its segments would not add up, so it warns and stays linear.
 - **Not here:** number format for tick labels (#1831) and date ticks (#1880).
+
+**Series names at line ends (line).** A `line` with two or more drawn
+series prints each series' name just past its last point, nudged apart so
+none prints over another, beside the point values and the legend. The names
+are left out of a dual-axis chart, a stacked area, and a chart too narrow to
+hold them without turning its category labels (#1950).
 
 #### 15.1.3 Time axis and steps (line)
 

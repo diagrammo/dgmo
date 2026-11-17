@@ -199,10 +199,16 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'y-min': { description: 'Value axis lower end (y-min 0)' },
       'y-max': { description: 'Value axis upper end (y-max 100)' },
       'no-value': { description: 'Hide value labels atop each bar' },
-      'ref-line': {
-        description: 'Dashed line at a value (ref-line 50 Target)',
+      marker: {
+        description:
+          'Dashed line at a value or a category (marker 50 Target, marker Q3 Launch)',
       },
       band: { description: 'Shaded value range (band 40..60 Normal range)' },
+      note: {
+        description:
+          'Ring a datum and write beside it (note Q2 Frankfurt opens, note Atlantic @ Q2 …)',
+      },
+      'no-notes': { description: 'Hide every note' },
       color: { description: 'Bar color override' },
       highlight: {
         description:
@@ -247,9 +253,15 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description: 'Right y-axis label (dual-axis; group series beneath it)',
       },
       'no-value': { description: 'Hide value labels at each point' },
-      'ref-line': {
-        description: 'Dashed line at a value (ref-line 50 Target)',
+      marker: {
+        description:
+          'Dashed line at a value or a category (marker 50 Target, marker Q3 Launch)',
       },
+      note: {
+        description:
+          'Ring a datum and write beside it (note Q2 Frankfurt opens, note Atlantic @ Q2 …)',
+      },
+      'no-notes': { description: 'Hide every note' },
       band: {
         description:
           'Shaded value range (band 40..60 Normal range), or between two series (band Forecast Low High)',
@@ -356,6 +368,19 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description:
           'Keep the named points or categories and recede the rest (highlight Nassau)',
       },
+      marker: {
+        description:
+          'Dashed line at a y value, or an x value with marker x (marker 50 Target)',
+      },
+      band: {
+        description:
+          'Shaded y range, or x range with band x (band 40..60 Normal range)',
+      },
+      note: {
+        description:
+          'Ring a point and write beside it (note Nassau Port opens)',
+      },
+      'no-notes': { description: 'Hide every note' },
     }),
   ],
   [
@@ -458,6 +483,15 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description:
           'Keep the named series and recede the rest (highlight Nassau)',
       },
+      marker: {
+        description: 'Dashed line at a value (marker 50 Target)',
+      },
+      band: { description: 'Shaded value range (band 40..60 Normal range)' },
+      note: {
+        description:
+          'Ring one point and write beside it (note Rust @ 2025 Overtakes Go)',
+      },
+      'no-notes': { description: 'Hide every note' },
     }),
   ],
   [

@@ -38,9 +38,11 @@ export const fixture: ConformanceFixture = {
     // §1.11 emphasis, adopted on bar, line and pie by #1829 (the root spec's
     // table gains the rows in that row's last slice).
     'highlight',
-    // #1832 annotations (the root spec gains them in that row's spec slice).
-    'ref-line',
+    // #1832 / #2039 annotations.
+    'marker',
     'band',
+    'note',
+    'no-notes',
   ],
   pipeKeys: {},
 };

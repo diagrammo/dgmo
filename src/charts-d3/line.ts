@@ -20,6 +20,9 @@ const DATE_AXIS_INSET = 16;
 /** Fill opacity of an uncertainty band (#1981): the low series' colour, faint
  *  enough that the gridlines and any line inside it still read. */
 const BAND_OPACITY = 0.22;
+/** Series names at the right end of their lines (#1950): size, gap. */
+const END_LABEL_FONT = 12;
+const END_LABEL_GAP = 8;
 import type { ParsedChart } from '../chart';
 import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
@@ -27,9 +30,16 @@ import { mix, shapeFill } from '../palettes/color-utils';
 import { annotationValues } from '../annotations/parse';
 import {
   drawBands,
-  drawRefLines,
+  drawMarkers,
   type ValueAxisFrame,
 } from '../annotations/draw';
+import {
+  drawChartNotes,
+  sampleLines,
+  type PlacedNoteDatum,
+} from '../annotations/notes';
+import { resolveVerticalCollisions } from '../slope/renderer';
+import { measureText } from '../utils/text-measure';
 import {
   EMPHASIS_DIM_OPACITY,
   EMPHASIS_DIM_TEXT_OPACITY,
@@ -158,7 +168,7 @@ export function renderLine(
           hi = Math.max(hi, v);
         }
     if (!isFinite(lo)) return [0, 1];
-    // A `ref-line` or `band` (#1832) sits on the left axis and widens it.
+    // A `marker` or `band` (#1832) sits on the left axis and widens it.
     if (side === 'left')
       for (const v of annotationValues(chart.annotations)) {
         lo = Math.min(lo, v);
@@ -195,7 +205,7 @@ export function renderLine(
         dataHiL = Math.max(dataHiL, v);
       }
   // A log axis is bounded by these, not by the padded extent: let it reach a
-  // `ref-line` or `band` (#1832) too.
+  // `marker` or `band` (#1832) too.
   for (const v of annotationValues(chart.annotations)) {
     if (v > 0) dataLoL = Math.min(dataLoL, v);
     dataHiL = Math.max(dataHiL, v);
@@ -223,7 +233,22 @@ export function renderLine(
   // Horizontal margins first: the category-label plan needs the plot width to
   // know how much room one category owns, and the bottom margin then follows
   // from the plan (rotated labels stand taller than flat ones).
-  const mRight = dual
+  // Series names at the right end of their lines (#1950), beside the point
+  // values: a chart of two or more drawn lines, one value axis, no stack.
+  const drawnSeries = Array.from({ length: seriesCount }, (_, s) => s).filter(
+    (s) => !(chart.seriesBands ?? []).some((b) => b.low === s || b.high === s)
+  );
+  let endLabels = drawnSeries.length >= 2 && !dual && !stacked;
+  const endLabelW = endLabels
+    ? Math.max(
+        ...drawnSeries.map((s) =>
+          measureText(seriesNames[s] ?? `Series ${s + 1}`, END_LABEL_FONT, {
+            bold: true,
+          })
+        )
+      )
+    : 0;
+  let mRight = dual
     ? computeLeftMargin(chart.yrlabel, [fmtR(hiR), fmtR(loR)], {
         tabular: true,
       })
@@ -231,21 +256,38 @@ export function renderLine(
   const mLeft0 = computeLeftMargin(chart.ylabel, probeL.map(tickFmt), {
     tabular: true,
   });
+  // The names start just past the last point, which sits half a slot (or the
+  // date inset) in from the plot's right edge: the margin holds the rest.
+  if (endLabels) {
+    const inset = isoDatesOf(data.map((d) => d.label))
+      ? DATE_AXIS_INSET
+      : (width - mLeft0 - mRight) / Math.max(1, 2 * data.length);
+    mRight = Math.max(mRight, endLabelW + END_LABEL_GAP + 6 - inset);
+  }
   // scalePoint with padding(0.5) puts one slot's worth of space between
   // adjacent points, and half a slot at each end. Rotated labels hang left of
   // the first point, so the margin may grow to keep them inside the SVG.
   // A time axis when every row is an ISO date (#1880); else categories. A
   // time axis labels its own ticks flat, so it needs no label fit.
   const dates = isoDatesOf(data.map((d) => d.label));
-  const fit = dates
-    ? null
-    : planLabelsFitLeft(
-        data.map((d) => d.label),
-        mLeft0,
-        (ml) => width - ml - mRight,
-        (pw) => (data.length > 0 ? pw / data.length : pw),
-        (pw) => (data.length > 0 ? pw / data.length : pw) * 0.5
-      );
+  const fitFor = (mr: number) =>
+    dates
+      ? null
+      : planLabelsFitLeft(
+          data.map((d) => d.label),
+          mLeft0,
+          (ml) => width - ml - mr,
+          (pw) => (data.length > 0 ? pw / data.length : pw),
+          (pw) => (data.length > 0 ? pw / data.length : pw) * 0.5
+        );
+  let fit = fitFor(mRight);
+  // The names never cost the category labels their flat reading: when the
+  // gutter would make them rotate, the chart keeps its legend alone.
+  if (endLabels && fit?.plan.rotate) {
+    endLabels = false;
+    mRight = 32;
+    fit = fitFor(mRight);
+  }
   const mLeft = fit ? fit.mLeft : mLeft0;
   const plotW = fit ? fit.plotW : width - mLeft0 - mRight;
   const labelPlan = fit?.plan;
@@ -336,6 +378,7 @@ export function renderLine(
     width: plotW,
     height: plotH,
     horizontal: false,
+    crossPos: (at) => (typeof at === 'string' ? xOfLabel(at) : undefined),
   };
   const annotationColors = {
     text: textColor,
@@ -485,6 +528,17 @@ export function renderLine(
       (a, b) => Number(dimmed.has(nameOf(b))) - Number(dimmed.has(nameOf(a)))
     );
 
+  /** Each drawn series' points in px, for the notes' clear space. */
+  const polylines: [number, number][][] = [];
+  /** Each drawn series' last point and paint, for its end-of-line name. */
+  const lineEnds: {
+    s: number;
+    name: string;
+    x: number;
+    y: number;
+    color: string;
+    dim: boolean;
+  }[] = [];
   const valueLabels: {
     text: string;
     cx: number;
@@ -651,6 +705,18 @@ export function renderLine(
 
     const labelColor =
       story.active && recede ? story.groundText : mix(color, textColor, 60);
+    const drawn = pts.filter((p) => has(p.v));
+    polylines.push(drawn.map((p) => [xOfRow(p.xIndex), yy(p.y)]));
+    const last = drawn.at(-1);
+    if (last)
+      lineEnds.push({
+        s,
+        name,
+        x: xOfRow(last.xIndex),
+        y: yy(last.y),
+        color: labelColor,
+        dim,
+      });
     for (const p of pts) {
       if (!has(p.v)) continue;
       g.append('circle')
@@ -689,8 +755,83 @@ export function renderLine(
   }
 
   eraTitles.push(
-    ...drawRefLines(svg, chart.annotations, annotationFrame, annotationColors)
+    ...drawMarkers(svg, chart.annotations, annotationFrame, annotationColors)
   );
+
+  // End-of-line series names (#1950), nudged apart so none prints over
+  // another. They are placed before the point values, which clear them.
+  if (endLabels) {
+    const ends = lineEnds.sort((a, b) => a.s - b.s);
+    const ys = resolveVerticalCollisions(
+      ends.map((e) => ({ naturalY: e.y, height: END_LABEL_FONT + 2 })),
+      1,
+      m.top + plotH
+    );
+    ends.forEach((e, k) => {
+      const x = e.x + END_LABEL_GAP;
+      const y = ys[k]! + END_LABEL_FONT * 0.35;
+      svg
+        .append('text')
+        .attr('class', 'dgmo-series-end-label')
+        .attr('data-series-name', e.name)
+        .attr('x', x)
+        .attr('y', y)
+        .attr('text-anchor', 'start')
+        .attr('fill', e.color)
+        .attr('font-size', END_LABEL_FONT)
+        .attr('font-weight', 600)
+        .attr('font-family', FONT_FAMILY)
+        .attr('opacity', e.dim ? EMPHASIS_DIM_TEXT_OPACITY : null)
+        .text(e.name);
+      eraTitles.push({
+        ...labelBox(e.name, { x, y, anchor: 'start' }, END_LABEL_FONT),
+        w: measureText(e.name, END_LABEL_FONT, { bold: true }),
+      });
+    });
+  }
+
+  // Notes (#2039): a ring on the point, the text in clear plot space. Point
+  // values yield to them; they stay full strength under `highlight`.
+  if (chart.notes?.length && !chart.noNotes) {
+    const notes: PlacedNoteDatum[] = chart.notes.flatMap((n) => {
+      const v = yValue(n.index, n.series);
+      if (!has(v) || boundSeries.has(n.series)) return [];
+      return [
+        {
+          x: xOfRow(n.index),
+          y: yFor(n.series)(v),
+          r: stacked ? 0 : 3.5,
+          text: n.text,
+          color: n.color,
+          lineNumber: n.lineNumber,
+        },
+      ];
+    });
+    eraTitles.push(
+      ...drawChartNotes(svg, notes, {
+        plot: {
+          left: m.left,
+          top: m.top,
+          right: m.left + plotW,
+          bottom: m.top + plotH,
+        },
+        // The gutter: the right margin, when the plot has no room.
+        canvas: {
+          left: m.left,
+          top: m.top,
+          right: width,
+          bottom: m.top + plotH,
+        },
+        reserved: eraTitles,
+        markers: [
+          ...polylines.flat().map(([cx, cy]) => ({ cx, cy, r: 4.5 })),
+          ...sampleLines(polylines),
+        ],
+        colors: { text: textColor, bg: bgColor },
+        palette,
+      })
+    );
+  }
 
   // Point values (#1828): every series' labels are placed together, so one
   // series' value never prints over another's. A label goes above its point,

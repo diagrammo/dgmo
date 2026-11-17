@@ -20,6 +20,7 @@ import type {
   TimelineMarker,
 } from '../timeline/types';
 import type { TagGroup } from '../utils/tag-groups';
+import type { ChartAnnotation, ChartNote } from '../annotations/types';
 
 export type { D3ExportDimensions } from '../utils/d3-types';
 
@@ -150,6 +151,12 @@ export interface ParsedSlope extends ParsedVizBase {
   axes?: AxisSpecs;
   /** `format`, `unit`, `locale` (#1831). */
   numberFormat?: NumberFormatSpec;
+  /** `marker` and `band` (#2039). */
+  annotations?: ChartAnnotation[];
+  /** `note <series> @ <period> …` (#2039). */
+  notes?: ChartNote[];
+  /** `no-notes` (#2039). */
+  noNotes?: boolean;
   noName?: boolean;
   noValue?: boolean;
   noPercent?: boolean;
@@ -252,6 +259,10 @@ export interface ParsedVizFull extends ParsedVizBase {
   axes?: AxisSpecs;
   /** Number format — read by slope only (#1831). */
   numberFormat?: NumberFormatSpec;
+  /** Annotations and notes — read by slope only (#2039). */
+  annotations?: ChartAnnotation[];
+  notes?: ChartNote[];
+  noNotes?: boolean;
   words: WordCloudWord[];
   cloudOptions: WordCloudOptions;
   links: ArcLink[];

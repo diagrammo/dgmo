@@ -5,6 +5,19 @@
 // hand-built D3 renderers in charts-d3/ consume these types + parsers.
 // ============================================================
 
+import type {
+  ChartAnnotation,
+  ChartNote,
+  RawAnnotation,
+  RawChartNote,
+} from './annotations/types';
+import {
+  malformedAnnotation,
+  parseAnnotationLine,
+  parseChartNoteLine,
+  resolveAnnotations,
+  resolvePointNotes,
+} from './annotations/parse';
 import type { LegendGroupData } from './utils/legend-types';
 
 // ============================================================
@@ -146,6 +159,12 @@ export interface ParsedFunctionChart extends ParsedExtendedBase {
 
 export interface ParsedScatter extends ParsedExtendedBase {
   type: 'scatter';
+  /** `marker` and `band` on either axis (#2039). */
+  annotations?: ChartAnnotation[];
+  /** `note <point> …` (#2039). */
+  notes?: ChartNote[];
+  /** `no-notes` (#2039). */
+  noNotes?: boolean;
   scatterPoints?: ParsedScatterPoint[];
   sizelabel?: string;
   /** Bare `connect` (#1982): join the points in row order, one path per
@@ -195,6 +214,9 @@ export interface ParsedExtendedChartFull extends ParsedExtendedBase {
   xRange?: { min: number; max: number };
   sizelabel?: string;
   connect?: boolean;
+  annotations?: ChartAnnotation[];
+  notes?: ChartNote[];
+  noNotes?: boolean;
 }
 
 // ============================================================
@@ -398,6 +420,8 @@ function parseExtendedChartFull(
 
   // Track current category for grouped scatter charts
   let currentCategory = 'Default';
+  const rawAnnotations: RawAnnotation[] = [];
+  const rawNotes: RawChartNote[] = [];
 
   // Sankey indentation state: stack of source nodes by indent level
   const sankeyStack: { name: string; indent: number }[] = [];
@@ -509,6 +533,40 @@ function parseExtendedChartFull(
         return result;
       }
       // Fall through — first line might be a data row or option
+    }
+
+    // Annotations and notes (#2039), scatter only: on sankey or chord a
+    // node may be named `note` or `marker`.
+    if (result.type === 'scatter') {
+      const annotation = parseAnnotationLine(
+        trimmed,
+        lineNumber,
+        result.diagnostics,
+        palette
+      );
+      if (annotation) {
+        rawAnnotations.push(annotation);
+        continue;
+      }
+      const malformed = malformedAnnotation(trimmed);
+      if (malformed) {
+        result.diagnostics.push(
+          makeDgmoError(lineNumber, malformed, 'warning')
+        );
+        continue;
+      }
+      const noteLine = parseChartNoteLine(
+        lines,
+        i,
+        0,
+        result.diagnostics,
+        palette
+      );
+      if (noteLine) {
+        rawNotes.push(noteLine.note);
+        i = noteLine.lastIndex;
+        continue;
+      }
     }
 
     // [Category] container header with optional color: [Category Name] or [Category Name](color)
@@ -942,6 +1000,10 @@ function parseExtendedChartFull(
       result.connect = true;
       continue;
     }
+    if (firstToken === 'no-notes' && spaceIdx < 0) {
+      result.noNotes = true;
+      continue;
+    }
     // Silent-ignore unrecognized no-* flags (typos, future flags).
     if (firstToken.startsWith('no-') && spaceIdx < 0) {
       continue;
@@ -1149,6 +1211,25 @@ function parseExtendedChartFull(
   // Alias namespace rules (§2A.2) — decidable only once the whole
   // source has been read.
   result.diagnostics.push(...nameAliasMap.finish());
+
+  // Annotations (#2039): scatter's two axes are both numeric.
+  if (result.type === 'scatter') {
+    const resolved = resolveAnnotations(
+      rawAnnotations,
+      { categories: null },
+      result.diagnostics
+    );
+    if (resolved.length) result.annotations = resolved;
+    const notes = resolvePointNotes(
+      rawNotes,
+      (result.scatterPoints ?? []).map((p) => ({
+        name: p.name,
+        category: p.category,
+      })),
+      result.diagnostics
+    );
+    if (notes.length) result.notes = notes;
+  } else delete result.noNotes;
 
   if (!result.error && result.axes) {
     const pts = result.scatterPoints ?? [];

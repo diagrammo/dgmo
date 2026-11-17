@@ -57,8 +57,20 @@ import { parseEmphasisDirective } from './utils/emphasis';
 import type { AxisName, AxisSpecs } from './utils/axis-spec';
 import type { NumberFormatSpec } from './utils/number-format';
 import { parseNumberFormatLine } from './utils/number-format';
-import type { ChartAnnotation } from './annotations/types';
-import { parseAnnotationLine } from './annotations/parse';
+import type {
+  ChartAnnotation,
+  ChartNote,
+  RawAnnotation,
+  RawChartNote,
+} from './annotations/types';
+import {
+  malformedAnnotation,
+  parseAnnotationLine,
+  parseChartNoteLine,
+  resolveAnnotations,
+  resolveChartNotes,
+  warnUnsupported,
+} from './annotations/parse';
 import { divergingSpans } from './utils/diverging';
 import {
   AXIS_DIRECTIVE_DX,
@@ -185,8 +197,12 @@ export interface ParsedChart {
   numberFormat?: NumberFormatSpec;
   data: ChartDataPoint[];
   eras?: ChartEra[];
-  /** `ref-line` and `band` (#1832), bar and line only. */
+  /** `marker` and `band` (#1832, #2039), bar and line only. */
   annotations?: ChartAnnotation[];
+  /** `note <datum> …` (#2039), bar and line only. */
+  notes?: ChartNote[];
+  /** `no-notes`: draw no `note` (#2039). */
+  noNotes?: boolean;
   diagnostics: DgmoError[];
   error: string | null;
 }
@@ -369,7 +385,8 @@ export function parseChart(
   const lines = content.split('\n');
   const parsedEras: ChartEra[] = [];
   const pieOnlyLines: [number, string][] = [];
-  const annotations: ChartAnnotation[] = [];
+  const annotations: RawAnnotation[] = [];
+  const rawNotes: RawChartNote[] = [];
   let otherLine = 0;
   let waffleLine = 0;
   const rawEras: {
@@ -463,7 +480,7 @@ export function parseChart(
       // Fall through — first line might be a data row or option
     }
 
-    // Annotations (#1832): `ref-line <value> …`, `band <from>..<to> …`.
+    // Annotations (#1832, #2039): `marker …`, `band <from>..<to> …`.
     const annotation = parseAnnotationLine(
       trimmed,
       lineNumber,
@@ -476,16 +493,22 @@ export function parseChart(
     }
     // A malformed one says what it needed. `band 5` (no `..`) is left to
     // parse as a data row named "band".
-    if (/^ref-line(?:\s|$)/.test(trimmed) || /^band\s+\S*\.\./.test(trimmed)) {
-      result.diagnostics.push(
-        makeDgmoError(
-          lineNumber,
-          trimmed.startsWith('ref-line')
-            ? `'${trimmed}': ref-line needs a number — ref-line 50 Target.`
-            : `'${trimmed}': band needs two numbers — band 40..60 Normal range.`,
-          'warning'
-        )
-      );
+    const malformed = malformedAnnotation(trimmed);
+    if (malformed) {
+      result.diagnostics.push(makeDgmoError(lineNumber, malformed, 'warning'));
+      continue;
+    }
+    // `note <datum> [text]` with an optional indented body (#2039).
+    const noteLine = parseChartNoteLine(
+      lines,
+      i,
+      0,
+      result.diagnostics,
+      palette
+    );
+    if (noteLine) {
+      rawNotes.push(noteLine.note);
+      i = noteLine.lastIndex;
       continue;
     }
 
@@ -800,6 +823,10 @@ export function parseChart(
       result.noValue = true;
       continue;
     }
+    if (firstToken === 'no-notes') {
+      result.noNotes = true;
+      continue;
+    }
     if (firstToken === 'no-percent') {
       result.noPercent = true;
       continue;
@@ -947,17 +974,35 @@ export function parseChart(
 
   // Annotations mark a value axis, which only bar and line have here.
   if (result.type === 'bar' || result.type === 'line') {
-    if (annotations.length) result.annotations = annotations;
+    const categories = result.data.map((d) => d.label);
+    const resolved = resolveAnnotations(
+      annotations,
+      { categories },
+      result.diagnostics
+    );
+    if (resolved.length) result.annotations = resolved;
+    const seriesNames = result.seriesNames?.length
+      ? result.seriesNames
+      : [result.series ?? ''];
+    const notes = resolveChartNotes(
+      rawNotes,
+      {
+        positions: categories,
+        series: seriesNames,
+        // A plain bar is one series whatever its header says.
+        multiSeries:
+          seriesNames.length > 1 &&
+          (result.type === 'line' || result.barLayout !== undefined),
+      },
+      result.diagnostics
+    );
+    if (notes.length) result.notes = notes;
   } else {
-    for (const a of annotations) {
-      result.diagnostics.push(
-        makeDgmoError(
-          a.lineNumber,
-          `"${a.kind}" is only supported on bar and line charts; ignoring it.`,
-          'warning'
-        )
-      );
-    }
+    warnUnsupported(
+      [...annotations, ...rawNotes.map((n) => ({ ...n, kind: 'note' }))],
+      'bar, line, scatter and slope charts',
+      result.diagnostics
+    );
   }
 
   // `sort` orders pie slices and bar categories (#1978); elsewhere it warns.
@@ -1066,8 +1111,13 @@ export function parseChart(
     });
   }
 
-  // Eras are only valid for line charts (incl. filled/area and multi-series).
-  if (result.type !== 'line') {
+  // Eras span the ordered axis of line and bar charts (#2039).
+  if (result.type !== 'line' && result.type !== 'bar') {
+    warnUnsupported(
+      parsedEras.map((e) => ({ kind: 'era', lineNumber: e.lineNumber })),
+      'line and bar charts',
+      result.diagnostics
+    );
     result.eras = [];
   }
 

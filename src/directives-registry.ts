@@ -669,10 +669,17 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
       'timeline',
     ],
   },
-  // ── Chart annotations (#1832) ─────────────────────────────
-  { token: 'ref-line', category: 'directive', chartTypes: ['bar', 'line'] },
-  { token: 'band', category: 'directive', chartTypes: ['bar', 'line'] },
-  { token: 'marker', category: 'directive', chartTypes: ['gantt', 'timeline'] },
+  // ── Chart annotations (#1832, #2039) ──────────────────────
+  {
+    token: 'band',
+    category: 'directive',
+    chartTypes: ['bar', 'line', 'scatter', 'slope'],
+  },
+  {
+    token: 'marker',
+    category: 'directive',
+    chartTypes: ['bar', 'gantt', 'line', 'scatter', 'slope', 'timeline'],
+  },
   { token: 'holiday', category: 'directive', chartTypes: ['gantt'] },
   // `workweek` is also the canonical weekday-window directive on clock and map
   // clock-cards (decision #48; `days` stays as the legacy alias).
@@ -976,7 +983,16 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   {
     token: 'no-notes',
     category: 'directive',
-    chartTypes: ['flowchart', 'goal', 'state', 'whiteboard'],
+    chartTypes: [
+      'bar',
+      'flowchart',
+      'goal',
+      'line',
+      'scatter',
+      'slope',
+      'state',
+      'whiteboard',
+    ],
   },
   // ── Emphasis family (§1.11, decision #49) ────────────────
   // `highlight <Name>…` / `dim <Name>…` — the figure/ground axis, orthogonal
@@ -1095,13 +1111,17 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
     // The note-card element. The chart frame's footer line is `footnote`,
     // in every chart type (#1827).
     chartTypes: [
+      'bar',
       'boxes-and-lines',
       'class',
       'countdown',
       'er',
       'flowchart',
       'goal',
+      'line',
+      'scatter',
       'sequence',
+      'slope',
       'state',
       'swimlane',
       'version-control',

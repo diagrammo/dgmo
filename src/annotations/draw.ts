@@ -1,9 +1,9 @@
 // ============================================================
-// Chart annotations — drawing on a value axis (#1832)
+// Chart annotations — drawing on a value axis (#1832, #2039)
 // ============================================================
 //
-// Bands go down first, behind gridlines and data. Reference lines go on top
-// of the data, with their label haloed so it reads over bars and lines.
+// Bands go down first, behind gridlines and data. Markers go on top of the
+// data, with their label haloed so it reads over bars and lines.
 
 import type { Svg } from '../charts-d3/shared';
 import { FONT_FAMILY } from '../fonts';
@@ -11,7 +11,12 @@ import { mix } from '../palettes/color-utils';
 import { labelBox } from '../utils/place-labels';
 import { measureText } from '../utils/text-measure';
 import type { LabelRect } from '../label-layout';
-import type { ChartAnnotation, ChartBand, ChartRefLine } from './types';
+import type {
+  AnnotationAxis,
+  ChartAnnotation,
+  ChartBand,
+  ChartMarker,
+} from './types';
 
 /** Annotation label size: a step under the tick labels, so it reads as chart furniture. */
 export const ANNOTATION_FONT = 11;
@@ -33,6 +38,9 @@ export interface ValueAxisFrame {
   readonly height: number;
   /** True when values run along x (horizontal bars). */
   readonly horizontal: boolean;
+  /** Cross-axis position → pixel (category centre, or scatter x); undefined
+   *  when the position is not on the axis. Absent: no cross markers. */
+  readonly crossPos?: (at: number | string) => number | undefined;
 }
 
 export interface AnnotationColors {
@@ -68,11 +76,12 @@ export function drawBands(
   svg: Svg,
   annotations: readonly ChartAnnotation[] | undefined,
   frame: ValueAxisFrame,
-  colors: AnnotationColors
+  colors: AnnotationColors,
+  axis: AnnotationAxis = 'value'
 ): LabelRect[] {
   const boxes: LabelRect[] = [];
   const bands = (annotations ?? []).filter(
-    (a): a is ChartBand => a.kind === 'band'
+    (a): a is ChartBand => a.kind === 'band' && a.axis === axis
   );
   for (const b of bands) {
     const sp = span(frame, b.from, b.to);
@@ -118,53 +127,58 @@ export function drawBands(
   return boxes;
 }
 
-/** Draws every `ref-line`; returns the label boxes other labels must clear. */
-export function drawRefLines(
+/** Draws every `marker`; returns the label boxes other labels must clear. */
+export function drawMarkers(
   svg: Svg,
   annotations: readonly ChartAnnotation[] | undefined,
   frame: ValueAxisFrame,
   colors: AnnotationColors
 ): LabelRect[] {
   const boxes: LabelRect[] = [];
-  const lines = (annotations ?? []).filter(
-    (a): a is ChartRefLine => a.kind === 'ref-line'
+  const markers = (annotations ?? []).filter(
+    (a): a is ChartMarker => a.kind === 'marker'
   );
-  for (const r of lines) {
-    if (!onAxis(frame, r.value)) continue;
-    const p = frame.pos(r.value);
-    if (!Number.isFinite(p)) continue;
+  for (const r of markers) {
+    let p: number | undefined;
+    if (r.axis === 'value') {
+      if (typeof r.at !== 'number' || !onAxis(frame, r.at)) continue;
+      p = frame.pos(r.at);
+    } else p = frame.crossPos?.(r.at);
+    if (p === undefined || !Number.isFinite(p)) continue;
+    // A value marker runs across the plot; a cross marker runs along it.
+    const vertical = r.axis === 'value' ? frame.horizontal : !frame.horizontal;
     const stroke = r.color ?? colors.text;
     const g = svg
       .append('g')
-      .attr('class', 'dgmo-annotation-ref-line')
+      .attr('class', 'dgmo-annotation-marker')
       .attr('data-line-number', r.lineNumber);
     g.append('line')
-      .attr('x1', frame.horizontal ? p : frame.left)
-      .attr('x2', frame.horizontal ? p : frame.left + frame.width)
-      .attr('y1', frame.horizontal ? frame.top : p)
-      .attr('y2', frame.horizontal ? frame.top + frame.height : p)
+      .attr('x1', vertical ? p : frame.left)
+      .attr('x2', vertical ? p : frame.left + frame.width)
+      .attr('y1', vertical ? frame.top : p)
+      .attr('y2', vertical ? frame.top + frame.height : p)
       .attr('stroke', stroke)
       .attr('stroke-width', 1.5)
       .attr('stroke-dasharray', '5 4');
     if (!r.label) continue;
-    // Vertical plot: right end, just above the line — below it when the
-    // line sits at the plot's top. Horizontal bars: top end, just right of
-    // the line — left of it when that would leave the plot.
+    // A horizontal line: label at its right end, just above — below it when
+    // the line sits at the plot's top. A vertical line: label at its top,
+    // just right of it — left of it when that would leave the plot.
     const w = measureText(r.label, ANNOTATION_FONT);
-    const flip = frame.horizontal
+    const flip = vertical
       ? p + LABEL_GAP + w > frame.left + frame.width
       : p - LABEL_GAP - ANNOTATION_FONT < frame.top;
-    const x = frame.horizontal
+    const x = vertical
       ? flip
         ? p - LABEL_GAP
         : p + LABEL_GAP
       : frame.left + frame.width;
-    const y = frame.horizontal
+    const y = vertical
       ? frame.top + ANNOTATION_FONT
       : flip
         ? p + LABEL_GAP + ANNOTATION_FONT
         : p - LABEL_GAP;
-    const anchor = frame.horizontal && !flip ? 'start' : 'end';
+    const anchor = vertical && !flip ? 'start' : 'end';
     g.append('text')
       .attr('x', x)
       .attr('y', y)

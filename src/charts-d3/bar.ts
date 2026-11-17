@@ -22,9 +22,12 @@ import { shareText, toShares } from '../utils/stack-share';
 import { tabularText } from '../utils/tabular-figures';
 import {
   drawBands,
-  drawRefLines,
+  drawMarkers,
   type ValueAxisFrame,
 } from '../annotations/draw';
+import { drawChartNotes, type PlacedNoteDatum } from '../annotations/notes';
+import { labelBox } from '../utils/place-labels';
+import { mix } from '../palettes/color-utils';
 import { fitLabel } from '../utils/fit-label';
 import { measureText } from '../utils/text-measure';
 import { createLabelPlacement, type LabelRect } from '../label-layout';
@@ -199,7 +202,7 @@ export function renderBar(
       : (d3min(perCat, (vals) => d3min(vals) ?? 0) ?? 0);
   // Domain always includes 0 (bars encode magnitude from a 0 baseline); with
   // negative data it extends below so bars grow either direction from 0.
-  // A `ref-line` or `band` (#1832) beyond the data widens the axis to it.
+  // A `marker` or `band` (#1832) beyond the data widens the axis to it.
   const marked = annotationValues(chart.annotations);
   const hiVal = Math.max(0, maxVal, ...marked);
   const loVal = Math.min(0, minVal, ...marked);
@@ -325,6 +328,11 @@ export function renderBar(
     width: plotW,
     height: plotH,
     horizontal: horiz,
+    crossPos: (at) => {
+      if (typeof at !== 'string') return undefined;
+      const b = cat(at);
+      return b === undefined ? undefined : b + cat.bandwidth() / 2;
+    },
   };
   const annotationColors = {
     text: textColor,
@@ -332,6 +340,42 @@ export function renderBar(
     bg: themeBaseBg(palette, isDark),
   };
   drawBands(svg, chart.annotations, annotationFrame, annotationColors);
+
+  // Eras (#2039): a span across whole categories, as on line.
+  const eraTitles: LabelRect[] = [];
+  (chart.eras ?? []).forEach((era, i) => {
+    const a = cat(era.start);
+    const b = cat(era.end);
+    if (a === undefined || b === undefined) return;
+    const s0 = Math.min(a, b) - (cat.step() * cat.paddingInner()) / 2;
+    const s1 =
+      Math.max(a, b) + cat.bandwidth() + (cat.step() * cat.paddingInner()) / 2;
+    const fill = era.color ?? colors[i % colors.length]!;
+    const g = svg
+      .append('g')
+      .attr('class', 'dgmo-era')
+      .attr('data-line-number', era.lineNumber);
+    g.append('rect')
+      .attr('x', horiz ? m.left : s0)
+      .attr('y', horiz ? s0 : m.top)
+      .attr('width', horiz ? plotW : s1 - s0)
+      .attr('height', horiz ? s1 - s0 : plotH)
+      .attr('fill', mix(fill, annotationColors.bg, 12));
+    if (!era.label) return;
+    const spot = horiz
+      ? { x: m.left + plotW - 4, y: s0 + 14, anchor: 'end' as const }
+      : { x: (s0 + s1) / 2, y: m.top + 14, anchor: 'middle' as const };
+    g.append('text')
+      .attr('x', spot.x)
+      .attr('y', spot.y)
+      .attr('text-anchor', spot.anchor)
+      .attr('fill', textColor)
+      .attr('font-size', TICK_FONT)
+      .attr('font-family', FONT_FAMILY)
+      .attr('opacity', 0.8)
+      .text(era.label);
+    eraTitles.push(labelBox(era.label, spot, TICK_FONT));
+  });
 
   // value-axis gridlines + ticks
   for (const t of val.ticks(6)) {
@@ -466,6 +510,10 @@ export function renderBar(
     };
   };
 
+  /** Where each bar ends (`category:series`), for a note's ring (#2039). */
+  const noteAt = new Map<string, [number, number]>();
+  const svgNode = svg.node();
+  const drawnBefore = svgNode ? svgNode.childNodes.length : 0;
   data.forEach((d, di) => {
     const base = cat(d.label) ?? 0;
     // Geometry values (shares under `stack 100%`); the source's own numbers.
@@ -526,6 +574,8 @@ export function renderBar(
         // down/left — the diverging-stack convention.
         const acc = v < 0 ? accNeg : accPos;
         const [from, to] = dSpans ? dSpans[s]! : [acc, acc + v];
+        const mid = base + cat.bandwidth() / 2;
+        noteAt.set(`${di}:${s}`, horiz ? [val(to), mid] : [mid, val(to)]);
         const segText = percent
           ? shareText(v)
           : fmt(diverging ? Math.abs(v) : v);
@@ -579,6 +629,8 @@ export function renderBar(
       } else {
         const off = inner!(s) ?? 0;
         const bw = inner!.bandwidth();
+        const mid = base + off + bw / 2;
+        noteAt.set(`${di}:${s}`, horiz ? [val(v), mid] : [mid, val(v)]);
         if (lollipop) {
           const c = base + off + bw / 2;
           const end = val(v);
@@ -652,7 +704,93 @@ export function renderBar(
     });
   });
 
-  drawRefLines(svg, chart.annotations, annotationFrame, annotationColors);
+  const markerLabels = drawMarkers(
+    svg,
+    chart.annotations,
+    annotationFrame,
+    annotationColors
+  );
+
+  // Notes (#2039): a ring on the bar's end, the text in clear plot space.
+  // A value label a note lands on yields to it.
+  if (chart.notes?.length && !chart.noNotes && svgNode) {
+    const drawn = Array.from(svgNode.childNodes).slice(
+      drawnBefore
+    ) as Element[];
+    const num = (e: Element, a: string) => Number(e.getAttribute(a) ?? 0);
+    const obstacles: LabelRect[] = [];
+    const values: { el: Element; box: LabelRect }[] = [];
+    for (const e of drawn) {
+      const tag = e.tagName.toLowerCase();
+      if (tag === 'rect')
+        obstacles.push({
+          x: num(e, 'x'),
+          y: num(e, 'y'),
+          w: num(e, 'width'),
+          h: num(e, 'height'),
+        });
+      else if (tag === 'circle') {
+        const r = num(e, 'r');
+        obstacles.push({
+          x: num(e, 'cx') - r,
+          y: num(e, 'cy') - r,
+          w: 2 * r,
+          h: 2 * r,
+        });
+      } else if (tag === 'text')
+        values.push({
+          el: e,
+          box: labelBox(
+            e.textContent ?? '',
+            {
+              x: num(e, 'x'),
+              y: num(e, 'y'),
+              anchor:
+                (e.getAttribute('text-anchor') as 'start' | 'middle' | 'end') ??
+                'middle',
+            },
+            VALUE_FONT
+          ),
+        });
+    }
+    const notes: PlacedNoteDatum[] = chart.notes.flatMap((n) => {
+      const at = noteAt.get(`${n.index}:${n.series}`);
+      return at
+        ? [
+            {
+              x: at[0],
+              y: at[1],
+              r: 0,
+              text: n.text,
+              color: n.color,
+              lineNumber: n.lineNumber,
+            },
+          ]
+        : [];
+    });
+    const boxes = drawChartNotes(svg, notes, {
+      plot: {
+        left: m.left,
+        top: m.top,
+        right: m.left + plotW,
+        bottom: m.top + plotH,
+      },
+      canvas: {
+        left: m.left,
+        top: m.top,
+        right: width,
+        bottom: m.top + plotH,
+      },
+      reserved: [...eraTitles, ...markerLabels],
+      obstacles,
+      colors: { text: textColor, bg: annotationColors.bg },
+      palette,
+    });
+    const hits = (a: LabelRect, b: LabelRect) =>
+      a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+    for (const v of values)
+      if (boxes.some((b) => hits(b, v.box))) v.el.remove();
+  }
 
   drawXAxisTitle(
     svg,
@@ -1048,7 +1186,7 @@ function renderClusteredStack(
     });
   }
 
-  drawRefLines(svg, chart.annotations, annotationFrame, annotationColors);
+  drawMarkers(svg, chart.annotations, annotationFrame, annotationColors);
   drawXAxisTitle(svg, chart.xlabel, m.left + plotW / 2, nameY + 30, textColor);
   drawYAxisTitle(svg, chart.ylabel, m.top + plotH / 2, 20, textColor);
 }

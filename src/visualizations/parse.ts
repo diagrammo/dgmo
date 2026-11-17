@@ -7,6 +7,14 @@
 // parseVisualization from this module, not from d3.ts. Behavior is identical.
 // ============================================================
 
+import type { RawAnnotation, RawChartNote } from '../annotations/types';
+import {
+  malformedAnnotation,
+  parseAnnotationLine,
+  parseChartNoteLine,
+  resolveAnnotations,
+  resolveChartNotes,
+} from '../annotations/parse';
 import { chartTypes, RETIRED_CHART_TYPES } from '../chart-types';
 import type { PaletteColors } from '../palettes';
 import { resolveColorWithDiagnostic } from '../colors';
@@ -234,6 +242,8 @@ function parseVisualizationFull(
   let inTimelineMarkerBlock = false;
   let timelineMarkerBlockIndent = 0;
   let inSlopePeriodBlock = false;
+  const slopeAnnotations: RawAnnotation[] = [];
+  const slopeNotes: RawChartNote[] = [];
   const timelineAliasMap = new Map<string, string>();
   const VALID_D3_TYPES = new Set([
     'slope',
@@ -318,6 +328,41 @@ function parseVisualizationFull(
     ) {
       inSlopePeriodBlock = false;
       continue;
+    }
+
+    // Annotations and notes on slope (#2039), column 1.
+    if (result.type === 'slope' && indent === 0) {
+      const annotation = parseAnnotationLine(
+        line,
+        lineNumber,
+        result.diagnostics,
+        palette
+      );
+      const malformed = annotation ? null : malformedAnnotation(line);
+      if (annotation || malformed) {
+        if (annotation) slopeAnnotations.push(annotation);
+        else warn(lineNumber, malformed!);
+        inSlopePeriodBlock = false;
+        continue;
+      }
+      const noteLine = parseChartNoteLine(
+        lines,
+        i,
+        0,
+        result.diagnostics,
+        palette
+      );
+      if (noteLine) {
+        slopeNotes.push(noteLine.note);
+        i = noteLine.lastIndex;
+        inSlopePeriodBlock = false;
+        continue;
+      }
+      if (line === 'no-notes') {
+        result.noNotes = true;
+        inSlopePeriodBlock = false;
+        continue;
+      }
     }
 
     if (result.type === 'slope' && indent === 0 && /^highlight\s/.test(line)) {
@@ -1660,6 +1705,24 @@ function parseVisualizationFull(
     result.data.flatMap((d) => d.values),
     result.diagnostics
   );
+
+  // Annotations (#2039): the periods are slope's category axis.
+  const annotations = resolveAnnotations(
+    slopeAnnotations,
+    { categories: result.periods },
+    result.diagnostics
+  );
+  if (annotations.length) result.annotations = annotations;
+  const notes = resolveChartNotes(
+    slopeNotes,
+    {
+      positions: result.periods,
+      series: result.data.map((d) => d.label),
+      multiSeries: true,
+    },
+    result.diagnostics
+  );
+  if (notes.length) result.notes = notes;
 
   return result;
 }

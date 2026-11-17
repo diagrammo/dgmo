@@ -29,6 +29,14 @@ import {
   storyPaint,
 } from '../utils/emphasis';
 import type { PaletteColors } from '../palettes';
+import type { Svg } from '../charts-d3/shared';
+import { annotationValues } from '../annotations/parse';
+import {
+  drawBands,
+  drawMarkers,
+  type ValueAxisFrame,
+} from '../annotations/draw';
+import { drawChartNotes, sampleLines } from '../annotations/notes';
 
 // ============================================================
 // Slope Chart Renderer
@@ -190,7 +198,11 @@ export function renderSlopeChart(
   const innerHeight = height - sPlotTop - sMarginBottom;
 
   // Scales
-  const allValues = data.flatMap((d) => d.values);
+  // A `marker` or `band` (#2039) beyond the data widens the range to it.
+  const allValues = [
+    ...data.flatMap((d) => d.values),
+    ...annotationValues(parsed.annotations),
+  ];
   const [minVal, maxVal] = d3Array.extent(allValues) as [number, number];
   const valuePadding = (maxVal - minVal) * 0.1 || 1;
 
@@ -237,6 +249,30 @@ export function renderSlopeChart(
       .attr('stroke-width', 1)
       .attr('stroke-dasharray', sDash);
   }
+
+  // Bands and markers (#2039), drawn in the plot's own coordinates.
+  const annotationFrame: ValueAxisFrame = {
+    pos: (v) => yScale(v),
+    domain: yScale.domain(),
+    left: 0,
+    top: 0,
+    width: innerWidth,
+    height: innerHeight,
+    horizontal: false,
+    crossPos: (at) => (typeof at === 'string' ? xScale(at) : undefined),
+  };
+  const annotationColors = {
+    text: textColor,
+    muted: palette.textMuted,
+    bg: bgColor,
+  };
+  const plotG = g as unknown as Svg;
+  const annotationBoxes = drawBands(
+    plotG,
+    parsed.annotations,
+    annotationFrame,
+    annotationColors
+  );
 
   // Line generator
   const lineGen = d3Shape
@@ -546,6 +582,47 @@ export function renderSlopeChart(
       });
     }
   });
+
+  annotationBoxes.push(
+    ...drawMarkers(plotG, parsed.annotations, annotationFrame, annotationColors)
+  );
+
+  // Notes (#2039): a ring on the point, the text in clear plot space.
+  if (parsed.notes?.length && !parsed.noNotes) {
+    const at = (s: number, i: number) =>
+      [xScale(periods[i]!)!, yScale(data[s]!.values[i]!)] as [number, number];
+    const plot = { left: 0, top: 0, right: innerWidth, bottom: innerHeight };
+    drawChartNotes(
+      plotG,
+      parsed.notes.map((n) => {
+        const [x, y] = at(n.series, n.index);
+        return {
+          x,
+          y,
+          r: sPointR,
+          text: n.text,
+          color: n.color,
+          lineNumber: n.lineNumber,
+        };
+      }),
+      {
+        plot,
+        canvas: plot,
+        reserved: annotationBoxes,
+        markers: [
+          ...data.flatMap((_, s) =>
+            periods.map((_p, i) => {
+              const [cx, cy] = at(s, i);
+              return { cx, cy, r: sPointR + 14 };
+            })
+          ),
+          ...sampleLines(data.map((_, s) => periods.map((_p, i) => at(s, i)))),
+        ],
+        colors: { text: textColor, bg: bgColor },
+        palette,
+      }
+    );
+  }
 
   // Chart frame (#1827): subtitle under the title, footer under the chart.
   growChartFrame(svg.node(), parsed.frame, palette, {

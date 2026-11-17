@@ -19,7 +19,14 @@ import { measureText } from '../utils/text-measure';
 import type { ParsedScatter } from '../data-chart-parser';
 import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
-import { shapeFill } from '../palettes/color-utils';
+import { shapeFill, themeBaseBg } from '../palettes/color-utils';
+import { annotationValues } from '../annotations/parse';
+import {
+  drawBands,
+  drawMarkers,
+  type ValueAxisFrame,
+} from '../annotations/draw';
+import { drawChartNotes } from '../annotations/notes';
 import {
   type Svg,
   type Margins,
@@ -208,8 +215,15 @@ export function renderScatter(
   const recedes = (p: (typeof points)[number]) =>
     dimmed.has(p.name) && (!p.category || dimmed.has(p.category));
 
-  const xs = points.map((p) => p.x);
-  const ys = points.map((p) => p.y);
+  // A `marker` or `band` (#2039) beyond the points widens its axis to it.
+  const xs = [
+    ...points.map((p) => p.x),
+    ...annotationValues(chart.annotations, 'cross'),
+  ];
+  const ys = [
+    ...points.map((p) => p.y),
+    ...annotationValues(chart.annotations, 'value'),
+  ];
   const xMin = Math.min(...xs);
   const xMax = Math.max(...xs);
   const yMin = Math.min(...ys);
@@ -281,6 +295,40 @@ export function renderScatter(
     .attr('height', plotH)
     .attr('fill', 'transparent')
     .attr('pointer-events', 'none');
+
+  // Bands (#2039) sit beneath the gridlines: `band` on y, `band x` on x.
+  const bgColor = themeBaseBg(palette, isDark);
+  const annotationColors = {
+    text: textColor,
+    muted: palette.textMuted,
+    bg: bgColor,
+  };
+  const yFrame: ValueAxisFrame = {
+    pos: (v) => y(v),
+    domain: y.domain(),
+    left: m.left,
+    top: m.top,
+    width: plotW,
+    height: plotH,
+    horizontal: false,
+    crossPos: (at) => {
+      if (typeof at !== 'number') return undefined;
+      const [d0, d1] = x.domain();
+      return at >= Math.min(d0, d1) && at <= Math.max(d0, d1)
+        ? x(at)
+        : undefined;
+    },
+  };
+  const xFrame: ValueAxisFrame = {
+    ...yFrame,
+    pos: (v) => x(v),
+    domain: x.domain(),
+    horizontal: true,
+  };
+  const annotationBoxes = [
+    ...drawBands(svg, chart.annotations, yFrame, annotationColors),
+    ...drawBands(svg, chart.annotations, xFrame, annotationColors, 'cross'),
+  ];
 
   // gridlines + ticks
   for (const t of y.ticks(6)) {
@@ -573,6 +621,43 @@ export function renderScatter(
         .text(p.name);
     }
   });
+
+  annotationBoxes.push(
+    ...drawMarkers(svg, chart.annotations, yFrame, annotationColors)
+  );
+
+  // Notes (#2039): a ring on the point, the text in clear plot space.
+  if (chart.notes?.length && !chart.noNotes) {
+    drawChartNotes(
+      svg,
+      chart.notes.map((n) => {
+        const p = points[n.index]!;
+        return {
+          x: x(p.x),
+          y: y(p.y),
+          r: radii[n.index]!,
+          text: n.text,
+          color: n.color,
+          lineNumber: n.lineNumber,
+        };
+      }),
+      {
+        plot: plotBounds,
+        canvas: { ...plotBounds, right: width },
+        reserved: [
+          ...annotationBoxes,
+          ...points.flatMap((_, i) => ownLabelRect(i)),
+        ],
+        markers: points.map((p, i) => ({
+          cx: x(p.x),
+          cy: y(p.y),
+          r: radii[i]! + 2,
+        })),
+        colors: { text: textColor, bg: bgColor },
+        palette,
+      }
+    );
+  }
 
   drawXAxisTitle(
     svg,

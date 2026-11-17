@@ -19,6 +19,11 @@ export const fixture: ConformanceFixture = {
     // #1830 axis range and scale.
     ...Y_AXIS_DIRECTIVES,
     'highlight',
+    // #2039 annotations.
+    'marker',
+    'band',
+    'note',
+    'no-notes',
   ],
   pipeKeys: {},
 };
