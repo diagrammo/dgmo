@@ -552,6 +552,18 @@ declare function render(source: string, options?: {
     chartType: string | undefined;
 }>;
 
+/** Every overlay directive dgmo knows. */
+type OverlayKind = 'mean' | 'median' | 'target' | 'trend' | 'moving-average' | 'extremes' | 'pareto';
+/** One parsed overlay directive. */
+interface ChartOverlay {
+    readonly kind: OverlayKind;
+    /** `target N`: the authored value. `moving-average N`: the window. */
+    readonly value?: number;
+    /** `target N below`: at or under N is good. */
+    readonly below?: boolean;
+    readonly lineNumber: number;
+}
+
 type ChartType$1 = 'bar' | 'line' | 'pie' | 'polar-area' | 'radar';
 interface ChartDataPoint {
     label: string;
@@ -672,6 +684,10 @@ interface ParsedChart {
     lollipop?: boolean;
     /** Line of the `lollipop` flag, for its diagnostics. */
     lollipopLineNumber?: number;
+    /** Statistics overlays (#1954): `mean`, `median`, `target N`, `trend`,
+     *  `moving-average N`, `extremes`, `pareto`. Only the ones this chart
+     *  draws survive parsing. */
+    overlays?: ChartOverlay[];
     /** Render a line chart filled, i.e. as an area (bare `fill`). (#25) */
     fill?: boolean;
     orientation?: 'horizontal' | 'vertical';
@@ -1168,6 +1184,8 @@ interface ParsedScatter extends ParsedExtendedBase {
     /** Bare `connect` (#1982): join the points in row order, one path per
      *  `[Category]`, with an arrowhead on the last segment. */
     connect?: boolean;
+    /** Statistics overlays (#1954): `trend`, one line per `[Category]`. */
+    overlays?: ChartOverlay[];
 }
 interface ParsedHeatmap extends ParsedExtendedBase {
     type: 'heatmap';

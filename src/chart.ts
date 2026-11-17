@@ -162,8 +162,9 @@ export interface ParsedChart {
   lollipop?: boolean;
   /** Line of the `lollipop` flag, for its diagnostics. */
   lollipopLineNumber?: number;
-  /** Statistics overlays (#1954): `mean`, `median`, `target N`. Only the
-   *  ones this chart draws survive parsing. */
+  /** Statistics overlays (#1954): `mean`, `median`, `target N`, `trend`,
+   *  `moving-average N`, `extremes`, `pareto`. Only the ones this chart
+   *  draws survive parsing. */
   overlays?: ChartOverlay[];
   /** Render a line chart filled, i.e. as an area (bare `fill`). (#25) */
   fill?: boolean;
