@@ -674,6 +674,7 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'median', category: 'directive', chartTypes: ['bar', 'line'] },
   { token: 'moving-average', category: 'directive', chartTypes: ['line'] },
   { token: 'extremes', category: 'directive', chartTypes: ['line'] },
+  { token: 'pareto', category: 'directive', chartTypes: ['bar'] },
   // ── Chart annotations (#1832, #2039) ──────────────────────
   {
     token: 'band',

@@ -304,6 +304,7 @@ const INVENTORY = {
     'orientation',
     'orientation-horizontal',
     'orientation-vertical',
+    'pareto',
     'period',
     'persona',
     'poi',

@@ -222,6 +222,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description:
           'Line at a goal; bars that reach it stay lit (target 100, target 5 below)',
       },
+      pareto: {
+        description:
+          'Sort largest first and add a cumulative-percent line on a right 0–100% axis',
+      },
       trend: {
         description:
           'Least-squares trend line per series, labelled with its slope per step',

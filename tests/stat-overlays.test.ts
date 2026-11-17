@@ -10,6 +10,7 @@ import {
   mean,
   median,
   movingAverage,
+  paretoCumulative,
   reachesTarget,
   roundStat,
 } from '../src/overlays/compute';
@@ -449,5 +450,101 @@ Q 3 7
 R 2 8`);
     expect(svg.querySelectorAll('circle.dgmo-extreme-high')).toHaveLength(2);
     expect(svg.querySelectorAll('circle.dgmo-extreme-low')).toHaveLength(2);
+  });
+});
+
+// Failed deliveries by cause (mockup picture 6), total 400:
+// 176 → 44%, +104 → 70%, +52 → 83%, +32 → 91%, +20 → 96%, +12 → 99%, +4 → 100%.
+const CAUSES = `bar Failed deliveries by cause
+pareto
+
+Other 4
+Damaged 104
+Customs 20
+Bad address 176
+Weather 12
+Late pickup 52
+Wrong item 32`;
+
+describe('pareto', () => {
+  it('cumulative shares of a hand-worked total', () => {
+    expect(paretoCumulative([176, 104, 52, 32, 20, 12, 4])).toEqual([
+      44, 70, 83, 91, 96, 99, 100,
+    ]);
+    expect(paretoCumulative([0, 0])).toEqual([0, 0]);
+  });
+  it('sorts the bars largest first', () => {
+    const p = parseChart(CAUSES);
+    expect(p.diagnostics).toEqual([]);
+    expect(p.data.map((d) => d.value)).toEqual([176, 104, 52, 32, 20, 12, 4]);
+  });
+  it('a stacked or grouped bar is an error and keeps its order', () => {
+    for (const layout of ['stack', 'group']) {
+      const p = parseChart(
+        `bar X\npareto\n${layout}\n  A\n  B\n\nP 1 2\nQ 5 6`
+      );
+      expect(p.overlays).toBeUndefined();
+      expect(p.diagnostics.map((d) => d.code)).toEqual([
+        'E_OVERLAY_PARETO_SERIES',
+      ]);
+      expect(p.data.map((d) => d.label)).toEqual(['P', 'Q']);
+    }
+  });
+  it('pareto on line warns as unsupported', () => {
+    const p = parseChart('line X\npareto\nA 1\nB 2');
+    expect(p.diagnostics.map((d) => d.code)).toEqual(['W_OVERLAY_UNSUPPORTED']);
+  });
+  it('horizontal is ignored with a warning', () => {
+    const p = parseChart(
+      CAUSES.replace('pareto', 'pareto\norientation-horizontal')
+    );
+    expect(p.orientation).toBeUndefined();
+    expect(p.diagnostics.map((d) => d.severity)).toEqual(['warning']);
+  });
+  it('draws a right percent axis, the 80% guide and the cumulative line', async () => {
+    const svg = await draw(CAUSES);
+    expect(texts(svg, '.dgmo-overlay-pareto-axis text')).toEqual([
+      '0%',
+      '20%',
+      '40%',
+      '60%',
+      '80%',
+      '100%',
+    ]);
+    expect(svg.querySelectorAll('line.dgmo-pareto-guide')).toHaveLength(1);
+    const pts = [...svg.querySelectorAll('circle.dgmo-pareto-pt')];
+    expect(pts.map((c) => c.getAttribute('data-value'))).toEqual([
+      '44%',
+      '70%',
+      '83%',
+      '91%',
+      '96%',
+      '99%',
+      '100%',
+    ]);
+    // Each point sits over its bar, and the line only climbs.
+    const ys = pts.map((c) => Number(c.getAttribute('cy')));
+    for (let i = 1; i < ys.length; i++)
+      expect(ys[i]!).toBeLessThanOrEqual(ys[i - 1]!);
+    const guide = svg.querySelector('line.dgmo-pareto-guide')!;
+    const top = Number(
+      [...svg.querySelectorAll('circle.dgmo-pareto-pt')]
+        .at(-1)!
+        .getAttribute('cy')
+    );
+    const zeroY = ys[0]! + ((44 / 100) * (ys[0]! - top)) / (1 - 0.44);
+    // 80% sits 80% of the way from the 0% line to the 100% point.
+    expect(Number(guide.getAttribute('y1'))).toBeCloseTo(
+      zeroY - 0.8 * (zeroY - top),
+      6
+    );
+    expect(texts(svg, '.dgmo-pareto-label')[0]).toBe('44%');
+  });
+  it('a long-named pareto never turns horizontal', async () => {
+    const svg = await draw(CAUSES);
+    const bars = [...svg.querySelectorAll('rect.dgmo-datum')];
+    const w = Number(bars[0]!.getAttribute('width'));
+    const h = Number(bars[0]!.getAttribute('height'));
+    expect(h).toBeGreaterThan(w);
   });
 });

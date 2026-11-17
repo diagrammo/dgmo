@@ -34,6 +34,7 @@ export const fixture: ConformanceFixture = {
     'median',
     'target',
     'trend',
+    'pareto',
     'no-value',
     'fill-tint',
     'fill-solid',

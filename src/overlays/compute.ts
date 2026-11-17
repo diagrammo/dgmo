@@ -121,3 +121,17 @@ export function extremes(
   });
   return high < 0 ? null : { high, low };
 }
+
+/**
+ * Pareto (#1954): each value's running share of the total, in percent, in
+ * the order given. The caller sorts largest first. The last entry is 100.
+ */
+export function paretoCumulative(values: readonly number[]): number[] {
+  const vs = values.map((v) => (Number.isFinite(v) ? v : 0));
+  const total = vs.reduce((a, b) => a + b, 0);
+  let run = 0;
+  return vs.map((v) => {
+    run += v;
+    return total === 0 ? 0 : (run / total) * 100;
+  });
+}

@@ -1276,10 +1276,24 @@ export function parseChart(
         type: result.type,
         stacked:
           result.barLayout === 'stack' || (result.clusters?.length ?? 0) > 0,
+        ...(result.barLayout && { layout: result.barLayout }),
       },
       result.diagnostics
     );
     if (kept.length) result.overlays = kept;
+    // `pareto` (#1954) sorts the bars largest first and draws columns.
+    const pareto = kept.find((o) => o.kind === 'pareto');
+    if (pareto) {
+      result.sort = 'desc';
+      delete result.sortSeries;
+      if (result.orientation === 'horizontal') {
+        warn(
+          pareto.lineNumber,
+          '`pareto` draws columns, with its percent axis on the right; ignoring `orientation-horizontal`.'
+        );
+        delete result.orientation;
+      }
+    }
   }
 
   if (!result.error && result.type === 'bar' && result.sort)

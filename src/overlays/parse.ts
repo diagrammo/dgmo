@@ -19,6 +19,7 @@ export const OVERLAY_CHARTS: Readonly<Record<OverlayKind, readonly string[]>> =
     trend: ['line', 'bar', 'scatter'],
     'moving-average': ['line'],
     extremes: ['line'],
+    pareto: ['bar'],
   };
 
 /** How each overlay is written, for messages and completion. */
@@ -29,6 +30,7 @@ export const OVERLAY_FORMS: Readonly<Record<OverlayKind, string>> = {
   trend: 'trend',
   'moving-average': 'moving-average N',
   extremes: 'extremes',
+  pareto: 'pareto',
 };
 
 const KINDS = Object.keys(OVERLAY_CHARTS) as OverlayKind[];
@@ -54,6 +56,7 @@ const NEAR_MISSES: Readonly<Record<string, string | undefined>> = {
   extreme: 'extremes',
   extrema: 'extremes',
   'min-max': 'extremes',
+  'pareto-chart': 'pareto',
 };
 
 export const OVERLAY_UNKNOWN_DX: DiagnosticSpec = {
@@ -89,10 +92,22 @@ export const OVERLAY_BAD_N_DX: DiagnosticSpec = {
   example: 'bar Sales\ntarget lots\nNorth 118',
 };
 
+export const OVERLAY_PARETO_SERIES_DX: DiagnosticSpec = {
+  code: 'E_OVERLAY_PARETO_SERIES',
+  severity: 'error',
+  chartType: 'bar',
+  title: 'pareto on a stacked or grouped bar',
+  message: (p) =>
+    `\`pareto\` needs one value per bar, so it cannot draw a \`${p.layout ?? 'stack'}\`; ignoring it.`,
+  hint: 'Remove the `stack` or `group` block and give each row one value, or remove `pareto`.',
+  example: 'bar Defects\npareto\nstack\n  A\n  B\nX 1 2',
+};
+
 export const OVERLAY_DIAGNOSTICS: DiagnosticSpec[] = [
   OVERLAY_UNKNOWN_DX,
   OVERLAY_UNSUPPORTED_DX,
   OVERLAY_BAD_N_DX,
+  OVERLAY_PARETO_SERIES_DX,
 ];
 
 const num = (tok: string | undefined): number | null => {
@@ -175,6 +190,8 @@ export interface OverlayHost {
   readonly type: string;
   /** A stacked layout: the drawn heights are running totals. */
   readonly stacked?: boolean;
+  /** The bar's `stack` / `group` block, if any. */
+  readonly layout?: 'stack' | 'group';
 }
 
 /**
@@ -197,6 +214,12 @@ export function settleOverlays(
           supported: joinAnd(charts),
           chart: host.type,
         })
+      );
+      continue;
+    }
+    if (o.kind === 'pareto' && host.layout) {
+      diagnostics.push(
+        emit(OVERLAY_PARETO_SERIES_DX, o.lineNumber, { layout: host.layout })
       );
       continue;
     }

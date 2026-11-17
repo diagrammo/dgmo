@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   raw line, which stays and is drawn thinner (`3-pt avg`, or `3-week avg`
   with `x-label Week`). `extremes` puts a filled marker on each series'
   highest and lowest point, labelled `peak 41 Jul` and `low 19 Jan`.
+- **`pareto` on a single-series bar (#1954).** Sorts the bars largest first
+  and adds the cumulative share as a line on a right 0–100% axis, with a
+  dashed 80% guide. On a `stack` or `group` it is an error,
+  `E_OVERLAY_PARETO_SERIES`.
 - **Theme style: `radius`, `stroke-weight` and `background` on a custom
   palette (#1836).** An embedded `palette` block takes `radius 0` (px for a
   standard card corner; every corner scales with it), `stroke-weight 1` (px

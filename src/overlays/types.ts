@@ -12,6 +12,8 @@
 //                        scatter     and bar, R² per category on scatter
 //   moving-average N     line        trailing N-point average, drawn thicker
 //   extremes             line        highest and lowest point of each series
+//   pareto               bar         sort largest first, cumulative-% line on
+//                                    a right 0–100% axis, dashed 80% guide
 
 /** Every overlay directive dgmo knows. */
 export type OverlayKind =
@@ -20,7 +22,8 @@ export type OverlayKind =
   | 'target'
   | 'trend'
   | 'moving-average'
-  | 'extremes';
+  | 'extremes'
+  | 'pareto';
 
 /** One parsed overlay directive. */
 export interface ChartOverlay {

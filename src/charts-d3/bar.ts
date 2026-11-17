@@ -35,7 +35,8 @@ import {
   trendPaths,
   trendUnit,
 } from '../overlays/draw';
-import { reachesTarget } from '../overlays/compute';
+import { paretoCumulative, reachesTarget } from '../overlays/compute';
+import { GRID_DASH } from '../utils/visual-conventions';
 import { labelBox } from '../utils/place-labels';
 import { mix } from '../palettes/color-utils';
 import { fitLabel } from '../utils/fit-label';
@@ -84,6 +85,10 @@ const NAME_LINE_PX = Math.round(TICK_FONT * 1.2);
 const LOLLIPOP_DOT_MAX = 6;
 /** Lollipop stem width. */
 const LOLLIPOP_STEM = 2;
+/** `pareto` (#1954): gap between the plot and the right percent ticks. */
+const PARETO_TICK_GAP = 10;
+/** `pareto`: the dashed guide's share, the 80 of 80/20. */
+const PARETO_GUIDE = 80;
 
 function seriesValues(
   pt: { value: number; extraValues?: number[] },
@@ -281,12 +286,18 @@ export function renderBar(
       height * (1 - PLOT_MIN_SHARE) - mTop - xTitleBand
     )
   );
+  // `pareto` (#1954): columns only, with a 0–100% axis in the right margin.
+  const pareto =
+    !stacked && !grouped && !!chart.overlays?.some((o) => o.kind === 'pareto');
+  const mRight = pareto
+    ? Math.max(32, measureText('100%', TICK_FONT) + PARETO_TICK_GAP + 8)
+    : 32;
   const verticalFit = authoredHorizontal
     ? null
     : planLabelsFitLeft(
         catLabels,
         computeLeftMargin(chart.ylabel, valueTicks, { tabular: true }),
-        (ml) => width - ml - 32,
+        (ml) => width - ml - mRight,
         (pw) => (data.length === 0 ? Infinity : pw / data.length),
         // scaleBand padding 0.3: first centre sits 0.65 steps in
         (pw) => (pw / (data.length + 0.3)) * 0.65,
@@ -298,6 +309,7 @@ export function renderBar(
   // long axis (dates, many points) keeps thinning and rotating.
   // A plan that cut its names counts too: once cut short they may fit flat.
   const flipped =
+    !pareto &&
     verticalFit !== null &&
     data.length <= FLIP_MAX_CATEGORIES &&
     (verticalFit.plan.rotate ||
@@ -331,12 +343,12 @@ export function renderBar(
     : computeLeftMargin(chart.ylabel, valueTicks, { tabular: true });
   const fit = horizontal ? null : verticalFit;
   const mLeft = fit ? fit.mLeft : mLeft0;
-  const plotW = fit ? fit.plotW : width - mLeft - 32;
+  const plotW = fit ? fit.plotW : width - mLeft - mRight;
   const labelPlan = fit?.plan ?? planCategoryLabels(catLabels, Infinity);
   const shown = fit?.shown ?? catLabels;
   const m: Margins = {
     top: mTop,
-    right: 32,
+    right: mRight,
     bottom: horizontal ? 64 : Math.max(64, labelPlan.height + xTitleBand),
     left: mLeft,
   };
@@ -481,6 +493,37 @@ export function renderBar(
       annotationFrame
     ),
   ];
+
+  // `pareto`: the right percent axis and the dashed 80% guide, behind the
+  // bars. The cumulative line goes on top, once the bars are down.
+  const paretoOverlay = pareto
+    ? chart.overlays!.find((o) => o.kind === 'pareto')!
+    : undefined;
+  const pctY = (p: number) => m.top + plotH - (p / 100) * plotH;
+  if (paretoOverlay) {
+    const g = svg
+      .append('g')
+      .attr('class', 'dgmo-overlay dgmo-overlay-pareto-axis')
+      .attr('data-line-number', paretoOverlay.lineNumber);
+    for (let t = 0; t <= 100; t += 20)
+      g.append('text')
+        .attr('x', m.left + plotW + PARETO_TICK_GAP)
+        .attr('y', pctY(t) + 4)
+        .attr('text-anchor', 'start')
+        .attr('fill', textColor)
+        .attr('font-size', TICK_FONT)
+        .attr('font-family', FONT_FAMILY)
+        .call(tabularText(`${t}%`, TICK_FONT));
+    g.append('line')
+      .attr('class', 'dgmo-pareto-guide')
+      .attr('x1', m.left)
+      .attr('x2', m.left + plotW)
+      .attr('y1', pctY(PARETO_GUIDE))
+      .attr('y2', pctY(PARETO_GUIDE))
+      .attr('stroke', palette.colors.red)
+      .attr('stroke-width', 1.25)
+      .attr('stroke-dasharray', GRID_DASH);
+  }
 
   // category labels
   if (horiz) {
@@ -766,7 +809,62 @@ export function renderBar(
     });
   });
 
+  // `pareto`: the cumulative share, one point per bar, labelled above.
+  const paretoLabels: LabelRect[] = [];
+  if (paretoOverlay) {
+    const cum = paretoCumulative(rawCat.map((vals) => vals[0]!));
+    const at = data.map(
+      (d, i) =>
+        [(cat(d.label) ?? 0) + cat.bandwidth() / 2, pctY(cum[i]!)] as const
+    );
+    const g = svg
+      .append('g')
+      .attr('class', 'dgmo-overlay dgmo-overlay-pareto')
+      .attr('data-line-number', paretoOverlay.lineNumber);
+    g.append('path')
+      .attr('d', at.map(([x, y], k) => `${k ? 'L' : 'M'}${x},${y}`).join(''))
+      .attr('fill', 'none')
+      .attr('stroke', textColor)
+      .attr('stroke-width', 2)
+      .attr('stroke-linejoin', 'round');
+    let lastRight = -Infinity;
+    at.forEach(([x, y], i) => {
+      g.append('circle')
+        .attr('class', 'dgmo-pareto-pt')
+        .attr('data-value', `${Math.round(cum[i]!)}%`)
+        .attr('cx', x)
+        .attr('cy', y)
+        .attr('r', 3.5)
+        .attr('fill', annotationColors.bg)
+        .attr('stroke', textColor)
+        .attr('stroke-width', 2);
+      // The last point is always 100%; the axis already says so.
+      if (i === at.length - 1) return;
+      const text = `${Math.round(cum[i]!)}%`;
+      const w = measureText(text, VALUE_FONT);
+      if (x - w / 2 < lastRight + 4) return;
+      lastRight = x + w / 2;
+      const ty = y - 8;
+      g.append('text')
+        .attr('class', 'dgmo-pareto-label')
+        .attr('x', x)
+        .attr('y', ty)
+        .attr('text-anchor', 'middle')
+        .attr('fill', textColor)
+        .attr('font-size', VALUE_FONT)
+        .attr('font-weight', 600)
+        .attr('font-family', FONT_FAMILY)
+        .attr('stroke', annotationColors.bg)
+        .attr('stroke-width', 3)
+        .attr('stroke-linejoin', 'round')
+        .attr('paint-order', 'stroke')
+        .call(tabularText(text, VALUE_FONT));
+      paretoLabels.push({ x: x - w / 2, y: ty - VALUE_FONT, w, h: VALUE_FONT });
+    });
+  }
+
   const markerLabels = [
+    ...paretoLabels,
     ...drawMarkers(svg, chart.annotations, annotationFrame, annotationColors),
     ...drawOverlayLabels(
       svg,
