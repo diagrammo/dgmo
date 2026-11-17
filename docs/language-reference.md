@@ -2248,15 +2248,15 @@ pool Insurer
     join -> (Paid)
 ```
 
-| Element | Write |
-| --- | --- |
-| Pool | `pool Insurer` at indent 0; its `lane` blocks indent under it |
-| Outside party (collapsed pool) | `pool Customer` with no lanes — it can only send or receive `~>` |
-| Message flow | `A ~> B` — dashed, open circle at the source, hollow head; only between different pools (a pool itself can be either end) |
-| Message / timer / signal event | `(Claim received) message`, `(Every Monday) timer`, `(Alarm) signal` |
-| Task marker | `Review type: user` — also `service`, `manual`, `script`, `send` (filled envelope), `receive` (hollow envelope) |
-| Boundary event | an event line indented under a task: `(5 days) timer -> Escalate` sits on the task's bottom edge (right edge in `direction-tb`); its arrow is the exception path |
-| Unlabelled gateway | `<>`, `<+>`, `<o>`, `<*>` with `as name` (§2A) |
+| Element                               | Write                                                                                                                                                              |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Pool                                  | `pool Insurer` at indent 0; its `lane` blocks indent under it                                                                                                      |
+| Outside party (collapsed pool)        | `pool Customer` with no lanes — it can only send or receive `~>`                                                                                                   |
+| Message flow                          | `A ~> B` — dashed, open circle at the source, hollow head; only between different pools (a pool itself can be either end)                                          |
+| Message / timer / signal event        | `(Claim received) message`, `(Every Monday) timer`, `(Alarm) signal`                                                                                               |
+| Task marker                           | `Review type: user` — also `service`, `manual`, `script`, `send` (filled envelope), `receive` (hollow envelope)                                                    |
+| Boundary event                        | an event line indented under a task: `(5 days) timer -> Escalate` sits on the task's bottom edge (right edge in `direction-tb`); its arrow is the exception path   |
+| Unlabelled gateway                    | `<>`, `<+>`, `<o>`, `<*>` with `as name` (§2A)                                                                                                                     |
 | Data store / data object / annotation | `store: Policy DB`, `data: Claim form`, `note: Under 5k…` on a node, joined by a dotted line. `note:` runs to the end of the line, commas included, so put it last |
 
 - A diagram with no `pool` lines is a plain swimlane, unchanged. Once a diagram has pools, every lane belongs to one (`E_SWIMLANE_LANE_OUTSIDE_POOL`).
