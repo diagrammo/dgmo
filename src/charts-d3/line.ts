@@ -42,8 +42,11 @@ import { resolveVerticalCollisions } from '../slope/renderer';
 import {
   drawOverlayLabels,
   drawOverlayLevels,
+  drawOverlayPaths,
   overlayLevels,
   targetOf,
+  trendPaths,
+  trendUnit,
   type OverlayLabel,
 } from '../overlays/draw';
 import { reachesTarget } from '../overlays/compute';
@@ -358,6 +361,12 @@ export function renderLine(
   /** Row → x. Dated rows sit at their time; category rows at their slot. */
   const xOfRow = (i: number): number =>
     dateAxis && dates ? dateAxis.x(dates[i]!) : (pointX(data[i]!.label) ?? 0);
+  /** A fractional row → x, between its two rows (for computed lines). */
+  const xAtRow = (i: number): number => {
+    const a = Math.floor(i);
+    const b = Math.min(data.length - 1, a + 1);
+    return xOfRow(a) + (i - a) * (xOfRow(b) - xOfRow(a));
+  };
   const xOfLabel = (label: string): number | undefined => {
     if (!dateAxis) return pointX(label);
     const i = data.findIndex((d) => d.label === label);
@@ -576,24 +585,38 @@ export function renderLine(
       const own = drawn.filter((s) => axisOf(s) === side);
       const axis = side === 'right' ? yR : yL;
       if (!axis || (own.length === 0 && side === 'right')) continue;
+      const series = own.map((s) => ({
+        ...(multi && { name: nameOf(s) }),
+        values: rawRows.map((r) => r[s]!),
+        color: multi ? seriesColor(s) : textColor,
+      }));
+      const frame = {
+        ...annotationFrame,
+        pos: (v: number) => axis(v),
+        domain: axis.domain(),
+      };
+      const sideFmt = side === 'right' ? fmtR : fmt;
       const levels = overlayLevels(
         side === 'right'
           ? chart.overlays.filter((o) => o.kind !== 'target')
           : chart.overlays,
-        own.map((s) => ({
-          ...(multi && { name: nameOf(s) }),
-          values: rawRows.map((r) => r[s]!),
-          color: multi ? seriesColor(s) : textColor,
-        })),
-        side === 'right' ? fmtR : fmt,
+        series,
+        sideFmt,
         palette.colors.red
       );
       overlayLabels.push(
-        ...drawOverlayLevels(svg, levels, {
-          ...annotationFrame,
-          pos: (v) => axis(v),
-          domain: axis.domain(),
-        })
+        ...drawOverlayLevels(svg, levels, frame),
+        ...drawOverlayPaths(
+          svg,
+          trendPaths(
+            chart.overlays,
+            series,
+            xAtRow,
+            sideFmt,
+            trendUnit(chart.xlabel)
+          ),
+          frame
+        )
       );
     }
   }

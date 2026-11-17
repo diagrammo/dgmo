@@ -41,3 +41,49 @@ export function roundStat(v: number): number {
   if (Math.abs(v) >= 100) return Math.round(v);
   return Number(v.toPrecision(3));
 }
+
+/** A least-squares line y = intercept + slope · x, and how well it fits. */
+export interface LinearFit {
+  readonly slope: number;
+  readonly intercept: number;
+  /** Coefficient of determination, 0–1. 1 when every y is equal. */
+  readonly r2: number;
+}
+
+/**
+ * Ordinary least squares over the pairs where both x and y are finite.
+ * Null when fewer than two such pairs, or every x is the same.
+ */
+export function linearFit(
+  xs: readonly number[],
+  ys: readonly number[]
+): LinearFit | null {
+  const px: number[] = [];
+  const py: number[] = [];
+  for (let i = 0; i < Math.min(xs.length, ys.length); i++)
+    if (Number.isFinite(xs[i]) && Number.isFinite(ys[i])) {
+      px.push(xs[i]!);
+      py.push(ys[i]!);
+    }
+  const n = px.length;
+  if (n < 2) return null;
+  const mx = px.reduce((a, b) => a + b, 0) / n;
+  const my = py.reduce((a, b) => a + b, 0) / n;
+  let sxx = 0;
+  let sxy = 0;
+  let syy = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = px[i]! - mx;
+    const dy = py[i]! - my;
+    sxx += dx * dx;
+    sxy += dx * dy;
+    syy += dy * dy;
+  }
+  if (sxx === 0) return null;
+  const slope = sxy / sxx;
+  return {
+    slope,
+    intercept: my - slope * mx,
+    r2: syy === 0 ? 1 : (sxy * sxy) / (sxx * syy),
+  };
+}

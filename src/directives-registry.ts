@@ -707,7 +707,12 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
     category: 'directive',
     chartTypes: ['tech-radar'],
   },
-  { token: 'trend', category: 'directive', chartTypes: ['tech-radar'] },
+  // `trend` is also a statistics overlay on bar, line and scatter (#1954).
+  {
+    token: 'trend',
+    category: 'directive',
+    chartTypes: ['bar', 'line', 'scatter', 'tech-radar'],
+  },
   // ── Tags / shared directives ─────────────────────────────
   { token: 'tags', category: 'directive', chartTypes: 'all' },
   { token: 'import', category: 'directive', chartTypes: 'all' },

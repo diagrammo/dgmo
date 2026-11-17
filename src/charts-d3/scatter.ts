@@ -28,6 +28,12 @@ import {
 } from '../annotations/draw';
 import { drawChartNotes } from '../annotations/notes';
 import {
+  drawOverlayLabels,
+  drawOverlayPaths,
+  type OverlayPath,
+} from '../overlays/draw';
+import { linearFit } from '../overlays/compute';
+import {
   type Svg,
   type Margins,
   TICK_FONT,
@@ -380,6 +386,44 @@ export function renderScatter(
       ? catColor(p.category, catIndex.get(p.category) ?? 0)
       : colors[i % colors.length]!);
 
+  // `trend` (#1954): one least-squares line per category, behind the
+  // points, across that category's x range, labelled with its R².
+  const trend = chart.overlays?.find((o) => o.kind === 'trend');
+  const trendPaths: OverlayPath[] = [];
+  if (trend) {
+    const groups = new Map<string, number[]>();
+    points.forEach((p, i) => {
+      const key = p.category ?? '';
+      groups.set(key, [...(groups.get(key) ?? []), i]);
+    });
+    const several = groups.size > 1;
+    for (const [cat, ix] of groups) {
+      const xsOf = ix.map((i) => points[i]!.x);
+      const fit = linearFit(
+        xsOf,
+        ix.map((i) => points[i]!.y)
+      );
+      if (!fit) continue;
+      const lo = Math.min(...xsOf);
+      const hi = Math.max(...xsOf);
+      // Sampled, so the line stays true on a log x axis.
+      const STEPS = 24;
+      const pts = Array.from({ length: STEPS + 1 }, (_, k) => {
+        const xv = lo + ((hi - lo) * k) / STEPS;
+        return { at: x(xv), v: fit.intercept + fit.slope * xv };
+      }).filter((p) => Number.isFinite(p.at));
+      trendPaths.push({
+        kind: 'trend',
+        points: pts,
+        label: `${several && cat ? `${cat} ` : ''}R² ${fit.r2.toFixed(2)}`,
+        color:
+          several && cat ? catColor(cat, catIndex.get(cat) ?? 0) : textColor,
+        lineNumber: trend.lineNumber,
+      });
+    }
+  }
+  const trendLabels = drawOverlayPaths(svg, trendPaths, yFrame);
+
   // `connect` (#1982): one path per category (points outside any category share one),
   // in row order. A path of one point draws nothing.
   const paths = chart.connect ? connectPaths(points) : [];
@@ -623,7 +667,8 @@ export function renderScatter(
   });
 
   annotationBoxes.push(
-    ...drawMarkers(svg, chart.annotations, yFrame, annotationColors)
+    ...drawMarkers(svg, chart.annotations, yFrame, annotationColors),
+    ...drawOverlayLabels(svg, trendLabels, yFrame, bgColor)
   );
 
   // Notes (#2039): a ring on the point, the text in clear plot space.

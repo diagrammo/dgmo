@@ -1,0 +1,22 @@
+scatter Skill score vs training hours
+x-label Training hours
+y-label Skill score
+trend
+
+[Mentored] blue
+  Ana 4 31
+  Ben 8 36
+  Cara 12 44
+  Dev 18 47
+  Eli 22 55
+  Fay 28 61
+  Gus 34 64
+  Hal 40 72
+[Self-taught] orange
+  Ivy 6 42
+  Jo 10 51
+  Kai 16 47
+  Lea 20 55
+  Max 26 52
+  Ned 30 60
+  Oz 38 49

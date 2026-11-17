@@ -8,9 +8,11 @@
 //   mean                 line, bar   dashed horizontal line
 //   median               line, bar   dotted horizontal line
 //   target N [below]     line, bar   an authored line; what reaches it is lit
+//   trend                line, bar,  least-squares line; slope label on line
+//                        scatter     and bar, R² per category on scatter
 
 /** Every overlay directive dgmo knows. */
-export type OverlayKind = 'mean' | 'median' | 'target';
+export type OverlayKind = 'mean' | 'median' | 'target' | 'trend';
 
 /** One parsed overlay directive. */
 export interface ChartOverlay {

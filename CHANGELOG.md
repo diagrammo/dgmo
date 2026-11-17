@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   N the good side. No legend entry. Diagnostics: `W_OVERLAY_UNKNOWN`
   (`average`, `mode`, a misspelling), `W_OVERLAY_UNSUPPORTED` (pie, stacked
   charts), `E_OVERLAY_BAD_N`.
+- **`trend` on bar, line and scatter (#1954).** A dashed least-squares line
+  per series, labelled with its slope per x step (`trend +1.68/step`, the
+  step named by a one-word `x-label`). On scatter, one line per `[Category]`
+  labelled with its R² (`Mentored R² 0.95`).
 - **Theme style: `radius`, `stroke-weight` and `background` on a custom
   palette (#1836).** An embedded `palette` block takes `radius 0` (px for a
   standard card corner; every corner scales with it), `stroke-weight 1` (px

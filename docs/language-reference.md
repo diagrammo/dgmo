@@ -3107,12 +3107,13 @@ Apr 1180
 May 360
 ```
 
-| Directive        | Charts    | Draws                                                                |
-| ---------------- | --------- | -------------------------------------------------------------------- |
-| `mean`           | line, bar | a dashed horizontal line at the mean                                 |
-| `median`         | line, bar | a dotted horizontal line at the median                               |
-| `target N`       | line, bar | a line at N; bars and points that reach it are lit, the rest go grey |
-| `target N below` | line, bar | the same, but at or under N is good (costs, error rates)             |
+| Directive        | Charts    | Draws                                                                               |
+| ---------------- | --------- | ----------------------------------------------------------------------------------- |
+| `mean`           | line, bar | a dashed horizontal line at the mean                                                |
+| `median`         | line, bar | a dotted horizontal line at the median                                              |
+| `target N`       | line, bar | a line at N; bars and points that reach it are lit, the rest go grey                |
+| `target N below` | line, bar | the same, but at or under N is good (costs, error rates)                            |
+| `trend`          | line, bar | a dashed least-squares line through each series, labelled with its slope per x step |
 
 - Each overlay is labelled at the right end of its line, in the line's colour:
   `mean 441`, `median 380`, `target 100`. There is no legend entry. Labels
@@ -3122,6 +3123,11 @@ May 360
   the series' colour, labelled with its name (`EU mean 56.9`). A dual-axis line
   draws each on its own axis. `target` is one line on the left axis.
 - A `target` beyond the data widens the value axis to reach it.
+- `trend` fits each series against its row position, so its slope is per x
+  step: `trend +1.68/step`. A one-word `x-label` names the step
+  (`x-label Week` → `trend +1.68/week`). The line runs from the first row with
+  a value to the last, and stops at the plot edge. On scatter it is one line
+  per category, labelled with its R² (§15.2).
 - Overlays are lowercase and stand alone on their line, so a data row named
   `Target 120` or `mean 40` stays data.
 - There is no `average` (write `mean`) and no mode. An unknown overlay word
@@ -3179,6 +3185,25 @@ straight segments, to show a path through time (#1982):
 - A single point, or a category with one point, draws no path and no
   arrowhead.
 - `highlight` greys the paths it does not name, with their points.
+
+**Trend line** — a bare `trend` draws a dashed least-squares line through the
+points (#1954):
+
+```
+scatter Skill score vs training hours
+trend
+[Mentored] blue
+  Ana 4 31
+  Ben 12 44
+```
+
+- One line per `[Category]`, in its colour, across that category's x range,
+  labelled with its R² at the right end: `Mentored R² 0.95`. Points outside
+  any category share one line; a chart with no categories gets one line
+  labelled `R² 0.95`.
+- A category with fewer than two points, or with every x equal, draws none.
+- `mean`, `median` and `target` are not drawn on scatter; they warn and are
+  ignored (§15.1.6).
 
 ### 15.3 Heatmap
 

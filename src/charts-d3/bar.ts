@@ -29,8 +29,11 @@ import { drawChartNotes, type PlacedNoteDatum } from '../annotations/notes';
 import {
   drawOverlayLabels,
   drawOverlayLevels,
+  drawOverlayPaths,
   overlayLevels,
   targetOf,
+  trendPaths,
+  trendUnit,
 } from '../overlays/draw';
 import { reachesTarget } from '../overlays/compute';
 import { labelBox } from '../utils/place-labels';
@@ -452,22 +455,32 @@ export function renderBar(
     }
   }
 
-  // Statistics overlays (#1954): one mean / median per series, in its
-  // colour on a multi-series bar, behind the bars.
-  const overlayLabels = drawOverlayLevels(
-    svg,
-    overlayLevels(
-      stacked ? undefined : chart.overlays,
-      Array.from({ length: seriesCount }, (_, s) => ({
-        ...(multiSeries && { name: seriesNames[s] ?? '' }),
-        values: rawCat.map((vals) => vals[s]!),
-        color: multiSeries ? colorFor(s, 1) : textColor,
-      })),
-      fmt,
-      palette.colors.red
+  // Statistics overlays (#1954): one mean / median / trend per series, in
+  // its colour on a multi-series bar, behind the bars.
+  const overlays = stacked ? undefined : chart.overlays;
+  const overlaySeries = Array.from({ length: seriesCount }, (_, s) => ({
+    ...(multiSeries && { name: seriesNames[s] ?? '' }),
+    values: rawCat.map((vals) => vals[s]!),
+    color: multiSeries ? colorFor(s, 1) : textColor,
+  }));
+  const overlayLabels = [
+    ...drawOverlayLevels(
+      svg,
+      overlayLevels(overlays, overlaySeries, fmt, palette.colors.red),
+      annotationFrame
     ),
-    annotationFrame
-  );
+    ...drawOverlayPaths(
+      svg,
+      trendPaths(
+        overlays,
+        overlaySeries,
+        (i) => (cat(data[i]!.label) ?? 0) + cat.bandwidth() / 2,
+        fmt,
+        trendUnit(chart.xlabel)
+      ),
+      annotationFrame
+    ),
+  ];
 
   // category labels
   if (horiz) {

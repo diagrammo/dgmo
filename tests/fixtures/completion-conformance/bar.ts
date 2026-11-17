@@ -33,6 +33,7 @@ export const fixture: ConformanceFixture = {
     'mean',
     'median',
     'target',
+    'trend',
     'no-value',
     'fill-tint',
     'fill-solid',

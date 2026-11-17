@@ -36,6 +36,8 @@ export const fixture: ConformanceFixture = {
     'band',
     'note',
     'no-notes',
+    // #1954 statistics overlays.
+    'trend',
   ],
   pipeKeys: {},
 };

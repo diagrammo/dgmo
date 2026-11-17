@@ -11,8 +11,12 @@ import { ANNOTATION_FONT, type ValueAxisFrame } from '../annotations/draw';
 import { FONT_FAMILY } from '../fonts';
 import type { LabelRect } from '../label-layout';
 import { measureText } from '../utils/text-measure';
-import { GRID_DASH, HAIRLINE_DASH } from '../utils/visual-conventions';
-import { mean, median, roundStat } from './compute';
+import {
+  EDGE_DASH,
+  GRID_DASH,
+  HAIRLINE_DASH,
+} from '../utils/visual-conventions';
+import { linearFit, mean, median, roundStat } from './compute';
 import type { ChartOverlay, OverlayKind } from './types';
 
 /** Gap between a line and its label. */
@@ -26,6 +30,7 @@ const DASH: Partial<Record<OverlayKind, string>> = {
   mean: GRID_DASH,
   median: HAIRLINE_DASH,
   target: GRID_DASH,
+  trend: EDGE_DASH,
 };
 
 /** A horizontal (value-axis) overlay line, before it is placed. */
@@ -221,4 +226,150 @@ export function targetOf(
   overlays: readonly ChartOverlay[] | undefined
 ): ChartOverlay | undefined {
   return overlays?.find((o) => o.kind === 'target');
+}
+
+/** A computed overlay line through the plot: a trend, or a smoothed copy. */
+export interface OverlayPath {
+  readonly kind: OverlayKind;
+  /** Vertices: `at` is the pixel on the cross axis, `v` the value. */
+  readonly points: readonly { readonly at: number; readonly v: number }[];
+  readonly label: string;
+  readonly color: string;
+  readonly lineNumber: number;
+}
+
+/**
+ * The part of a polyline whose values lie on the axis, cut where it leaves.
+ * A fitted line can run past the data at its ends; it stops at the plot edge.
+ */
+export function clipToDomain(
+  points: readonly { at: number; v: number }[],
+  domain: readonly [number, number]
+): { at: number; v: number }[] {
+  const lo = Math.min(domain[0], domain[1]);
+  const hi = Math.max(domain[0], domain[1]);
+  const out: { at: number; v: number }[] = [];
+  const push = (p: { at: number; v: number }) => {
+    const last = out.at(-1);
+    if (last?.at !== p.at || last.v !== p.v) out.push(p);
+  };
+  if (points.length === 1) {
+    const p = points[0]!;
+    return p.v >= lo && p.v <= hi ? [{ ...p }] : [];
+  }
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1]!;
+    const b = points[i]!;
+    let t0 = 0;
+    let t1 = 1;
+    if (a.v === b.v) {
+      if (a.v < lo || a.v > hi) continue;
+    } else {
+      const tl = (lo - a.v) / (b.v - a.v);
+      const th = (hi - a.v) / (b.v - a.v);
+      t0 = Math.max(0, Math.min(tl, th));
+      t1 = Math.min(1, Math.max(tl, th));
+      if (t0 > t1) continue;
+    }
+    const at = (t: number) => ({
+      at: a.at + t * (b.at - a.at),
+      v: a.v + t * (b.v - a.v),
+    });
+    push(at(t0));
+    push(at(t1));
+  }
+  return out;
+}
+
+/**
+ * Draws each path behind the series. Returns the labels for their far ends.
+ */
+export function drawOverlayPaths(
+  svg: Svg,
+  paths: readonly OverlayPath[],
+  frame: ValueAxisFrame
+): OverlayLabel[] {
+  const labels: OverlayLabel[] = [];
+  for (const path of paths) {
+    const pts = clipToDomain(path.points, frame.domain).map(({ at, v }) => {
+      const p = frame.pos(v);
+      return frame.horizontal ? ([p, at] as const) : ([at, p] as const);
+    });
+    if (pts.length < 2) continue;
+    const g = svg
+      .append('g')
+      .attr('class', `dgmo-overlay dgmo-overlay-${path.kind}`)
+      .attr('data-line-number', path.lineNumber);
+    const line = g
+      .append('path')
+      .attr('d', pts.map(([x, y], k) => `${k ? 'L' : 'M'}${x},${y}`).join(''))
+      .attr('fill', 'none')
+      .attr('stroke', path.color)
+      .attr('stroke-width', OVERLAY_STROKE)
+      .attr('stroke-linejoin', 'round');
+    const dash = DASH[path.kind];
+    if (dash) line.attr('stroke-dasharray', dash);
+    if (!path.label) continue;
+    const [x, y] = pts.at(-1)!;
+    labels.push({
+      text: path.label,
+      x,
+      y,
+      color: path.color,
+      lineNumber: path.lineNumber,
+      kind: path.kind,
+    });
+  }
+  return labels;
+}
+
+/** The unit in a trend's slope label: the x-axis label when it is one word. */
+export function trendUnit(xlabel: string | undefined): string {
+  const word = xlabel?.trim() ?? '';
+  return /^[\p{L}]+$/u.test(word) ? word.toLowerCase() : 'step';
+}
+
+/** `+1.68` / `-0.5`: a slope with its sign, rounded like every overlay. */
+function signed(v: number, fmt: (v: number) => string): string {
+  const r = roundStat(v);
+  return `${r > 0 ? '+' : ''}${fmt(r)}`;
+}
+
+/**
+ * `trend` on a line or bar (#1954): a least-squares line per series over
+ * its rows, x being the row's position. Labelled with its slope per x step.
+ */
+export function trendPaths(
+  overlays: readonly ChartOverlay[] | undefined,
+  series: readonly OverlaySeries[],
+  cross: (i: number) => number,
+  fmt: (v: number) => string,
+  unit: string
+): OverlayPath[] {
+  const trend = overlays?.find((o) => o.kind === 'trend');
+  if (!trend) return [];
+  const out: OverlayPath[] = [];
+  for (const s of series) {
+    const fit = linearFit(
+      s.values.map((_, i) => i),
+      s.values
+    );
+    if (!fit) continue;
+    const rows = s.values
+      .map((v, i) => (Number.isFinite(v) ? i : -1))
+      .filter((i) => i >= 0);
+    const first = rows[0]!;
+    const last = rows.at(-1)!;
+    const points = [];
+    for (let i = first; i <= last; i++)
+      points.push({ at: cross(i), v: fit.intercept + fit.slope * i });
+    out.push({
+      kind: 'trend',
+      points,
+      label: `${s.name ? `${s.name} ` : ''}trend ${signed(fit.slope, fmt)}/${unit}`,
+      color: s.color,
+      lineNumber: trend.lineNumber,
+    });
+  }
+  return out;
 }

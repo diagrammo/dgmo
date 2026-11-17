@@ -16,6 +16,7 @@ export const OVERLAY_CHARTS: Readonly<Record<OverlayKind, readonly string[]>> =
     mean: ['line', 'bar'],
     median: ['line', 'bar'],
     target: ['line', 'bar'],
+    trend: ['line', 'bar', 'scatter'],
   };
 
 /** How each overlay is written, for messages and completion. */
@@ -23,6 +24,7 @@ export const OVERLAY_FORMS: Readonly<Record<OverlayKind, string>> = {
   mean: 'mean',
   median: 'median',
   target: 'target N',
+  trend: 'trend',
 };
 
 const KINDS = Object.keys(OVERLAY_CHARTS) as OverlayKind[];
@@ -40,6 +42,9 @@ const NEAR_MISSES: Readonly<Record<string, string | undefined>> = {
   'mean-line': 'mean',
   'median-line': 'median',
   goal: 'target',
+  trendline: 'trend',
+  'trend-line': 'trend',
+  regression: 'trend',
 };
 
 export const OVERLAY_UNKNOWN_DX: DiagnosticSpec = {

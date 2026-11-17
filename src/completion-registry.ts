@@ -222,6 +222,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description:
           'Line at a goal; bars that reach it stay lit (target 100, target 5 below)',
       },
+      trend: {
+        description:
+          'Least-squares trend line per series, labelled with its slope per step',
+      },
       'no-notes': { description: 'Hide every note' },
       color: { description: 'Bar color override' },
       highlight: {
@@ -284,6 +288,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       target: {
         description:
           'Line at a goal; points that reach it are filled (target 100, target 5 below)',
+      },
+      trend: {
+        description:
+          'Least-squares trend line per series, labelled with its slope per step',
       },
       'no-notes': { description: 'Hide every note' },
       band: {
@@ -395,6 +403,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       marker: {
         description:
           'Dashed line at a y value, or an x value with marker x (marker 50 Target)',
+      },
+      trend: {
+        description:
+          'Least-squares trend line per category, labelled with its R²',
       },
       band: {
         description:

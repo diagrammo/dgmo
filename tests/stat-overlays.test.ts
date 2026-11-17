@@ -5,11 +5,13 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { parseChart } from '../src/chart';
 import { renderDataChartD3 } from '../src/charts-d3/index';
 import {
+  linearFit,
   mean,
   median,
   reachesTarget,
   roundStat,
 } from '../src/overlays/compute';
+import { clipToDomain, trendUnit } from '../src/overlays/draw';
 
 /** New sign-ups, 2026 (mockup picture 1). Sum 5295 over 12 months. */
 const SIGNUPS = [310, 295, 340, 1180, 360, 355, 390, 370, 410, 405, 430, 450];
@@ -233,5 +235,122 @@ Q8 57 32`);
       'Nov',
       'Dec',
     ]);
+  });
+});
+
+// Hand-worked: y = 2 4 5 4 5 at x = 0..4. x̄ = 2, ȳ = 4; Σdxdy = 6,
+// Σdx² = 10, Σdy² = 6 → slope 0.6, intercept 2.8, R² = 36 / 60 = 0.6.
+const WOBBLE = [2, 4, 5, 4, 5];
+
+describe('trend numbers', () => {
+  it('least squares on a hand-worked series', () => {
+    const fit = linearFit([0, 1, 2, 3, 4], WOBBLE)!;
+    expect(fit.slope).toBeCloseTo(0.6, 12);
+    expect(fit.intercept).toBeCloseTo(2.8, 12);
+    expect(fit.r2).toBeCloseTo(0.6, 12);
+  });
+  it('a straight line fits with R² 1', () => {
+    const fit = linearFit([1, 2, 3, 4], [2, 4, 6, 8])!;
+    expect(fit.slope).toBe(2);
+    expect(fit.intercept).toBe(0);
+    expect(fit.r2).toBe(1);
+  });
+  it('skips missing values; null below two points or one x', () => {
+    expect(linearFit([0, 1, 2], [1, NaN, 3])!.slope).toBe(1);
+    expect(linearFit([0], [1])).toBeNull();
+    expect(linearFit([2, 2], [1, 3])).toBeNull();
+  });
+  it('a line is cut where it leaves the axis', () => {
+    expect(
+      clipToDomain(
+        [
+          { at: 0, v: -5 },
+          { at: 10, v: 15 },
+        ],
+        [0, 10]
+      )
+    ).toEqual([
+      { at: 2.5, v: 0 },
+      { at: 7.5, v: 10 },
+    ]);
+  });
+  it('slope unit comes from a one-word x-label', () => {
+    expect(trendUnit('Week')).toBe('week');
+    expect(trendUnit('Week of year')).toBe('step');
+    expect(trendUnit(undefined)).toBe('step');
+  });
+});
+
+describe('trend', () => {
+  const LINE_TREND = `line Weekly active teams\ntrend\n\n${WOBBLE.map((v, i) => `W${i + 1} ${v}`).join('\n')}`;
+  it('parses on line, bar and scatter', () => {
+    expect(parseChart(LINE_TREND).overlays).toEqual([
+      { kind: 'trend', lineNumber: 2 },
+    ]);
+    expect(parseChart('bar X\ntrend\nA 1\nB 2').overlays).toHaveLength(1);
+  });
+  it('labels a line trend with its slope per step', async () => {
+    const svg = await draw(LINE_TREND);
+    expect(svg.querySelectorAll('g.dgmo-overlay-trend path')).toHaveLength(1);
+    expect(texts(svg, '.dgmo-overlay-label')).toEqual(['trend +0.6/step']);
+  });
+  it('takes the slope unit from x-label', async () => {
+    const svg = await draw(LINE_TREND.replace('trend', 'trend\nx-label Week'));
+    expect(texts(svg, '.dgmo-overlay-label')).toEqual(['trend +0.6/week']);
+  });
+  it('a falling bar trend carries its minus sign', async () => {
+    const svg = await draw('bar X\ntrend\nA 5\nB 4\nC 3');
+    expect(texts(svg, '.dgmo-overlay-label')).toEqual(['trend -1/step']);
+  });
+  it('the trend runs from the first row to the last', async () => {
+    const svg = await draw(LINE_TREND);
+    const d = svg
+      .querySelector('g.dgmo-overlay-trend path')!
+      .getAttribute('d')!;
+    const pts = [...svg.querySelectorAll('circle.dgmo-pt')].map((c) =>
+      Number(c.getAttribute('cx'))
+    );
+    const xs = [...d.matchAll(/[ML]([-\d.]+),/g)].map((m) => Number(m[1]));
+    expect(xs[0]).toBeCloseTo(pts[0]!, 6);
+    expect(xs.at(-1)).toBeCloseTo(pts.at(-1)!, 6);
+  });
+  it('scatter draws one line per category labelled with R²', async () => {
+    const svg = await draw(`scatter Skill score vs training hours
+trend
+
+[Mentored] blue
+  A 1 2
+  B 2 4
+  C 3 6
+  D 4 8
+[Self-taught] orange
+  E 1 2
+  F 2 4
+  G 3 5
+  H 4 4
+  I 5 5`);
+    expect(svg.querySelectorAll('g.dgmo-overlay-trend path')).toHaveLength(2);
+    expect(texts(svg, '.dgmo-overlay-label')).toEqual([
+      'Mentored R² 1.00',
+      'Self-taught R² 0.60',
+    ]);
+  });
+  it('one scatter group is labelled without a name', async () => {
+    const svg = await draw(
+      'scatter X\ntrend\nA 1 2\nB 2 4\nC 3 5\nD 4 4\nE 5 5'
+    );
+    expect(texts(svg, '.dgmo-overlay-label')).toEqual(['R² 0.60']);
+  });
+  it('mean on scatter warns and is dropped', async () => {
+    const { parseScatter } = await import('../src/data-chart-parser');
+    const p = parseScatter('scatter X\nmean\nA 1 2\nB 2 3');
+    expect(p.overlays).toBeUndefined();
+    expect(p.diagnostics.map((d) => d.code)).toEqual(['W_OVERLAY_UNSUPPORTED']);
+  });
+  it('trendline on scatter is an unknown overlay', async () => {
+    const { parseScatter } = await import('../src/data-chart-parser');
+    const p = parseScatter('scatter X\ntrendline\nA 1 2\nB 2 3');
+    expect(p.diagnostics.map((d) => d.code)).toEqual(['W_OVERLAY_UNKNOWN']);
+    expect(p.diagnostics[0]!.message).toContain("'trend'");
   });
 });

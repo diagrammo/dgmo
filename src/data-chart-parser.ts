@@ -170,6 +170,8 @@ export interface ParsedScatter extends ParsedExtendedBase {
   /** Bare `connect` (#1982): join the points in row order, one path per
    *  `[Category]`, with an arrowhead on the last segment. */
   connect?: boolean;
+  /** Statistics overlays (#1954): `trend`, one line per `[Category]`. */
+  overlays?: ChartOverlay[];
 }
 
 export interface ParsedHeatmap extends ParsedExtendedBase {
@@ -217,6 +219,7 @@ export interface ParsedExtendedChartFull extends ParsedExtendedBase {
   annotations?: ChartAnnotation[];
   notes?: ChartNote[];
   noNotes?: boolean;
+  overlays?: ChartOverlay[];
 }
 
 // ============================================================
@@ -225,6 +228,12 @@ export interface ParsedExtendedChartFull extends ParsedExtendedBase {
 
 import type { PaletteColors } from './palettes';
 import { AliasRegistry } from './utils/alias-registry';
+import type { ChartOverlay } from './overlays/types';
+import {
+  parseOverlayLine,
+  settleOverlays,
+  unknownOverlay,
+} from './overlays/parse';
 import type { ParsedChart } from './chart';
 import {
   makeDgmoError,
@@ -422,6 +431,7 @@ function parseExtendedChartFull(
   let currentCategory = 'Default';
   const rawAnnotations: RawAnnotation[] = [];
   const rawNotes: RawChartNote[] = [];
+  const rawOverlays: ChartOverlay[] = [];
 
   // Sankey indentation state: stack of source nodes by indent level
   const sankeyStack: { name: string; indent: number }[] = [];
@@ -565,6 +575,12 @@ function parseExtendedChartFull(
       if (noteLine) {
         rawNotes.push(noteLine.note);
         i = noteLine.lastIndex;
+        continue;
+      }
+      // Statistics overlays (#1954): scatter draws `trend`.
+      const overlay = parseOverlayLine(trimmed, lineNumber, result.diagnostics);
+      if (overlay) {
+        if (overlay !== true) rawOverlays.push(overlay);
         continue;
       }
     }
@@ -1135,7 +1151,14 @@ function parseExtendedChartFull(
       continue;
     }
 
-    // Catch-all: nothing matched this line
+    // Catch-all: nothing matched this line. On scatter, a word that reads
+    // like an overlay says which overlays exist (#1954).
+    const notOverlay =
+      result.type === 'scatter' ? unknownOverlay(trimmed, lineNumber) : null;
+    if (notOverlay) {
+      result.diagnostics.push(notOverlay);
+      continue;
+    }
     result.diagnostics.push(
       makeDgmoError(
         lineNumber,
@@ -1229,6 +1252,12 @@ function parseExtendedChartFull(
       result.diagnostics
     );
     if (notes.length) result.notes = notes;
+    const overlays = settleOverlays(
+      rawOverlays,
+      { type: 'scatter' },
+      result.diagnostics
+    );
+    if (overlays.length) result.overlays = overlays;
   } else delete result.noNotes;
 
   if (!result.error && result.axes) {
