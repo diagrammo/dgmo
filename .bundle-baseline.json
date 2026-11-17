@@ -1,8 +1,8 @@
 {
-  "totalGzip": 3421965,
-  "totalRaw": 11359975,
-  "fileCount": 315,
+  "totalGzip": 3486610,
+  "totalRaw": 11553950,
+  "fileCount": 321,
   "budget": 61440,
-  "measuredAt": "2026-11-16",
+  "measuredAt": "2026-11-17",
   "notes": "Sum of gzip(level 9) over {dist,standalone/dist,cli/dist}/**/*.{js,cjs} except map-data/. Regenerate with `pnpm check:size:update` after an intended size change."
 }
