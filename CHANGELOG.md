@@ -222,6 +222,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The advanced types' overlay doc comment lists every overlay** — `mean`,
+  `median`, `target`, `trend`, `moving-average`, `extremes`, `pareto`.
 - **goal: `now` is renamed `actual` (#1973).** `now` is an error that names
   `actual`. `ParsedGoal` now carries `measures` (one entry for a single goal)
   instead of top-level `now` / `target` / `hasTarget` / `color`.
