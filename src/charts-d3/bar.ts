@@ -97,6 +97,22 @@ export function renderBar(
   hasTitle: boolean,
   inlineTitle?: InlineTitleInfo
 ): void {
+  if (chart.widths) {
+    renderMarimekko(
+      svg,
+      chart,
+      width,
+      height,
+      colors,
+      palette,
+      isDark,
+      textColor,
+      mutedColor,
+      hasTitle,
+      inlineTitle
+    );
+    return;
+  }
   if (chart.clusters?.length) {
     renderClusteredStack(
       svg,
@@ -1187,6 +1203,263 @@ function renderClusteredStack(
   }
 
   drawMarkers(svg, chart.annotations, annotationFrame, annotationColors);
+  drawXAxisTitle(svg, chart.xlabel, m.left + plotW / 2, nameY + 30, textColor);
+  drawYAxisTitle(svg, chart.ylabel, m.top + plotH / 2, 20, textColor);
+}
+
+/** Gap between a Marimekko column's top and its width label. */
+const WIDTH_LABEL_GAP = 6;
+
+/**
+ * Marimekko (`widths`, #1872): touching columns whose widths are the rows'
+ * first numbers, each filled to 100% by its segments. The width sits above
+ * each column, the name below; the y axis is the share of the column and the
+ * x axis the cumulative share of the whole. A segment's hover gives its share
+ * of the column, its share of the whole (its area), and its value.
+ */
+function renderMarimekko(
+  svg: Svg,
+  chart: ParsedChart,
+  width: number,
+  height: number,
+  colors: string[],
+  palette: PaletteColors,
+  isDark: boolean,
+  textColor: string,
+  mutedColor: string,
+  hasTitle: boolean,
+  inlineTitle?: InlineTitleInfo
+): void {
+  const fmt = chartFormatter(chart);
+  const seriesNames = chart.seriesNames?.length
+    ? chart.seriesNames
+    : [chart.series ?? ''];
+  const seriesCount = Math.max(1, seriesNames.length);
+  const share = chart.widths === 'share';
+  const total = chart.data.reduce((a, d) => a + (d.width ?? 0), 0) || 1;
+  const columns = chart.data.map((d) => {
+    const raw = seriesValues(d, seriesCount);
+    return { d, raw, vals: toShares(raw), w: (d.width ?? 0) / total };
+  });
+
+  const colorOf = (s: number): string =>
+    chart.seriesNameColors?.[s] ?? colors[s % colors.length]!;
+  const emphasis = resolveEmphasis(chart.emphasis, [
+    ...chart.data.map((d) => d.label),
+    ...seriesNames,
+  ]);
+  const { dimmed } = emphasis;
+  const story = storyPaint(emphasis, palette, isDark);
+
+  const top = reserveHeader(
+    svg,
+    chart,
+    colors,
+    palette,
+    isDark,
+    hasTitle,
+    width,
+    inlineTitle
+  );
+
+  const pct = (t: number) => `${Math.round(t * 100) / 100}%`;
+  const valueAxis = (range: [number, number]) =>
+    buildValueAxis(0, 100, undefined, range, { nice: true });
+  const probeTicks = valueAxis([0, 1]).ticks(5).map(pct);
+
+  const m: Margins = {
+    top: top + 8 + TICK_FONT + WIDTH_LABEL_GAP,
+    right: 32,
+    bottom: TICK_FONT + 6 + 8 + TICK_FONT + 10 + (chart.xlabel ? 40 : 18),
+    left: computeLeftMargin(chart.ylabel, probeTicks),
+  };
+  const plotW = width - m.left - m.right;
+  const plotH = height - m.top - m.bottom;
+  const val = valueAxis([m.top + plotH, m.top]);
+  const xAt = (cum: number) => m.left + cum * plotW;
+
+  for (const t of val.ticks(5)) {
+    const y = val(t);
+    svg
+      .append('line')
+      .attr('x1', m.left)
+      .attr('x2', m.left + plotW)
+      .attr('y1', y)
+      .attr('y2', y)
+      .attr('stroke', mutedColor)
+      .attr('stroke-opacity', t === 0 ? 0.6 : 0.25);
+    svg
+      .append('text')
+      .attr('x', m.left - 10)
+      .attr('y', y + 4)
+      .attr('text-anchor', 'end')
+      .attr('fill', textColor)
+      .attr('font-size', TICK_FONT)
+      .attr('font-family', FONT_FAMILY)
+      .text(pct(t));
+  }
+
+  // x axis: cumulative share of the whole, 0–100%.
+  const axisY = m.top + plotH;
+  const tickY = axisY + TICK_FONT + 6;
+  const nameY = tickY + 8 + TICK_FONT;
+  for (const t of [0, 25, 50, 75, 100]) {
+    const x = xAt(t / 100);
+    svg
+      .append('line')
+      .attr('x1', x)
+      .attr('x2', x)
+      .attr('y1', axisY)
+      .attr('y2', axisY + 4)
+      .attr('stroke', mutedColor)
+      .attr('stroke-opacity', 0.6);
+    svg
+      .append('text')
+      .attr('class', 'dgmo-mekko-tick')
+      .attr('x', x)
+      .attr('y', tickY)
+      .attr('text-anchor', t === 0 ? 'start' : t === 100 ? 'end' : 'middle')
+      .attr('fill', palette.textMuted)
+      .attr('font-size', TICK_FONT - 1)
+      .attr('font-family', FONT_FAMILY)
+      .text(`${t}%`);
+  }
+
+  const label = (
+    text: string,
+    x: number,
+    y: number,
+    maxW: number,
+    cls: string,
+    weight?: number
+  ) => {
+    const { lines, truncated } = fitLabel(text, TICK_FONT, maxW, 1);
+    const t = svg
+      .append('text')
+      .attr('class', cls)
+      .attr('x', x)
+      .attr('y', y)
+      .attr('text-anchor', 'middle')
+      .attr('fill', textColor)
+      .attr('font-size', TICK_FONT)
+      .attr('font-family', FONT_FAMILY)
+      .text(lines[0] ?? '');
+    if (weight) t.attr('font-weight', weight);
+    if (truncated) t.attr('aria-label', text);
+    return t;
+  };
+
+  // A label centred on a narrow column may spill as far as its neighbours'
+  // own labels leave room, so `LATAM` over an 8% column reads whole.
+  const room = (texts: string[]): number[] => {
+    const colW = columns.map((c) => c.w * plotW);
+    const spare = texts.map((t, i) =>
+      Math.max(0, (colW[i]! - measureText(t, TICK_FONT)) / 2)
+    );
+    return colW.map(
+      (cw, i) =>
+        cw +
+        2 *
+          Math.min(
+            i > 0 ? spare[i - 1]! : m.left,
+            i < colW.length - 1 ? spare[i + 1]! : m.right
+          )
+    );
+  };
+  const widthTexts = columns.map(({ d }) =>
+    share ? shareText(d.width!) : fmt(d.width!)
+  );
+  const widthRoom = room(widthTexts);
+  const nameRoom = room(columns.map(({ d }) => d.label));
+
+  const multi = seriesCount > 1;
+  let cum = 0;
+  for (const [i, { d, raw, vals, w }] of columns.entries()) {
+    const x = xAt(cum);
+    const colW = w * plotW;
+    cum += w;
+    const colTotal = raw.reduce((a, v) => a + (Number.isFinite(v) ? v : 0), 0);
+    const widthText = widthTexts[i]!;
+    label(
+      widthText,
+      x + colW / 2,
+      m.top - WIDTH_LABEL_GAP,
+      widthRoom[i]!,
+      'dgmo-mekko-width'
+    );
+    tagDatum(
+      label(d.label, x + colW / 2, nameY, nameRoom[i]!, 'dgmo-mekko-name', 600),
+      {
+        line: d.lineNumber,
+        name: d.label,
+        value: `width ${widthText} · total ${fmt(colTotal)}`,
+      }
+    );
+    let acc = 0;
+    vals.forEach((v, s) => {
+      if (!Number.isFinite(v)) return;
+      const sName = seriesNames[s] ?? '';
+      const own = colorOf(s);
+      const recede = dimmed.has(d.label) && (!multi || dimmed.has(sName));
+      const stroke = !story.active
+        ? own
+        : recede
+          ? story.groundStroke
+          : story.subject(own);
+      const fill = !story.active
+        ? shapeFill(palette, own, isDark, { mode: chart.fillMode })
+        : recede
+          ? story.groundFill
+          : stroke;
+      const dim = recede && !story.active;
+      const y0 = val(acc);
+      const y1 = val(acc + v);
+      acc += v;
+      // Value: the size this segment stands for when widths are sizes,
+      // otherwise the number the author wrote.
+      const value = share ? raw[s]! : (v / 100) * d.width!;
+      rect(
+        svg,
+        x,
+        Math.min(y0, y1),
+        colW,
+        Math.abs(y1 - y0),
+        fill,
+        stroke,
+        {
+          line: d.lineNumber,
+          key: multi ? sName : d.label,
+          name: [d.label, multi ? sName : ''].filter(Boolean).join(' · '),
+          value: `${shareText(v)} of column · ${shareText(v * w)} of whole · ${fmt(value)}`,
+          color: own,
+          seriesName: multi ? sName : undefined,
+        },
+        dim
+      );
+      const text = shareText(v);
+      if (
+        !chart.noValue &&
+        Math.abs(y1 - y0) > 18 &&
+        measureText(text, VALUE_FONT) + 4 <= colW
+      ) {
+        const onBar =
+          story.active && !recede
+            ? contrastText(
+                fill,
+                palette.textOnFillLight,
+                palette.textOnFillDark
+              )
+            : story.active
+              ? story.groundText
+              : textColor;
+        drawValueLabel(svg, text, x + colW / 2, (y0 + y1) / 2 + 4, onBar).attr(
+          'opacity',
+          dim ? EMPHASIS_DIM_TEXT_OPACITY : null
+        );
+      }
+    });
+  }
+
   drawXAxisTitle(svg, chart.xlabel, m.left + plotW / 2, nameY + 30, textColor);
   drawYAxisTitle(svg, chart.ylabel, m.top + plotH / 2, 20, textColor);
 }

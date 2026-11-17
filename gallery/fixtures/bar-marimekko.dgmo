@@ -1,0 +1,17 @@
+bar Cloud market by region, 2025
+subtitle Column width = region’s share of the $250B market
+x-label Share of the global market
+y-label Share of region
+widths
+
+stack
+  AWS   orange
+  Azure blue
+  GCP   green
+  Other gray
+
+// region  width  AWS Azure GCP Other
+US     42%  38 30 18 14
+EU     28%  30 36 16 18
+APAC   22%  28 24 20 28
+LATAM   8%  34 26 14 26

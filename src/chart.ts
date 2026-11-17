@@ -13,6 +13,9 @@ export interface ChartDataPoint {
   /** Clustered-stacked bar (#1879): the category this row is indented
    *  under. The row's own `label` is then its period (free text). */
   cluster?: string;
+  /** Marimekko (`widths`, #1872): the column width, the row's first
+   *  number. A share when `ParsedChart.widths` is `'share'`, else a size. */
+  width?: number;
 }
 
 /** A clustered-stacked bar category line (#1879). */
@@ -108,6 +111,12 @@ export interface ParsedChart {
   /** `stack 100%` (#1846): each x position is drawn as shares of its total,
    *  on a 0–100% axis. Values stay raw in the source. `bar` and `line`. */
   stackPercent?: boolean;
+  /** Marimekko (`widths`, #1872): each row's first number is its column's
+   *  width — a share (`42%`, summing to 100) or an absolute size. Implies
+   *  `stackPercent`. Set only once the chart passes its checks. */
+  widths?: 'share' | 'size';
+  /** Line of the `widths` flag, for diagnostics. */
+  widthsLineNumber?: number;
   /** Clustered-stacked bar (#1879): categories in source order. Present
    *  when rows are indented under category lines; each data point then
    *  names its `cluster`, and its `label` is the period. */
@@ -290,6 +299,7 @@ const KNOWN_BOOLEANS = new Set([
   'fill',
   'hole',
   'lollipop',
+  'widths',
 ]);
 
 /**
@@ -403,6 +413,8 @@ export function parseChart(
   let currentCluster: ChartCluster | null = null;
   let clusteredRows = 0;
   const flatRows: number[] = [];
+  /** Marimekko rows (#1872): whether each width was written as a share. */
+  const widthForms: { share: boolean; lineNumber: number }[] = [];
   let orientationLine = 1;
   const rawFillBetween: { tokens: string[]; lineNumber: number }[] = [];
   const result: ParsedChart = {
@@ -620,6 +632,8 @@ export function parseChart(
       } else if (firstToken === 'lollipop') {
         result.lollipop = true;
         result.lollipopLineNumber = lineNumber;
+      } else if (firstToken === 'widths') {
+        result.widthsLineNumber = lineNumber;
       } else if (firstToken === 'fill') {
         result.fill = true;
         result.fillLineNumber = lineNumber;
@@ -895,6 +909,56 @@ export function parseChart(
     }
     if (indent === 0) currentCluster = null;
 
+    // Marimekko row (`widths`, #1872): label, the column width, then one
+    // segment per `stack` series.
+    if (
+      result.widthsLineNumber !== undefined &&
+      result.type === 'bar' &&
+      result.barLayout === 'stack'
+    ) {
+      const seriesN = result.seriesNames?.length ?? 1;
+      const row = parseWidthRow(trimmed, seriesN);
+      if (row) {
+        const segments = row.values.length;
+        if (row.surplus)
+          result.diagnostics.push(
+            makeDgmoError(
+              lineNumber,
+              `"${row.label}" has ${segments + 1 + row.surplus} numbers, but \`widths\` takes one width and ${seriesN} segments. If the label ends in a number, quote it.`,
+              'warning'
+            )
+          );
+        else if (segments !== seriesN)
+          result.diagnostics.push(
+            makeDgmoError(
+              lineNumber,
+              `With \`widths\`, the first number is the width, so this row has ${segments} segment${segments === 1 ? '' : 's'} for ${seriesN} series.`,
+              'warning'
+            )
+          );
+        const { label: rawLabel, color: pointColor } = extractColor(
+          row.label,
+          palette,
+          result.diagnostics,
+          lineNumber
+        );
+        const [first, ...rest] = row.values;
+        result.data.push({
+          label: rawLabel,
+          value: first ?? 0,
+          ...(rest.length > 0 && { extraValues: rest }),
+          ...(pointColor && { color: pointColor }),
+          lineNumber,
+          width: row.width,
+          ...(currentCluster && { cluster: currentCluster.label }),
+        });
+        widthForms.push({ share: row.share, lineNumber });
+        if (currentCluster) clusteredRows++;
+        else flatRows.push(lineNumber);
+        continue;
+      }
+    }
+
     // Data row: parse from the right — rightmost numeric token(s) = value(s), everything left = label
     // Supports space-separated multi-values when series are defined: "Jan 100 200 300"
     const seriesCount = result.seriesNames?.length ?? 0;
@@ -1134,7 +1198,8 @@ export function parseChart(
     const expectedCount = result.seriesNames.length;
     for (const dp of result.data) {
       const actualCount = 1 + (dp.extraValues?.length ?? 0);
-      if (actualCount !== expectedCount) {
+      // A Marimekko row has already warned, and keeps its column (#1872).
+      if (dp.width === undefined && actualCount !== expectedCount) {
         warn(
           dp.lineNumber,
           `Data point "${dp.label}" has ${actualCount} value(s), but ${expectedCount} series defined. Each row must have ${expectedCount} values.`
@@ -1144,7 +1209,7 @@ export function parseChart(
     // Filter out mismatched data points so renderers get clean data
     result.data = result.data.filter((dp) => {
       const actualCount = 1 + (dp.extraValues?.length ?? 0);
-      return actualCount === expectedCount;
+      return dp.width !== undefined || actualCount === expectedCount;
     });
   }
 
@@ -1171,6 +1236,9 @@ export function parseChart(
       `y-right-label is set but no series is assigned to the right axis. Group the series under a "y-right-label" header (see §15.1).`
     );
   }
+
+  if (!result.error && result.widthsLineNumber !== undefined)
+    settleWidths(result, widthForms, clusteredRows > 0, warn);
 
   if (!result.error)
     settleStack(result, layoutHeaders, rawSeriesBands, rawFillBetween);
@@ -1300,6 +1368,127 @@ function nextContentLine(lines: readonly string[], i: number): number | null {
     if (t && !t.startsWith('//')) return j;
   }
   return null;
+}
+
+/**
+ * Marimekko (`widths`, #1872): a stacked `bar` whose first number on each
+ * row is its column's width. Every column fills to 100%, so it rides on
+ * `stack 100%` and inherits its negatives rule. Message wording follows the
+ * owner-confirmed syntax page (ecosystem docs mockup 2026-11-12).
+ */
+function settleWidths(
+  result: ParsedChart,
+  forms: readonly { share: boolean; lineNumber: number }[],
+  clustered: boolean,
+  warn: (line: number, message: string) => void
+): void {
+  const ln = result.widthsLineNumber!;
+  const err = (line: number, message: string): void => {
+    result.diagnostics.push(makeDgmoError(line, message, 'error'));
+  };
+  if (result.type !== 'bar') {
+    warn(
+      ln,
+      `\`widths\` applies only to bar charts; ignoring it on "${result.type}".`
+    );
+    return;
+  }
+  if (result.barLayout === 'group')
+    return err(ln, '`widths` needs `stack`, not `group`.');
+  if (result.barLayout !== 'stack')
+    return err(
+      ln,
+      '`widths` needs a `stack` block — a Marimekko stacks every column to 100%.'
+    );
+  if (result.orientation === 'horizontal')
+    return err(
+      ln,
+      '`widths` draws columns only. Remove `orientation-horizontal`.'
+    );
+  if (result.diverging)
+    return err(ln, '`widths` cannot draw `stack diverging`. Use `stack`.');
+  if (clustered)
+    return err(
+      ln,
+      '`widths` cannot be grouped by category. Write the rows flat, one column each.'
+    );
+  if (forms.length === 0) return;
+  let ok = true;
+  for (const d of result.data)
+    if (!(d.width! > 0)) {
+      err(d.lineNumber, 'A column width must be more than 0.');
+      ok = false;
+    }
+  const share = forms[0]!.share;
+  const odd = forms.find((f) => f.share !== share);
+  if (odd) {
+    err(
+      odd.lineNumber,
+      'Mix of shares and sizes. Write every width as a share (`42%`) or every one as a size (`105`).'
+    );
+    ok = false;
+  }
+  if (ok && share) {
+    const sum = result.data.reduce((a, d) => a + d.width!, 0);
+    if (Math.abs(sum - 100) > 0.5) {
+      err(
+        ln,
+        `The widths add up to ${Math.round(sum * 10) / 10}%. Shares must add up to 100%, or drop the \`%\` to use sizes.`
+      );
+      ok = false;
+    }
+  }
+  if (!ok) return;
+  result.widths = share ? 'share' : 'size';
+  result.stackPercent = true;
+}
+
+/**
+ * A Marimekko row: the trailing numbers are the width then one segment per
+ * series. The width may carry `%` (a share). Takes at most `series + 1`
+ * numbers from the right, so a label may end in a number; any further ones
+ * stay in the label and are reported as `surplus`.
+ */
+function parseWidthRow(
+  line: string,
+  series: number
+): {
+  label: string;
+  width: number;
+  share: boolean;
+  values: number[];
+  surplus: number;
+} | null {
+  const quoted = line.match(/^(["'])(.*?)\1\s+(\S.*)$/);
+  const head = quoted ? [quoted[2]!.trim()] : [];
+  const tokens = quoted ? quoted[3]!.trim().split(/\s+/) : line.split(/\s+/);
+  const minIndex = quoted ? 0 : 1;
+  const num = (tok: string): { v: number; pct: boolean } | null => {
+    const pct = tok.endsWith('%');
+    const body = pct ? tok.slice(0, -1) : tok;
+    const norm = normalizeNumericToken(body) ?? body;
+    const v = parseFloat(norm);
+    return isNaN(v) || !isFinite(Number(norm)) ? null : { v, pct };
+  };
+  let start = tokens.length;
+  while (start > minIndex && num(tokens[start - 1]!)) start--;
+  if (quoted && start > 0) return null;
+  const run = tokens.length - start;
+  if (run === 0) return null;
+  const take = Math.min(run, series + 1);
+  const taken = tokens.slice(tokens.length - take).map((t) => num(t)!);
+  const label = quoted
+    ? head[0]!
+    : tokens.slice(0, tokens.length - take).join(' ');
+  if (!label) return null;
+  const [w, ...segs] = taken;
+  return {
+    label,
+    width: w!.v,
+    share: w!.pct,
+    values: segs.map((s) => s.v),
+    surplus: run - take,
+  };
 }
 
 /**

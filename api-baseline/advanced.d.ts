@@ -562,6 +562,9 @@ interface ChartDataPoint {
     /** Clustered-stacked bar (#1879): the category this row is indented
      *  under. The row's own `label` is then its period (free text). */
     cluster?: string;
+    /** Marimekko (`widths`, #1872): the column width, the row's first
+     *  number. A share when `ParsedChart.widths` is `'share'`, else a size. */
+    width?: number;
 }
 /** A clustered-stacked bar category line (#1879). */
 interface ChartCluster {
@@ -624,6 +627,12 @@ interface ParsedChart {
     /** `stack 100%` (#1846): each x position is drawn as shares of its total,
      *  on a 0–100% axis. Values stay raw in the source. `bar` and `line`. */
     stackPercent?: boolean;
+    /** Marimekko (`widths`, #1872): each row's first number is its column's
+     *  width — a share (`42%`, summing to 100) or an absolute size. Implies
+     *  `stackPercent`. Set only once the chart passes its checks. */
+    widths?: 'share' | 'size';
+    /** Line of the `widths` flag, for diagnostics. */
+    widthsLineNumber?: number;
     /** Clustered-stacked bar (#1879): categories in source order. Present
      *  when rows are indented under category lines; each data point then
      *  names its `cluster`, and its `label` is the period. */

@@ -28,6 +28,7 @@ export const fixture: ConformanceFixture = {
     'sort',
     // #1979 stem-and-dot bars.
     'lollipop',
+    'widths',
     'no-value',
     'fill-tint',
     'fill-solid',

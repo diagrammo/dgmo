@@ -2726,6 +2726,43 @@ Parsers accept either form. The rules above are authoring guidance.
     row among indented ones. `sort` and `orientation-horizontal` warn and
     are ignored. Fewer numbers than series warns and drops the row.
 
+  **Marimekko — variable-width columns** (bar, `widths`, #1872): add the
+  bare `widths` flag above a `stack` block. The first number on each row is
+  then that column's width, and every column fills to 100%.
+
+  ```
+  bar Cloud market by region, 2025
+  widths
+  stack
+    AWS   orange
+    Azure blue
+    GCP   green
+    Other gray
+
+  US     42%  38 30 18 14
+  EU     28%  30 36 16 18
+  APAC   22%  28 24 20 28
+  LATAM   8%  34 26 14 26
+  ```
+
+  - A width written `42%` is a share; the shares must add up to 100. A plain
+    number (`105`) is a size, drawn in proportion and labelled in the
+    chart's `format`. Every row uses the same form.
+  - Segments are normalised per column, so raw counts work as well as
+    shares. Labels inside segments show the share of the column.
+  - The width sits above each column and the name below. The y axis is the
+    share of the column; the x axis is the cumulative share, 0–100%.
+  - Hover on a segment gives its share of the column, its share of the
+    whole (its area), and its value (the raw input, or the share of the
+    size when widths are sizes).
+  - `highlight`, `fill-*`, `no-value`, `x-label` and `y-label` work as on
+    any bar. Negative values are an error, as under `stack 100%`.
+  - Errors: no `stack` block; `group` instead of `stack`; shares that do not
+    add up to 100; a mix of shares and sizes; a width of 0 or less;
+    `orientation-horizontal`; `stack diverging`; rows indented under
+    categories. A row with one segment too few or too many warns that the
+    first number is the width.
+
 - **line** — use a `series` block (every series is plotted):
 
   ```

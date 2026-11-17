@@ -192,6 +192,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       lollipop: {
         description: 'Draw each bar as a thin stem with a dot at its value',
       },
+      widths: {
+        description:
+          "Marimekko: each row's first number is its column width (42% or a size); needs a stack block",
+      },
       'y-scale': {
         description: 'Value axis scale: log for data spanning decades',
         values: ['log', 'linear'],
