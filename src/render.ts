@@ -12,6 +12,7 @@ import { makeDgmoError } from './diagnostics';
 import { legendInlineSupported } from './utils/inline-header';
 import { getPalette } from './palettes/registry';
 import { choosePalette, extractPaletteDirective } from './palettes/directive';
+import { applyThemeStyle, type ThemeStyle } from './palettes/theme-style';
 import {
   applyHighlightOverride,
   liftUnsupportedHighlight,
@@ -301,9 +302,18 @@ export async function render(
   const theme = chosen.theme;
   const bakeHover = options?.bakeHover ?? true;
 
-  const paletteColors = (chosen.palette ?? getPalette(chosen.paletteId))[
-    theme === 'dark' ? 'dark' : 'light'
-  ];
+  const paletteConfig = chosen.palette ?? getPalette(chosen.paletteId);
+  const paletteColors = paletteConfig[theme === 'dark' ? 'dark' : 'light'];
+  // Theme style (diagrammo/diagrammo#1836): applied to the finished SVG, and
+  // the same string back when the palette sets none of it.
+  const themeStyle: ThemeStyle = {
+    ...(paletteConfig.radius !== undefined && { radius: paletteConfig.radius }),
+    ...(paletteConfig.strokeWeight !== undefined && {
+      strokeWeight: paletteConfig.strokeWeight,
+    }),
+    ...((paletteConfig.background === 'transparent' ||
+      chosen.transparentDark) && { background: 'transparent' as const }),
+  };
 
   const parsed = parseDgmo(content);
   let diagnostics = [...directive.diagnostics, ...parsed.diagnostics];
@@ -447,7 +457,9 @@ export async function render(
       // row and `bakeHover` is on.
       const svg = applyRootDesc(
         applyRootA11y(
-          injectHoverStyles(raw, chartType, { bakeHover }),
+          injectHoverStyles(applyThemeStyle(raw, themeStyle), chartType, {
+            bakeHover,
+          }),
           chartType,
           diagramTitle(content, parsed.chartType)
         ),
@@ -511,6 +523,7 @@ export async function render(
         },
       }
     );
+    svg = applyThemeStyle(svg, themeStyle);
     // Bake pure-CSS hover while jsdom is still installed (no-op unless the
     // detected `chartType` has a registry row and `bakeHover` is on).
     svg = applyRootDesc(

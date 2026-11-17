@@ -16,6 +16,7 @@ import {
   extractPaletteDirective,
 } from '../src/palettes/directive';
 import { setPinnedNow } from '../src/utils/now';
+import { stripCanvas } from '../src/palettes/theme-style';
 import { getPalette, type PaletteColors } from '../src/palettes';
 
 // `__dirname`, not `import.meta.url`: the suite runs under jsdom.
@@ -137,12 +138,13 @@ describe('palette line — the mode word and the caller theme', () => {
     expect(got.svg).toBe(asked.svg);
   });
 
-  it('a dark pin draws dark, which has no transparent form', async () => {
+  it('a dark pin under transparent draws dark with no canvas (#1836)', async () => {
     const got = await render(`${plain}palette nord dark`, {
       theme: 'transparent',
     });
     const asked = await render(plain, { palette: 'nord', theme: 'dark' });
-    expect(got.svg).toBe(asked.svg);
+    expect(got.svg).toBe(stripCanvas(asked.svg));
+    expect(got.svg).not.toBe(asked.svg);
   });
 
   it('the error card is drawn in the palette the diagram would have had', async () => {

@@ -7,6 +7,7 @@ import {
 import { BUILT_IN_PALETTE_IDS } from './built-in-ids';
 import { COLOR_KEYS, SEMANTIC_KEYS, isValidHex } from './registry';
 import type { PaletteColors, PaletteConfig } from './types';
+import { THEME_STYLE_RANGES } from './theme-style';
 
 // ============================================================
 // Theme files
@@ -137,6 +138,44 @@ function collectShapeErrors(
     }
   }
   return errors.length === before;
+}
+
+/**
+ * The theme-level style fields (diagrammo/diagrammo#1836): one value for both
+ * modes, each optional, and absent means today's drawing exactly.
+ */
+function collectStyle(
+  input: Record<string, unknown>,
+  errors: string[]
+): Pick<PaletteConfig, 'radius' | 'strokeWeight' | 'background'> {
+  const out: {
+    radius?: number;
+    strokeWeight?: number;
+    background?: 'solid' | 'transparent';
+  } = {};
+  for (const key of ['radius', 'strokeWeight'] as const) {
+    const value = input[key];
+    if (value === undefined) continue;
+    const { min, max } = THEME_STYLE_RANGES[key];
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      errors.push(`${key}: expected a number of px, got ${describe(value)}`);
+    } else if (value < min || value > max) {
+      errors.push(`${key}: ${value} is outside ${min}–${max} px`);
+    } else {
+      out[key] = value;
+    }
+  }
+  const background = input['background'];
+  if (background !== undefined) {
+    if (background === 'solid' || background === 'transparent') {
+      out.background = background;
+    } else {
+      errors.push(
+        `background: expected "solid" or "transparent", got ${describe(background)}`
+      );
+    }
+  }
+  return out;
 }
 
 function describe(value: unknown): string {
@@ -376,6 +415,8 @@ export function validateThemeFile(input: unknown): ThemeFileResult {
     }
   }
 
+  const style = collectStyle(input, errors);
+
   if (errors.length > 0) return { ok: false, errors };
 
   // Every wanted mode validated, so both lookups below resolve.
@@ -383,7 +424,7 @@ export function validateThemeFile(input: unknown): ThemeFileResult {
   const dark = modes.dark ?? modes.light!;
   return {
     ok: true,
-    palette: { id: id as string, name: name as string, light, dark },
+    palette: { id: id as string, name: name as string, light, dark, ...style },
     mode,
   };
 }

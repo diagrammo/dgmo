@@ -133,11 +133,13 @@ function discoverFixtures(filter) {
 function renderOne(fixturePath, outputPath) {
   return new Promise((res) => {
     mkdirSync(dirname(outputPath), { recursive: true });
+    // A fixture carrying its own `palette` line or block is drawn in it —
+    // the theme-style fixture is one (#1836). `--palette` would override it.
+    const ownPalette = /^palette\b/m.test(readFileSync(fixturePath, 'utf8'));
     const args = [
       CLI_PATH,
       fixturePath,
-      '--palette',
-      PALETTE,
+      ...(ownPalette ? [] : ['--palette', PALETTE]),
       '--theme',
       THEME,
       '--now',

@@ -85,4 +85,22 @@ export interface PaletteConfig {
   readonly light: PaletteColors;
   /** Dark mode color definitions */
   readonly dark: PaletteColors;
+  /**
+   * Corner radius, in px, of a standard node card (`CARD_RADIUS`). Every
+   * rounded `<rect>` corner scales by `radius / CARD_RADIUS`, so `0` squares
+   * them all and a pill stays a pill. Absent draws today's corners. Theme
+   * files only — no built-in sets it (diagrammo/diagrammo#1836).
+   */
+  readonly radius?: number;
+  /**
+   * Weight, in px, of a standard line (`NODE_STROKE_WIDTH`). Every stroke
+   * except a text halo scales by `strokeWeight / NODE_STROKE_WIDTH`, so the
+   * hierarchy between hairlines and emphasis survives. Absent draws today's.
+   */
+  readonly strokeWeight?: number;
+  /**
+   * `transparent` draws no canvas, in either mode — the ink stays the mode's
+   * own, so a dark theme gives light ink on nothing. Absent is `solid`.
+   */
+  readonly background?: 'solid' | 'transparent';
 }

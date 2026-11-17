@@ -1144,6 +1144,10 @@ export type { PaletteConfig, PaletteColors } from './palettes';
 export { mix, shapeFill } from './palettes/color-utils';
 export { validateThemeFile } from './palettes/theme-file';
 export type { ThemeFileResult } from './palettes/theme-file';
+// Theme style (#1836): what `render()` applies to its SVG, for a host that
+// draws with the per-type renderers.
+export { applyThemeStyle } from './palettes/theme-style';
+export type { ThemeStyle } from './palettes/theme-style';
 // The reader `render()` uses for a file's `palette` line or block, and who
 // wins, so a host drawing with the per-type renderers agrees with it (#1366).
 export { extractPaletteDirective, choosePalette } from './palettes/directive';

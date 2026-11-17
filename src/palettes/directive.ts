@@ -53,6 +53,13 @@ const kebab = (key: string) =>
   key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
 const camel = (key: string) =>
   key.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+/** Theme style keys as the block spells them (diagrammo/diagrammo#1836). */
+const STYLE_EXAMPLE: Readonly<Record<string, string>> = {
+  radius: 'radius 0',
+  'stroke-weight': 'stroke-weight 1',
+  background: 'background transparent',
+};
+const STYLE_KEYS: ReadonlySet<string> = new Set(Object.keys(STYLE_EXAMPLE));
 /** Role keys as the block spells them: `text-muted`, `text-on-fill-light`. */
 const ROLE_KEYS: ReadonlySet<string> = new Set(SEMANTIC_KEYS.map(kebab));
 
@@ -88,6 +95,7 @@ function readBlock(
   // `<mode>.<camelKey>` or `<mode>.colors.<name>` → the line that set it.
   const where = new Map<string, number>();
   let section: PaletteMode | undefined;
+  const style: Record<string, unknown> = {};
 
   for (const { line, text } of block) {
     const [key = '', value, ...rest] = text.trim().split(/\s+/);
@@ -107,6 +115,26 @@ function readBlock(
       continue;
     }
     if (key === 'colors' && value === undefined) continue;
+    // Theme style (diagrammo/diagrammo#1836) is one value for both modes, so
+    // it may sit above the sections or inside one — it is never a colour.
+    if (STYLE_KEYS.has(key)) {
+      if (value === undefined || rest.length > 0) {
+        diagnostics.push(
+          warn(
+            line,
+            `Write "${key}" as one key and one value, e.g. "${STYLE_EXAMPLE[key]}".`,
+            'W_PALETTE_INVALID'
+          )
+        );
+        continue;
+      }
+      const field = camel(key);
+      const num = Number(value);
+      style[field] =
+        field === 'background' || !Number.isFinite(num) ? value : num;
+      where.set(`style.${field}`, line);
+      continue;
+    }
     if (!section) {
       diagnostics.push(
         warn(
@@ -144,6 +172,7 @@ function readBlock(
     id: name.toLowerCase(),
     name,
     ...(modes.length === 1 && { mode: modes[0] }),
+    ...style,
   };
   for (const mode of modes) {
     const { roles, colors } = sections[mode]!;
@@ -156,14 +185,17 @@ function readBlock(
   return result.errors.map((error) => {
     // `dark.textMuted: invalid hex`, `dark.colors.red: …`, or a contrast
     // line `dark: textOnFillDark #… on the …` — the field names the line.
+    const styleField = /^(radius|strokeWeight|background):/.exec(error);
     const field =
       /^(light|dark)(?:\.colors)?\.(\w+)/.exec(error) ??
       /^(light|dark)\b[^:]*: (\w+) /.exec(error);
-    const at = field
-      ? (where.get(`${field[1]}.colors.${field[2]}`) ??
-        where.get(`${field[1]}.${field[2]}`) ??
-        where.get(field[1]!))
-      : undefined;
+    const at = styleField
+      ? where.get(`style.${styleField[1]}`)
+      : field
+        ? (where.get(`${field[1]}.colors.${field[2]}`) ??
+          where.get(`${field[1]}.${field[2]}`) ??
+          where.get(field[1]!))
+        : undefined;
     return warn(
       at ?? headerLine,
       `Palette "${name}" is not drawn — ${error.replace(/\b(text[A-Z]\w*|[a-z]+[A-Z]\w*)\b/g, kebab)}.`,
@@ -288,7 +320,8 @@ export type RenderTheme = 'light' | 'dark' | 'transparent';
  * The mode — the mode word, or the one mode a block defines — travels with
  * the file's palette and applies only when that palette is the one drawn.
  * `light` keeps a caller's `transparent`, which already draws the light
- * colours with no background; `dark` has no transparent form, so it draws dark.
+ * colours with no background; `dark` with a caller's `transparent` draws the
+ * dark colours with no background (`transparentDark`, diagrammo/diagrammo#1836).
  *
  * `palette` is set when the file's embedded palette wins; it is in no
  * registry, so a caller draws from it rather than looking `paletteId` up.
@@ -296,7 +329,16 @@ export type RenderTheme = 'light' | 'dark' | 'transparent';
 export function choosePalette(
   directive: PaletteDirective,
   caller: { palette?: string; paletteOverride?: string; theme?: RenderTheme }
-): { paletteId: string; palette?: PaletteConfig; theme: RenderTheme } {
+): {
+  paletteId: string;
+  palette?: PaletteConfig;
+  theme: RenderTheme;
+  /**
+   * Set when the caller asked for `transparent` and the file pinned `dark`:
+   * the dark colours are drawn with no canvas (diagrammo/diagrammo#1836).
+   */
+  transparentDark?: true;
+} {
   const callerTheme = caller.theme ?? 'light';
   if (caller.paletteOverride !== undefined) {
     return { paletteId: caller.paletteOverride, theme: callerTheme };
@@ -313,6 +355,8 @@ export function choosePalette(
       paletteId: fileId,
       ...(directive.palette && { palette: directive.palette }),
       theme,
+      ...(theme === 'dark' &&
+        callerTheme === 'transparent' && { transparentDark: true as const }),
     };
   }
   return { paletteId: caller.palette ?? 'slate', theme: callerTheme };

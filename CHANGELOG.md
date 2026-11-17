@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Theme style: `radius`, `stroke-weight` and `background` on a custom
+  palette (#1836).** An embedded `palette` block takes `radius 0` (px for a
+  standard card corner; every corner scales with it), `stroke-weight 1` (px
+  for a standard line; every line but a text halo scales with it) and
+  `background transparent` (no canvas, the mode's own ink). A theme-folder
+  file spells them `radius`, `strokeWeight`, `background`. Absent, the output
+  is byte-identical. A file pinned `dark` and rendered `transparent` now draws
+  the dark colours with no canvas, so a transparent export can carry light ink
+  for a dark slide. `applyThemeStyle` is exported from `/advanced` for hosts
+  that draw with the per-type renderers.
 - **`ownership`, a corporate entity structure chart (#1873).** Write the group
   as an indented tree with the stake first (`100% Acme Inc`), a cross-holding
   or an outside owner's stake as `10% -> Acme GmbH`, and the jurisdiction as a

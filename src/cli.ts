@@ -1335,7 +1335,14 @@ async function main(): Promise<void> {
   }
 
   // Determine output destination
-  const pngBg = chosen.theme === 'transparent' ? undefined : paletteColors.bg;
+  // No canvas: a transparent theme, a dark-pinned file asked for transparent,
+  // or a theme whose `background` is transparent (diagrammo/diagrammo#1836).
+  const pngBg =
+    chosen.theme === 'transparent' ||
+    chosen.transparentDark ||
+    chosenPalette.background === 'transparent'
+      ? undefined
+      : paletteColors.bg;
   const pngScale = opts.scale ?? DEFAULT_PNG_SCALE;
   if (opts.scale !== undefined && format === 'svg') {
     console.error(
