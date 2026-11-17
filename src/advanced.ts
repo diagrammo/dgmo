@@ -753,6 +753,14 @@ export type {
   GoalMeasure,
   GoalBand,
 } from './goal/types';
+// Calendar heatmap (#1855) and ownership (#1873): the app's preview draws
+// each through its own parse + render pair, like goal above.
+export { parseCalendarHeatmap } from './calendar-heatmap/parser';
+export { renderCalendarHeatmap } from './calendar-heatmap/renderer';
+export type { ParsedCalendarHeatmap } from './calendar-heatmap/types';
+export { parseOwnership } from './ownership/parser';
+export { renderOwnership } from './ownership/renderer';
+export type { ParsedOwnership } from './ownership/types';
 export { parseBracket } from './bracket/parser';
 export { renderBracket, renderBracketForExport } from './bracket/renderer';
 export { layoutBracket } from './bracket/layout';
