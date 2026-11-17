@@ -54,6 +54,7 @@ import {
 import { labelBox, placeLabels } from '../utils/place-labels';
 import { resolveColor } from '../colors';
 import type { LabelRect } from '../label-layout';
+import { shareText, stackSpans, toShares } from '../utils/stack-share';
 
 function seriesValue(
   pt: { value: number; extraValues?: number[] },
@@ -79,8 +80,12 @@ export function renderLine(
   // The author's `format` / `unit` / `locale` (#1831).
   const fmt = chartFormatter(chart);
   const data = chart.data;
+  // `line` + a `stack` block → stacked areas; `stack 100%` → each x position
+  // as shares of its total (#1846). A stack always fills.
+  const stacked = chart.barLayout === 'stack';
+  const percent = stacked && !!chart.stackPercent;
   // `line` + a `fill` directive → filled (area) rendering. (#25)
-  const isArea = chart.fill === true;
+  const isArea = chart.fill === true || stacked;
   // `fill-solid` → opaque area under the line instead of the default 25% tint.
   // The area IS the data surface — `fill-outline` is ignored here (§1.9).
   const solid = chart.fillMode === 'solid';
@@ -92,6 +97,27 @@ export function renderLine(
     seriesNames.length,
     1 + Math.max(0, ...data.map((d) => d.extraValues?.length ?? 0))
   );
+  // Stacked rows: each series' [lower, upper] on the value axis (in shares
+  // under `stack 100%`), and each raw value's share of its row's total.
+  const rawRows = data.map((d) =>
+    Array.from({ length: seriesCount }, (_, s) => seriesValue(d, s))
+  );
+  const shareRows = stacked ? rawRows.map(toShares) : null;
+  const spanRows = stacked
+    ? (percent ? shareRows! : rawRows).map(stackSpans)
+    : null;
+  /** Where row i of series s sits on its value axis; NaN when missing. */
+  const yValue = (i: number, s: number): number => {
+    const v = rawRows[i]![s]!;
+    if (!spanRows || !Number.isFinite(v)) return v;
+    return spanRows[i]![s]![1];
+  };
+  /** Its lower edge: the top of the series below, or 0. */
+  const yLower = (i: number, s: number): number =>
+    spanRows ? spanRows[i]![s]![0] : 0;
+  // A stacked area prints no point values; its hover carries value and share.
+  const showValues = !chart.noValue && !stacked;
+  const tickFmt = percent ? (t: number) => `${round(t)}%` : fmt;
   const seriesColor = (s: number): string =>
     chart.seriesNameColors?.[s] ?? colors[s % colors.length]!;
 
@@ -122,12 +148,13 @@ export function renderLine(
   // isn't crushed against a forced 0 baseline — line charts float (unlike
   // magnitude-encoding bars). `no-auto-y` restores the 0 floor (§15.1).
   const extentFor = (side: 'left' | 'right'): [number, number] => {
+    if (percent) return [0, 100];
     let lo = Infinity;
     let hi = -Infinity;
-    for (const d of data)
+    for (let i = 0; i < data.length; i++)
       for (let s = 0; s < seriesCount; s++)
         if (axisOf(s) === side) {
-          const v = seriesValue(d, s);
+          const v = yValue(i, s);
           if (!Number.isFinite(v)) continue;
           lo = Math.min(lo, v);
           hi = Math.max(hi, v);
@@ -139,7 +166,8 @@ export function renderLine(
         lo = Math.min(lo, v);
         hi = Math.max(hi, v);
       }
-    if (chart.noAutoY) {
+    if (chart.noAutoY || stacked) {
+      // A stacked area always starts at 0: its top edge is the total.
       // Opt-out: anchor baseline at 0 for non-negative data (ECharts parity).
       if (lo > 0) lo = 0;
     } else {
@@ -160,10 +188,10 @@ export function renderLine(
   const ySpec = chart.axes?.y;
   let dataLoL = Infinity;
   let dataHiL = -Infinity;
-  for (const d of data)
+  for (let i = 0; i < data.length; i++)
     for (let s = 0; s < seriesCount; s++)
       if (axisOf(s) === 'left') {
-        const v = seriesValue(d, s);
+        const v = yValue(i, s);
         if (!Number.isFinite(v)) continue;
         dataLoL = Math.min(dataLoL, v);
         dataHiL = Math.max(dataHiL, v);
@@ -189,7 +217,7 @@ export function renderLine(
   const mRight = dual
     ? computeLeftMargin(chart.yrlabel, [fmt(hiR), fmt(loR)])
     : 32;
-  const mLeft0 = computeLeftMargin(chart.ylabel, probeL.map(fmt));
+  const mLeft0 = computeLeftMargin(chart.ylabel, probeL.map(tickFmt));
   // scalePoint with padding(0.5) puts one slot's worth of space between
   // adjacent points, and half a slot at each end. Rotated labels hang left of
   // the first point, so the margin may grow to keep them inside the SVG.
@@ -221,7 +249,7 @@ export function renderLine(
   // drawing starts on the body band (#1838), so push the plot down until that
   // label's top is on it. A point at fraction f from the plot top lands at
   // m.top + f * (height - m.bottom - m.top).
-  if (!chart.noValue) {
+  if (showValues) {
     const probeLeft = leftAxis([0, 1]);
     const probeR = dual
       ? buildValueAxis(loR, hiR, undefined, [0, 1], { nice: true })
@@ -357,7 +385,7 @@ export function renderLine(
       .attr('fill', leftTint ?? textColor)
       .attr('font-size', TICK_FONT)
       .attr('font-family', FONT_FAMILY)
-      .text(fmt(t));
+      .text(tickFmt(t));
   }
 
   // right y ticks (no gridlines)
@@ -543,6 +571,8 @@ export function renderLine(
     const pts = data.map((d, i) => ({
       label: d.label,
       v: seriesValue(d, s),
+      y: yValue(i, s),
+      lo: yLower(i, s),
       xIndex: i,
       lineNumber: d.lineNumber,
     }));
@@ -562,8 +592,8 @@ export function renderLine(
       const areaGen = d3area<(typeof pts)[number]>()
         .defined((p) => has(p.v))
         .x((p) => xOfRow(p.xIndex))
-        .y0(yy(yy.baseline))
-        .y1((p) => yy(p.v))
+        .y0((p) => (stacked ? yy(p.lo) : yy(yy.baseline)))
+        .y1((p) => yy(p.y))
         .curve(curve);
       g.append('path')
         .attr('class', 'dgmo-series-area')
@@ -582,14 +612,14 @@ export function renderLine(
     const lineGen = d3line<(typeof pts)[number]>()
       .defined((p) => has(p.v))
       .x((p) => xOfRow(p.xIndex))
-      .y((p) => yy(p.v))
+      .y((p) => yy(p.y))
       .curve(curve);
     g.append('path')
       .attr('class', 'dgmo-series-line')
       .attr('d', lineGen(pts) ?? '')
       .attr('fill', 'none')
       .attr('stroke', color)
-      .attr('stroke-width', 2.5)
+      .attr('stroke-width', stacked ? 1.75 : 2.5)
       .attr('stroke-linejoin', 'round')
       .attr('stroke-linecap', 'round');
 
@@ -617,15 +647,21 @@ export function renderLine(
         .attr('data-color', own)
         .attr('data-x-index', p.xIndex)
         .attr('data-x-label', p.label)
-        .attr('data-value', p.v)
+        .attr(
+          'data-value',
+          shareRows
+            ? `${fmt(p.v)} · ${shareText(shareRows[p.xIndex]![s]!)}`
+            : p.v
+        )
         .attr('data-line-number', p.lineNumber)
         .attr('cx', xOfRow(p.xIndex))
-        .attr('cy', yy(p.v))
-        .attr('r', 3.5)
+        .attr('cy', yy(p.y))
+        // A stacked area marks no points; hover grows the nearest one.
+        .attr('r', stacked ? 0 : 3.5)
         .attr('fill', bgColor)
         .attr('stroke', color)
         .attr('stroke-width', 2);
-      if (!chart.noValue) {
+      if (showValues) {
         valueLabels.push({
           text: fmt(p.v),
           cx: xOfRow(p.xIndex),

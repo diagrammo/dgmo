@@ -1,0 +1,14 @@
+bar Ship's Stores by Quarter
+subtitle Share of barrels
+y-label Share of hold
+
+stack 100%
+  Rum orange
+  Powder blue
+  Salt pork green
+  Hardtack gray
+
+Q1 420 220 255 135
+Q2 510 280 260 170
+Q3 470 215 310 200
+Q4 560 300 280 125

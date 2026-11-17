@@ -175,8 +175,8 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'no-legend': { description: 'Hide the legend' },
       stack: {
         description:
-          'Multi-series block header → stacked bars; `stack diverging` centres them on 0',
-        values: ['diverging'],
+          'Multi-series block header → stacked bars; `stack 100%` draws shares; `stack diverging` centres them on 0',
+        values: ['100%', 'diverging'],
       },
       group: {
         description:
@@ -221,6 +221,11 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       locale: { description: 'Separators and currency style (locale de-DE)' },
       'no-legend': { description: 'Hide the legend' },
       series: { description: 'Series name(s)' },
+      stack: {
+        description:
+          'Multi-series block header → stacked areas; `stack 100%` draws shares of each total',
+        values: ['100%'],
+      },
       fill: { description: 'Fill under the line (area chart)' },
       'fill-between': {
         description:

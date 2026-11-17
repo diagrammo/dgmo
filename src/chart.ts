@@ -79,10 +79,14 @@ export interface ParsedChart {
   /** Per-series axis assignment, parallel to seriesNames. Present only when the
    *  series block uses the grouped (dual-axis) form; absent ⇒ all left. */
   seriesAxes?: ('left' | 'right')[];
-  /** Bar multi-series layout, set by a `stack` or `group` block header
-   *  (consolidation #24). Absent ⇒ single-series bar. Drives stacked vs
-   *  clustered rendering in `charts-d3/bar.ts`. */
+  /** Multi-series layout, set by a `stack` or `group` block header
+   *  (consolidation #24). Absent ⇒ single-series bar. On `bar` it drives
+   *  stacked vs clustered rendering in `charts-d3/bar.ts`; on `line`, `stack`
+   *  draws stacked areas (#1846) and `group` is ignored. */
   barLayout?: 'stack' | 'group';
+  /** `stack 100%` (#1846): each x position is drawn as shares of its total,
+   *  on a 0–100% axis. Values stay raw in the source. `bar` and `line`. */
+  stackPercent?: boolean;
   /** `stack diverging` (#1980): the stack is centred on 0 — series before
    *  the neutral one grow left (down), series after it grow right (up). */
   diverging?: boolean;
@@ -270,7 +274,8 @@ const KNOWN_FIRST_TOKENS: ReadonlySet<string> = new Set([
  * Gate a `series`/`stack`/`group` block header against the chart type.
  * Returns true when the header must be REJECTED (skip collection):
  *  - `series` on a `bar` chart is a hard error → use `stack`/`group` (#24).
- * Emits a warning (but proceeds) for `stack`/`group` on a non-bar chart.
+ * Emits a warning (but proceeds) for `stack`/`group` on a non-bar chart,
+ * except `stack` on `line`, which draws stacked areas (#1846).
  */
 function rejectSeriesHeader(
   result: ParsedChart,
@@ -286,7 +291,11 @@ function rejectSeriesHeader(
     result.error = formatDgmoError(diag);
     return true;
   }
-  if ((keyword === 'stack' || keyword === 'group') && result.type !== 'bar') {
+  if (
+    (keyword === 'stack' || keyword === 'group') &&
+    result.type !== 'bar' &&
+    !(keyword === 'stack' && result.type === 'line')
+  ) {
     result.diagnostics.push(
       makeDgmoError(
         lineNumber,
@@ -353,6 +362,8 @@ export function parseChart(
     lineNumber: number;
   }[] = [];
   const rawSeriesBands: { tokens: string[]; lineNumber: number }[] = [];
+  /** Every `series` / `stack` / `group` header, in source order (#1846). */
+  const layoutHeaders: { keyword: string; lineNumber: number }[] = [];
   const rawFillBetween: { tokens: string[]; lineNumber: number }[] = [];
   const result: ParsedChart = {
     type: 'bar',
@@ -704,11 +715,20 @@ export function parseChart(
         firstToken === 'group'
       ) {
         const rejected = rejectSeriesHeader(result, firstToken, lineNumber);
-        // `stack diverging` (#1980) is a bare block header with a mode, not
-        // an inline series named "diverging".
+        // `stack diverging` (#1980) and `stack 100%` (#1846) are bare block
+        // headers with a mode, not an inline series named after the mode.
         const diverging = firstToken === 'stack' && value === 'diverging';
+        const percent = value === '100%' && firstToken !== 'series';
+        if (percent && firstToken === 'group')
+          result.diagnostics.push(
+            makeDgmoError(
+              lineNumber,
+              '`group 100%` is not a layout — side-by-side bars have no shares. Use `stack 100%` for bars that each add up to 100%.',
+              'error'
+            )
+          );
         const parsed = parseSeriesNames(
-          diverging ? '' : value,
+          diverging || percent ? '' : value,
           lines,
           i,
           palette,
@@ -728,10 +748,21 @@ export function parseChart(
         applySeriesAxes(result, parsed, lineNumber);
         if (firstToken === 'stack' || firstToken === 'group')
           result.barLayout = firstToken;
+        layoutHeaders.push({ keyword: firstToken, lineNumber });
         delete result.diverging;
         delete result.neutralSeries;
+        delete result.stackPercent;
+        if (percent && firstToken === 'stack') result.stackPercent = true;
         if (diverging && result.type === 'bar')
           applyDivergingNeutral(result, parsed, lineNumber);
+        else if (diverging)
+          result.diagnostics.push(
+            makeDgmoError(
+              lineNumber,
+              `\`stack diverging\` applies only to bar charts; drawing an ordinary stack on "${result.type}".`,
+              'warning'
+            )
+          );
         continue;
       }
     }
@@ -783,8 +814,10 @@ export function parseChart(
       applySeriesAxes(result, parsed, lineNumber);
       if (firstToken === 'stack' || firstToken === 'group')
         result.barLayout = firstToken;
+      layoutHeaders.push({ keyword: firstToken, lineNumber });
       delete result.diverging;
       delete result.neutralSeries;
+      delete result.stackPercent;
       continue;
     }
 
@@ -1037,6 +1070,9 @@ export function parseChart(
     );
   }
 
+  if (!result.error)
+    settleStack(result, layoutHeaders, rawSeriesBands, rawFillBetween);
+
   if (!result.error && result.type === 'bar' && result.sort)
     sortBarCategories(result);
 
@@ -1076,6 +1112,80 @@ export function parseChart(
   }
 
   return result;
+}
+
+/**
+ * Stacked area and `stack 100%` (#1846). A line chart's `stack` block draws
+ * each series on top of the one below; `stack 100%` (bar or line) draws each
+ * x position as shares of its total. Rejects what a stack cannot show:
+ * negative values in a stacked area or a 100% stack, a second axis, and a
+ * `series` block beside the `stack` block.
+ */
+function settleStack(
+  result: ParsedChart,
+  headers: readonly { keyword: string; lineNumber: number }[],
+  rawBands: { tokens: string[]; lineNumber: number }[],
+  rawFills: { tokens: string[]; lineNumber: number }[]
+): void {
+  if (result.barLayout !== 'stack') {
+    delete result.stackPercent;
+    return;
+  }
+  const area = result.type === 'line';
+  const err = (line: number, message: string): void => {
+    result.diagnostics.push(makeDgmoError(line, message, 'error'));
+  };
+  if (area) {
+    const series = headers.find((h) => h.keyword === 'series');
+    const stack = headers.find((h) => h.keyword === 'stack');
+    if (series && stack)
+      err(
+        Math.max(series.lineNumber, stack.lineNumber),
+        'A line chart takes a `series` block or a `stack` block, not both. `stack` draws stacked areas; keep one.'
+      );
+    if (result.yrlabel !== undefined || result.seriesAxes) {
+      err(
+        result.yrlabelLineNumber ?? result.seriesLineNumber ?? 1,
+        'A stacked area has one value axis, so it cannot take `y-right-label`. Remove it, or use a `series` block for two axes.'
+      );
+      delete result.yrlabel;
+      delete result.seriesAxes;
+    }
+    for (const r of rawBands)
+      err(
+        r.lineNumber,
+        'A series band cannot be drawn on a stacked area, because each band already sits on the one below. Use a `series` block for bands.'
+      );
+    for (const r of rawFills)
+      err(
+        r.lineNumber,
+        '`fill-between` cannot be drawn on a stacked area, because the areas already touch. Use a `series` block for `fill-between`.'
+      );
+    rawBands.length = 0;
+    rawFills.length = 0;
+  }
+  if (!area && !result.stackPercent) return;
+  // A stacked area or a share of a total has no honest place for a negative
+  // value. (A plain stacked bar draws negatives below zero, §15.1.)
+  const names = result.seriesNames ?? [result.series ?? ''];
+  const channel = result.stackPercent ? '100% stacks' : 'stacked areas';
+  result.data = result.data.filter((d) => {
+    const values = [d.value, ...(d.extraValues ?? [])];
+    const s = values.findIndex((v) => v < 0);
+    if (s < 0) return true;
+    const series = names[s];
+    result.diagnostics.push({
+      ...emit(NEGATIVE_VALUE_DX, d.lineNumber, {
+        value: values[s]!,
+        label: series ? `${d.label} · ${series}` : d.label,
+        channel,
+      }),
+      hint: result.stackPercent
+        ? 'A share of a total cannot be negative. Restate the value as a positive amount, or use `stack` without `100%` on a bar chart, which draws negatives below zero.'
+        : 'A stacked area cannot be negative. Restate the value as a positive amount, use a `series` block for lines that cross zero, or a stacked bar, which draws negatives below zero.',
+    });
+    return false;
+  });
 }
 
 /**
@@ -1163,13 +1273,27 @@ function settleChartAxes(result: ParsedChart): void {
   if (!y) return;
   const rows = result.data.map((d) => [d.value, ...(d.extraValues ?? [])]);
   let values: number[];
-  if (result.type === 'bar' && result.barLayout === 'stack') {
+  if (result.barLayout === 'stack' && result.stackPercent) {
+    // A 100% stack's axis is fixed at 0–100% (#1846).
+    result.diagnostics.push(
+      makeDgmoError(
+        y.lineNumber ?? 1,
+        'A `stack 100%` axis always reads 0–100%, so `y-scale`, `y-min` and `y-max` do nothing here; ignoring them.',
+        'warning'
+      )
+    );
+    delete result.axes!.y;
+    return;
+  }
+  if (
+    (result.type === 'bar' || result.type === 'line') &&
+    result.barLayout === 'stack'
+  ) {
     if (y.scale === 'log') {
       result.diagnostics.push(
         emit(AXIS_DIRECTIVE_DX, y.lineNumber ?? 1, {
           directive: 'y-scale',
-          reason:
-            'a stacked bar cannot use a log scale, because its segments would not add up',
+          reason: `a stacked ${result.type === 'line' ? 'area' : 'bar'} cannot use a log scale, because its segments would not add up`,
         })
       );
       delete y.scale;

@@ -18,6 +18,7 @@ import { FONT_FAMILY } from '../fonts';
 import { contrastText, shapeFill, themeBaseBg } from '../palettes/color-utils';
 import { annotationValues } from '../annotations/parse';
 import { divergingSpans } from '../utils/diverging';
+import { shareText, toShares } from '../utils/stack-share';
 import {
   drawBands,
   drawRefLines,
@@ -102,6 +103,8 @@ export function renderBar(
   // `stack diverging` (#1980): segments sit either side of 0 around the
   // neutral series, and every printed number is a magnitude.
   const diverging = stacked && !!chart.diverging;
+  // `stack 100%` (#1846): every bar is drawn as shares of its own total.
+  const percent = stacked && !diverging && !!chart.stackPercent;
   const spansOf = (vals: number[]) => divergingSpans(vals, chart.neutralSeries);
   const grouped = chart.barLayout === 'group';
   // A `stack` or `group` block header makes it multi-series; plain `bar` (no
@@ -161,7 +164,8 @@ export function renderBar(
     inlineTitle
   );
 
-  const perCat = data.map((d) => seriesValues(d, seriesCount));
+  const rawCat = data.map((d) => seriesValues(d, seriesCount));
+  const perCat = percent ? rawCat.map(toShares) : rawCat;
   // Stacked bars accumulate positive and negative values into separate runs,
   // so the extents are the per-category positive sum and negative sum.
   const maxVal = diverging
@@ -200,7 +204,11 @@ export function renderBar(
   // names for horizontal bars, value ticks for vertical.
   const catLabels = data.map((d) => d.label);
   // A diverging axis reads positive both ways from 0.
-  const tickFmt = diverging ? (t: number) => fmt(Math.abs(t)) : fmt;
+  const tickFmt = diverging
+    ? (t: number) => fmt(Math.abs(t))
+    : percent
+      ? (t: number) => `${Math.round(t * 100) / 100}%`
+      : fmt;
   const valueTicks = probeTicks.map(tickFmt);
   // Vertical bars carry their category names under the axis, so they need the
   // same fit treatment as line. Horizontal bars put them in the left gutter,
@@ -437,9 +445,11 @@ export function renderBar(
     };
   };
 
-  data.forEach((d) => {
+  data.forEach((d, di) => {
     const base = cat(d.label) ?? 0;
-    const vals = seriesValues(d, seriesCount);
+    // Geometry values (shares under `stack 100%`); the source's own numbers.
+    const vals = perCat[di]!;
+    const raw = rawCat[di]!;
     // One category's labels collide when its bars are thinner than the type:
     // the larger value keeps its label, a smaller one that would touch it is
     // dropped (#1828). Its value stays on the bar's hover.
@@ -482,7 +492,11 @@ export function renderBar(
         line: d.lineNumber,
         key: multiSeries ? sName : d.label,
         name: multiSeries ? `${d.label} · ${sName}` : d.label,
-        value: diverging ? Math.abs(v) : v,
+        value: percent
+          ? `${fmt(raw[s]!)} · ${shareText(v)}`
+          : diverging
+            ? Math.abs(v)
+            : v,
         color: own,
         seriesName: multiSeries ? sName : undefined,
       };
@@ -491,7 +505,9 @@ export function renderBar(
         // down/left — the diverging-stack convention.
         const acc = v < 0 ? accNeg : accPos;
         const [from, to] = dSpans ? dSpans[s]! : [acc, acc + v];
-        const segText = fmt(diverging ? Math.abs(v) : v);
+        const segText = percent
+          ? shareText(v)
+          : fmt(diverging ? Math.abs(v) : v);
         if (horiz) {
           const x0 = val(from);
           const x1 = val(to);
@@ -673,7 +689,7 @@ function rect(
     line: number;
     key: string;
     name: string;
-    value: number;
+    value: number | string;
     color: string;
     seriesName?: string | undefined;
   },
@@ -708,7 +724,7 @@ function stemAndDot(
     line: number;
     key: string;
     name: string;
-    value: number;
+    value: number | string;
     color: string;
     seriesName?: string | undefined;
   },

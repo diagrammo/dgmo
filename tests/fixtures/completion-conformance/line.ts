@@ -19,6 +19,8 @@ export const fixture: ConformanceFixture = {
     ...Y_AXIS_DIRECTIVES,
     'no-legend',
     'series',
+    // #1846 stacked areas: a `stack` block in place of `series`.
+    'stack',
     'fill',
     // #1997 fill between two series.
     'fill-between',

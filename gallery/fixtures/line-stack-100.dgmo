@@ -1,0 +1,16 @@
+line Ship's Stores in the Hold
+subtitle Share of barrels by month
+y-label Share of hold
+
+stack 100%
+  Rum orange
+  Powder blue
+  Salt pork green
+  Hardtack gray
+
+Jan 120 60 80 40
+Feb 140 70 85 45
+Mar 160 85 90 45
+Apr 190 100 100 50
+May 170 90 95 45
+Jun 150 80 90 40
