@@ -68,11 +68,14 @@ cat diagram.dgmo | dgmo > out.png      # pipe in, PNG to stdout
 dgmo diagram.dgmo --theme dark --palette catppuccin
 ```
 
-| Flag        | Values                               | Default       |
-| ----------- | ------------------------------------ | ------------- |
-| `--theme`   | `light`, `dark`, `transparent`       | `light`       |
-| `--palette` | one of 7 palettes (see below)        | `slate`       |
-| `-o`        | output path (`.svg` → SVG, else PNG) | `<input>.png` |
+| Flag                  | Values                                               | Default       |
+| --------------------- | ---------------------------------------------------- | ------------- |
+| `--theme`             | `light`, `dark`, `transparent`                       | `light`       |
+| `--palette`           | one of 7 palettes (see below)                        | `slate`       |
+| `--theme-file`        | theme JSON file (beats `--palette`; not with it)     | —             |
+| `--width`, `--height` | `1200`, `1200px`, `89mm`, `3.5in` (mm/in at `--dpi`) | content       |
+| `--dpi`               | pixels per inch for mm/in sizes                      | `96`          |
+| `-o`                  | output path (`.svg` → SVG, else PNG)                 | `<input>.png` |
 
 ## Library
 

@@ -572,7 +572,7 @@ Havana 400
 
 ### 1.15 Output Size — `--width` and `--height`
 
-A caller can ask for a canvas size: `--width` and `--height` on the CLI, `width` and `height` in `render()`'s options.
+A caller can ask for a canvas size: `--width` and `--height` on the CLI, `width` and `height` in `render()`'s options. On the CLI a size is a number of pixels (`1200`, `1200px`) or a physical size (`89mm`, `3.5in`), which becomes canvas pixels at `--dpi` (default 96).
 
 - **A width alone** is a maximum for chart types that fit their content to it. A chart type that lays out from its own nodes is as wide as its content needs; when that is wider than the width asked for, `W_CANVAS_WIDTH_IGNORED` says so.
 - **A width with a height is an exact canvas** — the SVG, the PNG at `--scale 1` and the PDF page come back at exactly that size — for these chart types only, which lay out onto the canvas they are given:

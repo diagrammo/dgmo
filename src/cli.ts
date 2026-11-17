@@ -35,6 +35,7 @@ import { resolveOrgImports } from './org/resolver';
 import { containedReader } from './cli-contained-read';
 import { normalizePertSourceForShare } from './pert/share-normalize';
 import { renderBanner } from './cli-banner';
+import { parseSize, parseDpi, loadThemeFile } from './cli-flags';
 import { skillsInstallNote } from './cli-install-notes';
 import { cwdHoldsHome, symlinkOutside } from './cli-install-guard';
 import {
@@ -139,13 +140,20 @@ Render options:
   --highlight <names>  Story view for this export: replaces the file's own
                        highlight line (comma-separate several names);
                        --highlight none clears it
-  --width <px>         Canvas width. Chart types that size themselves from
+  --theme-file <path>  Use a theme JSON file's colours (the app's theme-file
+                       format). Beats the file's own palette line; not
+                       with --palette
+  --width <size>       Canvas width: 1200, 1200px, 89mm or 3.5in. mm and in
+                       become pixels at --dpi. Chart types that size themselves from
                        their content treat it as a maximum and warn if their
                        content does not fit
-  --height <px>        Canvas height. With --width too, chart types that lay
+  --height <size>      Canvas height, same units as --width. With --width too, chart types that lay
                        out onto the canvas (data charts, pie, radar, venn, …)
                        come back exactly that size; types that size
                        themselves from their content ignore it and warn
+  --dpi <n>            Pixels per inch for mm and in sizes (default: 96).
+                       89mm at --dpi 300 is a 1051 px canvas; --scale then
+                       multiplies that into the PNG or PDF image
   --scale <n>          PNG pixels per canvas pixel (default: ${DEFAULT_PNG_SCALE}). A
                        1200x800 diagram at --scale 3 is a 3600x2400 PNG.
                        In a PDF it sets the image's resolution, not the
@@ -202,6 +210,10 @@ function parseArgs(argv: string[]): {
 
   const args = argv.slice(2); // skip node + script
   let i = 0;
+  // Sizes resolve after the loop so `--dpi` may come before or after them.
+  const rawSize: Record<string, string> = {};
+  let dpi: number | undefined;
+  let themeFile: string | undefined;
 
   while (i < args.length) {
     const arg = args[i];
@@ -244,16 +256,18 @@ function parseArgs(argv: string[]): {
       result.highlight = val;
       i += 2;
     } else if (arg === '--width' || arg === '--height') {
-      const val = args[++i];
-      const n = Number(val);
-      if (!Number.isFinite(n) || n <= 0) {
-        console.error(
-          `Error: ${arg} needs a positive number of pixels, got "${val ?? ''}".`
-        );
+      rawSize[arg] = args[++i] ?? '';
+      i++;
+    } else if (arg === '--dpi') {
+      try {
+        dpi = parseDpi(args[++i]);
+      } catch (e) {
+        console.error(`Error: ${(e as Error).message}`);
         process.exit(1);
       }
-      if (arg === '--width') result.width = Math.round(n);
-      else result.height = Math.round(n);
+      i++;
+    } else if (arg === '--theme-file') {
+      themeFile = args[++i] ?? '';
       i++;
     } else if (arg === '--outline-text') {
       result.outlineText = true;
@@ -297,6 +311,24 @@ function parseArgs(argv: string[]): {
     }
   }
 
+  try {
+    for (const flag of ['--width', '--height'] as const) {
+      const raw = rawSize[flag];
+      if (raw === undefined) continue;
+      const px = parseSize(flag, raw, dpi);
+      if (flag === '--width') result.width = px;
+      else result.height = px;
+    }
+    if (themeFile !== undefined) {
+      if (result.palette !== undefined) {
+        throw new Error('--theme-file and --palette cannot be used together.');
+      }
+      result.palette = loadThemeFile(themeFile);
+    }
+  } catch (e) {
+    console.error(`Error: ${(e as Error).message}`);
+    process.exit(1);
+  }
   return result;
 }
 
