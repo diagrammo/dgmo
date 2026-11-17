@@ -535,6 +535,14 @@ interface ChartDataPoint {
     extraValues?: number[];
     color?: string;
     lineNumber: number;
+    /** Clustered-stacked bar (#1879): the category this row is indented
+     *  under. The row's own `label` is then its period (free text). */
+    cluster?: string;
+}
+/** A clustered-stacked bar category line (#1879). */
+interface ChartCluster {
+    label: string;
+    lineNumber: number;
 }
 interface ChartEra {
     start: string;
@@ -592,6 +600,13 @@ interface ParsedChart {
     /** `stack 100%` (#1846): each x position is drawn as shares of its total,
      *  on a 0–100% axis. Values stay raw in the source. `bar` and `line`. */
     stackPercent?: boolean;
+    /** Clustered-stacked bar (#1879): categories in source order. Present
+     *  when rows are indented under category lines; each data point then
+     *  names its `cluster`, and its `label` is the period. */
+    clusters?: ChartCluster[];
+    /** The periods, in order of first appearance across all categories. A
+     *  category missing one leaves that slot empty. */
+    periods?: string[];
     /** `stack diverging` (#1980): the stack is centred on 0 — series before
      *  the neutral one grow left (down), series after it grow right (up). */
     diverging?: boolean;

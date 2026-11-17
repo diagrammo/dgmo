@@ -93,6 +93,22 @@ export function renderBar(
   hasTitle: boolean,
   inlineTitle?: InlineTitleInfo
 ): void {
+  if (chart.clusters?.length) {
+    renderClusteredStack(
+      svg,
+      chart,
+      width,
+      height,
+      colors,
+      palette,
+      isDark,
+      textColor,
+      mutedColor,
+      hasTitle,
+      inlineTitle
+    );
+    return;
+  }
   // The author's `format` / `unit` / `locale` (#1831).
   const fmt = chartFormatter(chart);
   const data = chart.data;
@@ -756,4 +772,277 @@ function stemAndDot(
     dot.attr('opacity', EMPHASIS_DIM_OPACITY);
   }
   tagDatum(dot, tag);
+}
+
+/** Gap between a cluster's period labels and its bracket. */
+const BRACKET_GAP = 6;
+/** Height of a bracket's end ticks. */
+const BRACKET_TICK = 5;
+
+/**
+ * Clustered-stacked columns (#1879): one stacked column per period inside
+ * each category, on a two-level axis — the period under each column, a
+ * bracket and the category name under each cluster. Periods line up across
+ * categories; a missing one leaves its slot empty. Colour is the series
+ * only. `stack 100%` scales each column on its own.
+ */
+function renderClusteredStack(
+  svg: Svg,
+  chart: ParsedChart,
+  width: number,
+  height: number,
+  colors: string[],
+  palette: PaletteColors,
+  isDark: boolean,
+  textColor: string,
+  mutedColor: string,
+  hasTitle: boolean,
+  inlineTitle?: InlineTitleInfo
+): void {
+  const fmt = chartFormatter(chart);
+  const clusters = chart.clusters!.map((c) => c.label);
+  const periods = chart.periods ?? [];
+  const seriesNames = chart.seriesNames?.length
+    ? chart.seriesNames
+    : [chart.series ?? ''];
+  const seriesCount = Math.max(
+    1,
+    seriesNames.length,
+    1 + Math.max(0, ...chart.data.map((d) => d.extraValues?.length ?? 0))
+  );
+  const percent = !!chart.stackPercent;
+  const columns = chart.data.map((d) => {
+    const raw = seriesValues(d, seriesCount);
+    return { d, raw, vals: percent ? toShares(raw) : raw };
+  });
+
+  const colorOf = (s: number): string =>
+    chart.seriesNameColors?.[s] ?? colors[s % colors.length]!;
+  const emphasis = resolveEmphasis(chart.emphasis, [
+    ...clusters,
+    ...seriesNames,
+  ]);
+  const { dimmed } = emphasis;
+  const story = storyPaint(emphasis, palette, isDark);
+
+  const top = reserveHeader(
+    svg,
+    chart,
+    colors,
+    palette,
+    isDark,
+    hasTitle,
+    width,
+    inlineTitle
+  );
+
+  // Positive and negative runs stack apart, as on a plain stacked bar.
+  const sum = (vals: number[], sign: 1 | -1) =>
+    vals.filter((v) => v * sign > 0).reduce((a, b) => a + b, 0);
+  const marked = annotationValues(chart.annotations);
+  const hiVal = Math.max(0, ...columns.map((c) => sum(c.vals, 1)), ...marked);
+  const loVal = Math.min(0, ...columns.map((c) => sum(c.vals, -1)), ...marked);
+  const ySpec = chart.axes?.y;
+  const valueAxis = (range: [number, number]) =>
+    buildValueAxis(
+      loVal,
+      hiVal === 0 && loVal === 0 ? 1 : hiVal,
+      ySpec,
+      range,
+      {
+        nice: true,
+      }
+    );
+  const tickFmt = percent
+    ? (t: number) => `${Math.round(t * 100) / 100}%`
+    : fmt;
+  const probeTicks = valueAxis([0, 1]).ticks(6).map(tickFmt);
+
+  const m: Margins = {
+    top: top + 8,
+    right: 32,
+    bottom:
+      TICK_FONT +
+      BRACKET_GAP +
+      BRACKET_TICK +
+      8 +
+      TICK_FONT +
+      10 +
+      (chart.xlabel ? 40 : 18),
+    left: computeLeftMargin(chart.ylabel, probeTicks),
+  };
+  const plotW = width - m.left - m.right;
+  const plotH = height - m.top - m.bottom;
+  const outer = scaleBand<string>()
+    .domain(clusters)
+    .range([m.left, m.left + plotW])
+    .paddingInner(0.18)
+    .paddingOuter(0.1);
+  const inner = scaleBand<string>()
+    .domain(periods)
+    .range([0, outer.bandwidth()])
+    .padding(0.12);
+  const val = valueAxis([m.top + plotH, m.top]);
+  const annotationFrame: ValueAxisFrame = {
+    pos: (v) => val(v),
+    domain: val.domain(),
+    left: m.left,
+    top: m.top,
+    width: plotW,
+    height: plotH,
+    horizontal: false,
+  };
+  const annotationColors = {
+    text: textColor,
+    muted: palette.textMuted,
+    bg: themeBaseBg(palette, isDark),
+  };
+  drawBands(svg, chart.annotations, annotationFrame, annotationColors);
+
+  for (const t of val.ticks(6)) {
+    const y = val(t);
+    svg
+      .append('line')
+      .attr('x1', m.left)
+      .attr('x2', m.left + plotW)
+      .attr('y1', y)
+      .attr('y2', y)
+      .attr('stroke', mutedColor)
+      .attr('stroke-opacity', t === val.baseline ? 0.6 : 0.25);
+    svg
+      .append('text')
+      .attr('x', m.left - 10)
+      .attr('y', y + 4)
+      .attr('text-anchor', 'end')
+      .attr('fill', textColor)
+      .attr('font-size', TICK_FONT)
+      .attr('font-family', FONT_FAMILY)
+      .text(tickFmt(t));
+  }
+
+  // Two-level axis: periods under each column, then a bracket and the
+  // category name under each cluster.
+  const axisY = m.top + plotH;
+  const periodY = axisY + TICK_FONT + 6;
+  const bracketY = periodY + BRACKET_GAP;
+  const nameY = bracketY + BRACKET_TICK + 4 + TICK_FONT;
+  const label = (
+    text: string,
+    x: number,
+    y: number,
+    maxW: number,
+    cls: string,
+    weight?: number
+  ) => {
+    const { lines, truncated } = fitLabel(text, TICK_FONT, maxW, 1);
+    const t = svg
+      .append('text')
+      .attr('class', cls)
+      .attr('x', x)
+      .attr('y', y)
+      .attr('text-anchor', 'middle')
+      .attr('fill', textColor)
+      .attr('font-size', TICK_FONT)
+      .attr('font-family', FONT_FAMILY)
+      .text(lines[0]!);
+    if (weight) t.attr('font-weight', weight);
+    // A cut name keeps its full text for assistive tech, not as a tooltip.
+    if (truncated) t.attr('aria-label', text);
+  };
+  for (const c of clusters) {
+    const x0 = outer(c) ?? 0;
+    const x1 = x0 + outer.bandwidth();
+    for (const p of periods)
+      if (chart.data.some((d) => d.cluster === c && d.label === p))
+        label(
+          p,
+          x0 + (inner(p) ?? 0) + inner.bandwidth() / 2,
+          periodY,
+          inner.step(),
+          'dgmo-period-label'
+        );
+    svg
+      .append('path')
+      .attr('class', 'dgmo-cluster-bracket')
+      .attr('d', `M${x0},${bracketY} v${BRACKET_TICK} H${x1} v${-BRACKET_TICK}`)
+      .attr('fill', 'none')
+      .attr('stroke', mutedColor)
+      .attr('stroke-opacity', 0.6);
+    label(c, (x0 + x1) / 2, nameY, outer.step(), 'dgmo-cluster-label', 600);
+  }
+
+  const multi = seriesCount > 1;
+  for (const { d, raw, vals } of columns) {
+    const x = (outer(d.cluster!) ?? 0) + (inner(d.label) ?? 0);
+    const w = inner.bandwidth();
+    let accPos = 0;
+    let accNeg = 0;
+    vals.forEach((v, s) => {
+      const sName = seriesNames[s] ?? '';
+      const own = colorOf(s);
+      const recede = dimmed.has(d.cluster!) && (!multi || dimmed.has(sName));
+      const stroke = !story.active
+        ? own
+        : recede
+          ? story.groundStroke
+          : story.subject(own);
+      const fill = !story.active
+        ? shapeFill(palette, own, isDark, { mode: chart.fillMode })
+        : recede
+          ? story.groundFill
+          : stroke;
+      const dim = recede && !story.active;
+      const from = v < 0 ? accNeg : accPos;
+      const to = from + v;
+      const y0 = val(from);
+      const y1 = val(to);
+      rect(
+        svg,
+        x,
+        Math.min(y0, y1),
+        w,
+        Math.abs(y1 - y0),
+        fill,
+        stroke,
+        {
+          line: d.lineNumber,
+          key: multi ? sName : d.cluster!,
+          name: [d.cluster, d.label, multi ? sName : '']
+            .filter(Boolean)
+            .join(' · '),
+          value: percent ? `${fmt(raw[s]!)} · ${shareText(v)}` : v,
+          color: own,
+          seriesName: multi ? sName : undefined,
+        },
+        dim
+      );
+      const text = percent ? shareText(v) : fmt(v);
+      if (
+        !chart.noValue &&
+        Math.abs(y1 - y0) > 18 &&
+        measureText(text, VALUE_FONT) + 4 <= w
+      ) {
+        const onBar =
+          story.active && !recede
+            ? contrastText(
+                fill,
+                palette.textOnFillLight,
+                palette.textOnFillDark
+              )
+            : story.active
+              ? story.groundText
+              : textColor;
+        drawValueLabel(svg, text, x + w / 2, (y0 + y1) / 2 + 4, onBar).attr(
+          'opacity',
+          dim ? EMPHASIS_DIM_TEXT_OPACITY : null
+        );
+      }
+      if (v < 0) accNeg += v;
+      else accPos += v;
+    });
+  }
+
+  drawRefLines(svg, chart.annotations, annotationFrame, annotationColors);
+  drawXAxisTitle(svg, chart.xlabel, m.left + plotW / 2, nameY + 30, textColor);
+  drawYAxisTitle(svg, chart.ylabel, m.top + plotH / 2, 20, textColor);
 }

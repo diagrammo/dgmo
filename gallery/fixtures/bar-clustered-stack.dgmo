@@ -1,0 +1,20 @@
+bar Plunder by Port and Year
+subtitle Chests landed, by cargo
+y-label Chests
+
+stack
+  Gold orange
+  Silver blue
+  Spices green
+
+Tortuga
+  1718 40 22 10
+  1719 44 30 14
+  1720 52 28 18
+Nassau
+  1718 31 18 8
+  1719 29 26 12
+  1720 35 24 15
+Port Royal
+  1719 20 14 9
+  1720 26 18 11

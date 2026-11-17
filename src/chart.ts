@@ -10,6 +10,15 @@ export interface ChartDataPoint {
   extraValues?: number[];
   color?: string;
   lineNumber: number;
+  /** Clustered-stacked bar (#1879): the category this row is indented
+   *  under. The row's own `label` is then its period (free text). */
+  cluster?: string;
+}
+
+/** A clustered-stacked bar category line (#1879). */
+export interface ChartCluster {
+  label: string;
+  lineNumber: number;
 }
 
 export interface ChartEra {
@@ -87,6 +96,13 @@ export interface ParsedChart {
   /** `stack 100%` (#1846): each x position is drawn as shares of its total,
    *  on a 0–100% axis. Values stay raw in the source. `bar` and `line`. */
   stackPercent?: boolean;
+  /** Clustered-stacked bar (#1879): categories in source order. Present
+   *  when rows are indented under category lines; each data point then
+   *  names its `cluster`, and its `label` is the period. */
+  clusters?: ChartCluster[];
+  /** The periods, in order of first appearance across all categories. A
+   *  category missing one leaves that slot empty. */
+  periods?: string[];
   /** `stack diverging` (#1980): the stack is centred on 0 — series before
    *  the neutral one grow left (down), series after it grow right (up). */
   diverging?: boolean;
@@ -204,6 +220,7 @@ import {
   extractColor,
   fillModeFromToken,
   GLOBAL_BOOLEANS,
+  measureIndent,
   normalizeNumericToken,
   parseFirstLine,
   parseSeriesNames,
@@ -364,6 +381,12 @@ export function parseChart(
   const rawSeriesBands: { tokens: string[]; lineNumber: number }[] = [];
   /** Every `series` / `stack` / `group` header, in source order (#1846). */
   const layoutHeaders: { keyword: string; lineNumber: number }[] = [];
+  /** Clustered-stacked bar categories and the rows under them (#1879). */
+  const rawClusters: ChartCluster[] = [];
+  let currentCluster: ChartCluster | null = null;
+  let clusteredRows = 0;
+  const flatRows: number[] = [];
+  let orientationLine = 1;
   const rawFillBetween: { tokens: string[]; lineNumber: number }[] = [];
   const result: ParsedChart = {
     type: 'bar',
@@ -545,6 +568,7 @@ export function parseChart(
     if (KNOWN_BOOLEANS.has(firstToken) && spaceIdx < 0) {
       if (firstToken === 'orientation-horizontal') {
         result.orientation = 'horizontal';
+        orientationLine = lineNumber;
       } else if (fillModeFromToken(firstToken) !== null) {
         const fm = fillModeFromToken(firstToken)!;
         if (fm === 'tint') delete result.fillMode;
@@ -821,6 +845,29 @@ export function parseChart(
       continue;
     }
 
+    // Clustered-stacked bar (#1879): an unindented line followed by
+    // indented rows is a category; each indented row under it is a period.
+    const indent = measureIndent(lines[i]!);
+    if (result.type === 'bar' && indent === 0) {
+      // A category line carries no numbers, and the indented line under it
+      // is a period row that does; anything else is not a category.
+      const next = nextContentLine(lines, i);
+      if (
+        next !== null &&
+        measureIndent(lines[next]!) > 0 &&
+        parseDataRowValues(trimmed) === null &&
+        parseDataRowValues(lines[next]!.trim()) !== null
+      ) {
+        currentCluster = {
+          label: trimmed.replace(/^(["'])(.*)\1$/, '$2').trim(),
+          lineNumber,
+        };
+        rawClusters.push(currentCluster);
+        continue;
+      }
+    }
+    if (indent === 0) currentCluster = null;
+
     // Data row: parse from the right — rightmost numeric token(s) = value(s), everything left = label
     // Supports space-separated multi-values when series are defined: "Jan 100 200 300"
     const seriesCount = result.seriesNames?.length ?? 0;
@@ -841,7 +888,9 @@ export function parseChart(
       // like "Day 1 8" or "Q3 2024 40" renders correctly (label "Day 1", value
       // 8) and is the most common axis-labelling pattern there is, so warning on
       // it would be noise on nearly every real line/bar chart.
-      if (multiValue) {
+      // A period row takes exactly one number per series; the rest is its
+      // free-text label (`Q1 2025 44 30`, #1879), so it never warns.
+      if (multiValue && !currentCluster) {
         const surplus = surplusValueDiagnostic(
           dataValues,
           seriesCount,
@@ -882,7 +931,10 @@ export function parseChart(
         ...(rest.length > 0 && { extraValues: rest }),
         ...(pointColor && { color: pointColor }),
         lineNumber,
+        ...(currentCluster && { cluster: currentCluster.label }),
       });
+      if (currentCluster) clusteredRows++;
+      else flatRows.push(lineNumber);
       continue;
     }
 
@@ -1073,6 +1125,9 @@ export function parseChart(
   if (!result.error)
     settleStack(result, layoutHeaders, rawSeriesBands, rawFillBetween);
 
+  if (!result.error && clusteredRows > 0)
+    settleClusters(result, rawClusters, flatRows, orientationLine);
+
   if (!result.error && result.type === 'bar' && result.sort)
     sortBarCategories(result);
 
@@ -1177,7 +1232,7 @@ function settleStack(
     result.diagnostics.push({
       ...emit(NEGATIVE_VALUE_DX, d.lineNumber, {
         value: values[s]!,
-        label: series ? `${d.label} · ${series}` : d.label,
+        label: [d.cluster, d.label, series].filter(Boolean).join(' · '),
         channel,
       }),
       hint: result.stackPercent
@@ -1186,6 +1241,116 @@ function settleStack(
     });
     return false;
   });
+}
+
+/** Index of the next non-blank, non-comment line after `i`, or null. */
+function nextContentLine(lines: readonly string[], i: number): number | null {
+  for (let j = i + 1; j < lines.length; j++) {
+    const t = lines[j]!.trim();
+    if (t && !t.startsWith('//')) return j;
+  }
+  return null;
+}
+
+/**
+ * Clustered-stacked bar (#1879): rows indented under category lines. Each
+ * category draws one stack per period; periods line up across categories
+ * in order of first appearance. Needs a `stack` block.
+ */
+function settleClusters(
+  result: ParsedChart,
+  rawClusters: readonly ChartCluster[],
+  flatRows: readonly number[],
+  orientationLine: number
+): void {
+  const err = (line: number, message: string, sev: 'error' | 'warning') => {
+    result.diagnostics.push(makeDgmoError(line, message, sev));
+  };
+  const first = rawClusters[0]!;
+  if (result.barLayout !== 'stack') {
+    err(
+      first.lineNumber,
+      `Rows indented under "${first.label}" draw stacks grouped by category, which need a \`stack\` block. Add one, or write the rows flat.`,
+      'error'
+    );
+    return;
+  }
+  if (result.diverging) {
+    err(
+      first.lineNumber,
+      '`stack diverging` cannot be grouped by category. Write the rows flat, or use `stack`.',
+      'error'
+    );
+    return;
+  }
+  for (const line of flatRows)
+    err(
+      line,
+      'This row has no category, but other rows are indented under categories. Indent it under one.',
+      'error'
+    );
+  result.data = result.data.filter((d) => d.cluster !== undefined);
+  // A category line with no row left under it draws nothing.
+  const used = new Set(result.data.map((d) => d.cluster));
+  const clusters: ChartCluster[] = [];
+  const seenCluster = new Set<string>();
+  for (const c of rawClusters) {
+    if (!used.has(c.label)) {
+      err(
+        c.lineNumber,
+        `"${c.label}" has no rows with values under it.`,
+        'warning'
+      );
+      continue;
+    }
+    if (seenCluster.has(c.label)) {
+      err(
+        c.lineNumber,
+        `"${c.label}" is written twice. Its rows are drawn together, under the first one.`,
+        'warning'
+      );
+      continue;
+    }
+    seenCluster.add(c.label);
+    clusters.push(c);
+  }
+  // One column per period in each category: a repeat is dropped.
+  const seen = new Set<string>();
+  result.data = result.data.filter((d) => {
+    const key = `${d.cluster}\u0000${d.label}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      return true;
+    }
+    err(
+      d.lineNumber,
+      `"${d.label}" appears twice under "${d.cluster}"; keeping the first.`,
+      'warning'
+    );
+    return false;
+  });
+  const periods: string[] = [];
+  for (const d of result.data)
+    if (!periods.includes(d.label)) periods.push(d.label);
+  result.clusters = clusters;
+  result.periods = periods;
+  if (result.sort) {
+    err(
+      result.sortLineNumber ?? 1,
+      '`sort` does not reorder stacks grouped by category; keeping source order.',
+      'warning'
+    );
+    delete result.sort;
+    delete result.sortSeries;
+  }
+  if (result.orientation === 'horizontal') {
+    err(
+      orientationLine,
+      'Stacks grouped by category draw as columns; ignoring `orientation-horizontal`.',
+      'warning'
+    );
+    delete result.orientation;
+  }
 }
 
 /**

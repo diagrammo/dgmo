@@ -2627,6 +2627,38 @@ Parsers accept either form. The rules above are authoring guidance.
     share (`120 · 46%`). A negative value is an error (`E_VALUE_NEGATIVE`) that
     names the row and the series, and drops the row. `group 100%` is an error.
 
+  **Stacks grouped by category** (bar, #1879): write each category on its
+  own line with no numbers, and indent one row per column under it — a
+  period label, then one number per `stack` series. Each category draws one
+  stacked column per period, on a two-level axis: the period under each
+  column, then a bracket and the category name under the cluster.
+
+  ```
+  bar Revenue by region and year
+  stack
+    Hardware blue
+    Software green
+
+  North
+    2024 40 22
+    2025 44 30
+  South
+    2024 31 18
+    2025 29 26
+  ```
+
+  - The period label is free text (`2024`, `Q1 2025`, `Plan`), never read
+    as a date. The parser takes exactly one number per series from the end
+    of the row; the rest is the label, so `Q1 2025 44 30` does not warn.
+  - A category name that ends in a number is quoted (`"Fleet 7"`), or it
+    reads as a row.
+  - Periods line up across categories in order of first appearance. A
+    category without a period leaves that slot empty.
+  - Colour is the series only. `stack 100%` scales each column on its own.
+  - Errors: indented rows without a `stack` block; `stack diverging`; a flat
+    row among indented ones. `sort` and `orientation-horizontal` warn and
+    are ignored. Fewer numbers than series warns and drops the row.
+
 - **line** — use a `series` block (every series is plotted):
 
   ```
