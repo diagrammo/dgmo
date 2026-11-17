@@ -748,6 +748,7 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'no-values', category: 'directive', chartTypes: ['treemap'] },
   // ── Swimlane ─────────────────────────────────────────────
   { token: 'lane', category: 'directive', chartTypes: ['swimlane'] },
+  { token: 'pool', category: 'directive', chartTypes: ['swimlane'] },
   // ── ER ───────────────────────────────────────────────────
   { token: 'notation', category: 'directive', chartTypes: ['er'] },
   // ── Class ────────────────────────────────────────────────

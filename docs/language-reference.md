@@ -2159,7 +2159,7 @@ Henry Turner + Carina Smyth m: 1751
 
 <!-- TIPS end -->
 
-Swimlane diagrams model a cross-functional process: actors/systems are **lanes**, the process flows along the flow axis (`direction-lr` default, `direction-tb` transposes; key+value `direction LR|TB` accepted legacy), and optional `[Phase]` columns group steps into stages. Nodes are tasks (bare), exclusive gateways (`<X>`), parallel gateways (`<+ X>`), terminals (`(X)`), and subprocesses (`[[X]]`). A `lane` block **owns its edges** — nodes and their outgoing `->` edges are written inline, no separate flow block. A back-edge to an earlier node draws a routed loop.
+Swimlane diagrams model a cross-functional process: actors/systems are **lanes**, the process flows along the flow axis (`direction-lr` default, `direction-tb` transposes; key+value `direction LR|TB` accepted legacy), and optional `[Phase]` columns group steps into stages. Nodes are tasks (bare), gateways (`<X>` exclusive, `<+ X>` parallel, `<o X>` inclusive, `<* X>` event-based), events (`(X)`), and subprocesses (`[[X]]`). BPMN's everyday elements are built in — pools, message flow, event triggers, task markers, boundary events, data and notes (see **BPMN** below). A `lane` block **owns its edges** — nodes and their outgoing `->` edges are written inline, no separate flow block. A back-edge to an earlier node draws a routed loop.
 
 ```
 swimlane Weekly Publishing
@@ -2187,24 +2187,83 @@ lane Social green
 
 ### Node tokens
 
-| Token                  | Meaning                                                    |
-| ---------------------- | ---------------------------------------------------------- |
-| `Submit Claim`         | task                                                       |
-| `<Validate>`           | exclusive (XOR) gateway                                    |
-| `<+ Fork>`             | parallel (AND) gateway                                     |
-| `(Start)`              | terminal (neutral)                                         |
-| `(!Rejected)`          | error terminal (`!` prefix → red)                          |
-| `(Paid) success`       | success terminal (trailing word → green); also `terminate` |
-| `[[Inspect Property]]` | subprocess (collapsible)                                   |
+| Token                  | Meaning                                                                       |
+| ---------------------- | ----------------------------------------------------------------------------- |
+| `Submit Claim`         | task                                                                          |
+| `<Validate>`           | exclusive (XOR) gateway — an X in the diamond, the label above it             |
+| `<+ Fork>`             | parallel (AND) gateway                                                        |
+| `<o Which checks?>`    | inclusive (OR) gateway                                                        |
+| `<* Wait for reply>`   | event-based gateway (the first event wins)                                    |
+| `<+> as join`          | unlabelled gateway named `join` for other lines to point at (any of the four) |
+| `(Start)`              | event                                                                         |
+| `(!Rejected)`          | error event (`!` prefix → red, a lightning mark)                              |
+| `(Paid) success`       | success event (trailing word → green); also `terminate`                       |
+| `(Reply) message`      | message event; also `timer` and `signal`                                      |
+| `[[Inspect Property]]` | subprocess (collapsible)                                                      |
+
+**An event's circle comes from where it sits:** no inbound `->` is a start (thin circle), no outbound `->` is an end (thick circle), anything between is mid-flow (double ring). `~>` does not count.
 
 ### Flow & color
 
 - Edges use **in-arrow labels** (`A -invalid-> B`), chain (`A -> B -> C`), and fan out when an indented `-label-> Target` group sits under a bare source header.
 - Color cascade (first match wins): active **tag** value → **event/symbol** type (`(!x)`→red, `(x) success`→green, gateways neutral) → **lane** shade.
 
-### Fast-follow (rejected, not silently dropped)
+### BPMN
 
-`note:` / `data:` annotations, `timer:`/`message:`/`signal:` events, message flow `~>`, and inclusive (`<o …>`) / event-based (`<* …>`) gateways each emit an `E_SWIMLANE_UNSUPPORTED` diagnostic in v1.
+The everyday part of BPMN 2.0 (not the whole standard, and no BPMN XML):
+
+```
+swimlane Insurance claim
+
+pool Customer
+  ~> Claim received
+
+pool Insurer
+  lane Claims Agent blue
+    (Claim received) message -> Check policy
+    Check policy type: service, store: Policy DB
+      -> <Amount over 5k?>
+    <Amount over 5k?>
+      -yes-> Adjuster review
+      -no-> Auto approve
+    Auto approve type: service, note: Under 5k, no person reviews the claim
+      -> <> as merge
+
+  lane Adjuster orange
+    Adjuster review type: user
+      -> [[Inspect property]]
+      (5 days) timer -> Escalate
+    [[Inspect property]] -> merge
+    Escalate type: user -> (Escalated)
+
+  lane Finance green
+    merge -> <+> as split
+    split
+      -> Notify customer
+      -> Pay claim
+    Notify customer type: send
+      -> <+> as join
+      ~> Customer
+    Pay claim type: service -> join
+    join -> (Paid)
+```
+
+| Element | Write |
+| --- | --- |
+| Pool | `pool Insurer` at indent 0; its `lane` blocks indent under it |
+| Outside party (collapsed pool) | `pool Customer` with no lanes — it can only send or receive `~>` |
+| Message flow | `A ~> B` — dashed, open circle at the source, hollow head; only between different pools (a pool itself can be either end) |
+| Message / timer / signal event | `(Claim received) message`, `(Every Monday) timer`, `(Alarm) signal` |
+| Task marker | `Review type: user` — also `service`, `manual`, `script`, `send` (filled envelope), `receive` (hollow envelope) |
+| Boundary event | an event line indented under a task: `(5 days) timer -> Escalate` sits on the task's bottom edge (right edge in `direction-tb`); its arrow is the exception path |
+| Unlabelled gateway | `<>`, `<+>`, `<o>`, `<*>` with `as name` (§2A) |
+| Data store / data object / annotation | `store: Policy DB`, `data: Claim form`, `note: Under 5k…` on a node, joined by a dotted line. `note:` runs to the end of the line, commas included, so put it last |
+
+- A diagram with no `pool` lines is a plain swimlane, unchanged. Once a diagram has pools, every lane belongs to one (`E_SWIMLANE_LANE_OUTSIDE_POOL`).
+- `~>` inside one pool (or with no pools) is `E_SWIMLANE_MESSAGE_SAME_POOL` — use `->`. A node or `->` in a lane-less pool is `E_SWIMLANE_COLLAPSED_POOL`.
+- An unknown `type:` value is `E_SWIMLANE_UNKNOWN_TASK_TYPE`; a gateway with no label and no `as` name is `E_SWIMLANE_UNNAMED_GATEWAY`.
+- Left out for now, each `E_SWIMLANE_UNSUPPORTED`: pools together with `[Phase]` columns; escalation, compensation, conditional, cancel and link events; the key forms `timer:` / `message:` / `signal:` (a trigger is a trailing word on an event).
+- Edges never pass through a node box: the layout routes around every task, gateway, event and attachment.
 
 ---
 

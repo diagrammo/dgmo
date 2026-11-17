@@ -1,0 +1,33 @@
+swimlane Insurance claim
+
+pool Customer
+  ~> Claim received
+
+pool Insurer
+  lane Claims Agent blue
+    (Claim received) message -> Check policy
+    Check policy type: service, store: Policy DB
+      -> <Amount over 5k?>
+    <Amount over 5k?>
+      -yes-> Adjuster review
+      -no-> Auto approve
+    Auto approve type: service, note: Under 5k, no person reviews the claim
+      -> <> as merge
+
+  lane Adjuster orange
+    Adjuster review type: user
+      -> [[Inspect property]]
+      (5 days) timer -> Escalate      // a boundary event: fires if the review takes 5 days
+    [[Inspect property]] -> merge
+    Escalate type: user -> (Escalated)
+
+  lane Finance green
+    merge -> <+> as split
+    split
+      -> Notify customer
+      -> Pay claim
+    Notify customer type: send
+      -> <+> as join
+      ~> Customer
+    Pay claim type: service -> join
+    join -> (Paid)

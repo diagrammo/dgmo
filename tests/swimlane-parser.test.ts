@@ -105,22 +105,19 @@ lane L
   });
 });
 
-// The wording moved from roadmap status to what the author should do
-// (2026-09-01) — these diagnostics are shown to someone drawing a diagram, not
-// to someone reading the plan.
-describe('swimlane parser — per-token unsupported-construct rejection (AC12)', () => {
+// The §27.8 reserved seams were promoted by the BPMN extension (#1874); what
+// is left out for now still rejects with E_SWIMLANE_UNSUPPORTED.
+describe('swimlane parser — constructs left out for now', () => {
   const cases: Array<[string, string]> = [
-    ['<o Maybe>', 'inclusive'],
-    ['<* Pick>', 'event-based'],
-    ['Foo timer: 5d', 'timer'],
-    ['Foo note: hi', 'notes are not supported'],
-    ['Foo data: x', 'data objects are not supported'],
+    ['(Late) escalation -> Done', 'escalation'],
+    ['(Undo) compensation -> Done', 'compensation'],
+    ['Foo timer: 5d', 'trailing word'],
   ];
   for (const [token, needle] of cases) {
     it(`rejects ${token} with E_SWIMLANE_UNSUPPORTED`, () => {
       const p = parseSwimlane(`swimlane T
 lane L
-L
+  Done
   ${token}`);
       const unsupported = p.diagnostics.filter(
         (d) => d.code === 'E_SWIMLANE_UNSUPPORTED'
@@ -130,15 +127,195 @@ L
     });
   }
 
-  it('rejects message flow ~>', () => {
+  it('rejects pools combined with [Phase] columns', () => {
+    const p = parseSwimlane(`swimlane T
+pool P
+  lane L
+    A -> B
+    B
+[Start]
+  lane L
+    C`);
+    expect(
+      p.diagnostics.some(
+        (d) =>
+          d.code === 'E_SWIMLANE_UNSUPPORTED' && d.message.includes('[Phase]')
+      )
+    ).toBe(true);
+    expect(p.phases).toHaveLength(0);
+  });
+});
+
+describe('swimlane parser — BPMN (#1874)', () => {
+  const claims = parseSwimlane(FIX('swimlane-bpmn.dgmo'));
+  const node = (id: string) => claims.nodes.find((n) => n.id === id)!;
+
+  it('parses the claims process with zero diagnostics', () => {
+    expect(claims.diagnostics).toEqual([]);
+  });
+
+  it('reads pools, their lanes, and a lane-less outside party', () => {
+    expect(claims.pools.map((p) => [p.id, p.lanes])).toEqual([
+      ['Customer', []],
+      ['Insurer', ['Claims Agent', 'Adjuster', 'Finance']],
+    ]);
+    expect(claims.lanes.every((l) => l.pool === 'Insurer')).toBe(true);
+  });
+
+  it('reads message flow from and to a whole pool', () => {
+    expect(claims.messages).toEqual([
+      expect.objectContaining({
+        source: 'Customer',
+        target: 'Claim received',
+        sourceIsPool: true,
+        targetIsPool: false,
+      }),
+      expect.objectContaining({
+        source: 'Notify customer',
+        target: 'Customer',
+        sourceIsPool: false,
+        targetIsPool: true,
+      }),
+    ]);
+    // Message flow is not sequence flow.
+    expect(claims.edges.some((e) => e.target === 'Customer')).toBe(false);
+  });
+
+  it('reads event triggers as trailing words', () => {
+    expect(node('Claim received').event).toBe('message');
+    expect(node('5 days').event).toBe('timer');
     const p = parseSwimlane(`swimlane T
 lane L
-L
-  A
-  B
-A ~> B`);
-    const u = p.diagnostics.filter((d) => d.code === 'E_SWIMLANE_UNSUPPORTED');
-    expect(u.some((d) => d.message.includes('message flow'))).toBe(true);
+  (Go) signal -> (Wait) message -> (End) signal`);
+    expect(p.nodes.map((n) => n.event)).toEqual([
+      'signal',
+      'message',
+      'signal',
+    ]);
+    expect(p.diagnostics).toEqual([]);
+  });
+
+  it('reads type: as a task marker and never as a tag', () => {
+    expect(node('Check policy').taskType).toBe('service');
+    expect(node('Adjuster review').taskType).toBe('user');
+    expect(node('Notify customer').taskType).toBe('send');
+    expect(node('Check policy').tags['type']).toBeUndefined();
+  });
+
+  it('flags an unknown type: value and lists the six', () => {
+    const p = parseSwimlane(`swimlane T
+lane L
+  Review type: robot`);
+    const d = p.diagnostics.find(
+      (x) => x.code === 'E_SWIMLANE_UNKNOWN_TASK_TYPE'
+    )!;
+    expect(d.message).toContain(
+      'user, service, manual, script, send or receive'
+    );
+  });
+
+  it('attaches an indented event to its task as a boundary event', () => {
+    expect(node('5 days').boundaryOf).toBe('Adjuster review');
+    expect(
+      claims.edges.some((e) => e.source === '5 days' && e.target === 'Escalate')
+    ).toBe(true);
+    // Not indented → an ordinary event.
+    expect(node('Escalated').boundaryOf).toBeUndefined();
+  });
+
+  it('makes unlabelled gateways from `as` and resolves lines that point at them', () => {
+    expect(node('merge')).toMatchObject({ shape: 'exclusive', label: '' });
+    expect(node('split')).toMatchObject({ shape: 'parallel', label: '' });
+    expect(node('join')).toMatchObject({ shape: 'parallel', label: '' });
+    expect(
+      claims.edges.filter((e) => e.target === 'join').map((e) => e.source)
+    ).toEqual(['Notify customer', 'Pay claim']);
+  });
+
+  it('reads <o …> and <* …> as inclusive and event-based gateways', () => {
+    const p = parseSwimlane(`swimlane T
+lane L
+  A -> <o Which checks?>
+  <o Which checks?>
+    -> B
+  B -> <* Wait for reply>
+  <*> as first
+  C -> first`);
+    expect(p.nodes.find((n) => n.id === 'Which checks?')!.shape).toBe(
+      'inclusive'
+    );
+    expect(p.nodes.find((n) => n.id === 'Wait for reply')!.shape).toBe(
+      'event-based'
+    );
+    expect(p.nodes.find((n) => n.id === 'first')!.shape).toBe('event-based');
+  });
+
+  it('flags an unlabelled gateway with no `as` name', () => {
+    const p = parseSwimlane(`swimlane T
+lane L
+  Pay -> <+>`);
+    expect(codes(p.diagnostics)).toContain('E_SWIMLANE_UNNAMED_GATEWAY');
+  });
+
+  it('attaches store:, data: and note: (a note keeps its commas)', () => {
+    expect(node('Check policy').artifacts).toEqual([
+      { kind: 'store', label: 'Policy DB' },
+    ]);
+    expect(node('Auto approve').artifacts).toEqual([
+      { kind: 'note', label: 'Under 5k, no person reviews the claim' },
+    ]);
+    const p = parseSwimlane(`swimlane T
+lane L
+  Fill form data: Claim form`);
+    expect(p.nodes[0]!.artifacts).toEqual([
+      { kind: 'data', label: 'Claim form' },
+    ]);
+  });
+
+  it('rejects ~> inside one pool and names ->', () => {
+    const p = parseSwimlane(`swimlane T
+pool Insurer
+  lane Claims
+    Check ~> Pay
+    Pay`);
+    const d = p.diagnostics.find(
+      (x) => x.code === 'E_SWIMLANE_MESSAGE_SAME_POOL'
+    )!;
+    expect(d.message).toContain("pool 'Insurer'");
+    expect(d.message).toContain('use ->');
+    expect(p.messages).toHaveLength(0);
+  });
+
+  it('rejects ~> in a diagram with no pools', () => {
+    const p = parseSwimlane(`swimlane T
+lane L
+  A ~> B
+  B`);
+    expect(codes(p.diagnostics)).toContain('E_SWIMLANE_MESSAGE_SAME_POOL');
+  });
+
+  it('rejects a node in a lane-less pool', () => {
+    const p = parseSwimlane(`swimlane T
+pool Customer
+  Call -> Hang up`);
+    expect(codes(p.diagnostics)).toContain('E_SWIMLANE_COLLAPSED_POOL');
+  });
+
+  it('rejects a lane outside every pool once pools exist', () => {
+    const p = parseSwimlane(`swimlane T
+pool Insurer
+  lane Claims
+    Check
+lane Finance
+  Pay`);
+    expect(codes(p.diagnostics)).toContain('E_SWIMLANE_LANE_OUTSIDE_POOL');
+  });
+
+  it('leaves a diagram with no pool lines as it was', () => {
+    const p = parseSwimlane(FIX('swimlane-publishing.dgmo'));
+    expect(p.pools).toEqual([]);
+    expect(p.messages).toEqual([]);
+    expect(p.diagnostics).toEqual([]);
   });
 });
 

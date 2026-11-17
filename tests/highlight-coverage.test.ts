@@ -304,6 +304,7 @@ const INVENTORY = {
     'persona',
     'poi',
     'poi-size',
+    'pool',
     'ref-line',
     'region-heat',
     'rings',

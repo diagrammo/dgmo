@@ -14,6 +14,15 @@
 //   [Phase]                         // optional phase columns (3-deep):
 //     lane <Name> [color]           //   [Phase] ▸ lane ▸ nodes
 //       <node>
+//   pool <Name>                     // BPMN pools (#1874): pool ▸ lane ▸ nodes;
+//     lane <Name> [color]           //   a pool with no lanes is an outside
+//       A ~> B                      //   party. `~>` (message flow) runs
+//                                   //   between pools only.
+//
+// BPMN extras on a node line: `type:` (task marker), `store:` / `data:` /
+// `note:` (attachments; `note:` runs to the end of the line), an event line
+// indented under a task (a boundary event), and `<+> as name` (an unlabelled
+// gateway other lines can point at).
 //
 // A node is OWNED by the lane where it is a line-head (bare node or arrow
 // source); elsewhere the same name is a reference, resolved after the whole
@@ -47,15 +56,20 @@ import type { Writable } from '../utils/brand';
 import type { PaletteColors } from '../palettes';
 import type { ChartFrame } from '../utils/chart-frame-parse';
 import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import { SWIM_TASK_TYPES } from './types';
 import type {
   ParsedSwimlane,
+  SwimArtifact,
   SwimDirection,
   SwimEdge,
   SwimEvent,
   SwimLane,
+  SwimMessage,
   SwimNode,
   SwimPhase,
+  SwimPool,
   SwimShape,
+  SwimTaskType,
 } from './types';
 
 /** Collapse internal whitespace + lowercase for a lookup key. */
@@ -67,44 +81,64 @@ interface NodeTokenResult {
   shape: SwimShape;
   event: SwimEvent;
   label: string;
-  /** Set when the token is a deferred/fast-follow construct (UNSUPPORTED). */
+  /** `as name` on a gateway (§2A): the name other lines point at. */
+  alias?: string;
+  /** Set when the token is a construct left out for now (UNSUPPORTED). */
   unsupported?: string;
 }
+
+/** Event trailing words that are BPMN but left out for now (#1874). */
+const UNSUPPORTED_EVENT_WORDS = new Set([
+  'escalation',
+  'compensation',
+  'conditional',
+  'cancel',
+  'link',
+]);
+
+/** Gateway with an `as name` alias: `<+> as join`, `<o Checks?> as checks`. */
+const GATEWAY_ALIAS_RE = /^(<.*>)\s+as\s+([^<>()]+)$/i;
 
 /**
  * Parse a node token (shape + event + label) from a structural / flow
  * reference. Delimiters are optional sugar — `Validate` ≡ `<Validate>`.
  */
 function parseNodeToken(raw: string): NodeTokenResult {
-  const t = raw.trim();
+  let t = raw.trim();
 
-  // Gateways: <…>, <+ …>, and the fast-follow <o …> / <* …>.
+  // Gateways: <…>, <+ …>, <o …>, <* …> — each with an optional `as name`.
+  let alias: string | undefined;
+  const am = t.startsWith('<') ? t.match(GATEWAY_ALIAS_RE) : null;
+  if (am) {
+    t = am[1]!.trim();
+    alias = am[2]!.trim();
+  }
   if (t.startsWith('<') && t.endsWith('>') && t.length >= 2) {
     const inner = t.slice(1, -1).trim();
+    const withAlias = (r: NodeTokenResult): NodeTokenResult =>
+      alias !== undefined ? { ...r, alias } : r;
     if (inner.startsWith('+')) {
-      return {
+      return withAlias({
         shape: 'parallel',
         event: 'none',
         label: inner.slice(1).trim(),
-      };
+      });
     }
     if (inner.startsWith('o ') || inner === 'o') {
-      return {
-        shape: 'exclusive',
+      return withAlias({
+        shape: 'inclusive',
         event: 'none',
         label: inner.replace(/^o\s*/, '').trim(),
-        unsupported: 'inclusive gateway (<o …>) is not supported',
-      };
+      });
     }
-    if (inner.startsWith('* ') || inner === '*') {
-      return {
-        shape: 'exclusive',
+    if (inner.startsWith('*')) {
+      return withAlias({
+        shape: 'event-based',
         event: 'none',
         label: inner.replace(/^\*\s*/, '').trim(),
-        unsupported: 'event-based gateway (<* …>) is not supported',
-      };
+      });
     }
-    return { shape: 'exclusive', event: 'none', label: inner };
+    return withAlias({ shape: 'exclusive', event: 'none', label: inner });
   }
 
   // Subprocess: [[ … ]] (check before single-bracket / phase forms).
@@ -112,8 +146,8 @@ function parseNodeToken(raw: string): NodeTokenResult {
     return { shape: 'subprocess', event: 'none', label: t.slice(2, -2).trim() };
   }
 
-  // Terminal: ( … ) with optional `!` error prefix + optional trailing type
-  // word (`(Paid) success`). The trailing word lives OUTSIDE the parens.
+  // Event: ( … ) with optional `!` error prefix + optional trailing type
+  // word (`(Paid) success`, `(5 days) timer`). The word lives OUTSIDE the parens.
   if (t.startsWith('(')) {
     const close = t.indexOf(')');
     if (close > 0) {
@@ -129,15 +163,17 @@ function parseNodeToken(raw: string): NodeTokenResult {
         .trim()
         .toLowerCase();
       if (trailing) {
-        if (trailing === 'success') event = 'success';
-        else if (trailing === 'terminate') event = 'terminate';
-        else if (trailing === 'error') event = 'error';
-        else if (trailing === 'timer')
-          unsupported = 'timer events are fast-follow';
-        else if (trailing === 'message')
-          unsupported = 'message events are fast-follow';
-        else if (trailing === 'signal')
-          unsupported = 'signal events are fast-follow';
+        if (
+          trailing === 'success' ||
+          trailing === 'terminate' ||
+          trailing === 'error' ||
+          trailing === 'message' ||
+          trailing === 'timer' ||
+          trailing === 'signal'
+        )
+          event = trailing;
+        else if (UNSUPPORTED_EVENT_WORDS.has(trailing))
+          unsupported = `${trailing} events are not supported — use message, timer, signal, error or terminate`;
       }
       return {
         shape: 'terminal',
@@ -153,6 +189,15 @@ function parseNodeToken(raw: string): NodeTokenResult {
   return { shape: 'task', event: 'none', label: t };
 }
 
+/** The name a token is looked up by: its label, else its `as` alias. */
+const tokenName = (p: NodeTokenResult): string => p.label || (p.alias ?? '');
+
+const isGatewayShape = (s: SwimShape): boolean =>
+  s === 'exclusive' ||
+  s === 'parallel' ||
+  s === 'inclusive' ||
+  s === 'event-based';
+
 /**
  * Arrow token: a plain `->`, or a labeled `-label->` whose leading `-` sits at a
  * token boundary (start-of-line or after whitespace). The boundary requirement
@@ -163,12 +208,14 @@ function parseNodeToken(raw: string): NodeTokenResult {
  * can't contain `>`. The labeled alternative is tried first so `-changes->` wins
  * over the bare `->` nested inside it.
  */
-const ARROW_RE = /(?:^|\s)-([^>]+?)->|->/g;
+const ARROW_RE = /(?:^|\s)-([^>]+?)->|->|~>/g;
 
 interface ChainPart {
   text: string;
   /** Label of the arrow that FOLLOWS this part (undefined for the last). */
   labelAfter?: string;
+  /** True when the arrow that FOLLOWS this part is message flow (`~>`). */
+  messageAfter?: boolean;
 }
 
 /** Split a flow line into node references + in-arrow labels. */
@@ -178,12 +225,14 @@ function splitChain(line: string): ChainPart[] {
   let lastIndex = 0;
   let m: RegExpExecArray | null;
   const rawLabels: (string | undefined)[] = [];
+  const rawMessage: boolean[] = [];
   const segments: string[] = [];
   while ((m = ARROW_RE.exec(line)) !== null) {
     segments.push(line.slice(lastIndex, m.index));
     let lbl = m[1]?.trim();
     if (lbl === '') lbl = undefined; // `-->` (empty in-arrow label) → no label
     rawLabels.push(lbl);
+    rawMessage.push(m[0] === '~>');
     lastIndex = m.index + m[0].length;
   }
   segments.push(line.slice(lastIndex));
@@ -191,6 +240,7 @@ function splitChain(line: string): ChainPart[] {
     parts.push({
       text: segments[i]!.trim(),
       ...(rawLabels[i] !== undefined && { labelAfter: rawLabels[i]! }),
+      ...(rawMessage[i] && { messageAfter: true }),
     });
   }
   return parts;
@@ -208,8 +258,14 @@ function splitNodeMeta(line: string): {
   }
   const cut = m.index + (m[1] ? m[1].length : 0);
   const token = line.slice(0, cut).trim();
-  const region = line.slice(cut);
+  let region = line.slice(cut);
   const meta: Record<string, string> = {};
+  // `note:` is free text, commas included, so it runs to the end of the line.
+  const nm = region.match(/(?:^|,)\s*note\s*:/i);
+  if (nm?.index !== undefined) {
+    meta['note'] = region.slice(nm.index + nm[0].length).trim();
+    region = region.slice(0, nm.index);
+  }
   for (const pair of region.split(',')) {
     const idx = pair.indexOf(':');
     if (idx <= 0) continue;
@@ -227,12 +283,15 @@ export function parseSwimlane(
 ): ParsedSwimlane {
   const diagnostics: DgmoError[] = [];
   const lanes: SwimLane[] = [];
+  const pools: Writable<SwimPool>[] = [];
+  const messages: SwimMessage[] = [];
   const phases: SwimPhase[] = [];
   const nodes: SwimNode[] = [];
   const edges: SwimEdge[] = [];
   const tagGroups: Writable<TagGroup>[] = [];
 
   const laneByKey = new Map<string, SwimLane>();
+  const poolByKey = new Map<string, Writable<SwimPool>>();
   const phaseByKey = new Map<string, SwimPhase>();
   const metaAliasMap = new Map<string, string>();
   const options: Record<string, string> = {};
@@ -260,6 +319,8 @@ export function parseSwimlane(
   // Done first so the main pass can disambiguate lane-context lines.
   let currentTagGroup: Writable<TagGroup> | null = null;
   let sawContent = false;
+  let pass1Pool: Writable<SwimPool> | null = null;
+  const lanesOutsidePools: SwimLane[] = [];
   // Chart frame lines (#1827) are read here and skipped by the later passes.
   const frameHolder: { frame?: ChartFrame } = {};
   const frameLines = new Set<number>();
@@ -365,6 +426,22 @@ export function parseSwimlane(
     // declares the lane AND opens its block; under a `[Phase]` the header is
     // indented, so we can't gate on indent 0. Declaration order (first
     // appearance) fixes lane order; re-declarations are ignored below.
+    // `pool <Name>` at indent 0 opens a pool; its lanes indent under it.
+    if (indent === 0 && /^pool\s+/i.test(trimmed)) {
+      const label = trimmed.replace(/^pool\s+/i, '').trim();
+      const key = normKey(label);
+      let pool = poolByKey.get(key);
+      if (!pool) {
+        pool = { id: label, label, lanes: [], lineNumber: lineNum };
+        pools.push(pool);
+        poolByKey.set(key, pool);
+      }
+      pass1Pool = pool;
+      sawContent = true;
+      continue;
+    }
+    if (indent === 0 && trimmed.startsWith('[')) pass1Pool = null;
+
     if (/^lane\s+/i.test(trimmed)) {
       const rest = trimmed.replace(/^lane\s+/i, '').trim();
       const { label, color } = extractColor(
@@ -373,14 +450,18 @@ export function parseSwimlane(
         diagnostics,
         lineNum
       );
+      if (indent === 0) pass1Pool = null;
       const key = normKey(label);
       if (laneByKey.has(key)) continue; // ignore re-declaration
       const lane: SwimLane = {
         id: label,
         label,
         ...(color !== undefined && { color }),
+        ...(pass1Pool && { pool: pass1Pool.id }),
         lineNumber: lineNum,
       };
+      if (pass1Pool) pass1Pool.lanes.push(lane.id);
+      else lanesOutsidePools.push(lane);
       lanes.push(lane);
       laneByKey.set(key, lane);
       continue;
@@ -390,6 +471,15 @@ export function parseSwimlane(
     // (so trailing tag entries don't leak). Phases and content handled in pass 2.
     if (indent === 0 && !trimmed.startsWith('tag ')) sawContent = true;
   }
+  if (pools.length > 0) {
+    for (const lane of lanesOutsidePools)
+      diagnostics.push(
+        emit(SWIMLANE_DX.LANE_OUTSIDE_POOL, lane.lineNumber, {
+          lane: lane.label,
+        })
+      );
+  }
+  const laneById = new Map(lanes.map((l) => [l.id, l]));
 
   // Lane colors: resolve raw names — keep raw name in the model; the renderer
   // resolves to hex. (extractColor already stored a hex; but we stored the raw
@@ -429,6 +519,11 @@ export function parseSwimlane(
     lineNumber: number;
     /** A pure declaration line (bare node or `lane`-scoped head) claimed it. */
     hasBareDecl: boolean;
+    /** '' for an unlabelled gateway (`<+> as join`): named, but drawn bare. */
+    display?: string;
+    taskType?: SwimTaskType;
+    boundaryOf?: Draft;
+    artifacts: SwimArtifact[];
   }
   interface RawEdge {
     srcText: string | null; // null → dropped (no fan source in scope)
@@ -439,11 +534,20 @@ export function parseSwimlane(
     inLane: boolean; // authored inside a lane block (indent > lane indent)
     lineNumber: number;
   }
+  interface RawMessage {
+    /** Source text, or the pool itself when written under a lane-less pool. */
+    src: string | SwimPool;
+    tgtText: string;
+    laneId: string | null;
+    phaseId?: string;
+    lineNumber: number;
+  }
 
   const drafts: Draft[] = [];
   const draftByKey = new Map<string, Draft>(); // `${laneId}\x00${normLabel}`
   const draftsByLabel = new Map<string, Draft[]>(); // normLabel → drafts
   const rawEdges: RawEdge[] = [];
+  const rawMessages: RawMessage[] = [];
   const laneKey = (laneId: string, label: string): string =>
     `${normKey(laneId)}\x00${normKey(label)}`;
 
@@ -466,26 +570,29 @@ export function parseSwimlane(
     lineNum: number
   ): void => {
     for (const [k, v] of Object.entries(meta)) {
-      if (k === 'note') {
-        diagnostics.push(
-          emit(SWIMLANE_DX.UNSUPPORTED, lineNum, {
-            reason: 'notes are not supported',
-          })
-        );
+      if (k === 'type') {
+        const t = v.trim().toLowerCase();
+        if ((SWIM_TASK_TYPES as readonly string[]).includes(t))
+          draft.taskType = t as SwimTaskType;
+        else
+          diagnostics.push(
+            emit(SWIMLANE_DX.UNKNOWN_TASK_TYPE, lineNum, { value: v.trim() })
+          );
         continue;
       }
-      if (k === 'data') {
-        diagnostics.push(
-          emit(SWIMLANE_DX.UNSUPPORTED, lineNum, {
-            reason: 'data objects are not supported',
-          })
-        );
+      if (k === 'store' || k === 'data' || k === 'note') {
+        const label = v.trim();
+        if (!label) continue;
+        const kind = k;
+        // A header line's meta is read twice (declaration + fan source).
+        if (!draft.artifacts.some((a) => a.kind === kind && a.label === label))
+          draft.artifacts.push({ kind, label });
         continue;
       }
       if (k === 'timer' || k === 'message' || k === 'signal') {
         diagnostics.push(
           emit(SWIMLANE_DX.UNSUPPORTED, lineNum, {
-            reason: `${k} events are fast-follow`,
+            reason: `${k}: is not a key — write the trigger as a trailing word on an event, as in (5 days) ${k}`,
           })
         );
         continue;
@@ -495,11 +602,30 @@ export function parseSwimlane(
     }
   };
 
-  const registerDraft = (draft: Draft): void => {
-    draftByKey.set(laneKey(draft.laneId, draft.label), draft);
-    const nk = normKey(draft.label);
+  const indexName = (draft: Draft, name: string): void => {
+    const key = laneKey(draft.laneId, name);
+    if (draftByKey.has(key)) return;
+    draftByKey.set(key, draft);
+    const nk = normKey(name);
     (draftsByLabel.get(nk) ?? draftsByLabel.set(nk, []).get(nk)!).push(draft);
+  };
+  const registerDraft = (draft: Draft, alias?: string): void => {
+    indexName(draft, draft.label);
+    if (alias && normKey(alias) !== normKey(draft.label))
+      indexName(draft, alias);
     drafts.push(draft);
+  };
+  /** An unnamed gateway (`<+>` with no `as`) cannot be pointed at. */
+  const unnamedGateway = (
+    parsed: NodeTokenResult,
+    raw: string,
+    lineNum: number
+  ): boolean => {
+    if (tokenName(parsed) || !isGatewayShape(parsed.shape)) return false;
+    diagnostics.push(
+      emit(SWIMLANE_DX.UNNAMED_GATEWAY, lineNum, { token: raw.trim() })
+    );
+    return true;
   };
 
   /** Merge a fresh appearance into an existing draft (shape/event/color upgrades). */
@@ -508,8 +634,11 @@ export function parseSwimlane(
     parsed: NodeTokenResult,
     color: string | undefined
   ): void => {
-    if (draft.shape === 'task' && parsed.shape !== 'task')
+    if (draft.shape === 'task' && parsed.shape !== 'task') {
       draft.shape = parsed.shape;
+      // `merge` declared by a line-head, then pointed at as `<> as merge`.
+      if (!parsed.label && parsed.alias) draft.display = '';
+    }
     if (draft.event === 'none' && parsed.event !== 'none')
       draft.event = parsed.event;
     if (draft.color === undefined && color !== undefined) draft.color = color;
@@ -535,9 +664,10 @@ export function parseSwimlane(
       );
       return null;
     }
-    if (!parsed.label) return null;
+    if (unnamedGateway(parsed, rest, lineNum)) return null;
+    if (!tokenName(parsed)) return null;
     const { label: cleanLabel, color } = extractColor(
-      parsed.label,
+      tokenName(parsed),
       palette,
       diagnostics,
       lineNum
@@ -569,9 +699,11 @@ export function parseSwimlane(
       tags: {},
       lineNumber: lineNum,
       hasBareDecl: bare,
+      ...(!parsed.label && parsed.alias && { display: '' }),
+      artifacts: [],
     };
     applyMeta(draft, meta, lineNum);
-    registerDraft(draft);
+    registerDraft(draft, parsed.label ? parsed.alias : undefined);
     return draft;
   };
 
@@ -599,12 +731,15 @@ export function parseSwimlane(
       );
       return null;
     }
-    const { label: cleanLabel } = extractColor(parsed.label, palette);
+    if (unnamedGateway(parsed, rest, lineNum)) return null;
+    const { label: cleanLabel } = extractColor(tokenName(parsed), palette);
     const nk = normKey(cleanLabel);
     // Only a delimited endpoint (terminal/gateway/subprocess) may auto-create.
     const delimited = parsed.shape !== 'task';
 
     const finish = (d: Draft): Draft => {
+      // A delimited reference can name what a line-head declared bare.
+      if (delimited) mergeDraft(d, parsed, undefined);
       applyMeta(d, meta, lineNum);
       return d;
     };
@@ -619,9 +754,11 @@ export function parseSwimlane(
         tags: {},
         lineNumber: lineNum,
         hasBareDecl: false,
+        ...(!parsed.label && parsed.alias && { display: '' }),
+        artifacts: [],
       };
       applyMeta(draft, meta, lineNum);
-      registerDraft(draft);
+      registerDraft(draft, parsed.label ? parsed.alias : undefined);
       return draft;
     };
 
@@ -664,16 +801,26 @@ export function parseSwimlane(
   // ── scan ──
   let currentPhase: SwimPhase | null = null;
   let currentLane: SwimLane | null = null;
+  let currentPool: SwimPool | null = null;
   let laneIndent = -1; // indent at which the current lane block was opened
   let flowSource: string | null = null; // last bare/header token (fan source)
+  // The task a boundary event attaches to: the last bare task line, while
+  // lines stay indented beneath it.
+  let host: { draft: Draft; indent: number } | null = null;
   let inTagBlock = false;
+  let warnedPoolPhase = false;
 
   const openLane = (lane: SwimLane, indent: number, phased: boolean): void => {
     currentLane = lane;
     laneIndent = indent;
     if (!phased) currentPhase = null;
+    if (indent === 0) currentPool = null;
     flowSource = null;
+    host = null;
   };
+  /** True when the token opens an event — `(…)`, ahead of any meta. */
+  const isEventToken = (text: string): boolean =>
+    splitNodeMeta(text).token.startsWith('(');
 
   for (let i = startIdx; i < rawLines.length; i++) {
     const raw = rawLines[i]!;
@@ -696,6 +843,19 @@ export function parseSwimlane(
     }
     if (indent === 0) inTagBlock = false;
     if (inTagBlock && indent > 0) continue;
+    if (host && indent <= host.indent) host = null;
+
+    // `pool <Name>` opens a pool (declared in pass 1).
+    if (indent === 0 && /^pool\s+/i.test(trimmed)) {
+      currentPool =
+        poolByKey.get(normKey(trimmed.replace(/^pool\s+/i, ''))) ?? null;
+      currentLane = null;
+      currentPhase = null;
+      laneIndent = -1;
+      flowSource = null;
+      host = null;
+      continue;
+    }
 
     // `lane <Name> [color]` opens (or re-opens) that lane's block. Indented
     // under a `[Phase]` it keeps the current phase; at indent 0 it clears it.
@@ -715,6 +875,24 @@ export function parseSwimlane(
       !trimmed.startsWith('[[')
     ) {
       const label = trimmed.slice(1, -1).trim();
+      currentLane = null;
+      currentPool = null;
+      laneIndent = -1;
+      flowSource = null;
+      host = null;
+      // Pools with phase columns would be four levels deep — left out for now.
+      if (pools.length > 0) {
+        if (!warnedPoolPhase)
+          diagnostics.push(
+            emit(SWIMLANE_DX.UNSUPPORTED, lineNum, {
+              reason:
+                'pools and [Phase] columns together are not supported yet — remove the [Phase] lines or the pool lines',
+            })
+          );
+        warnedPoolPhase = true;
+        currentPhase = null;
+        continue;
+      }
       if (lanes.length === 0) {
         diagnostics.push(emit(SWIMLANE_DX.NO_LANES, lineNum, { phase: label }));
       }
@@ -726,9 +904,6 @@ export function parseSwimlane(
         phaseByKey.set(key, phase);
       }
       currentPhase = phase;
-      currentLane = null;
-      laneIndent = -1;
-      flowSource = null;
       continue;
     }
 
@@ -737,17 +912,46 @@ export function parseSwimlane(
     const laneCtx = cl?.id ?? null;
     const phaseCtx = cp?.id;
     const inLane = cl !== null && indent > laneIndent;
+    const pool = currentPool;
+    // A line directly under a `pool` header, outside any of its lanes.
+    const inPoolBody = pool !== null && indent > 0 && !inLane;
 
-    // Flow edge (contains an arrow). A node name can't hold `->`/`~>`.
-    if (trimmed.includes('->') || trimmed.includes('~>')) {
-      if (trimmed.includes('~>')) {
+    if (inPoolBody) {
+      const parts =
+        trimmed.includes('->') || trimmed.includes('~>')
+          ? splitChain(trimmed)
+          : null;
+      // `~> Target` under a pool: the pool itself sends.
+      if (
+        parts?.length === 2 &&
+        parts[0]!.text === '' &&
+        parts[0]!.messageAfter
+      ) {
+        rawMessages.push({
+          src: pool,
+          tgtText: parts[1]!.text,
+          laneId: null,
+          lineNumber: lineNum,
+        });
+        continue;
+      }
+      if (pool.lanes.length === 0) {
+        const head = parts ? parts[0]!.text || parts[1]!.text : trimmed;
+        const { token } = splitNodeMeta(head);
         diagnostics.push(
-          emit(SWIMLANE_DX.UNSUPPORTED, lineNum, {
-            reason: 'message flow (~>) is not supported',
+          emit(SWIMLANE_DX.COLLAPSED_POOL, lineNum, {
+            pool: pool.label,
+            node: parseNodeToken(splitQualifier(token).rest).label || head,
           })
         );
         continue;
       }
+      // A pool with lanes: a node line outside them falls through to the
+      // node-outside-a-lane error below.
+    }
+
+    // Flow edge (contains an arrow). A node name can't hold `->`/`~>`.
+    if (trimmed.includes('->') || trimmed.includes('~>')) {
       const parts = splitChain(trimmed);
       if (parts.length < 2) continue;
       // The head declares its node (inside a lane block only); a leading empty
@@ -757,10 +961,26 @@ export function parseSwimlane(
         headText = flowSource;
       } else {
         headText = parts[0]!.text;
-        if (inLane) declareInLane(headText, laneCtx!, phaseCtx, false, lineNum);
+        if (inLane) {
+          const d = declareInLane(headText, laneCtx!, phaseCtx, false, lineNum);
+          // An event indented under a task is a boundary event on it.
+          if (d && host && indent > host.indent && isEventToken(headText))
+            d.boundaryOf = host.draft;
+        }
       }
       for (let p = 0; p < parts.length - 1; p++) {
         const srcText = p === 0 ? headText : parts[p]!.text;
+        if (parts[p]!.messageAfter) {
+          if (srcText !== null)
+            rawMessages.push({
+              src: srcText,
+              tgtText: parts[p + 1]!.text,
+              laneId: laneCtx,
+              ...(phaseCtx !== undefined && { phaseId: phaseCtx }),
+              lineNumber: lineNum,
+            });
+          continue;
+        }
         rawEdges.push({
           srcText,
           tgtText: parts[p + 1]!.text,
@@ -786,7 +1006,13 @@ export function parseSwimlane(
     // A bare node line inside a lane block → declaration; it also becomes the
     // fan source for any `-label->` lines that follow.
     if (inLane) {
-      declareInLane(trimmed, laneCtx!, phaseCtx, true, lineNum);
+      const boundary = host !== null && indent > host.indent;
+      const d = declareInLane(trimmed, laneCtx!, phaseCtx, true, lineNum);
+      if (boundary && d && isEventToken(trimmed)) {
+        d.boundaryOf = host!.draft;
+      } else if (d && (d.shape === 'task' || d.shape === 'subprocess')) {
+        host = { draft: d, indent };
+      }
       flowSource = trimmed;
       continue;
     }
@@ -824,6 +1050,68 @@ export function parseSwimlane(
     });
   }
 
+  // ── resolve message flows (`~>`) ──
+  // An end is a whole pool when it names a lane-less pool (or names a pool
+  // and no node); otherwise it resolves like any edge endpoint.
+  type MsgEnd = { pool: SwimPool } | { draft: Draft };
+  const lookupDraft = (text: string, laneId: string | null): Draft | null => {
+    const { token } = splitNodeMeta(text);
+    const { laneId: qLane, rest } = splitQualifier(token);
+    const parsed = parseNodeToken(rest);
+    const name = normKey(extractColor(tokenName(parsed), palette).label);
+    if (qLane) return draftByKey.get(`${normKey(qLane)}\x00${name}`) ?? null;
+    if (laneId) {
+      const own = draftByKey.get(`${normKey(laneId)}\x00${name}`);
+      if (own) return own;
+    }
+    const cands = draftsByLabel.get(name) ?? [];
+    return cands.length === 1 ? cands[0]! : null;
+  };
+  const resolveMsgEnd = (
+    text: string,
+    laneId: string | null,
+    phaseId: string | undefined,
+    lineNum: number
+  ): MsgEnd | null => {
+    const pool = poolByKey.get(normKey(splitNodeMeta(text).token));
+    if (pool?.lanes.length === 0) return { pool };
+    const hit = lookupDraft(text, laneId);
+    if (hit) return { draft: hit };
+    if (pool) return { pool };
+    const d = resolveEndpoint(text, laneId, phaseId, lineNum);
+    return d ? { draft: d } : null;
+  };
+  const poolOfEnd = (end: MsgEnd): string | undefined =>
+    'pool' in end ? end.pool.id : laneById.get(end.draft.laneId)?.pool;
+  const nameOfEnd = (end: MsgEnd): string =>
+    'pool' in end ? end.pool.label : end.draft.label;
+  const resolvedMessages: Array<{
+    s: MsgEnd;
+    t: MsgEnd;
+    lineNumber: number;
+  }> = [];
+  for (const m of rawMessages) {
+    const s =
+      typeof m.src === 'string'
+        ? resolveMsgEnd(m.src, m.laneId, m.phaseId, m.lineNumber)
+        : { pool: m.src };
+    const t = resolveMsgEnd(m.tgtText, m.laneId, m.phaseId, m.lineNumber);
+    if (!s || !t) continue;
+    const sp = poolOfEnd(s);
+    const tp = poolOfEnd(t);
+    if (sp === undefined || tp === undefined || sp === tp) {
+      diagnostics.push(
+        emit(SWIMLANE_DX.MESSAGE_SAME_POOL, m.lineNumber, {
+          source: nameOfEnd(s),
+          target: nameOfEnd(t),
+          ...(sp !== undefined && sp === tp && { pool: sp }),
+        })
+      );
+      continue;
+    }
+    resolvedMessages.push({ s, t, lineNumber: m.lineNumber });
+  }
+
   // ── assign unique ids + emit nodes ──
   // id = label when the label is globally unique; else lane-suffixed so the
   // layout/renderer (keyed on id) never sees a collision.
@@ -841,15 +1129,31 @@ export function parseSwimlane(
     while (usedIds.has(id)) id = `${id}␟`;
     usedIds.add(id);
     d.id = id;
+  }
+  for (const d of drafts) {
+    // A boundary event's host must be a task; anything else is a plain event.
+    const hostDraft =
+      d.boundaryOf &&
+      d.shape === 'terminal' &&
+      (d.boundaryOf.shape === 'task' || d.boundaryOf.shape === 'subprocess') &&
+      d.boundaryOf.boundaryOf === undefined
+        ? d.boundaryOf
+        : undefined;
     nodes.push({
-      id,
-      label: d.label,
+      id: d.id,
+      label: d.display ?? d.label,
       shape: d.shape,
       event: d.event,
       lane: d.laneId,
       ...(d.phaseId !== undefined && { phase: d.phaseId }),
       ...(d.color !== undefined && { color: d.color }),
       tags: d.tags,
+      ...(d.taskType !== undefined &&
+        (d.shape === 'task' || d.shape === 'subprocess') && {
+          taskType: d.taskType,
+        }),
+      ...(hostDraft && { boundaryOf: hostDraft.id }),
+      ...(d.artifacts.length > 0 && { artifacts: d.artifacts }),
       lineNumber: d.lineNumber,
     });
   }
@@ -864,6 +1168,18 @@ export function parseSwimlane(
     });
   }
 
+  for (const m of resolvedMessages) {
+    const source = 'pool' in m.s ? m.s.pool.id : m.s.draft.id;
+    const target = 'pool' in m.t ? m.t.pool.id : m.t.draft.id;
+    messages.push({
+      source,
+      target,
+      sourceIsPool: 'pool' in m.s,
+      targetIsPool: 'pool' in m.t,
+      lineNumber: m.lineNumber,
+    });
+  }
+
   finalizeAutoTagColors(tagGroups, palette);
 
   // Per-element diagnostics (duplicate/unknown/unsupported/ambiguous) are
@@ -874,6 +1190,8 @@ export function parseSwimlane(
     ...(titleLineNumber !== undefined && { titleLineNumber }),
     direction,
     lanes,
+    pools,
+    messages,
     phases,
     nodes,
     edges,

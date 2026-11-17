@@ -822,6 +822,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'direction-tb': { description: 'Switch to vertical column lanes' },
       'direction-lr': { description: 'Horizontal band lanes (the default)' },
       lane: { description: 'Declare a lane (row) with an optional color' },
+      pool: {
+        description:
+          'Declare a pool (BPMN participant); indent its lanes under it — no lanes = an outside party',
+      },
       'active-tag': { description: 'Active tag group name' },
     }),
   ],
@@ -1369,7 +1373,7 @@ export const STRUCTURAL_KEYWORDS = new Map<string, string[]>([
   ],
   ['boxes-and-lines', ['tag']],
   ['state', ['note', 'tag']],
-  ['swimlane', ['lane', 'tag']],
+  ['swimlane', ['pool', 'lane', 'tag']],
   [
     'version-control',
     ['merge', 'cherry-pick', 'rebase', 'reset', 'revert', 'ref', 'note'],
@@ -1466,10 +1470,9 @@ export const REFERENCE_GRAMMAR = new Map<string, ReferenceGrammar>([
   ],
   ['infra', { hasReferenceGrammar: true, referenceOperators: ['->'] }],
   // Swimlane edges are authored inline inside lane blocks (§27.6) and may
-  // forward-reference or cross lanes (`Lane.Node`). Only `->`: the message
-  // flow `~>` is a §27.8 reserved seam that the parser rejects today, so
-  // completion must not offer it.
-  ['swimlane', { hasReferenceGrammar: true, referenceOperators: ['->'] }],
+  // forward-reference or cross lanes (`Lane.Node`). `~>` is BPMN message
+  // flow between pools (#1874); its target is a node or a pool.
+  ['swimlane', { hasReferenceGrammar: true, referenceOperators: ['->', '~>'] }],
   ['gantt', { hasReferenceGrammar: true, referenceOperators: ['->'] }],
   ['pert', { hasReferenceGrammar: true, referenceOperators: ['->'] }],
   ['arc', { hasReferenceGrammar: true, referenceOperators: ['->'] }],
@@ -1795,6 +1798,23 @@ export const PIPE_METADATA = new Map<string, PipeContextMap>([
         religion: { description: 'Religion' },
         burial: { description: 'Burial place' },
         m: { description: 'Marriage year (on a union line)' },
+      },
+    },
+  ],
+  [
+    'swimlane',
+    {
+      node: {
+        type: {
+          description: 'BPMN task marker, drawn in the top-left corner',
+          values: ['user', 'service', 'manual', 'script', 'send', 'receive'],
+        },
+        store: { description: 'Attach a data store (cylinder) by name' },
+        data: { description: 'Attach a data object (folded page) by name' },
+        note: {
+          description:
+            'Attach a text annotation; runs to the end of the line, so put it last',
+        },
       },
     },
   ],

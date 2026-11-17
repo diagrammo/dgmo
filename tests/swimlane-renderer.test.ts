@@ -178,3 +178,217 @@ describe('swimlane — renderForExport wiring (AC10)', () => {
     expect(svg).toContain('dgmo-swimlane-lanes');
   });
 });
+
+// ── BPMN (#1874) ──────────────────────────────────────────────
+
+interface Pt {
+  x: number;
+  y: number;
+}
+interface Rect {
+  id: string;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+/**
+ * The polyline a rendered path draws. Rounded corners are `Q` curves whose
+ * control point IS the original corner, so reading M/L points and each Q's
+ * control and end point recovers the route the layout handed the renderer.
+ */
+function pathPoints(d: string): Pt[] {
+  const nums = (s: string): number[] =>
+    (s.match(/-?\d+(?:\.\d+)?(?:e-?\d+)?/g) ?? []).map(Number);
+  const out: Pt[] = [];
+  for (const cmd of d.match(/[MLQ][^MLQ]*/g) ?? []) {
+    const v = nums(cmd.slice(1));
+    for (let i = 0; i + 1 < v.length; i += 2)
+      out.push({ x: v[i]!, y: v[i + 1]! });
+  }
+  return out;
+}
+
+/** Every node's box, read from the rendered shape (rect, diamond or circle). */
+function nodeBoxes(svg: SVGSVGElement): Rect[] {
+  const num = (el: Element, a: string): number => Number(el.getAttribute(a));
+  return [...svg.querySelectorAll('.sw-node')].map((g) => {
+    const id = g.getAttribute('data-node-id')!;
+    const rect = g.querySelector(':scope > rect');
+    if (rect)
+      return {
+        id,
+        x1: num(rect, 'x'),
+        y1: num(rect, 'y'),
+        x2: num(rect, 'x') + num(rect, 'width'),
+        y2: num(rect, 'y') + num(rect, 'height'),
+      };
+    const poly = g.querySelector(':scope > polygon');
+    if (poly) {
+      const v = pathPoints(
+        'M' + poly.getAttribute('points')!.replace(/,/g, ' ')
+      );
+      return {
+        id,
+        x1: Math.min(...v.map((p) => p.x)),
+        y1: Math.min(...v.map((p) => p.y)),
+        x2: Math.max(...v.map((p) => p.x)),
+        y2: Math.max(...v.map((p) => p.y)),
+      };
+    }
+    const c = g.querySelector(':scope > circle')!;
+    const r = num(c, 'r');
+    return {
+      id,
+      x1: num(c, 'cx') - r,
+      y1: num(c, 'cy') - r,
+      x2: num(c, 'cx') + r,
+      y2: num(c, 'cy') + r,
+    };
+  });
+}
+
+/** Lines (sequence and message flow) that pass through a node box. */
+function linesThroughBoxes(svg: SVGSVGElement): string[] {
+  const boxes = nodeBoxes(svg);
+  const out = new Set<string>();
+  const lines = [
+    ...svg.querySelectorAll(
+      '.dgmo-swimlane-edges path.sw-edge, .dgmo-swimlane-messages path'
+    ),
+  ];
+  for (const el of lines) {
+    const pts = pathPoints(el.getAttribute('d')!);
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const a = pts[i]!;
+      const b = pts[i + 1]!;
+      const len = Math.hypot(b.x - a.x, b.y - a.y);
+      for (let t = 0; t <= len; t += 1) {
+        const x = a.x + ((b.x - a.x) * t) / (len || 1);
+        const y = a.y + ((b.y - a.y) * t) / (len || 1);
+        for (const bx of boxes)
+          if (
+            x > bx.x1 + 0.5 &&
+            x < bx.x2 - 0.5 &&
+            y > bx.y1 + 0.5 &&
+            y < bx.y2 - 0.5
+          )
+            out.add(
+              `line ${el.getAttribute('data-line-number')} through ${bx.id}`
+            );
+      }
+    }
+  }
+  return [...out];
+}
+
+describe('swimlane renderer — BPMN claims process (#1874)', () => {
+  it('passes no edge through any node box on the rendered geometry', () => {
+    const svg = render('swimlane-bpmn.dgmo');
+    expect(
+      svg.querySelectorAll('.dgmo-swimlane-edges path.sw-edge').length
+    ).toBe(15);
+    expect(svg.querySelectorAll('.dgmo-swimlane-messages path').length).toBe(2);
+    expect(linesThroughBoxes(svg)).toEqual([]);
+  });
+
+  it('passes no edge through a node box in any swimlane fixture, either direction', () => {
+    for (const f of [
+      'swimlane-insurance.dgmo',
+      'swimlane-publishing.dgmo',
+      'swimlane-backedge.dgmo',
+      'swimlane-tb.dgmo',
+    ])
+      expect([f, linesThroughBoxes(render(f))]).toEqual([f, []]);
+    const tb = FIX('swimlane-bpmn.dgmo').replace(
+      'swimlane Insurance claim',
+      'swimlane Insurance claim\ndirection-tb'
+    );
+    const palette = getPalette('nord').light;
+    const parsed = parseSwimlane(tb, palette);
+    const layout = layoutSwimlane(parsed);
+    const el = document.createElement('div');
+    renderSwimlaneForExport(el, parsed, layout, palette, false);
+    expect(linesThroughBoxes(el.querySelector('svg')!)).toEqual([]);
+  });
+
+  it('draws two pools: a name band for the insurer, a thin bar for the customer', () => {
+    const svg = render('swimlane-bpmn.dgmo');
+    const pools = [...svg.querySelectorAll('.sw-pool')];
+    expect(pools.map((p) => p.getAttribute('data-pool'))).toEqual([
+      'Customer',
+      'Insurer',
+    ]);
+    const insurerName = pools[1]!.querySelector('text')!;
+    expect(insurerName.textContent).toBe('Insurer');
+    expect(insurerName.getAttribute('transform')).toMatch(/^rotate\(-90/);
+    expect(
+      pools[0]!.querySelector('text')!.getAttribute('transform')
+    ).toBeNull();
+  });
+
+  it('draws message flow dashed, open circle at the source, hollow head', () => {
+    const svg = render('swimlane-bpmn.dgmo');
+    for (const m of svg.querySelectorAll('.dgmo-swimlane-messages path')) {
+      expect(m.getAttribute('stroke-dasharray')).toBeTruthy();
+      expect(m.getAttribute('marker-start')).toBe('url(#sw-msg-tail)');
+      expect(m.getAttribute('marker-end')).toBe('url(#sw-msg-head)');
+    }
+    const head = svg.querySelector('#sw-msg-head polygon')!;
+    expect(head.getAttribute('fill')).not.toBe(head.getAttribute('stroke'));
+  });
+
+  const nodeG = (svg: SVGSVGElement, id: string): Element =>
+    svg.querySelector(`.sw-node[data-node-id="${id}"]`)!;
+
+  it('draws an end event as one thick circle, a start thin, a boundary event double', () => {
+    const svg = render('swimlane-bpmn.dgmo');
+    const paid = nodeG(svg, 'Paid').querySelectorAll('circle');
+    expect(paid.length).toBe(1);
+    expect(Number(paid[0]!.getAttribute('stroke-width'))).toBeGreaterThan(3);
+    const start = nodeG(svg, 'Claim received').querySelector('circle')!;
+    expect(Number(start.getAttribute('stroke-width'))).toBeLessThan(2);
+    // Timer boundary event: two rings plus the clock face.
+    expect(nodeG(svg, '5 days').querySelectorAll('circle').length).toBe(3);
+  });
+
+  it('puts the exclusive gateway label above the diamond, with an X inside', () => {
+    const svg = render('swimlane-bpmn.dgmo');
+    const g = nodeG(svg, 'Amount over 5k?');
+    const top = Math.min(
+      ...pathPoints(
+        'M' +
+          g.querySelector('polygon')!.getAttribute('points')!.replace(/,/g, ' ')
+      ).map((p) => p.y)
+    );
+    const label = g.querySelector('.sw-gateway-label')!;
+    expect(label.textContent).toBe('Amount over 5k?');
+    expect(Number(label.getAttribute('y'))).toBeLessThan(top);
+    const x = g.querySelector('path')!.getAttribute('d')!;
+    expect(x.match(/M/g)).toHaveLength(2);
+    // Unlabelled gateways draw no label.
+    expect(nodeG(svg, 'join').querySelector('text')).toBeNull();
+  });
+
+  it('draws task markers and the store / note attachments', () => {
+    const svg = render('swimlane-bpmn.dgmo');
+    expect(
+      nodeG(svg, 'Check policy').querySelector('.sw-task-service')
+    ).toBeTruthy();
+    expect(
+      nodeG(svg, 'Adjuster review').querySelector('.sw-task-user')
+    ).toBeTruthy();
+    expect(
+      nodeG(svg, 'Notify customer').querySelector('.sw-task-send')
+    ).toBeTruthy();
+    expect(svg.querySelectorAll('.sw-artifact-store').length).toBe(1);
+    const note = svg.querySelector('.sw-artifact-note')!;
+    expect(
+      [...note.querySelectorAll('text')].map((t) => t.textContent).join(' ')
+    ).toBe('Under 5k, no person reviews the claim');
+    expect(
+      note.querySelector('.sw-association')!.getAttribute('stroke-dasharray')
+    ).toBeTruthy();
+  });
+});

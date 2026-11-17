@@ -80,12 +80,77 @@ lane L
     example: `swimlane T
 [Start]`,
   },
+  MESSAGE_SAME_POOL: {
+    code: 'E_SWIMLANE_MESSAGE_SAME_POOL',
+    severity: 'error',
+    chartType: 'swimlane',
+    title: 'Message flow inside one pool',
+    message: (p) =>
+      `'${p.source ?? 'Check'}' and '${p.target ?? 'Pay'}' are ${
+        p.pool ? `both in pool '${p.pool}'` : 'not in different pools'
+      } — message flow (~>) runs between pools; use -> for flow inside a pool`,
+    hint: 'Use `->` (sequence flow) between nodes of one pool. `~>` is for a message sent from one pool to another, and needs `pool` blocks.',
+    example: `swimlane T
+pool Insurer
+  lane Claims
+    Check ~> Pay
+    Pay`,
+  },
+  UNKNOWN_TASK_TYPE: {
+    code: 'E_SWIMLANE_UNKNOWN_TASK_TYPE',
+    severity: 'error',
+    chartType: 'swimlane',
+    title: 'Unknown task type',
+    message: (p) =>
+      `Unknown task type '${p.value ?? 'robot'}' — use user, service, manual, script, send or receive`,
+    hint: '`type:` picks the marker in a task’s top-left corner. It takes one of six values: user, service, manual, script, send, receive.',
+    example: `swimlane T
+lane L
+  Review type: robot`,
+  },
+  UNNAMED_GATEWAY: {
+    code: 'E_SWIMLANE_UNNAMED_GATEWAY',
+    severity: 'error',
+    chartType: 'swimlane',
+    title: 'Gateway without a name',
+    message: (p) =>
+      `Gateway '${p.token ?? '<+>'}' has no label — give it a name with 'as' (${p.token ?? '<+>'} as join)`,
+    hint: 'An unlabelled gateway needs `as <name>` so other lines can point at it, for example `<+> as join` and later `join -> (Done)`.',
+    example: `swimlane T
+lane L
+  Pay -> <+>`,
+  },
+  COLLAPSED_POOL: {
+    code: 'E_SWIMLANE_COLLAPSED_POOL',
+    severity: 'error',
+    chartType: 'swimlane',
+    title: 'Node in a pool with no lanes',
+    message: (p) =>
+      `Pool '${p.pool ?? 'Customer'}' has no lanes, so it can only send or receive ~> — put '${p.node ?? 'Call'}' in a lane`,
+    hint: 'A pool with no lanes is an outside party, drawn as a collapsed bar. Indent a `lane` under the pool to give it steps, or write only `~> Target` lines under it.',
+    example: `swimlane T
+pool Customer
+  Call -> Hang up`,
+  },
+  LANE_OUTSIDE_POOL: {
+    code: 'E_SWIMLANE_LANE_OUTSIDE_POOL',
+    severity: 'error',
+    chartType: 'swimlane',
+    title: 'Lane outside a pool',
+    message: (p) =>
+      `Lane '${p.lane ?? 'Finance'}' is outside every pool — indent it under a pool`,
+    hint: 'Once a diagram has `pool` lines, every `lane` belongs to one: indent the lane under its pool.',
+    example: `swimlane T
+pool Insurer
+  lane Claims
+    Check
+lane Finance
+  Pay`,
+  },
   // One code, many wordings — the call site passes the exact `reason`:
-  //   parseNodeToken: 'inclusive gateway (<o …>) is not supported', event-based,
-  //                   timer|message|signal events; declareNode: 'notes are
-  //                   deferred past v1', 'data objects are deferred past v1',
-  //                   `${k} events are fast-follow`; addChain: 'message flow
-  //                   (~>) is fast-follow'.
+  //   escalation / compensation / conditional events (`(x) escalation`), the
+  //   key forms `timer:` / `message:` / `signal:` (a trigger is a trailing
+  //   word on an event), and pools combined with `[Phase]` columns.
   UNSUPPORTED: {
     code: 'E_SWIMLANE_UNSUPPORTED',
     severity: 'error',
@@ -95,13 +160,13 @@ lane L
       const reason: unknown = p.reason;
       return typeof reason === 'string' && reason
         ? reason
-        : 'inclusive gateway (<o …>) is not supported';
+        : 'escalation events are not supported';
     },
-    hint: 'Remove it, or use a supported shape, event, or flow.',
+    hint: 'Remove it, or use a supported event (message, timer, signal, error, terminate), gateway or flow.',
     example: `swimlane T
 lane L
-L
-  <o Maybe>`,
+  (Late) escalation -> Done
+  Done`,
   },
 } satisfies Record<string, DiagnosticSpec>;
 

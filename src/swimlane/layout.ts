@@ -15,14 +15,28 @@
 // loop) • bbox. TB is a pure axis-swap projection on top of the same core.
 
 import { acyclicOrient } from '../boxes-and-lines/layout-grouped';
+import { measureText, wrapTextToWidth } from '../utils/text-measure';
+import {
+  pathHitsBoxes,
+  routeAround,
+  type Box,
+  type Dir,
+  type RouteGoal,
+} from './route';
 import type {
   ParsedSwimlane,
+  SwimArtifact,
   SwimDirection,
+  SwimEventPosition,
+  SwimLayoutArtifact,
   SwimLayoutEdge,
+  SwimLayoutMessage,
   SwimLayoutNode,
+  SwimNode,
   SwimShape,
   SwimlaneLayoutResult,
   LayoutBand,
+  LayoutPool,
 } from './types';
 
 export const MARGIN = 30;
@@ -38,17 +52,66 @@ const LANE_HEADER = 116; // flow-start gutter for lane labels
 const PHASE_HEADER = 30; // cross-start gutter for phase labels
 const BACK_CHANNEL = 28; // first back-edge channel offset beyond the bands
 const BACK_STEP = 18; // nesting step for additional back-edges
+const POOL_HEADER = 30; // pool name band (rotated name), flow-start side
+const POOL_GAP = 18; // cross-axis gap between pools
+const COLLAPSED_POOL = 44; // thickness of a pool with no lanes
+export const BOUNDARY_D = 28; // boundary event circle diameter
+const BOUNDARY_ROOM = 30; // cross room a boundary event takes past its task
+const ARTIFACT_GAP = 22; // host → attachment gap (holds the dotted link)
+export const ARTIFACT_FONT = 11;
+const ARTIFACT_LINE_H = 13;
+const NOTE_MAX_W = 150;
+const STORE_W = 40;
+const STORE_H = 32;
+const DATA_W = 28;
+const DATA_H = 36;
 
 interface Pt {
   x: number;
   y: number;
 }
 
-function nodeSize(shape: SwimShape): { w: number; h: number } {
-  if (shape === 'exclusive' || shape === 'parallel')
+function nodeSize(n: SwimNode): { w: number; h: number } {
+  const shape: SwimShape = n.shape;
+  if (n.boundaryOf !== undefined) return { w: BOUNDARY_D, h: BOUNDARY_D };
+  if (
+    shape === 'exclusive' ||
+    shape === 'parallel' ||
+    shape === 'inclusive' ||
+    shape === 'event-based'
+  )
     return { w: DIAMOND, h: DIAMOND };
   if (shape === 'terminal') return { w: TERM_D, h: TERM_D };
   return { w: NODE_W, h: NODE_H };
+}
+
+/**
+ * An attachment's box: the glyph plus its caption (store, data) or the
+ * wrapped note text beside its bracket. Sizes are layout-independent.
+ */
+function artifactBox(a: SwimArtifact): {
+  w: number;
+  h: number;
+  lines: string[];
+} {
+  if (a.kind === 'note') {
+    const lines = wrapTextToWidth(a.label, ARTIFACT_FONT, NOTE_MAX_W - 12);
+    const textW = Math.max(...lines.map((l) => measureText(l, ARTIFACT_FONT)));
+    return {
+      w: Math.max(48, Math.ceil(textW) + 14),
+      h: lines.length * ARTIFACT_LINE_H + 10,
+      lines,
+    };
+  }
+  const lines = wrapTextToWidth(a.label, ARTIFACT_FONT, NODE_W);
+  const textW = Math.max(...lines.map((l) => measureText(l, ARTIFACT_FONT)));
+  const gw = a.kind === 'store' ? STORE_W : DATA_W;
+  const gh = a.kind === 'store' ? STORE_H : DATA_H;
+  return {
+    w: Math.max(gw, Math.ceil(textW) + 4),
+    h: gh + 4 + lines.length * ARTIFACT_LINE_H,
+    lines,
+  };
 }
 
 /**
@@ -125,7 +188,48 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
 
   const nodeById = new Map(parsed.nodes.map((n) => [n.id, n]));
   const ids = parsed.nodes.map((n) => n.id);
-  const size = new Map(parsed.nodes.map((n) => [n.id, nodeSize(n.shape)]));
+  // Boundary events ride on their task: no rank, column or cell of their own.
+  const hostOf = (id: string): string | undefined => {
+    const h = nodeById.get(id)?.boundaryOf;
+    return h !== undefined && nodeById.has(h) ? h : undefined;
+  };
+  const isBoundary = (id: string): boolean => hostOf(id) !== undefined;
+  const anchor = (id: string): string => hostOf(id) ?? id;
+  const rankIds = ids.filter((id) => !isBoundary(id));
+  const size = new Map(parsed.nodes.map((n) => [n.id, nodeSize(n)]));
+
+  // ── Attachments (store / data / note) ───────────────────────
+  interface ArtDraft {
+    id: string;
+    host: string;
+    a: SwimArtifact;
+    lines: string[];
+    lineNumber: number;
+  }
+  const artsByHost = new Map<string, ArtDraft[]>();
+  const allArts: ArtDraft[] = [];
+  for (const n of parsed.nodes) {
+    (n.artifacts ?? []).forEach((a, k) => {
+      const box = artifactBox(a);
+      const id = `${n.id}␞${a.kind}␞${k}`;
+      size.set(id, { w: box.w, h: box.h });
+      const d: ArtDraft = {
+        id,
+        host: n.id,
+        a,
+        lines: box.lines,
+        lineNumber: n.lineNumber,
+      };
+      allArts.push(d);
+      (artsByHost.get(n.id) ?? artsByHost.set(n.id, []).get(n.id)!).push(d);
+    });
+  }
+  const boundariesOf = new Map<string, string[]>();
+  for (const id of ids) {
+    const h = hostOf(id);
+    if (h) (boundariesOf.get(h) ?? boundariesOf.set(h, []).get(h)!).push(id);
+  }
+
   const flowLenOf = (id: string): number => {
     const s = size.get(id)!;
     return isLR ? s.w : s.h;
@@ -141,14 +245,18 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
     .filter(
       (e) => e.from !== e.to && nodeById.has(e.from) && nodeById.has(e.to)
     );
-  const { dag } = acyclicOrient(ids, realEdges);
+  // A boundary event's flow ranks from its task.
+  const rankEdges = realEdges
+    .map((e) => ({ from: anchor(e.from), to: anchor(e.to), idx: e.idx }))
+    .filter((e) => e.from !== e.to);
+  const { dag } = acyclicOrient(rankIds, rankEdges);
   const laneOf = (id: string): string => nodeById.get(id)!.lane;
   // Compact ranking: same-lane edges advance the flow column (+1); cross-lane
   // handoffs keep the column (0) and render as a same-rank vertical connector
   // (see edge routing below), stacking lane changes beneath their predecessor —
   // except two same-lane nodes joined by a path are kept on separate columns.
   const baseRank = compactRanks(
-    ids,
+    rankIds,
     dag.map((d) => ({ from: d.from, to: d.to })),
     laneOf
   );
@@ -163,7 +271,7 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
   // columns their members actually land in — consecutive bands may overlap by
   // the shared handoff column, so the header labels/dividers are approximate).
   let finalRank = new Map<string, number>();
-  for (const id of ids) finalRank.set(id, baseRank.get(id) ?? 0);
+  for (const id of rankIds) finalRank.set(id, baseRank.get(id) ?? 0);
 
   // ── Back-edge corridor reservation (blocker shifting) ───────
   // A back-edge's vertical legs (node → loop channel below the lanes) must
@@ -177,15 +285,39 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
     const laneIdx = new Map(parsed.lanes.map((l, i) => [l.id, i]));
     const dagEdges = dag.map((d) => ({ from: d.from, to: d.to }));
     const floors = new Map<string, number>();
-    for (let pass = 0; pass < ids.length; pass++) {
+    for (let pass = 0; pass < rankIds.length; pass++) {
       let changed = false;
-      for (const e of realEdges) {
-        if ((finalRank.get(e.to) ?? 0) >= (finalRank.get(e.from) ?? 0))
-          continue; // forward or same-rank — no loop channel legs
+      for (const e of rankEdges) {
+        const fr = finalRank.get(e.from) ?? 0;
+        const tr = finalRank.get(e.to) ?? 0;
+        if (tr === fr && laneOf(e.from) !== laneOf(e.to)) {
+          // A same-column handoff is a straight connector across the lanes
+          // between. When a box sits in its way — a node in a lane it crosses,
+          // or the source's own attachment below it — step the target one
+          // column on, so the handoff becomes a clear forward edge.
+          const lf = laneIdx.get(laneOf(e.from))!;
+          const lt = laneIdx.get(laneOf(e.to))!;
+          const [lo, hi] = lf < lt ? [lf, lt] : [lt, lf];
+          const blocked =
+            (lt > lf && artsByHost.has(e.from)) ||
+            (lt < lf && artsByHost.has(e.to)) ||
+            rankIds.some((id) => {
+              if (id === e.from || id === e.to) return false;
+              if (finalRank.get(id) !== fr) return false;
+              const li = laneIdx.get(laneOf(id)) ?? -1;
+              return li > lo && li < hi;
+            });
+          if (blocked && (floors.get(e.to) ?? 0) <= fr) {
+            floors.set(e.to, fr + 1);
+            changed = true;
+          }
+          continue;
+        }
+        if (tr >= fr) continue; // forward — no loop channel legs
         for (const leg of [e.from, e.to]) {
           const legRank = finalRank.get(leg)!;
           const legLane = laneIdx.get(laneOf(leg))!;
-          for (const id of ids) {
+          for (const id of rankIds) {
             if (id === e.from || id === e.to) continue;
             if (finalRank.get(id) !== legRank) continue;
             if ((laneIdx.get(laneOf(id)) ?? 0) <= legLane) continue;
@@ -197,23 +329,30 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
         }
       }
       if (!changed) break;
-      finalRank = compactRanks(ids, dagEdges, laneOf, floors);
+      finalRank = compactRanks(rankIds, dagEdges, laneOf, floors);
     }
+  }
+  for (const id of ids) {
+    const h = hostOf(id);
+    if (h) finalRank.set(id, finalRank.get(h) ?? 0);
   }
 
   // Contiguous rank indices.
   const usedRanks = Array.from(
-    new Set(ids.map((id) => finalRank.get(id)!))
+    new Set(rankIds.map((id) => finalRank.get(id)!))
   ).sort((a, b) => a - b);
   const rankIndex = new Map(usedRanks.map((r, i) => [r, i]));
   const R = usedRanks.length;
-  const riOf = (id: string): number => rankIndex.get(finalRank.get(id)!) ?? 0;
+  const riOf = (id: string): number =>
+    rankIndex.get(finalRank.get(anchor(id))!) ?? 0;
 
   // ── Flow columns ────────────────────────────────────────────
-  const contentFlowStart = LANE_HEADER + MARGIN;
+  const hasPools = parsed.pools.length > 0;
+  const poolHeader = hasPools ? POOL_HEADER : 0;
+  const contentFlowStart = poolHeader + LANE_HEADER + MARGIN;
   const colFlowLen: number[] = Array.from({ length: R }, () => 0);
-  for (const id of ids) {
-    const ri = riOf(id);
+  for (const id of [...rankIds, ...allArts.map((a) => a.id)]) {
+    const ri = riOf(allArts.find((a) => a.id === id)?.host ?? id);
     colFlowLen[ri] = Math.max(colFlowLen[ri]!, flowLenOf(id));
   }
   const flowCenter: number[] = [];
@@ -237,43 +376,115 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
       ? flowCenter[R - 1]! + Math.max(colFlowLen[R - 1]!, NODE_W) / 2
       : contentFlowStart) + MARGIN;
 
-  // ── Lane cross bands ────────────────────────────────────────
-  const contentCrossStart = (parsed.phases.length ? PHASE_HEADER : 0) + MARGIN;
-  // Per-cell occupancy → lane thickness.
-  const cellNodes = new Map<string, string[]>(); // `${laneId}\x00${ri}` → ids
-  for (const n of parsed.nodes) {
-    const key = `${n.lane}\x00${riOf(n.id)}`;
-    (cellNodes.get(key) ?? cellNodes.set(key, []).get(key)!).push(n.id);
+  // ── Cells: a lane × column holds its nodes, each followed by its
+  //    attachments; a task with boundary events keeps room under it. ──
+  interface CellItem {
+    id: string;
+    art: boolean;
   }
-  const cellCross = (laneId: string, ri: number): number => {
-    const arr = cellNodes.get(`${laneId}\x00${ri}`) ?? [];
-    if (arr.length === 0) return 0;
-    return (
-      arr.reduce((s, id) => s + crossLenOf(id), 0) +
-      INTRA_GAP * (arr.length - 1)
-    );
+  const contentCrossStart = (parsed.phases.length ? PHASE_HEADER : 0) + MARGIN;
+  const cellNodes = new Map<string, CellItem[]>(); // `${laneId}\x00${ri}`
+  for (const n of parsed.nodes) {
+    if (isBoundary(n.id)) continue;
+    const key = `${n.lane}\x00${riOf(n.id)}`;
+    const arr = cellNodes.get(key) ?? cellNodes.set(key, []).get(key)!;
+    arr.push({ id: n.id, art: false });
+    for (const a of artsByHost.get(n.id) ?? [])
+      arr.push({ id: a.id, art: true });
+  }
+  /** Offsets of each item from the stack start, and the stack length. */
+  const stackOf = (
+    arr: CellItem[]
+  ): { pos: number[]; len: number; single: boolean } => {
+    const pos: number[] = [];
+    let c = 0;
+    let pendingRoom = false; // the last node carries boundary events
+    arr.forEach((it, k) => {
+      if (k > 0) {
+        c += it.art ? ARTIFACT_GAP : INTRA_GAP;
+        if (pendingRoom) c += BOUNDARY_ROOM;
+        pendingRoom = false;
+      }
+      pos.push(c);
+      c += crossLenOf(it.id);
+      if (!it.art) pendingRoom = boundariesOf.has(it.id);
+    });
+    if (pendingRoom) c += BOUNDARY_ROOM;
+    return { pos, len: c, single: arr.filter((x) => !x.art).length === 1 };
   };
+  /** Cross room a cell needs (a lone node stays centred on its lane). */
+  const cellNeed = (arr: CellItem[]): number => {
+    if (arr.length === 0) return 0;
+    const st = stackOf(arr);
+    if (!st.single) return st.len;
+    const half = crossLenOf(arr[0]!.id) / 2;
+    return 2 * Math.max(half, st.len - half);
+  };
+
+  // ── Rows: lanes, grouped by pool; a lane-less pool is one thin bar ──
+  type Row =
+    | { kind: 'lane'; id: string; gapBefore: number }
+    | { kind: 'pool'; id: string; gapBefore: number };
+  const rows: Row[] = [];
+  if (!hasPools) {
+    for (const l of parsed.lanes)
+      rows.push({ kind: 'lane', id: l.id, gapBefore: 0 });
+  } else {
+    const laneIds = new Set(parsed.lanes.map((l) => l.id));
+    parsed.pools.forEach((pool, pi) => {
+      const gap = pi === 0 ? 0 : POOL_GAP;
+      const own = pool.lanes.filter((l) => laneIds.has(l));
+      if (own.length === 0)
+        rows.push({ kind: 'pool', id: pool.id, gapBefore: gap });
+      else
+        own.forEach((l, k) =>
+          rows.push({ kind: 'lane', id: l, gapBefore: k === 0 ? gap : 0 })
+        );
+    });
+    // Lanes outside every pool (an error, still drawn) go last.
+    for (const l of parsed.lanes)
+      if (l.pool === undefined)
+        rows.push({ kind: 'lane', id: l.id, gapBefore: POOL_GAP });
+  }
   const laneCrossStart = new Map<string, number>();
   const laneThick = new Map<string, number>();
   const laneCenter = new Map<string, number>();
+  const poolCross = new Map<string, { start: number; end: number }>();
+  let laneCrossEnd = contentCrossStart;
   {
     let acc = contentCrossStart;
-    for (const lane of parsed.lanes) {
+    for (const row of rows) {
+      acc += row.gapBefore;
+      if (row.kind === 'pool') {
+        poolCross.set(row.id, { start: acc, end: acc + COLLAPSED_POOL });
+        acc += COLLAPSED_POOL;
+        continue;
+      }
       let maxCell = 0;
       for (let ri = 0; ri < R; ri++)
-        maxCell = Math.max(maxCell, cellCross(lane.id, ri));
+        maxCell = Math.max(
+          maxCell,
+          cellNeed(cellNodes.get(`${row.id}\x00${ri}`) ?? [])
+        );
       const thick = Math.max(MIN_LANE, maxCell + 2 * LANE_PAD);
-      laneCrossStart.set(lane.id, acc);
-      laneThick.set(lane.id, thick);
-      laneCenter.set(lane.id, acc + thick / 2);
+      laneCrossStart.set(row.id, acc);
+      laneThick.set(row.id, thick);
+      laneCenter.set(row.id, acc + thick / 2);
       acc += thick;
     }
+    laneCrossEnd = acc;
+    for (const pool of parsed.pools) {
+      if (poolCross.has(pool.id)) continue;
+      const own = pool.lanes.filter((l) => laneCrossStart.has(l));
+      if (own.length === 0) continue;
+      const first = own[0]!;
+      const last = own[own.length - 1]!;
+      poolCross.set(pool.id, {
+        start: laneCrossStart.get(first)!,
+        end: laneCrossStart.get(last)! + laneThick.get(last)!,
+      });
+    }
   }
-  const laneCrossEnd = (() => {
-    let acc = contentCrossStart;
-    for (const lane of parsed.lanes) acc += laneThick.get(lane.id)!;
-    return acc;
-  })();
 
   // ── Node cross positions (intra-cell stack around lane center) ──
   const nodeFlow = new Map<string, number>();
@@ -282,22 +493,38 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
     const sep = key.indexOf('\x00');
     const laneId = key.slice(0, sep);
     const center = laneCenter.get(laneId) ?? contentCrossStart;
-    const stackH =
-      arr.reduce((s, id) => s + crossLenOf(id), 0) +
-      INTRA_GAP * (arr.length - 1);
-    let c = center - stackH / 2;
-    for (const id of arr) {
-      const cl = crossLenOf(id);
-      nodeCross.set(id, c + cl / 2);
-      c += cl + INTRA_GAP;
-      nodeFlow.set(id, flowCenter[riOf(id)]!);
-    }
+    const st = stackOf(arr);
+    const start = st.single
+      ? center - crossLenOf(arr[0]!.id) / 2
+      : center - st.len / 2;
+    arr.forEach((it, k) => {
+      nodeCross.set(it.id, start + st.pos[k]! + crossLenOf(it.id) / 2);
+      const hostId = it.art ? allArts.find((a) => a.id === it.id)!.host : it.id;
+      nodeFlow.set(it.id, flowCenter[riOf(hostId)]!);
+    });
+  }
+  // Boundary events sit on their task's cross-far edge (the bottom in LR).
+  for (const [h, bs] of boundariesOf) {
+    const hf = nodeFlow.get(h);
+    const hc = nodeCross.get(h);
+    if (hf === undefined || hc === undefined) continue;
+    const half = flowLenOf(h) / 2;
+    bs.forEach((b, k) => {
+      const frac = bs.length === 1 ? 0.45 : -0.55 + (1.1 * k) / (bs.length - 1);
+      nodeFlow.set(b, hf + half * frac);
+      nodeCross.set(b, hc + crossLenOf(h) / 2);
+    });
   }
 
   // ── Back-edge channels (below the lanes, nested) ────────────
   let backCount = 0;
   for (const e of realEdges)
-    if ((finalRank.get(e.to) ?? 0) < (finalRank.get(e.from) ?? 0)) backCount++;
+    if (
+      !isBoundary(e.from) &&
+      !isBoundary(e.to) &&
+      (finalRank.get(e.to) ?? 0) < (finalRank.get(e.from) ?? 0)
+    )
+      backCount++;
   const needsBack = backCount > 0;
   // Reserve only down to the DEEPEST back-edge channel — routing uses
   // backIdx 0..backCount-1, so the deepest channel is BACK_STEP*(backCount-1)
@@ -310,6 +537,20 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
 
   const project = (flow: number, cross: number): Pt =>
     isLR ? { x: flow, y: cross } : { x: cross, y: flow };
+
+  // ── Event position (start / mid / end) from sequence flow only ──
+  const seqIn = new Map<string, number>();
+  const seqOut = new Map<string, number>();
+  for (const e of realEdges) {
+    seqOut.set(e.from, (seqOut.get(e.from) ?? 0) + 1);
+    seqIn.set(e.to, (seqIn.get(e.to) ?? 0) + 1);
+  }
+  const eventPosition = (id: string): SwimEventPosition => {
+    if (isBoundary(id)) return 'mid';
+    if (!seqIn.get(id)) return 'start';
+    if (!seqOut.get(id)) return 'end';
+    return 'mid';
+  };
 
   // ── Layout nodes ────────────────────────────────────────────
   const layoutNodes: SwimLayoutNode[] = parsed.nodes.map((n) => {
@@ -324,6 +565,9 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
       ...(n.phase !== undefined && { phase: n.phase }),
       ...(n.color !== undefined && { color: n.color }),
       tags: n.tags,
+      ...(n.taskType !== undefined && { taskType: n.taskType }),
+      ...(n.shape === 'terminal' && { eventPosition: eventPosition(n.id) }),
+      ...(isBoundary(n.id) && { boundaryOf: hostOf(n.id)! }),
       x: p.x,
       y: p.y,
       width: s.w,
@@ -332,19 +576,37 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
     };
   });
 
-  // ── Forward-edge channel staggering ─────────────────────────
-  // Edges from the same source column into the same target otherwise bend at
-  // the identical midpoint, so their vertical channels coincide and render as
-  // ONE overlapping line (e.g. a 3-way parallel join). Fan each onto its own
-  // channel near the bend so every incoming edge stays visible.
+  // ── Obstacles: every node, boundary event and attachment box ──
+  const boxIds = [...ids, ...allArts.map((a) => a.id)];
+  const boxOf = (id: string): Box => {
+    const s = size.get(id)!;
+    const p = project(nodeFlow.get(id)!, nodeCross.get(id)!);
+    return {
+      x1: p.x - s.w / 2,
+      y1: p.y - s.h / 2,
+      x2: p.x + s.w / 2,
+      y2: p.y + s.h / 2,
+    };
+  };
+  const obstacles: Box[] = boxIds
+    .filter((id) => nodeFlow.has(id) && nodeCross.has(id))
+    .map(boxOf);
+
+  // ── Forward-edge channel tracks ─────────────────────────────
+  // A forward edge that changes cross position bends in the node-free gap
+  // just before its target's column. Several edges bending in one gap would
+  // share one vertical line, so each source gets its own track there (edges
+  // fanning out of one source keep one trunk). Downward edges from a higher
+  // source take tracks nearer the target, so their runs do not cross.
   const CHANNEL_GAP = 16;
-  const bendOffset: number[] = new Array(parsed.edges.length).fill(0);
+  const bendFlow: number[] = new Array(parsed.edges.length).fill(NaN);
   {
-    const groups = new Map<string, number[]>();
+    const byGap = new Map<number, number[]>();
     parsed.edges.forEach((e, i) => {
       const s = nodeById.get(e.source);
       const t = nodeById.get(e.target);
       if (!s || !t || s.id === t.id) return;
+      if (isBoundary(s.id) || isBoundary(t.id)) return;
       const sR = finalRank.get(s.id) ?? 0;
       const tR = finalRank.get(t.id) ?? 0;
       if (tR <= sR) return;
@@ -352,19 +614,25 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
         Math.abs((nodeCross.get(s.id) ?? 0) - (nodeCross.get(t.id) ?? 0)) < 0.5
       )
         return;
-      const key = `${e.target}\x00${sR}`;
-      (groups.get(key) ?? groups.set(key, []).get(key)!).push(i);
+      const gi = riOf(t.id) - 1;
+      (byGap.get(gi) ?? byGap.set(gi, []).get(gi)!).push(i);
     });
-    for (const idxs of groups.values()) {
-      if (idxs.length < 2) continue;
-      idxs.sort(
-        (a, b) =>
-          (nodeCross.get(parsed.edges[a]!.source) ?? 0) -
-          (nodeCross.get(parsed.edges[b]!.source) ?? 0)
+    for (const [gi, idxs] of byGap) {
+      const sources = [...new Set(idxs.map((i) => parsed.edges[i]!.source))];
+      const key = (src: string): number => {
+        const e =
+          parsed.edges[idxs.find((i) => parsed.edges[i]!.source === src)!]!;
+        const sc = nodeCross.get(e.source) ?? 0;
+        const down = (nodeCross.get(e.target) ?? 0) > sc;
+        return down ? -sc : -1e6 + sc;
+      };
+      sources.sort((a, b) => key(a) - key(b));
+      const n = sources.length;
+      const step = n > 1 ? Math.min(CHANNEL_GAP, (COL_GAP - 16) / (n - 1)) : 0;
+      const track = new Map(
+        sources.map((src, k) => [src, gapMid(gi) + (k - (n - 1) / 2) * step])
       );
-      idxs.forEach((idx, k) => {
-        bendOffset[idx] = (k - (idxs.length - 1) / 2) * CHANNEL_GAP;
-      });
+      for (const i of idxs) bendFlow[i] = track.get(parsed.edges[i]!.source)!;
     }
   }
 
@@ -390,12 +658,14 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
     towardFlow: number
   ): BackLeg => {
     let firstBlockTop = Infinity;
-    for (const id of ids) {
+    for (const id of boxIds) {
       if (id === selfId) continue;
+      const nf = nodeFlow.get(id);
+      const c = nodeCross.get(id);
+      if (nf === undefined || c === undefined) continue;
       const fh = flowLenOf(id) / 2 + BLOCK_CLEAR;
-      if (Math.abs(nodeFlow.get(id)! - flow) >= fh) continue;
+      if (Math.abs(nf - flow) >= fh) continue;
       const ch = crossLenOf(id) / 2;
-      const c = nodeCross.get(id)!;
       if (c + ch <= fromCross || c - ch >= toCross) continue;
       firstBlockTop = Math.min(firstBlockTop, c - ch);
     }
@@ -408,6 +678,91 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
     if (gi < 0) return { flow }; // single column — nowhere to jog
     return { flow: gapMid(gi), jogCross: (fromCross + firstBlockTop) / 2 };
   };
+
+  // ── Obstacle-aware fallback ─────────────────────────────────
+  // Grid hints for the router: column centres and gaps, lane centres, and the
+  // back-edge channels.
+  const hintFlow = [
+    ...flowCenter,
+    ...flowCenter.slice(0, -1).map((_, gi) => gapMid(gi)),
+  ];
+  const hintCross = [
+    ...laneCenter.values(),
+    ...Array.from(
+      { length: backCount },
+      (_, k) => laneCrossEnd + BACK_CHANNEL + BACK_STEP * k
+    ),
+  ];
+  const hints = isLR
+    ? { xs: hintFlow, ys: hintCross }
+    : { xs: hintCross, ys: hintFlow };
+  interface Port {
+    at: Pt;
+    out: Dir;
+  }
+  const portsOf = (id: string): Port[] => {
+    const b = boxOf(id);
+    const cx = (b.x1 + b.x2) / 2;
+    const cy = (b.y1 + b.y2) / 2;
+    return [
+      { at: { x: b.x2, y: cy }, out: { dx: 1, dy: 0 } },
+      { at: { x: b.x1, y: cy }, out: { dx: -1, dy: 0 } },
+      { at: { x: cx, y: b.y2 }, out: { dx: 0, dy: 1 } },
+      { at: { x: cx, y: b.y1 }, out: { dx: 0, dy: -1 } },
+    ];
+  };
+  const cost = (pts: readonly Pt[]): number => {
+    let c = 0;
+    for (let i = 0; i + 1 < pts.length; i++)
+      c +=
+        Math.abs(pts[i + 1]!.x - pts[i]!.x) +
+        Math.abs(pts[i + 1]!.y - pts[i]!.y);
+    return c + 36 * Math.max(0, pts.length - 2);
+  };
+  /** Port a route actually leaves (first segment) or enters (last). */
+  const portFromPath = (pts: readonly Pt[], end: boolean): Port | null => {
+    if (pts.length < 2) return null;
+    const a = end ? pts[pts.length - 1]! : pts[0]!;
+    const b = end ? pts[pts.length - 2]! : pts[1]!;
+    const dx = Math.sign(b.x - a.x);
+    const dy = Math.sign(b.y - a.y);
+    if ((dx === 0) === (dy === 0)) return null;
+    return { at: a, out: { dx, dy } };
+  };
+  const routeBetween = (
+    sid: string,
+    tid: string,
+    prefer: { s?: Port | null; t?: Port | null }
+  ): Pt[] | null => {
+    if (prefer.s && prefer.t) {
+      const r = routeAround(
+        prefer.s.at,
+        prefer.s.out,
+        { kind: 'port', at: prefer.t.at, out: prefer.t.out },
+        obstacles,
+        hints
+      );
+      if (r) return r;
+    }
+    let best: Pt[] | null = null;
+    const sPorts = prefer.s ? [prefer.s, ...portsOf(sid)] : portsOf(sid);
+    const tPorts = prefer.t ? [prefer.t, ...portsOf(tid)] : portsOf(tid);
+    for (const sp of sPorts)
+      for (const tp of tPorts) {
+        const r = routeAround(
+          sp.at,
+          sp.out,
+          { kind: 'port', at: tp.at, out: tp.out },
+          obstacles,
+          hints
+        );
+        if (r && (!best || cost(r) < cost(best))) best = r;
+      }
+    return best;
+  };
+  const crossOut = (sign: number): Dir =>
+    isLR ? { dx: 0, dy: sign } : { dx: sign, dy: 0 };
+  const flowIn: Dir = isLR ? { dx: -1, dy: 0 } : { dx: 0, dy: -1 };
 
   // ── Edge routing ────────────────────────────────────────────
   let backIdx = 0;
@@ -429,14 +784,34 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
 
     let pts: Pt[];
     let back = false;
-    if (tRank > sRank) {
+    if (isBoundary(s.id) || isBoundary(t.id)) {
+      // The exception path leaves the boundary event downward (cross-far),
+      // then the router finds the clear way to the target.
+      const sPort: Port | null = isBoundary(s.id)
+        ? {
+            at: project(sFlow, sCross + sCrossHalf),
+            out: crossOut(1),
+          }
+        : null;
+      const tPort: Port | null =
+        tRank > sRank || isBoundary(s.id)
+          ? {
+              at: project(tFlow - tFlowHalf, tCross),
+              out: flowIn,
+            }
+          : null;
+      pts = routeBetween(s.id, t.id, { s: sPort, t: tPort }) ?? [
+        sPort?.at ?? project(sFlow, sCross),
+        tPort?.at ?? project(tFlow, tCross),
+      ];
+    } else if (tRank > sRank) {
       // Forward: leading edge of source → trailing edge of target.
       const a = sFlow + sFlowHalf;
       const b = tFlow - tFlowHalf;
       if (Math.abs(sCross - tCross) < 0.5) {
         pts = [project(a, sCross), project(b, tCross)];
       } else {
-        const mid = (a + b) / 2 + bendOffset[ei]!;
+        const mid = Number.isNaN(bendFlow[ei]!) ? (a + b) / 2 : bendFlow[ei]!;
         pts = [
           project(a, sCross),
           project(mid, sCross),
@@ -496,6 +871,15 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
         project(tFlow, tBottom),
       ];
     }
+    // The rule: an edge never passes through a box. A cheap route that does
+    // is replaced by a clear one from the router.
+    if (pathHitsBoxes(pts, obstacles)) {
+      const clear = routeBetween(s.id, t.id, {
+        s: portFromPath(pts, false),
+        t: portFromPath(pts, true),
+      });
+      if (clear) pts = clear;
+    }
     layoutEdges.push({
       source: e.source,
       target: e.target,
@@ -506,7 +890,7 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
     });
   });
 
-  // ── Lane bands (full flow extent, label gutter at flow start) ──
+  // ── Bands (lanes, pools, phases) ────────────────────────────
   const projectBand = (
     flowStart: number,
     flowExtent: number,
@@ -518,9 +902,11 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
       : { x: crossStart, y: flowStart, width: crossExtent, height: flowExtent };
 
   const lanes: LayoutBand[] = parsed.lanes.map((lane) => {
+    // Inside a pool a lane starts after the pool's name band.
+    const fs = lane.pool !== undefined ? poolHeader : 0;
     const box = projectBand(
-      0,
-      totalFlow,
+      fs,
+      totalFlow - fs,
       laneCrossStart.get(lane.id)!,
       laneThick.get(lane.id)!
     );
@@ -533,6 +919,129 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
       lineNumber: lane.lineNumber,
     };
   });
+
+  const pools: LayoutPool[] = [];
+  for (const pool of parsed.pools) {
+    const pc = poolCross.get(pool.id);
+    if (!pc) continue;
+    pools.push({
+      id: pool.id,
+      label: pool.label,
+      ...projectBand(0, totalFlow, pc.start, pc.end - pc.start),
+      headerSize: POOL_HEADER,
+      collapsed: !pool.lanes.some((l) => laneCrossStart.has(l)),
+      lineNumber: pool.lineNumber,
+    });
+  }
+
+  // ── Attachments: placed in their cell, linked by a dotted line ──
+  const artifacts: SwimLayoutArtifact[] = allArts.map((d) => {
+    const s = size.get(d.id)!;
+    const f = nodeFlow.get(d.id)!;
+    const c = nodeCross.get(d.id)!;
+    const hc = nodeCross.get(d.host)!;
+    const hostEdge = hc + crossLenOf(d.host) / 2;
+    const p = project(f, c);
+    return {
+      id: d.id,
+      kind: d.a.kind,
+      label: d.a.label,
+      lines: d.lines,
+      host: d.host,
+      x: p.x,
+      y: p.y,
+      width: s.w,
+      height: s.h,
+      // A note's association meets its bracket's open corner; a store's or a
+      // data object's meets the glyph's near edge.
+      link:
+        d.a.kind === 'note'
+          ? [project(f, hostEdge), { x: p.x - s.w / 2, y: p.y - s.h / 2 }]
+          : [project(f, hostEdge), project(f, c - crossLenOf(d.id) / 2)],
+      lineNumber: d.lineNumber,
+    };
+  });
+
+  // ── Message flows (`~>`), between pools ─────────────────────
+  const messages: SwimLayoutMessage[] = [];
+  const crossOfPool = (id: string): { start: number; end: number } | null =>
+    poolCross.get(id) ?? null;
+  for (const m of parsed.messages) {
+    const sNode = m.sourceIsPool ? undefined : nodeById.get(m.source);
+    const tNode = m.targetIsPool ? undefined : nodeById.get(m.target);
+    const sPool = m.sourceIsPool ? crossOfPool(m.source) : null;
+    const tPool = m.targetIsPool ? crossOfPool(m.target) : null;
+    if ((!sNode && !sPool) || (!tNode && !tPool)) continue;
+    const midOf = (n: SwimNode | undefined, p: typeof sPool): number =>
+      n ? nodeCross.get(n.id)! : (p!.start + p!.end) / 2;
+    const sMid = midOf(sNode, sPool);
+    const tMid = midOf(tNode, tPool);
+    const down = tMid > sMid ? 1 : -1;
+    const nodePort = (n: SwimNode, sign: number): Port => ({
+      at: project(
+        nodeFlow.get(n.id)!,
+        nodeCross.get(n.id)! + (sign * crossLenOf(n.id)) / 2
+      ),
+      out: crossOut(sign),
+    });
+    const poolEdge = (
+      p: { start: number; end: number },
+      sign: number
+    ): number => (sign > 0 ? p.end : p.start);
+    const flowSpan = {
+      from: contentFlowStart - COL_GAP / 2,
+      to: totalFlow - 8,
+    };
+    let pts: Pt[] | null = null;
+    if (sNode && tNode) {
+      pts = routeBetween(sNode.id, tNode.id, {
+        s: nodePort(sNode, down),
+        t: nodePort(tNode, -down),
+      });
+    } else if (sNode && tPool) {
+      const sp = nodePort(sNode, down);
+      const v = poolEdge(tPool, -down);
+      const goal: RouteGoal = {
+        kind: 'line',
+        axis: isLR ? 'y' : 'x',
+        value: v,
+        ...flowSpan,
+        out: crossOut(-down),
+      };
+      pts = routeAround(sp.at, sp.out, goal, obstacles, hints);
+    } else if (sPool && tNode) {
+      const tp = nodePort(tNode, -down);
+      const start = project(nodeFlow.get(tNode.id)!, poolEdge(sPool, down));
+      pts = routeAround(
+        start,
+        crossOut(down),
+        { kind: 'port', at: tp.at, out: tp.out },
+        obstacles,
+        hints
+      );
+    } else if (sPool && tPool) {
+      const f = (flowSpan.from + flowSpan.to) / 2;
+      pts = [
+        project(f, poolEdge(sPool, down)),
+        project(f, poolEdge(tPool, -down)),
+      ];
+    }
+    if (!pts) {
+      const a = sNode
+        ? project(nodeFlow.get(sNode.id)!, sMid)
+        : project(contentFlowStart, poolEdge(sPool!, down));
+      const b = tNode
+        ? project(nodeFlow.get(tNode.id)!, tMid)
+        : project(contentFlowStart, poolEdge(tPool!, -down));
+      pts = [a, b];
+    }
+    messages.push({
+      source: m.source,
+      target: m.target,
+      points: pts,
+      lineNumber: m.lineNumber,
+    });
+  }
 
   // ── Phase bands (clean, non-overlapping column ranges) ──────
   // Under cross-phase compaction a single column can hold nodes from two
@@ -589,6 +1098,9 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
   return {
     nodes: layoutNodes,
     edges: layoutEdges,
+    messages,
+    artifacts,
+    pools,
     lanes,
     phases: phaseBands,
     width: isLR ? totalFlow : totalCross,

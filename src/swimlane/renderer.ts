@@ -7,9 +7,15 @@
 // (typed color + glyph), gateways (diamond; `+` for parallel), subprocess
 // (double border). Fill cascade: active tag value → event/symbol type → lane
 // shade. resvg has no `color-mix()` — all blends go through `mix()`.
+//
+// BPMN (#1874): pools (a name band; a lane-less pool is a thin bar), message
+// flow (dashed, open circle at the source, hollow head), event circles by
+// position (start thin, mid-flow double ring, end thick) with trigger glyphs,
+// gateway glyphs with the label outside the diamond, task markers, boundary
+// events, and store / data / note attachments on a dotted line.
 
 import { diamondPoints } from '../shapes/geometry';
-import { MARGIN as LAYOUT_MARGIN } from './layout';
+import { ARTIFACT_FONT, MARGIN as LAYOUT_MARGIN } from './layout';
 import * as d3Selection from 'd3-selection';
 import { fillModeFromOptions } from '../utils/parsing';
 import { FONT_FAMILY } from '../fonts';
@@ -18,6 +24,7 @@ import {
   ARROWHEAD_HEIGHT,
   ARROWHEAD_WIDTH,
   EDGE_DASH,
+  HAIRLINE_DASH,
 } from '../utils/visual-conventions';
 import {
   TITLE_FONT_SIZE,
@@ -37,6 +44,7 @@ import { growChartFrame } from '../utils/chart-frame';
 import type {
   ParsedSwimlane,
   SwimlaneLayoutResult,
+  SwimLayoutArtifact,
   SwimLayoutNode,
 } from './types';
 
@@ -50,6 +58,11 @@ const EDGE_STROKE = 1.6;
 const EDGE_CORNER_R = 11; // fillet radius for orthogonal edge corners
 const LANE_RADIUS = 10;
 const LANE_INSET = 2; // visual gutter between adjacent lane cards
+const POOL_LABEL_FONT = 12;
+const EVENT_START_STROKE = 1.5;
+const EVENT_END_STROKE = 3.2;
+const MESSAGE_DASH = '6 4';
+const GLYPH_STROKE = 1.3;
 
 /** Rect path with independent corner radii (clamped to half-extent). */
 /** Orthogonal polyline with rounded (filleted) corners for softer routes. */
@@ -197,6 +210,42 @@ export function renderSwimlaneForExport(
     baseFill: palette.textMuted,
     colors: [ev.error, ev.success],
   });
+  // Message flow: a hollow head at the target, an open circle at the source.
+  const msgStroke = palette.textMuted;
+  defs
+    .append('marker')
+    .attr('id', 'sw-msg-head')
+    .attr('viewBox', `0 0 ${ARROWHEAD_WIDTH + 2} ${ARROWHEAD_HEIGHT + 2}`)
+    .attr('refX', ARROWHEAD_WIDTH + 1)
+    .attr('refY', ARROWHEAD_HEIGHT / 2 + 1)
+    .attr('markerWidth', ARROWHEAD_WIDTH + 2)
+    .attr('markerHeight', ARROWHEAD_HEIGHT + 2)
+    .attr('markerUnits', 'userSpaceOnUse')
+    .attr('orient', 'auto')
+    .append('polygon')
+    .attr(
+      'points',
+      `1,1 ${ARROWHEAD_WIDTH + 1},${ARROWHEAD_HEIGHT / 2 + 1} 1,${ARROWHEAD_HEIGHT + 1}`
+    )
+    .attr('fill', baseBg)
+    .attr('stroke', msgStroke)
+    .attr('stroke-width', 1.2);
+  defs
+    .append('marker')
+    .attr('id', 'sw-msg-tail')
+    .attr('viewBox', '0 0 10 10')
+    .attr('refX', 5)
+    .attr('refY', 5)
+    .attr('markerWidth', 10)
+    .attr('markerHeight', 10)
+    .attr('markerUnits', 'userSpaceOnUse')
+    .append('circle')
+    .attr('cx', 5)
+    .attr('cy', 5)
+    .attr('r', 3.6)
+    .attr('fill', baseBg)
+    .attr('stroke', msgStroke)
+    .attr('stroke-width', 1.2);
 
   const root = svg
     .append('g')
@@ -247,6 +296,78 @@ export function renderSwimlaneForExport(
     }
     return baseBg;
   };
+
+  // ── Pools (BPMN): an outline with a name band; lane-less = thin bar ──
+  if (layout.pools.length > 0) {
+    const poolG = root.append('g').attr('class', 'dgmo-swimlane-pools');
+    const poolStroke = mix(palette.textMuted, baseBg, 55);
+    for (const pool of layout.pools) {
+      const by = isLR ? pool.y + LANE_INSET : pool.y;
+      const bh = isLR ? pool.height - LANE_INSET * 2 : pool.height;
+      const bx = isLR ? pool.x : pool.x + LANE_INSET;
+      const bw = isLR ? pool.width : pool.width - LANE_INSET * 2;
+      const pg = poolG
+        .append('g')
+        .attr('class', 'sw-pool')
+        .attr('data-pool', pool.id)
+        .attr('data-line-number', String(pool.lineNumber));
+      pg.append('rect')
+        .attr('x', bx)
+        .attr('y', by)
+        .attr('width', bw)
+        .attr('height', bh)
+        .attr('rx', LANE_RADIUS)
+        .attr(
+          'fill',
+          pool.collapsed ? mix(palette.textMuted, baseBg, 10) : baseBg
+        )
+        .attr('stroke', poolStroke)
+        .attr('stroke-width', 1.2);
+      if (pool.collapsed) {
+        pg.append('text')
+          .attr('x', bx + bw / 2)
+          .attr('y', by + bh / 2)
+          .attr('text-anchor', 'middle')
+          .attr('dominant-baseline', 'middle')
+          .attr('font-size', POOL_LABEL_FONT)
+          .attr('font-weight', 'bold')
+          .attr('fill', palette.text)
+          .text(pool.label);
+        continue;
+      }
+      // Name band (left in LR, top in TB), the pool name rotated in LR.
+      const hw = isLR ? pool.headerSize : bw;
+      const hh = isLR ? bh : pool.headerSize;
+      pg.append('path')
+        .attr(
+          'd',
+          roundedRectPath(
+            bx,
+            by,
+            hw,
+            hh,
+            isLR
+              ? { tl: LANE_RADIUS, bl: LANE_RADIUS }
+              : { tl: LANE_RADIUS, tr: LANE_RADIUS }
+          )
+        )
+        .attr('fill', mix(palette.textMuted, baseBg, 14))
+        .attr('stroke', poolStroke)
+        .attr('stroke-width', 1.2);
+      const tx = isLR ? bx + hw / 2 : bx + bw / 2;
+      const ty = isLR ? by + bh / 2 : by + hh / 2;
+      pg.append('text')
+        .attr('x', tx)
+        .attr('y', ty)
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'middle')
+        .attr('font-size', POOL_LABEL_FONT)
+        .attr('font-weight', 'bold')
+        .attr('fill', palette.text)
+        .attr('transform', isLR ? `rotate(-90 ${tx} ${ty})` : null)
+        .text(pool.label);
+    }
+  }
 
   // ── Lane band backgrounds + headers (rounded cards) ─────────
   const laneG = root.append('g').attr('class', 'dgmo-swimlane-lanes');
@@ -387,7 +508,7 @@ export function renderSwimlaneForExport(
         };
       return { fill: palette.bg, stroke: palette.textMuted };
     }
-    if (n.shape === 'exclusive' || n.shape === 'parallel') {
+    if (isGatewayShape(n.shape)) {
       // Gateways stay neutral.
       return {
         fill: mix(palette.surface, baseBg, 80),
@@ -533,9 +654,56 @@ export function renderSwimlaneForExport(
     }
   }
 
+  // ── Message flows (dashed, open circle → hollow head) ───────
+  if (layout.messages.length > 0) {
+    const msgG = root.append('g').attr('class', 'dgmo-swimlane-messages');
+    for (const m of layout.messages) {
+      msgG
+        .append('path')
+        .attr('class', 'sw-message sw-edge-group')
+        .attr('d', roundedPolyline(m.points, EDGE_CORNER_R))
+        .attr('fill', 'none')
+        .attr('stroke', msgStroke)
+        .attr('stroke-width', EDGE_STROKE)
+        .attr('stroke-dasharray', MESSAGE_DASH)
+        .attr('marker-start', 'url(#sw-msg-tail)')
+        .attr('marker-end', 'url(#sw-msg-head)')
+        .attr('data-line-number', String(m.lineNumber));
+    }
+  }
+
+  // ── Attachments (data store / data object / annotation) ─────
+  if (layout.artifacts.length > 0) {
+    const artG = root.append('g').attr('class', 'dgmo-swimlane-artifacts');
+    for (const a of layout.artifacts)
+      drawArtifact(artG, a, palette, baseBg, haloAt(isLR ? a.y : a.x));
+  }
+
   // ── Nodes ───────────────────────────────────────────────────
   const nodesG = root.append('g').attr('class', 'dgmo-swimlane-nodes');
-  for (const n of layout.nodes) {
+  // Boundary events draw after every task so they sit on top of its border.
+  const drawOrder = [
+    ...layout.nodes.filter((n) => n.boundaryOf === undefined),
+    ...layout.nodes.filter((n) => n.boundaryOf !== undefined),
+  ];
+  /** True when some line (edge or message) ends on the node's top point. */
+  const touchesAt = (n: SwimLayoutNode, side: 'top' | 'bottom'): boolean => {
+    const y = side === 'top' ? n.y - n.height / 2 : n.y + n.height / 2;
+    const lines = [...layout.edges, ...layout.messages];
+    for (const le of lines) {
+      const pts =
+        le.target === n.id
+          ? [le.points[le.points.length - 1]]
+          : le.source === n.id
+            ? [le.points[0]]
+            : [];
+      for (const pt of pts)
+        if (pt && Math.abs(pt.x - n.x) < 1 && Math.abs(pt.y - y) < 1)
+          return true;
+    }
+    return false;
+  };
+  for (const n of drawOrder) {
     const { fill, stroke } = nodeFill(n);
     const g = nodesG
       .append('g')
@@ -548,100 +716,94 @@ export function renderSwimlaneForExport(
       .attr('data-lane', n.lane);
     const cx = n.x;
     const cy = n.y;
-    if (n.shape === 'exclusive' || n.shape === 'parallel') {
+    if (isGatewayShape(n.shape)) {
       const r = n.width / 2;
       g.append('polygon')
         .attr('points', diamondPoints(cx, cy, r, r))
         .attr('fill', fill)
         .attr('stroke', stroke)
         .attr('stroke-width', NODE_STROKE);
-      if (n.shape === 'parallel') {
-        // `+` glyph.
-        const g2 = palette.textMuted;
-        g.append('line')
-          .attr('x1', cx)
-          .attr('y1', cy - r / 2.4)
-          .attr('x2', cx)
-          .attr('y2', cy + r / 2.4)
-          .attr('stroke', g2)
-          .attr('stroke-width', 2.4);
-        g.append('line')
-          .attr('x1', cx - r / 2.4)
-          .attr('y1', cy)
-          .attr('x2', cx + r / 2.4)
-          .attr('y2', cy)
-          .attr('stroke', g2)
-          .attr('stroke-width', 2.4);
-        // Label below the diamond.
+      drawGatewayGlyph(g, n.shape, cx, cy, r, palette.textMuted);
+      // The label sits OUTSIDE the diamond — above it, or below when a line
+      // arrives at the top point.
+      if (n.label) {
+        const below = touchesAt(n, 'top') && !touchesAt(n, 'bottom');
+        const ly = below ? cy + r + 13 : cy - r - 7;
         g.append('text')
+          .attr('class', 'sw-gateway-label')
           .attr('x', cx)
-          .attr('y', cy + r + 12)
+          .attr('y', ly)
           .attr('text-anchor', 'middle')
           .attr('font-size', NODE_FONT_SIZE - 1)
-          .attr('fill', palette.textMuted)
-          .attr('stroke', haloAt(cy + r + 12))
+          .attr('fill', palette.text)
+          .attr('stroke', haloAt(isLR ? ly : cx))
           .attr('stroke-width', 3.5)
           .attr('stroke-linejoin', 'round')
           .attr('paint-order', 'stroke')
           .text(n.label);
-      } else {
-        // Halo with the lane background so the diamond outline fades behind a
-        // label that overflows the narrow gateway.
-        drawCenteredLabel(
-          g,
-          n.label,
-          cx,
-          cy,
-          palette.text,
-          NODE_FONT_SIZE - 1,
-          true,
-          haloAt(cy)
-        );
       }
     } else if (n.shape === 'terminal') {
       const r = n.width / 2;
+      const pos = n.eventPosition ?? 'start';
+      const boundary = n.boundaryOf !== undefined;
       g.append('circle')
         .attr('cx', cx)
         .attr('cy', cy)
         .attr('r', r)
-        .attr('fill', fill)
+        // A boundary event covers the task border it sits on.
+        .attr('fill', boundary ? palette.bg : fill)
         .attr('stroke', stroke)
-        .attr('stroke-width', n.event === 'none' ? NODE_STROKE : 2.4);
-      // Success = double ring; terminate = thick inner ring.
-      if (n.event === 'success') {
+        .attr(
+          'stroke-width',
+          pos === 'end' ? EVENT_END_STROKE : EVENT_START_STROKE
+        );
+      // Mid-flow (and every boundary event) = double ring.
+      if (pos === 'mid') {
         g.append('circle')
           .attr('cx', cx)
           .attr('cy', cy)
-          .attr('r', r - 4)
+          .attr('r', r - 3.5)
           .attr('fill', 'none')
           .attr('stroke', stroke)
           .attr('stroke-width', 1);
       }
-      // Terminal label goes below the circle by default, but if an edge
-      // connects on the BOTTOM of the circle (it approaches from the lane
-      // below) the label would sit on that line — flip it above instead.
-      let connectsBelow = false;
-      for (const le of layout.edges) {
-        const pt =
-          le.target === n.id
-            ? le.points[le.points.length - 1]
-            : le.source === n.id
-              ? le.points[0]
-              : undefined;
-        if (pt && pt.y > cy + r * 0.5) connectsBelow = true;
+      drawEventGlyph(g, n.event, pos === 'end', cx, cy, r, stroke, fill);
+      if (n.label) {
+        let lx = cx;
+        let ly: number;
+        let anchor = 'middle';
+        if (boundary) {
+          // Under the task, left of the circle — the exception path leaves
+          // straight down from the circle, so the label keeps off it.
+          lx = cx - r - 3;
+          ly = cy + r - 1;
+          anchor = 'end';
+        } else {
+          // Below the circle by default; above when a line connects on the
+          // circle's lower half (it would sit on that line).
+          ly = cy + r + 12;
+          for (const le of [...layout.edges, ...layout.messages]) {
+            const pt =
+              le.target === n.id
+                ? le.points[le.points.length - 1]
+                : le.source === n.id
+                  ? le.points[0]
+                  : undefined;
+            if (pt && pt.y > cy + r * 0.5) ly = cy - r - 6;
+          }
+        }
+        g.append('text')
+          .attr('x', lx)
+          .attr('y', ly)
+          .attr('text-anchor', anchor)
+          .attr('font-size', NODE_FONT_SIZE - 1)
+          .attr('fill', palette.text)
+          .attr('stroke', haloAt(isLR ? ly : lx))
+          .attr('stroke-width', 3.5)
+          .attr('stroke-linejoin', 'round')
+          .attr('paint-order', 'stroke')
+          .text(n.label);
       }
-      const labelY = connectsBelow ? cy - r - 6 : cy + r + 12;
-      g.append('text')
-        .attr('x', cx)
-        .attr('y', labelY)
-        .attr('text-anchor', 'middle')
-        .attr('font-size', NODE_FONT_SIZE - 1)
-        .attr('fill', palette.text)
-        .attr('stroke', haloAt(labelY))
-        .attr('stroke-width', 3.5)
-        .attr('stroke-linejoin', 'round')
-        .attr('paint-order', 'stroke')
-        .text(n.label);
     } else {
       // task / subprocess rectangle.
       g.append('rect')
@@ -669,6 +831,15 @@ export function renderSwimlaneForExport(
         palette.textOnFillLight,
         palette.textOnFillDark
       );
+      if (n.taskType)
+        drawTaskMarker(
+          g,
+          n.taskType,
+          cx - n.width / 2 + 7,
+          cy - n.height / 2 + 6,
+          textColor,
+          fill
+        );
       drawCenteredLabel(g, n.label, cx, cy, textColor, NODE_FONT_SIZE);
     }
   }
@@ -735,4 +906,325 @@ function drawCenteredLabel(
         .attr('paint-order', 'stroke');
     txt.text(ln);
   });
+}
+
+const isGatewayShape = (s: SwimLayoutNode['shape']): boolean =>
+  s === 'exclusive' ||
+  s === 'parallel' ||
+  s === 'inclusive' ||
+  s === 'event-based';
+
+/** X (exclusive), + (parallel), O (inclusive), ring + pentagon (event-based). */
+function drawGatewayGlyph(
+  g: D3G,
+  shape: SwimLayoutNode['shape'],
+  cx: number,
+  cy: number,
+  r: number,
+  color: string
+): void {
+  if (shape === 'parallel') {
+    const k = r / 2.4;
+    g.append('path')
+      .attr('d', `M${cx} ${cy - k}V${cy + k}M${cx - k} ${cy}H${cx + k}`)
+      .attr('stroke', color)
+      .attr('stroke-width', 2.4)
+      .attr('fill', 'none');
+  } else if (shape === 'exclusive') {
+    const k = r / 3.2;
+    g.append('path')
+      .attr(
+        'd',
+        `M${cx - k} ${cy - k}L${cx + k} ${cy + k}M${cx + k} ${cy - k}L${cx - k} ${cy + k}`
+      )
+      .attr('stroke', color)
+      .attr('stroke-width', 2.4)
+      .attr('stroke-linecap', 'round')
+      .attr('fill', 'none');
+  } else if (shape === 'inclusive') {
+    g.append('circle')
+      .attr('cx', cx)
+      .attr('cy', cy)
+      .attr('r', r / 2.5)
+      .attr('fill', 'none')
+      .attr('stroke', color)
+      .attr('stroke-width', 2.2);
+  } else if (shape === 'event-based') {
+    for (const rr of [r / 2.2, r / 2.2 - 2.5])
+      g.append('circle')
+        .attr('cx', cx)
+        .attr('cy', cy)
+        .attr('r', rr)
+        .attr('fill', 'none')
+        .attr('stroke', color)
+        .attr('stroke-width', 1);
+    g.append('polygon')
+      .attr('points', polygonPoints(cx, cy, r / 4.4, 5))
+      .attr('fill', 'none')
+      .attr('stroke', color)
+      .attr('stroke-width', 1);
+  }
+}
+
+/** Points of a regular polygon with one vertex straight up. */
+function polygonPoints(cx: number, cy: number, r: number, n: number): string {
+  const pts: string[] = [];
+  for (let i = 0; i < n; i++) {
+    const a = -Math.PI / 2 + (2 * Math.PI * i) / n;
+    pts.push(`${cx + r * Math.cos(a)},${cy + r * Math.sin(a)}`);
+  }
+  return pts.join(' ');
+}
+
+/** An envelope `w`×`h` centred on (cx, cy): filled (sending) or hollow. */
+function drawEnvelope(
+  g: D3G,
+  cx: number,
+  cy: number,
+  w: number,
+  h: number,
+  color: string,
+  filled: boolean,
+  ground: string
+): void {
+  const x = cx - w / 2;
+  const y = cy - h / 2;
+  g.append('rect')
+    .attr('x', x)
+    .attr('y', y)
+    .attr('width', w)
+    .attr('height', h)
+    .attr('fill', filled ? color : 'none')
+    .attr('stroke', color)
+    .attr('stroke-width', GLYPH_STROKE);
+  g.append('path')
+    .attr('d', `M${x} ${y}L${cx} ${cy + h * 0.1}L${x + w} ${y}`)
+    .attr('fill', 'none')
+    .attr('stroke', filled ? ground : color)
+    .attr('stroke-width', GLYPH_STROKE);
+}
+
+/**
+ * The trigger glyph inside an event circle. A throwing event (an end) draws
+ * its glyph filled; a catching one hollow.
+ */
+function drawEventGlyph(
+  g: D3G,
+  event: SwimLayoutNode['event'],
+  isEnd: boolean,
+  cx: number,
+  cy: number,
+  r: number,
+  color: string,
+  ground: string
+): void {
+  if (event === 'message') {
+    drawEnvelope(g, cx, cy, r * 1.05, r * 0.72, color, isEnd, ground);
+  } else if (event === 'timer') {
+    const rr = r * 0.6;
+    g.append('circle')
+      .attr('cx', cx)
+      .attr('cy', cy)
+      .attr('r', rr)
+      .attr('fill', 'none')
+      .attr('stroke', color)
+      .attr('stroke-width', GLYPH_STROKE);
+    g.append('path')
+      .attr(
+        'd',
+        `M${cx} ${cy - rr * 0.75}L${cx} ${cy}L${cx + rr * 0.55} ${cy + rr * 0.2}`
+      )
+      .attr('fill', 'none')
+      .attr('stroke', color)
+      .attr('stroke-width', GLYPH_STROKE)
+      .attr('stroke-linecap', 'round');
+  } else if (event === 'signal') {
+    const k = r * 0.55;
+    g.append('polygon')
+      .attr(
+        'points',
+        `${cx},${cy - k} ${cx + k * 0.95},${cy + k * 0.62} ${cx - k * 0.95},${cy + k * 0.62}`
+      )
+      .attr('fill', isEnd ? color : 'none')
+      .attr('stroke', color)
+      .attr('stroke-width', GLYPH_STROKE);
+  } else if (event === 'error') {
+    const k = r * 0.55;
+    g.append('polygon')
+      .attr(
+        'points',
+        [
+          [cx - k * 0.7, cy + k * 0.85],
+          [cx - k * 0.25, cy - k * 0.75],
+          [cx + k * 0.2, cy + k * 0.1],
+          [cx + k * 0.7, cy - k * 0.85],
+          [cx + k * 0.3, cy + k * 0.75],
+          [cx - k * 0.15, cy - k * 0.05],
+        ]
+          .map(([x, y]) => `${x},${y}`)
+          .join(' ')
+      )
+      .attr('fill', isEnd ? color : 'none')
+      .attr('stroke', color)
+      .attr('stroke-width', GLYPH_STROKE)
+      .attr('stroke-linejoin', 'round');
+  } else if (event === 'terminate' && isEnd) {
+    g.append('circle')
+      .attr('cx', cx)
+      .attr('cy', cy)
+      .attr('r', r * 0.55)
+      .attr('fill', color);
+  }
+}
+
+/** The BPMN task marker, 12px, with its top-left corner at (x, y). */
+function drawTaskMarker(
+  g: D3G,
+  type: NonNullable<SwimLayoutNode['taskType']>,
+  x: number,
+  y: number,
+  color: string,
+  ground: string
+): void {
+  const m = g.append('g').attr('class', `sw-task-marker sw-task-${type}`);
+  const line = (d: string): void => {
+    m.append('path')
+      .attr('d', d)
+      .attr('fill', 'none')
+      .attr('stroke', color)
+      .attr('stroke-width', 1.1)
+      .attr('stroke-linecap', 'round')
+      .attr('stroke-linejoin', 'round');
+  };
+  if (type === 'user') {
+    m.append('circle')
+      .attr('cx', x + 6)
+      .attr('cy', y + 3.2)
+      .attr('r', 2.6)
+      .attr('fill', 'none')
+      .attr('stroke', color)
+      .attr('stroke-width', 1.1);
+    line(
+      `M${x + 1} ${y + 12}Q${x + 1} ${y + 6.6} ${x + 6} ${y + 6.6}Q${x + 11} ${y + 6.6} ${x + 11} ${y + 12}Z`
+    );
+  } else if (type === 'service') {
+    const cx = x + 6;
+    const cy = y + 6;
+    let teeth = '';
+    for (let i = 0; i < 8; i++) {
+      const a = (Math.PI * i) / 4;
+      teeth += `M${cx + 3.4 * Math.cos(a)} ${cy + 3.4 * Math.sin(a)}L${cx + 5.6 * Math.cos(a)} ${cy + 5.6 * Math.sin(a)}`;
+    }
+    line(teeth);
+    m.append('circle')
+      .attr('cx', cx)
+      .attr('cy', cy)
+      .attr('r', 3.4)
+      .attr('fill', 'none')
+      .attr('stroke', color)
+      .attr('stroke-width', 1.1);
+  } else if (type === 'manual') {
+    // An open hand: a wrist and four fingers.
+    line(
+      `M${x} ${y + 11}V${y + 6}L${x + 3} ${y + 3}M${x + 3} ${y + 5}H${x + 11}M${x + 3} ${y + 7.5}H${x + 12}M${x + 3} ${y + 10}H${x + 11}M${x} ${y + 11}H${x + 9}`
+    );
+  } else if (type === 'script') {
+    line(
+      `M${x + 2} ${y}H${x + 11}Q${x + 9} ${y + 6} ${x + 11} ${y + 12}H${x + 2}Q${x + 4} ${y + 6} ${x + 2} ${y}ZM${x + 4.5} ${y + 3.5}H${x + 8.5}M${x + 5} ${y + 6}H${x + 9}M${x + 5.5} ${y + 8.5}H${x + 9.5}`
+    );
+  } else {
+    drawEnvelope(m, x + 6, y + 6, 12, 8.4, color, type === 'send', ground);
+  }
+}
+
+/** A data store (cylinder), data object (folded page) or annotation. */
+function drawArtifact(
+  parent: D3G,
+  a: SwimLayoutArtifact,
+  palette: PaletteColors,
+  baseBg: string,
+  halo: string
+): void {
+  const g = parent
+    .append('g')
+    .attr('class', `sw-artifact sw-artifact-${a.kind}`)
+    .attr('data-line-number', String(a.lineNumber));
+  const stroke = palette.textMuted;
+  const fill = mix(palette.surface, baseBg, 60);
+  g.append('path')
+    .attr('class', 'sw-association')
+    .attr('d', a.link.map((p, i) => `${i ? 'L' : 'M'}${p.x} ${p.y}`).join(''))
+    .attr('fill', 'none')
+    .attr('stroke', stroke)
+    .attr('stroke-width', 1.1)
+    .attr('stroke-dasharray', HAIRLINE_DASH);
+  const x0 = a.x - a.width / 2;
+  const y0 = a.y - a.height / 2;
+  const caption = (top: number): void => {
+    a.lines.forEach((ln, i) => {
+      const ty = top + (i + 1) * 13 - 2;
+      g.append('text')
+        .attr('x', a.x)
+        .attr('y', ty)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', ARTIFACT_FONT)
+        .attr('fill', palette.text)
+        .attr('stroke', halo)
+        .attr('stroke-width', 3)
+        .attr('stroke-linejoin', 'round')
+        .attr('paint-order', 'stroke')
+        .text(ln);
+    });
+  };
+  if (a.kind === 'store') {
+    const w = 40;
+    const h = 32;
+    const x = a.x - w / 2;
+    const ry = 5;
+    g.append('path')
+      .attr(
+        'd',
+        `M${x} ${y0 + ry}A${w / 2} ${ry} 0 0 1 ${x + w} ${y0 + ry}V${y0 + h - ry}A${w / 2} ${ry} 0 0 1 ${x} ${y0 + h - ry}Z`
+      )
+      .attr('fill', fill)
+      .attr('stroke', stroke)
+      .attr('stroke-width', 1.2);
+    g.append('path')
+      .attr('d', `M${x} ${y0 + ry}A${w / 2} ${ry} 0 0 0 ${x + w} ${y0 + ry}`)
+      .attr('fill', 'none')
+      .attr('stroke', stroke)
+      .attr('stroke-width', 1.2);
+    caption(y0 + h + 4);
+  } else if (a.kind === 'data') {
+    const w = 28;
+    const h = 36;
+    const x = a.x - w / 2;
+    const f = 8;
+    g.append('path')
+      .attr('d', `M${x} ${y0}H${x + w - f}L${x + w} ${y0 + f}V${y0 + h}H${x}Z`)
+      .attr('fill', fill)
+      .attr('stroke', stroke)
+      .attr('stroke-width', 1.2);
+    g.append('path')
+      .attr('d', `M${x + w - f} ${y0}V${y0 + f}H${x + w}`)
+      .attr('fill', 'none')
+      .attr('stroke', stroke)
+      .attr('stroke-width', 1.2);
+    caption(y0 + h + 4);
+  } else {
+    // Annotation: an open bracket with the text beside it.
+    g.append('path')
+      .attr('d', `M${x0 + 8} ${y0}H${x0}V${y0 + a.height}H${x0 + 8}`)
+      .attr('fill', 'none')
+      .attr('stroke', stroke)
+      .attr('stroke-width', 1.2);
+    a.lines.forEach((ln, i) => {
+      g.append('text')
+        .attr('x', x0 + 7)
+        .attr('y', y0 + 5 + (i + 1) * 13 - 3)
+        .attr('font-size', ARTIFACT_FONT)
+        .attr('fill', palette.textMuted)
+        .text(ln);
+    });
+  }
 }

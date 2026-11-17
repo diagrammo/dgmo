@@ -431,8 +431,19 @@ export type {
   SwimPhase,
   SwimShape,
   SwimEvent,
+  SwimEventPosition,
+  SwimTaskType,
+  SwimArtifact,
+  SwimArtifactKind,
+  SwimPool,
+  SwimMessage,
+  SwimLayoutNode,
+  SwimLayoutEdge,
+  SwimLayoutArtifact,
+  SwimLayoutMessage,
   SwimlaneLayoutResult,
   LayoutBand as SwimlaneLayoutBand,
+  LayoutPool as SwimlaneLayoutPool,
 } from './swimlane/types';
 export { layoutSwimlane } from './swimlane/layout';
 export { renderSwimlaneForExport } from './swimlane/renderer';
