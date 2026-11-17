@@ -317,3 +317,8 @@ export const FAMILY_PERSON_REGISTRY: ReservedKeyRegistry = staticRegistry([
 ]);
 
 export const FAMILY_UNION_REGISTRY: ReservedKeyRegistry = staticRegistry(['m']);
+
+// Ownership (#1873): `type:` picks the shape (corporation, partnership,
+// individual, trust). Jurisdiction and the rest are tag groups, so they arrive
+// as tag aliases; any other indented line is free description.
+export const OWNERSHIP_REGISTRY: ReservedKeyRegistry = staticRegistry(['type']);

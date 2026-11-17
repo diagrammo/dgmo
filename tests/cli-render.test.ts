@@ -306,6 +306,13 @@ Black Pearl beats Sea Serpent 5-3
 Salty Dog beats Kraken 4-2
 Black Pearl beats Salty Dog 6-5`,
 
+  ownership: `ownership Test Group
+Holdings Ltd
+  100% Sub Ltd
+  60% Labs Ltd
+Fund LP  type: partnership
+  40% -> Labs Ltd
+`,
   'calendar-heatmap': `calendar-heatmap Test Calendar
 year 2026
 unit run

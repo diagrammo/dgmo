@@ -11,7 +11,7 @@ Use dgmo tools to create, render, and share diagrams. dgmo is a text-based diagr
 <!-- DGMO-AI-CORE:START -->
 ## DGMO AI Core
 
-_Generated from `language-reference.md` — the anti-patterns and 52-type index below are identical across every DGMO AI surface._
+_Generated from `language-reference.md` — the anti-patterns and 53-type index below are identical across every DGMO AI surface._
 
 ### Disambiguation — where DGMO diverges from LLM priors
 
@@ -83,6 +83,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `mindmap`          | radial hierarchy of ideas from a central topic                                                                                                                                                                    |
 | `org`              | reporting hierarchy                                                                                                                                                                                               |
 | `family`           | family tree / genealogy: unions (couples), children, remarriage, adoption, GEDCOM-style metadata                                                                                                                  |
+| `ownership`        | corporate entity structure: parent, subsidiaries and outside owners, a % stake on every line and a jurisdiction on every box (legal, tax, M&A)                                                                    |
 | `bracket`          | single-elimination tournament bracket: winners auto-advance; seed the field for a day-0 skeleton or list results casually; two sides mirror to a championship                                                     |
 | `kanban`           | task-board columns                                                                                                                                                                                                |
 | `swot`             | SWOT analysis: strengths, weaknesses, opportunities, threats in four fixed panels on helpful/harmful and internal/external axes                                                                                   |
@@ -130,7 +131,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 
 ### Common examples (curated, parse-clean)
 
-_The most common types, inline so you can generate them without a fetch. For the other 44, get the per-type section (see below)._
+_The most common types, inline so you can generate them without a fetch. For the other 45, get the per-type section (see below)._
 
 #### journey-map
 

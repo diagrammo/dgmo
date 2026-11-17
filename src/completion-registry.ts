@@ -632,6 +632,15 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     }),
   ],
   [
+    'ownership',
+    // #1873: tag groups (jurisdiction first) + the fill family via
+    // FILL_FAMILY_CAPABLE.
+    withGlobals({
+      'no-legend': { description: 'Hide the legend' },
+      'active-tag': { description: 'Active tag group name' },
+    }),
+  ],
+  [
     'calendar-heatmap',
     withGlobals({
       'no-legend': { description: 'Hide the Less … More legend' },
@@ -1209,6 +1218,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
 // `fill-solid` but ignore `fill-outline` (the fill is the data surface).
 const FILL_FAMILY_CAPABLE = new Set([
   'flowchart',
+  'ownership',
   'state',
   'sequence',
   'c4',
@@ -1325,6 +1335,7 @@ export const STRUCTURAL_KEYWORDS = new Map<string, string[]>([
   ['family', ['tag']],
   ['kanban', ['tag']],
   ['swot', ['tag', 'strengths', 'weaknesses', 'opportunities', 'threats']],
+  ['ownership', ['tag']],
   ['sitemap', ['tag']],
   ['infra', ['tag']],
   ['pert', ['tag']],
@@ -1467,6 +1478,8 @@ export const REFERENCE_GRAMMAR = new Map<string, ReferenceGrammar>([
   ['venn', { hasReferenceGrammar: true, referenceOperators: ['+'] }],
   // Family unions reference a prior/again-named person via the `+` couple operator.
   ['family', { hasReferenceGrammar: true, referenceOperators: ['+'] }],
+  // `NN% -> Name` points a stake at an entity declared elsewhere (#1873).
+  ['ownership', { hasReferenceGrammar: true, referenceOperators: ['->'] }],
 ]);
 
 // Every other registered chart type has no reference position.
@@ -1777,6 +1790,17 @@ export const PIPE_METADATA = new Map<string, PipeContextMap>([
         religion: { description: 'Religion' },
         burial: { description: 'Burial place' },
         m: { description: 'Marriage year (on a union line)' },
+      },
+    },
+  ],
+  [
+    'ownership',
+    {
+      node: {
+        type: {
+          description: 'Entity type; picks the shape (default corporation)',
+          values: ['corporation', 'partnership', 'individual', 'trust'],
+        },
       },
     },
   ],

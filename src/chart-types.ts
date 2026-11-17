@@ -144,6 +144,11 @@ const chartTypesData = [
     description: 'Reporting hierarchy',
   },
   {
+    id: 'ownership',
+    description:
+      'Corporate entity structure: parent, subsidiaries and outside owners, a stake on each line and a jurisdiction on each box (legal, tax, M&A)',
+  },
+  {
     id: 'family',
     description:
       'Family tree / genealogy: unions (couples), children, remarriage, adoption, and GEDCOM-style metadata',

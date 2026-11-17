@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`ownership`, a corporate entity structure chart (#1873).** Write the group
+  as an indented tree with the stake first (`100% Acme Inc`), a cross-holding
+  or an outside owner's stake as `10% -> Acme GmbH`, and the jurisdiction as a
+  tag group that colours the boxes. `type:` picks the shape: corporation,
+  partnership (triangle), individual (oval) or trust (double outline). Owners
+  outside the group draw dashed. Lines are orthogonal, one trunk and one run
+  per owner, with the stake in a pill next to the owned entity; the layout
+  searches for the order with the fewest crossings, and a crossing the
+  structure forces is reported as `W_OWNERSHIP_FORCED_CROSSING`. Hovering an
+  entity lights its chain of owners and shows its effective ownership summed
+  across every path. New diagnostics: over 100%, unknown entity (with a
+  did-you-mean), cycle, and eight more in the language reference (§25D).
 - **`W_CANVAS_HEIGHT_IGNORED`, and the list of chart types that take an exact
   size (#1965).** With a width and a height both requested, a chart type that
   sizes itself from its content (flowchart, org, sequence, map and the rest)

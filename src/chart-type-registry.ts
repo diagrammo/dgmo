@@ -82,6 +82,7 @@ import { parseClock } from './clock/parser';
 import { parseBracket } from './bracket/parser';
 import { parseRaci } from './raci/parser';
 import { parseSwot } from './swot/parser';
+import { parseOwnership } from './ownership/parser';
 import { parseCalendarHeatmap } from './calendar-heatmap/parser';
 import { parseBody } from './body/parser';
 import { parseLiveLink } from './live-link/parser';
@@ -132,6 +133,7 @@ const REGISTRY: Record<ChartTypeId, Omit<ChartTypeDescriptor, 'id'>> = {
   'journey-map': { category: 'diagram', parse: parseJourneyMap },
   raci: { category: 'diagram', parse: parseRaci },
   swot: { category: 'diagram', parse: parseSwot },
+  ownership: { category: 'diagram', parse: parseOwnership },
 
   // ── Standard ECharts charts (parseChart) ──────────────────
   bar: { category: 'data-chart', parse: parseChart },

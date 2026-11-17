@@ -52,6 +52,7 @@ import { exportPyramid } from './pyramid/export';
 import { exportQuadrant } from './quadrant/export';
 import { exportRaci } from './raci/export';
 import { exportSwot } from './swot/export';
+import { exportOwnership } from './ownership/export';
 import { exportCalendarHeatmap } from './calendar-heatmap/export';
 import { exportRing } from './ring/export';
 import { exportVisualization } from './sequence/export';
@@ -130,6 +131,7 @@ export const DIAGRAM_EXPORT_HANDLERS: Record<string, DiagramExportHandler> = {
   bracket: exportBracket,
   raci: exportRaci,
   swot: exportSwot,
+  ownership: exportOwnership,
   'calendar-heatmap': exportCalendarHeatmap,
   body: exportBody,
   'live-link': exportLiveLink,

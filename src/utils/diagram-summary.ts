@@ -68,6 +68,8 @@ import type { OrgNode } from '../org/parser';
 import { parsePert } from '../pert/parser';
 import { parseRaci } from '../raci/parser';
 import { parseSwot } from '../swot/parser';
+import { parseOwnership } from '../ownership/parser';
+import { ownershipSummary } from '../ownership/format';
 import { parseCalendarHeatmap } from '../calendar-heatmap/parser';
 import { calendarSummary } from '../calendar-heatmap/format';
 import { parseSequenceDgmo } from '../sequence/parser';
@@ -475,6 +477,12 @@ function summarizeSwot(content: string): string | null {
   const counts = parsed.sections.map((s) => `${s.label} ${s.items.length}`);
   const total = parsed.sections.reduce((n, s) => n + s.items.length, 0);
   return `SWOT analysis with ${plural(total, 'item', 'items')}: ${counts.join(', ')}.`;
+}
+
+function summarizeOwnership(content: string): string | null {
+  const parsed = parseOwnership(content);
+  if (parsed.error) return null;
+  return ownershipSummary(parsed);
 }
 
 function summarizeCalendarHeatmap(content: string): string | null {
@@ -996,6 +1004,7 @@ const SUMMARIZERS: Record<ChartTypeId, Summarizer> = {
   'journey-map': summarizeJourneyMap,
   raci: summarizeRaci,
   swot: summarizeSwot,
+  ownership: summarizeOwnership,
   'calendar-heatmap': summarizeCalendarHeatmap,
   body: summarizeBody,
   bracket: summarizeBracket,

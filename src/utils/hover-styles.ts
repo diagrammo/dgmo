@@ -653,6 +653,20 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     legend: true,
     emphasis: 'dim',
   },
+  // ownership (#1873): hover an entity and its own lines stay lit. The whole
+  // chain of owners up to the top is the renderer's on-screen listeners; CSS
+  // reaches one hop.
+  ownership: {
+    markSelector: '.ownership-entity',
+    strategy: 'connection',
+    hoverSelector: '.ownership-entity',
+    hoverAttr: 'data-node-id',
+    edgeSelector: '.ownership-edge',
+    fromAttr: 'data-from',
+    toAttr: 'data-to',
+    legend: true,
+    emphasis: 'dim',
+  },
   sitemap: {
     markSelector: '.sitemap-node',
     strategy: 'connection',

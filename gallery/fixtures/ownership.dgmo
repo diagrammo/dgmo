@@ -1,0 +1,30 @@
+ownership Acme group structure
+tag Jurisdiction as j
+  UK     blue
+  US     red
+  NL     orange
+  DE     green
+  FR     purple
+  Cayman teal
+
+Acme Holdings plc  j: UK
+  Listed on the LSE
+  100% Acme Inc  j: US
+    Delaware C-corp
+    60% Acme Labs LLC  j: US, type: partnership
+      Holds the patents
+    10% -> Acme GmbH
+  100% Acme BV  j: NL
+    EU holding company
+    90% Acme GmbH  j: DE
+      Sales, DACH
+    75% Acme SAS  j: FR
+      R&D centre, Lyon
+
+Partner Fund LP  j: Cayman, type: partnership
+  Outside investor
+  40% -> Acme Labs LLC
+
+J. Moreau  j: FR, type: individual
+  Co-founder, Acme SAS
+  25% -> Acme SAS

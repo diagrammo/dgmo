@@ -124,6 +124,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `mindmap`          | radial hierarchy of ideas from a central topic                                                                                                                                                                    |
 | `org`              | reporting hierarchy                                                                                                                                                                                               |
 | `family`           | family tree / genealogy: unions (couples), children, remarriage, adoption, GEDCOM-style metadata                                                                                                                  |
+| `ownership`        | corporate entity structure: parent, subsidiaries and outside owners, a % stake on every line and a jurisdiction on every box (legal, tax, M&A)                                                                    |
 | `bracket`          | single-elimination tournament bracket: winners auto-advance; seed the field for a day-0 skeleton or list results casually; two sides mirror to a championship                                                     |
 | `kanban`           | task-board columns                                                                                                                                                                                                |
 | `swot`             | SWOT analysis: strengths, weaknesses, opportunities, threats in four fixed panels on helpful/harmful and internal/external axes                                                                                   |
@@ -217,7 +218,7 @@ tag GroupName as <alias>
 - Must appear before diagram content
 - Bare shorthand is not an alias (TD-18): `tag Priority p` declares a group _named_ "Priority p" — no alias registers, so `p:` assignments silently miss. The parser warns on this shape (spaced name, no alias, alias-shaped trailing word), suggesting `tag Priority as p` or a quoted name
 
-**Diagram types that support tags**: the tag model is near-universal across the structural types — sequence, infra, org, c4, er, kanban, gantt, sitemap, timeline, boxes-and-lines, state (§5.7), pert, swimlane, mindmap, journey-map, event-line, treemap, map, block, bracket, family, swot and whiteboard all accept `tag <Group> as <alias>` blocks (a whiteboard's names its colours — §24Ea). Check the per-type Options section for the exact directive set; if a type draws a tag legend, it takes tags. **Flowchart, wireframe, raci and class take no tags** — a `tag` block or `active-tag` on any of them is ignored with a warning, because what an element looks like is fixed by what it is (a flowchart's shape, a wireframe's state keywords, a class's trailing colour word) or by the roles (raci).
+**Diagram types that support tags**: the tag model is near-universal across the structural types — sequence, infra, org, c4, er, kanban, gantt, sitemap, timeline, boxes-and-lines, state (§5.7), pert, swimlane, mindmap, journey-map, event-line, treemap, map, block, bracket, family, swot, ownership and whiteboard all accept `tag <Group> as <alias>` blocks (a whiteboard's names its colours — §24Ea). Check the per-type Options section for the exact directive set; if a type draws a tag legend, it takes tags. **Flowchart, wireframe, raci and class take no tags** — a `tag` block or `active-tag` on any of them is ignored with a warning, because what an element looks like is fixed by what it is (a flowchart's shape, a wireframe's state keywords, a class's trailing colour word) or by the roles (raci).
 
 ### 1.4 Same-Line Metadata
 
@@ -5345,6 +5346,100 @@ A unit that is a word takes an English plural; one with no vowel (`km`, `kg`) st
 | `E_CALENDAR_HEATMAP_BAD_RANGE`          | a `from … to …` that ends before it starts                     |
 | `E_CALENDAR_HEATMAP_NO_ENTRIES`         | no entries and no `year` or range                              |
 | `W_CALENDAR_HEATMAP_OUTSIDE_SPAN`       | a date outside the span; it is left out                        |
+
+## 25D. Ownership Charts
+
+<!-- TYPE:ownership -->
+
+<!-- TIPS start -->
+
+**Styling tips:** Write the group as an indented tree, one entity per line, and the stake first: `100% Acme Inc`. Put the jurisdiction in a tag group so it colours the boxes. Write an outside owner (a fund, a person) at the start of a line, after the group, with `NN% -> Name` under it.
+
+<!-- TIPS end -->
+
+### 25D.1 Declaration
+
+```
+ownership [Title]
+```
+
+An ownership chart draws a corporate entity structure top down: the parent, its subsidiaries and the owners outside the group, with the stake on every line and the jurisdiction on every box. Lines never cross where the layout can keep them apart.
+
+### 25D.2 Entities and stakes
+
+```
+ownership Acme group structure
+tag Jurisdiction as j
+  UK     blue
+  US     red
+  NL     orange
+  DE     green
+  FR     purple
+  Cayman teal
+
+Acme Holdings plc  j: UK
+  Listed on the LSE
+  100% Acme Inc  j: US
+    Delaware C-corp
+    60% Acme Labs LLC  j: US, type: partnership
+      Holds the patents
+    10% -> Acme GmbH
+  100% Acme BV  j: NL
+    EU holding company
+    90% Acme GmbH  j: DE
+      Sales, DACH
+    75% Acme SAS  j: FR
+      R&D centre, Lyon
+
+Partner Fund LP  j: Cayman, type: partnership
+  Outside investor
+  40% -> Acme Labs LLC
+
+J. Moreau  j: FR, type: individual
+  Co-founder, Acme SAS
+  25% -> Acme SAS
+```
+
+- **Entity line**: a name, then optional same-line metadata (`j: UK, type: trust`). Each name is declared once.
+- **The group**: the first top-level entity that declares a subsidiary is the top of the group. Every other top-level entity, and what it declares, is **outside the group** (a fund, an individual). It draws outline-only and dashed, and so do its lines.
+- **An indented line under an entity** is read in this order:
+  1. `NN% Name` declares a subsidiary owned at that stake. Decimals are allowed (`33.3%`).
+  2. `NN% -> Name` adds an owner link to an entity declared elsewhere: a cross-holding inside the tree, or an outside owner's stake. The name may come later in the file.
+  3. `key: value`, when the key is `type` or a tag group or alias, is metadata.
+  4. Any other line is free description (§34.6 simple markdown). Do not use square brackets.
+- **`type:`** picks the shape: `corporation` (the default, a rounded rectangle), `partnership` (a triangle), `individual` (an oval) or `trust` (a rectangle with a double outline).
+- **Each box** shows the name in bold, then "jurisdiction · type" (the value of the first tag group; a triangle drops the type), then the first description line in italics.
+- **Lines**: every line carries its stake in a pill on its last vertical piece, next to the owned entity, with an arrowhead into it. When an entity has several owners, their lines enter left to right in the order of the owners. Each owner has one trunk and one horizontal run; runs that overlap sit at different heights. No line passes through a box.
+- **Hover and keyboard**: hover or focus an entity and its chain of owners up to the top stays lit while the rest dims. Its card shows name, jurisdiction, type and the full description, then **effective ownership**: each ultimate owner with its total stake summed across every path (`90% via Acme BV + 10% via Acme Inc = 100%`). An outside owner is marked "outside the group". When the direct stakes come to less than 100%, the card says "N% not shown". Hover a line to see owner, owned entity and stake. Tab moves through the entities in tree order; Enter opens the card.
+
+### 25D.3 Options
+
+| Option                                    | Effect                                                                                  |
+| ----------------------------------------- | --------------------------------------------------------------------------------------- |
+| `tag`, `active-tag`                       | Colour the boxes by a tag group; jurisdiction is the usual first group. Adds the legend |
+| `fill-tint`, `fill-solid`, `fill-outline` | How the boxes are filled (§1.9). Outside entities are always outline-only and dashed    |
+| `no-legend`                               | Hide the legend                                                                         |
+| `subtitle`, `source`, `footnote`          | The chart frame (§1)                                                                    |
+| `palette`                                 | Draw in a built-in palette                                                              |
+
+The title row has the title on the left and, on the right, the legend and under it a key of the shapes the chart uses (shown when an entity is not a corporation).
+
+### 25D.4 Diagnostics
+
+| Code                           | Fires on                                                                                     |
+| ------------------------------ | -------------------------------------------------------------------------------------------- |
+| `E_OWNERSHIP_OVER_100`         | the owners of one entity hold more than 100% between them                                    |
+| `E_OWNERSHIP_UNKNOWN_ENTITY`   | a `NN% -> Name` naming no entity; the message suggests the nearest name                      |
+| `W_OWNERSHIP_CYCLE`            | ownership that goes round in a circle; it draws, and effective ownership stops at the circle |
+| `W_OWNERSHIP_FORCED_CROSSING`  | two lines the structure forces to cross; the message names both links                        |
+| `E_OWNERSHIP_BAD_STAKE`        | a stake that is not above 0% and at most 100%                                                |
+| `E_OWNERSHIP_MISSING_NAME`     | a stake with no entity name                                                                  |
+| `E_OWNERSHIP_DUPLICATE_ENTITY` | a name declared twice                                                                        |
+| `E_OWNERSHIP_DUPLICATE_LINK`   | the same owner and owned entity written twice                                                |
+| `E_OWNERSHIP_SELF_LINK`        | an entity pointing a stake at itself                                                         |
+| `E_OWNERSHIP_BAD_TYPE`         | a `type:` that is not corporation, partnership, individual or trust                          |
+| `E_OWNERSHIP_ORPHAN_LINE`      | a stake or metadata line with no entity above it                                             |
+| `E_OWNERSHIP_NO_ENTITIES`      | a chart with no entities                                                                     |
 
 ## 26. Colon Usage Summary
 

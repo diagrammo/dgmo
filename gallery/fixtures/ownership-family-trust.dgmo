@@ -1,0 +1,22 @@
+ownership Moreau family holdings
+fill-solid
+tag Jurisdiction as j
+  UK     blue
+  Jersey teal
+  IE     green
+
+Moreau Family Trust  j: Jersey, type: trust
+  Discretionary trust, settled 2004
+  100% Moreau Holdings Ltd  j: UK
+    Family investment company
+    100% Moreau Property Ltd  j: UK
+      Three commercial sites
+    51% Moreau Foods Ltd  j: IE
+      Retail bakery chain
+  49.5% Moreau Ventures LP  j: UK, type: partnership
+    Early-stage fund
+    20% -> Moreau Foods Ltd
+
+Claire Moreau  j: UK, type: individual
+  Managing partner
+  0.5% -> Moreau Ventures LP
