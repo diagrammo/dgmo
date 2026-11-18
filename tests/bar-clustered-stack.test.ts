@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { parseChart } from '../src/chart';
 import { renderDataChartD3 } from '../src/charts-d3/index';
+import { measureText } from '../src/utils/text-measure';
 
 const SRC = `bar Revenue by region and year
 stack
@@ -181,5 +182,85 @@ describe('gallery fixture', () => {
       'utf8'
     );
     expect(parseChart(src).diagnostics).toEqual([]);
+  });
+});
+
+describe('long cluster and period names (#2081)', () => {
+  const LONG = `bar Ports
+stack
+  Gold orange
+  Silver blue
+
+Port de Saint-Barthélemy-le-Très-Long-Nom-de-la-Baie-des-Flibustiers
+  Première année de la grande expédition 40 22
+  Deuxième année 44 30
+ميناء القراصنة الكبير
+  السنة الأولى 31 18
+  السنة الثانية 29 26
+香港海盗港口
+  第一年 20 14
+  第二年 26 18
+Гавань Тортуга
+  Год первый 15 10
+  Год второй 18 12`;
+
+  async function labels(width: number) {
+    host.innerHTML = await renderDataChartD3(LONG, 'light', undefined, {
+      width,
+      height: 700,
+    });
+    const svg = host.querySelector('svg')!;
+    const spans = (cls: string) =>
+      [...svg.querySelectorAll(`.${cls}`)].map((t) => {
+        const tsp = [...t.querySelectorAll('tspan')];
+        const lines = tsp.length
+          ? tsp.map((s) => s.textContent!)
+          : [t.textContent!];
+        const x = n(t, 'x');
+        const w = Math.max(...lines.map((l) => measureText(l, 12)));
+        return { x, lines, left: x - w / 2, right: x + w / 2 };
+      });
+    return {
+      svg,
+      periods: spans('dgmo-period-label'),
+      clusters: spans('dgmo-cluster-label'),
+      rects: [
+        ...svg.querySelectorAll<SVGRectElement>('rect[data-line-number]'),
+      ],
+    };
+  }
+
+  it('wraps names onto lines instead of cutting them to "…"', async () => {
+    const { periods, clusters } = await labels(1285);
+    expect(clusters[0]!.lines.length).toBeGreaterThan(1);
+    expect(periods[0]!.lines.length).toBeGreaterThan(1);
+    expect(clusters[0]!.lines.join('')).toContain('Flibustiers');
+    expect(periods[0]!.lines.join(' ')).toBe(
+      'Première année de la grande expédition'
+    );
+  });
+
+  it('no two period labels overlap, and none leaves its cluster', async () => {
+    const { periods, clusters } = await labels(1285);
+    const sorted = [...periods].sort((a, b) => a.x - b.x);
+    for (let i = 1; i < sorted.length; i++)
+      expect(sorted[i]!.left).toBeGreaterThanOrEqual(sorted[i - 1]!.right);
+    sorted.forEach((p, i) => {
+      const c = clusters[Math.floor(i / 2)]!;
+      expect(Math.abs(p.x - c.x)).toBeLessThan(160);
+    });
+  });
+
+  it('spacing follows the data: columns fill the plot, not the name count', async () => {
+    const { rects } = await labels(1285);
+    // 8 columns across ~1285px: every column is wide, none squeezed by
+    // empty slots for names that other categories own.
+    const widths = rects.map((r) => n(r, 'width'));
+    expect(Math.min(...widths)).toBeGreaterThan(60);
+  });
+
+  it('keeps names within the cluster step on a narrow canvas', async () => {
+    const { clusters } = await labels(520);
+    for (const c of clusters) expect(c.right - c.left).toBeLessThanOrEqual(130);
   });
 });

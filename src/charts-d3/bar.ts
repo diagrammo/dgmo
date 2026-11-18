@@ -39,7 +39,7 @@ import { paretoCumulative, reachesTarget } from '../overlays/compute';
 import { GRID_DASH } from '../utils/visual-conventions';
 import { labelBox } from '../utils/place-labels';
 import { mix } from '../palettes/color-utils';
-import { fitLabel } from '../utils/fit-label';
+import { fitLabel, type FittedLabel } from '../utils/fit-label';
 import { measureText } from '../utils/text-measure';
 import { createLabelPlacement, type LabelRect } from '../label-layout';
 import {
@@ -81,6 +81,8 @@ const FLIP_MAX_CATEGORIES = NEVER_THIN_MAX;
 const NAME_MAX_LINES = 3;
 /** Baseline-to-baseline distance of a wrapped name's lines. */
 const NAME_LINE_PX = Math.round(TICK_FONT * 1.2);
+/** Most lines a clustered-stack period or category name wraps to. */
+const CLUSTER_LABEL_MAX_LINES = 4;
 /** Largest lollipop dot radius; thinner bands get a smaller dot (#1979). */
 const LOLLIPOP_DOT_MAX = 6;
 /** Lollipop stem width. */
@@ -1106,7 +1108,30 @@ function renderClusteredStack(
   inlineTitle?: InlineTitleInfo
 ): void {
   const clusters = chart.clusters!.map((c) => c.label);
-  const periods = chart.periods ?? [];
+  // Periods line up across categories by name. When no name is shared (each
+  // category has its own rows) they line up by position instead, so a
+  // category's width follows its own row count, not every name in the chart.
+  const periodNames = chart.periods ?? [];
+  const sharedPeriods = periodNames.some(
+    (p) => chart.data.filter((d) => d.label === p).length > 1
+  );
+  const rowIndex = new Map<(typeof chart.data)[number], number>();
+  {
+    const seen = new Map<string, number>();
+    for (const d of chart.data) {
+      const k = seen.get(d.cluster!) ?? 0;
+      rowIndex.set(d, k);
+      seen.set(d.cluster!, k + 1);
+    }
+  }
+  const slotOf = (d: (typeof chart.data)[number]): string =>
+    sharedPeriods ? d.label : String(rowIndex.get(d) ?? 0);
+  const periods = sharedPeriods
+    ? periodNames
+    : Array.from(
+        { length: Math.max(0, ...[...rowIndex.values()].map((i) => i + 1)) },
+        (_, i) => String(i)
+      );
   const seriesNames = chart.seriesNames?.length
     ? chart.seriesNames
     : [chart.series ?? ''];
@@ -1168,18 +1193,10 @@ function renderClusteredStack(
   const m: Margins = {
     top: top + 8,
     right: 32,
-    bottom:
-      TICK_FONT +
-      BRACKET_GAP +
-      BRACKET_TICK +
-      8 +
-      TICK_FONT +
-      10 +
-      (chart.xlabel ? 40 : 18),
+    bottom: 0, // set below, once the wrapped labels' line counts are known
     left: computeLeftMargin(chart.ylabel, probeTicks, { tabular: true }),
   };
   const plotW = width - m.left - m.right;
-  const plotH = height - m.top - m.bottom;
   const outer = scaleBand<string>()
     .domain(clusters)
     .range([m.left, m.left + plotW])
@@ -1189,6 +1206,40 @@ function renderClusteredStack(
     .domain(periods)
     .range([0, outer.bandwidth()])
     .padding(0.12);
+  // Period names wrap to their column's step, category names to their
+  // cluster's: the label never sets the spacing, the data does. Each takes
+  // at most CLUSTER_LABEL_MAX_LINES lines, then ends in `…`.
+  const periodFit = new Map<string, FittedLabel>();
+  for (const d of chart.data)
+    periodFit.set(
+      `${d.cluster}\u0000${d.label}`,
+      fitLabel(d.label, TICK_FONT, inner.step(), CLUSTER_LABEL_MAX_LINES)
+    );
+  const clusterFit = new Map(
+    clusters.map((c) => [
+      c,
+      fitLabel(c, TICK_FONT, outer.step(), CLUSTER_LABEL_MAX_LINES),
+    ])
+  );
+  const periodLines = Math.max(
+    1,
+    ...[...periodFit.values()].map((f) => f.lines.length)
+  );
+  const clusterLines = Math.max(
+    1,
+    ...[...clusterFit.values()].map((f) => f.lines.length)
+  );
+  m.bottom =
+    TICK_FONT +
+    (periodLines - 1) * NAME_LINE_PX +
+    BRACKET_GAP +
+    BRACKET_TICK +
+    8 +
+    TICK_FONT +
+    (clusterLines - 1) * NAME_LINE_PX +
+    10 +
+    (chart.xlabel ? 40 : 18);
+  const plotH = height - m.top - m.bottom;
   const val = valueAxis([m.top + plotH, m.top]);
   const annotationFrame: ValueAxisFrame = {
     pos: (v) => val(v),
@@ -1231,17 +1282,17 @@ function renderClusteredStack(
   // category name under each cluster.
   const axisY = m.top + plotH;
   const periodY = axisY + TICK_FONT + 6;
-  const bracketY = periodY + BRACKET_GAP;
+  const bracketY = periodY + (periodLines - 1) * NAME_LINE_PX + BRACKET_GAP;
   const nameY = bracketY + BRACKET_TICK + 4 + TICK_FONT;
   const label = (
     text: string,
+    fitted: FittedLabel,
     x: number,
     y: number,
-    maxW: number,
     cls: string,
     weight?: number
   ) => {
-    const { lines, truncated } = fitLabel(text, TICK_FONT, maxW, 1);
+    const { lines, truncated } = fitted;
     const t = svg
       .append('text')
       .attr('class', cls)
@@ -1250,8 +1301,16 @@ function renderClusteredStack(
       .attr('text-anchor', 'middle')
       .attr('fill', textColor)
       .attr('font-size', TICK_FONT)
-      .attr('font-family', FONT_FAMILY)
-      .text(lines[0]!);
+      .attr('font-family', FONT_FAMILY);
+    if (lines.length === 1) t.text(lines[0]!);
+    else
+      lines.forEach((line, k) =>
+        t
+          .append('tspan')
+          .attr('x', x)
+          .attr('dy', k === 0 ? 0 : NAME_LINE_PX)
+          .text(line)
+      );
     if (weight) t.attr('font-weight', weight);
     // A cut name keeps its full text for assistive tech, not as a tooltip.
     if (truncated) t.attr('aria-label', text);
@@ -1259,13 +1318,13 @@ function renderClusteredStack(
   for (const c of clusters) {
     const x0 = outer(c) ?? 0;
     const x1 = x0 + outer.bandwidth();
-    for (const p of periods)
-      if (chart.data.some((d) => d.cluster === c && d.label === p))
+    for (const d of chart.data)
+      if (d.cluster === c)
         label(
-          p,
-          x0 + (inner(p) ?? 0) + inner.bandwidth() / 2,
+          d.label,
+          periodFit.get(`${c}\u0000${d.label}`)!,
+          x0 + (inner(slotOf(d)) ?? 0) + inner.bandwidth() / 2,
           periodY,
-          inner.step(),
           'dgmo-period-label'
         );
     svg
@@ -1275,12 +1334,19 @@ function renderClusteredStack(
       .attr('fill', 'none')
       .attr('stroke', mutedColor)
       .attr('stroke-opacity', 0.6);
-    label(c, (x0 + x1) / 2, nameY, outer.step(), 'dgmo-cluster-label', 600);
+    label(
+      c,
+      clusterFit.get(c)!,
+      (x0 + x1) / 2,
+      nameY,
+      'dgmo-cluster-label',
+      600
+    );
   }
 
   const multi = seriesCount > 1;
   for (const { d, raw, vals } of columns) {
-    const x = (outer(d.cluster!) ?? 0) + (inner(d.label) ?? 0);
+    const x = (outer(d.cluster!) ?? 0) + (inner(slotOf(d)) ?? 0);
     const w = inner.bandwidth();
     let accPos = 0;
     let accNeg = 0;
