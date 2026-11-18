@@ -48,8 +48,8 @@ const MIN_WIDTH = 150;
 const MAX_TEXT_WIDTH = 212;
 // A partnership triangle keeps one aspect (height / width) and wraps its name
 // instead of widening to fit it on one line (#2101). Only the name sits
-// inside; the jurisdiction goes in a code box at the bottom right (the HMRC
-// structure-chart convention) and the description becomes a caption under
+// inside; the jurisdiction goes in a code box at the bottom right (the UK tax
+// authority's structure-chart convention) and the description becomes a caption under
 // the base when no line leaves the base.
 const TRIANGLE_ASPECT = 0.62;
 const TRIANGLE_NAME_WIDTH = 104;
