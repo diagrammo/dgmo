@@ -195,6 +195,11 @@ export interface LayoutBand {
    * transposed in TB). The renderer reserves this for the band label.
    */
   readonly headerSize: number;
+  /**
+   * Lanes inside a pool: where the lane sits in its pool's stack. The
+   * renderer squares every corner that meets the pool band or a neighbour.
+   */
+  readonly inPool?: { readonly first: boolean; readonly last: boolean };
   readonly lineNumber: number;
 }
 

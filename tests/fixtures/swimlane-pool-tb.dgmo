@@ -1,0 +1,36 @@
+swimlane Every directive at once
+// direction-tb, frame (subtitle/source/footnotes/byline), tag group colouring, pools, and every node token. Look for tag colours overriding lane colour and footer lines under the chart.
+direction-tb
+subtitle Top-to-bottom, pools, tags and frame
+footnote
+  - Risk levels are guesses.
+  - Pirates not included.
+
+  **Source:** Sea Office, 1721
+
+  Chart: First Mate
+
+tag Risk as r
+  Low green
+  High red
+
+pool Merchant
+  ~> Cargo spotted
+
+pool Raiders
+  lane Gunners red
+    (Cargo spotted) message -> Fire warning
+    Fire warning type: manual, r: Low
+      -> <Surrender?>
+    <Surrender?>
+      -yes-> Board ship
+      -no-> Fire broadside
+    Fire broadside type: manual, r: High
+      (Smoke) signal -> Fire warning
+      -> Board ship
+    Board ship type: manual, r: High, note: Mind the cutlasses
+      ~> Merchant
+      -> [[Loot hold]]
+  lane Cook orange
+    [[Loot hold]] type: manual, store: Treasure chest -> Feast
+    Feast type: manual, data: Menu -> (Merry) success

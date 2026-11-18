@@ -1,0 +1,38 @@
+swimlane Six-pool message ring
+// Limit: six pools in a ring of message flows (pool-to-pool, pool-to-node, node-to-pool, node-to-node), with collapsed pools in the middle of the stack. Check arrows route around lane bodies and stay legible.
+subtitle Rumour travels the Seven Seas
+
+pool Tortuga Tavern
+  ~> Sailor Hub
+
+pool Sailor Hub
+  ~> Port Royal
+
+pool Port Royal
+  lane Governor blue
+    (Rumour) message -> Dispatch letter
+    Dispatch letter type: send
+      ~> Admiralty
+      -> <Reply?>
+    <Reply?>
+      -yes-> Read reply
+      -no-> Dispatch letter
+    Read reply type: receive -> (Known) success
+  lane Spy gray
+    Eavesdrop type: manual, note: Tavern walls are thin
+      ~> Tortuga Tavern
+      -> Eavesdrop
+
+pool Admiralty
+  lane Clerk orange
+    (Letter) message -> File letter
+    File letter type: user -> Write reply
+    Write reply type: send
+      ~> Read reply
+      -> (Sealed)
+
+pool Smugglers' Cove
+  ~> Tortuga Tavern
+
+pool Kraken's Lair
+  ~> Smugglers' Cove

@@ -375,21 +375,26 @@ export function renderSwimlaneForExport(
     const hex = laneColorById.get(band.id) ?? palette.border;
     // Inset on the cross axis (vertical in LR, horizontal in TB) so adjacent
     // rounded lane cards read as separate rows/columns instead of one block.
-    const bx = isLR ? band.x : band.x + LANE_INSET;
-    const by = isLR ? band.y + LANE_INSET : band.y;
-    const bw = isLR ? band.width : band.width - LANE_INSET * 2;
-    const bh = isLR ? band.height - LANE_INSET * 2 : band.height;
+    // Inside a pool, lanes stack flush into one card: the inset stays only on
+    // the pool's outer edges, and only the pool's own far corners are round —
+    // a rounded corner against the square pool band, or against a neighbour
+    // lane, leaves a notch.
+    const ip = band.inPool;
+    const i0 = ip && !ip.first ? 0 : LANE_INSET;
+    const i1 = ip && !ip.last ? 0 : LANE_INSET;
+    const bx = isLR ? band.x : band.x + i0;
+    const by = isLR ? band.y + i0 : band.y;
+    const bw = isLR ? band.width : band.width - i0 - i1;
+    const bh = isLR ? band.height - i0 - i1 : band.height;
+    const R0 = ip && !ip.first ? 0 : LANE_RADIUS; // pool's first outer corner
+    const R1 = ip && !ip.last ? 0 : LANE_RADIUS; // pool's last outer corner
+    const near = ip ? 0 : LANE_RADIUS; // corners on the header side
+    const corners = isLR
+      ? { tl: near, bl: near, tr: R0, br: R1 }
+      : { tl: near, tr: near, bl: R0, br: R1 };
     laneG
       .append('path')
-      .attr(
-        'd',
-        roundedRectPath(bx, by, bw, bh, {
-          tl: LANE_RADIUS,
-          tr: LANE_RADIUS,
-          br: LANE_RADIUS,
-          bl: LANE_RADIUS,
-        })
-      )
+      .attr('d', roundedRectPath(bx, by, bw, bh, corners))
       .attr('fill', mix(hex, baseBg, 9))
       .attr('stroke', mix(palette.border, baseBg, 60))
       .attr('stroke-width', 1)
@@ -407,9 +412,7 @@ export function renderSwimlaneForExport(
           by,
           gw,
           gh,
-          isLR
-            ? { tl: LANE_RADIUS, bl: LANE_RADIUS }
-            : { tl: LANE_RADIUS, tr: LANE_RADIUS }
+          isLR ? { tl: near, bl: near } : { tl: near, tr: near }
         )
       )
       .attr('fill', mix(hex, baseBg, 16))
@@ -599,6 +602,13 @@ export function renderSwimlaneForExport(
             );
             if (d < m) m = d;
           }
+        }
+        // Text over a node is as struck as text over a line.
+        for (const n of layout.nodes) {
+          const dx = Math.max(0, Math.abs(px - n.x) - n.width / 2);
+          const dy = Math.max(0, Math.abs(py - n.y) - n.height / 2);
+          const d = Math.hypot(dx, dy);
+          if (d < m) m = d;
         }
         return m;
       };

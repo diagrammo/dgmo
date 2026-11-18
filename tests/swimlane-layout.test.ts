@@ -168,3 +168,70 @@ describe('swimlane layout — boundary events sit on the bottom edge (#1874)', (
     expect(p1!.y).toBeGreaterThan(p0!.y);
   });
 });
+
+describe('swimlane layout — lines keep off each other (#2109)', () => {
+  type P = { x: number; y: number };
+  /** Length over which two orthogonal polylines run along one track. */
+  const sharedRun = (a: readonly P[], b: readonly P[]): number => {
+    let total = 0;
+    for (let i = 0; i + 1 < a.length; i++)
+      for (let j = 0; j + 1 < b.length; j++) {
+        const [p, q, r, s] = [a[i]!, a[i + 1]!, b[j]!, b[j + 1]!];
+        const vert = p.x === q.x && r.x === s.x && p.y !== q.y && r.y !== s.y;
+        const horiz = p.y === q.y && r.y === s.y && p.x !== q.x && r.x !== s.x;
+        if (vert && Math.abs(p.x - r.x) < 4) {
+          const lo = Math.max(Math.min(p.y, q.y), Math.min(r.y, s.y));
+          const hi = Math.min(Math.max(p.y, q.y), Math.max(r.y, s.y));
+          total += Math.max(0, hi - lo);
+        } else if (horiz && Math.abs(p.y - r.y) < 4) {
+          const lo = Math.max(Math.min(p.x, q.x), Math.min(r.x, s.x));
+          const hi = Math.min(Math.max(p.x, q.x), Math.max(r.x, s.x));
+          total += Math.max(0, hi - lo);
+        }
+      }
+    return total;
+  };
+  const allLines = (name: string) => {
+    const l = layoutOf(name);
+    return [
+      ...l.edges.map((e) => ({
+        id: `${e.source}->${e.target}`,
+        pts: e.points,
+      })),
+      ...l.messages.map((m) => ({
+        id: `${m.source}~>${m.target}`,
+        pts: m.points,
+      })),
+    ];
+  };
+
+  for (const name of ['swimlane-pool-ring.dgmo', 'swimlane-pool-tb.dgmo']) {
+    it(`no two lines share a track in ${name}`, () => {
+      const lines = allLines(name);
+      const stacked: string[] = [];
+      for (let i = 0; i < lines.length; i++)
+        for (let j = i + 1; j < lines.length; j++)
+          if (sharedRun(lines[i]!.pts, lines[j]!.pts) > 0)
+            stacked.push(`${lines[i]!.id} | ${lines[j]!.id}`);
+      expect(stacked).toEqual([]);
+    });
+  }
+
+  it('a back-edge inside one lane loops inside that lane', () => {
+    const l = layoutOf('swimlane-pool-ring.dgmo');
+    const gov = l.lanes.find((b) => b.id === 'Governor')!;
+    const back = l.edges.find((e) => e.back)!;
+    for (const p of back.points) {
+      expect(p.y).toBeGreaterThanOrEqual(gov.y);
+      expect(p.y).toBeLessThanOrEqual(gov.y + gov.height);
+    }
+  });
+
+  it('marks pool lanes with their place in the pool', () => {
+    const l = layoutOf('swimlane-pool-ring.dgmo');
+    const by = new Map(l.lanes.map((b) => [b.id, b.inPool]));
+    expect(by.get('Governor')).toEqual({ first: true, last: false });
+    expect(by.get('Spy')).toEqual({ first: false, last: true });
+    expect(by.get('Clerk')).toEqual({ first: true, last: true });
+  });
+});

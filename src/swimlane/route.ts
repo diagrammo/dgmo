@@ -45,6 +45,53 @@ export type RouteGoal =
       out: Dir;
     };
 
+/** A drawn segment another route should not run along. */
+export type Seg = readonly [Pt, Pt];
+
+/** Two parallel runs closer than this read as one line. */
+const NEAR = 4;
+/** Cost per unit of length run along an existing line (vs 1 for clear). */
+export const OVERLAP_COST = 8;
+
+/** Length over which segment a→b runs on top of segment c→d. */
+function segOverlap(a: Pt, b: Pt, c: Pt, d: Pt): number {
+  const h1 = Math.abs(a.y - b.y) < 0.01;
+  const h2 = Math.abs(c.y - d.y) < 0.01;
+  const v1 = Math.abs(a.x - b.x) < 0.01;
+  const v2 = Math.abs(c.x - d.x) < 0.01;
+  if (h1 && h2 && !v1 && !v2) {
+    if (Math.abs(a.y - c.y) >= NEAR) return 0;
+    const lo = Math.max(Math.min(a.x, b.x), Math.min(c.x, d.x));
+    const hi = Math.min(Math.max(a.x, b.x), Math.max(c.x, d.x));
+    return Math.max(0, hi - lo);
+  }
+  if (v1 && v2 && !h1 && !h2) {
+    if (Math.abs(a.x - c.x) >= NEAR) return 0;
+    const lo = Math.max(Math.min(a.y, b.y), Math.min(c.y, d.y));
+    const hi = Math.min(Math.max(a.y, b.y), Math.max(c.y, d.y));
+    return Math.max(0, hi - lo);
+  }
+  return 0;
+}
+
+/** Total length of the polyline that runs on top of any of `segs`. */
+export function overlapLength(
+  pts: readonly Pt[],
+  segs: readonly Seg[]
+): number {
+  let total = 0;
+  for (let i = 0; i + 1 < pts.length; i++)
+    for (const [c, d] of segs) total += segOverlap(pts[i]!, pts[i + 1]!, c, d);
+  return total;
+}
+
+/** The segments of a polyline. */
+export function segmentsOf(pts: readonly Pt[]): Seg[] {
+  const out: Seg[] = [];
+  for (let i = 0; i + 1 < pts.length; i++) out.push([pts[i]!, pts[i + 1]!]);
+  return out;
+}
+
 /** Gap kept between a routed line and any box it passes. */
 const CLEAR = 10;
 /** Length of the straight run out of a port before the first bend. */
@@ -180,8 +227,14 @@ export function routeAround(
   startOut: Dir,
   goal: RouteGoal,
   boxes: readonly Box[],
-  extra: { xs?: readonly number[]; ys?: readonly number[] } = {}
+  extra: {
+    xs?: readonly number[];
+    ys?: readonly number[];
+    /** Lines already drawn: running along one costs OVERLAP_COST per unit. */
+    avoid?: readonly Seg[];
+  } = {}
 ): Pt[] | null {
+  const avoid = extra.avoid ?? [];
   const s0: Pt = {
     x: start.x + startOut.dx * PORT_STUB,
     y: start.y + startOut.dy * PORT_STUB,
@@ -217,6 +270,17 @@ export function routeAround(
     } else {
       xsSet.add(lineStub);
       ysSet.add(Math.min(Math.max(s0.y, goal.from), goal.to));
+    }
+  }
+  // A free track beside every drawn line, so the search can run parallel to
+  // one instead of on top of it.
+  for (const [c, d] of avoid) {
+    if (Math.abs(c.x - d.x) < 0.01) {
+      xsSet.add(c.x - CLEAR);
+      xsSet.add(c.x + CLEAR);
+    } else if (Math.abs(c.y - d.y) < 0.01) {
+      ysSet.add(c.y - CLEAR);
+      ysSet.add(c.y + CLEAR);
     }
   }
   for (const b of boxes) {
@@ -316,8 +380,13 @@ export function routeAround(
       const a = { x: xs[xi]!, y: ys[yi]! };
       const b = { x: xs[nx]!, y: ys[ny]! };
       if (!segClear(a, b)) continue;
+      let over = 0;
+      for (const [c, e] of avoid) over += segOverlap(a, b, c, e);
       const step =
-        Math.abs(b.x - a.x) + Math.abs(b.y - a.y) + (k === di ? 0 : BEND_COST);
+        Math.abs(b.x - a.x) +
+        Math.abs(b.y - a.y) +
+        (k === di ? 0 : BEND_COST) +
+        OVERLAP_COST * over;
       const ns = nNode * 4 + k;
       if (d + step < dist[ns]!) {
         dist[ns] = d + step;
