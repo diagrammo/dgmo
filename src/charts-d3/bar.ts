@@ -299,6 +299,14 @@ export function renderBar(
   const mRight = pareto
     ? Math.max(32, measureText('100%', TICK_FONT) + PARETO_TICK_GAP + 8)
     : 32;
+  // A side-by-side bar past a fixed `y-max` / `y-min` is clamped to the
+  // plot edge (#2114). It keeps a triangle pointing the way the value went,
+  // with its real value beside it, so it never reads as the limit.
+  const cutHi = (v: number) =>
+    !stacked && ySpec?.max !== undefined && v > ySpec.max;
+  const cutLo = (v: number) =>
+    !stacked && ySpec?.min !== undefined && v < ySpec.min;
+  const hiCuts = perCat.flat().filter(cutHi);
   const verticalFit = authoredHorizontal
     ? null
     : planLabelsFitLeft(
@@ -350,7 +358,14 @@ export function renderBar(
     : computeLeftMargin(chart.ylabel, valueTicks, { tabular: true });
   const fit = horizontal ? null : verticalFit;
   const mLeft = fit ? fit.mLeft : mLeft0;
-  const plotW = fit ? fit.plotW : width - mLeft - mRight;
+  // Horizontal: the mark and its value stand past the right edge.
+  const hiCutW = hiCuts.length
+    ? CUT_MARK_GAP +
+      CUT_MARK_LEN +
+      4 +
+      Math.max(...hiCuts.map((v) => measureText(fmt(v), VALUE_FONT)))
+    : 0;
+  const plotW = fit ? fit.plotW : width - mLeft - mRight - hiCutW;
   const labelPlan = fit?.plan ?? planCategoryLabels(catLabels, Infinity);
   const shown = fit?.shown ?? catLabels;
   const m: Margins = {
@@ -359,6 +374,10 @@ export function renderBar(
     bottom: horizontal ? 64 : Math.max(64, labelPlan.height + xTitleBand),
     left: mLeft,
   };
+
+  // Vertical: the mark and its value stand above the top edge.
+  if (!horizontal && hiCuts.length)
+    m.top += CUT_MARK_GAP + CUT_MARK_LEN + 4 + VALUE_FONT;
 
   // A note stands above its column (#2078). When the column reaches near the
   // plot's top, reserve the room the note needs over it.
@@ -620,6 +639,23 @@ export function renderBar(
     const off = inner!(s) ?? 0;
     const bw = inner!.bandwidth();
     const text = fmt(v);
+    const cut = cutHi(v) ? 1 : cutLo(v) ? -1 : 0;
+    if (cut) {
+      const mid = base + off + bw / 2;
+      const past = CUT_MARK_GAP + CUT_MARK_LEN + 4;
+      if (horiz) {
+        const edge = cut > 0 ? m.left + plotW : m.left;
+        return {
+          text,
+          x: edge + past,
+          y: mid + 4,
+          anchor: 'start',
+          keep: true,
+        };
+      }
+      const edge = cut > 0 ? m.top : m.top + plotH;
+      return { text, x: mid, y: edge - past, anchor: 'middle', keep: true };
+    }
     if (horiz) {
       const x1 = val(v);
       const approxW = text.length * 7 + 6;
@@ -771,6 +807,17 @@ export function renderBar(
         const bw = inner!.bandwidth();
         const mid = base + off + bw / 2;
         noteAt.set(`${di}:${s}`, horiz ? [val(v), mid] : [mid, val(v)]);
+        const cut = cutHi(v) ? 1 : cutLo(v) ? -1 : 0;
+        if (cut) {
+          const edge = horiz
+            ? cut > 0
+              ? m.left + plotW
+              : m.left
+            : cut > 0
+              ? m.top
+              : m.top + plotH;
+          cutMark(svg, mid, edge, cut, horiz, stroke, d.lineNumber, dim);
+        }
         if (lollipop) {
           const c = base + off + bw / 2;
           const end = val(v);
@@ -1050,6 +1097,53 @@ function dropColliding(spots: ValueSpot[], vals: number[]): ValueSpot[] {
     else placement.commit(box);
   }
   return spots;
+}
+
+/** Gap between the plot edge and a cut bar's triangle (#2114). */
+const CUT_MARK_GAP = 3;
+/** A cut bar's triangle, from base to tip. */
+const CUT_MARK_LEN = 7;
+
+/**
+ * A bar cut by a fixed axis end (#2114): a triangle pointing the way the value
+ * went. Past the top or right edge it stands outside the plot; past the bottom
+ * or left edge (where the category names are) it stands just inside.
+ */
+function cutMark(
+  svg: Svg,
+  mid: number,
+  edge: number,
+  dir: 1 | -1,
+  horiz: boolean,
+  color: string,
+  line: number,
+  dim: boolean
+): void {
+  const w = CUT_MARK_LEN - 1;
+  // Toward higher values: up on a column, right on a horizontal bar. Past
+  // the high edge the mark stands outside; past the low edge, inside.
+  const up = horiz ? 1 : -1;
+  const near = edge + up * CUT_MARK_GAP;
+  const far = edge + up * (CUT_MARK_GAP + CUT_MARK_LEN);
+  const [base, tip] = dir > 0 ? [near, far] : [far, near];
+  const pts = horiz
+    ? [
+        [base, mid - w],
+        [base, mid + w],
+        [tip, mid],
+      ]
+    : [
+        [mid - w, base],
+        [mid + w, base],
+        [mid, tip],
+      ];
+  const t = svg
+    .append('path')
+    .attr('class', 'dgmo-cut-mark')
+    .attr('d', `M${pts.map((p) => p.join(',')).join('L')}Z`)
+    .attr('fill', color)
+    .attr('data-line-number', line);
+  if (dim) t.attr('opacity', EMPHASIS_DIM_OPACITY);
 }
 
 function rect(

@@ -216,4 +216,57 @@ describe('axis directives — render', () => {
     );
     expect(Math.max(...tickValues(svg))).toBe(10);
   });
+
+  // #2114: a bar the range cuts gets a triangle pointing the way it went.
+  const cutMarks = (svg: string) =>
+    [...svg.matchAll(/class="dgmo-cut-mark" d="M([^"]+)Z"/g)].map((m) =>
+      m[1]!.split('L').map((p) => p.split(',').map(Number))
+    );
+
+  it('bar: a value past y-max gets an up triangle above the plot', async () => {
+    const svg = await renderDataChartD3(
+      'bar S\ny-min 40\ny-max 120\nA 15\nB 52\nC 300',
+      'light',
+      palette
+    );
+    const marks = cutMarks(svg);
+    expect(marks).toHaveLength(2); // C above, A below
+    // Bars: [y, height]. The cut bar fills the plot, so its top is the edge.
+    const bars = [
+      ...svg.matchAll(
+        /<rect x="[-\d.]+" y="([-\d.]+)" width="[-\d.]+" height="([-\d.]+)"/g
+      ),
+    ].map((m) => [Number(m[1]), Number(m[2])]);
+    const plotTop = Math.min(...bars.map(([y]) => y!));
+    const plotBottom = Math.max(...bars.map(([y, h]) => y! + h!));
+    const up = marks.find((pts) => pts[2]![1]! < pts[0]![1]!)!;
+    const down = marks.find((pts) => pts[2]![1]! > pts[0]![1]!)!;
+    expect(up[2]![1]).toBeLessThan(plotTop);
+    expect(down[2]![1]).toBeLessThan(plotBottom);
+    expect(down[2]![1]).toBeGreaterThan(plotBottom - 10);
+    // The real values are still written.
+    expect(svg).toContain('>300</text>');
+    expect(svg).toContain('>15</text>');
+  });
+
+  it('bar: horizontal cuts point right past the plot edge', async () => {
+    const svg = await renderDataChartD3(
+      'bar S\norientation horizontal\ny-max 100\nA 50\nB 400',
+      'light',
+      palette
+    );
+    const [mark] = cutMarks(svg);
+    expect(mark).toBeDefined();
+    expect(mark![2]![0]).toBeGreaterThan(mark![0]![0]!);
+    expect(svg).toContain('>400</text>');
+  });
+
+  it('bar: nothing in range, no marks', async () => {
+    const svg = await renderDataChartD3(
+      'bar S\ny-max 500\nA 50\nB 400',
+      'light',
+      palette
+    );
+    expect(cutMarks(svg)).toHaveLength(0);
+  });
 });
