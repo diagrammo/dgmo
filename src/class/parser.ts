@@ -1,4 +1,5 @@
 import { resolveColorWithDiagnostic } from '../colors';
+import { withPaletteLifted } from '../palettes/directive';
 import type { PaletteColors } from '../palettes';
 import { AliasRegistry } from '../utils/alias-registry';
 import {
@@ -198,6 +199,15 @@ function parseMember(
 // ============================================================
 
 export function parseClassDiagram(
+  content: string,
+  palette?: PaletteColors
+): ParsedClassDiagram {
+  return withPaletteLifted(content, (lifted) =>
+    parseClassDiagramUnlifted(lifted, palette)
+  );
+}
+
+function parseClassDiagramUnlifted(
   content: string,
   palette?: PaletteColors
 ): ParsedClassDiagram {

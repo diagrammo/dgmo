@@ -1,4 +1,5 @@
 import type { PaletteColors } from '../palettes';
+import { withPaletteLifted } from '../palettes/directive';
 import { resolveColorWithDiagnostic } from '../colors';
 import {
   emit,
@@ -148,6 +149,15 @@ function parseItemLine(
 }
 
 export function parseSwot(
+  content: string,
+  palette?: PaletteColors
+): ParsedSwot {
+  return withPaletteLifted(content, (lifted) =>
+    parseSwotUnlifted(lifted, palette)
+  );
+}
+
+function parseSwotUnlifted(
   content: string,
   palette?: PaletteColors
 ): ParsedSwot {

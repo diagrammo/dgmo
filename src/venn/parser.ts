@@ -7,10 +7,20 @@
 // ============================================================
 
 import type { PaletteColors } from '../palettes';
+import { withPaletteLifted } from '../palettes/directive';
 import { parseVisualization } from '../visualizations/parse';
 import type { ParsedVenn } from '../visualizations/types';
 
 export function parseVenn(
+  content: string,
+  palette?: PaletteColors
+): ParsedVenn {
+  return withPaletteLifted(content, (lifted) =>
+    parseVennUnlifted(lifted, palette)
+  );
+}
+
+function parseVennUnlifted(
   content: string,
   palette?: PaletteColors
 ): ParsedVenn {

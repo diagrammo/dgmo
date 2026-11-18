@@ -10,10 +10,20 @@
 // ============================================================
 
 import type { PaletteColors } from '../palettes';
+import { withPaletteLifted } from '../palettes/directive';
 import { parseVisualization } from '../visualizations/parse';
 import type { ParsedTimeline } from '../visualizations/types';
 
 export function parseTimeline(
+  content: string,
+  palette?: PaletteColors
+): ParsedTimeline {
+  return withPaletteLifted(content, (lifted) =>
+    parseTimelineUnlifted(lifted, palette)
+  );
+}
+
+function parseTimelineUnlifted(
   content: string,
   palette?: PaletteColors
 ): ParsedTimeline {

@@ -26,6 +26,7 @@
 // no colons. Order-independent; blank lines allowed.
 
 import type { PaletteColors } from '../palettes';
+import { withPaletteLifted } from '../palettes/directive';
 import { makeDgmoError, makeFail } from '../diagnostics';
 import type { Writable } from '../utils/brand';
 import {
@@ -163,6 +164,15 @@ function zoneCity(zone: string): string {
 }
 
 export function parseClock(
+  content: string,
+  palette?: PaletteColors
+): ParsedClock {
+  return withPaletteLifted(content, (lifted) =>
+    parseClockUnlifted(lifted, palette)
+  );
+}
+
+function parseClockUnlifted(
   content: string,
   palette?: PaletteColors
 ): ParsedClock {

@@ -7,10 +7,20 @@
 // ============================================================
 
 import type { PaletteColors } from '../palettes';
+import { withPaletteLifted } from '../palettes/directive';
 import { parseVisualization } from '../visualizations/parse';
 import type { ParsedWordcloud } from '../visualizations/types';
 
 export function parseWordcloud(
+  content: string,
+  palette?: PaletteColors
+): ParsedWordcloud {
+  return withPaletteLifted(content, (lifted) =>
+    parseWordcloudUnlifted(lifted, palette)
+  );
+}
+
+function parseWordcloudUnlifted(
   content: string,
   palette?: PaletteColors
 ): ParsedWordcloud {

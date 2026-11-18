@@ -20,6 +20,7 @@
 // Unit lives in the title (treemap rule §24C); values accept `_` separators.
 
 import type { PaletteColors } from '../palettes';
+import { withPaletteLifted } from '../palettes/directive';
 import { makeDgmoError, makeFail } from '../diagnostics';
 import type { Writable } from '../utils/brand';
 import { resolveColor } from '../colors';
@@ -102,6 +103,15 @@ const DEFAULT_BANDS: readonly { pct: number; color: string }[] = [
 const BAND_LINE_RE = /^(-?[\d.,_]+)(%?)(?:\s+(.*))?$/;
 
 export function parseGoal(
+  content: string,
+  palette?: PaletteColors
+): ParsedGoal {
+  return withPaletteLifted(content, (lifted) =>
+    parseGoalUnlifted(lifted, palette)
+  );
+}
+
+function parseGoalUnlifted(
   content: string,
   palette?: PaletteColors
 ): ParsedGoal {

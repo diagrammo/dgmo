@@ -16,6 +16,7 @@
 // dates given.
 
 import { emit, formatDgmoError, makeFail, suggest } from '../diagnostics';
+import { withPaletteLifted } from '../palettes/directive';
 import type {
   DgmoError,
   DiagnosticParams,
@@ -98,6 +99,12 @@ function readDate(token: string, year: number | undefined): DateRead {
 }
 
 export function parseCalendarHeatmap(content: string): ParsedCalendarHeatmap {
+  return withPaletteLifted(content, (lifted) =>
+    parseCalendarHeatmapUnlifted(lifted)
+  );
+}
+
+function parseCalendarHeatmapUnlifted(content: string): ParsedCalendarHeatmap {
   const options: Record<string, string> = {};
   const result: Writable<ParsedCalendarHeatmap> & {
     diagnostics: DgmoError[];

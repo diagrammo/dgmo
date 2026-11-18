@@ -7,9 +7,16 @@
 // ============================================================
 
 import type { PaletteColors } from '../palettes';
+import { withPaletteLifted } from '../palettes/directive';
 import { parseVisualization } from '../visualizations/parse';
 import type { ParsedArc } from '../visualizations/types';
 
 export function parseArc(content: string, palette?: PaletteColors): ParsedArc {
+  return withPaletteLifted(content, (lifted) =>
+    parseArcUnlifted(lifted, palette)
+  );
+}
+
+function parseArcUnlifted(content: string, palette?: PaletteColors): ParsedArc {
   return parseVisualization(content, palette) as ParsedArc;
 }

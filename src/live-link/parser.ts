@@ -25,6 +25,7 @@
 // pre-check below, and it is explained where it happens.
 
 import { makeDgmoError, formatDgmoError } from '../diagnostics';
+import { withPaletteLifted } from '../palettes/directive';
 import type { DgmoError } from '../diagnostics';
 import {
   parseCloudReferenceFence,
@@ -129,6 +130,10 @@ export function isLiveLinkLine(line: string): boolean {
 }
 
 export function parseLiveLink(content: string): ParsedLiveLink {
+  return withPaletteLifted(content, (lifted) => parseLiveLinkUnlifted(lifted));
+}
+
+function parseLiveLinkUnlifted(content: string): ParsedLiveLink {
   const diagnostics: DgmoError[] = [];
   let error: string | null = null;
 

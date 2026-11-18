@@ -1,4 +1,5 @@
 import { resolveColorWithDiagnostic } from '../colors';
+import { withPaletteLifted } from '../palettes/directive';
 import type { PaletteColors } from '../palettes';
 import { AliasRegistry } from '../utils/alias-registry';
 import {
@@ -249,6 +250,15 @@ function parseColumn(trimmed: string): ColumnParse {
 // ============================================================
 
 export function parseERDiagram(
+  content: string,
+  palette?: PaletteColors
+): ParsedERDiagram {
+  return withPaletteLifted(content, (lifted) =>
+    parseERDiagramUnlifted(lifted, palette)
+  );
+}
+
+function parseERDiagramUnlifted(
   content: string,
   palette?: PaletteColors
 ): ParsedERDiagram {

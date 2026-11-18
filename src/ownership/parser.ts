@@ -25,6 +25,7 @@
 // what it declares, is outside the group.
 
 import type { PaletteColors } from '../palettes';
+import { withPaletteLifted } from '../palettes/directive';
 import {
   emit,
   formatDgmoError,
@@ -106,6 +107,15 @@ type MutableEntity = Writable<OwnershipEntity> & {
 };
 
 export function parseOwnership(
+  content: string,
+  palette?: PaletteColors
+): ParsedOwnership {
+  return withPaletteLifted(content, (lifted) =>
+    parseOwnershipUnlifted(lifted, palette)
+  );
+}
+
+function parseOwnershipUnlifted(
   content: string,
   palette?: PaletteColors
 ): ParsedOwnership {

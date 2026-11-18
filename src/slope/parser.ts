@@ -7,10 +7,20 @@
 // ============================================================
 
 import type { PaletteColors } from '../palettes';
+import { withPaletteLifted } from '../palettes/directive';
 import { parseVisualization } from '../visualizations/parse';
 import type { ParsedSlope } from '../visualizations/types';
 
 export function parseSlope(
+  content: string,
+  palette?: PaletteColors
+): ParsedSlope {
+  return withPaletteLifted(content, (lifted) =>
+    parseSlopeUnlifted(lifted, palette)
+  );
+}
+
+function parseSlopeUnlifted(
   content: string,
   palette?: PaletteColors
 ): ParsedSlope {

@@ -37,6 +37,7 @@
 // Detection is via `ALL_CHART_TYPES` (utils/parsing.ts) / `parseFirstLine`.
 
 import { emit, type DgmoError } from '../diagnostics';
+import { withPaletteLifted } from '../palettes/directive';
 import { SWIMLANE_DX } from './diagnostics';
 import {
   measureIndent,
@@ -281,6 +282,15 @@ function splitNodeMeta(line: string): {
 }
 
 export function parseSwimlane(
+  content: string,
+  palette?: PaletteColors
+): ParsedSwimlane {
+  return withPaletteLifted(content, (lifted) =>
+    parseSwimlaneUnlifted(lifted, palette)
+  );
+}
+
+function parseSwimlaneUnlifted(
   content: string,
   palette?: PaletteColors
 ): ParsedSwimlane {

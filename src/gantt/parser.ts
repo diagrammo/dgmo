@@ -6,6 +6,7 @@ import {
   parseChartFrameLine,
   takeFootnoteBlock,
 } from '../utils/chart-frame-parse';
+import { withPaletteLifted } from '../palettes/directive';
 import { formatDgmoError, makeDgmoError } from '../diagnostics';
 import {
   GANTT_REGISTRY,
@@ -159,6 +160,15 @@ function prescanGanttYear(lines: string[], order: DateOrder): number | null {
 }
 
 export function parseGantt(
+  content: string,
+  palette?: PaletteColors
+): ParsedGantt {
+  return withPaletteLifted(content, (lifted) =>
+    parseGanttUnlifted(lifted, palette)
+  );
+}
+
+function parseGanttUnlifted(
   content: string,
   palette?: PaletteColors
 ): ParsedGantt {

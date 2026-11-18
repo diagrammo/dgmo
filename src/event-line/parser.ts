@@ -12,6 +12,7 @@
 // bare-body description collection.
 
 import type { PaletteColors } from '../palettes';
+import { withPaletteLifted } from '../palettes/directive';
 import {
   emit,
   formatDgmoError,
@@ -89,6 +90,15 @@ const SECTION_SEAM_RE = /^section\b/i;
 const DIRECTION_RE = /^direction\s+(\w+)/i;
 
 export function parseEventLine(
+  content: string,
+  palette?: PaletteColors
+): ParsedEventLine {
+  return withPaletteLifted(content, (lifted) =>
+    parseEventLineUnlifted(lifted, palette)
+  );
+}
+
+function parseEventLineUnlifted(
   content: string,
   palette?: PaletteColors
 ): ParsedEventLine {

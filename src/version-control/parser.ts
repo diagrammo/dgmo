@@ -12,6 +12,7 @@
 // docs/version-control-syntax-mockups.html parse().
 
 import type { PaletteColors } from '../palettes';
+import { withPaletteLifted } from '../palettes/directive';
 import {
   parseChartFrameLine,
   takeFootnoteBlock,
@@ -43,6 +44,15 @@ interface WorkBranch {
 type Mut = Writable<VCNode>;
 
 export function parseVersionControl(
+  content: string,
+  palette?: PaletteColors
+): ParsedVersionControl {
+  return withPaletteLifted(content, (lifted) =>
+    parseVersionControlUnlifted(lifted, palette)
+  );
+}
+
+function parseVersionControlUnlifted(
   content: string,
   palette?: PaletteColors
 ): ParsedVersionControl {

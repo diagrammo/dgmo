@@ -1,4 +1,5 @@
 import type { PaletteColors } from '../palettes';
+import { withPaletteLifted } from '../palettes/directive';
 import { AliasRegistry } from '../utils/alias-registry';
 import type { DgmoError } from '../diagnostics';
 import {
@@ -209,6 +210,12 @@ export function looksLikeOrg(content: string): boolean {
 // ============================================================
 
 export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
+  return withPaletteLifted(content, (lifted) =>
+    parseOrgUnlifted(lifted, palette)
+  );
+}
+
+function parseOrgUnlifted(content: string, palette?: PaletteColors): ParsedOrg {
   const options: Record<string, string> = {};
   const result: Writable<ParsedOrg> = {
     title: null,

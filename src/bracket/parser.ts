@@ -22,6 +22,7 @@
 // contradicts the declared winner warns but never flips it.
 
 import type { PaletteColors } from '../palettes';
+import { withPaletteLifted } from '../palettes/directive';
 import { makeDgmoError, makeFail } from '../diagnostics';
 import type { Writable } from '../utils/brand';
 import {
@@ -104,6 +105,15 @@ function splitMatch(body: string): {
 }
 
 export function parseBracket(
+  content: string,
+  palette?: PaletteColors
+): ParsedBracket {
+  return withPaletteLifted(content, (lifted) =>
+    parseBracketUnlifted(lifted, palette)
+  );
+}
+
+function parseBracketUnlifted(
   content: string,
   palette?: PaletteColors
 ): ParsedBracket {

@@ -10,6 +10,7 @@ import type {
   ChartNote,
   RawAnnotation,
 } from './annotations/types';
+import { withPaletteLifted } from './palettes/directive';
 import {
   malformedAnnotation,
   parseAnnotationLine,
@@ -379,6 +380,15 @@ export function parseSankey(
   content: string,
   palette?: PaletteColors
 ): ParsedSankey {
+  return withPaletteLifted(content, (lifted) =>
+    parseSankeyUnlifted(lifted, palette)
+  );
+}
+
+function parseSankeyUnlifted(
+  content: string,
+  palette?: PaletteColors
+): ParsedSankey {
   return parseExtendedChart(content, palette) as ParsedSankey;
 }
 
@@ -393,10 +403,28 @@ export function parseFunctionChart(
   content: string,
   palette?: PaletteColors
 ): ParsedFunctionChart {
+  return withPaletteLifted(content, (lifted) =>
+    parseFunctionChartUnlifted(lifted, palette)
+  );
+}
+
+function parseFunctionChartUnlifted(
+  content: string,
+  palette?: PaletteColors
+): ParsedFunctionChart {
   return parseExtendedChart(content, palette) as ParsedFunctionChart;
 }
 
 export function parseScatter(
+  content: string,
+  palette?: PaletteColors
+): ParsedScatter {
+  return withPaletteLifted(content, (lifted) =>
+    parseScatterUnlifted(lifted, palette)
+  );
+}
+
+function parseScatterUnlifted(
   content: string,
   palette?: PaletteColors
 ): ParsedScatter {
@@ -407,10 +435,28 @@ export function parseHeatmap(
   content: string,
   palette?: PaletteColors
 ): ParsedHeatmap {
+  return withPaletteLifted(content, (lifted) =>
+    parseHeatmapUnlifted(lifted, palette)
+  );
+}
+
+function parseHeatmapUnlifted(
+  content: string,
+  palette?: PaletteColors
+): ParsedHeatmap {
   return parseExtendedChart(content, palette) as ParsedHeatmap;
 }
 
 export function parseFunnel(
+  content: string,
+  palette?: PaletteColors
+): ParsedFunnel {
+  return withPaletteLifted(content, (lifted) =>
+    parseFunnelUnlifted(lifted, palette)
+  );
+}
+
+function parseFunnelUnlifted(
   content: string,
   palette?: PaletteColors
 ): ParsedFunnel {

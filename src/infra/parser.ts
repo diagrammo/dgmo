@@ -7,6 +7,7 @@
 // and connections, [Group] containers, tag groups, pipe metadata.
 
 import { tagAttrKey } from '../utils/tag-groups';
+import { withPaletteLifted } from '../palettes/directive';
 import {
   emit,
   formatDgmoError,
@@ -269,6 +270,10 @@ function warnUnparsedPipeMeta(
 // ============================================================
 
 export function parseInfra(content: string): ParsedInfra {
+  return withPaletteLifted(content, (lifted) => parseInfraUnlifted(lifted));
+}
+
+function parseInfraUnlifted(content: string): ParsedInfra {
   const lines = content.split('\n');
   const options: Record<string, string> = {};
   const result: Writable<ParsedInfra> = {

@@ -11,6 +11,7 @@
 // fill, a lone block fills the width, and an over-long span clamps to the count.
 
 import type { PaletteColors } from '../palettes';
+import { withPaletteLifted } from '../palettes/directive';
 import {
   formatDgmoError,
   makeDgmoError,
@@ -50,6 +51,15 @@ import {
 type ContentLine = { indent: number; trimmed: string; lineNumber: number };
 
 export function parseBlock(
+  content: string,
+  palette?: PaletteColors
+): ParsedBlock {
+  return withPaletteLifted(content, (lifted) =>
+    parseBlockUnlifted(lifted, palette)
+  );
+}
+
+function parseBlockUnlifted(
   content: string,
   palette?: PaletteColors
 ): ParsedBlock {

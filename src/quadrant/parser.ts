@@ -7,10 +7,20 @@
 // ============================================================
 
 import type { PaletteColors } from '../palettes';
+import { withPaletteLifted } from '../palettes/directive';
 import { parseVisualization } from '../visualizations/parse';
 import type { ParsedQuadrant } from '../visualizations/types';
 
 export function parseQuadrant(
+  content: string,
+  palette?: PaletteColors
+): ParsedQuadrant {
+  return withPaletteLifted(content, (lifted) =>
+    parseQuadrantUnlifted(lifted, palette)
+  );
+}
+
+function parseQuadrantUnlifted(
   content: string,
   palette?: PaletteColors
 ): ParsedQuadrant {

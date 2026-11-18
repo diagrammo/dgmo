@@ -12,6 +12,7 @@
 // Structure mirrors event-line's header / tag-block / content phases.
 
 import type { PaletteColors } from '../palettes';
+import { withPaletteLifted } from '../palettes/directive';
 import { emit } from '../diagnostics';
 import type { DgmoError } from '../diagnostics';
 import type { Writable } from '../utils/brand';
@@ -47,6 +48,15 @@ const PART_RE = /^([a-zA-Z][\w-]*)\s*(.*)$/;
 const META_PAIR_RE = /([a-zA-Z][\w-]*)\s*:\s*([^,]+)/g;
 
 export function parseBody(
+  content: string,
+  palette?: PaletteColors
+): ParsedBody {
+  return withPaletteLifted(content, (lifted) =>
+    parseBodyUnlifted(lifted, palette)
+  );
+}
+
+function parseBodyUnlifted(
   content: string,
   palette?: PaletteColors
 ): ParsedBody {

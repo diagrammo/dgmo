@@ -310,6 +310,26 @@ export function extractPaletteDirective(content: string): PaletteDirective {
   };
 }
 
+/**
+ * Run a chart type's parser with the `palette` block lifted out first (#2110).
+ * `render()` and `parseDgmo()` lift it before dispatch, but the app's per-type
+ * previews call a parser directly on raw source, where each row of the block
+ * would read as an unexpected line. Lifting is idempotent — a lifted line is
+ * `//` — so the block's own warnings are raised once, by whoever lifts first.
+ */
+export function withPaletteLifted<
+  R extends { readonly diagnostics?: readonly DgmoError[] },
+>(content: string, parse: (content: string) => R): R {
+  const directive = extractPaletteDirective(content);
+  if (directive.content === content) return parse(content);
+  const result = parse(directive.content);
+  if (directive.diagnostics.length === 0) return result;
+  return {
+    ...result,
+    diagnostics: [...directive.diagnostics, ...(result.diagnostics ?? [])],
+  };
+}
+
 export type RenderTheme = 'light' | 'dark' | 'transparent';
 
 /**

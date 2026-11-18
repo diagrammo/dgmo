@@ -3,6 +3,7 @@
 // ============================================================
 
 import type { PaletteColors } from '../palettes';
+import { withPaletteLifted } from '../palettes/directive';
 import { AliasRegistry } from '../utils/alias-registry';
 import {
   formatDgmoError,
@@ -289,6 +290,12 @@ type StackEntry =
 // ============================================================
 
 export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
+  return withPaletteLifted(content, (lifted) =>
+    parseC4Unlifted(lifted, palette)
+  );
+}
+
+function parseC4Unlifted(content: string, palette?: PaletteColors): ParsedC4 {
   const options: Record<string, string> = {};
   const result: Writable<ParsedC4> = {
     title: null,

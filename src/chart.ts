@@ -53,6 +53,7 @@ export interface FillBetween {
 }
 
 import type { DgmoError } from './diagnostics';
+import { withPaletteLifted } from './palettes/directive';
 import type { ChartFrame } from './utils/chart-frame-parse';
 import {
   parseChartFrameLine,
@@ -410,6 +411,15 @@ function applySeriesAxes(
  * ```
  */
 export function parseChart(
+  content: string,
+  palette?: PaletteColors
+): ParsedChart {
+  return withPaletteLifted(content, (lifted) =>
+    parseChartUnlifted(lifted, palette)
+  );
+}
+
+function parseChartUnlifted(
   content: string,
   palette?: PaletteColors
 ): ParsedChart {

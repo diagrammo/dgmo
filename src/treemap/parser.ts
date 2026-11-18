@@ -10,6 +10,7 @@
 //   - `depth N`, `no-value|no-percent|no-headers|no-legend`.
 
 import type { PaletteColors } from '../palettes';
+import { withPaletteLifted } from '../palettes/directive';
 import {
   emit,
   formatDgmoError,
@@ -77,6 +78,15 @@ function isFullyQuoted(s: string): boolean {
 }
 
 export function parseTreemap(
+  content: string,
+  palette?: PaletteColors
+): ParsedTreemap {
+  return withPaletteLifted(content, (lifted) =>
+    parseTreemapUnlifted(lifted, palette)
+  );
+}
+
+function parseTreemapUnlifted(
   content: string,
   palette?: PaletteColors
 ): ParsedTreemap {

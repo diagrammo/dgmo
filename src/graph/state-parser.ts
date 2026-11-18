@@ -1,4 +1,5 @@
 import { resolveColorWithDiagnostic } from '../colors';
+import { withPaletteLifted } from '../palettes/directive';
 import type { DgmoError } from '../diagnostics';
 import type { PaletteColors } from '../palettes';
 import {
@@ -209,6 +210,15 @@ function parseStateNodeRef(text: string): NodeRef | null {
 // ============================================================
 
 export function parseState(
+  content: string,
+  palette?: PaletteColors
+): ParsedGraph {
+  return withPaletteLifted(content, (lifted) =>
+    parseStateUnlifted(lifted, palette)
+  );
+}
+
+function parseStateUnlifted(
   content: string,
   palette?: PaletteColors
 ): ParsedGraph {

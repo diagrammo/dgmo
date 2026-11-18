@@ -25,6 +25,7 @@
 // A block has EITHER `target` OR `every`, never both.
 
 import type { PaletteColors } from '../palettes';
+import { withPaletteLifted } from '../palettes/directive';
 import { makeDgmoError, makeFail } from '../diagnostics';
 import type { Writable } from '../utils/brand';
 import {
@@ -132,6 +133,15 @@ function ampmTo24h(tok: string): string | null {
 }
 
 export function parseCountdown(
+  content: string,
+  palette?: PaletteColors
+): ParsedCountdown {
+  return withPaletteLifted(content, (lifted) =>
+    parseCountdownUnlifted(lifted, palette)
+  );
+}
+
+function parseCountdownUnlifted(
   content: string,
   palette?: PaletteColors
 ): ParsedCountdown {
