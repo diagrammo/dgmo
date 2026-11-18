@@ -52,6 +52,7 @@ const TARGET_GRID_WIDTH = 53 * BASE_PITCH;
 const CELL_RADIUS = 2;
 const LABEL_FONT_SIZE = 10;
 const MONTH_BAND = 16;
+const BAND_GAP = 10;
 const WEEKDAY_GAP = 6;
 const MONTH_LABEL_GAP = 4;
 const LEGEND_TOP_GAP = 12;
@@ -82,11 +83,38 @@ export function renderCalendarHeatmap(
   const showLegend = !legendSuppressed(parsed.options);
 
   const { start, end, weekStart } = parsed;
-  const offset = (weekday(start) - weekStart + 7) % 7;
-  const columnOf = (day: DayNumber): number =>
-    Math.floor((day - start + offset) / 7);
+  // Past one year of weeks the grid wraps into one band per calendar year,
+  // stacked, so width stays about a year wide whatever the span (#2089).
+  // Otherwise type shrinks with the canvas when it is fitted to a pane.
+  const spanWeeks =
+    Math.floor((end - start + ((weekday(start) - weekStart + 7) % 7)) / 7) + 1;
+  const bands: { year: number; first: DayNumber; last: DayNumber }[] = [];
+  if (spanWeeks <= 53) {
+    bands.push({ year: parts(start).year, first: start, last: end });
+  } else {
+    for (let y = parts(start).year; y <= parts(end).year; y++) {
+      bands.push({
+        year: y,
+        first: Math.max(start, Math.round(Date.UTC(y, 0, 1) / 86_400_000)),
+        last: Math.min(end, Math.round(Date.UTC(y, 11, 31) / 86_400_000)),
+      });
+    }
+  }
+  const stacked = bands.length > 1;
+  const bandOf = (day: DayNumber): number =>
+    stacked ? parts(day).year - bands[0]!.year : 0;
+  const columnOf = (day: DayNumber): number => {
+    const first = bands[bandOf(day)]!.first;
+    const offset = (weekday(first) - weekStart + 7) % 7;
+    return Math.floor((day - first + offset) / 7);
+  };
   const rowOf = (day: DayNumber): number => (weekday(day) - weekStart + 7) % 7;
-  const weeks = columnOf(end) + 1;
+  const weeks = Math.max(
+    ...bands.map((b) => {
+      const offset = (weekday(b.first) - weekStart + 7) % 7;
+      return Math.floor((b.last - b.first + offset) / 7) + 1;
+    })
+  );
   const pitch = Math.max(
     BASE_PITCH,
     Math.min(MAX_PITCH, Math.floor(TARGET_GRID_WIDTH / weeks))
@@ -99,11 +127,18 @@ export function renderCalendarHeatmap(
         measureText(WEEKDAYS[d]!.slice(0, 3), LABEL_FONT_SIZE)
       )
     ) + WEEKDAY_GAP;
-  const gridLeft = DIAGRAM_PADDING + weekdayLabelWidth;
+  const yearLabelWidth = stacked
+    ? measureText('0000', LABEL_FONT_SIZE, { bold: true }) + WEEKDAY_GAP
+    : 0;
+  const gridLeft =
+    DIAGRAM_PADDING + Math.max(weekdayLabelWidth, yearLabelWidth);
   const gridWidth = weeks * pitch - GAP;
   const top = showTitle ? FRAME_BODY_TOP : DIAGRAM_PADDING;
   const gridTop = top + MONTH_BAND;
-  const gridHeight = 7 * pitch - GAP;
+  const bandHeight = 7 * pitch - GAP;
+  const bandPitch = bandHeight + MONTH_BAND + BAND_GAP;
+  const bandTop = (i: number): number => gridTop + i * bandPitch;
+  const gridHeight = bandTop(bands.length - 1) - gridTop + bandHeight;
   const legendTop = gridTop + gridHeight + LEGEND_TOP_GAP;
   const bottom = showLegend ? legendTop + LEGEND_CELL : gridTop + gridHeight;
 
@@ -112,7 +147,7 @@ export function renderCalendarHeatmap(
     : 0;
   const width = Math.ceil(
     DIAGRAM_PADDING +
-      Math.max(weekdayLabelWidth + gridWidth, titleWidth) +
+      Math.max(gridLeft - DIAGRAM_PADDING + gridWidth, titleWidth) +
       DIAGRAM_PADDING
   );
   const height = Math.ceil(bottom + DIAGRAM_PADDING);
@@ -150,40 +185,54 @@ export function renderCalendarHeatmap(
 
   // ── Month and weekday labels ───────────────────────────────
   const labels = svg.append('g').attr('class', 'calendar-heatmap-labels');
-  let lastMonthRight = -Infinity;
-  for (let day = start; day <= end; ) {
-    const p = parts(day);
-    const x = gridLeft + columnOf(day) * pitch;
-    const name = MONTHS[p.month - 1]!.slice(0, 3);
-    if (x >= lastMonthRight + MONTH_LABEL_GAP) {
+  bands.forEach((band, bi) => {
+    const yTop = bandTop(bi);
+    if (stacked) {
       labels
         .append('text')
-        .attr('class', 'calendar-heatmap-month')
-        .attr('x', x)
-        .attr('y', gridTop - 5)
+        .attr('class', 'calendar-heatmap-year')
+        .attr('x', DIAGRAM_PADDING)
+        .attr('y', yTop - 5)
+        .attr('font-size', LABEL_FONT_SIZE)
+        .attr('font-weight', 'bold')
+        .attr('fill', palette.text)
+        .text(String(band.year));
+    }
+    let lastMonthRight = -Infinity;
+    for (let day = band.first; day <= band.last; ) {
+      const p = parts(day);
+      const x = gridLeft + columnOf(day) * pitch;
+      const name = MONTHS[p.month - 1]!.slice(0, 3);
+      if (x >= lastMonthRight + MONTH_LABEL_GAP) {
+        labels
+          .append('text')
+          .attr('class', 'calendar-heatmap-month')
+          .attr('x', x)
+          .attr('y', yTop - 5)
+          .attr('font-size', LABEL_FONT_SIZE)
+          .attr('fill', palette.textMuted)
+          .text(name);
+        lastMonthRight = x + measureText(name, LABEL_FONT_SIZE);
+      }
+      // First day of the next month.
+      const next = Date.UTC(p.year, p.month, 1) / 86_400_000;
+      day = Math.round(next);
+    }
+    for (let row = 0; row < 7; row++) {
+      const wd = (row + weekStart) % 7;
+      if (!LABELLED_WEEKDAYS.has(wd)) continue;
+      labels
+        .append('text')
+        .attr('class', 'calendar-heatmap-weekday')
+        .attr('x', gridLeft - WEEKDAY_GAP)
+        .attr('y', yTop + row * pitch + cell / 2)
+        .attr('text-anchor', 'end')
+        .attr('dominant-baseline', 'central')
         .attr('font-size', LABEL_FONT_SIZE)
         .attr('fill', palette.textMuted)
-        .text(name);
-      lastMonthRight = x + measureText(name, LABEL_FONT_SIZE);
+        .text(WEEKDAYS[wd]!.slice(0, 3));
     }
-    // First day of the next month.
-    const next = Date.UTC(p.year, p.month, 1) / 86_400_000;
-    day = Math.round(next);
-  }
-  for (let row = 0; row < 7; row++) {
-    const wd = (row + weekStart) % 7;
-    if (!LABELLED_WEEKDAYS.has(wd)) continue;
-    labels
-      .append('text')
-      .attr('class', 'calendar-heatmap-weekday')
-      .attr('x', gridLeft - WEEKDAY_GAP)
-      .attr('y', gridTop + row * pitch + cell / 2)
-      .attr('text-anchor', 'end')
-      .attr('dominant-baseline', 'central')
-      .attr('font-size', LABEL_FONT_SIZE)
-      .attr('fill', palette.textMuted)
-      .text(WEEKDAYS[wd]!.slice(0, 3));
-  }
+  });
 
   // ── Days ───────────────────────────────────────────────────
   const byDay = new Map(parsed.days.map((d) => [d.day, d]));
@@ -213,7 +262,7 @@ export function renderCalendarHeatmap(
       .attr('data-value', value)
       .attr('data-level', shade)
       .attr('x', gridLeft + columnOf(day) * pitch)
-      .attr('y', gridTop + rowOf(day) * pitch)
+      .attr('y', bandTop(bandOf(day)) + rowOf(day) * pitch)
       .attr('width', cell)
       .attr('height', cell)
       .attr('rx', CELL_RADIUS)

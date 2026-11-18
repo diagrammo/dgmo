@@ -262,3 +262,41 @@ describe('calendar-heatmap export (#1855)', () => {
     expect(svg).not.toContain('tabindex');
   });
 });
+
+describe('calendar-heatmap multi-year span (#2089)', () => {
+  const SPAN = `calendar-heatmap Voyages
+from 2023-03-10 to 2026-09-20
+unit voyage
+
+2023-07-04 5
+2026-09-20 8
+`;
+
+  it('stacks one band per calendar year so the canvas stays a year wide', () => {
+    const c = draw(SPAN);
+    const years = [...c.querySelectorAll('.calendar-heatmap-year')].map(
+      (t) => t.textContent
+    );
+    expect(years).toEqual(['2023', '2024', '2025', '2026']);
+    const width = Number(c.querySelector('svg')!.getAttribute('width'));
+    // A year at the base pitch is about 53 * 14 = 742px of grid.
+    expect(width).toBeLessThan(900);
+    // Later years sit lower, at the same left edge for 1 January's column.
+    const a = xy(day(c, '2023-07-04'));
+    const b = xy(day(c, '2026-09-20'));
+    expect(b.y).toBeGreaterThan(a.y);
+    expect(day(c, '2024-01-01').getAttribute('x')).toBe(
+      day(c, '2025-01-01').getAttribute('x')
+    );
+    expect(c.querySelectorAll('.calendar-heatmap-day')).toHaveLength(
+      Math.round((Date.UTC(2026, 8, 20) - Date.UTC(2023, 2, 10)) / 86_400_000) +
+        1
+    );
+  });
+
+  it('shows no year label for a span of a year or less', () => {
+    expect(draw(YEAR).querySelectorAll('.calendar-heatmap-year')).toHaveLength(
+      0
+    );
+  });
+});
