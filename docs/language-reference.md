@@ -562,14 +562,14 @@ Havana 400
   marker Raid red
 ```
 
-| Directive                            | Where                                        | What it draws                                                                                   |
-| ------------------------------------ | -------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `marker <value> [label] [color]`     | its own line — bar, line, scatter, slope     | a dashed line across the plot at a value-axis position, over the data, its label at its far end |
-| `marker [label] [color]`             | under a row — bar, line                      | a dashed line at that row's category, its label at its top                                      |
-| `marker <period> [label] [color]`    | its own line — slope                         | a dashed line at a period                                                                       |
-| `band <from>..<to> [label] [color]`  | its own line — bar, line, scatter, slope     | a shaded value range behind the data; its label sits in a clear spot over the data              |
-| `era <from> -> <to> [label] [color]` | its own line — bar, line                     | a shaded span of categories on the ordered axis                                                 |
-| `note [text]`                        | under a row — bar, line, scatter, slope      | the text in clear plot space; above a column, or past a bar's end; elsewhere a ring and leader  |
+| Directive                            | Where                                    | What it draws                                                                                   |
+| ------------------------------------ | ---------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `marker <value> [label] [color]`     | its own line — bar, line, scatter, slope | a dashed line across the plot at a value-axis position, over the data, its label at its far end |
+| `marker [label] [color]`             | under a row — bar, line                  | a dashed line at that row's category, its label at its top                                      |
+| `marker <period> [label] [color]`    | its own line — slope                     | a dashed line at a period                                                                       |
+| `band <from>..<to> [label] [color]`  | its own line — bar, line, scatter, slope | a shaded value range behind the data; its label sits in a clear spot over the data              |
+| `era <from> -> <to> [label] [color]` | its own line — bar, line                 | a shaded span of categories on the ordered axis                                                 |
+| `note [text]`                        | under a row — bar, line, scatter, slope  | the text in clear plot space; above a column, or past a bar's end; elsewhere a ring and leader  |
 
 - **The label is the rest of the line.** A trailing colour word (§1.5) colours the mark; without one a `marker` takes the text colour and a `band` a muted tint. Quote the label to keep a final colour word as text: `marker 50 "Code red"`.
 - **Which axis a `marker` sits on.** On its own line, a number is a value-axis position (`marker y 50` says so outright). Under a row, it marks that row's category — so numeric categories (years) need no axis word. On `scatter` both axes are numeric: `marker 50` is y, `marker x 5` is x, and `band x 2..4` shades an x range. On `bar` and `line` a category marker on its own line (`marker Nassau Raid`) is the old form: it warns and shows the indented one.
