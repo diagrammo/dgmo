@@ -14,6 +14,10 @@
 // `MM-DD` when `year` is set. A date not listed is zero; a date listed twice
 // adds up. The span is `year`, trimmed by `from … to …`; with neither, the
 // dates given.
+//
+// Tag mode (year in pixels, #1877): declare a tag group, then write a tag
+// value in place of the number — `2026-01-01 Great`. The day takes that
+// value's colour. Numbers and tags never mix in one chart.
 
 import { emit, formatDgmoError, makeFail, suggest } from '../diagnostics';
 import { withPaletteLifted } from '../palettes/directive';
@@ -27,7 +31,14 @@ import {
   parseChartFrameLine,
   takeFootnoteBlock,
 } from '../utils/chart-frame-parse';
-import { parseFirstLine } from '../utils/parsing';
+import { extractColor, measureIndent, parseFirstLine } from '../utils/parsing';
+import type { TagGroup } from '../utils/tag-groups';
+import {
+  AUTO_TAG_COLOR_SENTINEL,
+  finalizeAutoTagColors,
+  matchTagBlockHeading,
+  stripDefaultModifier,
+} from '../utils/tag-groups';
 import { CALENDAR_HEATMAP_DX } from './diagnostics';
 import type {
   CalendarHeatmapDay,
@@ -50,6 +61,7 @@ const OPTION_WORDS = [
   'from',
   'week-start',
   'max',
+  'tag',
   ...BOOLEAN_OPTIONS,
   ...VALUE_OPTIONS,
 ];
@@ -113,7 +125,9 @@ function parseCalendarHeatmapRaw(content: string): ParsedCalendarHeatmap {
     start: 0,
     end: 0,
     weekStart: 0,
+    mode: 'value',
     days: [],
+    tagGroups: [],
     options,
     diagnostics: [],
     error: null,
@@ -141,6 +155,28 @@ function parseCalendarHeatmapRaw(content: string): ParsedCalendarHeatmap {
   // and `year` may come after it.
   let range: { from: string; to: string; lineNumber: number } | null = null;
   const entries: { token: string; value: number; lineNumber: number }[] = [];
+  const tagEntries: { token: string; tag: string; lineNumber: number }[] = [];
+  const tagGroups: Writable<TagGroup>[] = [];
+  let currentTagGroup: Writable<TagGroup> | null = null;
+  const addTagValue = (text: string, lineNumber: number): void => {
+    const group = currentTagGroup!;
+    const { text: clean, isDefault } = stripDefaultModifier(text);
+    const { label, color } = extractColor(
+      clean,
+      undefined,
+      diagnostics,
+      lineNumber
+    );
+    if (isDefault || group.entries.length === 0) group.defaultValue = label;
+    group.entries.push({
+      value: label,
+      color: color ?? AUTO_TAG_COLOR_SENTINEL,
+      ...(color !== undefined && {
+        authoredColor: clean.trim().split(/\s+/).pop()!,
+      }),
+      lineNumber,
+    });
+  };
 
   for (let i = 0; i < lines.length; i++) {
     const lineNumber = i + 1;
@@ -164,6 +200,26 @@ function parseCalendarHeatmapRaw(content: string): ParsedCalendarHeatmap {
         }
         continue;
       }
+    }
+
+    // ── Tag values, indented under a `tag` heading ─────────────
+    if (currentTagGroup && measureIndent(line) > 0) {
+      addTagValue(trimmed, lineNumber);
+      continue;
+    }
+    currentTagGroup = null;
+
+    const tagHeading = matchTagBlockHeading(trimmed);
+    if (tagHeading) {
+      currentTagGroup = {
+        name: tagHeading.name,
+        ...(tagHeading.alias !== undefined && { alias: tagHeading.alias }),
+        entries: [],
+        lineNumber,
+      };
+      tagGroups.push(currentTagGroup);
+      for (const v of tagHeading.inlineValues ?? []) addTagValue(v, lineNumber);
+      continue;
     }
 
     if (parseChartFrameLine(result, line, lineNumber, diagnostics)) continue;
@@ -232,6 +288,16 @@ function parseCalendarHeatmapRaw(content: string): ParsedCalendarHeatmap {
     }
 
     const dateShaped = FULL_DATE_RE.test(word) || SHORT_DATE_RE.test(word);
+    // A tag value may be several words; a number is one.
+    if (
+      dateShaped &&
+      parts.length >= 2 &&
+      tagGroups.length > 0 &&
+      !NUMBER_RE.test(parts[1]!)
+    ) {
+      tagEntries.push({ token: word, tag: rest, lineNumber });
+      continue;
+    }
     if (!dateShaped || parts.length !== 2) {
       const hint = dateShaped ? null : suggest(keyword, OPTION_WORDS);
       report(CALENDAR_HEATMAP_DX.BAD_ENTRY, lineNumber, {
@@ -247,31 +313,80 @@ function parseCalendarHeatmapRaw(content: string): ParsedCalendarHeatmap {
     entries.push({ token: word, value: Number(valueText), lineNumber });
   }
 
+  finalizeAutoTagColors(tagGroups);
+  result.tagGroups = tagGroups;
+
+  // ── Numbers or tags, never both ────────────────────────────
+  if (entries.length > 0 && tagEntries.length > 0) {
+    const second =
+      entries[0]!.lineNumber < tagEntries[0]!.lineNumber
+        ? tagEntries[0]!
+        : entries[0]!;
+    report(CALENDAR_HEATMAP_DX.MIXED_ENTRIES, second.lineNumber, {});
+    return result;
+  }
+  if (tagEntries.length > 0 || (entries.length === 0 && tagGroups.length > 0))
+    result.mode = 'tag';
+
+  // A tag value names its group's entry, in the group's own spelling.
+  const tagValues = new Map<string, string>();
+  for (const group of tagGroups)
+    for (const e of group.entries)
+      if (!tagValues.has(e.value.toLowerCase()))
+        tagValues.set(e.value.toLowerCase(), e.value);
+
   // ── Dates, now that `year` is known ────────────────────────
   const byDay = new Map<DayNumber, Writable<CalendarHeatmapDay>>();
-  for (const entry of entries) {
-    const read = readDate(entry.token, result.year);
+  const readEntryDate = (token: string, lineNumber: number) => {
+    const read = readDate(token, result.year);
     if (read.kind === 'no-year') {
-      report(CALENDAR_HEATMAP_DX.SHORT_DATE_NO_YEAR, entry.lineNumber, {
-        date: entry.token,
+      report(CALENDAR_HEATMAP_DX.SHORT_DATE_NO_YEAR, lineNumber, {
+        date: token,
       });
-      continue;
+      return null;
     }
     if (read.kind !== 'ok') {
-      report(CALENDAR_HEATMAP_DX.BAD_DATE, entry.lineNumber, {
-        date: entry.token,
-      });
-      continue;
+      report(CALENDAR_HEATMAP_DX.BAD_DATE, lineNumber, { date: token });
+      return null;
     }
-    const existing = byDay.get(read.day);
+    return read.day;
+  };
+  for (const entry of entries) {
+    const day = readEntryDate(entry.token, entry.lineNumber);
+    if (day === null) continue;
+    const existing = byDay.get(day);
     if (existing) existing.value += entry.value;
     else
-      byDay.set(read.day, {
-        day: read.day,
-        date: dayToIso(read.day),
+      byDay.set(day, {
+        day,
+        date: dayToIso(day),
         value: entry.value,
         lineNumber: entry.lineNumber,
       });
+  }
+  for (const entry of tagEntries) {
+    const tag = tagValues.get(entry.tag.toLowerCase());
+    if (tag === undefined) {
+      const hint = suggest(entry.tag, [...tagValues.values()]);
+      report(CALENDAR_HEATMAP_DX.UNKNOWN_TAG, entry.lineNumber, {
+        tag: entry.tag,
+        ...(hint && { hint }),
+      });
+      continue;
+    }
+    const day = readEntryDate(entry.token, entry.lineNumber);
+    if (day === null) continue;
+    if (byDay.has(day))
+      report(CALENDAR_HEATMAP_DX.DUPLICATE_TAG_DAY, entry.lineNumber, {
+        date: dayToIso(day),
+      });
+    byDay.set(day, {
+      day,
+      date: dayToIso(day),
+      value: 0,
+      tag,
+      lineNumber: entry.lineNumber,
+    });
   }
 
   // ── The span ───────────────────────────────────────────────

@@ -7,8 +7,11 @@
 // Mon, Wed and Fri only. Five shades: grey for zero, then four equal-count
 // bands (quartiles of the non-zero days), or four equal ranges up to `max N`.
 // A day's fill encodes data, so the `fill-*` family does not apply.
+// Tag mode (#1877) colours each day by its tag value instead, and the legend
+// lists the values and "Not logged".
 
 import * as d3Selection from 'd3-selection';
+import { resolveColor } from '../colors';
 import { escapeHtml } from '../embed/escape';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
@@ -17,6 +20,12 @@ import { growChartFrame } from '../utils/chart-frame';
 import type { ChartFrame } from '../utils/chart-frame-parse';
 import { createTooltip, hideTooltip, showTooltip } from '../utils/d3-helpers';
 import { legendSuppressed } from '../utils/parsing';
+import type { Writable } from '../utils/brand';
+import {
+  AUTO_TAG_COLOR_SENTINEL,
+  assignAutoTagColors,
+} from '../utils/tag-groups';
+import type { TagGroup } from '../utils/tag-groups';
 import { measureText } from '../utils/text-measure';
 import {
   FRAME_BODY_TOP,
@@ -58,6 +67,34 @@ const MONTH_LABEL_GAP = 4;
 const LEGEND_TOP_GAP = 12;
 const LEGEND_CELL = 11;
 const LEGEND_TEXT_GAP = 5;
+const LEGEND_ITEM_GAP = 14;
+const LEGEND_ROW_GAP = 6;
+const NOT_LOGGED = 'Not logged';
+
+/** Each tag value's fill in this palette, keyed by the value. The parser has
+ *  no palette, so colours resolve here: an authored name re-resolves, and a
+ *  bare value takes the next free categorical colour. */
+function tagFills(
+  groups: readonly TagGroup[],
+  palette: PaletteColors
+): Map<string, string> {
+  const fills = new Map<string, string>();
+  for (const group of groups) {
+    const copy: Writable<TagGroup> = {
+      ...group,
+      entries: group.entries.map((e) => ({
+        ...e,
+        color: e.authoredColor
+          ? (resolveColor(e.authoredColor, palette) ?? e.color)
+          : AUTO_TAG_COLOR_SENTINEL,
+      })),
+    };
+    assignAutoTagColors(copy, palette);
+    for (const e of copy.entries)
+      if (!fills.has(e.value)) fills.set(e.value, e.color);
+  }
+  return fills;
+}
 
 /** The five fills, zero first. */
 function shadeFills(palette: PaletteColors): string[] {
@@ -81,6 +118,8 @@ export function renderCalendarHeatmap(
   const exportMode = options?.exportMode ?? false;
   const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
   const showLegend = !legendSuppressed(parsed.options);
+  const tagMode = parsed.mode === 'tag';
+  const tagFill = tagMode ? tagFills(parsed.tagGroups, palette) : null;
 
   const { start, end, weekStart } = parsed;
   // Past one year of weeks the grid wraps into one band per calendar year,
@@ -140,14 +179,47 @@ export function renderCalendarHeatmap(
   const bandTop = (i: number): number => gridTop + i * bandPitch;
   const gridHeight = bandTop(bands.length - 1) - gridTop + bandHeight;
   const legendTop = gridTop + gridHeight + LEGEND_TOP_GAP;
-  const bottom = showLegend ? legendTop + LEGEND_CELL : gridTop + gridHeight;
+
+  // Tag mode: one swatch per value, then "Not logged", wrapped to the grid.
+  const tagLegend: { label: string; fill?: string; x: number; row: number }[] =
+    [];
+  let tagLegendWidth = 0;
+  if (tagMode && showLegend) {
+    const items: { label: string; fill?: string }[] = [];
+    for (const [label, fill] of tagFill!) items.push({ label, fill });
+    items.push({ label: NOT_LOGGED });
+    let x = 0;
+    let row = 0;
+    for (const item of items) {
+      const w =
+        LEGEND_CELL +
+        LEGEND_TEXT_GAP +
+        measureText(item.label, LABEL_FONT_SIZE);
+      if (x > 0 && x + w > gridWidth) {
+        x = 0;
+        row++;
+      }
+      tagLegend.push({ ...item, x, row });
+      tagLegendWidth = Math.max(tagLegendWidth, x + w);
+      x += w + LEGEND_ITEM_GAP;
+    }
+  }
+  const legendRows = tagLegend.length
+    ? tagLegend[tagLegend.length - 1]!.row + 1
+    : 1;
+  const legendHeight =
+    legendRows * LEGEND_CELL + (legendRows - 1) * LEGEND_ROW_GAP;
+  const bottom = showLegend ? legendTop + legendHeight : gridTop + gridHeight;
 
   const titleWidth = showTitle
     ? measureText(parsed.title, TITLE_FONT_SIZE, { bold: true })
     : 0;
   const width = Math.ceil(
     DIAGRAM_PADDING +
-      Math.max(gridLeft - DIAGRAM_PADDING + gridWidth, titleWidth) +
+      Math.max(
+        gridLeft - DIAGRAM_PADDING + Math.max(gridWidth, tagLegendWidth),
+        titleWidth
+      ) +
       DIAGRAM_PADDING
   );
   const height = Math.ceil(bottom + DIAGRAM_PADDING);
@@ -253,27 +325,32 @@ export function renderCalendarHeatmap(
   for (let day = start; day <= end; day++) {
     const entry = byDay.get(day);
     const value = entry?.value ?? 0;
-    const shade = level(value);
-    const label = `${fullDate(day)}: ${amount(value, parsed.unit)}`;
+    const tag = tagMode ? entry?.tag : undefined;
+    const shade = tagMode ? (tag === undefined ? 0 : -1) : level(value);
+    const fill =
+      tag !== undefined ? (tagFill!.get(tag) ?? fills[0]!) : fills[shade]!;
+    const shown = tagMode ? (tag ?? NOT_LOGGED) : amount(value, parsed.unit);
+    const label = `${fullDate(day)}: ${shown}`;
     const rect = grid
       .append('rect')
       .attr('class', 'calendar-heatmap-day')
       .attr('data-date', dayToIso(day))
       .attr('data-value', value)
-      .attr('data-level', shade)
+      .attr('data-level', shade < 0 ? null : shade)
+      .attr('data-tag', tag ?? null)
       .attr('x', gridLeft + columnOf(day) * pitch)
       .attr('y', bandTop(bandOf(day)) + rowOf(day) * pitch)
       .attr('width', cell)
       .attr('height', cell)
       .attr('rx', CELL_RADIUS)
-      .attr('fill', fills[shade]!)
+      .attr('fill', fill)
       .attr('stroke', outline)
       .attr('stroke-width', 0.5)
       .attr('role', 'listitem')
       .attr('aria-label', label);
     if (entry) rect.attr('data-line-number', entry.lineNumber);
     if (!tooltip) continue;
-    const tipHtml = `<strong>${escapeHtml(amount(value, parsed.unit))}</strong><br>${escapeHtml(fullDate(day))}`;
+    const tipHtml = `<strong>${escapeHtml(shown)}</strong><br>${escapeHtml(fullDate(day))}`;
     rect
       .attr('tabindex', 0)
       .on('mouseenter', (event: MouseEvent) =>
@@ -293,8 +370,36 @@ export function renderCalendarHeatmap(
       .on('blur', () => hideTooltip(tooltip));
   }
 
+  // ── Tag legend: one swatch per value, then "Not logged" ────
+  if (showLegend && tagMode) {
+    const legend = svg.append('g').attr('class', 'calendar-heatmap-legend');
+    for (const item of tagLegend) {
+      const y = legendTop + item.row * (LEGEND_CELL + LEGEND_ROW_GAP);
+      const g = legend
+        .append('g')
+        .attr('class', 'calendar-heatmap-legend-tag')
+        .attr('data-tag', item.fill ? item.label : null);
+      g.append('rect')
+        .attr('x', gridLeft + item.x)
+        .attr('y', y)
+        .attr('width', LEGEND_CELL)
+        .attr('height', LEGEND_CELL)
+        .attr('rx', CELL_RADIUS)
+        .attr('fill', item.fill ?? fills[0]!)
+        .attr('stroke', outline)
+        .attr('stroke-width', 0.5);
+      g.append('text')
+        .attr('x', gridLeft + item.x + LEGEND_CELL + LEGEND_TEXT_GAP)
+        .attr('y', y + LEGEND_CELL / 2)
+        .attr('dominant-baseline', 'central')
+        .attr('font-size', LABEL_FONT_SIZE)
+        .attr('fill', palette.textMuted)
+        .text(item.label);
+    }
+  }
+
   // ── Legend: Less ▢▢▢▢▢ More, bottom right ──────────────────
-  if (showLegend) {
+  if (showLegend && !tagMode) {
     const legend = svg.append('g').attr('class', 'calendar-heatmap-legend');
     const moreWidth = measureText('More', LABEL_FONT_SIZE);
     const lessWidth = measureText('Less', LABEL_FONT_SIZE);

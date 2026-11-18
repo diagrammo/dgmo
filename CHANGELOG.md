@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Tag mode on the calendar heatmap — year in pixels (diagrammo/diagrammo#1855,
+  #1877).** Declare a `tag` group, then write a tag value in place of the
+  number (`01-01 Great`): each day takes that value's colour, an empty day is
+  "Not logged", and the legend lists the values. The summary reads `212 days
+  logged · most often Great`. Diagnostics: `E_CALENDAR_HEATMAP_UNKNOWN_TAG`,
+  `E_CALENDAR_HEATMAP_MIXED_ENTRIES` (numbers and tags in one chart),
+  `W_CALENDAR_HEATMAP_DUPLICATE_TAG_DAY`.
 - **Statistics overlays on bar and line (#1954).** Bare `mean` and `median`
   draw a dashed and a dotted line at the value computed from the chart's data,
   labelled at its right end in its colour (`mean 441`), one per series on a

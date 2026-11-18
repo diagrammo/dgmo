@@ -99,7 +99,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 - **On a chart of numbers, the title states the finding.** Write what the reader should take away, not what is plotted — `bar Nassau landed twice the gold of any other port`, not `bar Gold by Port`. Put what is measured (the quantity, units, period) in `subtitle` and where the numbers came from in `source` (§1.12). Fall back to a label title only when the user names one or the data shows no single finding (§26.8).
   <!-- TITLE end -->
   <!-- CATEGORIZE start -->
-- **Categorize and color — by default, not only when obvious.** Before drawing, find the axis that sorts the items into kinds and color by it: layer (frontend / backend / data), role (client / service / datastore), trust zone (internal / external / third-party), status (done / active / blocked), owner/team, or read-path vs write-path. Almost every diagram has such an axis — actively look for one rather than leaving everything monochrome. Express it with a **tag group**, never ad-hoc per-node colors: declare `tag <Axis> as t` (the name is a single word — `tag TrustZone as tz` — or quote a multi-word name: `tag "Trust Zone" as tz`), indent the category values (a trailing color is optional — bare values auto-pick a palette color), set `active-tag <Axis>` in the header — after the tag group and before the first element, because a type such as c4 refuses it after content — then assign each item `Node t: <Category>` (see the tag-group syntax in the per-type section below). **Bracket, block, body, event-line and whiteboard** take the tag group but no `active-tag` line — declare the group and stop there; on event-line the line would be drawn as an element. **Class, flowchart, wireframe, raci, cycle, pyramid, ring, sankey, tech-radar, venn, version-control, wordcloud, arc, bar, clock, countdown, funnel, function, goal, heatmap, line, pie, polar-area, quadrant, radar, scatter, slope and calendar-heatmap** take no tag group at all — skip this rule for them. Most report the lines; cycle, pyramid, ring, sankey, venn, version-control and wordcloud read them as content, and flowchart and tech-radar drop them without a word. Only the 11 named palette colors exist, and they re-resolve per palette/theme. Color the grouping so the categories — and the boundaries between them — read at a glance. **Buckets, not name tags — never 1:1.** A tag group must have _fewer_ values than it has members: each color should bucket two or more items so the palette compresses the diagram into a few meaningful kinds (aim for ~2–4 categories, and keep distinct colors well under half the item count). If you find yourself giving nearly every item its own value, you've enumerated, not categorized — merge the singletons up a level until each color groups at least two (a `cache` and a `database` are both `datastore`; a caller and a gateway are both `client`; two microservices are both `service`). One color per item is the same visual noise as random colors — the grouping only earns its place when a color means "these belong together." Leave items uncolored only when they genuinely form a single undifferentiated kind, or the user asked for no color.
+- **Categorize and color — by default, not only when obvious.** Before drawing, find the axis that sorts the items into kinds and color by it: layer (frontend / backend / data), role (client / service / datastore), trust zone (internal / external / third-party), status (done / active / blocked), owner/team, or read-path vs write-path. Almost every diagram has such an axis — actively look for one rather than leaving everything monochrome. Express it with a **tag group**, never ad-hoc per-node colors: declare `tag <Axis> as t` (the name is a single word — `tag TrustZone as tz` — or quote a multi-word name: `tag "Trust Zone" as tz`), indent the category values (a trailing color is optional — bare values auto-pick a palette color), set `active-tag <Axis>` in the header — after the tag group and before the first element, because a type such as c4 refuses it after content — then assign each item `Node t: <Category>` (see the tag-group syntax in the per-type section below). **Bracket, block, body, calendar-heatmap, event-line and whiteboard** take the tag group but no `active-tag` line — declare the group and stop there; on event-line the line would be drawn as an element. **Class, flowchart, wireframe, raci, cycle, pyramid, ring, sankey, tech-radar, venn, version-control, wordcloud, arc, bar, clock, countdown, funnel, function, goal, heatmap, line, pie, polar-area, quadrant, radar, scatter and slope** take no tag group at all — skip this rule for them. Most report the lines; cycle, pyramid, ring, sankey, venn, version-control and wordcloud read them as content, and flowchart and tech-radar drop them without a word. Only the 11 named palette colors exist, and they re-resolve per palette/theme. Color the grouping so the categories — and the boundaries between them — read at a glance. **Buckets, not name tags — never 1:1.** A tag group must have _fewer_ values than it has members: each color should bucket two or more items so the palette compresses the diagram into a few meaningful kinds (aim for ~2–4 categories, and keep distinct colors well under half the item count). If you find yourself giving nearly every item its own value, you've enumerated, not categorized — merge the singletons up a level until each color groups at least two (a `cache` and a `database` are both `datastore`; a caller and a gateway are both `client`; two microservices are both `service`). One color per item is the same visual noise as random colors — the grouping only earns its place when a color means "these belong together." Leave items uncolored only when they genuinely form a single undifferentiated kind, or the user asked for no color.
 <!-- CATEGORIZE end -->
 - **Keep labels short.** A few words per node. Move detail into notes or metadata, never a full sentence inside a label.
 - **Let the defaults show.** Don't add `no-*` opt-outs unless the user asked to hide or disable something — they strip helpful labels, values, and color.
@@ -5602,7 +5602,28 @@ unit commit
 - **Summary**: the subtitle line shows the total and the busiest day (`844 commits · busiest day Mar 5`). A `subtitle` line replaces it; `no-summary` turns it off.
 - **Hover and keyboard**: each day shows its value, the unit and the full weekday date. Tab moves along the days.
 
-### 25C.3 Options
+### 25C.3 Tag mode (year in pixels)
+
+```
+calendar-heatmap My year in pixels
+year 2026
+tag Mood
+  Great green
+  Ok blue
+  Rough red
+
+01-01 Great
+01-02 Ok
+01-03 Rough
+```
+
+- Declare a tag group (§1.5) before the entries, then write a tag value in place of the number. The day takes that value's colour; a bare value takes a palette colour of its own.
+- A day with no entry is "Not logged". The legend lists the values and "Not logged" in place of Less … More.
+- A value matches its tag entry case-insensitively. A date tagged twice keeps the later line, with a warning.
+- Numbers and tags never mix in one chart: that is an error.
+- **Summary**: the days logged and the most frequent value (`212 days logged · most often Great`).
+
+### 25C.4 Options
 
 | Option                           | Effect                                                               |
 | -------------------------------- | -------------------------------------------------------------------- |
@@ -5618,7 +5639,7 @@ unit commit
 
 A unit that is a word takes an English plural; one with no vowel (`km`, `kg`) stays as written.
 
-### 25C.4 Diagnostics
+### 25C.5 Diagnostics
 
 | Code                                    | Fires on                                                       |
 | --------------------------------------- | -------------------------------------------------------------- |
@@ -5630,6 +5651,9 @@ A unit that is a word takes an English plural; one with no vowel (`km`, `kg`) st
 | `E_CALENDAR_HEATMAP_BAD_RANGE`          | a `from … to …` that ends before it starts                     |
 | `E_CALENDAR_HEATMAP_NO_ENTRIES`         | no entries and no `year` or range                              |
 | `W_CALENDAR_HEATMAP_OUTSIDE_SPAN`       | a date outside the span; it is left out                        |
+| `E_CALENDAR_HEATMAP_UNKNOWN_TAG`        | a value that is not a number and not in any tag group          |
+| `E_CALENDAR_HEATMAP_MIXED_ENTRIES`      | number entries and tag entries in one chart                    |
+| `W_CALENDAR_HEATMAP_DUPLICATE_TAG_DAY`  | a date tagged twice; the later line wins                       |
 
 ## 25D. Ownership Charts
 

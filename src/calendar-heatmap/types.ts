@@ -1,5 +1,6 @@
 import type { DgmoError } from '../diagnostics';
 import type { ChartFrame } from '../utils/chart-frame-parse';
+import type { TagGroup } from '../utils/tag-groups';
 
 /** One calendar day, as a UTC day number (days since 1970-01-01). */
 export type DayNumber = number;
@@ -9,8 +10,10 @@ export interface CalendarHeatmapDay {
   readonly day: DayNumber;
   /** `YYYY-MM-DD`. */
   readonly date: string;
-  /** Sum of every entry written for this date. */
+  /** Sum of every entry written for this date; 0 in tag mode. */
   readonly value: number;
+  /** Tag mode: the tag value the day takes, in its group's own spelling. */
+  readonly tag?: string;
   /** The first source line that wrote this date. */
   readonly lineNumber: number;
 }
@@ -32,6 +35,11 @@ export interface ParsedCalendarHeatmap {
   readonly weekStart: 0 | 1;
   /** `max N`: pins the top band. */
   readonly max?: number;
+  /** `tag`: entries carry tag values and each day takes its tag's colour
+   *  (year in pixels, #1877); `value`: entries carry numbers. */
+  readonly mode: 'value' | 'tag';
+  /** `tag Name` groups, with their values and colours. */
+  readonly tagGroups: readonly TagGroup[];
   /** Days with an entry inside the span, in date order. */
   readonly days: readonly CalendarHeatmapDay[];
   readonly options: Readonly<Record<string, string>>;

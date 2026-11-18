@@ -79,6 +79,36 @@ export const CALENDAR_HEATMAP_DX = {
     hint: 'Widen `year` or `from … to …`, or remove the line.',
     example: `calendar-heatmap Runs\nyear 2026\n\n2025-12-31 4`,
   },
+  UNKNOWN_TAG: {
+    code: 'E_CALENDAR_HEATMAP_UNKNOWN_TAG',
+    severity: 'error',
+    chartType: 'calendar-heatmap',
+    title: 'Tag value not declared',
+    message: (p) =>
+      `'${(p.tag as string) ?? 'value'}' is not a value of any tag group.${p.hint ? ` ${p.hint as string}` : ''}`,
+    hint: 'Indent the value under its `tag` group, or fix the spelling.',
+    example: `calendar-heatmap Mood\nyear 2026\ntag Mood\n  Great green\n  Rough red\n\n01-01 Great`,
+  },
+  MIXED_ENTRIES: {
+    code: 'E_CALENDAR_HEATMAP_MIXED_ENTRIES',
+    severity: 'error',
+    chartType: 'calendar-heatmap',
+    title: 'Numbers and tags mixed',
+    message: () =>
+      'This chart has both number entries and tag entries; use one or the other.',
+    hint: 'Give every day a number, or give every day a tag value from a `tag` group.',
+    example: `calendar-heatmap Mood\nyear 2026\ntag Mood\n  Great green\n\n01-01 Great\n01-02 Great`,
+  },
+  DUPLICATE_TAG_DAY: {
+    code: 'W_CALENDAR_HEATMAP_DUPLICATE_TAG_DAY',
+    severity: 'warning',
+    chartType: 'calendar-heatmap',
+    title: 'Day tagged twice',
+    message: (p) =>
+      `${(p.date as string) ?? 'This date'} is tagged twice; the later line wins.`,
+    hint: 'Remove one of the two lines for this date.',
+    example: `calendar-heatmap Mood\nyear 2026\ntag Mood\n  Great green\n  Rough red\n\n01-01 Great\n01-01 Rough`,
+  },
   NO_ENTRIES: {
     code: 'E_CALENDAR_HEATMAP_NO_ENTRIES',
     severity: 'error',

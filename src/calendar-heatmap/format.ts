@@ -96,8 +96,28 @@ export function shadeLevels(
   };
 }
 
+/** Tag mode: "212 days logged · most often Great", or null when no day has
+ *  a tag. A tie goes to the value declared first. */
+function tagSummary(parsed: ParsedCalendarHeatmap): string | null {
+  const counts = new Map<string, number>();
+  for (const d of parsed.days)
+    if (d.tag !== undefined) counts.set(d.tag, (counts.get(d.tag) ?? 0) + 1);
+  if (counts.size === 0) return null;
+  let logged = 0;
+  for (const n of counts.values()) logged += n;
+  let top: { tag: string; n: number } | null = null;
+  for (const group of parsed.tagGroups)
+    for (const e of group.entries) {
+      const n = counts.get(e.value) ?? 0;
+      if (n > 0 && (!top || n > top.n)) top = { tag: e.value, n };
+    }
+  const days = logged === 1 ? 'day' : 'days';
+  return `${formatNumber(logged)} ${days} logged · most often ${top!.tag}`;
+}
+
 /** "1,093 commits · busiest day Mar 10", or null when no day has a value. */
 export function calendarSummary(parsed: ParsedCalendarHeatmap): string | null {
+  if (parsed.mode === 'tag') return tagSummary(parsed);
   let total = 0;
   let best: { day: DayNumber; value: number } | null = null;
   for (const d of parsed.days) {
