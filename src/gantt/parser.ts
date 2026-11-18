@@ -163,15 +163,10 @@ export function parseGantt(
   content: string,
   palette?: PaletteColors
 ): ParsedGantt {
-  return withPaletteLifted(content, (lifted) =>
-    parseGanttUnlifted(lifted, palette)
-  );
+  return withPaletteLifted(content, (lifted) => parseGanttRaw(lifted, palette));
 }
 
-function parseGanttUnlifted(
-  content: string,
-  palette?: PaletteColors
-): ParsedGantt {
+function parseGanttRaw(content: string, palette?: PaletteColors): ParsedGantt {
   const lines = content.split('\n');
   const diagnostics: DgmoError[] = [];
 

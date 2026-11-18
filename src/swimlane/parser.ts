@@ -286,11 +286,11 @@ export function parseSwimlane(
   palette?: PaletteColors
 ): ParsedSwimlane {
   return withPaletteLifted(content, (lifted) =>
-    parseSwimlaneUnlifted(lifted, palette)
+    parseSwimlaneRaw(lifted, palette)
   );
 }
 
-function parseSwimlaneUnlifted(
+function parseSwimlaneRaw(
   content: string,
   palette?: PaletteColors
 ): ParsedSwimlane {

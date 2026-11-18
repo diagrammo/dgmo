@@ -167,15 +167,10 @@ export function parseClock(
   content: string,
   palette?: PaletteColors
 ): ParsedClock {
-  return withPaletteLifted(content, (lifted) =>
-    parseClockUnlifted(lifted, palette)
-  );
+  return withPaletteLifted(content, (lifted) => parseClockRaw(lifted, palette));
 }
 
-function parseClockUnlifted(
-  content: string,
-  palette?: PaletteColors
-): ParsedClock {
+function parseClockRaw(content: string, palette?: PaletteColors): ParsedClock {
   const result: Writable<ParsedClock> = {
     type: 'clock',
     title: null,

@@ -109,11 +109,11 @@ export function parseBracket(
   palette?: PaletteColors
 ): ParsedBracket {
   return withPaletteLifted(content, (lifted) =>
-    parseBracketUnlifted(lifted, palette)
+    parseBracketRaw(lifted, palette)
   );
 }
 
-function parseBracketUnlifted(
+function parseBracketRaw(
   content: string,
   palette?: PaletteColors
 ): ParsedBracket {

@@ -414,15 +414,10 @@ export function parseChart(
   content: string,
   palette?: PaletteColors
 ): ParsedChart {
-  return withPaletteLifted(content, (lifted) =>
-    parseChartUnlifted(lifted, palette)
-  );
+  return withPaletteLifted(content, (lifted) => parseChartRaw(lifted, palette));
 }
 
-function parseChartUnlifted(
-  content: string,
-  palette?: PaletteColors
-): ParsedChart {
+function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
   // `note`, `highlight` and a category `marker` sit indented under the row
   // they belong to (#2078, #2080); lifted here, resolved after the loop.
   // The footnote block and its markdown body (#2093) come out first, so a

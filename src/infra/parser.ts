@@ -270,10 +270,10 @@ function warnUnparsedPipeMeta(
 // ============================================================
 
 export function parseInfra(content: string): ParsedInfra {
-  return withPaletteLifted(content, (lifted) => parseInfraUnlifted(lifted));
+  return withPaletteLifted(content, (lifted) => parseInfraRaw(lifted));
 }
 
-function parseInfraUnlifted(content: string): ParsedInfra {
+function parseInfraRaw(content: string): ParsedInfra {
   const lines = content.split('\n');
   const options: Record<string, string> = {};
   const result: Writable<ParsedInfra> = {

@@ -137,11 +137,11 @@ export function parseCountdown(
   palette?: PaletteColors
 ): ParsedCountdown {
   return withPaletteLifted(content, (lifted) =>
-    parseCountdownUnlifted(lifted, palette)
+    parseCountdownRaw(lifted, palette)
   );
 }
 
-function parseCountdownUnlifted(
+function parseCountdownRaw(
   content: string,
   palette?: PaletteColors
 ): ParsedCountdown {

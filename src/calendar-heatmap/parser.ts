@@ -100,11 +100,11 @@ function readDate(token: string, year: number | undefined): DateRead {
 
 export function parseCalendarHeatmap(content: string): ParsedCalendarHeatmap {
   return withPaletteLifted(content, (lifted) =>
-    parseCalendarHeatmapUnlifted(lifted)
+    parseCalendarHeatmapRaw(lifted)
   );
 }
 
-function parseCalendarHeatmapUnlifted(content: string): ParsedCalendarHeatmap {
+function parseCalendarHeatmapRaw(content: string): ParsedCalendarHeatmap {
   const options: Record<string, string> = {};
   const result: Writable<ParsedCalendarHeatmap> & {
     diagnostics: DgmoError[];

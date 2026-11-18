@@ -152,15 +152,10 @@ export function parseSwot(
   content: string,
   palette?: PaletteColors
 ): ParsedSwot {
-  return withPaletteLifted(content, (lifted) =>
-    parseSwotUnlifted(lifted, palette)
-  );
+  return withPaletteLifted(content, (lifted) => parseSwotRaw(lifted, palette));
 }
 
-function parseSwotUnlifted(
-  content: string,
-  palette?: PaletteColors
-): ParsedSwot {
+function parseSwotRaw(content: string, palette?: PaletteColors): ParsedSwot {
   const options: Record<string, string> = {};
   const sectionsByKey = new Map<SwotSectionKey, Writable<SwotSection>>();
   const result: MutableSwot = {

@@ -51,15 +51,10 @@ export function parseBody(
   content: string,
   palette?: PaletteColors
 ): ParsedBody {
-  return withPaletteLifted(content, (lifted) =>
-    parseBodyUnlifted(lifted, palette)
-  );
+  return withPaletteLifted(content, (lifted) => parseBodyRaw(lifted, palette));
 }
 
-function parseBodyUnlifted(
-  content: string,
-  palette?: PaletteColors
-): ParsedBody {
+function parseBodyRaw(content: string, palette?: PaletteColors): ParsedBody {
   const lines = content.split('\n');
   const diagnostics: DgmoError[] = [];
 

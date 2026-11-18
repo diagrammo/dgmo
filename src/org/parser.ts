@@ -210,12 +210,10 @@ export function looksLikeOrg(content: string): boolean {
 // ============================================================
 
 export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
-  return withPaletteLifted(content, (lifted) =>
-    parseOrgUnlifted(lifted, palette)
-  );
+  return withPaletteLifted(content, (lifted) => parseOrgRaw(lifted, palette));
 }
 
-function parseOrgUnlifted(content: string, palette?: PaletteColors): ParsedOrg {
+function parseOrgRaw(content: string, palette?: PaletteColors): ParsedOrg {
   const options: Record<string, string> = {};
   const result: Writable<ParsedOrg> = {
     title: null,

@@ -16,11 +16,11 @@ export function parseWordcloud(
   palette?: PaletteColors
 ): ParsedWordcloud {
   return withPaletteLifted(content, (lifted) =>
-    parseWordcloudUnlifted(lifted, palette)
+    parseWordcloudRaw(lifted, palette)
   );
 }
 
-function parseWordcloudUnlifted(
+function parseWordcloudRaw(
   content: string,
   palette?: PaletteColors
 ): ParsedWordcloud {

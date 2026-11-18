@@ -254,11 +254,11 @@ export function parseERDiagram(
   palette?: PaletteColors
 ): ParsedERDiagram {
   return withPaletteLifted(content, (lifted) =>
-    parseERDiagramUnlifted(lifted, palette)
+    parseERDiagramRaw(lifted, palette)
   );
 }
 
-function parseERDiagramUnlifted(
+function parseERDiagramRaw(
   content: string,
   palette?: PaletteColors
 ): ParsedERDiagram {

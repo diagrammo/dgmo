@@ -160,11 +160,11 @@ export function parseSitemap(
   palette?: PaletteColors
 ): ParsedSitemap {
   return withPaletteLifted(content, (lifted) =>
-    parseSitemapUnlifted(lifted, palette)
+    parseSitemapRaw(lifted, palette)
   );
 }
 
-function parseSitemapUnlifted(
+function parseSitemapRaw(
   content: string,
   palette?: PaletteColors
 ): ParsedSitemap {

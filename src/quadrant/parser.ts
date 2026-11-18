@@ -16,11 +16,11 @@ export function parseQuadrant(
   palette?: PaletteColors
 ): ParsedQuadrant {
   return withPaletteLifted(content, (lifted) =>
-    parseQuadrantUnlifted(lifted, palette)
+    parseQuadrantRaw(lifted, palette)
   );
 }
 
-function parseQuadrantUnlifted(
+function parseQuadrantRaw(
   content: string,
   palette?: PaletteColors
 ): ParsedQuadrant {

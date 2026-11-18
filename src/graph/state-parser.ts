@@ -213,15 +213,10 @@ export function parseState(
   content: string,
   palette?: PaletteColors
 ): ParsedGraph {
-  return withPaletteLifted(content, (lifted) =>
-    parseStateUnlifted(lifted, palette)
-  );
+  return withPaletteLifted(content, (lifted) => parseStateRaw(lifted, palette));
 }
 
-function parseStateUnlifted(
-  content: string,
-  palette?: PaletteColors
-): ParsedGraph {
+function parseStateRaw(content: string, palette?: PaletteColors): ParsedGraph {
   const lines = content.split('\n');
   const options: Record<string, string> = {};
   const result: Writable<ParsedGraph> = {

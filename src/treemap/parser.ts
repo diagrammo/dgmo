@@ -82,11 +82,11 @@ export function parseTreemap(
   palette?: PaletteColors
 ): ParsedTreemap {
   return withPaletteLifted(content, (lifted) =>
-    parseTreemapUnlifted(lifted, palette)
+    parseTreemapRaw(lifted, palette)
   );
 }
 
-function parseTreemapUnlifted(
+function parseTreemapRaw(
   content: string,
   palette?: PaletteColors
 ): ParsedTreemap {

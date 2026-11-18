@@ -15,14 +15,9 @@ export function parseSlope(
   content: string,
   palette?: PaletteColors
 ): ParsedSlope {
-  return withPaletteLifted(content, (lifted) =>
-    parseSlopeUnlifted(lifted, palette)
-  );
+  return withPaletteLifted(content, (lifted) => parseSlopeRaw(lifted, palette));
 }
 
-function parseSlopeUnlifted(
-  content: string,
-  palette?: PaletteColors
-): ParsedSlope {
+function parseSlopeRaw(content: string, palette?: PaletteColors): ParsedSlope {
   return parseVisualization(content, palette) as ParsedSlope;
 }

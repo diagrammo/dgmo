@@ -94,11 +94,11 @@ export function parseEventLine(
   palette?: PaletteColors
 ): ParsedEventLine {
   return withPaletteLifted(content, (lifted) =>
-    parseEventLineUnlifted(lifted, palette)
+    parseEventLineRaw(lifted, palette)
   );
 }
 
-function parseEventLineUnlifted(
+function parseEventLineRaw(
   content: string,
   palette?: PaletteColors
 ): ParsedEventLine {

@@ -15,14 +15,9 @@ export function parseVenn(
   content: string,
   palette?: PaletteColors
 ): ParsedVenn {
-  return withPaletteLifted(content, (lifted) =>
-    parseVennUnlifted(lifted, palette)
-  );
+  return withPaletteLifted(content, (lifted) => parseVennRaw(lifted, palette));
 }
 
-function parseVennUnlifted(
-  content: string,
-  palette?: PaletteColors
-): ParsedVenn {
+function parseVennRaw(content: string, palette?: PaletteColors): ParsedVenn {
   return parseVisualization(content, palette) as ParsedVenn;
 }

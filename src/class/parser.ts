@@ -203,11 +203,11 @@ export function parseClassDiagram(
   palette?: PaletteColors
 ): ParsedClassDiagram {
   return withPaletteLifted(content, (lifted) =>
-    parseClassDiagramUnlifted(lifted, palette)
+    parseClassDiagramRaw(lifted, palette)
   );
 }
 
-function parseClassDiagramUnlifted(
+function parseClassDiagramRaw(
   content: string,
   palette?: PaletteColors
 ): ParsedClassDiagram {

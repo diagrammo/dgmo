@@ -381,11 +381,11 @@ export function parseSankey(
   palette?: PaletteColors
 ): ParsedSankey {
   return withPaletteLifted(content, (lifted) =>
-    parseSankeyUnlifted(lifted, palette)
+    parseSankeyRaw(lifted, palette)
   );
 }
 
-function parseSankeyUnlifted(
+function parseSankeyRaw(
   content: string,
   palette?: PaletteColors
 ): ParsedSankey {
@@ -404,11 +404,11 @@ export function parseFunctionChart(
   palette?: PaletteColors
 ): ParsedFunctionChart {
   return withPaletteLifted(content, (lifted) =>
-    parseFunctionChartUnlifted(lifted, palette)
+    parseFunctionChartRaw(lifted, palette)
   );
 }
 
-function parseFunctionChartUnlifted(
+function parseFunctionChartRaw(
   content: string,
   palette?: PaletteColors
 ): ParsedFunctionChart {
@@ -420,11 +420,11 @@ export function parseScatter(
   palette?: PaletteColors
 ): ParsedScatter {
   return withPaletteLifted(content, (lifted) =>
-    parseScatterUnlifted(lifted, palette)
+    parseScatterRaw(lifted, palette)
   );
 }
 
-function parseScatterUnlifted(
+function parseScatterRaw(
   content: string,
   palette?: PaletteColors
 ): ParsedScatter {
@@ -436,11 +436,11 @@ export function parseHeatmap(
   palette?: PaletteColors
 ): ParsedHeatmap {
   return withPaletteLifted(content, (lifted) =>
-    parseHeatmapUnlifted(lifted, palette)
+    parseHeatmapRaw(lifted, palette)
   );
 }
 
-function parseHeatmapUnlifted(
+function parseHeatmapRaw(
   content: string,
   palette?: PaletteColors
 ): ParsedHeatmap {
@@ -452,11 +452,11 @@ export function parseFunnel(
   palette?: PaletteColors
 ): ParsedFunnel {
   return withPaletteLifted(content, (lifted) =>
-    parseFunnelUnlifted(lifted, palette)
+    parseFunnelRaw(lifted, palette)
   );
 }
 
-function parseFunnelUnlifted(
+function parseFunnelRaw(
   content: string,
   palette?: PaletteColors
 ): ParsedFunnel {

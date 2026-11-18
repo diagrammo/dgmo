@@ -111,11 +111,11 @@ export function parseOwnership(
   palette?: PaletteColors
 ): ParsedOwnership {
   return withPaletteLifted(content, (lifted) =>
-    parseOwnershipUnlifted(lifted, palette)
+    parseOwnershipRaw(lifted, palette)
   );
 }
 
-function parseOwnershipUnlifted(
+function parseOwnershipRaw(
   content: string,
   palette?: PaletteColors
 ): ParsedOwnership {

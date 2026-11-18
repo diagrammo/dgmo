@@ -54,15 +54,10 @@ export function parseBlock(
   content: string,
   palette?: PaletteColors
 ): ParsedBlock {
-  return withPaletteLifted(content, (lifted) =>
-    parseBlockUnlifted(lifted, palette)
-  );
+  return withPaletteLifted(content, (lifted) => parseBlockRaw(lifted, palette));
 }
 
-function parseBlockUnlifted(
-  content: string,
-  palette?: PaletteColors
-): ParsedBlock {
+function parseBlockRaw(content: string, palette?: PaletteColors): ParsedBlock {
   const options: BlockOptions = { noLegend: false };
   const result: Writable<ParsedBlock> = {
     type: 'block',

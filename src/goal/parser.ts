@@ -106,15 +106,10 @@ export function parseGoal(
   content: string,
   palette?: PaletteColors
 ): ParsedGoal {
-  return withPaletteLifted(content, (lifted) =>
-    parseGoalUnlifted(lifted, palette)
-  );
+  return withPaletteLifted(content, (lifted) => parseGoalRaw(lifted, palette));
 }
 
-function parseGoalUnlifted(
-  content: string,
-  palette?: PaletteColors
-): ParsedGoal {
+function parseGoalRaw(content: string, palette?: PaletteColors): ParsedGoal {
   const options: Writable<GoalOptions> = {
     noPercent: false,
     noValue: false,

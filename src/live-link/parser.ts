@@ -130,10 +130,10 @@ export function isLiveLinkLine(line: string): boolean {
 }
 
 export function parseLiveLink(content: string): ParsedLiveLink {
-  return withPaletteLifted(content, (lifted) => parseLiveLinkUnlifted(lifted));
+  return withPaletteLifted(content, (lifted) => parseLiveLinkRaw(lifted));
 }
 
-function parseLiveLinkUnlifted(content: string): ParsedLiveLink {
+function parseLiveLinkRaw(content: string): ParsedLiveLink {
   const diagnostics: DgmoError[] = [];
   let error: string | null = null;
 

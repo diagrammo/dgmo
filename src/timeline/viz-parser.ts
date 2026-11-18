@@ -19,11 +19,11 @@ export function parseTimeline(
   palette?: PaletteColors
 ): ParsedTimeline {
   return withPaletteLifted(content, (lifted) =>
-    parseTimelineUnlifted(lifted, palette)
+    parseTimelineRaw(lifted, palette)
   );
 }
 
-function parseTimelineUnlifted(
+function parseTimelineRaw(
   content: string,
   palette?: PaletteColors
 ): ParsedTimeline {

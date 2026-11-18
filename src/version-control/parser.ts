@@ -48,11 +48,11 @@ export function parseVersionControl(
   palette?: PaletteColors
 ): ParsedVersionControl {
   return withPaletteLifted(content, (lifted) =>
-    parseVersionControlUnlifted(lifted, palette)
+    parseVersionControlRaw(lifted, palette)
   );
 }
 
-function parseVersionControlUnlifted(
+function parseVersionControlRaw(
   content: string,
   palette?: PaletteColors
 ): ParsedVersionControl {
