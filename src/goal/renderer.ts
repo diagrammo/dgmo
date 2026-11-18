@@ -8,9 +8,10 @@
 //   - gauge       : semicircular dial with needle + value arc
 // Over-target clamps the fill at the scale's end; the % label stays truthful.
 //
-// Bands (#1973): the fill takes the colour of the band the actual sits in,
-// and a 5px ribbon maps the zones beside the track — below the bar, left of
-// the tube, outside the arc. Several `[Measure]` rows (#1851) draw as a
+// Bands (#1973): the fill takes the colour of the band the actual sits in.
+// On the bar face the zones tint the track itself and the fill covers what
+// has been reached, so the bands still ahead show past the level with their
+// names inside (#2094). The tube and the arc keep a 5px ribbon beside them. Several `[Measure]` rows (#1851) draw as a
 // bullet chart on the bar face, and as a grid of cells on the other two.
 
 import * as d3Selection from 'd3-selection';
@@ -40,6 +41,8 @@ const GOAL_TITLE_SIZE = 30;
 /** Band ribbon thickness and its gap from the track (#1973 rule 7). */
 const RIBBON_W = 5;
 const RIBBON_GAP = 6;
+/** Bar face: how much band colour tints the track ground (#2094). */
+const BAND_GROUND_PCT = 18;
 /** Measures per row on the thermometer and gauge faces (#1851 rule 7). */
 const CELLS_PER_ROW = 4;
 
@@ -87,6 +90,8 @@ interface GoalPaint {
   muted: string;
   /** Band colour darkened toward the text so a yellow label still reads. */
   ink: (bandColor: string) => string;
+  /** The theme's ground, for the hairlines between band zones on the track. */
+  bg: string;
 }
 
 /** Everything a face needs to draw one measure. */
@@ -215,6 +220,7 @@ function buildView(
     text: palette.text,
     muted: mix(palette.text, themeBaseBg(palette, isDark), 55),
     ink: (c) => mix(c, palette.text, 80),
+    bg: themeBaseBg(palette, isDark),
   };
 
   const ribbon =
@@ -551,47 +557,9 @@ function zoneLabelWidth(v: GoalView, size: number): number {
 }
 
 /**
- * Horizontal ribbon under a bar track: one 5px strip per zone in its solid
- * colour, labels centred under their zone. Returns the y past the last mark.
- */
-function drawBarRibbon(
-  g: Svg,
-  v: GoalView,
-  x: number,
-  top: number,
-  width: number,
-  showLabels: boolean,
-  labelSize: number
-): number {
-  const rg = g.append('g').attr('class', 'goal-ribbon');
-  const at = (val: number): number => x + width * (val / v.scaleEnd);
-  for (const z of v.zones) {
-    rg.append('rect')
-      .attr('x', at(z.start))
-      .attr('y', top)
-      .attr('width', Math.max(0, at(z.end) - at(z.start)))
-      .attr('height', RIBBON_W)
-      .attr('fill', z.color);
-  }
-  if (!showLabels) return top + RIBBON_W;
-  for (const z of v.zones) {
-    if (!z.label) continue;
-    rg.append('text')
-      .attr('x', (at(z.start) + at(z.end)) / 2)
-      .attr('y', top + RIBBON_W + labelSize + 2)
-      .attr('text-anchor', 'middle')
-      .attr('fill', v.paint.ink(z.color))
-      .attr('font-family', FONT_FAMILY)
-      .attr('font-size', labelSize)
-      .attr('font-weight', 600)
-      .text(z.label);
-  }
-  return top + RIBBON_W + labelSize + 6;
-}
-
-/**
- * One bar track: the rounded track, the clipped fill, the level edge, the
- * target tick when the scale runs past target, and the value inside the fill.
+ * One bar track: the rounded track, the band ground, the clipped fill, the
+ * level edge, the target tick when the scale runs past target, the value
+ * inside the fill, and the names of the bands still ahead.
  */
 function drawBarTrack(
   g: Svg,
@@ -601,7 +569,8 @@ function drawBarTrack(
   y: number,
   trackW: number,
   trackH: number,
-  valueSize: number
+  valueSize: number,
+  labelSize: number
 ): void {
   const { metrics, paint } = v;
   const r = trackH / 2;
@@ -639,9 +608,42 @@ function drawBarTrack(
     .attr('height', trackH)
     .attr('rx', r);
 
+  // Band ground (#2094): the zones tint the track itself, under the fill, so
+  // the bands are part of the bar rather than a strip beside it. Hairlines in
+  // the theme ground mark each threshold. The fill then covers what has been
+  // reached, and the bands still ahead stay visible past the level.
+  const at = (val: number): number => x + trackW * (val / v.scaleEnd);
+  const ribbon = v.ribbon ? g.append('g').attr('class', 'goal-ribbon') : null;
+  if (ribbon) {
+    const ground = ribbon.append('g').attr('clip-path', `url(#${v.clipId})`);
+    for (const z of v.zones) {
+      ground
+        .append('rect')
+        .attr('x', at(z.start))
+        .attr('y', y)
+        .attr('width', Math.max(0, at(z.end) - at(z.start)))
+        .attr('height', trackH)
+        .attr('fill', mix(z.color, paint.track, BAND_GROUND_PCT));
+    }
+    for (const z of v.zones) {
+      if (z.start <= 0) continue;
+      ground
+        .append('line')
+        .attr('x1', at(z.start))
+        .attr('x2', at(z.start))
+        .attr('y1', y)
+        .attr('y2', y + trackH)
+        .attr('stroke', paint.bg)
+        .attr('stroke-width', 1.5);
+    }
+  }
+
   const fillW = trackW * metrics.fillFrac;
   if (fillW > 0.5) {
-    const clipped = g.append('g').attr('clip-path', `url(#${v.clipId})`);
+    const clipped = g
+      .append('g')
+      .attr('class', 'goal-fill')
+      .attr('clip-path', `url(#${v.clipId})`);
     // No stroke on the fill itself: a clipped stroke loses the left arc and
     // halves along the track edge, which is worse than none. What the outline
     // was carrying is the LEVEL, so the level is what gets drawn.
@@ -687,12 +689,15 @@ function drawBarTrack(
   // and the same glyphs sitting on the bare grey track is the one place it was
   // never chosen for. The switch is measured rather than a fixed floor, so a
   // five-digit value asks for more room than a single digit (#280).
+  // Past the level, nothing may be drawn left of `clearX`.
+  let clearX = x + fillW;
   if (!parsed.options.noValue) {
     const valueText = compactNumber(v.m.actual);
     const valuePad = Math.round(valueSize * 0.66);
-    const insideFits =
-      fillW >= measureText(valueText, valueSize, { bold: true }) + valuePad * 2;
+    const valueW = measureText(valueText, valueSize, { bold: true });
+    const insideFits = fillW >= valueW + valuePad * 2;
     const valX = insideFits ? x + fillW - valuePad : x + fillW + valuePad;
+    if (!insideFits) clearX = valX + valueW;
     g.append('text')
       .attr('x', valX)
       .attr('y', y + trackH / 2 + valueSize * 0.35)
@@ -702,6 +707,31 @@ function drawBarTrack(
       .attr('font-size', valueSize)
       .attr('font-weight', 'bold')
       .text(valueText);
+  }
+
+  // Names of the bands wholly ahead of the actual, right-aligned inside
+  // their zone. A band the fill has reached shows no name — the readout
+  // carries the current one — and a name that would not fit is left out.
+  if (ribbon && v.ribbonLabels) {
+    const pad = Math.round(labelSize * 0.7);
+    for (const z of v.zones) {
+      if (!z.label || z.start < v.m.actual) continue;
+      const right = at(z.end) - pad;
+      const left = Math.max(at(z.start), clearX) + pad;
+      if (right - left < measureText(z.label, labelSize, { bold: true })) {
+        continue;
+      }
+      ribbon
+        .append('text')
+        .attr('x', right)
+        .attr('y', y + trackH / 2 + labelSize * 0.35)
+        .attr('text-anchor', 'end')
+        .attr('fill', paint.ink(z.color))
+        .attr('font-family', FONT_FAMILY)
+        .attr('font-size', labelSize)
+        .attr('font-weight', 600)
+        .text(z.label);
+    }
   }
 }
 
@@ -727,7 +757,7 @@ function renderBar(svg: Svg, parsed: ParsedGoal, v: GoalView): Box {
   const barCy = y + trackH / 2;
 
   const g = svg.append('g').attr('class', 'goal-bar');
-  drawBarTrack(g, parsed, v, x, y, trackW, trackH, 24);
+  drawBarTrack(g, parsed, v, x, y, trackW, trackH, 24, 15);
 
   // Goal (target) to the RIGHT of the bar.
   if (m.hasTarget) {
@@ -743,17 +773,6 @@ function renderBar(svg: Svg, parsed: ParsedGoal, v: GoalView): Box {
   }
 
   let bottom = y + trackH;
-  if (v.ribbon) {
-    bottom = drawBarRibbon(
-      g,
-      v,
-      x,
-      bottom + RIBBON_GAP,
-      trackW,
-      v.ribbonLabels,
-      15
-    );
-  }
 
   // Optional `note` description below the bar, spanning the bar width.
   if (parsed.description && !parsed.options.noNote) {
@@ -804,11 +823,7 @@ function renderBarRows(svg: Svg, parsed: ParsedGoal, views: GoalView[]): Box {
     y = GOAL_TITLE_SIZE + 26;
   }
 
-  // Band labels: on the first row that has a ribbon, and again on any row
-  // with bands of its own (#1851 rule 4).
-  const firstRibbon = views.findIndex((v) => v.ribbon);
-
-  views.forEach((v, i) => {
+  views.forEach((v) => {
     const g = svg
       .append('g')
       .attr('class', 'goal-row')
@@ -823,7 +838,7 @@ function renderBarRows(svg: Svg, parsed: ParsedGoal, views: GoalView[]): Box {
       .attr('font-size', nameSize)
       .attr('font-weight', 600)
       .text(v.m.name ?? '');
-    drawBarTrack(g, parsed, v, barX, y, trackW, trackH, 16);
+    drawBarTrack(g, parsed, v, barX, y, trackW, trackH, 16, labelSize);
     if (v.m.hasTarget) {
       g.append('text')
         .attr('x', targetX)
@@ -846,12 +861,7 @@ function renderBarRows(svg: Svg, parsed: ParsedGoal, views: GoalView[]): Box {
         );
       }
     }
-    y += trackH;
-    if (v.ribbon) {
-      const labels = v.ribbonLabels && (i === firstRibbon || v.m.ownBands);
-      y = drawBarRibbon(g, v, barX, y + RIBBON_GAP, trackW, labels, labelSize);
-    }
-    y += rowGap;
+    y += trackH + rowGap;
   });
   y -= rowGap;
 

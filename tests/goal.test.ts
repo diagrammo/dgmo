@@ -877,9 +877,12 @@ describe('goal renderer — bands', () => {
       const ribbon = svg.querySelector('.goal-ribbon')!;
       expect(ribbon).not.toBeNull();
       expect(ribbon.querySelectorAll('rect, path')).toHaveLength(3);
+      // Bar face (#2094): the bands are the track's ground and only the
+      // bands wholly ahead of the actual are named; 6400 has reached Poor and
+      // OK, so Good alone is named. Tube and arc still name every zone.
       expect(
         Array.from(ribbon.querySelectorAll('text')).map((t) => t.textContent)
-      ).toEqual(['Poor', 'OK', 'Good']);
+      ).toEqual(face ? ['Poor', 'OK', 'Good'] : ['Good']);
     });
     it(`${name}: no-ribbon drops ribbon and labels`, () => {
       expect(
@@ -898,7 +901,7 @@ describe('goal renderer — bands', () => {
   it('the fill takes the status band colour (6400 is in OK → yellow)', () => {
     const src = `goal Fund\nbands\n  4000 Poor red\n  6000 OK yellow\n  7000 Good green\nactual 6400\ntarget 10000\nfill-solid`;
     const svg = draw(src);
-    const fill = svg.querySelector('g[clip-path] rect')!;
+    const fill = svg.querySelector('.goal-fill rect')!;
     expect(fill.getAttribute('fill')).toBe(resolveColor('yellow', nordLight));
   });
 
@@ -916,7 +919,7 @@ describe('goal renderer — bands', () => {
     const svg = draw(
       `goal Fund\nbands\n  4000 Poor\n  6000 OK\nactual 1000\ntarget 10000\nfill-solid`
     );
-    const fill = svg.querySelector('g[clip-path] rect')!;
+    const fill = svg.querySelector('.goal-fill rect')!;
     expect(fill.getAttribute('fill')).toBe(resolveColor('gray', nordLight));
     expect(texts(svg)).toContain('10%');
   });
@@ -938,7 +941,7 @@ describe('goal renderer — bands', () => {
 
   it('no-auto-color with bands: palette fill, ribbon still draws', () => {
     const svg = draw(banded('no-auto-color\nfill-solid'));
-    const fill = svg.querySelector('g[clip-path] rect')!;
+    const fill = svg.querySelector('.goal-fill rect')!;
     expect(fill.getAttribute('fill')).not.toBe(
       resolveColor('yellow', nordLight)
     );
@@ -1081,12 +1084,24 @@ target 12`;
     );
   });
 
-  it('band labels on the first row and on rows with their own bands only', () => {
+  it('band names sit inside the bands still ahead of each row (#2094)', () => {
     const rows = draw(src).querySelectorAll('.goal-row');
-    const labelled = Array.from(rows).map(
-      (r) => r.querySelectorAll('.goal-ribbon text').length > 0
+    const names = Array.from(rows).map((r) =>
+      Array.from(r.querySelectorAll('.goal-ribbon text')).map(
+        (t) => t.textContent
+      )
     );
-    expect(labelled).toEqual([true, true, false]);
+    // Revenue 760 is in OK, Good ahead; NPS 41 has reached Good; Partners 7
+    // sits below the first edge, so OK and Good are both ahead.
+    expect(names).toEqual([['Good'], [], ['OK', 'Good']]);
+  });
+
+  it('bar face: bands are drawn inside the track, adding no row height', () => {
+    const plain = draw(src.replace(/bands\n( {2}.*\n)+/g, ''));
+    const banded = draw(src);
+    const height = (svg: SVGSVGElement): string =>
+      svg.getAttribute('viewBox')!.split(' ')[3]!;
+    expect(height(banded)).toBe(height(plain));
   });
 
   it('each row gets its own clip', () => {
