@@ -73,9 +73,9 @@ describe('stacked area parsing', () => {
     expect(e.some((d) => /not both/.test(d.message))).toBe(true);
   });
 
-  it('`y-right-label` is an error on a stacked area', () => {
-    const e = errors(`${AREA}\ny-right-label Other`);
-    expect(e.some((d) => /y-right-label/.test(d.message))).toBe(true);
+  it('`y-right-axis` is an error on a stacked area', () => {
+    const e = errors(`${AREA}\ny-right-axis Other`);
+    expect(e.some((d) => /y-right-axis/.test(d.message))).toBe(true);
   });
 
   it('a negative value in a stacked area is E_VALUE_NEGATIVE naming row and series', () => {
@@ -95,12 +95,12 @@ describe('stacked area parsing', () => {
   });
 
   it('a stacked area refuses a log scale; `stack 100%` ignores axis directives', () => {
-    const log = parseChart(`${AREA}\ny-scale log`);
+    const log = parseChart(`${AREA}\ny-axis log`);
     expect(log.axes?.y?.scale).toBeUndefined();
     expect(log.diagnostics.some((d) => /stacked area/.test(d.message))).toBe(
       true
     );
-    const fixed = parseChart(`${AREA_100}\ny-max 50`);
+    const fixed = parseChart(`${AREA_100}\ny-axis ..50`);
     expect(fixed.axes?.y).toBeUndefined();
     expect(fixed.diagnostics.some((d) => /0–100%/.test(d.message))).toBe(true);
   });

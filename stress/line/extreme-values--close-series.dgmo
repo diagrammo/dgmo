@@ -4,8 +4,8 @@ series
   Cutlass Crew blue
   Powder Monkeys green
   Rigging Rats orange
-x-label Port of Call
-y-label Doubloons (thousands)
+x-axis Port of Call
+y-axis Doubloons (thousands)
 
 era Nassau -> Port Royal Shakedown Run teal
 era Port Royal -> Kingston Golden Haul orange

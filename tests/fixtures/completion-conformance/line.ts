@@ -27,9 +27,9 @@ export const fixture: ConformanceFixture = {
     // #1880 step line.
     'step',
     'step-before',
-    'x-label',
-    'y-label',
-    'y-right-label',
+    'x-axis',
+    'y-axis',
+    'y-right-axis',
     'no-value',
     'fill-tint',
     'fill-solid',

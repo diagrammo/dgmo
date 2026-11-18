@@ -147,7 +147,7 @@ export interface ParsedSlope extends ParsedVizBase {
   data: D3DataItem[];
   /** §1.11 emphasis: `highlight <Name>[, <Name>…]` names series (#1829). */
   emphasis?: EmphasisDirective;
-  /** `y-scale` / `y-min` / `y-max`: the vertical range (#1830). */
+  /** Range and scale from the `y-axis` line (decision #60). */
   axes?: AxisSpecs;
   /** `format`, `unit`, `locale` (#1831). */
   numberFormat?: NumberFormatSpec;

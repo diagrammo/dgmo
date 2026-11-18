@@ -25,6 +25,7 @@ import {
   type ReservedKeyRegistry,
 } from './reserved-key-registry';
 import { checkAliasSyntax } from './alias-registry';
+import { readAxisLine, rejectOldAxisLine, type AxisLine } from './axis-spec';
 
 const RECOGNIZED_COLOR_SET: ReadonlySet<string> = new Set(
   RECOGNIZED_COLOR_NAMES
@@ -577,9 +578,10 @@ export function parseSeriesNames(
   newIndex: number;
   /** Per-name axis assignment — present only for the grouped (dual-axis) form. */
   axes?: ('left' | 'right')[];
-  /** Left/right axis labels carried by the grouped form's headers. */
-  leftLabel?: string;
-  rightLabel?: string;
+  /** The grouped form's `y-axis` / `y-right-axis` header lines, read whole
+   *  (title, range, scale), with the line each sat on. */
+  leftAxis?: AxisLine & { lineNumber: number };
+  rightAxis?: AxisLine & { lineNumber: number };
 } {
   let rawNames: string[];
   let series: string;
@@ -601,14 +603,16 @@ export function parseSeriesNames(
     series = rawNames.join(', ');
   }
 
-  // Grouped (dual-axis) form: the indented block contains `y-label` /
-  // `y-right-label` header lines that partition the series across two y-axes
-  // (§15.1). Detected by the presence of any header line. Order is preserved:
-  // series accumulate under the most recent header (default left).
-  const isHeader = (s: string): 'left' | 'right' | null => {
+  // Grouped (dual-axis) form: the indented block contains `y-axis` /
+  // `y-right-axis` header lines that partition the series across two y-axes
+  // (§15.1.1). Detected by the presence of any header line. Order is
+  // preserved: series accumulate under the most recent header (default
+  // left). A header is a whole axis line — title, range and scale.
+  const isHeader = (s: string): 'left' | 'right' | 'old' | null => {
     const tok = s.split(/\s+/, 1)[0];
-    if (tok === 'y-label') return 'left';
-    if (tok === 'y-right-label') return 'right';
+    if (tok === 'y-axis') return 'left';
+    if (tok === 'y-right-axis') return 'right';
+    if (tok === 'y-label' || tok === 'y-right-label') return 'old';
     return null;
   };
   if (rawNames.some((r) => isHeader(r) !== null)) {
@@ -616,17 +620,26 @@ export function parseSeriesNames(
     const nameColors: (string | undefined)[] = [];
     const axes: ('left' | 'right')[] = [];
     const memberLineNumbers: number[] = [];
-    let leftLabel: string | undefined;
-    let rightLabel: string | undefined;
+    let leftAxis: (AxisLine & { lineNumber: number }) | undefined;
+    let rightAxis: (AxisLine & { lineNumber: number }) | undefined;
     let currentAxis: 'left' | 'right' = 'left';
     for (let i = 0; i < rawNames.length; i++) {
       const raw = rawNames[i]!;
       const side = isHeader(raw);
+      if (side === 'old') {
+        if (diagnostics)
+          rejectOldAxisLine(raw, nameLineNumbers[i]!, diagnostics);
+        currentAxis = raw.startsWith('y-right') ? 'right' : 'left';
+        continue;
+      }
       if (side !== null) {
-        const label = raw.slice(raw.indexOf(' ') + 1).trim();
+        const read = readAxisLine(raw);
         currentAxis = side;
-        if (side === 'left') leftLabel = label || leftLabel;
-        else rightLabel = label || rightLabel;
+        if (read) {
+          const at = { ...read, lineNumber: nameLineNumbers[i]! };
+          if (side === 'left') leftAxis = at;
+          else rightAxis = at;
+        }
         continue;
       }
       const extracted = extractColor(
@@ -647,8 +660,8 @@ export function parseSeriesNames(
       nameLineNumbers: memberLineNumbers,
       newIndex,
       axes,
-      ...(leftLabel !== undefined && { leftLabel }),
-      ...(rightLabel !== undefined && { rightLabel }),
+      ...(leftAxis !== undefined && { leftAxis }),
+      ...(rightAxis !== undefined && { rightAxis }),
     };
   }
 

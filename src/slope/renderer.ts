@@ -206,7 +206,7 @@ export function renderSlopeChart(
   const [minVal, maxVal] = d3Array.extent(allValues) as [number, number];
   const valuePadding = (maxVal - minVal) * 0.1 || 1;
 
-  // `y-scale log`, `y-min`, `y-max` set the vertical range (#1830). Slope
+  // `y-axis 0..100 log` sets the vertical range (decision #60). Slope
   // draws no tick axis, so the range only places the lines.
   const yScale = buildValueAxis(
     minVal - valuePadding,

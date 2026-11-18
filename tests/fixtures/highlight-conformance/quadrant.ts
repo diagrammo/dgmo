@@ -4,8 +4,8 @@ export const fixture: HighlightFixture = {
   chartType: 'quadrant',
   specSection: '17',
   source: `quadrant Crew
-x-label Low Skill, High Skill
-y-label Low Loyalty, High Loyalty
+x-axis Low Skill, High Skill
+y-axis Low Loyalty, High Loyalty
 
 top-right Promote green
 top-left Train yellow
@@ -19,8 +19,8 @@ Review the roles list
     // A keyword in another chart type stays text here (#1734).
     { text: 'roles', role: 'default' },
     { text: 'quadrant', role: 'chartType' },
-    { text: 'x-label', role: 'keyword' },
-    { text: 'y-label', role: 'keyword' },
+    { text: 'x-axis', role: 'keyword' },
+    { text: 'y-axis', role: 'keyword' },
     { text: 'top-right', role: 'keyword' },
     { text: 'top-left', role: 'keyword' },
     { text: 'bottom-right', role: 'keyword' },

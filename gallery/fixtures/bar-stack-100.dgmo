@@ -1,6 +1,6 @@
 bar Ship's Stores by Quarter
 subtitle Share of barrels
-y-label Share of hold
+y-axis Share of hold
 
 stack 100%
   Rum orange

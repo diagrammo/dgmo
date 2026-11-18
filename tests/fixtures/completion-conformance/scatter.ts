@@ -21,8 +21,8 @@ export const fixture: ConformanceFixture = {
     ...X_AXIS_DIRECTIVES,
     'no-legend',
     'no-name',
-    'x-label',
-    'y-label',
+    'x-axis',
+    'y-axis',
     'size-label',
     // #1982 connected scatter.
     'connect',

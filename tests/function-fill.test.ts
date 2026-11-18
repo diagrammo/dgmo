@@ -6,7 +6,7 @@ import { renderDataChartD3 } from '../src/charts-d3/index';
 
 const SRC = (opts = '') =>
   `function Trajectory
-x 0 to 10
+x-axis 0..10
 ${opts}
 f(x): x`;
 

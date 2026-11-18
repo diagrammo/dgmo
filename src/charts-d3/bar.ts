@@ -257,7 +257,7 @@ export function renderBar(
   const hiVal = Math.max(0, maxVal, ...marked);
   const loVal = Math.min(0, minVal, ...marked);
   const niceMax = hiVal === 0 && loVal === 0 ? 1 : hiVal;
-  // Value axis (#1830): `y-scale log`, `y-min`, `y-max`. Built once on a unit
+  // Value axis (decision #60): `y-axis 0..100 log`. Built once on a unit
   // range to size the margin from its real tick labels, then on the plot.
   const ySpec = chart.axes?.y;
   const valueAxis = (range: [number, number]) =>
@@ -302,7 +302,7 @@ export function renderBar(
   const mRight = pareto
     ? Math.max(32, measureText('100%', TICK_FONT) + PARETO_TICK_GAP + 8)
     : 32;
-  // A side-by-side bar past a fixed `y-max` / `y-min` is clamped to the
+  // A side-by-side bar past a fixed `y-axis` range is clamped to the
   // plot edge (#2114). It keeps a triangle pointing the way the value went,
   // with its real value beside it, so it never reads as the limit.
   const cutHi = (v: number) =>
@@ -334,9 +334,9 @@ export function renderBar(
       verticalFit.shown.some((s, i) => s !== catLabels[i]));
   const horizontal = authoredHorizontal || flipped;
   // x names the category axis and y the value axis in any orientation, the
-  // same axis y-min / y-max / y-scale set (diagrammo/diagrammo#2122). Once
+  // same axis the `y-axis` range and scale set (diagrammo/diagrammo#2122). Once
   // horizontal, authored or flipped, categories run down the left, so the
-  // x-label moves there and the y-label goes below.
+  // x-axis title moves there and the y-axis title goes below.
   const bottomTitle = horizontal ? chart.ylabel : chart.xlabel;
   const leftTitle = horizontal ? chart.xlabel : chart.ylabel;
 

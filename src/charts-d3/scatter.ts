@@ -274,7 +274,7 @@ export function renderScatter(
   // the pane, whichever point sits at an axis extreme.
   const rInset = Math.max(...radii) + 4;
 
-  // Both axes take `x-`/`y-scale log`, `-min` and `-max` (#1830).
+  // Both axes take a range and `log` on their `x-axis` / `y-axis` line.
   const x = buildValueAxis(
     Math.floor(xMin - xPad),
     Math.ceil(xMax + xPad),

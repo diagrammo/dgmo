@@ -88,7 +88,12 @@ import {
   takeFootnoteBlock,
 } from './utils/chart-frame-parse';
 import type { AxisName, AxisSpecs } from './utils/axis-spec';
-import { parseAxisLine, settleAxisSpec } from './utils/axis-spec';
+import {
+  AXIS_DIRECTIVE_DX,
+  AXIS_OLD_DIRECTIVE_DX,
+  parseAxisLine,
+  settleAxisSpec,
+} from './utils/axis-spec';
 import type { NumberFormatSpec } from './utils/number-format';
 import { parseNumberFormatLine } from './utils/number-format';
 
@@ -117,7 +122,7 @@ export interface ParsedExtendedBase {
   ylabelLineNumber?: number;
   /** X-axis range — read by both function plots and scatter. */
   xRange?: { min: number; max: number };
-  /** `y-scale` / `y-min` / `y-max`, and the `x-` forms on scatter (#1830). */
+  /** Range and scale from the `x-axis` / `y-axis` lines (decision #60). */
   axes?: AxisSpecs;
   /** `format`, `unit`, `locale` (#1831) on the types that print values. */
   numberFormat?: NumberFormatSpec;
@@ -295,8 +300,6 @@ const KNOWN_EXTENDED_OPTIONS = new Set([
   'chart',
   'title',
   'series',
-  'x-label',
-  'y-label',
   'size-label',
   'layout',
   'no-name',
@@ -776,15 +779,26 @@ function parseExtendedChartFull(
     )
       continue;
 
-    // Axis directives (#1830). Only scatter and function draw a numeric
-    // value axis; the other extended types warn and drop the line.
+    // The axis line (decision #60). Only scatter and function draw numeric
+    // axes and axis titles; on the other extended types it warns.
     if (
       parseAxisLine(
         trimmed,
         lineNumber,
         (result.axes ??= {}),
         EXTENDED_AXES[result.type] ?? NO_AXES,
-        result.diagnostics
+        result.diagnostics,
+        EXTENDED_AXES[result.type]
+          ? (axis, label, at) => {
+              if (axis === 'x') {
+                result.xlabel = label;
+                result.xlabelLineNumber = at;
+              } else {
+                result.ylabel = label;
+                result.ylabelLineNumber = at;
+              }
+            }
+          : undefined
       )
     )
       continue;
@@ -992,16 +1006,6 @@ function parseExtendedChartFull(
         continue;
       }
 
-      if (firstToken === 'x-label') {
-        result.xlabel = value;
-        result.xlabelLineNumber = lineNumber;
-        continue;
-      }
-      if (firstToken === 'y-label') {
-        result.ylabel = value;
-        result.ylabelLineNumber = lineNumber;
-        continue;
-      }
       if (firstToken === 'size-label') {
         result.sizelabel = value;
         continue;
@@ -1041,23 +1045,19 @@ function parseExtendedChartFull(
         continue;
       }
 
-      if (firstToken === 'x') {
-        const rangeMatch = value.match(/^(-?[\d.]+)\s+to\s+(-?[\d.]+)$/);
-        if (rangeMatch) {
-          result.xRange = {
-            // Regex capture groups [1] and [2] are non-optional in the pattern.
-            min: parseFloat(rangeMatch[1]!),
-            max: parseFloat(rangeMatch[2]!),
-          };
-          continue;
-        }
-        // The `x` keyword owns ONLY the `x <min> to <max>` range form. A
-        // function curve can legitimately start with `x` (e.g. `x / 2: x / 2`);
-        // such a colon-bearing line must fall through to the function-curve
-        // handler below instead of being silently swallowed here.
-        if (!(result.type === 'function' && trimmed.includes(':'))) {
-          continue;
-        }
+      // `x 0 to 250` was the function chart's range before decision #60.
+      if (
+        result.type === 'function' &&
+        /^x\s+-?[\d.]+\s+to\s+-?[\d.]+$/.test(trimmed)
+      ) {
+        const [, lo, hi] = trimmed.split(/\s+/);
+        result.diagnostics.push(
+          emit(AXIS_OLD_DIRECTIVE_DX, lineNumber, {
+            directive: 'x … to …',
+            replacement: `x-axis ${lo}..${hi}`,
+          })
+        );
+        continue;
       }
     }
 
@@ -1287,7 +1287,18 @@ function parseExtendedChartFull(
           'No functions found. Add functions in format: Name: expression'
         );
       }
-      result.xRange ??= { min: -10, max: 10 }; // Default range
+      // `x-axis 0..250` sets the sampled range; an open end keeps the
+      // default for that end.
+      const x = result.axes?.x;
+      if (x?.scale === 'log')
+        result.diagnostics.push(
+          emit(AXIS_DIRECTIVE_DX, x.lineNumber ?? 1, {
+            directive: 'x-axis',
+            reason: 'a function chart samples x on a linear scale',
+          })
+        );
+      result.xRange = { min: x?.min ?? -10, max: x?.max ?? 10 };
+      delete result.axes?.x;
     } else if (result.type === 'scatter') {
       if (!result.scatterPoints || result.scatterPoints.length === 0) {
         warn(
@@ -1433,7 +1444,7 @@ const FORMATTED_TYPES: ReadonlySet<ExtendedChartType> = new Set([
 const EXTENDED_AXES: Partial<Record<ExtendedChartType, ReadonlySet<AxisName>>> =
   {
     scatter: new Set(['x', 'y']),
-    function: new Set(['y']),
+    function: new Set(['x', 'y']),
   };
 
 // ============================================================

@@ -11,9 +11,9 @@ function build(input: string) {
 
 const DUAL = `line Oil Price vs Reserve
 series
-  y-label $ / barrel
+  y-axis $ / barrel
     Oil Price blue
-  y-right-label Million barrels
+  y-right-axis Million barrels
     SPR Size green
     China Reserves orange
 
@@ -53,14 +53,14 @@ describe('dual-axis line — parser', () => {
 
   it('series before any header default to the left axis', () => {
     const { parsed } = build(
-      `line\nseries\n  Early red\n  y-right-label Secondary\n    Late green\n\nA 1 2\nB 3 4`
+      `line\nseries\n  Early red\n  y-right-axis Secondary\n    Late green\n\nA 1 2\nB 3 4`
     );
     expect(parsed.seriesAxes).toEqual(['left', 'right']);
   });
 
-  it('caps at two axes — a second y-right-label header merges into right', () => {
+  it('caps at two axes — a second y-right-axis header merges into right', () => {
     const { parsed } = build(
-      `line\nseries\n  y-label L\n    A blue\n  y-right-label R1\n    B green\n  y-right-label R2\n    C orange\n\nx 1 2 3`
+      `line\nseries\n  y-axis L\n    A blue\n  y-right-axis R1\n    B green\n  y-right-axis R2\n    C orange\n\nx 1 2 3`
     );
     expect(parsed.seriesAxes).toEqual(['left', 'right', 'right']);
   });
@@ -74,7 +74,7 @@ describe('dual-axis line — parser', () => {
 
   it('leaves seriesAxes undefined when a group block has only a left axis', () => {
     const { parsed } = build(
-      `line\nseries\n  y-label Only Left\n    A blue\n    B green\n\nJan 10 20\nFeb 30 40`
+      `line\nseries\n  y-axis Only Left\n    A blue\n    B green\n\nJan 10 20\nFeb 30 40`
     );
     expect(parsed.seriesAxes).toBeUndefined();
     expect(parsed.ylabel).toBe('Only Left');
@@ -86,7 +86,7 @@ describe('dual-axis line — diagnostics', () => {
     // radar accepts a series block (bar does not — it uses stack/group); the
     // dual-axis grouping is only honored on line, so it is dropped here.
     const { parsed } = build(
-      `radar\nseries\n  y-label L\n    A blue\n  y-right-label R\n    B green\n\nJan 10 20`
+      `radar\nseries\n  y-axis L\n    A blue\n  y-right-axis R\n    B green\n\nJan 10 20`
     );
     expect(parsed.seriesAxes).toBeUndefined();
     expect(parsed.yrlabel).toBeUndefined();
@@ -95,8 +95,8 @@ describe('dual-axis line — diagnostics', () => {
     ).toBe(true);
   });
 
-  it('warns when y-right-label has no series assigned to the right', () => {
-    const { parsed } = build(`line\ny-right-label Orphan\n\nJan 10\nFeb 20`);
+  it('warns when y-right-axis has no series assigned to the right', () => {
+    const { parsed } = build(`line\ny-right-axis Orphan\n\nJan 10\nFeb 20`);
     expect(
       parsed.diagnostics.some((d) =>
         /no series is assigned to the right axis/i.test(d.message)
@@ -116,7 +116,7 @@ describe('dual-axis line — D3 renderer', () => {
 
   it('a flat single-axis chart has no right-axis label', async () => {
     const svg = await renderDataChartD3(
-      `line\nseries\n  A blue\n  B green\nx-label X\ny-label Y\n\nJan 10 20\nFeb 30 40`,
+      `line\nseries\n  A blue\n  B green\nx-axis X\ny-axis Y\n\nJan 10 20\nFeb 30 40`,
       'light',
       palette
     );

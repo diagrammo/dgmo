@@ -21,8 +21,8 @@ export const fixture: ConformanceFixture = {
     // `series` is rejected on bar.
     'stack',
     'group',
-    'x-label',
-    'y-label',
+    'x-axis',
+    'y-axis',
     'orientation-horizontal',
     // #1978 category order.
     'sort',

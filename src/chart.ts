@@ -95,6 +95,7 @@ import {
 } from './overlays/parse';
 import {
   AXIS_DIRECTIVE_DX,
+  applyAxisLine,
   parseAxisLine,
   settleAxisSpec,
 } from './utils/axis-spec';
@@ -111,7 +112,7 @@ export interface ParsedChart {
   xlabelLineNumber?: number;
   ylabel?: string;
   ylabelLineNumber?: number;
-  /** Right (secondary) y-axis label — set by a `y-right-label` option or a
+  /** Right (secondary) y-axis label — set by a `y-right-axis` line or a
    *  grouped-series axis header (§15.1 dual-axis line charts). */
   yrlabel?: string;
   yrlabelLineNumber?: number;
@@ -221,8 +222,8 @@ export interface ParsedChart {
    *  (#1829). Last one wins. Resolved against the categories, series or
    *  slices at render time via `resolveEmphasis`. */
   emphasis?: EmphasisDirective;
-  /** `y-scale` / `y-min` / `y-max` on bar and line (#1830). On a dual-axis
-   *  line they set the left axis; the right axis keeps its auto-fit. */
+  /** Range and scale from the axis lines (decision #60): `y` from `y-axis`,
+   *  `y-right` from `y-right-axis` on a dual-axis line. */
   axes?: AxisSpecs;
   /** `format`, `unit`, `locale` (#1831): how every printed number reads. */
   numberFormat?: NumberFormatSpec;
@@ -293,9 +294,6 @@ const KNOWN_OPTIONS = new Set([
   'stack',
   'group',
   'hole',
-  'x-label',
-  'y-label',
-  'y-right-label',
   'label',
   'no-name',
   'no-value',
@@ -376,22 +374,27 @@ function rejectSeriesHeader(
  * Apply the grouped-series (dual-axis) results from parseSeriesNames onto the
  * ParsedChart. The axis headers double as the left/right y-axis labels, and
  * `seriesAxes` is only recorded when a right-axis series actually exists — so a
- * flat series block (or a grouped block with only `y-label` headers) leaves the
+ * flat series block (or a grouped block with only `y-axis` headers) leaves the
  * chart shape identical to single-axis charts.
  */
 function applySeriesAxes(
   result: ParsedChart,
-  parsed: ReturnType<typeof parseSeriesNames>,
-  lineNumber: number
+  parsed: ReturnType<typeof parseSeriesNames>
 ): void {
-  if (parsed.leftLabel !== undefined) {
-    result.ylabel = parsed.leftLabel;
-    result.ylabelLineNumber = lineNumber;
-  }
-  if (parsed.rightLabel !== undefined) {
-    result.yrlabel = parsed.rightLabel;
-    result.yrlabelLineNumber = lineNumber;
-  }
+  const header = (
+    line: NonNullable<typeof parsed.leftAxis>,
+    axis: AxisName
+  ): void =>
+    applyAxisLine(
+      { ...line, axis },
+      line.lineNumber,
+      (result.axes ??= {}),
+      AXIS_TYPES[result.type],
+      result.diagnostics,
+      (name, label, at) => setAxisLabel(result, name, label, at)
+    );
+  if (parsed.leftAxis) header(parsed.leftAxis, 'y');
+  if (parsed.rightAxis) header(parsed.rightAxis, 'y-right');
   if (parsed.axes?.includes('right')) {
     result.seriesAxes = parsed.axes;
   }
@@ -706,14 +709,15 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
     if (parseNumberFormatLine(trimmed, lineNumber, result, result.diagnostics))
       continue;
 
-    // Axis directives (#1830): `y-scale log`, `y-min N`, `y-max N`.
+    // The axis line (decision #60): `y-axis Revenue 0.. log`.
     if (
       parseAxisLine(
         trimmed,
         lineNumber,
         (result.axes ??= {}),
         AXIS_TYPES[result.type],
-        result.diagnostics
+        result.diagnostics,
+        (axis, label, at) => setAxisLabel(result, axis, label, at)
       )
     )
       continue;
@@ -775,24 +779,6 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
       if (firstToken === 'title') {
         // Removed (decision #48): the chart title is line 1. Error + ignore.
         result.diagnostics.push(emit(TITLE_DIRECTIVE_DX, lineNumber));
-        continue;
-      }
-
-      if (firstToken === 'x-label') {
-        result.xlabel = value;
-        result.xlabelLineNumber = lineNumber;
-        continue;
-      }
-
-      if (firstToken === 'y-label') {
-        result.ylabel = value;
-        result.ylabelLineNumber = lineNumber;
-        continue;
-      }
-
-      if (firstToken === 'y-right-label') {
-        result.yrlabel = value;
-        result.yrlabelLineNumber = lineNumber;
         continue;
       }
 
@@ -865,7 +851,7 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
         }
         if (parsed.nameColors.some(Boolean))
           result.seriesNameColors = parsed.nameColors;
-        applySeriesAxes(result, parsed, lineNumber);
+        applySeriesAxes(result, parsed);
         if (firstToken === 'stack' || firstToken === 'group')
           result.barLayout = firstToken;
         layoutHeaders.push({ keyword: firstToken, lineNumber });
@@ -935,7 +921,7 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
       }
       if (parsed.nameColors.some(Boolean))
         result.seriesNameColors = parsed.nameColors;
-      applySeriesAxes(result, parsed, lineNumber);
+      applySeriesAxes(result, parsed);
       if (firstToken === 'stack' || firstToken === 'group')
         result.barLayout = firstToken;
       layoutHeaders.push({ keyword: firstToken, lineNumber });
@@ -1395,14 +1381,15 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
   if (!result.error && result.seriesAxes && result.type !== 'line') {
     warn(
       result.seriesLineNumber ?? 1,
-      `Dual y-axes (y-right-label) are only supported on line / multi-line charts; ignoring the secondary axis for "${result.type}".`
+      `Dual y-axes (y-right-axis) are only supported on line / multi-line charts; ignoring the secondary axis for "${result.type}".`
     );
     delete result.seriesAxes;
     delete result.yrlabel;
+    delete result.axes?.['y-right'];
   }
 
   // A right-axis label with nothing assigned to it renders nothing — flag it so
-  // the author wraps the intended series in a `y-right-label` group.
+  // the author wraps the intended series in a `y-right-axis` group.
   if (
     !result.error &&
     result.yrlabel &&
@@ -1410,7 +1397,7 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
   ) {
     warn(
       result.yrlabelLineNumber ?? 1,
-      `y-right-label is set but no series is assigned to the right axis. Group the series under a "y-right-label" header (see §15.1).`
+      `y-right-axis is set but no series is assigned to the right axis. Group the series under a "y-right-axis" header (see §15.1.1).`
     );
   }
 
@@ -1531,7 +1518,7 @@ function settleStack(
     if (result.yrlabel !== undefined || result.seriesAxes) {
       err(
         result.yrlabelLineNumber ?? result.seriesLineNumber ?? 1,
-        'A stacked area has one value axis, so it cannot take `y-right-label`. Remove it, or use a `series` block for two axes.'
+        'A stacked area has one value axis, so it cannot take `y-right-axis`. Remove it, or use a `series` block for two axes.'
       );
       delete result.yrlabel;
       delete result.seriesAxes;
@@ -1874,10 +1861,29 @@ function sortBarCategories(result: ParsedChart): void {
   result.data = [...result.data].sort((a, b) => dir * (key(a) - key(b)));
 }
 
+/** Put an axis line's title where the renderers read it. */
+function setAxisLabel(
+  result: ParsedChart,
+  axis: AxisName,
+  label: string,
+  lineNumber: number
+): void {
+  if (axis === 'x') {
+    result.xlabel = label;
+    result.xlabelLineNumber = lineNumber;
+  } else if (axis === 'y') {
+    result.ylabel = label;
+    result.ylabelLineNumber = lineNumber;
+  } else {
+    result.yrlabel = label;
+    result.yrlabelLineNumber = lineNumber;
+  }
+}
+
 /** The numeric axes each simple chart type has (#1830). */
 const AXIS_TYPES: Record<ChartType, ReadonlySet<AxisName>> = {
   bar: new Set(['y']),
-  line: new Set(['y']),
+  line: new Set(['y', 'y-right']),
   pie: new Set(),
   'polar-area': new Set(),
   radar: new Set(),
@@ -1885,6 +1891,14 @@ const AXIS_TYPES: Record<ChartType, ReadonlySet<AxisName>> = {
 
 /** Check the axis directives against the values each axis has to show. */
 function settleChartAxes(result: ParsedChart): void {
+  const yr = result.axes?.['y-right'];
+  if (yr && result.seriesAxes) {
+    const sides = result.seriesAxes;
+    const right = result.data.flatMap((d) =>
+      [d.value, ...(d.extraValues ?? [])].filter((_, s) => sides[s] === 'right')
+    );
+    settleAxisSpec('y-right', yr, right, result.diagnostics);
+  }
   const y = result.axes?.y;
   if (!y) return;
   const rows = result.data.map((d) => [d.value, ...(d.extraValues ?? [])]);
@@ -1894,7 +1908,7 @@ function settleChartAxes(result: ParsedChart): void {
     result.diagnostics.push(
       makeDgmoError(
         y.lineNumber ?? 1,
-        'A `stack 100%` axis always reads 0–100%, so `y-scale`, `y-min` and `y-max` do nothing here; ignoring them.',
+        'A `stack 100%` axis always reads 0–100%, so a range or scale on `y-axis` does nothing here; ignoring it.',
         'warning'
       )
     );
@@ -1908,7 +1922,7 @@ function settleChartAxes(result: ParsedChart): void {
     if (y.scale === 'log') {
       result.diagnostics.push(
         emit(AXIS_DIRECTIVE_DX, y.lineNumber ?? 1, {
-          directive: 'y-scale',
+          directive: 'y-axis',
           reason: `a stacked ${result.type === 'line' ? 'area' : 'bar'} cannot use a log scale, because its segments would not add up`,
         })
       );

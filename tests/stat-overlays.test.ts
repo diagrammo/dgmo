@@ -277,7 +277,7 @@ describe('trend numbers', () => {
       { at: 7.5, v: 10 },
     ]);
   });
-  it('slope unit comes from a one-word x-label', () => {
+  it('slope unit comes from a one-word x-axis title', () => {
     expect(trendUnit('Week')).toBe('week');
     expect(trendUnit('Week of year')).toBe('step');
     expect(trendUnit(undefined)).toBe('step');
@@ -297,8 +297,8 @@ describe('trend', () => {
     expect(svg.querySelectorAll('g.dgmo-overlay-trend path')).toHaveLength(1);
     expect(texts(svg, '.dgmo-overlay-label')).toEqual(['trend +0.6/step']);
   });
-  it('takes the slope unit from x-label', async () => {
-    const svg = await draw(LINE_TREND.replace('trend', 'trend\nx-label Week'));
+  it('takes the slope unit from x-axis title', async () => {
+    const svg = await draw(LINE_TREND.replace('trend', 'trend\nx-axis Week'));
     expect(texts(svg, '.dgmo-overlay-label')).toEqual(['trend +0.6/week']);
   });
   it('a falling bar trend carries its minus sign', async () => {
@@ -418,9 +418,9 @@ describe('moving-average and extremes', () => {
     expect(avg.getAttribute('d')!.match(/[ML]/g)).toHaveLength(3);
     expect(texts(svg, '.dgmo-overlay-label')).toEqual(['3-pt avg']);
   });
-  it('names the window after a one-word x-label', async () => {
+  it('names the window after a one-word x-axis title', async () => {
     const svg = await draw(
-      `line Teams\nx-label Week\nmoving-average 3\n\n${WOBBLE.map((v, i) => `W${i + 1} ${v}`).join('\n')}`
+      `line Teams\nx-axis Week\nmoving-average 3\n\n${WOBBLE.map((v, i) => `W${i + 1} ${v}`).join('\n')}`
     );
     expect(texts(svg, '.dgmo-overlay-label')).toEqual(['3-week avg']);
   });

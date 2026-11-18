@@ -66,8 +66,8 @@ function translateY(el: Element): number {
 }
 
 const BAR = `bar Revenue by region
-x-label Region
-y-label Revenue
+x-axis Region
+y-axis Revenue
 North 120
 South 95
 East 140

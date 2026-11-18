@@ -1,6 +1,6 @@
 line Plunder vs Quota
 subtitle Green where the haul beat the quota, red where it fell short
-y-label Doubloons
+y-axis Doubloons
 series
   Haul blue
   Quota gray

@@ -61,8 +61,8 @@ export const GENERATORS_C: Record<string, Generator> = {
       const lines = [
         'quadrant Growth roadmap',
         '',
-        'x-label Low Effort, High Effort',
-        'y-label Low Impact, High Impact',
+        'x-axis Low Effort, High Effort',
+        'y-axis Low Impact, High Impact',
         '',
         'top-left Quick Wins',
         'top-right Major Projects',

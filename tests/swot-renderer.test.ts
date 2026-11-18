@@ -206,7 +206,7 @@ strengths
       s.x
     );
     const off = draw(
-      `swot\nno-axes\nx-label A, B\ny-label C, D\n${FULL.slice(7)}`
+      `swot\nno-axes\nx-axis A, B\ny-axis C, D\n${FULL.slice(7)}`
     );
     expect(off.querySelector('.swot-axes')).toBeNull();
   });

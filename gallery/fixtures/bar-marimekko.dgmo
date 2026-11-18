@@ -1,7 +1,7 @@
 bar Cloud market by region, 2025
 subtitle Column width = region’s share of the $250B market
-x-label Share of the global market
-y-label Share of region
+x-axis Share of the global market
+y-axis Share of region
 widths
 
 stack

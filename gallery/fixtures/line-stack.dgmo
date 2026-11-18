@@ -1,6 +1,6 @@
 line Ship's Stores in the Hold
 subtitle Barrels by month
-y-label Barrels
+y-axis Barrels
 
 stack
   Rum orange

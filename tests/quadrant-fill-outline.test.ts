@@ -12,8 +12,8 @@ import { getPalette } from '../src/palettes';
 import { themeBaseBg } from '../src/palettes/color-utils';
 
 const PLAIN = `quadrant Crew Performance
-x-label Low Skill, High Skill
-y-label Low Loyalty, High Loyalty
+x-axis Low Skill, High Skill
+y-axis Low Loyalty, High Loyalty
 
 top-right Promote green
 bottom-right Watch Closely purple

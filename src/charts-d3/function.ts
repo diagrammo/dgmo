@@ -68,7 +68,7 @@ export function renderFunction(
   }
   if (yLo === yHi) yHi = yLo + 1;
 
-  // `y-scale log`, `y-min`, `y-max` (#1830). A log axis plots only the
+  // `y-axis 0..10 log` (decision #60). A log axis plots only the
   // samples above 0; its floor comes from the smallest of those.
   const ySpec = chart.axes?.y;
   let posLo = Infinity;

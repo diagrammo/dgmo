@@ -1,6 +1,6 @@
 scatter Skill score vs training hours
-x-label Training hours
-y-label Skill score
+x-axis Training hours
+y-axis Skill score
 trend
 
 [Mentored] blue

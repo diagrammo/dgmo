@@ -222,6 +222,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **One line per axis (decision #60, diagrammo/diagrammo#2115).** `x-axis`,
+  `y-axis` and `y-right-axis` take an axis's title, range and scale on one
+  line, every part optional: `y-axis Range (yards) 0.1..100,000 log`,
+  `y-axis 0..`, `y-axis log`. They replace `x-label`, `y-label`,
+  `y-right-label`, `x-min`, `x-max`, `y-min`, `y-max`, `x-scale`, `y-scale`
+  and the function chart's `x 0 to 250` (now `x-axis 0..250`); each old form
+  is an error (`E_AXIS_OLD_DIRECTIVE`) naming the line to write. Quadrant and
+  SWOT end labels move to `x-axis Low, High`. The dual-axis line's series
+  headers become `y-axis` / `y-right-axis` and the right axis now takes its
+  own range and scale.
+
 - **A `note`, a `highlight` and a category `marker` sit indented under the row
   they belong to (diagrammo/diagrammo#2078, diagrammo/diagrammo#2080).** On
   bar, line, pie, scatter and slope the row above names the datum, so the line

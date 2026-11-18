@@ -1,6 +1,6 @@
 line Ship's Stores in the Hold
 subtitle Share of barrels by month
-y-label Share of hold
+y-axis Share of hold
 
 stack 100%
   Rum orange

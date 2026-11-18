@@ -1,7 +1,7 @@
 scatter Black Pearl Voyage
 subtitle Ports in the order she called at them
-x-label Longitude (°W)
-y-label Latitude (°N)
+x-axis Longitude (°W)
+y-axis Latitude (°N)
 connect
 
 Port Royal 76.8 17.9

@@ -1,7 +1,7 @@
 bar Revenue by Region
 subtitle Fiscal 2025, in millions of dollars
-x-label Region
-y-label Revenue ($M)
+x-axis Region
+y-axis Revenue ($M)
 
 North 120
 South 95

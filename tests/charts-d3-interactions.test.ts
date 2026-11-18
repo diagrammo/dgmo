@@ -4,8 +4,8 @@ import { renderDataChartD3 } from '../src/charts-d3/index';
 import { attachDataChartInteractions } from '../src/charts-d3/interactions';
 
 const SCATTER = `scatter Height vs Weight
-x-label Height
-y-label Weight
+x-axis Height
+y-axis Weight
 
 Alice 165 60
 Bob 178 80
@@ -22,8 +22,8 @@ Mar 14 25`;
 
 const AREA = `line Cumulative Signups
 fill
-x-label Week
-y-label Signups
+x-axis Week
+y-axis Signups
 
 W1 50
 W2 120
@@ -79,8 +79,8 @@ describe('axis-projection interactions (no tooltips)', () => {
 
   it('bubble: hovering a sized point also prints the size value at the point', async () => {
     await mount(`scatter Crew Manifest
-x-label Height
-y-label Weight
+x-axis Height
+y-axis Weight
 size-label Crew
 
 Blackbeard 90 8500 40
@@ -209,7 +209,7 @@ Blackbeard 90 8500 40`);
     const overlay = svg.querySelector('.dgmo-overlay')!;
     // vertical (to x-axis) + horizontal (to y-axis) leaders
     expect(overlay.querySelectorAll('.dgmo-axline').length).toBe(2);
-    // x-label + y-value on-axis labels (text, not pills)
+    // x-axis title + y-value on-axis labels (text, not pills)
     expect(overlay.querySelectorAll('text').length).toBe(2);
     expect(overlay.querySelectorAll('rect').length).toBe(0);
   });
@@ -267,11 +267,11 @@ Blackbeard 90 8500 40`);
 });
 
 const DUAL_AXIS = `line Oil Price vs Strategic Reserve
-x-label Year
+x-axis Year
 series
-  y-label $ / barrel
+  y-axis $ / barrel
     Oil Price blue
-  y-right-label Million barrels
+  y-right-axis Million barrels
     SPR Size green
 
 2019 57 645
@@ -288,8 +288,8 @@ Speed 90 55
 Armor 60 90`;
 
 const SCATTER_CAT = `scatter Crews
-x-label Ruthlessness
-y-label Plunder
+x-axis Ruthlessness
+y-axis Plunder
 
 [Crew A] red
   Alice 60 40
@@ -483,7 +483,7 @@ describe('legend hover → series emphasis', () => {
 
   it('function: legend hover dims the other curves', async () => {
     await mount(`function Damped Roll
-x 0 to 12
+x-axis 0..12
 
 Roll blue: 30*exp(-0.25*x)*sin(2*x)
 Envelope gray: 30*exp(-0.25*x)`);
@@ -671,9 +671,7 @@ describe('crosshair in a framed chart (#2079)', () => {
     host.innerHTML = await renderDataChartD3(
       `line Pirate havens
 subtitle Population growth on a log axis
-y-scale log
-y-min 10
-y-max 1_000_000
+y-axis 10..1000000 log
 
 series
   Tortuga

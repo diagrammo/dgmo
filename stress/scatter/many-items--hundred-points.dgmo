@@ -1,7 +1,7 @@
 scatter Service Latency vs Request Rate Across the Fleet
 // stress: many-items — dozens of labelled points in three groups, clustered
-x-label Requests per second
-y-label p99 latency (ms)
+x-axis Requests per second
+y-axis p99 latency (ms)
 
 [Edge] blue
   edge-01 1200 38

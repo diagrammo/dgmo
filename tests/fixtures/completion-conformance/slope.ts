@@ -16,7 +16,8 @@ export const fixture: ConformanceFixture = {
     ...FRAME_DIRECTIVES,
     // #1831 number format.
     ...NUMBER_FORMAT_DIRECTIVES,
-    // #1830 axis range and scale.
+    // Decision #60: the axis line sets range and scale.
+    'y-axis',
     ...Y_AXIS_DIRECTIVES,
     'highlight',
     // #2039 annotations.

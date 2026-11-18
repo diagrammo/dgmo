@@ -1,7 +1,7 @@
 // ============================================================
 // Hand-built line / multi-line / area renderer.
 // Series-tinted value labels, 0-baseline, era bands (markArea parity),
-// dual y-axis (§15.1: y-label / y-right-label grouped series).
+// dual y-axis (§15.1.1: y-axis / y-right-axis grouped series).
 // ============================================================
 
 import { scalePoint } from 'd3-scale';
@@ -216,9 +216,10 @@ export function renderLine(
     return [lo, hi];
   };
   const [loL, hiL] = extentFor('left');
-  // Left axis (#1830): `y-scale log`, `y-min`, `y-max`. The right axis of a
-  // dual-axis chart keeps its auto-fit. Probed on a unit range so the margin
-  // is sized from the labels the axis will really draw.
+  // Each value axis takes its own axis line (decision #60): `y-axis 0.. log`
+  // on the left, `y-right-axis 0..100` on the right of a dual-axis chart.
+  // Probed on a unit range so the margin is sized from the labels the axis
+  // will really draw.
   const ySpec = chart.axes?.y;
   let dataLoL = Infinity;
   let dataHiL = -Infinity;
@@ -244,15 +245,28 @@ export function renderLine(
     });
   const probeL = leftAxis([0, 1]).ticks(6);
   const [loR, hiR] = dual ? extentFor('right') : [0, 1];
+  const ySpecR = chart.axes?.['y-right'];
+  let dataLoR = Infinity;
+  let dataHiR = -Infinity;
+  if (dual)
+    for (let i = 0; i < data.length; i++)
+      for (let s = 0; s < seriesCount; s++)
+        if (axisOf(s) === 'right') {
+          const v = yValue(i, s);
+          if (!Number.isFinite(v)) continue;
+          dataLoR = Math.min(dataLoR, v);
+          dataHiR = Math.max(dataHiR, v);
+        }
+  const rightAxis = (range: [number, number]) =>
+    buildValueAxis(loR, hiR, ySpecR, range, {
+      nice: true,
+      dataLo: dataLoR,
+      dataHi: dataHiR,
+    });
   // The author's `format` / `unit` / `locale` (#1831), with one compact unit
   // per value axis (#2036): a point's label prints in its own axis's unit.
   const fmt = chartFormatter(chart, probeL);
-  const fmtR = dual
-    ? chartFormatter(
-        chart,
-        buildValueAxis(loR, hiR, undefined, [0, 1], { nice: true }).ticks(6)
-      )
-    : fmt;
+  const fmtR = dual ? chartFormatter(chart, rightAxis([0, 1]).ticks(6)) : fmt;
   const fmtFor = (s: number) => (dual && axisOf(s) === 'right' ? fmtR : fmt);
   const tickFmt = percent ? (t: number) => `${round(t)}%` : fmt;
 
@@ -332,9 +346,7 @@ export function renderLine(
   // m.top + f * (height - m.bottom - m.top).
   if (showValues) {
     const probeLeft = leftAxis([0, 1]);
-    const probeR = dual
-      ? buildValueAxis(loR, hiR, undefined, [0, 1], { nice: true })
-      : null;
+    const probeR = dual ? rightAxis([0, 1]) : null;
     let f = 1;
     for (const d of data)
       for (let s = 0; s < seriesCount; s++) {
@@ -360,9 +372,7 @@ export function renderLine(
       [topTickFraction(probeLeft, probeLeft.ticks(6)), TICK_INK_ABOVE],
     ];
     if (dual) {
-      const probeR = buildValueAxis(loR, hiR, undefined, [0, 1], {
-        nice: true,
-      });
+      const probeR = rightAxis([0, 1]);
       items.push([topTickFraction(probeR, probeR.ticks(6)), TICK_INK_ABOVE]);
     }
     m.top = Math.max(m.top, bandSafeTop(top + 8, height - m.bottom, items));
@@ -404,11 +414,7 @@ export function renderLine(
         ? curveStepBefore
         : curveLinear;
   const yL = leftAxis([m.top + plotH, m.top]);
-  const yR: ValueAxis | null = dual
-    ? buildValueAxis(loR, hiR, undefined, [m.top + plotH, m.top], {
-        nice: true,
-      })
-    : null;
+  const yR: ValueAxis | null = dual ? rightAxis([m.top + plotH, m.top]) : null;
   const yFor = (s: number): ValueAxis =>
     dual && axisOf(s) === 'right' && yR ? yR : yL;
   const leftTint = dual ? soleAxisColor('left') : undefined;

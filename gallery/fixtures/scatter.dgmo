@@ -1,6 +1,6 @@
 scatter Startup Funding vs Revenue
-x-label Funding ($M)
-y-label Annual Revenue ($M)
+x-axis Funding ($M)
+y-axis Annual Revenue ($M)
 
 [SaaS] blue
   Acme Cloud 12 8.5

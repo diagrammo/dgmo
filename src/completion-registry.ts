@@ -183,8 +183,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description:
           'Multi-series block header → clustered (side-by-side) bars',
       },
-      'x-label': { description: 'X-axis label' },
-      'y-label': { description: 'Y-axis label' },
+      'x-axis': { description: 'X-axis title (x-axis Region)' },
+      'y-axis': {
+        description: 'Y-axis line: title, range, log (y-axis Revenue 0..)',
+      },
       'orientation-horizontal': { description: 'Switch to horizontal bars' },
       sort: {
         description:
@@ -197,12 +199,6 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description:
           "Marimekko: each row's first number is its column width (42% or a size); needs a stack block",
       },
-      'y-scale': {
-        description: 'Value axis scale: log for data spanning decades',
-        values: ['log', 'linear'],
-      },
-      'y-min': { description: 'Value axis lower end (y-min 0)' },
-      'y-max': { description: 'Value axis upper end (y-max 100)' },
       'no-value': { description: 'Hide value labels atop each bar' },
       marker: {
         description:
@@ -264,16 +260,12 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'step-before': {
         description: 'Steps that reach each value at its own point',
       },
-      'x-label': { description: 'X-axis label' },
-      'y-label': { description: 'Y-axis label (left axis)' },
-      'y-scale': {
-        description: 'Value axis scale: log for data spanning decades',
-        values: ['log', 'linear'],
+      'x-axis': { description: 'X-axis title (x-axis Region)' },
+      'y-axis': {
+        description: 'Y-axis line: title, range, log (y-axis Revenue 0..)',
       },
-      'y-min': { description: 'Value axis lower end (y-min 0)' },
-      'y-max': { description: 'Value axis upper end (y-max 100)' },
-      'y-right-label': {
-        description: 'Right y-axis label (dual-axis; group series beneath it)',
+      'y-right-axis': {
+        description: 'Right y-axis line (dual-axis; group series beneath it)',
       },
       'no-value': { description: 'Hide value labels at each point' },
       marker: {
@@ -390,24 +382,16 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       locale: { description: 'Separators and currency style (locale de-DE)' },
       'no-legend': { description: 'Hide the legend' },
       'no-name': { description: 'Hide point labels' },
-      'x-label': { description: 'X-axis label' },
-      'y-label': { description: 'Y-axis label' },
+      'x-axis': {
+        description: 'X-axis line: title, range, log (x-axis Crew 1..1000 log)',
+      },
+      'y-axis': {
+        description: 'Y-axis line: title, range, log (y-axis Revenue 0..)',
+      },
       'size-label': { description: 'Size axis label' },
       connect: {
         description: 'Join the points in row order, with an arrow at the end',
       },
-      'y-scale': {
-        description: 'Value axis scale: log for data spanning decades',
-        values: ['log', 'linear'],
-      },
-      'y-min': { description: 'Value axis lower end (y-min 0)' },
-      'y-max': { description: 'Value axis upper end (y-max 100)' },
-      'x-scale': {
-        description: 'X-axis scale: log for data spanning decades',
-        values: ['log', 'linear'],
-      },
-      'x-min': { description: 'X-axis lower end (x-min 0)' },
-      'x-max': { description: 'X-axis upper end (x-max 100)' },
       highlight: {
         description:
           'Indented under a point or a [Group] header: keep it and recede the rest',
@@ -496,15 +480,12 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       unit: { description: 'Text after every number (unit ms)' },
       locale: { description: 'Separators and currency style (locale de-DE)' },
       'no-legend': { description: 'Hide the legend' },
-      x: { description: 'X-axis range (start to end)' },
-      'y-scale': {
-        description: 'Value axis scale: log for data spanning decades',
-        values: ['log', 'linear'],
+      'x-axis': {
+        description: 'X-axis line: title, range, log (x-axis Crew 1..1000 log)',
       },
-      'y-min': { description: 'Value axis lower end (y-min 0)' },
-      'y-max': { description: 'Value axis upper end (y-max 100)' },
-      'x-label': { description: 'X-axis label' },
-      'y-label': { description: 'Y-axis label' },
+      'y-axis': {
+        description: 'Y-axis line: title, range, log (y-axis Revenue 0..)',
+      },
       fill: {
         description: 'Shade the area below each curve (translucent tint)',
       },
@@ -521,12 +502,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       },
       unit: { description: 'Text after every number (unit ms)' },
       locale: { description: 'Separators and currency style (locale de-DE)' },
-      'y-scale': {
-        description: 'Vertical range scale: log for data spanning decades',
-        values: ['log', 'linear'],
-      },
-      'y-min': { description: 'Vertical range lower end (y-min 0)' },
-      'y-max': { description: 'Vertical range upper end (y-max 100)' },
+      'y-axis': { description: 'Vertical range and scale (y-axis 0..100 log)' },
       highlight: {
         description: 'Indented under a series row: keep it and recede the rest',
       },
@@ -607,8 +583,8 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'quadrant',
     withGlobals({
-      'x-label': { description: 'X-axis labels (low, high)' },
-      'y-label': { description: 'Y-axis labels (low, high)' },
+      'x-axis': { description: 'X-axis end labels (x-axis Low, High)' },
+      'y-axis': { description: 'Y-axis end labels (y-axis Low, High)' },
     }),
   ],
 
@@ -703,14 +679,14 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     withGlobals({
       'no-legend': { description: 'Hide the legend' },
       'active-tag': { description: 'Active tag group name' },
-      'x-label': {
+      'x-axis': {
         description: 'Column labels (default: Helpful, Harmful)',
       },
-      'y-label': {
+      'y-axis': {
         description: 'Row labels (default: Internal, External)',
       },
       'no-axes': {
-        description: 'Hide the axis labels; wins over x-label and y-label',
+        description: 'Hide the axis labels; wins over x-axis and y-axis',
       },
       'no-tint-items': {
         description: "Don't tint a tagged item's row in its tag colour",

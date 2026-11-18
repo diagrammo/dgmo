@@ -6,8 +6,8 @@ import { renderDataChartD3 } from '../src/charts-d3/index';
 
 const SHARES = `bar Cloud market by region, 2025
 subtitle Column width = region's share of the $250B market
-x-label Share of the global market
-y-label Share of region
+x-axis Share of the global market
+y-axis Share of region
 widths
 
 stack
@@ -42,7 +42,7 @@ LATAM   20  34 26 14 26`;
 
 const COUNTS = `bar Where people want to work, by age
 subtitle 1,587 survey answers; column width = answers in that age group
-y-label Share of age group
+y-axis Share of age group
 widths
 
 stack

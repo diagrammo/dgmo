@@ -73,7 +73,7 @@ describe('bar chart long category names (#1422)', () => {
 
   it('moves the axis titles with the axes when it flips', async () => {
     const svg = await renderDataChartD3(
-      FIXTURE.replace(/^bar .*$/m, '$&\nx-label Category\ny-label Tickets'),
+      FIXTURE.replace(/^bar .*$/m, '$&\nx-axis Category\ny-axis Tickets'),
       'light'
     );
     // The y title is the rotated one, on the left: it now names the categories.

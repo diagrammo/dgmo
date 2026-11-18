@@ -1,6 +1,6 @@
 bar Plunder by Port and Year
 subtitle Chests landed, by cargo
-y-label Chests
+y-axis Chests
 
 stack
   Gold orange

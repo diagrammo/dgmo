@@ -840,15 +840,24 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   },
   { token: 'orientation', category: 'directive', chartTypes: 'all' },
   {
-    token: 'x-label',
+    token: 'x-axis',
     category: 'directive',
-    chartTypes: ['bar', 'function', 'line', 'quadrant', 'scatter'],
+    chartTypes: ['bar', 'function', 'line', 'quadrant', 'scatter', 'swot'],
   },
   {
-    token: 'y-label',
+    token: 'y-axis',
     category: 'directive',
-    chartTypes: ['bar', 'function', 'line', 'quadrant', 'scatter'],
+    chartTypes: [
+      'bar',
+      'function',
+      'line',
+      'quadrant',
+      'scatter',
+      'slope',
+      'swot',
+    ],
   },
+  { token: 'y-right-axis', category: 'directive', chartTypes: ['line'] },
   { token: 'size-label', category: 'directive', chartTypes: ['scatter'] },
   // Number format (#1831). `locale` is also a map directive, declared above.
   {
@@ -886,25 +895,6 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
       'slope',
     ],
   },
-  // Axis directives (#1830).
-  {
-    token: 'y-scale',
-    category: 'directive',
-    chartTypes: ['bar', 'function', 'line', 'scatter', 'slope'],
-  },
-  {
-    token: 'y-min',
-    category: 'directive',
-    chartTypes: ['bar', 'function', 'line', 'scatter', 'slope'],
-  },
-  {
-    token: 'y-max',
-    category: 'directive',
-    chartTypes: ['bar', 'function', 'line', 'scatter', 'slope'],
-  },
-  { token: 'x-scale', category: 'directive', chartTypes: ['scatter'] },
-  { token: 'x-min', category: 'directive', chartTypes: ['scatter'] },
-  { token: 'x-max', category: 'directive', chartTypes: ['scatter'] },
   { token: 'columns', category: 'directive', chartTypes: ['block', 'heatmap'] },
   { token: 'rows', category: 'directive', chartTypes: 'all' },
   { token: 'labels', category: 'directive', chartTypes: 'all' },
@@ -923,8 +913,6 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   // ── Slope ────────────────────────────────────────────────
   { token: 'period', category: 'directive', chartTypes: 'all' },
   // ── Quadrant ─────────────────────────────────────────────
-  { token: 'x-axis', category: 'directive', chartTypes: 'all' },
-  { token: 'y-axis', category: 'directive', chartTypes: 'all' },
   {
     token: 'top-right',
     category: 'directive',
@@ -1053,7 +1041,6 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   // ── Journey-map ──────────────────────────────────────────
   { token: 'persona', category: 'directive', chartTypes: ['journey-map'] },
   // ── Function ─────────────────────────────────────────────
-  { token: 'x', category: 'directive', chartTypes: ['function'] },
   {
     token: 'fill',
     category: 'directive',

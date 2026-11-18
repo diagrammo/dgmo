@@ -33,7 +33,7 @@ const BAND_TINT = 14;
 export interface ValueAxisFrame {
   /** Value → pixel along the value axis. */
   readonly pos: (v: number) => number;
-  /** The axis's value range. A fixed `y-min` / `y-max` clamps `pos`, so a
+  /** The axis's value range. A fixed `y-axis` range clamps `pos`, so a
    *  mark outside this range is not drawn rather than pinned to the edge. */
   readonly domain: readonly [number, number];
   readonly left: number;

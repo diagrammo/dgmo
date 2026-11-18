@@ -1,7 +1,7 @@
 bar Revenue by Region
 // stress: long-labels — ten region names of 30+ characters that once rotated and were cut
-x-label Region
-y-label Revenue
+x-axis Region
+y-axis Revenue
 
 Greater Metropolitan Northeastern Corridor 120
 Southern Coastal Agricultural Districts 90

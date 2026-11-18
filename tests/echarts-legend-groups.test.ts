@@ -47,7 +47,7 @@ B: 3, 4`;
 
   it('extracts function names with original casing', () => {
     const content = `function
-x -5 to 5
+x-axis -5..5
 f(x) blue: sin(x)
 g(x) red: cos(x)`;
     const parsed = parseExtendedChart(content, palette);

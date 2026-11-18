@@ -1,3 +1,4 @@
+import { rejectOldAxisLine } from '../utils/axis-spec';
 import type { PaletteColors } from '../palettes';
 import { withPaletteLifted } from '../palettes/directive';
 import { resolveColorWithDiagnostic } from '../colors';
@@ -338,13 +339,17 @@ function parseSwotRaw(content: string, palette?: PaletteColors): ParsedSwot {
         continue;
       }
       if (keyword === 'x-label' || keyword === 'y-label') {
+        rejectOldAxisLine(`${keyword} ${rest}`, lineNumber, diagnostics);
+        continue;
+      }
+      if (keyword === 'x-axis' || keyword === 'y-axis') {
         const parts = rest
           .split(',')
           .map((s) => s.trim())
           .filter(Boolean);
         if (parts.length === 2) {
           const pair: [string, string] = [parts[0]!, parts[1]!];
-          if (keyword === 'x-label') result.xLabels = pair;
+          if (keyword === 'x-axis') result.xLabels = pair;
           else result.yLabels = pair;
         } else {
           warn(

@@ -22,8 +22,8 @@ async function draw(src: string): Promise<HTMLDivElement> {
 }
 
 const VOYAGE = `scatter Voyage
-x-label Longitude
-y-label Latitude
+x-axis Longitude
+y-axis Latitude
 connect
 
 Port Royal 10 40

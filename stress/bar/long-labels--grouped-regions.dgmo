@@ -1,7 +1,7 @@
 bar Visitors by Region
 // stress: long-labels — grouped bars with region names wider than their band, plus an axis title
-x-label Region
-y-label Visitors (K)
+x-axis Region
+y-axis Visitors (K)
 
 group
   2023 blue

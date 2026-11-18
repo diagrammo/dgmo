@@ -6,8 +6,8 @@ export const fixture: HighlightFixture = {
   source: `line Trends
 series
   A
-x-label Quarter
-y-label Revenue
+x-axis Quarter
+y-axis Revenue
 no-value
 
 Q1 100
@@ -19,8 +19,8 @@ Review the roles list
     { text: 'roles', role: 'default' },
     { text: 'line', role: 'chartType' },
     { text: 'series', role: 'keyword' },
-    { text: 'x-label', role: 'keyword' },
-    { text: 'y-label', role: 'keyword' },
+    { text: 'x-axis', role: 'keyword' },
+    { text: 'y-axis', role: 'keyword' },
     { text: 'no-value', role: 'keyword' },
     { text: '100', role: 'number' },
   ],

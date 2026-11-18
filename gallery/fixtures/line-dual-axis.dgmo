@@ -1,10 +1,10 @@
 line Oil Price vs Strategic Reserve
-x-label Year
+x-axis Year
 
 series
-  y-label $ / barrel
+  y-axis $ / barrel
     Oil Price blue
-  y-right-label Million barrels
+  y-right-axis Million barrels
     SPR Size green
 
 2019 57 645

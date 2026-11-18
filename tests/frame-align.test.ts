@@ -85,8 +85,8 @@ describe('frame alignment — parse', () => {
 
 describe('legend key frame — render', () => {
   const PIE = `bar Support Tickets by Priority
-x-label Month
-y-label Tickets
+x-axis Month
+y-axis Tickets
 
 stack
   Critical red

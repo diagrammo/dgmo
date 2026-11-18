@@ -166,14 +166,14 @@ describe('drawn on the value axis', () => {
 
   it('a fixed axis end hides a marker past it, never pins it to the edge', async () => {
     const bar = await renderDataChartD3(
-      'bar S\ny-max 100\nmarker 150 Limit\nA 50\nB 60',
+      'bar S\ny-axis ..100\nmarker 150 Limit\nA 50\nB 60',
       'light',
       palette
     );
     expect(markerLine(bar)).toBeNull();
     expect(bar).not.toContain('>Limit</text>');
     const line = await renderDataChartD3(
-      'line S\ny-min 0\ny-max 100\nmarker 150 Hi\nmarker -20 Lo\nmarker 50 Mid\nA 10\nB 90',
+      'line S\ny-axis 0..100\nmarker 150 Hi\nmarker -20 Lo\nmarker 50 Mid\nA 10\nB 90',
       'light',
       palette
     );
@@ -186,14 +186,14 @@ describe('drawn on the value axis', () => {
 
   it('a band off a fixed axis is not drawn; one partly on it is cut to the axis', async () => {
     const off = await renderDataChartD3(
-      'bar S\ny-max 100\nband 160..200 Off\nA 50',
+      'bar S\ny-axis ..100\nband 160..200 Off\nA 50',
       'light',
       palette
     );
     expect(bandRect(off)).toBeNull();
     expect(off).not.toContain('>Off</text>');
     const part = await renderDataChartD3(
-      'bar S\ny-max 100\nband 80..150 Part\nA 50',
+      'bar S\ny-axis ..100\nband 80..150 Part\nA 50',
       'light',
       palette
     );
@@ -205,7 +205,7 @@ describe('drawn on the value axis', () => {
   it('a log axis widens to reach a marker above the data', async () => {
     for (const type of ['bar', 'line']) {
       const svg = await renderDataChartD3(
-        `${type} S\ny-scale log\nmarker 5000 Goal\nA 20\nB 300`,
+        `${type} S\ny-axis log\nmarker 5000 Goal\nA 20\nB 300`,
         'light',
         palette
       );

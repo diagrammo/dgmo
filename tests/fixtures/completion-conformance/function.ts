@@ -6,7 +6,7 @@ import {
 } from './_frame';
 
 // Spec §16 / §15.4. Functional family — colon REQUIRED between name and
-// expression (§15.4). `x` declares the x-axis range; `fill` shades the
+// expression (§15.4). `x-axis` sets the sampled range; `fill` shades the
 // area below curves.
 export const fixture: ConformanceFixture = {
   chartType: 'function',
@@ -19,9 +19,8 @@ export const fixture: ConformanceFixture = {
     // #1830 axis range and scale.
     ...Y_AXIS_DIRECTIVES,
     'no-legend',
-    'x',
-    'x-label',
-    'y-label',
+    'x-axis',
+    'y-axis',
     'fill',
   ],
   pipeKeys: {},

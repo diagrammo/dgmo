@@ -1,8 +1,8 @@
 bar Crew by Ship
 orientation-horizontal
 sort
-x-label Ship
-y-label Crew
+x-axis Ship
+y-axis Crew
 
 Queen Anne's Revenge 300
 Whydah Gally 146

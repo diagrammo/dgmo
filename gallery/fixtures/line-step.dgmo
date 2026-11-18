@@ -1,7 +1,7 @@
 line Port Royal Duty on Rum
 subtitle Each rate holds until the governor changes it
 step
-y-label Pieces of eight per barrel
+y-axis Pieces of eight per barrel
 
 1718-01 4
 1718-04 5

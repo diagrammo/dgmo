@@ -285,7 +285,7 @@ describe('root <desc> summary (#954)', () => {
     ],
     [
       'function',
-      'function F\n\nx -1 to 1\nf(x): x\n',
+      'function F\n\nx-axis -1..1\nf(x): x\n',
       'Function plot of 1 function, f(x), for x from -1 to 1.',
     ],
     [

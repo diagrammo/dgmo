@@ -1,7 +1,7 @@
 swot Coopérative du Rhum
 no-axes
-x-label Atouts, Risques
-y-label Interne, Externe
+x-axis Atouts, Risques
+y-axis Interne, Externe
 
 // The source order is deliberately T O W S; the panels stay S W / O T.
 threats Menaces

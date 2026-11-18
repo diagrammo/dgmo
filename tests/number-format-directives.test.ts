@@ -86,7 +86,7 @@ describe('number format — parse', () => {
   it('is read by scatter, function, heatmap, funnel and slope', () => {
     for (const src of [
       'scatter S\nformat compact\nA 1 2',
-      'function F\nformat compact\nx 0 to 1\nf: x',
+      'function F\nformat compact\nx-axis 0..1\nf: x',
       'heatmap H\nformat compact\ncolumns\n  A\nR 1',
       'funnel F\nformat compact\nA 10\nB 5',
     ])

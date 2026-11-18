@@ -110,61 +110,61 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 
 ### Chart-type index (45) — pick the type, then fetch its section
 
-| id                 | when to use                                                                                                                                                                                                                             |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sequence`         | message / interaction flows over time                                                                                                                                                                                                   |
-| `flowchart`        | decision trees and process flows                                                                                                                                                                                                        |
-| `state`            | state-machine / lifecycle transitions                                                                                                                                                                                                   |
-| `class`            | UML class hierarchies                                                                                                                                                                                                                   |
-| `er`               | database schemas and relationships                                                                                                                                                                                                      |
-| `c4`               | system architecture (context / container / component / deployment)                                                                                                                                                                      |
-| `infra`            | infrastructure traffic flow with RPS computation                                                                                                                                                                                        |
-| `boxes-and-lines`  | general-purpose node-edge diagrams with groups and tags                                                                                                                                                                                 |
-| `sitemap`          | site / app navigation structure                                                                                                                                                                                                         |
-| `mindmap`          | radial hierarchy of ideas from a central topic                                                                                                                                                                                          |
-| `org`              | reporting hierarchy                                                                                                                                                                                                                     |
-| `family`           | family tree / genealogy: unions (couples), children, remarriage, adoption, GEDCOM-style metadata                                                                                                                                        |
-| `ownership`        | corporate entity structure: parent, subsidiaries and outside owners, a % stake on every line and a jurisdiction on every box (legal, tax, M&A)                                                                                          |
-| `bracket`          | single-elimination tournament bracket: winners auto-advance; seed the field for a day-0 skeleton or list results casually; two sides mirror to a championship                                                                           |
-| `kanban`           | task-board columns                                                                                                                                                                                                                      |
-| `swot`             | SWOT analysis: strengths, weaknesses, opportunities, threats in four fixed panels on helpful/harmful and internal/external axes                                                                                                         |
-| `gantt`            | project scheduling with task dependencies and milestones                                                                                                                                                                                |
-| `pert`             | project network with three-point estimates and critical path                                                                                                                                                                            |
-| `swimlane`         | cross-functional process flow with lanes, phases and gateways (BPMN-style)                                                                                                                                                              |
-| `version-control`  | git / version-control branch-and-merge graph: commits, branches, merges, rebase, HEAD and remote-tracking (gitGraph-style)                                                                                                              |
-| `timeline`         | events, eras, and date ranges                                                                                                                                                                                                           |
-| `event-line`       | annotated narrative timeline — events on a line with descriptions, optionally not to scale (NOT the date-scaled `timeline`)                                                                                                             |
-| `body`             | human anatomy figure annotated by muscle name — for medical, exercise, and educational diagrams                                                                                                                                         |
-| `journey-map`      | UX flow with emotion scores, phases, annotations                                                                                                                                                                                        |
-| `cycle`            | cyclical process (PDCA, OODA, DevOps loops)                                                                                                                                                                                             |
-| `raci`             | tasks × roles responsibility matrix; variant (RACI / RASCI / DACI) is inferred from the markers used                                                                                                                                    |
-| `tech-radar`       | technology adoption quadrants (adopt / trial / assess / hold)                                                                                                                                                                           |
-| `quadrant`         | 2×2 positioning matrix                                                                                                                                                                                                                  |
-| `pyramid`          | stacked hierarchy of layers (Maslow, DIKW)                                                                                                                                                                                              |
-| `ring`             | concentric rings of nested categories                                                                                                                                                                                                   |
-| `treemap`          | nested rectangles sized by value (budgets, disk usage, portfolios)                                                                                                                                                                      |
-| `block`            | author-controlled grid of nested, collapsible blocks (system / architecture layouts)                                                                                                                                                    |
-| `whiteboard`       | free-form infinite canvas: shapes, sticky notes, free arrows, text, images and freehand ink at pixel positions (canvas-drawn; AI writes all but ink)                                                                                    |
-| `goal`             | progress-toward-a-target value (`actual` vs `target`) as a progress bar, thermometer, or gauge, with optional named `bands`; several `[Measure]` rows make a bullet chart — KPIs, dashboards, fundraising, quotas                       |
-| `countdown`        | live "N days until X" that ticks every second and is accurate on every load — trip dates, launches, deadlines; the only dynamic chart type                                                                                              |
-| `clock`            | live world-clock board: current time for people/places across time zones, ticking every second, with optional working-hours status and sundown line                                                                                     |
-| `map`              | geographic concept map: regions, points, routes                                                                                                                                                                                         |
-| `wireframe`        | low-fidelity UI layout with panels and controls                                                                                                                                                                                         |
-| `bar`              | categorical comparisons (multi-series via `stack` / `group`; bare `mean`, `median`, `target N`, `trend`, `pareto` overlays)                                                                                                             |
-| `line`             | trends over time (multiple series via a `series` block; filled via `fill`; stacked areas via `stack`; dual y-axes via `y-label` / `y-right-label`; bare `mean`, `median`, `target N`, `trend`, `moving-average N`, `extremes` overlays) |
-| `pie`              | part-to-whole proportions (ring/doughnut via `hole`; 10×10 grid via `waffle`)                                                                                                                                                           |
-| `radar`            | multi-dimensional metrics                                                                                                                                                                                                               |
-| `polar-area`       | radial bar chart                                                                                                                                                                                                                        |
-| `scatter`          | 2D points or bubble chart (`trend` draws a fit line per category)                                                                                                                                                                       |
-| `heatmap`          | matrix intensity                                                                                                                                                                                                                        |
-| `calendar-heatmap` | daily values across a year as a grid of squares, weeks across and weekdays down (activity, habits, runs) — one `date value` per line                                                                                                    |
-| `funnel`           | conversion pipeline                                                                                                                                                                                                                     |
-| `sankey`           | flow / allocation                                                                                                                                                                                                                       |
-| `arc`              | network relationships (linear, or circular via `layout chord`)                                                                                                                                                                          |
-| `slope`            | change between two periods                                                                                                                                                                                                              |
-| `venn`             | set overlaps                                                                                                                                                                                                                            |
-| `wordcloud`        | term-frequency                                                                                                                                                                                                                          |
-| `function`         | mathematical expressions (colon required: `f(x): x^2`)                                                                                                                                                                                  |
+| id                 | when to use                                                                                                                                                                                                                                          |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sequence`         | message / interaction flows over time                                                                                                                                                                                                                |
+| `flowchart`        | decision trees and process flows                                                                                                                                                                                                                     |
+| `state`            | state-machine / lifecycle transitions                                                                                                                                                                                                                |
+| `class`            | UML class hierarchies                                                                                                                                                                                                                                |
+| `er`               | database schemas and relationships                                                                                                                                                                                                                   |
+| `c4`               | system architecture (context / container / component / deployment)                                                                                                                                                                                   |
+| `infra`            | infrastructure traffic flow with RPS computation                                                                                                                                                                                                     |
+| `boxes-and-lines`  | general-purpose node-edge diagrams with groups and tags                                                                                                                                                                                              |
+| `sitemap`          | site / app navigation structure                                                                                                                                                                                                                      |
+| `mindmap`          | radial hierarchy of ideas from a central topic                                                                                                                                                                                                       |
+| `org`              | reporting hierarchy                                                                                                                                                                                                                                  |
+| `family`           | family tree / genealogy: unions (couples), children, remarriage, adoption, GEDCOM-style metadata                                                                                                                                                     |
+| `ownership`        | corporate entity structure: parent, subsidiaries and outside owners, a % stake on every line and a jurisdiction on every box (legal, tax, M&A)                                                                                                       |
+| `bracket`          | single-elimination tournament bracket: winners auto-advance; seed the field for a day-0 skeleton or list results casually; two sides mirror to a championship                                                                                        |
+| `kanban`           | task-board columns                                                                                                                                                                                                                                   |
+| `swot`             | SWOT analysis: strengths, weaknesses, opportunities, threats in four fixed panels on helpful/harmful and internal/external axes                                                                                                                      |
+| `gantt`            | project scheduling with task dependencies and milestones                                                                                                                                                                                             |
+| `pert`             | project network with three-point estimates and critical path                                                                                                                                                                                         |
+| `swimlane`         | cross-functional process flow with lanes, phases and gateways (BPMN-style)                                                                                                                                                                           |
+| `version-control`  | git / version-control branch-and-merge graph: commits, branches, merges, rebase, HEAD and remote-tracking (gitGraph-style)                                                                                                                           |
+| `timeline`         | events, eras, and date ranges                                                                                                                                                                                                                        |
+| `event-line`       | annotated narrative timeline — events on a line with descriptions, optionally not to scale (NOT the date-scaled `timeline`)                                                                                                                          |
+| `body`             | human anatomy figure annotated by muscle name — for medical, exercise, and educational diagrams                                                                                                                                                      |
+| `journey-map`      | UX flow with emotion scores, phases, annotations                                                                                                                                                                                                     |
+| `cycle`            | cyclical process (PDCA, OODA, DevOps loops)                                                                                                                                                                                                          |
+| `raci`             | tasks × roles responsibility matrix; variant (RACI / RASCI / DACI) is inferred from the markers used                                                                                                                                                 |
+| `tech-radar`       | technology adoption quadrants (adopt / trial / assess / hold)                                                                                                                                                                                        |
+| `quadrant`         | 2×2 positioning matrix                                                                                                                                                                                                                               |
+| `pyramid`          | stacked hierarchy of layers (Maslow, DIKW)                                                                                                                                                                                                           |
+| `ring`             | concentric rings of nested categories                                                                                                                                                                                                                |
+| `treemap`          | nested rectangles sized by value (budgets, disk usage, portfolios)                                                                                                                                                                                   |
+| `block`            | author-controlled grid of nested, collapsible blocks (system / architecture layouts)                                                                                                                                                                 |
+| `whiteboard`       | free-form infinite canvas: shapes, sticky notes, free arrows, text, images and freehand ink at pixel positions (canvas-drawn; AI writes all but ink)                                                                                                 |
+| `goal`             | progress-toward-a-target value (`actual` vs `target`) as a progress bar, thermometer, or gauge, with optional named `bands`; several `[Measure]` rows make a bullet chart — KPIs, dashboards, fundraising, quotas                                    |
+| `countdown`        | live "N days until X" that ticks every second and is accurate on every load — trip dates, launches, deadlines; the only dynamic chart type                                                                                                           |
+| `clock`            | live world-clock board: current time for people/places across time zones, ticking every second, with optional working-hours status and sundown line                                                                                                  |
+| `map`              | geographic concept map: regions, points, routes                                                                                                                                                                                                      |
+| `wireframe`        | low-fidelity UI layout with panels and controls                                                                                                                                                                                                      |
+| `bar`              | categorical comparisons (multi-series via `stack` / `group`; bare `mean`, `median`, `target N`, `trend`, `pareto` overlays)                                                                                                                          |
+| `line`             | trends over time (multiple series via a `series` block; filled via `fill`; stacked areas via `stack`; dual y-axes via `y-axis` / `y-right-axis` series headers; bare `mean`, `median`, `target N`, `trend`, `moving-average N`, `extremes` overlays) |
+| `pie`              | part-to-whole proportions (ring/doughnut via `hole`; 10×10 grid via `waffle`)                                                                                                                                                                        |
+| `radar`            | multi-dimensional metrics                                                                                                                                                                                                                            |
+| `polar-area`       | radial bar chart                                                                                                                                                                                                                                     |
+| `scatter`          | 2D points or bubble chart (`trend` draws a fit line per category)                                                                                                                                                                                    |
+| `heatmap`          | matrix intensity                                                                                                                                                                                                                                     |
+| `calendar-heatmap` | daily values across a year as a grid of squares, weeks across and weekdays down (activity, habits, runs) — one `date value` per line                                                                                                                 |
+| `funnel`           | conversion pipeline                                                                                                                                                                                                                                  |
+| `sankey`           | flow / allocation                                                                                                                                                                                                                                    |
+| `arc`              | network relationships (linear, or circular via `layout chord`)                                                                                                                                                                                       |
+| `slope`            | change between two periods                                                                                                                                                                                                                           |
+| `venn`             | set overlaps                                                                                                                                                                                                                                         |
+| `wordcloud`        | term-frequency                                                                                                                                                                                                                                       |
+| `function`         | mathematical expressions (colon required: `f(x): x^2`)                                                                                                                                                                                               |
 
 **Need more than the index gives you?** Fetch the per-type section: MCP `get_language_reference(type)` / `get_examples(type)`, or read that type's section below. The `suggest_chart_type` tool returns the chosen type's section automatically.
 
@@ -576,7 +576,7 @@ Havana 400
 
 - **The label is the rest of the line.** A trailing colour word (§1.5) colours the mark; without one a `marker` takes the text colour and a `band` a muted tint. Quote the label to keep a final colour word as text: `marker 50 "Code red"`.
 - **Which axis a `marker` sits on.** On its own line, a number is a value-axis position (`marker y 50` says so outright). Under a row, it marks that row's category — so numeric categories (years) need no axis word. On `scatter` both axes are numeric: `marker 50` is y, `marker x 5` is x, and `band x 2..4` shades an x range. On `bar` and `line` a category marker on its own line (`marker Nassau Raid`) is the old form: it warns and shows the indented one.
-- **The value axis reaches every annotation.** A `marker` or `band` beyond the data widens the axis to include it, on a log axis too. When `y-min` / `y-max` fix an end, a `marker` past it is not drawn and a `band` is cut at it. On a log axis a value at or below 0 is not drawn.
+- **The value axis reaches every annotation.** A `marker` or `band` beyond the data widens the axis to include it, on a log axis too. When the `y-axis` range fixes an end, a `marker` past it is not drawn and a `band` is cut at it. On a log axis a value at or below 0 is not drawn.
 - On a horizontal bar the value axis runs across, so a value `marker` is vertical and a `band` is a column.
 - On a dual-axis `line`, annotations sit on the left axis.
 - **A `note` marks the row it sits under.** On a single series that is the whole address: the bar, the point, the scatter point. A row of several series (a multi-series `line`, a `stack` or `group` bar) says which one first: `note APAC Frankfurt opens`. On `slope` a row is a series, so the note starts with its period: `note 2025 Overtakes Go`. Quote a multi-word name. Lines indented under the note continue its text, with inline markdown.
@@ -2703,7 +2703,7 @@ Parsers accept either form. The rules above are authoring guidance.
     the series name.
     **`stack 100%`** (bar and line, #1846) draws every category, or every x
     position, as shares of its own total. The source keeps raw values. The value
-    axis reads 0–100% and ignores `y-scale`, `y-min` and `y-max` (a warning).
+    axis reads 0–100% and ignores a range or scale on `y-axis` (a warning).
     Segment labels on a bar show the share; hover shows the raw value and the
     share (`120 · 46%`). A negative value is an error (`E_VALUE_NEGATIVE`) that
     names the row and the series, and drops the row. `group 100%` is an error.
@@ -2769,7 +2769,7 @@ Parsers accept either form. The rules above are authoring guidance.
   - Hover on a segment gives its share of the column, its share of the
     whole (its area), and its value (the raw input, or the share of the
     size when widths are sizes).
-  - `highlight`, `fill-*`, `no-value`, `x-label` and `y-label` work as on
+  - `highlight`, `fill-*`, `no-value`, `x-axis` and `y-axis` work as on
     any bar. Negative values are an error, as under `stack 100%`.
   - Errors: no `stack` block; `group` instead of `stack`; shares that do not
     add up to 100; a mix of shares and sizes; a width of 0 or less;
@@ -2803,8 +2803,8 @@ Parsers accept either form. The rules above are authoring guidance.
   ```
 
   - A negative value is an error (`E_VALUE_NEGATIVE`) naming the row and the
-    series. `stack` and `series` on one chart, `y-right-label`, a series
-    `band`, `fill-between` and `y-scale log` are errors with a stack.
+    series. `stack` and `series` on one chart, `y-right-axis`, a series
+    `band`, `fill-between` and `y-axis log` are errors with a stack.
   - `stack diverging` is bar-only; on line it draws an ordinary stack and warns.
 
 - **radar** — use a `series` block to plot one polygon per series over the shared
@@ -2829,8 +2829,8 @@ Q1 400 700 300 500
 **Options (space-separated, NO colon):**
 
 ```
-x-label X Label
-y-label Y Label
+x-axis X Label           // the axis line, §15.1.2
+y-axis Y Label 0..       // title, range, scale
 orientation-horizontal   // bar: horizontal bars
 fill                     // line: fill the area under the line
 fill-between A B         // line: shade between two series (§15.1.5)
@@ -2850,8 +2850,8 @@ step-before              // line: steps that reach each value at its own point
 - `orientation-horizontal` (bar; default is vertical bars). A vertical bar
   chart of up to 12 categories whose names would have to rotate or be cut
   draws as horizontal bars on its own; longer axes (dates, many points) still
-  thin and rotate their labels. Horizontal either way, `x-label` still names
-  the categories (drawn on the left) and `y-label` the values (drawn below)
+  thin and rotate their labels. Horizontal either way, `x-axis` still names
+  the categories (drawn on the left) and `y-axis` the values (drawn below)
 - `fill` (line; fills the area under the line)
 - `hole` (pie; renders the doughnut ring — bare `hole`, or `hole <0–0.9>` for a
   custom inner-radius ratio. The value total shows in the center by default;
@@ -2927,14 +2927,14 @@ dropped; it still shows on hover.
 era Day 1 -> Day 3 Rough Seas red
 ```
 
-**Dual y-axes (line):** to compare two metrics with unrelated units on one chart, group the `series` block under `y-label` (left) and `y-right-label` (right) headers — series indented under each header bind to that axis, which auto-scales independently:
+**Dual y-axes (line):** to compare two metrics with unrelated units on one chart, group the `series` block under `y-axis` (left) and `y-right-axis` (right) headers — series indented under each header bind to that axis. Each header is a whole axis line, so it may carry a range and `log` (§15.1.2); otherwise that axis auto-scales independently:
 
 ```
 line Oil Price vs Strategic Reserve
 series
-  y-label $ / barrel
+  y-axis $ / barrel
     Oil Price blue
-  y-right-label Million barrels
+  y-right-axis Million barrels
     SPR Size green
 
 2020 40 640
@@ -2946,45 +2946,66 @@ The right axis may hold more than one series; data rows stay positional across b
 
 > **Migrated in 1.0:** the former standalone `area`, `multi-line`, and `doughnut` chart types were removed. Use `line` + `fill` (area), `line` + a `series` block (multi-line), and `pie` + `hole` (doughnut). `bar-stacked` became `bar` + a `stack` header.
 
-#### 15.1.2 Axis range and scale (bar, line, scatter, function, slope)
+#### 15.1.2 The axis line — title, range and scale (bar, line, scatter, function, slope)
 
-Three directives set a numeric axis. Space-separated, no colon, lowercase at
-column 1 (#1830):
+One line sets an axis: its title, its range and its scale, in that order, every
+part optional. Space-separated, no colon, lowercase at column 1 (decision #60):
 
 ```
-y-scale log      // or: y-scale linear (the default)
-y-min 0          // fix the lower end
-y-max 1,000,000  // fix the upper end
+x-axis Crew 1..1000 log
+y-axis Range (yards) 0.1..100,000 log
+y-axis Revenue        // title only
+y-axis 0..            // floor only
+y-axis ..100          // ceiling only
+y-axis log            // scale only (linear is the default)
 ```
 
-- **Where.** `y-` forms work on bar, line, scatter, function and slope. The
-  `x-` forms (`x-scale`, `x-min`, `x-max`) work on **scatter only**, the one
-  chart type with a numeric x-axis. A function chart's x range stays
-  `x <min> to <max>` (§15.4). On a horizontal bar, `y-` still names the value
-  axis. On a dual-axis line (§15.1.1) they set the **left** axis; the right
-  axis keeps its auto-fit. A directive for an axis the chart type does not
-  have warns (`W_AXIS_DIRECTIVE_INVALID`) and is ignored.
-- **`y-min` / `y-max`** replace the auto-fit end they name and are drawn as
-  labelled ticks; a free end still rounds outward. They override `no-auto-y`
-  and the bar 0 baseline: a bar whose axis starts above 0 grows from the axis
-  floor. Values outside the range are cut off at the edge, and the chart warns
+`x-axis | y-axis | y-right-axis  [title] [min..max] [log | linear]`
+
+- **Read from the end**, the way a data row sheds a trailing colour (§1.4): an
+  optional `log` / `linear`, then an optional range. What is left is the title.
+  A title that is literally `log` or `linear`, or ends in a word holding `..`,
+  is quoted: `y-axis "log"`, `x-axis "Years 2020..2024"`.
+- **Range** is `min..max`, the spelling `band 400..600` uses (§1.15). Either end
+  may be open: `0..` fixes only the floor, `..100` only the ceiling. A number
+  may use `,` or `_` separators. An unquoted last word holding `..` that is not
+  two numbers warns (`W_AXIS_DIRECTIVE_INVALID`) and only that part is dropped.
+- **Which axis.** On a bar, `x-axis` is the **category** axis and `y-axis` the
+  **value** axis, in either orientation (#2122). Every chart type with axis
+  titles takes a title on both (bar, line, scatter, function). A range or scale
+  needs a numeric axis: `y-axis` on bar, line, scatter, function and slope;
+  `x-axis` on scatter and function. A range or scale on an axis the chart type
+  does not have warns (`W_AXIS_DIRECTIVE_INVALID`) and is ignored; the title
+  still applies. Slope draws no axis titles, so a title there warns.
+- **Function x.** On a function chart, `x-axis 0..250` sets the sampled x
+  range (default `-10..10`; an open end keeps its default). Its x-axis is
+  always linear: `log` there warns.
+- **Dual-axis line.** `y-axis` sets the left axis and `y-right-axis` the right
+  one (§15.1.1); each takes its own range and scale. The range is checked
+  against that axis's own series.
+- **The range** replaces the auto-fit end it names, drawn as a labelled tick;
+  a free end still rounds outward. A fixed end overrides `no-auto-y` and the
+  bar 0 baseline: a bar whose axis starts above 0 grows from the axis floor.
+  Values outside the range are cut off at the edge, and the chart warns
   (`W_AXIS_DATA_OUTSIDE_RANGE`). A function curve breaks at the edge instead.
-  Slope draws no tick axis; there the bounds fix the vertical range, so two
-  slope charts can share one scale. A number may use `,` or `_` separators.
-  `y-min` at or above `y-max` drops both (`W_AXIS_DIRECTIVE_INVALID`).
-- **`y-scale log`** draws a base-10 log axis. Ticks fall on every power of ten
-  in range; under three decades, the 2× and 5× steps are added. Unbounded ends
+  Slope draws no tick axis; there the range fixes the vertical span, so two
+  slope charts can share one scale. A range whose low end is not below its high
+  end drops both ends (`W_AXIS_DIRECTIVE_INVALID`).
+- **`log`** draws a base-10 log axis. Ticks fall on every power of ten in
+  range; under three decades, the 2× and 5× steps are added. Unbounded ends
   round out to whole decades. Every value and bound must be above 0. Otherwise
   the axis stays linear and the chart warns (`W_AXIS_LOG_NOT_POSITIVE`). A
   function chart plots only the samples above 0. **A stacked bar cannot be
   log**: its segments would not add up, so it warns and stays linear.
-- **Not here:** number format for tick labels (#1831) and date ticks (#1880).
-
-**Series names at line ends (line).** A `line` with two or more drawn
-series prints each series' name just past its last point, nudged apart so
-none prints over another, beside the point values and the legend. The names
-are left out of a dual-axis chart, a stacked area, and a chart too narrow to
-hold them without turning its category labels (#1950).
+- **Repeats.** A second line for the same axis replaces the first one's range
+  and scale; a title it carries replaces the title.
+- **The old directives are errors.** `x-label`, `y-label`, `y-right-label`,
+  `x-min`, `x-max`, `y-min`, `y-max`, `x-scale`, `y-scale` and the function
+  chart's `x <min> to <max>` error (`E_AXIS_OLD_DIRECTIVE`), name the line to
+  write instead, and are ignored.
+- 🔴 **A new per-axis setting is an indented child of the axis line**
+  (diagrammo/diagrammo#2116), never a new top-level `x-<thing>` directive.
+  Number format is §15.1.4; date ticks are §15.1.3.
 
 #### 15.1.3 Time axis and steps (line)
 
@@ -3002,7 +3023,7 @@ until the next point, then jumps:
 ```
 line Fed funds rate
 step             // or: step-before
-y-label Rate (%)
+y-axis Rate (%)
 2022-01 0.25
 2022-03 0.50
 2023-07 5.50
@@ -3142,14 +3163,14 @@ May 360
   draws each on its own axis. `target` is one line on the left axis.
 - A `target` beyond the data widens the value axis to reach it.
 - `trend` fits each series against its row position, so its slope is per x
-  step: `trend +1.68/step`. A one-word `x-label` names the step
-  (`x-label Week` → `trend +1.68/week`). The line runs from the first row with
+  step: `trend +1.68/step`. A one-word `x-axis` title names the step
+  (`x-axis Week` → `trend +1.68/week`). The line runs from the first row with
   a value to the last, and stops at the plot edge. On scatter it is one line
   per category, labelled with its R² (§15.2).
 - `moving-average N` averages each row with the N-1 rows before it, so the
   smoothed line starts at row N. N is a whole number, 2 or more. A window over
   a missing row is missing. The label reads `3-pt avg`, or `3-week avg` with
-  `x-label Week`.
+  `x-axis Week`.
 - `extremes` labels the highest point `peak 41 Jul` above it and the lowest
   `low 19 Jan` below it; a tie goes to the first row. The point's own value
   label gives way to it.
@@ -3192,12 +3213,11 @@ Name x y size
 **Options:**
 
 ```
-x-label Weight
-y-label Height
+x-axis Weight log  // §15.1.2: title, range and scale on both axes
+y-axis Height 0..
 size-label Crew
 no-name
 connect          // join the points in row order
-x-scale log      // §15.1.2: x-/y-scale, -min, -max on both axes
 ```
 
 Point names render by default. Use `no-name` to hide them.
@@ -3279,15 +3299,14 @@ South 2 -1 4
 
 <!-- TIPS start -->
 
-**Styling tips:** Pick a domain (`x <min> to <max>`) that frames the interesting behavior and keep to a few curves for legibility. Give each curve a short readable name before the colon (`Sine: sin(x)`), not the expression repeated.
+**Styling tips:** Pick a domain (`x-axis <min>..<max>`) that frames the interesting behavior and keep to a few curves for legibility. Give each curve a short readable name before the colon (`Sine: sin(x)`), not the expression repeated.
 
 <!-- TIPS end -->
 
 ```
 function Trajectories
-x-label Distance
-y-label Height
-x 0 to 250
+x-axis Distance 0..250
+y-axis Height
 
 15 degrees blue: -0.001*x^2 + 0.27*x
 45 degrees red: -0.003*x^2 + 0.75*x
@@ -3297,7 +3316,7 @@ The colon between name and expression is **required** — both sides can contain
 
 **Options:**
 
-- `y-scale log`, `y-min`, `y-max` (§15.1.2) — the x range stays `x <min> to <max>`
+- `x-axis [title] [min..max]` sets the sampled x range (default `-10..10`); `y-axis [title] [min..max] [log]` sets the value axis (§15.1.2)
 - `fill` (boolean; off by default) — shades the area below each curve down to the y=0 baseline, the same directive as the `line` chart. Soft 25% tint by default; opaque under `fill-solid` (`fill-outline` is ignored — hollowing the band would erase it)
 
 ### 15.5 Sankey Charts
@@ -3382,7 +3401,7 @@ Roberts 12 52
 - Thousands commas are removed — write `1000`, not `1,000` (underscore grouping `1_000` is accepted)
 - Color annotations: `Label color value1 value2` (trailing color word before numeric values)
 - Minimum 2 periods required
-- `y-scale log`, `y-min`, `y-max` (§15.1.2) fix the vertical range, so two slope charts can share one scale
+- `y-axis 0..100 log` (§15.1.2) fixes the vertical range, so two slope charts can share one scale
 
 ### 16.2 Wordcloud
 
@@ -3647,8 +3666,8 @@ sw + nav + lead Legendary Pirates
 
 ```
 quadrant Crew Assessment
-x-label Low Skill, High Skill
-y-label Low Loyalty, High Loyalty
+x-axis Low Skill, High Skill
+y-axis Low Loyalty, High Loyalty
 
 top-right Promote green
 top-left Train yellow
@@ -3659,7 +3678,7 @@ Quartermaster 0.9 0.95
 Navigator 0.85 0.8
 ```
 
-- Axis labels: `x-label Low, High` — comma-separated (low/high pair, not a data row; comma is the delimiter here by design)
+- Axis labels: `x-axis Low, High` — comma-separated (low/high pair, not a data row; comma is the delimiter here by design)
 - Position labels: `top-right Label` — space-separated
 - Data points: `Label x y` — follows §15 Rule A (space-separated canonical; a comma between x and y is tolerated, and axis labels above keep their comma)
 
@@ -5497,8 +5516,8 @@ tag Priority as p
   High red
   Low gray
 active-tag Priority
-x-label Helpful, Harmful
-y-label Internal, External
+x-axis Helpful, Harmful
+y-axis Internal, External
 
 strengths
   Oldest still on the island p: Low
@@ -5523,9 +5542,9 @@ threats
 | Option              | Effect                                                                                                                                                                                                    |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `tag`, `active-tag` | A tag recolours an item's dot, tints its row faintly in the tag colour, and adds the legend. An untagged item keeps its section's colour and no tint, and the header bands always keep the section colour |
-| `x-label A, B`      | Column headers: a filled band over each column, in small caps. Default `Helpful, Harmful`                                                                                                                 |
-| `y-label A, B`      | Row headers: a filled rail beside each row, rotated, in small caps. Default `Internal, External`                                                                                                          |
-| `no-axes`           | Hide the axis labels. Wins over `x-label` and `y-label`                                                                                                                                                   |
+| `x-axis A, B`       | Column headers: a filled band over each column, in small caps. Default `Helpful, Harmful`                                                                                                                 |
+| `y-axis A, B`       | Row headers: a filled rail beside each row, rotated, in small caps. Default `Internal, External`                                                                                                          |
+| `no-axes`           | Hide the axis labels. Wins over `x-axis` and `y-axis`                                                                                                                                                     |
 | `no-tint-items`     | Don't tint tagged rows; the dot alone carries the tag                                                                                                                                                     |
 | `no-legend`         | Hide the tag legend                                                                                                                                                                                       |
 | `palette`           | Draw in a built-in palette                                                                                                                                                                                |
@@ -5757,7 +5776,7 @@ A colon binds a value, and it appears in exactly **four syntactic positions** �
 
 **Colons never appear in:**
 
-- Directives and options — space-separated (`start-date 2026-03-15`, `x-label Low, High`, `region`)
+- Directives and options — space-separated (`start-date 2026-03-15`, `x-axis Low, High`, `region`)
 - Tag declarations and chart type declarations
 - Series declarations and data rows for simple/data charts (incl. sankey/arc links `Source -> Target value` and quadrant data; space-delimited canonical, commas tolerated)
 - Structural syntax (groups, sections, arrows, comments)

@@ -66,7 +66,11 @@ import {
   takeFootnoteBlock,
 } from '../utils/chart-frame-parse';
 import { parseEmphasisDirective } from '../utils/emphasis';
-import { parseAxisLine, settleAxisSpec } from '../utils/axis-spec';
+import {
+  parseAxisLine,
+  rejectOldAxisLine,
+  settleAxisSpec,
+} from '../utils/axis-spec';
 import { parseNumberFormatLine } from '../utils/number-format';
 import { parseTimelineEventLine, type DatePrefixCtx } from '../timeline/parser';
 import {
@@ -333,8 +337,8 @@ function parseVisualizationFull(
       continue;
     }
 
-    // Axis directives on slope (#1830): `y-scale log`, `y-min`, `y-max` set
-    // the vertical range, so two slope charts can share one scale.
+    // The axis line on slope (decision #60): `y-axis 0..100 log` sets the
+    // vertical range, so two slope charts can share one scale.
     if (
       result.type === 'slope' &&
       indent === 0 &&
@@ -982,11 +986,12 @@ function parseVisualizationFull(
 
     // Quadrant-specific parsing
     if (result.type === 'quadrant') {
-      // x-label Low, High  — or indented multi-line
-      const xAxisMatch = line.match(/^x-label\s+(.*)/i);
+      if (rejectOldAxisLine(line, lineNumber, result.diagnostics)) continue;
+      // x-axis Low, High  — or indented multi-line
+      const xAxisMatch = line.match(/^x-axis(?:\s+(.*))?$/i);
       if (xAxisMatch) {
         // Capture group 1 guaranteed by the regex match.
-        const val = xAxisMatch[1]!.trim();
+        const val = (xAxisMatch[1] ?? '').trim();
         let parts: string[];
         if (val) {
           parts = val.split(',').map((s) => s.trim());
@@ -1003,11 +1008,11 @@ function parseVisualizationFull(
         continue;
       }
 
-      // y-label Low, High  — or indented multi-line
-      const yAxisMatch = line.match(/^y-label\s+(.*)/i);
+      // y-axis Low, High  — or indented multi-line
+      const yAxisMatch = line.match(/^y-axis(?:\s+(.*))?$/i);
       if (yAxisMatch) {
         // Capture group 1 guaranteed by the regex match.
-        const val = yAxisMatch[1]!.trim();
+        const val = (yAxisMatch[1] ?? '').trim();
         let parts: string[];
         if (val) {
           parts = val.split(',').map((s) => s.trim());

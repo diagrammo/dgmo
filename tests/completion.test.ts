@@ -461,7 +461,7 @@ describe('COMPLETION_REGISTRY', () => {
       'theme',
       'chart',
       'title',
-      'x-label',
+      'x-axis',
       'orientation-horizontal',
       'activations',
       'start-date',
@@ -486,7 +486,7 @@ describe('COMPLETION_REGISTRY', () => {
     // Spot-check: bar should have orientation-horizontal, sequence should have activations, gantt should have start
     const barSpec = COMPLETION_REGISTRY.get('bar')!;
     expect(barSpec.directives['orientation-horizontal']).toBeDefined();
-    expect(barSpec.directives['x-label']).toBeDefined();
+    expect(barSpec.directives['x-axis']).toBeDefined();
 
     const seqSpec = COMPLETION_REGISTRY.get('sequence')!;
     expect(seqSpec.directives.activations).toBeDefined();

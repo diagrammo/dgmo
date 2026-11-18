@@ -1,5 +1,5 @@
-// Axis directives (#1830): `y-scale log`, `y-min N`, `y-max N`, and the
-// `x-` forms on scatter. Parse, the three warnings, the shared axis builder,
+// The axis line (decision #60): `y-axis <title> <min>..<max> <log|linear>`,
+// and `x-axis` on scatter and function. Parse, the three warnings, the shared axis builder,
 // and the rendered ticks on each chart type that takes them.
 import { describe, it, expect } from 'vitest';
 import { parseChart } from '../src/chart';
@@ -8,6 +8,7 @@ import { parseVisualization } from '../src/visualizations/parse';
 import { renderDataChartD3 as renderDataChartD3Raw } from '../src/charts-d3';
 import { flattenTabular } from './helpers/tabular-text';
 import { buildValueAxis, logTicks } from '../src/charts-d3/value-axis';
+import { readAxisLine } from '../src/utils/axis-spec';
 import { getPalette } from '../src/palettes';
 
 // Labels are digit cells (#2035); read their text as one string.
@@ -33,81 +34,83 @@ function tickValues(svg: string): number[] {
 }
 
 describe('axis directives — parse', () => {
-  it('reads y-scale, y-min and y-max on bar and line', () => {
-    const bar = parseChart(
-      'bar S\ny-scale log\ny-min 1\ny-max 1000\nA 5\nB 50'
-    );
+  it('reads range and scale on bar and line', () => {
+    const bar = parseChart('bar S\ny-axis 1..1000 log\nA 5\nB 50');
     expect(bar.axes?.y).toMatchObject({ scale: 'log', min: 1, max: 1000 });
-    const line = parseChart('line S\ny-min 0\nA 315\nB 395');
+    const line = parseChart('line S\ny-axis 0..\nA 315\nB 395');
     expect(line.axes?.y?.min).toBe(0);
     expect(codes(line)).toEqual([]);
   });
 
   it('accepts thousands separators and negative bounds', () => {
-    const r = parseChart('line S\ny-min -1,000\ny-max 2_000\nA 5\nB 6');
+    const r = parseChart('line S\ny-axis -1000..2000\nA 5\nB 6');
     expect(r.axes?.y).toMatchObject({ min: -1000, max: 2000 });
   });
 
   it('reads both axes on scatter, y on function and slope', () => {
     const sc = parseExtendedChart(
-      'scatter S\nx-scale log\ny-max 10\nA 10 5\nB 1000 7'
+      'scatter S\nx-axis log\ny-axis ..10\nA 10 5\nB 1000 7'
     );
     expect(sc.axes?.x?.scale).toBe('log');
     expect(sc.axes?.y?.max).toBe(10);
-    const fn = parseExtendedChart('function F\ny-min -5\nx 0 to 10\nf: x');
+    const fn = parseExtendedChart(
+      'function F\ny-axis -5..\nx-axis 0..10\nf: x'
+    );
     expect(fn.axes?.y?.min).toBe(-5);
-    const sl = parseVisualization('slope S\nperiod 2020 2024\ny-min 0\nA 4 8');
+    const sl = parseVisualization(
+      'slope S\nperiod 2020 2024\ny-axis 0..\nA 4 8'
+    );
     expect((sl as { axes?: { y?: { min?: number } } }).axes?.y?.min).toBe(0);
   });
 
   it('warns on a bad value and on an axis the chart does not have', () => {
-    expect(codes(parseChart('bar S\ny-scale cubic\nA 5'))).toContain(
+    expect(codes(parseChart('bar S\ny-axis 1..2..3\nA 5'))).toContain(
       'W_AXIS_DIRECTIVE_INVALID'
     );
-    expect(codes(parseChart('bar S\ny-min ten\nA 5'))).toContain(
+    expect(codes(parseChart('bar S\ny-axis ten..\nA 5'))).toContain(
       'W_AXIS_DIRECTIVE_INVALID'
     );
-    expect(codes(parseChart('bar S\nx-min 0\nA 5'))).toContain(
+    expect(codes(parseChart('bar S\nx-axis 0..\nA 5'))).toContain(
       'W_AXIS_DIRECTIVE_INVALID'
     );
-    expect(codes(parseChart('pie S\ny-max 5\nA 5'))).toContain(
+    expect(codes(parseChart('pie S\ny-axis ..5\nA 5'))).toContain(
       'W_AXIS_DIRECTIVE_INVALID'
     );
   });
 
   it('drops an inverted min/max pair', () => {
-    const r = parseChart('line S\ny-min 10\ny-max 5\nA 6\nB 7');
+    const r = parseChart('line S\ny-axis 10..5\nA 6\nB 7');
     expect(codes(r)).toContain('W_AXIS_DIRECTIVE_INVALID');
     expect(r.axes?.y?.min).toBeUndefined();
     expect(r.axes?.y?.max).toBeUndefined();
   });
 
   it('keeps a log axis linear when a value is zero or negative', () => {
-    const r = parseChart('line S\ny-scale log\nA 0\nB 1000');
+    const r = parseChart('line S\ny-axis log\nA 0\nB 1000');
     expect(codes(r)).toContain('W_AXIS_LOG_NOT_POSITIVE');
     expect(r.axes?.y?.scale).toBeUndefined();
   });
 
   it('refuses a log scale on a stacked bar', () => {
     const r = parseChart(
-      'bar S\ny-scale log\nstack\n  One\n  Two\nA 10 100\nB 20 200'
+      'bar S\ny-axis log\nstack\n  One\n  Two\nA 10 100\nB 20 200'
     );
     expect(codes(r)).toContain('W_AXIS_DIRECTIVE_INVALID');
     expect(r.axes?.y?.scale).toBeUndefined();
   });
 
   it('warns when a value falls outside the fixed range', () => {
-    const r = parseChart('bar S\ny-max 100\nA 50\nB 500');
+    const r = parseChart('bar S\ny-axis ..100\nA 50\nB 500');
     expect(codes(r)).toContain('W_AXIS_DATA_OUTSIDE_RANGE');
     const stacked = parseChart(
-      'bar S\ny-max 100\nstack\n  One\n  Two\nA 60 60'
+      'bar S\ny-axis ..100\nstack\n  One\n  Two\nA 60 60'
     );
     expect(codes(stacked)).toContain('W_AXIS_DATA_OUTSIDE_RANGE');
   });
 
   it('checks only the left series of a dual-axis line', () => {
     const r = parseChart(
-      'line S\ny-max 100\nseries\n  y-label Left\n    L\n  y-right-label Right\n    R\nA 50 5000\nB 60 6000'
+      'line S\ny-axis ..100\nseries\n  y-axis Left\n    L\n  y-right-axis Right\n    R\nA 50 5000\nB 60 6000'
     );
     expect(codes(r)).not.toContain('W_AXIS_DATA_OUTSIDE_RANGE');
   });
@@ -168,16 +171,16 @@ describe('buildValueAxis', () => {
 describe('axis directives — render', () => {
   it('line: a log axis over 10 → 10M draws decade ticks', async () => {
     const svg = await renderDataChartD3(
-      'line Users\ny-scale log\nA 10\nB 1000\nC 100000\nD 10000000',
+      'line Users\ny-axis log\nA 10\nB 1000\nC 100000\nD 10000000',
       'light',
       palette
     );
     expect(tickValues(svg)).toEqual([10, 100, 1e3, 1e4, 1e5, 1e6, 1e7]);
   });
 
-  it('line: y-min and y-max are honoured', async () => {
+  it('line: a fixed range is honoured', async () => {
     const svg = await renderDataChartD3(
-      'line Squat\ny-min 0\ny-max 500\nW1 315\nW2 395',
+      'line Squat\ny-axis 0..500\nW1 315\nW2 395',
       'light',
       palette
     );
@@ -188,7 +191,7 @@ describe('axis directives — render', () => {
 
   it('bar: a log axis labels every decade', async () => {
     const svg = await renderDataChartD3(
-      'bar Sizes\ny-scale log\nA 10\nB 1000\nC 100000',
+      'bar Sizes\ny-axis log\nA 10\nB 1000\nC 100000',
       'light',
       palette
     );
@@ -198,7 +201,7 @@ describe('axis directives — render', () => {
 
   it('scatter: both axes take a log scale', async () => {
     const svg = await renderDataChartD3(
-      'scatter S\nx-scale log\ny-scale log\nA 10 10\nB 1000 1000\nC 100000 100000',
+      'scatter S\nx-axis log\ny-axis log\nA 10 10\nB 1000 1000\nC 100000 100000',
       'light',
       palette
     );
@@ -208,9 +211,9 @@ describe('axis directives — render', () => {
     expect(t).not.toContain(50000);
   });
 
-  it('function: y-max cuts the curve rather than stretching the axis', async () => {
+  it('function: a fixed ceiling cuts the curve rather than stretching the axis', async () => {
     const svg = await renderDataChartD3(
-      'function F\ny-max 10\nx 0 to 10\nsquare: x^2',
+      'function F\ny-axis ..10\nx-axis 0..10\nsquare: x^2',
       'light',
       palette
     );
@@ -223,9 +226,9 @@ describe('axis directives — render', () => {
       m[1]!.split('L').map((p) => p.split(',').map(Number))
     );
 
-  it('bar: a value past y-max gets an up triangle above the plot', async () => {
+  it('bar: a value past the ceiling gets an up triangle above the plot', async () => {
     const svg = await renderDataChartD3(
-      'bar S\ny-min 40\ny-max 120\nA 15\nB 52\nC 300',
+      'bar S\ny-axis 40..120\nA 15\nB 52\nC 300',
       'light',
       palette
     );
@@ -251,7 +254,7 @@ describe('axis directives — render', () => {
 
   it('bar: horizontal cuts point right past the plot edge', async () => {
     const svg = await renderDataChartD3(
-      'bar S\norientation horizontal\ny-max 100\nA 50\nB 400',
+      'bar S\norientation horizontal\ny-axis ..100\nA 50\nB 400',
       'light',
       palette
     );
@@ -263,10 +266,120 @@ describe('axis directives — render', () => {
 
   it('bar: nothing in range, no marks', async () => {
     const svg = await renderDataChartD3(
-      'bar S\ny-max 500\nA 50\nB 400',
+      'bar S\ny-axis ..500\nA 50\nB 400',
       'light',
       palette
     );
     expect(cutMarks(svg)).toHaveLength(0);
+  });
+});
+
+describe('the axis line — one line per axis (decision #60)', () => {
+  it('reads title, range and scale from the end', () => {
+    expect(readAxisLine('y-axis Range (yards) 0.1..100,000 log')).toEqual({
+      axis: 'y',
+      label: 'Range (yards)',
+      min: 0.1,
+      max: 100000,
+      scale: 'log',
+    });
+    expect(readAxisLine('x-axis Crew 1..1000 log')).toMatchObject({
+      label: 'Crew',
+      min: 1,
+      max: 1000,
+    });
+  });
+
+  it('scales down to one part', () => {
+    expect(readAxisLine('y-axis log')).toEqual({ axis: 'y', scale: 'log' });
+    expect(readAxisLine('y-axis 0..')).toEqual({ axis: 'y', min: 0 });
+    expect(readAxisLine('y-axis ..100')).toEqual({ axis: 'y', max: 100 });
+    expect(readAxisLine('y-axis Revenue')).toEqual({
+      axis: 'y',
+      label: 'Revenue',
+    });
+  });
+
+  it('takes a quoted title that would read as a scale or range', () => {
+    expect(readAxisLine('y-axis "log"')).toEqual({ axis: 'y', label: 'log' });
+    expect(readAxisLine('x-axis "Years 2020..2024"')).toEqual({
+      axis: 'x',
+      label: 'Years 2020..2024',
+    });
+  });
+
+  it('never reads a capitalised or indented look-alike', () => {
+    expect(readAxisLine('Y-axis 5')).toBeNull();
+    expect(readAxisLine('y-axes 5')).toBeNull();
+  });
+
+  it('sets the title and the range from one line on a bar', () => {
+    const r = parseChart('bar S\ny-axis Votes 0..100\nA 50');
+    expect(r.ylabel).toBe('Votes');
+    expect(r.axes?.y).toMatchObject({ min: 0, max: 100 });
+    expect(codes(r)).toEqual([]);
+  });
+
+  it('errors on each old directive and names the new form', () => {
+    for (const [old, want] of [
+      ['y-min 0', 'y-axis 0..'],
+      ['y-max 1,000', 'y-axis ..1000'],
+      ['y-scale log', 'y-axis log'],
+      ['x-label Region', 'x-axis Region'],
+      ['y-right-label Barrels', 'y-right-axis Barrels'],
+    ] as const) {
+      const r = parseChart(`line S\n${old}\nA 5\nB 6`);
+      const d = r.diagnostics.find((x) => x.code === 'E_AXIS_OLD_DIRECTIVE');
+      expect(d?.message, old).toContain(want);
+      expect(r.data.map((p) => p.label)).toEqual(['A', 'B']);
+    }
+  });
+
+  it('sets a function chart range with x-axis, and errors on `x … to …`', () => {
+    const fn = parseExtendedChart('function F\nx-axis t 0..250\nf: x');
+    expect(fn.xRange).toEqual({ min: 0, max: 250 });
+    expect(fn.xlabel).toBe('t');
+    const half = parseExtendedChart('function F\nx-axis 0..\nf: x');
+    expect(half.xRange).toEqual({ min: 0, max: 10 });
+    const old = parseExtendedChart('function F\nx 0 to 250\nf: x');
+    expect(codes(old)).toContain('E_AXIS_OLD_DIRECTIVE');
+  });
+
+  it('gives a dual-axis line a fixed right axis from its header', () => {
+    const r = parseChart(
+      'line S\nseries\n  y-axis Price\n    P\n  y-right-axis Volume 0..10000\n    V\nA 50 5000\nB 60 6000'
+    );
+    expect(r.ylabel).toBe('Price');
+    expect(r.yrlabel).toBe('Volume');
+    expect(r.axes?.['y-right']).toMatchObject({ min: 0, max: 10000 });
+    expect(r.seriesAxes).toEqual(['left', 'right']);
+  });
+
+  it('warns when a right-axis range cuts its own series', () => {
+    const r = parseChart(
+      'line S\nseries\n  y-axis Price\n    P\n  y-right-axis Volume ..100\n    V\nA 50 5000\nB 60 6000'
+    );
+    expect(codes(r)).toContain('W_AXIS_DATA_OUTSIDE_RANGE');
+  });
+
+  it('reads quadrant and SWOT end labels from x-axis / y-axis', () => {
+    const q = parseVisualization(
+      'quadrant Q\nx-axis Low Effort, High Effort\ny-axis Low Impact, High Impact\nA 0.2 0.8'
+    ) as { quadrantXAxis?: [string, string]; quadrantYAxis?: [string, string] };
+    expect(q.quadrantXAxis).toEqual(['Low Effort', 'High Effort']);
+    expect(q.quadrantYAxis).toEqual(['Low Impact', 'High Impact']);
+    const old = parseVisualization('quadrant Q\nx-label Low, High\nA 0.2 0.8');
+    expect(codes(old)).toContain('E_AXIS_OLD_DIRECTIVE');
+  });
+});
+
+describe('the right axis draws its own range', () => {
+  it('ends the right axis where y-right-axis fixes it', async () => {
+    const svg = await renderDataChartD3(
+      'line S\nseries\n  y-axis Price\n    P\n  y-right-axis Volume 0..20000\n    V\nA 50 5000\nB 60 6000',
+      'light',
+      palette
+    );
+    expect(Math.max(...tickValues(svg))).toBe(20000);
   });
 });

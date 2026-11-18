@@ -103,8 +103,8 @@ Oranges
 Apples + Oranges Cider`,
 
   quadrant: `quadrant
-x-label Effort
-y-label Impact
+x-axis Effort
+y-axis Impact
 High Impact, Low Effort 20, 80
 Low Impact, High Effort 80, 20`,
 
@@ -409,7 +409,7 @@ B -> C 5
 C -> A 3`,
 
   function: `function
-x -5 to 5
+x-axis -5..5
 f(x): x^2`,
 
   heatmap: `heatmap

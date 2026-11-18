@@ -88,8 +88,8 @@ export const GENERATORS_B: Record<string, Generator> = {
     gen: (n) => {
       const lines = [
         'bar Growth bars',
-        'x-label Region',
-        'y-label Visitors',
+        'x-axis Region',
+        'y-axis Visitors',
         'group',
       ];
       ['2023 blue', '2024 green', '2025 orange'].forEach((s) =>
@@ -111,8 +111,8 @@ export const GENERATORS_B: Record<string, Generator> = {
         '  Alpha blue',
         '  Beta green',
         '  Gamma orange',
-        'x-label Time',
-        'y-label Load',
+        'x-axis Time',
+        'y-axis Load',
       ];
       for (const i of range(n))
         lines.push(
@@ -159,8 +159,8 @@ export const GENERATORS_B: Record<string, Generator> = {
     gen: (n) => {
       const lines = [
         'scatter Growth scatter',
-        'x-label Requests per second',
-        'y-label Latency (ms)',
+        'x-axis Requests per second',
+        'y-axis Latency (ms)',
       ];
       const groups = ['Edge blue', 'Core green', 'Batch orange'];
       groups.forEach((g, gi) => {
@@ -203,9 +203,9 @@ export const GENERATORS_B: Record<string, Generator> = {
     gen: (n) => {
       const lines = [
         'function Growth curves',
-        'x-label X',
-        'y-label Y',
-        'x 0 to 100',
+        'x-axis X',
+        'y-axis Y',
+        'x-axis 0..100',
       ];
       for (const i of range(n))
         lines.push(

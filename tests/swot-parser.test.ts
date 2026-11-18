@@ -25,8 +25,8 @@ tag Priority as p
   High red
   Low gray
 active-tag Priority
-x-label Helpful, Harmful
-y-label Internal, External
+x-axis Helpful, Harmful
+y-axis Internal, External
 
 strengths
   Oldest still on the island p: Low
@@ -88,24 +88,24 @@ threats
     expect(colourOnly.color).toBe(palette.colors.teal);
   });
 
-  it('axis labels default, and x-label / y-label replace them', () => {
+  it('axis labels default, and x-axis / y-axis replace them', () => {
     expect(parseSwot(FULL).xLabels).toEqual(['Helpful', 'Harmful']);
     expect(parseSwot(FULL).yLabels).toEqual(['Internal', 'External']);
     const parsed = parseSwot(
-      `swot\nx-label A, B\ny-label C, D\n${FULL.slice(7)}`
+      `swot\nx-axis A, B\ny-axis C, D\n${FULL.slice(7)}`
     );
     expect(parsed.xLabels).toEqual(['A', 'B']);
     expect(parsed.yLabels).toEqual(['C', 'D']);
   });
 
   it('warns on an axis option without exactly two labels', () => {
-    const parsed = parseSwot(`swot\nx-label Only\n${FULL.slice(7)}`);
+    const parsed = parseSwot(`swot\nx-axis Only\n${FULL.slice(7)}`);
     expect(parsed.xLabels).toEqual(['Helpful', 'Harmful']);
     expect(parsed.diagnostics.map((d) => d.severity)).toEqual(['warning']);
   });
 
   it('records no-axes alongside the label options', () => {
-    const parsed = parseSwot(`swot\nno-axes\nx-label A, B\n${FULL.slice(7)}`);
+    const parsed = parseSwot(`swot\nno-axes\nx-axis A, B\n${FULL.slice(7)}`);
     expect(parsed.options['no-axes']).toBe('on');
   });
 

@@ -1,7 +1,7 @@
 import type { ConformanceFixture } from './_types';
 import { FRAME_DIRECTIVES } from './_frame';
 
-// Spec §40: section keywords, tag, active-tag, x-label, y-label, no-axes, no-tint-items.
+// Spec §40: section keywords, tag, active-tag, x-axis, y-axis, no-axes, no-tint-items.
 export const fixture: ConformanceFixture = {
   chartType: 'swot',
   structuralKeywords: [
@@ -17,8 +17,8 @@ export const fixture: ConformanceFixture = {
     ...FRAME_DIRECTIVES,
     'no-legend',
     'active-tag',
-    'x-label',
-    'y-label',
+    'x-axis',
+    'y-axis',
     'no-axes',
     'no-tint-items',
   ],

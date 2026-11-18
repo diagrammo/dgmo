@@ -18,7 +18,7 @@ B -> C 5
 C -> A 3`;
 
 const FUNCTION_INPUT = `function Test Function
-x -5 to 5
+x-axis -5..5
 f(x) x^2
 g(x) sin(x)`;
 
@@ -120,8 +120,8 @@ describe('renderExtendedChartForExport', () => {
 // ============================================================
 
 const SCATTER_LABELS_INPUT = `scatter Test Labels
-x-label X
-y-label Y
+x-axis X
+y-axis Y
 A 1 2
 B 3 4
 C 5 6`;

@@ -242,7 +242,7 @@ describe('1. Valid syntax', () => {
 
     it('function chart', () => {
       const r = parseExtendedChart(
-        'function Trajectories\nxlabel Distance\nylabel Height\nx 0 to 250\n15 degrees: -0.001*x^2 + 0.27*x',
+        'function Trajectories\nxlabel Distance\nylabel Height\nx-axis 0..250\n15 degrees: -0.001*x^2 + 0.27*x',
         palette
       );
       expect(hasNoErrors(r)).toBe(true);
@@ -439,7 +439,7 @@ describe('1. Valid syntax', () => {
       // Axis labels keep their comma (low/high pair) — only DATA-point commas
       // are removed at 1.0. Data points use the space-separated form.
       const r = parseVisualization(
-        'quadrant Assessment\nx-label Low Skill, High Skill\ny-label Low Loyalty, High Loyalty\n\ntop-right Promote\nbottom-left Avoid\n\nAlice 0.9 0.95\nBob 0.3 0.2',
+        'quadrant Assessment\nx-axis Low Skill, High Skill\ny-axis Low Loyalty, High Loyalty\n\ntop-right Promote\nbottom-left Avoid\n\nAlice 0.9 0.95\nBob 0.3 0.2',
         palette
       );
       expect(hasNoErrors(r)).toBe(true);
@@ -952,12 +952,12 @@ describe('3. Boolean options', () => {
 
   it('fill works for function charts', () => {
     const r = parseExtendedChart(
-      'function Test\nx 0 to 10\nf(x): x^2',
+      'function Test\nx-axis 0..10\nf(x): x^2',
       palette
     );
     expect(r.fill).toBeFalsy();
     const r2 = parseExtendedChart(
-      'function Test\nfill\nx 0 to 10\nf(x): x^2',
+      'function Test\nfill\nx-axis 0..10\nf(x): x^2',
       palette
     );
     expect(r2.fill).toBe(true);

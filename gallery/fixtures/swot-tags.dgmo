@@ -3,8 +3,8 @@ tag Priority as p
   High red
   Low gray
 active-tag Priority
-x-label Helpful, Harmful
-y-label Internal, External
+x-axis Helpful, Harmful
+y-axis Internal, External
 
 strengths
   Oldest still on the island p: Low

@@ -247,8 +247,8 @@ describe('hex / CSS colors are rejected with an error diagnostic', () => {
 
   it('scatter [group] hex header errors and applies no color', () => {
     const content = `scatter
-x-label GDP
-y-label Power
+x-axis GDP
+y-axis Power
 
 [North America] #e6194b
   United States 76300 12700`;

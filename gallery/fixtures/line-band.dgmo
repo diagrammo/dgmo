@@ -1,6 +1,6 @@
 line Rum Sales Forecast
 subtitle Shaded range is the 80% forecast interval
-y-label Barrels
+y-axis Barrels
 series
   Actual blue
   Low teal

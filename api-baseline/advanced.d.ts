@@ -126,14 +126,14 @@ interface D3ExportDimensions {
     preferContain?: boolean;
 }
 
-type AxisName = 'x' | 'y';
+type AxisName = 'x' | 'y' | 'y-right';
 type AxisScaleKind = 'linear' | 'log';
 /** What the author asked of one numeric axis. Every field is optional. */
 interface AxisSpec {
     scale?: AxisScaleKind;
     min?: number;
     max?: number;
-    /** Line of the first axis directive, for data-check diagnostics. */
+    /** Line of the axis directive, for data-check diagnostics. */
     lineNumber?: number;
 }
 type AxisSpecs = Partial<Record<AxisName, AxisSpec>>;
@@ -310,7 +310,7 @@ interface ParsedSlope extends ParsedVizBase {
     data: D3DataItem[];
     /** §1.11 emphasis: `highlight <Name>[, <Name>…]` names series (#1829). */
     emphasis?: EmphasisDirective;
-    /** `y-scale` / `y-min` / `y-max`: the vertical range (#1830). */
+    /** Range and scale from the `y-axis` line (decision #60). */
     axes?: AxisSpecs;
     /** `format`, `unit`, `locale` (#1831). */
     numberFormat?: NumberFormatSpec;
@@ -621,7 +621,7 @@ interface ParsedChart {
     xlabelLineNumber?: number;
     ylabel?: string;
     ylabelLineNumber?: number;
-    /** Right (secondary) y-axis label — set by a `y-right-label` option or a
+    /** Right (secondary) y-axis label — set by a `y-right-axis` line or a
      *  grouped-series axis header (§15.1 dual-axis line charts). */
     yrlabel?: string;
     yrlabelLineNumber?: number;
@@ -731,8 +731,8 @@ interface ParsedChart {
      *  (#1829). Last one wins. Resolved against the categories, series or
      *  slices at render time via `resolveEmphasis`. */
     emphasis?: EmphasisDirective;
-    /** `y-scale` / `y-min` / `y-max` on bar and line (#1830). On a dual-axis
-     *  line they set the left axis; the right axis keeps its auto-fit. */
+    /** Range and scale from the axis lines (decision #60): `y` from `y-axis`,
+     *  `y-right` from `y-right-axis` on a dual-axis line. */
     axes?: AxisSpecs;
     /** `format`, `unit`, `locale` (#1831): how every printed number reads. */
     numberFormat?: NumberFormatSpec;
@@ -1125,7 +1125,7 @@ interface ParsedExtendedBase {
         min: number;
         max: number;
     };
-    /** `y-scale` / `y-min` / `y-max`, and the `x-` forms on scatter (#1830). */
+    /** Range and scale from the `x-axis` / `y-axis` lines (decision #60). */
     axes?: AxisSpecs;
     /** `format`, `unit`, `locale` (#1831) on the types that print values. */
     numberFormat?: NumberFormatSpec;

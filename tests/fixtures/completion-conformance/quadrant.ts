@@ -10,8 +10,8 @@ export const fixture: ConformanceFixture = {
   firstLineKeyword: 'quadrant',
   directives: [
     ...FRAME_DIRECTIVES,
-    'x-label',
-    'y-label',
+    'x-axis',
+    'y-axis',
     'fill-tint',
     'fill-solid',
     'fill-outline',
