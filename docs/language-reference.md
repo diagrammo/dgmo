@@ -2849,8 +2849,9 @@ step-before              // line: steps that reach each value at its own point
 
 - `orientation-horizontal` (bar; default is vertical bars). A vertical bar
   chart of up to 12 categories whose names would have to rotate or be cut
-  draws as horizontal bars on its own, and its axis titles move with the
-  axes; longer axes (dates, many points) still thin and rotate their labels
+  draws as horizontal bars on its own; longer axes (dates, many points) still
+  thin and rotate their labels. Horizontal either way, `x-label` still names
+  the categories (drawn on the left) and `y-label` the values (drawn below)
 - `fill` (line; fills the area under the line)
 - `hole` (pie; renders the doughnut ring — bare `hole`, or `hole <0–0.9>` for a
   custom inner-radius ratio. The value total shows in the center by default;

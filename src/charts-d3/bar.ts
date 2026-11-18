@@ -333,10 +333,12 @@ export function renderBar(
     (verticalFit.plan.rotate ||
       verticalFit.shown.some((s, i) => s !== catLabels[i]));
   const horizontal = authoredHorizontal || flipped;
-  // Axis titles name the axis they sit on: after a flip the categories run
-  // down the left, so the authored x-label moves there and y-label goes below.
-  const bottomTitle = flipped ? chart.ylabel : chart.xlabel;
-  const leftTitle = flipped ? chart.xlabel : chart.ylabel;
+  // x names the category axis and y the value axis in any orientation, the
+  // same axis y-min / y-max / y-scale set (diagrammo/diagrammo#2122). Once
+  // horizontal, authored or flipped, categories run down the left, so the
+  // x-label moves there and the y-label goes below.
+  const bottomTitle = horizontal ? chart.ylabel : chart.xlabel;
+  const leftTitle = horizontal ? chart.xlabel : chart.ylabel;
 
   // Horizontal names wrap to as many lines as one band's step holds (up to
   // NAME_MAX_LINES) inside the name column, and only then end in `…`.
