@@ -13,10 +13,10 @@ import { parseWhiteboard } from '../src/whiteboard/parser';
 describe('chart frame, canvas family (#1827)', () => {
   it('boxes-and-lines: mid-file, and `Source` stays a box', () => {
     const p = parseBoxesAndLines(
-      'boxes-and-lines T\nSource -> Sink\nsubtitle Deck\nSink -> Out\nbyline Me'
+      'boxes-and-lines T\nSource -> Sink\nsubtitle Deck\nSink -> Out\nfootnote Me'
     );
     expect(p.frame?.subtitle).toBe('Deck');
-    expect(p.frame?.byline).toBe('Me');
+    expect(p.frame?.footnote?.lines).toEqual(['Me']);
     expect(p.nodes.map((n) => n.label)).toContain('Source');
     expect(p.edges).toHaveLength(2);
     expect(p.diagnostics).toEqual([]);
@@ -26,17 +26,17 @@ describe('chart frame, canvas family (#1827)', () => {
     const p = parseBlock(
       'block T\n[Source] [Sink]\nfootnote Note one\n[Out]\n'
     );
-    expect(p.frame?.footnotes?.[0]?.text).toBe('Note one');
+    expect(p.frame?.footnote?.lines).toEqual(['Note one']);
     expect(p.top.rows).toHaveLength(2);
     expect(p.diagnostics).toEqual([]);
   });
 
   it('swimlane: read once, ignored by the later passes', () => {
     const p = parseSwimlane(
-      'swimlane T\nlane A gray\n  Start -> Finish\nsubtitle Deck\nlane B blue\n  Finish\nsource Survey\n'
+      'swimlane T\nlane A gray\n  Start -> Finish\nsubtitle Deck\nlane B blue\n  Finish\nfootnote Survey\n'
     );
     expect(p.frame?.subtitle).toBe('Deck');
-    expect(p.frame?.source).toBe('Survey');
+    expect(p.frame?.footnote?.lines).toEqual(['Survey']);
     expect(p.nodes.map((n) => n.label)).toEqual(['Start', 'Finish']);
     expect(p.diagnostics).toEqual([]);
   });

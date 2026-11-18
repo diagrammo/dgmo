@@ -42,7 +42,10 @@ import type {
 } from './types';
 import type { TagGroup } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
-import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import {
+  parseChartFrameLine,
+  takeFootnoteBlock,
+} from '../utils/chart-frame-parse';
 import type { DgmoError } from '../diagnostics';
 
 // ============================================================
@@ -100,6 +103,8 @@ export function parseJourneyMap(
   const directive = extractPaletteDirective(content);
   result.diagnostics.push(...directive.diagnostics);
   const lines = directive.content.split('\n');
+  // The footnote block and its markdown body (#2093), before any line is read.
+  takeFootnoteBlock(result, lines, result.diagnostics);
   let contentStarted = false;
   let headerLineSeen = false;
   let activeTagOptionLine = 0;

@@ -453,29 +453,32 @@ Without the `\`, the time and the sentence join into one line: `9:00 AM Existing
 
 This applies to event-line descriptions, pyramid, ring and cycle descriptions, boxes-and-lines descriptions, and multi-line note bodies (sequence, flowchart, state, class, ER, journey-map, countdown).
 
-### 1.12 Chart Frame — Subtitle, Source, Footnotes, Byline
+### 1.12 Chart Frame — Subtitle, Footnote
 
-A published chart stacks a title, a subtitle (deck), the chart, then footnotes, a source line and a byline. Four directives draw that frame, each followed by its text on the same line, in **every chart type**:
+A published chart stacks a title, a subtitle (deck), the chart, then a footnote, in **every chart type**. `subtitle` takes its text on the same line. `footnote` takes a markdown body: text on the keyword line, indented lines below it, or both.
 
 ```
 bar Revenue by region
 subtitle Fiscal 2025, in millions of dollars
-footnote Figures are unaudited.
-footnote EMEA includes the Gulf states.
-source Company annual report
-byline Chart: Jane Doe
 
 North 120
 South 95
+
+footnote
+  - Figures are unaudited.
+  - EMEA includes the Gulf states.
+
+  **Source:** Company annual report
+
+  *Chart: Jane Doe*
 ```
 
-| Directive         | Drawn                                                                            |
-| ----------------- | -------------------------------------------------------------------------------- |
-| `subtitle <text>` | Under the title, smaller than it and larger than body text; wraps to two lines   |
-| `footnote <text>` | A footer line under the chart; repeatable, in source order; wraps to three lines |
-| `source <text>`   | A footer line under the footnotes, drawn as `Source: <text>`; wraps to two lines |
-| `byline <text>`   | The last footer line, fitted to one line (a longer byline ends in `…`)           |
+| Directive                         | Drawn                                                                                                                                                                               |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `subtitle <text>`                 | Under the title, smaller than it and larger than body text; wraps to two lines                                                                                                      |
+| `footnote [text]` + indented body | Under the chart. Description-body rules: paragraphs reflow, a blank line starts a new one, `- ` is a bullet, inline markdown draws. Never cut: a long footer makes the chart taller |
 
+- There is no `source` or `byline` keyword. Write a source or a credit as a paragraph of the footnote: `**Source:** …`, `*Chart: …*`. Put a blank line above it, or it joins the paragraph before it. A one-line footer is `footnote Source: Company annual report`.
 - Type scale, the same in every chart: title 20 > subtitle 15 > body 13 > footer 11.
 - The title is 20 bold on one baseline in every chart, except the large titles of `goal`, `countdown`, `body` and `clock`. A chart that sizes itself grows by the frame; at a size the caller sets, the drawing shrinks to make room. The footer sits under the drawing, not at the far edge of a larger canvas.
 - **Left by default.** The title, subtitle, legend and footer line up on the drawing's own left edge, at least 20 in from the canvas edge. A title wider than the drawing slides inward to stay on the canvas. Move them with `left`, `center` or `right`:
@@ -486,13 +489,13 @@ South 95
 | `title-align <edge>`    | The title; the subtitle follows it unless `subtitle-align` says so |
 | `subtitle-align <edge>` | The subtitle                                                       |
 | `legend-align <edge>`   | The legend's rows                                                  |
-| `footer-align <edge>`   | The footnotes, source and byline                                   |
+| `footer-align <edge>`   | The footnote                                                       |
 
 - A part's own directive wins over `align`. Any other value warns and the line is ignored. On `goal`, `countdown`, `body` and `clock`, `align` and `title-align` warn and are ignored. `legend-inline` keeps its title-left, legend-right row.
 - An exported legend is a plain key. `legend-box` draws a hairline box round it; `legend-pill` a faint rounded band behind it. The app's interactive legend is unchanged.
-- The keyword is lowercase and starts the line, anywhere in the file (a footer usually goes last). `Source 12`, a node named `Footnote` (capitalised) and an indented `source 5` stay content, and `source -> Grid 5` stays a flow.
+- The keyword is lowercase and starts the line, anywhere in the file (a footer usually goes last). The body is every indented or blank line after it, up to the next line that starts in column 1. A node named `Footnote` (capitalised) stays content, and `footnote -> Grid 5` stays a flow.
 - The footer note is `footnote`, never `note`: `note` is the note-card element in boxes-and-lines, class, countdown, er, flowchart, goal, sequence, state, swimlane, version-control and whiteboard.
-- `subtitle`, `source` and `byline` given twice: the last one is used, with a warning. A directive with no text warns and draws nothing.
+- One footnote per chart: a second `footnote` warns and is drawn as a new paragraph of the first. A second `subtitle` warns and the last one is used. A directive with no text warns and draws nothing.
 - **Chart types:** all of them. `map` draws the subtitle in its title banner and the footer under the map (it has no `caption`); `pert` draws an authored `subtitle` in place of its project summary line, which fills the subtitle slot otherwise. `live-link` is a pointer to a published diagram, not a chart, and takes no frame.
 
 ### 1.13 Emphasis — `highlight`

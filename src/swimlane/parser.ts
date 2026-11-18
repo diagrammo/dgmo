@@ -55,7 +55,10 @@ import {
 import type { Writable } from '../utils/brand';
 import type { PaletteColors } from '../palettes';
 import type { ChartFrame } from '../utils/chart-frame-parse';
-import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import {
+  parseChartFrameLine,
+  takeFootnoteBlock,
+} from '../utils/chart-frame-parse';
 import { SWIM_TASK_TYPES } from './types';
 import type {
   ParsedSwimlane,
@@ -324,6 +327,8 @@ export function parseSwimlane(
   // Chart frame lines (#1827) are read here and skipped by the later passes.
   const frameHolder: { frame?: ChartFrame } = {};
   const frameLines = new Set<number>();
+  // The footnote block and its markdown body (#2093), before any line is read.
+  takeFootnoteBlock(frameHolder, rawLines, diagnostics);
   for (let i = startIdx; i < rawLines.length; i++) {
     const raw = rawLines[i]!;
     const lineNum = i + 1;

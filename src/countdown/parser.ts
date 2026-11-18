@@ -27,7 +27,10 @@
 import type { PaletteColors } from '../palettes';
 import { makeDgmoError, makeFail } from '../diagnostics';
 import type { Writable } from '../utils/brand';
-import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import {
+  parseChartFrameLine,
+  takeFootnoteBlock,
+} from '../utils/chart-frame-parse';
 import {
   extractColor,
   fillModeFromToken,
@@ -167,6 +170,8 @@ export function parseCountdown(
   if (!content?.trim()) return fail(0, 'No content provided');
 
   const lines = content.split('\n');
+  // The footnote block and its markdown body (#2093), before any line is read.
+  takeFootnoteBlock(result, lines, result.diagnostics);
   let headerParsed = false;
 
   // Recurrence pieces collected across lines, assembled after the loop.

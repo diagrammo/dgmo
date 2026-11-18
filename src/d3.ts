@@ -171,9 +171,9 @@ export function resolveArcChordOverride(
         ...(p.fillMode ? [`fill-${p.fillMode}`] : []),
         // The chart frame (#1827) survives the re-emit too.
         ...(p.frame?.subtitle ? [`subtitle ${p.frame.subtitle}`] : []),
-        ...(p.frame?.footnotes ?? []).map((f) => `footnote ${f.text}`),
-        ...(p.frame?.source ? [`source ${p.frame.source}`] : []),
-        ...(p.frame?.byline ? [`byline ${p.frame.byline}`] : []),
+        ...(p.frame?.footnote
+          ? ['footnote', ...p.frame.footnote.lines.map((l) => `  ${l}`)]
+          : []),
         ...p.links.map((l) => `${l.source} -> ${l.target} ${l.value}`),
       ].join('\n');
       return { content: emitted, type: 'chord' };

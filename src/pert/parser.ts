@@ -12,7 +12,10 @@
 
 import { emit, makeDgmoError, suggest } from '../diagnostics';
 import type { DgmoError } from '../diagnostics';
-import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import {
+  parseChartFrameLine,
+  takeFootnoteBlock,
+} from '../utils/chart-frame-parse';
 import type { ChartFrame } from '../utils/chart-frame-parse';
 import { PERT_DX } from './diagnostics';
 import { parseDuration } from '../utils/duration';
@@ -678,6 +681,8 @@ export function parsePert(
 
   let pastFirstLine = false;
 
+  // The footnote block and its markdown body (#2093), before any line is read.
+  takeFootnoteBlock(frameHolder, lines, diagnostics);
   for (let i = 0; i < lines.length; i++) {
     // In-bounds by loop guard.
     const rawLine = lines[i]!;

@@ -99,9 +99,10 @@ const FRAME_ALIGN_VALUES = ['left', 'center', 'right'];
 // every chart type, so `withGlobals` gives it to each.
 const FRAME_DIRECTIVES: Record<string, DirectiveValueSpec> = {
   subtitle: { description: 'A deck line under the title' },
-  source: { description: 'Where the data comes from, under the chart' },
-  footnote: { description: 'A footnote under the chart (repeatable)' },
-  byline: { description: 'Who made the chart, on the last footer line' },
+  footnote: {
+    description:
+      'Notes under the chart: text on the line, or a markdown body indented below',
+  },
   align: {
     description:
       'Put the title, subtitle, legend and footer left, center or right',
@@ -120,7 +121,7 @@ const FRAME_DIRECTIVES: Record<string, DirectiveValueSpec> = {
     values: FRAME_ALIGN_VALUES,
   },
   'footer-align': {
-    description: 'Put the source, footnotes and byline left, center or right',
+    description: 'Put the footnote left, center or right',
     values: FRAME_ALIGN_VALUES,
   },
   'legend-box': { description: 'Draw a thin box round the exported legend' },

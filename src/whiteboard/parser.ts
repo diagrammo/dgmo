@@ -32,7 +32,10 @@
 // whiteboard first line or a board with no elements is fatal.
 
 import type { PaletteColors } from '../palettes';
-import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import {
+  parseChartFrameLine,
+  takeFootnoteBlock,
+} from '../utils/chart-frame-parse';
 import { makeDgmoError, makeFail, suggest, type DgmoFix } from '../diagnostics';
 import { extractPaletteDirective } from '../palettes/directive';
 import type { Writable } from '../utils/brand';
@@ -404,6 +407,8 @@ export function parseWhiteboard(
   const directive = extractPaletteDirective(content);
   result.diagnostics.push(...directive.diagnostics);
   const lines = directive.content.split('\n');
+  // The footnote block and its markdown body (#2093), before any line is read.
+  takeFootnoteBlock(result, lines, result.diagnostics);
   let firstLineSeen = false;
 
   for (let i = 0; i < lines.length; i++) {

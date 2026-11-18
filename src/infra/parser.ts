@@ -52,7 +52,10 @@ import {
   highlightPathWarnings,
 } from '../utils/emphasis';
 import { resolveInfraHighlight } from './highlight';
-import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import {
+  parseChartFrameLine,
+  takeFootnoteBlock,
+} from '../utils/chart-frame-parse';
 
 // ============================================================
 // Regex patterns
@@ -459,6 +462,8 @@ export function parseInfra(content: string): ParsedInfra {
     currentTagGroup = null;
   }
 
+  // The footnote block and its markdown body (#2093), before any line is read.
+  takeFootnoteBlock(result, lines, result.diagnostics);
   for (let i = 0; i < lines.length; i++) {
     // In-bounds by loop guard.
     const raw = lines[i]!;

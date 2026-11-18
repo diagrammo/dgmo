@@ -45,7 +45,10 @@ import {
 } from '../utils/emphasis';
 import { tryCollectNote, resolveNotes, type DiagramNote } from '../utils/notes';
 import type { PaletteColors } from '../palettes';
-import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import {
+  parseChartFrameLine,
+  takeFootnoteBlock,
+} from '../utils/chart-frame-parse';
 
 // Deep enough for account → VPC → subnet → service (#1840).
 const MAX_GROUP_DEPTH = 4;
@@ -173,6 +176,8 @@ export function parseBoxesAndLines(
   };
 
   const lines = content.split('\n');
+  // The footnote block and its markdown body (#2093), before any line is read.
+  takeFootnoteBlock(result, lines, result.diagnostics);
   const nodeLabels = new Set<string>();
   const groupLabels = new Set<string>();
   let lastNodeLabel: string | null = null;

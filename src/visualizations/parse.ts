@@ -61,7 +61,10 @@ import {
 } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
-import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import {
+  parseChartFrameLine,
+  takeFootnoteBlock,
+} from '../utils/chart-frame-parse';
 import { parseEmphasisDirective } from '../utils/emphasis';
 import { parseAxisLine, settleAxisSpec } from '../utils/axis-spec';
 import { parseNumberFormatLine } from '../utils/number-format';
@@ -158,12 +161,14 @@ function parseVisualizationFull(
     return fail(0, 'Empty content');
   }
 
+  // The footnote block and its markdown body (#2093), before any line is
+  // read — and before slope lifts the rows indented under its series.
+  const raw = content.split('\n');
+  takeFootnoteBlock(result, raw, result.diagnostics);
   // Slope's `note` and `highlight` sit indented under their series row
   // (#2078, #2080); lifted here, resolved at the end.
-  const lifted = declaresType(content.split('\n'), SLOPE_ONLY)
-    ? liftAnchored(content.split('\n'))
-    : null;
-  const lines = lifted ? lifted.lines : content.split('\n');
+  const lifted = declaresType(raw, SLOPE_ONLY) ? liftAnchored(raw) : null;
+  const lines = lifted ? lifted.lines : raw;
 
   // ── BL-121: timeline date directives + carry-forward year context ──
   // Pre-scanned so directives may precede or follow the dates they govern, and

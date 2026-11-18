@@ -22,9 +22,12 @@ const FIXTURES = join(__dirname, 'fixtures/conformance');
 
 const FRAME_LINES = [
   'subtitle The deck line under the title',
-  'footnote Figures are provisional.',
-  'source Internal survey',
-  'byline Chart: Frame Test',
+  'footnote',
+  '  - Figures are provisional.',
+  '',
+  '  **Source:** Internal survey',
+  '',
+  '  *Chart: Frame Test*',
 ];
 
 /**
@@ -62,7 +65,7 @@ describe('chart frame on every chart type (#1827)', () => {
           content
             .split('\n')
             .map((l, i) => [l, i + 1] as const)
-            .filter(([l]) => /^(subtitle|footnote|source|byline) /.test(l))
+            .filter(([l]) => /^(subtitle|footnote)\b|^ {2}/.test(l))
             .map(([, n]) => n)
         );
         const onFrame = (parsed.diagnostics ?? []).filter((d) =>
@@ -79,14 +82,21 @@ describe('chart frame on every chart type (#1827)', () => {
         expect(text('.chart-subtitle').join(' ')).toBe(
           'The deck line under the title'
         );
-        expect(text('.chart-footnote')).toEqual(['Figures are provisional.']);
-        expect(text('.chart-source')).toEqual(['Source: Internal survey']);
-        expect(text('.chart-byline')).toEqual(['Chart: Frame Test']);
+        // The body reached the frame in this chart type's parser: a bullet,
+        // a bold lead and an italic credit, in source order.
+        expect(text('.chart-footnote')).toEqual([
+          '•',
+          'Figures are provisional.',
+          'Source: Internal survey',
+          'Chart: Frame Test',
+        ]);
+        const ys = Array.from(doc.querySelectorAll('.chart-footnote')).map(
+          (e) => Number(e.getAttribute('y'))
+        );
+        expect(ys).toEqual([...ys].sort((a, b) => a - b));
         const y = (sel: string) =>
           Number(doc.querySelector(sel)!.getAttribute('y'));
         expect(y('.chart-subtitle')).toBeLessThan(y('.chart-footnote'));
-        expect(y('.chart-footnote')).toBeLessThan(y('.chart-source'));
-        expect(y('.chart-source')).toBeLessThan(y('.chart-byline'));
       }
     );
   }
@@ -103,9 +113,7 @@ describe('growChartFrame', () => {
   const frame: ChartFrame = {
     subtitle: 'Deck',
     subtitleLineNumber: 2,
-    footnotes: [{ text: 'A footnote', lineNumber: 3 }],
-    source: 'Somewhere',
-    sourceLineNumber: 4,
+    footnote: { lines: ['A footnote', '', 'Source: Somewhere'], lineNumber: 3 },
   };
 
   function svgOf(markup: string): SVGSVGElement {

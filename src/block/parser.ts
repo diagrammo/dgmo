@@ -42,7 +42,10 @@ import type {
   BlockNode,
 } from './types';
 import { isBlockNode } from './types';
-import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import {
+  parseChartFrameLine,
+  takeFootnoteBlock,
+} from '../utils/chart-frame-parse';
 
 type ContentLine = { indent: number; trimmed: string; lineNumber: number };
 
@@ -77,6 +80,8 @@ export function parseBlock(
   }
 
   const lines = content.split('\n');
+  // The footnote block and its markdown body (#2093), before any line is read.
+  takeFootnoteBlock(result, lines, result.diagnostics);
   let contentStarted = false;
   let topCols: number | null = null;
   let currentTagGroup: Writable<TagGroup> | null = null;

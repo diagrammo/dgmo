@@ -22,7 +22,10 @@ import {
 import type { DgmoError } from '../diagnostics';
 import { EVENT_LINE_DX } from './diagnostics';
 import type { Writable } from '../utils/brand';
-import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import {
+  parseChartFrameLine,
+  takeFootnoteBlock,
+} from '../utils/chart-frame-parse';
 import type { TagGroup } from '../utils/tag-groups';
 import {
   matchTagBlockHeading,
@@ -123,6 +126,8 @@ export function parseEventLine(
   if (!content?.trim()) return fail(0, 'No content provided');
 
   const lines = content.split('\n');
+  // The footnote block and its markdown body (#2093), before any line is read.
+  takeFootnoteBlock(result, lines, result.diagnostics);
 
   // ── BL-121: date directives + carry-forward year context ──
   // Pre-scan (directives can precede or follow the dates they govern) for

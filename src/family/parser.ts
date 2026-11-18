@@ -23,7 +23,10 @@
 // is NOT supported (declare persons standalone).
 
 import type { ChartFrame } from '../utils/chart-frame-parse';
-import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import {
+  parseChartFrameLine,
+  takeFootnoteBlock,
+} from '../utils/chart-frame-parse';
 import { emit, makeDgmoError, type DgmoError } from '../diagnostics';
 import { FAMILY_DX } from './diagnostics';
 import {
@@ -155,6 +158,8 @@ export function parseFamily(
   let sawContent = false;
   const frameHolder: { frame?: ChartFrame } = {};
   const frameLines = new Set<number>();
+  // The footnote block and its markdown body (#2093), before any line is read.
+  takeFootnoteBlock(frameHolder, rawLines, diagnostics);
   for (let i = startIdx; i < rawLines.length; i++) {
     const raw = rawLines[i]!;
     const lineNum = i + 1;

@@ -33,7 +33,10 @@ import {
 } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
-import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import {
+  parseChartFrameLine,
+  takeFootnoteBlock,
+} from '../utils/chart-frame-parse';
 import { SWOT_DX } from './diagnostics';
 import type {
   ParsedSwot,
@@ -183,6 +186,8 @@ export function parseSwot(
   }
 
   const lines = content.split('\n');
+  // The footnote block and its markdown body (#2093), before any line is read.
+  takeFootnoteBlock(result, lines, diagnostics);
   const metaAliasMap = new Map<string, string>();
   const tagGroups = result.tagGroups as Writable<TagGroup>[];
   let firstLineSeen = false;

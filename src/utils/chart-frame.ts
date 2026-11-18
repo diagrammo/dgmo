@@ -1,8 +1,8 @@
 // ============================================================
 // Chart frame — the publication furniture around a chart (#1827).
 //
-// A published chart stacks: title, subtitle (deck), the plot, then footnotes,
-// a source line and a byline. The title is drawn by each renderer as before;
+// A published chart stacks: title, subtitle (deck), the plot, then one
+// footnote block of markdown (#2093). The title is drawn by each renderer as before;
 // everything else in the frame is parsed by `parseChartFrameLine` and drawn by
 // `applyChartFrame`, once, for every chart type that adopts it — so the frame
 // is placed identically everywhere.
@@ -33,6 +33,14 @@ import {
   type Matrix,
 } from './export-fit';
 import { fitWrapped, measureText } from './text-measure';
+import { MONO_FAMILY } from '../fonts';
+import {
+  parseInlineMarkdown,
+  truncateBareUrl,
+  type InlineSpan,
+} from './inline-markdown';
+import { reflowDescriptionLines } from './wrapped-desc';
+import { safeHref } from './safe-href';
 import {
   FRAME_INSET,
   TITLE_FONT_SIZE,
@@ -52,6 +60,7 @@ export {
   frameAlign,
   hasChartFrame,
   parseChartFrameLine,
+  takeFootnoteBlock,
   type ChartFrame,
   type ChartFrameFootnote,
 } from './chart-frame-parse';
@@ -63,12 +72,10 @@ export const SUBTITLE_LINE_HEIGHT = 20;
 export const SUBTITLE_MAX_LINES = 2;
 export const FOOTER_FONT_SIZE = 11;
 export const FOOTER_LINE_HEIGHT = 15;
-/** Lines one footnote may wrap to before it ends in `…`. */
-export const FOOTNOTE_MAX_LINES = 3;
-/** Lines the `Source: …` line may wrap to before it ends in `…`. */
-export const SOURCE_MAX_LINES = 2;
-/** The byline is fitted to one line and ends in `…` past it. */
-export const BYLINE_MAX_LINES = 1;
+/** Extra space above a footnote paragraph that follows a blank line. */
+export const FOOTER_PARAGRAPH_GAP = 6;
+/** Hanging indent of a footnote bullet's text, past the `•`. */
+export const FOOTER_BULLET_INDENT = 10;
 /** Space between the bottom of the plot band and the first footer line. */
 export const FOOTER_TOP_GAP = 10;
 /** Space between the last footer baseline and the canvas edge. */
@@ -79,9 +86,18 @@ export const SUBTITLE_BOTTOM_GAP = 6;
 const SUBTITLE_Y_NO_TITLE = 24;
 
 interface FrameLine {
+  /** What the line reads, markdown markers removed. */
   text: string;
   className: string;
   lineNumber?: number | undefined;
+  /** Inline-markdown runs; absent = `text` drawn plain. */
+  spans?: InlineSpan[];
+  /** Offset of this baseline below the band's first baseline. */
+  dy?: number;
+  /** Left-aligned x offset: a bullet's text and its continuation lines. */
+  indent?: number;
+  /** Draw a `•` before the line. */
+  bullet?: boolean;
 }
 
 /** The space a frame takes, and its lines already fitted to the width. */
@@ -121,52 +137,15 @@ export function reserveChartFrame(
         lineNumber: frame.subtitleLineNumber,
       }))
     : [];
-  const footerLines: FrameLine[] = [];
-  for (const footnote of frame.footnotes ?? []) {
-    for (const text of fitLines(
-      footnote.text,
-      maxWidth,
-      FOOTER_FONT_SIZE,
-      FOOTNOTE_MAX_LINES
-    ))
-      footerLines.push({
-        text,
-        className: 'chart-footnote',
-        lineNumber: footnote.lineNumber,
-      });
-  }
-  if (frame.source) {
-    for (const text of fitLines(
-      `Source: ${frame.source}`,
-      maxWidth,
-      FOOTER_FONT_SIZE,
-      SOURCE_MAX_LINES
-    ))
-      footerLines.push({
-        text,
-        className: 'chart-source',
-        lineNumber: frame.sourceLineNumber,
-      });
-  }
-  if (frame.byline) {
-    for (const text of fitLines(
-      frame.byline,
-      maxWidth,
-      FOOTER_FONT_SIZE,
-      BYLINE_MAX_LINES
-    ))
-      footerLines.push({
-        text,
-        className: 'chart-byline',
-        lineNumber: frame.bylineLineNumber,
-      });
-  }
+  const footerLines: FrameLine[] = frame.footnote
+    ? layoutFootnote(frame.footnote.lines, maxWidth, frame.footnote.lineNumber)
+    : [];
   const top = subtitleLines.length
     ? subtitleLines.length * SUBTITLE_LINE_HEIGHT + SUBTITLE_BOTTOM_GAP
     : 0;
   const bottom = footerLines.length
     ? FOOTER_TOP_GAP +
-      (footerLines.length - 1) * FOOTER_LINE_HEIGHT +
+      footerSpan(footerLines) +
       FOOTER_FONT_SIZE +
       FOOTER_BOTTOM_PAD
     : 0;
@@ -234,10 +213,9 @@ export function applyChartFrame(
     y += SUBTITLE_LINE_HEIGHT;
   }
 
-  const n = reserve.footerLines.length;
-  reserve.footerLines.forEach((line, i) => {
-    const baseline =
-      height - FOOTER_BOTTOM_PAD - (n - 1 - i) * FOOTER_LINE_HEIGHT;
+  const span = footerSpan(reserve.footerLines);
+  for (const line of reserve.footerLines) {
+    const baseline = height - FOOTER_BOTTOM_PAD - (span - (line.dy ?? 0));
     drawLine(
       node,
       line,
@@ -245,9 +223,10 @@ export function applyChartFrame(
       baseline,
       foot.anchor,
       FOOTER_FONT_SIZE,
-      palette.textMuted
+      palette.textMuted,
+      palette.primary
     );
-  });
+  }
 }
 
 type SvgAnchor = 'start' | 'middle' | 'end';
@@ -288,8 +267,6 @@ const FRAME_PART_SELECTOR = [
   'text.chart-title',
   '.chart-subtitle',
   '.chart-footnote',
-  '.chart-source',
-  '.chart-byline',
   '.dgmo-legend',
   '.chart-legend',
   '[data-chart-header]',
@@ -421,15 +398,16 @@ function placeFrameText(
   const parts: [string, FramePart][] = [
     ['text.chart-subtitle', 'subtitle'],
     ['text.chart-footnote', 'footer'],
-    ['text.chart-source', 'footer'],
-    ['text.chart-byline', 'footer'],
   ];
   for (const [sel, part] of parts) {
     for (const el of Array.from(node.querySelectorAll(sel))) {
       const m = ctmOf(el, node);
       if (m?.[1] !== 0 || m[2] !== 0 || !(m[0] > 0)) continue;
       const { x, anchor } = edge(frameAlign(frame, part), edges);
-      const local = String((x - m[4]) / m[0]);
+      // A bullet's text keeps its hanging indent on a left edge.
+      const indent =
+        anchor === 'start' ? Number(el.getAttribute('data-indent') ?? 0) : 0;
+      const local = String((x - m[4]) / m[0] + indent);
       el.setAttribute('x', local);
       el.setAttribute('text-anchor', anchor);
       for (const span of Array.from(el.querySelectorAll('tspan')))
@@ -486,20 +464,197 @@ function drawLine(
   y: number,
   anchor: SvgAnchor,
   fontSize: number,
-  fill: string
+  fill: string,
+  linkFill: string = fill,
+  scale = 1
 ): void {
-  const el = node.ownerDocument.createElementNS(SVG_NS, 'text');
-  el.setAttribute('class', line.className);
-  el.setAttribute('x', String(x));
-  el.setAttribute('y', String(y));
-  el.setAttribute('text-anchor', anchor);
-  el.setAttribute('fill', fill);
-  el.setAttribute('font-size', String(fontSize));
-  el.setAttribute('font-family', FONT_FAMILY);
-  if (line.lineNumber)
-    el.setAttribute('data-line-number', String(line.lineNumber));
-  el.textContent = line.text;
-  node.appendChild(el);
+  const doc = node.ownerDocument;
+  const text = (cls: string, at: number, indent: number) => {
+    const el = doc.createElementNS(SVG_NS, 'text');
+    el.setAttribute('class', cls);
+    el.setAttribute('x', String(at));
+    el.setAttribute('y', String(y));
+    el.setAttribute('text-anchor', anchor);
+    el.setAttribute('fill', fill);
+    el.setAttribute('font-size', String(fontSize));
+    el.setAttribute('font-family', FONT_FAMILY);
+    if (indent) el.setAttribute('data-indent', String(indent));
+    if (line.lineNumber)
+      el.setAttribute('data-line-number', String(line.lineNumber));
+    node.appendChild(el);
+    return el;
+  };
+  // A hanging indent only reads on a left edge; centred or right-aligned,
+  // the bullet goes inline and continuation lines sit on the edge.
+  const left = anchor === 'start';
+  const indent = left ? (line.indent ?? 0) * scale : 0;
+  if (line.bullet && left) text(line.className, x, 0).textContent = '•';
+  const el = text(line.className, x + indent, indent);
+  if (!line.spans) {
+    el.textContent = line.text;
+    return;
+  }
+  if (line.bullet && !left) appendSpan(el, { text: '• ' }, linkFill);
+  for (const s of line.spans) appendSpan(el, s, linkFill, fontSize);
+}
+
+/** One inline-markdown run as a `tspan` (a link wraps it in `<a>`). */
+function appendSpan(
+  el: Element,
+  span: InlineSpan,
+  linkFill: string,
+  fontSize?: number
+): void {
+  const doc = el.ownerDocument;
+  const t = doc.createElementNS(SVG_NS, 'tspan');
+  t.textContent = span.text;
+  if (span.bold) t.setAttribute('font-weight', 'bold');
+  if (span.italic) t.setAttribute('font-style', 'italic');
+  if (span.code) {
+    t.setAttribute('font-family', MONO_FAMILY);
+    if (fontSize) t.setAttribute('font-size', String(fontSize - 1));
+  }
+  if (span.href) {
+    t.setAttribute('fill', linkFill);
+    t.setAttribute('text-decoration', 'underline');
+    const href = safeHref(span.href);
+    if (href !== null) {
+      const a = doc.createElementNS(SVG_NS, 'a');
+      a.setAttribute('href', href);
+      a.appendChild(t);
+      el.appendChild(a);
+      return;
+    }
+  }
+  el.appendChild(t);
+}
+
+/** Baseline offset of the last footer line below the first. */
+function footerSpan(lines: readonly FrameLine[]): number {
+  return lines.length ? (lines[lines.length - 1]!.dy ?? 0) : 0;
+}
+
+/** A word piece: the run it came from, with its text narrowed to the piece. */
+type Piece = InlineSpan;
+
+function pieceWidth(p: Piece, size: number): number {
+  return measureText(p.text, size, { bold: !!p.bold });
+}
+
+/** Inline-markdown runs as words, each a list of styled pieces. */
+function toWords(text: string): Piece[][] {
+  const words: Piece[][] = [];
+  let word: Piece[] = [];
+  for (const span of parseInlineMarkdown(text)) {
+    const isBare =
+      !!span.href &&
+      (span.text === span.href || `https://${span.text}` === span.href);
+    const shown = isBare ? truncateBareUrl(span.text) : span.text;
+    const parts = shown.split(/(\s+)/);
+    for (const part of parts) {
+      if (!part) continue;
+      if (/^\s+$/.test(part)) {
+        if (word.length) words.push(word);
+        word = [];
+        continue;
+      }
+      word.push({ ...span, text: part });
+    }
+  }
+  if (word.length) words.push(word);
+  return words;
+}
+
+/** Greedy wrap of styled words to `maxWidth`; a word wider stays whole. */
+function wrapWords(words: Piece[][], maxWidth: number, size: number) {
+  const space = measureText(' ', size);
+  const lines: Piece[][] = [];
+  let line: Piece[] = [];
+  let w = 0;
+  for (const word of words) {
+    const ww = word.reduce((n, p) => n + pieceWidth(p, size), 0);
+    if (line.length && w + space + ww > maxWidth) {
+      lines.push(line);
+      line = [];
+      w = 0;
+    }
+    if (line.length) {
+      // The space joins a run only when the words either side share it.
+      const prev = line[line.length - 1]!;
+      line.push(
+        sameStyle(prev, word[0]!) ? { ...prev, text: ' ' } : { text: ' ' }
+      );
+      w += space;
+    }
+    line.push(...word);
+    w += ww;
+  }
+  if (line.length) lines.push(line);
+  return lines;
+}
+
+function sameStyle(a: Piece, b: Piece): boolean {
+  return (
+    !!a.bold === !!b.bold &&
+    !!a.italic === !!b.italic &&
+    !!a.code === !!b.code &&
+    a.href === b.href
+  );
+}
+
+/** Adjacent pieces with the same style, joined back into one run. */
+function mergePieces(pieces: Piece[]): InlineSpan[] {
+  const out: InlineSpan[] = [];
+  for (const p of pieces) {
+    const prev = out[out.length - 1];
+    if (prev && sameStyle(prev, p)) prev.text += p.text;
+    else out.push({ ...p });
+  }
+  return out;
+}
+
+/**
+ * Lay out the footnote body (#2093): the description-body rules (spec §1.12)
+ * — reflowed paragraphs, `•` bullets with a hanging indent, blank-line
+ * paragraph gaps, `\\` hard breaks — with inline markdown, wrapped to
+ * `maxWidth`. Nothing is cut: a long footer makes the chart taller.
+ */
+function layoutFootnote(
+  source: readonly string[],
+  maxWidth: number,
+  lineNumber: number
+): FrameLine[] {
+  const out: FrameLine[] = [];
+  let dy = 0;
+  for (const block of reflowDescriptionLines(source)) {
+    if (out.length) dy += FOOTER_LINE_HEIGHT;
+    if (block.gapBefore && out.length) dy += FOOTER_PARAGRAPH_GAP;
+    const bullet = block.kind === 'bullet';
+    const indent = bullet ? FOOTER_BULLET_INDENT : 0;
+    let first = true;
+    for (const segment of block.segments) {
+      const wrapped = wrapWords(
+        toWords(segment),
+        Math.max(1, maxWidth - indent),
+        FOOTER_FONT_SIZE
+      );
+      for (const pieces of wrapped) {
+        if (!first) dy += FOOTER_LINE_HEIGHT;
+        const spans = mergePieces(pieces);
+        out.push({
+          text: spans.map((s) => s.text).join(''),
+          spans,
+          className: 'chart-footnote',
+          lineNumber,
+          dy,
+          ...(indent && { indent }),
+          ...(bullet && first && { bullet: true }),
+        });
+        first = false;
+      }
+    }
+  }
+  return out;
 }
 
 /** The frame without its subtitle, for a chart that draws the subtitle itself. */
@@ -731,19 +886,23 @@ export function growChartFrame(
   if (n > 0) {
     const first =
       drawnBottom + top + (FOOTER_TOP_GAP + FOOTER_FONT_SIZE) * scale;
-    reserve.footerLines.forEach((line, i) => {
+    for (const line of reserve.footerLines) {
       drawLine(
         g,
         line,
         foot.x,
-        first + i * FOOTER_LINE_HEIGHT * scale,
+        first + (line.dy ?? 0) * scale,
         foot.anchor,
         FOOTER_FONT_SIZE * scale,
-        palette.textMuted
+        palette.textMuted,
+        palette.primary,
+        scale
       );
-    });
+    }
     const footerEnd =
-      first + (n - 1) * FOOTER_LINE_HEIGHT * scale + FOOTER_BOTTOM_PAD * scale;
+      first +
+      footerSpan(reserve.footerLines) * scale +
+      FOOTER_BOTTOM_PAD * scale;
     newBottom = Math.max(vbBottom, footerEnd);
   } else {
     // No footer: keep the margin the drawing had below it, up to a pad.

@@ -87,6 +87,8 @@ export {
   formatDateLabel,
 } from './d3';
 export { computeTimeTicks } from './utils/time-ticks';
+// The footnote block reader (#2093), for the app's symbol extractors.
+export { takeFootnoteBlock } from './utils/chart-frame-parse';
 export type {
   ParsedVisualization,
   VisualizationType,

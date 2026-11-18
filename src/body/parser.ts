@@ -16,7 +16,10 @@ import { emit } from '../diagnostics';
 import type { DgmoError } from '../diagnostics';
 import type { Writable } from '../utils/brand';
 import type { ChartFrame } from '../utils/chart-frame-parse';
-import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import {
+  parseChartFrameLine,
+  takeFootnoteBlock,
+} from '../utils/chart-frame-parse';
 import type { TagGroup } from '../utils/tag-groups';
 import {
   matchTagBlockHeading,
@@ -70,6 +73,8 @@ export function parseBody(
   let contentStarted = false;
   const frameHolder: { frame?: ChartFrame } = {};
 
+  // The footnote block and its markdown body (#2093), before any line is read.
+  takeFootnoteBlock(frameHolder, lines, diagnostics);
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!;
     const trimmed = line.trim();

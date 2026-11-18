@@ -41,14 +41,14 @@ describe('chart frame, shape family (#1827)', () => {
       // Header may follow a comment or blank; insert after the first non-blank,
       // non-comment line.
       const at = lines.findIndex((l) => l.trim() && !l.startsWith('//')) + 1;
-      lines.splice(at, 0, 'subtitle Deck line up top', 'byline Chart: Test');
+      lines.splice(at, 0, 'subtitle Deck line up top', 'footnote Chart: Test');
       const svg = await renderForExport(lines.join('\n'), 'light');
       const doc = new JSDOM(svg, { contentType: 'image/svg+xml' }).window
         .document;
       expect(doc.querySelector('.chart-subtitle')?.textContent).toBe(
         'Deck line up top'
       );
-      expect(doc.querySelector('.chart-byline')?.textContent).toBe(
+      expect(doc.querySelector('.chart-footnote')?.textContent).toBe(
         'Chart: Test'
       );
     });
@@ -86,8 +86,8 @@ describe('chart frame, shape family (#1827)', () => {
   });
 
   it('a column-1 frame line closes the open layer or node', () => {
-    const pyramid = parsePyramid('pyramid T\nTop\n  desc\nsource S\nBase\n');
-    expect(pyramid.frame?.source).toBe('S');
+    const pyramid = parsePyramid('pyramid T\nTop\n  desc\nfootnote S\nBase\n');
+    expect(pyramid.frame?.footnote?.lines).toEqual(['S']);
     expect(pyramid.layers.map((l) => l.label)).toEqual(['Top', 'Base']);
     expect(pyramid.diagnostics).toEqual([]);
   });
@@ -111,9 +111,9 @@ describe('chart frame, shape family (#1827)', () => {
 
   it('raci reads a frame line between phases without an error', () => {
     const p = parseRaci(
-      'raci T\nroles A, B\n\n[Phase]\n  Task\n    A: R\nsource Src\n'
+      'raci T\nroles A, B\n\n[Phase]\n  Task\n    A: R\nfootnote Src\n'
     );
-    expect(p.frame?.source).toBe('Src');
+    expect(p.frame?.footnote?.lines).toEqual(['Src']);
     expect(p.diagnostics.filter((d) => d.severity === 'error')).toEqual([]);
   });
 });

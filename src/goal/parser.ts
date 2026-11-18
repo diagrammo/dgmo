@@ -23,7 +23,10 @@ import type { PaletteColors } from '../palettes';
 import { makeDgmoError, makeFail } from '../diagnostics';
 import type { Writable } from '../utils/brand';
 import { resolveColor } from '../colors';
-import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import {
+  parseChartFrameLine,
+  takeFootnoteBlock,
+} from '../utils/chart-frame-parse';
 import {
   extractColor,
   measureIndent,
@@ -139,6 +142,8 @@ export function parseGoal(
   if (!content?.trim()) return fail(0, 'No content provided');
 
   const lines = content.split('\n');
+  // The footnote block and its markdown body (#2093), before any line is read.
+  takeFootnoteBlock(result, lines, result.diagnostics);
   let headerParsed = false;
   let sharedScaleLine: number | null = null;
   const sharedOpts: Record<string, string> = {};

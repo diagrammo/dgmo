@@ -12,7 +12,10 @@
 // docs/version-control-syntax-mockups.html parse().
 
 import type { PaletteColors } from '../palettes';
-import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import {
+  parseChartFrameLine,
+  takeFootnoteBlock,
+} from '../utils/chart-frame-parse';
 import { emit, formatDgmoError, makeFail, suggest } from '../diagnostics';
 import { VERSION_CONTROL_DX } from './diagnostics';
 import type { Writable } from '../utils/brand';
@@ -210,6 +213,8 @@ export function parseVersionControl(
   };
 
   const lines = content.split('\n');
+  // The footnote block and its markdown body (#2093), before any line is read.
+  takeFootnoteBlock(result, lines, result.diagnostics);
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!;
     const lineNumber = i + 1;

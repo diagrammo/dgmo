@@ -3,9 +3,7 @@
 // static key's frame (#1838).
 export const FRAME_DIRECTIVES = [
   'subtitle',
-  'source',
   'footnote',
-  'byline',
   'align',
   'title-align',
   'subtitle-align',

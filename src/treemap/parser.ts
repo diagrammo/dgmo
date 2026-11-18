@@ -20,7 +20,10 @@ import {
 import type { DgmoError } from '../diagnostics';
 import { TREEMAP_DX } from './diagnostics';
 import type { Writable } from '../utils/brand';
-import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import {
+  parseChartFrameLine,
+  takeFootnoteBlock,
+} from '../utils/chart-frame-parse';
 import { parseEmphasisDirective } from '../utils/emphasis';
 import type { TagGroup } from '../utils/tag-groups';
 import {
@@ -114,6 +117,8 @@ export function parseTreemap(
   }
 
   const lines = content.split('\n');
+  // The footnote block and its markdown body (#2093), before any line is read.
+  takeFootnoteBlock(result, lines, result.diagnostics);
   let contentStarted = false;
   let nodeCounter = 0;
   // Nodes whose trailing token looked numeric but failed to parse — reported

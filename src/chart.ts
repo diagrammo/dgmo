@@ -54,7 +54,10 @@ export interface FillBetween {
 
 import type { DgmoError } from './diagnostics';
 import type { ChartFrame } from './utils/chart-frame-parse';
-import { parseChartFrameLine } from './utils/chart-frame-parse';
+import {
+  parseChartFrameLine,
+  takeFootnoteBlock,
+} from './utils/chart-frame-parse';
 import type { EmphasisDirective } from './utils/emphasis';
 import { parseEmphasisDirective } from './utils/emphasis';
 import type { AxisName, AxisSpecs } from './utils/axis-spec';
@@ -412,7 +415,14 @@ export function parseChart(
 ): ParsedChart {
   // `note`, `highlight` and a category `marker` sit indented under the row
   // they belong to (#2078, #2080); lifted here, resolved after the loop.
-  const lifted = liftAnchored(content.split('\n'));
+  // The footnote block and its markdown body (#2093) come out first, so a
+  // body line that starts with `note` is never lifted as an annotation.
+  const raw = content.split('\n');
+  const footnote: { frame?: ChartFrame; diagnostics: DgmoError[] } = {
+    diagnostics: [],
+  };
+  takeFootnoteBlock(footnote, raw, footnote.diagnostics);
+  const lifted = liftAnchored(raw);
   const lines = lifted.lines;
   const parsedEras: ChartEra[] = [];
   const pieOnlyLines: [number, string][] = [];
@@ -456,6 +466,9 @@ export function parseChart(
 
   let firstLineParsed = false;
 
+  // The footnote block read before the lift (#2093), joined to the result.
+  if (footnote.frame) result.frame = footnote.frame;
+  result.diagnostics.push(...footnote.diagnostics);
   for (let i = 0; i < lines.length; i++) {
     // In-bounds by loop guard.
     const trimmed = lines[i]!.trim();

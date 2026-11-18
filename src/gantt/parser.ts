@@ -2,7 +2,10 @@
 // Gantt Chart Parser
 // ============================================================
 
-import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import {
+  parseChartFrameLine,
+  takeFootnoteBlock,
+} from '../utils/chart-frame-parse';
 import { formatDgmoError, makeDgmoError } from '../diagnostics';
 import {
   GANTT_REGISTRY,
@@ -353,6 +356,8 @@ export function parseGantt(
 
   // ── Main Parse Loop ─────────────────────────────────────
 
+  // The footnote block and its markdown body (#2093), before any line is read.
+  takeFootnoteBlock(result, lines, result.diagnostics);
   for (let i = 0; i < lines.length; i++) {
     // In-bounds by loop guard.
     const rawLine = lines[i]!;

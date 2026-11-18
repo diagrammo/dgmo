@@ -15,17 +15,17 @@ import { parseC4 } from '../src/c4/parser';
 describe('chart frame on tree types (#1827)', () => {
   it('sitemap: Source stays a page, frame survives collapse', () => {
     const p = parseSitemap(
-      'sitemap Site\nHome\n  Source\n  About\nsource Press kit\n'
+      'sitemap Site\nHome\n  Source\n  About\nfootnote Press kit\n'
     );
-    expect(p.frame?.source).toBe('Press kit');
+    expect(p.frame?.footnote?.lines).toEqual(['Press kit']);
     expect(p.roots[0]!.children.map((c) => c.label)).toContain('Source');
     const { parsed } = collapseSitemapTree(p, new Set([p.roots[0]!.id]));
-    expect(parsed.frame?.source).toBe('Press kit');
+    expect(parsed.frame?.footnote?.lines).toEqual(['Press kit']);
   });
 
   it('mindmap: Footnote stays a node, frame survives collapse', () => {
     const p = parseMindmap('mindmap Ideas\nFootnote\nA\n  B\nfootnote Done\n');
-    expect(p.frame?.footnotes?.[0]?.text).toBe('Done');
+    expect(p.frame?.footnote?.lines).toEqual(['Done']);
     expect(JSON.stringify(p.roots)).toContain('Footnote');
     const { roots } = collapseMindmapTree(p.roots, new Set());
     expect(roots.length).toBeGreaterThan(0);
@@ -35,7 +35,7 @@ describe('chart frame on tree types (#1827)', () => {
     const cases: [string, { frame?: unknown; diagnostics: unknown[] }][] = [
       [
         'kanban',
-        parseKanban('kanban T\n[A]\n  card\nsubtitle Sub\nbyline Me\n'),
+        parseKanban('kanban T\n[A]\n  card\nsubtitle Sub\nfootnote Me\n'),
       ],
       [
         'class',

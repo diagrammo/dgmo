@@ -82,7 +82,10 @@ interface ParsedHeatmapRow {
 
 import type { DgmoError } from './diagnostics';
 import type { ChartFrame } from './utils/chart-frame-parse';
-import { parseChartFrameLine } from './utils/chart-frame-parse';
+import {
+  parseChartFrameLine,
+  takeFootnoteBlock,
+} from './utils/chart-frame-parse';
 import type { AxisName, AxisSpecs } from './utils/axis-spec';
 import { parseAxisLine, settleAxisSpec } from './utils/axis-spec';
 import type { NumberFormatSpec } from './utils/number-format';
@@ -430,9 +433,16 @@ function parseExtendedChartFull(
 ): ParsedExtendedChartFull {
   // Scatter's `note` and `highlight` sit indented under their point or
   // `[Group]` (#2078, #2080); lifted here, resolved after the loop.
-  const isScatter = declaresType(content.split('\n'), SCATTER_ONLY);
-  const lifted = isScatter ? liftAnchored(content.split('\n')) : null;
-  const lines = lifted ? lifted.lines : content.split('\n');
+  // The footnote block and its markdown body (#2093) come out first, so a
+  // body line that starts with `note` is never lifted as an annotation.
+  const raw = content.split('\n');
+  const footnote: { frame?: ChartFrame; diagnostics: DgmoError[] } = {
+    diagnostics: [],
+  };
+  takeFootnoteBlock(footnote, raw, footnote.diagnostics);
+  const isScatter = declaresType(raw, SCATTER_ONLY);
+  const lifted = isScatter ? liftAnchored(raw) : null;
+  const lines = lifted ? lifted.lines : raw;
   const result: ParsedExtendedChartFull = {
     type: 'scatter',
     data: [],
@@ -469,6 +479,9 @@ function parseExtendedChartFull(
     return aliased ?? trimmed;
   }
 
+  // The footnote block read before the lift (#2093), joined to the result.
+  if (footnote.frame) result.frame = footnote.frame;
+  result.diagnostics.push(...footnote.diagnostics);
   for (let i = 0; i < lines.length; i++) {
     // In-bounds by loop guard.
     const trimmed = lines[i]!.trim();

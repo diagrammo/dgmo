@@ -36,8 +36,6 @@ const FRAME_PARTS = [
   'text.chart-title',
   '.chart-subtitle',
   '.chart-footnote',
-  '.chart-source',
-  '.chart-byline',
   '.dgmo-legend',
   '.chart-legend',
   '[data-chart-header]',

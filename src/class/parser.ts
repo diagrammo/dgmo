@@ -18,7 +18,10 @@ import { normalizeName, displayName } from '../utils/name-normalize';
 import { tryCollectNote, resolveNotes, type DiagramNote } from '../utils/notes';
 import { isTagBlockHeading } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
-import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import {
+  parseChartFrameLine,
+  takeFootnoteBlock,
+} from '../utils/chart-frame-parse';
 import type {
   ParsedClassDiagram,
   ClassNode,
@@ -271,6 +274,8 @@ export function parseClassDiagram(
     return node;
   }
 
+  // The footnote block and its markdown body (#2093), before any line is read.
+  takeFootnoteBlock(result, lines, result.diagnostics);
   for (let i = 0; i < lines.length; i++) {
     // In-bounds by loop guard.
     const raw = lines[i]!;

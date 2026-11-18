@@ -164,7 +164,7 @@ describe('title band on every chart type (#1838)', () => {
           ...(align === 'left' ? [] : [`align ${align}`]),
           'subtitle The deck line',
         ];
-        const content = `${withLines(fixtureFor(type), lines).trimEnd()}\n\nsource Frame test\n`;
+        const content = `${withLines(fixtureFor(type), lines).trimEnd()}\n\nfootnote Source: Frame test\n`;
         const { doc, vbX, vbW } = await draw(content);
         const title = doc.querySelector('text.chart-title');
         expect(title, 'a text.chart-title').not.toBeNull();
@@ -192,7 +192,7 @@ describe('title band on every chart type (#1838)', () => {
           const atRight = Math.abs(start + w - (vbX + vbW - FRAME_INSET)) < 0.5;
           expect(atLeft || atRight, `title at ${t.x}, edge ${want}`).toBe(true);
         }
-        for (const sel of ['text.chart-subtitle', 'text.chart-source']) {
+        for (const sel of ['text.chart-subtitle', 'text.chart-footnote']) {
           const el = doc.querySelector(sel);
           expect(el, sel).not.toBeNull();
           const p = place(el!);

@@ -4,7 +4,10 @@
 
 import type { DgmoError } from '../diagnostics';
 import type { ChartFrame } from '../utils/chart-frame-parse';
-import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import {
+  parseChartFrameLine,
+  takeFootnoteBlock,
+} from '../utils/chart-frame-parse';
 import { formatDgmoError, makeDgmoError } from '../diagnostics';
 import type { Writable } from '../utils/brand';
 import { isTagBlockHeading } from '../utils/tag-groups';
@@ -790,6 +793,8 @@ export function parseWireframe(content: string): ParsedWireframe {
     pushElement(wrapper);
   }
 
+  // The footnote block and its markdown body (#2093), before any line is read.
+  takeFootnoteBlock(frameHolder, lines, diagnostics);
   for (let i = 0; i < lines.length; i++) {
     // In-bounds by loop guard.
     const line = lines[i]!;

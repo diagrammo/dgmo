@@ -51,9 +51,13 @@ interface DgmoFix {
     title: string;
 }
 
-/** One footnote under the plot (`footnote` is repeatable). */
+/**
+ * The footnote block under the plot (#2093): the text on the `footnote` line
+ * and its indented body, as description-body lines (spec §1.12) — indent removed,
+ * `- ` bullets already turned into `• `, blank lines kept as paragraph breaks.
+ */
 interface ChartFrameFootnote {
-    text: string;
+    lines: string[];
     lineNumber: number;
 }
 /** Which edge a part of the frame sits on (#1838). Default `left`. */
@@ -71,15 +75,12 @@ interface ChartFrameAlign {
     footer?: FrameAlign;
     lineNumbers: number[];
 }
-/** The `subtitle`, `source`, `footnote` and `byline` directives of one chart. */
+/** The `subtitle` and `footnote` of one chart. */
 interface ChartFrame {
     subtitle?: string;
     subtitleLineNumber?: number;
-    source?: string;
-    sourceLineNumber?: number;
-    byline?: string;
-    bylineLineNumber?: number;
-    footnotes?: ChartFrameFootnote[];
+    /** One per chart; a second `footnote` joins it as a new paragraph. */
+    footnote?: ChartFrameFootnote;
     /** `align`, `title-align`, … (#1838). */
     align?: ChartFrameAlign;
     /**

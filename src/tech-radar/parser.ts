@@ -1,5 +1,8 @@
 import { makeDgmoError, makeFail, suggest } from '../diagnostics';
-import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import {
+  parseChartFrameLine,
+  takeFootnoteBlock,
+} from '../utils/chart-frame-parse';
 import { TECH_RADAR_REGISTRY } from '../utils/reserved-key-registry';
 import {
   measureIndent,
@@ -104,6 +107,8 @@ export function parseTechRadar(content: string): ParsedTechRadar {
   }
 
   const lines = content.split('\n');
+  // The footnote block and its markdown body (#2093), before any line is read.
+  takeFootnoteBlock(result, lines, result.diagnostics);
   let headerParsed = false;
   let inRingsBlock = false;
   let currentQuadrant: WritableQuadrant | null = null;

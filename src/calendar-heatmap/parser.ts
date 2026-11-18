@@ -22,7 +22,10 @@ import type {
   DiagnosticSpec,
 } from '../diagnostics';
 import type { Writable } from '../utils/brand';
-import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import {
+  parseChartFrameLine,
+  takeFootnoteBlock,
+} from '../utils/chart-frame-parse';
 import { parseFirstLine } from '../utils/parsing';
 import { CALENDAR_HEATMAP_DX } from './diagnostics';
 import type {
@@ -124,6 +127,8 @@ export function parseCalendarHeatmap(content: string): ParsedCalendarHeatmap {
   if (!content?.trim()) return fail(0, 'No content provided');
 
   const lines = content.split('\n');
+  // The footnote block and its markdown body (#2093), before any line is read.
+  takeFootnoteBlock(result, lines, diagnostics);
   let firstLineSeen = false;
   // `from … to …` is read after every line, since `MM-DD` in it needs `year`
   // and `year` may come after it.

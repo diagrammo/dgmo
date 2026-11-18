@@ -38,7 +38,10 @@ import type {
   DiagnosticSpec,
 } from '../diagnostics';
 import type { Writable } from '../utils/brand';
-import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import {
+  parseChartFrameLine,
+  takeFootnoteBlock,
+} from '../utils/chart-frame-parse';
 import { normalizeName } from '../utils/name-normalize';
 import {
   extractColor,
@@ -136,6 +139,8 @@ export function parseOwnership(
   if (!content?.trim()) return fail(0, 'No content provided');
 
   const lines = content.split('\n');
+  // The footnote block and its markdown body (#2093), before any line is read.
+  takeFootnoteBlock(result, lines, diagnostics);
   const metaAliasMap = new Map<string, string>();
   const tagGroups = result.tagGroups as Writable<TagGroup>[];
   const entities: MutableEntity[] = [];

@@ -268,13 +268,12 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
 
   it('draws the chart frame: subtitle in the banner, footer under the map (#1827)', () => {
     const svg = render(
-      'map My Title\nsubtitle The deck\nfootnote A note\nsource ACME\npoi Tokyo'
+      'map My Title\nsubtitle The deck\nfootnote A note\n\n  Source: ACME\npoi Tokyo'
     );
     expect(svg.querySelector('.chart-subtitle')?.textContent).toBe('The deck');
-    expect(svg.querySelector('.chart-footnote')?.textContent).toBe('A note');
-    expect(svg.querySelector('.chart-source')?.textContent).toBe(
-      'Source: ACME'
-    );
+    expect(
+      [...svg.querySelectorAll('.chart-footnote')].map((e) => e.textContent)
+    ).toEqual(['A note', 'Source: ACME']);
   });
 
   it('relief default-on (dataless world); no-relief removes it (AC8)', () => {

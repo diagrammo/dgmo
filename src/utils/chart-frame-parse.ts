@@ -8,9 +8,13 @@
 import type { DgmoError } from '../diagnostics';
 import { makeDgmoError } from '../diagnostics';
 
-/** One footnote under the plot (`footnote` is repeatable). */
+/**
+ * The footnote block under the plot (#2093): the text on the `footnote` line
+ * and its indented body, as description-body lines (spec §1.12) — indent removed,
+ * `- ` bullets already turned into `• `, blank lines kept as paragraph breaks.
+ */
 export interface ChartFrameFootnote {
-  text: string;
+  lines: string[];
   lineNumber: number;
 }
 
@@ -34,15 +38,12 @@ export interface ChartFrameAlign {
   lineNumbers: number[];
 }
 
-/** The `subtitle`, `source`, `footnote` and `byline` directives of one chart. */
+/** The `subtitle` and `footnote` of one chart. */
 export interface ChartFrame {
   subtitle?: string;
   subtitleLineNumber?: number;
-  source?: string;
-  sourceLineNumber?: number;
-  byline?: string;
-  bylineLineNumber?: number;
-  footnotes?: ChartFrameFootnote[];
+  /** One per chart; a second `footnote` joins it as a new paragraph. */
+  footnote?: ChartFrameFootnote;
   /** `align`, `title-align`, … (#1838). */
   align?: ChartFrameAlign;
   /**
@@ -131,55 +132,144 @@ export function parseChartFrameLine(
     align.lineNumbers.push(lineNumber);
     return true;
   }
-  const m = /^(subtitle|source|footnote|byline)(?:\s+(.*))?$/.exec(trimmed);
+  const m = /^(subtitle|footnote|source|byline)(?:\s+(.*))?$/.exec(trimmed);
   if (!m) return false;
   const token = m[1]!;
   const value = (m[2] ?? '').trim();
   if (value.includes('->')) return false;
+  if (token === 'source' || token === 'byline') {
+    // Removed in #2093: the footer is one markdown block.
+    if (!value) return false;
+    diagnostics.push(
+      makeDgmoError(
+        lineNumber,
+        `"${token}" is not a keyword — write it as a line of the footnote block, e.g. "footnote ${token === 'source' ? '**Source:** ' : '*'}${value}${token === 'byline' ? '*' : ''}". The line is ignored.`,
+        'warning'
+      )
+    );
+    return true;
+  }
+  if (token === 'footnote') {
+    // A parser that ran `takeFootnoteBlock` never gets here; one that did
+    // not still reads the one-line form.
+    addFootnote(holder, value ? [value] : [], lineNumber, diagnostics);
+    return true;
+  }
   if (!value) {
     diagnostics.push(
       makeDgmoError(
         lineNumber,
-        `"${token}" needs its text on the same line, e.g. "${token} ${EXAMPLE[token]}".`,
+        `"subtitle" needs its text on the same line, e.g. "subtitle Quarterly revenue, 2024–2025".`,
         'warning'
       )
     );
     return true;
   }
   const frame = (holder.frame ??= {});
-  if (token === 'footnote') {
-    (frame.footnotes ??= []).push({ text: value, lineNumber });
-    return true;
-  }
-  const key = token as 'subtitle' | 'source' | 'byline';
-  if (frame[key] !== undefined) {
+  if (frame.subtitle !== undefined) {
     diagnostics.push(
       makeDgmoError(
         lineNumber,
-        `"${key}" is given more than once; the last one is used.`,
+        `"subtitle" is given more than once; the last one is used.`,
         'warning'
       )
     );
   }
-  frame[key] = value;
-  frame[`${key}LineNumber`] = lineNumber;
+  frame.subtitle = value;
+  frame.subtitleLineNumber = lineNumber;
   return true;
 }
 
-const EXAMPLE: Record<string, string> = {
-  subtitle: 'Quarterly revenue, 2024–2025',
-  source: 'Company filings',
-  footnote: 'Figures are unaudited.',
-  byline: 'Chart: Jane Doe',
-};
+/**
+ * The bullet marker description bodies use (`BULLET_PREFIX` in
+ * wrapped-desc.ts). Spelled here so this module stays light: the completion
+ * registry reaches it, and wrapped-desc pulls in the markdown renderer.
+ */
+const BULLET_PREFIX = '• ';
+
+const FOOTNOTE_RE = /^footnote(?:\s+(.*))?$/;
+const COMMENT_RE = /^\/\//;
+
+/** One body line as a description line: trimmed, `- ` → `• `. */
+function bodyLine(line: string): string {
+  const t = line.trim();
+  return t.startsWith('- ') ? `${BULLET_PREFIX}${t.slice(2).trimStart()}` : t;
+}
+
+function addFootnote(
+  holder: { frame?: ChartFrame },
+  body: string[],
+  lineNumber: number,
+  diagnostics: DgmoError[]
+): void {
+  const lines = body.map(bodyLine);
+  while (lines.length && !lines[lines.length - 1]) lines.pop();
+  if (!lines.some(Boolean)) {
+    diagnostics.push(
+      makeDgmoError(
+        lineNumber,
+        '"footnote" needs text — on the same line ("footnote Figures are unaudited.") or indented on the lines below it.',
+        'warning'
+      )
+    );
+    return;
+  }
+  const frame = (holder.frame ??= {});
+  if (frame.footnote) {
+    diagnostics.push(
+      makeDgmoError(
+        lineNumber,
+        'A chart has one footnote block — move this text into the first one. It is drawn as a new paragraph of it.',
+        'warning'
+      )
+    );
+    frame.footnote.lines.push('', ...lines);
+    return;
+  }
+  frame.footnote = { lines, lineNumber };
+}
+
+/**
+ * Read every `footnote` block out of a chart's source lines (#2093): a
+ * `footnote` line in column 1, its text, and the indented markdown body below
+ * it (blank lines inside it are paragraph breaks). The lines read are set to
+ * `''` in place, so the chart type's own parser never sees them and every
+ * line keeps its number. Run it on the raw lines, before a parser trims or
+ * strips them. `firstLineNumber` is the number of `lines[0]`.
+ */
+export function takeFootnoteBlock(
+  holder: { frame?: ChartFrame },
+  lines: string[],
+  diagnostics: DgmoError[],
+  firstLineNumber = 1
+): void {
+  for (let i = 0; i < lines.length; i++) {
+    const m = FOOTNOTE_RE.exec(lines[i]!.trimEnd());
+    if (!m) continue;
+    const inline = (m[1] ?? '').trim();
+    if (inline.includes('->')) continue;
+    let last = i;
+    for (let j = i + 1; j < lines.length; j++) {
+      const l = lines[j]!;
+      if (!l.trim()) continue;
+      if (!/^\s/.test(l)) break;
+      last = j;
+    }
+    const body: string[] = inline ? [inline] : [];
+    for (let k = i + 1; k <= last; k++) {
+      const l = lines[k]!.trim();
+      if (COMMENT_RE.test(l)) continue;
+      body.push(l);
+    }
+    addFootnote(holder, body, i + firstLineNumber, diagnostics);
+    for (let k = i; k <= last; k++) lines[k] = '';
+    i = last;
+  }
+}
 
 /** True when `frame` has anything to draw. */
 export function hasChartFrame(frame: ChartFrame | undefined): boolean {
   return (
-    !!frame &&
-    (!!frame.subtitle ||
-      !!frame.source ||
-      !!frame.byline ||
-      (frame.footnotes?.length ?? 0) > 0)
+    !!frame && (!!frame.subtitle || (frame.footnote?.lines.length ?? 0) > 0)
   );
 }

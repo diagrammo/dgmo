@@ -490,9 +490,7 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   },
   // ── Chart frame (#1827): every chart type draws it ──
   { token: 'subtitle', category: 'directive', chartTypes: 'all' },
-  { token: 'source', category: 'directive', chartTypes: 'all' },
   { token: 'footnote', category: 'directive', chartTypes: 'all' },
-  { token: 'byline', category: 'directive', chartTypes: 'all' },
   // Frame alignment and the static key's frame (#1838).
   { token: 'align', category: 'directive', chartTypes: 'all' },
   { token: 'title-align', category: 'directive', chartTypes: 'all' },

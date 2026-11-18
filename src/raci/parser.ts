@@ -19,7 +19,10 @@
 // See `docs/dgmo-language-spec.md` § "RACI Matrix".
 
 import { emit, makeDgmoError, makeFail, suggest } from '../diagnostics';
-import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import {
+  parseChartFrameLine,
+  takeFootnoteBlock,
+} from '../utils/chart-frame-parse';
 import { extractPaletteDirective } from '../palettes/directive';
 import { RACI_DX } from './diagnostics';
 import { resolveColorWithDiagnostic } from '../colors';
@@ -183,6 +186,8 @@ export function parseRaci(
   // Variant is resolved after parse purely from the markers used
   // (D → daci, S → rasci, else raci). Both D and S → E_RACI_MIXED_VARIANTS.
   // First non-empty / non-comment line: chart type + optional title.
+  // The footnote block and its markdown body (#2093), before any line is read.
+  takeFootnoteBlock(result, lines, result.diagnostics);
   for (; i < lines.length; i++) {
     // In-bounds by loop guard (i < lines.length).
     const trimmed = lines[i]!.trim();

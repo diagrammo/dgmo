@@ -39,7 +39,10 @@ import { normalizeName, displayName } from '../utils/name-normalize';
 import type { Writable } from '../utils/brand';
 import type { ParsedGraph, GraphNode, GraphGroup, GraphNote } from './types';
 import { tryCollectNote, resolveNotes } from './notes';
-import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import {
+  parseChartFrameLine,
+  takeFootnoteBlock,
+} from '../utils/chart-frame-parse';
 import { parseEmphasisDirective } from '../utils/emphasis';
 import { resolveGraphHighlight, graphHighlightWarnings } from './highlight';
 
@@ -351,6 +354,8 @@ export function parseState(
   }
 
   // === Main loop ===
+  // The footnote block and its markdown body (#2093), before any line is read.
+  takeFootnoteBlock(result, lines, result.diagnostics);
   for (let i = 0; i < lines.length; i++) {
     // In-bounds by loop guard.
     const raw = lines[i]!;

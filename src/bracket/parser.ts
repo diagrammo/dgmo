@@ -24,7 +24,10 @@
 import type { PaletteColors } from '../palettes';
 import { makeDgmoError, makeFail } from '../diagnostics';
 import type { Writable } from '../utils/brand';
-import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import {
+  parseChartFrameLine,
+  takeFootnoteBlock,
+} from '../utils/chart-frame-parse';
 import {
   extractColor,
   fillModeFromToken,
@@ -164,6 +167,8 @@ export function parseBracket(
   };
 
   const lines = content.split('\n');
+  // The footnote block and its markdown body (#2093), before any line is read.
+  takeFootnoteBlock(result, lines, result.diagnostics);
   let headerParsed = false;
   /** True when the title line's trailing color set the winner accent (§1.5). */
   let accentFromTitle = false;

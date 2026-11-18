@@ -11,7 +11,10 @@ import { ORG_REGISTRY, withTagAliases } from '../utils/reserved-key-registry';
 import type { TagGroup } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
 import type { ChartFrame } from '../utils/chart-frame-parse';
-import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import {
+  parseChartFrameLine,
+  takeFootnoteBlock,
+} from '../utils/chart-frame-parse';
 import {
   isTagBlockHeading,
   matchTagBlockHeading,
@@ -237,6 +240,8 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
   }
 
   const lines = content.split('\n');
+  // The footnote block and its markdown body (#2093), before any line is read.
+  takeFootnoteBlock(result, lines, result.diagnostics);
   let contentStarted = false;
   let headerLineSeen = false;
   let nodeCounter = 0;

@@ -28,13 +28,13 @@ describe('parseMap — declaration & title (AC1)', () => {
 describe('parseMap — directives (AC2, AC20)', () => {
   it('captures the surviving intent directives', () => {
     const r = parseMap(
-      'map\nregion-heat Sales ($M)\nlocale US\nno-legend\nsource ACME'
+      'map\nregion-heat Sales ($M)\nlocale US\nno-legend\nfootnote Source: ACME'
     );
     expect(r.error).toBeNull();
     expect(r.directives.regionMetric).toBe('Sales ($M)');
     expect(r.directives.locale).toBe('US');
     expect(r.directives.noLegend).toBe(true);
-    expect(r.frame?.source).toBe('ACME');
+    expect(r.frame?.footnote?.lines).toEqual(['Source: ACME']);
   });
   it('merges country + subdivision into the one `locale` field', () => {
     expect(parseMap('map\nlocale US').directives.locale).toBe('US');

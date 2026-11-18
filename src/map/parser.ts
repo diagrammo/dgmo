@@ -8,7 +8,10 @@ import {
   emit,
   NEGATIVE_VALUE_DX,
 } from '../diagnostics';
-import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import {
+  parseChartFrameLine,
+  takeFootnoteBlock,
+} from '../utils/chart-frame-parse';
 import { MAP_DX } from './diagnostics';
 import { MAP_DIRECTIVE_KEY_SET } from '../directives-registry';
 import type { Writable } from '../utils/brand';
@@ -132,6 +135,8 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
   };
 
   const lines = content.split('\n');
+  // The footnote block and its markdown body (#2093), before any line is read.
+  takeFootnoteBlock(result, lines, diagnostics);
 
   // ── First line: declaration + title (hand-rolled; `map` isn't in
   //    ALL_CHART_TYPES, so parseFirstLine can't be used — R1). ──

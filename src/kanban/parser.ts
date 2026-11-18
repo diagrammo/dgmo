@@ -32,7 +32,10 @@ import {
 } from '../utils/parsing';
 import { normalizeName } from '../utils/name-normalize';
 import type { Writable } from '../utils/brand';
-import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import {
+  parseChartFrameLine,
+  takeFootnoteBlock,
+} from '../utils/chart-frame-parse';
 import type { DgmoError } from '../diagnostics';
 import type {
   ParsedKanban,
@@ -101,6 +104,8 @@ export function parseKanban(
   }
 
   const lines = content.split('\n');
+  // The footnote block and its markdown body (#2093), before any line is read.
+  takeFootnoteBlock(result, lines, result.diagnostics);
   let contentStarted = false;
   let headerLineSeen = false;
   let activeTagOptionLine = 0;

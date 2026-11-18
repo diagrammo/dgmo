@@ -18,10 +18,10 @@ import { calculateSchedule } from '../src/gantt/calculator';
 describe('chart frame, flows family (#1827)', () => {
   it('flowchart: a frame line mid-file is read, a capitalised Source stays a node', () => {
     const p = parseFlowchart(
-      'flowchart T\n[Source]\nsubtitle Deck line\n[Sink]\n[Source] -> [Sink]\nbyline Me\n'
+      'flowchart T\n[Source]\nsubtitle Deck line\n[Sink]\n[Source] -> [Sink]\nfootnote Me\n'
     );
     expect(p.frame?.subtitle).toBe('Deck line');
-    expect(p.frame?.byline).toBe('Me');
+    expect(p.frame?.footnote?.lines).toEqual(['Me']);
     expect(p.nodes.map((n) => n.label)).toContain('Source');
     expect(p.diagnostics).toEqual([]);
   });
@@ -30,7 +30,7 @@ describe('chart frame, flows family (#1827)', () => {
     const p = parseState(
       'state T\n[Grp]\n  A -> B\nA -> C\nfootnote Provisional\n'
     );
-    expect(p.frame?.footnotes?.[0]?.text).toBe('Provisional');
+    expect(p.frame?.footnote?.lines).toEqual(['Provisional']);
     const { parsed } = collapseStateGroups(p, new Set(['Grp']));
     expect(parsed.frame).toEqual(p.frame);
   });
@@ -40,7 +40,8 @@ describe('chart frame, flows family (#1827)', () => {
       parseInfra('infra T\nEdge\n  rps 100\nsubtitle S\nApp\n').frame?.subtitle
     ).toBe('S');
     expect(
-      parseSequenceDgmo('sequence T\nA -> B: hi\nsource Src\n').frame?.source
+      parseSequenceDgmo('sequence T\nA -> B: hi\nfootnote Src\n').frame
+        ?.footnote?.lines[0]
     ).toBe('Src');
     expect(
       parseJourneyMap('journey-map T\nsubtitle S\nPhase A\n  Step 3\n').frame
@@ -51,14 +52,14 @@ describe('chart frame, flows family (#1827)', () => {
         'tech-radar T\nrings\n  Adopt\nsubtitle S\nQ quadrant: top-left\n'
       ).frame?.subtitle
     ).toBe('S');
-    const g = parseGantt('gantt T\nA 3d\nbyline By\nB 2d\n');
-    expect(g.frame?.byline).toBe('By');
-    expect(calculateSchedule(g).frame?.byline).toBe('By');
+    const g = parseGantt('gantt T\nA 3d\nfootnote By\nB 2d\n');
+    expect(g.frame?.footnote?.lines).toEqual(['By']);
+    expect(calculateSchedule(g).frame?.footnote?.lines).toEqual(['By']);
   });
 
   it('infra: the exported root height follows the grown viewBox', async () => {
     const src =
-      'infra T\nEdge\n  rps 100\n  -> App\nApp\n  rps 50\nsubtitle S\nfootnote F\nbyline B\n';
+      'infra T\nEdge\n  rps 100\n  -> App\nApp\n  rps 50\nsubtitle S\nfootnote F\n  B\n';
     const svg = await renderForExport(src, 'light');
     const root = new JSDOM(svg, { contentType: 'image/svg+xml' }).window
       .document.documentElement;

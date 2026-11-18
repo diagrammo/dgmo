@@ -35,7 +35,10 @@ import {
 import type { TagGroup } from '../utils/tag-groups';
 import { tryCollectNote, resolveNotes, type DiagramNote } from '../utils/notes';
 import type { Writable } from '../utils/brand';
-import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import {
+  parseChartFrameLine,
+  takeFootnoteBlock,
+} from '../utils/chart-frame-parse';
 import type {
   ParsedERDiagram,
   ERTable,
@@ -334,6 +337,8 @@ export function parseERDiagram(
     return table;
   }
 
+  // The footnote block and its markdown body (#2093), before any line is read.
+  takeFootnoteBlock(result, lines, result.diagnostics);
   for (let i = 0; i < lines.length; i++) {
     // In-bounds by loop guard.
     const raw = lines[i]!;

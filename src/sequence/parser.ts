@@ -3,7 +3,10 @@
 // ============================================================
 
 import type { ChartFrame } from '../utils/chart-frame-parse';
-import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import {
+  parseChartFrameLine,
+  takeFootnoteBlock,
+} from '../utils/chart-frame-parse';
 import { inferParticipantType } from './participant-inference';
 import type { Brand, Writable } from '../utils/brand';
 import type { DgmoError } from '../diagnostics';
@@ -651,6 +654,8 @@ export function parseSequenceDgmo(
   result.diagnostics.push(...directive.diagnostics);
 
   const lines = directive.content.split('\n');
+  // The footnote block and its markdown body (#2093), before any line is read.
+  takeFootnoteBlock(result, lines, result.diagnostics);
   let hasExplicitChart = false;
   let contentStarted = false;
   let activeTagOptionLine = 0;

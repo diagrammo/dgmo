@@ -3,7 +3,10 @@
 // ============================================================
 
 import { makeDgmoError, makeFail } from '../diagnostics';
-import { parseChartFrameLine } from '../utils/chart-frame-parse';
+import {
+  parseChartFrameLine,
+  takeFootnoteBlock,
+} from '../utils/chart-frame-parse';
 import { extractPaletteDirective } from '../palettes/directive';
 import type { Writable } from '../utils/brand';
 import {
@@ -59,6 +62,8 @@ export function parsePyramid(content: string): ParsedPyramid {
   const directive = extractPaletteDirective(content);
   result.diagnostics.push(...directive.diagnostics);
   const lines = directive.content.split('\n');
+  // The footnote block and its markdown body (#2093), before any line is read.
+  takeFootnoteBlock(result, lines, result.diagnostics);
   let headerParsed = false;
   let currentLayer: Writable<PyramidLayer> | null = null;
 
