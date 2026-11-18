@@ -391,7 +391,7 @@ describe('ownership look (#1873)', () => {
   it('keys only the shapes the chart uses', () => {
     const key = draw(ROUND_TWO).querySelector('.ownership-shape-key')!;
     expect([...key.querySelectorAll('text')].map((t) => t.textContent)).toEqual(
-      ['Corporation', 'Partnership', 'Individual']
+      ['Shape', 'Corporation', 'Partnership', 'Individual']
     );
   });
 
@@ -598,5 +598,74 @@ describe('ownership legend beside a long title (#2103)', () => {
       );
       expect(y).toBeGreaterThanOrEqual(0);
     }
+  });
+});
+
+describe('ownership legend and shape key (#2102)', () => {
+  const SRC = readFileSync(
+    join(__dirname, '../gallery/fixtures/ownership-legend-key.dgmo'),
+    'utf8'
+  );
+
+  it('draws the shape key as an entry of the shared legend', () => {
+    const c = draw(SRC);
+    const key = c.querySelector('.ownership-shape-key')!;
+    expect(key.querySelector('[data-legend-group="shape"]')).not.toBeNull();
+    expect(
+      [...key.querySelectorAll('[data-legend-entry]')].map((e) =>
+        e.getAttribute('data-legend-entry')
+      )
+    ).toEqual(['corporation', 'partnership', 'individual', 'trust']);
+    // The entry dot is the shape it names.
+    expect(key.querySelectorAll('circle')).toHaveLength(0);
+    expect(key.querySelectorAll('.ownership-shape').length).toBeGreaterThan(3);
+  });
+
+  it('tag-group pills carry the attribute the preview clicks on', () => {
+    const c = draw(SRC);
+    const keys = [
+      ...c.querySelectorAll('.ownership-legend [data-legend-group]'),
+    ].map((e) => e.getAttribute('data-legend-group'));
+    expect(keys).toContain('jurisdiction');
+    expect(keys).toContain('status');
+  });
+
+  it('hovering a key entry lights that type and dims the rest', () => {
+    const c = draw(SRC);
+    const entry = c.querySelector('[data-legend-entry="trust"]')!;
+    entry.dispatchEvent(new MouseEvent('mouseenter'));
+    const lit = [...c.querySelectorAll('.ownership-entity')].filter(
+      (e) => e.getAttribute('opacity') === null
+    );
+    expect(lit.length).toBeGreaterThan(0);
+    expect(
+      lit.every((e) => e.getAttribute('data-entity-type') === 'trust')
+    ).toBe(true);
+    const dimmed = [...c.querySelectorAll('.ownership-entity')].filter(
+      (e) => e.getAttribute('opacity') === String(DEFAULT_DIM_OPACITY)
+    );
+    expect(dimmed.length).toBeGreaterThan(0);
+    entry.dispatchEvent(new MouseEvent('mouseleave'));
+    expect(
+      [...c.querySelectorAll('.ownership-entity')].every(
+        (e) => e.getAttribute('opacity') === null
+      )
+    ).toBe(true);
+  });
+
+  it('leaves the legend row on the title row under a subtitle', () => {
+    const c = document.createElement('div');
+    vi.spyOn(c, 'getBoundingClientRect').mockReturnValue({
+      width: 0,
+    } as DOMRect);
+    const parsed = parseOwnership(SRC);
+    expect(parsed.error).toBeNull();
+    renderOwnership(c, parsed, palette, false, {
+      activeTagGroup: 'Jurisdiction',
+    });
+    const legend = c.querySelector('.ownership-legend')!;
+    expect(legend.hasAttribute('data-chart-header')).toBe(true);
+    // Pinned back up by the subtitle band, so it is not drawn in the band.
+    expect(legend.getAttribute('transform')).toMatch(/^translate\(0,-/);
   });
 });

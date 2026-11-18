@@ -1,0 +1,19 @@
+ownership Acme group, two tag groups and every shape
+subtitle Legend pills switch the group; the shape key hovers like the tag legend
+active-tag Jurisdiction
+tag Jurisdiction as j
+  UK     blue
+  US     red
+  NL     orange
+tag Status as s
+  Active   green
+  Dormant  gray
+
+Acme Holdings plc  j: UK, s: Active
+  75% Acme Inc  j: US, s: Active
+    60% Acme Labs LLP  j: US, s: Dormant, type: partnership
+  100% Acme BV  j: NL, s: Active
+    90% Founders Trust  j: NL, s: Active, type: trust
+
+J. Moreau  j: UK, s: Active, type: individual
+  25% -> Acme Inc

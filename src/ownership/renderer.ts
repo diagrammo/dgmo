@@ -34,7 +34,7 @@ import {
   getLegendExtent,
   getMaxLegendReservedHeight,
 } from '../utils/legend-layout';
-import type { LegendConfig } from '../utils/legend-types';
+import type { LegendConfig, LegendGroupData } from '../utils/legend-types';
 import { fillModeFromOptions, legendSuppressed } from '../utils/parsing';
 import {
   resolveTagColor,
@@ -68,7 +68,7 @@ import {
 } from './layout';
 import type { EntityShape, LayoutEntity } from './layout';
 import { ENTITY_TYPES } from './types';
-import type { ParsedOwnership } from './types';
+import type { EntityType, ParsedOwnership } from './types';
 
 export interface OwnershipRenderOptions {
   activeTagGroup?: string | null;
@@ -78,11 +78,6 @@ export interface OwnershipRenderOptions {
 const DIAGRAM_PADDING = 20;
 const TITLE_LEGEND_GAP = 16;
 const KEY_TOP_GAP = 6;
-const KEY_ROW_HEIGHT = 14;
-const KEY_ICON_W = 16;
-const KEY_ICON_GAP = 5;
-const KEY_ITEM_GAP = 16;
-const KEY_FONT_SIZE = 10;
 const RADIUS = 8;
 const STROKE_WIDTH = 1.3;
 const EDGE_WIDTH = 1.4;
@@ -124,15 +119,26 @@ export function renderOwnership(
   const legendNatural = showLegend
     ? getLegendExtent(legendConfig, { activeGroup: activeTagGroup }, 4000).width
     : 0;
-  const keyItems = usedTypes.map((t) => ({
-    type: t,
-    label: TYPE_LABELS[t],
-    width:
-      KEY_ICON_W + KEY_ICON_GAP + measureText(TYPE_LABELS[t], KEY_FONT_SIZE),
-  }));
+  // The shape key is a second shared legend group, so it takes the tag
+  // legend's pill, entry type, spacing and hover wiring (#2102).
+  const keyGroups: LegendGroupData[] = showKey
+    ? [
+        {
+          name: 'Shape',
+          entries: usedTypes.map((t) => ({
+            value: TYPE_LABELS[t],
+            color: palette.textMuted,
+          })),
+        },
+      ]
+    : [];
+  const keyConfig: LegendConfig = {
+    groups: keyGroups,
+    position: { placement: 'top-center', titleRelation: 'inline-with-title' },
+    mode: exportMode ? 'export' : 'preview',
+  };
   const keyWidth = showKey
-    ? keyItems.reduce((s, k) => s + k.width, 0) +
-      KEY_ITEM_GAP * (keyItems.length - 1)
+    ? getLegendExtent(keyConfig, { activeGroup: 'Shape' }, 4000).width
     : 0;
   const headerWidth =
     (showTitle ? titleWidth + TITLE_LEGEND_GAP : 0) +
@@ -144,6 +150,7 @@ export function renderOwnership(
     DIAGRAM_PADDING + (showTitle ? titleWidth + TITLE_LEGEND_GAP : 0);
   const legendWidth = Math.max(
     legendNatural,
+    keyWidth,
     width - legendX - DIAGRAM_PADDING
   );
   const legendHeight = showLegend
@@ -159,11 +166,11 @@ export function renderOwnership(
   const keyTop = showLegend
     ? legendBottom + KEY_TOP_GAP
     : showTitle
-      ? TITLE_Y - KEY_ROW_HEIGHT + 3
+      ? legendY
       : DIAGRAM_PADDING;
   const headerBottom = Math.max(
     showLegend ? legendBottom + LEGEND_BODY_GAP : 0,
-    showKey ? keyTop + KEY_ROW_HEIGHT + LEGEND_BODY_GAP : 0,
+    showKey ? keyTop + LEGEND_HEIGHT + LEGEND_BODY_GAP : 0,
     showTitle ? FRAME_BODY_TOP : DIAGRAM_PADDING
   );
   const bodyTop = headerBottom;
@@ -223,6 +230,9 @@ export function renderOwnership(
     const legendG = header
       .append('g')
       .attr('class', 'ownership-legend')
+      // Stays on the title row when a subtitle band opens under it, as the
+      // other charts' legend row does (#2102).
+      .attr('data-chart-header', '')
       .attr('transform', `translate(${legendX},${legendY})`);
     renderIntegratedLegend(legendG, {
       frame: legendFrame,
@@ -236,38 +246,48 @@ export function renderOwnership(
 
   const ink = palette.textMuted;
   const neutral = palette.textMuted;
+  let onKeyHover: (type: EntityType | null) => void = () => {};
   if (showKey) {
     const keyG = header
       .append('g')
       .attr('class', 'ownership-shape-key')
-      .attr(
-        'transform',
-        `translate(${width - DIAGRAM_PADDING - keyWidth},${keyTop})`
-      );
-    let x = 0;
-    for (const item of keyItems) {
-      drawShape(
-        keyG,
-        shapeOf(item.type),
-        x + KEY_ICON_W / 2,
-        1,
-        KEY_ICON_W,
-        11,
-        palette.bg,
-        ink,
-        1,
-        false,
-        2
-      );
-      keyG
-        .append('text')
-        .attr('x', x + KEY_ICON_W + KEY_ICON_GAP)
-        .attr('y', 10)
-        .attr('font-size', KEY_FONT_SIZE)
-        .attr('fill', palette.textMuted)
-        .text(item.label);
-      x += item.width + KEY_ITEM_GAP;
-    }
+      .attr('data-chart-header', showLegend ? null : '')
+      .attr('transform', `translate(${legendX},${keyTop})`);
+    renderIntegratedLegend(keyG, {
+      frame: legendFrame,
+      ...keyConfig,
+      palette,
+      isDark,
+      width: legendWidth,
+      activeGroup: 'Shape',
+      callbacks: {
+        onEntryHover: (_group, value) =>
+          onKeyHover(usedTypes.find((t) => TYPE_LABELS[t] === value) ?? null),
+      },
+    });
+    // The entry dot becomes the shape it names.
+    keyG
+      .selectAll<SVGCircleElement, unknown>('[data-legend-entry] circle')
+      .each(function () {
+        const dot = d3Selection.select(this);
+        const label = this.parentElement?.getAttribute('data-series-name');
+        const type = usedTypes.find((t) => TYPE_LABELS[t] === label);
+        if (!type) return;
+        drawShape(
+          d3Selection.select(this.parentElement as unknown as SVGGElement),
+          shapeOf(type),
+          Number(dot.attr('cx')),
+          Number(dot.attr('cy')) - 4,
+          10,
+          8,
+          palette.bg,
+          ink,
+          1,
+          false,
+          1.5
+        );
+        dot.remove();
+      });
   }
 
   const body = svg
@@ -477,6 +497,16 @@ export function renderOwnership(
       for (const g of entityGroups.values()) g.attr('opacity', null);
       for (const g of edgeGroups.values()) g.attr('opacity', null);
       hideTooltip(tooltip);
+    };
+    onKeyHover = (type) => {
+      if (!type) return reset();
+      for (const [id, g] of entityGroups)
+        g.attr(
+          'opacity',
+          byId.get(id)?.entity.type === type ? null : DEFAULT_DIM_OPACITY
+        );
+      for (const g of edgeGroups.values())
+        g.attr('opacity', DEFAULT_DIM_OPACITY);
     };
     const at = (el: Element): MouseEvent => {
       const r = el.getBoundingClientRect();
