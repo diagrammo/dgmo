@@ -215,11 +215,28 @@ function renderInto(
     colors,
     frame
   );
+  if (ok) passivePlotText(s.node());
   if (ok && frame.reserve)
     applyChartFrame(s, frame.reserve, width, height, palette, frame.frame);
   // The title's edge (#1838), frame lines or not.
   if (ok) placeFrameTitle(s.node(), frame.frame);
   return ok;
+}
+
+/**
+ * Text drawn over a mark (value labels, overlay labels, radar ticks, sankey
+ * node values) must not catch the pointer: the mark's hover, CSS `:hover` and
+ * the app's `closest('.dgmo-datum')` lookup, ends the moment the cursor is on
+ * the text (#2086). Clicks fall through to the mark, which carries the line
+ * number. The clickable axis labels, the chart title and legend entries keep
+ * their own hit targets.
+ */
+function passivePlotText(svg: SVGSVGElement | null): void {
+  svg?.querySelectorAll('text').forEach((t) => {
+    if (t.closest('.dgmo-axis-label, .chart-title, [data-legend-entry]'))
+      return;
+    t.setAttribute('pointer-events', 'none');
+  });
 }
 
 /** Where `renderPlot` leaves the frame it reserved, for `renderInto`. */
