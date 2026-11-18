@@ -61,9 +61,10 @@ function ensureStyle(svg: SVGSVGElement, muted: string): void {
 
 function toUserSpace(
   svg: SVGSVGElement,
-  e: MouseEvent
+  e: MouseEvent,
+  space: SVGGraphicsElement = svg
 ): { x: number; y: number } {
-  const ctm = svg.getScreenCTM?.();
+  const ctm = space.getScreenCTM?.();
   if (!ctm) return { x: 0, y: 0 };
   const p = svg.createSVGPoint();
   p.x = e.clientX;
@@ -112,6 +113,12 @@ export function attachDataChartInteractions(
       }
     : null;
 
+  // The chart-frame wraps the drawing in a translated group (header height),
+  // so the plot rect, points and ticks live in THAT space, not the root's. The
+  // overlay and the pointer must be measured in it too, or every leader sits a
+  // header-height off the point (#2079).
+  const space = (plotRect?.parentNode ?? svg) as SVGGraphicsElement;
+
   const seriesGroups = Array.from(
     svg.querySelectorAll<SVGGElement>('.dgmo-series')
   );
@@ -138,7 +145,7 @@ export function attachDataChartInteractions(
       overlay.setAttribute('class', 'dgmo-overlay');
       overlay.setAttribute('pointer-events', 'none');
     }
-    svg.appendChild(overlay); // keep on top
+    space.appendChild(overlay); // keep on top, in the plot's coordinate space
     return overlay;
   };
   const clearOverlay = () => {
@@ -472,8 +479,8 @@ export function attachDataChartInteractions(
     // Crosshair fires anywhere inside the plot region — over the area fill, the
     // line, or the dots, not just empty space (the whole point of the change).
     if (crosshairOn && plot) {
-      const ctm = svg.getScreenCTM?.();
-      const { x, y } = toUserSpace(svg, e);
+      const ctm = space.getScreenCTM?.();
+      const { x, y } = toUserSpace(svg, e, space);
       const inside =
         !ctm ||
         (x >= plot.left - 2 &&

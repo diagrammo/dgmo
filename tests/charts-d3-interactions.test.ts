@@ -650,3 +650,80 @@ describe('heatmap axis-label hover + single-cell emphasis', () => {
     }
   });
 });
+
+// #2079: the chart frame translates the drawing down by the header height; the
+// crosshair overlay must live in the same space as the points it points at.
+describe('crosshair in a framed chart (#2079)', () => {
+  const offsetY = (el: Element): number => {
+    let y = 0;
+    for (let n: Element | null = el; n; n = n.parentElement) {
+      const m = /translate\(\s*[-\d.]+[ ,]+([-\d.]+)\s*\)/.exec(
+        n.getAttribute('transform') ?? ''
+      );
+      if (m) y += parseFloat(m[1]!);
+    }
+    return y;
+  };
+
+  it('horizontal leader sits on the hovered point (log axis + subtitle)', async () => {
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    host.innerHTML = await renderDataChartD3(
+      `line Pirate havens
+subtitle Population growth on a log axis
+y-scale log
+y-min 10
+y-max 1_000_000
+
+series
+  Tortuga
+  Nassau
+
+1680 120 40
+1700 900 300
+1720 6000 2500`,
+      'light',
+      undefined,
+      { width: 889, height: 600 },
+      true
+    );
+    svg = host.querySelector('svg')!;
+    // jsdom has no layout: identity pointer mapping, so user space == client.
+    const ident = () => ({ inverse: () => ({}) });
+    (svg as unknown as { getScreenCTM: () => unknown }).getScreenCTM = ident;
+    (
+      svg.querySelector('.dgmo-plot-rect')!.parentNode as unknown as {
+        getScreenCTM: () => unknown;
+      }
+    ).getScreenCTM = ident;
+    (svg as unknown as { createSVGPoint: () => unknown }).createSVGPoint =
+      () => ({
+        x: 0,
+        y: 0,
+        matrixTransform() {
+          return { x: this.x, y: this.y };
+        },
+      });
+    detach = attachDataChartInteractions(svg, {});
+
+    const pt = svg.querySelector<SVGCircleElement>(
+      '.dgmo-pt[data-x-index="1"]'
+    )!;
+    const cy = parseFloat(pt.getAttribute('cy')!);
+    svg.dispatchEvent(
+      new MouseEvent('mousemove', {
+        bubbles: true,
+        clientX: parseFloat(pt.getAttribute('cx')!),
+        clientY: cy,
+      })
+    );
+    const overlay = svg.querySelector('.dgmo-overlay')!;
+    const leader = [...overlay.querySelectorAll('.dgmo-axline')].find(
+      (l) => l.getAttribute('y1') === l.getAttribute('y2')
+    )!;
+    expect(offsetY(pt)).toBeGreaterThan(0); // the frame really shifts the plot
+    expect(
+      parseFloat(leader.getAttribute('y1')!) + offsetY(leader)
+    ).toBeCloseTo(cy + offsetY(pt), 6);
+  });
+});
