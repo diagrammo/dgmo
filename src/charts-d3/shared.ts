@@ -476,7 +476,7 @@ export function drawValueLabel(
 // ============================================================
 
 /** Rotation applied when labels cannot fit flat — matches heatmap's column labels. */
-const LABEL_ROTATE_DEG = 40;
+export const LABEL_ROTATE_DEG = 40;
 /**
  * The most categories an axis may have and never drop a label. A short axis
  * names things a reader has to tell apart — six services thinned to every other
@@ -490,7 +490,7 @@ const LABEL_GAP = 8;
 /** A rotated label occupies its line height along the axis, not its width. */
 const LABEL_LINE_HEIGHT = 1.25;
 /** Room below the axis a rotated label region adds to the labels' drop. */
-const ROTATED_LABEL_PAD = 12;
+export const ROTATED_LABEL_PAD = 12;
 /** A capped rotated label keeps at least this much text before its `…`. */
 const MIN_CAPPED_LABEL_W = 40;
 

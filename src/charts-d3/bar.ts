@@ -45,7 +45,7 @@ import { GRID_DASH } from '../utils/visual-conventions';
 import { labelBox } from '../utils/place-labels';
 import { mix } from '../palettes/color-utils';
 import { fitLabel, type FittedLabel } from '../utils/fit-label';
-import { measureText } from '../utils/text-measure';
+import { measureText, truncateText } from '../utils/text-measure';
 import { createLabelPlacement, type LabelRect } from '../label-layout';
 import {
   EMPHASIS_DIM_OPACITY,
@@ -73,6 +73,8 @@ import {
   bandSafeTop,
   TICK_INK_ABOVE,
   topTickFraction,
+  LABEL_ROTATE_DEG,
+  ROTATED_LABEL_PAD,
 } from './shared';
 
 // Long category names must not size the chart (#1422). Their region is capped
@@ -89,6 +91,10 @@ const FLIP_MAX_CATEGORIES = NEVER_THIN_MAX;
 const NAME_MAX_LINES = 3;
 /** Baseline-to-baseline distance of a wrapped name's lines. */
 const NAME_LINE_PX = Math.round(TICK_FONT * 1.2);
+/** Most lines a Marimekko column name wraps to before the names rotate (#2084). */
+const NAME_MAX_LINES_MEKKO = 2;
+/** A rotated Marimekko name keeps at least this much text before its `…`. */
+const MIN_ROTATED_NAME_W = 40;
 /** Most lines a clustered-stack period or category name wraps to. */
 const CLUSTER_LABEL_MAX_LINES = 4;
 /** Largest lollipop dot radius; thinner bands get a smaller dot (#1979). */
@@ -1669,11 +1675,70 @@ function renderMarimekko(
     buildValueAxis(0, 100, undefined, range, { nice: true });
   const probeTicks = valueAxis([0, 1]).ticks(5).map(pct);
 
+  const mLeft = computeLeftMargin(chart.ylabel, probeTicks);
+  const mRight = 32;
+  const plotW0 = width - mLeft - mRight;
+
+  // A label centred on a narrow column may spill as far as its neighbours'
+  // own labels leave room, so `LATAM` over an 8% column reads whole.
+  const room = (texts: string[]): number[] => {
+    const colW = columns.map((c) => c.w * plotW0);
+    const spare = texts.map((t, i) =>
+      Math.max(0, (colW[i]! - measureText(t, TICK_FONT)) / 2)
+    );
+    return colW.map(
+      (cw, i) =>
+        cw +
+        2 *
+          Math.min(
+            i > 0 ? spare[i - 1]! : mLeft,
+            i < colW.length - 1 ? spare[i + 1]! : mRight
+          )
+    );
+  };
+  const widthTexts = columns.map(({ d }) =>
+    share ? shareText(d.width!) : fmt(d.width!)
+  );
+  const widthRoom = room(widthTexts);
+  const nameRoom = room(columns.map(({ d }) => d.label));
+
+  // Column names follow the bar label plan (#2084): wrap to two lines inside
+  // the room a column has; when any name still does not fit, every name
+  // rotates below the axis (cut with `…` only past the region cap), and the
+  // bottom margin grows to hold them.
+  const wrapped = columns.map(({ d }, i) =>
+    fitLabel(d.label, TICK_FONT, nameRoom[i]!, NAME_MAX_LINES_MEKKO)
+  );
+  const rotateNames = wrapped.some((f) => f.truncated);
+  const rotRad = (LABEL_ROTATE_DEG * Math.PI) / 180;
+  const nameCap = Math.max(
+    MIN_ROTATED_NAME_W,
+    Math.floor(
+      (height * LABEL_REGION_SHARE - ROTATED_LABEL_PAD) / Math.sin(rotRad)
+    )
+  );
+  const rotNames = rotateNames
+    ? columns.map(({ d }) => truncateText(d.label, TICK_FONT, nameCap))
+    : [];
+  const nameDrop = rotateNames
+    ? Math.round(
+        Math.max(...rotNames.map((t) => measureText(t, TICK_FONT))) *
+          Math.sin(rotRad)
+      ) + ROTATED_LABEL_PAD
+    : (Math.max(...wrapped.map((f) => f.lines.length)) - 1) * NAME_LINE_PX;
+
   const m: Margins = {
     top: top + 8 + TICK_FONT + WIDTH_LABEL_GAP,
-    right: 32,
-    bottom: TICK_FONT + 6 + 8 + TICK_FONT + 10 + (chart.xlabel ? 40 : 18),
-    left: computeLeftMargin(chart.ylabel, probeTicks),
+    right: mRight,
+    bottom:
+      TICK_FONT +
+      6 +
+      8 +
+      TICK_FONT +
+      10 +
+      (chart.xlabel ? 40 : 18) +
+      Math.max(0, nameDrop),
+    left: mLeft,
   };
   const plotW = width - m.left - m.right;
   const plotH = height - m.top - m.bottom;
@@ -1751,29 +1816,6 @@ function renderMarimekko(
     return t;
   };
 
-  // A label centred on a narrow column may spill as far as its neighbours'
-  // own labels leave room, so `LATAM` over an 8% column reads whole.
-  const room = (texts: string[]): number[] => {
-    const colW = columns.map((c) => c.w * plotW);
-    const spare = texts.map((t, i) =>
-      Math.max(0, (colW[i]! - measureText(t, TICK_FONT)) / 2)
-    );
-    return colW.map(
-      (cw, i) =>
-        cw +
-        2 *
-          Math.min(
-            i > 0 ? spare[i - 1]! : m.left,
-            i < colW.length - 1 ? spare[i + 1]! : m.right
-          )
-    );
-  };
-  const widthTexts = columns.map(({ d }) =>
-    share ? shareText(d.width!) : fmt(d.width!)
-  );
-  const widthRoom = room(widthTexts);
-  const nameRoom = room(columns.map(({ d }) => d.label));
-
   const multi = seriesCount > 1;
   let cum = 0;
   for (const [i, { d, raw, vals, w }] of columns.entries()) {
@@ -1789,14 +1831,51 @@ function renderMarimekko(
       widthRoom[i]!,
       'dgmo-mekko-width'
     );
-    tagDatum(
-      label(d.label, x + colW / 2, nameY, nameRoom[i]!, 'dgmo-mekko-name', 600),
-      {
-        line: d.lineNumber,
-        name: d.label,
-        value: `width ${widthText} · total ${fmt(colTotal)}`,
-      }
-    );
+    const nameEl = rotateNames
+      ? svg
+          .append('text')
+          .attr('class', 'dgmo-mekko-name')
+          .attr(
+            'transform',
+            `translate(${x + colW / 2},${nameY}) rotate(-${LABEL_ROTATE_DEG})`
+          )
+          .attr('text-anchor', 'end')
+          .attr('fill', textColor)
+          .attr('font-size', TICK_FONT)
+          .attr('font-family', FONT_FAMILY)
+          .attr('font-weight', 600)
+          .text(rotNames[i]!)
+      : (() => {
+          const { lines, truncated } = wrapped[i]!;
+          const t = svg
+            .append('text')
+            .attr('class', 'dgmo-mekko-name')
+            .attr('x', x + colW / 2)
+            .attr('y', nameY)
+            .attr('text-anchor', 'middle')
+            .attr('fill', textColor)
+            .attr('font-size', TICK_FONT)
+            .attr('font-family', FONT_FAMILY)
+            .attr('font-weight', 600);
+          if (lines.length === 1) t.text(lines[0]!);
+          else
+            lines.forEach((line, k) =>
+              t
+                .append('tspan')
+                .attr('x', x + colW / 2)
+                .attr('dy', k === 0 ? 0 : NAME_LINE_PX)
+                .text(line)
+            );
+          if (truncated) t.attr('aria-label', d.label);
+          return t;
+        })();
+    if (rotateNames && rotNames[i] !== d.label)
+      nameEl.attr('aria-label', d.label);
+    tagDatum(nameEl, {
+      line: d.lineNumber,
+      name: d.label,
+      value: `width ${widthText} · total ${fmt(colTotal)}`,
+    });
     let acc = 0;
     vals.forEach((v, s) => {
       if (!Number.isFinite(v)) return;

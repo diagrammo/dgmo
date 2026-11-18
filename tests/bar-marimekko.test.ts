@@ -234,3 +234,41 @@ describe('gallery fixture', () => {
     expect(parseChart(src).diagnostics).toEqual([]);
   });
 });
+
+describe('marimekko column names (#2084)', () => {
+  const MANY = [
+    'bar Many',
+    'widths',
+    '',
+    'stack',
+    '  A orange',
+    '  B blue',
+    '',
+    ...Array.from({ length: 20 }, (_, i) => `Warehouse ${i + 1}  5%  60 40`),
+  ].join('\n');
+  const names = (svg: Element) => [...svg.querySelectorAll('.dgmo-mekko-name')];
+
+  it('narrow columns rotate every name and keep it whole', async () => {
+    const svg = await draw(MANY);
+    const els = names(svg);
+    expect(els.map((e) => e.textContent)).toEqual(
+      Array.from({ length: 20 }, (_, i) => `Warehouse ${i + 1}`)
+    );
+    for (const e of els)
+      expect(e.getAttribute('transform')).toContain('rotate(-');
+  });
+
+  it('a name that fits after wrapping stays horizontal on two lines', async () => {
+    const src = `bar W\nwidths\n\nstack\n  A orange\n  B blue\n\nNorth America  30%  60 40\nEurope  30%  60 40\nAsia Pacific Region  40%  60 40`;
+    const svg = await draw(src);
+    for (const e of names(svg)) expect(e.getAttribute('transform')).toBeNull();
+  });
+
+  it('three columns stay flat and single-line', async () => {
+    const svg = await draw(SHARES);
+    for (const e of names(svg)) {
+      expect(e.getAttribute('transform')).toBeNull();
+      expect(e.querySelector('tspan')).toBeNull();
+    }
+  });
+});
