@@ -148,8 +148,18 @@ export function parseInArrowLabel(
 }
 
 // Forward (call) patterns — participant names may contain spaces, so use non-greedy (.+?)
-const SYNC_LABELED_RE = /^(.+?)\s*-(.+)->\s*(.+)$/;
-const ASYNC_LABELED_RE = /^(.+?)\s*~(.+)~>\s*(.+)$/;
+// A dash inside a word (`MPV-NGINX`) is a name character, not a label opener.
+// An opener is either (a) preceded by whitespace (`A -label-> B`), or (b) tight:
+// label starts and ends flush against the dashes (`A-label->B`). `MPV-NGINX -> X`
+// matches neither: its would-be label `NGINX ` ends in whitespace.
+const SYNC_LABELED_RES = [
+  /^(.+?)\s+-(?!>)(.+)->\s*(.+)$/,
+  /^(.+?)-(?![>\s])(.*\S)->\s*(.+)$/,
+];
+const ASYNC_LABELED_RES = [
+  /^(.+?)\s+~(?!>)(.+)~>\s*(.+)$/,
+  /^(.+?)~(?![>\s])(.*\S)~>\s*(.+)$/,
+];
 
 // Deprecated patterns — produce errors
 const RETURN_SYNC_LABELED_RE = /^(.+?)\s*<-(.+)-\s*(.+)$/;
@@ -201,15 +211,15 @@ export function parseArrow(
     re: RegExp;
     async: boolean;
   }[] = [
-    { re: SYNC_LABELED_RE, async: false },
-    { re: ASYNC_LABELED_RE, async: true },
+    ...SYNC_LABELED_RES.map((re) => ({ re, async: false })),
+    ...ASYNC_LABELED_RES.map((re) => ({ re, async: true })),
   ];
 
   for (const { re, async: isAsync } of patterns) {
     const m = line.match(re);
     if (!m) continue;
 
-    // SYNC_LABELED_RE / ASYNC_LABELED_RE both have 3 capture groups.
+    // The labeled regexes all have 3 capture groups.
     const label = m[2]!.trim();
 
     // Empty label (e.g. `--> B`) — fall through to plain arrow handling
