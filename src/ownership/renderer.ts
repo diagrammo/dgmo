@@ -78,6 +78,7 @@ export interface OwnershipRenderOptions {
 const DIAGRAM_PADDING = 20;
 const TITLE_LEGEND_GAP = 16;
 const KEY_TOP_GAP = 6;
+const KEY_LEGEND_GAP = 16;
 const RADIUS = 8;
 const STROKE_WIDTH = 1.3;
 const EDGE_WIDTH = 1.4;
@@ -132,27 +133,32 @@ export function renderOwnership(
         },
       ]
     : [];
+  // Beside a tag legend the key shares its row; alone it is a legend of its
+  // own under the title, so the frame places it on the legend edge (#1838).
+  const keyInline = showKey && showLegend;
   const keyConfig: LegendConfig = {
     groups: keyGroups,
-    position: { placement: 'top-center', titleRelation: 'inline-with-title' },
+    position: {
+      placement: 'top-center',
+      titleRelation: keyInline ? 'inline-with-title' : 'below-title',
+    },
     mode: exportMode ? 'export' : 'preview',
   };
   const keyWidth = showKey
     ? getLegendExtent(keyConfig, { activeGroup: 'Shape' }, 4000).width
     : 0;
+  const keyBeside = keyInline ? keyWidth + KEY_LEGEND_GAP : 0;
   const headerWidth =
     (showTitle ? titleWidth + TITLE_LEGEND_GAP : 0) +
-    Math.max(legendNatural, keyWidth);
+    (showLegend ? legendNatural + keyBeside : 0);
   const width = Math.ceil(
-    2 * DIAGRAM_PADDING + Math.max(layout.width, headerWidth)
+    2 * DIAGRAM_PADDING +
+      Math.max(layout.width, headerWidth, keyInline ? 0 : keyWidth)
   );
   const legendX =
     DIAGRAM_PADDING + (showTitle ? titleWidth + TITLE_LEGEND_GAP : 0);
-  const legendWidth = Math.max(
-    legendNatural,
-    keyWidth,
-    width - legendX - DIAGRAM_PADDING
-  );
+  const tagX = legendX + keyBeside;
+  const legendWidth = Math.max(legendNatural, width - tagX - DIAGRAM_PADDING);
   const legendHeight = showLegend
     ? getMaxLegendReservedHeight(legendConfig, legendWidth)
     : 0;
@@ -162,17 +168,22 @@ export function renderOwnership(
   const legendY =
     TITLE_Y - TITLE_FONT_SIZE + (TITLE_FONT_SIZE - LEGEND_HEIGHT) / 2;
   const legendBottom = showLegend ? legendY + legendInkBottom(legendHeight) : 0;
-  // Under the legend; with no legend, on the title row itself.
-  const keyTop = showLegend
-    ? legendBottom + KEY_TOP_GAP
+  // Beside the tag legend, on its row; alone, on a row under the title.
+  const keyTop = keyInline
+    ? legendY
     : showTitle
-      ? legendY
+      ? TITLE_Y + KEY_TOP_GAP
       : DIAGRAM_PADDING;
-  const headerBottom = Math.max(
-    showLegend ? legendBottom + LEGEND_BODY_GAP : 0,
-    showKey ? keyTop + LEGEND_HEIGHT + LEGEND_BODY_GAP : 0,
-    showTitle ? FRAME_BODY_TOP : DIAGRAM_PADDING
-  );
+  const keyBottom = keyTop + legendInkBottom(LEGEND_HEIGHT);
+  const headerBottom =
+    showLegend || (showKey && !keyInline)
+      ? Math.max(
+          showLegend ? legendBottom + LEGEND_BODY_GAP : 0,
+          showKey && !keyInline ? keyBottom + LEGEND_BODY_GAP : 0
+        )
+      : showTitle
+        ? FRAME_BODY_TOP
+        : DIAGRAM_PADDING;
   const bodyTop = headerBottom;
   const bodyLeft =
     DIAGRAM_PADDING + (width - 2 * DIAGRAM_PADDING - layout.width) / 2;
@@ -233,7 +244,7 @@ export function renderOwnership(
       // Stays on the title row when a subtitle band opens under it, as the
       // other charts' legend row does (#2102).
       .attr('data-chart-header', '')
-      .attr('transform', `translate(${legendX},${legendY})`);
+      .attr('transform', `translate(${tagX},${legendY})`);
     renderIntegratedLegend(legendG, {
       frame: legendFrame,
       ...legendConfig,
@@ -251,14 +262,19 @@ export function renderOwnership(
     const keyG = header
       .append('g')
       .attr('class', 'ownership-shape-key')
-      .attr('data-chart-header', showLegend ? null : '')
-      .attr('transform', `translate(${legendX},${keyTop})`);
+      .attr('data-chart-header', keyInline ? '' : null)
+      .attr(
+        'transform',
+        `translate(${keyInline ? legendX : DIAGRAM_PADDING},${keyTop})`
+      );
     renderIntegratedLegend(keyG, {
       frame: legendFrame,
       ...keyConfig,
       palette,
       isDark,
-      width: legendWidth,
+      width: keyInline
+        ? keyWidth + KEY_LEGEND_GAP
+        : width - 2 * DIAGRAM_PADDING,
       activeGroup: 'Shape',
       callbacks: {
         onEntryHover: (_group, value) =>
