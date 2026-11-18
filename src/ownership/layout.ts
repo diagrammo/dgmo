@@ -46,9 +46,18 @@ const PAD_X = 14;
 const PAD_Y = 10;
 const MIN_WIDTH = 150;
 const MAX_TEXT_WIDTH = 212;
-const TRIANGLE_MIN_HEIGHT = 64;
-const TRIANGLE_BOTTOM_PAD = 7;
+// A partnership triangle keeps one aspect (height / width) and wraps its name
+// instead of widening to fit it on one line (#2101). Only the name sits
+// inside; the jurisdiction goes in a code box at the bottom right (the HMRC
+// structure-chart convention) and the description becomes a caption under
+// the base when no line leaves the base.
+const TRIANGLE_ASPECT = 0.62;
+const TRIANGLE_NAME_WIDTH = 104;
+/** Base to the bottom of the name block; leaves the code box its own row. */
+export const TRIANGLE_BOTTOM_PAD = 20;
 const TRIANGLE_SIDE_PAD = 8;
+/** Base to the caption's baseline box top. */
+export const TRIANGLE_CAPTION_GAP = 4;
 const OVAL_PAD = 6;
 
 // ── Spacing ───────────────────────────────────────────────────
@@ -99,9 +108,12 @@ export interface LayoutEntity {
   readonly width: number;
   readonly height: number;
   readonly nameLines: readonly string[];
-  /** "UK · Corporation"; the type is dropped on a triangle. */
+  /** "UK · Corporation"; on a triangle, only the jurisdiction, for its code box. */
   readonly sub: string;
-  /** First description line, truncated to fit; '' when none or a triangle. */
+  /**
+   * First description line, truncated to fit; '' when none. On a triangle it
+   * is the caption under the base, and '' when the triangle owns anything.
+   */
   readonly desc: string;
 }
 
@@ -146,7 +158,10 @@ interface Measured {
   textWidth: number;
   /** Height of the text block. */
   textHeight: number;
+  /** Height the rank must give this entity, caption included. */
   naturalHeight: number;
+  /** Triangle only: the shape's own size, fixed by the name. */
+  tri?: { width: number; height: number };
 }
 
 function firstGroupValue(
@@ -163,8 +178,14 @@ function firstGroupValue(
   );
 }
 
-function measure(parsed: ParsedOwnership, entity: OwnershipEntity): Measured {
+function measure(
+  parsed: ParsedOwnership,
+  entity: OwnershipEntity,
+  owns: boolean
+): Measured {
   const shape = shapeOf(entity.type);
+  const value = firstGroupValue(parsed, entity);
+  if (shape === 'triangle') return measureTriangle(entity, value, owns);
   const nameLines = wrapTextToWidth(
     entity.name,
     NAME_FONT_SIZE,
@@ -173,12 +194,8 @@ function measure(parsed: ParsedOwnership, entity: OwnershipEntity): Measured {
       bold: true,
     }
   );
-  const value = firstGroupValue(parsed, entity);
-  const sub =
-    shape === 'triangle'
-      ? value
-      : [value, TYPE_LABELS[entity.type]].filter(Boolean).join(' · ');
-  const descFull = shape === 'triangle' ? '' : (entity.description[0] ?? '');
+  const sub = [value, TYPE_LABELS[entity.type]].filter(Boolean).join(' · ');
+  const descFull = entity.description[0] ?? '';
   const widths = [
     ...nameLines.map((l) => measureText(l, NAME_FONT_SIZE, { bold: true })),
     Math.min(MAX_TEXT_WIDTH, measureText(sub, SUB_FONT_SIZE)),
@@ -190,11 +207,7 @@ function measure(parsed: ParsedOwnership, entity: OwnershipEntity): Measured {
     (sub ? SUB_LINE_HEIGHT : 0) +
     (descFull ? SUB_LINE_HEIGHT : 0);
   const naturalHeight =
-    shape === 'triangle'
-      ? Math.max(TRIANGLE_MIN_HEIGHT, textHeight * 2.1 + TRIANGLE_BOTTOM_PAD)
-      : shape === 'oval'
-        ? textHeight + 2 * PAD_Y + 12
-        : textHeight + 2 * PAD_Y;
+    shape === 'oval' ? textHeight + 2 * PAD_Y + 12 : textHeight + 2 * PAD_Y;
   return {
     shape,
     nameLines,
@@ -206,6 +219,47 @@ function measure(parsed: ParsedOwnership, entity: OwnershipEntity): Measured {
   };
 }
 
+/**
+ * A triangle sized from its wrapped name. With height = k·width, the name's
+ * widest line fits at the top of the block when
+ * width ≥ need + (bottomPad + textHeight) / k.
+ */
+function measureTriangle(
+  entity: OwnershipEntity,
+  value: string,
+  owns: boolean
+): Measured {
+  // Narrowest wrap that takes at most two lines, so a long name does not
+  // strand a word ("LP") on a third.
+  let nameLines: string[] = [];
+  for (let w = TRIANGLE_NAME_WIDTH; w <= MAX_TEXT_WIDTH; w += 12) {
+    nameLines = wrapTextToWidth(entity.name, NAME_FONT_SIZE, w, { bold: true });
+    if (nameLines.length <= 2) break;
+  }
+  const textWidth = Math.max(
+    ...nameLines.map((l) => measureText(l, NAME_FONT_SIZE, { bold: true }))
+  );
+  const textHeight = nameLines.length * NAME_LINE_HEIGHT;
+  const need = textWidth + 2 * TRIANGLE_SIDE_PAD;
+  const width = Math.max(
+    MIN_WIDTH,
+    need + (TRIANGLE_BOTTOM_PAD + textHeight) / TRIANGLE_ASPECT
+  );
+  const height = Math.round(width * TRIANGLE_ASPECT);
+  const descFull = owns ? '' : (entity.description[0] ?? '');
+  return {
+    shape: 'triangle',
+    nameLines,
+    sub: value,
+    descFull,
+    textWidth,
+    textHeight,
+    naturalHeight:
+      height + (descFull ? TRIANGLE_CAPTION_GAP + SUB_LINE_HEIGHT : 0),
+    tri: { width, height },
+  };
+}
+
 /** Display text of a §34.6 line, for measuring. */
 function stripMd(text: string): string {
   return text.replace(/\*\*|__|[*_`]/g, '');
@@ -213,12 +267,7 @@ function stripMd(text: string): string {
 
 /** Shape width once the rank height is known. */
 function shapeWidth(m: Measured, height: number): number {
-  if (m.shape === 'triangle') {
-    // The widest text line must fit the triangle at the top of the text block.
-    const blockTop = height - TRIANGLE_BOTTOM_PAD - m.textHeight;
-    const need = m.textWidth + 2 * TRIANGLE_SIDE_PAD;
-    return Math.max(MIN_WIDTH, (need * height) / Math.max(blockTop, 1));
-  }
+  if (m.tri) return m.tri.width;
   if (m.shape === 'oval') {
     const ry = height / 2;
     const halfH = m.textHeight / 2 + 2;
@@ -339,14 +388,19 @@ export function layoutOwnership(parsed: ParsedOwnership): OwnershipLayout {
   const rankCount = n > 0 ? Math.max(...rank) + 1 : 0;
 
   // ── Sizes: rank height first, then the width each shape needs ─
-  const measured = entities.map((e) => measure(parsed, e));
+  // A triangle has its own height; every other shape in a rank shares one
+  // (boxHeight), so a tall triangle does not stretch the boxes beside it.
+  const owners = new Set(links.map((l) => l.ownerId));
+  const measured = entities.map((e) => measure(parsed, e, owners.has(e.id)));
   const rankHeight = new Array<number>(rankCount).fill(0);
-  for (let v = 0; v < n; v++)
-    rankHeight[rank[v]!] = Math.max(
-      rankHeight[rank[v]!]!,
-      measured[v]!.naturalHeight
-    );
-  const widths = measured.map((m, v) => shapeWidth(m, rankHeight[rank[v]!]!));
+  const boxHeight = new Array<number>(rankCount).fill(0);
+  for (let v = 0; v < n; v++) {
+    const r = rank[v]!;
+    const m = measured[v]!;
+    rankHeight[r] = Math.max(rankHeight[r]!, m.naturalHeight);
+    if (!m.tri) boxHeight[r] = Math.max(boxHeight[r]!, m.naturalHeight);
+  }
+  const widths = measured.map((m, v) => shapeWidth(m, boxHeight[rank[v]!]!));
 
   // ── Graph with dummies ───────────────────────────────────────
   const nodes: GNode[] = entities.map((e, v) => ({
@@ -700,7 +754,7 @@ export function layoutOwnership(parsed: ParsedOwnership): OwnershipLayout {
   const layoutEntities: LayoutEntity[] = entities.map((e, v) => {
     const m = measured[v]!;
     const w = widths[v]!;
-    const h = rankHeight[rank[v]!]!;
+    const h = m.tri ? m.tri.height : boxHeight[rank[v]!]!;
     const descMax = m.shape === 'oval' ? m.textWidth + 1 : w - 2 * PAD_X;
     return {
       id: e.id,
@@ -712,7 +766,7 @@ export function layoutOwnership(parsed: ParsedOwnership): OwnershipLayout {
       width: round(w),
       height: h,
       nameLines: m.nameLines,
-      sub: truncateText(m.sub, SUB_FONT_SIZE, descMax),
+      sub: m.tri ? m.sub : truncateText(m.sub, SUB_FONT_SIZE, descMax),
       desc: m.descFull ? truncateText(m.descFull, DESC_FONT_SIZE, descMax) : '',
     };
   });
@@ -765,7 +819,11 @@ export function layoutOwnership(parsed: ParsedOwnership): OwnershipLayout {
           y2: rankBottom(r),
         });
       }
-      const sy = rankBottom(r);
+      // A real owner's line leaves its own bottom, which may sit above the
+      // rank's when a taller triangle shares the rank.
+      const sy = from.real
+        ? layoutEntities[h.from]!.y + layoutEntities[h.from]!.height
+        : rankBottom(r);
       push(from.x, sy);
       if (o.straight) {
         push(from.x, ey);

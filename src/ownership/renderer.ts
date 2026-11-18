@@ -4,8 +4,10 @@
 //
 // A rounded rectangle for a corporation, a triangle for a partnership, an
 // oval for an individual, a double-outlined rectangle for a trust. Each shape
-// shows the name in bold, "jurisdiction · type" (no type on a triangle) and
-// the first description line in italics. Outside owners draw outline-only and
+// shows the name in bold, "jurisdiction · type" and the first description
+// line in italics. A triangle holds only its wrapped name: the jurisdiction
+// sits in a code box at its bottom right and the description is a caption
+// under the base (#2101). Outside owners draw outline-only and
 // dashed. Every line carries its stake in a pill on its own last vertical,
 // with an arrowhead into the owned entity. The title row has the title on the
 // left, the legend capsule on the right and, under it, a key of the shapes the
@@ -60,6 +62,8 @@ import {
   shapeOf,
   SUB_FONT_SIZE,
   SUB_LINE_HEIGHT,
+  TRIANGLE_BOTTOM_PAD,
+  TRIANGLE_CAPTION_GAP,
   TYPE_LABELS,
 } from './layout';
 import type { EntityShape, LayoutEntity } from './layout';
@@ -82,7 +86,11 @@ const KEY_FONT_SIZE = 10;
 const RADIUS = 8;
 const STROKE_WIDTH = 1.3;
 const EDGE_WIDTH = 1.4;
-const TRIANGLE_TEXT_BOTTOM = 7;
+const CODE_FONT_SIZE = 9;
+const CODE_BOX_HEIGHT = 13;
+const CODE_BOX_PAD_X = 4;
+/** Code box bottom above the triangle's base. */
+const CODE_BOX_LIFT = 3;
 const TRUST_INSET = 3;
 
 export function renderOwnership(
@@ -406,15 +414,17 @@ export function renderOwnership(
       RADIUS
     );
 
-    // Text block: centred, or near the base of a triangle.
+    if (le.shape === 'triangle') {
+      drawTriangleText(g, le, textColor, mutedColor, fill, color, palette);
+      continue;
+    }
+
+    // Text block: centred.
     const lines =
       le.nameLines.length * NAME_LINE_HEIGHT +
       (le.sub ? SUB_LINE_HEIGHT : 0) +
       (le.desc ? SUB_LINE_HEIGHT : 0);
-    let ty =
-      le.shape === 'triangle'
-        ? le.y + le.height - TRIANGLE_TEXT_BOTTOM - lines
-        : le.y + (le.height - lines) / 2;
+    let ty = le.y + (le.height - lines) / 2;
     for (const line of le.nameLines) {
       g.append('text')
         .attr('class', 'ownership-entity-name')
@@ -516,6 +526,77 @@ export function renderOwnership(
   }
 
   growChartFrame(svg.node(), parsed.frame, palette, { size: 'grow' });
+}
+
+/**
+ * A triangle's name, wrapped, near the base; its jurisdiction in a small code
+ * box at the bottom right; its description as a caption under the base.
+ */
+function drawTriangleText(
+  g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
+  le: LayoutEntity,
+  textColor: string,
+  mutedColor: string,
+  fill: string,
+  stroke: string,
+  palette: PaletteColors
+): void {
+  const base = le.y + le.height;
+  let ty = base - TRIANGLE_BOTTOM_PAD - le.nameLines.length * NAME_LINE_HEIGHT;
+  for (const line of le.nameLines) {
+    g.append('text')
+      .attr('class', 'ownership-entity-name')
+      .attr('x', le.x)
+      .attr('y', ty + NAME_LINE_HEIGHT - 4)
+      .attr('text-anchor', 'middle')
+      .attr('font-size', NAME_FONT_SIZE)
+      .attr('font-weight', 700)
+      .attr('fill', textColor)
+      .text(line);
+    ty += NAME_LINE_HEIGHT;
+  }
+  if (le.sub) {
+    // Right edge where the box's top meets the slope, less a margin.
+    const boxBottom = base - CODE_BOX_LIFT;
+    const boxTop = boxBottom - CODE_BOX_HEIGHT;
+    const halfAtTop = ((le.width / 2) * (boxTop - le.y)) / le.height;
+    const w =
+      measureText(le.sub, CODE_FONT_SIZE, { bold: true }) + 2 * CODE_BOX_PAD_X;
+    const right = le.x + halfAtTop - 6;
+    const code = g.append('g').attr('class', 'ownership-entity-code');
+    code
+      .append('rect')
+      .attr('x', right - w)
+      .attr('y', boxTop)
+      .attr('width', w)
+      .attr('height', CODE_BOX_HEIGHT)
+      .attr('rx', 2)
+      .attr('fill', fill)
+      .attr('stroke', stroke)
+      .attr('stroke-width', 0.8);
+    code
+      .append('text')
+      .attr('class', 'ownership-entity-facts')
+      .attr('x', right - w / 2)
+      .attr('y', boxBottom - 3.5)
+      .attr('text-anchor', 'middle')
+      .attr('font-size', CODE_FONT_SIZE)
+      .attr('font-weight', 600)
+      .attr('fill', mutedColor)
+      .text(le.sub);
+  }
+  if (le.desc) {
+    const t = g
+      .append('text')
+      .attr('class', 'ownership-entity-desc')
+      .attr('x', le.x)
+      .attr('y', base + TRIANGLE_CAPTION_GAP + SUB_LINE_HEIGHT - 4)
+      .attr('text-anchor', 'middle')
+      .attr('font-size', DESC_FONT_SIZE)
+      .attr('font-style', 'italic')
+      .attr('fill', palette.textMuted);
+    renderInlineText(t, le.desc, palette, DESC_FONT_SIZE);
+  }
 }
 
 function drawShape(

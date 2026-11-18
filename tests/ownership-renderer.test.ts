@@ -326,6 +326,68 @@ describe('ownership look (#1873)', () => {
     );
   });
 
+  // #2101: a partnership triangle wraps its name instead of widening.
+  describe('partnership triangle', () => {
+    const SRC = [
+      'ownership Holding',
+      'tag Jurisdiction as j',
+      '  UK  blue',
+      '',
+      'Salt Holdings Ltd  j: UK',
+      '  100% Anchor Chandlers Ltd  j: UK',
+      '    Ship stores and rope',
+      '  50% Lantern Lane Freight LLP  j: UK, type: partnership',
+      '    Joint venture with a carrier',
+      '  50% Blackwater Ventures Fund II LP  j: UK, type: partnership',
+      '    Feeder fund',
+      '    100% Feeder Ltd  j: UK',
+    ].join('\n');
+    const layout = layoutOwnership(parseOwnership(SRC));
+    const byName = (n: string) =>
+      layout.entities.find((e) => e.entity.name === n)!;
+
+    it('wraps the name to at most two lines at a sibling-like width', () => {
+      const rect = byName('Anchor Chandlers Ltd');
+      for (const n of [
+        'Lantern Lane Freight LLP',
+        'Blackwater Ventures Fund II LP',
+      ]) {
+        const tri = byName(n);
+        expect(tri.nameLines.length).toBe(2);
+        expect(tri.width).toBeLessThan(rect.width * 1.5);
+        // One aspect, so the triangle is never a flat wedge.
+        expect(tri.height / tri.width).toBeGreaterThan(0.55);
+      }
+    });
+
+    it('does not stretch the boxes beside it', () => {
+      const rect = byName('Anchor Chandlers Ltd');
+      expect(rect.height).toBeLessThan(
+        byName('Lantern Lane Freight LLP').height
+      );
+    });
+
+    it('puts the jurisdiction in a code box and the description under the base', () => {
+      const c = draw(SRC);
+      const g = c.querySelector(
+        `.ownership-entity[data-node-id="${byName('Lantern Lane Freight LLP').id}"]`
+      )!;
+      expect(g.querySelector('.ownership-entity-code text')!.textContent).toBe(
+        'UK'
+      );
+      const tri = byName('Lantern Lane Freight LLP');
+      const desc = g.querySelector('.ownership-entity-desc')!;
+      expect(desc.textContent).toBe('Joint venture with a carrier');
+      expect(Number(desc.getAttribute('y'))).toBeGreaterThan(
+        tri.y + tri.height
+      );
+    });
+
+    it('drops the caption when a line leaves the base', () => {
+      expect(byName('Blackwater Ventures Fund II LP').desc).toBe('');
+    });
+  });
+
   it('keys only the shapes the chart uses', () => {
     const key = draw(ROUND_TWO).querySelector('.ownership-shape-key')!;
     expect([...key.querySelectorAll('text')].map((t) => t.textContent)).toEqual(
