@@ -308,3 +308,28 @@ strengths
     expect(await renderForExport('swot\n[Strengths]\n  A\n', 'light')).toBe('');
   });
 });
+
+describe('swot legend beside a long title (#2103)', () => {
+  it('keeps the legend on the page when the expanded group wraps', () => {
+    const c = draw(
+      [
+        'swot Coopérative du Rhum des Îles Adjacentes de la Mer des Caraïbes et du Golfe',
+        'tag Region as r',
+        '  Caribbean green',
+        '  Gulf of Mexico red',
+        '  Atlantic Seaboard orange',
+        '  Mediterranean blue',
+        '  North Sea purple',
+        '  Indian Ocean teal',
+        '',
+        'strengths',
+        '  Oldest still on the island r: Caribbean',
+      ].join('\n')
+    );
+    const g = c.querySelector('.swot-legend')!;
+    const y = Number(
+      /translate\([^,]+,([^)]+)\)/.exec(g.getAttribute('transform')!)![1]
+    );
+    expect(y).toBeGreaterThanOrEqual(0);
+  });
+});

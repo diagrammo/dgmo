@@ -9,7 +9,7 @@ import type { PaletteColors } from '../palettes';
 import { contrastText, mix } from '../palettes/color-utils';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import { getMaxLegendReservedHeight } from '../utils/legend-layout';
-import { legendInkBottom } from '../utils/legend-constants';
+import { LEGEND_HEIGHT, legendInkBottom } from '../utils/legend-constants';
 import type { LegendConfig } from '../utils/legend-types';
 import { legendSuppressed } from '../utils/parsing';
 import { tagAttrKey } from '../utils/tag-groups';
@@ -185,8 +185,11 @@ export function renderSwot(
   const legendHeight = showLegend
     ? getMaxLegendReservedHeight(legendConfig, legendWidth)
     : 0;
+  // Centre the FIRST row on the title row; extra rows of an expanded group
+  // grow downward (legendInkBottom). Centring the full reserved height put a
+  // wrapped legend above the page beside a long title (#2103).
   const legendY =
-    TITLE_Y - TITLE_FONT_SIZE + (TITLE_FONT_SIZE - legendHeight) / 2;
+    TITLE_Y - TITLE_FONT_SIZE + (TITLE_FONT_SIZE - LEGEND_HEIGHT) / 2;
 
   const headerBottom = showLegend
     ? legendY + legendInkBottom(legendHeight) + LEGEND_BODY_GAP

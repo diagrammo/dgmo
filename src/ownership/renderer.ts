@@ -26,7 +26,7 @@ import type { ChartFrame } from '../utils/chart-frame-parse';
 import { createTooltip, hideTooltip, showTooltip } from '../utils/d3-helpers';
 import { DEFAULT_DIM_OPACITY } from '../utils/hover-styles';
 import { renderInlineText } from '../utils/inline-markdown';
-import { legendInkBottom } from '../utils/legend-constants';
+import { LEGEND_HEIGHT, legendInkBottom } from '../utils/legend-constants';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import {
   getLegendExtent,
@@ -141,8 +141,11 @@ export function renderOwnership(
   const legendHeight = showLegend
     ? getMaxLegendReservedHeight(legendConfig, legendWidth)
     : 0;
+  // Centre the FIRST row on the title row; extra rows of an expanded group
+  // grow downward (legendInkBottom). Centring the full reserved height put a
+  // wrapped legend above the page beside a long title (#2103).
   const legendY =
-    TITLE_Y - TITLE_FONT_SIZE + (TITLE_FONT_SIZE - legendHeight) / 2;
+    TITLE_Y - TITLE_FONT_SIZE + (TITLE_FONT_SIZE - LEGEND_HEIGHT) / 2;
   const legendBottom = showLegend ? legendY + legendInkBottom(legendHeight) : 0;
   // Under the legend; with no legend, on the title row itself.
   const keyTop = showLegend

@@ -503,3 +503,38 @@ describe('ownership routing on random structures (#1873)', () => {
     }
   });
 });
+
+describe('ownership legend beside a long title (#2103)', () => {
+  it('keeps the legend on the page when the expanded group wraps', () => {
+    const src = [
+      'ownership Société Générale des Écumeurs de la Mer Méditerranée — 海賊グループ — شركة القراصنة',
+      'tag Jurisdiction as j',
+      '  Saudi Arabia green',
+      '  Japan red',
+      '  China orange',
+      '  France blue',
+      '  Spain purple',
+      '  Türkiye teal',
+      '',
+      'Parent Holdings SA  j: France',
+      '  60% Child One KK  j: Japan',
+      '  40% Child Two SL  j: Spain',
+    ].join('\n');
+    for (const active of [true, false]) {
+      const parsed = parseOwnership(src);
+      expect(parsed.error).toBeNull();
+      const container = document.createElement('div');
+      vi.spyOn(container, 'getBoundingClientRect').mockReturnValue({
+        width: 0,
+      } as DOMRect);
+      renderOwnership(container, parsed, palette, false, {
+        activeTagGroup: active ? 'Jurisdiction' : null,
+      });
+      const g = container.querySelector('.ownership-legend')!;
+      const y = Number(
+        /translate\([^,]+,([^)]+)\)/.exec(g.getAttribute('transform')!)![1]
+      );
+      expect(y).toBeGreaterThanOrEqual(0);
+    }
+  });
+});
