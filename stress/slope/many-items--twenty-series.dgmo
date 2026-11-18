@@ -1,0 +1,27 @@
+slope Storefront Metrics Before and After the Redesign
+
+period Before After
+
+// stress: many-items — twenty series on one slope, several ending at nearly the same value
+// known: diagrammo/diagrammo#2132
+
+Checkout conversion rate blue 32 38
+Search result relevance score red 61 74
+Median page load time in seconds x10 orange 21 14
+Support tickets per thousand orders green 48 29
+Repeat purchase rate purple 22 31
+Cart abandonment rate teal 71 64
+Net promoter score yellow 18 41
+Return rate red 14 9
+Email open rate cyan 19 27
+Mobile app rating x10 gray 36 44
+Free shipping uptake blue 33 52
+Loyalty member share red 12 26
+Average order value orange 54 61
+Customer acquisition cost green 78 59
+Refund turnaround hours purple 96 30
+Gift card redemption teal 8 15
+Wishlist to cart rate yellow 9 17
+Live chat resolution rate red 58 73
+Subscription churn cyan 9 5
+Guest checkout share gray 44 36

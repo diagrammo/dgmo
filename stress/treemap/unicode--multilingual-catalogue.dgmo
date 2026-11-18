@@ -1,0 +1,23 @@
+treemap Global Product Catalogue by Market (SKUs)
+// stress: unicode — CJK, Arabic, Devanagari, Hangul and emoji group and leaf names in one treemap
+
+日本市場 🇯🇵
+  電子機器とアクセサリー 4200
+  台所用品と調理器具 2600
+  文房具 900
+المملكة العربية السعودية
+  الإلكترونيات والملحقات 3100
+  العطور ومستحضرات التجميل 1800
+  الأزياء التقليدية 700
+भारत बाज़ार
+  मोबाइल और सहायक उपकरण 5200
+  घरेलू उपकरण 2400
+  पूजा सामग्री 600
+한국 시장
+  화장품과 스킨케어 3800
+  주방용품 1500
+  게임 주변기기 1100
+Europe 🇪🇺
+  Kitchenware and cookware 2900
+  Smartphones & accessories 3300
+  Stationery 800

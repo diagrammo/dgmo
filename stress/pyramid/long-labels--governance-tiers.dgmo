@@ -1,0 +1,19 @@
+pyramid Information Governance Model for a Regional Health Network
+
+// stress: long-labels — tier names of 50–70 characters with descriptions of 80–100 characters
+// known: diagrammo/diagrammo#2131
+
+Board-approved enterprise policy on clinical data stewardship and patient consent
+  The board reviews the policy every year and signs off on any change to patient data sharing agreements.
+
+Domain data owners accountable for quality and lawful use within each service line
+  Each owner publishes a quarterly attestation covering completeness, timeliness and access exceptions.
+
+Cross-organisation data standards and shared reference code sets for interoperability
+  A standards group maintains the common vocabularies used by hospitals, clinics and community providers.
+
+Local stewardship teams embedded in hospitals, clinics and community care programmes
+  Stewards resolve duplicate patient records and escalate unresolved identity conflicts within two days.
+
+Day-to-day data entry practice by frontline clinical and administrative staff
+  Staff complete annual training and follow the point-of-entry checklists for every new registration.

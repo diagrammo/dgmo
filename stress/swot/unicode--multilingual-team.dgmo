@@ -1,0 +1,15 @@
+swot 多言語チームの製品戦略 — Multilingual Product Strategy
+// stress: unicode — bullets in Japanese, Arabic, Hindi and Korean with an emoji, in each quadrant
+
+strengths
+  日本語・アラビア語・ヒンディー語・韓国語の画面をすべて同じ品質で提供できる 🌏
+  تدعم الواجهة الكتابة من اليمين إلى اليسار بشكل كامل
+weaknesses
+  हिंदी के दस्तावेज़ अभी अंग्रेज़ी से अनुवादित हैं और कई जगह अधूरे हैं
+  한국어 검색은 아직 형태소 분석을 지원하지 않습니다
+opportunities
+  中東の教育機関からの導入相談が増えている 📈
+  インドの中小企業向けに価格を現地通貨で提示できる
+threats
+  競合他社が無料の多言語プランを発表した
+  تغيّر لوائح حماية البيانات في عدة أسواق مستهدفة
