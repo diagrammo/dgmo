@@ -121,14 +121,19 @@ function fitLines(text: string, maxWidth: number, size: number, cap: number) {
  */
 export function reserveChartFrame(
   frame: ChartFrame | undefined,
-  width: number
+  width: number,
+  room?: { subtitle?: number; footer?: number }
 ): ChartFrameReserve | undefined {
   if (!frame || !hasChartFrame(frame)) return undefined;
-  const maxWidth = Math.max(0, width - 2 * TITLE_SIDE_PAD);
+  const fullWidth = Math.max(0, width - 2 * TITLE_SIDE_PAD);
+  // `room` is the width a part has from the edge it is anchored on to the far
+  // side of the canvas (#2092); it can only narrow the lines.
+  const maxWidth = Math.min(fullWidth, room?.footer ?? fullWidth);
+  const subtitleWidth = Math.min(fullWidth, room?.subtitle ?? fullWidth);
   const subtitleLines: FrameLine[] = frame.subtitle
     ? fitLines(
         frame.subtitle,
-        maxWidth,
+        subtitleWidth,
         SUBTITLE_FONT_SIZE,
         SUBTITLE_MAX_LINES
       ).map((text) => ({
@@ -799,7 +804,23 @@ export function growChartFrame(
   const m: Matrix = title ? titleCtm! : IDENTITY;
   const scale = title && m[3] > 0 ? m[3] : 1;
 
-  const reserve = reserveChartFrame(frame, vb.width / scale);
+  // Wrap each part against the room it has from its own edge to the canvas,
+  // not the canvas width: a narrow drawing sits mid-canvas (#2092).
+  const canvasBox = canvasEdges(vb.x, vb.width);
+  const roomFor = (align: FrameAlign) => {
+    const mid = (edges.left + edges.right) / 2;
+    const w =
+      align === 'center'
+        ? 2 * Math.min(mid - canvasBox.left, canvasBox.right - mid)
+        : align === 'right'
+          ? edges.right - canvasBox.left
+          : canvasBox.right - edges.left;
+    return Math.max(0, w) / scale;
+  };
+  const reserve = reserveChartFrame(frame, vb.width / scale, {
+    subtitle: roomFor(frameAlign(frame, 'subtitle')),
+    footer: roomFor(frameAlign(frame, 'footer')),
+  });
   if (!reserve) return;
 
   // Where the drawing ends, measured without the canvas background (which

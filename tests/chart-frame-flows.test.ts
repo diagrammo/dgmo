@@ -68,3 +68,36 @@ describe('chart frame, flows family (#1827)', () => {
     expect(root.querySelector('.chart-subtitle')).not.toBeNull();
   });
 });
+
+describe('chart frame, narrow drawing on a wide canvas (#2092)', () => {
+  it('subtitle and footer wrap to the room right of the drawing edge, not the canvas width', async () => {
+    const { growChartFrame } = await import('../src/utils/chart-frame');
+    const { measureText } = await import('../src/utils/text-measure');
+    const { getPalette } = await import('../src/palettes');
+    const long =
+      'What the quartermaster does between sighting a sail and sharing the prize, from the first flag raised to the last coin counted';
+    const frame: NonNullable<Parameters<typeof growChartFrame>[1]> = {
+      subtitle: long,
+      footnote: { lines: [long], lineNumber: 2 },
+    } as never;
+    const doc = new JSDOM('<svg xmlns="http://www.w3.org/2000/svg"/>', {
+      contentType: 'image/svg+xml',
+    }).window.document;
+    const svg = doc.documentElement as unknown as SVGSVGElement;
+    svg.setAttribute('viewBox', '0 0 1000 300');
+    svg.innerHTML =
+      '<g><rect x="400" y="80" width="150" height="100" fill="#ccc"/></g>';
+    growChartFrame(svg, frame, getPalette('nord').light);
+    const lines = Array.from(
+      svg.querySelectorAll('text.chart-subtitle, text.chart-footnote')
+    );
+    expect(lines.length).toBeGreaterThan(1);
+    for (const el of lines) {
+      const x = Number(el.getAttribute('x'));
+      const size = Number(el.getAttribute('font-size'));
+      expect(x + measureText(el.textContent ?? '', size)).toBeLessThanOrEqual(
+        1000 - 20 + 0.5
+      );
+    }
+  });
+});
