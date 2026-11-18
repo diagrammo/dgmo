@@ -154,7 +154,14 @@ function plotTop(svg: string): number {
       const at = el.hasAttribute('y') ? el : el.querySelector('tspan[y]');
       if (!el.textContent?.trim()) continue;
       if (!at && !el.hasAttribute('transform')) continue;
-      const fs = parseFloat(el.getAttribute('font-size') ?? '') || 12;
+      // A word cloud sizes its words in `style`, not the attribute.
+      const fs =
+        parseFloat(el.getAttribute('font-size') ?? '') ||
+        parseFloat(
+          /font-size:\s*([\d.]+)/.exec(el.getAttribute('style') ?? '')?.[1] ??
+            ''
+        ) ||
+        12;
       y = at
         ? yOf(el, num(at, 'x') || 0, num(at, 'y')) - fs * 0.8
         : yOf(el, 0, 0) - fs * 0.8;

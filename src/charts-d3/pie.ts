@@ -112,8 +112,24 @@ export function renderPie(
     .innerRadius(hasHole ? radius * holeRatio : 0)
     .outerRadius(radius);
 
-  // Top-aligned on the body band, not centred in the canvas (#1838).
-  const cy = top + radius;
+  // Top-aligned on the body band, not centred in the canvas (#1838). A label
+  // led off a slice near 12 o'clock stands above the arc; drop the pie until
+  // that label's ink is on the band too (#2111). Text ink rises 0.7 em over
+  // the label's anchor (its baseline is 0.3 em under it).
+  const LABEL_INK_UP = 0.7;
+  const labelLift = showLabels
+    ? Math.max(
+        0,
+        ...arcs.map((a, i) =>
+          labels[i]
+            ? -Math.sin((a.startAngle + a.endAngle) / 2 - Math.PI / 2) *
+                (radius + elbowOut) +
+              font * LABEL_INK_UP
+            : 0
+        )
+      )
+    : 0;
+  const cy = top + Math.max(radius, labelLift);
   const g = svg.append('g').attr('transform', `translate(${cx},${cy})`);
 
   // Collected label placements — deferred so we can run a vertical
@@ -237,7 +253,10 @@ export function renderPie(
       // half separately (the old way) stacked every overrun label on the same
       // row at the bound (#1941).
       group.forEach((l, i) => {
-        const floor = i === 0 ? -bound : group[i - 1]!.y + minGap;
+        const floor =
+          i === 0
+            ? Math.max(-bound, top - cy + labelFont * LABEL_INK_UP)
+            : group[i - 1]!.y + minGap;
         l.y = Math.max(l.idealY, floor);
       });
       for (let i = group.length - 1; i >= 0; i--) {

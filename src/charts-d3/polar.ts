@@ -10,8 +10,10 @@ import { FONT_FAMILY } from '../fonts';
 import { getSegmentColors, shapeFill } from '../palettes/color-utils';
 import { type Svg, chartFormatter, tagDatum } from './shared';
 
-// Label text top above its anchor: cap height of the 13px label less its +4 baseline drop.
-const LABEL_TOP_ABOVE_ANCHOR = 5.4;
+// Label text top above its anchor: the 13px label's em box less its +4
+// baseline drop. The em, not the cap height, so the label keeps the same air
+// under the title as every other chart's text (#2111).
+const LABEL_TOP_ABOVE_ANCHOR = 13 - 4;
 
 export function renderPolarArea(
   svg: Svg,

@@ -76,6 +76,9 @@ import {
   drawValueLabel,
   planLabelsFitLeft,
   drawCategoryLabels,
+  bandSafeTop,
+  TICK_INK_ABOVE,
+  topTickFraction,
 } from './shared';
 import { labelBox, placeLabels } from '../utils/place-labels';
 import { tabularText } from '../utils/tabular-figures';
@@ -348,6 +351,21 @@ export function renderLine(
         TICK_FONT + 4
     )
       m.top = need;
+  }
+  // The top tick label stands over its gridline; keep it on the band too
+  // (#2111).
+  {
+    const probeLeft = leftAxis([0, 1]);
+    const items: [number, number][] = [
+      [topTickFraction(probeLeft, probeLeft.ticks(6)), TICK_INK_ABOVE],
+    ];
+    if (dual) {
+      const probeR = buildValueAxis(loR, hiR, undefined, [0, 1], {
+        nice: true,
+      });
+      items.push([topTickFraction(probeR, probeR.ticks(6)), TICK_INK_ABOVE]);
+    }
+    m.top = Math.max(m.top, bandSafeTop(top + 8, height - m.bottom, items));
   }
   const plotH = height - m.top - m.bottom;
 

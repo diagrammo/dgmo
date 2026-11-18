@@ -41,6 +41,9 @@ const FRAME_PARTS = [
   '[data-chart-header]',
   '[data-frame-legend]',
   '[data-frame-part]',
+  // The journey map's persona card stands in the title row, top right, and
+  // the title wraps short of it: header furniture, not the drawing.
+  '.journey-persona',
 ].join(',');
 
 const LEGEND = '.dgmo-legend, .chart-legend';
@@ -70,6 +73,9 @@ function bands(svg: string): Bands {
     if (c.tagName === 'rect' && Number(c.getAttribute('width')) >= vb[2]! - 1)
       c.remove();
   for (const el of Array.from(root.querySelectorAll(FRAME_PARTS))) el.remove();
+  // A <title> is hover text, not ink; the measure would count its words as
+  // part of the label it sits in.
+  for (const el of Array.from(root.querySelectorAll('title'))) el.remove();
   // The export fit pads any path with an arrowhead by a fixed allowance, a
   // safety margin rather than ink; an arrowhead sits at a path's end, inside
   // the box the path already gives.
@@ -149,5 +155,40 @@ describe('the drawing starts on the shared band (#1838)', () => {
             `drawing top: ${top.toFixed(2)}`
           ).toBeLessThanOrEqual(TOLERANCE);
       });
+  }
+});
+
+/**
+ * Every titled gallery fixture keeps ALL its ink under the band (#2111) — not
+ * just the main shape. The per-type fixtures above pin where the drawing
+ * starts; these catch outlying labels, value tags and annotations that a
+ * benign fixture never pushes upward (a pie's small top slices, an overlay's
+ * label above the plot).
+ */
+describe('nothing rises into the title gap (#2111)', () => {
+  const dir = join(__dirname, '..', 'gallery/fixtures');
+  for (const f of readdirSync(dir).sort()) {
+    if (!f.endsWith('.dgmo')) continue;
+    const src = readFileSync(join(dir, f), 'utf8');
+    const type =
+      src
+        .split('\n')
+        .find((l) => l.trim() && !l.startsWith('//'))
+        ?.split(/\s+/)[0] ?? '';
+    if (SKIP.has(type) || HERO_TITLE_TYPES.includes(type)) continue;
+    it(f, async () => {
+      const { svg } = await render(src);
+      if (!svg.includes('chart-title')) return;
+      const { top, legendBottom } = bands(svg);
+      if (legendBottom !== null && legendBottom < top)
+        expect(
+          top - legendBottom,
+          `gap under the legend: ${(top - legendBottom).toFixed(2)}`
+        ).toBeGreaterThanOrEqual(LEGEND_BODY_GAP - TOLERANCE);
+      else
+        expect(top, `ink top: ${top.toFixed(2)}`).toBeGreaterThanOrEqual(
+          FRAME_BODY_TOP - TOLERANCE
+        );
+    });
   }
 });

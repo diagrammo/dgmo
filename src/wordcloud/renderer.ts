@@ -237,7 +237,9 @@ export function renderWordCloud(
     onClickItem,
     2
   );
-  const sTitleHeight = title ? ctx.aesthetic(40) + titleExtra : 0;
+  // The cloud packs into the canvas below the body band, so a dense cloud
+  // never fills up into the title gap (#2111).
+  const sTitleHeight = title ? FRAME_BODY_TOP + titleExtra : 0;
   const cloudHeight = height - sTitleHeight;
 
   const g = svg
@@ -390,7 +392,7 @@ export function renderWordCloudAsync(
       undefined,
       2
     );
-    const titleHeight = title ? 40 + titleExtra : 0;
+    const titleHeight = title ? FRAME_BODY_TOP + titleExtra : 0;
     const cloudHeight = height - titleHeight;
 
     const g = svg

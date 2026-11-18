@@ -173,6 +173,12 @@ export function renderVenn(
     2
   );
   const sTitleHeight = title ? ctx.aesthetic(40) + titleExtra : 0;
+  // Where the drawing may start: the body band under a title (#1838). Every
+  // piece of the figure, the overlap labels above it included, stays below it
+  // (#2111).
+  const bodyTop = title ? FRAME_BODY_TOP + titleExtra : 0;
+  // How far the highest overlap label stands above the figure's top.
+  let topReach = 0;
 
   // ── Equal-radius layout with ~30% overlap depth ──
   // All circles share the same base radius; center distance = 1.4r gives ~30% penetration
@@ -321,11 +327,17 @@ export function renderVenn(
       const padBoost = isStackedTriple ? 32 : 0;
       const need = labelH + baseLeader + padBoost;
       if (dir.y >= 0) marginBottom = Math.max(marginBottom, need);
-      else marginTop = Math.max(marginTop, need);
+      else {
+        marginTop = Math.max(marginTop, need);
+        topReach = Math.max(
+          topReach,
+          labelH + OVERLAP_LEADER_PAD + OVERLAP_TEXT_GAP + padBoost
+        );
+      }
     }
   }
 
-  const drawH = height - sTitleHeight;
+  const drawH = height - Math.max(sTitleHeight, bodyTop);
   // Cap margins so the figure always keeps a usable share of the canvas.
   // If labels need more space than the cap allows the leader+text logic
   // will clamp them to the viewport instead of letting circles shrink to
@@ -344,12 +356,12 @@ export function renderVenn(
     marginRight,
     marginTop,
     marginBottom
-  ).map((c) => ({ ...c, y: c.y + sTitleHeight }));
+  ).map((c) => ({ ...c, y: c.y + Math.max(sTitleHeight, bodyTop) }));
   // Top-align on the band: the fit centres the figure, and a height-slack
   // figure leaves a dead band under the title.
   if (title) {
     const figureTop = Math.min(...circles.map((c) => c.y - c.r));
-    const lift = figureTop - (FRAME_BODY_TOP + titleExtra);
+    const lift = figureTop - (bodyTop + topReach);
     if (lift > 0) for (const c of circles) c.y -= lift;
   }
 
@@ -908,7 +920,7 @@ export function renderVenn(
     const lensPt = lensExit(centroid, dir, idxs);
     const farExit = unionExit(centroid, dir, idxs);
     const stubEndX = farExit.x + dir.x * leaderPad;
-    const stubEndY = farExit.y + dir.y * leaderPad;
+    let stubEndY = farExit.y + dir.y * leaderPad;
 
     const horizontal = Math.abs(dir.x) >= Math.abs(dir.y);
     let textAnchor: string;
@@ -956,8 +968,17 @@ export function renderVenn(
       topY = textY - blockH / 2;
       bottomY = textY + blockH / 2;
     }
-    if (topY < sTitleHeight + 6) textY += sTitleHeight + 6 - topY;
-    else if (bottomY > height - 4) textY -= bottomY - (height - 4);
+    // A label pushed back inside the canvas takes its leader's end with it,
+    // so the leader never runs on past the text into the title (#2111).
+    const ceiling = Math.max(bodyTop, sTitleHeight + 6);
+    const shift =
+      topY < ceiling
+        ? ceiling - topY
+        : bottomY > height - 4
+          ? height - 4 - bottomY
+          : 0;
+    textY += shift;
+    if (!horizontal) stubEndY += shift;
 
     const startY =
       baseline === 'hanging'

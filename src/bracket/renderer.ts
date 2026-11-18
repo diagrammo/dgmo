@@ -54,9 +54,18 @@ import {
 } from './layout';
 
 const PADDING = 16;
-// First ink of the layout (its round labels) sits this far under its origin.
-const LAYOUT_INK_TOP = 7;
-const TITLE_BAND = FRAME_BODY_TOP - PADDING - LAYOUT_INK_TOP;
+// First ink of the layout sits this far under its origin: the side bars and
+// coloured column bands start at y 2 (half their stroke above it), the round
+// labels at 7. The title band lands whichever is drawn on the body band
+// (#1838, #2111).
+function layoutInkTop(layout: ReturnType<typeof layoutBracket>): number {
+  return layout.sideLabels.length > 0 || layout.columns.some((c) => c.color)
+    ? 1.5
+    : 7;
+}
+function titleBand(layout: ReturnType<typeof layoutBracket>): number {
+  return FRAME_BODY_TOP - PADDING - layoutInkTop(layout);
+}
 const HALF_SPAN = (BOX_H + PAIR_GAP) / 2;
 const COMMENT_LH = 15;
 const LEGEND_POSITION: LegendPosition = {
@@ -173,7 +182,7 @@ export function bracketExportDimensions(
 ): { width: number; height: number } {
   const layout = layoutBracket(parsed);
   const width = layout.width + PADDING * 2;
-  const titleH = parsed.title ? TITLE_BAND : 0;
+  const titleH = parsed.title ? titleBand(layout) : 0;
   const { legendGroups } = resolveBracketLegend(parsed, palette);
   const legendReserve =
     legendGroups.length > 0
@@ -202,7 +211,7 @@ export function renderBracket(
   if (width <= 0 || height <= 0) return;
 
   const showTitle = !!parsed.title;
-  const titleH = showTitle ? TITLE_BAND : 0;
+  const titleH = showTitle ? titleBand(layout) : 0;
   const exportMode = exportDims !== undefined;
 
   // ── Competitor lookups (tag color + seed) ──

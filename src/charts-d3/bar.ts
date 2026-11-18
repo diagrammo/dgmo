@@ -70,6 +70,9 @@ import {
   planLabelsFitLeft,
   drawCategoryLabels,
   NEVER_THIN_MAX,
+  bandSafeTop,
+  TICK_INK_ABOVE,
+  topTickFraction,
 } from './shared';
 
 // Long category names must not size the chart (#1422). Their region is capped
@@ -397,6 +400,27 @@ export function renderBar(
       deficit = Math.max(deficit, (need - (1 - f) * plotH0) / f);
     }
     m.top += Math.ceil(Math.min(Math.max(0, deficit), plotH0 * 0.4));
+  }
+  // Ink over the plot's top edge stays on the band (#2111): the top tick
+  // label, a column's value label, the pareto axis and its percent labels.
+  if (!horizontal) {
+    const probe = valueAxis([0, 1]);
+    const items: [number, number][] = [
+      [topTickFraction(probe, probeTicks), TICK_INK_ABOVE],
+    ];
+    if (!stacked) {
+      const hi = Math.max(0, ...perCat.flat());
+      const lift = 6 + (chart.lollipop ? LOLLIPOP_DOT_MAX : 0) + VALUE_FONT;
+      if (hi > 0) items.push([1 - probe(hi), lift]);
+    }
+    if (pareto) {
+      items.push([0, TICK_INK_ABOVE]);
+      const cum = paretoCumulative(rawCat.map((vals) => vals[0]!));
+      const shown = cum.slice(0, -1);
+      if (shown.length)
+        items.push([1 - Math.max(...shown) / 100, 8 + VALUE_FONT]);
+    }
+    m.top = Math.max(m.top, bandSafeTop(mTop, height - m.bottom, items));
   }
   const plotH = height - m.top - m.bottom;
   const horiz = horizontal;

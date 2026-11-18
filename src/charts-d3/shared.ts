@@ -54,6 +54,41 @@ export const TICK_FONT = 12;
 export const VALUE_FONT = 12;
 
 /**
+ * Ink a y-axis tick label puts above its tick: the label's baseline sits 4
+ * under the tick and the text stands one em tall.
+ */
+export const TICK_INK_ABOVE = TICK_FONT - 4;
+
+/**
+ * The plot top that keeps outlying ink on the body band (#2111). `band` is
+ * where the drawing must start; `bottom` is the plot's bottom edge. Each item
+ * is ink standing `above` px over a value drawn at fraction `f` (0 = plot top)
+ * of the plot's height: a top tick label, a value label over a bar. Solves
+ * `T + f·(bottom − T) − above ≥ band` for the plot top `T`.
+ */
+export function bandSafeTop(
+  band: number,
+  bottom: number,
+  items: ReadonlyArray<readonly [f: number, above: number]>
+): number {
+  let top = band;
+  for (const [f, above] of items)
+    if (f < 1 && above > 0)
+      top = Math.max(top, (band + above - f * bottom) / (1 - f));
+  return top;
+}
+
+/** Fraction from the plot top of the highest tick on a [0,1]-ranged axis. */
+export function topTickFraction(
+  axis: (v: number) => number,
+  ticks: readonly number[]
+): number {
+  let f = 1;
+  for (const t of ticks) f = Math.min(f, 1 - axis(t));
+  return Math.max(0, f);
+}
+
+/**
  * The number formatter for one chart (#1831): the author's `format`, `unit`
  * and `locale`, or `fmtNum` when none is set. `basis` is the axis's ticks (or
  * the chart's values when it has no axis): under `format compact` every
