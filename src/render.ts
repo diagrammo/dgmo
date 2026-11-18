@@ -21,6 +21,7 @@ import { parseDgmoChartType } from './chart-type-detect';
 import type { CompactViewState } from './sharing';
 import type { MapDataSource } from './d3';
 import type * as Jsdom from 'jsdom';
+import { MIN_READABLE_TYPE_PX } from './utils/text-measure';
 
 /**
  * The diagram's own title, read from its parsed model, for the root
@@ -168,9 +169,6 @@ async function loadJsdom(): Promise<typeof Jsdom> {
     typeof Jsdom
   >;
 }
-
-/** Smallest type, in px, a wide sequence or flowchart may be read at (#1844). */
-const MIN_READABLE_TYPE_PX = 11;
 
 /**
  * Render DGMO source to an SVG string.

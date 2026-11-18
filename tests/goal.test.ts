@@ -443,23 +443,23 @@ describe('goal renderer — faces', () => {
     expect(texts(svg).join(' ')).toContain('64%');
   });
 
-  it('gauge: renders arc paths + needle', () => {
+  it('gauge: renders arc paths and no needle (#2096)', () => {
     const parsed = parseGoal(`goal Quota\ngauge\nactual 64\ntarget 100`);
     const c = makeContainer();
     renderGoal(c, parsed, nordLight, false);
     const svg = c.querySelector('svg')!;
     expect(svg.querySelectorAll('path').length).toBeGreaterThanOrEqual(2); // track + value arc
-    expect(svg.querySelectorAll('line').length).toBeGreaterThanOrEqual(1); // needle
-    // The gauge shows the raw now value big in the arc belly, not a percentage.
+    expect(svg.querySelector('circle')).toBeNull(); // no hub
+    // The only lines are scale ticks and the target notch; none starts at the hub.
     const gaugeText = texts(svg).join(' ');
     expect(gaugeText).toContain('64');
     expect(gaugeText).not.toContain('%');
+    expect(gaugeText).not.toContain('TARGET');
   });
 
-  // Estimated box of a gauge <text>, from the attributes the renderer wrote.
-  // x follows text-anchor; y follows the baseline the renderer chose
-  // (`hanging` puts the cap top at y, otherwise y is the alphabetic baseline).
-  function gaugeTextBox(t: Element) {
+  // Estimated box of a <text>, from the attributes the renderer wrote.
+  // x follows text-anchor; y is the alphabetic baseline the renderer chose.
+  function textBox(t: Element) {
     const size = parseFloat(t.getAttribute('font-size')!);
     const bold =
       t.getAttribute('font-weight') === 'bold' ||
@@ -469,64 +469,167 @@ describe('goal renderer — faces', () => {
     const y = parseFloat(t.getAttribute('y')!);
     const anchor = t.getAttribute('text-anchor');
     const x0 = anchor === 'end' ? x - w : anchor === 'middle' ? x - w / 2 : x;
-    const hanging = t.getAttribute('dominant-baseline') === 'hanging';
-    const y0 = hanging ? y : y - size * 0.73;
-    return { x0, x1: x0 + w, y0, y1: y0 + size * 0.73 };
-  }
-
-  function gaugeValueAndShoulders(src: string) {
-    const c = makeContainer();
-    renderGoal(c, parseGoal(src), nordLight, false);
-    const all = Array.from(c.querySelectorAll('.goal-gauge text'));
-    const value = all.find((t) => t.getAttribute('font-weight') === 'bold')!;
-    return { value, all };
+    const y0 = y - size * 0.73;
+    return { x0, x1: x0 + w, y0, y1: y };
   }
 
   function overlaps(
-    a: ReturnType<typeof gaugeTextBox>,
-    b: ReturnType<typeof gaugeTextBox>
+    a: ReturnType<typeof textBox>,
+    b: ReturnType<typeof textBox>
   ) {
     return a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0;
   }
 
-  it('gauge: a long centre value clears the 25% and 75% shoulder labels (#690)', () => {
-    const { value, all } = gaugeValueAndShoulders(
-      `goal Q3 New Bookings (USD)\nactual 780000\ntarget 1000000\ngauge`
+  /** Pairs of text elements under `root` whose estimated boxes intersect. */
+  function collisions(root: Element): string[] {
+    const els = Array.from(root.querySelectorAll('text')).filter(
+      (t) => t.getAttribute('font-size') && t.getAttribute('x')
     );
-    expect(value.textContent).toBe('780k');
-    const shoulders = all.filter((t) =>
-      ['250k', '750k'].includes(t.textContent ?? '')
-    );
-    expect(shoulders).toHaveLength(2);
-    const v = gaugeTextBox(value);
-    for (const s of shoulders) {
-      expect(overlaps(v, gaugeTextBox(s))).toBe(false);
+    const out: string[] = [];
+    for (let i = 0; i < els.length; i++) {
+      for (let j = i + 1; j < els.length; j++) {
+        if (overlaps(textBox(els[i]!), textBox(els[j]!))) {
+          out.push(`${els[i]!.textContent} x ${els[j]!.textContent}`);
+        }
+      }
     }
-  });
+    return out;
+  }
 
-  it('gauge: long shoulder labels shrink the centre value further, still clear', () => {
-    const { value, all } = gaugeValueAndShoulders(
-      `goal Big\ngauge\nactual 7800000000\ntarget 12300000000`
-    );
-    const shoulders = all.filter((t) =>
-      ['3.1B', '9.2B'].includes(t.textContent ?? '')
-    );
-    expect(shoulders).toHaveLength(2);
-    const v = gaugeTextBox(value);
-    for (const s of shoulders) {
-      expect(overlaps(v, gaugeTextBox(s))).toBe(false);
+  function gaugeValueAndLabels(src: string) {
+    const c = makeContainer();
+    renderGoal(c, parseGoal(src), nordLight, false);
+    const all = Array.from(c.querySelectorAll('.goal-gauge text'));
+    const value = all.find((t) => t.getAttribute('font-weight') === 'bold')!;
+    return { c, value, all };
+  }
+
+  it('gauge: a long centre value shrinks clear of every label (#690, #2096)', () => {
+    for (const src of [
+      `goal Q3 New Bookings (USD)\nactual 780000\ntarget 1000000\ngauge`,
+      `goal Big\ngauge\nactual 7800000000\ntarget 12300000000`,
+    ]) {
+      const { c, value } = gaugeValueAndLabels(src);
+      expect(value.textContent!.length).toBeGreaterThan(2);
+      expect(collisions(c.querySelector('.goal-gauge')!)).toEqual([]);
     }
   });
 
   it('gauge: a short centre value keeps its full size', () => {
-    // 1-2 character values were never in the collision; r·0.62 binds there.
-    const { value } = gaugeValueAndShoulders(
+    // 1-2 character values never come near a label; r·0.62 binds there.
+    const { value } = gaugeValueAndLabels(
       `goal Quota\ngauge\nactual 64\ntarget 100`
     );
     expect(parseFloat(value.getAttribute('font-size')!)).toBeCloseTo(
       210 * 0.62,
       5
     );
+  });
+
+  it('gauge: the centre value sits above the hub line, the target number outside the rim', () => {
+    const { c } = gaugeValueAndLabels(
+      `goal Quota\ngauge\nactual 64\ntarget 100\nbands\n  0 Low\n  50 Mid\n  80 High`
+    );
+    const all = Array.from(c.querySelectorAll('.goal-gauge text'));
+    const value = textBox(all.find((t) => t.textContent === '64')!);
+    const target = textBox(all.find((t) => t.textContent === '100')!);
+    const arc = c.querySelector('.goal-gauge path')!.getAttribute('d')!;
+    const [, cxs, cys] = /^M ([\d.-]+) ([\d.-]+) A/
+      .exec(arc)!
+      .map(Number) as number[];
+    const cx = cxs! + 210; // the arc starts at the left foot
+    const cy = cys!;
+    expect(value.y1).toBeLessThanOrEqual(cy);
+    const farthest = Math.max(
+      ...[
+        [target.x0, target.y0],
+        [target.x1, target.y0],
+        [target.x0, target.y1],
+        [target.x1, target.y1],
+      ].map(([x, y]) => Math.hypot(x! - cx, y! - cy))
+    );
+    const nearest = Math.min(
+      ...[
+        [target.x0, target.y0],
+        [target.x1, target.y0],
+        [target.x0, target.y1],
+        [target.x1, target.y1],
+      ].map(([x, y]) => Math.hypot(x! - cx, y! - cy))
+    );
+    expect(nearest).toBeGreaterThan(210 + 18); // beyond the arc's outer edge
+    expect(farthest).toBeGreaterThan(nearest);
+  });
+
+  it('gauge: single labels 0, halfway, end; cells label 0, end and target only', () => {
+    const single = gaugeValueAndLabels(
+      `goal Quota\ngauge\nactual 64\ntarget 100\nbands\n  0 Low\n  130`
+    );
+    expect(single.all.map((t) => t.textContent)).toEqual(
+      expect.arrayContaining(['0', '65', '130', '100'])
+    );
+    const c = makeContainer();
+    renderGoal(
+      c,
+      parseGoal(
+        `goal Fleet\ngauge\nshared-scale\n[A]\nactual 40\ntarget 100\n[B]\nactual 130\ntarget 130`
+      ),
+      nordLight,
+      false
+    );
+    const cellLabels = Array.from(
+      c.querySelectorAll('.goal-cell .goal-gauge text')
+    ).map((t) => t.textContent);
+    expect(cellLabels).not.toContain('25');
+    expect(cellLabels).not.toContain('75');
+    expect(cellLabels).not.toContain('TARGET');
+  });
+
+  it('gauge: no text boxes intersect on single and multi-measure gauges (#2096)', () => {
+    const srcs = [
+      `goal Quota\ngauge\nactual 64\ntarget 100`,
+      `goal Quota\ngauge\nactual 98\ntarget 100\nbands\n  0 Low\n  50 Mid\n  80 High\n  130`,
+      `goal Quota\ngauge\nactual 100\ntarget 100`,
+      `goal Fleet\ngauge\nactual 130\ntarget 100\nbands\n  0 Adrift\n  50 Sailing\n  80 Battle-ready`,
+      `goal Armada\ngauge\nshared-scale\nbands\n  0 Adrift\n  50 Sailing\n  80 Battle-ready\n[Black Pearl Crew]\nactual 88\ntarget 100\n[Sea Wren]\nactual 45\ntarget 100\n[Kraken]\nactual 100\ntarget 100\n[Barnacle]\nactual 12\ntarget 100\n[Duke]\nactual 71\ntarget 100\n[Sprite]\nactual 130\ntarget 100`,
+    ];
+    for (const src of srcs) {
+      const c = makeContainer();
+      renderGoal(c, parseGoal(src), nordLight, false);
+      for (const gauge of Array.from(c.querySelectorAll('.goal-gauge'))) {
+        expect(collisions(gauge), src).toEqual([]);
+      }
+    }
+  });
+
+  it('gauge: cell labels stay at or above the minimum type size at their rendered scale', () => {
+    const c = makeContainer();
+    renderGoal(
+      c,
+      parseGoal(
+        `goal Fleet\ngauge\nshared-scale\n[A]\nactual 40\ntarget 100\n[B]\nactual 130\ntarget 100\n[C]\nactual 20\ntarget 100\n[D]\nactual 70\ntarget 100`
+      ),
+      nordLight,
+      false
+    );
+    const svg = c.querySelector('svg')!;
+    const vbW = parseFloat(svg.getAttribute('viewBox')!.split(' ')[2]!);
+    const scale = Math.min(1, 800 / vbW);
+    for (const t of Array.from(
+      c.querySelectorAll('.goal-cell .goal-gauge text')
+    )) {
+      if (
+        t.textContent === '40' ||
+        t.textContent === '130' ||
+        t.textContent === '20' ||
+        t.textContent === '70'
+      ) {
+        // the centre value is sized by fit, not by the floor
+        if (parseFloat(t.getAttribute('font-size')!) > 60) continue;
+      }
+      expect(
+        parseFloat(t.getAttribute('font-size')!) * scale
+      ).toBeGreaterThanOrEqual(10);
+    }
   });
 
   it('gauge fill above 50% uses the minor arc, not the reflex circle', () => {
@@ -876,7 +979,11 @@ describe('goal renderer — bands', () => {
       const svg = draw(banded('', face));
       const ribbon = svg.querySelector('.goal-ribbon')!;
       expect(ribbon).not.toBeNull();
-      expect(ribbon.querySelectorAll('rect, path')).toHaveLength(3);
+      // Thermometer: a neutral unlabelled segment below the first edge
+      // makes the strip continuous (#2095), so one more mark.
+      expect(ribbon.querySelectorAll('rect, path')).toHaveLength(
+        face === 'thermometer' ? 4 : 3
+      );
       // Bar face (#2094): the bands are the track's ground and only the
       // bands wholly ahead of the actual are named; 6400 has reached Poor and
       // OK, so Good alone is named. Tube and arc still name every zone.
@@ -893,7 +1000,9 @@ describe('goal renderer — bands', () => {
       const ribbon = draw(banded('no-ribbon-labels', face)).querySelector(
         '.goal-ribbon'
       )!;
-      expect(ribbon.querySelectorAll('rect, path')).toHaveLength(3);
+      expect(ribbon.querySelectorAll('rect, path')).toHaveLength(
+        face === 'thermometer' ? 4 : 3
+      );
       expect(ribbon.querySelectorAll('text')).toHaveLength(0);
     });
   }
@@ -1139,5 +1248,112 @@ target 12`;
     const w = fills.map((f) => Number(f.getAttribute('width')));
     // 50 of a 200 scale is a quarter of 100 of 200.
     expect(w[0]! * 2).toBeCloseTo(w[1]!, 5);
+  });
+});
+
+// ============================================================
+// Thermometer labels (#2095)
+// ============================================================
+
+describe('goal renderer — thermometer labels', () => {
+  function boxOf(t: Element) {
+    const size = parseFloat(t.getAttribute('font-size')!);
+    const bold =
+      t.getAttribute('font-weight') === 'bold' ||
+      parseFloat(t.getAttribute('font-weight') ?? '400') >= 600;
+    const w = measureText(t.textContent ?? '', size, { bold });
+    const x = parseFloat(t.getAttribute('x')!);
+    const y = parseFloat(t.getAttribute('y')!);
+    const anchor = t.getAttribute('text-anchor');
+    const x0 = anchor === 'end' ? x - w : anchor === 'middle' ? x - w / 2 : x;
+    return { x0, x1: x0 + w, y0: y - size * 0.73, y1: y };
+  }
+
+  function clashes(src: string): string[] {
+    const c = makeContainer();
+    renderGoal(c, parseGoal(src), nordLight, false);
+    const els = Array.from(c.querySelectorAll('text')).filter(
+      (t) => t.getAttribute('font-size') && t.getAttribute('x')
+    );
+    const out: string[] = [];
+    for (let i = 0; i < els.length; i++) {
+      for (let j = i + 1; j < els.length; j++) {
+        const a = boxOf(els[i]!);
+        const b = boxOf(els[j]!);
+        if (a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0) {
+          out.push(`${els[i]!.textContent} x ${els[j]!.textContent}`);
+        }
+      }
+    }
+    return out;
+  }
+
+  const bands = `bands\n  40% Lean\n  80% Good\n  100% Target met blue\n  140\n`;
+
+  it('no label overprints another when the actual is within 5% of the target', () => {
+    for (const actual of [95, 98, 100, 102, 105, 112]) {
+      expect(
+        clashes(
+          `goal Haul\nthermometer\n${bands}actual ${actual}\ntarget 100\nnote\n  Record haul`
+        ),
+        `actual ${actual}`
+      ).toEqual([]);
+    }
+    expect(clashes(`goal Fund\nthermometer\nactual 99\ntarget 100`)).toEqual(
+      []
+    );
+  });
+
+  it('a readout longer than the text column wraps the band name under the percent', () => {
+    const src = `goal Haul\nthermometer\nbands\n  40% Lean\n  80% Good\n  100% Target met on every single count\n  140\nactual 112\ntarget 100`;
+    expect(clashes(src)).toEqual([]);
+    const c = makeContainer();
+    renderGoal(c, parseGoal(src), nordLight, false);
+    const readout = c.querySelector('.goal-readout')!;
+    expect(readout.textContent).toBe('Target met on every single count');
+    const w = boxOf(readout);
+    expect(w.x1 - w.x0).toBeLessThanOrEqual(440 + 0.5);
+    // A short band name stays on the percent's line.
+    const c2 = makeContainer();
+    renderGoal(
+      c2,
+      parseGoal(`goal F\nthermometer\nactual 64\ntarget 100`),
+      nordLight,
+      false
+    );
+    expect(c2.querySelector('.goal-readout')).toBeNull();
+  });
+
+  it('with bands, ticks sit at 0, each band edge, the target and the scale end', () => {
+    const c = makeContainer();
+    renderGoal(
+      c,
+      parseGoal(`goal Haul\nthermometer\n${bands}actual 112\ntarget 100`),
+      nordLight,
+      false
+    );
+    const labels = Array.from(c.querySelectorAll('.goal-thermometer text'))
+      .map((t) => t.textContent)
+      .filter((t) => /^\d+$/.test(t ?? ''));
+    expect(labels.sort()).toEqual(
+      ['0', '100', '112', '140', '40', '80'].sort()
+    );
+  });
+
+  it('the mercury is the solid band colour and the strip has a neutral segment below the first edge', () => {
+    const c = makeContainer();
+    renderGoal(
+      c,
+      parseGoal(`goal Haul\nthermometer\n${bands}actual 112\ntarget 100`),
+      nordLight,
+      false
+    );
+    const paths = Array.from(c.querySelectorAll('.goal-thermometer > path'));
+    const mercury = paths[paths.length - 1]!;
+    expect(mercury.getAttribute('fill')).toBe(mercury.getAttribute('stroke'));
+    const rects = Array.from(c.querySelectorAll('.goal-ribbon rect'));
+    expect(rects).toHaveLength(4); // neutral + three bands
+    const track = paths[0]!.getAttribute('fill');
+    expect(rects[0]!.getAttribute('fill')).toBe(track);
   });
 });

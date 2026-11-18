@@ -5,7 +5,7 @@
 // Three faces off the same `actual`/`target` pair:
 //   - bar         : horizontal rounded fill (default)
 //   - thermometer : vertical rounded tube + bulb
-//   - gauge       : semicircular dial with needle + value arc
+//   - gauge       : semicircular dial, the fill arc is the reading (#2096)
 // Over-target clamps the fill at the scale's end; the % label stays truthful.
 //
 // Bands (#1973): the fill takes the colour of the band the actual sits in.
@@ -27,7 +27,7 @@ import {
 import { resolveColor } from '../colors';
 import { compactNumber } from '../treemap/treemap-shared';
 import { parseInlineMarkdown } from '../utils/inline-markdown';
-import { measureText } from '../utils/text-measure';
+import { measureText, MIN_READABLE_TYPE_PX } from '../utils/text-measure';
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import type { GoalMeasure, ParsedGoal } from './types';
@@ -41,6 +41,8 @@ const GOAL_TITLE_SIZE = 30;
 /** Band ribbon thickness and its gap from the track (#1973 rule 7). */
 const RIBBON_W = 5;
 const RIBBON_GAP = 6;
+/** Least clear space between two value labels on a face, in px. */
+const VALUE_LABEL_GAP = 8;
 /** Bar face: how much band colour tints the track ground (#2094). */
 const BAND_GROUND_PCT = 18;
 /** Measures per row on the thermometer and gauge faces (#1851 rule 7). */
@@ -291,7 +293,7 @@ export function renderGoal(
   const box = parsed.multi
     ? parsed.mode === 'bar'
       ? renderBarRows(host, parsed, views)
-      : renderCells(host, parsed, views)
+      : renderCells(host, parsed, views, cw)
     : parsed.mode === 'thermometer'
       ? renderThermometer(host, parsed, views[0]!, false)
       : parsed.mode === 'gauge'
@@ -543,6 +545,12 @@ function drawReadout(
   }
   t.append('tspan').text(v.metrics.pctLabel);
   t.append('tspan').attr('fill', v.paint.ink(v.status!.color)).text(suffix);
+}
+
+/** The largest size up to `size` at which `text` (bold) fits `maxW`. */
+function fitSize(text: string, size: number, maxW: number): number {
+  const w = measureText(text, size, { bold: true });
+  return w > maxW && w > 0 ? Math.max(12, (size * maxW) / w) : size;
 }
 
 /** Widest zone label at `size`, 0 when labels are off. */
@@ -873,7 +881,37 @@ function renderBarRows(svg: Svg, parsed: ParsedGoal, views: GoalView[]): Box {
 }
 
 // ── Thermometer and gauge faces, several measures (#1851 rule 7) ──
-function renderCells(svg: Svg, parsed: ParsedGoal, views: GoalView[]): Box {
+function renderCells(
+  svg: Svg,
+  parsed: ParsedGoal,
+  views: GoalView[],
+  canvasW: number
+): Box {
+  // A cell is drawn small. Learn the scale the grid will be shown at from a
+  // dry run, then size the gauge labels so they stay at or above the minimum
+  // type size there (#2096). A second dry run settles the wider layout.
+  let floor = 0;
+  if (parsed.mode === 'gauge') {
+    for (let pass = 0; pass < 2; pass++) {
+      const b = layoutCells(
+        d3Selection.create('svg') as unknown as Svg,
+        parsed,
+        views,
+        floor
+      );
+      const scale = canvasW / (b.maxX - b.minX + 60);
+      floor = (MIN_READABLE_TYPE_PX * 1.1) / Math.min(1, scale);
+    }
+  }
+  return layoutCells(svg, parsed, views, floor);
+}
+
+function layoutCells(
+  svg: Svg,
+  parsed: ParsedGoal,
+  views: GoalView[],
+  textFloor: number
+): Box {
   const nameSize = 24;
   const readSize = 22;
   const cellGap = 64;
@@ -905,7 +943,7 @@ function renderCells(svg: Svg, parsed: ParsedGoal, views: GoalView[]): Box {
       const box =
         parsed.mode === 'thermometer'
           ? renderThermometer(g, parsed, cellView, true)
-          : renderGauge(g, parsed, cellView, true);
+          : renderGauge(g, parsed, cellView, true, textFloor);
       return { v, g, box };
     });
     const rowH = Math.max(...placed.map((p) => p.box.maxY - p.box.minY));
@@ -981,12 +1019,36 @@ function scaleMarks(targetFrac: number): ScaleMark[] {
   return marks;
 }
 
-/** A major label this close to a past-target mark would overprint it. */
-function crowdsTarget(m: ScaleMark, targetFrac: number): boolean {
+/** Estimated ink box of one text run, for overlap checks between labels. */
+interface LabelBox {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
+/** Cap height as a fraction of the font size (digits and capitals). */
+const CAP_HEIGHT = 0.73;
+
+function labelBox(
+  text: string,
+  x: number,
+  baseline: number,
+  size: number,
+  anchor: 'start' | 'middle' | 'end',
+  bold: boolean
+): LabelBox {
+  const w = measureText(text, size, { bold });
+  const x0 = anchor === 'end' ? x - w : anchor === 'middle' ? x - w / 2 : x;
+  return { x0, y0: baseline - size * CAP_HEIGHT, x1: x0 + w, y1: baseline };
+}
+
+function boxesHit(a: LabelBox, b: LabelBox, pad = 0): boolean {
   return (
-    m.kind !== 'target' &&
-    targetFrac < 0.999 &&
-    Math.abs(m.f - targetFrac) < 0.1
+    a.x0 < b.x1 + pad &&
+    a.x1 + pad > b.x0 &&
+    a.y0 < b.y1 + pad &&
+    a.y1 + pad > b.y0
   );
 }
 
@@ -1055,7 +1117,12 @@ function renderThermometer(
   // FLAT top. Single path, single stroke.
   g.append('path')
     .attr('d', bodyPath(fillTopY, mHalf, mBulb, false))
-    .attr('fill', paint.fill)
+    // Solid band colour: the tint read as empty glass (#2095). Outline mode
+    // keeps its hollow mercury.
+    .attr(
+      'fill',
+      parsed.options.fillMode === 'outline' ? paint.fill : paint.base
+    )
     .attr('stroke', paint.base)
     .attr('stroke-width', parsed.options.fillMode === 'outline' ? 1.5 : 2)
     .attr('stroke-linejoin', 'round');
@@ -1064,6 +1131,18 @@ function renderThermometer(
   if (v.ribbon) {
     const rx = cx - r - RIBBON_GAP - RIBBON_W;
     const rg = g.append('g').attr('class', 'goal-ribbon');
+    const first = v.zones[0]!;
+    if (first.start > 0) {
+      // Below the first edge: a neutral segment in the glass colour, so the
+      // strip runs unbroken from 0 (#2095).
+      const yEdge = yForFrac(first.start / v.scaleEnd);
+      rg.append('rect')
+        .attr('x', rx)
+        .attr('y', yEdge)
+        .attr('width', RIBBON_W)
+        .attr('height', Math.max(0, yForFrac(0) - yEdge))
+        .attr('fill', paint.track);
+    }
     for (const z of v.zones) {
       const y1 = yForFrac(z.end / v.scaleEnd);
       const y2 = yForFrac(z.start / v.scaleEnd);
@@ -1088,16 +1167,43 @@ function renderThermometer(
   }
 
   // Graduation ticks etched ON the glass (from the right inner edge inward),
-  // with value labels just to the right.
+  // with value labels just to the right. Every label is placed against the
+  // ones already down, so none overprints another (#2095).
+  const placed: LabelBox[] = [];
+  let rightMost = cx + r + 20;
+  const note = (b: LabelBox): void => {
+    placed.push(b);
+    rightMost = Math.max(rightMost, b.x1);
+  };
+  let topMost = 0;
   if (m.hasTarget) {
     const edgeX = cx + r; // right edge of the glass tube
     const tickLabelX = edgeX + 14;
     const tf = metrics.targetFrac;
-    for (const mark of scaleMarks(tf)) {
+    const past = tf < 0.999;
+
+    // With bands: 0, every band edge, the target and the scale end. Without:
+    // the quarter steps, as before.
+    let marks: ScaleMark[];
+    if (v.ribbon) {
+      marks = [];
+      const vals = [0, v.scaleEnd, ...v.zones.flatMap((z) => [z.start, z.end])];
+      for (const val of vals) {
+        const f = clamp(val / v.scaleEnd, 0, 1);
+        if (Math.abs(f - tf) < 1e-6) continue;
+        if (marks.some((k) => Math.abs(k.f - f) < 1e-6)) continue;
+        marks.push({ f, kind: 'major' });
+      }
+      marks.push({ f: tf, kind: 'target' });
+    } else {
+      marks = scaleMarks(tf);
+    }
+
+    for (const mark of marks) {
       const isTarget = mark.kind === 'target';
       const major = mark.kind !== 'minor';
       const y = yForFrac(mark.f);
-      if (isTarget && tf < 0.999) {
+      if (isTarget && past) {
         // Past target: a dark tick across the whole tube, read through the fill.
         g.append('line')
           .attr('class', 'goal-target-tick')
@@ -1116,51 +1222,97 @@ function renderThermometer(
           .attr('stroke', isTarget ? paint.base : paint.muted)
           .attr('stroke-width', isTarget ? 4 : major ? 2 : 1.5);
       }
-      if (isTarget) {
-        // "TARGET" caption above the emphasized goal value.
-        g.append('text')
-          .attr('x', tickLabelX)
-          .attr('y', y - 20)
-          .attr('text-anchor', 'start')
-          .attr('fill', paint.muted)
-          .attr('font-family', FONT_FAMILY)
-          .attr('font-size', 15)
-          .attr('font-weight', 'bold')
-          .attr('letter-spacing', 1)
-          .text('TARGET');
-      }
-      if (major && !crowdsTarget(mark, tf)) {
-        g.append('text')
-          .attr('x', tickLabelX)
-          .attr('y', y + (isTarget ? 30 * 0.35 : 19 * 0.35))
-          .attr('text-anchor', 'start')
-          .attr('fill', isTarget ? paint.text : paint.muted)
-          .attr('font-family', FONT_FAMILY)
-          .attr('font-size', isTarget ? 30 : 19)
-          .attr('font-weight', isTarget ? 700 : 500)
-          .text(compactNumber(isTarget ? m.target : v.scaleEnd * mark.f));
-      }
     }
+
+    // The target (`TARGET 100` on one line) and the actual value come first;
+    // when they sit closer than their heights, the higher one moves up and
+    // the lower one down, an even split.
+    const targetSize = 30;
+    const actualSize = 42;
+    const capSize = 15;
+    const capText = 'TARGET';
+    const capW = measureText(capText, capSize, { bold: true }) + capText.length;
+    const targetText = compactNumber(m.target);
+    const actualText = compactNumber(m.actual);
+    let cT = yForFrac(tf);
+    let cA = fillTopY;
+    const need = ((targetSize + actualSize) * CAP_HEIGHT) / 2 + VALUE_LABEL_GAP;
+    if (Math.abs(cA - cT) < need) {
+      const mid = (cA + cT) / 2;
+      const up = cA <= cT ? 1 : -1; // +1: the actual is the higher label
+      cA = mid - (up * need) / 2;
+      cT = mid + (up * need) / 2;
+    }
+    const baseT = cT + targetSize * 0.35;
+    const baseA = cA + actualSize * 0.35;
+    g.append('text')
+      .attr('x', tickLabelX)
+      .attr('y', baseT)
+      .attr('text-anchor', 'start')
+      .attr('fill', paint.muted)
+      .attr('font-family', FONT_FAMILY)
+      .attr('font-size', capSize)
+      .attr('font-weight', 'bold')
+      .attr('letter-spacing', 1)
+      .text(capText);
+    note(labelBox(capText, tickLabelX, baseT, capSize, 'start', true));
+    const targetX = tickLabelX + capW + 10;
+    g.append('text')
+      .attr('x', targetX)
+      .attr('y', baseT)
+      .attr('text-anchor', 'start')
+      .attr('fill', paint.text)
+      .attr('font-family', FONT_FAMILY)
+      .attr('font-size', targetSize)
+      .attr('font-weight', 700)
+      .text(targetText);
+    note(labelBox(targetText, targetX, baseT, targetSize, 'start', true));
 
     // `actual` value at the mercury level — series color, bold, to the right.
     // Explicit baseline (not dominant-baseline) so WebKit doesn't clip it.
-    {
+    g.append('text')
+      .attr('x', tickLabelX)
+      .attr('y', baseA)
+      .attr('text-anchor', 'start')
+      .attr('fill', paint.base)
+      .attr('font-family', FONT_FAMILY)
+      .attr('font-size', actualSize)
+      .attr('font-weight', 'bold')
+      .text(actualText);
+    note(labelBox(actualText, tickLabelX, baseA, actualSize, 'start', true));
+
+    // The other scale labels: the ends first, then the rest; one that would
+    // overprint a label already down gives way.
+    const rest = marks
+      .filter((k) => k.kind === 'major')
+      .sort((p, q) => {
+        const end = (k: ScaleMark): number => (k.f === 0 || k.f === 1 ? 0 : 1);
+        return end(p) - end(q) || p.f - q.f;
+      });
+    for (const mark of rest) {
+      const base = yForFrac(mark.f) + 19 * 0.35;
+      const text = compactNumber(v.scaleEnd * mark.f);
+      const box = labelBox(text, tickLabelX, base, 19, 'start', false);
+      if (placed.some((o) => boxesHit(box, o, 3))) continue;
       g.append('text')
         .attr('x', tickLabelX)
-        .attr('y', fillTopY + 42 * 0.35)
+        .attr('y', base)
         .attr('text-anchor', 'start')
-        .attr('fill', paint.base)
+        .attr('fill', paint.muted)
         .attr('font-family', FONT_FAMILY)
-        .attr('font-size', 42)
-        .attr('font-weight', 'bold')
-        .text(compactNumber(m.actual));
+        .attr('font-size', 19)
+        .attr('font-weight', 500)
+        .text(text);
+      note(box);
     }
+    topMost = Math.min(0, ...placed.map((b) => b.y0));
   }
 
-  // Right extent: `actual`/tick labels sit just past the tube's right edge.
-  const rightExtent = m.hasTarget ? cx + r + 14 + 76 : cx + r + 20;
+  // Right extent: the labels sit just past the tube's right edge.
+  const rightExtent = rightMost;
+  const bottomMost = Math.max(bulbCy + bulbR, ...placed.map((b) => b.y1));
   if (cell) {
-    return { minX: 0, minY: 0, maxX: rightExtent, maxY: bulbCy + bulbR };
+    return { minX: 0, minY: topMost, maxX: rightExtent, maxY: bottomMost };
   }
 
   // Title + readout stacked in the left column, top-aligned to the tube apex,
@@ -1183,8 +1335,38 @@ function renderThermometer(
     cursorY += titleSize + 16;
   }
   if (!parsed.options.noPercent) {
-    drawReadout(svg, v, colLeft, cursorY + 52, 'start', 64, paint.muted);
-    cursorY += 76;
+    const suffix = v.status?.label ?? null;
+    if (suffix && readoutWidth(v, 64) > textColW) {
+      // `112% · Target met` does not fit the column: the band name goes on
+      // its own line under the percent (#2095).
+      const pctSize = fitSize(metrics.pctLabel, 64, textColW);
+      svg
+        .append('text')
+        .attr('x', colLeft)
+        .attr('y', cursorY + 52)
+        .attr('text-anchor', 'start')
+        .attr('fill', paint.muted)
+        .attr('font-family', FONT_FAMILY)
+        .attr('font-size', pctSize)
+        .attr('font-weight', 'bold')
+        .text(metrics.pctLabel);
+      const nameSize = fitSize(suffix, 32, textColW);
+      svg
+        .append('text')
+        .attr('class', 'goal-readout')
+        .attr('x', colLeft)
+        .attr('y', cursorY + 52 + 8 + nameSize)
+        .attr('text-anchor', 'start')
+        .attr('fill', paint.ink(v.status!.color))
+        .attr('font-family', FONT_FAMILY)
+        .attr('font-size', nameSize)
+        .attr('font-weight', 'bold')
+        .text(suffix);
+      cursorY += 76 + 8 + nameSize;
+    } else {
+      drawReadout(svg, v, colLeft, cursorY + 52, 'start', 64, paint.muted);
+      cursorY += 76;
+    }
   }
 
   // Optional `note` description in the left column, under the percentage.
@@ -1202,9 +1384,9 @@ function renderThermometer(
 
   return {
     minX: 0,
-    minY: 0,
+    minY: topMost,
     maxX: rightExtent,
-    maxY: Math.max(bulbCy + bulbR, colBottom),
+    maxY: Math.max(bottomMost, colBottom),
   };
 }
 
@@ -1233,7 +1415,9 @@ function renderGauge(
   svg: Svg,
   parsed: ParsedGoal,
   v: GoalView,
-  cell: boolean
+  cell: boolean,
+  /** Smallest label size the face may use, from a cell's rendered scale. */
+  textFloor = 0
 ): Box {
   const { m, metrics, paint } = v;
   const stroke = 36;
@@ -1267,6 +1451,8 @@ function renderGauge(
   const cy = r + stroke / 2 + topTitleH + topRoom; // band crest sits below the title
 
   const g = svg.append('g').attr('class', 'goal-gauge');
+  // Every label drawn on the face, for the overlap checks.
+  const boxes: LabelBox[] = [];
 
   // Top-align the left column with the arc's visual crest (band top edge).
   const crestTop = cy - r - stroke / 2;
@@ -1363,154 +1549,185 @@ function renderGauge(
           .attr('font-size', zoneLabelSize)
           .attr('font-weight', 600)
           .text(z.label);
+        boxes.push(
+          labelBox(
+            z.label,
+            lx,
+            anchor === 'middle' ? ly - 2 : ly + zoneLabelSize * 0.35 * (1 - sa),
+            zoneLabelSize,
+            anchor,
+            true
+          )
+        );
       }
     }
   }
 
-  // Needle at the fill angle.
-  const a = Math.PI - metrics.fillFrac * Math.PI;
-  const needleLen = r - stroke / 2 - 6;
-  const nx = cx + needleLen * Math.cos(a);
-  const ny = cy - needleLen * Math.sin(a);
-  g.append('line')
-    .attr('x1', cx)
-    .attr('y1', cy)
-    .attr('x2', nx)
-    .attr('y2', ny)
-    .attr('stroke', paint.text)
-    .attr('stroke-width', 5)
-    .attr('stroke-linecap', 'round');
-  g.append('circle')
-    .attr('cx', cx)
-    .attr('cy', cy)
-    .attr('r', 11)
-    .attr('fill', paint.text);
-
-  // `actual` value dominates the interior — big, gray, filling the arc's belly.
-  const nowLabel = compactNumber(m.actual);
+  // No needle: the fill arc is the reading (#2096). Every label below is
+  // measured and placed against the ones already down.
   const bandInner = r - stroke / 2;
-  // Keep long values inside ~0.95·r of chord. That alone does NOT clear the
-  // 25/75 shoulder labels: they are anchored inward from radius
-  // `bandInner - 26`, so their text grows toward cx and ends well inside that
-  // chord. With a target, measure those two labels and size the value to the
-  // gap that is really left between their inner edges.
+  const bandOuter = r + stroke / 2;
+  const footSize = Math.max(20, textFloor);
+  const targetSize = Math.max(30, textFloor);
+  const put = (
+    text: string,
+    x: number,
+    y: number,
+    size: number,
+    anchor: 'start' | 'middle' | 'end',
+    fill: string,
+    weight: number | string,
+    cls?: string
+  ): LabelBox => {
+    const t = g
+      .append('text')
+      .attr('x', x)
+      .attr('y', y)
+      .attr('text-anchor', anchor)
+      .attr('fill', fill)
+      .attr('font-family', FONT_FAMILY)
+      .attr('font-size', size)
+      .attr('font-weight', weight);
+    if (cls) t.attr('class', cls);
+    t.text(text);
+    const box = labelBox(
+      text,
+      x,
+      y,
+      size,
+      anchor,
+      weight === 'bold' || Number(weight) >= 600
+    );
+    boxes.push(box);
+    return box;
+  };
+  const tickAt = (
+    f: number,
+    from: number,
+    to: number,
+    w: number,
+    color: string,
+    cls?: string
+  ) => {
+    const ang = Math.PI - f * Math.PI;
+    g.append('line')
+      .attr('class', cls ?? null)
+      .attr('x1', cx + from * Math.cos(ang))
+      .attr('y1', cy - from * Math.sin(ang))
+      .attr('x2', cx + to * Math.cos(ang))
+      .attr('y2', cy - to * Math.sin(ang))
+      .attr('stroke', color)
+      .attr('stroke-width', w);
+  };
+
+  // The band name under the dial's centre (#1973 rule 9). The gauge shows no
+  // percent of its own — the value carries it — so the readout here is the
+  // name alone. A cell's readout sits under the cell instead.
+  let hubBottom = cy + stroke / 2;
+  if (!cell && !parsed.options.noPercent && v.status?.label) {
+    put(
+      v.status.label,
+      cx,
+      cy + 50,
+      24,
+      'middle',
+      paint.ink(v.status.color),
+      'bold',
+      'goal-readout'
+    );
+    hubBottom = cy + 58;
+  }
+
+  if (m.hasTarget) {
+    const tf = metrics.targetFrac;
+    const targetAtEnd = tf >= 0.999;
+
+    // 0 and the scale end at the arc feet, below the band ends; a ticked
+    // halfway mark on a single gauge only. The end label gives way to the
+    // target number when the target IS the end.
+    const footY = cy + stroke / 2 + 6 + footSize * CAP_HEIGHT;
+    put(compactNumber(0), cx - r, footY, footSize, 'middle', paint.muted, 500);
+    if (!targetAtEnd) {
+      put(
+        compactNumber(v.scaleEnd),
+        cx + r,
+        footY,
+        footSize,
+        'middle',
+        paint.muted,
+        500
+      );
+    }
+    if (!cell) {
+      tickAt(0.5, bandInner, bandInner - 12, 2, paint.muted);
+      const halfSize = 18;
+      const halfBox = labelBox(
+        compactNumber(v.scaleEnd * 0.5),
+        cx,
+        cy - bandInner + 12 + 6 + halfSize * CAP_HEIGHT,
+        halfSize,
+        'middle',
+        false
+      );
+      if (!boxes.some((o) => boxesHit(halfBox, o, 3))) {
+        put(
+          compactNumber(v.scaleEnd * 0.5),
+          cx,
+          halfBox.y1,
+          halfSize,
+          'middle',
+          paint.muted,
+          500
+        );
+      }
+    }
+
+    // The target: a notch across the band, and its number OUTSIDE the
+    // outermost ring drawn, pushed outward until it clears every other label.
+    tickAt(tf, bandInner - 6, bandOuter + 3, 4, paint.text, 'goal-target-tick');
+    const ang = Math.PI - tf * Math.PI;
+    const ca = Math.cos(ang);
+    const sa = Math.sin(ang);
+    const anchor = ca > 0.2 ? 'start' : ca < -0.2 ? 'end' : 'middle';
+    const tText = compactNumber(m.target);
+    const h = targetSize * CAP_HEIGHT;
+    const ringOut = v.ribbon
+      ? bandOuter + ribbonOut + (zoneLabelW > 0 ? labelOut + zoneLabelW : 0)
+      : bandOuter;
+    for (let k = 0; k < 16; k++) {
+      const rr = ringOut + 10 + k * 6;
+      const x = cx + rr * ca;
+      // Centred beside the ring on the sides, sitting on it over the crest.
+      const base = cy - rr * sa + (1 - sa) * (h / 2) - sa * 2;
+      const box = labelBox(tText, x, base, targetSize, anchor, true);
+      if (k < 15 && boxes.some((o) => boxesHit(box, o, 4))) continue;
+      put(tText, x, base, targetSize, anchor, paint.text, 700);
+      break;
+    }
+  }
+
+  // `actual` value dominates the interior: bold, in the arc's belly with its
+  // baseline just above the hub line. Shrunk until its box sits inside the
+  // arc and meets no label.
+  const nowLabel = compactNumber(m.actual);
+  const nowBase = cy - 14;
   let nowSize = Math.min(
     r * 0.62,
     140,
     (r * 0.95) / Math.max(1, nowLabel.length * 0.6)
   );
-  if (m.hasTarget) {
-    const shoulderX = (bandInner - 26) * Math.SQRT1_2;
-    const shoulderW = Math.max(
-      measureText(compactNumber(v.scaleEnd * 0.25), 18),
-      measureText(compactNumber(v.scaleEnd * 0.75), 18)
-    );
-    const halfClear = shoulderX - shoulderW - 8;
-    const widthPerPx = measureText(nowLabel, 100, { bold: true }) / 100;
-    if (widthPerPx > 0 && halfClear > 0) {
-      nowSize = Math.min(nowSize, (2 * halfClear) / widthPerPx);
-    }
+  const inside = bandInner - 12;
+  for (; nowSize > 10; nowSize *= 0.97) {
+    const b = labelBox(nowLabel, cx, nowBase, nowSize, 'middle', true);
+    const corner = Math.hypot((b.x1 - b.x0) / 2, cy - b.y0);
+    if (corner <= inside && !boxes.some((o) => boxesHit(b, o, 6))) break;
   }
-  const nowY = cy - r * 0.42;
-  {
-    g.append('text')
-      .attr('x', cx)
-      .attr('y', nowY + nowSize * 0.35)
-      .attr('text-anchor', 'middle')
-      .attr('fill', paint.muted)
-      .attr('font-family', FONT_FAMILY)
-      .attr('font-size', nowSize)
-      .attr('font-weight', 'bold')
-      .text(nowLabel);
-  }
+  put(nowLabel, cx, nowBase, nowSize, 'middle', paint.muted, 'bold');
 
-  // The band name under the hub (#1973 rule 9). The gauge shows no percent of
-  // its own — the value carries it — so the readout here is the name alone.
-  // A cell's readout sits under the cell instead.
-  let hubBottom = cy + 34;
-  if (!cell && !parsed.options.noPercent && v.status?.label) {
-    g.append('text')
-      .attr('class', 'goal-readout')
-      .attr('x', cx)
-      .attr('y', cy + 50)
-      .attr('text-anchor', 'middle')
-      .attr('fill', paint.ink(v.status.color))
-      .attr('font-family', FONT_FAMILY)
-      .attr('font-size', 24)
-      .attr('font-weight', 'bold')
-      .text(v.status.label);
-    hubBottom = cy + 58;
-  }
-
-  // Scale ticks + value labels around the arc: 0 at the left end, the scale's
-  // end at the right end, quarter steps between. The needle + the value read
-  // the current position.
-  if (m.hasTarget) {
-    const tf = metrics.targetFrac;
-    // Every quarter is labelled on the dial, drawn left to right.
-    const marks = scaleMarks(tf).sort((p, q) => p.f - q.f);
-    for (const mark of marks) {
-      const isTarget = mark.kind === 'target';
-      const f = mark.f;
-      const ang = Math.PI - f * Math.PI;
-      const ca = Math.cos(ang);
-      const sa = Math.sin(ang);
-      if (isTarget && tf < 0.999) {
-        // Past target: a dark tick across the band, read through the fill.
-        g.append('line')
-          .attr('class', 'goal-target-tick')
-          .attr('x1', cx + (bandInner - 20) * ca)
-          .attr('y1', cy - (bandInner - 20) * sa)
-          .attr('x2', cx + (r + stroke / 2) * ca)
-          .attr('y2', cy - (r + stroke / 2) * sa)
-          .attr('stroke', paint.text)
-          .attr('stroke-width', 4);
-      } else {
-        // Ticks point INWARD from the inner edge of the band.
-        g.append('line')
-          .attr('x1', cx + bandInner * ca)
-          .attr('y1', cy - bandInner * sa)
-          .attr('x2', cx + (bandInner - (isTarget ? 20 : 12)) * ca)
-          .attr('y2', cy - (bandInner - (isTarget ? 20 : 12)) * sa)
-          .attr('stroke', isTarget ? paint.base : paint.muted)
-          .attr('stroke-width', isTarget ? 4 : 2);
-      }
-      if (crowdsTarget(mark, tf)) continue;
-      const lr = bandInner - (isTarget ? 40 : 26);
-      // Anchor toward the centre so inside labels sit clear of the band.
-      const anchor = ca > 0.2 ? 'end' : ca < -0.2 ? 'start' : 'middle';
-      if (isTarget) {
-        // "target" caption above the value so the goal reads at a glance.
-        g.append('text')
-          .attr('x', cx + lr * ca)
-          .attr('y', cy - lr * sa - 20)
-          .attr('text-anchor', anchor)
-          .attr('dominant-baseline', 'middle')
-          .attr('fill', paint.muted)
-          .attr('font-family', FONT_FAMILY)
-          .attr('font-size', 15)
-          .attr('font-weight', 'bold')
-          .attr('letter-spacing', 1)
-          .text('TARGET');
-      }
-      g.append('text')
-        .attr('x', cx + lr * ca)
-        .attr('y', cy - lr * sa)
-        .attr('text-anchor', anchor)
-        .attr('dominant-baseline', sa > 0.7 ? 'hanging' : 'middle')
-        .attr('fill', isTarget ? paint.text : paint.muted)
-        .attr('font-family', FONT_FAMILY)
-        .attr('font-size', isTarget ? 30 : 18)
-        .attr('font-weight', isTarget ? 700 : 500)
-        .text(compactNumber(isTarget ? m.target : v.scaleEnd * f));
-    }
-  }
-
-  const rightLabel = m.hasTarget ? 74 : 20;
   return {
-    minX: 0,
-    minY: Math.min(0, crestTop - topRoom),
-    maxX: cx + r + Math.max(rightLabel, sideRoom),
-    maxY: Math.max(hubBottom, colBottom),
+    minX: Math.min(0, ...boxes.map((b) => b.x0)),
+    minY: Math.min(0, crestTop - topRoom, ...boxes.map((b) => b.y0)),
+    maxX: Math.max(cx + r + Math.max(20, sideRoom), ...boxes.map((b) => b.x1)),
+    maxY: Math.max(hubBottom, colBottom, ...boxes.map((b) => b.y1)),
   };
 }

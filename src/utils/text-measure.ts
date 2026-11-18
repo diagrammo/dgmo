@@ -64,6 +64,9 @@ const tableFor = (opts?: MeasureOpts): Record<string, number> =>
  */
 export const CHAR_WIDTH_RATIO = DEFAULT_W;
 
+/** Smallest type, in px, a diagram may be read at (#1844, W_TYPE_BELOW_MINIMUM). */
+export const MIN_READABLE_TYPE_PX = 11;
+
 // The width model is a pure left-to-right fold over per-char ratios, and the
 // same (text, fontSize) pairs recur heavily across layouts (dagre node sizing
 // can run ~89 layouts per render). Memoize whole-string results; capped so
