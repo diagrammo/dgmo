@@ -205,12 +205,12 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'no-value': { description: 'Hide value labels atop each bar' },
       marker: {
         description:
-          'Dashed line at a value or a category (marker 50 Target, marker Q3 Launch)',
+          'Dashed line at a value (marker 50 Target); indented under a row, at its category',
       },
       band: { description: 'Shaded value range (band 40..60 Normal range)' },
       note: {
         description:
-          'Ring a datum and write beside it (note Q2 Frankfurt opens, note Atlantic @ Q2 …)',
+          'Indented under a row: write beside that datum (note Frankfurt opens; several series: note APAC …)',
       },
       mean: {
         description: 'Dashed line at the mean of each series, labelled',
@@ -234,7 +234,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       color: { description: 'Bar color override' },
       highlight: {
         description:
-          'Keep the named bars or series and recede the rest (highlight Nassau)',
+          'Indented under a bar row or a stack/group series name: keep it and recede the rest',
       },
     }),
   ],
@@ -277,11 +277,11 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'no-value': { description: 'Hide value labels at each point' },
       marker: {
         description:
-          'Dashed line at a value or a category (marker 50 Target, marker Q3 Launch)',
+          'Dashed line at a value (marker 50 Target); indented under a row, at its category',
       },
       note: {
         description:
-          'Ring a datum and write beside it (note Q2 Frankfurt opens, note Atlantic @ Q2 …)',
+          'Indented under a row: write beside that datum (note Frankfurt opens; several series: note APAC …)',
       },
       mean: {
         description: 'Dashed line at the mean of each series, labelled',
@@ -312,7 +312,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       },
       highlight: {
         description:
-          'Keep the named series and recede the rest (highlight Revenue)',
+          'Indented under a series name in the series block: keep it and recede the rest',
       },
     }),
   ],
@@ -345,8 +345,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'no-value': { description: 'Hide value from segment labels' },
       'no-percent': { description: 'Hide percent from segment labels' },
       highlight: {
-        description:
-          'Keep the named slices and recede the rest (highlight Rum)',
+        description: 'Indented under a slice row: keep it and recede the rest',
       },
     }),
   ],
@@ -410,7 +409,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'x-max': { description: 'X-axis upper end (x-max 100)' },
       highlight: {
         description:
-          'Keep the named points or categories and recede the rest (highlight Nassau)',
+          'Indented under a point or a [Group] header: keep it and recede the rest',
       },
       marker: {
         description:
@@ -426,7 +425,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       },
       note: {
         description:
-          'Ring a point and write beside it (note Nassau Port opens)',
+          'Indented under a point: ring it and write beside it (note Port opens)',
       },
       'no-notes': { description: 'Hide every note' },
     }),
@@ -528,8 +527,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'y-min': { description: 'Vertical range lower end (y-min 0)' },
       'y-max': { description: 'Vertical range upper end (y-max 100)' },
       highlight: {
-        description:
-          'Keep the named series and recede the rest (highlight Nassau)',
+        description: 'Indented under a series row: keep it and recede the rest',
       },
       marker: {
         description: 'Dashed line at a value (marker 50 Target)',
@@ -537,7 +535,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       band: { description: 'Shaded value range (band 40..60 Normal range)' },
       note: {
         description:
-          'Ring one point and write beside it (note Rust @ 2025 Overtakes Go)',
+          'Indented under a series row: ring it at a period (note 2025 Overtakes Go)',
       },
       'no-notes': { description: 'Hide every note' },
     }),

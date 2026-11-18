@@ -3,13 +3,16 @@
 // It replaces the file's own `highlight` line; `none` clears it.
 import { describe, it, expect } from 'vitest';
 import { render } from '../src/render';
-import { applyHighlightOverride } from '../src/utils/emphasis';
+import {
+  applyHighlightOverride,
+  HIGHLIGHT_OVERRIDE_MARK,
+} from '../src/utils/emphasis';
 
 const LINE = `line Fleet Size
-highlight Navy
 
 series
   Navy
+    highlight
   Merchant
   Pirate
 
@@ -55,8 +58,16 @@ describe('per-export highlight', () => {
     expect(out.slice(0, src.length).filter((l, i) => l !== src[i])).toEqual([
       '//',
     ]);
-    expect(out[1]).toBe('//');
+    // The indented `highlight` under Navy (line 5) is the one replaced.
+    expect(out[4]).toBe('//');
     expect(out.at(-1)).toBe('highlight Pirate');
+  });
+
+  it('on a data chart the appended line rides on the override mark', () => {
+    const out = applyHighlightOverride(LINE, 'Pirate').split('\n');
+    expect(out.at(-2)).toBe(HIGHLIGHT_OVERRIDE_MARK);
+    const sankey = applyHighlightOverride('sankey S\nA -> B 5', 'A');
+    expect(sankey).not.toContain(HIGHLIGHT_OVERRIDE_MARK);
   });
 
   it('a blank override changes nothing', () => {

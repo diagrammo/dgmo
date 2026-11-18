@@ -13,6 +13,7 @@ widths
 stack
   AWS   orange
   Azure blue
+    highlight
   GCP   green
   Other gray
 
@@ -72,7 +73,6 @@ const STORY = `bar Azure leads only in Europe
 subtitle Share of each region's cloud market, 2025
 widths
 fill-solid
-highlight Azure
 
 stack
   AWS   orange

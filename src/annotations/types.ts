@@ -7,7 +7,8 @@
 //
 //   marker <position> [label] [color]   a line at one axis position
 //   band <from>..<to> [label] [color]   a shaded value range
-//   note <datum> [text]                 a ring on one datum, with a leader
+//   note [text]                         indented under its row: a ring on
+//                                       that datum, with a leader (#2078)
 //
 // `era` (an ordered-axis span) stays in each chart's own parser.
 

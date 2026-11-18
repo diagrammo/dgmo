@@ -150,7 +150,7 @@ connect
 
   it('highlight greys the other paths with their points', async () => {
     const h = await draw(
-      GROUPS.replace('connect', 'connect\nhighlight Red Fleet')
+      GROUPS.replace('[Red Fleet] red', '[Red Fleet] red\n  highlight')
     );
     const ground = storyGround(palette, false);
     const line = (name: string) =>

@@ -1,9 +1,11 @@
-// `highlight <Name>[, <Name>…]` on scatter, slope and treemap (#1829, spec
-// §1.11): the named points, series or nodes keep full strength and everything
-// else recedes. A receded element is painted with the grey ground
+// `highlight` on scatter, slope and treemap (#1829, spec §1.11): the named
+// points, series or nodes keep full strength and everything else recedes. On
+// scatter and slope it sits indented under its row or `[Group]` (#2080); a
+// chart-level `highlight <Name>` there is the old form and changes nothing. A receded element is painted with the grey ground
 // (`storyGround`, #2046) and carries no `opacity` attribute; the named ones
 // are drawn solid in their own colour; a name that matches nothing changes
 // nothing.
+import { highlightUnder } from './helpers/highlight-under';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render } from '../src/render';
 import { parseTreemap } from '../src/treemap/parser';
@@ -73,7 +75,7 @@ async function pointOwn(src: string): Promise<Record<string, string | null>> {
 
 describe('highlight on scatter', () => {
   it('keeps the named point solid and greys the rest', async () => {
-    const src = withLine(SCATTER, 'highlight Fancy');
+    const src = highlightUnder(SCATTER, ['Fancy']);
     const f = await pointFill(src);
     const own = await pointOwn(src);
     expect(f['Fancy']).toBe(own['Fancy']);
@@ -83,7 +85,7 @@ describe('highlight on scatter', () => {
   });
 
   it('takes a comma list, case-insensitively', async () => {
-    const src = withLine(SCATTER, 'highlight black pearl, RANGER');
+    const src = highlightUnder(SCATTER, ['Black Pearl', 'Ranger']);
     const f = await pointFill(src);
     const own = await pointOwn(src);
     expect(f['Black Pearl']).toBe(own['Black Pearl']);
@@ -92,7 +94,7 @@ describe('highlight on scatter', () => {
   });
 
   it('keeps every point of a named category', async () => {
-    const src = withLine(SCATTER_CATS, 'highlight Pirate');
+    const src = highlightUnder(SCATTER_CATS, ['Pirate']);
     const f = await pointFill(src);
     const own = await pointOwn(src);
     expect(f['Black Pearl']).toBe(own['Black Pearl']);
@@ -102,7 +104,7 @@ describe('highlight on scatter', () => {
   });
 
   it('paints a receded point and its label with the grey ground', async () => {
-    const h = await draw(withLine(SCATTER, 'highlight Fancy'));
+    const h = await draw(highlightUnder(SCATTER, ['Fancy']));
     const pt = (n: string) =>
       [...h.querySelectorAll('circle[data-name]')].find((c) =>
         c.getAttribute('data-name')!.startsWith(n)
@@ -123,7 +125,7 @@ describe('highlight on scatter', () => {
   });
 
   it('draws receded points before the lit one', async () => {
-    const h = await draw(withLine(SCATTER, 'highlight Black Pearl'));
+    const h = await draw(highlightUnder(SCATTER, ['Black Pearl']));
     const names = [...h.querySelectorAll('circle[data-name]')].map(
       (c) => c.getAttribute('data-name')!.split(' · ')[0]
     );
@@ -171,7 +173,7 @@ const slopeStroke = (g: Element) =>
 
 describe('highlight on slope', () => {
   it('parses the directive and keeps it out of the data', () => {
-    const p = parseSlope(withLine(SLOPE, 'highlight Fancy'));
+    const p = parseSlope(highlightUnder(SLOPE, ['Fancy']));
     expect(p.emphasis?.names).toEqual(['Fancy']);
     expect(p.data.map((d) => d.label)).toEqual([
       'Black Pearl',
@@ -182,7 +184,7 @@ describe('highlight on slope', () => {
   });
 
   it('keeps the named series solid and greys the rest', async () => {
-    const g = await slopeGroups(withLine(SLOPE, 'highlight Fancy'));
+    const g = await slopeGroups(highlightUnder(SLOPE, ['Fancy']));
     expect(slopeStroke(g['Black Pearl']!)).toBe(ground.groundStroke);
     expect(slopeStroke(g['Queen Anne']!)).toBe(ground.groundStroke);
     expect(slopeStroke(g['Fancy']!)).not.toBe(ground.groundStroke);
@@ -191,7 +193,7 @@ describe('highlight on slope', () => {
   });
 
   it('paints the points and labels of a receded series with the ground', async () => {
-    const g = await slopeGroups(withLine(SLOPE, 'highlight Fancy'));
+    const g = await slopeGroups(highlightUnder(SLOPE, ['Fancy']));
     const pearl = g['Black Pearl']!;
     for (const c of pearl.querySelectorAll('circle')) {
       expect(c.getAttribute('opacity')).toBeNull();
@@ -207,7 +209,7 @@ describe('highlight on slope', () => {
   });
 
   it('draws receded series before the lit one', async () => {
-    const h = await draw(withLine(SLOPE, 'highlight Black Pearl'));
+    const h = await draw(highlightUnder(SLOPE, ['Black Pearl']));
     const groups = [...h.querySelectorAll('g.slope-series')];
     expect(groups[groups.length - 1]!.textContent).toContain('Black Pearl');
   });

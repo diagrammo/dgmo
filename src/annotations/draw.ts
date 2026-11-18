@@ -22,6 +22,10 @@ import type {
 export const ANNOTATION_FONT = 11;
 /** Gap between a mark and its label. */
 const LABEL_GAP = 4;
+/** Annotation text drawn under the data that drawMarkers lifts over it. */
+export const LIFT_CLASS = 'dgmo-annotation-lift';
+/** A band's label, lifted over the data by drawMarkers. */
+const BAND_LABEL_CLASS = 'dgmo-annotation-band-label';
 /** How far into the background a band's color is mixed. */
 const BAND_TINT = 14;
 
@@ -108,23 +112,142 @@ export function drawBands(
         .attr('fill', mix(tint, colors.bg, BAND_TINT));
     }
     if (!b.label) continue;
-    // The label sits inside the band's top-left corner.
-    const x = frame.horizontal ? s + LABEL_GAP : frame.left + LABEL_GAP;
+    // The label sits inside the band's top edge at the plot's far end, where
+    // a marker's label sits too (#2078). The band is behind the data, but its
+    // label is not: drawMarkers raises it over the bars, haloed, so a bar
+    // that crosses the band never hides it.
+    const x = frame.horizontal ? s + LABEL_GAP : frame.left + frame.width;
     const y = frame.horizontal
       ? frame.top + ANNOTATION_FONT + LABEL_GAP
       : s + ANNOTATION_FONT + LABEL_GAP / 2;
-    g.append('text')
+    const anchor = frame.horizontal ? 'start' : 'end';
+    const label = svg
+      .append('text')
+      .attr('class', BAND_LABEL_CLASS)
+      .attr('data-line-number', b.lineNumber)
       .attr('x', x)
       .attr('y', y)
-      .attr('text-anchor', 'start')
-      .attr('fill', b.color ?? colors.text)
-      .attr('fill-opacity', 0.8)
+      .attr('text-anchor', anchor)
+      .attr('fill', b.color ? mix(b.color, colors.text, 75) : colors.text)
       .attr('font-size', ANNOTATION_FONT)
+      .attr('font-weight', 600)
       .attr('font-family', FONT_FAMILY)
+      .attr('stroke', colors.bg)
+      .attr('stroke-width', 3)
+      .attr('stroke-linejoin', 'round')
+      .attr('paint-order', 'stroke')
       .text(b.label);
-    boxes.push(labelBox(b.label, { x, y, anchor: 'start' }, ANNOTATION_FONT));
+    const el = label.node();
+    if (el)
+      bandLabels.set(el, {
+        s,
+        e,
+        frame,
+        w: measureText(b.label, ANNOTATION_FONT),
+      });
+    boxes.push(labelBox(b.label, { x, y, anchor }, ANNOTATION_FONT));
   }
   return boxes;
+}
+
+/** A band label's band, for settling it once the data is drawn. */
+const bandLabels = new WeakMap<
+  Element,
+  { s: number; e: number; frame: ValueAxisFrame; w: number }
+>();
+
+/** The boxes of the marks drawn after `el` in its parent: the data. */
+function marksAfter(el: Element): { shapes: LabelRect[]; texts: LabelRect[] } {
+  const shapes: LabelRect[] = [];
+  const texts: LabelRect[] = [];
+  const num = (n: Element, a: string) => Number(n.getAttribute(a) ?? 0);
+  for (let sib = el.nextElementSibling; sib; sib = sib.nextElementSibling) {
+    const all = [sib, ...Array.from(sib.querySelectorAll('rect, text'))];
+    for (const n of all) {
+      const tag = n.tagName.toLowerCase();
+      if (tag === 'rect')
+        shapes.push({
+          x: num(n, 'x'),
+          y: num(n, 'y'),
+          w: num(n, 'width'),
+          h: num(n, 'height'),
+        });
+      else if (tag === 'text' && n.textContent) {
+        const size = num(n, 'font-size') || 12;
+        const anchor = (n.getAttribute('text-anchor') ?? 'start') as
+          | 'start'
+          | 'middle'
+          | 'end';
+        texts.push(
+          labelBox(
+            n.textContent,
+            { x: num(n, 'x'), y: num(n, 'y'), anchor },
+            size
+          )
+        );
+      }
+    }
+  }
+  return { shapes, texts };
+}
+
+/**
+ * Moves a band's label to the first spot inside the band that no bar or
+ * value label covers, then lifts it over them (#2078). Tried along the
+ * band's top edge from the far end, then along its bottom edge. A thin band
+ * may have no such spot: then the first one clear of text, over a bar, with
+ * its halo; failing that it stays at the far end of the top edge.
+ */
+function settleBandLabel(el: Element): void {
+  const info = bandLabels.get(el);
+  const parent = el.parentNode;
+  if (!parent) return;
+  if (info) {
+    const { s, e, frame, w } = info;
+    const { shapes, texts } = marksAfter(el);
+    const h = ANNOTATION_FONT;
+    const hits = (marks: readonly LabelRect[]) => (r: LabelRect) =>
+      marks.some(
+        (m) =>
+          r.x < m.x + m.w + 2 &&
+          m.x < r.x + r.w + 2 &&
+          r.y < m.y + m.h + 2 &&
+          m.y < r.y + r.h + 2
+      );
+    const spots: LabelRect[] = [];
+    if (frame.horizontal) {
+      const x = s + LABEL_GAP;
+      for (
+        let y = frame.top + LABEL_GAP;
+        y + h <= frame.top + frame.height;
+        y += 4
+      )
+        spots.push({ x, y, w, h });
+    } else {
+      const rows = [s + LABEL_GAP / 2, e - h - LABEL_GAP / 2];
+      for (const y of rows)
+        for (
+          let x = frame.left + frame.width - w;
+          x >= frame.left + LABEL_GAP;
+          x -= 4
+        )
+          spots.push({ x, y, w, h });
+    }
+    const fits = (r: LabelRect) =>
+      frame.horizontal ? r.x + r.w <= e : r.y + r.h <= e;
+    const onText = hits(texts);
+    const onShape = hits(shapes);
+    // Clear of everything first; else clear of text, over a bar, haloed.
+    const spot =
+      spots.find((r) => fits(r) && !onText(r) && !onShape(r)) ??
+      spots.find((r) => fits(r) && !onText(r));
+    if (spot) {
+      el.setAttribute('x', String(spot.x));
+      el.setAttribute('y', String(spot.y + h * 0.82));
+      el.setAttribute('text-anchor', 'start');
+    }
+  }
+  parent.appendChild(el);
 }
 
 /** Draws every `marker`; returns the label boxes other labels must clear. */
@@ -134,6 +257,19 @@ export function drawMarkers(
   frame: ValueAxisFrame,
   colors: AnnotationColors
 ): LabelRect[] {
+  // Band labels go over the data drawn since drawBands (#2078).
+  const root = svg.node()?.ownerSVGElement ?? svg.node();
+  if (root)
+    root
+      .querySelectorAll(`.${BAND_LABEL_CLASS}`)
+      .forEach((el) => settleBandLabel(el));
+  // Other annotation text drawn before the data (an era's title) is lifted
+  // over it as it stands.
+  const host = svg.node();
+  if (root && host)
+    root.querySelectorAll(`.${LIFT_CLASS}`).forEach((el) => {
+      if (host.contains(el)) host.appendChild(el);
+    });
   const boxes: LabelRect[] = [];
   const markers = (annotations ?? []).filter(
     (a): a is ChartMarker => a.kind === 'marker'

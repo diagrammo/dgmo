@@ -497,16 +497,23 @@ South 95
 
 ### 1.13 Emphasis — `highlight`
 
-`highlight` keeps the named elements at full strength and recedes everything else, so one item stands out against the rest. It is a chart-level directive on its own line, anywhere in the file:
+`highlight` keeps the named elements at full strength and recedes everything else, so one item stands out against the rest. On the data charts — `bar`, `line`, `pie`, `scatter` and `slope` — it sits **indented under the row it lights**, so it never repeats the name:
 
 ```
 bar Treasure Hauls by Port
-highlight Nassau
 
 Port Royal 850
 Tortuga 620
 Nassau 1100
+  highlight
 Havana 400
+```
+
+On a `line`, and for a series on a `stack` or `group` bar, it sits under the series name in an indented `series` / `stack` / `group` block. On `scatter` it sits under a point, or under a `[Group]` header to light the whole group. Every other chart type takes `highlight <Name>` as a chart-level line, anywhere in the file:
+
+```
+sankey Rum Supply
+highlight Barrel Aging
 ```
 
 | Chart type                                       | What a name matches                                    | What recedes                                                                                         |
@@ -526,48 +533,52 @@ Havana 400
 - **Story view.** The named elements are drawn in their own colour, solid. Everything else turns one neutral grey (the palette's `gray` mixed toward the background), and receded legend entries turn grey too. The grey is baked in, so PNG and SVG exports match the preview. A file without a `highlight` line draws as before.
 - **A path is an arrow chain, written with the diagram's own arrows:** `highlight Edge -> API -> Cache` lights those nodes and the links between them, and nothing else. One link is `highlight Search -> Signup`; a labelled edge uses its label form, `highlight OK? -no-> Pay`. A chain whose link the diagram lacks warns and names it (`highlight names a link this diagram does not have: A -> B`); on `sankey` the warning says _flow_. On `sankey` a chain isolates exactly those flows, where a plain node name lights its whole upstream and downstream.
 - On diagrams (`boxes-and-lines` through `mindmap` above), a name that matches nothing warns: `highlight names nothing in this diagram: X`.
-- **A trailing colour paints the subject:** `highlight Nassau orange`. The colour word is read only when the names as written match nothing, so an element called `Agent Orange` still matches whole.
-- **Several names take a comma** on every chart type above except `family`: `highlight Nassau, Havana`. Without a comma the whole argument is ONE name (`highlight Port Royal`).
+- **A colour paints the subject.** Under a row: `highlight orange`; anything else after `highlight` there warns. On a chart-level line: `highlight Nassau orange` — the colour word is read only when the names as written match nothing, so an element called `Agent Orange` still matches whole.
+- **Several elements:** under rows, a `highlight` under each. On a chart-level line, names take a comma on every chart type except `family`: `highlight Barrel Aging, Spoilage`. Without a comma the whole argument is ONE name.
+- **The old form warns.** On the data charts a chart-level `highlight Nassau` draws nothing and warns with the indented form to write instead.
 - On those, matching ignores case and extra spaces. A name that matches nothing is ignored; when no name matches, nothing recedes.
 - On a stacked or grouped bar, a segment stays lit when its category OR its series is named. On a `scatter`, a point stays lit when its name OR its category is named.
 - On a `treemap`, a block that `depth` collapses stays lit when a named node is inside it.
-- The keyword starts the line (on `slope` and `treemap`, in column 1). On `bar`, `line`, `pie`, `slope` and `treemap` it is lowercase, so a category named `Highlight Reel` (capitalised) stays data. On `scatter` and `sankey` it matches in any case, so a point or node cannot be named `Highlight …`.
+- The keyword is lowercase on the data charts and `treemap`, so a category named `Highlight Reel` (capitalised) stays data. On `sankey` it matches in any case, so a node cannot be named `Highlight …`.
 - `dim <Name>` (recede only the named elements) exists on `sankey` alone. It fades them in place at reduced opacity and keeps their colour.
-- **Per export, without editing the file:** `dgmo chart.dgmo --highlight EMEA`, a docs code block's `highlight="EMEA"` attribute, or the AI tools' render `highlight` parameter. Each replaces the file's own `highlight` line rather than adding to it, and `none` clears it.
+- **Per export, without editing the file:** `dgmo chart.dgmo --highlight EMEA`, a docs code block's `highlight="EMEA"` attribute, or the AI tools' render `highlight` parameter. Each names the elements and replaces the file's own `highlight` lines (indented ones too) rather than adding to them, and `none` clears them.
 - Other chart types do not take `highlight` yet: the line warns `highlight is not supported on <type> yet` and draws nothing.
 
 ### 1.14 Annotations — `marker`, `band`, `era` and `note`
 
-Annotations mark a data chart. They are chart-level directives on their own line, anywhere in the file, on `bar`, `line`, `scatter` and `slope`:
+Annotations mark a data chart, on `bar`, `line`, `scatter` and `slope`. A value-axis `marker`, a `band` and an `era` are chart-level lines, anywhere in the file. A `note` and a category `marker` belong to one row, so they sit **indented under that row** and never repeat its name:
 
 ```
 bar Treasure Hauls by Port
 marker 900 Quota
 band 400..600 Usual haul green
-note Nassau Record haul after the Spanish fleet ran aground
 
 Port Royal 850
 Tortuga 620
 Nassau 1100
+  note Record haul after the Spanish fleet ran aground
+    **Hurricane season** wrecked the *Plate Fleet*
 Havana 400
+  marker Raid red
 ```
 
-| Directive                            | Charts                    | What it draws                                                                                   |
-| ------------------------------------ | ------------------------- | ----------------------------------------------------------------------------------------------- |
-| `marker <value> [label] [color]`     | bar, line, scatter, slope | a dashed line across the plot at a value-axis position, over the data, its label at its far end |
-| `marker <category> [label] [color]`  | bar, line, slope          | a dashed line at a category, its label at its top                                               |
-| `band <from>..<to> [label] [color]`  | bar, line, scatter, slope | a shaded value range, behind the gridlines and data, its label in its corner                    |
-| `era <from> -> <to> [label] [color]` | bar, line                 | a shaded span of categories on the ordered axis                                                 |
-| `note <datum> [text]`                | bar, line, scatter, slope | a ring on one datum and its text in clear plot space, joined by a leader line                   |
+| Directive                            | Where                                        | What it draws                                                                                   |
+| ------------------------------------ | -------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `marker <value> [label] [color]`     | its own line — bar, line, scatter, slope     | a dashed line across the plot at a value-axis position, over the data, its label at its far end |
+| `marker [label] [color]`             | under a row — bar, line                      | a dashed line at that row's category, its label at its top                                      |
+| `marker <period> [label] [color]`    | its own line — slope                         | a dashed line at a period                                                                       |
+| `band <from>..<to> [label] [color]`  | its own line — bar, line, scatter, slope     | a shaded value range behind the data; its label sits in a clear spot over the data              |
+| `era <from> -> <to> [label] [color]` | its own line — bar, line                     | a shaded span of categories on the ordered axis                                                 |
+| `note [text]`                        | under a row — bar, line, scatter, slope      | the text in clear plot space; above a column, or past a bar's end; elsewhere a ring and leader  |
 
 - **The label is the rest of the line.** A trailing colour word (§1.5) colours the mark; without one a `marker` takes the text colour and a `band` a muted tint. Quote the label to keep a final colour word as text: `marker 50 "Code red"`.
-- **Which axis a `marker` sits on.** A number is a value-axis position and a known category is a category position. A multi-word category matches before the label: `marker Port Royal Raid`. When the categories are themselves numbers (years), say which axis: `marker x 2021 Launch` for the category, `marker y 50 Target` for the value — a bare number then warns. On `scatter` both axes are numeric: `marker 50` is y, `marker x 5` is x, and `band x 2..4` shades an x range.
+- **Which axis a `marker` sits on.** On its own line, a number is a value-axis position (`marker y 50` says so outright). Under a row, it marks that row's category — so numeric categories (years) need no axis word. On `scatter` both axes are numeric: `marker 50` is y, `marker x 5` is x, and `band x 2..4` shades an x range. On `bar` and `line` a category marker on its own line (`marker Nassau Raid`) is the old form: it warns and shows the indented one.
 - **The value axis reaches every annotation.** A `marker` or `band` beyond the data widens the axis to include it, on a log axis too. When `y-min` / `y-max` fix an end, a `marker` past it is not drawn and a `band` is cut at it. On a log axis a value at or below 0 is not drawn.
 - On a horizontal bar the value axis runs across, so a value `marker` is vertical and a `band` is a column.
 - On a dual-axis `line`, annotations sit on the left axis.
-- **`note` names one datum.** A bare name is a named datum: a bar's category, a point on a single-series line, a scatter point. On a chart of several series, write `series @ position`: `note EMEA @ Q2 Frankfurt opens`, `note Rust @ 2025 Overtakes Go` on slope; on scatter `[group] @ name` picks a point in that group. Quote a multi-word name: `note "Port Royal" Sacked`. Lines indented under the note continue its text, with inline markdown.
-- **Every note is drawn.** It takes clear space in the plot, and the side margin only when the plot has none. A point value under a note yields to it. Notes stay full strength under `highlight`. `no-notes` hides them all.
-- **A note that misses warns.** No target (suggests `footnote`), a name that matches nothing, or a name that is a whole column or series on a multi-series chart (suggests `marker` or `@`) draws nothing.
+- **A `note` marks the row it sits under.** On a single series that is the whole address: the bar, the point, the scatter point. A row of several series (a multi-series `line`, a `stack` or `group` bar) says which one first: `note APAC Frankfurt opens`. On `slope` a row is a series, so the note starts with its period: `note 2025 Overtakes Go`. Quote a multi-word name. Lines indented under the note continue its text, with inline markdown.
+- **Every note is drawn.** Over a column it stands above the bar and its value, with room reserved over the plot; past a horizontal bar's end it stands to the right. On lines and points it takes clear space with a ring and a leader, and the side margin only when the plot has none. A point value under a note yields to it. Notes stay full strength under `highlight`. `no-notes` hides them all.
+- **A note that misses warns.** A note under something that is not a row, a multi-series note that names no series, and a slope note that names no period draw nothing. The old chart-level `note <datum> …` warns and shows the indented form.
 - Several of each are allowed. On any other chart type the directive is ignored with a warning.
 
 ### 1.15 Output Size — `--width` and `--height`

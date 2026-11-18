@@ -53,7 +53,13 @@ export interface PlacedNoteDatum {
   readonly text: string;
   readonly color: string | null;
   readonly lineNumber: number;
+  /** A bar's end (#2078): the note stands just past it — above a column,
+   *  right of a horizontal bar — with no ring, which would sit on the bar. */
+  readonly beyond?: 'above' | 'right';
 }
+
+/** Distances tried first past a bar's end, before the usual spots. */
+const BEYOND_DISTANCES = [4, 12, 24];
 
 interface Bounds {
   readonly left: number;
@@ -154,15 +160,24 @@ export function drawChartNotes(
     markers: [
       ...(opts.markers ?? []),
       // Every note's ring is a mark the other notes must clear.
-      ...notes.map((n) => ({ cx: n.x, cy: n.y, r: n.r + RING_GAP + 2 })),
+      ...notes
+        .filter((n) => !n.beyond)
+        .map((n) => ({ cx: n.x, cy: n.y, r: n.r + RING_GAP + 2 })),
     ],
   });
   const boxes: LabelRect[] = [];
   for (const n of notes) {
     const { lines, w, h } = noteBlock(n.text);
-    const tries = DISTANCES.flatMap((d) =>
-      DIRECTIONS.map((dir) => boxAt(n, dir, d + n.r, w, h))
-    );
+    const beyond: [number, number] | null =
+      n.beyond === 'above' ? [0, -1] : n.beyond === 'right' ? [1, 0] : null;
+    const tries = [
+      ...(beyond
+        ? BEYOND_DISTANCES.map((d) => boxAt(n, beyond, d + n.r, w, h))
+        : []),
+      ...DISTANCES.flatMap((d) =>
+        DIRECTIONS.map((dir) => boxAt(n, dir, d + n.r, w, h))
+      ),
+    ];
     const clear = (b: LabelRect, area: Bounds) => {
       const p = pad(b, NOTE_PAD);
       return (
@@ -180,24 +195,26 @@ export function drawChartNotes(
     boxes.push(box);
 
     const stroke = n.color ?? opts.colors.text;
-    const ringR = n.r + RING_GAP;
+    const ringR = beyond ? 0 : n.r + RING_GAP;
     const g = svg
       .append('g')
       .attr('class', 'dgmo-chart-note')
       .attr('data-line-number', n.lineNumber);
-    g.append('circle')
-      .attr('class', 'dgmo-chart-note-ring')
-      .attr('cx', n.x)
-      .attr('cy', n.y)
-      .attr('r', ringR)
-      .attr('fill', 'none')
-      .attr('stroke', stroke)
-      .attr('stroke-width', 1.5);
+    if (!beyond)
+      g.append('circle')
+        .attr('class', 'dgmo-chart-note-ring')
+        .attr('cx', n.x)
+        .attr('cy', n.y)
+        .attr('r', ringR)
+        .attr('fill', 'none')
+        .attr('stroke', stroke)
+        .attr('stroke-width', 1.5);
     // Leader: from the ring's rim to the nearest point of the text box.
     const tx = Math.max(box.x, Math.min(n.x, box.x + box.w));
     const ty = Math.max(box.y, Math.min(n.y, box.y + box.h));
     const len = Math.hypot(tx - n.x, ty - n.y);
-    if (len > ringR + 2) {
+    // A note standing just past a bar's end reads as its caption: no leader.
+    if (len > ringR + 2 && !(beyond && len < 16)) {
       const ux = (tx - n.x) / len;
       const uy = (ty - n.y) / len;
       g.append('line')

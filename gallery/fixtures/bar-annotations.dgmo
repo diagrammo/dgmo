@@ -4,10 +4,10 @@ y-label Doubloons
 marker 900 Quota
 band 400..600 Usual haul green
 era Tortuga -> Nassau Republic of Pirates
-note Nassau Spanish fleet ran aground
-  **1715** hurricane season
 
 Port Royal 850
 Tortuga 620
 Nassau 1100
+  note Spanish fleet ran aground
+    **1715** hurricane season
 Havana 400

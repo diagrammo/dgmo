@@ -1,9 +1,10 @@
-// `highlight <Name>[, <Name>…]` on bar, line and pie (#1829, spec §1.11): the
-// named categories, series or slices keep full strength and everything else
+// `highlight` on bar, line and pie (#1829, spec §1.11), indented under its
+// row or series name (#2080): the named categories, series or slices keep full strength and everything else
 // recedes. A receded element is painted with the grey ground (`storyGround`,
 // #2046) — its fill, stroke and label text are replaced, and it carries no
 // `opacity` attribute — the named elements are drawn solid in their own
 // colour, and a name that matches nothing changes nothing.
+import { highlightUnder } from './helpers/highlight-under';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { renderDataChartD3 } from '../src/charts-d3/index';
 import { parseChart } from '../src/chart';
@@ -57,7 +58,7 @@ async function barOwn(src: string): Promise<Record<string, string | null>> {
 
 describe('highlight on bar', () => {
   it('keeps the named bar solid in its own colour and greys the rest', async () => {
-    const src = BAR.replace('\n\n', '\nhighlight Nassau\n\n');
+    const src = highlightUnder(BAR, ['Nassau']);
     const f = await barFill(src);
     const own = await barOwn(src);
     expect(f['Nassau']).toBe(own['Nassau']);
@@ -66,8 +67,8 @@ describe('highlight on bar', () => {
     expect(f['Havana']).toBe(ground.groundFill);
   });
 
-  it('takes a comma list, case-insensitively', async () => {
-    const src = BAR.replace('\n\n', '\nhighlight port royal, HAVANA\n\n');
+  it('a highlight under each of several rows lights them all', async () => {
+    const src = highlightUnder(BAR, ['Port Royal', 'Havana']);
     const f = await barFill(src);
     const own = await barOwn(src);
     expect(f['Port Royal']).toBe(own['Port Royal']);
@@ -77,7 +78,7 @@ describe('highlight on bar', () => {
   });
 
   it('paints a receded bar with the grey ground, outline included', async () => {
-    const lit = await draw(BAR.replace('\n\n', '\nhighlight Nassau\n\n'));
+    const lit = await draw(highlightUnder(BAR, ['Nassau']));
     const bars = [...lit.querySelectorAll('rect[data-name]')];
     const tortuga = bars.find(
       (r) => r.getAttribute('data-name') === 'Tortuga'
@@ -93,20 +94,18 @@ describe('highlight on bar', () => {
 
   it('keeps the receded bar its own data-color for hover', async () => {
     const plain = await barOwn(BAR);
-    const lit = await barOwn(BAR.replace('\n\n', '\nhighlight Nassau\n\n'));
+    const lit = await barOwn(highlightUnder(BAR, ['Nassau']));
     expect(lit).toEqual(plain);
   });
 
   it('a trailing colour word paints the named bar with that palette colour', async () => {
-    const f = await barFill(
-      BAR.replace('\n\n', '\nhighlight Nassau orange\n\n')
-    );
+    const f = await barFill(highlightUnder(BAR, ['Nassau'], 'orange'));
     expect(f['Nassau']).toBe(palette.colors.orange);
     expect(f['Tortuga']).toBe(ground.groundFill);
   });
 
   it('a name that ends in a colour word still matches whole', async () => {
-    const AGENT = `bar Agents\n\nhighlight Agent Orange\n\nAgent Orange 5\nAgent Smith 7`;
+    const AGENT = `bar Agents\n\nAgent Orange 5\n  highlight\nAgent Smith 7`;
     const f = await barFill(AGENT);
     const own = await barOwn(AGENT);
     expect(f['Agent Orange']).toBe(own['Agent Orange']);
@@ -115,7 +114,7 @@ describe('highlight on bar', () => {
   });
 
   it('paints the value label of a receded bar with the ground text', async () => {
-    const h = await draw(BAR.replace('\n\n', '\nhighlight Nassau\n\n'));
+    const h = await draw(highlightUnder(BAR, ['Nassau']));
     const label = (t: string) =>
       [...h.querySelectorAll('text')].find((e) => e.textContent === t);
     expect(label('1,100')?.getAttribute('fill')).toBe(palette.text);
@@ -123,21 +122,29 @@ describe('highlight on bar', () => {
     expect(label('850')?.getAttribute('opacity') ?? null).toBeNull();
   });
 
-  it('a name that matches nothing changes nothing', async () => {
-    const named = await barFill(
-      BAR.replace('\n\n', '\nhighlight Kingston\n\n')
+  it('the old chart-level line changes nothing and shows the indented form', async () => {
+    const src = BAR.replace('\n\n', '\nhighlight Nassau\n\n');
+    expect(await barFill(src)).toEqual(await barFill(BAR));
+    expect(parseChart(src).diagnostics.map((d) => d.message)).toEqual([
+      expect.stringContaining('Nassau\n  highlight'),
+    ]);
+  });
+
+  it('under a row, a name after highlight warns: the row names it', () => {
+    const c = parseChart(
+      BAR.replace('Nassau 1100', 'Nassau 1100\n  highlight Kingston')
     );
-    const plain = await barFill(BAR);
-    expect(named).toEqual(plain);
+    expect(c.diagnostics.map((d) => d.message)).toEqual([
+      expect.stringContaining('takes only a colour here'),
+    ]);
   });
 
   it('on a stacked bar, a series name keeps that series in every bar', async () => {
     const STACK = `bar Cargo by Port
 
-highlight Rum
-
 stack
   Rum
+    highlight
   Silk
   Spice
 
@@ -158,14 +165,13 @@ Tortuga 5 15 25`;
   it('on a stacked bar, a category name keeps every segment of that bar', async () => {
     const STACK = `bar Cargo by Port
 
-highlight Tortuga
-
 stack
   Rum
   Silk
 
 Port Royal 10 20
-Tortuga 5 15`;
+Tortuga 5 15
+  highlight`;
     const h = await draw(STACK);
     for (const r of h.querySelectorAll<SVGRectElement>('rect[data-name]')) {
       const tortuga = r.getAttribute('data-name')!.startsWith('Tortuga');
@@ -189,10 +195,9 @@ Tortuga 5 15`;
 describe('highlight on line', () => {
   const LINE = `line Fleet Size
 
-highlight Navy
-
 series
   Navy
+    highlight
   Merchant
   Pirate
 
@@ -249,9 +254,8 @@ series
 describe('highlight on pie', () => {
   const PIE = `pie Plunder Share
 
-highlight Rum
-
 Rum 40
+  highlight
 Silk 35
 Spice 25`;
 
@@ -289,7 +293,7 @@ Spice 25`;
 
 describe('highlight is not adopted elsewhere in this parser', () => {
   it('radar reads it as ordinary content', () => {
-    const c = parseChart(`radar Crew\n\nhighlight Speed\nSpeed 5\nStrength 3`);
+    const c = parseChart(`radar Crew\n\nSpeed 5\n  highlight\nStrength 3`);
     expect(c.emphasis).toBeUndefined();
   });
 

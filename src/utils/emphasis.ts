@@ -304,6 +304,31 @@ export const HIGHLIGHT_CHART_TYPES: ReadonlySet<string> = new Set([
 
 const HIGHLIGHT_LINE_RE = /^highlight(?:\s|$)/;
 
+/** The data charts whose `highlight` sits under its row (#2080). */
+const ANCHORED_HIGHLIGHT_TYPES: ReadonlySet<string> = new Set([
+  'bar',
+  'line',
+  'pie',
+  'scatter',
+  'slope',
+]);
+const ANCHORED_HIGHLIGHT_RE = /^\s+highlight(?:\s+\S+)?\s*$/;
+
+/**
+ * Marks the line a per-export `highlight` appends on a data chart, whose own
+ * `highlight` lines sit under rows. Internal; read by annotations/anchored.ts.
+ */
+export const HIGHLIGHT_OVERRIDE_MARK = '//@highlight-override';
+
+function firstToken(lines: readonly string[]): string {
+  for (const l of lines) {
+    const t = l.trim();
+    if (!t || t.startsWith('//')) continue;
+    return t.split(/\s+/, 1)[0]!.toLowerCase();
+  }
+  return '';
+}
+
 /**
  * A lowercase `highlight` at the start of a line is reserved on every chart
  * type (§1.13). On a type that does not read it yet, the line is commented out
@@ -390,10 +415,21 @@ export function applyHighlightOverride(
 ): string {
   const value = override?.trim();
   if (!value) return content;
-  const lines = content
-    .split('\n')
-    .map((line) => (HIGHLIGHT_LINE_RE.test(line) ? '//' : line));
-  if (value.toLowerCase() !== 'none') lines.push(`highlight ${value}`);
+  const split = content.split('\n');
+  // On the data charts a `highlight` sits indented under its row (#2080),
+  // so there is no row for an override to sit under: it rides on a marked
+  // line instead, which only those parsers read (annotations/anchored.ts).
+  const anchored = ANCHORED_HIGHLIGHT_TYPES.has(firstToken(split));
+  const lines = split.map((line) =>
+    HIGHLIGHT_LINE_RE.test(line) ||
+    (anchored && ANCHORED_HIGHLIGHT_RE.test(line))
+      ? '//'
+      : line
+  );
+  if (value.toLowerCase() !== 'none') {
+    if (anchored) lines.push(HIGHLIGHT_OVERRIDE_MARK);
+    lines.push(`highlight ${value}`);
+  }
   return lines.join('\n');
 }
 

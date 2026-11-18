@@ -125,7 +125,9 @@ Loss -10`);
   });
 
   it('highlight dims the other stems and dots', async () => {
-    const { dots, stems } = await draw(`${SINGLE}\nhighlight Nassau`);
+    const { dots, stems } = await draw(
+      SINGLE.replace('Nassau 80', 'Nassau 80\n  highlight')
+    );
     const lit = dots.findIndex((d) => d.getAttribute('data-name') === 'Nassau');
     // Story view repaints the ground; both stem and dot follow it.
     const groundStroke = stems[(lit + 1) % 3]!.getAttribute('stroke');

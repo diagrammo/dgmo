@@ -8,11 +8,11 @@ series
 
 marker y 40 Break-even
 era 1717 -> 1718 Blockade of Charleston
-note Blackbeard @ 1718 Queen Anne's Revenge runs aground
-note Vane @ 1720 Hanged at Port Royal
 
 1716 12 8 10
 1717 28 16 22
 1718 46 24 31
+  note Blackbeard Queen Anne's Revenge runs aground
 1719 30 19 36
 1720 22 11 18
+  note Vane Hanged at Port Royal

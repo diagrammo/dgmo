@@ -1,5 +1,4 @@
 scatter Startup Funding vs Revenue
-highlight Fintech
 x-label Funding ($M)
 y-label Annual Revenue ($M)
 
@@ -11,6 +10,7 @@ y-label Annual Revenue ($M)
   NexGen 3.5 1.2
 
 [Fintech] green
+  highlight
   PayFlow 45 32
   LendTech 18 12.5
   CoinBase+ 60 41

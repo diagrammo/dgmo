@@ -222,6 +222,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **A `note`, a `highlight` and a category `marker` sit indented under the row
+  they belong to (diagrammo/diagrammo#2078, diagrammo/diagrammo#2080).** On
+  bar, line, pie, scatter and slope the row above names the datum, so the line
+  no longer repeats it: `Nassau 1100` then `  note Record haul`, or
+  `  highlight`. A line's series and a stack or group bar's series take their
+  `highlight` under the name in the indented series block; a scatter group
+  under its `[Group]` header; a line's series band under its `band` line. A
+  note on a row of several series starts with the series (`note APAC …`); on
+  slope with the period (`note 2025 …`). Under a numeric category a `marker`
+  needs no `x`. The chart-level `note <datum>`, `highlight <name>` and
+  category `marker` on these charts warn and show the indented form; nothing
+  else changes for the other chart types. Per-export `--highlight` still
+  names elements and replaces the indented lines.
 - **The advanced types' overlay doc comment lists every overlay** — `mean`,
   `median`, `target`, `trend`, `moving-average`, `extremes`, `pareto`.
 - **goal: `now` is renamed `actual` (#1973).** `now` is an error that names
@@ -289,6 +302,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `else if` with no condition now says so.
 
 ### Fixed
+
+- **bar: a note stands above its column, and annotation text is never behind
+  a bar (diagrammo/diagrammo#2078).** A note on a column sits over the bar and
+  its value label, with room reserved above the plot when the bar is tall,
+  instead of ringing the bar's top and running its leader across it; past a
+  horizontal bar's end it stands to the right. A `band`'s label moves to a
+  clear spot in the band and is drawn over the data with a halo, on every
+  chart that takes `band`; an `era`'s title on bar is drawn over the bars.
+- **A note keeps its bar through `sort` and the other settle steps.** Notes
+  had been resolved to category positions before the bars were reordered.
 
 - **flowchart: a retry loop no longer runs along the edge it returns on
   (diagrammo/diagrammo#2034).** A back edge between nodes in adjacent ranks, such as

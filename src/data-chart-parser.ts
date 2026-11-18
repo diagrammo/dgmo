@@ -9,15 +9,24 @@ import type {
   ChartAnnotation,
   ChartNote,
   RawAnnotation,
-  RawChartNote,
 } from './annotations/types';
 import {
   malformedAnnotation,
   parseAnnotationLine,
   parseChartNoteLine,
   resolveAnnotations,
-  resolvePointNotes,
 } from './annotations/parse';
+import {
+  anchoredEmphasis,
+  anchoredNoteText,
+  declaresType,
+  highlightColor,
+  liftAnchored,
+  topLevelMoved,
+  warnNoAnchor,
+} from './annotations/anchored';
+
+const SCATTER_ONLY: ReadonlySet<string> = new Set(['scatter']);
 import type { LegendGroupData } from './utils/legend-types';
 
 // ============================================================
@@ -419,7 +428,11 @@ function parseExtendedChartFull(
   content: string,
   palette?: PaletteColors
 ): ParsedExtendedChartFull {
-  const lines = content.split('\n');
+  // Scatter's `note` and `highlight` sit indented under their point or
+  // `[Group]` (#2078, #2080); lifted here, resolved after the loop.
+  const isScatter = declaresType(content.split('\n'), SCATTER_ONLY);
+  const lifted = isScatter ? liftAnchored(content.split('\n')) : null;
+  const lines = lifted ? lifted.lines : content.split('\n');
   const result: ParsedExtendedChartFull = {
     type: 'scatter',
     data: [],
@@ -430,7 +443,6 @@ function parseExtendedChartFull(
   // Track current category for grouped scatter charts
   let currentCategory = 'Default';
   const rawAnnotations: RawAnnotation[] = [];
-  const rawNotes: RawChartNote[] = [];
   const rawOverlays: ChartOverlay[] = [];
 
   // Sankey indentation state: stack of source nodes by indent level
@@ -573,7 +585,15 @@ function parseExtendedChartFull(
         palette
       );
       if (noteLine) {
-        rawNotes.push(noteLine.note);
+        // The old top-level form (#2078): a note sits under its point now.
+        result.diagnostics.push(
+          topLevelMoved(
+            'note',
+            noteLine.note.text.split('\n')[0] ?? '',
+            lineNumber,
+            noteLine.note.target || '<point>'
+          )
+        );
         i = noteLine.lastIndex;
         continue;
       }
@@ -884,7 +904,12 @@ function parseExtendedChartFull(
       // simply replaces the earlier one.
       if (isEmphasisToken(firstToken)) {
         const directive = parseEmphasisDirective(trimmed, lineNumber);
-        if (directive) result.emphasis = directive;
+        // On scatter a `highlight` sits under its point or group (#2080).
+        if (directive && result.type === 'scatter')
+          result.diagnostics.push(
+            topLevelMoved('highlight', '', lineNumber, directive.names[0]!)
+          );
+        else if (directive) result.emphasis = directive;
         continue;
       }
 
@@ -1243,15 +1268,70 @@ function parseExtendedChartFull(
       result.diagnostics
     );
     if (resolved.length) result.annotations = resolved;
-    const notes = resolvePointNotes(
-      rawNotes,
-      (result.scatterPoints ?? []).map((p) => ({
-        name: p.name,
-        category: p.category,
-      })),
-      result.diagnostics
+    const points = result.scatterPoints ?? [];
+    const pointAt = new Map(points.map((p, k) => [p.lineNumber, k]));
+    const groupAt = new Map(
+      Object.entries(result.categoryLineNumbers ?? {}).map(([name, ln]) => [
+        ln,
+        name,
+      ])
     );
+    const notes: ChartNote[] = [];
+    const lit: { name: string; color: string | null; lineNumber: number }[] =
+      [];
+    for (const a of lifted?.anchored ?? []) {
+      const k = pointAt.get(a.anchorLine);
+      if (a.keyword === 'highlight') {
+        const name =
+          k !== undefined ? points[k]!.name : groupAt.get(a.anchorLine);
+        if (name === undefined) {
+          warnNoAnchor(a, 'a point or a [Group] header', result.diagnostics);
+          continue;
+        }
+        lit.push({
+          name,
+          color: highlightColor(a, result.diagnostics),
+          lineNumber: a.lineNumber,
+        });
+        continue;
+      }
+      if (a.keyword === 'marker') {
+        result.diagnostics.push(
+          makeDgmoError(
+            a.lineNumber,
+            'On scatter a marker is a value on an axis, not a point — write it on its own line: marker 50 Target, or marker x 5 Launch.',
+            'warning'
+          )
+        );
+        continue;
+      }
+      if (k === undefined) {
+        warnNoAnchor(a, 'a point', result.diagnostics);
+        continue;
+      }
+      const note = anchoredNoteText(a, result.diagnostics, palette);
+      const text = [note.header, note.body].filter(Boolean).join('\n');
+      if (!text.trim()) {
+        result.diagnostics.push(
+          makeDgmoError(
+            a.lineNumber,
+            'This note has no text — ignored.',
+            'warning'
+          )
+        );
+        continue;
+      }
+      notes.push({
+        series: 0,
+        index: k,
+        text,
+        color: note.color,
+        lineNumber: a.lineNumber,
+      });
+    }
     if (notes.length) result.notes = notes;
+    const emphasis = lifted?.override ?? anchoredEmphasis(lit);
+    if (emphasis) result.emphasis = emphasis;
     const overlays = settleOverlays(
       rawOverlays,
       { type: 'scatter' },

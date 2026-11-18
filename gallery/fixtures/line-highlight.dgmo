@@ -1,9 +1,9 @@
 line Fleet Size by Navy
-highlight Royal Navy
 y-label Ships of the line
 
 series
   Royal Navy
+    highlight
   French Navy
   Spanish Navy
   Dutch Navy

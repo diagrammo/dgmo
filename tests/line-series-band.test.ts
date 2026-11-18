@@ -158,14 +158,21 @@ B 11 9 12`);
   });
 
   it('highlight greys the band when another series is the subject', async () => {
-    const h = await draw(FORECAST.replace('band', 'highlight Actual\nband'));
+    const h = await draw(
+      FORECAST.replace('  Actual blue', '  Actual blue\n    highlight')
+    );
     expect(bandPath(h).getAttribute('fill')).toBe(
       storyGround(palette, false).groundFill
     );
   });
 
   it('highlight on the band keeps its colour and greys the lines', async () => {
-    const h = await draw(FORECAST.replace('band', 'highlight Forecast\nband'));
+    const h = await draw(
+      FORECAST.replace(
+        'band Forecast Low High',
+        'band Forecast Low High\n  highlight'
+      )
+    );
     expect(bandPath(h).getAttribute('fill')).toBe(palette.colors.green);
     const line = h.querySelector('g.dgmo-series path.dgmo-series-line')!;
     expect(line.getAttribute('stroke')).toBe(

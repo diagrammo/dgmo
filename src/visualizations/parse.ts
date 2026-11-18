@@ -7,14 +7,25 @@
 // parseVisualization from this module, not from d3.ts. Behavior is identical.
 // ============================================================
 
-import type { RawAnnotation, RawChartNote } from '../annotations/types';
+import type { ChartNote, RawAnnotation } from '../annotations/types';
 import {
   malformedAnnotation,
   parseAnnotationLine,
   parseChartNoteLine,
   resolveAnnotations,
-  resolveChartNotes,
 } from '../annotations/parse';
+import {
+  anchoredEmphasis,
+  anchoredNoteText,
+  declaresType,
+  highlightColor,
+  leadingName,
+  liftAnchored,
+  topLevelMoved,
+  warnNoAnchor,
+} from '../annotations/anchored';
+
+const SLOPE_ONLY: ReadonlySet<string> = new Set(['slope']);
 import { chartTypes, RETIRED_CHART_TYPES } from '../chart-types';
 import type { PaletteColors } from '../palettes';
 import { resolveColorWithDiagnostic } from '../colors';
@@ -147,7 +158,12 @@ function parseVisualizationFull(
     return fail(0, 'Empty content');
   }
 
-  const lines = content.split('\n');
+  // Slope's `note` and `highlight` sit indented under their series row
+  // (#2078, #2080); lifted here, resolved at the end.
+  const lifted = declaresType(content.split('\n'), SLOPE_ONLY)
+    ? liftAnchored(content.split('\n'))
+    : null;
+  const lines = lifted ? lifted.lines : content.split('\n');
 
   // ── BL-121: timeline date directives + carry-forward year context ──
   // Pre-scanned so directives may precede or follow the dates they govern, and
@@ -243,7 +259,6 @@ function parseVisualizationFull(
   let timelineMarkerBlockIndent = 0;
   let inSlopePeriodBlock = false;
   const slopeAnnotations: RawAnnotation[] = [];
-  const slopeNotes: RawChartNote[] = [];
   const timelineAliasMap = new Map<string, string>();
   const VALID_D3_TYPES = new Set([
     'slope',
@@ -353,7 +368,15 @@ function parseVisualizationFull(
         palette
       );
       if (noteLine) {
-        slopeNotes.push(noteLine.note);
+        // The old top-level form (#2078): a note sits under its series row.
+        result.diagnostics.push(
+          topLevelMoved(
+            'note',
+            noteLine.note.text.split('\n')[0] ?? '',
+            lineNumber,
+            noteLine.note.series ?? (noteLine.note.target || '<series>')
+          )
+        );
         i = noteLine.lastIndex;
         inSlopePeriodBlock = false;
         continue;
@@ -368,7 +391,10 @@ function parseVisualizationFull(
     if (result.type === 'slope' && indent === 0 && /^highlight\s/.test(line)) {
       const directive = parseEmphasisDirective(line, lineNumber);
       if (directive) {
-        result.emphasis = directive;
+        // The old top-level form (#2080): it sits under its series row now.
+        result.diagnostics.push(
+          topLevelMoved('highlight', '', lineNumber, directive.names[0]!)
+        );
         inSlopePeriodBlock = false;
         continue;
       }
@@ -1713,16 +1739,56 @@ function parseVisualizationFull(
     result.diagnostics
   );
   if (annotations.length) result.annotations = annotations;
-  const notes = resolveChartNotes(
-    slopeNotes,
-    {
-      positions: result.periods,
-      series: result.data.map((d) => d.label),
-      multiSeries: true,
-    },
-    result.diagnostics
-  );
+  const rowAt = new Map(result.data.map((d, k) => [d.lineNumber, k]));
+  const notes: ChartNote[] = [];
+  const lit: { name: string; color: string | null; lineNumber: number }[] = [];
+  for (const a of lifted?.anchored ?? []) {
+    const k = rowAt.get(a.anchorLine);
+    if (k === undefined) {
+      warnNoAnchor(a, 'a series row', result.diagnostics);
+      continue;
+    }
+    if (a.keyword === 'highlight') {
+      lit.push({
+        name: result.data[k]!.label,
+        color: highlightColor(a, result.diagnostics),
+        lineNumber: a.lineNumber,
+      });
+      continue;
+    }
+    if (a.keyword === 'marker') {
+      warn(
+        a.lineNumber,
+        'On slope a marker is a value or a period, not a series — write it on its own line: marker 50 Target, or marker 2022 Launch.'
+      );
+      continue;
+    }
+    // A note names the period it marks first: `note 2025 Overtakes Go`.
+    const note = anchoredNoteText(a, result.diagnostics, palette);
+    const hit = leadingName(note.header, result.periods);
+    if (!hit) {
+      warn(
+        a.lineNumber,
+        `A slope note starts with the period it marks: note ${result.periods.at(-1) ?? '<period>'} ${note.header || '…'}`
+      );
+      continue;
+    }
+    const text = [hit.rest, note.body].filter(Boolean).join('\n');
+    if (!text.trim()) {
+      warn(a.lineNumber, 'This note has no text — ignored.');
+      continue;
+    }
+    notes.push({
+      series: k,
+      index: hit.index,
+      text,
+      color: note.color,
+      lineNumber: a.lineNumber,
+    });
+  }
   if (notes.length) result.notes = notes;
+  const emphasis = lifted?.override ?? anchoredEmphasis(lit);
+  if (emphasis) result.emphasis = emphasis;
 
   return result;
 }

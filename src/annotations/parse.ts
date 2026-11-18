@@ -3,11 +3,12 @@
 // ============================================================
 //
 //   marker 50 Target              a value-axis line
-//   marker Q3 "Price change" red  a category-axis line
-//   marker x 2020 Launch          the axis named, for numeric categories
+//   marker 2022 Launch            a period line (slope; periods share a line)
 //   band 40..60 Normal range      a value range
-//   note Q2 Frankfurt opens       a named datum (single series)
-//   note Atlantic @ Q2 Frankfurt opens  a series at a position
+//
+// A `note`, a `highlight` and a category `marker` sit indented under the row
+// they belong to (anchored.ts, #2078). `parseChartNoteLine` remains only to
+// recognize the old top-level `note <datum>` form and say where it went.
 //
 // A label is everything after the position. A trailing color word colors the
 // mark; quote the label to keep a final color word as text. The parser reads
@@ -18,10 +19,10 @@ import { makeDgmoError, type DgmoError } from '../diagnostics';
 import type { PaletteColors } from '../palettes';
 import { extractColor } from '../utils/parsing';
 import { collectNoteBody, parseNoteHeader } from '../utils/notes/parse';
+import { topLevelMoved } from './anchored';
 import type {
   ChartAnnotation,
   ChartMarker,
-  ChartNote,
   RawAnnotation,
   RawChartNote,
 } from './types';
@@ -118,6 +119,42 @@ export function malformedAnnotation(trimmed: string): string | null {
 export interface MarkerAxes {
   /** The category names on the cross axis; null when it is numeric. */
   readonly categories: readonly string[] | null;
+  /** True when each category is a row of its own, so a category `marker`
+   *  sits indented under that row (#2078) and a top-level one is the old
+   *  form. Slope's periods share one line, so they keep the named form. */
+  readonly categoryRows?: boolean;
+}
+
+/**
+ * A `marker [label] [color]` line indented under a category row (#2078):
+ * a cross-axis line at that row's category.
+ */
+export function anchoredMarker(
+  text: string,
+  category: string,
+  lineNumber: number,
+  diagnostics: DgmoError[],
+  palette?: Palette
+): ChartMarker {
+  const lone = RECOGNIZED_COLOR_NAMES.includes(
+    text as (typeof RECOGNIZED_COLOR_NAMES)[number]
+  );
+  const { text: label, color } = lone
+    ? {
+        text: '',
+        color:
+          resolveColorWithDiagnostic(text, lineNumber, diagnostics, palette) ??
+          null,
+      }
+    : peelColor(text, lineNumber, diagnostics, palette);
+  return {
+    kind: 'marker',
+    axis: 'cross',
+    at: category,
+    label: unquote(label),
+    color,
+    lineNumber,
+  };
 }
 
 /** The longest run of leading words of `text` that names a category. */
@@ -204,6 +241,23 @@ export function resolveAnnotations(
       }
       out.push(
         raw.axisHint === 'x' ? { ...value(num), axis: 'cross' } : value(num)
+      );
+      continue;
+    }
+    if (axes.categoryRows) {
+      // Categories are rows: a top-level marker is a value-axis line.
+      if (num && raw.axisHint !== 'x') {
+        out.push(value(num));
+        continue;
+      }
+      const hit = matchCategory(raw.text, cats);
+      diagnostics.push(
+        topLevelMoved(
+          'marker',
+          hit ? hit.rest : '',
+          raw.lineNumber,
+          hit ? hit.category : '<row>'
+        )
       );
       continue;
     }
@@ -297,138 +351,6 @@ export function parseChartNoteLine(
       lineNumber,
     },
     lastIndex: body.lastIndex,
-  };
-}
-
-/** The data a note may name, for {@link resolveChartNotes}. */
-export interface NoteTargets {
-  /** Positions along the cross axis (categories, periods). */
-  readonly positions: readonly string[];
-  /** Series names, in index order. One entry on a single-series chart. */
-  readonly series: readonly string[];
-  /** True when a bare position names a column rather than one datum. */
-  readonly multiSeries: boolean;
-}
-
-/**
- * Resolves raw notes to data points on a category chart (bar, line, slope).
- * A note that names nothing, only a column, or no target warns on its line.
- */
-export function resolveChartNotes(
-  raws: readonly RawChartNote[],
-  targets: NoteTargets,
-  diagnostics: DgmoError[]
-): ChartNote[] {
-  const out: ChartNote[] = [];
-  const warn = (line: number, msg: string) =>
-    diagnostics.push(makeDgmoError(line, msg, 'warning'));
-  for (const raw of raws) {
-    if (!checkNote(raw, warn)) continue;
-    const ci = targets.positions.indexOf(raw.target);
-    if (raw.series !== null) {
-      let si = targets.series.indexOf(raw.series);
-      if (si < 0 && !targets.multiSeries) si = 0;
-      if (si < 0) {
-        warn(
-          raw.lineNumber,
-          `Note on "${raw.series} @ ${raw.target}": no series named "${raw.series}" — nothing is drawn.`
-        );
-        continue;
-      }
-      if (ci < 0) {
-        warn(
-          raw.lineNumber,
-          `Note on "${raw.series} @ ${raw.target}": nothing at "${raw.target}" — nothing is drawn.`
-        );
-        continue;
-      }
-      out.push(toNote(raw, si, ci));
-      continue;
-    }
-    if (ci >= 0 && !targets.multiSeries) {
-      out.push(toNote(raw, 0, ci));
-      continue;
-    }
-    if (ci >= 0) {
-      warn(
-        raw.lineNumber,
-        `Note on "${raw.target}" names a whole column — name one point with note <series> @ ${raw.target}, or mark the column with marker ${raw.target}.`
-      );
-      continue;
-    }
-    if (targets.multiSeries && targets.series.includes(raw.target)) {
-      warn(
-        raw.lineNumber,
-        `Note on "${raw.target}" names a whole series — name one point with note ${raw.target} @ <position>.`
-      );
-      continue;
-    }
-    warn(
-      raw.lineNumber,
-      `Note on "${raw.target}" matches nothing on the chart — nothing is drawn.`
-    );
-  }
-  return out;
-}
-
-/**
- * Resolves raw notes to named points (scatter). `group @ name` picks the
- * point in that `[group]`.
- */
-export function resolvePointNotes(
-  raws: readonly RawChartNote[],
-  points: readonly { name: string; category?: string | undefined }[],
-  diagnostics: DgmoError[]
-): ChartNote[] {
-  const out: ChartNote[] = [];
-  const warn = (line: number, msg: string) =>
-    diagnostics.push(makeDgmoError(line, msg, 'warning'));
-  for (const raw of raws) {
-    if (!checkNote(raw, warn)) continue;
-    const idx = points.findIndex(
-      (p) =>
-        p.name === raw.target &&
-        (raw.series === null || p.category === raw.series)
-    );
-    if (idx < 0) {
-      const name =
-        raw.series === null ? raw.target : `${raw.series} @ ${raw.target}`;
-      warn(
-        raw.lineNumber,
-        `Note on "${name}" matches no point — nothing is drawn.`
-      );
-      continue;
-    }
-    out.push(toNote(raw, 0, idx));
-  }
-  return out;
-}
-
-function checkNote(
-  raw: RawChartNote,
-  warn: (line: number, msg: string) => void
-): boolean {
-  if (!raw.target) {
-    warn(
-      raw.lineNumber,
-      'A note needs a datum — note <name> text. For a line of text with no target, use footnote.'
-    );
-    return false;
-  }
-  if (!raw.text.trim()) {
-    warn(raw.lineNumber, `Note on "${raw.target}" has no text — ignored.`);
-    return false;
-  }
-  return true;
-}
-
-function toNote(raw: RawChartNote, series: number, index: number): ChartNote {
-  return {
-    series,
-    index,
-    text: raw.text,
-    color: raw.color,
-    lineNumber: raw.lineNumber,
   };
 }
 

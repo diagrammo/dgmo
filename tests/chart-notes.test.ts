@@ -1,6 +1,7 @@
 // The annotation vocabulary on data charts (#2039): `marker` on either axis,
 // `era` on bar, `note` on bar, line, scatter and slope, and the end-of-line
-// series names on line (#1950).
+// series names on line (#1950). A `note` and a category `marker` sit
+// indented under the row they belong to (#2078).
 import { describe, it, expect } from 'vitest';
 import { parseChart } from '../src/chart';
 import { parseExtendedChart } from '../src/data-chart-parser';
@@ -28,8 +29,8 @@ const noteCount = (svg: string) =>
   (svg.match(/class="dgmo-chart-note"/g) ?? []).length;
 
 describe('marker', () => {
-  it('a known category is a category-axis line on bar and line', async () => {
-    const c = parseChart('bar S\nmarker Q3 Price change\nQ1 4\nQ2 5\nQ3 6');
+  it('indented under a row, it is a category-axis line on bar and line', async () => {
+    const c = parseChart('bar S\nQ1 4\nQ2 5\nQ3 6\n  marker Price change');
     expect(c.annotations).toEqual([
       expect.objectContaining({
         axis: 'cross',
@@ -39,7 +40,7 @@ describe('marker', () => {
     ]);
     for (const type of ['bar', 'line']) {
       const svg = await renderDataChartD3(
-        `${type} S\nmarker Q2 Launch\nQ1 4\nQ2 5\nQ3 6`,
+        `${type} S\nQ1 4\nQ2 5\n  marker Launch\nQ3 6`,
         'light',
         palette
       );
@@ -50,32 +51,26 @@ describe('marker', () => {
     }
   });
 
-  it('a multi-word category matches before the label', () => {
-    const c = parseChart(
-      'line S\nmarker Port Royal Raid\nNassau 4\nPort Royal 5'
-    );
+  it('under a numeric category it needs no axis word; a top-level number is the value axis', () => {
+    const src = 'line S\n2020 4\n2021 5\n  marker Launch red\n2022 6';
+    const c = parseChart(src);
     expect(c.annotations?.[0]).toMatchObject({
-      at: 'Port Royal',
-      label: 'Raid',
+      axis: 'cross',
+      at: '2021',
+      label: 'Launch',
     });
-  });
-
-  it('numeric categories need marker x or marker y, and say so', () => {
-    const src = 'line S\n2020 4\n2021 5\n2022 6';
-    const bare = parseChart(`${src}\nmarker 2021 Launch`);
-    expect(bare.annotations).toBeUndefined();
-    expect(messages(bare).join()).toContain('marker x 2021');
-    const x = parseChart(`${src}\nmarker x 2021 Launch`);
-    expect(x.annotations?.[0]).toMatchObject({ axis: 'cross', at: '2021' });
-    const y = parseChart(`${src}\nmarker y 5 Target`);
+    expect(c.annotations?.[0]?.color).toBeTruthy();
+    const y = parseChart(`${src}\nmarker 5 Target`);
     expect(y.annotations?.[0]).toMatchObject({ axis: 'value', at: 5 });
   });
 
-  it('a name that matches no category warns and draws nothing', () => {
-    const c = parseChart('bar S\nmarker Q9 Never\nQ1 4');
+  it('the old top-level category form warns with the indented one', () => {
+    const c = parseChart(
+      'bar S\nmarker Port Royal Raid\nNassau 4\nPort Royal 5'
+    );
     expect(c.annotations).toBeUndefined();
     expect(messages(c)).toEqual([
-      expect.stringContaining('no category by that name'),
+      expect.stringContaining('Port Royal\n  marker Raid'),
     ]);
   });
 
@@ -132,57 +127,98 @@ describe('era on bar', () => {
 });
 
 describe('note', () => {
-  it('names one bar, or one point with series @ position', () => {
-    const bar = parseChart('bar S\nnote Q2 Frankfurt opens\nQ1 4\nQ2 5');
+  it('marks the row it sits under; several series name theirs first', () => {
+    const bar = parseChart('bar S\nQ1 4\nQ2 5\n  note Frankfurt opens');
     expect(bar.notes).toEqual([
       expect.objectContaining({ series: 0, index: 1, text: 'Frankfurt opens' }),
     ]);
     const line = parseChart(
-      'line S\nseries EMEA, APAC\nnote APAC @ Q2 Frankfurt opens\nQ1 4 5\nQ2 5 6'
+      'line S\nseries EMEA, APAC\nQ1 4 5\nQ2 5 6\n  note APAC Frankfurt opens'
     );
-    expect(line.notes?.[0]).toMatchObject({ series: 1, index: 1 });
+    expect(line.notes?.[0]).toMatchObject({
+      series: 1,
+      index: 1,
+      text: 'Frankfurt opens',
+    });
   });
 
-  it('quotes a multi-word name and takes an indented body', () => {
+  it('takes an indented body', () => {
     const c = parseChart(
-      'bar S\nnote "Port Royal" Sacked\n  by **Morgan**\nNassau 4\nPort Royal 5'
+      'bar S\nNassau 4\nPort Royal 5\n  note Sacked\n    by **Morgan**'
     );
     expect(c.notes?.[0]).toMatchObject({
       index: 1,
       text: 'Sacked\nby **Morgan**',
     });
     expect(c.data).toHaveLength(2);
+    expect(c.diagnostics).toEqual([]);
   });
 
-  it('warns on no target, no match, a whole column and a whole series', () => {
+  it('keeps its row through sort', () => {
+    const c = parseChart('bar S\nsort desc\nA 1\n  note Small\nB 9');
+    expect(c.data.map((d) => d.label)).toEqual(['B', 'A']);
+    expect(c.notes?.[0]).toMatchObject({ index: 1, text: 'Small' });
+  });
+
+  it('warns on no row, no series, no text, and the old top-level form', () => {
     const c = parseChart(
       [
         'line S',
-        'series EMEA, APAC',
-        'note',
-        '  A caption',
-        'note Q9 Lost',
-        'note Q1 Column',
-        'note EMEA Series',
-        'note EMEA @ Q1',
+        'series',
+        '  EMEA',
+        '    note Not a row',
+        '  APAC',
         'Q1 4 5',
+        '  note Which one',
+        '  note APAC',
+        'note Q1 Old form',
       ].join('\n')
     );
     expect(c.notes).toBeUndefined();
     expect(messages(c)).toEqual([
-      expect.stringContaining('use footnote'),
-      expect.stringContaining('matches nothing'),
-      expect.stringContaining('marker Q1'),
-      expect.stringContaining('names a whole series'),
+      expect.stringContaining('Q1\n  note Old form'),
+      expect.stringContaining('goes indented under a data row'),
+      expect.stringContaining('note EMEA Which one'),
       expect.stringContaining('has no text'),
     ]);
   });
 
-  it('draws a ring, a leader and the text on bar, line, scatter and slope', async () => {
+  it('stands above a column with no ring; past a horizontal bar to the right', async () => {
+    for (const orient of ['', 'orientation-horizontal\n']) {
+      const svg = await renderDataChartD3(
+        `bar S\n${orient}Q1 ${orient ? 9 : 4}\nQ2 ${orient ? 4 : 9}\n  note Record haul\nQ3 3`,
+        'light',
+        palette
+      );
+      expect(noteCount(svg)).toBe(1);
+      expect(svg).not.toContain('dgmo-chart-note-ring');
+      const bar = svg.match(
+        /<rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)"[^>]*data-name="Q2"/
+      )!;
+      const [bx, by, bw, bh] = bar.slice(1).map(Number) as [
+        number,
+        number,
+        number,
+        number,
+      ];
+      const t = svg.match(
+        /class="dgmo-chart-note"[\s\S]*?<text x="([\d.]+)" y="([\d.]+)"/
+      )!;
+      const [tx, ty] = [Number(t[1]), Number(t[2])];
+      if (orient) expect(tx).toBeGreaterThan(bx + bw);
+      else {
+        // The text's baseline sits above the bar's top, over its span.
+        expect(ty).toBeLessThan(by);
+        expect(tx).toBeLessThan(bx + bw);
+      }
+      void bh;
+    }
+  });
+
+  it('draws a ring, a leader and the text on line, scatter and slope', async () => {
     const cases = [
-      'bar S\nnote Q2 Frankfurt opens\nQ1 4\nQ2 5\nQ3 3',
-      'line S\nnote Q2 Frankfurt opens\nQ1 4\nQ2 5\nQ3 3',
-      'scatter S\nnote B Frankfurt opens\nA 1 2\nB 4 8\nC 6 3',
+      'line S\nQ1 4\nQ2 5\n  note Frankfurt opens\nQ3 3',
+      'scatter S\nA 1 2\nB 4 8\n  note Frankfurt opens\nC 6 3',
     ];
     for (const src of cases) {
       const svg = await renderDataChartD3(src, 'light', palette);
@@ -191,7 +227,7 @@ describe('note', () => {
       expect(svg).toContain('Frankfurt opens');
     }
     const slope = await renderForExport(
-      'slope S\nperiod 2020 2024\nnote Rust @ 2024 Overtakes Go\nRust 20 60\nGo 40 50',
+      'slope S\nperiod 2020 2024\nRust 20 60\n  note 2024 Overtakes Go\nGo 40 50',
       'light',
       palette
     );
@@ -199,21 +235,22 @@ describe('note', () => {
   });
 
   it('every note is drawn, even when the plot is crowded', async () => {
-    const notes = ['Q1', 'Q2', 'Q3', 'Q4']
-      .map((q) => `note ${q} A long note about what happened in ${q}`)
+    const rows = ['Q1', 'Q2', 'Q3', 'Q4']
+      .map(
+        (q, i) =>
+          `${q} ${i + 4}\n  note A long note about what happened in ${q}`
+      )
       .join('\n');
-    const svg = await renderDataChartD3(
-      `bar S\n${notes}\nQ1 4\nQ2 5\nQ3 6\nQ4 7`,
-      'light',
-      palette,
-      { width: 360, height: 240 }
-    );
+    const svg = await renderDataChartD3(`bar S\n${rows}`, 'light', palette, {
+      width: 360,
+      height: 240,
+    });
     expect(noteCount(svg)).toBe(4);
   });
 
   it('no-notes hides them', async () => {
     const svg = await renderDataChartD3(
-      'line S\nno-notes\nnote Q2 Hidden\nQ1 4\nQ2 5',
+      'line S\nno-notes\nQ1 4\nQ2 5\n  note Hidden',
       'light',
       palette
     );
@@ -222,16 +259,16 @@ describe('note', () => {
 
   it('stays full strength under highlight', async () => {
     const svg = await renderDataChartD3(
-      'bar S\nhighlight Q1\nnote Q2 Still here\nQ1 4\nQ2 5',
+      'bar S\nQ1 4\n  highlight\nQ2 5\n  note Still here',
       'light',
       palette
     );
-    expect(svg).toMatch(/class="dgmo-chart-note" data-line-number="3">/);
+    expect(svg).toMatch(/class="dgmo-chart-note" data-line-number="5">/);
   });
 
   it('a point value under a note yields to it', async () => {
     const svg = await renderDataChartD3(
-      'line S\nnote Q2 Frankfurt opens\nQ1 4\nQ2 5\nQ3 4.5',
+      'line S\nQ1 4\nQ2 5\n  note Frankfurt opens\nQ3 4.5',
       'light',
       palette
     );
@@ -261,7 +298,7 @@ describe('note', () => {
   });
 
   it('warns on a chart type that does not take notes', () => {
-    expect(messages(parseChart('pie P\nnote A Big\nA 1\nB 2'))).toEqual([
+    expect(messages(parseChart('pie P\nA 1\n  note Big\nB 2'))).toEqual([
       expect.stringContaining('"note" is only supported on bar, line'),
     ]);
   });

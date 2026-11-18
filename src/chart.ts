@@ -64,16 +64,24 @@ import type {
   ChartAnnotation,
   ChartNote,
   RawAnnotation,
-  RawChartNote,
 } from './annotations/types';
 import {
+  anchoredMarker,
   malformedAnnotation,
   parseAnnotationLine,
   parseChartNoteLine,
   resolveAnnotations,
-  resolveChartNotes,
   warnUnsupported,
 } from './annotations/parse';
+import {
+  anchoredEmphasis,
+  anchoredNoteText,
+  highlightColor,
+  leadingName,
+  liftAnchored,
+  topLevelMoved,
+  warnNoAnchor,
+} from './annotations/anchored';
 import { divergingSpans } from './utils/diverging';
 import type { ChartOverlay } from './overlays/types';
 import {
@@ -402,11 +410,14 @@ export function parseChart(
   content: string,
   palette?: PaletteColors
 ): ParsedChart {
-  const lines = content.split('\n');
+  // `note`, `highlight` and a category `marker` sit indented under the row
+  // they belong to (#2078, #2080); lifted here, resolved after the loop.
+  const lifted = liftAnchored(content.split('\n'));
+  const lines = lifted.lines;
   const parsedEras: ChartEra[] = [];
   const pieOnlyLines: [number, string][] = [];
   const annotations: RawAnnotation[] = [];
-  const rawNotes: RawChartNote[] = [];
+  const annotationsFromRows: ChartAnnotation[] = [];
   let otherLine = 0;
   let waffleLine = 0;
   const rawEras: {
@@ -521,17 +532,25 @@ export function parseChart(
       result.diagnostics.push(makeDgmoError(lineNumber, malformed, 'warning'));
       continue;
     }
-    // `note <datum> [text]` with an optional indented body (#2039).
-    const noteLine = parseChartNoteLine(
+    // The old top-level `note <datum> …` (#2078): a note now sits under its
+    // row. The line and its indented body are consumed, and say so.
+    const oldNote = parseChartNoteLine(
       lines,
       i,
       0,
       result.diagnostics,
       palette
     );
-    if (noteLine) {
-      rawNotes.push(noteLine.note);
-      i = noteLine.lastIndex;
+    if (oldNote) {
+      result.diagnostics.push(
+        topLevelMoved(
+          'note',
+          oldNote.note.text.split('\n')[0] ?? '',
+          lineNumber,
+          oldNote.note.target || '<row>'
+        )
+      );
+      i = oldNote.lastIndex;
       continue;
     }
 
@@ -685,10 +704,14 @@ export function parseChart(
     // series or slices at full strength and recedes the rest. Only the chart
     // types that adopted it reserve the token; `dim` is not adopted here. The
     // keyword is lowercase, so a category named `Highlight Reel` stays data.
+    // A top-level `highlight <name>` is the old form (#2080): the line now
+    // sits indented under the row, series or slice it lights.
     if (/^highlight\s/.test(trimmed) && EMPHASIS_TYPES.has(result.type)) {
       const directive = parseEmphasisDirective(trimmed, lineNumber);
       if (directive) {
-        result.emphasis = directive;
+        result.diagnostics.push(
+          topLevelMoved('highlight', '', lineNumber, directive.names[0]!)
+        );
         continue;
       }
     }
@@ -1061,33 +1084,145 @@ export function parseChart(
   }
 
   // Annotations mark a value axis, which only bar and line have here.
-  if (result.type === 'bar' || result.type === 'line') {
+  const anchoredNotes: ChartNote[] = [];
+  /** Each note's row, so its index survives `sort` and filtering below. */
+  const noteRows: ParsedChart['data'] = [];
+  const lit: { name: string; color: string | null; lineNumber: number }[] = [];
+  const rowAt = new Map(result.data.map((d, k) => [d.lineNumber, k]));
+  const seriesAt = new Map<number, number>();
+  // `band <label> <low> <high>` (#1981): a highlight under it lights the band.
+  const bandAt = new Map(
+    rawSeriesBands
+      .filter((b) => b.tokens.length >= 3)
+      .map((b) => [b.lineNumber, b.tokens.slice(0, -2).join(' ')])
+  );
+  // Only the indented block form gives each series a line of its own.
+  const nameLines = result.seriesNameLineNumbers ?? [];
+  if (new Set(nameLines).size === (result.seriesNames?.length ?? -1))
+    nameLines.forEach((ln, s) => seriesAt.set(ln, s));
+  const seriesNames = result.seriesNames?.length
+    ? result.seriesNames
+    : [result.series ?? ''];
+  // A plain bar is one series whatever its header says.
+  const multiSeries =
+    seriesNames.length > 1 &&
+    (result.type === 'line' || result.barLayout !== undefined);
+  const annotated = result.type === 'bar' || result.type === 'line';
+  for (const a of lifted.anchored) {
+    const row = rowAt.get(a.anchorLine);
+    if (a.keyword === 'highlight') {
+      if (!EMPHASIS_TYPES.has(result.type)) {
+        warnUnsupported(
+          [{ kind: 'highlight', lineNumber: a.lineNumber }],
+          'bar, line, pie, scatter and slope charts',
+          result.diagnostics
+        );
+        continue;
+      }
+      const s = seriesAt.get(a.anchorLine);
+      // Line lights a series or a series band; bar and pie a row (bar also
+      // a series).
+      const name =
+        s !== undefined && result.type !== 'pie'
+          ? seriesNames[s]
+          : row !== undefined && result.type !== 'line'
+            ? result.data[row]!.label
+            : result.type === 'line'
+              ? bandAt.get(a.anchorLine)
+              : undefined;
+      if (name === undefined) {
+        warnNoAnchor(
+          a,
+          result.type === 'line'
+            ? 'a series name in an indented series block, or a series band'
+            : result.type === 'pie'
+              ? 'a slice'
+              : 'a bar row, or a series name in a stack or group block',
+          result.diagnostics
+        );
+        continue;
+      }
+      lit.push({
+        name,
+        color: highlightColor(a, result.diagnostics),
+        lineNumber: a.lineNumber,
+      });
+      continue;
+    }
+    if (!annotated) {
+      warnUnsupported(
+        [{ kind: a.keyword, lineNumber: a.lineNumber }],
+        'bar, line, scatter and slope charts',
+        result.diagnostics
+      );
+      continue;
+    }
+    if (row === undefined) {
+      warnNoAnchor(a, 'a data row', result.diagnostics);
+      continue;
+    }
+    const label = result.data[row]!.label;
+    if (a.keyword === 'marker') {
+      annotationsFromRows.push(
+        anchoredMarker(a.text, label, a.lineNumber, result.diagnostics, palette)
+      );
+      continue;
+    }
+    const note = anchoredNoteText(a, result.diagnostics, palette);
+    let series = 0;
+    let text = note.header;
+    if (multiSeries) {
+      const hit = leadingName(note.header, seriesNames);
+      if (!hit) {
+        result.diagnostics.push(
+          makeDgmoError(
+            a.lineNumber,
+            `This note sits on a row of ${seriesNames.length} series — start it with the series it marks: note ${seriesNames[0]} ${note.header || '…'}`,
+            'warning'
+          )
+        );
+        continue;
+      }
+      series = hit.index;
+      text = hit.rest;
+    }
+    const full = [text, note.body].filter(Boolean).join('\n');
+    if (!full.trim()) {
+      result.diagnostics.push(
+        makeDgmoError(
+          a.lineNumber,
+          'This note has no text — ignored.',
+          'warning'
+        )
+      );
+      continue;
+    }
+    noteRows.push(result.data[row]!);
+    anchoredNotes.push({
+      series,
+      index: row,
+      text: full,
+      color: note.color,
+      lineNumber: a.lineNumber,
+    });
+  }
+  const emphasis = lifted.override ?? anchoredEmphasis(lit);
+  if (emphasis) result.emphasis = emphasis;
+
+  if (annotated) {
     const categories = result.data.map((d) => d.label);
-    const resolved = resolveAnnotations(
-      annotations,
-      { categories },
-      result.diagnostics
-    );
+    const resolved = [
+      ...resolveAnnotations(
+        annotations,
+        { categories, categoryRows: true },
+        result.diagnostics
+      ),
+      ...annotationsFromRows,
+    ];
     if (resolved.length) result.annotations = resolved;
-    const seriesNames = result.seriesNames?.length
-      ? result.seriesNames
-      : [result.series ?? ''];
-    const notes = resolveChartNotes(
-      rawNotes,
-      {
-        positions: categories,
-        series: seriesNames,
-        // A plain bar is one series whatever its header says.
-        multiSeries:
-          seriesNames.length > 1 &&
-          (result.type === 'line' || result.barLayout !== undefined),
-      },
-      result.diagnostics
-    );
-    if (notes.length) result.notes = notes;
   } else {
     warnUnsupported(
-      [...annotations, ...rawNotes.map((n) => ({ ...n, kind: 'note' }))],
+      annotations,
       'bar, line, scatter and slope charts',
       result.diagnostics
     );
@@ -1334,6 +1469,14 @@ export function parseChart(
     );
     delete result.step;
   }
+
+  // Notes point at rows; `sort` and the settle steps above may have moved
+  // or dropped them since (#2078).
+  const notes = anchoredNotes.flatMap((n, k) => {
+    const index = result.data.indexOf(noteRows[k]!);
+    return index < 0 ? [] : [{ ...n, index }];
+  });
+  if (notes.length) result.notes = notes;
 
   return result;
 }

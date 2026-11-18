@@ -23,9 +23,14 @@ import { tabularText } from '../utils/tabular-figures';
 import {
   drawBands,
   drawMarkers,
+  LIFT_CLASS,
   type ValueAxisFrame,
 } from '../annotations/draw';
-import { drawChartNotes, type PlacedNoteDatum } from '../annotations/notes';
+import {
+  drawChartNotes,
+  noteBlock,
+  type PlacedNoteDatum,
+} from '../annotations/notes';
 import {
   drawOverlayLabels,
   drawOverlayLevels,
@@ -355,6 +360,25 @@ export function renderBar(
     left: mLeft,
   };
 
+  // A note stands above its column (#2078). When the column reaches near the
+  // plot's top, reserve the room the note needs over it.
+  const noteTop = m.top;
+  if (!horizontal && chart.notes?.length && !chart.noNotes) {
+    const probe = valueAxis([0, 1]);
+    const plotH0 = height - m.top - m.bottom;
+    let deficit = 0;
+    for (const n of chart.notes) {
+      const vals = perCat[n.index] ?? [];
+      const end = stacked
+        ? vals.filter((v) => v > 0).reduce((a, b) => a + b, 0)
+        : (vals[n.series] ?? vals[0] ?? 0);
+      const f = Math.min(1, Math.max(0, probe(end)));
+      if (end < 0 || !(f > 0)) continue;
+      const need = noteBlock(n.text).h + VALUE_FONT + 14;
+      deficit = Math.max(deficit, (need - (1 - f) * plotH0) / f);
+    }
+    m.top += Math.ceil(Math.min(Math.max(0, deficit), plotH0 * 0.4));
+  }
   const plotH = height - m.top - m.bottom;
   const horiz = horizontal;
 
@@ -414,7 +438,10 @@ export function renderBar(
     const spot = horiz
       ? { x: m.left + plotW - 4, y: s0 + 14, anchor: 'end' as const }
       : { x: (s0 + s1) / 2, y: m.top + 14, anchor: 'middle' as const };
+    // Drawn over the bars by drawMarkers, haloed, so a bar never hides it.
     g.append('text')
+      .attr('class', LIFT_CLASS)
+      .attr('data-line-number', era.lineNumber)
       .attr('x', spot.x)
       .attr('y', spot.y)
       .attr('text-anchor', spot.anchor)
@@ -422,6 +449,10 @@ export function renderBar(
       .attr('font-size', TICK_FONT)
       .attr('font-family', FONT_FAMILY)
       .attr('opacity', 0.8)
+      .attr('stroke', annotationColors.bg)
+      .attr('stroke-width', 3)
+      .attr('stroke-linejoin', 'round')
+      .attr('paint-order', 'stroke')
       .text(era.label);
     eraTitles.push(labelBox(era.label, spot, TICK_FONT));
   });
@@ -607,7 +638,9 @@ export function renderBar(
     }
     const y1 = val(v);
     const yOut = v < 0 ? y1 + 14 + pad : y1 - 6 - pad;
-    const yInside = v < 0 ? yOut > m.top + plotH - 2 : yOut < m.top + 2;
+    // `noteTop`: room reserved over the plot for a note (#2078) holds the
+    // value label too, so the label stays outside its bar.
+    const yInside = v < 0 ? yOut > m.top + plotH - 2 : yOut < noteTop + 2;
     return {
       text,
       x: base + off + bw / 2,
@@ -918,31 +951,49 @@ export function renderBar(
           ),
         });
     }
+    // A note stands just past its bar's end, beyond the bar's value label
+    // (#2078); a bar running below zero keeps the ring and leader.
+    const zero = val(0);
     const notes: PlacedNoteDatum[] = chart.notes.flatMap((n) => {
       const at = noteAt.get(`${n.index}:${n.series}`);
-      return at
-        ? [
-            {
-              x: at[0],
-              y: at[1],
-              r: 0,
-              text: n.text,
-              color: n.color,
-              lineNumber: n.lineNumber,
-            },
-          ]
-        : [];
+      if (!at) return [];
+      const [x, y] = at;
+      const forward = horiz ? x >= zero : y <= zero;
+      const label = forward
+        ? values.find(({ box }) =>
+            horiz
+              ? Math.abs(box.y + box.h / 2 - y) < 4 &&
+                box.x >= x - 4 &&
+                box.x <= x + 12
+              : Math.abs(box.x + box.w / 2 - x) < 4 &&
+                box.y + box.h <= y + 4 &&
+                box.y + box.h >= y - 16
+          )?.box
+        : undefined;
+      return [
+        {
+          x: label && horiz ? label.x + label.w : x,
+          y: label && !horiz ? label.y : y,
+          r: 0,
+          text: n.text,
+          color: n.color,
+          lineNumber: n.lineNumber,
+          ...(forward && {
+            beyond: horiz ? ('right' as const) : ('above' as const),
+          }),
+        },
+      ];
     });
     const boxes = drawChartNotes(svg, notes, {
       plot: {
         left: m.left,
-        top: m.top,
+        top: noteTop,
         right: m.left + plotW,
         bottom: m.top + plotH,
       },
       canvas: {
         left: m.left,
-        top: m.top,
+        top: noteTop,
         right: width,
         bottom: m.top + plotH,
       },
