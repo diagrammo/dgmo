@@ -434,8 +434,26 @@ export function renderBar(
     .domain(data.map((d) => d.label))
     .range(catRange)
     .padding(0.3);
+  // Horizontal side-by-side: a value label stands past its bar's end, so the
+  // value range stops short of the plot edge by the widest label on that side
+  // (#2082). The label never flips onto the mark.
+  let reserveL = 0;
+  let reserveR = 0;
+  if (horiz && !stacked) {
+    const room = (neg: boolean) => {
+      const ws = perCat
+        .flat()
+        .filter((v) => v < 0 === neg && !cutHi(v) && !cutLo(v))
+        .map((v) => measureText(fmt(v), VALUE_FONT));
+      return ws.length
+        ? Math.max(...ws) + 6 + (chart.lollipop ? LOLLIPOP_DOT_MAX : 0) + 2
+        : 0;
+    };
+    reserveL = room(true);
+    reserveR = room(false);
+  }
   const valRange: [number, number] = horiz
-    ? [m.left, m.left + plotW]
+    ? [m.left + reserveL, m.left + plotW - reserveR]
     : [m.top + plotH, m.top];
   const val = valueAxis(valRange);
   const annotationFrame: ValueAxisFrame = {
@@ -658,9 +676,8 @@ export function renderBar(
   const pad = lollipop ? dotR : 0;
 
   // Where a side-by-side bar's value label goes. Negative bars grow left (or
-  // down): the label sits off the bar's free end, flipped inside the bar when
-  // it would leave the plot (the extreme bar ends exactly at the plot edge and
-  // would hit the category name).
+  // down): the label sits off the bar's free end. Horizontal bars have room
+  // reserved for it (reserveL/reserveR); vertical ones flip inside at the edge.
   const valueSpot = (base: number, s: number, v: number): ValueSpot => {
     const off = inner!(s) ?? 0;
     const bw = inner!.bandwidth();
@@ -684,17 +701,12 @@ export function renderBar(
     }
     if (horiz) {
       const x1 = val(v);
-      const approxW = text.length * 7 + 6;
-      const inside =
-        v < 0
-          ? x1 - pad - approxW < m.left
-          : x1 + pad + approxW > m.left + plotW;
       const o = 6 + pad;
       return {
         text,
-        x: v < 0 ? (inside ? x1 + o : x1 - o) : inside ? x1 - o : x1 + o,
+        x: v < 0 ? x1 - o : x1 + o,
         y: base + off + bw / 2 + 4,
-        anchor: v < 0 !== inside ? 'end' : 'start',
+        anchor: v < 0 ? 'end' : 'start',
         keep: true,
       };
     }
@@ -795,7 +807,10 @@ export function renderBar(
             tag,
             dim
           );
-          if (Math.abs(x1 - x0) > 26)
+          if (
+            Math.abs(x1 - x0) > 26 &&
+            measureText(segText, VALUE_FONT) + 4 <= Math.abs(x1 - x0)
+          )
             drawValueLabel(
               svg,
               segText,
@@ -817,7 +832,10 @@ export function renderBar(
             tag,
             dim
           );
-          if (Math.abs(y1 - y0) > 18)
+          if (
+            Math.abs(y1 - y0) > 18 &&
+            measureText(segText, VALUE_FONT) + 4 <= cat.bandwidth()
+          )
             drawValueLabel(
               svg,
               segText,
