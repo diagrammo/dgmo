@@ -179,9 +179,14 @@ describe('bar chart names that once rotated or were cut (#1828)', () => {
   });
 
   it('drops the smaller of two value labels that would touch', async () => {
-    const src = fixture('grouped-regions');
+    // 159 is nudged from 140 so its label still touches 160's now that every
+    // horizontal label stands past its bar end (#2082).
+    const src = fixture('grouped-regions').replace(
+      '120 140 160',
+      '120 159 160'
+    );
     const svg = await renderDataChartD3(src, 'light');
-    // 140 and 160 sit on adjacent thin bars; the larger keeps its label.
+    // 159 and 160 sit on adjacent thin bars; the larger keeps its label.
     // The axis ticks share one baseline under the plot; every other number
     // is a value label (both are centred digit cells since #2035).
     const nums = [
@@ -192,6 +197,6 @@ describe('bar chart names that once rotated or were cut (#1828)', () => {
     const tickY = [...count].sort((a, b) => b[1] - a[1])[0]![0];
     const values = nums.filter((n) => n.y !== tickY).map((n) => n.t);
     expect(values).toContain('160');
-    expect(values).not.toContain('140');
+    expect(values).not.toContain('159');
   });
 });
