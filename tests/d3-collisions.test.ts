@@ -48,11 +48,10 @@ describe('resolveVerticalCollisions', () => {
       { naturalY: 95, height: 20 },
     ];
     const result = resolveVerticalCollisions(items, 4, 100);
-    // First item: natural center 90, halfH=10, top=80, bottom=100 — at maxY boundary
-    expect(result[0]).toBe(90);
-    // Second item clamped: maxY (100) - height (20) = top 80, center = 90
-    // But it also needs to be after first item, so: max(85, 80+20+4)=104 → clamped to 80
-    expect(result[1]).toBeLessThanOrEqual(100);
+    // Last item sits at maxY (top 80, center 90); the first is pulled up to keep
+    // minGap rather than being left overlapping (#2132).
+    expect(result[1]).toBe(90);
+    expect(result[0]).toBe(66);
   });
 
   it('handles single item', () => {
@@ -75,5 +74,23 @@ describe('resolveVerticalCollisions', () => {
     // No overlap: each center should be at least (height + gap) apart
     const gap01 = result[1] - result[0];
     expect(gap01).toBeGreaterThanOrEqual(20 + 2); // height + minGap
+  });
+});
+
+describe('resolveVerticalCollisions with a tight maxY (#2132)', () => {
+  it('leaves no two of 20 labels overlapping when the stack hits maxY', () => {
+    const items = Array.from({ length: 20 }, (_, i) => ({
+      naturalY: 300 + i * 3,
+      height: 14,
+    }));
+    const maxY = 400;
+    const ys = resolveVerticalCollisions(items, 4, maxY);
+    const spans = ys
+      .map((y, i) => [y - 7, y + 7, i] as const)
+      .sort((a, b) => a[0] - b[0]);
+    for (let i = 1; i < spans.length; i++) {
+      expect(spans[i]![0]).toBeGreaterThanOrEqual(spans[i - 1]![1] + 4 - 1e-9);
+    }
+    expect(Math.max(...ys) + 7).toBeLessThanOrEqual(maxY + 1e-9);
   });
 });

@@ -57,17 +57,27 @@ export function resolveVerticalCollisions(
     .map((it, i) => ({ ...it, idx: i }))
     .sort((a, b) => a.naturalY - b.naturalY);
   const adjustedY = new Array<number>(items.length);
+  // Pass 1: push down from the top so every gap is at least minGap.
+  const tops: number[] = [];
   let prevBottom = -Infinity;
   for (const item of sorted) {
-    const halfH = item.height / 2;
-    let top = Math.max(item.naturalY - halfH, prevBottom + minGap);
-    // Clamp so the label bottom doesn't exceed maxY
-    if (maxY !== undefined) {
-      top = Math.min(top, maxY - item.height);
-    }
-    adjustedY[item.idx] = top + halfH;
+    const top = Math.max(item.naturalY - item.height / 2, prevBottom + minGap);
+    tops.push(top);
     prevBottom = top + item.height;
   }
+  // Pass 2: if the stack passes maxY, pull it up from the bottom, keeping
+  // minGap, so the clamp can never put a label back on the one above it.
+  if (maxY !== undefined) {
+    let limit = maxY;
+    for (let i = sorted.length - 1; i >= 0; i--) {
+      const h = sorted[i]!.height;
+      tops[i] = Math.min(tops[i]!, limit - h);
+      limit = tops[i]! - minGap;
+    }
+  }
+  sorted.forEach((item, i) => {
+    adjustedY[item.idx] = tops[i]! + item.height / 2;
+  });
   return adjustedY;
 }
 
@@ -124,7 +134,7 @@ export function renderSlopeChart(
 
   const sMarginTop = ctx.aesthetic(SLOPE_MARGIN.top);
   const sMarginBottom = ctx.aesthetic(SLOPE_MARGIN.bottom);
-  const sLabelFontSize = ctx.text(SLOPE_LABEL_FONT_SIZE);
+  let sLabelFontSize = ctx.text(SLOPE_LABEL_FONT_SIZE);
   const sPeriodFont = ctx.text(18);
   const sValueFont = ctx.text(16);
   const sPeriodHeaderY = ctx.structural(15);
@@ -196,6 +206,18 @@ export function renderSlopeChart(
 
   const innerWidth = width - sMarginLeft - rightMargin;
   const innerHeight = height - sPlotTop - sMarginBottom;
+
+  // A stack of end labels taller than the plot would overlap however it is
+  // packed (#2132): step the label font down (7px floor) until it fits.
+  const LABEL_GAP = 4;
+  const MIN_LABEL_FONT = 7;
+  while (
+    sLabelFontSize > MIN_LABEL_FONT &&
+    data.length * sLabelFontSize * 1.4 + (data.length - 1) * LABEL_GAP >
+      innerHeight
+  ) {
+    sLabelFontSize = Math.max(MIN_LABEL_FONT, sLabelFontSize - 1);
+  }
 
   // Scales
   // A `marker` or `band` (#2039) beyond the data widens the range to it.

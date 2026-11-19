@@ -3,7 +3,6 @@ slope Storefront Metrics Before and After the Redesign
 period Before After
 
 // stress: many-items — twenty series on one slope, several ending at nearly the same value
-// known: diagrammo/diagrammo#2132
 
 Checkout conversion rate blue 32 38
 Search result relevance score red 61 74
