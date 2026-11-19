@@ -250,12 +250,18 @@ function settleBandLabel(el: Element): void {
   parent.appendChild(el);
 }
 
-/** Draws every `marker`; returns the label boxes other labels must clear. */
+/** Half the width of the strip a marker line blocks for a note's text. */
+const MARKER_LINE_HALF = 1;
+
+/** Draws every `marker`; returns the label boxes other labels must clear.
+ *  `lines`, when given, also receives each drawn line as a thin rect: a
+ *  note's text must not cross one, though its leader may (#2134). */
 export function drawMarkers(
   svg: Svg,
   annotations: readonly ChartAnnotation[] | undefined,
   frame: ValueAxisFrame,
-  colors: AnnotationColors
+  colors: AnnotationColors,
+  lines?: LabelRect[]
 ): LabelRect[] {
   // Band labels go over the data drawn since drawBands (#2078).
   const root = svg.node()?.ownerSVGElement ?? svg.node();
@@ -296,6 +302,21 @@ export function drawMarkers(
       .attr('stroke', stroke)
       .attr('stroke-width', 1.5)
       .attr('stroke-dasharray', '5 4');
+    lines?.push(
+      vertical
+        ? {
+            x: p - MARKER_LINE_HALF,
+            y: frame.top,
+            w: 2 * MARKER_LINE_HALF,
+            h: frame.height,
+          }
+        : {
+            x: frame.left,
+            y: p - MARKER_LINE_HALF,
+            w: frame.width,
+            h: 2 * MARKER_LINE_HALF,
+          }
+    );
     if (!r.label) continue;
     // A horizontal line: label at its right end, just above — below it when
     // the line sits at the plot's top. A vertical line: label at its top,

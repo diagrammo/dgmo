@@ -666,8 +666,15 @@ export function renderScatter(
     }
   });
 
+  const markerLines: LabelRect[] = [];
   annotationBoxes.push(
-    ...drawMarkers(svg, chart.annotations, yFrame, annotationColors),
+    ...drawMarkers(
+      svg,
+      chart.annotations,
+      yFrame,
+      annotationColors,
+      markerLines
+    ),
     ...drawOverlayLabels(svg, trendLabels, yFrame, bgColor)
   );
 
@@ -693,6 +700,7 @@ export function renderScatter(
           ...annotationBoxes,
           ...points.flatMap((_, i) => ownLabelRect(i)),
         ],
+        obstacles: markerLines,
         markers: points.map((p, i) => ({
           cx: x(p.x),
           cy: y(p.y),

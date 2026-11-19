@@ -901,8 +901,15 @@ export function renderLine(
     }
   }
 
+  const markerLines: LabelRect[] = [];
   eraTitles.push(
-    ...drawMarkers(svg, chart.annotations, annotationFrame, annotationColors),
+    ...drawMarkers(
+      svg,
+      chart.annotations,
+      annotationFrame,
+      annotationColors,
+      markerLines
+    ),
     ...drawOverlayLabels(svg, overlayLabels, annotationFrame, bgColor),
     ...drawExtremes(
       svg,
@@ -982,6 +989,7 @@ export function renderLine(
           bottom: m.top + plotH,
         },
         reserved: eraTitles,
+        obstacles: markerLines,
         markers: [
           ...polylines.flat().map(([cx, cy]) => ({ cx, cy, r: 4.5 })),
           ...sampleLines(polylines),

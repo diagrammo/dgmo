@@ -11,6 +11,7 @@ import { renderForExport } from '../src/d3';
 import { getPalette } from '../src/palettes';
 import { labelBox } from '../src/utils/place-labels';
 import { flattenTabular } from './helpers/tabular-text';
+import { noteBlock, NOTE_FONT } from '../src/annotations/notes';
 
 const palette = getPalette('nord').light;
 const messages = (d: { diagnostics: { message: string }[] }) =>
@@ -295,6 +296,71 @@ describe('note', () => {
         box.y < v.y + v.h;
       expect(overlap).toBe(false);
     }
+  });
+
+  /** The text box of the note drawn from source line `line`. */
+  function noteBox(svg: string, line: number, text: string) {
+    const g = svg.match(
+      new RegExp(
+        `class="dgmo-chart-note" data-line-number="${line}"[\\s\\S]*?<text x="([\\d.]+)" y="([\\d.]+)"`
+      )
+    )!;
+    const { w, h } = noteBlock(text);
+    return { x: Number(g[1]), y: Number(g[2]) - NOTE_FONT * 0.95, w, h };
+  }
+
+  it('its text never crosses a marker line; the leader may (#2134)', async () => {
+    // Cartagena sits just right of the x=77 marker; the first clear spot
+    // used to straddle the line, since only its label was an obstacle.
+    const src = [
+      'scatter Voyage',
+      'marker x 77 Meridian crossing',
+      'Port Royal 76.8 17.9',
+      'Tortuga 72.8 20.0',
+      'Nassau 77.3 25.0',
+      'Havana 82.4 23.1',
+      'Cartagena 75.5 10.4',
+      '  note Southern limit',
+      '    Provisions *ran out* here',
+    ].join('\n');
+    const svg = await renderDataChartD3(src, 'light', palette);
+    const [[mx]] = markerLines(svg) as [number[]];
+    const box = noteBox(svg, 8, 'Southern limit\nProvisions *ran out* here');
+    expect(box.x > mx! || box.x + box.w < mx!).toBe(true);
+  });
+
+  it('takes open space over a gap between lines (#2134)', async () => {
+    // Vane's 1720 point sits under three converging lines; the first clear
+    // spot, above-left, was a 3px slot between them.
+    const src = [
+      'line Plunder',
+      'series',
+      '  Blackbeard',
+      '  Bonnet',
+      '  Vane',
+      '1716 12 8 10',
+      '1717 28 16 22',
+      '1718 46 24 31',
+      '1719 30 19 36',
+      '1720 22 11 18',
+      '  note Vane Hanged at Port Royal',
+    ].join('\n');
+    const svg = await renderDataChartD3(src, 'light', palette);
+    const box = noteBox(svg, 11, 'Hanged at Port Royal');
+    const segs = [...svg.matchAll(/class="dgmo-series-line" d="M([^"]+)"/g)]
+      .map((m) => m[1]!.split('L').map((p) => p.split(',').map(Number)))
+      .flatMap((pts) => pts.slice(1).map((p, i) => [pts[i]!, p] as const));
+    // Nearest any series line comes to the note's box, sampled along each.
+    let near = Infinity;
+    for (const [[x0, y0], [x1, y1]] of segs)
+      for (let k = 0; k <= 50; k++) {
+        const x = x0! + ((x1! - x0!) * k) / 50;
+        const y = y0! + ((y1! - y0!) * k) / 50;
+        const dx = Math.max(box.x - x, 0, x - box.x - box.w);
+        const dy = Math.max(box.y - y, 0, y - box.y - box.h);
+        near = Math.min(near, Math.hypot(dx, dy));
+      }
+    expect(near).toBeGreaterThan(12);
   });
 
   it('warns on a chart type that does not take notes', () => {

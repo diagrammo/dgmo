@@ -37,6 +37,7 @@ import {
   type ValueAxisFrame,
 } from '../annotations/draw';
 import { drawChartNotes, sampleLines } from '../annotations/notes';
+import type { LabelRect } from '../label-layout';
 
 // ============================================================
 // Slope Chart Renderer
@@ -605,8 +606,15 @@ export function renderSlopeChart(
     }
   });
 
+  const markerLines: LabelRect[] = [];
   annotationBoxes.push(
-    ...drawMarkers(plotG, parsed.annotations, annotationFrame, annotationColors)
+    ...drawMarkers(
+      plotG,
+      parsed.annotations,
+      annotationFrame,
+      annotationColors,
+      markerLines
+    )
   );
 
   // Notes (#2039): a ring on the point, the text in clear plot space.
@@ -631,6 +639,7 @@ export function renderSlopeChart(
         plot,
         canvas: plot,
         reserved: annotationBoxes,
+        obstacles: markerLines,
         markers: [
           ...data.flatMap((_, s) =>
             periods.map((_p, i) => {

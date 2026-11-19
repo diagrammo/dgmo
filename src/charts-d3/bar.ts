@@ -995,9 +995,16 @@ export function renderBar(
     });
   }
 
+  const markerLines: LabelRect[] = [];
   const markerLabels = [
     ...paretoLabels,
-    ...drawMarkers(svg, chart.annotations, annotationFrame, annotationColors),
+    ...drawMarkers(
+      svg,
+      chart.annotations,
+      annotationFrame,
+      annotationColors,
+      markerLines
+    ),
     ...drawOverlayLabels(
       svg,
       overlayLabels,
@@ -1013,7 +1020,7 @@ export function renderBar(
       drawnBefore
     ) as Element[];
     const num = (e: Element, a: string) => Number(e.getAttribute(a) ?? 0);
-    const obstacles: LabelRect[] = [];
+    const obstacles: LabelRect[] = [...markerLines];
     const values: { el: Element; box: LabelRect }[] = [];
     for (const e of drawn) {
       const tag = e.tagName.toLowerCase();
