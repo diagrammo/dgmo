@@ -3,7 +3,7 @@
 // ============================================================
 //
 // The box plot rides the extended data-chart parser (frame, axes, number
-// format, `[Name color]` groups, fill family, legend flags). This file holds
+// format, `[Name] color` groups, fill family, legend flags). This file holds
 // what only the box plot reads: bare-number rows and the `points`, `mean`
 // and `orientation-horizontal` flags. The input is the histogram's (#1847),
 // so changing the first word switches between the two views of one dataset.
@@ -50,7 +50,7 @@ export const BOXPLOT_DX = {
 
 export const BOXPLOT_DIAGNOSTICS: DiagnosticSpec[] = Object.values(BOXPLOT_DX);
 
-/** One `[Name color]` group, or the unnamed group before the first header. */
+/** One `[Name] color` group, or the unnamed group before the first header. */
 export interface BoxplotGroup {
   /** '' for the unnamed group. */
   readonly name: string;
@@ -92,7 +92,7 @@ function valueTokens(line: string): string[] {
   return out;
 }
 
-/** Open a `[Name color]` group. */
+/** Open a `[Name] color` group. */
 export function openBoxplotGroup(
   state: BoxplotState,
   name: string,
