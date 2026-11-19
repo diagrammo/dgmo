@@ -98,6 +98,7 @@ function parseTreemapRaw(
     noLegend: false,
     fillMode: undefined,
     radial: false,
+    icicle: false,
   };
   const result: Writable<ParsedTreemap> = {
     type: 'treemap',
@@ -137,6 +138,9 @@ function parseTreemapRaw(
 
   let currentTagGroup: Writable<TagGroup> | null = null;
   const aliasMap = new Map<string, string>();
+
+  // Line of each layout flag (`radial`, `icicle`) — they are exclusive.
+  const layoutLines: LayoutLines = {};
 
   // Indent stack for hierarchy tracking.
   const indentStack: { node: Writable<TreemapNode>; indent: number }[] = [];
@@ -252,7 +256,16 @@ function parseTreemapRaw(
 
     // Directives (header phase only, indent 0).
     if (!contentStarted && measureIndent(line) === 0) {
-      if (handleDirective(trimmed, options, result, pushWarning, lineNumber)) {
+      if (
+        handleDirective(
+          trimmed,
+          options,
+          result,
+          pushWarning,
+          lineNumber,
+          layoutLines
+        )
+      ) {
         continue;
       }
     }
@@ -323,6 +336,16 @@ function parseTreemapRaw(
     }
   }
 
+  // `radial` and `icicle` are two layouts of one hierarchy; only one applies.
+  if (layoutLines.radial !== undefined && layoutLines.icicle !== undefined) {
+    const diag = emit(
+      TREEMAP_DX.LAYOUT_CONFLICT,
+      Math.max(layoutLines.radial, layoutLines.icicle)
+    );
+    result.diagnostics.push(diag);
+    result.error ??= formatDgmoError(diag);
+  }
+
   if (result.hasHeat || options.heatLabel !== undefined) {
     result.hasHeat = true;
   }
@@ -351,12 +374,19 @@ function parseTreemapRaw(
 // Directives
 // ============================================================
 
+/** Source line of each layout flag seen, for the exclusivity check. */
+interface LayoutLines {
+  radial?: number;
+  icicle?: number;
+}
+
 function handleDirective(
   trimmed: string,
   options: Writable<TreemapOptions>,
   result: Writable<ParsedTreemap>,
   pushWarning: (line: number, message: string) => void,
-  lineNumber: number
+  lineNumber: number,
+  layoutLines: LayoutLines
 ): boolean {
   const depthMatch = trimmed.match(/^depth\s+(-?\d+)\s*$/i);
   if (depthMatch) {
@@ -428,6 +458,15 @@ function handleDirective(
   // deliberately kept out of the `no-(...)` group above).
   if (/^radial\s*$/i.test(trimmed)) {
     options.radial = true;
+    layoutLines.radial ??= lineNumber;
+    return true;
+  }
+
+  // `icicle` — the same hierarchy as bands, root on the left. A bare flag, the
+  // same idiom as `radial`; the two are exclusive (checked after the loop).
+  if (/^icicle\s*$/i.test(trimmed)) {
+    options.icicle = true;
+    layoutLines.icicle ??= lineNumber;
     return true;
   }
 

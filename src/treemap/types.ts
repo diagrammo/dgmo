@@ -47,6 +47,9 @@ export interface TreemapOptions {
   fillMode: 'solid' | 'outline' | undefined;
   /** `radial` — render as a sunburst (concentric rings) instead of rectangles. */
   radial: boolean;
+  /** `icicle` — render as bands: root on the left, one column per depth level,
+   *  each node's height its share of the whole. */
+  icicle: boolean;
 }
 
 export interface ParsedTreemap {

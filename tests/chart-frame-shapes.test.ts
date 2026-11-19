@@ -69,6 +69,21 @@ describe('chart frame, shape family (#1827)', () => {
     );
   });
 
+  it('treemap icicle draws the frame', async () => {
+    const [head, ...rest] = fixture('treemap').trimEnd().split('\n');
+    const src = `${head}\nicicle\n${rest.join('\n')}\nsubtitle Icicle deck\nfootnote Icicle note\n`;
+    const svg = await renderForExport(src, 'light');
+    const doc = new JSDOM(svg, { contentType: 'image/svg+xml' }).window
+      .document;
+    expect(doc.querySelector('.dgmo-treemap-icicle')).not.toBeNull();
+    expect(doc.querySelector('.chart-subtitle')?.textContent).toBe(
+      'Icicle deck'
+    );
+    expect(doc.querySelector('.chart-footnote')?.textContent).toBe(
+      'Icicle note'
+    );
+  });
+
   it('a capitalised Source or Footnote stays a node', () => {
     const pyramid = parsePyramid('pyramid T\nSource\nFootnote\n');
     expect(pyramid.layers.map((l) => l.label)).toEqual(['Source', 'Footnote']);

@@ -22,7 +22,16 @@ export async function exportTreemap(ctx: ExportContext): Promise<string> {
   const container = createExportContainer(ctx.width, ctx.height);
   const dims = { width: ctx.width, height: ctx.height };
 
-  if (treemapParsed.options.radial) {
+  if (treemapParsed.options.icicle) {
+    const { renderTreemapIcicleForExport } = await import('./renderer-icicle');
+    renderTreemapIcicleForExport(
+      container,
+      treemapParsed,
+      effectivePalette,
+      ctx.isDark,
+      dims
+    );
+  } else if (treemapParsed.options.radial) {
     // Sunburst mode: parallel lazy imports of the radial layout + renderer.
     const { renderTreemapRadialForExport } = await import('./renderer-radial');
     renderTreemapRadialForExport(

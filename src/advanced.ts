@@ -809,6 +809,10 @@ export {
   renderTreemapRadial,
   renderTreemapRadialForExport,
 } from './treemap/renderer-radial';
+export {
+  renderTreemapIcicle,
+  renderTreemapIcicleForExport,
+} from './treemap/renderer-icicle';
 export { layoutTreemap } from './treemap/layout';
 export { layoutTreemapRadial } from './treemap/layout-radial';
 export type { TreemapCell, TreemapLayoutResult } from './treemap/layout';

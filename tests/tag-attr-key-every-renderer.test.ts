@@ -165,6 +165,7 @@ const FIXTURE_FILES = [
   'timeline.dgmo',
   'treemap-tags.dgmo',
   'treemap-radial.dgmo',
+  'treemap-icicle.dgmo',
 ];
 
 /** Attribute names a browser would refuse (`Invalid qualified name`). */

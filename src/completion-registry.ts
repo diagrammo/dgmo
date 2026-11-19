@@ -1079,6 +1079,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description:
           'Render as a sunburst / hierarchical pie (concentric rings)',
       },
+      icicle: {
+        description:
+          'Render as an icicle: root on the left, one column per depth level',
+      },
     }),
   ],
   [

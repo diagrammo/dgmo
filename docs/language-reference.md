@@ -4681,9 +4681,10 @@ Add a per-node `heat:` number (a second metric, distinct from size; negatives/fl
 | `depth N`                             | Render N levels; deeper subtrees collapse to a drillable solid block (a render budget).                                                                                                                                                            |
 | `no-value`                            | Hide value labels.                                                                                                                                                                                                                                 |
 | `no-percent`                          | Hide percentage labels.                                                                                                                                                                                                                            |
-| `no-headers`                          | Hide parent header bars (a no-op in `radial` mode).                                                                                                                                                                                                |
+| `no-headers`                          | Hide parent header bars (a no-op in `radial` and `icicle` mode).                                                                                                                                                                                   |
 | `no-legend`                           | Hide the legend.                                                                                                                                                                                                                                   |
 | `radial`                              | Render as a **sunburst / hierarchical pie** (concentric rings) instead of rectangles.                                                                                                                                                              |
+| `icicle`                              | Render as an **icicle**: root on the left, one column per depth level, each node's height its share of the whole. Not with `radial`.                                                                                                               |
 
 Numbers auto-compact (1.2M, 940k). Units live in the title — there is no format/currency directive.
 
@@ -4697,6 +4698,24 @@ radial
 
 Sailing & Rigging
   Rigging 320
+  Helm 180
+Cannon Battery
+  Powder 90
+  Shot 130
+```
+
+### Icicle mode
+
+Add a bare `icicle` flag and the same hierarchy renders as bands: the top-level groups are the first column on the left, and each column to the right breaks a group into its parts, so depth reads left to right. A band's height is its share of the whole; columns are equal width, and bands stay in **source order**, top to bottom. Each band is labelled with horizontal text — the name, then value · share — and a band too short for its label drops it. Tags, `heat`, and `no-value`/`no-percent`/`no-legend` carry over as in radial mode; `no-headers` is a no-op. `icicle` and `radial` are two layouts of one hierarchy, so setting both is an error. Prefer it to the sunburst for deeper trees or long names.
+
+```dgmo
+treemap Plunder Spend ($k)
+icicle
+
+Sailing & Rigging
+  Rigging
+    Lines 200
+    Sails 120
   Helm 180
 Cannon Battery
   Powder 90

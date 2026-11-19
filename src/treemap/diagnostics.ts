@@ -74,6 +74,16 @@ export const TREEMAP_DX = {
     hint: "Remove the trailing number from a branch — a parent's size is the sum of its children.",
     example: 'treemap T\nOperations 999\n  Cloud 110\n  Support 70',
   },
+  LAYOUT_CONFLICT: {
+    code: 'E_TREEMAP_LAYOUT_CONFLICT',
+    severity: 'error',
+    chartType: 'treemap',
+    title: 'Two treemap layouts',
+    message: () =>
+      '`radial` and `icicle` are both set — a treemap takes one layout',
+    hint: 'Keep one of the two flags: `radial` draws rings, `icicle` draws columns.',
+    example: 'treemap T\nradial\nicicle\n\nA\n  X 1',
+  },
 } satisfies Record<string, DiagnosticSpec>;
 
 export const TREEMAP_DIAGNOSTICS: DiagnosticSpec[] = Object.values(TREEMAP_DX);

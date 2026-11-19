@@ -27,8 +27,8 @@ import type { TreemapNode } from './types';
 
 /** Internal datum fed to d3-hierarchy (carries the original node ref).
  *  Duplicated from `layout.ts` (which keeps it module-private) so this radial
- *  path needs no edit to the squarify layout. */
-interface LayoutDatum {
+ *  path needs no edit to the squarify layout. The icicle layout shares it. */
+export interface LayoutDatum {
   /** Original parsed node; undefined for the synthetic root. */
   ref?: TreemapNode;
   label: string;
@@ -93,7 +93,7 @@ export interface RadialLayoutOptions {
 }
 
 /** Convert a parsed node into a layout datum (mirrors layout.ts `toDatum`). */
-function toDatum(node: TreemapNode): LayoutDatum {
+export function toDatum(node: TreemapNode): LayoutDatum {
   if (node.children.length === 0) {
     return {
       ref: node,
@@ -113,7 +113,7 @@ function toDatum(node: TreemapNode): LayoutDatum {
 }
 
 /** Mean heat across the leaves under a datum (mirrors layout.ts `datumHeat`). */
-function datumHeat(
+export function datumHeat(
   node: HierarchyRectangularNode<LayoutDatum>
 ): number | undefined {
   if (node.data.heat !== undefined) return node.data.heat;
