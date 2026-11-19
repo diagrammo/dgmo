@@ -697,6 +697,14 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     dimOpacity: 0.18,
     legend: true,
   },
+  histogram: {
+    markSelector: '.dgmo-datum',
+    strategy: 'enumerated',
+    groupAttr: 'data-category',
+    emphasis: 'dim',
+    dimOpacity: 0.18,
+    legend: true,
+  },
   quadrant: {
     markSelector: '.point-group',
     strategy: 'enumerated',

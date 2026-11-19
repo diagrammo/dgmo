@@ -95,6 +95,7 @@ const EXPECTED_CATEGORY: Record<
   heatmap: 'data-chart',
   funnel: 'data-chart',
   boxplot: 'data-chart',
+  histogram: 'data-chart',
 };
 
 const EXPECTED_EXTENDED_IDS = [
@@ -102,6 +103,7 @@ const EXPECTED_EXTENDED_IDS = [
   'function',
   'funnel',
   'heatmap',
+  'histogram',
   'sankey',
   'scatter',
 ].sort();

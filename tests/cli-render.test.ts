@@ -425,6 +425,9 @@ Visitors 1000
 Signups 500
 Paid 100`,
 
+  histogram: `histogram
+12 15 17.5 21 22 24.5`,
+
   // Chart.js types (now rendered via ECharts)
   bar: `bar
 A 10

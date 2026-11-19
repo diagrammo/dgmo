@@ -1,0 +1,11 @@
+histogram Support tickets by first response time
+subtitle Pre-counted rows; the last range is wider, so its bar is drawn per 10 minutes
+x-axis minutes
+y-axis Tickets
+
+0-10 4
+10-20 31
+20-30 58
+30-40 47
+40-60 50
+60-120 30

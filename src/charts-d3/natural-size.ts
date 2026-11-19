@@ -133,6 +133,7 @@ function naturalDataChartWidth(
       }
       case 'funnel':
       case 'boxplot':
+      case 'histogram':
       case 'scatter':
       case 'function':
         return UNCOUNTED_WIDTH;

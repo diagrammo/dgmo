@@ -65,7 +65,8 @@ describe('flowchart routing', () => {
     // whiteboard added: 51 → 52. sketch retired (#1669): 52 → 51.
     // swot added: 51 → 52. calendar-heatmap added (#1855): 52 → 53.
     // ownership added (#1873): 53 → 54. boxplot added (#1848): 54 → 55.
-    expect(getAllChartTypes().length).toBe(55);
+    // histogram added (#1847): 55 → 56.
+    expect(getAllChartTypes().length).toBe(56);
   });
 });
 

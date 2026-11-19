@@ -53,6 +53,7 @@ import { renderSankey } from './sankey';
 import { renderChord } from './chord';
 import { renderFunction } from './function';
 import { renderBoxplot } from './boxplot';
+import { renderHistogram } from './histogram';
 
 /** Types parsed by parseChart → ParsedChart. */
 const STANDARD = new Set(['bar', 'line', 'pie', 'radar', 'polar-area']);
@@ -65,6 +66,7 @@ const EXTENDED = new Set([
   'chord',
   'function',
   'boxplot',
+  'histogram',
 ]);
 
 /** All data-chart types the hand-built renderers currently cover. */
@@ -82,6 +84,7 @@ const INLINE_LEGEND_TYPES = new Set([
   'radar',
   'scatter',
   'function',
+  'histogram',
 ]);
 
 /**
@@ -551,6 +554,34 @@ function renderPlot(
         top,
         palette,
         isDark
+      );
+      return true;
+    }
+    case 'histogram': {
+      const groups = ext.noLegend
+        ? []
+        : getExtendedChartLegendGroups(ext, seriesColors);
+      const top = injectLegendGroups(
+        s,
+        groups,
+        palette,
+        isDark,
+        hasTitle,
+        width,
+        inlineTitle,
+        ext.frame
+      );
+      renderHistogram(
+        s,
+        ext,
+        width,
+        height,
+        seriesColors,
+        palette,
+        isDark,
+        textColor,
+        mutedColor,
+        top
       );
       return true;
     }

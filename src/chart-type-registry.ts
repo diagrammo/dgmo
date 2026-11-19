@@ -42,6 +42,7 @@ import { parseChart } from './chart';
 import {
   parseSankey,
   parseFunctionChart,
+  parseHistogram,
   parseScatter,
   parseHeatmap,
   parseFunnel,
@@ -150,6 +151,7 @@ const REGISTRY: Record<ChartTypeId, Omit<ChartTypeDescriptor, 'id'>> = {
   heatmap: { category: 'data-chart', parse: parseHeatmap },
   funnel: { category: 'data-chart', parse: parseFunnel },
   boxplot: { category: 'data-chart', parse: parseBoxplot },
+  histogram: { category: 'data-chart', parse: parseHistogram },
 
   // ── D3 visualizations — own per-viz parser door (Story 109.2) ──
   slope: { category: 'visualization', parse: parseSlope },

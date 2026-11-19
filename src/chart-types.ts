@@ -283,6 +283,11 @@ const chartTypesData = [
     description: 'Matrix intensity visualization',
   },
   {
+    id: 'histogram',
+    description:
+      'Distribution of raw numbers counted into bins (response times, ages, scores)',
+  },
+  {
     id: 'function',
     description: 'Mathematical expressions',
   },

@@ -41,7 +41,8 @@ export type ExtendedChartType =
   | 'scatter'
   | 'heatmap'
   | 'funnel'
-  | 'boxplot';
+  | 'boxplot'
+  | 'histogram';
 
 interface ExtendedChartDataPoint {
   label: string;
@@ -218,6 +219,18 @@ export interface ParsedBoxplot extends ParsedExtendedBase {
   horizontal?: boolean;
 }
 
+export interface ParsedHistogram extends ParsedExtendedBase {
+  type: 'histogram';
+  /** The groups in written order; the unnamed group (name '') comes first. */
+  histogramGroups?: HistogramGroup[];
+  /** `bin-width`, `bins`, `bin-start` as settled (#1847). */
+  histogramBins?: HistogramBinSpec;
+  /** `percent`: y is each group's share, not its count. */
+  percent?: boolean;
+  /** Statistics overlays (#1954): `mean`, `median`. */
+  overlays?: ChartOverlay[];
+}
+
 /** What `parseExtendedChart` returns: discriminated on `type`. */
 export type ParsedExtendedChart =
   | ParsedSankey
@@ -226,7 +239,8 @@ export type ParsedExtendedChart =
   | ParsedScatter
   | ParsedHeatmap
   | ParsedFunnel
-  | ParsedBoxplot;
+  | ParsedBoxplot
+  | ParsedHistogram;
 
 /**
  * The parser's mutable accumulator — every type-specific field present, so the
@@ -256,6 +270,9 @@ export interface ParsedExtendedChartFull extends ParsedExtendedBase {
   points?: boolean;
   showMean?: boolean;
   horizontal?: boolean;
+  histogramGroups?: HistogramGroup[];
+  histogramBins?: HistogramBinSpec;
+  percent?: boolean;
 }
 
 // ============================================================
@@ -273,6 +290,15 @@ import {
   parseBoxplotLine,
   settleBoxplot,
 } from './charts-d3/boxplot-parse';
+import {
+  type HistogramBinSpec,
+  type HistogramGroup,
+  type HistogramState,
+  histogramStrayLine,
+  openHistogramGroup,
+  parseHistogramLine,
+  settleHistogram,
+} from './charts-d3/histogram-parse';
 import {
   parseOverlayLine,
   settleOverlays,
@@ -320,6 +346,7 @@ const VALID_EXTENDED_TYPES = new Set<ExtendedChartType>([
   'heatmap',
   'funnel',
   'boxplot',
+  'histogram',
 ]);
 
 /** Known option keywords for the extended chart parser. */
@@ -509,6 +536,22 @@ function parseBoxplotRaw(
   return parseExtendedChart(content, palette) as ParsedBoxplot;
 }
 
+export function parseHistogram(
+  content: string,
+  palette?: PaletteColors
+): ParsedHistogram {
+  return withPaletteLifted(content, (lifted) =>
+    parseHistogramRaw(lifted, palette)
+  );
+}
+
+function parseHistogramRaw(
+  content: string,
+  palette?: PaletteColors
+): ParsedHistogram {
+  return parseExtendedChart(content, palette) as ParsedHistogram;
+}
+
 /** The extended-data-chart parser doors, for `isExtendedChartParser`. */
 export const EXTENDED_CHART_DOORS = new Set<unknown>([
   parseSankey,
@@ -518,6 +561,7 @@ export const EXTENDED_CHART_DOORS = new Set<unknown>([
   parseHeatmap,
   parseFunnel,
   parseBoxplot,
+  parseHistogram,
 ]);
 
 function parseExtendedChartFull(
@@ -548,6 +592,7 @@ function parseExtendedChartFull(
   const rawAnnotations: RawAnnotation[] = [];
   const rawOverlays: ChartOverlay[] = [];
   const boxplot: BoxplotState = { groups: [] };
+  const histogram: HistogramState = { groups: [], bins: {} };
 
   // Sankey indentation state: stack of source nodes by indent level
   const sankeyStack: { name: string; indent: number }[] = [];
@@ -671,6 +716,19 @@ function parseExtendedChartFull(
       parseBoxplotLine(trimmed, lineNumber, boxplot, result.diagnostics)
     )
       continue;
+    // Histogram rows and bin directives (#1847). Before the flow-row match,
+    // which would read a pre-counted `-10--5 3` as a link.
+    if (result.type === 'histogram') {
+      if (
+        parseHistogramLine(trimmed, lineNumber, histogram, result.diagnostics)
+      )
+        continue;
+      const overlay = parseOverlayLine(trimmed, lineNumber, result.diagnostics);
+      if (overlay) {
+        if (overlay !== true) rawOverlays.push(overlay);
+        continue;
+      }
+    }
 
     // Annotations and notes (#2039), scatter only: on sankey or chord a
     // node may be named `note` or `marker`.
@@ -748,6 +806,13 @@ function parseExtendedChartFull(
       currentCategory = catName;
       if (result.type === 'boxplot')
         openBoxplotGroup(boxplot, catName, catColor ?? undefined, lineNumber);
+      if (result.type === 'histogram')
+        openHistogramGroup(
+          histogram,
+          catName,
+          catColor ?? undefined,
+          lineNumber
+        );
       continue;
     }
 
@@ -1274,6 +1339,24 @@ function parseExtendedChartFull(
       continue;
     }
 
+    // Histogram: a row with a word in it, or a line nothing took.
+    if (result.type === 'histogram') {
+      if (
+        histogramStrayLine(trimmed, lineNumber, histogram, result.diagnostics)
+      )
+        continue;
+      const notOverlay = unknownOverlay(trimmed, lineNumber);
+      result.diagnostics.push(
+        notOverlay ??
+          makeDgmoError(
+            lineNumber,
+            `Unexpected line: '${trimmed}'. Expected numbers (12 15 17.5), a pre-counted row (10-20 31) or a known option.`,
+            'warning'
+          )
+      );
+      continue;
+    }
+
     // Funnel / generic data point: "Label value"
     const dataRow = parseDataRowValues(trimmed);
     if (dataRow?.values.length === 1) {
@@ -1403,6 +1486,22 @@ function parseExtendedChartFull(
       if (result.data.length === 0) {
         warn(1, 'No data found. Add data in format: Label: value');
       }
+    } else if (result.type === 'histogram') {
+      settleHistogram(histogram, result.diagnostics);
+      if (histogram.groups.length === 0)
+        warn(
+          1,
+          'No values found. Add numbers, any number per line: 12 15 17.5'
+        );
+      result.histogramGroups = histogram.groups;
+      result.histogramBins = histogram.bins;
+      if (histogram.percent) result.percent = true;
+      const overlays = settleOverlays(
+        rawOverlays,
+        { type: 'histogram' },
+        result.diagnostics
+      );
+      if (overlays.length) result.overlays = overlays;
     }
   }
 
@@ -1498,6 +1597,18 @@ function parseExtendedChartFull(
       (result.boxplotGroups ?? []).flatMap((g) => g.values),
       result.diagnostics
     );
+  } else if (!result.error && result.axes && result.type === 'histogram') {
+    // x is the values' own axis; y holds counts, known once binned.
+    settleAxisSpec(
+      'x',
+      result.axes.x,
+      (result.histogramGroups ?? []).flatMap((g) => [
+        ...g.values,
+        ...g.ranges.flatMap((r) => [r.x0, r.x1]),
+      ]),
+      result.diagnostics
+    );
+    settleAxisSpec('y', result.axes.y, [], result.diagnostics);
   } else if (!result.error && result.axes) {
     const pts = result.scatterPoints ?? [];
     // A function's values are only known once it is sampled at render time,
@@ -1528,6 +1639,7 @@ const FORMATTED_TYPES: ReadonlySet<ExtendedChartType> = new Set([
   'funnel',
   'sankey',
   'boxplot',
+  'histogram',
 ]);
 /** The numeric axes each extended chart type has (#1830). */
 const EXTENDED_AXES: Partial<Record<ExtendedChartType, ReadonlySet<AxisName>>> =
@@ -1535,6 +1647,7 @@ const EXTENDED_AXES: Partial<Record<ExtendedChartType, ReadonlySet<AxisName>>> =
     scatter: new Set(['x', 'y']),
     function: new Set(['x', 'y']),
     boxplot: new Set(['y']),
+    histogram: new Set(['x', 'y']),
   };
 
 // ============================================================
@@ -1592,6 +1705,21 @@ export function getExtendedChartLegendGroups(
           value: cat,
           // colors is a non-empty palette array; modulo index is always in-bounds.
           color: parsed.categoryColors?.[cat] ?? colors[i % colors.length]!,
+        })),
+      },
+    ];
+  }
+
+  if (parsed.type === 'histogram') {
+    const named = (parsed.histogramGroups ?? []).filter((g) => g.name);
+    if (named.length === 0) return [];
+    const all = parsed.histogramGroups ?? [];
+    return [
+      {
+        name: 'Group',
+        entries: named.map((g) => ({
+          value: g.name,
+          color: g.color ?? colors[all.indexOf(g) % colors.length]!,
         })),
       },
     ];

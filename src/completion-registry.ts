@@ -416,6 +416,44 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     }),
   ],
   [
+    'histogram',
+    withGlobals({
+      format: {
+        description:
+          'Number format for the values on the x axis: currency USD, percent 1, compact',
+      },
+      unit: { description: 'Text after every value (unit ms)' },
+      locale: { description: 'Separators and currency style (locale de-DE)' },
+      'no-legend': { description: 'Hide the legend' },
+      'x-axis': {
+        description:
+          'X-axis line: title and range; values outside the range are not counted (x-axis Minutes 0..60)',
+      },
+      'y-axis': {
+        description: 'Y-axis line: title, range, log (y-axis Orders)',
+      },
+      'bin-width': {
+        description:
+          'Exact bin width; edges fall on its multiples (bin-width 5)',
+      },
+      bins: {
+        description: 'About N bins with round edges (bins 10)',
+      },
+      'bin-start': {
+        description: 'Where the first bin starts (bin-start 0)',
+      },
+      percent: {
+        description: "Y is each group's share of its values, not the count",
+      },
+      mean: {
+        description: 'Vertical dashed line at the mean, one per group',
+      },
+      median: {
+        description: 'Vertical dotted line at the median, one per group',
+      },
+    }),
+  ],
+  [
     'heatmap',
     withGlobals({
       format: {
@@ -1330,6 +1368,7 @@ const FILL_FAMILY_CAPABLE = new Set([
   'polar-area',
   'radar',
   'scatter',
+  'histogram',
   'pert',
   'block',
   'swimlane',

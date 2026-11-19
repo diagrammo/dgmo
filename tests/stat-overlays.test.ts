@@ -140,7 +140,7 @@ describe('overlay parsing', () => {
     const p = parseChart(`pie X\nmean\nA 1\nB 2`);
     expect(p.overlays).toBeUndefined();
     expect(p.diagnostics.map((d) => d.code)).toEqual(['W_OVERLAY_UNSUPPORTED']);
-    expect(p.diagnostics[0]!.message).toContain('line and bar');
+    expect(p.diagnostics[0]!.message).toContain('line, bar and histogram');
   });
   it('an overlay on a stacked bar warns and is dropped', () => {
     const p = parseChart(`bar X\nmean\nstack\n  A\n  B\n\nQ1 1 2\nQ2 3 4`);

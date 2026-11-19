@@ -1,14 +1,14 @@
 import { D as DgmoError, C as ChartFrame, T as TagGroup, g as TagEntry } from './tag-groups-B4RSR_mP.js';
 export { b as DgmoFix, c as DgmoSeverity, h as autoTagColorCycle, f as formatDgmoError, m as makeDgmoError, r as resolveActiveTagGroup, i as resolveTagColor, j as resolveTagValue, t as tagAttrKey, k as takeFootnoteBlock } from './tag-groups-B4RSR_mP.js';
-import { P as PaletteConfig, c as PaletteColors, C as CompactViewState } from './chart-types-Ct8BnZXD.js';
-export { a as ChartTypeId, b as ChartTypeMeta, D as DecodedDiagramUrl, E as EncodeDiagramUrlOptions, e as EncodeDiagramUrlResult, d as chartTypes, f as decodeDiagramUrl, h as decodeViewState, i as encodeDiagramUrl, j as encodeViewState, k as getAvailablePalettes, g as getPalette, l as isValidHex, m as registerPalette } from './chart-types-Ct8BnZXD.js';
+import { P as PaletteConfig, c as PaletteColors, C as CompactViewState } from './chart-types-TLEeYiYc.js';
+export { a as ChartTypeId, b as ChartTypeMeta, D as DecodedDiagramUrl, E as EncodeDiagramUrlOptions, e as EncodeDiagramUrlResult, d as chartTypes, f as decodeDiagramUrl, h as decodeViewState, i as encodeDiagramUrl, j as encodeViewState, k as getAvailablePalettes, g as getPalette, l as isValidHex, m as registerPalette } from './chart-types-TLEeYiYc.js';
 import { d as RenderForExportOptions, b as MapData, P as ParsedMap, e as ResolvedMap, f as MapLayoutLegend, g as GeoExtent } from './export-context-DUNQRmfK.js';
 import { MapDataSource } from './block.js';
 export { A as AirportData, B as BoundaryTopology, G as Gazetteer, a as GazetteerEntry, h as MapDirectives, i as MapEdge, j as MapPoi, k as MapRegion, l as MapRoute, m as PoiPos, n as ProjectionFamily, R as RegionName, c as RegionNames, o as ResolvedEdge, p as ResolvedPoi, q as ResolvedRegion, r as ResolvedRoute } from './export-context-DUNQRmfK.js';
 import { InkPoint } from './index.js';
-export { C as CHART_TYPE_DESCRIPTIONS, M as MapCompletionOptions, d as MapLocationMatch, e as MapPlaceCompletion, f as MapRegionCompletion, R as RenderCategory, T as Theme, l as chartTypeParsers, g as completeMapPlaces, h as completeMapRegions, m as getAllChartTypes, n as getRenderCategory, o as isExtendedChartType, q as knownChartTypeIds, p as palettes, k as parseDgmo, s as searchMapLocations, t as themes, k as validate } from './themes-DsTSfS8t.js';
-import { E as EmphasisDirective, P as ParsedOrg, F as FillMode, R as RaciMarker, a as ParsedRaci, b as RaciVariant, c as RaciTask } from './chart-meta-sqOKlEaT.js';
-export { A as ALL_CHART_TYPES, I as ImportSource, O as OrgNode, d as RaciPhase, e as RaciRoleAssignment, f as ReadFileFn, g as ResolveImportsResult, h as contrastText, i as findOrgNodeIdByName, j as getSeriesColors, k as hexToHSL, l as hexToHSLString, m as hslToHex, n as mix, o as normalizePertSourceForShare, p as parseDgmoChartType, q as parseFirstLine, r as parseOrg, s as parseRaci, t as resolveOrgImports, u as shade, v as shapeFill, w as tint } from './chart-meta-sqOKlEaT.js';
+export { C as CHART_TYPE_DESCRIPTIONS, M as MapCompletionOptions, d as MapLocationMatch, e as MapPlaceCompletion, f as MapRegionCompletion, R as RenderCategory, T as Theme, l as chartTypeParsers, g as completeMapPlaces, h as completeMapRegions, m as getAllChartTypes, n as getRenderCategory, o as isExtendedChartType, q as knownChartTypeIds, p as palettes, k as parseDgmo, s as searchMapLocations, t as themes, k as validate } from './themes-BENeYlIf.js';
+import { E as EmphasisDirective, P as ParsedOrg, F as FillMode, R as RaciMarker, a as ParsedRaci, b as RaciVariant, c as RaciTask } from './chart-meta-BFUA-wAq.js';
+export { A as ALL_CHART_TYPES, I as ImportSource, O as OrgNode, d as RaciPhase, e as RaciRoleAssignment, f as ReadFileFn, g as ResolveImportsResult, h as contrastText, i as findOrgNodeIdByName, j as getSeriesColors, k as hexToHSL, l as hexToHSLString, m as hslToHex, n as mix, o as normalizePertSourceForShare, p as parseDgmoChartType, q as parseFirstLine, r as parseOrg, s as parseRaci, t as resolveOrgImports, u as shade, v as shapeFill, w as tint } from './chart-meta-BFUA-wAq.js';
 import { Selection } from 'd3-selection';
 import * as d3Scale from 'd3-scale';
 import { GlyphName } from './index.js';
@@ -1079,7 +1079,33 @@ interface BoxplotGroup {
     readonly valueLines: number[];
 }
 
-type ExtendedChartType = 'sankey' | 'chord' | 'function' | 'scatter' | 'heatmap' | 'funnel' | 'boxplot';
+/** One pre-counted row: `lo-hi count`. */
+interface HistogramRange {
+    readonly x0: number;
+    readonly x1: number;
+    readonly count: number;
+    readonly lineNumber: number;
+}
+/** One `[Name color]` group, or the unnamed group before the first header. */
+interface HistogramGroup {
+    /** '' for the unnamed group. */
+    readonly name: string;
+    color?: string;
+    readonly lineNumber: number;
+    readonly values: number[];
+    readonly ranges: HistogramRange[];
+}
+/** The bin directives as written. */
+interface HistogramBinSpec {
+    width?: number;
+    count?: number;
+    start?: number;
+    widthLine?: number;
+    countLine?: number;
+    startLine?: number;
+}
+
+type ExtendedChartType = 'sankey' | 'chord' | 'function' | 'scatter' | 'heatmap' | 'funnel' | 'boxplot' | 'histogram';
 interface ExtendedChartDataPoint {
     label: string;
     value: number;
@@ -1223,8 +1249,19 @@ interface ParsedBoxplot extends ParsedExtendedBase {
     /** `orientation-horizontal`: groups down the left, values across. */
     horizontal?: boolean;
 }
+interface ParsedHistogram extends ParsedExtendedBase {
+    type: 'histogram';
+    /** The groups in written order; the unnamed group (name '') comes first. */
+    histogramGroups?: HistogramGroup[];
+    /** `bin-width`, `bins`, `bin-start` as settled (#1847). */
+    histogramBins?: HistogramBinSpec;
+    /** `percent`: y is each group's share, not its count. */
+    percent?: boolean;
+    /** Statistics overlays (#1954): `mean`, `median`. */
+    overlays?: ChartOverlay[];
+}
 /** What `parseExtendedChart` returns: discriminated on `type`. */
-type ParsedExtendedChart = ParsedSankey | ParsedChord | ParsedFunctionChart | ParsedScatter | ParsedHeatmap | ParsedFunnel | ParsedBoxplot;
+type ParsedExtendedChart = ParsedSankey | ParsedChord | ParsedFunctionChart | ParsedScatter | ParsedHeatmap | ParsedFunnel | ParsedBoxplot | ParsedHistogram;
 /**
  * Parses extended chart content into a structured object.
  *

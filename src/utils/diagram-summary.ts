@@ -25,6 +25,7 @@ import {
   parseHeatmap,
   parseSankey,
   parseScatter,
+  parseHistogram,
 } from '../data-chart-parser';
 import { parseEventLine } from '../event-line/parser';
 import { parseGoal } from '../goal/parser';
@@ -574,6 +575,29 @@ function summarizeScatter(content: string): string | null {
   return `Scatter chart of ${plural(points.length, 'point', 'points')}${groups}; ${x} and ${y}.`;
 }
 
+function summarizeHistogram(content: string): string | null {
+  const parsed = parseHistogram(content);
+  if (parsed.error) return null;
+  const groups = parsed.histogramGroups ?? [];
+  if (groups.length === 0) return 'Histogram with no values.';
+  const fmt = makeNumberFormatter(parsed.numberFormat, compactNumber);
+  const counted = groups.some((g) => g.ranges.length > 0);
+  const n = groups.reduce(
+    (s, g) =>
+      s +
+      (counted ? g.ranges.reduce((t, r) => t + r.count, 0) : g.values.length),
+    0
+  );
+  const ends = groups.flatMap((g) =>
+    counted ? g.ranges.flatMap((r) => [r.x0, r.x1]) : g.values
+  );
+  const named = groups.filter((g) => g.name).map((g) => g.name);
+  const by =
+    named.length > 0 ? ` in ${namedCount(named, 'group', 'groups')}` : '';
+  const range = axisRange(parsed.xlabel ?? 'the values', ends, fmt);
+  return `Histogram of ${plural(n, 'value', 'values')}${by}; ${range}.`;
+}
+
 function summarizeSankey(content: string): string | null {
   const parsed = parseSankey(content);
   if (parsed.error) return null;
@@ -1038,6 +1062,7 @@ const SUMMARIZERS: Record<ChartTypeId, Summarizer> = {
   heatmap: summarizeHeatmap,
   funnel: summarizeFunnel,
   boxplot: summarizeBoxplot,
+  histogram: summarizeHistogram,
   function: summarizeFunction,
   timeline: summarizeTimeline,
   'event-line': summarizeEventLine,

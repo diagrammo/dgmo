@@ -13,8 +13,8 @@ import type { ChartOverlay, OverlayKind } from './types';
 /** The chart types each overlay draws on. */
 export const OVERLAY_CHARTS: Readonly<Record<OverlayKind, readonly string[]>> =
   {
-    mean: ['line', 'bar'],
-    median: ['line', 'bar'],
+    mean: ['line', 'bar', 'histogram'],
+    median: ['line', 'bar', 'histogram'],
     target: ['line', 'bar'],
     trend: ['line', 'bar', 'scatter'],
     'moving-average': ['line'],

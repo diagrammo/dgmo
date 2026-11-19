@@ -99,7 +99,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 - **On a chart of numbers, the title states the finding.** Write what the reader should take away, not what is plotted — `bar Nassau landed twice the gold of any other port`, not `bar Gold by Port`. Put what is measured (the quantity, units, period) in `subtitle` and where the numbers came from in `source` (§1.12). Fall back to a label title only when the user names one or the data shows no single finding (§26.8).
   <!-- TITLE end -->
   <!-- CATEGORIZE start -->
-- **Categorize and color — by default, not only when obvious.** Before drawing, find the axis that sorts the items into kinds and color by it: layer (frontend / backend / data), role (client / service / datastore), trust zone (internal / external / third-party), status (done / active / blocked), owner/team, or read-path vs write-path. Almost every diagram has such an axis — actively look for one rather than leaving everything monochrome. Express it with a **tag group**, never ad-hoc per-node colors: declare `tag <Axis> as t` (the name is a single word — `tag TrustZone as tz` — or quote a multi-word name: `tag "Trust Zone" as tz`), indent the category values (a trailing color is optional — bare values auto-pick a palette color), set `active-tag <Axis>` in the header — after the tag group and before the first element, because a type such as c4 refuses it after content — then assign each item `Node t: <Category>` (see the tag-group syntax in the per-type section below). **Bracket, block, body, calendar-heatmap, event-line and whiteboard** take the tag group but no `active-tag` line — declare the group and stop there; on event-line the line would be drawn as an element. **Class, flowchart, wireframe, raci, cycle, pyramid, ring, sankey, tech-radar, venn, version-control, wordcloud, arc, bar, clock, countdown, funnel, function, goal, heatmap, line, pie, polar-area, quadrant, radar, scatter, slope and boxplot** take no tag group at all — skip this rule for them. Most report the lines; cycle, pyramid, ring, sankey, venn, version-control and wordcloud read them as content, and flowchart and tech-radar drop them without a word. Only the 11 named palette colors exist, and they re-resolve per palette/theme. Color the grouping so the categories — and the boundaries between them — read at a glance. **Buckets, not name tags — never 1:1.** A tag group must have _fewer_ values than it has members: each color should bucket two or more items so the palette compresses the diagram into a few meaningful kinds (aim for ~2–4 categories, and keep distinct colors well under half the item count). If you find yourself giving nearly every item its own value, you've enumerated, not categorized — merge the singletons up a level until each color groups at least two (a `cache` and a `database` are both `datastore`; a caller and a gateway are both `client`; two microservices are both `service`). One color per item is the same visual noise as random colors — the grouping only earns its place when a color means "these belong together." Leave items uncolored only when they genuinely form a single undifferentiated kind, or the user asked for no color.
+- **Categorize and color — by default, not only when obvious.** Before drawing, find the axis that sorts the items into kinds and color by it: layer (frontend / backend / data), role (client / service / datastore), trust zone (internal / external / third-party), status (done / active / blocked), owner/team, or read-path vs write-path. Almost every diagram has such an axis — actively look for one rather than leaving everything monochrome. Express it with a **tag group**, never ad-hoc per-node colors: declare `tag <Axis> as t` (the name is a single word — `tag TrustZone as tz` — or quote a multi-word name: `tag "Trust Zone" as tz`), indent the category values (a trailing color is optional — bare values auto-pick a palette color), set `active-tag <Axis>` in the header — after the tag group and before the first element, because a type such as c4 refuses it after content — then assign each item `Node t: <Category>` (see the tag-group syntax in the per-type section below). **Bracket, block, body, calendar-heatmap, event-line and whiteboard** take the tag group but no `active-tag` line — declare the group and stop there; on event-line the line would be drawn as an element. **Class, flowchart, wireframe, raci, cycle, pyramid, ring, sankey, tech-radar, venn, version-control, wordcloud, arc, bar, clock, countdown, funnel, function, goal, heatmap, line, pie, polar-area, quadrant, radar, scatter, slope, boxplot and histogram** take no tag group at all — skip this rule for them. Most report the lines; cycle, pyramid, ring, sankey, venn, version-control and wordcloud read them as content, and flowchart and tech-radar drop them without a word. Only the 11 named palette colors exist, and they re-resolve per palette/theme. Color the grouping so the categories — and the boundaries between them — read at a glance. **Buckets, not name tags — never 1:1.** A tag group must have _fewer_ values than it has members: each color should bucket two or more items so the palette compresses the diagram into a few meaningful kinds (aim for ~2–4 categories, and keep distinct colors well under half the item count). If you find yourself giving nearly every item its own value, you've enumerated, not categorized — merge the singletons up a level until each color groups at least two (a `cache` and a `database` are both `datastore`; a caller and a gateway are both `client`; two microservices are both `service`). One color per item is the same visual noise as random colors — the grouping only earns its place when a color means "these belong together." Leave items uncolored only when they genuinely form a single undifferentiated kind, or the user asked for no color.
 <!-- CATEGORIZE end -->
 - **Keep labels short.** A few words per node. Move detail into notes or metadata, never a full sentence inside a label.
 - **Let the defaults show.** Don't add `no-*` opt-outs unless the user asked to hide or disable something — they strip helpful labels, values, and color.
@@ -108,7 +108,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 
 <!-- AI-CORE:TYPE-INDEX start -->
 
-### Chart-type index (45) — pick the type, then fetch its section
+### Chart-type index (47) — pick the type, then fetch its section
 
 | id                 | when to use                                                                                                                                                                                                                                          |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -157,6 +157,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `polar-area`       | radial bar chart                                                                                                                                                                                                                                     |
 | `scatter`          | 2D points or bubble chart (`trend` draws a fit line per category)                                                                                                                                                                                    |
 | `heatmap`          | matrix intensity                                                                                                                                                                                                                                     |
+| `histogram`        | distribution of raw numbers counted into bins (response times, ages, scores); pre-counted `10-20 31` rows too                                                                                                                                        |
 | `calendar-heatmap` | daily values across a year as a grid of squares, weeks across and weekdays down (activity, habits, runs) — one `date value` per line                                                                                                                 |
 | `boxplot`          | spread and outliers of raw numbers per group (cycle times, scores) — free numbers under `[Group]` headers                                                                                                                                            |
 | `funnel`           | conversion pipeline                                                                                                                                                                                                                                  |
@@ -594,7 +595,7 @@ A caller can ask for a canvas size: `--width` and `--height` on the CLI, `width`
 
   <!-- exact-size-types:start -->
 
-  `bar`, `arc layout chord`, `boxplot`, `cycle`, `funnel`, `function`, `heatmap`, `line`, `pie`, `polar-area`, `pyramid`, `quadrant`, `radar`, `ring`, `sankey`, `scatter`, `slope`, `tech-radar`, `treemap`, `venn`, `wordcloud`
+  `bar`, `arc layout chord`, `boxplot`, `cycle`, `funnel`, `function`, `heatmap`, `histogram`, `line`, `pie`, `polar-area`, `pyramid`, `quadrant`, `radar`, `ring`, `sankey`, `scatter`, `slope`, `tech-radar`, `treemap`, `venn`, `wordcloud`
 
   <!-- exact-size-types:end -->
 
@@ -3422,6 +3423,46 @@ The same source always draws the same picture: `points` spreads the dots by a ha
 | `E_BOXPLOT_NOT_A_NUMBER` | a word in a value row; the word is left out, the numbers count |
 | `W_BOXPLOT_EMPTY_GROUP`  | a `[Group]` header with no values under it                     |
 | `W_BOXPLOT_FEW_VALUES`   | a group with fewer than 5 values; the box is still drawn       |
+
+### 15.8 Histograms
+
+<!-- TYPE:histogram -->
+
+<!-- TIPS start -->
+
+**Styling tips:** paste the raw numbers and let the automatic width choose the bins; set `bin-width` only when the unit has a natural step (5 minutes, $10); overlay at most three `[Group]`s, and use `percent` when the groups differ in size.
+
+<!-- TIPS end -->
+
+Raw numbers in, counted bins out. Bare numbers, any number per line, spaces or commas. No labels.
+
+```
+histogram Delivery time by area
+x-axis Minutes
+bin-width 2.5
+mean
+
+[Downtown] blue
+17.2 21.5 14.8, 19.0 23.1
+
+[Suburbs] orange
+26.4 31.0 22.9 28.5
+```
+
+| Directive | Does |
+|---|---|
+| (none) | automatic width (Freedman–Diaconis, rounded up to 1, 2, 2.5 or 5 × 10ⁿ); edges on multiples of the width |
+| `bin-width W` | exact width |
+| `bins N` | about N bins with round edges (`bins 10` may give 9 or 12) — never with `bin-width` |
+| `bin-start S` | the first edge is S |
+| `percent` | y is each group's share (each group sums to 100%) instead of the count |
+| `mean`, `median` | vertical reference line per group |
+| `x-axis [title] [min..max]` | values' axis; a range drops values outside it |
+
+- **Groups** are `[Name] color` headers; values before the first header form one unnamed group. Groups share bins and draw overlaid with a legend.
+- **Pre-counted rows:** `10-20 31` (range, then count). Never mix them with raw values. Unequal widths draw true to area.
+- `format` / `unit` / `locale` apply to the x values; counts print plain.
+- No horizontal form, no stacked or side-by-side groups, no labelled values.
 
 ---
 
