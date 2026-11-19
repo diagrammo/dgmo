@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **histogram: a new chart type — raw numbers counted into bins
+  (diagrammo/diagrammo#1847).** Bare numbers in, bins out. The bin width is
+  Freedman–Diaconis by default, rounded to 1, 2, 2.5 or 5 × 10ⁿ; `bin-width`,
+  `bins N` and `bin-start` override it. `[Name] color` groups share one set of
+  bins and overlay as translucent fills. `percent`, `mean` and `median` work,
+  and pre-counted `lo-hi count` rows draw true to area.
+- **bar: `mirror` — a butterfly / population pyramid (diagrammo/diagrammo#1878).**
+  A third layout header beside `stack` and `group`: exactly two series drawn
+  back to back on one shared scale, category names in a centre gutter.
+
 - **boxplot: a new chart type for spread and outliers per group (#1848).**
   Free numbers under `[Group]` headers, the histogram's input. One Tukey box
   per group: Q1–Q3 by linear interpolation (QUARTILE.INC, R type 7), the
@@ -329,6 +339,20 @@ logged · most often Great`. Diagnostics: `E_CALENDAR_HEATMAP_UNKNOWN_TAG`,
   `else if` with no condition now says so.
 
 ### Fixed
+
+- **bar: notes too crowded for captions become numbered marks with a key.**
+  When any bar note finds no clear spot, every note becomes a small numbered
+  disc at its bar's end and the text moves to a key under the chart.
+- **A crowded bar's note wraps to the bar's width, down to one word
+  (diagrammo/diagrammo#2136).** The 64px floor on the caption wrap is now 24px.
+- **A line, scatter or slope note's leader keeps off data lines, points and
+  other leaders**, not only its text. It falls back to the old rule only when
+  no clear spot exists.
+- **calendar-heatmap tag mode:** a tag group may come after its entries, a
+  declared tag value wins over a number, and an empty day draws as an outlined
+  cell so a gray tag reads apart from "Not logged".
+- **boxplot:** the top tick sits on the plot's top edge, and the canvas is the
+  exact requested size.
 
 - **bar: a note stands above its column, and annotation text is never behind
   a bar (diagrammo/diagrammo#2078).** A note on a column sits over the bar and
