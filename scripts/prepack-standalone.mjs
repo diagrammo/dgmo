@@ -79,8 +79,12 @@ if (!urlMatch) {
   );
 }
 const ident = urlMatch[1];
+// A minified name may start with `$`, which is neither a word character (so
+// `\b` never matches before it) nor literal in a RegExp. Escape it, and bound
+// it with lookarounds on identifier characters instead.
+const escaped = ident.replace(/\$/g, '\\$');
 const assigned = element.match(
-  new RegExp(`\\b${ident}\\s*=\\s*["']([^"']+)["']`)
+  new RegExp(`(?<![\\w$])${escaped}(?![\\w$])\\s*=\\s*["']([^"']+)["']`)
 );
 if (!assigned) {
   fail(`element.js never assigns ${ident}, the version in its basemap URL`);
