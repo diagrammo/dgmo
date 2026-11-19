@@ -18,6 +18,12 @@
 //    overlap and read as one. Arrivals on one side closer than
 //    `MIN_ARRIVAL_GAP` are spread apart along that side, unless that adds a
 //    crossing anywhere in the diagram.
+// 1b. Opposite edges. dagre routes `A -> B` and `B -> A` separately, but on
+//    adjacent ranks it lands both on the same two faces a few px apart — 13
+//    in #2072 — so the pair reads as one doubled line with both labels
+//    between. Such a pair is fanned apart until its ends are `OPPOSITE_GAP`
+//    apart, each edge moved away from the other, unless that adds a crossing
+//    or a pierced node. State diagrams only — see `fanOpposite`.
 // 3. Oblique arrivals. dagre aims an edge's last segment at its target's
 //    centre, so an edge coming in from the side meets the box face at a
 //    slant — up to 72° off square in the gallery — and the arrowhead, which
@@ -47,6 +53,8 @@ export interface PortBox {
 
 /** Space between the routes of a parallel pair — dagre's own `edgesep`. */
 const PARALLEL_GAP = 20;
+/** The least space between the ends of an opposite pair on one node. */
+const OPPOSITE_GAP = 28;
 /** The least space between two arrowheads on one node side: wider than one. */
 const MIN_ARRIVAL_GAP = 14;
 /** An endpoint keeps at least this far from its side's corners. */
@@ -336,7 +344,13 @@ export function unbundleEdges(
   pierces: (
     routes: readonly (readonly Pt[])[],
     only?: readonly number[]
-  ) => number = () => 0
+  ) => number = () => 0,
+  /**
+   * Fan opposite pairs apart (1b). State diagrams only: a flowchart's retry
+   * loop leaves its column as an elbow later (`retry-elbow.ts`), and fanning
+   * would pull the forward edge off the column for nothing.
+   */
+  fanOpposite = false
 ): Pt[][] {
   let out: Pt[][] = routes.map((r) => r.slice());
 
@@ -371,6 +385,61 @@ export function unbundleEdges(
         );
       }
     });
+  }
+
+  // 1b. Opposite edges whose ends sit closer than `OPPOSITE_GAP`. Only a pair
+  // with one lane each way: a fanned parallel lane already has its own route.
+  const firstOf = new Map<string, number>();
+  edges.forEach((e, i) => {
+    if (!fanOpposite) return;
+    if (e.source === e.target || out[i]!.length < 2 || twin.has(i)) return;
+    const key = `${e.source}\u0000${e.target}`;
+    if (!firstOf.has(key) && (pairs.get(key)?.size ?? 0) === 1)
+      firstOf.set(key, i);
+  });
+  for (const i of firstOf.values()) {
+    const e = edges[i]!;
+    const j = firstOf.get(`${e.target}\u0000${e.source}`);
+    if (j === undefined || j < i) continue;
+    const ri = out[i]!;
+    const rj = out[j]!;
+    const gap = Math.min(
+      Math.hypot(ri[0]!.x - rj.at(-1)!.x, ri[0]!.y - rj.at(-1)!.y),
+      Math.hypot(ri.at(-1)!.x - rj[0]!.x, ri.at(-1)!.y - rj[0]!.y)
+    );
+    if (gap >= OPPOSITE_GAP) continue;
+    // Which side of `i` (left of its direction is +) `j`'s middle lies on.
+    // Each moves away from the other: a reversed route's left is the other's
+    // right, so one offset sign does it for both.
+    const a = ri[0]!;
+    const b = ri.at(-1)!;
+    const m = rj[Math.floor(rj.length / 2)]!;
+    const side = Math.sign(
+      (b.x - a.x) * (m.y - a.y) - (b.y - a.y) * (m.x - a.x)
+    );
+    const off = -(side || 1) * ((OPPOSITE_GAP - gap) / 2);
+    const trial = out.slice();
+    trial[i] = fanRoute(ri, off, boxes.get(e.source), boxes.get(e.target));
+    trial[j] = fanRoute(rj, off, boxes.get(e.target), boxes.get(e.source));
+    const moved = [i, j];
+    for (const [t, first] of twin)
+      if (first === i || first === j) {
+        trial[t] = trial[first]!.slice();
+        moved.push(t);
+      }
+    // Scored on the moved curves only: every other pair scores the same, and
+    // a whole-diagram count per pair grew with the diagram's square (#1890).
+    if (pierces(trial, moved) > pierces(out, moved)) continue;
+    let delta = 0;
+    out.forEach((r, k) => {
+      if (r.length < 2) return;
+      for (const m of moved) {
+        if (k === m || (moved.includes(k) && k < m)) continue;
+        delta += crossings(trial, [m, k]) - crossings(out, [m, k]);
+      }
+    });
+    if (delta > 0) continue;
+    out = trial;
   }
 
   // 2. Arrivals that land on one spot of one side. Kept only when no curve

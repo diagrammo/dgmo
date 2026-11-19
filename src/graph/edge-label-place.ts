@@ -37,6 +37,17 @@ function clear(b: ObstacleBox, obstacles: readonly ObstacleBox[]): boolean {
   return true;
 }
 
+/** True when a label centred at (cx, cy) clears every obstacle. */
+export function labelClear(
+  cx: number,
+  cy: number,
+  w: number,
+  h: number,
+  obstacles: readonly ObstacleBox[]
+): boolean {
+  return clear(boxAt(cx, cy, w, h), obstacles);
+}
+
 /** The point at fraction `t` of the route's length, with its direction. */
 function along(
   route: readonly Pt[],

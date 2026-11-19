@@ -9,7 +9,12 @@ import {
   legendSuppressed,
   legendInlineRequested,
 } from '../utils/parsing';
-import { layoutInlineHeader } from '../utils/inline-header';
+import {
+  INLINE_HEADER_PAD,
+  layoutInlineHeader,
+  measureTitleWidth,
+} from '../utils/inline-header';
+import { Bounds } from '../utils/bounds';
 import { appendArrowheadMarkers } from '../utils/arrow-markers';
 import { fitDiagramToCanvas } from '../utils/fit-canvas';
 import { FONT_FAMILY } from '../fonts';
@@ -42,7 +47,11 @@ import { renderGraphTitle } from './title';
 import { growChartFrame } from '../utils/chart-frame';
 import { edgeSplinePath, selfLoopArcPath } from './edge-spline';
 import { withoutApproach } from './edge-ports';
-import { clearEdgeLabel, type ObstacleBox } from './edge-label-place';
+import {
+  clearEdgeLabel,
+  labelClear,
+  type ObstacleBox,
+} from './edge-label-place';
 import {
   LEGEND_BODY_GAP,
   TITLE_FONT_SIZE,
@@ -226,6 +235,17 @@ export function renderState(
     });
   }
 
+  // Each edge's middle waypoint by `source\0target`, so a two-way pair can
+  // put its labels on the outside of the pair.
+  const reverseMid = new Map<string, { x: number; y: number }>();
+  for (const edge of layout.edges) {
+    if (edge.source === edge.target || edge.points.length < 2) continue;
+    const route = withoutApproach(edge.points);
+    const key = `${edge.source}\u0000${edge.target}`;
+    if (!reverseMid.has(key))
+      reverseMid.set(key, route[Math.floor(route.length / 2)]!);
+  }
+
   for (let ei = 0; ei < layout.edges.length; ei++) {
     const edge = layout.edges[ei]!;
     if (!edge.label) continue;
@@ -263,8 +283,19 @@ export function renderState(
         const dy = next.y - prev.y;
         const len = Math.sqrt(dx * dx + dy * dy);
         if (len > 0) {
-          lx = midPt.x + (-dy / len) * PERP_OFFSET;
-          ly = midPt.y + (dx / len) * PERP_OFFSET;
+          // Left of the direction, unless the edge has a reverse partner on
+          // that side: then the label goes on the far side, so each label of
+          // a two-way pair sits beside its own curve, not between them (#2072).
+          let sign = 1;
+          const partner = reverseMid.get(`${edge.target}\u0000${edge.source}`);
+          if (partner) {
+            const toPartner =
+              (-dy / len) * (partner.x - midPt.x) +
+              (dx / len) * (partner.y - midPt.y);
+            if (toPartner > 0) sign = -1;
+          }
+          lx = midPt.x + (-dy / len) * PERP_OFFSET * sign;
+          ly = midPt.y + (dx / len) * PERP_OFFSET * sign;
         } else {
           lx = midPt.x;
           ly = midPt.y;
@@ -284,6 +315,13 @@ export function renderState(
     labelPositions.push({ x: lx, y: ly, w: bgW, h: LABEL_H, edgeIdx: ei });
   }
 
+  // A placed label as an obstacle, in the box `labelClear` tests against.
+  const labelBox = (l: LabelPos): ObstacleBox => ({
+    x: l.x - l.w / 2,
+    y: l.y - l.h / 2 - 1,
+    w: l.w,
+    h: l.h,
+  });
   labelPositions.sort((a, b) => a.y - b.y);
   for (let i = 0; i < labelPositions.length; i++) {
     for (let j = i + 1; j < labelPositions.length; j++) {
@@ -292,7 +330,17 @@ export function renderState(
       const overlapX = Math.abs(a.x - b.x) < (a.w + b.w) / 2;
       const overlapY = Math.abs(a.y - b.y) < (a.h + b.h) / 2;
       if (overlapX && overlapY) {
-        b.y = a.y + (a.h + b.h) / 2 + 2;
+        // Below `a`, unless that lands on a state and above `a` does not:
+        // a label is drawn under the states, so one pushed onto a box is
+        // hidden (#2072).
+        const down = a.y + (a.h + b.h) / 2 + 2;
+        const up = a.y - (a.h + b.h) / 2 - 2;
+        const others = labelPositions.filter((o) => o !== b);
+        const free = (y: number): boolean =>
+          labelClear(b.x, y, b.w, b.h, labelObstacles) &&
+          labelClear(b.x, y, b.w, b.h, others.map(labelBox));
+        const downOnState = !labelClear(b.x, down, b.w, b.h, labelObstacles);
+        b.y = downOnState && free(up) ? up : down;
       }
     }
   }
@@ -300,21 +348,41 @@ export function renderState(
   const labelPosMap = new Map<number, LabelPos>();
   for (const lp of labelPositions) labelPosMap.set(lp.edgeIdx, lp);
 
-  // With a title the first thing drawn starts at the fixed line under the
-  // title band (#1838). An edge label or curve can reach above the top node,
-  // so that room is reserved too and the plot moves down, not the label.
-  let poke = 0;
-  if (showTitle) {
-    let top = 0;
-    for (const lp of labelPositions) top = Math.min(top, lp.y - lp.h / 2 - 1);
-    // An edge's curve stays inside its points; allow for the stroke.
-    for (const e of layout.edges)
-      for (const pt of e.points) top = Math.min(top, pt.y - 1);
-    // A group's box reaches above its top state by its padding and label.
-    for (const g of layout.groups)
-      top = Math.min(top, g.y - sGroupExtraPadding - sGroupLabelFontSize - 4);
-    poke = -top;
+  // The drawing's own extent: states, open notes, group frames, every edge's
+  // waypoints (a curve stays inside them) and every edge label. The layout's
+  // size reaches 40 px past the last state and nothing above the first, so
+  // fitting to it left a dead band right and below and let a label or curve
+  // above the top state climb into the title band (#1838, #2072). The plot
+  // is fitted to this box and moved so its corner sits at the origin.
+  const noNotes = graph.options?.['no-notes'] === 'on';
+  const ext = new Bounds();
+  for (const n of layout.nodes) {
+    ext.addCentred(n);
+    if (n.note && !n.note.collapsed && !noNotes)
+      ext.add(
+        n.x + n.note.x,
+        n.y + n.note.y,
+        n.x + n.note.x + n.note.width,
+        n.y + n.note.y + n.note.height
+      );
   }
+  for (const g of layout.groups) {
+    if (g.collapsed || (g.width === 0 && g.height === 0)) continue;
+    ext.add(
+      g.x - sGroupExtraPadding,
+      g.y - sGroupExtraPadding - sGroupLabelFontSize - 4,
+      g.x + g.width + sGroupExtraPadding,
+      g.y + g.height + sGroupExtraPadding
+    );
+  }
+  // Allow for the stroke.
+  for (const e of layout.edges)
+    for (const pt of e.points) ext.add(pt.x - 1, pt.y - 1, pt.x + 1, pt.y + 1);
+  for (const lp of labelPositions) {
+    const b = labelBox(lp);
+    ext.add(b.x, b.y, b.x + b.w, b.y + b.h);
+  }
+  ext.orZero();
   // With a title, the drawing starts LEGEND_BODY_GAP under the legend's ink
   // (#1838). The legend is drawn 4 below the title band; the drawing sits one
   // padding under the band this reserves.
@@ -322,8 +390,8 @@ export function renderState(
     hasLegend && showTitle
       ? legendInkBottom(legendH - 8) + LEGEND_BODY_GAP + 4 - sDiagramPadding
       : legendH;
-  const diagramW = layout.width;
-  const diagramH = layout.height + poke;
+  const diagramW = ext.maxX - ext.minX;
+  const diagramH = ext.maxY - ext.minY;
   const fit = fitDiagramToCanvas({
     width,
     height,
@@ -335,8 +403,23 @@ export function renderState(
     maxScale: MAX_SCALE,
     exportMode: !!exportDims,
   });
-  const { scale, offsetX, canvasHeight, canvasWidth } = fit;
-  const offsetY = fit.offsetY + poke * scale;
+  const { scale, canvasHeight } = fit;
+  let { canvasWidth } = fit;
+  let offsetX = fit.offsetX - ext.minX * scale;
+  const offsetY = fit.offsetY - ext.minY * scale;
+  // An export canvas shrinks to the drawing, so a title wider than the drawing
+  // widens the canvas, as flowchart does (#1420): otherwise it ran off the
+  // right edge (#2072). An inline header keeps its own layout.
+  if (showTitle && exportDims && !header.inline) {
+    const titleW = Math.ceil(
+      measureTitleWidth(graph.title ?? '', sTitleFontSize) +
+        INLINE_HEADER_PAD * 2
+    );
+    if (titleW > canvasWidth) {
+      offsetX += (titleW - canvasWidth) / 2;
+      canvasWidth = titleW;
+    }
+  }
 
   const svg = d3Selection
     .select(container)
@@ -566,7 +649,6 @@ export function renderState(
 
   const colorOff = graph.options?.['color'] === 'off';
   const fillMode = fillModeFromOptions(graph.options ?? {});
-  const noNotes = graph.options?.['no-notes'] === 'on';
   const mutableTagGroups = [...tagGroups];
 
   /**

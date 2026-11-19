@@ -418,7 +418,8 @@ export function layoutGraph(
     graph.nodes.length + graph.edges.length > SEARCH_SIZE_LIMIT
       ? () => 0
       : (rs, only) => countSplineCrossings(scored(rs, only)),
-    (rs, only) => countEdgeNodePierces(scored(rs, only))
+    (rs, only) => countEdgeNodePierces(scored(rs, only)),
+    graph.type === 'state'
   );
   // A flowchart's retry loop between adjacent ranks leaves its column as an
   // elbow instead of running along the forward edge (#2034).
