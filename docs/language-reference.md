@@ -3430,7 +3430,7 @@ The same source always draws the same picture: `points` spreads the dots by a ha
 
 <!-- TIPS start -->
 
-**Styling tips:** paste the raw numbers and let the automatic width choose the bins; set `bin-width` only when the unit has a natural step (5 minutes, $10); overlay at most three `[Group]`s, and use `percent` when the groups differ in size.
+**Styling tips:** feed raw numbers and let the bins count them, setting `bin-width` only when the edges must fall somewhere meaningful; label the x axis with units; overlay groups with `[Name] color` headers only when comparing a few distributions, and add `percent` when the groups differ in size; mark the centre with `mean` or `median` rather than annotating by hand.
 
 <!-- TIPS end -->
 
