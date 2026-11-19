@@ -16,6 +16,7 @@
 // must, or beside the bar's end only where neither its text nor its leader
 // crosses a bar, a value label, another note or another note's leader.
 
+import type { Selection } from 'd3-selection';
 import type { Svg } from '../charts-d3/shared';
 import { FONT_FAMILY } from '../fonts';
 import {
@@ -229,12 +230,20 @@ function boxAt(
   return { x, y, w, h };
 }
 
-/** Draws every note; returns their text boxes, which point values must clear. */
-export function drawChartNotes(
-  svg: Svg,
+/** Where each note's text goes, and whether every bar note found a clear
+ *  spot. `clear` false means a bar note overlaps something (#2159). */
+export interface PlacedNotes {
+  readonly boxes: readonly LabelRect[];
+  readonly blocks: readonly ReturnType<typeof noteBlock>[];
+  readonly clear: boolean;
+}
+
+/** Places every note without drawing it. */
+export function placeChartNotes(
   notes: readonly PlacedNoteDatum[],
   opts: DrawNotesOptions
-): LabelRect[] {
+): PlacedNotes {
+  let allClear = true;
   const placement = createLabelPlacement({
     reserved: opts.reserved ?? [],
     obstacles: opts.obstacles ?? [],
@@ -486,10 +495,11 @@ export function drawChartNotes(
             ),
           opts.canvas
         ) ??
+        ((allClear = false),
         clamp(
           captionsAt(BEYOND_DISTANCES[0]!, opts.canvas, w, h)[0]!,
           opts.canvas
-        ))
+        )))
       : // A spot whose leader crosses nothing first; only then one whose
         // text alone is clear (#2158).
         (roomiest(opts.plot, true) ??
@@ -504,7 +514,17 @@ export function drawChartNotes(
     boxes[i] = box;
     placedYet.add(i);
   }
+  return { boxes, blocks, clear: allClear };
+}
 
+/** Draws every note; returns their text boxes, which point values must clear. */
+export function drawChartNotes(
+  svg: Svg,
+  notes: readonly PlacedNoteDatum[],
+  opts: DrawNotesOptions,
+  placed: PlacedNotes = placeChartNotes(notes, opts)
+): LabelRect[] {
+  const { boxes, blocks } = placed;
   notes.forEach((n, i) => {
     const box = boxes[i]!;
     const { lines } = blocks[i]!;
@@ -558,7 +578,7 @@ export function drawChartNotes(
       renderInlineText(t, line, opts.palette, NOTE_FONT);
     });
   });
-  return boxes;
+  return [...boxes];
 }
 
 function clamp(r: LabelRect, b: Bounds): LabelRect {
@@ -567,4 +587,197 @@ function clamp(r: LabelRect, b: Bounds): LabelRect {
     x: Math.max(b.left, Math.min(r.x, b.right - r.w)),
     y: Math.max(b.top, Math.min(r.y, b.bottom - r.h)),
   };
+}
+
+// ------------------------------------------------------------
+// Numbered notes and their key (#2159)
+// ------------------------------------------------------------
+//
+// When a bar chart's notes cannot all stand clear, every note becomes a
+// small numbered disc at its bar's end and its text moves to a key under
+// the chart, numbered in bar order. One chart never mixes the two forms.
+// Hovering a disc, its key row or its bar lights all three (CSS only, so a
+// static export just shows the plain key).
+
+/** Radius of a note's numbered disc. */
+export const KEY_DISC_R = 7;
+const KEY_NUM_FONT = 8;
+/** Space above the key, below everything else the chart draws. */
+const KEY_GAP = 14;
+/** Space between the key's columns. */
+const KEY_COL_GAP = 18;
+/** Space between a row's disc and its text. */
+const KEY_TEXT_GAP = 5;
+
+/** One key row: its number, text and colour, and the note's source line. */
+export interface NoteKeyItem {
+  readonly num: number;
+  readonly text: string;
+  readonly color: string | null;
+  readonly lineNumber: number;
+}
+
+/** The key's layout: rows laid down each column, then across. */
+export interface NoteKeyPlan {
+  readonly h: number;
+  readonly rows: readonly {
+    readonly item: NoteKeyItem;
+    readonly lines: readonly string[];
+    readonly dx: number;
+    readonly dy: number;
+  }[];
+}
+
+/** Narrowest a key column's text runs before more columns stop paying. */
+const KEY_TEXT_MIN = 60;
+
+/** Lays the key out in the number of columns that makes it shortest,
+ *  each column's text wrapped to its share of `avail` px. */
+export function planNoteKey(
+  items: readonly NoteKeyItem[],
+  avail: number
+): NoteKeyPlan {
+  const lay = (cols: number): NoteKeyPlan => {
+    const colW = (avail - (cols - 1) * KEY_COL_GAP) / cols;
+    const textMax = Math.max(
+      KEY_TEXT_MIN,
+      colW - 2 * KEY_DISC_R - KEY_TEXT_GAP
+    );
+    const blocks = items.map((it) => noteBlock(it.text, textMax));
+    const entryW = Math.max(
+      ...blocks.map((b) => 2 * KEY_DISC_R + KEY_TEXT_GAP + b.w)
+    );
+    const perCol = Math.ceil(items.length / cols);
+    const tops: number[] = [];
+    let y = KEY_GAP;
+    for (let r = 0; r < perCol; r++) {
+      tops.push(y);
+      y +=
+        Math.max(
+          2 * KEY_DISC_R,
+          ...blocks
+            .filter((_, i) => i % perCol === r)
+            .map((b) => b.lines.length * NOTE_LINE)
+        ) + 4;
+    }
+    return {
+      h: y,
+      rows: items.map((item, i) => ({
+        item,
+        lines: blocks[i]!.lines,
+        dx: Math.floor(i / perCol) * (entryW + KEY_COL_GAP),
+        dy: tops[i % perCol]!,
+      })),
+    };
+  };
+  const fits = (cols: number) =>
+    cols === 1 ||
+    (avail - (cols - 1) * KEY_COL_GAP) / cols - 2 * KEY_DISC_R - KEY_TEXT_GAP >=
+      KEY_TEXT_MIN;
+  let best = lay(1);
+  for (let c = 2; c <= items.length && fits(c); c++) {
+    const p = lay(c);
+    if (p.h < best.h) best = p;
+  }
+  return best;
+}
+
+function drawDisc(
+  g: Selection<SVGGElement, unknown, null, undefined>,
+  cx: number,
+  cy: number,
+  num: number,
+  stroke: string,
+  bg: string
+): void {
+  g.append('circle')
+    .attr('class', 'dgmo-note-disc')
+    .attr('cx', cx)
+    .attr('cy', cy)
+    .attr('r', KEY_DISC_R)
+    .attr('fill', bg)
+    .attr('stroke', stroke)
+    .attr('stroke-width', 1.25)
+    .style('color', stroke);
+  g.append('text')
+    .attr('class', 'dgmo-note-num')
+    .attr('x', cx)
+    .attr('y', cy + KEY_NUM_FONT * 0.36)
+    .attr('text-anchor', 'middle')
+    .attr('fill', stroke)
+    .attr('font-size', KEY_NUM_FONT)
+    .attr('font-weight', 700)
+    .attr('font-family', FONT_FAMILY)
+    .attr('pointer-events', 'none')
+    .text(String(num));
+}
+
+/** Draws each note's disc at its bar's end, the key at (x, y), and the
+ *  hover rules tying a disc, its key row and `data-note-key` bars. */
+export function drawNoteKey(
+  svg: Svg,
+  marks: readonly {
+    readonly x: number;
+    readonly y: number;
+    readonly item: NoteKeyItem;
+  }[],
+  plan: NoteKeyPlan,
+  at: { readonly x: number; readonly y: number },
+  opts: {
+    readonly colors: { readonly text: string; readonly bg: string };
+    readonly palette: PaletteColors;
+  }
+): void {
+  const stroke = (it: NoteKeyItem) => it.color ?? opts.colors.text;
+  for (const { x, y, item } of marks) {
+    const g = svg
+      .append('g')
+      .attr('class', 'dgmo-chart-note dgmo-note-mark')
+      .attr('data-line-number', item.lineNumber)
+      .attr('data-note-key', item.num);
+    drawDisc(g, x, y, item.num, stroke(item), opts.colors.bg);
+  }
+  const key = svg.append('g').attr('class', 'dgmo-note-key');
+  for (const { item, lines, dx, dy } of plan.rows) {
+    const g = key
+      .append('g')
+      .attr('class', 'dgmo-note-key-row')
+      .attr('data-line-number', item.lineNumber)
+      .attr('data-note-key', item.num);
+    const x0 = at.x + dx;
+    const y0 = at.y + dy;
+    drawDisc(
+      g,
+      x0 + KEY_DISC_R,
+      y0 + KEY_DISC_R,
+      item.num,
+      stroke(item),
+      opts.colors.bg
+    );
+    lines.forEach((line, i) => {
+      const t = g
+        .append('text')
+        .attr('class', 'dgmo-note-key-text')
+        .attr('x', x0 + 2 * KEY_DISC_R + KEY_TEXT_GAP)
+        .attr('y', y0 + KEY_DISC_R + NOTE_FONT * 0.36 + i * NOTE_LINE)
+        .attr('fill', opts.colors.text)
+        .attr('font-size', NOTE_FONT)
+        .attr('font-family', FONT_FAMILY);
+      renderInlineText(t, line, opts.palette, NOTE_FONT);
+    });
+  }
+  // A hovered disc, row or bar lights the others with its number. `:has`
+  // reaches across the drawing without script; a PNG export ignores it.
+  const rules = plan.rows
+    .map(({ item: { num } }) => {
+      const on = `svg:has([data-note-key="${num}"]:hover) [data-note-key="${num}"]`;
+      return (
+        `${on} .dgmo-note-disc{fill:currentColor}` +
+        `${on} .dgmo-note-num{fill:${opts.colors.bg}}` +
+        `${on} .dgmo-note-key-text{font-weight:600}` +
+        `${on}.dgmo-note-bar{stroke-width:2.5}`
+      );
+    })
+    .join('');
+  svg.append('style').text(`[data-note-key]{cursor:default}${rules}`);
 }

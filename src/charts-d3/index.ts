@@ -207,6 +207,7 @@ function renderInto(
   colors: string[]
 ): boolean {
   const frame: FrameSlot = {};
+  const h0 = Number(s.attr('height') ?? 0);
   const ok = renderPlot(
     s,
     content,
@@ -221,8 +222,10 @@ function renderInto(
     frame
   );
   if (ok) passivePlotText(s.node());
+  // A plot may grow the drawing: a bar chart's note key (#2159).
+  const grown = height + Math.max(0, Number(s.attr('height') ?? 0) - h0);
   if (ok && frame.reserve)
-    applyChartFrame(s, frame.reserve, width, height, palette, frame.frame);
+    applyChartFrame(s, frame.reserve, width, grown, palette, frame.frame);
   // The title's edge (#1838), frame lines or not.
   if (ok) placeFrameTitle(s.node(), frame.frame);
   return ok;

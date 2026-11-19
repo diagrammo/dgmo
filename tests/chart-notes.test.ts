@@ -29,7 +29,7 @@ function markerLines(svg: string): number[][] {
 }
 
 const noteCount = (svg: string) =>
-  (svg.match(/class="dgmo-chart-note"/g) ?? []).length;
+  (svg.match(/class="dgmo-chart-note[" ]/g) ?? []).length;
 
 describe('marker', () => {
   it('indented under a row, it is a category-axis line on bar and line', async () => {
@@ -341,6 +341,83 @@ describe('note', () => {
           );
         });
       });
+    }
+  });
+
+  it('too narrow for captions, every note is numbered with a key under the chart (#2159)', async () => {
+    const ports: [string, number, string][] = [
+      ['Port Royal', 850, 'Sacked twice'],
+      ['Tortuga', 620, 'Pirate republic'],
+      ['Nassau', 1100, 'Governor pardoned the fleet'],
+      ['Havana', 400, 'Treasure fleet departs'],
+      ['Cartagena', 520, 'Fortress held'],
+      ['Santo Domingo', 330, 'Oldest town'],
+      ['Kingston', 480, 'Earthquake'],
+      ['Bridgetown', 710, 'Rum shipments'],
+      ['Curacao', 290, 'Free port'],
+      ['Veracruz', 940, 'Silver arrives'],
+      ['Campeche', 150, 'Ship yards'],
+      ['Maracaibo', 260, 'Raided by Morgan'],
+      ['Portobelo', 600, 'Fair held yearly'],
+      ['Charleston', 380, 'Blockaded'],
+    ];
+    const src =
+      'bar Every port gets a note\n' +
+      ports.map(([p, v, n]) => `${p} ${v}\n  note ${n}`).join('\n');
+    const wide = await renderDataChartD3(src, 'light', palette, {
+      width: 700,
+      height: 560,
+    });
+    expect(wide).not.toContain('dgmo-note-key');
+    for (const dims of [
+      { width: 480, height: 360 },
+      { width: 400, height: 320 },
+    ]) {
+      const svg = await renderDataChartD3(src, 'light', palette, dims);
+      const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
+      const num = (e: Element, a: string) => Number(e.getAttribute(a));
+      const marks = [...doc.querySelectorAll('g.dgmo-note-mark')];
+      const rows = [...doc.querySelectorAll('g.dgmo-note-key-row')];
+      expect(marks).toHaveLength(ports.length);
+      expect(rows).toHaveLength(ports.length);
+      // No caption text is drawn on the plot: the text lives in the key.
+      expect(doc.querySelectorAll('.dgmo-chart-note-leader')).toHaveLength(0);
+      const bars = [...doc.querySelectorAll('rect[data-name]')];
+      bars.forEach((bar, i) => {
+        // Bar i carries number i + 1; its disc stands over it.
+        expect(bar.getAttribute('data-note-key')).toBe(String(i + 1));
+        const mark = doc.querySelector(
+          `g.dgmo-note-mark[data-note-key="${i + 1}"] circle`
+        )!;
+        const cx = num(mark, 'cx');
+        expect(Math.abs(cx - (num(bar, 'x') + num(bar, 'width') / 2))).toBe(0);
+        expect(num(mark, 'cy') + num(mark, 'r')).toBeLessThanOrEqual(
+          num(bar, 'y')
+        );
+        const row = doc.querySelector(
+          `g.dgmo-note-key-row[data-note-key="${i + 1}"]`
+        )!;
+        const text = [...row.querySelectorAll('.dgmo-note-key-text')]
+          .map((t) => t.textContent)
+          .join(' ');
+        expect(text).toBe(ports[i]![2]);
+      });
+      // The key sits below the chart as asked for, which grows by the key.
+      const rowTops = rows.map(
+        (r) => num(r.querySelector('circle')!, 'cy') - 7
+      );
+      const rowBottoms = rows.map(
+        (r) => num(r.querySelector('circle')!, 'cy') + 7
+      );
+      expect(Math.min(...rowTops)).toBeGreaterThanOrEqual(dims.height);
+      const root = doc.documentElement;
+      expect(num(root, 'height')).toBeGreaterThan(dims.height);
+      expect(Math.max(...rowBottoms)).toBeLessThanOrEqual(num(root, 'height'));
+      expect(root.getAttribute('viewBox')).toBe(
+        `0 0 ${dims.width} ${num(root, 'height')}`
+      );
+      // Hovering any of the three lights the others.
+      expect(svg).toContain('svg:has([data-note-key="3"]:hover)');
     }
   });
 

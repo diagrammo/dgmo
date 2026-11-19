@@ -29,8 +29,14 @@ import {
 } from '../annotations/draw';
 import {
   drawChartNotes,
+  drawNoteKey,
   noteBlock,
   captionWrap,
+  placeChartNotes,
+  planNoteKey,
+  KEY_DISC_R,
+  type NoteKeyItem,
+  type NoteKeyPlan,
   type PlacedNoteDatum,
 } from '../annotations/notes';
 import {
@@ -128,7 +134,10 @@ export function renderBar(
   textColor: string,
   mutedColor: string,
   hasTitle: boolean,
-  inlineTitle?: InlineTitleInfo
+  inlineTitle?: InlineTitleInfo,
+  /** Set on the second pass when the notes could not all stand clear: the
+   *  key to draw under the chart, which grows the drawing by its height. */
+  noteKey?: NoteKeyPlan
 ): void {
   if (chart.widths) {
     renderMarimekko(
@@ -178,6 +187,7 @@ export function renderBar(
     );
     return;
   }
+  const startNodes = svg.node()?.childNodes.length ?? 0;
   const data = chart.data;
   const seriesNames = chart.seriesNames?.length
     ? chart.seriesNames
@@ -430,10 +440,11 @@ export function renderBar(
       const crowded = chart.notes.some(
         (o) => o !== n && Math.abs(o.index - n.index) <= reach
       );
-      const need =
-        (crowded ? noteBlock(n.text, captionWrap(step)) : full).h +
-        VALUE_FONT +
-        14;
+      const need = noteKey
+        ? 2 * KEY_DISC_R + VALUE_FONT + 8
+        : (crowded ? noteBlock(n.text, captionWrap(step)) : full).h +
+          VALUE_FONT +
+          14;
       deficit = Math.max(deficit, (need - (1 - f) * plotH0) / f);
     }
     m.top += Math.ceil(Math.min(Math.max(0, deficit), plotH0 * 0.4));
@@ -1094,11 +1105,14 @@ export function renderBar(
     // A note stands just past its bar's end, beyond the bar's value label
     // (#2078); a bar running below zero keeps the ring and leader.
     const zero = val(0);
+    /** Each note's bar end and direction, by source line, for the key. */
+    const ends = new Map<number, { at: [number, number]; forward: boolean }>();
     const notes: PlacedNoteDatum[] = chart.notes.flatMap((n) => {
       const at = noteAt.get(`${n.index}:${n.series}`);
       if (!at) return [];
       const [x, y] = at;
       const forward = horiz ? x >= zero : y <= zero;
+      ends.set(n.lineNumber, { at, forward });
       const label = forward
         ? values.find(({ box }) =>
             horiz
@@ -1125,7 +1139,7 @@ export function renderBar(
         },
       ];
     });
-    const boxes = drawChartNotes(svg, notes, {
+    const noteOpts = {
       plot: {
         left: m.left,
         top: noteTop,
@@ -1143,7 +1157,86 @@ export function renderBar(
       leaderObstacles: values.map((v) => v.box),
       colors: { text: textColor, bg: annotationColors.bg },
       palette,
-    });
+    };
+    // Numbered in bar order (#2159).
+    const keyItems: NoteKeyItem[] = [...chart.notes]
+      .filter((n) => ends.has(n.lineNumber))
+      .sort((a, b) => a.index - b.index || a.series - b.series)
+      .map((n, k) => ({
+        num: k + 1,
+        text: n.text,
+        color: n.color,
+        lineNumber: n.lineNumber,
+      }));
+    let boxes: LabelRect[];
+    if (noteKey) {
+      const marks = notes.map((d) => {
+        const item = keyItems.find((it) => it.lineNumber === d.lineNumber)!;
+        const sign = d.beyond ? 1 : -1;
+        const off = KEY_DISC_R + 3;
+        return horiz
+          ? { x: d.x + sign * off, y: d.y, item }
+          : { x: d.x, y: d.y - sign * off, item };
+      });
+      // Each noted bar carries its number, so hovering it lights its disc.
+      const rects = drawn.filter((e) => e.tagName.toLowerCase() === 'rect');
+      for (const it of keyItems) {
+        const [ax, ay] = ends.get(it.lineNumber)!.at;
+        const bar = rects.find((e) => {
+          const [x, y, w, h] = ['x', 'y', 'width', 'height'].map((a) =>
+            num(e, a)
+          ) as [number, number, number, number];
+          return horiz
+            ? Math.abs(y + h / 2 - ay) < 1.5 &&
+                (Math.abs(x + w - ax) < 1.5 || Math.abs(x - ax) < 1.5)
+            : Math.abs(x + w / 2 - ax) < 1.5 &&
+                (Math.abs(y - ay) < 1.5 || Math.abs(y + h - ay) < 1.5);
+        });
+        bar?.setAttribute('data-note-key', String(it.num));
+        bar?.classList.add('dgmo-note-bar');
+      }
+      drawNoteKey(svg, marks, noteKey, { x: m.left, y: height }, noteOpts);
+      // The key goes below the chart rather than taking the plot's height:
+      // the drawing grows, and the frame lays out around the taller canvas.
+      const root = svg.node();
+      if (root) {
+        const h = Number(root.getAttribute('height') ?? 0) + noteKey.h;
+        const w = Number(root.getAttribute('width') ?? width);
+        root.setAttribute('height', String(h));
+        root.setAttribute('viewBox', `0 0 ${w} ${h}`);
+      }
+      boxes = marks.map(({ x, y }) => ({
+        x: x - KEY_DISC_R,
+        y: y - KEY_DISC_R,
+        w: 2 * KEY_DISC_R,
+        h: 2 * KEY_DISC_R,
+      }));
+    } else {
+      const placed = placeChartNotes(notes, noteOpts);
+      if (!placed.clear) {
+        // Some note has no clear spot: lay the chart out again with every
+        // note numbered and a key under it (#2159).
+        while ((svg.node()?.childNodes.length ?? 0) > startNodes)
+          svg.node()!.lastChild!.remove();
+        const plan = planNoteKey(keyItems, width - m.left - 16);
+        renderBar(
+          svg,
+          chart,
+          width,
+          height,
+          colors,
+          palette,
+          isDark,
+          textColor,
+          mutedColor,
+          hasTitle,
+          inlineTitle,
+          plan
+        );
+        return;
+      }
+      boxes = drawChartNotes(svg, notes, noteOpts, placed);
+    }
     const hits = (a: LabelRect, b: LabelRect) =>
       a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
     for (const v of values)
