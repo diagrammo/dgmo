@@ -257,11 +257,12 @@ describe('note', () => {
     const src =
       'bar Every port gets a note\n' +
       ports.map(([p, v, n]) => `${p} ${v}\n  note ${n}`).join('\n');
-    // The app preview pane sizes and the wider default export. Below about 640px
-    // fourteen notes no longer all find clear space; the last one overlaps.
+    // The app preview pane sizes and the wider default export. Below about 560px
+    // a bar gets less room than one word of its note, and notes overlap.
     for (const dims of [
       undefined,
       { width: 700, height: 560 },
+      { width: 560, height: 420 },
       { width: 640, height: 480 },
     ]) {
       const svg = await renderDataChartD3(src, 'light', palette, dims);

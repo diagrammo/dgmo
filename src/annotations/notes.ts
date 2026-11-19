@@ -93,8 +93,8 @@ const BEYOND_DISTANCES = [4, 12, 24, 36, 48];
 const SIDE_DISTANCES = [8, 20, 36];
 /** Step the caption rises by past BEYOND_DISTANCES, up to the canvas edge. */
 const LIFT_STEP = 8;
-/** Narrowest a caption wraps to, however close the bars stand. */
-const CAPTION_MIN_W = 64;
+/** Narrowest a caption wraps to; a word longer than this still runs whole. */
+const CAPTION_MIN_W = 24;
 /** A leader shorter than this past a bar's end is not drawn. */
 const CAPTION_NO_LEADER = 16;
 
