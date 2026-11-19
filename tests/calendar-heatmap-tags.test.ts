@@ -192,3 +192,112 @@ tag Mood
     );
   });
 });
+
+describe('calendar-heatmap tag mode — review follow-ups', () => {
+  it('reads a tag value that starts with a number, or is one', () => {
+    const p = parseCalendarHeatmap(`calendar-heatmap
+year 2026
+tag Rating
+  1 red
+  5 stars green
+
+01-01 5 stars
+01-02 1
+`);
+    expect(p.diagnostics).toEqual([]);
+    expect(p.mode).toBe('tag');
+    expect(p.days.map((d) => d.tag)).toEqual(['5 stars', '1']);
+  });
+
+  it('reads tag entries written before their tag group', () => {
+    const p = parseCalendarHeatmap(`calendar-heatmap
+year 2026
+01-01 Great
+tag Mood
+  Great green
+`);
+    expect(p.diagnostics).toEqual([]);
+    expect(p.days[0]!.tag).toBe('Great');
+  });
+
+  it('calls an undeclared word an unknown tag once any tag group exists', () => {
+    const mood = 'tag Mood\n  Great green\n';
+    expect(codes(`calendar-heatmap\nyear 2026\n01-01 Grate\n${mood}`)).toEqual([
+      'E_CALENDAR_HEATMAP_UNKNOWN_TAG',
+    ]);
+    expect(codes(`calendar-heatmap\nyear 2026\n${mood}\n01-01 -3\n`)).toEqual([
+      'E_CALENDAR_HEATMAP_BAD_VALUE',
+    ]);
+    expect(codes('calendar-heatmap\nyear 2026\n01-01 Great\n')).toEqual([
+      'E_CALENDAR_HEATMAP_BAD_VALUE',
+    ]);
+  });
+
+  it('breaks a tie for most often toward the value declared first', () => {
+    const p = parseCalendarHeatmap(`calendar-heatmap
+year 2026
+tag Mood
+  Great green
+  Ok blue
+
+01-01 Ok
+01-02 Great
+`);
+    expect(calendarSummary(p)).toBe('2 days logged · most often Great');
+  });
+
+  it("says '1 day logged' for a single day", () => {
+    const p = parseCalendarHeatmap(`calendar-heatmap
+year 2026
+tag Mood
+  Great green
+
+01-01 Great
+`);
+    expect(calendarSummary(p)).toBe('1 day logged · most often Great');
+  });
+
+  it('leaves out a tagged day outside the span, with a warning', () => {
+    const p = parseCalendarHeatmap(`calendar-heatmap
+from 2026-02-01 to 2026-02-28
+tag Mood
+  Great green
+
+2026-01-01 Great
+2026-02-02 Great
+`);
+    expect(p.diagnostics.map((d) => d.code)).toEqual([
+      'W_CALENDAR_HEATMAP_OUTSIDE_SPAN',
+    ]);
+    expect(p.days.map((d) => d.date)).toEqual(['2026-02-02']);
+  });
+
+  it('draws no legend in tag mode under no-legend', () => {
+    const c = draw(MOOD.replace('year 2026', 'year 2026\nno-legend'));
+    expect(c.querySelector('.calendar-heatmap-legend')).toBeNull();
+    expect(c.querySelector('.calendar-heatmap-day[data-tag]')).not.toBeNull();
+  });
+
+  it("keeps a gray tag apart from 'Not logged'", () => {
+    const c = draw(`calendar-heatmap
+year 2026
+tag Mood
+  Meh gray
+
+01-01 Meh
+`);
+    const cell = (date: string) =>
+      c.querySelector(`.calendar-heatmap-day[data-date="${date}"]`)!;
+    expect(cell('2026-01-01').getAttribute('fill')).toBe(
+      resolveColor('gray', palette)
+    );
+    expect(cell('2026-01-02').getAttribute('fill')).toBe(palette.bg);
+    expect(cell('2026-01-02').getAttribute('stroke')).not.toBe(
+      cell('2026-01-01').getAttribute('stroke')
+    );
+    const swatches = [
+      ...c.querySelectorAll('.calendar-heatmap-legend-tag rect'),
+    ].map((r) => r.getAttribute('fill'));
+    expect(swatches).toEqual([resolveColor('gray', palette), palette.bg]);
+  });
+});

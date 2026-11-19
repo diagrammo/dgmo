@@ -69,6 +69,8 @@ const OPTION_WORDS = [
 const FULL_DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const SHORT_DATE_RE = /^(\d{2})-(\d{2})$/;
 const NUMBER_RE = /^[+]?(\d+(\.\d*)?|\.\d+)$/;
+/** A one-word value meant as a number but not a valid one: `-3`, `1e3`, `2,5`. */
+const NUMERIC_LOOKING_RE = /^[-+]?[\d.]/;
 
 /** UTC day number of a calendar date, or null when the date does not exist. */
 function dayNumber(year: number, month: number, day: number): DayNumber | null {
@@ -156,6 +158,9 @@ function parseCalendarHeatmapRaw(content: string): ParsedCalendarHeatmap {
   let range: { from: string; to: string; lineNumber: number } | null = null;
   const entries: { token: string; value: number; lineNumber: number }[] = [];
   const tagEntries: { token: string; tag: string; lineNumber: number }[] = [];
+  // Every `date value` line, classified after the loop: a tag group may be
+  // declared after its entries, and a tag value may itself be a number.
+  const dated: { token: string; rest: string; lineNumber: number }[] = [];
   const tagGroups: Writable<TagGroup>[] = [];
   let currentTagGroup: Writable<TagGroup> | null = null;
   const addTagValue = (text: string, lineNumber: number): void => {
@@ -288,33 +293,52 @@ function parseCalendarHeatmapRaw(content: string): ParsedCalendarHeatmap {
     }
 
     const dateShaped = FULL_DATE_RE.test(word) || SHORT_DATE_RE.test(word);
-    // A tag value may be several words; a number is one.
-    if (
-      dateShaped &&
-      parts.length >= 2 &&
-      tagGroups.length > 0 &&
-      !NUMBER_RE.test(parts[1]!)
-    ) {
-      tagEntries.push({ token: word, tag: rest, lineNumber });
-      continue;
-    }
-    if (!dateShaped || parts.length !== 2) {
+    if (!dateShaped || parts.length < 2) {
       const hint = dateShaped ? null : suggest(keyword, OPTION_WORDS);
       report(CALENDAR_HEATMAP_DX.BAD_ENTRY, lineNumber, {
         line: hint ? `${trimmed}' (${hint})` : trimmed,
       });
       continue;
     }
-    const valueText = parts[1]!;
-    if (!NUMBER_RE.test(valueText)) {
-      report(CALENDAR_HEATMAP_DX.BAD_VALUE, lineNumber, { value: valueText });
-      continue;
-    }
-    entries.push({ token: word, value: Number(valueText), lineNumber });
+    dated.push({ token: word, rest, lineNumber });
   }
 
   finalizeAutoTagColors(tagGroups);
   result.tagGroups = tagGroups;
+
+  // A tag value names its group's entry, in the group's own spelling.
+  const tagValues = new Map<string, string>();
+  for (const group of tagGroups)
+    for (const e of group.entries)
+      if (!tagValues.has(e.value.toLowerCase()))
+        tagValues.set(e.value.toLowerCase(), e.value);
+
+  // ── Classify each entry: a declared tag value first (it may be `1` or
+  //    `5 stars`), then a number, then a number gone wrong (any value
+  //    when no tag group exists), then a tag nobody declared. ─────────────────────────────────────────
+  const unknownTags: typeof tagEntries = [];
+  for (const { token, rest, lineNumber } of dated) {
+    if (tagValues.has(rest.toLowerCase())) {
+      tagEntries.push({ token, tag: rest, lineNumber });
+    } else if (NUMBER_RE.test(rest)) {
+      entries.push({ token, value: Number(rest), lineNumber });
+    } else if (
+      tagGroups.length === 0 ||
+      (NUMERIC_LOOKING_RE.test(rest) && !/\s/.test(rest))
+    ) {
+      // No tag group anywhere: number mode, so the value is a bad number.
+      report(CALENDAR_HEATMAP_DX.BAD_VALUE, lineNumber, { value: rest });
+    } else {
+      unknownTags.push({ token, tag: rest, lineNumber });
+    }
+  }
+  for (const entry of unknownTags) {
+    const hint = suggest(entry.tag, [...tagValues.values()]);
+    report(CALENDAR_HEATMAP_DX.UNKNOWN_TAG, entry.lineNumber, {
+      tag: entry.tag,
+      ...(hint && { hint }),
+    });
+  }
 
   // ── Numbers or tags, never both ────────────────────────────
   if (entries.length > 0 && tagEntries.length > 0) {
@@ -327,13 +351,6 @@ function parseCalendarHeatmapRaw(content: string): ParsedCalendarHeatmap {
   }
   if (tagEntries.length > 0 || (entries.length === 0 && tagGroups.length > 0))
     result.mode = 'tag';
-
-  // A tag value names its group's entry, in the group's own spelling.
-  const tagValues = new Map<string, string>();
-  for (const group of tagGroups)
-    for (const e of group.entries)
-      if (!tagValues.has(e.value.toLowerCase()))
-        tagValues.set(e.value.toLowerCase(), e.value);
 
   // ── Dates, now that `year` is known ────────────────────────
   const byDay = new Map<DayNumber, Writable<CalendarHeatmapDay>>();
@@ -365,15 +382,7 @@ function parseCalendarHeatmapRaw(content: string): ParsedCalendarHeatmap {
       });
   }
   for (const entry of tagEntries) {
-    const tag = tagValues.get(entry.tag.toLowerCase());
-    if (tag === undefined) {
-      const hint = suggest(entry.tag, [...tagValues.values()]);
-      report(CALENDAR_HEATMAP_DX.UNKNOWN_TAG, entry.lineNumber, {
-        tag: entry.tag,
-        ...(hint && { hint }),
-      });
-      continue;
-    }
+    const tag = tagValues.get(entry.tag.toLowerCase())!;
     const day = readEntryDate(entry.token, entry.lineNumber);
     if (day === null) continue;
     if (byDay.has(day))

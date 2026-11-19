@@ -313,6 +313,10 @@ export function renderCalendarHeatmap(
     parsed.max
   );
   const fills = shadeFills(palette);
+  // Tag mode draws a day with no entry as an empty cell, not the zero grey, so a
+  // tag coloured `gray` still reads apart from "Not logged".
+  const notLogged = palette.bg;
+  const notLoggedStroke = mix(palette.textMuted, palette.bg, 35);
   const outline = isDark
     ? mix(palette.text, palette.bg, 8)
     : mix(palette.text, palette.bg, 6);
@@ -328,7 +332,11 @@ export function renderCalendarHeatmap(
     const tag = tagMode ? entry?.tag : undefined;
     const shade = tagMode ? (tag === undefined ? 0 : -1) : level(value);
     const fill =
-      tag !== undefined ? (tagFill!.get(tag) ?? fills[0]!) : fills[shade]!;
+      tag !== undefined
+        ? (tagFill!.get(tag) ?? notLogged)
+        : tagMode
+          ? notLogged
+          : fills[shade]!;
     const shown = tagMode ? (tag ?? NOT_LOGGED) : amount(value, parsed.unit);
     const label = `${fullDate(day)}: ${shown}`;
     const rect = grid
@@ -344,7 +352,7 @@ export function renderCalendarHeatmap(
       .attr('height', cell)
       .attr('rx', CELL_RADIUS)
       .attr('fill', fill)
-      .attr('stroke', outline)
+      .attr('stroke', tagMode && tag === undefined ? notLoggedStroke : outline)
       .attr('stroke-width', 0.5)
       .attr('role', 'listitem')
       .attr('aria-label', label);
@@ -385,8 +393,8 @@ export function renderCalendarHeatmap(
         .attr('width', LEGEND_CELL)
         .attr('height', LEGEND_CELL)
         .attr('rx', CELL_RADIUS)
-        .attr('fill', item.fill ?? fills[0]!)
-        .attr('stroke', outline)
+        .attr('fill', item.fill ?? notLogged)
+        .attr('stroke', item.fill ? outline : notLoggedStroke)
         .attr('stroke-width', 0.5);
       g.append('text')
         .attr('x', gridLeft + item.x + LEGEND_CELL + LEGEND_TEXT_GAP)

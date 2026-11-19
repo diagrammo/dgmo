@@ -5738,8 +5738,9 @@ tag Mood
 ```
 
 - Declare a tag group (§1.5) before the entries, then write a tag value in place of the number. The day takes that value's colour; a bare value takes a palette colour of its own.
-- A day with no entry is "Not logged". The legend lists the values and "Not logged" in place of Less … More.
+- A day with no entry is "Not logged", drawn as an empty cell. The legend lists the values and "Not logged" in place of Less … More.
 - A value matches its tag entry case-insensitively. A date tagged twice keeps the later line, with a warning.
+- A declared tag value wins over a number, so a rating scale can use `1`, `2`, `3` or `5 stars` as tags. The tag group may come before or after the entries.
 - Numbers and tags never mix in one chart: that is an error.
 - **Summary**: the days logged and the most frequent value (`212 days logged · most often Great`).
 
