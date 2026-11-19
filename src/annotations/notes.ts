@@ -93,6 +93,14 @@ const BEYOND_DISTANCES = [4, 12, 24, 36, 48];
 const SIDE_DISTANCES = [8, 20, 36];
 /** Step the caption rises by past BEYOND_DISTANCES, up to the canvas edge. */
 const LIFT_STEP = 8;
+/** Distance past a ring before a leader is tested: the data line runs
+ *  through the datum, so its first few px always meet that line. */
+const LEADER_SKIP = 4;
+/** Radius a leader keeps from a line sample: past half `sampleLines`'
+ *  default 6px step, so a leader crossing a line always meets a sample. */
+const LEADER_SAMPLE_R = 3.2;
+/** Most a leader keeps from a point: a point's mark, not its text pad. */
+const LEADER_MARK_R = 5;
 /** Narrowest a caption wraps to; a word longer than this still runs whole. */
 const CAPTION_MIN_W = 24;
 /** A leader shorter than this past a bar's end is not drawn. */
@@ -146,6 +154,25 @@ export function sampleLines(
         });
     }
   return out;
+}
+
+/** Shortest distance from (px, py) to the segment (x0, y0)–(x1, y1). */
+function segmentPointDistance(
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  px: number,
+  py: number
+): number {
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  const l2 = dx * dx + dy * dy;
+  const t =
+    l2 === 0
+      ? 0
+      : Math.max(0, Math.min(1, ((px - x0) * dx + (py - y0) * dy) / l2));
+  return Math.hypot(px - (x0 + t * dx), py - (y0 + t * dy));
 }
 
 function inside(r: LabelRect, b: Bounds): boolean {
@@ -300,11 +327,12 @@ export function drawChartNotes(
       while (r < ROOM_CAP && free(b, NOTE_PAD + r + ROOM_STEP)) r += ROOM_STEP;
       return r;
     };
-    const roomiest = (area: Bounds) => {
+    const roomiest = (area: Bounds, leaderToo: boolean) => {
       let best: LabelRect | undefined;
       let bestScore = -Infinity;
       for (const s of spots) {
         if (!clear(s.box, area)) continue;
+        if (leaderToo && !(onNoLeader(s.box) && leaderClear(s.box))) continue;
         const score = room(s.box) - s.cost;
         if (score > bestScore) {
           best = s.box;
@@ -313,17 +341,33 @@ export function drawChartNotes(
       }
       return best;
     };
-    /** The leader from the datum to the box's nearest point, its first
-     *  px off the bar's end, or null when none is drawn. */
+    /** The leader from the datum to the box's nearest point, trimmed off
+     *  the bar's end or the ring, or null when none is drawn. */
+    const ringR = beyond ? 0 : n.r + RING_GAP;
     const leaderTo = (b: LabelRect): Leader | null => {
       const tx = Math.max(b.x, Math.min(n.x, b.x + b.w));
       const ty = Math.max(b.y, Math.min(n.y, b.y + b.h));
       const len = Math.hypot(tx - n.x, ty - n.y);
-      if (len < CAPTION_NO_LEADER) return null;
+      if (beyond ? len < CAPTION_NO_LEADER : len <= ringR + 2) return null;
       const ux = (tx - n.x) / len;
       const uy = (ty - n.y) / len;
-      return [n.x + ux * 3, n.y + uy * 3, tx - ux * 3, ty - uy * 3];
+      const s0 = beyond ? 3 : ringR + LEADER_SKIP;
+      if (len - 3 <= s0) return null;
+      return [n.x + ux * s0, n.y + uy * s0, tx - ux * 3, ty - uy * 3];
     };
+    // Marks a leader must keep off: line samples, points, other notes'
+    // rings. Its own datum and ring are where it starts, so they are not;
+    // a point's clearance pad is for text, so a leader keeps only off the
+    // mark itself.
+    const leaderMarks = (opts.markers ?? [])
+      .filter((m) => Math.hypot(m.cx - n.x, m.cy - n.y) > ringR + 1)
+      .map((m) => ({
+        ...m,
+        r: Math.max(LEADER_SAMPLE_R, Math.min(m.r, LEADER_MARK_R)),
+      }));
+    const ringMarks = notes
+      .filter((o) => o !== n && !o.beyond)
+      .map((o) => ({ cx: o.x, cy: o.y, r: o.r + RING_GAP + 1 }));
     // A value label whose edge the datum sits on is the bar's own: the
     // leader starts on it.
     const leaderBlocks = (opts.leaderObstacles ?? []).filter(
@@ -344,16 +388,19 @@ export function drawChartNotes(
         !placement.leaderHitsPlaced(l) &&
         ![...(opts.obstacles ?? []), ...leaderBlocks].some((r) =>
           segmentRectOverlap(x0, y0, x1, y1, r)
+        ) &&
+        ![...leaderMarks, ...ringMarks].some(
+          (m) => segmentPointDistance(x0, y0, x1, y1, m.cx, m.cy) < m.r
         )
       );
     };
-    const fits = (b: LabelRect, area: Bounds) =>
-      clear(b, area) &&
-      ownAir(b) &&
+    /** The text keeps off every leader already drawn. */
+    const onNoLeader = (b: LabelRect) =>
       !leaders.some(([x0, y0, x1, y1]) =>
         segmentRectOverlap(x0, y0, x1, y1, pad(b, NOTE_PAD))
-      ) &&
-      leaderClear(b);
+      );
+    const fits = (b: LabelRect, area: Bounds) =>
+      clear(b, area) && ownAir(b) && onNoLeader(b) && leaderClear(b);
 
     /** Caption boxes past the bar's end at distance d: centred on it, then
      *  ending at it, then starting at it, each kept inside `area` across. */
@@ -443,11 +490,15 @@ export function drawChartNotes(
           captionsAt(BEYOND_DISTANCES[0]!, opts.canvas, w, h)[0]!,
           opts.canvas
         ))
-      : (roomiest(opts.plot) ??
-        roomiest(opts.canvas) ??
+      : // A spot whose leader crosses nothing first; only then one whose
+        // text alone is clear (#2158).
+        (roomiest(opts.plot, true) ??
+        roomiest(opts.canvas, true) ??
+        roomiest(opts.plot, false) ??
+        roomiest(opts.canvas, false) ??
         clamp(spots[0]!.box, opts.canvas));
     blocks[i] = block;
-    const leader = beyond ? (leaderTo(box) ?? undefined) : undefined;
+    const leader = leaderTo(box) ?? undefined;
     placement.commit(pad(box, NOTE_PAD), leader);
     if (leader) leaders.push(leader);
     boxes[i] = box;

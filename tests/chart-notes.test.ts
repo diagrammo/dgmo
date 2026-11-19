@@ -472,6 +472,55 @@ describe('note', () => {
     expect(near).toBeGreaterThan(12);
   });
 
+  it("a line note's leader crosses no line and no other leader (#2158)", async () => {
+    // Three lines braid, and a note sits on most years. A point boxed in
+    // between two lines has no leader that crosses nothing, so none is here.
+    const src = [
+      'line Plunder',
+      'series',
+      '  Blackbeard',
+      '  Bonnet',
+      '  Vane',
+      '1716 12 8 10',
+      '  note Bonnet First prize',
+      '1717 28 16 22',
+      '  note Blackbeard Takes Revenge',
+      '1718 46 24 31',
+      '1719 30 19 36',
+      '  note Bonnet Hanged',
+      '1720 22 11 18',
+      '  note Vane Hanged at Port Royal',
+    ].join('\n');
+    for (const dims of [undefined, { width: 480, height: 320 }]) {
+      const svg = await renderDataChartD3(src, 'light', palette, dims);
+      const segs = [...svg.matchAll(/class="dgmo-series-line" d="M([^"]+)"/g)]
+        .map((m) => m[1]!.split('L').map((p) => p.split(',').map(Number)))
+        .flatMap((pts) => pts.slice(1).map((p, i) => [pts[i]!, p] as const));
+      const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
+      const num = (e: Element, a: string) => Number(e.getAttribute(a));
+      const leaders = [
+        ...doc.querySelectorAll('line.dgmo-chart-note-leader'),
+      ].map(
+        (l) => [num(l, 'x1'), num(l, 'y1'), num(l, 'x2'), num(l, 'y2')] as const
+      );
+      expect(leaders.length).toBeGreaterThan(0);
+      leaders.forEach(([x0, y0, x1, y1], i) => {
+        // Trim the start: the datum's own line runs through the ring.
+        const len = Math.hypot(x1 - x0, y1 - y0);
+        const ax = x0 + ((x1 - x0) * 4) / len;
+        const ay = y0 + ((y1 - y0) * 4) / len;
+        for (const [[sx0, sy0], [sx1, sy1]] of segs)
+          expect(
+            segmentsCross(ax, ay, x1, y1, sx0!, sy0!, sx1!, sy1!),
+            `${JSON.stringify(dims)} leader ${i}`
+          ).toBe(false);
+        leaders.forEach((o, j) => {
+          if (j !== i) expect(segmentsCross(x0, y0, x1, y1, ...o)).toBe(false);
+        });
+      });
+    }
+  });
+
   it('warns on a chart type that does not take notes', () => {
     expect(messages(parseChart('pie P\nA 1\n  note Big\nB 2'))).toEqual([
       expect.stringContaining('"note" is only supported on bar, line'),
