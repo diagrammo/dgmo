@@ -6906,7 +6906,7 @@ interface SunburstLayoutResult {
      *  the renderer draws an empty-state marker in the disc, no arcs. */
     readonly isEmpty: boolean;
 }
-interface RadialLayoutOptions {
+interface SunburstLayoutOptions {
     /** Outer radius available for the whole sunburst (disc + rings). */
     readonly radius: number;
     /** Center disc radius; defaults to a sensible fraction of `radius`. */
@@ -6914,7 +6914,7 @@ interface RadialLayoutOptions {
     /** Interactive render budget; static export leaves it Infinity (full tree). */
     readonly maxDepth?: number;
 }
-declare function layoutTreemapSunburst(roots: readonly TreemapNode[], opts: RadialLayoutOptions): SunburstLayoutResult;
+declare function layoutTreemapSunburst(roots: readonly TreemapNode[], opts: SunburstLayoutOptions): SunburstLayoutResult;
 
 /** A single block. Becomes a container when `grid` is present. */
 interface BlockNode {
