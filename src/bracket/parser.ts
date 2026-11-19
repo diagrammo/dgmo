@@ -5,7 +5,7 @@
 // Syntax (verify against docs/dgmo-language-spec.md, not fixtures):
 //   bracket <Title>                    // first line — no colon (§1.1)
 //   rounds Wild Card, Division, Championship   // column names, entry → inner
-//   single-elim | double-elim | seeded // bare-flag directives (like treemap radial)
+//   single-elim | double-elim | seeded // bare-flag directives (like treemap sunburst)
 //   tag Ticketing as tk                // tag group (block/org idiom) — colors box OUTLINE
 //     MLB Ballpark blue
 //     Ticketmaster orange

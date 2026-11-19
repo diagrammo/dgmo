@@ -164,7 +164,7 @@ const FIXTURE_FILES = [
   'state-tags.dgmo',
   'timeline.dgmo',
   'treemap-tags.dgmo',
-  'treemap-radial.dgmo',
+  'treemap-sunburst.dgmo',
   'treemap-icicle.dgmo',
 ];
 

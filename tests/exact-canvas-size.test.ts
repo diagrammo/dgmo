@@ -24,7 +24,7 @@ const CANVAS_TYPES = [
   'funnel.dgmo',
   'venn.dgmo',
   'arc-chord.dgmo',
-  'treemap-radial.dgmo',
+  'treemap-sunburst.dgmo',
 ];
 
 function rootAttr(svg: string, name: string): string | undefined {

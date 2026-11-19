@@ -71,7 +71,7 @@ describe('parseTreemap — icicle flag', () => {
     const r = parseTreemap(SRC);
     expect(r.error).toBeNull();
     expect(r.options.icicle).toBe(true);
-    expect(r.options.radial).toBe(false);
+    expect(r.options.sunburst).toBe(false);
   });
 
   it('defaults icicle to false when the flag is absent', () => {
@@ -88,8 +88,8 @@ describe('parseTreemap — icicle flag', () => {
     ]);
   });
 
-  it('radial and icicle together is an error on the later flag', () => {
-    const r = parseTreemap('treemap T\nradial\nicicle\n\nA\n  X 1');
+  it('sunburst and icicle together is an error on the later flag', () => {
+    const r = parseTreemap('treemap T\nsunburst\nicicle\n\nA\n  X 1');
     const d = r.diagnostics.find((x) => x.code === 'E_TREEMAP_LAYOUT_CONFLICT');
     expect(d?.severity).toBe('error');
     expect(d?.line).toBe(3);
@@ -210,6 +210,6 @@ describe('renderTreemapIcicle', () => {
   it('export dispatches the icicle flag to the icicle renderer', async () => {
     const svg = await renderForExport(SRC, 'light');
     expect(svg).toContain('dgmo-treemap-icicle');
-    expect(svg).not.toContain('dgmo-treemap-radial');
+    expect(svg).not.toContain('dgmo-treemap-sunburst');
   });
 });

@@ -4602,7 +4602,7 @@ When ring band thickness would force the in-band label below the readable floor 
 
 <!-- TIPS start -->
 
-**Styling tips:** Put the unit in the title (`Cloud Spend ($)`) — there is no currency/format directive. Reach for `depth N` once a tree goes past ~3 levels (deeper subtrees collapse to a drillable block) and `other-below N` to fold a long tail of tiny categories into one **Other** box. Pick the color mode to match intent: tags for categories, `heat` for a gain/loss heatmap, branch for zero-config structure. Add `radial` to render a **sunburst / hierarchical pie** — best for shallow trees where you want "share of a circle"; keep the rectangular default for deep trees or precise magnitude comparison.
+**Styling tips:** Put the unit in the title (`Cloud Spend ($)`) — there is no currency/format directive. Reach for `depth N` once a tree goes past ~3 levels (deeper subtrees collapse to a drillable block) and `other-below N` to fold a long tail of tiny categories into one **Other** box. Pick the color mode to match intent: tags for categories, `heat` for a gain/loss heatmap, branch for zero-config structure. Add `sunburst` to render a **sunburst / hierarchical pie** — best for shallow trees where you want "share of a circle"; keep the rectangular default for deep trees or precise magnitude comparison.
 
 <!-- TIPS end -->
 
@@ -4681,20 +4681,20 @@ Add a per-node `heat:` number (a second metric, distinct from size; negatives/fl
 | `depth N`                             | Render N levels; deeper subtrees collapse to a drillable solid block (a render budget).                                                                                                                                                            |
 | `no-value`                            | Hide value labels.                                                                                                                                                                                                                                 |
 | `no-percent`                          | Hide percentage labels.                                                                                                                                                                                                                            |
-| `no-headers`                          | Hide parent header bars (a no-op in `radial` and `icicle` mode).                                                                                                                                                                                   |
+| `no-headers`                          | Hide parent header bars (a no-op in `sunburst` and `icicle` mode).                                                                                                                                                                                 |
 | `no-legend`                           | Hide the legend.                                                                                                                                                                                                                                   |
-| `radial`                              | Render as a **sunburst / hierarchical pie** (concentric rings) instead of rectangles.                                                                                                                                                              |
-| `icicle`                              | Render as an **icicle**: root on the left, one column per depth level, each node's height its share of the whole. Not with `radial`.                                                                                                               |
+| `sunburst`                            | Render as a **sunburst / hierarchical pie** (concentric rings) instead of rectangles. Formerly `radial`, which is now an error.                                                                                                                    |
+| `icicle`                              | Render as an **icicle**: root on the left, one column per depth level, each node's height its share of the whole. Not with `sunburst`.                                                                                                             |
 
 Numbers auto-compact (1.2M, 940k). Units live in the title — there is no format/currency directive.
 
-### Radial mode (sunburst / hierarchical pie)
+### Sunburst mode (hierarchical pie)
 
-Add a bare `radial` flag and the same hierarchy renders as a sunburst: the center disc is the whole (chart title + grand total), the first ring is the top-level groups, and each outer ring breaks a group into its parts. Tags, `heat`, and `no-value`/`no-percent`/`no-legend` all carry over; `no-headers` is a no-op. An arc's angle is its share of the whole; radius is depth only, so slices stay in **source order** and very thin arcs drop their inline label. Best for shallow trees (≈3 levels); for deep trees or precise magnitude, prefer the rectangular treemap.
+Add a bare `sunburst` flag and the same hierarchy renders as a sunburst: the center disc is the whole (chart title + grand total), the first ring is the top-level groups, and each outer ring breaks a group into its parts. Tags, `heat`, and `no-value`/`no-percent`/`no-legend` all carry over; `no-headers` is a no-op. An arc's angle is its share of the whole; radius is depth only, so slices stay in **source order** and very thin arcs drop their inline label. Best for shallow trees (≈3 levels); for deep trees or precise magnitude, prefer the rectangular treemap. The flag was called `radial` before; `radial` is now an error that names `sunburst`.
 
 ```dgmo
 treemap Plunder Spend ($k)
-radial
+sunburst
 
 Sailing & Rigging
   Rigging 320
@@ -4706,7 +4706,7 @@ Cannon Battery
 
 ### Icicle mode
 
-Add a bare `icicle` flag and the same hierarchy renders as bands: the top-level groups are the first column on the left, and each column to the right breaks a group into its parts, so depth reads left to right. A band's height is its share of the whole; columns are equal width, and bands stay in **source order**, top to bottom. Each band is labelled with horizontal text — the name, then value · share — and a band too short for its label drops it. Tags, `heat`, and `no-value`/`no-percent`/`no-legend` carry over as in radial mode; `no-headers` is a no-op. `icicle` and `radial` are two layouts of one hierarchy, so setting both is an error. Prefer it to the sunburst for deeper trees or long names.
+Add a bare `icicle` flag and the same hierarchy renders as bands: the top-level groups are the first column on the left, and each column to the right breaks a group into its parts, so depth reads left to right. A band's height is its share of the whole; columns are equal width, and bands stay in **source order**, top to bottom. Each band is labelled with horizontal text — the name, then value · share — and a band too short for its label drops it. Tags, `heat`, and `no-value`/`no-percent`/`no-legend` carry over as in sunburst mode; `no-headers` is a no-op. `icicle` and `sunburst` are two layouts of one hierarchy, so setting both is an error. Prefer it to the sunburst for deeper trees or long names.
 
 ```dgmo
 treemap Plunder Spend ($k)
@@ -4969,7 +4969,7 @@ A malformed line is a warning and is skipped; the rest of the board renders. Onl
 
 <!-- TIPS end -->
 
-A progress-toward-a-target value: one `actual` measured against one `target`, drawn in one of three static faces, optionally with named `bands`, and optionally with several `[Measure]` rows (a **bullet chart** is a goal with `[Measure]` rows — there is no `bullet` keyword). No time axis, no series — just "how close am I?". The face is a bare-flag mode directive under the title (like treemap's `radial`); all three faces consume the same value pair.
+A progress-toward-a-target value: one `actual` measured against one `target`, drawn in one of three static faces, optionally with named `bands`, and optionally with several `[Measure]` rows (a **bullet chart** is a goal with `[Measure]` rows — there is no `bullet` keyword). No time axis, no series — just "how close am I?". The face is a bare-flag mode directive under the title (like treemap's `sunburst`); all three faces consume the same value pair.
 
 ### Declaration
 

@@ -45,8 +45,8 @@ export interface TreemapOptions {
   legendInline?: boolean;
   /** §1.9 fill family; undefined ⇒ canonical 25% tint. */
   fillMode: 'solid' | 'outline' | undefined;
-  /** `radial` — render as a sunburst (concentric rings) instead of rectangles. */
-  radial: boolean;
+  /** `sunburst` — render as concentric rings instead of rectangles. */
+  sunburst: boolean;
   /** `icicle` — render as bands: root on the left, one column per depth level,
    *  each node's height its share of the whole. */
   icicle: boolean;

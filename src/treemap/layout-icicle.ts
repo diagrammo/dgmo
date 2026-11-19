@@ -18,9 +18,9 @@ import {
   type HierarchyRectangularNode,
 } from 'd3-hierarchy';
 import type { TreemapNode } from './types';
-import { datumHeat, toDatum, type LayoutDatum } from './layout-radial';
+import { datumHeat, toDatum, type LayoutDatum } from './layout-sunburst';
 
-/** A positioned icicle band. The geometry-neutral fields match `RadialCell`;
+/** A positioned icicle band. The geometry-neutral fields match `SunburstCell`;
  *  the geometry is a plain rectangle. */
 export interface IcicleCell {
   /** Original parsed node, or null for the synthetic root. */

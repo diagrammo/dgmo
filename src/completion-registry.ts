@@ -1075,7 +1075,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
           'Keep the named nodes and what they contain; recede the rest (highlight Rum)',
       },
       'no-legend': { description: 'Hide the legend' },
-      radial: {
+      sunburst: {
         description:
           'Render as a sunburst / hierarchical pie (concentric rings)',
       },

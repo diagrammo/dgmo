@@ -80,9 +80,19 @@ export const TREEMAP_DX = {
     chartType: 'treemap',
     title: 'Two treemap layouts',
     message: () =>
-      '`radial` and `icicle` are both set — a treemap takes one layout',
-    hint: 'Keep one of the two flags: `radial` draws rings, `icicle` draws columns.',
-    example: 'treemap T\nradial\nicicle\n\nA\n  X 1',
+      '`sunburst` and `icicle` are both set — a treemap takes one layout',
+    hint: 'Keep one of the two flags: `sunburst` draws rings, `icicle` draws columns.',
+    example: 'treemap T\nsunburst\nicicle\n\nA\n  X 1',
+  },
+  RADIAL_RENAMED: {
+    code: 'E_TREEMAP_RADIAL_RENAMED',
+    severity: 'error',
+    chartType: 'treemap',
+    title: '`radial` is now `sunburst`',
+    message: () =>
+      '`radial` is no longer a treemap flag — it was renamed to `sunburst`',
+    hint: 'Write `sunburst` to draw the treemap as concentric rings, or `icicle` to draw it as columns.',
+    example: 'treemap T\nradial\n\nA\n  X 1',
   },
 } satisfies Record<string, DiagnosticSpec>;
 

@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **treemap: `icicle` — the hierarchy as columns (diagrammo/diagrammo#1857).**
+  A bare `icicle` flag draws the same parsed tree as bands: root on the left,
+  one equal-width column per depth level, each node's height its share of the
+  whole, children in source order. A band too short for its label drops it.
+  Tags, `heat` and `no-value` / `no-percent` / `no-legend` carry over;
+  `sunburst` plus `icicle` is an error (`E_TREEMAP_LAYOUT_CONFLICT`).
+
 - **line: combo bars and lines — `mark: bar | line | step` on a series
   (diagrammo/diagrammo#1852, slice 1).** A same-line `mark:` key on a series
   line draws that series as bars (side by side within each x slot, under every
@@ -253,6 +260,15 @@ logged · most often Great`. Diagnostics: `E_CALENDAR_HEATMAP_UNKNOWN_TAG`,
   desktop app so the Obsidian plugin can share them.
 
 ### Changed
+
+- **treemap: `radial` is renamed `sunburst` (diagrammo/diagrammo#1857).**
+  A breaking rename with no alias: `radial` is now an error
+  (`E_TREEMAP_RADIAL_RENAMED`) whose message names `sunburst`. In
+  `/advanced`, `renderTreemapRadial*`, `layoutTreemapRadial`, `RadialCell` and
+  `RadialLayoutResult` are now `renderTreemapSunburst*`,
+  `layoutTreemapSunburst`, `SunburstCell` and `SunburstLayoutResult`;
+  `TreemapOptions.radial` is `sunburst`, and the SVG class
+  `dgmo-treemap-radial` is `dgmo-treemap-sunburst`.
 
 - **One line per axis (decision #60, diagrammo/diagrammo#2115).** `x-axis`,
   `y-axis` and `y-right-axis` take an axis's title, range and scale on one

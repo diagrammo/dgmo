@@ -54,13 +54,13 @@ describe('chart frame, shape family (#1827)', () => {
     });
   }
 
-  it('treemap radial draws the frame', async () => {
+  it('treemap sunburst draws the frame', async () => {
     const [head, ...rest] = fixture('treemap').trimEnd().split('\n');
-    const src = `${head}\nradial\n${rest.join('\n')}\nsubtitle Radial deck\nfootnote Radial note\n`;
+    const src = `${head}\nsunburst\n${rest.join('\n')}\nsubtitle Radial deck\nfootnote Radial note\n`;
     const svg = await renderForExport(src, 'light');
     const doc = new JSDOM(svg, { contentType: 'image/svg+xml' }).window
       .document;
-    expect(doc.querySelector('.dgmo-treemap-radial')).not.toBeNull();
+    expect(doc.querySelector('.dgmo-treemap-sunburst')).not.toBeNull();
     expect(doc.querySelector('.chart-subtitle')?.textContent).toBe(
       'Radial deck'
     );

@@ -1,5 +1,5 @@
 // ============================================================
-// Treemap — Radial (sunburst) D3 SVG Renderer
+// Treemap — Sunburst D3 SVG Renderer
 // ============================================================
 //
 // Emits a static, full-tree sunburst: concentric rings (one per depth level)
@@ -35,7 +35,7 @@ import type { LegendPosition } from '../utils/legend-types';
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import type { ParsedTreemap, TreemapColorMode } from './types';
-import { layoutTreemapRadial, type RadialCell } from './layout-radial';
+import { layoutTreemapSunburst, type SunburstCell } from './layout-sunburst';
 import {
   activeTagGroupOf,
   buildHeatScale,
@@ -68,7 +68,7 @@ const MIN_LABEL_FS = 8;
 /** Preferred name-line size; shrinks to fit the ring thickness / arc length. */
 const LABEL_BASE_FS = 16;
 
-export interface TreemapRadialRenderOptions {
+export interface TreemapSunburstRenderOptions {
   /** Color mode override (app's runtime switcher). Defaults to source. */
   colorMode?: TreemapColorMode;
   /** Interactive render budget. Export omits it → full tree. */
@@ -79,27 +79,27 @@ export interface TreemapRadialRenderOptions {
 }
 
 /** Render for CLI/export (full tree, no interactive chrome). */
-export function renderTreemapRadialForExport(
+export function renderTreemapSunburstForExport(
   container: HTMLDivElement,
   parsed: ParsedTreemap,
   palette: PaletteColors,
   isDark: boolean,
   exportDims?: D3ExportDimensions,
-  options?: TreemapRadialRenderOptions
+  options?: TreemapSunburstRenderOptions
 ): void {
-  renderTreemapRadial(container, parsed, palette, isDark, exportDims, {
+  renderTreemapSunburst(container, parsed, palette, isDark, exportDims, {
     exportMode: true,
     ...options,
   });
 }
 
-export function renderTreemapRadial(
+export function renderTreemapSunburst(
   container: HTMLDivElement,
   parsed: ParsedTreemap,
   palette: PaletteColors,
   isDark: boolean,
   exportDims?: D3ExportDimensions,
-  options: TreemapRadialRenderOptions = {}
+  options: TreemapSunburstRenderOptions = {}
 ): void {
   if (parsed.error || parsed.roots.length === 0) return;
   void isDark;
@@ -154,7 +154,7 @@ export function renderTreemapRadial(
   const cx = width / 2;
   const cy = legend ? areaY + PADDING + radius : areaY + areaH / 2;
 
-  const layout = layoutTreemapRadial(parsed.roots, {
+  const layout = layoutTreemapSunburst(parsed.roots, {
     radius,
     ...(options.maxDepth !== undefined && { maxDepth: options.maxDepth }),
   });
@@ -168,7 +168,7 @@ export function renderTreemapRadial(
     .attr('viewBox', `0 0 ${width} ${height}`)
     .attr('preserveAspectRatio', 'xMidYMin meet')
     .attr('xmlns', 'http://www.w3.org/2000/svg')
-    .attr('class', 'dgmo-treemap dgmo-treemap-radial')
+    .attr('class', 'dgmo-treemap dgmo-treemap-sunburst')
     .style('font-family', FONT_FAMILY);
 
   // Curved arc labels reference per-arc paths kept in <defs> (via <textPath>).
@@ -199,7 +199,7 @@ export function renderTreemapRadial(
     muted: mutedFill(palette),
   };
 
-  const arcGen = d3arc<RadialCell>()
+  const arcGen = d3arc<SunburstCell>()
     .startAngle((c) => c.startAngle)
     .endAngle((c) => c.endAngle)
     .innerRadius((c) => c.innerR)
@@ -397,7 +397,7 @@ function drawArcLabel(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   defs: d3Selection.Selection<SVGDefsElement, unknown, null, undefined>,
   pathId: string,
-  cell: RadialCell,
+  cell: SunburstCell,
   opts: ParsedTreemap['options'],
   palette: PaletteColors,
   fill: string
@@ -482,7 +482,7 @@ function drawArcLabel(
 
 /** Is the cell's mid-angle on the lower half (where the baseline path must be
  *  reversed so the text reads upright)? */
-function isBottomHalf(cell: RadialCell): boolean {
+function isBottomHalf(cell: SunburstCell): boolean {
   const mid = (cell.startAngle + cell.endAngle) / 2;
   return mid > Math.PI / 2 && mid < (3 * Math.PI) / 2;
 }
@@ -504,7 +504,7 @@ function drawCurvedLine(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   defs: d3Selection.Selection<SVGDefsElement, unknown, null, undefined>,
   pathId: string,
-  cell: RadialCell,
+  cell: SunburstCell,
   centerR: number,
   fs: number,
   weight: string,

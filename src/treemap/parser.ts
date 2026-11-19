@@ -97,7 +97,7 @@ function parseTreemapRaw(
     noHeaders: false,
     noLegend: false,
     fillMode: undefined,
-    radial: false,
+    sunburst: false,
     icicle: false,
   };
   const result: Writable<ParsedTreemap> = {
@@ -139,7 +139,7 @@ function parseTreemapRaw(
   let currentTagGroup: Writable<TagGroup> | null = null;
   const aliasMap = new Map<string, string>();
 
-  // Line of each layout flag (`radial`, `icicle`) — they are exclusive.
+  // Line of each layout flag (`sunburst`, `icicle`) — they are exclusive.
   const layoutLines: LayoutLines = {};
 
   // Indent stack for hierarchy tracking.
@@ -336,12 +336,19 @@ function parseTreemapRaw(
     }
   }
 
-  // `radial` and `icicle` are two layouts of one hierarchy; only one applies.
-  if (layoutLines.radial !== undefined && layoutLines.icicle !== undefined) {
+  // `sunburst` and `icicle` are two layouts of one hierarchy; only one applies.
+  if (layoutLines.sunburst !== undefined && layoutLines.icicle !== undefined) {
     const diag = emit(
       TREEMAP_DX.LAYOUT_CONFLICT,
-      Math.max(layoutLines.radial, layoutLines.icicle)
+      Math.max(layoutLines.sunburst, layoutLines.icicle)
     );
+    result.diagnostics.push(diag);
+    result.error ??= formatDgmoError(diag);
+  }
+
+  // `radial` is the sunburst flag's retired name — a hard error, no alias.
+  if (layoutLines.radial !== undefined) {
+    const diag = emit(TREEMAP_DX.RADIAL_RENAMED, layoutLines.radial);
     result.diagnostics.push(diag);
     result.error ??= formatDgmoError(diag);
   }
@@ -376,8 +383,10 @@ function parseTreemapRaw(
 
 /** Source line of each layout flag seen, for the exclusivity check. */
 interface LayoutLines {
-  radial?: number;
+  sunburst?: number;
   icicle?: number;
+  /** First line of a retired `radial` flag — reported as renamed. */
+  radial?: number;
 }
 
 function handleDirective(
@@ -454,16 +463,24 @@ function handleDirective(
     }
   }
 
-  // `radial` — sunburst mode. A bare flag on its own (NOT an opt-out, so it is
-  // deliberately kept out of the `no-(...)` group above).
+  // `sunburst` — concentric rings. A bare flag on its own (NOT an opt-out, so
+  // it is deliberately kept out of the `no-(...)` group above).
+  if (/^sunburst\s*$/i.test(trimmed)) {
+    options.sunburst = true;
+    layoutLines.sunburst ??= lineNumber;
+    return true;
+  }
+
+  // `radial` was the sunburst flag's old name (renamed pre-1.0, #1857). It is
+  // consumed here so it never becomes a node named "radial", and reported as
+  // an error naming `sunburst` after the loop. No alias: it does not draw rings.
   if (/^radial\s*$/i.test(trimmed)) {
-    options.radial = true;
     layoutLines.radial ??= lineNumber;
     return true;
   }
 
   // `icicle` — the same hierarchy as bands, root on the left. A bare flag, the
-  // same idiom as `radial`; the two are exclusive (checked after the loop).
+  // same idiom as `sunburst`; the two are exclusive (checked after the loop).
   if (/^icicle\s*$/i.test(trimmed)) {
     options.icicle = true;
     layoutLines.icicle ??= lineNumber;

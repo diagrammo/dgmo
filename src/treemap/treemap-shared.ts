@@ -4,7 +4,7 @@
 //
 // Color resolution, the depth-tint ramp, value/percent compaction, and legend
 // assembly are geometry-neutral: the rectangular renderer (`renderer.ts`) and
-// the radial/sunburst renderer (`renderer-radial.ts`) both consume them so the
+// the sunburst renderer (`renderer-sunburst.ts`) both consume them so the
 // two modes share ONE color engine and ONE tint ramp (no drift — the outer-ring
 // wash-out the tint floor guards against can only be fixed in one place).
 
@@ -88,7 +88,7 @@ export function activeTagGroupOf(parsed: ParsedTreemap): TagGroup | null {
 // ============================================================
 
 /** Geometry-neutral subset of a cell needed to resolve its color. Both
- *  `TreemapCell` (rect) and `RadialCell` (sunburst) are structurally assignable. */
+ *  `TreemapCell` (rect) and `SunburstCell` (sunburst) are structurally assignable. */
 export interface ColorCell {
   readonly node: TreemapNode | null;
   readonly label: string;

@@ -2,9 +2,9 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { parseTreemap } from '../src/treemap/parser';
 import { layoutTreemap, sumValue } from '../src/treemap/layout';
-import { layoutTreemapRadial } from '../src/treemap/layout-radial';
-import type { RadialCell } from '../src/treemap/layout-radial';
-import { renderTreemapRadial } from '../src/treemap/renderer-radial';
+import { layoutTreemapSunburst } from '../src/treemap/layout-sunburst';
+import type { SunburstCell } from '../src/treemap/layout-sunburst';
+import { renderTreemapSunburst } from '../src/treemap/renderer-sunburst';
 import {
   activeTagGroupOf,
   buildHeatScale,
@@ -456,36 +456,57 @@ describe('layoutTreemap — heat aggregation', () => {
 });
 
 // ============================================================
-// Radial (sunburst) mode
+// Sunburst mode (formerly `radial`)
 // ============================================================
 
-describe('parseTreemap — radial directive (AC1)', () => {
-  it('parses the bare `radial` flag into options', () => {
-    const r = parseTreemap('treemap T\nradial\n\nA\n  X 1\n  Y 2');
+describe('parseTreemap — sunburst directive (AC1)', () => {
+  it('parses the bare `sunburst` flag into options', () => {
+    const r = parseTreemap('treemap T\nsunburst\n\nA\n  X 1\n  Y 2');
     expect(r.error).toBeNull();
-    expect(r.options.radial).toBe(true);
+    expect(r.options.sunburst).toBe(true);
     // Other directives still parse unchanged alongside it.
     expect(r.roots.map((n) => n.label)).toEqual(['A']);
   });
 
-  it('defaults radial to false when the flag is absent', () => {
+  it('defaults sunburst to false when the flag is absent', () => {
     const r = parseTreemap('treemap T\nA\n  X 1');
-    expect(r.options.radial).toBe(false);
+    expect(r.options.sunburst).toBe(false);
   });
 
-  it('does not create a phantom "radial" node', () => {
+  it('does not create a phantom "sunburst" node', () => {
+    const r = parseTreemap('treemap T\nsunburst\n\nA\n  X 1');
+    expect(findNode(r.roots, 'sunburst')).toBeUndefined();
+  });
+});
+
+describe('parseTreemap — the retired `radial` flag (#1857)', () => {
+  it('is a hard error whose message names `sunburst`', () => {
+    const r = parseTreemap('treemap T\nradial\n\nA\n  X 1');
+    const d = r.diagnostics.find((x) => x.code === 'E_TREEMAP_RADIAL_RENAMED');
+    expect(d?.severity).toBe('error');
+    expect(d?.line).toBe(2);
+    expect(d?.message).toContain('`sunburst`');
+    expect(r.error).not.toBeNull();
+  });
+
+  it('is not an alias: it does not set the sunburst layout', () => {
+    const r = parseTreemap('treemap T\nradial\n\nA\n  X 1');
+    expect(r.options.sunburst).toBe(false);
+  });
+
+  it('does not become a node named "radial"', () => {
     const r = parseTreemap('treemap T\nradial\n\nA\n  X 1');
     expect(findNode(r.roots, 'radial')).toBeUndefined();
   });
 });
 
-describe('layoutTreemapRadial — geometry (AC2/AC3)', () => {
-  const find = (cells: readonly RadialCell[], label: string): RadialCell =>
+describe('layoutTreemapSunburst — geometry (AC2/AC3)', () => {
+  const find = (cells: readonly SunburstCell[], label: string): SunburstCell =>
     cells.find((c) => c.label === label)!;
 
   it('arc sweep equals value / root proportion × 2π', () => {
     const r = parseTreemap('treemap T\nA\n  X 300\n  Y 100');
-    const { cells, total } = layoutTreemapRadial(r.roots, { radius: 200 });
+    const { cells, total } = layoutTreemapSunburst(r.roots, { radius: 200 });
     expect(total).toBe(400);
     const x = find(cells, 'X');
     const sweepX = x.endAngle - x.startAngle;
@@ -495,7 +516,7 @@ describe('layoutTreemapRadial — geometry (AC2/AC3)', () => {
 
   it('nests each child arc within its parent wedge', () => {
     const r = parseTreemap('treemap T\nA\n  X 300\n  Y 100');
-    const { cells } = layoutTreemapRadial(r.roots, { radius: 200 });
+    const { cells } = layoutTreemapSunburst(r.roots, { radius: 200 });
     const a = find(cells, 'A');
     const x = find(cells, 'X');
     const y = find(cells, 'Y');
@@ -510,7 +531,7 @@ describe('layoutTreemapRadial — geometry (AC2/AC3)', () => {
   it('preserves SOURCE order — does NOT value-sort (F2 regression guard)', () => {
     // Smaller value FIRST in source; a value-sort would put Big at angle 0.
     const r = parseTreemap('treemap T\nSmall 100\nBig 300');
-    const { cells } = layoutTreemapRadial(r.roots, { radius: 200 });
+    const { cells } = layoutTreemapSunburst(r.roots, { radius: 200 });
     const small = find(cells, 'Small');
     const big = find(cells, 'Big');
     // Source order: Small starts at 12 o'clock (0), Big follows.
@@ -520,7 +541,7 @@ describe('layoutTreemapRadial — geometry (AC2/AC3)', () => {
 
   it('multi-root: all top-level nodes land on ring 1 (F1/AC3)', () => {
     const r = parseTreemap('treemap Total\nA 100\nB 200\nC 300');
-    const { cells, total } = layoutTreemapRadial(r.roots, { radius: 200 });
+    const { cells, total } = layoutTreemapSunburst(r.roots, { radius: 200 });
     expect(total).toBe(600);
     const ring1 = cells.filter((c) => c.depth === 1).map((c) => c.label);
     expect(ring1).toEqual(['A', 'B', 'C']);
@@ -530,16 +551,16 @@ describe('layoutTreemapRadial — geometry (AC2/AC3)', () => {
 
   it('all-zero grand total → empty-state, no NaN arcs (F5/AC9)', () => {
     const r = parseTreemap('treemap T\nA\n  X 0\n  Y 0');
-    const res = layoutTreemapRadial(r.roots, { radius: 200 });
+    const res = layoutTreemapSunburst(r.roots, { radius: 200 });
     expect(res.isEmpty).toBe(true);
     expect(res.total).toBe(0);
     expect(res.cells).toHaveLength(0);
     expect(Number.isNaN(res.discRadius)).toBe(false);
   });
 
-  it('flat (single-level) radial produces a labeled donut, no crash (AC13)', () => {
-    const r = parseTreemap('treemap T\nradial\n\nA 1\nB 2\nC 3');
-    const { cells } = layoutTreemapRadial(r.roots, { radius: 200 });
+  it('flat (single-level) sunburst produces a labeled donut, no crash (AC13)', () => {
+    const r = parseTreemap('treemap T\nsunburst\n\nA 1\nB 2\nC 3');
+    const { cells } = layoutTreemapSunburst(r.roots, { radius: 200 });
     expect(cells).toHaveLength(3);
     expect(cells.every((c) => c.depth === 1)).toBe(true);
     // Inner radius > 0 → a donut (the center disc hole).
@@ -549,17 +570,17 @@ describe('layoutTreemapRadial — geometry (AC2/AC3)', () => {
 
 describe('treemap diagnostics — mode-neutral wording (AC11)', () => {
   it('negative-leaf / valueless-leaf / branch-value codes still fire with reworded messages', () => {
-    const neg = parseTreemap('treemap T\nradial\n\nA\n  Bad -5');
+    const neg = parseTreemap('treemap T\nsunburst\n\nA\n  Bad -5');
     expect(codes(neg)).toContain('E_TREEMAP_NEGATIVE_VALUE');
 
-    const lonely = parseTreemap('treemap T\nradial\n\nA\n  Lonely');
+    const lonely = parseTreemap('treemap T\nsunburst\n\nA\n  Lonely');
     const leafMsg = lonely.diagnostics.find(
       (d) => d.code === 'W_TREEMAP_LEAF_NO_VALUE'
     )!;
     expect(leafMsg.message).toContain('zero size');
     expect(leafMsg.message).not.toContain('area');
 
-    const branch = parseTreemap('treemap T\nradial\n\nOps 999\n  Cloud 110');
+    const branch = parseTreemap('treemap T\nsunburst\n\nOps 999\n  Cloud 110');
     const branchMsg = branch.diagnostics.find(
       (d) => d.code === 'W_TREEMAP_BRANCH_VALUE_IGNORED'
     )!;
@@ -581,7 +602,7 @@ describe('depthTint — lightness floor (AC8)', () => {
   });
 });
 
-describe('renderTreemapRadial — small-arc label dropout (AC7)', () => {
+describe('renderTreemapSunburst — small-arc label dropout (AC7)', () => {
   beforeAll(() => {
     const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
     const win = dom.window;
@@ -607,9 +628,11 @@ describe('renderTreemapRadial — small-arc label dropout (AC7)', () => {
   it('drops the inline label of an arc whose sweep is < 6°', () => {
     // Tiny = 5/1005 ≈ 0.5% → ~1.8° sweep (< 6°); Big ≈ 99.5% → labeled.
     // no-legend so textContent reflects arc labels (+ disc), not the legend list.
-    const r = parseTreemap('treemap T\nradial\nno-legend\n\nBig 1000\nTiny 5');
+    const r = parseTreemap(
+      'treemap T\nsunburst\nno-legend\n\nBig 1000\nTiny 5'
+    );
     const c = mount();
-    renderTreemapRadial(c, r, nordLight, false);
+    renderTreemapSunburst(c, r, nordLight, false);
     const text = c.textContent ?? '';
     expect(text).toContain('Big');
     expect(text).not.toContain('Tiny');

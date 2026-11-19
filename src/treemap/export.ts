@@ -31,10 +31,11 @@ export async function exportTreemap(ctx: ExportContext): Promise<string> {
       ctx.isDark,
       dims
     );
-  } else if (treemapParsed.options.radial) {
-    // Sunburst mode: parallel lazy imports of the radial layout + renderer.
-    const { renderTreemapRadialForExport } = await import('./renderer-radial');
-    renderTreemapRadialForExport(
+  } else if (treemapParsed.options.sunburst) {
+    // Sunburst mode: parallel lazy imports of the sunburst layout + renderer.
+    const { renderTreemapSunburstForExport } =
+      await import('./renderer-sunburst');
+    renderTreemapSunburstForExport(
       container,
       treemapParsed,
       effectivePalette,

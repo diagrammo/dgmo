@@ -304,8 +304,8 @@ describe('highlight on treemap', () => {
     ).toBe(true);
   });
 
-  it('greys arcs in radial mode too', async () => {
-    const o = await cellFill(withLine(TREEMAP, 'radial\nhighlight Rum'));
+  it('greys arcs in sunburst mode too', async () => {
+    const o = await cellFill(withLine(TREEMAP, 'sunburst\nhighlight Rum'));
     expect(o['Provisions / Rum']).not.toBe(ground.groundFill);
     expect(o['Provisions / Rum']).not.toBe(ground.groundStroke);
     expect(o['Provisions / Biscuit']).toBe(ground.groundFill);

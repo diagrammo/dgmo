@@ -1,5 +1,5 @@
 // ============================================================
-// Treemap — Radial (sunburst) angle-partition layout (d3-hierarchy)
+// Treemap — Sunburst angle-partition layout (d3-hierarchy)
 // ============================================================
 //
 // Disjoint from the squarified `layout.ts`: a treemap encodes value as AREA
@@ -26,7 +26,7 @@ import {
 import type { TreemapNode } from './types';
 
 /** Internal datum fed to d3-hierarchy (carries the original node ref).
- *  Duplicated from `layout.ts` (which keeps it module-private) so this radial
+ *  Duplicated from `layout.ts` (which keeps it module-private) so this sunburst
  *  path needs no edit to the squarify layout. The icicle layout shares it. */
 export interface LayoutDatum {
   /** Original parsed node; undefined for the synthetic root. */
@@ -43,7 +43,7 @@ export interface LayoutDatum {
 /** A positioned sunburst arc. Reuses every geometry-NEUTRAL field of
  *  `TreemapCell`, swapping the 4 rect coords for polar `{start/endAngle,
  *  inner/outerR}`. */
-export interface RadialCell {
+export interface SunburstCell {
   /** Original parsed node, or null for the synthetic root. */
   readonly node: TreemapNode | null;
   readonly label: string;
@@ -70,8 +70,8 @@ export interface RadialCell {
   readonly lineNumber?: number;
 }
 
-export interface RadialLayoutResult {
-  readonly cells: readonly RadialCell[];
+export interface SunburstLayoutResult {
+  readonly cells: readonly SunburstCell[];
   /** Grand total (sum of all leaf values). */
   readonly total: number;
   /** Radius of the center disc (title + total holder). */
@@ -83,7 +83,7 @@ export interface RadialLayoutResult {
   readonly isEmpty: boolean;
 }
 
-export interface RadialLayoutOptions {
+export interface SunburstLayoutOptions {
   /** Outer radius available for the whole sunburst (disc + rings). */
   readonly radius: number;
   /** Center disc radius; defaults to a sensible fraction of `radius`. */
@@ -133,10 +133,10 @@ function defaultDiscRadius(radius: number, treeDepth: number): number {
   return Math.min(frac, share);
 }
 
-export function layoutTreemapRadial(
+export function layoutTreemapSunburst(
   roots: readonly TreemapNode[],
-  opts: RadialLayoutOptions
-): RadialLayoutResult {
+  opts: SunburstLayoutOptions
+): SunburstLayoutResult {
   const maxDepth = opts.maxDepth ?? Infinity;
   const radius = Math.max(1, opts.radius);
 
@@ -185,7 +185,7 @@ export function layoutTreemapRadial(
     });
   });
 
-  const cells: RadialCell[] = [];
+  const cells: SunburstCell[] = [];
   let maxDepthReached = 0;
 
   for (const d of hroot.descendants()) {

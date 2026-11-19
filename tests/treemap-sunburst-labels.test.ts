@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { parseTreemap } from '../src/treemap/parser';
-import { renderTreemapRadialForExport } from '../src/treemap/renderer-radial';
+import { renderTreemapSunburstForExport } from '../src/treemap/renderer-sunburst';
 import { getPalette } from '../src/palettes';
 
 const palette = getPalette('nord').light;
@@ -26,7 +26,7 @@ beforeAll(() => {
 function render(src: string, w = 900, h = 900): SVGSVGElement {
   const parsed = parseTreemap(src, palette);
   const container = document.createElement('div');
-  renderTreemapRadialForExport(container, parsed, palette, false, {
+  renderTreemapSunburstForExport(container, parsed, palette, false, {
     width: w,
     height: h,
   });
@@ -44,7 +44,7 @@ function labels(svg: SVGSVGElement): { id: string; text: string }[] {
 }
 
 const TWO_RING = `treemap
-radial
+sunburst
 Ships
   Galleon 40
   Sloop 25
@@ -54,7 +54,7 @@ Crew
 
 // A deep 3-level tree; in a small viewport its rings are too thin to stack.
 const DEEP = `treemap
-radial
+sunburst
 A
   A1
     A1a 10
@@ -70,7 +70,7 @@ B
     B2a 10
     B2b 10`;
 
-describe('radial treemap — two-line curved labels', () => {
+describe('sunburst treemap — two-line curved labels', () => {
   it('splits name and value·% onto separate concentric arcs on a thick ring', () => {
     const ls = labels(render(TWO_RING));
     const nameRun = ls.find((l) => l.id.endsWith('-n') && l.text === 'Galleon');
@@ -93,7 +93,7 @@ describe('radial treemap — two-line curved labels', () => {
   it('collapses to a single line when there is no value string (no-values/percent)', () => {
     const ls = labels(
       render(`treemap
-radial
+sunburst
 no-values
 no-percent
 Ships

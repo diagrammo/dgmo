@@ -806,17 +806,20 @@ export type { ParsedRing, RingLayer } from './ring/types';
 export { parseTreemap } from './treemap/parser';
 export { renderTreemap, renderTreemapForExport } from './treemap/renderer';
 export {
-  renderTreemapRadial,
-  renderTreemapRadialForExport,
-} from './treemap/renderer-radial';
+  renderTreemapSunburst,
+  renderTreemapSunburstForExport,
+} from './treemap/renderer-sunburst';
 export {
   renderTreemapIcicle,
   renderTreemapIcicleForExport,
 } from './treemap/renderer-icicle';
 export { layoutTreemap } from './treemap/layout';
-export { layoutTreemapRadial } from './treemap/layout-radial';
+export { layoutTreemapSunburst } from './treemap/layout-sunburst';
 export type { TreemapCell, TreemapLayoutResult } from './treemap/layout';
-export type { RadialCell, RadialLayoutResult } from './treemap/layout-radial';
+export type {
+  SunburstCell,
+  SunburstLayoutResult,
+} from './treemap/layout-sunburst';
 export type {
   ParsedTreemap,
   TreemapNode,
