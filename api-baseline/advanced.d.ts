@@ -631,11 +631,13 @@ interface ParsedChart {
     /** Per-series axis assignment, parallel to seriesNames. Present only when the
      *  series block uses the grouped (dual-axis) form; absent ⇒ all left. */
     seriesAxes?: ('left' | 'right')[];
-    /** Multi-series layout, set by a `stack` or `group` block header
+    /** Multi-series layout, set by a `stack`, `group` or `mirror` block header
      *  (consolidation #24). Absent ⇒ single-series bar. On `bar` it drives
-     *  stacked vs clustered rendering in `charts-d3/bar.ts`; on `line`, `stack`
-     *  draws stacked areas (#1846) and `group` is ignored. */
-    barLayout?: 'stack' | 'group';
+     *  stacked vs clustered rendering in `charts-d3/bar.ts`, and `mirror`
+     *  (#1878) draws exactly two series back to back, the first to the left;
+     *  on `line`, `stack` draws stacked areas (#1846) and the others are
+     *  ignored. */
+    barLayout?: 'stack' | 'group' | 'mirror';
     /** `stack 100%` (#1846): each x position is drawn as shares of its total,
      *  on a 0–100% axis. Values stay raw in the source. `bar` and `line`. */
     stackPercent?: boolean;
