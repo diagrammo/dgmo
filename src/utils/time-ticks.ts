@@ -20,7 +20,7 @@ const YEAR_TICKS_FROM = 3;
 /** Days from 1970-01-01 to Monday 1970-01-05: day slots count from it. */
 const MONDAY_EPOCH_DAY = 4;
 
-type SlottedTick = { pos: number; label: string; slot: number };
+export type SlottedTick = { pos: number; label: string; slot: number };
 
 export const MONTH_ABBR = [
   'Jan',
@@ -367,7 +367,7 @@ export function computeTimeTicks(
  * kept; a standard tick whose label would touch one is dropped. A chart whose
  * labels already fit keeps every tick, so its axis is unchanged.
  */
-function fitTickLabels(
+export function fitTickLabels(
   standard: SlottedTick[],
   startBoundary: { pos: number; label: string } | null,
   endBoundary: { pos: number; label: string } | null,

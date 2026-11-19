@@ -10,7 +10,7 @@
 // ============================================================
 
 import { scaleBand } from 'd3-scale';
-import { buildValueAxis } from './value-axis';
+import { axisTickFormat, buildValueAxis, labelledTicks } from './value-axis';
 import { max as d3max, min as d3min } from 'd3-array';
 import type { ParsedChart } from '../chart';
 import type { PaletteColors } from '../palettes';
@@ -288,7 +288,7 @@ export function renderBar(
     ? (t: number) => fmt(Math.abs(t))
     : percent
       ? (t: number) => `${Math.round(t * 100) / 100}%`
-      : fmt;
+      : axisTickFormat(valueAxis([0, 1]), chart.numberFormat, fmt);
   const valueTicks = probeTicks.map(tickFmt);
   // Vertical bars carry their category names under the axis, so they need the
   // same fit treatment as line. Horizontal bars put them in the left gutter,
@@ -527,7 +527,12 @@ export function renderBar(
   });
 
   // value-axis gridlines + ticks
-  for (const t of val.ticks(6)) {
+  const valTicks = val.ticks(6);
+  const labelled = labelledTicks(val, valTicks, tickFmt, {
+    fontSize: TICK_FONT,
+    vertical: !horiz,
+  });
+  for (const t of valTicks) {
     if (horiz) {
       const x = val(t);
       svg
@@ -538,15 +543,16 @@ export function renderBar(
         .attr('y2', m.top + plotH)
         .attr('stroke', mutedColor)
         .attr('stroke-opacity', t === val.baseline ? 0.6 : 0.25);
-      svg
-        .append('text')
-        .attr('x', x)
-        .attr('y', m.top + plotH + 18)
-        .attr('text-anchor', 'middle')
-        .attr('fill', textColor)
-        .attr('font-size', TICK_FONT)
-        .attr('font-family', FONT_FAMILY)
-        .call(tabularText(tickFmt(t), TICK_FONT));
+      if (labelled.has(t))
+        svg
+          .append('text')
+          .attr('x', x)
+          .attr('y', m.top + plotH + 18)
+          .attr('text-anchor', 'middle')
+          .attr('fill', textColor)
+          .attr('font-size', TICK_FONT)
+          .attr('font-family', FONT_FAMILY)
+          .call(tabularText(tickFmt(t), TICK_FONT));
     } else {
       const y = val(t);
       svg
@@ -557,15 +563,16 @@ export function renderBar(
         .attr('y2', y)
         .attr('stroke', mutedColor)
         .attr('stroke-opacity', t === val.baseline ? 0.6 : 0.25);
-      svg
-        .append('text')
-        .attr('x', m.left - 10)
-        .attr('y', y + 4)
-        .attr('text-anchor', 'end')
-        .attr('fill', textColor)
-        .attr('font-size', TICK_FONT)
-        .attr('font-family', FONT_FAMILY)
-        .call(tabularText(tickFmt(t), TICK_FONT));
+      if (labelled.has(t))
+        svg
+          .append('text')
+          .attr('x', m.left - 10)
+          .attr('y', y + 4)
+          .attr('text-anchor', 'end')
+          .attr('fill', textColor)
+          .attr('font-size', TICK_FONT)
+          .attr('font-family', FONT_FAMILY)
+          .call(tabularText(tickFmt(t), TICK_FONT));
     }
   }
 
@@ -1389,7 +1396,7 @@ function renderClusteredStack(
   const fmt = chartFormatter(chart, valueAxis([0, 1]).ticks(6));
   const tickFmt = percent
     ? (t: number) => `${Math.round(t * 100) / 100}%`
-    : fmt;
+    : axisTickFormat(valueAxis([0, 1]), chart.numberFormat, fmt);
   const probeTicks = valueAxis([0, 1]).ticks(6).map(tickFmt);
 
   const m: Margins = {
@@ -1459,7 +1466,12 @@ function renderClusteredStack(
   };
   drawBands(svg, chart.annotations, annotationFrame, annotationColors);
 
-  for (const t of val.ticks(6)) {
+  const valTicks = val.ticks(6);
+  const labelled = labelledTicks(val, valTicks, tickFmt, {
+    fontSize: TICK_FONT,
+    vertical: true,
+  });
+  for (const t of valTicks) {
     const y = val(t);
     svg
       .append('line')
@@ -1469,15 +1481,16 @@ function renderClusteredStack(
       .attr('y2', y)
       .attr('stroke', mutedColor)
       .attr('stroke-opacity', t === val.baseline ? 0.6 : 0.25);
-    svg
-      .append('text')
-      .attr('x', m.left - 10)
-      .attr('y', y + 4)
-      .attr('text-anchor', 'end')
-      .attr('fill', textColor)
-      .attr('font-size', TICK_FONT)
-      .attr('font-family', FONT_FAMILY)
-      .call(tabularText(tickFmt(t), TICK_FONT));
+    if (labelled.has(t))
+      svg
+        .append('text')
+        .attr('x', m.left - 10)
+        .attr('y', y + 4)
+        .attr('text-anchor', 'end')
+        .attr('fill', textColor)
+        .attr('font-size', TICK_FONT)
+        .attr('font-family', FONT_FAMILY)
+        .call(tabularText(tickFmt(t), TICK_FONT));
   }
 
   // Two-level axis: periods under each column, then a bracket and the

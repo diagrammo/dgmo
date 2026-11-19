@@ -211,9 +211,9 @@ describe('drawn on the value axis', () => {
       );
       expect(svg).toContain('>Goal</text>');
       const [, , y1] = markerLine(svg)!;
-      // Decade ticks: 5000 sits between the 1K and 10K gridlines.
-      expect(y1).toBeLessThan(tickPos(svg, '1,000', 'y') - 4);
-      expect(y1).toBeGreaterThan(tickPos(svg, '10,000', 'y') - 4);
+      // Decade ticks, compact on a log axis (#2135): 5000 sits between 1K and 10K.
+      expect(y1).toBeLessThan(tickPos(svg, '1K', 'y') - 4);
+      expect(y1).toBeGreaterThan(tickPos(svg, '10K', 'y') - 4);
     }
   });
 

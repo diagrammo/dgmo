@@ -6,7 +6,7 @@
 // ============================================================
 
 import { scaleSqrt } from 'd3-scale';
-import { buildValueAxis } from './value-axis';
+import { axisTickFormat, buildValueAxis, labelledTicks } from './value-axis';
 import { tabularText } from '../utils/tabular-figures';
 import {
   computeQuadrantPointLabels,
@@ -236,22 +236,26 @@ export function renderScatter(
   const yMax = Math.max(...ys);
   const xPad = (xMax - xMin) * 0.1 || 1;
   const yPad = (yMax - yMin) * 0.1 || 1;
-  const yTicks = buildValueAxis(
+  const yProbe = buildValueAxis(
     Math.floor(yMin - yPad),
     Math.ceil(yMax + yPad),
     chart.axes?.y,
     [0, 1],
     { dataLo: yMin, dataHi: yMax }
-  ).ticks(6);
+  );
+  const yTicks = yProbe.ticks(6);
   // The author's `format` / `unit` / `locale` (#1831), one compact unit for
   // the y axis (#2036).
   const fmt = chartFormatter(chart, yTicks);
+  const yTickFmt = axisTickFormat(yProbe, chart.numberFormat, fmt);
 
   const m: Margins = {
     top: topInset + 8,
     right: 32,
     bottom: 64,
-    left: computeLeftMargin(chart.ylabel, yTicks.map(fmt), { tabular: true }),
+    left: computeLeftMargin(chart.ylabel, yTicks.map(yTickFmt), {
+      tabular: true,
+    }),
   };
   const plotW = width - m.left - m.right;
   const plotH = height - m.top - m.bottom;
@@ -337,7 +341,12 @@ export function renderScatter(
   ];
 
   // gridlines + ticks
-  for (const t of y.ticks(6)) {
+  const shownTicks = y.ticks(6);
+  const shown = labelledTicks(y, shownTicks, yTickFmt, {
+    fontSize: TICK_FONT,
+    vertical: true,
+  });
+  for (const t of shownTicks) {
     const yy = y(t);
     svg
       .append('line')
@@ -347,18 +356,25 @@ export function renderScatter(
       .attr('y2', yy)
       .attr('stroke', mutedColor)
       .attr('stroke-opacity', 0.25);
-    svg
-      .append('text')
-      .attr('class', 'dgmo-tick')
-      .attr('x', m.left - 10)
-      .attr('y', yy + 4)
-      .attr('text-anchor', 'end')
-      .attr('fill', textColor)
-      .attr('font-size', TICK_FONT)
-      .attr('font-family', FONT_FAMILY)
-      .call(tabularText(fmt(t), TICK_FONT));
+    if (shown.has(t))
+      svg
+        .append('text')
+        .attr('class', 'dgmo-tick')
+        .attr('x', m.left - 10)
+        .attr('y', yy + 4)
+        .attr('text-anchor', 'end')
+        .attr('fill', textColor)
+        .attr('font-size', TICK_FONT)
+        .attr('font-family', FONT_FAMILY)
+        .call(tabularText(yTickFmt(t), TICK_FONT));
   }
-  for (const t of x.ticks(6)) {
+  const xTickFmt = axisTickFormat(x, undefined, fmtNum);
+  const shownXTicks = x.ticks(6);
+  const shownX = labelledTicks(x, shownXTicks, xTickFmt, {
+    fontSize: TICK_FONT,
+    vertical: false,
+  });
+  for (const t of shownXTicks) {
     const xx = x(t);
     svg
       .append('line')
@@ -368,16 +384,17 @@ export function renderScatter(
       .attr('y2', m.top + plotH)
       .attr('stroke', mutedColor)
       .attr('stroke-opacity', 0.25);
-    svg
-      .append('text')
-      .attr('class', 'dgmo-tick')
-      .attr('x', xx)
-      .attr('y', m.top + plotH + 18)
-      .attr('text-anchor', 'middle')
-      .attr('fill', textColor)
-      .attr('font-size', TICK_FONT)
-      .attr('font-family', FONT_FAMILY)
-      .call(tabularText(fmtNum(t), TICK_FONT));
+    if (shownX.has(t))
+      svg
+        .append('text')
+        .attr('class', 'dgmo-tick')
+        .attr('x', xx)
+        .attr('y', m.top + plotH + 18)
+        .attr('text-anchor', 'middle')
+        .attr('fill', textColor)
+        .attr('font-size', TICK_FONT)
+        .attr('font-family', FONT_FAMILY)
+        .call(tabularText(xTickFmt(t), TICK_FONT));
   }
 
   const pointColor = (p: (typeof points)[number], i: number): string =>

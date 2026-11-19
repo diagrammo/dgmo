@@ -5,7 +5,12 @@
 // ============================================================
 
 import { scalePoint } from 'd3-scale';
-import { buildValueAxis, type ValueAxis } from './value-axis';
+import {
+  axisTickFormat,
+  buildValueAxis,
+  labelledTicks,
+  type ValueAxis,
+} from './value-axis';
 import {
   line as d3line,
   area as d3area,
@@ -268,7 +273,12 @@ export function renderLine(
   const fmt = chartFormatter(chart, probeL);
   const fmtR = dual ? chartFormatter(chart, rightAxis([0, 1]).ticks(6)) : fmt;
   const fmtFor = (s: number) => (dual && axisOf(s) === 'right' ? fmtR : fmt);
-  const tickFmt = percent ? (t: number) => `${round(t)}%` : fmt;
+  const tickFmt = percent
+    ? (t: number) => `${round(t)}%`
+    : axisTickFormat(leftAxis([0, 1]), chart.numberFormat, fmt);
+  const tickFmtR = dual
+    ? axisTickFormat(rightAxis([0, 1]), chart.numberFormat, fmtR)
+    : fmtR;
 
   // Horizontal margins first: the category-label plan needs the plot width to
   // know how much room one category owns, and the bottom margin then follows
@@ -289,7 +299,7 @@ export function renderLine(
       )
     : 0;
   let mRight = dual
-    ? computeLeftMargin(chart.yrlabel, [fmtR(hiR), fmtR(loR)], {
+    ? computeLeftMargin(chart.yrlabel, [tickFmtR(hiR), tickFmtR(loR)], {
         tabular: true,
       })
     : 32;
@@ -475,7 +485,12 @@ export function renderLine(
   }
 
   // left y gridlines + ticks (only the left axis draws gridlines)
-  for (const t of yL.ticks(6)) {
+  const shownTicks = yL.ticks(6);
+  const shown = labelledTicks(yL, shownTicks, tickFmt, {
+    fontSize: TICK_FONT,
+    vertical: true,
+  });
+  for (const t of shownTicks) {
     const yy = yL(t);
     svg
       .append('line')
@@ -485,31 +500,38 @@ export function renderLine(
       .attr('y2', yy)
       .attr('stroke', mutedColor)
       .attr('stroke-opacity', t === 0 ? 0.6 : 0.25);
-    svg
-      .append('text')
-      .attr('class', 'dgmo-tick')
-      .attr('x', m.left - 10)
-      .attr('y', yy + 4)
-      .attr('text-anchor', 'end')
-      .attr('fill', leftTint ?? textColor)
-      .attr('font-size', TICK_FONT)
-      .attr('font-family', FONT_FAMILY)
-      .call(tabularText(tickFmt(t), TICK_FONT));
+    if (shown.has(t))
+      svg
+        .append('text')
+        .attr('class', 'dgmo-tick')
+        .attr('x', m.left - 10)
+        .attr('y', yy + 4)
+        .attr('text-anchor', 'end')
+        .attr('fill', leftTint ?? textColor)
+        .attr('font-size', TICK_FONT)
+        .attr('font-family', FONT_FAMILY)
+        .call(tabularText(tickFmt(t), TICK_FONT));
   }
 
   // right y ticks (no gridlines)
   if (dual && yR) {
-    for (const t of yR.ticks(6)) {
-      svg
-        .append('text')
-        .attr('class', 'dgmo-tick')
-        .attr('x', m.left + plotW + 10)
-        .attr('y', yR(t) + 4)
-        .attr('text-anchor', 'start')
-        .attr('fill', rightTint ?? textColor)
-        .attr('font-size', TICK_FONT)
-        .attr('font-family', FONT_FAMILY)
-        .call(tabularText(fmtR(t), TICK_FONT));
+    const shownRTicks = yR.ticks(6);
+    const shownR = labelledTicks(yR, shownRTicks, tickFmtR, {
+      fontSize: TICK_FONT,
+      vertical: true,
+    });
+    for (const t of shownRTicks) {
+      if (shownR.has(t))
+        svg
+          .append('text')
+          .attr('class', 'dgmo-tick')
+          .attr('x', m.left + plotW + 10)
+          .attr('y', yR(t) + 4)
+          .attr('text-anchor', 'start')
+          .attr('fill', rightTint ?? textColor)
+          .attr('font-size', TICK_FONT)
+          .attr('font-family', FONT_FAMILY)
+          .call(tabularText(tickFmtR(t), TICK_FONT));
     }
   }
 

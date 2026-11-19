@@ -10,6 +10,7 @@ import { flattenTabular } from './helpers/tabular-text';
 import { buildValueAxis, logTicks } from '../src/charts-d3/value-axis';
 import { readAxisLine } from '../src/utils/axis-spec';
 import { getPalette } from '../src/palettes';
+import { measureText } from '../src/utils/text-measure';
 
 // Labels are digit cells (#2035); read their text as one string.
 const renderDataChartD3 = async (
@@ -21,13 +22,54 @@ const palette = getPalette('nord').light;
 const codes = (r: { diagnostics: { code?: string }[] }) =>
   r.diagnostics.map((d) => d.code).filter(Boolean);
 
+/** A tick label's number: `1,000`, `10K` and `2.5M` all read back. */
+function compactValue(text: string): number {
+  const m = /^([\d.,-]+)([KMB]?)$/.exec(text.trim());
+  if (!m) return NaN;
+  const scale = { '': 1, K: 1e3, M: 1e6, B: 1e9 }[m[2]!]!;
+  return Number(m[1]!.replace(/,/g, '')) * scale;
+}
+
+/**
+ * A value axis as drawn: each gridline's position and the label bar draws
+ * right after it, when there is one. A gridline with x1 = x2 belongs to a
+ * horizontal axis (labels side by side), y1 = y2 to a vertical one.
+ */
+type AxisRow = { pos: number; horizontal: boolean; label?: string };
+function axisRows(svg: string): AxisRow[] {
+  const re =
+    /<line x1="([\d.]+)" x2="([\d.]+)" y1="([\d.]+)" y2="([\d.]+)"[^>]*><\/line>(?:<text(?![^>]*dgmo-tick)[^>]*>([^<]+)<\/text>)?/g;
+  return [...svg.matchAll(re)]
+    .filter((m) => m[1] === m[2] || m[3] === m[4])
+    .map((m) => ({
+      pos: Number(m[1] === m[2] ? m[1] : m[3]),
+      horizontal: m[1] === m[2],
+      // A category name drawn next can follow the last gridline; only a
+      // number is a tick label.
+      ...(m[5] !== undefined &&
+        Number.isFinite(compactValue(m[5])) && { label: m[5] }),
+    }));
+}
+
+/** True when no two tick labels' boxes overlap (TICK_FONT 12). */
+function labelBoxesApart(rows: AxisRow[]): boolean {
+  const spans = rows
+    .filter((r) => r.label !== undefined)
+    .map((r) => {
+      const half = (r.horizontal ? measureText(r.label!, 12) : 12 * 1.2) / 2;
+      return { lo: r.pos - half, hi: r.pos + half };
+    })
+    .sort((a, b) => a.lo - b.lo);
+  return spans.every((b, i) => i === 0 || spans[i - 1]!.hi <= b.lo);
+}
+
 /** Numeric text of every `dgmo-tick` label in the SVG. */
 function tickValues(svg: string): number[] {
   const out: number[] = [];
   const re = /class="dgmo-tick"[^>]*>([^<]+)<\/text>/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(svg))) {
-    const n = Number(m[1]!.replace(/,/g, ''));
+    const n = compactValue(m[1]!);
     if (Number.isFinite(n)) out.push(n);
   }
   return out;
@@ -189,14 +231,85 @@ describe('axis directives — render', () => {
     expect(Math.max(...t)).toBe(500);
   });
 
-  it('bar: a log axis labels every decade', async () => {
+  it('bar: a log axis labels every decade, compact', async () => {
     const svg = await renderDataChartD3(
       'bar Sizes\ny-axis log\nA 10\nB 1000\nC 100000',
       'light',
       palette
     );
-    for (const label of ['10', '100', '1,000', '10,000', '100,000'])
-      expect(svg).toContain(`>${label}</text>`);
+    expect(axisRows(svg).map((r) => r.label)).toEqual([
+      '10',
+      '100',
+      '1K',
+      '10K',
+      '100K',
+    ]);
+    // Bar value labels keep full digits (#2135).
+    expect(svg).toContain('>100,000</text>');
+  });
+
+  it('bar: an explicit format still wins on a log axis', async () => {
+    const svg = await renderDataChartD3(
+      'bar Sizes\ny-axis log\nformat currency USD\nA 10\nB 1000\nC 100000',
+      'light',
+      palette
+    );
+    // No bar is 10,000, so this label is the tick's, in the author's format.
+    expect(svg).toContain('>$10,000</text>');
+    expect(svg).not.toContain('>10K</text>');
+  });
+
+  // #2135: seven decades in a pane-sized plot ran 100,000 → 10,000,000 into
+  // each other. Label boxes are TICK_FONT × 1.2 tall, centred on the line.
+  const TREASURE = [
+    'bar Treasure Hoards by Island',
+    'y-axis Doubloons log',
+    'x-axis Island',
+    '',
+    'Skull Cove 12',
+    'Tortuga Bay 480',
+    'Kraken Reef 9500',
+    'Port Lantern 130',
+    'Gull Rock 3',
+    "Admiral's Vault 2400000",
+  ].join('\n');
+  // The observed case: horizontal bars, seven decades in about 420px.
+  it('bar: the treasure chart at pane size has no touching tick labels', async () => {
+    const svg = await renderDataChartD3(TREASURE, 'light', palette, {
+      width: 640,
+      height: 480,
+    });
+    const rows = axisRows(svg);
+    expect(rows).toHaveLength(8); // 1 … 10M: a gridline on every decade
+    expect(labelBoxesApart(rows)).toBe(true);
+    expect(rows.map((r) => r.label)).toContain('1M');
+  });
+
+  it('bar: a narrow plot thins log labels but keeps every gridline', async () => {
+    const svg = await renderDataChartD3(TREASURE, 'light', palette, {
+      width: 380,
+      height: 480,
+    });
+    const rows = axisRows(svg);
+    expect(rows).toHaveLength(8);
+    const labelled = rows.filter((r) => r.label !== undefined);
+    expect(labelled.length).toBeLessThan(8);
+    expect(labelled.length).toBeGreaterThan(1);
+    expect(labelBoxesApart(rows)).toBe(true);
+  });
+
+  it('bar: a short vertical plot thins log labels too', async () => {
+    const svg = await renderDataChartD3(
+      'bar S\ny-axis log\nA 3\nB 400\nC 2400000',
+      'light',
+      palette,
+      { width: 480, height: 240 }
+    );
+    const rows = axisRows(svg);
+    expect(rows.every((r) => !r.horizontal)).toBe(true);
+    expect(rows).toHaveLength(8);
+    expect(rows.filter((r) => r.label !== undefined).length).toBeLessThan(8);
+    expect(labelBoxesApart(rows)).toBe(true);
   });
 
   it('scatter: both axes take a log scale', async () => {

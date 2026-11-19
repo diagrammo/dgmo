@@ -7,6 +7,11 @@
 
 import { scaleLinear, scaleLog } from 'd3-scale';
 import type { AxisSpec } from '../utils/axis-spec';
+import {
+  makeNumberFormatter,
+  type NumberFormatSpec,
+} from '../utils/number-format';
+import { fitTickLabels, type TickLabelFit } from '../utils/time-ticks';
 
 export interface ValueAxis {
   /** Data value → pixel. */
@@ -131,4 +136,44 @@ function dropCrowdedEnds(
       at(v, b) ||
       ((!fixedA || v - a >= gap) && (!fixedB || b - v >= gap))
   );
+}
+
+/**
+ * The tick-label formatter for an axis (#2135). A log axis spans decades, so
+ * full digits outgrow a decade's height: it prints compact (1K, 10M), the
+ * form `format compact` prints. An explicit `format` still wins, and `unit`
+ * and `locale` carry over. A linear axis keeps `fallback`.
+ */
+export function axisTickFormat(
+  axis: Pick<ValueAxis, 'isLog'>,
+  numberFormat: NumberFormatSpec | undefined,
+  fallback: (n: number) => string
+): (n: number) => string {
+  if (!axis.isLog || numberFormat?.kind) return fallback;
+  return makeNumberFormatter({ ...numberFormat, kind: 'compact' }, fallback);
+}
+
+/**
+ * The ticks that get a label (#2135). A log axis labels every decade until two
+ * labels would touch, then every 2nd, every 3rd… — the stride search
+ * `fitTickLabels` runs for time axes. Gridlines stay on every tick. A linear
+ * axis labels every tick, as before.
+ */
+export function labelledTicks(
+  axis: ValueAxis,
+  ticks: readonly number[],
+  format: (n: number) => string,
+  fit: TickLabelFit
+): Set<number> {
+  if (!axis.isLog || ticks.length < 2) return new Set(ticks);
+  const slotted = ticks.map((t, slot) => ({
+    pos: axis(t),
+    label: format(t),
+    slot,
+  }));
+  const strides = ticks.map((_, i) => i + 1);
+  const kept = new Set(
+    fitTickLabels(slotted, null, null, strides, fit).map((k) => k.pos)
+  );
+  return new Set(ticks.filter((t) => kept.has(axis(t))));
 }

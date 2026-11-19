@@ -4,7 +4,7 @@
 // ============================================================
 
 import { scaleLinear } from 'd3-scale';
-import { buildValueAxis } from './value-axis';
+import { axisTickFormat, buildValueAxis, labelledTicks } from './value-axis';
 import { line as d3line, area as d3area } from 'd3-shape';
 import type { ParsedFunctionChart } from '../data-chart-parser';
 import type { PaletteColors } from '../palettes';
@@ -86,11 +86,14 @@ export function renderFunction(
   // The author's `format` / `unit` / `locale` (#1831), one compact unit for
   // the y axis (#2036).
   const fmt = chartFormatter(chart, yTicks);
+  const yTickFmt = axisTickFormat(yAxis([0, 1]), chart.numberFormat, fmt);
   const m: Margins = {
     top: topInset + 8,
     right: 32,
     bottom: 64,
-    left: computeLeftMargin(chart.ylabel, yTicks.map(fmt), { tabular: true }),
+    left: computeLeftMargin(chart.ylabel, yTicks.map(yTickFmt), {
+      tabular: true,
+    }),
   };
   const plotW = width - m.left - m.right;
   const plotH = height - m.top - m.bottom;
@@ -102,7 +105,12 @@ export function renderFunction(
   const fixedY = ySpec?.min !== undefined || ySpec?.max !== undefined;
 
   // gridlines + ticks
-  for (const t of y.ticks(8)) {
+  const shownTicks = y.ticks(8);
+  const shown = labelledTicks(y, shownTicks, yTickFmt, {
+    fontSize: TICK_FONT,
+    vertical: true,
+  });
+  for (const t of shownTicks) {
     const yy = y(t);
     svg
       .append('line')
@@ -112,16 +120,17 @@ export function renderFunction(
       .attr('y2', yy)
       .attr('stroke', mutedColor)
       .attr('stroke-opacity', t === 0 ? 0.6 : 0.2);
-    svg
-      .append('text')
-      .attr('class', 'dgmo-tick')
-      .attr('x', m.left - 10)
-      .attr('y', yy + 4)
-      .attr('text-anchor', 'end')
-      .attr('fill', textColor)
-      .attr('font-size', TICK_FONT)
-      .attr('font-family', FONT_FAMILY)
-      .call(tabularText(fmt(t), TICK_FONT));
+    if (shown.has(t))
+      svg
+        .append('text')
+        .attr('class', 'dgmo-tick')
+        .attr('x', m.left - 10)
+        .attr('y', yy + 4)
+        .attr('text-anchor', 'end')
+        .attr('fill', textColor)
+        .attr('font-size', TICK_FONT)
+        .attr('font-family', FONT_FAMILY)
+        .call(tabularText(yTickFmt(t), TICK_FONT));
   }
   for (const t of x.ticks(10)) {
     const xx = x(t);

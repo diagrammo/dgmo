@@ -2992,7 +2992,10 @@ y-axis log            // scale only (linear is the default)
   slope charts can share one scale. A range whose low end is not below its high
   end drops both ends (`W_AXIS_DIRECTIVE_INVALID`).
 - **`log`** draws a base-10 log axis. Ticks fall on every power of ten in
-  range; under three decades, the 2× and 5× steps are added. Unbounded ends
+  range; under three decades, the 2× and 5× steps are added. Tick labels are
+  compact (1, 10, 100, 1K, 10K, 1M) unless the chart sets `format`; value
+  labels keep full digits. When labels would touch, the axis labels every 2nd
+  decade, then every 3rd, and keeps a gridline on each. Unbounded ends
   round out to whole decades. Every value and bound must be above 0. Otherwise
   the axis stays linear and the chart warns (`W_AXIS_LOG_NOT_POSITIVE`). A
   function chart plots only the samples above 0. **A stacked bar cannot be
