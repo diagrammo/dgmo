@@ -44,7 +44,7 @@ export interface BoxplotSeries {
   readonly box: BoxSummary;
 }
 
-/** Summarise every group. Pure: the parse result in, the boxes out. */
+/** Summarize every group. Pure: the parse result in, the boxes out. */
 export function layoutBoxplot(
   chart: ParsedBoxplot,
   fallback: string
