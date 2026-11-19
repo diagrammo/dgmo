@@ -69,9 +69,6 @@ export interface BoxplotState {
   horizontal?: boolean;
 }
 
-/** The bare flags only the box plot reads. */
-export const BOXPLOT_FLAGS = ['points', 'mean', 'orientation-horizontal'];
-
 /** A number as DGMO writes one: `1,000`, `1_000`, `-2.5`. Null otherwise. */
 function readNumber(tok: string): number | null {
   const norm = normalizeNumericToken(tok) ?? tok;

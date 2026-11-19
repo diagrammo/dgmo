@@ -594,7 +594,7 @@ A caller can ask for a canvas size: `--width` and `--height` on the CLI, `width`
 
   <!-- exact-size-types:start -->
 
-  `bar`, `arc layout chord`, `cycle`, `funnel`, `function`, `heatmap`, `line`, `pie`, `polar-area`, `pyramid`, `quadrant`, `radar`, `ring`, `sankey`, `scatter`, `slope`, `tech-radar`, `treemap`, `venn`, `wordcloud`
+  `bar`, `arc layout chord`, `boxplot`, `cycle`, `funnel`, `function`, `heatmap`, `line`, `pie`, `polar-area`, `pyramid`, `quadrant`, `radar`, `ring`, `sankey`, `scatter`, `slope`, `tech-radar`, `treemap`, `venn`, `wordcloud`
 
   <!-- exact-size-types:end -->
 

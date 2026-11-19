@@ -17,11 +17,15 @@ import { FONT_FAMILY } from '../fonts';
 import { tabularText, measureTabular } from '../utils/tabular-figures';
 import { measureText, truncateText } from '../utils/text-measure';
 import { type BoxSummary, boxSummary } from '../stats/quartiles';
+import { scaleLinear } from 'd3-scale';
 import { buildValueAxis } from './value-axis';
 import {
   type Svg,
   type Margins,
   TICK_FONT,
+  TICK_INK_ABOVE,
+  bandSafeTop,
+  topTickFraction,
   chartFormatter,
   computeLeftMargin,
   drawXAxisTitle,
@@ -86,6 +90,8 @@ const LABEL_LINE = 16;
 const OUTLIER_R = 3;
 const POINT_R = 2.25;
 const MEAN_HALF = 5;
+/** About this many value ticks. */
+const TICK_COUNT = 6;
 
 export function renderBoxplot(
   svg: Svg,
@@ -106,14 +112,21 @@ export function renderBoxplot(
   const dataLo = Math.min(...all);
   const dataHi = Math.max(...all);
   const pad = dataHi > dataLo ? (dataHi - dataLo) * 0.05 : 1;
+  // Round the ends to the drawn tick stride, so the top tick sits on the
+  // plot's top edge.
+  const [lo, hi] = scaleLinear()
+    .domain([dataLo - pad, dataHi + pad])
+    .nice(TICK_COUNT)
+    .domain() as [number, number];
   const ySpec = chart.axes?.y;
   const valueAxis = (range: [number, number]) =>
-    buildValueAxis(dataLo - pad, dataHi + pad, ySpec, range, {
-      nice: true,
+    buildValueAxis(lo, hi, ySpec, range, {
+      nice: false,
       dataLo: Math.min(...all.filter((v) => v > 0), dataHi > 0 ? dataHi : 1),
       dataHi,
     });
-  const probeTicks = valueAxis([0, 1]).ticks(6).map(fmt);
+  const probe = valueAxis([0, 1]);
+  const probeTicks = probe.ticks(TICK_COUNT).map(fmt);
   const nLabel = (s: BoxplotSeries) => `n = ${s.box.n.toLocaleString('en-US')}`;
   const named = series.some((s) => s.name);
 
@@ -141,6 +154,11 @@ export function renderBoxplot(
       bottom: (named ? 2 : 1) * LABEL_LINE + 18 + (chart.xlabel ? 34 : 0),
       left: computeLeftMargin(chart.ylabel, probeTicks, { tabular: true }),
     };
+    // The top tick label stands over its gridline; keep it on the band
+    // (#2111).
+    m.top = bandSafeTop(m.top, height - m.bottom, [
+      [topTickFraction(probe, probe.ticks(TICK_COUNT)), TICK_INK_ABOVE],
+    ]);
   }
   const plotW = Math.max(10, width - m.left - m.right);
   const plotH = Math.max(10, height - m.top - m.bottom);
@@ -156,7 +174,7 @@ export function renderBoxplot(
     horizontal ? [val, g] : [g, val];
 
   // Value gridlines and ticks.
-  for (const t of v.ticks(6)) {
+  for (const t of v.ticks(TICK_COUNT)) {
     const p = v(t);
     const [x1, y1] = at(horizontal ? m.top : m.left, p);
     const [x2, y2] = at(horizontal ? m.top + plotH : m.left + plotW, p);
