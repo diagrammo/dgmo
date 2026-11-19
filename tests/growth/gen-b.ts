@@ -121,6 +121,40 @@ export const GENERATORS_B: Record<string, Generator> = {
       return lines.join('\n');
     },
   },
+  // n groups of 20 values each, as in gallery/fixtures/boxplot.dgmo.
+  boxplot: {
+    gen: (n) => {
+      const lines = ['boxplot Growth spread', 'y-axis Days'];
+      for (const g of range(n)) {
+        lines.push('', `[Group ${g}]`);
+        lines.push(
+          range(20)
+            .map((i) => 1 + ((g * 3 + i * 7) % 25))
+            .join(' ')
+        );
+      }
+      return lines.join('\n');
+    },
+  },
+  // n rows of 10 values. No `bin-width`: the type picks its own bins, as a
+  // real file leaves it to.
+  histogram: {
+    gen: (n) => {
+      const lines = [
+        'histogram Growth distribution',
+        'x-axis Minutes',
+        'y-axis Orders',
+        '',
+      ];
+      for (const r of range(n))
+        lines.push(
+          range(10)
+            .map((i) => (10 + ((r * 7 + i * 13) % 40) + i / 10).toFixed(1))
+            .join(' ')
+        );
+      return lines.join('\n');
+    },
+  },
   // n slices.
   pie: {
     gen: (n) =>
