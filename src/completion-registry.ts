@@ -1686,6 +1686,18 @@ export type PipeContextMap = Record<string, Record<string, PipeKeySpec>>;
 
 export const PIPE_METADATA = new Map<string, PipeContextMap>([
   [
+    'line',
+    {
+      node: {
+        mark: {
+          description:
+            'Draw this series as `bar` or `step` instead of a line (combo, on a `series` line)',
+          values: ['bar', 'line', 'step'],
+        },
+      },
+    },
+  ],
+  [
     'whiteboard',
     {
       node: {

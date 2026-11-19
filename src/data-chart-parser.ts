@@ -1669,6 +1669,14 @@ export function getSimpleChartLegendGroups(
   // A band (#1981) takes one entry in its low series' colour; its bounds none.
   const bands = parsed.seriesBands ?? [];
   const bounds = new Set(bands.flatMap((b) => [b.low, b.high]));
+  // A combo (#1852) shows each series' mark in its swatch.
+  const marks = parsed.seriesMarks?.includes('bar')
+    ? parsed.seriesMarks
+    : undefined;
+  const markOf = (i: number) =>
+    marks && {
+      mark: marks[i] === 'bar' ? ('bar' as const) : ('line' as const),
+    };
   return [
     {
       name: 'Series',
@@ -1678,7 +1686,7 @@ export function getSimpleChartLegendGroups(
           ? bands
               .filter((b) => b.low === i)
               .map((b) => ({ value: b.label, color: colorOf(i) }))
-          : [{ value: name, color: colorOf(i) }]
+          : [{ value: name, color: colorOf(i), ...markOf(i) }]
       ),
     },
   ];

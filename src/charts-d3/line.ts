@@ -159,6 +159,17 @@ export function renderLine(
   ];
   const seriesColor = (s: number): string =>
     chart.seriesNameColors?.[s] ?? colors[s % colors.length]!;
+  // Combo (#1852): `mark: bar` draws a series as bars, side by side in each
+  // x slot and under every line; `mark: step` draws it as a step line.
+  const markOf = (s: number): 'bar' | 'line' | 'step' =>
+    chart.seriesMarks?.[s] ?? 'line';
+  const barSeries = Array.from({ length: seriesCount }, (_, s) => s).filter(
+    (s) => markOf(s) === 'bar'
+  );
+  const isBar = (s: number): boolean => markOf(s) === 'bar';
+  // A time axis when every row is an ISO date (#1880); else categories. A
+  // chart with bars keeps its categories: a bar stands in a slot.
+  const dates = barSeries.length ? null : isoDatesOf(data.map((d) => d.label));
 
   // Dual-axis (§15.1): per-series left/right assignment; absent ⇒ all left.
   const axisOf = (s: number): 'left' | 'right' =>
@@ -199,13 +210,19 @@ export function renderLine(
           hi = Math.max(hi, v);
         }
     if (!isFinite(lo)) return [0, 1];
+    // A bar's length is its value: an axis with bars on it reaches 0.
+    const bars = barSeries.some((s) => axisOf(s) === side);
+    if (bars) {
+      lo = Math.min(lo, 0);
+      hi = Math.max(hi, 0);
+    }
     // A `marker` or `band` (#1832) sits on the left axis and widens it.
     if (side === 'left')
       for (const v of marked) {
         lo = Math.min(lo, v);
         hi = Math.max(hi, v);
       }
-    if (chart.noAutoY || stacked) {
+    if (chart.noAutoY || stacked || bars) {
       // A stacked area always starts at 0: its top edge is the total.
       // Opt-out: anchor baseline at 0 for non-negative data (ECharts parity).
       if (lo > 0) lo = 0;
@@ -288,10 +305,12 @@ export function renderLine(
   const drawnSeries = Array.from({ length: seriesCount }, (_, s) => s).filter(
     (s) => !(chart.seriesBands ?? []).some((b) => b.low === s || b.high === s)
   );
-  let endLabels = drawnSeries.length >= 2 && !dual && !stacked;
+  // A bar series is named by the legend alone: its end is not a point.
+  const lineSeries = drawnSeries.filter((s) => !isBar(s));
+  let endLabels = lineSeries.length >= 2 && !dual && !stacked;
   const endLabelW = endLabels
     ? Math.max(
-        ...drawnSeries.map((s) =>
+        ...lineSeries.map((s) =>
           measureText(seriesNames[s] ?? `Series ${s + 1}`, END_LABEL_FONT, {
             bold: true,
           })
@@ -309,7 +328,7 @@ export function renderLine(
   // The names start just past the last point, which sits half a slot (or the
   // date inset) in from the plot's right edge: the margin holds the rest.
   if (endLabels) {
-    const inset = isoDatesOf(data.map((d) => d.label))
+    const inset = dates
       ? DATE_AXIS_INSET
       : (width - mLeft0 - mRight) / Math.max(1, 2 * data.length);
     mRight = Math.max(mRight, endLabelW + END_LABEL_GAP + 6 - inset);
@@ -317,9 +336,7 @@ export function renderLine(
   // scalePoint with padding(0.5) puts one slot's worth of space between
   // adjacent points, and half a slot at each end. Rotated labels hang left of
   // the first point, so the margin may grow to keep them inside the SVG.
-  // A time axis when every row is an ISO date (#1880); else categories. A
-  // time axis labels its own ticks flat, so it needs no label fit.
-  const dates = isoDatesOf(data.map((d) => d.label));
+  // A time axis labels its own ticks flat, so it needs no label fit.
   const fitFor = (mr: number) =>
     dates
       ? null
@@ -427,6 +444,13 @@ export function renderLine(
   const yR: ValueAxis | null = dual ? rightAxis([m.top + plotH, m.top]) : null;
   const yFor = (s: number): ValueAxis =>
     dual && axisOf(s) === 'right' && yR ? yR : yL;
+  /** A series' own curve: `mark: step` steps it whatever the chart's flag. */
+  const curveOf = (s: number) =>
+    markOf(s) === 'step' ? curveStepAfter : curve;
+  // Bars of one slot share 70% of it, in declared order.
+  const barW = barSeries.length ? (pointX.step() * 0.7) / barSeries.length : 0;
+  const barLeft = (s: number, i: number): number =>
+    xOfRow(i) - (barW * barSeries.length) / 2 + barSeries.indexOf(s) * barW;
   const leftTint = dual ? soleAxisColor('left') : undefined;
   const rightTint = soleAxisColor('right');
 
@@ -602,6 +626,8 @@ export function renderLine(
     seriesOrder.sort(
       (a, b) => Number(dimmed.has(nameOf(b))) - Number(dimmed.has(nameOf(a)))
     );
+  // Every bar is drawn before any line, so the lines sit on top (#1852).
+  seriesOrder.sort((a, b) => Number(isBar(b)) - Number(isBar(a)));
 
   /** Each drawn series' points in px, for the notes' clear space. */
   const polylines: [number, number][][] = [];
@@ -805,6 +831,62 @@ export function renderLine(
     if (seriesLine !== undefined) g.attr('data-line-number', seriesLine);
     // A receded series keeps its paint: the dim is a baked opacity (§1.11).
     if (dim) g.attr('opacity', EMPHASIS_DIM_OPACITY);
+    if (isBar(s)) g.attr('data-mark', 'bar');
+
+    const labelColor =
+      story.active && recede ? story.groundText : mix(color, textColor, 60);
+    if (isBar(s)) {
+      const fill =
+        story.active && recede
+          ? story.groundFill
+          : shapeFill(palette, color, isDark, { mode: chart.fillMode });
+      const base = yy(yy.baseline);
+      const tops: [number, number][] = [];
+      for (const p of pts) {
+        if (!has(p.v)) continue;
+        const x = barLeft(s, p.xIndex);
+        const top = yy(p.v);
+        g.append('rect')
+          .attr('class', 'dgmo-series-bar')
+          .attr('data-x-index', p.xIndex)
+          .attr('data-line-number', p.lineNumber)
+          .attr('x', round(x))
+          .attr('y', round(Math.min(top, base)))
+          .attr('width', round(Math.max(0, barW - 1)))
+          .attr('height', round(Math.abs(base - top)))
+          .attr('fill', fill)
+          .attr('stroke', color)
+          .attr('stroke-width', 1);
+        const cx = x + barW / 2;
+        tops.push([cx, top]);
+        // The hover reads its value off the same point a line's has.
+        g.append('circle')
+          .attr('class', 'dgmo-pt')
+          .attr('data-series-index', s)
+          .attr('data-series-name', name)
+          .attr('data-color', own)
+          .attr('data-x-index', p.xIndex)
+          .attr('data-x-label', p.label)
+          .attr('data-value', p.v)
+          .attr('data-line-number', p.lineNumber)
+          .attr('cx', round(cx))
+          .attr('cy', round(top))
+          .attr('r', 0)
+          .attr('fill', color);
+        if (showValues)
+          valueLabels.push({
+            text: fmtFor(s)(p.v),
+            cx,
+            cy: top,
+            v: p.v,
+            endpoint: p.xIndex === 0 || p.xIndex === pts.length - 1,
+            color: labelColor,
+            dim,
+          });
+      }
+      polylines.push(tops);
+      continue;
+    }
 
     if (isArea) {
       const areaGen = d3area<(typeof pts)[number]>()
@@ -812,7 +894,7 @@ export function renderLine(
         .x((p) => xOfRow(p.xIndex))
         .y0((p) => (stacked ? yy(p.lo) : yy(yy.baseline)))
         .y1((p) => yy(p.y))
-        .curve(curve);
+        .curve(curveOf(s));
       g.append('path')
         .attr('class', 'dgmo-series-area')
         .attr('d', areaGen(pts) ?? '')
@@ -831,7 +913,7 @@ export function renderLine(
       .defined((p) => has(p.v))
       .x((p) => xOfRow(p.xIndex))
       .y((p) => yy(p.y))
-      .curve(curve);
+      .curve(curveOf(s));
     g.append('path')
       .attr('class', 'dgmo-series-line')
       .attr('d', lineGen(pts) ?? '')
@@ -857,8 +939,6 @@ export function renderLine(
       .attr('stroke-linejoin', 'round')
       .attr('stroke-linecap', 'round');
 
-    const labelColor =
-      story.active && recede ? story.groundText : mix(color, textColor, 60);
     const drawn = pts.filter((p) => has(p.v));
     polylines.push(drawn.map((p) => [xOfRow(p.xIndex), yy(p.y)]));
     const last = drawn.at(-1);

@@ -631,6 +631,13 @@ interface ParsedChart {
     /** Per-series axis assignment, parallel to seriesNames. Present only when the
      *  series block uses the grouped (dual-axis) form; absent ⇒ all left. */
     seriesAxes?: ('left' | 'right')[];
+    /** Per-series mark (#1852), parallel to seriesNames: `mark: bar` draws a
+     *  line chart's series as bars, `mark: step` as a step line. Present only
+     *  on a line chart where some series is not a plain line; absent ⇒ every
+     *  series in the chart's own mark. */
+    seriesMarks?: ('bar' | 'line' | 'step')[];
+    /** Line of the first series carrying `mark:`, for its diagnostics. */
+    seriesMarkLineNumber?: number;
     /** Multi-series layout, set by a `stack`, `group` or `mirror` block header
      *  (consolidation #24). Absent ⇒ single-series bar. On `bar` it drives
      *  stacked vs clustered rendering in `charts-d3/bar.ts`, and `mirror`
@@ -854,6 +861,9 @@ interface LegendGroupData {
     readonly entries: ReadonlyArray<{
         readonly value: string;
         readonly color: string;
+        /** The swatch shows the series' mark (#1852): a bar chip or a line
+         *  stroke, in a chart that mixes the two. Absent ⇒ a dot. */
+        readonly mark?: 'bar' | 'line';
     }>;
     /** Continuous (choropleth) groups carry a gradient ramp instead of discrete
      *  entries — its active capsule renders `min ▭gradient▭ max` rather than dots.
@@ -942,6 +952,8 @@ interface LegendPillLayout {
 interface LegendEntryLayout {
     value: string;
     color: string;
+    /** The entry's mark swatch (#1852); absent ⇒ a dot. */
+    mark?: 'bar' | 'line';
     x: number;
     y: number;
     dotCx: number;

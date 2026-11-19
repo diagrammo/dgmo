@@ -322,3 +322,9 @@ export const FAMILY_UNION_REGISTRY: ReservedKeyRegistry = staticRegistry(['m']);
 // individual, trust). Jurisdiction and the rest are tag groups, so they arrive
 // as tag aliases; any other indented line is free description.
 export const OWNERSHIP_REGISTRY: ReservedKeyRegistry = staticRegistry(['type']);
+
+// Bar and line series (#1852): `mark:` draws one series in another mark —
+// `Revenue blue mark: bar` in a line chart's `series` block. Same-line only.
+export const CHART_SERIES_REGISTRY: ReservedKeyRegistry = staticRegistry([
+  'mark',
+]);

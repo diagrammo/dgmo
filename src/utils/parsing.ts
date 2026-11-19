@@ -21,6 +21,7 @@ import type { PaletteColors } from '../palettes';
 import { ALL_REGISTRY_TOKENS } from '../directives-registry';
 import { CHART_TYPE_IDS } from '../chart-types';
 import {
+  CHART_SERIES_REGISTRY,
   isReservedKey,
   type ReservedKeyRegistry,
 } from './reserved-key-registry';
@@ -552,6 +553,45 @@ export function collectIndentedValues(
   return { values, lineNumbers, newIndex: j - 1 };
 }
 
+/** A series' mark (#1852): how a combo chart draws that one series. */
+export type SeriesMark = 'bar' | 'line' | 'step';
+const SERIES_MARKS: readonly SeriesMark[] = ['bar', 'line', 'step'];
+
+/**
+ * Peel a series line's same-line `mark:` metadata (§1.4.1, #1852) off the
+ * name region. An unknown value is an error and leaves the series in the
+ * chart's own mark.
+ */
+function peelSeriesMark(
+  raw: string,
+  diagnostics: DgmoError[] | undefined,
+  line: number | undefined
+): { raw: string; mark?: SeriesMark } {
+  const cut = cutUnionMetadata(raw, CHART_SERIES_REGISTRY);
+  if (cut < 0) return { raw };
+  const meta = parseMetadataRegion(
+    raw.substring(cut),
+    new Map(),
+    diagnostics,
+    line
+  );
+  const rest = raw.substring(0, cut).trimEnd();
+  const value = meta['mark']?.trim().toLowerCase();
+  if (value === undefined) return { raw: rest };
+  if ((SERIES_MARKS as readonly string[]).includes(value))
+    return { raw: rest, mark: value as SeriesMark };
+  if (diagnostics && line !== undefined) {
+    const hint = suggest(value, SERIES_MARKS);
+    diagnostics.push(
+      makeDgmoError(
+        line,
+        `Unknown mark "${meta['mark']}" — a series mark is bar, line or step.${hint ? ' ' + hint : ''}`
+      )
+    );
+  }
+  return { raw: rest };
+}
+
 /**
  * Parse series names from a `series:` value or indented block, extracting
  * optional per-name color suffixes. Shared between chart.ts and echarts.ts.
@@ -567,13 +607,19 @@ export function parseSeriesNames(
   diagnostics?: DgmoError[],
   /** A trailing word that marks a name, peeled before its color — bar
    *  `stack diverging`'s `neutral` (#1980). Only the flat form reads it. */
-  flag?: string
+  flag?: string,
+  /** Where an unknown `mark:` is reported (#1852), when `diagnostics` is
+   *  not given; defaults to `diagnostics`. */
+  markDiagnostics: DgmoError[] | undefined = diagnostics
 ): {
   series: string;
   names: string[];
   /** Indices of the names that carried `flag`. */
   flagged?: number[];
   nameColors: (string | undefined)[];
+  /** Per-name `mark:` (#1852), parallel to `names`; present only when a
+   *  series carries one. */
+  marks?: (SeriesMark | undefined)[];
   nameLineNumbers: number[];
   newIndex: number;
   /** Per-name axis assignment — present only for the grouped (dual-axis) form. */
@@ -619,6 +665,7 @@ export function parseSeriesNames(
     const names: string[] = [];
     const nameColors: (string | undefined)[] = [];
     const axes: ('left' | 'right')[] = [];
+    const marks: (SeriesMark | undefined)[] = [];
     const memberLineNumbers: number[] = [];
     let leftAxis: (AxisLine & { lineNumber: number }) | undefined;
     let rightAxis: (AxisLine & { lineNumber: number }) | undefined;
@@ -642,14 +689,16 @@ export function parseSeriesNames(
         }
         continue;
       }
+      const peeled = peelSeriesMark(raw, markDiagnostics, nameLineNumbers[i]);
       const extracted = extractColor(
-        raw,
+        peeled.raw,
         palette,
         diagnostics,
         nameLineNumbers[i]
       );
       names.push(extracted.label);
       nameColors.push(extracted.color);
+      marks.push(peeled.mark);
       axes.push(currentAxis);
       memberLineNumbers.push(nameLineNumbers[i]!);
     }
@@ -657,6 +706,7 @@ export function parseSeriesNames(
       series: names.join(', '),
       names,
       nameColors,
+      ...(marks.some(Boolean) && { marks }),
       nameLineNumbers: memberLineNumbers,
       newIndex,
       axes,
@@ -668,10 +718,17 @@ export function parseSeriesNames(
   const names: string[] = [];
   const nameColors: (string | undefined)[] = [];
   const flagged: number[] = [];
+  const marks: (SeriesMark | undefined)[] = [];
   for (let i = 0; i < rawNames.length; i++) {
     // Loop bound guarantees both are defined; nameLineNumbers is built
     // 1:1 with rawNames in both upstream branches.
-    let raw = rawNames[i]!;
+    const peeled = peelSeriesMark(
+      rawNames[i]!,
+      markDiagnostics,
+      nameLineNumbers[i]
+    );
+    marks.push(peeled.mark);
+    let raw = peeled.raw;
     if (flag) {
       const m = raw.match(/^(.+?)\s+(\S+)$/);
       if (m?.[2] === flag) {
@@ -695,6 +752,7 @@ export function parseSeriesNames(
     series,
     names,
     nameColors,
+    ...(marks.some(Boolean) && { marks }),
     nameLineNumbers,
     newIndex,
     ...(flag && { flagged }),

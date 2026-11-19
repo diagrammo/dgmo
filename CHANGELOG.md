@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **line: combo bars and lines — `mark: bar | line | step` on a series
+  (diagrammo/diagrammo#1852, slice 1).** A same-line `mark:` key on a series
+  line draws that series as bars (side by side within each x slot, under every
+  line, on an axis that reaches 0) or as a step line. Works with the dual-axis
+  `series` form; the legend swatch shows each mark. `mark:` on a stacked area
+  is an error; on `bar` it warns and is ignored until bar hosts a combo.
 - **histogram: a new chart type — raw numbers counted into bins
   (diagrammo/diagrammo#1847).** Bare numbers in, bins out. The bin width is
   Freedman–Diaconis by default, rounded to 1, 2, 2.5 or 5 × 10ⁿ; `bin-width`,

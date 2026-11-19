@@ -1,0 +1,17 @@
+line Revenue and Margin
+x-axis Quarter
+
+series
+  y-axis Revenue ($M)
+    Revenue blue mark: bar
+  y-right-axis Margin (%)
+    Margin green
+
+Q1 FY24 42 18
+Q2 FY24 48 21
+Q3 FY24 51 19
+Q4 FY24 60 24
+Q1 FY25 55 22
+Q2 FY25 63 26
+Q3 FY25 67 25
+Q4 FY25 78 29

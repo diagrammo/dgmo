@@ -79,6 +79,25 @@ function esc(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
+/**
+ * An entry's swatch: a dot, or the series' own mark in a chart that mixes
+ * bars and lines (#1852) — a square chip or a short stroke, in the dot's box.
+ */
+function legendSwatch(entry: {
+  dotCx: number;
+  dotCy: number;
+  color: string;
+  mark?: 'bar' | 'line';
+}): string {
+  const c = esc(entry.color);
+  const r = LEGEND_DOT_R;
+  if (entry.mark === 'bar')
+    return `<rect x="${entry.dotCx - r}" y="${entry.dotCy - r}" width="${r * 2}" height="${r * 2}" rx="1" fill="${c}"/>`;
+  if (entry.mark === 'line')
+    return `<line x1="${entry.dotCx - r - 1}" x2="${entry.dotCx + r + 1}" y1="${entry.dotCy}" y2="${entry.dotCy}" stroke="${c}" stroke-width="2.5" stroke-linecap="round"/>`;
+  return `<circle cx="${entry.dotCx}" cy="${entry.dotCy}" r="${r}" fill="${c}"/>`;
+}
+
 /** Wrapped colored-dot entries → SVG strings. */
 function emitEntries(
   capsule: LegendCapsuleLayout,
@@ -99,7 +118,7 @@ function emitEntries(
     out.push(
       `<g data-legend-entry="${esc(entry.value.toLowerCase())}" data-series-name="${esc(entry.value)}"${cursor}>` +
         hit +
-        `<circle cx="${entry.dotCx}" cy="${entry.dotCy}" r="${LEGEND_DOT_R}" fill="${esc(entry.color)}"/>` +
+        legendSwatch(entry) +
         `<text x="${entry.textX}" y="${entry.dotCy}" ${CENTER} font-size="${LEGEND_ENTRY_FONT_SIZE}" fill="${esc(palette.textMuted)}" font-family="${esc(FONT_FAMILY)}">${esc(label)}</text>` +
         `</g>`
     );

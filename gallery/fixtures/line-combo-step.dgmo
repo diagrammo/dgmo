@@ -1,0 +1,14 @@
+line Actual vs Plan, with the Target
+y-axis Units (k)
+
+series
+  Actual blue mark: bar
+  Plan orange mark: bar
+  Target mark: step
+
+Q1 FY24 40 44 45
+Q2 FY24 46 47 45
+Q3 FY24 50 52 55
+Q4 FY24 58 56 55
+Q1 FY25 52 58 60
+Q2 FY25 61 62 60

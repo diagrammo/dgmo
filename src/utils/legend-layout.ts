@@ -597,6 +597,7 @@ function buildStaticKeyLayout(
     entries.push({
       value: entry.value,
       color: entry.color,
+      ...(entry.mark && { mark: entry.mark }),
       x: rowX,
       y: ey,
       width: ew,
@@ -700,6 +701,7 @@ function buildCapsuleLayout(
     entries.push({
       value: entry.value,
       color: entry.color,
+      ...(entry.mark && { mark: entry.mark }),
       x: rowX,
       y: ey,
       width: ew,

@@ -80,6 +80,9 @@ export interface LegendGroupData {
   readonly entries: ReadonlyArray<{
     readonly value: string;
     readonly color: string;
+    /** The swatch shows the series' mark (#1852): a bar chip or a line
+     *  stroke, in a chart that mixes the two. Absent ⇒ a dot. */
+    readonly mark?: 'bar' | 'line';
   }>;
   /** Continuous (choropleth) groups carry a gradient ramp instead of discrete
    *  entries — its active capsule renders `min ▭gradient▭ max` rather than dots.
@@ -177,6 +180,8 @@ export interface LegendPillLayout {
 export interface LegendEntryLayout {
   value: string;
   color: string;
+  /** The entry's mark swatch (#1852); absent ⇒ a dot. */
+  mark?: 'bar' | 'line';
   x: number;
   y: number;
   dotCx: number;

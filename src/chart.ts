@@ -122,6 +122,13 @@ export interface ParsedChart {
   /** Per-series axis assignment, parallel to seriesNames. Present only when the
    *  series block uses the grouped (dual-axis) form; absent ⇒ all left. */
   seriesAxes?: ('left' | 'right')[];
+  /** Per-series mark (#1852), parallel to seriesNames: `mark: bar` draws a
+   *  line chart's series as bars, `mark: step` as a step line. Present only
+   *  on a line chart where some series is not a plain line; absent ⇒ every
+   *  series in the chart's own mark. */
+  seriesMarks?: ('bar' | 'line' | 'step')[];
+  /** Line of the first series carrying `mark:`, for its diagnostics. */
+  seriesMarkLineNumber?: number;
   /** Multi-series layout, set by a `stack`, `group` or `mirror` block header
    *  (consolidation #24). Absent ⇒ single-series bar. On `bar` it drives
    *  stacked vs clustered rendering in `charts-d3/bar.ts`, and `mirror`
@@ -400,6 +407,13 @@ function applySeriesAxes(
   if (parsed.rightAxis) header(parsed.rightAxis, 'y-right');
   if (parsed.axes?.includes('right')) {
     result.seriesAxes = parsed.axes;
+  }
+  delete result.seriesMarks;
+  delete result.seriesMarkLineNumber;
+  if (parsed.marks) {
+    result.seriesMarks = parsed.marks.map((m) => m ?? 'line');
+    const at = parsed.nameLineNumbers[parsed.marks.findIndex(Boolean)];
+    if (at !== undefined) result.seriesMarkLineNumber = at;
   }
 }
 
@@ -919,7 +933,15 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
       spaceIdx === -1
     ) {
       const rejected = rejectSeriesHeader(result, firstToken, lineNumber);
-      const parsed = parseSeriesNames('', lines, i, palette);
+      const parsed = parseSeriesNames(
+        '',
+        lines,
+        i,
+        palette,
+        undefined,
+        undefined,
+        rejected ? undefined : result.diagnostics
+      );
       i = parsed.newIndex; // consume the indented block even when rejected
       if (rejected) continue;
       result.series = parsed.series;
@@ -1503,6 +1525,31 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
       `\`${result.step === 'after' ? 'step' : 'step-before'}\` applies only to line charts; ignoring it on "${result.type}".`
     );
     delete result.step;
+  }
+
+  // `mark:` on a series (#1852): a line chart draws those series as bars or
+  // steps. Not on a stacked area, and not yet on bar's own series.
+  if (result.seriesMarks) {
+    const at = result.seriesMarkLineNumber ?? result.seriesLineNumber ?? 1;
+    if (result.type !== 'line') {
+      warn(
+        at,
+        `\`mark:\` on a series applies only to line charts for now; every series of "${result.type}" draws in its own mark.`
+      );
+      delete result.seriesMarks;
+    } else if (result.barLayout === 'stack') {
+      result.diagnostics.push(
+        makeDgmoError(
+          at,
+          '`mark:` cannot be used on a stacked area — a stack draws every series as an area. Use a `series` block to mix bars and lines.',
+          'error'
+        )
+      );
+      delete result.seriesMarks;
+    } else if (result.seriesMarks.every((m) => m === 'line')) {
+      delete result.seriesMarks;
+    }
+    if (!result.seriesMarks) delete result.seriesMarkLineNumber;
   }
 
   // Notes point at rows; `sort` and the settle steps above may have moved

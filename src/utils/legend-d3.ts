@@ -521,12 +521,32 @@ function renderEntries(
         .attr('fill', 'transparent');
     }
 
-    entryG
-      .append('circle')
-      .attr('cx', entry.dotCx)
-      .attr('cy', entry.dotCy)
-      .attr('r', LEGEND_DOT_R)
-      .attr('fill', entry.color);
+    if (entry.mark === 'bar')
+      entryG
+        .append('rect')
+        .attr('x', entry.dotCx - LEGEND_DOT_R)
+        .attr('y', entry.dotCy - LEGEND_DOT_R)
+        .attr('width', LEGEND_DOT_R * 2)
+        .attr('height', LEGEND_DOT_R * 2)
+        .attr('rx', 1)
+        .attr('fill', entry.color);
+    else if (entry.mark === 'line')
+      entryG
+        .append('line')
+        .attr('x1', entry.dotCx - LEGEND_DOT_R - 1)
+        .attr('x2', entry.dotCx + LEGEND_DOT_R + 1)
+        .attr('y1', entry.dotCy)
+        .attr('y2', entry.dotCy)
+        .attr('stroke', entry.color)
+        .attr('stroke-width', 2.5)
+        .attr('stroke-linecap', 'round');
+    else
+      entryG
+        .append('circle')
+        .attr('cx', entry.dotCx)
+        .attr('cy', entry.dotCy)
+        .attr('r', LEGEND_DOT_R)
+        .attr('fill', entry.color);
 
     entryG
       .append('text')
