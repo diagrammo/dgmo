@@ -12,6 +12,8 @@ import { getPalette } from '../src/palettes';
 import { labelBox } from '../src/utils/place-labels';
 import { flattenTabular } from './helpers/tabular-text';
 import { noteBlock, NOTE_FONT } from '../src/annotations/notes';
+import { segmentRectOverlap, segmentsCross } from '../src/label-layout';
+import { measureText } from '../src/utils/text-measure';
 
 const palette = getPalette('nord').light;
 const messages = (d: { diagnostics: { message: string }[] }) =>
@@ -233,6 +235,112 @@ describe('note', () => {
       palette
     );
     expect(noteCount(slope)).toBe(1);
+  });
+
+  it('a crowded column chart keeps every note over its bar, leaders clear (#2136)', async () => {
+    const ports: [string, number, string][] = [
+      ['Port Royal', 850, 'Sacked twice'],
+      ['Tortuga', 620, 'Pirate republic'],
+      ['Nassau', 1100, 'Governor pardoned the fleet'],
+      ['Havana', 400, 'Treasure fleet departs'],
+      ['Cartagena', 520, 'Fortress held'],
+      ['Santo Domingo', 330, 'Oldest town'],
+      ['Kingston', 480, 'Earthquake'],
+      ['Bridgetown', 710, 'Rum shipments'],
+      ['Curacao', 290, 'Free port'],
+      ['Veracruz', 940, 'Silver arrives'],
+      ['Campeche', 150, 'Ship yards'],
+      ['Maracaibo', 260, 'Raided by Morgan'],
+      ['Portobelo', 600, 'Fair held yearly'],
+      ['Charleston', 380, 'Blockaded'],
+    ];
+    const src =
+      'bar Every port gets a note\n' +
+      ports.map(([p, v, n]) => `${p} ${v}\n  note ${n}`).join('\n');
+    // The app preview pane sizes and the wider default export. Below about 640px
+    // fourteen notes no longer all find clear space; the last one overlaps.
+    for (const dims of [
+      undefined,
+      { width: 700, height: 560 },
+      { width: 640, height: 480 },
+    ]) {
+      const svg = await renderDataChartD3(src, 'light', palette, dims);
+      const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
+      const num = (e: Element, a: string) => Number(e.getAttribute(a));
+      const bars = [...doc.querySelectorAll('rect[data-name]')].map((e) => ({
+        x: num(e, 'x'),
+        y: num(e, 'y'),
+        w: num(e, 'width'),
+        h: num(e, 'height'),
+      }));
+      expect(bars).toHaveLength(ports.length);
+      const notes = [...doc.querySelectorAll('g.dgmo-chart-note')].map((g) => {
+        const texts = [...g.querySelectorAll('text')];
+        const xs = texts.map((t) => num(t, 'x'));
+        const ys = texts.map((t) => num(t, 'y'));
+        const w = Math.max(
+          ...texts.map((t) => measureText(t.textContent ?? '', NOTE_FONT))
+        );
+        const box = {
+          x: Math.min(...xs),
+          y: Math.min(...ys) - NOTE_FONT * 0.95,
+          w,
+          h: Math.max(...ys) - Math.min(...ys) + NOTE_FONT * 1.3,
+        };
+        const l = g.querySelector('line.dgmo-chart-note-leader');
+        const leader = l
+          ? ([num(l, 'x1'), num(l, 'y1'), num(l, 'x2'), num(l, 'y2')] as const)
+          : null;
+        return { box, leader };
+      });
+      expect(notes).toHaveLength(ports.length);
+      const overlap = (
+        a: { x: number; y: number; w: number; h: number },
+        b: { x: number; y: number; w: number; h: number }
+      ) =>
+        a.x < b.x + b.w &&
+        b.x < a.x + a.w &&
+        a.y < b.y + b.h &&
+        b.y < a.y + a.h;
+      const step = bars[1]!.x - bars[0]!.x;
+      notes.forEach(({ box, leader }, i) => {
+        // Text over its own column: it spans the bar's centre or stands
+        // within a step of it.
+        const cx = bars[i]!.x + bars[i]!.w / 2;
+        const gap = Math.max(0, box.x - cx, cx - (box.x + box.w));
+        expect(gap, ports[i]![2]).toBeLessThanOrEqual(step);
+        for (const b of bars)
+          expect(
+            overlap(box, b),
+            `${ports[i]![2]} ${JSON.stringify(dims)} ${JSON.stringify(box)} ${JSON.stringify(b)}`
+          ).toBe(false);
+        notes.forEach((o, j) => {
+          if (j !== i) expect(overlap(box, o.box), ports[i]![2]).toBe(false);
+        });
+        if (!leader) return;
+        const [x0, y0, x1, y1] = leader;
+        const len = Math.hypot(x1 - x0, y1 - y0);
+        const [ax, ay] = [
+          x0 + ((x1 - x0) * 3) / len,
+          y0 + ((y1 - y0) * 3) / len,
+        ];
+        for (const b of bars)
+          expect(segmentRectOverlap(ax, ay, x1, y1, b), ports[i]![2]).toBe(
+            false
+          );
+        notes.forEach((o, j) => {
+          if (j === i) return;
+          if (o.leader)
+            expect(
+              segmentsCross(x0, y0, x1, y1, ...o.leader),
+              ports[i]![2]
+            ).toBe(false);
+          expect(segmentRectOverlap(x0, y0, x1, y1, o.box), ports[i]![2]).toBe(
+            false
+          );
+        });
+      });
+    }
   });
 
   it('every note is drawn, even when the plot is crowded', async () => {

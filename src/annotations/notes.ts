@@ -10,11 +10,18 @@
 // cross a line; the text may not. With no clear spot inside the plot it may
 // use the chart's margins (the gutter), and with none there either it takes
 // its first spot anyway: every note is drawn.
+//
+// A bar's note is its caption (#2136): it stands above the bar (past a
+// horizontal bar's end), lifted straight up past taller neighbours when it
+// must, or beside the bar's end only where neither its text nor its leader
+// crosses a bar, a value label, another note or another note's leader.
 
 import type { Svg } from '../charts-d3/shared';
 import { FONT_FAMILY } from '../fonts';
 import {
   createLabelPlacement,
+  segmentRectOverlap,
+  type Leader,
   type LabelRect,
   type PointCircle,
 } from '../label-layout';
@@ -76,10 +83,25 @@ export interface PlacedNoteDatum {
   /** A bar's end (#2078): the note stands just past it — above a column,
    *  right of a horizontal bar — with no ring, which would sit on the bar. */
   readonly beyond?: 'above' | 'right';
+  /** Widest the text runs before it wraps; NOTE_MAX_W when absent. */
+  readonly wrap?: number;
 }
 
-/** Distances tried first past a bar's end, before the usual spots. */
-const BEYOND_DISTANCES = [4, 12, 24];
+/** Distances tried first past a bar's end: the caption, lifted a little. */
+const BEYOND_DISTANCES = [4, 12, 24, 36, 48];
+/** Distances beside a bar's end, tried when no near caption spot is clear. */
+const SIDE_DISTANCES = [8, 20, 36];
+/** Step the caption rises by past BEYOND_DISTANCES, up to the canvas edge. */
+const LIFT_STEP = 8;
+/** Narrowest a caption wraps to, however close the bars stand. */
+const CAPTION_MIN_W = 64;
+/** A leader shorter than this past a bar's end is not drawn. */
+const CAPTION_NO_LEADER = 16;
+
+/** The width a column's caption wraps to, given the category step. */
+export function captionWrap(step: number): number {
+  return Math.max(CAPTION_MIN_W, Math.min(NOTE_MAX_W, step - 6));
+}
 
 interface Bounds {
   readonly left: number;
@@ -98,6 +120,9 @@ export interface DrawNotesOptions {
   /** Data marks a note must clear: points, bars, reference lines. */
   readonly obstacles?: readonly LabelRect[];
   readonly markers?: readonly PointCircle[];
+  /** Boxes a bar note's leader must not cross though its text may cover
+   *  them: value labels, which yield to a note's text. */
+  readonly leaderObstacles?: readonly LabelRect[];
   readonly colors: { readonly text: string; readonly bg: string };
   readonly palette: PaletteColors;
 }
@@ -137,14 +162,17 @@ function pad(r: LabelRect, d: number): LabelRect {
 }
 
 /** Wraps a note's markdown text into lines and measures the block. */
-export function noteBlock(text: string): {
+export function noteBlock(
+  text: string,
+  maxW: number = NOTE_MAX_W
+): {
   lines: string[];
   w: number;
   h: number;
 } {
   const lines = text
     .split('\n')
-    .flatMap((l) => wrapTextToWidth(l, NOTE_FONT, NOTE_MAX_W));
+    .flatMap((l) => wrapTextToWidth(l, NOTE_FONT, maxW));
   const w = Math.max(
     1,
     ...lines.map((l) => measureText(stripInlineMarkdown(l), NOTE_FONT))
@@ -191,16 +219,57 @@ export function drawChartNotes(
         .map((n) => ({ cx: n.x, cy: n.y, r: n.r + RING_GAP + 2 })),
     ],
   });
-  const boxes: LabelRect[] = [];
-  for (const n of notes) {
-    const { lines, w, h } = noteBlock(n.text);
+  // The note with least room places first: a bar note on the bar reaching
+  // furthest, so a shorter neighbour's note cannot take the air above it.
+  const reach = (n: PlacedNoteDatum) =>
+    n.beyond === 'above' ? n.y : n.beyond === 'right' ? -n.x : Infinity;
+  const order = notes
+    .map((_, i) => i)
+    .sort((a, b) => reach(notes[a]!) - reach(notes[b]!) || a - b);
+  const boxes: LabelRect[] = new Array(notes.length);
+  const blocks: ReturnType<typeof noteBlock>[] = new Array(notes.length);
+  const beyond0 = (n: PlacedNoteDatum) => n.beyond !== undefined;
+  // The line from each bar's end out to the canvas edge is that bar's own:
+  // its caption and leader rise along it, so a neighbour's text placed
+  // earlier must leave it free (#2136).
+  const air = notes.map((n): LabelRect | null =>
+    n.beyond === 'above'
+      ? { x: n.x - 1, y: opts.canvas.top, w: 2, h: n.y - opts.canvas.top }
+      : n.beyond === 'right'
+        ? { x: n.x, y: n.y - 1, w: opts.canvas.right - n.x, h: 2 }
+        : null
+  );
+  const placedYet = new Set<number>();
+  /** Leaders already committed: a later note's text must not sit on one. */
+  const leaders: Leader[] = [];
+  for (const i of order) {
+    const n = notes[i]!;
+    // A bar's caption keeps its full width where that is clear and wraps to
+    // the bar's own width only where it is not.
+    const full = noteBlock(n.text);
+    const narrow =
+      n.wrap && n.wrap < NOTE_MAX_W ? noteBlock(n.text, n.wrap) : full;
+    // A noted neighbour close enough for the full-width text to meet its
+    // caption means the bars are crowded: wrap from the start.
+    const crowded = notes.some(
+      (o) =>
+        o !== n &&
+        o.beyond === n.beyond &&
+        Math.abs(n.beyond === 'right' ? o.y - n.y : o.x - n.x) <
+          (full.w + narrow.w) / 2 + 2 * NOTE_PAD
+    );
+    const sizes =
+      narrow.lines.length <= full.lines.length
+        ? [full]
+        : crowded
+          ? [narrow]
+          : [full, narrow];
+    const { w, h } = beyond0(n) ? sizes[sizes.length - 1]! : full;
+    const othersAir = air.filter(
+      (a, j): a is LabelRect => a !== null && j !== i && !placedYet.has(j)
+    );
     const beyond: [number, number] | null =
       n.beyond === 'above' ? [0, -1] : n.beyond === 'right' ? [1, 0] : null;
-    // A bar's caption spots come first, nearest first: past the bar's end
-    // the note reads as its label, so any clear one wins outright.
-    const captions = beyond
-      ? BEYOND_DISTANCES.map((d) => boxAt(n, beyond, d + n.r, w, h))
-      : [];
     const spots = DISTANCES.flatMap((d) =>
       DIRECTIONS.map((dir, k) => ({
         box: boxAt(n, dir, d + n.r, w, h),
@@ -217,6 +286,14 @@ export function drawChartNotes(
     };
     const clear = (b: LabelRect, area: Bounds) =>
       inside(b, area) && free(b, NOTE_PAD);
+    const ownAir = (b: LabelRect) =>
+      !othersAir.some(
+        (a) =>
+          b.x < a.x + a.w &&
+          a.x < b.x + b.w &&
+          b.y < a.y + a.h &&
+          a.y < b.y + b.h
+      );
     /** Room past NOTE_PAD before the box meets anything, capped. */
     const room = (b: LabelRect) => {
       let r = 0;
@@ -236,14 +313,151 @@ export function drawChartNotes(
       }
       return best;
     };
-    const box =
-      captions.find((b) => clear(b, opts.plot)) ??
-      roomiest(opts.plot) ??
-      captions.find((b) => clear(b, opts.canvas)) ??
-      roomiest(opts.canvas) ??
-      clamp(captions[0] ?? spots[0]!.box, opts.canvas);
-    placement.commit(pad(box, NOTE_PAD));
-    boxes.push(box);
+    /** The leader from the datum to the box's nearest point, its first
+     *  px off the bar's end, or null when none is drawn. */
+    const leaderTo = (b: LabelRect): Leader | null => {
+      const tx = Math.max(b.x, Math.min(n.x, b.x + b.w));
+      const ty = Math.max(b.y, Math.min(n.y, b.y + b.h));
+      const len = Math.hypot(tx - n.x, ty - n.y);
+      if (len < CAPTION_NO_LEADER) return null;
+      const ux = (tx - n.x) / len;
+      const uy = (ty - n.y) / len;
+      return [n.x + ux * 3, n.y + uy * 3, tx - ux * 3, ty - uy * 3];
+    };
+    // A value label whose edge the datum sits on is the bar's own: the
+    // leader starts on it.
+    const leaderBlocks = (opts.leaderObstacles ?? []).filter(
+      (r) =>
+        !(
+          n.x >= r.x - 1 &&
+          n.x <= r.x + r.w + 1 &&
+          n.y >= r.y - 1 &&
+          n.y <= r.y + r.h + 1
+        )
+    );
+    const leaderClear = (b: LabelRect) => {
+      const l = leaderTo(b);
+      if (!l) return true;
+      const [x0, y0, x1, y1] = l;
+      return (
+        !placement.leaderCrosses(l) &&
+        !placement.leaderHitsPlaced(l) &&
+        ![...(opts.obstacles ?? []), ...leaderBlocks].some((r) =>
+          segmentRectOverlap(x0, y0, x1, y1, r)
+        )
+      );
+    };
+    const fits = (b: LabelRect, area: Bounds) =>
+      clear(b, area) &&
+      ownAir(b) &&
+      !leaders.some(([x0, y0, x1, y1]) =>
+        segmentRectOverlap(x0, y0, x1, y1, pad(b, NOTE_PAD))
+      ) &&
+      leaderClear(b);
+
+    /** Caption boxes past the bar's end at distance d: centred on it, then
+     *  ending at it, then starting at it, each kept inside `area` across. */
+    const captionsAt = (
+      d: number,
+      area: Bounds,
+      w: number,
+      h: number
+    ): LabelRect[] => {
+      if (!beyond) return [];
+      return (['middle', 'end', 'start'] as const).map((a) => {
+        const r = boxAt(n, [beyond[0], beyond[1], a], d + n.r, w, h);
+        return beyond[1] !== 0
+          ? { ...r, x: Math.max(area.left, Math.min(r.x, area.right - r.w)) }
+          : { ...r, y: Math.max(area.top, Math.min(r.y, area.bottom - r.h)) };
+      });
+    };
+    /** Spots beside the bar's end, across the bar's axis. */
+    const sides = (w: number, h: number): LabelRect[] => {
+      if (!beyond) return [];
+      const across: readonly (readonly [number, number])[] =
+        beyond[1] !== 0
+          ? [
+              [1, 0],
+              [-1, 0],
+              [1, -1],
+              [-1, -1],
+            ]
+          : [
+              [0, -1],
+              [0, 1],
+              [1, -1],
+              [1, 1],
+            ];
+      return SIDE_DISTANCES.flatMap((d) =>
+        across.map((dir) => boxAt(n, dir, d, w, h))
+      );
+    };
+    /** Caption spots lifted past BEYOND_DISTANCES until they leave `area`. */
+    const lifted = (area: Bounds, w: number, h: number): LabelRect[] => {
+      if (!beyond) return [];
+      const out: LabelRect[] = [];
+      const far = BEYOND_DISTANCES[BEYOND_DISTANCES.length - 1]!;
+      for (let d = far + LIFT_STEP; ; d += LIFT_STEP) {
+        const row = captionsAt(d, area, w, h);
+        if (!row.some((b) => inside(b, area))) break;
+        out.push(...row);
+      }
+      return out;
+    };
+    /** The first clear box of a tier, trying the full width before the
+     *  wrapped one; the block it used goes with it. */
+    let block = beyond ? sizes[sizes.length - 1]! : full;
+    const tier = (
+      gen: (w: number, h: number) => readonly LabelRect[],
+      area: Bounds
+    ): LabelRect | undefined => {
+      for (const size of sizes) {
+        const b = gen(size.w, size.h).find((r) => fits(r, area));
+        if (b) {
+          block = size;
+          return b;
+        }
+      }
+      return undefined;
+    };
+    const near = (area: Bounds) => (w: number, h: number) =>
+      BEYOND_DISTANCES.flatMap((d) => captionsAt(d, area, w, h));
+
+    const box = beyond
+      ? (tier(near(opts.plot), opts.plot) ??
+        tier(sides, opts.plot) ??
+        tier((w, h) => lifted(opts.plot, w, h), opts.plot) ??
+        tier(near(opts.canvas), opts.canvas) ??
+        tier(sides, opts.canvas) ??
+        tier((w, h) => lifted(opts.canvas, w, h), opts.canvas) ??
+        // No caption or side spot is clear: any spot whose text and leader
+        // both are, nearest first; only then the caption, overlapping.
+        tier(
+          (w, h) =>
+            DISTANCES.flatMap((d) =>
+              DIRECTIONS.map((dir) => boxAt(n, dir, d + n.r, w, h))
+            ),
+          opts.canvas
+        ) ??
+        clamp(
+          captionsAt(BEYOND_DISTANCES[0]!, opts.canvas, w, h)[0]!,
+          opts.canvas
+        ))
+      : (roomiest(opts.plot) ??
+        roomiest(opts.canvas) ??
+        clamp(spots[0]!.box, opts.canvas));
+    blocks[i] = block;
+    const leader = beyond ? (leaderTo(box) ?? undefined) : undefined;
+    placement.commit(pad(box, NOTE_PAD), leader);
+    if (leader) leaders.push(leader);
+    boxes[i] = box;
+    placedYet.add(i);
+  }
+
+  notes.forEach((n, i) => {
+    const box = boxes[i]!;
+    const { lines } = blocks[i]!;
+    const beyond = n.beyond;
 
     const stroke = n.color ?? opts.colors.text;
     const ringR = beyond ? 0 : n.r + RING_GAP;
@@ -265,7 +479,7 @@ export function drawChartNotes(
     const ty = Math.max(box.y, Math.min(n.y, box.y + box.h));
     const len = Math.hypot(tx - n.x, ty - n.y);
     // A note standing just past a bar's end reads as its caption: no leader.
-    if (len > ringR + 2 && !(beyond && len < 16)) {
+    if (len > ringR + 2 && !(beyond && len < CAPTION_NO_LEADER)) {
       const ux = (tx - n.x) / len;
       const uy = (ty - n.y) / len;
       g.append('line')
@@ -292,7 +506,7 @@ export function drawChartNotes(
         .attr('paint-order', 'stroke');
       renderInlineText(t, line, opts.palette, NOTE_FONT);
     });
-  }
+  });
   return boxes;
 }
 

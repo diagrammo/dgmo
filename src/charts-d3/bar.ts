@@ -29,6 +29,7 @@ import {
 import {
   drawChartNotes,
   noteBlock,
+  captionWrap,
   type PlacedNoteDatum,
 } from '../annotations/notes';
 import {
@@ -404,7 +405,18 @@ export function renderBar(
         : (vals[n.series] ?? vals[0] ?? 0);
       const f = Math.min(1, Math.max(0, probe(end)));
       if (end < 0 || !(f > 0)) continue;
-      const need = noteBlock(n.text).h + VALUE_FONT + 14;
+      // A note whose full width would reach over a noted neighbour wraps
+      // to its bar's width (#2136): reserve that taller block.
+      const step = plotW / Math.max(1, data.length);
+      const full = noteBlock(n.text);
+      const reach = Math.ceil(full.w / 2 / step);
+      const crowded = chart.notes.some(
+        (o) => o !== n && Math.abs(o.index - n.index) <= reach
+      );
+      const need =
+        (crowded ? noteBlock(n.text, captionWrap(step)) : full).h +
+        VALUE_FONT +
+        14;
       deficit = Math.max(deficit, (need - (1 - f) * plotH0) / f);
     }
     m.top += Math.ceil(Math.min(Math.max(0, deficit), plotH0 * 0.4));
@@ -1089,6 +1101,7 @@ export function renderBar(
           text: n.text,
           color: n.color,
           lineNumber: n.lineNumber,
+          ...(!horiz && { wrap: captionWrap(cat.step()) }),
           ...(forward && {
             beyond: horiz ? ('right' as const) : ('above' as const),
           }),
@@ -1110,6 +1123,7 @@ export function renderBar(
       },
       reserved: [...eraTitles, ...markerLabels],
       obstacles,
+      leaderObstacles: values.map((v) => v.box),
       colors: { text: textColor, bg: annotationColors.bg },
       palette,
     });
