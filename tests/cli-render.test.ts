@@ -417,6 +417,9 @@ columns Mon, Tue, Wed
 Morning 10 20 30
 Afternoon 40 50 60`,
 
+  boxplot: `boxplot
+1 2 3 4 5 6 21`,
+
   funnel: `funnel
 Visitors 1000
 Signups 500

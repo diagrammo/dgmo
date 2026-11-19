@@ -48,6 +48,7 @@ import { WHITEBOARD_DIAGNOSTICS } from './whiteboard/diagnostics';
 import { FAMILY_DIAGNOSTICS } from './family/diagnostics';
 import { ALIAS_DIAGNOSTICS } from './alias-diagnostics';
 import { OVERLAY_DIAGNOSTICS } from './overlays/parse';
+import { BOXPLOT_DIAGNOSTICS } from './charts-d3/boxplot-parse';
 
 // ── Universal codes (chartType: null) ───────────────────────
 // Name handling, alias syntax, and metadata grammar apply to every
@@ -208,6 +209,7 @@ export const UNIVERSAL_DIAGNOSTICS: DiagnosticSpec[] = [
 
   // ── Statistics overlays on bar, line and scatter (#1954) ──
   ...OVERLAY_DIAGNOSTICS,
+  ...BOXPLOT_DIAGNOSTICS,
 ];
 
 // ── Aggregate ───────────────────────────────────────────────

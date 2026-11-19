@@ -1,0 +1,14 @@
+boxplot Cycle time by team (days)
+y-axis Days
+
+[Platform]
+2 2 2 2 3 3 3 3 3 3 3 3 3 4 4 5 5 5 5 5 5 5 6 6 7 8 8 10 21 26
+
+[Payments]
+3 3 3 4 4 4 4 4 4 4 5 5 5 5 6 6 7 9 12
+
+[Search]
+1 2 2 3 3 3 4 4 5 5 6 6 7 7 8 9 11 14
+
+[Mobile] red
+4 5 6 6 7 7 8 8 9 9 10 11 12 13 15 18 24

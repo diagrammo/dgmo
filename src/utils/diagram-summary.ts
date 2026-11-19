@@ -21,6 +21,7 @@ import { parseCycle } from '../cycle/parser';
 import {
   parseFunctionChart,
   parseFunnel,
+  parseBoxplot,
   parseHeatmap,
   parseSankey,
   parseScatter,
@@ -608,6 +609,24 @@ function summarizeHeatmap(content: string): string | null {
   )}, highest at ${where}.`;
 }
 
+function summarizeBoxplot(content: string): string | null {
+  const parsed = parseBoxplot(content);
+  if (parsed.error) return null;
+  const groups = parsed.boxplotGroups ?? [];
+  if (groups.length === 0) return 'Box plot with no values.';
+  const fmt = makeNumberFormatter(parsed.numberFormat, compactNumber);
+  const n = groups.reduce((t, g) => t + g.values.length, 0);
+  const named = groups.filter((g) => g.name).map((g) => g.name);
+  const by =
+    named.length > 0 ? ` in ${namedCount(named, 'group', 'groups')}` : '';
+  const range = axisRange(
+    parsed.ylabel ?? 'the values',
+    groups.flatMap((g) => g.values),
+    fmt
+  );
+  return `Box plot of ${plural(n, 'value', 'values')}${by}; ${range}.`;
+}
+
 function summarizeFunnel(content: string): string | null {
   const parsed = parseFunnel(content);
   if (parsed.error) return null;
@@ -1018,6 +1037,7 @@ const SUMMARIZERS: Record<ChartTypeId, Summarizer> = {
   sankey: summarizeSankey,
   heatmap: summarizeHeatmap,
   funnel: summarizeFunnel,
+  boxplot: summarizeBoxplot,
   function: summarizeFunction,
   timeline: summarizeTimeline,
   'event-line': summarizeEventLine,

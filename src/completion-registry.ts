@@ -457,6 +457,28 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     }),
   ],
   [
+    'boxplot',
+    withGlobals({
+      format: {
+        description:
+          'Number format for the values: currency USD, percent 1, compact',
+      },
+      unit: { description: 'Text after every value (unit ms)' },
+      locale: { description: 'Separators and currency style (locale de-DE)' },
+      'x-axis': { description: 'Title for the groups (x-axis Team)' },
+      'y-axis': {
+        description: 'Value axis: title, range, log (y-axis Days 0..30)',
+      },
+      points: {
+        description: 'Every value as a dot beside its box',
+      },
+      mean: { description: 'A hollow diamond at each group’s mean' },
+      'orientation-horizontal': {
+        description: 'Groups down the left, values across',
+      },
+    }),
+  ],
+  [
     'funnel',
     withGlobals({
       format: {
@@ -1297,6 +1319,7 @@ const FILL_FAMILY_CAPABLE = new Set([
   'pyramid',
   'ring',
   'funnel',
+  'boxplot',
   'class',
   'er',
   'sitemap',

@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **boxplot: a new chart type for spread and outliers per group (#1848).**
+  Free numbers under `[Group]` headers, the histogram's input. One Tukey box
+  per group: Q1–Q3 by linear interpolation (QUARTILE.INC, R type 7), the
+  median a thicker line, whiskers to the last value within 1.5 × IQR, and
+  hollow outlier dots beyond. `n = …` is always printed under the group name.
+  One colour for every box unless a header names one. `points` draws every
+  value beside its box, spread by a fixed hash; `mean` a hollow diamond;
+  `orientation-horizontal` lays the groups down the left. Diagnostics:
+  `E_BOXPLOT_NOT_A_NUMBER`, `W_BOXPLOT_EMPTY_GROUP`, `W_BOXPLOT_FEW_VALUES`.
 - **Tag mode on the calendar heatmap — year in pixels (diagrammo/diagrammo#1855,
   #1877).** Declare a `tag` group, then write a tag value in place of the
   number (`01-01 Great`): each day takes that value's colour, an empty day is

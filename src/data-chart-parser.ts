@@ -40,7 +40,8 @@ export type ExtendedChartType =
   | 'function'
   | 'scatter'
   | 'heatmap'
-  | 'funnel';
+  | 'funnel'
+  | 'boxplot';
 
 interface ExtendedChartDataPoint {
   label: string;
@@ -205,6 +206,18 @@ export interface ParsedFunnel extends ParsedExtendedBase {
   type: 'funnel';
 }
 
+export interface ParsedBoxplot extends ParsedExtendedBase {
+  type: 'boxplot';
+  /** The groups in written order; the unnamed group (name '') comes first. */
+  boxplotGroups?: BoxplotGroup[];
+  /** `points`: every value as a dot beside its box. */
+  points?: boolean;
+  /** `mean`: a hollow diamond at each group's mean. */
+  showMean?: boolean;
+  /** `orientation-horizontal`: groups down the left, values across. */
+  horizontal?: boolean;
+}
+
 /** What `parseExtendedChart` returns: discriminated on `type`. */
 export type ParsedExtendedChart =
   | ParsedSankey
@@ -212,7 +225,8 @@ export type ParsedExtendedChart =
   | ParsedFunctionChart
   | ParsedScatter
   | ParsedHeatmap
-  | ParsedFunnel;
+  | ParsedFunnel
+  | ParsedBoxplot;
 
 /**
  * The parser's mutable accumulator — every type-specific field present, so the
@@ -238,6 +252,10 @@ export interface ParsedExtendedChartFull extends ParsedExtendedBase {
   notes?: ChartNote[];
   noNotes?: boolean;
   overlays?: ChartOverlay[];
+  boxplotGroups?: BoxplotGroup[];
+  points?: boolean;
+  showMean?: boolean;
+  horizontal?: boolean;
 }
 
 // ============================================================
@@ -247,6 +265,14 @@ export interface ParsedExtendedChartFull extends ParsedExtendedBase {
 import type { PaletteColors } from './palettes';
 import { AliasRegistry } from './utils/alias-registry';
 import type { ChartOverlay } from './overlays/types';
+import {
+  type BoxplotGroup,
+  type BoxplotState,
+  boxplotStrayLine,
+  openBoxplotGroup,
+  parseBoxplotLine,
+  settleBoxplot,
+} from './charts-d3/boxplot-parse';
 import {
   parseOverlayLine,
   settleOverlays,
@@ -293,6 +319,7 @@ const VALID_EXTENDED_TYPES = new Set<ExtendedChartType>([
   'scatter',
   'heatmap',
   'funnel',
+  'boxplot',
 ]);
 
 /** Known option keywords for the extended chart parser. */
@@ -466,7 +493,23 @@ function parseFunnelRaw(
   return parseExtendedChart(content, palette) as ParsedFunnel;
 }
 
-/** The six extended-data-chart parser doors, for `isExtendedChartParser`. */
+export function parseBoxplot(
+  content: string,
+  palette?: PaletteColors
+): ParsedBoxplot {
+  return withPaletteLifted(content, (lifted) =>
+    parseBoxplotRaw(lifted, palette)
+  );
+}
+
+function parseBoxplotRaw(
+  content: string,
+  palette?: PaletteColors
+): ParsedBoxplot {
+  return parseExtendedChart(content, palette) as ParsedBoxplot;
+}
+
+/** The extended-data-chart parser doors, for `isExtendedChartParser`. */
 export const EXTENDED_CHART_DOORS = new Set<unknown>([
   parseSankey,
   parseChord,
@@ -474,6 +517,7 @@ export const EXTENDED_CHART_DOORS = new Set<unknown>([
   parseScatter,
   parseHeatmap,
   parseFunnel,
+  parseBoxplot,
 ]);
 
 function parseExtendedChartFull(
@@ -503,6 +547,7 @@ function parseExtendedChartFull(
   let currentCategory = 'Default';
   const rawAnnotations: RawAnnotation[] = [];
   const rawOverlays: ChartOverlay[] = [];
+  const boxplot: BoxplotState = { groups: [] };
 
   // Sankey indentation state: stack of source nodes by indent level
   const sankeyStack: { name: string; indent: number }[] = [];
@@ -619,6 +664,14 @@ function parseExtendedChartFull(
       // Fall through — first line might be a data row or option
     }
 
+    // Box plot rows and flags (#1848). Before the flow-row match, which
+    // would read `-3 -2` as a link.
+    if (
+      result.type === 'boxplot' &&
+      parseBoxplotLine(trimmed, lineNumber, boxplot, result.diagnostics)
+    )
+      continue;
+
     // Annotations and notes (#2039), scatter only: on sankey or chord a
     // node may be named `note` or `marker`.
     if (result.type === 'scatter') {
@@ -693,6 +746,8 @@ function parseExtendedChartFull(
       >;
       result.categoryLineNumbers[catName] = lineNumber;
       currentCategory = catName;
+      if (result.type === 'boxplot')
+        openBoxplotGroup(boxplot, catName, catColor ?? undefined, lineNumber);
       continue;
     }
 
@@ -1205,6 +1260,20 @@ function parseExtendedChartFull(
       }
     }
 
+    // Box plot: a row with a word in it, or a line nothing took.
+    if (result.type === 'boxplot') {
+      if (boxplotStrayLine(trimmed, lineNumber, boxplot, result.diagnostics))
+        continue;
+      result.diagnostics.push(
+        makeDgmoError(
+          lineNumber,
+          `Unexpected line: '${trimmed}'. Expected numbers (12 15 17.5), a [Group] header or a known option.`,
+          'warning'
+        )
+      );
+      continue;
+    }
+
     // Funnel / generic data point: "Label value"
     const dataRow = parseDataRowValues(trimmed);
     if (dataRow?.values.length === 1) {
@@ -1257,7 +1326,18 @@ function parseExtendedChartFull(
   };
 
   if (!result.error) {
-    if (result.type === 'sankey') {
+    if (result.type === 'boxplot') {
+      settleBoxplot(boxplot, result.diagnostics);
+      if (boxplot.groups.length === 0)
+        warn(
+          1,
+          'No values found. Add numbers, any number per line: 12 15 17.5'
+        );
+      result.boxplotGroups = boxplot.groups;
+      if (boxplot.points) result.points = true;
+      if (boxplot.mean) result.showMean = true;
+      if (boxplot.horizontal) result.horizontal = true;
+    } else if (result.type === 'sankey') {
       if (!result.links || result.links.length === 0) {
         warn(1, 'No links found. Add links in format: Source -> Target 123');
       }
@@ -1410,7 +1490,15 @@ function parseExtendedChartFull(
     if (overlays.length) result.overlays = overlays;
   } else delete result.noNotes;
 
-  if (!result.error && result.axes) {
+  if (!result.error && result.axes && result.type === 'boxplot') {
+    // The value axis is y in either orientation, as on bar.
+    settleAxisSpec(
+      'y',
+      result.axes.y,
+      (result.boxplotGroups ?? []).flatMap((g) => g.values),
+      result.diagnostics
+    );
+  } else if (!result.error && result.axes) {
     const pts = result.scatterPoints ?? [];
     // A function's values are only known once it is sampled at render time,
     // so only its bounds are checked here.
@@ -1439,12 +1527,14 @@ const FORMATTED_TYPES: ReadonlySet<ExtendedChartType> = new Set([
   'heatmap',
   'funnel',
   'sankey',
+  'boxplot',
 ]);
 /** The numeric axes each extended chart type has (#1830). */
 const EXTENDED_AXES: Partial<Record<ExtendedChartType, ReadonlySet<AxisName>>> =
   {
     scatter: new Set(['x', 'y']),
     function: new Set(['x', 'y']),
+    boxplot: new Set(['y']),
   };
 
 // ============================================================

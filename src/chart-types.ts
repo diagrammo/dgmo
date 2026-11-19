@@ -249,6 +249,11 @@ const chartTypesData = [
     beta: true,
   },
   {
+    id: 'boxplot',
+    description:
+      'Spread, quartiles and outliers of raw numbers per group (cycle times, scores)',
+  },
+  {
     id: 'funnel',
     description: 'Conversion pipeline',
   },

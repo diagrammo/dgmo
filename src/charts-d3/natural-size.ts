@@ -132,6 +132,7 @@ function naturalDataChartWidth(
         return clamp(sankeyDepth(links) * STEP_PER_SANKEY_DEPTH);
       }
       case 'funnel':
+      case 'boxplot':
       case 'scatter':
       case 'function':
         return UNCOUNTED_WIDTH;

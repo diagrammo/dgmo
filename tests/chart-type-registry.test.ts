@@ -94,9 +94,11 @@ const EXPECTED_CATEGORY: Record<
   function: 'data-chart',
   heatmap: 'data-chart',
   funnel: 'data-chart',
+  boxplot: 'data-chart',
 };
 
 const EXPECTED_EXTENDED_IDS = [
+  'boxplot',
   'function',
   'funnel',
   'heatmap',

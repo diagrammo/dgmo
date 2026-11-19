@@ -45,6 +45,7 @@ import {
   parseScatter,
   parseHeatmap,
   parseFunnel,
+  parseBoxplot,
   EXTENDED_CHART_DOORS,
 } from './data-chart-parser';
 import { parseSlope } from './slope/parser';
@@ -148,6 +149,7 @@ const REGISTRY: Record<ChartTypeId, Omit<ChartTypeDescriptor, 'id'>> = {
   function: { category: 'data-chart', parse: parseFunctionChart },
   heatmap: { category: 'data-chart', parse: parseHeatmap },
   funnel: { category: 'data-chart', parse: parseFunnel },
+  boxplot: { category: 'data-chart', parse: parseBoxplot },
 
   // ── D3 visualizations — own per-viz parser door (Story 109.2) ──
   slope: { category: 'visualization', parse: parseSlope },

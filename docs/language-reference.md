@@ -99,7 +99,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 - **On a chart of numbers, the title states the finding.** Write what the reader should take away, not what is plotted — `bar Nassau landed twice the gold of any other port`, not `bar Gold by Port`. Put what is measured (the quantity, units, period) in `subtitle` and where the numbers came from in `source` (§1.12). Fall back to a label title only when the user names one or the data shows no single finding (§26.8).
   <!-- TITLE end -->
   <!-- CATEGORIZE start -->
-- **Categorize and color — by default, not only when obvious.** Before drawing, find the axis that sorts the items into kinds and color by it: layer (frontend / backend / data), role (client / service / datastore), trust zone (internal / external / third-party), status (done / active / blocked), owner/team, or read-path vs write-path. Almost every diagram has such an axis — actively look for one rather than leaving everything monochrome. Express it with a **tag group**, never ad-hoc per-node colors: declare `tag <Axis> as t` (the name is a single word — `tag TrustZone as tz` — or quote a multi-word name: `tag "Trust Zone" as tz`), indent the category values (a trailing color is optional — bare values auto-pick a palette color), set `active-tag <Axis>` in the header — after the tag group and before the first element, because a type such as c4 refuses it after content — then assign each item `Node t: <Category>` (see the tag-group syntax in the per-type section below). **Bracket, block, body, calendar-heatmap, event-line and whiteboard** take the tag group but no `active-tag` line — declare the group and stop there; on event-line the line would be drawn as an element. **Class, flowchart, wireframe, raci, cycle, pyramid, ring, sankey, tech-radar, venn, version-control, wordcloud, arc, bar, clock, countdown, funnel, function, goal, heatmap, line, pie, polar-area, quadrant, radar, scatter and slope** take no tag group at all — skip this rule for them. Most report the lines; cycle, pyramid, ring, sankey, venn, version-control and wordcloud read them as content, and flowchart and tech-radar drop them without a word. Only the 11 named palette colors exist, and they re-resolve per palette/theme. Color the grouping so the categories — and the boundaries between them — read at a glance. **Buckets, not name tags — never 1:1.** A tag group must have _fewer_ values than it has members: each color should bucket two or more items so the palette compresses the diagram into a few meaningful kinds (aim for ~2–4 categories, and keep distinct colors well under half the item count). If you find yourself giving nearly every item its own value, you've enumerated, not categorized — merge the singletons up a level until each color groups at least two (a `cache` and a `database` are both `datastore`; a caller and a gateway are both `client`; two microservices are both `service`). One color per item is the same visual noise as random colors — the grouping only earns its place when a color means "these belong together." Leave items uncolored only when they genuinely form a single undifferentiated kind, or the user asked for no color.
+- **Categorize and color — by default, not only when obvious.** Before drawing, find the axis that sorts the items into kinds and color by it: layer (frontend / backend / data), role (client / service / datastore), trust zone (internal / external / third-party), status (done / active / blocked), owner/team, or read-path vs write-path. Almost every diagram has such an axis — actively look for one rather than leaving everything monochrome. Express it with a **tag group**, never ad-hoc per-node colors: declare `tag <Axis> as t` (the name is a single word — `tag TrustZone as tz` — or quote a multi-word name: `tag "Trust Zone" as tz`), indent the category values (a trailing color is optional — bare values auto-pick a palette color), set `active-tag <Axis>` in the header — after the tag group and before the first element, because a type such as c4 refuses it after content — then assign each item `Node t: <Category>` (see the tag-group syntax in the per-type section below). **Bracket, block, body, calendar-heatmap, event-line and whiteboard** take the tag group but no `active-tag` line — declare the group and stop there; on event-line the line would be drawn as an element. **Class, flowchart, wireframe, raci, cycle, pyramid, ring, sankey, tech-radar, venn, version-control, wordcloud, arc, bar, clock, countdown, funnel, function, goal, heatmap, line, pie, polar-area, quadrant, radar, scatter, slope and boxplot** take no tag group at all — skip this rule for them. Most report the lines; cycle, pyramid, ring, sankey, venn, version-control and wordcloud read them as content, and flowchart and tech-radar drop them without a word. Only the 11 named palette colors exist, and they re-resolve per palette/theme. Color the grouping so the categories — and the boundaries between them — read at a glance. **Buckets, not name tags — never 1:1.** A tag group must have _fewer_ values than it has members: each color should bucket two or more items so the palette compresses the diagram into a few meaningful kinds (aim for ~2–4 categories, and keep distinct colors well under half the item count). If you find yourself giving nearly every item its own value, you've enumerated, not categorized — merge the singletons up a level until each color groups at least two (a `cache` and a `database` are both `datastore`; a caller and a gateway are both `client`; two microservices are both `service`). One color per item is the same visual noise as random colors — the grouping only earns its place when a color means "these belong together." Leave items uncolored only when they genuinely form a single undifferentiated kind, or the user asked for no color.
 <!-- CATEGORIZE end -->
 - **Keep labels short.** A few words per node. Move detail into notes or metadata, never a full sentence inside a label.
 - **Let the defaults show.** Don't add `no-*` opt-outs unless the user asked to hide or disable something — they strip helpful labels, values, and color.
@@ -158,6 +158,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `scatter`          | 2D points or bubble chart (`trend` draws a fit line per category)                                                                                                                                                                                    |
 | `heatmap`          | matrix intensity                                                                                                                                                                                                                                     |
 | `calendar-heatmap` | daily values across a year as a grid of squares, weeks across and weekdays down (activity, habits, runs) — one `date value` per line                                                                                                                 |
+| `boxplot`          | spread and outliers of raw numbers per group (cycle times, scores) — free numbers under `[Group]` headers                                                                                                                                            |
 | `funnel`           | conversion pipeline                                                                                                                                                                                                                                  |
 | `sankey`           | flow / allocation                                                                                                                                                                                                                                    |
 | `arc`              | network relationships (linear, or circular via `layout chord`)                                                                                                                                                                                       |
@@ -3370,6 +3371,57 @@ Purchases 200
 ```
 
 Each stage renders its name to the left of the band (in the band's color), its value centered inside the band (falling back beside it when the band is too narrow), and a muted stage-over-stage conversion % to the right — no leader lines. The first stage has no % (nothing to convert from). `no-percent` hides the conversion %; `no-name` / `no-value` hide the other parts.
+
+### 15.7 Box Plots
+
+<!-- TYPE:boxplot -->
+
+<!-- TIPS start -->
+
+**Styling tips:** Put one `[Name]` header per group and its raw numbers under it, any number per line; the chart works out the quartiles and flags outliers itself. Add `points` when the groups are small enough to show every value, `mean` when skew matters, and `y-axis` with a title and unit. Use one colour unless a group must stand out. For the shape of one distribution, use a histogram instead.
+
+<!-- TIPS end -->
+
+```
+boxplot Cycle time by team (days)
+y-axis Days
+points
+mean
+
+[Platform]
+2 2 2 2 3 3 3 3 3 3 3 3 3 4 4 5 5 5 5 5 5 5 6 6 7 8 8 10 21 26
+
+[Payments] red
+3 3 3 4 4 4 4 4 4 4 5 5 5 5 6 6 7 9
+```
+
+**Values** — free numbers, any number per line, separated by spaces or commas. A `[Group]` header (with an optional colour after the `]`) starts a group; values before the first header form one unnamed group. The input is the histogram's, so changing the first word switches between the two views of one dataset.
+
+**The box.** Each group draws one box from Q1 to Q3, with the median as a thicker line. Quartiles use linear interpolation between ranks (Excel `QUARTILE.INC`, R type 7). The whiskers reach the last value within 1.5 × the box height (Tukey); every value beyond them is an outlier, drawn as a hollow dot. `n = 30` is always printed under the group name.
+
+**Colour.** Every box takes one colour. A group takes another only when its header names one, so colour never encodes the groups by default.
+
+**Options:**
+
+| Option                                    | Effect                                                               |
+| ----------------------------------------- | -------------------------------------------------------------------- |
+| `points`                                  | Every value as a dot beside its box, spread sideways by a fixed hash |
+| `mean`                                    | A hollow diamond at each group's mean                                |
+| `orientation-horizontal`                  | Groups down the left, values across (the same flag as bar)           |
+| `y-axis [title] [min..max] [log]`         | The value axis, in either orientation (§15.1.2)                      |
+| `x-axis [title]`                          | A title for the groups; it takes no range                            |
+| `format`, `unit`, `locale`                | Number format for the values (§15.1)                                 |
+| `fill-tint`, `fill-solid`, `fill-outline` | The box fill                                                         |
+
+The same source always draws the same picture: `points` spreads the dots by a hash of the group, the index and the value, never at random. Pre-computed five-number summaries, notches, violin shapes and other whisker rules are not supported.
+
+**Diagnostics:**
+
+| Code                     | Fires on                                                       |
+| ------------------------ | -------------------------------------------------------------- |
+| `E_BOXPLOT_NOT_A_NUMBER` | a word in a value row; the word is left out, the numbers count |
+| `W_BOXPLOT_EMPTY_GROUP`  | a `[Group]` header with no values under it                     |
+| `W_BOXPLOT_FEW_VALUES`   | a group with fewer than 5 values; the box is still drawn       |
 
 ---
 

@@ -1,0 +1,13 @@
+boxplot API response time
+y-axis Milliseconds
+x-axis Endpoint
+orientation-horizontal
+
+[GET /orders]
+120 130 135 140 142 150 155 160 170 180 210 480
+
+[POST /checkout]
+220 240 250 260 270 290 300 320 340 360 400
+
+[GET /search]
+80 85 90 95 100 105 110 115 120 650 700

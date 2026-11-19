@@ -52,6 +52,7 @@ import { renderScatter } from './scatter';
 import { renderSankey } from './sankey';
 import { renderChord } from './chord';
 import { renderFunction } from './function';
+import { renderBoxplot } from './boxplot';
 
 /** Types parsed by parseChart → ParsedChart. */
 const STANDARD = new Set(['bar', 'line', 'pie', 'radar', 'polar-area']);
@@ -63,6 +64,7 @@ const EXTENDED = new Set([
   'sankey',
   'chord',
   'function',
+  'boxplot',
 ]);
 
 /** All data-chart types the hand-built renderers currently cover. */
@@ -402,6 +404,19 @@ function renderPlot(
       : 0;
 
   switch (ext.type) {
+    case 'boxplot':
+      renderBoxplot(
+        s,
+        ext,
+        width,
+        height,
+        palette,
+        isDark,
+        textColor,
+        mutedColor,
+        (hasTitle ? 52 : 24) + titleExtra
+      );
+      return true;
     case 'funnel':
       renderFunnel(
         s,
