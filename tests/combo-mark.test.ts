@@ -1,7 +1,9 @@
 // Combo bar + line (#1852): `mark: bar | line | step` on a line chart's
-// series draws that series as bars or a step line, with the dual-axis form.
+// series draws that series as bars or a step line, with the dual-axis form;
+// `mark: line | step` on a bar chart's series draws it as a line over the bars.
 import { describe, it, expect } from 'vitest';
 import { parseChart } from '../src/chart';
+import { parseExtendedChart } from '../src/data-chart-parser';
 import { renderDataChartD3 } from '../src/charts-d3';
 import { getPalette } from '../src/palettes';
 
@@ -108,19 +110,6 @@ describe('mark: on a series — parsing', () => {
     expect(errs[0]!.line).toBe(3);
     expect(parseChart(src, palette).seriesMarks).toBeUndefined();
   });
-
-  it('on a bar chart it warns and is ignored, for now', () => {
-    const src = 'bar X\ngroup\n  A\n  B mark: line\n\nQ1 1 2\nQ2 3 4';
-    expect(errors(src)).toEqual([]);
-    expect(
-      warnings(src)
-        .map((w) => w.message)
-        .join(' ')
-    ).toContain('only to line charts');
-    const c = parseChart(src, palette);
-    expect(c.seriesNames).toEqual(['A', 'B']);
-    expect(c.seriesMarks).toBeUndefined();
-  });
 });
 
 describe('mark: bar — rendering', () => {
@@ -199,6 +188,31 @@ series
     expect(xs[1]! - xs[0]!).toBeCloseTo(xs[2]! - xs[1]!, 1);
   });
 
+  it('a band bound with `mark: bar` takes no bar slot (reviewer follow-up)', async () => {
+    const src = `line X
+series
+  Actual blue mark: bar
+  Low green mark: bar
+  High red
+band Forecast Low High
+
+Q1 10 8 12
+Q2 12 9 15`;
+    const svg = await renderDataChartD3(src, 'light', palette);
+    const bars = elements(svg, 'dgmo-series-bar');
+    // Only Actual draws, and it alone fills the slot's 70%.
+    expect(bars).toHaveLength(2);
+    const lone = await renderDataChartD3(
+      'line X\nseries\n  Actual blue mark: bar\n  B\n\nQ1 10 1\nQ2 12 1',
+      'light',
+      palette
+    );
+    expect(Number(bars[0]!.width)).toBeCloseTo(
+      Number(elements(lone, 'dgmo-series-bar')[0]!.width),
+      0
+    );
+  });
+
   /** The markup of one legend entry's group. */
   const legendEntry = (svg: string, name: string): string => {
     const legend = svg.slice(svg.indexOf('chart-legend'));
@@ -225,5 +239,216 @@ series
     );
     expect(legendEntry(svg, 'A')).toContain('<circle');
     expect(legendEntry(svg, 'A')).not.toContain('<line');
+  });
+});
+
+const BAR_DUAL = `bar Revenue and margin
+group
+  y-axis Revenue ($M)
+    North blue
+    South green
+  y-right-axis Margin (%)
+    Margin red mark: line
+
+Q1 42 30 18
+Q2 48 33 21
+Q3 51 35 19`;
+
+const BAR_STACK = `bar Output against target
+stack
+  Day blue
+  Night green
+  Target orange mark: step
+
+Q1 10 5 12
+Q2 12 6 20
+Q3 -2 4 8`;
+
+describe('mark: on a bar chart — parsing', () => {
+  it('a series without `mark:` stays a bar', () => {
+    const c = parseChart(BAR_DUAL, palette);
+    expect(c.seriesNames).toEqual(['North', 'South', 'Margin']);
+    expect(c.seriesMarks).toEqual(['bar', 'bar', 'line']);
+    expect(c.seriesAxes).toEqual(['left', 'left', 'right']);
+    expect(c.yrlabel).toBe('Margin (%)');
+    expect(c.diagnostics).toEqual([]);
+  });
+
+  it('reads `mark: step` in a stack block', () => {
+    const c = parseChart(BAR_STACK, palette);
+    expect(c.barLayout).toBe('stack');
+    expect(c.seriesMarks).toEqual(['bar', 'bar', 'step']);
+    expect(c.diagnostics).toEqual([]);
+  });
+
+  it('every series a bar → no marks recorded', () => {
+    const c = parseChart('bar X\ngroup\n  A mark: bar\n  B\n\nQ1 1 2', palette);
+    expect(c.seriesMarks).toBeUndefined();
+    expect(c.diagnostics).toEqual([]);
+  });
+
+  it('keeps the second axis off a bar chart without lines', () => {
+    const src =
+      'bar X\ngroup\n  y-axis A\n    A\n  y-right-axis B\n    B\n\nQ1 1 2';
+    expect(
+      warnings(src)
+        .map((w) => w.message)
+        .join(' ')
+    ).toContain('Dual y-axes');
+    expect(parseChart(src, palette).seriesAxes).toBeUndefined();
+  });
+
+  it.each([
+    ['mirror', 'bar X\nmirror\n  A\n  B mark: line\n\nQ1 1 2', 'mirror'],
+    ['stack 100%', 'bar X\nstack 100%\n  A\n  B mark: line\n\nQ1 1 2', '100%'],
+    [
+      'stack diverging',
+      'bar X\nstack diverging\n  A\n  B neutral\n  C mark: line\n\nQ1 1 2 3',
+      'diverging',
+    ],
+  ])('is an error under `%s`', (_, src, word) => {
+    const errs = errors(src);
+    expect(errs).toHaveLength(1);
+    expect(errs[0]!.message).toContain('`mark:` cannot be used');
+    expect(errs[0]!.message).toContain(word);
+    expect(parseChart(src, palette).seriesMarks).toBeUndefined();
+  });
+
+  it('a bar on the right axis is an error', () => {
+    const src =
+      'bar X\ngroup\n  y-axis A\n    A mark: line\n  y-right-axis B\n    B\n\nQ1 1 2';
+    const errs = errors(src);
+    expect(errs.map((e) => e.message).join(' ')).toContain(
+      'A bar cannot take `y-right-axis`'
+    );
+    const c = parseChart(src, palette);
+    expect(c.seriesMarks).toBeUndefined();
+    expect(c.seriesAxes).toBeUndefined();
+  });
+
+  it('a bar chart of lines only is an error', () => {
+    const src = 'bar X\ngroup\n  A mark: line\n  B mark: step\n\nQ1 1 2';
+    expect(
+      errors(src)
+        .map((e) => e.message)
+        .join(' ')
+    ).toContain('draws no bars');
+  });
+
+  it('reads axis headers exactly as line does', () => {
+    const src = `bar X
+group
+  y-axis A
+    A
+  y-right-axis B
+    B mark: line
+  y-axis C
+    C mark: line
+
+Q1 1 2 3`;
+    const line = parseChart(src.replace(/^bar/, 'line'), palette);
+    const bar = parseChart(src, palette);
+    const msgs = (c: typeof bar) =>
+      c.diagnostics.filter((d) => /axis/.test(d.message)).map((d) => d.message);
+    expect(msgs(bar)).toEqual(msgs(line));
+    expect(bar.seriesAxes).toEqual(line.seriesAxes);
+  });
+
+  it('ignores `orientation-horizontal` with a warning', () => {
+    const src = BAR_DUAL.replace('group', 'orientation-horizontal\ngroup');
+    const c = parseChart(src, palette);
+    expect(c.orientation).toBeUndefined();
+    expect(
+      warnings(src)
+        .map((w) => w.message)
+        .join(' ')
+    ).toContain('orientation-horizontal');
+  });
+});
+
+describe('mark: on another chart type', () => {
+  it('warns, and peels the mark off the name', () => {
+    const c = parseExtendedChart(
+      'scatter X\nseries\n  A mark: line\n  B\n\np 1 2'
+    );
+    expect(c.seriesNames).toEqual(['A', 'B']);
+    const warns = c.diagnostics.filter((d) => d.severity === 'warning');
+    expect(warns.map((w) => w.message).join(' ')).toContain(
+      'only to bar and line charts'
+    );
+    expect(warns.find((w) => w.message.includes('mark'))!.line).toBe(3);
+  });
+
+  it('warns on pie, which takes no series marks', () => {
+    const src = 'pie X\nseries\n  A mark: bar\n  B\n\np 1 2';
+    expect(
+      warnings(src)
+        .map((w) => w.message)
+        .join(' ')
+    ).toContain('only to bar and line charts');
+  });
+});
+
+describe('mark: on a bar chart — rendering', () => {
+  it('draws the bars side by side and the line over them, on its own axis', async () => {
+    const svg = await renderDataChartD3(BAR_DUAL, 'light', palette);
+    const bars = elements(svg, 'dgmo-series-bar');
+    expect(bars).toHaveLength(6);
+    expect(elements(svg, 'dgmo-series-line')).toHaveLength(1);
+    expect(svg.lastIndexOf('dgmo-series-bar')).toBeLessThan(
+      svg.indexOf('dgmo-series-line')
+    );
+    expect(svg).toContain('data-axis="right"');
+    expect(svg).toContain('Margin (%)');
+    const [north, south] = [bars.slice(0, 3), bars.slice(3)];
+    for (let i = 0; i < 3; i++)
+      expect(Number(south[i]!.x)).toBeCloseTo(
+        Number(north[i]!.x) + Number(north[i]!.width) + 1,
+        0
+      );
+  });
+
+  it('stacks the bar series in one bar per slot, leaving the line out', async () => {
+    const svg = await renderDataChartD3(BAR_STACK, 'light', palette);
+    const bars = elements(svg, 'dgmo-series-bar');
+    expect(bars).toHaveLength(6);
+    const [day, night] = [bars.slice(0, 3), bars.slice(3)];
+    // Q1, Q2: Night stands on Day, in the same column.
+    for (const i of [0, 1]) {
+      expect(night[i]!.x).toBe(day[i]!.x);
+      expect(Number(night[i]!.y) + Number(night[i]!.height)).toBeCloseTo(
+        Number(day[i]!.y),
+        0
+      );
+    }
+    // Q3: Day is negative, so it hangs below 0 and Night starts at 0.
+    expect(Number(day[2]!.y)).toBeCloseTo(
+      Number(night[2]!.y) + Number(night[2]!.height),
+      0
+    );
+    // The step line is drawn, and its hover points carry the raw values.
+    expect(elements(svg, 'dgmo-series-line')).toHaveLength(1);
+    const target = elements(svg, 'dgmo-pt').filter(
+      (p) => p['data-series-index'] === '2'
+    );
+    expect(target.map((p) => p['data-value'])).toEqual(['12', '20', '8']);
+  });
+
+  it('shows bar chips and a line stroke in the legend', async () => {
+    const svg = await renderDataChartD3(BAR_DUAL, 'light', palette);
+    const legend = svg.slice(svg.indexOf('chart-legend'));
+    const entry = (name: string) => {
+      const at = legend.indexOf(`data-series-name="${name}"`);
+      return legend.slice(at, legend.indexOf('</g>', at));
+    };
+    expect(entry('North')).not.toContain('<circle');
+    expect(entry('North').match(/<rect/g)).toHaveLength(2);
+    expect(entry('Margin')).toContain('<line');
+  });
+
+  it('a bar chart without lines is drawn as before', async () => {
+    const src = 'bar X\ngroup\n  A\n  B\n\nQ1 1 2\nQ2 3 4';
+    const svg = await renderDataChartD3(src, 'light', palette);
+    expect(svg).not.toContain('dgmo-series-bar');
   });
 });

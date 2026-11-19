@@ -52,5 +52,6 @@ export const fixture: ConformanceFixture = {
     'note',
     'no-notes',
   ],
-  pipeKeys: {},
+  // #1852 combo: `mark:` on a series line.
+  pipeKeys: { node: ['mark'] },
 };

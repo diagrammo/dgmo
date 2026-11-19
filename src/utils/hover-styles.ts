@@ -1017,7 +1017,12 @@ export function hoverCssFor(
   emphasis?: HoverEmphasis
 ): string {
   if (!svg || !chartType) return '';
-  const spec = HOVER_SPECS[chartType];
+  // A bar chart with lines (#1852) is drawn by the line renderer, so it
+  // pairs its legend the way a line chart does.
+  const spec =
+    chartType === 'bar' && svg.includes('class="dgmo-series"')
+      ? HOVER_SPECS['line']
+      : HOVER_SPECS[chartType];
   if (!spec) return '';
   const derived = deriveFromSvg(svg, spec);
   // A tag-active chart resolves its group attr at scan time; fold it into the

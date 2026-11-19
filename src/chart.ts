@@ -411,7 +411,9 @@ function applySeriesAxes(
   delete result.seriesMarks;
   delete result.seriesMarkLineNumber;
   if (parsed.marks) {
-    result.seriesMarks = parsed.marks.map((m) => m ?? 'line');
+    // A series with no `mark:` keeps its host's own mark.
+    const own = result.type === 'bar' ? 'bar' : 'line';
+    result.seriesMarks = parsed.marks.map((m) => m ?? own);
     const at = parsed.nameLineNumbers[parsed.marks.findIndex(Boolean)];
     if (at !== undefined) result.seriesMarkLineNumber = at;
   }
@@ -1413,7 +1415,15 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
 
   // Dual-axis (§15.1) is only honored by line / multi-line charts. Drop the
   // axis assignment elsewhere so other renderers see plain single-axis data.
-  if (!result.error && result.seriesAxes && result.type !== 'line') {
+  // A bar combo (#1852) hosts lines, and a line may take the right axis.
+  const barCombo =
+    result.type === 'bar' && !!result.seriesMarks?.some((m) => m !== 'bar');
+  if (
+    !result.error &&
+    result.seriesAxes &&
+    result.type !== 'line' &&
+    !barCombo
+  ) {
     warn(
       result.seriesLineNumber ?? 1,
       `Dual y-axes (y-right-axis) are only supported on line / multi-line charts; ignoring the secondary axis for "${result.type}".`
@@ -1528,13 +1538,15 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
   }
 
   // `mark:` on a series (#1852): a line chart draws those series as bars or
-  // steps. Not on a stacked area, and not yet on bar's own series.
+  // steps, a bar chart as lines over its bars. Not on a stacked area.
   if (result.seriesMarks) {
     const at = result.seriesMarkLineNumber ?? result.seriesLineNumber ?? 1;
-    if (result.type !== 'line') {
+    if (result.type === 'bar') {
+      settleBarCombo(result, at, orientationLine, warn);
+    } else if (result.type !== 'line') {
       warn(
         at,
-        `\`mark:\` on a series applies only to line charts for now; every series of "${result.type}" draws in its own mark.`
+        `\`mark:\` on a series applies only to bar and line charts; every series of "${result.type}" draws in its own mark.`
       );
       delete result.seriesMarks;
     } else if (result.barLayout === 'stack') {
@@ -1561,6 +1573,70 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
   if (notes.length) result.notes = notes;
 
   return result;
+}
+
+/**
+ * A bar chart hosting a combo (#1852): `mark: line` / `mark: step` series in a
+ * `stack` or `group` block are left out of the stack or cluster and drawn as
+ * lines over the bars, on the left axis or on `y-right-axis`. Refuses the
+ * layouts that have no room for a line, a bar on the right axis, and a chart
+ * whose every series is a line.
+ */
+function settleBarCombo(
+  result: ParsedChart,
+  at: number,
+  orientationLine: number,
+  warn: (line: number, message: string) => void
+): void {
+  const marks = result.seriesMarks!;
+  const err = (message: string): void => {
+    result.diagnostics.push(makeDgmoError(at, message, 'error'));
+  };
+  const blocked =
+    result.barLayout === 'mirror'
+      ? '`mark:` cannot be used under `mirror` — a mirror draws its two series back to back. Use `group` or `stack` to mix bars and lines.'
+      : result.stackPercent
+        ? '`mark:` cannot be used under `stack 100%` — every bar there is shares of its own total, which a line has no part in. Use `stack` or `group` to mix bars and lines.'
+        : result.diverging
+          ? '`mark:` cannot be used under `stack diverging` — its segments sit either side of a neutral series. Use `stack` or `group` to mix bars and lines.'
+          : result.widths
+            ? '`mark:` cannot be used on a Marimekko (`widths`) chart — its column widths carry a value, so there is no slot for a line.'
+            : result.clusters?.length
+              ? '`mark:` cannot be used on a clustered stack — its periods sit under categories, so there is no single slot for a line.'
+              : marks.every((m) => m !== 'bar')
+                ? 'Every series has `mark: line` or `mark: step`, so this bar chart draws no bars. Use `line` for a chart of lines.'
+                : marks.some(
+                      (m, s) =>
+                        m === 'bar' && result.seriesAxes?.[s] === 'right'
+                    )
+                  ? 'A bar cannot take `y-right-axis` — the bars share the left axis. Give the series under `y-right-axis` `mark: line` or `mark: step`.'
+                  : undefined;
+  if (blocked) {
+    err(blocked);
+    delete result.seriesMarks;
+    delete result.seriesAxes;
+    delete result.yrlabel;
+    delete result.axes?.['y-right'];
+    return;
+  }
+  if (marks.every((m) => m === 'bar')) {
+    delete result.seriesMarks;
+    return;
+  }
+  if (result.orientation === 'horizontal') {
+    warn(
+      orientationLine,
+      'A bar chart with lines draws columns, so its lines run across them; ignoring `orientation-horizontal`.'
+    );
+    delete result.orientation;
+  }
+  if (result.lollipop) {
+    warn(
+      result.lollipopLineNumber ?? at,
+      '`lollipop` is not drawn on a bar chart with lines; its bars stay bars.'
+    );
+    delete result.lollipop;
+  }
 }
 
 /**

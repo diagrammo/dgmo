@@ -1115,6 +1115,7 @@ function parseExtendedChartFull(
       if (firstToken === 'series') {
         const parsed = parseSeriesNames(value, lines, i, palette);
         i = parsed.newIndex;
+        warnSeriesMarks(result, parsed);
         result.series = parsed.series;
         result.seriesLineNumber = lineNumber;
         if (parsed.names.length > 1) {
@@ -1233,6 +1234,7 @@ function parseExtendedChartFull(
     if (firstToken === 'series' && spaceIdx === -1) {
       const parsed = parseSeriesNames('', lines, i, palette);
       i = parsed.newIndex;
+      warnSeriesMarks(result, parsed);
       result.series = parsed.series;
       result.seriesLineNumber = lineNumber;
       if (parsed.names.length > 1) {
@@ -1653,6 +1655,25 @@ const EXTENDED_AXES: Partial<Record<ExtendedChartType, ReadonlySet<AxisName>>> =
 // ============================================================
 // ECharts Option Builder
 // ============================================================
+
+/**
+ * `mark:` (#1852) draws a series as a bar, line or step on bar and line
+ * charts only; elsewhere it is peeled off the name and ignored, so say so.
+ */
+function warnSeriesMarks(
+  result: { type: string; diagnostics: DgmoError[] },
+  parsed: { marks?: unknown[]; nameLineNumbers: number[] }
+): void {
+  if (!parsed.marks) return;
+  const at = parsed.nameLineNumbers[parsed.marks.findIndex(Boolean)] ?? 1;
+  result.diagnostics.push(
+    makeDgmoError(
+      at,
+      `\`mark:\` on a series applies only to bar and line charts; every series of "${result.type}" draws in its own mark.`,
+      'warning'
+    )
+  );
+}
 
 /**
  * Extracts legend group data from standard chart types (multi-series line/bar).

@@ -9,19 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **bar: combo lines over bars — `mark: line | step` on a series
+  (diagrammo/diagrammo#1852, slice 2).** In a bar chart's `stack` or `group`
+  block, `mark: line` or `mark: step` draws that series as a line over the
+  bars, left out of the stack or cluster. The block takes the grouped
+  `y-axis` / `y-right-axis` form, so a line can sit on its own right axis.
+  `mark:` is an error under `mirror`, `stack 100%` and `stack diverging`, on
+  a Marimekko or clustered stack, on a bar under `y-right-axis`, and when no
+  series is left a bar. Replaces slice 1's warn-and-ignore on bar. Other chart
+  types now warn when a series carries `mark:`. A `line` combo's band bound
+  with `mark: bar` no longer takes a bar slot.
 - **treemap: `icicle` — the hierarchy as columns (diagrammo/diagrammo#1857).**
   A bare `icicle` flag draws the same parsed tree as bands: root on the left,
   one equal-width column per depth level, each node's height its share of the
   whole, children in source order. A band too short for its label drops it.
   Tags, `heat` and `no-value` / `no-percent` / `no-legend` carry over;
   `sunburst` plus `icicle` is an error (`E_TREEMAP_LAYOUT_CONFLICT`).
-
 - **line: combo bars and lines — `mark: bar | line | step` on a series
   (diagrammo/diagrammo#1852, slice 1).** A same-line `mark:` key on a series
   line draws that series as bars (side by side within each x slot, under every
   line, on an axis that reaches 0) or as a step line. Works with the dual-axis
   `series` form; the legend swatch shows each mark. `mark:` on a stacked area
-  is an error; on `bar` it warns and is ignored until bar hosts a combo.
+  is an error.
 - **histogram: a new chart type — raw numbers counted into bins
   (diagrammo/diagrammo#1847).** Bare numbers in, bins out. The bin width is
   Freedman–Diaconis by default, rounded to 1, 2, 2.5 or 5 × 10ⁿ; `bin-width`,

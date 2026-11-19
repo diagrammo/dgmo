@@ -150,7 +150,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `clock`            | live world-clock board: current time for people/places across time zones, ticking every second, with optional working-hours status and sundown line                                                                                                                                                                 |
 | `map`              | geographic concept map: regions, points, routes                                                                                                                                                                                                                                                                     |
 | `wireframe`        | low-fidelity UI layout with panels and controls                                                                                                                                                                                                                                                                     |
-| `bar`              | categorical comparisons (multi-series via `stack` / `group`; bare `mean`, `median`, `target N`, `trend`, `pareto` overlays)                                                                                                                                                                                         |
+| `bar`              | categorical comparisons (multi-series via `stack` / `group`; a line or step line over the bars via `mark: line` / `mark: step`, on its own axis under `y-right-axis`; bare `mean`, `median`, `target N`, `trend`, `pareto` overlays)                                                                                |
 | `line`             | trends over time (multiple series via a `series` block; filled via `fill`; stacked areas via `stack`; dual y-axes via `y-axis` / `y-right-axis` series headers; bars or a step line per series via `mark: bar` / `mark: step`; bare `mean`, `median`, `target N`, `trend`, `moving-average N`, `extremes` overlays) |
 | `pie`              | part-to-whole proportions (ring/doughnut via `hole`; 10×10 grid via `waffle`)                                                                                                                                                                                                                                       |
 | `radar`            | multi-dimensional metrics                                                                                                                                                                                                                                                                                           |
@@ -2956,7 +2956,7 @@ dropped; it still shows on hover.
 era Day 1 -> Day 3 Rough Seas red
 ```
 
-**Dual y-axes (line):** to compare two metrics with unrelated units on one chart, group the `series` block under `y-axis` (left) and `y-right-axis` (right) headers — series indented under each header bind to that axis. Each header is a whole axis line, so it may carry a range and `log` (§15.1.2); otherwise that axis auto-scales independently:
+**Dual y-axes (line, and bar with lines):** to compare two metrics with unrelated units on one chart, group the `series` block under `y-axis` (left) and `y-right-axis` (right) headers — series indented under each header bind to that axis. Each header is a whole axis line, so it may carry a range and `log` (§15.1.2); otherwise that axis auto-scales independently:
 
 ```
 line Oil Price vs Strategic Reserve
@@ -2988,7 +2988,25 @@ Q2 48 21
 Q3 51 19
 ```
 
-A chart with any bar keeps a category x-axis, even when every row is a date. `mark:` is an error on a stacked area (`line` + `stack`), and an unknown value is an error. A trailing `bar` or `line` word is part of the name (`Bottom Line`), never a mark. `bar` charts do not read `mark:` yet.
+A chart with any bar keeps a category x-axis, even when every row is a date. `mark:` is an error on a stacked area (`line` + `stack`), and an unknown value is an error. A trailing `bar` or `line` word is part of the name (`Bottom Line`), never a mark.
+
+**Combo — lines over bars (bar):** a `bar` chart hosts the combo the other way round. In its `stack` or `group` block, `mark: line` or `mark: step` on a series draws it as a line over the bars; a series without `mark:` stays a bar. The line series are left out of the stack or the cluster — a `stack` stacks only its bars, a `group` sets only its bars side by side. The `stack` or `group` block takes the same `y-axis` / `y-right-axis` grouped form as line, at most two axes: the bars stay on the left axis, and a line under `y-right-axis` gets its own scale on the right:
+
+```
+bar Output against target
+group
+  y-axis Units
+    Day blue
+    Night green
+  y-right-axis Yield (%)
+    Yield red mark: line
+
+Q1 120 80 91
+Q2 135 90 94
+Q3 128 85 89
+```
+
+`mark:` is an error under `mirror`, `stack 100%` and `stack diverging`, on a Marimekko (`widths`) or a clustered stack, on a bar series under `y-right-axis`, and when every series is a line (use `line`). A combo draws columns, so `orientation-horizontal` and `lollipop` are ignored with a warning. Other chart types peel a `mark:` off the series name and warn.
 
 > **Migrated in 1.0:** the former standalone `area`, `multi-line`, and `doughnut` chart types were removed. Use `line` + `fill` (area), `line` + a `series` block (multi-line), and `pie` + `hole` (doughnut). `bar-stacked` became `bar` + a `stack` header.
 

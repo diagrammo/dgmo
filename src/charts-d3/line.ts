@@ -115,7 +115,11 @@ export function renderLine(
   const data = chart.data;
   // `line` + a `stack` block → stacked areas; `stack 100%` → each x position
   // as shares of its total (#1846). A stack always fills.
-  const stacked = chart.barLayout === 'stack';
+  // A bar chart with lines (#1852) is drawn here too: its bars stand side by
+  // side under `group`, or as one stacked bar per slot under `stack`.
+  const barHost = chart.type === 'bar';
+  const barStack = barHost && chart.barLayout === 'stack';
+  const stacked = chart.barLayout === 'stack' && !barHost;
   const percent = stacked && !!chart.stackPercent;
   // `line` + a `fill` directive → filled (area) rendering. (#25)
   const isArea = chart.fill === true || stacked;
@@ -139,15 +143,34 @@ export function renderLine(
   const spanRows = stacked
     ? (percent ? shareRows! : rawRows).map(stackSpans)
     : null;
+  // A bar host's stack (#1852): only the bar series stack, positive runs up
+  // from 0 and negative runs down; the lines keep their own values.
+  const barMark = (s: number): boolean =>
+    (chart.seriesMarks?.[s] ?? 'line') === 'bar';
+  const barSpanRows = barStack
+    ? rawRows.map((row) => {
+        let up = 0;
+        let down = 0;
+        return row.map((v, s): [number, number] | null => {
+          if (!barMark(s) || !Number.isFinite(v)) return null;
+          const from = v < 0 ? down : up;
+          if (v < 0) down += v;
+          else up += v;
+          return [from, from + v];
+        });
+      })
+    : null;
   /** Where row i of series s sits on its value axis; NaN when missing. */
   const yValue = (i: number, s: number): number => {
     const v = rawRows[i]![s]!;
+    const bar = barSpanRows?.[i]![s];
+    if (bar) return bar[1];
     if (!spanRows || !Number.isFinite(v)) return v;
     return spanRows[i]![s]![1];
   };
   /** Its lower edge: the top of the series below, or 0. */
   const yLower = (i: number, s: number): number =>
-    spanRows ? spanRows[i]![s]![0] : 0;
+    barSpanRows?.[i]![s]?.[0] ?? (spanRows ? spanRows[i]![s]![0] : 0);
   // A stacked area prints no point values; its hover carries value and share.
   const showValues = !chart.noValue && !stacked;
   // `target N` (#1954): a point that reaches it is lit, the rest go grey.
@@ -163,8 +186,13 @@ export function renderLine(
   // x slot and under every line; `mark: step` draws it as a step line.
   const markOf = (s: number): 'bar' | 'line' | 'step' =>
     chart.seriesMarks?.[s] ?? 'line';
+  // A band's bounds (#1981) are drawn only as the band, so a bound with
+  // `mark: bar` takes no slot and does not pull its axis to 0.
+  const bandBounds = new Set(
+    (chart.seriesBands ?? []).flatMap((b) => [b.low, b.high])
+  );
   const barSeries = Array.from({ length: seriesCount }, (_, s) => s).filter(
-    (s) => markOf(s) === 'bar'
+    (s) => markOf(s) === 'bar' && !bandBounds.has(s)
   );
   const isBar = (s: number): boolean => markOf(s) === 'bar';
   // A time axis when every row is an ISO date (#1880); else categories. A
@@ -447,10 +475,13 @@ export function renderLine(
   /** A series' own curve: `mark: step` steps it whatever the chart's flag. */
   const curveOf = (s: number) =>
     markOf(s) === 'step' ? curveStepAfter : curve;
-  // Bars of one slot share 70% of it, in declared order.
-  const barW = barSeries.length ? (pointX.step() * 0.7) / barSeries.length : 0;
+  // Bars of one slot share 70% of it, in declared order; a stack is one bar.
+  const barSlots = barStack ? 1 : barSeries.length;
+  const barW = barSlots ? (pointX.step() * 0.7) / barSlots : 0;
   const barLeft = (s: number, i: number): number =>
-    xOfRow(i) - (barW * barSeries.length) / 2 + barSeries.indexOf(s) * barW;
+    xOfRow(i) -
+    (barW * barSlots) / 2 +
+    (barStack ? 0 : barSeries.indexOf(s)) * barW;
   const leftTint = dual ? soleAxisColor('left') : undefined;
   const rightTint = soleAxisColor('right');
 
@@ -840,12 +871,13 @@ export function renderLine(
         story.active && recede
           ? story.groundFill
           : shapeFill(palette, color, isDark, { mode: chart.fillMode });
-      const base = yy(yy.baseline);
       const tops: [number, number][] = [];
       for (const p of pts) {
         if (!has(p.v)) continue;
         const x = barLeft(s, p.xIndex);
-        const top = yy(p.v);
+        // A stacked bar stands on the one below it.
+        const base = yy(barStack ? p.lo : yy.baseline);
+        const top = yy(p.y);
         g.append('rect')
           .attr('class', 'dgmo-series-bar')
           .attr('data-x-index', p.xIndex)
@@ -873,7 +905,7 @@ export function renderLine(
           .attr('cy', round(top))
           .attr('r', 0)
           .attr('fill', color);
-        if (showValues)
+        if (showValues && !barStack)
           valueLabels.push({
             text: fmtFor(s)(p.v),
             cx,

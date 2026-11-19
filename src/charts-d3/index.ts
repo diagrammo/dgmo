@@ -299,6 +299,25 @@ function renderPlot(
         : 0;
     switch (std.type) {
       case 'bar':
+        // A bar chart with lines (#1852) is drawn by the line renderer, which
+        // owns the combo: bars under lines, a second axis, mark swatches.
+        if (std.seriesMarks) {
+          renderLine(
+            s,
+            std,
+            width,
+            height,
+            colors,
+            palette,
+            isDark,
+            textColor,
+            mutedColor,
+            bgColor,
+            hasTitle,
+            inlineTitle
+          );
+          return true;
+        }
         renderBar(
           s,
           std,

@@ -1690,6 +1690,18 @@ export type PipeContextMap = Record<string, Record<string, PipeKeySpec>>;
 
 export const PIPE_METADATA = new Map<string, PipeContextMap>([
   [
+    'bar',
+    {
+      node: {
+        mark: {
+          description:
+            'Draw this series as a `line` or `step` over the bars instead of a bar (combo, on a `stack` or `group` line)',
+          values: ['bar', 'line', 'step'],
+        },
+      },
+    },
+  ],
+  [
     'line',
     {
       node: {

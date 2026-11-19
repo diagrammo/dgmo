@@ -1,0 +1,16 @@
+bar Units and Yield
+x-axis Quarter
+
+group
+  y-axis Units
+    Day shift blue
+    Night shift green
+  y-right-axis Yield (%)
+    Yield red mark: line
+
+Q1 FY24 120 80 91
+Q2 FY24 135 90 94
+Q3 FY24 128 85 89
+Q4 FY24 150 98 95
+Q1 FY25 142 92 93
+Q2 FY25 160 104 96

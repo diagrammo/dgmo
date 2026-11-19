@@ -1,0 +1,14 @@
+bar Output against Target
+x-axis Month
+
+stack
+  Line A blue
+  Line B teal
+  Target orange mark: step
+
+Jan 40 22 60
+Feb 44 25 60
+Mar 48 24 70
+Apr 52 28 70
+May 55 30 80
+Jun 58 33 80
