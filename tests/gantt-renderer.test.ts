@@ -1297,13 +1297,41 @@ describe('exported gantt arrows', () => {
 });
 
 describe('task names printed beside their bar', () => {
+  const LONG =
+    'A Very Long Task Name That Cannot Fit In A Third Of The Chart Width At All';
   it('get a halo so an arrow running through them stays legible', () => {
     const container = renderFromInput(`gantt
 start-date 2024-01-15
-A Very Long Task Name That Cannot Fit 1d
+${LONG} 1d
 Long Enough Task 60d`);
     const beside = container.querySelectorAll('.gantt-bar-label-beside');
     expect(beside.length).toBe(1);
     expect(beside[0]!.getAttribute('paint-order')).toBe('stroke');
+  });
+});
+
+describe('bar labels repeat a name only when the column cuts it (#1957)', () => {
+  const LONG =
+    'A Very Long Task Name That Cannot Fit In A Third Of The Chart Width At All';
+  const barTexts = (c: HTMLElement) =>
+    Array.from(c.querySelectorAll('.gantt-task text')).map(
+      (t) => t.textContent
+    );
+
+  it('draws no bar text for a name the column shows in full', () => {
+    const container = renderFromInput(`gantt
+start-date 2024-01-15
+Short Task 60d`);
+    expect(container.querySelectorAll('.gantt-task-label').length).toBe(1);
+    expect(barTexts(container)).toEqual([]);
+  });
+
+  it('draws the full name on the bar when the column truncates it', () => {
+    const container = renderFromInput(`gantt
+start-date 2024-01-15
+${LONG} 60d`);
+    const col = container.querySelector('.gantt-task-label')!;
+    expect(col.getAttribute('data-full-label')).toBe(LONG);
+    expect(barTexts(container).some((t) => t === LONG)).toBe(true);
   });
 });

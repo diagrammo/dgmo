@@ -1372,14 +1372,21 @@ function drawGantt(
         (rt.isMilestone ? '◆' : '●') + ' ',
         sFont11
       );
+      const shownTaskLabel = fitLabel(
+        task.label,
+        taskLabelX + taskIconW,
+        sFont11
+      );
       showFullOnHover(
         taskLabel,
         taskLabel,
         taskLabelText,
         task.label,
-        fitLabel(task.label, taskLabelX + taskIconW, sFont11),
+        shownTaskLabel,
         ' '
       );
+      // The bar repeats the name only when the column had to cut it (#1957).
+      const columnTruncatesLabel = shownTaskLabel !== task.label;
 
       // Tag attributes on label for legend hover matching
       for (const [key, value] of Object.entries(rt.effectiveMetadata)) {
@@ -1607,21 +1614,23 @@ function drawGantt(
           taskG.attr('data-critical-path', 'true');
         }
 
-        const labelPlacement = computeBarLabel(
-          task.label,
-          x1,
-          barWidth,
-          innerWidth,
-          palette.text,
-          contrastText(
-            shapeFill(palette, barColor, isDark, { mode: fillMode }),
-            palette.textOnFillLight,
-            palette.textOnFillDark
-          ),
-          sFont10,
-          sLabelPad,
-          sLabelGap
-        );
+        const labelPlacement = columnTruncatesLabel
+          ? computeBarLabel(
+              task.label,
+              x1,
+              barWidth,
+              innerWidth,
+              palette.text,
+              contrastText(
+                shapeFill(palette, barColor, isDark, { mode: fillMode }),
+                palette.textOnFillLight,
+                palette.textOnFillDark
+              ),
+              sFont10,
+              sLabelPad,
+              sLabelGap
+            )
+          : null;
         if (labelPlacement) {
           const labelEl = taskG
             .append('text')

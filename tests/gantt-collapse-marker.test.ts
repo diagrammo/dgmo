@@ -60,10 +60,10 @@ describe('gantt `[Group] collapsed: true` marker', () => {
     const expanded = await render(SRC.replace(' collapsed: true', ''), {
       palette: 'slate',
     });
-    // The Backend group is still shown; its child task label is hidden when
+    // The Backend group is still shown; its child task label (column only, #1957) is hidden when
     // collapsed but present when expanded.
-    expect(expanded.svg).toContain('>API<');
-    expect(collapsed.svg).not.toContain('>API<');
-    expect(collapsed.svg).toContain('>UI<'); // Frontend stays expanded
+    expect(expanded.svg).toContain('> API<');
+    expect(collapsed.svg).not.toContain('> API<');
+    expect(collapsed.svg).toContain('> UI<'); // Frontend stays expanded
   });
 });
