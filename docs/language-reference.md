@@ -3449,15 +3449,15 @@ mean
 26.4 31.0 22.9 28.5
 ```
 
-| Directive | Does |
-|---|---|
-| (none) | automatic width (Freedman–Diaconis, rounded up to 1, 2, 2.5 or 5 × 10ⁿ); edges on multiples of the width |
-| `bin-width W` | exact width |
-| `bins N` | about N bins with round edges (`bins 10` may give 9 or 12) — never with `bin-width` |
-| `bin-start S` | the first edge is S |
-| `percent` | y is each group's share (each group sums to 100%) instead of the count |
-| `mean`, `median` | vertical reference line per group |
-| `x-axis [title] [min..max]` | values' axis; a range drops values outside it |
+| Directive                   | Does                                                                                                     |
+| --------------------------- | -------------------------------------------------------------------------------------------------------- |
+| (none)                      | automatic width (Freedman–Diaconis, rounded up to 1, 2, 2.5 or 5 × 10ⁿ); edges on multiples of the width |
+| `bin-width W`               | exact width                                                                                              |
+| `bins N`                    | about N bins with round edges (`bins 10` may give 9 or 12) — never with `bin-width`                      |
+| `bin-start S`               | the first edge is S                                                                                      |
+| `percent`                   | y is each group's share (each group sums to 100%) instead of the count                                   |
+| `mean`, `median`            | vertical reference line per group                                                                        |
+| `x-axis [title] [min..max]` | values' axis; a range drops values outside it                                                            |
 
 - **Groups** are `[Name] color` headers; values before the first header form one unnamed group. Groups share bins and draw overlaid with a legend.
 - **Pre-counted rows:** `10-20 31` (range, then count). Never mix them with raw values. Unequal widths draw true to area.
