@@ -77,6 +77,12 @@ const EPS = 0.5;
 /** Ordering effort: sweeps per start, and shuffled restarts after the first. */
 const SWEEPS = 12;
 const RESTARTS = 40;
+/**
+ * Restarts × graph nodes (dummies included). Each restart costs about one
+ * pass over the graph, so a big chart gets fewer restarts and the search
+ * stays linear in its size (#2128); every chart up to 60 nodes keeps all 40.
+ */
+const RESTART_BUDGET = RESTARTS * 60;
 /** Orders to try one by one: the product of each rank's permutations. */
 const EXHAUSTIVE_LIMIT = 50_000;
 
@@ -484,6 +490,19 @@ export function layoutOwnership(parsed: ParsedOwnership): OwnershipLayout {
     layers[r] = keyed.map((k) => k.v);
     layers[r].forEach((v, i) => (pos[v] = i));
   };
+  /**
+   * Crossings between u's hops and v's hops, above and below, with u left of
+   * v. Swapping adjacent u and v changes only these pairs, so comparing
+   * `crossPair(u, v)` with `crossPair(v, u)` is the whole effect of the swap —
+   * recounting both gaps instead made a 60-entity chart take a minute (#2128).
+   */
+  const crossPair = (u: number, v: number): number => {
+    let c = 0;
+    for (const ns of [ups, downs])
+      for (const a of ns[u]!)
+        for (const b of ns[v]!) if (pos[a]! > pos[b]!) c++;
+    return c;
+  };
   const transpose = (): void => {
     let improved = true;
     let guard = 0;
@@ -492,19 +511,14 @@ export function layoutOwnership(parsed: ParsedOwnership): OwnershipLayout {
       for (let r = 0; r < rankCount; r++) {
         const layer = layers[r]!;
         for (let i = 0; i + 1 < layer.length; i++) {
-          const local = (): number =>
-            (r > 0 ? pairCrossings(r - 1) : 0) +
-            (r + 1 < rankCount ? pairCrossings(r) : 0);
-          const before = local();
-          [layer[i], layer[i + 1]] = [layer[i + 1]!, layer[i]!];
-          pos[layer[i]!] = i;
-          pos[layer[i + 1]!] = i + 1;
-          if (local() < before) {
+          const u = layer[i]!;
+          const v = layer[i + 1]!;
+          if (crossPair(v, u) < crossPair(u, v)) {
+            layer[i] = v;
+            layer[i + 1] = u;
+            pos[v] = i;
+            pos[u] = i + 1;
             improved = true;
-          } else {
-            [layer[i], layer[i + 1]] = [layer[i + 1]!, layer[i]!];
-            pos[layer[i]!] = i;
-            pos[layer[i + 1]!] = i + 1;
           }
         }
       }
@@ -518,11 +532,18 @@ export function layoutOwnership(parsed: ParsedOwnership): OwnershipLayout {
   let best = seed.map((l) => [...l]);
   let bestCount = totalCrossings();
   const random = mulberry32(nodes.length * 7919 + hops.length);
-  for (let restart = 0; restart <= RESTARTS && bestCount > 0; restart++) {
+  const restarts = Math.min(
+    RESTARTS,
+    Math.floor(RESTART_BUDGET / Math.max(1, nodes.length))
+  );
+  for (let restart = 0; restart <= restarts && bestCount > 0; restart++) {
     layers = seed.map((l) => [...l]);
     if (restart > 0) for (const l of layers) shuffle(l, random);
     setPos(layers);
     for (let iter = 0; iter < SWEEPS && bestCount > 0; iter++) {
+      // A sweep is deterministic, so an order it leaves unchanged would come
+      // back unchanged from every later sweep too.
+      const before = layers.flat().join(',');
       for (let r = 1; r < rankCount; r++) sortBy(r, ups);
       for (let r = rankCount - 2; r >= 0; r--) sortBy(r, downs);
       transpose();
@@ -531,6 +552,7 @@ export function layoutOwnership(parsed: ParsedOwnership): OwnershipLayout {
         bestCount = c;
         best = layers.map((l) => [...l]);
       }
+      if (layers.flat().join(',') === before) break;
     }
   }
   // A small chart is searched exhaustively (branch and bound), so the order

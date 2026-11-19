@@ -221,6 +221,57 @@ export const GENERATORS_C: Record<string, Generator> = {
       return lines.join('\n');
     },
   },
+
+  // A group of n entities: a listed parent, a tree three wide, every fifth
+  // entity also held by its left neighbour (a cross-holding drawn as an edge).
+  ownership: {
+    gen: (n) => {
+      const lines = [
+        'ownership Growth group',
+        'tag Jurisdiction as j',
+        '  UK blue',
+        '  US red',
+        '  NL orange',
+        '',
+      ];
+      const juris = ['UK', 'US', 'NL'];
+      const depthOf = (i: number): number =>
+        i === 0 ? 0 : depthOf(Math.floor((i - 1) / 3)) + 1;
+      const order: number[] = [];
+      const visit = (i: number) => {
+        if (i >= n) return;
+        order.push(i);
+        for (const c of [3 * i + 1, 3 * i + 2, 3 * i + 3]) visit(c);
+      };
+      visit(0);
+      for (const i of order) {
+        const indent = '  '.repeat(depthOf(i));
+        const pct = i === 0 ? '' : `${40 + ((i * 7) % 50)}% `;
+        lines.push(`${indent}${pct}Entity ${i}  j: ${juris[i % 3]}`);
+        if (i > 1 && i % 5 === 0)
+          lines.push(`${indent}  10% -> Entity ${i - 1}`);
+      }
+      return lines.join('\n');
+    },
+  },
+
+  // n weeks of daily values: the grid grows a column per week.
+  'calendar-heatmap': {
+    gen: (n) => {
+      const start = Date.UTC(2024, 0, 1);
+      const day = (d: number) =>
+        new Date(start + d * 86_400_000).toISOString().slice(0, 10);
+      const days = n * 7;
+      const lines = [
+        'calendar-heatmap Growth activity',
+        `from ${day(0)} to ${day(days - 1)}`,
+        'unit commit',
+        '',
+      ];
+      for (const d of range(days)) lines.push(`${day(d)} ${(d * 13) % 9}`);
+      return lines.join('\n');
+    },
+  },
 };
 
 export const NOT_SCALABLE_C: Record<string, string> = {
