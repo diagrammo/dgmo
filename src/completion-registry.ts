@@ -183,6 +183,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description:
           'Multi-series block header → clustered (side-by-side) bars',
       },
+      mirror: {
+        description:
+          'Two-series block header → butterfly bars back to back: the first series left, the second right',
+      },
       'x-axis': { description: 'X-axis title (x-axis Region)' },
       'y-axis': {
         description: 'Y-axis line: title, range, log (y-axis Revenue 0..)',

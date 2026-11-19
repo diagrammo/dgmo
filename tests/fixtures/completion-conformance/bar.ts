@@ -17,10 +17,11 @@ export const fixture: ConformanceFixture = {
     // #1830 axis range and scale.
     ...Y_AXIS_DIRECTIVES,
     'no-legend',
-    // Multi-series is declared by a `stack` or `group` layout header (#24);
+    // Multi-series is declared by a `stack`, `group` or `mirror` layout header (#24, #1878);
     // `series` is rejected on bar.
     'stack',
     'group',
+    'mirror',
     'x-axis',
     'y-axis',
     'orientation-horizontal',

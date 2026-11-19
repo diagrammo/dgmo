@@ -23,6 +23,7 @@ export const METADATA_KEYS = new Set([
   // Bar layout headers + pie/line directives (consolidation #23–#26)
   'stack',
   'group',
+  'mirror',
   'hole',
   'waffle',
   'sort',

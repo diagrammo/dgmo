@@ -2663,8 +2663,9 @@ Parsers accept either form. The rules above are authoring guidance.
 **Multi-series:**
 
 - **bar** — declare multiple series with a layout block header: `stack` (stacked
-  bars, one bar per category) or `group` (clustered, side-by-side). `series` is
-  **not** accepted on bar — the header names the layout.
+  bars, one bar per category), `group` (clustered, side-by-side) or `mirror`
+  (two series back to back). `series` is **not** accepted on bar — the header
+  names the layout.
 
   ```
   stack            // or: group
@@ -2703,6 +2704,32 @@ Parsers accept either form. The rules above are authoring guidance.
     bar's total; `lollipop` cannot draw it (it is a `stack`).
   - `neutral` is a flag only under `stack diverging`; elsewhere it is part of
     the series name.
+
+  **`mirror`** (bar; butterfly / population pyramid, #1878) is a third
+  layout header beside `stack` and `group`. It takes **exactly two series**
+  and draws them back to back: the first grows left from a centre gutter, the
+  second grows right.
+
+  ```
+  bar Population by age, 2025
+  mirror
+    Women purple
+    Men   teal
+  85+   2.1 1.3
+  0–4   2.7 2.8
+  ```
+
+  - Always horizontal; rows run top to bottom in source order. Both sides
+    share one scale, so equal values draw equal lengths, and the ticks read
+    positive both ways.
+  - The category names sit in the centre gutter; each value label sits off
+    its bar's free end. The legend is on the title row.
+  - Each side is a magnitude: a negative value is an error on its row, and so
+    is any series count but two. `sort` is ignored (a warning), `lollipop` and
+    the statistics overlays do not apply, and rows indented under a category
+    are an error.
+  - On a chart other than `bar`, `mirror` warns and draws no layout.
+
     **`stack 100%`** (bar and line, #1846) draws every category, or every x
     position, as shares of its own total. The source keeps raw values. The value
     axis reads 0–100% and ignores a range or scale on `y-axis` (a warning).

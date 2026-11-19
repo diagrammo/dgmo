@@ -1,7 +1,8 @@
 // ============================================================
 // Hand-built bar renderer.
-// Handles: single-series bar, multi-series `stack` (stacked) and `group`
-// (clustered side-by-side) layouts (chart.barLayout), horizontal orientation.
+// Handles: single-series bar, multi-series `stack` (stacked), `group`
+// (clustered side-by-side) and `mirror` (two series back to back) layouts
+// (chart.barLayout), horizontal orientation.
 // Matches the house style: 25% tint fill + full-strength border, per-category
 // colors for single series, value labels, 0-baseline.
 // Signed values: the domain is [min(0, dataMin), max(0, dataMax)] and bars
@@ -131,6 +132,22 @@ export function renderBar(
 ): void {
   if (chart.widths) {
     renderMarimekko(
+      svg,
+      chart,
+      width,
+      height,
+      colors,
+      palette,
+      isDark,
+      textColor,
+      mutedColor,
+      hasTitle,
+      inlineTitle
+    );
+    return;
+  }
+  if (chart.barLayout === 'mirror') {
+    renderMirror(
       svg,
       chart,
       width,
@@ -1977,4 +1994,241 @@ function renderMarimekko(
 
   drawXAxisTitle(svg, chart.xlabel, m.left + plotW / 2, nameY + 30, textColor);
   drawYAxisTitle(svg, chart.ylabel, m.top + plotH / 2, 20, textColor);
+}
+
+/** Space either side of the category names in a `mirror` chart's gutter. */
+const MIRROR_GUTTER_PAD = 10;
+/** Gap between a `mirror` bar's free end and its value label. */
+const MIRROR_VALUE_GAP = 4;
+
+/**
+ * Butterfly / population pyramid (`mirror`, #1878): two series back to back.
+ * The category names sit in a centre gutter; the first series grows left
+ * from it and the second right, on ONE scale, so equal values draw equal
+ * lengths. Ticks run along the bottom of both halves and read positive both
+ * ways; each value label sits off its bar's free end. Rows run top to bottom
+ * in source order.
+ */
+function renderMirror(
+  svg: Svg,
+  chart: ParsedChart,
+  width: number,
+  height: number,
+  colors: string[],
+  palette: PaletteColors,
+  isDark: boolean,
+  textColor: string,
+  mutedColor: string,
+  hasTitle: boolean,
+  inlineTitle?: InlineTitleInfo
+): void {
+  const fmt = chartFormatter(chart);
+  const seriesNames = chart.seriesNames ?? [];
+  const rows = chart.data.map((d) => ({ d, vals: seriesValues(d, 2) }));
+  const colorOf = (s: number): string =>
+    chart.seriesNameColors?.[s] ?? colors[s % colors.length]!;
+  const emphasis = resolveEmphasis(chart.emphasis, [
+    ...chart.data.map((d) => d.label),
+    ...seriesNames,
+  ]);
+  const { dimmed } = emphasis;
+  const story = storyPaint(emphasis, palette, isDark);
+
+  const top = reserveHeader(
+    svg,
+    chart,
+    colors,
+    palette,
+    isDark,
+    hasTitle,
+    width,
+    inlineTitle
+  );
+
+  const finite = rows.flatMap(({ vals }) => vals.filter(Number.isFinite));
+  const maxVal = Math.max(0, ...finite) || 1;
+  const valueAxis = (range: [number, number]) =>
+    buildValueAxis(0, maxVal, chart.axes?.y, range, {
+      nice: true,
+      dataHi: maxVal,
+    });
+
+  // Each half's free end must hold its longest value label.
+  const valueRoom = (s: number): number =>
+    chart.noValue
+      ? 12
+      : Math.max(
+          12,
+          ...rows.map(({ vals }) =>
+            Number.isFinite(vals[s]!)
+              ? measureText(fmt(vals[s]!), VALUE_FONT) + MIRROR_VALUE_GAP + 4
+              : 0
+          )
+        );
+  const mLeft = valueRoom(0);
+  const mRight = valueRoom(1);
+
+  // The gutter fits the longest name, capped at the label region's share.
+  const gutterCap = Math.floor(width * LABEL_REGION_SHARE);
+  const nameW = Math.max(
+    0,
+    ...rows.map(({ d }) => measureText(d.label, TICK_FONT))
+  );
+  const gutterW = Math.min(gutterCap, nameW + 2 * MIRROR_GUTTER_PAD);
+  const halfW = Math.max(1, (width - mLeft - mRight - gutterW) / 2);
+  const gutterL = mLeft + halfW;
+  const gutterR = gutterL + gutterW;
+  const centre = (gutterL + gutterR) / 2;
+
+  // x is the category axis on a bar in any orientation (decision #60): its
+  // title heads the gutter of names; the y title sits under the value ticks.
+  const headH = chart.xlabel ? TICK_FONT + 10 : 0;
+  const m: Margins = {
+    top: top + 8 + headH,
+    right: mRight,
+    bottom: TICK_FONT + 14 + (chart.ylabel ? 30 : 8),
+    left: mLeft,
+  };
+  const plotH = Math.max(1, height - m.top - m.bottom);
+  const band = scaleBand<number>()
+    .domain(rows.map((_, i) => i))
+    .range([m.top, m.top + plotH])
+    .padding(0.2);
+  const len = valueAxis([0, halfW]);
+  const tickFmt = axisTickFormat(len, chart.numberFormat, fmt);
+  const ticks = len.ticks(Math.max(2, Math.min(5, Math.floor(halfW / 60))));
+  const axisY = m.top + plotH;
+
+  // Gridlines and ticks on both halves, mirrored about the gutter.
+  for (const side of [0, 1] as const) {
+    const xAt = (v: number) =>
+      side === 0 ? gutterL - len(v) : gutterR + len(v);
+    for (const t of ticks) {
+      const x = xAt(t);
+      svg
+        .append('line')
+        .attr('class', 'dgmo-mirror-grid')
+        .attr('x1', x)
+        .attr('x2', x)
+        .attr('y1', m.top)
+        .attr('y2', axisY)
+        .attr('stroke', mutedColor)
+        .attr('stroke-opacity', t === 0 ? 0.6 : 0.25)
+        .attr('stroke-dasharray', t === 0 ? null : GRID_DASH);
+      svg
+        .append('text')
+        .attr('class', 'dgmo-mirror-tick')
+        .attr('x', x)
+        .attr('y', axisY + TICK_FONT + 6)
+        .attr('text-anchor', 'middle')
+        .attr('fill', palette.textMuted)
+        .attr('font-size', TICK_FONT)
+        .attr('font-family', FONT_FAMILY)
+        .call(tabularText(tickFmt(t), TICK_FONT));
+    }
+  }
+
+  const bw = band.bandwidth();
+  for (const [i, { d, vals }] of rows.entries()) {
+    const y = band(i)!;
+    const { lines, truncated } = fitLabel(
+      d.label,
+      TICK_FONT,
+      Math.max(1, gutterW - 2 * MIRROR_GUTTER_PAD),
+      1
+    );
+    const nameEl = svg
+      .append('text')
+      .attr('class', 'dgmo-mirror-name')
+      .attr('x', centre)
+      .attr('y', y + bw / 2 + TICK_FONT / 2 - 1)
+      .attr('text-anchor', 'middle')
+      .attr('fill', textColor)
+      .attr('font-size', TICK_FONT)
+      .attr('font-family', FONT_FAMILY)
+      .text(lines[0] ?? '');
+    if (truncated) nameEl.attr('aria-label', d.label);
+    tagDatum(nameEl, {
+      line: d.lineNumber,
+      name: d.label,
+      value: seriesNames
+        .map(
+          (n, s) => `${n} ${Number.isFinite(vals[s]!) ? fmt(vals[s]!) : '—'}`
+        )
+        .join(' · '),
+    });
+
+    for (const s of [0, 1] as const) {
+      const v = vals[s]!;
+      if (!Number.isFinite(v)) continue;
+      const sName = seriesNames[s] ?? '';
+      const own = colorOf(s);
+      const recede = dimmed.has(d.label) || dimmed.has(sName);
+      const stroke = !story.active
+        ? own
+        : recede
+          ? story.groundStroke
+          : story.subject(own);
+      const fill = !story.active
+        ? shapeFill(palette, own, isDark, { mode: chart.fillMode })
+        : recede
+          ? story.groundFill
+          : stroke;
+      const dim = recede && !story.active;
+      const w = len(v);
+      const x = s === 0 ? gutterL - w : gutterR;
+      rect(
+        svg,
+        x,
+        y,
+        w,
+        bw,
+        fill,
+        stroke,
+        {
+          line: d.lineNumber,
+          key: sName,
+          name: `${d.label} · ${sName}`,
+          value: fmt(v),
+          color: own,
+          seriesName: sName,
+        },
+        dim
+      );
+      if (chart.noValue) continue;
+      const lx = s === 0 ? x - MIRROR_VALUE_GAP : x + w + MIRROR_VALUE_GAP;
+      drawValueLabel(
+        svg,
+        fmt(v),
+        lx,
+        y + bw / 2 + VALUE_FONT / 2 - 1,
+        story.active && recede ? story.groundText : textColor,
+        s === 0 ? 'end' : 'start'
+      )
+        .attr('class', 'dgmo-mirror-value')
+        .attr('opacity', dim ? EMPHASIS_DIM_TEXT_OPACITY : null);
+    }
+  }
+
+  if (chart.xlabel) {
+    const { lines, truncated } = fitLabel(
+      chart.xlabel,
+      TICK_FONT,
+      Math.max(1, gutterW),
+      1
+    );
+    const head = svg
+      .append('text')
+      .attr('class', 'dgmo-mirror-category-title')
+      .attr('x', centre)
+      .attr('y', m.top - 8)
+      .attr('text-anchor', 'middle')
+      .attr('fill', textColor)
+      .attr('font-size', TICK_FONT)
+      .attr('font-weight', 600)
+      .attr('font-family', FONT_FAMILY)
+      .text(lines[0] ?? '');
+    if (truncated) head.attr('aria-label', chart.xlabel);
+  }
+  drawXAxisTitle(svg, chart.ylabel, centre, axisY + TICK_FONT + 34, textColor);
 }

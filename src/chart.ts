@@ -122,11 +122,13 @@ export interface ParsedChart {
   /** Per-series axis assignment, parallel to seriesNames. Present only when the
    *  series block uses the grouped (dual-axis) form; absent ⇒ all left. */
   seriesAxes?: ('left' | 'right')[];
-  /** Multi-series layout, set by a `stack` or `group` block header
+  /** Multi-series layout, set by a `stack`, `group` or `mirror` block header
    *  (consolidation #24). Absent ⇒ single-series bar. On `bar` it drives
-   *  stacked vs clustered rendering in `charts-d3/bar.ts`; on `line`, `stack`
-   *  draws stacked areas (#1846) and `group` is ignored. */
-  barLayout?: 'stack' | 'group';
+   *  stacked vs clustered rendering in `charts-d3/bar.ts`, and `mirror`
+   *  (#1878) draws exactly two series back to back, the first to the left;
+   *  on `line`, `stack` draws stacked areas (#1846) and the others are
+   *  ignored. */
+  barLayout?: 'stack' | 'group' | 'mirror';
   /** `stack 100%` (#1846): each x position is drawn as shares of its total,
    *  on a 0–100% axis. Values stay raw in the source. `bar` and `line`. */
   stackPercent?: boolean;
@@ -293,6 +295,7 @@ const KNOWN_OPTIONS = new Set([
   'series',
   'stack',
   'group',
+  'mirror',
   'hole',
   'label',
   'no-name',
@@ -334,10 +337,10 @@ const KNOWN_FIRST_TOKENS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Gate a `series`/`stack`/`group` block header against the chart type.
+ * Gate a `series`/`stack`/`group`/`mirror` block header against the chart type.
  * Returns true when the header must be REJECTED (skip collection):
  *  - `series` on a `bar` chart is a hard error → use `stack`/`group` (#24).
- * Emits a warning (but proceeds) for `stack`/`group` on a non-bar chart,
+ * Emits a warning (but proceeds) for `stack`/`group`/`mirror` on a non-bar chart,
  * except `stack` on `line`, which draws stacked areas (#1846).
  */
 function rejectSeriesHeader(
@@ -355,7 +358,7 @@ function rejectSeriesHeader(
     return true;
   }
   if (
-    (keyword === 'stack' || keyword === 'group') &&
+    (keyword === 'stack' || keyword === 'group' || keyword === 'mirror') &&
     result.type !== 'bar' &&
     !(keyword === 'stack' && result.type === 'line')
   ) {
@@ -818,7 +821,8 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
       if (
         firstToken === 'series' ||
         firstToken === 'stack' ||
-        firstToken === 'group'
+        firstToken === 'group' ||
+        firstToken === 'mirror'
       ) {
         const rejected = rejectSeriesHeader(result, firstToken, lineNumber);
         // `stack diverging` (#1980) and `stack 100%` (#1846) are bare block
@@ -852,7 +856,11 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
         if (parsed.nameColors.some(Boolean))
           result.seriesNameColors = parsed.nameColors;
         applySeriesAxes(result, parsed);
-        if (firstToken === 'stack' || firstToken === 'group')
+        if (
+          firstToken === 'stack' ||
+          firstToken === 'group' ||
+          firstToken === 'mirror'
+        )
           result.barLayout = firstToken;
         layoutHeaders.push({ keyword: firstToken, lineNumber });
         delete result.diverging;
@@ -902,11 +910,12 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
       continue;
     }
 
-    // Bare "series" / "stack" / "group" header — collect indented names.
+    // Bare "series" / "stack" / "group" / "mirror" header — collect indented names.
     if (
       (firstToken === 'series' ||
         firstToken === 'stack' ||
-        firstToken === 'group') &&
+        firstToken === 'group' ||
+        firstToken === 'mirror') &&
       spaceIdx === -1
     ) {
       const rejected = rejectSeriesHeader(result, firstToken, lineNumber);
@@ -922,7 +931,11 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
       if (parsed.nameColors.some(Boolean))
         result.seriesNameColors = parsed.nameColors;
       applySeriesAxes(result, parsed);
-      if (firstToken === 'stack' || firstToken === 'group')
+      if (
+        firstToken === 'stack' ||
+        firstToken === 'group' ||
+        firstToken === 'mirror'
+      )
         result.barLayout = firstToken;
       layoutHeaders.push({ keyword: firstToken, lineNumber });
       delete result.diverging;
@@ -1407,6 +1420,11 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
   if (!result.error)
     settleStack(result, layoutHeaders, rawSeriesBands, rawFillBetween);
 
+  if (result.barLayout === 'mirror') {
+    if (result.type !== 'bar') delete result.barLayout;
+    else settleMirror(result, layoutHeaders, rawOverlays, warn);
+  }
+
   if (!result.error && clusteredRows > 0)
     settleClusters(result, rawClusters, flatRows, orientationLine);
 
@@ -1417,7 +1435,9 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
         type: result.type,
         stacked:
           result.barLayout === 'stack' || (result.clusters?.length ?? 0) > 0,
-        ...(result.barLayout && { layout: result.barLayout }),
+        // A `mirror` chart's overlays were refused in settleMirror.
+        ...(result.barLayout &&
+          result.barLayout !== 'mirror' && { layout: result.barLayout }),
       },
       result.diagnostics
     );
@@ -1441,6 +1461,16 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
     sortBarCategories(result);
 
   if (!result.error) settleChartAxes(result);
+
+  // A `mirror` bar grows from the gutter at 0 on both sides (#1878), so its
+  // value axis is linear.
+  if (result.barLayout === 'mirror' && result.axes?.y?.scale === 'log') {
+    warn(
+      result.axes.y.lineNumber ?? 1,
+      'A `mirror` chart grows both sides from 0, so its value axis is linear; ignoring `log`.'
+    );
+    delete result.axes.y.scale;
+  }
 
   // `lollipop` redraws bars as stems and dots (#1979). A stack has no single
   // value per bar for a dot to mark, so the pair is an error.
@@ -1484,6 +1514,79 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
   if (notes.length) result.notes = notes;
 
   return result;
+}
+
+/**
+ * Butterfly / population pyramid (`mirror`, #1878): exactly two series drawn
+ * back to back, the first to the left of a centre gutter and the second to
+ * the right, on one shared scale. Each side is a magnitude, so a negative
+ * value is an error, as is any series count but two. The chart is always
+ * horizontal with rows in source order, so `orientation-horizontal` is
+ * implied, and what has no meaning on two opposed halves — `sort`,
+ * `lollipop`, indented category rows and the statistics overlays — is
+ * refused or ignored.
+ */
+function settleMirror(
+  result: ParsedChart,
+  headers: readonly { keyword: string; lineNumber: number }[],
+  rawOverlays: ChartOverlay[],
+  warn: (line: number, message: string) => void
+): void {
+  const header = [...headers].reverse().find((h) => h.keyword === 'mirror');
+  const line = header?.lineNumber ?? result.seriesLineNumber ?? 1;
+  const fail = (ln: number, message: string): void => {
+    const diag = makeDgmoError(ln, message, 'error');
+    result.diagnostics.push(diag);
+    result.error ??= formatDgmoError(diag);
+  };
+  const count = result.seriesNames?.length ?? (result.series ? 1 : 0);
+  if (count !== 2) {
+    fail(
+      line,
+      `A \`mirror\` block takes exactly two series — the first draws to the left, the second to the right; found ${count}.`
+    );
+    return;
+  }
+  for (const d of result.data) {
+    const vals = [d.value, ...(d.extraValues ?? [])];
+    const neg = vals.find((v) => Number.isFinite(v) && v < 0);
+    if (neg !== undefined) {
+      fail(
+        d.lineNumber,
+        `A \`mirror\` bar is a size on each side, so it cannot be negative — write ${Math.abs(neg)}, not ${neg}.`
+      );
+      return;
+    }
+  }
+  if (result.clusters?.length || headers.some((h) => h.keyword !== 'mirror')) {
+    fail(
+      line,
+      'A `mirror` chart takes one `mirror` block of two series and a flat row per category — no other layout block and no indented rows.'
+    );
+    return;
+  }
+  if (result.sort) {
+    warn(
+      result.sortLineNumber ?? line,
+      '`mirror` keeps the rows in source order; ignoring `sort`.'
+    );
+    delete result.sort;
+    delete result.sortSeries;
+  }
+  if (result.lollipop) {
+    warn(
+      result.lollipopLineNumber ?? line,
+      '`lollipop` cannot draw a `mirror` chart; ignoring it.'
+    );
+    delete result.lollipop;
+  }
+  for (const o of rawOverlays)
+    warn(
+      o.lineNumber,
+      `\`${o.kind}\` does not apply to a \`mirror\` chart; ignoring it.`
+    );
+  rawOverlays.length = 0;
+  result.orientation = 'horizontal';
 }
 
 /**
