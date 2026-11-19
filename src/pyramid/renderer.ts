@@ -19,7 +19,12 @@ import {
 } from '../palettes/color-utils';
 import { resolveColor } from '../colors';
 import { renderInlineText } from '../utils/inline-markdown';
-import { CHAR_WIDTH_RATIO, measureText } from '../utils/text-measure';
+import {
+  CHAR_WIDTH_RATIO,
+  measureText,
+  truncateText,
+  wrapTextToWidth,
+} from '../utils/text-measure';
 import {
   wrapDescriptionLines,
   type WrappedDescLine,
@@ -57,6 +62,11 @@ const LABEL_FIT_PAD = 12;
 const LEADER_LEN = 14;
 const LABEL_FONT_MIN = 12;
 const LABEL_FONT_MAX = 22;
+/** Most lines an outside tier name wraps onto. */
+const LABEL_MAX_LINES = 3;
+const LABEL_LINE_HEIGHT = 1.1;
+/** Pyramid width multipliers tried when an outside tier name will not fit. */
+const SHRINK_STEPS = [0.9, 0.8, 0.7, 0.6, 0.5];
 const DESC_FONT_MIN = 11;
 const DESC_FONT_MAX = 15;
 
@@ -122,23 +132,36 @@ export function renderPyramid(
     layers: parsed.layers,
     hasDescription: hasAnyDescription,
     alternate: false,
+    shareScale: 1,
   });
 
   const anyOverflow = singleProbe.wraps.some((w) => w.overflows);
   const useAlternate = anyOverflow && hasAnyDescription && N >= 2;
 
-  const layout = useAlternate
-    ? computeLayout({
-        width,
-        usableWidth,
-        sideMargin,
-        bodyTop,
-        bodyHeight,
-        layers: parsed.layers,
-        hasDescription: true,
-        alternate: true,
-      })
-    : singleProbe;
+  const layoutFor = (alternate: boolean, shareScale: number): PyramidLayout =>
+    computeLayout({
+      width,
+      usableWidth,
+      sideMargin,
+      bodyTop,
+      bodyHeight,
+      layers: parsed.layers,
+      hasDescription: alternate ? true : hasAnyDescription,
+      alternate,
+      shareScale,
+    });
+  // An outside label that cannot fit its room even at the minimum font
+  // shrinks the pyramid a step so the label column grows.
+  let layout = layoutFor(useAlternate, 1);
+  for (const scale of SHRINK_STEPS) {
+    const fits = parsed.layers.every(
+      (_, i) =>
+        !placeLabel(layout, parsed, i, useAlternate, width, sideMargin)
+          .truncated
+    );
+    if (fits) break;
+    layout = layoutFor(useAlternate, scale);
+  }
 
   // ── SVG root ────────────────────────────────────────────────
   const svg = d3Selection
@@ -253,29 +276,12 @@ export function renderPyramid(
     // contrast (dark halo around light text or vice versa) so the spilled
     // portion stays readable. Only when needed — wide segments don't need
     // the visual noise of a stroke.
-    const labelW = measureText(layer.label, layout.labelFont, { bold: true });
-    // Fit test at the NARROW end of the text's vertical extent, so a label
-    // that fits at mid-band but clips at its cap line still counts as spilling.
-    const narrowY = parsed.inverted
-      ? midY + layout.labelFont * 0.5
-      : midY - layout.labelFont * 0.5;
     const halfAtY = (y: number): number => {
       const f = clamp((y - layout.pyramidTop) / layout.pyramidH, 0, 1);
       return ((parsed.inverted ? 1 - f : f) * layout.baseWidth) / 2;
     };
-    const labelFitsInside = halfAtY(narrowY) * 2 > labelW + LABEL_FIT_PAD;
-    // A label that cannot fit moves outside the triangle on the side opposite
-    // its description, tied to its band by a short leader line.
-    const descSide: Side = useAlternate
-      ? i % 2 === 0
-        ? 'right'
-        : 'left'
-      : 'right';
-    const labelSide: Side =
-      layer.description.length > 0 && descSide === 'left' ? 'right' : 'left';
-    const edgeHalf = halfAtY(midY);
-    const sign = labelSide === 'right' ? 1 : -1;
-    const edgeX = layout.pyramidCx + sign * edgeHalf;
+    const pl = placeLabel(layout, parsed, i, useAlternate, width, sideMargin);
+    const { labelFitsInside, sign, edgeX } = pl;
     if (!labelFitsInside) {
       layerG
         .append('line')
@@ -297,13 +303,31 @@ export function renderPyramid(
       .attr('dy', '0.35em')
       .attr(
         'text-anchor',
-        labelFitsInside ? 'middle' : labelSide === 'right' ? 'start' : 'end'
+        labelFitsInside ? 'middle' : sign === 1 ? 'start' : 'end'
       )
       .attr('fill', labelFitsInside ? textColor : palette.text)
       .attr('font-family', FONT_FAMILY)
-      .attr('font-size', layout.labelFont)
+      .attr('font-size', pl.font)
       .attr('font-weight', 'bold');
-    renderInlineText(labelText, layer.label, palette);
+    if (pl.lines) {
+      const lx = edgeX + sign * (LEADER_LEN + 6);
+      labelText.attr('dy', null);
+      labelText.append('title').text(layer.label);
+      pl.lines.forEach((ln, k) => {
+        labelText
+          .append('tspan')
+          .attr('x', lx)
+          .attr(
+            'dy',
+            k === 0
+              ? `${0.35 - ((pl.lines!.length - 1) * LABEL_LINE_HEIGHT) / 2}em`
+              : `${LABEL_LINE_HEIGHT}em`
+          )
+          .text(ln);
+      });
+    } else {
+      renderInlineText(labelText, layer.label, palette);
+    }
 
     // Description: render both short (truncated) and full variants.
     // CSS toggles visibility during highlight.
@@ -379,6 +403,7 @@ interface LayoutInput {
   layers: readonly PyramidLayer[];
   hasDescription: boolean;
   alternate: boolean;
+  shareScale: number;
 }
 
 interface PyramidLayout {
@@ -411,6 +436,7 @@ function computeLayout(input: LayoutInput): PyramidLayout {
     layers,
     hasDescription,
     alternate,
+    shareScale,
   } = input;
   const N = layers.length;
 
@@ -419,7 +445,7 @@ function computeLayout(input: LayoutInput): PyramidLayout {
       ? PYRAMID_SHARE_ALTERNATE
       : PYRAMID_SHARE_WITH_DESC
     : BASE_WIDTH_FRAC_NO_DESC;
-  const pyramidBandWidth = usableWidth * pyramidShareFrac;
+  const pyramidBandWidth = usableWidth * pyramidShareFrac * shareScale;
 
   const maxBaseByHeight = bodyHeight / PITCH_RATIO;
   const baseWidth = Math.min(pyramidBandWidth, maxBaseByHeight);
@@ -631,6 +657,84 @@ function renderLayerDescriptions(
     ...(onClickItem !== undefined && { onClickItem }),
     variant: 'full',
   });
+}
+
+interface LabelPlacement {
+  labelFitsInside: boolean;
+  sign: 1 | -1;
+  edgeX: number;
+  font: number;
+  /** Set only when an outside name had to wrap or truncate. */
+  lines: string[] | null;
+  /** True when the name needed `…` even at the minimum font. */
+  truncated: boolean;
+}
+
+function placeLabel(
+  layout: PyramidLayout,
+  parsed: ParsedPyramid,
+  i: number,
+  useAlternate: boolean,
+  width: number,
+  sideMargin: number
+): LabelPlacement {
+  const layer = parsed.layers[i]!;
+  const midY = layout.pyramidTop + (i + 0.5) * layout.layerH;
+  const halfAtY = (y: number): number => {
+    const f = clamp((y - layout.pyramidTop) / layout.pyramidH, 0, 1);
+    return ((parsed.inverted ? 1 - f : f) * layout.baseWidth) / 2;
+  };
+  const labelW = measureText(layer.label, layout.labelFont, { bold: true });
+  // Fit test at the NARROW end of the text's vertical extent, so a label
+  // that fits at mid-band but clips at its cap line still counts as spilling.
+  const narrowY = parsed.inverted
+    ? midY + layout.labelFont * 0.5
+    : midY - layout.labelFont * 0.5;
+  const labelFitsInside = halfAtY(narrowY) * 2 > labelW + LABEL_FIT_PAD;
+  // A label that cannot fit moves outside the triangle on the side opposite
+  // its description, tied to its band by a short leader line.
+  const descSide: Side = useAlternate
+    ? i % 2 === 0
+      ? 'right'
+      : 'left'
+    : 'right';
+  const labelSide: Side =
+    layer.description.length > 0 && descSide === 'left' ? 'right' : 'left';
+  const sign = labelSide === 'right' ? 1 : -1;
+  const edgeX = layout.pyramidCx + sign * halfAtY(midY);
+  const base: LabelPlacement = {
+    labelFitsInside,
+    sign,
+    edgeX,
+    font: layout.labelFont,
+    lines: null,
+    truncated: false,
+  };
+  if (labelFitsInside) return base;
+  const textX = edgeX + sign * (LEADER_LEN + 6);
+  const room = sign === 1 ? width - sideMargin - textX : textX - sideMargin;
+  if (labelW <= room) return base;
+  const opts = { bold: true };
+  for (let f = layout.labelFont; f >= LABEL_FONT_MIN; f--) {
+    const lines = wrapTextToWidth(layer.label, f, room, opts);
+    if (
+      lines.length <= LABEL_MAX_LINES &&
+      lines.every((l) => measureText(l, f, opts) <= room)
+    ) {
+      return { ...base, font: f, lines };
+    }
+  }
+  const f = LABEL_FONT_MIN;
+  const lines = wrapTextToWidth(layer.label, f, room, opts);
+  const kept = lines.slice(0, LABEL_MAX_LINES);
+  const last = kept.length - 1;
+  kept[last] = lines.slice(last).join(' ');
+  return {
+    ...base,
+    font: f,
+    lines: kept.map((l) => truncateText(l, f, room, opts)),
+    truncated: true,
+  };
 }
 
 function truncateWithEllipsis(

@@ -3,6 +3,7 @@ import { JSDOM } from 'jsdom';
 import { parsePyramid } from '../src/pyramid/parser';
 import { renderPyramid } from '../src/pyramid/renderer';
 import { getPalette } from '../src/palettes';
+import { measureText } from '../src/utils/text-measure';
 import { getRenderCategory } from '../src/dgmo-router';
 
 beforeAll(() => {
@@ -200,5 +201,46 @@ C`);
     const up0 = c1.querySelector('polygon')!.getAttribute('points')!;
     const inv0 = c2.querySelector('polygon')!.getAttribute('points')!;
     expect(up0).not.toEqual(inv0);
+  });
+});
+
+describe('pyramid renderer — long tier names', () => {
+  const longName =
+    'Board-approved enterprise policy on clinical data stewardship and consent';
+
+  it('draws a 70-char tier name inside the canvas with its full text in a <title>', () => {
+    expect(longName.length).toBeGreaterThanOrEqual(70);
+    const parsed = parsePyramid(
+      `pyramid Governance\n\n${longName}\nBoard\nCommittee\nTeam\nStaff`
+    );
+    const c = document.createElement('div');
+    Object.defineProperty(c, 'clientWidth', { value: 1143 });
+    Object.defineProperty(c, 'clientHeight', { value: 700 });
+    renderPyramid(c, parsed, nordLight, false);
+
+    const titles = [...c.querySelectorAll('text > title')];
+    const t = titles.find((x) => x.textContent === longName);
+    expect(t).toBeTruthy();
+    const text = t!.parentElement!;
+    const anchorX = Number(text.querySelector('tspan')!.getAttribute('x'));
+    const size = Number(text.getAttribute('font-size'));
+    const lines = [...text.querySelectorAll('tspan')];
+    expect(lines.length).toBeGreaterThan(1);
+    expect(lines.length).toBeLessThanOrEqual(3);
+    const widest = Math.max(
+      ...lines.map((l) => measureText(l.textContent!, size, { bold: true }))
+    );
+    // end-anchored: the line's left extent is anchorX minus its width
+    expect(anchorX - widest).toBeGreaterThanOrEqual(0);
+    expect(anchorX).toBeLessThanOrEqual(1143);
+  });
+
+  it('draws a short tier name as a single untitled line', () => {
+    const parsed = parsePyramid('pyramid P\n\nTop\nMiddle\nBase');
+    const c = document.createElement('div');
+    Object.defineProperty(c, 'clientWidth', { value: 800 });
+    Object.defineProperty(c, 'clientHeight', { value: 600 });
+    renderPyramid(c, parsed, nordLight, false);
+    expect(c.querySelectorAll('text > title')).toHaveLength(0);
   });
 });
