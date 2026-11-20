@@ -1,0 +1,14 @@
+treemap Regional Revenue — Year-over-Year Change
+// stress: extreme-values — heat from -2% to +180%, the neutral midpoint near one end of the bar
+heat YoY change %
+
+North America
+  Enterprise 4200 heat: -1.8
+  Mid-market 2600 heat: 3.5
+  SMB 1400 heat: -0.4
+Europe
+  Enterprise 3100 heat: 2.2
+  Mid-market 1800 heat: -2.1
+APAC
+  New markets 600 heat: 180
+  Japan 1200 heat: 12

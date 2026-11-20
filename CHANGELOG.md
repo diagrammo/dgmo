@@ -379,6 +379,12 @@ logged · most often Great`. Diagnostics: `E_CALENDAR_HEATMAP_UNKNOWN_TAG`,
 
 ### Fixed
 
+- **treemap: the heat legend shows the diverging ramp's neutral midpoint
+  (diagrammo/diagrammo#1991).** For heat data that crosses zero, the cells run
+  red · neutral · green with the neutral at 0, but the legend bar faded red
+  straight to green. The bar now draws the ramp's own stops, with the neutral
+  at 0's place along it. A `heat` line naming two colours gets its
+  neutral midpoint too. A one-sign ramp is unchanged.
 - **map: a basemap name no longer sits inside the legend
   (diagrammo/diagrammo#1990).** Country and water names were checked against
   the legend with a box centred on their baseline, so a large name such as

@@ -157,6 +157,8 @@ export interface HeatScale {
   min: number;
   max: number;
   stops: string[];
+  /** Where each stop sits, as a heat value (same length as `stops`). */
+  domain: number[];
   signed: boolean;
 }
 
@@ -208,7 +210,7 @@ export function buildHeatScale(
   // Guard against a degenerate (single-value) domain.
   if (domain[0] === domain[domain.length - 1]) {
     const last = stops[stops.length - 1]!;
-    return { scale: () => last, min, max, stops, signed };
+    return { scale: () => last, min, max, stops, domain, signed };
   }
 
   const linear = scaleLinear<string, string>()
@@ -217,7 +219,14 @@ export function buildHeatScale(
     .clamp(true);
   // d3 interpolates to `rgb(...)` strings; normalize to hex so downstream
   // helpers (mix/contrastText) that expect hex work on heat fills too.
-  return { scale: (v: number) => toHex(linear(v)), min, max, stops, signed };
+  return {
+    scale: (v: number) => toHex(linear(v)),
+    min,
+    max,
+    stops,
+    domain,
+    signed,
+  };
 }
 
 /** Normalize a CSS color (`rgb(...)` or hex) to a `#rrggbb` hex string. */
@@ -369,6 +378,15 @@ export function buildLegend(
         max: heat.max,
         low: heat.stops[0]!,
         high: heat.stops[heat.stops.length - 1]!,
+        // A ramp with a midpoint (diverging, or two explicit endpoints around
+        // the neutral) keys its own stops, so the bar matches the cells.
+        ...(heat.stops.length > 2 &&
+          heat.max > heat.min && {
+            stops: heat.stops.map((color, i) => ({
+              offset: (heat.domain[i]! - heat.min) / (heat.max - heat.min),
+              color,
+            })),
+          }),
       },
     });
     modeByName.set(name, 'heat');

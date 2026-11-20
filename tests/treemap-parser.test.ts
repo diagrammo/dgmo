@@ -339,6 +339,41 @@ describe('parseTreemap — resting-dimension precedence + active-tag (decision #
     ]);
     expect(heat.scale(0).toLowerCase()).toBe(nordLight.surface.toLowerCase());
   });
+
+  it('heat legend keys the diverging neutral at 0 (#1991)', () => {
+    const nordLight = getPalette('nord').light;
+    const r = parseTreemap(
+      'treemap T\nheat Change\n\nA 10 heat: -2\nB 10 heat: 6'
+    );
+    const heat = buildHeatScale(r, nordLight)!;
+    const gr = buildLegend('heat', r, heat, ['#111111'], 0).groups.find(
+      (g) => g.name === 'Change'
+    )!.gradient!;
+    expect(gr.stops).toEqual([
+      { offset: 0, color: nordLight.colors.red },
+      { offset: 0.25, color: nordLight.surface },
+      { offset: 1, color: nordLight.colors.green },
+    ]);
+    // Each bar stop is the colour a cell at that value gets.
+    for (const st of gr.stops!) {
+      const v = heat.min + st.offset * (heat.max - heat.min);
+      expect(heat.scale(v).toLowerCase()).toBe(st.color.toLowerCase());
+    }
+  });
+
+  it('heat legend of a one-sign ramp stays a two-endpoint fade (#1991)', () => {
+    const nordLight = getPalette('nord').light;
+    const r = parseTreemap(
+      'treemap T\nheat Score\n\nA 10 heat: 1\nB 10 heat: 5'
+    );
+    const heat = buildHeatScale(r, nordLight)!;
+    const gr = buildLegend('heat', r, heat, ['#111111'], 0).groups.find(
+      (g) => g.name === 'Score'
+    )!.gradient!;
+    expect(gr.stops).toBeUndefined();
+    expect(gr.low).toBe(heat.scale(1));
+    expect(gr.high).toBe(heat.scale(5));
+  });
 });
 
 describe('layoutTreemap — geometry & depth (AC2c)', () => {
