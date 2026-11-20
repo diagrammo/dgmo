@@ -12,7 +12,11 @@ import {
   whiteboardConnectorPaint,
   whiteboardHopStops,
 } from '../src/whiteboard/renderer';
-import { wrapWhiteboardLabel } from '../src/whiteboard/label';
+import {
+  whiteboardLabelShift,
+  wrapWhiteboardLabel,
+} from '../src/whiteboard/label';
+import { QUEUE_CAP } from '../src/shape-caps';
 import type { WhiteboardShape } from '../src/whiteboard/types';
 
 const FIXTURE = readFileSync(
@@ -593,5 +597,23 @@ describe('whiteboard hops on curved connectors (diagrammo/diagrammo#1898)', () =
     expect(d[0]).toMatch(/^M[^A]*Q[^A]*$/);
     expect(d[1]).toMatch(/^M[^Q]*A5 5/);
     expect(d[2]).toMatch(/Q.*A.*Q/);
+  });
+
+  // #2149: the static queue drew its whole end ellipse on the LEFT (C4's
+  // drawer) while the app drew it on the RIGHT, and the label shift assumes the
+  // right — so in Obsidian and exports the text slid into the left cap.
+  it('draws a queue the way the app does: whole end ellipse on the right', () => {
+    const svg = draw(
+      'whiteboard\nqueue this is a text i want to place in this cone at: -183 -154, size: 248 107\n'
+    );
+    const g = svg.querySelector('.whiteboard-queue')!;
+    const caps = g.querySelectorAll('ellipse');
+    expect(caps).toHaveLength(1);
+    expect(Number(caps[0]!.getAttribute('cx'))).toBe(248 / 2 - QUEUE_CAP);
+    expect(g.querySelector('[data-c4-shape]')).toBeNull();
+    // ...so the label's left shift moves it away from that ellipse.
+    expect(whiteboardLabelShift({ shape: 'queue', width: 248 })).toBeLessThan(
+      0
+    );
   });
 });

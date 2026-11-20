@@ -154,6 +154,29 @@ export function whiteboardFilePath(
   return documentPath(x, y, w, h, whiteboardFileWave(h));
 }
 
+/**
+ * A whiteboard queue as SVG: `body` is the pipe with only the far cap's outer
+ * half on the LEFT, and `cap` is the near end, a whole ellipse on the RIGHT.
+ * Draw `body` then `cap`.
+ *
+ * 🔴 This is the whiteboard's own orientation, NOT C4's `drawQueueCard`, whose
+ * whole ellipse is on the left. `whiteboardLabelShift` and
+ * `whiteboardLabelWidth` assume this one, and the app's canvas and the static
+ * renderer both draw from here, so the two cannot disagree again (#2149).
+ */
+export function whiteboardQueuePath(
+  x: number,
+  y: number,
+  w: number,
+  h: number
+): { body: string; cap: { cx: number; cy: number; rx: number; ry: number } } {
+  const rx = QUEUE_CAP;
+  return {
+    body: `M${x + w - rx} ${y}H${x + rx}A${rx} ${h / 2} 0 0 0 ${x + rx} ${y + h}H${x + w - rx}`,
+    cap: { cx: x + w - rx, cy: y + h / 2, rx, ry: h / 2 },
+  };
+}
+
 /** The element's drawn outline as a union of convex pieces. */
 function piecesOf(s: WhiteboardAttachable): Piece[] {
   const { x, y, width: w, height: h } = s;

@@ -405,6 +405,7 @@ export {
   whiteboardShapeContains,
   whiteboardNoteFold,
   whiteboardFilePath,
+  whiteboardQueuePath,
   whiteboardFileWave,
   whiteboardFileWavePoints,
   whiteboardBendHandle,

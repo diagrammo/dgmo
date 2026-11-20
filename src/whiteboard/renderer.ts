@@ -21,7 +21,7 @@ import {
   shapeFill,
   themeBaseBg,
 } from '../palettes/color-utils';
-import { drawCylinderCard, drawQueueCard } from '../shapes/draw';
+import { drawCylinderCard } from '../shapes/draw';
 import {
   GLYPH_STROKE,
   GLYPH_VIEWBOX,
@@ -43,6 +43,7 @@ import {
   whiteboardEnclosesAny,
   whiteboardFilePath,
   whiteboardNoteFold,
+  whiteboardQueuePath,
   whiteboardSegmentMidpoint,
   type WhiteboardPoint,
   type WhiteboardSegment,
@@ -1223,7 +1224,27 @@ export function renderWhiteboard(
           if (el.shape === 'database') {
             drawCylinderCard(inner, el.width, el.height, fill, stroke, false);
           } else {
-            drawQueueCard(inner, el.width, el.height, fill, stroke);
+            const q = whiteboardQueuePath(
+              -el.width / 2,
+              -el.height / 2,
+              el.width,
+              el.height
+            );
+            inner
+              .append('path')
+              .attr('d', q.body)
+              .attr('fill', fill)
+              .attr('stroke', stroke)
+              .attr('stroke-width', SHAPE_STROKE);
+            inner
+              .append('ellipse')
+              .attr('cx', q.cap.cx)
+              .attr('cy', q.cap.cy)
+              .attr('rx', q.cap.rx)
+              .attr('ry', q.cap.ry)
+              .attr('fill', fill)
+              .attr('stroke', stroke)
+              .attr('stroke-width', SHAPE_STROKE);
           }
         }
         const label = whiteboardShapeLabel(el, parsed.elements);
