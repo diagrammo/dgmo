@@ -50,7 +50,6 @@ import { LEGEND_HEIGHT, LEGEND_INK_BOTTOM } from '../utils/legend-constants';
 import { storyLegend } from '../utils/emphasis';
 import { renderScatter } from './scatter';
 import { renderSankey } from './sankey';
-import { renderChord } from './chord';
 import { renderFunction } from './function';
 import { renderBoxplot } from './boxplot';
 import { renderHistogram } from './histogram';
@@ -63,7 +62,6 @@ const EXTENDED = new Set([
   'heatmap',
   'scatter',
   'sankey',
-  'chord',
   'function',
   'boxplot',
   'histogram',
@@ -266,10 +264,8 @@ function renderPlot(
   colors: string[],
   frame: FrameSlot
 ): boolean {
-  // Route by the declared first-token type. Extended types (incl. the `chord`
-  // circular preset re-emitted by the arc `layout chord` override, #29) MUST go
-  // to parseExtendedChart — `chord` is no longer a top-level keyword, so the
-  // simple parseChart would silently treat `chord …` as a fallback bar chart.
+  // Route by the declared first-token type: extended types MUST go to
+  // parseExtendedChart, or parseChart would read them as a fallback bar chart.
   const firstTok = firstNonCommentToken(content);
   const forceExtended = EXTENDED.has(firstTok);
 
@@ -536,19 +532,6 @@ function renderPlot(
         (hasTitle ? 52 : 24) + titleExtra,
         palette,
         isDark
-      );
-      return true;
-    case 'chord':
-      renderChord(
-        s,
-        ext,
-        width,
-        height,
-        seriesColors,
-        palette,
-        isDark,
-        textColor,
-        (hasTitle ? 52 : 24) + titleExtra
       );
       return true;
     case 'function': {

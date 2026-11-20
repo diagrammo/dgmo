@@ -1,4 +1,4 @@
-import { renderForExport, resolveArcChordOverride } from './d3';
+import { renderForExport } from './d3';
 import { renderDataChartD3 } from './charts-d3';
 import { fitSvgToContent } from './utils/export-fit';
 import { injectHoverStyles } from './utils/hover-styles';
@@ -29,8 +29,7 @@ import { MIN_READABLE_TYPE_PX } from './utils/text-measure';
  * gantt keeps it on `options.title`, where a `title` option line also lands.
  * Only gantt: flowchart, class, state and sitemap also file a body `title`
  * line under `options`, but draw nothing from it, and the label must not
- * name a title nobody sees. The AUTHORED source and type, as for the
- * summary: an arc `layout chord` is re-emitted as internal `chord` content.
+ * name a title nobody sees.
  */
 function diagramTitle(
   content: string,
@@ -318,26 +317,8 @@ export async function render(
 
   const parsed = parseDgmo(content);
   let diagnostics = [...directive.diagnostics, ...parsed.diagnostics];
-  // Arc↔chord `layout` override (#26): re-emit canonical content for the other
-  // engine so each renders its own grammar. Applied here (before the category
-  // branch) so it covers BOTH the data-chart shortcut and the unified path.
-  const acOverride = resolveArcChordOverride(
-    content,
-    parsed.chartType,
-    paletteColors
-  );
-  const renderContent = acOverride?.content ?? content;
-  const chartType = acOverride?.type ?? parsed.chartType;
-  // The arc `layout chord` override (#26/#29) re-emits canonical `chord …`
-  // content for the internal circular renderer. `chord` is no longer a registry
-  // type, so getRenderCategory returns null for it — force the data-chart branch
-  // when the override applied, otherwise the re-emitted content is re-detected as
-  // a sequence diagram (arrow-shaped edges) and renders wrong.
-  const category = acOverride
-    ? 'data-chart'
-    : chartType
-      ? getRenderCategory(chartType)
-      : null;
+  const chartType = parsed.chartType;
+  const category = chartType ? getRenderCategory(chartType) : null;
 
   // §1.9 `legend-inline` (decision #50): warn when the directive is present on a
   // chart type that doesn't render a one-line header — so it never silently
@@ -345,7 +326,7 @@ export async function render(
   // branches, e.g. map, reassign `diagnostics` and would drop it otherwise).
   const legendInlineWarning = ((): DgmoError | null => {
     if (!chartType || legendInlineSupported(chartType)) return null;
-    const idx = renderContent
+    const idx = content
       .split('\n')
       .findIndex((l) => l.trim().toLowerCase() === 'legend-inline');
     if (idx < 0) return null;
@@ -489,12 +470,7 @@ export async function render(
       };
       // Framed to what it draws (#1638), as renderForExport frames the rest.
       const raw = fitSvgToContent(
-        await renderDataChartD3(
-          renderContent,
-          theme,
-          paletteColors,
-          sizeRequest
-        ),
+        await renderDataChartD3(content, theme, paletteColors, sizeRequest),
         sizeRequest
       );
       // Bake pure-CSS hover while jsdom is still installed (the injector scans
@@ -508,8 +484,6 @@ export async function render(
           chartType,
           diagramTitle(content, parsed.chartType)
         ),
-        // The AUTHORED source and type: an arc `layout chord` is re-emitted
-        // above as internal `chord` content, which no summarizer reads.
         summarizeDiagram(content, parsed.chartType)
       );
       return {
@@ -537,37 +511,31 @@ export async function render(
   await acquireDom();
   let svg: string;
   try {
-    svg = await renderForExport(
-      renderContent,
-      theme,
-      paletteColors,
-      viewState,
-      {
-        // `render()` returns a static SVG string — the CLI, embeds, the MCP
-        // server — so it renders the way the app's export does. Unset, every
-        // renderer that keys its legend on this flag drew the app's capsule,
-        // group button and swimlane switch into a PNG (#1826).
-        exportMode: true,
-        ...(options?.c4Level !== undefined && { c4Level: options.c4Level }),
-        ...(options?.c4System !== undefined && { c4System: options.c4System }),
-        ...(options?.c4Container !== undefined && {
-          c4Container: options.c4Container,
-        }),
-        ...(options?.tagGroup !== undefined && { tagGroup: options.tagGroup }),
-        ...(options?.mapData !== undefined && { mapData: options.mapData }),
-        ...(options?.width !== undefined && { width: options.width }),
-        ...(options?.height !== undefined && { height: options.height }),
-        ...(options?.resolveImage !== undefined && {
-          resolveImage: options.resolveImage,
-        }),
-        ...(options?.showNotes !== undefined && {
-          showNotes: options.showNotes,
-        }),
-        onMapResolverDiagnostics: (d) => {
-          mapDiag.current = d;
-        },
-      }
-    );
+    svg = await renderForExport(content, theme, paletteColors, viewState, {
+      // `render()` returns a static SVG string — the CLI, embeds, the MCP
+      // server — so it renders the way the app's export does. Unset, every
+      // renderer that keys its legend on this flag drew the app's capsule,
+      // group button and swimlane switch into a PNG (#1826).
+      exportMode: true,
+      ...(options?.c4Level !== undefined && { c4Level: options.c4Level }),
+      ...(options?.c4System !== undefined && { c4System: options.c4System }),
+      ...(options?.c4Container !== undefined && {
+        c4Container: options.c4Container,
+      }),
+      ...(options?.tagGroup !== undefined && { tagGroup: options.tagGroup }),
+      ...(options?.mapData !== undefined && { mapData: options.mapData }),
+      ...(options?.width !== undefined && { width: options.width }),
+      ...(options?.height !== undefined && { height: options.height }),
+      ...(options?.resolveImage !== undefined && {
+        resolveImage: options.resolveImage,
+      }),
+      ...(options?.showNotes !== undefined && {
+        showNotes: options.showNotes,
+      }),
+      onMapResolverDiagnostics: (d) => {
+        mapDiag.current = d;
+      },
+    });
     svg = applyThemeStyle(svg, themeStyle);
     // Bake pure-CSS hover while jsdom is still installed (no-op unless the
     // detected `chartType` has a registry row and `bakeHover` is on).

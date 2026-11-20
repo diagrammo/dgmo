@@ -599,6 +599,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description: 'Node ordering',
         values: ['appearance', 'name', 'group', 'degree'],
       },
+      layout: {
+        description: 'Arcs on a line, or chord ribbons on a ring',
+        values: ['arc', 'chord'],
+      },
     }),
   ],
   [

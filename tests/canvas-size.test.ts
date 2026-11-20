@@ -33,9 +33,11 @@ function documentedExactTypes(): Set<string> {
   return new Set([...block[1].matchAll(/`([^`]+)`/g)].map((m) => m[1]));
 }
 
-/** `arc` with `layout chord` renders as the internal `chord` type. */
-const docName = (chartType: string | undefined): string =>
-  chartType === 'chord' ? 'arc layout chord' : String(chartType);
+/** §1.15 names the circular arc `arc layout chord`; render() reports `arc`. */
+const docName = (chartType: string | undefined, content: string): string =>
+  chartType === 'arc' && /^layout chord\s*$/m.test(content)
+    ? 'arc layout chord'
+    : String(chartType);
 
 function rootSize(svg: string): { w?: string; h?: string; vb?: string } {
   const root = /<svg\b[^>]*>/.exec(svg)?.[0] ?? '';
@@ -68,7 +70,7 @@ describe('width with height: exact for the §1.15 types, a warning for the rest'
       mapData: loadMapData,
     });
     const size = rootSize(svg);
-    const name = docName(chartType);
+    const name = docName(chartType, content);
     if (exact.has(name)) {
       expect(size).toEqual({ w: `${W}`, h: `${H}`, vb: `0 0 ${W} ${H}` });
       expect(heightWarnings(diagnostics)).toHaveLength(0);

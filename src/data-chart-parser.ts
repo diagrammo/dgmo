@@ -36,7 +36,6 @@ import type { LegendGroupData } from './utils/legend-types';
 
 export type ExtendedChartType =
   | 'sankey'
-  | 'chord'
   | 'function'
   | 'scatter'
   | 'heatmap'
@@ -164,14 +163,6 @@ export interface ParsedSankey extends ParsedExtendedBase {
   links?: ParsedSankeyLink[];
 }
 
-export interface ParsedChord extends ParsedExtendedBase {
-  type: 'chord';
-  links?: ParsedSankeyLink[];
-  /** `layout arc|chord` override (#26). `arc` re-renders the same edges as a
-   *  linear arc; absent ⇒ the `chord` circular preset. */
-  layout?: 'arc' | 'chord';
-}
-
 export interface ParsedFunctionChart extends ParsedExtendedBase {
   type: 'function';
   functions?: ParsedFunction[];
@@ -234,7 +225,6 @@ export interface ParsedHistogram extends ParsedExtendedBase {
 /** What `parseExtendedChart` returns: discriminated on `type`. */
 export type ParsedExtendedChart =
   | ParsedSankey
-  | ParsedChord
   | ParsedFunctionChart
   | ParsedScatter
   | ParsedHeatmap
@@ -252,7 +242,6 @@ export type ParsedExtendedChart =
 export interface ParsedExtendedChartFull extends ParsedExtendedBase {
   type: ExtendedChartType;
   links?: ParsedSankeyLink[];
-  layout?: 'arc' | 'chord';
   functions?: ParsedFunction[];
   scatterPoints?: ParsedScatterPoint[];
   heatmapRows?: ParsedHeatmapRow[];
@@ -340,7 +329,6 @@ import {
 
 const VALID_EXTENDED_TYPES = new Set<ExtendedChartType>([
   'sankey',
-  'chord',
   'function',
   'scatter',
   'heatmap',
@@ -355,7 +343,6 @@ const KNOWN_EXTENDED_OPTIONS = new Set([
   'title',
   'series',
   'size-label',
-  'layout',
   'no-name',
   'no-value',
   'no-percent',
@@ -447,13 +434,6 @@ function parseSankeyRaw(
   palette?: PaletteColors
 ): ParsedSankey {
   return parseExtendedChart(content, palette) as ParsedSankey;
-}
-
-export function parseChord(
-  content: string,
-  palette?: PaletteColors
-): ParsedChord {
-  return parseExtendedChart(content, palette) as ParsedChord;
 }
 
 export function parseFunctionChart(
@@ -555,7 +535,6 @@ function parseHistogramRaw(
 /** The extended-data-chart parser doors, for `isExtendedChartParser`. */
 export const EXTENDED_CHART_DOORS = new Set<unknown>([
   parseSankey,
-  parseChord,
   parseFunctionChart,
   parseScatter,
   parseHeatmap,
@@ -599,7 +578,7 @@ function parseExtendedChartFull(
   let firstLineParsed = false;
 
   // Per-parse alias literal → canonical node name (TD-18). Per C8.
-  // Used by sankey + chord link slots.
+  // Used by sankey link slots.
   const nameAliasMap = new AliasRegistry();
   /** Peel `as <alias>` and resolve bare alias references in one pass. */
   function resolveSlot(raw: string): string {
@@ -652,11 +631,9 @@ function parseExtendedChartFull(
     if (!firstLineParsed) {
       firstLineParsed = true;
       const firstLine = parseFirstLine(trimmed);
-      // The extended-chart parser owns its own type vocabulary. `chord` is no
-      // longer a top-level chart-type keyword (decision #29), so parseFirstLine
-      // won't return it — but the arc `layout chord` override re-emits canonical
-      // `chord …` content that must still parse here. Recognize an extended type
-      // directly from the first token when parseFirstLine declines.
+      // The extended-chart parser owns its own type vocabulary: recognize an
+      // extended type directly from the first token when parseFirstLine
+      // declines.
       if (!firstLine) {
         const rawType = trimmed.split(/\s+/)[0]!.toLowerCase();
         if (VALID_EXTENDED_TYPES.has(rawType as ExtendedChartType)) {
@@ -730,7 +707,7 @@ function parseExtendedChartFull(
       }
     }
 
-    // Annotations and notes (#2039), scatter only: on sankey or chord a
+    // Annotations and notes (#2039), scatter only: on sankey a
     // node may be named `note` or `marker`.
     if (result.type === 'scatter') {
       const annotation = parseAnnotationLine(
@@ -816,7 +793,7 @@ function parseExtendedChartFull(
       continue;
     }
 
-    // Sankey/chord link syntax (§1.5 universal trailing-token):
+    // Sankey link syntax (§1.5 universal trailing-token):
     //   `Source -> Target value`           (directed, no link color)
     //   `Source -> Target value linkColor` (directed, trailing-token link color)
     //   `Source -- Target value`           (undirected)
@@ -1034,7 +1011,7 @@ function parseExtendedChartFull(
         /^(fill|fill-tint|fill-solid|fill-outline|no-name|no-value|no-percent|no-title)$/i.test(
           trimmed
         );
-      // `layout arc|chord` (#26) and the §1.11 emphasis family (`highlight A`,
+      // `layout` (an arc directive, reported as unknown here) and the §1.11 emphasis family (`highlight A`,
       // `dim Losses`) are directives, not nodes — let them fall through to the
       // valued-option handler below instead of becoming phantom nodes. The
       // sankey bare-label branch runs BEFORE the option chain, so every
@@ -1129,14 +1106,6 @@ function parseExtendedChartFull(
 
       if (firstToken === 'size-label') {
         result.sizelabel = value;
-        continue;
-      }
-
-      // `layout arc|chord` (#26): render the same pairwise edges as the other
-      // preset. `arc` → linear arc; default `chord` → circular.
-      if (firstToken === 'layout') {
-        const v = value.toLowerCase();
-        if (v === 'arc' || v === 'chord') result.layout = v;
         continue;
       }
 
@@ -1441,10 +1410,6 @@ function parseExtendedChartFull(
             `highlight names a flow this chart does not have: ${missing}`
           );
       }
-    } else if (result.type === 'chord') {
-      if (!result.links || result.links.length === 0) {
-        warn(1, 'No links found. Add links in format: Source -> Target 123');
-      }
     } else if (result.type === 'function') {
       if (!result.functions || result.functions.length === 0) {
         warn(
@@ -1715,7 +1680,7 @@ export function getSimpleChartLegendGroups(
 
 /**
  * Extracts legend group data from extended chart types.
- * Supports scatter (categories), chord (nodes), and function (series).
+ * Supports scatter (categories) and function (series).
  */
 export function getExtendedChartLegendGroups(
   parsed: ParsedExtendedChart,

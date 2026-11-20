@@ -403,11 +403,6 @@ A -> B 10
 B -> C 5
 A -> C 3`,
 
-  chord: `chord
-A -> B 10
-B -> C 5
-C -> A 3`,
-
   function: `function
 x-axis -5..5
 f(x): x^2`,

@@ -12,11 +12,6 @@ A -> B 10
 B -> C 5
 A -> C 3`;
 
-const CHORD_INPUT = `chord Test Chord
-A -> B 10
-B -> C 5
-C -> A 3`;
-
 const FUNCTION_INPUT = `function Test Function
 x-axis -5..5
 f(x) x^2
@@ -41,12 +36,6 @@ describe('renderExtendedChartForExport', () => {
 
   it('renders sankey chart to SVG', async () => {
     const svg = await renderExtendedChartForExport(SANKEY_INPUT, 'light');
-    expect(svg).toContain('<svg');
-    expect(svg).toContain('</svg>');
-  });
-
-  it('renders chord chart to SVG', async () => {
-    const svg = await renderExtendedChartForExport(CHORD_INPUT, 'light');
     expect(svg).toContain('<svg');
     expect(svg).toContain('</svg>');
   });

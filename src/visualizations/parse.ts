@@ -1120,11 +1120,18 @@ function parseVisualizationFull(
         continue;
       }
 
-      // `layout arc|chord` (#26): render the same pairwise edges as the other
-      // preset. `chord` → circular chord; default `arc` → linear.
+      // `layout arc|chord` (#26): the same links as arcs on a line (default)
+      // or as ribbons on a ring (#1856).
       if (firstToken === 'layout') {
         const v = restValue.toLowerCase();
         if (v === 'arc' || v === 'chord') result.layout = v;
+        else if (result.type === 'arc') {
+          const hint = suggest(v, ['arc', 'chord']);
+          warn(
+            lineNumber,
+            `Unknown layout '${restValue}' — use 'arc' or 'chord'.${hint ? ` ${hint}` : ''}`
+          );
+        }
         continue;
       }
 

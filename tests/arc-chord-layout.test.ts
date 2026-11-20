@@ -1,19 +1,22 @@
-// arc-chord-layout.test.ts — consolidation #26, narrowed by #29.
+// arc-chord-layout.test.ts — `arc` + `layout chord` (#26, #29; ribbons #1856).
 //
-// The circular ("chord") layout is reachable ONLY through the arc engine via a
-// `layout chord` directive over the same pairwise edges. `chord` is no longer a
-// chart-type keyword (#29): a source whose first token is `chord` is not the
-// circular preset — it is treated as an unknown/removed type like any other.
+// The circular layout is reachable ONLY through the arc engine via a
+// `layout chord` directive over the same pairwise edges; `chord` is not a
+// chart-type keyword (#29). Since #1856 (owner's decision 2026-11-12) it draws
+// ribbons: each node is an outer segment sized by its total flow (given +
+// received), each link one ribbon flush on both segments, width = weight.
 
 import { describe, it, expect } from 'vitest';
-import { renderForExport, resolveArcChordOverride } from '../src/d3';
+import { renderForExport } from '../src/d3';
 import { render } from '../src/render';
 import { parseDgmoChartType, getRenderCategory } from '../src/dgmo-router';
 import { getPalette } from '../src/palettes';
 import { themeBaseBg, mix } from '../src/palettes/color-utils';
+import { parseArc } from '../src/arc/parser';
+import { orderArcNodes } from '../src/arc/renderer';
+import { layoutChord } from '../src/arc/chord';
 
-/** Distinct rounded circle-cy values: 1 ⇒ nodes share a baseline (arc/linear),
- *  >1 ⇒ nodes are spread around a circle (chord/circular). */
+/** Distinct rounded circle-cy values: 1 ⇒ nodes share a baseline (arc/linear). */
 function distinctNodeRows(svg: string): number {
   const cys = [...svg.matchAll(/<circle[^>]*cy="([\d.]+)"/g)].map((m) =>
     Math.round(parseFloat(m[1]!))
@@ -21,101 +24,296 @@ function distinctNodeRows(svg: string): number {
   return new Set(cys).size;
 }
 
-const EDGES = 'A -> B 5\nB -> C 4\nC -> A 3\n';
+/** Every element carrying `class="<cls>"`, as its open tag. */
+function tags(svg: string, cls: string): string[] {
+  return [
+    ...svg.matchAll(new RegExp(`<[a-z]+[^>]*class="${cls}"[^>]*>`, 'g')),
+  ].map((m) => m[0]);
+}
 
-describe('arc circular layout override (#26 / #29)', () => {
+function attr(tag: string, name: string): string | undefined {
+  return new RegExp(`\\s${name}="([^"]*)"`).exec(tag)?.[1];
+}
+
+const EDGES = 'A -> B 5\nB -> C 4\nC -> A 3\n';
+const TAU = Math.PI * 2;
+
+describe('arc circular layout (#26 / #29)', () => {
   it('bare arc is linear', async () => {
     const arc = await renderForExport(`arc D\n${EDGES}`, 'light');
     expect(distinctNodeRows(arc)).toBe(1);
   });
 
-  it('arc + `layout chord` renders circular (renderForExport)', async () => {
-    const svg = await renderForExport(`arc D\nlayout chord\n${EDGES}`, 'light');
-    expect(svg).toContain('<svg');
-    expect(distinctNodeRows(svg)).toBeGreaterThan(1);
-  });
-
-  it('arc + `layout chord` renders circular via the public render() entry', async () => {
-    // Guards the render.ts dispatch: the override re-emits `chord …` content,
-    // but `chord` is not a registry type — render() must still route it to the
-    // circular data-chart renderer, not re-detect it as a sequence diagram.
-    const { svg, diagnostics } = await render(`arc D\nlayout chord\n${EDGES}`, {
-      palette: 'slate',
-    });
-    expect(diagnostics.length).toBe(0);
-    expect(svg).not.toContain('sequence-diagram');
-    expect(distinctNodeRows(svg)).toBeGreaterThan(1);
-  });
-
-  it('`chord` is no longer a chart-type keyword (#29)', () => {
-    // First-token `chord` must not resolve to the removed chord type. (With an
-    // arrow body it falls through to headerless inference like any unknown type,
-    // exactly as `doughnut`/`area` do — it is never the chord preset.)
+  it('`chord` is not a chart-type keyword (#29)', () => {
     expect(parseDgmoChartType(`chord D\n${EDGES}`)).not.toBe('chord');
     expect(getRenderCategory('chord')).toBeNull();
   });
 });
 
-// §1.9 fill family on the circular layout: `fill-outline` hollows the node
-// dots (theme base background fill, the node's color on the stroke); the
-// curved edges are stroke-drawn already, so they are untouched in every mode.
+describe('`layout chord` draws ribbons (#1856)', () => {
+  it('one ribbon per link and one segment per node; no hairline dots', async () => {
+    const svg = await renderForExport(`arc D\nlayout chord\n${EDGES}`, 'light');
+    expect(tags(svg, 'arc-chord-ribbon')).toHaveLength(3);
+    expect(tags(svg, 'arc-chord-segment')).toHaveLength(3);
+    expect(svg).not.toMatch(/<circle/);
+  });
+
+  it('renders through the public render() entry with no diagnostics', async () => {
+    const { svg, diagnostics } = await render(`arc D\nlayout chord\n${EDGES}`, {
+      palette: 'slate',
+    });
+    expect(diagnostics).toEqual([]);
+    expect(svg).not.toContain('sequence-diagram');
+    expect(tags(svg, 'arc-chord-ribbon')).toHaveLength(3);
+  });
+
+  it('ribbons carry the AUTHORED line numbers', async () => {
+    const svg = await renderForExport(
+      `arc D\nlayout chord\n\nA -> B 5\nB -> C 4\n`,
+      'light'
+    );
+    const lines = tags(svg, 'arc-chord-ribbon')
+      .map((t) => attr(t, 'data-line-number'))
+      .sort();
+    expect(lines).toEqual(['4', '5']);
+  });
+
+  it('reciprocal links stay two ribbons', async () => {
+    const svg = await renderForExport(
+      'arc D\nlayout chord\nA -> B 5\nB -> A 2\n',
+      'light'
+    );
+    const r = tags(svg, 'arc-chord-ribbon');
+    expect(r).toHaveLength(2);
+    expect(r.map((t) => attr(t, 'aria-label')).sort()).toEqual([
+      'A → B 5',
+      'B → A 2',
+    ]);
+  });
+
+  it('larger ribbons draw first', async () => {
+    const svg = await renderForExport(
+      'arc D\nlayout chord\nA -> B 1\nB -> C 9\nC -> A 4\n',
+      'light'
+    );
+    const values = tags(svg, 'arc-chord-ribbon').map((t) =>
+      Number(attr(t, 'data-value'))
+    );
+    expect(values).toEqual([9, 4, 1]);
+  });
+
+  it('labels sit outside the ring with their total; `no-value` drops it', async () => {
+    const svg = await renderForExport(
+      'arc D\nlayout chord\nA -> B 5\nB -> C 4\n',
+      'light'
+    );
+    // B gives 4 and receives 5.
+    expect(svg).toMatch(/<tspan>B<\/tspan><tspan[^>]*> 9<\/tspan>/);
+    const bare = await renderForExport(
+      'arc D\nlayout chord\nno-value\nA -> B 5\nB -> C 4\n',
+      'light'
+    );
+    expect(bare).toContain('<tspan>B</tspan>');
+    expect(bare).not.toMatch(/<tspan[^>]*> 9<\/tspan>/);
+  });
+
+  it('the hover readout is empty at rest', async () => {
+    const svg = await renderForExport(`arc D\nlayout chord\n${EDGES}`, 'light');
+    expect(svg).toMatch(
+      /class="arc-chord-readout"[^>]*><\/text>|class="arc-chord-readout"[^>]*\/>/
+    );
+  });
+
+  it('keeps the chart frame', async () => {
+    const svg = await renderForExport(
+      'arc T\nlayout chord\nA -> B 3\nB -> C 2\nsubtitle Deck\n',
+      'light'
+    );
+    expect(svg).toContain('chart-subtitle');
+  });
+});
+
+describe('`layout` diagnostics (#1856)', () => {
+  it('an unknown layout warns on its line, with a suggestion', () => {
+    const p = parseArc('arc D\nlayout chrod\nA -> B 5\n');
+    expect(p.layout).toBeUndefined();
+    const d = p.diagnostics.find((x) => x.line === 2);
+    expect(d?.severity).toBe('warning');
+    expect(d?.message).toContain("Unknown layout 'chrod'");
+    expect(d?.message).toContain('chord');
+  });
+
+  it('a known layout is silent', () => {
+    expect(parseArc(`arc D\nlayout chord\n${EDGES}`).diagnostics).toEqual([]);
+  });
+});
+
+describe('chord geometry (#1856)', () => {
+  const links = parseArc(
+    'arc D\nlayout chord\nA -> B 6\nB -> C 2\nC -> A 4\nA -> D 3\n'
+  ).links;
+  const nodes = ['A', 'B', 'C', 'D'];
+  const lay = layoutChord(nodes, links);
+
+  it('a segment is sized by its node’s total flow, given + received', () => {
+    const span = (n: string) => {
+      const s = lay.nodes.find((x) => x.name === n)!;
+      return s.a1 - s.a0;
+    };
+    // A: 6 + 4 + 3 = 13; B: 6 + 2 = 8; C: 2 + 4 = 6; D (receive-only): 3.
+    expect(lay.nodes.map((n) => n.total)).toEqual([13, 8, 6, 3]);
+    expect(span('A') / span('D')).toBeCloseTo(13 / 3, 6);
+    expect(span('B') / span('C')).toBeCloseTo(8 / 6, 6);
+  });
+
+  it('the segments and pads fill the circle once, in order, without overlap', () => {
+    const totalSpan = lay.nodes.reduce((s, n) => s + (n.a1 - n.a0), 0);
+    expect(totalSpan).toBeLessThan(TAU);
+    expect(totalSpan).toBeGreaterThan(TAU * 0.8);
+    for (let i = 1; i < lay.nodes.length; i++)
+      expect(lay.nodes[i]!.a0).toBeGreaterThan(lay.nodes[i - 1]!.a1);
+    expect(lay.nodes.at(-1)!.a1).toBeLessThanOrEqual(TAU);
+  });
+
+  it('a ribbon is its weight wide at BOTH ends, each end flush on its segment', () => {
+    const seg = new Map(lay.nodes.map((n) => [n.name, n]));
+    const k = (seg.get('A')!.a1 - seg.get('A')!.a0) / 13;
+    for (const r of lay.ribbons) {
+      expect(r.source.a1 - r.source.a0).toBeCloseTo(r.link.value * k, 9);
+      expect(r.target.a1 - r.target.a0).toBeCloseTo(r.link.value * k, 9);
+      const s = seg.get(r.link.source)!;
+      const t = seg.get(r.link.target)!;
+      expect(r.source.a0).toBeGreaterThanOrEqual(s.a0 - 1e-9);
+      expect(r.source.a1).toBeLessThanOrEqual(s.a1 + 1e-9);
+      expect(r.target.a0).toBeGreaterThanOrEqual(t.a0 - 1e-9);
+      expect(r.target.a1).toBeLessThanOrEqual(t.a1 + 1e-9);
+    }
+  });
+
+  it('the ends on a segment tile it exactly', () => {
+    for (const n of lay.nodes) {
+      const ends = lay.ribbons
+        .flatMap((r) => [
+          ...(r.link.source === n.name ? [r.source] : []),
+          ...(r.link.target === n.name ? [r.target] : []),
+        ])
+        .sort((x, y) => x.a0 - y.a0);
+      expect(ends[0]!.a0).toBeCloseTo(n.a0, 9);
+      expect(ends.at(-1)!.a1).toBeCloseTo(n.a1, 9);
+      for (let i = 1; i < ends.length; i++)
+        expect(ends[i]!.a0).toBeCloseTo(ends[i - 1]!.a1, 9);
+    }
+  });
+});
+
+describe('chord colour (#1856)', () => {
+  const palette = getPalette('slate').light;
+
+  function ribbonFill(svg: string, label: string): string {
+    const t = tags(svg, 'arc-chord-ribbon').find(
+      (x) => attr(x, 'aria-label') === label
+    )!;
+    return attr(t, 'stroke')!;
+  }
+  function segmentStroke(svg: string, node: string): string {
+    const g = new RegExp(
+      `data-node="${node}"[^>]*>\\s*<path[^>]*class="arc-chord-segment"[^>]*>`
+    ).exec(svg)![0];
+    return attr(g.slice(g.indexOf('<path')), 'stroke')!;
+  }
+
+  it('a ribbon takes the colour of its larger node by total; a tie goes to the source', async () => {
+    // Totals: A 5+1=6, B 5+2=7, C 2+1=3 → A→B is B's colour, B→C is B's.
+    const svg = await renderForExport(
+      'arc D\nlayout chord\nA -> B 5\nB -> C 2\nC -> A 1\n',
+      'light',
+      palette
+    );
+    expect(ribbonFill(svg, 'A → B 5')).toBe(segmentStroke(svg, 'B'));
+    expect(ribbonFill(svg, 'B → C 2')).toBe(segmentStroke(svg, 'B'));
+    expect(ribbonFill(svg, 'C → A 1')).toBe(segmentStroke(svg, 'A'));
+    const tie = await renderForExport(
+      'arc D\nlayout chord\nA -> B 5\n',
+      'light',
+      palette
+    );
+    expect(ribbonFill(tie, 'A → B 5')).toBe(segmentStroke(tie, 'A'));
+  });
+
+  it('an explicit link colour wins', async () => {
+    const svg = await renderForExport(
+      'arc D\nlayout chord\nA -> B red 5\nB -> C 2\n',
+      'light',
+      palette
+    );
+    expect(ribbonFill(svg, 'A → B 5')).toBe(palette.colors.red);
+  });
+
+  it('a node takes its group colour', async () => {
+    const svg = await renderForExport(
+      'arc D\nlayout chord\n[Crew] green\n  A -> B 5\nB -> C 2\n',
+      'light',
+      palette
+    );
+    expect(segmentStroke(svg, 'A')).toBe(palette.colors.green);
+  });
+
+  it('`order name` sets the ring order', async () => {
+    const src = 'arc D\nlayout chord\norder name\nC -> A 2\nB -> A 1\n';
+    const p = parseArc(src);
+    expect(orderArcNodes(p.links, p.arcOrder, p.arcNodeGroups)).toEqual([
+      'A',
+      'B',
+      'C',
+    ]);
+    const svg = await renderForExport(src, 'light', palette);
+    const order = [
+      ...svg.matchAll(/class="arc-node" data-node="([^"]+)"/g),
+    ].map((m) => m[1]);
+    expect(order).toEqual(['A', 'B', 'C']);
+  });
+});
+
 describe('fill family through `layout chord` (§1.9)', () => {
   const palette = getPalette('slate').light;
   const bg = themeBaseBg(palette, false);
 
-  /** fill/stroke pairs of every rendered <circle> (chord draws one per node). */
-  function circleFillStroke(svg: string): { fill: string; stroke: string }[] {
-    return [
-      ...svg.matchAll(/<circle[^>]*fill="([^"]+)"[^>]*stroke="([^"]+)"/g),
-    ].map((m) => ({ fill: m[1]!, stroke: m[2]! }));
+  function segments(svg: string): { fill: string; stroke: string }[] {
+    return tags(svg, 'arc-chord-segment').map((t) => ({
+      fill: attr(t, 'fill')!,
+      stroke: attr(t, 'stroke')!,
+    }));
   }
 
-  it('the layout re-emit carries the authored fill token', () => {
-    const o = resolveArcChordOverride(
-      `arc D\nlayout chord\nfill-outline\n${EDGES}`,
-      'arc'
-    );
-    expect(o?.type).toBe('chord');
-    expect(o?.content).toContain('fill-outline');
-  });
-
-  it('fill-outline renders hollow node dots: theme bg fill, color on the stroke', async () => {
-    const svg = await renderForExport(
-      `arc D\nlayout chord\nfill-outline\n${EDGES}`,
-      'light',
-      palette
-    );
-    const dots = circleFillStroke(svg);
-    expect(dots.length).toBe(3);
-    for (const dot of dots) {
-      expect(dot.fill).toBe(bg);
-      expect(dot.stroke).not.toBe(bg);
-    }
-  });
-
-  it('default chord dots keep the muted 25% tint (unchanged)', async () => {
+  it('default segments take the 25% tint', async () => {
     const svg = await renderForExport(
       `arc D\nlayout chord\n${EDGES}`,
       'light',
       palette
     );
-    const dots = circleFillStroke(svg);
-    expect(dots.length).toBe(3);
-    for (const dot of dots) {
-      expect(dot.fill).toBe(mix(dot.stroke, bg, 25));
-    }
+    for (const s of segments(svg)) expect(s.fill).toBe(mix(s.stroke, bg, 25));
   });
 
-  it('fill-solid chord dots take the raw stroke color (unchanged)', async () => {
+  it('fill-solid segments take the raw colour', async () => {
     const svg = await renderForExport(
       `arc D\nlayout chord\nfill-solid\n${EDGES}`,
       'light',
       palette
     );
-    const dots = circleFillStroke(svg);
-    expect(dots.length).toBe(3);
-    for (const dot of dots) {
-      expect(dot.fill).toBe(dot.stroke);
+    for (const s of segments(svg)) expect(s.fill).toBe(s.stroke);
+  });
+
+  it('fill-outline hollows segments and ribbons', async () => {
+    const svg = await renderForExport(
+      `arc D\nlayout chord\nfill-outline\n${EDGES}`,
+      'light',
+      palette
+    );
+    for (const s of segments(svg)) {
+      expect(s.fill).toBe(bg);
+      expect(s.stroke).not.toBe(bg);
     }
+    for (const r of tags(svg, 'arc-chord-ribbon'))
+      expect(attr(r, 'fill-opacity')).toBe('0');
   });
 });

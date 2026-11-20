@@ -231,15 +231,6 @@ describe('1. Valid syntax', () => {
       expect(r.type).toBe('sankey');
     });
 
-    it('chord chart', () => {
-      const r = parseExtendedChart(
-        'chord Trade Routes\nBlackbeard -- Bonnet 150\nRoberts -> Rackham 20',
-        palette
-      );
-      expect(hasNoErrors(r)).toBe(true);
-      expect(r.type).toBe('chord');
-    });
-
     it('function chart', () => {
       const r = parseExtendedChart(
         'function Trajectories\nxlabel Distance\nylabel Height\nx-axis 0..250\n15 degrees: -0.001*x^2 + 0.27*x',

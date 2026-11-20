@@ -3608,7 +3608,7 @@ order group
 
 - Link: `Source -> Target weight` — space before optional weight
 - Options: `order appearance|name|group|degree`
-- `layout arc|chord` — `arc` (default) draws nodes on a line with connecting arcs; `chord` arranges the same edges around a circle. Circular layout is reachable **only** through arc + `layout chord` (there is no standalone `chord` chart type).
+- `layout arc|chord` — `arc` (default) draws nodes on a line with connecting arcs; `chord` draws the same links as ribbons on a ring. Each node is an outer segment sized by its total flow (given + received), labelled outside the ring with that total (`no-value` hides it). Each link is one ribbon whose width at both ends is its weight, so `A -> B` and `B -> A` stay two ribbons. A ribbon takes the colour of the larger of its two nodes (a tie goes to the source); a link colour wins. Direction is not drawn — hovering a ribbon names it. The chord layout is reachable **only** through arc + `layout chord` (there is no standalone `chord` chart type).
 
 ### 16.4 Event Line Diagrams
 

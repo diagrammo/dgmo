@@ -51,7 +51,7 @@ function clamp(w: number): number {
   return Math.round(Math.max(MIN_NATURAL_WIDTH, Math.min(EXPORT_WIDTH, w)));
 }
 
-/** Count of distinct depth levels in a sankey/chord link set. */
+/** Count of distinct depth levels in a sankey link set. */
 function sankeyDepth(
   links: readonly { source: string; target: string }[]
 ): number {
@@ -125,10 +125,9 @@ function naturalDataChartWidth(
         if (cols === 0) return UNCOUNTED_WIDTH;
         return clamp(AXIS_FURNITURE + cols * STEP_PER_HEATMAP_COLUMN);
       }
-      case 'sankey':
-      case 'chord': {
+      case 'sankey': {
         const links = ext.links ?? [];
-        if (ext.type === 'chord' || links.length === 0) return UNCOUNTED_WIDTH;
+        if (links.length === 0) return UNCOUNTED_WIDTH;
         return clamp(sankeyDepth(links) * STEP_PER_SANKEY_DEPTH);
       }
       case 'funnel':

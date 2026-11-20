@@ -10,7 +10,7 @@ import { parseEventLine } from '../src/event-line/parser';
 import { parseWordcloud } from '../src/wordcloud/parser';
 import { parseVenn } from '../src/venn/parser';
 import { parseQuadrant } from '../src/quadrant/parser';
-import { renderForExport, resolveArcChordOverride } from '../src/d3';
+import { renderForExport } from '../src/d3';
 
 describe('chart frame, visualisation family (#1827)', () => {
   it('slope: a capitalised Source row stays a row; a footer closes the period block', () => {
@@ -62,12 +62,9 @@ describe('chart frame, visualisation family (#1827)', () => {
     ).toBe('B');
   });
 
-  // resolveArcChordOverride re-emits the arc for the circular renderer; the
-  // frame lines ride along.
+  // The arc renderer draws `layout chord` itself (#1856); the frame is its own.
   it('arc `layout chord` keeps the frame', async () => {
     const src = 'arc T\nlayout chord\nA -> B 3\nB -> C 2\nsubtitle Deck\n';
-    const o = resolveArcChordOverride(src, 'arc');
-    expect(o?.type).toBe('chord');
     const svg = await renderForExport(src, 'light');
     expect(svg).toContain('chart-subtitle');
   });

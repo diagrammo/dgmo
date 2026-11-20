@@ -58,16 +58,6 @@ g(x) red: cos(x)`;
     expect(groups[0].entries[1].value).toBe('g(x)');
   });
 
-  it('returns empty for chord (no legend)', () => {
-    const content = `chord Test
-
-Engineering -> Design 5
-Design -> Product 3`;
-    const parsed = parseExtendedChart(content, palette);
-    const groups = getExtendedChartLegendGroups(parsed, colors);
-    expect(groups).toHaveLength(0);
-  });
-
   it('returns empty for heatmap (no legend)', () => {
     const content = `heatmap
 columns A, B

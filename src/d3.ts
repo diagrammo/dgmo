@@ -11,7 +11,6 @@
 
 import type { PaletteColors } from './palettes';
 import type { CompactViewState } from './sharing';
-import { parseArc } from './arc/parser';
 import { EXPORT_HEIGHT, EXPORT_WIDTH } from './utils/d3-helpers';
 import {
   fitSvgToContent,
@@ -147,42 +146,6 @@ export const DIAGRAM_EXPORT_HANDLERS: Record<string, DiagramExportHandler> = {
 };
 
 /**
- * Arc circular-layout override (#26, narrowed by #29): `arc` renders linear by
- * default; `layout chord` selects the circular ("chord") preset over the same
- * pairwise edge data. `chord` is no longer a chart-type keyword (#29) — the
- * circular layout is reachable ONLY through `arc` + `layout chord`. We parse
- * with the arc engine, normalize to a flat edge list, and re-emit canonical
- * content for the internal circular renderer (arc groups/order are dropped —
- * best-effort for a pure layout switch). Returns the rewritten `{content, type}`,
- * or null when no override applies.
- */
-export function resolveArcChordOverride(
-  content: string,
-  detectedType: string | null,
-  palette?: PaletteColors
-): { content: string; type: string } | null {
-  if (detectedType === 'arc') {
-    const p = parseArc(content, palette);
-    if (!p.error && p.layout === 'chord' && p.links.length) {
-      const emitted = [
-        `chord ${p.title ?? ''}`.trimEnd(),
-        // §1.9 fill family survives the layout re-emit so the circular
-        // renderer honors fill-solid / fill-outline authored on the arc.
-        ...(p.fillMode ? [`fill-${p.fillMode}`] : []),
-        // The chart frame (#1827) survives the re-emit too.
-        ...(p.frame?.subtitle ? [`subtitle ${p.frame.subtitle}`] : []),
-        ...(p.frame?.footnote
-          ? ['footnote', ...p.frame.footnote.lines.map((l) => `  ${l}`)]
-          : []),
-        ...p.links.map((l) => `${l.source} -> ${l.target} ${l.value}`),
-      ].join('\n');
-      return { content: emitted, type: 'chord' };
-    }
-  }
-  return null;
-}
-
-/**
  * Renders a D3 chart to an SVG string for export.
  * Creates a detached DOM element, renders into it, extracts the SVG, then cleans up.
  */
@@ -195,12 +158,7 @@ export async function renderForExport(
 ): Promise<string> {
   const exportMode = options?.exportMode ?? false;
   const { parseDgmoChartType } = await import('./dgmo-router');
-  const detectedTypeRaw = parseDgmoChartType(content);
-  // Arc↔chord `layout` override (#26): re-emit canonical content for the other
-  // engine so each renders its own grammar.
-  const override = resolveArcChordOverride(content, detectedTypeRaw, palette);
-  const renderContent = override?.content ?? content;
-  const detectedType = override?.type ?? detectedTypeRaw;
+  const detectedType = parseDgmoChartType(content);
   // Data-chart types (bar/line/pie/scatter/sankey/…) render via the hand-built
   // D3 engine — route them here so renderForExport is a complete export entry
   // for every chart type (the app's export path calls this directly).
@@ -213,7 +171,7 @@ export async function renderForExport(
       // markdown export, the marketing site's hero — silently ignored a
       // requested width that `render()` honoured (#532).
       return fitSvgToContent(
-        await renderDataChartD3(renderContent, theme, palette, {
+        await renderDataChartD3(content, theme, palette, {
           ...(options?.width !== undefined && { width: options.width }),
           ...(options?.height !== undefined && { height: options.height }),
         }),
@@ -222,7 +180,7 @@ export async function renderForExport(
     }
   }
   const ctx: ExportContext = {
-    content: renderContent,
+    content,
     theme,
     palette,
     viewState,

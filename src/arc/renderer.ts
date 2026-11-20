@@ -19,6 +19,7 @@ import type {
 import type { PaletteColors } from '../palettes';
 import { themeBaseBg } from '../palettes/color-utils';
 import { FRAME_BODY_TOP } from '../utils/title-constants';
+import { renderArcChord } from './chord';
 
 export function orderArcNodes(
   links: ArcLink[],
@@ -245,6 +246,29 @@ export function renderArcDiagram(
         }
       }
     }
+  }
+
+  // `layout chord` (#1856): the same links as ribbons on a ring.
+  if (parsed.layout === 'chord') {
+    g.attr('transform', `translate(${margin.left},${margin.top})`);
+    renderArcChord({
+      g,
+      parsed,
+      nodes,
+      nodeGroupColor: nodeColorMap,
+      palette,
+      isDark,
+      colors,
+      textColor,
+      bgColor,
+      innerWidth,
+      innerHeight,
+      onClickItem,
+    });
+    growChartFrame(svg.node(), parsed.frame, palette, {
+      size: exportDims ? 'grow' : 'fit',
+    });
+    return;
   }
 
   const groupNodeSets = new Map<string, Set<string>>();

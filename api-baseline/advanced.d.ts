@@ -1119,7 +1119,7 @@ interface HistogramBinSpec {
     startLine?: number;
 }
 
-type ExtendedChartType = 'sankey' | 'chord' | 'function' | 'scatter' | 'heatmap' | 'funnel' | 'boxplot' | 'histogram';
+type ExtendedChartType = 'sankey' | 'function' | 'scatter' | 'heatmap' | 'funnel' | 'boxplot' | 'histogram';
 interface ExtendedChartDataPoint {
     label: string;
     value: number;
@@ -1211,13 +1211,6 @@ interface ParsedSankey extends ParsedExtendedBase {
     type: 'sankey';
     links?: ParsedSankeyLink[];
 }
-interface ParsedChord extends ParsedExtendedBase {
-    type: 'chord';
-    links?: ParsedSankeyLink[];
-    /** `layout arc|chord` override (#26). `arc` re-renders the same edges as a
-     *  linear arc; absent ⇒ the `chord` circular preset. */
-    layout?: 'arc' | 'chord';
-}
 interface ParsedFunctionChart extends ParsedExtendedBase {
     type: 'function';
     functions?: ParsedFunction[];
@@ -1275,7 +1268,7 @@ interface ParsedHistogram extends ParsedExtendedBase {
     overlays?: ChartOverlay[];
 }
 /** What `parseExtendedChart` returns: discriminated on `type`. */
-type ParsedExtendedChart = ParsedSankey | ParsedChord | ParsedFunctionChart | ParsedScatter | ParsedHeatmap | ParsedFunnel | ParsedBoxplot | ParsedHistogram;
+type ParsedExtendedChart = ParsedSankey | ParsedFunctionChart | ParsedScatter | ParsedHeatmap | ParsedFunnel | ParsedBoxplot | ParsedHistogram;
 /**
  * Parses extended chart content into a structured object.
  *
@@ -1296,7 +1289,7 @@ declare function parseExtendedChart(content: string, palette?: PaletteColors): P
 declare function getSimpleChartLegendGroups(parsed: ParsedChart, colors: string[]): LegendGroupData[];
 /**
  * Extracts legend group data from extended chart types.
- * Supports scatter (categories), chord (nodes), and function (series).
+ * Supports scatter (categories) and function (series).
  */
 declare function getExtendedChartLegendGroups(parsed: ParsedExtendedChart, colors: string[]): LegendGroupData[];
 
