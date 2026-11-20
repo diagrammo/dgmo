@@ -320,6 +320,9 @@ interface ParsedSlope extends ParsedVizBase {
     notes?: ChartNote[];
     /** `no-notes` (#2039). */
     noNotes?: boolean;
+    /** `rank` (#1854): values are positions as written (1 = first), drawn as a
+     *  bump chart — one row per position, S-curves, numbered dots. */
+    rank?: boolean;
     noName?: boolean;
     noValue?: boolean;
     noPercent?: boolean;

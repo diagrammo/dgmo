@@ -3570,6 +3570,7 @@ Roberts 12 52
 - Minimum 2 periods required; any number more is drawn
 - `y-axis 0..100 log` (§15.1.2) fixes the vertical range, so two slope charts can share one scale
 - `rank` (its own line) draws a bump chart: each value is a position as written (1 = first), not converted from a value. Position 1 is at the top with one row per position and no value axis; each point is a dot showing its position, each name sits at both ends, and each segment is an S-curve, so a crossing reads as a swap. Items sharing a position in one period sit side by side. A position that is not a whole number from 1 is an error naming the row and period, and the row is dropped; `y-axis` has no effect.
+
   ```
   slope League position
   rank
