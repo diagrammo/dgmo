@@ -390,6 +390,11 @@ function nthWeekdayOfMonth(
   return wallToMs(year, month, day, hour, minute, tz);
 }
 
+/** Steps the month-interval branch of `resolveNext` may take past now. */
+const MONTH_INTERVAL_MAX_STEPS = 120;
+/** Past this year an occurrence is outside the JavaScript Date range (275760). */
+const MAX_RESOLVE_YEAR = 275000;
+
 /**
  * The next instant strictly after `now` that matches `rule`. Used by both the
  * renderer (bake) and the ticker (live) — calling it with a fresh `now` on each
@@ -466,17 +471,26 @@ export function resolveNext(rule: RecurRule, now: number): number {
       if (rule.intervalUnit === 'month') {
         const a = zoneFields(anchor, tz);
         const day = a.day;
-        for (let k = 0; ; k++) {
+        // Jump to just before now rather than walking from the anchor, then
+        // allow a bounded number of steps: a skipped day-of-month (the 29th of
+        // February) recurs within a few steps, so the cap only trips on a rule
+        // whose next occurrence falls outside the Date range (#2194).
+        const monthsSince = (nowF.year - a.year) * 12 + (nowF.month - a.month);
+        const kStart = Math.max(0, Math.floor(monthsSince / n) - 1);
+        for (let k = kStart; k < kStart + MONTH_INTERVAL_MAX_STEPS; k++) {
           const y = a.year;
           const m = a.month + k * n;
           // Normalize the month, then SKIP if the anchor day-of-month doesn't
           // exist there (the 31st in a 30-day month) — same RRULE semantics.
           const yy = y + Math.floor(m / 12);
+          if (yy > MAX_RESOLVE_YEAR) break;
           const mm = ((m % 12) + 12) % 12;
           if (!dayExists(yy, mm, day)) continue;
           const t = wallToMs(yy, mm, day, hour, minute, tz);
           if (passes(t)) return t;
         }
+        // Unreachable for a rule the parser accepts; fall back to a week out.
+        return now + WEEK_MS;
       }
       const step = (rule.intervalUnit === 'week' ? WEEK_MS : DAY_MS) * n;
       let t = anchor;

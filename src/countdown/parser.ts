@@ -64,6 +64,17 @@ function retiredSlotMessage(slot: string): string {
 }
 
 /**
+ * Largest `every N <unit>` count accepted — about a century per unit. A bigger
+ * count pushes the next occurrence past the JavaScript Date range, where the
+ * month resolver used to loop forever (#2194).
+ */
+const MAX_INTERVAL_N: Readonly<Record<'day' | 'week' | 'month', number>> = {
+  day: 36500,
+  week: 5200,
+  month: 1200,
+};
+
+/**
  * The cadence half of `every` — a shape, never a date. `month` follows the
  * anchor's day-of-month; `month by weekday` follows its nth weekday, the one
  * reading a bare date cannot settle on its own.
@@ -289,6 +300,16 @@ function parseCountdownRaw(
         const parsed = parseCadence(toks);
         if (!parsed) {
           emitFreeProseError(lineNum, rest, softError);
+          break;
+        }
+        if (
+          parsed.kind === 'interval' &&
+          parsed.n > MAX_INTERVAL_N[parsed.unit]
+        ) {
+          softError(
+            lineNum,
+            `"every ${parsed.n} ${parsed.unit}s" is too long — the most is ${MAX_INTERVAL_N[parsed.unit]} ${parsed.unit}s.`
+          );
           break;
         }
         cadence = parsed;

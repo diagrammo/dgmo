@@ -1341,3 +1341,68 @@ describe('countdown band redraw — a baked band follows the day', () => {
     expect(allText(c)).toContain('TODAY');
   });
 });
+
+// #2194: `every 9999999 months` pushed the next occurrence past the Date range
+// and the month resolver looped forever. A hang here hits the test timeout.
+describe('countdown — interval count cap and bounded month resolve', () => {
+  it('rejects an over-long month interval with a diagnostic and returns', () => {
+    const r = parseCountdown(
+      `countdown X\nsince 2020-01-01\nevery 9999999 months`
+    );
+    expect(
+      r.diagnostics.some(
+        (d) => d.severity === 'error' && d.message.includes('too long')
+      )
+    ).toBe(true);
+    expect(r.resolvedMs).not.toBeNull();
+  });
+
+  it('accepts the cap itself', () => {
+    const r = parseCountdown(
+      `countdown X\nsince 2020-01-01\nevery 1200 months`
+    );
+    expect(errors(r.diagnostics)).toHaveLength(0);
+    expect(r.rule?.intervalN).toBe(1200);
+  });
+
+  it('`every 12 months` and `every 2 weeks` still resolve forward', () => {
+    const now = new Date(2026, 5, 15).getTime();
+    const monthly = ruleFromAnchor(
+      { kind: 'interval', n: 12, unit: 'month' },
+      new Date(2020, 2, 10).getTime(),
+      true,
+      null
+    );
+    expect(resolveNext(monthly, now)).toBe(new Date(2027, 2, 10).getTime());
+    const weekly = ruleFromAnchor(
+      { kind: 'interval', n: 2, unit: 'week' },
+      new Date(2026, 5, 1).getTime(),
+      true,
+      null
+    );
+    expect(resolveNext(weekly, now)).toBe(new Date(2026, 5, 15).getTime());
+  });
+
+  it('a leap-day anchor every 12 months finds the next 29 February', () => {
+    const rule = ruleFromAnchor(
+      { kind: 'interval', n: 12, unit: 'month' },
+      new Date(2020, 1, 29).getTime(),
+      true,
+      null
+    );
+    expect(resolveNext(rule, new Date(2026, 5, 1).getTime())).toBe(
+      new Date(2028, 1, 29).getTime()
+    );
+  });
+
+  it('a month rule past the Date range falls back instead of looping', () => {
+    const rule = ruleFromAnchor(
+      { kind: 'interval', n: 9999999, unit: 'month' },
+      new Date(2020, 0, 1).getTime(),
+      true,
+      null
+    );
+    const now = new Date(2026, 0, 1).getTime();
+    expect(resolveNext(rule, now)).toBeGreaterThan(now);
+  });
+});
