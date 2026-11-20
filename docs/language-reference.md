@@ -3567,8 +3567,18 @@ Roberts 12 52
 - Data rows: `Label value1 value2` — follows §15 Rule A (space-separated canonical; commas tolerated)
 - Thousands commas are removed — write `1000`, not `1,000` (underscore grouping `1_000` is accepted)
 - Color annotations: `Label color value1 value2` (trailing color word before numeric values)
-- Minimum 2 periods required
+- Minimum 2 periods required; any number more is drawn
 - `y-axis 0..100 log` (§15.1.2) fixes the vertical range, so two slope charts can share one scale
+- `rank` (its own line) draws a bump chart: each value is a position as written (1 = first), not converted from a value. Position 1 is at the top with one row per position and no value axis; each point is a dot showing its position, each name sits at both ends, and each segment is an S-curve, so a crossing reads as a swap. Items sharing a position in one period sit side by side. A position that is not a whole number from 1 is an error naming the row and period, and the row is dropped; `y-axis` has no effect.
+  ```
+  slope League position
+  rank
+
+  period W1 W2 W3 W4
+  Arsenal 3 1 1 2
+  City 1 2 3 1
+  Liverpool 2 3 2 3
+  ```
 
 ### 16.2 Wordcloud
 

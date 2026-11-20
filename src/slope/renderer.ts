@@ -29,6 +29,7 @@ import {
   storyPaint,
 } from '../utils/emphasis';
 import type { PaletteColors } from '../palettes';
+import { contrastText } from '../palettes/color-utils';
 import type { Svg } from '../charts-d3/shared';
 import { annotationValues } from '../annotations/parse';
 import {
@@ -107,6 +108,27 @@ export function middleValueSide(
   return below < above ? 'below' : 'above';
 }
 
+/**
+ * Where each point of a `rank` slope sits sideways on its row (#1854). Items
+ * sharing a position in one period stand side by side, centred on the period:
+ * the offset is in units of one dot step (0 for a lone item).
+ */
+export function rankTieOffsets(values: number[]): number[] {
+  const seen = new Map<number, number[]>();
+  values.forEach((v, s) => {
+    const list = seen.get(v);
+    if (list) list.push(s);
+    else seen.set(v, [s]);
+  });
+  const out = new Array<number>(values.length).fill(0);
+  for (const list of seen.values()) {
+    list.forEach((s, j) => {
+      out[s] = j - (list.length - 1) / 2;
+    });
+  }
+  return out;
+}
+
 const SLOPE_MARGIN = { top: 80, bottom: 40, left: 80 };
 const SLOPE_LABEL_FONT_SIZE = 14;
 
@@ -178,8 +200,11 @@ export function renderSlopeChart(
     String,
     data.flatMap((d) => d.values)
   );
+  const rankMode = parsed.rank === true;
   const maxLabelText = data.reduce((longest, item) => {
-    const text = `${fmt(item.values[item.values.length - 1]!)} — ${item.label}`;
+    const text = rankMode
+      ? item.label
+      : `${fmt(item.values[item.values.length - 1]!)} — ${item.label}`;
     return text.length > longest.length ? text : longest;
   }, '');
   const estimatedLabelWidth = measureTabular(maxLabelText, sLabelFontSize);
@@ -191,7 +216,9 @@ export function renderSlopeChart(
 
   // Left margin holds the first column's "name — value" labels
   const maxLeftText = data.reduce((longest, item) => {
-    const text = `${item.label} — ${fmt(item.values[0]!)}`;
+    const text = rankMode
+      ? item.label
+      : `${item.label} — ${fmt(item.values[0]!)}`;
     return text.length > longest.length ? text : longest;
   }, '');
   const sLeftGap = ctx.structural(10);
@@ -230,15 +257,24 @@ export function renderSlopeChart(
   const [minVal, maxVal] = d3Array.extent(allValues) as [number, number];
   const valuePadding = (maxVal - minVal) * 0.1 || 1;
 
-  // `y-axis 0..100 log` sets the vertical range (decision #60). Slope
-  // draws no tick axis, so the range only places the lines.
-  const yScale = buildValueAxis(
-    minVal - valuePadding,
-    maxVal + valuePadding,
-    parsed.axes?.y,
-    [innerHeight, 0],
-    { dataLo: minVal, dataHi: maxVal }
-  );
+  // `rank` (#1854): one row per position, position 1 at the top, no value
+  // axis — the range is the positions, whatever `y-axis` says.
+  const rank = rankMode;
+  const maxRank = rank ? Math.max(...data.flatMap((d) => d.values)) : 0;
+  const yScale = rank
+    ? d3Scale
+        .scaleLinear()
+        .domain([maxRank + 0.5, 0.5])
+        .range([innerHeight, 0])
+    : // `y-axis 0..100 log` sets the vertical range (decision #60). Slope
+      // draws no tick axis, so the range only places the lines.
+      buildValueAxis(
+        minVal - valuePadding,
+        maxVal + valuePadding,
+        parsed.axes?.y,
+        [innerHeight, 0],
+        { dataLo: minVal, dataHi: maxVal }
+      );
 
   const xScale = d3Scale
     .scalePoint<string>()
@@ -275,9 +311,10 @@ export function renderSlopeChart(
   }
 
   // Bands and markers (#2039), drawn in the plot's own coordinates.
+  const [domainLo, domainHi] = yScale.domain();
   const annotationFrame: ValueAxisFrame = {
     pos: (v) => yScale(v),
-    domain: yScale.domain(),
+    domain: [domainLo!, domainHi!],
     left: 0,
     top: 0,
     width: innerWidth,
@@ -298,12 +335,35 @@ export function renderSlopeChart(
     annotationColors
   );
 
-  // Line generator
-  const lineGen = d3Shape
-    .line<number>()
-    // periods[i] is in-bounds — i comes from d3 line's index callback over the data array.
-    .x((_d, i) => xScale(periods[i]!)!)
-    .y((d) => yScale(d));
+  // Rank dots carry their position number, so they are bigger than a point,
+  // and never taller than most of a row.
+  const rowStep = rank ? innerHeight / maxRank : 0;
+  const sRankR = Math.max(
+    ctx.structural(5),
+    Math.min(ctx.structural(10), rowStep * 0.4)
+  );
+  const pointR = rank ? sRankR : sPointR;
+  // Ties (#1854): items sharing a position in one period sit side by side.
+  const tieOffsets = rank
+    ? periods.map((_p, i) => rankTieOffsets(data.map((d) => d.values[i]!)))
+    : [];
+  const tieStep = 2 * sRankR + ctx.structural(4);
+  // An end label clears its dot and any tied dot beside it.
+  const endClear = (i: number): number =>
+    rank ? sRankR + Math.max(0, ...tieOffsets[i]!.map(Math.abs)) * tieStep : 0;
+  const leftClear = endClear(0);
+  const rightClear = endClear(periods.length - 1);
+  const pointAt = (s: number, i: number): [number, number] => [
+    xScale(periods[i]!)! + (rank ? tieOffsets[i]![s]! * tieStep : 0),
+    yScale(data[s]!.values[i]!),
+  ];
+
+  // Line generator. Under `rank` each segment is a horizontal-tangent S-curve,
+  // flat at each period, so a crossing reads as a swap (#1854).
+  const lineGen = (s: number): string =>
+    (rank ? d3Shape.line().curve(d3Shape.curveBumpX) : d3Shape.line())(
+      periods.map((_p, i) => pointAt(s, i))
+    ) ?? '';
 
   // Pre-compute per-series data for label collision resolution
   const seriesInfo = data.map((item, idx) => {
@@ -318,14 +378,18 @@ export function renderSlopeChart(
     const change = parsed.numberFormat
       ? fmt(absChange)
       : String(parseFloat(absChange.toFixed(2)));
-    const tipLines = [`${sign}${change}`];
-    if (pctChange !== null) tipLines.push(`${sign}${pctChange.toFixed(1)}%`);
+    const tipLines = rank
+      ? [`${item.values.join(' → ')}`]
+      : [`${sign}${change}`];
+    if (pctChange !== null && !rank)
+      tipLines.push(`${sign}${pctChange.toFixed(1)}%`);
     const tipHtml = tipLines.join('<br>');
 
     // Compute right-side label text and wrapping info
     // periods is non-empty (slope requires P >= 2 periods).
     const lastX = xScale(periods[periods.length - 1]!)!;
-    const labelText = `${fmt(lastVal)} — ${item.label}`;
+    // Under `rank` the dot carries the position; the ends carry the name.
+    const labelText = rank ? item.label : `${fmt(lastVal)} — ${item.label}`;
     const availableWidth = rightMargin - ctx.aesthetic(15);
 
     let labelLineCount = 1;
@@ -340,7 +404,7 @@ export function renderSlopeChart(
       labelLineCount === 1 ? sLabelFontSize : labelLineCount * lineHeight;
 
     // Left-side label (first column): "name — value", wraps like the right side
-    const leftText = `${item.label} — ${fmt(firstVal)}`;
+    const leftText = rank ? item.label : `${item.label} — ${fmt(firstVal)}`;
     const leftLines =
       measureTabular(leftText, sLabelFontSize) > leftAvailableWidth
         ? wrapTextToWidth(leftText, sLabelFontSize, leftAvailableWidth)
@@ -462,21 +526,19 @@ export function renderSlopeChart(
     // Line
     seriesG
       .append('path')
-      .datum(item.values)
       .attr('fill', 'none')
       .attr('stroke', color)
       .attr('stroke-width', sLineStroke)
       .attr('opacity', shapeOpacity(dim))
-      .attr('d', lineGen);
+      .attr('d', lineGen(idx));
 
     // Invisible wider path for easier hover targeting
     seriesG
       .append('path')
-      .datum(item.values)
       .attr('fill', 'none')
       .attr('stroke', 'transparent')
       .attr('stroke-width', sHitWidth)
-      .attr('d', lineGen)
+      .attr('d', lineGen(idx))
       .style('cursor', onClickItem ? 'pointer' : 'default')
       .on('mouseenter', (event: MouseEvent) =>
         showTooltip(tooltip, si.tipHtml, event)
@@ -493,14 +555,14 @@ export function renderSlopeChart(
     item.values.forEach((val, i) => {
       // periods[i] is in-bounds because item.values.length === periods.length (slope contract).
       const x = xScale(periods[i]!)!;
-      const y = yScale(val);
+      const [px, y] = pointAt(idx, i);
 
       // Point circle
       seriesG
         .append('circle')
-        .attr('cx', x)
+        .attr('cx', px)
         .attr('cy', y)
-        .attr('r', sPointR)
+        .attr('r', pointR)
         .attr('fill', color)
         .attr('stroke', bgColor)
         .attr('stroke-width', sPointStroke)
@@ -517,16 +579,36 @@ export function renderSlopeChart(
           if (onClickItem && item.lineNumber) onClickItem(item.lineNumber);
         });
 
+      // `rank` (#1854): the dot shows its position number.
+      if (rank) {
+        const numFont = Math.min(sValueFont * 0.8, sRankR * 1.15);
+        seriesG
+          .append('text')
+          .attr('x', px)
+          .attr('y', y)
+          .attr('dy', '0.35em')
+          .attr('text-anchor', 'middle')
+          .attr(
+            'fill',
+            contrastText(color, palette.textOnFillLight, palette.textOnFillDark)
+          )
+          .attr('font-size', numFont)
+          .attr('font-weight', 'bold')
+          .attr('opacity', shapeOpacity(dim))
+          .style('pointer-events', 'none')
+          .text(String(val));
+      }
+
       // Value label — skip last point (shown in series label instead)
       const isFirst = i === 0;
       const isLast = i === periods.length - 1;
-      if (!isLast) {
+      if (!isLast && (isFirst || !rank)) {
         // leftLabelCollisions was set for every i in [0, periods.length-1); idx is in-bounds by data.map.
         const adjustedY = leftLabelCollisions.get(i)![idx]!;
         if (isFirst) {
           const leftEl = seriesG
             .append('text')
-            .attr('x', x - sLeftGap)
+            .attr('x', x - sLeftGap - leftClear)
             .attr('y', adjustedY)
             .attr('text-anchor', 'end')
             .attr('fill', textFill)
@@ -542,7 +624,7 @@ export function renderSlopeChart(
             si.leftLines.forEach((line, li) => {
               leftEl
                 .append('tspan')
-                .attr('x', x - sLeftGap)
+                .attr('x', x - sLeftGap - leftClear)
                 .attr(
                   'dy',
                   li === 0 ? `${startDy + sLabelFontSize * 0.35}px` : `${lh}px`
@@ -575,7 +657,7 @@ export function renderSlopeChart(
 
     const labelEl = seriesG
       .append('text')
-      .attr('x', si.lastX + sLabelGap)
+      .attr('x', si.lastX + sLabelGap + rightClear)
       .attr('y', adjustedLastY)
       .attr('text-anchor', 'start')
       .attr('fill', textFill)
@@ -595,7 +677,7 @@ export function renderSlopeChart(
       si.wrappedLines.forEach((line, li) => {
         labelEl
           .append('tspan')
-          .attr('x', si.lastX + sLabelGap)
+          .attr('x', si.lastX + sLabelGap + rightClear)
           .attr(
             'dy',
             li === 0
@@ -621,8 +703,7 @@ export function renderSlopeChart(
 
   // Notes (#2039): a ring on the point, the text in clear plot space.
   if (parsed.notes?.length && !parsed.noNotes) {
-    const at = (s: number, i: number) =>
-      [xScale(periods[i]!)!, yScale(data[s]!.values[i]!)] as [number, number];
+    const at = pointAt;
     const plot = { left: 0, top: 0, right: innerWidth, bottom: innerHeight };
     drawChartNotes(
       plotG,
@@ -631,7 +712,7 @@ export function renderSlopeChart(
         return {
           x,
           y,
-          r: sPointR,
+          r: pointR,
           text: n.text,
           color: n.color,
           lineNumber: n.lineNumber,
@@ -646,7 +727,7 @@ export function renderSlopeChart(
           ...data.flatMap((_, s) =>
             periods.map((_p, i) => {
               const [cx, cy] = at(s, i);
-              return { cx, cy, r: sPointR + 14 };
+              return { cx, cy, r: pointR + 14 };
             })
           ),
           ...sampleLines(data.map((_, s) => periods.map((_p, i) => at(s, i)))),

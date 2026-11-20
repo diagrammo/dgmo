@@ -157,6 +157,9 @@ export interface ParsedSlope extends ParsedVizBase {
   notes?: ChartNote[];
   /** `no-notes` (#2039). */
   noNotes?: boolean;
+  /** `rank` (#1854): values are positions as written (1 = first), drawn as a
+   *  bump chart — one row per position, S-curves, numbered dots. */
+  rank?: boolean;
   noName?: boolean;
   noValue?: boolean;
   noPercent?: boolean;
@@ -263,6 +266,8 @@ export interface ParsedVizFull extends ParsedVizBase {
   annotations?: ChartAnnotation[];
   notes?: ChartNote[];
   noNotes?: boolean;
+  /** `rank` — read by slope only (#1854). */
+  rank?: boolean;
   words: WordCloudWord[];
   cloudOptions: WordCloudOptions;
   links: ArcLink[];

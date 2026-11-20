@@ -1009,6 +1009,8 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'orientation-vertical', category: 'directive', chartTypes: 'all' },
   // ── Pyramid ──────────────────────────────────────────────
   { token: 'inverted', category: 'directive', chartTypes: ['pyramid'] },
+  // ── Slope (#1854) ────────────────────────────────────────
+  { token: 'rank', category: 'directive', chartTypes: ['slope'] },
   // ── Color / notes (cross-chart) ──────────────────────────
   {
     token: 'color',

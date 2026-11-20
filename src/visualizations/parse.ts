@@ -395,6 +395,12 @@ function parseVisualizationFull(
         inSlopePeriodBlock = false;
         continue;
       }
+      // `rank` (#1854): the values are positions, drawn as a bump chart.
+      if (line === 'rank') {
+        result.rank = true;
+        inSlopePeriodBlock = false;
+        continue;
+      }
     }
 
     if (result.type === 'slope' && indent === 0 && /^highlight\s/.test(line)) {
@@ -1742,6 +1748,27 @@ function parseVisualizationFull(
   result.data = result.data.filter(
     (item) => item.values.length === result.periods.length
   );
+  // `rank` (#1854): each value is a position as written, 1 = first. No
+  // value-to-rank conversion — a row holding anything else is dropped.
+  if (result.rank) {
+    result.data = result.data.filter((item) => {
+      const bad = item.values.findIndex((v) => !Number.isInteger(v) || v < 1);
+      if (bad === -1) return true;
+      result.diagnostics.push(
+        makeDgmoError(
+          item.lineNumber,
+          `"${item.label}" has position ${item.values[bad]} in ${result.periods[bad]} — under rank every value is a position: a whole number from 1 (first)`
+        )
+      );
+      return false;
+    });
+    if (result.axes?.y) {
+      warn(
+        result.axes.y.lineNumber ?? 1,
+        'y-axis has no effect under rank — positions run from 1 at the top'
+      );
+    }
+  }
   settleAxisSpec(
     'y',
     result.axes?.y,

@@ -579,6 +579,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
           'Indented under a series row: ring it at a period (note 2025 Overtakes Go)',
       },
       'no-notes': { description: 'Hide every note' },
+      rank: {
+        description:
+          'Values are positions (1 = first): a bump chart with one row per position',
+      },
     }),
   ],
   [

@@ -25,6 +25,8 @@ export const fixture: ConformanceFixture = {
     'band',
     'note',
     'no-notes',
+    // #1854 bump chart.
+    'rank',
   ],
   pipeKeys: {},
 };
