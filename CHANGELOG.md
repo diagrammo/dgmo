@@ -379,6 +379,15 @@ logged · most often Great`. Diagnostics: `E_CALENDAR_HEATMAP_UNKNOWN_TAG`,
 
 ### Fixed
 
+- **state: end transitions no longer loop around the whole diagram
+  (diagrammo/diagrammo#1891).** `[*]` written as a transition target is now
+  its own final state, drawn as a ringed bullseye (UML) and placed by the
+  layout after the last state; `[*]` as a source stays the filled start dot.
+  One node used to serve both, so every `X -> [*]` was a back edge to the
+  first rank. Arrivals into a start or final circle now spread around it
+  rather than per box side, and a state export holds text at the 7px floor
+  as the flowchart does (#1688).
+
 - **boxes-and-lines, block: a long word wraps instead of ending in "…"
   (diagrammo/diagrammo#2172).** A boxes-and-lines box without a description now
   widens to its widest label word, up to the width of a described box; a word

@@ -109,10 +109,10 @@ describe('parseState', () => {
       expect(result.edges[0].target).toBe(pseudo!.id);
     });
 
-    it('shares single node identity for multiple [*] references', () => {
+    it('splits [*] into one start node and one final node (#1891)', () => {
       const result = parseState('[*] -> Idle\nDone -> [*]');
       const pseudos = result.nodes.filter((n) => n.shape === 'pseudostate');
-      expect(pseudos).toHaveLength(1);
+      expect(pseudos).toHaveLength(2);
     });
   });
 

@@ -93,8 +93,8 @@ describe('renderState', () => {
     it('renders correct number of node groups', () => {
       const container = renderToContainer('[*] -> Idle -> Active -> [*]');
       const nodeGroups = container.querySelectorAll('g.st-node');
-      // [*] (1 pseudostate), Idle, Active = 3 nodes
-      expect(nodeGroups.length).toBe(3);
+      // start [*], Idle, Active, final [*] = 4 nodes (#1891)
+      expect(nodeGroups.length).toBe(4);
       document.body.removeChild(container);
     });
   });
@@ -467,6 +467,21 @@ describe('renderState', () => {
         'g.st-node[data-node-id="state:draft"]'
       );
       expect(g!.getAttribute('data-tag-phase')).toBe('fulfil');
+      document.body.removeChild(container);
+    });
+
+    it('draws the final state as a ringed bullseye, the start as a dot (#1891)', () => {
+      const container = renderToContainer('[*] -> Idle\nIdle -> [*]');
+      const final = container.querySelector(
+        'g.st-node[data-node-id="pseudostate:[*]:final"]'
+      );
+      const start = container.querySelector(
+        'g.st-node[data-node-id="pseudostate:[*]"]'
+      );
+      const ring = final!.querySelectorAll('circle');
+      expect(ring).toHaveLength(2);
+      expect(ring[0]!.getAttribute('fill')).toBe('none');
+      expect(start!.querySelectorAll('circle')).toHaveLength(1);
       document.body.removeChild(container);
     });
 

@@ -39,7 +39,7 @@ import {
 import type { LegendGroupData } from '../utils/legend-types';
 import type { ParsedGraph } from './types';
 import type { LayoutResult, LayoutNode } from './layout';
-import { parseState } from './state-parser';
+import { parseState, FINAL_PSEUDOSTATE_ID } from './state-parser';
 import { layoutGraph } from './layout';
 import { storyGround } from '../utils/emphasis';
 import { resolveGraphHighlight } from './highlight';
@@ -61,7 +61,7 @@ import { legendInkBottom } from '../utils/legend-constants';
 import { ScaleContext } from '../utils/scaling';
 import { renderCollapseBar } from '../utils/card';
 import { measureText } from '../utils/text-measure';
-import { renderNodeNote } from '../utils/note-box';
+import { renderNodeNote, NOTE_FONT_SIZE } from '../utils/note-box';
 
 // ============================================================
 // Constants
@@ -392,12 +392,23 @@ export function renderState(
       : legendH;
   const diagramW = ext.maxX - ext.minX;
   const diagramH = ext.maxY - ext.minY;
+  // An export never scales text under the 7px floor (#1688): hold the scale
+  // for the smallest text this diagram really draws, and widen the sheet.
+  const smallestTextPx = Math.min(
+    sNodeFontSize,
+    layout.edges.some((e) => e.label) ? sEdgeLabelFontSize : Infinity,
+    layout.groups.length > 0 ? sGroupLabelFontSize : Infinity,
+    !noNotes && layout.nodes.some((n) => n.note && !n.note.collapsed)
+      ? NOTE_FONT_SIZE
+      : Infinity
+  );
   const fit = fitDiagramToCanvas({
     width,
     height,
     diagramW,
     diagramH,
     padding: sDiagramPadding,
+    smallestTextPx,
     // Inline → one band (title only); stacked → title + legend band.
     titleHeight: header.inline ? titleHeight : titleHeight + stackedLegendBand,
     maxScale: MAX_SCALE,
@@ -703,7 +714,25 @@ export function renderState(
     // its edges stay connected. The note floats beside it.
     const hasNote = !!node.note && !noNotes;
 
-    if (node.shape === 'pseudostate') {
+    if (node.shape === 'pseudostate' && node.id === FINAL_PSEUDOSTATE_ID) {
+      // Final state: UML bullseye — a ring around a smaller filled dot.
+      const ink = nodeReceded ? ground.groundStroke : palette.text;
+      nodeG
+        .append('circle')
+        .attr('cx', 0)
+        .attr('cy', 0)
+        .attr('r', sPseudostateRadius - sNodeStrokeWidth / 2)
+        .attr('fill', 'none')
+        .attr('stroke', ink)
+        .attr('stroke-width', sNodeStrokeWidth);
+      nodeG
+        .append('circle')
+        .attr('cx', 0)
+        .attr('cy', 0)
+        .attr('r', sPseudostateRadius * 0.6)
+        .attr('fill', ink)
+        .attr('stroke', 'none');
+    } else if (node.shape === 'pseudostate') {
       nodeG
         .append('circle')
         .attr('cx', 0)

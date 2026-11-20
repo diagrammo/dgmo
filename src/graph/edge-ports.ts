@@ -206,6 +206,74 @@ function spreadClusters(
   return moved;
 }
 
+/**
+ * Spreads arrivals on a pseudostate's circle to at least `MIN_ARRIVAL_GAP`
+ * of arc apart, keeping their order and their mean direction. A circle has
+ * no faces: three ends into a final state sit around one corner of its box,
+ * on two "sides" 8 px apart, and a per-side spread never sees them (#1891).
+ */
+function spreadCircle(routes: Pt[][], idx: number[], box: PortBox): boolean {
+  const r = Math.min(box.width, box.height) / 2;
+  if (r <= 0) return false;
+  const angleOf = (p: Pt): number => Math.atan2(p.y - box.y, p.x - box.x);
+  // Angles relative to the arrivals' mean direction, so a cluster never
+  // straddles the ±π seam.
+  let sx = 0;
+  let sy = 0;
+  for (const i of idx) {
+    const a = angleOf(routes[i]!.at(-1)!);
+    sx += Math.cos(a);
+    sy += Math.sin(a);
+  }
+  const base = Math.atan2(sy, sx);
+  const rel = (a: number): number => {
+    let d = a - base;
+    while (d > Math.PI) d -= 2 * Math.PI;
+    while (d <= -Math.PI) d += 2 * Math.PI;
+    return d;
+  };
+  const at = (i: number): number => rel(angleOf(routes[i]!.at(-1)!));
+  const from = (i: number): number => {
+    const pts = routes[i]!;
+    return rel(angleOf(pts[Math.max(0, pts.length - 2)]!));
+  };
+  const gap = Math.min(MIN_ARRIVAL_GAP / r, (2 * Math.PI) / idx.length);
+  let moved = false;
+  for (let pass = 0; pass < idx.length; pass++) {
+    const order = idx
+      .slice()
+      .sort((a, b) => at(a) - at(b) || from(a) - from(b));
+    let any = false;
+    let k = 0;
+    while (k < order.length) {
+      let j = k;
+      while (
+        j + 1 < order.length &&
+        at(order[j + 1]!) - at(order[j]!) < gap - 1e-4
+      )
+        j++;
+      if (j > k) {
+        any = true;
+        const run = order.slice(k, j + 1).sort((a, b) => from(a) - from(b));
+        const mid = run.reduce((acc, i) => acc + at(i), 0) / run.length;
+        const start = mid - (gap * (run.length - 1)) / 2;
+        run.forEach((i, n) => {
+          const a = base + start + gap * n;
+          const pts = routes[i]!;
+          pts[pts.length - 1] = {
+            x: box.x + r * Math.cos(a),
+            y: box.y + r * Math.sin(a),
+          };
+        });
+      }
+      k = j + 1;
+    }
+    if (!any) break;
+    moved = true;
+  }
+  return moved;
+}
+
 /** The outward normal of a box face. */
 function faceNormal(side: Side): Pt {
   if (vertical(side)) return { x: side === 'left' ? -1 : 1, y: 0 };
@@ -453,14 +521,24 @@ export function unbundleEdges(
     if (e.source === e.target || out[i]!.length < 2 || twin.has(i)) return;
     const box = boxes.get(e.target);
     if (!box) return;
+    // A circle is one side: its arrivals spread around it (`spreadCircle`).
     const side = sideOf(out[i]!.at(-1)!, box);
-    const key = `${e.target}\u0000${side}`;
+    const key =
+      box.shape === 'pseudostate'
+        ? `${e.target}\u0000circle`
+        : `${e.target}\u0000${side}`;
     const slot = bySide.get(key);
     if (slot) slot.idx.push(i);
     else bySide.set(key, { box, side, idx: [i] });
   });
   for (const { box, side, idx } of bySide.values())
-    if (idx.length > 1 && spreadSide(out, idx, box, side)) spread = true;
+    if (
+      idx.length > 1 &&
+      (box.shape === 'pseudostate'
+        ? spreadCircle(out, idx, box)
+        : spreadSide(out, idx, box, side))
+    )
+      spread = true;
   if (spread) {
     // A restated edge follows the edge it restates.
     for (const [i, first] of twin) out[i] = out[first]!.slice();

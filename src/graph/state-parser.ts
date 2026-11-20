@@ -53,6 +53,13 @@ import { resolveGraphHighlight, graphHighlightWarnings } from './highlight';
 
 const PSEUDOSTATE_ID = 'pseudostate:[*]';
 const PSEUDOSTATE_LABEL = '[*]';
+/**
+ * `[*]` written as a transition TARGET is the final state — its own node,
+ * drawn as a ringed bullseye (UML). Sharing one node with the start made
+ * dagre rank it first, so every end transition became a back edge looping
+ * around the whole diagram (#1891).
+ */
+export const FINAL_PSEUDOSTATE_ID = 'pseudostate:[*]:final';
 
 // `[Group]`, `[Group] color`, and an optional trailing collapse marker
 // (§1.8 "Collapsing groups"): canonical bare `collapsed` flag
@@ -688,6 +695,9 @@ function parseStateRaw(content: string, palette?: PaletteColors): ParsedGraph {
         }
       }
       if (!ref) continue;
+      if (ref.id === PSEUDOSTATE_ID && pendingArrow !== null) {
+        ref = { ...ref, id: FINAL_PSEUDOSTATE_ID };
+      }
 
       const node = getOrCreateNode(ref, lineNumber);
       if (peeled.alias) nameAliasMap.set(peeled.alias, node.id);
