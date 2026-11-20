@@ -11,6 +11,7 @@ import { parseVisualization } from './visualizations/parse';
 import { parseDgmoChartType } from './chart-type-detect';
 import { extractPaletteDirective } from './palettes/directive';
 import { liftUnsupportedHighlight } from './utils/emphasis';
+import { detectBorrowedArrows } from './utils/borrowed-arrows';
 export {
   parseDgmoChartType,
   looksLikeGantt,
@@ -162,6 +163,7 @@ function parseDgmoUndeduped(content: string): {
         ...(mistyped ? [mistyped] : []),
         ...lifted.diagnostics,
         ...result.diagnostics,
+        ...detectBorrowedArrows(body, chartType),
         ...detectEmptyContent(body, chartType),
       ],
       chartType,

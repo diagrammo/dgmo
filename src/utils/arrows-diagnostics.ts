@@ -20,6 +20,7 @@
 
 import type { DiagnosticSpec } from '../diagnostics';
 import { ARROW_DIAGNOSTIC_CODES } from './arrows';
+import { BORROWED_ARROW_DX } from './borrowed-arrows';
 
 export const ARROW_DIAGNOSTICS: DiagnosticSpec[] = [
   // --- ACTIVE (TD-13): emitted by validateLabelCharacters ---
@@ -70,4 +71,7 @@ export const ARROW_DIAGNOSTICS: DiagnosticSpec[] = [
     // (Escaped, not a raw NUL byte, to keep the source file text-safe.)
     example: 'sequence\nA -has\u0000nul-> B',
   },
+
+  // --- ACTIVE (#2174): emitted by detectBorrowedArrows at the router ---
+  BORROWED_ARROW_DX,
 ];

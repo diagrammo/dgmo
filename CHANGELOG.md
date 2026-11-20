@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A warning for arrow spellings borrowed from Mermaid — `W_BORROWED_ARROW`
+  (diagrammo/diagrammo#2174).** `-->`, `-.->`, `==>`, `---`, `..>` (outside
+  `class`) and `-dashed->` are not dgmo arrows. They used to draw a wrong
+  diagram with no diagnostic: on boxes-and-lines `A --> B` made a box named
+  "A -" and `A -.-> B` an edge labelled ".". Each now warns on every chart type
+  whose edges are `->`, and the message writes the corrected line. dgmo has no
+  dashed-edge style; a label or a tag colour carries the distinction.
+
 - **bar: combo lines over bars — `mark: line | step` on a series
   (diagrammo/diagrammo#1852, slice 2).** In a bar chart's `stack` or `group`
   block, `mark: line` or `mark: step` draws that series as a line over the
