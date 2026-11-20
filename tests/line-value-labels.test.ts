@@ -45,11 +45,16 @@ function valueTexts(svg: string): string[] {
 }
 
 describe('line point values never print over each other (#1828)', () => {
-  it('the close-series fixture draws every value, none over another', async () => {
+  it('the close-series fixture draws every value with a clear spot, none over another', async () => {
     const svg = await renderDataChartD3(FIXTURE, 'light');
     expect(lintSvg(svg).filter((f) => f.rule === 'text-overlap')).toEqual([]);
     const drawn = valueTexts(svg);
-    for (const v of valuesOf(FIXTURE)) expect(drawn).toContain(v);
+    // Tortuga's 0.9 is boxed in: the green line above, its own line either
+    // side, the plot floor below. It once printed on its own line; lines are
+    // obstacles now (#2106), so it is dropped and stays on hover.
+    for (const v of valuesOf(FIXTURE))
+      if (v === '0.9') expect(drawn).not.toContain(v);
+      else expect(drawn).toContain(v);
   });
 
   it('in a small container a crowded value is dropped, never overprinted', async () => {

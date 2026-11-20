@@ -379,6 +379,16 @@ logged · most often Great`. Diagnostics: `E_CALENDAR_HEATMAP_UNKNOWN_TAG`,
 
 ### Fixed
 
+- **line, area: point values and the mean / median / target labels keep off
+  the lines (diagrammo/diagrammo#2106).** Point values knew only the point
+  dots, so a value printed over the series line on a steep climb and over a
+  mean or median line it sat next to; the overlay end labels avoided only
+  each other, so "mean 441" printed over the last point. The series lines and
+  every overlay line (mean, median, target, trend, moving average) are now
+  obstacles: a point value also tries the four diagonals, and is dropped to
+  hover when no spot is clear; an overlay label tries the other side of its
+  line, then a step farther off, before falling back to being pushed apart.
+
 - **line: hovering a legend entry on a chart with an uncertainty band now
   emphasises it (diagrammo/diagrammo#2099).** With one line and one band the
   legend hover did nothing. Hovering the line now recedes the band, hovering

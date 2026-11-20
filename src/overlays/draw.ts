@@ -9,7 +9,12 @@
 import type { Svg } from '../charts-d3/shared';
 import { ANNOTATION_FONT, type ValueAxisFrame } from '../annotations/draw';
 import { FONT_FAMILY } from '../fonts';
-import type { LabelRect } from '../label-layout';
+import {
+  rectCircleOverlap,
+  type LabelRect,
+  type PointCircle,
+} from '../label-layout';
+import { sampleLines } from '../annotations/notes';
 import { measureText } from '../utils/text-measure';
 import {
   EDGE_DASH,
@@ -74,12 +79,14 @@ function onAxis(frame: ValueAxisFrame, v: number): boolean {
 
 /**
  * Draws each level as a line across the plot, behind the series. Returns
- * the labels to draw once the series are down.
+ * the labels to draw once the series are down. `trace`, when given, gets
+ * points sampled along each line, so labels drawn later can clear it (#2106).
  */
 export function drawOverlayLevels(
   svg: Svg,
   levels: readonly OverlayLevel[],
-  frame: ValueAxisFrame
+  frame: ValueAxisFrame,
+  trace?: PointCircle[]
 ): OverlayLabel[] {
   const labels: OverlayLabel[] = [];
   for (const l of levels) {
@@ -107,6 +114,14 @@ export function drawOverlayLevels(
       );
     const dash = DASH[l.kind];
     if (dash) line.attr('stroke-dasharray', dash);
+    trace?.push(
+      ...sampleLines([
+        [
+          [x1, y1],
+          [x2, y2],
+        ],
+      ])
+    );
     labels.push({
       text: l.label,
       // A vertical line (horizontal bars) is labelled at its top.
@@ -123,45 +138,69 @@ export function drawOverlayLevels(
 /**
  * Draws overlay labels. A label on a horizontal line sits just above its
  * right end, inside the plot; one on a vertical line sits just right of its
- * top. Labels that would touch are pushed apart. Returns their boxes, which
+ * top. A label that would touch another label, or one of the `avoid` marks
+ * (the series' points and lines, the other overlay lines — #2106), tries
+ * the other side of its line, then steps farther off it; when every spot
+ * is taken, labels are pushed apart as before. Returns their boxes, which
  * point values must clear.
  */
 export function drawOverlayLabels(
   svg: Svg,
   labels: readonly OverlayLabel[],
-  frame: Pick<ValueAxisFrame, 'top' | 'horizontal'>,
-  bg: string
+  frame: Pick<ValueAxisFrame, 'top' | 'horizontal'> &
+    Partial<Pick<ValueAxisFrame, 'height'>>,
+  bg: string,
+  avoid: readonly PointCircle[] = []
 ): LabelRect[] {
   const h = ANNOTATION_FONT + 2;
+  const bottom =
+    frame.height === undefined ? Infinity : frame.top + frame.height;
   const placed = labels.map((l) => {
     const w = measureText(l.text, ANNOTATION_FONT, { bold: true });
-    return frame.horizontal
-      ? { l, w, x: l.x + LABEL_GAP, top: l.y, anchor: 'start' as const }
-      : {
-          l,
-          w,
-          x: l.x,
-          // Above the line, or below it when that would leave the plot.
-          top:
-            l.y - LABEL_GAP - h < frame.top
-              ? l.y + LABEL_GAP
-              : l.y - LABEL_GAP - h,
-          anchor: 'end' as const,
-        };
+    if (frame.horizontal)
+      return {
+        l,
+        w,
+        x: l.x + LABEL_GAP,
+        top: l.y,
+        tops: [l.y],
+        anchor: 'start' as const,
+      };
+    const above = l.y - LABEL_GAP - h;
+    const below = l.y + LABEL_GAP;
+    // Above the line, or below it when that would leave the plot; then the
+    // other side, then a label height farther off each side.
+    const sides = above < frame.top ? [below, above] : [above, below];
+    const tops = [
+      ...sides,
+      above - h / 2,
+      below + h / 2,
+      above - h,
+      below + h,
+    ].filter((t) => t >= frame.top && t + h <= bottom);
+    return { l, w, x: l.x, top: sides[0]!, tops, anchor: 'end' as const };
   });
-  // Push apart: walk top to bottom, each label at least one line under the
-  // last one it overlaps sideways.
+  // Walk top to bottom. A label takes its first clear spot; with none, it
+  // goes at least one line under the last label it overlaps sideways.
   const order = placed
     .map((_, i) => i)
     .sort((a, b) => placed[a]!.top - placed[b]!.top);
-  const done: { x0: number; x1: number; bottom: number }[] = [];
+  const done: { x0: number; x1: number; top: number; bottom: number }[] = [];
   for (const i of order) {
     const p = placed[i]!;
     const x0 = p.anchor === 'end' ? p.x - p.w : p.x;
     const x1 = x0 + p.w;
-    for (const d of done)
-      if (x0 < d.x1 && d.x0 < x1 && p.top < d.bottom) p.top = d.bottom;
-    done.push({ x0, x1, bottom: p.top + h });
+    const clear = (top: number): boolean =>
+      !done.some(
+        (d) => x0 < d.x1 && d.x0 < x1 && top < d.bottom && d.top < top + h
+      ) &&
+      !avoid.some((m) => rectCircleOverlap({ x: x0, y: top, w: p.w, h }, m));
+    const spot = p.tops.find(clear);
+    if (spot !== undefined) p.top = spot;
+    else
+      for (const d of done)
+        if (x0 < d.x1 && d.x0 < x1 && p.top < d.bottom) p.top = d.bottom;
+    done.push({ x0, x1, top: p.top, bottom: p.top + h });
   }
   const boxes: LabelRect[] = [];
   for (const p of placed) {
@@ -298,11 +337,13 @@ export function clipToDomain(
 
 /**
  * Draws each path behind the series. Returns the labels for their far ends.
+ * `trace`, when given, gets points sampled along each path (#2106).
  */
 export function drawOverlayPaths(
   svg: Svg,
   paths: readonly OverlayPath[],
-  frame: ValueAxisFrame
+  frame: ValueAxisFrame,
+  trace?: PointCircle[]
 ): OverlayLabel[] {
   const labels: OverlayLabel[] = [];
   for (const path of paths) {
@@ -325,6 +366,9 @@ export function drawOverlayPaths(
       .attr('stroke-linecap', 'round');
     const dash = DASH[path.kind];
     if (dash) line.attr('stroke-dasharray', dash);
+    trace?.push(
+      ...sampleLines([pts.map(([x, y]) => [x, y] as [number, number])])
+    );
     if (!path.label) continue;
     const [x, y] = pts.at(-1)!;
     labels.push({

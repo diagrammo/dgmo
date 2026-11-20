@@ -89,7 +89,7 @@ import {
 import { labelBox, placeLabels } from '../utils/place-labels';
 import { tabularText } from '../utils/tabular-figures';
 import { resolveColor } from '../colors';
-import type { LabelRect } from '../label-layout';
+import type { LabelRect, PointCircle } from '../label-layout';
 import { shareText, stackSpans, toShares } from '../utils/stack-share';
 
 function seriesValue(
@@ -663,6 +663,8 @@ export function renderLine(
 
   /** Each drawn series' points in px, for the notes' clear space. */
   const polylines: [number, number][][] = [];
+  /** Points along the overlay lines, which labels must clear (#2106). */
+  const overlayTrace: PointCircle[] = [];
   /** Each drawn series' last point and paint, for its end-of-line name. */
   const lineEnds: {
     s: number;
@@ -714,7 +716,7 @@ export function renderLine(
         palette.colors.red
       );
       overlayLabels.push(
-        ...drawOverlayLevels(svg, levels, frame),
+        ...drawOverlayLevels(svg, levels, frame, overlayTrace),
         ...drawOverlayPaths(
           svg,
           trendPaths(
@@ -724,7 +726,8 @@ export function renderLine(
             sideFmt,
             trendUnit(chart.xlabel)
           ),
-          frame
+          frame,
+          overlayTrace
         ),
         // `moving-average N`: a heavier copy in the series' own colour.
         ...drawOverlayPaths(
@@ -739,7 +742,8 @@ export function renderLine(
             xAtRow,
             trendUnit(chart.xlabel)
           ),
-          frame
+          frame,
+          overlayTrace
         )
       );
     }
@@ -1037,6 +1041,9 @@ export function renderLine(
   }
 
   const markerLines: LabelRect[] = [];
+  // The series' lines and the overlay lines: overlay labels and point
+  // values keep off them, not only off the points (#2106).
+  const lineTrace = [...sampleLines(polylines), ...overlayTrace];
   eraTitles.push(
     ...drawMarkers(
       svg,
@@ -1045,7 +1052,10 @@ export function renderLine(
       annotationColors,
       markerLines
     ),
-    ...drawOverlayLabels(svg, overlayLabels, annotationFrame, bgColor),
+    ...drawOverlayLabels(svg, overlayLabels, annotationFrame, bgColor, [
+      ...polylines.flat().map(([cx, cy]) => ({ cx, cy, r: 4.5 })),
+      ...lineTrace,
+    ]),
     ...drawExtremes(
       svg,
       extremeMarks,
@@ -1141,8 +1151,9 @@ export function renderLine(
 
   // Point values (#1828): every series' labels are placed together, so one
   // series' value never prints over another's. A label goes above its point,
-  // else below, right or left; one with no clear spot is dropped — smallest
-  // |value| first — and its value stays on the point's hover.
+  // else below, right, left or a diagonal, clear of the lines (#2106); one
+  // with no clear spot is dropped — smallest |value| first — and its value
+  // stays on the point's hover.
   const placed = placeLabels(
     valueLabels.map((l) => ({
       text: l.text,
@@ -1153,13 +1164,24 @@ export function renderLine(
         { x: l.cx, y: l.cy + 10 + VALUE_FONT * 0.8, anchor: 'middle' as const },
         { x: l.cx + 7, y: l.cy + VALUE_FONT * 0.3, anchor: 'start' as const },
         { x: l.cx - 7, y: l.cy + VALUE_FONT * 0.3, anchor: 'end' as const },
+        { x: l.cx - 5, y: l.cy - 8, anchor: 'end' as const },
+        { x: l.cx + 5, y: l.cy - 8, anchor: 'start' as const },
+        { x: l.cx - 5, y: l.cy + 8 + VALUE_FONT * 0.8, anchor: 'end' as const },
+        {
+          x: l.cx + 5,
+          y: l.cy + 8 + VALUE_FONT * 0.8,
+          anchor: 'start' as const,
+        },
       ],
     })),
     {
       fontSize: VALUE_FONT,
       tabular: true,
       reserved: eraTitles,
-      markers: valueLabels.map((l) => ({ cx: l.cx, cy: l.cy, r: 4.5 })),
+      markers: [
+        ...valueLabels.map((l) => ({ cx: l.cx, cy: l.cy, r: 4.5 })),
+        ...lineTrace,
+      ],
       bounds: {
         // The y tick labels end 10px left of the plot.
         left: m.left - 8,
