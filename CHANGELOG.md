@@ -379,6 +379,11 @@ logged · most often Great`. Diagnostics: `E_CALENDAR_HEATMAP_UNKNOWN_TAG`,
 
 ### Fixed
 
+- **map: a basemap name no longer sits inside the legend
+  (diagrammo/diagrammo#1990).** Country and water names were checked against
+  the legend with a box centred on their baseline, so a large name such as
+  "Canada" could pass while its letters rose into the legend. The box now
+  covers the letters; the name moves to its next spot, or is dropped.
 - **bar: notes too crowded for captions become numbered marks with a key.**
   When any bar note finds no clear spot, every note becomes a small numbered
   disc at its bar's end and the text moves to a key under the chart.

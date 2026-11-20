@@ -250,7 +250,13 @@ function rectAround(
   const lineHeight = font + 2; // MUST match the renderer's per-line stride
   const w = Math.max(...lines.map((l) => labelWidth(l, letterSpacing, font)));
   const h = (lines.length - 1) * lineHeight + font + 2 * PADY;
-  return { x: cx - w / 2, y: cy - h / 2, w, h };
+  // `cy` is the text BASELINE (the renderer draws `<text y=cy>` with no
+  // dominant-baseline; a wrapped block centres its baselines on it), and the
+  // glyphs rise above it. Centre the box on the glyph body — a third of the font
+  // above the baseline, the POI-label convention in layout.ts — not on the
+  // baseline: otherwise a 22px "Canada" passed the legend check while its letters
+  // sat inside the legend band (#1990).
+  return { x: cx - w / 2, y: cy - font / 3 - h / 2, w, h };
 }
 
 function rectFits(r: LabelRect, width: number, height: number): boolean {
