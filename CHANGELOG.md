@@ -379,6 +379,11 @@ logged · most often Great`. Diagnostics: `E_CALENDAR_HEATMAP_UNKNOWN_TAG`,
 
 ### Fixed
 
+- **line: hovering a legend entry on a chart with an uncertainty band now
+  emphasises it (diagrammo/diagrammo#2099).** With one line and one band the
+  legend hover did nothing. Hovering the line now recedes the band, hovering
+  the band recedes the line, and leaving restores both.
+
 - **A word unit is stated once, on the value-axis title, not after every
   number (diagrammo/diagrammo#2088).** `unit votes` used to print `100 votes`
   on every tick and bar label, crowding and clipping them. On bar, line,

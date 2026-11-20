@@ -481,6 +481,40 @@ describe('legend hover → series emphasis', () => {
     expect(svg.querySelectorAll('[data-axis-legend]').length).toBe(0);
   });
 
+  // A line with an uncertainty band draws ONE series group plus the band
+  // (diagrammo/diagrammo#2099): the legend still has two entries, so hover
+  // must still emphasise one and recede the other.
+  it('line with a band: hovering the line recedes the band, and the reverse', async () => {
+    await mount(`line Storm Wind
+series
+  Wind red
+  Floor orange
+  Ceiling orange
+band Cone Floor Ceiling
+
+0 45 45 45
+12 52 48 56
+24 60 52 68`);
+    const band = svg.querySelector<SVGGElement>(
+      '.dgmo-series-band[data-series-name="Cone"]'
+    )!;
+    expect(band).toBeTruthy();
+    const wind = legendEntry('Wind');
+    wind.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    expect(seriesGroup('Wind').classList.contains('dgmo-dim')).toBe(false);
+    expect(band.classList.contains('dgmo-dim')).toBe(true);
+    wind.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
+    expect(band.classList.contains('dgmo-dim')).toBe(false);
+    const cone = legendEntry('Cone');
+    cone.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    expect(seriesGroup('Wind').classList.contains('dgmo-dim')).toBe(true);
+    expect(band.classList.contains('dgmo-dim')).toBe(false);
+    cone.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
+    expect(seriesGroup('Wind').classList.contains('dgmo-dim')).toBe(false);
+    const css = svg.querySelector('style')?.textContent ?? '';
+    expect(css).toContain('.dgmo-series-band.dgmo-dim');
+  });
+
   it('function: legend hover dims the other curves', async () => {
     await mount(`function Damped Roll
 x-axis 0..12

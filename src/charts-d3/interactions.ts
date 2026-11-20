@@ -47,9 +47,9 @@ function ensureStyle(svg: SVGSVGElement, muted: string): void {
   const style = doc.createElementNS(NS, 'style');
   style.id = STYLE_ID;
   style.textContent = `
-    .dgmo-series,.dgmo-datum,.dgmo-tick,.dgmo-ptlabel{transition:opacity .12s ease}
+    .dgmo-series,.dgmo-series-band,.dgmo-datum,.dgmo-tick,.dgmo-ptlabel{transition:opacity .12s ease}
     [data-legend-entry]{transition:opacity .12s ease}
-    .dgmo-series.dgmo-dim,.dgmo-datum.dgmo-dim,.dgmo-ptlabel.dgmo-dim,[data-legend-entry].dgmo-dim{opacity:.18}
+    .dgmo-series.dgmo-dim,.dgmo-series-band.dgmo-dim,.dgmo-datum.dgmo-dim,.dgmo-ptlabel.dgmo-dim,[data-legend-entry].dgmo-dim{opacity:.18}
     .dgmo-tick.dgmo-faded{opacity:.22}
     .dgmo-datum{cursor:pointer}
     .dgmo-axis-label{cursor:pointer}
@@ -121,6 +121,11 @@ export function attachDataChartInteractions(
 
   const seriesGroups = Array.from(
     svg.querySelectorAll<SVGGElement>('.dgmo-series')
+  );
+  // A line chart's uncertainty bands (line.ts) carry the band label as
+  // data-series-name and have their own legend entry (#2099).
+  const seriesBands = Array.from(
+    svg.querySelectorAll<SVGGElement>('.dgmo-series-band')
   );
   const datums = Array.from(svg.querySelectorAll<SVGElement>('.dgmo-datum'));
   // The injected series legend (utils/legend-svg.ts). Read here rather than at
@@ -568,7 +573,7 @@ export function attachDataChartInteractions(
   // series-tagged elements are touched, so charts without series groups are
   // untouched. Dimming the g.dgmo-series fades its polygon, points, and labels.
   const emphasizeSeries = (name: string | null) => {
-    for (const g of seriesGroups) {
+    for (const g of [...seriesGroups, ...seriesBands]) {
       const sn = g.getAttribute('data-series-name');
       if (sn != null)
         g.classList.toggle('dgmo-dim', name != null && sn !== name);
@@ -580,7 +585,8 @@ export function attachDataChartInteractions(
     }
   };
   const legendListeners: Array<[SVGGElement, string, EventListener]> = [];
-  // Series charts have >1 `.dgmo-series` group; category charts (scatter) have
+  // Series charts have >1 `.dgmo-series` group — counting a line's bands, so
+  // one line plus its band qualifies (#2099); category charts (scatter) have
   // none but tag individual datums with `data-series-name` instead. Either is
   // enough to emphasize a legend-hovered group.
   const datumsHaveSeries = datums.some(
@@ -588,7 +594,7 @@ export function attachDataChartInteractions(
   );
   if (
     legendEntries.length > 0 &&
-    (seriesGroups.length > 1 || datumsHaveSeries)
+    (seriesGroups.length + seriesBands.length > 1 || datumsHaveSeries)
   ) {
     for (const entry of legendEntries) {
       const name = entry.getAttribute('data-series-name');
