@@ -1,0 +1,35 @@
+pert Roadmap by Sprints
+// stress: span — sprint-counted cells; an FF edge label over an edge that runs along the top row (#2117)
+time-unit s
+sprint-length 2w
+sprint-number 12
+
+# Three-month plan, sprint-counted. Cells render as `S<n>` (e.g. S12,
+# S15) instead of dates or numeric offsets, so this chart can sit
+# alongside a Jira/Linear cycle view without translation.
+#
+# `time-unit s` auto-activates sprint mode; `sprint-length 2w` makes
+# each sprint two weeks (the analyzer's underlying canonical-day math
+# uses 14d per sprint instead of the un-authored 14d fallback —
+# semantically the same here, but explicit).
+# `sprint-number 12` labels the starting sprint as S12.
+
+discovery 1 2 3
+prototype 2 3 4
+build core 3 4 5
+beta release 1 1 1
+gather feedback 1 2 3
+ga launch 1 1 2
+
+discovery
+  -> prototype
+prototype
+  -> build core
+build core
+  -> beta release
+beta release
+  -SS+1s-> gather feedback
+gather feedback
+  -> ga launch
+build core
+  -FF-> ga launch

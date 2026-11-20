@@ -1,0 +1,29 @@
+boxes-and-lines Port Logistics
+// stress: wide-or-tall — back edges that arc over the top row toward the title (#2117)
+
+direction LR
+
+Harbormaster
+  -assign-> DockA
+  -assign-> DockB
+  -assign-> DockC
+  -assign-> Warehouse
+  -assign-> Customs
+
+DockA
+  -manifest-> Warehouse
+DockB
+  -manifest-> Warehouse
+DockC
+  -manifest-> Warehouse
+
+Warehouse
+  -clear-> Customs
+  -status-> Harbormaster
+
+Customs
+  -release-> Market
+  -flag-> Harbormaster
+
+Market
+  -receipts-> Harbormaster

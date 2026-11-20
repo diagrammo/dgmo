@@ -1211,17 +1211,21 @@ export function renderLine(
   drawYAxisTitle(
     svg,
     chart.ylabel,
-    m.top + plotH / 2,
+    m.top,
+    plotH,
     20,
-    leftTint ?? textColor
+    leftTint ?? textColor,
+    top + 8
   );
   if (dual) {
     drawYAxisTitle(
       svg,
       chart.yrlabel,
-      m.top + plotH / 2,
+      m.top,
+      plotH,
       width - 18,
-      rightTint ?? textColor
+      rightTint ?? textColor,
+      top + 8
     );
 
     // Axis-legend hover targets (§ interactions.ts): a transparent strip over

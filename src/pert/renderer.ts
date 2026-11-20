@@ -185,6 +185,8 @@ const LEGEND_TOP_GAP = 12;
 // dagre's marginy (DIAGRAM_PADDING) less the 0.75 a stroke reaches into it:
 // where the first drawn ink sits under the layout's origin.
 const LAYOUT_TOP_INK = DIAGRAM_PADDING - 0.75;
+/** An edge's lag / dependency-type label, over its midpoint. */
+const EDGE_LABEL_FONT_SIZE = 10;
 // Lands the drawing LEGEND_BODY_GAP under the pills (#1838); the layout's own
 // top margin pays for most of it.
 const LEGEND_BOTTOM_GAP = LEGEND_BODY_GAP - LAYOUT_TOP_INK;
@@ -194,6 +196,29 @@ const LEGEND_BOTTOM_GAP = LEGEND_BODY_GAP - LAYOUT_TOP_INK;
  * FRAME_BODY_TOP: the layout's own top margin pays for part of it, unless a
  * legend row sits in between and needs the room. A subtitle alone keeps 50.
  */
+/**
+ * How far an edge's label rises over the layout's first ink (#2117). The
+ * label stands over its edge's midpoint; an edge that arcs over the top row
+ * lifts it above every box, so the layout drops by this much.
+ */
+function edgeLabelInkAbove(
+  resolved: ResolvedPert,
+  layout: LayoutResult
+): number {
+  const labelled = new Set(
+    resolved.edges
+      .filter((e) => formatEdgeLabel(e) !== null)
+      .map((e) => `${e.source}->${e.target}`)
+  );
+  let top = Infinity;
+  for (const e of layout.edges) {
+    if (!labelled.has(`${e.source}->${e.target}`)) continue;
+    const mid = e.points[Math.floor(e.points.length / 2)];
+    if (mid) top = Math.min(top, mid.y - 4 - EDGE_LABEL_FONT_SIZE);
+  }
+  return Math.max(0, LAYOUT_TOP_INK - top);
+}
+
 export function pertTitleBand(
   hasTitle: boolean,
   hasSubtitle: boolean,
@@ -488,6 +513,7 @@ export function renderPert(
   const legendBlockHeight = showTagLegend
     ? LEGEND_TOP_GAP + LEGEND_PILL_HEIGHT + LEGEND_BOTTOM_GAP
     : 0;
+  const inkAbove = edgeLabelInkAbove(resolved, layout);
 
   const naturalChartWidth = layout.width + DIAGRAM_PADDING * 2;
   const minAnalysisRowW = analysisLayer.analysisHasContent
@@ -499,6 +525,7 @@ export function renderPert(
   // narrower, and then the row stacks — measure it again there.
   const naturalHeight =
     layout.height +
+    inkAbove +
     DIAGRAM_PADDING * 2 +
     titleHeight +
     legendBlockHeight +
@@ -549,6 +576,7 @@ export function renderPert(
   const scaledWidth = layout.width + sDiagramPad * 2;
   const scaledHeight =
     layout.height +
+    inkAbove +
     sDiagramPad * 2 +
     sTitleHeight +
     sLegendBlockHeight +
@@ -635,7 +663,10 @@ export function renderPert(
 
   const offsetX = Math.max(sDiagramPad, (svgW - layout.width) / 2);
   const offsetY =
-    sDiagramPad + sTitleHeight + (header.inline ? 0 : sLegendBlockHeight);
+    sDiagramPad +
+    sTitleHeight +
+    (header.inline ? 0 : sLegendBlockHeight) +
+    inkAbove;
 
   if (showTagLegend) {
     const tagLegendY = sDiagramPad + sTitleHeight + sLegendTopGap;
@@ -682,7 +713,7 @@ export function renderPert(
   );
   renderEdges(root, resolved, layout, palette, collapsedSet, {
     edgeStrokeWidth: sEdgeStrokeWidth,
-    edgeLabelFontSize: ctx.text(10),
+    edgeLabelFontSize: ctx.text(EDGE_LABEL_FONT_SIZE),
   });
   renderNodes(
     root,
@@ -1638,7 +1669,7 @@ function renderEdges(
     const path = lineGenerator(e.points);
     if (!path) continue;
     const sESW = sc.edgeStrokeWidth ?? EDGE_STROKE_WIDTH;
-    const sELFS = sc.edgeLabelFontSize ?? 10;
+    const sELFS = sc.edgeLabelFontSize ?? EDGE_LABEL_FONT_SIZE;
     layer
       .append('path')
       .attr('class', 'pert-edge')

@@ -423,7 +423,7 @@ export function renderBoxplot(
       m.top + plotH + 46,
       textColor
     );
-    drawYAxisTitle(svg, chart.xlabel, m.top + plotH / 2, 20, textColor);
+    drawYAxisTitle(svg, chart.xlabel, m.top, plotH, 20, textColor);
   } else {
     drawXAxisTitle(
       svg,
@@ -432,6 +432,6 @@ export function renderBoxplot(
       m.top + plotH + 18 + (named ? 2 : 1) * LABEL_LINE + 14,
       textColor
     );
-    drawYAxisTitle(svg, chart.ylabel, m.top + plotH / 2, 20, textColor);
+    drawYAxisTitle(svg, chart.ylabel, m.top, plotH, 20, textColor);
   }
 }

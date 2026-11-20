@@ -1,0 +1,6 @@
+polar-area Sales by Region
+// stress: few-items — four wedges, each a quarter arc whose full circle reaches into the title band (#2117)
+North 120
+South  90
+East  140
+West  110

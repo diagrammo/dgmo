@@ -377,20 +377,34 @@ export function drawXAxisTitle(
 export function drawYAxisTitle(
   svg: Svg,
   label: string | undefined,
-  cy: number,
+  top: number,
+  height: number,
   x: number,
-  textColor: string
+  textColor: string,
+  /** The highest its ink may reach: the plot's top unless the chart says. */
+  inkTop = top
 ): void {
   if (!label) return;
-  svg
+  // Centred on the plot, and no taller than the room from the band to the
+  // plot's foot mirrored about that centre (#2117): a longer title ran into
+  // the legend gap. It ends in `…` and keeps its full text as a hover title,
+  // as long category names do (#1543).
+  const shown = truncateText(
+    label,
+    AXIS_LABEL_FONT,
+    height + 2 * Math.max(0, top - inkTop),
+    { bold: true }
+  );
+  const t = svg
     .append('text')
-    .attr('transform', `translate(${x},${cy}) rotate(-90)`)
+    .attr('transform', `translate(${x},${top + height / 2}) rotate(-90)`)
     .attr('text-anchor', 'middle')
     .attr('fill', textColor)
     .attr('font-size', AXIS_LABEL_FONT)
     .attr('font-family', FONT_FAMILY)
     .attr('font-weight', 'bold')
-    .text(label);
+    .text(shown);
+  if (shown !== label) t.append('title').text(label);
 }
 
 /**

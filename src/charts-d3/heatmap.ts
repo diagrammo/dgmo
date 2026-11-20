@@ -21,6 +21,7 @@ import { measureText, truncateText } from '../utils/text-measure';
 import type { Svg } from './shared';
 import { chartFormatter, tagDatum } from './shared';
 import { measureTabular, tabularText } from '../utils/tabular-figures';
+import { TEXT_WIDTH_SAFETY } from '../utils/export-fit';
 
 /** The colour bar's name in the legend. */
 const LEGEND_NAME = 'Value';
@@ -210,9 +211,14 @@ export function renderHeatmap(
   const sin = Math.sin(COL_ANGLE);
   const cos = Math.cos(COL_ANGLE);
   // Rotated: the band above the plot holds the tallest label's rise (baseline
-  // 8px above the plot, plus the glyphs' ascent turned through the angle).
+  // 8px above the plot, plus the glyphs' ascent turned through the angle), and
+  // its top sits 8 under the inset, where an upright label's top does (#2117).
+  // The rise is taken at the width the drawing font may reach, not Inter's.
   const band = rotate
-    ? Math.max(28, 8 + Math.max(0, ...colW) * sin + COL_FONT * cos + EDGE_GAP)
+    ? Math.max(
+        28,
+        16 + Math.max(0, ...colW) * TEXT_WIDTH_SAFETY * sin + COL_FONT * cos
+      )
     : 28;
   const top = topInset + band;
   // Rotated: widen the right margin until no label's right end passes the

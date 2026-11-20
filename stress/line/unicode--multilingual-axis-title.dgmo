@@ -1,0 +1,21 @@
+line 海賊の収穫量 — Récolte du Corsaire — حصاد القراصنة
+// stress: unicode — a y-axis title longer than the plot is tall (#2117)
+// Non-Latin and accented names: CJK and Arabic series names, a multi-word accented band label that also contains a series name ("Médiane"), mixed case in the band line's series names.
+y-axis Quantité / 数量 / الكمية
+series
+  Médiane green
+  Bas à l'écart orange
+  Haut à l'écart orange
+  下限 teal
+  上限 teal
+  أدنى purple
+  أعلى purple
+band Intervalle de Médiane élargi Bas à l'écart Haut à l'écart
+band 予測範囲 下限 上限
+band النطاق المتوقع أدنى أعلى
+
+جانفي 10 6 14 8 12 9 11
+février 14 9 19 11 17 12 16
+März 12 7 17 9 15 10 14
+أبريل 18 11 25 14 22 15 21
+五月 22 14 30 17 27 19 25

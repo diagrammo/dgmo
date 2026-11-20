@@ -379,6 +379,21 @@ logged · most often Great`. Diagnostics: `E_CALENDAR_HEATMAP_UNKNOWN_TAG`,
 
 ### Fixed
 
+- **swimlane, heatmap, boxes-and-lines, polar-area, pert, treemap, bar, line,
+  er, event-line: nothing rises into the title gap any more
+  (diagrammo/diagrammo#2117).** Outside the gallery, ten chart types still put
+  ink above the body band or closer than the legend gap: top-down swimlane
+  lanes, a heatmap's rotated column labels, a boxes-and-lines note above its
+  box or an edge arcing over the top row, a pert or er edge label on an edge
+  along the top row, a treemap's 72px names, the first name of a long
+  horizontal bar chart, a y-axis title longer than its plot (now ended in `…`
+  with the full title on hover), and event-line dots with every card below
+  the spine. Each now reserves that ink. The export fit measures an arc by
+  the span it sweeps, not its whole circle, so a polar-area export is no
+  longer padded for a circle it never draws. The title-gap test now also
+  walks `stress/`. Sequence at the maximum `stroke-weight` is left: the theme
+  thickens strokes after layout, so the renderer cannot reserve them.
+
 - **line, area: point values and the mean / median / target labels keep off
   the lines (diagrammo/diagrammo#2106).** Point values knew only the point
   dots, so a value printed over the series line on a steep climb and over a

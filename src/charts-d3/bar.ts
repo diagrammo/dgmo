@@ -471,6 +471,16 @@ export function renderBar(
     }
     m.top = Math.max(m.top, bandSafeTop(mTop, height - m.bottom, items));
   }
+  // Horizontal: the first category's name centres on its band (#2117). With
+  // many categories the band is shorter than the name, which then rises over
+  // the plot's top edge. Its centre is 0.65 of a step under the top (padding
+  // 0.3 inner and outer).
+  if (horizontal && data.length) {
+    const lines = sideFit[0]?.lines.length ?? 1;
+    const above = TICK_FONT - 4 + ((lines - 1) * NAME_LINE_PX) / 2;
+    const f = 0.65 / (data.length + 0.3);
+    m.top = Math.max(m.top, bandSafeTop(mTop, height - m.bottom, [[f, above]]));
+  }
   const plotH = height - m.top - m.bottom;
   const horiz = horizontal;
 
@@ -1252,7 +1262,7 @@ export function renderBar(
     m.top + plotH + 46,
     textColor
   );
-  drawYAxisTitle(svg, leftTitle, m.top + plotH / 2, 20, textColor);
+  drawYAxisTitle(svg, leftTitle, m.top, plotH, 20, textColor, mTop);
 }
 
 interface ValueSpot {
@@ -1759,7 +1769,7 @@ function renderClusteredStack(
   drawMarkers(svg, chart.annotations, annotationFrame, annotationColors);
   settleBandLabels(svg);
   drawXAxisTitle(svg, chart.xlabel, m.left + plotW / 2, nameY + 30, textColor);
-  drawYAxisTitle(svg, chart.ylabel, m.top + plotH / 2, 20, textColor);
+  drawYAxisTitle(svg, chart.ylabel, m.top, plotH, 20, textColor);
 }
 
 /** Gap between a Marimekko column's top and its width label. */
@@ -2089,7 +2099,7 @@ function renderMarimekko(
   }
 
   drawXAxisTitle(svg, chart.xlabel, m.left + plotW / 2, nameY + 30, textColor);
-  drawYAxisTitle(svg, chart.ylabel, m.top + plotH / 2, 20, textColor);
+  drawYAxisTitle(svg, chart.ylabel, m.top, plotH, 20, textColor);
 }
 
 /** Space either side of the category names in a `mirror` chart's gutter. */

@@ -1,0 +1,16 @@
+boxes-and-lines Pirate Fleet Command
+// stress: few-items — a note floated above the top box, over the title band (#2117)
+
+Flagship
+  -> Harbor
+  -> Crew
+
+Harbor
+Crew
+
+note Flagship The admiral sails here — command and control.
+
+note Crew red
+  Souls aboard:
+  - **gunners** work the cannons
+  - *lookouts* watch the horizon

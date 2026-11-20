@@ -79,6 +79,8 @@ export const DATE_SUBTITLE_H = 15;
 // Era `]` bracket band: depth reserved on the side opposite the cards.
 const ERA_BLOCK = 30;
 export const DOT_R = 5.5;
+/** A dot's reach over the spine: its radius plus half its 2px ring. */
+const SPINE_INK_ABOVE = DOT_R + 1;
 // Padding each era bracket extends past its first/last member dot, and the gap
 // kept on each side of a seam when two adjacent brackets are clamped apart.
 const ERA_BRACKET_PAD = 14;
@@ -669,8 +671,12 @@ export function layoutEventLine(
     const contentAbove = ext('above');
     const contentBelow = ext('below');
     // The era `]` bracket band lives beyond the content opposite the cards.
-    const aboveExt =
-      contentAbove + (hasExpandedEra && eraSide === 'above' ? ERA_BLOCK : 0);
+    // With nothing above the spine its dots are the first ink (#2117), so
+    // they keep their reach above it under the band.
+    const aboveExt = Math.max(
+      SPINE_INK_ABOVE,
+      contentAbove + (hasExpandedEra && eraSide === 'above' ? ERA_BLOCK : 0)
+    );
     const belowExt =
       contentBelow + (hasExpandedEra && eraSide === 'below' ? ERA_BLOCK : 0);
     const BOT_PAD = 14;

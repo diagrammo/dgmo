@@ -211,5 +211,5 @@ export function renderFunction(
     m.top + plotH + 46,
     textColor
   );
-  drawYAxisTitle(svg, chart.ylabel, m.top + plotH / 2, 20, textColor);
+  drawYAxisTitle(svg, chart.ylabel, m.top, plotH, 20, textColor);
 }

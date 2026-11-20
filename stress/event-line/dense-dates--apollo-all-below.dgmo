@@ -1,0 +1,28 @@
+event-line Apollo 11
+// stress: dense-dates — every card below the spine, so the spine dots are the first ink (#2117)
+side below
+
+tag Phase as p
+  Launch red
+  Transit blue
+  Landing green
+  Return purple
+
+// `side below` stacks every card on one side (`side above` for the top). Two
+// events share 1969-07-16 — the dots stay coincident (they ARE simultaneous),
+// the cards fan into stacked lanes, and the shared date label is drawn once.
+
+1969-07-16 Liftoff  p: Launch
+  Saturn V departs Kennedy Space Center at 13:32 UTC.
+
+1969-07-16 Translunar Injection  p: Transit
+  The stack leaves Earth orbit three hours after launch.
+
+1969-07-19 Lunar Orbit  p: Transit
+  Insertion behind the Moon after a three-day coast.
+
+1969-07-20 Touchdown  p: Landing
+  **Eagle** lands at Tranquility Base with seconds of fuel to spare.
+
+1969-07-24 Splashdown  p: Return
+  Pacific recovery; the crew returns after eight days.

@@ -1,0 +1,68 @@
+bar Tonnage by Anchorage
+// 60 horizontal lollipops: bands thinner than the category names, so the first name rose over the plot top into the title gap (#2117). Not a stress fixture: its names overlap each other, a separate defect the stress lints reject.
+// Try: 60 categories, sorted descending, horizontal lollipop, with ties (several equal values keep source order). Look at label thinning and height.
+lollipop
+sort
+orientation-horizontal
+y-axis Tons
+
+Anchorage 01 924
+Anchorage 02 948
+Anchorage 03 882
+Anchorage 04 906
+Anchorage 05 840
+Anchorage 06 864
+Anchorage 07 500
+Anchorage 08 822
+Anchorage 09 846
+Anchorage 10 780
+Anchorage 11 804
+Anchorage 12 828
+Anchorage 13 762
+Anchorage 14 500
+Anchorage 15 720
+Anchorage 16 744
+Anchorage 17 768
+Anchorage 18 702
+Anchorage 19 726
+Anchorage 20 660
+Anchorage 21 500
+Anchorage 22 618
+Anchorage 23 642
+Anchorage 24 666
+Anchorage 25 600
+Anchorage 26 624
+Anchorage 27 558
+Anchorage 28 500
+Anchorage 29 606
+Anchorage 30 540
+Anchorage 31 564
+Anchorage 32 498
+Anchorage 33 522
+Anchorage 34 546
+Anchorage 35 500
+Anchorage 36 504
+Anchorage 37 438
+Anchorage 38 462
+Anchorage 39 396
+Anchorage 40 420
+Anchorage 41 444
+Anchorage 42 500
+Anchorage 43 402
+Anchorage 44 336
+Anchorage 45 360
+Anchorage 46 384
+Anchorage 47 318
+Anchorage 48 342
+Anchorage 49 500
+Anchorage 50 300
+Anchorage 51 324
+Anchorage 52 258
+Anchorage 53 282
+Anchorage 54 216
+Anchorage 55 240
+Anchorage 56 500
+Anchorage 57 198
+Anchorage 58 222
+Anchorage 59 156
+Anchorage 60 180

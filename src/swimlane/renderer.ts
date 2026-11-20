@@ -162,10 +162,15 @@ export const SWIMLANE_TITLE_BAND = FRAME_BODY_TOP - LAYOUT_MARGIN - 1.5;
 /**
  * With phases the first ink is the phase header, drawn at the layout's origin
  * with a half-unit stroke above it, so the band is the whole body top plus
- * that stroke (#1838).
+ * that stroke (#1838). Top-down, the lanes run down the flow axis from the
+ * origin, so their headers sit there too, with or without phases (#2117).
  */
-export const swimlaneTitleBand = (hasPhases: boolean): number =>
-  hasPhases ? FRAME_BODY_TOP + 0.5 : SWIMLANE_TITLE_BAND;
+export const swimlaneTitleBand = (
+  parsed: Pick<ParsedSwimlane, 'phases' | 'direction'>
+): number =>
+  parsed.phases.length > 0 || parsed.direction === 'TB'
+    ? FRAME_BODY_TOP + 0.5
+    : SWIMLANE_TITLE_BAND;
 
 export function renderSwimlaneForExport(
   container: HTMLElement,
@@ -179,9 +184,7 @@ export function renderSwimlaneForExport(
   // don't stack SVGs. Export uses a throwaway container, so this is a no-op there.
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
-  const titleOffset = parsed.title
-    ? swimlaneTitleBand(parsed.phases.length > 0)
-    : 0;
+  const titleOffset = parsed.title ? swimlaneTitleBand(parsed) : 0;
   const width = opts.exportDims?.width ?? layout.width;
   const height = (opts.exportDims?.height ?? layout.height) + 0;
 

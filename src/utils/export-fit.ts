@@ -14,10 +14,9 @@
 //     skew) down the element tree, so `transform`-positioned groups and words
 //     are measured where they are drawn — the word-cloud blind spot of the
 //     embed tightener (svg-embed.ts, computeBBox) does not exist here;
-//   - it parses path data as commands (relative and absolute), takes curve
-//     control points and the full circle of every arc, so it can only
-//     over-measure a path — the arc over-shoot that guard exists for is
-//     harmless here, never a clip;
+//   - it parses path data as commands (relative and absolute) and takes the
+//     true extent of every curve and of the span each arc sweeps (#2117: the
+//     whole circle put a polar wedge's box far above the wedge);
 //   - text is measured with Inter's advance widths (measureText) times
 //     TEXT_WIDTH_SAFETY, honouring text-anchor, dominant-baseline, tspans,
 //     dx/dy and textPath (the referenced path is measured, even inside defs).
@@ -46,7 +45,7 @@ export const EXPORT_FIT_PAD = 24;
 export const EXPORT_FIT_MIN_TRIM = EXPORT_FIT_PAD * 2;
 
 /** Inter's advance widths are an estimate of the font that draws; err wide. */
-const TEXT_WIDTH_SAFETY = 1.15;
+export const TEXT_WIDTH_SAFETY = 1.15;
 
 /** Room for an arrowhead or other marker drawn past a line's end. */
 const MARKER_ALLOWANCE = 12;
@@ -242,8 +241,8 @@ function bezierExtent(
 /**
  * Path data → its local bounding box, or null when it cannot be parsed.
  * Curves contribute their true extent (#1838: a hull of control points put a
- * tall arc's box far above the arc); arcs their whole circle, so an arc's
- * box can be too big, never too small.
+ * tall arc's box far above the arc); arcs the extremes of the span they
+ * sweep (#2117).
  */
 function pathBox(d: string): Box | null {
   let i = 0;
@@ -389,7 +388,7 @@ function pathBox(d: string): Box | null {
   return box.x0 <= box.x1 ? box : null;
 }
 
-/** Add the full circle an SVG arc segment lies on (SVG 1.1 F.6.5). */
+/** Add the extremes of the span an SVG arc segment sweeps (SVG 1.1 F.6.5). */
 function arcExtent(
   x1: number,
   y1: number,
@@ -425,9 +424,30 @@ function arcExtent(
   const cyp = (-factor * ry * xp) / rx;
   const ccx = cos * cxp - sin * cyp + (x1 + x2) / 2;
   const ccy = sin * cxp + cos * cyp + (y1 + y2) / 2;
-  const r = Math.max(rx, ry);
-  add(ccx - r, ccy - r);
-  add(ccx + r, ccy + r);
+  // The swept span (F.6.5.5-6), then every axis extreme of the ellipse that
+  // falls inside it; the endpoints themselves the caller adds.
+  const ang = (ux: number, uy: number, vx: number, vy: number) =>
+    Math.atan2(ux * vy - uy * vx, ux * vx + uy * vy);
+  const ux = (xp - cxp) / rx;
+  const uy = (yp - cyp) / ry;
+  const t1 = ang(1, 0, ux, uy);
+  let dt = ang(ux, uy, (-xp - cxp) / rx, (-yp - cyp) / ry);
+  if (!sweep && dt > 0) dt -= 2 * Math.PI;
+  else if (sweep && dt < 0) dt += 2 * Math.PI;
+  const tx = Math.atan2(-ry * sin, rx * cos);
+  const ty = Math.atan2(ry * cos, rx * sin);
+  const TAU = 2 * Math.PI;
+  for (const t of [tx, tx + Math.PI, ty, ty + Math.PI]) {
+    // Distance from the start, along the sweep's direction, in [0, 2pi).
+    const along = (((dt >= 0 ? t - t1 : t1 - t) % TAU) + TAU) % TAU;
+    if (along > Math.abs(dt) + 1e-9) continue;
+    const ct = Math.cos(t);
+    const st = Math.sin(t);
+    add(
+      ccx + rx * cos * ct - ry * sin * st,
+      ccy + rx * sin * ct + ry * cos * st
+    );
+  }
 }
 
 function attrOf(attrs: string, name: string): string | null {

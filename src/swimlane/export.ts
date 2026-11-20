@@ -24,9 +24,7 @@ export async function exportSwimlane(ctx: ExportContext): Promise<string> {
 
   const swimLayout = layoutSwimlane(swimParsed);
   const PADDING = 20;
-  const titleOffset = swimParsed.title
-    ? swimlaneTitleBand(swimParsed.phases.length > 0)
-    : 0;
+  const titleOffset = swimParsed.title ? swimlaneTitleBand(swimParsed) : 0;
   const exportWidth = swimLayout.width + PADDING * 2;
   const exportHeight = swimLayout.height + PADDING * 2 + titleOffset;
   const container = createExportContainer(exportWidth, exportHeight);

@@ -1,0 +1,12 @@
+swimlane Changing the Watch
+// stress: wide-or-tall — top-down lanes, whose headers sit at the layout origin under the title (#2117)
+direction TB
+
+// direction TB transposes: lanes become vertical columns and the flow runs
+// downward. Same lane-blocks-own-their-edges grammar.
+
+lane Old Watch gray
+  Ring Bell -> Wake Relief
+lane New Watch blue
+  Wake Relief -> Take Helm
+  Take Helm -> (Watch Set) success

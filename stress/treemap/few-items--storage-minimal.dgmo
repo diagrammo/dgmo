@@ -1,0 +1,12 @@
+treemap Disk by Type
+// stress: few-items — six big cells whose 72px names reach a full em over their baseline (#2117)
+no-headers
+no-legend
+no-percent
+
+Documents 320
+Photos 540
+Video 1280
+Music 210
+Apps 180
+System 90

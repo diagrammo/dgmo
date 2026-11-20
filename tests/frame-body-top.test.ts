@@ -159,17 +159,30 @@ describe('the drawing starts on the shared band (#1838)', () => {
 });
 
 /**
- * Every titled gallery fixture keeps ALL its ink under the band (#2111) — not
- * just the main shape. The per-type fixtures above pin where the drawing
- * starts; these catch outlying labels, value tags and annotations that a
- * benign fixture never pushes upward (a pie's small top slices, an overlay's
- * label above the plot).
+ * Every titled gallery and stress fixture keeps ALL its ink under the band
+ * (#2111, #2117) — not just the main shape. The per-type fixtures above pin
+ * where the drawing starts; these catch outlying labels, value tags and
+ * annotations that a benign fixture never pushes upward (a pie's small top
+ * slices, an overlay's label above the plot, an edge label on an edge along
+ * the top row, a y-axis title longer than its plot).
  */
 describe('nothing rises into the title gap (#2111)', () => {
-  const dir = join(__dirname, '..', 'gallery/fixtures');
-  for (const f of readdirSync(dir).sort()) {
+  const root = join(__dirname, '..');
+  const files = [
+    ...readdirSync(join(root, 'gallery/fixtures')).map(
+      (f) => `gallery/fixtures/${f}`
+    ),
+    ...readdirSync(join(root, 'stress'), { recursive: true }).map(
+      (f) => `stress/${String(f)}`
+    ),
+    // Cases the stress lints would reject for a defect of their own.
+    ...readdirSync(join(__dirname, 'fixtures/title-gap')).map(
+      (f) => `tests/fixtures/title-gap/${f}`
+    ),
+  ].sort();
+  for (const f of files) {
     if (!f.endsWith('.dgmo')) continue;
-    const src = readFileSync(join(dir, f), 'utf8');
+    const src = readFileSync(join(root, f), 'utf8');
     const type =
       src
         .split('\n')

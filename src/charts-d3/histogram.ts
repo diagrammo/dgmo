@@ -448,5 +448,5 @@ export function renderHistogram(
     m.top + plotH + 46,
     textColor
   );
-  drawYAxisTitle(svg, ylabel, m.top + plotH / 2, 20, textColor);
+  drawYAxisTitle(svg, ylabel, m.top, plotH, 20, textColor);
 }

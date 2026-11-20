@@ -449,7 +449,9 @@ export function renderTreemap(
       const vfs = clamp(Math.round(fs * 0.42), 11, 28);
       const valOpacity = Math.max(0.45, nameOpacity - 0.1);
 
-      let y = PAD + Math.round(fs * 0.78); // top PAD above the cap height
+      // Top PAD above the cap height; a big name's ascenders (an accented
+      // capital reaches a full em) stay inside its cell all the same (#2117).
+      let y = Math.max(PAD + Math.round(fs * 0.78), Math.ceil(fs));
       g.append('text')
         .attr('class', 'dgmo-treemap-label')
         .attr('x', PAD)

@@ -190,7 +190,7 @@ describe('export fit — the two blind spots of the embed tightener', () => {
     expect(bgRectCoversViewBox(fitted)).toBe(true);
   });
 
-  it('an arc is measured by its circle, so it never under-shoots (arc over-shoot)', () => {
+  it('an arc is measured by the span it sweeps, so it never under-shoots (arc over-shoot)', () => {
     // Read as coordinate pairs, "A 150 150 0 0 1 …" yields (150,150) (0,0)
     // (1,…) — a box pulled to the origin. The arc's bulge rises to y≈150.
     const svg =
@@ -208,6 +208,26 @@ describe('export fit — the two blind spots of the embed tightener', () => {
     expect(x + w).toBeLessThanOrEqual(1200);
     expect(y + h).toBeLessThanOrEqual(800);
     expect(inkOutsideFrame(fitted)).toBe(0);
+  });
+
+  it('a quarter arc is not measured as its whole circle (#2117)', () => {
+    // A polar-area wedge: centre (600,400), radius 160, from straight down
+    // clockwise to straight left. Its circle would reach y=240 and x=760.
+    const svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">' +
+      '<path d="M 600 560 A 160 160 0 0 1 440 400 L 600 400 Z" fill="#88c0d0" stroke-width="0"></path>' +
+      '</svg>';
+    const { box } = measureSvgContent(svg);
+    expect(box!.y0).toBeCloseTo(400, 5);
+    expect(box!.y1).toBeCloseTo(560, 5);
+    expect(box!.x0).toBeCloseTo(440, 5);
+    expect(box!.x1).toBeCloseTo(600, 5);
+    // The same quarter swept the other way round is the other three.
+    const { box: long } = measureSvgContent(
+      svg.replace('0 0 1 440 400', '0 1 0 440 400')
+    );
+    expect(long!.y0).toBeCloseTo(240, 5);
+    expect(long!.x1).toBeCloseTo(760, 5);
   });
 
   it('a drawing it cannot place keeps the canvas, unchanged', () => {

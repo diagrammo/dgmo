@@ -61,6 +61,7 @@ import {
   type WrappedDescLine,
 } from '../utils/wrapped-desc';
 import type { ParsedBoxesAndLines, BLNode } from './types';
+import { measureSvgContent } from '../utils/export-fit';
 import type { BLLayoutResult, BLLayoutNode, BLLayoutEdge } from './layout';
 import { legendInkBottom } from '../utils/legend-constants';
 import { LAYOUT_MARGIN } from './types';
@@ -124,6 +125,23 @@ const lineGeneratorTB = d3Shape
   .x((d) => d.x)
   .y((d) => d.y)
   .curve(d3Shape.curveBasis);
+
+/** Top of the curve an edge's points draw: a B-spline stays well inside the
+ *  points' hull, so it is measured, not read off the points (#2117). */
+function curveTop(
+  points: ReadonlyArray<{ readonly x: number; readonly y: number }>,
+  direction: ParsedBoxesAndLines['direction']
+): number {
+  if (points.length < 2) return Infinity;
+  const gen = direction === 'TB' ? lineGeneratorTB : lineGeneratorLR;
+  const d = gen(points.map((p) => ({ x: p.x, y: p.y })));
+  const box = d
+    ? measureSvgContent(
+        `<svg xmlns="http://www.w3.org/2000/svg"><path d="${d}" stroke-width="0"/></svg>`
+      ).box
+    : null;
+  return box ? box.y0 : Math.min(...points.map((p) => p.y));
+}
 
 // ── Text fitting ───────────────────────────────────────────
 
@@ -673,7 +691,8 @@ export function renderBoxesAndLines(
       ? titleOffset + 4 + legendInkBottom(sLegendHeight) + LEGEND_BODY_GAP
       : FRAME_BODY_TOP;
   // A group box can stand above the layout's top margin; the first thing
-  // drawn is what lands on bodyTop.
+  // drawn is what lands on bodyTop. So can a note floated above its box, an
+  // edge that arcs over the boxes, and that edge's label (#2117).
   const extraTopGroups = new Set(
     parsed.groups
       .filter((g) => g.children.some((c) => groupLabelsSet.has(c)))
@@ -687,7 +706,16 @@ export function renderBoxesAndLines(
         g.height / 2 -
         (!g.collapsed && extraTopGroups.has(g.label) ? sGroupLabelZone : 0)
     ),
-    ...layout.nodes.map((n) => n.y - n.height / 2)
+    ...layout.nodes.map((n) => n.y - n.height / 2),
+    ...layout.nodes.flatMap((n) =>
+      n.note && !n.note.collapsed ? [n.y + n.note.y] : []
+    ),
+    ...layout.edges.map((e) => curveTop(e.points, parsed.direction)),
+    ...layout.edges.flatMap((e) =>
+      e.labelY !== undefined && e.labelHeight !== undefined
+        ? [e.labelY - e.labelHeight / 2]
+        : []
+    )
   );
   const vOverhead =
     bodyTop ?? titleOffset + (header.inline ? 0 : legendH) + labelZoneExtension;

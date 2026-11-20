@@ -52,6 +52,8 @@ const MAX_SCALE = 3;
 const TABLE_FONT_SIZE = 13;
 const COLUMN_FONT_SIZE = 11;
 const EDGE_LABEL_FONT_SIZE = 11;
+/** Height of the knockout behind an edge label. */
+const EDGE_LABEL_BG_H = 16;
 import {
   EDGE_LABEL_KNOCKOUT_OPACITY,
   EDGE_STROKE_WIDTH,
@@ -250,6 +252,18 @@ export function renderERDiagram(
   const titleHeight = showTitle ? 40 : 0;
   const diagramW = layout.width;
   const diagramH = layout.height;
+  // The layout's first ink: its top margin, unless an edge label's knockout
+  // stands higher (#2117). The label centres on its edge's midpoint, and an
+  // edge can run along the top row.
+  const layoutTop = Math.min(
+    HALF_MARGIN,
+    ...layout.edges
+      .filter((e) => e.label && e.points.length >= 2)
+      .map(
+        (e) =>
+          e.points[Math.floor(e.points.length / 2)]!.y - EDGE_LABEL_BG_H / 2 - 1
+      )
+  );
 
   const ctx = ScaleContext.identity();
 
@@ -356,7 +370,7 @@ export function renderERDiagram(
   const naturalH =
     bodyTop === null
       ? diagramH + titleHeight + effectiveReserveH + sDiagramPadding * 2
-      : diagramH - HALF_MARGIN + bodyTop + sDiagramPadding;
+      : diagramH - layoutTop + bodyTop + sDiagramPadding;
 
   let viewW: number;
   let viewH: number;
@@ -372,14 +386,14 @@ export function renderERDiagram(
     const scaleY =
       bodyTop === null
         ? (availH - sDiagramPadding * 2) / diagramH
-        : (viewH - bodyTop - sDiagramPadding) / (diagramH - HALF_MARGIN);
+        : (viewH - bodyTop - sDiagramPadding) / (diagramH - layoutTop);
     scale = Math.min(MAX_SCALE, scaleX, scaleY);
     const scaledW = diagramW * scale;
     offsetX = (viewW - scaledW) / 2;
     offsetY =
       bodyTop === null
         ? titleHeight + effectiveReserveH + sDiagramPadding
-        : bodyTop - HALF_MARGIN * scale;
+        : bodyTop - layoutTop * scale;
   } else {
     viewW = naturalW;
     viewH = naturalH;
@@ -388,7 +402,7 @@ export function renderERDiagram(
     offsetY =
       bodyTop === null
         ? titleHeight + effectiveReserveH + sDiagramPadding
-        : bodyTop - HALF_MARGIN;
+        : bodyTop - layoutTop;
   }
 
   if (viewW <= 0 || viewH <= 0) return;
@@ -500,7 +514,7 @@ export function renderERDiagram(
       // In-bounds: midIdx is in [0, pts.length-1] since pts.length >= 2.
       const midPt = pts[midIdx]!;
       const bgW = measureText(edge.label, sEdgeLabelFontSize) + 8;
-      const bgH = 16;
+      const bgH = EDGE_LABEL_BG_H;
 
       edgeG
         .append('rect')
