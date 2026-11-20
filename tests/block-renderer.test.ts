@@ -127,3 +127,69 @@ describe('block renderer', () => {
     expect(cellByLabel(c2, 'Postgres')).toBeDefined();
   });
 });
+
+describe('block — long labels wrap instead of cutting (#2172)', () => {
+  const CAPTION =
+    'This is a deliberately long caption band intended to test whether the block type truncates a span-6 label and at what threshold it does so';
+
+  function labelOf(cell: Element): string[] {
+    const text = cell.querySelector('text')!;
+    const spans = [...text.querySelectorAll('tspan')];
+    return spans.length > 0
+      ? spans.map((s) => s.textContent ?? '')
+      : [text.textContent ?? ''];
+  }
+
+  it('a spanning band wraps its full caption and grows to hold it', () => {
+    const c = mount();
+    renderBlock(
+      c,
+      parseBlock(`block T\ncolumns 6\n[${CAPTION}] span: 6\n`),
+      nordLight,
+      false
+    );
+    const cell = c.querySelector('.dgmo-block-cell')!;
+    const lines = labelOf(cell);
+    expect(lines.length).toBeGreaterThan(1);
+    expect(lines.join(' ')).toBe(CAPTION);
+    expect(lines.some((l) => l.includes('…'))).toBe(false);
+    const h = Number(cell.querySelector('rect')!.getAttribute('height'));
+    expect(h).toBeGreaterThan(46);
+  });
+
+  it('a word wider than its cell breaks rather than ending in "…"', () => {
+    const word = 'Pneumonoultramicroscopicsilicovolcanoconiosis';
+    const c = mount();
+    renderBlock(c, parseBlock(`block T\n[${word}]\n`), nordLight, false);
+    const lines = labelOf(c.querySelector('.dgmo-block-cell')!);
+    expect(lines.some((l) => l.includes('…'))).toBe(false);
+    expect(lines.join('')).toBe(word);
+  });
+
+  it('a container header wraps and keeps its children below it', () => {
+    const header =
+      'A container header long enough that it cannot fit on one line of a narrow box';
+    const c = mount();
+    renderBlock(
+      c,
+      parseBlock(`block T\n[${header}]\n  [Child]\n`),
+      nordLight,
+      false
+    );
+    const cell = cellByLabel(c, 'Child')!;
+    const parent = [...c.querySelectorAll('.dgmo-block-cell')].find(
+      (el) => el !== cell
+    )!;
+    const lines = labelOf(parent);
+    expect(lines.join(' ')).toBe(header);
+    expect(lines.length).toBeGreaterThan(1);
+    const text = parent.querySelector('text')!;
+    const fs = Number(text.getAttribute('font-size'));
+    // Baseline of the header's last line.
+    const lastBaseline =
+      Number(text.getAttribute('y')) +
+      (lines.length - 1) * Math.round(fs * 1.3);
+    const childTop = Number(cell.querySelector('rect')!.getAttribute('y'));
+    expect(childTop).toBeGreaterThan(lastBaseline);
+  });
+});

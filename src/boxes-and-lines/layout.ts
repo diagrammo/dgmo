@@ -11,7 +11,12 @@ import { LAYOUT_MARGIN } from './types';
 import { layoutRankdir } from './rankdir';
 import type { ParsedBoxesAndLines, BLNode, BLGroup } from './types';
 import type { BLSearchConfig } from './layout-search';
-import { NODE_HEIGHT, NODE_WIDTH } from './node-metrics';
+import {
+  NODE_HEIGHT,
+  NODE_WIDTH,
+  NODE_FONT_SIZE,
+  NODE_TEXT_PADDING,
+} from './node-metrics';
 import { measureText, wrapTextToWidth } from '../utils/text-measure';
 import { LABEL_REACH_WIDE, placeEdgeLabels } from './label-placement';
 import {
@@ -135,6 +140,73 @@ function splitCamelCase(word: string): string[] {
   return parts.length > 1 ? parts : [word];
 }
 
+/**
+ * One wrap-break opportunity within a label.
+ *
+ * `spaceBefore` records whether the author's text had a space here, so a
+ * chunk that stays on the same line as its predecessor rejoins exactly as
+ * typed. Hyphens and camelCase boundaries are break opportunities with NO
+ * separator — the hyphen itself rides along on the chunk that precedes it.
+ */
+interface LabelChunk {
+  text: string;
+  spaceBefore: boolean;
+}
+
+/**
+ * Split a label into wrap chunks at spaces, hyphens and camelCase humps.
+ * Shared with the renderer so a box is sized from the chunks it draws.
+ *
+ * A hyphen keeps its own character: `us-east-1` → `us-`, `east-`, `1`, so
+ * rejoining without a separator reproduces the source. Materializing a
+ * break opportunity as a space is what silently turned `Alpha-One` into
+ * `Alpha One` on the canvas.
+ */
+export function splitLabelChunks(label: string): LabelChunk[] {
+  const chunks: LabelChunk[] = [];
+  const words = label.split(/\s+/).filter((w) => w.length > 0);
+  for (let wi = 0; wi < words.length; wi++) {
+    // In-bounds by loop guard.
+    const word = words[wi]!;
+    // Break after each hyphen, keeping the hyphen on the left chunk.
+    const hyphenParts: string[] = [];
+    let start = 0;
+    for (let i = 0; i < word.length; i++) {
+      if (word[i] === '-') {
+        hyphenParts.push(word.slice(start, i + 1));
+        start = i + 1;
+      }
+    }
+    if (start < word.length) hyphenParts.push(word.slice(start));
+
+    let firstOfWord = true;
+    for (const part of hyphenParts) {
+      for (const camel of splitCamelCase(part)) {
+        chunks.push({ text: camel, spaceBefore: wi > 0 && firstOfWord });
+        firstOfWord = false;
+      }
+    }
+  }
+  return chunks;
+}
+
+/**
+ * Width of a box without a description: wide enough for its widest label
+ * chunk at the title font, never narrower than NODE_WIDTH and never wider
+ * than DESC_NODE_WIDTH. A chunk wider than that is hard-broken by the
+ * renderer instead of cut with "…" (#2172).
+ */
+function plainNodeWidth(label: string): number {
+  let widest = 0;
+  for (const c of splitLabelChunks(label))
+    widest = Math.max(
+      widest,
+      measureText(c.text, NODE_FONT_SIZE, { bold: true })
+    );
+  const needed = Math.ceil(widest + 2 * NODE_TEXT_PADDING);
+  return Math.min(DESC_NODE_WIDTH, Math.max(NODE_WIDTH, needed));
+}
+
 function estimateLabelLines(label: string, nodeWidth = NODE_WIDTH): number {
   const rawParts = label.split(/[\s-]+/);
   const words: string[] = [];
@@ -166,7 +238,7 @@ export function computeNodeSize(
   reserveValueRow: boolean
 ): { width: number; height: number } {
   if (!node.description || node.description.length === 0) {
-    return { width: NODE_WIDTH, height: NODE_HEIGHT };
+    return { width: plainNodeWidth(node.label), height: NODE_HEIGHT };
   }
   const w = DESC_NODE_WIDTH;
   const labelLines = estimateLabelLines(node.label, w);

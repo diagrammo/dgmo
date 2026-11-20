@@ -30,13 +30,18 @@ import {
   TITLE_FONT_WEIGHT,
   TITLE_Y,
 } from '../utils/title-constants';
-import { measureText } from '../utils/text-measure';
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import type { ParsedBlock, BlockNode } from './types';
 import { isBlockNode } from './types';
 import { growChartFrame } from '../utils/chart-frame';
-import { layoutBlock, type BlockLayoutItem, BLOCK_HEADER_H } from './layout';
+import {
+  layoutBlock,
+  type BlockLayoutItem,
+  BLOCK_HEADER_H,
+  blockLineH,
+  blockHeaderFs,
+} from './layout';
 
 const PADDING = 12;
 const TITLE_BAND = 36;
@@ -291,21 +296,26 @@ function colorOf(node: BlockNode | undefined, ctx: DrawCtx): string | null {
 }
 
 /**
- * Clip to a pixel width with a trailing ellipsis. Measured bold: the three
- * callers draw at 700, 700 and 600, and with only Regular and Bold shipped,
- * CSS font matching resolves 600 up to the Bold face.
+ * Write a label's lines into a <text>: one line as plain text, more as
+ * tspans one line-height apart, the first on the text's own baseline.
  */
-function clipLabel(s: string, maxWidth: number, fs: number): string {
-  if (measureText(s, fs, { bold: true }) <= maxWidth) return s;
-  let lo = 0;
-  let hi = s.length;
-  while (lo < hi) {
-    const mid = Math.ceil((lo + hi) / 2);
-    if (measureText(s.slice(0, mid) + '…', fs, { bold: true }) <= maxWidth)
-      lo = mid;
-    else hi = mid - 1;
+function setLabelLines(
+  text: d3Selection.Selection<SVGTextElement, unknown, null, undefined>,
+  lines: readonly string[],
+  x: number,
+  lineH: number
+): void {
+  if (lines.length <= 1) {
+    text.text(lines[0] ?? '');
+    return;
   }
-  return lo <= 0 ? '' : s.slice(0, lo) + '…';
+  lines.forEach((line, i) => {
+    text
+      .append('tspan')
+      .attr('x', x)
+      .attr('dy', i === 0 ? 0 : lineH)
+      .text(line);
+  });
 }
 
 let clipCounter = 0;
@@ -373,15 +383,22 @@ function drawItems(
         .attr('fill', fill)
         .attr('stroke', stroke)
         .attr('stroke-width', 1.5);
-      cell
-        .append('text')
-        .attr('x', it.x + it.w / 2)
-        .attr('y', it.y + it.h / 2 + 4)
-        .attr('text-anchor', 'middle')
-        .attr('font-size', 12.5)
-        .attr('font-weight', 'bold')
-        .attr('fill', palette.text)
-        .text(clipLabel(it.label ?? '', it.w - 24, 12.5));
+      const fs = it.labelFs ?? 12.5;
+      const lines = it.labelLines ?? [it.label ?? ''];
+      const lineH = blockLineH(fs);
+      setLabelLines(
+        cell
+          .append('text')
+          .attr('x', it.x + it.w / 2)
+          .attr('y', it.y + it.h / 2 + 4 - ((lines.length - 1) * lineH) / 2)
+          .attr('text-anchor', 'middle')
+          .attr('font-size', fs)
+          .attr('font-weight', 'bold')
+          .attr('fill', palette.text),
+        lines,
+        it.x + it.w / 2,
+        lineH
+      );
       // The collapse bar (conventions §3). In fill-solid mode the stroke
       // equals the fill, so the bar takes the label colour to stay visible.
       renderCollapseBar(cell, {
@@ -419,25 +436,28 @@ function drawItems(
       // An expanded container's header scales (subtly) with the box size and
       // fades as it grows — a soft section watermark on big regions, crisp on
       // small ones (the treemap leaf-label treatment, applied to headers).
-      const sizeMetric = Math.min(it.w, it.h * 2.5);
-      const headerFs = Math.max(
-        13,
-        Math.min(20, Math.round(13 + (sizeMetric - 220) / 70))
-      );
+      const headerFs = it.labelFs ?? blockHeaderFs(it.w, it.h);
+      const headerLines = it.labelLines ?? [it.label ?? ''];
+      const headerLineH = blockLineH(headerFs);
       const grow = (headerFs - 13) / (20 - 13); // 0 (small) → 1 (large)
       const headerOpacity = 0.92 - grow * 0.3; // 0.92 → 0.62
       const headerY = it.y + Math.round(headerFs * 0.7) + 7;
-      cell
-        .append('text')
-        .attr('x', it.x + it.w / 2)
-        .attr('y', headerY)
-        .attr('text-anchor', 'middle')
-        .attr('font-size', headerFs)
-        .attr('font-weight', 'bold')
-        .attr('fill', palette.text)
-        .attr('opacity', headerOpacity)
-        .text(clipLabel(it.label ?? '', it.w - 24, headerFs));
-      if (bindToggle(cell, it, ctx, BLOCK_HEADER_H)) {
+      setLabelLines(
+        cell
+          .append('text')
+          .attr('x', it.x + it.w / 2)
+          .attr('y', headerY)
+          .attr('text-anchor', 'middle')
+          .attr('font-size', headerFs)
+          .attr('font-weight', 'bold')
+          .attr('fill', palette.text)
+          .attr('opacity', headerOpacity),
+        headerLines,
+        it.x + it.w / 2,
+        headerLineH
+      );
+      const headerH = BLOCK_HEADER_H + (headerLines.length - 1) * headerLineH;
+      if (bindToggle(cell, it, ctx, headerH)) {
         // An expanded container folds: its hover preview of the bar (#1741).
         renderCollapseBar(cell, {
           expanded: true,
@@ -480,15 +500,22 @@ function drawItems(
       .attr('fill', fill)
       .attr('stroke', stroke)
       .attr('stroke-width', 1.25);
-    cell
-      .append('text')
-      .attr('x', it.x + it.w / 2)
-      .attr('y', it.y + it.h / 2 + 5)
-      .attr('text-anchor', 'middle')
-      .attr('font-size', 13)
-      .attr('font-weight', 'bold')
-      .attr('fill', palette.text)
-      .text(clipLabel(it.label ?? '', it.w - 16, 13));
+    const fs = it.labelFs ?? 13;
+    const lines = it.labelLines ?? [it.label ?? ''];
+    const lineH = blockLineH(fs);
+    setLabelLines(
+      cell
+        .append('text')
+        .attr('x', it.x + it.w / 2)
+        .attr('y', it.y + it.h / 2 + 5 - ((lines.length - 1) * lineH) / 2)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', fs)
+        .attr('font-weight', 'bold')
+        .attr('fill', palette.text),
+      lines,
+      it.x + it.w / 2,
+      lineH
+    );
   }
 }
 

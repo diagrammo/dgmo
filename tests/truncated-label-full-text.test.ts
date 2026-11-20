@@ -76,7 +76,10 @@ describe('full text of a truncated node (#1059)', () => {
     });
 
     it('puts the full label on a node whose label is cut', async () => {
-      const label = 'Supercalifragilisticexpialidociousnessmonstrosityservice';
+      // More lines than the box holds: a long WORD now breaks instead of being
+      // cut (#2172), so only line overflow still draws "…".
+      const label =
+        'Supercalifragilistic expialidocious monstrosity service gateway proxy router';
       const svg = await renderBL(`boxes-and-lines\n${label}\nB\n${label} -> B`);
       const node = svg.querySelector(`.bl-node[data-node-id="${label}"]`)!;
       const drawn = [...node.querySelectorAll('text')]

@@ -7002,6 +7002,10 @@ interface BlockLayoutItem {
     lineNumber?: number;
     /** Container children (a nested layout). */
     inner?: BlockLayoutItem[];
+    /** The label as drawn: wrapped to the box, a too-wide word hard-broken. */
+    labelLines?: string[];
+    /** Font size the label lines were wrapped at. */
+    labelFs?: number;
 }
 interface BlockLayoutResult {
     width: number;

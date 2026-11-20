@@ -9,7 +9,7 @@
 // in the renderer). Output is a tree of absolutely-positioned items the renderer
 // walks; colours are resolved renderer-side (they're palette-dependent).
 
-import { measureText } from '../utils/text-measure';
+import { measureText, wrapTextToWidth } from '../utils/text-measure';
 import type { BlockGrid, BlockNode } from './types';
 import { isBlockNode } from './types';
 
@@ -21,6 +21,12 @@ export const BLOCK_COLLAPSED_H = 46;
 const MIN_COL = 104;
 const MAX_COL = 250;
 const LABEL_FS = 13;
+/** Font size of a collapsed container's label. */
+const BLOCK_COLLAPSED_FS = 12.5;
+// Horizontal room a label leaves inside its box: a leaf, then a collapsed or
+// expanded container.
+const LEAF_INSET = 16;
+const CONTAINER_INSET = 24;
 
 export interface BlockLayoutItem {
   type: 'leaf' | 'container' | 'collapsed' | 'empty';
@@ -33,6 +39,10 @@ export interface BlockLayoutItem {
   lineNumber?: number;
   /** Container children (a nested layout). */
   inner?: BlockLayoutItem[];
+  /** The label as drawn: wrapped to the box, a too-wide word hard-broken. */
+  labelLines?: string[];
+  /** Font size the label lines were wrapped at. */
+  labelFs?: number;
 }
 
 export interface BlockLayoutResult {
@@ -53,6 +63,39 @@ export function layoutBlock(
   const collapsed = opts.collapsed ?? new Set<string>();
   const node = layoutGrid(grid, 0, 0, null, collapsed);
   return { width: node.w, height: node.h, items: node.items };
+}
+
+// ── label wrapping ──────────────────────────────────────────
+
+/** Baseline-to-baseline distance of a wrapped block label. */
+export function blockLineH(fs: number): number {
+  return Math.round(fs * 1.3);
+}
+
+/**
+ * An expanded container's header scales (subtly) with the box size — a soft
+ * section watermark on big regions, crisp on small ones.
+ */
+export function blockHeaderFs(w: number, h: number): number {
+  const sizeMetric = Math.min(w, h * 2.5);
+  return Math.max(13, Math.min(20, Math.round(13 + (sizeMetric - 220) / 70)));
+}
+
+/**
+ * A label wrapped onto as many lines as it needs; only a word wider than the
+ * box is broken, at a character boundary (#2172). Measured bold: the labels
+ * draw at 700 or 600, and with only Regular and Bold shipped, CSS font
+ * matching resolves 600 up to the Bold face.
+ */
+function wrapLabel(label: string, maxWidth: number, fs: number): string[] {
+  return wrapTextToWidth(label, fs, maxWidth, { bold: true, hardBreak: true });
+}
+
+function shiftItems(items: BlockLayoutItem[], dy: number): void {
+  for (const it of items) {
+    it.y += dy;
+    if (it.inner) shiftItems(it.inner, dy);
+  }
 }
 
 // ── intrinsic sizing ────────────────────────────────────────
@@ -126,18 +169,28 @@ function layoutGrid(
       }
 
       if (cell.grid && collapsed.has(cell.id)) {
+        const lines = wrapLabel(
+          cell.label,
+          cw - CONTAINER_INSET,
+          BLOCK_COLLAPSED_FS
+        );
+        const h =
+          BLOCK_COLLAPSED_H +
+          (lines.length - 1) * blockLineH(BLOCK_COLLAPSED_FS);
         const item: BlockLayoutItem = {
           type: 'collapsed',
           x: cx,
           y: cy,
           w: cw,
-          h: BLOCK_COLLAPSED_H,
+          h,
           label: cell.label,
           node: cell,
           lineNumber: cell.lineNumber,
+          labelLines: lines,
+          labelFs: BLOCK_COLLAPSED_FS,
         };
         rowItems.push(item);
-        rowH = Math.max(rowH, BLOCK_COLLAPSED_H);
+        rowH = Math.max(rowH, h);
         cx += cw + BLOCK_GAP;
         maxRight = Math.max(maxRight, cx - BLOCK_GAP);
         continue;
@@ -156,7 +209,13 @@ function layoutGrid(
           innerColW,
           collapsed
         );
-        const h = BLOCK_HEADER_H + inner.h + BLOCK_PAD;
+        // The header's font follows the box's size before any extra header
+        // lines, so a label that fits draws exactly as it always has.
+        const fs = blockHeaderFs(cw, BLOCK_HEADER_H + inner.h + BLOCK_PAD);
+        const lines = wrapLabel(cell.label, cw - CONTAINER_INSET, fs);
+        const extra = (lines.length - 1) * blockLineH(fs);
+        if (extra > 0) shiftItems(inner.items, extra);
+        const h = BLOCK_HEADER_H + extra + inner.h + BLOCK_PAD;
         rowItems.push({
           type: 'container',
           x: cx,
@@ -167,6 +226,8 @@ function layoutGrid(
           node: cell,
           lineNumber: cell.lineNumber,
           inner: inner.items,
+          labelLines: lines,
+          labelFs: fs,
         });
         rowH = Math.max(rowH, h);
         cx += cw + BLOCK_GAP;
@@ -174,16 +235,21 @@ function layoutGrid(
         continue;
       }
 
+      const lines = wrapLabel(cell.label, cw - LEAF_INSET, LABEL_FS);
+      const h = BLOCK_LEAF_H + (lines.length - 1) * blockLineH(LABEL_FS);
       rowItems.push({
         type: 'leaf',
         x: cx,
         y: cy,
         w: cw,
-        h: BLOCK_LEAF_H,
+        h,
         label: cell.label,
         node: cell,
         lineNumber: cell.lineNumber,
+        labelLines: lines,
+        labelFs: LABEL_FS,
       });
+      rowH = Math.max(rowH, h);
       cx += cw + BLOCK_GAP;
       maxRight = Math.max(maxRight, cx - BLOCK_GAP);
     }

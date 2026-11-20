@@ -1622,9 +1622,10 @@ export async function layoutBoxesAndLinesSearch(
   const sizes = new Map<string, { width: number; height: number }>();
   let maxDescH = 0;
   for (const node of parsed.nodes) {
-    const s = hideDescriptions
-      ? { width: NODE_WIDTH, height: NODE_HEIGHT }
-      : computeNodeSize(node, parsed.showValues !== false);
+    const s = computeNodeSize(
+      hideDescriptions ? { ...node, description: [] } : node,
+      parsed.showValues !== false
+    );
     sizes.set(node.label, s);
     if (!hideDescriptions && node.description && node.description.length > 0)
       maxDescH = Math.max(maxDescH, s.height);

@@ -63,6 +63,12 @@ import {
 import type { ParsedBoxesAndLines, BLNode } from './types';
 import { measureSvgContent } from '../utils/export-fit';
 import type { BLLayoutResult, BLLayoutNode, BLLayoutEdge } from './layout';
+import { splitLabelChunks } from './layout';
+import {
+  NODE_FONT_SIZE,
+  MIN_NODE_FONT_SIZE,
+  NODE_TEXT_PADDING,
+} from './node-metrics';
 import { legendInkBottom } from '../utils/legend-constants';
 import { LAYOUT_MARGIN } from './types';
 import { ScaleContext } from '../utils/scaling';
@@ -73,14 +79,11 @@ import {
   CHAR_WIDTH_RATIO,
   measureText,
   truncateText,
+  wrapTextToWidth,
 } from '../utils/text-measure';
 
 // ── Constants (aligned with infra pattern) ─────────────────
 const DIAGRAM_PADDING = 20;
-// Box labels run smaller than the 13px org/infra use — boxes-and-lines nodes are
-// narrower (~97px), so a smaller label fits more text per line before wrapping.
-const NODE_FONT_SIZE = 11;
-const MIN_NODE_FONT_SIZE = 9;
 const EDGE_LABEL_FONT_SIZE = 11;
 import {
   CARD_RADIUS,
@@ -100,7 +103,6 @@ const NODE_RX = CARD_RADIUS;
 const DESC_FONT_SIZE = 10; // matches infra META_FONT_SIZE
 const DESC_LINE_HEIGHT = 1.4; // 14px row height at 10px font (matches infra META_LINE_HEIGHT)
 const MAX_DESC_LINES = 6;
-const NODE_TEXT_PADDING = 12;
 // Shared too. It was a local `8` — the same NUMBER as `CONTAINER_RADIUS`, which
 // is precisely why it could drift without anyone noticing: a re-declared
 // constant that happens to agree today is not the same as citing it.
@@ -145,85 +147,12 @@ function curveTop(
 
 // ── Text fitting ───────────────────────────────────────────
 
-function splitCamelCase(word: string): string[] {
-  const parts: string[] = [];
-  let start = 0;
-  for (let i = 1; i < word.length; i++) {
-    // In-bounds by loop guard (i >= 1 and i < word.length).
-    const prev = word[i - 1]!;
-    const curr = word[i]!;
-    const next = i + 1 < word.length ? word[i + 1]! : '';
-    const lowerToUpper =
-      prev >= 'a' && prev <= 'z' && curr >= 'A' && curr <= 'Z';
-    const upperRunEnd =
-      prev >= 'A' &&
-      prev <= 'Z' &&
-      curr >= 'A' &&
-      curr <= 'Z' &&
-      next >= 'a' &&
-      next <= 'z';
-    if (lowerToUpper || upperRunEnd) {
-      parts.push(word.slice(start, i));
-      start = i;
-    }
-  }
-  parts.push(word.slice(start));
-  return parts.length > 1 ? parts : [word];
-}
-
-/**
- * One wrap-break opportunity within a label.
- *
- * `spaceBefore` records whether the author's text had a space here, so a
- * chunk that stays on the same line as its predecessor rejoins exactly as
- * typed. Hyphens and camelCase boundaries are break opportunities with NO
- * separator — the hyphen itself rides along on the chunk that precedes it.
- */
-interface LabelChunk {
-  text: string;
-  spaceBefore: boolean;
-}
-
-/**
- * Split a label into wrap chunks at spaces, hyphens and camelCase humps.
- *
- * A hyphen keeps its own character: `us-east-1` → `us-`, `east-`, `1`, so
- * rejoining without a separator reproduces the source. Materializing a
- * break opportunity as a space is what silently turned `Alpha-One` into
- * `Alpha One` on the canvas.
- */
-function splitLabelChunks(label: string): LabelChunk[] {
-  const chunks: LabelChunk[] = [];
-  const words = label.split(/\s+/).filter((w) => w.length > 0);
-  for (let wi = 0; wi < words.length; wi++) {
-    // In-bounds by loop guard.
-    const word = words[wi]!;
-    // Break after each hyphen, keeping the hyphen on the left chunk.
-    const hyphenParts: string[] = [];
-    let start = 0;
-    for (let i = 0; i < word.length; i++) {
-      if (word[i] === '-') {
-        hyphenParts.push(word.slice(start, i + 1));
-        start = i + 1;
-      }
-    }
-    if (start < word.length) hyphenParts.push(word.slice(start));
-
-    let firstOfWord = true;
-    for (const part of hyphenParts) {
-      for (const camel of splitCamelCase(part)) {
-        chunks.push({ text: camel, spaceBefore: wi > 0 && firstOfWord });
-        firstOfWord = false;
-      }
-    }
-  }
-  return chunks;
-}
-
 /**
  * Fit a label into a header zone for described nodes.
- * Strategy: split first (spaces, dashes, camelCase), wrap into lines,
- * shrink font if needed, truncate individual lines with "…" — never hard-break.
+ * Strategy: split first (spaces, dashes, camelCase), wrap into lines. A
+ * chunk wider than the line shrinks the font first; at the minimum font it is
+ * hard-broken at a character boundary, never cut with "…" (#2172). "…" marks
+ * only a label with more lines than `maxLines`.
  */
 function fitLabelToHeader(
   label: string,
@@ -246,53 +175,49 @@ function fitLabelToHeader(
   ) {
     if (maxTextWidth < measureText('MM', fontSize, BOLD)) continue;
 
+    const fits = (l: string): boolean =>
+      measureText(l, fontSize, BOLD) <= maxTextWidth;
+
+    // A chunk that cannot fit a line on its own: try a smaller font before
+    // breaking a word.
+    if (fontSize > MIN_NODE_FONT_SIZE && !words.every((w) => fits(w.text)))
+      continue;
+
     // Wrap words into lines (greedy, by measured pixel width)
     const lines: string[] = [];
     let current = '';
     for (const word of words) {
       const joiner = current && word.spaceBefore ? ' ' : '';
       const test = current ? `${current}${joiner}${word.text}` : word.text;
-      if (measureText(test, fontSize, BOLD) <= maxTextWidth) {
+      if (fits(test)) {
         current = test;
       } else {
         if (current) lines.push(current);
-        current = word.text;
+        if (fits(word.text)) {
+          current = word.text;
+        } else {
+          const pieces = wrapTextToWidth(word.text, fontSize, maxTextWidth, {
+            ...BOLD,
+            hardBreak: true,
+          });
+          lines.push(...pieces.slice(0, -1));
+          current = pieces[pieces.length - 1] ?? '';
+        }
       }
     }
     if (current) lines.push(current);
 
-    const fits = (l: string): boolean =>
-      measureText(l, fontSize, BOLD) <= maxTextWidth;
+    if (lines.length <= maxLines) return { lines, fontSize };
 
-    // All lines fit at this font? Done.
-    if (lines.length <= maxLines && lines.every(fits)) {
-      return { lines, fontSize };
-    }
-
-    // Lines fit in count but some are too wide? Truncate those lines.
-    if (lines.length <= maxLines) {
-      const result = lines.map((l) =>
-        fits(l) ? l : truncateText(l, fontSize, maxTextWidth, BOLD)
-      );
-      return { lines: result, fontSize };
-    }
-
-    // Too many lines — take first maxLines, truncate last + any oversized
-    const result = lines
-      .slice(0, maxLines)
-      .map((l) =>
-        fits(l) ? l : truncateText(l, fontSize, maxTextWidth, BOLD)
-      );
+    // Too many lines — take first maxLines and mark the cut on the last.
+    const result = lines.slice(0, maxLines);
     // In-bounds: result has exactly maxLines entries (from .slice(0, maxLines)).
-    const last = result[maxLines - 1]!;
-    if (!last.endsWith('\u2026')) {
-      result[maxLines - 1] = truncateText(
-        last + '\u2026',
-        fontSize,
-        maxTextWidth,
-        BOLD
-      );
-    }
+    result[maxLines - 1] = truncateText(
+      result[maxLines - 1]! + '\u2026',
+      fontSize,
+      maxTextWidth,
+      BOLD
+    );
     return { lines: result, fontSize };
   }
 

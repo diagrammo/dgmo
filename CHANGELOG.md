@@ -379,6 +379,15 @@ logged · most often Great`. Diagnostics: `E_CALENDAR_HEATMAP_UNKNOWN_TAG`,
 
 ### Fixed
 
+- **boxes-and-lines, block: a long word wraps instead of ending in "…"
+  (diagrammo/diagrammo#2172).** A boxes-and-lines box without a description now
+  widens to its widest label word, up to the width of a described box; a word
+  wider than that shrinks the font and then breaks at a character, and "…" now
+  marks only a label with more lines than the box holds. A block leaf,
+  collapsed container or container header wraps onto as many lines as its
+  label needs and grows to hold them, instead of cutting the label at the
+  cell's width (a span-6 band stopped at about 100 characters).
+
 - **swimlane, heatmap, boxes-and-lines, polar-area, pert, treemap, bar, line,
   er, event-line: nothing rises into the title gap any more
   (diagrammo/diagrammo#2117).** Outside the gallery, ten chart types still put
