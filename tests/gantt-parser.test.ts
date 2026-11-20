@@ -638,6 +638,52 @@ describe('gantt parser', () => {
         result.diagnostics.some((d) => d.message.includes('Invalid workweek'))
       ).toBe(true);
     });
+
+    // #2192: an Object.prototype key must not resolve as a weekday. Before the
+    // fix `mon-constructor` looped forever; a hang here hits the test timeout.
+    it.each([
+      'mon-constructor',
+      'mon-__proto__',
+      'constructor-fri',
+      'mon, constructor',
+      'mon, __proto__',
+    ])('rejects prototype-key workweek %s', (spec) => {
+      const input = `gantt\nworkweek ${spec}\nTask duration: 10d`;
+      const result = parseGantt(input, palette);
+      expect(
+        result.diagnostics.some((d) => d.message.includes('Invalid workweek'))
+      ).toBe(true);
+      expect(result.holidays.workweek).toEqual([
+        'mon',
+        'tue',
+        'wed',
+        'thu',
+        'fri',
+      ]);
+    });
+
+    it('rejects a prototype-key workweek inside a holiday block', () => {
+      const input =
+        'gantt\nholiday\n  workweek mon-constructor\nTask duration: 10d';
+      const result = parseGantt(input, palette);
+      expect(
+        result.diagnostics.some((d) => d.message.includes('Invalid workweek'))
+      ).toBe(true);
+    });
+
+    it('mon-fri still gives five days', () => {
+      const result = parseGantt(
+        'gantt\nworkweek mon-fri\nTask duration: 10d',
+        palette
+      );
+      expect(result.holidays.workweek).toEqual([
+        'mon',
+        'tue',
+        'wed',
+        'thu',
+        'fri',
+      ]);
+    });
   });
 
   describe('era block form', () => {

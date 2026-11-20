@@ -1798,13 +1798,19 @@ function parseGanttRaw(content: string, palette?: PaletteColors): ParsedGantt {
 
 // ── Utility: parse workweek string ────────────────────────
 
+// Own properties only: a name such as `constructor` or `__proto__` must not
+// resolve to an inherited Object.prototype value (#2192).
+function lookupWeekday(name: string): Weekday | undefined {
+  return Object.hasOwn(WEEKDAY_MAP, name) ? WEEKDAY_MAP[name] : undefined;
+}
+
 function parseWorkweek(s: string): Weekday[] | null {
   // Try range format: "sun-thu"
   const rangeParts = s.toLowerCase().split('-');
   if (rangeParts.length === 2) {
     // In-bounds by length === 2 check.
-    const start = WEEKDAY_MAP[rangeParts[0]!.trim()];
-    const end = WEEKDAY_MAP[rangeParts[1]!.trim()];
+    const start = lookupWeekday(rangeParts[0]!.trim());
+    const end = lookupWeekday(rangeParts[1]!.trim());
     if (start && end) {
       const allDays: Weekday[] = [
         'mon',
@@ -1818,8 +1824,10 @@ function parseWorkweek(s: string): Weekday[] | null {
       const startIdx = allDays.indexOf(start);
       const endIdx = allDays.indexOf(end);
       const days: Weekday[] = [];
+      if (startIdx < 0 || endIdx < 0) return null;
       let idx = startIdx;
-      while (true) {
+      // At most 7 steps: idx walks the week once and must meet endIdx (#2192).
+      for (let step = 0; step < allDays.length; step++) {
         // In-bounds: allDays has length 7 and idx stays in [0..6] via % 7.
         days.push(allDays[idx]!);
         if (idx === endIdx) break;
@@ -1836,7 +1844,7 @@ function parseWorkweek(s: string): Weekday[] | null {
     .map((p) => p.trim());
   const days: Weekday[] = [];
   for (const part of parts) {
-    const day = WEEKDAY_MAP[part];
+    const day = lookupWeekday(part);
     if (!day) return null;
     days.push(day);
   }
