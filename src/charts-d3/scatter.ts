@@ -24,6 +24,7 @@ import { annotationValues } from '../annotations/parse';
 import {
   drawBands,
   drawMarkers,
+  settleBandLabels,
   type ValueAxisFrame,
 } from '../annotations/draw';
 import { drawChartNotes } from '../annotations/notes';
@@ -694,6 +695,7 @@ export function renderScatter(
     ),
     ...drawOverlayLabels(svg, trendLabels, yFrame, bgColor)
   );
+  settleBandLabels(svg);
 
   // Notes (#2039): a ring on the point, the text in clear plot space.
   if (chart.notes?.length && !chart.noNotes) {

@@ -24,6 +24,7 @@ import { tabularText } from '../utils/tabular-figures';
 import {
   drawBands,
   drawMarkers,
+  settleBandLabels,
   LIFT_CLASS,
   type ValueAxisFrame,
 } from '../annotations/draw';
@@ -1059,6 +1060,7 @@ export function renderBar(
       annotationColors.bg
     ),
   ];
+  settleBandLabels(svg);
 
   // Notes (#2039): a ring on the bar's end, the text in clear plot space.
   // A value label a note lands on yields to it.
@@ -1755,6 +1757,7 @@ function renderClusteredStack(
   }
 
   drawMarkers(svg, chart.annotations, annotationFrame, annotationColors);
+  settleBandLabels(svg);
   drawXAxisTitle(svg, chart.xlabel, m.left + plotW / 2, nameY + 30, textColor);
   drawYAxisTitle(svg, chart.ylabel, m.top + plotH / 2, 20, textColor);
 }

@@ -36,6 +36,7 @@ import { annotationValues } from '../annotations/parse';
 import {
   drawBands,
   drawMarkers,
+  settleBandLabels,
   type ValueAxisFrame,
 } from '../annotations/draw';
 import {
@@ -1089,6 +1090,10 @@ export function renderLine(
       });
     });
   }
+
+  // Band labels settle now that points, lines and series names are down;
+  // notes and point values then clear them where they land (#2137).
+  settleBandLabels(svg);
 
   // Notes (#2039): a ring on the point, the text in clear plot space. Point
   // values yield to them; they stay full strength under `highlight`.

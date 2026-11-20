@@ -34,6 +34,7 @@ import { annotationValues } from '../annotations/parse';
 import {
   drawBands,
   drawMarkers,
+  settleBandLabels,
   type ValueAxisFrame,
 } from '../annotations/draw';
 import { drawChartNotes, sampleLines } from '../annotations/notes';
@@ -616,6 +617,7 @@ export function renderSlopeChart(
       markerLines
     )
   );
+  settleBandLabels(plotG);
 
   // Notes (#2039): a ring on the point, the text in clear plot space.
   if (parsed.notes?.length && !parsed.noNotes) {

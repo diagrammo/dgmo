@@ -137,6 +137,7 @@ export function drawBands(
       .attr('stroke-linejoin', 'round')
       .attr('paint-order', 'stroke')
       .text(b.label);
+    const box = labelBox(b.label, { x, y, anchor }, ANNOTATION_FONT);
     const el = label.node();
     if (el)
       bandLabels.set(el, {
@@ -144,35 +145,203 @@ export function drawBands(
         e,
         frame,
         w: measureText(b.label, ANNOTATION_FONT),
+        box,
       });
-    boxes.push(labelBox(b.label, { x, y, anchor }, ANNOTATION_FONT));
+    boxes.push(box);
   }
   return boxes;
 }
 
-/** A band label's band, for settling it once the data is drawn. */
+/** A band label's band, for settling it once the data is drawn. `box` is
+ *  the box drawBands returned: settling moves it too, so labels placed
+ *  later clear the label where it ends up. */
 const bandLabels = new WeakMap<
   Element,
-  { s: number; e: number; frame: ValueAxisFrame; w: number }
+  {
+    s: number;
+    e: number;
+    frame: ValueAxisFrame;
+    w: number;
+    box: LabelRect;
+  }
 >();
 
-/** The boxes of the marks drawn after `el` in its parent: the data. */
-function marksAfter(el: Element): { shapes: LabelRect[]; texts: LabelRect[] } {
+type Segment = readonly [number, number, number, number];
+
+/** The marks drawn after `el` in its parent: the data and its labels. */
+interface MarksAfter {
+  /** Bars, and points as their square. */
+  shapes: LabelRect[];
+  /** Line strokes, as straight runs. */
+  segments: Segment[];
+  texts: LabelRect[];
+}
+
+/** True when a fill or stroke value paints something. */
+function paints(v: string | null): boolean {
+  return v !== null && v !== 'none' && v !== 'transparent';
+}
+
+/** True when `n` draws nothing: a hit target or a hidden hover mark. */
+function invisible(n: Element): boolean {
+  return n.getAttribute('opacity') === '0';
+}
+
+/** A path's outline as straight runs; curves are flattened. */
+export function pathSegments(d: string): Segment[] {
+  const out: Segment[] = [];
+  const tokens = d.match(/[a-zA-Z]|-?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?/g);
+  if (!tokens) return out;
+  let i = 0;
+  let cmd = '';
+  let cx = 0;
+  let cy = 0;
+  let sx = 0;
+  let sy = 0;
+  const num = () => Number(tokens[i++]);
+  const to = (x: number, y: number) => {
+    out.push([cx, cy, x, y]);
+    cx = x;
+    cy = y;
+  };
+  const curve = (pts: readonly [number, number][]) => {
+    // Bézier through the current point and `pts`, in eight straight runs.
+    const all: [number, number][] = [[cx, cy], ...pts];
+    for (let k = 1; k <= 8; k++) {
+      const t = k / 8;
+      let row = all;
+      while (row.length > 1)
+        row = row
+          .slice(1)
+          .map((p, j) => [
+            row[j]![0] + (p[0] - row[j]![0]) * t,
+            row[j]![1] + (p[1] - row[j]![1]) * t,
+          ]);
+      to(row[0]![0], row[0]![1]);
+    }
+  };
+  while (i < tokens.length) {
+    if (/[a-zA-Z]/.test(tokens[i]!)) cmd = tokens[i++]!;
+    else if (!cmd) {
+      i++;
+      continue;
+    }
+    const rel = cmd === cmd.toLowerCase();
+    const ox = rel ? cx : 0;
+    const oy = rel ? cy : 0;
+    switch (cmd.toUpperCase()) {
+      case 'M': {
+        cx = ox + num();
+        cy = oy + num();
+        sx = cx;
+        sy = cy;
+        cmd = rel ? 'l' : 'L';
+        break;
+      }
+      case 'L':
+      case 'T':
+        to(ox + num(), oy + num());
+        break;
+      case 'H':
+        to(ox + num(), cy);
+        break;
+      case 'V':
+        to(cx, oy + num());
+        break;
+      case 'C': {
+        const p1: [number, number] = [ox + num(), oy + num()];
+        const p2: [number, number] = [ox + num(), oy + num()];
+        curve([p1, p2, [ox + num(), oy + num()]]);
+        break;
+      }
+      case 'S':
+      case 'Q': {
+        const p1: [number, number] = [ox + num(), oy + num()];
+        curve([p1, [ox + num(), oy + num()]]);
+        break;
+      }
+      case 'A': {
+        i += 5;
+        to(ox + num(), oy + num());
+        break;
+      }
+      case 'Z':
+        to(sx, sy);
+        break;
+      default:
+        i++;
+    }
+  }
+  return out.filter((sg) => sg.every(Number.isFinite));
+}
+
+/** True when the segment crosses or lies in `r` (Liang–Barsky clip). */
+function segmentHits(sg: Segment, r: LabelRect): boolean {
+  const [x0, y0, x1, y1] = sg;
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  let t0 = 0;
+  let t1 = 1;
+  const edges: [number, number][] = [
+    [-dx, x0 - r.x],
+    [dx, r.x + r.w - x0],
+    [-dy, y0 - r.y],
+    [dy, r.y + r.h - y0],
+  ];
+  for (const [p, q] of edges) {
+    if (p === 0) {
+      if (q < 0) return false;
+      continue;
+    }
+    const t = q / p;
+    if (p < 0) t0 = Math.max(t0, t);
+    else t1 = Math.min(t1, t);
+    if (t0 > t1) return false;
+  }
+  return true;
+}
+
+function marksAfter(el: Element): MarksAfter {
   const shapes: LabelRect[] = [];
+  const segments: Segment[] = [];
   const texts: LabelRect[] = [];
   const num = (n: Element, a: string) => Number(n.getAttribute(a) ?? 0);
   for (let sib = el.nextElementSibling; sib; sib = sib.nextElementSibling) {
-    const all = [sib, ...Array.from(sib.querySelectorAll('rect, text'))];
+    const all = [
+      sib,
+      ...Array.from(sib.querySelectorAll('rect, circle, path, text')),
+    ];
     for (const n of all) {
       const tag = n.tagName.toLowerCase();
-      if (tag === 'rect')
-        shapes.push({
-          x: num(n, 'x'),
-          y: num(n, 'y'),
-          w: num(n, 'width'),
-          h: num(n, 'height'),
-        });
-      else if (tag === 'text' && n.textContent) {
+      if (invisible(n)) continue;
+      // A fill left unset paints black; a stroke left unset paints nothing.
+      const filled =
+        n.getAttribute('fill') === null || paints(n.getAttribute('fill'));
+      const stroked = paints(n.getAttribute('stroke'));
+      if (tag === 'rect') {
+        // The transparent plot rect a crosshair reads is not a mark.
+        if (filled || stroked)
+          shapes.push({
+            x: num(n, 'x'),
+            y: num(n, 'y'),
+            w: num(n, 'width'),
+            h: num(n, 'height'),
+          });
+      } else if (tag === 'circle') {
+        const r = num(n, 'r');
+        if (r > 0 && (filled || stroked))
+          shapes.push({
+            x: num(n, 'cx') - r,
+            y: num(n, 'cy') - r,
+            w: 2 * r,
+            h: 2 * r,
+          });
+      } else if (tag === 'path') {
+        // A stroked line: a series, a slope, a trend. A fill alone (an
+        // area, a series band) is ground the label may sit on, like the band.
+        if (stroked && !n.closest('.tick') && !n.classList.contains('domain'))
+          segments.push(...pathSegments(n.getAttribute('d') ?? ''));
+      } else if (tag === 'text' && n.textContent) {
         const size = num(n, 'font-size') || 12;
         const anchor = (n.getAttribute('text-anchor') ?? 'start') as
           | 'start'
@@ -188,66 +357,108 @@ function marksAfter(el: Element): { shapes: LabelRect[]; texts: LabelRect[] } {
       }
     }
   }
-  return { shapes, texts };
+  return { shapes, segments, texts };
 }
 
-/**
- * Moves a band's label to the first spot inside the band that no bar or
- * value label covers, then lifts it over them (#2078). Tried along the
- * band's top edge from the far end, then along its bottom edge. A thin band
- * may have no such spot: then the first one clear of text, over a bar, with
- * its halo; failing that it stays at the far end of the top edge.
- */
-function settleBandLabel(el: Element): void {
-  const info = bandLabels.get(el);
-  const parent = el.parentNode;
-  if (!parent) return;
-  if (info) {
-    const { s, e, frame, w } = info;
-    const { shapes, texts } = marksAfter(el);
-    const h = ANNOTATION_FONT;
-    const hits = (marks: readonly LabelRect[]) => (r: LabelRect) =>
-      marks.some(
-        (m) =>
-          r.x < m.x + m.w + 2 &&
-          m.x < r.x + r.w + 2 &&
-          r.y < m.y + m.h + 2 &&
-          m.y < r.y + r.h + 2
-      );
-    const spots: LabelRect[] = [];
-    if (frame.horizontal) {
-      const x = s + LABEL_GAP;
+/** Clearance kept between a band label and a mark. */
+const CLEAR = 2;
+
+/** The spots a label of width `w` may take inside the visible band [s, e]:
+ *  its top and bottom rows from the far end, then the rows between them. A
+ *  band across the plot (horizontal bars) gives columns instead. */
+function bandSpots(
+  s: number,
+  e: number,
+  frame: ValueAxisFrame,
+  w: number
+): LabelRect[] {
+  const h = ANNOTATION_FONT;
+  const spots: LabelRect[] = [];
+  const lanes = (first: number, last: number) => {
+    const out = [first];
+    if (last > first) out.push(last);
+    for (let v = first + 4; v < last; v += 4) out.push(v);
+    return out;
+  };
+  if (frame.horizontal) {
+    for (const x of lanes(s + LABEL_GAP, e - w - LABEL_GAP))
       for (
         let y = frame.top + LABEL_GAP;
         y + h <= frame.top + frame.height;
         y += 4
       )
         spots.push({ x, y, w, h });
-    } else {
-      const rows = [s + LABEL_GAP / 2, e - h - LABEL_GAP / 2];
-      for (const y of rows)
-        for (
-          let x = frame.left + frame.width - w;
-          x >= frame.left + LABEL_GAP;
-          x -= 4
-        )
-          spots.push({ x, y, w, h });
-    }
-    const fits = (r: LabelRect) =>
-      frame.horizontal ? r.x + r.w <= e : r.y + r.h <= e;
-    const onText = hits(texts);
-    const onShape = hits(shapes);
-    // Clear of everything first; else clear of text, over a bar, haloed.
+  } else {
+    for (const y of lanes(s + LABEL_GAP / 2, e - h - LABEL_GAP / 2))
+      for (
+        let x = frame.left + frame.width - w;
+        x >= frame.left + LABEL_GAP;
+        x -= 4
+      )
+        spots.push({ x, y, w, h });
+  }
+  // Every spot lies inside the band's visible part, whatever the band's
+  // off-axis edge (#2137).
+  return spots.filter((r) =>
+    frame.horizontal ? r.x >= s && r.x + r.w <= e : r.y >= s && r.y + r.h <= e
+  );
+}
+
+/**
+ * Moves a band's label to the first spot inside the band's visible part that
+ * no mark drawn after it covers — bar, point, line, value or series label,
+ * marker label — then lifts it over them (#2078, #2137). A thin or crowded
+ * band may have no such spot: then the first clear of text and points (over
+ * a bar or line, haloed), then the first clear of text; failing that it
+ * stays at the far end of the top edge.
+ */
+function settleBandLabel(el: Element): void {
+  const info = bandLabels.get(el);
+  const parent = el.parentNode;
+  if (!parent) return;
+  if (info) {
+    const { s, e, frame, w, box } = info;
+    const { shapes, segments, texts } = marksAfter(el);
+    const near = (r: LabelRect): LabelRect => ({
+      x: r.x - CLEAR,
+      y: r.y - CLEAR,
+      w: r.w + 2 * CLEAR,
+      h: r.h + 2 * CLEAR,
+    });
+    const overlaps = (a: LabelRect, b: LabelRect) =>
+      a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+    const onText = (r: LabelRect) => texts.some((m) => overlaps(near(r), m));
+    const onShape = (r: LabelRect) => shapes.some((m) => overlaps(near(r), m));
+    const onLine = (r: LabelRect) =>
+      segments.some((sg) => segmentHits(sg, near(r)));
+    const spots = bandSpots(s, e, frame, w);
     const spot =
-      spots.find((r) => fits(r) && !onText(r) && !onShape(r)) ??
-      spots.find((r) => fits(r) && !onText(r));
+      spots.find((r) => !onText(r) && !onShape(r) && !onLine(r)) ??
+      spots.find((r) => !onText(r) && !onShape(r)) ??
+      spots.find((r) => !onText(r));
     if (spot) {
       el.setAttribute('x', String(spot.x));
-      el.setAttribute('y', String(spot.y + h * 0.82));
+      el.setAttribute('y', String(spot.y + ANNOTATION_FONT * 0.82));
       el.setAttribute('text-anchor', 'start');
+      Object.assign(box, { x: spot.x, y: spot.y, w, h: ANNOTATION_FONT });
     }
   }
   parent.appendChild(el);
+}
+
+/**
+ * Settles every band label under `svg` against the marks drawn since
+ * drawBands, and lifts it over them. A renderer calls it once its points,
+ * lines, bars and their fixed labels are drawn, and before it places labels
+ * that clear the band boxes (point values, notes): those then clear the
+ * settled label.
+ */
+export function settleBandLabels(svg: Svg): void {
+  const root = svg.node()?.ownerSVGElement ?? svg.node();
+  if (root)
+    root
+      .querySelectorAll(`.${BAND_LABEL_CLASS}`)
+      .forEach((el) => settleBandLabel(el));
 }
 
 /** Half the width of the strip a marker line blocks for a note's text. */
@@ -263,14 +474,9 @@ export function drawMarkers(
   colors: AnnotationColors,
   lines?: LabelRect[]
 ): LabelRect[] {
-  // Band labels go over the data drawn since drawBands (#2078).
+  // Annotation text drawn before the data (an era's title) is lifted over it
+  // as it stands. Band labels wait for settleBandLabels.
   const root = svg.node()?.ownerSVGElement ?? svg.node();
-  if (root)
-    root
-      .querySelectorAll(`.${BAND_LABEL_CLASS}`)
-      .forEach((el) => settleBandLabel(el));
-  // Other annotation text drawn before the data (an era's title) is lifted
-  // over it as it stands.
   const host = svg.node();
   if (root && host)
     root.querySelectorAll(`.${LIFT_CLASS}`).forEach((el) => {

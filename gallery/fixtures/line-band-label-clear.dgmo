@@ -1,0 +1,21 @@
+line Hauls with the axis pinned
+// Band labels stay inside the visible band and clear of points, lines,
+// point values and series names (#2137). "Spills under" meets Brig's last point.
+y-axis 0..100
+marker y 140 Past the top
+marker y -20 Below the floor
+marker y 90 Inside red
+band 80..160 Spills over the top
+band -50..10 Spills under
+
+series
+  Sloop
+  Brig
+
+1 20 60
+2 45 55
+3 85 40
+  note Sloop Peak
+4 70 30
+5 60 10
+  note Brig Low point
