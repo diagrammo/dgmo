@@ -156,14 +156,14 @@ describe('number format — render', () => {
     expect(texts(svg)).toContain('$1,000');
   });
 
-  it('line: the unit follows every value label', async () => {
+  it('line: a symbol unit follows every value label', async () => {
     const svg = await renderDataChartD3(
-      'line Latency\nunit ms\nMon 120\nTue 95',
+      'line Heat\nunit °\nMon 21\nTue 18',
       'light',
       palette
     );
-    expect(texts(svg)).toContain('120 ms');
-    expect(texts(svg)).toContain('95 ms');
+    expect(texts(svg)).toContain('21°');
+    expect(texts(svg)).toContain('18°');
   });
 
   it('pie: the centre total takes the format', async () => {
@@ -264,5 +264,66 @@ describe('number format — one compact unit per axis', () => {
       expect(t).toContain(s);
     expect(t).not.toContain('800');
     expect(t).not.toContain('1K');
+  });
+});
+
+// A word unit is stated once, on the value-axis title (#2088, option 1
+// decided 2026-11-17); a symbol unit stays on every number.
+describe('number format — a word unit goes on the axis title', () => {
+  const diverging = [
+    'bar Muster',
+    'orientation-horizontal',
+    'x-axis Question',
+    'y-axis Crew votes',
+    'unit votes',
+    'stack diverging',
+    '  Nay red',
+    '  Abstain gray neutral',
+    'Rum 40 20',
+    'Watch rota 70 5',
+  ].join('\n');
+
+  it('bar: ticks and segment labels are bare, the word appears once', async () => {
+    const t = texts(await renderDataChartD3(diverging, 'light', palette));
+    expect(t.filter((s) => /votes/i.test(s))).toEqual(['Crew votes']);
+    expect(t).toContain('70');
+    expect(t).toContain('40');
+  });
+
+  it('bar: a title without the word gains it; no title becomes the word', async () => {
+    const titled = texts(
+      await renderDataChartD3(
+        'bar Votes\ny-axis Crew\nunit votes\nA 40\nB 70',
+        'light',
+        palette
+      )
+    );
+    expect(titled.filter((s) => /votes/.test(s))).toEqual(['Crew (votes)']);
+    const bare = texts(
+      await renderDataChartD3(
+        'bar Tally\nunit votes\nA 40\nB 70',
+        'light',
+        palette
+      )
+    );
+    expect(bare.filter((s) => /votes/i.test(s))).toEqual(['Votes']);
+  });
+
+  it('line: an abbreviation keeps its case on the axis title', async () => {
+    const t = texts(
+      await renderDataChartD3(
+        'line Latency\nunit ms\nMon 120\nTue 95',
+        'light',
+        palette
+      )
+    );
+    expect(t).toContain('120');
+    expect(t.filter((s) => /ms/.test(s))).toEqual(['ms']);
+  });
+
+  it('the generated description keeps the unit on every number', () => {
+    expect(summarizeDiagram('bar T\nunit votes\nA 40\nB 70', 'bar')).toContain(
+      '70 votes'
+    );
   });
 });

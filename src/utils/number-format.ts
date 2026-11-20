@@ -55,7 +55,7 @@ export interface NumberFormatSpec {
   decimals?: number;
   /** The d3-format string of `format "…"`. */
   pattern?: string;
-  /** Text after every number: `unit ms` → `3 ms`. */
+  /** What the numbers count: `unit ms`. A word unit goes on the value-axis title (#2088), a symbol after every number. */
   unit?: string;
   /** BCP 47 tag for separators and currency placement. Default `en-US`. */
   locale?: string;
@@ -244,8 +244,52 @@ export function makeNumberFormatter(
   const unit = spec.unit;
   if (!unit) return (n) => (Number.isFinite(n) ? body(n) : '');
   // A word unit takes a space (3 ms); a symbol does not (21°, 5‰).
-  const sep = /^\p{L}/u.test(unit) ? ' ' : '';
+  const sep = isWordUnit(unit) ? ' ' : '';
   return (n) => (Number.isFinite(n) ? `${body(n)}${sep}${unit}` : '');
+}
+
+/** A unit that starts with a letter (`votes`, `ms`), not a symbol (`%`, `°`, `$`). */
+function isWordUnit(unit: string): boolean {
+  return /^\p{L}/u.test(unit);
+}
+
+/**
+ * A word unit is stated once, in the value-axis title, not after every tick
+ * and bar label (#2088, option 1 decided 2026-11-17). Returns the chart with
+ * the unit taken off its numbers and put on the `axes` titles named: a title
+ * that already holds the word keeps it as written, any other title gains
+ * `(votes)`, and an untitled axis is titled with the unit alone. The first
+ * named axis gets a title even when it has none; the others only when the
+ * author titled them. A symbol unit (`%`, `°`) stays on every number. The
+ * generated description formats from the parsed chart, so it keeps `40 votes`.
+ */
+export function unitOnAxisTitle<
+  T extends {
+    numberFormat?: NumberFormatSpec | undefined;
+    xlabel?: string | undefined;
+    ylabel?: string | undefined;
+    yrlabel?: string | undefined;
+  },
+>(chart: T, axes: readonly ('xlabel' | 'ylabel' | 'yrlabel')[]): T {
+  const unit = chart.numberFormat?.unit;
+  if (!unit || !isWordUnit(unit)) return chart;
+  const bare = { ...chart.numberFormat };
+  delete bare.unit;
+  const out: T = { ...chart, numberFormat: bare };
+  const escaped = unit.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const word = new RegExp('(?<!\\p{L})' + escaped + '(?!\\p{L})', 'iu');
+  axes.forEach((axis, i) => {
+    const title = chart[axis];
+    if (title) {
+      if (!word.test(title)) out[axis] = `${title} (${unit})`;
+    } else if (i === 0) {
+      // `votes` → `Votes`; an abbreviation (`ms`, `kWh`) keeps its case.
+      out[axis] = /^\p{Ll}{3,}$/u.test(unit)
+        ? unit[0]!.toUpperCase() + unit.slice(1)
+        : unit;
+    }
+  });
+  return out;
 }
 
 /** Most fraction digits a shared compact unit picks on its own. */

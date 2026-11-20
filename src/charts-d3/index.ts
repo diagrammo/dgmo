@@ -53,6 +53,7 @@ import { renderSankey } from './sankey';
 import { renderFunction } from './function';
 import { renderBoxplot } from './boxplot';
 import { renderHistogram } from './histogram';
+import { unitOnAxisTitle } from '../utils/number-format';
 
 /** Types parsed by parseChart → ParsedChart. */
 const STANDARD = new Set(['bar', 'line', 'pie', 'radar', 'polar-area']);
@@ -293,6 +294,12 @@ function renderPlot(
             2
           )
         : 0;
+    // A word unit goes on the value-axis title once (#2088); y is the value
+    // axis whichever way the bars run.
+    const onAxis =
+      std.type === 'bar' || std.type === 'line'
+        ? unitOnAxisTitle(std, ['ylabel', 'yrlabel'])
+        : std;
     switch (std.type) {
       case 'bar':
         // A bar chart with lines (#1852) is drawn by the line renderer, which
@@ -300,7 +307,7 @@ function renderPlot(
         if (std.seriesMarks) {
           renderLine(
             s,
-            std,
+            onAxis,
             width,
             height,
             colors,
@@ -316,7 +323,7 @@ function renderPlot(
         }
         renderBar(
           s,
-          std,
+          onAxis,
           width,
           height,
           colors,
@@ -331,7 +338,7 @@ function renderPlot(
       case 'line':
         renderLine(
           s,
-          std,
+          onAxis,
           width,
           height,
           colors,
@@ -424,11 +431,13 @@ function renderPlot(
         )
       : 0;
 
+  // A word unit goes on the value-axis title once (#2088): y, except a
+  // histogram, whose formatted numbers are its x bin edges.
   switch (ext.type) {
     case 'boxplot':
       renderBoxplot(
         s,
-        ext,
+        unitOnAxisTitle(ext, ['ylabel']),
         width,
         height,
         palette,
@@ -508,7 +517,7 @@ function renderPlot(
       );
       renderScatter(
         s,
-        ext,
+        unitOnAxisTitle(ext, ['ylabel']),
         width,
         height,
         seriesColors,
@@ -550,7 +559,7 @@ function renderPlot(
       );
       renderFunction(
         s,
-        ext,
+        unitOnAxisTitle(ext, ['ylabel']),
         width,
         height,
         seriesColors,
@@ -578,7 +587,7 @@ function renderPlot(
       );
       renderHistogram(
         s,
-        ext,
+        unitOnAxisTitle(ext, ['xlabel']),
         width,
         height,
         seriesColors,

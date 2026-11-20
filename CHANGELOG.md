@@ -379,6 +379,15 @@ logged · most often Great`. Diagnostics: `E_CALENDAR_HEATMAP_UNKNOWN_TAG`,
 
 ### Fixed
 
+- **A word unit is stated once, on the value-axis title, not after every
+  number (diagrammo/diagrammo#2088).** `unit votes` used to print `100 votes`
+  on every tick and bar label, crowding and clipping them. On bar, line,
+  scatter, function, boxplot and histogram, a unit that starts with a letter
+  now leaves the ticks and labels bare and goes on the value-axis title:
+  `Crew votes` stays as written, `Crew` becomes `Crew (votes)`, no title
+  becomes `Votes`. Symbol units (`%`, `°`) and axis-less charts are unchanged;
+  the generated description keeps `40 votes`.
+
 - **treemap: the heat legend shows the diverging ramp's neutral midpoint
   (diagrammo/diagrammo#1991).** For heat data that crosses zero, the cells run
   red · neutral · green with the neutral at 0, but the legend bar faded red

@@ -146,7 +146,7 @@ interface NumberFormatSpec {
     decimals?: number;
     /** The d3-format string of `format "…"`. */
     pattern?: string;
-    /** Text after every number: `unit ms` → `3 ms`. */
+    /** What the numbers count: `unit ms`. A word unit goes on the value-axis title (#2088), a symbol after every number. */
     unit?: string;
     /** BCP 47 tag for separators and currency placement. Default `en-US`. */
     locale?: string;

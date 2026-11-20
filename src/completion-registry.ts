@@ -171,7 +171,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description:
           'Number format: currency USD, percent 1, compact, or a quoted pattern',
       },
-      unit: { description: 'Text after every number (unit ms)' },
+      unit: { description: 'What the numbers count (unit ms)' },
       locale: { description: 'Separators and currency style (locale de-DE)' },
       'no-legend': { description: 'Hide the legend' },
       stack: {
@@ -246,7 +246,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description:
           'Number format: currency USD, percent 1, compact, or a quoted pattern',
       },
-      unit: { description: 'Text after every number (unit ms)' },
+      unit: { description: 'What the numbers count (unit ms)' },
       locale: { description: 'Separators and currency style (locale de-DE)' },
       'no-legend': { description: 'Hide the legend' },
       series: { description: 'Series name(s)' },
@@ -320,7 +320,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description:
           'Number format: currency USD, percent 1, compact, or a quoted pattern',
       },
-      unit: { description: 'Text after every number (unit ms)' },
+      unit: { description: 'What the numbers count (unit ms)' },
       locale: { description: 'Separators and currency style (locale de-DE)' },
       hole: {
         description:
@@ -353,7 +353,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description:
           'Number format: currency USD, percent 1, compact, or a quoted pattern',
       },
-      unit: { description: 'Text after every number (unit ms)' },
+      unit: { description: 'What the numbers count (unit ms)' },
       locale: { description: 'Separators and currency style (locale de-DE)' },
       'no-name': { description: 'Hide name from segment labels' },
       'no-value': { description: 'Hide value from segment labels' },
@@ -367,7 +367,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description:
           'Number format: currency USD, percent 1, compact, or a quoted pattern',
       },
-      unit: { description: 'Text after every number (unit ms)' },
+      unit: { description: 'What the numbers count (unit ms)' },
       locale: { description: 'Separators and currency style (locale de-DE)' },
       'no-legend': { description: 'Hide the legend' },
       'no-value': { description: 'Hide value labels at each vertex' },
@@ -382,7 +382,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description:
           'Number format: currency USD, percent 1, compact, or a quoted pattern',
       },
-      unit: { description: 'Text after every number (unit ms)' },
+      unit: { description: 'What the numbers count (unit ms)' },
       locale: { description: 'Separators and currency style (locale de-DE)' },
       'no-legend': { description: 'Hide the legend' },
       'no-name': { description: 'Hide point labels' },
@@ -464,7 +464,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description:
           'Number format: currency USD, percent 1, compact, or a quoted pattern',
       },
-      unit: { description: 'Text after every number (unit ms)' },
+      unit: { description: 'What the numbers count (unit ms)' },
       locale: { description: 'Separators and currency style (locale de-DE)' },
       columns: { description: 'Column labels (required)' },
       'no-value': { description: 'Hide cell value text' },
@@ -485,7 +485,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description:
           'Number format: currency USD, percent 1, compact, or a quoted pattern',
       },
-      unit: { description: 'Text after every number (unit ms)' },
+      unit: { description: 'What the numbers count (unit ms)' },
       locale: { description: 'Separators and currency style (locale de-DE)' },
       'no-value': { description: 'Hide the value beside each node name' },
       highlight: {
@@ -527,7 +527,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description:
           'Number format: currency USD, percent 1, compact, or a quoted pattern',
       },
-      unit: { description: 'Text after every number (unit ms)' },
+      unit: { description: 'What the numbers count (unit ms)' },
       locale: { description: 'Separators and currency style (locale de-DE)' },
       'no-name': { description: 'Hide left-side stage names' },
       'no-value': { description: 'Hide in-band values' },
@@ -541,7 +541,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description:
           'Number format: currency USD, percent 1, compact, or a quoted pattern',
       },
-      unit: { description: 'Text after every number (unit ms)' },
+      unit: { description: 'What the numbers count (unit ms)' },
       locale: { description: 'Separators and currency style (locale de-DE)' },
       'no-legend': { description: 'Hide the legend' },
       'x-axis': {
@@ -564,7 +564,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description:
           'Number format: currency USD, percent 1, compact, or a quoted pattern',
       },
-      unit: { description: 'Text after every number (unit ms)' },
+      unit: { description: 'What the numbers count (unit ms)' },
       locale: { description: 'Separators and currency style (locale de-DE)' },
       'y-axis': { description: 'Vertical range and scale (y-axis 0..100 log)' },
       highlight: {

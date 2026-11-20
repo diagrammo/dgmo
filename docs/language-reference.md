@@ -3117,13 +3117,21 @@ format currency USD      // $1,200 — any ISO 4217 code; `format currency EUR 2
 format percent 1         // 12.5 prints as 12.5% — values are percentages as written
 format compact           // 1.2K, 39.5M, 2.3B — `format compact 2` for two decimals
 format ",.2f"            // any d3-format pattern, quoted: the escape hatch
-unit ms                  // text after every number: 120 ms (a symbol unit takes no space: 21°)
+unit ms                  // what the numbers count: a word goes on the axis title, a symbol on every number (21°)
 locale de-DE             // separators and currency placement: 1.234,5 · 1.200 €
 ```
 
 - **Where.** bar, line, pie, polar-area, radar, scatter, function, heatmap,
   funnel, sankey and slope. On scatter and function the format applies to the y
   values; x stays plain.
+- **Unit placement** (#2088). A unit that starts with a letter (`votes`,
+  `ms`) is stated once, on the value-axis title, and the ticks and value labels
+  print bare numbers. A title that holds the word keeps it as written
+  (`y-axis Crew votes`), another title gains it (`Crew (votes)`), and an
+  untitled axis is titled with the unit (`Votes`; an abbreviation such as `ms`
+  keeps its case). A symbol unit (`%`, `°`, `$`) stays on every number. A chart
+  with no value axis (pie, funnel, sankey, heatmap, radar, polar-area, slope)
+  keeps the unit on every number, and the generated description always does.
 - **Decimals.** A named format with no count trims trailing zeros: currency
   shows up to 2 decimals, percent and compact up to 1. A count fixes them.
 - **Data held as fractions** (0.125 for 12.5%) takes the pattern form:
