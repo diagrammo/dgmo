@@ -60,6 +60,18 @@ export const VERSION_CONTROL_DX = {
     hint: 'Give the target commit an `id:` and reference that id, or make the message unique.',
     example: 'version-control A\n\nmain\n  Fix\n  Fix\n  cherry-pick Fix',
   },
+  TOO_MANY_NODES: {
+    code: 'E_VERSION_CONTROL_TOO_MANY_NODES',
+    severity: 'warning',
+    chartType: 'version-control',
+    title: 'Too many commits',
+    message: (p) => {
+      const max = (p.max as number | string) ?? 5000;
+      return `version-control stopped at ${max} commits; later lines were ignored.`;
+    },
+    hint: 'Split the history into smaller diagrams.',
+    example: 'version-control Big\n\nmain\n  A',
+  },
 } satisfies Record<string, DiagnosticSpec>;
 
 export const VERSION_CONTROL_DIAGNOSTICS: DiagnosticSpec[] =

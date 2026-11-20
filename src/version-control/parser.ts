@@ -52,6 +52,13 @@ export function parseVersionControl(
   );
 }
 
+/**
+ * Ceiling on the nodes one diagram may build. The largest gallery fixture has
+ * a few dozen; past this the parser stops and warns, so a pasted history
+ * cannot exhaust memory (#2193).
+ */
+const MAX_VERSION_CONTROL_NODES = 5000;
+
 function parseVersionControlRaw(
   content: string,
   palette?: PaletteColors
@@ -187,9 +194,15 @@ function parseVersionControlRaw(
       );
       return;
     }
+    // Live nodes only: a ghost was already moved by an earlier rebase, so
+    // re-selecting it would double the branch on every repeat (#2193).
     const feats = nodes
-      .filter((n) => n.branch === fb)
+      .filter((n) => n.branch === fb && !n.ghost)
       .sort((a, b) => a.seq - b.seq);
+    if (nodes.length + feats.length > MAX_VERSION_CONTROL_NODES) {
+      hitNodeCap(lineNumber);
+      return;
+    }
     let prev: number | null = null;
     const first = tbr.tip;
     for (const o of feats) {
@@ -222,12 +235,27 @@ function parseVersionControlRaw(
     active = fb;
   };
 
+  let nodeCapHit = false;
+  function hitNodeCap(lineNumber: number): void {
+    if (nodeCapHit) return;
+    nodeCapHit = true;
+    result.diagnostics.push(
+      emit(VERSION_CONTROL_DX.TOO_MANY_NODES, lineNumber, {
+        max: MAX_VERSION_CONTROL_NODES,
+      })
+    );
+  }
+
   const lines = content.split('\n');
   // The footnote block and its markdown body (#2093), before any line is read.
   takeFootnoteBlock(result, lines, result.diagnostics);
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!;
     const lineNumber = i + 1;
+    if (nodes.length >= MAX_VERSION_CONTROL_NODES) {
+      hitNodeCap(lineNumber);
+      break;
+    }
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('//')) continue;
     const indent = measureIndent(line);

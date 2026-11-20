@@ -213,3 +213,53 @@ main
     ).toBe(true);
   });
 });
+
+// #2193: a repeated rebase used to re-select ghosted originals and double the
+// branch every line, so ~30 lines built billions of nodes.
+describe('version-control parser — rebase growth and node cap', () => {
+  const liveOn = (p: Parsed, branch: string) =>
+    p.nodes.filter((n) => n.branch === branch && !n.ghost).length;
+
+  it('repeating a rebase leaves the live node count unchanged', () => {
+    const head = 'version-control T\n\nmain\n  a\nfeat\n  x\n';
+    const once = parseVersionControl(head + 'rebase feat onto main');
+    const many = parseVersionControl(
+      head + Array(30).fill('rebase feat onto main').join('\n')
+    );
+    expect(liveOn(once, 'feat')).toBe(1);
+    expect(liveOn(many, 'feat')).toBe(liveOn(once, 'feat'));
+    // Each repeat adds one copy per live node: linear, not doubling.
+    expect(many.nodes.length).toBe(once.nodes.length + 29);
+  });
+
+  it('stops at the node cap with a diagnostic', () => {
+    const commits = Array.from({ length: 6000 }, (_, i) => `  c${i}`);
+    const p = parseVersionControl(
+      ['version-control Big', '', 'main', ...commits].join('\n')
+    );
+    expect(p.nodes.length).toBe(5000);
+    const capped = p.diagnostics.filter(
+      (d) => d.code === 'E_VERSION_CONTROL_TOO_MANY_NODES'
+    );
+    expect(capped).toHaveLength(1);
+  });
+
+  it('a rebase that would cross the cap is skipped with the diagnostic', () => {
+    const commits = Array.from({ length: 2600 }, (_, i) => `  c${i}`);
+    const p = parseVersionControl(
+      [
+        'version-control Big',
+        '',
+        'main',
+        '  a',
+        'feat',
+        ...commits,
+        'rebase feat onto main',
+      ].join('\n')
+    );
+    expect(p.nodes.length).toBe(2601);
+    expect(
+      p.diagnostics.some((d) => d.code === 'E_VERSION_CONTROL_TOO_MANY_NODES')
+    ).toBe(true);
+  });
+});
