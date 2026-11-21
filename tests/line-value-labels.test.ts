@@ -16,10 +16,12 @@ const renderDataChartD3 = async (
 // values are now placed together: above the point, else below, right or
 // left; a value with no clear spot is dropped, smallest first.
 
+// `values` (#2220): this file is about every point's value, which a line
+// prints only on request.
 const FIXTURE = readFileSync(
   resolve(__dirname, '../stress/line/extreme-values--close-series.dgmo'),
   'utf8'
-);
+).replace(/\n/, '\nvalues\n');
 
 /** The values the fixture's data rows carry, as drawn by `fmtNum`. */
 function valuesOf(src: string): string[] {

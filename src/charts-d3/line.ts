@@ -1092,10 +1092,11 @@ export function renderLine(
           // On by default (#2213), so the mark points at its own data row.
           lineNumber: p.lineNumber,
         });
-      // Dense (#2209): values follow the dots. Only the latest reading keeps
-      // its number; the extremes print their own, and hand it back when
-      // their label finds no room.
-      if (showValues && (!denseRows || p === last || high !== undefined)) {
+      // A line prints its latest value and its high and low (#2220); every
+      // point only under `values`, and never when dense (#2209). The
+      // extremes print their own and hand it back when they find no room.
+      const everyValue = (barHost || chart.allValues) && !denseRows;
+      if (showValues && (everyValue || p === last || high !== undefined)) {
         const label = {
           text: fmtFor(s)(p.v),
           cx: xOfRow(p.xIndex),

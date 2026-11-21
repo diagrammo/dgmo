@@ -709,6 +709,9 @@ interface ParsedChart {
     noValue?: boolean;
     /** `no-extremes` (#2213): a line chart marks each series' high and low by default. */
     noExtremes?: boolean;
+    /** `values` (#2220): a line prints every point's value, not only its
+     *  high, low and latest. */
+    allValues?: boolean;
     noPercent?: boolean;
     /** §1.9 fill family: `'solid'` = full intent saturation, `'outline'` =
      *  theme-background fill with color on the stroke. Absent ⇒ 25% tint. */

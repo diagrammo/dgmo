@@ -95,11 +95,13 @@ describe('line points — resting dots by density (#2203)', () => {
       (svg.match(/<text[^>]*font-size="12"/g) ?? []).length;
     const values = async (src: string, width: number) =>
       texts(
-        await renderDataChartD3(`line C\n\n${src}`, 'light', palette, { width })
+        await renderDataChartD3(`line C\nvalues\n\n${src}`, 'light', palette, {
+          width,
+        })
       ) -
       texts(
         await renderDataChartD3(
-          `line C\nno-value\n\n${src}`,
+          `line C\nvalues\nno-value\n\n${src}`,
           'light',
           palette,
           { width }

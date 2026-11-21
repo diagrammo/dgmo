@@ -2941,6 +2941,7 @@ Each chart honors the subset of flags that has a renderable atom on it:
 - pie / polar-area: all three
 - funnel: all three (`no-percent` hides the conversion %)
 - bar / line / radar: `no-value`
+- line: `values` prints every point's value, not only each series' high, low and latest
 - scatter: `no-name`
 - heatmap: `no-value`
 - sankey: `no-value` (the node values)
@@ -3090,8 +3091,9 @@ sit closer than a few dot widths apart, the dots are dropped so the line reads,
 and hovering grows the nearest one (#2203). The chart's rendered width decides
 this, not the row count, and there is no directive for it. Dots that carry data
 always stay: each series' high and low, and points that reach a `target`.
-Point values follow the dots: on a dense line only the last point prints its
-value, beside the high and low labels (#2209).
+**Values.** A line prints each series' latest value, plus its high and low
+(#2220); hovering shows any other. `values` prints every point's value; a dense
+line still prints only its latest (#2209). `no-value` prints none.
 
 **Steps.** Two bare flags draw every series as steps — each value holds flat
 until the next point, then jumps:

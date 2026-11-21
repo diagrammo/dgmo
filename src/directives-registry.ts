@@ -941,7 +941,7 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   {
     token: 'values',
     category: 'directive',
-    chartTypes: ['pert', 'tech-radar'],
+    chartTypes: ['line', 'pert', 'tech-radar'],
   },
   {
     token: 'orientation-horizontal',

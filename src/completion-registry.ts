@@ -294,6 +294,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description:
           'Trailing N-point average per series, drawn over a thinner raw line (moving-average 3)',
       },
+      values: {
+        description:
+          "Print every point's value, not only each series' high, low and latest",
+      },
       'no-extremes': {
         description: 'Hide the high and low marked on each series by default',
       },

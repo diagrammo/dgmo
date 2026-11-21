@@ -61,6 +61,36 @@ describe('overlay labels — placement (#2217)', () => {
   });
 });
 
+describe('line values by default (#2220)', () => {
+  // Plain point values carry no class; the extremes carry their own.
+  const plain = (svg: string) =>
+    [
+      ...svg.matchAll(
+        /<text(?![^>]*class=)[^>]*font-size="12"[^>]*>(.*?)<\/text>/g
+      ),
+    ].map((m) => m[1]!.replace(/<[^>]+>/g, ''));
+  const SRC = 'line X\n\nA 3\nB 9\nC 1\nD 4\nE 5';
+
+  it('prints the high, the low and the latest value, not every point', async () => {
+    const svg = await renderDataChartD3(SRC, 'light', palette);
+    expect(texts(svg, 'dgmo-overlay-extremes-label').sort()).toEqual([
+      '1',
+      '9',
+    ]);
+    expect(plain(svg)).toContain('5');
+    for (const v of ['3', '4']) expect(plain(svg)).not.toContain(v);
+  });
+
+  it('values prints every point', async () => {
+    const svg = await renderDataChartD3(
+      SRC.replace('line X', 'line X\nvalues'),
+      'light',
+      palette
+    );
+    for (const v of ['3', '4', '5']) expect(plain(svg)).toContain(v);
+  });
+});
+
 describe('pickSpot', () => {
   const bounds = { left: 0, top: 0, right: 200, bottom: 200 };
   const spot = (x: number, cost: number, leader = false): Spot => ({
