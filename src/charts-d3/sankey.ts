@@ -875,7 +875,7 @@ function renderAlluvial(
         .attr('font-size', LABEL_FONT)
         .attr('font-family', FONT_FAMILY)
         .text(name);
-      // The gap is a dx, not a leading space, which a rasteriser collapses.
+      // The gap is a dx, not a leading space, which resvg collapses.
       if (!chart.noValue)
         label
           .append('tspan')

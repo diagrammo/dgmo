@@ -1127,6 +1127,22 @@ interface HistogramBinSpec {
     startLine?: number;
 }
 
+/** One path row: one category per period, and its count. */
+interface AlluvialPath {
+    steps: string[];
+    value: number;
+    lineNumber: number;
+}
+/** A sankey drawn in alluvial mode. */
+interface SankeyAlluvial {
+    /** The column labels, in order. */
+    periods: string[];
+    periodLineNumber: number;
+    /** Every category, declaration order first, then first appearance. */
+    categories: string[];
+    paths: AlluvialPath[];
+}
+
 type ExtendedChartType = 'sankey' | 'function' | 'scatter' | 'heatmap' | 'funnel' | 'boxplot' | 'histogram';
 interface ExtendedChartDataPoint {
     label: string;
@@ -1218,6 +1234,8 @@ interface ParsedExtendedBase {
 interface ParsedSankey extends ParsedExtendedBase {
     type: 'sankey';
     links?: ParsedSankeyLink[];
+    /** Alluvial mode (#1858): set when a `period` line names the columns. */
+    alluvial?: SankeyAlluvial;
 }
 interface ParsedFunctionChart extends ParsedExtendedBase {
     type: 'function';

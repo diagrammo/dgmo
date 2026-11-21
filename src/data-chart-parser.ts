@@ -886,7 +886,7 @@ function parseExtendedChartFull(
         directed: arrow === '->',
         lineNumber,
       });
-      // In alluvial mode an uncoloured `A -> B n` is a two-column path.
+      // In alluvial mode a plain `A -> B n` (no colour) is a two-column path.
       if (arrow === '->' && !rawLinkColor && !sourceColor && !targetColor)
         alluvial.arrowLines.add(lineNumber);
       continue;
