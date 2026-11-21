@@ -107,12 +107,17 @@ describe('calendar-heatmap grid (#1855)', () => {
     ).toEqual(['Mon', 'Wed', 'Fri']);
   });
 
-  it('puts each month name above the week that holds its first day', () => {
+  it('centres each month name over the weeks its month spans', () => {
     const c = draw(YEAR);
     const mar = [...c.querySelectorAll('.calendar-heatmap-month')].find(
       (t) => t.textContent === 'Mar'
     )!;
-    expect(Number(mar.getAttribute('x'))).toBe(xy(day(c, '2026-03-01')).x);
+    const first = day(c, '2026-03-01');
+    const last = day(c, '2026-03-31');
+    const mid =
+      (xy(first).x + xy(last).x + Number(last.getAttribute('width'))) / 2;
+    expect(mar.getAttribute('text-anchor')).toBe('middle');
+    expect(Number(mar.getAttribute('x'))).toBeCloseTo(mid, 6);
   });
 
   it('grows the squares for a short span', () => {

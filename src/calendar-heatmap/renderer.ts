@@ -3,7 +3,7 @@
 // ============================================================
 //
 // One column per week and seven weekday rows; week one holds the span's first
-// day. Month names sit above the first week of each month, weekday labels show
+// day. Month names centre above the weeks of each month, weekday labels show
 // Mon, Wed and Fri only. Five shades: grey for zero, then four equal-count
 // bands (quartiles of the non-zero days), or four equal ranges up to `max N`.
 // A day's fill encodes data, so the `fill-*` family does not apply.
@@ -274,23 +274,33 @@ export function renderCalendarHeatmap(
     let lastMonthRight = -Infinity;
     for (let day = band.first; day <= band.last; ) {
       const p = parts(day);
-      const x = gridLeft + columnOf(day) * pitch;
+      // First day of the next month.
+      const next = Math.round(Date.UTC(p.year, p.month, 1) / 86_400_000);
+      // The name centres over the weeks its month spans in this band (the
+      // shown part of a month cut by the range), kept inside the grid.
       const name = MONTHS[p.month - 1]!.slice(0, 3);
-      if (x >= lastMonthRight + MONTH_LABEL_GAP) {
+      const w = measureText(name, LABEL_FONT_SIZE);
+      const from = gridLeft + columnOf(day) * pitch;
+      const to =
+        gridLeft + columnOf(Math.min(next - 1, band.last)) * pitch + cell;
+      const left = Math.min(
+        Math.max((from + to - w) / 2, gridLeft),
+        gridLeft + gridWidth - w
+      );
+      if (left >= lastMonthRight + MONTH_LABEL_GAP) {
         labels
           .append('text')
           .attr('class', 'calendar-heatmap-month')
           .attr('data-month', exportMode ? null : dayToIso(day).slice(0, 7))
-          .attr('x', x)
+          .attr('x', left + w / 2)
           .attr('y', yTop - 5)
+          .attr('text-anchor', 'middle')
           .attr('font-size', LABEL_FONT_SIZE)
           .attr('fill', palette.textMuted)
           .text(name);
-        lastMonthRight = x + measureText(name, LABEL_FONT_SIZE);
+        lastMonthRight = left + w;
       }
-      // First day of the next month.
-      const next = Date.UTC(p.year, p.month, 1) / 86_400_000;
-      day = Math.round(next);
+      day = next;
     }
     for (let row = 0; row < 7; row++) {
       const wd = (row + weekStart) % 7;
