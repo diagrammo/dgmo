@@ -6390,6 +6390,13 @@ interface ParsedCalendarHeatmap {
     readonly weekStart: 0 | 1;
     /** `max N`: pins the top band. */
     readonly max?: number;
+    /** `heat <Label> [low] [high]` (the shared ramp convention, §13.9): the
+     *  legend label and up to two palette colour names. */
+    readonly heat?: {
+        label: string;
+        low?: string;
+        high?: string;
+    };
     /** `tag`: entries carry tag values and each day takes its tag's colour
      *  (year in pixels, #1877); `value`: entries carry numbers. */
     readonly mode: 'value' | 'tag';
