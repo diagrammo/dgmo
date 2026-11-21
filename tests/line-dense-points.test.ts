@@ -90,4 +90,25 @@ describe('line points — resting dots by density (#2203)', () => {
     expect(r).toHaveLength(240);
     expect(r.filter((x) => x > 0)).toHaveLength(4);
   });
+
+  it('prints values only where dots would be: the last point when dense (#2209)', async () => {
+    // Value labels carry no class; count 12px text against the same chart
+    // under no-value, so axis and title text cancel out.
+    const texts = (svg: string) =>
+      (svg.match(/<text[^>]*font-size="12"/g) ?? []).length;
+    const values = async (src: string, width: number) =>
+      texts(
+        await renderDataChartD3(`line C\n\n${src}`, 'light', palette, { width })
+      ) -
+      texts(
+        await renderDataChartD3(
+          `line C\nno-value\n\n${src}`,
+          'light',
+          palette,
+          { width }
+        )
+      );
+    expect(await values(rows(60), 480)).toBe(1);
+    expect(await values(rows(10), 600)).toBeGreaterThan(1);
+  });
 });

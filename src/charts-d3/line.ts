@@ -1048,7 +1048,9 @@ export function renderLine(
           lineNumber: chart.overlays!.find((o) => o.kind === 'extremes')!
             .lineNumber,
         });
-      if (showValues && high === undefined) {
+      // Dense (#2209): values follow the dots. Only the latest reading keeps
+      // its number; the extremes print their own.
+      if (showValues && high === undefined && (!denseRows || p === last)) {
         valueLabels.push({
           text: fmtFor(s)(p.v),
           cx: xOfRow(p.xIndex),

@@ -3090,6 +3090,8 @@ sit closer than a few dot widths apart, the dots are dropped so the line reads,
 and hovering grows the nearest one (#2203). The chart's rendered width decides
 this, not the row count, and there is no directive for it. Dots that carry data
 always stay: the ones `extremes` marks, and points that reach a `target`.
+Point values follow the dots: on a dense line only the last point prints its
+value, beside the `extremes` labels (#2209).
 
 **Steps.** Two bare flags draw every series as steps — each value holds flat
 until the next point, then jumps:
