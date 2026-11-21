@@ -314,6 +314,7 @@ const INVENTORY = {
     'poi-size',
     'points',
     'pool',
+    'rank',
     'region-heat',
     'rings',
     'roles',
