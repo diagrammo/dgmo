@@ -13,13 +13,7 @@ import * as d3Array from 'd3-array';
 import { wrapTextToWidth } from '../utils/text-measure';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import { ScaleContext } from '../utils/scaling';
-import {
-  createTooltip,
-  hideTooltip,
-  initD3Chart,
-  renderChartTitle,
-  showTooltip,
-} from '../utils/d3-helpers';
+import { initD3Chart, renderChartTitle } from '../utils/d3-helpers';
 import type { ParsedSlope } from '../visualizations/types';
 import { FRAME_BODY_TOP } from '../utils/title-constants';
 import {
@@ -284,9 +278,6 @@ export function renderSlopeChart(
 
   g.attr('transform', `translate(${sMarginLeft},${sPlotTop})`);
 
-  // Tooltip
-  const tooltip = createTooltip(container, palette, isDark);
-
   // Period column headers
   for (const period of periods) {
     const x = xScale(period)!;
@@ -372,18 +363,6 @@ export function renderSlopeChart(
     // values is non-empty by parser validation (slope requires P>=2 values per series).
     const firstVal = item.values[0]!;
     const lastVal = item.values[item.values.length - 1]!;
-    const absChange = lastVal - firstVal;
-    const pctChange = firstVal !== 0 ? (absChange / firstVal) * 100 : null;
-    const sign = absChange > 0 ? '+' : '';
-    const change = parsed.numberFormat
-      ? fmt(absChange)
-      : String(parseFloat(absChange.toFixed(2)));
-    const tipLines = rank
-      ? [`${item.values.join(' → ')}`]
-      : [`${sign}${change}`];
-    if (pctChange !== null && !rank)
-      tipLines.push(`${sign}${pctChange.toFixed(1)}%`);
-    const tipHtml = tipLines.join('<br>');
 
     // Compute right-side label text and wrapping info
     // periods is non-empty (slope requires P >= 2 periods).
@@ -419,7 +398,6 @@ export function renderSlopeChart(
       color,
       firstVal,
       lastVal,
-      tipHtml,
       lastX,
       labelText,
       wrappedLines,
@@ -521,7 +499,22 @@ export function renderSlopeChart(
       .attr('class', 'slope-series')
       .attr('data-line-number', String(item.lineNumber))
       // The name a `highlight` line matches — the app's Spotlight reads it.
-      .attr('data-series-name', item.label);
+      .attr('data-series-name', item.label)
+      // Hover anywhere on a series — line, dot or either name — and every
+      // other series recedes (#2211). The series stays the whole answer: its
+      // dots already carry the values, so there is no tooltip.
+      .on('mouseenter', () => {
+        g.selectAll<SVGGElement, unknown>('g.slope-series').each(function () {
+          if (this !== seriesG.node())
+            this.style.opacity = String(EMPHASIS_DIM_OPACITY);
+        });
+      })
+      .on('mouseleave', () => {
+        g.selectAll<SVGGElement, unknown>('g.slope-series').style(
+          'opacity',
+          null
+        );
+      });
 
     // Line
     seriesG
@@ -540,13 +533,6 @@ export function renderSlopeChart(
       .attr('stroke-width', sHitWidth)
       .attr('d', lineGen(idx))
       .style('cursor', onClickItem ? 'pointer' : 'default')
-      .on('mouseenter', (event: MouseEvent) =>
-        showTooltip(tooltip, si.tipHtml, event)
-      )
-      .on('mousemove', (event: MouseEvent) =>
-        showTooltip(tooltip, si.tipHtml, event)
-      )
-      .on('mouseleave', () => hideTooltip(tooltip))
       .on('click', () => {
         if (onClickItem && item.lineNumber) onClickItem(item.lineNumber);
       });
@@ -568,13 +554,6 @@ export function renderSlopeChart(
         .attr('stroke-width', sPointStroke)
         .attr('opacity', shapeOpacity(dim))
         .style('cursor', onClickItem ? 'pointer' : 'default')
-        .on('mouseenter', (event: MouseEvent) =>
-          showTooltip(tooltip, si.tipHtml, event)
-        )
-        .on('mousemove', (event: MouseEvent) =>
-          showTooltip(tooltip, si.tipHtml, event)
-        )
-        .on('mouseleave', () => hideTooltip(tooltip))
         .on('click', () => {
           if (onClickItem && item.lineNumber) onClickItem(item.lineNumber);
         });

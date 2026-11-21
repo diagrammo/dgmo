@@ -753,6 +753,16 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
         )
       ),
   },
+  // slope: each series is a `g.slope-series` wrapping its line, dots and both
+  // name labels, so hovering any of them dims the other series (#2211) — the
+  // same focus the live renderer gives.
+  slope: {
+    markSelector: 'g.slope-series',
+    strategy: 'structural',
+    groupSelector: 'g.slope-series',
+    emphasis: 'dim',
+    selfEmphasis: false,
+  },
   // line: each series is a `g.dgmo-series` wrapping its line + data dots + an
   // invisible fat hit corridor (`.dgmo-series-hit`, renderer-baked) — without
   // the corridor only the 2.5px stroke and 4px dots were hittable, so the
@@ -808,7 +818,6 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
   // ── SELF-emphasis only (single-series / non-relational solid marks) ──
   pyramid: { markSelector: '.pyramid-layer', strategy: 'self' },
   ring: { markSelector: '.ring-layer', strategy: 'self' },
-  slope: { markSelector: '.slope-series', strategy: 'self' },
   // function: each curve is a `.dgmo-datum` path — self-emphasis floor (thin
   // line, no group), plus its legend of curves pairing on `data-series-name`.
   function: {
