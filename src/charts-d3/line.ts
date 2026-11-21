@@ -1042,7 +1042,8 @@ export function renderLine(
           x: xOfRow(p.xIndex),
           y: yy(p.y),
           high,
-          text: `${high ? 'peak' : 'low'} ${fmtFor(s)(p.v)} ${p.label}`,
+          // Just the value (#2213): x says when, the side says high or low.
+          text: fmtFor(s)(p.v),
           fill: color,
           color: drawnSeries.length > 1 ? labelColor : textColor,
           lineNumber: chart.overlays!.find((o) => o.kind === 'extremes')!

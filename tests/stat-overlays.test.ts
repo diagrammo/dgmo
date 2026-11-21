@@ -424,19 +424,17 @@ describe('moving-average and extremes', () => {
     );
     expect(texts(svg, '.dgmo-overlay-label')).toEqual(['3-week avg']);
   });
-  it('marks the peak and the low with their value and row', async () => {
+  it('marks the peak and the low with just their value (#2213)', async () => {
     const svg = await draw(PHX);
     expect(svg.querySelectorAll('circle.dgmo-extreme-high')).toHaveLength(1);
     expect(svg.querySelectorAll('circle.dgmo-extreme-low')).toHaveLength(1);
-    expect(texts(svg, '.dgmo-overlay-extremes-label')).toEqual([
-      'low 19 Jan',
-      'peak 41 Jul',
-    ]);
+    expect(texts(svg, '.dgmo-overlay-extremes-label')).toEqual(['19', '41']);
   });
   it('the marked points lose their plain value label', async () => {
     const svg = await draw(PHX);
+    // The one '41' left is the extremes label itself.
     const values = texts(svg, 'text').filter((t) => t === '41');
-    expect(values).toEqual([]);
+    expect(values).toEqual(['41']);
   });
   it('a multi-series line marks each series', async () => {
     const svg = await draw(`line X

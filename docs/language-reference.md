@@ -3255,8 +3255,8 @@ May 360
   smoothed line starts at row N. N is a whole number, 2 or more. A window over
   a missing row is missing. The label reads `3-pt avg`, or `3-week avg` with
   `x-axis Week`.
-- `extremes` labels the highest point `peak 41 Jul` above it and the lowest
-  `low 19 Jan` below it; a tie goes to the first row. The point's own value
+- `extremes` labels the highest point with its value (`41`) above it and the
+  lowest (`19`) below it; a tie goes to the first row. The point's own value
   label gives way to it.
 - `pareto` needs one value per bar: on a `stack` or a `group` it is an error
   and is ignored. It overrides `sort`, and draws columns even with
