@@ -520,6 +520,7 @@ describe('note', () => {
     // spot, above-left, was a 3px slot between them.
     const src = [
       'line Plunder',
+      'no-extremes',
       'series',
       '  Blackbeard',
       '  Bonnet',
@@ -532,7 +533,7 @@ describe('note', () => {
       '  note Vane Hanged at Port Royal',
     ].join('\n');
     const svg = await renderDataChartD3(src, 'light', palette);
-    const box = noteBox(svg, 11, 'Hanged at Port Royal');
+    const box = noteBox(svg, 12, 'Hanged at Port Royal');
     const segs = [...svg.matchAll(/class="dgmo-series-line" d="M([^"]+)"/g)]
       .map((m) => m[1]!.split('L').map((p) => p.split(',').map(Number)))
       .flatMap((pts) => pts.slice(1).map((p, i) => [pts[i]!, p] as const));

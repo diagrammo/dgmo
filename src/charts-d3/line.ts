@@ -52,6 +52,7 @@ import { resolveVerticalCollisions } from '../slope/renderer';
 import {
   drawOverlayLabels,
   drawExtremes,
+  EXTREME_DOT_R,
   drawOverlayLevels,
   drawOverlayPaths,
   extremeRows,
@@ -64,6 +65,7 @@ import {
   trendUnit,
   type OverlayLabel,
 } from '../overlays/draw';
+import { overlayPlacement } from '../overlays/place';
 import { reachesTarget } from '../overlays/compute';
 import { measureText } from '../utils/text-measure';
 import {
@@ -768,7 +770,7 @@ export function renderLine(
   // `extremes` (#1954): each drawn series' highest and lowest row. Their
   // value labels give way to the extremes' own.
   const extremeAt =
-    !stacked && chart.overlays?.some((o) => o.kind === 'extremes')
+    !stacked && !barHost && !chart.noExtremes
       ? extremeRows(
           drawnSeries.map((s) => ({
             s,
@@ -777,6 +779,8 @@ export function renderLine(
         )
       : new Map<string, boolean>();
   const extremeMarks: ExtremeMark[] = [];
+  /** An extreme's own value label, used only if its mark finds no room. */
+  const extremeValues = new Map<ExtremeMark, (typeof valueLabels)[number]>();
 
   // Uncertainty bands (#1981), beneath every fill and line: the low series'
   // colour at reduced opacity, between the two bounds, in the lines' curve.
@@ -1046,13 +1050,14 @@ export function renderLine(
           text: fmtFor(s)(p.v),
           fill: color,
           color: drawnSeries.length > 1 ? labelColor : textColor,
-          lineNumber: chart.overlays!.find((o) => o.kind === 'extremes')!
-            .lineNumber,
+          // On by default (#2213), so the mark points at its own data row.
+          lineNumber: p.lineNumber,
         });
       // Dense (#2209): values follow the dots. Only the latest reading keeps
-      // its number; the extremes print their own.
-      if (showValues && high === undefined && (!denseRows || p === last)) {
-        valueLabels.push({
+      // its number; the extremes print their own, and hand it back when
+      // their label finds no room.
+      if (showValues && (!denseRows || p === last || high !== undefined)) {
+        const label = {
           text: fmtFor(s)(p.v),
           cx: xOfRow(p.xIndex),
           cy: yy(p.v),
@@ -1060,7 +1065,9 @@ export function renderLine(
           endpoint: p.xIndex === 0 || p.xIndex === pts.length - 1,
           color: labelColor,
           dim,
-        });
+        };
+        if (high === undefined) valueLabels.push(label);
+        else extremeValues.set(extremeMarks.at(-1)!, label);
       }
     }
   }
@@ -1076,24 +1083,8 @@ export function renderLine(
       annotationFrame,
       annotationColors,
       markerLines
-    ),
-    ...drawOverlayLabels(svg, overlayLabels, annotationFrame, bgColor, [
-      ...polylines.flat().map(([cx, cy]) => ({ cx, cy, r: 4.5 })),
-      ...lineTrace,
-    ]),
-    ...drawExtremes(
-      svg,
-      extremeMarks,
-      {
-        left: m.left,
-        top: m.top,
-        right: m.left + plotW,
-        bottom: m.top + plotH,
-      },
-      bgColor
     )
   );
-
   // End-of-line series names (#1950), nudged apart so none prints over
   // another. They are placed before the point values, which clear them.
   if (endLabels) {
@@ -1125,6 +1116,48 @@ export function renderLine(
       });
     });
   }
+
+  // Overlay labels and the extremes share one placement (#2217), after the
+  // series names so they clear them too: none
+  // prints over another, a point, a data line or an overlay line.
+  const overlayPlace = overlayPlacement({
+    reserved: eraTitles,
+    markers: [
+      ...polylines.flat().map(([cx, cy]) => ({ cx, cy, r: 4.5 })),
+      ...lineTrace,
+      ...extremeMarks.map((e) => ({ cx: e.x, cy: e.y, r: EXTREME_DOT_R })),
+    ],
+  });
+  const plotBounds = {
+    left: m.left,
+    top: m.top,
+    right: m.left + plotW,
+    bottom: m.top + plotH,
+  };
+  // Extremes first: their dots anchor tighter than a line's label can. A
+  // peak's value may rise above the plot, as a point value may.
+  const extremeBoxes = drawExtremes(
+    svg,
+    extremeMarks,
+    { ...plotBounds, top: 0 },
+    bgColor,
+    overlayPlace
+  );
+  for (const mk of extremeMarks) {
+    const back = extremeValues.get(mk);
+    if (back && !extremeBoxes.labelled.has(mk)) valueLabels.push(back);
+  }
+  eraTitles.push(
+    ...drawOverlayLabels(
+      svg,
+      overlayLabels,
+      annotationFrame,
+      bgColor,
+      [],
+      overlayPlace
+    ),
+    ...extremeBoxes.boxes
+  );
 
   // Band labels settle now that points, lines and series names are down;
   // notes and point values then clear them where they land (#2137).

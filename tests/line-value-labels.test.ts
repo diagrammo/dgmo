@@ -37,9 +37,14 @@ function valuesOf(src: string): string[] {
 
 /** Text drawn by the value labels (12px, never a tick or a title). */
 function valueTexts(svg: string): string[] {
+  // A point's value, or its extremes label, which carries the value in its
+  // place (#2213).
   return [
     ...svg.matchAll(
       /<text(?![^>]*class=)[^>]*font-size="12"[^>]*>([^<]*)<\/text>/g
+    ),
+    ...svg.matchAll(
+      /<text[^>]*class="[^"]*dgmo-overlay-extremes-label[^"]*"[^>]*>([^<]*)<\/text>/g
     ),
   ].map((m) => m[1]!);
 }

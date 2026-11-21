@@ -35,7 +35,7 @@ const MONTHS = [
 const rows = (vals: number[]) =>
   vals.map((v, i) => `${MONTHS[i]} ${v}`).join('\n');
 
-const LINE = `line New sign-ups, 2026\nmean\nmedian\n\n${rows(SIGNUPS)}`;
+const LINE = `line New sign-ups, 2026\nno-extremes\nmean\nmedian\n\n${rows(SIGNUPS)}`;
 const SALES = `bar Q3 sales by region (% of plan)
 target 100
 
@@ -175,6 +175,7 @@ describe('overlay rendering', () => {
   });
   it('a two-series line gets one mean per series in its colour', async () => {
     const svg = await draw(`line Net promoter score
+no-extremes
 mean
 series
   EU blue
@@ -285,7 +286,7 @@ describe('trend numbers', () => {
 });
 
 describe('trend', () => {
-  const LINE_TREND = `line Weekly active teams\ntrend\n\n${WOBBLE.map((v, i) => `W${i + 1} ${v}`).join('\n')}`;
+  const LINE_TREND = `line Weekly active teams\ntrend\nno-extremes\n\n${WOBBLE.map((v, i) => `W${i + 1} ${v}`).join('\n')}`;
   it('parses on line, bar and scatter', () => {
     expect(parseChart(LINE_TREND).overlays).toEqual([
       { kind: 'trend', lineNumber: 2 },
@@ -381,7 +382,7 @@ describe('moving average and extremes numbers', () => {
 });
 
 describe('moving-average and extremes', () => {
-  const PHX = `line Average daily high, Phoenix\nextremes\n\n${rows(PHOENIX)}`;
+  const PHX = `line Average daily high, Phoenix\n\n${rows(PHOENIX)}`;
   it('parses moving-average N and refuses a bad N', () => {
     expect(parseChart('line X\nmoving-average 3\nA 1').overlays).toEqual([
       { kind: 'moving-average', value: 3, lineNumber: 2 },
@@ -396,17 +397,28 @@ describe('moving-average and extremes', () => {
         parseChart(`line X\n${bad}\nA 1`).diagnostics.map((d) => d.code)
       ).toEqual(['E_OVERLAY_BAD_N']);
   });
-  it('moving-average and extremes are line only', () => {
-    const p = parseChart('bar X\nmoving-average 3\nextremes\nA 1');
+  it('moving-average is line only', () => {
+    const p = parseChart('bar X\nmoving-average 3\nA 1');
     expect(p.overlays).toBeUndefined();
-    expect(p.diagnostics.map((d) => d.code)).toEqual([
-      'W_OVERLAY_UNSUPPORTED',
-      'W_OVERLAY_UNSUPPORTED',
-    ]);
+    expect(p.diagnostics.map((d) => d.code)).toEqual(['W_OVERLAY_UNSUPPORTED']);
+  });
+  it('extremes is on by default and is never written (#2213)', () => {
+    const p = parseChart('line X\nextremes\nA 1\nB 2');
+    expect(p.overlays).toBeUndefined();
+    const d = p.diagnostics.find((x) => x.code === 'W_OVERLAY_UNKNOWN');
+    expect(d?.message).toContain('no-extremes');
+  });
+  it('no-extremes hides the high and low marks (#2213)', async () => {
+    const on = await draw(PHX);
+    expect(on.querySelectorAll('circle.dgmo-extreme-high')).toHaveLength(1);
+    const off = await draw(
+      `line Average daily high, Phoenix\nno-extremes\n\n${rows(PHOENIX)}`
+    );
+    expect(off.querySelectorAll('[class*="extreme"]')).toHaveLength(0);
   });
   it('draws the average heavier and the raw line thinner', async () => {
     const svg = await draw(
-      `line Teams\nmoving-average 3\n\n${WOBBLE.map((v, i) => `W${i + 1} ${v}`).join('\n')}`
+      `line Teams\nno-extremes\nmoving-average 3\n\n${WOBBLE.map((v, i) => `W${i + 1} ${v}`).join('\n')}`
     );
     const avg = svg.querySelector('g.dgmo-overlay-moving-average path')!;
     const raw = svg.querySelector('path.dgmo-series-line')!;
@@ -420,7 +432,7 @@ describe('moving-average and extremes', () => {
   });
   it('names the window after a one-word x-axis title', async () => {
     const svg = await draw(
-      `line Teams\nx-axis Week\nmoving-average 3\n\n${WOBBLE.map((v, i) => `W${i + 1} ${v}`).join('\n')}`
+      `line Teams\nno-extremes\nx-axis Week\nmoving-average 3\n\n${WOBBLE.map((v, i) => `W${i + 1} ${v}`).join('\n')}`
     );
     expect(texts(svg, '.dgmo-overlay-label')).toEqual(['3-week avg']);
   });
@@ -438,7 +450,6 @@ describe('moving-average and extremes', () => {
   });
   it('a multi-series line marks each series', async () => {
     const svg = await draw(`line X
-extremes
 series
   A
   B

@@ -48,7 +48,7 @@ export const fixture: ConformanceFixture = {
     'target',
     'trend',
     'moving-average',
-    'extremes',
+    'no-extremes',
   ],
   // #1852 combo: `mark:` on a series line.
   pipeKeys: { node: ['mark'] },

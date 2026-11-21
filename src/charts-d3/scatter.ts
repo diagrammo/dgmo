@@ -33,6 +33,7 @@ import {
   drawOverlayPaths,
   type OverlayPath,
 } from '../overlays/draw';
+import { overlayPlacement } from '../overlays/place';
 import { linearFit } from '../overlays/compute';
 import {
   type Svg,
@@ -693,7 +694,22 @@ export function renderScatter(
       annotationColors,
       markerLines
     ),
-    ...drawOverlayLabels(svg, trendLabels, yFrame, bgColor)
+    ...drawOverlayLabels(
+      svg,
+      trendLabels,
+      yFrame,
+      bgColor,
+      [],
+      // Trend labels clear the points and their names (#2217).
+      overlayPlacement({
+        reserved: points.flatMap((_, i) => ownLabelRect(i)),
+        markers: points.map((p, i) => ({
+          cx: x(p.x),
+          cy: y(p.y),
+          r: radii[i]! + 2,
+        })),
+      })
+    )
   );
   settleBandLabels(svg);
 

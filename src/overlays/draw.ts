@@ -11,9 +11,21 @@ import { ANNOTATION_FONT, type ValueAxisFrame } from '../annotations/draw';
 import { FONT_FAMILY } from '../fonts';
 import {
   rectCircleOverlap,
+  type LabelPlacement,
   type LabelRect,
   type PointCircle,
 } from '../label-layout';
+import {
+  LEADER_COST,
+  LEADER_DISTANCES,
+  boxFor,
+  nearestOnBox,
+  overlayPlacement,
+  pickSpot,
+  type Anchor,
+  type Bounds,
+  type Spot,
+} from './place';
 import { sampleLines } from '../annotations/notes';
 import { measureText } from '../utils/text-measure';
 import {
@@ -42,6 +54,8 @@ const AVERAGE_STROKE = 3;
 export const RAW_UNDER_AVERAGE_STROKE = 1.25;
 /** An `extremes` marker: a filled dot with a ground-coloured ring. */
 const EXTREME_R = 5.5;
+/** What a label must keep clear of an extremes dot: the dot and its ring. */
+export const EXTREME_DOT_R = EXTREME_R + 1;
 
 /** Dash pattern per overlay; absent = solid. */
 const DASH: Partial<Record<OverlayKind, string>> = {
@@ -69,6 +83,9 @@ export interface OverlayLabel {
   readonly color: string;
   readonly lineNumber: number;
   readonly kind: OverlayKind;
+  /** Points along the label's line, best first, where it may sit instead
+   *  of the end (#2217). The end is always tried first. */
+  readonly along?: readonly (readonly [number, number])[];
 }
 
 /** True when `v` lies on the frame's value axis. */
@@ -130,6 +147,11 @@ export function drawOverlayLevels(
       color: l.color,
       lineNumber: l.lineNumber,
       kind: l.kind,
+      ...(!frame.horizontal && {
+        along: [0.75, 0.5, 0.25, 0].map(
+          (f) => [x1 + (x2 - x1) * f, y2] as const
+        ),
+      }),
     });
   }
   return labels;
@@ -148,10 +170,14 @@ export function drawOverlayLabels(
   svg: Svg,
   labels: readonly OverlayLabel[],
   frame: Pick<ValueAxisFrame, 'top' | 'horizontal'> &
-    Partial<Pick<ValueAxisFrame, 'height'>>,
+    Partial<Pick<ValueAxisFrame, 'height' | 'left' | 'width'>>,
   bg: string,
-  avoid: readonly PointCircle[] = []
+  avoid: readonly PointCircle[] = [],
+  /** Shared with the extremes (#2217), so neither prints over the other. */
+  placement?: LabelPlacement
 ): LabelRect[] {
+  if (!frame.horizontal)
+    return drawPlacedOverlayLabels(svg, labels, frame, bg, avoid, placement);
   const h = ANNOTATION_FONT + 2;
   const bottom =
     frame.height === undefined ? Infinity : frame.top + frame.height;
@@ -223,6 +249,164 @@ export function drawOverlayLabels(
       .text(p.l.text);
     const x0 = p.anchor === 'end' ? p.x - p.w : p.x;
     boxes.push({ x: x0, y: p.top, w: p.w, h });
+  }
+  return boxes;
+}
+
+/** The overlay kinds whose label can drop its series name (#2217). */
+const SHORTENS: ReadonlySet<OverlayKind> = new Set(['mean', 'median']);
+
+/** "Apple sensor mean 72.9" → "mean 72.9": the legend names the series. */
+function shortForm(l: OverlayLabel): string | null {
+  if (!SHORTENS.has(l.kind)) return null;
+  const at = l.text.indexOf(` ${l.kind} `);
+  return at > 0 ? l.text.slice(at + 1) : null;
+}
+
+/** Every spot a label on a horizontal line (or a path) could take. */
+function lineSpots(
+  l: OverlayLabel,
+  text: string,
+  h: number,
+  costBase: number
+): Spot[] {
+  const w = measureText(text, ANNOTATION_FONT, { bold: true });
+  const spots: Spot[] = [];
+  const at = (x: number, y: number, anchor: Anchor, cost: number) => {
+    const above = y - LABEL_GAP - h;
+    const below = y + LABEL_GAP;
+    for (const [top, extra] of [
+      [above, 0],
+      [below, 0.5],
+    ] as const)
+      spots.push({
+        x,
+        baseline: top + ANNOTATION_FONT,
+        anchor,
+        rect: boxFor(x, top, w, h, anchor),
+        cost: costBase + cost + extra,
+      });
+  };
+  // Hugging the line: its right end, then along it toward the left.
+  at(l.x, l.y, 'end', 0);
+  (l.along ?? []).forEach(([x, y], i) =>
+    at(x, y, i === (l.along?.length ?? 0) - 1 ? 'start' : 'middle', 1 + i)
+  );
+  // Off the line, joined by a leader: from the end, then along it.
+  const roots: (readonly [number, number])[] = [[l.x, l.y], ...(l.along ?? [])];
+  roots.forEach(([rx, ry], i) => {
+    for (const d of LEADER_DISTANCES)
+      for (const dir of [-1, 1]) {
+        const top = dir < 0 ? ry - d - h : ry + d;
+        for (const anchor of ['end', 'middle', 'start'] as const) {
+          const rect = boxFor(rx, top, w, h, anchor);
+          const [tx, ty] = nearestOnBox(rect, rx, ry);
+          spots.push({
+            x: rx,
+            baseline: top + ANNOTATION_FONT,
+            anchor,
+            rect,
+            leader: [rx, ry, tx, ty],
+            cost: costBase + LEADER_COST + d / 4 + i * 2 + (dir > 0 ? 1 : 0),
+          });
+        }
+      }
+  });
+  return spots;
+}
+
+function drawLabelText(
+  svg: Svg,
+  cls: string,
+  lineNumber: number,
+  spot: Spot,
+  text: string,
+  color: string,
+  bg: string
+): void {
+  if (spot.leader) {
+    const [x1, y1, x2, y2] = spot.leader;
+    svg
+      .append('line')
+      .attr('class', 'dgmo-overlay-leader')
+      .attr('data-line-number', lineNumber)
+      .attr('x1', x1)
+      .attr('y1', y1)
+      .attr('x2', x2)
+      .attr('y2', y2)
+      .attr('stroke', color)
+      .attr('stroke-width', 1)
+      .attr('stroke-opacity', 0.7);
+  }
+  svg
+    .append('text')
+    .attr('class', cls)
+    .attr('data-line-number', lineNumber)
+    .attr('x', spot.x)
+    .attr('y', spot.baseline)
+    .attr('text-anchor', spot.anchor)
+    .attr('fill', color)
+    .attr('font-size', ANNOTATION_FONT)
+    .attr('font-weight', 600)
+    .attr('font-family', FONT_FAMILY)
+    .attr('stroke', bg)
+    .attr('stroke-width', 3)
+    .attr('stroke-linejoin', 'round')
+    .attr('paint-order', 'stroke')
+    .text(text);
+}
+
+/**
+ * Labels on horizontal overlay lines and on trend / moving-average paths
+ * (#2217): each takes the best clear spot hugging its line, sliding along it
+ * to open space, else a spot off it with a leader; then the same for its
+ * short form; with none it is not drawn. Returns the drawn boxes.
+ */
+function drawPlacedOverlayLabels(
+  svg: Svg,
+  labels: readonly OverlayLabel[],
+  frame: Pick<ValueAxisFrame, 'top'> &
+    Partial<Pick<ValueAxisFrame, 'height' | 'left' | 'width'>>,
+  bg: string,
+  avoid: readonly PointCircle[],
+  shared?: LabelPlacement
+): LabelRect[] {
+  const h = ANNOTATION_FONT + 2;
+  const placement = shared ?? overlayPlacement({ markers: avoid });
+  const bounds: Bounds = {
+    left: frame.left ?? -Infinity,
+    top: frame.top,
+    right:
+      frame.left !== undefined && frame.width !== undefined
+        ? frame.left + frame.width
+        : Infinity,
+    bottom: frame.height === undefined ? Infinity : frame.top + frame.height,
+  };
+  // Without a shared placement the avoid marks are already its markers;
+  // with one, they are checked here on top of its own.
+  const hitsAvoid = (r: LabelRect) =>
+    shared !== undefined && avoid.some((m) => rectCircleOverlap(r, m));
+  const boxes: LabelRect[] = [];
+  for (const l of [...labels].sort((a, b) => a.y - b.y)) {
+    const short = shortForm(l);
+    const spots = [
+      ...lineSpots(l, l.text, h, 0),
+      ...(short ? lineSpots(l, short, h, 1000) : []),
+    ].filter((sp) => !hitsAvoid(sp.rect));
+    const spot = pickSpot(placement, spots, bounds);
+    if (!spot) continue;
+    const text = spot.cost >= 1000 ? short! : l.text;
+    placement.commit(spot.rect, spot.leader);
+    boxes.push(spot.rect);
+    drawLabelText(
+      svg,
+      `dgmo-overlay-label dgmo-overlay-${l.kind}-label`,
+      l.lineNumber,
+      spot,
+      text,
+      l.color,
+      bg
+    );
   }
   return boxes;
 }
@@ -371,6 +555,7 @@ export function drawOverlayPaths(
     );
     if (!path.label) continue;
     const [x, y] = pts.at(-1)!;
+    const step = Math.max(1, Math.floor(pts.length / 4));
     labels.push({
       text: path.label,
       x,
@@ -378,6 +563,11 @@ export function drawOverlayPaths(
       color: path.color,
       lineNumber: path.lineNumber,
       kind: path.kind,
+      along: pts
+        .slice(0, -1)
+        .filter((_, k) => k % step === 0)
+        .reverse()
+        .map(([px, py]) => [px, py] as const),
     });
   }
   return labels;
@@ -495,22 +685,26 @@ export function extremeRows(
 }
 
 /**
- * Draws `extremes` (#1954): a filled dot on each mark, `peak` labelled above
- * it and `low` below, kept inside the plot. Returns the label boxes.
+ * Draws `extremes` (#1954): a filled dot on each mark and its value beside
+ * it — above a high, below a low — placed like every overlay label (#2217):
+ * hugging the dot, else off it with a leader, else not drawn. On by default
+ * for a line (#2213). Returns the label boxes and the marks that got one.
  */
 export function drawExtremes(
   svg: Svg,
   marks: readonly ExtremeMark[],
-  plot: {
-    readonly left: number;
-    readonly top: number;
-    readonly right: number;
-    readonly bottom: number;
-  },
-  bg: string
-): LabelRect[] {
+  plot: Bounds,
+  bg: string,
+  shared?: LabelPlacement
+): { boxes: LabelRect[]; labelled: Set<ExtremeMark> } {
   const boxes: LabelRect[] = [];
+  const labelled = new Set<ExtremeMark>();
   const h = ANNOTATION_FONT + 2;
+  const placement =
+    shared ??
+    overlayPlacement({
+      markers: marks.map((m) => ({ cx: m.x, cy: m.y, r: EXTREME_DOT_R })),
+    });
   for (const m of marks) {
     const g = svg
       .append('g')
@@ -524,42 +718,69 @@ export function drawExtremes(
       .attr('fill', m.fill)
       .attr('stroke', bg)
       .attr('stroke-width', 2);
+  }
+  for (const m of marks) {
     const w = measureText(m.text, ANNOTATION_FONT, { bold: true });
     const gap = EXTREME_R + LABEL_GAP;
-    const above = m.y - gap - h;
-    const below = m.y + gap;
-    let top = m.high ? above : below;
-    if (top < plot.top) top = below;
-    if (top + h > plot.bottom) top = above;
-    const anchor =
-      m.x - w / 2 < plot.left
-        ? 'start'
-        : m.x + w / 2 > plot.right
-          ? 'end'
-          : 'middle';
-    const x =
-      anchor === 'start'
-        ? m.x - EXTREME_R
-        : anchor === 'end'
-          ? m.x + EXTREME_R
-          : m.x;
-    const y = top + ANNOTATION_FONT;
-    g.append('text')
-      .attr('class', 'dgmo-overlay-label dgmo-overlay-extremes-label')
-      .attr('x', x)
-      .attr('y', y)
-      .attr('text-anchor', anchor)
-      .attr('fill', m.color)
-      .attr('font-size', ANNOTATION_FONT)
-      .attr('font-weight', 600)
-      .attr('font-family', FONT_FAMILY)
-      .attr('stroke', bg)
-      .attr('stroke-width', 3)
-      .attr('stroke-linejoin', 'round')
-      .attr('paint-order', 'stroke')
-      .text(m.text);
-    const x0 = anchor === 'start' ? x : anchor === 'end' ? x - w : x - w / 2;
-    boxes.push({ x: x0, y: top, w, h });
+    const sides = m.high ? [-1, 1] : [1, -1];
+    const spots: Spot[] = [];
+    sides.forEach((dir, si) => {
+      const top = dir < 0 ? m.y - gap - h : m.y + gap;
+      (['middle', 'start', 'end'] as const).forEach((anchor, ai) => {
+        const x =
+          anchor === 'start'
+            ? m.x - EXTREME_R
+            : anchor === 'end'
+              ? m.x + EXTREME_R
+              : m.x;
+        spots.push({
+          x,
+          baseline: top + ANNOTATION_FONT,
+          anchor,
+          rect: boxFor(x, top, w, h, anchor),
+          cost: si * 10 + ai,
+        });
+      });
+      for (const d of LEADER_DISTANCES)
+        for (const [dx, anchor] of [
+          [d * 0.6, 'start'],
+          [-d * 0.6, 'end'],
+          [0, 'middle'],
+        ] as const) {
+          const top = dir < 0 ? m.y - d - h : m.y + d;
+          const x = m.x + dx;
+          const rect = boxFor(x, top, w, h, anchor);
+          const [tx, ty] = nearestOnBox(rect, m.x, m.y);
+          const len = Math.hypot(tx - m.x, ty - m.y) || 1;
+          spots.push({
+            x,
+            baseline: top + ANNOTATION_FONT,
+            anchor,
+            rect,
+            leader: [
+              m.x + ((tx - m.x) / len) * (EXTREME_R + 1),
+              m.y + ((ty - m.y) / len) * (EXTREME_R + 1),
+              tx,
+              ty,
+            ],
+            cost: LEADER_COST + d / 4 + si * 10,
+          });
+        }
+    });
+    const spot = pickSpot(placement, spots, plot);
+    if (!spot) continue;
+    placement.commit(spot.rect, spot.leader);
+    boxes.push(spot.rect);
+    labelled.add(m);
+    drawLabelText(
+      svg,
+      'dgmo-overlay-label dgmo-overlay-extremes-label',
+      m.lineNumber,
+      spot,
+      m.text,
+      m.color,
+      bg
+    );
   }
-  return boxes;
+  return { boxes, labelled };
 }

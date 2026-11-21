@@ -33,7 +33,11 @@ export const OVERLAY_FORMS: Readonly<Record<OverlayKind, string>> = {
   pareto: 'pareto',
 };
 
-const KINDS = Object.keys(OVERLAY_CHARTS) as OverlayKind[];
+/** `extremes` is drawn by default on line charts and never written (#2213);
+ *  `no-extremes` turns it off. */
+const KINDS = (Object.keys(OVERLAY_CHARTS) as OverlayKind[]).filter(
+  (k) => k !== 'extremes'
+);
 const formList = (): string =>
   KINDS.map((k) => `\`${OVERLAY_FORMS[k]}\``).join(', ');
 
@@ -53,9 +57,10 @@ const NEAR_MISSES: Readonly<Record<string, string | undefined>> = {
   regression: 'trend',
   'moving-avg': 'moving-average',
   'rolling-average': 'moving-average',
-  extreme: 'extremes',
-  extrema: 'extremes',
-  'min-max': 'extremes',
+  extremes: undefined,
+  extreme: undefined,
+  extrema: undefined,
+  'min-max': undefined,
   'pareto-chart': 'pareto',
 };
 
@@ -129,7 +134,7 @@ export function parseOverlayLine(
 ): ChartOverlay | true | null {
   const tokens = trimmed.split(/\s+/);
   const head = tokens[0]!;
-  if (!(head in OVERLAY_CHARTS)) return null;
+  if (!(head in OVERLAY_CHARTS) || head === 'extremes') return null;
   const kind = head as OverlayKind;
   if (kind === 'target') {
     const value = num(tokens[1]);
@@ -179,9 +184,16 @@ export function unknownOverlay(
   const close = known ? null : suggest(trimmed, KINDS);
   if (!known && !close) return null;
   const to = known ? NEAR_MISSES[trimmed] : undefined;
+  const highLow = ['extremes', 'extreme', 'extrema', 'min-max'].includes(
+    trimmed
+  );
   return emit(OVERLAY_UNKNOWN_DX, lineNumber, {
     word: trimmed,
-    hint: to ? `Did you mean '${to}'?` : (close ?? ''),
+    hint: highLow
+      ? 'A line chart marks each series’ high and low by default; `no-extremes` hides them.'
+      : to
+        ? `Did you mean '${to}'?`
+        : (close ?? ''),
   });
 }
 

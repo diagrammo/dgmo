@@ -1,7 +1,6 @@
 line CPU temperature, two days at 24-minute steps
 // Dense points (#2203): a dot per point would merge into beads, so resting
-// dots drop and hover grows the nearest. extremes keeps its two dots.
-extremes
+// dots drop and hover grows the nearest. Each line keeps its high and low.
 y-axis 40..110
 series
   CPU package red

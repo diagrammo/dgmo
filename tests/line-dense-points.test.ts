@@ -21,7 +21,7 @@ const radii = (svg: string) =>
 describe('line points — resting dots by density (#2203)', () => {
   it('keeps a dot on every point when the points are spread out', async () => {
     const svg = await renderDataChartD3(
-      `line Sparse\n\n${rows(10)}`,
+      `line Sparse\nno-extremes\n\n${rows(10)}`,
       'light',
       palette,
       { width: 600 }
@@ -33,7 +33,7 @@ describe('line points — resting dots by density (#2203)', () => {
 
   it('drops resting dots when points are packed, but keeps them hoverable', async () => {
     const svg = await renderDataChartD3(
-      `line Dense\n\n${rows(60)}`,
+      `line Dense\nno-extremes\n\n${rows(60)}`,
       'light',
       palette,
       { width: 480 }
@@ -45,7 +45,7 @@ describe('line points — resting dots by density (#2203)', () => {
   });
 
   it('follows the rendered width, not the point count', async () => {
-    const src = `line Same data\n\n${rows(30)}`;
+    const src = `line Same data\nno-extremes\n\n${rows(30)}`;
     const wide = radii(
       await renderDataChartD3(src, 'light', palette, { width: 1600 })
     );
@@ -58,19 +58,16 @@ describe('line points — resting dots by density (#2203)', () => {
 
   it('keeps the dots that carry data: extremes and a reached target', async () => {
     const ext = radii(
-      await renderDataChartD3(
-        `line Dense\nextremes\n\n${rows(60)}`,
-        'light',
-        palette,
-        { width: 480 }
-      )
+      await renderDataChartD3(`line Dense\n\n${rows(60)}`, 'light', palette, {
+        width: 480,
+      })
     );
     expect(ext.filter((x) => x > 0).length).toBeGreaterThanOrEqual(2);
     expect(ext.filter((x) => x > 0).length).toBeLessThan(10);
 
     const tgt = radii(
       await renderDataChartD3(
-        `line Dense\ntarget 88\n\n${rows(60)}`,
+        `line Dense\nno-extremes\ntarget 88\n\n${rows(60)}`,
         'light',
         palette,
         { width: 480 }

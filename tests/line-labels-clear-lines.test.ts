@@ -16,6 +16,7 @@ import {
 // dots (#2106). Lines are now obstacles too.
 
 const RUM = `line Rum barrels sold, 2026
+no-extremes
 mean
 median
 y-axis Barrels
