@@ -385,6 +385,51 @@ describe('axis directives — render', () => {
     );
     expect(cutMarks(svg)).toHaveLength(0);
   });
+
+  // #2118: a stacked column is cut by its total, not by any one segment.
+  const STACK = 'bar S\ny-axis ..100\n\nstack\n  E\n  C\n\nA 20 12\nB 60 70\n';
+
+  it('stack: a total past the ceiling gets one up triangle and its total', async () => {
+    const svg = await renderDataChartD3(STACK, 'light', palette);
+    const marks = cutMarks(svg);
+    expect(marks).toHaveLength(1);
+    expect(marks[0]![2]![1]).toBeLessThan(marks[0]![0]![1]!);
+    expect(svg).toContain('>130</text>');
+  });
+
+  it('stack: horizontal cuts point right with the total', async () => {
+    const svg = await renderDataChartD3(
+      STACK.replace('y-axis', 'orientation horizontal\ny-axis'),
+      'light',
+      palette
+    );
+    const marks = cutMarks(svg);
+    expect(marks).toHaveLength(1);
+    expect(marks[0]![2]![0]).toBeGreaterThan(marks[0]![0]![0]!);
+    expect(svg).toContain('>130</text>');
+  });
+
+  it('stack: a negative total past the floor points down', async () => {
+    const svg = await renderDataChartD3(
+      'bar S\ny-axis -50..100\n\nstack\n  E\n  C\n\nA 20 12\nB -40 -30\n',
+      'light',
+      palette
+    );
+    const marks = cutMarks(svg);
+    expect(marks).toHaveLength(1);
+    expect(marks[0]![2]![1]).toBeGreaterThan(marks[0]![0]![1]!);
+    expect(svg).toContain('>-70</text>');
+  });
+
+  it('stack: totals in range and stack 100% get no marks', async () => {
+    for (const src of [
+      STACK.replace('..100', '..200'),
+      STACK.replace('stack\n', 'stack 100%\n'),
+    ])
+      expect(
+        cutMarks(await renderDataChartD3(src, 'light', palette))
+      ).toHaveLength(0);
+  });
 });
 
 describe('the axis line — one line per axis (decision #60)', () => {
