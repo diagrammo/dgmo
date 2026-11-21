@@ -91,6 +91,9 @@ import {
   bandSafeTop,
   TICK_INK_ABOVE,
   topTickFraction,
+  cutMark,
+  CUT_MARK_GAP,
+  CUT_MARK_LEN,
 } from './shared';
 import { labelBox, placeLabels } from '../utils/place-labels';
 import { tabularText } from '../utils/tabular-figures';
@@ -406,6 +409,24 @@ export function renderLine(
   // drawing starts on the body band (#1838), so push the plot down until that
   // label's top is on it. A point at fraction f from the plot top lands at
   // m.top + f * (height - m.bottom - m.top).
+  // A point past a fixed axis end (#2119): which way it went, or 0.
+  const specOf = (s: number) =>
+    dual && axisOf(s) === 'right' ? ySpecR : ySpec;
+  const cutOf = (s: number, v: number): 0 | 1 | -1 => {
+    const spec = specOf(s);
+    if (spec?.max !== undefined && v > spec.max) return 1;
+    if (spec?.min !== undefined && v < spec.min) return -1;
+    return 0;
+  };
+  // A cut point's value stands above its triangle, not 10 over the point.
+  const hiCut =
+    !stacked &&
+    data.some((d) =>
+      Array.from({ length: seriesCount }, (_, s) => s).some(
+        (s) => cutOf(s, seriesValue(d, s)) > 0
+      )
+    );
+  const valueLift = hiCut ? CUT_MARK_GAP + CUT_MARK_LEN + 4 : 10;
   if (showValues) {
     const probeLeft = leftAxis([0, 1]);
     const probeR = dual ? rightAxis([0, 1]) : null;
@@ -418,7 +439,9 @@ export function renderLine(
       }
     // A plot too short to keep its ticks apart is not squeezed further.
     const need =
-      f < 1 ? (m.top + 10 + VALUE_FONT - f * (height - m.bottom)) / (1 - f) : 0;
+      f < 1
+        ? (m.top + valueLift + VALUE_FONT - f * (height - m.bottom)) / (1 - f)
+        : 0;
     if (
       need > m.top &&
       (height - m.bottom - need) / Math.max(1, probeL.length - 1) >=
@@ -698,6 +721,8 @@ export function renderLine(
     endpoint: boolean;
     color: string;
     dim: boolean;
+    /** A cut point's value has one place: past its triangle (#2119). */
+    cut?: 1 | -1 | undefined;
   }[] = [];
   /** A missing value (non-finite) breaks a line, band or fill there. */
   const has = (v: number): boolean => Number.isFinite(v);
@@ -1020,6 +1045,20 @@ export function renderLine(
           : averaged
             ? 2.5
             : POINT_R;
+      // Past a fixed axis end the dot gives way to a triangle (#2119); the
+      // dot stays, unpainted, for the hover.
+      const cut = stacked ? 0 : cutOf(s, p.v);
+      if (cut)
+        cutMark(
+          svg,
+          xOfRow(p.xIndex),
+          yy(p.y),
+          cut,
+          false,
+          color,
+          p.lineNumber,
+          dim
+        );
       g.append('circle')
         .attr('class', 'dgmo-pt')
         .attr('data-series-index', s)
@@ -1037,7 +1076,7 @@ export function renderLine(
         .attr('cx', xOfRow(p.xIndex))
         .attr('cy', yy(p.y))
         // A stacked area, or dense points, mark none at rest (#2203).
-        .attr('r', rest)
+        .attr('r', cut ? 0 : rest)
         .attr('fill', lit ? color : bgColor)
         .attr('stroke', lit === false ? story.groundStroke : color)
         .attr('stroke-width', 2);
@@ -1065,6 +1104,7 @@ export function renderLine(
           endpoint: p.xIndex === 0 || p.xIndex === pts.length - 1,
           color: labelColor,
           dim,
+          cut: cut || undefined,
         };
         if (high === undefined) valueLabels.push(label);
         else extremeValues.set(extremeMarks.at(-1)!, label);
@@ -1217,20 +1257,34 @@ export function renderLine(
       text: l.text,
       priority: Math.abs(l.v),
       endpoint: l.endpoint,
-      spots: [
-        { x: l.cx, y: l.cy - 10, anchor: 'middle' as const },
-        { x: l.cx, y: l.cy + 10 + VALUE_FONT * 0.8, anchor: 'middle' as const },
-        { x: l.cx + 7, y: l.cy + VALUE_FONT * 0.3, anchor: 'start' as const },
-        { x: l.cx - 7, y: l.cy + VALUE_FONT * 0.3, anchor: 'end' as const },
-        { x: l.cx - 5, y: l.cy - 8, anchor: 'end' as const },
-        { x: l.cx + 5, y: l.cy - 8, anchor: 'start' as const },
-        { x: l.cx - 5, y: l.cy + 8 + VALUE_FONT * 0.8, anchor: 'end' as const },
-        {
-          x: l.cx + 5,
-          y: l.cy + 8 + VALUE_FONT * 0.8,
-          anchor: 'start' as const,
-        },
-      ],
+      spots: l.cut
+        ? [cutValueSpot(l.cx, l.cy, l.cut)]
+        : [
+            { x: l.cx, y: l.cy - 10, anchor: 'middle' as const },
+            {
+              x: l.cx,
+              y: l.cy + 10 + VALUE_FONT * 0.8,
+              anchor: 'middle' as const,
+            },
+            {
+              x: l.cx + 7,
+              y: l.cy + VALUE_FONT * 0.3,
+              anchor: 'start' as const,
+            },
+            { x: l.cx - 7, y: l.cy + VALUE_FONT * 0.3, anchor: 'end' as const },
+            { x: l.cx - 5, y: l.cy - 8, anchor: 'end' as const },
+            { x: l.cx + 5, y: l.cy - 8, anchor: 'start' as const },
+            {
+              x: l.cx - 5,
+              y: l.cy + 8 + VALUE_FONT * 0.8,
+              anchor: 'end' as const,
+            },
+            {
+              x: l.cx + 5,
+              y: l.cy + 8 + VALUE_FONT * 0.8,
+              anchor: 'start' as const,
+            },
+          ],
     })),
     {
       fontSize: VALUE_FONT,
@@ -1414,3 +1468,19 @@ function polygonPath(points: readonly [number, number][]): string {
 }
 
 const round = (n: number): number => Math.round(n * 100) / 100;
+
+/** Where a cut point's value goes (#2119): above the triangle past the top
+ *  edge; beside it, inside the plot, past the bottom edge. */
+function cutValueSpot(
+  cx: number,
+  edge: number,
+  dir: 1 | -1
+): { x: number; y: number; anchor: 'middle' | 'start' } {
+  return dir > 0
+    ? { x: cx, y: edge - CUT_MARK_GAP - CUT_MARK_LEN - 4, anchor: 'middle' }
+    : {
+        x: cx + CUT_MARK_LEN + 2,
+        y: edge - CUT_MARK_GAP - CUT_MARK_LEN / 2 + 4,
+        anchor: 'start',
+      };
+}

@@ -84,6 +84,9 @@ import {
   topTickFraction,
   LABEL_ROTATE_DEG,
   ROTATED_LABEL_PAD,
+  CUT_MARK_GAP,
+  CUT_MARK_LEN,
+  cutMark,
 } from './shared';
 
 // Long category names must not size the chart (#1422). Their region is capped
@@ -1354,53 +1357,6 @@ function dropColliding(spots: ValueSpot[], vals: number[]): ValueSpot[] {
     else placement.commit(box);
   }
   return spots;
-}
-
-/** Gap between the plot edge and a cut bar's triangle (#2114). */
-const CUT_MARK_GAP = 3;
-/** A cut bar's triangle, from base to tip. */
-const CUT_MARK_LEN = 7;
-
-/**
- * A bar cut by a fixed axis end (#2114): a triangle pointing the way the value
- * went. Past the top or right edge it stands outside the plot; past the bottom
- * or left edge (where the category names are) it stands just inside.
- */
-function cutMark(
-  svg: Svg,
-  mid: number,
-  edge: number,
-  dir: 1 | -1,
-  horiz: boolean,
-  color: string,
-  line: number,
-  dim: boolean
-): void {
-  const w = CUT_MARK_LEN - 1;
-  // Toward higher values: up on a column, right on a horizontal bar. Past
-  // the high edge the mark stands outside; past the low edge, inside.
-  const up = horiz ? 1 : -1;
-  const near = edge + up * CUT_MARK_GAP;
-  const far = edge + up * (CUT_MARK_GAP + CUT_MARK_LEN);
-  const [base, tip] = dir > 0 ? [near, far] : [far, near];
-  const pts = horiz
-    ? [
-        [base, mid - w],
-        [base, mid + w],
-        [tip, mid],
-      ]
-    : [
-        [mid - w, base],
-        [mid + w, base],
-        [mid, tip],
-      ];
-  const t = svg
-    .append('path')
-    .attr('class', 'dgmo-cut-mark')
-    .attr('d', `M${pts.map((p) => p.join(',')).join('L')}Z`)
-    .attr('fill', color)
-    .attr('data-line-number', line);
-  if (dim) t.attr('opacity', EMPHASIS_DIM_OPACITY);
 }
 
 function rect(

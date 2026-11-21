@@ -22,6 +22,9 @@ import {
   drawXAxisTitle,
   drawYAxisTitle,
   tagDatum,
+  cutMark,
+  CUT_MARK_GAP,
+  CUT_MARK_LEN,
 } from './shared';
 
 const SAMPLES = 200;
@@ -87,8 +90,16 @@ export function renderFunction(
   // the y axis (#2036).
   const fmt = chartFormatter(chart, yTicks);
   const yTickFmt = axisTickFormat(yAxis([0, 1]), chart.numberFormat, fmt);
+  // A run of samples past a fixed y end gets one triangle where the curve
+  // leaves the plot (#2119).
+  const runs = curves.flatMap((c) =>
+    cutRuns(c.pts, ySpec?.min, ySpec?.max).map((r) => ({ ...r, c }))
+  );
   const m: Margins = {
-    top: topInset + 8,
+    top:
+      topInset +
+      8 +
+      (runs.some((r) => r.dir > 0) ? CUT_MARK_GAP + CUT_MARK_LEN : 0),
     right: 32,
     bottom: 64,
     left: computeLeftMargin(chart.ylabel, yTicks.map(yTickFmt), {
@@ -203,6 +214,17 @@ export function renderFunction(
       .attr('data-series-name', c.name);
     tagDatum(path, { line: c.line, key: c.name, name: c.name, color: c.color });
   }
+  for (const r of runs)
+    cutMark(
+      svg,
+      x(r.x),
+      r.dir > 0 ? m.top : m.top + plotH,
+      r.dir,
+      false,
+      r.c.color,
+      r.c.line,
+      false
+    );
 
   drawXAxisTitle(
     svg,
@@ -212,4 +234,44 @@ export function renderFunction(
     textColor
   );
   drawYAxisTitle(svg, chart.ylabel, m.top, plotH, 20, textColor);
+}
+
+/**
+ * Each contiguous run of samples past `lo` or `hi` (#2119), as the x where
+ * the curve crosses that end — where it leaves the plot, or, for a run the
+ * curve starts in, where it comes back.
+ */
+function cutRuns(
+  pts: [number, number][],
+  lo: number | undefined,
+  hi: number | undefined
+): { x: number; dir: 1 | -1 }[] {
+  const side = (v: number): 0 | 1 | -1 =>
+    !isFinite(v)
+      ? 0
+      : hi !== undefined && v > hi
+        ? 1
+        : lo !== undefined && v < lo
+          ? -1
+          : 0;
+  const cross = (a: [number, number], b: [number, number], at: number) =>
+    a[0] + ((at - a[1]) / (b[1] - a[1])) * (b[0] - a[0]);
+  const out: { x: number; dir: 1 | -1 }[] = [];
+  for (let i = 0; i < pts.length; i++) {
+    const dir = side(pts[i]![1]);
+    if (!dir || (i > 0 && side(pts[i - 1]![1]) === dir)) continue;
+    const bound = (dir > 0 ? hi : lo)!;
+    let j = i;
+    while (j + 1 < pts.length && side(pts[j + 1]![1]) === dir) j++;
+    const prev = pts[i - 1];
+    const next = pts[j + 1];
+    const x =
+      prev && isFinite(prev[1])
+        ? cross(prev, pts[i]!, bound)
+        : next && isFinite(next[1])
+          ? cross(pts[j]!, next, bound)
+          : pts[i]![0];
+    out.push({ x, dir });
+  }
+  return out;
 }

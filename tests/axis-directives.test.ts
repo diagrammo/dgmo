@@ -430,6 +430,76 @@ describe('axis directives — render', () => {
         cutMarks(await renderDataChartD3(src, 'light', palette))
       ).toHaveLength(0);
   });
+
+  // #2119: points past a fixed range get the same triangle. The tip lies
+  // beyond both base corners in the direction the value went.
+  const up = (p: number[][]) => p[2]![1]! < Math.min(p[0]![1]!, p[1]![1]!);
+  const down = (p: number[][]) => p[2]![1]! > Math.max(p[0]![1]!, p[1]![1]!);
+  const right = (p: number[][]) => p[2]![0]! > Math.max(p[0]![0]!, p[1]![0]!);
+
+  it('line: a point past the ceiling becomes an up triangle with its value', async () => {
+    const svg = await renderDataChartD3(
+      'line S\ny-axis ..100\nJan 42\nFeb 55\nMar 260\nApr 61',
+      'light',
+      palette
+    );
+    const marks = cutMarks(svg);
+    expect(marks).toHaveLength(1);
+    expect(up(marks[0]!)).toBe(true);
+    expect(svg).toMatch(
+      /<text[^>]*>(<tspan[^>]*>\d<\/tspan>){3}<\/text>|>260<\/text>/
+    );
+    // The cut point's dot draws nothing.
+    expect(svg).toMatch(/data-x-label="Mar"[^>]*r="0"/);
+  });
+
+  it('line: a point under the floor points down; in range, no marks', async () => {
+    const marks = cutMarks(
+      await renderDataChartD3(
+        'line S\ny-axis 40..100\nJan 42\nFeb 5\nMar 60',
+        'light',
+        palette
+      )
+    );
+    expect(marks).toHaveLength(1);
+    expect(down(marks[0]!)).toBe(true);
+    expect(
+      cutMarks(
+        await renderDataChartD3(
+          'line S\ny-axis ..500\nA 4\nB 9',
+          'light',
+          palette
+        )
+      )
+    ).toHaveLength(0);
+  });
+
+  it('scatter: y and x cuts point up and right, with the real value', async () => {
+    const svg = await renderDataChartD3(
+      'scatter S\nx-axis ..400\ny-axis ..400\nA 120 180\nB 200 220\nE 380 1450\nF 900 200',
+      'light',
+      palette
+    );
+    const marks = cutMarks(svg);
+    expect(marks).toHaveLength(2);
+    expect(marks.filter(up)).toHaveLength(1);
+    expect(marks.filter(right)).toHaveLength(1);
+    expect(svg).toContain('1,450');
+    expect(svg).toContain('900');
+  });
+
+  it('function: one triangle per run that leaves the plot', async () => {
+    const svg = await renderDataChartD3(
+      'function F\ny-axis -1..1\nx-axis 0..10\nwave: 2*sin(x)',
+      'light',
+      palette
+    );
+    const marks = cutMarks(svg);
+    // 2 sin x passes 1 on (0.52, 2.62) and (6.81, 8.9), and -1 on
+    // (3.67, 5.76) and from 9.95 to the end.
+    expect(marks.filter(up)).toHaveLength(2);
+    expect(marks.filter(down)).toHaveLength(2);
+  });
 });
 
 describe('the axis line — one line per axis (decision #60)', () => {

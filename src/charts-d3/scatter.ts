@@ -45,6 +45,10 @@ import {
   drawXAxisTitle,
   drawYAxisTitle,
   tagDatum,
+  cutMark,
+  CUT_MARK_GAP,
+  CUT_MARK_LEN,
+  drawValueLabel,
 } from './shared';
 import {
   EMPHASIS_DIM_OPACITY,
@@ -619,6 +623,30 @@ export function renderScatter(
     });
     // Per-axis values for the adapter's on-axis projection (no tooltip).
     dot.attr('data-axval-x', fmtNum(p.x)).attr('data-axval-y', fmt(p.y));
+    // A point past a fixed axis end is pinned to it (#2119): the dot gives
+    // way to a triangle pointing the way the value went, with the real value
+    // beside it. The dot stays, unpainted, as the hover target.
+    const cut = pointCut(p.x, p.y, chart.axes?.x, chart.axes?.y);
+    if (cut) {
+      dot.attr('fill-opacity', 0).attr('stroke-opacity', 0);
+      const horiz = cut.axis === 'x';
+      const mid = horiz ? y(p.y) : x(p.x);
+      const edge = horiz ? x(p.x) : y(p.y);
+      cutMark(svg, mid, edge, cut.dir, horiz, stroke, p.lineNumber, dim);
+      const reach = CUT_MARK_GAP + CUT_MARK_LEN / 2;
+      const along = horiz ? edge + cut.dir * reach : edge - cut.dir * reach;
+      drawValueLabel(
+        svg,
+        horiz ? fmtNum(p.x) : fmt(p.y),
+        horiz ? along : mid + CUT_MARK_LEN + 2,
+        horiz ? mid - CUT_MARK_LEN - 4 : along + 4,
+        stroke,
+        horiz ? 'middle' : 'start'
+      )
+        .attr('class', 'dgmo-ptlabel')
+        .attr('data-line-number', p.lineNumber)
+        .attr('opacity', dim ? EMPHASIS_DIM_TEXT_OPACITY : null);
+    }
     // Size has no axis to project onto — the adapter prints it next to the
     // hovered point instead, labeled by `size-label` when declared.
     if (p.size !== undefined) {
@@ -755,4 +783,18 @@ export function renderScatter(
     textColor
   );
   drawYAxisTitle(svg, chart.ylabel, m.top, plotH, 20, textColor);
+}
+
+/** Which fixed axis end a point passes, if any (#2119): y first, then x. */
+function pointCut(
+  px: number,
+  py: number,
+  xSpec: { min?: number; max?: number } | undefined,
+  ySpec: { min?: number; max?: number } | undefined
+): { axis: 'x' | 'y'; dir: 1 | -1 } | null {
+  if (ySpec?.max !== undefined && py > ySpec.max) return { axis: 'y', dir: 1 };
+  if (ySpec?.min !== undefined && py < ySpec.min) return { axis: 'y', dir: -1 };
+  if (xSpec?.max !== undefined && px > xSpec.max) return { axis: 'x', dir: 1 };
+  if (xSpec?.min !== undefined && px < xSpec.min) return { axis: 'x', dir: -1 };
+  return null;
 }

@@ -19,7 +19,7 @@ import { measureTabular, setTabularText } from '../utils/tabular-figures';
 import type { ParsedChart } from '../chart';
 import type { PaletteColors } from '../palettes';
 import { getSimpleChartLegendGroups } from '../data-chart-parser';
-import { storyLegend } from '../utils/emphasis';
+import { EMPHASIS_DIM_OPACITY, storyLegend } from '../utils/emphasis';
 import { renderLegendSvgInMode } from '../utils/legend-svg';
 import type { LegendGroupData } from '../utils/legend-types';
 import { drawnTitleExtraHeight, renderChartTitle } from '../utils/d3-helpers';
@@ -705,4 +705,51 @@ export function drawCategoryLabels(
         .attr('text-anchor', 'middle');
     }
   });
+}
+
+/** Gap between the plot edge and a cut bar's triangle (#2114). */
+export const CUT_MARK_GAP = 3;
+/** A cut bar's triangle, from base to tip. */
+export const CUT_MARK_LEN = 7;
+
+/**
+ * A bar or point cut by a fixed axis end (#2114, #2119): a triangle pointing the way the value
+ * went. Past the top or right edge it stands outside the plot; past the bottom
+ * or left edge (where the category names are) it stands just inside.
+ */
+export function cutMark<E extends SVGElement>(
+  svg: d3Selection.Selection<E, unknown, null, undefined>,
+  mid: number,
+  edge: number,
+  dir: 1 | -1,
+  horiz: boolean,
+  color: string,
+  line: number,
+  dim: boolean
+): void {
+  const w = CUT_MARK_LEN - 1;
+  // Toward higher values: up on a column, right on a horizontal bar. Past
+  // the high edge the mark stands outside; past the low edge, inside.
+  const up = horiz ? 1 : -1;
+  const near = edge + up * CUT_MARK_GAP;
+  const far = edge + up * (CUT_MARK_GAP + CUT_MARK_LEN);
+  const [base, tip] = dir > 0 ? [near, far] : [far, near];
+  const pts = horiz
+    ? [
+        [base, mid - w],
+        [base, mid + w],
+        [tip, mid],
+      ]
+    : [
+        [mid - w, base],
+        [mid + w, base],
+        [mid, tip],
+      ];
+  const t = svg
+    .append('path')
+    .attr('class', 'dgmo-cut-mark')
+    .attr('d', `M${pts.map((p) => p.join(',')).join('L')}Z`)
+    .attr('fill', color)
+    .attr('data-line-number', line);
+  if (dim) t.attr('opacity', EMPHASIS_DIM_OPACITY);
 }

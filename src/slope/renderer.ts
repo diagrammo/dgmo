@@ -24,7 +24,7 @@ import {
 } from '../utils/emphasis';
 import type { PaletteColors } from '../palettes';
 import { contrastText } from '../palettes/color-utils';
-import type { Svg } from '../charts-d3/shared';
+import { cutMark, type Svg } from '../charts-d3/shared';
 import { annotationValues } from '../annotations/parse';
 import {
   drawBands,
@@ -543,12 +543,24 @@ export function renderSlopeChart(
       const x = xScale(periods[i]!)!;
       const [px, y] = pointAt(idx, i);
 
+      // Past a fixed `y-axis` end the dot gives way to a triangle pointing
+      // the way the value went (#2119); its value is already in the label.
+      const spec = rank ? undefined : parsed.axes?.y;
+      const cut =
+        spec?.max !== undefined && val > spec.max
+          ? 1
+          : spec?.min !== undefined && val < spec.min
+            ? -1
+            : 0;
+      if (cut)
+        cutMark(seriesG, px, y, cut, false, color, item.lineNumber ?? 0, !!dim);
+
       // Point circle
       seriesG
         .append('circle')
         .attr('cx', px)
         .attr('cy', y)
-        .attr('r', pointR)
+        .attr('r', cut ? 0 : pointR)
         .attr('fill', color)
         .attr('stroke', bgColor)
         .attr('stroke-width', sPointStroke)
