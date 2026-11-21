@@ -1218,6 +1218,8 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
     category: 'directive',
     chartTypes: ['calendar-heatmap'],
   },
+  // The shared value-ramp line (§13.9): `heat <Label> [low] [high]`.
+  { token: 'heat', category: 'directive', chartTypes: ['calendar-heatmap'] },
 
   // ── SWOT section keywords (CONTROL) ──────────────────────
   { token: 'strengths', category: 'control', chartTypes: ['swot'] },

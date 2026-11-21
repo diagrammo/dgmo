@@ -9,6 +9,7 @@ import { parseCalendarHeatmap } from '../src/calendar-heatmap/parser';
 import { renderCalendarHeatmap } from '../src/calendar-heatmap/renderer';
 import { renderForExport } from '../src/d3';
 import { getPalette } from '../src/palettes';
+import { resolveColor } from '../src/colors';
 
 const palette = getPalette('nord').light;
 
@@ -376,5 +377,49 @@ from 2025-11-01 to 2026-12-31
     expect(c.querySelector('[data-month]')).toBeNull();
     expect(c.querySelector('.calendar-heatmap-span')).toBeNull();
     expect(c.querySelector('.calendar-heatmap-busiest')).toBeNull();
+  });
+});
+
+describe('calendar-heatmap heat colours', () => {
+  const steps = (c: HTMLElement) =>
+    [...c.querySelectorAll('.calendar-heatmap-legend-step')].map((s) =>
+      s.getAttribute('fill')
+    );
+  const withHeat = (line: string) =>
+    YEAR.replace('unit run', `unit run\n${line}`);
+
+  it('reads the shared ramp line: label, then up to two colours', () => {
+    expect(parseCalendarHeatmap(withHeat('heat Runs blue red')).heat).toEqual({
+      label: 'Runs',
+      low: 'blue',
+      high: 'red',
+    });
+    // A lone word is the label, never a colour.
+    expect(parseCalendarHeatmap(withHeat('heat Red')).heat).toEqual({
+      label: 'Red',
+    });
+  });
+
+  it('a label alone keeps the greens and prints before "Less"', () => {
+    const plain = draw(YEAR);
+    const named = draw(withHeat('heat Runs'));
+    expect(steps(named)).toEqual(steps(plain));
+    expect(
+      named.querySelector('.calendar-heatmap-legend-label')!.textContent
+    ).toBe('Runs');
+  });
+
+  it('one colour replaces the green; zero stays grey', () => {
+    const plain = steps(draw(YEAR));
+    const red = steps(draw(withHeat('heat Runs red')));
+    expect(red[0]).toBe(plain[0]);
+    expect(red[4]).toBe(resolveColor('red', palette));
+  });
+
+  it('two colours run the four shades from low to high', () => {
+    const s = steps(draw(withHeat('heat Runs blue red')));
+    expect(s[1]).toBe(resolveColor('blue', palette));
+    expect(s[4]).toBe(resolveColor('red', palette));
+    expect(new Set(s).size).toBe(5);
   });
 });

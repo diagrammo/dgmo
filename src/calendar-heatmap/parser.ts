@@ -31,7 +31,12 @@ import {
   parseChartFrameLine,
   takeFootnoteBlock,
 } from '../utils/chart-frame-parse';
-import { extractColor, measureIndent, parseFirstLine } from '../utils/parsing';
+import {
+  extractColor,
+  measureIndent,
+  parseFirstLine,
+  peelRampColors,
+} from '../utils/parsing';
 import type { TagGroup } from '../utils/tag-groups';
 import {
   AUTO_TAG_COLOR_SENTINEL,
@@ -61,6 +66,7 @@ const OPTION_WORDS = [
   'from',
   'week-start',
   'max',
+  'heat',
   'tag',
   ...BOOLEAN_OPTIONS,
   ...VALUE_OPTIONS,
@@ -277,6 +283,21 @@ function parseCalendarHeatmapRaw(content: string): ParsedCalendarHeatmap {
       else
         report(CALENDAR_HEATMAP_DX.BAD_OPTION, lineNumber, {
           option: 'max',
+          value: rest,
+        });
+      continue;
+    }
+    if (keyword === 'heat') {
+      if (rest) {
+        const { label, low, high } = peelRampColors(rest);
+        result.heat = {
+          label,
+          ...(low !== undefined && { low }),
+          ...(high !== undefined && { high }),
+        };
+      } else
+        report(CALENDAR_HEATMAP_DX.BAD_OPTION, lineNumber, {
+          option: 'heat',
           value: rest,
         });
       continue;

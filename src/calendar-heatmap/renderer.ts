@@ -15,7 +15,7 @@ import { resolveColor } from '../colors';
 import { escapeHtml } from '../embed/escape';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
-import { mix } from '../palettes/color-utils';
+import { mix, valueRampColor } from '../palettes/color-utils';
 import { growChartFrame } from '../utils/chart-frame';
 import type { ChartFrame } from '../utils/chart-frame-parse';
 import { createTooltip, hideTooltip, showTooltip } from '../utils/d3-helpers';
@@ -98,10 +98,30 @@ function tagFills(
 }
 
 /** The five fills, zero first. */
-function shadeFills(palette: PaletteColors): string[] {
-  const hue = palette.colors.green;
+/**
+ * The five shades: grey for zero, then four steps. `heat <Label> [low] [high]`
+ * sets them the way every value ramp does (§13.9): one colour replaces the
+ * green, two run the four steps from `low` to `high`. Zero stays grey.
+ */
+function shadeFills(
+  palette: PaletteColors,
+  isDark: boolean,
+  heat?: { low?: string; high?: string }
+): string[] {
+  const zero = mix(palette.textMuted, palette.bg, 16);
+  const hue =
+    (heat?.high ? resolveColor(heat.high, palette) : null) ??
+    palette.colors.green;
+  const low = heat?.low ? resolveColor(heat.low, palette) : null;
+  if (low)
+    return [
+      zero,
+      ...[0, 1 / 3, 2 / 3, 1].map((t) =>
+        valueRampColor(low, hue, t, { isDark })
+      ),
+    ];
   return [
-    mix(palette.textMuted, palette.bg, 16),
+    zero,
     mix(hue, palette.bg, 30),
     mix(hue, palette.bg, 55),
     mix(hue, palette.bg, 80),
@@ -324,7 +344,7 @@ export function renderCalendarHeatmap(
     parsed.days.map((d) => d.value),
     parsed.max
   );
-  const fills = shadeFills(palette);
+  const fills = shadeFills(palette, isDark, parsed.heat);
   // Tag mode draws a day with no entry as an empty cell, not the zero grey, so a
   // tag coloured `gray` still reads apart from "Not logged".
   const notLogged = palette.bg;
@@ -437,6 +457,25 @@ export function renderCalendarHeatmap(
       .attr('font-size', LABEL_FONT_SIZE)
       .attr('fill', palette.textMuted)
       .text('Less');
+    // `heat <Label>` names what the shades count, ahead of the scale.
+    if (parsed.heat?.label)
+      legend
+        .append('text')
+        .attr('class', 'calendar-heatmap-legend-label')
+        .attr(
+          'x',
+          squaresLeft -
+            LEGEND_TEXT_GAP -
+            lessWidth -
+            LEGEND_ITEM_GAP -
+            measureText(parsed.heat.label, LABEL_FONT_SIZE)
+        )
+        .attr('y', mid)
+        .attr('dominant-baseline', 'central')
+        .attr('font-size', LABEL_FONT_SIZE)
+        .attr('font-weight', 500)
+        .attr('fill', palette.text)
+        .text(parsed.heat.label);
     fills.forEach((fill, i) => {
       legend
         .append('rect')

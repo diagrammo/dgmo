@@ -249,6 +249,7 @@ const INVENTORY = {
     'format',
     'from',
     'gauge',
+    'heat',
     'hide',
     'highlight',
     'holiday',

@@ -1,8 +1,8 @@
 import type { ConformanceFixture } from './_types';
 import { FRAME_DIRECTIVES } from './_frame';
 
-// No spec section yet (#1855 lands the type first; the spec row follows):
-// year, unit, from, week-start, max, no-summary, no-legend.
+// Spec §41.4 Options: year, unit, from, week-start, max, heat, no-summary,
+// no-legend.
 export const fixture: ConformanceFixture = {
   chartType: 'calendar-heatmap',
   structuralKeywords: [],
@@ -15,6 +15,7 @@ export const fixture: ConformanceFixture = {
     'from',
     'week-start',
     'max',
+    'heat',
     'no-summary',
     ...FRAME_DIRECTIVES,
   ],

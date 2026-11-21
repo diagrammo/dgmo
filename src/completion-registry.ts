@@ -796,6 +796,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description: 'Weekday on the top row (default sunday)',
         values: ['sunday', 'monday'],
       },
+      heat: {
+        description:
+          'Legend label for the shades, with an optional trailing [low] [high] color pair (e.g. `heat Commits blue red`)',
+      },
       max: {
         description: 'Pin the top shade at this value instead of the quartiles',
       },
