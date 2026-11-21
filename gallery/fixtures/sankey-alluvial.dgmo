@@ -1,0 +1,23 @@
+sankey Most Free customers stay Free; Pro gains from both sides
+
+subtitle Customers by plan, Q1 to Q3
+
+period
+  Q1
+  Q2
+  Q3
+
+// One row per path through the quarters; a band keeps its Q1 plan's colour
+Free blue
+Pro orange
+Team green
+
+Free -> Free -> Free 400
+Free -> Free -> Pro 80
+Free -> Pro -> Pro 120
+Free -> Pro -> Team 30
+Pro -> Pro -> Pro 200
+Pro -> Team -> Team 60
+Pro -> Free -> Free 40
+Team -> Team -> Team 150
+Team -> Pro -> Pro 20

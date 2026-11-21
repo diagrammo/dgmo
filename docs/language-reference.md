@@ -3440,6 +3440,26 @@ Source -- Target 2000
 
 Each node's label carries its throughput in bold after the name — the larger of what flows in and what flows out (`Landing Page 1,120`), in the chart's number format (`format`, `unit`, `locale`). A long name is truncated; the value never is. `no-value` takes the values off. Link values are not drawn.
 
+**Alluvial mode** — the same categories in every column, to show who moved where. A `period` line (or indented block, as on `slope`) names the columns; each row is one full path with its count, one category per period:
+
+```
+sankey Customers by plan
+
+period Q1 Q2 Q3
+
+Free blue
+Pro orange
+
+Free -> Free -> Pro 80
+Free -> Pro -> Pro 120
+Pro -> Pro -> Pro 200
+```
+
+- Declare a category once on a bare line, with an optional colour (`Free blue`); an undeclared one takes a palette colour. The same name in every column is the same category.
+- Categories sit in the same order in every column: declaration order, else first appearance.
+- A band keeps the colour of its first-column category (its cohort) through every column; node bars take their own category's colour.
+- A path whose length differs from the number of periods is an error (`E_SANKEY_PATH_LENGTH`), and so is a tree-form or `--` flow in the same chart (`E_SANKEY_MIXED_ROWS`).
+
 ### 15.6 Funnel Charts
 
 <!-- TYPE:funnel -->

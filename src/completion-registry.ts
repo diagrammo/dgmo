@@ -491,6 +491,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       unit: { description: 'What the numbers count (unit ms)' },
       locale: { description: 'Separators and currency style (locale de-DE)' },
       'no-value': { description: 'Hide the value beside each node name' },
+      period: {
+        description:
+          'Alluvial mode: name the columns, then one path row each (period Q1 Q2 Q3)',
+      },
       highlight: {
         description:
           'Light the named flow and recede everything else (highlight Barrel Aging)',

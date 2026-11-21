@@ -8,6 +8,7 @@
 
 import type { PaletteColors } from '../palettes/types';
 import type { ParsedSankey } from '../data-chart-parser';
+import type { SankeyAlluvial } from './alluvial-parse';
 import { FONT_FAMILY } from '../fonts';
 import { mix } from '../palettes/color-utils';
 import {
@@ -82,6 +83,21 @@ export function renderSankey(
   palette: PaletteColors,
   isDark: boolean
 ): void {
+  if (chart.alluvial) {
+    renderAlluvial(
+      svg,
+      chart,
+      chart.alluvial,
+      width,
+      height,
+      colors,
+      bgColor,
+      textColor,
+      topInset,
+      palette
+    );
+    return;
+  }
   const links = chart.links ?? [];
   if (links.length === 0) return;
   // Ribbons ARE the data surface — fill-outline ignored (§1.9).
@@ -625,4 +641,247 @@ function stackLabels(
     out[i]!.y0 = Math.max(lo, Math.min(out[i]!.y0, ceil - h));
   }
   return out;
+}
+
+/** Period header row above the alluvial columns. */
+const PERIOD_FONT = 12;
+const PERIOD_ROW_H = 22;
+/** Most of the width the first or last column's labels may take. */
+const MAX_SIDE_MARGIN = 0.25;
+/** Room past the widest measured label, so it is never cut at the edge. */
+const LABEL_SLACK = 6;
+/** Space between a node's name and its bold value. */
+const VALUE_GAP = 4;
+
+/**
+ * Alluvial mode (#1858): one column per period, the same categories in the
+ * same order in every column, and bands between consecutive columns. A band
+ * keeps the colour of its first-column category (its cohort) all the way
+ * across; a node bar takes its own category's colour. Within a node, the
+ * bands leave in destination order, then cohort order, and arrive in source
+ * order, then cohort order, so crossings stay low.
+ */
+function renderAlluvial(
+  svg: Svg,
+  chart: ParsedSankey,
+  flows: SankeyAlluvial,
+  width: number,
+  height: number,
+  colors: string[],
+  bgColor: string,
+  textColor: string,
+  topInset: number,
+  palette: PaletteColors
+): void {
+  const { periods, categories, paths } = flows;
+  if (paths.length === 0 || periods.length < 2) return;
+  const solid = chart.fillMode === 'solid';
+  const P = periods.length;
+  const order = new Map(categories.map((c, i) => [c, i]));
+  const colorOf = (c: string): string =>
+    chart.nodeColors?.[c] ?? colors[order.get(c)! % colors.length]!;
+  const fmt = chartFormatter(
+    chart,
+    paths.map((p) => p.value)
+  );
+
+  // Node totals, and the first row naming each node (click-to-source).
+  const total: Map<string, number>[] = periods.map(() => new Map());
+  const nodeLine: Map<string, number>[] = periods.map(() => new Map());
+  for (const p of paths) {
+    p.steps.forEach((c, j) => {
+      total[j]!.set(c, (total[j]!.get(c) ?? 0) + p.value);
+      if (!nodeLine[j]!.has(c)) nodeLine[j]!.set(c, p.lineNumber);
+    });
+  }
+  const colTotal = total.map((m) => [...m.values()].reduce((a, v) => a + v, 0));
+  const cols = total.map((m) => categories.filter((c) => (m.get(c) ?? 0) > 0));
+
+  const valueText = (v: number): string => (chart.noValue ? '' : ` ${fmt(v)}`);
+  const labelW = (c: string, v: number): number =>
+    measureText(c, LABEL_FONT) +
+    (chart.noValue ? 0 : measureText(valueText(v), LABEL_FONT, { bold: true }));
+  const sideMargin = (j: number): number =>
+    Math.min(
+      width * MAX_SIDE_MARGIN,
+      Math.max(0, ...cols[j]!.map((c) => labelW(c, total[j]!.get(c)!))) +
+        LABEL_PAD +
+        LABEL_SLACK
+    );
+  const plotLeft = 16 + sideMargin(0);
+  const plotRight = width - 16 - sideMargin(P - 1);
+  const plotW = Math.max(NODE_W * P, plotRight - plotLeft);
+  const colX = (j: number): number =>
+    plotLeft + (j * (plotW - NODE_W)) / (P - 1);
+
+  const headerY = topInset + 8 + PERIOD_FONT;
+  const top = topInset + 8 + PERIOD_ROW_H;
+  const plotH = Math.max(40, height - top - 24);
+  let valueScale = Infinity;
+  cols.forEach((col, j) => {
+    const avail = plotH - (col.length - 1) * NODE_GAP;
+    if (colTotal[j]! > 0)
+      valueScale = Math.min(valueScale, avail / colTotal[j]!);
+  });
+  if (!isFinite(valueScale) || valueScale <= 0) valueScale = 1;
+
+  // Node boxes, top-aligned so a category sits at the same height in turn.
+  interface ANode {
+    x: number;
+    y: number;
+    h: number;
+    out: number;
+    in: number;
+  }
+  const nodes: Map<string, ANode>[] = cols.map((col, j) => {
+    const m = new Map<string, ANode>();
+    let y = top;
+    for (const c of col) {
+      const h = total[j]!.get(c)! * valueScale;
+      m.set(c, { x: colX(j), y, h, out: y, in: y });
+      y += h + NODE_GAP;
+    }
+    return m;
+  });
+
+  // Bands per hop: one per (cohort, source, destination).
+  for (let j = 0; j < P - 1; j++) {
+    const bands = new Map<
+      string,
+      { cohort: string; s: string; t: string; value: number; line: number }
+    >();
+    for (const p of paths) {
+      const cohort = p.steps[0]!;
+      const s = p.steps[j]!;
+      const t = p.steps[j + 1]!;
+      const k = `${cohort}␟${s}␟${t}`;
+      const b = bands.get(k);
+      if (b) b.value += p.value;
+      else bands.set(k, { cohort, s, t, value: p.value, line: p.lineNumber });
+    }
+    const list = [...bands.values()];
+    const o = (c: string) => order.get(c)!;
+    const sy = new Map<(typeof list)[number], number>();
+    const ty = new Map<(typeof list)[number], number>();
+    for (const b of [...list].sort(
+      (a, b) => o(a.s) - o(b.s) || o(a.t) - o(b.t) || o(a.cohort) - o(b.cohort)
+    )) {
+      const n = nodes[j]!.get(b.s)!;
+      sy.set(b, n.out);
+      n.out += b.value * valueScale;
+    }
+    for (const b of [...list].sort(
+      (a, b) => o(a.t) - o(b.t) || o(a.s) - o(b.s) || o(a.cohort) - o(b.cohort)
+    )) {
+      const n = nodes[j + 1]!.get(b.t)!;
+      ty.set(b, n.in);
+      n.in += b.value * valueScale;
+    }
+    const x0 = colX(j) + NODE_W;
+    const x1 = colX(j + 1);
+    const cx = (x0 + x1) / 2;
+    for (const b of list) {
+      const th = b.value * valueScale;
+      const y0 = sy.get(b)!;
+      const y1 = ty.get(b)!;
+      const raw = colorOf(b.cohort);
+      const ribbon = svg
+        .append('path')
+        .attr(
+          'd',
+          `M${x0},${y0} C${cx},${y0} ${cx},${y1} ${x1},${y1} ` +
+            `L${x1},${y1 + th} C${cx},${y1 + th} ${cx},${y0 + th} ${x0},${y0 + th} Z`
+        )
+        .attr('fill', solid ? raw : mix(raw, bgColor, 45))
+        .attr('fill-opacity', RIBBON_FILL_OPACITY);
+      // Hovering a band lights its whole cohort and reads out this step.
+      const mid = (y0 + y1) / 2 + th / 2;
+      tagDatum(ribbon, {
+        line: b.line,
+        key: `cohort:${b.cohort}`,
+        name: `${b.s} → ${b.t}`,
+        value: String(b.value),
+        color: raw,
+      })
+        .attr('data-size', fmt(b.value))
+        .attr(
+          'data-size-label',
+          `${b.cohort} cohort · ${periods[j]} ${b.s} → ${periods[j + 1]} ${b.t}`
+        )
+        .attr('data-sizeval-x', cx)
+        .attr('data-sizeval-y', mid - 2)
+        .attr('data-sizeval-ly', mid + 13)
+        .attr('data-sizeval-anchor', 'middle');
+    }
+  }
+
+  // Period headers, nodes and labels.
+  for (let j = 0; j < P; j++) {
+    svg
+      .append('text')
+      .attr('x', colX(j) + NODE_W / 2)
+      .attr('y', headerY)
+      .attr('text-anchor', 'middle')
+      .attr('fill', palette.textMuted)
+      .attr('font-size', PERIOD_FONT)
+      .attr('font-weight', 'bold')
+      .attr('font-family', FONT_FAMILY)
+      .text(periods[j]!);
+    const first = j === 0;
+    // Labels sit left of the first column and right of every other one.
+    const room = first
+      ? plotLeft - 16 - LABEL_PAD
+      : j === P - 1
+        ? width - 16 - (colX(j) + NODE_W + LABEL_PAD)
+        : colX(j + 1) - (colX(j) + NODE_W) - 2 * LABEL_PAD;
+    for (const [c, n] of nodes[j]!) {
+      const raw = colorOf(c);
+      const v = total[j]!.get(c)!;
+      const rect = svg
+        .append('rect')
+        .attr('x', n.x)
+        .attr('y', n.y)
+        .attr('width', NODE_W)
+        .attr('height', Math.max(1, n.h))
+        .attr('fill', solid ? raw : mix(raw, bgColor, 75))
+        .attr('stroke', raw)
+        .attr('stroke-width', 1);
+      tagDatum(rect, {
+        line: nodeLine[j]!.get(c)!,
+        key: `node:${j}␟${c}`,
+        name: c,
+        value: String(v),
+        color: raw,
+      })
+        .attr('data-size', fmt(v))
+        .attr(
+          'data-size-label',
+          `${c} · ${periods[j]} · of ${fmt(colTotal[j]!)}`
+        )
+        .attr('data-sizeval-x', n.x + NODE_W / 2)
+        .attr('data-sizeval-y', n.y + n.h / 2 - 2)
+        .attr('data-sizeval-ly', n.y + n.h / 2 + 13)
+        .attr('data-sizeval-anchor', 'middle');
+      const vw = chart.noValue
+        ? 0
+        : measureText(valueText(v), LABEL_FONT, { bold: true });
+      const name = truncateText(c, LABEL_FONT, Math.max(0, room - vw));
+      const label = svg
+        .append('text')
+        .attr('x', first ? n.x - LABEL_PAD : n.x + NODE_W + LABEL_PAD)
+        .attr('y', n.y + n.h / 2 + 4)
+        .attr('text-anchor', first ? 'end' : 'start')
+        .attr('fill', textColor)
+        .attr('font-size', LABEL_FONT)
+        .attr('font-family', FONT_FAMILY)
+        .text(name);
+      // The gap is a dx, not a leading space, which a rasteriser collapses.
+      if (!chart.noValue)
+        label
+          .append('tspan')
+          .attr('dx', VALUE_GAP)
+          .attr('font-weight', 'bold')
+          .text(fmt(v));
+    }
+  }
 }

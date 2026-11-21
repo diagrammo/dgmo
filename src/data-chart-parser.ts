@@ -161,6 +161,8 @@ export interface ParsedExtendedBase {
 export interface ParsedSankey extends ParsedExtendedBase {
   type: 'sankey';
   links?: ParsedSankeyLink[];
+  /** Alluvial mode (#1858): set when a `period` line names the columns. */
+  alluvial?: SankeyAlluvial;
 }
 
 export interface ParsedFunctionChart extends ParsedExtendedBase {
@@ -242,6 +244,7 @@ export type ParsedExtendedChart =
 export interface ParsedExtendedChartFull extends ParsedExtendedBase {
   type: ExtendedChartType;
   links?: ParsedSankeyLink[];
+  alluvial?: SankeyAlluvial;
   functions?: ParsedFunction[];
   scatterPoints?: ParsedScatterPoint[];
   heatmapRows?: ParsedHeatmapRow[];
@@ -316,6 +319,12 @@ import {
   parseSeriesNames,
 } from './utils/parsing';
 import { parseDataRowValues, surplusValueDiagnostic } from './chart';
+import {
+  type SankeyAlluvial,
+  newAlluvialState,
+  readAlluvialLine,
+  settleAlluvial,
+} from './charts-d3/alluvial-parse';
 import {
   type EmphasisDirective,
   isEmphasisToken,
@@ -575,6 +584,8 @@ function parseExtendedChartFull(
 
   // Sankey indentation state: stack of source nodes by indent level
   const sankeyStack: { name: string; indent: number }[] = [];
+  // Sankey alluvial mode (#1858): the `period` line and the path rows.
+  const alluvial = newAlluvialState();
   let firstLineParsed = false;
 
   // Per-parse alias literal → canonical node name (TD-18). Per C8.
@@ -793,6 +804,21 @@ function parseExtendedChartFull(
       continue;
     }
 
+    // Sankey alluvial mode (#1858): a `period` line or block, and a path
+    // through three or more columns. Before the link form, which would read
+    // `A -> B -> C 80` as one flow into a node named `B -> C`.
+    if (
+      result.type === 'sankey' &&
+      readAlluvialLine(
+        trimmed,
+        measureIndent(lines[i]!),
+        lineNumber,
+        alluvial,
+        result.diagnostics
+      )
+    )
+      continue;
+
     // Sankey link syntax (§1.5 universal trailing-token):
     //   `Source -> Target value`           (directed, no link color)
     //   `Source -> Target value linkColor` (directed, trailing-token link color)
@@ -860,6 +886,9 @@ function parseExtendedChartFull(
         directed: arrow === '->',
         lineNumber,
       });
+      // In alluvial mode an uncoloured `A -> B n` is a two-column path.
+      if (arrow === '->' && !rawLinkColor && !sourceColor && !targetColor)
+        alluvial.arrowLines.add(lineNumber);
       continue;
     }
 
@@ -1036,6 +1065,7 @@ function parseExtendedChartFull(
           result.nodeColors ??= Object.create(null) as Record<string, string>;
           result.nodeColors[nodeName] = nodeColor;
         }
+        if (indent === 0) alluvial.declared.push(nodeName);
         sankeyStack.push({ name: nodeName, indent });
         continue;
       }
@@ -1392,7 +1422,13 @@ function parseExtendedChartFull(
       if (boxplot.mean) result.showMean = true;
       if (boxplot.horizontal) result.horizontal = true;
     } else if (result.type === 'sankey') {
-      if (!result.links || result.links.length === 0) {
+      // Alluvial mode (#1858): with a period line the rows are paths, and
+      // the sankey links are claimed or reported by settleAlluvial.
+      const flows = settleAlluvial(alluvial, result.links, result.diagnostics);
+      if (alluvial.periods !== null) {
+        delete result.links;
+        if (flows) result.alluvial = flows;
+      } else if (!result.links || result.links.length === 0) {
         warn(1, 'No links found. Add links in format: Source -> Target 123');
       }
       // A `highlight` chain (#2041) that names a flow the chart does not have

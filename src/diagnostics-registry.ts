@@ -50,6 +50,7 @@ import { ALIAS_DIAGNOSTICS } from './alias-diagnostics';
 import { OVERLAY_DIAGNOSTICS } from './overlays/parse';
 import { BOXPLOT_DIAGNOSTICS } from './charts-d3/boxplot-parse';
 import { HISTOGRAM_DIAGNOSTICS } from './charts-d3/histogram-parse';
+import { ALLUVIAL_DIAGNOSTICS } from './charts-d3/alluvial-parse';
 
 // ── Universal codes (chartType: null) ───────────────────────
 // Name handling, alias syntax, and metadata grammar apply to every
@@ -212,6 +213,7 @@ export const UNIVERSAL_DIAGNOSTICS: DiagnosticSpec[] = [
   ...OVERLAY_DIAGNOSTICS,
   ...BOXPLOT_DIAGNOSTICS,
   ...HISTOGRAM_DIAGNOSTICS,
+  ...ALLUVIAL_DIAGNOSTICS,
 ];
 
 // ── Aggregate ───────────────────────────────────────────────

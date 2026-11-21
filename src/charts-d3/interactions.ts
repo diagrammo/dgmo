@@ -517,6 +517,24 @@ export function attachDataChartInteractions(
       dimDatumsExcept(el);
     } else {
       dimByKey(el);
+      // A figure with no axis that bakes a readout position (sankey's
+      // alluvial bands and nodes, #1858) prints its value block there.
+      const sz = el.getAttribute('data-size');
+      const vx = el.getAttribute('data-sizeval-x');
+      const vy = el.getAttribute('data-sizeval-y');
+      const vly = el.getAttribute('data-sizeval-ly');
+      if (sz !== null && vx !== null && vy !== null && vly !== null) {
+        clearOverlay();
+        const va = el.getAttribute('data-sizeval-anchor');
+        pointValue(
+          parseFloat(vx),
+          parseFloat(vy),
+          parseFloat(vly),
+          el.getAttribute('data-size-label') ?? '',
+          sz,
+          va === 'start' || va === 'end' ? va : 'middle'
+        );
+      }
     }
     curDatum = el;
   };

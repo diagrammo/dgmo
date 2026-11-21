@@ -126,6 +126,9 @@ function naturalDataChartWidth(
         return clamp(AXIS_FURNITURE + cols * STEP_PER_HEATMAP_COLUMN);
       }
       case 'sankey': {
+        // Alluvial mode (#1858): one column per period.
+        if (ext.alluvial)
+          return clamp(ext.alluvial.periods.length * STEP_PER_SANKEY_DEPTH);
         const links = ext.links ?? [];
         if (links.length === 0) return UNCOUNTED_WIDTH;
         return clamp(sankeyDepth(links) * STEP_PER_SANKEY_DEPTH);
