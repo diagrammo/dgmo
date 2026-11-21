@@ -320,6 +320,10 @@ describe('calendar-heatmap hovers (#2090, #2091)', () => {
     const on = lit(c);
     expect(on).toHaveLength(31);
     expect(on.every((d) => d.startsWith('2026-03'))).toBe(true);
+    // Drawn in the squares' own frame, which the title band shifts down.
+    expect(
+      c.querySelector('.calendar-heatmap-days > .calendar-heatmap-span')
+    ).not.toBeNull();
     // A ragged month has more than four edges.
     expect(outline(c).match(/M/g)!.length).toBeGreaterThan(4);
     leave(mar);

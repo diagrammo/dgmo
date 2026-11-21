@@ -505,8 +505,10 @@ function attachSpanHovers(
     ...svg.querySelectorAll<SVGRectElement>('.calendar-heatmap-day'),
   ];
   for (const d of days) d.style.transition = HOVER_FADE;
+  // Inside the days group: the frame shifts the body below the title and
+  // summary, so a path on the root would sit that far above the squares.
   const span = d3Selection
-    .select(svg)
+    .select(svg.querySelector<SVGGElement>('.calendar-heatmap-days')!)
     .append('path')
     .attr('class', 'calendar-heatmap-span')
     .attr('fill', 'none')
