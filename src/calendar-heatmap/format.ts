@@ -118,20 +118,30 @@ function tagSummary(parsed: ParsedCalendarHeatmap): string | null {
 /** "1,093 commits · busiest day Mar 10", or null when no day has a value. */
 export function calendarSummary(parsed: ParsedCalendarHeatmap): string | null {
   if (parsed.mode === 'tag') return tagSummary(parsed);
-  let total = 0;
+  const best = busiestDay(parsed);
+  if (!best) return null;
+  const total = parsed.days.reduce((a, d) => a + d.value, 0);
+  const head = parsed.unit
+    ? amount(total, parsed.unit)
+    : `${formatNumber(total)} in total`;
+  return `${head} · ${best.phrase}`;
+}
+
+/** The day with the highest value (the first on a tie) and the summary's
+ *  phrase naming it, "busiest day Mar 10"; null in tag mode or when no day
+ *  has a value. */
+export function busiestDay(
+  parsed: ParsedCalendarHeatmap
+): { day: DayNumber; phrase: string } | null {
+  if (parsed.mode === 'tag') return null;
   let best: { day: DayNumber; value: number } | null = null;
-  for (const d of parsed.days) {
-    total += d.value;
+  for (const d of parsed.days)
     if (d.value > 0 && (!best || d.value > best.value)) best = d;
-  }
   if (!best) return null;
   const b = parts(best.day);
   const oneYear = parts(parsed.start).year === parts(parsed.end).year;
   const when = `${MONTHS[b.month - 1]!.slice(0, 3)} ${b.date}${oneYear ? '' : `, ${b.year}`}`;
-  const head = parsed.unit
-    ? amount(total, parsed.unit)
-    : `${formatNumber(total)} in total`;
-  return `${head} · busiest day ${when}`;
+  return { day: best.day, phrase: `busiest day ${when}` };
 }
 
 export function fullDate(day: DayNumber): string {

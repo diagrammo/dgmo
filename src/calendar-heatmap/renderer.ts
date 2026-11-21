@@ -35,6 +35,7 @@ import {
 } from '../utils/title-constants';
 import {
   amount,
+  busiestDay,
   calendarSummary,
   fullDate,
   LABELLED_WEEKDAYS,
@@ -279,6 +280,7 @@ export function renderCalendarHeatmap(
         labels
           .append('text')
           .attr('class', 'calendar-heatmap-month')
+          .attr('data-month', exportMode ? null : dayToIso(day).slice(0, 7))
           .attr('x', x)
           .attr('y', yTop - 5)
           .attr('font-size', LABEL_FONT_SIZE)
@@ -321,6 +323,7 @@ export function renderCalendarHeatmap(
     ? mix(palette.text, palette.bg, 8)
     : mix(palette.text, palette.bg, 6);
   const tooltip = exportMode ? null : createTooltip(container, palette, isDark);
+  const tips = new Map<string, string>();
 
   const grid = svg
     .append('g')
@@ -359,6 +362,7 @@ export function renderCalendarHeatmap(
     if (entry) rect.attr('data-line-number', entry.lineNumber);
     if (!tooltip) continue;
     const tipHtml = `<strong>${escapeHtml(shown)}</strong><br>${escapeHtml(fullDate(day))}`;
+    tips.set(dayToIso(day), tipHtml);
     rect
       .attr('tabindex', 0)
       .on('mouseenter', (event: MouseEvent) =>
@@ -454,4 +458,139 @@ export function renderCalendarHeatmap(
     if (summary) frame = { ...frame, subtitle: summary };
   }
   growChartFrame(svg.node(), frame, palette, { size: 'grow' });
+
+  if (tooltip)
+    attachSpanHovers(svg.node()!, {
+      pitch,
+      color: palette.text,
+      busiest: frame === parsed.frame ? null : busiestDay(parsed),
+      showTip: (el, html) => {
+        const r = el.getBoundingClientRect();
+        showTooltip(tooltip, html, {
+          clientX: r.right,
+          clientY: r.top,
+        } as MouseEvent);
+      },
+      hideTip: () => hideTooltip(tooltip),
+      tips,
+    });
+}
+
+/** Days outside a hovered span fade to this, the same as a series chart's
+ *  legend hover (`.dgmo-dim` in `charts-d3/interactions.ts`). */
+const HOVER_DIM_OPACITY = 0.18;
+const HOVER_FADE = 'opacity .12s ease';
+/** The faint outline traced around a hovered span (#2091). */
+const SPAN_OUTLINE_OPACITY = 0.45;
+const SPAN_OUTLINE_WIDTH = 1.25;
+
+/**
+ * Hovers that find days (#2090, #2091): a month name dims every other day and
+ * outlines the month's ragged block; a legend shade dims days at other
+ * shades; the summary's "busiest day" rings that day and shows its value.
+ * Focus does what hover does. Interactive renders only.
+ */
+function attachSpanHovers(
+  svg: SVGSVGElement,
+  o: {
+    pitch: number;
+    color: string;
+    busiest: { day: DayNumber; phrase: string } | null;
+    showTip: (el: Element, html: string) => void;
+    hideTip: () => void;
+    tips: Map<string, string>;
+  }
+): void {
+  const days = [
+    ...svg.querySelectorAll<SVGRectElement>('.calendar-heatmap-day'),
+  ];
+  for (const d of days) d.style.transition = HOVER_FADE;
+  const span = d3Selection
+    .select(svg)
+    .append('path')
+    .attr('class', 'calendar-heatmap-span')
+    .attr('fill', 'none')
+    .attr('stroke', o.color)
+    .attr('stroke-opacity', SPAN_OUTLINE_OPACITY)
+    .attr('stroke-width', SPAN_OUTLINE_WIDTH)
+    .attr('pointer-events', 'none')
+    .attr('d', '');
+  const focus = (keep: (d: SVGRectElement) => boolean, outline: boolean) => {
+    const kept: SVGRectElement[] = [];
+    for (const d of days) {
+      const k = keep(d);
+      d.style.opacity = k ? '' : String(HOVER_DIM_OPACITY);
+      if (k) kept.push(d);
+    }
+    span.attr('d', outline ? spanOutline(kept, o.pitch) : '');
+  };
+  const clear = () => {
+    for (const d of days) d.style.opacity = '';
+    span.attr('d', '');
+    o.hideTip();
+  };
+  const bind = (el: Element, on: () => void) => {
+    el.setAttribute('tabindex', '0');
+    (el as SVGElement).style.cursor = 'pointer';
+    el.addEventListener('mouseenter', on);
+    el.addEventListener('focus', on);
+    el.addEventListener('mouseleave', clear);
+    el.addEventListener('blur', clear);
+  };
+  for (const label of svg.querySelectorAll('.calendar-heatmap-month')) {
+    const month = label.getAttribute('data-month');
+    if (month)
+      bind(label, () =>
+        focus((d) => d.getAttribute('data-date')!.startsWith(month), true)
+      );
+  }
+  for (const step of svg.querySelectorAll('.calendar-heatmap-legend-step')) {
+    const lv = step.getAttribute('data-level');
+    bind(step, () => focus((d) => d.getAttribute('data-level') === lv, false));
+  }
+  if (!o.busiest) return;
+  const iso = dayToIso(o.busiest.day);
+  const best = days.find((d) => d.getAttribute('data-date') === iso);
+  const subtitle = svg.querySelector('.chart-subtitle');
+  const text = subtitle?.textContent ?? '';
+  const at = text.indexOf(o.busiest.phrase);
+  // Only a one-line summary is split; a wrapped one keeps its tspans.
+  if (!best || !subtitle || at < 0 || subtitle.children.length) return;
+  const doc = svg.ownerDocument;
+  const phrase = doc.createElementNS(svg.namespaceURI, 'tspan');
+  phrase.setAttribute('class', 'calendar-heatmap-busiest');
+  phrase.textContent = o.busiest.phrase;
+  subtitle.textContent = text.slice(0, at);
+  subtitle.appendChild(phrase);
+  const rest = text.slice(at + o.busiest.phrase.length);
+  if (rest) subtitle.appendChild(doc.createTextNode(rest));
+  bind(phrase, () => {
+    focus((d) => d === best, true);
+    o.showTip(best, o.tips.get(iso) ?? '');
+  });
+}
+
+/** The outer edge of a set of grid squares: every side whose neighbour one
+ *  pitch away is not in the set, drawn half a gap outside the square. */
+function spanOutline(cells: Element[], pitch: number): string {
+  const key = (x: number, y: number) => `${Math.round(x)},${Math.round(y)}`;
+  const at = cells.map((c) => [
+    Number(c.getAttribute('x')),
+    Number(c.getAttribute('y')),
+  ]);
+  const set = new Set(at.map(([x, y]) => key(x!, y!)));
+  const half = GAP / 2;
+  const size = pitch - GAP;
+  const path: string[] = [];
+  for (const [x, y] of at) {
+    const l = x! - half;
+    const r = x! + size + half;
+    const t = y! - half;
+    const b = y! + size + half;
+    if (!set.has(key(x!, y! - pitch))) path.push(`M${l},${t}H${r}`);
+    if (!set.has(key(x!, y! + pitch))) path.push(`M${l},${b}H${r}`);
+    if (!set.has(key(x! - pitch, y!))) path.push(`M${l},${t}V${b}`);
+    if (!set.has(key(x! + pitch, y!))) path.push(`M${r},${t}V${b}`);
+  }
+  return path.join('');
 }

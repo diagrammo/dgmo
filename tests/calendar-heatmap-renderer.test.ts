@@ -300,3 +300,72 @@ unit voyage
     );
   });
 });
+
+describe('calendar-heatmap hovers (#2090, #2091)', () => {
+  const hover = (el: Element) => el.dispatchEvent(new Event('mouseenter'));
+  const leave = (el: Element) => el.dispatchEvent(new Event('mouseleave'));
+  const lit = (c: HTMLElement) =>
+    [...c.querySelectorAll<SVGRectElement>('.calendar-heatmap-day')]
+      .filter((d) => d.style.opacity === '')
+      .map((d) => d.getAttribute('data-date')!);
+  const outline = (c: HTMLElement) =>
+    c.querySelector('.calendar-heatmap-span')!.getAttribute('d')!;
+
+  it('a month name keeps only that month lit and outlines it', () => {
+    const c = draw(YEAR);
+    const mar = c.querySelector(
+      '.calendar-heatmap-month[data-month="2026-03"]'
+    )!;
+    hover(mar);
+    const on = lit(c);
+    expect(on).toHaveLength(31);
+    expect(on.every((d) => d.startsWith('2026-03'))).toBe(true);
+    // A ragged month has more than four edges.
+    expect(outline(c).match(/M/g)!.length).toBeGreaterThan(4);
+    leave(mar);
+    expect(lit(c)).toHaveLength(365);
+    expect(outline(c)).toBe('');
+  });
+
+  it('keeps the same month apart in two years', () => {
+    const c = draw(`calendar-heatmap Voyages
+from 2025-11-01 to 2026-12-31
+
+2025-12-04 5
+2026-12-20 8
+`);
+    hover(c.querySelector('.calendar-heatmap-month[data-month="2025-12"]')!);
+    const on = lit(c);
+    expect(on).toHaveLength(31);
+    expect(on.every((d) => d.startsWith('2025-12'))).toBe(true);
+  });
+
+  it('a legend shade keeps only days at that shade lit, with no outline', () => {
+    const c = draw(YEAR);
+    const step = c.querySelector(
+      '.calendar-heatmap-legend-step[data-level="0"]'
+    )!;
+    hover(step);
+    const on = lit(c);
+    expect(on).toHaveLength(365 - 4);
+    expect(on).not.toContain('2026-03-10');
+    expect(outline(c)).toBe('');
+  });
+
+  it('"busiest day" in the summary rings that one day', () => {
+    const c = draw(YEAR);
+    const phrase = c.querySelector('.calendar-heatmap-busiest')!;
+    expect(phrase.textContent).toBe('busiest day Mar 10');
+    expect(phrase.parentElement!.textContent).toContain('· busiest day Mar 10');
+    hover(phrase);
+    expect(lit(c)).toEqual(['2026-03-10']);
+    expect(outline(c).match(/M/g)).toHaveLength(4);
+  });
+
+  it('export mode adds no hovers and no month keys', () => {
+    const c = draw(YEAR, true);
+    expect(c.querySelector('[data-month]')).toBeNull();
+    expect(c.querySelector('.calendar-heatmap-span')).toBeNull();
+    expect(c.querySelector('.calendar-heatmap-busiest')).toBeNull();
+  });
+});
