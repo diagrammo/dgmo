@@ -72,6 +72,8 @@ export interface OverlayLevel {
   readonly label: string;
   readonly color: string;
   readonly lineNumber: number;
+  /** The series it belongs to; hovering that series lights it (#2216). */
+  readonly series?: string;
 }
 
 /** An overlay label ready to draw: its line's right end and its paint. */
@@ -86,6 +88,8 @@ export interface OverlayLabel {
   /** Points along the label's line, best first, where it may sit instead
    *  of the end (#2217). The end is always tried first. */
   readonly along?: readonly (readonly [number, number])[];
+  /** The series it belongs to (#2216). */
+  readonly series?: string;
 }
 
 /** True when `v` lies on the frame's value axis. */
@@ -113,7 +117,8 @@ export function drawOverlayLevels(
     const g = svg
       .append('g')
       .attr('class', `dgmo-overlay dgmo-overlay-${l.kind}`)
-      .attr('data-line-number', l.lineNumber);
+      .attr('data-line-number', l.lineNumber)
+      .attr('data-series-name', l.series ?? null);
     const x1 = frame.horizontal ? p : frame.left;
     const x2 = frame.horizontal ? p : frame.left + frame.width;
     const y1 = frame.horizontal ? frame.top : p;
@@ -140,6 +145,7 @@ export function drawOverlayLevels(
       ])
     );
     labels.push({
+      ...(l.series && { series: l.series }),
       text: l.label,
       // A vertical line (horizontal bars) is labelled at its top.
       x: x2,
@@ -235,6 +241,7 @@ export function drawOverlayLabels(
       .append('text')
       .attr('class', `dgmo-overlay-label dgmo-overlay-${p.l.kind}-label`)
       .attr('data-line-number', p.l.lineNumber)
+      .attr('data-series-name', p.l.series ?? null)
       .attr('x', p.x)
       .attr('y', y)
       .attr('text-anchor', p.anchor)
@@ -322,7 +329,8 @@ function drawLabelText(
   spot: Spot,
   text: string,
   color: string,
-  bg: string
+  bg: string,
+  series?: string
 ): void {
   if (spot.leader) {
     const [x1, y1, x2, y2] = spot.leader;
@@ -330,6 +338,7 @@ function drawLabelText(
       .append('line')
       .attr('class', 'dgmo-overlay-leader')
       .attr('data-line-number', lineNumber)
+      .attr('data-series-name', series ?? null)
       .attr('x1', x1)
       .attr('y1', y1)
       .attr('x2', x2)
@@ -342,6 +351,7 @@ function drawLabelText(
     .append('text')
     .attr('class', cls)
     .attr('data-line-number', lineNumber)
+    .attr('data-series-name', series ?? null)
     .attr('x', spot.x)
     .attr('y', spot.baseline)
     .attr('text-anchor', spot.anchor)
@@ -405,7 +415,8 @@ function drawPlacedOverlayLabels(
       spot,
       text,
       l.color,
-      bg
+      bg,
+      l.series
     );
   }
   return boxes;
@@ -451,6 +462,7 @@ export function overlayLevels(
         label: `${s.name ? `${s.name} ` : ''}${o.kind} ${fmt(roundStat(v))}`,
         color: s.color,
         lineNumber: o.lineNumber,
+        ...(s.name && { series: s.name }),
       });
     }
   }
@@ -474,6 +486,8 @@ export interface OverlayPath {
   readonly lineNumber: number;
   /** Stroke width; absent = the overlay default. */
   readonly width?: number;
+  /** The series it belongs to (#2216). */
+  readonly series?: string;
 }
 
 /**
@@ -539,7 +553,8 @@ export function drawOverlayPaths(
     const g = svg
       .append('g')
       .attr('class', `dgmo-overlay dgmo-overlay-${path.kind}`)
-      .attr('data-line-number', path.lineNumber);
+      .attr('data-line-number', path.lineNumber)
+      .attr('data-series-name', path.series ?? null);
     const line = g
       .append('path')
       .attr('d', pts.map(([x, y], k) => `${k ? 'L' : 'M'}${x},${y}`).join(''))
@@ -557,6 +572,7 @@ export function drawOverlayPaths(
     const [x, y] = pts.at(-1)!;
     const step = Math.max(1, Math.floor(pts.length / 4));
     labels.push({
+      ...(path.series && { series: path.series }),
       text: path.label,
       x,
       y,
@@ -619,6 +635,7 @@ export function trendPaths(
       label: `${s.name ? `${s.name} ` : ''}trend ${signed(fit.slope, fmt)}/${unit}`,
       color: s.color,
       lineNumber: trend.lineNumber,
+      ...(s.name && { series: s.name }),
     });
   }
   return out;
@@ -652,6 +669,7 @@ export function movingAveragePaths(
         color: s.color,
         lineNumber: ma.lineNumber,
         width: AVERAGE_STROKE,
+        ...(s.name && { series: s.name }),
       },
     ];
   });
@@ -668,6 +686,8 @@ export interface ExtremeMark {
   /** The label's colour. */
   readonly color: string;
   readonly lineNumber: number;
+  /** The series it belongs to (#2216). */
+  readonly series?: string;
 }
 
 /** The rows each series marks: `series:row` keys, for value labels to skip. */
@@ -709,7 +729,8 @@ export function drawExtremes(
     const g = svg
       .append('g')
       .attr('class', `dgmo-overlay dgmo-overlay-extremes`)
-      .attr('data-line-number', m.lineNumber);
+      .attr('data-line-number', m.lineNumber)
+      .attr('data-series-name', m.series ?? null);
     g.append('circle')
       .attr('class', m.high ? 'dgmo-extreme-high' : 'dgmo-extreme-low')
       .attr('cx', m.x)
@@ -779,7 +800,8 @@ export function drawExtremes(
       spot,
       m.text,
       m.color,
-      bg
+      bg,
+      m.series
     );
   }
   return { boxes, labelled };

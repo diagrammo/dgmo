@@ -49,7 +49,7 @@ function ensureStyle(svg: SVGSVGElement, muted: string): void {
   style.textContent = `
     .dgmo-series,.dgmo-series-band,.dgmo-datum,.dgmo-tick,.dgmo-ptlabel{transition:opacity .12s ease}
     [data-legend-entry]{transition:opacity .12s ease}
-    .dgmo-series.dgmo-dim,.dgmo-series-band.dgmo-dim,.dgmo-datum.dgmo-dim,.dgmo-ptlabel.dgmo-dim,[data-legend-entry].dgmo-dim{opacity:.18}
+    .dgmo-series.dgmo-dim,.dgmo-series-band.dgmo-dim,.dgmo-datum.dgmo-dim,.dgmo-ptlabel.dgmo-dim,.dgmo-series-extra.dgmo-dim,[data-legend-entry].dgmo-dim{opacity:.18}
     .dgmo-tick.dgmo-faded{opacity:.22}
     .dgmo-datum{cursor:pointer}
     .dgmo-axis-label{cursor:pointer}
@@ -128,6 +128,43 @@ export function attachDataChartInteractions(
     svg.querySelectorAll<SVGGElement>('.dgmo-series-band')
   );
   const datums = Array.from(svg.querySelectorAll<SVGElement>('.dgmo-datum'));
+  // What a series owns outside its group (#2216): its mean, median, trend
+  // and average, its high and low, their labels and leaders, its printed
+  // values and its end-of-line name. Each carries the series' name, and
+  // dims whenever that series' group does.
+  // Only names a series group carries, so marks other code dims (scatter's
+  // point names, a bar's datums) are never touched here.
+  const groupNames = new Set(
+    Array.from(svg.querySelectorAll('.dgmo-series, .dgmo-series-band'), (g) =>
+      g.getAttribute('data-series-name')
+    )
+  );
+  const seriesExtras = Array.from(
+    svg.querySelectorAll<SVGElement>('[data-series-name]')
+  ).filter(
+    (el) =>
+      groupNames.has(el.getAttribute('data-series-name')) &&
+      !el.matches(
+        '.dgmo-series, .dgmo-series-band, .dgmo-datum, .dgmo-pt, .dgmo-ptlabel, [data-legend-entry]'
+      ) &&
+      !el.parentElement?.closest('.dgmo-series, .chart-legend')
+  );
+  for (const el of seriesExtras) el.classList.add('dgmo-series-extra');
+  const mirrorExtras = () => {
+    if (!seriesExtras.length) return;
+    const dimmed = new Set<string>();
+    const lit = new Set<string>();
+    for (const g of svg.querySelectorAll<SVGElement>(
+      '.dgmo-series[data-series-name], .dgmo-series-band[data-series-name]'
+    ))
+      (g.classList.contains('dgmo-dim') ? dimmed : lit).add(
+        g.getAttribute('data-series-name')!
+      );
+    for (const el of seriesExtras) {
+      const n = el.getAttribute('data-series-name')!;
+      el.classList.toggle('dgmo-dim', dimmed.has(n) && !lit.has(n));
+    }
+  };
   // The injected series legend (utils/legend-svg.ts). Read here rather than at
   // the legend-hover block below because the MARK→legend mirror (#852) needs
   // it too, and that runs from the datum handlers further up.
@@ -306,6 +343,7 @@ export function attachDataChartInteractions(
   const clearDim = () => {
     for (const d of datums) d.classList.remove('dgmo-dim');
     for (const g of seriesGroups) g.classList.remove('dgmo-dim');
+    mirrorExtras();
     for (const l of ptLabels) l.classList.remove('dgmo-dim');
     for (const e of legendEntries) e.classList.remove('dgmo-dim');
     reapplyAxisPin();
@@ -420,11 +458,13 @@ export function attachDataChartInteractions(
         'dgmo-dim',
         seriesGroups.length > 1 && g.getAttribute('data-series-name') !== ns
       );
+    mirrorExtras();
   };
   const clearCrosshair = (): void => {
     clearOverlay();
     restorePt();
     for (const g of seriesGroups) g.classList.remove('dgmo-dim');
+    mirrorExtras();
   };
 
   // ── element hover (projection for points w/ axis values, else emphasis) ─
@@ -558,6 +598,7 @@ export function attachDataChartInteractions(
     pinned = [];
     for (const d of datums) d.classList.remove('dgmo-dim');
     for (const g of seriesGroups) g.classList.remove('dgmo-dim');
+    mirrorExtras();
     reapplyAxisPin();
   };
   const highlightLine = (line: number | null) => {
@@ -576,6 +617,7 @@ export function attachDataChartInteractions(
     if (ms.length)
       for (const g of seriesGroups)
         g.classList.toggle('dgmo-dim', !ms.includes(g));
+    mirrorExtras();
     for (const c of mp) {
       const r = parseFloat(c.getAttribute('r') ?? '3.5');
       pinned.push({ el: c, r });
@@ -605,6 +647,7 @@ export function attachDataChartInteractions(
       if (sn != null)
         d.classList.toggle('dgmo-dim', name != null && sn !== name);
     }
+    mirrorExtras();
   };
   const legendListeners: Array<[SVGGElement, string, EventListener]> = [];
   // Series charts have >1 `.dgmo-series` group — counting a line's bands, so
@@ -650,6 +693,7 @@ export function attachDataChartInteractions(
       const a = g.getAttribute('data-axis');
       if (a != null) g.classList.toggle('dgmo-dim', axis != null && a !== axis);
     }
+    mirrorExtras();
   };
   const axisLegends = Array.from(
     svg.querySelectorAll<SVGElement>('[data-axis-legend]')

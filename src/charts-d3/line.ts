@@ -723,6 +723,7 @@ export function renderLine(
     dim: boolean;
     /** A cut point's value has one place: past its triangle (#2119). */
     cut?: 1 | -1 | undefined;
+    series?: string;
   }[] = [];
   /** A missing value (non-finite) breaks a line, band or fill there. */
   const has = (v: number): boolean => Number.isFinite(v);
@@ -962,6 +963,7 @@ export function renderLine(
             endpoint: p.xIndex === 0 || p.xIndex === pts.length - 1,
             color: labelColor,
             dim,
+            series: name,
           });
       }
       polylines.push(tops);
@@ -1091,6 +1093,7 @@ export function renderLine(
           color: drawnSeries.length > 1 ? labelColor : textColor,
           // On by default (#2213), so the mark points at its own data row.
           lineNumber: p.lineNumber,
+          series: name,
         });
       // A line prints its latest value and its high and low (#2220); every
       // point only under `values`, and never when dense (#2209). The
@@ -1106,6 +1109,7 @@ export function renderLine(
           color: labelColor,
           dim,
           cut: cut || undefined,
+          series: name,
         };
         if (high === undefined) valueLabels.push(label);
         else extremeValues.set(extremeMarks.at(-1)!, label);
@@ -1308,10 +1312,9 @@ export function renderLine(
   valueLabels.forEach((l, i) => {
     const spot = placed[i]!.spot;
     if (!spot) return;
-    drawValueLabel(svg, l.text, spot.x, spot.y, l.color, spot.anchor).attr(
-      'opacity',
-      l.dim ? EMPHASIS_DIM_TEXT_OPACITY : null
-    );
+    drawValueLabel(svg, l.text, spot.x, spot.y, l.color, spot.anchor)
+      .attr('opacity', l.dim ? EMPHASIS_DIM_TEXT_OPACITY : null)
+      .attr('data-series-name', l.series ?? null);
   });
 
   drawXAxisTitle(

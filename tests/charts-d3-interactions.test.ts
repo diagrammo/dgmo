@@ -580,6 +580,58 @@ Caribbean 5 4 5
 Atlantic  2 3 2
 Pacific   3 1 4`;
 
+describe('series hover → its overlays follow (#2216)', () => {
+  const SRC = [
+    'line Plunder',
+    'mean',
+    'series',
+    '  Cutlass blue',
+    '  Powder green',
+    '',
+    'A 4 1',
+    'B 9 3',
+    'C 7 4',
+    'D 11 5',
+  ].join('\n');
+  const owned = (name: string) => [
+    ...svg.querySelectorAll(`.dgmo-series-extra[data-series-name="${name}"]`),
+  ];
+  const hover = (name: string, type: string) =>
+    svg
+      .querySelector(`.chart-legend [data-series-name="${name}"]`)!
+      .dispatchEvent(new MouseEvent(type, { bubbles: true }));
+
+  it('tags each series mean, extremes, values and end name', async () => {
+    await mount(SRC);
+    const cls = (name: string) =>
+      owned(name)
+        .map((e) => e.getAttribute('class'))
+        .join(' ');
+    for (const name of ['Cutlass', 'Powder']) {
+      expect(cls(name)).toContain('dgmo-overlay-mean');
+      expect(cls(name)).toContain('dgmo-overlay-extremes');
+      expect(cls(name)).toContain('dgmo-series-end-label');
+    }
+  });
+
+  it('dims the other series overlays and keeps the hovered ones lit', async () => {
+    await mount(SRC);
+    hover('Cutlass', 'mouseenter');
+    expect(owned('Cutlass').some((e) => e.classList.contains('dgmo-dim'))).toBe(
+      false
+    );
+    expect(owned('Powder').every((e) => e.classList.contains('dgmo-dim'))).toBe(
+      true
+    );
+    hover('Cutlass', 'mouseleave');
+    expect(
+      [...svg.querySelectorAll('.dgmo-series-extra')].some((e) =>
+        e.classList.contains('dgmo-dim')
+      )
+    ).toBe(false);
+  });
+});
+
 describe('heatmap axis-label click → row/column pin', () => {
   const label = (value: string) =>
     svg.querySelector<SVGElement>(
