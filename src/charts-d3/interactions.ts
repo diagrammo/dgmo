@@ -186,7 +186,29 @@ export function attachDataChartInteractions(
     t.setAttribute('font-family', 'Inter, system-ui, sans-serif');
     t.setAttribute('fill', text);
     t.textContent = label;
-    if (side === 'x') {
+    // A rotated category axis (#2210): the value takes the ticks' own slant
+    // and baseline, so it reads in place rather than as a flat overlay.
+    const slant =
+      side === 'x'
+        ? /translate\([^,]+,\s*([-\d.]+)\)\s*rotate\(([-\d.]+)\)/.exec(
+            ticks
+              .map((k) => k.getAttribute('transform') ?? '')
+              .find((tr) => tr.includes('rotate')) ?? ''
+          )
+        : null;
+    if (slant) {
+      const tickFont = parseFloat(
+        ticks
+          .find((k) => k.hasAttribute('transform'))
+          ?.getAttribute('font-size') ?? '11'
+      );
+      t.setAttribute('font-size', String(tickFont + 1));
+      t.setAttribute('text-anchor', 'end');
+      t.setAttribute(
+        'transform',
+        `translate(${cx},${slant[1]}) rotate(${slant[2]})`
+      );
+    } else if (side === 'x') {
       t.setAttribute('text-anchor', 'middle');
       t.setAttribute('x', String(cx));
       t.setAttribute('y', String(cy + 19));

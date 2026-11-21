@@ -214,6 +214,43 @@ Blackbeard 90 8500 40`);
     expect(overlay.querySelectorAll('rect').length).toBe(0);
   });
 
+  it("line: the x value takes the axis labels' slant when they are rotated (#2210)", async () => {
+    const rows = Array.from(
+      { length: 60 },
+      (_, i) => `Nov 20 ${String(i).padStart(2, '0')}:00 ${50 + (i % 9)}`
+    ).join('\n');
+    await mount(`line Dense\nno-value\n\n${rows}`);
+    const tick = Array.from(svg.querySelectorAll('.dgmo-tick')).find((t) =>
+      (t.getAttribute('transform') ?? '').includes('rotate')
+    );
+    expect(tick).toBeTruthy();
+    const plot = svg.querySelector('.dgmo-plot-rect')!;
+    plot.dispatchEvent(
+      new MouseEvent('mousemove', { bubbles: true, clientX: 5, clientY: 5 })
+    );
+    const xValue = Array.from(svg.querySelectorAll('.dgmo-overlay text')).find(
+      (t) => (t.textContent ?? '').startsWith('Nov 20')
+    )!;
+    const angle = /rotate\(([-\d.]+)\)/.exec(
+      tick!.getAttribute('transform')!
+    )![1];
+    expect(xValue.getAttribute('transform')).toContain(`rotate(${angle})`);
+    expect(xValue.getAttribute('text-anchor')).toBe('end');
+  });
+
+  it('line: the x value stays flat when the axis labels are flat', async () => {
+    await mount(LINE);
+    svg
+      .querySelector('.dgmo-plot-rect')!
+      .dispatchEvent(
+        new MouseEvent('mousemove', { bubbles: true, clientX: 5, clientY: 5 })
+      );
+    const xValue = Array.from(svg.querySelectorAll('.dgmo-overlay text')).find(
+      (t) => ['Jan', 'Feb', 'Mar'].includes(t.textContent ?? '')
+    )!;
+    expect(xValue.hasAttribute('transform')).toBe(false);
+  });
+
   it('area: crosshair fires when hovering the fill or a dot (not just empty space)', async () => {
     await mount(AREA);
     const fill = svg.querySelector<SVGPathElement>('.dgmo-series-area')!;
