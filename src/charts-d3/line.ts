@@ -28,6 +28,10 @@ const BAND_OPACITY = 0.22;
 /** Series names at the right end of their lines (#1950): size, gap. */
 const END_LABEL_FONT = 12;
 const END_LABEL_GAP = 8;
+/** A point's resting dot (#2203): its radius, and the median gap between
+ *  neighbouring points, in dot diameters, below which dots are dropped. */
+const POINT_R = 3.5;
+const POINT_CLEAR_DIAMETERS = 3;
 import type { ParsedChart } from '../chart';
 import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
@@ -461,6 +465,16 @@ export function renderLine(
     const i = data.findIndex((d) => d.label === label);
     return i < 0 ? undefined : xOfRow(i);
   };
+  // Dense points (#2203): a dot per point in a slot narrower than a few dot
+  // widths merges into a chain of beads that hides the line. The median gap
+  // decides, so one close pair on a time axis does not strip every dot.
+  const gaps = data
+    .slice(1)
+    .map((_, i) => Math.abs(xOfRow(i + 1) - xOfRow(i)))
+    .sort((a, b) => a - b);
+  const denseRows =
+    gaps.length > 0 &&
+    gaps[Math.floor(gaps.length / 2)]! < POINT_CLEAR_DIAMETERS * 2 * POINT_R;
   // `step` / `step-before` (#1880): each value holds until the next point;
   // the last one stops at the last point.
   const curve =
@@ -993,6 +1007,15 @@ export function renderLine(
       const lit = target
         ? reachesTarget(p.v, target.value!, target.below)
         : null;
+      const high = extremeAt.get(`${s}:${p.xIndex}`);
+      // A dot that carries data — a target reached, an extreme — always
+      // stays; the rest drop when dense, and hover grows the nearest one.
+      const rest =
+        stacked || (denseRows && lit !== true && high === undefined)
+          ? 0
+          : averaged
+            ? 2.5
+            : POINT_R;
       g.append('circle')
         .attr('class', 'dgmo-pt')
         .attr('data-series-index', s)
@@ -1009,12 +1032,11 @@ export function renderLine(
         .attr('data-line-number', p.lineNumber)
         .attr('cx', xOfRow(p.xIndex))
         .attr('cy', yy(p.y))
-        // A stacked area marks no points; hover grows the nearest one.
-        .attr('r', stacked ? 0 : averaged ? 2.5 : 3.5)
+        // A stacked area, or dense points, mark none at rest (#2203).
+        .attr('r', rest)
         .attr('fill', lit ? color : bgColor)
         .attr('stroke', lit === false ? story.groundStroke : color)
         .attr('stroke-width', 2);
-      const high = extremeAt.get(`${s}:${p.xIndex}`);
       if (high !== undefined)
         extremeMarks.push({
           x: xOfRow(p.xIndex),

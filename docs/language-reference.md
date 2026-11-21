@@ -3085,6 +3085,12 @@ keeps the category axis: bare years (`2024`), quarter names, a mix of dates
 and words, or an impossible date (`2023-02-30`). Eras (§15.1) on a time axis
 span from their start row's date to their end row's date.
 
+**Points.** Each point draws a dot when the points are spread out. When they
+sit closer than a few dot widths apart, the dots are dropped so the line reads,
+and hovering grows the nearest one (#2203). The chart's rendered width decides
+this, not the row count, and there is no directive for it. Dots that carry data
+always stay: the ones `extremes` marks, and points that reach a `target`.
+
 **Steps.** Two bare flags draw every series as steps — each value holds flat
 until the next point, then jumps:
 
