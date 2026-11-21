@@ -692,6 +692,13 @@ export function renderLine(
   // Story view (#2046): the subject keeps its colour, the rest go grey and
   // are drawn first so the subject sits on top.
   const story = storyPaint(emphasis, palette, isDark);
+  /** A series' overlay paint (#2216): under a spotlight its mean, trend
+   *  and average go grey with it, like its line. */
+  const overlayPaint = (s: number) => {
+    const own = seriesColor(s);
+    if (!story.active) return own;
+    return dimmed.has(nameOf(s)) ? story.groundStroke : story.subject(own);
+  };
   const seriesOrder = Array.from({ length: seriesCount }, (_, s) => s);
   if (story.active)
     seriesOrder.sort(
@@ -741,7 +748,7 @@ export function renderLine(
       const series = own.map((s) => ({
         ...(multi && { name: nameOf(s) }),
         values: rawRows.map((r) => r[s]!),
-        color: multi ? seriesColor(s) : textColor,
+        color: multi ? overlayPaint(s) : textColor,
       }));
       const frame = {
         ...annotationFrame,
@@ -779,7 +786,7 @@ export function renderLine(
             own.map((s) => ({
               ...(multi && { name: nameOf(s) }),
               values: rawRows.map((r) => r[s]!),
-              color: seriesColor(s),
+              color: overlayPaint(s),
             })),
             xAtRow,
             trendUnit(chart.xlabel)
@@ -1316,6 +1323,21 @@ export function renderLine(
       .attr('opacity', l.dim ? EMPHASIS_DIM_TEXT_OPACITY : null)
       .attr('data-series-name', l.series ?? null);
   });
+  // Without the story view a receded series is a baked opacity (§1.11);
+  // what it owns outside its group recedes with it (#2216).
+  if (!story.active && dimmed.size > 0)
+    svg.selectAll<SVGElement, unknown>('[data-series-name]').each(function () {
+      const name = this.getAttribute('data-series-name');
+      if (
+        name == null ||
+        !dimmed.has(name) ||
+        this.hasAttribute('opacity') ||
+        this.matches('.dgmo-series, .dgmo-series-band, .dgmo-pt') ||
+        this.closest('.dgmo-series, .chart-legend')
+      )
+        return;
+      this.setAttribute('opacity', String(EMPHASIS_DIM_OPACITY));
+    });
 
   drawXAxisTitle(
     svg,

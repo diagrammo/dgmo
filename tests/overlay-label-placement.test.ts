@@ -123,3 +123,36 @@ describe('pickSpot', () => {
     expect(pickSpot(p, [spot(0, 0), spot(300, 1)], bounds)).toBeNull();
   });
 });
+
+describe('a spotlight recedes what each series owns (#2216)', () => {
+  const SRC = (extra: string) =>
+    [
+      'line Plunder',
+      'mean',
+      extra,
+      'series',
+      '  Cutlass blue',
+      '    highlight',
+      '  Powder green',
+      '',
+      'A 4 1',
+      'B 9 3',
+      'C 7 4',
+    ].join('\n');
+  const strokeOf = (svg: string, cls: string, name: string) =>
+    new RegExp(
+      `<g class="${cls}"[^>]*data-series-name="${name}"[^>]*>\\s*<(?:path|line)[^>]*stroke="([^"]+)"`
+    ).exec(svg)?.[1];
+
+  it('greys a receded series mean the way it greys its line', async () => {
+    const svg = await renderDataChartD3(SRC(''), 'light', palette);
+    const line = strokeOf(svg, 'dgmo-series', 'Powder');
+    expect(line).toBeDefined();
+    expect(strokeOf(svg, 'dgmo-overlay dgmo-overlay-mean', 'Powder')).toBe(
+      line
+    );
+    expect(strokeOf(svg, 'dgmo-overlay dgmo-overlay-mean', 'Cutlass')).not.toBe(
+      line
+    );
+  });
+});
