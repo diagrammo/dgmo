@@ -43,6 +43,7 @@ import type {
   MapPoi,
   MapRoute,
   MapRouteLeg,
+  MapNote,
   PoiPos,
 } from './types';
 import type { TagGroup } from '../utils/tag-groups';
@@ -60,6 +61,8 @@ const ARROW_SPLIT = new RegExp(`\\s+(${ARROW_TOKENS})\\s+`);
 const HUB_RE = new RegExp(`^(${ARROW_TOKENS})\\s+(.+)$`);
 // A route leg line: an optional leading arrow (with in-arrow label) + a destination.
 const LEG_ARROW_RE = new RegExp(`^(${ARROW_TOKENS})\\s+(.+)$`);
+// A `note` line (lowercase, so a place named `Note…` stays a place).
+const NOTE_RE = /^note(?:\s+(.*))?$/;
 const AT_RE = /(^|[\s,])at\s*:/i; // the removed `at:` coord form (§24B.9)
 
 // Per-element numeric channel keys (decision #20): region `heat:`, point `size:`,
@@ -175,7 +178,47 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
     tag: Writable<TagGroup> | null;
     route: { route: Writable<MapRoute>; indent: number } | null;
     poi: { poi: Writable<MapPoi>; indent: number } | null;
-  } = { tag: null, route: null, poi: null };
+    /** The region or edge line a `note` may be indented under (#2215). */
+    target: { el: { note?: MapNote }; indent: number } | null;
+  } = { tag: null, route: null, poi: null, target: null };
+
+  /** Reads the `note` at line index `i` and its indented body (#2215).
+   *  Returns the note and the index of its last line. */
+  const readNote = (
+    i: number,
+    indent: number,
+    text: string
+  ): { note: MapNote; last: number } => {
+    const body: string[] = [];
+    let last = i;
+    for (let j = i + 1; j < lines.length; j++) {
+      const t = stripInlineComment(lines[j]!).trim();
+      if (!t) break;
+      if (t.startsWith('//')) {
+        last = j;
+        continue;
+      }
+      if (measureIndent(lines[j]!) <= indent) break;
+      body.push(t);
+      last = j;
+    }
+    const { label, color } = extractColor(text, palette, diagnostics, i + 1);
+    const note: Writable<MapNote> = {
+      heading: label.trim(),
+      body: body.join('\n'),
+      lineNumber: i + 1,
+    };
+    if (color) note.color = color;
+    return { note, last };
+  };
+  /** Attaches `note` to `el`, warning on a second note under one element. */
+  const attachNote = (el: { note?: MapNote }, note: MapNote): void => {
+    if (el.note) {
+      diagnostics.push(emit(MAP_DX.NOTE_DUPLICATE, note.lineNumber, {}));
+      return;
+    }
+    el.note = note;
+  };
 
   const registry = (): ReservedKeyRegistry =>
     withTagAliases(MAP_REGISTRY, new Set(aliasMap.keys()));
@@ -188,6 +231,7 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
     open.tag = null;
     open.route = null;
     open.poi = null;
+    open.target = null;
   };
 
   for (let i = firstIdx + 1; i < lines.length; i++) {
@@ -212,6 +256,20 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
     if (open.route && indent > open.route.indent) {
       const leg = parseLeg(trimmed, lineNumber);
       if (leg) open.route.route.legs.push(leg);
+      continue;
+    }
+    // (1a') A `note` indented under a POI, region line or edge (#2215).
+    const noteMatch = indent > 0 ? NOTE_RE.exec(trimmed) : null;
+    const noteHost =
+      open.poi && indent > open.poi.indent
+        ? open.poi.poi
+        : open.target && indent > open.target.indent
+          ? open.target.el
+          : null;
+    if (noteMatch && noteHost) {
+      const { note, last } = readNote(i, indent, noteMatch[1] ?? '');
+      attachNote(noteHost, note);
+      i = last;
       continue;
     }
     // (1b) Indented child of an open POI → hub edge or extra metadata.
@@ -264,6 +322,15 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
     // (2) Keyword lines. The chart frame first (#1827): `subtitle`, `source`,
     // `footnote`, `byline` — `source` and `footnote` replaced `caption`.
     if (parseChartFrameLine(result, cleaned, lineNumber, diagnostics)) continue;
+    // A `note` with nothing to sit under (column 1, or under a line that takes
+    // none) warns and is skipped with its body (#2215).
+    const strayNote = NOTE_RE.exec(trimmed);
+    if (strayNote) {
+      const { last } = readNote(i, indent, strayNote[1] ?? '');
+      diagnostics.push(emit(MAP_DX.NOTE_NO_ANCHOR, lineNumber, {}));
+      i = last;
+      continue;
+    }
     if (firstWord === 'tag') {
       handleTag(trimmed, lineNumber);
       continue;
@@ -290,12 +357,19 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
 
     // (4) Edge line (contains a whitespace-delimited arrow / `--`).
     if (ARROW_SPLIT.test(' ' + trimmed + ' ') || ARROW_SPLIT.test(trimmed)) {
+      const before = edges.length;
       handleEdges(trimmed, lineNumber);
+      // A chain's note sits on its first edge.
+      if (edges.length > before)
+        open.target = { el: edges[before] as { note?: MapNote }, indent };
       continue;
     }
 
     // (5) Fallthrough → region-fill.
+    const before = regions.length;
     handleRegion(trimmed, lineNumber);
+    if (regions.length > before)
+      open.target = { el: regions[before] as { note?: MapNote }, indent };
   }
 
   // Assign palette colors to bare (colorless) tag values (all groups known).
@@ -456,6 +530,9 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
         break;
       case 'no-region-heat-value':
         d.noRegionValue = true;
+        break;
+      case 'no-notes':
+        d.noNotes = true;
         break;
       case 'no-poi-labels':
         d.noPoiLabels = true;

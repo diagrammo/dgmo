@@ -5722,12 +5722,30 @@ hav ~> cove l: Sail     # the LINE turns blue
 cove -> hav l: March    # the LINE turns green
 ```
 
+### Notes (`note`)
+
+Indent a `note` under a `poi`, a region line or an edge to explain it. The note line is the heading; lines indented under it are the markdown body. Never repeat the element's name — the card shows it.
+
+```
+poi 26.57 56.25 t: Under-fire, size: 129, label: Strait of Hormuz
+  note ~1/5 of world oil
+    Iran strikes **~7 ships/week**.
+Egypt
+  note Suez revenue down by half
+Singapore -> Rotterdam
+  note The long way round
+```
+
+- The card shows the element's name in bold, the heading in the element's colour, and the body below. A trailing colour word on the note line colours the card.
+- Each card sits in clear space near its element with a short leader, and never covers a marker, an edge or another card. Notes are placed before labels, and a noted element draws no label of its own.
+- A note with no clear spot **steps down** to a numbered disc, and its text goes to a key under the map. The body is never shortened. One note per element; `no-notes` hides them all.
+
 ### Labels, legend & chrome
 
 - Title is the declaration line. The chart frame (§1.12) is the chrome: `subtitle` in the title banner, `footnote` / `source` / `byline` under the map. There is no `caption`.
 - Legend auto-composes below the title: the heat ramp + `region-heat` and each tag group are **selectable colouring groups** (collapse/activate to flip the fill); POI size (`poi-size`) and edge thickness (`flow-width`) are self-evident from scale and carry no legend key in v1. `no-legend` suppresses all of it.
 - **Region and POI labels are on by default.** Region labels auto-fit **full → abbrev → hide** (a US-state 2-letter abbreviation is tried when the full name doesn't fit; other regions degrade full → hide); POI labels are collision-managed. Labels render **on the map** (export-safe), escalating inline → leader line → numbered pin in dense clusters; markers never move. A wide map in a narrow column (< ~480px) prefers abbreviations and drops reference relief, as if zoomed out.
-- **Cosmetic features are on by default**; the only switches are bare `no-*` opt-outs (no positive opt-in flag): `no-coastline`, `no-relief`, `no-context-labels`, `no-region-labels`, `no-poi-labels`, `no-legend`, `no-colorize`. A plain look = the four basemap flags together (`no-colorize` is **not** one of the four — it toggles region _fill style_, not a basemap backdrop layer).
+- **Cosmetic features are on by default**; the only switches are bare `no-*` opt-outs (no positive opt-in flag): `no-coastline`, `no-relief`, `no-context-labels`, `no-region-labels`, `no-poi-labels`, `no-notes`, `no-legend`, `no-colorize`. A plain look = the four basemap flags together (`no-colorize` is **not** one of the four — it toggles region _fill style_, not a basemap backdrop layer).
 - **Colorize (distinct political fills) is the default for any map without region data.** Unless a region carries data (a `heat:` or a tag), every region drawn at the resolved extent is filled a **distinct light pastel** such that no two bordering regions share a hue — the conventional "colour the countries/states so neighbours separate" look, with zero config. It applies to named-region maps, POI/route-only maps, and even a bare `map` (the whole world colours as the backdrop). The fills are **non-semantic** (no legend entry) and **extent-independent** (a region's colour is the same at any width and in an inset). A direct trailing colour (`Texas red`) paints on top as a highlight and does not suppress colorize; adding any `heat:`/tag flips the map to the data dress (colorize auto-suppressed, no error). `no-colorize` forces the plain green-land + blue-water dress — useful when many POIs/routes should pop against a calm map.
 
 ### Name resolution

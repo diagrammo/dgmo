@@ -63,6 +63,8 @@ export interface MapDirectives {
   noRegionValue?: boolean;
   /** `no-poi-labels` — suppress POI labels (default-on, collision-managed auto). */
   noPoiLabels?: boolean;
+  /** `no-notes` — hide every POI, region and edge note (§24B.15, #2215). */
+  noNotes?: boolean;
   /** `no-colorize` — force the plain green-land reference dress even when regions
    *  are referenced (regions are auto-coloured by default; §24B colorize). A
    *  no-op under data — the basemap is already gray there. */
@@ -86,6 +88,17 @@ export interface MapDirectives {
   clockDays?: string;
 }
 
+/** A `note` indented under a POI, region line or edge (§24B.15, #2215). The
+ *  note line's own words are the heading; its indented lines are the markdown
+ *  body. A trailing colour word on the note line colours the card. */
+export interface MapNote {
+  readonly heading: string;
+  readonly body: string;
+  /** §1.5 trailing colour NAME on the note line; else the element's colour. */
+  readonly color?: string;
+  readonly lineNumber: number;
+}
+
 /** A region-fill: a subdivision name with an optional score and/or tag values
  *  (§24B.3/.4 — BOTH may be present; bivariate seam). */
 export interface MapRegion {
@@ -103,6 +116,7 @@ export interface MapRegion {
   readonly tags: Readonly<Record<string, string>>;
   /** Any remaining reserved keys captured verbatim (`label`/`style`/…). */
   readonly meta: Readonly<Record<string, string>>;
+  readonly note?: MapNote;
   readonly lineNumber: number;
 }
 
@@ -122,6 +136,7 @@ export interface MapPoi {
   readonly clock?: boolean;
   readonly tags: Readonly<Record<string, string>>;
   readonly meta: Readonly<Record<string, string>>;
+  readonly note?: MapNote;
   readonly lineNumber: number;
 }
 
@@ -170,6 +185,7 @@ export interface MapEdge {
   readonly meta: Readonly<Record<string, string>>;
   /** Tag(s) on the edge line → colour the LINE itself (§24B.6). */
   readonly tags: Readonly<Record<string, string>>;
+  readonly note?: MapNote;
   readonly lineNumber: number;
 }
 

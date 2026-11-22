@@ -1,0 +1,37 @@
+map Global Shipping Chokepoints Under Threat — Nov 2026
+footnote Marker size = pre-crisis ships/day (approx). **Source:** Lloyd's List Intelligence · UNCTAD · UKMTO · S&P Global/CAS · EIA · Panama Canal Authority
+poi-size Pre-crisis ships/day
+
+tag Threat as t
+  Under-fire red
+  Knock-on orange
+  Political purple
+  Watch blue
+
+active-tag Threat
+
+poi 26.57 56.25 t: Under-fire, size: 129, label: Strait of Hormuz
+  note ~1/5 of world oil
+    Iran strikes **~7 ships/week**.
+    ~28 escorted transits/day vs 129 pre-war.
+poi 12.58 43.33 t: Under-fire, size: 75, label: Bab el-Mandeb
+  note Houthi strikes resumed
+    Oct transits **47%** below pre-crisis.
+poi 30.60 32.33 t: Knock-on, size: 56, label: Suez Canal
+  note Starved by the Red Sea
+    Asia–Europe boxships go around Africa.
+poi -34.36 18.47 t: Knock-on, label: Cape of Good Hope
+  note The detour
+    +10–14 days Asia–Europe.
+poi 9.08 -79.68 t: Political, size: 38, label: Panama Canal
+  note US–China ports fight
+    2023 drought cut transits.
+poi 41.12 29.06 t: Political, size: 110, label: Bosporus
+  note Black Sea war risk
+    Premiums on grain and oil.
+poi 2.50 101.40 t: Watch, size: 210, label: Strait of Malacca
+  note Busiest strait
+    ~80% of China's oil imports.
+poi 24.30 119.50 t: Watch, label: Taiwan Strait
+  note Blockade risk
+    The main Asian container lane.

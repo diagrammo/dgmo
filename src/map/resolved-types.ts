@@ -4,7 +4,7 @@
 import type { ChartFrame } from '../utils/chart-frame-parse';
 import type { DgmoError } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
-import type { MapDirectives } from './types';
+import type { MapDirectives, MapNote } from './types';
 import type {
   Gazetteer,
   BoundaryTopology,
@@ -71,6 +71,7 @@ export interface ResolvedRegion {
   readonly color?: string;
   readonly tags: Readonly<Record<string, string>>;
   readonly meta: Readonly<Record<string, string>>;
+  readonly note?: MapNote;
   readonly lineNumber: number;
 }
 
@@ -88,6 +89,7 @@ export interface ResolvedPoi {
   readonly color?: string;
   readonly tags: Readonly<Record<string, string>>;
   readonly meta: Readonly<Record<string, string>>;
+  readonly note?: MapNote;
   readonly lineNumber: number;
   /** True when created from an undeclared edge/route endpoint (§24B.10). */
   readonly implicit?: boolean;
@@ -111,6 +113,7 @@ export interface ResolvedEdge {
   readonly meta: Readonly<Record<string, string>>;
   /** Tag(s) on the edge line → colour the LINE (§24B.6). */
   readonly tags: Readonly<Record<string, string>>;
+  readonly note?: MapNote;
   readonly lineNumber: number;
 }
 

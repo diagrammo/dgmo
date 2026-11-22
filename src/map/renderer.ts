@@ -36,6 +36,20 @@ import {
   type PlacedLabel,
 } from './layout';
 import { tagAttrKey } from '../utils/tag-groups';
+import { renderInlineText } from '../utils/inline-markdown';
+import {
+  drawNoteKey,
+  planNoteKey,
+  type NoteKeyItem,
+} from '../annotations/notes';
+import {
+  NOTE_BODY_FONT,
+  NOTE_CARD_PAD,
+  NOTE_HEAD_FONT,
+  NOTE_LINE_RATIO,
+  NOTE_NAME_FONT,
+  type MapLayoutNote,
+} from './notes';
 
 const LABEL_FONT = 11;
 
@@ -369,7 +383,15 @@ function drawMap(
   // Non-clustered POI labels (and ALL labels in export / `no-cluster-pois`, where
   // the fan is permanently open) keep the always-on patch so the static image
   // matches what's on screen.
-  const clusterUi = !exportDims && !resolved.directives.noClusterPois;
+  // A note's card points at its marker, so a stack holding a noted POI stays
+  // fanned out: collapsing it would leave the card pointing at nothing (#2215).
+  const notedStack = layout.notes.some(
+    (n) =>
+      n.kind === 'poi' &&
+      layout.pois.some((p) => p.id === n.id && p.clusterId !== undefined)
+  );
+  const clusterUi =
+    !exportDims && !resolved.directives.noClusterPois && !notedStack;
   const poiLabels = layout.labels.filter(
     (l) => l.poiId !== undefined && !l.hidden
   );
@@ -991,6 +1013,10 @@ function drawMap(
     }
   }
 
+  // ── Notes (#2215) — cards with leaders, over markers and labels. ──
+  if (layout.notes.some((n) => n.card))
+    drawNoteCards(svg, layout.notes, palette);
+
   // ── Clock cards (BL-122) — live local-time cards above POIs flagged `clock`
   // (each carries a resolved `tz`). Layered above markers/labels; the baked
   // snapshot ticks live via the shared clock ticker on interactive surfaces. ──
@@ -1093,6 +1119,11 @@ function drawMap(
     if (subtitleLine) subtitleEl.attr('data-line-number', subtitleLine);
   }
 
+  // Stepped-down notes (#2215): a numbered disc at each element and the key
+  // under the map. The drawing grows to hold the key; the footer goes below it.
+  const pinned = layout.notes.filter((n) => n.pin);
+  if (pinned.length > 0) drawPinnedNotes(svg, pinned, width, height, palette);
+
   // The chart frame's footer (#1827) — footnotes, `Source: …`, byline — under
   // the map. The subtitle is the banner's, above, so it is left out here.
   if (resolved.frame) {
@@ -1100,6 +1131,131 @@ function drawMap(
       title: null,
     });
   }
+}
+
+type SvgSel = d3Selection.Selection<SVGSVGElement, unknown, null, undefined>;
+
+/** Draws each placed note's card and leader (#2215): the element's name in
+ *  bold, the heading in the element's colour, the markdown body below. */
+function drawNoteCards(
+  svg: SvgSel,
+  notes: readonly MapLayoutNote[],
+  palette: PaletteColors
+): void {
+  const g = svg.append('g').attr('class', 'dgmo-map-notes');
+  for (const n of notes) {
+    const c = n.card;
+    if (!c) continue;
+    const ng = g
+      .append('g')
+      .attr('class', 'dgmo-map-note')
+      .attr('data-line-number', n.lineNumber)
+      .attr('data-note-target', n.kind)
+      .attr(n.kind === 'poi' ? 'data-poi' : 'data-note-id', n.id);
+    if (n.leader) {
+      ng.append('line')
+        .attr('class', 'dgmo-map-note-leader')
+        .attr('x1', n.leader.x1)
+        .attr('y1', n.leader.y1)
+        .attr('x2', n.leader.x2)
+        .attr('y2', n.leader.y2)
+        .attr('stroke', n.color)
+        .attr('stroke-width', 1)
+        .attr('stroke-opacity', 0.85);
+    }
+    // A region or edge has no marker of its own: a dot shows where the note
+    // points.
+    if (n.ar === 0)
+      ng.append('circle')
+        .attr('class', 'dgmo-map-note-anchor')
+        .attr('cx', n.ax)
+        .attr('cy', n.ay)
+        .attr('r', 2.5)
+        .attr('fill', n.color)
+        .attr('stroke', palette.bg)
+        .attr('stroke-width', 1);
+    ng.append('rect')
+      .attr('class', 'dgmo-map-note-card')
+      .attr('x', c.x)
+      .attr('y', c.y)
+      .attr('width', c.w)
+      .attr('height', c.h)
+      .attr('rx', 4)
+      .attr('fill', palette.bg)
+      .attr('fill-opacity', 0.92)
+      .attr('stroke', n.color)
+      .attr('stroke-opacity', 0.8);
+    const x = c.x + NOTE_CARD_PAD * c.scale;
+    let y = c.y + NOTE_CARD_PAD * c.scale;
+    const line = (
+      text: string,
+      font: number,
+      fill: string,
+      weight: number | null,
+      markdown: boolean
+    ): void => {
+      const t = ng
+        .append('text')
+        .attr('x', x)
+        .attr('y', y + font * 0.95)
+        .attr('font-size', font)
+        .attr('fill', fill);
+      if (weight !== null) t.attr('font-weight', weight);
+      if (markdown) renderInlineText(t, text, palette, font);
+      else t.text(text);
+      y += font * NOTE_LINE_RATIO;
+    };
+    const k = c.scale;
+    for (const l of c.nameLines)
+      line(l, NOTE_NAME_FONT * k, palette.text, 700, false);
+    for (const l of c.headLines)
+      line(l, NOTE_HEAD_FONT * k, n.color, 600, false);
+    for (const l of c.bodyLines)
+      line(l, NOTE_BODY_FONT * k, palette.textMuted, null, true);
+  }
+}
+
+/** Side margin of the stepped-down notes' key. */
+const NOTE_KEY_SIDE = 16;
+/** Space under the key. */
+const NOTE_KEY_BOTTOM = 10;
+
+/** Draws stepped-down notes (#2215): a numbered disc at each element and the
+ *  key under the map, growing the drawing to hold it. */
+function drawPinnedNotes(
+  svg: SvgSel,
+  pinned: readonly MapLayoutNote[],
+  width: number,
+  height: number,
+  palette: PaletteColors
+): void {
+  const items: NoteKeyItem[] = pinned.map((n) => ({
+    num: n.pin!.num,
+    text:
+      `**${n.name}**` +
+      (n.heading ? ` · ${n.heading}` : '') +
+      (n.body ? `\n${n.body}` : ''),
+    color: n.color,
+    lineNumber: n.lineNumber,
+  }));
+  const plan = planNoteKey(items, width - 2 * NOTE_KEY_SIDE);
+  drawNoteKey(
+    svg,
+    pinned.map((n, i) => ({ x: n.pin!.x, y: n.pin!.y, item: items[i]! })),
+    plan,
+    { x: NOTE_KEY_SIDE, y: height },
+    { colors: { text: palette.text, bg: palette.bg }, palette }
+  );
+  const h = height + plan.h + NOTE_KEY_BOTTOM;
+  // The key sits on the page colour, under the map's water.
+  svg
+    .insert('rect', ':first-child')
+    .attr('class', 'dgmo-map-note-key-bg')
+    .attr('y', height)
+    .attr('width', width)
+    .attr('height', h - height)
+    .attr('fill', palette.bg);
+  svg.attr('height', h).attr('viewBox', `0 0 ${width} ${h}`);
 }
 
 /** Export wrapper (no click handler) — matches the structured-renderer contract. */

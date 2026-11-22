@@ -1053,12 +1053,14 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   {
     token: 'no-notes',
     category: 'directive',
+    map: true,
     chartTypes: [
       'bar',
       'calendar',
       'flowchart',
       'goal',
       'line',
+      'map',
       'scatter',
       'slope',
       'state',
@@ -1194,6 +1196,7 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
       'flowchart',
       'goal',
       'line',
+      'map',
       'scatter',
       'sequence',
       'slope',

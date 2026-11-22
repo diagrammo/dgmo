@@ -1373,6 +1373,9 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
           'Turn off the heat value shown under each region (on by default)',
       },
       'no-poi-labels': { description: 'Turn off POI labels (on by default)' },
+      'no-notes': {
+        description: 'Hide every note on POIs, regions and edges',
+      },
       'no-colorize': {
         description:
           'Force plain green-land reference dress (regions are auto-coloured by default)',

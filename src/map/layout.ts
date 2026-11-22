@@ -73,6 +73,13 @@ import type { MapProjectionParams, MapProjectionSpec } from './projection';
 import { createLabelMetrics, FONT, VALUE_GAP } from './label-metrics';
 import { FIT_PAD, WORLD_LABEL_ANCHORS } from './layout-constants';
 import { placeRegionLabels } from './region-labels';
+import type { Writable } from '../utils/brand';
+import {
+  noteObstacles,
+  placeMapNotes,
+  type MapLayoutNote,
+  type MapNoteTarget,
+} from './notes';
 import { coastOuterRings, coastSources, traceCoastRings } from './coast-rings';
 
 // Minimal GeoJSON shapes (avoid a hard @types/geojson dep; cast at d3 calls).
@@ -594,6 +601,9 @@ export interface MapLayout {
    *  The renderer draws a collapsed badge per stack; the app collapses/expands. */
   readonly clusters: readonly MapLayoutCluster[];
   readonly labels: readonly PlacedLabel[];
+  /** POI, region and edge notes (#2215): cards in clear space, or numbered
+   *  pins whose text the renderer draws in a key under the map. */
+  readonly notes: readonly MapLayoutNote[];
   readonly legend: MapLayoutLegend | null;
   /** Framed AK/HI inset cutouts (albers-usa only; empty otherwise). */
   readonly insets: readonly MapLayoutInset[];
@@ -1433,6 +1443,101 @@ function regionGeoBucket(
     }
   }
   return bucket;
+}
+
+/** A leg's midpoint, read off its path (`M…L…` or `M…Q…`). */
+function legMidpoint(d: string): { x: number; y: number } | null {
+  const m =
+    /^M(-?[\d.]+),(-?[\d.]+)(?:L(-?[\d.]+),(-?[\d.]+)|Q(-?[\d.]+),(-?[\d.]+) (-?[\d.]+),(-?[\d.]+))$/.exec(
+      d
+    );
+  if (!m) return null;
+  const x0 = +m[1]!;
+  const y0 = +m[2]!;
+  if (m[3] !== undefined) return { x: (x0 + +m[3]) / 2, y: (y0 + +m[4]!) / 2 };
+  // Quadratic at t = 0.5.
+  return {
+    x: 0.25 * x0 + 0.5 * +m[5]! + 0.25 * +m[7]!,
+    y: 0.25 * y0 + 0.5 * +m[6]! + 0.25 * +m[8]!,
+  };
+}
+
+/** Every element carrying a note, at its pixel anchor (#2215): a POI's
+ *  marker, a region's label point, an edge's midpoint. */
+function mapNoteTargets(args: {
+  resolved: ResolvedMap;
+  pois: readonly MapLayoutPoi[];
+  regions: readonly MapLayoutRegion[];
+  legs: readonly MapLayoutLeg[];
+  poiFill: (p: Pick<ResolvedPoi, 'color' | 'tags'>) => { fill: string };
+  palette: PaletteColors;
+}): MapNoteTarget[] {
+  const { resolved, pois, regions, legs, poiFill } = args;
+  const out: MapNoteTarget[] = [];
+  const poiName = (id: string): string => {
+    const p = resolved.pois.find((q) => q.id === id);
+    return p?.label ?? p?.name ?? id;
+  };
+  for (const rp of resolved.pois) {
+    if (!rp.note) continue;
+    const p = pois.find((q) => q.id === rp.id);
+    if (!p) continue;
+    out.push({
+      kind: 'poi',
+      id: p.id,
+      lineNumber: rp.lineNumber,
+      name: rp.label ?? rp.name ?? rp.id,
+      x: p.cx,
+      y: p.cy,
+      r: p.r,
+      color: p.fill,
+      note: rp.note,
+    });
+  }
+  for (const rr of resolved.regions) {
+    if (!rr.note) continue;
+    const g = regions.find((q) => q.id === rr.iso && q.layer !== 'base');
+    if (g?.labelX === undefined || g.labelY === undefined) continue;
+    // A tagged region's heading takes its tag colour, not the paler fill.
+    const tagged =
+      rr.color !== undefined || Object.keys(rr.tags).length > 0
+        ? poiFill(rr).fill
+        : null;
+    out.push({
+      kind: 'region',
+      id: rr.iso,
+      lineNumber: rr.lineNumber,
+      name: rr.name,
+      x: g.labelX,
+      y: g.labelY,
+      r: 0,
+      color: tagged ?? g.fill,
+      note: rr.note,
+    });
+  }
+  for (const e of resolved.edges) {
+    if (!e.note) continue;
+    const leg = legs.find(
+      (l) =>
+        l.lineNumber === e.lineNumber &&
+        l.fromId === e.fromId &&
+        l.toId === e.toId
+    );
+    const mid = leg ? legMidpoint(leg.d) : null;
+    if (!leg || !mid) continue;
+    out.push({
+      kind: 'edge',
+      id: e.fromId,
+      lineNumber: e.lineNumber,
+      name: e.label ?? `${poiName(e.fromId)} → ${poiName(e.toId)}`,
+      x: mid.x,
+      y: mid.y,
+      r: 0,
+      color: leg.color,
+      note: e.note,
+    });
+  }
+  return out;
 }
 
 export function layoutMap(
@@ -2780,7 +2885,9 @@ export function layoutMap(
   // `effectiveTags`: an EXPLICIT value in a later group must still beat an
   // earlier group's default, or a POI tagged only in the second group would be
   // painted by the first group's default and lose its own colour entirely.
-  const poiFill = (p: ResolvedPoi): { fill: string; stroke: string } => {
+  const poiFill = (
+    p: Pick<ResolvedPoi, 'color' | 'tags'>
+  ): { fill: string; stroke: string } => {
     const directHex = p.color ? resolveColor(p.color, palette) : null;
     if (directHex)
       return { fill: directHex, stroke: mix(directHex, palette.text, 18) };
@@ -3053,6 +3160,24 @@ export function layoutMap(
     obstacles.some((o) => rectsOverlap(rect, o)) ||
     legSegments.some((s) => segmentRectOverlap(s[0], s[1], s[2], s[3], rect));
 
+  // -- Notes (#2215): placed BEFORE every label, so labels fit around them. --
+  const notes =
+    resolved.directives.noNotes === true
+      ? []
+      : placeMapNotes(
+          mapNoteTargets({ resolved, pois, regions, legs, poiFill, palette }),
+          {
+            width,
+            height,
+            reserved: topReserved,
+            markers,
+            segments: legSegments,
+          }
+        );
+  obstacles.push(...noteObstacles(notes));
+  // An element with a note draws no label of its own: the card names it.
+  const notedLines = new Set(notes.map((n) => n.targetLine));
+
   // Region labels (default ON; `no-region-labels` suppresses). Rendered as plain
   // text — NO pill, NO halo — so the choropleth fill (which encodes the data)
   // stays fully visible. The text colour is contrast-picked against each region's
@@ -3211,14 +3336,23 @@ export function layoutMap(
       labeledRegionIds,
       regionLabelGuards,
     });
+    // A noted region's card names it; drop its own label.
+    for (let i = labels.length - 1; i >= 0; i--)
+      if (notedLines.has(labels[i]!.lineNumber)) labels.splice(i, 1);
+    for (let i = regionLabelGuards.length - 1; i >= 0; i--)
+      if (notedLines.has(regionLabelGuards[i]!.label.lineNumber))
+        regionLabelGuards.splice(i, 1);
   }
 
   // POI labels: default-on, collision-managed auto. `no-poi-labels` suppresses.
   if (resolved.directives.noPoiLabels !== true) {
     // Cluster (stack) members are laid out + labelled by the spiderfy block; keep
     // them out of the singleton/proximity-column placement here.
+    const notedPois = new Set(
+      notes.filter((n) => n.kind === 'poi').map((n) => n.id)
+    );
     const ordered = [...pois]
-      .filter((p) => p.clusterId === undefined)
+      .filter((p) => p.clusterId === undefined && !notedPois.has(p.id))
       .sort((a, b) => a.lineNumber - b.lineNumber || (a.id < b.id ? -1 : 1));
     const poiById = new Map(resolved.pois.map((q) => [q.id, q]));
     const labelText = (p: MapLayoutPoi): string => {
@@ -3250,7 +3384,7 @@ export function layoutMap(
     // column machinery is defined.
     const clusterMembersById = new Map<string, MapLayoutPoi[]>();
     for (const p of pois) {
-      if (p.clusterId === undefined) continue;
+      if (p.clusterId === undefined || notedPois.has(p.id)) continue;
       const arr = clusterMembersById.get(p.clusterId);
       if (arr) arr.push(p);
       else clusterMembersById.set(p.clusterId, [p]);
@@ -3762,6 +3896,23 @@ export function layoutMap(
   // re-fit has converged), so dot/label positions are final.
   // Chosen rects also feed `obstacles` so the context-label pass below dodges
   // them too.
+  // A noted edge's card names it; its in-line label goes.
+  for (let i = 0; i < legs.length; i++) {
+    const lg = legs[i]!;
+    if (
+      lg.label !== undefined &&
+      notes.some(
+        (n) =>
+          n.kind === 'edge' &&
+          n.targetLine === lg.lineNumber &&
+          n.id === lg.fromId
+      )
+    ) {
+      const rest: Writable<MapLayoutLeg> = { ...lg };
+      delete rest.label;
+      legs[i] = rest;
+    }
+  }
   obstacles.push(
     ...layoutEdgeLabels({
       legs,
@@ -4003,6 +4154,7 @@ export function layoutMap(
     cityDots,
     clusters,
     labels,
+    notes,
     legend,
     insets,
     insetRegions,

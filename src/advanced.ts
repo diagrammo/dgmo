@@ -934,8 +934,14 @@ export type {
   MapPoi,
   MapRoute,
   MapEdge,
+  MapNote,
   PoiPos,
 } from './map/types';
+export type {
+  MapLayoutNote,
+  MapLayoutNoteCard,
+  MapNoteTarget,
+} from './map/notes';
 export type {
   ResolvedMap,
   MapData,

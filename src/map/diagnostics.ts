@@ -221,6 +221,28 @@ export const MAP_DX = {
     hint: 'Write `scale diverging 0` to colour regions below and above 0 in two hues, with a neutral at 0.',
     example: 'map\nscale binned\nCalifornia heat: 3',
   },
+  NOTE_NO_ANCHOR: {
+    // A `note` in column 1, or under a line that takes none (#2215).
+    code: 'W_MAP_NOTE_NO_ANCHOR',
+    severity: 'warning',
+    chartType: 'map',
+    title: 'Note with nothing to explain',
+    message: () =>
+      'A note goes indented under the poi, region or edge it explains, e.g.\n  poi Lagos\n    note Busiest port\n(§24B.15)',
+    hint: 'Indent the note under its poi, region line or edge.',
+    example: 'map\nnote Busiest port',
+  },
+  NOTE_DUPLICATE: {
+    // A second `note` under one element: the first wins (#2215).
+    code: 'W_MAP_NOTE_DUPLICATE',
+    severity: 'warning',
+    chartType: 'map',
+    title: 'Second note on one element',
+    message: () =>
+      'One note per element — this second note is ignored. Put both texts in one note body. (§24B.15)',
+    hint: 'Merge the two notes into one note body.',
+    example: 'map\npoi Lagos\n  note One\n  note Two',
+  },
 } satisfies Record<string, DiagnosticSpec>;
 
 export const MAP_DIAGNOSTICS: DiagnosticSpec[] = Object.values(MAP_DX);

@@ -444,6 +444,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
       ...(r.color !== undefined && { color: r.color }),
       tags: r.tags,
       meta: r.meta,
+      ...(r.note !== undefined && { note: r.note }),
       lineNumber: r.lineNumber,
     };
     const prev = seenRegion.get(chosen.id);
@@ -674,6 +675,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
       ...(p.color !== undefined && { color: p.color }),
       tags: p.tags,
       meta: p.meta,
+      ...(p.note !== undefined && { note: p.note }),
       lineNumber: p.lineNumber,
       ...(tz !== undefined && { tz: tz.zone }),
       ...(tz?.fixedOffsetMin !== undefined && {
@@ -797,6 +799,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
       style: e.style,
       meta: e.meta,
       tags: e.tags,
+      ...(e.note !== undefined && { note: e.note }),
       lineNumber: e.lineNumber,
     });
   }
