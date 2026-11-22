@@ -674,8 +674,11 @@ export function parseSeriesNames(
       const raw = rawNames[i]!;
       const side = isHeader(raw);
       if (side === 'old') {
-        if (diagnostics)
-          rejectOldAxisLine(raw, nameLineNumbers[i]!, diagnostics);
+        // A bare `series` block passes only `markDiagnostics`; the old
+        // header must still be reported there, or its title vanishes
+        // without a word (#2207).
+        const sink = diagnostics ?? markDiagnostics;
+        if (sink) rejectOldAxisLine(raw, nameLineNumbers[i]!, sink);
         currentAxis = raw.startsWith('y-right') ? 'right' : 'left';
         continue;
       }

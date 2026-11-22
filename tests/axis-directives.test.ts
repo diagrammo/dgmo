@@ -573,6 +573,17 @@ describe('the axis line — one line per axis (decision #60)', () => {
     expect(codes(old)).toContain('E_AXIS_OLD_DIRECTIVE');
   });
 
+  it('errors on an old `y-label` header inside a bare series block (#2207)', () => {
+    const r = parseChart(
+      'line S\nseries\n  y-label Degrees C\n    CPU red\n  y-right-label Fan rpm\n    Fan blue\nA 85 2000\nB 90 3000'
+    );
+    const old = r.diagnostics.filter((x) => x.code === 'E_AXIS_OLD_DIRECTIVE');
+    expect(old.map((d) => d.line)).toEqual([3, 5]);
+    expect(old[0]?.message).toContain('y-axis Degrees C');
+    expect(old[1]?.message).toContain('y-right-axis Fan rpm');
+    expect(r.seriesAxes).toEqual(['left', 'right']);
+  });
+
   it('gives a dual-axis line a fixed right axis from its header', () => {
     const r = parseChart(
       'line S\nseries\n  y-axis Price\n    P\n  y-right-axis Volume 0..10000\n    V\nA 50 5000\nB 60 6000'
@@ -602,6 +613,17 @@ describe('the axis line — one line per axis (decision #60)', () => {
 });
 
 describe('the right axis draws its own range', () => {
+  it('draws both dual-axis titles at a narrow 480px width (#2207)', async () => {
+    const svg = await renderDataChartD3(
+      'line Temperature and fan\nno-value\nseries\n  y-axis Degrees C\n    CPU package red\n    Apple sensor orange\n  y-right-axis Fan rpm\n    Fan blue\n06:30 85 80 2000\n07:00 90 82 3000\n07:30 70 65 1800',
+      'light',
+      palette,
+      { width: 480, height: 300 }
+    );
+    expect(svg).toContain('Degrees C');
+    expect(svg).toContain('Fan rpm');
+  });
+
   it('ends the right axis where y-right-axis fixes it', async () => {
     const svg = await renderDataChartD3(
       'line S\nseries\n  y-axis Price\n    P\n  y-right-axis Volume 0..20000\n    V\nA 50 5000\nB 60 6000',
