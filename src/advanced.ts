@@ -767,10 +767,12 @@ export type {
   GoalMeasure,
   GoalBand,
 } from './goal/types';
-// Calendar heatmap (#1855) and ownership (#1873): the app's preview draws
-// each through its own parse + render pair, like goal above.
-export { parseCalendar } from './calendar/parser';
+// Calendar (#1855, #1877) and ownership (#1873): the app's preview draws
+// each through its own parse + render pair, like goal above. The calendar's
+// preview also resolves the open legend pill the way the renderer does.
+export { parseCalendar, resolveCalendarActiveGroup } from './calendar/parser';
 export { renderCalendar } from './calendar/renderer';
+export type { CalendarRenderOptions } from './calendar/renderer';
 export type { ParsedCalendar } from './calendar/types';
 export { parseOwnership } from './ownership/parser';
 export { renderOwnership } from './ownership/renderer';

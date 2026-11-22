@@ -307,6 +307,7 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
       'boxplot',
       'bracket',
       'c4',
+      'calendar',
       'class',
       'clock',
       'countdown',
@@ -358,6 +359,7 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
       'boxplot',
       'bracket',
       'c4',
+      'calendar',
       'class',
       'clock',
       'countdown',
@@ -409,6 +411,7 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
       'boxplot',
       'bracket',
       'c4',
+      'calendar',
       'class',
       'clock',
       'countdown',
@@ -600,6 +603,7 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
       'body',
       'boxes-and-lines',
       'c4',
+      'calendar',
       'cycle',
       'er',
       'event-line',
@@ -972,7 +976,7 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   {
     token: 'orientation-horizontal',
     category: 'directive',
-    chartTypes: ['bar', 'boxplot', 'waterfall'],
+    chartTypes: ['bar', 'boxplot', 'calendar', 'waterfall'],
   },
   // ── Waterfall (#1850) ────────────────────────────────────
   { token: 'no-connectors', category: 'directive', chartTypes: ['waterfall'] },
@@ -1051,6 +1055,7 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
     category: 'directive',
     chartTypes: [
       'bar',
+      'calendar',
       'flowchart',
       'goal',
       'line',
@@ -1235,7 +1240,7 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
     })
   ),
 
-  // ── Calendar heatmap header options (#1855) ──────────────
+  // ── Calendar header options (#1855, #1877) ──────────────
   { token: 'from', category: 'directive', chartTypes: ['calendar'] },
   {
     token: 'week-start',
@@ -1247,6 +1252,13 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
     category: 'directive',
     chartTypes: ['calendar'],
   },
+  { token: 'layout', category: 'directive', chartTypes: ['calendar'] },
+  {
+    token: 'months-per-row',
+    category: 'directive',
+    chartTypes: ['calendar'],
+  },
+  { token: 'empty', category: 'directive', chartTypes: ['calendar'] },
   // The shared value-ramp line (§13.9): `heat <Label> [low] [high]`.
   { token: 'heat', category: 'directive', chartTypes: ['calendar'] },
 

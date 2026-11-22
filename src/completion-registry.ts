@@ -783,33 +783,54 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
   [
     'calendar',
+    // §41.7 (#1877). The fill family via FILL_FAMILY_CAPABLE.
     withGlobals({
-      'no-legend': { description: 'Hide the Less … More legend' },
+      'no-legend': { description: 'Hide the legend above the grid' },
+      'active-tag': {
+        description: 'The legend pill open first: a group name, or none',
+      },
       year: {
         description:
           'Draw this whole year; also the year of bare MM-DD dates (e.g. `year 2026`)',
       },
       unit: {
-        description: 'What a value counts, singular (e.g. `unit commit`)',
+        description: 'What a bare number counts, singular (e.g. `unit commit`)',
       },
       from: {
         description:
-          'Trim the grid to a range: `from YYYY-MM-DD to YYYY-MM-DD`',
+          'The span: `from YYYY-MM-DD` for one year, or `from YYYY-MM-DD to YYYY-MM-DD`',
       },
       'week-start': {
-        description: 'Weekday on the top row (default sunday)',
+        description: 'The first weekday (default sunday)',
         values: ['sunday', 'monday'],
+      },
+      layout: {
+        description:
+          'How the days are arranged (default month with events, else weeks)',
+        values: ['weeks', 'months', 'month'],
+      },
+      'orientation-horizontal': {
+        description: 'Months as rows in `layout months`',
+      },
+      'months-per-row': {
+        description: 'Months per row in `layout month` (1–6)',
+      },
+      empty: {
+        description:
+          'The legend label for a blank tag day (default Not logged)',
       },
       heat: {
         description:
-          'Legend label for the shades, with an optional trailing [low] [high] color pair (e.g. `heat Commits blue red`)',
+          'A number group: `heat Name [as a] [low] [high]`, with indented `unit` and `max`',
       },
       max: {
-        description: 'Pin the top shade at this value instead of the quartiles',
+        description:
+          'Pin the top shade of the bare numbers at this value instead of the quartiles',
       },
       'no-summary': {
-        description: 'Hide the total and busiest day under the title',
+        description: 'Hide the summary line under the title',
       },
+      'no-notes': { description: 'Hide the note marks on events' },
     }),
   ],
   [
@@ -1395,6 +1416,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
 // (`fill`) charts; line/function area fills and sankey ribbons honor
 // `fill-solid` but ignore `fill-outline` (the fill is the data surface).
 const FILL_FAMILY_CAPABLE = new Set([
+  'calendar',
   'flowchart',
   'ownership',
   'state',
@@ -1516,6 +1538,7 @@ export const STRUCTURAL_KEYWORDS = new Map<string, string[]>([
   ['kanban', ['tag']],
   ['swot', ['tag', 'strengths', 'weaknesses', 'opportunities', 'threats']],
   ['ownership', ['tag']],
+  ['calendar', ['tag']],
   ['sitemap', ['tag']],
   ['infra', ['tag']],
   ['pert', ['tag']],

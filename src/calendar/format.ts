@@ -1,10 +1,19 @@
 // ============================================================
-// Calendar heatmap — dates, amounts, shades and the summary line (#1855).
+// Calendar — dates, amounts, shades and the summary line (§41.6).
 // Pure: no DOM, so the `<desc>` summary can use it without the renderer.
 // ============================================================
 
-import { dayToIso } from './parser';
-import type { DayNumber, ParsedCalendar } from './types';
+import { tagAttrKey } from '../utils/tag-groups';
+import { parts, weekday } from './dates';
+import { pluralUnit, resolveCalendarActiveGroup } from './parser';
+import type {
+  CalendarGroupRef,
+  CalendarNumberGroup,
+  DayNumber,
+  ParsedCalendar,
+} from './types';
+
+export { parts, weekday } from './dates';
 
 export const WEEKDAYS = [
   'Sunday',
@@ -32,24 +41,6 @@ export const MONTHS = [
 /** Weekday rows that carry a label: Mon, Wed, Fri. */
 export const LABELLED_WEEKDAYS = new Set([1, 3, 5]);
 
-/** 0 = Sunday … 6 = Saturday. Day 0 (1970-01-01) was a Thursday. */
-export function weekday(day: DayNumber): number {
-  return (((day + 4) % 7) + 7) % 7;
-}
-
-export function parts(day: DayNumber): {
-  year: number;
-  month: number;
-  date: number;
-} {
-  const iso = dayToIso(day);
-  return {
-    year: +iso.slice(0, 4),
-    month: +iso.slice(5, 7),
-    date: +iso.slice(8, 10),
-  };
-}
-
 function formatNumber(n: number): string {
   return n.toLocaleString('en-US', { maximumFractionDigits: 2 });
 }
@@ -58,13 +49,7 @@ function formatNumber(n: number): string {
  * `unit` is written singular; a word takes an English plural, and anything
  * else (`km`, `kg`, `$`) is a symbol and stays as written.
  */
-export function unitFor(unit: string, n: number): string {
-  if (n === 1 || !/^[a-z]+$/i.test(unit) || !/[aeiouy]/i.test(unit))
-    return unit;
-  if (/(s|x|z|ch|sh)$/i.test(unit)) return `${unit}es`;
-  if (/[b-df-hj-np-tv-z]y$/i.test(unit)) return `${unit.slice(0, -1)}ies`;
-  return `${unit}s`;
-}
+export const unitFor = pluralUnit;
 
 export function amount(n: number, unit: string | undefined): string {
   return unit ? `${formatNumber(n)} ${unitFor(unit, n)}` : formatNumber(n);
@@ -96,52 +81,80 @@ export function shadeLevels(
   };
 }
 
-/** Tag mode: "212 days logged · most often Great", or null when no day has
- *  a tag. A tie goes to the value declared first. */
-function tagSummary(parsed: ParsedCalendar): string | null {
+export function numberGroupOf(
+  parsed: ParsedCalendar,
+  ref: CalendarGroupRef
+): CalendarNumberGroup | undefined {
+  return parsed.numberGroups.find((g) => g.key === ref.key);
+}
+
+/** "212 days logged · most often Great"; a tie goes to the value declared
+ *  first. Null when no day has a value in the group. */
+function tagSummary(parsed: ParsedCalendar, key: string): string | null {
   const counts = new Map<string, number>();
-  for (const d of parsed.days)
-    if (d.tag !== undefined) counts.set(d.tag, (counts.get(d.tag) ?? 0) + 1);
+  for (const d of parsed.days) {
+    const t = d.tags[key];
+    if (t !== undefined) counts.set(t, (counts.get(t) ?? 0) + 1);
+  }
   if (counts.size === 0) return null;
   let logged = 0;
   for (const n of counts.values()) logged += n;
+  const group = parsed.tagGroups.find((g) => tagAttrKey(g.name) === key);
   let top: { tag: string; n: number } | null = null;
-  for (const group of parsed.tagGroups)
-    for (const e of group.entries) {
-      const n = counts.get(e.value) ?? 0;
-      if (n > 0 && (!top || n > top.n)) top = { tag: e.value, n };
-    }
+  for (const e of group?.entries ?? []) {
+    const n = counts.get(e.value) ?? 0;
+    if (n > 0 && (!top || n > top.n)) top = { tag: e.value, n };
+  }
   const days = logged === 1 ? 'day' : 'days';
   return `${formatNumber(logged)} ${days} logged · most often ${top!.tag}`;
 }
 
-/** "1,093 commits · busiest day Mar 10", or null when no day has a value. */
-export function calendarSummary(parsed: ParsedCalendar): string | null {
-  if (parsed.mode === 'tag') return tagSummary(parsed);
-  const best = busiestDay(parsed);
-  if (!best) return null;
-  const total = parsed.days.reduce((a, d) => a + d.value, 0);
-  const head = parsed.unit
-    ? amount(total, parsed.unit)
-    : `${formatNumber(total)} in total`;
-  return `${head} · ${best.phrase}`;
-}
-
-/** The day with the highest value (the first on a tie) and the summary's
- *  phrase naming it, "busiest day Mar 10"; null in tag mode or when no day
- *  has a value. */
+/** The day with the highest value in a number group (the first on a tie)
+ *  and the summary's phrase naming it, "busiest day Mar 10". */
 export function busiestDay(
-  parsed: ParsedCalendar
+  parsed: ParsedCalendar,
+  key: string
 ): { day: DayNumber; phrase: string } | null {
-  if (parsed.mode === 'tag') return null;
   let best: { day: DayNumber; value: number } | null = null;
-  for (const d of parsed.days)
-    if (d.value > 0 && (!best || d.value > best.value)) best = d;
+  for (const d of parsed.days) {
+    const v = d.numbers[key] ?? 0;
+    if (v > 0 && (!best || v > best.value)) best = { day: d.day, value: v };
+  }
   if (!best) return null;
   const b = parts(best.day);
   const oneYear = parts(parsed.start).year === parts(parsed.end).year;
   const when = `${MONTHS[b.month - 1]!.slice(0, 3)} ${b.date}${oneYear ? '' : `, ${b.year}`}`;
   return { day: best.day, phrase: `busiest day ${when}` };
+}
+
+/**
+ * The summary line, following the open pill: number → "844 commits ·
+ * busiest day Mar 5"; tag → "212 days logged · most often Great"; no
+ * colour or no group → "14 events". Null when there is nothing to say.
+ */
+export function calendarSummary(
+  parsed: ParsedCalendar,
+  active: CalendarGroupRef | null = resolveCalendarActiveGroup(parsed)
+): string | null {
+  if (active?.kind === 'number') {
+    const best = busiestDay(parsed, active.key);
+    if (best) {
+      const unit = numberGroupOf(parsed, active)?.unit;
+      const total = parsed.days.reduce(
+        (a, d) => a + (d.numbers[active.key] ?? 0),
+        0
+      );
+      const head = unit
+        ? amount(total, unit)
+        : `${formatNumber(total)} in total`;
+      return `${head} · ${best.phrase}`;
+    }
+  } else if (active?.kind === 'tag') {
+    const s = tagSummary(parsed, active.key);
+    if (s) return s;
+  }
+  const n = parsed.events.length;
+  return n > 0 ? `${formatNumber(n)} ${n === 1 ? 'event' : 'events'}` : null;
 }
 
 export function fullDate(day: DayNumber): string {

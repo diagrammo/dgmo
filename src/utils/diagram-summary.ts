@@ -512,7 +512,10 @@ function summarizeCalendar(content: string): string | null {
   if (parsed.error) return null;
   const span = parsed.end - parsed.start + 1;
   const summary = calendarSummary(parsed);
-  return `Calendar heatmap of ${plural(span, 'day', 'days')}, ${parsed.days.length} with an entry${summary ? `; ${summary}` : ''}.`;
+  const events = parsed.events.length
+    ? `, ${plural(parsed.events.length, 'event', 'events')}`
+    : '';
+  return `Calendar of ${plural(span, 'day', 'days')}, ${parsed.days.length} with a mark${events}${summary ? `; ${summary}` : ''}.`;
 }
 
 function summarizeWaterfall(content: string): string | null {

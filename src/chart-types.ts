@@ -281,7 +281,7 @@ const chartTypesData = [
   {
     id: 'calendar',
     description:
-      'Daily values across a year as a grid of squares — weeks across, weekdays down, five shades from none to busiest (activity, habits, runs)',
+      'Days as tiles — weeks, month strips or a wall calendar — coloured by numbers or tags, with named events (activity, habits, time off)',
   },
   {
     id: 'heatmap',
