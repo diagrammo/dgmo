@@ -207,7 +207,8 @@ export function renderDot(
       .append('line')
       .attr('x1', x)
       .attr('x2', x)
-      .attr('y1', plotTop)
+      // From the body's top edge, through the series names' strip.
+      .attr('y1', top)
       .attr('y2', plotBottom)
       .attr('stroke', k === 0 ? edgeColor : gridColor)
       .attr('stroke-width', 1);
