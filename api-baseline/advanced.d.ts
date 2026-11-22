@@ -2664,8 +2664,8 @@ type WhiteboardShapeKind = (typeof WHITEBOARD_SHAPE_KINDS)[number];
 /** Every line-leading element keyword, in spec order. */
 declare const WHITEBOARD_ELEMENT_KEYWORDS: readonly ["rectangle", "ellipse", "database", "queue", "file", "note", "arrow", "line", "text", "image", "ink"];
 /**
- * Stroke styles for arrows and lines. `solid` is the default and never
- * written; `style:` in source accepts only the other values.
+ * Stroke styles for arrows, lines and shape outlines (#2191). `solid` is the
+ * default and never written; `style:` in source accepts only the other values.
  */
 declare const WHITEBOARD_STROKE_STYLES: readonly ["solid", "dashed"];
 type WhiteboardStrokeStyle = (typeof WHITEBOARD_STROKE_STYLES)[number];
@@ -2708,6 +2708,12 @@ interface WhiteboardShape {
     readonly fill: WhiteboardFill;
     /** `label:` as written; absent means automatic (`whiteboardLabelPosition`). */
     readonly labelPosition?: WhiteboardLabelPosition;
+    /**
+     * The outline's stroke, from `style:` (#2191). Present only when written —
+     * absent means solid, the default — so it is never `solid`. Glyphs and
+     * notes take no `style:`.
+     */
+    readonly style?: WhiteboardStrokeStyle;
     /**
      * A glyph from a bundled set (`../glyphs/registry`), written as its own
      * keyword (`router Edge at: …`). It is drawn as a line icon in the box with
