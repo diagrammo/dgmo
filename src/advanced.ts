@@ -804,6 +804,10 @@ export { parseRing } from './ring/parser';
 export { renderRing, renderRingForExport } from './ring/renderer';
 export type { ParsedRing, RingLayer } from './ring/types';
 
+export { parseWaterfall } from './waterfall/parser';
+export { renderWaterfall } from './waterfall/renderer';
+export type { ParsedWaterfall } from './waterfall/types';
+
 export { parseTreemap } from './treemap/parser';
 export { renderTreemap, renderTreemapForExport } from './treemap/renderer';
 export {
