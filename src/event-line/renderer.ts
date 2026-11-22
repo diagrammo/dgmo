@@ -829,9 +829,11 @@ export function renderEventLine(
       nowG
         .append('rect')
         .attr('class', 'evt-now-break')
-        .attr('x', bx - 7)
+        // The gap spans exactly slash-to-slash at the spine's height, so the
+        // spine runs right up to each slash rather than stopping short (#2222).
+        .attr('x', bx - 4)
         .attr('y', spineY - 3)
-        .attr('width', 14)
+        .attr('width', 8)
         .attr('height', 6)
         .attr('fill', base);
       for (const dx of [-4, 4])
@@ -849,7 +851,7 @@ export function renderEventLine(
           .append('text')
           .attr('class', 'evt-now-gap')
           .attr('x', bx)
-          .attr('y', spineY + (y0 < spineY ? 20 : -12))
+          .attr('y', spineY + (y0 < spineY ? 20 : -15))
           .attr('text-anchor', 'middle')
           .attr('font-family', FONT_FAMILY)
           .attr('font-size', 10)
