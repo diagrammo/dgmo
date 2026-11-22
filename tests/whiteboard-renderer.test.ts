@@ -317,6 +317,40 @@ describe('whiteboard renderer', () => {
     expect(solid!.hasAttribute('stroke-dasharray')).toBe(false);
   });
 
+  it('dashes every outline of a dashed shape, the line dash, and leaves its label alone (#2191)', () => {
+    const svg = draw(
+      [
+        'whiteboard',
+        'rectangle Frame at: 0 0, size: 100 60, style: dashed',
+        'ellipse at: 200 0, size: 100 60, style: dashed',
+        'database at: 400 0, size: 100 60, style: dashed',
+        'queue at: 600 0, size: 100 60, style: dashed',
+        'file at: 800 0, size: 100 60, style: dashed',
+        'rectangle Solid at: 0 200, size: 100 60',
+      ].join('\n')
+    );
+    const line = draw('whiteboard\nline from: 0 0, to: 100 0, style: dashed')
+      .querySelector('g[class^="whiteboard-"] > line')!
+      .getAttribute('stroke-dasharray');
+    for (const kind of ['rectangle', 'ellipse', 'database', 'queue', 'file']) {
+      const g = svg.querySelector(`.whiteboard-${kind}`)!;
+      const outlines = [...g.querySelectorAll('rect, ellipse, path')].filter(
+        (n) => n.getAttribute('stroke') && n.getAttribute('stroke') !== 'none'
+      );
+      expect(outlines.length, kind).toBeGreaterThan(0);
+      for (const o of outlines) {
+        expect(o.getAttribute('stroke-dasharray'), kind).toBe(line);
+      }
+    }
+    expect(
+      svg
+        .querySelector('.whiteboard-rectangle text')!
+        .hasAttribute('stroke-dasharray')
+    ).toBe(false);
+    const solid = [...svg.querySelectorAll('.whiteboard-rectangle')][1]!;
+    expect(solid.querySelector('[stroke-dasharray]')).toBeNull();
+  });
+
   it('crops to the content plus a margin, wherever it sits', () => {
     const near = draw('whiteboard\nrectangle at: 0 0, size: 100 50');
     const far = draw('whiteboard\nrectangle at: -90000 40000, size: 100 50');

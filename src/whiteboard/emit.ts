@@ -64,6 +64,7 @@ export function emitWhiteboardElement(el: WhiteboardElement): string {
         ...colorPart(el.color),
         ...(el.fill === 'tint' ? [] : [`fill: ${el.fill}`]),
         ...(el.labelPosition ? [`label: ${el.labelPosition}`] : []),
+        ...(el.style === 'dashed' ? ['style: dashed'] : []),
       ]);
     case 'note':
       return line('note', el.text, [

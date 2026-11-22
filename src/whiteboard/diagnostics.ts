@@ -86,7 +86,7 @@ export const WHITEBOARD_DIAGNOSTICS: DiagnosticSpec[] = [
     title: 'Unknown line style',
     message: (p) =>
       `Unknown style "${s(p.style)}" — drawn solid (valid: dashed; solid is the default and never written)${p.hint ? `. ${s(p.hint)}` : ''}`,
-    hint: 'Arrows and lines take `style: dashed`; leave style off for a solid stroke.',
+    hint: 'Arrows, lines and shapes take `style: dashed`; leave style off for a solid stroke.',
     example: 'whiteboard\nline from: 0 0, to: 120 0, style: dotted',
   },
   {

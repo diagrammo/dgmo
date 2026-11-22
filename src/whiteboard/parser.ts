@@ -5,7 +5,7 @@
 // One source line = one element, led by its kind keyword:
 //
 //   rectangle Sign in at: 60 60, size: 180 70
-//   ellipse OAuth? at: 345 53, size: 170 84, color: blue
+//   ellipse OAuth? at: 345 53, size: 170 84, color: blue, style: dashed
 //   arrow from: 240 95, to: 340 95
 //   line from: 240 300, to: 300 400, style: dashed
 //   text keep it to ONE screen at: 62 184
@@ -106,7 +106,7 @@ const labelPart = (
   p ? { labelPosition: p } : {};
 
 const KEYS_BY_KIND: Record<string, readonly string[]> = {
-  shape: ['at', 'size', 'color', 'fill', 'label'],
+  shape: ['at', 'size', 'color', 'fill', 'label', 'style'],
   // A glyph is a line icon with its label beneath: no fill, no label position.
   glyph: ['at', 'size', 'color'],
   note: ['at', 'size', 'color'],
@@ -589,6 +589,9 @@ export function parseWhiteboard(
         color: readColor(meta.get('color'), lineNumber),
         fill: readFill(meta.get('fill'), lineNumber),
         ...labelPart(readLabelPosition(meta.get('label'), lineNumber)),
+        ...(readStyle(meta.get('style'), lineNumber) === 'dashed'
+          ? { style: 'dashed' as const }
+          : {}),
         lineNumber,
       });
       continue;

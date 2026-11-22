@@ -281,10 +281,33 @@ describe('parseWhiteboard — leniency', () => {
     expect(near.diagnostics[0]!.message).toMatch(/dashed/);
   });
 
-  it('style is not a key on shapes or text', () => {
-    expect(
-      codes('whiteboard\nrectangle at: 0 0, size: 5 5, style: dashed')
-    ).toEqual(['W_WHITEBOARD_UNKNOWN_KEY']);
+  it('reads style: dashed on every shape kind, absent when solid (#2191)', () => {
+    for (const kind of ['rectangle', 'ellipse', 'database', 'queue', 'file']) {
+      const el = only(`${kind} a at: 0 0, size: 50 40, style: Dashed`);
+      expect(el).toMatchObject({ kind: 'shape', shape: kind, style: 'dashed' });
+    }
+    expect(only('rectangle a at: 0 0, size: 50 40')).not.toHaveProperty(
+      'style'
+    );
+  });
+
+  it('warns on an unknown shape style and draws solid', () => {
+    const p = parseWhiteboard(
+      'whiteboard\nrectangle at: 0 0, size: 5 5, style: dahsed'
+    );
+    expect(p.diagnostics.map((d) => d.code)).toEqual([
+      'W_WHITEBOARD_UNKNOWN_STYLE',
+    ]);
+    expect(p.elements[0]).not.toHaveProperty('style');
+  });
+
+  it('style is not a key on notes, glyphs or text', () => {
+    for (const src of [
+      'note a at: 0 0, style: dashed',
+      'text a at: 0 0, style: dashed',
+    ]) {
+      expect(codes(`whiteboard\n${src}`)).toEqual(['W_WHITEBOARD_UNKNOWN_KEY']);
+    }
   });
 
   it('warns on an unknown key but keeps the element', () => {
@@ -515,6 +538,8 @@ describe('emitWhiteboard — round trip', () => {
       'whiteboard',
       'rectangle at: 0 0, size: 100 60, color: blue, fill: solid',
       'ellipse at: 200 0, size: 100 60, fill: outline',
+      'rectangle at: 400 0, size: 100 60, label: top, style: dashed',
+      'queue at: 600 0, size: 100 60, color: red, fill: solid, style: dashed',
       'arrow from: 0 100, to: 100 100, heads: both',
       'arrow from: 0 120, to: 100 120, color: red, style: dashed, heads: both, bend: -40',
       'line from: 0 140, to: 100 140, bend: 12',

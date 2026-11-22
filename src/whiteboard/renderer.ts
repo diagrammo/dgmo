@@ -1247,6 +1247,15 @@ export function renderWhiteboard(
               .attr('stroke-width', SHAPE_STROKE);
           }
         }
+        if (el.style === 'dashed') {
+          // Every outline drawn above, the same dash a dashed line wears.
+          g.selectAll<SVGElement, unknown>('rect, ellipse, path')
+            .attr(
+              'stroke-dasharray',
+              `${DASH_ON * SHAPE_STROKE} ${DASH_OFF * SHAPE_STROKE}`
+            )
+            .attr('stroke-linecap', 'round');
+        }
         const label = whiteboardShapeLabel(el, parsed.elements);
         centredLabel(
           g,
