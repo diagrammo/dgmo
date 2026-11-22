@@ -514,6 +514,115 @@ describe('legend hover → series emphasis', () => {
     expect(seriesGroup('Oil Price').classList.contains('dgmo-dim')).toBe(true);
   });
 
+  // #2240: a hovered series lights its own axis (ticks + title) and fades
+  // the other; the crosshair reads a value off the series' own axis.
+  const sideMarks = (side: string) =>
+    Array.from(svg.querySelectorAll(`[data-axis-side="${side}"]`));
+  const faded = (els: Element[]) =>
+    els.every((e) => e.classList.contains('dgmo-faded'));
+  const lit = (els: Element[]) =>
+    els.every((e) => !e.classList.contains('dgmo-faded'));
+
+  it('dual-axis line: ticks and titles carry their side', async () => {
+    await mount(DUAL_AXIS);
+    const titles = (side: string) =>
+      sideMarks(side).filter((e) => e.classList.contains('dgmo-axis-title'));
+    expect(titles('left').map((t) => t.textContent)).toEqual(['$ / barrel']);
+    expect(titles('right').map((t) => t.textContent)).toEqual([
+      'Million barrels',
+    ]);
+    expect(sideMarks('left').length).toBeGreaterThan(2);
+    expect(sideMarks('right').length).toBeGreaterThan(2);
+  });
+
+  it('dual-axis line: a legend entry lights its axis and fades the other', async () => {
+    await mount(DUAL_AXIS);
+    legendEntry('SPR Size').dispatchEvent(
+      new MouseEvent('mouseenter', { bubbles: true })
+    );
+    expect(lit(sideMarks('right'))).toBe(true);
+    expect(faded(sideMarks('left'))).toBe(true);
+    legendEntry('SPR Size').dispatchEvent(
+      new MouseEvent('mouseleave', { bubbles: true })
+    );
+    expect(lit([...sideMarks('left'), ...sideMarks('right')])).toBe(true);
+    legendEntry('Oil Price').dispatchEvent(
+      new MouseEvent('mouseenter', { bubbles: true })
+    );
+    expect(lit(sideMarks('left'))).toBe(true);
+    expect(faded(sideMarks('right'))).toBe(true);
+  });
+
+  it('dual-axis line: an axis strip lights its own ticks and title', async () => {
+    await mount(DUAL_AXIS);
+    svg
+      .querySelector('[data-axis-legend="right"]')!
+      .dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    expect(lit(sideMarks('right'))).toBe(true);
+    expect(faded(sideMarks('left'))).toBe(true);
+  });
+
+  it('dual-axis line: the crosshair puts a right-axis value on the right axis', async () => {
+    await mount(DUAL_AXIS);
+    // jsdom: the crosshair lands on the first slot's topmost point, which in
+    // this fixture is SPR Size (645 on the right axis).
+    const pt = svg.querySelector<SVGCircleElement>(
+      '.dgmo-series[data-series-name="SPR Size"] .dgmo-pt'
+    )!;
+    const cx = parseFloat(pt.getAttribute('cx')!);
+    const cy = parseFloat(pt.getAttribute('cy')!);
+    svg
+      .querySelector('.dgmo-plot-rect')!
+      .dispatchEvent(
+        new MouseEvent('mousemove', { bubbles: true, clientX: cx, clientY: cy })
+      );
+    const value = Array.from(svg.querySelectorAll('.dgmo-overlay text')).find(
+      (t) => t.textContent === pt.getAttribute('data-value')
+    )!;
+    expect(value).toBeTruthy();
+    expect(value.getAttribute('text-anchor')).toBe('start');
+    const rightEdge = Math.max(
+      ...Array.from(svg.querySelectorAll('.dgmo-axline')).map((l) =>
+        Math.max(
+          parseFloat(l.getAttribute('x1')!),
+          parseFloat(l.getAttribute('x2')!)
+        )
+      )
+    );
+    expect(parseFloat(value.getAttribute('x')!)).toBe(rightEdge + 10);
+    // The right title stays lit; the left axis fades.
+    expect(faded(sideMarks('left'))).toBe(true);
+    expect(
+      lit(
+        sideMarks('right').filter((e) =>
+          e.classList.contains('dgmo-axis-title')
+        )
+      )
+    ).toBe(true);
+    // Leaving clears every fade.
+    svg.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
+    expect(lit([...sideMarks('left'), ...sideMarks('right')])).toBe(true);
+  });
+
+  it('dual-axis line: a left-axis point keeps its value on the left', async () => {
+    // jsdom has no screen transform, so the crosshair lands at (0, 0): the
+    // first slot's topmost point. Here that is Oil Price, on the left axis.
+    await mount(DUAL_AXIS.replace('2019 57 645', '2019 95 300'));
+    svg
+      .querySelector('.dgmo-plot-rect')!
+      .dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+    const value = Array.from(svg.querySelectorAll('.dgmo-overlay text')).find(
+      (t) => t.textContent === '$95' || t.textContent === '95'
+    )!;
+    expect(value.getAttribute('text-anchor')).toBe('end');
+    expect(faded(sideMarks('right'))).toBe(true);
+    expect(
+      lit(
+        sideMarks('left').filter((e) => e.classList.contains('dgmo-axis-title'))
+      )
+    ).toBe(true);
+  });
+
   it('single-axis line: no axis-legend strips (nothing to disambiguate)', async () => {
     await mount(LINE);
     expect(svg.querySelectorAll('[data-axis-legend]').length).toBe(0);

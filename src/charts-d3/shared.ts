@@ -383,8 +383,8 @@ export function drawYAxisTitle(
   textColor: string,
   /** The highest its ink may reach: the plot's top unless the chart says. */
   inkTop = top
-): void {
-  if (!label) return;
+): SVGTextElement | null {
+  if (!label) return null;
   // Centred on the plot, and no taller than the room from the band to the
   // plot's foot mirrored about that centre (#2117): a longer title ran into
   // the legend gap. It ends in `…` and keeps its full text as a hover title,
@@ -405,6 +405,7 @@ export function drawYAxisTitle(
     .attr('font-weight', 'bold')
     .text(shown);
   if (shown !== label) t.append('title').text(label);
+  return t.node();
 }
 
 /**

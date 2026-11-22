@@ -604,6 +604,8 @@ export function renderLine(
       svg
         .append('text')
         .attr('class', 'dgmo-tick')
+        // Its side, so a hovered series lights its own axis (#2240).
+        .attr('data-axis-side', dual ? 'left' : null)
         .attr('x', m.left - 10)
         .attr('y', yy + 4)
         .attr('text-anchor', 'end')
@@ -625,6 +627,7 @@ export function renderLine(
         svg
           .append('text')
           .attr('class', 'dgmo-tick')
+          .attr('data-axis-side', 'right')
           .attr('x', m.left + plotW + 10)
           .attr('y', yR(t) + 4)
           .attr('text-anchor', 'start')
@@ -1351,7 +1354,7 @@ export function renderLine(
     m.top + plotH + 46,
     textColor
   );
-  drawYAxisTitle(
+  const leftTitle = drawYAxisTitle(
     svg,
     chart.ylabel,
     m.top,
@@ -1361,7 +1364,7 @@ export function renderLine(
     top + 8
   );
   if (dual) {
-    drawYAxisTitle(
+    const rightTitle = drawYAxisTitle(
       svg,
       chart.yrlabel,
       m.top,
@@ -1370,6 +1373,14 @@ export function renderLine(
       rightTint ?? textColor,
       top + 8
     );
+    // Each title fades with its axis when the other axis's series is hovered.
+    for (const [el, side] of [
+      [leftTitle, 'left'],
+      [rightTitle, 'right'],
+    ] as const) {
+      el?.classList.add('dgmo-axis-title');
+      el?.setAttribute('data-axis-side', side);
+    }
 
     // Axis-legend hover targets (§ interactions.ts): a transparent strip over
     // each axis's title + ticks. Appended last so each strip is the topmost

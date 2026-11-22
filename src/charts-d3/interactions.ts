@@ -51,6 +51,7 @@ function ensureStyle(svg: SVGSVGElement, muted: string): void {
     [data-legend-entry]{transition:opacity .12s ease}
     .dgmo-series.dgmo-dim,.dgmo-series-band.dgmo-dim,.dgmo-datum.dgmo-dim,.dgmo-ptlabel.dgmo-dim,.dgmo-series-extra.dgmo-dim,[data-legend-entry].dgmo-dim{opacity:.18}
     .dgmo-tick.dgmo-faded{opacity:.22}
+    .dgmo-axis-title{transition:opacity .12s ease}.dgmo-axis-title.dgmo-faded{opacity:.22}
     .dgmo-datum{cursor:pointer}
     .dgmo-axis-label{cursor:pointer}
     .dgmo-axis-label.dgmo-axis-active{font-weight:bold}
@@ -175,9 +176,35 @@ export function attachDataChartInteractions(
     svg.querySelectorAll<SVGCircleElement>('.dgmo-pt')
   );
   const ticks = Array.from(svg.querySelectorAll<SVGTextElement>('.dgmo-tick'));
+  // A dual-axis line tags each value tick and axis title with its side
+  // (#2240), so a hovered series can light its own axis and fade the other.
+  const sideMarks = Array.from(
+    svg.querySelectorAll<SVGElement>(
+      '.dgmo-tick[data-axis-side], .dgmo-axis-title[data-axis-side]'
+    )
+  );
+  const dualAxis = sideMarks.length > 0;
   const fadeTicks = () => ticks.forEach((t) => t.classList.add('dgmo-faded'));
-  const unfadeTicks = () =>
+  const unfadeTicks = () => {
     ticks.forEach((t) => t.classList.remove('dgmo-faded'));
+    sideMarks.forEach((t) => t.classList.remove('dgmo-faded'));
+  };
+  /** Light one value axis (ticks + title) and fade the other; null restores. */
+  const lightAxis = (side: string | null | undefined) => {
+    for (const el of sideMarks)
+      el.classList.toggle(
+        'dgmo-faded',
+        side != null && el.getAttribute('data-axis-side') !== side
+      );
+  };
+  /** The value axis a series is drawn against, on a dual-axis line. */
+  const sideOfSeries = (name: string | null): string | null => {
+    if (!dualAxis || name == null) return null;
+    for (const g of seriesGroups)
+      if (g.getAttribute('data-series-name') === name)
+        return g.getAttribute('data-axis');
+    return null;
+  };
 
   // ── transient overlay (leader lines + on-axis value pills) ────────────
   let overlay: SVGGElement | null = null;
@@ -210,12 +237,13 @@ export function attachDataChartInteractions(
   // text color, a little bigger + bold), NOT a tooltip chip. Sits where the
   // axis tick label would; the other ticks fade so this one reads as active.
   // side 'x' → below x-axis (centered, at the x-tick row); side 'y' → left of
-  // the y-axis (right-aligned, at the y-tick column).
+  // the y-axis (right-aligned, at the y-tick column); 'y-right' → right of a
+  // dual-axis line's right axis (left-aligned, #2240).
   const axisValue = (
     cx: number,
     cy: number,
     label: string,
-    side: 'x' | 'y'
+    side: 'x' | 'y' | 'y-right'
   ) => {
     const t = doc.createElementNS(NS, 'text');
     t.setAttribute('font-size', '15');
@@ -249,6 +277,10 @@ export function attachDataChartInteractions(
       t.setAttribute('text-anchor', 'middle');
       t.setAttribute('x', String(cx));
       t.setAttribute('y', String(cy + 19));
+    } else if (side === 'y-right') {
+      t.setAttribute('text-anchor', 'start');
+      t.setAttribute('x', String(cx + 10));
+      t.setAttribute('y', String(cy + 5));
     } else {
       t.setAttribute('text-anchor', 'end');
       t.setAttribute('x', String(cx - 10));
@@ -442,11 +474,33 @@ export function attachDataChartInteractions(
       nearest.getAttribute('data-x-label') ?? '',
       'x'
     );
-    // horizontal leader from nearest point to the y-axis + y-axis value
+    // horizontal leader from nearest point to ITS y-axis + the value there:
+    // a right-axis series reads off the right axis (#2240).
     const ny = parseFloat(nearest.getAttribute('cy') ?? '0');
-    dottedLine(plot.left, ny, slot.cx, ny);
-    axisValue(plot.left, ny, nearest.getAttribute('data-value') ?? '', 'y');
-    fadeTicks();
+    const side = dualAxis
+      ? nearest.closest('[data-axis]')?.getAttribute('data-axis')
+      : null;
+    const edge = side === 'right' ? plot.right : plot.left;
+    dottedLine(edge, ny, slot.cx, ny);
+    axisValue(
+      edge,
+      ny,
+      nearest.getAttribute('data-value') ?? '',
+      side === 'right' ? 'y-right' : 'y'
+    );
+    if (side) {
+      // Its own axis stays lit except the ticks the value would sit on; the
+      // other axis fades, and the x ticks fade for the x value as before.
+      for (const t of ticks)
+        if (!t.hasAttribute('data-axis-side')) t.classList.add('dgmo-faded');
+      lightAxis(side);
+      for (const t of ticks)
+        if (
+          t.getAttribute('data-axis-side') === side &&
+          Math.abs(parseFloat(t.getAttribute('y') ?? '0') - 4 - ny) < 14
+        )
+          t.classList.add('dgmo-faded');
+    } else fadeTicks();
     // emphasize nearest point + its series, dim the others
     restorePt();
     const base = parseFloat(nearest.getAttribute('r') ?? '3.5');
@@ -660,6 +714,7 @@ export function attachDataChartInteractions(
       if (sn != null)
         g.classList.toggle('dgmo-dim', name != null && sn !== name);
     }
+    lightAxis(sideOfSeries(name));
     for (const d of datums) {
       const sn = d.getAttribute('data-series-name');
       if (sn != null)
@@ -711,6 +766,7 @@ export function attachDataChartInteractions(
       const a = g.getAttribute('data-axis');
       if (a != null) g.classList.toggle('dgmo-dim', axis != null && a !== axis);
     }
+    lightAxis(axis);
     mirrorExtras();
   };
   const axisLegends = Array.from(
