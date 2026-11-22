@@ -319,7 +319,7 @@ Up +40
 Down -25
 End total
 `,
-  'calendar-heatmap': `calendar-heatmap Test Calendar
+  calendar: `calendar Test Calendar
 year 2026
 unit run
 01-03 2

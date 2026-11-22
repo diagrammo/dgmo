@@ -35,7 +35,7 @@ import type { ConformanceFixture } from './fixtures/completion-conformance/_type
 
 import { fixture as raciFixture } from './fixtures/completion-conformance/raci';
 import { fixture as swotFixture } from './fixtures/completion-conformance/swot';
-import { fixture as calendarHeatmapFixture } from './fixtures/completion-conformance/calendar-heatmap';
+import { fixture as calendarFixture } from './fixtures/completion-conformance/calendar';
 import { fixture as boxplotFixture } from './fixtures/completion-conformance/boxplot';
 import { fixture as ownershipFixture } from './fixtures/completion-conformance/ownership';
 import { fixture as ringFixture } from './fixtures/completion-conformance/ring';
@@ -81,7 +81,7 @@ import { fixture as wireframeFixture } from './fixtures/completion-conformance/w
 const fixtures: ConformanceFixture[] = [
   raciFixture,
   swotFixture,
-  calendarHeatmapFixture,
+  calendarFixture,
   boxplotFixture,
   ownershipFixture,
   ringFixture,

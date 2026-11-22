@@ -49,7 +49,7 @@ export const COLOR_DIRECTIVES: ReadonlyMap<
   ['swimlane', new Map([['lane', { max: 1 }]])],
   ['journey-map', new Map([['persona', { max: 1 }]])],
   ['map', new Map([['region-heat', { max: 2 }]])],
-  ['calendar-heatmap', new Map([['heat', { max: 2 }]])],
+  ['calendar', new Map([['heat', { max: 2 }]])],
   [
     'quadrant',
     new Map([

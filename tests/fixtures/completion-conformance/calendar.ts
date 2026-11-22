@@ -4,10 +4,10 @@ import { FRAME_DIRECTIVES } from './_frame';
 // Spec §41.4 Options: year, unit, from, week-start, max, heat, no-summary,
 // no-legend.
 export const fixture: ConformanceFixture = {
-  chartType: 'calendar-heatmap',
+  chartType: 'calendar',
   structuralKeywords: [],
-  specSection: 'calendar-heatmap',
-  firstLineKeyword: 'calendar-heatmap',
+  specSection: 'calendar',
+  firstLineKeyword: 'calendar',
   directives: [
     'no-legend',
     'year',

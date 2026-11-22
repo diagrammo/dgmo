@@ -2,7 +2,7 @@
 // Calendar heatmap parser — one `date value` per line (#1855)
 // ============================================================
 //
-//   calendar-heatmap Commits in 2026
+//   calendar Commits in 2026
 //   year 2026
 //   unit commit
 //
@@ -44,12 +44,8 @@ import {
   matchTagBlockHeading,
   stripDefaultModifier,
 } from '../utils/tag-groups';
-import { CALENDAR_HEATMAP_DX } from './diagnostics';
-import type {
-  CalendarHeatmapDay,
-  DayNumber,
-  ParsedCalendarHeatmap,
-} from './types';
+import { CALENDAR_DX } from './diagnostics';
+import type { CalendarDay, DayNumber, ParsedCalendar } from './types';
 
 const MS_PER_DAY = 86_400_000;
 
@@ -118,18 +114,16 @@ function readDate(token: string, year: number | undefined): DateRead {
   return { kind: 'not-date' };
 }
 
-export function parseCalendarHeatmap(content: string): ParsedCalendarHeatmap {
-  return withPaletteLifted(content, (lifted) =>
-    parseCalendarHeatmapRaw(lifted)
-  );
+export function parseCalendar(content: string): ParsedCalendar {
+  return withPaletteLifted(content, (lifted) => parseCalendarRaw(lifted));
 }
 
-function parseCalendarHeatmapRaw(content: string): ParsedCalendarHeatmap {
+function parseCalendarRaw(content: string): ParsedCalendar {
   const options: Record<string, string> = {};
-  const result: Writable<ParsedCalendarHeatmap> & {
+  const result: Writable<ParsedCalendar> & {
     diagnostics: DgmoError[];
   } = {
-    type: 'calendar-heatmap',
+    type: 'calendar',
     start: 0,
     end: 0,
     weekStart: 0,
@@ -199,9 +193,9 @@ function parseCalendarHeatmapRaw(content: string): ParsedCalendarHeatmap {
       firstLineSeen = true;
       const firstLine = parseFirstLine(trimmed);
       if (firstLine) {
-        if (firstLine.chartType !== 'calendar-heatmap') {
-          let msg = `Expected chart type "calendar-heatmap", got "${firstLine.chartType}"`;
-          const hint = suggest(firstLine.chartType, ['calendar-heatmap']);
+        if (firstLine.chartType !== 'calendar') {
+          let msg = `Expected chart type "calendar", got "${firstLine.chartType}"`;
+          const hint = suggest(firstLine.chartType, ['calendar']);
           if (hint) msg += `. ${hint}`;
           return fail(lineNumber, msg);
         }
@@ -251,7 +245,7 @@ function parseCalendarHeatmapRaw(content: string): ParsedCalendarHeatmap {
     if (keyword === 'year') {
       if (/^\d{4}$/.test(rest)) result.year = +rest;
       else
-        report(CALENDAR_HEATMAP_DX.BAD_OPTION, lineNumber, {
+        report(CALENDAR_DX.BAD_OPTION, lineNumber, {
           option: 'year',
           value: rest,
         });
@@ -260,7 +254,7 @@ function parseCalendarHeatmapRaw(content: string): ParsedCalendarHeatmap {
     if (keyword === 'unit') {
       if (rest) result.unit = rest;
       else
-        report(CALENDAR_HEATMAP_DX.BAD_OPTION, lineNumber, {
+        report(CALENDAR_DX.BAD_OPTION, lineNumber, {
           option: 'unit',
           value: rest,
         });
@@ -271,7 +265,7 @@ function parseCalendarHeatmapRaw(content: string): ParsedCalendarHeatmap {
       if (v === 'monday') result.weekStart = 1;
       else if (v === 'sunday') result.weekStart = 0;
       else
-        report(CALENDAR_HEATMAP_DX.BAD_OPTION, lineNumber, {
+        report(CALENDAR_DX.BAD_OPTION, lineNumber, {
           option: 'week-start',
           value: rest,
         });
@@ -281,7 +275,7 @@ function parseCalendarHeatmapRaw(content: string): ParsedCalendarHeatmap {
       const n = NUMBER_RE.test(rest) ? Number(rest) : NaN;
       if (n > 0) result.max = n;
       else
-        report(CALENDAR_HEATMAP_DX.BAD_OPTION, lineNumber, {
+        report(CALENDAR_DX.BAD_OPTION, lineNumber, {
           option: 'max',
           value: rest,
         });
@@ -296,7 +290,7 @@ function parseCalendarHeatmapRaw(content: string): ParsedCalendarHeatmap {
           ...(high !== undefined && { high }),
         };
       } else
-        report(CALENDAR_HEATMAP_DX.BAD_OPTION, lineNumber, {
+        report(CALENDAR_DX.BAD_OPTION, lineNumber, {
           option: 'heat',
           value: rest,
         });
@@ -306,7 +300,7 @@ function parseCalendarHeatmapRaw(content: string): ParsedCalendarHeatmap {
       const m = /^(\S+)\s+to\s+(\S+)$/i.exec(rest);
       if (m) range = { from: m[1]!, to: m[2]!, lineNumber };
       else
-        report(CALENDAR_HEATMAP_DX.BAD_OPTION, lineNumber, {
+        report(CALENDAR_DX.BAD_OPTION, lineNumber, {
           option: 'from',
           value: rest,
         });
@@ -316,7 +310,7 @@ function parseCalendarHeatmapRaw(content: string): ParsedCalendarHeatmap {
     const dateShaped = FULL_DATE_RE.test(word) || SHORT_DATE_RE.test(word);
     if (!dateShaped || parts.length < 2) {
       const hint = dateShaped ? null : suggest(keyword, OPTION_WORDS);
-      report(CALENDAR_HEATMAP_DX.BAD_ENTRY, lineNumber, {
+      report(CALENDAR_DX.BAD_ENTRY, lineNumber, {
         line: hint ? `${trimmed}' (${hint})` : trimmed,
       });
       continue;
@@ -348,14 +342,14 @@ function parseCalendarHeatmapRaw(content: string): ParsedCalendarHeatmap {
       (NUMERIC_LOOKING_RE.test(rest) && !/\s/.test(rest))
     ) {
       // No tag group anywhere: number mode, so the value is a bad number.
-      report(CALENDAR_HEATMAP_DX.BAD_VALUE, lineNumber, { value: rest });
+      report(CALENDAR_DX.BAD_VALUE, lineNumber, { value: rest });
     } else {
       unknownTags.push({ token, tag: rest, lineNumber });
     }
   }
   for (const entry of unknownTags) {
     const hint = suggest(entry.tag, [...tagValues.values()]);
-    report(CALENDAR_HEATMAP_DX.UNKNOWN_TAG, entry.lineNumber, {
+    report(CALENDAR_DX.UNKNOWN_TAG, entry.lineNumber, {
       tag: entry.tag,
       ...(hint && { hint }),
     });
@@ -367,24 +361,24 @@ function parseCalendarHeatmapRaw(content: string): ParsedCalendarHeatmap {
       entries[0]!.lineNumber < tagEntries[0]!.lineNumber
         ? tagEntries[0]!
         : entries[0]!;
-    report(CALENDAR_HEATMAP_DX.MIXED_ENTRIES, second.lineNumber, {});
+    report(CALENDAR_DX.MIXED_ENTRIES, second.lineNumber, {});
     return result;
   }
   if (tagEntries.length > 0 || (entries.length === 0 && tagGroups.length > 0))
     result.mode = 'tag';
 
   // ── Dates, now that `year` is known ────────────────────────
-  const byDay = new Map<DayNumber, Writable<CalendarHeatmapDay>>();
+  const byDay = new Map<DayNumber, Writable<CalendarDay>>();
   const readEntryDate = (token: string, lineNumber: number) => {
     const read = readDate(token, result.year);
     if (read.kind === 'no-year') {
-      report(CALENDAR_HEATMAP_DX.SHORT_DATE_NO_YEAR, lineNumber, {
+      report(CALENDAR_DX.SHORT_DATE_NO_YEAR, lineNumber, {
         date: token,
       });
       return null;
     }
     if (read.kind !== 'ok') {
-      report(CALENDAR_HEATMAP_DX.BAD_DATE, lineNumber, { date: token });
+      report(CALENDAR_DX.BAD_DATE, lineNumber, { date: token });
       return null;
     }
     return read.day;
@@ -407,7 +401,7 @@ function parseCalendarHeatmapRaw(content: string): ParsedCalendarHeatmap {
     const day = readEntryDate(entry.token, entry.lineNumber);
     if (day === null) continue;
     if (byDay.has(day))
-      report(CALENDAR_HEATMAP_DX.DUPLICATE_TAG_DAY, entry.lineNumber, {
+      report(CALENDAR_DX.DUPLICATE_TAG_DAY, entry.lineNumber, {
         date: dayToIso(day),
       });
     byDay.set(day, {
@@ -438,20 +432,20 @@ function parseCalendarHeatmapRaw(content: string): ParsedCalendarHeatmap {
       if (read.kind === 'ok') continue;
       ok = false;
       if (read.kind === 'no-year')
-        report(CALENDAR_HEATMAP_DX.SHORT_DATE_NO_YEAR, range.lineNumber, {
+        report(CALENDAR_DX.SHORT_DATE_NO_YEAR, range.lineNumber, {
           date: token,
         });
       else if (read.kind === 'bad-date')
-        report(CALENDAR_HEATMAP_DX.BAD_DATE, range.lineNumber, { date: token });
+        report(CALENDAR_DX.BAD_DATE, range.lineNumber, { date: token });
       else
-        report(CALENDAR_HEATMAP_DX.BAD_OPTION, range.lineNumber, {
+        report(CALENDAR_DX.BAD_OPTION, range.lineNumber, {
           option: 'from',
           value: `${range.from} to ${range.to}`,
         });
     }
     if (ok && from.kind === 'ok' && to.kind === 'ok') {
       if (to.day < from.day) {
-        report(CALENDAR_HEATMAP_DX.BAD_RANGE, range.lineNumber, {
+        report(CALENDAR_DX.BAD_RANGE, range.lineNumber, {
           from: range.from,
           to: range.to,
         });
@@ -465,17 +459,17 @@ function parseCalendarHeatmapRaw(content: string): ParsedCalendarHeatmap {
   const sorted = [...byDay.values()].sort((a, b) => a.day - b.day);
   if (start === null || end === null) {
     if (sorted.length === 0) {
-      if (result.error === null) report(CALENDAR_HEATMAP_DX.NO_ENTRIES, 1, {});
+      if (result.error === null) report(CALENDAR_DX.NO_ENTRIES, 1, {});
       return result;
     }
     start = sorted[0]!.day;
     end = sorted[sorted.length - 1]!.day;
   }
 
-  const days: CalendarHeatmapDay[] = [];
+  const days: CalendarDay[] = [];
   for (const d of sorted) {
     if (d.day < start || d.day > end) {
-      report(CALENDAR_HEATMAP_DX.OUTSIDE_SPAN, d.lineNumber, { date: d.date });
+      report(CALENDAR_DX.OUTSIDE_SPAN, d.lineNumber, { date: d.date });
       continue;
     }
     days.push(d);

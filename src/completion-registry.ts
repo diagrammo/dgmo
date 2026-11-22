@@ -782,7 +782,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     }),
   ],
   [
-    'calendar-heatmap',
+    'calendar',
     withGlobals({
       'no-legend': { description: 'Hide the Less … More legend' },
       year: {

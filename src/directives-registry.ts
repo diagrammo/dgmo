@@ -96,7 +96,7 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
     token: 'year',
     category: 'directive',
     chartTypes: [
-      'calendar-heatmap',
+      'calendar',
       'countdown',
       'event-line',
       'gantt',
@@ -944,7 +944,7 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
     chartTypes: [
       'bar',
       'boxplot',
-      'calendar-heatmap',
+      'calendar',
       'function',
       'funnel',
       'heatmap',
@@ -1119,7 +1119,7 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   {
     token: 'max',
     category: 'directive',
-    chartTypes: ['calendar-heatmap', 'wordcloud'],
+    chartTypes: ['calendar', 'wordcloud'],
   },
   // `size WxH` / `aspect W:H` — the file's own canvas, every chart type
   // (#1966). On a wordcloud `size <min> <max>` is still the word-size range,
@@ -1236,19 +1236,19 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   ),
 
   // ── Calendar heatmap header options (#1855) ──────────────
-  { token: 'from', category: 'directive', chartTypes: ['calendar-heatmap'] },
+  { token: 'from', category: 'directive', chartTypes: ['calendar'] },
   {
     token: 'week-start',
     category: 'directive',
-    chartTypes: ['calendar-heatmap'],
+    chartTypes: ['calendar'],
   },
   {
     token: 'no-summary',
     category: 'directive',
-    chartTypes: ['calendar-heatmap'],
+    chartTypes: ['calendar'],
   },
   // The shared value-ramp line (§13.9): `heat <Label> [low] [high]`.
-  { token: 'heat', category: 'directive', chartTypes: ['calendar-heatmap'] },
+  { token: 'heat', category: 'directive', chartTypes: ['calendar'] },
 
   // ── SWOT section keywords (CONTROL) ──────────────────────
   { token: 'strengths', category: 'control', chartTypes: ['swot'] },

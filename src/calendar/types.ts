@@ -5,7 +5,7 @@ import type { TagGroup } from '../utils/tag-groups';
 /** One calendar day, as a UTC day number (days since 1970-01-01). */
 export type DayNumber = number;
 
-export interface CalendarHeatmapDay {
+export interface CalendarDay {
   /** UTC day number. */
   readonly day: DayNumber;
   /** `YYYY-MM-DD`. */
@@ -18,8 +18,8 @@ export interface CalendarHeatmapDay {
   readonly lineNumber: number;
 }
 
-export interface ParsedCalendarHeatmap {
-  readonly type: 'calendar-heatmap';
+export interface ParsedCalendar {
+  readonly type: 'calendar';
   /** `subtitle`, `source`, `footnote`, `byline` (#1827). */
   readonly frame?: ChartFrame;
   readonly title?: string;
@@ -44,7 +44,7 @@ export interface ParsedCalendarHeatmap {
   /** `tag Name` groups, with their values and colours. */
   readonly tagGroups: readonly TagGroup[];
   /** Days with an entry inside the span, in date order. */
-  readonly days: readonly CalendarHeatmapDay[];
+  readonly days: readonly CalendarDay[];
   readonly options: Readonly<Record<string, string>>;
   readonly diagnostics: readonly DgmoError[];
   readonly error: string | null;

@@ -1,12 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
-import {
-  calendarSummary,
-  shadeLevels,
-  unitFor,
-} from '../src/calendar-heatmap/format';
-import { parseCalendarHeatmap } from '../src/calendar-heatmap/parser';
-import { renderCalendarHeatmap } from '../src/calendar-heatmap/renderer';
+import { calendarSummary, shadeLevels, unitFor } from '../src/calendar/format';
+import { parseCalendar } from '../src/calendar/parser';
+import { renderCalendar } from '../src/calendar/renderer';
 import { renderForExport } from '../src/d3';
 import { getPalette } from '../src/palettes';
 import { resolveColor } from '../src/colors';
@@ -14,24 +10,24 @@ import { resolveColor } from '../src/colors';
 const palette = getPalette('nord').light;
 
 function draw(src: string, exportMode = false): HTMLElement {
-  const parsed = parseCalendarHeatmap(src);
+  const parsed = parseCalendar(src);
   expect(parsed.error).toBeNull();
   const container = document.createElement('div');
   vi.spyOn(container, 'getBoundingClientRect').mockReturnValue({
     width: 0,
   } as DOMRect);
-  renderCalendarHeatmap(container, parsed, palette, false, { exportMode });
+  renderCalendar(container, parsed, palette, false, { exportMode });
   return container;
 }
 
 const day = (c: HTMLElement, date: string) =>
-  c.querySelector(`.calendar-heatmap-day[data-date="${date}"]`)!;
+  c.querySelector(`.calendar-day[data-date="${date}"]`)!;
 const xy = (el: Element) => ({
   x: Number(el.getAttribute('x')),
   y: Number(el.getAttribute('y')),
 });
 
-const YEAR = `calendar-heatmap Runs in 2026
+const YEAR = `calendar Runs in 2026
 year 2026
 unit run
 
@@ -41,11 +37,9 @@ unit run
 03-11 3
 `;
 
-describe('calendar-heatmap grid (#1855)', () => {
+describe('calendar grid (#1855)', () => {
   it('draws one square per day of the year', () => {
-    expect(draw(YEAR).querySelectorAll('.calendar-heatmap-day')).toHaveLength(
-      365
-    );
+    expect(draw(YEAR).querySelectorAll('.calendar-day')).toHaveLength(365);
   });
 
   it('puts weeks across and weekdays down, week one holding 1 January', () => {
@@ -70,7 +64,7 @@ describe('calendar-heatmap grid (#1855)', () => {
     const sun = xy(day(c, '2026-01-04'));
     expect(mon.x).toBeGreaterThan(sun.x);
     expect(mon.y).toBeLessThan(sun.y);
-    const tops = [...c.querySelectorAll('.calendar-heatmap-day')].map((r) =>
+    const tops = [...c.querySelectorAll('.calendar-day')].map((r) =>
       Number(r.getAttribute('y'))
     );
     expect(mon.y).toBe(Math.min(...tops));
@@ -78,7 +72,7 @@ describe('calendar-heatmap grid (#1855)', () => {
 
   it('labels the months and only Mon, Wed and Fri', () => {
     const c = draw(YEAR);
-    const months = [...c.querySelectorAll('.calendar-heatmap-month')].map(
+    const months = [...c.querySelectorAll('.calendar-month')].map(
       (t) => t.textContent
     );
     expect(months).toEqual([
@@ -95,14 +89,14 @@ describe('calendar-heatmap grid (#1855)', () => {
       'Nov',
       'Dec',
     ]);
-    const weekdays = [...c.querySelectorAll('.calendar-heatmap-weekday')].map(
+    const weekdays = [...c.querySelectorAll('.calendar-weekday')].map(
       (t) => t.textContent
     );
     expect(weekdays).toEqual(['Mon', 'Wed', 'Fri']);
     expect(
       [
         ...draw(`${YEAR}week-start monday\n`).querySelectorAll(
-          '.calendar-heatmap-weekday'
+          '.calendar-weekday'
         ),
       ].map((t) => t.textContent)
     ).toEqual(['Mon', 'Wed', 'Fri']);
@@ -110,7 +104,7 @@ describe('calendar-heatmap grid (#1855)', () => {
 
   it('centres each month name over the weeks its month spans', () => {
     const c = draw(YEAR);
-    const mar = [...c.querySelectorAll('.calendar-heatmap-month')].find(
+    const mar = [...c.querySelectorAll('.calendar-month')].find(
       (t) => t.textContent === 'Mar'
     )!;
     const first = day(c, '2026-03-01');
@@ -123,13 +117,11 @@ describe('calendar-heatmap grid (#1855)', () => {
 
   it('grows the squares for a short span', () => {
     const year = draw(YEAR);
-    const short = draw(
-      'calendar-heatmap\nfrom 2026-09-01 to 2026-11-30\n2026-09-02 6'
-    );
+    const short = draw('calendar\nfrom 2026-09-01 to 2026-11-30\n2026-09-02 6');
     const w = (c: HTMLElement) =>
-      Number(c.querySelector('.calendar-heatmap-day')!.getAttribute('width'));
+      Number(c.querySelector('.calendar-day')!.getAttribute('width'));
     expect(w(short)).toBeGreaterThan(w(year));
-    expect(short.querySelectorAll('.calendar-heatmap-day')).toHaveLength(91);
+    expect(short.querySelectorAll('.calendar-day')).toHaveLength(91);
   });
 
   it('says the value, unit and full weekday date on each day', () => {
@@ -167,7 +159,7 @@ describe('calendar-heatmap grid (#1855)', () => {
   });
 });
 
-describe('calendar-heatmap shading (#1855)', () => {
+describe('calendar shading (#1855)', () => {
   it('splits the non-zero days into four equal-count bands', () => {
     const level = shadeLevels([1, 2, 3, 4, 5, 6, 7, 8]);
     expect([0, 1, 2, 3, 4, 5, 6, 7, 8].map(level)).toEqual([
@@ -193,7 +185,7 @@ describe('calendar-heatmap shading (#1855)', () => {
     const c = draw(YEAR);
     expect(day(c, '2026-06-01').getAttribute('data-level')).toBe('0');
     expect(day(c, '2026-03-10').getAttribute('data-level')).toBe('4');
-    const steps = [...c.querySelectorAll('.calendar-heatmap-legend-step')];
+    const steps = [...c.querySelectorAll('.calendar-legend-step')];
     expect(steps.map((s) => s.getAttribute('data-level'))).toEqual([
       '0',
       '1',
@@ -205,7 +197,7 @@ describe('calendar-heatmap shading (#1855)', () => {
     expect(fill(day(c, '2026-03-10'))).toBe(fill(steps[4]!));
     expect(fill(day(c, '2026-06-01'))).toBe(fill(steps[0]!));
     expect(new Set(steps.map(fill)).size).toBe(5);
-    const words = [...c.querySelectorAll('.calendar-heatmap-legend text')].map(
+    const words = [...c.querySelectorAll('.calendar-legend text')].map(
       (t) => t.textContent
     );
     expect(words).toEqual(['Less', 'More']);
@@ -213,12 +205,12 @@ describe('calendar-heatmap shading (#1855)', () => {
 
   it('`no-legend` drops the legend', () => {
     expect(
-      draw(`${YEAR}no-legend\n`).querySelector('.calendar-heatmap-legend')
+      draw(`${YEAR}no-legend\n`).querySelector('.calendar-legend')
     ).toBeNull();
   });
 });
 
-describe('calendar-heatmap summary (#1855)', () => {
+describe('calendar summary (#1855)', () => {
   it('puts the total and the busiest day on the subtitle line', () => {
     const c = draw(YEAR);
     expect(c.querySelector('.chart-subtitle')!.textContent).toBe(
@@ -238,16 +230,12 @@ describe('calendar-heatmap summary (#1855)', () => {
   });
 
   it('names the year of the busiest day when the span crosses one', () => {
-    const p = parseCalendarHeatmap(
-      'calendar-heatmap\n2025-12-30 2\n2026-01-02 4\nunit km'
-    );
+    const p = parseCalendar('calendar\n2025-12-30 2\n2026-01-02 4\nunit km');
     expect(calendarSummary(p)).toBe('6 km · busiest day Jan 2, 2026');
   });
 
   it('says nothing when no day has a value', () => {
-    expect(
-      calendarSummary(parseCalendarHeatmap('calendar-heatmap\nyear 2026'))
-    ).toBeNull();
+    expect(calendarSummary(parseCalendar('calendar\nyear 2026'))).toBeNull();
   });
 
   it('pluralises a word unit and leaves a symbol alone', () => {
@@ -260,17 +248,17 @@ describe('calendar-heatmap summary (#1855)', () => {
   });
 });
 
-describe('calendar-heatmap export (#1855)', () => {
+describe('calendar export (#1855)', () => {
   it('renders through renderForExport', async () => {
     const svg = await renderForExport(YEAR, 'light');
-    expect(svg).toContain('calendar-heatmap-day');
+    expect(svg).toContain('calendar-day');
     expect(svg).toContain('Runs in 2026');
     expect(svg).not.toContain('tabindex');
   });
 });
 
-describe('calendar-heatmap multi-year span (#2089)', () => {
-  const SPAN = `calendar-heatmap Voyages
+describe('calendar multi-year span (#2089)', () => {
+  const SPAN = `calendar Voyages
 from 2023-03-10 to 2026-09-20
 unit voyage
 
@@ -280,7 +268,7 @@ unit voyage
 
   it('stacks one band per calendar year so the canvas stays a year wide', () => {
     const c = draw(SPAN);
-    const years = [...c.querySelectorAll('.calendar-heatmap-year')].map(
+    const years = [...c.querySelectorAll('.calendar-year')].map(
       (t) => t.textContent
     );
     expect(years).toEqual(['2023', '2024', '2025', '2026']);
@@ -294,42 +282,36 @@ unit voyage
     expect(day(c, '2024-01-01').getAttribute('x')).toBe(
       day(c, '2025-01-01').getAttribute('x')
     );
-    expect(c.querySelectorAll('.calendar-heatmap-day')).toHaveLength(
+    expect(c.querySelectorAll('.calendar-day')).toHaveLength(
       Math.round((Date.UTC(2026, 8, 20) - Date.UTC(2023, 2, 10)) / 86_400_000) +
         1
     );
   });
 
   it('shows no year label for a span of a year or less', () => {
-    expect(draw(YEAR).querySelectorAll('.calendar-heatmap-year')).toHaveLength(
-      0
-    );
+    expect(draw(YEAR).querySelectorAll('.calendar-year')).toHaveLength(0);
   });
 });
 
-describe('calendar-heatmap hovers (#2090, #2091)', () => {
+describe('calendar hovers (#2090, #2091)', () => {
   const hover = (el: Element) => el.dispatchEvent(new Event('mouseenter'));
   const leave = (el: Element) => el.dispatchEvent(new Event('mouseleave'));
   const lit = (c: HTMLElement) =>
-    [...c.querySelectorAll<SVGRectElement>('.calendar-heatmap-day')]
+    [...c.querySelectorAll<SVGRectElement>('.calendar-day')]
       .filter((d) => d.style.opacity === '')
       .map((d) => d.getAttribute('data-date')!);
   const outline = (c: HTMLElement) =>
-    c.querySelector('.calendar-heatmap-span')!.getAttribute('d')!;
+    c.querySelector('.calendar-span')!.getAttribute('d')!;
 
   it('a month name keeps only that month lit and outlines it', () => {
     const c = draw(YEAR);
-    const mar = c.querySelector(
-      '.calendar-heatmap-month[data-month="2026-03"]'
-    )!;
+    const mar = c.querySelector('.calendar-month[data-month="2026-03"]')!;
     hover(mar);
     const on = lit(c);
     expect(on).toHaveLength(31);
     expect(on.every((d) => d.startsWith('2026-03'))).toBe(true);
     // Drawn in the squares' own frame, which the title band shifts down.
-    expect(
-      c.querySelector('.calendar-heatmap-days > .calendar-heatmap-span')
-    ).not.toBeNull();
+    expect(c.querySelector('.calendar-days > .calendar-span')).not.toBeNull();
     // A ragged month has more than four edges.
     expect(outline(c).match(/M/g)!.length).toBeGreaterThan(4);
     leave(mar);
@@ -338,13 +320,13 @@ describe('calendar-heatmap hovers (#2090, #2091)', () => {
   });
 
   it('keeps the same month apart in two years', () => {
-    const c = draw(`calendar-heatmap Voyages
+    const c = draw(`calendar Voyages
 from 2025-11-01 to 2026-12-31
 
 2025-12-04 5
 2026-12-20 8
 `);
-    hover(c.querySelector('.calendar-heatmap-month[data-month="2025-12"]')!);
+    hover(c.querySelector('.calendar-month[data-month="2025-12"]')!);
     const on = lit(c);
     expect(on).toHaveLength(31);
     expect(on.every((d) => d.startsWith('2025-12'))).toBe(true);
@@ -352,9 +334,7 @@ from 2025-11-01 to 2026-12-31
 
   it('a legend shade keeps only days at that shade lit, with no outline', () => {
     const c = draw(YEAR);
-    const step = c.querySelector(
-      '.calendar-heatmap-legend-step[data-level="0"]'
-    )!;
+    const step = c.querySelector('.calendar-legend-step[data-level="0"]')!;
     hover(step);
     const on = lit(c);
     expect(on).toHaveLength(365 - 4);
@@ -364,7 +344,7 @@ from 2025-11-01 to 2026-12-31
 
   it('"busiest day" in the summary rings that one day', () => {
     const c = draw(YEAR);
-    const phrase = c.querySelector('.calendar-heatmap-busiest')!;
+    const phrase = c.querySelector('.calendar-busiest')!;
     expect(phrase.textContent).toBe('busiest day Mar 10');
     expect(phrase.parentElement!.textContent).toContain('· busiest day Mar 10');
     hover(phrase);
@@ -375,27 +355,27 @@ from 2025-11-01 to 2026-12-31
   it('export mode adds no hovers and no month keys', () => {
     const c = draw(YEAR, true);
     expect(c.querySelector('[data-month]')).toBeNull();
-    expect(c.querySelector('.calendar-heatmap-span')).toBeNull();
-    expect(c.querySelector('.calendar-heatmap-busiest')).toBeNull();
+    expect(c.querySelector('.calendar-span')).toBeNull();
+    expect(c.querySelector('.calendar-busiest')).toBeNull();
   });
 });
 
-describe('calendar-heatmap heat colours', () => {
+describe('calendar heat colours', () => {
   const steps = (c: HTMLElement) =>
-    [...c.querySelectorAll('.calendar-heatmap-legend-step')].map((s) =>
+    [...c.querySelectorAll('.calendar-legend-step')].map((s) =>
       s.getAttribute('fill')
     );
   const withHeat = (line: string) =>
     YEAR.replace('unit run', `unit run\n${line}`);
 
   it('reads the shared ramp line: label, then up to two colours', () => {
-    expect(parseCalendarHeatmap(withHeat('heat Runs blue red')).heat).toEqual({
+    expect(parseCalendar(withHeat('heat Runs blue red')).heat).toEqual({
       label: 'Runs',
       low: 'blue',
       high: 'red',
     });
     // A lone word is the label, never a colour.
-    expect(parseCalendarHeatmap(withHeat('heat Red')).heat).toEqual({
+    expect(parseCalendar(withHeat('heat Red')).heat).toEqual({
       label: 'Red',
     });
   });
@@ -404,9 +384,9 @@ describe('calendar-heatmap heat colours', () => {
     const plain = draw(YEAR);
     const named = draw(withHeat('heat Runs'));
     expect(steps(named)).toEqual(steps(plain));
-    expect(
-      named.querySelector('.calendar-heatmap-legend-label')!.textContent
-    ).toBe('Runs');
+    expect(named.querySelector('.calendar-legend-label')!.textContent).toBe(
+      'Runs'
+    );
   });
 
   it('one colour replaces the green; zero stays grey', () => {

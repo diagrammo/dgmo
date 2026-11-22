@@ -1,4 +1,4 @@
-calendar-heatmap Minimal calendar
+calendar Minimal calendar
 year 2026
 unit run
 // The total-and-busiest-day line is the frame's subtitle, which moves the

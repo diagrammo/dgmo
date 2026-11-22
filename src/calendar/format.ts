@@ -4,7 +4,7 @@
 // ============================================================
 
 import { dayToIso } from './parser';
-import type { DayNumber, ParsedCalendarHeatmap } from './types';
+import type { DayNumber, ParsedCalendar } from './types';
 
 export const WEEKDAYS = [
   'Sunday',
@@ -98,7 +98,7 @@ export function shadeLevels(
 
 /** Tag mode: "212 days logged · most often Great", or null when no day has
  *  a tag. A tie goes to the value declared first. */
-function tagSummary(parsed: ParsedCalendarHeatmap): string | null {
+function tagSummary(parsed: ParsedCalendar): string | null {
   const counts = new Map<string, number>();
   for (const d of parsed.days)
     if (d.tag !== undefined) counts.set(d.tag, (counts.get(d.tag) ?? 0) + 1);
@@ -116,7 +116,7 @@ function tagSummary(parsed: ParsedCalendarHeatmap): string | null {
 }
 
 /** "1,093 commits · busiest day Mar 10", or null when no day has a value. */
-export function calendarSummary(parsed: ParsedCalendarHeatmap): string | null {
+export function calendarSummary(parsed: ParsedCalendar): string | null {
   if (parsed.mode === 'tag') return tagSummary(parsed);
   const best = busiestDay(parsed);
   if (!best) return null;
@@ -131,7 +131,7 @@ export function calendarSummary(parsed: ParsedCalendarHeatmap): string | null {
  *  phrase naming it, "busiest day Mar 10"; null in tag mode or when no day
  *  has a value. */
 export function busiestDay(
-  parsed: ParsedCalendarHeatmap
+  parsed: ParsedCalendar
 ): { day: DayNumber; phrase: string } | null {
   if (parsed.mode === 'tag') return null;
   let best: { day: DayNumber; value: number } | null = null;

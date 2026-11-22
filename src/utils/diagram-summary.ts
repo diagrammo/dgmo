@@ -72,8 +72,8 @@ import { parseRaci } from '../raci/parser';
 import { parseSwot } from '../swot/parser';
 import { parseOwnership } from '../ownership/parser';
 import { ownershipSummary } from '../ownership/format';
-import { parseCalendarHeatmap } from '../calendar-heatmap/parser';
-import { calendarSummary } from '../calendar-heatmap/format';
+import { parseCalendar } from '../calendar/parser';
+import { calendarSummary } from '../calendar/format';
 import { parseWaterfall } from '../waterfall/parser';
 import { parseSequenceDgmo } from '../sequence/parser';
 import { parseSitemap } from '../sitemap/parser';
@@ -507,8 +507,8 @@ function summarizeOwnership(content: string): string | null {
   return ownershipSummary(parsed);
 }
 
-function summarizeCalendarHeatmap(content: string): string | null {
-  const parsed = parseCalendarHeatmap(content);
+function summarizeCalendar(content: string): string | null {
+  const parsed = parseCalendar(content);
   if (parsed.error) return null;
   const span = parsed.end - parsed.start + 1;
   const summary = calendarSummary(parsed);
@@ -1083,7 +1083,7 @@ const SUMMARIZERS: Record<ChartTypeId, Summarizer> = {
   raci: summarizeRaci,
   swot: summarizeSwot,
   ownership: summarizeOwnership,
-  'calendar-heatmap': summarizeCalendarHeatmap,
+  calendar: summarizeCalendar,
   waterfall: summarizeWaterfall,
   body: summarizeBody,
   bracket: summarizeBracket,

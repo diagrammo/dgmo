@@ -33,7 +33,7 @@ import { AXIS_FORMAT_DX } from './utils/axis-format';
 import { RACI_DIAGNOSTICS } from './raci/diagnostics';
 import { SWOT_DIAGNOSTICS } from './swot/diagnostics';
 import { OWNERSHIP_DIAGNOSTICS } from './ownership/diagnostics';
-import { CALENDAR_HEATMAP_DIAGNOSTICS } from './calendar-heatmap/diagnostics';
+import { CALENDAR_DIAGNOSTICS } from './calendar/diagnostics';
 import { WATERFALL_DIAGNOSTICS } from './waterfall/diagnostics';
 import { TREEMAP_DIAGNOSTICS } from './treemap/diagnostics';
 import { EVENT_LINE_DIAGNOSTICS } from './event-line/diagnostics';
@@ -237,7 +237,7 @@ const REGISTRY: DiagnosticSpec[] = [
   ...RACI_DIAGNOSTICS,
   ...SWOT_DIAGNOSTICS,
   ...OWNERSHIP_DIAGNOSTICS,
-  ...CALENDAR_HEATMAP_DIAGNOSTICS,
+  ...CALENDAR_DIAGNOSTICS,
   ...WATERFALL_DIAGNOSTICS,
   ...TREEMAP_DIAGNOSTICS,
   ...EVENT_LINE_DIAGNOSTICS,

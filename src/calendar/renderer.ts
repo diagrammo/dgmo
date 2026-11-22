@@ -46,9 +46,9 @@ import {
   WEEKDAYS,
 } from './format';
 import { dayToIso } from './parser';
-import type { DayNumber, ParsedCalendarHeatmap } from './types';
+import type { DayNumber, ParsedCalendar } from './types';
 
-export interface CalendarHeatmapRenderOptions {
+export interface CalendarRenderOptions {
   exportMode?: boolean;
 }
 
@@ -129,12 +129,12 @@ function shadeFills(
   ];
 }
 
-export function renderCalendarHeatmap(
+export function renderCalendar(
   container: HTMLElement,
-  parsed: ParsedCalendarHeatmap,
+  parsed: ParsedCalendar,
   palette: PaletteColors,
   isDark: boolean,
-  options?: CalendarHeatmapRenderOptions
+  options?: CalendarRenderOptions
 ): void {
   const exportMode = options?.exportMode ?? false;
   const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
@@ -277,13 +277,13 @@ export function renderCalendarHeatmap(
   }
 
   // ── Month and weekday labels ───────────────────────────────
-  const labels = svg.append('g').attr('class', 'calendar-heatmap-labels');
+  const labels = svg.append('g').attr('class', 'calendar-labels');
   bands.forEach((band, bi) => {
     const yTop = bandTop(bi);
     if (stacked) {
       labels
         .append('text')
-        .attr('class', 'calendar-heatmap-year')
+        .attr('class', 'calendar-year')
         .attr('x', DIAGRAM_PADDING)
         .attr('y', yTop - 5)
         .attr('font-size', LABEL_FONT_SIZE)
@@ -310,7 +310,7 @@ export function renderCalendarHeatmap(
       if (left >= lastMonthRight + MONTH_LABEL_GAP) {
         labels
           .append('text')
-          .attr('class', 'calendar-heatmap-month')
+          .attr('class', 'calendar-month')
           .attr('data-month', exportMode ? null : dayToIso(day).slice(0, 7))
           .attr('x', left + w / 2)
           .attr('y', yTop - 5)
@@ -327,7 +327,7 @@ export function renderCalendarHeatmap(
       if (!LABELLED_WEEKDAYS.has(wd)) continue;
       labels
         .append('text')
-        .attr('class', 'calendar-heatmap-weekday')
+        .attr('class', 'calendar-weekday')
         .attr('x', gridLeft - WEEKDAY_GAP)
         .attr('y', yTop + row * pitch + cell / 2)
         .attr('text-anchor', 'end')
@@ -357,7 +357,7 @@ export function renderCalendarHeatmap(
 
   const grid = svg
     .append('g')
-    .attr('class', 'calendar-heatmap-days')
+    .attr('class', 'calendar-days')
     .attr('role', 'list');
   for (let day = start; day <= end; day++) {
     const entry = byDay.get(day);
@@ -374,7 +374,7 @@ export function renderCalendarHeatmap(
     const label = `${fullDate(day)}: ${shown}`;
     const rect = grid
       .append('rect')
-      .attr('class', 'calendar-heatmap-day')
+      .attr('class', 'calendar-day')
       .attr('data-date', dayToIso(day))
       .attr('data-value', value)
       .attr('data-level', shade < 0 ? null : shade)
@@ -414,12 +414,12 @@ export function renderCalendarHeatmap(
 
   // ── Tag legend: one swatch per value, then "Not logged" ────
   if (showLegend && tagMode) {
-    const legend = svg.append('g').attr('class', 'calendar-heatmap-legend');
+    const legend = svg.append('g').attr('class', 'calendar-legend');
     for (const item of tagLegend) {
       const y = legendTop + item.row * (LEGEND_CELL + LEGEND_ROW_GAP);
       const g = legend
         .append('g')
-        .attr('class', 'calendar-heatmap-legend-tag')
+        .attr('class', 'calendar-legend-tag')
         .attr('data-tag', item.fill ? item.label : null);
       g.append('rect')
         .attr('x', gridLeft + item.x)
@@ -442,7 +442,7 @@ export function renderCalendarHeatmap(
 
   // ── Legend: Less ▢▢▢▢▢ More, bottom right ──────────────────
   if (showLegend && !tagMode) {
-    const legend = svg.append('g').attr('class', 'calendar-heatmap-legend');
+    const legend = svg.append('g').attr('class', 'calendar-legend');
     const moreWidth = measureText('More', LABEL_FONT_SIZE);
     const lessWidth = measureText('Less', LABEL_FONT_SIZE);
     const right = gridLeft + gridWidth;
@@ -461,7 +461,7 @@ export function renderCalendarHeatmap(
     if (parsed.heat?.label)
       legend
         .append('text')
-        .attr('class', 'calendar-heatmap-legend-label')
+        .attr('class', 'calendar-legend-label')
         .attr(
           'x',
           squaresLeft -
@@ -479,7 +479,7 @@ export function renderCalendarHeatmap(
     fills.forEach((fill, i) => {
       legend
         .append('rect')
-        .attr('class', 'calendar-heatmap-legend-step')
+        .attr('class', 'calendar-legend-step')
         .attr('data-level', i)
         .attr('x', squaresLeft + i * (LEGEND_CELL + GAP))
         .attr('y', legendTop)
@@ -550,16 +550,14 @@ function attachSpanHovers(
     tips: Map<string, string>;
   }
 ): void {
-  const days = [
-    ...svg.querySelectorAll<SVGRectElement>('.calendar-heatmap-day'),
-  ];
+  const days = [...svg.querySelectorAll<SVGRectElement>('.calendar-day')];
   for (const d of days) d.style.transition = HOVER_FADE;
   // Inside the days group: the frame shifts the body below the title and
   // summary, so a path on the root would sit that far above the squares.
   const span = d3Selection
-    .select(svg.querySelector<SVGGElement>('.calendar-heatmap-days')!)
+    .select(svg.querySelector<SVGGElement>('.calendar-days')!)
     .append('path')
-    .attr('class', 'calendar-heatmap-span')
+    .attr('class', 'calendar-span')
     .attr('fill', 'none')
     .attr('stroke', o.color)
     .attr('stroke-opacity', SPAN_OUTLINE_OPACITY)
@@ -588,14 +586,14 @@ function attachSpanHovers(
     el.addEventListener('mouseleave', clear);
     el.addEventListener('blur', clear);
   };
-  for (const label of svg.querySelectorAll('.calendar-heatmap-month')) {
+  for (const label of svg.querySelectorAll('.calendar-month')) {
     const month = label.getAttribute('data-month');
     if (month)
       bind(label, () =>
         focus((d) => d.getAttribute('data-date')!.startsWith(month), true)
       );
   }
-  for (const step of svg.querySelectorAll('.calendar-heatmap-legend-step')) {
+  for (const step of svg.querySelectorAll('.calendar-legend-step')) {
     const lv = step.getAttribute('data-level');
     bind(step, () => focus((d) => d.getAttribute('data-level') === lv, false));
   }
@@ -609,7 +607,7 @@ function attachSpanHovers(
   if (!best || !subtitle || at < 0 || subtitle.children.length) return;
   const doc = svg.ownerDocument;
   const phrase = doc.createElementNS(svg.namespaceURI, 'tspan');
-  phrase.setAttribute('class', 'calendar-heatmap-busiest');
+  phrase.setAttribute('class', 'calendar-busiest');
   phrase.textContent = o.busiest.phrase;
   subtitle.textContent = text.slice(0, at);
   subtitle.appendChild(phrase);

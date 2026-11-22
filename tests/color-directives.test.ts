@@ -23,7 +23,7 @@ import { parseGantt } from '../src/gantt/parser';
 import { parseSwimlane } from '../src/swimlane/parser';
 import { parseJourneyMap } from '../src/journey-map/parser';
 import { parseMap } from '../src/map/parser';
-import { parseCalendarHeatmap } from '../src/calendar-heatmap/parser';
+import { parseCalendar } from '../src/calendar/parser';
 import { parseVisualization } from '../src/d3';
 
 /** What a parser reports for one directive line: its colors and its label. */
@@ -106,15 +106,13 @@ const FIXTURES: Record<string, Fixture> = {
       };
     },
   },
-  'calendar-heatmap:heat': {
+  'calendar:heat': {
     // The shared value-ramp line, like `region-heat`.
     colored: { line: 'heat Errors yellow red', colors: 2, label: 'Errors' },
     bare: { line: 'heat blue', label: 'blue' },
     plain: { line: 'heat Errors', label: 'Errors' },
     read: (line) => {
-      const h = parseCalendarHeatmap(
-        `calendar-heatmap\n${line}\n2026-01-01 1\n`
-      ).heat;
+      const h = parseCalendar(`calendar\n${line}\n2026-01-01 1\n`).heat;
       return {
         colors: truthy(h?.low, h?.high),
         label: h?.label ?? null,

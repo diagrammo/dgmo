@@ -256,14 +256,14 @@ export const GENERATORS_C: Record<string, Generator> = {
   },
 
   // n weeks of daily values: the grid grows a column per week.
-  'calendar-heatmap': {
+  calendar: {
     gen: (n) => {
       const start = Date.UTC(2024, 0, 1);
       const day = (d: number) =>
         new Date(start + d * 86_400_000).toISOString().slice(0, 10);
       const days = n * 7;
       const lines = [
-        'calendar-heatmap Growth activity',
+        'calendar Growth activity',
         `from ${day(0)} to ${day(days - 1)}`,
         'unit commit',
         '',

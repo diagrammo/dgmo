@@ -63,7 +63,7 @@ describe('flowchart routing', () => {
     // Bracket + countdown chart types added: 47 → 49. Clock added: 49 → 50.
     // live-link added: 50 → 51 (internal — routable, never offered).
     // whiteboard added: 51 → 52. sketch retired (#1669): 52 → 51.
-    // swot added: 51 → 52. calendar-heatmap added (#1855): 52 → 53.
+    // swot added: 51 → 52. calendar added (#1855): 52 → 53.
     // ownership added (#1873): 53 → 54. boxplot added (#1848): 54 → 55.
     // histogram added (#1847): 55 → 56. waterfall added (#1850): 56 → 57.
     expect(getAllChartTypes().length).toBe(57);

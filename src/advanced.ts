@@ -769,9 +769,9 @@ export type {
 } from './goal/types';
 // Calendar heatmap (#1855) and ownership (#1873): the app's preview draws
 // each through its own parse + render pair, like goal above.
-export { parseCalendarHeatmap } from './calendar-heatmap/parser';
-export { renderCalendarHeatmap } from './calendar-heatmap/renderer';
-export type { ParsedCalendarHeatmap } from './calendar-heatmap/types';
+export { parseCalendar } from './calendar/parser';
+export { renderCalendar } from './calendar/renderer';
+export type { ParsedCalendar } from './calendar/types';
 export { parseOwnership } from './ownership/parser';
 export { renderOwnership } from './ownership/renderer';
 export type { ParsedOwnership } from './ownership/types';
