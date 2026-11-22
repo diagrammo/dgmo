@@ -772,7 +772,7 @@ export function renderEventLine(
             palette.textOnFillDark
           )
         : nowColor;
-    const { label, pillW, pillH, pillCX, y0, stemFrom, stemTo, offEdge } = now;
+    const { label, pillW, pillH, pillCX, y0, stemFrom, stemTo } = now;
 
     const nowG = svg
       .append('g')
@@ -811,35 +811,55 @@ export function renderEventLine(
       .attr('offset', '100%')
       .attr('stop-color', nowColor)
       .attr('stop-opacity', 0);
-    // Off the edge (§28.6b) the pin stands on an end dot that is NOT today,
-    // so no today-line is drawn there — the chevron alone says "further out".
-    if (!offEdge)
+    nowG
+      .append('line')
+      .attr('x1', nowX)
+      .attr('y1', ruleTop)
+      .attr('x2', nowX)
+      .attr('y2', ruleBot)
+      .attr('stroke', `url(#${gradId})`)
+      .attr('stroke-width', 1.6)
+      .attr('stroke-dasharray', HAIRLINE_DASH)
+      .attr('stroke-linecap', 'round');
+    // Off the edge (§28.6b, #2229): an axis break between the pin and the end
+    // event — a gap in the spine with two slashes — and the distance beside it,
+    // on the side away from the tab. Drawn before the diamond.
+    if (now.breakX !== null) {
+      const bx = now.breakX;
       nowG
-        .append('line')
-        .attr('x1', nowX)
-        .attr('y1', ruleTop)
-        .attr('x2', nowX)
-        .attr('y2', ruleBot)
-        .attr('stroke', `url(#${gradId})`)
-        .attr('stroke-width', 1.6)
-        .attr('stroke-dasharray', HAIRLINE_DASH)
-        .attr('stroke-linecap', 'round');
-    // Diamond planted on the spine — the exact "you are here" point. When the
-    // date is outside the events, an outward chevron just past the end dot
-    // instead: "today is further this way", not "today is here".
-    const chevron = (dir: -1 | 1): string => {
-      const base = nowX + dir * (DOT_R + 2);
-      const tip = Math.max(1, Math.min(base + dir * 9, spine.right + 9));
-      return `M${base} ${spineY - 5} L${tip} ${spineY} L${base} ${spineY + 5} z`;
-    };
+        .append('rect')
+        .attr('class', 'evt-now-break')
+        .attr('x', bx - 7)
+        .attr('y', spineY - 3)
+        .attr('width', 14)
+        .attr('height', 6)
+        .attr('fill', base);
+      for (const dx of [-4, 4])
+        nowG
+          .append('line')
+          .attr('x1', bx + dx - 4)
+          .attr('y1', spineY + 7)
+          .attr('x2', bx + dx + 4)
+          .attr('y2', spineY - 7)
+          .attr('stroke', palette.text)
+          .attr('stroke-width', 1.5)
+          .attr('stroke-linecap', 'round');
+      if (now.gapLabel)
+        nowG
+          .append('text')
+          .attr('class', 'evt-now-gap')
+          .attr('x', bx)
+          .attr('y', spineY + (y0 < spineY ? 20 : -12))
+          .attr('text-anchor', 'middle')
+          .attr('font-family', FONT_FAMILY)
+          .attr('font-size', 10)
+          .attr('fill', palette.textMuted)
+          .text(now.gapLabel);
+    }
+    // Diamond planted on the spine — the exact "you are here" point.
     nowG
       .append('path')
-      .attr(
-        'd',
-        offEdge
-          ? chevron(offEdge === 'before' ? -1 : 1)
-          : `M${nowX} ${spineY - 5} l5 5 l-5 5 l-5 -5 z`
-      )
+      .attr('d', `M${nowX} ${spineY - 5} l5 5 l-5 5 l-5 -5 z`)
       .attr('fill', nowColor);
     // Stem from the spine to the tab.
     nowG
@@ -877,7 +897,7 @@ export function renderEventLine(
     // while the pointer is over the marker, so at rest the today-line never
     // sits atop cards. Lowered within nowG so it rides ABOVE cards but BELOW
     // the diamond/tab. Static exports skip it — nothing to hover.
-    if (!exportMode && !offEdge) {
+    if (!exportMode) {
       const hoverRule = nowG
         .append('line')
         .attr('class', 'evt-now-rule-full')

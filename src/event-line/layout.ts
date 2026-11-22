@@ -198,10 +198,14 @@ export interface NowMarkerGeometry {
   y1: number;
   stemFrom: number;
   stemTo: number;
-  /** Set when the pin's date falls outside the dated events and it is
-   *  clamped to an end dot: the renderer draws an outward chevron instead of
-   *  the diamond, and the caption carries the distance (§28.6b). */
+  /** Set when the pin's date falls outside the dated events (§28.6b): the
+   *  pin stands in a reserved lead beyond the end event, and an axis break
+   *  between them carries the distance (#2229). */
   offEdge: 'before' | 'after' | null;
+  /** Axis-break x between the pin and the end event, when `offEdge`. */
+  breakX: number | null;
+  /** The distance drawn under the break ("17 days"), when `offEdge`. */
+  gapLabel: string | null;
 }
 
 export interface EventLineLayout {
@@ -459,7 +463,11 @@ export function layoutEventLine(
   // is reserved for explicit `no-scale` or a slot that genuinely lacks a date.
   const scaled =
     parsed.options.scale && placed.every((p) => p.dateValue !== null);
-  const innerW = width - H_MARGIN * 2;
+  // A `now` outside the dated events gets a fixed lead beyond the end event,
+  // so it can stand as a real pin behind an axis break (#2229).
+  const nowEdge = scaled ? nowEdgeOf(parsed, placed, nowDate) : null;
+  const leadL = nowEdge === 'before' ? NOW_LEAD : 0;
+  const innerW = width - H_MARGIN * 2 - (nowEdge ? NOW_LEAD : 0);
   const MIN_DOT_GAP = 16; // legibility floor between coincident-ish dots
   const STRETCH_CAP = 8; // widen the date axis at most this many ×
 
@@ -522,7 +530,7 @@ export function layoutEventLine(
         above: -Infinity,
         below: -Infinity,
       };
-      let cursor = H_MARGIN;
+      let cursor = H_MARGIN + leadL;
       for (const seg of segments) {
         if (seg.kind === 'capsule') {
           let x = cursor + COLLAPSE_W / 2;
@@ -638,7 +646,9 @@ export function layoutEventLine(
     // Grow the canvas to fit the widest card edge so nothing clips or overlaps.
     const contentW = Math.max(
       width,
-      Math.max(...placed.map((p) => p.x + p.spanHalf)) + H_MARGIN,
+      Math.max(...placed.map((p) => p.x + p.spanHalf)) +
+        H_MARGIN +
+        (nowEdge === 'after' ? NOW_LEAD : 0),
       Math.max(...placed.map((p) => p.left + CARD_W)) + 6
     );
     // Lanes are packed with VARIABLE heights: each lane is only as tall as its own
@@ -741,7 +751,7 @@ export function layoutEventLine(
   }
 
   const { contentW, totalH, spineY, laneNear } = layout;
-  const spine = layoutSpine(placed, scaled);
+  const spine = layoutSpine(placed, scaled, nowEdge);
   const cards = layoutCards(placed, spineY, laneNear, spine);
   return {
     header,
@@ -855,13 +865,17 @@ function wrapDescription(
 
 function layoutSpine(
   placed: readonly Placed[],
-  scaled: boolean
+  scaled: boolean,
+  nowEdge: 'before' | 'after' | null = null
 ): SpineGeometry {
-  // Extend to cover collapsed-era brackets, which reach p.x ± spanHalf.
+  // Extend to cover collapsed-era brackets, which reach p.x ± spanHalf. An
+  // off-edge `now` pin ENDS the spine on that side: nothing runs past the
+  // marker that says "the timeline is out here" (#2222).
   const x0 = Math.min(...placed.map((p) => p.x - p.spanHalf));
   const x1 = Math.max(...placed.map((p) => p.x + p.spanHalf));
-  const left = x0 - 20;
-  const right = x1 + 20;
+  const pinReach = NOW_LEAD - NOW_PIN_INSET;
+  const left = nowEdge === 'before' ? x0 - pinReach : x0 - 20;
+  const right = nowEdge === 'after' ? x1 + pinReach : x1 + 20;
   // A trailing TBD (open horizon) turns the spine DASHED past the last real
   // event — the timeline literally trails off into the unscheduled future.
   const dashed = scaled && placed.some((p) => p.future && !p.futureSpan);
@@ -1007,18 +1021,8 @@ function layoutNowMarker(
 ): NowMarkerGeometry | null {
   const now = parsed.now!;
   const { spineY, contentW, totalH, topUsed } = frame;
-  let nowValue: number | null = now.dateValue;
-  let nowIso: string | null = now.date;
-  if (now.computed) {
-    const d = frame.nowDate ?? new Date();
-    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    nowIso = iso;
-    const v = parseTimelineDate(iso);
-    nowValue = Number.isFinite(v) ? v : null;
-  }
-  const dated = placed
-    .filter((p) => p.kind !== 'era' && !p.future && p.dateValue !== null)
-    .sort((a, b) => a.dateValue! - b.dateValue!);
+  const { value: nowValue, iso: nowIso } = resolveNow(parsed, frame.nowDate);
+  const dated = datedEvents(placed);
   let nowX = nowValue === null ? null : valueToSpineX(nowValue, dated);
   // Past the last DATED event with a trailing-TBD open horizon: ride the pin
   // out onto that tail ("now, in the unscheduled-future era") rather than
@@ -1038,39 +1042,38 @@ function layoutNowMarker(
   }
   if (nowX === null) return null;
 
-  // Outside the dated events and clamped to an end dot: say so, or a pin
-  // captioned "Nov 21" standing on a Dec 9 dot reads as Dec 9 (#2199). The
-  // trailing-TBD tail above is a real position, not a clamp.
+  // Outside the dated events: the pin stands in the lead the placement
+  // reserved beyond the end event, with an axis break between them that
+  // carries the distance, so the tab holds only the date (#2229). The
+  // trailing-TBD tail above is a real position, not an edge.
+  const offEdge = nowEdgeOf(parsed, placed, frame.nowDate);
   const firstReal = dated[0];
-  let offEdge: 'before' | 'after' | null = null;
-  let edgeIso: string | null = null;
-  if (nowValue !== null && firstReal && lastReal) {
-    if (nowValue < firstReal.dateValue!) {
-      offEdge = 'before';
-      edgeIso = firstReal.date;
-    } else if (nowValue > lastReal.dateValue! && nowX === lastReal.x) {
-      offEdge = 'after';
-      edgeIso = lastReal.date;
-    }
+  let breakX: number | null = null;
+  let gapLabel: string | null = null;
+  if (offEdge && firstReal && lastReal && nowIso && nowValue !== null) {
+    const edge = offEdge === 'before' ? firstReal : lastReal;
+    nowX =
+      offEdge === 'before'
+        ? edge.x - NOW_LEAD + NOW_PIN_INSET
+        : edge.x + NOW_LEAD - NOW_PIN_INSET;
+    breakX = (nowX + edge.x) / 2;
+    gapLabel = edge.date
+      ? describeGap(nowIso, edge.date, nowValue, edge.dateValue!)
+      : null;
   }
 
   // The tab says WHEN, not just "here": a caption reading `now` is equally
   // true on the day it was drawn and two years later, so a reader cannot
   // tell a diagram that redraws from a picture of a dead one. The date is
   // formatted exactly as the event cards format theirs, so the pin and the
-  // cards can never disagree about how a date looks. An explicit caption
+  // cards can never disagree about how a date looks. The year is dropped when
+  // the nearest event's card already shows it (#2229). An explicit caption
   // (`now 2023-06-01 Today`) still wins.
-  const dateLabel = now.label ?? (nowIso ? formatDateLabel(nowIso) : 'now');
-  const gap =
-    offEdge && nowIso && edgeIso
-      ? describeGap(
-          nowIso,
-          edgeIso,
-          nowValue!,
-          offEdge === 'before' ? firstReal!.dateValue! : lastReal!.dateValue!
-        )
-      : null;
-  const label = gap ? `${dateLabel} · ${gap} ${offEdge}` : dateLabel;
+  const label =
+    now.label ??
+    (nowIso && nowValue !== null
+      ? dropSharedYear(formatDateLabel(nowIso), nowIso, nowValue, dated)
+      : 'now');
   const pillH = 18;
   const pillW = Math.max(28, label.length * 6.6 + 16);
   const PIN_GAP = 6; // clearance spine↔pill and card↔pill
@@ -1120,7 +1123,20 @@ function layoutNowMarker(
   const isClear = (c: Slot): boolean =>
     !boxes.some((b) => overlapsX(b) && b.bot > c.y0 && b.top < c.y1);
   const byStem = (a: Slot, b: Slot): number => a.stem - b.stem;
-  const slot: Slot = cands.filter(isClear).sort(byStem)[0] ??
+  // Off the edge, the end event's card usually overhangs the pin (cards sit
+  // beside their dot, not centred), so prefer the side away from it: the tab
+  // then stands alone instead of wedged under that card (#2229).
+  const edgeSide =
+    offEdge && firstReal && lastReal
+      ? (offEdge === 'before' ? firstReal : lastReal).side
+      : null;
+  const awayFromEdge = (c: Slot): boolean =>
+    edgeSide === null ||
+    (edgeSide === 'above' ? c.y0 >= spineY : c.y1 <= spineY);
+  const slot: Slot = cands
+    .filter((c) => isClear(c) && awayFromEdge(c))
+    .sort(byStem)[0] ??
+    cands.filter(isClear).sort(byStem)[0] ??
     cands.sort(byStem)[0] ?? {
       y0: spineY - PIN_GAP - pillH,
       y1: spineY - PIN_GAP,
@@ -1139,7 +1155,75 @@ function layoutNowMarker(
     stemFrom: above ? spineY - DOT_R : spineY + DOT_R,
     stemTo: above ? slot.y1 : slot.y0,
     offEdge,
+    breakX,
+    gapLabel,
   };
+}
+
+// Room reserved beyond the end event for an off-edge `now` pin (#2229): the
+// pin sits NOW_PIN_INSET in from the lead's outer end, the break halfway.
+const NOW_LEAD = 84;
+const NOW_PIN_INSET = 12;
+
+function datedEvents(placed: readonly Placed[]): Placed[] {
+  return placed
+    .filter((p) => p.kind !== 'era' && !p.future && p.dateValue !== null)
+    .sort((a, b) => a.dateValue! - b.dateValue!);
+}
+
+// The pin's date: pinned, or today from the injected clock.
+function resolveNow(
+  parsed: ParsedEventLine,
+  nowDate: Date | undefined
+): { value: number | null; iso: string | null } {
+  const now = parsed.now;
+  if (!now) return { value: null, iso: null };
+  if (!now.computed) return { value: now.dateValue, iso: now.date };
+  const d = nowDate ?? new Date();
+  const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const v = parseTimelineDate(iso);
+  return { value: Number.isFinite(v) ? v : null, iso };
+}
+
+// Which edge, if any, the `now` date falls past. A date after the last event
+// is not past the edge when a trailing TBD opens the horizon: the pin rides
+// that tail instead (§28.6b). Reads dateValue only, so it can run before x
+// placement.
+function nowEdgeOf(
+  parsed: ParsedEventLine,
+  placed: readonly Placed[],
+  nowDate: Date | undefined
+): 'before' | 'after' | null {
+  if (!parsed.now) return null;
+  const { value } = resolveNow(parsed, nowDate);
+  const dated = datedEvents(placed);
+  if (value === null || !dated.length) return null;
+  if (value < dated[0]!.dateValue!) return 'before';
+  if (value > dated[dated.length - 1]!.dateValue!) {
+    const tbdTail = placed.some((p) => p.future && !p.futureSpan);
+    return tbdTail ? null : 'after';
+  }
+  return null;
+}
+
+// "Nov 22, 2026" → "Nov 22" when the nearest event is in 2026: its card
+// already says the year. Other grains ("Nov 2026", "2026") keep it.
+function dropSharedYear(
+  label: string,
+  iso: string,
+  value: number,
+  dated: readonly Placed[]
+): string {
+  const year = /^-?\d+/.exec(iso)?.[0];
+  if (!year || !dated.length) return label;
+  const nearest = dated.reduce((a, b) =>
+    Math.abs(b.dateValue! - value) < Math.abs(a.dateValue! - value) ? b : a
+  );
+  const nearYear = nearest.date ? /^-?\d+/.exec(nearest.date)?.[0] : null;
+  const tail = `, ${year}`;
+  return nearYear === year && label.endsWith(tail)
+    ? label.slice(0, -tail.length)
+    : label;
 }
 
 // Whole days between two ISO dates when both are CE and calendar-exact;

@@ -335,19 +335,32 @@ now
     expect(offScale.now).toBeNull();
   });
 
-  it('marks a `now` before every event as off the edge, with the distance (#2199)', () => {
-    const src = `event-line T
+  it('stands an early `now` in a lead before the first event, behind a break (#2229)', () => {
+    const l = layout(
+      `event-line T
 now
 
 2026-12-09 a
-2027-01-01 b`;
-    const l = layout(src, 1200, 600, new Date(2026, 10, 21));
-    expect(l.now!.offEdge).toBe('before');
-    expect(l.now!.x).toBe(l.placed[0]!.x);
-    expect(l.now!.label).toBe('Nov 21, 2026 · 18 days before');
+2027-01-01 b`,
+      1200,
+      600,
+      new Date(2026, 10, 22)
+    );
+    const now = l.now!;
+    const first = l.placed[0]!;
+    expect(now.offEdge).toBe('before');
+    // The pin has its own x, clear of the first dot, and the break sits between.
+    expect(now.x).toBeLessThan(first.x - 40);
+    expect(now.breakX!).toBeGreaterThan(now.x);
+    expect(now.breakX!).toBeLessThan(first.x);
+    // No line runs past the pin (#2222).
+    expect(l.spine.left).toBeCloseTo(now.x, 6);
+    // The tab holds the date only; the year goes because the nearest card has it.
+    expect(now.label).toBe('Nov 22');
+    expect(now.gapLabel).toBe('17 days');
   });
 
-  it('marks a `now` after every event as off the edge, in coarser units', () => {
+  it('stands a late `now` past the last event, in coarser units', () => {
     const l = layout(
       `event-line T
 now 2022-09-01
@@ -355,9 +368,13 @@ now 2022-09-01
 2020-01-01 a
 2022-01-01 b`
     );
+    const last = l.placed[1]!;
     expect(l.now!.offEdge).toBe('after');
-    expect(l.now!.x).toBe(l.placed[1]!.x);
-    expect(l.now!.label).toBe('Sep 1, 2022 · 8 months after');
+    expect(l.now!.x).toBeGreaterThan(last.x + 40);
+    expect(l.now!.breakX!).toBeLessThan(l.now!.x);
+    expect(l.spine.right).toBeCloseTo(l.now!.x, 6);
+    expect(l.now!.label).toBe('Sep 1');
+    expect(l.now!.gapLabel).toBe('8 months');
     const years = layout(
       `event-line T
 now 2030
@@ -365,10 +382,11 @@ now 2030
 2020 a
 2022 b`
     );
-    expect(years.now!.label).toBe('2030 · 8 years after');
+    expect(years.now!.label).toBe('2030');
+    expect(years.now!.gapLabel).toBe('8 years');
   });
 
-  it('keeps an explicit caption off the edge and leaves an in-range pin alone', () => {
+  it('keeps an explicit caption and the year when no nearby card shows it', () => {
     const l = layout(
       `event-line T
 now 2019-12-31 Today
@@ -376,7 +394,8 @@ now 2019-12-31 Today
 2020-01-01 a
 2022-01-01 b`
     );
-    expect(l.now!.label).toBe('Today · 1 day before');
+    expect(l.now!.label).toBe('Today');
+    expect(l.now!.gapLabel).toBe('1 day');
     const inRange = layout(
       `event-line T
 now 2021-01-01
@@ -385,6 +404,7 @@ now 2021-01-01
 2022-01-01 b`
     );
     expect(inRange.now!.offEdge).toBeNull();
+    expect(inRange.now!.breakX).toBeNull();
     expect(inRange.now!.label).toBe('Jan 1, 2021');
   });
 
