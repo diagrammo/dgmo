@@ -963,7 +963,7 @@ export function renderLine(
           .attr('data-color', own)
           .attr('data-x-index', p.xIndex)
           .attr('data-x-label', p.label)
-          .attr('data-value', p.v)
+          .attr('data-value', fmtFor(s)(p.v))
           .attr('data-line-number', p.lineNumber)
           .attr('cx', round(cx))
           .attr('cy', round(top))
@@ -1087,7 +1087,7 @@ export function renderLine(
           'data-value',
           shareRows
             ? `${fmtFor(s)(p.v)} · ${shareText(shareRows[p.xIndex]![s]!)}`
-            : p.v
+            : fmtFor(s)(p.v)
         )
         .attr('data-line-number', p.lineNumber)
         .attr('cx', xOfRow(p.xIndex))

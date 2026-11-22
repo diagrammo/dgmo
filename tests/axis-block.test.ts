@@ -200,3 +200,17 @@ describe('axis block — render', () => {
     expect(desc).toMatch(/372 bbl/);
   });
 });
+
+describe('axis block — hover value', () => {
+  it('a point carries its value in its own axis format', async () => {
+    const svg = await renderDataChartD3(dual, 'light', palette);
+    const doc = new JSDOM(svg, { contentType: 'image/svg+xml' }).window
+      .document;
+    const vals = (name: string) =>
+      [...doc.querySelectorAll(`.dgmo-pt[data-series-name="${name}"]`)].map(
+        (p) => p.getAttribute('data-value')
+      );
+    expect(vals('Oil Price')).toEqual(['$40', '$68', '$95']);
+    expect(vals('SPR Size')).toEqual(['640', '620', '372']);
+  });
+});
