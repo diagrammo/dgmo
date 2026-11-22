@@ -73,6 +73,14 @@ export interface RegistryEntry {
    * those named a type. Highlighting only — no parser reads it.
    */
   readonly chartTypes: readonly ChartTypeId[] | 'all';
+  /**
+   * The directive changes only the exported picture (PNG, SVG, embeds), not
+   * the app's live preview (#2015). The value is the hover note the editor
+   * shows on the line. Set it only after checking the preview path ignores
+   * the directive: `legend-align` moves the preview legend too, so it is not
+   * one.
+   */
+  readonly exportOnly?: string;
 }
 
 // ============================================================
@@ -506,8 +514,21 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'subtitle-align', category: 'directive', chartTypes: 'all' },
   { token: 'legend-align', category: 'directive', chartTypes: 'all' },
   { token: 'footer-align', category: 'directive', chartTypes: 'all' },
-  { token: 'legend-box', category: 'directive', chartTypes: 'all' },
-  { token: 'legend-pill', category: 'directive', chartTypes: 'all' },
+  // Export only (#2015): the preview draws its interactive legend instead.
+  {
+    token: 'legend-box',
+    category: 'directive',
+    chartTypes: 'all',
+    exportOnly:
+      'Export only — frames the key in PNG, SVG and embeds. The preview keeps its interactive legend.',
+  },
+  {
+    token: 'legend-pill',
+    category: 'directive',
+    chartTypes: 'all',
+    exportOnly:
+      'Export only — frames the key in PNG, SVG and embeds. The preview keeps its interactive legend.',
+  },
   {
     token: 'no-coastline',
     category: 'directive',
@@ -1332,6 +1353,26 @@ function isWhiteboardGlyphEntry(e: RegistryEntry): boolean {
 export const ALL_REGISTRY_TOKENS: ReadonlySet<string> = tokensWhere(
   (e) => !isWhiteboardGlyphEntry(e)
 );
+
+/**
+ * Directives that change only the export, keyed to the editor's hover note
+ * (#2015). The app dims a `shows on export` hint after such a line.
+ */
+export const EXPORT_ONLY_DIRECTIVES: ReadonlyMap<string, string> = new Map(
+  DIRECTIVES_REGISTRY.flatMap((e) =>
+    e.exportOnly ? [[e.token, e.exportOnly] as const] : []
+  )
+);
+
+/**
+ * The hover note when `line` is an export-only directive line, else null.
+ * Matches the way `parseChartFrameLine` reads them: the bare word in
+ * column 1, trailing space allowed, so an indented line or one with more
+ * words is never one.
+ */
+export function exportOnlyDirectiveNote(line: string): string | null {
+  return EXPORT_ONLY_DIRECTIVES.get(line.trimEnd()) ?? null;
+}
 
 /** Infra top-level option keys (space-separated). */
 export const INFRA_TOP_LEVEL_OPTION_SET = tokensWhere(

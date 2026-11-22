@@ -62,6 +62,19 @@ declare const COLOR_DIRECTIVES: ReadonlyMap<string, ReadonlyMap<string, ColorDir
 declare function colorDirectiveRule(chartType: string | null | undefined, directive: string): ColorDirectiveRule | null;
 
 /**
+ * Directives that change only the export, keyed to the editor's hover note
+ * (#2015). The app dims a `shows on export` hint after such a line.
+ */
+declare const EXPORT_ONLY_DIRECTIVES: ReadonlyMap<string, string>;
+/**
+ * The hover note when `line` is an export-only directive line, else null.
+ * Matches the way `parseChartFrameLine` reads them: the bare word in
+ * column 1, trailing space allowed, so an indented line or one with more
+ * words is never one.
+ */
+declare function exportOnlyDirectiveNote(line: string): string | null;
+
+/**
  * Standalone DGMO syntax highlighter — no CodeMirror dependency.
  *
  * Exports:
@@ -126,5 +139,5 @@ declare const ROLE_TO_ANSI: Record<string, string>;
  */
 declare function renderAnsi(tokens: HighlightToken[], useColor: boolean): string;
 
-export { ATTRIBUTE_KEYS, COLOR_DIRECTIVES, LIGHT_ROLE_STYLES, NODE_TO_ROLE, NORD_ROLE_STYLES, ROLE_TO_ANSI, classifyRecurrenceLine, colorDirectiveRule, highlightDgmo, renderAnsi, scanMonthNameDates };
+export { ATTRIBUTE_KEYS, COLOR_DIRECTIVES, EXPORT_ONLY_DIRECTIVES, LIGHT_ROLE_STYLES, NODE_TO_ROLE, NORD_ROLE_STYLES, ROLE_TO_ANSI, classifyRecurrenceLine, colorDirectiveRule, exportOnlyDirectiveNote, highlightDgmo, renderAnsi, scanMonthNameDates };
 export type { ColorDirectiveRule, HighlightToken, RecurrenceSpan };

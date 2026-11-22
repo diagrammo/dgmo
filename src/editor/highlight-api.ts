@@ -31,6 +31,13 @@ export {
   type ColorDirectiveRule,
 } from './color-directives';
 
+// Directives that change only the export (#2015), for the editor's
+// `shows on export` hint and its hover note.
+export {
+  EXPORT_ONLY_DIRECTIVES,
+  exportOnlyDirectiveNote,
+} from '../directives-registry';
+
 // ============================================================
 // Types
 // ============================================================
