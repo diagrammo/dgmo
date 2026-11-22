@@ -4310,7 +4310,7 @@ Plan description: Set the objective and the route
 
 ### Edges
 
-Edges are **implicit** — every node connects to the next, with the last wrapping to the first. Use `->` lines only when you want to label or style an edge. Indent the edge line under its source node, before or after description lines.
+Edges are **implicit** — every node connects to the next, with the last wrapping to the first. Use `->` lines when you want to label or style an edge, or to send it somewhere else. Indent the edge line under its source node, before or after description lines.
 
 ```
 Observe blue
@@ -4318,7 +4318,19 @@ Observe blue
     Synthesize raw data into actionable context
 ```
 
-Explicit targets after `->` are accepted but ignored — cycle edges always follow source order. A mismatch with the actual next node emits an info diagnostic.
+A target after `->` is **obeyed**: the step's one arrow goes to the named step instead of the next one. Its implicit arrow to the next step is not drawn. The target matches a step label, ignoring case. Steps keep their places on the ring in source order; an arrow to the previous step runs just inside the ring, and an arrow to any other step crosses the ring's interior.
+
+```
+cycle a process
+
+T1
+T2
+T3
+T4
+  -Rework-> T2
+```
+
+Here T4 returns to T2, and T1 is a lead-in step with no arrow into it. A target that names the next step changes nothing. A target that names no step, or the step itself, raises a warning and the arrow goes to the next step. Each step has one outgoing arrow; if a step has several `->` lines, the last one wins.
 
 ### Edge Metadata
 

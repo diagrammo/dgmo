@@ -279,34 +279,106 @@ C`);
   });
 });
 
-describe('cycle parser — explicit target tolerance', () => {
-  it('accepts explicit target matching next node', () => {
+describe('cycle parser — explicit target (#2219)', () => {
+  const userSource = `cycle a process
+
+T1
+  fisrt stage
+
+T2
+  second stage
+
+T3
+  another state
+
+T4
+  now i want to return to T2
+  -> T2`;
+
+  it('obeys an explicit target and drops the implicit edge', () => {
+    const result = parseCycle(userSource);
+    expect(result.diagnostics).toHaveLength(0);
+    expect(result.edges).toHaveLength(4);
+    expect(result.edges[3]).toMatchObject({ sourceIndex: 3, targetIndex: 1 });
+    expect(
+      result.edges.some((e) => e.sourceIndex === 3 && e.targetIndex === 0)
+    ).toBe(false);
+  });
+
+  it('matches the target ignoring case', () => {
+    const result = parseCycle(userSource.replace('-> T2', '-> t2'));
+    expect(result.edges[3]!.targetIndex).toBe(1);
+  });
+
+  it('accepts a target naming the next step with no diagnostic', () => {
     const result = parseCycle(`cycle Target
 
 Observe
   -> Orient
 Orient
 Decide`);
-    // No diagnostic when target matches actual next node
-    const targetDiags = result.diagnostics.filter((d) =>
-      d.message.includes('Explicit target')
-    );
-    expect(targetDiags).toHaveLength(0);
+    expect(result.diagnostics).toHaveLength(0);
+    expect(result.edges[0]!.targetIndex).toBe(1);
   });
 
-  it('emits info diagnostic when explicit target mismatches', () => {
-    const result = parseCycle(`cycle Mismatch
+  it('warns on an unknown target and falls back to the next step', () => {
+    const result = parseCycle(`cycle Unknown
 
-Observe
-  -> Decide
-Orient
-Decide`);
-    const diag = result.diagnostics.find((d) =>
-      d.message.includes('Explicit target')
+A
+B
+C
+  -> T9`);
+    expect(result.edges[2]!.targetIndex).toBe(0);
+    expect(result.diagnostics).toHaveLength(1);
+    expect(result.diagnostics[0]!.severity).toBe('warning');
+    expect(result.diagnostics[0]!.message).toBe(
+      "No step named 'T9'. The arrow goes to the next step ('A')."
     );
-    expect(diag).toBeDefined();
-    expect(diag!.message).toContain("next node ('Orient')");
-    expect(diag!.message).toContain("'Decide' is ignored");
+  });
+
+  it('warns on a self target and falls back to the next step', () => {
+    const result = parseCycle(`cycle Self
+
+A
+B
+  -> B
+C`);
+    expect(result.edges[1]!.targetIndex).toBe(2);
+    expect(result.diagnostics).toHaveLength(1);
+    expect(result.diagnostics[0]!.message).toContain('cannot point to itself');
+    expect(result.diagnostics[0]!.message).toContain("next step ('C')");
+  });
+
+  it('keeps label and same-line metadata with a target', () => {
+    const result = parseCycle(`cycle Labelled
+
+Scout
+Build
+Ship
+  -Back to scouting-> Scout color: red, width: 5
+Measure`);
+    expect(result.diagnostics).toHaveLength(0);
+    expect(result.edges[2]).toMatchObject({
+      sourceIndex: 2,
+      targetIndex: 0,
+      label: 'Back to scouting',
+      color: 'red',
+      width: 5,
+    });
+  });
+
+  it('uses the last edge line when a step has several', () => {
+    const result = parseCycle(`cycle Several
+
+A
+B
+C
+D
+  -> B
+  -Second-> A`);
+    const fromD = result.edges.filter((e) => e.sourceIndex === 3);
+    expect(fromD).toHaveLength(1);
+    expect(fromD[0]).toMatchObject({ targetIndex: 0, label: 'Second' });
   });
 });
 
@@ -826,4 +898,132 @@ Decide`);
       });
     });
   }
+});
+
+describe('cycle layout — explicit targets (#2219)', () => {
+  const src = `cycle a process
+
+T1
+  fisrt stage
+
+T2
+  second stage
+
+T3
+  another state
+
+T4
+  now i want to return to T2
+  -> T2`;
+
+  // Endpoint of a path's last command ("... x y").
+  function pathEnd(path: string): [number, number] {
+    const nums = path.trim().split(/[\s,]+/);
+    return [Number(nums[nums.length - 2]), Number(nums[nums.length - 1])];
+  }
+  function nearOutline(
+    n: { x: number; y: number; width: number; height: number },
+    px: number,
+    py: number,
+    slack: number
+  ): boolean {
+    return (
+      Math.abs(px - n.x) <= n.width / 2 + slack &&
+      Math.abs(py - n.y) <= n.height / 2 + slack
+    );
+  }
+
+  for (const dirLine of ['', 'direction-counterclockwise\n']) {
+    const label = dirLine ? 'ccw' : 'cw';
+    it(`draws a chord from T4 ending at T2 and no T4→T1 path (${label})`, () => {
+      const parsed = parseCycle(src.replace('\n\nT1', `\n${dirLine}\nT1`));
+      expect(parsed.direction).toBe(dirLine ? 'counterclockwise' : 'clockwise');
+      const layout = computeCycleLayout(parsed, { width: 900, height: 700 });
+      expect(
+        layout.edges.some((e) => e.sourceIndex === 3 && e.targetIndex === 0)
+      ).toBe(false);
+      const chord = layout.edges.find(
+        (e) => e.sourceIndex === 3 && e.targetIndex === 1
+      )!;
+      expect(chord.path).toMatch(/^M [-\d.e]+ [-\d.e]+ Q /);
+      // Starts at T4's centre, ends one arrowhead short of T2's outline.
+      const t4 = layout.nodes[3]!;
+      const t2 = layout.nodes[1]!;
+      expect(chord.path.startsWith(`M ${t4.x} ${t4.y}`)).toBe(true);
+      const [ex, ey] = pathEnd(chord.path);
+      const arrowLen = (8 + 6 * Math.sqrt(3)) * 0.9;
+      expect(nearOutline(t2, ex, ey, arrowLen + 1)).toBe(true);
+      expect(nearOutline(t2, ex, ey, 0)).toBe(false);
+      // The chord clears the steps it passes (T1 and T3): sample the curve.
+      const [x0, y0, qx, qy, x2, y2] = chord.path
+        .replace(/[MQ]/g, ' ')
+        .trim()
+        .split(/\s+/)
+        .map(Number) as [number, number, number, number, number, number];
+      for (let k = 0; k <= 40; k++) {
+        const t = k / 40;
+        const u = 1 - t;
+        const px = u * u * x0 + 2 * u * t * qx + t * t * x2;
+        const py = u * u * y0 + 2 * u * t * qy + t * t * y2;
+        for (const i of [0, 2])
+          expect(nearOutline(layout.nodes[i]!, px, py, 5)).toBe(false);
+      }
+    });
+  }
+
+  it('draws an edge to the previous step as an inner arc', () => {
+    const parsed = parseCycle(`cycle Back
+
+Draft
+Edit
+Review
+  -Rework-> Edit
+Publish`);
+    const layout = computeCycleLayout(parsed, { width: 800, height: 600 });
+    const back = layout.edges.find(
+      (e) => e.sourceIndex === 2 && e.targetIndex === 1
+    )!;
+    const fwd = layout.edges.find(
+      (e) => e.sourceIndex === 1 && e.targetIndex === 2
+    )!;
+    const arcRadius = (p: string) => Number(p.match(/ A ([\d.]+) /)![1]);
+    expect(arcRadius(fwd.path)).toBeCloseTo(layout.radius, 5);
+    expect(arcRadius(back.path)).toBeLessThan(layout.radius - 5);
+    // The label sits inside the ring.
+    const d = Math.hypot(back.labelX - layout.cx, back.labelY - layout.cy);
+    expect(d).toBeLessThan(layout.radius);
+    expect(
+      layout.edges.some((e) => e.sourceIndex === 2 && e.targetIndex === 3)
+    ).toBe(false);
+  });
+
+  it('renders the chord with the edge data attributes and its label', () => {
+    const parsed = parseCycle(`cycle Labelled
+
+Scout
+Build
+Ship
+  -Back to scouting-> Scout
+Measure`);
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    renderCycle(container, parsed, nordLight, false, undefined, {
+      width: 800,
+      height: 600,
+    });
+    const edges = [
+      ...container.querySelectorAll('g.cycle-edge[data-from="2"]'),
+    ];
+    const pathG = edges.find((g) => g.querySelector('path'))!;
+    expect(pathG.getAttribute('data-to')).toBe('0');
+    expect(pathG.getAttribute('data-line-number')).toBe('6');
+    expect(pathG.querySelector('path')!.getAttribute('d')).toContain(' Q ');
+    expect(
+      container.querySelector('g.cycle-edge[data-from="2"][data-to="3"]')
+    ).toBeNull();
+    const labelG = container.querySelector(
+      'g.cycle-edge-labels g.cycle-edge[data-line-number="6"]'
+    )!;
+    expect(labelG.textContent).toContain('Back to scouting');
+  });
 });

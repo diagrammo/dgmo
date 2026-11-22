@@ -1,0 +1,17 @@
+cycle Feature delivery
+
+center Ship weekly
+
+Intake
+  Triage requests from support and sales
+Design
+  Sketch the change and agree scope
+Build
+  Code, review and merge behind a flag
+Test
+  Automated suite plus a staging pass
+Release
+  Roll out to all users
+Learn
+  Read the metrics and talk to users
+  -Next iteration-> Design

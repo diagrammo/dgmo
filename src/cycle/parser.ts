@@ -280,8 +280,7 @@ export function parseCycle(content: string): ParsedCycle {
 
         // §1.4 unified metadata grammar — same-line cut on the edge
         // tail. The "name" returned here is the explicit target (if
-        // any); cycle edges always wrap to the next node so the
-        // target text is only used for the diagnostic at post-parse.
+        // any), resolved to a step index at post-parse.
         const edgeSplit = splitNameAndMeta(
           rest,
           CYCLE_REGISTRY,
@@ -321,7 +320,8 @@ export function parseCycle(content: string): ParsedCycle {
 
         // sourceIndex is the index of the current node (it hasn't been pushed yet)
         const sourceIndex = result.nodes.length;
-        // targetIndex is always the next node (will be resolved post-parse)
+        // targetIndex defaults to the next node; post-parse resolves an
+        // explicit target.
         const targetIndex = sourceIndex + 1;
 
         currentEdge = {
@@ -391,23 +391,38 @@ export function parseCycle(content: string): ParsedCycle {
   const nodeCount = result.nodes.length;
   const edgeBySource = new Map<number, Writable<CycleEdge>>();
   for (const edge of result.edges as Writable<CycleEdge>[]) {
-    // Fix target index to wrap around
-    edge.targetIndex = (edge.sourceIndex + 1) % nodeCount;
-    edgeBySource.set(edge.sourceIndex, edge);
+    // Default: the next step around the ring.
+    const nextIndex = (edge.sourceIndex + 1) % nodeCount;
+    edge.targetIndex = nextIndex;
 
-    // Check explicit target diagnostic
+    // An explicit target is obeyed (#2219): the step's one outgoing edge goes
+    // to the named step instead of the next one. Matched by label, ignoring
+    // case; the first step with that label wins.
     const typed = edge as Writable<CycleEdge> & { _explicitTarget?: string };
     if (typed._explicitTarget) {
-      // In-bounds: targetIndex computed as (sourceIndex + 1) % nodeCount.
-      const actualTarget = result.nodes[edge.targetIndex]!.label;
-      if (typed._explicitTarget !== actualTarget) {
+      const wanted = typed._explicitTarget.trim().toLowerCase();
+      const found = result.nodes.findIndex(
+        (n) => n.label.trim().toLowerCase() === wanted
+      );
+      // In-bounds: nextIndex is in [0, nodeCount).
+      const nextLabel = result.nodes[nextIndex]!.label;
+      if (found === -1) {
         info(
           edge.lineNumber!,
-          `In cycle diagrams, edges always connect to the next node ('${actualTarget}'). Explicit target '${typed._explicitTarget}' is ignored.`
+          `No step named '${typed._explicitTarget}'. The arrow goes to the next step ('${nextLabel}').`
         );
+      } else if (found === edge.sourceIndex) {
+        info(
+          edge.lineNumber!,
+          `A step cannot point to itself ('${typed._explicitTarget}'). The arrow goes to the next step ('${nextLabel}').`
+        );
+      } else {
+        edge.targetIndex = found;
       }
       delete typed._explicitTarget;
     }
+    // Several edge lines under one step: the last one wins.
+    edgeBySource.set(edge.sourceIndex, edge);
   }
 
   // Generate implicit edges for nodes without explicit edge annotations

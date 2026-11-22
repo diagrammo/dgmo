@@ -702,51 +702,78 @@ function computeEdgePaths(
   radius: number,
   isClockwise: boolean
 ): CycleLayoutEdge[] {
-  return parsed.edges.map((edge) => {
-    // In-bounds: sourceIndex/targetIndex are validated by the parser to point into nodes.
-    const src = layoutNodes[edge.sourceIndex]!;
-    const tgt = layoutNodes[edge.targetIndex]!;
-    const strokeWidth = Math.max(
-      edge.width ?? DEFAULT_EDGE_WIDTH,
-      MIN_EDGE_WIDTH
-    );
-    // Arrowhead effective reach: full length minus the 10% overlap that
-    // slides the marker back to cover the stroke/arrowhead junction line.
-    const arrowLen = arrowHeadLength(strokeWidth) * 0.9;
-    const { path, midAngle } = buildEdgeArc(
-      src,
-      tgt,
-      cx,
-      cy,
-      radius,
-      isClockwise,
-      arrowLen
-    );
-
-    // Smart label placement: scale offset with label size and pick whichever
-    // side of the arc (outward toward canvas edge, inward toward center) has
-    // the most clearance from node bounding boxes.
+  const nodeCount = layoutNodes.length;
+  const edgeLabelSize = (edge: ParsedCycle['edges'][number]) => {
     const { labelLines, descLines } = wrapEdgeLabelText(
       edge.label,
       edge.description
     );
-    const lineCount = labelLines.length + descLines.length;
-    let labelPxW = 0;
+    let w = 0;
     for (const l of labelLines)
-      labelPxW = Math.max(
-        labelPxW,
-        measureText(l, EDGE_LABEL_FONT_SIZE, { bold: true })
-      );
+      w = Math.max(w, measureText(l, EDGE_LABEL_FONT_SIZE, { bold: true }));
     for (const l of descLines)
-      labelPxW = Math.max(labelPxW, measureText(l, EDGE_LABEL_FONT_SIZE));
+      w = Math.max(w, measureText(l, EDGE_LABEL_FONT_SIZE));
+    return { lineCount: labelLines.length + descLines.length, width: w };
+  };
+  const strokeOf = (edge: ParsedCycle['edges'][number]) =>
+    Math.max(edge.width ?? DEFAULT_EDGE_WIDTH, MIN_EDGE_WIDTH);
+  // A target that is not the next step on the ring (#2219): the previous step
+  // gets an inner arc, any other step a chord through the ring's interior.
+  const kindOf = (edge: ParsedCycle['edges'][number]) => {
+    if (edge.targetIndex === (edge.sourceIndex + 1) % nodeCount) return 'arc';
+    if (edge.targetIndex === (edge.sourceIndex - 1 + nodeCount) % nodeCount)
+      return 'inner';
+    return 'chord';
+  };
+
+  const result: (CycleLayoutEdge | null)[] = parsed.edges.map((edge) => {
+    const kind = kindOf(edge);
+    if (kind === 'chord') return null; // second pass, once arc labels are known
+    // In-bounds: sourceIndex/targetIndex are validated by the parser to point into nodes.
+    const src = layoutNodes[edge.sourceIndex]!;
+    const tgt = layoutNodes[edge.targetIndex]!;
+    // Arrowhead effective reach: full length minus the 10% overlap that
+    // slides the marker back to cover the stroke/arrowhead junction line.
+    const arrowLen = arrowHeadLength(strokeOf(edge)) * 0.9;
+    let path: string;
+    let midAngle: number;
+    let labelRadius = radius;
+    if (kind === 'arc') {
+      ({ path, midAngle } = buildEdgeArc(
+        src,
+        tgt,
+        cx,
+        cy,
+        radius,
+        isClockwise,
+        arrowLen
+      ));
+    } else {
+      ({ path, midAngle, labelRadius } = buildInnerBackArc(
+        src,
+        tgt,
+        cx,
+        cy,
+        radius,
+        isClockwise,
+        strokeOf(edge),
+        arrowLen
+      ));
+    }
+
+    // Smart label placement: scale offset with label size and pick whichever
+    // side of the arc (outward toward canvas edge, inward toward center) has
+    // the most clearance from node bounding boxes.
+    const { lineCount, width: labelPxW } = edgeLabelSize(edge);
     const { labelX, labelY, labelAngle } = computeEdgeLabelPosition(
       midAngle,
-      radius,
+      labelRadius,
       cx,
       cy,
       lineCount,
       labelPxW,
-      layoutNodes
+      layoutNodes,
+      kind === 'inner'
     );
     const layoutEdge: CycleLayoutEdge = {
       sourceIndex: edge.sourceIndex,
@@ -759,6 +786,353 @@ function computeEdgePaths(
     };
     return layoutEdge;
   });
+
+  // ── Chords: obstacles are the other nodes, the centre text and the labels
+  // already placed on the ring arcs. ──
+  if (result.some((e) => e === null)) {
+    const obstacles: Box[] = [];
+    for (let i = 0; i < result.length; i++) {
+      const le = result[i];
+      if (!le) continue;
+      // In-bounds: result and parsed.edges are parallel arrays.
+      const { lineCount, width } = edgeLabelSize(parsed.edges[i]!);
+      if (lineCount === 0 || width === 0) continue;
+      const box = approxLabelBox(le, width, lineCount);
+      obstacles.push(box);
+    }
+    const centerText = parsed.options['center'];
+    if (centerText)
+      obstacles.push(centerTextBox(centerText, layoutNodes, cx, cy, radius));
+
+    for (let i = 0; i < result.length; i++) {
+      if (result[i]) continue;
+      // In-bounds by loop guard; parallel arrays.
+      const edge = parsed.edges[i]!;
+      const { lineCount, width } = edgeLabelSize(edge);
+      const chord = buildChord(
+        layoutNodes,
+        edge.sourceIndex,
+        edge.targetIndex,
+        cx,
+        cy,
+        radius,
+        strokeOf(edge),
+        arrowHeadLength(strokeOf(edge)) * 0.9,
+        obstacles,
+        lineCount > 0 && width > 0
+          ? { w: width + 12, h: lineCount * 15 + 6 }
+          : null
+      );
+      result[i] = {
+        sourceIndex: edge.sourceIndex,
+        targetIndex: edge.targetIndex,
+        path: chord.path,
+        labelX: chord.labelX,
+        // First-line baseline, so the label block centres on the curve.
+        labelY: chord.labelY - (lineCount * 15 + 6) / 2 + 15,
+        // Straight down: the renderer centres the text (anchor middle).
+        labelAngle: Math.PI / 2,
+        ...(edge.label !== undefined && { label: edge.label }),
+      };
+    }
+  }
+  return result as CycleLayoutEdge[];
+}
+
+// ============================================================
+// Back edges and chords (#2219)
+// ============================================================
+
+/** Axis-aligned box by centre and half-dimensions. */
+interface Box {
+  readonly x: number;
+  readonly y: number;
+  readonly hw: number;
+  readonly hh: number;
+}
+
+/** Is (px, py) inside the node's drawn outline? */
+function insideNode(n: CycleLayoutNode, px: number, py: number): boolean {
+  if (n.isCircle) {
+    const r = n.width / 2;
+    return (px - n.x) ** 2 + (py - n.y) ** 2 < r * r;
+  }
+  return insideRect(px, py, n.x, n.y, n.width / 2, n.height / 2);
+}
+
+/**
+ * The angle where a circle of radius `r` about (cx, cy), walked from
+ * `startAngle` in `direction`, leaves the node. The start point must be
+ * inside the node. Coarse walk, then binary search.
+ */
+function ringLeaveAngle(
+  n: CycleLayoutNode,
+  cx: number,
+  cy: number,
+  r: number,
+  startAngle: number,
+  direction: number
+): number {
+  const at = (a: number) =>
+    insideNode(n, cx + r * Math.cos(a), cy + r * Math.sin(a));
+  const step = Math.PI / 90;
+  let lo = startAngle;
+  let hi = startAngle + direction * Math.PI;
+  for (let i = 1; i <= 90; i++) {
+    const a = startAngle + direction * step * i;
+    if (!at(a)) {
+      hi = a;
+      lo = a - direction * step;
+      break;
+    }
+  }
+  for (let i = 0; i < 16; i++) {
+    const mid = (lo + hi) / 2;
+    if (at(mid)) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+
+/** Distance from the ring centre to a node's outline, along its radial. */
+function radialHalfExtent(n: CycleLayoutNode): number {
+  if (n.isCircle) return n.width / 2;
+  const c = Math.abs(Math.cos(n.angle));
+  const s = Math.abs(Math.sin(n.angle));
+  return Math.min(
+    c > 1e-6 ? n.width / 2 / c : Infinity,
+    s > 1e-6 ? n.height / 2 / s : Infinity
+  );
+}
+
+/**
+ * An edge to the PREVIOUS step on the ring: an arc just inside the ring,
+ * running backwards, so it never lies on the forward arc between the same
+ * two steps.
+ */
+function buildInnerBackArc(
+  src: CycleLayoutNode,
+  tgt: CycleLayoutNode,
+  cx: number,
+  cy: number,
+  radius: number,
+  isClockwise: boolean,
+  strokeWidth: number,
+  arrowLength: number
+): { path: string; midAngle: number; labelRadius: number } {
+  const dir = isClockwise ? -1 : 1; // backwards around the ring
+  // Inset: clear of the forward arc, but still inside both nodes so the
+  // stroke starts and ends under them.
+  const inset = Math.min(
+    14 + strokeWidth * 2,
+    0.6 * Math.min(radialHalfExtent(src), radialHalfExtent(tgt))
+  );
+  const r = radius - inset;
+  const srcExit = ringLeaveAngle(src, cx, cy, r, src.angle, dir);
+  const tgtEntry = ringLeaveAngle(tgt, cx, cy, r, tgt.angle, -dir);
+  const endAngle = tgtEntry - (dir * arrowLength) / r;
+  const startX = cx + r * Math.cos(src.angle);
+  const startY = cy + r * Math.sin(src.angle);
+  const endX = cx + r * Math.cos(endAngle);
+  const endY = cy + r * Math.sin(endAngle);
+  let sweep = (endAngle - src.angle) * dir;
+  if (sweep <= 0) sweep += 2 * Math.PI;
+  const largeArc = sweep > Math.PI ? 1 : 0;
+  const sweepFlag = dir === 1 ? 1 : 0;
+  const path = `M ${startX} ${startY} A ${r} ${r} 0 ${largeArc} ${sweepFlag} ${endX} ${endY}`;
+  let visible = (tgtEntry - srcExit) * dir;
+  if (visible <= 0) visible += 2 * Math.PI;
+  return { path, midAngle: srcExit + (dir * visible) / 2, labelRadius: r };
+}
+
+/** Rough box of an already-placed edge label (mirrors the renderer's anchor). */
+function approxLabelBox(
+  le: CycleLayoutEdge,
+  textW: number,
+  lineCount: number
+): Box {
+  const a = ((le.labelAngle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+  const isRight = a < Math.PI * 0.4 || a > Math.PI * 1.6;
+  const isLeft = a > Math.PI * 0.6 && a < Math.PI * 1.4;
+  const hw = textW / 2 + 6;
+  const x = isRight
+    ? le.labelX + textW / 2
+    : isLeft
+      ? le.labelX - textW / 2
+      : le.labelX;
+  const hh = (lineCount * 15 + 6) / 2;
+  return { x, y: le.labelY - 13 + hh, hw, hh };
+}
+
+// Must match cycle/renderer.ts (centre text).
+const CENTER_FONT_SIZE = 36;
+const CENTER_FONT_MIN = 12;
+
+/** Box of the `center` text, sized as the renderer sizes it. */
+function centerTextBox(
+  text: string,
+  nodes: CycleLayoutNode[],
+  cx: number,
+  cy: number,
+  radius: number
+): Box {
+  const maxNodeHalf = Math.max(
+    ...nodes.map((n) => Math.max(n.width, n.height) / 2)
+  );
+  const availW = Math.max(60, 2 * (radius - maxNodeHalf) * 0.9);
+  const natural = measureText(text, CENTER_FONT_SIZE, { bold: true });
+  const font = Math.max(
+    CENTER_FONT_MIN,
+    Math.min(CENTER_FONT_SIZE, (CENTER_FONT_SIZE * availW) / natural)
+  );
+  return {
+    x: cx,
+    y: cy,
+    hw: (natural * font) / CENTER_FONT_SIZE / 2,
+    hh: font * 0.6,
+  };
+}
+
+/** How deep (px, py) sits inside the box grown by `pad`; 0 when outside. */
+function boxDepth(b: Box, px: number, py: number, pad: number): number {
+  const dx = b.hw + pad - Math.abs(px - b.x);
+  const dy = b.hh + pad - Math.abs(py - b.y);
+  return dx > 0 && dy > 0 ? Math.min(dx, dy) : 0;
+}
+
+/**
+ * An edge between two steps that are not ring neighbours: a quadratic curve
+ * through the ring's interior, bowed toward the centre. The bow is searched
+ * so the curve and its label clear the other nodes, the centre text and the
+ * arc labels; among clear bows the one nearest a gentle default wins.
+ */
+function buildChord(
+  nodes: CycleLayoutNode[],
+  srcIndex: number,
+  tgtIndex: number,
+  cx: number,
+  cy: number,
+  radius: number,
+  strokeWidth: number,
+  arrowLength: number,
+  obstacles: readonly Box[],
+  label: { w: number; h: number } | null
+): { path: string; labelX: number; labelY: number } {
+  // In-bounds: indices come from parser-validated edges.
+  const src = nodes[srcIndex]!;
+  const tgt = nodes[tgtIndex]!;
+  const mx = (src.x + tgt.x) / 2;
+  const my = (src.y + tgt.y) / 2;
+  const toCx = cx - mx;
+  const toCy = cy - my;
+  const dist = Math.hypot(toCx, toCy);
+  let nx: number, ny: number;
+  if (dist > radius * 0.05) {
+    nx = toCx / dist;
+    ny = toCy / dist;
+  } else {
+    // Near-diameter: no "toward the centre". Start on the side of the step
+    // the edge skips (the source's next step); the search may flip it.
+    const len = Math.hypot(tgt.x - src.x, tgt.y - src.y) || 1;
+    nx = -(tgt.y - src.y) / len;
+    ny = (tgt.x - src.x) / len;
+    // In-bounds: modulo keeps the index in range.
+    const skipped = nodes[(srcIndex + 1) % nodes.length]!;
+    if ((skipped.x - mx) * nx + (skipped.y - my) * ny < 0) {
+      nx = -nx;
+      ny = -ny;
+    }
+  }
+
+  const bez = (p1x: number, p1y: number, t: number): [number, number] => {
+    const u = 1 - t;
+    return [
+      u * u * src.x + 2 * u * t * p1x + t * t * tgt.x,
+      u * u * src.y + 2 * u * t * p1y + t * t * tgt.y,
+    ];
+  };
+  // Apex offset `a` along n puts the curve's t = 0.5 point at M + a·n.
+  const control = (a: number): [number, number] => [
+    mx + 2 * a * nx,
+    my + 2 * a * ny,
+  ];
+
+  const others = nodes
+    .filter((_, i) => i !== srcIndex && i !== tgtIndex)
+    .map((n) => ({ x: n.x, y: n.y, hw: n.width / 2, hh: n.height / 2 }));
+  const pad = 10 + strokeWidth / 2;
+  const preferred = Math.max(0.35 * dist, 0.12 * radius);
+
+  const score = (a: number): number => {
+    const [p1x, p1y] = control(a);
+    let penalty = 0;
+    const SAMPLES = 48;
+    for (let k = 1; k < SAMPLES; k++) {
+      const [px, py] = bez(p1x, p1y, k / SAMPLES);
+      if (insideNode(src, px, py) || insideNode(tgt, px, py)) continue;
+      for (const b of others) penalty += boxDepth(b, px, py, pad);
+      for (const b of obstacles) penalty += boxDepth(b, px, py, 4);
+    }
+    if (label) {
+      const [lx, ly] = bez(p1x, p1y, 0.5);
+      for (const b of [...others, ...obstacles]) {
+        const ox = Math.max(0, label.w / 2 + b.hw - Math.abs(lx - b.x));
+        const oy = Math.max(0, label.h / 2 + b.hh - Math.abs(ly - b.y));
+        penalty += Math.min(ox, oy);
+      }
+    }
+    return penalty * 1000 + Math.abs(a - preferred) / radius;
+  };
+
+  let bestA = preferred;
+  let bestScore = score(preferred);
+  const lo = -0.6 * radius;
+  const hi = dist + 0.6 * radius;
+  const STEPS = 48;
+  for (let k = 0; k <= STEPS; k++) {
+    const a = lo + ((hi - lo) * k) / STEPS;
+    const sc = score(a);
+    if (sc < bestScore) {
+      bestScore = sc;
+      bestA = a;
+    }
+  }
+
+  const [p1x, p1y] = control(bestA);
+  // Where the curve leaves the source and enters the target.
+  let tOut = 0;
+  let tOutHi = 0.5;
+  for (let i = 0; i < 20; i++) {
+    const t = (tOut + tOutHi) / 2;
+    const [px, py] = bez(p1x, p1y, t);
+    if (insideNode(src, px, py)) tOut = t;
+    else tOutHi = t;
+  }
+  let tInLo = 0.5;
+  let tIn = 1;
+  for (let i = 0; i < 20; i++) {
+    const t = (tInLo + tIn) / 2;
+    const [px, py] = bez(p1x, p1y, t);
+    if (insideNode(tgt, px, py)) tIn = t;
+    else tInLo = t;
+  }
+  // Stop the stroke one arrowhead short of the target outline.
+  const [bx, by] = bez(p1x, p1y, tIn);
+  let tEnd = tOut;
+  let tEndHi = tIn;
+  for (let i = 0; i < 20; i++) {
+    const t = (tEnd + tEndHi) / 2;
+    const [px, py] = bez(p1x, p1y, t);
+    if (Math.hypot(px - bx, py - by) > arrowLength) tEnd = t;
+    else tEndHi = t;
+  }
+  // The sub-curve [0, tEnd] of a quadratic is a quadratic (split at t).
+  const qx = src.x + (p1x - src.x) * tEnd;
+  const qy = src.y + (p1y - src.y) * tEnd;
+  const [ex, ey] = bez(p1x, p1y, tEnd);
+  const path = `M ${src.x} ${src.y} Q ${qx} ${qy} ${ex} ${ey}`;
+  const [labelX, labelY] = bez(p1x, p1y, (tOut + tIn) / 2);
+  return { path, labelX, labelY };
 }
 
 /**
@@ -781,7 +1155,8 @@ function computeEdgeLabelPosition(
   cy: number,
   lineCount: number,
   labelPxW: number,
-  layoutNodes: CycleLayoutNode[]
+  layoutNodes: CycleLayoutNode[],
+  preferInward = false
 ): { labelX: number; labelY: number; labelAngle: number } {
   if (lineCount === 0 || labelPxW === 0) {
     return {
@@ -861,6 +1236,15 @@ function computeEdgeLabelPosition(
     return { labelX, labelY, labelAngle, bbX1, bbX2, bbY1, bbY2, overlap };
   }
 
+  // An inner back arc keeps its label inside the ring, clear of the
+  // forward arc's label.
+  if (preferInward) {
+    const inward = place(-1);
+    if (inward.overlap === 0) {
+      const { labelX, labelY, labelAngle } = inward;
+      return { labelX, labelY, labelAngle };
+    }
+  }
   const outward = place(1);
   if (outward.overlap === 0) {
     return {
