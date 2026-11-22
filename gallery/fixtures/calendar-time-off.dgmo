@@ -1,0 +1,22 @@
+calendar Team time off 2027
+year 2027
+layout months
+orientation-horizontal
+week-start monday
+tag Kind as k
+  Vacation green
+  Sick red
+  Holiday blue
+empty Free
+
+01-01 k: Holiday
+02-15 -> 02-19 Ski week k: Vacation
+03-08 Flu k: Sick
+03-09 Flu k: Sick
+05-31 k: Holiday
+07-04 -> 07-18 Summer trip k: Vacation
+  Two weeks on the coast
+09-06 k: Holiday
+10-11 -> 10-15 Family visit k: Vacation
+11-25 -> 11-26 k: Holiday
+12-24 -> 12-31 Winter break k: Vacation

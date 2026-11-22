@@ -1,0 +1,171 @@
+calendar Habits, first half of 2027
+from 2027-01-01 to 2027-06-30
+heat Pages read as p
+  unit page
+tag Mood as m
+  Great green
+  Ok blue
+  Rough red
+tag Exercise as e
+  Run orange
+  Swim teal
+  Rest gray
+tag Sleep as s
+  Good purple
+  Short yellow
+empty Skipped
+
+01-01 p: 10, m: Ok, s: Good
+01-02 p: 5, m: Ok, e: Rest, s: Good
+01-03 p: 30, m: Ok, e: Run, s: Short
+01-04 p: 5, m: Great, s: Short
+01-06 p: 30, m: Great, s: Good
+01-07 p: 10, m: Ok, e: Rest, s: Good
+01-08 p: 10, m: Great, e: Rest, s: Good
+01-09 p: 5, m: Ok, e: Run, s: Good
+01-10 p: 30, m: Ok, e: Swim, s: Good
+01-11 p: 10, m: Rough, s: Good
+01-12 p: 40, m: Ok, s: Good
+01-13 p: 5, m: Great, e: Run, s: Good
+01-14 p: 40, m: Ok, e: Rest, s: Good
+01-15 p: 25, m: Ok, s: Short
+01-16 p: 40, m: Great, s: Good
+01-17 p: 5, m: Great, s: Good
+01-18 p: 40, m: Ok, s: Short
+01-19 p: 40, m: Ok, e: Run, s: Good
+01-20 p: 20, m: Great, s: Good
+01-21 p: 40, m: Great, e: Swim, s: Short
+01-22 p: 10, m: Ok, s: Good
+01-23 p: 25, m: Rough, s: Good
+01-24 p: 10, m: Great, e: Run, s: Good
+01-25 p: 10, m: Ok, e: Run, s: Good
+01-26 p: 25, m: Great, s: Short
+01-28 p: 0, m: Ok, s: Short
+01-29 p: 30, m: Ok, e: Run, s: Good
+01-30 p: 0, m: Great, e: Run, s: Good
+01-31 p: 25, m: Ok, e: Run, s: Short
+02-01 p: 5, m: Ok, s: Good
+02-03 p: 10, m: Rough, e: Swim, s: Short
+02-04 p: 5, m: Great, s: Good
+02-05 p: 20, m: Great, e: Rest, s: Good
+02-06 p: 40, m: Rough, e: Run, s: Good
+02-08 p: 10, m: Rough, e: Run, s: Short
+02-09 p: 5, m: Rough, s: Short
+02-10 p: 10, m: Ok, s: Short
+02-11 p: 25, m: Rough, e: Run, s: Good
+02-12 p: 12, m: Great, e: Swim, s: Short
+02-13 p: 0, m: Ok, e: Run, s: Short
+02-14 p: 25, m: Ok, s: Short
+02-17 p: 12, m: Great, e: Run, s: Good
+02-18 p: 0, m: Ok, s: Good
+02-19 p: 5, m: Rough, e: Swim, s: Short
+02-20 p: 40, m: Great, e: Rest, s: Good
+02-21 p: 30, m: Ok, e: Run, s: Short
+02-22 p: 10, m: Great, e: Swim, s: Short
+02-23 p: 40, m: Rough, s: Good
+02-24 p: 10, m: Great, e: Rest, s: Short
+02-25 p: 10, m: Ok, s: Good
+02-26 p: 12, m: Great, e: Swim, s: Short
+02-27 p: 25, m: Ok, e: Run, s: Good
+03-01 p: 40, m: Rough, e: Rest, s: Good
+03-02 p: 10, m: Ok, e: Rest, s: Good
+03-04 p: 0, m: Great, e: Swim, s: Short
+03-05 p: 0, m: Ok, s: Short
+03-06 p: 5, m: Ok, e: Run, s: Good
+03-07 p: 5, m: Ok, e: Run, s: Good
+03-08 p: 12, m: Rough, e: Rest, s: Short
+03-09 p: 12, m: Rough, e: Swim, s: Short
+03-11 p: 40, m: Great, e: Swim, s: Good
+03-12 p: 12, m: Ok, e: Rest, s: Good
+03-13 p: 10, m: Rough, s: Good
+03-14 p: 10, m: Ok, e: Run, s: Good
+03-16 p: 12, m: Great, s: Short
+03-17 p: 30, m: Great, e: Run, s: Short
+03-18 p: 25, m: Ok, e: Rest, s: Good
+03-19 p: 20, m: Ok, s: Good
+03-21 p: 5, m: Great, e: Run, s: Good
+03-22 p: 10, m: Ok, s: Short
+03-23 p: 20, m: Ok, e: Rest, s: Short
+03-24 p: 25, m: Great, e: Rest, s: Good
+03-25 p: 5, m: Ok, s: Short
+03-26 p: 20, m: Great, s: Good
+03-27 p: 5, m: Ok, e: Rest, s: Good
+03-29 p: 10, m: Great, e: Run, s: Good
+03-31 p: 10, m: Great, s: Short
+04-01 p: 12, m: Ok, e: Rest, s: Good
+04-02 p: 0, m: Ok, e: Run, s: Short
+04-03 p: 12, m: Ok, e: Swim, s: Good
+04-04 p: 30, m: Rough, e: Swim, s: Short
+04-05 p: 12, m: Great, e: Rest, s: Short
+04-06 p: 30, m: Ok, s: Good
+04-07 p: 20, m: Ok, e: Run, s: Short
+04-08 p: 20, m: Ok, e: Swim, s: Good
+04-09 p: 10, m: Ok, e: Swim, s: Good
+04-12 p: 12, m: Great, s: Good
+04-13 p: 10, m: Great, e: Run, s: Good
+04-14 p: 12, m: Great, e: Run, s: Good
+04-15 p: 5, m: Great, e: Run, s: Good
+04-16 p: 20, m: Rough, e: Rest, s: Short
+04-18 p: 30, m: Ok, s: Good
+04-19 p: 10, m: Great, s: Short
+04-21 p: 10, m: Ok, s: Short
+04-22 p: 0, m: Rough, e: Rest, s: Short
+04-24 p: 5, m: Great, e: Rest, s: Good
+04-26 p: 40, m: Ok, e: Run, s: Short
+04-27 p: 12, m: Ok, e: Swim, s: Good
+04-28 p: 5, m: Rough, e: Rest, s: Short
+04-29 p: 5, m: Ok, e: Run, s: Good
+04-30 p: 40, m: Ok, s: Good
+05-01 p: 20, m: Great, s: Short
+05-02 p: 10, m: Ok, e: Rest, s: Short
+05-03 p: 10, m: Great, e: Swim, s: Good
+05-05 p: 12, m: Rough, e: Rest, s: Short
+05-06 p: 40, m: Ok, s: Short
+05-07 p: 5, m: Ok, e: Swim, s: Good
+05-08 p: 40, m: Ok, e: Run, s: Good
+05-09 p: 10, m: Rough, e: Swim, s: Good
+05-10 p: 20, m: Great, s: Good
+05-11 p: 40, m: Ok, e: Run, s: Good
+05-12 p: 30, m: Ok, s: Good
+05-13 p: 25, m: Great, s: Good
+05-14 p: 25, m: Ok, e: Run, s: Short
+05-15 p: 20, m: Ok, e: Swim, s: Good
+05-17 p: 25, m: Ok, s: Good
+05-18 p: 0, m: Rough, e: Run, s: Good
+05-20 p: 25, m: Great, s: Good
+05-22 p: 30, m: Ok, e: Rest, s: Good
+05-23 p: 30, m: Ok, s: Good
+05-24 p: 20, m: Ok, e: Rest, s: Good
+05-25 p: 30, m: Ok, e: Swim, s: Short
+05-26 p: 20, m: Ok, s: Good
+05-27 p: 30, m: Great, e: Run, s: Good
+05-28 p: 40, m: Ok, e: Swim, s: Good
+05-29 p: 12, m: Great, e: Swim, s: Short
+05-30 p: 12, m: Ok, e: Rest, s: Good
+06-01 p: 30, m: Ok, e: Rest, s: Good
+06-02 p: 25, m: Great, e: Rest, s: Good
+06-03 p: 12, m: Great, e: Run, s: Good
+06-04 p: 40, m: Ok, s: Good
+06-05 p: 30, m: Rough, s: Good
+06-07 p: 5, m: Ok, s: Short
+06-10 p: 5, m: Great, e: Rest, s: Short
+06-11 p: 40, m: Great, e: Run, s: Good
+06-12 p: 12, m: Ok, s: Short
+06-13 p: 10, m: Rough, e: Rest, s: Good
+06-14 p: 5, m: Great, e: Rest, s: Short
+06-15 p: 20, m: Great, s: Good
+06-16 p: 20, m: Ok, e: Swim, s: Short
+06-17 p: 12, m: Ok, e: Rest, s: Good
+06-18 p: 30, m: Rough, s: Good
+06-19 p: 40, m: Rough, s: Good
+06-20 p: 30, m: Ok, e: Run, s: Short
+06-21 p: 30, m: Ok, s: Good
+06-22 p: 20, m: Rough, s: Good
+06-23 p: 12, m: Ok, s: Good
+06-24 p: 12, m: Ok, s: Good
+06-25 p: 40, m: Ok, e: Run, s: Good
+06-26 p: 0, m: Ok, e: Swim, s: Good
+06-27 p: 10, m: Ok, e: Run, s: Good
+06-28 p: 25, m: Rough, e: Run, s: Good
+06-29 p: 10, m: Rough, s: Short
+06-30 p: 20, m: Rough, s: Good

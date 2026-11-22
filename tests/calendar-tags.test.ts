@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
-// Tag mode of the calendar heatmap — year in pixels (#1855, #1877).
+// Calendar groups, the legend and events (§41.4–§41.6, #1877).
 import { describe, expect, it, vi } from 'vitest';
 import { calendarSummary } from '../src/calendar/format';
 import { parseCalendar } from '../src/calendar/parser';
 import { renderCalendar } from '../src/calendar/renderer';
+import type { CalendarRenderOptions } from '../src/calendar/renderer';
 import { resolveColor } from '../src/colors';
 import { getPalette } from '../src/palettes';
 
@@ -22,164 +23,86 @@ tag Mood
 01-05 Great
 `;
 
-const codes = (src: string) =>
-  parseCalendar(src).diagnostics.map((d) => d.code);
+const HABITS = `calendar Habits
+year 2026
+heat Commits as c
+  unit commit
+tag Mood as m
+  Great green
+  Rough red
+tag Sleep as s
+  Good teal
+  Short orange
 
-function draw(src: string): HTMLElement {
+01-01 c: 4, m: Great, s: Good
+01-02 c: 1, m: Rough
+01-03 s: Short
+`;
+
+function draw(src: string, options: CalendarRenderOptions = {}): HTMLElement {
   const parsed = parseCalendar(src);
   expect(parsed.error).toBeNull();
   const container = document.createElement('div');
   vi.spyOn(container, 'getBoundingClientRect').mockReturnValue({
     width: 0,
   } as DOMRect);
-  renderCalendar(container, parsed, palette, false);
+  renderCalendar(container, parsed, palette, false, options);
   return container;
 }
 
-describe('calendar tag mode — parser', () => {
-  it('reads a tag group and gives each day its value, in the group spelling', () => {
-    const p = parseCalendar(MOOD);
-    expect(p.error).toBeNull();
-    expect(p.mode).toBe('tag');
-    expect(p.tagGroups.map((g) => g.name)).toEqual(['Mood']);
-    expect(p.tagGroups[0]!.entries.map((e) => e.value)).toEqual([
-      'Great',
-      'Ok',
-      'Rough',
-    ]);
-    expect(p.days.map((d) => [d.date, d.tag])).toEqual([
-      ['2026-01-01', 'Great'],
-      ['2026-01-02', 'Ok'],
-      ['2026-01-03', 'Rough'],
-      ['2026-01-05', 'Great'],
-    ]);
-  });
+const cell = (c: HTMLElement, date: string) =>
+  c.querySelector(`.calendar-day[data-date="${date}"]`)!;
+const fill = (c: HTMLElement, date: string) =>
+  cell(c, date).getAttribute('fill');
+const entries = (c: HTMLElement) =>
+  [...c.querySelectorAll('.calendar-legend [data-legend-entry]')].map((e) =>
+    e.getAttribute('data-series-name')
+  );
+const pills = (c: HTMLElement) =>
+  [...c.querySelectorAll('.calendar-legend [data-legend-group]')].map((e) =>
+    e.getAttribute('data-legend-group')
+  );
 
-  it('keeps number mode when no tag group is declared', () => {
-    const p = parseCalendar('calendar\nyear 2026\n01-01 3\n');
-    expect(p.mode).toBe('value');
-    expect(p.tagGroups).toEqual([]);
-    expect(p.days[0]!.value).toBe(3);
-  });
-
-  it('reads a multi-word tag value and inline values on the heading', () => {
-    const p = parseCalendar(`calendar
-year 2026
-tag Mood Great green, Not great red
-
-01-01 Not great
-`);
-    expect(p.error).toBeNull();
-    expect(p.days[0]!.tag).toBe('Not great');
-  });
-
-  it('refuses numbers and tags in one chart', () => {
-    const src = `calendar
-year 2026
-tag Mood
-  Great green
-
-01-01 Great
-01-02 4
-`;
-    expect(codes(src)).toContain('E_CALENDAR_MIXED_ENTRIES');
-    const p = parseCalendar(src);
-    expect(p.diagnostics[0]!.line).toBe(7);
-    expect(p.error).not.toBeNull();
-  });
-
-  it('refuses a value no tag group declares, and suggests the near one', () => {
-    const p = parseCalendar(`calendar
-year 2026
-tag Mood
-  Great green
-
-01-01 Graet
-`);
-    const d = p.diagnostics.find((x) => x.code === 'E_CALENDAR_UNKNOWN_TAG');
-    expect(d?.line).toBe(6);
-    expect(d?.message).toContain("'Graet' is not a value of any tag group.");
-    expect(d?.message).toContain('Great');
-    expect(d?.message).not.toContain("'Graet' (");
-  });
-
-  it('warns on a day tagged twice, and the later line wins', () => {
-    const src = `calendar
-year 2026
-tag Mood
-  Great green
-  Rough red
-
-01-01 Great
-01-01 Rough
-`;
-    expect(codes(src)).toEqual(['W_CALENDAR_DUPLICATE_TAG_DAY']);
-    expect(parseCalendar(src).days[0]!.tag).toBe('Rough');
-  });
-
-  it('draws an empty tagged year when the group has no entries yet', () => {
-    const p = parseCalendar('calendar\nyear 2026\ntag Mood\n  Great green\n');
-    expect(p.error).toBeNull();
-    expect(p.mode).toBe('tag');
-    expect(p.days).toEqual([]);
-  });
-});
-
-describe('calendar tag mode — renderer', () => {
+describe('calendar tag group — renderer', () => {
   it("colours each tagged day by its value and the rest as 'Not logged'", () => {
     const c = draw(MOOD);
-    const day = (date: string) =>
-      c.querySelector(`.calendar-day[data-date="${date}"]`)!;
-    expect(day('2026-01-01').getAttribute('fill')).toBe(
-      resolveColor('green', palette)
-    );
-    expect(day('2026-01-03').getAttribute('fill')).toBe(
-      resolveColor('red', palette)
-    );
-    expect(day('2026-01-01').getAttribute('data-tag')).toBe('Great');
-    expect(day('2026-01-04').getAttribute('data-tag')).toBeNull();
-    expect(day('2026-01-04').getAttribute('aria-label')).toBe(
+    expect(fill(c, '2026-01-01')).toBe(resolveColor('green', palette));
+    expect(fill(c, '2026-01-03')).toBe(resolveColor('red', palette));
+    expect(cell(c, '2026-01-01').getAttribute('data-tag')).toBe('Great');
+    expect(cell(c, '2026-01-01').getAttribute('data-tag-mood')).toBe('great');
+    expect(cell(c, '2026-01-04').getAttribute('data-tag')).toBeNull();
+    expect(cell(c, '2026-01-04').getAttribute('aria-label')).toBe(
       'Sunday, January 4, 2026: Not logged'
     );
-    expect(day('2026-01-02').getAttribute('aria-label')).toBe(
+    expect(cell(c, '2026-01-02').getAttribute('aria-label')).toBe(
       'Friday, January 2, 2026: Ok'
     );
-    // Every untagged day shares one fill, distinct from every tag colour.
-    const untagged = day('2026-01-04').getAttribute('fill');
-    expect(day('2026-06-01').getAttribute('fill')).toBe(untagged);
-    expect([
-      resolveColor('green', palette),
-      resolveColor('blue', palette),
-      resolveColor('red', palette),
-    ]).not.toContain(untagged);
+    const untagged = fill(c, '2026-01-04');
+    expect(fill(c, '2026-06-01')).toBe(untagged);
+    expect(untagged).toBe(palette.bg);
   });
 
-  it("lists the tag values and 'Not logged' in the legend, not Less … More", () => {
+  it("lists the values and 'Not logged' in the legend, with no Less … More", () => {
     const c = draw(MOOD);
-    const items = [...c.querySelectorAll('.calendar-legend-tag text')].map(
-      (t) => t.textContent
-    );
-    expect(items).toEqual(['Great', 'Ok', 'Rough', 'Not logged']);
+    expect(entries(c)).toEqual(['Great', 'Ok', 'Rough', 'Not logged']);
     expect(c.querySelector('.calendar-legend-step')).toBeNull();
     expect(c.textContent).not.toContain('Less');
   });
 
-  it('gives a bare tag value a palette colour of its own', () => {
-    const c = draw(`calendar
-year 2026
-tag Mood
-  Great
-  Rough
+  it('`empty` renames the blank-day label', () => {
+    const c = draw(MOOD.replace('year 2026', 'year 2026\nempty Skipped'));
+    expect(entries(c)).toEqual(['Great', 'Ok', 'Rough', 'Skipped']);
+    expect(cell(c, '2026-01-04').getAttribute('aria-label')).toContain(
+      'Skipped'
+    );
+  });
 
-01-01 Great
-01-02 Rough
-`);
-    const f = (date: string) =>
-      c
-        .querySelector(`.calendar-day[data-date="${date}"]`)!
-        .getAttribute('fill');
-    expect(f('2026-01-01')).toMatch(/^#[0-9a-f]{6}$/i);
-    expect(f('2026-01-01')).not.toBe(f('2026-01-02'));
+  it('gives a bare tag value a palette colour of its own', () => {
+    const c = draw(
+      'calendar\nyear 2026\ntag Mood\n  Great\n  Rough\n\n01-01 Great\n01-02 Rough\n'
+    );
+    expect(fill(c, '2026-01-01')).toMatch(/^#[0-9a-f]{6}$/i);
+    expect(fill(c, '2026-01-01')).not.toBe(fill(c, '2026-01-02'));
   });
 
   it('summarises the days logged and the most frequent value', () => {
@@ -187,113 +110,157 @@ tag Mood
       '4 days logged · most often Great'
     );
   });
-});
-
-describe('calendar tag mode — review follow-ups', () => {
-  it('reads a tag value that starts with a number, or is one', () => {
-    const p = parseCalendar(`calendar
-year 2026
-tag Rating
-  1 red
-  5 stars green
-
-01-01 5 stars
-01-02 1
-`);
-    expect(p.diagnostics).toEqual([]);
-    expect(p.mode).toBe('tag');
-    expect(p.days.map((d) => d.tag)).toEqual(['5 stars', '1']);
-  });
-
-  it('reads tag entries written before their tag group', () => {
-    const p = parseCalendar(`calendar
-year 2026
-01-01 Great
-tag Mood
-  Great green
-`);
-    expect(p.diagnostics).toEqual([]);
-    expect(p.days[0]!.tag).toBe('Great');
-  });
-
-  it('calls an undeclared word an unknown tag once any tag group exists', () => {
-    const mood = 'tag Mood\n  Great green\n';
-    expect(codes(`calendar\nyear 2026\n01-01 Grate\n${mood}`)).toEqual([
-      'E_CALENDAR_UNKNOWN_TAG',
-    ]);
-    expect(codes(`calendar\nyear 2026\n${mood}\n01-01 -3\n`)).toEqual([
-      'E_CALENDAR_BAD_VALUE',
-    ]);
-    expect(codes('calendar\nyear 2026\n01-01 Great\n')).toEqual([
-      'E_CALENDAR_BAD_VALUE',
-    ]);
-  });
-
-  it('breaks a tie for most often toward the value declared first', () => {
-    const p = parseCalendar(`calendar
-year 2026
-tag Mood
-  Great green
-  Ok blue
-
-01-01 Ok
-01-02 Great
-`);
-    expect(calendarSummary(p)).toBe('2 days logged · most often Great');
-  });
-
-  it("says '1 day logged' for a single day", () => {
-    const p = parseCalendar(`calendar
-year 2026
-tag Mood
-  Great green
-
-01-01 Great
-`);
-    expect(calendarSummary(p)).toBe('1 day logged · most often Great');
-  });
-
-  it('leaves out a tagged day outside the span, with a warning', () => {
-    const p = parseCalendar(`calendar
-from 2026-02-01 to 2026-02-28
-tag Mood
-  Great green
-
-2026-01-01 Great
-2026-02-02 Great
-`);
-    expect(p.diagnostics.map((d) => d.code)).toEqual([
-      'W_CALENDAR_OUTSIDE_SPAN',
-    ]);
-    expect(p.days.map((d) => d.date)).toEqual(['2026-02-02']);
-  });
-
-  it('draws no legend in tag mode under no-legend', () => {
-    const c = draw(MOOD.replace('year 2026', 'year 2026\nno-legend'));
-    expect(c.querySelector('.calendar-legend')).toBeNull();
-    expect(c.querySelector('.calendar-day[data-tag]')).not.toBeNull();
-  });
 
   it("keeps a gray tag apart from 'Not logged'", () => {
-    const c = draw(`calendar
-year 2026
-tag Mood
-  Meh gray
+    const c = draw('calendar\nyear 2026\ntag Mood\n  Meh gray\n\n01-01 Meh\n');
+    expect(fill(c, '2026-01-01')).toBe(resolveColor('gray', palette));
+    expect(fill(c, '2026-01-02')).toBe(palette.bg);
+    expect(cell(c, '2026-01-02').getAttribute('stroke')).not.toBe(
+      cell(c, '2026-01-01').getAttribute('stroke')
+    );
+  });
 
-01-01 Meh
-`);
-    const cell = (date: string) =>
-      c.querySelector(`.calendar-day[data-date="${date}"]`)!;
-    expect(cell('2026-01-01').getAttribute('fill')).toBe(
-      resolveColor('gray', palette)
+  it('a legend value keeps only its days lit', () => {
+    const c = draw(MOOD);
+    const great = c.querySelector(
+      '.calendar-legend [data-series-name="Great"]'
+    )!;
+    great.dispatchEvent(new Event('mouseenter'));
+    const lit = [...c.querySelectorAll<SVGRectElement>('.calendar-day')]
+      .filter((d) => d.style.opacity === '')
+      .map((d) => d.getAttribute('data-date'));
+    expect(lit).toEqual(['2026-01-01', '2026-01-05']);
+  });
+});
+
+describe('calendar groups — the legend (§41.5)', () => {
+  it('draws one pill per group, the first declared open', () => {
+    const c = draw(HABITS);
+    expect(pills(c)).toEqual(['commits', 'mood', 'sleep']);
+    // The open pill is a number group: Less … More steps, shaded tiles.
+    expect(c.querySelectorAll('.calendar-legend-step')).toHaveLength(5);
+    const lv = (d: string) => Number(cell(c, d).getAttribute('data-level'));
+    expect(lv('2026-01-01')).toBeGreaterThan(lv('2026-01-02'));
+    expect(lv('2026-01-02')).toBeGreaterThan(0);
+    expect(lv('2026-01-03')).toBe(0);
+  });
+
+  it('`active-tag` opens another group; the tiles follow it', () => {
+    const c = draw(HABITS.replace('year 2026', 'year 2026\nactive-tag Sleep'));
+    expect(fill(c, '2026-01-01')).toBe(resolveColor('teal', palette));
+    expect(fill(c, '2026-01-03')).toBe(resolveColor('orange', palette));
+    expect(cell(c, '2026-01-02').getAttribute('data-tag')).toBeNull();
+    expect(entries(c)).toEqual(['Good', 'Short', 'Not logged']);
+  });
+
+  it('`active-tag none` draws no colour', () => {
+    const c = draw(HABITS.replace('year 2026', 'year 2026\nactive-tag none'));
+    const fills = new Set(
+      [...c.querySelectorAll('.calendar-day')].map((d) =>
+        d.getAttribute('fill')
+      )
     );
-    expect(cell('2026-01-02').getAttribute('fill')).toBe(palette.bg);
-    expect(cell('2026-01-02').getAttribute('stroke')).not.toBe(
-      cell('2026-01-01').getAttribute('stroke')
+    expect(fills).toEqual(new Set([palette.bg]));
+  });
+
+  it('the summary follows the open pill', () => {
+    const p = parseCalendar(HABITS);
+    expect(calendarSummary(p)).toBe('5 commits · busiest day Jan 1');
+    const mood = parseCalendar(
+      HABITS.replace('year 2026', 'year 2026\nactive-tag m')
     );
-    const swatches = [...c.querySelectorAll('.calendar-legend-tag rect')].map(
-      (r) => r.getAttribute('fill')
+    expect(calendarSummary(mood)).toBe('2 days logged · most often Great');
+    const c = draw(HABITS, { activeTagGroup: 'Sleep' });
+    expect(c.querySelector('.chart-subtitle')!.textContent).toBe(
+      '2 days logged · most often Good'
     );
-    expect(swatches).toEqual([resolveColor('gray', palette), palette.bg]);
+  });
+
+  it('a pill click calls back with the group, or redraws with it open', () => {
+    const picked: string[] = [];
+    const c = draw(HABITS, { onActiveGroupChange: (g) => picked.push(g) });
+    c.querySelector('[data-legend-group="mood"]')!.dispatchEvent(
+      new MouseEvent('click', { bubbles: true })
+    );
+    expect(picked).toEqual(['Mood']);
+
+    const d = draw(HABITS);
+    d.querySelector('[data-legend-group="sleep"]')!.dispatchEvent(
+      new MouseEvent('click', { bubbles: true })
+    );
+    expect(fill(d, '2026-01-01')).toBe(resolveColor('teal', palette));
+  });
+
+  it('an export shows only the open group', () => {
+    const c = draw(HABITS, { exportMode: true });
+    expect(pills(c)).toEqual(['commits']);
+  });
+
+  it('the day card lists every group’s mark', () => {
+    const c = draw(HABITS);
+    cell(c, '2026-01-01').dispatchEvent(new MouseEvent('mouseenter'));
+    const tip = c.querySelector<HTMLElement>('[data-d3-tooltip]')!;
+    expect(tip.textContent).toBe(
+      '4 commitsThursday, January 1, 2026Commits: 4 commitsMood: GreatSleep: Good'
+    );
+  });
+});
+
+describe('calendar events in weeks and months (§41.3)', () => {
+  const EVENTS = `calendar Trips
+year 2026
+layout weeks
+tag Kind as k
+  Work blue
+  Home green
+
+03-10 Dentist k: Home
+03-10 Standup k: Work
+03-11 Lunch
+04-01 -> 04-03 Offsite k: Work
+  Agenda in the **wiki**
+`;
+
+  it('an event colours its tiles with its value in the open group', () => {
+    const c = draw(EVENTS);
+    expect(fill(c, '2026-04-01')).toBe(resolveColor('blue', palette));
+    expect(fill(c, '2026-04-03')).toBe(resolveColor('blue', palette));
+    expect(cell(c, '2026-04-02').getAttribute('data-events')).toBe('1');
+  });
+
+  it('a second event on a day adds a corner dot', () => {
+    const c = draw(EVENTS);
+    expect(fill(c, '2026-03-10')).toBe(resolveColor('green', palette));
+    const dots = [...c.querySelectorAll('.calendar-event-dot')];
+    const on = (date: string) =>
+      dots.filter((d) => d.getAttribute('data-date') === date);
+    expect(on('2026-03-10')).toHaveLength(1);
+    expect(on('2026-03-10')[0]!.getAttribute('fill')).toBe(
+      resolveColor('blue', palette)
+    );
+    // An event with no value in the open group shows as the dot alone.
+    expect(on('2026-03-11')).toHaveLength(1);
+    expect(on('2026-04-01')).toHaveLength(0);
+  });
+
+  it('names and notes show on hover; `no-notes` hides the notes', () => {
+    const tip = (c: HTMLElement) =>
+      c.querySelector<HTMLElement>('[data-d3-tooltip]')!.textContent;
+    const c = draw(EVENTS);
+    cell(c, '2026-04-02').dispatchEvent(new MouseEvent('mouseenter'));
+    expect(tip(c)).toBe('WorkThursday, April 2, 2026OffsiteAgenda in the wiki');
+    const quiet = draw(
+      EVENTS.replace('layout weeks', 'layout weeks\nno-notes')
+    );
+    cell(quiet, '2026-04-02').dispatchEvent(new MouseEvent('mouseenter'));
+    expect(tip(quiet)).toBe('WorkThursday, April 2, 2026Offsite');
+  });
+
+  it('an events-only chart counts its events in the summary', () => {
+    expect(
+      calendarSummary(
+        parseCalendar('calendar\nyear 2026\n03-10 Dentist\n03-12 Lunch')
+      )
+    ).toBe('2 events');
   });
 });

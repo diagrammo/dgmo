@@ -200,7 +200,8 @@ describe('calendar shading (#1855)', () => {
     const words = [...c.querySelectorAll('.calendar-legend text')].map(
       (t) => t.textContent
     );
-    expect(words).toEqual(['Less', 'More']);
+    // The implied group's pill is named by its unit (§41.5).
+    expect(words).toEqual(['Runs', 'Less', 'More']);
   });
 
   it('`no-legend` drops the legend', () => {
@@ -368,25 +369,28 @@ describe('calendar heat colours', () => {
   const withHeat = (line: string) =>
     YEAR.replace('unit run', `unit run\n${line}`);
 
-  it('reads the shared ramp line: label, then up to two colours', () => {
-    expect(parseCalendar(withHeat('heat Runs blue red')).heat).toEqual({
-      label: 'Runs',
-      low: 'blue',
-      high: 'red',
-    });
-    // A lone word is the label, never a colour.
-    expect(parseCalendar(withHeat('heat Red')).heat).toEqual({
-      label: 'Red',
-    });
+  it('reads the shared ramp line: name, then up to two colours', () => {
+    const g = parseCalendar(withHeat('heat Runs blue red')).numberGroups[0]!;
+    expect([g.name, g.low, g.high, g.implied]).toEqual([
+      'Runs',
+      'blue',
+      'red',
+      false,
+    ]);
+    // A lone word is the name, never a colour.
+    expect(parseCalendar(withHeat('heat Red')).numberGroups[0]!.name).toBe(
+      'Red'
+    );
   });
 
-  it('a label alone keeps the greens and prints before "Less"', () => {
+  it('a name alone keeps the greens and names the pill', () => {
     const plain = draw(YEAR);
-    const named = draw(withHeat('heat Runs'));
+    const named = draw(withHeat('heat Runs logged'));
     expect(steps(named)).toEqual(steps(plain));
-    expect(named.querySelector('.calendar-legend-label')!.textContent).toBe(
-      'Runs'
+    const words = [...named.querySelectorAll('.calendar-legend text')].map(
+      (t) => t.textContent
     );
+    expect(words[0]).toBe('Runs logged');
   });
 
   it('one colour replaces the green; zero stays grey', () => {

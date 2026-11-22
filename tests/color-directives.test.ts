@@ -112,10 +112,11 @@ const FIXTURES: Record<string, Fixture> = {
     bare: { line: 'heat blue', label: 'blue' },
     plain: { line: 'heat Errors', label: 'Errors' },
     read: (line) => {
-      const h = parseCalendar(`calendar\n${line}\n2026-01-01 1\n`).heat;
+      const h = parseCalendar(`calendar\n${line}\n2026-01-01 1\n`)
+        .numberGroups[0];
       return {
         colors: truthy(h?.low, h?.high),
-        label: h?.label ?? null,
+        label: h?.name ?? null,
       };
     },
   },
