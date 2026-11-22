@@ -736,6 +736,10 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'moving-average', category: 'directive', chartTypes: ['line'] },
   { token: 'no-extremes', category: 'directive', chartTypes: ['line'] },
   { token: 'pareto', category: 'directive', chartTypes: ['bar'] },
+  // ── Small multiples (#1853) ──────────────────────────────
+  { token: 'facet', category: 'directive', chartTypes: ['bar', 'line'] },
+  { token: 'facet-free-y', category: 'directive', chartTypes: ['bar', 'line'] },
+  { token: 'no-context', category: 'directive', chartTypes: ['line'] },
   // ── Chart annotations (#1832, #2039) ──────────────────────
   {
     token: 'band',
@@ -980,7 +984,11 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
       'waterfall',
     ],
   },
-  { token: 'columns', category: 'directive', chartTypes: ['block', 'heatmap'] },
+  {
+    token: 'columns',
+    category: 'directive',
+    chartTypes: ['bar', 'block', 'heatmap', 'line'],
+  },
   { token: 'rows', category: 'directive', chartTypes: 'all' },
   { token: 'labels', category: 'directive', chartTypes: 'all' },
   { token: 'rotate', category: 'directive', chartTypes: ['wordcloud'] },

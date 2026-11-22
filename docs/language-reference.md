@@ -2901,6 +2901,46 @@ under two different cluster headers is two spots and is not warned.
     `band`, `fill-between` and `y-axis log` are errors with a stack.
   - `stack diverging` is bar-only; on line it draws an ordinary stack and warns.
 
+- **bar and line, small multiples** — add the bare `facet` flag (#1853).
+  Each series gets its own panel, in declaration order, in a grid under one
+  title block. The series come from a `group` block on bar and a `series`
+  block on line.
+
+  ```
+  line Unemployment by region
+  facet
+  y-axis Percent
+  series
+    North
+    South
+    East
+    West
+
+  2019 4.1 6.2 3.8 5.0
+  2020 7.9 9.4 6.1 8.8
+  2021 6.3 8.1 5.2 7.0
+  ```
+
+  - Each panel is headed by its series name in the series colour. There is
+    no legend. The x-axis and y-axis titles are drawn once, for the grid.
+  - All panels share one value axis, so equal values sit at equal heights.
+    Its tick labels stand on the first column only. `facet-free-y` gives
+    each panel its own range and labels every panel.
+  - A line panel draws the other series in light grey behind its own.
+    `no-context` turns them off. Bars never draw them, and neither does a
+    `facet-free-y` chart, whose panels share no scale.
+  - The grid has as many columns as fit at a readable panel width.
+    `columns N` sets the count.
+  - Per-panel options carry over: `fill`, `step` / `step-before`, eras,
+    `orientation-horizontal`, markers, bands and the statistics overlays.
+    A `note` stays with its own series' panel.
+  - Errors, each drawing the chart as one plot: `stack`, `stack 100%`,
+    `mirror`, a `y-right-axis` group, `mark:` on a series, a series `band`
+    and `fill-between` — each needs several series in one plot. One series
+    warns and draws one chart. `facet-free-y`, `no-context` and `columns`
+    without `facet` warn and are ignored; `facet` on another chart type
+    warns.
+
 - **radar** — use a `series` block to plot one polygon per series over the shared
   axes, each in its series color, with the standard series legend (same block
   form as line; dual-axis grouping is line-only):
@@ -2939,6 +2979,10 @@ other-below 5%           // pie: merge slices under 5% of the total into one "Ot
 no-auto-y                // line: anchor the y-axis at 0 (opt out of auto-fit)
 step                     // line: hold each value until the next point (§15.1.3)
 step-before              // line: steps that reach each value at its own point
+facet                    // bar, line: one panel per series (small multiples)
+facet-free-y             // facet: each panel takes its own value range
+no-context               // facet line: no grey lines for the other series
+columns 3                // facet: panels per row
 ```
 
 - `orientation-horizontal` (bar; default is vertical bars). A vertical bar

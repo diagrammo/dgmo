@@ -102,6 +102,7 @@ import {
   CUT_MARK_GAP,
   CUT_MARK_LEN,
 } from './shared';
+import type { FacetPanel } from './facet-panel';
 import { labelBox, placeLabels } from '../utils/place-labels';
 import { tabularText } from '../utils/tabular-figures';
 import { resolveColor } from '../colors';
@@ -127,7 +128,9 @@ export function renderLine(
   mutedColor: string,
   bgColor: string,
   hasTitle: boolean,
-  inlineTitle?: InlineTitleInfo
+  inlineTitle?: InlineTitleInfo,
+  /** Set when this chart is one panel of a `facet` grid (#1853). */
+  panel?: FacetPanel
 ): void {
   const data = chart.data;
   // `line` + a `stack` block → stacked areas; `stack 100%` → each x position
@@ -647,7 +650,7 @@ export function renderLine(
       .attr('y2', yy)
       .attr('stroke', mutedColor)
       .attr('stroke-opacity', t === 0 ? 0.6 : 0.25);
-    if (shown.has(t))
+    if (shown.has(t) && !panel?.hideValueTicks)
       svg
         .append('text')
         .attr('class', 'dgmo-tick')
@@ -870,6 +873,25 @@ export function renderLine(
   const extremeMarks: ExtremeMark[] = [];
   /** An extreme's own value label, used only if its mark finds no room. */
   const extremeValues = new Map<ExtremeMark, (typeof valueLabels)[number]>();
+
+  // A facet panel's context (#1853): the other series, thin and grey, behind
+  // its own, on the shared value axis.
+  if (panel?.context?.length) {
+    const g = svg.append('g').attr('class', 'dgmo-facet-context');
+    const ctxLine = d3line<number>()
+      .defined((v) => Number.isFinite(v))
+      .x((_, i) => xOfRow(i))
+      .y((v) => yL(v))
+      .curve(curve);
+    for (const values of panel.context)
+      g.append('path')
+        .attr('d', ctxLine(values) ?? '')
+        .attr('fill', 'none')
+        .attr('stroke', mix(mutedColor, bgColor, 35))
+        .attr('stroke-width', 1.25)
+        .attr('stroke-linejoin', 'round')
+        .attr('pointer-events', 'none');
+  }
 
   // Uncertainty bands (#1981), beneath every fill and line: the low series'
   // colour at reduced opacity, between the two bounds, in the lines' curve.

@@ -12,6 +12,11 @@ export const fixture: ConformanceFixture = {
   specSection: '16',
   firstLineKeyword: 'line',
   directives: [
+    // #1853 small multiples.
+    'facet',
+    'facet-free-y',
+    'no-context',
+    'columns',
     ...FRAME_DIRECTIVES,
     // #1831 number format.
     ...NUMBER_FORMAT_DIRECTIVES,

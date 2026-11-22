@@ -199,6 +199,17 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       lollipop: {
         description: 'Draw each bar as a thin stem with a dot at its value',
       },
+      facet: {
+        description:
+          'Small multiples: one panel per group series, on a shared value axis',
+      },
+      'facet-free-y': {
+        description: 'With facet: give each panel its own value range',
+      },
+      columns: {
+        description:
+          'With facet: panels per row (columns 3); default fits the width',
+      },
       widths: {
         description:
           "Marimekko: each row's first number is its column width (42% or a size); needs a stack block",
@@ -256,6 +267,20 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         values: ['100%'],
       },
       fill: { description: 'Fill under the line (area chart)' },
+      facet: {
+        description:
+          'Small multiples: one panel per series, the others in grey behind it',
+      },
+      'facet-free-y': {
+        description: 'With facet: give each panel its own value range',
+      },
+      'no-context': {
+        description: 'With facet: draw no grey lines for the other series',
+      },
+      columns: {
+        description:
+          'With facet: panels per row (columns 3); default fits the width',
+      },
       'fill-between': {
         description:
           'Shade between two series, two colours by which leads (fill-between Actual Plan green red)',

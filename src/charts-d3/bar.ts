@@ -90,6 +90,7 @@ import {
   CUT_MARK_LEN,
   cutMark,
 } from './shared';
+import type { FacetPanel } from './facet-panel';
 
 // Long category names must not size the chart (#1422). Their region is capped
 // at a share of the canvas: rotated names below vertical bars by height, the
@@ -151,7 +152,9 @@ export function renderBar(
   inlineTitle?: InlineTitleInfo,
   /** Set on the second pass when the notes could not all stand clear: the
    *  key to draw under the chart, which grows the drawing by its height. */
-  noteKey?: NoteKeyPlan
+  noteKey?: NoteKeyPlan,
+  /** Set when this chart is one panel of a `facet` grid (#1853). */
+  panel?: FacetPanel
 ): void {
   if (chart.widths) {
     renderMarimekko(
@@ -689,7 +692,7 @@ export function renderBar(
         .attr('y2', y)
         .attr('stroke', mutedColor)
         .attr('stroke-opacity', t === val.baseline ? 0.6 : 0.25);
-      if (labelled.has(t))
+      if (labelled.has(t) && !panel?.hideValueTicks)
         svg
           .append('text')
           .attr('x', m.left - 10)
@@ -1355,7 +1358,8 @@ export function renderBar(
           mutedColor,
           hasTitle,
           inlineTitle,
-          plan
+          plan,
+          panel
         );
         return;
       }

@@ -25,6 +25,7 @@ import type { ChartFrame } from '../utils/chart-frame-parse';
 import { reserveChartFrame } from '../utils/chart-frame';
 import { EXPORT_HEIGHT, EXPORT_WIDTH } from '../utils/d3-helpers';
 import { MIN_CANVAS_WIDTH } from '../utils/fit-canvas';
+import { facetColumns, facetNaturalHeight } from './facet';
 import type { PaletteColors } from '../palettes';
 
 /**
@@ -94,12 +95,28 @@ export function naturalDataChartSize(
   // A chart frame (#1827) adds its bands to the canvas it chooses, so the
   // plot keeps the height it has without one.
   const reserve = reserveChartFrame(frameOf(content, palette), width);
+  const frameH = reserve ? reserve.top + reserve.bottom : 0;
+  // A `facet` grid (#1853) is as tall as its rows of panels.
+  const rows = facetRows(content, palette, width);
+  if (rows !== null)
+    return { width, height: facetNaturalHeight(rows) + frameH };
   return {
     width,
-    height:
-      Math.round((width * EXPORT_HEIGHT) / EXPORT_WIDTH) +
-      (reserve ? reserve.top + reserve.bottom : 0),
+    height: Math.round((width * EXPORT_HEIGHT) / EXPORT_WIDTH) + frameH,
   };
+}
+
+/** Rows in a `facet` grid `width` wide, or null for any other chart. */
+function facetRows(
+  content: string,
+  palette: PaletteColors,
+  width: number
+): number | null {
+  if (!/^facet\s*$/m.test(content)) return null;
+  const std = parseChart(content, palette);
+  if (!std.facet || std.error) return null;
+  const count = Math.max(1, std.seriesNames?.length ?? 1);
+  return Math.ceil(count / facetColumns(count, width, std.facetColumns));
 }
 
 /** The chart frame `renderInto` will draw, read the way it routes. */
@@ -144,6 +161,8 @@ function naturalDataChartWidth(
 
   const std = parseChart(content, palette);
   if (!std || std.error || std.data.length === 0) return null;
+  // A `facet` grid (#1853) takes the widest canvas: its panels share it.
+  if (std.facet) return EXPORT_WIDTH;
   switch (std.type) {
     case 'pie':
     case 'radar':

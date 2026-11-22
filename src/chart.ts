@@ -267,6 +267,17 @@ export interface ParsedChart {
   notes?: ChartNote[];
   /** `no-notes`: draw no `note` (#2039). */
   noNotes?: boolean;
+  /** Small multiples (#1853), bar and line: bare `facet` draws one panel
+   *  per series, in declaration order, on one shared value axis. */
+  facet?: boolean;
+  /** Line of the `facet` flag, for its diagnostics. */
+  facetLineNumber?: number;
+  /** `facet-free-y`: each panel takes its own value range. */
+  facetFreeY?: boolean;
+  /** `no-context`: a faceted line draws no grey context lines. */
+  noContext?: boolean;
+  /** `columns N`: the facet grid's column count. Absent ⇒ as many as fit. */
+  facetColumns?: number;
   diagnostics: DgmoError[];
   error: string | null;
 }
@@ -355,6 +366,9 @@ const KNOWN_BOOLEANS = new Set([
   'hole',
   'lollipop',
   'widths',
+  'facet',
+  'facet-free-y',
+  'no-context',
 ]);
 
 /**
@@ -488,6 +502,8 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
   const lines = lifted.lines;
   const parsedEras: ChartEra[] = [];
   const pieOnlyLines: [number, string][] = [];
+  /** `facet-free-y`, `no-context` and `columns`: only meaningful with `facet`. */
+  const facetOptionLines: [number, string][] = [];
   const annotations: RawAnnotation[] = [];
   const annotationsFromRows: ChartAnnotation[] = [];
   let otherLine = 0;
@@ -668,6 +684,26 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
       continue;
     }
 
+    // `columns N` (#1853): the facet grid's column count, bar and line only.
+    // Lowercase only, so a category row "Columns 3" stays data.
+    const columnsMatch =
+      result.type === 'bar' || result.type === 'line'
+        ? trimmed.match(/^columns\s+(\d+)$/)
+        : null;
+    if (columnsMatch) {
+      const n = parseInt(columnsMatch[1]!, 10);
+      if (n >= 1) result.facetColumns = n;
+      else
+        result.diagnostics.push(
+          makeDgmoError(
+            lineNumber,
+            '`columns` takes a whole number of 1 or more; ignoring it.'
+          )
+        );
+      facetOptionLines.push([lineNumber, 'columns']);
+      continue;
+    }
+
     // Pie-only directives. Matched case-sensitively on the whole line so a data
     // row labelled "Other 30" or "Sort 5" still parses as data.
     if (trimmed === 'waffle') {
@@ -749,6 +785,15 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
       } else if (firstToken === 'lollipop') {
         result.lollipop = true;
         result.lollipopLineNumber = lineNumber;
+      } else if (firstToken === 'facet') {
+        result.facet = true;
+        result.facetLineNumber = lineNumber;
+      } else if (firstToken === 'facet-free-y') {
+        result.facetFreeY = true;
+        facetOptionLines.push([lineNumber, 'facet-free-y']);
+      } else if (firstToken === 'no-context') {
+        result.noContext = true;
+        facetOptionLines.push([lineNumber, 'no-context']);
       } else if (firstToken === 'widths') {
         result.widthsLineNumber = lineNumber;
       } else if (firstToken === 'fill') {
@@ -1671,6 +1716,8 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
     if (!result.seriesMarks) delete result.seriesMarkLineNumber;
   }
 
+  settleFacet(result, facetOptionLines, warn);
+
   // Notes point at rows; `sort` and the settle steps above may have moved
   // or dropped them since (#2078).
   const notes = anchoredNotes.flatMap((n, k) => {
@@ -1685,6 +1732,86 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
     (axis) => axis !== 'y-right' || !!result.seriesAxes?.includes('right')
   );
   return result;
+}
+
+/**
+ * Small multiples (#1853): `facet` splits a bar or line chart's series into
+ * one panel each. Every panel holds one series, so the options that draw
+ * several series in one plot are errors beside it, and the chart is drawn
+ * as one plot. `facet-free-y`, `no-context` and `columns` mean nothing alone.
+ */
+function settleFacet(
+  result: ParsedChart,
+  optionLines: readonly [number, string][],
+  warn: (line: number, message: string) => void
+): void {
+  const ln = result.facetLineNumber ?? 1;
+  if (result.facet && result.type !== 'bar' && result.type !== 'line') {
+    warn(
+      ln,
+      `\`facet\` applies only to bar and line charts; ignoring it on "${result.type}".`
+    );
+    delete result.facet;
+  }
+  if (result.facet) {
+    const multi = result.type === 'line' ? '`series`' : '`group`';
+    const clash =
+      result.barLayout === 'stack'
+        ? result.stackPercent
+          ? '`stack 100%`'
+          : '`stack`'
+        : result.barLayout === 'mirror'
+          ? '`mirror`'
+          : result.seriesAxes?.includes('right')
+            ? 'a `y-right-axis` group'
+            : result.seriesMarks
+              ? '`mark:`'
+              : result.seriesBands?.length
+                ? '`band`'
+                : result.fillBetween?.length
+                  ? '`fill-between`'
+                  : null;
+    const seriesCount =
+      result.type === 'bar' && result.barLayout !== 'group'
+        ? 1
+        : (result.seriesNames?.length ?? 1);
+    if (clash) {
+      result.diagnostics.push(
+        makeDgmoError(
+          ln,
+          `\`facet\` draws one series per panel, so it cannot draw ${clash}, which needs several series in one plot. Remove one of them.`,
+          'error'
+        )
+      );
+      delete result.facet;
+    } else if (seriesCount < 2) {
+      warn(
+        ln,
+        `\`facet\` draws one panel per series and needs two or more; declare them in a ${multi} block. Drawing one chart.`
+      );
+      delete result.facet;
+    }
+  }
+  for (const [line, token] of optionLines) {
+    if (!result.facet)
+      warn(
+        line,
+        token === 'columns'
+          ? '`columns N` sets the panel grid of a `facet` chart and does nothing without `facet`; ignoring it. If this is a data row, quote its label: "columns" 3.'
+          : `\`${token}\` applies only to a \`facet\` chart; ignoring it.`
+      );
+    else if (token === 'no-context' && result.type !== 'line')
+      warn(
+        line,
+        '`no-context` applies only to a faceted line chart; bar panels draw no context.'
+      );
+  }
+  if (!result.facet) {
+    delete result.facetLineNumber;
+    delete result.facetFreeY;
+    delete result.noContext;
+    delete result.facetColumns;
+  }
 }
 
 /**

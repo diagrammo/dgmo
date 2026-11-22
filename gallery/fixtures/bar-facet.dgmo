@@ -1,0 +1,15 @@
+bar Plunder by ship and season
+facet
+columns 3
+x-axis Season
+y-axis Chests
+
+group
+  Black Pearl blue
+  Flying Dutchman purple
+  Queen Anne's Revenge red
+
+Spring 30 20 10
+Summer 35 25 12
+Autumn 40 22 18
+Winter 38 30 20

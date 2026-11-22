@@ -41,6 +41,7 @@ import {
 } from '../utils/chart-frame';
 import { renderBar } from './bar';
 import { renderLine } from './line';
+import { renderFacet } from './facet';
 import { renderPie } from './pie';
 import { renderRadar } from './radar';
 import { renderPolarArea } from './polar';
@@ -283,6 +284,8 @@ function renderPlot(
     frame.reserve = reserveChartFrame(std.frame, width);
     if (frame.reserve) height -= frame.reserve.top + frame.reserve.bottom;
     const hasTitle = !std.noTitle && !!std.title;
+    // A `facet` grid (#1853) has no legend, so its title never goes inline.
+    if (std.facet) std.noLegend = true;
     // §1.9 `legend-inline` (decision #50): the legend path owns the title so it
     // can lay title + legend on one row. Only the top-center-legend types honour
     // it; everyone else renders a centered title here as before.
@@ -306,6 +309,22 @@ function renderPlot(
       std.type === 'bar' || std.type === 'line'
         ? unitsOnAxisTitles(std, ['ylabel', 'yrlabel'])
         : std;
+    if (std.facet && (std.type === 'bar' || std.type === 'line')) {
+      renderFacet(
+        s,
+        onAxis,
+        width,
+        height,
+        colors,
+        palette,
+        isDark,
+        textColor,
+        mutedColor,
+        bgColor,
+        hasTitle
+      );
+      return true;
+    }
     switch (std.type) {
       case 'bar':
         // A bar chart with lines (#1852) is drawn by the line renderer, which
