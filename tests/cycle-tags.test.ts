@@ -213,6 +213,21 @@ describe('cycle tag groups — renderer', () => {
     expect(c.querySelector('[data-legend-group]')).toBeTruthy();
   });
 
+  it('draws every other group as a clickable pill in the preview', () => {
+    const c = render(`cycle Raid
+tag Size as s
+  Big green
+tag Crew as c
+  Deck blue
+
+Scout s: Big, c: Deck
+Pursue s: Big, c: Deck`);
+    const groups = [...c.querySelectorAll('[data-legend-group]')].map((e) =>
+      e.getAttribute('data-legend-group')
+    );
+    expect(groups).toEqual(expect.arrayContaining(['size', 'crew']));
+  });
+
   it('puts data-tag-<group> on each step', () => {
     const c = render(PIRATE);
     const steps = [...c.querySelectorAll('.cycle-node')];

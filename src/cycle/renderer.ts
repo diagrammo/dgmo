@@ -225,6 +225,10 @@ export function renderCycle(
       groups: tagLegendGroups,
       activeGroup: hasTagLegend ? activeGroup : null,
       mode: renderOptions?.exportMode ? 'export' : 'preview',
+      // Every other group as a pill beside the active capsule, so a click can
+      // switch to it, as swot, family and c4 do. Export shows only the active
+      // group (legend-layout drops the rest).
+      showInactivePills: true,
       ...(hasControlsLegend && { controlsGroup }),
       ...(hasControlsLegend &&
         renderOptions?.controlsHost !== undefined && {
