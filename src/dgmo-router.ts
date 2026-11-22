@@ -10,6 +10,7 @@ import { parseVisualization } from './visualizations/parse';
 // its address for consumers and tests.
 import { parseDgmoChartType } from './chart-type-detect';
 import { extractPaletteDirective } from './palettes/directive';
+import { extractCanvasSizeDirective } from './canvas-size-directive';
 import { liftUnsupportedHighlight } from './utils/emphasis';
 import { detectBorrowedArrows } from './utils/borrowed-arrows';
 export {
@@ -118,8 +119,17 @@ export function parseDgmo(content: string): {
   // The `palette` line is every chart type's, so it is lifted out here rather
   // than taught to each parser — its warnings ride along with theirs.
   const directive = extractPaletteDirective(content);
-  const result = parseDgmoUndeduped(directive.content);
-  result.diagnostics = [...directive.diagnostics, ...result.diagnostics];
+  // So are `size` and `aspect`, the file's own canvas (#1966).
+  const sized = extractCanvasSizeDirective(
+    directive.content,
+    parseDgmoChartType(directive.content)
+  );
+  const result = parseDgmoUndeduped(sized.content);
+  result.diagnostics = [
+    ...directive.diagnostics,
+    ...sized.diagnostics,
+    ...result.diagnostics,
+  ];
   return {
     // `attachHints` backfills the registry's repair sentence by code, so the
     // hint travels however the diagnostic was constructed. See its own comment.

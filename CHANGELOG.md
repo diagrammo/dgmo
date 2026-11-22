@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A canvas size in the file — `size WxH` and `aspect W:H`
+  (diagrammo/diagrammo#1966).** `size 1200x675` is the same as
+  `--width 1200 --height 675`, on every chart type; `aspect 16:9` sets the
+  height from the width (the caller's, else 1200). A caller's `--width` or
+  `--height` beats the file's line, one dimension at a time. A bad value, or a
+  second `size` / `aspect` line, is the error `E_CANVAS_SIZE_INVALID` on that
+  line. On a wordcloud, `size <min> <max>` is still the word-size range; only
+  `size WxH` is the canvas there. No named presets (decided 2026-11-13).
+
 - **A warning for arrow spellings borrowed from Mermaid — `W_BORROWED_ARROW`
   (diagrammo/diagrammo#2174).** `-->`, `-.->`, `==>`, `---`, `..>` (outside
   `class`) and `-dashed->` are not dgmo arrows. They used to draw a wrong

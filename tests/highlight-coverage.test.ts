@@ -206,6 +206,7 @@ const INVENTORY = {
     'align',
     'analog',
     'animate',
+    'aspect',
     'autonumber',
     'band',
     'bands',

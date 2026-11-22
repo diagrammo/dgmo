@@ -12,6 +12,10 @@ import { makeDgmoError } from './diagnostics';
 import { legendInlineSupported } from './utils/inline-header';
 import { getPalette } from './palettes/registry';
 import { choosePalette, extractPaletteDirective } from './palettes/directive';
+import {
+  extractCanvasSizeDirective,
+  resolveCanvasSize,
+} from './canvas-size-directive';
 import { applyThemeStyle, type ThemeStyle } from './palettes/theme-style';
 import {
   applyHighlightOverride,
@@ -286,10 +290,24 @@ export async function render(
     palette.content,
     parseDgmoChartType(palette.content)
   );
+  // The file's `size` / `aspect` line (#1966), lifted the same way. The
+  // caller's width and height beat it, one dimension at a time.
+  const sized = extractCanvasSizeDirective(
+    lifted.content,
+    parseDgmoChartType(lifted.content)
+  );
+  const canvas = resolveCanvasSize(sized, {
+    width: options?.width,
+    height: options?.height,
+  });
   const directive = {
     ...palette,
-    content: lifted.content,
-    diagnostics: [...palette.diagnostics, ...lifted.diagnostics],
+    content: sized.content,
+    diagnostics: [
+      ...palette.diagnostics,
+      ...lifted.diagnostics,
+      ...sized.diagnostics,
+    ],
   };
   const content = directive.content;
   const chosen = choosePalette(directive, {
@@ -354,7 +372,7 @@ export async function render(
     ds: DgmoError[],
     svg: string
   ): DgmoError[] => {
-    const asked = options?.width;
+    const asked = canvas.width;
     if (!asked || asked <= 0) return ds;
     const vb = /viewBox="[-\d.]+ [-\d.]+ ([\d.]+) /.exec(svg);
     const got = vb ? Number(vb[1]) : NaN;
@@ -383,8 +401,8 @@ export async function render(
     ds: DgmoError[],
     svg: string
   ): DgmoError[] => {
-    const askedW = options?.width;
-    const askedH = options?.height;
+    const askedW = canvas.width;
+    const askedH = canvas.height;
     if (!askedW || askedW <= 0 || !askedH || askedH <= 0) return ds;
     const vb = /viewBox="[-\d.]+ [-\d.]+ [\d.]+ ([\d.]+)"/.exec(svg);
     const got = vb ? Number(vb[1]) : NaN;
@@ -405,12 +423,13 @@ export async function render(
    * `MIN_READABLE_TYPE_PX` at the stated width (#1844). dgmo never scales type
    * down itself — the consumer shrinks the content-sized canvas into the width
    * it has — so the effective size is the body type times asked/produced. Only
-   * a stated `options.width` counts; with none there is nothing to measure
+   * a stated width (the caller's or the file's `size`) counts; with none
+   * there is nothing to measure
    * against. The body size is the most common `font-size` in the SVG.
    */
   const withMinTypeWarning = (ds: DgmoError[], svg: string): DgmoError[] => {
     if (chartType !== 'sequence' && chartType !== 'flowchart') return ds;
-    const asked = options?.width;
+    const asked = canvas.width;
     if (!asked || asked <= 0) return ds;
     const vb = /viewBox="[-\d.]+ [-\d.]+ ([\d.]+) /.exec(svg);
     const got = vb ? Number(vb[1]) : NaN;
@@ -465,8 +484,8 @@ export async function render(
     await acquireDom();
     try {
       const sizeRequest = {
-        ...(options?.width !== undefined && { width: options.width }),
-        ...(options?.height !== undefined && { height: options.height }),
+        ...(canvas.width !== undefined && { width: canvas.width }),
+        ...(canvas.height !== undefined && { height: canvas.height }),
       };
       // Framed to what it draws (#1638), as renderForExport frames the rest.
       const raw = fitSvgToContent(
@@ -524,8 +543,8 @@ export async function render(
       }),
       ...(options?.tagGroup !== undefined && { tagGroup: options.tagGroup }),
       ...(options?.mapData !== undefined && { mapData: options.mapData }),
-      ...(options?.width !== undefined && { width: options.width }),
-      ...(options?.height !== undefined && { height: options.height }),
+      ...(canvas.width !== undefined && { width: canvas.width }),
+      ...(canvas.height !== undefined && { height: canvas.height }),
       ...(options?.resolveImage !== undefined && {
         resolveImage: options.resolveImage,
       }),

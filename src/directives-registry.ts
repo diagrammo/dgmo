@@ -1093,11 +1093,11 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
     category: 'directive',
     chartTypes: ['calendar-heatmap', 'wordcloud'],
   },
-  {
-    token: 'size',
-    category: 'directive',
-    chartTypes: ['whiteboard', 'wordcloud'],
-  },
+  // `size WxH` / `aspect W:H` — the file's own canvas, every chart type
+  // (#1966). On a wordcloud `size <min> <max>` is still the word-size range,
+  // and on a whiteboard element `size:` is the element's box.
+  { token: 'size', category: 'directive', chartTypes: 'all' },
+  { token: 'aspect', category: 'directive', chartTypes: 'all' },
   // ── Arc ──────────────────────────────────────────────────
   {
     token: 'order',

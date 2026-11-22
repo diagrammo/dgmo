@@ -172,6 +172,16 @@ export const UNIVERSAL_DIAGNOSTICS: DiagnosticSpec[] = [
     example: 'org Team\nJane\n  Sam',
   },
   {
+    code: 'E_CANVAS_SIZE_INVALID',
+    severity: 'error',
+    chartType: null,
+    title: 'Canvas size not read',
+    message: () =>
+      '"size" takes a width and a height in px, like "size 1200x675".',
+    hint: 'Write "size <width>x<height>" in px (size 1200x675) or "aspect <width>:<height>" (aspect 16:9), on one line. Keep one of the two; a --width or --height from the caller beats it.',
+    example: 'pie Share\nApples 30\nPears 70\n\nsize 1200 by 675',
+  },
+  {
     code: 'W_TYPE_BELOW_MINIMUM',
     severity: 'warning',
     chartType: null,
