@@ -100,7 +100,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 - **On a chart of numbers, the title states the finding.** Write what the reader should take away, not what is plotted — `bar Nassau landed twice the gold of any other port`, not `bar Gold by Port`. Put what is measured (the quantity, units, period) in `subtitle` and where the numbers came from in `source` (§1.12). Fall back to a label title only when the user names one or the data shows no single finding (§26.8).
   <!-- TITLE end -->
   <!-- CATEGORIZE start -->
-- **Categorize and color — by default, not only when obvious.** Before drawing, find the axis that sorts the items into kinds and color by it: layer (frontend / backend / data), role (client / service / datastore), trust zone (internal / external / third-party), status (done / active / blocked), owner/team, or read-path vs write-path. Almost every diagram has such an axis — actively look for one rather than leaving everything monochrome. Express it with a **tag group**, never ad-hoc per-node colors: declare `tag <Axis> as t` (the name is a single word — `tag TrustZone as tz` — or quote a multi-word name: `tag "Trust Zone" as tz`), indent the category values (a trailing color is optional — bare values auto-pick a palette color), set `active-tag <Axis>` in the header — after the tag group and before the first element, because a type such as c4 refuses it after content — then assign each item `Node t: <Category>` (see the tag-group syntax in the per-type section below). **Bracket, block, body, calendar-heatmap, event-line and whiteboard** take the tag group but no `active-tag` line — declare the group and stop there; on event-line the line would be drawn as an element. **Class, flowchart, wireframe, raci, pyramid, ring, sankey, tech-radar, venn, version-control, wordcloud, arc, bar, clock, countdown, funnel, function, goal, heatmap, line, pie, polar-area, quadrant, radar, scatter, slope, boxplot and histogram** take no tag group at all — skip this rule for them. Most report the lines; pyramid, ring, sankey, venn, version-control and wordcloud read them as content, and flowchart and tech-radar drop them without a word. Only the 11 named palette colors exist, and they re-resolve per palette/theme. Color the grouping so the categories — and the boundaries between them — read at a glance. **Buckets, not name tags — never 1:1.** A tag group must have _fewer_ values than it has members: each color should bucket two or more items so the palette compresses the diagram into a few meaningful kinds (aim for ~2–4 categories, and keep distinct colors well under half the item count). If you find yourself giving nearly every item its own value, you've enumerated, not categorized — merge the singletons up a level until each color groups at least two (a `cache` and a `database` are both `datastore`; a caller and a gateway are both `client`; two microservices are both `service`). One color per item is the same visual noise as random colors — the grouping only earns its place when a color means "these belong together." Leave items uncolored only when they genuinely form a single undifferentiated kind, or the user asked for no color.
+- **Categorize and color — by default, not only when obvious.** Before drawing, find the axis that sorts the items into kinds and color by it: layer (frontend / backend / data), role (client / service / datastore), trust zone (internal / external / third-party), status (done / active / blocked), owner/team, or read-path vs write-path. Almost every diagram has such an axis — actively look for one rather than leaving everything monochrome. Express it with a **tag group**, never ad-hoc per-node colors: declare `tag <Axis> as t` (the name is a single word — `tag TrustZone as tz` — or quote a multi-word name: `tag "Trust Zone" as tz`), indent the category values (a trailing color is optional — bare values auto-pick a palette color), set `active-tag <Axis>` in the header — after the tag group and before the first element, because a type such as c4 refuses it after content — then assign each item `Node t: <Category>` (see the tag-group syntax in the per-type section below). **Bracket, block, body, calendar-heatmap, event-line and whiteboard** take the tag group but no `active-tag` line — declare the group and stop there; on event-line the line would be drawn as an element. **Class, flowchart, wireframe, raci, pyramid, ring, sankey, tech-radar, venn, version-control, wordcloud, arc, bar, clock, countdown, funnel, function, goal, heatmap, line, pie, polar-area, quadrant, radar, scatter, slope, waterfall, boxplot and histogram** take no tag group at all — skip this rule for them. Most report the lines; pyramid, ring, sankey, venn, version-control and wordcloud read them as content, and flowchart and tech-radar drop them without a word. Only the 11 named palette colors exist, and they re-resolve per palette/theme. Color the grouping so the categories — and the boundaries between them — read at a glance. **Buckets, not name tags — never 1:1.** A tag group must have _fewer_ values than it has members: each color should bucket two or more items so the palette compresses the diagram into a few meaningful kinds (aim for ~2–4 categories, and keep distinct colors well under half the item count). If you find yourself giving nearly every item its own value, you've enumerated, not categorized — merge the singletons up a level until each color groups at least two (a `cache` and a `database` are both `datastore`; a caller and a gateway are both `client`; two microservices are both `service`). One color per item is the same visual noise as random colors — the grouping only earns its place when a color means "these belong together." Leave items uncolored only when they genuinely form a single undifferentiated kind, or the user asked for no color.
 <!-- CATEGORIZE end -->
 - **Keep labels short.** A few words per node. Move detail into notes or metadata, never a full sentence inside a label.
 - **Let the defaults show.** Don't add `no-*` opt-outs unless the user asked to hide or disable something — they strip helpful labels, values, and color.
@@ -165,6 +165,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `sankey`           | flow / allocation                                                                                                                                                                                                                                                                                                                                                           |
 | `arc`              | network relationships (linear, or circular via `layout chord`)                                                                                                                                                                                                                                                                                                              |
 | `slope`            | change between two periods                                                                                                                                                                                                                                                                                                                                                  |
+| `waterfall`        | how a start became an end through signed steps, with running totals (revenue bridges, budget to actual) — one `Label N` per step, `Label total` for a total                                                                                                                                                                                                                 |
 | `venn`             | set overlaps                                                                                                                                                                                                                                                                                                                                                                |
 | `wordcloud`        | term-frequency                                                                                                                                                                                                                                                                                                                                                              |
 | `function`         | mathematical expressions (colon required: `f(x): x^2`)                                                                                                                                                                                                                                                                                                                      |
@@ -596,7 +597,7 @@ A caller can ask for a canvas size: `--width` and `--height` on the CLI, `width`
 
   <!-- exact-size-types:start -->
 
-  `bar`, `arc layout chord`, `boxplot`, `cycle`, `funnel`, `function`, `heatmap`, `histogram`, `line`, `pie`, `polar-area`, `pyramid`, `quadrant`, `radar`, `ring`, `sankey`, `scatter`, `slope`, `tech-radar`, `treemap`, `venn`, `wordcloud`
+  `bar`, `arc layout chord`, `boxplot`, `cycle`, `funnel`, `function`, `heatmap`, `histogram`, `line`, `pie`, `polar-area`, `pyramid`, `quadrant`, `radar`, `ring`, `sankey`, `scatter`, `slope`, `tech-radar`, `treemap`, `venn`, `waterfall`, `wordcloud`
 
   <!-- exact-size-types:end -->
 
@@ -6018,6 +6019,76 @@ The title row has the title on the left and, on the right, the legend and under 
 | `E_OWNERSHIP_BAD_TYPE`         | a `type:` that is not corporation, partnership, individual or trust                          |
 | `E_OWNERSHIP_ORPHAN_LINE`      | a stake or metadata line with no entity above it                                             |
 | `E_OWNERSHIP_NO_ENTITIES`      | a chart with no entities                                                                     |
+
+## 25E. Waterfall
+
+<!-- TYPE:waterfall -->
+
+<!-- TIPS start -->
+
+**Styling tips:** Open with a total that has a number, write each change as it happened, and close with a bare `total` so the chart adds it up. Use `direction down` on a cost bridge, where a rise is bad news.
+
+<!-- TIPS end -->
+
+### 25E.1 Declaration
+
+```
+waterfall [Title]
+```
+
+A waterfall walks from a start to an end. Each step floats from the running total before it to the one after it; a total draws a full bar from zero. Dashed connectors carry the running total from each bar's end to the next bar's start.
+
+### 25E.2 Rows
+
+```
+waterfall Revenue bridge, FY24 → FY25 ($k)
+
+FY24 1200 total
+New logos +340
+Expansion 210
+Churn -180
+Contraction -65
+H1 subtotal total
+Price +95
+FX -40
+FY25 total
+```
+
+| Row             | Does                                                                                     |
+| --------------- | ---------------------------------------------------------------------------------------- |
+| `Label N`       | a step. A bare number is a change; `+` is optional and `-` subtracts                     |
+| `Label N total` | a total bar from zero at N. It SETS the running total: the start, or a restated baseline |
+| `Label total`   | a total bar at the running total so far: a subtotal or the end (1505 and 1560 above)     |
+
+- **First row**: if it is not a `total`, the walk starts from 0.
+- **Reconcile**: a `Label N total` after the first row whose N differs from the running total draws N and warns, naming both numbers (`FY25 is 1500 but the steps add up to 1560`).
+- **Colour**: rises green, falls red, totals grey. A colour word before the number wins for that bar (§1.5): `One-off purple +50`.
+- **Labels**: steps print their signed change in their colour (`+340`, `−180`, with a true minus sign); totals print their level in bold.
+- **Crossing zero**: a bar whose walk passes zero draws through the zero line.
+
+### 25E.3 Options
+
+| Option                                  | Effect                                             |
+| --------------------------------------- | -------------------------------------------------- |
+| `direction down`                        | A cost bridge: a rise is red and a fall green      |
+| `no-connectors`                         | Drop the dashed connectors                         |
+| `no-value`                              | Hide the value labels                              |
+| `orientation-horizontal` (`horizontal`) | Steps down the left, values across, as on `bar`    |
+| `format`, `unit`, `locale`              | The number format of the values and the axis (§16) |
+| `subtitle`, `source`, `footnote`        | The chart frame (§1)                               |
+| `palette`                               | Draw in a built-in palette                         |
+
+Not in this version: stacked steps (one step split into parts) and a percent axis.
+
+### 25E.4 Diagnostics
+
+| Code                        | Fires on                                                          |
+| --------------------------- | ----------------------------------------------------------------- |
+| `E_WATERFALL_BAD_VALUE`     | a row with no number that is not a `total`                        |
+| `E_WATERFALL_NO_ROWS`       | a chart with no rows                                              |
+| `W_WATERFALL_SIGNED_TOTAL`  | a `total` row whose number carries a sign                         |
+| `W_WATERFALL_BAD_DIRECTION` | `direction` with any value other than `down`; the line is ignored |
+| `W_WATERFALL_RECONCILE`     | a `Label N total` that differs from the running total             |
 
 ## 26. Colon Usage Summary
 

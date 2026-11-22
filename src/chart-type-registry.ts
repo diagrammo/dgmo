@@ -86,6 +86,7 @@ import { parseRaci } from './raci/parser';
 import { parseSwot } from './swot/parser';
 import { parseOwnership } from './ownership/parser';
 import { parseCalendarHeatmap } from './calendar-heatmap/parser';
+import { parseWaterfall } from './waterfall/parser';
 import { parseBody } from './body/parser';
 import { parseLiveLink } from './live-link/parser';
 import type { DgmoError } from './diagnostics';
@@ -155,6 +156,7 @@ const REGISTRY: Record<ChartTypeId, Omit<ChartTypeDescriptor, 'id'>> = {
 
   // ── D3 visualizations — own per-viz parser door (Story 109.2) ──
   slope: { category: 'visualization', parse: parseSlope },
+  waterfall: { category: 'visualization', parse: parseWaterfall },
   wordcloud: { category: 'visualization', parse: parseWordcloud },
   arc: { category: 'visualization', parse: parseArc },
   timeline: { category: 'visualization', parse: parseTimeline },

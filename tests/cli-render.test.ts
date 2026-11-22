@@ -313,6 +313,12 @@ Holdings Ltd
 Fund LP  type: partnership
   40% -> Labs Ltd
 `,
+  waterfall: `waterfall Test Bridge
+Start 100 total
+Up +40
+Down -25
+End total
+`,
   'calendar-heatmap': `calendar-heatmap Test Calendar
 year 2026
 unit run

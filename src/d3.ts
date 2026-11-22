@@ -53,6 +53,7 @@ import { exportRaci } from './raci/export';
 import { exportSwot } from './swot/export';
 import { exportOwnership } from './ownership/export';
 import { exportCalendarHeatmap } from './calendar-heatmap/export';
+import { exportWaterfall } from './waterfall/export';
 import { exportRing } from './ring/export';
 import { exportVisualization } from './sequence/export';
 import { exportSitemap } from './sitemap/export';
@@ -132,6 +133,7 @@ export const DIAGRAM_EXPORT_HANDLERS: Record<string, DiagramExportHandler> = {
   swot: exportSwot,
   ownership: exportOwnership,
   'calendar-heatmap': exportCalendarHeatmap,
+  waterfall: exportWaterfall,
   body: exportBody,
   'live-link': exportLiveLink,
   // D3 visualizations — own handler per type (Story 109.2). Only `sequence`

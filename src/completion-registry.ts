@@ -812,6 +812,29 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       },
     }),
   ],
+  [
+    'waterfall',
+    withGlobals({
+      direction: {
+        description:
+          'A cost bridge: `direction down` makes a rise red and a fall green',
+        values: ['down'],
+      },
+      'no-connectors': {
+        description: 'Drop the dashed running-total connectors',
+      },
+      'no-value': { description: 'Hide the value labels on the bars' },
+      'orientation-horizontal': {
+        description: 'Steps down the left, values across',
+      },
+      format: {
+        description:
+          'Number format: currency USD, percent 1, compact, or a quoted pattern',
+      },
+      unit: { description: 'What the numbers count (unit $k)' },
+      locale: { description: 'Separators and currency style (locale de-DE)' },
+    }),
+  ],
   // RACI / RASCI / DACI — one chart type (`raci`); the variant (RACI, RASCI,
   // or DACI) is inferred from the markers used (D → DACI, S → RASCI).
   [

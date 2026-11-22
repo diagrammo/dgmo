@@ -262,6 +262,11 @@ const chartTypesData = [
     description: 'Change between 2 time periods',
   },
   {
+    id: 'waterfall',
+    description:
+      'A start, signed steps and running totals — how one number became another (revenue bridges, budget to actual)',
+  },
+  {
     id: 'sankey',
     description: 'Flow / allocation visualization',
   },

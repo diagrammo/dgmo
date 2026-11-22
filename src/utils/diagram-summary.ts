@@ -74,6 +74,7 @@ import { parseOwnership } from '../ownership/parser';
 import { ownershipSummary } from '../ownership/format';
 import { parseCalendarHeatmap } from '../calendar-heatmap/parser';
 import { calendarSummary } from '../calendar-heatmap/format';
+import { parseWaterfall } from '../waterfall/parser';
 import { parseSequenceDgmo } from '../sequence/parser';
 import { parseSitemap } from '../sitemap/parser';
 import type { SitemapNode } from '../sitemap/types';
@@ -493,6 +494,17 @@ function summarizeCalendarHeatmap(content: string): string | null {
   const span = parsed.end - parsed.start + 1;
   const summary = calendarSummary(parsed);
   return `Calendar heatmap of ${plural(span, 'day', 'days')}, ${parsed.days.length} with an entry${summary ? `; ${summary}` : ''}.`;
+}
+
+function summarizeWaterfall(content: string): string | null {
+  const parsed = parseWaterfall(content);
+  if (parsed.error || parsed.rows.length === 0) return null;
+  const steps = parsed.rows.filter((r) => r.kind !== 'total').length;
+  const totals = parsed.rows.length - steps;
+  const first = parsed.rows[0]!;
+  const last = parsed.rows[parsed.rows.length - 1]!;
+  const start = first.kind === 'total' ? first.to : 0;
+  return `Waterfall of ${plural(steps, 'step', 'steps')} and ${plural(totals, 'total', 'totals')}, from ${start} to ${last.label} at ${last.to}.`;
 }
 
 function summarizeRaci(content: string): string | null {
@@ -1049,6 +1061,7 @@ const SUMMARIZERS: Record<ChartTypeId, Summarizer> = {
   swot: summarizeSwot,
   ownership: summarizeOwnership,
   'calendar-heatmap': summarizeCalendarHeatmap,
+  waterfall: summarizeWaterfall,
   body: summarizeBody,
   bracket: summarizeBracket,
   'live-link': summarizeLiveLink,

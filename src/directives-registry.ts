@@ -494,6 +494,7 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
       'sankey',
       'scatter',
       'slope',
+      'waterfall',
     ],
   },
   // ── Chart frame (#1827): every chart type draws it ──
@@ -839,6 +840,7 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
       'radar',
       'sankey',
       'treemap',
+      'waterfall',
     ],
   },
   {
@@ -912,6 +914,7 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
       'sankey',
       'scatter',
       'slope',
+      'waterfall',
     ],
   },
   {
@@ -932,6 +935,7 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
       'sankey',
       'scatter',
       'slope',
+      'waterfall',
     ],
   },
   { token: 'columns', category: 'directive', chartTypes: ['block', 'heatmap'] },
@@ -947,8 +951,11 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   {
     token: 'orientation-horizontal',
     category: 'directive',
-    chartTypes: ['bar', 'boxplot'],
+    chartTypes: ['bar', 'boxplot', 'waterfall'],
   },
+  // ── Waterfall (#1850) ────────────────────────────────────
+  { token: 'no-connectors', category: 'directive', chartTypes: ['waterfall'] },
+  { token: 'horizontal', category: 'directive', chartTypes: ['waterfall'] },
   // ── Slope ────────────────────────────────────────────────
   { token: 'period', category: 'directive', chartTypes: 'all' },
   // ── Quadrant ─────────────────────────────────────────────
