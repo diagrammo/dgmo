@@ -335,6 +335,71 @@ now
     expect(offScale.now).toBeNull();
   });
 
+  it('marks a `now` before every event as off the edge, with the distance (#2199)', () => {
+    const src = `event-line T
+now
+
+2026-12-09 a
+2027-01-01 b`;
+    const l = layout(src, 1200, 600, new Date(2026, 10, 21));
+    expect(l.now!.offEdge).toBe('before');
+    expect(l.now!.x).toBe(l.placed[0]!.x);
+    expect(l.now!.label).toBe('Nov 21, 2026 · 18 days before');
+  });
+
+  it('marks a `now` after every event as off the edge, in coarser units', () => {
+    const l = layout(
+      `event-line T
+now 2022-09-01
+
+2020-01-01 a
+2022-01-01 b`
+    );
+    expect(l.now!.offEdge).toBe('after');
+    expect(l.now!.x).toBe(l.placed[1]!.x);
+    expect(l.now!.label).toBe('Sep 1, 2022 · 8 months after');
+    const years = layout(
+      `event-line T
+now 2030
+
+2020 a
+2022 b`
+    );
+    expect(years.now!.label).toBe('2030 · 8 years after');
+  });
+
+  it('keeps an explicit caption off the edge and leaves an in-range pin alone', () => {
+    const l = layout(
+      `event-line T
+now 2019-12-31 Today
+
+2020-01-01 a
+2022-01-01 b`
+    );
+    expect(l.now!.label).toBe('Today · 1 day before');
+    const inRange = layout(
+      `event-line T
+now 2021-01-01
+
+2020-01-01 a
+2022-01-01 b`
+    );
+    expect(inRange.now!.offEdge).toBeNull();
+    expect(inRange.now!.label).toBe('Jan 1, 2021');
+  });
+
+  it('rides a late `now` onto a trailing-TBD tail instead of marking it off the edge', () => {
+    const l = layout(
+      `event-line T
+now 2030-01-01
+
+2020-01-01 a
+2022-01-01 b
+TBD c`
+    );
+    expect(l.now!.offEdge).toBeNull();
+  });
+
   it("pins `now` onto a card's x-span and still clears the card", () => {
     // `now` falls on event a's date, so a's card shares the pin's x-span: the
     // spine-adjacent slot sits inside the leader gap and must stay clear.

@@ -198,6 +198,10 @@ export interface NowMarkerGeometry {
   y1: number;
   stemFrom: number;
   stemTo: number;
+  /** Set when the pin's date falls outside the dated events and it is
+   *  clamped to an end dot: the renderer draws an outward chevron instead of
+   *  the diamond, and the caption carries the distance (§28.6b). */
+  offEdge: 'before' | 'after' | null;
 }
 
 export interface EventLineLayout {
@@ -1034,13 +1038,39 @@ function layoutNowMarker(
   }
   if (nowX === null) return null;
 
+  // Outside the dated events and clamped to an end dot: say so, or a pin
+  // captioned "Nov 21" standing on a Dec 9 dot reads as Dec 9 (#2199). The
+  // trailing-TBD tail above is a real position, not a clamp.
+  const firstReal = dated[0];
+  let offEdge: 'before' | 'after' | null = null;
+  let edgeIso: string | null = null;
+  if (nowValue !== null && firstReal && lastReal) {
+    if (nowValue < firstReal.dateValue!) {
+      offEdge = 'before';
+      edgeIso = firstReal.date;
+    } else if (nowValue > lastReal.dateValue! && nowX === lastReal.x) {
+      offEdge = 'after';
+      edgeIso = lastReal.date;
+    }
+  }
+
   // The tab says WHEN, not just "here": a caption reading `now` is equally
   // true on the day it was drawn and two years later, so a reader cannot
   // tell a diagram that redraws from a picture of a dead one. The date is
   // formatted exactly as the event cards format theirs, so the pin and the
   // cards can never disagree about how a date looks. An explicit caption
   // (`now 2023-06-01 Today`) still wins.
-  const label = now.label ?? (nowIso ? formatDateLabel(nowIso) : 'now');
+  const dateLabel = now.label ?? (nowIso ? formatDateLabel(nowIso) : 'now');
+  const gap =
+    offEdge && nowIso && edgeIso
+      ? describeGap(
+          nowIso,
+          edgeIso,
+          nowValue!,
+          offEdge === 'before' ? firstReal!.dateValue! : lastReal!.dateValue!
+        )
+      : null;
+  const label = gap ? `${dateLabel} · ${gap} ${offEdge}` : dateLabel;
   const pillH = 18;
   const pillW = Math.max(28, label.length * 6.6 + 16);
   const PIN_GAP = 6; // clearance spine↔pill and card↔pill
@@ -1108,7 +1138,36 @@ function layoutNowMarker(
     y1: slot.y1,
     stemFrom: above ? spineY - DOT_R : spineY + DOT_R,
     stemTo: above ? slot.y1 : slot.y0,
+    offEdge,
   };
+}
+
+// Whole days between two ISO dates when both are CE and calendar-exact;
+// otherwise from the year-fraction values. Reported in the coarsest unit that
+// keeps the number readable: days under 60, months under 24, then years.
+function describeGap(
+  aIso: string,
+  bIso: string,
+  aValue: number,
+  bValue: number
+): string {
+  const toUtc = (iso: string): number | null => {
+    const m = /^(\d{4})(?:-(\d{2}))?(?:-(\d{2}))?/.exec(iso);
+    if (!m) return null;
+    return Date.UTC(+m[1]!, (m[2] ? +m[2] : 1) - 1, m[3] ? +m[3] : 1);
+  };
+  const a = toUtc(aIso);
+  const b = toUtc(bIso);
+  const days =
+    a !== null && b !== null
+      ? Math.round(Math.abs(b - a) / 86_400_000)
+      : Math.round(Math.abs(bValue - aValue) * 365);
+  const unit = (n: number, w: string): string =>
+    `${n} ${w}${n === 1 ? '' : 's'}`;
+  if (days < 60) return unit(Math.max(1, days), 'day');
+  const months = Math.round(days / 30.44);
+  if (months < 24) return unit(months, 'month');
+  return unit(Math.round(days / 365.25), 'year');
 }
 
 // Map a date value to a spine x by piecewise-linear interpolation over the

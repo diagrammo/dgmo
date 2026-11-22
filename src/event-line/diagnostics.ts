@@ -30,7 +30,7 @@ export const EVENT_LINE_DX = {
     hint: 'Add at least one event line (e.g. `2020 Something happened`) below the header.',
     example: `event-line Empty`,
   },
-  // parser.ts parseEventHeader:
+  // parser.ts parseEventHeader (and the `now` directive, which passes `now: true`):
   //   `Use ISO dates (YYYY, YYYY-MM, or YYYY-MM-DD). Got '${firstToken}'.`
   BAD_DATE: {
     code: 'E_EVENT_LINE_BAD_DATE',
@@ -38,8 +38,12 @@ export const EVENT_LINE_DX = {
     severity: 'warning',
     chartType: 'event-line',
     title: 'Non-ISO date',
+    // A `now` line whose value is not a date (`now {today}`, #2199) names the
+    // fix instead: bare `now` already IS today.
     message: (p) =>
-      `Use ISO dates (YYYY, YYYY-MM, or YYYY-MM-DD). Got '${p.token ?? '7/16/1969'}'.`,
+      p.now
+        ? `'${p.token ?? '{today}'}' is not a date. Write bare \`now\` to pin today's date — it moves as time passes.`
+        : `Use ISO dates (YYYY, YYYY-MM, or YYYY-MM-DD). Got '${p.token ?? '7/16/1969'}'.`,
     hint: 'Write dates as YYYY, YYYY-MM, or YYYY-MM-DD — slash and dot separators are not parsed.',
     example: `event-line X
 

@@ -1277,6 +1277,31 @@ now 2022-01-01 blue
       );
     });
 
+    it('draws an outward chevron and no today-line when `now` is off the edge (#2199)', () => {
+      const parsed = parseEventLine(
+        `event-line R
+now 2019-06-01
+
+2020-01-01 A
+2024-01-01 B`,
+        nordLight
+      );
+      const container = mount(900, 400);
+      renderEventLine(container, parsed, nordLight, false);
+      const nowG = container.querySelector('.evt-now')!;
+      const d = nowG.querySelector('path')!.getAttribute('d')!;
+      const nums = d.match(/-?\d+(\.\d+)?/g)!.map(Number);
+      // M base y0 L tip y L base y1 z — the tip is LEFT of the base.
+      expect(d.startsWith('M')).toBe(true);
+      expect(nums[2]!).toBeLessThan(nums[0]!);
+      // Only the stem: the dotted rule would claim the end dot is today.
+      expect(nowG.querySelectorAll('line').length).toBe(1);
+      expect(nowG.querySelector('.evt-now-rule-full')).toBeNull();
+      expect(nowG.querySelector('text')!.textContent).toBe(
+        'Jun 1, 2019 · 7 months before'
+      );
+    });
+
     it('captions a computed `now` with the date it resolved to', () => {
       const parsed = parseEventLine(
         `event-line R

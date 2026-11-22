@@ -754,6 +754,17 @@ now someday
       expect(p.now).toBeNull();
     });
 
+    it('names bare `now` as the fix when `now` is given a non-date (#2199)', () => {
+      const p = parseEventLine(`event-line X
+now {today}
+
+2020 A`);
+      const w = p.diagnostics.find((d) => d.code === 'E_EVENT_LINE_BAD_DATE')!;
+      expect(w.message).toContain("'{today}' is not a date");
+      expect(w.message).toContain('bare `now`');
+      expect(w.message).not.toContain('Use ISO dates');
+    });
+
     it('warns that `now` is ignored under `no-scale`', () => {
       const p = parseEventLine(`event-line X
 no-scale

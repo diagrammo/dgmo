@@ -460,6 +460,7 @@ function parseEventLineRaw(
               result.diagnostics.push(
                 emit(EVENT_LINE_DX.BAD_DATE, lineNumber, {
                   token: rest.split(/\s+/)[0],
+                  now: true,
                 })
               );
             }
