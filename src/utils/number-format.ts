@@ -249,7 +249,7 @@ export function makeNumberFormatter(
 }
 
 /** A unit that starts with a letter (`votes`, `ms`), not a symbol (`%`, `°`, `$`). */
-function isWordUnit(unit: string): boolean {
+export function isWordUnit(unit: string): boolean {
   return /^\p{L}/u.test(unit);
 }
 
@@ -276,20 +276,33 @@ export function unitOnAxisTitle<
   const bare = { ...chart.numberFormat };
   delete bare.unit;
   const out: T = { ...chart, numberFormat: bare };
-  const escaped = unit.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const word = new RegExp('(?<!\\p{L})' + escaped + '(?!\\p{L})', 'iu');
   axes.forEach((axis, i) => {
-    const title = chart[axis];
-    if (title) {
-      if (!word.test(title)) out[axis] = `${title} (${unit})`;
-    } else if (i === 0) {
-      // `votes` → `Votes`; an abbreviation (`ms`, `kWh`) keeps its case.
-      out[axis] = /^\p{Ll}{3,}$/u.test(unit)
-        ? unit[0]!.toUpperCase() + unit.slice(1)
-        : unit;
-    }
+    const title = titleWithUnit(chart[axis], unit, i === 0);
+    if (title !== undefined) out[axis] = title;
   });
   return out;
+}
+
+/**
+ * An axis title that states `unit` once: a title holding the word is kept,
+ * another gains `(unit)`, and an untitled axis gets the unit alone when
+ * `titleIfEmpty`. Undefined when the axis stays untitled.
+ */
+export function titleWithUnit(
+  title: string | undefined,
+  unit: string,
+  titleIfEmpty: boolean
+): string | undefined {
+  if (title) {
+    const escaped = unit.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const word = new RegExp('(?<!\\p{L})' + escaped + '(?!\\p{L})', 'iu');
+    return word.test(title) ? title : `${title} (${unit})`;
+  }
+  if (!titleIfEmpty) return undefined;
+  // `votes` → `Votes`; an abbreviation (`ms`, `kWh`) keeps its case.
+  return /^\p{Ll}{3,}$/u.test(unit)
+    ? unit[0]!.toUpperCase() + unit.slice(1)
+    : unit;
 }
 
 /** Most fraction digits a shared compact unit picks on its own. */

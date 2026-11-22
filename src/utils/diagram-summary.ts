@@ -115,6 +115,25 @@ function allValues(parsed: ParsedChart): number[] {
   return parsed.data.flatMap((d) => [d.value, ...(d.extraValues ?? [])]);
 }
 
+/**
+ * The value range of a line chart. A right axis with a format of its own
+ * (#2116) gets its own range, so dollars and barrels are never one span.
+ */
+function lineRanges(parsed: ParsedChart, fmt: (n: number) => string): string {
+  const own = parsed.axisFormats?.['y-right'];
+  const sides = parsed.seriesAxes;
+  if (!own || !sides?.includes('right'))
+    return rangePhrase(allValues(parsed), fmt);
+  const left: number[] = [];
+  const right: number[] = [];
+  for (const d of parsed.data)
+    [d.value, ...(d.extraValues ?? [])].forEach((v, s) =>
+      (sides[s] === 'right' ? right : left).push(v)
+    );
+  const fmtR = makeNumberFormatter(own, compactNumber);
+  return `left axis ${rangePhrase(left, fmt)}; right axis ${rangePhrase(right, fmtR)}`;
+}
+
 function seriesNames(parsed: ParsedChart): string[] {
   if (parsed.seriesNames && parsed.seriesNames.length > 0) {
     return parsed.seriesNames;
@@ -173,7 +192,7 @@ function summarizeChart(content: string): string | null {
       const last = points[points.length - 1]!.label;
       const span =
         points.length === 1 ? `at ${first}` : `from ${first} to ${last}`;
-      return `${noun}${seriesPhrase(parsed)} over ${plural(points.length, 'point', 'points')}, ${span}; ${rangePhrase(allValues(parsed), fmt)}.`;
+      return `${noun}${seriesPhrase(parsed)} over ${plural(points.length, 'point', 'points')}, ${span}; ${lineRanges(parsed, fmt)}.`;
     }
     case 'bar': {
       const head = `${noun}${seriesPhrase(parsed)} for ${plural(points.length, 'category', 'categories')}`;
@@ -576,12 +595,16 @@ function summarizeScatter(content: string): string | null {
       : '';
   const x = axisRange(
     parsed.xlabel ?? 'x',
-    points.map((p) => p.x)
+    points.map((p) => p.x),
+    // x prints plain unless its axis block sets a format (#2116).
+    ...(parsed.axisFormats?.x
+      ? [makeNumberFormatter(parsed.axisFormats.x, compactNumber)]
+      : [])
   );
   const y = axisRange(
     parsed.ylabel ?? 'y',
     points.map((p) => p.y),
-    // y takes the author's `format` (#1831); x stays plain, as on the chart.
+    // y takes the author's `format` (#1831).
     makeNumberFormatter(parsed.numberFormat, compactNumber)
   );
   return `Scatter chart of ${plural(points.length, 'point', 'points')}${groups}; ${x} and ${y}.`;

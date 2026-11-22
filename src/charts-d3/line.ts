@@ -4,6 +4,7 @@
 // dual y-axis (§15.1.1: y-axis / y-right-axis grouped series).
 // ============================================================
 
+import { axisNumberFormat } from '../utils/axis-format';
 import { scalePoint } from 'd3-scale';
 import {
   axisTickFormat,
@@ -325,14 +326,18 @@ export function renderLine(
     });
   // The author's `format` / `unit` / `locale` (#1831), with one compact unit
   // per value axis (#2036): a point's label prints in its own axis's unit.
+  // The right axis prints with its own block's format when it has one (#2116).
+  const formatR = axisNumberFormat(chart, 'y-right');
   const fmt = chartFormatter(chart, probeL);
-  const fmtR = dual ? chartFormatter(chart, rightAxis([0, 1]).ticks(6)) : fmt;
+  const fmtR = dual
+    ? chartFormatter({ numberFormat: formatR }, rightAxis([0, 1]).ticks(6))
+    : fmt;
   const fmtFor = (s: number) => (dual && axisOf(s) === 'right' ? fmtR : fmt);
   const tickFmt = percent
     ? (t: number) => `${round(t)}%`
     : axisTickFormat(leftAxis([0, 1]), chart.numberFormat, fmt);
   const tickFmtR = dual
-    ? axisTickFormat(rightAxis([0, 1]), chart.numberFormat, fmtR)
+    ? axisTickFormat(rightAxis([0, 1]), formatR, fmtR)
     : fmtR;
 
   // Horizontal margins first: the category-label plan needs the plot width to

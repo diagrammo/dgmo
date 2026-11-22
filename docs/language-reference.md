@@ -3075,7 +3075,7 @@ y-axis log            // scale only (linear is the default)
   write instead, and are ignored.
 - 🔴 **A new per-axis setting is an indented child of the axis line**
   (diagrammo/diagrammo#2116), never a new top-level `x-<thing>` directive.
-  Number format is §15.1.4; date ticks are §15.1.3.
+  The first is the per-axis number format (§15.1.4). Date ticks are §15.1.3.
 
 #### 15.1.3 Time axis and steps (line)
 
@@ -3134,7 +3134,7 @@ locale de-DE             // separators and currency placement: 1.234,5 · 1.200 
 
 - **Where.** bar, line, pie, polar-area, radar, scatter, function, heatmap,
   funnel, sankey and slope. On scatter and function the format applies to the y
-  values; x stays plain.
+  values; x stays plain unless its axis block sets it.
 - **Unit placement** (#2088). A unit that starts with a letter (`votes`,
   `ms`) is stated once, on the value-axis title, and the ticks and value labels
   print bare numbers. A title that holds the word keeps it as written
@@ -3155,6 +3155,37 @@ locale de-DE             // separators and currency placement: 1.234,5 · 1.200 
 - **Not read:** a line that names `format`, `unit` or `locale` but cannot be
   read warns (`W_NUMBER_FORMAT_INVALID`) and is ignored. Without any of the
   three, numbers print as before.
+- **Per axis — the axis block** (#2116). Indent `format`, `unit` or `locale`
+  under an axis line, and it sets that axis only:
+
+  ```
+  line Oil Price vs Strategic Reserve
+  y-axis $ / barrel
+    format currency USD
+  y-right-axis Million barrels
+    unit bbl
+  series
+    y-axis
+      Oil Price blue
+    y-right-axis
+      SPR Size green
+  ```
+
+  A child replaces the matching part of the chart-wide format: its `format`
+  the format, its `unit` the unit, its `locale` the locale. The rest comes from
+  the chart-wide lines, wherever they sit in the file. The right axis of a
+  dual-axis line starts from the chart-wide format, not from the left axis's
+  block. The x-axis of scatter and function starts plain, so a block there is
+  the only way to format x. Inside a grouped `series` block, the same lines
+  may sit under a `y-axis` / `y-right-axis` header beside its series. A word
+  unit on its own axis goes on that axis's title; an untitled axis is titled
+  with it when the other axis does not already state it. The generated
+  description gives each axis its own range. Which axes take a block: `y` on
+  bar, line, boxplot and slope; `y-right` on a dual-axis line or a bar with
+  lines; `x` and `y` on scatter and function; `x` on histogram. A block on
+  another axis, or an indented line that is not a setting, warns
+  (`W_AXIS_SETTING_INVALID`) and is ignored. A blank line ends the block. The
+  range and scale stay on the axis line.
 
 #### 15.1.5 Bands and fills between series (line)
 

@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A number format per axis — the indented axis block
+  (diagrammo/diagrammo#2116).** Indent `format`, `unit` or `locale` under an
+  `x-axis` / `y-axis` / `y-right-axis` line to set that axis only: dollars on
+  the left of a dual-axis line and barrels on the right, or a formatted x on
+  scatter and function, whose x otherwise prints plain. A child replaces only
+  its own part of the chart-wide format. A word unit on its own axis goes on
+  that axis's title, and the generated description gives each axis its own
+  range. A block on an axis that prints no numbers, or an indented line that
+  is not a setting, warns (`W_AXIS_SETTING_INVALID`).
+
 - **A canvas size in the file — `size WxH` and `aspect W:H`
   (diagrammo/diagrammo#1966).** `size 1200x675` is the same as
   `--width 1200 --height 675`, on every chart type; `aspect 16:9` sets the

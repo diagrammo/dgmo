@@ -54,6 +54,7 @@ import { renderFunction } from './function';
 import { renderBoxplot } from './boxplot';
 import { renderHistogram } from './histogram';
 import { unitOnAxisTitle } from '../utils/number-format';
+import { unitsOnAxisTitles } from '../utils/axis-format';
 
 /** Types parsed by parseChart → ParsedChart. */
 const STANDARD = new Set(['bar', 'line', 'pie', 'radar', 'polar-area']);
@@ -298,7 +299,7 @@ function renderPlot(
     // axis whichever way the bars run.
     const onAxis =
       std.type === 'bar' || std.type === 'line'
-        ? unitOnAxisTitle(std, ['ylabel', 'yrlabel'])
+        ? unitsOnAxisTitles(std, ['ylabel', 'yrlabel'])
         : std;
     switch (std.type) {
       case 'bar':
@@ -437,7 +438,7 @@ function renderPlot(
     case 'boxplot':
       renderBoxplot(
         s,
-        unitOnAxisTitle(ext, ['ylabel']),
+        unitsOnAxisTitles(ext, ['ylabel']),
         width,
         height,
         palette,
@@ -517,7 +518,7 @@ function renderPlot(
       );
       renderScatter(
         s,
-        unitOnAxisTitle(ext, ['ylabel']),
+        unitsOnAxisTitles(ext, ['ylabel']),
         width,
         height,
         seriesColors,
@@ -559,7 +560,7 @@ function renderPlot(
       );
       renderFunction(
         s,
-        unitOnAxisTitle(ext, ['ylabel']),
+        unitsOnAxisTitles(ext, ['ylabel']),
         width,
         height,
         seriesColors,

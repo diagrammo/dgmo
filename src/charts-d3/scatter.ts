@@ -5,6 +5,7 @@
 // greedy collision graphic.)
 // ============================================================
 
+import { axisNumberFormat } from '../utils/axis-format';
 import { scaleSqrt } from 'd3-scale';
 import { axisTickFormat, buildValueAxis, labelledTicks } from './value-axis';
 import { tabularText } from '../utils/tabular-figures';
@@ -374,7 +375,12 @@ export function renderScatter(
         .attr('font-family', FONT_FAMILY)
         .call(tabularText(yTickFmt(t), TICK_FONT));
   }
-  const xTickFmt = axisTickFormat(x, undefined, fmtNum);
+  // x prints plain unless its axis block sets a format (#2116).
+  const formatX = axisNumberFormat(chart, 'x', false);
+  const fmtX = formatX
+    ? chartFormatter({ numberFormat: formatX }, x.ticks(6))
+    : fmtNum;
+  const xTickFmt = axisTickFormat(x, formatX, fmtX);
   const shownXTicks = x.ticks(6);
   const shownX = labelledTicks(x, shownXTicks, xTickFmt, {
     fontSize: TICK_FONT,
@@ -617,12 +623,12 @@ export function renderScatter(
       name: p.category ? `${p.name} · ${p.category}` : p.name,
       value:
         p.size !== undefined
-          ? `(${fmtNum(p.x)}, ${fmt(p.y)}) · ${chart.sizelabel ?? 'size'}: ${fmtNum(p.size)}`
-          : `(${fmtNum(p.x)}, ${fmt(p.y)})`,
+          ? `(${fmtX(p.x)}, ${fmt(p.y)}) · ${chart.sizelabel ?? 'size'}: ${fmtNum(p.size)}`
+          : `(${fmtX(p.x)}, ${fmt(p.y)})`,
       color: own,
     });
     // Per-axis values for the adapter's on-axis projection (no tooltip).
-    dot.attr('data-axval-x', fmtNum(p.x)).attr('data-axval-y', fmt(p.y));
+    dot.attr('data-axval-x', fmtX(p.x)).attr('data-axval-y', fmt(p.y));
     // A point past a fixed axis end is pinned to it (#2119): the dot gives
     // way to a triangle pointing the way the value went, with the real value
     // beside it. The dot stays, unpainted, as the hover target.
@@ -637,7 +643,7 @@ export function renderScatter(
       const along = horiz ? edge + cut.dir * reach : edge - cut.dir * reach;
       drawValueLabel(
         svg,
-        horiz ? fmtNum(p.x) : fmt(p.y),
+        horiz ? fmtX(p.x) : fmt(p.y),
         horiz ? along : mid + CUT_MARK_LEN + 2,
         horiz ? mid - CUT_MARK_LEN - 4 : along + 4,
         stroke,

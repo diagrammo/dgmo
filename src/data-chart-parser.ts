@@ -93,8 +93,15 @@ import {
   AXIS_DIRECTIVE_DX,
   AXIS_OLD_DIRECTIVE_DX,
   parseAxisLine,
+  readAxisLine,
   settleAxisSpec,
 } from './utils/axis-spec';
+import {
+  AXIS_FORMAT_PLANS,
+  parseAxisBlock,
+  resolveAxisFormats,
+  type AxisFormats,
+} from './utils/axis-format';
 import type { NumberFormatSpec } from './utils/number-format';
 import { parseNumberFormatLine } from './utils/number-format';
 
@@ -127,6 +134,10 @@ export interface ParsedExtendedBase {
   axes?: AxisSpecs;
   /** `format`, `unit`, `locale` (#1831) on the types that print values. */
   numberFormat?: NumberFormatSpec;
+  /** An axis's own format, from its indented block (#2116). The value
+   *  axis's block is folded into `numberFormat`; what is left is the x of
+   *  scatter and function, which otherwise prints plain. */
+  axisFormats?: AxisFormats;
   noName?: boolean;
   noValue?: boolean;
   noPercent?: boolean;
@@ -926,8 +937,20 @@ function parseExtendedChartFull(
             }
           : undefined
       )
-    )
+    ) {
+      // The indented axis block (#2116): that axis's own number format.
+      const axis = readAxisLine(trimmed)?.axis;
+      if (axis)
+        i = parseAxisBlock(
+          lines,
+          i,
+          axis,
+          result,
+          AXIS_FORMAT_PLANS[result.type],
+          result.diagnostics
+        );
       continue;
+    }
 
     // Heatmap colour scale (#1837): `scale diverging [<mid>]`. Lowercase at
     // column 1 only, like the number format. A line naming `scale` that cannot
@@ -1630,6 +1653,7 @@ function parseExtendedChartFull(
     );
   }
 
+  resolveAxisFormats(result, AXIS_FORMAT_PLANS[result.type]);
   return result;
 }
 

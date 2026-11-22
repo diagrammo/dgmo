@@ -628,6 +628,9 @@ export function parseSeriesNames(
    *  (title, range, scale), with the line each sat on. */
   leftAxis?: AxisLine & { lineNumber: number };
   rightAxis?: AxisLine & { lineNumber: number };
+  /** The grouped form's `format` / `unit` / `locale` lines (#2116), each
+   *  under the header it follows; the caller applies them to that axis. */
+  axisSettings?: { side: 'left' | 'right'; text: string; lineNumber: number }[];
 } {
   let rawNames: string[];
   let series: string;
@@ -670,8 +673,21 @@ export function parseSeriesNames(
     let leftAxis: (AxisLine & { lineNumber: number }) | undefined;
     let rightAxis: (AxisLine & { lineNumber: number }) | undefined;
     let currentAxis: 'left' | 'right' = 'left';
+    const axisSettings: {
+      side: 'left' | 'right';
+      text: string;
+      lineNumber: number;
+    }[] = [];
     for (let i = 0; i < rawNames.length; i++) {
       const raw = rawNames[i]!;
+      if (/^(format|unit|locale)(?=\s|$)/.test(raw)) {
+        axisSettings.push({
+          side: currentAxis,
+          text: raw,
+          lineNumber: nameLineNumbers[i]!,
+        });
+        continue;
+      }
       const side = isHeader(raw);
       if (side === 'old') {
         // A bare `series` block passes only `markDiagnostics`; the old
@@ -715,6 +731,7 @@ export function parseSeriesNames(
       axes,
       ...(leftAxis !== undefined && { leftAxis }),
       ...(rightAxis !== undefined && { rightAxis }),
+      ...(axisSettings.length > 0 && { axisSettings }),
     };
   }
 

@@ -68,9 +68,16 @@ import {
 import { parseEmphasisDirective } from '../utils/emphasis';
 import {
   parseAxisLine,
+  readAxisLine,
   rejectOldAxisLine,
   settleAxisSpec,
 } from '../utils/axis-spec';
+import {
+  AXIS_FORMAT_PLANS,
+  parseAxisBlock,
+  resolveAxisFormats,
+  type AxisFormats,
+} from '../utils/axis-format';
 import { parseNumberFormatLine } from '../utils/number-format';
 import { parseTimelineEventLine, type DatePrefixCtx } from '../timeline/parser';
 import {
@@ -267,6 +274,8 @@ function parseVisualizationFull(
   let inTimelineMarkerBlock = false;
   let timelineMarkerBlockIndent = 0;
   let inSlopePeriodBlock = false;
+  // The slope y-axis block (#2116), folded into `numberFormat` at the end.
+  const slopeAxis: { axisFormats?: AxisFormats } = {};
   const slopeAnnotations: RawAnnotation[] = [];
   const timelineAliasMap = new Map<string, string>();
   const VALID_D3_TYPES = new Set([
@@ -351,6 +360,16 @@ function parseVisualizationFull(
       )
     ) {
       inSlopePeriodBlock = false;
+      const axis = readAxisLine(line)?.axis;
+      if (axis)
+        i = parseAxisBlock(
+          lines,
+          i,
+          axis,
+          slopeAxis,
+          AXIS_FORMAT_PLANS['slope'],
+          result.diagnostics
+        );
       continue;
     }
 
@@ -1833,6 +1852,15 @@ function parseVisualizationFull(
   if (notes.length) result.notes = notes;
   const emphasis = lifted?.override ?? anchoredEmphasis(lit);
   if (emphasis) result.emphasis = emphasis;
+
+  if (slopeAxis.axisFormats) {
+    const held = {
+      ...(result.numberFormat && { numberFormat: result.numberFormat }),
+      axisFormats: slopeAxis.axisFormats,
+    };
+    resolveAxisFormats(held, AXIS_FORMAT_PLANS['slope']);
+    if (held.numberFormat) result.numberFormat = held.numberFormat;
+  }
 
   return result;
 }

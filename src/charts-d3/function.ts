@@ -3,6 +3,7 @@
 // Evaluates each expression over the x-range and draws one line per function.
 // ============================================================
 
+import { axisNumberFormat } from '../utils/axis-format';
 import { scaleLinear } from 'd3-scale';
 import { axisTickFormat, buildValueAxis, labelledTicks } from './value-axis';
 import { line as d3line, area as d3area } from 'd3-shape';
@@ -143,6 +144,11 @@ export function renderFunction(
         .attr('font-family', FONT_FAMILY)
         .call(tabularText(yTickFmt(t), TICK_FONT));
   }
+  // x prints plain unless its axis block sets a format (#2116).
+  const formatX = axisNumberFormat(chart, 'x', false);
+  const fmtX = formatX
+    ? chartFormatter({ numberFormat: formatX }, x.ticks(10))
+    : fmtNum;
   for (const t of x.ticks(10)) {
     const xx = x(t);
     svg
@@ -162,7 +168,7 @@ export function renderFunction(
       .attr('fill', textColor)
       .attr('font-size', TICK_FONT)
       .attr('font-family', FONT_FAMILY)
-      .call(tabularText(fmtNum(t), TICK_FONT));
+      .call(tabularText(fmtX(t), TICK_FONT));
   }
 
   // Off-axis samples break the curve rather than run flat along an edge.

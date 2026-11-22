@@ -97,8 +97,16 @@ import {
   AXIS_DIRECTIVE_DX,
   applyAxisLine,
   parseAxisLine,
+  readAxisLine,
   settleAxisSpec,
 } from './utils/axis-spec';
+import {
+  AXIS_FORMAT_PLANS,
+  parseAxisBlock,
+  parseAxisSetting,
+  resolveAxisFormats,
+  type AxisFormats,
+} from './utils/axis-format';
 
 export interface ParsedChart {
   type: ChartType;
@@ -241,6 +249,9 @@ export interface ParsedChart {
   axes?: AxisSpecs;
   /** `format`, `unit`, `locale` (#1831): how every printed number reads. */
   numberFormat?: NumberFormatSpec;
+  /** An axis's own format, from its indented block (#2116). The y block is
+   *  folded into `numberFormat` after parsing; what is left is `y-right`. */
+  axisFormats?: AxisFormats;
   data: ChartDataPoint[];
   eras?: ChartEra[];
   /** `marker` and `band` (#1832, #2039), bar and line only. */
@@ -410,6 +421,16 @@ function applySeriesAxes(
     );
   if (parsed.leftAxis) header(parsed.leftAxis, 'y');
   if (parsed.rightAxis) header(parsed.rightAxis, 'y-right');
+  // `format` / `unit` / `locale` under a header set that axis (#2116).
+  for (const set of parsed.axisSettings ?? [])
+    parseAxisSetting(
+      set.text,
+      set.lineNumber,
+      set.side === 'right' ? 'y-right' : 'y',
+      result,
+      AXIS_FORMAT_PLANS[result.type],
+      result.diagnostics
+    );
   if (parsed.axes?.includes('right')) {
     result.seriesAxes = parsed.axes;
   }
@@ -743,8 +764,20 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
         result.diagnostics,
         (axis, label, at) => setAxisLabel(result, axis, label, at)
       )
-    )
+    ) {
+      // The indented axis block (#2116): that axis's own number format.
+      const axis = readAxisLine(trimmed)?.axis;
+      if (axis)
+        i = parseAxisBlock(
+          lines,
+          i,
+          axis,
+          result,
+          AXIS_FORMAT_PLANS[result.type],
+          result.diagnostics
+        );
       continue;
+    }
 
     // §1.11 emphasis (#1829): `highlight A, B` keeps the named categories,
     // series or slices at full strength and recedes the rest. Only the chart
@@ -1585,6 +1618,11 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
   });
   if (notes.length) result.notes = notes;
 
+  resolveAxisFormats(
+    result,
+    AXIS_FORMAT_PLANS[result.type],
+    (axis) => axis !== 'y-right' || !!result.seriesAxes?.includes('right')
+  );
   return result;
 }
 
