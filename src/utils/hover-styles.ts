@@ -686,6 +686,8 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     edgeSelector: '.cycle-edge',
     fromAttr: 'data-from',
     toAttr: 'data-to',
+    legend: true,
+    emphasis: 'dim',
   },
 
   // ── CROSS-ADD — one attr baked in the renderer, then keyed here ──

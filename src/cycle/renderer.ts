@@ -19,7 +19,15 @@ import { renderIntegratedLegend } from '../utils/legend-integration';
 import type {
   LegendCallbacks,
   ControlsGroupToggle,
+  LegendGroupData,
 } from '../utils/legend-types';
+import {
+  resolveActiveTagGroup,
+  resolveTagColor,
+  tagAttrKey,
+  UNTAGGED_TAG_COLOR,
+  type TagGroup,
+} from '../utils/tag-groups';
 import { contrastText, shapeFill } from '../palettes/color-utils';
 import { resolveColor } from '../colors';
 import { renderInlineText } from '../utils/inline-markdown';
@@ -58,6 +66,9 @@ export interface CycleRenderOptions {
    *  the inline gear is suppressed and a controls row + anchor are reserved.
    *  Default (inline) renders the gear as before. */
   controlsHost?: 'app' | 'inline';
+  /** The app's runtime tag switcher: names the tag group to colour by. Wins
+   *  over a source `active-tag` line; `'none'` / empty turns colouring off. */
+  tagOverride?: string;
 }
 
 /**
@@ -102,13 +113,22 @@ export function renderCycle(
   const hasDescriptions =
     parsed.nodes.some((n) => n.description.length > 0) ||
     parsed.edges.some((e) => e.description.length > 0);
-  // App-hosted: controls live in the app overlay strip. Cycle has no tag groups,
-  // so there's no in-SVG legend left to render — don't reserve a legend band.
+  // Tag legend (§1.3): one group pill per declared tag group; `no-legend` hides it.
+  const activeGroup = resolveActiveTagGroup(
+    parsed.tagGroups,
+    parsed.options['active-tag'],
+    renderOptions?.tagOverride
+  );
+  const hasTagLegend =
+    parsed.tagGroups.length > 0 && parsed.options['no-legend'] !== 'on';
+  // App-hosted: the descriptions toggle lives in the app overlay strip, so the
+  // in-SVG controls row is only drawn inline.
   const appHostedControls = renderOptions?.controlsHost === 'app';
-  const hasLegend =
+  const hasControlsLegend =
     !appHostedControls &&
     hasDescriptions &&
     !!renderOptions?.onToggleDescriptions;
+  const hasLegend = hasControlsLegend || hasTagLegend;
 
   const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
   const legendOffset = hasLegend ? sLegendHeight : 0;
@@ -174,6 +194,15 @@ export function renderCycle(
         },
       ],
     };
+    const tagLegendGroups: LegendGroupData[] = hasTagLegend
+      ? parsed.tagGroups.map((g) => ({
+          name: g.name,
+          entries: g.entries.map((e) => ({
+            value: e.value,
+            color: resolveColor(e.color, palette) ?? e.color,
+          })),
+        }))
+      : [];
     const legendCallbacks: LegendCallbacks = {
       ...(renderOptions?.onToggleControlsExpand !== undefined && {
         onControlsExpand: renderOptions.onToggleControlsExpand,
@@ -193,16 +222,18 @@ export function renderCycle(
       .attr('transform', `translate(0, ${titleOffsetForLegend + 4})`);
     renderIntegratedLegend(legendG, {
       frame: parsed.frame,
-      groups: [],
-      activeGroup: null,
+      groups: tagLegendGroups,
+      activeGroup: hasTagLegend ? activeGroup : null,
       mode: renderOptions?.exportMode ? 'export' : 'preview',
-      controlsGroup,
-      ...(renderOptions?.controlsHost !== undefined && {
-        controlsHost: renderOptions.controlsHost,
-      }),
-      ...(renderOptions?.controlsExpanded !== undefined && {
-        controlsExpanded: renderOptions.controlsExpanded,
-      }),
+      ...(hasControlsLegend && { controlsGroup }),
+      ...(hasControlsLegend &&
+        renderOptions?.controlsHost !== undefined && {
+          controlsHost: renderOptions.controlsHost,
+        }),
+      ...(hasControlsLegend &&
+        renderOptions?.controlsExpanded !== undefined && {
+          controlsExpanded: renderOptions.controlsExpanded,
+        }),
       callbacks: legendCallbacks,
       palette,
       isDark,
@@ -237,7 +268,13 @@ export function renderCycle(
   // ── Arrowhead markers (per color+width, markerUnits=strokeWidth) ──
   const markerKeys = new Set<string>();
   for (const edge of parsed.edges) {
-    const color = resolveEdgeColor(edge, parsed, palette, defaultNodeColor);
+    const color = resolveEdgeColor(
+      edge,
+      parsed,
+      palette,
+      defaultNodeColor,
+      activeGroup
+    );
     const sw = Math.max(edge.width ?? DEFAULT_EDGE_WIDTH, MIN_EDGE_WIDTH);
     const key = `${color}|${sw}`;
     if (!markerKeys.has(key)) {
@@ -255,7 +292,13 @@ export function renderCycle(
     // In-bounds by loop guard; layout.edges and parsed.edges are parallel arrays.
     const le = layout.edges[i]!;
     const edge = parsed.edges[i]!;
-    const color = resolveEdgeColor(edge, parsed, palette, defaultNodeColor);
+    const color = resolveEdgeColor(
+      edge,
+      parsed,
+      palette,
+      defaultNodeColor,
+      activeGroup
+    );
     const strokeWidth = Math.max(
       edge.width ?? DEFAULT_EDGE_WIDTH,
       MIN_EDGE_WIDTH
@@ -318,7 +361,13 @@ export function renderCycle(
     // In-bounds by loop guard; layout.nodes and parsed.nodes are parallel arrays.
     const ln = layout.nodes[i]!;
     const node = parsed.nodes[i]!;
-    const solidColor = resolveNodeColor(node.color, palette, defaultNodeColor);
+    const solidColor = resolveStepColor(
+      node,
+      parsed.tagGroups,
+      activeGroup,
+      palette,
+      defaultNodeColor
+    );
     // Canonical 25% tinted fill via shapeFill() (or full intent when solid-fill is on).
     const fillColor = shapeFill(palette, solidColor, isDark, {
       mode: fillMode,
@@ -345,6 +394,14 @@ export function renderCycle(
       // string id; edges key on the same index).
       .attr('data-node-index', String(i))
       .style('cursor', onClickItem ? 'pointer' : 'default');
+
+    // `data-tag-<group>` mirrors the legend's `data-legend-entry`, so a legend
+    // hover can light the steps of one value (the shared hover CSS pairs them).
+    for (const [k, v] of Object.entries(node.metadata)) {
+      if (parsed.tagGroups.some((g) => tagAttrKey(g.name) === k)) {
+        nodeG.attr(`data-tag-${k}`, v.toLowerCase());
+      }
+    }
 
     if (onClickItem) {
       const lineNum = node.lineNumber;
@@ -513,8 +570,10 @@ export function renderCycle(
     for (let i = 0; i < layout.nodes.length; i++) {
       const ln = layout.nodes[i]!;
       const node = parsed.nodes[i]!;
-      const solidColor = resolveNodeColor(
-        node.color,
+      const solidColor = resolveStepColor(
+        node,
+        parsed.tagGroups,
+        activeGroup,
         palette,
         defaultNodeColor
       );
@@ -678,7 +737,8 @@ export function renderCycleForExport(
   isDark: boolean,
   exportDims?: D3ExportDimensions,
   viewState?: CompactViewState,
-  exportMode?: boolean
+  exportMode?: boolean,
+  tagOverride?: string
 ): void {
   renderCycle(
     container,
@@ -688,34 +748,56 @@ export function renderCycleForExport(
     undefined,
     exportDims,
     viewState,
-    { ...(exportMode !== undefined && { exportMode }) }
+    {
+      ...(exportMode !== undefined && { exportMode }),
+      ...(tagOverride !== undefined && { tagOverride }),
+    }
   );
 }
 
 // ── Helpers ──────────────────────────────────────────────────
 
-function resolveNodeColor(
-  color: string | undefined,
+/** A step's solid colour: its own `color` wins, then the active tag group's
+ *  colour for its value, then the palette default. */
+function resolveStepColor(
+  node: ParsedCycle['nodes'][0],
+  tagGroups: readonly TagGroup[],
+  activeGroup: string | null,
   palette: PaletteColors,
   defaultColor: string
 ): string {
-  if (!color) return defaultColor;
-  return resolveColor(color, palette) ?? defaultColor;
+  if (node.color) return resolveColor(node.color, palette) ?? defaultColor;
+  const tagColor = resolveTagColor(
+    { ...node.metadata },
+    [...tagGroups],
+    activeGroup
+  );
+  if (tagColor && tagColor !== UNTAGGED_TAG_COLOR) {
+    return resolveColor(tagColor, palette) ?? tagColor;
+  }
+  return defaultColor;
 }
 
 function resolveEdgeColor(
   edge: ParsedCycle['edges'][0],
   parsed: ParsedCycle,
   palette: PaletteColors,
-  defaultNodeColor: string
+  defaultNodeColor: string,
+  activeGroup: string | null
 ): string {
   if (edge.color) {
     return resolveColor(edge.color, palette) ?? defaultNodeColor;
   }
-  // Inherit from source node
+  // Inherit from source node (its own colour, else its tag colour)
   const sourceNode = parsed.nodes[edge.sourceIndex];
-  if (sourceNode?.color) {
-    return resolveColor(sourceNode.color, palette) ?? defaultNodeColor;
+  if (sourceNode) {
+    return resolveStepColor(
+      sourceNode,
+      parsed.tagGroups,
+      activeGroup,
+      palette,
+      defaultNodeColor
+    );
   }
   return defaultNodeColor;
 }

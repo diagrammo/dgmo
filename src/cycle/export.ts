@@ -8,7 +8,7 @@ import {
   finalizeSvgExport,
   resolveExportPalette,
 } from '../utils/d3-helpers';
-import type { ExportContext } from '../utils/export-context';
+import { ctxTagOverride, type ExportContext } from '../utils/export-context';
 
 export async function exportCycle(ctx: ExportContext): Promise<string> {
   const { content, theme, palette, viewState, exportMode } = ctx;
@@ -16,7 +16,7 @@ export async function exportCycle(ctx: ExportContext): Promise<string> {
   const { renderCycleForExport } = await import('./renderer');
 
   const effectivePalette = await resolveExportPalette(theme, palette);
-  const cycleParsed = parseCycle(content);
+  const cycleParsed = parseCycle(content, effectivePalette);
   if (cycleParsed.error || cycleParsed.nodes.length === 0) return '';
 
   const container = createExportContainer(ctx.width, ctx.height);
@@ -27,7 +27,8 @@ export async function exportCycle(ctx: ExportContext): Promise<string> {
     ctx.isDark,
     { width: ctx.width, height: ctx.height },
     viewState,
-    exportMode
+    exportMode,
+    ctxTagOverride(ctx)
   );
   return finalizeSvgExport(container, theme, effectivePalette);
 }

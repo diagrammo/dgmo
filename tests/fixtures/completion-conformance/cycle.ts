@@ -14,6 +14,7 @@ export const fixture: ConformanceFixture = {
     'circle-nodes',
     'center',
     'autonumber',
+    'tag',
   ],
   specSection: '21',
   firstLineKeyword: 'cycle',
@@ -24,6 +25,8 @@ export const fixture: ConformanceFixture = {
     'circle-nodes',
     'center',
     'autonumber',
+    'active-tag',
+    'no-legend',
     'fill-tint',
     'fill-solid',
     'fill-outline', // working but not documented in §21.5

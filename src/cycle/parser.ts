@@ -8,14 +8,29 @@ import {
   takeFootnoteBlock,
 } from '../utils/chart-frame-parse';
 import { extractPaletteDirective } from '../palettes/directive';
+import type { PaletteColors } from '../palettes';
+import type { TagGroup } from '../utils/tag-groups';
 import {
+  matchTagBlockHeading,
+  validateTagValues,
+  validateTagGroupNames,
+  stripDefaultModifier,
+  finalizeAutoTagColors,
+  injectDefaultTagMetadata,
+  activeTagNoMatchMessage,
+  AUTO_TAG_COLOR_SENTINEL,
+  tagAttrKey,
+} from '../utils/tag-groups';
+import { suggest } from '../diagnostics';
+import {
+  extractColor,
   measureIndent,
   parseFirstLine,
   splitNameAndMeta,
   tryParseSharedOption,
   warnUnknownMetaKeys,
 } from '../utils/parsing';
-import { CYCLE_REGISTRY } from '../utils/reserved-key-registry';
+import { CYCLE_REGISTRY, withTagAliases } from '../utils/reserved-key-registry';
 import type { Writable } from '../utils/brand';
 import type { ParsedCycle, CycleNode, CycleEdge } from './types';
 
@@ -26,6 +41,11 @@ const BARE_EDGE_RE = /^->\s*(.*)?$/;
 const LABELED_EDGE_RE = /^-(.+?)->\s*(.*)?$/;
 // `center PDCA` / `center "PDCA"` (lowercase keyword, text required)
 const CENTER_RE = /^center\s+(.+)$/;
+// `active-tag Type` / `active-tag none` (lowercase keyword, group required)
+const ACTIVE_TAG_RE = /^active-tag\s+(.+)$/;
+// `tag Type as t` — lowercase keyword only, so a step called "Tag assets"
+// stays a step (same reason `center` is lowercase-only).
+const TAG_KEYWORD_RE = /^tag\s/;
 
 /**
  * Parse a `.dgmo` cycle diagram document.
@@ -38,13 +58,20 @@ const CENTER_RE = /^center\s+(.+)$/;
  * center PDCA
  * autonumber
  *
- * NodeLabel color: blue, span: 3
+ * tag Phase as p            (optional, before the first step)
+ *   Plan blue
+ *   Do green
+ *
+ * NodeLabel p: Plan, span: 3
  *   Description line (indented under node)
  *   -Label-> color: red, width: 6
  *     Edge description (indented under edge)
  * ```
  */
-export function parseCycle(content: string): ParsedCycle {
+export function parseCycle(
+  content: string,
+  palette?: PaletteColors
+): ParsedCycle {
   const options: Record<string, string> = {};
   const result: Writable<ParsedCycle> = {
     type: 'cycle',
@@ -52,6 +79,7 @@ export function parseCycle(content: string): ParsedCycle {
     titleLineNumber: 0,
     nodes: [],
     edges: [],
+    tagGroups: [],
     direction: 'clockwise',
     options,
     diagnostics: [],
@@ -67,6 +95,12 @@ export function parseCycle(content: string): ParsedCycle {
   // The footnote block and its markdown body (#2093), before any line is read.
   takeFootnoteBlock(result, lines, result.diagnostics);
   let headerParsed = false;
+
+  // Tag groups (§1.3): declared before the first step, like every tag chart.
+  let contentStarted = false;
+  let currentTagGroup: Writable<TagGroup> | null = null;
+  let activeTagLine = 0;
+  const aliasMap = new Map<string, string>();
 
   // State machine
   type State = 'top' | 'node' | 'edge';
@@ -88,6 +122,27 @@ export function parseCycle(content: string): ParsedCycle {
   const info = (line: number, message: string): void => {
     result.diagnostics.push(makeDgmoError(line, message, 'warning'));
   };
+
+  function addTagEntry(
+    group: Writable<TagGroup>,
+    rawEntry: string,
+    lineNumber: number
+  ): void {
+    const { text, isDefault } = stripDefaultModifier(rawEntry);
+    const { label, color } = extractColor(
+      text,
+      palette,
+      result.diagnostics,
+      lineNumber
+    );
+    // The first value is the implicit default unless another is marked.
+    if (isDefault || group.entries.length === 0) group.defaultValue = label;
+    group.entries.push({
+      value: label,
+      color: color ?? AUTO_TAG_COLOR_SENTINEL,
+      lineNumber,
+    });
+  }
 
   function flushEdge(): void {
     if (currentEdge) {
@@ -111,7 +166,11 @@ export function parseCycle(content: string): ParsedCycle {
     const trimmed = raw.trim();
 
     // Skip blanks and comments
-    if (!trimmed || trimmed.startsWith('//')) continue;
+    if (!trimmed) {
+      currentTagGroup = null;
+      continue;
+    }
+    if (trimmed.startsWith('//')) continue;
 
     const indent = measureIndent(raw);
 
@@ -131,6 +190,58 @@ export function parseCycle(content: string): ParsedCycle {
     // A column-1 line closes the open node, as a node declaration would.
     if (parseChartFrameLine(result, raw, lineNum, result.diagnostics)) {
       flushNode();
+      continue;
+    }
+
+    // ── Tag group heading: `tag Type as t` (before the first step) ──
+    const tagBlockMatch =
+      indent === 0 && TAG_KEYWORD_RE.test(trimmed)
+        ? matchTagBlockHeading(trimmed)
+        : null;
+    if (tagBlockMatch) {
+      if (contentStarted) {
+        result.diagnostics.push(
+          makeDgmoError(
+            lineNum,
+            'Tag groups must appear before cycle content',
+            'error',
+            'E_TAG_DECLARED_AFTER_CONTENT'
+          )
+        );
+        continue;
+      }
+      const group: Writable<TagGroup> = {
+        name: tagBlockMatch.name,
+        ...(tagBlockMatch.alias !== undefined && {
+          alias: tagBlockMatch.alias,
+        }),
+        entries: [],
+        lineNumber: lineNum,
+      };
+      if (tagBlockMatch.alias) {
+        aliasMap.set(tagBlockMatch.alias.toLowerCase(), tagAttrKey(group.name));
+      }
+      aliasMap.set(tagAttrKey(group.name), tagAttrKey(group.name));
+      for (const rawVal of tagBlockMatch.inlineValues ?? []) {
+        addTagEntry(group, rawVal, lineNum);
+      }
+      currentTagGroup = group;
+      result.tagGroups.push(group);
+      continue;
+    }
+
+    // ── Tag entries: indented `Value [color]` under a heading ──
+    if (currentTagGroup && !contentStarted && indent > 0) {
+      addTagEntry(currentTagGroup, trimmed, lineNum);
+      continue;
+    }
+    if (indent === 0) currentTagGroup = null;
+
+    // ── Directive: active-tag <Group> ──
+    const activeTagMatch = indent === 0 ? trimmed.match(ACTIVE_TAG_RE) : null;
+    if (activeTagMatch) {
+      options['active-tag'] = activeTagMatch[1]!.trim();
+      activeTagLine = lineNum;
       continue;
     }
 
@@ -182,6 +293,7 @@ export function parseCycle(content: string): ParsedCycle {
     // ── Top-level line (indent === 0): must be a node declaration ──
     if (indent === 0) {
       flushNode();
+      contentStarted = true;
 
       // Validate: node labels cannot contain -> or <-
       if (trimmed.includes('->') || trimmed.includes('<-')) {
@@ -194,17 +306,21 @@ export function parseCycle(content: string): ParsedCycle {
       }
 
       // §1.4 unified metadata grammar — same-line cut.
+      const nodeRegistry = withTagAliases(
+        CYCLE_REGISTRY,
+        new Set(aliasMap.keys())
+      );
       const split = splitNameAndMeta(
         trimmed,
-        CYCLE_REGISTRY,
-        new Map(),
+        nodeRegistry,
+        aliasMap,
         undefined,
         result.diagnostics,
         lineNum
       );
       warnUnknownMetaKeys(
         split.meta,
-        CYCLE_REGISTRY,
+        nodeRegistry,
         (msg) => warn(lineNum, msg),
         split.name
       );
@@ -378,6 +494,33 @@ export function parseCycle(content: string): ParsedCycle {
 
   // Flush remaining
   flushNode();
+
+  // ── Tag groups: auto colours, value checks, implicit default ──
+  finalizeAutoTagColors(result.tagGroups as Writable<TagGroup>[], palette);
+  if (result.tagGroups.length > 0) {
+    validateTagValues(
+      result.nodes,
+      result.tagGroups,
+      (line, msg) => warn(line, msg),
+      suggest
+    );
+    validateTagGroupNames(result.tagGroups, (line, msg) => warn(line, msg));
+    const activeTagWarning = activeTagNoMatchMessage(
+      options['active-tag'],
+      result.tagGroups
+    );
+    if (activeTagWarning) {
+      result.diagnostics.push(
+        makeDgmoError(
+          activeTagLine || 1,
+          activeTagWarning,
+          'warning',
+          'W_ACTIVE_TAG_NO_MATCH'
+        )
+      );
+    }
+    injectDefaultTagMetadata(result.nodes, result.tagGroups);
+  }
 
   // ── Post-parse validation ──
   if (result.nodes.length < 2) {

@@ -5437,6 +5437,8 @@ interface ParsedCycle {
     readonly titleLineNumber: number;
     readonly nodes: readonly CycleNode[];
     readonly edges: readonly CycleEdge[];
+    /** `tag` groups (§1.3). Steps carry their values in `metadata`. */
+    readonly tagGroups: readonly TagGroup[];
     readonly direction: 'clockwise' | 'counterclockwise';
     readonly options: Readonly<Record<string, string>>;
     readonly diagnostics: readonly DgmoError[];
@@ -5488,13 +5490,17 @@ interface CycleLayoutResult {
  * center PDCA
  * autonumber
  *
- * NodeLabel color: blue, span: 3
+ * tag Phase as p            (optional, before the first step)
+ *   Plan blue
+ *   Do green
+ *
+ * NodeLabel p: Plan, span: 3
  *   Description line (indented under node)
  *   -Label-> color: red, width: 6
  *     Edge description (indented under edge)
  * ```
  */
-declare function parseCycle(content: string): ParsedCycle;
+declare function parseCycle(content: string, palette?: PaletteColors): ParsedCycle;
 
 /**
  * Compute cycle diagram layout: positions nodes equidistant (or span-weighted)
@@ -5519,6 +5525,9 @@ interface CycleRenderOptions {
      *  the inline gear is suppressed and a controls row + anchor are reserved.
      *  Default (inline) renders the gear as before. */
     controlsHost?: 'app' | 'inline';
+    /** The app's runtime tag switcher: names the tag group to colour by. Wins
+     *  over a source `active-tag` line; `'none'` / empty turns colouring off. */
+    tagOverride?: string;
 }
 /**
  * Render a cycle diagram into the given container.
@@ -5527,7 +5536,7 @@ declare function renderCycle(container: HTMLDivElement, parsed: ParsedCycle, pal
 /**
  * Render for CLI/export (no click handlers).
  */
-declare function renderCycleForExport(container: HTMLDivElement, parsed: ParsedCycle, palette: PaletteColors, isDark: boolean, exportDims?: D3ExportDimensions, viewState?: CompactViewState, exportMode?: boolean): void;
+declare function renderCycleForExport(container: HTMLDivElement, parsed: ParsedCycle, palette: PaletteColors, isDark: boolean, exportDims?: D3ExportDimensions, viewState?: CompactViewState, exportMode?: boolean, tagOverride?: string): void;
 
 interface JourneyMapAnnotation {
     readonly type: 'pain' | 'opportunity' | 'thought';

@@ -578,6 +578,7 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
       'body',
       'boxes-and-lines',
       'c4',
+      'cycle',
       'er',
       'event-line',
       'family',

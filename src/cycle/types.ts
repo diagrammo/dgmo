@@ -1,5 +1,6 @@
 import type { DgmoError } from '../diagnostics';
 import type { ChartFrame } from '../utils/chart-frame-parse';
+import type { TagGroup } from '../utils/tag-groups';
 
 // ============================================================
 // Cycle Diagram — Parsed Types
@@ -33,6 +34,8 @@ export interface ParsedCycle {
   readonly titleLineNumber: number;
   readonly nodes: readonly CycleNode[];
   readonly edges: readonly CycleEdge[];
+  /** `tag` groups (§1.3). Steps carry their values in `metadata`. */
+  readonly tagGroups: readonly TagGroup[];
   readonly direction: 'clockwise' | 'counterclockwise';
   readonly options: Readonly<Record<string, string>>;
   readonly diagnostics: readonly DgmoError[];

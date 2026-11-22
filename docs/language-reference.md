@@ -100,7 +100,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 - **On a chart of numbers, the title states the finding.** Write what the reader should take away, not what is plotted — `bar Nassau landed twice the gold of any other port`, not `bar Gold by Port`. Put what is measured (the quantity, units, period) in `subtitle` and where the numbers came from in `source` (§1.12). Fall back to a label title only when the user names one or the data shows no single finding (§26.8).
   <!-- TITLE end -->
   <!-- CATEGORIZE start -->
-- **Categorize and color — by default, not only when obvious.** Before drawing, find the axis that sorts the items into kinds and color by it: layer (frontend / backend / data), role (client / service / datastore), trust zone (internal / external / third-party), status (done / active / blocked), owner/team, or read-path vs write-path. Almost every diagram has such an axis — actively look for one rather than leaving everything monochrome. Express it with a **tag group**, never ad-hoc per-node colors: declare `tag <Axis> as t` (the name is a single word — `tag TrustZone as tz` — or quote a multi-word name: `tag "Trust Zone" as tz`), indent the category values (a trailing color is optional — bare values auto-pick a palette color), set `active-tag <Axis>` in the header — after the tag group and before the first element, because a type such as c4 refuses it after content — then assign each item `Node t: <Category>` (see the tag-group syntax in the per-type section below). **Bracket, block, body, calendar-heatmap, event-line and whiteboard** take the tag group but no `active-tag` line — declare the group and stop there; on event-line the line would be drawn as an element. **Class, flowchart, wireframe, raci, cycle, pyramid, ring, sankey, tech-radar, venn, version-control, wordcloud, arc, bar, clock, countdown, funnel, function, goal, heatmap, line, pie, polar-area, quadrant, radar, scatter, slope, boxplot and histogram** take no tag group at all — skip this rule for them. Most report the lines; cycle, pyramid, ring, sankey, venn, version-control and wordcloud read them as content, and flowchart and tech-radar drop them without a word. Only the 11 named palette colors exist, and they re-resolve per palette/theme. Color the grouping so the categories — and the boundaries between them — read at a glance. **Buckets, not name tags — never 1:1.** A tag group must have _fewer_ values than it has members: each color should bucket two or more items so the palette compresses the diagram into a few meaningful kinds (aim for ~2–4 categories, and keep distinct colors well under half the item count). If you find yourself giving nearly every item its own value, you've enumerated, not categorized — merge the singletons up a level until each color groups at least two (a `cache` and a `database` are both `datastore`; a caller and a gateway are both `client`; two microservices are both `service`). One color per item is the same visual noise as random colors — the grouping only earns its place when a color means "these belong together." Leave items uncolored only when they genuinely form a single undifferentiated kind, or the user asked for no color.
+- **Categorize and color — by default, not only when obvious.** Before drawing, find the axis that sorts the items into kinds and color by it: layer (frontend / backend / data), role (client / service / datastore), trust zone (internal / external / third-party), status (done / active / blocked), owner/team, or read-path vs write-path. Almost every diagram has such an axis — actively look for one rather than leaving everything monochrome. Express it with a **tag group**, never ad-hoc per-node colors: declare `tag <Axis> as t` (the name is a single word — `tag TrustZone as tz` — or quote a multi-word name: `tag "Trust Zone" as tz`), indent the category values (a trailing color is optional — bare values auto-pick a palette color), set `active-tag <Axis>` in the header — after the tag group and before the first element, because a type such as c4 refuses it after content — then assign each item `Node t: <Category>` (see the tag-group syntax in the per-type section below). **Bracket, block, body, calendar-heatmap, event-line and whiteboard** take the tag group but no `active-tag` line — declare the group and stop there; on event-line the line would be drawn as an element. **Class, flowchart, wireframe, raci, pyramid, ring, sankey, tech-radar, venn, version-control, wordcloud, arc, bar, clock, countdown, funnel, function, goal, heatmap, line, pie, polar-area, quadrant, radar, scatter, slope, boxplot and histogram** take no tag group at all — skip this rule for them. Most report the lines; pyramid, ring, sankey, venn, version-control and wordcloud read them as content, and flowchart and tech-radar drop them without a word. Only the 11 named palette colors exist, and they re-resolve per palette/theme. Color the grouping so the categories — and the boundaries between them — read at a glance. **Buckets, not name tags — never 1:1.** A tag group must have _fewer_ values than it has members: each color should bucket two or more items so the palette compresses the diagram into a few meaningful kinds (aim for ~2–4 categories, and keep distinct colors well under half the item count). If you find yourself giving nearly every item its own value, you've enumerated, not categorized — merge the singletons up a level until each color groups at least two (a `cache` and a `database` are both `datastore`; a caller and a gateway are both `client`; two microservices are both `service`). One color per item is the same visual noise as random colors — the grouping only earns its place when a color means "these belong together." Leave items uncolored only when they genuinely form a single undifferentiated kind, or the user asked for no color.
 <!-- CATEGORIZE end -->
 - **Keep labels short.** A few words per node. Move detail into notes or metadata, never a full sentence inside a label.
 - **Let the defaults show.** Don't add `no-*` opt-outs unless the user asked to hide or disable something — they strip helpful labels, values, and color.
@@ -221,7 +221,7 @@ tag GroupName as <alias>
 - Must appear before diagram content
 - Bare shorthand is not an alias (TD-18): `tag Priority p` declares a group _named_ "Priority p" — no alias registers, so `p:` assignments silently miss. The parser warns on this shape (spaced name, no alias, alias-shaped trailing word), suggesting `tag Priority as p` or a quoted name
 
-**Diagram types that support tags**: the tag model is near-universal across the structural types — sequence, infra, org, c4, er, kanban, gantt, sitemap, timeline, boxes-and-lines, state (§5.7), pert, swimlane, mindmap, journey-map, event-line, treemap, map, block, bracket, family, swot, ownership and whiteboard all accept `tag <Group> as <alias>` blocks (a whiteboard's names its colours — §24Ea). Check the per-type Options section for the exact directive set; if a type draws a tag legend, it takes tags. **Flowchart, wireframe, raci and class take no tags** — a `tag` block or `active-tag` on any of them is ignored with a warning, because what an element looks like is fixed by what it is (a flowchart's shape, a wireframe's state keywords, a class's trailing colour word) or by the roles (raci).
+**Diagram types that support tags**: the tag model is near-universal across the structural types — sequence, infra, org, c4, er, kanban, gantt, sitemap, timeline, boxes-and-lines, state (§5.7), pert, swimlane, mindmap, journey-map, event-line, cycle, treemap, map, block, bracket, family, swot, ownership and whiteboard all accept `tag <Group> as <alias>` blocks (a whiteboard's names its colours — §24Ea). Check the per-type Options section for the exact directive set; if a type draws a tag legend, it takes tags. **Flowchart, wireframe, raci and class take no tags** — a `tag` block or `active-tag` on any of them is ignored with a warning, because what an element looks like is fixed by what it is (a flowchart's shape, a wireframe's state keywords, a class's trailing colour word) or by the roles (raci).
 
 ### 1.4 Same-Line Metadata
 
@@ -4291,6 +4291,33 @@ Do blue
 Check orange
 Act red
 ```
+
+### Tag Groups
+
+Color the steps by category with a tag group (§1.3) declared before the first step. Values are indented under `tag <Name> [as <alias>]`; a bare value auto-picks a palette color. A step takes its value as `<alias>: <Value>` on its declaration line; a space after the colon is optional (`t:big` = `t: big`).
+
+```
+cycle The Pirate Raid Cycle
+
+center CENTER
+autonumber
+
+tag type as t
+  big green
+  small yellow
+  tiny red
+
+Scout t:big
+  Spot merchant vessels from afar
+Pursue t:small
+  Raise the colors, trim the sails
+```
+
+- A step's own color wins over its tag color. Write it before the tag: `Plan green p: Do` (a color after the tag value would read as part of the value). An edge inherits its source step's color.
+- Several groups on one step are comma-separated: `Scout t: big, r: Fast`.
+- The first value is the group's default: a step with no value takes it. Mark another with a trailing `default`.
+- The first declared group colors the steps; `active-tag <Name>` picks another, `active-tag none` turns tag coloring off. The legend lists every group; `no-legend` hides it.
+- The `tag` keyword is lowercase and goes before the first step: a lowercase `tag` line after a step is an error (`E_TAG_DECLARED_AFTER_CONTENT`), while a step called `Tag assets` stays a step.
 
 ### Descriptions
 

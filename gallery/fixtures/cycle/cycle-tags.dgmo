@@ -1,0 +1,24 @@
+cycle Incident Response Loop
+
+center RESPOND
+autonumber
+
+tag Owner as o
+  On-call blue
+  Platform green
+  Security purple
+  Comms orange
+
+Detect o: On-call
+  Alert fires and the pager goes off
+Triage o: On-call
+  Size the blast radius and pick a severity
+  -Page the owners->
+Contain o: Security
+  Isolate the affected hosts
+Fix o: Platform
+  Ship the patch or roll back
+Communicate red o: Comms
+  Status page and customer notes
+Review o: On-call
+  Blameless write-up, then new alerts

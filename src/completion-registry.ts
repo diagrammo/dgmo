@@ -1038,6 +1038,8 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       },
       center: { description: 'Text in the middle of the ring (center PDCA)' },
       autonumber: { description: 'Number the steps in source order' },
+      'no-legend': { description: 'Hide the tag legend' },
+      'active-tag': { description: 'Active tag group name' },
     }),
   ],
   [
@@ -1527,7 +1529,13 @@ export const STRUCTURAL_KEYWORDS = new Map<string, string[]>([
   ['er', ['tag']],
   [
     'cycle',
-    ['direction-counterclockwise', 'circle-nodes', 'center', 'autonumber'],
+    [
+      'direction-counterclockwise',
+      'circle-nodes',
+      'center',
+      'autonumber',
+      'tag',
+    ],
   ],
   ['journey-map', ['persona', 'tag']],
   ['raci', ['roles']],
