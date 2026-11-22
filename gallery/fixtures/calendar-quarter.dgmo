@@ -1,0 +1,24 @@
+calendar Q2 lead-in, March to May 2027
+week-start monday
+tag Kind as k
+  Work blue
+  Home green
+  Travel orange
+
+2027-03
+  1 Planning k: Work
+  8 -> 12 Hiring loop k: Work
+  10 Dentist k: Home
+  10 Standup offsite k: Work
+  10 School play k: Home
+  10 Car service k: Home
+  22 -> 26 Release week k: Work
+  29 -> 04-02 Easter break k: Home
+    Grandparents visit
+2027-04
+  14 Tax day k: Home
+  19 -> 23 Conference, Lisbon k: Travel
+2027-05
+  3 Kickoff k: Work
+  17 -> 21 Ski trip k: Travel
+  31 Memorial Day k: Home

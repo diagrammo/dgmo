@@ -58,6 +58,10 @@ import {
   shadeLevels,
   WEEKDAYS,
 } from './format';
+import type { Cell, Geometry, Label } from './geometry';
+import { monthGeometry } from './month';
+import type { MonthGeometry } from './month';
+import { drawMonthDays, showAt, STEP_TINT } from './month-render';
 import { resolveCalendarActiveGroup } from './parser';
 import type {
   CalendarGroupRef,
@@ -105,37 +109,6 @@ const LABELLED_DATES = new Set([1, 5, 10, 15, 20, 25, 30]);
 const LABEL_INK_TOP = 1.66;
 /** Where the legend's first row sits under the title. */
 const LEGEND_TITLE_GAP = 10;
-
-/** One day's tile and what it shows. */
-interface Cell {
-  day: DayNumber;
-  x: number;
-  y: number;
-}
-
-interface Label {
-  text: string;
-  x: number;
-  y: number;
-  anchor: 'start' | 'middle' | 'end';
-  cls: string;
-  bold?: boolean;
-  month?: string;
-}
-
-interface Geometry {
-  cells: Cell[];
-  labels: Label[];
-  cellW: number;
-  cellH: number;
-  pitchX: number;
-  pitchY: number;
-  /** Right and bottom edge of the drawing, in root units. */
-  right: number;
-  bottom: number;
-  /** Tile tinted as a weekend (`layout months`). */
-  weekend: (day: DayNumber) => boolean;
-}
 
 /** Each tag value's fill in this palette, by group key then value. The
  *  parser has no palette, so colours resolve here: an authored name
@@ -484,6 +457,14 @@ export function renderCalendar(
   const numberGroup: CalendarNumberGroup | undefined =
     active?.kind === 'number' ? numberGroupOf(parsed, active) : undefined;
   const shades = shadeFills(palette, isDark, numberGroup);
+  // `layout month` tints its tiles, so bars stay legible over a mark; the
+  // legend's steps match the tiles.
+  const isMonth = parsed.layout === 'month';
+  const toSteps = (f: string[]): string[] =>
+    isMonth
+      ? f.map((c, i) => (i === 0 ? palette.bg : mix(c, palette.bg, STEP_TINT)))
+      : f;
+  const steps = toSteps(shades);
   const level = numberGroup
     ? shadeLevels(
         parsed.days.map((d) => d.numbers[numberGroup.key] ?? 0),
@@ -501,7 +482,15 @@ export function renderCalendar(
   const showLegend =
     parsed.groups.length > 0 && !legendSuppressed(parsed.options);
   const legendGroups: LegendGroupData[] = parsed.groups.map((ref) =>
-    legendGroupFor(ref, parsed, palette, isDark, fillsByTag, notLoggedStroke)
+    legendGroupFor(
+      ref,
+      parsed,
+      palette,
+      isDark,
+      fillsByTag,
+      notLoggedStroke,
+      toSteps
+    )
   );
 
   // ── Geometry ───────────────────────────────────────────────
@@ -603,7 +592,7 @@ export function renderCalendar(
     const x = Number(ramp.getAttribute('x'));
     const w = Number(ramp.getAttribute('width')) / 5;
     const parent = d3Selection.select(ramp.parentNode as SVGGElement);
-    shades.forEach((fill, lv) => {
+    steps.forEach((fill, lv) => {
       parent
         .append('rect')
         .attr('class', 'calendar-legend-step')
@@ -627,8 +616,15 @@ export function renderCalendar(
       .attr('x', l.x)
       .attr('y', l.y)
       .attr('text-anchor', l.anchor)
-      .attr('font-size', LABEL_FONT_SIZE)
-      .attr('fill', l.bold ? palette.text : palette.textMuted)
+      .attr('font-size', l.size ?? LABEL_FONT_SIZE)
+      .attr(
+        'fill',
+        l.faint
+          ? mix(palette.textMuted, palette.bg, 55)
+          : l.bold
+            ? palette.text
+            : palette.textMuted
+      )
       .text(l.text);
     if (l.anchor === 'end') t.attr('dominant-baseline', 'central');
     if (l.bold) t.attr('font-weight', 'bold');
@@ -646,120 +642,145 @@ export function renderCalendar(
     }
   });
   const tooltip = exportMode ? null : createTooltip(container, palette, isDark);
-  const tips = new Map<string, string>();
+  if (tooltip) {
+    // A month card stays open under the pointer so its links can be used.
+    tooltip.style.pointerEvents = isMonth ? 'auto' : 'none';
+    tooltip.style.whiteSpace = isMonth ? 'normal' : 'nowrap';
+    tooltip.style.maxWidth = isMonth ? '280px' : '';
+    tooltip.onmouseenter = null;
+    tooltip.onmouseleave = null;
+  }
+  let tips = new Map<string, string>();
   const dotR = Math.max(1.5, Math.min(geo.cellW, geo.cellH) * 0.18);
 
-  const grid = svg
-    .append('g')
-    .attr('class', 'calendar-days')
-    .attr('role', 'list');
-  for (const c of geo.cells) {
-    const { day } = c;
-    const entry = byDay.get(day);
-    const evIdx = eventsByDay.get(day) ?? [];
-    const evs = evIdx.map((i) => parsed.events[i]!);
-    const weekend = geo.weekend(day);
+  if ('blocks' in geo)
+    tips = drawMonthDays({
+      svg,
+      geo,
+      parsed,
+      palette,
+      isDark,
+      exportMode,
+      showNotes,
+      active,
+      ...(numberGroup && { numberGroup }),
+      level,
+      stepFills: steps,
+      fillsByTag,
+      tooltip,
+    });
+  const grid = isMonth
+    ? null
+    : svg.append('g').attr('class', 'calendar-days').attr('role', 'list');
+  if (grid)
+    for (const c of geo.cells) {
+      const { day } = c;
+      const entry = byDay.get(day);
+      const evIdx = eventsByDay.get(day) ?? [];
+      const evs = evIdx.map((i) => parsed.events[i]!);
+      const weekend = geo.weekend(day);
 
-    let fill: string;
-    let stroke = outline;
-    let shade: number | null = null;
-    let tag: string | undefined;
-    let fromEvent = -1;
-    if (numberGroup) {
-      const v = entry?.numbers[numberGroup.key] ?? 0;
-      shade = level(v);
-      fill = shade === 0 && weekend ? weekendZero : shades[shade]!;
-    } else if (active?.kind === 'tag') {
-      tag = entry?.tags[active.key];
-      fill = tag !== undefined ? (activeTagFills?.get(tag) ?? notLogged) : '';
-      if (!fill) {
-        fromEvent = evs.findIndex((e) => e.tags[active.key] !== undefined);
-        const ec = fromEvent >= 0 ? eventColor(evs[fromEvent]!.tags) : null;
-        if (ec) {
-          fill = ec;
-          tag = evs[fromEvent]!.tags[active.key];
-        } else {
-          fromEvent = -1;
-          fill = weekend ? weekendBlank : notLogged;
-          stroke = notLoggedStroke;
+      let fill: string;
+      let stroke = outline;
+      let shade: number | null = null;
+      let tag: string | undefined;
+      let fromEvent = -1;
+      if (numberGroup) {
+        const v = entry?.numbers[numberGroup.key] ?? 0;
+        shade = level(v);
+        fill = shade === 0 && weekend ? weekendZero : shades[shade]!;
+      } else if (active?.kind === 'tag') {
+        tag = entry?.tags[active.key];
+        fill = tag !== undefined ? (activeTagFills?.get(tag) ?? notLogged) : '';
+        if (!fill) {
+          fromEvent = evs.findIndex((e) => e.tags[active.key] !== undefined);
+          const ec = fromEvent >= 0 ? eventColor(evs[fromEvent]!.tags) : null;
+          if (ec) {
+            fill = ec;
+            tag = evs[fromEvent]!.tags[active.key];
+          } else {
+            fromEvent = -1;
+            fill = weekend ? weekendBlank : notLogged;
+            stroke = notLoggedStroke;
+          }
         }
+      } else {
+        fromEvent = plainEvent && evs.length > 0 ? 0 : -1;
+        fill =
+          fromEvent === 0 ? plainEvent! : weekend ? weekendBlank : notLogged;
+        if (fromEvent < 0) stroke = notLoggedStroke;
       }
-    } else {
-      fromEvent = plainEvent && evs.length > 0 ? 0 : -1;
-      fill = fromEvent === 0 ? plainEvent! : weekend ? weekendBlank : notLogged;
-      if (fromEvent < 0) stroke = notLoggedStroke;
-    }
 
-    const shownValue = numberGroup
-      ? amount(entry?.numbers[numberGroup.key] ?? 0, numberGroup.unit)
-      : active?.kind === 'tag'
-        ? (tag ?? parsed.emptyLabel)
-        : evs.length > 0
-          ? evs.map((e) => e.name).join(', ')
-          : 'No entry';
-    const rect = grid
-      .append('rect')
-      .attr('class', 'calendar-day')
-      .attr('data-date', dayToIso(day))
-      .attr(
-        'data-value',
-        numberGroup ? (entry?.numbers[numberGroup.key] ?? 0) : null
-      )
-      .attr('data-level', shade)
-      .attr('data-tag', tag ?? null)
-      .attr('data-events', evs.length || null)
-      .attr('data-weekend', weekend ? '' : null)
-      .attr('x', c.x)
-      .attr('y', c.y)
-      .attr('width', geo.cellW)
-      .attr('height', geo.cellH)
-      .attr('rx', CELL_RADIUS)
-      .attr('fill', fill)
-      .attr('stroke', stroke)
-      .attr('stroke-width', 0.5)
-      .attr('role', 'listitem')
-      .attr('aria-label', `${fullDate(day)}: ${shownValue}`);
-    for (const g of parsed.tagGroups) {
-      const k = tagAttrKey(g.name);
-      const v = entry?.tags[k] ?? evs.find((e) => e.tags[k])?.tags[k];
-      if (v !== undefined) rect.attr(`data-tag-${k}`, v.toLowerCase());
-    }
-    const line = entry?.lineNumber ?? evs[0]?.lineNumber;
-    if (line !== undefined) rect.attr('data-line-number', line);
-
-    // The event the fill does not show takes the corner dot.
-    const dotted = evs.find((_, i) => i !== fromEvent);
-    if (dotted) {
-      grid
-        .append('circle')
-        .attr('class', 'calendar-event-dot')
+      const shownValue = numberGroup
+        ? amount(entry?.numbers[numberGroup.key] ?? 0, numberGroup.unit)
+        : active?.kind === 'tag'
+          ? (tag ?? parsed.emptyLabel)
+          : evs.length > 0
+            ? evs.map((e) => e.name).join(', ')
+            : 'No entry';
+      const rect = grid
+        .append('rect')
+        .attr('class', 'calendar-day')
         .attr('data-date', dayToIso(day))
-        .attr('cx', c.x + geo.cellW - dotR - 1.5)
-        .attr('cy', c.y + dotR + 1.5)
-        .attr('r', dotR)
-        .attr('fill', eventColor(dotted.tags) ?? neutralEvent)
-        .attr('stroke', palette.bg)
+        .attr(
+          'data-value',
+          numberGroup ? (entry?.numbers[numberGroup.key] ?? 0) : null
+        )
+        .attr('data-level', shade)
+        .attr('data-tag', tag ?? null)
+        .attr('data-events', evs.length || null)
+        .attr('data-weekend', weekend ? '' : null)
+        .attr('x', c.x)
+        .attr('y', c.y)
+        .attr('width', geo.cellW)
+        .attr('height', geo.cellH)
+        .attr('rx', CELL_RADIUS)
+        .attr('fill', fill)
+        .attr('stroke', stroke)
         .attr('stroke-width', 0.5)
-        .attr('pointer-events', 'none');
-    }
+        .attr('role', 'listitem')
+        .attr('aria-label', `${fullDate(day)}: ${shownValue}`);
+      for (const g of parsed.tagGroups) {
+        const k = tagAttrKey(g.name);
+        const v = entry?.tags[k] ?? evs.find((e) => e.tags[k])?.tags[k];
+        if (v !== undefined) rect.attr(`data-tag-${k}`, v.toLowerCase());
+      }
+      const line = entry?.lineNumber ?? evs[0]?.lineNumber;
+      if (line !== undefined) rect.attr('data-line-number', line);
 
-    if (!tooltip) continue;
-    const tipHtml = dayCard(parsed, day, entry, evs, shownValue, showNotes);
-    tips.set(dayToIso(day), tipHtml);
-    rect
-      .attr('tabindex', 0)
-      .on('mouseenter', (event: MouseEvent) =>
-        showTooltip(tooltip, tipHtml, event)
-      )
-      .on('mousemove', (event: MouseEvent) =>
-        showTooltip(tooltip, tipHtml, event)
-      )
-      .on('mouseleave', () => hideTooltip(tooltip))
-      .on('focus', function (this: SVGRectElement) {
-        showAt(tooltip, this, tipHtml);
-      })
-      .on('blur', () => hideTooltip(tooltip));
-  }
+      // The event the fill does not show takes the corner dot.
+      const dotted = evs.find((_, i) => i !== fromEvent);
+      if (dotted) {
+        grid
+          .append('circle')
+          .attr('class', 'calendar-event-dot')
+          .attr('data-date', dayToIso(day))
+          .attr('cx', c.x + geo.cellW - dotR - 1.5)
+          .attr('cy', c.y + dotR + 1.5)
+          .attr('r', dotR)
+          .attr('fill', eventColor(dotted.tags) ?? neutralEvent)
+          .attr('stroke', palette.bg)
+          .attr('stroke-width', 0.5)
+          .attr('pointer-events', 'none');
+      }
+
+      if (!tooltip) continue;
+      const tipHtml = dayCard(parsed, day, entry, evs, shownValue, showNotes);
+      tips.set(dayToIso(day), tipHtml);
+      rect
+        .attr('tabindex', 0)
+        .on('mouseenter', (event: MouseEvent) =>
+          showTooltip(tooltip, tipHtml, event)
+        )
+        .on('mousemove', (event: MouseEvent) =>
+          showTooltip(tooltip, tipHtml, event)
+        )
+        .on('mouseleave', () => hideTooltip(tooltip))
+        .on('focus', function (this: SVGRectElement) {
+          showAt(tooltip, this, tipHtml);
+        })
+        .on('blur', () => hideTooltip(tooltip));
+    }
 
   // The summary rides the shared subtitle line unless the author wrote one.
   let frame: ChartFrame | undefined = parsed.frame;
@@ -770,12 +791,13 @@ export function renderCalendar(
   growChartFrame(svg.node(), frame, palette, { size: 'grow' });
 
   if (tooltip) {
-    attachKeyboard(
-      svg.node()!,
-      geo,
-      (el, html) => showAt(tooltip, el, html),
-      tips
-    );
+    if (!isMonth)
+      attachKeyboard(
+        svg.node()!,
+        geo,
+        (el, html) => showAt(tooltip, el, html),
+        tips
+      );
     attachSpanHovers(svg.node()!, {
       geo,
       color: palette.text,
@@ -788,6 +810,7 @@ export function renderCalendar(
       tips,
       active,
       emptyLabel: parsed.emptyLabel,
+      month: isMonth,
     });
   }
 }
@@ -797,24 +820,12 @@ function geometryFor(
   left: number,
   top: number,
   exportMode: boolean
-): Geometry {
-  // TODO(phase 2): layout month — the wall calendar (#1876) draws here; until
-  // it lands, `layout month` draws as `layout months`.
+): Geometry | MonthGeometry {
+  if (parsed.layout === 'month')
+    return monthGeometry(parsed, left, top, exportMode);
   return parsed.layout === 'weeks'
     ? weeksGeometry(parsed, left, top, exportMode)
     : monthsGeometry(parsed, left, top, exportMode);
-}
-
-function showAt(
-  tooltip: ReturnType<typeof createTooltip>,
-  el: Element,
-  html: string
-): void {
-  const r = el.getBoundingClientRect();
-  showTooltip(tooltip, html, {
-    clientX: r.right,
-    clientY: r.top,
-  } as MouseEvent);
 }
 
 /** The day card: the open group's value, the date, then every other mark
@@ -857,7 +868,8 @@ function legendGroupFor(
   palette: PaletteColors,
   isDark: boolean,
   fillsByTag: Map<string, Map<string, string>>,
-  blank: string
+  blank: string,
+  toSteps: (fills: string[]) => string[] = (f) => f
 ): LegendGroupData {
   if (ref.kind === 'tag') {
     const fills = fillsByTag.get(ref.key) ?? new Map<string, string>();
@@ -870,7 +882,7 @@ function legendGroupFor(
     };
   }
   const group = parsed.numberGroups.find((g) => g.key === ref.key);
-  const f = shadeFills(palette, isDark, group);
+  const f = toSteps(shadeFills(palette, isDark, group));
   const top = Math.max(
     group?.max ?? 0,
     ...parsed.days.map((d) => d.numbers[ref.key] ?? 0)
@@ -946,7 +958,9 @@ function attachKeyboard(
  * Hovers that find days (#2090, #2091): a month name dims every other day
  * and outlines the month; a legend step or value dims days at other steps or
  * values; the summary's "busiest day" rings that day and shows its value.
- * Focus does what hover does. Interactive renders only.
+ * Focus does what hover does. In `layout month` the event bars dim with
+ * their days, and a click on a legend value pins it. Interactive renders
+ * only.
  */
 function attachSpanHovers(
   svg: SVGSVGElement,
@@ -959,9 +973,11 @@ function attachSpanHovers(
     tips: Map<string, string>;
     active: CalendarGroupRef | null;
     emptyLabel: string;
+    month: boolean;
   }
 ): void {
   const days = [...svg.querySelectorAll<SVGRectElement>('.calendar-day')];
+  const events = [...svg.querySelectorAll<SVGGElement>('.calendar-event')];
   for (const d of days) d.style.transition = HOVER_FADE;
   // Inside the days group: the frame shifts the body below the title and
   // summary, so a path on the root would sit that far above the squares.
@@ -975,33 +991,55 @@ function attachSpanHovers(
     .attr('stroke-width', SPAN_OUTLINE_WIDTH)
     .attr('pointer-events', 'none')
     .attr('d', '');
-  const focus = (keep: (d: SVGRectElement) => boolean, outline: boolean) => {
+  const focus = (
+    keep: (d: SVGRectElement) => boolean,
+    outline: boolean,
+    keepEvent: (e: SVGGElement) => boolean = () => true
+  ) => {
     const kept: SVGRectElement[] = [];
     for (const d of days) {
       const k = keep(d);
       d.style.opacity = k ? '' : String(HOVER_DIM_OPACITY);
       if (k) kept.push(d);
     }
+    for (const e of events)
+      e.style.opacity = keepEvent(e) ? '' : String(HOVER_DIM_OPACITY);
     span.attr('d', outline ? spanOutline(kept, o.geo) : '');
   };
+  let pinned: (() => void) | null = null;
   const clear = () => {
     for (const d of days) d.style.opacity = '';
+    for (const e of events) e.style.opacity = '';
     span.attr('d', '');
     o.hideTip();
+    pinned?.();
   };
-  const bind = (el: Element, on: () => void) => {
+  const bind = (el: Element, on: () => void, pin = false) => {
     el.setAttribute('tabindex', '0');
     (el as SVGElement).style.cursor = 'pointer';
     el.addEventListener('mouseenter', on);
     el.addEventListener('focus', on);
     el.addEventListener('mouseleave', clear);
     el.addEventListener('blur', clear);
+    if (pin)
+      el.addEventListener('click', () => {
+        pinned = pinned === on ? null : on;
+        for (const p of svg.querySelectorAll('[data-calendar-pinned]'))
+          p.removeAttribute('data-calendar-pinned');
+        if (pinned) el.setAttribute('data-calendar-pinned', '');
+        clear();
+        on();
+      });
   };
   for (const label of svg.querySelectorAll('.calendar-month')) {
     const month = label.getAttribute('data-month');
     if (month)
       bind(label, () =>
-        focus((d) => d.getAttribute('data-date')!.startsWith(month), true)
+        focus(
+          (d) => d.getAttribute('data-date')!.startsWith(month),
+          true,
+          (e) => e.getAttribute('data-month') === month
+        )
       );
   }
 
@@ -1017,14 +1055,21 @@ function attachSpanHovers(
     )) {
       const value = entry.getAttribute('data-series-name') ?? '';
       const blank = value === o.emptyLabel;
-      bind(entry, () =>
-        focus(
-          (d) =>
-            blank
-              ? !d.hasAttribute('data-tag')
-              : d.getAttribute('data-tag') === value,
-          false
-        )
+      bind(
+        entry,
+        () =>
+          focus(
+            (d) =>
+              blank
+                ? !d.hasAttribute('data-tag')
+                : d.getAttribute('data-tag') === value,
+            false,
+            (e) =>
+              blank
+                ? !e.hasAttribute('data-tag')
+                : e.getAttribute('data-tag') === value
+          ),
+        o.month
       );
     }
 

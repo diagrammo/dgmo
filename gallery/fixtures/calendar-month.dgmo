@@ -1,0 +1,24 @@
+calendar Family calendar, January 2027
+tag Kind as k
+  Work blue
+  Home green
+  Travel orange
+
+2027-01
+  1 New Year's Day k: Home
+  5 Kickoff k: Work
+    Room 4B. Bring the **Q1 numbers**.
+  8 -> 11 Ski trip k: Travel
+    Lodge booking in the [shared folder](https://example.com/ski)
+  12 Dentist k: Home
+  14 Sprint review k: Work
+  14 Parents' evening k: Home
+    - Ask about the reading list
+  14 Book club k: Home
+  14 Lunch with Sam k: Work
+  18 -> 20 Offsite, Denver k: Work
+    Hotel: *The Maven*.
+  19 Maya's birthday k: Home
+  25 -> 29 Conference, Lisbon k: Travel
+  28 Board meeting k: Work
+  31 Recital k: Home

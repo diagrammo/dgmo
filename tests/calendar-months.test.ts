@@ -163,13 +163,14 @@ describe('calendar layout months — horizontal (#1877)', () => {
   });
 });
 
-describe('calendar layout month — phase 1', () => {
-  it('parses `layout month` and draws it as strips for now', () => {
+describe('calendar layout month', () => {
+  it('draws `layout month` as month grids, not strips', () => {
     const c = draw('calendar Team\nyear 2026\nlayout month\n03-10 Dentist\n');
     expect(c.querySelector('svg')!.getAttribute('data-calendar-layout')).toBe(
       'month'
     );
     expect(c.querySelectorAll('.calendar-day')).toHaveLength(365);
+    expect(c.querySelectorAll('.calendar-outside').length).toBeGreaterThan(0);
   });
 });
 
