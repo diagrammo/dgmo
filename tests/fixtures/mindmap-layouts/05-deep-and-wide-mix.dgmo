@@ -1,0 +1,31 @@
+mindmap Armada Orders
+// Try: one deep skinny branch, one wide shallow branch, one single leaf, one leafless-collapsed node; compare ring spacing per depth.
+radial
+
+Deep Orders
+  Order A
+    Order B
+      Order C
+        Order D
+          Order E
+            Order F
+              Order G
+                Order H
+Wide Orders
+  W1
+  W2
+  W3
+  W4
+  W5
+  W6
+  W7
+  W8
+  W9
+  W10
+  W11
+  W12
+Lone Order
+Folded Orders collapsed
+  Hidden 1
+  Hidden 2
+    Hidden 2a

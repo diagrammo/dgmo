@@ -1,0 +1,93 @@
+mindmap Pirate Atlas
+// Try: about 100 nodes, unbalanced (one 40-leaf branch, mid branches, singletons, a deep tail) - pan and zoom, check ring overlap.
+radial
+color-by-depth
+
+Caribbean
+  Cove 1
+  Cove 2
+  Cove 3
+  Cove 4
+  Cove 5
+  Cove 6
+  Cove 7
+  Cove 8
+  Cove 9
+  Cove 10
+  Cove 11
+  Cove 12
+  Cove 13
+  Cove 14
+  Cove 15
+  Cove 16
+  Cove 17
+  Cove 18
+  Cove 19
+  Cove 20
+  Cove 21
+  Cove 22
+  Cove 23
+  Cove 24
+  Cove 25
+  Cove 26
+  Cove 27
+  Cove 28
+  Cove 29
+  Cove 30
+  Cove 31
+  Cove 32
+  Cove 33
+  Cove 34
+  Cove 35
+  Cove 36
+  Cove 37
+  Cove 38
+  Cove 39
+  Cove 40
+Atlantic
+  Isle 1
+    Bay 1-a
+    Bay 1-b
+  Isle 2
+    Bay 2-a
+    Bay 2-b
+  Isle 3
+    Bay 3-a
+    Bay 3-b
+  Isle 4
+    Bay 4-a
+    Bay 4-b
+  Isle 5
+    Bay 5-a
+    Bay 5-b
+  Isle 6
+    Bay 6-a
+    Bay 6-b
+  Isle 7
+    Bay 7-a
+    Bay 7-b
+  Isle 8
+    Bay 8-a
+    Bay 8-b
+Pacific
+  Atoll
+    Lagoon
+      Pool
+        Shoal
+          Wreck
+            Chest
+Arctic
+Southern
+  Cape
+  Rock 1
+  Rock 2
+  Rock 3
+  Rock 4
+  Rock 5
+  Rock 6
+  Rock 7
+  Rock 8
+  Rock 9
+  Rock 10
+  Rock 11
+  Rock 12

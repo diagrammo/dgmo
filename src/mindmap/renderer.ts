@@ -15,12 +15,22 @@ import {
   extractExportSvg,
 } from '../utils/export-container';
 import type { PaletteColors } from '../palettes';
-import { contrastText, shapeFill } from '../palettes/color-utils';
+import {
+  contrastText,
+  getSeriesColors,
+  mix,
+  shapeFill,
+  themeBaseBg,
+} from '../palettes/color-utils';
 import type { ParsedMindmap } from './types';
 import type { MindmapLayoutResult } from './types';
 import { parseMindmap, resolveMindmapHighlight } from './parser';
 import { storyGround } from '../utils/emphasis';
-import { layoutMindmap, MARGIN as LAYOUT_MARGIN } from './layout';
+import {
+  BARE_LEAF_MID_EM,
+  layoutMindmap,
+  MARGIN as LAYOUT_MARGIN,
+} from './layout';
 import { computeNodeText } from './text-wrap';
 import { renderInlineText } from '../utils/inline-markdown';
 import { preprocessDescriptionLine } from '../utils/description-helpers';
@@ -66,22 +76,48 @@ const ROOT_STROKE_WIDTH = 2.5;
 import {
   NODE_STROKE_WIDTH,
   EDGE_STROKE_WIDTH,
-  CARD_RADIUS,
   HEADER_HEIGHT,
 } from '../utils/visual-conventions'; // shared (Story 111.1)
 
-function nodeFill(
-  palette: PaletteColors,
-  isDark: boolean,
-  nodeColor?: string,
-  fillMode?: 'solid' | 'outline'
-): string {
-  const color = nodeColor ?? palette.primary;
-  return shapeFill(palette, color, isDark, { mode: fillMode });
+/** Corner radius of a pill; a tall card keeps this, not a half-height arc. */
+const PILL_MAX_RADIUS = 16;
+/** Dot drawn at a leaf's parent-facing edge, two-sided layout (#2100). */
+const LEAF_DOT_RADIUS = 3.5;
+const LEAF_TEXT_INSET = 9;
+/** Edge widths: root to branch, and every deeper edge. */
+const BRANCH_EDGE_WIDTH = 2.5;
+const EDGE_OPACITY = 0.7;
+
+function pillRadius(height: number): number {
+  return Math.min(height / 2, PILL_MAX_RADIUS);
 }
 
-function nodeStroke(palette: PaletteColors, nodeColor?: string): string {
-  return nodeColor ?? palette.primary;
+/**
+ * One hue per top-level branch, inherited by its whole subtree (#2100):
+ * the palette's series rotation in source order, restarting nowhere, so
+ * neighbouring trees of a forest differ too.
+ */
+function branchHues(
+  layout: MindmapLayoutResult,
+  palette: PaletteColors
+): { parent: Map<string, string>; hue: Map<string, string> } {
+  const parent = new Map<string, string>();
+  for (const e of layout.edges) {
+    if (e.sourceId !== e.targetId) parent.set(e.targetId, e.sourceId);
+  }
+  const series = getSeriesColors(palette);
+  const hue = new Map<string, string>();
+  let next = 0;
+  for (const n of layout.nodes) {
+    if (n.depth === 1) hue.set(n.id, series[next++ % series.length]!);
+  }
+  for (const n of layout.nodes) {
+    if (n.depth < 2) continue;
+    let up = parent.get(n.id);
+    while (up !== undefined && !hue.has(up)) up = parent.get(up);
+    if (up !== undefined) hue.set(n.id, hue.get(up)!);
+  }
+  return { parent, hue };
 }
 
 /** Depth color sequence — ROYGBIV-ish from the palette's named colors */
@@ -426,43 +462,84 @@ export function renderMindmap(
   const story = resolveMindmapHighlight(parsed);
   const ground = story.paths.active ? storyGround(palette, isDark) : null;
 
+  // Branch hues and node shapes (#2100). Two-sided: branches are tinted
+  // pills, deeper inner nodes pale pills, leaves plain text with a dot.
+  // Radial: branches are solid pills, every deeper node a pale pill.
+  const radial = parsed.options['radial'] === 'on';
+  const { parent: parentOf, hue: branchHue } = branchHues(
+    renderLayout,
+    palette
+  );
+  const nodeById = new Map(renderLayout.nodes.map((n) => [n.id, n]));
+  const base = themeBaseBg(palette, isDark);
+  const fillMode = fillModeFromOptions(parsed.options);
+  const hueOf = (n: (typeof renderLayout.nodes)[number]): string =>
+    options?.colorByDepth
+      ? depthColor(n.depth, palette)
+      : (n.color ?? branchHue.get(n.id) ?? palette.primary);
+
   // Render edges (background layer)
   for (const edge of renderLayout.edges) {
     const edgeReceded =
       ground !== null &&
       !story.litEdges.has(`${edge.sourceId}>${edge.targetId}`);
+    const child = nodeById.get(edge.targetId);
+    const edgeHue =
+      child && !options?.colorByDepth
+        ? (branchHue.get(child.id) ?? palette.textMuted)
+        : palette.textMuted;
     mainG
       .append('path')
       .attr('class', 'mindmap-edge')
       .attr('d', edge.path)
       .attr('fill', 'none')
-      .attr('stroke', edgeReceded ? ground.groundStroke : palette.textMuted)
-      .attr('stroke-width', EDGE_STROKE_WIDTH)
-      .attr('stroke-opacity', 0.5);
+      .attr('stroke', edgeReceded ? ground.groundStroke : edgeHue)
+      .attr(
+        'stroke-width',
+        child?.depth === 1 ? BRANCH_EDGE_WIDTH : EDGE_STROKE_WIDTH
+      )
+      .attr('stroke-linecap', 'round')
+      .attr('stroke-opacity', EDGE_OPACITY);
   }
 
   // Render nodes (foreground layer)
   for (const node of renderLayout.nodes) {
-    const isRoot = node.radius === 0 && renderLayout.nodes.indexOf(node) === 0;
-    const strokeW = isRoot ? ROOT_STROKE_WIDTH : NODE_STROKE_WIDTH;
-    const effectiveColor = options?.colorByDepth
-      ? depthColor(node.depth, palette)
-      : node.color;
+    const isRoot = node.depth === 0;
+    const isLeaf = !radial && node.depth >= 2 && !node.hasChildren;
+    const hue = hueOf(node);
     const receded = ground !== null && !story.litIds.has(node.id);
-    const fill = receded
-      ? ground.groundFill
-      : nodeFill(
-          palette,
-          isDark,
-          effectiveColor,
-          fillModeFromOptions(parsed.options)
-        );
-    const stroke = receded
-      ? ground.groundStroke
-      : nodeStroke(palette, effectiveColor);
+    let fill: string;
+    let stroke: string;
+    let strokeW = NODE_STROKE_WIDTH;
+    if (isRoot) {
+      // A dark pill — the text colour, so it inverts with the theme.
+      fill = node.color ?? palette.text;
+      stroke = fill;
+      strokeW = ROOT_STROKE_WIDTH;
+    } else if (node.depth === 1) {
+      fill = radial ? hue : shapeFill(palette, hue, isDark, { mode: fillMode });
+      stroke = hue;
+    } else {
+      fill = mix(hue, base, 12);
+      stroke = mix(hue, base, 60);
+      strokeW = 1;
+    }
+    if (receded) {
+      fill = ground.groundFill;
+      stroke = ground.groundStroke;
+    }
     const onFillText = receded
       ? ground.groundText
-      : contrastText(fill, palette.textOnFillLight, palette.textOnFillDark);
+      : isLeaf
+        ? palette.text
+        : contrastText(fill, palette.textOnFillLight, palette.textOnFillDark);
+    const rx = pillRadius(node.height);
+    // A leaf reads away from its parent: dot on the near edge, text beyond.
+    const parentNode = nodeById.get(parentOf.get(node.id) ?? '');
+    const leafOnLeft =
+      isLeaf &&
+      parentNode !== undefined &&
+      parentNode.x + parentNode.width / 2 > node.x + node.width / 2;
 
     const nodeG = mainG
       .append('g')
@@ -490,18 +567,18 @@ export function renderMindmap(
         .attr('aria-label', node.label);
     }
 
-    // Node rectangle
+    // Node pill — a leaf keeps an unpainted one as its hit area.
     nodeG
       .append('rect')
       .attr('x', node.x)
       .attr('y', node.y)
       .attr('width', node.width)
       .attr('height', node.height)
-      .attr('rx', CARD_RADIUS)
-      .attr('ry', CARD_RADIUS)
-      .attr('fill', fill)
-      .attr('stroke', stroke)
-      .attr('stroke-width', strokeW);
+      .attr('rx', rx)
+      .attr('ry', rx)
+      .attr('fill', isLeaf ? 'transparent' : fill)
+      .attr('stroke', isLeaf ? 'none' : stroke)
+      .attr('stroke-width', isLeaf ? 0 : strokeW);
 
     // Determine if description is visible (needed for label centering)
     const collapsed = node.hiddenCount != null && node.hiddenCount > 0;
@@ -525,21 +602,42 @@ export function renderMindmap(
     // Label zone height
     const labelLineCount = labelLines.length;
     const labelZoneH =
-      labelLineCount <= 1 ? HEADER_HEIGHT : LABEL_LINE_HEIGHT * labelLineCount;
+      labelLineCount <= 1 && !isLeaf
+        ? HEADER_HEIGHT
+        : LABEL_LINE_HEIGHT * labelLineCount;
     const labelZoneHeight = showDesc ? labelZoneH : node.height;
 
+    if (isLeaf) {
+      nodeG
+        .append('circle')
+        .attr('class', 'mindmap-leaf-dot')
+        .attr('cx', leafOnLeft ? node.x + node.width : node.x)
+        .attr('cy', node.y + fontSize * BARE_LEAF_MID_EM)
+        .attr('r', LEAF_DOT_RADIUS)
+        .attr('fill', receded ? ground.groundStroke : hue);
+    }
+
     // Label text — vertically centered in the label zone
-    const centerX = node.x + node.width / 2;
+    const centerX = !isLeaf
+      ? node.x + node.width / 2
+      : leafOnLeft
+        ? node.x + node.width - LEAF_TEXT_INSET
+        : node.x + LEAF_TEXT_INSET;
+    const textAnchor = !isLeaf ? 'middle' : leafOnLeft ? 'end' : 'start';
+    const fontWeight = isRoot ? 'bold' : node.depth === 1 ? '600' : 'normal';
     if (labelLineCount <= 1) {
       // Single line — simple centering
-      const labelY = node.y + labelZoneHeight / 2 + fontSize * 0.35;
+      // A bare leaf's ink starts on its top edge; a card centres its label.
+      const labelY = isLeaf
+        ? node.y + fontSize
+        : node.y + labelZoneHeight / 2 + fontSize * 0.35;
       nodeG
         .append('text')
         .attr('x', centerX)
         .attr('y', labelY)
-        .attr('text-anchor', 'middle')
+        .attr('text-anchor', textAnchor)
         .attr('font-size', fontSize)
-        .attr('font-weight', isRoot ? 'bold' : 'normal')
+        .attr('font-weight', fontWeight)
         .attr('fill', onFillText)
         // labelLineCount <= 1 implies labelLines has exactly one element here.
         .text(labelLines[0]!);
@@ -549,14 +647,15 @@ export function renderMindmap(
       //   blockH = (lineCount - 1) * lineHeight
       // Center that block in the zone, then offset each baseline by fontSize * 0.35
       const blockH = LABEL_LINE_HEIGHT * (labelLineCount - 1);
-      const firstBaselineY =
-        node.y + labelZoneHeight / 2 - blockH / 2 + fontSize * 0.35;
+      const firstBaselineY = isLeaf
+        ? node.y + fontSize
+        : node.y + labelZoneHeight / 2 - blockH / 2 + fontSize * 0.35;
       const textEl = nodeG
         .append('text')
         .attr('x', centerX)
-        .attr('text-anchor', 'middle')
+        .attr('text-anchor', textAnchor)
         .attr('font-size', fontSize)
-        .attr('font-weight', isRoot ? 'bold' : 'normal')
+        .attr('font-weight', fontWeight)
         .attr('fill', onFillText);
 
       for (let i = 0; i < labelLines.length; i++) {
@@ -588,16 +687,17 @@ export function renderMindmap(
     if (showDesc && descLines.length > 0) {
       const separatorY = node.y + labelZoneH;
 
-      // Separator line
-      nodeG
-        .append('line')
-        .attr('x1', node.x)
-        .attr('y1', separatorY)
-        .attr('x2', node.x + node.width)
-        .attr('y2', separatorY)
-        .attr('stroke', stroke)
-        .attr('stroke-opacity', 0.3)
-        .attr('stroke-width', 1);
+      // Separator line — a leaf has no card to divide
+      if (!isLeaf)
+        nodeG
+          .append('line')
+          .attr('x1', node.x)
+          .attr('y1', separatorY)
+          .attr('x2', node.x + node.width)
+          .attr('y2', separatorY)
+          .attr('stroke', stroke)
+          .attr('stroke-opacity', 0.3)
+          .attr('stroke-width', 1);
 
       // Description text (with inline markdown + preprocessing)
       if (descLines.length <= 1) {
@@ -608,7 +708,7 @@ export function renderMindmap(
           .append('text')
           .attr('x', centerX)
           .attr('y', descY)
-          .attr('text-anchor', 'middle')
+          .attr('text-anchor', textAnchor)
           .attr('font-size', descFontSize)
           .attr('fill', onFillText);
         renderInlineText(textEl, processed, palette, descFontSize);
@@ -621,7 +721,7 @@ export function renderMindmap(
             .append('text')
             .attr('x', centerX)
             .attr('y', descStartY + i * DESC_LINE_HEIGHT)
-            .attr('text-anchor', 'middle')
+            .attr('text-anchor', textAnchor)
             .attr('font-size', descFontSize)
             .attr('fill', onFillText);
           renderInlineText(textEl, processed, palette, descFontSize);
@@ -638,7 +738,7 @@ export function renderMindmap(
         y: node.y,
         width: node.width,
         height: node.height,
-        rx: CARD_RADIUS,
+        rx,
         fill: stroke,
         clipId: `collapse-clip-${node.id}`,
         prefix: 'mindmap',

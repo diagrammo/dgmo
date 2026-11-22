@@ -128,7 +128,7 @@ Q2 Goals
     expect(root.width).toBeGreaterThan(child.width);
   });
 
-  it('edges have valid SVG paths with M and L commands', () => {
+  it('edges are one horizontal S-curve per child (#2100)', () => {
     const parsed = parseMindmap(
       `mindmap Root
   A
@@ -136,9 +136,19 @@ Q2 Goals
     );
     const layout = layoutMindmap(parsed, palette);
     expect(layout.edges.length).toBeGreaterThan(0);
+    expect(layout.edges).toHaveLength(2);
     for (const edge of layout.edges) {
-      expect(edge.path).toMatch(/^M\s/);
-      expect(edge.path).toContain('L');
+      expect(edge.sourceId).not.toBe(edge.targetId);
+      const m = edge.path.match(
+        /^M (\S+) (\S+) C (\S+) (\S+) (\S+) (\S+) (\S+) (\S+)$/
+      );
+      expect(m).not.toBeNull();
+      const [sx, sy, c1x, c1y, c2x, c2y, tx, ty] = m!.slice(1).map(Number);
+      // Leaves horizontally, arrives horizontally.
+      expect(c1y).toBe(sy);
+      expect(c2y).toBe(ty);
+      expect(c1x).toBe(c2x);
+      expect(Math.min(sx!, tx!) < c1x! && c1x! < Math.max(sx!, tx!)).toBe(true);
     }
   });
 

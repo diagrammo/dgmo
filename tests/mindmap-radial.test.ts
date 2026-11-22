@@ -110,10 +110,7 @@ describe('mindmap radial layout (#1843)', () => {
   });
 
   it('a dominant trunk spreads its leaves around the root, not down one column', () => {
-    const two = layout(TRUNK);
     const radial = layout(TRUNK.replace('\n', '\nradial\n'));
-    // Two-sided: every leaf is one column to the right of the root.
-    expect(two.height / two.width).toBeGreaterThan(1);
     const root = radial.nodes[0]!;
     const [rx, ry] = centre(root);
     const leafNodes = radial.nodes.filter((n) => n.depth === 2);
@@ -125,10 +122,10 @@ describe('mindmap radial layout (#1843)', () => {
     for (const side of [left, right, above, below]) {
       expect(side).toBeGreaterThanOrEqual(3);
     }
-    // Nearly square, and shorter than the one-column picture.
+    // Nearly square. (The two-sided picture's leaves are bare text since
+    // #2100, so its one column is no longer the taller of the two.)
     expect(radial.height / radial.width).toBeLessThan(1.25);
     expect(radial.width / radial.height).toBeLessThan(1.25);
-    expect(radial.height).toBeLessThan(two.height);
   });
 
   it('each branch gets an angle in proportion to its leaf count', () => {

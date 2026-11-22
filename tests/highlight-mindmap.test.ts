@@ -31,10 +31,15 @@ function nodes(
   const out: Record<string, [string | null, string | null]> = {};
   for (const g of host.querySelectorAll('g.mindmap-node')) {
     const t = g.querySelector('text')!;
-    out[t.textContent!] = [
-      g.querySelector('rect')!.getAttribute('fill'),
-      t.getAttribute('fill'),
-    ];
+    // A two-sided leaf paints no card (#2100); its dot is the mark, and a
+    // receded dot takes the ground stroke. Report it as the card would be.
+    const dot = g.querySelector('circle.mindmap-leaf-dot');
+    const paint = dot
+      ? dot.getAttribute('fill') === ground.groundStroke
+        ? ground.groundFill
+        : dot.getAttribute('fill')
+      : g.querySelector('rect')!.getAttribute('fill');
+    out[t.textContent!] = [paint, t.getAttribute('fill')];
   }
   return out;
 }

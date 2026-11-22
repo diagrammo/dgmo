@@ -1,0 +1,31 @@
+mindmap Regatta Plan
+// Try: radial plus every mindmap directive at once - frame lines, palette, tags, color-by-depth, active-tag, descriptions, collapsed, highlight.
+radial
+color-by-depth
+palette nord
+subtitle Spring season, three stages
+footnote
+  Dates depend on tides.
+
+  **Source:** Harbour Master's office
+
+  Chart: Bosun Quill
+active-tag Stage
+highlight Stage 2 -> Night Run
+
+tag Stage as s
+  Early blue
+  Late red
+
+Stage 1 s: Early
+  Registration description: Crews sign up at the quay
+  Inspection
+Stage 2 s: Late
+  Night Run
+    Lighthouse Turn
+    Buoy Slalom collapsed
+      Buoy 1
+      Buoy 2
+  Day Sprint
+Stage 3
+  Prize Giving description: Rum for the winners

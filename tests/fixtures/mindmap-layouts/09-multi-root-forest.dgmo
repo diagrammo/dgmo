@@ -1,0 +1,23 @@
+mindmap
+// Try: multi-root mode (no title) with radial; roots of very different size share the centre. A one-node root and a 5-level root.
+radial
+
+Lone Buoy
+Big Harbour
+  North Pier
+    Crane 1
+    Crane 2
+    Crane 3
+  South Pier
+    Crane 4
+    Crane 5
+    Crane 6
+    Crane 7
+  Customs
+    Desk A
+    Desk B
+Thin Rope
+  Strand
+    Fibre
+      Thread
+        Filament

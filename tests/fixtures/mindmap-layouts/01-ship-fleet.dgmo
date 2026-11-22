@@ -1,0 +1,14 @@
+mindmap Our Fleet
+// Try: bare `radial` lays the map on rings; toggle it off to compare with the default layout.
+radial
+
+Galleons
+  Black Pearl
+  Sea Serpent
+  Golden Hind
+Sloops
+  Swift Gull
+  Little Wren
+Support
+  Supply Barge
+  Rowboat

@@ -1,0 +1,21 @@
+mindmap Crew of the Salty Marlin
+// Try: radial with tag colours; each rank colours its branch on the rings.
+radial
+subtitle Who answers to whom
+active-tag Rank
+
+tag Rank as r
+  Officer blue
+  Deck green
+  Galley orange
+
+Captain Mabel Reef r: Officer
+  First Mate r: Officer
+    Bosun r: Deck
+      Deckhands r: Deck
+      Lookouts r: Deck
+  Quartermaster r: Officer
+    Gunner r: Deck
+Cook r: Galley
+  Cabin Boy r: Galley
+  Baker r: Galley

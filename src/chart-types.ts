@@ -181,7 +181,7 @@ const chartTypesData = [
   },
   {
     id: 'mindmap',
-    description: 'Radial hierarchy of ideas branching from a central topic',
+    description: 'Hierarchy of ideas branching from a central topic',
   },
   {
     id: 'wireframe',

@@ -122,7 +122,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `infra`           | infrastructure traffic flow with RPS computation                                                                                                                                                                                                                                                                                                                            |
 | `boxes-and-lines` | general-purpose node-edge diagrams with groups and tags                                                                                                                                                                                                                                                                                                                     |
 | `sitemap`         | site / app navigation structure                                                                                                                                                                                                                                                                                                                                             |
-| `mindmap`         | radial hierarchy of ideas from a central topic                                                                                                                                                                                                                                                                                                                              |
+| `mindmap`         | hierarchy of ideas branching from a central topic                                                                                                                                                                                                                                                                                                                           |
 | `org`             | reporting hierarchy                                                                                                                                                                                                                                                                                                                                                         |
 | `family`          | family tree / genealogy: unions (couples), children, remarriage, adoption, GEDCOM-style metadata                                                                                                                                                                                                                                                                            |
 | `ownership`       | corporate entity structure: parent, subsidiaries and outside owners, a % stake on every line and a jurisdiction on every box (legal, tax, M&A)                                                                                                                                                                                                                              |
@@ -3940,7 +3940,7 @@ Navigator 0.85 0.8
 
 <!-- TIPS end -->
 
-A radial hierarchy of ideas branching out from a central root. Hierarchy is established by indentation, nodes accept descriptions and tag-driven coloring, and any subtree can be collapsed by default.
+A hierarchy of ideas branching out from a central root. By default the top-level branches split left and right, balanced by leaf count, joined by S-curves, each branch in its own hue; `radial` puts the root at the centre with one ring per depth. Hierarchy is established by indentation, nodes accept descriptions and tag-driven coloring, and any subtree can be collapsed by default.
 
 ```
 mindmap Product Strategy
@@ -4056,11 +4056,11 @@ Nice-to-haves p: Low collapsed
 
 ### Options
 
-| Option                 | Effect                                                                                                                        |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `active-tag GroupName` | Sets the default active tag group.                                                                                            |
-| `color-by-depth`       | Bare flag; colour nodes by depth instead of by tag (off by default).                                                          |
-| `radial`               | Bare flag; the root at the centre, each depth on a ring around it, each branch given room by its leaf count (off by default). |
+| Option                 | Effect                                                                                                                                                   |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `active-tag GroupName` | Sets the default active tag group.                                                                                                                       |
+| `color-by-depth`       | Bare flag; colour nodes by depth instead of by tag (off by default).                                                                                     |
+| `radial`               | Bare flag; the root at the centre, each depth on a ring around it, each branch given room by its leaf count, joined by straight spokes (off by default). |
 
 The `palette` line applies as elsewhere (§1.10).
 

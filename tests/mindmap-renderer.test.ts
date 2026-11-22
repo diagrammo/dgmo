@@ -85,14 +85,13 @@ describe('mindmap renderer', () => {
     expect(nested).toMatch(/data-node-toggle="[^"]+"[^>]*aria-label="Branch"/);
   });
 
-  it('renders elbow-style edges', () => {
+  it('renders S-curve edges (#2100)', () => {
     const content = readFileSync(
       resolve(FIXTURE_DIR, 'one-child.dgmo'),
       'utf-8'
     );
     const svg = renderMindmapForExport(content, 'light', palette);
-    // Elbow paths use M and multiple L commands
-    expect(svg).toMatch(/d="M\s.*L\s/);
+    expect(svg).toMatch(/class="mindmap-edge" d="M [^"]* C [^"]*"/);
   });
 
   it('renders with dark theme', () => {
