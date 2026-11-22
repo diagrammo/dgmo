@@ -1,14 +1,20 @@
 // ============================================================
-// Calendar heatmap renderer — weeks across, weekdays down (#1855)
+// Calendar renderer — `layout weeks` and `layout months` (§41.3, #1877)
 // ============================================================
 //
-// One column per week and seven weekday rows; week one holds the span's first
-// day. Month names centre above the weeks of each month, weekday labels show
-// Mon, Wed and Fri only. Five shades: grey for zero, then four equal-count
-// bands (quartiles of the non-zero days), or four equal ranges up to `max N`.
-// A day's fill encodes data, so the `fill-*` family does not apply.
-// Tag mode (#1877) colours each day by its tag value instead, and the legend
-// lists the values and "Not logged".
+// weeks:  one column per week, seven weekday rows (the GitHub shape). Week
+//         one holds the span's first day; past a year the grid stacks one
+//         band per calendar year (#2089).
+// months: one strip per month, the day of the month along it. Upright by
+//         default (months as columns, days 1–31 down); `orientation-
+//         horizontal` makes the months rows. Weekend tiles are tinted.
+//
+// The legend sits between the title and the grid: one pill per group, the
+// open one colours the tiles. A number group shades five steps (grey for
+// zero, then quartiles or four bands up to `max`); a tag group colours by
+// value, with blank days "Not logged". An event colours its tiles with its
+// value in the open group; an event the fill does not show adds a corner
+// dot. Names and notes show on hover.
 
 import * as d3Selection from 'd3-selection';
 import { resolveColor } from '../colors';
@@ -16,23 +22,31 @@ import { escapeHtml } from '../embed/escape';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
 import { mix, valueRampColor } from '../palettes/color-utils';
+import type { Writable } from '../utils/brand';
 import { growChartFrame } from '../utils/chart-frame';
 import type { ChartFrame } from '../utils/chart-frame-parse';
 import { createTooltip, hideTooltip, showTooltip } from '../utils/d3-helpers';
+import { stripInlineMarkdown } from '../utils/inline-markdown';
+import { legendInkBottom } from '../utils/legend-constants';
+import { renderIntegratedLegend } from '../utils/legend-integration';
+import { getMaxLegendReservedHeight } from '../utils/legend-layout';
+import type { LegendConfig, LegendGroupData } from '../utils/legend-types';
 import { legendSuppressed } from '../utils/parsing';
-import type { Writable } from '../utils/brand';
 import {
   AUTO_TAG_COLOR_SENTINEL,
   assignAutoTagColors,
+  tagAttrKey,
 } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import { measureText } from '../utils/text-measure';
 import {
   FRAME_BODY_TOP,
+  LEGEND_BODY_GAP,
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
   TITLE_Y,
 } from '../utils/title-constants';
+import { dayNumber, daysInMonth, dayToIso, parts, weekday } from './dates';
 import {
   amount,
   busiestDay,
@@ -40,16 +54,30 @@ import {
   fullDate,
   LABELLED_WEEKDAYS,
   MONTHS,
-  parts,
+  numberGroupOf,
   shadeLevels,
-  weekday,
   WEEKDAYS,
 } from './format';
-import { dayToIso } from './parser';
-import type { DayNumber, ParsedCalendar } from './types';
+import { resolveCalendarActiveGroup } from './parser';
+import type {
+  CalendarGroupRef,
+  CalendarNumberGroup,
+  DayNumber,
+  ParsedCalendar,
+} from './types';
 
 export interface CalendarRenderOptions {
   exportMode?: boolean;
+  /**
+   * The open legend pill, by group name; `null` draws no colour. Absent →
+   * the source's `active-tag`, else the first group (§41.5).
+   */
+  activeTagGroup?: string | null;
+  /**
+   * Called with a group's name when a reader clicks its pill. Absent → the
+   * chart redraws itself with that pill open.
+   */
+  onActiveGroupChange?: (groupName: string) => void;
 }
 
 const DIAGRAM_PADDING = 20;
@@ -65,21 +93,58 @@ const MONTH_BAND = 16;
 const BAND_GAP = 10;
 const WEEKDAY_GAP = 6;
 const MONTH_LABEL_GAP = 4;
-const LEGEND_TOP_GAP = 12;
-const LEGEND_CELL = 11;
-const LEGEND_TEXT_GAP = 5;
-const LEGEND_ITEM_GAP = 14;
-const LEGEND_ROW_GAP = 6;
-const NOT_LOGGED = 'Not logged';
+/** `layout months`, upright: a month column's tile. */
+const STRIP_TILE_W = 26;
+const STRIP_TILE_H = 11;
+/** `layout months`, horizontal: square tiles along each month row. */
+const ROW_TILE = 14;
+/** Day-of-month labels along a strip. */
+const LABELLED_DATES = new Set([1, 5, 10, 15, 20, 25, 30]);
+/** How far below its band a month name's ink starts; the band under a
+ *  legend is measured to the ink (#1838). */
+const LABEL_INK_TOP = 1.66;
+/** Where the legend's first row sits under the title. */
+const LEGEND_TITLE_GAP = 10;
 
-/** Each tag value's fill in this palette, keyed by the value. The parser has
- *  no palette, so colours resolve here: an authored name re-resolves, and a
- *  bare value takes the next free categorical colour. */
+/** One day's tile and what it shows. */
+interface Cell {
+  day: DayNumber;
+  x: number;
+  y: number;
+}
+
+interface Label {
+  text: string;
+  x: number;
+  y: number;
+  anchor: 'start' | 'middle' | 'end';
+  cls: string;
+  bold?: boolean;
+  month?: string;
+}
+
+interface Geometry {
+  cells: Cell[];
+  labels: Label[];
+  cellW: number;
+  cellH: number;
+  pitchX: number;
+  pitchY: number;
+  /** Right and bottom edge of the drawing, in root units. */
+  right: number;
+  bottom: number;
+  /** Tile tinted as a weekend (`layout months`). */
+  weekend: (day: DayNumber) => boolean;
+}
+
+/** Each tag value's fill in this palette, by group key then value. The
+ *  parser has no palette, so colours resolve here: an authored name
+ *  re-resolves, and a bare value takes the next free categorical colour. */
 function tagFills(
   groups: readonly TagGroup[],
   palette: PaletteColors
-): Map<string, string> {
-  const fills = new Map<string, string>();
+): Map<string, Map<string, string>> {
+  const fills = new Map<string, Map<string, string>>();
   for (const group of groups) {
     const copy: Writable<TagGroup> = {
       ...group,
@@ -91,17 +156,17 @@ function tagFills(
       })),
     };
     assignAutoTagColors(copy, palette);
-    for (const e of copy.entries)
-      if (!fills.has(e.value)) fills.set(e.value, e.color);
+    const m = new Map<string, string>();
+    for (const e of copy.entries) if (!m.has(e.value)) m.set(e.value, e.color);
+    fills.set(tagAttrKey(group.name), m);
   }
   return fills;
 }
 
-/** The five fills, zero first. */
 /**
- * The five shades: grey for zero, then four steps. `heat <Label> [low] [high]`
- * sets them the way every value ramp does (§13.9): one colour replaces the
- * green, two run the four steps from `low` to `high`. Zero stays grey.
+ * The five shades: grey for zero, then four steps. `heat <Label> [low]
+ * [high]` sets them the way every value ramp does (§13.9): one colour
+ * replaces the green, two run the four steps from `low` to `high`.
  */
 function shadeFills(
   palette: PaletteColors,
@@ -129,23 +194,15 @@ function shadeFills(
   ];
 }
 
-export function renderCalendar(
-  container: HTMLElement,
+/** `layout weeks`: weeks across, weekdays down, one band per year past 53
+ *  weeks. */
+function weeksGeometry(
   parsed: ParsedCalendar,
-  palette: PaletteColors,
-  isDark: boolean,
-  options?: CalendarRenderOptions
-): void {
-  const exportMode = options?.exportMode ?? false;
-  const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
-  const showLegend = !legendSuppressed(parsed.options);
-  const tagMode = parsed.mode === 'tag';
-  const tagFill = tagMode ? tagFills(parsed.tagGroups, palette) : null;
-
+  left0: number,
+  top: number,
+  exportMode: boolean
+): Geometry {
   const { start, end, weekStart } = parsed;
-  // Past one year of weeks the grid wraps into one band per calendar year,
-  // stacked, so width stays about a year wide whatever the span (#2089).
-  // Otherwise type shrinks with the canvas when it is fitted to a pane.
   const spanWeeks =
     Math.floor((end - start + ((weekday(start) - weekStart + 7) % 7)) / 7) + 1;
   const bands: { year: number; first: DayNumber; last: DayNumber }[] = [];
@@ -155,8 +212,8 @@ export function renderCalendar(
     for (let y = parts(start).year; y <= parts(end).year; y++) {
       bands.push({
         year: y,
-        first: Math.max(start, Math.round(Date.UTC(y, 0, 1) / 86_400_000)),
-        last: Math.min(end, Math.round(Date.UTC(y, 11, 31) / 86_400_000)),
+        first: Math.max(start, dayNumber(y, 1, 1)!),
+        last: Math.min(end, dayNumber(y, 12, 31)!),
       });
     }
   }
@@ -180,7 +237,6 @@ export function renderCalendar(
     Math.min(MAX_PITCH, Math.floor(TARGET_GRID_WIDTH / weeks))
   );
   const cell = pitch - GAP;
-
   const weekdayLabelWidth =
     Math.max(
       ...[...LABELLED_WEEKDAYS].map((d) =>
@@ -190,60 +246,294 @@ export function renderCalendar(
   const yearLabelWidth = stacked
     ? measureText('0000', LABEL_FONT_SIZE, { bold: true }) + WEEKDAY_GAP
     : 0;
-  const gridLeft =
-    DIAGRAM_PADDING + Math.max(weekdayLabelWidth, yearLabelWidth);
+  const gridLeft = left0 + Math.max(weekdayLabelWidth, yearLabelWidth);
   const gridWidth = weeks * pitch - GAP;
-  const top = showTitle ? FRAME_BODY_TOP : DIAGRAM_PADDING;
   const gridTop = top + MONTH_BAND;
   const bandHeight = 7 * pitch - GAP;
   const bandPitch = bandHeight + MONTH_BAND + BAND_GAP;
   const bandTop = (i: number): number => gridTop + i * bandPitch;
-  const gridHeight = bandTop(bands.length - 1) - gridTop + bandHeight;
-  const legendTop = gridTop + gridHeight + LEGEND_TOP_GAP;
 
-  // Tag mode: one swatch per value, then "Not logged", wrapped to the grid.
-  const tagLegend: { label: string; fill?: string; x: number; row: number }[] =
-    [];
-  let tagLegendWidth = 0;
-  if (tagMode && showLegend) {
-    const items: { label: string; fill?: string }[] = [];
-    for (const [label, fill] of tagFill!) items.push({ label, fill });
-    items.push({ label: NOT_LOGGED });
-    let x = 0;
-    let row = 0;
-    for (const item of items) {
-      const w =
-        LEGEND_CELL +
-        LEGEND_TEXT_GAP +
-        measureText(item.label, LABEL_FONT_SIZE);
-      if (x > 0 && x + w > gridWidth) {
-        x = 0;
-        row++;
+  const labels: Label[] = [];
+  bands.forEach((band, bi) => {
+    const yTop = bandTop(bi);
+    if (stacked)
+      labels.push({
+        text: String(band.year),
+        x: left0,
+        y: yTop - 5,
+        anchor: 'start',
+        cls: 'calendar-year',
+        bold: true,
+      });
+    let lastMonthRight = -Infinity;
+    for (let day = band.first; day <= band.last; ) {
+      const p = parts(day);
+      const next = Math.round(Date.UTC(p.year, p.month, 1) / 86_400_000);
+      // The name centres over the weeks its month spans in this band, kept
+      // inside the grid.
+      const name = MONTHS[p.month - 1]!.slice(0, 3);
+      const w = measureText(name, LABEL_FONT_SIZE);
+      const from = gridLeft + columnOf(day) * pitch;
+      const to =
+        gridLeft + columnOf(Math.min(next - 1, band.last)) * pitch + cell;
+      const left = Math.min(
+        Math.max((from + to - w) / 2, gridLeft),
+        gridLeft + gridWidth - w
+      );
+      if (left >= lastMonthRight + MONTH_LABEL_GAP) {
+        labels.push({
+          text: name,
+          x: left + w / 2,
+          y: yTop - 5,
+          anchor: 'middle',
+          cls: 'calendar-month',
+          ...(!exportMode && { month: dayToIso(day).slice(0, 7) }),
+        });
+        lastMonthRight = left + w;
       }
-      tagLegend.push({ ...item, x, row });
-      tagLegendWidth = Math.max(tagLegendWidth, x + w);
-      x += w + LEGEND_ITEM_GAP;
+      day = next;
+    }
+    for (let row = 0; row < 7; row++) {
+      const wd = (row + weekStart) % 7;
+      if (!LABELLED_WEEKDAYS.has(wd)) continue;
+      labels.push({
+        text: WEEKDAYS[wd]!.slice(0, 3),
+        x: gridLeft - WEEKDAY_GAP,
+        y: yTop + row * pitch + cell / 2,
+        anchor: 'end',
+        cls: 'calendar-weekday',
+      });
+    }
+  });
+
+  const cells: Cell[] = [];
+  for (let day = start; day <= end; day++)
+    cells.push({
+      day,
+      x: gridLeft + columnOf(day) * pitch,
+      y: bandTop(bandOf(day)) + rowOf(day) * pitch,
+    });
+  return {
+    cells,
+    labels,
+    cellW: cell,
+    cellH: cell,
+    pitchX: pitch,
+    pitchY: pitch,
+    right: gridLeft + gridWidth,
+    bottom: bandTop(bands.length - 1) + bandHeight,
+    weekend: () => false,
+  };
+}
+
+/** `layout months`: one strip per month, the day of the month along it. */
+function monthsGeometry(
+  parsed: ParsedCalendar,
+  left0: number,
+  top: number,
+  exportMode: boolean
+): Geometry {
+  const { start, end, horizontal } = parsed;
+  const months: { year: number; month: number }[] = [];
+  const s = parts(start);
+  const e = parts(end);
+  for (
+    let y = s.year, m = s.month;
+    y < e.year || (y === e.year && m <= e.month);
+  ) {
+    months.push({ year: y, month: m });
+    m++;
+    if (m > 12) {
+      m = 1;
+      y++;
     }
   }
-  const legendRows = tagLegend.length
-    ? tagLegend[tagLegend.length - 1]!.row + 1
-    : 1;
-  const legendHeight =
-    legendRows * LEGEND_CELL + (legendRows - 1) * LEGEND_ROW_GAP;
-  const bottom = showLegend ? legendTop + legendHeight : gridTop + gridHeight;
+  const multiYear = s.year !== e.year;
+  const monthName = (k: number): string => {
+    const { year, month } = months[k]!;
+    const short = MONTHS[month - 1]!.slice(0, 3);
+    return multiYear && (k === 0 || month === 1) ? `${short} ${year}` : short;
+  };
+  const cellW = horizontal ? ROW_TILE : STRIP_TILE_W;
+  const cellH = horizontal ? ROW_TILE : STRIP_TILE_H;
+  const pitchX = cellW + GAP;
+  const pitchY = cellH + GAP;
+  const labels: Label[] = [];
+  const cells: Cell[] = [];
+  const monthKey = (k: number): string =>
+    `${months[k]!.year}-${String(months[k]!.month).padStart(2, '0')}`;
 
+  let gridLeft: number;
+  let gridTop: number;
+  if (horizontal) {
+    // Months as rows: names in a left gutter, day numbers along the top.
+    const gutter =
+      Math.max(
+        ...months.map((_, k) => measureText(monthName(k), LABEL_FONT_SIZE))
+      ) + WEEKDAY_GAP;
+    gridLeft = left0 + gutter;
+    gridTop = top + MONTH_BAND;
+    for (let d = 1; d <= 31; d++)
+      if (LABELLED_DATES.has(d))
+        labels.push({
+          text: String(d),
+          x: gridLeft + (d - 1) * pitchX + cellW / 2,
+          y: gridTop - 5,
+          anchor: 'middle',
+          cls: 'calendar-date-label',
+        });
+    months.forEach((_, k) =>
+      labels.push({
+        text: monthName(k),
+        x: gridLeft - WEEKDAY_GAP,
+        y: gridTop + k * pitchY + cellH / 2,
+        anchor: 'end',
+        cls: 'calendar-month',
+        ...(!exportMode && { month: monthKey(k) }),
+      })
+    );
+  } else {
+    // Months as columns: names along the top, day numbers in a left gutter.
+    const gutter = measureText('30', LABEL_FONT_SIZE) + WEEKDAY_GAP;
+    gridLeft = left0 + gutter;
+    gridTop = top + MONTH_BAND;
+    months.forEach((_, k) =>
+      labels.push({
+        text: monthName(k),
+        x: gridLeft + k * pitchX + cellW / 2,
+        y: gridTop - 5,
+        anchor: 'middle',
+        cls: 'calendar-month',
+        ...(!exportMode && { month: monthKey(k) }),
+      })
+    );
+    for (let d = 1; d <= 31; d++)
+      if (LABELLED_DATES.has(d))
+        labels.push({
+          text: String(d),
+          x: gridLeft - WEEKDAY_GAP,
+          y: gridTop + (d - 1) * pitchY + cellH / 2,
+          anchor: 'end',
+          cls: 'calendar-date-label',
+        });
+  }
+  months.forEach(({ year, month }, k) => {
+    const n = daysInMonth(year, month);
+    for (let d = 1; d <= n; d++) {
+      const day = dayNumber(year, month, d)!;
+      if (day < start || day > end) continue;
+      cells.push(
+        horizontal
+          ? { day, x: gridLeft + (d - 1) * pitchX, y: gridTop + k * pitchY }
+          : { day, x: gridLeft + k * pitchX, y: gridTop + (d - 1) * pitchY }
+      );
+    }
+  });
+  // A last month name wider than its column widens the drawing.
+  const longest = horizontal
+    ? 0
+    : Math.max(
+        0,
+        (measureText(monthName(months.length - 1), LABEL_FONT_SIZE) - cellW) / 2
+      );
+  const along = horizontal ? 31 : months.length;
+  const across = horizontal ? months.length : 31;
+  return {
+    cells,
+    labels,
+    cellW,
+    cellH,
+    pitchX,
+    pitchY,
+    right: gridLeft + along * pitchX - GAP + longest,
+    bottom: gridTop + across * pitchY - GAP,
+    weekend: (day) => {
+      const wd = weekday(day);
+      return wd === 0 || wd === 6;
+    },
+  };
+}
+
+export function renderCalendar(
+  container: HTMLElement,
+  parsed: ParsedCalendar,
+  palette: PaletteColors,
+  isDark: boolean,
+  options?: CalendarRenderOptions
+): void {
+  const exportMode = options?.exportMode ?? false;
+  const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
+  const showNotes = parsed.options['no-notes'] !== 'on';
+  const active = resolveCalendarActiveGroup(parsed, options?.activeTagGroup);
+  const fillsByTag = tagFills(parsed.tagGroups, palette);
+
+  // ── Colours ────────────────────────────────────────────────
+  const outline = isDark
+    ? mix(palette.text, palette.bg, 8)
+    : mix(palette.text, palette.bg, 6);
+  const notLogged = palette.bg;
+  const notLoggedStroke = mix(palette.textMuted, palette.bg, 35);
+  const weekendZero = mix(palette.textMuted, palette.bg, 26);
+  const weekendBlank = mix(palette.textMuted, palette.bg, 9);
+  const neutralEvent = mix(palette.textMuted, palette.bg, 70);
+  // An events-only chart has no group to colour by: its events take the
+  // primary colour.
+  const plainEvent =
+    parsed.groups.length === 0 ? mix(palette.primary, palette.bg, 75) : null;
+
+  const numberGroup: CalendarNumberGroup | undefined =
+    active?.kind === 'number' ? numberGroupOf(parsed, active) : undefined;
+  const shades = shadeFills(palette, isDark, numberGroup);
+  const level = numberGroup
+    ? shadeLevels(
+        parsed.days.map((d) => d.numbers[numberGroup.key] ?? 0),
+        numberGroup.max
+      )
+    : () => 0;
+  const activeTagFills =
+    active?.kind === 'tag' ? fillsByTag.get(active.key) : undefined;
+  const eventColor = (tags: Readonly<Record<string, string>>): string | null =>
+    activeTagFills && active && tags[active.key] !== undefined
+      ? (activeTagFills.get(tags[active.key]!) ?? null)
+      : plainEvent;
+
+  // ── Legend: one pill per group ─────────────────────────────
+  const showLegend =
+    parsed.groups.length > 0 && !legendSuppressed(parsed.options);
+  const legendGroups: LegendGroupData[] = parsed.groups.map((ref) =>
+    legendGroupFor(ref, parsed, palette, isDark, fillsByTag, notLoggedStroke)
+  );
+
+  // ── Geometry ───────────────────────────────────────────────
   const titleWidth = showTitle
     ? measureText(parsed.title, TITLE_FONT_SIZE, { bold: true })
     : 0;
+  const legendY = showTitle ? TITLE_Y + LEGEND_TITLE_GAP : DIAGRAM_PADDING;
+  // A first pass sizes the grid, so the legend can wrap to its width.
+  const probe = geometryFor(parsed, DIAGRAM_PADDING, 0, exportMode);
+  const contentWidth = Math.max(probe.right - DIAGRAM_PADDING, titleWidth);
+  const legendConfig: LegendConfig = {
+    groups: legendGroups,
+    position: { placement: 'top-center', titleRelation: 'below-title' },
+    mode: exportMode ? 'export' : 'preview',
+    showInactivePills: !exportMode,
+  };
+  const legendHeight = showLegend
+    ? getMaxLegendReservedHeight(legendConfig, contentWidth)
+    : 0;
+  const bodyTop = showLegend
+    ? legendY + legendInkBottom(legendHeight) + LEGEND_BODY_GAP - LABEL_INK_TOP
+    : showTitle
+      ? FRAME_BODY_TOP
+      : DIAGRAM_PADDING;
+  const geo = geometryFor(parsed, DIAGRAM_PADDING, bodyTop, exportMode);
+
   const width = Math.ceil(
     DIAGRAM_PADDING +
-      Math.max(
-        gridLeft - DIAGRAM_PADDING + Math.max(gridWidth, tagLegendWidth),
-        titleWidth
-      ) +
+      Math.max(geo.right - DIAGRAM_PADDING, titleWidth) +
       DIAGRAM_PADDING
   );
-  const height = Math.ceil(bottom + DIAGRAM_PADDING);
+  const height = Math.ceil(geo.bottom + DIAGRAM_PADDING);
 
   container.innerHTML = '';
   const svg = d3Selection
@@ -255,6 +545,7 @@ export function renderCalendar(
     .attr('viewBox', `0 0 ${width} ${height}`)
     .attr('preserveAspectRatio', 'xMidYMin meet')
     .attr('font-family', FONT_FAMILY)
+    .attr('data-calendar-layout', parsed.layout)
     .style('background', palette.bg);
 
   // Fit a narrow container rather than overflow it.
@@ -276,122 +567,184 @@ export function renderCalendar(
       .text(parsed.title);
   }
 
-  // ── Month and weekday labels ───────────────────────────────
-  const labels = svg.append('g').attr('class', 'calendar-labels');
-  bands.forEach((band, bi) => {
-    const yTop = bandTop(bi);
-    if (stacked) {
-      labels
-        .append('text')
-        .attr('class', 'calendar-year')
-        .attr('x', DIAGRAM_PADDING)
-        .attr('y', yTop - 5)
-        .attr('font-size', LABEL_FONT_SIZE)
-        .attr('font-weight', 'bold')
-        .attr('fill', palette.text)
-        .text(String(band.year));
-    }
-    let lastMonthRight = -Infinity;
-    for (let day = band.first; day <= band.last; ) {
-      const p = parts(day);
-      // First day of the next month.
-      const next = Math.round(Date.UTC(p.year, p.month, 1) / 86_400_000);
-      // The name centres over the weeks its month spans in this band (the
-      // shown part of a month cut by the range), kept inside the grid.
-      const name = MONTHS[p.month - 1]!.slice(0, 3);
-      const w = measureText(name, LABEL_FONT_SIZE);
-      const from = gridLeft + columnOf(day) * pitch;
-      const to =
-        gridLeft + columnOf(Math.min(next - 1, band.last)) * pitch + cell;
-      const left = Math.min(
-        Math.max((from + to - w) / 2, gridLeft),
-        gridLeft + gridWidth - w
-      );
-      if (left >= lastMonthRight + MONTH_LABEL_GAP) {
-        labels
-          .append('text')
-          .attr('class', 'calendar-month')
-          .attr('data-month', exportMode ? null : dayToIso(day).slice(0, 7))
-          .attr('x', left + w / 2)
-          .attr('y', yTop - 5)
-          .attr('text-anchor', 'middle')
-          .attr('font-size', LABEL_FONT_SIZE)
-          .attr('fill', palette.textMuted)
-          .text(name);
-        lastMonthRight = left + w;
-      }
-      day = next;
-    }
-    for (let row = 0; row < 7; row++) {
-      const wd = (row + weekStart) % 7;
-      if (!LABELLED_WEEKDAYS.has(wd)) continue;
-      labels
-        .append('text')
-        .attr('class', 'calendar-weekday')
-        .attr('x', gridLeft - WEEKDAY_GAP)
-        .attr('y', yTop + row * pitch + cell / 2)
-        .attr('text-anchor', 'end')
-        .attr('dominant-baseline', 'central')
-        .attr('font-size', LABEL_FONT_SIZE)
-        .attr('fill', palette.textMuted)
-        .text(WEEKDAYS[wd]!.slice(0, 3));
-    }
-  });
+  if (showLegend) {
+    const legendG = svg
+      .append('g')
+      .attr('class', 'calendar-legend')
+      .attr('transform', `translate(${DIAGRAM_PADDING},${legendY})`);
+    const onPick = (name: string): void => {
+      if (options?.onActiveGroupChange) options.onActiveGroupChange(name);
+      else
+        renderCalendar(container, parsed, palette, isDark, {
+          ...options,
+          activeTagGroup: name,
+        });
+    };
+    renderIntegratedLegend(legendG, {
+      frame: parsed.frame,
+      groups: legendGroups,
+      palette,
+      isDark,
+      width: contentWidth,
+      mode: legendConfig.mode,
+      position: legendConfig.position,
+      activeGroup: active?.name ?? null,
+      showInactivePills: !exportMode,
+      ...(!exportMode && { callbacks: { onGroupToggle: onPick } }),
+    });
+  }
+
+  // The open number pill's ramp as five swatches, one per step, so each
+  // step can be hovered on its own.
+  const ramp = svg
+    .node()!
+    .querySelector('.calendar-legend .dgmo-legend-gradient-ramp');
+  if (ramp && numberGroup) {
+    const x = Number(ramp.getAttribute('x'));
+    const w = Number(ramp.getAttribute('width')) / 5;
+    const parent = d3Selection.select(ramp.parentNode as SVGGElement);
+    shades.forEach((fill, lv) => {
+      parent
+        .append('rect')
+        .attr('class', 'calendar-legend-step')
+        .attr('data-level', lv)
+        .attr('x', x + lv * w)
+        .attr('y', ramp.getAttribute('y'))
+        .attr('width', w)
+        .attr('height', ramp.getAttribute('height'))
+        .attr('fill', fill)
+        .attr('stroke', outline)
+        .attr('stroke-width', 0.5);
+    });
+  }
+
+  // ── Labels ─────────────────────────────────────────────────
+  const labelsG = svg.append('g').attr('class', 'calendar-labels');
+  for (const l of geo.labels) {
+    const t = labelsG
+      .append('text')
+      .attr('class', l.cls)
+      .attr('x', l.x)
+      .attr('y', l.y)
+      .attr('text-anchor', l.anchor)
+      .attr('font-size', LABEL_FONT_SIZE)
+      .attr('fill', l.bold ? palette.text : palette.textMuted)
+      .text(l.text);
+    if (l.anchor === 'end') t.attr('dominant-baseline', 'central');
+    if (l.bold) t.attr('font-weight', 'bold');
+    if (l.month) t.attr('data-month', l.month);
+  }
 
   // ── Days ───────────────────────────────────────────────────
   const byDay = new Map(parsed.days.map((d) => [d.day, d]));
-  const level = shadeLevels(
-    parsed.days.map((d) => d.value),
-    parsed.max
-  );
-  const fills = shadeFills(palette, isDark, parsed.heat);
-  // Tag mode draws a day with no entry as an empty cell, not the zero grey, so a
-  // tag coloured `gray` still reads apart from "Not logged".
-  const notLogged = palette.bg;
-  const notLoggedStroke = mix(palette.textMuted, palette.bg, 35);
-  const outline = isDark
-    ? mix(palette.text, palette.bg, 8)
-    : mix(palette.text, palette.bg, 6);
+  const eventsByDay = new Map<DayNumber, number[]>();
+  parsed.events.forEach((e, i) => {
+    for (let d = e.start; d <= e.end; d++) {
+      const list = eventsByDay.get(d);
+      if (list) list.push(i);
+      else eventsByDay.set(d, [i]);
+    }
+  });
   const tooltip = exportMode ? null : createTooltip(container, palette, isDark);
   const tips = new Map<string, string>();
+  const dotR = Math.max(1.5, Math.min(geo.cellW, geo.cellH) * 0.18);
 
   const grid = svg
     .append('g')
     .attr('class', 'calendar-days')
     .attr('role', 'list');
-  for (let day = start; day <= end; day++) {
+  for (const c of geo.cells) {
+    const { day } = c;
     const entry = byDay.get(day);
-    const value = entry?.value ?? 0;
-    const tag = tagMode ? entry?.tag : undefined;
-    const shade = tagMode ? (tag === undefined ? 0 : -1) : level(value);
-    const fill =
-      tag !== undefined
-        ? (tagFill!.get(tag) ?? notLogged)
-        : tagMode
-          ? notLogged
-          : fills[shade]!;
-    const shown = tagMode ? (tag ?? NOT_LOGGED) : amount(value, parsed.unit);
-    const label = `${fullDate(day)}: ${shown}`;
+    const evIdx = eventsByDay.get(day) ?? [];
+    const evs = evIdx.map((i) => parsed.events[i]!);
+    const weekend = geo.weekend(day);
+
+    let fill: string;
+    let stroke = outline;
+    let shade: number | null = null;
+    let tag: string | undefined;
+    let fromEvent = -1;
+    if (numberGroup) {
+      const v = entry?.numbers[numberGroup.key] ?? 0;
+      shade = level(v);
+      fill = shade === 0 && weekend ? weekendZero : shades[shade]!;
+    } else if (active?.kind === 'tag') {
+      tag = entry?.tags[active.key];
+      fill = tag !== undefined ? (activeTagFills?.get(tag) ?? notLogged) : '';
+      if (!fill) {
+        fromEvent = evs.findIndex((e) => e.tags[active.key] !== undefined);
+        const ec = fromEvent >= 0 ? eventColor(evs[fromEvent]!.tags) : null;
+        if (ec) {
+          fill = ec;
+          tag = evs[fromEvent]!.tags[active.key];
+        } else {
+          fromEvent = -1;
+          fill = weekend ? weekendBlank : notLogged;
+          stroke = notLoggedStroke;
+        }
+      }
+    } else {
+      fromEvent = plainEvent && evs.length > 0 ? 0 : -1;
+      fill = fromEvent === 0 ? plainEvent! : weekend ? weekendBlank : notLogged;
+      if (fromEvent < 0) stroke = notLoggedStroke;
+    }
+
+    const shownValue = numberGroup
+      ? amount(entry?.numbers[numberGroup.key] ?? 0, numberGroup.unit)
+      : active?.kind === 'tag'
+        ? (tag ?? parsed.emptyLabel)
+        : evs.length > 0
+          ? evs.map((e) => e.name).join(', ')
+          : 'No entry';
     const rect = grid
       .append('rect')
       .attr('class', 'calendar-day')
       .attr('data-date', dayToIso(day))
-      .attr('data-value', value)
-      .attr('data-level', shade < 0 ? null : shade)
+      .attr(
+        'data-value',
+        numberGroup ? (entry?.numbers[numberGroup.key] ?? 0) : null
+      )
+      .attr('data-level', shade)
       .attr('data-tag', tag ?? null)
-      .attr('x', gridLeft + columnOf(day) * pitch)
-      .attr('y', bandTop(bandOf(day)) + rowOf(day) * pitch)
-      .attr('width', cell)
-      .attr('height', cell)
+      .attr('data-events', evs.length || null)
+      .attr('data-weekend', weekend ? '' : null)
+      .attr('x', c.x)
+      .attr('y', c.y)
+      .attr('width', geo.cellW)
+      .attr('height', geo.cellH)
       .attr('rx', CELL_RADIUS)
       .attr('fill', fill)
-      .attr('stroke', tagMode && tag === undefined ? notLoggedStroke : outline)
+      .attr('stroke', stroke)
       .attr('stroke-width', 0.5)
       .attr('role', 'listitem')
-      .attr('aria-label', label);
-    if (entry) rect.attr('data-line-number', entry.lineNumber);
+      .attr('aria-label', `${fullDate(day)}: ${shownValue}`);
+    for (const g of parsed.tagGroups) {
+      const k = tagAttrKey(g.name);
+      const v = entry?.tags[k] ?? evs.find((e) => e.tags[k])?.tags[k];
+      if (v !== undefined) rect.attr(`data-tag-${k}`, v.toLowerCase());
+    }
+    const line = entry?.lineNumber ?? evs[0]?.lineNumber;
+    if (line !== undefined) rect.attr('data-line-number', line);
+
+    // The event the fill does not show takes the corner dot.
+    const dotted = evs.find((_, i) => i !== fromEvent);
+    if (dotted) {
+      grid
+        .append('circle')
+        .attr('class', 'calendar-event-dot')
+        .attr('data-date', dayToIso(day))
+        .attr('cx', c.x + geo.cellW - dotR - 1.5)
+        .attr('cy', c.y + dotR + 1.5)
+        .attr('r', dotR)
+        .attr('fill', eventColor(dotted.tags) ?? neutralEvent)
+        .attr('stroke', palette.bg)
+        .attr('stroke-width', 0.5)
+        .attr('pointer-events', 'none');
+    }
+
     if (!tooltip) continue;
-    const tipHtml = `<strong>${escapeHtml(shown)}</strong><br>${escapeHtml(fullDate(day))}`;
+    const tipHtml = dayCard(parsed, day, entry, evs, shownValue, showNotes);
     tips.set(dayToIso(day), tipHtml);
     rect
       .attr('tabindex', 0)
@@ -403,126 +756,142 @@ export function renderCalendar(
       )
       .on('mouseleave', () => hideTooltip(tooltip))
       .on('focus', function (this: SVGRectElement) {
-        const r = this.getBoundingClientRect();
-        showTooltip(tooltip, tipHtml, {
-          clientX: r.right,
-          clientY: r.top,
-        } as MouseEvent);
+        showAt(tooltip, this, tipHtml);
       })
       .on('blur', () => hideTooltip(tooltip));
-  }
-
-  // ── Tag legend: one swatch per value, then "Not logged" ────
-  if (showLegend && tagMode) {
-    const legend = svg.append('g').attr('class', 'calendar-legend');
-    for (const item of tagLegend) {
-      const y = legendTop + item.row * (LEGEND_CELL + LEGEND_ROW_GAP);
-      const g = legend
-        .append('g')
-        .attr('class', 'calendar-legend-tag')
-        .attr('data-tag', item.fill ? item.label : null);
-      g.append('rect')
-        .attr('x', gridLeft + item.x)
-        .attr('y', y)
-        .attr('width', LEGEND_CELL)
-        .attr('height', LEGEND_CELL)
-        .attr('rx', CELL_RADIUS)
-        .attr('fill', item.fill ?? notLogged)
-        .attr('stroke', item.fill ? outline : notLoggedStroke)
-        .attr('stroke-width', 0.5);
-      g.append('text')
-        .attr('x', gridLeft + item.x + LEGEND_CELL + LEGEND_TEXT_GAP)
-        .attr('y', y + LEGEND_CELL / 2)
-        .attr('dominant-baseline', 'central')
-        .attr('font-size', LABEL_FONT_SIZE)
-        .attr('fill', palette.textMuted)
-        .text(item.label);
-    }
-  }
-
-  // ── Legend: Less ▢▢▢▢▢ More, bottom right ──────────────────
-  if (showLegend && !tagMode) {
-    const legend = svg.append('g').attr('class', 'calendar-legend');
-    const moreWidth = measureText('More', LABEL_FONT_SIZE);
-    const lessWidth = measureText('Less', LABEL_FONT_SIZE);
-    const right = gridLeft + gridWidth;
-    const squaresLeft =
-      right - moreWidth - LEGEND_TEXT_GAP - 5 * (LEGEND_CELL + GAP) + GAP;
-    const mid = legendTop + LEGEND_CELL / 2;
-    legend
-      .append('text')
-      .attr('x', squaresLeft - LEGEND_TEXT_GAP - lessWidth)
-      .attr('y', mid)
-      .attr('dominant-baseline', 'central')
-      .attr('font-size', LABEL_FONT_SIZE)
-      .attr('fill', palette.textMuted)
-      .text('Less');
-    // `heat <Label>` names what the shades count, ahead of the scale.
-    if (parsed.heat?.label)
-      legend
-        .append('text')
-        .attr('class', 'calendar-legend-label')
-        .attr(
-          'x',
-          squaresLeft -
-            LEGEND_TEXT_GAP -
-            lessWidth -
-            LEGEND_ITEM_GAP -
-            measureText(parsed.heat.label, LABEL_FONT_SIZE)
-        )
-        .attr('y', mid)
-        .attr('dominant-baseline', 'central')
-        .attr('font-size', LABEL_FONT_SIZE)
-        .attr('font-weight', 500)
-        .attr('fill', palette.text)
-        .text(parsed.heat.label);
-    fills.forEach((fill, i) => {
-      legend
-        .append('rect')
-        .attr('class', 'calendar-legend-step')
-        .attr('data-level', i)
-        .attr('x', squaresLeft + i * (LEGEND_CELL + GAP))
-        .attr('y', legendTop)
-        .attr('width', LEGEND_CELL)
-        .attr('height', LEGEND_CELL)
-        .attr('rx', CELL_RADIUS)
-        .attr('fill', fill)
-        .attr('stroke', outline)
-        .attr('stroke-width', 0.5);
-    });
-    legend
-      .append('text')
-      .attr('x', right - moreWidth)
-      .attr('y', mid)
-      .attr('dominant-baseline', 'central')
-      .attr('font-size', LABEL_FONT_SIZE)
-      .attr('fill', palette.textMuted)
-      .text('More');
   }
 
   // The summary rides the shared subtitle line unless the author wrote one.
   let frame: ChartFrame | undefined = parsed.frame;
   if (!frame?.subtitle && parsed.options['no-summary'] !== 'on') {
-    const summary = calendarSummary(parsed);
+    const summary = calendarSummary(parsed, active);
     if (summary) frame = { ...frame, subtitle: summary };
   }
   growChartFrame(svg.node(), frame, palette, { size: 'grow' });
 
-  if (tooltip)
+  if (tooltip) {
+    attachKeyboard(
+      svg.node()!,
+      geo,
+      (el, html) => showAt(tooltip, el, html),
+      tips
+    );
     attachSpanHovers(svg.node()!, {
-      pitch,
+      geo,
       color: palette.text,
-      busiest: frame === parsed.frame ? null : busiestDay(parsed),
-      showTip: (el, html) => {
-        const r = el.getBoundingClientRect();
-        showTooltip(tooltip, html, {
-          clientX: r.right,
-          clientY: r.top,
-        } as MouseEvent);
-      },
+      busiest:
+        frame === parsed.frame || !numberGroup
+          ? null
+          : busiestDay(parsed, numberGroup.key),
+      showTip: (el, html) => showAt(tooltip, el, html),
       hideTip: () => hideTooltip(tooltip),
       tips,
+      active,
+      emptyLabel: parsed.emptyLabel,
     });
+  }
+}
+
+function geometryFor(
+  parsed: ParsedCalendar,
+  left: number,
+  top: number,
+  exportMode: boolean
+): Geometry {
+  // TODO(phase 2): layout month — the wall calendar (#1876) draws here; until
+  // it lands, `layout month` draws as `layout months`.
+  return parsed.layout === 'weeks'
+    ? weeksGeometry(parsed, left, top, exportMode)
+    : monthsGeometry(parsed, left, top, exportMode);
+}
+
+function showAt(
+  tooltip: ReturnType<typeof createTooltip>,
+  el: Element,
+  html: string
+): void {
+  const r = el.getBoundingClientRect();
+  showTooltip(tooltip, html, {
+    clientX: r.right,
+    clientY: r.top,
+  } as MouseEvent);
+}
+
+/** The day card: the open group's value, the date, then every other mark
+ *  and each event with its notes. */
+function dayCard(
+  parsed: ParsedCalendar,
+  day: DayNumber,
+  entry: ParsedCalendar['days'][number] | undefined,
+  evs: ParsedCalendar['events'][number][],
+  shown: string,
+  showNotes: boolean
+): string {
+  const rows: string[] = [
+    `<strong>${escapeHtml(shown)}</strong><br>${escapeHtml(fullDate(day))}`,
+  ];
+  if (parsed.groups.length > 1 && entry) {
+    for (const g of parsed.numberGroups) {
+      const v = entry.numbers[g.key];
+      if (v !== undefined)
+        rows.push(`${escapeHtml(g.name)}: ${escapeHtml(amount(v, g.unit))}`);
+    }
+    for (const g of parsed.tagGroups) {
+      const v = entry.tags[tagAttrKey(g.name)];
+      if (v !== undefined) rows.push(`${escapeHtml(g.name)}: ${escapeHtml(v)}`);
+    }
+  }
+  for (const e of evs) {
+    rows.push(`<strong>${escapeHtml(e.name)}</strong>`);
+    if (showNotes)
+      for (const n of e.notes) rows.push(escapeHtml(stripInlineMarkdown(n)));
+  }
+  return rows.join('<br>');
+}
+
+/** The legend data for one group: a tag group's values plus the blank-day
+ *  label, or a number group's five steps as Less … More. */
+function legendGroupFor(
+  ref: CalendarGroupRef,
+  parsed: ParsedCalendar,
+  palette: PaletteColors,
+  isDark: boolean,
+  fillsByTag: Map<string, Map<string, string>>,
+  blank: string
+): LegendGroupData {
+  if (ref.kind === 'tag') {
+    const fills = fillsByTag.get(ref.key) ?? new Map<string, string>();
+    return {
+      name: ref.name,
+      entries: [
+        ...[...fills].map(([value, color]) => ({ value, color })),
+        { value: parsed.emptyLabel, color: blank },
+      ],
+    };
+  }
+  const group = parsed.numberGroups.find((g) => g.key === ref.key);
+  const f = shadeFills(palette, isDark, group);
+  const top = Math.max(
+    group?.max ?? 0,
+    ...parsed.days.map((d) => d.numbers[ref.key] ?? 0)
+  );
+  return {
+    name: ref.name,
+    entries: [],
+    gradient: {
+      min: 0,
+      max: top,
+      low: f[0]!,
+      high: f[4]!,
+      // Hard stops: five steps, not a fade.
+      stops: f.flatMap((color, i) => [
+        { offset: i / 5, color },
+        { offset: (i + 1) / 5, color },
+      ]),
+      minLabel: 'Less',
+      maxLabel: 'More',
+    },
+  };
 }
 
 /** Days outside a hovered span fade to this, the same as a series chart's
@@ -534,20 +903,62 @@ const SPAN_OUTLINE_OPACITY = 0.45;
 const SPAN_OUTLINE_WIDTH = 1.25;
 
 /**
- * Hovers that find days (#2090, #2091): a month name dims every other day and
- * outlines the month's ragged block; a legend shade dims days at other
- * shades; the summary's "busiest day" rings that day and shows its value.
+ * Arrow keys move across the grid; Enter shows the focused day's card.
+ * Tab still walks the days in date order.
+ */
+function attachKeyboard(
+  svg: SVGSVGElement,
+  geo: Geometry,
+  show: (el: Element, html: string) => void,
+  tips: Map<string, string>
+): void {
+  const key = (x: number, y: number) => `${Math.round(x)},${Math.round(y)}`;
+  const at = new Map<string, SVGRectElement>();
+  for (const r of svg.querySelectorAll<SVGRectElement>('.calendar-day'))
+    at.set(key(Number(r.getAttribute('x')), Number(r.getAttribute('y'))), r);
+  for (const r of at.values()) {
+    r.addEventListener('keydown', (ev: KeyboardEvent) => {
+      const x = Number(r.getAttribute('x'));
+      const y = Number(r.getAttribute('y'));
+      const step: Record<string, [number, number]> = {
+        ArrowLeft: [-geo.pitchX, 0],
+        ArrowRight: [geo.pitchX, 0],
+        ArrowUp: [0, -geo.pitchY],
+        ArrowDown: [0, geo.pitchY],
+      };
+      if (ev.key === 'Enter') {
+        show(r, tips.get(r.getAttribute('data-date')!) ?? '');
+        ev.preventDefault();
+        return;
+      }
+      const d = step[ev.key];
+      if (!d) return;
+      const next = at.get(key(x + d[0], y + d[1]));
+      if (next) {
+        next.focus();
+        ev.preventDefault();
+      }
+    });
+  }
+}
+
+/**
+ * Hovers that find days (#2090, #2091): a month name dims every other day
+ * and outlines the month; a legend step or value dims days at other steps or
+ * values; the summary's "busiest day" rings that day and shows its value.
  * Focus does what hover does. Interactive renders only.
  */
 function attachSpanHovers(
   svg: SVGSVGElement,
   o: {
-    pitch: number;
+    geo: Geometry;
     color: string;
     busiest: { day: DayNumber; phrase: string } | null;
     showTip: (el: Element, html: string) => void;
     hideTip: () => void;
     tips: Map<string, string>;
+    active: CalendarGroupRef | null;
+    emptyLabel: string;
   }
 ): void {
   const days = [...svg.querySelectorAll<SVGRectElement>('.calendar-day')];
@@ -571,7 +982,7 @@ function attachSpanHovers(
       d.style.opacity = k ? '' : String(HOVER_DIM_OPACITY);
       if (k) kept.push(d);
     }
-    span.attr('d', outline ? spanOutline(kept, o.pitch) : '');
+    span.attr('d', outline ? spanOutline(kept, o.geo) : '');
   };
   const clear = () => {
     for (const d of days) d.style.opacity = '';
@@ -593,10 +1004,30 @@ function attachSpanHovers(
         focus((d) => d.getAttribute('data-date')!.startsWith(month), true)
       );
   }
+
+  // Number pill: each step of the Less … More ramp finds its days.
   for (const step of svg.querySelectorAll('.calendar-legend-step')) {
     const lv = step.getAttribute('data-level');
     bind(step, () => focus((d) => d.getAttribute('data-level') === lv, false));
   }
+  // Tag pill: each value finds its days; the blank label finds the blanks.
+  if (o.active?.kind === 'tag')
+    for (const entry of svg.querySelectorAll(
+      '.calendar-legend [data-legend-entry]'
+    )) {
+      const value = entry.getAttribute('data-series-name') ?? '';
+      const blank = value === o.emptyLabel;
+      bind(entry, () =>
+        focus(
+          (d) =>
+            blank
+              ? !d.hasAttribute('data-tag')
+              : d.getAttribute('data-tag') === value,
+          false
+        )
+      );
+    }
+
   if (!o.busiest) return;
   const iso = dayToIso(o.busiest.day);
   const best = days.find((d) => d.getAttribute('data-date') === iso);
@@ -619,9 +1050,9 @@ function attachSpanHovers(
   });
 }
 
-/** The outer edge of a set of grid squares: every side whose neighbour one
- *  pitch away is not in the set, drawn half a gap outside the square. */
-function spanOutline(cells: Element[], pitch: number): string {
+/** The outer edge of a set of tiles: every side whose neighbour one pitch
+ *  away is not in the set, drawn half a gap outside the tile. */
+function spanOutline(cells: Element[], geo: Geometry): string {
   const key = (x: number, y: number) => `${Math.round(x)},${Math.round(y)}`;
   const at = cells.map((c) => [
     Number(c.getAttribute('x')),
@@ -629,17 +1060,16 @@ function spanOutline(cells: Element[], pitch: number): string {
   ]);
   const set = new Set(at.map(([x, y]) => key(x!, y!)));
   const half = GAP / 2;
-  const size = pitch - GAP;
   const path: string[] = [];
   for (const [x, y] of at) {
     const l = x! - half;
-    const r = x! + size + half;
+    const r = x! + geo.cellW + half;
     const t = y! - half;
-    const b = y! + size + half;
-    if (!set.has(key(x!, y! - pitch))) path.push(`M${l},${t}H${r}`);
-    if (!set.has(key(x!, y! + pitch))) path.push(`M${l},${b}H${r}`);
-    if (!set.has(key(x! - pitch, y!))) path.push(`M${l},${t}V${b}`);
-    if (!set.has(key(x! + pitch, y!))) path.push(`M${r},${t}V${b}`);
+    const b = y! + geo.cellH + half;
+    if (!set.has(key(x!, y! - geo.pitchY))) path.push(`M${l},${t}H${r}`);
+    if (!set.has(key(x!, y! + geo.pitchY))) path.push(`M${l},${b}H${r}`);
+    if (!set.has(key(x! - geo.pitchX, y!))) path.push(`M${l},${t}V${b}`);
+    if (!set.has(key(x! + geo.pitchX, y!))) path.push(`M${r},${t}V${b}`);
   }
   return path.join('');
 }

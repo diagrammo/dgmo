@@ -62,8 +62,14 @@ function gradientCapsuleWidth(
   gradient: NonNullable<LegendGroupData['gradient']>
 ): number {
   const pw = pillWidth(name);
-  const minW = measureLegendText(fmtRamp(gradient.min), LEGEND_ENTRY_FONT_SIZE);
-  const maxW = measureLegendText(fmtRamp(gradient.max), LEGEND_ENTRY_FONT_SIZE);
+  const minW = measureLegendText(
+    gradient.minLabel ?? fmtRamp(gradient.min),
+    LEGEND_ENTRY_FONT_SIZE
+  );
+  const maxW = measureLegendText(
+    gradient.maxLabel ?? fmtRamp(gradient.max),
+    LEGEND_ENTRY_FONT_SIZE
+  );
   return (
     LEGEND_CAPSULE_PAD +
     pw +
@@ -83,8 +89,8 @@ function buildGradientCapsuleLayout(
   gradient: NonNullable<LegendGroupData['gradient']>
 ): LegendCapsuleLayout {
   const pw = pillWidth(group.name);
-  const minText = fmtRamp(gradient.min);
-  const maxText = fmtRamp(gradient.max);
+  const minText = gradient.minLabel ?? fmtRamp(gradient.min);
+  const maxText = gradient.maxLabel ?? fmtRamp(gradient.max);
   const minW = measureLegendText(minText, LEGEND_ENTRY_FONT_SIZE);
   const gx = LEGEND_CAPSULE_PAD + pw + 4;
   const minX = gx;

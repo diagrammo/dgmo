@@ -545,6 +545,15 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     groupAttrMode: 'tag-active',
     legend: true,
   },
+  // calendar: each day tile carries `data-tag-<slug>` for every tag group it
+  // has a value in, so the open tag pill pairs with its days.
+  calendar: {
+    markSelector: '.calendar-day',
+    strategy: 'enumerated',
+    groupAttrMode: 'tag-active',
+    legend: true,
+    emphasis: 'dim',
+  },
   body: {
     markSelector: '.dgmo-body-part',
     strategy: 'enumerated',

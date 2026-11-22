@@ -105,6 +105,10 @@ export interface LegendGroupData {
       readonly offset: number;
       readonly color: string;
     }>;
+    /** Words in place of the two end numbers — the calendar's `Less` and
+     *  `More`. Absent → the compact numbers. */
+    readonly minLabel?: string;
+    readonly maxLabel?: string;
   };
 }
 
