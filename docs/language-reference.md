@@ -100,7 +100,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 - **On a chart of numbers, the title states the finding.** Write what the reader should take away, not what is plotted — `bar Nassau landed twice the gold of any other port`, not `bar Gold by Port`. Put what is measured (the quantity, units, period) in `subtitle` and where the numbers came from in `source` (§1.12). Fall back to a label title only when the user names one or the data shows no single finding (§26.8).
   <!-- TITLE end -->
   <!-- CATEGORIZE start -->
-- **Categorize and color — by default, not only when obvious.** Before drawing, find the axis that sorts the items into kinds and color by it: layer (frontend / backend / data), role (client / service / datastore), trust zone (internal / external / third-party), status (done / active / blocked), owner/team, or read-path vs write-path. Almost every diagram has such an axis — actively look for one rather than leaving everything monochrome. Express it with a **tag group**, never ad-hoc per-node colors: declare `tag <Axis> as t` (the name is a single word — `tag TrustZone as tz` — or quote a multi-word name: `tag "Trust Zone" as tz`), indent the category values (a trailing color is optional — bare values auto-pick a palette color), set `active-tag <Axis>` in the header — after the tag group and before the first element, because a type such as c4 refuses it after content — then assign each item `Node t: <Category>` (see the tag-group syntax in the per-type section below). **Bracket, block, body, event-line and whiteboard** take the tag group but no `active-tag` line — declare the group and stop there; on event-line the line would be drawn as an element. **Class, flowchart, wireframe, raci, pyramid, ring, sankey, tech-radar, venn, version-control, wordcloud, arc, bar, clock, countdown, funnel, function, goal, heatmap, line, pie, polar-area, quadrant, radar, scatter, slope, waterfall, boxplot and histogram** take no tag group at all — skip this rule for them. Most report the lines; pyramid, ring, sankey, venn, version-control and wordcloud read them as content, and flowchart and tech-radar drop them without a word. Only the 11 named palette colors exist, and they re-resolve per palette/theme. Color the grouping so the categories — and the boundaries between them — read at a glance. **Buckets, not name tags — never 1:1.** A tag group must have _fewer_ values than it has members: each color should bucket two or more items so the palette compresses the diagram into a few meaningful kinds (aim for ~2–4 categories, and keep distinct colors well under half the item count). If you find yourself giving nearly every item its own value, you've enumerated, not categorized — merge the singletons up a level until each color groups at least two (a `cache` and a `database` are both `datastore`; a caller and a gateway are both `client`; two microservices are both `service`). One color per item is the same visual noise as random colors — the grouping only earns its place when a color means "these belong together." Leave items uncolored only when they genuinely form a single undifferentiated kind, or the user asked for no color.
+- **Categorize and color — by default, not only when obvious.** Before drawing, find the axis that sorts the items into kinds and color by it: layer (frontend / backend / data), role (client / service / datastore), trust zone (internal / external / third-party), status (done / active / blocked), owner/team, or read-path vs write-path. Almost every diagram has such an axis — actively look for one rather than leaving everything monochrome. Express it with a **tag group**, never ad-hoc per-node colors: declare `tag <Axis> as t` (the name is a single word — `tag TrustZone as tz` — or quote a multi-word name: `tag "Trust Zone" as tz`), indent the category values (a trailing color is optional — bare values auto-pick a palette color), set `active-tag <Axis>` in the header — after the tag group and before the first element, because a type such as c4 refuses it after content — then assign each item `Node t: <Category>` (see the tag-group syntax in the per-type section below). **Bracket, block, body, event-line and whiteboard** take the tag group but no `active-tag` line — declare the group and stop there; on event-line the line would be drawn as an element. **Class, flowchart, wireframe, raci, pyramid, ring, sankey, tech-radar, venn, version-control, wordcloud, arc, bar, clock, countdown, funnel, function, goal, heatmap, line, pie, polar-area, quadrant, radar, scatter, slope, waterfall, dot, boxplot and histogram** take no tag group at all — skip this rule for them. Most report the lines; pyramid, ring, sankey, venn, version-control and wordcloud read them as content, and flowchart and tech-radar drop them without a word. Only the 11 named palette colors exist, and they re-resolve per palette/theme. Color the grouping so the categories — and the boundaries between them — read at a glance. **Buckets, not name tags — never 1:1.** A tag group must have _fewer_ values than it has members: each color should bucket two or more items so the palette compresses the diagram into a few meaningful kinds (aim for ~2–4 categories, and keep distinct colors well under half the item count). If you find yourself giving nearly every item its own value, you've enumerated, not categorized — merge the singletons up a level until each color groups at least two (a `cache` and a `database` are both `datastore`; a caller and a gateway are both `client`; two microservices are both `service`). One color per item is the same visual noise as random colors — the grouping only earns its place when a color means "these belong together." Leave items uncolored only when they genuinely form a single undifferentiated kind, or the user asked for no color.
 <!-- CATEGORIZE end -->
 - **Keep labels short.** A few words per node. Move detail into notes or metadata, never a full sentence inside a label.
 - **Let the defaults show.** Don't add `no-*` opt-outs unless the user asked to hide or disable something — they strip helpful labels, values, and color.
@@ -166,6 +166,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `arc`             | network relationships (linear, or circular via `layout chord`)                                                                                                                                                                                                                                                                                                              |
 | `slope`           | change between two periods                                                                                                                                                                                                                                                                                                                                                  |
 | `waterfall`       | how a start became an end through signed steps, with running totals (revenue bridges, budget to actual) — one `Label N` per step, `Label total` for a total                                                                                                                                                                                                                 |
+| `dot`             | values as dots on one scale, a row per category — one value a dot plot, two a dumbbell (before and after), three or more a strip; `series` names the columns                                                                                                                                                                                                                |
 | `venn`            | set overlaps                                                                                                                                                                                                                                                                                                                                                                |
 | `wordcloud`       | term-frequency                                                                                                                                                                                                                                                                                                                                                              |
 | `function`        | mathematical expressions (colon required: `f(x): x^2`)                                                                                                                                                                                                                                                                                                                      |
@@ -597,7 +598,7 @@ A caller can ask for a canvas size: `--width` and `--height` on the CLI, `width`
 
   <!-- exact-size-types:start -->
 
-  `bar`, `arc layout chord`, `boxplot`, `cycle`, `funnel`, `function`, `heatmap`, `histogram`, `line`, `pie`, `polar-area`, `pyramid`, `quadrant`, `radar`, `ring`, `sankey`, `scatter`, `slope`, `tech-radar`, `treemap`, `venn`, `waterfall`, `wordcloud`
+  `bar`, `arc layout chord`, `boxplot`, `cycle`, `dot`, `funnel`, `function`, `heatmap`, `histogram`, `line`, `pie`, `polar-area`, `pyramid`, `quadrant`, `radar`, `ring`, `sankey`, `scatter`, `slope`, `tech-radar`, `treemap`, `venn`, `waterfall`, `wordcloud`
 
   <!-- exact-size-types:end -->
 
@@ -6263,6 +6264,79 @@ Not in this version: stacked steps (one step split into parts) and a percent axi
 | `W_WATERFALL_SIGNED_TOTAL`  | a `total` row whose number carries a sign                         |
 | `W_WATERFALL_BAD_DIRECTION` | `direction` with any value other than `down`; the line is ignored |
 | `W_WATERFALL_RECONCILE`     | a `Label N total` that differs from the running total             |
+
+## 25F. Dot
+
+<!-- TYPE:dot -->
+
+<!-- TIPS start -->
+
+**Styling tips:** Use a dot plot where a bar would waste ink on its length, and a dumbbell for a before and after across many rows. Add `sort gap` and `gap` when the change is the story.
+
+<!-- TIPS end -->
+
+### 25F.1 Declaration
+
+```
+dot [Title]
+```
+
+Each row is a category, its name on the left and its values as dots across one scale. One value per row draws a dot plot. Two draw a dumbbell, a connector joining the row's two dots. Three or more draw a strip of dots on one line, the connector spanning the lowest to the highest. Rows only: there is no vertical form.
+
+### 25F.2 Rows and series
+
+```
+dot Engagement score by department
+series 2020, 2025
+sort gap
+gap
+
+Engineering 71 78
+Sales 64 61
+Support 58 72
+```
+
+A single value per row needs no `series` line:
+
+```
+dot Median salary by role ($k)
+Staff engineer 212
+Data scientist 168
+Designer 141
+```
+
+- **Rows**: `Label v1 [v2 …]`, one value per `series` name, in `series` order. A row with another count warns and is not drawn.
+- **`series`**: names the columns, on one line (`series 2020, 2025`) or as an indented block, as on `line` (§15.1). A colour word after a name sets that series' colour (`series 2020 gray, 2025 blue`).
+- **Labels**: each series name sits above its dot in the first row, in the series colour. There is no legend.
+- **Dots** are drawn in the series colours over the connector, each with a thin ring in the background colour.
+- **Axis**: fitted to the data with round ends, so it need not start at zero. `x-axis 0..100` sets the range and `x-axis log` the scale (§15.1.2).
+
+### 25F.3 Options
+
+| Option                           | Effect                                                                              |
+| -------------------------------- | ----------------------------------------------------------------------------------- |
+| `sort gap`                       | Rows by last − first, largest first (two or more series)                            |
+| `sort <series>`                  | Rows by that series' value, largest first                                           |
+| `sort name`                      | Rows A–Z by name. Default: as written                                               |
+| `gap`                            | Print last − first at each row's right end, signed (`+7`, `−3`). Two or more series |
+| `connector direction`            | Each connector green for a rise and red for a fall. Default: grey                   |
+| `connector direction down`       | The same, flipped, for when a fall is good                                          |
+| `x-axis [min..max] [log]`        | The value range and scale                                                           |
+| `format`, `unit`, `locale`       | The number format of the axis and the gaps (§15.1.4)                                |
+| `subtitle`, `source`, `footnote` | The chart frame (§1)                                                                |
+| `palette`                        | Draw in a built-in palette                                                          |
+
+### 25F.4 Diagnostics
+
+| Code                         | Fires on                                                              |
+| ---------------------------- | --------------------------------------------------------------------- |
+| `E_DOT_BAD_VALUE`            | a row with no number after its name                                   |
+| `E_DOT_NO_ROWS`              | a chart with no rows                                                  |
+| `W_DOT_VALUE_COUNT`          | a row whose value count differs from `series` (one with no `series`)  |
+| `W_DOT_GAP_ONE_SERIES`       | `gap` or `sort gap` on a chart with one series; the line is ignored   |
+| `W_DOT_SORT_UNKNOWN_SERIES`  | `sort` naming no series; the rows stay as written                     |
+| `W_DOT_CONNECTOR_ONE_SERIES` | `connector direction` on a chart with one series; the line is ignored |
+| `W_DOT_BAD_CONNECTOR`        | `connector` with any value other than `direction` or `direction down` |
 
 ## 26. Colon Usage Summary
 

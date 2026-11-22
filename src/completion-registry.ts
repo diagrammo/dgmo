@@ -860,6 +860,34 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       locale: { description: 'Separators and currency style (locale de-DE)' },
     }),
   ],
+  [
+    'dot',
+    withGlobals({
+      series: {
+        description:
+          'Name the value columns (series 2020, 2025); two draw a dumbbell',
+      },
+      sort: {
+        description: 'Order the rows: gap, a series name, or name (A–Z)',
+        values: ['gap', 'name'],
+      },
+      gap: {
+        description: 'Print last − first at each row end (two or more series)',
+      },
+      connector: {
+        description:
+          'Colour connectors by rise and fall: connector direction [down]',
+        values: ['direction', 'direction down'],
+      },
+      'x-axis': { description: 'Value range and scale (x-axis 40..100 log)' },
+      format: {
+        description:
+          'Number format: currency USD, percent 1, compact, or a quoted pattern',
+      },
+      unit: { description: 'What the numbers count (unit $k)' },
+      locale: { description: 'Separators and currency style (locale de-DE)' },
+    }),
+  ],
   // RACI / RASCI / DACI — one chart type (`raci`); the variant (RACI, RASCI,
   // or DACI) is inferred from the markers used (D → DACI, S → RASCI).
   [

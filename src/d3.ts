@@ -54,6 +54,7 @@ import { exportSwot } from './swot/export';
 import { exportOwnership } from './ownership/export';
 import { exportCalendar } from './calendar/export';
 import { exportWaterfall } from './waterfall/export';
+import { exportDot } from './dot/export';
 import { exportRing } from './ring/export';
 import { exportVisualization } from './sequence/export';
 import { exportSitemap } from './sitemap/export';
@@ -134,6 +135,7 @@ export const DIAGRAM_EXPORT_HANDLERS: Record<string, DiagramExportHandler> = {
   ownership: exportOwnership,
   calendar: exportCalendar,
   waterfall: exportWaterfall,
+  dot: exportDot,
   body: exportBody,
   'live-link': exportLiveLink,
   // D3 visualizations — own handler per type (Story 109.2). Only `sequence`

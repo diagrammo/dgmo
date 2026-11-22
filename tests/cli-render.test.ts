@@ -313,6 +313,11 @@ Holdings Ltd
 Fund LP  type: partnership
   40% -> Labs Ltd
 `,
+  dot: `dot Test Dumbbell
+series Before, After
+A 10 14
+B 12 9
+`,
   waterfall: `waterfall Test Bridge
 Start 100 total
 Up +40

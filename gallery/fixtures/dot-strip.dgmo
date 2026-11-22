@@ -1,0 +1,14 @@
+dot Response times spread widest in the EU region
+subtitle p50, p90 and p99 latency by region, ms
+series
+  p50
+  p90
+  p99
+sort p99
+x-axis 0..
+
+US East 42 88 160
+US West 48 95 172
+EU 51 130 310
+Asia Pacific 63 118 240
+South America 70 121 205

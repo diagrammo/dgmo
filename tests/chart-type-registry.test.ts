@@ -68,6 +68,7 @@ const EXPECTED_CATEGORY: Record<
   slope: 'visualization',
   calendar: 'visualization',
   waterfall: 'visualization',
+  dot: 'visualization',
   wordcloud: 'visualization',
   arc: 'visualization',
   timeline: 'visualization',

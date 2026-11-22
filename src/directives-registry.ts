@@ -493,6 +493,7 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
     chartTypes: [
       'bar',
       'boxplot',
+      'dot',
       'function',
       'funnel',
       'heatmap',
@@ -878,6 +879,7 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
     category: 'directive',
     chartTypes: [
       'bar',
+      'dot',
       'function',
       'funnel',
       'heatmap',
@@ -896,6 +898,7 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
     chartTypes: [
       'bar',
       'boxplot',
+      'dot',
       'function',
       'histogram',
       'line',
@@ -928,6 +931,7 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
     chartTypes: [
       'bar',
       'boxplot',
+      'dot',
       'function',
       'funnel',
       'heatmap',
@@ -948,6 +952,7 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
     chartTypes: [
       'bar',
       'boxplot',
+      'dot',
       'calendar',
       'function',
       'funnel',
@@ -981,6 +986,9 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   // ── Waterfall (#1850) ────────────────────────────────────
   { token: 'no-connectors', category: 'directive', chartTypes: ['waterfall'] },
   { token: 'horizontal', category: 'directive', chartTypes: ['waterfall'] },
+  // ── Dot (#1849) ──────────────────────────────────────────
+  { token: 'gap', category: 'directive', chartTypes: ['dot'] },
+  { token: 'connector', category: 'directive', chartTypes: ['dot'] },
   // ── Slope ────────────────────────────────────────────────
   { token: 'period', category: 'directive', chartTypes: 'all' },
   // ── Quadrant ─────────────────────────────────────────────

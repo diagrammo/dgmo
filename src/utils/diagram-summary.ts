@@ -75,6 +75,7 @@ import { ownershipSummary } from '../ownership/format';
 import { parseCalendar } from '../calendar/parser';
 import { calendarSummary } from '../calendar/format';
 import { parseWaterfall } from '../waterfall/parser';
+import { parseDot } from '../dot/parser';
 import { parseSequenceDgmo } from '../sequence/parser';
 import { parseSitemap } from '../sitemap/parser';
 import type { SitemapNode } from '../sitemap/types';
@@ -527,6 +528,16 @@ function summarizeWaterfall(content: string): string | null {
   const last = parsed.rows[parsed.rows.length - 1]!;
   const start = first.kind === 'total' ? first.to : 0;
   return `Waterfall of ${plural(steps, 'step', 'steps')} and ${plural(totals, 'total', 'totals')}, from ${start} to ${last.label} at ${last.to}.`;
+}
+
+function summarizeDot(content: string): string | null {
+  const parsed = parseDot(content);
+  if (parsed.error || parsed.rows.length === 0) return null;
+  const n = parsed.series.length;
+  const shape = n <= 1 ? 'Dot plot' : n === 2 ? 'Dumbbell chart' : 'Dot strip';
+  const series =
+    n >= 2 ? `, comparing ${parsed.series.map((s) => s.name).join(', ')}` : '';
+  return `${shape} of ${plural(parsed.rows.length, 'row', 'rows')}${series}.`;
 }
 
 function summarizeRaci(content: string): string | null {
@@ -1088,6 +1099,7 @@ const SUMMARIZERS: Record<ChartTypeId, Summarizer> = {
   ownership: summarizeOwnership,
   calendar: summarizeCalendar,
   waterfall: summarizeWaterfall,
+  dot: summarizeDot,
   body: summarizeBody,
   bracket: summarizeBracket,
   'live-link': summarizeLiveLink,

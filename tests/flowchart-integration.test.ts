@@ -66,7 +66,8 @@ describe('flowchart routing', () => {
     // swot added: 51 → 52. calendar added (#1855): 52 → 53.
     // ownership added (#1873): 53 → 54. boxplot added (#1848): 54 → 55.
     // histogram added (#1847): 55 → 56. waterfall added (#1850): 56 → 57.
-    expect(getAllChartTypes().length).toBe(57);
+    // dot added (#1849): 57 → 58.
+    expect(getAllChartTypes().length).toBe(58);
   });
 });
 

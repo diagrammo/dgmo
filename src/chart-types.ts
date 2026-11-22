@@ -267,6 +267,11 @@ const chartTypesData = [
       'A start, signed steps and running totals — how one number became another (revenue bridges, budget to actual)',
   },
   {
+    id: 'dot',
+    description:
+      'Values as dots on one scale, a row per category — one value a dot plot, two a dumbbell (before and after, a gap between groups)',
+  },
+  {
     id: 'sankey',
     description: 'Flow / allocation visualization',
   },

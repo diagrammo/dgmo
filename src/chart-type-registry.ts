@@ -87,6 +87,7 @@ import { parseSwot } from './swot/parser';
 import { parseOwnership } from './ownership/parser';
 import { parseCalendar } from './calendar/parser';
 import { parseWaterfall } from './waterfall/parser';
+import { parseDot } from './dot/parser';
 import { parseBody } from './body/parser';
 import { parseLiveLink } from './live-link/parser';
 import type { DgmoError } from './diagnostics';
@@ -157,6 +158,7 @@ const REGISTRY: Record<ChartTypeId, Omit<ChartTypeDescriptor, 'id'>> = {
   // ── D3 visualizations — own per-viz parser door (Story 109.2) ──
   slope: { category: 'visualization', parse: parseSlope },
   waterfall: { category: 'visualization', parse: parseWaterfall },
+  dot: { category: 'visualization', parse: parseDot },
   wordcloud: { category: 'visualization', parse: parseWordcloud },
   arc: { category: 'visualization', parse: parseArc },
   timeline: { category: 'visualization', parse: parseTimeline },
