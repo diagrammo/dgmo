@@ -1057,3 +1057,81 @@ series
     ).toBeCloseTo(cy + offsetY(pt), 6);
   });
 });
+
+describe('band and era hover lights the points inside (#2098)', () => {
+  const SRC = `line Sales
+band 380..420 Margin
+era Mar -> Apr Doldrums
+series
+  Haul
+  Quota
+
+Jan 420 400
+Feb 300 410
+Mar 380 420
+Apr 350 430
+May 500 450`;
+
+  const state = () =>
+    [...svg.querySelectorAll<SVGElement>('.dgmo-pt')].map((p) => ({
+      s: p.getAttribute('data-series-name'),
+      x: p.getAttribute('data-x-label'),
+      in: p.classList.contains('dgmo-region-in'),
+      out: p.classList.contains('dgmo-region-out'),
+    }));
+  const hover = (sel: string) =>
+    svg
+      .querySelector(sel)!
+      .dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+
+  it('era: both ends inclusive, every series', async () => {
+    await mount(SRC);
+    const era = [...svg.querySelectorAll('.dgmo-region')].find(
+      (r) => r.getAttribute('data-region-axis') === 'x'
+    )!;
+    era.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+    const lit = state()
+      .filter((p) => p.in)
+      .map((p) => `${p.s}@${p.x}`)
+      .sort();
+    expect(lit).toEqual(['Haul@Apr', 'Haul@Mar', 'Quota@Apr', 'Quota@Mar']);
+    expect(state().every((p) => p.in !== p.out)).toBe(true);
+  });
+
+  it('band: both edges inclusive, every series', async () => {
+    await mount(SRC);
+    const band = [...svg.querySelectorAll('.dgmo-region')].find(
+      (r) => r.getAttribute('data-region-axis') === 'y'
+    )!;
+    band.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+    const lit = state()
+      .filter((p) => p.in)
+      .map((p) => `${p.s}@${p.x}`)
+      .sort();
+    expect(lit).toEqual([
+      'Haul@Jan',
+      'Haul@Mar',
+      'Quota@Feb',
+      'Quota@Jan',
+      'Quota@Mar',
+    ]);
+  });
+
+  it('the band label lights the same points; leaving restores', async () => {
+    await mount(SRC);
+    hover('text.dgmo-region[data-region-axis="y"]');
+    expect(state().filter((p) => p.in).length).toBe(5);
+    svg.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
+    expect(state().every((p) => !p.in && !p.out)).toBe(true);
+  });
+
+  it('moving off a region onto plain plot restores', async () => {
+    await mount(SRC);
+    hover('rect.dgmo-region');
+    expect(state().some((p) => p.in)).toBe(true);
+    svg
+      .querySelector('.dgmo-plot-rect')!
+      .dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+    expect(state().every((p) => !p.in && !p.out)).toBe(true);
+  });
+});

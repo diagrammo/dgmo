@@ -45,6 +45,30 @@ export interface ValueAxisFrame {
   /** Cross-axis position → pixel (category centre, or scatter x); undefined
    *  when the position is not on the axis. Absent: no cross markers. */
   readonly crossPos?: (at: number | string) => number | undefined;
+  /** The value axis a band sits on when the chart has two (a dual-axis
+   *  line's `left`); only marks drawn against it can fall inside it. */
+  readonly side?: string | undefined;
+}
+
+/** A shaded span that lights the data marks inside it on hover (#2098). */
+export const REGION_CLASS = 'dgmo-region';
+
+/** Tags `el` as a hoverable region over [lo, hi] pixels along `axis`
+ *  ('x' across, 'y' down), in the plot's own coordinate space. The
+ *  interaction adapter reads these attributes, never the band's meaning. */
+export function tagRegion(
+  el: Element | null,
+  axis: 'x' | 'y',
+  lo: number,
+  hi: number,
+  side?: string
+): void {
+  if (!el) return;
+  el.classList.add(REGION_CLASS);
+  el.setAttribute('data-region-axis', axis);
+  el.setAttribute('data-region-lo', String(Math.min(lo, hi)));
+  el.setAttribute('data-region-hi', String(Math.max(lo, hi)));
+  if (side) el.setAttribute('data-region-side', side);
 }
 
 export interface AnnotationColors {
@@ -96,6 +120,7 @@ export function drawBands(
       .append('g')
       .attr('class', 'dgmo-annotation-band')
       .attr('data-line-number', b.lineNumber);
+    tagRegion(g.node(), frame.horizontal ? 'x' : 'y', s, e, frame.side);
     if (frame.horizontal) {
       g.append('rect')
         .attr('x', s)
@@ -139,6 +164,7 @@ export function drawBands(
       .text(b.label);
     const box = labelBox(b.label, { x, y, anchor }, ANNOTATION_FONT);
     const el = label.node();
+    tagRegion(el, frame.horizontal ? 'x' : 'y', s, e, frame.side);
     if (el)
       bandLabels.set(el, {
         s,

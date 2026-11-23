@@ -33,7 +33,7 @@ function markerLine(svg: string) {
 
 function bandRect(svg: string) {
   const m = svg.match(
-    /class="dgmo-annotation-band"[^>]*><rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)"/
+    /class="dgmo-annotation-band[^"]*"[^>]*><rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)"/
   );
   return m ? m.slice(1).map(Number) : null;
 }

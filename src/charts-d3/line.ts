@@ -46,6 +46,7 @@ import { annotationValues } from '../annotations/parse';
 import {
   drawBands,
   drawMarkers,
+  tagRegion,
   settleBandLabels,
   type ValueAxisFrame,
 } from '../annotations/draw';
@@ -576,6 +577,7 @@ export function renderLine(
     height: plotH,
     horizontal: false,
     crossPos: (at) => (typeof at === 'string' ? xOfLabel(at) : undefined),
+    side: dual ? 'left' : undefined,
   };
   const annotationColors = {
     text: textColor,
@@ -591,14 +593,16 @@ export function renderLine(
       const xe = xOfLabel(era.end);
       if (xs == null || xe == null) return;
       const fill = era.color ?? colors[i % colors.length]!;
-      svg
+      const eraRect = svg
         .append('rect')
         .attr('x', Math.min(xs, xe))
         .attr('y', m.top)
         .attr('width', Math.abs(xe - xs))
         .attr('height', plotH)
         .attr('fill', mix(fill, bgColor, 12));
-      svg
+      // Hovering the era lights the points whose x is inside it (#2098).
+      tagRegion(eraRect.node(), 'x', xs, xe);
+      const eraText = svg
         .append('text')
         .attr('x', (xs + xe) / 2)
         .attr('y', m.top + 14)
@@ -608,6 +612,7 @@ export function renderLine(
         .attr('font-family', FONT_FAMILY)
         .attr('opacity', 0.8)
         .text(era.label);
+      tagRegion(eraText.node(), 'x', xs, xe);
       eraTitles.push(
         labelBox(
           era.label,

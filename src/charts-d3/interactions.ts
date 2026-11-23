@@ -50,6 +50,9 @@ function ensureStyle(svg: SVGSVGElement, muted: string): void {
     .dgmo-series,.dgmo-series-band,.dgmo-datum,.dgmo-tick,.dgmo-ptlabel{transition:opacity .12s ease}
     [data-legend-entry]{transition:opacity .12s ease}
     .dgmo-series.dgmo-dim,.dgmo-series-band.dgmo-dim,.dgmo-datum.dgmo-dim,.dgmo-ptlabel.dgmo-dim,.dgmo-series-extra.dgmo-dim,[data-legend-entry].dgmo-dim{opacity:.18}
+    .dgmo-pt,.dgmo-datum{transition:opacity .12s ease}
+    .dgmo-pt.dgmo-region-out,.dgmo-datum.dgmo-region-out{opacity:.18}
+    .dgmo-pt.dgmo-region-in{r:4.5px}
     .dgmo-tick.dgmo-faded{opacity:.22}
     .dgmo-axis-title{transition:opacity .12s ease}.dgmo-axis-title.dgmo-faded{opacity:.22}
     .dgmo-datum{cursor:pointer}
@@ -379,6 +382,62 @@ export function attachDataChartInteractions(
     mirrorExtras();
     dimLegendExcept(el);
   };
+  // ── band / era hover → light the points inside it (#2098) ──────────────
+  // A band or era carries its pixel span (annotations/draw.ts tagRegion). A
+  // mark is in when its centre lies in the span, edges included; every other
+  // mark recedes and the lines between stay as drawn. Classes only, so it
+  // coexists with the crosshair and the series hover instead of fighting
+  // them. The plot rect covers the band, so the pointer is tested against
+  // the spans too, not only the element under it.
+  const regions = Array.from(
+    svg.querySelectorAll<SVGElement>('.dgmo-region')
+  ).map((el) => ({
+    el,
+    axis: el.getAttribute('data-region-axis'),
+    lo: parseFloat(el.getAttribute('data-region-lo') ?? 'NaN'),
+    hi: parseFloat(el.getAttribute('data-region-hi') ?? 'NaN'),
+    side: el.getAttribute('data-region-side'),
+  }));
+  const regionMarks = Array.from(
+    svg.querySelectorAll<SVGElement>('.dgmo-pt, .dgmo-datum[cx][cy]')
+  );
+  // Pixel slack for a mark whose position the renderer rounded.
+  const REGION_SLACK = 0.5;
+  let region: (typeof regions)[number] | null = null;
+  const setRegion = (next: (typeof regions)[number] | null) => {
+    if (next === region) return;
+    region = next;
+    for (const m of regionMarks) {
+      if (!next) {
+        m.classList.remove('dgmo-region-out', 'dgmo-region-in');
+        continue;
+      }
+      const c = parseFloat(m.getAttribute(next.axis === 'x' ? 'cx' : 'cy')!);
+      const axis = m.closest('.dgmo-series')?.getAttribute('data-axis');
+      const inside =
+        c >= next.lo - REGION_SLACK &&
+        c <= next.hi + REGION_SLACK &&
+        (!next.side || !axis || axis === next.side);
+      m.classList.toggle('dgmo-region-in', inside);
+      m.classList.toggle('dgmo-region-out', !inside);
+    }
+  };
+  const regionAt = (
+    target: Element,
+    pt: { x: number; y: number } | null
+  ): (typeof regions)[number] | null => {
+    const hit = target.closest?.('.dgmo-region');
+    if (hit) return regions.find((r) => r.el === hit) ?? null;
+    if (!pt || !plot) return null;
+    if (pt.x < plot.left || pt.x > plot.right) return null;
+    if (pt.y < plot.top || pt.y > plot.bottom) return null;
+    for (let i = regions.length - 1; i >= 0; i--) {
+      const r = regions[i]!;
+      const v = r.axis === 'x' ? pt.x : pt.y;
+      if (v >= r.lo && v <= r.hi) return r;
+    }
+    return null;
+  };
   const clearDim = () => {
     for (const d of datums) d.classList.remove('dgmo-dim');
     for (const g of seriesGroups) g.classList.remove('dgmo-dim');
@@ -603,6 +662,13 @@ export function attachDataChartInteractions(
   let crosshairActive = false;
   const onSvgMove = (e: MouseEvent) => {
     const t = e.target as Element;
+    if (regions.length)
+      setRegion(
+        regionAt(
+          t,
+          plot && space.getScreenCTM?.() ? toUserSpace(svg, e, space) : null
+        )
+      );
     let el = t.closest?.<SVGElement>('.dgmo-datum');
     // Hovering a point's name label or its leader line (scatter) highlights the
     // point itself: labels/leaders carry the same data-line-number as their
@@ -643,6 +709,7 @@ export function attachDataChartInteractions(
     }
   };
   const onLeave = () => {
+    setRegion(null);
     clearDatum();
     if (crosshairActive) {
       clearCrosshair();
@@ -704,7 +771,7 @@ export function attachDataChartInteractions(
     }
   };
 
-  if (datums.length > 0 || crosshairOn)
+  if (datums.length > 0 || crosshairOn || regions.length > 0)
     svg.addEventListener('mousemove', onSvgMove);
   svg.addEventListener('mouseleave', onLeave);
   svg.addEventListener('click', onClick);
