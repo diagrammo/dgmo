@@ -740,6 +740,106 @@ describe('series hover → its overlays follow (#2216)', () => {
   });
 });
 
+describe('series hover → its value labels follow (#2097)', () => {
+  const BAR = [
+    'bar Cannons vs Crew',
+    'group',
+    '  Cannons blue',
+    '  Crew green',
+    '',
+    'Revenge 40 300',
+    'Fortune 34 262',
+  ].join('\n');
+  const STACK = [
+    'bar Plunder',
+    'stack',
+    '  Gold orange',
+    '  Silver blue',
+    '',
+    'Tortuga 400 220',
+    'Nassau 310 180',
+  ].join('\n');
+  const MIRROR = [
+    'bar Crew',
+    'mirror',
+    '  Day blue',
+    '  Night green',
+    '',
+    'Deck 60 30',
+    'Hold 20 45',
+  ].join('\n');
+  const LINEV = [
+    'line Waves',
+    'series',
+    '  Siren',
+    '  Echo',
+    '',
+    'A 4 1',
+    'B 9 3',
+    'C 7 4',
+  ].join('\n');
+  const labelsOf = (name: string) => [
+    ...svg.querySelectorAll(`text[data-series-name="${name}"]`),
+  ];
+  const hoverLegend = (name: string, type = 'mouseenter') =>
+    svg
+      .querySelector(`.chart-legend [data-series-name="${name}"]`)!
+      .dispatchEvent(new MouseEvent(type, { bubbles: true }));
+  const dimmed = (e: Element) =>
+    e.classList.contains('dgmo-dim') || !!e.closest('.dgmo-dim');
+
+  const cases: Array<[string, string, string, string]> = [
+    ['grouped bar', BAR, 'Cannons', 'Crew'],
+    ['stacked bar', STACK, 'Gold', 'Silver'],
+    ['mirror bar', MIRROR, 'Day', 'Night'],
+    ['line', LINEV, 'Siren', 'Echo'],
+  ];
+  for (const [label, src, a, b] of cases) {
+    it(`${label}: the other series' value labels dim, the hovered series' stay lit`, async () => {
+      await mount(src);
+      expect(labelsOf(a).length).toBeGreaterThan(0);
+      expect(labelsOf(b).length).toBeGreaterThan(0);
+      hoverLegend(a);
+      expect(labelsOf(a).some(dimmed)).toBe(false);
+      expect(labelsOf(b).every(dimmed)).toBe(true);
+      hoverLegend(a, 'mouseleave');
+      expect(
+        [...svg.querySelectorAll('text[data-series-name]')].some(dimmed)
+      ).toBe(false);
+    });
+  }
+
+  it('grouped bar: hovering a bar dims the other series labels', async () => {
+    await mount(BAR);
+    const bar = svg.querySelector<SVGElement>(
+      '.dgmo-datum[data-series-name="Cannons"]'
+    )!;
+    bar.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+    expect(labelsOf('Cannons').some(dimmed)).toBe(false);
+    expect(labelsOf('Crew').every(dimmed)).toBe(true);
+  });
+
+  it('radar: a hovered series keeps its labels and the other series recede whole', async () => {
+    await mount(
+      [
+        'radar Ratings',
+        'series',
+        '  Pearl blue',
+        '  Dutchman purple',
+        '',
+        'Fire 85 95',
+        'Speed 90 55',
+        'Armor 60 90',
+      ].join('\n')
+    );
+    hoverLegend('Pearl');
+    const groups = [...svg.querySelectorAll('.dgmo-series')];
+    const lit = groups.filter((g) => !g.classList.contains('dgmo-dim'));
+    expect(lit).toHaveLength(1);
+    expect(lit[0]!.querySelectorAll('text').length).toBeGreaterThan(0);
+  });
+});
+
 describe('heatmap axis-label click → row/column pin', () => {
   const label = (value: string) =>
     svg.querySelector<SVGElement>(

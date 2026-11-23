@@ -135,9 +135,14 @@ export function attachDataChartInteractions(
   // dims whenever that series' group does.
   // Only names a series group carries, so marks other code dims (scatter's
   // point names, a bar's datums) are never touched here.
+  // A bar chart's series are datums, not groups (#2097): its value labels
+  // follow the series its bars carry.
   const groupNames = new Set(
-    Array.from(svg.querySelectorAll('.dgmo-series, .dgmo-series-band'), (g) =>
-      g.getAttribute('data-series-name')
+    Array.from(
+      svg.querySelectorAll(
+        '.dgmo-series, .dgmo-series-band, .dgmo-datum[data-series-name]'
+      ),
+      (g) => g.getAttribute('data-series-name')
     )
   );
   const seriesExtras = Array.from(
@@ -156,7 +161,7 @@ export function attachDataChartInteractions(
     const dimmed = new Set<string>();
     const lit = new Set<string>();
     for (const g of svg.querySelectorAll<SVGElement>(
-      '.dgmo-series[data-series-name], .dgmo-series-band[data-series-name]'
+      '.dgmo-series[data-series-name], .dgmo-series-band[data-series-name], .dgmo-datum[data-series-name]'
     ))
       (g.classList.contains('dgmo-dim') ? dimmed : lit).add(
         g.getAttribute('data-series-name')!
@@ -355,6 +360,7 @@ export function attachDataChartInteractions(
   };
   const dimDatumsExcept = (el: Element | null) => {
     for (const d of datums) d.classList.toggle('dgmo-dim', d !== el);
+    mirrorExtras();
     const line = el?.getAttribute('data-line-number');
     for (const l of ptLabels)
       l.classList.toggle(
@@ -370,6 +376,7 @@ export function attachDataChartInteractions(
       if (key) d.classList.toggle('dgmo-dim', dk !== key);
       else d.classList.toggle('dgmo-dim', d !== el);
     }
+    mirrorExtras();
     dimLegendExcept(el);
   };
   const clearDim = () => {

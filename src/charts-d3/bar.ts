@@ -993,7 +993,9 @@ export function renderBar(
               (x0 + x1) / 2,
               base + cat.bandwidth() / 2 + 4,
               onBarColor
-            ).attr('opacity', dim ? EMPHASIS_DIM_TEXT_OPACITY : null);
+            )
+              .attr('opacity', dim ? EMPHASIS_DIM_TEXT_OPACITY : null)
+              .attr('data-series-name', tag.seriesName ?? null);
         } else {
           const y0 = val(from);
           const y1 = val(to);
@@ -1018,7 +1020,9 @@ export function renderBar(
               base + cat.bandwidth() / 2,
               (y0 + y1) / 2 + 4,
               onBarColor
-            ).attr('opacity', dim ? EMPHASIS_DIM_TEXT_OPACITY : null);
+            )
+              .attr('opacity', dim ? EMPHASIS_DIM_TEXT_OPACITY : null)
+              .attr('data-series-name', tag.seriesName ?? null);
         }
         if (v < 0) accNeg += v;
         else accPos += v;
@@ -1093,7 +1097,9 @@ export function renderBar(
               spot.y,
               labelColor,
               spot.anchor
-            ).attr('opacity', dim ? EMPHASIS_DIM_TEXT_OPACITY : null);
+            )
+              .attr('opacity', dim ? EMPHASIS_DIM_TEXT_OPACITY : null)
+              .attr('data-series-name', tag.seriesName ?? null);
         } else if (horiz) {
           const x1 = val(v);
           rect(
@@ -1116,7 +1122,9 @@ export function renderBar(
               spot.y,
               labelColor,
               spot.anchor
-            ).attr('opacity', dim ? EMPHASIS_DIM_TEXT_OPACITY : null);
+            )
+              .attr('opacity', dim ? EMPHASIS_DIM_TEXT_OPACITY : null)
+              .attr('data-series-name', tag.seriesName ?? null);
         } else {
           const y1 = val(v);
           rect(
@@ -1139,7 +1147,9 @@ export function renderBar(
               spot.y,
               labelColor,
               spot.anchor
-            ).attr('opacity', dim ? EMPHASIS_DIM_TEXT_OPACITY : null);
+            )
+              .attr('opacity', dim ? EMPHASIS_DIM_TEXT_OPACITY : null)
+              .attr('data-series-name', tag.seriesName ?? null);
         }
       }
     });
@@ -1855,10 +1865,9 @@ function renderClusteredStack(
             : story.active
               ? story.groundText
               : textColor;
-        drawValueLabel(svg, text, x + w / 2, (y0 + y1) / 2 + 4, onBar).attr(
-          'opacity',
-          dim ? EMPHASIS_DIM_TEXT_OPACITY : null
-        );
+        drawValueLabel(svg, text, x + w / 2, (y0 + y1) / 2 + 4, onBar)
+          .attr('opacity', dim ? EMPHASIS_DIM_TEXT_OPACITY : null)
+          .attr('data-series-name', multi ? sName : null);
       }
       if (v < 0) accNeg += v;
       else accPos += v;
@@ -2189,10 +2198,9 @@ function renderMarimekko(
             : story.active
               ? story.groundText
               : textColor;
-        drawValueLabel(svg, text, x + colW / 2, (y0 + y1) / 2 + 4, onBar).attr(
-          'opacity',
-          dim ? EMPHASIS_DIM_TEXT_OPACITY : null
-        );
+        drawValueLabel(svg, text, x + colW / 2, (y0 + y1) / 2 + 4, onBar)
+          .attr('opacity', dim ? EMPHASIS_DIM_TEXT_OPACITY : null)
+          .attr('data-series-name', multi ? sName : null);
       }
     });
   }
@@ -2411,6 +2419,7 @@ function renderMirror(
         s === 0 ? 'end' : 'start'
       )
         .attr('class', 'dgmo-mirror-value')
+        .attr('data-series-name', sName)
         .attr('opacity', dim ? EMPHASIS_DIM_TEXT_OPACITY : null);
     }
   }
