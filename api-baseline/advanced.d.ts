@@ -779,6 +779,17 @@ interface ParsedChart {
     notes?: ChartNote[];
     /** `no-notes`: draw no `note` (#2039). */
     noNotes?: boolean;
+    /** Small multiples (#1853), bar and line: bare `facet` draws one panel
+     *  per series, in declaration order, on one shared value axis. */
+    facet?: boolean;
+    /** Line of the `facet` flag, for its diagnostics. */
+    facetLineNumber?: number;
+    /** `facet-free-y`: each panel takes its own value range. */
+    facetFreeY?: boolean;
+    /** `no-context`: a faceted line draws no grey context lines. */
+    noContext?: boolean;
+    /** `columns N`: the facet grid's column count. Absent ⇒ as many as fit. */
+    facetColumns?: number;
     diagnostics: DgmoError[];
     error: string | null;
 }
