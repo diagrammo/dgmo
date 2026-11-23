@@ -8,6 +8,10 @@ import { mapExportDimensions } from '../src/map/dimensions';
 import { loadMapData } from '../src/map/load-data';
 import { getPalette } from '../src/palettes';
 import { render } from '../src/render';
+import {
+  STRUCTURAL_KEYWORDS,
+  TAG_SUPPORTING_TYPES,
+} from '../src/completion-registry';
 import { measureLegendText } from '../src/utils/legend-constants';
 import {
   rectCircleOverlap,
@@ -199,5 +203,12 @@ describe('map notes — render (#2215)', () => {
     const cards = narrow.match(/class="dgmo-map-note"/g) ?? [];
     expect(rows.length + cards.length).toBe(8);
     expect(rows.length).toBeGreaterThan(0);
+  });
+});
+
+describe('map note completion', () => {
+  it('offers note, poi and tag as map keywords', () => {
+    expect(STRUCTURAL_KEYWORDS.get('map')).toEqual(['poi', 'note', 'tag']);
+    expect(TAG_SUPPORTING_TYPES.has('map')).toBe(true);
   });
 });

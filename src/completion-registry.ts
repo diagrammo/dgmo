@@ -1587,6 +1587,9 @@ export const STRUCTURAL_KEYWORDS = new Map<string, string[]>([
     ],
   ],
   ['journey-map', ['persona', 'tag']],
+  // Map (§24B): `poi` and `tag` open root lines; `note` goes indented under a
+  // poi, region line or edge (§24B.15). The app gates each by indent.
+  ['map', ['poi', 'note', 'tag']],
   ['raci', ['roles']],
   ['tech-radar', ['rings']],
   [
