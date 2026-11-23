@@ -3,6 +3,7 @@ import { parseMap } from '../src/map/parser';
 import { resolveMap } from '../src/map/resolver';
 import { layoutMap } from '../src/map/layout';
 import { mapLegendGroups } from '../src/map/legend-band';
+import { computeMapBins } from '../src/map/binning';
 import { render } from '../src/render';
 import { loadMapData } from '../src/map/load-data';
 import { getPalette } from '../src/palettes';
@@ -150,7 +151,16 @@ describe('map scale diverging — parser', () => {
   });
 
   it('warns W_MAP_SCALE_INVALID on any other form and never reads it as a region', () => {
-    for (const line of ['scale binned 5', 'scale', 'scale diverging x']) {
+    for (const line of [
+      'scale binned',
+      'scale binned 1',
+      'scale binned 10',
+      'scale binned 2.5',
+      'scale binned 10 5',
+      'scale binned 1 2 3 4 5 6 7 8 9',
+      'scale',
+      'scale diverging x',
+    ]) {
       const p = parseMap(`map\n${line}\nCalifornia heat: 1`);
       expect(p.directives.regionScale).toBeUndefined();
       expect(p.diagnostics.map((d) => d.code)).toEqual(['W_MAP_SCALE_INVALID']);
@@ -240,5 +250,117 @@ describe('map scale diverging — rendered legend', () => {
     expect(grad).not.toBeNull();
     expect(grad![0].match(/<stop /g)).toHaveLength(3);
     expect(grad![0]).toContain('offset="33.33');
+  });
+});
+
+// `scale binned` (diagrammo/diagrammo#1988): quantile classes from a count,
+// or the author's thresholds; flat colours and a stepped legend.
+describe('map scale binned — parser', () => {
+  it('reads a count of 2–9 as quantile classes', () => {
+    expect(
+      parseMap('map\nscale binned 5\nCalifornia heat: 1').directives.regionScale
+    ).toEqual({ kind: 'binned', count: 5, line: 2 });
+  });
+
+  it('reads two or more rising numbers as thresholds', () => {
+    expect(
+      parseMap('map\nscale binned 0 10 50 100\nCalifornia heat: 1').directives
+        .regionScale
+    ).toEqual({ kind: 'binned', thresholds: [0, 10, 50, 100], line: 2 });
+  });
+});
+
+describe('map scale binned — class breaks', () => {
+  const values = [
+    0.6, 1, 2, 2.1, 3, 4.2, 5.9, 8, 10.8, 11, 12, 13, 19.6, 25, 39,
+  ];
+
+  it('quantile breaks are rounded to two significant figures', () => {
+    const b = computeMapBins(values, { kind: 'binned', count: 5, line: 1 })!;
+    expect(b.bins.map((x) => x.label)).toEqual([
+      'under 2.1',
+      '2.1–5.2',
+      '5.2–11',
+      '11–14',
+      '14 and up',
+    ]);
+    expect(b.requested).toBeUndefined();
+  });
+
+  it('a value on a break starts the upper class', () => {
+    const b = computeMapBins([1, 10, 20], {
+      kind: 'binned',
+      thresholds: [10],
+      line: 1,
+    } as never)!;
+    expect(b.bins[b.binOf(10)]!.label).toBe('10 and up');
+    expect(b.bins[b.binOf(9.99)]!.label).toBe('under 10');
+  });
+
+  it('ties merge empty quantile classes and report the count asked for', () => {
+    const tied = [0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 7];
+    const b = computeMapBins(tied, { kind: 'binned', count: 5, line: 1 })!;
+    expect(b.bins.length).toBeLessThan(5);
+    expect(b.requested).toBe(5);
+    // Every drawn class holds a value.
+    for (let i = 0; i < b.bins.length; i++)
+      expect(tied.some((v) => b.binOf(v) === i)).toBe(true);
+  });
+
+  it('threshold classes keep their colour slot; unused open ends leave the legend', () => {
+    const b = computeMapBins([5, 20, 60], {
+      kind: 'binned',
+      thresholds: [0, 10, 50, 100],
+      line: 1,
+    })!;
+    expect(b.slots).toBe(5);
+    expect(b.bins.map((x) => [x.label, x.slot])).toEqual([
+      ['0–10', 1],
+      ['10–50', 2],
+      ['50–100', 3],
+    ]);
+  });
+});
+
+describe('map scale binned — fills, legend and warning', () => {
+  const SRC =
+    'map\nregion-heat Rate\nscale binned 3\nCalifornia heat: 1\nOregon heat: 5\nMaine heat: 9';
+
+  it('each class is one flat colour, the lowest still off the page colour', () => {
+    const r = lay(SRC);
+    const fills = ['US-CA', 'US-OR', 'US-ME'].map((id) => fillOf(r, id));
+    expect(new Set(fills).size).toBe(3);
+    expect(fills[0]).not.toBe(P.bg);
+    expect(fills[2]).toBe(P.colors.red);
+  });
+
+  it('the legend is one swatch per class with its range, not a gradient', () => {
+    const r = lay(SRC);
+    const [group] = mapLegendGroups(r.legend!);
+    expect(group!.name).toBe('Rate');
+    expect(group!.gradient).toBeUndefined();
+    expect(group!.entries.map((e) => e.value)).toEqual([
+      'under 3.7',
+      '3.7–6.3',
+      '6.3 and up',
+    ]);
+    expect(group!.entries[2]!.color).toBe(fillOf(r, 'US-ME'));
+  });
+
+  it('regions carry their class for legend hover', () => {
+    const r = lay(SRC);
+    expect(r.regions.find((x) => x.id === 'US-OR')!.tags).toMatchObject({
+      Rate: '3.7–6.3',
+    });
+  });
+
+  it('warns W_MAP_BINNED_CLASSES_MERGED when ties leave classes empty', () => {
+    const r = lay(
+      'map\nscale binned 3\nCalifornia heat: 0\nOregon heat: 0\nMaine heat: 0\nGeorgia heat: 4'
+    );
+    expect(r.diagnostics.map((d) => d.code)).toEqual([
+      'W_MAP_BINNED_CLASSES_MERGED',
+    ]);
+    expect(r.diagnostics[0]!.line).toBe(2);
   });
 });

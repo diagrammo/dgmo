@@ -1,0 +1,25 @@
+map Data Centres per State
+// stress: extreme-values — skewed counts with many ties at zero; quantile classes must merge, not draw empty swatches
+region-heat Data centres
+scale binned 5
+
+Virginia heat: 280
+Texas heat: 140
+California heat: 120
+Oregon heat: 45
+Georgia heat: 40
+Ohio heat: 30
+Illinois heat: 25
+Arizona heat: 20
+Nevada heat: 15
+Utah heat: 8
+Iowa heat: 6
+Nebraska heat: 2
+Maine heat: 0
+Vermont heat: 0
+Wyoming heat: 0
+Montana heat: 0
+Idaho heat: 0
+Alaska heat: 0
+Hawaii heat: 0
+North Dakota heat: 0

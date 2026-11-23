@@ -3,6 +3,11 @@
 // single-pass deterministic line classification of §24B.10. See the tech-spec
 // at _bmad-output/implementation-artifacts/tech-spec-map-parser.md.
 import {
+  MAP_BINNED_MAX_CLASSES,
+  MAP_BINNED_MIN_CLASSES,
+  type BinnedScale,
+} from './binning';
+import {
   makeDgmoError,
   formatDgmoError,
   emit,
@@ -477,11 +482,14 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
         // Any other form warns and keeps the one-way ramp.
         dup(d.regionScale);
         const m = value.match(/^diverging(?:\s+(-?\d+(?:\.\d+)?))?$/);
+        const binned = parseBinnedScale(value, line);
         if (m) {
           d.regionScale = {
             kind: 'diverging',
             mid: m[1] !== undefined ? parseFloat(m[1]) : 0,
           };
+        } else if (binned) {
+          d.regionScale = binned;
         } else {
           diagnostics.push(emit(MAP_DX.SCALE_INVALID, line, { value }));
         }
@@ -955,4 +963,26 @@ function partitionMeta(
 
 function poiName(pos: PoiPos): string | undefined {
   return pos.kind === 'name' ? pos.name : undefined;
+}
+
+/**
+ * `binned <n>` (a class count, 2–9) or `binned <t1> <t2> …` (two or more
+ * rising thresholds, at most 8 so classes stay ≤ 9) — #1988. Null otherwise.
+ */
+function parseBinnedScale(value: string, line: number): BinnedScale | null {
+  const m = value.match(/^binned((?:\s+-?\d+(?:\.\d+)?)+)$/);
+  if (!m) return null;
+  const nums = m[1]!.trim().split(/\s+/).map(Number);
+  if (nums.length === 1) {
+    const n = nums[0]!;
+    return Number.isInteger(n) &&
+      n >= MAP_BINNED_MIN_CLASSES &&
+      n <= MAP_BINNED_MAX_CLASSES
+      ? { kind: 'binned', count: n, line }
+      : null;
+  }
+  if (nums.length > MAP_BINNED_MAX_CLASSES - 1) return null;
+  for (let i = 1; i < nums.length; i++)
+    if (!(nums[i]! > nums[i - 1]!)) return null;
+  return { kind: 'binned', thresholds: nums, line };
 }

@@ -5622,7 +5622,7 @@ Florida heat: 51
 
 - `region-heat <label> [low] [high]` labels the ramp in the legend; one trailing color sets the high hue over a neutral low (`region-heat Sales ($M) blue` → blue ramp, default red), two set explicit `low high` endpoints (`region-heat Peril green red` → green→red, routed through a neutral midpoint). Order is literal — polarity is your choice.
 - The ramp **auto-fits** from the lowest value to the highest.
-- **Diverging scale** — `scale diverging <mid>` colours regions below `mid` blue and above it red, through a neutral at `mid`; the legend bar shows the same three colours. Use it when the values are a change, a gap or a margin, where above and below the midpoint mean opposite things. `mid` defaults to 0, and each side spans its own distance from `mid`. Two `region-heat` colours replace blue and red (`region-heat Net green purple`). A `mid` outside the data widens the range to include it. Any other `scale` form warns `W_MAP_SCALE_INVALID` and the one-way ramp draws.
+- **Diverging scale** — `scale diverging <mid>` colours regions below `mid` blue and above it red, through a neutral at `mid`; the legend bar shows the same three colours. Use it when the values are a change, a gap or a margin, where above and below the midpoint mean opposite things. `mid` defaults to 0, and each side spans its own distance from `mid`. Two `region-heat` colours replace blue and red (`region-heat Net green purple`). A `mid` outside the data widens the range to include it.
 
 ```
 map Budget Margin by State
@@ -5632,6 +5632,25 @@ scale diverging 0
 California heat: -4
 Texas heat: 0
 Florida heat: 8
+```
+
+- **Binned scale** — `scale binned <n>` groups regions into `n` classes (2–9), each one flat colour, and the legend shows one swatch per class with its range. Breaks are **quantiles**, so each class holds about the same number of regions, rounded to two significant figures: `under 2 · 2–5 · 5–11 · 11–15 · 15 and up`. Use it when a reader should sort regions into a few groups rather than read exact shades.
+- `scale binned <t1> <t2> …` names the breaks yourself (two to eight rising numbers). Use it to compare two maps: the same thresholds give the same classes and colours on both. An open end class (`under t1`, `tN and up`) shows only when a region falls in it.
+- A value **on** a break starts the upper class: with a break at 10, a 10 is in `10–20`.
+- When tied values leave quantile classes empty (many regions at 0), the empty classes merge and the map warns `W_MAP_BINNED_CLASSES_MERGED` ("only 4 distinct classes from 5 requested").
+- Colours spread evenly along the ramp; with one ramp colour the palest end is skipped, so the lowest class still shows against the page. `region-heat` colours set the ramp as usual.
+- Any other `scale` form warns `W_MAP_SCALE_INVALID` and the one-way ramp draws.
+
+```
+map Unemployment by State
+region-heat Unemployment (%)
+scale binned 5
+
+California heat: 5.3
+Utah heat: 2.8
+Texas heat: 4.1
+Ohio heat: 4.2
+Iowa heat: 3.0
 ```
 
 - A subdivision with no `heat:`/tag renders as the neutral base.

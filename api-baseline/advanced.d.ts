@@ -2,11 +2,11 @@ import { D as DgmoError, C as ChartFrame, T as TagGroup, g as TagEntry } from '.
 export { b as DgmoFix, c as DgmoSeverity, h as autoTagColorCycle, f as formatDgmoError, m as makeDgmoError, r as resolveActiveTagGroup, i as resolveTagColor, j as resolveTagValue, t as tagAttrKey, k as takeFootnoteBlock } from './tag-groups-B4RSR_mP.js';
 import { P as PaletteConfig, c as PaletteColors, C as CompactViewState } from './chart-types-SYVU-5Sy.js';
 export { a as ChartTypeId, b as ChartTypeMeta, D as DecodedDiagramUrl, E as EncodeDiagramUrlOptions, e as EncodeDiagramUrlResult, d as chartTypes, f as decodeDiagramUrl, h as decodeViewState, i as encodeDiagramUrl, j as encodeViewState, k as getAvailablePalettes, g as getPalette, l as isValidHex, m as registerPalette } from './chart-types-SYVU-5Sy.js';
-import { d as RenderForExportOptions, b as MapData, P as ParsedMap, e as ResolvedMap, f as MapNote, g as MapLayoutLegend, h as GeoExtent } from './export-context-CJlnaENO.js';
+import { d as RenderForExportOptions, b as MapData, P as ParsedMap, e as ResolvedMap, f as MapNote, g as MapLayoutLegend, h as GeoExtent } from './export-context-D8y6nEB3.js';
 import { MapDataSource } from './block.js';
-export { A as AirportData, B as BoundaryTopology, G as Gazetteer, a as GazetteerEntry, i as MapDirectives, j as MapEdge, k as MapPoi, l as MapRegion, m as MapRoute, n as PoiPos, o as ProjectionFamily, R as RegionName, c as RegionNames, p as ResolvedEdge, q as ResolvedPoi, r as ResolvedRegion, s as ResolvedRoute } from './export-context-CJlnaENO.js';
+export { A as AirportData, B as BoundaryTopology, G as Gazetteer, a as GazetteerEntry, i as MapDirectives, j as MapEdge, k as MapPoi, l as MapRegion, m as MapRoute, n as PoiPos, o as ProjectionFamily, R as RegionName, c as RegionNames, p as ResolvedEdge, q as ResolvedPoi, r as ResolvedRegion, s as ResolvedRoute } from './export-context-D8y6nEB3.js';
 import { InkPoint } from './index.js';
-export { C as CHART_TYPE_DESCRIPTIONS, M as MapCompletionOptions, d as MapLocationMatch, e as MapPlaceCompletion, f as MapRegionCompletion, R as RenderCategory, T as Theme, l as chartTypeParsers, g as completeMapPlaces, h as completeMapRegions, m as getAllChartTypes, n as getRenderCategory, o as isExtendedChartType, q as knownChartTypeIds, p as palettes, k as parseDgmo, s as searchMapLocations, t as themes, k as validate } from './themes-VpG-qdJW.js';
+export { C as CHART_TYPE_DESCRIPTIONS, M as MapCompletionOptions, d as MapLocationMatch, e as MapPlaceCompletion, f as MapRegionCompletion, R as RenderCategory, T as Theme, l as chartTypeParsers, g as completeMapPlaces, h as completeMapRegions, m as getAllChartTypes, n as getRenderCategory, o as isExtendedChartType, q as knownChartTypeIds, p as palettes, k as parseDgmo, s as searchMapLocations, t as themes, k as validate } from './themes-BEV91yUj.js';
 import { E as EmphasisDirective, P as ParsedOrg, F as FillMode, R as RaciMarker, a as ParsedRaci, b as RaciVariant, c as RaciTask } from './chart-meta-CKCKSg9M.js';
 export { A as ALL_CHART_TYPES, I as ImportSource, O as OrgNode, d as RaciPhase, e as RaciRoleAssignment, f as ReadFileFn, g as ResolveImportsResult, h as contrastText, i as findOrgNodeIdByName, j as getSeriesColors, k as hexToHSL, l as hexToHSLString, m as hslToHex, n as mix, o as normalizePertSourceForShare, p as parseDgmoChartType, q as parseFirstLine, r as parseOrg, s as parseRaci, t as resolveOrgImports, u as shade, v as shapeFill, w as tint } from './chart-meta-CKCKSg9M.js';
 import { Selection } from 'd3-selection';
@@ -7689,9 +7689,8 @@ interface MapLayout {
     readonly projectionParams: MapProjectionParams;
     /** Non-uniform stretch applied for GLOBAL fits (null for regional fits). */
     readonly stretch: MapLayoutStretch | null;
-    /** Generic layout-time diagnostics channel — currently has no producers, so it
-     *  is always empty. Kept wired up because callers merge it with the resolver's
-     *  diagnostics for the editor lint channel. */
+    /** Layout-time diagnostics — callers merge it with the resolver's for the
+     *  editor lint channel. Today: `W_MAP_BINNED_CLASSES_MERGED` (#1988). */
     readonly diagnostics: readonly DgmoError[];
 }
 interface LayoutOptions {

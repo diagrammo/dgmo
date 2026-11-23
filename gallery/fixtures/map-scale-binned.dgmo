@@ -1,0 +1,29 @@
+map Unemployment by State
+region-heat Unemployment (%)
+scale binned 5
+
+California heat: 5.3
+Oregon heat: 4.1
+Washington heat: 4.6
+Nevada heat: 5.4
+Arizona heat: 4.0
+Utah heat: 2.8
+Idaho heat: 3.4
+Montana heat: 3.0
+Wyoming heat: 3.1
+Colorado heat: 3.8
+New Mexico heat: 4.0
+Texas heat: 4.1
+Oklahoma heat: 3.3
+Kansas heat: 3.5
+Nebraska heat: 2.5
+South Dakota heat: 1.9
+North Dakota heat: 2.2
+Minnesota heat: 3.0
+Iowa heat: 3.0
+Missouri heat: 3.4
+Illinois heat: 4.9
+Michigan heat: 4.3
+Ohio heat: 4.2
+Florida heat: 3.2
+New York heat: 4.4

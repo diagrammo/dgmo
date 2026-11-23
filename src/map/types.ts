@@ -1,3 +1,4 @@
+import type { BinnedScale } from './binning';
 // AST for the `map` chart type, produced by parseMap (src/map/parser.ts).
 // RAW + un-resolved: region/POI/edge names are verbatim strings; geocoding,
 // ISO/GeoNames validation, did-you-mean, dedup, and basemap/extent inference
@@ -29,8 +30,10 @@ export interface MapDirectives {
   regionMetricLowColor?: string;
   /** `scale diverging [<mid>]` — the region ramp splits at `mid` (default 0):
    *  the low colour below it, the high colour above, a neutral at `mid`, each
-   *  side spanning its own distance from `mid` (§24B.3, #1837). */
-  regionScale?: { kind: 'diverging'; mid: number };
+   *  side spanning its own distance from `mid` (§24B.3, #1837).
+   *  `scale binned <n>` / `scale binned <t1> <t2> …` — flat colour classes by
+   *  quantile or by the author's thresholds, with a stepped legend (#1988). */
+  regionScale?: { kind: 'diverging'; mid: number } | BinnedScale;
   /** Legend label for the POI value (marker size) channel (`poi-size`). */
   poiMetric?: string;
   /** Legend label for the edge/leg value (thickness) channel (`flow-width`). */
@@ -215,6 +218,12 @@ export interface MapLayoutLegend {
     entries: ReadonlyArray<{ value: string; color: string }>;
   }>;
   readonly activeGroup: string | null;
+  /** `scale binned` (#1988): the value group as flat classes — one swatch per
+   *  class, labelled with its range — drawn in place of the gradient `ramp`. */
+  readonly bins?: {
+    metric?: string;
+    entries: ReadonlyArray<{ value: string; color: string }>;
+  };
   readonly ramp?: {
     metric?: string;
     min: number;

@@ -217,9 +217,22 @@ export const MAP_DX = {
     chartType: 'map',
     title: 'Map scale not applied',
     message: (p) =>
-      `scale ${p.value ?? ''}: expected \`scale diverging\` or \`scale diverging <midpoint>\` — the line is ignored and the one-way ramp is used.`,
-    hint: 'Write `scale diverging 0` to colour regions below and above 0 in two hues, with a neutral at 0.',
+      `scale ${p.value ?? ''}: expected \`scale diverging [<midpoint>]\`, \`scale binned <2–9 classes>\` or \`scale binned\` with two to eight rising thresholds — the line is ignored and the one-way ramp is used.`,
+    hint: 'Write `scale diverging 0` for two hues split at 0, `scale binned 5` for five classes, or `scale binned 10 50 100` for classes cut at those values.',
     example: 'map\nscale binned\nCalifornia heat: 3',
+  },
+  BINNED_CLASSES_MERGED: {
+    // Runtime severity: 'warning'. Emitted by the layout when tied values (or
+    // more classes than distinct values) leave quantile classes empty; the
+    // empty ones merge so the legend promises no class without a region (#1988).
+    code: 'W_MAP_BINNED_CLASSES_MERGED',
+    severity: 'warning',
+    chartType: 'map',
+    title: 'Fewer map classes than requested',
+    message: (p) =>
+      `only ${String(p.got ?? '?')} distinct classes from ${String(p.asked ?? '?')} requested — tied values left the others empty, so they merged.`,
+    hint: 'Ask for fewer classes, or name the breaks yourself: `scale binned 1 5 10`.',
+    example: 'map\nscale binned 5\nTexas heat: 0\nOhio heat: 0\nUtah heat: 3',
   },
   NOTE_NO_ANCHOR: {
     // A `note` in column 1, or under a line that takes none (#2215).

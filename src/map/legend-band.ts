@@ -29,6 +29,19 @@ const LEGEND_BOTTOM_GAP = 10;
  *  one. Empty when the legend has neither a ramp nor any populated tag group. */
 export function mapLegendGroups(legend: MapLayoutLegend): LegendGroupData[] {
   const ramp = legend.ramp;
+  // `scale binned` (#1988): one swatch per class with its range, in place of
+  // the gradient — the same group name, so it stays the selectable value group.
+  if (legend.bins) {
+    const binGroup: LegendGroupData = {
+      // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- a blank metric name must still read 'Value'
+      name: legend.bins.metric?.trim() || 'Value',
+      entries: [...legend.bins.entries],
+    };
+    const rest: LegendGroupData[] = legend.tagGroups
+      .filter((g) => g.entries.length > 0)
+      .map((g) => ({ name: g.name, entries: [...g.entries] }));
+    return [binGroup, ...rest];
+  }
   // Reserved name "Value" when no region-heat label is set — must match
   // VALUE_NAME in layout.ts so the resolved activeGroup selects it.
   const scoreGroup: LegendGroupData | null = ramp

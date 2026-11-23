@@ -38,7 +38,9 @@ import { TITLE_FONT_SIZE, TITLE_Y } from '../utils/title-constants';
 import type { LegendMode } from '../utils/legend-types';
 import { mapLegendBand, mapLegendBox } from './legend-band';
 import type { MapLayoutLegend } from './types';
-import type { DgmoError } from '../diagnostics';
+import { emit, type DgmoError } from '../diagnostics';
+import { MAP_DX } from './diagnostics';
+import { computeMapBins } from './binning';
 import type { BoundaryTopology } from './data/types';
 import type {
   MapData,
@@ -617,9 +619,8 @@ export interface MapLayout {
   readonly projectionParams: MapProjectionParams;
   /** Non-uniform stretch applied for GLOBAL fits (null for regional fits). */
   readonly stretch: MapLayoutStretch | null;
-  /** Generic layout-time diagnostics channel — currently has no producers, so it
-   *  is always empty. Kept wired up because callers merge it with the resolver's
-   *  diagnostics for the editor lint channel. */
+  /** Layout-time diagnostics — callers merge it with the resolver's for the
+   *  editor lint channel. Today: `W_MAP_BINNED_CLASSES_MERGED` (#1988). */
   readonly diagnostics: readonly DgmoError[];
 }
 
@@ -1607,7 +1608,21 @@ export function layoutMap(
   // contrast. Equal-value data (rampMin === rampMax) falls back to t = 1 below.
   // `scale diverging <mid>` (#1837) widens the range to take `mid` in, so the
   // neutral always sits on the legend bar even when every value is one side.
-  const regionScale = resolved.directives.regionScale;
+  const scaleDirective = resolved.directives.regionScale;
+  const regionScale =
+    scaleDirective?.kind === 'diverging' ? scaleDirective : undefined;
+  // `scale binned` (#1988): flat classes instead of a continuous ramp.
+  const binnedScale =
+    scaleDirective?.kind === 'binned' ? scaleDirective : undefined;
+  const bins = binnedScale ? computeMapBins(values, binnedScale) : null;
+  const layoutDiagnostics: DgmoError[] = [];
+  if (binnedScale && bins?.requested !== undefined)
+    layoutDiagnostics.push(
+      emit(MAP_DX.BINNED_CLASSES_MERGED, binnedScale.line, {
+        got: bins.bins.length,
+        asked: bins.requested,
+      })
+    );
   const rampMin =
     values.length > 0
       ? Math.min(...values, ...(regionScale ? [regionScale.mid] : []))
@@ -1835,7 +1850,31 @@ export function layoutMap(
     regionScale && rampMax > rampMin
       ? (regionScale.mid - rampMin) / (rampMax - rampMin)
       : 0.5;
+  // A class's flat colour: slots spread evenly over the ramp. With one colour
+  // the palest end is skipped, so the lowest class still reads on the page.
+  const binColor = (slot: number, slots: number): string => {
+    if (rampLow !== undefined)
+      return valueRampColor(
+        rampLow,
+        rampHue,
+        slots > 1 ? slot / (slots - 1) : 1,
+        {
+          isDark,
+        }
+      );
+    const t = (slot + 1) / slots;
+    return mix(rampHue, rampBase, RAMP_FLOOR + t * (100 - RAMP_FLOOR));
+  };
+  const binLabelOf = (s: number): string | undefined => {
+    if (!bins) return undefined;
+    const i = bins.binOf(s);
+    return i >= 0 ? bins.bins[i]!.label : undefined;
+  };
   const fillForValue = (s: number): string => {
+    if (bins) {
+      const i = bins.binOf(s);
+      return i >= 0 ? binColor(bins.bins[i]!.slot, bins.slots) : neutralFill;
+    }
     if (regionScale && divergingLow !== undefined) {
       const mid = regionScale.mid;
       if (s < mid) {
@@ -1979,24 +2018,37 @@ export function layoutMap(
       legend = {
         tagGroups: legendTagGroups,
         activeGroup,
-        ...(hasRamp && {
-          ramp: {
-            ...(resolved.directives.regionMetric !== undefined && {
-              metric: resolved.directives.regionMetric,
-            }),
-            min: rampMin,
-            max: rampMax,
-            low: divergingLow ?? rampLow ?? rampLowFloor,
-            high: rampHue,
-            ...(divergingLow !== undefined && {
-              stops: [
-                { offset: 0, color: divergingLow },
-                { offset: divergingMidAt, color: rampBase },
-                { offset: 1, color: rampHue },
-              ],
-            }),
-          },
-        }),
+        ...(hasRamp &&
+          bins && {
+            bins: {
+              ...(resolved.directives.regionMetric !== undefined && {
+                metric: resolved.directives.regionMetric,
+              }),
+              entries: bins.bins.map((b) => ({
+                value: b.label,
+                color: binColor(b.slot, bins.slots),
+              })),
+            },
+          }),
+        ...(hasRamp &&
+          !bins && {
+            ramp: {
+              ...(resolved.directives.regionMetric !== undefined && {
+                metric: resolved.directives.regionMetric,
+              }),
+              min: rampMin,
+              max: rampMax,
+              low: divergingLow ?? rampLow ?? rampLowFloor,
+              high: rampHue,
+              ...(divergingLow !== undefined && {
+                stops: [
+                  { offset: 0, color: divergingLow },
+                  { offset: divergingMidAt, color: rampBase },
+                  { offset: 1, color: rampHue },
+                ],
+              }),
+            },
+          }),
       };
     }
   }
@@ -2580,6 +2632,12 @@ export function layoutMap(
         // Fill by the ACTIVE colouring dimension (score ramp or tag group).
         fill = regionFill(r);
         tags = effectiveTags(r.tags, regionDefaultGroups);
+        // A binned region carries its class under the value group, so
+        // hovering a legend class picks out its regions (#1988).
+        const binLabel =
+          r.value !== undefined && VALUE_NAME ? binLabelOf(r.value) : undefined;
+        if (binLabel !== undefined && VALUE_NAME)
+          tags = { ...tags, [VALUE_NAME]: binLabel };
         lineNumber = r.lineNumber;
         layer = layerKind;
         label = r.name;
@@ -4160,6 +4218,6 @@ export function layoutMap(
     insetRegions,
     projectionParams: captureMapProjection(projectionSpec, projection),
     stretch: stretchParams,
-    diagnostics: [],
+    diagnostics: layoutDiagnostics,
   };
 }

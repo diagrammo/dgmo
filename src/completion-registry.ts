@@ -1336,8 +1336,8 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       },
       scale: {
         description:
-          'Region colours split at a midpoint: two hues meeting at a neutral (scale diverging 0)',
-        values: ['diverging'],
+          'Region colours split at a midpoint (scale diverging 0), or flat classes: a count (scale binned 5) or thresholds (scale binned 10 50 100)',
+        values: ['diverging', 'binned'],
       },
       'poi-size': {
         description:
