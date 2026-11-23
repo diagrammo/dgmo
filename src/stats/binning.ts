@@ -23,6 +23,13 @@ export function cleanEdge(v: number): number {
 const ROUND_STEPS = [1, 2, 2.5, 5] as const;
 
 /**
+ * The most bins one histogram draws. A narrower `bin-width` or a larger
+ * `bins` is refused by the parser (#2261); the binning helpers below also
+ * hold to it, so a direct caller cannot build millions of edges.
+ */
+export const MAX_HISTOGRAM_BINS = 1000;
+
+/**
  * The smallest round width at or above `w`: 1, 2, 2.5 or 5 × 10ⁿ.
  * `w` ≤ 0 or not finite gives 1.
  */
@@ -97,6 +104,8 @@ export function edgesForWidth(
   const k0 = start !== undefined ? 0 : Math.floor((lo - base) / width + 1e-9);
   let k1 = Math.ceil((hi - base) / width - 1e-9);
   if (k1 <= k0) k1 = k0 + 1;
+  // Backstop for #2261: never more than MAX_HISTOGRAM_BINS bins.
+  if (!(k1 - k0 <= MAX_HISTOGRAM_BINS)) k1 = k0 + MAX_HISTOGRAM_BINS;
   const edges: number[] = [];
   for (let k = k0; k <= k1; k++) edges.push(cleanEdge(base + k * width));
   return edges;
@@ -160,11 +169,17 @@ export function histogramEdges(
   }
   if (!Number.isFinite(lo)) return { edges: [], width: 0 };
   if (rule.start !== undefined) lo = Math.max(lo, rule.start);
-  const width =
+  let width =
     rule.width ??
     (rule.count !== undefined
-      ? niceStep(rule.start ?? lo, hi, rule.count)
+      ? niceStep(rule.start ?? lo, hi, Math.min(rule.count, MAX_HISTOGRAM_BINS))
       : freedmanDiaconisWidth(pooled));
+  // A width that would need more than MAX_HISTOGRAM_BINS bins (a tiny
+  // bin-width, or a bin-start far below the data) widens to the round width
+  // that fits (#2261).
+  const span = hi - (rule.start ?? lo);
+  if (span / width > MAX_HISTOGRAM_BINS)
+    width = roundWidthUp(span / MAX_HISTOGRAM_BINS);
   return { edges: edgesForWidth(lo, hi, width, rule.start), width };
 }
 

@@ -10,6 +10,7 @@
 import type { DgmoError, DiagnosticSpec } from '../diagnostics';
 import { emit } from '../diagnostics';
 import { normalizeNumericToken } from '../utils/parsing';
+import { MAX_HISTOGRAM_BINS } from '../stats/binning';
 
 export const HISTOGRAM_DX = {
   NOT_A_NUMBER: {
@@ -71,6 +72,16 @@ export const HISTOGRAM_DX = {
       `bins needs a whole number of 1 or more, not '${(p.value as string) ?? ''}'. The automatic width is used.`,
     hint: 'Write about how many bins to draw: bins 10. For an exact width, use bin-width.',
     example: 'histogram Delivery time\nbins 0\n12 15 17',
+  },
+  TOO_MANY_BINS: {
+    code: 'E_HISTOGRAM_TOO_MANY_BINS',
+    severity: 'error',
+    chartType: 'histogram',
+    title: 'More bins than a histogram can draw',
+    message: (p) =>
+      `${(p.what as string) ?? 'This line'} would make ${(p.count as string) ?? 'too many'} bins; a histogram draws at most ${MAX_HISTOGRAM_BINS}. The automatic width is used.`,
+    hint: `Use a wider bin-width, or bins ${MAX_HISTOGRAM_BINS} or fewer.`,
+    example: 'histogram Delivery time\nbin-width 0.001\n0 1000',
   },
   BAD_BIN_START: {
     code: 'E_HISTOGRAM_BAD_BIN_START',
@@ -246,6 +257,15 @@ export function parseHistogramLine(
         );
         return true;
       }
+      if (v > MAX_HISTOGRAM_BINS) {
+        diagnostics.push(
+          emit(HISTOGRAM_DX.TOO_MANY_BINS, lineNumber, {
+            what: `bins ${rest}`,
+            count: rest,
+          })
+        );
+        return true;
+      }
       state.bins.count = v;
       state.bins.countLine = lineNumber;
     } else {
@@ -400,6 +420,27 @@ export function settleHistogram(
   state.groups = state.groups.filter(
     (g) => g.values.length > 0 || g.ranges.length > 0
   );
+  if (bins.width !== undefined) {
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (const g of state.groups)
+      for (const v of g.values) {
+        if (v < lo) lo = v;
+        if (v > hi) hi = v;
+      }
+    const from = bins.start ?? lo;
+    const count = Math.ceil((hi - from) / bins.width);
+    if (Number.isFinite(lo) && count > MAX_HISTOGRAM_BINS) {
+      diagnostics.push(
+        emit(HISTOGRAM_DX.TOO_MANY_BINS, bins.widthLine ?? 1, {
+          what: `bin-width ${fmt(bins.width)}`,
+          count: count.toLocaleString('en-US'),
+        })
+      );
+      delete bins.width;
+      delete bins.widthLine;
+    }
+  }
   if (bins.start !== undefined) {
     const below = state.groups
       .flatMap((g) => g.values)

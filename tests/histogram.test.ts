@@ -6,6 +6,7 @@ import {
   edgesForWidth,
   freedmanDiaconisWidth,
   histogramEdges,
+  MAX_HISTOGRAM_BINS,
   niceStep,
   roundWidthUp,
 } from '../src/stats/binning';
@@ -184,6 +185,37 @@ describe('histogram parser', () => {
     expect(codes('histogram T\nbin-start 5\n1 6')).toEqual([
       'W_HISTOGRAM_BELOW_START',
     ]);
+  });
+
+  // #2261: a tiny bin-width or a huge bins built millions of edges and ran
+  // the heap out. Both are refused, and the binning itself is capped.
+  it('refuses more bins than a histogram can draw', () => {
+    expect(codes('histogram T\nbin-width 0.001\n0 1000')).toEqual([
+      'E_HISTOGRAM_TOO_MANY_BINS',
+    ]);
+    expect(codes('histogram T\nbins 1000000000\n0 1000')).toEqual([
+      'E_HISTOGRAM_TOO_MANY_BINS',
+    ]);
+    expect(codes(`histogram T\nbins ${MAX_HISTOGRAM_BINS}\n0 1000`)).toEqual(
+      []
+    );
+    expect(codes('histogram T\nbin-width 1\n0 1000')).toEqual([]);
+    const p = parseHistogram('histogram T\nbin-width 0.00001\n0 1000');
+    expect(p.histogramBins?.width).toBeUndefined();
+  });
+
+  it('caps the edge count however the width is asked for', () => {
+    const cap = MAX_HISTOGRAM_BINS + 1;
+    expect(edgesForWidth(0, 1000, 0.00001).length).toBe(cap);
+    expect(
+      histogramEdges([0, 1000], { width: 0.00001 }).edges.length
+    ).toBeLessThanOrEqual(cap);
+    expect(
+      histogramEdges([0, 1000], { count: 1e9 }).edges.length
+    ).toBeLessThanOrEqual(cap);
+    expect(
+      histogramEdges([0, 10], { width: 1, start: -1e12 }).edges.length
+    ).toBeLessThanOrEqual(cap);
   });
 
   it('bins and bin-width together keep the exact width', () => {
