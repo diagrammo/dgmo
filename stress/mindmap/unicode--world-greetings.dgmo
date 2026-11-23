@@ -1,0 +1,33 @@
+mindmap Greetings Around the World
+// stress: unicode — CJK, Hangul, Devanagari, Arabic, Hebrew, Thai and emoji nodes in one tree
+
+Greetings
+  East Asia
+    日本語
+      おはようございます
+      こんばんは 🌙
+    한국어
+      안녕하세요
+      좋은 하루 되세요
+    中文
+      你好，很高兴认识你
+  South Asia
+    हिन्दी
+      नमस्ते
+      आपका स्वागत है
+    தமிழ்
+      வணக்கம்
+  Middle East
+    العربية
+      صباح الخير
+      مرحبا بكم في مدينتنا
+    עברית
+      שלום וברוכים הבאים
+  Southeast Asia
+    ไทย
+      สวัสดีครับ
+    Tiếng Việt
+      Xin chào các bạn
+  Emoji
+    👋🌍
+    🙏✨

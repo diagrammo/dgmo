@@ -1,0 +1,63 @@
+class Ecommerce Domain Model
+// stress: many-items — twenty-two classes with inheritance, composition and association edges crossing
+
+Customer
+  id: string
+  email: string
+  *-- Address
+  ->  Order : places
+  ->  Cart : owns
+Address
+  street: string
+  city: string
+Cart
+  items: CartItem[]
+  *-- CartItem
+CartItem
+  quantity: number
+  ->  Product : refers to
+Order
+  placedAt: Date
+  *-- OrderLine
+  ->  Payment : settled by
+  ->  Shipment : fulfilled by
+OrderLine
+  quantity: number
+  ->  Product
+Product
+  sku: string
+  price: number
+  ->  Category : belongs to
+  ->  Supplier : supplied by
+Category
+  name: string
+  o-- Category : parent
+Supplier
+  name: string
+Payment
+  amount: number
+CardPayment extends Payment
+  last4: string
+BankTransfer extends Payment
+  iban: string
+Shipment
+  trackingNumber: string
+  ->  Carrier : carried by
+Carrier
+  name: string
+Discount
+  code: string
+  ..> Order : applies to
+Review
+  rating: number
+  ->  Product : about
+  ->  Customer : written by
+Wishlist
+  ->  Product : lists
+  ->  Customer : kept by
+Warehouse
+  location: string
+  ->  Product : stocks
+Invoice
+  number: string
+  ->  Order : bills
