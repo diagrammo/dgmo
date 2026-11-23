@@ -197,6 +197,15 @@ export async function render(
 
 export { validate };
 
+// The file's own canvas — its `size` / `aspect` line (#1966). `render()` and
+// `validate()` lift it already; a host drawing with the per-type renderers
+// lifts it with this, so the line never reaches a parser as content.
+export {
+  extractCanvasSizeDirective,
+  resolveCanvasSize,
+} from './canvas-size-directive';
+export type { CanvasSizeDirective } from './canvas-size-directive';
+
 // ============================================================
 // formatDgmoError(err)
 // ============================================================

@@ -10,7 +10,10 @@ import { parseVisualization } from './visualizations/parse';
 // its address for consumers and tests.
 import { parseDgmoChartType } from './chart-type-detect';
 import { extractPaletteDirective } from './palettes/directive';
-import { extractCanvasSizeDirective } from './canvas-size-directive';
+import {
+  extractCanvasSizeDirective,
+  resolveCanvasSize,
+} from './canvas-size-directive';
 import { liftUnsupportedHighlight } from './utils/emphasis';
 import { detectBorrowedArrows } from './utils/borrowed-arrows';
 export {
@@ -112,6 +115,13 @@ const ALL_KNOWN_TYPES: ReadonlySet<string> = new Set(knownChartTypeIds);
 export function parseDgmo(content: string): {
   diagnostics: DgmoError[];
   chartType: string | null;
+  /**
+   * The canvas the file's own `size` / `aspect` line asks for, in canvas px,
+   * or null when it has neither (#1966). An `aspect` line alone takes the
+   * 1200px export width, as `render()` does with no caller width. A host
+   * drawing with the per-type renderers sizes its chart from this.
+   */
+  canvas: { width: number; height: number } | null;
 } {
   // Dedupe at the parse boundary so one offending line never reports the same
   // problem N times — keeps the fix-loop signal clean for the CLI, the editor,
@@ -135,7 +145,16 @@ export function parseDgmo(content: string): {
     // hint travels however the diagnostic was constructed. See its own comment.
     diagnostics: attachHints(dedupeDiagnostics(result.diagnostics)),
     chartType: result.chartType,
+    canvas: fileCanvas(sized),
   };
+}
+
+/** The file's canvas, from its lifted `size` / `aspect` line, or null. */
+function fileCanvas(
+  sized: ReturnType<typeof extractCanvasSizeDirective>
+): { width: number; height: number } | null {
+  const { width, height } = resolveCanvasSize(sized, {});
+  return width !== undefined && height !== undefined ? { width, height } : null;
 }
 
 function parseDgmoUndeduped(content: string): {

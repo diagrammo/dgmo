@@ -1,13 +1,46 @@
-import { P as PaletteConfig, C as CompactViewState } from './chart-types-ByqRh1tN.js';
-export { a as ChartTypeId, b as ChartTypeMeta, c as PaletteColors, d as chartTypes, g as getPalette, r as resolvePaletteOrFallback } from './chart-types-ByqRh1tN.js';
-import { T as Theme } from './themes-QR-BD41Y.js';
-export { E as EncodeInkOptions, I as INK_DEFAULT_TOLERANCE, a as INK_PRESSURE_LEVELS, b as InkDecodeResult, c as InkPoint, M as MapCompletionOptions, d as MapLocationMatch, e as MapPlaceCompletion, f as MapRegionCompletion, g as completeMapPlaces, h as completeMapRegions, i as decodeInk, j as encodeInk, p as palettes, s as searchMapLocations, t as themes, k as validate } from './themes-QR-BD41Y.js';
+import { P as PaletteConfig, C as CompactViewState } from './chart-types-SYVU-5Sy.js';
+export { a as ChartTypeId, b as ChartTypeMeta, c as PaletteColors, d as chartTypes, g as getPalette, r as resolvePaletteOrFallback } from './chart-types-SYVU-5Sy.js';
+import { T as Theme } from './themes-VpG-qdJW.js';
+export { E as EncodeInkOptions, I as INK_DEFAULT_TOLERANCE, a as INK_PRESSURE_LEVELS, b as InkDecodeResult, c as InkPoint, M as MapCompletionOptions, d as MapLocationMatch, e as MapPlaceCompletion, f as MapRegionCompletion, g as completeMapPlaces, h as completeMapRegions, i as decodeInk, j as encodeInk, p as palettes, s as searchMapLocations, t as themes, k as validate } from './themes-VpG-qdJW.js';
 import { M as MapDataSource } from './export-context-CJlnaENO.js';
 export { G as Gazetteer, a as GazetteerEntry, b as MapData, R as RegionName, c as RegionNames } from './export-context-CJlnaENO.js';
-import { a as DiagnosticSpec, D as DgmoError } from './tag-groups-B4RSR_mP.js';
+import { D as DgmoError, a as DiagnosticSpec } from './tag-groups-B4RSR_mP.js';
 export { b as DgmoFix, c as DgmoSeverity, d as DiagnosticParams, E as EmitOptions, e as emit, f as formatDgmoError } from './tag-groups-B4RSR_mP.js';
 export { a as GLYPH_STROKE, b as GLYPH_VIEWBOX, c as GlyphName, g as glyphPaths } from './registry-B4obA3gD.js';
 export { f as foldAtLine } from './fold-at-line-DmSAa1eU.js';
+
+interface CanvasSizeDirective {
+    /** The source with every lifted `size` / `aspect` line turned into `//`. */
+    content: string;
+    /** `size WxH` — both dimensions, in canvas px. */
+    size?: {
+        width: number;
+        height: number;
+    };
+    /** `aspect W:H` — the ratio of width to height. */
+    aspect?: {
+        width: number;
+        height: number;
+    };
+    diagnostics: DgmoError[];
+}
+/**
+ * Lift the file's `size` and `aspect` lines. `chartType` is the detected
+ * chart type, or null; it decides only the wordcloud exception.
+ */
+declare function extractCanvasSizeDirective(content: string, chartType: string | null): CanvasSizeDirective;
+/**
+ * The canvas to draw onto: the caller's width and height first, one
+ * dimension at a time, then the file's `size` or `aspect`. An `aspect`
+ * sets the height from the width — the caller's, or `EXPORT_WIDTH`.
+ */
+declare function resolveCanvasSize(directive: Pick<CanvasSizeDirective, 'size' | 'aspect'>, asked: {
+    width?: number | undefined;
+    height?: number | undefined;
+}): {
+    width?: number;
+    height?: number;
+};
 
 /**
  * Make an SVG produced by `@diagrammo/dgmo`'s static `render()` suitable for
@@ -381,5 +414,5 @@ interface DecodedDiagramUrl {
  */
 declare function decodeDiagramUrl(url: string): DecodedDiagramUrl | null;
 
-export { CompactViewState, D3_DATA_CHART_TYPES, DgmoError, DiagnosticSpec, EXPORT_FIT_PAD, MapDataSource, PaletteConfig, Theme, applyCollapsedMarker, applyCollapsedMarkerAtLine, applyGroupHeaderCollapsedMarkerAtLine, applyIndentedGroupCollapsedMarkerAtLine, applyNoteCollapsedMarkerAtLine, attachDataChartInteractions, decodeDiagramUrl, defaultEmbedBackground, encodeDiagramUrl, fitSvgToContent, getDiagnosticSpec, getEmbedSvgViewBox, listDiagnosticCodes, measureSvgContent, mountD3DataChart, normalizeSvgForEmbed, render, sanitizeSvgInPlace, supportsD3DataChart };
-export type { ContentMeasurement, DataChartInteractionOpts, DecodedDiagramUrl, EncodeDiagramUrlOptions, FitSvgToContentOptions, MountD3Opts, MountedD3Chart, NormalizeSvgForEmbedOptions, RenderOptions, RenderResult };
+export { CompactViewState, D3_DATA_CHART_TYPES, DgmoError, DiagnosticSpec, EXPORT_FIT_PAD, MapDataSource, PaletteConfig, Theme, applyCollapsedMarker, applyCollapsedMarkerAtLine, applyGroupHeaderCollapsedMarkerAtLine, applyIndentedGroupCollapsedMarkerAtLine, applyNoteCollapsedMarkerAtLine, attachDataChartInteractions, decodeDiagramUrl, defaultEmbedBackground, encodeDiagramUrl, extractCanvasSizeDirective, fitSvgToContent, getDiagnosticSpec, getEmbedSvgViewBox, listDiagnosticCodes, measureSvgContent, mountD3DataChart, normalizeSvgForEmbed, render, resolveCanvasSize, sanitizeSvgInPlace, supportsD3DataChart };
+export type { CanvasSizeDirective, ContentMeasurement, DataChartInteractionOpts, DecodedDiagramUrl, EncodeDiagramUrlOptions, FitSvgToContentOptions, MountD3Opts, MountedD3Chart, NormalizeSvgForEmbedOptions, RenderOptions, RenderResult };
