@@ -18,6 +18,7 @@ import type { ParsedChart } from '../chart';
 import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
 import { contrastText, shapeFill, themeBaseBg } from '../palettes/color-utils';
+import { resolveColor } from '../colors';
 import { annotationValues } from '../annotations/parse';
 import { divergingSpans } from '../utils/diverging';
 import { shareText, toShares } from '../utils/stack-share';
@@ -258,6 +259,14 @@ export function renderBar(
   const target = stacked ? undefined : targetOf(chart.overlays);
   const missesTarget = (v: number) =>
     !!target && !reachesTarget(v, target.value!, target.below);
+  // `target 100 green`: a bar that reaches it takes the named colour.
+  const targetPaint = target?.color
+    ? (resolveColor(target.color, palette) ?? undefined)
+    : undefined;
+  const metColor = (v: number) =>
+    target && targetPaint && reachesTarget(v, target.value!, target.below)
+      ? targetPaint
+      : undefined;
   const recedes = (category: string, series: string, v: number) =>
     (dimmed.has(category) && (!multiSeries || dimmed.has(series))) ||
     missesTarget(v);
@@ -727,7 +736,7 @@ export function renderBar(
   const overlayLabels = [
     ...drawOverlayLevels(
       svg,
-      overlayLevels(overlays, overlaySeries, fmt, palette.colors.red),
+      overlayLevels(overlays, overlaySeries, fmt, palette.colors.red, palette),
       annotationFrame
     ),
     ...drawOverlayPaths(
@@ -922,7 +931,11 @@ export function renderBar(
     let accPos = 0;
     let accNeg = 0;
     vals.forEach((v, s) => {
-      const own = colorFor(s, v, seriesCount === 1 ? d.color : undefined);
+      const own = colorFor(
+        s,
+        v,
+        metColor(v) ?? (seriesCount === 1 ? d.color : undefined)
+      );
       const sName = seriesNames[s] ?? '';
       const recede = recedes(d.label, sName, v);
       const stroke = !story.active

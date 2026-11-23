@@ -41,6 +41,7 @@ import {
   movingAverage,
   roundStat,
 } from './compute';
+import { resolveColor } from '../colors';
 import type { ChartOverlay, OverlayKind } from './types';
 
 /** Gap between a line and its label. */
@@ -438,7 +439,8 @@ export function overlayLevels(
   overlays: readonly ChartOverlay[] | undefined,
   series: readonly OverlaySeries[],
   fmt: (v: number) => string,
-  targetColor: string
+  targetColor: string,
+  palette?: { colors: Record<string, string> }
 ): OverlayLevel[] {
   const out: OverlayLevel[] = [];
   for (const o of overlays ?? []) {
@@ -447,7 +449,7 @@ export function overlayLevels(
         kind: o.kind,
         value: o.value!,
         label: `target ${fmt(o.value!)}`,
-        color: targetColor,
+        color: (o.color ? resolveColor(o.color, palette) : null) ?? targetColor,
         lineNumber: o.lineNumber,
       });
       continue;

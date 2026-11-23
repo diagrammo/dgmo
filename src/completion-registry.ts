@@ -221,7 +221,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       },
       target: {
         description:
-          'Line at a goal; bars that reach it stay lit (target 100, target 5 below)',
+          'Line at a goal; bars that reach it stay lit (target 100, target 5 below, target 100 green)',
       },
       pareto: {
         description:
@@ -292,7 +292,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       },
       target: {
         description:
-          'Line at a goal; points that reach it are filled (target 100, target 5 below)',
+          'Line at a goal; points that reach it are filled (target 100, target 5 below, target 100 green)',
       },
       'moving-average': {
         description:

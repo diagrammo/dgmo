@@ -809,7 +809,8 @@ export function renderLine(
           : chart.overlays,
         series,
         sideFmt,
-        palette.colors.red
+        palette.colors.red,
+        palette
       );
       overlayLabels.push(
         ...drawOverlayLevels(svg, levels, frame, overlayTrace),
@@ -1104,6 +1105,11 @@ export function renderLine(
       const lit = target
         ? reachesTarget(p.v, target.value!, target.below)
         : null;
+      // `target 100 green`: a point that reaches it takes the named colour.
+      const dotColor =
+        lit && target?.color
+          ? (resolveColor(target.color, palette) ?? color)
+          : color;
       const high = extremeAt.get(`${s}:${p.xIndex}`);
       // A dot that carries data — a target reached, an extreme — always
       // stays; the rest drop when dense, and hover grows the nearest one.
@@ -1145,8 +1151,8 @@ export function renderLine(
         .attr('cy', yy(p.y))
         // A stacked area, or dense points, mark none at rest (#2203).
         .attr('r', cut ? 0 : rest)
-        .attr('fill', lit ? color : bgColor)
-        .attr('stroke', lit === false ? story.groundStroke : color)
+        .attr('fill', lit ? dotColor : bgColor)
+        .attr('stroke', lit === false ? story.groundStroke : dotColor)
         .attr('stroke-width', 2);
       if (high !== undefined)
         extremeMarks.push({

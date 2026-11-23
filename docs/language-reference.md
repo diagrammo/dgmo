@@ -3344,7 +3344,7 @@ May 360
 | ------------------ | ---------------- | --------------------------------------------------------------------------------------------------------------- |
 | `mean`             | line, bar        | a dashed horizontal line at the mean                                                                            |
 | `median`           | line, bar        | a dotted horizontal line at the median                                                                          |
-| `target N`         | line, bar        | a line at N; bars and points that reach it are lit, the rest go grey                                            |
+| `target N`         | line, bar        | a line at N; bars and points that reach it are lit, the rest go grey; `target N below green` paints what met it |
 | `target N below`   | line, bar        | the same, but at or under N is good (costs, error rates)                                                        |
 | `trend`            | line, bar        | a dashed least-squares line through each series, labelled with its slope per x step                             |
 | `moving-average N` | line             | each series' trailing N-point average, drawn heavier; the raw line stays, drawn thinner                         |

@@ -7,6 +7,7 @@
 
 import type { DgmoError, DiagnosticSpec } from '../diagnostics';
 import { emit, suggest } from '../diagnostics';
+import { isRecognizedColorName } from '../colors';
 import { normalizeNumericToken } from '../utils/parsing';
 import type { ChartOverlay, OverlayKind } from './types';
 
@@ -138,19 +139,32 @@ export function parseOverlayLine(
   const kind = head as OverlayKind;
   if (kind === 'target') {
     const value = num(tokens[1]);
-    const tail = tokens.slice(2);
+    let tail = tokens.slice(2);
+    // A trailing colour word, as on `highlight`: `target 100 green`.
+    const colorWord = tail[tail.length - 1]?.toLowerCase();
+    const color =
+      colorWord !== undefined && isRecognizedColorName(colorWord)
+        ? colorWord
+        : undefined;
+    if (color) tail = tail.slice(0, -1);
     const below = tail.length === 1 && tail[0] === 'below';
     if (value === null || (tail.length > 0 && !below)) {
       diagnostics.push(
         emit(OVERLAY_BAD_N_DX, lineNumber, {
           overlay: 'target',
-          need: 'a value, then `below` if lower is better',
-          form: 'target 100',
+          need: 'a value, then `below` if lower is better, then a colour name',
+          form: 'target 100 below green',
         })
       );
       return true;
     }
-    return { kind, value, ...(below && { below }), lineNumber };
+    return {
+      kind,
+      value,
+      ...(below && { below }),
+      ...(color && { color }),
+      lineNumber,
+    };
   }
   if (kind === 'moving-average') {
     const n = num(tokens[1]);

@@ -120,6 +120,21 @@ describe('overlay parsing', () => {
     const p = parseChart(`bar X\ntarget 100 above\nA 1`);
     expect(p.diagnostics.map((d) => d.code)).toEqual(['E_OVERLAY_BAD_N']);
   });
+  it('target takes a trailing colour, with or without below', () => {
+    const a = parseChart(`bar X\ntarget 100 green\nA 1`);
+    expect(a.overlays).toEqual([
+      { kind: 'target', value: 100, color: 'green', lineNumber: 2 },
+    ]);
+    const b = parseChart(`bar X\ntarget 5 below Red\nA 1`);
+    expect(b.overlays).toEqual([
+      { kind: 'target', value: 5, below: true, color: 'red', lineNumber: 2 },
+    ]);
+    expect(a.diagnostics).toEqual([]);
+  });
+  it('target with an unknown colour word is an error', () => {
+    const p = parseChart(`bar X\ntarget 100 teal-ish\nA 1`);
+    expect(p.diagnostics.map((d) => d.code)).toEqual(['E_OVERLAY_BAD_N']);
+  });
   it('average is not a synonym for mean', () => {
     const p = parseChart(`line X\naverage\nA 1\nB 2`);
     expect(p.overlays).toBeUndefined();
@@ -219,6 +234,30 @@ Q8 57 32`);
         .getAttribute('fill');
     expect(fill('South')).toBe(fill('West'));
     expect(fill('South')).not.toBe(fill('North'));
+  });
+  it('a coloured target paints lit bars, the line and its label', async () => {
+    const plain = await draw(SALES);
+    const svg = await draw(SALES.replace('target 100', 'target 100 green'));
+    const fillOf = (s: Element, name: string) =>
+      [...s.querySelectorAll('rect.dgmo-datum')]
+        .find((r) => r.getAttribute('data-name') === name)!
+        .getAttribute('fill');
+    expect(fillOf(svg, 'North')).not.toBe(fillOf(plain, 'North'));
+    expect(fillOf(svg, 'South')).toBe(fillOf(plain, 'South'));
+    const line = svg.querySelector('g.dgmo-overlay-target line')!;
+    const plainLine = plain.querySelector('g.dgmo-overlay-target line')!;
+    expect(line.getAttribute('stroke')).not.toBe(
+      plainLine.getAttribute('stroke')
+    );
+  });
+  it('a coloured target on a line paints the points that reach it', async () => {
+    const svg = await draw(`line X\ntarget 400 green\n\n${rows(SIGNUPS)}`);
+    const pts = [...svg.querySelectorAll('circle.dgmo-pt')];
+    const filled = pts.filter(
+      (c) => c.getAttribute('fill') === c.getAttribute('stroke')
+    );
+    expect(filled.length).toBeGreaterThan(0);
+    expect(new Set(filled.map((c) => c.getAttribute('stroke'))).size).toBe(1);
   });
   it('a target beyond the data widens the value axis to it', async () => {
     const svg = await draw(`bar X\ntarget 500\nA 100\nB 120`);
