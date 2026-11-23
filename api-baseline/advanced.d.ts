@@ -734,6 +734,11 @@ interface ParsedChart {
      *  baseline at 0 (magnitude honesty / old ECharts-parity behavior). By
      *  default a line chart fits a padded data-min→max window (§15.1). */
     noAutoY?: boolean;
+    /** Line and bar (#2208): on a time axis, keep joining the line across a
+     *  gap longer than three median intervals instead of breaking it. */
+    joinGaps?: boolean;
+    /** Line of the `join-gaps` flag, for its diagnostics. */
+    joinGapsLineNumber?: number;
     /** Line only (#1880): draw each series as steps. `after` (bare `step`)
      *  starts a value on its own x; `before` (`step-before`) reaches it there. */
     step?: 'after' | 'before';
@@ -1175,7 +1180,11 @@ interface ParsedFunction {
 }
 interface ParsedScatterPoint {
     name: string;
+    /** Numeric x; for a time x (`xLabel` set) days since epoch, or fractions
+     *  of a day for a bare time. The renderer reads `xLabel`, not this. */
     x: number;
+    /** A time x as written (`2026-11-21 06:30`, `12:30`): the point sits on a time axis. */
+    xLabel?: string;
     y: number;
     size?: number;
     color?: string;

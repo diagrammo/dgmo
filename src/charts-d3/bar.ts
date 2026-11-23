@@ -11,6 +11,7 @@
 // ============================================================
 
 import { scaleBand } from 'd3-scale';
+import { buildDateAxis, timeLabelsOf } from './date-axis';
 import { axisTickFormat, buildValueAxis, labelledTicks } from './value-axis';
 import { max as d3max, min as d3min } from 'd3-array';
 import type { ParsedChart } from '../chart';
@@ -99,6 +100,14 @@ const LABEL_REGION_SHARE = 0.35;
 const PLOT_MIN_SHARE = 0.6;
 /** A vertical bar axis this short flips horizontal rather than rotate (#1828). */
 const FLIP_MAX_CATEGORIES = NEVER_THIN_MAX;
+/** A time axis keeps its end bars at least this far in from the plot edge. */
+const DATE_AXIS_INSET = 16;
+/** The category axis: a band per label, or a bar at each row's time. */
+type CatScale = ((label: string) => number | undefined) & {
+  bandwidth(): number;
+  step(): number;
+  paddingInner(): number;
+};
 /** Most lines one horizontal-bar name may wrap to before it ends in `…`. */
 const NAME_MAX_LINES = 3;
 /** Baseline-to-baseline distance of a wrapped name's lines. */
@@ -371,18 +380,28 @@ export function renderBar(
         return c?.dir === 1 ? [c.total] : [];
       })
     : perCat.flat().filter(cutHi);
-  const verticalFit = authoredHorizontal
-    ? null
-    : planLabelsFitLeft(
-        catLabels,
-        computeLeftMargin(chart.ylabel, valueTicks, { tabular: true }),
-        (ml) => width - ml - mRight,
-        (pw) => (data.length === 0 ? Infinity : pw / data.length),
-        // scaleBand padding 0.3: first centre sits 0.65 steps in
-        (pw) => (pw / (data.length + 0.3)) * 0.65,
-        TICK_FONT,
-        labelCap
-      );
+  // A time axis when every row is a date, date-time or bare time (#2208):
+  // each bar stands at its time, to scale. Horizontal, pareto, diverging and
+  // lollipop bars stay categorical. A time axis never flips: its ticks are
+  // short, and there is no name to fit.
+  const timeLabels =
+    authoredHorizontal || pareto || diverging || chart.lollipop
+      ? null
+      : timeLabelsOf(catLabels);
+  const dates = timeLabels?.dates ?? null;
+  const verticalFit =
+    authoredHorizontal || dates
+      ? null
+      : planLabelsFitLeft(
+          catLabels,
+          computeLeftMargin(chart.ylabel, valueTicks, { tabular: true }),
+          (ml) => width - ml - mRight,
+          (pw) => (data.length === 0 ? Infinity : pw / data.length),
+          // scaleBand padding 0.3: first centre sits 0.65 steps in
+          (pw) => (pw / (data.length + 0.3)) * 0.65,
+          TICK_FONT,
+          labelCap
+        );
   // A short axis whose names would have to rotate turns horizontal instead
   // (#1828): names read flat in the left column, wrapped rather than cut. A
   // long axis (dates, many points) keeps thinning and rotating.
@@ -437,7 +456,9 @@ export function renderBar(
   const m: Margins = {
     top: mTop,
     right: mRight,
-    bottom: horizontal ? 64 : Math.max(64, labelPlan.height + xTitleBand),
+    bottom: horizontal
+      ? 64
+      : Math.max(64, (dates ? TICK_FONT + 10 : labelPlan.height) + xTitleBand),
     left: mLeft,
   };
 
@@ -513,10 +534,52 @@ export function renderBar(
   const catRange: [number, number] = horiz
     ? [m.top, m.top + plotH]
     : [m.left, m.left + plotW];
-  const cat = scaleBand<string>()
-    .domain(data.map((d) => d.label))
-    .range(catRange)
-    .padding(0.3);
+  // On a time axis a bar is 70% of the smallest interval between rows wide,
+  // so bars never overlap and a missing period shows as a missing bar. The
+  // inset holds half an end bar: inset = 0.35·f·(plotW − 2·inset), f being
+  // that interval's share of the span (as line.ts).
+  const dateAxis =
+    dates && !horiz
+      ? (() => {
+          const ms = dates.map((d) => d.getTime());
+          const span = Math.max(...ms) - Math.min(...ms);
+          const sorted = [...ms].sort((a, b) => a - b);
+          const steps = sorted
+            .slice(1)
+            .map((t, i) => t - sorted[i]!)
+            .filter((g) => g > 0);
+          const f = span > 0 && steps.length ? Math.min(...steps) / span : 0;
+          const inset = f
+            ? Math.max(DATE_AXIS_INSET, (0.35 * f * plotW + 2) / (1 + 0.7 * f))
+            : DATE_AXIS_INSET;
+          const axis = buildDateAxis(
+            dates,
+            [m.left + inset, m.left + plotW - inset],
+            { fontSize: TICK_FONT },
+            timeLabels!.kind
+          );
+          const slotW = f ? f * (plotW - 2 * inset) : plotW / 4;
+          return { axis, slotW };
+        })()
+      : null;
+  const cat: CatScale = dateAxis
+    ? Object.assign(
+        (label: string) => {
+          const i = data.findIndex((d) => d.label === label);
+          return i < 0
+            ? undefined
+            : dateAxis.axis.x(dates![i]!) - (dateAxis.slotW * 0.7) / 2;
+        },
+        {
+          bandwidth: () => dateAxis.slotW * 0.7,
+          step: () => dateAxis.slotW,
+          paddingInner: () => 0.3,
+        }
+      )
+    : scaleBand<string>()
+        .domain(data.map((d) => d.label))
+        .range(catRange)
+        .padding(0.3);
   // Horizontal side-by-side: a value label stands past its bar's end, so the
   // value range stops short of the plot edge by the widest label on that side
   // (#2082). The label never flips onto the mark.
@@ -735,6 +798,29 @@ export function renderBar(
         );
       if (truncated) t.append('title').text(d.label);
     });
+  } else if (dateAxis) {
+    // Time ticks replace the row names: a short mark on the axis and a flat
+    // label beneath it, as on line.
+    for (const t of dateAxis.axis.ticks) {
+      svg
+        .append('line')
+        .attr('x1', t.pos)
+        .attr('x2', t.pos)
+        .attr('y1', m.top + plotH)
+        .attr('y2', m.top + plotH + 4)
+        .attr('stroke', mutedColor)
+        .attr('stroke-opacity', 0.6);
+      svg
+        .append('text')
+        .attr('class', 'dgmo-tick')
+        .attr('x', t.pos)
+        .attr('y', m.top + plotH + TICK_FONT + 6)
+        .attr('text-anchor', 'middle')
+        .attr('fill', textColor)
+        .attr('font-size', TICK_FONT)
+        .attr('font-family', FONT_FAMILY)
+        .text(t.label);
+    }
   } else {
     // Thinned, and rotated when thinning alone would cost too many. See
     // planCategoryLabels in ./shared.

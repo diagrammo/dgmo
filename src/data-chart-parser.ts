@@ -68,7 +68,11 @@ interface ParsedFunction {
 
 interface ParsedScatterPoint {
   name: string;
+  /** Numeric x; for a time x (`xLabel` set) days since epoch, or fractions
+   *  of a day for a bare time. The renderer reads `xLabel`, not this. */
   x: number;
+  /** A time x as written (`2026-11-21 06:30`, `12:30`): the point sits on a time axis. */
+  xLabel?: string;
   y: number;
   size?: number;
   color?: string;
@@ -83,6 +87,7 @@ interface ParsedHeatmapRow {
 }
 
 import type { DgmoError } from './diagnostics';
+import { TIME_AXIS_MIXED_DX, parseTimeLabel } from './charts-d3/date-axis';
 import type { ChartFrame } from './utils/chart-frame-parse';
 import {
   parseChartFrameLine,
@@ -383,6 +388,10 @@ const KNOWN_EXTENDED_FIRST_TOKENS: ReadonlySet<string> = new Set([
   ...GLOBAL_BOOLEANS,
 ]);
 
+/** `Name <time>, y[, size]` — x is a date, date-time or bare clock time (#2208). */
+const SCATTER_TIME_ROW_RE =
+  /^(.+?)\s+(\d{4}-\d{2}(?:-\d{2})?(?:[T ]\d{2}:\d{2}(?::\d{2})?)?|\d{1,2}:\d{2}(?::\d{2})?)\s*,\s*(-?\d+(?:\.\d+)?)(\s*,\s*(-?\d+(?:\.\d+)?))?$/;
+
 /**
  * Parse a scatter data row: "Name x, y[, size]" or "Name(color) x, y[, size]"
  * Returns a ParsedScatterPoint or null if the line doesn't match.
@@ -394,6 +403,30 @@ function parseScatterRow(
   lineNumber: number,
   diagnostics: DgmoError[]
 ): ParsedScatterPoint | null {
+  const timed = line.match(SCATTER_TIME_ROW_RE);
+  const parsedTime = timed ? parseTimeLabel(timed[2]!) : null;
+  if (timed && parsedTime) {
+    const { label: name, color: timeColor } = extractColor(
+      timed[1]!,
+      palette,
+      diagnostics,
+      lineNumber
+    );
+    const size = timed[5] === undefined ? undefined : Number(timed[5]);
+    return {
+      name,
+      x:
+        parsedTime.kind === 'time'
+          ? parsedTime.seconds / 86400
+          : parsedTime.date.getTime() / 86400000,
+      xLabel: timed[2]!.trim(),
+      y: Number(timed[3]),
+      ...(size !== undefined && { size }),
+      ...(timeColor && { color: timeColor }),
+      ...(currentCategory !== 'Default' && { category: currentCategory }),
+      lineNumber,
+    };
+  }
   const dataRow = parseDataRowValues(line, { multiValue: true });
   if (!dataRow || dataRow.values.length < 2) return null;
   const { label: rawLabel, color: pointColor } = extractColor(
@@ -1543,6 +1576,35 @@ function parseExtendedChartFull(
       result.diagnostics
     );
     if (resolved.length) result.annotations = resolved;
+    // A time x needs every point on one kind of time (#2208). A column that
+    // mixes numbers with times, or bare times with dates, keeps the first
+    // kind and drops the rest, with a warning on each dropped row.
+    if (result.scatterPoints?.some((p) => p.xLabel !== undefined)) {
+      const kindOf = (p: ParsedScatterPoint): string =>
+        p.xLabel === undefined
+          ? 'number'
+          : parseTimeLabel(p.xLabel)?.kind === 'time'
+            ? 'time'
+            : 'date';
+      const kinds = result.scatterPoints.map(kindOf);
+      const keep = kinds.includes('number') ? 'number' : kinds[0]!;
+      result.scatterPoints = result.scatterPoints.filter((p, i) => {
+        if (kinds[i] === keep) return true;
+        result.diagnostics.push(
+          keep === 'number'
+            ? makeDgmoError(
+                p.lineNumber,
+                `"${p.xLabel}" is a time among numeric x values, so the point is not plotted.`,
+                'warning'
+              )
+            : emit(TIME_AXIS_MIXED_DX, p.lineNumber, {
+                label: p.xLabel ?? '',
+                reason: 'time-and-date',
+              })
+        );
+        return false;
+      });
+    }
     const points = result.scatterPoints ?? [];
     const pointAt = new Map(points.map((p, k) => [p.lineNumber, k]));
     const groupAt = new Map(

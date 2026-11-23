@@ -19,7 +19,12 @@ import {
   curveStepAfter,
   curveStepBefore,
 } from 'd3-shape';
-import { buildDateAxis, isoDatesOf } from './date-axis';
+import {
+  buildDateAxis,
+  gapBreaksOf,
+  timeLabelsOf,
+  withGapBreaks,
+} from './date-axis';
 
 /** Gap between a time axis's first/last point and the plot edge (#1880). */
 const DATE_AXIS_INSET = 16;
@@ -206,9 +211,18 @@ export function renderLine(
     (s) => markOf(s) === 'bar' && !bandBounds.has(s)
   );
   const isBar = (s: number): boolean => markOf(s) === 'bar';
-  // A time axis when every row is an ISO date (#1880); else categories. A
-  // chart with bars keeps its categories: a bar stands in a slot.
-  const dates = barSeries.length ? null : isoDatesOf(data.map((d) => d.label));
+  // A time axis when every row is a date, date-time or bare time (#1880,
+  // #2208); else categories. Bars on a time axis stand at their time.
+  const timeLabels = timeLabelsOf(data.map((d) => d.label));
+  const dates = timeLabels?.dates ?? null;
+  // A row-level gap on a time axis breaks the line (#2208), unless the chart
+  // says `join-gaps`. Steps hold their value across a gap, so never break.
+  const gapBreaks =
+    dates && !chart.joinGaps && chart.step === undefined
+      ? gapBreaksOf(dates)
+      : null;
+  const breaksOf = (s: number): boolean[] | null =>
+    markOf(s) === 'step' ? null : gapBreaks;
 
   // Dual-axis (§15.1): per-series left/right assignment; absent ⇒ all left.
   const axisOf = (s: number): 'left' | 'right' =>
@@ -473,12 +487,28 @@ export function renderLine(
     .domain(data.map((d) => d.label))
     .range([m.left, m.left + plotW])
     .padding(0.5);
-  // Inset so the first and last points never sit on the plot's edge.
+  // Inset so the first and last points never sit on the plot's edge. Bars
+  // on a time axis are 70% of the smallest interval wide, so the inset also
+  // holds half the end bars: inset = 0.35·f·(plotW − 2·inset), f being that
+  // interval's share of the span.
+  const dateInset = ((): number => {
+    if (!dates || !barSeries.length || dates.length < 2) return DATE_AXIS_INSET;
+    const ms = dates.map((d) => d.getTime());
+    const span = Math.max(...ms) - Math.min(...ms);
+    const steps = ms
+      .slice(1)
+      .map((t, i) => Math.abs(t - ms[i]!))
+      .filter((g) => g > 0);
+    if (!(span > 0) || !steps.length) return DATE_AXIS_INSET;
+    const f = Math.min(...steps) / span;
+    return Math.max(DATE_AXIS_INSET, (0.35 * f * plotW + 2) / (1 + 0.7 * f));
+  })();
   const dateAxis = dates
     ? buildDateAxis(
         dates,
-        [m.left + DATE_AXIS_INSET, m.left + plotW - DATE_AXIS_INSET],
-        { fontSize: TICK_FONT }
+        [m.left + dateInset, m.left + plotW - dateInset],
+        { fontSize: TICK_FONT },
+        timeLabels!.kind
       )
     : null;
   /** Row → x. Dated rows sit at their time; category rows at their slot. */
@@ -522,7 +552,11 @@ export function renderLine(
     markOf(s) === 'step' ? curveStepAfter : curve;
   // Bars of one slot share 70% of it, in declared order; a stack is one bar.
   const barSlots = barStack ? 1 : barSeries.length;
-  const barW = barSlots ? (pointX.step() * 0.7) / barSlots : 0;
+  // On a time axis a slot is the smallest interval between rows, so bars
+  // never overlap and a missing period shows as a missing bar (#2208).
+  const minGap = gaps.find((g) => g > 0);
+  const slotW = dateAxis ? (minGap ?? plotW / 4) : pointX.step();
+  const barW = barSlots ? (slotW * 0.7) / barSlots : 0;
   const barLeft = (s: number, i: number): number =>
     xOfRow(i) -
     (barW * barSlots) / 2 +
@@ -830,11 +864,15 @@ export function renderLine(
     const recede = dimmed.has(band.label);
     const lowAxis = yFor(band.low);
     const highAxis = yFor(band.high);
-    const rows = data.map((d, i) => ({
-      i,
-      lo: seriesValue(d, band.low),
-      hi: seriesValue(d, band.high),
-    }));
+    const rows = withGapBreaks(
+      data.map((d, i) => ({
+        i,
+        lo: seriesValue(d, band.low),
+        hi: seriesValue(d, band.high),
+      })),
+      gapBreaks,
+      (r) => ({ ...r, lo: NaN })
+    );
     const bandGen = d3area<(typeof rows)[number]>()
       .defined((r) => has(r.lo) && has(r.hi))
       .x((r) => xOfRow(r.i))
@@ -863,11 +901,15 @@ export function renderLine(
   for (const fb of chart.fillBetween ?? []) {
     const aAxis = yFor(fb.a);
     const bAxis = yFor(fb.b);
-    const rows = data.map((d, i) => ({
-      x: xOfRow(i),
-      a: aAxis(seriesValue(d, fb.a)),
-      b: bAxis(seriesValue(d, fb.b)),
-    }));
+    const rows = withGapBreaks(
+      data.map((d, i) => ({
+        x: xOfRow(i),
+        a: aAxis(seriesValue(d, fb.a)),
+        b: bAxis(seriesValue(d, fb.b)),
+      })),
+      gapBreaks,
+      (r) => ({ ...r, a: NaN })
+    );
     const runs = fillBetweenRuns(rows, chart.step);
     // It recedes only when both of its series do.
     const recede = dimmed.has(nameOf(fb.a)) && dimmed.has(nameOf(fb.b));
@@ -985,6 +1027,10 @@ export function renderLine(
       continue;
     }
 
+    const segmented = withGapBreaks(pts, breaksOf(s), (p) => ({
+      ...p,
+      v: NaN,
+    }));
     if (isArea) {
       const areaGen = d3area<(typeof pts)[number]>()
         .defined((p) => has(p.v))
@@ -994,7 +1040,7 @@ export function renderLine(
         .curve(curveOf(s));
       g.append('path')
         .attr('class', 'dgmo-series-area')
-        .attr('d', areaGen(pts) ?? '')
+        .attr('d', areaGen(segmented) ?? '')
         .attr(
           'fill',
           story.active && recede
@@ -1013,7 +1059,7 @@ export function renderLine(
       .curve(curveOf(s));
     g.append('path')
       .attr('class', 'dgmo-series-line')
-      .attr('d', lineGen(pts) ?? '')
+      .attr('d', lineGen(segmented) ?? '')
       .attr('fill', 'none')
       .attr('stroke', color)
       .attr(

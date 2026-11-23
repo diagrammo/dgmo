@@ -172,7 +172,7 @@ describe('mark: bar — rendering', () => {
     expect(pts.map((p) => p['data-value'])).toEqual(['42', '48', '51', '60']);
   });
 
-  it('keeps a category axis when every row is a date', async () => {
+  it('stands bars at their time when every row is a date (#2208)', async () => {
     const src = `line X
 series
   A mark: bar
@@ -182,10 +182,15 @@ series
 2024-02 3 4
 2024-06 5 6`;
     const svg = await renderDataChartD3(src, 'light', palette);
-    // The row labels are drawn, not time ticks, and the slots are even.
-    expect(svg).toContain('>2024-06<');
+    // Time ticks, not row labels; Feb→Jun is about four times Jan→Feb.
+    expect(svg).not.toContain('>2024-06<');
     const xs = elements(svg, 'dgmo-series-bar').map((b) => Number(b.x));
-    expect(xs[1]! - xs[0]!).toBeCloseTo(xs[2]! - xs[1]!, 1);
+    const ratio = (xs[2]! - xs[1]!) / (xs[1]! - xs[0]!);
+    expect(ratio).toBeGreaterThan(3.5);
+    expect(ratio).toBeLessThan(4.5);
+    // Bars never reach the next one: 70% of the smallest interval.
+    const w = Number(elements(svg, 'dgmo-series-bar')[0]!.width);
+    expect(w).toBeLessThan(xs[1]! - xs[0]!);
   });
 
   it('a band bound with `mark: bar` takes no bar slot (reviewer follow-up)', async () => {

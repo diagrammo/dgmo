@@ -64,6 +64,7 @@ import { parseEmphasisDirective } from './utils/emphasis';
 import type { AxisName, AxisSpecs } from './utils/axis-spec';
 import type { NumberFormatSpec } from './utils/number-format';
 import { parseNumberFormatLine } from './utils/number-format';
+import { mixedTimeLabels, TIME_AXIS_MIXED_DX } from './charts-d3/date-axis';
 import type {
   ChartAnnotation,
   ChartNote,
@@ -228,6 +229,11 @@ export interface ParsedChart {
    *  baseline at 0 (magnitude honesty / old ECharts-parity behavior). By
    *  default a line chart fits a padded data-min→max window (§15.1). */
   noAutoY?: boolean;
+  /** Line and bar (#2208): on a time axis, keep joining the line across a
+   *  gap longer than three median intervals instead of breaking it. */
+  joinGaps?: boolean;
+  /** Line of the `join-gaps` flag, for its diagnostics. */
+  joinGapsLineNumber?: number;
   /** Line only (#1880): draw each series as steps. `after` (bare `step`)
    *  starts a value on its own x; `before` (`step-before`) reaches it there. */
   step?: 'after' | 'before';
@@ -341,6 +347,7 @@ const KNOWN_BOOLEANS = new Set([
   'no-legend',
   'legend-inline',
   'no-auto-y',
+  'join-gaps',
   'step',
   'step-before',
   'fill',
@@ -720,6 +727,9 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
         result.legendInline = true;
       } else if (firstToken === 'no-auto-y') {
         result.noAutoY = true;
+      } else if (firstToken === 'join-gaps') {
+        result.joinGaps = true;
+        result.joinGapsLineNumber = lineNumber;
       } else if (firstToken === 'step' || firstToken === 'step-before') {
         const want = firstToken === 'step' ? 'after' : 'before';
         if (result.step !== undefined && result.step !== want) {
@@ -1593,6 +1603,34 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
   }
 
   if (!result.error) settleSeriesFills(result, rawSeriesBands, rawFillBetween);
+
+  // `join-gaps` keeps a time-axis line whole across gaps (#2208).
+  if (result.joinGaps && result.type !== 'line' && result.type !== 'bar') {
+    warn(
+      result.joinGapsLineNumber ?? 1,
+      `\`join-gaps\` applies only to line and bar charts; ignoring it on "${result.type}".`
+    );
+    delete result.joinGaps;
+  }
+
+  // A column that is mostly dates but not all of them keeps categories: say
+  // which row stopped the time axis (#2208). Horizontal bars never use one.
+  if (
+    (result.type === 'line' ||
+      (result.type === 'bar' && result.orientation !== 'horizontal')) &&
+    result.data.length > 1
+  ) {
+    const mixed = mixedTimeLabels(result.data.map((d) => d.label));
+    if (mixed) {
+      const row = result.data[mixed.index]!;
+      result.diagnostics.push(
+        emit(TIME_AXIS_MIXED_DX, row.lineNumber, {
+          label: row.label,
+          reason: mixed.reason,
+        })
+      );
+    }
+  }
 
   // `step` and `step-before` draw a line's segments (#1880); nowhere else.
   if (result.step !== undefined && result.type !== 'line') {

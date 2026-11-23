@@ -27,6 +27,8 @@ export const fixture: ConformanceFixture = {
     // #1880 step line.
     'step',
     'step-before',
+    // #2208 keep a time-axis line whole across gaps.
+    'join-gaps',
     'x-axis',
     'y-axis',
     'y-right-axis',

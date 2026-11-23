@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A time axis for date-times, bare times, bars and scatter, and a break
+  across gaps (diagrammo/diagrammo#2208).** Line labels may now be
+  `YYYY-MM-DD HH:MM[:SS]`, `YYYY-MM-DDTHH:MM[:SS]` or, when every row is one,
+  a bare `HH:MM[:SS]` that runs on past midnight. Ticks go down to hours and
+  minutes. On a time axis a gap longer than three median intervals breaks the
+  line, area, stacked area, band and fill-between; `join-gaps` keeps it joined
+  and step lines always hold. Vertical bars and `mark: bar` series stand at
+  their time, 70% of the smallest interval wide. Scatter takes a time x
+  (`Deploy 2026-11-21 06:30, 12`). A mostly-dated column that falls back to
+  categories warns (`W_TIME_AXIS_MIXED`).
+
 - **A number format per axis — the indented axis block
   (diagrammo/diagrammo#2116).** Indent `format`, `unit` or `locale` under an
   `x-axis` / `y-axis` / `y-right-axis` line to set that axis only: dollars on

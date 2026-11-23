@@ -36,6 +36,7 @@ import {
 } from '../overlays/draw';
 import { overlayPlacement } from '../overlays/place';
 import { linearFit } from '../overlays/compute';
+import { buildDateAxis, parseTimeLabel } from './date-axis';
 import {
   type Svg,
   type Margins,
@@ -231,7 +232,9 @@ export function renderScatter(
   // A `marker` or `band` (#2039) beyond the points widens its axis to it.
   const xs = [
     ...points.map((p) => p.x),
-    ...annotationValues(chart.annotations, 'cross'),
+    ...(points.every((p) => p.xLabel !== undefined)
+      ? []
+      : annotationValues(chart.annotations, 'cross')),
   ];
   const ys = [
     ...points.map((p) => p.y),
@@ -286,13 +289,43 @@ export function renderScatter(
   const rInset = Math.max(...radii) + 4;
 
   // Both axes take a range and `log` on their `x-axis` / `y-axis` line.
-  const x = buildValueAxis(
+  // A time x (#2208): the parser guarantees every point carries `xLabel` or
+  // none does. Bare times share one day (no midnight wrap: rows are unordered).
+  // `x` stays a numeric axis over `p.x`, answering from the date axis' own
+  // pixels so every call site below works unchanged; only the ticks differ.
+  const xRange: [number, number] = [m.left + rInset, m.left + plotW - rInset];
+  const timeKind = points.every((p) => p.xLabel !== undefined)
+    ? parseTimeLabel(points[0]!.xLabel!)?.kind === 'time'
+      ? 'time'
+      : 'date'
+    : null;
+  const dateOf = (p: (typeof points)[number]): Date => {
+    const t = parseTimeLabel(p.xLabel!)!;
+    return t.kind === 'time' ? new Date(2000, 0, 1, 0, 0, t.seconds) : t.date;
+  };
+  const timeAxis =
+    timeKind !== null
+      ? buildDateAxis(
+          points.map(dateOf),
+          xRange,
+          { fontSize: TICK_FONT },
+          timeKind
+        )
+      : null;
+  const xLinear = buildValueAxis(
     Math.floor(xMin - xPad),
     Math.ceil(xMax + xPad),
-    chart.axes?.x,
-    [m.left + rInset, m.left + plotW - rInset],
+    timeAxis ? undefined : chart.axes?.x,
+    xRange,
     { dataLo: xMin, dataHi: xMax }
   );
+  const timePx = new Map(points.map((p) => [p.x, timeAxis?.x(dateOf(p)) ?? 0]));
+  const x = timeAxis
+    ? Object.assign(
+        ((v: number) => timePx.get(v) ?? xLinear(v)) as typeof xLinear,
+        xLinear
+      )
+    : xLinear;
   const y = buildValueAxis(
     Math.floor(yMin - yPad),
     Math.ceil(yMax + yPad),
@@ -329,7 +362,7 @@ export function renderScatter(
     height: plotH,
     horizontal: false,
     crossPos: (at) => {
-      if (typeof at !== 'number') return undefined;
+      if (typeof at !== 'number' || timeAxis) return undefined;
       const [d0, d1] = x.domain();
       return at >= Math.min(d0, d1) && at <= Math.max(d0, d1)
         ? x(at)
@@ -344,7 +377,9 @@ export function renderScatter(
   };
   const annotationBoxes = [
     ...drawBands(svg, chart.annotations, yFrame, annotationColors),
-    ...drawBands(svg, chart.annotations, xFrame, annotationColors, 'cross'),
+    ...(timeAxis
+      ? []
+      : drawBands(svg, chart.annotations, xFrame, annotationColors, 'cross')),
   ];
 
   // gridlines + ticks
@@ -381,13 +416,19 @@ export function renderScatter(
     ? chartFormatter({ numberFormat: formatX }, x.ticks(6))
     : fmtNum;
   const xTickFmt = axisTickFormat(x, formatX, fmtX);
-  const shownXTicks = x.ticks(6);
-  const shownX = labelledTicks(x, shownXTicks, xTickFmt, {
-    fontSize: TICK_FONT,
-    vertical: false,
-  });
+  const xText = (p: (typeof points)[number]): string => p.xLabel ?? fmtX(p.x);
+  // A time axis brings its own ticks (position + label); a number axis is
+  // measured and thinned by `labelledTicks`.
+  const timeTicks = timeAxis?.ticks ?? null;
+  const shownXTicks = timeTicks ? timeTicks.map((_, i) => i) : x.ticks(6);
+  const shownX = timeTicks
+    ? new Set(shownXTicks)
+    : labelledTicks(x, shownXTicks, xTickFmt, {
+        fontSize: TICK_FONT,
+        vertical: false,
+      });
   for (const t of shownXTicks) {
-    const xx = x(t);
+    const xx = timeTicks ? timeTicks[t]!.pos : x(t);
     svg
       .append('line')
       .attr('x1', xx)
@@ -406,7 +447,9 @@ export function renderScatter(
         .attr('fill', textColor)
         .attr('font-size', TICK_FONT)
         .attr('font-family', FONT_FAMILY)
-        .call(tabularText(xTickFmt(t), TICK_FONT));
+        .call(
+          tabularText(timeTicks ? timeTicks[t]!.label : xTickFmt(t), TICK_FONT)
+        );
   }
 
   const pointColor = (p: (typeof points)[number], i: number): string =>
@@ -419,7 +462,7 @@ export function renderScatter(
   // points, across that category's x range, labelled with its R².
   const trend = chart.overlays?.find((o) => o.kind === 'trend');
   const trendPaths: OverlayPath[] = [];
-  if (trend) {
+  if (trend && !timeAxis) {
     const groups = new Map<string, number[]>();
     points.forEach((p, i) => {
       const key = p.category ?? '';
@@ -623,16 +666,21 @@ export function renderScatter(
       name: p.category ? `${p.name} · ${p.category}` : p.name,
       value:
         p.size !== undefined
-          ? `(${fmtX(p.x)}, ${fmt(p.y)}) · ${chart.sizelabel ?? 'size'}: ${fmtNum(p.size)}`
-          : `(${fmtX(p.x)}, ${fmt(p.y)})`,
+          ? `(${xText(p)}, ${fmt(p.y)}) · ${chart.sizelabel ?? 'size'}: ${fmtNum(p.size)}`
+          : `(${xText(p)}, ${fmt(p.y)})`,
       color: own,
     });
     // Per-axis values for the adapter's on-axis projection (no tooltip).
-    dot.attr('data-axval-x', fmtX(p.x)).attr('data-axval-y', fmt(p.y));
+    dot.attr('data-axval-x', xText(p)).attr('data-axval-y', fmt(p.y));
     // A point past a fixed axis end is pinned to it (#2119): the dot gives
     // way to a triangle pointing the way the value went, with the real value
     // beside it. The dot stays, unpainted, as the hover target.
-    const cut = pointCut(p.x, p.y, chart.axes?.x, chart.axes?.y);
+    const cut = pointCut(
+      p.x,
+      p.y,
+      timeAxis ? undefined : chart.axes?.x,
+      chart.axes?.y
+    );
     if (cut) {
       dot.attr('fill-opacity', 0).attr('stroke-opacity', 0);
       const horiz = cut.axis === 'x';
@@ -643,7 +691,7 @@ export function renderScatter(
       const along = horiz ? edge + cut.dir * reach : edge - cut.dir * reach;
       drawValueLabel(
         svg,
-        horiz ? fmtX(p.x) : fmt(p.y),
+        horiz ? xText(p) : fmt(p.y),
         horiz ? along : mid + CUT_MARK_LEN + 2,
         horiz ? mid - CUT_MARK_LEN - 4 : along + 4,
         stroke,

@@ -264,6 +264,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'step-before': {
         description: 'Steps that reach each value at its own point',
       },
+      'join-gaps': {
+        description:
+          'On a time axis, keep the line joined across long gaps (no break)',
+      },
       'x-axis': { description: 'X-axis title (x-axis Region)' },
       'y-axis': {
         description: 'Y-axis line: title, range, log (y-axis Revenue 0..)',

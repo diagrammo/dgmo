@@ -30,6 +30,7 @@ import {
 import { SWIMLANE_DIAGNOSTICS } from './swimlane/diagnostics';
 import { AXIS_DIAGNOSTICS } from './utils/axis-spec';
 import { NUMBER_FORMAT_DX } from './utils/number-format';
+import { TIME_AXIS_MIXED_DX } from './charts-d3/date-axis';
 import { AXIS_FORMAT_DX } from './utils/axis-format';
 import { RACI_DIAGNOSTICS } from './raci/diagnostics';
 import { SWOT_DIAGNOSTICS } from './swot/diagnostics';
@@ -215,6 +216,9 @@ export const UNIVERSAL_DIAGNOSTICS: DiagnosticSpec[] = [
   // ── Number format (#1831) ──
   NUMBER_FORMAT_DX,
   AXIS_FORMAT_DX,
+
+  // ── Time x-axis (#2208) ──
+  TIME_AXIS_MIXED_DX,
 
   // ── Heatmap colour scale (#1837) ──
   HEATMAP_SCALE_DX,

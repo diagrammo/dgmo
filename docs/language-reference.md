@@ -3016,7 +3016,7 @@ Q2 48 21
 Q3 51 19
 ```
 
-A chart with any bar keeps a category x-axis, even when every row is a date. `mark:` is an error on a stacked area (`line` + `stack`), and an unknown value is an error. A trailing `bar` or `line` word is part of the name (`Bottom Line`), never a mark.
+On a time axis the bars stand at their time (§15.1.3). `mark:` is an error on a stacked area (`line` + `stack`), and an unknown value is an error. A trailing `bar` or `line` word is part of the name (`Bottom Line`), never a mark.
 
 **Combo — lines over bars (bar):** a `bar` chart hosts the combo the other way round. In its `stack` or `group` block, `mark: line` or `mark: step` on a series draws it as a line over the bars; a series without `mark:` stays a bar. The line series are left out of the stack or the cluster — a `stack` stacks only its bars, a `group` sets only its bars side by side. The `stack` or `group` block takes the same `y-axis` / `y-right-axis` grouped form as line, at most two axes: the bars stay on the left axis, and a line under `y-right-axis` gets its own scale on the right:
 
@@ -3102,15 +3102,69 @@ y-axis log            // scale only (linear is the default)
   (diagrammo/diagrammo#2116), never a new top-level `x-<thing>` directive.
   The first is the per-axis number format (§15.1.4). Date ticks are §15.1.3.
 
-#### 15.1.3 Time axis and steps (line)
+#### 15.1.3 Time axis and steps (line, bar, scatter)
 
-**Time axis.** When **every** row's label is an ISO date — `YYYY-MM-DD` or
-`YYYY-MM` — a line chart places each row at its date, not in an evenly spaced
-slot (#1880). The axis labels its own ticks, picked by span (years, months,
-weeks, days), with the same generator gantt and timeline use. Anything else
-keeps the category axis: bare years (`2024`), quarter names, a mix of dates
-and words, or an impossible date (`2023-02-30`). Eras (§15.1) on a time axis
-span from their start row's date to their end row's date.
+**Time axis.** When **every** row's label is a time label, a line chart places
+each row at its time, not in an evenly spaced slot (#1880, #2208). All times
+are local; a `Z` or an offset is not read.
+
+| Label     | Examples                                  |
+| --------- | ----------------------------------------- |
+| Date      | `2026-11-21`, `2026-11`                   |
+| Date-time | `2026-11-21 06:30`, `2026-11-21T06:30:15` |
+| Bare time | `06:30`, `23:59:59`                       |
+
+- Dates and date-times mix in one column. A date sits at its midnight.
+- Bare times need every row to be one. They run in row order: a time earlier
+  than the row before it is on the next day, so `23:30` then `00:15` are 45
+  minutes apart. Their ticks print the clock only, and a day tick reads `Day 2`.
+- The axis labels its own ticks, picked by span (years, months, weeks, days,
+  hours, minutes), with the same generator gantt and timeline use.
+- Anything else keeps the category axis: bare years (`2024`), quarter names, a
+  mix of dates and words, bare times among dated rows, or an impossible date or
+  clock (`2023-02-30`, `24:00`). When at least half the labels are times,
+  `W_TIME_AXIS_MIXED` names the first row that stops the time axis.
+- Eras (§15.1) on a time axis span from their start row's time to their end
+  row's time.
+
+**Gaps.** On a time axis, a gap between two rows longer than three times the
+median interval breaks the line there, and its area, stacked area, band and
+fill-between with it (#2208). A 6-hour outage in 24-minute readings shows as a
+hole, not a straight bridge — below, the line breaks before `14:06`. A gap of
+exactly three intervals stays joined.
+
+```
+line Anchor CPU
+y-axis Load (%)
+2026-11-21 07:18 41
+2026-11-21 07:42 44
+2026-11-21 14:06 38
+2026-11-21 14:30 36
+```
+
+- `join-gaps` (a bare flag, line and bar) keeps the line joined across gaps.
+  On any other chart type it warns and is ignored.
+- A step line (`step`, `step-before`, or a `mark: step` series) never breaks:
+  its value holds across the gap.
+- A row with no value for a series still breaks that series' line, on any axis.
+
+**Bars on a time axis.** A vertical `bar` chart, and `mark: bar` series in a
+line chart, use the time axis on the same rule: every row a time label (#2208).
+Each bar stands at its time, 70% of the smallest interval between rows wide, so
+a missing period shows as a missing bar. Grouped bars split that width, and
+`stack` and `stack 100%` stack in place. A dated chart never turns horizontal
+to fit its labels. These keep evenly spaced categories: horizontal bars,
+`lollipop`, `widths` (marimekko), `mirror`, `stack diverging`, pareto and
+clustered stacks.
+
+**Scatter on a time axis.** A scatter row may give its x as a time label,
+followed by a comma: `Deploy 42 2026-11-21 06:30, 12` or `Lunch 12:30, 5, 3`
+(name, x, y, size). When every point's x is a time, x is a time axis. Bare
+times sit on one day and do not wrap, because scatter rows need not be in time
+order. A column that mixes numeric and time x, or bare times and dates, keeps
+the first kind and drops the other points with a warning. On a time axis the
+trend overlay, the `x-axis` range, scale and format, and x bands and markers
+are ignored.
 
 **Points.** Each point draws a dot when the points are spread out. When they
 sit closer than a few dot widths apart, the dots are dropped so the line reads,
