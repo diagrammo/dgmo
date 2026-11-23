@@ -730,7 +730,10 @@ export function drawExtremes(
       .append('g')
       .attr('class', `dgmo-overlay dgmo-overlay-extremes`)
       .attr('data-line-number', m.lineNumber)
-      .attr('data-series-name', m.series ?? null);
+      .attr('data-series-name', m.series ?? null)
+      // The dot sits on the data point it marks; hover and click must reach
+      // that point and its series group underneath (#2227).
+      .attr('pointer-events', 'none');
     g.append('circle')
       .attr('class', m.high ? 'dgmo-extreme-high' : 'dgmo-extreme-low')
       .attr('cx', m.x)

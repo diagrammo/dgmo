@@ -211,7 +211,7 @@ export function attachDataChartInteractions(
   const getOverlay = (): SVGGElement => {
     if (!overlay) {
       overlay = doc.createElementNS(NS, 'g');
-      overlay.setAttribute('class', 'dgmo-overlay');
+      overlay.setAttribute('class', 'dgmo-overlay dgmo-hover-layer');
       overlay.setAttribute('pointer-events', 'none');
     }
     space.appendChild(overlay); // keep on top, in the plot's coordinate space

@@ -442,6 +442,13 @@ describe('moving-average and extremes', () => {
     expect(svg.querySelectorAll('circle.dgmo-extreme-low')).toHaveLength(1);
     expect(texts(svg, '.dgmo-overlay-extremes-label')).toEqual(['19', '41']);
   });
+  it('the high and low dots let the pointer through to their point (#2227)', async () => {
+    const svg = await draw(PHX);
+    const marks = svg.querySelectorAll('g.dgmo-overlay-extremes');
+    expect(marks.length).toBeGreaterThan(0);
+    for (const g of marks)
+      expect(g.getAttribute('pointer-events')).toBe('none');
+  });
   it('the marked points lose their plain value label', async () => {
     const svg = await draw(PHX);
     // The one '41' left is the extremes label itself.

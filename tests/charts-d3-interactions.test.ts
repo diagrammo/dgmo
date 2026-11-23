@@ -57,7 +57,7 @@ describe('axis-projection interactions (no tooltips)', () => {
     )!;
     pt.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
 
-    const overlay = svg.querySelector('.dgmo-overlay[pointer-events="none"]')!;
+    const overlay = svg.querySelector('.dgmo-hover-layer')!;
     // two dotted leader lines (to x-axis and y-axis)
     expect(overlay.querySelectorAll('.dgmo-axline').length).toBe(2);
     // two on-axis value labels — plain emphasized text, NOT pills (no rects)
@@ -88,7 +88,7 @@ Bonny 60 4000 12`);
     const pt = svg.querySelector<SVGCircleElement>('.dgmo-datum[data-size]')!;
     pt.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
 
-    const overlay = svg.querySelector('.dgmo-overlay[pointer-events="none"]')!;
+    const overlay = svg.querySelector('.dgmo-hover-layer')!;
     // two on-axis values + the two-line size block (number + label)
     expect(overlay.querySelectorAll('text').length).toBe(4);
     const [num, lbl] = [...overlay.querySelectorAll('.dgmo-pointval')];
@@ -187,9 +187,8 @@ Blackbeard 90 8500 40`);
     expect(others.every((d) => d.classList.contains('dgmo-dim'))).toBe(true);
     // projection leaders fire as if the bubble itself were hovered
     expect(
-      svg
-        .querySelector('.dgmo-overlay[pointer-events="none"]')!
-        .querySelectorAll('.dgmo-axline').length
+      svg.querySelector('.dgmo-hover-layer')!.querySelectorAll('.dgmo-axline')
+        .length
     ).toBeGreaterThan(0);
   });
 
@@ -207,7 +206,7 @@ Blackbeard 90 8500 40`);
     plot.dispatchEvent(
       new MouseEvent('mousemove', { bubbles: true, clientX: 5, clientY: 5 })
     );
-    const overlay = svg.querySelector('.dgmo-overlay[pointer-events="none"]')!;
+    const overlay = svg.querySelector('.dgmo-hover-layer')!;
     // vertical (to x-axis) + horizontal (to y-axis) leaders
     expect(overlay.querySelectorAll('.dgmo-axline').length).toBe(2);
     // x-axis title + y-value on-axis labels (text, not pills)
@@ -294,7 +293,7 @@ Blackbeard 90 8500 40`);
     const pt = svg.querySelector<SVGCircleElement>('.dgmo-datum')!;
     pt.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
     svg.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
-    const overlay = svg.querySelector('.dgmo-overlay[pointer-events="none"]');
+    const overlay = svg.querySelector('.dgmo-hover-layer');
     expect(overlay?.children.length ?? 0).toBe(0);
     expect(
       [...svg.querySelectorAll('.dgmo-datum')].some((d) =>
@@ -948,7 +947,7 @@ series
         clientY: cy,
       })
     );
-    const overlay = svg.querySelector('.dgmo-overlay[pointer-events="none"]')!;
+    const overlay = svg.querySelector('.dgmo-hover-layer')!;
     const leader = [...overlay.querySelectorAll('.dgmo-axline')].find(
       (l) => l.getAttribute('y1') === l.getAttribute('y2')
     )!;
