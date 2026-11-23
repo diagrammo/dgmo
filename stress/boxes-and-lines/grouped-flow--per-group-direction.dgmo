@@ -1,0 +1,20 @@
+boxes-and-lines Release Train
+// stress: grouped-flow — one group stacked top-to-bottom inside a left-to-right flow, lines in and out of its members
+direction-lr
+
+Feature Branch -> Pull Request
+Pull Request -> Lint
+Security Sign-off -> Staging Deploy
+Staging Deploy -> Canary
+Canary -> Production
+
+[Checks]
+  direction-tb
+  Lint
+  Unit Tests
+  Integration Tests
+  Security Sign-off
+
+Lint -> Unit Tests
+Unit Tests -> Integration Tests
+Integration Tests -> Security Sign-off

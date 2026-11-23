@@ -29,6 +29,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`Deploy 2026-11-21 06:30, 12`). A mostly-dated column that falls back to
   categories warns (`W_TIME_AXIS_MIXED`).
 
+- **Boxes-and-lines: a direction per group (diagrammo/diagrammo#2001).** A
+  `direction-tb` or `direction-lr` line indented inside a `[Group]` lays out
+  that group's members on that axis, while the rest of the diagram keeps its
+  own: a stack of checks inside a left-to-right release flow, for example.
+  The group is laid out on its own and placed as one block, and lines to or
+  from its members end on the member they name. Before this the indented line
+  became a box called `direction-tb`.
+
 - **A number format per axis — the indented axis block
   (diagrammo/diagrammo#2116).** Indent `format`, `unit` or `locale` under an
   `x-axis` / `y-axis` / `y-right-axis` line to set that axis only: dollars on

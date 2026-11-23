@@ -12,6 +12,13 @@ import { layoutRankdir } from './rankdir';
 import type { ParsedBoxesAndLines, BLNode, BLGroup } from './types';
 import type { BLSearchConfig } from './layout-search';
 import {
+  contentBounds,
+  mergeSubLayout,
+  splitSubLayout,
+  subLayoutGroups,
+  type SubLayoutSplit,
+} from './sub-layout';
+import {
   NODE_HEIGHT,
   NODE_WIDTH,
   NODE_FONT_SIZE,
@@ -275,6 +282,12 @@ export function computeNodeSize(
 
 // ── Main layout ────────────────────────────────────────────
 
+type LayoutOptions = Parameters<typeof layoutBoxesAndLines>[2];
+type CollapseInfo = {
+  collapsedChildCounts: Map<string, number>;
+  originalGroups: readonly BLGroup[];
+};
+
 export async function layoutBoxesAndLines(
   parsed: ParsedBoxesAndLines,
   collapseInfo?: {
@@ -298,6 +311,67 @@ export async function layoutBoxesAndLines(
     onProgress?: (done: number, total: number, phase: string) => void;
   }
 ): Promise<BLLayoutResult> {
+  const laid = await layoutWithSubLayouts(parsed, collapseInfo, layoutOptions);
+  // Engine-agnostic post-processing: float notes (and shift the canvas to fit
+  // them) on the label-placed layout.
+  return attachNotes(laid, parsed, layoutOptions?.collapsedNotes);
+}
+
+/**
+ * Per-group direction (#2001): each group whose `direction` differs from the
+ * axis around it is laid out on its own, on its axis, and placed in the outer
+ * layout as one box of that size (`sub-layout.ts`). Recursive, so a directed
+ * group inside one is the inner layout's to place.
+ */
+async function layoutWithSubLayouts(
+  parsed: ParsedBoxesAndLines,
+  collapseInfo: CollapseInfo | undefined,
+  layoutOptions: LayoutOptions | undefined
+): Promise<BLLayoutResult> {
+  const picked = subLayoutGroups(parsed);
+  if (picked.length === 0)
+    return layoutPlaced(parsed, collapseInfo, layoutOptions);
+  const splits: SubLayoutSplit[] = [];
+  const inners: BLLayoutResult[] = [];
+  const sizeOverrides = new Map<string, { width: number; height: number }>();
+  let outer = parsed;
+  let outerCollapse = collapseInfo;
+  const innerOptions = {
+    ...(layoutOptions?.hideDescriptions !== undefined && {
+      hideDescriptions: layoutOptions.hideDescriptions,
+    }),
+  };
+  for (const group of picked) {
+    const split = splitSubLayout(outer, group, outerCollapse);
+    const inner = await layoutWithSubLayouts(
+      split.inner,
+      split.innerCollapse,
+      innerOptions
+    );
+    const { width, height } = contentBounds(inner);
+    sizeOverrides.set(split.placeholder, { width, height });
+    splits.push(split);
+    inners.push(inner);
+    outer = split.outer;
+    outerCollapse = split.outerCollapse;
+  }
+  let laid = await layoutPlaced(
+    outer,
+    outerCollapse,
+    layoutOptions,
+    sizeOverrides
+  );
+  for (let i = splits.length - 1; i >= 0; i--)
+    laid = mergeSubLayout(laid, inners[i]!, splits[i]!);
+  return laid;
+}
+
+async function layoutPlaced(
+  parsed: ParsedBoxesAndLines,
+  collapseInfo: CollapseInfo | undefined,
+  layoutOptions: LayoutOptions | undefined,
+  sizeOverrides?: ReadonlyMap<string, { width: number; height: number }>
+): Promise<BLLayoutResult> {
   const { layoutBoxesAndLinesSearch } = await import('./layout-search');
   const searchOpts = {
     ...(layoutOptions?.hideDescriptions !== undefined && {
@@ -312,6 +386,7 @@ export async function layoutBoxesAndLines(
     ...(layoutOptions?.onProgress !== undefined && {
       onProgress: layoutOptions.onProgress,
     }),
+    ...(sizeOverrides !== undefined && { sizeOverrides }),
   };
   // Capture the winning stage-1 candidate family so the (rare) label-reserving
   // relayout below can re-run just those configs instead of regenerating and
@@ -364,9 +439,7 @@ export async function layoutBoxesAndLines(
     if (wide.unresolved.length < placed.unresolved.length) placed = wide;
   }
 
-  // Engine-agnostic post-processing: float notes (and shift the canvas to fit
-  // them) on the label-placed layout.
-  return attachNotes(placed.layout, parsed, layoutOptions?.collapsedNotes);
+  return placed.layout;
 }
 
 /**

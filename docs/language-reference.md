@@ -2409,6 +2409,25 @@ Group metadata cascades to children (node metadata overrides). Nodes already dec
 
 A bare `collapsed` flag on the group line (`[AWS] collapsed`, or `[AWS] color: blue, collapsed`; legacy `collapsed: true`) starts the group folded: it draws as one pill with a member count and the collapse bar, and its edges end on the pill.
 
+A `direction-tb` or `direction-lr` line indented inside a group (key+value `direction TB|LR` accepted legacy) lays out that group's members on that axis, while the rest of the diagram keeps its own. The group is laid out on its own and placed in the outer layout as one block, and lines to or from its members end on the member they name. A direction that matches the axis around the group changes nothing. Groups nested inside it follow its axis unless they carry their own line:
+
+```
+boxes-and-lines Release Train
+direction-lr
+
+Pull Request -> Lint
+Sign-off -> Deploy
+
+[Checks]
+  direction-tb
+  Lint
+  Tests
+  Sign-off
+
+Lint -> Tests
+Tests -> Sign-off
+```
+
 ### 13.5 Group-Targeted Edges
 
 Node-to-group and group-to-group edges use bracket syntax `[Group Name]`:
@@ -2431,7 +2450,7 @@ Indented shorthand also supports groups (place arrow directly after group header
 
 ### 13.6 Directives
 
-- `direction-tb` — top-to-bottom layout; `direction-lr` restates the `LR` default (booleans, last one wins; key+value `direction LR|TB` accepted legacy)
+- `direction-tb` — top-to-bottom layout; `direction-lr` restates the `LR` default (booleans, last one wins; key+value `direction LR|TB` accepted legacy). Indented inside a group it sets that group's axis only (§13.4)
 - `heat <Label> [low] [high]` — name a numeric colour ramp (see §13.8); one trailing color sets the high hue over a neutral low, two set explicit `low high` ramp endpoints (pairs with the `heat:` key)
 - `no-value` — suppress the per-box numeric value labels (values render by default; legacy `show-values` is accepted as a no-op)
 - `same-rank A, B, …` — lay the named boxes out on one rank (one column in `LR`, one row in `TB`). Boxes only, two or more; a set where a line already runs from one member to another (directly or through other boxes) cannot share a rank, so it is ignored with a warning

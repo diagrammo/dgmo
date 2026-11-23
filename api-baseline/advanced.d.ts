@@ -2542,6 +2542,10 @@ interface BLGroup {
     /** Source `collapsed` fold marker on the `[Group]` header line (#1741). */
     readonly collapsed?: boolean;
     readonly parentGroup?: string;
+    /** `direction-tb` / `direction-lr` inside the group (#2001): its members
+     *  are laid out on this axis, as a sub-layout placed inside the outer one.
+     *  Absent when the group has no such line. */
+    readonly direction?: 'LR' | 'TB';
 }
 interface ParsedBoxesAndLines {
     readonly type: 'boxes-and-lines';

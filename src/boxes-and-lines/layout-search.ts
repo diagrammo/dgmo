@@ -1828,6 +1828,10 @@ export async function layoutBoxesAndLinesSearch(
      *  gap. Falls back to the normal search when coverage is incomplete or the
      *  frozen layout would overlap. Opt-in (app preview path). */
     stableCollapse?: boolean;
+    /** Fixed box sizes by label, over the computed ones. Set only by the
+     *  per-group sub-layout (#2001, layout.ts): its placeholder box stands in
+     *  for a group laid out on its own axis, at that sub-layout's size. */
+    sizeOverrides?: ReadonlyMap<string, { width: number; height: number }>;
   }
 ): Promise<BLLayoutResult> {
   const hideDescriptions = opts?.hideDescriptions ?? false;
@@ -1888,6 +1892,7 @@ export async function layoutBoxesAndLinesSearch(
         const s = sizes.get(node.label)!;
         sizes.set(node.label, { width: s.width, height: maxDescH });
       }
+  for (const [label, s] of opts?.sizeOverrides ?? []) sizes.set(label, s);
 
   const gid = (label: string) => `__group_${label}`;
   const rankdir = layoutRankdir(parsed);

@@ -601,6 +601,24 @@ export function parseBoxesAndLines(
       closeGroupsToIndent(indent);
     }
 
+    // Per-group layout direction (#2001): `direction-tb` / `direction-lr` (or
+    // the key+value `direction TB|LR`) indented inside a group lays out that
+    // group's members on that axis, as a sub-layout inside the outer one.
+    {
+      const gs = currentGroupState();
+      const groupDir =
+        gs && indent > gs.indent
+          ? trimmed.match(/^direction[-\s]+(TB|LR)$/i)
+          : null;
+      if (gs && groupDir) {
+        contentStarted = true;
+        currentTagGroup = null;
+        // Regex capture group present after successful match.
+        gs.group.direction = groupDir[1]!.toUpperCase() as 'LR' | 'TB';
+        continue;
+      }
+    }
+
     // Group-to-group edge: [Group A] -> [Group B] or [Group A] <-> [Group B]
     const groupEdgeMatch = trimmed.match(
       /^\[(.+?)\]\s*(<->|->)\s*\[(.+?)\](.*)$/
