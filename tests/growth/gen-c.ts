@@ -143,6 +143,24 @@ export const GENERATORS_C: Record<string, Generator> = {
     },
   },
 
+  // N signed steps from a starting total, a bare subtotal every ten steps,
+  // and a closing total. A bare total takes the running total, and a label
+  // must not end in a digit (that reads as the value), so nothing
+  // trips W_WATERFALL_RECONCILE.
+  waterfall: {
+    gen: (n) => {
+      const lines = ['waterfall Growth budget bridge', '', 'Start 1000 total'];
+      for (const i of range(n)) {
+        const v = 5 + ((i * 7919) % 90);
+        lines.push(`Step ${i} ${i % 3 === 0 ? '-' : '+'}${v}`);
+        if (i % 10 === 9 && i + 1 < n)
+          lines.push(`Subtotal at step ${i} so far total`);
+      }
+      lines.push('End total');
+      return lines.join('\n');
+    },
+  },
+
   block: {
     gen: (n) => {
       const cols = 4;
