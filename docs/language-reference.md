@@ -1106,7 +1106,7 @@ tag Team as t
 
 ### 4.7 Infra Options (Space-Separated, NO Colon)
 
-- `direction-lr` / `direction-tb` (booleans, last one wins; default is LR)
+- `direction-tb` / `direction-lr` (booleans, last one wins; default is TB, a top-down tree; `direction-lr` lays it on its side)
 - `default-latency-ms N`
 - `default-rps N` — fallback edge RPS when no `rps` is declared on the edge node
 - `default-uptime DECIMAL`
@@ -1764,6 +1764,8 @@ Home
   Blog
 ```
 
+A sitemap draws as a top-down **page tree**. Indentation is the tree: a page indented under a page is its child, joined by a grey elbow line. Top-level `[Group]` sections hang under the **first** top-level page, so `Home` followed by `[Shop]` and `[Account]` is one tree. Each later top-level page starts its own tree beside the first; with no top-level page, the groups stand side by side. A page's metadata draws as chips under its name, tinted by tag colour.
+
 ### 11.3 Arrows
 
 ```
@@ -1786,12 +1788,28 @@ Home
 
 All permutations supported: node→group, group→node, group→group. Brackets required to distinguish group targets from page targets.
 
+Arrows are **not** the tree. Every arrow draws as a thin dashed curve over the finished tree and never moves a card; an arrow aimed at a group ends at its section node.
+
 ### 11.4 Containers
 
 ```
 [Marketing]
   Pricing Auth: Public
 ```
+
+A container draws as a dashed **section node** in the tree, with its pages stacked under it.
+
+**Steps:** a bare `steps` flag on the container line says its pages come in order. Source order is the step order; the pages draw as a numbered row joined by bold arrows, so the main path needs no written arrows. Arrows you do write (a `back`, a `declined`) stay dashed.
+
+```
+[Checkout] steps
+  Cart
+  Payment
+    -declined-> Cart
+  Confirmation
+```
+
+`steps` and `collapsed` combine in either order: `[Checkout] steps collapsed`.
 
 **Collapse:** a bare `collapsed` flag at the end of a page line or a `[Container]` line (`Products collapsed`, `[Shop] collapsed`; legacy `collapsed: true`) starts it folded. Every render path draws the fold with the collapse bar and a hidden-page count. Only a page with children or a container with pages folds.
 
@@ -6267,6 +6285,7 @@ Some constructs _look_ universal but are scoped to specific chart types. Don't t
 | Construct                                     | Scope                                                                                                                                                                                                                                                                                       |
 | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Bare `collapsed` trailing flag (§1.8)         | sequence (groups, sections, multi-line notes), infra, gantt, kanban, mindmap, pert, state, event-line (eras), block, wireframe, sitemap, boxes-and-lines, timeline (lanes), journey-map, raci. c4 parses it but draws nothing (c4 folds by drill level). Legacy: `collapsed: true` metadata |
+| Bare `steps` trailing flag (§12)              | sitemap `[Group]` lines only — the group's pages are an ordered, numbered row                                                                                                                                                                                                               |
 | Same-line / indented metadata on declarations | all chart types except flowchart, state, data charts (§1.4)                                                                                                                                                                                                                                 |
 | Trailing-keyword flag list                    | wireframe only (§19)                                                                                                                                                                                                                                                                        |
 | `progress: <N>` key                           | gantt only (§13)                                                                                                                                                                                                                                                                            |

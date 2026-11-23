@@ -43,11 +43,7 @@ import {
   getLegendExtent,
 } from '../utils/legend-layout';
 import { ScaleContext } from '../utils/scaling';
-import {
-  renderNodeCard,
-  renderContainerCard,
-  renderCollapseBar,
-} from '../utils/card';
+import { renderNodeCard, renderCollapseBar } from '../utils/card';
 
 // ============================================================
 // Constants
@@ -100,15 +96,13 @@ import {
   NODE_STROKE_WIDTH,
   CARD_RADIUS,
   CONTAINER_RADIUS,
-  CONTAINER_LABEL_FONT_SIZE,
-  CONTAINER_META_FONT_SIZE,
-  CONTAINER_META_LINE_HEIGHT,
-  CONTAINER_HEADER_HEIGHT,
   EDGE_LABEL_KNOCKOUT_OPACITY,
   ARROWHEAD_WIDTH,
   ARROWHEAD_HEIGHT,
+  EDGE_DASH as LINK_DASH,
 } from '../utils/visual-conventions';
-const EDGE_LABEL_FONT_SIZE = 11;
+import { drawCardChips } from '../utils/chips';
+import { EDGE_LABEL_FONT_SIZE, sitemapChipBlockHeight } from './layout';
 
 const LEGEND_FIXED_GAP = 8; // gap between fixed legend and scaled diagram — local, not shared
 
@@ -161,6 +155,44 @@ const lineGeneratorLinear = d3Shape
   .y((d) => d.y)
   .curve(d3Shape.curveLinear);
 
+/**
+ * A link's path (#1861): two-point-plus-bow links are one quadratic curve
+ * through the bow's control point; a self-loop is a smoothed polyline.
+ */
+function linkPath(points: readonly { x: number; y: number }[]): string {
+  if (points.length === 3) {
+    const [a, m, b] = points as [
+      { x: number; y: number },
+      { x: number; y: number },
+      { x: number; y: number },
+    ];
+    return `M${a.x},${a.y}Q${m.x},${m.y} ${b.x},${b.y}`;
+  }
+  return lineGenerator(points as { x: number; y: number }[]) ?? '';
+}
+
+/** Points along `linkPath`, for placing the label on the drawn curve. */
+function linkSamples(
+  points: readonly { x: number; y: number }[]
+): { x: number; y: number }[] {
+  if (points.length !== 3) return [...points];
+  const [a, m, b] = points as [
+    { x: number; y: number },
+    { x: number; y: number },
+    { x: number; y: number },
+  ];
+  const out: { x: number; y: number }[] = [];
+  for (let i = 0; i <= 8; i++) {
+    const t = i / 8;
+    const u = 1 - t;
+    out.push({
+      x: u * u * a.x + 2 * u * t * m.x + t * t * b.x,
+      y: u * u * a.y + 2 * u * t * m.y + t * t * b.y,
+    });
+  }
+  return out;
+}
+
 // ============================================================
 // Edge label placement
 // ============================================================
@@ -189,13 +221,6 @@ function placeSitemapEdgeLabels(
       width: n.width,
       height: n.height,
     })),
-    ...layout.containers.map((c) => ({
-      label: c.nodeId,
-      x: c.x + c.width / 2,
-      y: c.y + c.labelHeight / 2,
-      width: c.width,
-      height: c.labelHeight,
-    })),
   ];
   const adapted: BLLayoutResult = {
     nodes,
@@ -205,10 +230,11 @@ function placeSitemapEdgeLabels(
     edges: layout.edges.map((e) => ({
       source: e.sourceId,
       target: e.targetId,
-      ...(e.label !== undefined && { label: e.label }),
+      ...(e.label !== undefined && e.kind === 'link' && { label: e.label }),
       bidirectional: false,
       lineNumber: e.lineNumber,
-      points: e.points,
+      // A link is drawn as a quadratic curve, so its label sits on that curve.
+      points: e.kind === 'link' ? linkSamples(e.points) : e.points,
       yOffset: 0,
       parallelCount: 1,
       metadata: {},
@@ -260,10 +286,6 @@ export function renderSitemap(
   const sEdgeStrokeWidth = ctx.structural(EDGE_STROKE_WIDTH);
   const sNodeStrokeWidth = ctx.structural(NODE_STROKE_WIDTH);
   const sEdgeLabelFontSize = ctx.text(EDGE_LABEL_FONT_SIZE);
-  const sContainerLabelFontSize = ctx.text(CONTAINER_LABEL_FONT_SIZE);
-  const sContainerMetaFontSize = ctx.text(CONTAINER_META_FONT_SIZE);
-  const sContainerMetaLineHeight = ctx.structural(CONTAINER_META_LINE_HEIGHT);
-  const sContainerHeaderHeight = ctx.structural(CONTAINER_HEADER_HEIGHT);
   const sTitleFontSize = ctx.text(TITLE_FONT_SIZE);
   const sTitleHeight = ctx.structural(TITLE_HEIGHT);
   const sLegendFixedGap = ctx.aesthetic(LEGEND_FIXED_GAP);
@@ -405,6 +427,24 @@ export function renderSitemap(
     )
     .attr('fill', palette.textMuted);
 
+  // Bold step arrows (#1861) take a head in the text colour.
+  defs
+    .append('marker')
+    .attr('id', 'sm-arrow-step')
+    .attr('viewBox', `0 0 ${ARROWHEAD_WIDTH} ${ARROWHEAD_HEIGHT}`)
+    .attr('refX', ARROWHEAD_WIDTH)
+    .attr('refY', ARROWHEAD_HEIGHT / 2)
+    .attr('markerWidth', ARROWHEAD_WIDTH / 2)
+    .attr('markerHeight', ARROWHEAD_HEIGHT / 2)
+    .attr('markerUnits', 'strokeWidth')
+    .attr('orient', 'auto')
+    .append('polygon')
+    .attr(
+      'points',
+      `0,0 ${ARROWHEAD_WIDTH},${ARROWHEAD_HEIGHT / 2} 0,${ARROWHEAD_HEIGHT}`
+    )
+    .attr('fill', palette.text);
+
   // Edges have no color slot (spec §1.7); keep empty set so the marker-setup
   // loop is a no-op but the symbol stays available for future color sources.
   const edgeColors = new Set<string>();
@@ -475,77 +515,6 @@ export function renderSitemap(
     }
   }
 
-  // --- Render containers (bottom layer) ---
-  for (const c of layout.containers) {
-    const cG = contentG
-      .append('g')
-      .attr('transform', `translate(${c.x}, ${c.y})`)
-      .attr('class', 'sitemap-container')
-      .attr('data-line-number', String(c.lineNumber));
-
-    if (c.hasChildren) {
-      cG.attr('data-node-toggle', c.nodeId)
-        .attr('role', 'button')
-        .attr('aria-expanded', String(!c.hiddenCount))
-        .attr('aria-label', c.label);
-    }
-
-    if (onClickItem) {
-      cG.style('cursor', 'pointer').on('click', () =>
-        onClickItem(c.lineNumber)
-      );
-    }
-
-    // Tag metadata for legend hover dimming
-    if (activeTagGroup) {
-      const tagKey = tagAttrKey(activeTagGroup);
-      const tagVal = c.tagMetadata[tagKey];
-      if (tagVal)
-        cG.attr(`data-tag-${tagAttrKey(tagKey)}`, tagVal.toLowerCase());
-    }
-
-    const fill = containerFill(palette, isDark, c.color);
-    const stroke = containerStroke(palette, c.color);
-
-    renderContainerCard(cG, {
-      width: c.width,
-      height: c.height,
-      rx: CONTAINER_RADIUS,
-      fill,
-      stroke,
-      strokeWidth: sNodeStrokeWidth,
-      label: c.label,
-      labelColor: palette.text,
-      labelFontSize: sContainerLabelFontSize,
-      headerHeight: sContainerHeaderHeight,
-      rows: Object.entries(c.metadata).map(
-        ([key, value]) =>
-          [
-            displayNames.get(key) ?? key,
-            value,
-            tagColors.get(`${key}:${value.toLowerCase()}`) ?? palette.text,
-          ] as const
-      ),
-      keyColor: palette.textMuted,
-      metaFontSize: sContainerMetaFontSize,
-      metaLineHeight: sContainerMetaLineHeight,
-    });
-
-    // Folded: the bar. Expanded: its hover preview (#1741).
-    if (c.hasChildren) {
-      renderCollapseBar(cG, {
-        expanded: !c.hiddenCount,
-        width: c.width,
-        height: c.height,
-        rx: CONTAINER_RADIUS,
-        fill: stroke,
-        clipId: `clip-${c.nodeId}`,
-        prefix: 'sitemap',
-        scale: ctx,
-      });
-    }
-  }
-
   // --- Render edges (middle layer) ---
   const labelCentres = placeSitemapEdgeLabels(layout, sEdgeLabelFontSize);
   for (const [edgeIdx, edge] of layout.edges.entries()) {
@@ -559,20 +528,36 @@ export function renderSitemap(
       .attr('data-from', edge.sourceId)
       .attr('data-to', edge.targetId);
 
+    // Three line styles, three sources (#1861): indentation draws a grey
+    // elbow with no head, `steps` a bold arrow, a written arrow a dashed curve.
     const edgeColor = palette.textMuted;
-    const markerId = 'sm-arrow';
-
-    const gen = edge.deferred ? lineGeneratorLinear : lineGenerator;
-    const pathD = gen(edge.points);
+    edgeG.attr('data-edge-kind', edge.kind);
+    const pathD =
+      edge.kind === 'link'
+        ? linkPath(edge.points)
+        : lineGeneratorLinear(edge.points as { x: number; y: number }[]);
     if (pathD) {
-      edgeG
+      const path = edgeG
         .append('path')
         .attr('d', pathD)
         .attr('fill', 'none')
-        .attr('stroke', edgeColor)
-        .attr('stroke-width', sEdgeStrokeWidth)
-        .attr('marker-end', `url(#${markerId})`)
         .attr('class', 'sitemap-edge');
+      if (edge.kind === 'tree') {
+        path
+          .attr('stroke', mix(palette.textMuted, palette.bg, 55))
+          .attr('stroke-width', sEdgeStrokeWidth);
+      } else if (edge.kind === 'step') {
+        path
+          .attr('stroke', palette.text)
+          .attr('stroke-width', sEdgeStrokeWidth * 2)
+          .attr('marker-end', 'url(#sm-arrow-step)');
+      } else {
+        path
+          .attr('stroke', edgeColor)
+          .attr('stroke-width', sEdgeStrokeWidth * 0.75)
+          .attr('stroke-dasharray', LINK_DASH)
+          .attr('marker-end', 'url(#sm-arrow)');
+      }
     }
 
     // Edge label with background badge
@@ -609,7 +594,11 @@ export function renderSitemap(
     const nodeG = contentG
       .append('g')
       .attr('transform', `translate(${node.x - node.width / 2}, ${node.y})`)
-      .attr('class', 'sitemap-node')
+      .attr(
+        'class',
+        // A section node keeps the container class the app's sync reads.
+        node.isContainer ? 'sitemap-node sitemap-container' : 'sitemap-node'
+      )
       .attr('data-line-number', String(node.lineNumber))
       .attr('data-node-id', node.id);
 
@@ -636,13 +625,16 @@ export function renderSitemap(
     }
 
     const fillMode = fillModeFromOptions(parsed.options);
-    const fill = nodeFill(palette, isDark, node.color, fillMode);
-    const stroke = nodeStroke(palette, node.color);
+    // A group is a section node in the tree (#1861): the container palette
+    // and a dashed border tell it from a page.
+    const fill = node.isContainer
+      ? containerFill(palette, isDark, node.color)
+      : nodeFill(palette, isDark, node.color, fillMode);
+    const stroke = node.isContainer
+      ? containerStroke(palette, node.color)
+      : nodeStroke(palette, node.color);
 
-    // Card background + label via the shared card door (Story 111.1). sitemap's
-    // metadata, description lines, and collapse bar diverge from the convention
-    // (different meta baseline; semi-transparent collapse bar + "+N" badge), so
-    // they stay inline below — see conventions §1/§3 deviations log.
+    // Card background + label via the shared card door (Story 111.1).
     const labelColor = contrastText(
       fill,
       palette.textOnFillLight,
@@ -651,7 +643,7 @@ export function renderSitemap(
     renderNodeCard(nodeG, {
       width: node.width,
       height: node.height,
-      rx: CARD_RADIUS,
+      rx: node.isContainer ? CONTAINER_RADIUS : CARD_RADIUS,
       fill,
       stroke,
       strokeWidth: sNodeStrokeWidth,
@@ -660,9 +652,19 @@ export function renderSitemap(
       labelFontSize: sLabelFontSize,
       headerHeight: sHeaderHeight,
     });
+    if (node.isContainer) {
+      nodeG
+        .select('rect')
+        .attr('stroke-dasharray', LINK_DASH)
+        .classed('sitemap-section', true);
+    }
 
+    // Metadata as chips (#1861, the drawer from kanban #1862).
     const metaEntries = Object.entries(node.metadata);
-    if (metaEntries.length > 0) {
+    const chipsH = sitemapChipBlockHeight(node.metadata, node.width);
+    const hasBody =
+      metaEntries.length > 0 || (node.description?.length ?? 0) > 0;
+    if (hasBody) {
       nodeG
         .append('line')
         .attr('x1', 0)
@@ -671,61 +673,35 @@ export function renderSitemap(
         .attr('y2', sHeaderHeight)
         .attr('stroke', fillMode === 'solid' ? labelColor : stroke)
         .attr('stroke-opacity', 0.3);
-
-      const metaDisplayKeys = metaEntries.map(
-        ([k]) => displayNames.get(k) ?? k
+    }
+    if (metaEntries.length > 0) {
+      drawCardChips(
+        nodeG,
+        metaEntries.map(([key, value]) => {
+          const tone = tagColors.get(`${key}:${value.toLowerCase()}`);
+          return {
+            label: displayNames.get(key) ?? key,
+            value,
+            ...(tone !== undefined && { color: tone }),
+          };
+        }),
+        10,
+        sHeaderHeight + sSeparatorGap,
+        node.width - 20,
+        sMetaFontSize,
+        sMetaLineHeight,
+        fill,
+        palette
       );
-      const maxKeyWidth = Math.max(
-        ...metaDisplayKeys.map((k) => measureText(`${k}: `, sMetaFontSize))
-      );
-      const valueX = 10 + maxKeyWidth;
-
-      for (let i = 0; i < metaEntries.length; i++) {
-        // In-bounds by loop guard.
-        const [key, value] = metaEntries[i]!;
-        const displayKey = metaDisplayKeys[i];
-        const rowY =
-          sHeaderHeight + sSeparatorGap + (i + 1) * sMetaLineHeight - 4;
-        const tagColor = tagColors.get(`${key}:${value.toLowerCase()}`);
-        const valColor =
-          fillMode === 'solid' ? labelColor : (tagColor ?? labelColor);
-
-        nodeG
-          .append('text')
-          .attr('x', 10)
-          .attr('y', rowY)
-          .attr('fill', labelColor)
-          .attr('font-size', sMetaFontSize)
-          .text(`${displayKey}:`);
-
-        nodeG
-          .append('text')
-          .attr('x', valueX)
-          .attr('y', rowY)
-          .attr('fill', valColor)
-          .attr('font-size', sMetaFontSize)
-          .text(value);
-      }
     }
 
-    // Description lines (after metadata)
+    // Description lines (after the chips)
     if (node.description && node.description.length > 0) {
-      const metaCount = Object.keys(node.metadata).length;
-      const sepY =
-        metaCount > 0
-          ? sHeaderHeight + sSeparatorGap + metaCount * sMetaLineHeight
-          : sHeaderHeight;
-      nodeG
-        .append('line')
-        .attr('x1', 0)
-        .attr('y1', sepY)
-        .attr('x2', node.width)
-        .attr('y2', sepY)
-        .attr('stroke', fillMode === 'solid' ? labelColor : stroke)
-        .attr('stroke-opacity', 0.3);
-
       const descStartY =
-        sHeaderHeight + sSeparatorGap + metaCount * sMetaLineHeight;
+        sHeaderHeight +
+        sSeparatorGap +
+        chipsH +
+        (chipsH > 0 ? sSeparatorGap : 0);
       for (let di = 0; di < node.description.length; di++) {
         const processed = preprocessDescriptionLine(node.description[di]!);
         const rowY = descStartY + (di + 1) * sMetaLineHeight - 4;
@@ -737,6 +713,28 @@ export function renderSitemap(
           .attr('font-size', sMetaFontSize);
         renderInlineText(textEl, processed, palette, sMetaFontSize);
       }
+    }
+
+    // A steps page wears its number on the top-left corner (#1861).
+    if (node.step !== undefined) {
+      const r = sMetaFontSize * 0.85;
+      const badge = nodeG.append('g').attr('class', 'sitemap-step');
+      badge
+        .append('circle')
+        .attr('cx', 0)
+        .attr('cy', 0)
+        .attr('r', r)
+        .attr('fill', palette.text);
+      badge
+        .append('text')
+        .attr('x', 0)
+        .attr('y', 0)
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'central')
+        .attr('font-size', sMetaFontSize)
+        .attr('font-weight', 'bold')
+        .attr('fill', palette.bg)
+        .text(String(node.step));
     }
 
     // Folded: the bar. Expanded: its hover preview (#1741).

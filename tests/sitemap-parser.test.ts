@@ -43,7 +43,38 @@ describe('parseSitemap', () => {
   describe('direction', () => {
     it('defaults to TB', () => {
       const result = parseSitemap('Home');
-      expect(result.direction).toBe('LR');
+      expect(result.direction).toBe('TB');
+    });
+
+    it('parses direction-lr', () => {
+      expect(parseSitemap('sitemap\ndirection-lr\nHome').direction).toBe('LR');
+    });
+  });
+
+  describe('steps flag (#1861)', () => {
+    const group = (src: string) => parseSitemap(src).roots[0]!;
+
+    it('marks a group as steps', () => {
+      const g = group('[Checkout] steps\n  Cart\n  Pay');
+      expect(g.isContainer).toBe(true);
+      expect(g.label).toBe('Checkout');
+      expect(g.steps).toBe(true);
+      expect(g.metadata).toEqual({});
+    });
+
+    it('combines with collapsed in either order', () => {
+      for (const src of [
+        '[C] steps collapsed\n  A',
+        '[C] collapsed steps\n  A',
+      ]) {
+        const g = group(src);
+        expect(g.steps).toBe(true);
+        expect(g.collapsed).toBe(true);
+      }
+    });
+
+    it('leaves an ordinary group without it', () => {
+      expect(group('[Shop]\n  Cart').steps).toBeUndefined();
     });
 
     it('parses direction-tb', () => {

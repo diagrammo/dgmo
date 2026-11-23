@@ -115,6 +115,7 @@ describe('sitemap fixtures', () => {
 
     expect(layout.width).toBeGreaterThan(200);
     expect(layout.height).toBeGreaterThan(200);
-    expect(layout.containers.length).toBeGreaterThanOrEqual(4);
+    expect(layout.nodes.filter((n) => n.isContainer).length).toBe(4);
+    expect(layout.nodes.filter((n) => n.step !== undefined)).toHaveLength(5);
   });
 });

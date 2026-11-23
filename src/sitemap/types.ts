@@ -23,6 +23,11 @@ export interface SitemapNode {
    * `collapsed: false`; absent = no marker.
    */
   readonly collapsed?: boolean;
+  /**
+   * `[Group] steps` (#1861): the group's pages come in source order and draw
+   * as a numbered row joined by bold arrows. Containers only.
+   */
+  readonly steps?: boolean;
 }
 
 export interface SitemapEdge {

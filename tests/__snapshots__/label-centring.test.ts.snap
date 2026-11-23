@@ -115,8 +115,8 @@ exports[`centred labels sit on the band centre > pert — every centred label, w
 
 exports[`centred labels sit on the band centre > sitemap — every centred label, with the y it was given 1`] = `
 [
-  "y=14 size=13 "Content"",
   "y=14 size=13 "Home"",
+  "y=14 size=13 "Content"",
   "y=14 size=13 "About"",
   "y=14 size=13 "Blog"",
   "y=14 size=13 "Post"",

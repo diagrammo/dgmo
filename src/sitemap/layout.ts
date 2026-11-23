@@ -1,5 +1,5 @@
 // ============================================================
-// Sitemap Diagram Layout Engine (Dagre flat graph)
+// Sitemap Diagram Layout Engine — page tree (#1861)
 // ============================================================
 
 import {
@@ -10,14 +10,6 @@ import {
   SEPARATOR_GAP,
 } from '../utils/visual-conventions';
 import { tagAttrKey } from '../utils/tag-groups';
-import dagre from '@dagrejs/dagre';
-import type {
-  EdgeLabel,
-  Graph,
-  GraphLabel,
-  NodeLabel,
-  Point,
-} from '@dagrejs/dagre';
 import type { Writable } from '../utils/brand';
 import type { ParsedSitemap, SitemapNode } from './types';
 import type { TagGroup } from '../utils/tag-groups';
@@ -38,9 +30,7 @@ import {
 } from '../utils/legend-constants';
 import { measureText } from '../utils/text-measure';
 
-// Font sizes — must match the renderer (renderer.ts) so card sizing here
-// agrees pixel-for-pixel with what gets drawn.
-const CONTAINER_LABEL_FONT_SIZE = 13;
+import { chipGap, chipHeight, chipRows, chipWidth } from '../utils/chips';
 
 // ============================================================
 // Types
@@ -64,6 +54,8 @@ export interface SitemapLayoutNode {
   readonly hiddenCount?: number;
   /** True if node has children (expanded or collapsed) — drives toggle UI */
   readonly hasChildren?: boolean;
+  /** 1-based position inside a `steps` group (#1861) */
+  readonly step?: number;
 }
 
 export interface SitemapLayoutEdge {
@@ -72,27 +64,12 @@ export interface SitemapLayoutEdge {
   readonly points: ReadonlyArray<{ readonly x: number; readonly y: number }>;
   readonly label?: string;
   readonly lineNumber: number;
-  /** True for edges deferred from dagre (container endpoints) — use linear curve */
-  readonly deferred?: boolean;
-}
-
-export interface SitemapContainerBounds {
-  readonly nodeId: string;
-  readonly label: string;
-  readonly lineNumber: number;
-  readonly color?: string;
-  readonly metadata: Readonly<Record<string, string>>;
-  /** Original (unfiltered) metadata for tag-based coloring and hover dimming */
-  readonly tagMetadata: Readonly<Record<string, string>>;
-  readonly x: number;
-  readonly y: number;
-  readonly width: number;
-  readonly height: number;
-  readonly labelHeight: number;
-  /** Count of hidden descendants when collapsed */
-  readonly hiddenCount?: number;
-  /** True if container has children (expanded or collapsed) */
-  readonly hasChildren?: boolean;
+  /**
+   * What drew the line (#1861): `tree` is indentation (grey elbow, no head),
+   * `step` joins consecutive pages of a `steps` group (bold, arrow), `link`
+   * is a written `-label->` arrow (thin dashed curve over the tree).
+   */
+  readonly kind: 'tree' | 'step' | 'link';
 }
 
 export interface SitemapLegendEntry {
@@ -115,29 +92,11 @@ export interface SitemapLegendGroup {
 export interface SitemapLayoutResult {
   readonly nodes: readonly SitemapLayoutNode[];
   readonly edges: readonly SitemapLayoutEdge[];
-  readonly containers: readonly SitemapContainerBounds[];
   readonly legend: readonly SitemapLegendGroup[];
   readonly width: number;
   readonly height: number;
 }
 
-// Read only after `layoutInPlace`, so every node has its x and y.
-type DagreGraph = Graph<GraphLabel, NodeLabel & Point, EdgeLabel>;
-
-/**
- * Runs `dagre.layout()` on `g`, which sets every node's x and y in place, and
- * the width and height of each container.
- */
-function layoutInPlace(
-  g: Graph<GraphLabel, Partial<NodeLabel>, EdgeLabel>
-): asserts g is DagreGraph {
-  dagre.layout(g);
-}
-
-/**
- * Clip a point at (cx, cy) to the border of a rectangle centered at (cx, cy)
- * with given width/height, along the direction toward (tx, ty).
- */
 function clipToRectBorder(
   cx: number,
   cy: number,
@@ -165,11 +124,40 @@ const CARD_H_PAD = 20;
 const CARD_V_PAD = 10;
 const MIN_CARD_WIDTH = 140;
 export const MARGIN = 40;
-const CONTAINER_PAD_X = 24;
-const CONTAINER_PAD_TOP = 40;
-const CONTAINER_PAD_BOTTOM = 24;
-const CONTAINER_LABEL_HEIGHT = 28;
-const CONTAINER_META_LINE_HEIGHT = 16;
+// Page tree spacing (#1861).
+/** Parent card bottom to child card top, in a spread or steps row. */
+const TREE_V_GAP = 44;
+/** Between sibling subtrees laid side by side. */
+const TREE_H_GAP = 40;
+/** Between the trees of a forest. */
+const FOREST_GAP = 56;
+/** A stacked column of leaf pages sits this far right of its parent's left edge. */
+const STACK_INDENT = 28;
+/** Vertical gap between cards in a stacked column. */
+const STACK_GAP = 12;
+/** Gap between consecutive pages of a `steps` row, wide enough for its arrow. */
+const STEP_GAP = 40;
+/** direction-lr: parent card right edge to its children's left edge. */
+const LR_H_GAP = 56;
+/** direction-lr: between sibling subtrees stacked top to bottom. */
+const LR_V_GAP = 16;
+/** How far a cross-link bows off the straight line, at most. */
+const LINK_BOW_MAX = 48;
+/**
+ * How far a link between two cards of one column bows past their right edge.
+ * The label sits near the peak, so the bow clears the label; longer links bow
+ * further, so arcs nest and their labels part, as in an arc diagram.
+ */
+function sideArcBow(label: string | undefined, dy: number): number {
+  const labelW = label ? measureText(label, EDGE_LABEL_FONT_SIZE) + 10 : 0;
+  return Math.max(36, labelW + 16) + Math.abs(dy) * SIDE_ARC_PER_PX;
+}
+/** Extra bow per px of vertical distance between the two cards. */
+const SIDE_ARC_PER_PX = 0.22;
+/** Where along a same-column link its arc peaks, from the source (0.5 = middle). */
+const SIDE_ARC_LEAN = 0.3;
+/** Edge label font size; the renderer draws labels at this size. */
+export const EDGE_LABEL_FONT_SIZE = 11;
 
 // Legend (kanban-style pills)
 
@@ -191,20 +179,26 @@ function filterMetadata(
   return filtered;
 }
 
+/** Chip values for a card, in metadata order (the renderer draws the same list). */
+function chipValues(
+  meta: Record<string, string>
+): { label: string; value: string }[] {
+  return Object.entries(meta).map(([label, value]) => ({ label, value }));
+}
+
+/**
+ * Card width: the bold label, the description lines and the widest single
+ * chip set the floor; chips wrap to the width (#1861, chips from #1862).
+ */
 function computeCardWidth(
   label: string,
   meta: Record<string, string>,
   descLines?: readonly string[]
 ): number {
-  // Measure each text element in the font size AND face the renderer draws it
-  // with so the card never under-sizes its content. The card label is bold
-  // (utils/card.ts); meta rows and description lines are regular.
   let maxContentWidth = measureText(label, LABEL_FONT_SIZE, { bold: true });
-  for (const [key, value] of Object.entries(meta)) {
-    // Renderer draws meta as "key:" then the value, both at META_FONT_SIZE,
-    // with a space separating them.
-    const lineWidth = measureText(`${key}: ${value}`, META_FONT_SIZE);
-    if (lineWidth > maxContentWidth) maxContentWidth = lineWidth;
+  for (const c of chipValues(meta)) {
+    const w = chipWidth(c, META_FONT_SIZE);
+    if (w > maxContentWidth) maxContentWidth = w;
   }
   if (descLines) {
     for (const dl of descLines) {
@@ -215,15 +209,38 @@ function computeCardWidth(
   return Math.max(MIN_CARD_WIDTH, Math.ceil(maxContentWidth) + CARD_H_PAD * 2);
 }
 
+/** Height of the chip rows a card of `width` draws; 0 with no metadata. */
+export function sitemapChipBlockHeight(
+  meta: Record<string, string>,
+  width: number
+): number {
+  const rows = chipRows(
+    chipValues(meta),
+    META_FONT_SIZE,
+    META_LINE_HEIGHT,
+    width - CARD_H_PAD
+  ).length;
+  if (rows === 0) return 0;
+  return (
+    rows * chipHeight(META_LINE_HEIGHT) + (rows - 1) * chipGap(META_LINE_HEIGHT)
+  );
+}
+
 function computeCardHeight(
   meta: Record<string, string>,
+  width: number,
   descLineCount = 0
 ): number {
-  const metaCount = Object.keys(meta).length;
-  const contentCount = metaCount + descLineCount;
-  if (contentCount === 0) return HEADER_HEIGHT + CARD_V_PAD;
+  const chips = sitemapChipBlockHeight(meta, width);
+  if (chips === 0 && descLineCount === 0) return HEADER_HEIGHT + CARD_V_PAD;
+  const between = chips > 0 && descLineCount > 0 ? SEPARATOR_GAP : 0;
   return (
-    HEADER_HEIGHT + SEPARATOR_GAP + contentCount * META_LINE_HEIGHT + CARD_V_PAD
+    HEADER_HEIGHT +
+    SEPARATOR_GAP +
+    chips +
+    between +
+    descLineCount * META_LINE_HEIGHT +
+    CARD_V_PAD
   );
 }
 
@@ -240,8 +257,6 @@ function resolveNodeColor(
     node.isContainer
   );
 }
-
-const OVERLAP_GAP = 20;
 
 // ============================================================
 // Legend
@@ -298,84 +313,364 @@ function computeLegendGroups(
 // Flatten tree into page-node and container lists
 // ============================================================
 
-interface FlatNode {
-  sitemapNode: SitemapNode;
-  parentContainerId: string | null;
-  /** Nearest ancestor that is a page (not container) — used for invisible hierarchy edges */
-  parentPageId: string | null;
+// ============================================================
+// Layout — a page tree (#1861)
+// ============================================================
+//
+// Indentation is the tree: a page's children, and a group's pages, hang
+// under it joined by grey elbows. Top-level groups hang under the FIRST
+// top-level page; each later top-level page starts its own tree beside it;
+// with no top-level page the groups stand side by side. Written arrows never
+// move a card — they are dashed `link` curves drawn over the finished tree.
+//
+// A node with only leaf children stacks them in an indented column (the org
+// chart's compact leaf layout); one with deeper children spreads its subtrees
+// side by side under a bus; a `steps` group lays its pages out in a numbered
+// row joined by bold `step` arrows. direction-lr turns the tree on its side.
+
+interface TNode {
+  src: SitemapNode;
   meta: Record<string, string>;
-  /** Original (unfiltered) metadata — used for tag coloring/hover even when hidden */
   fullMeta: Record<string, string>;
-  width: number;
-  height: number;
+  w: number;
+  h: number;
+  kids: TNode[];
+  subW: number;
+  subH: number;
+  x: number; // card left
+  y: number; // card top
+  step?: number;
 }
 
-function flattenNodes(
-  nodes: readonly SitemapNode[],
-  parentContainerId: string | null,
-  parentPageId: string | null,
-  hiddenCounts: Map<string, number> | undefined,
-  hiddenAttributes: Set<string> | undefined,
-  result: FlatNode[]
-): void {
-  for (const node of nodes) {
-    const meta = filterMetadata(node.metadata, hiddenAttributes);
-    if (node.isContainer) {
-      // Container gets added as a flat entry (not added to dagre — bounds computed post-hoc)
-      const metaCount = Object.keys(meta).length;
-      const labelHeight =
-        CONTAINER_LABEL_HEIGHT + metaCount * CONTAINER_META_LINE_HEIGHT;
-      result.push({
-        sitemapNode: node,
-        parentContainerId,
-        parentPageId,
-        meta,
-        fullMeta: { ...node.metadata },
-        width: Math.max(
-          MIN_CARD_WIDTH,
-          // The renderer draws the container name bold.
-          measureText(node.label, CONTAINER_LABEL_FONT_SIZE, { bold: true }) +
-            CARD_H_PAD * 2
-        ),
-        height: labelHeight + CONTAINER_PAD_BOTTOM,
-      });
-      // Recurse into children — container becomes parent container, parentPageId stays the same
-      flattenNodes(
-        node.children,
-        node.id,
-        parentPageId,
-        hiddenCounts,
-        hiddenAttributes,
-        result
-      );
-    } else {
-      result.push({
-        sitemapNode: node,
-        parentContainerId,
-        parentPageId,
-        meta,
-        fullMeta: { ...node.metadata },
-        width: computeCardWidth(node.label, meta, node.description),
-        height: computeCardHeight(meta, node.description?.length ?? 0),
-      });
-      // Pages can have children too (nested pages) — this page becomes the parentPageId
-      if (node.children.length > 0) {
-        flattenNodes(
-          node.children,
-          parentContainerId,
-          node.id,
-          hiddenCounts,
-          hiddenAttributes,
-          result
-        );
-      }
+type Pt = { x: number; y: number };
+
+function buildTNode(
+  node: SitemapNode,
+  extraKids: readonly SitemapNode[],
+  hiddenAttributes: Set<string> | undefined
+): TNode {
+  const meta = filterMetadata(node.metadata, hiddenAttributes);
+  const w = computeCardWidth(node.label, meta, node.description);
+  const kids = [...node.children, ...extraKids]
+    .sort((a, b) => a.lineNumber - b.lineNumber)
+    .map((k) => buildTNode(k, [], hiddenAttributes));
+  return {
+    src: node,
+    meta,
+    fullMeta: { ...node.metadata },
+    w,
+    h: computeCardHeight(meta, w, node.description?.length ?? 0),
+    kids,
+    subW: 0,
+    subH: 0,
+    x: 0,
+    y: 0,
+  };
+}
+
+const isStack = (n: TNode): boolean =>
+  !n.src.steps && n.kids.length > 0 && n.kids.every((k) => k.kids.length === 0);
+
+/** Written links by source id, so a stacked column can reserve its arcs' room. */
+type LinkIndex = ReadonlyMap<
+  string,
+  readonly { targetId: string; label?: string }[]
+>;
+
+/**
+ * Room a stacked column needs right of its widest card for the side arcs of
+ * links among its cards (see `linkPoints`), measured on the stacked offsets.
+ */
+function stackArcRoom(n: TNode, links: LinkIndex): number {
+  const mid = new Map<string, number>();
+  mid.set(n.src.id, n.h / 2);
+  let y = n.h + STACK_GAP;
+  for (const k of n.kids) {
+    mid.set(k.src.id, y + k.h / 2);
+    y += k.h + STACK_GAP;
+  }
+  let room = 0;
+  for (const [id, ay] of mid)
+    for (const l of links.get(id) ?? []) {
+      const by = mid.get(l.targetId);
+      if (by === undefined || l.targetId === id) continue;
+      room = Math.max(room, sideArcBow(l.label, by - ay));
     }
+  return room;
+}
+
+function sizeTB(n: TNode, links: LinkIndex): void {
+  for (const k of n.kids) sizeTB(k, links);
+  if (n.kids.length === 0) {
+    n.subW = n.w;
+    n.subH = n.h;
+  } else if (isStack(n)) {
+    n.subW = Math.max(
+      n.w,
+      STACK_INDENT +
+        Math.max(...n.kids.map((k) => k.w)) +
+        stackArcRoom(n, links)
+    );
+    n.subH = n.h + n.kids.reduce((s, k) => s + STACK_GAP + k.h, 0);
+  } else {
+    const gap = n.src.steps ? STEP_GAP : TREE_H_GAP;
+    const rowW =
+      n.kids.reduce((s, k) => s + k.subW, 0) + gap * (n.kids.length - 1);
+    n.subW = Math.max(n.w, rowW);
+    n.subH = n.h + TREE_V_GAP + Math.max(...n.kids.map((k) => k.subH));
   }
 }
 
-// ============================================================
-// Layout
-// ============================================================
+function placeTB(n: TNode, left: number, top: number, edges: LEdge[]): void {
+  n.y = top;
+  if (n.kids.length === 0) {
+    n.x = left;
+    return;
+  }
+  if (isStack(n)) {
+    n.x = left;
+    const trunkX = left + STACK_INDENT / 2;
+    let cy = top + n.h + STACK_GAP;
+    for (const k of n.kids) {
+      placeTB(k, left + STACK_INDENT, cy, edges);
+      const my = k.y + k.h / 2;
+      edges.push(
+        treeEdge(n, k, [
+          { x: trunkX, y: top + n.h },
+          { x: trunkX, y: my },
+          { x: k.x, y: my },
+        ])
+      );
+      cy += k.h + STACK_GAP;
+    }
+    return;
+  }
+  const steps = n.src.steps === true;
+  const gap = steps ? STEP_GAP : TREE_H_GAP;
+  const rowW =
+    n.kids.reduce((s, k) => s + k.subW, 0) + gap * (n.kids.length - 1);
+  let cx = left + (n.subW - rowW) / 2;
+  const rowTop = top + n.h + TREE_V_GAP;
+  for (const k of n.kids) {
+    placeTB(k, cx, rowTop, edges);
+    cx += k.subW + gap;
+  }
+  const first = n.kids[0]!;
+  const last = n.kids[n.kids.length - 1]!;
+  const centre = steps
+    ? first.x + first.w / 2
+    : (first.x + first.w / 2 + last.x + last.w / 2) / 2;
+  n.x = Math.min(Math.max(centre - n.w / 2, left), left + n.subW - n.w);
+  const px = n.x + n.w / 2;
+  const busY = top + n.h + TREE_V_GAP / 2;
+  const targets = steps ? [first] : n.kids;
+  for (const k of targets) {
+    const kx = k.x + k.w / 2;
+    edges.push(
+      treeEdge(
+        n,
+        k,
+        Math.abs(kx - px) < 0.5
+          ? [
+              { x: px, y: top + n.h },
+              { x: kx, y: k.y },
+            ]
+          : [
+              { x: px, y: top + n.h },
+              { x: px, y: busY },
+              { x: kx, y: busY },
+              { x: kx, y: k.y },
+            ]
+      )
+    );
+  }
+  if (steps) stepEdges(n, edges, 'TB');
+}
+
+function sizeLR(n: TNode): void {
+  for (const k of n.kids) sizeLR(k);
+  if (n.kids.length === 0) {
+    n.subW = n.w;
+    n.subH = n.h;
+  } else if (n.src.steps) {
+    const rowW =
+      n.kids.reduce((s, k) => s + k.subW, 0) + STEP_GAP * (n.kids.length - 1);
+    n.subW = n.w + LR_H_GAP + rowW;
+    n.subH = Math.max(n.h, ...n.kids.map((k) => k.subH));
+  } else {
+    const colH =
+      n.kids.reduce((s, k) => s + k.subH, 0) + LR_V_GAP * (n.kids.length - 1);
+    n.subW = n.w + LR_H_GAP + Math.max(...n.kids.map((k) => k.subW));
+    n.subH = Math.max(n.h, colH);
+  }
+}
+
+function placeLR(n: TNode, left: number, top: number, edges: LEdge[]): void {
+  n.x = left;
+  if (n.kids.length === 0) {
+    n.y = top;
+    return;
+  }
+  const kidLeft = left + n.w + LR_H_GAP;
+  if (n.src.steps) {
+    n.y = top + (n.subH - n.h) / 2;
+    const mid = n.y + n.h / 2;
+    let cx = kidLeft;
+    for (const k of n.kids) {
+      placeLR(k, cx, mid - k.subH / 2, edges);
+      cx += k.subW + STEP_GAP;
+    }
+    const first = n.kids[0]!;
+    edges.push(
+      treeEdge(n, first, [
+        { x: left + n.w, y: mid },
+        { x: first.x, y: mid },
+      ])
+    );
+    stepEdges(n, edges, 'LR');
+    return;
+  }
+  const colH =
+    n.kids.reduce((s, k) => s + k.subH, 0) + LR_V_GAP * (n.kids.length - 1);
+  let cy = top + (n.subH - colH) / 2;
+  for (const k of n.kids) {
+    placeLR(k, kidLeft, cy, edges);
+    cy += k.subH + LR_V_GAP;
+  }
+  const first = n.kids[0]!;
+  const last = n.kids[n.kids.length - 1]!;
+  const centre = (first.y + first.h / 2 + last.y + last.h / 2) / 2;
+  n.y = Math.min(Math.max(centre - n.h / 2, top), top + n.subH - n.h);
+  const py = n.y + n.h / 2;
+  const busX = left + n.w + LR_H_GAP / 2;
+  for (const k of n.kids) {
+    const ky = k.y + k.h / 2;
+    edges.push(
+      treeEdge(
+        n,
+        k,
+        Math.abs(ky - py) < 0.5
+          ? [
+              { x: left + n.w, y: py },
+              { x: k.x, y: ky },
+            ]
+          : [
+              { x: left + n.w, y: py },
+              { x: busX, y: py },
+              { x: busX, y: ky },
+              { x: k.x, y: ky },
+            ]
+      )
+    );
+  }
+}
+
+interface LEdge {
+  sourceId: string;
+  targetId: string;
+  points: Pt[];
+  label?: string;
+  lineNumber: number;
+  kind: 'tree' | 'step' | 'link';
+}
+
+function treeEdge(n: TNode, k: TNode, points: Pt[]): LEdge {
+  return {
+    sourceId: n.src.id,
+    targetId: k.src.id,
+    points,
+    lineNumber: k.src.lineNumber,
+    kind: 'tree',
+  };
+}
+
+/** Number a steps group's pages and join each to the next with a bold arrow. */
+function stepEdges(n: TNode, edges: LEdge[], dir: 'TB' | 'LR'): void {
+  n.kids.forEach((k, i) => {
+    k.step = i + 1;
+    const next = n.kids[i + 1];
+    if (!next) return;
+    const y =
+      dir === 'TB'
+        ? k.y + Math.min(k.h, next.h) / 2
+        : (k.y + k.h / 2 + next.y + next.h / 2) / 2;
+    edges.push({
+      sourceId: k.src.id,
+      targetId: next.src.id,
+      points: [
+        { x: k.x + k.w, y },
+        { x: next.x, y },
+      ],
+      lineNumber: next.src.lineNumber,
+      kind: 'step',
+    });
+  });
+}
+
+/**
+ * A written arrow as a gentle curve between the two cards' borders, bowed to
+ * the right of its direction so A→B and B→A part. A self-link loops over the
+ * card's top-right corner.
+ */
+function linkPoints(s: TNode, t: TNode, label?: string): Pt[] {
+  if (s === t) {
+    const r = s.x + s.w;
+    const top = s.y;
+    return [
+      { x: r - 24, y: top },
+      { x: r - 24, y: top - 20 },
+      { x: r + 20, y: top - 20 },
+      { x: r + 20, y: top + 14 },
+      { x: r, y: top + 14 },
+    ];
+  }
+  // Cards in one column (a stacked list): arc out past their right edges,
+  // so the link never squeezes through the gap between them.
+  const xOverlap = Math.min(s.x + s.w, t.x + t.w) - Math.max(s.x, t.x);
+  if (xOverlap > 0) {
+    const ay = s.y + s.h / 2;
+    const by = t.y + t.h / 2;
+    const r = Math.max(s.x + s.w, t.x + t.w);
+    const bow = sideArcBow(label, by - ay);
+    // The peak leans toward the source, so A→B and B→A between the same two
+    // cards — otherwise one curve — part, and so do their labels.
+    return [
+      { x: s.x + s.w, y: ay },
+      { x: r + bow, y: ay + (by - ay) * SIDE_ARC_LEAN },
+      { x: t.x + t.w, y: by },
+    ];
+  }
+  // Cards in one row (a steps row, a row of sections): arc above for a
+  // forward link and below for a back link, clear of the step arrows.
+  const yOverlap = Math.min(s.y + s.h, t.y + t.h) - Math.max(s.y, t.y);
+  if (yOverlap > 0) {
+    const forward = t.x > s.x;
+    const edge = forward ? Math.min(s.y, t.y) : Math.max(s.y + s.h, t.y + t.h);
+    const ay = forward ? s.y : s.y + s.h;
+    const by = forward ? t.y : t.y + t.h;
+    const ax = s.x + s.w / 2;
+    const bx = t.x + t.w / 2;
+    const bow = 26 + Math.abs(bx - ax) * 0.06;
+    return [
+      { x: ax, y: ay },
+      { x: (ax + bx) / 2, y: edge + (forward ? -bow : bow) * 2 },
+      { x: bx, y: by },
+    ];
+  }
+  const sc = { x: s.x + s.w / 2, y: s.y + s.h / 2 };
+  const tc = { x: t.x + t.w / 2, y: t.y + t.h / 2 };
+  const a = clipToRectBorder(sc.x, sc.y, s.w, s.h, tc.x, tc.y);
+  const b = clipToRectBorder(tc.x, tc.y, t.w, t.h, sc.x, sc.y);
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const bow = Math.min(LINK_BOW_MAX, len * 0.18);
+  const mid = {
+    x: (a.x + b.x) / 2 - (dy / len) * bow,
+    y: (a.y + b.y) / 2 + (dx / len) * bow,
+  };
+  return [a, mid, b];
+}
 
 export function layoutSitemap(
   parsed: ParsedSitemap,
@@ -388,7 +683,6 @@ export function layoutSitemap(
     return {
       nodes: [],
       edges: [],
-      containers: [],
       legend: [],
       width: 0,
       height: 0,
@@ -408,172 +702,67 @@ export function layoutSitemap(
     (e) => (e as SitemapNode).isContainer
   );
 
-  // Flatten hierarchy
-  const flatNodes: FlatNode[] = [];
-  flattenNodes(
-    parsed.roots,
-    null,
-    null,
-    hiddenCounts,
-    hiddenAttributes,
-    flatNodes
-  );
+  // The forest: top-level groups join the first top-level page.
+  const firstPage = parsed.roots.find((r) => !r.isContainer);
+  const topGroups = parsed.roots.filter((r) => r.isContainer);
+  const trees: TNode[] = firstPage
+    ? parsed.roots
+        .filter((r) => !r.isContainer)
+        .map((r) =>
+          buildTNode(r, r === firstPage ? topGroups : [], hiddenAttributes)
+        )
+    : topGroups.map((g) => buildTNode(g, [], hiddenAttributes));
 
-  // Build nodeMap for lookups
-  const nodeMap = new Map<string, FlatNode>();
-  for (const flat of flatNodes) {
-    nodeMap.set(flat.sitemapNode.id, flat);
+  const linkIndex = new Map<string, { targetId: string; label?: string }[]>();
+  for (const e of parsed.edges) {
+    const list = linkIndex.get(e.sourceId) ?? [];
+    list.push({
+      targetId: e.targetId,
+      ...(e.label !== undefined && { label: e.label }),
+    });
+    linkIndex.set(e.sourceId, list);
   }
 
-  // Build compound dagre graph — containers use setParent() for clean grouping.
-  // Collapsed containers (no children) are added as regular nodes.
-  // Multigraph: collapsed edges can produce multiple edges between the same pair
-  // (e.g. Dashboard→Account for both "settings" and "billing").
-  // Container nodes carry no width or height until dagre sizes them.
-  const g = new dagre.graphlib.Graph<GraphLabel, Partial<NodeLabel>, EdgeLabel>(
-    {
-      compound: true,
-      multigraph: true,
-    }
-  );
-  g.setGraph({
-    rankdir: parsed.direction,
-    nodesep: 50,
-    ranksep: 60,
-    edgesep: 30,
-    marginx: MARGIN,
-    marginy: MARGIN,
-  });
-  g.setDefaultEdgeLabel(() => ({}));
-
-  const containerIds = new Set<string>();
-  const pageNodeIds = new Set<string>();
-  const collapsedContainerIds = new Set<string>();
-
-  // Identify containers vs pages, and detect collapsed containers.
-  // A container is collapsed iff hiddenCounts records it with a positive count
-  // (meaning collapseSitemapTree pruned its descendants). Source-level empty
-  // containers (never had children) are NOT treated as collapsed.
-  for (const flat of flatNodes) {
-    if (flat.sitemapNode.isContainer) {
-      containerIds.add(flat.sitemapNode.id);
-      const hidden = hiddenCounts?.get(flat.sitemapNode.id) ?? 0;
-      if (hidden > 0) {
-        collapsedContainerIds.add(flat.sitemapNode.id);
-      }
+  const lr = parsed.direction === 'LR';
+  const treeEdges: LEdge[] = [];
+  let cursor = MARGIN;
+  for (const t of trees) {
+    if (lr) {
+      sizeLR(t);
+      placeLR(t, MARGIN, cursor, treeEdges);
+      cursor += t.subH + FOREST_GAP;
     } else {
-      pageNodeIds.add(flat.sitemapNode.id);
+      sizeTB(t, linkIndex);
+      placeTB(t, cursor, MARGIN, treeEdges);
+      cursor += t.subW + FOREST_GAP;
     }
   }
 
-  // Sibling-page floor for collapsed containers — prevents collapsed containers
-  // from rendering smaller than meta-rich page cards in the same layout.
-  let pageMaxW = 0;
-  let pageMaxH = 0;
-  for (const f of flatNodes) {
-    if (!f.sitemapNode.isContainer) {
-      if (f.width > pageMaxW) pageMaxW = f.width;
-      if (f.height > pageMaxH) pageMaxH = f.height;
-    }
+  const byId = new Map<string, TNode>();
+  const walk = (n: TNode) => {
+    byId.set(n.src.id, n);
+    n.kids.forEach(walk);
+  };
+  trees.forEach(walk);
+
+  const linkEdges: LEdge[] = [];
+  for (const e of parsed.edges) {
+    const s = byId.get(e.sourceId);
+    const t = byId.get(e.targetId);
+    if (!s || !t) continue;
+    linkEdges.push({
+      sourceId: e.sourceId,
+      targetId: e.targetId,
+      points: linkPoints(s, t, e.label),
+      ...(e.label !== undefined && { label: e.label }),
+      lineNumber: e.lineNumber,
+      kind: 'link',
+    });
   }
 
-  // Add nodes to dagre
-  for (const flat of flatNodes) {
-    const node = flat.sitemapNode;
-    if (node.isContainer) {
-      if (collapsedContainerIds.has(node.id)) {
-        // Collapsed container — regular node with explicit dimensions.
-        // Floor to max page-card dims so collapsed containers never look
-        // smaller than sibling page cards.
-        const flooredW = Math.max(flat.width, pageMaxW);
-        const flooredH = Math.max(flat.height, pageMaxH);
-        g.setNode(node.id, {
-          label: node.label,
-          width: flooredW,
-          height: flooredH,
-        });
-      } else {
-        // Regular container — compound node with padding for child layout
-        g.setNode(node.id, {
-          label: node.label,
-          paddingLeft: CONTAINER_PAD_X,
-          paddingRight: CONTAINER_PAD_X,
-          paddingTop: CONTAINER_PAD_TOP,
-          paddingBottom: CONTAINER_PAD_BOTTOM,
-        });
-      }
-    } else {
-      g.setNode(node.id, {
-        label: node.label,
-        width: flat.width,
-        height: flat.height,
-      });
-    }
-  }
-
-  // Set parent relationships — dagre compound nesting keeps nodes grouped
-  for (const flat of flatNodes) {
-    if (
-      flat.parentContainerId &&
-      !collapsedContainerIds.has(flat.parentContainerId)
-    ) {
-      g.setParent(flat.sitemapNode.id, flat.parentContainerId);
-    }
-  }
-
-  // Build set of expanded (non-collapsed) container IDs — dagre can't route
-  // edges to compound parents (they have no rank of their own)
-  const expandedContainerIds = new Set<string>();
-  for (const cid of containerIds) {
-    if (!collapsedContainerIds.has(cid)) {
-      expandedContainerIds.add(cid);
-    }
-  }
-
-  // Add user edges — defer edges touching expanded containers
-  const deferredEdgeIndices: number[] = [];
-  for (let i = 0; i < parsed.edges.length; i++) {
-    // In-bounds by loop guard.
-    const edge = parsed.edges[i]!;
-    if (!g.hasNode(edge.sourceId) || !g.hasNode(edge.targetId)) continue;
-    if (
-      expandedContainerIds.has(edge.sourceId) ||
-      expandedContainerIds.has(edge.targetId)
-    ) {
-      deferredEdgeIndices.push(i);
-      continue;
-    }
-    g.setEdge(
-      edge.sourceId,
-      edge.targetId,
-      {
-        label: edge.label ?? '',
-        minlen: 1,
-      },
-      `e${i}`
-    );
-  }
-
-  // Run dagre layout — once. Sitemap does NOT run the placement search the
-  // flowchart, state and class layouts share (`utils/placement-search.ts`,
-  // #1240): a site's pages link back and forth, and on the gallery's
-  // sitemap-full fixture the plain placement (6 crossings) beat every one of
-  // 62 candidates tried — the other rankers and 60 seed-shuffles, the best at
-  // 8. At the shared budget the search changed no crossing on any sitemap in
-  // the gallery, tests or docs, and made sitemap-full's layout ~8× slower.
-  layoutInPlace(g);
-
-  // Extract layout results — all positions from dagre
   const layoutNodes: Writable<SitemapLayoutNode>[] = [];
-  const layoutContainers: Writable<SitemapContainerBounds>[] = [];
-
-  // Page nodes
-  for (const flat of flatNodes) {
-    const node = flat.sitemapNode;
-    if (node.isContainer) continue;
-    const pos = g.node(node.id);
-    if (!pos) continue;
-
+  for (const n of byId.values()) {
+    const node = n.src;
     const hc = hiddenCounts?.get(node.id);
     const resolvedColor = resolveNodeColor(
       node,
@@ -583,321 +772,41 @@ export function layoutSitemap(
     layoutNodes.push({
       id: node.id,
       label: node.label,
-      metadata: flat.meta,
-      tagMetadata: flat.fullMeta,
+      metadata: n.meta,
+      tagMetadata: n.fullMeta,
       ...(node.description !== undefined && {
         description: [...node.description],
       }),
-      isContainer: false,
+      isContainer: node.isContainer,
       lineNumber: node.lineNumber,
       ...(resolvedColor !== undefined && { color: resolvedColor }),
-      x: pos.x,
-      y: pos.y - pos.height / 2,
-      width: pos.width,
-      height: pos.height,
+      x: n.x + n.w / 2,
+      y: n.y,
+      width: n.w,
+      height: n.h,
       ...(hc !== undefined && { hiddenCount: hc }),
       ...((node.children.length > 0 || (hc != null && hc > 0)) && {
         hasChildren: true,
       }),
+      ...(n.step !== undefined && { step: n.step }),
     });
   }
-
-  // Containers — bounds from dagre compound layout
-  for (const flat of flatNodes) {
-    const node = flat.sitemapNode;
-    if (!node.isContainer) continue;
-
-    const pos = g.node(node.id);
-    const hc = hiddenCounts?.get(node.id);
-    const metaCount = Object.keys(flat.meta).length;
-    const labelHeight =
-      CONTAINER_LABEL_HEIGHT + metaCount * CONTAINER_META_LINE_HEIGHT;
-
-    const containerColor = resolveNodeColor(
-      node,
-      parsed.tagGroups,
-      activeTagGroup ?? null
-    );
-    if (pos) {
-      layoutContainers.push({
-        nodeId: node.id,
-        label: node.label,
-        lineNumber: node.lineNumber,
-        ...(containerColor !== undefined && { color: containerColor }),
-        metadata: flat.meta,
-        tagMetadata: flat.fullMeta,
-        x: pos.x - pos.width / 2,
-        y: pos.y - pos.height / 2,
-        width: pos.width,
-        height: pos.height,
-        labelHeight,
-        ...(hc !== undefined && { hiddenCount: hc }),
-        ...((node.children.length > 0 || (hc != null && hc > 0)) && {
-          hasChildren: true,
-        }),
-      });
-    } else {
-      // Fallback — still apply the floor for consistency
-      const isCollapsed = collapsedContainerIds.has(node.id);
-      const flooredW = isCollapsed
-        ? Math.max(flat.width, pageMaxW)
-        : flat.width;
-      const fallbackH = isCollapsed
-        ? flat.height
-        : labelHeight + CONTAINER_PAD_BOTTOM;
-      const flooredH = isCollapsed ? Math.max(fallbackH, pageMaxH) : fallbackH;
-      layoutContainers.push({
-        nodeId: node.id,
-        label: node.label,
-        lineNumber: node.lineNumber,
-        ...(containerColor !== undefined && { color: containerColor }),
-        metadata: flat.meta,
-        tagMetadata: flat.fullMeta,
-        x: MARGIN,
-        y: MARGIN,
-        width: flooredW,
-        height: flooredH,
-        labelHeight,
-        ...(hc !== undefined && { hiddenCount: hc }),
-        ...((node.children.length > 0 || (hc != null && hc > 0)) && {
-          hasChildren: true,
-        }),
-      });
-    }
-  }
-
-  // Edge waypoints from dagre (named edges for multigraph) + deferred edges
-  const deferredSet = new Set(deferredEdgeIndices);
-  const layoutEdges: Writable<SitemapLayoutEdge>[] = [];
-  for (let i = 0; i < parsed.edges.length; i++) {
-    // In-bounds by loop guard.
-    const edge = parsed.edges[i]!;
-    if (!g.hasNode(edge.sourceId) || !g.hasNode(edge.targetId)) continue;
-
-    let points: { x: number; y: number }[];
-
-    if (deferredSet.has(i)) {
-      // Deferred edge (expanded container endpoint) — clip to border
-      const srcNode = g.node(edge.sourceId);
-      const tgtNode = g.node(edge.targetId);
-      if (!srcNode || !tgtNode) continue;
-      const srcPt = clipToRectBorder(
-        srcNode.x,
-        srcNode.y,
-        srcNode.width,
-        srcNode.height,
-        tgtNode.x,
-        tgtNode.y
-      );
-      const tgtPt = clipToRectBorder(
-        tgtNode.x,
-        tgtNode.y,
-        tgtNode.width,
-        tgtNode.height,
-        srcNode.x,
-        srcNode.y
-      );
-      const midX = (srcPt.x + tgtPt.x) / 2;
-      const midY = (srcPt.y + tgtPt.y) / 2;
-      points = [srcPt, { x: midX, y: midY }, tgtPt];
-    } else {
-      const edgeData = g.edge({
-        v: edge.sourceId,
-        w: edge.targetId,
-        name: `e${i}`,
-      });
-      if (!edgeData) continue;
-      points = edgeData.points ?? [];
-    }
-
-    layoutEdges.push({
-      sourceId: edge.sourceId,
-      targetId: edge.targetId,
-      points,
-      ...(edge.label !== undefined && { label: edge.label }),
-      lineNumber: edge.lineNumber,
-      ...(deferredSet.has(i) && { deferred: true }),
-    });
-  }
-
-  // === Isolated subgraph separation ===
-  // Disconnected subgraphs (like Admin with no edges to main content) get pushed
-  // below the main content so they don't compete for top-level positioning.
-  {
-    // Union-find on page nodes + collapsed containers using user edges
-    const allNodeIds = new Set([...pageNodeIds, ...collapsedContainerIds]);
-    const ufParent = new Map<string, string>();
-    for (const id of allNodeIds) ufParent.set(id, id);
-    const ufFind = (x: string): string => {
-      while (ufParent.get(x) !== x) {
-        ufParent.set(x, ufParent.get(ufParent.get(x)!)!);
-        x = ufParent.get(x)!;
-      }
-      return x;
-    };
-    const ufUnion = (a: string, b: string): void => {
-      const ra = ufFind(a);
-      const rb = ufFind(b);
-      if (ra !== rb) ufParent.set(ra, rb);
-    };
-    for (const edge of parsed.edges) {
-      if (allNodeIds.has(edge.sourceId) && allNodeIds.has(edge.targetId)) {
-        ufUnion(edge.sourceId, edge.targetId);
-      }
-    }
-
-    // Main component = component containing the first root page
-    const firstRootPage = flatNodes.find((f) => !f.sitemapNode.isContainer)
-      ?.sitemapNode.id;
-    const mainRoot = firstRootPage ? ufFind(firstRootPage) : null;
-
-    // Collect isolated node IDs (not in main component)
-    const isolatedNodeIds = new Set<string>();
-    for (const id of allNodeIds) {
-      if (mainRoot && ufFind(id) !== mainRoot) {
-        isolatedNodeIds.add(id);
-      }
-    }
-
-    // Identify isolated containers (all page descendants are isolated)
-    const isolatedContainerIds = new Set<string>();
-    for (const cid of containerIds) {
-      if (collapsedContainerIds.has(cid)) {
-        if (isolatedNodeIds.has(cid)) isolatedContainerIds.add(cid);
-        continue;
-      }
-      const members = flatNodes.filter(
-        (f) => !f.sitemapNode.isContainer && f.parentContainerId === cid
-      );
-      if (
-        members.length > 0 &&
-        members.every((m) => isolatedNodeIds.has(m.sitemapNode.id))
-      ) {
-        isolatedContainerIds.add(cid);
-      }
-    }
-
-    if (isolatedNodeIds.size > 0) {
-      const isVertical = parsed.direction === 'TB';
-
-      // Place isolated subgraphs BESIDE the main content (right for TB, below for LR)
-      // instead of extending the diagram in the primary axis. This keeps the diagram
-      // compact and allows better zoom.
-
-      // Main content bounding box
-      let mainRight = 0;
-      let mainBottom = 0;
-      let mainTop = Infinity;
-      let mainLeft = Infinity;
-      for (const n of layoutNodes) {
-        if (!isolatedNodeIds.has(n.id)) {
-          mainRight = Math.max(mainRight, n.x + n.width / 2);
-          mainBottom = Math.max(mainBottom, n.y + n.height);
-          mainTop = Math.min(mainTop, n.y);
-          mainLeft = Math.min(mainLeft, n.x - n.width / 2);
-        }
-      }
-      for (const c of layoutContainers) {
-        if (!isolatedContainerIds.has(c.nodeId)) {
-          mainRight = Math.max(mainRight, c.x + c.width);
-          mainBottom = Math.max(mainBottom, c.y + c.height);
-          mainTop = Math.min(mainTop, c.y);
-          mainLeft = Math.min(mainLeft, c.x);
-        }
-      }
-
-      // Isolated content bounding box
-      let isoLeft = Infinity;
-      let isoTop = Infinity;
-      let isoRight = 0;
-      let isoBottom = 0;
-      for (const n of layoutNodes) {
-        if (isolatedNodeIds.has(n.id)) {
-          isoLeft = Math.min(isoLeft, n.x - n.width / 2);
-          isoTop = Math.min(isoTop, n.y);
-          isoRight = Math.max(isoRight, n.x + n.width / 2);
-          isoBottom = Math.max(isoBottom, n.y + n.height);
-        }
-      }
-      for (const c of layoutContainers) {
-        if (isolatedContainerIds.has(c.nodeId)) {
-          isoLeft = Math.min(isoLeft, c.x);
-          isoTop = Math.min(isoTop, c.y);
-          isoRight = Math.max(isoRight, c.x + c.width);
-          isoBottom = Math.max(isoBottom, c.y + c.height);
-        }
-      }
-
-      if (isoLeft !== Infinity) {
-        // TB: place isolated to the RIGHT, aligned to top of main content
-        // LR: place isolated BELOW, aligned to left of main content
-        const gap = OVERLAP_GAP * 2;
-        let shiftX: number;
-        let shiftY: number;
-
-        if (isVertical) {
-          shiftX = mainRight + gap - isoLeft;
-          shiftY = (mainTop === Infinity ? 0 : mainTop) - isoTop;
-        } else {
-          shiftX = (mainLeft === Infinity ? 0 : mainLeft) - isoLeft;
-          shiftY = mainBottom + gap - isoTop;
-        }
-
-        if (shiftX !== 0 || shiftY !== 0) {
-          for (const n of layoutNodes) {
-            if (isolatedNodeIds.has(n.id)) {
-              n.x += shiftX;
-              n.y += shiftY;
-            }
-          }
-          for (const c of layoutContainers) {
-            if (isolatedContainerIds.has(c.nodeId)) {
-              c.x += shiftX;
-              c.y += shiftY;
-            }
-          }
-          for (const e of layoutEdges) {
-            const srcIsolated = isolatedNodeIds.has(e.sourceId);
-            const tgtIsolated = isolatedNodeIds.has(e.targetId);
-            if (srcIsolated || tgtIsolated) {
-              for (const p of e.points as Writable<{
-                x: number;
-                y: number;
-              }>[]) {
-                p.x += shiftX;
-                p.y += shiftY;
-              }
-            }
-          }
-        }
-      }
-    }
-  }
+  // Tree lines under, steps over them, written links on top.
+  const layoutEdges: SitemapLayoutEdge[] = [...treeEdges, ...linkEdges];
 
   // Compute bounding box
   let totalWidth = 0;
   let totalHeight = 0;
-
   for (const node of layoutNodes) {
-    const right = node.x + node.width / 2;
-    const bottom = node.y + node.height;
-    if (right > totalWidth) totalWidth = right;
-    if (bottom > totalHeight) totalHeight = bottom;
+    totalWidth = Math.max(totalWidth, node.x + node.width / 2);
+    totalHeight = Math.max(totalHeight, node.y + node.height);
   }
-  for (const c of layoutContainers) {
-    const right = c.x + c.width;
-    const bottom = c.y + c.height;
-    if (right > totalWidth) totalWidth = right;
-    if (bottom > totalHeight) totalHeight = bottom;
-  }
-  // Include edge points in bounding box
   for (const edge of layoutEdges) {
     for (const p of edge.points) {
-      if (p.x > totalWidth) totalWidth = p.x;
-      if (p.y > totalHeight) totalHeight = p.y;
+      totalWidth = Math.max(totalWidth, p.x);
+      totalHeight = Math.max(totalHeight, p.y);
     }
   }
-
   totalWidth += MARGIN;
   totalHeight += MARGIN;
 
@@ -946,7 +855,6 @@ export function layoutSitemap(
       const shift = (neededWidth - totalWidth) / 2;
       totalWidth = neededWidth;
       for (const n of layoutNodes) n.x += shift;
-      for (const c of layoutContainers) c.x += shift;
       for (const e of layoutEdges) {
         for (const p of e.points as Writable<{ x: number; y: number }>[])
           p.x += shift;
@@ -966,7 +874,6 @@ export function layoutSitemap(
   return {
     nodes: layoutNodes,
     edges: layoutEdges,
-    containers: layoutContainers,
     legend: legendGroups,
     width: totalWidth,
     height: totalHeight,

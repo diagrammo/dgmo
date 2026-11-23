@@ -39,6 +39,7 @@ function cloneNode(node: SitemapNode): Writable<SitemapNode> {
     lineNumber: node.lineNumber,
     ...(node.color !== undefined && { color: node.color }),
     ...(node.collapsed !== undefined && { collapsed: node.collapsed }),
+    ...(node.steps && { steps: true }),
   };
 }
 

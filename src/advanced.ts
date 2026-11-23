@@ -480,7 +480,6 @@ export type {
   SitemapLayoutResult,
   SitemapLayoutNode,
   SitemapLayoutEdge,
-  SitemapContainerBounds,
   SitemapLegendGroup,
   SitemapLegendEntry,
 } from './sitemap/layout';

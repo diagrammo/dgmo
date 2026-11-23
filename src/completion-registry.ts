@@ -895,8 +895,8 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     'sitemap',
     withGlobals({
       'no-legend': { description: 'Hide the legend' },
-      'direction-tb': { description: 'Switch to top-to-bottom layout' },
-      'direction-lr': { description: 'Left-to-right layout (the default)' },
+      'direction-tb': { description: 'Top-down page tree (the default)' },
+      'direction-lr': { description: 'Lay the page tree on its side' },
       'active-tag': { description: 'Active tag group name' },
     }),
   ],

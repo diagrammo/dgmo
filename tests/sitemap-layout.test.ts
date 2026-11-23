@@ -1,54 +1,24 @@
 import { describe, it, expect } from 'vitest';
 import { parseSitemap } from '../src/sitemap/parser';
 import { layoutSitemap } from '../src/sitemap/layout';
-import { collapseSitemapTree } from '../src/sitemap/collapse';
-import type { SitemapNode } from '../src/sitemap/types';
+import {
+  collapseSitemapTree,
+  unionCollapsedSitemapNodes,
+} from '../src/sitemap/collapse';
 
-/**
- * Tag declarations needed to register the arbitrary metadata keys
- * these layout tests use (Access, Payment, etc.). Under the §1.4
- * unified-metadata grammar, only reserved keys + declared tag aliases
- * trigger the metadata cut; layout tests deliberately use arbitrary
- * keys to exercise multi-row card rendering.
- */
-const LAYOUT_TEST_TAGS = [
-  'tag Access as access',
-  '  Public blue',
-  'tag Payment as payment',
-  '  Card blue',
-  'tag Items as items',
-  '  Default blue',
-  'tag Shift as shift',
-  '  Morning blue',
-  'tag Page as page',
-  '  Default blue',
-  'tag K as k',
-  '  Default blue',
-  'tag A as a',
-  '  Default blue',
-  'tag B as b',
-  '  Default blue',
-  'tag C as c',
-  '  Default blue',
-  'tag D as d',
-  '  Default blue',
-  'tag E as e',
-  '  Default blue',
-].join('\n');
-
-/** Find a container's parser-generated ID by label (recursive). */
-function findContainerId(roots: SitemapNode[], label: string): string {
-  function search(nodes: SitemapNode[]): string | undefined {
-    for (const n of nodes) {
-      if (n.isContainer && n.label === label) return n.id;
-      const found = search(n.children);
-      if (found) return found;
+type Box = { x: number; y: number; width: number; height: number };
+/** Cards are placed by top-centre; no two may share any area. */
+function expectNoOverlap(nodes: readonly Box[]): void {
+  for (let i = 0; i < nodes.length; i++)
+    for (let j = i + 1; j < nodes.length; j++) {
+      const a = nodes[i]!;
+      const b = nodes[j]!;
+      const x =
+        a.x - a.width / 2 < b.x + b.width / 2 &&
+        b.x - b.width / 2 < a.x + a.width / 2;
+      const y = a.y < b.y + b.height && b.y < a.y + a.height;
+      expect(x && y).toBe(false);
     }
-    return undefined;
-  }
-  const id = search(roots);
-  if (!id) throw new Error(`Container "${label}" not found`);
-  return id;
 }
 
 function layout(content: string) {
@@ -95,18 +65,22 @@ describe('layoutSitemap', () => {
     }
   });
 
-  it('creates containers', () => {
+  it('draws a group as a section node with its pages under it (#1861)', () => {
     const { layout: result } = layout('[Group]\n  Page A\n  Page B');
-    expect(result.containers).toHaveLength(1);
-    expect(result.containers[0].label).toBe('Group');
-    expect(result.nodes).toHaveLength(2);
+    expect(result.nodes).toHaveLength(3);
+    const group = result.nodes.find((n) => n.isContainer)!;
+    expect(group.label).toBe('Group');
+    for (const page of result.nodes.filter((n) => !n.isContainer))
+      expect(page.y).toBeGreaterThan(group.y + group.height);
+    expect(result.edges.filter((e) => e.kind === 'tree')).toHaveLength(2);
   });
 
   it('routes edges between nodes', () => {
     const content = ['Home', '  -go-> About', 'About'].join('\n');
     const { layout: result } = layout(content);
-    expect(result.edges).toHaveLength(1);
-    expect(result.edges[0].points.length).toBeGreaterThanOrEqual(2);
+    const links = result.edges.filter((e) => e.kind === 'link');
+    expect(links).toHaveLength(1);
+    expect(links[0].points.length).toBeGreaterThanOrEqual(2);
   });
 
   it('handles TB and LR directions', () => {
@@ -139,8 +113,8 @@ describe('layoutSitemap', () => {
       '\n'
     );
     const { layout: result } = layout(content);
-    expect(result.containers).toHaveLength(2);
-    expect(result.nodes).toHaveLength(2);
+    expect(result.nodes.filter((n) => n.isContainer)).toHaveLength(2);
+    expect(result.nodes).toHaveLength(4);
   });
 
   it('handles cross-group edges', () => {
@@ -152,8 +126,9 @@ describe('layoutSitemap', () => {
       '  Page B',
     ].join('\n');
     const { layout: result } = layout(content);
-    expect(result.edges).toHaveLength(1);
-    expect(result.edges[0].points.length).toBeGreaterThanOrEqual(2);
+    const links = result.edges.filter((e) => e.kind === 'link');
+    expect(links).toHaveLength(1);
+    expect(links[0].points.length).toBeGreaterThanOrEqual(2);
   });
 
   it('handles full baseball tickets sample without overlap', () => {
@@ -201,299 +176,17 @@ describe('layoutSitemap', () => {
     expect(parsed.error).toBeNull();
     const result = layoutSitemap(parsed);
 
-    // Should have pages + containers
-    expect(result.nodes.length).toBeGreaterThanOrEqual(7);
-    expect(result.containers.length).toBeGreaterThanOrEqual(3);
-    expect(result.edges.length).toBeGreaterThanOrEqual(6);
+    // Pages plus one section node per group; written arrows are links.
+    expect(result.nodes.filter((n) => !n.isContainer)).toHaveLength(8);
+    expect(result.nodes.filter((n) => n.isContainer)).toHaveLength(3);
+    expect(
+      result.edges.filter((e) => e.kind === 'link').length
+    ).toBeGreaterThanOrEqual(6);
+    expectNoOverlap(result.nodes);
 
     // Total dimensions should be reasonable
     expect(result.width).toBeGreaterThan(200);
     expect(result.height).toBeGreaterThan(200);
-  });
-
-  it('positions collapsed containers via dagre (not at origin)', () => {
-    const content = [
-      'Home',
-      '  -settings-> Settings',
-      '  -docs-> Docs',
-      '',
-      '[Account]',
-      '  Settings',
-      '  Billing',
-      '',
-      '[Marketing]',
-      '  Docs',
-      '  Blog',
-    ].join('\n');
-    const parsed = parseSitemap(content);
-
-    // Simulate collapse: provide hiddenCounts and remove children
-    // We manually collapse by creating a pruned version
-    const cloned = JSON.parse(JSON.stringify(parsed));
-    // Find and prune Account container
-    for (const root of cloned.roots) {
-      if (root.isContainer && root.label === 'Account') {
-        root.children = [];
-      }
-    }
-    const hiddenCounts = new Map<string, number>();
-    // Find Account's container ID
-    const accountContainer = parsed.roots.find(
-      (r) => r.isContainer && r.label === 'Account'
-    );
-    if (accountContainer) {
-      hiddenCounts.set(accountContainer.id, 2);
-    }
-
-    // Re-terminate edges: Settings is inside Account, so Home -> Settings becomes Home -> Account
-    for (const edge of cloned.edges) {
-      if (edge.targetId === 'node-2' && accountContainer) {
-        edge.targetId = accountContainer.id;
-      }
-    }
-
-    const result = layoutSitemap(cloned, hiddenCounts);
-
-    // Account should be a collapsed container (no members) positioned by dagre
-    const accountBounds = result.containers.find((c) => c.label === 'Account');
-    expect(accountBounds).toBeDefined();
-    expect(accountBounds!.hiddenCount).toBe(2);
-
-    // Should NOT be at the default fallback position (MARGIN, MARGIN) = (40, 40)
-    // It should be positioned near Home due to the re-terminated edge
-    const isAtFallback = accountBounds!.x < 50 && accountBounds!.y < 50;
-    expect(isAtFallback).toBe(false);
-
-    // Edges to collapsed containers should be present
-    const edgesToAccount = result.edges.filter(
-      (e) =>
-        e.targetId === accountContainer!.id ||
-        e.sourceId === accountContainer!.id
-    );
-    expect(edgesToAccount.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('deferred edges to expanded containers produce valid point arrays', () => {
-    const content = [
-      'Home',
-      '  -> [Browse]',
-      '[Browse]',
-      '  Shop',
-      '  Detail',
-    ].join('\n');
-    const parsed = parseSitemap(content);
-    const result = layoutSitemap(parsed);
-
-    // Edge from Home to expanded [Browse] should be deferred and have 3-point path
-    expect(result.edges).toHaveLength(1);
-    expect(result.edges[0].points).toHaveLength(3);
-    for (const p of result.edges[0].points) {
-      expect(typeof p.x).toBe('number');
-      expect(typeof p.y).toBe('number');
-      expect(Number.isFinite(p.x)).toBe(true);
-      expect(Number.isFinite(p.y)).toBe(true);
-    }
-  });
-
-  describe('collapsed-container sibling-page floor', () => {
-    it('floors collapsed container to max sibling page-card dimensions', () => {
-      const source = [
-        'sitemap',
-        LAYOUT_TEST_TAGS,
-        '[Storefront]',
-        '  Checkout  Access: Public, Payment: Card',
-        '  Catalog  Access: Public, Items: 240',
-        '[Warehouse]',
-        '  Intake  Access: Internal, Shift: Morning',
-        '  Outbound  Access: Internal, Shift: Evening',
-      ].join('\n');
-      const parsed = parseSitemap(source);
-      const warehouseId = findContainerId(parsed.roots, 'Warehouse');
-      const { parsed: collapsed, hiddenCounts } = collapseSitemapTree(
-        parsed,
-        new Set([warehouseId])
-      );
-      const result = layoutSitemap(collapsed, hiddenCounts);
-      const pageMaxW = Math.max(...result.nodes.map((n) => n.width));
-      const pageMaxH = Math.max(...result.nodes.map((n) => n.height));
-      const warehouse = result.containers.find((c) => c.label === 'Warehouse');
-      expect(warehouse).toBeDefined();
-      expect(warehouse!.width).toBeGreaterThanOrEqual(pageMaxW);
-      expect(warehouse!.height).toBeGreaterThanOrEqual(pageMaxH);
-    });
-
-    it('discriminates empty containers from collapsed containers via hiddenCount', () => {
-      const source = [
-        'sitemap',
-        LAYOUT_TEST_TAGS,
-        '[Storefront]',
-        '  Checkout  Access: Public, Payment: Card',
-        '[Empty]',
-        '[Warehouse]',
-        '  Intake  Access: Internal, Shift: Morning',
-      ].join('\n');
-      const parsed = parseSitemap(source);
-      const warehouseId = findContainerId(parsed.roots, 'Warehouse');
-      const { parsed: collapsed, hiddenCounts } = collapseSitemapTree(
-        parsed,
-        new Set([warehouseId])
-      );
-      const result = layoutSitemap(collapsed, hiddenCounts);
-      const empty = result.containers.find((c) => c.label === 'Empty');
-      const warehouse = result.containers.find((c) => c.label === 'Warehouse');
-      expect(empty).toBeDefined();
-      expect(warehouse).toBeDefined();
-      expect(empty!.hiddenCount).toBeUndefined();
-      expect(warehouse!.hiddenCount).toBeGreaterThan(0);
-      expect(warehouse!.width).toBeGreaterThanOrEqual(
-        Math.max(...result.nodes.map((n) => n.width))
-      );
-    });
-
-    it('grows collapsed container past the floor when content requires it', () => {
-      const source = [
-        'sitemap',
-        LAYOUT_TEST_TAGS,
-        '[Main]',
-        '  Home  K: v',
-        '[Details]  A: 1, B: 2, C: 3, D: 4, E: 5',
-        '  Child  K: v',
-      ].join('\n');
-      const parsed = parseSitemap(source);
-      const detailsId = findContainerId(parsed.roots, 'Details');
-      const { parsed: collapsed, hiddenCounts } = collapseSitemapTree(
-        parsed,
-        new Set([detailsId])
-      );
-      const result = layoutSitemap(collapsed, hiddenCounts);
-      const details = result.containers.find((c) => c.label === 'Details');
-      expect(details).toBeDefined();
-      expect(details!.hiddenCount).toBeGreaterThan(0);
-      // Content-required height for a container with 5 meta rows =
-      // 28 + 5*16 + 24 = 132, which exceeds any 1-meta page-card floor (~54)
-      expect(details!.height).toBeGreaterThanOrEqual(120);
-    });
-
-    it('does not crash when no page cards exist to derive a floor from', () => {
-      const source = ['sitemap', '[OnlyContainer]', '  Hidden  K: v'].join(
-        '\n'
-      );
-      const parsed = parseSitemap(source);
-      const containerId = findContainerId(parsed.roots, 'OnlyContainer');
-      const { parsed: collapsed, hiddenCounts } = collapseSitemapTree(
-        parsed,
-        new Set([containerId])
-      );
-      expect(() => layoutSitemap(collapsed, hiddenCounts)).not.toThrow();
-      const result = layoutSitemap(collapsed, hiddenCounts);
-      const only = result.containers.find((c) => c.label === 'OnlyContainer');
-      expect(only).toBeDefined();
-      expect(only!.hiddenCount).toBeGreaterThan(0);
-      expect(only!.width).toBe(140); // MIN_CARD_WIDTH, floor is no-op
-    });
-
-    it('floors every collapsed container uniformly, not just one', () => {
-      const source = [
-        'sitemap',
-        LAYOUT_TEST_TAGS,
-        '[Open]',
-        '  LargePage  A: 1, B: 2, C: 3',
-        '[Collapsed1]',
-        '  Hidden1  K: v',
-        '[Collapsed2]',
-        '  Hidden2  K: v',
-      ].join('\n');
-      const parsed = parseSitemap(source);
-      const c1Id = findContainerId(parsed.roots, 'Collapsed1');
-      const c2Id = findContainerId(parsed.roots, 'Collapsed2');
-      const { parsed: collapsed, hiddenCounts } = collapseSitemapTree(
-        parsed,
-        new Set([c1Id, c2Id])
-      );
-      const result = layoutSitemap(collapsed, hiddenCounts);
-      const pageMaxW = Math.max(...result.nodes.map((n) => n.width));
-      const pageMaxH = Math.max(...result.nodes.map((n) => n.height));
-      const c1 = result.containers.find((c) => c.label === 'Collapsed1');
-      const c2 = result.containers.find((c) => c.label === 'Collapsed2');
-      expect(c1!.hiddenCount).toBeGreaterThan(0);
-      expect(c2!.hiddenCount).toBeGreaterThan(0);
-      expect(c1!.width).toBeGreaterThanOrEqual(pageMaxW);
-      expect(c1!.height).toBeGreaterThanOrEqual(pageMaxH);
-      expect(c2!.width).toBeGreaterThanOrEqual(pageMaxW);
-      expect(c2!.height).toBeGreaterThanOrEqual(pageMaxH);
-    });
-
-    it('floors width and height independently', () => {
-      const source = [
-        'sitemap',
-        LAYOUT_TEST_TAGS,
-        '[Main]',
-        '  Home  Access: Public, Page: Landing',
-        '[A Very Long Container Name Indeed]',
-        '  Inside  K: v',
-      ].join('\n');
-      const parsed = parseSitemap(source);
-      const wideId = findContainerId(
-        parsed.roots,
-        'A Very Long Container Name Indeed'
-      );
-      const { parsed: collapsed, hiddenCounts } = collapseSitemapTree(
-        parsed,
-        new Set([wideId])
-      );
-      const result = layoutSitemap(collapsed, hiddenCounts);
-      const pageMaxW = Math.max(...result.nodes.map((n) => n.width));
-      const pageMaxH = Math.max(...result.nodes.map((n) => n.height));
-      const wide = result.containers.find((c) =>
-        c.label.startsWith('A Very Long')
-      );
-      expect(wide).toBeDefined();
-      expect(wide!.hiddenCount).toBeGreaterThan(0);
-      // Width: content-driven (label ~32 chars → ~280px > page ~145px)
-      expect(wide!.width).toBeGreaterThan(pageMaxW);
-      // Height: floor-driven (container 52 → floored to page ~76)
-      expect(wide!.height).toBeGreaterThanOrEqual(pageMaxH);
-    });
-
-    it('pirate-bay scenario: collapsed Port Market is floored to page-card max', () => {
-      const source = [
-        'sitemap Pirate Bay Trading Co.',
-        '',
-        'Home  Access: Public, Page: Landing',
-        '  -shop-> Shop',
-        '  -join-> Enlist',
-        '  -map-> Treasure Map',
-        '',
-        '[Port Market]',
-        '  Shop  Access: Public, Page: Content',
-        '    -buy-> Checkout',
-        '  Checkout  Access: Crew Only, Page: Form',
-        '    -purchased-> Ship Log',
-        '',
-        '[Crew Quarters]',
-        '  Enlist  Access: Public, Page: Form',
-        '    -enlisted-> Ship Log',
-        '  Ship Log  Access: Crew Only, Page: Content',
-        '    -voyage-> Treasure Map',
-        '  Treasure Map  Access: Captain, Page: Content',
-      ].join('\n');
-      const parsed = parseSitemap(source);
-      const portMarketId = findContainerId(parsed.roots, 'Port Market');
-      const { parsed: collapsed, hiddenCounts } = collapseSitemapTree(
-        parsed,
-        new Set([portMarketId])
-      );
-      const result = layoutSitemap(collapsed, hiddenCounts);
-      const portMarket = result.containers.find(
-        (c) => c.label === 'Port Market'
-      );
-      const pageMaxW = Math.max(...result.nodes.map((n) => n.width));
-      const pageMaxH = Math.max(...result.nodes.map((n) => n.height));
-      expect(portMarket).toBeDefined();
-      expect(portMarket!.hiddenCount).toBeGreaterThan(0);
-      expect(portMarket!.width).toBeGreaterThanOrEqual(pageMaxW);
-      expect(portMarket!.height).toBeGreaterThanOrEqual(pageMaxH);
-    });
   });
 });
 
@@ -531,5 +224,111 @@ Home al: Public, pm: Card, eo: Desk, rc: Weekly`;
     // Guard: the legend really is the wider of the two here.
     expect(layout.width).toBeGreaterThan(maxX - minX + MARGIN * 2 + 1);
     expect(minX).toBeCloseTo(layout.width - maxX, 5);
+  });
+});
+
+describe('sitemap page tree (#1861)', () => {
+  const byLabel = (r: ReturnType<typeof layoutSitemap>, label: string) =>
+    r.nodes.find((n) => n.label === label)!;
+
+  it('top-level groups hang under the first top-level page', () => {
+    const { layout: r } = layout(
+      ['Home', '', '[Browse]', '  Games', '', '[Account]', '  Login'].join('\n')
+    );
+    const home = byLabel(r, 'Home');
+    const tree = r.edges.filter((e) => e.kind === 'tree');
+    for (const g of ['Browse', 'Account']) {
+      const section = byLabel(r, g);
+      expect(section.isContainer).toBe(true);
+      expect(section.y).toBeGreaterThan(home.y + home.height);
+      expect(
+        tree.some((e) => e.sourceId === home.id && e.targetId === section.id)
+      ).toBe(true);
+    }
+  });
+
+  it('a later top-level page starts its own tree beside the first', () => {
+    const { layout: r } = layout('Home\n  About\nHelp\n  FAQ');
+    const home = byLabel(r, 'Home');
+    const help = byLabel(r, 'Help');
+    expect(help.y).toBe(home.y);
+    expect(help.x).toBeGreaterThan(home.x);
+    expect(
+      r.edges.some((e) => e.sourceId === home.id && e.targetId === help.id)
+    ).toBe(false);
+  });
+
+  it('with no top-level page, groups stand side by side', () => {
+    const { layout: r } = layout('[A]\n  One\n[B]\n  Two');
+    expect(byLabel(r, 'A').y).toBe(byLabel(r, 'B').y);
+  });
+
+  it('written arrows never move a card', () => {
+    const plain = layout('Home\n  About\n  Blog\n    Post').layout;
+    const linked = layout(
+      'Home\n  -x-> Post\n  About\n    -y-> Home\n  Blog\n    Post'
+    ).layout;
+    const pos = (r: typeof plain) =>
+      r.nodes.map((n) => [n.label, n.x, n.y]).sort();
+    expect(pos(linked)).toEqual(pos(plain));
+  });
+
+  it('a steps group draws its pages as a numbered row joined by step arrows', () => {
+    const { layout: r } = layout(
+      [
+        'Home',
+        '[Checkout] steps',
+        '  Cart',
+        '  Pay',
+        '  Done',
+        '    -back-> Cart',
+      ].join('\n')
+    );
+    const steps = ['Cart', 'Pay', 'Done'].map((l) => byLabel(r, l));
+    expect(steps.map((n) => n.step)).toEqual([1, 2, 3]);
+    expect(new Set(steps.map((n) => n.y)).size).toBe(1);
+    expect(steps[0]!.x).toBeLessThan(steps[1]!.x);
+    expect(steps[1]!.x).toBeLessThan(steps[2]!.x);
+    const stepEdges = r.edges.filter((e) => e.kind === 'step');
+    expect(stepEdges.map((e) => [e.sourceId, e.targetId])).toEqual([
+      [steps[0]!.id, steps[1]!.id],
+      [steps[1]!.id, steps[2]!.id],
+    ]);
+    // The written back arrow stays a link.
+    expect(r.edges.filter((e) => e.kind === 'link')).toHaveLength(1);
+  });
+
+  it('direction-lr lays the tree on its side', () => {
+    const { layout: r } = layout(
+      'sitemap\ndirection-lr\nHome\n  About\n  Blog'
+    );
+    const home = byLabel(r, 'Home');
+    for (const l of ['About', 'Blog'])
+      expect(byLabel(r, l).x - byLabel(r, l).width / 2).toBeGreaterThan(
+        home.x + home.width / 2
+      );
+    expectNoOverlap(r.nodes);
+  });
+
+  it('a collapsed group is a leaf section node carrying its hidden count', () => {
+    const parsed = parseSitemap(
+      [
+        'Home',
+        '  -go-> [Account]',
+        '[Account] collapsed',
+        '  Login',
+        '  Profile',
+      ].join('\n')
+    );
+    const { parsed: pruned, hiddenCounts } = collapseSitemapTree(
+      parsed,
+      unionCollapsedSitemapNodes(parsed)
+    );
+    const r = layoutSitemap(pruned, hiddenCounts);
+    const account = byLabel(r, 'Account');
+    expect(account.hiddenCount).toBe(2);
+    expect(r.nodes.some((n) => n.label === 'Login')).toBe(false);
+    const link = r.edges.find((e) => e.kind === 'link')!;
+    expect(link.targetId).toBe(account.id);
   });
 });

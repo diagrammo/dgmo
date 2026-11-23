@@ -172,7 +172,8 @@ function parseSitemapRaw(
   const result: Writable<ParsedSitemap> = {
     title: null,
     titleLineNumber: null,
-    direction: 'LR',
+    // A sitemap is a top-down page tree (#1861); direction-lr turns it.
+    direction: 'TB',
     roots: [],
     edges: [],
     tagGroups: [],
@@ -356,7 +357,7 @@ function parseSitemapRaw(
       !/[ \t]collapsed$/.test(trimmed)
     ) {
       // Bare booleans: direction-lr / direction-tb (§1.9, last one wins;
-      // direction-lr restates the LR default)
+      // direction-tb restates the TB default)
       const dirBool = trimmed.match(/^direction-(lr|tb)$/i);
       if (dirBool) {
         result.direction = dirBool[1]!.toUpperCase() as 'LR' | 'TB';
@@ -444,7 +445,19 @@ function parseSitemapRaw(
       const barePeel = peelTrailingCollapsedFlag(
         (containerMatch[2] ?? '').trim()
       );
-      const tail = barePeel.rest.trim();
+      // A trailing bare `steps` flag (#1861), in either order with collapsed.
+      let tail = barePeel.rest.trim();
+      let steps = false;
+      const stepsPeel = tail.match(/^(.*?)(?:^|\s)steps$/i);
+      if (stepsPeel) {
+        steps = true;
+        tail = stepsPeel[1]!.trim();
+      }
+      let collapsedFlag = barePeel.collapsed;
+      if (steps && !collapsedFlag && /(?:^|\s)collapsed$/i.test(tail)) {
+        collapsedFlag = true;
+        tail = tail.replace(/(?:^|\s)collapsed$/i, '').trim();
+      }
       const containerMetadata: Record<string, string> = {};
       if (tail.length > 0) {
         Object.assign(
@@ -455,7 +468,7 @@ function parseSitemapRaw(
       // Lifted before attachNode so the marker never cascades to members.
       const containerCollapsed = liftCollapsed(
         containerMetadata,
-        barePeel.collapsed
+        collapsedFlag
       );
 
       containerCounter++;
@@ -473,6 +486,7 @@ function parseSitemapRaw(
         ...(containerCollapsed !== undefined && {
           collapsed: containerCollapsed,
         }),
+        ...(steps && { steps: true }),
       };
 
       attachNode(node, indent, indentStack, result);

@@ -39,12 +39,44 @@ describe('renderSitemap', () => {
     document.body.removeChild(container);
   });
 
-  it('renders containers', () => {
+  it('renders a group as a dashed section node over its pages (#1861)', () => {
     const { container } = renderToContainer('[Group]\n  Page A\n  Page B');
-    const containers = container.querySelectorAll('.sitemap-container');
-    expect(containers.length).toBe(1);
-    const nodes = container.querySelectorAll('.sitemap-node');
-    expect(nodes.length).toBe(2);
+    expect(container.querySelectorAll('.sitemap-section').length).toBe(1);
+    expect(container.querySelectorAll('.sitemap-node').length).toBe(3);
+    const tree = container.querySelectorAll('[data-edge-kind="tree"] path');
+    expect(tree.length).toBe(2);
+    for (const p of tree) expect(p.getAttribute('marker-end')).toBeNull();
+    document.body.removeChild(container);
+  });
+
+  it('draws three line styles from three sources (#1861)', () => {
+    const { container } = renderToContainer(
+      ['Home', '  -help-> Done', '[Flow] steps', '  Start', '  Done'].join('\n')
+    );
+    const path = (kind: string) =>
+      container.querySelector(`[data-edge-kind="${kind}"] path`)!;
+    expect(path('link').getAttribute('stroke-dasharray')).toBeTruthy();
+    expect(path('step').getAttribute('stroke-dasharray')).toBeNull();
+    expect(path('step').getAttribute('marker-end')).toContain('sm-arrow-step');
+    expect(
+      [...container.querySelectorAll('.sitemap-step text')].map(
+        (t) => t.textContent
+      )
+    ).toEqual(['1', '2']);
+    document.body.removeChild(container);
+  });
+
+  it('draws page metadata as chips, not a key: value table (#1861)', () => {
+    const { container } = renderToContainer(
+      ['tag Auth', '  Public green', 'Home', '  Auth: Public'].join('\n')
+    );
+    const chip = container.querySelector('.sitemap-node .kanban-chip')!;
+    expect(chip.querySelector('text')!.textContent).toBe('Public');
+    expect(chip.querySelector('title')!.textContent).toBe('Auth: Public');
+    const texts = [...container.querySelectorAll('.sitemap-node text')].map(
+      (t) => t.textContent
+    );
+    expect(texts).not.toContain('Auth:');
     document.body.removeChild(container);
   });
 

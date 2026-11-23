@@ -46,11 +46,10 @@ Home
     Type: Content
     -select deal-> Game Detail
 
-[Purchase Flow]
+[Purchase Flow] steps
   Seat Picker
     Auth: Public
     Type: Form
-    -select seats-> Cart
     -back-> Game Detail
 
   Cart
@@ -63,13 +62,11 @@ Home
   Checkout
     Auth: Required
     Type: Form
-    -submit-> Payment
     -edit cart-> Cart
 
   Payment
     Auth: Required
     Type: Transactional
-    -success-> Confirmation
     -declined-> Payment
     -cancel-> Cart
 
