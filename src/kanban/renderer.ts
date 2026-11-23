@@ -149,6 +149,129 @@ function resolveCardTagMeta(
   return meta;
 }
 
+// ============================================================
+// Tag chips (#1862)
+// ============================================================
+//
+// A card's tag-group values draw as chips — a rounded pill per value, tinted
+// with the value's colour — flowing left to right and wrapping inside the
+// card. The group name is the chip's <title>; the legend names the groups.
+// Every size derives from the meta font and line height, so the board's
+// scale context reaches the chips with no new parameters.
+
+type CardMeta = { label: string; value: string; color?: string };
+
+const chipHeight = (lineH: number): number => lineH + 2;
+const chipGap = (lineH: number): number => Math.round(lineH * 0.3);
+const chipPadX = (fs: number): number => fs * 0.6;
+
+function chipWidth(m: CardMeta, fs: number): number {
+  return measureText(m.value, fs) + chipPadX(fs) * 2;
+}
+
+/** Chips per row, flowed into `maxW`; a chip wider than a row gets one alone. */
+function chipRows(
+  meta: readonly CardMeta[],
+  fs: number,
+  lineH: number,
+  maxW: number
+): CardMeta[][] {
+  const rows: CardMeta[][] = [];
+  let row: CardMeta[] = [];
+  let x = 0;
+  for (const m of meta) {
+    const w = chipWidth(m, fs);
+    if (row.length > 0 && x + chipGap(lineH) + w > maxW) {
+      rows.push(row);
+      row = [];
+      x = 0;
+    }
+    x += (row.length > 0 ? chipGap(lineH) : 0) + w;
+    row.push(m);
+  }
+  if (row.length > 0) rows.push(row);
+  return rows;
+}
+
+/** Height of the chip block plus the detail lines below the separator. */
+function metaContentHeight(
+  meta: readonly CardMeta[],
+  detailCount: number,
+  fs: number,
+  lineH: number,
+  innerW: number
+): number {
+  const rows = chipRows(meta, fs, lineH, innerW).length;
+  // The meta block already reserves a line's worth of padding for text; a
+  // chip row is taller than a text line, so give one gap of it back to keep
+  // the margin under the chips equal to the one above (#1862).
+  const gap = chipGap(lineH);
+  const chips =
+    rows > 0
+      ? rows * chipHeight(lineH) +
+        (rows - 2) * gap +
+        (detailCount > 0 ? gap : 0)
+      : 0;
+  return chips + detailCount * lineH;
+}
+
+/**
+ * Draw a card's chips from `top`; returns the y the detail lines start at
+ * (their first baseline is that plus the font size).
+ */
+function drawCardChips(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  cg: d3Selection.Selection<SVGGElement, unknown, any, unknown>,
+  meta: readonly CardMeta[],
+  x0: number,
+  top: number,
+  innerW: number,
+  fs: number,
+  lineH: number,
+  cardFill: string,
+  palette: PaletteColors
+): number {
+  const h = chipHeight(lineH);
+  const gap = chipGap(lineH);
+  let y = top;
+  for (const row of chipRows(meta, fs, lineH, innerW)) {
+    let x = x0;
+    for (const m of row) {
+      const w = chipWidth(m, fs);
+      const tone = m.color ?? palette.textMuted;
+      const fill = mix(tone, cardFill, 22);
+      const chip = cg.append('g').attr('class', 'kanban-chip');
+      chip.append('title').text(`${m.label}: ${m.value}`);
+      chip
+        .append('rect')
+        .attr('x', x)
+        .attr('y', y)
+        .attr('width', w)
+        .attr('height', h)
+        .attr('rx', h / 2)
+        .attr('fill', fill)
+        .attr('stroke', tone)
+        .attr('stroke-opacity', 0.55)
+        .attr('stroke-width', 1);
+      chip
+        .append('text')
+        .attr('x', x + w / 2)
+        .attr('y', y + h / 2)
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'central')
+        .attr('font-size', fs)
+        .attr(
+          'fill',
+          contrastText(fill, palette.textOnFillLight, palette.textOnFillDark)
+        )
+        .text(m.value);
+      x += w + gap;
+    }
+    y += h + gap;
+  }
+  return y;
+}
+
 function resolveCardTagColor(
   card: KanbanCard,
   tagGroups: readonly KanbanTagGroup[],
@@ -403,32 +526,19 @@ function computeLayout(
         parsed.tagGroups,
         hiddenMetaGroups
       );
-      const metaCount = tagMeta.length + card.details.length;
-      const metaHeight =
-        metaCount > 0
-          ? sCardSeparatorGap +
-            1 +
-            sCardPaddingY +
-            metaCount * sCardMetaLineHeight
-          : 0;
-      const cardHeight = sCardHeaderHeight + sCardPaddingY + metaHeight;
-
+      // The widest single chip sets the floor; the rest wrap (#1862).
       for (const m of tagMeta) {
-        const metaW =
-          measureText(`${m.label}: ${m.value}`, sCardMetaFontSize) +
-          sCardPaddingX * 2;
+        const metaW = chipWidth(m, sCardMetaFontSize) + sCardPaddingX * 2;
         maxCardTextWidth = Math.max(maxCardTextWidth, metaW);
       }
 
       cardLayouts.push({
         x: sColumnPadding,
-        y: cardY,
+        y: 0,
         width: 0,
-        height: cardHeight,
+        height: 0,
         card,
       });
-
-      cardY += cardHeight + sCardGap;
     }
 
     const colWidth = Math.max(
@@ -436,8 +546,22 @@ function computeLayout(
       maxCardTextWidth + sColumnPadding * 2
     );
 
+    // Chips wrap to the card width, so heights follow the column width.
     for (const cl of cardLayouts) {
       cl.width = colWidth - sColumnPadding * 2;
+      cl.height = computeCardHeight(
+        cl.card,
+        parsed.tagGroups,
+        hiddenMetaGroups,
+        sCardSeparatorGap,
+        sCardPaddingY,
+        sCardMetaLineHeight,
+        sCardHeaderHeight,
+        sCardMetaFontSize,
+        cl.width - sCardPaddingX * 2
+      );
+      cl.y = cardY;
+      cardY += cl.height + sCardGap;
     }
 
     const colHeight = cardY + sColumnPadding;
@@ -1145,26 +1269,18 @@ function drawKanban(
           .attr('stroke-opacity', 0.3)
           .attr('stroke-width', 1);
 
-        let metaY = separatorY + sCardSeparatorGap + sCardMetaFontSize;
-
-        for (const meta of tagMeta) {
-          cg.append('text')
-            .attr('x', cx + sCardPaddingX)
-            .attr('y', metaY)
-            .attr('font-size', sCardMetaFontSize)
-            .attr('fill', onCardText)
-            .text(`${meta.label}: `);
-
-          const labelWidth = measureText(`${meta.label}: `, sCardMetaFontSize);
-          cg.append('text')
-            .attr('x', cx + sCardPaddingX + labelWidth)
-            .attr('y', metaY)
-            .attr('font-size', sCardMetaFontSize)
-            .attr('fill', onCardText)
-            .text(meta.value);
-
-          metaY += sCardMetaLineHeight;
-        }
+        let metaY =
+          drawCardChips(
+            cg,
+            tagMeta,
+            cx + sCardPaddingX,
+            separatorY + sCardSeparatorGap + 2,
+            cardLayout.width - sCardPaddingX * 2,
+            sCardMetaFontSize,
+            sCardMetaLineHeight,
+            cardFill,
+            palette
+          ) + sCardMetaFontSize;
 
         for (const detail of card.details) {
           const detailEl = cg
@@ -1370,13 +1486,24 @@ function computeCardHeight(
   sCardSeparatorGap = CARD_SEPARATOR_GAP,
   sCardPaddingY = CARD_PADDING_Y,
   sCardMetaLineHeight = CARD_META_LINE_HEIGHT,
-  sCardHeaderHeight = CARD_HEADER_HEIGHT
+  sCardHeaderHeight = CARD_HEADER_HEIGHT,
+  sCardMetaFontSize = CARD_META_FONT_SIZE,
+  innerWidth = Infinity
 ) {
   const tagMeta = resolveCardTagMeta(card, tagGroups, hiddenMetaGroups);
   const metaCount = tagMeta.length + card.details.length;
   const metaHeight =
     metaCount > 0
-      ? sCardSeparatorGap + 1 + sCardPaddingY + metaCount * sCardMetaLineHeight
+      ? sCardSeparatorGap +
+        1 +
+        sCardPaddingY +
+        metaContentHeight(
+          tagMeta,
+          card.details.length,
+          sCardMetaFontSize,
+          sCardMetaLineHeight,
+          innerWidth
+        )
       : 0;
   return sCardHeaderHeight + sCardPaddingY + metaHeight;
 }
@@ -1403,7 +1530,9 @@ function computeSwimlaneLayout(
   sCardSeparatorGap = CARD_SEPARATOR_GAP,
   sCardMetaLineHeight = CARD_META_LINE_HEIGHT,
   activeGroup?: KanbanTagGroup,
-  chipStyle?: CollapsedChipStyle
+  chipStyle?: CollapsedChipStyle,
+  sCardMetaFontSize = CARD_META_FONT_SIZE,
+  sCardPaddingX = CARD_PADDING_X
 ): SwimlaneBoardLayout {
   const headerHeight =
     parsed.title && parsed.options['no-title'] !== 'on' ? sTitleHeight + 8 : 0;
@@ -1541,7 +1670,9 @@ function computeSwimlaneLayout(
             sCardSeparatorGap,
             sCardPaddingY,
             sCardMetaLineHeight,
-            sCardHeaderHeight
+            sCardHeaderHeight,
+            sCardMetaFontSize,
+            colInfo.width - sColumnPadding * 2 - sCardPaddingX * 2
           ) + sCardGap;
       }
       h = Math.max(h - (cards.length > 0 ? sCardGap : 0), 0);
@@ -1567,7 +1698,9 @@ function computeSwimlaneLayout(
           sCardSeparatorGap,
           sCardPaddingY,
           sCardMetaLineHeight,
-          sCardHeaderHeight
+          sCardHeaderHeight,
+          sCardMetaFontSize,
+          colInfo.width - sColumnPadding * 2 - sCardPaddingX * 2
         );
         cardLayouts.push({
           x: colInfo.x + sColumnPadding,
@@ -1682,7 +1815,9 @@ function renderSwimlaneBoard(
     sCardSeparatorGap,
     sCardMetaLineHeight,
     activeGroup,
-    chipStyle
+    chipStyle,
+    sCardMetaFontSize,
+    sCardPaddingX
   );
 
   const currentW = parseFloat(svg.attr('width') || '0');
@@ -2093,24 +2228,18 @@ function renderSwimlaneCard(
       .attr('stroke-opacity', 0.3)
       .attr('stroke-width', 1);
 
-    let metaY = separatorY + sCardSeparatorGap + sCardMetaFontSize;
-
-    for (const meta of tagMeta) {
-      cg.append('text')
-        .attr('x', cx + sCardPaddingX)
-        .attr('y', metaY)
-        .attr('font-size', sCardMetaFontSize)
-        .attr('fill', palette.textMuted)
-        .text(`${meta.label}: `);
-      const labelWidth = measureText(`${meta.label}: `, sCardMetaFontSize);
-      cg.append('text')
-        .attr('x', cx + sCardPaddingX + labelWidth)
-        .attr('y', metaY)
-        .attr('font-size', sCardMetaFontSize)
-        .attr('fill', onCardText)
-        .text(meta.value);
-      metaY += sCardMetaLineHeight;
-    }
+    let metaY =
+      drawCardChips(
+        cg,
+        tagMeta,
+        cx + sCardPaddingX,
+        separatorY + sCardSeparatorGap + 2,
+        cardLayout.width - sCardPaddingX * 2,
+        sCardMetaFontSize,
+        sCardMetaLineHeight,
+        cardFill,
+        palette
+      ) + sCardMetaFontSize;
 
     for (const detail of card.details) {
       const detailEl = cg

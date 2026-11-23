@@ -678,3 +678,67 @@ describe('a card title that outruns its card (#1687)', () => {
     expect(rectWidth - PADDING).toBeGreaterThanOrEqual(22.11 * FONT);
   });
 });
+
+// ============================================================
+// tag values draw as chips (#1862)
+// ============================================================
+
+describe('card tag values draw as chips', () => {
+  const groups = [1, 2, 3, 4, 5, 6]
+    .map((i) => `tag Group${i}\n  Value number ${i} blue\n  Other ${i} red`)
+    .join('\n\n');
+  const tags = [1, 2, 3, 4, 5, 6]
+    .map((i) => `group${i}: Value number ${i}`)
+    .join(', ');
+  const board = (cardTags: string): string =>
+    `kanban\n\n${groups}\n\n[To Do]\n  Fix it ${cardTags}`;
+
+  const draw = (src: string): HTMLElement => {
+    const container = document.createElement('div');
+    renderKanban(
+      container,
+      parseKanban(src, palette.light),
+      palette.light,
+      false
+    );
+    return container;
+  };
+
+  it('one chip per value, titled with its group, no "Label: value" text', () => {
+    const c = draw(
+      'kanban\n\ntag Group1\n  Value number 1 blue\n\n[To Do]\n  Fix it group1: Value number 1'
+    );
+    const chips = c.querySelectorAll('.kanban-card .kanban-chip');
+    expect(chips.length).toBe(1);
+    expect(chips[0]!.querySelector('text')!.textContent).toBe('Value number 1');
+    expect(chips[0]!.querySelector('title')!.textContent).toBe(
+      'Group1: Value number 1'
+    );
+    const texts = [...c.querySelectorAll('.kanban-card text')].map(
+      (t) => t.textContent
+    );
+    expect(texts.some((t) => t?.includes('Group1: '))).toBe(false);
+  });
+
+  it('chips wrap inside the card, and the card grows to hold them', () => {
+    const one = draw(
+      'kanban\n\ntag Group1\n  Value number 1 blue\n\n[To Do]\n  Fix it group1: Value number 1'
+    );
+    const six = draw(board(tags));
+    const card = six.querySelector('.kanban-card > rect')!;
+    const left = Number(card.getAttribute('x'));
+    const right = left + Number(card.getAttribute('width'));
+    const rects = [...six.querySelectorAll('.kanban-chip rect')];
+    expect(rects.length).toBe(6);
+    const rows = new Set(rects.map((r) => r.getAttribute('y')));
+    expect(rows.size).toBeGreaterThan(1);
+    for (const r of rects) {
+      const x = Number(r.getAttribute('x'));
+      expect(x).toBeGreaterThanOrEqual(left);
+      expect(x + Number(r.getAttribute('width'))).toBeLessThanOrEqual(right);
+    }
+    const h = (el: HTMLElement): number =>
+      Number(el.querySelector('.kanban-card > rect')!.getAttribute('height'));
+    expect(h(six)).toBeGreaterThan(h(one));
+  });
+});

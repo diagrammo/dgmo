@@ -1706,7 +1706,7 @@ kanban [Title]
 
 Columns represent workflow stages and must flow left-to-right from least-done to most-done (e.g., Backlog → In Progress → Done). Every column should be a stage that cards pass through. Don't create columns for non-workflow concepts like gates, criteria, or definitions of done — use a tag instead (e.g., `type: Gate`).
 
-**Color cards by owner / priority** — declare a `tag <Name> as <alias>` group (§1.3), then assign each card `<alias>: <Value>` in its same-line metadata:
+**Color cards by owner / priority** — declare a `tag <Name> as <alias>` group (§1.3), then assign each card `<alias>: <Value>` in its same-line metadata. Each tag value draws on the card as a chip tinted with the value's colour; the group name shows on hover and in the legend:
 
 ```
 tag Crew as c
