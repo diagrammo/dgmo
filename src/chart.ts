@@ -277,6 +277,7 @@ import {
   emit,
   TITLE_DIRECTIVE_DX,
   NEGATIVE_VALUE_DX,
+  DUPLICATE_CATEGORY_DX,
 } from './diagnostics';
 
 /** Chart types in this parser that take `highlight` (§1.11, #1829). */
@@ -1295,6 +1296,25 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
   }
   const emphasis = lifted.override ?? anchoredEmphasis(lit);
   if (emphasis) result.emphasis = emphasis;
+
+  // A repeated category label puts two rows on one x slot (#2256): bars
+  // overlap and a line doubles back. Same label in different clusters is
+  // a different slot, so the key carries the cluster.
+  if (result.type === 'bar' || result.type === 'line') {
+    const firstAt = new Map<string, number>();
+    for (const d of result.data) {
+      const key = `${d.cluster ?? ''}\u0000${d.label}`;
+      const first = firstAt.get(key);
+      if (first === undefined) firstAt.set(key, d.lineNumber);
+      else
+        result.diagnostics.push(
+          emit(DUPLICATE_CATEGORY_DX, d.lineNumber, {
+            label: d.label,
+            firstLine: first,
+          })
+        );
+    }
+  }
 
   if (annotated) {
     const categories = result.data.map((d) => d.label);

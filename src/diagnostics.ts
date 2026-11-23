@@ -428,6 +428,22 @@ export const HEATMAP_SCALE_DX: DiagnosticSpec = {
   example: 'heatmap Load\ncolumns Mon Tue\nscale binned\nA 1 2',
 };
 
+/**
+ * A bar or line chart row whose category label repeats an earlier row's
+ * (#2256). Both rows land on one x slot: bars overlap, and a line doubles
+ * back across the chart. Render behaviour is unchanged; this only says so.
+ */
+export const DUPLICATE_CATEGORY_DX: DiagnosticSpec = {
+  code: 'W_DUPLICATE_CATEGORY',
+  severity: 'warning',
+  chartType: null,
+  title: 'Repeated category label',
+  message: (p: DiagnosticMessageParams) =>
+    `"${p.label ?? '07:00'}" is already the label on line ${p.firstLine ?? 2} — both rows share one spot on the x axis.`,
+  hint: 'Make each label unique, for example by adding the date: `2026-11-22 07:00`.',
+  example: 'line Load\n07:00 4\n08:00 6\n07:00 5',
+};
+
 export const TITLE_DIRECTIVE_DX: DiagnosticSpec = {
   code: 'E_TITLE_DIRECTIVE',
   severity: 'error',

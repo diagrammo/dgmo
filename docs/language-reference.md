@@ -2680,6 +2680,13 @@ Parsers accept either form. The rules above are authoring guidance.
 
 **Declaration:** `bar [Title]`, `line [Title]`, etc.
 
+**Repeated labels.** On bar and line, every row's label is its own spot on the
+x axis. A label used twice puts both rows on one spot — the bars overlap and
+the line doubles back — and the later row gets the warning
+`W_DUPLICATE_CATEGORY` naming the first one's line (#2256). Make the labels
+unique, for example by adding the date (`2026-11-22 07:00`). The same label
+under two different cluster headers is two spots and is not warned.
+
 **Multi-series:**
 
 - **bar** — declare multiple series with a layout block header: `stack` (stacked
