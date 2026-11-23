@@ -7,6 +7,7 @@ import { renderSwimlaneForExport } from '../src/swimlane/renderer';
 import { getPalette } from '../src/palettes';
 import { mix, themeBaseBg } from '../src/palettes/color-utils';
 import { renderForExport } from '../src/d3';
+import { measureText } from '../src/utils/text-measure';
 
 const FIX = (name: string): string =>
   readFileSync(join(__dirname, 'fixtures', name), 'utf8');
@@ -390,5 +391,54 @@ describe('swimlane renderer — BPMN claims process (#1874)', () => {
     expect(
       note.querySelector('.sw-association')!.getAttribute('stroke-dasharray')
     ).toBeTruthy();
+  });
+});
+
+describe('swimlane renderer — long edge labels (#2264)', () => {
+  const LABEL =
+    'yes, the peril and the property are both listed in the schedule';
+  const SRC = [
+    'swimlane Claims',
+    'lane Adjuster',
+    '  <Is the loss covered?>',
+    `    -${LABEL}-> Inspect the property`,
+    '    -no-> Deny the claim',
+    '  Inspect the property',
+    '  Deny the claim',
+  ].join('\n');
+
+  function draw(src: string): SVGSVGElement {
+    const palette = getPalette('nord').light;
+    const parsed = parseSwimlane(src, palette);
+    const layout = layoutSwimlane(parsed);
+    const el = document.createElement('div');
+    renderSwimlaneForExport(el, parsed, layout, palette, false, {
+      exportDims: { width: layout.width + 40, height: layout.height + 80 },
+    });
+    return el.querySelector('svg')!;
+  }
+
+  it('wraps a label wider than its segment, keeping the full text as a title', () => {
+    const svg = draw(SRC);
+    const text = [...svg.querySelectorAll('.dgmo-swimlane-edges text')].find(
+      (t) => t.querySelector('title')?.textContent === LABEL
+    );
+    expect(text).toBeDefined();
+    const lines = [...text!.querySelectorAll('tspan')].map(
+      (s) => s.textContent ?? ''
+    );
+    expect(lines.length).toBeGreaterThan(1);
+    expect(lines.length).toBeLessThanOrEqual(3);
+    for (const l of lines) expect(measureText(l, 11)).toBeLessThanOrEqual(120);
+  });
+
+  it('leaves a short label on one line with no title', () => {
+    const svg = draw(SRC);
+    const no = [...svg.querySelectorAll('.dgmo-swimlane-edges text')].find(
+      (t) => t.textContent === 'no'
+    );
+    expect(no).toBeDefined();
+    expect(no!.querySelector('tspan')).toBeNull();
+    expect(no!.querySelector('title')).toBeNull();
   });
 });

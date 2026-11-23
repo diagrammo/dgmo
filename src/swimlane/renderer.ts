@@ -19,6 +19,7 @@ import { ARTIFACT_FONT, MARGIN as LAYOUT_MARGIN } from './layout';
 import * as d3Selection from 'd3-selection';
 import { fillModeFromOptions } from '../utils/parsing';
 import { FONT_FAMILY } from '../fonts';
+import { fitWrapped, measureText } from '../utils/text-measure';
 import { appendArrowheadMarkers } from '../utils/arrow-markers';
 import {
   ARROWHEAD_HEIGHT,
@@ -52,6 +53,11 @@ const NODE_FONT_SIZE = 12;
 const LANE_LABEL_FONT = 12;
 const PHASE_LABEL_FONT = 12;
 const EDGE_LABEL_FONT = 11;
+/** An edge label wraps to at most this many lines before it ends in `…` (#2264). */
+const EDGE_LABEL_MAX_LINES = 3;
+/** The narrowest an edge label wraps to, however short its segment. */
+const EDGE_LABEL_MIN_WIDTH = 60;
+const EDGE_LABEL_LINE_HEIGHT = 1.2;
 const NODE_RX = 8;
 const NODE_STROKE = 1.5;
 const EDGE_STROKE = 1.6;
@@ -533,6 +539,38 @@ export function renderSwimlaneForExport(
   // ── Edges ───────────────────────────────────────────────────
   const nodeById = new Map(layout.nodes.map((n) => [n.id, n]));
   const edgeG = root.append('g').attr('class', 'dgmo-swimlane-edges');
+  /** True when some line (edge or message) ends on the node's top point. */
+  const touchesAt = (n: SwimLayoutNode, side: 'top' | 'bottom'): boolean => {
+    const y = side === 'top' ? n.y - n.height / 2 : n.y + n.height / 2;
+    const lines = [...layout.edges, ...layout.messages];
+    for (const le of lines) {
+      const pts =
+        le.target === n.id
+          ? [le.points[le.points.length - 1]]
+          : le.source === n.id
+            ? [le.points[0]]
+            : [];
+      for (const pt of pts)
+        if (pt && Math.abs(pt.x - n.x) < 1 && Math.abs(pt.y - y) < 1)
+          return true;
+    }
+    return false;
+  };
+  /** Where each gateway caption sits, so edge labels keep off it (#2264). */
+  const gatewayCaptions = layout.nodes
+    .filter((n) => isGatewayShape(n.shape) && n.label)
+    .map((n) => {
+      const r = n.width / 2;
+      const below = touchesAt(n, 'top') && !touchesAt(n, 'bottom');
+      const fs = NODE_FONT_SIZE - 1;
+      const baseline = below ? n.y + r + 13 : n.y - r - 7;
+      return {
+        x: n.x,
+        y: baseline - fs / 2,
+        w: measureText(n.label, fs),
+        h: fs,
+      };
+    });
   for (const e of layout.edges) {
     const tgt = nodeById.get(e.target);
     let stroke = palette.textMuted;
@@ -613,13 +651,44 @@ export function renderSwimlaneForExport(
           const d = Math.hypot(dx, dy);
           if (d < m) m = d;
         }
+        // So is text over a gateway's caption, drawn outside the diamond.
+        for (const box of gatewayCaptions) {
+          const dx = Math.max(0, Math.abs(px - box.x) - box.w / 2);
+          const dy = Math.max(0, Math.abs(py - box.y) - box.h / 2);
+          const d = Math.hypot(dx, dy);
+          if (d < m) m = d;
+        }
         return m;
       };
       // Sample the whole text run, not just the anchor: a label extends ~half
       // its width past a centered anchor (or its full width past a start/end
       // anchor), and an edge crossing that tail strikes the text even when the
       // anchor itself looks clear.
-      const estW = e.label.length * EDGE_LABEL_FONT * 0.6;
+      // A label on a horizontal segment may be no wider than that segment
+      // (less LABEL_GAP each side), or it runs over the next box (#2264).
+      // Wider wraps to EDGE_LABEL_MAX_LINES; longer still ends in an ellipsis
+      // and the full label goes in its <title>. Short labels are unchanged.
+      let lines = [e.label];
+      if (horizontal) {
+        const maxW = Math.max(
+          EDGE_LABEL_MIN_WIDTH,
+          segLen[best]! - 2 * LABEL_GAP
+        );
+        if (measureText(e.label, EDGE_LABEL_FONT) > maxW)
+          lines = fitWrapped(
+            e.label,
+            maxW,
+            EDGE_LABEL_FONT,
+            EDGE_LABEL_FONT,
+            EDGE_LABEL_MAX_LINES,
+            {}
+          ).lines;
+      }
+      const truncated = lines.join(' ') !== e.label;
+      const estW =
+        lines.length > 1
+          ? Math.max(...lines.map((l) => measureText(l, EDGE_LABEL_FONT)))
+          : e.label.length * EDGE_LABEL_FONT * 0.6;
       const clearance = (px: number, py: number, spanDir: number): number => {
         const xs =
           spanDir === 0
@@ -634,8 +703,21 @@ export function renderSwimlaneForExport(
       let baseline: string;
       if (horizontal) {
         // Centered anchor: text spans ±estW/2 (spanDir 0).
-        const up = clearance(mid.x, mid.y - LABEL_GAP, 0);
-        const down = clearance(mid.x, mid.y + LABEL_GAP, 0);
+        // A wrapped label is checked on every line it draws.
+        const rows = (dir: number): number =>
+          Math.min(
+            ...lines.map((_, i) =>
+              clearance(
+                mid.x,
+                mid.y +
+                  dir *
+                    (LABEL_GAP + i * EDGE_LABEL_FONT * EDGE_LABEL_LINE_HEIGHT),
+                0
+              )
+            )
+          );
+        const up = rows(-1);
+        const down = rows(1);
         const below = up < CROWD && down > up;
         tx = mid.x;
         ty = mid.y + (below ? LABEL_GAP : -LABEL_GAP);
@@ -651,7 +733,7 @@ export function renderSwimlaneForExport(
         anchor = toLeft ? 'end' : 'start';
         baseline = 'middle';
       }
-      edgeG
+      const text = edgeG
         .append('text')
         .attr('x', tx)
         .attr('y', ty)
@@ -662,8 +744,21 @@ export function renderSwimlaneForExport(
         .attr('stroke', haloAt(ty))
         .attr('stroke-width', 3.5)
         .attr('stroke-linejoin', 'round')
-        .attr('paint-order', 'stroke')
-        .text(e.label);
+        .attr('paint-order', 'stroke');
+      if (lines.length === 1) text.text(lines[0]!);
+      else {
+        // Above the edge the block ends at ty; below it starts there.
+        const lh = EDGE_LABEL_FONT * EDGE_LABEL_LINE_HEIGHT;
+        const first = baseline === 'hanging' ? 0 : -(lines.length - 1) * lh;
+        lines.forEach((l, i) =>
+          text
+            .append('tspan')
+            .attr('x', tx)
+            .attr('dy', i === 0 ? first : lh)
+            .text(l)
+        );
+      }
+      if (truncated) text.append('title').text(e.label);
     }
   }
 
@@ -699,23 +794,6 @@ export function renderSwimlaneForExport(
     ...layout.nodes.filter((n) => n.boundaryOf === undefined),
     ...layout.nodes.filter((n) => n.boundaryOf !== undefined),
   ];
-  /** True when some line (edge or message) ends on the node's top point. */
-  const touchesAt = (n: SwimLayoutNode, side: 'top' | 'bottom'): boolean => {
-    const y = side === 'top' ? n.y - n.height / 2 : n.y + n.height / 2;
-    const lines = [...layout.edges, ...layout.messages];
-    for (const le of lines) {
-      const pts =
-        le.target === n.id
-          ? [le.points[le.points.length - 1]]
-          : le.source === n.id
-            ? [le.points[0]]
-            : [];
-      for (const pt of pts)
-        if (pt && Math.abs(pt.x - n.x) < 1 && Math.abs(pt.y - y) < 1)
-          return true;
-    }
-    return false;
-  };
   for (const n of drawOrder) {
     const { fill, stroke } = nodeFill(n);
     const g = nodesG

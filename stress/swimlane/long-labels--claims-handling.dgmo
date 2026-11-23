@@ -1,6 +1,5 @@
 swimlane Insurance Claim Handling Across Departments
 // stress: long-labels — task, gateway and edge labels of 40–80 characters inside five lanes
-// known: diagrammo/diagrammo#2264
 
 lane Customer Service Representative orange
   (Customer reports a loss by phone, web form or branch visit)
