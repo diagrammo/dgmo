@@ -1483,10 +1483,10 @@ export function parseSequenceDgmo(
     // syntax. A lookahead does not work here — `\s*` backtracks to zero width
     // and the check then passes on the space before the quote.
     const colonPostfixSync = arrowCore.match(
-      /^(.+?)(?<!\s)\s*->\s*([^:"]+?)(?<!\s)\s*:\s*(.+)$/
+      /^(.+?)(?<!\s)\s*->\s*(?!\s)([^:"]+?)(?<!\s)\s*:\s*(.+)$/
     );
     const colonPostfixAsync = arrowCore.match(
-      /^(.+?)(?<!\s)\s*~>\s*([^:"]+?)(?<!\s)\s*:\s*(.+)$/
+      /^(.+?)(?<!\s)\s*~>\s*(?!\s)([^:"]+?)(?<!\s)\s*:\s*(.+)$/
     );
     const colonPostfix = colonPostfixSync ?? colonPostfixAsync;
     if (colonPostfix) {
