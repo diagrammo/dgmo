@@ -237,11 +237,16 @@ function renderInto(
  * the app's `closest('.dgmo-datum')` lookup, ends the moment the cursor is on
  * the text (#2086). Clicks fall through to the mark, which carries the line
  * number. The clickable axis labels, the chart title and legend entries keep
- * their own hit targets.
+ * their own hit targets, and so do a waffle's band labels, which sit beside
+ * the grid rather than over it (#2104).
  */
 function passivePlotText(svg: SVGSVGElement | null): void {
   svg?.querySelectorAll('text').forEach((t) => {
-    if (t.closest('.dgmo-axis-label, .chart-title, [data-legend-entry]'))
+    if (
+      t.closest(
+        '.dgmo-axis-label, .chart-title, [data-legend-entry], .dgmo-band-label'
+      )
+    )
       return;
     t.setAttribute('pointer-events', 'none');
   });
