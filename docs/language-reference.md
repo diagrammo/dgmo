@@ -604,6 +604,23 @@ A caller can ask for a canvas size: `--width` and `--height` on the CLI, `width`
 
 - **Every other chart type sizes itself from its content** and stays tight to it: it is never padded with background to reach the box. A `map` takes the width and sets its height from the projection. When the height that comes out is not the one asked for, `W_CANVAS_HEIGHT_IGNORED` says so.
 
+**In the file — `size` and `aspect`.** A file can carry its own canvas on one line anywhere, like `palette`:
+
+```
+pie Crew Share
+size 1000x600
+
+Deckhands 40
+Gunners 25
+```
+
+- `size WxH` — two whole numbers joined by a lowercase `x`, no spaces (`size 1200x675`). Same as `--width 1200 --height 675`.
+- `aspect W:H` — a ratio (`aspect 16:9`); height is `round(width * H / W)`, width is the caller's or 1200 (`EXPORT_WIDTH`). `aspect 16:9` alone draws 1200x675.
+- One line only: `size` and `aspect` together, a second line, or a malformed value is `E_CANVAS_SIZE_INVALID`. No presets (`slide`, `social`, `column` are not values).
+- A caller's `--width` / `--height` beats the file's, one dimension at a time: with `size 1000x600`, `--width 800` gives 800x600.
+- On `wordcloud`, `size <min> <max>` stays the word-size range; only the `WxH` form is a canvas.
+- The exact-size chart types above still apply; others size from content.
+
 ---
 
 ## 2. Universal Name Handling
