@@ -2283,6 +2283,10 @@ export const METADATA_KEY_SET: ReadonlySet<string> = new Set([
   // in existing files, so extractors keep skipping them as directive lines.
   'palette',
   'theme',
+  // A `tag` line is a declaration the extractors skip like a directive. It
+  // was here only by way of bracket's old `tag` directive entry; removing that
+  // entry dropped it and moved the app's data-zone start (#2290).
+  'tag',
   ...[...COMPLETION_REGISTRY.values()].flatMap((spec) =>
     Object.keys(spec.directives)
   ),
