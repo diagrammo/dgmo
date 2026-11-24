@@ -177,7 +177,7 @@ describe('title rule rides every per-type slice (always-title contract)', () => 
       const slice = referenceForChartType(ref as string, type) ?? '';
       expect(slice).toMatch(/title states the finding/i);
       expect(slice).toMatch(/`subtitle`/);
-      expect(slice).toMatch(/`source`/);
+      expect(slice).toMatch(/`footnote \*\*Source:\*\* …`/);
     }
     expect(ref).toMatch(/### 26\.8 Title States the Finding/);
   });

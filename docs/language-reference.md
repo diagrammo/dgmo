@@ -97,7 +97,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 <!-- TITLE start -->
 
 - **Always title it.** Every diagram gets a short title on the type-declaration line (`flowchart Checkout Flow`, `sequence Checkout`, `boxes-and-lines Service Map`) so it is self-describing — never leave the bare type keyword alone. Infer a fitting title from the request when the user gives none.
-- **On a chart of numbers, the title states the finding.** Write what the reader should take away, not what is plotted — `bar Nassau landed twice the gold of any other port`, not `bar Gold by Port`. Put what is measured (the quantity, units, period) in `subtitle` and where the numbers came from in `source` (§1.12). Fall back to a label title only when the user names one or the data shows no single finding (§26.8).
+- **On a chart of numbers, the title states the finding.** Write what the reader should take away, not what is plotted — `bar Nassau landed twice the gold of any other port`, not `bar Gold by Port`. Put what is measured (the quantity, units, period) in `subtitle` and where the numbers came from in a `footnote` line such as `footnote **Source:** …` (§1.12). Fall back to a label title only when the user names one or the data shows no single finding (§26.8).
   <!-- TITLE end -->
   <!-- CATEGORIZE start -->
 - **Categorize and color — by default, not only when obvious.** Before drawing, find the axis that sorts the items into kinds and color by it: layer (frontend / backend / data), role (client / service / datastore), trust zone (internal / external / third-party), status (done / active / blocked), owner/team, or read-path vs write-path. Almost every diagram has such an axis — actively look for one rather than leaving everything monochrome. Express it with a **tag group**, never ad-hoc per-node colors: declare `tag <Axis> as t` (the name is a single word — `tag TrustZone as tz` — or quote a multi-word name: `tag "Trust Zone" as tz`), indent the category values (a trailing color is optional — bare values auto-pick a palette color), set `active-tag <Axis>` in the header — after the tag group and before the first element, because a type such as c4 refuses it after content — then assign each item `Node t: <Category>` (see the tag-group syntax in the per-type section below). **Bracket, block, body, event-line and whiteboard** take the tag group but no `active-tag` line — declare the group and stop there; on event-line the line would be drawn as an element. **Class, flowchart, wireframe, raci, pyramid, ring, sankey, tech-radar, venn, version-control, wordcloud, arc, bar, clock, countdown, funnel, function, goal, heatmap, line, pie, polar-area, quadrant, radar, scatter, slope, waterfall, dot, boxplot and histogram** take no tag group at all — skip this rule for them. Most report the lines; pyramid, ring, sankey, venn, version-control and wordcloud read them as content, and flowchart and tech-radar drop them without a word. Only the 11 named palette colors exist, and they re-resolve per palette/theme. Color the grouping so the categories — and the boundaries between them — read at a glance. **Buckets, not name tags — never 1:1.** A tag group must have _fewer_ values than it has members: each color should bucket two or more items so the palette compresses the diagram into a few meaningful kinds (aim for ~2–4 categories, and keep distinct colors well under half the item count). If you find yourself giving nearly every item its own value, you've enumerated, not categorized — merge the singletons up a level until each color groups at least two (a `cache` and a `database` are both `datastore`; a caller and a gateway are both `client`; two microservices are both `service`). One color per item is the same visual noise as random colors — the grouping only earns its place when a color means "these belong together." Leave items uncolored only when they genuinely form a single undifferentiated kind, or the user asked for no color.
@@ -5959,7 +5959,7 @@ Singapore -> Rotterdam
 
 ### Labels, legend & chrome
 
-- Title is the declaration line. The chart frame (§1.12) is the chrome: `subtitle` in the title banner, `footnote` / `source` / `byline` under the map. There is no `caption`.
+- Title is the declaration line. The chart frame (§1.12) is the chrome: `subtitle` in the title banner, `footnote` under the map (a source or credit is a line of the footnote). There is no `caption`.
 - Legend auto-composes below the title: the heat ramp + `region-heat` and each tag group are **selectable colouring groups** (collapse/activate to flip the fill); POI size (`poi-size`) and edge thickness (`flow-width`) are self-evident from scale and carry no legend key in v1. `no-legend` suppresses all of it.
 - **Region and POI labels are on by default.** Region labels auto-fit **full → abbrev → hide** (a US-state 2-letter abbreviation is tried when the full name doesn't fit; other regions degrade full → hide); POI labels are collision-managed. Labels render **on the map** (export-safe), escalating inline → leader line → numbered pin in dense clusters; markers never move. A wide map in a narrow column (< ~480px) prefers abbreviations and drops reference relief, as if zoomed out.
 - **Cosmetic features are on by default**; the only switches are bare `no-*` opt-outs (no positive opt-in flag): `no-coastline`, `no-relief`, `no-context-labels`, `no-region-labels`, `no-poi-labels`, `no-notes`, `no-legend`, `no-colorize`. A plain look = the four basemap flags together (`no-colorize` is **not** one of the four — it toggles region _fill style_, not a basemap backdrop layer).
@@ -6291,7 +6291,7 @@ J. Moreau  j: FR, type: individual
 | `tag`, `active-tag`                       | Colour the boxes by a tag group; jurisdiction is the usual first group. Adds the legend |
 | `fill-tint`, `fill-solid`, `fill-outline` | How the boxes are filled (§1.9). Outside entities are always outline-only and dashed    |
 | `no-legend`                               | Hide the legend                                                                         |
-| `subtitle`, `source`, `footnote`          | The chart frame (§1)                                                                    |
+| `subtitle`, `footnote`                    | The chart frame (§1)                                                                    |
 | `palette`                                 | Draw in a built-in palette                                                              |
 
 The title row has the title on the left and, on the right, the legend and under it a key of the shapes the chart uses (shown when an entity is not a corporation).
@@ -6368,7 +6368,7 @@ FY25 total
 | `no-value`                              | Hide the value labels                              |
 | `orientation-horizontal` (`horizontal`) | Steps down the left, values across, as on `bar`    |
 | `format`, `unit`, `locale`              | The number format of the values and the axis (§16) |
-| `subtitle`, `source`, `footnote`        | The chart frame (§1)                               |
+| `subtitle`, `footnote`                  | The chart frame (§1)                               |
 | `palette`                               | Draw in a built-in palette                         |
 
 Not in this version: stacked steps (one step split into parts) and a percent axis.
@@ -6441,7 +6441,7 @@ Designer 141
 | `connector direction down`       | The same, flipped, for when a fall is good                                          |
 | `x-axis [min..max] [log]`        | The value range and scale                                                           |
 | `format`, `unit`, `locale`       | The number format of the axis and the gaps (§15.1.4)                                |
-| `subtitle`, `source`, `footnote` | The chart frame (§1)                                                                |
+| `subtitle`, `footnote`           | The chart frame (§1)                                                                |
 | `palette`                        | Draw in a built-in palette                                                          |
 
 ### 25F.4 Diagnostics
@@ -6604,20 +6604,20 @@ Before considering DGMO output complete, mentally verify:
 
 ### 26.8 Title States the Finding
 
-On a chart of numbers, write the title as the finding — the one thing the reader should take away — not as a label for what is plotted. Move the label's job to `subtitle` (what is measured: quantity, units, period) and name where the numbers came from with `source` (§1.12). Use a label title only when the user names one or the data shows no single finding.
+On a chart of numbers, write the title as the finding — the one thing the reader should take away — not as a label for what is plotted. Move the label's job to `subtitle` (what is measured: quantity, units, period) and name where the numbers came from in the footnote — `footnote **Source:** …` (§1.12). Use a label title only when the user names one or the data shows no single finding.
 
 ```
-// ❌ Label title, no subtitle, no source
+// ❌ Label title, no subtitle, no source line
 bar Gold by Port
 
 Nassau 840
 Tortuga 410
 Port Royal 380
 
-// ✅ The finding as title; subtitle and source carry the rest
+// ✅ The finding as title; subtitle and footnote carry the rest
 bar Nassau landed twice the gold of any other port
 subtitle Gold doubloons landed, 1715
-source Harbourmasters' ledgers
+footnote **Source:** Harbourmasters' ledgers
 
 Nassau 840
 Tortuga 410
