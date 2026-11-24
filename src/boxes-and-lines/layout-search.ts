@@ -1138,6 +1138,85 @@ function bendAroundForeignGroups(
   return cur;
 }
 
+/** Longest a cross-unit arrow may run against its chord (#2062, rubric
+ *  rule 5) before a straight route is tried. */
+const DETOUR_RATIO = 1.3;
+
+/** Arrows between two top-level units (an outermost group, or a box in no
+ *  group), at least one of them a group, that dagre routed far around — a long edge whose dummy chain sat
+ *  across the flow from both ends (#2062, rubric rule 5). Each is redrawn
+ *  centre to centre, clipped to its boxes, one at a time, and kept only when
+ *  that adds no crossing, overlap, pierce, group collision or foreign-group
+ *  pass. Edges ending on a group frame are left alone. */
+function straightenDetours(
+  layout: BLLayoutResult,
+  groups: readonly BLGroup[]
+): BLLayoutResult {
+  const groupOf = new Map<string, string>();
+  const parentOf = new Map<string, string | undefined>();
+  for (const g of groups) {
+    parentOf.set(g.label, g.parentGroup);
+    for (const c of g.children) groupOf.set(c, g.label);
+  }
+  const unit = (label: string): string => {
+    let g = groupOf.get(label);
+    if (g === undefined) return label;
+    while (parentOf.get(g) !== undefined) g = parentOf.get(g)!;
+    return '__group_' + g;
+  };
+  const node = new Map(layout.nodes.map((n) => [n.label, n]));
+  const len = (pts: readonly Pt[]): number => {
+    let d = 0;
+    for (let i = 1; i < pts.length; i++)
+      d += Math.hypot(pts[i]!.x - pts[i - 1]!.x, pts[i]!.y - pts[i - 1]!.y);
+    return d;
+  };
+  const bad = (l: BLLayoutResult) =>
+    countSplineCrossings(l) +
+    countEdgeOverlaps(l) +
+    countEdgeNodePierces(l) +
+    countGroupOverlaps(l);
+  const foreignOf = (l: BLLayoutResult) =>
+    countForeignGroupCrossings(l, groups);
+  let cur = layout;
+  let curBad: number | undefined;
+  let curForeign: number | undefined;
+  for (let idx = 0; idx < cur.edges.length; idx++) {
+    const e = cur.edges[idx]!;
+    const s = node.get(e.source);
+    const t = node.get(e.target);
+    if (!s || !t || e.points.length < 3) continue;
+    const [us, ut] = [unit(e.source), unit(e.target)];
+    if (us === ut || !(us.startsWith('__group_') || ut.startsWith('__group_')))
+      continue;
+    const p = e.points;
+    const chord = Math.hypot(
+      p[p.length - 1]!.x - p[0]!.x,
+      p[p.length - 1]!.y - p[0]!.y
+    );
+    if (!(chord > 0) || len(p) <= DETOUR_RATIO * chord) continue;
+    const edges = cur.edges.slice();
+    edges[idx] = {
+      ...e,
+      points: [
+        { x: s.x, y: s.y },
+        { x: t.x, y: t.y },
+      ],
+    };
+    const next = clipLayoutEdgesToNodes({ ...cur, edges });
+    curBad ??= bad(cur);
+    curForeign ??= foreignOf(cur);
+    const b = bad(next);
+    if (b > curBad) continue;
+    const f = foreignOf(next);
+    if (f > curForeign) continue;
+    cur = next;
+    curBad = b;
+    curForeign = f;
+  }
+  return cur;
+}
+
 // How far outside a group box a detour runs.
 const GROUP_DETOUR_MARGIN = 16;
 
@@ -2664,6 +2743,7 @@ export async function layoutBoxesAndLinesSearch(
   // group, one at a time, keeping a bend only when it adds no crossing,
   // overlap, pierce or group collision.
   best = bendAroundForeignGroups(best, parsed.groups);
+  best = straightenDetours(best, parsed.groups);
   opts?.onTopConfigs?.(topConfigs);
   // The last guard, and it covers the dagre winner too. dagre normally
   // clips for itself, but its `intersectRect` throws on some configurations

@@ -11,7 +11,7 @@ import type { BLGroup } from '../../src/boxes-and-lines/types';
 
 export type RuleId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 9 | 10;
 /** Rules a first engine pass must satisfy; the rest are reported only. */
-export const BLOCKING: readonly RuleId[] = [1, 2, 3, 6];
+export const BLOCKING: readonly RuleId[] = [1, 2, 3, 5, 6];
 export const RULES: readonly RuleId[] = [1, 2, 3, 4, 5, 6, 7, 9, 10];
 
 /** Natural frame padding the engine leaves around one box (measured
