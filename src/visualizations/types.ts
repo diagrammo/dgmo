@@ -87,12 +87,16 @@ export interface VennSet {
   name: string;
   alias: string | null;
   color: string | null;
+  /** `size:` — the set's count, drawn as circle area under `proportional` (#1992). */
+  size?: number | null;
   lineNumber: number;
 }
 
 export interface VennOverlap {
   sets: string[];
   label: string | null;
+  /** `size:` — the count shared by every listed set (#1992). */
+  size?: number | null;
   lineNumber: number;
 }
 
@@ -210,6 +214,8 @@ export interface ParsedVenn extends ParsedVizBase {
   type: 'venn';
   vennSets: VennSet[];
   vennOverlaps: VennOverlap[];
+  /** `proportional` — circle and overlap areas follow `size:` (#1992). */
+  proportional?: boolean;
   noName?: boolean;
   noValue?: boolean;
   noPercent?: boolean;
@@ -286,6 +292,7 @@ export interface ParsedVizFull extends ParsedVizBase {
   timelineActiveTag?: string;
   vennSets: VennSet[];
   vennOverlaps: VennOverlap[];
+  proportional?: boolean;
   quadrantLabels: QuadrantLabels;
   quadrantPoints: QuadrantPoint[];
   quadrantXAxis: [string, string] | null;

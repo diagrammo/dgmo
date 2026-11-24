@@ -12,6 +12,12 @@ import { growChartFrame } from '../utils/chart-frame';
 import type { ParsedVenn, VennOverlap } from '../visualizations/types';
 import type { PaletteColors } from '../palettes';
 import { mix } from '../palettes/color-utils';
+import {
+  equalLayout,
+  pairIntersections,
+  proportionalLayout,
+  type ProportionalInput,
+} from './layout';
 
 interface Point {
   x: number;
@@ -122,6 +128,86 @@ function regionCentroid(circles: Circle[], inside: boolean[]): Point {
   return { x: sx / count, y: sy / count };
 }
 
+/** The layout inputs a `proportional` venn's `size:` values give (#1992). */
+function proportionalInput(parsed: ParsedVenn): ProportionalInput {
+  const given = parsed.vennSets
+    .map((s) => s.size)
+    .filter((v): v is number => v != null && v > 0);
+  // A set with no size is drawn at the average size (it already warned).
+  const fallback = given.length
+    ? given.reduce((a, b) => a + b, 0) / given.length
+    : 1;
+  const sizes = parsed.vennSets.map((s) =>
+    s.size != null && s.size > 0 ? s.size : fallback
+  );
+  const index = new Map(parsed.vennSets.map((s, i) => [s.name, i]));
+  const pairs = new Map<string, number | null>();
+  let triple: number | null = null;
+  for (const ov of parsed.vennOverlaps) {
+    const idxs = ov.sets
+      .map((name) => index.get(name))
+      .filter((v): v is number => v !== undefined)
+      .sort((a, b) => a - b);
+    if (idxs.length === 2) pairs.set(idxs.join('-'), ov.size ?? null);
+    else if (idxs.length === 3) triple = ov.size ?? null;
+  }
+  return { sizes, pairs, triple };
+}
+
+/**
+ * Where a pair's leader can start without crossing a circle (#1992): the
+ * point where the pair's two circles cross on the figure's outer edge, with
+ * the direction that runs out between them. Null when the pair's region
+ * never reaches the outer edge — the caller then leads from its centre.
+ */
+function pairLeaderAnchor(
+  circles: Circle[],
+  idxs: number[]
+): { p: Point; dir: Point } | null {
+  if (idxs.length !== 2) return null;
+  const [i, j] = idxs as [number, number];
+  const a = circles[i]!;
+  const b = circles[j]!;
+  const others = circles.filter((_, k) => k !== i && k !== j);
+  const outside = (p: Point) =>
+    others.every((o) => Math.hypot(p.x - o.x, p.y - o.y) > o.r * (1 + 1e-6));
+  const candidates = pairIntersections(a, b).filter(outside);
+  if (candidates.length === 0) return null;
+  // Two sets: the lower crossing, so the leader runs down as it always has.
+  // Three sets: the crossing farthest from the third circle.
+  const score = (p: Point) =>
+    others.length === 0
+      ? p.y
+      : others.reduce(
+          (m, o) => Math.min(m, Math.hypot(p.x - o.x, p.y - o.y)),
+          Infinity
+        );
+  candidates.sort((u, v) => score(v) - score(u));
+  const p = candidates[0]!;
+  let dx = (p.x - a.x) / a.r + (p.x - b.x) / b.r;
+  let dy = (p.y - a.y) / a.r + (p.y - b.y) / b.r;
+  const m = Math.hypot(dx, dy);
+  if (m < 1e-9) return null;
+  dx /= m;
+  dy /= m;
+  // Snap floating-point noise to 0 so axis-aligned checks downstream work.
+  const dir = {
+    x: Math.abs(dx) < 1e-9 ? 0 : dx,
+    y: Math.abs(dy) < 1e-9 ? 0 : dy,
+  };
+  // The ray must stay clear of every circle as it runs out.
+  const reach = Math.max(...circles.map((c) => c.r));
+  for (let k = 1; k <= 40; k++) {
+    const t = (reach * k) / 40;
+    const q = { x: p.x + dir.x * t, y: p.y + dir.y * t };
+    if (
+      circles.some((c) => Math.hypot(q.x - c.x, q.y - c.y) < c.r * (1 - 1e-6))
+    )
+      return null;
+  }
+  return { p, dir };
+}
+
 // ============================================================
 // Venn Diagram Renderer
 // ============================================================
@@ -180,27 +266,11 @@ export function renderVenn(
   // How far the highest overlap label stands above the figure's top.
   let topReach = 0;
 
-  // ── Equal-radius layout with ~30% overlap depth ──
-  // All circles share the same base radius; center distance = 1.4r gives ~30% penetration
-  const BASE_R = 100;
-  const OVERLAP_DISTANCE = BASE_R * 1.4;
-
-  let rawCircles: Circle[];
-  if (n === 2) {
-    rawCircles = [
-      { x: -OVERLAP_DISTANCE / 2, y: 0, r: BASE_R },
-      { x: OVERLAP_DISTANCE / 2, y: 0, r: BASE_R },
-    ];
-  } else {
-    // Equilateral triangle with side = OVERLAP_DISTANCE
-    const s = OVERLAP_DISTANCE;
-    const h = (Math.sqrt(3) / 2) * s;
-    rawCircles = [
-      { x: -s / 2, y: h / 3, r: BASE_R },
-      { x: s / 2, y: h / 3, r: BASE_R },
-      { x: 0, y: -(2 * h) / 3, r: BASE_R },
-    ];
-  }
+  // ── Layout: equal radii by default; areas follow `size:` under
+  // `proportional` (#1992). ──
+  const rawCircles: Circle[] = parsed.proportional
+    ? proportionalLayout(proportionalInput(parsed))
+    : equalLayout(n);
 
   // Resolve colors for each set
   const setColors = vennSets.map(
@@ -256,6 +326,8 @@ export function renderVenn(
   );
 
   function predictOverlapDirRaw(idxs: number[]): { x: number; y: number } {
+    const anchored = pairLeaderAnchor(rawCircles, idxs);
+    if (anchored) return anchored.dir;
     const excluded = rawCircles
       .map((_, j) => j)
       .filter((j) => !idxs.includes(j));
@@ -366,7 +438,7 @@ export function renderVenn(
   }
 
   // circles is non-empty: vennSets.length >= 2 guard above ensures rawCircles is sized.
-  const scaledR = circles[0]!.r;
+  const scaledR = Math.min(...circles.map((c) => c.r));
 
   // ── Semi-transparent filled circles (non-interactive) ──
   const circleEls: d3Selection.Selection<
@@ -662,6 +734,33 @@ export function renderVenn(
         dy /= mag;
       }
 
+      // The stub must not cross another circle (#1992): with unequal radii
+      // the way out from the figure's centre can run into a neighbour. Turn
+      // to the nearest clear direction.
+      const stubClear = (ux: number, uy: number) => {
+        for (let k = 0; k <= 12; k++) {
+          const t = c.r + ((edgePad + stubLen) * k) / 12;
+          const q = { x: c.x + ux * t, y: c.y + uy * t };
+          if (circles.some((o, j) => j !== i && pointInCircle(q, o)))
+            return false;
+        }
+        return true;
+      };
+      if (!stubClear(dx, dy)) {
+        search: for (let k = 1; k <= 36; k++) {
+          for (const sign of [1, -1]) {
+            const a = (sign * k * Math.PI) / 36;
+            const ux = dx * Math.cos(a) - dy * Math.sin(a);
+            const uy = dx * Math.sin(a) + dy * Math.cos(a);
+            if (stubClear(ux, uy)) {
+              dx = ux;
+              dy = uy;
+              break search;
+            }
+          }
+        }
+      }
+
       // The stub runs from edgePad to edgePad + stubLen past the circle.
       const stubAt = (ux: number, uy: number) => {
         const near = c.r + edgePad;
@@ -911,14 +1010,17 @@ export function renderVenn(
     const lines = wrappedOverlapLabels.get(ov) ?? [ov.label];
     const inside = circles.map((_, j) => idxs.includes(j));
     const centroid = regionCentroid(circles, inside);
-    const dir = overlapOutwardDir(centroid, idxs);
     const isTriple = idxs.length === 3 && n === 3;
+    // A pair whose region reaches the outer edge leads from its outer
+    // crossing point, so the leader never runs across a circle (#1992).
+    const anchor = pairLeaderAnchor(circles, idxs);
+    const dir = anchor ? anchor.dir : overlapOutwardDir(centroid, idxs);
     const padBoost = isTriple && dir.y < 0 ? 32 : 0;
     const leaderPad = OVERLAP_LEADER_PAD + padBoost;
     // Pair leaders touch the lens exactly; stub end sits past the union
     // silhouette so text doesn't overlap circles.
-    const lensPt = lensExit(centroid, dir, idxs);
-    const farExit = unionExit(centroid, dir, idxs);
+    const lensPt = anchor ? anchor.p : lensExit(centroid, dir, idxs);
+    const farExit = unionExit(anchor ? anchor.p : centroid, dir, idxs);
     const stubEndX = farExit.x + dir.x * leaderPad;
     let stubEndY = farExit.y + dir.y * leaderPad;
 

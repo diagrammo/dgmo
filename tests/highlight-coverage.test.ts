@@ -323,6 +323,7 @@ const INVENTORY = {
     'poi-size',
     'points',
     'pool',
+    'proportional',
     'rank',
     'region-heat',
     'rings',

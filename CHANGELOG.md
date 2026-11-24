@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Venn `proportional`: circle and overlap areas follow the counts
+  (diagrammo/diagrammo#1992).** Each set and overlap line takes a `size:`
+  (`Frontend as fe blue size: 40`, `fe + be Web Systems size: 12`). Two sets
+  are exact; three sets are approximate where the all-sets count cannot also
+  fit. A line with no size warns and draws at equal size; sizes without the
+  flag warn once. Pair leader lines now start where the two circles cross on
+  the outer edge, so no leader or set-name stub crosses a circle, with or
+  without the flag; the all-sets leader still runs from its centre.
+
 - **A time axis for date-times, bare times, bars and scatter, and a break
   across gaps (diagrammo/diagrammo#2208).** Line labels may now be
   `YYYY-MM-DD HH:MM[:SS]`, `YYYY-MM-DDTHH:MM[:SS]` or, when every row is one,

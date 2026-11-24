@@ -989,6 +989,8 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   // ── Dot (#1849) ──────────────────────────────────────────
   { token: 'gap', category: 'directive', chartTypes: ['dot'] },
   { token: 'connector', category: 'directive', chartTypes: ['dot'] },
+  // ── Venn ─────────────────────────────────────────────────
+  { token: 'proportional', category: 'directive', chartTypes: ['venn'] },
   // ── Slope ────────────────────────────────────────────────
   { token: 'period', category: 'directive', chartTypes: 'all' },
   // ── Quadrant ─────────────────────────────────────────────

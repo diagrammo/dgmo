@@ -262,11 +262,15 @@ interface VennSet {
     name: string;
     alias: string | null;
     color: string | null;
+    /** `size:` — the set's count, drawn as circle area under `proportional` (#1992). */
+    size?: number | null;
     lineNumber: number;
 }
 interface VennOverlap {
     sets: string[];
     label: string | null;
+    /** `size:` — the count shared by every listed set (#1992). */
+    size?: number | null;
     lineNumber: number;
 }
 interface QuadrantLabel {
@@ -369,6 +373,8 @@ interface ParsedVenn extends ParsedVizBase {
     type: 'venn';
     vennSets: VennSet[];
     vennOverlaps: VennOverlap[];
+    /** `proportional` — circle and overlap areas follow `size:` (#1992). */
+    proportional?: boolean;
     noName?: boolean;
     noValue?: boolean;
     noPercent?: boolean;

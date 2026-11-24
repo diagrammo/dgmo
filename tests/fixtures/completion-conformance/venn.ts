@@ -7,6 +7,12 @@ export const fixture: ConformanceFixture = {
   chartType: 'venn',
   specSection: '17',
   firstLineKeyword: 'venn',
-  directives: [...FRAME_DIRECTIVES, 'fill-tint', 'fill-solid', 'fill-outline'],
+  directives: [
+    ...FRAME_DIRECTIVES,
+    'fill-tint',
+    'fill-solid',
+    'fill-outline',
+    'proportional',
+  ],
   pipeKeys: {},
 };

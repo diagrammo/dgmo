@@ -1,0 +1,12 @@
+venn Customers by Support Channel
+// stress: extreme-values — one set forty times another, a tiny all-channels overlap
+proportional
+
+Email support tickets as email blue size: 12000
+Live chat conversations as chat green size: 2400
+Phone calls to the support line as phone orange size: 300
+
+email + chat Wrote in and chatted size: 900
+chat + phone Chatted and phoned size: 60
+email + phone Wrote in and phoned size: 120
+email + chat + phone Used every channel size: 20

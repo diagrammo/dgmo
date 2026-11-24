@@ -3964,7 +3964,7 @@ main
 
 <!-- TIPS start -->
 
-**Styling tips:** Use 2–3 sets and write the count of each meaningful overlap directly on its intersection; circle area is NOT proportional, so the numbers — not the sizes — carry the comparison.
+**Styling tips:** Use 2–3 sets. Circles are equal by default, so the picture shows only which sets overlap; add `proportional` and a `size:` on every line when the counts are the point.
 
 <!-- TIPS end -->
 
@@ -3979,8 +3979,25 @@ sw + nav Sea Raiders
 sw + nav + lead Legendary Pirates
 ```
 
-- Set declaration: `Name [color] as <alias>` — color is an optional trailing token BEFORE `as` (universal alias syntax, §2A)
+- Set declaration: `Name [as <alias>] [color]` — the alias comes first, the color is the line-trailing token (universal modifier order, §2A.2)
 - Intersections: `Set1 + Set2 Label` — label follows the last set reference (no colon)
+- `proportional` (bare line): each circle's area follows its set's `size:`, and each overlap's area follows its own `size:` — two sets exactly, three sets approximately. Without it, circles are equal and `size:` warns `W_VENN_SIZE_UNUSED`
+
+```
+venn Engineers by Language
+proportional
+
+Python as py blue size: 480
+JavaScript as js orange size: 360
+Go as go teal size: 150
+
+py + js Python and JavaScript size: 140
+py + js + go All three size: 25
+```
+
+- `size:` is same-line metadata: a set's count, or the count every listed set shares (a pair's count includes the all-sets items). A set needs a positive number, an overlap may be 0 (the circles then do not touch)
+- Under `proportional`, a line with no `size:` warns `W_VENN_SIZE_MISSING` and draws at equal size (a set at the average size, a pair at the default depth); an overlap larger than a set it holds warns `W_VENN_SIZE_TOO_LARGE` and draws at that set's size
+- Leader lines start where a pair's circles cross on the figure's outer edge and never cross a circle. The all-sets label in a three-set venn is the exception: its region touches no outer edge, so its leader runs from its centre
 - Legacy `Name(color) alias X` is silently absorbed into the set name (no dedicated error since 0.43.0) — use `as X`
 
 ### 16.5 Quadrant Diagrams

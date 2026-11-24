@@ -651,7 +651,15 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'active-tag': { description: 'Active tag group name' },
     }),
   ],
-  ['venn', withGlobals()],
+  [
+    'venn',
+    withGlobals({
+      proportional: {
+        description:
+          'Circle and overlap areas follow each line’s size: value (size: 40)',
+      },
+    }),
+  ],
   [
     'body',
     withGlobals({

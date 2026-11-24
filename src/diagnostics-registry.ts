@@ -38,6 +38,7 @@ import { OWNERSHIP_DIAGNOSTICS } from './ownership/diagnostics';
 import { CALENDAR_DIAGNOSTICS } from './calendar/diagnostics';
 import { WATERFALL_DIAGNOSTICS } from './waterfall/diagnostics';
 import { DOT_DIAGNOSTICS } from './dot/diagnostics';
+import { VENN_DIAGNOSTICS } from './venn/diagnostics';
 import { TREEMAP_DIAGNOSTICS } from './treemap/diagnostics';
 import { EVENT_LINE_DIAGNOSTICS } from './event-line/diagnostics';
 import { BODY_DIAGNOSTICS } from './body/diagnostics';
@@ -247,6 +248,7 @@ const REGISTRY: DiagnosticSpec[] = [
   ...CALENDAR_DIAGNOSTICS,
   ...WATERFALL_DIAGNOSTICS,
   ...DOT_DIAGNOSTICS,
+  ...VENN_DIAGNOSTICS,
   ...TREEMAP_DIAGNOSTICS,
   ...EVENT_LINE_DIAGNOSTICS,
   ...BODY_DIAGNOSTICS,

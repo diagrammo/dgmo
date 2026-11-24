@@ -44,14 +44,19 @@ import {
   measureIndent,
   normalizeNumericToken,
   parseFirstLine,
+  parseMetadataRegion,
+  cutUnionMetadata,
   peelTrailingColorName,
   peelTrailingCollapsedFlag,
   splitNameAndMeta,
 } from '../utils/parsing';
 import {
   TIMELINE_REGISTRY,
+  VENN_REGISTRY,
   withTagAliases,
 } from '../utils/reserved-key-registry';
+import { VENN_DX } from '../venn/diagnostics';
+import { checkVennSizes } from '../venn/sizes';
 import {
   matchTagBlockHeading,
   stripDefaultModifier,
@@ -914,6 +919,35 @@ function parseVisualizationFull(
 
     // Venn diagram DSL
     if (result.type === 'venn') {
+      // `size:` (#1992) is same-line metadata: cut it before anything else
+      // so an overlap label or a set name never swallows it.
+      let vennBody = line;
+      let vennSize: number | null = null;
+      const vennCut = cutUnionMetadata(line, VENN_REGISTRY);
+      if (vennCut >= 0) {
+        vennBody = line.substring(0, vennCut).trimEnd();
+        const meta = parseMetadataRegion(
+          line.substring(vennCut),
+          new Map(),
+          result.diagnostics,
+          lineNumber
+        );
+        const rawSize = meta['size'];
+        if (rawSize !== undefined) {
+          const isOverlap = /\+/.test(vennBody);
+          const num = Number(normalizeNumericToken(rawSize) ?? rawSize);
+          if (Number.isFinite(num) && (isOverlap ? num >= 0 : num > 0)) {
+            vennSize = num;
+          } else {
+            result.diagnostics.push(
+              emit(VENN_DX.SIZE_INVALID, lineNumber, {
+                value: rawSize,
+                overlap: isOverlap,
+              })
+            );
+          }
+        }
+      }
       // Skip cross-chart bare-keyword options so they don't get parsed as
       // a 4th set name (the bare-keyword block at line ~1132 runs AFTER
       // type-specific parsing).
@@ -923,7 +957,10 @@ function parseVisualizationFull(
         )
       ) {
         // Fall through to the bare-keyword block below.
-      } else if (/\+/.test(line)) {
+      } else if (/^proportional$/i.test(line)) {
+        result.proportional = true;
+        continue;
+      } else if (/\+/.test(vennBody)) {
         // Build lookup of known set names and aliases for label extraction
         const knownSetRefs = new Set<string>();
         for (const s of result.vennSets) {
@@ -931,7 +968,7 @@ function parseVisualizationFull(
           if (s.alias) knownSetRefs.add(s.alias.toLowerCase());
         }
 
-        const segments = line
+        const segments = vennBody
           .split('+')
           .map((s) => s.trim())
           .filter(Boolean);
@@ -970,7 +1007,12 @@ function parseVisualizationFull(
             label = words.length > 1 ? words.slice(1).join(' ') : null;
           }
           rawSets.push(lastSetRef);
-          result.vennOverlaps.push({ sets: rawSets, label, lineNumber });
+          result.vennOverlaps.push({
+            sets: rawSets,
+            label,
+            size: vennSize,
+            lineNumber,
+          });
           continue;
         }
       }
@@ -988,7 +1030,7 @@ function parseVisualizationFull(
         // Peel a trailing color word from the whole line first so the
         // remaining text is `Name [alias <alias>]` / `Name [as <alias>]`.
         const { label: lineWithoutColor, colorName } =
-          peelTrailingColorName(line);
+          peelTrailingColorName(vennBody);
         let color: string | null = null;
         if (colorName) {
           color =
@@ -1007,7 +1049,13 @@ function parseVisualizationFull(
           // Capture group 1 guaranteed by the regex match.
           const name = setDeclMatch[1]!.trim();
           const alias = setDeclMatch[2]?.trim() ?? null;
-          result.vennSets.push({ name, alias, color, lineNumber });
+          result.vennSets.push({
+            name,
+            alias,
+            color,
+            size: vennSize,
+            lineNumber,
+          });
           continue;
         }
       }
@@ -1731,6 +1779,7 @@ function parseVisualizationFull(
       if (valid) validOverlaps.push({ ...ov, sets: resolvedSets.sort() });
     }
     result.vennOverlaps = validOverlaps;
+    checkVennSizes(result);
     return result;
   }
 

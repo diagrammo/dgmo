@@ -1,0 +1,11 @@
+venn Engineers by Language
+proportional
+
+Python as py blue size: 480
+JavaScript as js orange size: 360
+Go as go teal size: 150
+
+py + js Python and JavaScript size: 140
+js + go JavaScript and Go size: 45
+py + go Python and Go size: 60
+py + js + go All three size: 25
