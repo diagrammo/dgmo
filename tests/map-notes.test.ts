@@ -207,8 +207,13 @@ describe('map notes — render (#2215)', () => {
 });
 
 describe('map note completion', () => {
-  it('offers note, poi and tag as map keywords', () => {
-    expect(STRUCTURAL_KEYWORDS.get('map')).toEqual(['poi', 'note', 'tag']);
+  it('offers poi, route, note and tag as map keywords', () => {
+    expect(STRUCTURAL_KEYWORDS.get('map')).toEqual([
+      'poi',
+      'route',
+      'note',
+      'tag',
+    ]);
     expect(TAG_SUPPORTING_TYPES.has('map')).toBe(true);
   });
 });
