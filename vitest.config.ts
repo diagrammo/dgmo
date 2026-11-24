@@ -1,5 +1,30 @@
+import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
+
+// ── A growth test is measured on a quiet machine: after the suite, one at a time ──
+//
+// A file that calls `measureGrowth` times two sizes and asserts the exponent.
+// Run beside the rest of the suite, it times its sibling workers as well: the
+// anchor gate failed three pushes in a row on 2026-11-24 on growth self-tests
+// that pass alone (diagrammo/diagrammo#2301). The suite's own load is enough,
+// so retries cannot fix it — every retry runs under the same load.
+//
+// Coverage distorts the exponent too, and not by load: v8 block counting read
+// the arrival pass (#1890) at 2.57-2.60 on six of six quiet runs, against
+// 2.00-2.04 without it, over a 2.5 limit. So `pnpm test` is two runs: the
+// `unit` project with coverage, then the `growth` project without it, one
+// file at a time. groupOrder keeps a bare `vitest run` in that order too.
+//
+// A file enrols by importing `./perf-helpers`, so a new growth test cannot
+// land in the parallel group by forgetting a list.
+const TESTS = fileURLToPath(new URL('./tests/', import.meta.url));
+const GROWTH_FILES = readdirSync(TESTS)
+  .filter((f) => f.endsWith('.test.ts'))
+  .filter((f) =>
+    /from '\.\/perf-helpers'/.test(readFileSync(TESTS + f, 'utf8'))
+  )
+  .map((f) => `tests/${f}`);
 
 // ── The suite is written in UTC, and now says so where it cannot be bypassed ──
 //
@@ -51,14 +76,40 @@ export default defineConfig({
     // wall-clock ASSERTIONS did not find it — a library default is a wall-clock
     // deadline wearing different clothes (#555).
     //
-    // 🔴 30 s is not tuned to the observed margin, deliberately. A budget a
+    // 🔴 120 s is not tuned to the observed margin, deliberately. A budget a
     // correct render can plausibly approach is not a safe test, it is an absent
     // one. This number exists only so a genuine HANG still fails, which is the
     // one use of a clock the workspace rule endorses.
-    testTimeout: 30_000,
+    //
+    // It was 30 s until 2026-11-24. The box-office-platform stress fixture
+    // renders in 12-17 s beside a loaded suite on anchor's 8 cores, and timed
+    // out at 30 s in the anchor gate — a correct render reaching the hang
+    // guard, which is the case above (diagrammo/diagrammo#2301).
+    testTimeout: 120_000,
     // Inherited by pool workers, which get their own process env.
     env: { TZ: 'UTC' },
-    include: ['tests/**/*.test.ts'],
+    // `include` is per project, never here: `extends: true` CONCATENATES
+    // arrays, so a root include would put every file in the growth project.
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: 'unit',
+          include: ['tests/**/*.test.ts'],
+          exclude: GROWTH_FILES,
+          sequence: { groupOrder: 0 },
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'growth',
+          include: GROWTH_FILES,
+          fileParallelism: false,
+          sequence: { groupOrder: 1 },
+        },
+      },
+    ],
     coverage: {
       provider: 'v8',
       // Only instrument TS source — `src/**` also swept non-code assets
