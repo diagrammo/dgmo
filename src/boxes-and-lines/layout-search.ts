@@ -1777,7 +1777,7 @@ export function tightenGroupFrames(
 /** A frozen collapse layout keeps the expanded routes, so an arrow that
  *  now reaches a pill can run through a box in its way (#2062, rubric rule
  *  4). Bend those round the box, kept only on a strict badness drop. */
-function unpierce(layout: BLLayoutResult): BLLayoutResult {
+function bendFrozenPierces(layout: BLLayoutResult): BLLayoutResult {
   const bad = (l: BLLayoutResult) =>
     countSplineCrossings(l) +
     countEdgeOverlaps(l) +
@@ -1909,7 +1909,7 @@ export async function layoutBoxesAndLinesSearch(
     });
     const stable =
       frozen &&
-      bendAroundForeignGroups(unpierce(frozen), parsed.groups, {
+      bendAroundForeignGroups(bendFrozenPierces(frozen), parsed.groups, {
         minDepth: STABLE_BEND_MIN_DEPTH,
       });
     if (stable) {
