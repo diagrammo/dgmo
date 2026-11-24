@@ -442,6 +442,10 @@ logged · most often Great`. Diagnostics: `E_CALENDAR_HEATMAP_UNKNOWN_TAG`,
 
 ### Fixed
 
+- **completion: `tag` stays a metadata key for gantt and infra
+  (diagrammo/diagrammo#2290).** Tag entries before the data zone get their
+  alias completions again.
+
 - **state: end transitions no longer loop around the whole diagram
   (diagrammo/diagrammo#1891).** `[*]` written as a transition target is now
   its own final state, drawn as a ringed bullseye (UML) and placed by the
