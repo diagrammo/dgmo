@@ -196,9 +196,11 @@ export function renderJourneyMap(
     // shares the title's band — the title stops before it rather than running
     // underneath. Bold is the one place in this renderer where the heavier
     // face is really drawn, so it is the one place measured as bold.
-    const personaPanelX = parsed.persona
-      ? layout.totalWidth - PADDING - PERSONA_PANEL_WIDTH
-      : layout.totalWidth;
+    // A centred or right title has its own row above the panel (#2305).
+    const personaPanelX =
+      parsed.persona && !layout.personaBelowTitle
+        ? layout.totalWidth - PADDING - PERSONA_PANEL_WIDTH
+        : layout.totalWidth;
     const titleMaxW = Math.max(
       0,
       Math.min(personaPanelX - PADDING, layout.totalWidth - PADDING) - PADDING
@@ -248,7 +250,7 @@ export function renderJourneyMap(
       descLines.length > 0 ? descLines.length * descLineH + 8 : 0;
     const panelHeight = titleRowH + descRowH;
     const panelX = layout.totalWidth - PADDING - panelWidth;
-    const panelY = PADDING;
+    const panelY = layout.personaTop;
     const textX = panelX + CARD_PADDING_X;
 
     // Clip path so silhouette stays inside the card
@@ -474,9 +476,10 @@ export function renderJourneyMap(
       palette,
       isDark,
       // Reduce available width if persona card exists to avoid collision
-      width: parsed.persona
-        ? layout.totalWidth - legendX - PADDING - 280 - PADDING
-        : layout.totalWidth - legendX - PADDING,
+      width:
+        parsed.persona && !layout.personaBelowTitle
+          ? layout.totalWidth - legendX - PADDING - 280 - PADDING
+          : layout.totalWidth - legendX - PADDING,
     });
   }
 

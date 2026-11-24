@@ -3,6 +3,7 @@ import { fillModeFromOptions } from '../utils/parsing';
 import { mix, shapeFill } from '../palettes/color-utils';
 import { LEGEND_HEIGHT } from '../utils/legend-constants';
 import { FRAME_BODY_TOP, LEGEND_BODY_GAP } from '../utils/title-constants';
+import { frameAlign } from '../utils/chart-frame-parse';
 import { measureText, wrapTextToWidth } from '../utils/text-measure';
 import type {
   ParsedJourneyMap,
@@ -51,6 +52,11 @@ export interface JourneyMapLayout {
   curveAreaBottom: number;
   cardAreaTop: number;
   personaHeight: number;
+  /** Top edge of the persona panel: PADDING beside a left title, or below
+   *  the title (and tag legend) when the title is centred or right-aligned. */
+  personaTop: number;
+  /** The persona panel sits on its own row under the title (#2305). */
+  personaBelowTitle: boolean;
   titleHeight: number;
   /** Whether any step has thought annotations */
   hasThoughts: boolean;
@@ -169,11 +175,20 @@ export function layoutJourneyMap(
     8 +
     LEGEND_HEIGHT -
     LEGEND_BOX_SLACK;
-  const baseTop = hasTitle
-    ? (hasLegend ? legendBottom + LEGEND_BODY_GAP : FRAME_BODY_TOP) +
-      CURVE_INK_ABOVE +
-      personaHeight
-    : PADDING + personaHeight;
+  // A centred or right-aligned title would land under the persona panel in
+  // the top-right corner (#2305), so the panel drops to its own row below
+  // the title band and everything under it moves down by the same amount.
+  const stackTitle =
+    hasTitle && hasPersona && frameAlign(parsed.frame, 'title') !== 'left';
+  const titleBandBottom = hasLegend
+    ? legendBottom + LEGEND_BODY_GAP
+    : FRAME_BODY_TOP;
+  const personaTop = stackTitle ? titleBandBottom : PADDING;
+  const baseTop =
+    (hasTitle
+      ? titleBandBottom + CURVE_INK_ABOVE + personaHeight
+      : PADDING + personaHeight) +
+    (personaTop - PADDING);
   let topHeadroom = 0;
   if (hasThoughts) {
     const THOUGHT_MAX_W = 200;
@@ -220,7 +235,9 @@ export function layoutJourneyMap(
       ).length;
       personaActualH = CARD_HEADER_HEIGHT + descLineCount * 14 + 8;
     }
-    const topBandBottom = PADDING + Math.max(titleHeight, personaActualH);
+    const topBandBottom = stackTitle
+      ? personaTop + personaActualH
+      : PADDING + Math.max(titleHeight, personaActualH);
 
     // Where the highest thought-bearing face would sit with zero headroom, and
     // where its bubble's top edge would land. Shift down by any shortfall.
@@ -486,7 +503,7 @@ export function layoutJourneyMap(
     : 0;
   const personaPanelWidth = parsed.persona ? PERSONA_PANEL_WIDTH : 0;
   const headerWidth =
-    hasTitle && parsed.persona
+    hasTitle && parsed.persona && !stackTitle
       ? PADDING + headerTitleWidth + HEADER_GAP + personaPanelWidth + PADDING
       : Math.max(
           PADDING + headerTitleWidth + PADDING,
@@ -507,6 +524,8 @@ export function layoutJourneyMap(
     curveAreaBottom,
     cardAreaTop,
     personaHeight,
+    personaTop,
+    personaBelowTitle: stackTitle,
     titleHeight,
     hasThoughts,
   };
