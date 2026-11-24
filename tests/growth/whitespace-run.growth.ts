@@ -25,10 +25,6 @@ const LIMIT = 1.5;
 /** A call cheaper than this at LARGE cannot matter, whatever its exponent. */
 const FLOOR_MS = 2;
 
-// The `as <alias>` regexes are diagrammo/diagrammo#2280's, fixed on their own
-// branch. Delete this skip when #2280 lands.
-const PENDING_2280 = /\\s\+as\\s\+/;
-
 interface Call {
   re: RegExp;
   input: string;
@@ -113,7 +109,7 @@ describe('whitespace-run regex sweep', () => {
       for (const build of variants(lines)) {
         const large = regexCalls(() => parseQuietly(build(LARGE)));
         for (const [key, big] of large) {
-          if (big.ms < FLOOR_MS || slow.has(key) || PENDING_2280.test(key)) {
+          if (big.ms < FLOOR_MS || slow.has(key)) {
             continue;
           }
           // Re-time this one call alone, with its run cut back to n spaces.
