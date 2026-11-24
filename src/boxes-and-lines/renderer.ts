@@ -376,6 +376,12 @@ interface BLRenderOptions {
    *  Focus mode passes the GLOBAL (pre-filter) domain so neighbor colours stay
    *  stable when only a subset is rendered (Decision 20 / FM1). */
   rampDomain?: { min: number; max: number };
+  /** Upper bound on the fit-to-pane scale. The app passes the scale it drew
+   *  before a fold, so folding a group never makes text bigger (rubric rule
+   *  8, diagrammo/diagrammo#2062). The fit still wins when it is smaller, so
+   *  unfolding never overflows the pane. The scale used is on the root
+   *  `<svg>` as `data-scale`. */
+  maxScale?: number;
 }
 
 export function renderBoxesAndLines(
@@ -398,6 +404,7 @@ export function renderBoxesAndLines(
     exportMode = false,
     controlsHost,
     rampDomain,
+    maxScale,
   } = options ?? {};
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
@@ -652,7 +659,12 @@ export function renderBoxesAndLines(
   const scaleX = width / (contentW + sDiagramPadding * 2);
   const scaleY =
     availH / (bodyTop === null ? layout.height : layout.height - layoutTop);
-  const scale = Math.min(scaleX, scaleY, 3);
+  const scale = Math.min(
+    scaleX,
+    scaleY,
+    3,
+    maxScale !== undefined && maxScale > 0 ? maxScale : Infinity
+  );
 
   const offsetX = (width - contentW * scale) / 2;
   const offsetY =
@@ -669,6 +681,9 @@ export function renderBoxesAndLines(
     .attr('preserveAspectRatio', 'xMidYMin meet')
     .style('font-family', FONT_FAMILY)
     .style('background', palette.bg);
+
+  // Live renders only: export and gallery output stay byte-identical.
+  if (!exportMode) svg.attr('data-scale', scale);
 
   if (sctx.isBelowFloor) {
     svg.attr('width', '100%');

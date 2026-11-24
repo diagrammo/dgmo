@@ -1,8 +1,9 @@
 // The grouped boxes-and-lines layout rubric (diagrammo/diagrammo#1975) as
 // geometry checks. The rules, their ranking and the target pictures are on the
 // ecosystem-docs mockup page `mockups/2026-11-13-grouped-layout-rubric`.
-// Rule 8 (collapsing never changes text size) is the app's fit-to-pane scale
-// and cannot be measured from a dgmo layout, so it has no check here.
+// Rule 8 (collapsing never changes text size) is a render-time property, not
+// a layout one: the renderer's `maxScale` option holds it, and
+// tests/bl-fold-text-size.test.ts measures it.
 import { parseBoxesAndLines } from '../../src/boxes-and-lines/parser';
 import { collapseBoxesAndLines } from '../../src/boxes-and-lines/collapse';
 import { layoutBoxesAndLines } from '../../src/boxes-and-lines/layout';
@@ -11,7 +12,7 @@ import type { BLGroup } from '../../src/boxes-and-lines/types';
 
 export type RuleId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 9 | 10;
 /** Rules a first engine pass must satisfy; the rest are reported only. */
-export const BLOCKING: readonly RuleId[] = [1, 2, 3, 4, 5, 6];
+export const BLOCKING: readonly RuleId[] = [1, 2, 3, 4, 5, 6, 7];
 export const RULES: readonly RuleId[] = [1, 2, 3, 4, 5, 6, 7, 9, 10];
 
 /** Natural frame padding the engine leaves around one box (measured

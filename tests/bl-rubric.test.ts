@@ -29,7 +29,10 @@ const FIXTURES = {
  *  counted 7, after it 3, and storefront Identity collapsed went 0 to 1 only
  *  because the stricter check sees a hole the old one did not. Later on
  *  2026-11-24 the frozen-collapse bend went per arrow, and box-office's two
- *  collapsed-state pierces (Ticketing Core, Media) went 1 to 0. Lower a
+ *  collapsed-state pierces (Ticketing Core, Media) went 1 to 0. Rule 7 made
+ *  blocking at its 2026-11-24 count, 5: box-office Admin Console in every
+ *  state, plus Ticketing Core with Middleware folded (its partner folds
+ *  away and a fold moves nothing). Lower a
  *  number when a fix lowers it; never raise one. */
 const BASELINE: Record<
   string,

@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Boxes-and-lines: a `maxScale` render option, so folding a group keeps the
+  text size (diagrammo/diagrammo#2062).** A fold shrinks the layout, and the
+  fit-to-pane scale grew to fill the pane. `renderBoxesAndLines` now takes
+  `maxScale` (the fit still wins when it is smaller) and writes the scale it
+  drew to the root `<svg>` as `data-scale` (live renders only; export output
+  is unchanged). Rubric rule 7, sibling frames sharing an edge, is now
+  blocking in the layout ratchet at its current count.
+
 - **Bar: plain names flip horizontal at any count rather than thin
   (diagrammo/diagrammo#2271).** A vertical bar axis of plain names that would
   drop or cut a name now draws horizontal bars with every name, and the
