@@ -3,44 +3,52 @@
     "expanded": {
       "1": 0,
       "2": 0,
-      "3": 0
+      "3": 0,
+      "6": 0
     },
     "Frontends collapsed": {
       "1": 0,
       "2": 0,
-      "3": 0
+      "3": 0,
+      "6": 0
     },
     "Frontends+Core collapsed": {
       "1": 0,
       "2": 0,
-      "3": 0
+      "3": 0,
+      "6": 0
     },
     "Identity collapsed": {
       "1": 0,
       "2": 0,
-      "3": 0
+      "3": 0,
+      "6": 0
     }
   },
   "box-office-platform": {
     "expanded": {
       "1": 0,
       "2": 1,
-      "3": 0
+      "3": 0,
+      "6": 0
     },
     "Ticketing Core collapsed": {
       "1": 0,
       "2": 0,
-      "3": 0
+      "3": 0,
+      "6": 0
     },
     "Middleware collapsed": {
       "1": 0,
       "2": 1,
-      "3": 0
+      "3": 0,
+      "6": 0
     },
     "Media collapsed": {
       "1": 0,
       "2": 1,
-      "3": 0
+      "3": 0,
+      "6": 0
     }
   }
 }

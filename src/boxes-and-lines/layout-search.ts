@@ -24,6 +24,7 @@ import { layeredCandidates } from './layout-layered';
 import { groupedTierCandidates } from './layout-grouped';
 import { clipEndpointsToNodes } from './edge-clip';
 import { measureEdgeLabel, EDGE_LABEL_FONT_SIZE } from './label-placement';
+import { measureText } from '../utils/text-measure';
 import { tryStableCollapseLayout } from './layout-stable-collapse';
 import { layoutRankdir } from './rankdir';
 import { rankWithHints, applyRankOrder } from './rank-hints';
@@ -759,6 +760,8 @@ export function countEdgeNearMiss(
 // GROUP_LABEL_ZONE in renderer.ts) — so the collision metric must use the
 // RENDERED box, or near-touching parents read as fine when they actually overlap.
 const GROUP_LABEL_ZONE = 32;
+/** Mirrors GROUP_LABEL_FONT_SIZE in renderer.ts. */
+const GROUP_TITLE_FONT_SIZE = 14;
 
 /** Labels of GROUP boxes that touch/overlap a non-nested sibling group. Proper
  *  nesting (one box fully inside another) is excluded; only sibling/unrelated
@@ -1579,6 +1582,97 @@ function layoutFailure(
   );
 }
 
+/** Natural frame padding dagre leaves around a group's contents (measured
+ *  2026-11-13: 30 each side, 35 top and bottom; `bl-rubric.ts` rule 6). */
+const FRAME_PAD_X = 30;
+const FRAME_PAD_Y = 35;
+/** Slack past the natural padding a side may keep before it is trimmed —
+ *  so a frame dagre already sized naturally is left exactly as it was. */
+const FRAME_SLACK = 4;
+/** Room either side of an expanded group's centred title. */
+const FRAME_TITLE_PAD = 16;
+
+/** Shrinks each expanded group frame to its contents plus the natural
+ *  padding (#2062 rule 6). Dagre gives stacked compound nodes one shared
+ *  width, so a one-box group under a wide one inherits the wide frame. Only
+ *  a side with slack past the padding moves, never outward, and the title
+ *  keeps its width. Innermost groups go first, so a parent fits the
+ *  already-tightened child. Mutates `groups`. */
+export function tightenGroupFrames(
+  nodes: readonly {
+    label: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }[],
+  groups: BLLayoutResult['groups'][number][],
+  parsedGroups: readonly BLGroup[],
+  originalGroups?: readonly BLGroup[]
+): void {
+  const parentOf = new Map<string, string | undefined>();
+  for (const pg of [...(originalGroups ?? []), ...parsedGroups])
+    parentOf.set(pg.label, pg.parentGroup);
+  const depth = (label: string): number => {
+    let d = 0;
+    for (let p = parentOf.get(label); p !== undefined; p = parentOf.get(p)) d++;
+    return d;
+  };
+  const byLabel = new Map(groups.map((gr) => [gr.label, gr]));
+  const nodeByLabel = new Map(nodes.map((n) => [n.label, n]));
+  const order = parsedGroups
+    .filter((pg) => byLabel.get(pg.label) && !byLabel.get(pg.label)!.collapsed)
+    .sort((a, b) => depth(b.label) - depth(a.label));
+  for (const pg of order) {
+    const fr = byLabel.get(pg.label)!;
+    const inside: { x: number; y: number; width: number; height: number }[] =
+      [];
+    for (const c of pg.children) {
+      const n = nodeByLabel.get(c);
+      if (n) inside.push(n);
+    }
+    for (const gr of groups)
+      if (gr.label !== pg.label && parentOf.get(gr.label) === pg.label)
+        inside.push(gr);
+    if (inside.length === 0) continue;
+    const cl = Math.min(...inside.map((r) => r.x - r.width / 2));
+    const cr = Math.max(...inside.map((r) => r.x + r.width / 2));
+    const ct = Math.min(...inside.map((r) => r.y - r.height / 2));
+    const cb = Math.max(...inside.map((r) => r.y + r.height / 2));
+    let l = fr.x - fr.width / 2;
+    let r = fr.x + fr.width / 2;
+    let t = fr.y - fr.height / 2;
+    let b = fr.y + fr.height / 2;
+    const [ol, or] = [l, r];
+    if (cl - l > FRAME_PAD_X + FRAME_SLACK) l = cl - FRAME_PAD_X;
+    if (r - cr > FRAME_PAD_X + FRAME_SLACK) r = cr + FRAME_PAD_X;
+    if (ct - t > FRAME_PAD_Y + FRAME_SLACK) t = ct - FRAME_PAD_Y;
+    if (b - cb > FRAME_PAD_Y + FRAME_SLACK) b = cb + FRAME_PAD_Y;
+    const title =
+      measureText(pg.label, GROUP_TITLE_FONT_SIZE, { bold: true }) +
+      2 * FRAME_TITLE_PAD;
+    if (r - l < title) {
+      // Grow back toward the old sides, centred on the contents.
+      const mid = (cl + cr) / 2;
+      l = Math.max(ol, Math.min(l, mid - title / 2));
+      r = Math.min(or, Math.max(r, mid + title / 2));
+      if (r - l < title) {
+        const need = title - (r - l);
+        const roomL = l - ol;
+        const takeL = Math.min(roomL, need);
+        l -= takeL;
+        r = Math.min(or, r + need - takeL);
+      }
+    }
+    Object.assign(fr, {
+      x: (l + r) / 2,
+      y: (t + b) / 2,
+      width: r - l,
+      height: b - t,
+    });
+  }
+}
+
 export async function layoutBoxesAndLinesSearch(
   parsed: ParsedBoxesAndLines,
   collapseInfo?: {
@@ -2001,6 +2095,25 @@ export async function layoutBoxesAndLinesSearch(
         collapsed: true,
         childCount: collapseInfo?.collapsedChildCounts.get(label) ?? 0,
       });
+    }
+    // A frame dagre stretched past its contents shrinks back (#2062 rule 6)
+    // — before the clip rects, so group-incident edges meet the tight frame.
+    tightenGroupFrames(
+      nodes,
+      groups,
+      parsed.groups,
+      collapseInfo?.originalGroups
+    );
+    for (const grp of groups) {
+      if (grp.collapsed) continue;
+      const p = g.node(gid(grp.label));
+      if (p)
+        Object.assign(p, {
+          x: grp.x,
+          y: grp.y,
+          width: grp.width,
+          height: grp.height,
+        });
     }
     // Boundary rects for expanded groups — used to clip group-incident edges.
     const groupRectByGid = new Map<
