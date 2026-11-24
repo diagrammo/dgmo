@@ -1811,15 +1811,98 @@ export function tightenGroupFrames(
 
 /** A frozen collapse layout keeps the expanded routes, so an arrow that
  *  now reaches a pill can run through a box in its way (#2062, rubric rule
- *  4). Bend those round the box, kept only on a strict badness drop. */
-function bendFrozenPierces(layout: BLLayoutResult): BLLayoutResult {
+ *  4). Bend those round the box, kept only on a strict badness drop that
+ *  adds no foreign-group pass (rule 2): all at
+ *  once first, then one arrow at a time, since bending every arrow together
+ *  can trade the pierces for a crossing that one arrow alone would not add.
+ *  Each arrow tries the general detour, and its own line and the straight
+ *  line between its ends bent round each box in turn at each clearance. */
+// What a line through a box costs against a crossing when a frozen collapse
+// layout is re-bent. A line through a box reads as an arrow to it; a
+// crossing reads as a crossing.
+const FROZEN_PIERCE_WEIGHT = 2;
+
+function bendFrozenPierces(
+  layout: BLLayoutResult,
+  groups: readonly BLGroup[]
+): BLLayoutResult {
   const bad = (l: BLLayoutResult) =>
     countSplineCrossings(l) +
     countEdgeOverlaps(l) +
-    countEdgeNodePierces(l) +
+    FROZEN_PIERCE_WEIGHT * countEdgeNodePierces(l) +
     countGroupOverlaps(l);
-  const dp = deroutePierces(layout);
-  return dp !== layout && bad(dp) < bad(layout) ? dp : layout;
+  const foreign = (l: BLLayoutResult) =>
+    countForeignGroupCrossings(l, groups, { minDepth: STABLE_BEND_MIN_DEPTH });
+  const holds = groupHoldings(groups);
+  let cur = layout;
+  let curBad = bad(cur);
+  let curForeign = foreign(cur);
+  const keep = (next: BLLayoutResult): void => {
+    const b = bad(next);
+    if (b >= curBad) return;
+    const f = foreign(next);
+    if (f > curForeign) return;
+    [cur, curBad, curForeign] = [next, b, f];
+  };
+  const dp = deroutePierces(cur);
+  if (dp !== cur) keep(dp);
+  const pierced = [
+    ...new Set(detectEdgeNodePierces(cur).map((q) => q.edgeIdx)),
+  ];
+  for (const idx of pierced) {
+    const e = cur.edges[idx]!;
+    if (e.points.length < 2) continue;
+    const ends = new Set([e.source, e.target]);
+    const variants: Pt[][] = [];
+    const single = deroutePierces(cur).edges[idx];
+    if (single && single !== e) variants.push([...single.points]);
+    const bases: Pt[][] = [
+      [...e.points],
+      [e.points[0]!, e.points[e.points.length - 1]!],
+    ];
+    for (const margin of REROUTE_MARGINS)
+      for (const base of bases) {
+        let pts = base;
+        for (let k = 0; k < REROUTE_BENDS; k++) {
+          const hit = firstBoxHit(pts, cur.nodes, ends);
+          if (!hit) break;
+          const bent = detourAroundBox(pts, hit, margin);
+          if (!bent) break;
+          pts = bent;
+        }
+        if (pts !== base) variants.push(pts);
+      }
+    // A bend may not cut across a group the arrow neither leaves nor enters,
+    // even at a corner the depth allowance above would forgive.
+    const foreignFrames = cur.groups.filter(
+      (g) =>
+        !g.collapsed &&
+        !holds.get(g.label)?.has(e.source) &&
+        !holds.get(g.label)?.has(e.target)
+    );
+    const cutsForeign = (pts: Pt[]) =>
+      foreignFrames.some((g) =>
+        pts.some(
+          (p, k) =>
+            k > 0 &&
+            segmentEntersRect(
+              pts[k - 1]!,
+              p,
+              g.x - g.width / 2,
+              g.y - g.height / 2,
+              g.x + g.width / 2,
+              g.y + g.height / 2
+            )
+        )
+      );
+    for (const pts of variants) {
+      if (cutsForeign(pts)) continue;
+      const edges = cur.edges.slice();
+      edges[idx] = { ...e, points: pts };
+      keep({ ...cur, edges });
+    }
+  }
+  return cur;
 }
 
 /** A group's unlinked boxes fill its grid's holes (#2062, rubric rule 4):
@@ -2243,9 +2326,13 @@ export async function layoutBoxesAndLinesSearch(
     });
     const stable =
       frozen &&
-      bendAroundForeignGroups(bendFrozenPierces(frozen), parsed.groups, {
-        minDepth: STABLE_BEND_MIN_DEPTH,
-      });
+      bendAroundForeignGroups(
+        bendFrozenPierces(frozen, parsed.groups),
+        parsed.groups,
+        {
+          minDepth: STABLE_BEND_MIN_DEPTH,
+        }
+      );
     if (stable) {
       // Freezing keeps the expanded geometry, so a collapse that empties most
       // of the canvas leaves pills stranded across it with long diagonals

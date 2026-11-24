@@ -27,7 +27,9 @@ const FIXTURES = {
  *  (#2062). 2026-11-24: rule 4 learned grid holes (an unlinked box after
  *  an empty cell of its line); on the engine before the hole-packing pass it
  *  counted 7, after it 3, and storefront Identity collapsed went 0 to 1 only
- *  because the stricter check sees a hole the old one did not. Lower a
+ *  because the stricter check sees a hole the old one did not. Later on
+ *  2026-11-24 the frozen-collapse bend went per arrow, and box-office's two
+ *  collapsed-state pierces (Ticketing Core, Media) went 1 to 0. Lower a
  *  number when a fix lowers it; never raise one. */
 const BASELINE: Record<
   string,

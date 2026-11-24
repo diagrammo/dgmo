@@ -631,6 +631,11 @@ logged · most often Great`. Diagnostics: `E_CALENDAR_HEATMAP_UNKNOWN_TAG`,
   A move is kept only when it adds no crossing, overlap, box an arrow runs
   through, or unplaced label. Folding or unfolding a group still moves
   nothing.
+- **Boxes-and-lines: folding a group no longer leaves an arrow through a box
+  (diagrammo/diagrammo#2062).** When a fold keeps every box in place, an
+  arrow that now runs through a box bends round it, one arrow at a time.
+  A bend is kept when it clears more than it costs, a line through a box
+  counting as two crossings, and never when it cuts across another group.
 
 ## [0.96.0] - 2026-11-02
 
