@@ -215,12 +215,13 @@ describe('the first rotated label stays inside the SVG', () => {
 
   for (const kind of ['bar', 'line']) {
     it(`${kind}: a long first label does not cross the left edge`, async () => {
-      // A short bar axis whose names would rotate turns horizontal (#1828),
-      // so the bar case pads the axis past NEVER_THIN_MAX names to keep it
-      // vertical; a taller canvas keeps the names rotated and whole.
+      // A bar axis whose names would rotate turns horizontal (#1828, #2271),
+      // so the bar case pads the axis past NEVER_THIN_MAX names and keeps it
+      // vertical with `orientation-vertical`; a taller canvas keeps the names
+      // rotated and whole.
       const filler = Array.from({ length: 12 }, (_, i) => `B${i + 6} 1`);
       const svg = await renderDataChartD3(
-        `${kind} Tokens\n\n${kind === 'bar' ? [body, ...filler].join('\n') : body}`,
+        `${kind} Tokens\n${kind === 'bar' ? 'orientation-vertical\n' : ''}\n${kind === 'bar' ? [body, ...filler].join('\n') : body}`,
         'light',
         undefined,
         kind === 'bar' ? { width: 480, height: 800 } : undefined

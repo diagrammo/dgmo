@@ -115,13 +115,13 @@ describe('bar chart long category names (#1422)', () => {
     expect(plotLeft).toBeLessThanOrEqual(W * 0.35 + 30);
   });
 
-  it('keeps rotating a long axis rather than flip it', async () => {
+  it('orientation-vertical keeps rotating a long axis rather than flip it', async () => {
     const body = Array.from(
       { length: 14 },
       (_, i) => `Service number ${i + 1} ${10 * (i + 1)}`
     ).join('\n');
     const svg = await renderDataChartD3(
-      `bar Requests\n\n${body}`,
+      `bar Requests\norientation-vertical\n\n${body}`,
       'light',
       undefined,
       { width: 300, height: 400 }

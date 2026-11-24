@@ -81,6 +81,7 @@ import {
   planLabelsFitLeft,
   drawCategoryLabels,
   NEVER_THIN_MAX,
+  isOrderedLabelSet,
   bandSafeTop,
   TICK_INK_ABOVE,
   topTickFraction,
@@ -100,8 +101,12 @@ import type { FacetPanel } from './facet-panel';
 // keeps its full text as a hover title.
 const LABEL_REGION_SHARE = 0.35;
 const PLOT_MIN_SHARE = 0.6;
-/** A vertical bar axis this short flips horizontal rather than rotate (#1828). */
+/** A vertical bar axis this short flips horizontal rather than rotate (#1828).
+ *  A longer axis of plain names flips too, rather than thin them (#2271). */
 const FLIP_MAX_CATEGORIES = NEVER_THIN_MAX;
+/** Shortest row a horizontal bar gets: one name line and its gap. Below it
+ *  the drawing grows taller than its host height (#2271). */
+const ROW_MIN_STEP = Math.round(TICK_FONT * 1.2) + 6;
 /** A time axis keeps its end bars at least this far in from the plot edge. */
 const DATE_AXIS_INSET = 16;
 /** The category axis: a band per label, or a bar at each row's time. */
@@ -229,6 +234,7 @@ export function renderBar(
         )
       : 1;
   const authoredHorizontal = chart.orientation === 'horizontal';
+  const authoredVertical = chart.orientation === 'vertical';
   const multiSeries = seriesCount > 1;
   const fillMode = chart.fillMode;
 
@@ -395,12 +401,21 @@ export function renderBar(
   // (#1828): names read flat in the left column, wrapped rather than cut. A
   // long axis (dates, many points) keeps thinning and rotating.
   // A plan that cut its names counts too: once cut short they may fit flat.
+  // A longer axis of plain names flips when the plan would drop or cut one
+  // (#2271), and the drawing grows to give each name a row; ordered names
+  // still thin, since a dropped one reads off its neighbours (#2212). A facet
+  // panel cannot grow, so it keeps the short-axis rule. `orientation-vertical`
+  // keeps the columns.
+  const cutNames = !!verticalFit?.shown.some((s, i) => s !== catLabels[i]);
   const flipped =
     !pareto &&
+    !authoredVertical &&
     verticalFit !== null &&
-    data.length <= FLIP_MAX_CATEGORIES &&
-    (verticalFit.plan.rotate ||
-      verticalFit.shown.some((s, i) => s !== catLabels[i]));
+    (data.length <= FLIP_MAX_CATEGORIES
+      ? verticalFit.plan.rotate || cutNames
+      : !panel &&
+        !isOrderedLabelSet(catLabels) &&
+        (verticalFit.plan.keep.size < data.length || cutNames));
   const horizontal = authoredHorizontal || flipped;
   // x names the category axis and y the value axis in any orientation, the
   // same axis the `y-axis` range and scale set (diagrammo/diagrammo#2122). Once
@@ -516,6 +531,21 @@ export function renderBar(
     const above = TICK_FONT - 4 + ((lines - 1) * NAME_LINE_PX) / 2;
     const f = 0.65 / (data.length + 0.3);
     m.top = Math.max(m.top, bandSafeTop(mTop, height - m.bottom, [[f, above]]));
+  }
+  // Horizontal rows too short for a name line: the drawing grows (#2271), as
+  // it does for a note key, and the frame lays out around the taller canvas.
+  if (horizontal && !panel && data.length) {
+    const grow = Math.ceil(
+      sideSteps * ROW_MIN_STEP - (height - m.top - m.bottom)
+    );
+    const root = svg.node();
+    if (grow > 0 && root) {
+      const h = Number(root.getAttribute('height') ?? height) + grow;
+      const w = Number(root.getAttribute('width') ?? width);
+      root.setAttribute('height', String(h));
+      root.setAttribute('viewBox', `0 0 ${w} ${h}`);
+      height += grow;
+    }
   }
   const plotH = height - m.top - m.bottom;
   const horiz = horizontal;

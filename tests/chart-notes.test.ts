@@ -254,8 +254,9 @@ describe('note', () => {
       ['Portobelo', 600, 'Fair held yearly'],
       ['Charleston', 380, 'Blockaded'],
     ];
+    // Fourteen names would flip horizontal (#2271); these are column notes.
     const src =
-      'bar Every port gets a note\n' +
+      'bar Every port gets a note\norientation-vertical\n' +
       ports.map(([p, v, n]) => `${p} ${v}\n  note ${n}`).join('\n');
     // The app preview pane sizes and the wider default export. Below about 560px
     // a bar gets less room than one word of its note, and notes overlap.
@@ -361,8 +362,9 @@ describe('note', () => {
       ['Portobelo', 600, 'Fair held yearly'],
       ['Charleston', 380, 'Blockaded'],
     ];
+    // Fourteen names would flip horizontal (#2271); these are column notes.
     const src =
-      'bar Every port gets a note\n' +
+      'bar Every port gets a note\norientation-vertical\n' +
       ports.map(([p, v, n]) => `${p} ${v}\n  note ${n}`).join('\n');
     const wide = await renderDataChartD3(src, 'light', palette, {
       width: 700,

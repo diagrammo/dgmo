@@ -192,6 +192,9 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description: 'Y-axis line: title, range, log (y-axis Revenue 0..)',
       },
       'orientation-horizontal': { description: 'Switch to horizontal bars' },
+      'orientation-vertical': {
+        description: 'Keep vertical bars; many names thin instead of flipping',
+      },
       sort: {
         description:
           'Order bars by value: sort (largest first), sort asc, or sort <series>',

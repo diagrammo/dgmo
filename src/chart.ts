@@ -352,6 +352,7 @@ const DEFAULT_HOLE = 0.6;
 /** Known boolean options for the simple chart parser. */
 const KNOWN_BOOLEANS = new Set([
   'orientation-horizontal',
+  'orientation-vertical',
   'fill-tint',
   'fill-solid',
   'fill-outline',
@@ -753,6 +754,10 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
     if (KNOWN_BOOLEANS.has(firstToken) && spaceIdx < 0) {
       if (firstToken === 'orientation-horizontal') {
         result.orientation = 'horizontal';
+        orientationLine = lineNumber;
+      } else if (firstToken === 'orientation-vertical') {
+        // Keeps a bar chart's columns where it would flip (#2271).
+        result.orientation = 'vertical';
         orientationLine = lineNumber;
       } else if (fillModeFromToken(firstToken) !== null) {
         const fm = fillModeFromToken(firstToken)!;

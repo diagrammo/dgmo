@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Bar: plain names flip horizontal at any count rather than thin
+  (diagrammo/diagrammo#2271).** A vertical bar axis of plain names that would
+  drop or cut a name now draws horizontal bars with every name, and the
+  drawing grows taller than its host when the rows need it. Dates and other
+  ordered names still thin. A new `orientation-vertical` directive keeps the
+  columns, thinned as before.
+
 - **Bar and line: small multiples, a bare `facet` flag
   (diagrammo/diagrammo#1853).** Each series gets its own panel, in
   declaration order, in a grid under one title block, headed by its name in
