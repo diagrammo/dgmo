@@ -96,6 +96,7 @@ import {
 } from './overlays/parse';
 import {
   AXIS_DIRECTIVE_DX,
+  AXIS_STACK_PAST_RANGE_DX,
   applyAxisLine,
   parseAxisLine,
   readAxisLine,
@@ -2282,6 +2283,41 @@ function settleChartAxes(result: ParsedChart): void {
     values = rows.flatMap((r) => r.filter((_, s) => axes[s] !== 'right'));
   } else {
     values = rows.flat();
+  }
+  if (result.type === 'bar' && result.barLayout === 'stack') {
+    // A stacked column cut by a fixed range cannot be drawn true (#2214):
+    // the segments above the cut would have no height.
+    const over: string[] = [];
+    let bound = '';
+    result.data.forEach((d, i) => {
+      const r = rows[i]!;
+      const spans = result.diverging
+        ? divergingSpans(r, result.neutralSeries)
+        : [
+            [
+              r.filter((v) => v < 0).reduce((a, b) => a + b, 0),
+              r.filter((v) => v > 0).reduce((a, b) => a + b, 0),
+            ] as [number, number],
+          ];
+      const lo = Math.min(0, ...spans.map((s) => s[0]));
+      const hi = Math.max(0, ...spans.map((s) => s[1]));
+      if (y.max !== undefined && hi > y.max) {
+        over.push(`${d.label} (total ${hi})`);
+        bound ||= `past the y-axis max of ${y.max}`;
+      } else if (y.min !== undefined && (lo < 0 ? lo : hi) < y.min) {
+        over.push(`${d.label} (total ${lo < 0 ? lo : hi})`);
+        bound ||= `past the y-axis min of ${y.min}`;
+      }
+    });
+    if (over.length > 0) {
+      const diag = emit(AXIS_STACK_PAST_RANGE_DX, y.lineNumber ?? 1, {
+        columns: over.join(', '),
+        bound: `${over.length > 1 ? 'are' : 'is'} ${bound}`,
+      });
+      result.diagnostics.push(diag);
+      result.error ??= formatDgmoError(diag);
+      return;
+    }
   }
   settleAxisSpec('y', y, values, result.diagnostics);
 }

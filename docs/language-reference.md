@@ -3080,6 +3080,9 @@ y-axis log            // scale only (linear is the default)
   bar 0 baseline: a bar whose axis starts above 0 grows from the axis floor.
   Values outside the range are cut off at the edge, and the chart warns
   (`W_AXIS_DATA_OUTSIDE_RANGE`). A function curve breaks at the edge instead.
+  A stacked bar column whose total passes a fixed end is an error
+  (`E_STACK_PAST_AXIS_RANGE`) and the chart is not drawn, because its segments
+  above the cut would have no height; raise the range or drop the bound.
   Slope draws no tick axis; there the range fixes the vertical span, so two
   slope charts can share one scale. A range whose low end is not below its high
   end drops both ends (`W_AXIS_DIRECTIVE_INVALID`).

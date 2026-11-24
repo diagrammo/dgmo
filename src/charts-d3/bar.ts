@@ -365,30 +365,7 @@ export function renderBar(
     !stacked && ySpec?.max !== undefined && v > ySpec.max;
   const cutLo = (v: number) =>
     !stacked && ySpec?.min !== undefined && v < ySpec.min;
-  // A stacked column is cut as a whole (#2118): its positive total past
-  // `max`, its negative total (or, with none, its positive one) past `min`.
-  // `stack 100%` cannot pass its axis; `stack diverging` is left out.
-  const stackCuts = stacked && !percent && !diverging;
-  const colEnds = perCat.map((vals) => {
-    const hi = vals.filter((v) => v > 0).reduce((a, b) => a + b, 0);
-    const neg = vals.filter((v) => v < 0).reduce((a, b) => a + b, 0);
-    return { hi, lo: neg < 0 ? neg : hi };
-  });
-  const colCut = (di: number): { dir: 1 | -1; total: number } | null => {
-    if (!stackCuts) return null;
-    const { hi, lo } = colEnds[di]!;
-    if (ySpec?.max !== undefined && hi > ySpec.max)
-      return { dir: 1, total: hi };
-    if (ySpec?.min !== undefined && lo < ySpec.min)
-      return { dir: -1, total: lo };
-    return null;
-  };
-  const hiCuts = stacked
-    ? colEnds.flatMap((_, di) => {
-        const c = colCut(di);
-        return c?.dir === 1 ? [c.total] : [];
-      })
-    : perCat.flat().filter(cutHi);
+  const hiCuts = perCat.flat().filter(cutHi);
   // A time axis when every row is a date, date-time or bare time (#2208):
   // each bar stands at its time, to scale. Horizontal, pareto, diverging and
   // lollipop bars stay categorical. A time axis never flips: its ticks are
@@ -1039,40 +1016,6 @@ export function renderBar(
         }
         if (v < 0) accNeg += v;
         else accPos += v;
-        if (s === vals.length - 1) {
-          const c = colCut(di);
-          if (c) {
-            const mid = base + cat.bandwidth() / 2;
-            const past = CUT_MARK_GAP + CUT_MARK_LEN + 4;
-            const edge = horiz
-              ? c.dir > 0
-                ? m.left + plotW
-                : m.left
-              : c.dir > 0
-                ? m.top
-                : m.top + plotH;
-            cutMark(
-              svg,
-              mid,
-              edge,
-              c.dir,
-              horiz,
-              textColor,
-              d.lineNumber,
-              false
-            );
-            if (horiz)
-              drawValueLabel(
-                svg,
-                fmt(c.total),
-                edge + past,
-                mid + 4,
-                textColor,
-                'start'
-              );
-            else drawValueLabel(svg, fmt(c.total), mid, edge - past, textColor);
-          }
-        }
       } else {
         const off = inner!(s) ?? 0;
         const bw = inner!.bandwidth();

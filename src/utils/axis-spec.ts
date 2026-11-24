@@ -56,6 +56,17 @@ export const AXIS_OUTSIDE_RANGE_DX: DiagnosticSpec = {
   example: 'bar Sales\ny-axis ..100\nQ1 500',
 };
 
+export const AXIS_STACK_PAST_RANGE_DX: DiagnosticSpec = {
+  code: 'E_STACK_PAST_AXIS_RANGE',
+  severity: 'error',
+  chartType: 'bar',
+  title: 'Stacked column past the axis range',
+  message: (p) =>
+    `A stacked column cannot be cut by the axis: ${p.columns ?? 'Mar (total 260)'} ${p.bound ?? 'is past the y-axis max of 100'}. Its segments above the cut would draw with no height, so the chart is not drawn.`,
+  hint: 'Raise the `y-axis` max (or lower its min) past every column total, or remove the bound to let the axis fit the data.',
+  example: 'bar Sales\nstack\nseries A, B\ny-axis 0..100\nQ1 80 70',
+};
+
 /** An eight-directive axis form from before decision #60. */
 export const AXIS_OLD_DIRECTIVE_DX: DiagnosticSpec = {
   code: 'E_AXIS_OLD_DIRECTIVE',
@@ -73,6 +84,7 @@ export const AXIS_DIAGNOSTICS: DiagnosticSpec[] = [
   AXIS_OLD_DIRECTIVE_DX,
   AXIS_LOG_NOT_POSITIVE_DX,
   AXIS_OUTSIDE_RANGE_DX,
+  AXIS_STACK_PAST_RANGE_DX,
 ];
 
 const AXIS_LINE_RE = /^(x|y|y-right)-axis(?:\s+(.*))?$/;
