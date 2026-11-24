@@ -212,7 +212,7 @@ function parseClockRaw(content: string, palette?: PaletteColors): ParsedClock {
     const lineNum = i + 1;
     const raw = lines[i]!;
     // Strip an inline comment (`# …` or `// …`) then trim.
-    const trimmed = raw.replace(/\s+(#|\/\/).*$/, '').trim();
+    const trimmed = raw.replace(/(?<!\s)\s+(#|\/\/).*$/, '').trim();
     if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('//'))
       continue;
 

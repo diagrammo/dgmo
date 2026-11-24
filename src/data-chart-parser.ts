@@ -393,7 +393,7 @@ const KNOWN_EXTENDED_FIRST_TOKENS: ReadonlySet<string> = new Set([
 
 /** `Name <time>, y[, size]` — x is a date, date-time or bare clock time (#2208). */
 const SCATTER_TIME_ROW_RE =
-  /^(.+?)\s+(\d{4}-\d{2}(?:-\d{2})?(?:[T ]\d{2}:\d{2}(?::\d{2})?)?|\d{1,2}:\d{2}(?::\d{2})?)\s*,\s*(-?\d+(?:\.\d+)?)(\s*,\s*(-?\d+(?:\.\d+)?))?$/;
+  /^(.+?)(?<!\s)\s+(\d{4}-\d{2}(?:-\d{2})?(?:[T ]\d{2}:\d{2}(?::\d{2})?)?|\d{1,2}:\d{2}(?::\d{2})?)\s*,\s*(-?\d+(?:\.\d+)?)(\s*,\s*(-?\d+(?:\.\d+)?))?$/;
 
 /**
  * Parse a scatter data row: "Name x, y[, size]" or "Name(color) x, y[, size]"
@@ -673,7 +673,7 @@ function parseExtendedChartFull(
     if (/^#{2,}\s+/.test(trimmed)) {
       const name = trimmed
         .replace(/^#{2,}\s+/, '')
-        .replace(/\s*\([^)]*\)\s*$/, '')
+        .replace(/(?<!\s)\s*\([^)]*\)\s*$/, '')
         .trim();
       result.diagnostics.push(
         makeDgmoError(
@@ -883,7 +883,7 @@ function parseExtendedChartFull(
     // through every arrow it holds.
     const arrowMatch = SANKEY_LINK_TAIL_RE.test(trimmed)
       ? trimmed.match(
-          /^(.+?)\s*(->|--)\s*(.+?)\s+(-?[\d,_]+(?:\.[\d]+)?)(?:\s+([A-Za-z][A-Za-z0-9_-]*))?\s*$/
+          /^(.+?)(?<!\s)\s*(->|--)\s*(.+?)(?<!\s)\s+(-?[\d,_]+(?:\.[\d]+)?)(?:\s+([A-Za-z][A-Za-z0-9_-]*))?\s*$/
         )
       : null;
     if (arrowMatch) {
@@ -1038,7 +1038,7 @@ function parseExtendedChartFull(
             /(-?[\d,_]+(?:\.[\d]+)?)\s+([A-Za-z][A-Za-z0-9_-]*)\s*$/
           );
           const strippedLine = valColorMatch
-            ? trimmed.replace(/\s+[A-Za-z][A-Za-z0-9_-]*\s*$/, '')
+            ? trimmed.replace(/(?<!\s)\s+[A-Za-z][A-Za-z0-9_-]*\s*$/, '')
             : trimmed;
           const dataRow = parseDataRowValues(strippedLine);
           if (dataRow?.values.length === 1) {

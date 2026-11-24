@@ -172,7 +172,9 @@ export function parseTechRadar(content: string): ParsedTechRadar {
     if (inRingsBlock) {
       if (indent > 0) {
         // Parse ring declaration: `Name`, `Name alias a`, or `Name aka a`
-        const aliasMatch = trimmed.match(/^(.+?)\s+(?:alias|aka)\s+(\S+)\s*$/i);
+        const aliasMatch = trimmed.match(
+          /^(.+?)(?<!\s)\s+(?:alias|aka)\s+(\S+)\s*$/i
+        );
         if (aliasMatch) {
           result.rings.push({
             // Capture groups [1] and [2] guaranteed by regex match.

@@ -498,9 +498,9 @@ export function parseFamily(
     // metadata cut / ` + ` split — it is union-level, sits after any `m:`, and
     // only applies to a line that actually joins two people (has a spaced `+`).
     let divorced = false;
-    if (/\s\+\s/.test(trimmed) && /\s+divorced$/i.test(trimmed)) {
+    if (/\s\+\s/.test(trimmed) && /(?<!\s)\s+divorced$/i.test(trimmed)) {
       divorced = true;
-      trimmed = trimmed.replace(/\s+divorced$/i, '').trimEnd();
+      trimmed = trimmed.replace(/(?<!\s)\s+divorced$/i, '').trimEnd();
     }
     // Detect union vs person: cut union-level metadata FIRST, then split ` + `.
     const cut = cutUnionMetadata(trimmed, FAMILY_UNION_REGISTRY);

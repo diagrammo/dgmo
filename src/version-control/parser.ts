@@ -305,7 +305,11 @@ function parseVersionControlRaw(
     if (indent === 0) {
       // ── Top-level operation verbs ──
       let m: RegExpExecArray | null;
-      if ((m = /^ref\s+(.+?)\s+at\s+(.+?)(?:\s+(remote))?$/.exec(trimmed))) {
+      if (
+        (m = /^ref\s+(.+?)(?<!\s)\s+at\s+(.+?)(?:(?<!\s)\s+(remote))?$/.exec(
+          trimmed
+        ))
+      ) {
         const nm = m[1]!.trim();
         const tgt = findByRef(m[2]!.trim(), lineNumber);
         refs.push({
@@ -317,11 +321,11 @@ function parseVersionControlRaw(
         });
         continue;
       }
-      if ((m = /^rebase\s+(.+?)\s+onto\s+(.+)$/.exec(trimmed))) {
+      if ((m = /^rebase\s+(.+?)(?<!\s)\s+onto\s+(.+)$/.exec(trimmed))) {
         doRebase(m[1]!.trim(), m[2]!.trim(), lineNumber);
         continue;
       }
-      if ((m = /^reset\s+(.+?)\s+to\s+(.+)$/.exec(trimmed))) {
+      if ((m = /^reset\s+(.+?)(?<!\s)\s+to\s+(.+)$/.exec(trimmed))) {
         const br = branches.get(m[1]!.trim());
         const tgt = findByRef(m[2]!.trim(), lineNumber);
         if (!br) {
@@ -354,14 +358,14 @@ function parseVersionControlRaw(
       let rest = colored.label;
       const colorToken = colored.color !== undefined ? lastWord : null;
       let ord: number | null = null;
-      const om = /\s+order:\s*(\d+)\s*$/.exec(rest);
+      const om = /(?<!\s)\s+order:\s*(\d+)\s*$/.exec(rest);
       if (om) {
         ord = Number(om[1]);
-        rest = rest.replace(/\s+order:\s*\d+\s*$/, '');
+        rest = rest.replace(/(?<!\s)\s+order:\s*\d+\s*$/, '');
       }
       let name = rest.trim();
       let parent: string | null = null;
-      const fm = rest.split(/\s+from\s+/);
+      const fm = rest.split(/(?<!\s)\s+from\s+/);
       if (fm.length === 2) {
         name = fm[0]!.trim();
         parent = fm[1]!.trim();
@@ -383,7 +387,7 @@ function parseVersionControlRaw(
       const { msg, tag, id, type } = peelMeta(trimmed.slice(5).trim());
       let src = msg.trim();
       let strat: string | null = null;
-      const sm = /^(.*?)\s+(squash|ff|no-ff)$/.exec(src);
+      const sm = /^(.*?)(?<!\s)\s+(squash|ff|no-ff)$/.exec(src);
       if (sm) {
         src = sm[1]!.trim();
         strat = sm[2]!;

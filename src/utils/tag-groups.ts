@@ -84,7 +84,10 @@ export function stripDefaultModifier(text: string): {
   isDefault: boolean;
 } {
   if (/\bdefault\s*$/.test(text)) {
-    return { text: text.replace(/\s+default\s*$/, '').trim(), isDefault: true };
+    return {
+      text: text.replace(/(?<!\s)\s+default\s*$/, '').trim(),
+      isDefault: true,
+    };
   }
   return { text, isDefault: false };
 }

@@ -358,7 +358,9 @@ export function parseBoxesAndLines(
 
       // Invisible line (#2002): `A ~~ B` ranks B after A like a line would,
       // but nothing routes, scores or draws it.
-      const invisibleMatch = trimmed.match(/^([^~|]+?)\s*~~\s*([^~|]+)$/);
+      const invisibleMatch = trimmed.match(
+        /^([^~|]+?)(?<!\s)\s*~~\s*([^~|]+)$/
+      );
       if (invisibleMatch && !/->|<-/.test(trimmed)) {
         invisibleHints.push({
           lineNumber: lineNum,
@@ -1283,7 +1285,7 @@ function parseEdgeLine(
     new Set(metaAliasMap.keys())
   );
   // Check for bidirectional labeled: `Source <-label-> Target`
-  const biLabeledMatch = trimmed.match(/^(.+?)\s*<-(.+)->\s*(.+)$/);
+  const biLabeledMatch = trimmed.match(/^(.+?)(?<!\s)\s*<-(.+)->\s*(.+)$/);
   if (biLabeledMatch) {
     // Regex capture groups present after successful match.
     const rawSource = biLabeledMatch[1]!.trim();
@@ -1375,7 +1377,7 @@ function parseEdgeLine(
 
   // Check for labeled arrow: `Source -label-> Target` (label lazy → split
   // at the first arrow, consistent with the other parsers).
-  const labeledMatch = trimmed.match(/^(.+?)\s+-(.+?)->\s*(.+)$/);
+  const labeledMatch = trimmed.match(/^(.+?)(?<!\s)\s+-(.+?)->\s*(.+)$/);
   if (labeledMatch) {
     // Regex capture groups present after successful match.
     const rawSource = labeledMatch[1]!.trim();

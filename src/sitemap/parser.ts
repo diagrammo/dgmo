@@ -62,7 +62,7 @@ const METADATA_RE = /^([^:]+):\s*(.+)$/;
  * Edges have no color slot (spec §1.7).
  * Captures: [1] label, [2] target
  */
-const ARROW_RE = /^-([^>][^>]*?)?\s*->\s*(.+)$/;
+const ARROW_RE = /^-([^>][^>]*?(?<!\s))?\s*->\s*(.+)$/;
 const BARE_ARROW_RE = /^->\s*(.+)$/;
 
 // ============================================================

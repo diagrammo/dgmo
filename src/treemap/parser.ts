@@ -66,7 +66,7 @@ import type {
  * `normalizeNumericToken`; this regex only decides what looks number-like
  * enough to peel off the end of a node line.
  */
-const VALUE_TOKEN_RE = /^(.+?)\s+(-?\d[\d_,.]*)$/;
+const VALUE_TOKEN_RE = /^(.+?)(?<!\s)\s+(-?\d[\d_,.]*)$/;
 
 /** True when `s` is wrapped in a matching pair of single or double quotes. */
 function isFullyQuoted(s: string): boolean {

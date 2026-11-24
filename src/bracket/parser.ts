@@ -56,12 +56,12 @@ import type {
 } from './types';
 
 /** ` beats ` / ` vs ` split — keyword surrounded by spaces so names may contain them. */
-const BEATS_RE = /^(.+?)\s+beats\s+(.+)$/i;
-const VS_RE = /^(.+?)\s+vs\s+(.+)$/i;
+const BEATS_RE = /^(.+?)(?<!\s)\s+beats\s+(.+)$/i;
+const VS_RE = /^(.+?)(?<!\s)\s+vs\s+(.+)$/i;
 /** Trailing `\d+-\d+` (ASCII hyphen or en-dash) score annotation. */
-const SCORE_RE = /\s+(\d+\s*[-–]\s*\d+)$/;
+const SCORE_RE = /(?<!\s)\s+(\d+\s*[-–]\s*\d+)$/;
 /** Trailing `@ Home` host marker. */
-const HOME_RE = /\s+@\s+(.+)$/;
+const HOME_RE = /(?<!\s)\s+@\s+(.+)$/;
 const SEED_RE = /^seed\s+(\d+)\s+(.+)$/i;
 
 const MODE_FLAGS = new Set(['single-elim', 'double-elim', 'seeded']);

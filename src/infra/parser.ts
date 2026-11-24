@@ -63,16 +63,16 @@ import {
 // ============================================================
 
 // Connection: -label-> Target  or  -> Target  (pipe metadata handled by extractPipeMetadata)
-const CONNECTION_RE = /^-(?:([^-].*?))?->\s*(.+?)\s*$/;
+const CONNECTION_RE = /^-(?:([^-].*?))?->\s*(.+?)(?<!\s)\s*$/;
 
 // Simple connection shorthand: -> Target (no label, no dash prefix needed for edge)
-const SIMPLE_CONNECTION_RE = /^->\s*(.+?)\s*$/;
+const SIMPLE_CONNECTION_RE = /^->\s*(.+?)(?<!\s)\s*$/;
 
 // Async connection: ~label~> Target  or  ~> Target
-const ASYNC_CONNECTION_RE = /^~(?:([^~].*?))?~>\s*(.+?)\s*$/;
+const ASYNC_CONNECTION_RE = /^~(?:([^~].*?))?~>\s*(.+?)(?<!\s)\s*$/;
 
 // Async simple connection shorthand: ~> Target
-const ASYNC_SIMPLE_CONNECTION_RE = /^~>\s*(.+?)\s*$/;
+const ASYNC_SIMPLE_CONNECTION_RE = /^~>\s*(.+?)(?<!\s)\s*$/;
 
 // Deprecated xN fanout suffix (e.g. "x5" at end of line)
 const DEPRECATED_FANOUT_RE = /\bx(\d+)\s*$/;
@@ -90,7 +90,7 @@ const GROUP_RE =
 // extracted via the shared `extractColor` helper at use-site (see
 // `dgmo/src/utils/parsing.ts:extractColor`), not via this regex. This regex
 // just confirms the line shape is a valid tag value (no reserved sigils).
-const TAG_VALUE_RE = /^(\w[\w\s]+?)\s*$/;
+const TAG_VALUE_RE = /^(\w[\w\s]+?)(?<!\s)\s*$/;
 
 // Component line. Accepts either a quoted name ("name with | : reserved chars")
 // or a bare name (multi-word allowed; must start with letter/underscore so digit-
@@ -128,7 +128,8 @@ const PIPE_META_RE = /[|,]\s*(\w+)\s*:\s*([^|,]+)/g;
 // region — matches a colon-bearing key-value, comma-separated.
 // Hyphens are part of the key (`latency-ms`), not a break inside it — reading
 // `ms` as the key is how a misplaced property warned about a key nobody wrote.
-const SAMELINE_META_RE = /(?:^|[\s,])([\w-]+)\s*:\s*([^,]+?)(?=\s*,|\s*$)/g;
+const SAMELINE_META_RE =
+  /(?:^|[\s,])([\w-]+)\s*:\s*([^,]+?)(?<!\s)(?=\s*,|\s*$)/g;
 
 // Property: key: value (colon-separated)
 const PROPERTY_RE = /^([\w-]+):\s*(.+)$/;
@@ -325,7 +326,7 @@ function parseInfraRaw(content: string): ParsedInfra {
   // Infra nodes have no "is a <type>" declaration — capability comes from
   // properties (cache-hit, buffer, drain-rate, …). Strip the suffix if a
   // user wrote it (likely copying from sequence/c4 syntax) and warn.
-  const IS_A_SUFFIX = /^(.*?)\s+is\s+an?\s+[A-Za-z][\w-]*\s*$/i;
+  const IS_A_SUFFIX = /^(.*?)(?<!\s)\s+is\s+an?\s+[A-Za-z][\w-]*\s*$/i;
   function peelInfraDecorations(
     rawName: string,
     lineNumber: number
@@ -1435,7 +1436,7 @@ function stripNodeDecorations(name: string): string {
   );
   // Capture group 1 in-bounds after successful match.
   if (aliasMatch) s = aliasMatch[1]!.trim();
-  const isAMatch = s.match(/^(.*?)\s+is\s+an?\s+[A-Za-z][\w-]*\s*$/i);
+  const isAMatch = s.match(/^(.*?)(?<!\s)\s+is\s+an?\s+[A-Za-z][\w-]*\s*$/i);
   // Capture group 1 in-bounds after successful match.
   if (isAMatch) s = isAMatch[1]!.trim();
   return s;

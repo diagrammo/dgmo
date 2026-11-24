@@ -153,19 +153,19 @@ export function parseInArrowLabel(
 // label starts and ends flush against the dashes (`A-label->B`). `MPV-NGINX -> X`
 // matches neither: its would-be label `NGINX ` ends in whitespace.
 const SYNC_LABELED_RES = [
-  /^(.+?)\s+-(?!>)(.+)->\s*(.+)$/,
+  /^(.+?)(?<!\s)\s+-(?!>)(.+)->\s*(.+)$/,
   /^(.+?)-(?![>\s])(.*\S)->\s*(.+)$/,
 ];
 const ASYNC_LABELED_RES = [
-  /^(.+?)\s+~(?!>)(.+)~>\s*(.+)$/,
+  /^(.+?)(?<!\s)\s+~(?!>)(.+)~>\s*(.+)$/,
   /^(.+?)~(?![>\s])(.*\S)~>\s*(.+)$/,
 ];
 
 // Deprecated patterns — produce errors
-const RETURN_SYNC_LABELED_RE = /^(.+?)\s*<-(.+)-\s*(.+)$/;
-const RETURN_ASYNC_LABELED_RE = /^(.+?)\s*<~(.+)~\s*(.+)$/;
-const BIDI_SYNC_RE = /^(.+?)\s*<-(.+)->\s*(.+)$/;
-const BIDI_ASYNC_RE = /^(.+?)\s*<~(.+)~>\s*(.+)$/;
+const RETURN_SYNC_LABELED_RE = /^(.+?)(?<!\s)\s*<-(.+)-\s*(.+)$/;
+const RETURN_ASYNC_LABELED_RE = /^(.+?)(?<!\s)\s*<~(.+)~\s*(.+)$/;
+const BIDI_SYNC_RE = /^(.+?)(?<!\s)\s*<-(.+)->\s*(.+)$/;
+const BIDI_ASYNC_RE = /^(.+?)(?<!\s)\s*<~(.+)~>\s*(.+)$/;
 
 /**
  * Try to parse a labeled arrow from a trimmed line.

@@ -750,7 +750,7 @@ export function parseSeriesNames(
     marks.push(peeled.mark);
     let raw = peeled.raw;
     if (flag) {
-      const m = raw.match(/^(.+?)\s+(\S+)$/);
+      const m = raw.match(/^(.+?)(?<!\s)\s+(\S+)$/);
       if (m?.[2] === flag) {
         raw = m[1]!;
         flagged.push(i);

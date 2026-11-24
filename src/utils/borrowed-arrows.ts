@@ -57,22 +57,23 @@ interface Shape {
 const SHAPES: Shape[] = [
   // Mermaid labelled dotted: `A -. text .-> B`
   {
-    find: /-\.\s*[^.\s][^>]*?\s*\.-+>/,
-    fix: (l) => l.replace(/-\.\s*([^.\s][^>]*?)\s*\.-+>/, '-$1->'),
+    find: /-\.\s*[^.\s][^>]*?(?<!\s)\s*\.-+>/,
+    fix: (l) => l.replace(/-\.\s*([^.\s][^>]*?)(?<!\s)\s*\.-+>/, '-$1->'),
   },
   // Mermaid dotted: `-.->`, `-..->`, `-.>`
   { find: /-\.+-?>/, fix: (l) => l.replace(/-\.+-?>/, '->') },
   // Mermaid labelled thick: `A == text ==> B`
   {
-    find: /==\s*[^=\s][^>]*?\s*==+>/,
-    fix: (l) => l.replace(/==\s*([^=\s][^>]*?)\s*==+>/, '-$1->'),
+    find: /==\s*[^=\s][^>]*?(?<!\s)\s*==+>/,
+    fix: (l) => l.replace(/==\s*([^=\s][^>]*?)(?<!\s)\s*==+>/, '-$1->'),
   },
   // Mermaid thick: `==>`
   { find: /==+>/, fix: (l) => l.replace(/==+>/, '->') },
   // Mermaid labelled: `A -- text --> B`, `A --text--> B`
   {
-    find: /(?<![-~<])--\s*[^-\s>][^>]*?\s*--+>/,
-    fix: (l) => l.replace(/(?<![-~<])--\s*([^-\s>][^>]*?)\s*--+>/, '-$1->'),
+    find: /(?<![-~<])--\s*[^-\s>][^>]*?(?<!\s)\s*--+>/,
+    fix: (l) =>
+      l.replace(/(?<![-~<])--\s*([^-\s>][^>]*?)(?<!\s)\s*--+>/, '-$1->'),
   },
   // Mermaid arrow: `-->`, `--->`
   { find: /(?<![~<])--+>/, fix: (l) => l.replace(/(?<![~<-])-{2,}>/, '->') },
@@ -87,8 +88,8 @@ const SHAPES: Shape[] = [
 
 // Mermaid open link `A --- B` (not on map, where `--` is an undirected edge).
 const OPEN_LINK: Shape = {
-  find: /(?<=\S\s+)-{3,}(?=\s+\S)/,
-  fix: (l) => l.replace(/\s+-{3,}\s+/, ' -> '),
+  find: /(?=-{3})(?<=\S\s+)-{3,}(?=\s+\S)/,
+  fix: (l) => l.replace(/(?<!\s)\s+-{3,}\s+/, ' -> '),
 };
 
 export const BORROWED_ARROW_DX: DiagnosticSpec = {

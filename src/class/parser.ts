@@ -82,18 +82,18 @@ const CLASS_DECL_RE =
 // Bare target accepts both `[A-Z]…` (canonical class name) and
 // `[a-z]…` (TD-18 alias literal) so alias references resolve here.
 const INDENT_REL_ARROW_RE =
-  /^(--\|>|\.\.\|>|\*--|o--|\.\.>|->)\s*(?:"([^"]+)"|([A-Za-z][^":]*?))(?:\s+:?\s*(.+))?$/;
+  /^(--\|>|\.\.\|>|\*--|o--|\.\.>|->)\s*(?:"([^"]+)"|([A-Za-z][^":]*?))(?:(?<!\s)\s+:?\s*(.+))?$/;
 
 // Legacy top-level relationship regex (used only for detection/rejection)
 // Captures: [1]=qSrc [2]=bareSrc [3]=arrow [4]=qTarget [5]=bareTarget [6]=label
 const REL_ARROW_RE =
-  /^(?:"([^"]+)"|([A-Z][^":]*?))\s*(--\|>|\.\.\|>|\*--|o--|\.\.>|->)\s*(?:"([^"]+)"|([A-Z][^":]*?))(?:\s+:?\s*(.+))?$/;
+  /^(?:"([^"]+)"|([A-Z][^":]*?))(?<!\s)\s*(--\|>|\.\.\|>|\*--|o--|\.\.>|->)\s*(?:"([^"]+)"|([A-Z][^":]*?))(?:(?<!\s)\s+:?\s*(.+))?$/;
 
 // Member line patterns
 const VISIBILITY_RE = /^([+\-#])\s*/;
 const STATIC_SUFFIX_RE = /\{static\}\s*$/;
 const METHOD_RE = /^(.+?)\(([^)]*)\)(?:\s*:\s*(.+))?$/;
-const FIELD_RE = /^(.+?)\s*:\s*(.+)$/;
+const FIELD_RE = /^(.+?)(?<!\s)\s*:\s*(.+)$/;
 
 const ARROW_TO_TYPE: Record<string, RelationshipType> = {
   '--|>': 'extends',

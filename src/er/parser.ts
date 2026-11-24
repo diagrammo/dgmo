@@ -67,7 +67,7 @@ function tableId(name: string): string {
 //   3: trailing-token color (recognized palette word), or undefined
 //   4: pipe metadata (without leading `|`), or undefined
 const TABLE_DECL_RE =
-  /^(?:"([^"]+)"|([a-zA-Z_][^|":(]*?))(?:\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white))?(?:\s*\|(.+))?$/;
+  /^(?:"([^"]+)"|([a-zA-Z_][^|":(]*?))(?<!\s)(?:\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white))?(?:\s*\|(.+))?$/;
 
 // Column: name [type] [constraints...]  — space-separated, no colon, no brackets
 // First token is always the name. Second token is the type if it's not a constraint keyword.
@@ -77,7 +77,7 @@ const TABLE_DECL_RE =
 // Indented relationship: 1-* target, 1--* target, or 1-label-* target / 1--label--* target
 // Target name accepts multi-word + quoted form per Universal Name Handling.
 const INDENT_REL_RE =
-  /^([1*?])-{1,2}(?:(.+?)-{1,2})?([1*?])\s+(?:"([^"]+)"|([a-zA-Z_][^":]*?))\s*$/;
+  /^([1*?])-{1,2}(?:(.+?)-{1,2})?([1*?])\s+(?:"([^"]+)"|([a-zA-Z_][^":]*?))(?<!\s)\s*$/;
 
 // Constraint keywords
 const CONSTRAINT_MAP: Record<string, ERConstraint> = {
@@ -113,11 +113,11 @@ function parseCardSide(token: string): ERCardinality | null {
 // Top-level relationship (symbolic): SourceName 1--* TargetName [label]
 // Both names accept quoted or multi-word bare form.
 const REL_SYMBOLIC_RE =
-  /^(?:"([^"]+)"|([a-zA-Z_][^":]*?))\s+([1*?])\s*-{1,2}\s*([1*?])\s+(?:"([^"]+)"|([a-zA-Z_][^":]*?))(?:\s+(.+))?$/;
+  /^(?:"([^"]+)"|([a-zA-Z_][^":]*?))(?<!\s)\s+([1*?])\s*-{1,2}\s*([1*?])\s+(?:"([^"]+)"|([a-zA-Z_][^":]*?))(?:(?<!\s)\s+(.+))?$/;
 
 /** Detects keyword cardinality forms to emit helpful error */
 const REL_KEYWORD_RE =
-  /^(?:"([^"]+)"|([a-zA-Z_][^":]*?))\s+(one|many|zero)[- ]to[- ](one|many|zero)\s+(?:"([^"]+)"|([a-zA-Z_][^":]*?))(?:\s+(.+))?$/i;
+  /^(?:"([^"]+)"|([a-zA-Z_][^":]*?))(?<!\s)\s+(one|many|zero)[- ]to[- ](one|many|zero)\s+(?:"([^"]+)"|([a-zA-Z_][^":]*?))(?:(?<!\s)\s+(.+))?$/i;
 
 const KEYWORD_TO_SYMBOL: Record<string, string> = {
   one: '1',

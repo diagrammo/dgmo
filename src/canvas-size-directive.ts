@@ -29,7 +29,7 @@ export interface CanvasSizeDirective {
   diagnostics: DgmoError[];
 }
 
-const LINE_RE = /^(size|aspect)(?:\s+(.*?))?\s*$/;
+const LINE_RE = /^(size|aspect)(?:\s+(.*?))?(?<!\s)\s*$/;
 const SIZE_RE = /^(\d+)x(\d+)$/;
 const ASPECT_RE = /^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/;
 

@@ -37,7 +37,7 @@ export function applyCollapsedMarker(
       return line.replace(MARKER_VALUE, 'collapsed: true');
     }
     if (hasBareFlag(line, label)) return line;
-    const stripped = line.replace(/\s+$/, '');
+    const stripped = line.replace(/(?<!\s)\s+$/, '');
     const body = line.trimStart();
     // Only a `key:` after the label is metadata to comma-join onto. A bare
     // trailing token (a colour: `Products blue`) is part of the name region,
@@ -52,10 +52,10 @@ export function applyCollapsedMarker(
   // Expand: remove the marker and tidy the surrounding separator, whichever
   // position it occupies (", collapsed: X" | "collapsed: X, " | " collapsed: X").
   const expanded = line
-    .replace(/\s*,\s*collapsed:\s*[^,\s]+/, '')
+    .replace(/(?<!\s)\s*,\s*collapsed:\s*[^,\s]+/, '')
     .replace(/\bcollapsed:\s*[^,\s]+\s*,\s*/, '')
-    .replace(/\s+collapsed:\s*[^,\s]+/, '')
-    .replace(/\s+$/, '');
+    .replace(/(?<!\s)\s+collapsed:\s*[^,\s]+/, '')
+    .replace(/(?<!\s)\s+$/, '');
   return hasBareFlag(expanded, label)
     ? expanded.replace(BARE_FLAG, '')
     : expanded;
@@ -174,7 +174,7 @@ export function applyNoteCollapsedMarkerAtLine(
   if (target === undefined) return text;
   const head = target
     .trim()
-    .replace(/(?:\s*,)?\s+collapsed:\s*\S+$/, '')
+    .replace(/(?<!\s)(?:\s*,)?\s+collapsed:\s*\S+$/, '')
     .replace(BARE_FLAG, '');
   if (!/^note(\s|$)/i.test(head)) return text;
   lines[idx] = applyCollapsedMarker(target, head, collapse);

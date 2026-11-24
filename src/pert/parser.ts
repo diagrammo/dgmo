@@ -147,7 +147,7 @@ const NEAR_DIRECTIVE_HINTS: ReadonlyArray<{
 const GROUP_HEADER_RE = /^\[([^\]]+)\]\s*(.*)$/;
 
 /** Indented reference, no edge label: `-> dest`. */
-const ARROW_RE = /^->\s*(.+?)\s*$/;
+const ARROW_RE = /^->\s*(.+?)(?<!\s)\s*$/;
 
 /**
  * Indented metadata line: `key: value` (§1.4.2). Captures [1]=key
@@ -161,7 +161,7 @@ const INDENTED_META_RE = /^([A-Za-z][\w-]*)\s*:\s*(.+)$/;
  * dependency type and/or lag (e.g. `SS`, `2d`, `SS+2d`, `FF-1d`).
  * The leading `-` and trailing `->` frame the label.
  */
-const LABELED_ARROW_RE = /^-(.+?)->\s*(.+?)\s*$/;
+const LABELED_ARROW_RE = /^-(.+?)->\s*(.+?)(?<!\s)\s*$/;
 
 /**
  * Parse an edge label into `{ type, lag }`. Returns `null` when the

@@ -242,7 +242,7 @@ function parseVisualizationFull(
     return toInternal(tok, tlBaseYear ?? tlCurrentYear);
   };
   const TL_TRAILING_COLOR =
-    /\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white)\s*$/;
+    /(?<!\s)\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white)\s*$/;
   const splitTrailingColor = (
     s: string
   ): { label: string; color: string | null } => {
@@ -505,7 +505,7 @@ function parseVisualizationFull(
     //   `[Group] color`     — trailing-token color (recognized palette word)
     //   `[Group] key: value`  — timeline group metadata
     if (result.type === 'timeline') {
-      const tlGroupMatch = line.match(/^\[(.+?)\]\s*(.*?)\s*$/);
+      const tlGroupMatch = line.match(/^\[(.+?)\]\s*(.*?)(?<!\s)\s*$/);
       if (tlGroupMatch) {
         const name = tlGroupMatch[1]!.trim();
         // Bare `collapsed` fold marker (#1741) — peeled before the colour /
@@ -612,7 +612,7 @@ function parseVisualizationFull(
     ) {
       const name = line
         .replace(/^#{2,}\s+/, '')
-        .replace(/\s*\([^)]*\)\s*$/, '')
+        .replace(/(?<!\s)\s*\([^)]*\)\s*$/, '')
         .trim();
       result.diagnostics.push(
         makeDgmoError(
@@ -635,7 +635,7 @@ function parseVisualizationFull(
     //   `source -> target [color] [weight]` — color before weight
     if (result.type === 'arc') {
       const linkMatch = line.match(
-        /^(.+?)\s*->\s*(.+?)(?:\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white))?(?:\s+(-?[\d,_]+(?:\.[\d]+)?))?$/
+        /^(.+?)(?<!\s)\s*->\s*(.+?)(?:(?<!\s)\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white))?(?:(?<!\s)\s+(-?[\d,_]+(?:\.[\d]+)?))?$/
       );
       if (linkMatch) {
         // Capture groups 1 and 2 are guaranteed by the regex match.
@@ -1139,7 +1139,7 @@ function parseVisualizationFull(
 
       // Data points: Label x, y  OR  Label x y
       const pointMatch = line.match(
-        /^(.+?)\s+(-?[0-9][0-9,_]*(?:\.[0-9]+)?)\s*([,\s])\s*(-?[0-9][0-9,_]*(?:\.[0-9]+)?)\s*$/
+        /^(.+?)(?<!\s)\s+(-?[0-9][0-9,_]*(?:\.[0-9]+)?)(\s*,\s*|\s+)(-?[0-9][0-9,_]*(?:\.[0-9]+)?)\s*$/
       );
       if (pointMatch) {
         // Capture groups 1-4 guaranteed by the regex match.

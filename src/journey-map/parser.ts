@@ -183,7 +183,9 @@ export function parseJourneyMap(
         //   1. explicit `persona <name> color: <token>` (long form)
         //   2. universal §1.5 trailing-token color (`persona <name> green`);
         //      capitalize the word (`Green`) to keep it as literal name text.
-        const colorMatch = afterKeyword.match(/^(.+?)\s+color:\s*(\S+)$/i);
+        const colorMatch = afterKeyword.match(
+          /^(.+?)(?<!\s)\s+color:\s*(\S+)$/i
+        );
         if (colorMatch) {
           personaName = colorMatch[1]!.trim();
           personaColor =

@@ -633,7 +633,9 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
     //   `era Day 1 -> Day 3 Rough Seas`        (no color)
     //   `era Day 1 -> Day 3 Rough Seas blue`   (trailing color word)
     // Color (if any) is the last whitespace-delimited token of the label.
-    const eraMatch = trimmed.match(/^era\s+(.+?)\s*->\s*(.+?)\s*$/);
+    const eraMatch = trimmed.match(
+      /^era\s+(.+?)(?<!\s)\s*->\s*(.+?)(?<!\s)\s*$/
+    );
     if (eraMatch) {
       // Capture group 2 guaranteed present after regex match.
       const afterArrow = eraMatch[2]!.trim();

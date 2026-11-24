@@ -73,11 +73,11 @@ const CONTAINER_META_RE = /^\[([^\]]+)\]\s+(.+)$/;
 const ELEMENT_RE = /^(person|system|container|component)\s+(.+)$/i;
 
 /** Matches `is a <shape>` in the element name portion */
-const IS_A_RE = /\s+is\s+a(?:n)?\s+(\w+)\s*$/i;
+const IS_A_RE = /(?<!\s)\s+is\s+a(?:n)?\s+(\w+)\s*$/i;
 
 /** Matches `Name is a <type>` declarations (new preferred syntax) */
 const C4_IS_A_RE =
-  /^([^:]+?)\s+is\s+an?\s+(person|system|container|component|external|database)\b(.*)$/i;
+  /^([^:]+?)(?<!\s)\s+is\s+an?\s+(person|system|container|component|external|database)\b(.*)$/i;
 
 /** Matches relationship arrows: `->`, `~>`, `<->`, `<~>` */
 const RELATIONSHIP_RE = /^(<?-?>|<?~?>)\s*(.+)$/;

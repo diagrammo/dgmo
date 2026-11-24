@@ -446,7 +446,7 @@ function parseSegment(
     const labelPart = checkLabelMatch[2]!;
     // Legacy `| meta` first, then §1.4 trailing-keyword peel on the
     // remaining label region.
-    const pipeSplit = labelPart.split(/\s*\|\s*/);
+    const pipeSplit = labelPart.split(/(?<!\s)\s*\|\s*/);
     const baseLabel = pipeSplit[0]!.trim();
     const peeled = peelTrailingFlags(baseLabel);
     const el = makeElement('checkbox', peeled.label, lineNumber, indent);
@@ -583,7 +583,7 @@ function parseSegment(
     const label = trimmed.substring(1).trim();
     return makeElement('textInput', label, lineNumber, indent);
   }
-  if (/^\([^)]*$/.test(trimmed) && !trimmed.match(/^\(\s*\*?\s*\)/)) {
+  if (/^\([^)]*$/.test(trimmed) && !trimmed.match(/^\(\s*(?:\*\s*)?\)/)) {
     diagnostics.push(
       makeDgmoError(
         lineNumber,
@@ -614,7 +614,7 @@ function parseSegment(
 
   // Bare text — optional legacy `| meta` form first, otherwise
   // peel the §1.4 / §19.5 trailing-keyword form.
-  const pipeParts = trimmed.split(/\s*\|\s*/);
+  const pipeParts = trimmed.split(/(?<!\s)\s*\|\s*/);
   let textContent: string;
   let states: string[];
   let metaStr: string | undefined;

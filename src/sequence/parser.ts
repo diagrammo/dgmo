@@ -303,7 +303,7 @@ export function resolveSequenceHighlight(parsed: ParsedSequenceDgmo): {
 // Participant names may contain spaces; [^:]+? stops at colons so that
 // note lines like "note right of A: this is an actor" are not falsely matched.
 // Remainder after type carries the optional `as <alias>` modifier.
-const IS_A_PATTERN = /^([^:]+?)\s+is\s+an?\s+(\w+)(?:\s+(.+))?$/i;
+const IS_A_PATTERN = /^([^:]+?)(?<!\s)\s+is\s+an?\s+(\w+)(?:\s+(.+))?$/i;
 
 // Colored participant declaration — e.g. "Tapin2(green)", "API(blue)"
 // Scoped to recognized 11-name palette colors only (§1.5) so legitimate
@@ -326,7 +326,7 @@ const GROUP_HEADING_PATTERN = /^\[([^\]|]+?)(?:\(([^)]+)\))?\]\s*(.*)$/;
 const GROUP_HEADING_FALLBACK = /^\[([^\]]+)\]\s*(.*)$/;
 
 // Section divider pattern — "== Label ==", "== Label(color) ==", or "== Label" (trailing == optional)
-const SECTION_PATTERN = /^==\s+(.+?)(?:\s*==)?\s*$/;
+const SECTION_PATTERN = /^==\s+(.+?)(?<!\s)(?:\s*==)?\s*$/;
 
 // Arrow pattern for sequence inference — detects any arrow form
 // Reduced to its boolean core: the labeled forms (`<-x-`, `-x->`) contain a
@@ -342,7 +342,8 @@ const ARROW_PATTERN = /\S\s*(?:->|~>|<-|<~)\s*\S/;
 // already has participant collection infrastructure, so we match the general
 // structure here and resolve participant vs text in the parsing logic.
 const NOTE_BARE = /^note\s+(.+)$/i;
-const NOTE_MULTI = /^note(?:\s+(right|left)(?:\s+(?:of\s+)?(.+?))?)?\s*$/i;
+const NOTE_MULTI =
+  /^note(?:\s+(right|left)(?:\s+(?:of\s+)?(.+?)(?<!\s))?)?\s*$/i;
 
 /**
  * Peel the collapse marker off a note's opening line (#1741): the bare
@@ -378,7 +379,7 @@ function peelNoteHeadMarker(
 function peelSectionMarker(
   trimmed: string
 ): { line: string; collapsed: boolean } | null {
-  const meta = /^(.*?)(?:\s*,)?\s+collapsed:\s*(\S+)\s*$/.exec(trimmed);
+  const meta = /^(.*?)(?<!\s)(?:\s*,)?\s+collapsed:\s*(\S+)\s*$/.exec(trimmed);
   if (meta && SECTION_PATTERN.test(meta[1]!)) {
     return { line: meta[1]!, collapsed: meta[2]!.toLowerCase() === 'true' };
   }
@@ -1482,10 +1483,10 @@ export function parseSequenceDgmo(
     // syntax. A lookahead does not work here — `\s*` backtracks to zero width
     // and the check then passes on the space before the quote.
     const colonPostfixSync = arrowCore.match(
-      /^(.+?)\s*->\s*([^:"]+?)\s*:\s*(.+)$/
+      /^(.+?)(?<!\s)\s*->\s*([^:"]+?)(?<!\s)\s*:\s*(.+)$/
     );
     const colonPostfixAsync = arrowCore.match(
-      /^(.+?)\s*~>\s*([^:"]+?)\s*:\s*(.+)$/
+      /^(.+?)(?<!\s)\s*~>\s*([^:"]+?)(?<!\s)\s*:\s*(.+)$/
     );
     const colonPostfix = colonPostfixSync ?? colonPostfixAsync;
     if (colonPostfix) {
@@ -1503,7 +1504,9 @@ export function parseSequenceDgmo(
     }
 
     // ---- Error: plain bidirectional arrows (A <-> B, A <~> B) ----
-    const bidiPlainMatch = arrowCore.match(/^(.+?)\s*(?:<->|<~>)\s*(.+)/);
+    const bidiPlainMatch = arrowCore.match(
+      /^(.+?)(?<!\s)\s*(?:<->|<~>)\s*(.+)/
+    );
     if (bidiPlainMatch) {
       pushError(
         lineNumber,
@@ -1513,8 +1516,8 @@ export function parseSequenceDgmo(
     }
 
     // ---- Deprecated bare return arrows: A <- B, A <~ B ----
-    const bareReturnSync = arrowCore.match(/^(.+?)\s*<-\s*(.+)$/);
-    const bareReturnAsync = arrowCore.match(/^(.+?)\s*<~\s*(.+)$/);
+    const bareReturnSync = arrowCore.match(/^(.+?)(?<!\s)\s*<-\s*(.+)$/);
+    const bareReturnAsync = arrowCore.match(/^(.+?)(?<!\s)\s*<~\s*(.+)$/);
     const bareReturn = bareReturnSync ?? bareReturnAsync;
     if (bareReturn) {
       const to = bareReturn[1];
@@ -1527,8 +1530,8 @@ export function parseSequenceDgmo(
     }
 
     // ---- Bare (unlabeled) call arrows: A -> B, A ~> B ----
-    const bareCallSync = arrowCore.match(/^(.+?)\s*->\s*(.+)$/);
-    const bareCallAsync = arrowCore.match(/^(.+?)\s*~>\s*(.+)$/);
+    const bareCallSync = arrowCore.match(/^(.+?)(?<!\s)\s*->\s*(.+)$/);
+    const bareCallAsync = arrowCore.match(/^(.+?)(?<!\s)\s*~>\s*(.+)$/);
     const bareCall = bareCallSync ?? bareCallAsync;
     if (bareCall) {
       contentStarted = true;

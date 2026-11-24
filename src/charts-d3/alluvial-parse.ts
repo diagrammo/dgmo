@@ -112,13 +112,13 @@ export function newAlluvialState(): AlluvialState {
   };
 }
 
-const PATH_ROW = /^(.+?)\s+(-?[\d,_]+(?:\.\d+)?)\s*$/;
+const PATH_ROW = /^(.+?)(?<!\s)\s+(-?[\d,_]+(?:\.\d+)?)\s*$/;
 
 /** `A -> B -> C 80` → its steps and count; null when the line is no path. */
 function matchPath(trimmed: string): { steps: string[]; value: number } | null {
   const m = trimmed.match(PATH_ROW);
   if (!m) return null;
-  const steps = m[1]!.split(/\s*->\s*/).map((s) => s.trim());
+  const steps = m[1]!.split(/(?<!\s)\s*->\s*/).map((s) => s.trim());
   if (steps.length < 3 || steps.some((s) => !s || s.includes('--')))
     return null;
   const value = parseFloat(normalizeNumericToken(m[2]!) ?? m[2]!);

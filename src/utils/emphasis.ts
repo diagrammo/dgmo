@@ -449,7 +449,7 @@ export interface HighlightChain {
   }>;
 }
 
-const CHAIN_ARROW_RE = /\s+(?:-([^\s>-][^>]*?))?->\s+/;
+const CHAIN_ARROW_RE = /(?<!\s)\s+(?:-([^\s>-][^>]*?))?->\s+/;
 
 /** The chain an item spells, or null when it has no arrow. */
 export function parseHighlightChain(item: string): HighlightChain | null {
@@ -519,7 +519,7 @@ export function resolveHighlightPaths(
   let items = [...directive.names];
   let color: string | undefined;
   const lastItem = items[items.length - 1] ?? '';
-  const tailMatch = /\s+(\S+)$/.exec(lastItem);
+  const tailMatch = /(?<!\s)\s+(\S+)$/.exec(lastItem);
   if (tailMatch && isRecognizedColorName(tailMatch[1]!.toLowerCase())) {
     const stripped = lastItem.slice(0, tailMatch.index);
     const lastNode = (s: string) => {
