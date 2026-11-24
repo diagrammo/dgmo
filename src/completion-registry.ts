@@ -661,6 +661,9 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     withGlobals({
       ...DATE_DIRECTIVES,
       'no-scale': { description: 'Space events evenly instead of by date' },
+      'direction-lr': {
+        description: 'Horizontal spine (the only mode; accepted no-op)',
+      },
       side: {
         description: 'Card placement: side above | below (default alternate)',
       },
@@ -694,7 +697,9 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       muscle: { description: 'Muscle form (default)' },
       skin: { description: 'Skin silhouette form' },
       male: { description: 'Male figure (default)' },
+      female: { description: 'Female figure' },
       front: { description: 'Front view (default)' },
+      back: { description: 'Back view (naming front and back draws both)' },
       'no-legend': { description: 'Hide the tag legend' },
       'active-tag': { description: 'Active tag group name' },
     }),
@@ -1373,9 +1378,6 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description:
           'Declare a seeded entrant (`seed N Name`) → day-0 skeleton',
       },
-      tag: {
-        description: 'Tag group — a competitor tag colors its box outline',
-      },
       // `accent <color>` is a legacy alias (decision #48) — the title-line
       // trailing color token is the canonical winner-accent slot, so the
       // directive is no longer offered in completion.
@@ -1622,6 +1624,9 @@ export const STRUCTURAL_KEYWORDS = new Map<string, string[]>([
   ['mindmap', ['tag']],
   ['treemap', ['tag']],
   ['block', ['tag']],
+  ['event-line', ['tag']],
+  ['body', ['tag']],
+  ['bracket', ['tag']],
   [
     'whiteboard',
     [
@@ -1663,7 +1668,7 @@ export const STRUCTURAL_KEYWORDS = new Map<string, string[]>([
   ['journey-map', ['persona', 'tag']],
   // Map (§24B): `poi` and `tag` open root lines; `note` goes indented under a
   // poi, region line or edge (§24B.15). The app gates each by indent.
-  ['map', ['poi', 'note', 'tag']],
+  ['map', ['poi', 'route', 'note', 'tag']],
   ['raci', ['roles']],
   ['tech-radar', ['rings']],
   [
@@ -1842,6 +1847,58 @@ export interface PipeKeySpec {
 export type PipeContextMap = Record<string, Record<string, PipeKeySpec>>;
 
 export const PIPE_METADATA = new Map<string, PipeContextMap>([
+  [
+    'version-control',
+    {
+      node: {
+        id: { description: 'Short SHA shown on the commit' },
+        tag: { description: 'Release/ref pill on the commit or merge' },
+        type: {
+          description: 'Commit marker: normal, highlight or reverse',
+          values: ['normal', 'highlight', 'reverse'],
+        },
+        order: { description: 'Branch lane order (on a branch line)' },
+      },
+    },
+  ],
+  [
+    'block',
+    {
+      node: {
+        span: { description: 'Column span (integer, clamps to the columns)' },
+        collapsed: {
+          description:
+            'Bare trailing `collapsed` flag — start this container folded',
+        },
+      },
+    },
+  ],
+  [
+    'treemap',
+    {
+      node: {
+        heat: {
+          description: 'Signed number that colors the node on the heat ramp',
+        },
+      },
+    },
+  ],
+  [
+    'map',
+    {
+      node: {
+        heat: { description: 'Region choropleth shade (a number)' },
+        size: { description: 'POI marker radius (a data channel)' },
+        width: { description: 'Edge line thickness (a data channel)' },
+        label: { description: 'POI label text' },
+        style: { description: 'Edge style' },
+        clock: {
+          description:
+            'Local-time card; bare `clock` derives the zone from the place',
+        },
+      },
+    },
+  ],
   [
     'bar',
     {

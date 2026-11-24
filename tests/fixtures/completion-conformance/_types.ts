@@ -57,4 +57,11 @@ export interface ConformanceFixture {
    * each entry is a small reason that drift could be hiding.
    */
   allowExtras?: string[];
+
+  /**
+   * Structural keywords the registry offers that the spec does not document
+   * (a spec/parser disagreement, recorded in the fixture). Excluded from the
+   * structural-keyword equality check.
+   */
+  allowExtraStructural?: string[];
 }

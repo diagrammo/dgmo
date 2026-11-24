@@ -8,7 +8,8 @@
  * Adding a chart type to coverage:
  *   1. Read the spec section for the chart type.
  *   2. Create tests/fixtures/completion-conformance/<chart-type>.ts.
- *   3. Add an import below.
+ *   (The test discovers it; no import to add. A chart type without a fixture
+ *   fails the coverage suite.)
  *
  * Failures point at one of three things to fix:
  *   - completion-registry.ts is missing a documented directive/pipe key
@@ -29,101 +30,35 @@ import {
   REFERENCE_GRAMMAR,
 } from '../src/completion-registry';
 import { ALL_CHART_TYPES } from '../src/advanced';
+import { chartTypes } from '../src/chart-types';
 import { getAvailablePalettes } from '../src/palettes';
 
 import type { ConformanceFixture } from './fixtures/completion-conformance/_types';
 
-import { fixture as raciFixture } from './fixtures/completion-conformance/raci';
-import { fixture as swotFixture } from './fixtures/completion-conformance/swot';
-import { fixture as calendarFixture } from './fixtures/completion-conformance/calendar';
-import { fixture as boxplotFixture } from './fixtures/completion-conformance/boxplot';
-import { fixture as ownershipFixture } from './fixtures/completion-conformance/ownership';
-import { fixture as ringFixture } from './fixtures/completion-conformance/ring';
-import { fixture as pyramidFixture } from './fixtures/completion-conformance/pyramid';
-import { fixture as cycleFixture } from './fixtures/completion-conformance/cycle';
-import { fixture as journeyMapFixture } from './fixtures/completion-conformance/journey-map';
-import { fixture as mindmapFixture } from './fixtures/completion-conformance/mindmap';
-// Data charts (spec §16)
-import { fixture as barFixture } from './fixtures/completion-conformance/bar';
-import { fixture as lineFixture } from './fixtures/completion-conformance/line';
-import { fixture as pieFixture } from './fixtures/completion-conformance/pie';
-import { fixture as polarAreaFixture } from './fixtures/completion-conformance/polar-area';
-import { fixture as radarFixture } from './fixtures/completion-conformance/radar';
-import { fixture as scatterFixture } from './fixtures/completion-conformance/scatter';
-import { fixture as heatmapFixture } from './fixtures/completion-conformance/heatmap';
-import { fixture as funnelFixture } from './fixtures/completion-conformance/funnel';
-import { fixture as functionFixture } from './fixtures/completion-conformance/function';
-import { fixture as sankeyFixture } from './fixtures/completion-conformance/sankey';
-// Visualizations (spec §17 + §15 timeline + §20 tech-radar)
-import { fixture as slopeFixture } from './fixtures/completion-conformance/slope';
-import { fixture as wordcloudFixture } from './fixtures/completion-conformance/wordcloud';
-import { fixture as arcFixture } from './fixtures/completion-conformance/arc';
-import { fixture as vennFixture } from './fixtures/completion-conformance/venn';
-import { fixture as quadrantFixture } from './fixtures/completion-conformance/quadrant';
-import { fixture as timelineFixture } from './fixtures/completion-conformance/timeline';
-import { fixture as techRadarFixture } from './fixtures/completion-conformance/tech-radar';
-// Diagrams (spec §3–§14, §19)
-import { fixture as sequenceFixture } from './fixtures/completion-conformance/sequence';
-import { fixture as flowchartFixture } from './fixtures/completion-conformance/flowchart';
-import { fixture as stateFixture } from './fixtures/completion-conformance/state';
-import { fixture as orgFixture } from './fixtures/completion-conformance/org';
-import { fixture as c4Fixture } from './fixtures/completion-conformance/c4';
-import { fixture as erFixture } from './fixtures/completion-conformance/er';
-import { fixture as classFixture } from './fixtures/completion-conformance/class';
-import { fixture as kanbanFixture } from './fixtures/completion-conformance/kanban';
-import { fixture as sitemapFixture } from './fixtures/completion-conformance/sitemap';
-import { fixture as infraFixture } from './fixtures/completion-conformance/infra';
-import { fixture as ganttFixture } from './fixtures/completion-conformance/gantt';
-import { fixture as boxesAndLinesFixture } from './fixtures/completion-conformance/boxes-and-lines';
-import { fixture as pertFixture } from './fixtures/completion-conformance/pert';
-import { fixture as wireframeFixture } from './fixtures/completion-conformance/wireframe';
+// Fixtures are auto-discovered, so a fixture file is wired in by existing.
+// The coverage suite below fails when an offered chart type has none.
+const fixtureModules = import.meta.glob<{ fixture: ConformanceFixture }>(
+  './fixtures/completion-conformance/*.ts',
+  { eager: true }
+);
 
-const fixtures: ConformanceFixture[] = [
-  raciFixture,
-  swotFixture,
-  calendarFixture,
-  boxplotFixture,
-  ownershipFixture,
-  ringFixture,
-  pyramidFixture,
-  cycleFixture,
-  journeyMapFixture,
-  mindmapFixture,
-  // Data charts
-  barFixture,
-  lineFixture,
-  pieFixture,
-  polarAreaFixture,
-  radarFixture,
-  scatterFixture,
-  heatmapFixture,
-  funnelFixture,
-  functionFixture,
-  sankeyFixture,
-  // Visualizations
-  slopeFixture,
-  wordcloudFixture,
-  arcFixture,
-  vennFixture,
-  quadrantFixture,
-  timelineFixture,
-  techRadarFixture,
-  // Diagrams
-  sequenceFixture,
-  flowchartFixture,
-  stateFixture,
-  orgFixture,
-  c4Fixture,
-  erFixture,
-  classFixture,
-  kanbanFixture,
-  sitemapFixture,
-  infraFixture,
-  ganttFixture,
-  boxesAndLinesFixture,
-  pertFixture,
-  wireframeFixture,
-];
+const fixtures: ConformanceFixture[] = Object.entries(fixtureModules)
+  .filter(([path]) => !/\/_[^/]*\.ts$/.test(path))
+  .map(([, mod]) => mod.fixture)
+  .filter((f): f is ConformanceFixture => f !== undefined)
+  .sort((x, y) => x.chartType.localeCompare(y.chartType));
+
+describe('completion conformance — coverage', () => {
+  for (const ct of chartTypes) {
+    if (ct.internal) continue;
+    it(`has a fixture for chart type '${ct.id}'`, () => {
+      expect(
+        fixtures.some((f) => f.chartType === ct.id),
+        `Missing completion-conformance fixture for chart type '${ct.id}'. Add tests/fixtures/completion-conformance/${ct.id}.ts.`
+      ).toBe(true);
+    });
+  }
+});
 
 const UNIVERSAL_DIRECTIVES = ['palette', 'no-title', 'legend-inline'];
 
@@ -211,7 +146,10 @@ for (const f of fixtures) {
     });
 
     it('structural keywords match the spec (no parser-invalid tokens)', () => {
-      const actual = [...(STRUCTURAL_KEYWORDS.get(f.chartType) ?? [])].sort();
+      const allowedStructural = new Set(f.allowExtraStructural ?? []);
+      const actual = [...(STRUCTURAL_KEYWORDS.get(f.chartType) ?? [])]
+        .filter((k) => !allowedStructural.has(k))
+        .sort();
       const expected = [...(f.structuralKeywords ?? [])].sort();
       expect(
         actual,
