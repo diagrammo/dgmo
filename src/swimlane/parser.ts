@@ -222,7 +222,7 @@ interface ArrowMatch {
  * `nextArrow` is that pattern, `(?:^|\s)-([^>]+?)->|->|~>`, as a scan: at or after `from`: `(?:^|\s)-([^>]+?)->` first, then
  * A label can only end at the first
  * `>` after its dash, so that `>` is found once and reused; the regex form
- * rescanned to the end of the line from every ` -` start.
+ * scanned again to the end of the line from every ` -` start.
  */
 function nextArrow(line: string, from: number): ArrowMatch | null {
   let gt = -2; // cached first `>` at or after the label start; -1 = none
