@@ -6305,7 +6305,7 @@ Data scientist 168
 Designer 141
 ```
 
-- **Rows**: `Label v1 [v2 …]`, one value per `series` name, in `series` order. A row with another count warns and is not drawn.
+- **Rows**: `Label v1 [v2 …]`, one value per `series` name, in `series` order. A row with another count warns and is not drawn. Under a `series` line the values are read from the end of the row, so a name that ends in a number keeps it (`Windows 11 45 50` under two series). With no `series` line a second number warns.
 - **`series`**: names the columns, on one line (`series 2020, 2025`) or as an indented block, as on `line` (§15.1). A colour word after a name sets that series' colour (`series 2020 gray, 2025 blue`).
 - **Labels**: each series name sits above its dot in the first row, in the series colour. There is no legend.
 - **Dots** are drawn in the series colours over the connector, each with a thin ring in the background colour.

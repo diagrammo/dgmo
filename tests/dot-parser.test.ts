@@ -128,6 +128,14 @@ describe('dot diagnostics (#1849)', () => {
     expect(p.rows.map((r) => r.label)).not.toContain('Legal');
   });
 
+  it('a label ending in a number keeps it once series fixes the count', () => {
+    const p = parseDot(DUMBBELL + 'Windows 11 45 50\n');
+    expect(p.diagnostics).toEqual([]);
+    expect(p.rows.find((r) => r.label === 'Windows 11')?.values).toEqual([
+      45, 50,
+    ]);
+  });
+
   it('two values with no series line warn: the chart expects one', () => {
     expect(codes(`dot Scores\nEngineering 71 78\nSales 64\n`)).toEqual([
       'W_DOT_VALUE_COUNT',

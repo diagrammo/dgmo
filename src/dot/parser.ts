@@ -118,7 +118,7 @@ function parseDotRaw(content: string): ParsedDot {
   let gapLine: number | undefined;
   let connectorLine: number | undefined;
   /** Rows as read, before the value count is checked against `series`. */
-  const read: DotRow[] = [];
+  const read: (DotRow & { raw?: string[] })[] = [];
 
   for (let i = 0; i < lines.length; i++) {
     const lineNumber = i + 1;
@@ -212,11 +212,12 @@ function parseDotRaw(content: string): ParsedDot {
 
     // ── A row: <label> <v1> [v2 …] ─────────────────────────────
     const values: number[] = [];
+    const raw: string[] = [];
     while (tokens.length > 1) {
       const n = toNumber(tokens[tokens.length - 1]!);
       if (n === null) break;
       values.unshift(n);
-      tokens.pop();
+      raw.unshift(tokens.pop()!);
     }
     if (values.length === 0) {
       const hint = tokens.length === 1 ? suggest(word, OPTION_WORDS) : null;
@@ -225,12 +226,25 @@ function parseDotRaw(content: string): ParsedDot {
       });
       continue;
     }
-    read.push({ label: tokens.join(' '), values, lineNumber });
+    read.push({ label: tokens.join(' '), values, raw, lineNumber });
   }
 
   // ── Every row carries one value per series ───────────────────
   const expected = Math.max(1, result.series.length);
-  for (const row of read) {
+  for (const r of read) {
+    const { raw, ...base } = r;
+    let row: DotRow = base;
+    // A label may end in a number (`Windows 11 45 50` under two series):
+    // once `series` fixes the count, leading extras belong to the label.
+    // With no `series` line the count is a guess, so it stays a warning.
+    if (result.series.length > 0 && row.values.length > expected && raw) {
+      const extra = row.values.length - expected;
+      row = {
+        ...row,
+        label: [row.label, ...raw.slice(0, extra)].join(' '),
+        values: row.values.slice(extra),
+      };
+    }
     if (row.values.length === expected) result.rows.push(row);
     else
       report(DOT_DX.VALUE_COUNT, row.lineNumber, {
