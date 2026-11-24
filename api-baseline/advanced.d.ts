@@ -564,6 +564,8 @@ interface ChartOverlay {
     readonly value?: number;
     /** `target N below`: at or under N is good. */
     readonly below?: boolean;
+    /** `target N [below] green`: the named colour a met target paints. */
+    readonly color?: string;
     readonly lineNumber: number;
 }
 
