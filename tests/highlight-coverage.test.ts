@@ -153,6 +153,8 @@ describe('highlight coverage — rendered role (R2)', () => {
     'cold-start-ms',
     'cb-error-threshold',
     'cb-latency-threshold-ms',
+    'timeout-ms',
+    'retries',
   ];
 
   for (const key of MOVED_BEHAVIOR_KEYS) {

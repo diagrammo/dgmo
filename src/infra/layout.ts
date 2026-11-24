@@ -57,6 +57,10 @@ export interface InfraLayoutEdge {
   readonly computedRps: number;
   readonly split: number;
   readonly fanout: number | null;
+  /** First attempts that timed out on this connection (rps); 0 when none. */
+  readonly timedOutRps?: number;
+  /** Retries that apply to this connection; 0 when none. */
+  readonly retries?: number;
   readonly points: ReadonlyArray<{ readonly x: number; readonly y: number }>;
   readonly lineNumber: number;
 }
@@ -125,6 +129,8 @@ const DISPLAY_KEYS = new Set([
   'max-rps',
   'cb-error-threshold',
   'cb-latency-threshold-ms',
+  'timeout-ms',
+  'retries',
   'concurrency',
   'duration-ms',
   'cold-start-ms',
@@ -145,6 +151,8 @@ const DISPLAY_NAMES: Record<string, string> = {
   'max-rps': 'max RPS',
   'cb-error-threshold': 'CB error threshold',
   'cb-latency-threshold-ms': 'CB latency threshold',
+  'timeout-ms': 'timeout',
+  retries: 'retries',
   concurrency: 'concurrency',
   'duration-ms': 'duration',
   'cold-start-ms': 'cold start',
@@ -773,6 +781,8 @@ export function layoutInfra(
         computedRps: edge.computedRps,
         split: edge.split,
         fanout: edge.fanout,
+        timedOutRps: edge.timedOutRps,
+        retries: edge.retries,
         points: edgeData?.points ?? [],
         lineNumber: edge.lineNumber,
       });
@@ -786,6 +796,8 @@ export function layoutInfra(
         computedRps: edge.computedRps,
         split: edge.split,
         fanout: edge.fanout,
+        timedOutRps: edge.timedOutRps,
+        retries: edge.retries,
         points: edgeData?.points ?? [],
         lineNumber: edge.lineNumber,
       });

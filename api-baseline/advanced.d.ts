@@ -3897,7 +3897,7 @@ declare function unionCollapsedSitemapNodes(parsed: ParsedSitemap, interactive?:
 declare function collapseSitemapTree(original: ParsedSitemap, collapsedIds: Set<string>): CollapsedSitemapResult;
 
 /** Namespaced behavior property keys recognized by the parser. */
-type InfraBehaviorKey = 'cache-hit' | 'firewall-block' | 'ratelimit-rps' | 'latency-ms' | 'uptime' | 'instances' | 'max-rps' | 'cb-error-threshold' | 'cb-latency-threshold-ms' | 'concurrency' | 'duration-ms' | 'cold-start-ms' | 'buffer' | 'drain-rate' | 'retention-hours' | 'partitions';
+type InfraBehaviorKey = 'cache-hit' | 'firewall-block' | 'ratelimit-rps' | 'latency-ms' | 'uptime' | 'instances' | 'max-rps' | 'cb-error-threshold' | 'cb-latency-threshold-ms' | 'timeout-ms' | 'retries' | 'concurrency' | 'duration-ms' | 'cold-start-ms' | 'buffer' | 'drain-rate' | 'retention-hours' | 'partitions';
 /**
  * All recognized property keys (behavior + structural). Derived from the
  * single-source directives registry — do NOT re-list literals here.
@@ -3925,6 +3925,10 @@ interface InfraEdge {
     readonly async: boolean;
     readonly split: number | null;
     readonly fanout: number | null;
+    /** `timeout-ms: N` on this connection; overrides the source node's `timeout-ms`. Always null on async edges. */
+    readonly timeoutMs?: number | null;
+    /** `retries: N` on this connection; overrides the source node's `retries`. Always null on async edges. */
+    readonly retries?: number | null;
     readonly lineNumber: number;
 }
 interface InfraGroup {
@@ -4026,10 +4030,16 @@ interface ComputedInfraEdge {
     computedRps: number;
     split: number;
     fanout: number | null;
+    /** Timeout that applies to this connection (edge value, else the source node's), or null. */
+    timeoutMs: number | null;
+    /** Retries that apply to this connection (edge value, else the source node's); 0 when unset. */
+    retries: number;
+    /** Requests per second whose first attempt timed out on this connection. 0 when none. */
+    timedOutRps: number;
     lineNumber: number;
 }
 interface InfraDiagnostic {
-    type: 'SPLIT_SUM' | 'CYCLE' | 'OVERLOAD' | 'RATE_LIMITED' | 'ORPHAN' | 'SYNTAX' | 'UPTIME';
+    type: 'SPLIT_SUM' | 'CYCLE' | 'OVERLOAD' | 'RATE_LIMITED' | 'ORPHAN' | 'SYNTAX' | 'UPTIME' | 'TIMEOUT';
     line: number;
     message: string;
 }
@@ -4113,6 +4123,10 @@ interface InfraLayoutEdge {
     readonly computedRps: number;
     readonly split: number;
     readonly fanout: number | null;
+    /** First attempts that timed out on this connection (rps); 0 when none. */
+    readonly timedOutRps?: number;
+    /** Retries that apply to this connection; 0 when none. */
+    readonly retries?: number;
     readonly points: ReadonlyArray<{
         readonly x: number;
         readonly y: number;

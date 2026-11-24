@@ -1,0 +1,24 @@
+infra Retry Storm
+subtitle A 300 ms timeout with two retries sends the slow 30% three times
+
+edge
+  rps: 1000
+  -> API
+
+API
+  latency-ms: 30
+  timeout-ms: 300
+  retries: 2
+  -> Search
+
+Search
+  max-rps: 1500
+  latency-ms: 20
+  -> Cache split: 70%
+  -> Elastic split: 30%
+
+Cache
+  latency-ms: 5
+
+Elastic
+  latency-ms: 400

@@ -32,6 +32,8 @@ export const fixture: ConformanceFixture = {
       'ratelimit-rps',
       'cb-error-threshold',
       'cb-latency-threshold-ms',
+      'timeout-ms',
+      'retries',
       'uptime',
       'concurrency',
       'duration-ms',

@@ -21,6 +21,8 @@ export type InfraBehaviorKey =
   | 'max-rps'
   | 'cb-error-threshold'
   | 'cb-latency-threshold-ms'
+  | 'timeout-ms'
+  | 'retries'
   | 'concurrency'
   | 'duration-ms'
   | 'cold-start-ms'
@@ -62,6 +64,10 @@ export interface InfraEdge {
   readonly async: boolean;
   readonly split: number | null; // percentage 0-100, or null if not declared
   readonly fanout: number | null; // request multiplier: target receives inbound * (split/100) * fanout RPS
+  /** `timeout-ms: N` on this connection; overrides the source node's `timeout-ms`. Always null on async edges. */
+  readonly timeoutMs?: number | null;
+  /** `retries: N` on this connection; overrides the source node's `retries`. Always null on async edges. */
+  readonly retries?: number | null;
   readonly lineNumber: number;
 }
 
@@ -175,6 +181,12 @@ export interface ComputedInfraEdge {
   computedRps: number;
   split: number; // resolved split (always 0-100)
   fanout: number | null;
+  /** Timeout that applies to this connection (edge value, else the source node's), or null. */
+  timeoutMs: number | null;
+  /** Retries that apply to this connection (edge value, else the source node's); 0 when unset. */
+  retries: number;
+  /** Requests per second whose first attempt timed out on this connection. 0 when none. */
+  timedOutRps: number;
   lineNumber: number;
 }
 
@@ -186,7 +198,8 @@ export interface InfraDiagnostic {
     | 'RATE_LIMITED'
     | 'ORPHAN'
     | 'SYNTAX'
-    | 'UPTIME';
+    | 'UPTIME'
+    | 'TIMEOUT';
   line: number;
   message: string;
 }

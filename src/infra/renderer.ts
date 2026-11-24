@@ -783,6 +783,8 @@ const PROP_DISPLAY: Record<string, string> = {
   'max-rps': 'max RPS',
   'cb-error-threshold': 'CB error threshold',
   'cb-latency-threshold-ms': 'CB latency threshold',
+  'timeout-ms': 'timeout',
+  retries: 'retries',
   concurrency: 'concurrency',
   'duration-ms': 'duration',
   'cold-start-ms': 'cold start',
@@ -808,6 +810,7 @@ const RPS_FORMAT_KEYS = new Set(['max-rps', 'ratelimit-rps']);
 const MS_FORMAT_KEYS = new Set([
   'latency-ms',
   'cb-latency-threshold-ms',
+  'timeout-ms',
   'duration-ms',
   'cold-start-ms',
 ]);
@@ -1572,6 +1575,22 @@ function placeInfraEdgeLabels(
   return out;
 }
 
+/**
+ * Text lines for a connection's label. A connection where a timeout fired
+ * shows the rps actually sent (first attempts plus retries) and a second line
+ * with the timed-out rps and the attempts per request (diagrammo/diagrammo#1955).
+ */
+function edgeLabelLines(edge: InfraLayoutEdge): string[] {
+  const timedOut = edge.timedOutRps ?? 0;
+  if (timedOut <= 0) return edge.label ? [edge.label] : [];
+  const sent = `${formatRpsShort(edge.computedRps)} rps`;
+  const retries = edge.retries ?? 0;
+  return [
+    edge.label ? `${edge.label} · ${sent}` : sent,
+    `timed out ${formatRpsShort(timedOut)}${retries > 0 ? ` · ×${1 + retries}` : ''}`,
+  ];
+}
+
 function renderEdgeLabels(
   svg: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   edges: readonly InfraLayoutEdge[],
@@ -1604,45 +1623,68 @@ function renderEdgeLabels(
       tgtPts.get(key)
     );
   });
+  const labelLines = edges.map(edgeLabelLines);
+  // Placement sees the widest line; a two-line label is drawn centred on it.
+  const placementEdges = edges.map((e, i) => {
+    const lines = labelLines[i]!;
+    if (lines.length === 0) return { ...e, label: '' };
+    const widest = lines.reduce((a, b) =>
+      measureText(b, EDGE_LABEL_FONT_SIZE) >
+      measureText(a, EDGE_LABEL_FONT_SIZE)
+        ? b
+        : a
+    );
+    return { ...e, label: widest };
+  });
   const labelPts = placeInfraEdgeLabels(
     routes,
-    edges,
+    placementEdges,
     nodes,
     groups,
     EDGE_LABEL_FONT_SIZE
   );
-  for (const [idx, edge] of edges.entries()) {
-    if (!edge.label) continue;
+  for (const idx of edges.keys()) {
+    const lines = labelLines[idx]!;
+    if (lines.length === 0) continue;
     const wps = routes[idx]!;
     const midPt = labelPts.get(idx);
     if (!midPt) continue;
-    const labelText = edge.label;
+    const receded = !!story && !story.highlight.litEdges.has(idx);
 
     const g = svg.append('g').attr('class', animate ? 'infra-edge-label' : '');
 
-    const textWidth = measureText(labelText, EDGE_LABEL_FONT_SIZE) + 8;
+    const textWidth =
+      Math.max(...lines.map((l) => measureText(l, EDGE_LABEL_FONT_SIZE))) + 8;
+    const lineH = 16;
+    const boxH = lineH * lines.length;
     g.append('rect')
       .attr('x', midPt.x - textWidth / 2)
-      .attr('y', midPt.y - 8)
+      .attr('y', midPt.y - boxH / 2)
       .attr('width', textWidth)
-      .attr('height', 16)
+      .attr('height', boxH)
       .attr('rx', 3)
       .attr('fill', palette.bg)
       .attr('opacity', EDGE_LABEL_KNOCKOUT_OPACITY);
 
-    g.append('text')
-      .attr('x', midPt.x)
-      .attr('y', midPt.y + 4)
-      .attr('text-anchor', 'middle')
-      .attr('font-family', FONT_FAMILY)
-      .attr('font-size', sc.sEdgeLabelFontSize)
-      .attr(
-        'fill',
-        story && !story.highlight.litEdges.has(idx)
-          ? story.ground.groundText
-          : palette.textMuted
-      )
-      .text(labelText);
+    for (const [li, line] of lines.entries()) {
+      // The second line of a timed-out connection is the loss: red.
+      const isLoss = li === 1;
+      g.append('text')
+        .attr('x', midPt.x)
+        .attr('y', midPt.y - boxH / 2 + lineH * li + 12)
+        .attr('text-anchor', 'middle')
+        .attr('font-family', FONT_FAMILY)
+        .attr('font-size', sc.sEdgeLabelFontSize)
+        .attr(
+          'fill',
+          receded
+            ? story.ground.groundText
+            : isLoss
+              ? palette.colors.red
+              : palette.textMuted
+        )
+        .text(line);
+    }
 
     if (animate) {
       const pathD = buildPathD(wps, direction);

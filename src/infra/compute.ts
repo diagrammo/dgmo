@@ -923,6 +923,47 @@ export function computeInfra(
     }
   }
 
+  // ── Leaf paths ──
+  // Every path from a node down to a leaf, with the latency, uptime and
+  // availability a request on it sees. `weight` is the path's share of one
+  // request entering the node (splits and fan-out applied; 1 at a leaf).
+  // `timedOut` marks a path some caller's `timeout-ms` gave up on: its
+  // latency is the time spent waiting and retrying, its availability 0.
+  type LeafPath = {
+    latency: number;
+    uptime: number;
+    availability: number;
+    weight: number;
+    timedOut: boolean;
+  };
+  const nodeLeafCache = new Map<string, LeafPath[]>();
+  type Load = Map<string, number>;
+  const loadMemo = new Map<string, Load>();
+  const loadInProgress = new Set<string>();
+
+  // ── Timeouts and retries (diagrammo/diagrammo#1955) ──
+  // A request whose downstream path is slower than the caller's timeout is
+  // dropped. Each retry takes the same path again, so it times out again:
+  // retries recover nothing and add load to every node on the slow path.
+  // Latencies are read from the paths at base (pre-retry) load.
+  for (const node of effectiveParsed.nodes) {
+    collectLeafPaths(node.id, new Set());
+  }
+  const retryExtra = computeRetryLoad();
+  nodeLeafCache.clear();
+  const timedOutEdgeRps = new Map<string, number>();
+  for (const [key, extra] of retryExtra) {
+    if (key.startsWith('n:')) {
+      const id = key.slice(2);
+      computedRps.set(id, (computedRps.get(id) ?? 0) + extra);
+    } else if (key.startsWith('e:')) {
+      const k = key.slice(2);
+      computedEdgeRps.set(k, (computedEdgeRps.get(k) ?? 0) + extra);
+    } else if (key.startsWith('t:')) {
+      timedOutEdgeRps.set(key.slice(2), extra);
+    }
+  }
+
   // ── Per-node local & compound availability ──
   // Local availability depends on inbound RPS, so computed after BFS.
   // Compound availability = product of local availabilities from edge to this node.
@@ -986,13 +1027,189 @@ export function computeInfra(
   // For each node, collect all downstream leaf paths (latency, weight) via DFS,
   // then derive p50/p90/p99 weighted by traffic.
 
-  type LeafPath = {
-    latency: number;
-    uptime: number;
-    availability: number;
-    weight: number;
-  };
-  const nodeLeafCache = new Map<string, LeafPath[]>();
+  /**
+   * A node's own latency contribution: 0 at the edge, queue wait time for a
+   * queue (it depends on inbound rps), `duration-ms` for serverless,
+   * `latency-ms` (or the chart default) otherwise. Cold start not included.
+   */
+  function ownLatency(node: InfraNode): number {
+    if (node.isEdge) return 0;
+    if (isQueue(node)) {
+      const qGMul = groupInstMultiplier.get(node.id) ?? 1;
+      const drainRate = getNumProp(node, 'drain-rate', 0) * qGMul;
+      const inbound = computedRps.get(node.id) ?? 0;
+      const fillRate = drainRate > 0 ? Math.max(0, inbound - drainRate) : 0;
+      return fillRate > 0 && drainRate > 0 ? (fillRate / drainRate) * 1000 : 0;
+    }
+    if (isServerless(node)) return getNumProp(node, 'duration-ms', 100);
+    return getNumProp(node, 'latency-ms', defaultLatencyMs);
+  }
+
+  /** Own latency with its share: a cold-start node is 95% warm, 5% cold. */
+  function ownLatencyVariants(node: InfraNode): { lat: number; w: number }[] {
+    const lat = ownLatency(node);
+    const cold = isServerless(node) ? getNumProp(node, 'cold-start-ms', 0) : 0;
+    return cold > 0
+      ? [
+          { lat, w: 0.95 },
+          { lat: lat + cold, w: 0.05 },
+        ]
+      : [{ lat, w: 1 }];
+  }
+
+  /**
+   * The timeout and retry count that govern one connection: the edge's own
+   * `timeout-ms` / `retries`, else the source node's. Async connections
+   * never wait, so they have none.
+   */
+  function edgeTimeout(edge: InfraEdge): {
+    timeoutMs: number | null;
+    retries: number;
+  } {
+    if (edge.async) return { timeoutMs: null, retries: 0 };
+    const src = nodeMap.get(edge.sourceId);
+    const nodeTimeout = src ? getNumProp(src, 'timeout-ms', 0) : 0;
+    const timeoutMs = edge.timeoutMs ?? (nodeTimeout > 0 ? nodeTimeout : null);
+    const nodeRetries = src ? getNumProp(src, 'retries', 0) : 0;
+    const retries = Math.max(
+      0,
+      Math.floor(edge.retries ?? (nodeRetries > 0 ? nodeRetries : 0))
+    );
+    return { timeoutMs, retries: timeoutMs === null ? 0 : retries };
+  }
+
+  /** Share of one request entering `nodeId` whose path latency is in (lo, hi]. */
+  function shareInRange(nodeId: string, lo: number, hi: number): number {
+    const paths = nodeLeafCache.get(nodeId) ?? [];
+    let total = 0;
+    let inRange = 0;
+    for (const p of paths) {
+      total += p.weight;
+      if (p.latency > lo && p.latency <= hi) inRange += p.weight;
+    }
+    return total > 0 ? inRange / total : 0;
+  }
+
+  function addScaled(into: Load, from: Load, factor: number): void {
+    if (factor === 0) return;
+    for (const [k, v] of from) into.set(k, (into.get(k) ?? 0) + v * factor);
+  }
+
+  function bump(into: Load, key: string, by: number): void {
+    into.set(key, (into.get(key) ?? 0) + by);
+  }
+
+  /**
+   * The load one request entering `nodeId` puts on everything below it,
+   * counting only requests whose path latency (from this node, inner
+   * timeouts and retries applied) is in (lo, hi]. Keys: `n:<node>` inbound
+   * share, `e:<from->to>` attempts sent on a connection, `t:<from->to>`
+   * first attempts that timed out there. Inner retries multiply the load.
+   */
+  function loadRange(nodeId: string, lo: number, hi: number): Load {
+    const memoKey = `${nodeId}|${lo}|${hi}`;
+    const memo = loadMemo.get(memoKey);
+    if (memo) return memo;
+    const out: Load = new Map();
+    if (loadInProgress.has(memoKey)) return out; // cycle guard
+    const node = nodeMap.get(nodeId);
+    if (!node) return out;
+    loadInProgress.add(memoKey);
+
+    out.set(`n:${nodeId}`, shareInRange(nodeId, lo, hi));
+
+    // Cache hits and firewall blocks stop a share of requests here.
+    let passOn = 1;
+    if (!node.isEdge) {
+      const cacheHit = getNumProp(node, 'cache-hit', 0);
+      if (cacheHit > 0) passOn *= (100 - cacheHit) / 100;
+      const fwBlock = getNumProp(node, 'firewall-block', 0);
+      if (fwBlock > 0) passOn *= (100 - fwBlock) / 100;
+    }
+
+    const outbound = outboundMap.get(nodeId) ?? [];
+    const resolved = resolveSplits(outbound, []).filter((r) => !r.edge.async);
+    for (const { lat, w } of ownLatencyVariants(node)) {
+      const clo = lo - lat;
+      const chi = hi - lat;
+      for (const { edge, split } of resolved) {
+        const fanout =
+          edge.fanout != null && edge.fanout >= 1 ? edge.fanout : 1;
+        const groupChildren = groupChildMap.get(edge.targetId);
+        const targetIds =
+          groupChildren && groupChildren.length > 0
+            ? groupChildren
+            : [edge.targetId];
+        const edgeKey = `${edge.sourceId}->${edge.targetId}`;
+        const { timeoutMs, retries } = edgeTimeout(edge);
+        for (const targetId of targetIds) {
+          const factor =
+            ((w * passOn * (split / 100)) / targetIds.length) * fanout;
+          if (factor === 0) continue;
+          // Paths that answer in time keep their latency.
+          const fastHi = timeoutMs === null ? chi : Math.min(chi, timeoutMs);
+          if (clo < fastHi) {
+            const sub = loadRange(targetId, clo, fastHi);
+            addScaled(out, sub, factor);
+            bump(out, `e:${edgeKey}`, (sub.get(`n:${targetId}`) ?? 0) * factor);
+          }
+          // Paths slower than the timeout take timeout × attempts, and each
+          // attempt walks the same slow path again.
+          if (timeoutMs !== null) {
+            const capped = timeoutMs * (1 + retries);
+            if (capped > clo && capped <= chi) {
+              const sub = loadRange(targetId, timeoutMs, Infinity);
+              addScaled(out, sub, factor * (1 + retries));
+              const first = (sub.get(`n:${targetId}`) ?? 0) * factor;
+              bump(out, `e:${edgeKey}`, first * (1 + retries));
+              bump(out, `t:${edgeKey}`, first);
+            }
+          }
+        }
+      }
+    }
+
+    loadInProgress.delete(memoKey);
+    loadMemo.set(memoKey, out);
+    return out;
+  }
+
+  /**
+   * Extra load from retries, plus the timed-out rps of every connection.
+   * Base traffic on a connection with a timeout: the share slower than the
+   * timeout times out (`t:`), and with `retries: N` is sent N more times down
+   * the same slow path (`e:` on the connection, `n:`/`e:` below it).
+   */
+  function computeRetryLoad(): Load {
+    const extra: Load = new Map();
+    for (const edge of effectiveParsed.edges) {
+      const { timeoutMs, retries } = edgeTimeout(edge);
+      if (timeoutMs === null) continue;
+      const edgeKey = `${edge.sourceId}->${edge.targetId}`;
+      const edgeRps = computedEdgeRps.get(edgeKey) ?? 0;
+      if (edgeRps <= 0) continue;
+      const groupChildren = groupChildMap.get(edge.targetId);
+      const targetIds =
+        groupChildren && groupChildren.length > 0
+          ? groupChildren
+          : [edge.targetId];
+      for (const targetId of targetIds) {
+        const perTarget = edgeRps / targetIds.length;
+        const slow = shareInRange(targetId, timeoutMs, Infinity) * perTarget;
+        if (slow <= 0) continue;
+        bump(extra, `t:${edgeKey}`, slow);
+        if (retries > 0) {
+          bump(extra, `e:${edgeKey}`, slow * retries);
+          addScaled(
+            extra,
+            loadRange(targetId, timeoutMs, Infinity),
+            perTarget * retries
+          );
+        }
+      }
+    }
+    return extra;
+  }
 
   /**
    * Fold paths with the same (latency, uptime, availability) into one entry,
@@ -1005,7 +1222,7 @@ export function computeInfra(
     if (paths.length < 2) return paths;
     const byKey = new Map<string, LeafPath>();
     for (const p of paths) {
-      const key = `${p.latency}|${p.uptime}|${p.availability}`;
+      const key = `${p.latency}|${p.uptime}|${p.availability}|${p.timedOut}`;
       const prev = byKey.get(key);
       if (prev) prev.weight += p.weight;
       else byKey.set(key, { ...p });
@@ -1022,25 +1239,7 @@ export function computeInfra(
     const node = nodeMap.get(nodeId);
     if (!node) return [];
 
-    // Node latency contribution depends on type:
-    // - Queue: wait time (latency boundary — resets cumulative chain)
-    // - Serverless: duration-ms
-    // - Normal: latency-ms or default
-    let nodeLatency: number;
-    if (node.isEdge) {
-      nodeLatency = 0;
-    } else if (isQueue(node)) {
-      const qGMul = groupInstMultiplier.get(nodeId) ?? 1;
-      const drainRate = getNumProp(node, 'drain-rate', 0) * qGMul;
-      const inbound = computedRps.get(nodeId) ?? 0;
-      const fillRate = drainRate > 0 ? Math.max(0, inbound - drainRate) : 0;
-      nodeLatency =
-        fillRate > 0 && drainRate > 0 ? (fillRate / drainRate) * 1000 : 0;
-    } else if (isServerless(node)) {
-      nodeLatency = getNumProp(node, 'duration-ms', 100);
-    } else {
-      nodeLatency = getNumProp(node, 'latency-ms', defaultLatencyMs);
-    }
+    const nodeLatency = ownLatency(node);
     const nodeUptimeFrac = node.isEdge
       ? 1
       : getNumProp(node, 'uptime', defaultUptime) / 100;
@@ -1071,13 +1270,15 @@ export function computeInfra(
             latency: nodeLatency,
             uptime: nodeUptimeFrac,
             availability: nodeAvail,
-            weight: rps * 0.95,
+            weight: 0.95,
+            timedOut: false,
           },
           {
             latency: coldLatency,
             uptime: nodeUptimeFrac,
             availability: nodeAvail,
-            weight: rps * 0.05,
+            weight: 0.05,
+            timedOut: false,
           },
         ];
       } else {
@@ -1086,7 +1287,8 @@ export function computeInfra(
             latency: nodeLatency,
             uptime: nodeUptimeFrac,
             availability: nodeAvail,
-            weight: rps,
+            weight: 1,
+            timedOut: false,
           },
         ];
       }
@@ -1106,8 +1308,19 @@ export function computeInfra(
           ? groupChildren
           : [edge.targetId];
 
+      const { timeoutMs, retries } = edgeTimeout(edge);
       for (const targetId of targetIds) {
-        const childPaths = collectLeafPaths(targetId, new Set(visited));
+        const childPaths = collectLeafPaths(targetId, new Set(visited)).map(
+          (cp) =>
+            timeoutMs !== null && cp.latency > timeoutMs
+              ? {
+                  ...cp,
+                  latency: timeoutMs * (1 + retries),
+                  availability: 0,
+                  timedOut: true,
+                }
+              : cp
+        );
         for (const cp of childPaths) {
           if (coldStartMs > 0) {
             // Warm path (95% of requests)
@@ -1115,6 +1328,7 @@ export function computeInfra(
               latency: nodeLatency + cp.latency,
               uptime: nodeUptimeFrac * cp.uptime,
               availability: nodeAvail * cp.availability,
+              timedOut: cp.timedOut,
               weight:
                 ((cp.weight * (split / 100)) / targetIds.length) *
                 fanout *
@@ -1125,6 +1339,7 @@ export function computeInfra(
               latency: coldLatency + cp.latency,
               uptime: nodeUptimeFrac * cp.uptime,
               availability: nodeAvail * cp.availability,
+              timedOut: cp.timedOut,
               weight:
                 ((cp.weight * (split / 100)) / targetIds.length) *
                 fanout *
@@ -1135,6 +1350,7 @@ export function computeInfra(
               latency: nodeLatency + cp.latency,
               uptime: nodeUptimeFrac * cp.uptime,
               availability: nodeAvail * cp.availability,
+              timedOut: cp.timedOut,
               weight: ((cp.weight * (split / 100)) / targetIds.length) * fanout,
             });
           }
@@ -1401,6 +1617,22 @@ export function computeInfra(
         edge.split ??
         100;
 
+      const { timeoutMs, retries } = edgeTimeout(edge);
+      const timedOutRps = timedOutEdgeRps.get(edgeKey) ?? 0;
+      if (timedOutRps > 0 && timeoutMs !== null) {
+        const src = nodeMap.get(edge.sourceId)?.label ?? edge.sourceId;
+        const tgt = nodeMap.get(edge.targetId)?.label ?? edge.targetId;
+        diagnostics.push({
+          type: 'TIMEOUT',
+          line: edge.lineNumber,
+          message:
+            `${src} times out ${Math.round(timedOutRps)} rps to ${tgt}: those paths take longer than ${timeoutMs}ms.` +
+            (retries > 0
+              ? ` ${retries} ${retries === 1 ? 'retry sends' : 'retries send'} ${Math.round(rps)} rps on this connection.`
+              : ''),
+        });
+      }
+
       return {
         sourceId: edge.sourceId,
         targetId: edge.targetId,
@@ -1409,6 +1641,9 @@ export function computeInfra(
         computedRps: rps,
         split: resolvedSplit,
         fanout: edge.fanout,
+        timeoutMs,
+        retries,
+        timedOutRps,
         lineNumber: edge.lineNumber,
       };
     }

@@ -254,6 +254,18 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
     infra: ['behavior'],
     chartTypes: ['infra'],
   },
+  {
+    token: 'timeout-ms',
+    colonKey: true,
+    infra: ['behavior'],
+    chartTypes: ['infra'],
+  },
+  {
+    token: 'retries',
+    colonKey: true,
+    infra: ['behavior'],
+    chartTypes: ['infra'],
+  },
   // Edge-only colon-key.
   { token: 'rps', colonKey: true, infra: ['edge'], chartTypes: ['infra'] },
 

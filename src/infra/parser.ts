@@ -123,7 +123,7 @@ const COMPONENT_RE =
 // Legacy pipe metadata: | key: value  or  | k1: v1, k2: v2  (comma-separated).
 // Kept for transitional back-compat extraction; new same-line metadata
 // (§1.4) is preferred and extracted via SAMELINE_META_RE below.
-const PIPE_META_RE = /[|,]\s*(\w+)\s*:\s*([^|,]+)/g;
+const PIPE_META_RE = /[|,]\s*([\w-]+)\s*:\s*([^|,]+)/g;
 // Same-line metadata (post-0.18.0 §1.4): `k: v, k2: v2` after any name
 // region — matches a colon-bearing key-value, comma-separated.
 // Hyphens are part of the key (`latency-ms`), not a break inside it — reading
@@ -307,9 +307,72 @@ function parseInfraRaw(content: string): ParsedInfra {
   // Tag-alias set grows as `tag Name as <x>` groups are parsed.
   const tagAliasSet = new Set<string>();
   const EDGE_PIPE_REGISTRY = {
-    keys: new Set(['split', 'fanout']),
+    keys: new Set(['split', 'fanout', 'timeout-ms', 'retries']),
     tagAliases: new Set<string>(),
   } as const;
+
+  /**
+   * Read a connection's pipe metadata: `split`, `fanout`, `timeout-ms`,
+   * `retries`. An async `~>` connection never waits on its target, so a
+   * timeout or retry count on one is warned about and dropped.
+   */
+  function parseEdgeMeta(
+    tags: Record<string, string>,
+    lineNumber: number,
+    isAsync: boolean
+  ): {
+    split: number | null;
+    fanout: number | null;
+    timeoutMs: number | null;
+    retries: number | null;
+  } {
+    const split = tags['split'] ? parseFloat(tags['split']) : null;
+    const fanoutRaw = tags['fanout'] ? parseInt(tags['fanout'], 10) : null;
+    if (fanoutRaw !== null && fanoutRaw < 1) {
+      warn(
+        lineNumber,
+        `Fan-out multiplier must be at least 1 (got fanout: ${fanoutRaw}). Ignoring.`
+      );
+    }
+    const fanout = fanoutRaw !== null && fanoutRaw >= 1 ? fanoutRaw : null;
+
+    let timeoutMs: number | null = null;
+    let retries: number | null = null;
+    const rawTimeout = tags['timeout-ms'];
+    const rawRetries = tags['retries'];
+    if (isAsync) {
+      for (const [key, raw] of [
+        ['timeout-ms', rawTimeout],
+        ['retries', rawRetries],
+      ] as const) {
+        if (raw !== undefined)
+          warn(
+            lineNumber,
+            `'${key}' has no effect on an async '~>' connection — the caller does not wait for it. Ignoring.`
+          );
+      }
+    } else {
+      if (rawTimeout !== undefined) {
+        const v = Number(rawTimeout);
+        if (Number.isFinite(v) && v > 0) timeoutMs = v;
+        else
+          warn(
+            lineNumber,
+            `'timeout-ms' must be a number of milliseconds above 0 (got ${rawTimeout}). Ignoring.`
+          );
+      }
+      if (rawRetries !== undefined) {
+        const v = Number(rawRetries);
+        if (Number.isInteger(v) && v >= 0) retries = v;
+        else
+          warn(
+            lineNumber,
+            `'retries' must be a whole number, 0 or more (got ${rawRetries}). Ignoring.`
+          );
+      }
+    }
+    return { split, fanout, timeoutMs, retries };
+  }
 
   // Per-parse alias literal → canonical node id (TD-18). Per C8.
   const nameAliasMap = new AliasRegistry();
@@ -837,19 +900,11 @@ function parseInfraRaw(content: string): ParsedInfra {
         warnUnknownMetaKeys(pipeMeta.tags, EDGE_PIPE_REGISTRY, (msg) =>
           warn(lineNumber, msg)
         );
-        const split = pipeMeta.tags['split']
-          ? parseFloat(pipeMeta.tags['split'])
-          : null;
-        const fanoutRaw = pipeMeta.tags['fanout']
-          ? parseInt(pipeMeta.tags['fanout'], 10)
-          : null;
-        if (fanoutRaw !== null && fanoutRaw < 1) {
-          warn(
-            lineNumber,
-            `Fan-out multiplier must be at least 1 (got fanout: ${fanoutRaw}). Ignoring.`
-          );
-        }
-        const fanout = fanoutRaw !== null && fanoutRaw >= 1 ? fanoutRaw : null;
+        const { split, fanout, timeoutMs, retries } = parseEdgeMeta(
+          pipeMeta.tags,
+          lineNumber,
+          true
+        );
         const targetIdAsync = resolveTargetId(targetName);
         rememberTargetDisplay(targetIdAsync, targetName);
         result.edges.push({
@@ -859,6 +914,8 @@ function parseInfraRaw(content: string): ParsedInfra {
           async: true,
           split,
           fanout,
+          timeoutMs,
+          retries,
           lineNumber,
         });
         continue;
@@ -879,19 +936,11 @@ function parseInfraRaw(content: string): ParsedInfra {
         warnUnknownMetaKeys(pipeMeta.tags, EDGE_PIPE_REGISTRY, (msg) =>
           warn(lineNumber, msg)
         );
-        const split = pipeMeta.tags['split']
-          ? parseFloat(pipeMeta.tags['split'])
-          : null;
-        const fanoutRaw = pipeMeta.tags['fanout']
-          ? parseInt(pipeMeta.tags['fanout'], 10)
-          : null;
-        if (fanoutRaw !== null && fanoutRaw < 1) {
-          warn(
-            lineNumber,
-            `Fan-out multiplier must be at least 1 (got fanout: ${fanoutRaw}). Ignoring.`
-          );
-        }
-        const fanout = fanoutRaw !== null && fanoutRaw >= 1 ? fanoutRaw : null;
+        const { split, fanout, timeoutMs, retries } = parseEdgeMeta(
+          pipeMeta.tags,
+          lineNumber,
+          true
+        );
 
         let targetId: string;
         const targetGroupMatch = targetName.match(/^\[([^\]]+)\]/);
@@ -911,6 +960,8 @@ function parseInfraRaw(content: string): ParsedInfra {
           async: true,
           split,
           fanout,
+          timeoutMs,
+          retries,
           lineNumber,
         });
         continue;
@@ -927,19 +978,11 @@ function parseInfraRaw(content: string): ParsedInfra {
         warnUnknownMetaKeys(pipeMeta.tags, EDGE_PIPE_REGISTRY, (msg) =>
           warn(lineNumber, msg)
         );
-        const split = pipeMeta.tags['split']
-          ? parseFloat(pipeMeta.tags['split'])
-          : null;
-        const fanoutRaw = pipeMeta.tags['fanout']
-          ? parseInt(pipeMeta.tags['fanout'], 10)
-          : null;
-        if (fanoutRaw !== null && fanoutRaw < 1) {
-          warn(
-            lineNumber,
-            `Fan-out multiplier must be at least 1 (got fanout: ${fanoutRaw}). Ignoring.`
-          );
-        }
-        const fanout = fanoutRaw !== null && fanoutRaw >= 1 ? fanoutRaw : null;
+        const { split, fanout, timeoutMs, retries } = parseEdgeMeta(
+          pipeMeta.tags,
+          lineNumber,
+          false
+        );
         const targetIdSimple = resolveTargetId(targetName);
         rememberTargetDisplay(targetIdSimple, targetName);
         result.edges.push({
@@ -949,6 +992,8 @@ function parseInfraRaw(content: string): ParsedInfra {
           async: false,
           split,
           fanout,
+          timeoutMs,
+          retries,
           lineNumber,
         });
         continue;
@@ -969,19 +1014,11 @@ function parseInfraRaw(content: string): ParsedInfra {
         warnUnknownMetaKeys(pipeMeta.tags, EDGE_PIPE_REGISTRY, (msg) =>
           warn(lineNumber, msg)
         );
-        const split = pipeMeta.tags['split']
-          ? parseFloat(pipeMeta.tags['split'])
-          : null;
-        const fanoutRaw = pipeMeta.tags['fanout']
-          ? parseInt(pipeMeta.tags['fanout'], 10)
-          : null;
-        if (fanoutRaw !== null && fanoutRaw < 1) {
-          warn(
-            lineNumber,
-            `Fan-out multiplier must be at least 1 (got fanout: ${fanoutRaw}). Ignoring.`
-          );
-        }
-        const fanout = fanoutRaw !== null && fanoutRaw >= 1 ? fanoutRaw : null;
+        const { split, fanout, timeoutMs, retries } = parseEdgeMeta(
+          pipeMeta.tags,
+          lineNumber,
+          false
+        );
 
         // Target might be a group ref like [API Pods] or an alias literal.
         let targetId: string;
@@ -1002,6 +1039,8 @@ function parseInfraRaw(content: string): ParsedInfra {
           async: false,
           split,
           fanout,
+          timeoutMs,
+          retries,
           lineNumber,
         });
         continue;

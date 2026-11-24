@@ -1887,6 +1887,10 @@ export const PIPE_METADATA = new Map<string, PipeContextMap>([
         'cb-latency-threshold-ms': {
           description: 'Circuit breaker latency threshold',
         },
+        'timeout-ms': {
+          description: 'Give up on an upstream slower than this (ms)',
+        },
+        retries: { description: 'Re-send a timed-out request N times' },
         uptime: { description: 'Component availability (0-1)' },
         concurrency: { description: 'Concurrent request limit' },
         'duration-ms': { description: 'Processing duration' },
@@ -1902,6 +1906,12 @@ export const PIPE_METADATA = new Map<string, PipeContextMap>([
       edge: {
         split: { description: 'Traffic split percentage (e.g., 60%)' },
         fanout: { description: 'Fanout multiplier (integer >= 1)' },
+        'timeout-ms': {
+          description: 'Timeout for this connection (overrides the node)',
+        },
+        retries: {
+          description: 'Retries for this connection (overrides the node)',
+        },
       },
     },
   ],

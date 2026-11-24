@@ -1040,6 +1040,8 @@ Properties use a known schema with colon-separated values (the space-separated f
 | `max-rps`                 | Capacity ceiling   | Max RPS node handles                                 |
 | `cb-error-threshold`      | Circuit breaker    | Error rate trip threshold                            |
 | `cb-latency-threshold-ms` | Circuit breaker    | Latency trip threshold                               |
+| `timeout-ms`              | Timeout            | Give up on a downstream path slower than this        |
+| `retries`                 | Retries            | Times a timed-out request is re-sent                 |
 | `concurrency`             | Concurrency limit  | Max concurrent requests (serverless)                 |
 | `duration-ms`             | Processing time    | Time spent processing (serverless)                   |
 | `cold-start-ms`           | Serverless         | Cold start penalty                                   |
@@ -1060,10 +1062,26 @@ Properties use a known schema with colon-separated values (the space-separated f
 | Async (bare)    | `~> Target`       |
 | Async (labeled) | `~event~> Target` |
 
-- Connection metadata: `split: 50%, fanout: 3` (colons required in metadata pairs)
+- Connection metadata: `split: 50%, fanout: 3, timeout-ms: 300, retries: 2` (colons required in metadata pairs)
 - Indented under source node
 - Async edges (`~>`) render with a wiggle pattern
 - Target may be a node id, an alias, or a group ref `[Group Name]`
+
+**Timeouts and retries.** `timeout-ms` and `retries` on a node apply to all its sync connections; the same keys on one connection override the node.
+
+```
+API
+  timeout-ms: 300
+  retries: 2
+  -> Search
+  -> Billing timeout-ms: 1000, retries: 0
+```
+
+- A downstream path slower than the timeout times out; with splits, the timed-out share is the traffic on the too-slow paths. Timed-out traffic lowers the caller's availability
+- A retry takes the same path and times out again: it multiplies load on that path by `1 + retries` and recovers nothing — enough to overload an upstream (a retry storm)
+- A timed-out path costs `timeout-ms × (1 + retries)` of latency, so an inner timeout caps outer latency; the loss is charged once, at the innermost timeout
+- The connection label shows the rps sent and a second line `timed out N · ×A` (attempts per request)
+- Async `~>` connections ignore both keys, with a warning
 
 ### 4.5 Fanout
 
