@@ -1250,8 +1250,11 @@ const GROUP_DETOUR_MARGIN = 16;
 // that hugs the box. Null when the waypoints themselves never cross the
 // boundary twice (only the smoothed curve clips the box) — the caller then
 // falls back to the hump.
-function detourAroundBox(pts: Pt[], r: Rect): Pt[] | null {
-  const m = GROUP_DETOUR_MARGIN;
+function detourAroundBox(
+  pts: Pt[],
+  r: Rect,
+  m = GROUP_DETOUR_MARGIN
+): Pt[] | null {
   const l = r.x - r.w / 2 - m,
     rt = r.x + r.w / 2 + m,
     t = r.y - r.h / 2 - m,
@@ -1478,6 +1481,37 @@ export function separateGroupBands(
   });
   if (!moved) return layout;
 
+  return translateTopGroups(layout, parsed, delta);
+}
+
+/** Copy of a layout with each top-level group (members, nested frames and
+ *  group-incident arrow ends) moved across the flow by its `delta`. Arrow
+ *  waypoints blend between their two ends' deltas, so an arrow inside one
+ *  group keeps its shape and one between groups eases across. The canvas is
+ *  re-measured over the moved content. */
+function translateTopGroups(
+  layout: BLLayoutResult,
+  parsed: ParsedBoxesAndLines,
+  delta: ReadonlyMap<string, number>
+): BLLayoutResult {
+  const parentOf = new Map<string, string | undefined>();
+  for (const g of parsed.groups) parentOf.set(g.label, g.parentGroup);
+  const topOf = (label: string): string => {
+    let cur = label;
+    const seen = new Set<string>();
+    for (;;) {
+      const p = parentOf.get(cur);
+      if (!p || seen.has(p)) return cur;
+      seen.add(cur);
+      cur = p;
+    }
+  };
+  const nodeTop = new Map<string, string>();
+  for (const g of parsed.groups)
+    for (const child of g.children)
+      if (!parsed.groups.some((gg) => gg.label === child))
+        nodeTop.set(child, topOf(g.label));
+  const axis: 'x' | 'y' = parsed.direction === 'TB' ? 'x' : 'y';
   const nodeDelta = (label: string): number => {
     // Group-incident edge endpoints carry the group's gid, not a node label.
     if (label.startsWith('__group_'))
@@ -1841,6 +1875,245 @@ function packGroupHoles(
   )
     return layout;
   return packed;
+}
+
+/** Top-level frames that share no side with another top-level frame
+ *  (rubric rule 7), within ALIGN_TOL. */
+function unalignedTopGroups(
+  layout: BLLayoutResult,
+  groups: readonly BLGroup[]
+): string[] {
+  const tops = groups.filter((g) => !g.parentGroup).map((g) => g.label);
+  const frames = layout.groups.filter(
+    (f) => !f.collapsed && tops.includes(f.label)
+  );
+  if (frames.length < 2) return [];
+  const sides = (f: (typeof frames)[number]) => [
+    f.y - f.height / 2,
+    f.y + f.height / 2,
+    f.x - f.width / 2,
+    f.x + f.width / 2,
+  ];
+  return frames
+    .filter((f) => {
+      const a = sides(f);
+      return !frames.some(
+        (o) =>
+          o !== f && sides(o).some((v, i) => Math.abs(v - a[i]!) <= ALIGN_TOL)
+      );
+    })
+    .map((f) => f.label);
+}
+
+const ALIGN_TOL = 1;
+// Clear space an aligned frame must keep from every box and frame it does
+// not hold.
+const ALIGN_CLEARANCE = 16;
+
+const REROUTE_BENDS = 3;
+
+/** The first box (not `skip`) that segment chain `pts` enters. */
+function firstBoxHit(
+  pts: readonly Pt[],
+  nodes: BLLayoutResult['nodes'],
+  skip: ReadonlySet<string>
+): Rect | undefined {
+  for (const n of nodes) {
+    if (skip.has(n.label)) continue;
+    const [l, t] = [n.x - n.width / 2, n.y - n.height / 2];
+    const [r, b] = [n.x + n.width / 2, n.y + n.height / 2];
+    if (
+      pts.some((p, k) => k > 0 && segmentEntersRect(pts[k - 1]!, p, l, t, r, b))
+    )
+      return { x: n.x, y: n.y, w: n.width, h: n.height };
+  }
+  return undefined;
+}
+
+/** Re-route every arrow with exactly one end inside `moved`, which a rigid
+ *  move left bent for where the frame used to be. Each takes the first of:
+ *  a straight line between its ends' centres, that line bent round the box
+ *  it runs into, or the blended route it already has. Clipped to the boxes. */
+function rerouteMovedEdges(
+  layout: BLLayoutResult,
+  moved: ReadonlySet<string>,
+  margin: number
+): BLLayoutResult {
+  const centre = new Map<string, Pt>();
+  for (const n of layout.nodes) centre.set(n.label, { x: n.x, y: n.y });
+  for (const g of layout.groups) {
+    centre.set('__group_' + g.label, { x: g.x, y: g.y });
+    if (!centre.has(g.label)) centre.set(g.label, { x: g.x, y: g.y });
+  }
+  const edges = layout.edges.map((e) => {
+    if (moved.has(e.source) === moved.has(e.target)) return e;
+    const s = centre.get(e.source);
+    const t = centre.get(e.target);
+    if (!s || !t) return e;
+    const ends = new Set([e.source, e.target]);
+    // Bend round each box in the way in turn, a few at most.
+    let pts: Pt[] = [s, t];
+    for (let tries = 0; tries <= REROUTE_BENDS; tries++) {
+      const hit = firstBoxHit(pts, layout.nodes, ends);
+      if (!hit) return { ...e, points: pts };
+      const bent =
+        tries < REROUTE_BENDS ? detourAroundBox(pts, hit, margin) : null;
+      if (!bent) break;
+      pts = bent;
+    }
+    return e;
+  });
+  return clipLayoutEdgesToNodes({ ...layout, edges });
+}
+
+// Clearances a moved arrow is bent round a box at, tried in turn: the
+// usual one first, then a wider one that keeps off a detour already there.
+const REROUTE_MARGINS = [GROUP_DETOUR_MARGIN, 2 * GROUP_DETOUR_MARGIN];
+
+/** Routes for the arrows a frame move bent (`shifted`, one end in `mine`).
+ *  The pierce count lets a line graze a box by its inset, so a moved arrow
+ *  may touch no box but its own two ends: each takes its re-route, else the
+ *  blended route, else there is no answer. While the total is still above
+ *  `floor`, single arrows go back to the blended route when that helps. */
+function routeMovedEdges(
+  shifted: BLLayoutResult,
+  mine: ReadonlySet<string>,
+  margin: number,
+  floor: number,
+  bad: (l: BLLayoutResult) => number
+): { l: BLLayoutResult; b: number } | undefined {
+  const rerouted = rerouteMovedEdges(shifted, mine, margin);
+  const grazes = (e: BLLayoutResult['edges'][number]) =>
+    firstBoxHit(e.points, shifted.nodes, new Set([e.source, e.target])) !==
+    undefined;
+  const moving = shifted.edges.flatMap((e, i) =>
+    mine.has(e.source) !== mine.has(e.target) ? [i] : []
+  );
+  const edges = rerouted.edges.slice();
+  for (const i of moving)
+    if (grazes(edges[i]!)) {
+      if (grazes(shifted.edges[i]!)) return undefined;
+      edges[i] = shifted.edges[i]!;
+    }
+  let l: BLLayoutResult = { ...rerouted, edges };
+  let b = bad(l);
+  for (const i of moving) {
+    if (b <= floor) break;
+    if (l.edges[i] === shifted.edges[i] || grazes(shifted.edges[i]!)) continue;
+    const es = l.edges.slice();
+    es[i] = shifted.edges[i]!;
+    const alt = { ...l, edges: es };
+    const ab = bad(alt);
+    if (ab < b) {
+      l = alt;
+      b = ab;
+    }
+  }
+  return { l, b };
+}
+
+/** Sibling frames share an edge (#2062, rubric rule 7). For a top-level
+ *  frame that lines up with no other, one top-level frame (it, or a
+ *  neighbour) moves across the flow, rigidly with its contents, until its
+ *  near or far side meets the same side of the other. Moving across the flow
+ *  keeps every box's rank. The smallest move wins, and one is kept only when
+ *  the unaligned count drops, the moved frame stays clear of everything it
+ *  does not hold, and it adds no crossing, overlap, pierce, group collision
+ *  or foreign-group pass. The caller judges labels, and keeps a collapse
+ *  toggled in place off this path so it still moves nothing. */
+export function alignSiblingFrames(
+  layout: BLLayoutResult,
+  parsed: ParsedBoxesAndLines
+): BLLayoutResult {
+  const flowX = parsed.direction !== 'TB';
+  const bad = (l: BLLayoutResult) =>
+    countSplineCrossings(l) +
+    countEdgeOverlaps(l) +
+    countEdgeNodePierces(l) +
+    countGroupOverlaps(l);
+  const foreign = (l: BLLayoutResult) =>
+    countForeignGroupCrossings(l, parsed.groups);
+  const holds = groupHoldings(parsed.groups);
+  const tops = new Set(
+    parsed.groups.filter((g) => !g.parentGroup).map((g) => g.label)
+  );
+  const zoneOf = (label: string) =>
+    parsed.groups.some((c) => c.parentGroup === label) ? GROUP_LABEL_ZONE : 0;
+  const span = (f: BLLayoutResult['groups'][number]): [number, number] =>
+    flowX
+      ? [f.y - f.height / 2, f.y + f.height / 2]
+      : [f.x - f.width / 2, f.x + f.width / 2];
+  let cur = layout;
+  let curUnaligned = unalignedTopGroups(cur, parsed.groups);
+  for (const label of [...curUnaligned]) {
+    if (!curUnaligned.includes(label)) continue;
+    const frameOf = (l: string) => cur.groups.find((g) => g.label === l)!;
+    const others = cur.groups.filter(
+      (o) => o.label !== label && !o.collapsed && tops.has(o.label)
+    );
+    // Either this frame moves to meet another, or another moves to meet it.
+    const moves: { mover: string; d: number }[] = [];
+    const [lo, hi] = span(frameOf(label));
+    for (const o of others) {
+      const [olo, ohi] = span(o);
+      moves.push(
+        { mover: label, d: olo - lo },
+        { mover: label, d: ohi - hi },
+        { mover: o.label, d: lo - olo },
+        { mover: o.label, d: hi - ohi }
+      );
+    }
+    const ordered = moves
+      .filter((m) => Math.abs(m.d) > ALIGN_TOL)
+      .sort((p, q) => Math.abs(p.d) - Math.abs(q.d));
+    let curBad: number | undefined;
+    let curForeign: number | undefined;
+    for (const { mover, d } of ordered) {
+      const f = frameOf(mover);
+      const mine = holds.get(mover) ?? new Set<string>();
+      const [cx, cy] = flowX ? [f.x, f.y + d] : [f.x + d, f.y];
+      const l = cx - f.width / 2 - ALIGN_CLEARANCE;
+      const r = cx + f.width / 2 + ALIGN_CLEARANCE;
+      const t = cy - f.height / 2 - zoneOf(mover) - ALIGN_CLEARANCE;
+      const b = cy + f.height / 2 + ALIGN_CLEARANCE;
+      const hits = (q: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+      }) =>
+        q.x + q.width / 2 > l &&
+        q.x - q.width / 2 < r &&
+        q.y + q.height / 2 > t &&
+        q.y - q.height / 2 < b;
+      if (cur.nodes.some((n) => !mine.has(n.label) && hits(n))) continue;
+      if (
+        cur.groups.some(
+          (g) => g.label !== mover && !mine.has(g.label) && hits(g)
+        )
+      )
+        continue;
+      const shifted = clipLayoutEdgesToNodes(
+        translateTopGroups(cur, parsed, new Map([[mover, d]]))
+      );
+      curBad ??= bad(cur);
+      let best: { l: BLLayoutResult; b: number } | undefined;
+      for (const margin of REROUTE_MARGINS) {
+        const got = routeMovedEdges(shifted, mine, margin, curBad, bad);
+        if (got && (!best || got.b < best.b)) best = got;
+        if (best && best.b <= curBad) break;
+      }
+      if (!best || best.b > curBad) continue;
+      const un = unalignedTopGroups(best.l, parsed.groups);
+      if (un.length >= curUnaligned.length) continue;
+      curForeign ??= foreign(cur);
+      if (foreign(best.l) > curForeign) continue;
+      cur = best.l;
+      curUnaligned = un;
+      break;
+    }
+  }
+  return cur;
 }
 
 export async function layoutBoxesAndLinesSearch(

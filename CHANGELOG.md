@@ -624,6 +624,13 @@ logged · most often Great`. Diagnostics: `E_CALENDAR_HEATMAP_UNKNOWN_TAG`,
   cell of its group, line by line, so empty cells come only at the end of a
   line and the frame shrinks to fit. A cell an arrow runs through stays
   empty.
+- **Boxes-and-lines: sibling group frames line up
+  (diagrammo/diagrammo#2062).** A top-level group whose frame shares no side
+  with any other now slides across the flow, with everything in it, until its
+  top or bottom (left or right under `direction TB`) meets another frame's.
+  A move is kept only when it adds no crossing, overlap, box an arrow runs
+  through, or unplaced label. Folding or unfolding a group still moves
+  nothing.
 
 ## [0.96.0] - 2026-11-02
 

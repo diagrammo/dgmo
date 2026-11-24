@@ -372,7 +372,8 @@ async function layoutPlaced(
   layoutOptions: LayoutOptions | undefined,
   sizeOverrides?: ReadonlyMap<string, { width: number; height: number }>
 ): Promise<BLLayoutResult> {
-  const { layoutBoxesAndLinesSearch } = await import('./layout-search');
+  const { layoutBoxesAndLinesSearch, alignSiblingFrames } =
+    await import('./layout-search');
   const searchOpts = {
     ...(layoutOptions?.hideDescriptions !== undefined && {
       hideDescriptions: layoutOptions.hideDescriptions,
@@ -406,7 +407,21 @@ async function layoutPlaced(
   // `groups` lets the placement tell an expanded group the edge lives inside
   // (valid label space) from one it merely crosses (an obstacle) — #777.
   const labelOpts = { groups: parsed.groups };
-  let chosen = applyParallelEdgeOffsets(spreadCrowdedPorts(searched));
+  // Sibling frames share an edge (#2062): a frame move is kept only when no
+  // more labels go unplaced, and never for a collapse toggled in place,
+  // which moves nothing.
+  const aligned = (l: BLLayoutResult) => {
+    if (layoutOptions?.stableCollapse) return l;
+    const a = alignSiblingFrames(l, parsed);
+    if (a === l) return l;
+    const unplaced = (x: BLLayoutResult) =>
+      placeEdgeLabels(
+        applyParallelEdgeOffsets(spreadCrowdedPorts(x)),
+        labelOpts
+      ).unresolved.length;
+    return unplaced(a) <= unplaced(l) ? a : l;
+  };
+  let chosen = applyParallelEdgeOffsets(spreadCrowdedPorts(aligned(searched)));
   let placed = placeEdgeLabels(chosen, labelOpts);
   if (placed.unresolved.length > 0) {
     const relaid = await layoutBoxesAndLinesSearch(parsed, collapseInfo, {
@@ -418,7 +433,9 @@ async function layoutPlaced(
       ...(topConfigs !== undefined &&
         topConfigs.length > 0 && { configs: topConfigs }),
     });
-    const relaidChosen = applyParallelEdgeOffsets(spreadCrowdedPorts(relaid));
+    const relaidChosen = applyParallelEdgeOffsets(
+      spreadCrowdedPorts(aligned(relaid))
+    );
     const relaidPlaced = placeEdgeLabels(relaidChosen, labelOpts);
     if (relaidPlaced.unresolved.length < placed.unresolved.length) {
       placed = relaidPlaced;
