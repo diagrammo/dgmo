@@ -90,7 +90,7 @@ const BOOLEAN_OPTIONS = new Set([
 const FILL_OPTIONS = ['fill-tint', 'fill-solid', 'fill-outline'];
 
 /** `60%`, `33.3%`, then the rest of the line. */
-const STAKE_RE = /^([+-]?\d*\.?\d+)\s*%\s*(.*)$/;
+const STAKE_RE = /^([+-]?(?:\d+(?:\.\d+)?|\.\d+))\s*%\s*(.*)$/;
 /** `key: …` with a single-word key. */
 const META_LINE_RE = /^([A-Za-z_][\w-]*)\s*:/;
 /** Sums are compared with this slack, so 33.3 + 33.3 + 33.4 is 100. */

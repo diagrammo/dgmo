@@ -65,6 +65,9 @@ import {
 } from '../utils/tag-groups';
 import { dayNumber, dayToIso, daysInMonth, parts, rollingDay } from './dates';
 import { CALENDAR_DX } from './diagnostics';
+
+/** The longest span a calendar draws, in years; a longer one is clamped. */
+export const CALENDAR_MAX_SPAN_YEARS = 10;
 import type {
   CalendarDay,
   CalendarEvent,
@@ -953,6 +956,22 @@ function parseCalendarRaw(content: string): ParsedCalendar {
     }
     start = Math.min(...all);
     end = Math.max(...all);
+  }
+
+  // A span past the cap is clamped: the chart draws one cell per day.
+  const cappedEnd =
+    rollingDay(
+      parts(start).year + CALENDAR_MAX_SPAN_YEARS,
+      parts(start).month,
+      parts(start).date
+    ) - 1;
+  if (end > cappedEnd) {
+    report(CALENDAR_DX.SPAN_TOO_LONG, range?.lineNumber ?? 1, {
+      from: dayToIso(start),
+      to: dayToIso(end),
+      years: CALENDAR_MAX_SPAN_YEARS,
+    });
+    end = cappedEnd;
   }
 
   const days: CalendarDay[] = [];

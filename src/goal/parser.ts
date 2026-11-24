@@ -157,6 +157,11 @@ function parseGoalRaw(content: string, palette?: PaletteColors): ParsedGoal {
   let current: MeasureDraft = top;
   const seenNames = new Set<string>();
   const reportedBandLines = new Set<number>();
+  /** Bands resolved per block and target: measures inheriting one share them. */
+  const resolvedBands = new Map<
+    BandBlock,
+    Map<number | null, { bands: GoalBand[]; closeEdge: number | null }>
+  >();
 
   /** Read the indented lines under a `bands` header starting at `start`. */
   const readBands = (start: number): { block: BandBlock; next: number } => {
@@ -474,7 +479,14 @@ function parseGoalRaw(content: string, palette?: PaletteColors): ParsedGoal {
     const t = target ?? 0;
     let bands: GoalBand[];
     let closeEdge: number | null = null;
-    if (block) {
+    const shared = block
+      ? resolvedBands.get(block)?.get(hasTarget ? t : null)
+      : undefined;
+    if (shared) {
+      // Same block, same target: share the resolved bands by reference.
+      bands = shared.bands;
+      closeEdge = shared.closeEdge;
+    } else if (block) {
       const specs = [...block.lines];
       // A last line with only a number closes the last band (needs ≥ 2 lines).
       let close: BandSpec | null = null;
@@ -530,6 +542,17 @@ function parseGoalRaw(content: string, palette?: PaletteColors): ParsedGoal {
         color: resolveColor(b.color, palette) ?? b.color,
         lineNumber: 0,
       }));
+    }
+    if (block && !shared) {
+      let byTarget = resolvedBands.get(block);
+      if (!byTarget) {
+        byTarget = new Map<
+          number | null,
+          { bands: GoalBand[]; closeEdge: number | null }
+        >();
+        resolvedBands.set(block, byTarget);
+      }
+      byTarget.set(hasTarget ? t : null, { bands, closeEdge });
     }
     const explicit = !!block;
     // Rows of a bullet chart always run to their actual (#1851 rule 6).

@@ -838,11 +838,11 @@ export function parseBoxesAndLines(
 
   // Validate group references and implicitly create node endpoints
   const validEdges: BLEdge[] = [];
+  const allGroups = Array.from(groupLabels);
   for (const edge of result.edges) {
     let valid = true;
 
     // Check group references exist
-    const allGroups = Array.from(groupLabels);
     if (edge.source.startsWith('__group_')) {
       const label = edge.source.slice('__group_'.length);
       const found = groupLabels.has(normalizeName(label));
@@ -1039,7 +1039,7 @@ function resolveRankHints(
     const stack = [...(succ.get(from) ?? [])];
     while (stack.length > 0) {
       const v = stack.pop()!;
-      if (targets.has(v)) return v;
+      if (v !== from && targets.has(v)) return v;
       if (seen.has(v)) continue;
       seen.add(v);
       stack.push(...(succ.get(v) ?? []));
@@ -1051,6 +1051,7 @@ function resolveRankHints(
   const rankOrder: string[][] = [];
   for (const hint of hints) {
     const labels: string[] = [];
+    const seenLabels = new Set<string>();
     for (const name of hint.names) {
       if (name.startsWith('__group_')) {
         warn(
@@ -1067,18 +1068,21 @@ function resolveRankHints(
         warn(hint.lineNumber, msg);
         continue;
       }
-      if (!labels.includes(label)) labels.push(label);
+      if (!seenLabels.has(label)) {
+        // `label` is already a resolved box label, not raw input (#2273).
+        // eslint-disable-next-line name-normalize/required-at-insertion
+        seenLabels.add(label);
+        labels.push(label);
+      }
     }
     if (labels.length < 2) {
       warn(hint.lineNumber, `${hint.kind} needs at least two boxes — ignored`);
       continue;
     }
     if (hint.kind === 'same-rank') {
+      const members = new Set(labels);
       const clash = labels
-        .map(
-          (a) =>
-            [a, reaches(a, new Set(labels.filter((b) => b !== a)))] as const
-        )
+        .map((a) => [a, reaches(a, members)] as const)
         .find(([, b]) => b !== null);
       if (clash) {
         warn(

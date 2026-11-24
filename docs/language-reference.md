@@ -6013,6 +6013,8 @@ A calendar draws a span of days as tiles. A day can hold **marks** (a number or 
 | month headers only              | the months named                                 |
 | none of these                   | the dates given                                  |
 
+A span is at most 10 years (`CALENDAR_MAX_SPAN_YEARS`); a longer one is clamped and reports `E_CALENDAR_SPAN_TOO_LONG`.
+
 | Line            | Draws                                                                                                                  |
 | --------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | `layout weeks`  | one column per week, seven weekday rows (the GitHub shape)                                                             |
@@ -6089,6 +6091,7 @@ A unit that is a word takes an English plural; one with no vowel (`km`, `kg`) st
 | `E_CALENDAR_BAD_VALUE`          | a number-group value that is not a number of zero or more               |
 | `E_CALENDAR_BAD_OPTION`         | `year`, `max`, `week-start`, `unit`, `empty` or `from` with a bad value |
 | `E_CALENDAR_BAD_RANGE`          | a `from … to …` that ends before it starts                              |
+| `E_CALENDAR_SPAN_TOO_LONG`      | a span longer than 10 years (clamped to 10)                             |
 | `E_CALENDAR_END_BEFORE_START`   | an `a -> b` range that ends before it starts                            |
 | `E_CALENDAR_BAD_LAYOUT`         | `layout` with another value                                             |
 | `E_CALENDAR_NO_ENTRIES`         | no entries and no span                                                  |

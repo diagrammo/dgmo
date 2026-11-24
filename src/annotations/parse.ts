@@ -169,7 +169,11 @@ function matchCategory(
       : null;
   }
   const words = text.split(/\s+/);
-  for (let w = words.length; w >= 1; w--) {
+  // A candidate with more words than any category cannot match.
+  let maxWords = 1;
+  for (const c of categories)
+    maxWords = Math.max(maxWords, c.split(/\s+/).length);
+  for (let w = Math.min(words.length, maxWords); w >= 1; w--) {
     const cand = words.slice(0, w).join(' ');
     if (categories.includes(cand))
       return { category: cand, rest: words.slice(w).join(' ') };

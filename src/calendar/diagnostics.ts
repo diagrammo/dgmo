@@ -68,6 +68,16 @@ export const CALENDAR_DX = {
     hint: 'Swap the two dates: `from` is the first day, `to` the last.',
     example: `calendar Runs\nfrom 2026-11-30 to 2026-09-01`,
   },
+  SPAN_TOO_LONG: {
+    code: 'E_CALENDAR_SPAN_TOO_LONG',
+    severity: 'error',
+    chartType: 'calendar',
+    title: 'Span is too long',
+    message: (p) =>
+      `The span ${(p.from as string) ?? 'start'} to ${(p.to as string) ?? 'end'} is longer than ${(p.years as number) ?? 10} years; the chart stops at ${(p.years as number) ?? 10} years.`,
+    hint: 'Shorten the span: `from` and `to` may sit at most 10 years apart.',
+    example: `calendar Runs\nfrom 2000-01-01 to 2030-12-31`,
+  },
   END_BEFORE_START: {
     code: 'E_CALENDAR_END_BEFORE_START',
     severity: 'error',

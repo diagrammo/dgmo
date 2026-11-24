@@ -376,11 +376,11 @@ export function parseMindmap(
             );
             continue;
           }
-          const existing: string[] = parent.description
-            ? [...parent.description]
-            : [];
-          existing.push(descValue);
-          parent.description = existing;
+          // The parser builds every description array itself, so it can
+          // append in place; copying per line made this quadratic (#2273).
+          if (parent.description)
+            (parent.description as string[]).push(descValue);
+          else parent.description = [descValue];
           continue;
         }
       }

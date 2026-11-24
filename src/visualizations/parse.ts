@@ -946,7 +946,11 @@ function parseVisualizationFull(
           // Try progressively shorter prefixes against known set names/aliases.
           const words = lastSeg.split(/\s+/);
           let matchLen = 0;
-          for (let w = words.length; w >= 1; w--) {
+          // A candidate longer than the longest known name cannot match.
+          let maxRefWords = 1;
+          for (const ref of knownSetRefs)
+            maxRefWords = Math.max(maxRefWords, ref.split(/\s+/).length);
+          for (let w = Math.min(words.length, maxRefWords); w >= 1; w--) {
             const candidate = words.slice(0, w).join(' ');
             if (knownSetRefs.has(candidate.toLowerCase())) {
               matchLen = w;
@@ -1988,7 +1992,11 @@ function tokenizeFreeformText(text: string): WordCloudWord[] {
 
   for (const raw of tokens) {
     // Strip leading/trailing apostrophes
-    const word = raw.replace(/^'+|'+$/g, '');
+    let start = 0;
+    let end = raw.length;
+    while (start < end && raw.charCodeAt(start) === 39) start++;
+    while (end > start && raw.charCodeAt(end - 1) === 39) end--;
+    const word = raw.slice(start, end);
     if (word.length < 2 || STOP_WORDS.has(word)) continue;
     counts.set(word, (counts.get(word) ?? 0) + 1);
   }

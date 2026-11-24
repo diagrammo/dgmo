@@ -2492,15 +2492,43 @@ function isNumericToken(tok: string): boolean {
  * null when no split names two declared series.
  */
 function splitTwoSeries(
-  tokens: readonly string[],
-  index: ReadonlyMap<string, number>
+  line: TokenLine,
+  start: number,
+  end: number,
+  index: ReadonlyMap<string, number>,
+  maxNameLength: number
 ): [number, number] | null {
-  for (let k = 1; k < tokens.length; k++) {
-    const a = index.get(tokens.slice(0, k).join(' ').toLowerCase());
-    const b = index.get(tokens.slice(k).join(' ').toLowerCase());
+  // Read each name out of one joined string by offset, so a candidate costs
+  // its own length and not the length of the whole line.
+  const { full, off } = line;
+  const slice = (a: number, b: number) => full.slice(off[a], off[b]! - 1);
+  const first = off[start]!;
+  for (let k = start + 1; k < end; k++) {
+    // Lower-casing never shortens a name, so a longer slice cannot match.
+    if (off[k]! - 1 - first > maxNameLength) break;
+    if (off[end]! - 1 - off[k]! > maxNameLength) continue;
+    const a = index.get(slice(start, k).toLowerCase());
+    const b = index.get(slice(k, end).toLowerCase());
     if (a !== undefined && b !== undefined) return [a, b];
   }
   return null;
+}
+
+/** A token list joined once, with the offset where each token starts. */
+interface TokenLine {
+  full: string;
+  off: number[];
+}
+
+function tokenLine(tokens: readonly string[]): TokenLine {
+  const off: number[] = [];
+  let at = 0;
+  for (const t of tokens) {
+    off.push(at);
+    at += t.length + 1;
+  }
+  off.push(at);
+  return { full: tokens.join(' '), off };
 }
 
 /**
@@ -2538,6 +2566,9 @@ function settleSeriesFills(
   }
   const names = result.seriesNames ?? (result.series ? [result.series] : []);
   const index = new Map(names.map((n, i) => [n.toLowerCase(), i] as const));
+  let maxNameLength = 0;
+  for (const key of index.keys())
+    maxNameLength = Math.max(maxNameLength, key.length);
   const unknown = (tokens: readonly string[]): string => {
     const missing = tokens.filter((t) => !index.has(t.toLowerCase()));
     const listed = (missing.length ? missing : tokens)
@@ -2551,8 +2582,12 @@ function settleSeriesFills(
   for (const { tokens, lineNumber } of rawBands) {
     let found: SeriesBand | null = null;
     // The label leads; the last two names are the bounds.
+    const line = tokenLine(tokens);
     for (let i = tokens.length - 2; i >= 1 && !found; i--) {
-      const pair = splitTwoSeries(tokens.slice(i), index);
+      // The two names span at most twice the longest name, plus a space.
+      if (line.off[tokens.length]! - line.off[i]! > 2 * maxNameLength + 2)
+        break;
+      const pair = splitTwoSeries(line, i, tokens.length, index, maxNameLength);
       if (pair)
         found = {
           label: tokens.slice(0, i).join(' '),
@@ -2587,7 +2622,13 @@ function settleSeriesFills(
         )
       )
         continue;
-      const pair = splitTwoSeries(tokens.slice(0, tokens.length - c), index);
+      const pair = splitTwoSeries(
+        tokenLine(tokens),
+        0,
+        tokens.length - c,
+        index,
+        maxNameLength
+      );
       if (pair)
         found = {
           a: pair[0],

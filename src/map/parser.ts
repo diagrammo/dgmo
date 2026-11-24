@@ -62,7 +62,7 @@ const SCOPE_RE = /^[A-Z]{2}(?:-[A-Z0-9]{1,3})?$/;
 // straight, `~~`/`~label~` undirected arc. `[^>]` excludes `>` so an undirected
 // branch can never swallow a directed token; directed branches are listed first.
 const ARROW_TOKENS = '-[^>]*?->|->|~[^>]*?~>|~>|-[^>]*?-|~[^>]*?~';
-const ARROW_SPLIT = new RegExp(`\\s+(${ARROW_TOKENS})\\s+`);
+const ARROW_SPLIT = new RegExp(`(?<!\\s)\\s+(${ARROW_TOKENS})\\s+`);
 const HUB_RE = new RegExp(`^(${ARROW_TOKENS})\\s+(.+)$`);
 // A route leg line: an optional leading arrow (with in-arrow label) + a destination.
 const LEG_ARROW_RE = new RegExp(`^(${ARROW_TOKENS})\\s+(.+)$`);
@@ -106,10 +106,8 @@ export function looksLikeMap(content: string): boolean {
 
 /** Strip a trailing/`//`-leading line comment (dgmo convention) without eating
  *  `http://`-style substrings (require start-of-line or preceding whitespace). */
-function stripInlineComment(line: string): string {
-  return line
-    .replace(/(^|\s)\/\/.*$/, (_m, p1: string) => p1)
-    .replace(/\s+$/, '');
+export function stripInlineComment(line: string): string {
+  return line.replace(/(^|\s)\/\/.*$/, (_m, p1: string) => p1).trimEnd();
 }
 
 export function parseMap(content: string, palette?: PaletteColors): ParsedMap {

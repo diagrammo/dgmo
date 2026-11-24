@@ -45,7 +45,9 @@ const VIEW_RE = /^(front|back)$/i;
 /** A part line: a catalog name (letters/hyphens) + optional trailing metadata. */
 const PART_RE = /^([a-zA-Z][\w-]*)\s*(.*)$/;
 /** One `key: value` metadata pair (comma-separated on the trailing region). */
-const META_PAIR_RE = /([a-zA-Z][\w-]*)\s*:\s*([^,]+)/g;
+// The trailing alternatives consume a word that did not start a pair in one
+// step, so a long word with no colon is scanned once, not once per letter.
+const META_PAIR_RE = /([a-zA-Z][\w-]*)\s*:\s*([^,]+)|[a-zA-Z][\w-]*|[\s\S]/g;
 
 export function parseBody(
   content: string,
@@ -239,8 +241,9 @@ function parseBodyRaw(content: string, palette?: PaletteColors): ParsedBody {
         }
         const metadata: Record<string, string> = {};
         for (const pair of rest.matchAll(META_PAIR_RE)) {
+          if (pair[1] === undefined) continue;
           const key =
-            aliasMap.get(pair[1]!.toLowerCase()) ?? tagAttrKey(pair[1]!);
+            aliasMap.get(pair[1].toLowerCase()) ?? tagAttrKey(pair[1]);
           metadata[key] = pair[2]!.trim();
         }
         currentPart = {

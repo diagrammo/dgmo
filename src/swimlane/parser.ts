@@ -202,6 +202,13 @@ const isGatewayShape = (s: SwimShape): boolean =>
   s === 'inclusive' ||
   s === 'event-based';
 
+const ARROW_SPACE = /\s/;
+interface ArrowMatch {
+  index: number;
+  text: string;
+  label?: string;
+}
+
 /**
  * Arrow token: a plain `->`, or a labeled `-label->` whose leading `-` sits at a
  * token boundary (start-of-line or after whitespace). The boundary requirement
@@ -211,8 +218,35 @@ const isGatewayShape = (s: SwimShape): boolean =>
  * plain alternative. The label itself may contain spaces (`-no ack->`); it just
  * can't contain `>`. The labeled alternative is tried first so `-changes->` wins
  * over the bare `->` nested inside it.
+ *
+ * `nextArrow` is that pattern, `(?:^|\s)-([^>]+?)->|->|~>`, as a scan: at or after `from`: `(?:^|\s)-([^>]+?)->` first, then
+ * A label can only end at the first
+ * `>` after its dash, so that `>` is found once and reused; the regex form
+ * rescanned to the end of the line from every ` -` start.
  */
-const ARROW_RE = /(?:^|\s)-([^>]+?)->|->|~>/g;
+function nextArrow(line: string, from: number): ArrowMatch | null {
+  let gt = -2; // cached first `>` at or after the label start; -1 = none
+  for (let s = from; s < line.length; s++) {
+    const dash =
+      s === 0 && line[0] === '-' ? 0 : ARROW_SPACE.test(line[s]!) ? s + 1 : -1;
+    if (dash >= 0 && line[dash] === '-') {
+      const b = dash + 1;
+      if (gt === -2 || (gt >= 0 && gt < b)) gt = line.indexOf('>', b);
+      if (gt >= b + 2 && line[gt - 1] === '-')
+        return {
+          index: s,
+          text: line.slice(s, gt + 1),
+          label: line.slice(b, gt - 1),
+        };
+    }
+    if (line.startsWith('->', s) || line.startsWith('~>', s))
+      return { index: s, text: line.slice(s, s + 2) };
+  }
+  return null;
+}
+
+/** Lanes a diagnostic names for an ambiguous node; the rest are counted. */
+const AMBIGUOUS_LANES_SHOWN = 10;
 
 interface ChainPart {
   text: string;
@@ -225,19 +259,18 @@ interface ChainPart {
 /** Split a flow line into node references + in-arrow labels. */
 function splitChain(line: string): ChainPart[] {
   const parts: ChainPart[] = [];
-  ARROW_RE.lastIndex = 0;
   let lastIndex = 0;
-  let m: RegExpExecArray | null;
+  let m: ArrowMatch | null;
   const rawLabels: (string | undefined)[] = [];
   const rawMessage: boolean[] = [];
   const segments: string[] = [];
-  while ((m = ARROW_RE.exec(line)) !== null) {
+  while ((m = nextArrow(line, lastIndex)) !== null) {
     segments.push(line.slice(lastIndex, m.index));
-    let lbl = m[1]?.trim();
+    let lbl = m.label?.trim();
     if (lbl === '') lbl = undefined; // `-->` (empty in-arrow label) → no label
     rawLabels.push(lbl);
-    rawMessage.push(m[0] === '~>');
-    lastIndex = m.index + m[0].length;
+    rawMessage.push(m.text === '~>');
+    lastIndex = m.index + m.text.length;
   }
   segments.push(line.slice(lastIndex));
   for (let i = 0; i < segments.length; i++) {
@@ -578,6 +611,9 @@ function parseSwimlaneRaw(
     return { rest: t };
   };
 
+  /** Artifact kind+label keys per draft, so the same-line dedupe is O(1). */
+  const artifactKeys = new WeakMap<Draft, Set<string>>();
+
   /** Apply same-line `key: value` tag metadata to a draft (rejecting reserved keys). */
   const applyMeta = (
     draft: Draft,
@@ -600,8 +636,15 @@ function parseSwimlaneRaw(
         if (!label) continue;
         const kind = k;
         // A header line's meta is read twice (declaration + fan source).
-        if (!draft.artifacts.some((a) => a.kind === kind && a.label === label))
+        let seen = artifactKeys.get(draft);
+        if (!seen) {
+          seen = new Set(draft.artifacts.map((a) => `${a.kind}\0${a.label}`));
+          artifactKeys.set(draft, seen);
+        }
+        if (!seen.has(`${kind}\0${label}`)) {
+          seen.add(`${kind}\0${label}`);
           draft.artifacts.push({ kind, label });
+        }
         continue;
       }
       if (k === 'timer' || k === 'message' || k === 'signal') {
@@ -801,7 +844,14 @@ function parseSwimlaneRaw(
       diagnostics.push(
         emit(SWIMLANE_DX.AMBIGUOUS_NODE, lineNum, {
           node: cleanLabel,
-          lanes: cands.map((c) => c.laneId).join(', '),
+          lanes:
+            cands
+              .slice(0, AMBIGUOUS_LANES_SHOWN)
+              .map((c) => c.laneId)
+              .join(', ') +
+            (cands.length > AMBIGUOUS_LANES_SHOWN
+              ? ` and ${cands.length - AMBIGUOUS_LANES_SHOWN} more`
+              : ''),
         })
       );
       return finish(cands[0]!);

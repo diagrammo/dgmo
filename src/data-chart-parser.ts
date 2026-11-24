@@ -27,6 +27,9 @@ import {
   warnNoAnchor,
 } from './annotations/anchored';
 
+/** Necessary tail of a sankey link line: `<value>` and an optional color word. */
+const SANKEY_LINK_TAIL_RE =
+  /\s-?[\d,_]+(?:\.\d+)?(?:\s+[A-Za-z][A-Za-z0-9_-]*)?\s*$/;
 const SCATTER_ONLY: ReadonlySet<string> = new Set(['scatter']);
 import type { LegendGroupData } from './utils/legend-types';
 
@@ -874,9 +877,13 @@ function parseExtendedChartFull(
     // silently re-read as a bare node and the flow vanished with the only
     // diagnostic being a misleading "No links found" on line 1.
     // Source/target labels still accept trailing-token color via extractColor.
-    const arrowMatch = trimmed.match(
-      /^(.+?)\s*(->|--)\s*(.+?)\s+(-?[\d,_]+(?:\.[\d]+)?)(?:\s+([A-Za-z][A-Za-z0-9_-]*))?\s*$/
-    );
+    // The tail test keeps a line that cannot end in a value from backtracking
+    // through every arrow it holds.
+    const arrowMatch = SANKEY_LINK_TAIL_RE.test(trimmed)
+      ? trimmed.match(
+          /^(.+?)\s*(->|--)\s*(.+?)\s+(-?[\d,_]+(?:\.[\d]+)?)(?:\s+([A-Za-z][A-Za-z0-9_-]*))?\s*$/
+        )
+      : null;
     if (arrowMatch) {
       const [, rawSource, arrow, rawTarget, rawVal, rawLinkColor] = arrowMatch;
       // Captures 1-4 are non-optional in the regex pattern.

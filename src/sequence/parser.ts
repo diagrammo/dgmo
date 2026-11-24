@@ -329,7 +329,10 @@ const GROUP_HEADING_FALLBACK = /^\[([^\]]+)\]\s*(.*)$/;
 const SECTION_PATTERN = /^==\s+(.+?)(?:\s*==)?\s*$/;
 
 // Arrow pattern for sequence inference — detects any arrow form
-const ARROW_PATTERN = /\S+\s*(?:<-\S+-|<~\S+~|-\S+->|~\S+~>|->|~>|<-|<~)\s*\S+/;
+// Reduced to its boolean core: the labeled forms (`<-x-`, `-x->`) contain a
+// plain `->`/`<-` with a non-space either side, and one flanking character is
+// enough, so `\S+` runs (cubic on a long dash line) become a single `\S`.
+const ARROW_PATTERN = /\S\s*(?:->|~>|<-|<~)\s*\S/;
 
 // Note patterns — colon-free syntax only
 // Single-line: "note text", "note left text", "note right of X text", "note left X text"

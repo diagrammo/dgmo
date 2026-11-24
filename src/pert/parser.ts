@@ -224,7 +224,7 @@ function isValidDurationUnit(u: string): u is Duration['unit'] {
 }
 
 /** Trailing `as <ident>` (alias) suffix; `<ident>` ≤ 12 chars. */
-const ALIAS_SUFFIX_RE = /\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/;
+const ALIAS_SUFFIX_RE = /(?<!\s)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/;
 
 /**
  * Numeric-with-optional-unit token. The unit set matches `parseDuration()`
@@ -283,12 +283,17 @@ function deriveSeed(s: string): number {
 // ============================================================
 
 /** Trim a `#` line-leading comment off the END of a line. */
-function stripTrailingComment(line: string): string {
+export function stripTrailingComment(line: string): string {
   // Only strip when `#` is preceded by whitespace; preserves names that
   // happen to contain `#` literally (none in PERT today, but cheap).
-  const m = line.match(/^(.*?)\s+#.*$/);
-  // In-bounds by regex match: group 1 is guaranteed present.
-  return (m ? m[1]! : line).trimEnd();
+  // Linear scan: the first `#` with whitespace before it ends the line.
+  // (`.` never crossed these separators, so such a line was never cut.)
+  if (!/[\n\r\u2028\u2029]/.test(line)) {
+    for (let i = line.indexOf('#'); i !== -1; i = line.indexOf('#', i + 1)) {
+      if (i > 0 && /\s/.test(line[i - 1]!)) return line.slice(0, i).trimEnd();
+    }
+  }
+  return line.trimEnd();
 }
 
 /**

@@ -233,6 +233,10 @@ function levenshtein(a: string, b: string): number {
   return dp[m]![n]!;
 }
 
+/** Longest string compared by `suggest`, and most candidates it considers. */
+const SUGGEST_MAX_LEN = 64;
+const SUGGEST_MAX_CANDIDATES = 200;
+
 /**
  * Returns a "did you mean 'X'?" suggestion if the input is close to one of the candidates.
  * Returns null if no good match is found.
@@ -259,9 +263,16 @@ export function suggest(
   let bestDist = Infinity;
   let bestTie = Infinity;
 
+  // Author-controlled strings: bound the edit-distance work (#2275). Distance
+  // is at least the length difference, so a candidate further off than the
+  // threshold is skipped unseen; compared text and candidates are capped.
+  const compared = lower.slice(0, SUGGEST_MAX_LEN);
+  let seen = 0;
   for (const c of candidates) {
+    if (++seen > SUGGEST_MAX_CANDIDATES) break;
+    if (Math.abs(c.length - lower.length) > threshold) continue;
     const lc = c.toLowerCase();
-    const dist = levenshtein(lower, lc);
+    const dist = levenshtein(compared, lc.slice(0, SUGGEST_MAX_LEN));
     if (dist === 0 || dist > threshold) continue;
 
     // 🔴 Break ties deliberately, because the loop used to take the first
