@@ -2934,6 +2934,12 @@ interface BLRenderOptions {
         min: number;
         max: number;
     };
+    /** Upper bound on the fit-to-pane scale. The app passes the scale it drew
+     *  before a fold, so folding a group never makes text bigger (rubric rule
+     *  8, diagrammo/diagrammo#2062). The fit still wins when it is smaller, so
+     *  unfolding never overflows the pane. The scale used is on the root
+     *  `<svg>` as `data-scale`. */
+    maxScale?: number;
 }
 declare function renderBoxesAndLines(container: HTMLDivElement, parsed: ParsedBoxesAndLines, layout: BLLayoutResult, palette: PaletteColors, isDark: boolean, options?: BLRenderOptions): void;
 declare function renderBoxesAndLinesForExport(container: HTMLDivElement, parsed: ParsedBoxesAndLines, layout: BLLayoutResult, palette: PaletteColors, isDark: boolean, options?: {
