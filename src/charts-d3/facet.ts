@@ -20,6 +20,7 @@
 import type { ParsedChart } from '../chart';
 import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
+import { FRAME_BODY_TOP } from '../utils/title-constants';
 import { annotationValues } from '../annotations/parse';
 import { buildValueAxis } from './value-axis';
 import { renderBar } from './bar';
@@ -195,7 +196,9 @@ export function renderFacet(
   hasTitle: boolean
 ): void {
   const seriesCount = Math.max(1, chart.seriesNames?.length ?? 1);
-  const top = reserveHeader(
+  // The first row's headings are body ink, so they start under the title
+  // band like any chart body (#2111); reserveHeader alone leaves them in it.
+  const header = reserveHeader(
     svg,
     { ...chart, noLegend: true },
     colors,
@@ -205,6 +208,7 @@ export function renderFacet(
     width,
     undefined
   );
+  const top = hasTitle ? Math.max(FRAME_BODY_TOP, header) : header;
   const shared = !chart.facetFreeY;
   const range = shared ? sharedRange(chart, seriesCount) : null;
   const colorOf = (s: number): string =>
