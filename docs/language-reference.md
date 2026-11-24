@@ -6431,18 +6431,18 @@ Designer 141
 
 ### 25F.3 Options
 
-| Option                           | Effect                                                                              |
-| -------------------------------- | ----------------------------------------------------------------------------------- |
-| `sort gap`                       | Rows by last − first, largest first (two or more series)                            |
-| `sort <series>`                  | Rows by that series' value, largest first                                           |
-| `sort name`                      | Rows A–Z by name. Default: as written                                               |
-| `gap`                            | Print last − first at each row's right end, signed (`+7`, `−3`). Two or more series |
-| `connector direction`            | Each connector green for a rise and red for a fall. Default: grey                   |
-| `connector direction down`       | The same, flipped, for when a fall is good                                          |
-| `x-axis [min..max] [log]`        | The value range and scale                                                           |
-| `format`, `unit`, `locale`       | The number format of the axis and the gaps (§15.1.4)                                |
-| `subtitle`, `footnote`           | The chart frame (§1)                                                                |
-| `palette`                        | Draw in a built-in palette                                                          |
+| Option                     | Effect                                                                              |
+| -------------------------- | ----------------------------------------------------------------------------------- |
+| `sort gap`                 | Rows by last − first, largest first (two or more series)                            |
+| `sort <series>`            | Rows by that series' value, largest first                                           |
+| `sort name`                | Rows A–Z by name. Default: as written                                               |
+| `gap`                      | Print last − first at each row's right end, signed (`+7`, `−3`). Two or more series |
+| `connector direction`      | Each connector green for a rise and red for a fall. Default: grey                   |
+| `connector direction down` | The same, flipped, for when a fall is good                                          |
+| `x-axis [min..max] [log]`  | The value range and scale                                                           |
+| `format`, `unit`, `locale` | The number format of the axis and the gaps (§15.1.4)                                |
+| `subtitle`, `footnote`     | The chart frame (§1)                                                                |
+| `palette`                  | Draw in a built-in palette                                                          |
 
 ### 25F.4 Diagnostics
 
