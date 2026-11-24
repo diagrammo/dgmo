@@ -548,6 +548,28 @@ export interface NodePierce {
  * node that is NOT one of their endpoints. Endpoints — including collapsed group
  * boxes (`__group_<label>`) — are excluded; an edge legitimately meets those.
  */
+/** Sample spacing a straight run is filled in at, so a pierce test that
+ *  counts points inside a box sees a straight line through it — the
+ *  flattened spline holds only the two ends of an `L` segment (#2062). */
+const PIERCE_STEP = 4;
+function densify(pts: readonly Pt[]): Pt[] {
+  const out: Pt[] = [];
+  for (let i = 0; i < pts.length; i++) {
+    const b = pts[i]!;
+    if (i > 0) {
+      const a = pts[i - 1]!;
+      const n = Math.floor(Math.hypot(b.x - a.x, b.y - a.y) / PIERCE_STEP);
+      for (let k = 1; k < n; k++)
+        out.push({
+          x: a.x + ((b.x - a.x) * k) / n,
+          y: a.y + ((b.y - a.y) * k) / n,
+        });
+    }
+    out.push(b);
+  }
+  return out;
+}
+
 export function detectEdgeNodePierces(
   layout: BLLayoutResult,
   opts?: { inset?: number; minPts?: number }
@@ -573,7 +595,7 @@ export function detectEdgeNodePierces(
   const polys = flatPolys(layout);
   layout.edges.forEach((e, idx) => {
     if (e.points.length < 2) return;
-    const poly = polys[idx]!.pts;
+    const poly = densify(polys[idx]!.pts);
     for (const r of rects) {
       if (
         r.key === e.source ||
@@ -1752,6 +1774,19 @@ export function tightenGroupFrames(
   }
 }
 
+/** A frozen collapse layout keeps the expanded routes, so an arrow that
+ *  now reaches a pill can run through a box in its way (#2062, rubric rule
+ *  4). Bend those round the box, kept only on a strict badness drop. */
+function unpierce(layout: BLLayoutResult): BLLayoutResult {
+  const bad = (l: BLLayoutResult) =>
+    countSplineCrossings(l) +
+    countEdgeOverlaps(l) +
+    countEdgeNodePierces(l) +
+    countGroupOverlaps(l);
+  const dp = deroutePierces(layout);
+  return dp !== layout && bad(dp) < bad(layout) ? dp : layout;
+}
+
 export async function layoutBoxesAndLinesSearch(
   parsed: ParsedBoxesAndLines,
   collapseInfo?: {
@@ -1874,7 +1909,7 @@ export async function layoutBoxesAndLinesSearch(
     });
     const stable =
       frozen &&
-      bendAroundForeignGroups(frozen, parsed.groups, {
+      bendAroundForeignGroups(unpierce(frozen), parsed.groups, {
         minDepth: STABLE_BEND_MIN_DEPTH,
       });
     if (stable) {

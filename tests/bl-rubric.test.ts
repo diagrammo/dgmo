@@ -23,7 +23,8 @@ const FIXTURES = {
 /** Blocking-rule failure counts on today's engine, per fixture and state.
  *  Measured 2026-11-13; rule 1 lowered to 0 and rule 2 to 7 on 2026-11-15,
  *  rule 2 to 6 on 2026-11-16, to 3 on 2026-11-23; rules 5 and 6 made
- *  blocking at 0 on 2026-11-23 (#2062). Lower a number when a fix lowers it; never
+ *  blocking at 0 and rule 4 at 2 on 2026-11-23, rule 2 to 0 the same day
+ *  (#2062). Lower a number when a fix lowers it; never
  *  raise one. */
 const BASELINE: Record<
   string,

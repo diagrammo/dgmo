@@ -3,7 +3,11 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import dagre from '@dagrejs/dagre';
 import { parseBoxesAndLines } from '../src/boxes-and-lines/parser';
-import { layoutBoxesAndLinesSearch } from '../src/boxes-and-lines/layout-search';
+import {
+  detectEdgeNodePierces,
+  layoutBoxesAndLinesSearch,
+} from '../src/boxes-and-lines/layout-search';
+import type { BLLayoutResult } from '../src/boxes-and-lines/layout';
 
 const realLayout = dagre.layout;
 afterEach(() => vi.restoreAllMocks());
@@ -57,5 +61,32 @@ describe('straightenDetours', () => {
       ['boxes-and-lines t', '', 'A', 'B', 'A -> B'].join('\n')
     );
     expect(lay.edges[0]!.points.length).toBeGreaterThan(2);
+  });
+});
+
+describe('detectEdgeNodePierces on a straight line', () => {
+  it('sees a two-point line through a box', () => {
+    const box = (label: string, x: number, y: number) => ({
+      label,
+      x,
+      y,
+      width: 100,
+      height: 60,
+    });
+    const layout = {
+      nodes: [box('A', 0, 0), box('M', 0, 200), box('B', 0, 400)],
+      groups: [],
+      edges: [
+        {
+          source: 'A',
+          target: 'B',
+          points: [
+            { x: 0, y: 30 },
+            { x: 0, y: 370 },
+          ],
+        },
+      ],
+    } as unknown as BLLayoutResult;
+    expect(detectEdgeNodePierces(layout).map((p) => p.node)).toEqual(['M']);
   });
 });
