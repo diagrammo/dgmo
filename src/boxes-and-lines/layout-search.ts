@@ -26,6 +26,7 @@ import { clipEndpointsToNodes } from './edge-clip';
 import { measureEdgeLabel, EDGE_LABEL_FONT_SIZE } from './label-placement';
 import { measureText } from '../utils/text-measure';
 import { tryStableCollapseLayout } from './layout-stable-collapse';
+import { packUnlinkedMembers } from './pack-unlinked';
 import { layoutRankdir } from './rankdir';
 import { rankWithHints, applyRankOrder } from './rank-hints';
 
@@ -1787,6 +1788,61 @@ function bendFrozenPierces(layout: BLLayoutResult): BLLayoutResult {
   return dp !== layout && bad(dp) < bad(layout) ? dp : layout;
 }
 
+/** A group's unlinked boxes fill its grid's holes (#2062, rubric rule 4):
+ *  `packUnlinkedMembers` moves them, the frames shrink to the packed
+ *  contents, and the result is kept only when it adds no crossing, overlap,
+ *  pierce, group collision or foreign-group pass. A box named by a layout
+ *  hint stays where the hint put it. */
+function packGroupHoles(
+  layout: BLLayoutResult,
+  parsed: ParsedBoxesAndLines,
+  originalGroups?: readonly BLGroup[]
+): BLLayoutResult {
+  const pinned = new Set<string>([
+    ...(parsed.sameRank ?? []).flat(),
+    ...(parsed.rankOrder ?? []).flat(),
+    ...(parsed.invisibleEdges ?? []).flatMap((e) => [e.source, e.target]),
+  ]);
+  const packed = packUnlinkedMembers(
+    layout,
+    parsed.groups,
+    parsed.direction !== 'TB',
+    pinned
+  );
+  if (packed === layout) return layout;
+  tightenGroupFrames(
+    packed.nodes,
+    packed.groups as BLLayoutResult['groups'][number][],
+    parsed.groups,
+    originalGroups
+  );
+  // An arrow clipped to a frame that just shrank would end in empty space.
+  const ends = new Set(layout.edges.flatMap((e) => [e.source, e.target]));
+  for (const [i, f] of layout.groups.entries()) {
+    if (!ends.has(`__group_${f.label}`) && !ends.has(f.label)) continue;
+    const q = packed.groups[i]!;
+    if (
+      q.x !== f.x ||
+      q.y !== f.y ||
+      q.width !== f.width ||
+      q.height !== f.height
+    )
+      return layout;
+  }
+  const bad = (l: BLLayoutResult) =>
+    countSplineCrossings(l) +
+    countEdgeOverlaps(l) +
+    countEdgeNodePierces(l) +
+    countGroupOverlaps(l);
+  if (bad(packed) > bad(layout)) return layout;
+  if (
+    countForeignGroupCrossings(packed, parsed.groups) >
+    countForeignGroupCrossings(layout, parsed.groups)
+  )
+    return layout;
+  return packed;
+}
+
 export async function layoutBoxesAndLinesSearch(
   parsed: ParsedBoxesAndLines,
   collapseInfo?: {
@@ -2784,6 +2840,7 @@ export async function layoutBoxesAndLinesSearch(
   // overlap, pierce or group collision.
   best = bendAroundForeignGroups(best, parsed.groups);
   best = straightenDetours(best, parsed.groups);
+  best = packGroupHoles(best, parsed, collapseInfo?.originalGroups);
   opts?.onTopConfigs?.(topConfigs);
   // The last guard, and it covers the dagre winner too. dagre normally
   // clips for itself, but its `intersectRect` throws on some configurations

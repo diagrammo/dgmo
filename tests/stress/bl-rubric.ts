@@ -130,6 +130,34 @@ class View {
   }
 }
 
+/** Box centres closer than this share a lattice row or column (rule 4). */
+const LATTICE_TOL = 20;
+/** An arrow this close to an empty cell makes it a corridor: a box there
+ *  would touch the arrow. Mirrors EDGE_GAP in pack-unlinked.ts. */
+const CORRIDOR_GAP = 6;
+/** Cluster of each value (sorted values within LATTICE_TOL of the previous
+ *  one share a cluster), keyed by the value's position in `vals`, and each
+ *  cluster's mean. */
+function lattice(vals: readonly number[]): {
+  index: Map<number, number>;
+  means: number[];
+} {
+  const order = vals.map((v, i) => [v, i] as const).sort((a, b) => a[0] - b[0]);
+  const index = new Map<number, number>();
+  const sums: number[][] = [];
+  let prev = -Infinity;
+  for (const [v, i] of order) {
+    if (v - prev > LATTICE_TOL) sums.push([]);
+    sums[sums.length - 1]!.push(v);
+    index.set(i, sums.length - 1);
+    prev = v;
+  }
+  return {
+    index,
+    means: sums.map((s) => s.reduce((x, y) => x + y, 0) / s.length),
+  };
+}
+
 function segHitsRect(
   a: { x: number; y: number },
   b: { x: number; y: number },
@@ -214,14 +242,61 @@ function checkState(v: View, expanded?: View): Map<RuleId, string[]> {
       .filter(([n, gl]) => gl === g.label && v.rects.has(n))
       .map(([n]) => n);
     const free = members.filter((n) => !linked.has(n));
+    // The group's lattice: box centres within LATTICE_TOL share a line. An
+    // empty cell an arrow runs through is a corridor, which rule 4 allows;
+    // any other empty cell is a hole.
+    const rs = members.map((n) => v.rects.get(n)!);
+    const al = lattice(rs.map((r) => v.along(r)));
+    const ac = lattice(rs.map((r) => v.across(r)));
+    const cellOf = (n: string) => {
+      const i = members.indexOf(n);
+      return [al.index.get(i)!, ac.index.get(i)!] as const;
+    };
+    const filled = new Set(members.map((n) => cellOf(n).join(',')));
+    const [cw, ch] = [
+      Math.min(...rs.map((r) => r.w)),
+      Math.min(...rs.map((r) => r.h)),
+    ];
+    const isHole = (a: number, c: number): boolean => {
+      if (filled.has(`${a},${c}`)) return false;
+      const [x, y] = v.flowX
+        ? [al.means[a]!, ac.means[c]!]
+        : [ac.means[c]!, al.means[a]!];
+      const r = {
+        cx: x,
+        cy: y,
+        w: cw + 2 * CORRIDOR_GAP,
+        h: ch + 2 * CORRIDOR_GAP,
+      };
+      return !L.edges.some((e) =>
+        e.points.some((p, i) => i > 0 && segHitsRect(e.points[i - 1]!, p, r))
+      );
+    };
+    // One grid failure per group: a hole is one fault, whichever check sees it.
+    const gridFails = f.get(4)!.length;
     if (free.length >= 4) {
-      const xs = new Set(free.map((n) => Math.round(v.rects.get(n)!.cx)));
-      const ys = new Set(free.map((n) => Math.round(v.rects.get(n)!.cy)));
+      const as = new Set(free.map((n) => cellOf(n)[0]));
+      const cs = new Set(free.map((n) => cellOf(n)[1]));
       const side = Math.ceil(Math.sqrt(free.length));
-      if (Math.max(xs.size, ys.size) > side + 1)
-        fail(4, `[${g.label}] unlinked boxes span ${xs.size}×${ys.size}`);
-      else if (xs.size * ys.size - free.length > Math.min(xs.size, ys.size) - 1)
+      let holes = 0;
+      for (const a of as) for (const c of cs) if (isHole(a, c)) holes++;
+      if (Math.max(as.size, cs.size) > side + 1)
+        fail(4, `[${g.label}] unlinked boxes span ${as.size}×${cs.size}`);
+      else if (holes > Math.min(as.size, cs.size) - 1)
         fail(4, `[${g.label}] unlinked grid has holes`);
+    }
+    // Packing: an unlinked box can go anywhere in its group, so it never
+    // sits after a hole in its line (a row under LR, a column under TB) —
+    // holes come only at a line's end. Groups holding groups excluded.
+    const nested = L.groups.some((o) => v.parentOf.get(o.label) === g.label);
+    if (!nested && f.get(4)!.length === gridFails) {
+      const holed = free.filter((n) => {
+        const [a, c] = cellOf(n);
+        for (let k = 0; k < a; k++) if (isHole(k, c)) return true;
+        return false;
+      });
+      if (holed.length > 0)
+        fail(4, `[${g.label}] ${holed.join(', ')} sit after a hole`);
     }
     // Facing: an arrow between a member and a box outside the group never
     // runs through a sibling. An empty cell it runs through is a corridor,

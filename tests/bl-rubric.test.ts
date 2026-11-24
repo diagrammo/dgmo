@@ -24,8 +24,11 @@ const FIXTURES = {
  *  Measured 2026-11-13; rule 1 lowered to 0 and rule 2 to 7 on 2026-11-15,
  *  rule 2 to 6 on 2026-11-16, to 3 on 2026-11-23; rules 5 and 6 made
  *  blocking at 0 and rule 4 at 2 on 2026-11-23, rule 2 to 0 the same day
- *  (#2062). Lower a number when a fix lowers it; never
- *  raise one. */
+ *  (#2062). 2026-11-24: rule 4 learned grid holes (an unlinked box after
+ *  an empty cell of its line); on the engine before the hole-packing pass it
+ *  counted 7, after it 3, and storefront Identity collapsed went 0 to 1 only
+ *  because the stricter check sees a hole the old one did not. Lower a
+ *  number when a fix lowers it; never raise one. */
 const BASELINE: Record<
   string,
   Record<string, Partial<Record<number, number>>>

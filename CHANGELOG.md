@@ -617,6 +617,14 @@ logged · most often Great`. Diagnostics: `E_CALENDAR_HEATMAP_UNKNOWN_TAG`,
   ends in `…`, with the full text in its tooltip, instead of widening the
   whole column.
 
+### Fixed
+
+- **Boxes-and-lines: a group's unlinked boxes leave no holes in its grid
+  (diagrammo/diagrammo#2062).** A box with no lines now fills the first free
+  cell of its group, line by line, so empty cells come only at the end of a
+  line and the frame shrinks to fit. A cell an arrow runs through stays
+  empty.
+
 ## [0.96.0] - 2026-11-02
 
 ### Added
