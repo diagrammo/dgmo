@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Bar and line: small multiples, a bare `facet` flag
+  (diagrammo/diagrammo#1853).** Each series gets its own panel, in
+  declaration order, in a grid under one title block, headed by its name in
+  its colour, with no legend. Panels share one value axis; `facet-free-y`
+  gives each its own range. A line panel draws the other series in grey
+  behind its own (`no-context` turns that off). `columns N` sets the grid
+  width. `stack`, `mirror`, a right axis, `mark:`, a series `band` and
+  `fill-between` are errors beside `facet`.
+
 - **Venn `proportional`: circle and overlap areas follow the counts
   (diagrammo/diagrammo#1992).** Each set and overlap line takes a `size:`
   (`Frontend as fe blue size: 40`, `fe + be Web Systems size: 12`). Two sets
