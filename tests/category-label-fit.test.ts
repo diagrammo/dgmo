@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   planCategoryLabels,
   labelSurvives,
+  isOrderedLabelSet,
+  ORDERED_LABEL_MIN_SPACING,
   TICK_FONT,
 } from '../src/charts-d3/shared';
 import { measureText } from '../src/utils/text-measure';
@@ -45,8 +47,8 @@ describe('planCategoryLabels', () => {
     // 29 ISO dates across a ~900px plot: ~31px a slot against a ~67px label.
     const plan = planCategoryLabels(DATES, 900 / DATES.length);
     expect(plan.rotate).toBe(true);
-    // Rotation buys enough room that nothing has to be dropped here.
-    expect(plan.stride).toBe(1);
+    // Dates are ordered, so they thin to a readable count (#2212).
+    expect(plan.stride).toBeGreaterThan(1);
   });
 
   it('thins the rotated labels too when rotation alone is not enough', () => {
@@ -129,8 +131,12 @@ describe('the rendered axis', () => {
     );
     // Every surviving label is rotated, so none sits flat on the baseline.
     expect(svg).toContain('rotate(-40)');
-    // and nothing was dropped — rotation bought enough room on its own.
-    for (const d of DAY_FIRST) expect(svg).toContain(`>${d}<`);
+    // Ordered labels thin to a readable count (#2212): first and last stay,
+    // and fewer than half of them print.
+    expect(svg).toContain(`>${DAY_FIRST[0]}<`);
+    expect(svg).toContain(`>${DAY_FIRST[DAY_FIRST.length - 1]}<`);
+    const printed = DAY_FIRST.filter((d) => svg.includes(`>${d}<`)).length;
+    expect(printed).toBeLessThan(DAY_FIRST.length * 0.67);
   });
 
   it('gives 29 ISO dates a flat time axis instead (#1880)', async () => {
@@ -242,4 +248,45 @@ describe('the first rotated label stays inside the SVG', () => {
       expect(x1).toBe(56);
     });
   }
+});
+
+describe('ordered labels thin to a readable count (#2212)', () => {
+  it('keeps dates at least ORDERED_LABEL_MIN_SPACING apart when rotated', () => {
+    const slot = 900 / DATES.length;
+    const plan = planCategoryLabels(DATES, slot);
+    expect(plan.rotate).toBe(true);
+    const kept = [...plan.keep].sort((a, b) => a - b);
+    expect(kept.length).toBeLessThan(DATES.length / 1.5);
+    for (let i = 1; i < kept.length; i++) {
+      expect((kept[i] - kept[i - 1]) * slot).toBeGreaterThanOrEqual(
+        ORDERED_LABEL_MIN_SPACING
+      );
+    }
+    expect(kept[0]).toBe(0);
+    expect(kept[kept.length - 1]).toBe(DATES.length - 1);
+  });
+
+  it('classifies dates, times and numbers as ordered, names as not', () => {
+    expect(isOrderedLabelSet(['Nov 20 06:00', 'Nov 20 06:24'])).toBe(true);
+    expect(isOrderedLabelSet(['2026-07-17', '2026-07-18'])).toBe(true);
+    expect(isOrderedLabelSet(['10', '2,500', '$40k', '12%'])).toBe(true);
+    expect(isOrderedLabelSet(['Q1 2026', 'Q2 2026'])).toBe(true);
+    expect(isOrderedLabelSet(['Alpha', 'Beta'])).toBe(false);
+    expect(isOrderedLabelSet(['Mon', 'Tue'])).toBe(false);
+    expect(isOrderedLabelSet(['Node 1', 'Node 2'])).toBe(false);
+  });
+
+  it('leaves plain names on the collision-only rule', () => {
+    const names = Array.from({ length: 29 }, (_, i) =>
+      `Service ${'abcdefghij'[i % 10]}${i}`.replace(/\d/g, 'x')
+    );
+    const slot = 900 / names.length;
+    const plan = planCategoryLabels(names, slot);
+    expect(plan.stride).toBe(
+      Math.max(
+        1,
+        Math.ceil((12 * 1.25) / Math.sin((40 * Math.PI) / 180) / slot)
+      )
+    );
+  });
 });

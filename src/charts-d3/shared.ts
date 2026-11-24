@@ -506,6 +506,32 @@ const LABEL_GAP = 8;
 const LABEL_LINE_HEIGHT = 1.25;
 /** Room below the axis a rotated label region adds to the labels' drop. */
 export const ROTATED_LABEL_PAD = 12;
+/**
+ * Fewest px between two kept labels on a rotated ORDERED axis (dates, times,
+ * numbers). Rotation only needs a line height per label, which keeps thirty
+ * labels on a 900px axis; that is a fan, not a scale, and a reader needs about
+ * a dozen. Ordered labels thin to this spacing because a dropped one can be
+ * read off its neighbours. Plain names keep the collision-only rule (#2212).
+ */
+export const ORDERED_LABEL_MIN_SPACING = 60;
+const MONTH_DAY_WORDS =
+  /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|mon|tue|wed|thu|fri|sat|sun)[a-z]*\b\.?/gi;
+/**
+ * True when every label is a date, a time or a number: it has a digit and
+ * nothing but month or weekday words, digits, separators and am/pm/Q around it.
+ */
+export function isOrderedLabelSet(labels: string[]): boolean {
+  if (labels.length === 0) return false;
+  return labels.every((raw) => {
+    const t = raw.trim();
+    if (!/\d/.test(t)) return false;
+    const rest = t
+      .replace(MONTH_DAY_WORDS, '')
+      .replace(/\b(am|pm|t|z|utc)\b|\bq(?=\d)/gi, '')
+      .replace(/[kmb%$€£¥]/gi, '');
+    return /^[\d\s:/.,\-–+]*$/.test(rest);
+  });
+}
 /** A capped rotated label keeps at least this much text before its `…`. */
 const MIN_CAPPED_LABEL_W = 40;
 
@@ -585,8 +611,12 @@ export function planCategoryLabels(
   //      never on a short axis.
   const rad = (LABEL_ROTATE_DEG * Math.PI) / 180;
   const rotNeeds = (font * LABEL_LINE_HEIGHT) / Math.sin(rad);
+  const minSpacing =
+    isOrderedLabelSet(labels) && slot > 0
+      ? Math.max(rotNeeds, ORDERED_LABEL_MIN_SPACING)
+      : rotNeeds;
   const stride =
-    n <= NEVER_THIN_MAX ? 1 : Math.max(1, Math.ceil(rotNeeds / slot));
+    n <= NEVER_THIN_MAX ? 1 : Math.max(1, Math.ceil(minSpacing / slot));
   return {
     rotate: true,
     stride,
