@@ -845,6 +845,10 @@ export function countGroupOverlaps(
 // passing through it — an edge skimming the frame is not a pass-through. The
 // layout-engine study (#1221) counted at the same depth.
 const FOREIGN_GROUP_MIN_DEPTH = 12;
+// The same depth for a stable collapse's straight segments (#2061). Twelve
+// lets a segment cut a frame's corner unbent, and a straight line across a
+// corner reads as running through the group; the rubric counts from 2.
+const STABLE_BEND_MIN_DEPTH = 2;
 
 // Group label → every endpoint key the group holds, at any depth: member node
 // labels plus the `__group_` key of the group and each group nested in it. A
@@ -1061,33 +1065,73 @@ export function derouteForeignGroups(
 // at a time, keeping each bend only when it lowers the foreign-group passes and
 // adds no crossing, overlap, pierce or group collision. One edge at a time,
 // because a bend that clears one group can cross the next edge's line.
+//
+// An edge through two groups is offered three bends: around both, and around
+// each alone (#2061). The bend around both often crosses another line where
+// the bend around just one does not, and clearing one group of two still
+// lowers the count. `minDepth` is how deep a pass must reach to count; the
+// stable path passes a small one, so a straight segment clipping a frame's
+// corner is bent too.
 function bendAroundForeignGroups(
   layout: BLLayoutResult,
-  groups: readonly BLGroup[]
+  groups: readonly BLGroup[],
+  opts?: { minDepth?: number }
 ): BLLayoutResult {
-  const bentAll = derouteForeignGroups(layout, groups);
-  if (bentAll === layout) return layout;
+  const depth = opts?.minDepth ?? FOREIGN_GROUP_MIN_DEPTH;
+  const passes = detectForeignGroupCrossings(layout, groups, {
+    minDepth: depth,
+  });
+  if (!passes.length) return layout;
+  const rect = new Map<string, Rect>();
+  for (const g of layout.groups)
+    if (!g.collapsed)
+      rect.set(g.label, { x: g.x, y: g.y, w: g.width, h: g.height });
+  const byEdge = new Map<number, string[]>();
+  for (const p of passes) {
+    const arr = byEdge.get(p.edgeIdx);
+    if (arr) arr.push(p.group);
+    else byEdge.set(p.edgeIdx, [p.group]);
+  }
+  const bend = (pts0: readonly Pt[], labels: readonly string[]): Pt[] => {
+    let pts: Pt[] = pts0.map((p) => ({ x: p.x, y: p.y }));
+    for (const label of labels) {
+      const r = rect.get(label);
+      if (r) pts = detourAroundBox(pts, r) ?? detourAround(pts, r);
+    }
+    return pts;
+  };
   const bad = (l: BLLayoutResult) =>
     countSplineCrossings(l) +
     countEdgeOverlaps(l) +
     countEdgeNodePierces(l) +
     countGroupOverlaps(l);
+  const foreignOf = (l: BLLayoutResult) =>
+    countForeignGroupCrossings(l, groups, { minDepth: depth });
   let cur = layout;
-  let curForeign = countForeignGroupCrossings(cur, groups);
+  let curForeign = foreignOf(cur);
   let curBad = bad(cur);
-  bentAll.edges.forEach((e, idx) => {
-    if (e === layout.edges[idx]) return;
-    const edges = cur.edges.slice();
-    edges[idx] = e;
-    const next = { ...cur, edges };
-    const foreign = countForeignGroupCrossings(next, groups);
-    if (foreign >= curForeign) return;
-    const b = bad(next);
-    if (b > curBad) return;
-    cur = next;
-    curForeign = foreign;
-    curBad = b;
-  });
+  for (const [idx, labels] of [...byEdge].sort((a, b) => a[0] - b[0])) {
+    const e = cur.edges[idx]!;
+    const options =
+      labels.length > 1 ? [labels, ...labels.map((l) => [l])] : [labels];
+    let pick: { next: BLLayoutResult; foreign: number; bad: number } | null =
+      null;
+    for (const ls of options) {
+      const edges = cur.edges.slice();
+      edges[idx] = { ...e, points: bend(e.points, ls) };
+      const next = { ...cur, edges };
+      const foreign = foreignOf(next);
+      if (foreign >= (pick?.foreign ?? curForeign)) continue;
+      const b = bad(next);
+      if (b > curBad) continue;
+      pick = { next, foreign, bad: b };
+    }
+    if (pick) {
+      cur = pick.next;
+      curForeign = pick.foreign;
+      curBad = pick.bad;
+    }
+  }
   return cur;
 }
 
@@ -1655,7 +1699,11 @@ export async function layoutBoxesAndLinesSearch(
       sizes,
       rankdir,
     });
-    const stable = frozen && bendAroundForeignGroups(frozen, parsed.groups);
+    const stable =
+      frozen &&
+      bendAroundForeignGroups(frozen, parsed.groups, {
+        minDepth: STABLE_BEND_MIN_DEPTH,
+      });
     if (stable) {
       // Freezing keeps the expanded geometry, so a collapse that empties most
       // of the canvas leaves pills stranded across it with long diagonals
