@@ -568,6 +568,8 @@ export function renderLine(
   // era bands (markArea parity) — positioned on the left axis. Their titles
   // are text the point values must clear.
   const eraTitles: LabelRect[] = [];
+  // The era bands themselves: a note clears them, not only their titles.
+  const eraBands: LabelRect[] = [];
   const annotationFrame: ValueAxisFrame = {
     pos: (v) => yL(v),
     domain: yL.domain(),
@@ -602,6 +604,12 @@ export function renderLine(
         .attr('fill', mix(fill, bgColor, 12));
       // Hovering the era lights the points whose x is inside it (#2098).
       tagRegion(eraRect.node(), 'x', xs, xe);
+      eraBands.push({
+        x: Math.min(xs, xe),
+        y: m.top,
+        w: Math.abs(xe - xs),
+        h: plotH,
+      });
       const eraText = svg
         .append('text')
         .attr('x', (xs + xe) / 2)
@@ -1313,7 +1321,7 @@ export function renderLine(
           bottom: m.top + plotH,
         },
         reserved: eraTitles,
-        obstacles: markerLines,
+        obstacles: [...markerLines, ...eraBands],
         markers: [
           ...polylines.flat().map(([cx, cy]) => ({ cx, cy, r: 4.5 })),
           ...sampleLines(polylines),

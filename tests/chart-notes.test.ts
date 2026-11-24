@@ -515,6 +515,35 @@ describe('note', () => {
     expect(box.x > mx! || box.x + box.w < mx!).toBe(true);
   });
 
+  it('its text clears an era band, not only the era title (#2087)', async () => {
+    // The 2018-03 point sits just right of the era; the note used to land
+    // inside the shaded span, under the era's title.
+    const src = [
+      'line Plunder',
+      'series',
+      '  Blackbeard',
+      '  Bonnet',
+      'era 2017-09 -> 2018-01 Blockade',
+      '2017-04 8 5',
+      '2017-07 14 9',
+      '2017-09 20 11',
+      '2018-01 12 18',
+      '2018-03 36 22',
+      '  note Blackbeard Queen Anne runs aground',
+      '2018-08 28 31',
+      '2018-12 40 35',
+    ].join('\n');
+    const svg = await renderDataChartD3(src, 'light', palette);
+    const era = svg.match(
+      /<rect x="([\d.]+)" y="[\d.]+" width="([\d.]+)"[^>]*class="dgmo-region"/
+    )!;
+    expect(era).toBeTruthy();
+    const ex = Number(era[1]);
+    const ew = Number(era[2]);
+    const box = noteBox(svg, 11, 'Queen Anne runs aground');
+    expect(box.x >= ex + ew || box.x + box.w <= ex).toBe(true);
+  });
+
   it('takes open space over a gap between lines (#2134)', async () => {
     // Vane's 1720 point sits under three converging lines; the first clear
     // spot, above-left, was a 3px slot between them.
