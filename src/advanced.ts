@@ -809,6 +809,10 @@ export { parseWaterfall } from './waterfall/parser';
 export { renderWaterfall } from './waterfall/renderer';
 export type { ParsedWaterfall } from './waterfall/types';
 
+export { parseDot } from './dot/parser';
+export { renderDot } from './dot/renderer';
+export type { ParsedDot } from './dot/types';
+
 export { parseTreemap } from './treemap/parser';
 export { renderTreemap, renderTreemapForExport } from './treemap/renderer';
 export {
