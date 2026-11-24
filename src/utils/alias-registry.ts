@@ -60,7 +60,7 @@ export const ALIAS_TOKEN_RE = /^[A-Za-z][A-Za-z0-9_]{0,11}$/;
  * naming safe: `Storage as a Service` has a space after `a`, so nothing
  * matches and the name is untouched (spec §2A.2).
  */
-const ALIAS_ATTEMPT_RE = /\s+as\s+(\S+)\s*$/;
+const ALIAS_ATTEMPT_RE = /(?<!\s)\s+as\s+(\S+)\s*$/;
 
 /**
  * Tokens that cannot be an alias: DGMO grammar keywords plus every chart

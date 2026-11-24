@@ -117,7 +117,7 @@ const NUMBER_RE = /^[+]?(\d+(\.\d*)?|\.\d+)$/;
 /** A one-word value meant as a number but not a valid one: `-3`, `1e3`, `2,5`. */
 const NUMERIC_LOOKING_RE = /^[-+]?[\d.]/;
 /** `as <alias>` at the end of a `heat` name (§1.5). */
-const AS_ALIAS_RE = /\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})$/;
+const AS_ALIAS_RE = /(?<!\s)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})$/;
 
 /** The key the implied number group stores its marks under. */
 export const IMPLIED_GROUP_KEY = 'value';

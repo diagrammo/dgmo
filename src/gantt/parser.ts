@@ -304,7 +304,9 @@ function parseGanttRaw(content: string, palette?: PaletteColors): ParsedGantt {
   const nameAliasMap = new AliasRegistry();
   function peelAlias(label: string): { label: string; alias?: string } {
     const trimmed = label.trim();
-    const m = trimmed.match(/^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/);
+    const m = trimmed.match(
+      /^(.*?)(?<!\s)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/
+    );
     if (!m) return { label: trimmed };
     // Capture groups 1 and 2 are guaranteed by successful regex match.
     return { label: m[1]!.trim(), alias: m[2]! };

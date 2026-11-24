@@ -469,7 +469,7 @@ function parseOrgRaw(content: string, palette?: PaletteColors): ParsedOrg {
       // Capture group 1 guaranteed by CONTAINER_RE match.
       const rawLabel = containerMatch[1]!.trim();
       const asMatch = rawLabel.match(
-        /^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/
+        /^(.*?)(?<!\s)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/
       );
       // Capture groups 1 and 2 guaranteed by the regex above when asMatch is truthy.
       // §2.2 quotes are delimiters, not label text.

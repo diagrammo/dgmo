@@ -641,7 +641,9 @@ function parseExtendedChartFull(
   /** Peel `as <alias>` and resolve bare alias references in one pass. */
   function resolveSlot(raw: string): string {
     const trimmed = raw.trim();
-    const m = trimmed.match(/^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/);
+    const m = trimmed.match(
+      /^(.*?)(?<!\s)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/
+    );
     if (m) {
       // Regex capture groups [1] and [2] are non-optional in the pattern.
       const canonical = m[1]!.trim();

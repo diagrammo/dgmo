@@ -293,7 +293,9 @@ function parseStateRaw(content: string, palette?: PaletteColors): ParsedGraph {
   const nameAliasMap = new Map<string, string>();
   function peelAlias(seg: string): { seg: string; alias?: string } {
     const trimmed = seg.trim();
-    const m = trimmed.match(/^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/);
+    const m = trimmed.match(
+      /^(.*?)(?<!\s)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/
+    );
     if (!m) return { seg: trimmed };
     // Regex capture groups 1 and 2 are guaranteed by the match above.
     return { seg: m[1]!.trim(), alias: m[2]! };

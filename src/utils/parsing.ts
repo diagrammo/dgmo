@@ -920,7 +920,7 @@ export interface SplitNameAndMetaResult {
 }
 
 const RESERVED_KEY_RE = /^[A-Za-z][A-Za-z0-9_-]*$/;
-const AS_ALIAS_RE = /\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})$/;
+const AS_ALIAS_RE = /(?<!\s)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})$/;
 
 /**
  * Tokenize a line for the §1.4 metadata-cut scan:

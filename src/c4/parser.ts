@@ -825,7 +825,7 @@ function parseC4Raw(content: string, palette?: PaletteColors): ParsedC4 {
       // (modifier order: `Name is a TYPE [is a SHAPE] as <alias> [| meta]`).
       let declaredAlias: string | undefined;
       const asPostfix = remainder.match(
-        /^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*(\|.*)?$/
+        /^(.*?)(?<!\s)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*(\|.*)?$/
       );
       if (asPostfix) {
         // Capture groups [1] and [2] guaranteed by regex match.
@@ -834,7 +834,7 @@ function parseC4Raw(content: string, palette?: PaletteColors): ParsedC4 {
       } else {
         // Or peel from the namePart itself in `Name as <alias> is a TYPE` form.
         const asInName = namePart.match(
-          /^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/
+          /^(.*?)(?<!\s)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/
         );
         if (asInName) {
           // Capture groups [1] and [2] guaranteed by regex match.

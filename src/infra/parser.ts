@@ -118,7 +118,7 @@ const TAG_VALUE_RE = /^(\w[\w\s]+?)\s*$/;
 // swallowing half of it (`Api Gateway latency-`) on the bare path and killed
 // the whole match on the quoted one.
 const COMPONENT_RE =
-  /^(?:"(?<qname>[^"]+)"|(?<uname>[a-zA-Z_][\w -]*?))(?<isa>\s+is\s+an?\s+[A-Za-z][\w-]*)?(?:\s+as\s+(?<alias>[A-Za-z][A-Za-z0-9_]{0,11}))?\s*(?<meta>(?:\|.*)|(?:[a-zA-Z_][\w-]*\s*:.*))?$/;
+  /^(?:"(?<qname>[^"]+)"|(?<uname>[a-zA-Z_][\w -]*?))(?<isa>(?<!\s)\s+is\s+an?\s+[A-Za-z][\w-]*)?(?:(?<!\s)\s+as\s+(?<alias>[A-Za-z][A-Za-z0-9_]{0,11}))?(?<!\s)\s*(?<meta>(?:\|.*)|(?:[a-zA-Z_][\w-]*\s*:.*))?$/;
 
 // Legacy pipe metadata: | key: value  or  | k1: v1, k2: v2  (comma-separated).
 // Kept for transitional back-compat extraction; new same-line metadata
@@ -314,7 +314,9 @@ function parseInfraRaw(content: string): ParsedInfra {
   const nameAliasMap = new AliasRegistry();
   function peelAlias(label: string): { label: string; alias?: string } {
     const trimmed = label.trim();
-    const m = trimmed.match(/^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/);
+    const m = trimmed.match(
+      /^(.*?)(?<!\s)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/
+    );
     if (!m) return { label: trimmed };
     // Capture groups 1 & 2 in-bounds after successful match.
     return { label: m[1]!.trim(), ...(m[2] !== undefined && { alias: m[2] }) };
@@ -1428,7 +1430,9 @@ import type { DiagramSymbols } from '../completion-types';
  *  so completion suggests the bare identifier the user will reference. */
 function stripNodeDecorations(name: string): string {
   let s = name.trim();
-  const aliasMatch = s.match(/^(.*?)\s+as\s+[A-Za-z][A-Za-z0-9_]{0,11}\s*$/);
+  const aliasMatch = s.match(
+    /^(.*?)(?<!\s)\s+as\s+[A-Za-z][A-Za-z0-9_]{0,11}\s*$/
+  );
   // Capture group 1 in-bounds after successful match.
   if (aliasMatch) s = aliasMatch[1]!.trim();
   const isAMatch = s.match(/^(.*?)\s+is\s+an?\s+[A-Za-z][\w-]*\s*$/i);

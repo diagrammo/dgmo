@@ -74,7 +74,7 @@ const NO_TAG_GROUPS_MESSAGE =
 //   9: color (trailing token; recognized palette word) | undefined
 //  10: alias literal (TD-18) | undefined
 const CLASS_DECL_RE =
-  /^(?:(abstract|interface|enum)\s+)?(?:"([^"]+)"|([A-Z][^":]*?))(?:\s+extends\s+(?:"([^"]+)"|([A-Z][^":]*?)))?(?:\s+implements\s+(?:"([^"]+)"|([A-Z][^":]*?)))?(?:\s+\[(abstract|interface|enum)\])?(?:\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white))?(?:\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11}))?\s*$/;
+  /^(?:(abstract|interface|enum)\s+)?(?:"([^"]+)"|([A-Z][^":]*?))(?:(?<!\s)\s+extends\s+(?:"([^"]+)"|([A-Z][^":]*?)))?(?:(?<!\s)\s+implements\s+(?:"([^"]+)"|([A-Z][^":]*?)))?(?:(?<!\s)\s+\[(abstract|interface|enum)\])?(?:(?<!\s)\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white))?(?:(?<!\s)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11}))?(?<!\s)\s*$/;
 
 // Relationship — arrow syntax (indented under source class).
 // Arrows: --|>  ..|>  *--  o--  ..>  ->

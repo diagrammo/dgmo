@@ -434,7 +434,7 @@ function parseSitemapRaw(
       // Capture group 1 present by regex shape.
       const rawLabel = containerMatch[1]!.trim();
       const asMatch = rawLabel.match(
-        /^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/
+        /^(.*?)(?<!\s)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/
       );
       // Capture groups 1 and 2 present by regex shape.
       const label = peelQuotedName(asMatch ? asMatch[1]!.trim() : rawLabel);

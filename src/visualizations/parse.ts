@@ -1043,7 +1043,7 @@ function parseVisualizationFull(
         }
 
         const setDeclMatch = lineWithoutColor.match(
-          /^(.+?)(?:\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11}))?\s*$/i
+          /^(.+?)(?:(?<!\s)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11}))?(?<!\s)\s*$/i
         );
         if (setDeclMatch) {
           // Capture group 1 guaranteed by the regex match.
