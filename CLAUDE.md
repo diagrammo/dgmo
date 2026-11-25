@@ -144,6 +144,10 @@ Vitest with jsdom. One test file per parser/renderer in `tests/`, fixtures in `t
 - Never run a `pnpm dev` watcher concurrently with a build; the shared `dist/` gets torn
 - **Rebuild dgmo yourself after editing `src/`.** The app's `dev`/`prebuild`/`build:web`/`pretypecheck` hooks cover build, typecheck and dev-server _startup_ — nothing rebuilds for `pnpm test`, for the other consumer repos, or for an edit made while a dev server is already running
 
+## Changelog
+
+🔴 **A change records itself as a NEW file in `changelog.d/`, never as an edit to `CHANGELOG.md`.** `CHANGELOG.md` was edited by two or more landings on 19 of 31 days, and each collision forced a rebase that voided the verify receipt (diagrammo/diagrammo#2340). `changelog.d/README.md` has the format. `scripts/release.sh dgmo X.Y.Z` (workspace root) runs `scripts/changelog-assemble.mjs`, which folds the fragments in under the version and deletes them. `tests/changelog-assemble.test.ts` fails if an `## [Unreleased]` section comes back.
+
 ## Before committing
 
 Build and run the suite. When the change affects rendering, verify through the **snapshot suite** and `mcp__dgmo__validate_diagram` — 🔴 never produce an image to inspect it yourself. That includes `dgmo file.dgmo --json`, which reports structured output _and still writes a PNG_; it is not a validation command. To let the user see a change, hand them the `.dgmo` source and the app or online editor to open it in, then say what changed.
