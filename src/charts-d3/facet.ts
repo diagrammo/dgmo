@@ -11,7 +11,7 @@
 //  - A line panel draws the other series thin and grey behind its own,
 //    unless `no-context`. Bars draw no context. Context needs one scale, so
 //    `facet-free-y` panels draw none.
-//  - `columns N` fixes the grid; otherwise as many columns as fit at
+//  - `facet N` fixes the grid; otherwise as many columns as fit at
 //    FACET_MIN_PANEL_W.
 //  - Each panel is headed by its series name in the series colour; there is
 //    no legend. With a shared axis, tick labels stand on the first column.

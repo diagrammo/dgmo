@@ -987,7 +987,7 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   {
     token: 'columns',
     category: 'directive',
-    chartTypes: ['bar', 'block', 'heatmap', 'line'],
+    chartTypes: ['block', 'heatmap'],
   },
   { token: 'rows', category: 'directive', chartTypes: 'all' },
   { token: 'labels', category: 'directive', chartTypes: 'all' },

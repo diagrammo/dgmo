@@ -204,14 +204,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       },
       facet: {
         description:
-          'Small multiples: one panel per group series, on a shared value axis',
+          'Small multiples: one panel per series on a shared value axis; facet 3 sets panels per row',
       },
       'facet-free-y': {
         description: 'With facet: give each panel its own value range',
-      },
-      columns: {
-        description:
-          'With facet: panels per row (columns 3); default fits the width',
       },
       widths: {
         description:
@@ -279,10 +275,6 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       },
       'no-context': {
         description: 'With facet: draw no grey lines for the other series',
-      },
-      columns: {
-        description:
-          'With facet: panels per row (columns 3); default fits the width',
       },
       'fill-between': {
         description:

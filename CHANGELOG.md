@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Bar and line: `facet N` sets the panels per row** (#2306). The count rides
+  on the `facet` line; the separate `columns N` line no longer applies to bar
+  and line charts. Bare `facet` still fits as many panels as the width holds.
+  `columns` stays for block and heatmap.
+
 ### Added
 
 - **Boxes-and-lines: a `maxScale` render option, so folding a group keeps the

@@ -276,7 +276,7 @@ export interface ParsedChart {
   facetFreeY?: boolean;
   /** `no-context`: a faceted line draws no grey context lines. */
   noContext?: boolean;
-  /** `columns N`: the facet grid's column count. Absent ⇒ as many as fit. */
+  /** `facet N`: the facet grid's column count. Absent ⇒ as many as fit. */
   facetColumns?: number;
   diagnostics: DgmoError[];
   error: string | null;
@@ -503,7 +503,7 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
   const lines = lifted.lines;
   const parsedEras: ChartEra[] = [];
   const pieOnlyLines: [number, string][] = [];
-  /** `facet-free-y`, `no-context` and `columns`: only meaningful with `facet`. */
+  /** `facet-free-y` and `no-context`: only meaningful with `facet`. */
   const facetOptionLines: [number, string][] = [];
   const annotations: RawAnnotation[] = [];
   const annotationsFromRows: ChartAnnotation[] = [];
@@ -685,23 +685,23 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
       continue;
     }
 
-    // `columns N` (#1853): the facet grid's column count, bar and line only.
-    // Lowercase only, so a category row "Columns 3" stays data.
-    const columnsMatch =
-      result.type === 'bar' || result.type === 'line'
-        ? trimmed.match(/^columns\s+(\d+)$/)
-        : null;
-    if (columnsMatch) {
-      const n = parseInt(columnsMatch[1]!, 10);
+    // `facet N` (#1853, #2306): the panel grid's column count rides on the
+    // facet line itself. Bare `facet` is handled with the booleans below.
+    const facetArgMatch = trimmed.match(/^facet\s+(.+)$/);
+    if (facetArgMatch) {
+      result.facet = true;
+      result.facetLineNumber = lineNumber;
+      const arg = facetArgMatch[1]!.trim();
+      const n = /^\d+$/.test(arg) ? parseInt(arg, 10) : 0;
       if (n >= 1) result.facetColumns = n;
       else
         result.diagnostics.push(
           makeDgmoError(
             lineNumber,
-            '`columns` takes a whole number of 1 or more; ignoring it.'
+            `\`facet\` takes an optional column count of 1 or more, as in \`facet 3\`; ignoring "${arg}".`,
+            'warning'
           )
         );
-      facetOptionLines.push([lineNumber, 'columns']);
       continue;
     }
 
@@ -1743,7 +1743,7 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
  * Small multiples (#1853): `facet` splits a bar or line chart's series into
  * one panel each. Every panel holds one series, so the options that draw
  * several series in one plot are errors beside it, and the chart is drawn
- * as one plot. `facet-free-y`, `no-context` and `columns` mean nothing alone.
+ * as one plot. `facet-free-y` and `no-context` mean nothing alone.
  */
 function settleFacet(
   result: ParsedChart,
@@ -1801,9 +1801,7 @@ function settleFacet(
     if (!result.facet)
       warn(
         line,
-        token === 'columns'
-          ? '`columns N` sets the panel grid of a `facet` chart and does nothing without `facet`; ignoring it. If this is a data row, quote its label: "columns" 3.'
-          : `\`${token}\` applies only to a \`facet\` chart; ignoring it.`
+        `\`${token}\` applies only to a \`facet\` chart; ignoring it.`
       );
     else if (token === 'no-context' && result.type !== 'line')
       warn(

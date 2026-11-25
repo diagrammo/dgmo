@@ -64,7 +64,7 @@ const gridline = (g: Element) => g.querySelectorAll('line').length;
 describe('facet parse', () => {
   it('sets the flag and its options on bar and line', () => {
     const c = parseChart(
-      `${LINE.replace('facet', 'facet\nfacet-free-y\nno-context\ncolumns 2')}`,
+      `${LINE.replace('facet', 'facet 2\nfacet-free-y\nno-context')}`,
       palette
     );
     expect(c.facet).toBe(true);
@@ -119,18 +119,46 @@ Q2 35`;
   });
 
   it('warns on the panel options without facet, and on non-data charts', () => {
-    const src = LINE.replace('facet', 'facet-free-y\nno-context\ncolumns 2');
+    const src = LINE.replace('facet', 'facet-free-y\nno-context');
     const ws = warnings(src).map((w) => w.message);
     expect(
       ws.filter((m) => m.includes('only to a `facet` chart'))
     ).toHaveLength(2);
-    expect(ws.some((m) => m.includes('`columns N`'))).toBe(true);
-    expect(parseChart(src, palette).facetColumns).toBeUndefined();
     expect(
       warnings(`pie X\nfacet\nA 1\nB 2`).some((w) =>
         w.message.includes('only to bar and line')
       )
     ).toBe(true);
+  });
+
+  it('takes the column count on the facet line (#2306)', () => {
+    expect(parseChart(LINE.replace('facet', 'facet 3'), palette)).toMatchObject(
+      { facet: true, facetColumns: 3 }
+    );
+    expect(errors(LINE.replace('facet', 'facet 3'))).toEqual([]);
+    expect(
+      parseChart(BAR.replace('facet', 'facet 2'), palette).facetColumns
+    ).toBe(2);
+    // Bare `facet` keeps the width-based default.
+    expect(parseChart(LINE, palette).facetColumns).toBeUndefined();
+  });
+
+  it.each(['0', 'x', '2 3'])(
+    'warns on `facet %s` and keeps the default grid',
+    (arg) => {
+      const src = LINE.replace('facet', `facet ${arg}`);
+      const c = parseChart(src, palette);
+      expect(c.facet).toBe(true);
+      expect(c.facetColumns).toBeUndefined();
+      expect(
+        warnings(src).some((w) => w.message.includes('optional column count'))
+      ).toBe(true);
+    }
+  );
+
+  it('no longer reads `columns N` as the facet grid', () => {
+    const c = parseChart(LINE.replace('facet', 'facet\ncolumns 3'), palette);
+    expect(c.facetColumns).toBeUndefined();
   });
 
   it('keeps a capitalised `Columns` row as data', () => {
@@ -158,7 +186,7 @@ describe('facet render', () => {
   });
 
   it('shares one value axis, with tick labels on the first column only', async () => {
-    const h = await draw(LINE.replace('facet', 'facet\ncolumns 3'));
+    const h = await draw(LINE.replace('facet', 'facet 3'));
     const [first, second, third] = panels(h);
     expect(tickTexts(first!).length).toBeGreaterThan(1);
     expect(tickTexts(second!)).toEqual([]);
@@ -167,11 +195,17 @@ describe('facet render', () => {
     expect(gridline(second!)).toBe(gridline(first!));
   });
 
+  it('starts a new row after N panels under `facet N` (#2306)', async () => {
+    // One per row: every panel is in the first column, so each labels its ticks.
+    const ps = panels(await draw(LINE.replace('facet', 'facet 1')));
+    expect(ps).toHaveLength(3);
+    for (const g of ps) expect(tickTexts(g).length).toBeGreaterThan(1);
+  });
+
   it('gives each panel its own range under facet-free-y, with every tick shown', async () => {
     const src = `line X
-facet
+facet 2
 facet-free-y
-columns 2
 series
   Small
   Large

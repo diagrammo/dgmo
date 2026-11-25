@@ -2947,16 +2947,16 @@ under two different cluster headers is two spots and is not warned.
     `no-context` turns them off. Bars never draw them, and neither does a
     `facet-free-y` chart, whose panels share no scale.
   - The grid has as many columns as fit at a readable panel width.
-    `columns N` sets the count.
+    `facet N` sets the count, as in `facet 3`.
   - Per-panel options carry over: `fill`, `step` / `step-before`, eras,
     `orientation-horizontal`, markers, bands and the statistics overlays.
     A `note` stays with its own series' panel.
   - Errors, each drawing the chart as one plot: `stack`, `stack 100%`,
     `mirror`, a `y-right-axis` group, `mark:` on a series, a series `band`
     and `fill-between` — each needs several series in one plot. One series
-    warns and draws one chart. `facet-free-y`, `no-context` and `columns`
-    without `facet` warn and are ignored; `facet` on another chart type
-    warns.
+    warns and draws one chart. `facet-free-y` and `no-context` without
+    `facet` warn and are ignored; `facet` on another chart type warns, and
+    so does a count that is not a whole number of 1 or more.
 
 - **radar** — use a `series` block to plot one polygon per series over the shared
   axes, each in its series color, with the standard series legend (same block
@@ -2997,9 +2997,9 @@ no-auto-y                // line: anchor the y-axis at 0 (opt out of auto-fit)
 step                     // line: hold each value until the next point (§15.1.3)
 step-before              // line: steps that reach each value at its own point
 facet                    // bar, line: one panel per series (small multiples)
+facet 3                  // facet with 3 panels per row (default: as many as fit)
 facet-free-y             // facet: each panel takes its own value range
 no-context               // facet line: no grey lines for the other series
-columns 3                // facet: panels per row
 ```
 
 - `orientation-horizontal` (bar; default is vertical bars). A vertical bar
