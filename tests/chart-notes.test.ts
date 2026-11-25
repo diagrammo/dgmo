@@ -404,23 +404,90 @@ describe('note', () => {
           .join(' ');
         expect(text).toBe(ports[i]![2]);
       });
-      // The key sits below the chart as asked for, which grows by the key.
+      // The key sits below the plot, inside the size asked for (#2310): the
+      // plot gives up the key's height, and the drawing does not grow.
       const rowTops = rows.map(
         (r) => num(r.querySelector('circle')!, 'cy') - 7
       );
       const rowBottoms = rows.map(
         (r) => num(r.querySelector('circle')!, 'cy') + 7
       );
-      expect(Math.min(...rowTops)).toBeGreaterThanOrEqual(dims.height);
+      const plotBottom = Math.max(
+        ...bars.map((b) => num(b, 'y') + num(b, 'height'))
+      );
+      expect(Math.min(...rowTops)).toBeGreaterThanOrEqual(plotBottom);
       const root = doc.documentElement;
-      expect(num(root, 'height')).toBeGreaterThan(dims.height);
-      expect(Math.max(...rowBottoms)).toBeLessThanOrEqual(num(root, 'height'));
+      expect(num(root, 'height')).toBe(dims.height);
+      expect(Math.max(...rowBottoms)).toBeLessThanOrEqual(dims.height);
       expect(root.getAttribute('viewBox')).toBe(
-        `0 0 ${dims.width} ${num(root, 'height')}`
+        `0 0 ${dims.width} ${dims.height}`
       );
       // Hovering any of the three lights the others.
       expect(svg).toContain('svg:has([data-note-key="3"]:hover)');
     }
+  });
+
+  it('a numbered key stays inside the requested size (#2310)', async () => {
+    const src = [
+      'bar Voyage Mood by Leg',
+      'y-axis Votes',
+      'marker 40 Majority right',
+      'marker -40 Majority left',
+      'band -25..25 Dead calm gray',
+      'era Open sea -> Storm belt Danger zone',
+      '',
+      'stack diverging',
+      '  Despair red',
+      '  Worry orange',
+      '  Neutral gray neutral',
+      '  Hope green',
+      '  Joy blue',
+      '',
+      'Port        5 10 20 35 30',
+      'Open sea   10 15 15 30 30',
+      'Storm belt 30 30 20 15  5',
+      '  note Neutral Everyone abstained',
+      '    **Captain** ordered a vote *twice*',
+      'Doldrums 20 25 30 15 10',
+      'Landfall  2  3  5 30 60',
+    ].join('\n');
+    const num = (e: Element, a: string) => Number(e.getAttribute(a));
+    for (const dims of [{ width: 644, height: 500 }, undefined]) {
+      const svg = await renderDataChartD3(src, 'light', palette, dims);
+      const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
+      const root = doc.documentElement;
+      const rows = [...doc.querySelectorAll('g.dgmo-note-key-row')];
+      expect(rows).toHaveLength(1);
+      const h = num(root, 'height');
+      if (dims) expect(h).toBe(dims.height);
+      expect(root.getAttribute('viewBox')).toBe(
+        `0 0 ${num(root, 'width')} ${h}`
+      );
+      const texts = [...doc.querySelectorAll('.dgmo-note-key-text')];
+      expect(texts.length).toBeGreaterThan(0);
+      for (const t of texts) expect(num(t, 'y')).toBeLessThan(h);
+      const disc = rows[0]!.querySelector('circle')!;
+      expect(num(disc, 'cy') + num(disc, 'r')).toBeLessThanOrEqual(h);
+      // Hovering the disc, the key row or the bar lights the others.
+      expect(svg).toContain('svg:has([data-note-key="1"]:hover)');
+      expect(doc.querySelector('rect[data-note-key="1"]')).not.toBeNull();
+    }
+  });
+
+  it('notes that all stand clear draw no key and keep the size (#2310)', async () => {
+    const dims = { width: 700, height: 560 };
+    const svg = await renderDataChartD3(
+      'bar S\nQ1 4\n  note Launch\nQ2 6\nQ3 5',
+      'light',
+      palette,
+      dims
+    );
+    expect(svg).not.toContain('dgmo-note-key');
+    const root = new DOMParser().parseFromString(
+      svg,
+      'image/svg+xml'
+    ).documentElement;
+    expect(Number(root.getAttribute('height'))).toBe(dims.height);
   });
 
   it('every note is drawn, even when the plot is crowded', async () => {

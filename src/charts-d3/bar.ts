@@ -156,7 +156,8 @@ export function renderBar(
   hasTitle: boolean,
   inlineTitle?: InlineTitleInfo,
   /** Set on the second pass when the notes could not all stand clear: the
-   *  key to draw under the chart, which grows the drawing by its height. */
+   *  key to draw under the chart. `height` already excludes the key, which
+   *  draws in the strip below it, so the drawing keeps the requested size. */
   noteKey?: NoteKeyPlan,
   /** Set when this chart is one panel of a `facet` grid (#1853). */
   panel?: FacetPanel
@@ -1383,16 +1384,10 @@ export function renderBar(
         bar?.setAttribute('data-note-key', String(it.num));
         bar?.classList.add('dgmo-note-bar');
       }
+      // The key draws in the strip the second pass took off the plot's
+      // height: the drawing keeps the size it was asked for (#2310), since a
+      // host that sized the pane clips anything taller.
       drawNoteKey(svg, marks, noteKey, { x: m.left, y: height }, noteOpts);
-      // The key goes below the chart rather than taking the plot's height:
-      // the drawing grows, and the frame lays out around the taller canvas.
-      const root = svg.node();
-      if (root) {
-        const h = Number(root.getAttribute('height') ?? 0) + noteKey.h;
-        const w = Number(root.getAttribute('width') ?? width);
-        root.setAttribute('height', String(h));
-        root.setAttribute('viewBox', `0 0 ${w} ${h}`);
-      }
       boxes = marks.map(({ x, y }) => ({
         x: x - KEY_DISC_R,
         y: y - KEY_DISC_R,
@@ -1411,7 +1406,7 @@ export function renderBar(
           svg,
           chart,
           width,
-          height,
+          height - plan.h,
           colors,
           palette,
           isDark,

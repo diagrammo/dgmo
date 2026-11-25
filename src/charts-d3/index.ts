@@ -223,7 +223,7 @@ function renderInto(
     frame
   );
   if (ok) passivePlotText(s.node());
-  // A plot may grow the drawing: a bar chart's note key (#2159).
+  // A plot that grows the drawing still gets its frame laid around it.
   const grown = height + Math.max(0, Number(s.attr('height') ?? 0) - h0);
   if (ok && frame.reserve)
     applyChartFrame(s, frame.reserve, width, grown, palette, frame.frame);
