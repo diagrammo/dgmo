@@ -48,7 +48,6 @@ export async function exportKanban(ctx: ExportContext): Promise<string> {
     ...(kanbanCollapsedColumns !== undefined && {
       collapsedColumns: kanbanCollapsedColumns,
     }),
-    ...(viewState?.cm !== undefined && { compactMeta: viewState.cm }),
     exportMode,
   });
   return finalizeSvgExport(container, theme, effectivePalette);

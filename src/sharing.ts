@@ -22,7 +22,6 @@ export interface CompactViewState {
   htv?: Record<string, string[]>; // hidden tag values
   ha?: string[]; // hidden attributes
   sem?: boolean; // semantic colors (ER)
-  cm?: boolean; // compact meta (kanban)
   c4l?: string; // C4 level
   c4s?: string; // C4 system
   c4c?: string; // C4 container

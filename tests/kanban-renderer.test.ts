@@ -456,28 +456,43 @@ tag Priority
   Fix login team: Frontend, priority: High
   Caching team: Backend, priority: Low`;
 
-  it('hides active tag group meta from cards when compactMeta is true', () => {
+  const chipTexts = (container: HTMLElement) =>
+    Array.from(container.querySelectorAll('.kanban-card text')).map(
+      (t) => t.textContent ?? ''
+    );
+
+  it('draws every chip when no group is active or a swimlane', () => {
     const parsed = parseKanban(input, palette.light);
+    const container = document.createElement('div');
+    renderKanban(container, parsed, palette.light, false, {});
+    const texts = chipTexts(container).join('|');
+    expect(texts).toContain('Frontend');
+    expect(texts).toContain('High');
+  });
 
-    // Without compact: cards show both Team and Priority meta
-    const containerFull = document.createElement('div');
-    renderKanban(containerFull, parsed, palette.light, false, {
+  it('hides the active tag group chip on every card (#2311)', () => {
+    const parsed = parseKanban(input, palette.light);
+    const container = document.createElement('div');
+    renderKanban(container, parsed, palette.light, false, {
       activeTagGroup: 'Team',
     });
-    // With compact: active tag group (Team) meta should be hidden
-    const containerCompact = document.createElement('div');
-    renderKanban(containerCompact, parsed, palette.light, false, {
-      activeTagGroup: 'Team',
-      compactMeta: true,
+    expect(container.querySelectorAll('.kanban-card').length).toBe(2);
+    const texts = chipTexts(container).join('|');
+    expect(texts).not.toContain('Frontend');
+    expect(texts).not.toContain('Backend');
+    expect(texts).toContain('High');
+  });
+
+  it('hides the swimlane group chip on every card (#2311)', () => {
+    const parsed = parseKanban(input, palette.light);
+    const container = document.createElement('div');
+    renderKanban(container, parsed, palette.light, false, {
+      currentSwimlaneGroup: 'Priority',
     });
-
-    // Both should still render cards
-    expect(containerCompact.querySelectorAll('.kanban-card').length).toBe(2);
-
-    // The compact version should have fewer text elements (hidden team meta)
-    const fullTexts = containerFull.querySelectorAll('.kanban-card text');
-    const compactTexts = containerCompact.querySelectorAll('.kanban-card text');
-    expect(compactTexts.length).toBeLessThan(fullTexts.length);
+    const cardTexts = chipTexts(container).join('|');
+    expect(cardTexts).not.toContain('High');
+    expect(cardTexts).not.toContain('Low');
+    expect(cardTexts).toContain('Frontend');
   });
 });
 

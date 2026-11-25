@@ -268,7 +268,6 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
           swim: 'Sprint',
           cl: ['Done'],
           cc: ['Backlog'],
-          cm: true,
         },
       },
       {
@@ -418,7 +417,6 @@ describe('encodeViewState / decodeViewState', () => {
       htv: { Priority: ['low'], Status: ['draft'] },
       ha: ['description'],
       sem: true,
-      cm: false,
       c4l: 'components',
       c4s: 'API',
       c4c: 'Auth',
@@ -439,13 +437,12 @@ describe('encodeViewState / decodeViewState', () => {
     expect(decodeViewState('')).toEqual({});
   });
 
-  it('round-trips kanban view state (swim, cl, cc, cm)', () => {
+  it('round-trips kanban view state (swim, cl, cc)', () => {
     const state: CompactViewState = {
       tag: 'Crew',
       swim: 'Crew',
       cl: ['Blackbeard'],
       cc: ['Done'],
-      cm: true,
     };
     const encoded = encodeViewState(state);
     expect(encoded).not.toBe('');

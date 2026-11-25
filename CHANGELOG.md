@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Kanban: cards no longer show a chip for the swimlane group or the active
+  colour group** (#2311). The lane and the card colour already show those
+  values. The `compactMeta` render option and the `cm` view-state field are
+  removed.
 - **Bar and line: `facet N` sets the panels per row** (#2306). The count rides
   on the `facet` line; the separate `columns N` line no longer applies to bar
   and line charts. Bare `facet` still fits as many panels as the width holds.

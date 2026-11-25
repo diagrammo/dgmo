@@ -60,7 +60,6 @@ interface KanbanInteractiveOptions {
   onSwimlaneChange?: (group: string | null) => void;
   collapsedLanes?: Set<string>;
   collapsedColumns?: Set<string>;
-  compactMeta?: boolean;
   exportMode?: boolean;
 }
 
@@ -541,7 +540,6 @@ function drawKanban(
   const collapsedColumns =
     options?.collapsedColumns ??
     new Set(parsed.columns.filter((c) => c.collapsed).map((c) => c.id));
-  const compactMeta = options?.compactMeta ?? false;
   const fillMode = fillModeFromOptions(parsed.options);
   // §1.9 fill-outline: column wells drop their gray panel — bg + hairline.
   const baseBg = themeBaseBg(palette, isDark);
@@ -553,12 +551,11 @@ function drawKanban(
       ) ?? null)
     : null;
 
+  // A card never repeats a value its position or colour already shows: the
+  // swimlane group's chip and the active colour group's chip are hidden (#2311).
   const hiddenMetaGroups: string[] = [];
-  if (compactMeta) {
-    if (activeTagGroup) hiddenMetaGroups.push(activeTagGroup.toLowerCase());
-    if (requestedSwimlane)
-      hiddenMetaGroups.push(requestedSwimlane.toLowerCase());
-  }
+  if (activeTagGroup) hiddenMetaGroups.push(activeTagGroup.toLowerCase());
+  if (requestedSwimlane) hiddenMetaGroups.push(requestedSwimlane.toLowerCase());
 
   const visibleColumns = parsed.columns.filter((c) => !isArchiveColumn(c.name));
   const colCount = Math.max(1, visibleColumns.length);
