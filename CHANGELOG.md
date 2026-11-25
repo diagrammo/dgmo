@@ -457,6 +457,11 @@ logged · most often Great`. Diagnostics: `E_CALENDAR_HEATMAP_UNKNOWN_TAG`,
 
 ### Fixed
 
+- **Boxes-and-lines: an edge into a box under a group title no longer runs
+  through the title (diagrammo/diagrammo#2299).** The edge's final drop moves
+  sideways to clear the title text, still landing on the box. It was likeliest
+  with per-group direction, where a single-column group centres its box under
+  the title.
 - **Calendar: upright `layout months` over New Year no longer overlaps its
   month headers (diagrammo/diagrammo#2298).** The year now sits on a second
   line under the month name, so "Dec 2026" and "Jan 2027" no longer collide.

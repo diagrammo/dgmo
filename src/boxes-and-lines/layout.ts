@@ -44,6 +44,11 @@ const DETOUR_TOLERANCE = 2 * PARALLEL_SPACING;
 // and how far from a corner a spread end must stay (#932).
 const MIN_PORT_GAP = 16;
 const PORT_CORNER_CLEAR = 6;
+// Group title: bold, centred in the top GROUP_LABEL_ZONE of the frame
+// (renderer.ts); an edge end keeps TITLE_CLEAR px off its text (#2299).
+const GROUP_LABEL_ZONE = 32;
+const GROUP_TITLE_FONT_SIZE = 14;
+const TITLE_CLEAR = 6;
 
 const DESC_NODE_WIDTH = 140;
 const DESC_FONT_SIZE = 10;
@@ -311,7 +316,10 @@ export async function layoutBoxesAndLines(
     onProgress?: (done: number, total: number, phase: string) => void;
   }
 ): Promise<BLLayoutResult> {
-  const laid = await layoutWithSubLayouts(parsed, collapseInfo, layoutOptions);
+  const laid = clearGroupTitles(
+    await layoutWithSubLayouts(parsed, collapseInfo, layoutOptions),
+    parsed
+  );
   // Engine-agnostic post-processing: float notes (and shift the canvas to fit
   // them) on the label-placed layout.
   return attachNotes(laid, parsed, layoutOptions?.collapsedNotes);
@@ -457,6 +465,85 @@ async function layoutPlaced(
   }
 
   return placed.layout;
+}
+
+/**
+ * Move an edge's final drop off the group title it would run through (#2299).
+ * The routers aim an edge at its box's port, and nothing keeps that port out
+ * from under a group title — a single-column group puts it right below the
+ * centred title. Runs once on the final layout, after sub-layouts are merged
+ * (their frames exist only then), so every engine and both direction cases get
+ * it. The tail moves sideways to the nearer side of the title that still lands
+ * on the box, with a jog above the strip: three trailing points on the new x
+ * keep the B-spline the renderer draws straight through the strip.
+ */
+function clearGroupTitles(
+  layout: BLLayoutResult,
+  parsed: ParsedBoxesAndLines
+): BLLayoutResult {
+  const groupLabels = new Set(parsed.groups.map((g) => g.label));
+  const hasSub = new Set(
+    parsed.groups
+      .filter((g) => g.children.some((c) => groupLabels.has(c)))
+      .map((g) => g.label)
+  );
+  const strips = layout.groups
+    .filter((g) => !g.collapsed)
+    .map((g) => {
+      const tw = measureText(g.label, GROUP_TITLE_FONT_SIZE, { bold: true });
+      const y0 =
+        g.y - g.height / 2 - (hasSub.has(g.label) ? GROUP_LABEL_ZONE : 0);
+      return {
+        x0: g.x - tw / 2 - TITLE_CLEAR,
+        x1: g.x + tw / 2 + TITLE_CLEAR,
+        y0,
+        y1: y0 + GROUP_LABEL_ZONE,
+      };
+    });
+  if (strips.length === 0) return layout;
+  const boxes = new Map<string, { x: number; w: number }>();
+  for (const g of layout.groups)
+    if (g.collapsed) boxes.set(g.label, { x: g.x, w: g.width });
+  for (const n of layout.nodes) boxes.set(n.label, { x: n.x, w: n.width });
+
+  let changed = false;
+  const edges = layout.edges.map((e) => {
+    const pts = e.points;
+    const n = pts.length;
+    const box = boxes.get(e.target);
+    if (n < 2 || !box || e.source === e.target) return e;
+    const end = pts[n - 1]!;
+    // The trailing vertical run, entering downward.
+    let k = n - 1;
+    while (k > 0 && Math.abs(pts[k - 1]!.x - end.x) < 0.5) k--;
+    const start = pts[k]!;
+    if (k === n - 1 || end.y <= start.y) return e;
+    const hit = strips.find(
+      (t) => end.x > t.x0 && end.x < t.x1 && start.y < t.y1 && end.y > t.y0
+    );
+    if (!hit || start.y >= hit.y0 - 1) return e;
+    const lo = box.x - box.w / 2 + PORT_CORNER_CLEAR;
+    const hi = box.x + box.w / 2 - PORT_CORNER_CLEAR;
+    const sides = [hit.x0, hit.x1]
+      .filter((x) => x >= lo && x <= hi)
+      .sort((a, b) => Math.abs(a - end.x) - Math.abs(b - end.x));
+    const x = sides[0];
+    if (x === undefined) return e;
+    const step = (hit.y0 - start.y) / 5;
+    changed = true;
+    return {
+      ...e,
+      points: [
+        ...pts.slice(0, k + 1),
+        { x: start.x, y: start.y + step },
+        { x, y: start.y + 2 * step },
+        { x, y: start.y + 3 * step },
+        { x, y: start.y + 4 * step },
+        { x, y: end.y },
+      ],
+    };
+  });
+  return changed ? { ...layout, edges } : layout;
 }
 
 /**
