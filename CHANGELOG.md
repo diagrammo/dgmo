@@ -457,6 +457,10 @@ logged · most often Great`. Diagnostics: `E_CALENDAR_HEATMAP_UNKNOWN_TAG`,
 
 ### Fixed
 
+- **Calendar: a test pins that an export shows only the open group's legend key
+  (diagrammo/diagrammo#2296).** A calendar with a `heat` group and a `tag` group
+  exports one key by design, and `active-tag` picks which. No renderer change.
+
 - **Waterfall and dot state a word unit once, on the value-axis title
   (diagrammo/diagrammo#2295).** `unit pp` no longer prints `pp` on every tick
   and value label; a symbol unit (`%`) still stays on every number.

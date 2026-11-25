@@ -256,6 +256,28 @@ describe('calendar export (#1855)', () => {
     expect(svg).toContain('Runs in 2026');
     expect(svg).not.toContain('tabindex');
   });
+
+  it('exports only the open group key; `active-tag` picks which (diagrammo/diagrammo#2296)', () => {
+    const SRC = `calendar
+year 2026
+heat Commits
+tag Mood
+  Great green
+  Rough red
+
+01-01 3 great
+`;
+    const words = (c: HTMLElement) =>
+      [...c.querySelectorAll('.calendar-legend text')].map(
+        (t) => t.textContent
+      );
+    const first = words(draw(SRC, true));
+    expect(first).toContain('Commits');
+    expect(first).not.toContain('Mood');
+    const second = words(draw(`${SRC}active-tag Mood\n`, true));
+    expect(second).toContain('Mood');
+    expect(second).not.toContain('Commits');
+  });
 });
 
 describe('calendar multi-year span (#2089)', () => {
