@@ -3328,8 +3328,8 @@ declare const CYLINDER_RY = 8;
  * Half-width of a queue's end caps — a cylinder on its side (#654).
  *
  * The same deal as `CLOUD_BUMP`, on the other axis:
- * `computeC4NodeDimensions` adds `QUEUE_CAP * 2` to the width, so the caps
- * never sit under the name.
+ * `computeC4NodeDimensions` adds `QUEUE_CAP * 3` to the width (the near cap
+ * bulges one cap further into the body), so no cap sits under the card's text.
  *
  * 🔴 It was 8 and that was too shallow to READ — measured by rendering it,
  * not by reasoning about it. `CARD_RADIUS` is 6, so an 8px cap on a 250px
