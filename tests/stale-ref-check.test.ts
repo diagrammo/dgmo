@@ -163,7 +163,9 @@ describe('the pre-push hook', () => {
   it('asks either side of the gate lock, and before the gate runs', () => {
     const hook = readFileSync(HOOK, 'utf8');
     const acquire = hook.indexOf('"$GATE_LOCK" acquire dgmo');
-    const gate = hook.indexOf('run_gate "$sha"', acquire);
+    const gate = hook.indexOf('run_locked_checks)', acquire);
+    // #2334: the cheap checks run between the first check and the lock.
+    const prepare = hook.indexOf('prepare_gate "$sha"');
     const before = hook.indexOf('stale_ref_check before-lock');
     const after = hook.indexOf('stale_ref_check after-lock');
 
@@ -172,5 +174,7 @@ describe('the pre-push hook', () => {
     expect(before).toBeLessThan(acquire);
     expect(after).toBeGreaterThan(acquire);
     expect(after).toBeLessThan(gate);
+    expect(prepare).toBeGreaterThan(before);
+    expect(prepare).toBeLessThan(acquire);
   });
 });

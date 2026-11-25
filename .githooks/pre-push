@@ -160,7 +160,18 @@ trap cleanup EXIT INT TERM
 GATE_SWEEP="$WORKSPACE/scripts/gate-sweep.sh"
 if [ -x "$GATE_SWEEP" ]; then "$GATE_SWEEP" || true; fi
 
-run_checks() {
+# 🔴 CHEAP CHECKS BEFORE THE LOCK, the suite after it (#2334). Every step up to
+# and including the bundle-size budget runs before `gate-lock.sh acquire`, so a
+# push that fails on formatting, a type error, lint or `check:size` fails in its
+# first minutes and never holds the laptop-wide lock. Measured 2026-10-25..11-25:
+# 165 of 741 gates failed, 29.1 h of gate time, many of them on a check that
+# takes seconds; four of eleven refused bob builds were the bundle-size budget.
+# The lock is for the suite, which is what concurrent gates broke (#557).
+#
+# The build moved ahead of `pnpm test` to make that possible, so the suite now
+# finds dist/ — as nightly-verify.sh's gate-tests step always has, and the tests
+# gated on a built bundle (tests/auto.test.ts) run here instead of skipping.
+run_cheap_checks() {
   # Every step goes through receipt_run (#1655): a step the verify passed at this tree
   # prints one line and is not run again; any other runs exactly as written.
   echo "→ installed dependency tree"
@@ -192,9 +203,6 @@ run_checks() {
   echo "→ lint"
   receipt_run pnpm lint
 
-  echo "→ test"
-  receipt_run pnpm test
-
   # The three after the build need dist/, which only the build produces, so the
   # build is skipped only when all three are covered too. They are called as
   # scripts rather than via `pnpm check:size` / `check:api` / `gallery:snapshot`,
@@ -212,6 +220,12 @@ run_checks() {
 
   echo "→ bundle size"
   receipt_run node scripts/check-bundle-size.cjs
+}
+
+# Under the lock: the suite, and the two checks that read dist/ after it.
+run_locked_checks() {
+  echo "→ test"
+  receipt_run pnpm test
 
   echo "→ public API surface"
   receipt_run node --test scripts/check-api.test.mjs
@@ -225,7 +239,9 @@ run_checks() {
   fi
 }
 
-run_gate() {
+# Provision the gate worktree and run the cheap checks in it — no lock held.
+# The worktree outlives this function: the locked half runs in the same tree.
+prepare_gate() {
   sha=$1
   short=$(git rev-parse --short "$sha")
 
@@ -250,18 +266,20 @@ run_gate() {
   (cd "$gate" && pnpm install --frozen-lockfile --prefer-offline --reporter=silent)
 
   receipt_load "$gate" "$sha"
-  (cd "$gate" && run_checks)
-  cleanup
+  (cd "$gate" && run_cheap_checks)
 }
 
 # The lock is where the ref goes stale, so the check runs on both sides of it:
-# once before queueing, and once right after it is taken — that second one is
-# the one that matters. Refusing after the lock exits through the cleanup trap,
-# which releases it.
+# once before the cheap checks and the queue, and once right after the lock is
+# taken — that second one is the one that matters. Refusing after the lock exits
+# through the cleanup trap, which releases it. A cheap check that fails exits
+# the same way, before `acquire` (#2334): the release then finds no lock of ours.
 stale_ref_check before-lock || exit 1
-if [ -x "$GATE_LOCK" ]; then "$GATE_LOCK" acquire dgmo $$ || true; fi
-stale_ref_check after-lock || exit 1
 
 for sha in $pushed; do
-  run_gate "$sha"
+  prepare_gate "$sha"
+  if [ -x "$GATE_LOCK" ]; then "$GATE_LOCK" acquire dgmo $$ || true; fi
+  stale_ref_check after-lock || exit 1
+  (cd "$gate" && run_locked_checks)
+  cleanup
 done
