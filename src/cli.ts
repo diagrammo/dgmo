@@ -990,7 +990,10 @@ function installClaudeCode(opts: InstallOpts): void {
   }
   ensureDgmoMcp(opts);
   if (opts.scope === 'user') {
-    upsertJsonMcp(opts, join(claudeDir, 'settings.json'));
+    // Claude Code reads user-scoped MCP servers from ~/.claude.json, not
+    // ~/.claude/settings.json (#2317). That file is Claude Code's own state, so
+    // upsertJsonMcp keeps every other key and skips it if it is not valid JSON.
+    upsertJsonMcp(opts, join(homedir(), '.claude.json'));
     console.log('  (scope: all projects)');
   } else {
     upsertJsonMcp(opts, join(process.cwd(), '.mcp.json'));

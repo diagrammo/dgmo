@@ -25,7 +25,7 @@ dgmo install codex --scope project    # write config into the current repo
 dgmo install --dry-run                # preview every change, write nothing
 ```
 
-For Claude Code this copies the `/dgmo` skill into `~/.claude/commands/` (full dgmo context — all chart types, CLI flags, workflow, and tips) and adds the MCP server to `~/.claude/settings.json`. Restart the assistant afterward.
+For Claude Code this copies the `/dgmo` skill into `~/.claude/commands/` (full dgmo context — all chart types, CLI flags, workflow, and tips) and adds the MCP server to `~/.claude.json`. Restart the assistant afterward.
 
 **Keeping it current:**
 - **Homebrew** bundles the MCP server, so `brew upgrade dgmo` upgrades the CLI *and* the server together. Re-run `dgmo install` afterward only to refresh the **skill files** (those are copies in your home dir).
