@@ -24,6 +24,12 @@ export interface CycleEdge {
   readonly description: readonly string[];
   readonly lineNumber?: number;
   readonly metadata: Readonly<Record<string, string>>;
+  /**
+   * A back edge (#2342): an extra arrow to a named step, drawn beside the
+   * step's own arrow to the next step. Drawn dashed. Unset on ring arrows and
+   * on a redirect (a step whose only edge lines name other steps, #2219).
+   */
+  readonly back?: true;
 }
 
 export interface ParsedCycle {

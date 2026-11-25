@@ -66,6 +66,7 @@ const TAG_KEYWORD_RE = /^tag\s/;
  *   Description line (indented under node)
  *   -Label-> color: red, width: 6
  *     Edge description (indented under edge)
+ *   -Rework-> OtherStep color: red   (back edge, #2342)
  * ```
  */
 export function parseCycle(
@@ -117,10 +118,6 @@ export function parseCycle(
     severity: 'warning' | 'error' = 'warning'
   ): void => {
     result.diagnostics.push(makeDgmoError(line, message, severity));
-  };
-
-  const info = (line: number, message: string): void => {
-    result.diagnostics.push(makeDgmoError(line, message, 'warning'));
   };
 
   function addTagEntry(
@@ -531,58 +528,84 @@ export function parseCycle(
   }
 
   // ── Resolve edge targets and generate implicit edges ──
+  // Every edge line under a step is one arrow. A line with no target, or
+  // naming the next step, styles the step's ring arrow (last one wins). A
+  // line naming any other step is an arrow to that step (#2219). If the step
+  // also has a ring-arrow line, the ring arrow stays and the other arrows are
+  // back edges, drawn dashed (#2342); otherwise they replace the ring arrow.
   const nodeCount = result.nodes.length;
-  const edgeBySource = new Map<number, Writable<CycleEdge>>();
+  const labels = result.nodes.map((n) => n.label);
+  const ringBySource = new Map<number, Writable<CycleEdge>>();
+  const targetedBySource = new Map<number, Map<number, Writable<CycleEdge>>>();
   for (const edge of result.edges as Writable<CycleEdge>[]) {
     // Default: the next step around the ring.
     const nextIndex = (edge.sourceIndex + 1) % nodeCount;
     edge.targetIndex = nextIndex;
 
-    // An explicit target is obeyed (#2219): the step's one outgoing edge goes
-    // to the named step instead of the next one. Matched by label, ignoring
-    // case; the first step with that label wins.
     const typed = edge as Writable<CycleEdge> & { _explicitTarget?: string };
-    if (typed._explicitTarget) {
-      const wanted = typed._explicitTarget.trim().toLowerCase();
+    const named = typed._explicitTarget;
+    delete typed._explicitTarget;
+    if (named) {
+      // Matched by label, ignoring case; the first step with that label wins.
+      const wanted = named.trim().toLowerCase();
       const found = result.nodes.findIndex(
         (n) => n.label.trim().toLowerCase() === wanted
       );
-      // In-bounds: nextIndex is in [0, nodeCount).
-      const nextLabel = result.nodes[nextIndex]!.label;
       if (found === -1) {
-        info(
+        const hint = suggest(named, labels);
+        warn(
           edge.lineNumber!,
-          `No step named '${typed._explicitTarget}'. The arrow goes to the next step ('${nextLabel}').`
+          `No step named '${named}'.${hint ? ` ${hint}` : ''} The arrow is not drawn.`,
+          'error'
         );
-      } else if (found === edge.sourceIndex) {
-        info(
-          edge.lineNumber!,
-          `A step cannot point to itself ('${typed._explicitTarget}'). The arrow goes to the next step ('${nextLabel}').`
-        );
-      } else {
-        edge.targetIndex = found;
+        continue;
       }
-      delete typed._explicitTarget;
+      if (found === edge.sourceIndex) {
+        warn(
+          edge.lineNumber!,
+          `A step cannot point to itself ('${named}'). The arrow is not drawn.`,
+          'error'
+        );
+        continue;
+      }
+      if (found !== nextIndex) {
+        edge.targetIndex = found;
+        let byTarget = targetedBySource.get(edge.sourceIndex);
+        if (!byTarget) {
+          byTarget = new Map();
+          targetedBySource.set(edge.sourceIndex, byTarget);
+        }
+        // Two lines to the same step: the last one wins.
+        byTarget.set(found, edge);
+        continue;
+      }
     }
-    // Several edge lines under one step: the last one wins.
-    edgeBySource.set(edge.sourceIndex, edge);
+    // Several ring-arrow lines under one step: the last one wins.
+    ringBySource.set(edge.sourceIndex, edge);
   }
 
-  // Generate implicit edges for nodes without explicit edge annotations
+  // Ring arrows first (one per step, in step order), then the back edges.
   const allEdges: Writable<CycleEdge>[] = [];
+  const backEdges: Writable<CycleEdge>[] = [];
   for (let i = 0; i < nodeCount; i++) {
-    const existing = edgeBySource.get(i);
-    if (existing) {
-      allEdges.push(existing);
-    } else {
-      allEdges.push({
+    const targeted = [...(targetedBySource.get(i)?.values() ?? [])];
+    const ring = ringBySource.get(i);
+    if (targeted.length > 0 && !ring) {
+      // A redirect (#2219): the named steps replace the ring arrow.
+      allEdges.push(...targeted);
+      continue;
+    }
+    allEdges.push(
+      ring ?? {
         sourceIndex: i,
         targetIndex: (i + 1) % nodeCount,
         description: [],
         metadata: {},
-      });
-    }
+      }
+    );
+    for (const e of targeted) backEdges.push({ ...e, back: true });
   }
+  allEdges.push(...backEdges);
   result.edges = allEdges;
 
   return result;

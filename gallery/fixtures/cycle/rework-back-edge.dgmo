@@ -1,0 +1,17 @@
+cycle Release Train
+
+direction-counterclockwise
+circle-nodes
+autonumber
+center SHIP
+
+Plan blue
+  Pick the work for the sprint
+Build green
+  Write the code
+Review orange
+  Two people read every change
+  -Approved->
+  -Rework-> Plan color: red
+Ship purple
+  Release to everyone

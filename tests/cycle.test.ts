@@ -321,32 +321,50 @@ Decide`);
     expect(result.edges[0]!.targetIndex).toBe(1);
   });
 
-  it('warns on an unknown target and falls back to the next step', () => {
+  it('errors on an unknown target, with its line, and draws no arrow for it', () => {
     const result = parseCycle(`cycle Unknown
 
 A
 B
 C
   -> T9`);
-    expect(result.edges[2]!.targetIndex).toBe(0);
+    // C keeps its ring arrow to A; the bad line adds nothing.
+    expect(result.edges).toHaveLength(3);
+    expect(result.edges[2]).toMatchObject({ sourceIndex: 2, targetIndex: 0 });
     expect(result.diagnostics).toHaveLength(1);
-    expect(result.diagnostics[0]!.severity).toBe('warning');
-    expect(result.diagnostics[0]!.message).toBe(
-      "No step named 'T9'. The arrow goes to the next step ('A')."
-    );
+    expect(result.diagnostics[0]).toMatchObject({
+      line: 6,
+      severity: 'error',
+      message: "No step named 'T9'. The arrow is not drawn.",
+    });
   });
 
-  it('warns on a self target and falls back to the next step', () => {
+  it('suggests the nearest step name for a misspelt target', () => {
+    const result = parseCycle(`cycle Typo
+
+Plan
+Build
+Review
+  ->
+  -Rework-> Plann`);
+    expect(result.diagnostics).toHaveLength(1);
+    expect(result.diagnostics[0]!.line).toBe(7);
+    expect(result.diagnostics[0]!.message).toContain("Did you mean 'Plan'?");
+    expect(result.edges.some((e) => e.back)).toBe(false);
+  });
+
+  it('errors on a self target and keeps the ring arrow', () => {
     const result = parseCycle(`cycle Self
 
 A
 B
   -> B
 C`);
-    expect(result.edges[1]!.targetIndex).toBe(2);
+    expect(result.edges[1]).toMatchObject({ sourceIndex: 1, targetIndex: 2 });
     expect(result.diagnostics).toHaveLength(1);
+    expect(result.diagnostics[0]!.severity).toBe('error');
+    expect(result.diagnostics[0]!.line).toBe(5);
     expect(result.diagnostics[0]!.message).toContain('cannot point to itself');
-    expect(result.diagnostics[0]!.message).toContain("next step ('C')");
   });
 
   it('keeps label and same-line metadata with a target', () => {
@@ -367,18 +385,98 @@ Measure`);
     });
   });
 
-  it('uses the last edge line when a step has several', () => {
+  it('a lone line to a non-next step stays a redirect, not a back edge', () => {
+    const result = parseCycle(`cycle Redirect
+
+A
+B
+C
+D
+  -> B`);
+    const fromD = result.edges.filter((e) => e.sourceIndex === 3);
+    expect(fromD).toHaveLength(1);
+    expect(fromD[0]).toMatchObject({ targetIndex: 1 });
+    expect(fromD[0]!.back).toBeUndefined();
+  });
+});
+
+describe('cycle parser — back edges (#2342)', () => {
+  const src = `cycle Release
+
+Plan
+Build
+Review
+  -Approved->
+  -Rework-> Plan color: red
+Ship`;
+
+  it('keeps the ring arrow and adds a back edge beside it', () => {
+    const result = parseCycle(src);
+    expect(result.diagnostics).toHaveLength(0);
+    expect(result.edges).toHaveLength(5);
+    // Ring arrows first, one per step, in step order.
+    expect(result.edges.slice(0, 4).map((e) => e.targetIndex)).toEqual([
+      1, 2, 3, 0,
+    ]);
+    expect(result.edges[2]).toMatchObject({ label: 'Approved' });
+    expect(result.edges[2]!.back).toBeUndefined();
+    expect(result.edges[4]).toMatchObject({
+      sourceIndex: 2,
+      targetIndex: 0,
+      label: 'Rework',
+      color: 'red',
+      lineNumber: 7,
+      back: true,
+    });
+  });
+
+  it('a bare `->` keeps the ring arrow unlabelled', () => {
+    const result = parseCycle(src.replace('-Approved->', '->'));
+    expect(result.edges[2]!.label).toBeUndefined();
+    expect(result.edges.filter((e) => e.back)).toHaveLength(1);
+  });
+
+  it('a line naming the next step styles the ring arrow, not a back edge', () => {
+    const result = parseCycle(src.replace('-Approved->', '-Approved-> Ship'));
+    expect(result.edges).toHaveLength(5);
+    expect(result.edges[2]).toMatchObject({
+      targetIndex: 3,
+      label: 'Approved',
+    });
+    expect(result.edges.filter((e) => e.back)).toHaveLength(1);
+  });
+
+  it('allows several back edges from one step; the last line per target wins', () => {
     const result = parseCycle(`cycle Several
 
 A
 B
 C
 D
-  -> B
-  -Second-> A`);
-    const fromD = result.edges.filter((e) => e.sourceIndex === 3);
-    expect(fromD).toHaveLength(1);
-    expect(fromD[0]).toMatchObject({ targetIndex: 0, label: 'Second' });
+  ->
+  -First-> B
+  -Again-> A
+  -Second-> B`);
+    // A is D's next step: "Again" labels the ring arrow.
+    expect(result.edges[3]).toMatchObject({ targetIndex: 0, label: 'Again' });
+    const back = result.edges.filter((e) => e.back);
+    expect(back).toHaveLength(1);
+    expect(back[0]).toMatchObject({
+      sourceIndex: 3,
+      targetIndex: 1,
+      label: 'Second',
+    });
+  });
+
+  it('works on a counterclockwise ring', () => {
+    const result = parseCycle(
+      src.replace(
+        'cycle Release',
+        'cycle Release\n\ndirection-counterclockwise'
+      )
+    );
+    expect(result.direction).toBe('counterclockwise');
+    expect(result.edges.filter((e) => e.back)).toHaveLength(1);
   });
 });
 
@@ -1025,5 +1123,145 @@ Measure`);
       'g.cycle-edge-labels g.cycle-edge[data-line-number="6"]'
     )!;
     expect(labelG.textContent).toContain('Back to scouting');
+  });
+});
+
+describe('cycle layout and render — back edges (#2342)', () => {
+  // Sample a quadratic "M x0 y0 Q qx qy x2 y2" path.
+  function sampleQuad(path: string, n = 40): Array<[number, number]> {
+    const [x0, y0, qx, qy, x2, y2] = path
+      .replace(/[MQ]/g, ' ')
+      .trim()
+      .split(/\s+/)
+      .map(Number) as [number, number, number, number, number, number];
+    const pts: Array<[number, number]> = [];
+    for (let k = 0; k <= n; k++) {
+      const t = k / n;
+      const u = 1 - t;
+      pts.push([
+        u * u * x0 + 2 * u * t * qx + t * t * x2,
+        u * u * y0 + 2 * u * t * qy + t * t * y2,
+      ]);
+    }
+    return pts;
+  }
+  const inBox = (
+    n: { x: number; y: number; width: number; height: number },
+    px: number,
+    py: number,
+    slack: number
+  ) =>
+    Math.abs(px - n.x) <= n.width / 2 + slack &&
+    Math.abs(py - n.y) <= n.height / 2 + slack;
+
+  const variants: Array<[string, string]> = [
+    ['plain', ''],
+    ['ccw', 'direction-counterclockwise\n'],
+    ['circle-nodes', 'circle-nodes\n'],
+    ['all', 'direction-counterclockwise\ncircle-nodes\nautonumber\n'],
+  ];
+  for (const [name, directives] of variants) {
+    it(`draws a chord that clears the other steps and the centre text (${name})`, () => {
+      const parsed = parseCycle(`cycle Six
+
+center Continuous delivery
+${directives}
+Intake
+Design
+Build
+Test
+Release
+  ->
+  -Rollback-> Design color: red
+Learn`);
+      expect(parsed.diagnostics).toHaveLength(0);
+      const layout = computeCycleLayout(parsed, { width: 900, height: 700 });
+      // Six ring arrows plus the back edge.
+      expect(layout.edges).toHaveLength(7);
+      const ring = layout.edges.find(
+        (e) => e.sourceIndex === 4 && e.targetIndex === 5
+      );
+      expect(ring).toBeDefined();
+      const back = layout.edges[6]!;
+      expect(back).toMatchObject({ sourceIndex: 4, targetIndex: 1 });
+      expect(back.path).toMatch(/^M [-\d.e]+ [-\d.e]+ Q /);
+      for (const [px, py] of sampleQuad(back.path))
+        for (const i of [0, 2, 3, 5])
+          expect(inBox(layout.nodes[i]!, px, py, 2)).toBe(false);
+      // The label clears every step that is not an endpoint.
+      for (const i of [0, 2, 3, 5]) {
+        const n = layout.nodes[i]!;
+        expect(inBox(n, back.labelX, back.labelY, 0)).toBe(false);
+      }
+      // The label's centre is clear of the centre text's middle.
+      const dCentre = Math.hypot(
+        back.labelX - layout.cx,
+        back.labelY - layout.cy
+      );
+      expect(dCentre).toBeGreaterThan(20);
+    });
+  }
+
+  it('renders a back edge dashed and the ring arrow solid', () => {
+    const parsed = parseCycle(`cycle Release
+
+center SHIP
+Plan
+Build
+Review
+  -Approved->
+  -Rework-> Plan
+Ship`);
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    renderCycle(container, parsed, nordLight, false, undefined, {
+      width: 800,
+      height: 600,
+    });
+    const back = container.querySelector(
+      'g.cycle-edge.cycle-back-edge[data-from="2"][data-to="0"]'
+    )!;
+    expect(back).not.toBeNull();
+    expect(back.getAttribute('data-line-number')).toBe('8');
+    expect(
+      back.querySelector('path')!.getAttribute('stroke-dasharray')
+    ).toBeTruthy();
+    const ring = container.querySelector(
+      'g.cycle-edge[data-from="2"][data-to="3"]'
+    )!;
+    expect(ring).not.toBeNull();
+    expect(ring.classList.contains('cycle-back-edge')).toBe(false);
+    expect(
+      ring.querySelector('path')!.getAttribute('stroke-dasharray')
+    ).toBeNull();
+    const labels = container.querySelector('g.cycle-edge-labels')!.textContent;
+    expect(labels).toContain('Rework');
+    expect(labels).toContain('Approved');
+  });
+
+  it('draws a back edge to the previous step as an inner arc beside the ring arc', () => {
+    const parsed = parseCycle(`cycle Prev
+
+Draft
+Edit
+  ->
+Review
+  ->
+  -Rework-> Edit
+Publish`);
+    const layout = computeCycleLayout(parsed, { width: 800, height: 600 });
+    const arcRadius = (p: string) => Number(p.match(/ A ([\d.]+) /)![1]);
+    const fwd = layout.edges.find(
+      (e) => e.sourceIndex === 1 && e.targetIndex === 2
+    )!;
+    const next = layout.edges.find(
+      (e) => e.sourceIndex === 2 && e.targetIndex === 3
+    )!;
+    const back = layout.edges.find(
+      (e) => e.sourceIndex === 2 && e.targetIndex === 1
+    )!;
+    expect(arcRadius(fwd.path)).toBeCloseTo(layout.radius, 5);
+    expect(arcRadius(next.path)).toBeCloseTo(layout.radius, 5);
+    expect(arcRadius(back.path)).toBeLessThan(layout.radius - 5);
   });
 });

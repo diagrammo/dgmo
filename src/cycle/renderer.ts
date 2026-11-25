@@ -326,6 +326,15 @@ export function renderCycle(
       .attr('stroke', color)
       .attr('stroke-width', strokeWidth)
       .attr('marker-end', `url(#${markerId})`);
+    // A back edge (#2342) is dashed, so it reads as the way back rather than
+    // the ring's own flow.
+    if (edge.back) {
+      edgeG.classed('cycle-back-edge', true);
+      pathEl.attr(
+        'stroke-dasharray',
+        `${strokeWidth * BACK_EDGE_DASH} ${strokeWidth * BACK_EDGE_GAP}`
+      );
+    }
 
     if (onClickItem && edge.lineNumber) {
       const ln = edge.lineNumber;
@@ -805,6 +814,10 @@ function resolveEdgeColor(
   }
   return defaultNodeColor;
 }
+
+/** Back-edge dash and gap, in multiples of the stroke width (#2342). */
+const BACK_EDGE_DASH = 2.5;
+const BACK_EDGE_GAP = 1.5;
 
 /** Stable marker ID for a (color, strokeWidth) pair. */
 function arrowMarkerId(color: string, strokeWidth: number): string {

@@ -823,6 +823,14 @@ function computeEdgePaths(
           ? { w: width + 12, h: lineCount * 15 + 6 }
           : null
       );
+      // A later chord's label must clear this one's (#2342).
+      if (lineCount > 0 && width > 0)
+        obstacles.push({
+          x: chord.labelX,
+          y: chord.labelY,
+          hw: width / 2 + 6,
+          hh: (lineCount * 15 + 6) / 2,
+        });
       result[i] = {
         sourceIndex: edge.sourceIndex,
         targetIndex: edge.targetIndex,
@@ -993,6 +1001,9 @@ function centerTextBox(
   };
 }
 
+/** Clearance a chord and its label keep from labels and the centre text. */
+const OBSTACLE_PAD = 12;
+
 /** How deep (px, py) sits inside the box grown by `pad`; 0 when outside. */
 function boxDepth(b: Box, px: number, py: number, pad: number): number {
   const dx = b.hw + pad - Math.abs(px - b.x);
@@ -1071,13 +1082,19 @@ function buildChord(
       const [px, py] = bez(p1x, p1y, k / SAMPLES);
       if (insideNode(src, px, py) || insideNode(tgt, px, py)) continue;
       for (const b of others) penalty += boxDepth(b, px, py, pad);
-      for (const b of obstacles) penalty += boxDepth(b, px, py, 4);
+      for (const b of obstacles) penalty += boxDepth(b, px, py, OBSTACLE_PAD);
     }
     if (label) {
       const [lx, ly] = bez(p1x, p1y, 0.5);
       for (const b of [...others, ...obstacles]) {
-        const ox = Math.max(0, label.w / 2 + b.hw - Math.abs(lx - b.x));
-        const oy = Math.max(0, label.h / 2 + b.hh - Math.abs(ly - b.y));
+        const ox = Math.max(
+          0,
+          label.w / 2 + b.hw + OBSTACLE_PAD - Math.abs(lx - b.x)
+        );
+        const oy = Math.max(
+          0,
+          label.h / 2 + b.hh + OBSTACLE_PAD - Math.abs(ly - b.y)
+        );
         penalty += Math.min(ox, oy);
       }
     }

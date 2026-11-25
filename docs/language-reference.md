@@ -4575,7 +4575,22 @@ Observe blue
     Synthesize raw data into actionable context
 ```
 
-A target after `->` is **obeyed**: the step's one arrow goes to the named step instead of the next one. Its implicit arrow to the next step is not drawn. The target matches a step label, ignoring case. Steps keep their places on the ring in source order; an arrow to the previous step runs just inside the ring, and an arrow to any other step crosses the ring's interior.
+Each `->` line under a step is one arrow. A line with **no target** (`->`, `-Label->`), or one naming the next step, labels and styles the step's own arrow to the next step. A line naming **any other step** (`-Rework-> Plan`) is an arrow to that step. The target matches a step label, ignoring case; it is the text after `->` and before any `key: value` metadata.
+
+**Back edge** — keep the forward arrow AND add a way back. Write both lines under the step. The back edge is drawn dashed, inside the ring, in the source step's colour unless `color:` is set:
+
+```
+cycle Release Train
+
+Plan
+Build
+Review
+  -Approved->
+  -Rework-> Plan color: red
+Ship
+```
+
+**Redirect** — a step whose only `->` lines name other steps loses its arrow to the next step; the named arrows replace it and are drawn solid:
 
 ```
 cycle a process
@@ -4587,7 +4602,7 @@ T4
   -Rework-> T2
 ```
 
-Here T4 returns to T2, and T1 is a lead-in step with no arrow into it. A target that names the next step changes nothing. A target that names no step, or the step itself, raises a warning and the arrow goes to the next step. Each step has one outgoing arrow; if a step has several `->` lines, the last one wins.
+Here T4 returns to T2, and T1 is a lead-in step with no arrow into it. Steps keep their ring places in source order. An arrow to the previous step runs just inside the ring; an arrow to any other step crosses the interior, bowed clear of the other steps, the `center` text and the other labels. A target that names no step, or the step itself, is an **error** on that line (with a "Did you mean" hint) and that arrow is not drawn. Several lines for the next step, or for the same other step: the last one wins.
 
 ### Edge Metadata
 
