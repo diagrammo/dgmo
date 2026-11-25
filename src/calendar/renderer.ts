@@ -877,7 +877,10 @@ function legendGroupFor(
       name: ref.name,
       entries: [
         ...[...fills].map(([value, color]) => ({ value, color })),
-        { value: parsed.emptyLabel, color: blank },
+        // A blank day only means something when some day carries the tag.
+        ...(parsed.days.some((d) => d.tags[ref.key] !== undefined)
+          ? [{ value: parsed.emptyLabel, color: blank }]
+          : []),
       ],
     };
   }

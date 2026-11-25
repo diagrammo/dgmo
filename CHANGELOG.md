@@ -457,6 +457,9 @@ logged · most often Great`. Diagnostics: `E_CALENDAR_HEATMAP_UNKNOWN_TAG`,
 
 ### Fixed
 
+- **Calendar: an event-only calendar no longer shows a "Not logged" legend pill
+  (diagrammo/diagrammo#2297).** The blank-day entry now appears in a tag
+  group's legend only when some day carries that tag.
 - **Calendar: a test pins that an export shows only the open group's legend key
   (diagrammo/diagrammo#2296).** A calendar with a `heat` group and a `tag` group
   exports one key by design, and `active-tag` picks which. No renderer change.

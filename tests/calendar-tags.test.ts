@@ -256,6 +256,19 @@ tag Kind as k
     expect(tip(quiet)).toBe('WorkThursday, April 2, 2026Offsite');
   });
 
+  it('an events-only tag legend has no blank-day entry (#2297)', () => {
+    expect(entries(draw(EVENTS))).toEqual(['Work', 'Home']);
+    expect(
+      entries(
+        draw(EVENTS.replace('layout weeks', 'layout weeks\nempty Skipped'))
+      )
+    ).toEqual(['Work', 'Home']);
+  });
+
+  it('a calendar whose days carry the tag keeps the blank-day entry (#2297)', () => {
+    expect(entries(draw(MOOD))).toContain('Not logged');
+  });
+
   it('an events-only chart counts its events in the summary', () => {
     expect(
       calendarSummary(
