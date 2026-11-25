@@ -457,6 +457,14 @@ logged · most often Great`. Diagnostics: `E_CALENDAR_HEATMAP_UNKNOWN_TAG`,
 
 ### Fixed
 
+- **Export: a German (`locale de-DE`) chart exports to PNG again
+  (diagrammo/diagrammo#2293).** The number formatter's no-break space was
+  serialised as `&nbsp;`, which strict XML rejects; it is now written as
+  `&#160;`.
+- **`format compact`: a small value keeps its own unit instead of printing as
+  `0B` (diagrammo/diagrammo#2294).** The chart still shares one unit, but a value
+  that unit would round to zero, or lose more than a quarter of, takes its own:
+  `3M` beside `20B`.
 - **Boxes-and-lines: an edge into a box under a group title no longer runs
   through the title (diagrammo/diagrammo#2299).** The edge's final drop moves
   sideways to clear the title text, still landing on the box. It was likeliest
