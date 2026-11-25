@@ -51,7 +51,7 @@ export function drawCylinderCard(
 
 /**
  * A queue — a cylinder on its side (#654): outline, then the near cap.
- * `computeC4NodeDimensions` pays for both caps in width, so the name never
+ * `computeC4NodeDimensions` pays for all three cap widths, so the text never
  * sits on top of the near cap's arc.
  */
 export function drawQueueCard(

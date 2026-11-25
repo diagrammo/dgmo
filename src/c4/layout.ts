@@ -758,26 +758,30 @@ export function computeC4NodeDimensions(
     // (no type label — containers are the default in container view)
     let height = CARD_V_PAD + NAME_HEIGHT;
 
-    const desc = el.description?.join('\n');
-    if (desc) {
-      const contentWidth = width - CARD_H_PAD * 2;
-      const lines = wrapTextToWidth(desc, DESC_FONT_SIZE, contentWidth);
-      height += lines.length * DESC_LINE_HEIGHT;
-    }
-
-    // Metadata rows below divider
+    // Metadata rows below divider. Sized first: they can widen the card, and
+    // the description wraps to the final width, as the renderer wraps it.
     const metaEntries = collectCardMetadata(el.metadata);
     if (metaEntries.length > 0) {
       height += DIVIDER_GAP; // divider
       height += metaEntries.length * META_LINE_HEIGHT;
       // Widen card if metadata rows need more space
-      const maxMetaWidth = Math.max(
-        ...metaEntries.map(
-          (e) =>
-            measureText(`${e.key}: ${e.value}`, META_FONT_SIZE) + CARD_H_PAD * 2
-        )
+      // Values share one column after the longest key, so the widest row is
+      // that key plus the widest value, which may come from different rows.
+      const maxKeyWidth = Math.max(
+        ...metaEntries.map((e) => measureText(`${e.key}: `, META_FONT_SIZE))
       );
+      const maxValueWidth = Math.max(
+        ...metaEntries.map((e) => measureText(e.value, META_FONT_SIZE))
+      );
+      const maxMetaWidth = maxKeyWidth + maxValueWidth + CARD_H_PAD * 2;
       if (maxMetaWidth > width) width = Math.min(MAX_NODE_WIDTH, maxMetaWidth);
+    }
+
+    const desc = el.description?.join('\n');
+    if (desc) {
+      const contentWidth = width - CARD_H_PAD * 2;
+      const lines = wrapTextToWidth(desc, DESC_FONT_SIZE, contentWidth);
+      height += lines.length * DESC_LINE_HEIGHT;
     }
 
     height += CARD_V_PAD;
@@ -809,7 +813,8 @@ function padForShape(
   height: number
 ): { width: number; height: number } {
   if (el.shape === 'cloud') return { width, height: height + CLOUD_BUMP * 2 };
-  if (el.shape === 'queue') return { width: width + QUEUE_CAP * 2, height };
+  // Three caps, not two: the near cap bulges one more into the body (#2360).
+  if (el.shape === 'queue') return { width: width + QUEUE_CAP * 3, height };
   return { width, height };
 }
 
@@ -1207,7 +1212,10 @@ export function layoutC4Containers(
   // Add external nodes
   for (const el of externals) {
     nameToElement.set(el.name, el);
-    const dims = computeC4NodeDimensions(el);
+    // Sized as it is drawn: a container or component keeps its metadata rows.
+    const dims = computeC4NodeDimensions(el, {
+      showTechnology: el.type === 'container' || el.type === 'component',
+    });
     g.setNode(el.name, { width: dims.width, height: dims.height });
   }
 
@@ -1703,7 +1711,10 @@ export function layoutC4Components(
   // Add external nodes
   for (const el of externals) {
     nameToElement.set(el.name, el);
-    const dims = computeC4NodeDimensions(el);
+    // Sized as it is drawn: a container or component keeps its metadata rows.
+    const dims = computeC4NodeDimensions(el, {
+      showTechnology: el.type === 'container' || el.type === 'component',
+    });
     g.setNode(el.name, { width: dims.width, height: dims.height });
   }
 

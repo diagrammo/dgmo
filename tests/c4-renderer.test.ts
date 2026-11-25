@@ -16,6 +16,7 @@ import {
   renderC4ComponentsForExport,
 } from '../src/c4/renderer';
 import { getPalette, getAvailablePalettes } from '../src/palettes';
+import { measureText } from '../src/utils/text-measure';
 
 // Set up jsdom globals
 beforeAll(() => {
@@ -1609,5 +1610,181 @@ describe('C4 shape overrides all draw', () => {
     expect(cloud.width).toBe(plain.width);
     expect(queue.width).toBeGreaterThan(plain.width);
     expect(queue.height).toBe(plain.height);
+  });
+});
+
+// ============================================================
+// Metadata rows fit their cards (#2360)
+// ============================================================
+
+describe('C4 card metadata rows fit the card (#2360)', () => {
+  const SOURCE = `c4 Fit
+
+Ship is a system
+  containers
+    Helm is a container
+      components
+        Wheel is a component
+          description: Steers the ship through the strait
+          tech: Rust
+          crew: Two sailors
+          risk: High
+          -Reads-> Bus
+          -Calls-> Chart
+          -Asks-> Lookout
+    Chart is a container
+      tech: Postgres
+      crew: Navigator
+      risk: Low
+      components
+        Index is a component
+    Bus is a container
+      description: Carries every order from the helm to the crew below deck
+      tech: Kafka
+      crew: Bosun
+      risk: Medium
+      -Wakes-> Lookout
+
+Lookout is a system
+  containers
+    Mast is a container
+`;
+
+  /** A top-level component, which the components view draws as an external. */
+  const EXTERNAL_COMPONENT = `c4 Fit
+
+Ship is a system
+  containers
+    Helm is a container
+      components
+        Wheel is a component
+          -Reads-> Compass
+
+Compass is a component
+  tech: Brass
+  crew: Quartermaster
+  risk: Low
+`;
+
+  type View = 'containers' | 'components';
+
+  function draw(source: string, view: View) {
+    const parsed = parseC4(source, palette.light);
+    const layout =
+      view === 'containers'
+        ? layoutC4Containers(parsed, 'Ship')
+        : layoutC4Components(parsed, 'Ship', 'Helm');
+    const el = document.createElement('div');
+    renderC4Containers(el, parsed, layout, palette.light, false, undefined, {
+      width: 1200,
+      height: 900,
+    });
+    return { el, layout };
+  }
+
+  function card(source: string, view: View, name: string) {
+    const { el, layout } = draw(source, view);
+    const node = layout.nodes.find((n) => n.name === name)!;
+    const g = el.querySelector(`.c4-card[data-node-id="${node.id}"]`)!;
+    const texts = [...g.querySelectorAll('text')].map((t) => ({
+      text: t.textContent ?? '',
+      x: Number(t.getAttribute('x')),
+      y: Number(t.getAttribute('y')),
+      anchor: t.getAttribute('text-anchor'),
+    }));
+    return { node, g, texts };
+  }
+
+  const KEYS = ['Technology:', 'Crew:', 'Risk:'];
+
+  function expectRowsInside(source: string, view: View, name: string) {
+    const { node, g, texts } = card(source, view, name);
+    const keys = texts.filter((t) => KEYS.includes(t.text));
+    expect(keys.map((t) => t.text).sort()).toEqual([...KEYS].sort());
+    expect(g.querySelectorAll('line').length).toBe(1);
+    // Rows are 16 high and centred on their y.
+    for (const t of texts) {
+      expect(t.y - 8).toBeGreaterThanOrEqual(-node.height / 2);
+      expect(t.y + 8).toBeLessThanOrEqual(node.height / 2);
+    }
+    return { node, g, texts };
+  }
+
+  it('draws description, divider and rows on a component card', () => {
+    const { g, texts } = expectRowsInside(SOURCE, 'components', 'Wheel');
+    const dividerY = Number(g.querySelector('line')!.getAttribute('y1'));
+    const desc = texts.find((t) => t.text.startsWith('Steers'))!;
+    expect(desc.y).toBeLessThan(dividerY);
+    expect(texts.some((t) => t.text.includes('«'))).toBe(false);
+  });
+
+  it('sizes an external container in the components view for its rows', () => {
+    expectRowsInside(SOURCE, 'components', 'Chart');
+  });
+
+  it('sizes an external component in the components view for its rows', () => {
+    expectRowsInside(EXTERNAL_COMPONENT, 'components', 'Compass');
+  });
+
+  it.each(['container', 'component'])(
+    'sizes an external %s in the containers view for its rows',
+    (type) => {
+      const source = `c4 Fit
+
+Ship is a system
+  containers
+    Helm is a container
+      -Reads-> Chart
+
+Chart is a ${type}
+  tech: Postgres
+  crew: Navigator
+  risk: Low
+`;
+      const { node } = expectRowsInside(source, 'containers', 'Chart');
+      expect(node.type).toBe(type);
+    }
+  );
+
+  it('leaves person and system externals sized as context cards', () => {
+    const { layout } = draw(SOURCE, 'containers');
+    const lookout = layout.nodes.find((n) => n.name === 'Lookout')!;
+    expect(lookout.height).toBe(
+      computeC4NodeDimensions({
+        name: 'Lookout',
+        type: 'system',
+        metadata: {},
+      } as never).height
+    );
+  });
+
+  it('keeps a queue card’s text between its two end curves', () => {
+    const { node, g, texts } = card(SOURCE, 'containers', 'Bus');
+    expect(node.shape).toBe('queue');
+    const cap = 16;
+    const left = -node.width / 2 + 2 * cap;
+    const right = node.width / 2 - cap;
+    const centre = (left + right) / 2;
+
+    const centred = texts.filter((t) => t.anchor === 'middle');
+    expect(centred.length).toBeGreaterThan(1);
+    for (const t of centred) {
+      expect(t.x).toBe(centre);
+      const half = measureText(t.text, 11) / 2;
+      expect(t.x - half).toBeGreaterThanOrEqual(left);
+      expect(t.x + half).toBeLessThanOrEqual(right);
+    }
+    for (const t of texts.filter((t) => KEYS.includes(t.text))) {
+      expect(t.x).toBe(left + 20);
+    }
+    for (const t of texts.filter((t) => t.anchor === 'start')) {
+      expect(t.x + measureText(t.text, 11)).toBeLessThanOrEqual(right);
+    }
+    const divider = g.querySelector('line')!;
+    expect(Number(divider.getAttribute('x1'))).toBeGreaterThanOrEqual(left);
+    expect(Number(divider.getAttribute('x2'))).toBeLessThanOrEqual(right);
+    for (const t of texts) {
+      expect(Math.abs(t.y) + 8).toBeLessThanOrEqual(node.height / 2);
+    }
   });
 });

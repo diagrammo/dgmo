@@ -2,7 +2,7 @@
 // C4 Context Diagram SVG Renderer
 // ============================================================
 
-import { CLOUD_BUMP, CYLINDER_RY } from '../shape-caps';
+import { CLOUD_BUMP, CYLINDER_RY, QUEUE_CAP } from '../shape-caps';
 import { drawCloudCard, drawCylinderCard, drawQueueCard } from '../shapes/draw';
 import { serializeSvg } from '../utils/svg-serialize';
 import { tagAttrKey, resolveGroupTagColor } from '../utils/tag-groups';
@@ -1602,6 +1602,15 @@ export function renderC4Containers(
       drawCardRect(nodeG, w, h, fill, stroke, isExternalShape);
     }
 
+    // Text box. A queue's two end curves reach one cap further in on the left
+    // (the near cap bulges into the body) than on the right, so its text keeps
+    // to what is left between them (#2360).
+    const isQueue = shape === 'queue';
+    const textLeft = -w / 2 + (isQueue ? 2 * QUEUE_CAP : 0);
+    const textRight = w / 2 - (isQueue ? QUEUE_CAP : 0);
+    const textCx = (textLeft + textRight) / 2;
+    const contentWidth = textRight - textLeft - CARD_H_PAD * 2;
+
     let yPos = -h / 2 + CARD_V_PAD;
 
     // For cylinder shapes, offset content down past the top ellipse
@@ -1620,7 +1629,7 @@ export function renderC4Containers(
       const typeLabel = `\u00AB${node.type}\u00BB`;
       nodeG
         .append('text')
-        .attr('x', 0)
+        .attr('x', textCx)
         .attr('y', yPos + TYPE_FONT_SIZE / 2)
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'central')
@@ -1637,7 +1646,7 @@ export function renderC4Containers(
       const textWidth = measureText(node.name, LABEL_FONT_SIZE, { bold: true });
       const gap = 6;
       const totalWidth = PERSON_ICON_W + gap + textWidth;
-      const iconCx = -totalWidth / 2 + PERSON_ICON_W / 2;
+      const iconCx = textCx - totalWidth / 2 + PERSON_ICON_W / 2;
       const textX = iconCx + PERSON_ICON_W / 2 + gap;
 
       drawPersonIcon(nodeG, iconCx, yPos + LABEL_FONT_SIZE / 2 - 2, stroke);
@@ -1655,7 +1664,7 @@ export function renderC4Containers(
     } else {
       nodeG
         .append('text')
-        .attr('x', 0)
+        .attr('x', textCx)
         .attr('y', yPos + LABEL_FONT_SIZE / 2)
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'central')
@@ -1667,12 +1676,11 @@ export function renderC4Containers(
 
     yPos += NAME_HEIGHT;
 
-    if (node.type === 'container') {
-      // Container cards: description above divider, metadata below
+    if (node.type === 'container' || node.type === 'component') {
+      // Container and component cards: description above divider, metadata below
 
       // Description (above divider, inline markdown) — contrast against fill
       if (node.description) {
-        const contentWidth = w - CARD_H_PAD * 2;
         const lines = wrapTextToWidth(
           node.description,
           META_FONT_SIZE,
@@ -1681,7 +1689,7 @@ export function renderC4Containers(
         for (const line of lines) {
           const textEl = nodeG
             .append('text')
-            .attr('x', 0)
+            .attr('x', textCx)
             .attr('y', yPos + META_FONT_SIZE / 2)
             .attr('text-anchor', 'middle')
             .attr('dominant-baseline', 'central')
@@ -1703,9 +1711,9 @@ export function renderC4Containers(
         // Divider
         nodeG
           .append('line')
-          .attr('x1', -w / 2 + CARD_H_PAD / 2)
+          .attr('x1', textLeft + CARD_H_PAD / 2)
           .attr('y1', yPos)
-          .attr('x2', w / 2 - CARD_H_PAD / 2)
+          .attr('x2', textRight - CARD_H_PAD / 2)
           .attr('y2', yPos)
           .attr('stroke', fillMode === 'solid' ? onFillText : stroke)
           .attr('stroke-width', 1)
@@ -1716,13 +1724,14 @@ export function renderC4Containers(
         const maxKeyWidth = Math.max(
           ...metaEntries.map((e) => measureText(`${e.key}: `, META_FONT_SIZE))
         );
-        const valueX = -w / 2 + CARD_H_PAD + maxKeyWidth;
+        const keyX = textLeft + CARD_H_PAD;
+        const valueX = keyX + maxKeyWidth;
 
         for (const entry of metaEntries) {
           // Key — contrast against fill (textMuted is illegible on solid fills)
           nodeG
             .append('text')
-            .attr('x', -w / 2 + CARD_H_PAD)
+            .attr('x', keyX)
             .attr('y', yPos + META_FONT_SIZE / 2)
             .attr('text-anchor', 'start')
             .attr('dominant-baseline', 'central')
@@ -1750,9 +1759,9 @@ export function renderC4Containers(
       // Divider
       nodeG
         .append('line')
-        .attr('x1', -w / 2 + CARD_H_PAD / 2)
+        .attr('x1', textLeft + CARD_H_PAD / 2)
         .attr('y1', yPos)
-        .attr('x2', w / 2 - CARD_H_PAD / 2)
+        .attr('x2', textRight - CARD_H_PAD / 2)
         .attr('y2', yPos)
         .attr('stroke', fillMode === 'solid' ? onFillText : stroke)
         .attr('stroke-width', 1)
@@ -1762,7 +1771,6 @@ export function renderC4Containers(
 
       // Description (inline markdown) — contrast against fill
       if (node.description) {
-        const contentWidth = w - CARD_H_PAD * 2;
         const lines = wrapTextToWidth(
           node.description,
           META_FONT_SIZE,
@@ -1771,7 +1779,7 @@ export function renderC4Containers(
         for (const line of lines) {
           const textEl = nodeG
             .append('text')
-            .attr('x', 0)
+            .attr('x', textCx)
             .attr('y', yPos + META_FONT_SIZE / 2)
             .attr('text-anchor', 'middle')
             .attr('dominant-baseline', 'central')

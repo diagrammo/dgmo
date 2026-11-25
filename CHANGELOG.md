@@ -468,6 +468,10 @@ logged · most often Great`. Diagnostics: `E_CALENDAR_HEATMAP_UNKNOWN_TAG`,
 
 ### Fixed
 
+- **C4: metadata rows fit their cards** (#2360). Component cards now show
+  metadata rows, as the guide says. A container or component drawn as an
+  external is sized for its rows. A queue card keeps its name, description and
+  rows clear of both end curves, and is one cap width wider.
 - **Export: a German (`locale de-DE`) chart exports to PNG again
   (diagrammo/diagrammo#2293).** The number formatter's no-break space was
   serialised as `&nbsp;`, which strict XML rejects; it is now written as
