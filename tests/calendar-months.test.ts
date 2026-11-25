@@ -5,6 +5,7 @@ import { parseCalendar } from '../src/calendar/parser';
 import { renderCalendar } from '../src/calendar/renderer';
 import { renderForExport } from '../src/d3';
 import { getPalette } from '../src/palettes';
+import { measureText } from '../src/utils/text-measure';
 
 const palette = getPalette('nord').light;
 
@@ -95,8 +96,11 @@ describe('calendar layout months — upright (#1877)', () => {
     const months = [...c.querySelectorAll('.calendar-month')].map(
       (t) => t.textContent
     );
-    expect(months[0]).toBe('Oct 2025');
-    expect(months).toContain('Jan 2026');
+    const years = [...c.querySelectorAll('.calendar-year')].map(
+      (t) => t.textContent
+    );
+    expect(months[0]).toBe('Oct');
+    expect(years).toEqual(['2025', '2026']);
     expect(months).toHaveLength(12);
     expect(c.querySelectorAll('.calendar-day')).toHaveLength(365);
   });
@@ -128,6 +132,46 @@ describe('calendar layout months — upright (#1877)', () => {
       '2026-02-11'
     );
     c.remove();
+  });
+});
+
+describe('calendar layout months — upright year headers (#2298)', () => {
+  // Every month and year header, as a horizontal box [left, right] per row.
+  function overlaps(src: string): { boxes: number; clashes: number } {
+    const c = draw(src);
+    const rows = new Map<number, [number, number][]>();
+    for (const el of c.querySelectorAll('.calendar-month, .calendar-year')) {
+      const x = Number(el.getAttribute('x'));
+      const y = Number(el.getAttribute('y'));
+      const w = measureText(el.textContent ?? '', 10);
+      rows.set(y, [...(rows.get(y) ?? []), [x - w / 2, x + w / 2]]);
+    }
+    let boxes = 0;
+    let clashes = 0;
+    for (const row of rows.values()) {
+      row.sort((a, b) => a[0] - b[0]);
+      boxes += row.length;
+      for (let i = 1; i < row.length; i++)
+        if (row[i]![0] < row[i - 1]![1]) clashes++;
+    }
+    return { boxes, clashes };
+  }
+  const span = (from: string, to: string, extra = '') =>
+    `calendar Runs\nlayout months\nfrom ${from} to ${to}\n${extra}unit run\n\n${from.slice(5)} 1\n`;
+
+  it('a span over New Year draws no overlapping headers', () => {
+    const r = overlaps(span('2026-12-14', '2027-01-17'));
+    expect(r.boxes).toBe(4);
+    expect(r.clashes).toBe(0);
+  });
+
+  it('a two-year span draws no overlapping headers', () => {
+    expect(overlaps(span('2026-01-01', '2027-12-31')).clashes).toBe(0);
+  });
+
+  it('a span inside one year keeps one line of headers', () => {
+    const c = draw(span('2026-03-14', '2026-04-17'));
+    expect(c.querySelectorAll('.calendar-year')).toHaveLength(0);
   });
 });
 

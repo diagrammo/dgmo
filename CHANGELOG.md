@@ -457,6 +457,9 @@ logged · most often Great`. Diagnostics: `E_CALENDAR_HEATMAP_UNKNOWN_TAG`,
 
 ### Fixed
 
+- **Calendar: upright `layout months` over New Year no longer overlaps its
+  month headers (diagrammo/diagrammo#2298).** The year now sits on a second
+  line under the month name, so "Dec 2026" and "Jan 2027" no longer collide.
 - **Calendar: an event-only calendar no longer shows a "Not logged" legend pill
   (diagrammo/diagrammo#2297).** The blank-day entry now appears in a tag
   group's legend only when some day carries that tag.

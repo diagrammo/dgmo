@@ -327,6 +327,13 @@ function monthsGeometry(
     const short = MONTHS[month - 1]!.slice(0, 3);
     return multiYear && (k === 0 || month === 1) ? `${short} ${year}` : short;
   };
+  // Upright columns are too narrow for "Dec 2026": the year drops to a second
+  // line under the month name (#2298), and only a year-crossing span pays it.
+  const yearLine = !horizontal && multiYear;
+  const monthShort = (k: number): string =>
+    MONTHS[months[k]!.month - 1]!.slice(0, 3);
+  const yearOf = (k: number): number | null =>
+    yearLine && (k === 0 || months[k]!.month === 1) ? months[k]!.year : null;
   const cellW = horizontal ? ROW_TILE : STRIP_TILE_W;
   const cellH = horizontal ? ROW_TILE : STRIP_TILE_H;
   const pitchX = cellW + GAP;
@@ -369,17 +376,27 @@ function monthsGeometry(
     // Months as columns: names along the top, day numbers in a left gutter.
     const gutter = measureText('30', LABEL_FONT_SIZE) + WEEKDAY_GAP;
     gridLeft = left0 + gutter;
-    gridTop = top + MONTH_BAND;
-    months.forEach((_, k) =>
+    gridTop = top + MONTH_BAND + (yearLine ? LABEL_FONT_SIZE + 1 : 0);
+    months.forEach((_, k) => {
+      const x = gridLeft + k * pitchX + cellW / 2;
       labels.push({
-        text: monthName(k),
-        x: gridLeft + k * pitchX + cellW / 2,
-        y: gridTop - 5,
+        text: monthShort(k),
+        x,
+        y: gridTop - 5 - (yearLine ? LABEL_FONT_SIZE + 1 : 0),
         anchor: 'middle',
         cls: 'calendar-month',
         ...(!exportMode && { month: monthKey(k) }),
-      })
-    );
+      });
+      const year = yearOf(k);
+      if (year !== null)
+        labels.push({
+          text: String(year),
+          x,
+          y: gridTop - 5,
+          anchor: 'middle',
+          cls: 'calendar-year',
+        });
+    });
     for (let d = 1; d <= 31; d++)
       if (LABELLED_DATES.has(d))
         labels.push({
@@ -407,7 +424,14 @@ function monthsGeometry(
     ? 0
     : Math.max(
         0,
-        (measureText(monthName(months.length - 1), LABEL_FONT_SIZE) - cellW) / 2
+        (measureText(
+          yearLine
+            ? monthShort(months.length - 1)
+            : monthName(months.length - 1),
+          LABEL_FONT_SIZE
+        ) -
+          cellW) /
+          2
       );
   const along = horizontal ? 31 : months.length;
   const across = horizontal ? months.length : 31;
