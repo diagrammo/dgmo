@@ -374,6 +374,8 @@ describe('note', () => {
     for (const dims of [
       { width: 480, height: 360 },
       { width: 400, height: 320 },
+      { width: 400, height: 267 },
+      { width: 400 },
     ]) {
       const svg = await renderDataChartD3(src, 'light', palette, dims);
       const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
@@ -404,8 +406,17 @@ describe('note', () => {
           .join(' ');
         expect(text).toBe(ports[i]![2]);
       });
-      // The key sits below the plot, inside the size asked for (#2310): the
-      // plot gives up the key's height, and the drawing does not grow.
+      // The plot stays upright with room for its bars (#2310): one baseline,
+      // every bar a positive height, the tallest no shorter than 40px.
+      const bases = bars.map((b) => num(b, 'y') + num(b, 'height'));
+      for (const b of bases) expect(b).toBeCloseTo(bases[0]!, 3);
+      for (const b of bars) expect(num(b, 'height')).toBeGreaterThan(0);
+      expect(Math.max(...bars.map((b) => num(b, 'height')))).toBeGreaterThan(
+        40
+      );
+      // The key sits below the plot, inside the drawing (#2310): the plot
+      // gives up the key's height while it keeps its minimum, and only past
+      // that does the drawing grow, by no more than the key still needs.
       const rowTops = rows.map(
         (r) => num(r.querySelector('circle')!, 'cy') - 7
       );
@@ -417,11 +428,12 @@ describe('note', () => {
       );
       expect(Math.min(...rowTops)).toBeGreaterThanOrEqual(plotBottom);
       const root = doc.documentElement;
-      expect(num(root, 'height')).toBe(dims.height);
-      expect(Math.max(...rowBottoms)).toBeLessThanOrEqual(dims.height);
-      expect(root.getAttribute('viewBox')).toBe(
-        `0 0 ${dims.width} ${dims.height}`
-      );
+      const h = num(root, 'height');
+      expect(Math.max(...rowBottoms)).toBeLessThanOrEqual(h);
+      expect(h - Math.max(...rowBottoms)).toBeLessThan(12);
+      if (dims.width === 480) expect(h).toBe(dims.height);
+      if (dims.height) expect(h).toBeGreaterThanOrEqual(dims.height);
+      expect(root.getAttribute('viewBox')).toBe(`0 0 ${dims.width} ${h}`);
       // Hovering any of the three lights the others.
       expect(svg).toContain('svg:has([data-note-key="3"]:hover)');
     }

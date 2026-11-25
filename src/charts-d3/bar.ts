@@ -107,6 +107,11 @@ const FLIP_MAX_CATEGORIES = NEVER_THIN_MAX;
 /** Shortest row a horizontal bar gets: one name line and its gap. Below it
  *  the drawing grows taller than its host height (#2271). */
 const ROW_MIN_STEP = Math.round(TICK_FONT * 1.2) + 6;
+/** Shortest plot a numbered-note key leaves (#2310). The key takes its
+ *  height off the plot so the drawing keeps the requested size; when that
+ *  would leave less than this, the plot keeps this much and the drawing grows
+ *  by the shortfall instead, so the chart stays upright and the key whole. */
+const KEY_PLOT_MIN = 80;
 /** A time axis keeps its end bars at least this far in from the plot edge. */
 const DATE_AXIS_INSET = 16;
 /** The category axis: a band per label, or a bar at each row's time. */
@@ -211,6 +216,10 @@ export function renderBar(
     return;
   }
   const startNodes = svg.node()?.childNodes.length ?? 0;
+  // The root's size as the caller set it: a pass that grew the drawing
+  // (#2271) is undone before the keyed second pass lays out again.
+  const rootH0 = svg.node()?.getAttribute('height') ?? null;
+  const rootVB0 = svg.node()?.getAttribute('viewBox') ?? null;
   const data = chart.data;
   const seriesNames = chart.seriesNames?.length
     ? chart.seriesNames
@@ -533,14 +542,16 @@ export function renderBar(
     const f = 0.65 / (data.length + 0.3);
     m.top = Math.max(m.top, bandSafeTop(mTop, height - m.bottom, [[f, above]]));
   }
-  // Horizontal rows too short for a name line: the drawing grows (#2271), as
-  // it does for a note key, and the frame lays out around the taller canvas.
+  // Horizontal rows too short for a name line: the drawing grows (#2271),
+  // and the frame lays out around the taller canvas.
+  let grownBy = 0;
   if (horizontal && !panel && data.length) {
     const grow = Math.ceil(
       sideSteps * ROW_MIN_STEP - (height - m.top - m.bottom)
     );
     const root = svg.node();
     if (grow > 0 && root) {
+      grownBy = grow;
       const h = Number(root.getAttribute('height') ?? height) + grow;
       const w = Number(root.getAttribute('width') ?? width);
       root.setAttribute('height', String(h));
@@ -1388,6 +1399,18 @@ export function renderBar(
       // height: the drawing keeps the size it was asked for (#2310), since a
       // host that sized the pane clips anything taller.
       drawNoteKey(svg, marks, noteKey, { x: m.left, y: height }, noteOpts);
+      // A plot held at KEY_PLOT_MIN pushes the key past the requested size:
+      // the drawing grows by that much, and only that much.
+      const root = svg.node();
+      if (root && !panel) {
+        const h0 = Number(root.getAttribute('height') ?? 0);
+        const need = Math.ceil(height + noteKey.h);
+        if (need > h0) {
+          const w = Number(root.getAttribute('width') ?? width);
+          root.setAttribute('height', String(need));
+          root.setAttribute('viewBox', `0 0 ${w} ${need}`);
+        }
+      }
       boxes = marks.map(({ x, y }) => ({
         x: x - KEY_DISC_R,
         y: y - KEY_DISC_R,
@@ -1401,12 +1424,19 @@ export function renderBar(
         // note numbered and a key under it (#2159).
         while ((svg.node()?.childNodes.length ?? 0) > startNodes)
           svg.node()!.lastChild!.remove();
+        const root = svg.node();
+        if (root && rootH0 !== null) root.setAttribute('height', rootH0);
+        if (root && rootVB0 !== null) root.setAttribute('viewBox', rootVB0);
         const plan = planNoteKey(keyItems, width - m.left - 16);
+        const chartH = Math.max(
+          height - grownBy - plan.h,
+          noteTop + m.bottom + KEY_PLOT_MIN
+        );
         renderBar(
           svg,
           chart,
           width,
-          height - plan.h,
+          chartH,
           colors,
           palette,
           isDark,
