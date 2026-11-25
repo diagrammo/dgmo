@@ -147,25 +147,44 @@ persona Squidlips Sam color: blue
   Greenhorn cabin boy, first time at sea
   Sworn to the crew but quietly terrified
 
+tag Station as st
+  Deck blue
+  Below orange
+  Ashore green
+
 [Signing On]
-  Sign the articles score: 4, emotion: Hopeful
+  Sign the articles score: 4, emotion: Hopeful, st: Ashore
     description: Captain reads the code aloud — pay shares, no women aboard, lights out at 8
+    thought: A real crew at last
+  Scrub the decks score: 2, emotion: Weary, st: Deck
+    pain: The Bosun inspects every plank
+    thought: Is this what pirates do all day
 
 [The Tempest]
-  Caught in a squall off the reef score: 1, emotion: Terrified
+  Caught in a squall off the reef score: 1, emotion: Terrified, st: Deck
     pain: Two crewmates lost overboard before dawn
     thought: Maybe the merchant fleet wasn't so bad after all
-  Dawn, and she still floats score: 3, emotion: Relieved
+  Dawn, and she still floats score: 3, emotion: Relieved, st: Deck
+    thought: I'm still here
+
+[Powder Duty] collapsed
+  Haul powder to the gun deck score: 2, emotion: Strained, st: Below
+  Learn the guns from the Quartermaster score: 4, emotion: Proud, st: Below
 
 [The Prize]
-  Strike the colors score: 5, emotion: Triumphant
+  Chase the merchantman score: 4, emotion: Eager, st: Deck
+    thought: Run, you fat merchant
+  Strike the colors score: 5, emotion: Triumphant, st: Deck
     description: Heavy with silver from the Veracruz mines
+    thought: I helped take her
+  Night watch with a cracked rib score: 2, emotion: Aching, st: Below
 
 [Homecoming]
-  Bury a share on the island score: 5, emotion: Proud
+  Bury a share on the island score: 5, emotion: Proud, st: Ashore
     thought: Three doubloons hidden where only he can find them
-  Back to the Rusty Anchor score: 4, emotion: Content
+  Back to the Rusty Anchor score: 4, emotion: Content, st: Ashore
     opportunity: Next time he signs on as a full hand, not a boy
+    thought: Home, of a sort
 ```
 #### c4
 
@@ -246,107 +265,111 @@ ports
 ```dgmo
 class Ship Class Hierarchy
 
-interface Vessel
+Vessel [abstract] blue
+  # name: string
   + sail(): void
+
+Ship extends Vessel
+  # crew: number
   + anchor(): void
 
-abstract Ship implements Vessel
-  # name: string
-  # crew: number
-  + getName(): string
-
-Galleon extends Ship
+Warship extends Ship red
   - cannons: number
   + fire(): void
 
-Sloop extends Ship
+Galleon extends Warship red
+  - treasureHold: number
+  + plunder(): void
+
+ManOWar extends Galleon red
+  - gunDecks: number
+  + broadside(): void
+
+Frigate extends Warship red
+  - speed: number
+  + chase(): void
+
+Sloop extends Ship green
   - speed: number
   + flee(): void
 
-enum ShipType
-  Galleon
+ShipType [enum]
   Sloop
-  Frigate
+  Galleon
+  ManOWar
 
 Ship
-  -> ShipType has type
+  -> ShipType : has type
 ```
 #### sequence
 
 ```dgmo
-sequence Treasure Hunt App
+sequence Raid on Port Royal
 
-tag Concern as c
-  Search blue
-  Claims green
-  Notifications orange
+tag Phase as p
+  Scout blue
+  Plunder green
+  Danger red
 
-User is an actor
+Captain is an actor
+Navigator is an actor
 
-[Treasure Service]
-  TreasureAPI
-  MapDB is a database
-  NotifyQueue is a queue
+[Flagship]
+  Spyglass
+  Cannons
+  Hold is a database
 
-User -Search nearby loot-> WebApp
-WebApp -GET /treasures?nearby-> TreasureAPI c: Search
-TreasureAPI -Find within 5nm-> MapDB c: Search
-note
-  - check location
-  - use compass
-MapDB -3 results-> TreasureAPI
-TreasureAPI -locations-> WebApp
-WebApp -Show treasure map-> User
+[Port]
+  Harbor
+  Fort
 
-== Claim ==
+Captain ~Set course~> Navigator p: Scout
+Navigator ~Plot route~> Spyglass p: Scout
+Spyglass ~Fort sighted~> Captain p: Scout
 
-User -Claim chest #42-> WebApp
-WebApp -POST /claim-> TreasureAPI c: Claims
-if chest available
-  TreasureAPI -Set status = claimed-> MapDB c: Claims
-  MapDB -OK-> TreasureAPI
-  TreasureAPI ~treasure.claimed~> NotifyQueue c: Notifications
-  TreasureAPI -Claim accepted-> WebApp
-  WebApp -500 doubloons earned!-> User
+== Engage ==
+
+Captain -Fire at will-> Cannons p: Danger
+Cannons -Broadside-> Fort p: Danger
+if fort returns fire
+  Fort -Cannonball-> Cannons p: Danger
+  Cannons -Hull damaged-> Captain p: Danger
 else
-  TreasureAPI -409 Already claimed-> WebApp
-  WebApp -Too slow, matey!-> User
+  Fort -Surrender-> Harbor p: Plunder
+
+== Plunder ==
+
+Captain -Load the loot-> Hold p: Plunder
+Hold -Stored-> Captain p: Plunder
 ```
 #### state
 
 ```dgmo
 state Ship Battle Lifecycle
+direction-tb
+
+tag Stance as s
+  Calm blue
+  Attack red
+  Cunning orange
+  Spoils green
+  Doom gray
 
 [*] -> Sailing
-
-Sailing
-  -enemy spotted-> BattleStations
-
-[Losses] gray
-  Captured -> [*]
-  Sinking -> [*]
-
-[Aftermath] teal
-  Victorious
-    -loot taken-> Sailing
-
-  Retreating
-    -escaped-> Sailing
-    -caught-> Captured
-
-[Combat] red
-  Engaging
-    -alongside-> Boarding
-    -hull breach-> Sinking
-    -outgunned-> Retreating
-
-  Boarding
-    -crew wins-> Victorious
-    -crew loses-> Captured
-
-BattleStations
-  -in range-> Engaging
-  -enemy retreats-> Sailing
+Sailing s: Calm
+  -enemy spotted-> Engaging
+Engaging s: Attack
+  -boarders ready-> Boarding
+  -outgunned-> Fleeing
+Boarding s: Attack
+  -crew wins-> Plundering
+  -crew loses-> Captured
+Fleeing s: Cunning
+  -escaped-> Sailing
+Plundering s: Spoils
+  -loot taken-> Sailing
+Captured s: Doom
+  -> [*]
 ```
 #### infra
 
