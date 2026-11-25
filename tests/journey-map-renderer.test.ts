@@ -421,5 +421,61 @@ persona Sam
       const svg = renderJourneyMapForExport('', 'light', palette.light);
       expect(svg).toBe('');
     });
+
+    const thoughtInput = `journey-map Thoughts
+
+[Stage]
+  A score: 5
+    thought: First hovering idea about the very top of the journey
+  B score: 4
+    thought: Second idea right beside the first one so they would collide
+  C score: 1
+    thought: Low point thought
+`;
+
+    it('draws every thought bubble statically in an export render', () => {
+      const svg = renderJourneyMapForExport(
+        thoughtInput,
+        'light',
+        palette.light
+      );
+      expect(svg).toContain('First hovering idea');
+      expect(svg).toContain('Low point thought');
+      expect(svg).toContain('journey-thought');
+      expect(svg).toContain('font-style="italic"');
+    });
+
+    it('staggers neighbouring bubbles so none overlap', () => {
+      const dom = new JSDOM(
+        renderJourneyMapForExport(thoughtInput, 'light', palette.light)
+      );
+      const rects = [
+        ...dom.window.document.querySelectorAll('.journey-thought rect'),
+      ].map((r) => ({
+        x: +r.getAttribute('x')!,
+        y: +r.getAttribute('y')!,
+        w: +r.getAttribute('width')!,
+        h: +r.getAttribute('height')!,
+      }));
+      expect(rects.length).toBe(3);
+      for (let i = 0; i < rects.length; i++) {
+        for (let j = i + 1; j < rects.length; j++) {
+          const a = rects[i]!;
+          const b = rects[j]!;
+          const overlap =
+            a.x < b.x + b.w &&
+            b.x < a.x + a.w &&
+            a.y < b.y + b.h &&
+            b.y < a.y + a.h;
+          expect(overlap).toBe(false);
+          expect(a.y).toBeGreaterThanOrEqual(0);
+        }
+      }
+    });
+
+    it('interactive render draws no static thought bubbles', () => {
+      const { container } = renderToContainer(thoughtInput);
+      expect(container.querySelectorAll('.journey-thought').length).toBe(0);
+    });
   });
 });

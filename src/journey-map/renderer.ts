@@ -3,6 +3,12 @@ import { growChartFrame } from '../utils/chart-frame';
 import { tagAttrKey } from '../utils/tag-groups';
 import { fillModeFromOptions } from '../utils/parsing';
 import { renderCollapseBar } from '../utils/card';
+import {
+  planJourneyThoughts,
+  THOUGHT_FONT as STATIC_THOUGHT_FONT,
+  THOUGHT_LINE_H as STATIC_THOUGHT_LINE_H,
+  THOUGHT_PAD_Y as STATIC_THOUGHT_PAD_Y,
+} from './thoughts';
 import { collapsedJourneyPhasesFromSource } from './collapse';
 import * as d3 from 'd3-selection';
 import * as d3Shape from 'd3-shape';
@@ -657,6 +663,60 @@ export function renderJourneyMap(
           onNavigateToLine(step.lineNumber);
         });
       }
+    }
+  }
+
+  // Static render: every thought bubble is drawn above its face. Interactive
+  // renders keep the hover overlay instead.
+  if (exportDims && layout.hasThoughts) {
+    const flatSteps =
+      parsed.phases.length > 0
+        ? parsed.phases.flatMap((p) => p.steps)
+        : parsed.steps;
+    const thoughtsG = svg.append('g').attr('class', 'journey-thoughts');
+    for (const b of planJourneyThoughts(
+      layout.curvePoints,
+      flatSteps,
+      layout.totalWidth,
+      PADDING
+    )) {
+      const pt = layout.curvePoints.find((c) => c.stepIndex === b.key);
+      if (!pt) continue;
+      const scoreColor = scoreToColor(pt.score, palette);
+      const tintedBg =
+        fillMode === 'outline'
+          ? themeBaseBg(palette, isDark)
+          : mix(scoreColor, palette.surface, 20);
+      const g = thoughtsG.append('g').attr('class', 'journey-thought');
+      g.append('line')
+        .attr('x1', b.faceX)
+        .attr('y1', b.y + b.h)
+        .attr('x2', b.faceX)
+        .attr('y2', b.faceY - FACE_RADIUS - 1)
+        .attr('stroke', scoreColor)
+        .attr('stroke-width', NODE_STROKE_WIDTH);
+      g.append('rect')
+        .attr('x', b.x)
+        .attr('y', b.y)
+        .attr('width', b.w)
+        .attr('height', b.h)
+        .attr('rx', CARD_RADIUS)
+        .attr('fill', tintedBg)
+        .attr('stroke', scoreColor)
+        .attr('stroke-width', NODE_STROKE_WIDTH);
+      b.lines.forEach((line, i) => {
+        g.append('text')
+          .attr('x', b.x + b.w / 2)
+          .attr(
+            'y',
+            b.y + STATIC_THOUGHT_PAD_Y + (i + 1) * STATIC_THOUGHT_LINE_H - 2
+          )
+          .attr('text-anchor', 'middle')
+          .attr('font-size', STATIC_THOUGHT_FONT)
+          .attr('font-style', 'italic')
+          .attr('fill', palette.textMuted)
+          .text(line);
+      });
     }
   }
 

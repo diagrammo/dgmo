@@ -5,6 +5,7 @@ import { LEGEND_HEIGHT } from '../utils/legend-constants';
 import { FRAME_BODY_TOP, LEGEND_BODY_GAP } from '../utils/title-constants';
 import { frameAlign } from '../utils/chart-frame-parse';
 import { measureText, wrapTextToWidth } from '../utils/text-measure';
+import { planJourneyThoughts } from './thoughts';
 import type {
   ParsedJourneyMap,
   JourneyMapPhase,
@@ -137,6 +138,39 @@ export function layoutJourneyMap(
     isDark?: boolean;
   }
 ): JourneyMapLayout {
+  // Pass 1 at the hover headroom; if the static (export) bubbles reach above
+  // the title/persona band, pass 2 adds the shortfall.
+  const first = layoutOnce(parsed, palette, options, 0);
+  if (!first.layout.hasThoughts) return first.layout;
+  const steps =
+    parsed.phases.length > 0
+      ? parsed.phases.flatMap((p) => p.steps)
+      : parsed.steps;
+  const bubbles = planJourneyThoughts(
+    first.layout.curvePoints,
+    steps,
+    first.layout.totalWidth,
+    PADDING
+  );
+  if (bubbles.length === 0) return first.layout;
+  const topEdge = Math.min(...bubbles.map((b) => b.y));
+  const shortfall = first.thoughtTopLimit - topEdge;
+  if (shortfall <= 0) return first.layout;
+  return layoutOnce(parsed, palette, options, shortfall).layout;
+}
+
+function layoutOnce(
+  parsed: ParsedJourneyMap,
+  palette: PaletteColors,
+  options:
+    | {
+        exportDims?: { width: number; height: number };
+        collapsedPhases?: Set<string>;
+        isDark?: boolean;
+      }
+    | undefined,
+  extraHeadroom: number
+): { layout: JourneyMapLayout; thoughtTopLimit: number } {
   const isDark = options?.isDark ?? false;
   const hasTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
   const hasPersona = !!parsed.persona;
@@ -190,7 +224,8 @@ export function layoutJourneyMap(
       ? titleBandBottom + CURVE_INK_ABOVE + personaHeight
       : PADDING + personaHeight) +
     (stackTitle ? personaTop - PERSONA_BESIDE_TITLE_TOP : 0);
-  let topHeadroom = 0;
+  let topHeadroom = extraHeadroom;
+  let thoughtTopLimit = 0;
   if (hasThoughts) {
     const THOUGHT_MAX_W = 200;
     const THOUGHT_FONT = 11;
@@ -244,7 +279,8 @@ export function layoutJourneyMap(
     // where its bubble's top edge would land. Shift down by any shortfall.
     const faceY0 = scoreToCurveY(topThoughtScore, baseTop + CURVE_AREA_HEIGHT);
     const bubbleTop0 = faceY0 - FACE_HOVER_R - THOUGHT_GAP - maxBubbleH;
-    topHeadroom = Math.max(0, topBandBottom + BUBBLE_MARGIN - bubbleTop0);
+    thoughtTopLimit = topBandBottom + BUBBLE_MARGIN;
+    topHeadroom += Math.max(0, thoughtTopLimit - bubbleTop0);
   }
 
   const curveAreaTop = baseTop + topHeadroom;
@@ -515,7 +551,7 @@ export function layoutJourneyMap(
   const totalWidth = Math.max(rightEdge, 400, headerWidth);
   const totalHeight = bottomEdge;
 
-  return {
+  const layout: JourneyMapLayout = {
     phases: phaseLayouts,
     flatStepLayouts,
     curvePoints,
@@ -530,4 +566,5 @@ export function layoutJourneyMap(
     titleHeight,
     hasThoughts,
   };
+  return { layout, thoughtTopLimit };
 }
