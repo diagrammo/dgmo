@@ -5682,8 +5682,8 @@ interface JourneyMapLayout {
     curveAreaBottom: number;
     cardAreaTop: number;
     personaHeight: number;
-    /** Top edge of the persona panel: PADDING beside a left title, or below
-     *  the title (and tag legend) when the title is centred or right-aligned. */
+    /** Top edge of the persona panel: the top padding beside a left title,
+     *  or below the title (and tag legend) when it is centred or right. */
     personaTop: number;
     /** The persona panel sits on its own row under the title (#2305). */
     personaBelowTitle: boolean;

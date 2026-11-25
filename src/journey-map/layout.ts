@@ -52,8 +52,8 @@ export interface JourneyMapLayout {
   curveAreaBottom: number;
   cardAreaTop: number;
   personaHeight: number;
-  /** Top edge of the persona panel: PADDING beside a left title, or below
-   *  the title (and tag legend) when the title is centred or right-aligned. */
+  /** Top edge of the persona panel: the top padding beside a left title,
+   *  or below the title (and tag legend) when it is centred or right. */
   personaTop: number;
   /** The persona panel sits on its own row under the title (#2305). */
   personaBelowTitle: boolean;
@@ -70,6 +70,7 @@ const PADDING = 24;
 const TITLE_HEIGHT = 36;
 const LEGEND_BOX_SLACK = 7; // LEGEND_HEIGHT exceeds the legend's ink by this much
 const LEGEND_TOP_PAD = 20; // renderer DIAGRAM_PADDING
+const PERSONA_BESIDE_TITLE_TOP = 20; // renderer DIAGRAM_PADDING: panel y beside a left title
 const LEGEND_TITLE_FONT_SIZE = 18; // renderer FONT_SIZE_TITLE
 const CURVE_INK_ABOVE = 5.5; // top face ink above the curve area
 const PERSONA_HEIGHT = 48;
@@ -183,12 +184,12 @@ export function layoutJourneyMap(
   const titleBandBottom = hasLegend
     ? legendBottom + LEGEND_BODY_GAP
     : FRAME_BODY_TOP;
-  const personaTop = stackTitle ? titleBandBottom : PADDING;
+  const personaTop = stackTitle ? titleBandBottom : PERSONA_BESIDE_TITLE_TOP;
   const baseTop =
     (hasTitle
       ? titleBandBottom + CURVE_INK_ABOVE + personaHeight
       : PADDING + personaHeight) +
-    (personaTop - PADDING);
+    (stackTitle ? personaTop - PERSONA_BESIDE_TITLE_TOP : 0);
   let topHeadroom = 0;
   if (hasThoughts) {
     const THOUGHT_MAX_W = 200;
