@@ -152,5 +152,8 @@ export function serializeSvg(svgEl: Element): string {
     if (el.getAttribute('class') === '') el.removeAttribute('class');
     for (const attr of LEGEND_PILL_BUTTON_ATTRS) el.removeAttribute(attr);
   }
-  return roundMagnitudeAttrs(escapeAttributeMarkupChars(svgEl.outerHTML));
+  // HTML serialisation writes U+00A0 as &nbsp;, which is not an XML entity (#2293).
+  return roundMagnitudeAttrs(
+    escapeAttributeMarkupChars(svgEl.outerHTML.replaceAll('&nbsp;', '&#160;'))
+  );
 }
