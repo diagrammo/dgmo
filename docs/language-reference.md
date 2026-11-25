@@ -1481,7 +1481,7 @@ No colon — `import: x.dgmo` is an error, and so is any other keyword before a 
 
 <!-- TIPS start -->
 
-**Styling tips:** name each element by its responsibility, not its technology — put the tech in the `tech` field; color by system boundary with a tag group; keep one level of abstraction per diagram (context OR container, not both); keep relationship labels to the verb of the interaction. Write relationships INDENTED under their source element (`  -uses-> Other`), never as a top-level `A -uses-> B` line. Static renders (CLI, MCP) show the context level — containers/components appear only in the interactive drill-down, so author context-level diagrams for static output.
+**Styling tips:** name each element by its responsibility, not its technology — put the tech in the `tech` field; color by system boundary with a tag group; keep one level of abstraction per diagram (context OR container, not both); keep relationship labels to the verb of the interaction. Write relationships INDENTED under their source element (`  -uses-> Other`), never as a top-level `A -uses-> B` line. Static renders (CLI, MCP) show the context level unless the header pins another with `level containers of <System>`, `level components of <Container>` or `level deployment`.
 
 <!-- TIPS end -->
 
@@ -1573,6 +1573,7 @@ Database is a container description: PostgreSQL with read replicas
 ### 7.8 Options
 
 - `direction-lr` / `direction-tb` (booleans, last one wins; default is TB)
+- `level containers of <System>` / `level components of <Container>` / `level deployment` / `level context` — the level a static render draws (default context). Bare `level containers` / `level components` pick the only candidate. A bad name warns and falls back to context.
 
 ---
 

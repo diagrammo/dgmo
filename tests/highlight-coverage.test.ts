@@ -275,6 +275,7 @@ const INVENTORY = {
     'legend-box',
     'legend-inline',
     'legend-pill',
+    'level',
     'locale',
     'marker',
     'max',

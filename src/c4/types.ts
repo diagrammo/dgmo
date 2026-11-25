@@ -92,6 +92,21 @@ export interface C4DeploymentNode {
 
 // ── Parsed result ────────────────────────────────────────────
 
+/** The four C4 zoom levels a view can show. */
+export type C4Level = 'context' | 'containers' | 'components' | 'deployment';
+
+/**
+ * The level a static render draws, from the `level` option (#2328). Names are
+ * resolved against the parsed elements, so `system` / `container` carry the
+ * declared spelling. An unresolvable `level` falls back to context and leaves
+ * a warning in `diagnostics`.
+ */
+export interface C4LevelView {
+  readonly level: C4Level;
+  readonly system?: string;
+  readonly container?: string;
+}
+
 export interface ParsedC4 {
   readonly title: string | null;
   readonly titleLineNumber: number | null;
@@ -102,6 +117,8 @@ export interface ParsedC4 {
    * which is the orientation C4 views have always rendered.
    */
   readonly direction: 'LR' | 'TB';
+  /** Resolved `level` option; `{ level: 'context' }` when absent (#2328). */
+  readonly level: C4LevelView;
   readonly tagGroups: readonly TagGroup[];
   readonly elements: readonly C4Element[];
   readonly relationships: readonly C4Relationship[];

@@ -185,6 +185,23 @@ function transposeGraph(g: InstanceType<typeof dagre.graphlib.Graph>): void {
     [pos.x, pos.y] = [pos.y, pos.x];
     [pos.width, pos.height] = [pos.height, pos.width];
   }
+  // Edge waypoints live in the same space. Without swapping them too, an
+  // LR edge the sifter re-routes comes back in TB coordinates (#2328).
+  for (const e of g.edges()) {
+    const data = g.edge(e) as { points?: { x: number; y: number }[] };
+    for (const p of data?.points ?? []) [p.x, p.y] = [p.y, p.x];
+  }
+}
+
+/**
+ * Copy an edge's dagre waypoints. Two relationships between the same pair
+ * share one dagre edge, so handing out the same array lets the final shift
+ * move it twice and detach the second edge from its cards (#2328).
+ */
+function copyEdgePoints(data: unknown): { x: number; y: number }[] {
+  const pts = (data as { points?: { x: number; y: number }[] } | undefined)
+    ?.points;
+  return (pts ?? []).map((p) => ({ x: p.x, y: p.y }));
 }
 
 /**
@@ -984,7 +1001,7 @@ export function layoutC4Context(
         ...(rel.label !== undefined && { label: rel.label }),
         ...(rel.technology !== undefined && { technology: rel.technology }),
         lineNumber: rel.lineNumber,
-        points: edgeData?.points ?? [],
+        points: copyEdgePoints(edgeData),
       };
     }
   );
@@ -1359,7 +1376,7 @@ export function layoutC4Containers(
         ...(rel.label !== undefined && { label: rel.label }),
         ...(rel.technology !== undefined && { technology: rel.technology }),
         lineNumber: rel.lineNumber,
-        points: edgeData?.points ?? [],
+        points: copyEdgePoints(edgeData),
       };
     });
 
@@ -1869,7 +1886,7 @@ export function layoutC4Components(
         ...(rel.label !== undefined && { label: rel.label }),
         ...(rel.technology !== undefined && { technology: rel.technology }),
         lineNumber: rel.lineNumber,
-        points: edgeData?.points ?? [],
+        points: copyEdgePoints(edgeData),
       };
     });
 
@@ -2059,6 +2076,136 @@ function collectDeploymentRefs(
   }
 }
 
+/** Width / height a wrapped deployment aims for: a landscape card. */
+const DEPLOY_WRAP_ASPECT = 1.6;
+/** Gap between sibling cards or infra boxes in an edgeless deployment. */
+const DEPLOY_GRID_GAP = 32;
+
+/** A packed block in (cross, along) axes: cross = TB width / LR height. */
+interface GridBlock {
+  cross: number;
+  along: number;
+  /** Place the block with its top-left (in cross/along axes) at (c, a). */
+  place: (c: number, a: number) => void;
+}
+
+/**
+ * Place an edgeless deployment as nested grids (#2328). With no
+ * relationships every card shares one dagre rank, so the whole deployment
+ * drew as one wide row. Here each infra node packs its direct children —
+ * container cards first, then nested infra nodes — greedily into rows
+ * (columns in LR) under one cross-size limit, chosen so the whole drawing
+ * lands closest to DEPLOY_WRAP_ASPECT. Writes centre x/y onto the dagre
+ * node labels; the infra boundaries are then derived from the cards exactly
+ * as after a dagre run, with BOUNDARY_PAD around each box's content.
+ */
+function placeDeploymentGrid(
+  g: DagreGraph,
+  roots: readonly C4DeploymentNode[],
+  refEntries: readonly DeploymentRefEntry[],
+  direction: 'TB' | 'LR'
+): void {
+  const tb = direction === 'TB';
+
+  const build = (limit: number): GridBlock => {
+    const pack = (items: GridBlock[], pad: number): GridBlock => {
+      const inner = limit === Infinity ? Infinity : limit - pad * 2;
+      const rows: GridBlock[][] = [[]];
+      let used = 0;
+      for (const it of items) {
+        const row = rows[rows.length - 1]!;
+        const next =
+          row.length === 0 ? it.cross : used + DEPLOY_GRID_GAP + it.cross;
+        if (row.length > 0 && next > inner) {
+          rows.push([it]);
+          used = it.cross;
+        } else {
+          row.push(it);
+          used = next;
+        }
+      }
+      const rowCross = rows.map(
+        (row) =>
+          row.reduce((sum, it) => sum + it.cross, 0) +
+          DEPLOY_GRID_GAP * (row.length - 1)
+      );
+      const rowAlong = rows.map((row) =>
+        Math.max(...row.map((it) => it.along))
+      );
+      const contentCross = Math.max(...rowCross);
+      const contentAlong =
+        rowAlong.reduce((a, b) => a + b, 0) +
+        DEPLOY_GRID_GAP * (rows.length - 1);
+      return {
+        cross: contentCross + pad * 2,
+        along: contentAlong + pad * 2,
+        place: (c0, a0) => {
+          let a = a0 + pad;
+          rows.forEach((row, i) => {
+            // Centre each row across the block.
+            let c = c0 + pad + (contentCross - rowCross[i]!) / 2;
+            for (const it of row) {
+              it.place(c, a);
+              c += it.cross + DEPLOY_GRID_GAP;
+            }
+            a += rowAlong[i]! + DEPLOY_GRID_GAP;
+          });
+        },
+      };
+    };
+
+    const card = (id: string): GridBlock => {
+      const n = g.node(id) as {
+        width: number;
+        height: number;
+        x?: number;
+        y?: number;
+      };
+      const cross = tb ? n.width : n.height;
+      const along = tb ? n.height : n.width;
+      return {
+        cross,
+        along,
+        place: (c, a) => {
+          n.x = tb ? c + cross / 2 : a + along / 2;
+          n.y = tb ? a + along / 2 : c + cross / 2;
+        },
+      };
+    };
+
+    const visit = (node: C4DeploymentNode): GridBlock | null => {
+      const infraId = `__infra_${node.name}`;
+      const items: GridBlock[] = [
+        ...refEntries
+          .filter((r) => r.infraId === infraId)
+          .map((r) => card(r.element.name)),
+        ...node.children.map(visit).filter((b): b is GridBlock => b !== null),
+      ];
+      return items.length > 0 ? pack(items, BOUNDARY_PAD) : null;
+    };
+
+    return pack(
+      roots.map(visit).filter((b): b is GridBlock => b !== null),
+      0
+    );
+  };
+
+  // Try every limit from the one-row width down to the widest single card,
+  // and keep the one whose drawing is closest to the target aspect.
+  const widthOf = (b: GridBlock) => (tb ? b.cross : b.along);
+  const heightOf = (b: GridBlock) => (tb ? b.along : b.cross);
+  const score = (b: GridBlock) =>
+    Math.abs(Math.log(widthOf(b) / heightOf(b) / DEPLOY_WRAP_ASPECT));
+  let best = build(Infinity);
+  const top = best.cross;
+  for (let limit = top - 20; limit > 0; limit -= 20) {
+    const b = build(limit);
+    if (score(b) < score(best)) best = b;
+    if (b.cross > limit) break; // a single item no longer fits; stop
+  }
+  best.place(0, 0);
+}
+
 /**
  * Layout a C4 deployment diagram.
  *
@@ -2191,23 +2338,27 @@ export function layoutC4Deployment(
     }
   }
 
-  // Run layout
-  dagre.layout(g);
+  if (g.edgeCount() === 0) {
+    // No relationships: one dagre rank would draw a single wide row (#2328).
+    placeDeploymentGrid(g, parsed.deployment, refEntries, direction);
+  } else {
+    dagre.layout(g);
 
-  // Post-dagre crossing reduction
-  const nodeInfraMap = new Map<string, string>();
-  for (const r of refEntries) nodeInfraMap.set(r.element.name, r.infraId);
-  reduceCrossingsForDirection(
-    g,
-    direction,
-    deployRels
-      .filter(
-        (r) =>
-          nameToElement.has(r.sourceName) && nameToElement.has(r.targetName)
-      )
-      .map((r) => ({ source: r.sourceName, target: r.targetName })),
-    nodeInfraMap
-  );
+    // Post-dagre crossing reduction
+    const nodeInfraMap = new Map<string, string>();
+    for (const r of refEntries) nodeInfraMap.set(r.element.name, r.infraId);
+    reduceCrossingsForDirection(
+      g,
+      direction,
+      deployRels
+        .filter(
+          (r) =>
+            nameToElement.has(r.sourceName) && nameToElement.has(r.targetName)
+        )
+        .map((r) => ({ source: r.sourceName, target: r.targetName })),
+      nodeInfraMap
+    );
+  }
 
   // Extract positioned nodes
   const nodes: Writable<C4LayoutNode>[] = [];
@@ -2252,7 +2403,7 @@ export function layoutC4Deployment(
         ...(rel.label !== undefined && { label: rel.label }),
         ...(rel.technology !== undefined && { technology: rel.technology }),
         lineNumber: rel.lineNumber,
-        points: edgeData?.points ?? [],
+        points: copyEdgePoints(edgeData),
       };
     });
 

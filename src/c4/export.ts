@@ -28,7 +28,9 @@ export async function exportC4(ctx: ExportContext): Promise<string> {
   const c4Parsed = parseC4(content, effectivePalette);
   if (c4Parsed.error || c4Parsed.elements.length === 0) return '';
 
-  // Container/component-level rendering (viewState fallback for share links)
+  // Level precedence (#2328): explicit option → share-link view state → the
+  // file's own `level` option → context.
+  const fileLevel = c4Parsed.level;
   const c4Level =
     ctx.options?.c4Level ??
     (viewState?.c4l as
@@ -37,18 +39,33 @@ export async function exportC4(ctx: ExportContext): Promise<string> {
       | 'components'
       | 'deployment'
       | undefined) ??
-    'context';
-  const c4System = ctx.options?.c4System ?? viewState?.c4s;
-  const c4Container = ctx.options?.c4Container ?? viewState?.c4c;
+    fileLevel.level;
+  const fromFile = c4Level === fileLevel.level;
+  const c4System =
+    ctx.options?.c4System ??
+    viewState?.c4s ??
+    (fromFile ? fileLevel.system : undefined);
+  const c4Container =
+    ctx.options?.c4Container ??
+    viewState?.c4c ??
+    (fromFile ? fileLevel.container : undefined);
+
+  // Cards colour by the active tag group at every level, as in the app: an
+  // explicit override, else `active-tag`, else the first declared group.
+  const activeTagGroup = resolveActiveTagGroup(
+    c4Parsed.tagGroups,
+    c4Parsed.options['active-tag'],
+    ctxTagOverride(ctx)
+  );
 
   const c4Layout =
     c4Level === 'deployment'
-      ? layoutC4Deployment(c4Parsed)
+      ? layoutC4Deployment(c4Parsed, activeTagGroup)
       : c4Level === 'components' && c4System && c4Container
-        ? layoutC4Components(c4Parsed, c4System, c4Container)
+        ? layoutC4Components(c4Parsed, c4System, c4Container, activeTagGroup)
         : c4Level === 'containers' && c4System
-          ? layoutC4Containers(c4Parsed, c4System)
-          : layoutC4Context(c4Parsed);
+          ? layoutC4Containers(c4Parsed, c4System, activeTagGroup)
+          : layoutC4Context(c4Parsed, activeTagGroup);
 
   if (c4Layout.nodes.length === 0) return '';
 
@@ -83,11 +100,7 @@ export async function exportC4(ctx: ExportContext): Promise<string> {
     ctx.isDark,
     undefined,
     { width: exportWidth, height: exportHeight },
-    resolveActiveTagGroup(
-      c4Parsed.tagGroups,
-      c4Parsed.options['active-tag'],
-      ctxTagOverride(ctx)
-    ),
+    activeTagGroup,
     exportMode
   );
   return finalizeSvgExport(container, theme, effectivePalette);

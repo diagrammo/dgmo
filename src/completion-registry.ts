@@ -936,12 +936,16 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
   [
     'c4',
-    // Spec §8 §7.7: direction booleans, active-tag.
+    // Spec §8 §7.7: direction booleans, active-tag, level (#2328).
     withGlobals({
       'no-legend': { description: 'Hide the legend' },
       'direction-tb': { description: 'Top-to-bottom layout (the default)' },
       'direction-lr': { description: 'Switch to left-to-right layout' },
       'active-tag': { description: 'Active tag group name' },
+      level: {
+        description:
+          'Level a static render draws: context, containers of <System>, components of <Container>, deployment',
+      },
     }),
   ],
   [

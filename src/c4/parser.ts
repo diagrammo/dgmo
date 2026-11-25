@@ -49,6 +49,7 @@ import type {
   C4Relationship,
   C4Group,
   C4DeploymentNode,
+  C4LevelView,
 } from './types';
 
 // ============================================================
@@ -122,7 +123,7 @@ const VALID_SHAPES = new Set<string>([
 ]);
 
 /** Known top-level option keys for C4 diagrams. */
-const KNOWN_C4_OPTIONS = new Set<string>(['active-tag']);
+const KNOWN_C4_OPTIONS = new Set<string>(['active-tag', 'level']);
 
 /** Known C4 boolean options (bare keyword = on). */
 const KNOWN_C4_BOOLEANS = new Set<string>([
@@ -300,6 +301,7 @@ function parseC4Raw(content: string, palette?: PaletteColors): ParsedC4 {
     titleLineNumber: null,
     options,
     direction: 'TB',
+    level: { level: 'context' },
     tagGroups: [],
     elements: [],
     relationships: [],
@@ -331,6 +333,7 @@ function parseC4Raw(content: string, palette?: PaletteColors): ParsedC4 {
   takeFootnoteBlock(result, lines, result.diagnostics);
   let contentStarted = false;
   let activeTagOptionLine = 0;
+  let levelOptionLine = 0;
   let sawChartType = false;
   let inDeployment = false;
 
@@ -507,9 +510,15 @@ function parseC4Raw(content: string, palette?: PaletteColors): ParsedC4 {
           );
           continue;
         }
-        if (KNOWN_C4_OPTIONS.has(key)) {
+        // `level is a system` declares an element named "level", not the
+        // option — the `is a` tail is the declaration grammar.
+        if (
+          KNOWN_C4_OPTIONS.has(key) &&
+          !(key === 'level' && /^is\s+an?\s/i.test(optMatch[2]!.trim()))
+        ) {
           options[key] = optMatch[2]!.trim();
           if (key === 'active-tag') activeTagOptionLine = lineNumber;
+          if (key === 'level') levelOptionLine = lineNumber;
           continue;
         }
       }
@@ -1155,11 +1164,161 @@ function parseC4Raw(content: string, palette?: PaletteColors): ParsedC4 {
     );
   }
 
+  // `level` pins the view a static render draws (#2328). Resolved after the
+  // whole file is read, since it names elements declared below it.
+  if (options['level'] !== undefined) {
+    result.level = resolveC4Level(
+      options['level'],
+      result.elements,
+      result.deployment.length > 0,
+      (msg) => pushError(levelOptionLine || 1, msg, 'warning')
+    );
+  }
+
   // Alias namespace rules (§2A.2) — decidable only once the whole
   // source has been read.
   result.diagnostics.push(...nameAliasMap.finish());
 
   return result;
+}
+
+// ============================================================
+// `level` option (#2328)
+// ============================================================
+
+const C4_LEVEL_NAMES = [
+  'context',
+  'containers',
+  'components',
+  'deployment',
+] as const;
+
+/** Containers of a system: direct children plus children of its `[Group]`s. */
+function containersOf(system: C4Element): C4Element[] {
+  return [
+    ...system.children,
+    ...system.groups.flatMap((g) => g.children),
+  ].filter((c) => c.type === 'container');
+}
+
+/** True when a container holds at least one component (directly or grouped). */
+function hasComponents(container: C4Element): boolean {
+  return [
+    ...container.children,
+    ...container.groups.flatMap((g) => g.children),
+  ].some((c) => c.type === 'component');
+}
+
+function quoteList(names: readonly string[]): string {
+  return names.map((n) => `'${n}'`).join(', ');
+}
+
+/**
+ * Resolve `level <name> [of <Element>]` against the parsed elements. Every
+ * failure warns and falls back to context, so the file still renders.
+ */
+export function resolveC4Level(
+  raw: string,
+  elements: readonly C4Element[],
+  hasDeployment: boolean,
+  warn: (msg: string) => void
+): C4LevelView {
+  const context: C4LevelView = { level: 'context' };
+  const m = raw.trim().match(/^(\S+)(?:\s+of\s+(.+))?$/i);
+  const word = (m?.[1] ?? raw).toLowerCase();
+  const target = m?.[2]?.trim();
+  if (!m || !(C4_LEVEL_NAMES as readonly string[]).includes(word)) {
+    const hint = suggest(word, C4_LEVEL_NAMES);
+    warn(
+      `Unknown C4 level '${raw.trim()}'. Use one of ${quoteList(C4_LEVEL_NAMES)}.` +
+        (hint ? ` ${hint}` : '') +
+        ' Rendering the context level.'
+    );
+    return context;
+  }
+  if (word === 'context' || word === 'deployment') {
+    if (target) {
+      warn(`'level ${word}' takes no 'of' target; '${target}' is ignored.`);
+    }
+    if (word === 'deployment' && !hasDeployment) {
+      warn(
+        `'level deployment' needs a 'deployment' section. Rendering the context level.`
+      );
+      return context;
+    }
+    return { level: word };
+  }
+
+  const systems = elements.filter((e) => e.type === 'system');
+
+  if (word === 'containers') {
+    const withContainers = systems.filter((s) => containersOf(s).length > 0);
+    if (!target) {
+      if (withContainers.length === 1) {
+        return { level: 'containers', system: withContainers[0]!.name };
+      }
+      warn(
+        withContainers.length === 0
+          ? `'level containers' needs a system with a 'containers' section. Rendering the context level.`
+          : `'level containers' is ambiguous: write 'level containers of <System>' with one of ${quoteList(withContainers.map((s) => s.name))}. Rendering the context level.`
+      );
+      return context;
+    }
+    const system = systems.find(
+      (s) => s.name.toLowerCase() === target.toLowerCase()
+    );
+    if (!system || containersOf(system).length === 0) {
+      const names = withContainers.map((s) => s.name);
+      const hint = suggest(target, names);
+      warn(
+        (system
+          ? `System '${system.name}' has no containers.`
+          : `No system named '${target}'.`) +
+          (names.length > 0
+            ? ` Systems with containers: ${quoteList(names)}.`
+            : '') +
+          (hint ? ` ${hint}` : '') +
+          ' Rendering the context level.'
+      );
+      return context;
+    }
+    return { level: 'containers', system: system.name };
+  }
+
+  // components
+  const candidates = systems.flatMap((s) =>
+    containersOf(s)
+      .filter(hasComponents)
+      .map((c) => ({ system: s.name, container: c.name }))
+  );
+  if (!target) {
+    if (candidates.length === 1) {
+      return { level: 'components', ...candidates[0]! };
+    }
+    warn(
+      candidates.length === 0
+        ? `'level components' needs a container with a 'components' section. Rendering the context level.`
+        : `'level components' is ambiguous: write 'level components of <Container>' with one of ${quoteList(candidates.map((c) => c.container))}. Rendering the context level.`
+    );
+    return context;
+  }
+  const hit = candidates.find(
+    (c) => c.container.toLowerCase() === target.toLowerCase()
+  );
+  if (!hit) {
+    const names = candidates.map((c) => c.container);
+    const hint = suggest(target, names);
+    warn(
+      `No container named '${target}' with components.` +
+        (names.length > 0
+          ? ` Containers with components: ${quoteList(names)}.`
+          : '') +
+        (hint ? ` ${hint}` : '') +
+        ' Rendering the context level.'
+    );
+    return context;
+  }
+  return { level: 'components', ...hit };
 }
 
 // ============================================================

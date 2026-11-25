@@ -845,6 +845,8 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'components', category: 'directive', chartTypes: ['c4'] },
   { token: 'deployment', category: 'directive', chartTypes: ['c4'] },
   { token: 'technology', category: 'directive', chartTypes: ['c4'] },
+  // `level` pins the view a static render draws (#2328).
+  { token: 'level', category: 'directive', chartTypes: ['c4'] },
   // ── Infra (directives beyond the option/behavior Sets) ───
   { token: 'sub-node-label', category: 'directive', chartTypes: ['org'] },
   { token: 'show-sub-node-count', category: 'directive', chartTypes: ['org'] },

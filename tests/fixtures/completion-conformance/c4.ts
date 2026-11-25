@@ -1,7 +1,7 @@
 import type { ConformanceFixture } from './_types';
 import { FRAME_DIRECTIVES } from './_frame';
 
-// Spec §8 §7.7 Options: direction-tb, active-tag. fill family via
+// Spec §8 §7.7 Options: direction-tb, active-tag, level (#2328). fill family via
 // FILL_FAMILY_CAPABLE. Pipe metadata in PIPE_METADATA: description, tech.
 export const fixture: ConformanceFixture = {
   chartType: 'c4',
@@ -14,6 +14,7 @@ export const fixture: ConformanceFixture = {
     'direction-tb',
     'direction-lr',
     'active-tag',
+    'level',
     'fill-tint',
     'fill-solid',
     'fill-outline',
