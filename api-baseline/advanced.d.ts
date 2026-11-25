@@ -788,7 +788,7 @@ interface ParsedChart {
     facetFreeY?: boolean;
     /** `no-context`: a faceted line draws no grey context lines. */
     noContext?: boolean;
-    /** `columns N`: the facet grid's column count. Absent ⇒ as many as fit. */
+    /** `facet N`: the facet grid's column count. Absent ⇒ as many as fit. */
     facetColumns?: number;
     diagnostics: DgmoError[];
     error: string | null;
