@@ -14,7 +14,6 @@ export const fixture: ConformanceFixture = {
     // #1853 small multiples.
     'facet',
     'facet-free-y',
-    'columns',
     ...FRAME_DIRECTIVES,
     // #1831 number format.
     ...NUMBER_FORMAT_DIRECTIVES,

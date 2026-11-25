@@ -16,7 +16,6 @@ export const fixture: ConformanceFixture = {
     'facet',
     'facet-free-y',
     'no-context',
-    'columns',
     ...FRAME_DIRECTIVES,
     // #1831 number format.
     ...NUMBER_FORMAT_DIRECTIVES,
