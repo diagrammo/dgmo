@@ -253,6 +253,24 @@ describe('number format — one compact unit per axis', () => {
     ).toBe('-25K ms');
   });
 
+  it('a value far below the shared unit gets its own unit (#2294)', () => {
+    const f = compact({ kind: 'compact' }, [10_000, 1_000_000, 20_000_000_000]);
+    expect([10_000, 1_000_000, 3_000_000, 20_000_000_000].map(f)).toEqual([
+      '10K',
+      '1M',
+      '3M',
+      '20B',
+    ]);
+    expect(f(-500_000_000)).toBe('-500M');
+    expect(f(0)).toBe('0');
+    expect(f(-3_000_000)).toBe('-3M');
+    const ja = compact(
+      { kind: 'compact', locale: 'ja-JP' },
+      [0, 500_000_000_000]
+    );
+    expect(ja(30_000_000)).toBe('3000万');
+  });
+
   it('bar: the axis and the bar labels share one unit', async () => {
     const svg = await renderDataChartD3(
       'bar Doubloons\nformat compact\nNassau 1200\nPort Royal 800\nTortuga 420\nHavana 310',

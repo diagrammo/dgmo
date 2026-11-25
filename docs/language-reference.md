@@ -3307,7 +3307,7 @@ the pie centre total and the generated description (#1831, decided
 ```
 format currency USD      // $1,200 — any ISO 4217 code; `format currency EUR 2` fixes 2 decimals
 format percent 1         // 12.5 prints as 12.5% — values are percentages as written
-format compact           // 1.2K, 39.5M, 2.3B — `format compact 2` for two decimals
+format compact           // 1.2K, 39.5M, 2.3B — `format compact 2` for two decimals; a value too small for the axis unit takes its own
 format ",.2f"            // any d3-format pattern, quoted: the escape hatch
 unit ms                  // what the numbers count: a word goes on the axis title, a symbol on every number (21°)
 locale de-DE             // separators and currency placement: 1.234,5 · 1.200 €

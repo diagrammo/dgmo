@@ -377,10 +377,22 @@ function sharedCompact(
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   });
+  const own = new Intl.NumberFormat(locale, {
+    notation: 'compact',
+    minimumFractionDigits: fixed ?? 0,
+    maximumFractionDigits: fixed ?? 1,
+  });
   return (n) => {
     if (n === 0) return plain.format(0).replace(/[.,]0+$/, '');
     if (!unit) return plain.format(n);
-    const body = plain.format(Math.abs(n) / scale);
+    const s = Math.abs(n) / scale;
+    // A value far below the shared unit would print as 0 or a wrong digit
+    // (3M in B -> 0B, 500M -> 1B): give it its own unit (#2294).
+    if (s < 1) {
+      const r = Math.round(s * 10 ** decimals) / 10 ** decimals;
+      if (r === 0 || Math.abs(r - s) / s > 0.25) return own.format(n);
+    }
+    const body = plain.format(s);
     return `${n < 0 ? '-' : ''}${prefix}${body}${suffix}`;
   };
 }
