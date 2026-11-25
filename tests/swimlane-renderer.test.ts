@@ -3,7 +3,13 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseSwimlane } from '../src/swimlane/parser';
 import { layoutSwimlane } from '../src/swimlane/layout';
-import { renderSwimlaneForExport } from '../src/swimlane/renderer';
+import {
+  renderSwimlaneForExport,
+  fitNodeLabel,
+  fitOutsideLabel,
+  NODE_LABEL_MIN_FONT,
+  OUTSIDE_LABEL_MAX_W,
+} from '../src/swimlane/renderer';
 import { getPalette } from '../src/palettes';
 import { mix, themeBaseBg } from '../src/palettes/color-utils';
 import { renderForExport } from '../src/d3';
@@ -440,5 +446,99 @@ describe('swimlane renderer — long edge labels (#2264)', () => {
     expect(no).toBeDefined();
     expect(no!.querySelector('tspan')).toBeNull();
     expect(no!.querySelector('title')).toBeNull();
+  });
+});
+
+describe('swimlane renderer — labels stay inside their space (#2313)', () => {
+  const LONG =
+    'Record the loss details and confirm the policy number with the caller and then cross-check every rider on the schedule';
+
+  it('a 70+ char task label fits the box width at every line, ends in … and carries a <title>', () => {
+    expect(LONG.length).toBeGreaterThan(70);
+    const maxW = 124 - 12;
+    const { lines, fontSize, truncated } = fitNodeLabel(LONG, maxW, 44 - 8);
+    expect(truncated).toBe(true);
+    expect(fontSize).toBe(NODE_LABEL_MIN_FONT);
+    expect(lines[lines.length - 1]!.endsWith('…')).toBe(true);
+    expect(lines.length * fontSize * 1.2).toBeLessThanOrEqual(44 - 8);
+    for (const ln of lines)
+      expect(measureText(ln, fontSize, { bold: false })).toBeLessThanOrEqual(
+        maxW
+      );
+
+    const src = `swimlane T\nlane A blue\n  (start)\n    -> ${LONG}\n  ${LONG}\n    -> (end)\n`;
+    const palette = getPalette('nord').light;
+    const parsed = parseSwimlane(src, palette);
+    const layout = layoutSwimlane(parsed);
+    const el = document.createElement('div');
+    renderSwimlaneForExport(el, parsed, layout, palette, false, {
+      exportDims: { width: layout.width + 40, height: layout.height + 80 },
+    });
+    const titles = [...el.querySelectorAll('.sw-node rect ~ text title')];
+    expect(titles.some((t) => t.textContent === LONG)).toBe(true);
+  });
+
+  it('every task label in the report source fits its box width', () => {
+    const svg = render('swimlane-long-labels-2313.dgmo');
+    const nodes = [...svg.querySelectorAll('.sw-node')].filter((g) =>
+      g.querySelector(':scope > rect')
+    );
+    expect(nodes.length).toBeGreaterThan(5);
+    for (const g of nodes) {
+      const w = Number(g.querySelector(':scope > rect')!.getAttribute('width'));
+      for (const t of g.querySelectorAll(':scope > text')) {
+        const fs = Number(t.getAttribute('font-size'));
+        const own = [...t.childNodes]
+          .filter((c) => c.nodeType === 3)
+          .map((c) => c.textContent)
+          .join('');
+        expect(measureText(own, fs, { bold: false })).toBeLessThanOrEqual(
+          w - 12
+        );
+      }
+    }
+  });
+
+  it('a long gateway label wraps to the outside width and ends in … when cut', () => {
+    const fit = fitOutsideLabel(
+      'Is the reported loss covered under the policy as written, including every rider, endorsement and exclusion on the schedule?'
+    );
+    expect(fit.lines.length).toBeLessThanOrEqual(2);
+    expect(fit.truncated).toBe(true);
+    expect(fit.lines[1]!.endsWith('…')).toBe(true);
+    for (const ln of fit.lines)
+      expect(
+        measureText(ln, fit.fontSize, { bold: false })
+      ).toBeLessThanOrEqual(OUTSIDE_LABEL_MAX_W);
+    const short = fitOutsideLabel('Covered?');
+    expect(short).toEqual({
+      lines: ['Covered?'],
+      fontSize: 11,
+      truncated: false,
+    });
+  });
+
+  it('a short label (≤14 chars) renders unchanged at 12px', () => {
+    expect(fitNodeLabel('Ship order', 112, 36)).toEqual({
+      lines: ['Ship order'],
+      fontSize: 12,
+      truncated: false,
+    });
+  });
+
+  it('keeps every box at 124x44 and the layout unchanged for the report source', () => {
+    const parsed = parseSwimlane(
+      FIX('swimlane-long-labels-2313.dgmo'),
+      getPalette('nord').light
+    );
+    const layout = layoutSwimlane(parsed);
+    const boxes = layout.nodes
+      .filter((n) => !['terminal', 'exclusive'].includes(n.shape))
+      .map((n) => [n.width, n.height]);
+    expect(boxes.length).toBeGreaterThan(5);
+    for (const b of boxes) expect(b).toEqual([124, 44]);
+    expect(
+      layout.nodes.map((n) => [n.id, Math.round(n.x), Math.round(n.y)])
+    ).toMatchSnapshot();
   });
 });

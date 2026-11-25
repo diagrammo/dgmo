@@ -19,7 +19,11 @@ import { ARTIFACT_FONT, MARGIN as LAYOUT_MARGIN } from './layout';
 import * as d3Selection from 'd3-selection';
 import { fillModeFromOptions } from '../utils/parsing';
 import { FONT_FAMILY } from '../fonts';
-import { fitWrapped, measureText } from '../utils/text-measure';
+import {
+  fitWrapped,
+  measureText,
+  wrapTextToWidth,
+} from '../utils/text-measure';
 import { appendArrowheadMarkers } from '../utils/arrow-markers';
 import {
   ARROWHEAD_HEIGHT,
@@ -50,6 +54,18 @@ import type {
 } from './types';
 
 const NODE_FONT_SIZE = 12;
+/**
+ * The floor a node label shrinks to before it ends in `…` (#2313) — the same
+ * floor whiteboard and mindmap labels stop at.
+ */
+export const NODE_LABEL_MIN_FONT = 9;
+/** Inner padding between a task box's border and its label, each side. */
+const NODE_LABEL_PAD_X = 6;
+const NODE_LABEL_PAD_Y = 4;
+/** Gateway and event labels sit outside their shape; they wrap to this width. */
+export const OUTSIDE_LABEL_MAX_W = 156;
+const OUTSIDE_LABEL_MAX_LINES = 2;
+const NODE_LINE_HEIGHT = 1.2;
 const LANE_LABEL_FONT = 12;
 const PHASE_LABEL_FONT = 12;
 const EDGE_LABEL_FONT = 11;
@@ -820,18 +836,11 @@ export function renderSwimlaneForExport(
       if (n.label) {
         const below = touchesAt(n, 'top') && !touchesAt(n, 'bottom');
         const ly = below ? cy + r + 13 : cy - r - 7;
-        g.append('text')
-          .attr('class', 'sw-gateway-label')
-          .attr('x', cx)
-          .attr('y', ly)
-          .attr('text-anchor', 'middle')
-          .attr('font-size', NODE_FONT_SIZE - 1)
-          .attr('fill', palette.text)
-          .attr('stroke', haloAt(isLR ? ly : cx))
-          .attr('stroke-width', 3.5)
-          .attr('stroke-linejoin', 'round')
-          .attr('paint-order', 'stroke')
-          .text(n.label);
+        drawOutsideLabel(g, n.label, cx, ly, 'middle', below, {
+          cls: 'sw-gateway-label',
+          fill: palette.text,
+          halo: haloAt(isLR ? ly : cx),
+        });
       }
     } else if (n.shape === 'terminal') {
       const r = n.width / 2;
@@ -883,17 +892,10 @@ export function renderSwimlaneForExport(
             if (pt && pt.y > cy + r * 0.5) ly = cy - r - 6;
           }
         }
-        g.append('text')
-          .attr('x', lx)
-          .attr('y', ly)
-          .attr('text-anchor', anchor)
-          .attr('font-size', NODE_FONT_SIZE - 1)
-          .attr('fill', palette.text)
-          .attr('stroke', haloAt(isLR ? ly : lx))
-          .attr('stroke-width', 3.5)
-          .attr('stroke-linejoin', 'round')
-          .attr('paint-order', 'stroke')
-          .text(n.label);
+        drawOutsideLabel(g, n.label, lx, ly, anchor, ly > cy, {
+          fill: palette.text,
+          halo: haloAt(isLR ? ly : lx),
+        });
       }
     } else {
       // task / subprocess rectangle.
@@ -931,7 +933,15 @@ export function renderSwimlaneForExport(
           textColor,
           fill
         );
-      drawCenteredLabel(g, n.label, cx, cy, textColor, NODE_FONT_SIZE);
+      drawCenteredLabel(
+        g,
+        n.label,
+        cx,
+        cy,
+        textColor,
+        n.width - 2 * NODE_LABEL_PAD_X,
+        n.height - 2 * NODE_LABEL_PAD_Y
+      );
     }
   }
 
@@ -939,46 +949,55 @@ export function renderSwimlaneForExport(
   growChartFrame(svg.node(), parsed.frame, palette, { size: 'grow' });
 }
 
-/** Draw a one/two-line centered label inside a node. */
-/** Greedy word-wrap to a target line length; never splits a single word. */
-function wrapWords(words: string[], target: number): string[] {
-  const lines: string[] = [];
-  let cur = '';
-  for (const w of words) {
-    if (cur === '') cur = w;
-    else if (cur.length + 1 + w.length <= target) cur += ' ' + w;
-    else {
-      lines.push(cur);
-      cur = w;
-    }
+/**
+ * Fit a task label inside its box (#2313): the historical 14-character /
+ * middle-word split when it already fits, else wrap to the box width and
+ * shrink from `NODE_FONT_SIZE` to `NODE_LABEL_MIN_FONT` — more lines fit as the
+ * font drops — and last of all end the final line in `…`.
+ */
+export function fitNodeLabel(
+  label: string,
+  maxW: number,
+  maxH: number
+): { lines: string[]; fontSize: number; truncated: boolean } {
+  const opts = { bold: false };
+  const words = label.split(/\s+/).filter((w) => w.length > 0);
+  const legacy =
+    label.length <= 14 || words.length <= 1
+      ? [label]
+      : [
+          words.slice(0, Math.ceil(words.length / 2)).join(' '),
+          words.slice(Math.ceil(words.length / 2)).join(' '),
+        ];
+  if (legacy.every((ln) => measureText(ln, NODE_FONT_SIZE, opts) <= maxW))
+    return { lines: legacy, fontSize: NODE_FONT_SIZE, truncated: false };
+  const linesAt = (fs: number): number =>
+    Math.max(1, Math.floor(maxH / (fs * NODE_LINE_HEIGHT)));
+  for (let fs = NODE_FONT_SIZE; fs >= NODE_LABEL_MIN_FONT; fs--) {
+    const lines = wrapTextToWidth(label, fs, maxW, {
+      ...opts,
+      hardBreak: true,
+    });
+    if (lines.length <= linesAt(fs))
+      return { lines, fontSize: fs, truncated: false };
   }
-  if (cur) lines.push(cur);
-  return lines;
+  const min = NODE_LABEL_MIN_FONT;
+  const fit = fitWrapped(label, maxW, min, min, linesAt(min), opts);
+  return { ...fit, truncated: true };
 }
 
+/** Draw a task label centered in its box, fitted by `fitNodeLabel`. */
 function drawCenteredLabel(
   g: D3G,
   label: string,
   cx: number,
   cy: number,
   fill: string,
-  fontSize: number,
-  tight = false,
-  halo?: string
+  maxW: number,
+  maxH: number
 ): void {
-  const words = label.split(/\s+/);
-  let lines: string[];
-  if (tight) {
-    // Gateways are narrow diamonds — any multi-word label is broken onto
-    // balanced short lines so it stays inside the shape.
-    lines = words.length === 1 ? [label] : wrapWords(words, 7);
-  } else if (label.length <= 14 || words.length === 1) {
-    lines = [label];
-  } else {
-    const mid = Math.ceil(words.length / 2);
-    lines = [words.slice(0, mid).join(' '), words.slice(mid).join(' ')];
-  }
-  const lineH = fontSize * 1.2;
+  const { lines, fontSize, truncated } = fitNodeLabel(label, maxW, maxH);
+  const lineH = fontSize * NODE_LINE_HEIGHT;
   const startY = cy - ((lines.length - 1) * lineH) / 2;
   lines.forEach((ln, i) => {
     const txt = g
@@ -988,15 +1007,81 @@ function drawCenteredLabel(
       .attr('text-anchor', 'middle')
       .attr('dominant-baseline', 'middle')
       .attr('font-size', fontSize)
-      .attr('fill', fill);
-    if (halo)
-      txt
-        .attr('stroke', halo)
-        .attr('stroke-width', 3.5)
-        .attr('stroke-linejoin', 'round')
-        .attr('paint-order', 'stroke');
-    txt.text(ln);
+      .attr('fill', fill)
+      .text(ln);
+    if (truncated) txt.append('title').text(label);
   });
+}
+
+/**
+ * Fit a gateway or event label, which sits outside its shape (#2313): one line
+ * when it fits `OUTSIDE_LABEL_MAX_W` at most one point under its 11px, else
+ * wrap, shrink to `NODE_LABEL_MIN_FONT`, and end in `…` past
+ * `OUTSIDE_LABEL_MAX_LINES`.
+ */
+export function fitOutsideLabel(label: string): {
+  lines: string[];
+  fontSize: number;
+  truncated: boolean;
+} {
+  const opts = { bold: false };
+  // Shrink one point first: a label just over the width stays one line.
+  for (let fs = NODE_FONT_SIZE - 1; fs >= NODE_FONT_SIZE - 2; fs--)
+    if (measureText(label, fs, opts) <= OUTSIDE_LABEL_MAX_W)
+      return { lines: [label], fontSize: fs, truncated: false };
+  const fit = fitWrapped(
+    label,
+    OUTSIDE_LABEL_MAX_W,
+    NODE_FONT_SIZE - 1,
+    NODE_LABEL_MIN_FONT,
+    OUTSIDE_LABEL_MAX_LINES,
+    opts
+  );
+  const last = fit.lines[fit.lines.length - 1] ?? '';
+  return {
+    ...fit,
+    truncated: last.endsWith('\u2026') && !label.endsWith('\u2026'),
+  };
+}
+
+/**
+ * Draw an outside label with its first line at `y`. `growDown` false stacks
+ * extra lines upward, so the line nearest the shape stays where it was.
+ */
+function drawOutsideLabel(
+  g: D3G,
+  label: string,
+  x: number,
+  y: number,
+  anchor: string,
+  growDown: boolean,
+  style: { cls?: string; fill: string; halo: string }
+): void {
+  const { lines, fontSize, truncated } = fitOutsideLabel(label);
+  const lineH = fontSize * NODE_LINE_HEIGHT;
+  const top = growDown ? y : y - (lines.length - 1) * lineH;
+  const text = g.append('text');
+  if (style.cls) text.attr('class', style.cls);
+  text
+    .attr('x', x)
+    .attr('y', top)
+    .attr('text-anchor', anchor)
+    .attr('font-size', fontSize)
+    .attr('fill', style.fill)
+    .attr('stroke', style.halo)
+    .attr('stroke-width', 3.5)
+    .attr('stroke-linejoin', 'round')
+    .attr('paint-order', 'stroke');
+  if (lines.length === 1) text.text(lines[0]!);
+  else
+    lines.forEach((ln, i) =>
+      text
+        .append('tspan')
+        .attr('x', x)
+        .attr('dy', i === 0 ? 0 : lineH)
+        .text(ln)
+    );
+  if (truncated) text.append('title').text(label);
 }
 
 const isGatewayShape = (s: SwimLayoutNode['shape']): boolean =>

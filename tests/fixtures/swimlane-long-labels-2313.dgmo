@@ -1,0 +1,29 @@
+swimlane Insurance Claim Handling
+lane Customer Service Representative orange
+  (Customer reports a loss by phone, web form or branch visit)
+    -> Record the loss details and confirm the policy number with the caller
+  Record the loss details and confirm the policy number with the caller
+    -> <Is the reported loss covered under the policy as written?>
+lane Claims Adjuster blue
+  <Is the reported loss covered under the policy as written?>
+    -yes, the peril and the property are both listed in the schedule-> Inspect the property and photograph every damaged item
+    -no, the peril is excluded or the policy had lapsed-> Send the written denial letter with appeal instructions
+  Inspect the property and photograph every damaged item
+    -> Estimate the repair cost using the regional contractor price list
+  Estimate the repair cost using the regional contractor price list
+    -> <Does the estimate exceed the adjuster's settlement authority?>
+  <Does the estimate exceed the adjuster's settlement authority?>
+    -estimate is above the 25,000 authority limit-> Escalate the file to the senior claims committee for review
+    -estimate is within the limit-> Issue the settlement offer to the policyholder
+lane Senior Claims Committee purple
+  Escalate the file to the senior claims committee for review
+    -> Approve, reduce or reject the settlement at the weekly committee meeting
+  Approve, reduce or reject the settlement at the weekly committee meeting
+    -approved without changes-> Issue the settlement offer to the policyholder
+lane Finance and Payments green
+  Issue the settlement offer to the policyholder
+    -> Release the payment to the policyholder or the repair contractor
+  Release the payment to the policyholder or the repair contractor
+    -> (Claim closed and archived) success
+  Send the written denial letter with appeal instructions
+    -> (Claim closed without payment) terminate
