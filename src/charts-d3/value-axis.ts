@@ -24,6 +24,31 @@ export interface ValueAxis {
   baseline: number;
 }
 
+/** Fewest px between two adjacent vertical value ticks before labels touch. */
+export const MIN_TICK_GAP = 20;
+
+/**
+ * Ticks for a vertical axis, as many as `max` but never closer than
+ * MIN_TICK_GAP (#2320). `ticks(6)` on a short plot stacked the labels: d3
+ * rounds the step down, so 34–52 came back by 2, ten labels in 110px. Log
+ * axes keep their decade ticks; `labelledTicks` thins those.
+ */
+export function ticksForHeight(axis: ValueAxis, max = 6): number[] {
+  if (axis.isLog) return axis.ticks(max);
+  let ticks = axis.ticks(max);
+  for (let n = max; n >= 2; n--) {
+    ticks = axis.ticks(n);
+    if (ticks.length < 2) return ticks;
+    if (Math.abs(axis(ticks[1]!) - axis(ticks[0]!)) >= MIN_TICK_GAP)
+      return ticks;
+  }
+  // Even d3's coarsest step is too tight on a very short plot: keep every
+  // k-th tick from the first until they clear the gap.
+  const gap = Math.abs(axis(ticks[1]!) - axis(ticks[0]!));
+  const k = Math.ceil(MIN_TICK_GAP / Math.max(gap, 1e-9));
+  return ticks.filter((_, i) => i % k === 0);
+}
+
 const LOG_STEPS = [1, 2, 5] as const;
 
 /**

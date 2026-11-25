@@ -10,6 +10,7 @@ import {
   axisTickFormat,
   buildValueAxis,
   labelledTicks,
+  ticksForHeight,
   type ValueAxis,
 } from './value-axis';
 import {
@@ -91,6 +92,7 @@ import {
   reserveHeader,
   computeLeftMargin,
   drawXAxisTitle,
+  xAxisTitleY,
   drawYAxisTitle,
   drawValueLabel,
   planLabelsFitLeft,
@@ -635,7 +637,7 @@ export function renderLine(
   }
 
   // left y gridlines + ticks (only the left axis draws gridlines)
-  const shownTicks = yL.ticks(6);
+  const shownTicks = ticksForHeight(yL);
   const shown = labelledTicks(yL, shownTicks, tickFmt, {
     fontSize: TICK_FONT,
     vertical: true,
@@ -667,7 +669,7 @@ export function renderLine(
 
   // right y ticks (no gridlines)
   if (dual && yR) {
-    const shownRTicks = yR.ticks(6);
+    const shownRTicks = ticksForHeight(yR);
     const shownR = labelledTicks(yR, shownRTicks, tickFmtR, {
       fontSize: TICK_FONT,
       vertical: true,
@@ -1438,7 +1440,7 @@ export function renderLine(
     svg,
     chart.xlabel,
     m.left + plotW / 2,
-    m.top + plotH + 46,
+    xAxisTitleY(m.top + plotH, m.bottom),
     textColor
   );
   const leftTitle = drawYAxisTitle(

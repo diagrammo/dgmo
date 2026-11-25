@@ -74,6 +74,7 @@ import {
   reserveHeader,
   computeLeftMargin,
   drawXAxisTitle,
+  xAxisTitleY,
   drawYAxisTitle,
   drawValueLabel,
   tagDatum,
@@ -1431,7 +1432,7 @@ export function renderBar(
     svg,
     bottomTitle,
     m.left + plotW / 2,
-    m.top + plotH + 46,
+    xAxisTitleY(m.top + plotH, m.bottom),
     textColor
   );
   drawYAxisTitle(svg, leftTitle, m.top, plotH, 20, textColor, mTop);

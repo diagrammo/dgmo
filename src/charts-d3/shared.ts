@@ -352,6 +352,18 @@ export function computeLeftMargin(
   return Math.max(56, pad + titleBand + labelW + 14);
 }
 
+/** Gap from the bottom margin's foot up to the x-axis title's baseline. */
+const X_TITLE_FOOT = 18;
+
+/**
+ * Baseline of the x-axis title: near the foot of the bottom margin, which the
+ * chart sized to hold the tick labels AND the title. A fixed 46px under the
+ * plot put the title on rotated labels, which drop further (#2320).
+ */
+export function xAxisTitleY(plotBottom: number, marginBottom: number): number {
+  return plotBottom + marginBottom - X_TITLE_FOOT;
+}
+
 /** Draw a centered axis title below the x-axis. */
 export function drawXAxisTitle(
   svg: Svg,
@@ -373,6 +385,30 @@ export function drawXAxisTitle(
     .text(label);
 }
 
+/** Line pitch of a y-axis title that breaks onto two lines. */
+const Y_TITLE_LINE = 15;
+
+/** Split a title at the word break that best balances two lines. */
+function twoLineTitle(label: string): string[] {
+  const words = label.split(/\s+/).filter(Boolean);
+  if (words.length < 2) return [label];
+  let best: string[] = [label];
+  let bestW = Infinity;
+  for (let i = 1; i < words.length; i++) {
+    const a = words.slice(0, i).join(' ');
+    const b = words.slice(i).join(' ');
+    const w = Math.max(
+      measureText(a, AXIS_LABEL_FONT, { bold: true }),
+      measureText(b, AXIS_LABEL_FONT, { bold: true })
+    );
+    if (w < bestW) {
+      bestW = w;
+      best = [a, b];
+    }
+  }
+  return best;
+}
+
 /** Draw a rotated axis title to the left of the y-axis. */
 export function drawYAxisTitle(
   svg: Svg,
@@ -387,14 +423,18 @@ export function drawYAxisTitle(
   if (!label) return null;
   // Centred on the plot, and no taller than the room from the band to the
   // plot's foot mirrored about that centre (#2117): a longer title ran into
-  // the legend gap. It ends in `…` and keeps its full text as a hover title,
+  // the legend gap. One that does not fit breaks onto a second line before it
+  // ends in `…` (#2320); either way it keeps its full text as a hover title,
   // as long category names do (#1543).
-  const shown = truncateText(
-    label,
-    AXIS_LABEL_FONT,
-    height + 2 * Math.max(0, top - inkTop),
-    { bold: true }
-  );
+  const room = height + 2 * Math.max(0, top - inkTop);
+  const oneLine = truncateText(label, AXIS_LABEL_FONT, room, { bold: true });
+  const lines =
+    oneLine === label
+      ? [label]
+      : twoLineTitle(label).map((l) =>
+          truncateText(l, AXIS_LABEL_FONT, room, { bold: true })
+        );
+  const shown = lines.join(' ');
   const t = svg
     .append('text')
     .attr('transform', `translate(${x},${top + height / 2}) rotate(-90)`)
@@ -402,8 +442,16 @@ export function drawYAxisTitle(
     .attr('fill', textColor)
     .attr('font-size', AXIS_LABEL_FONT)
     .attr('font-family', FONT_FAMILY)
-    .attr('font-weight', 'bold')
-    .text(shown);
+    .attr('font-weight', 'bold');
+  if (lines.length === 1) t.text(lines[0]!);
+  else
+    lines.forEach((l, i) =>
+      t
+        .append('tspan')
+        .attr('x', 0)
+        .attr('dy', i === 0 ? -Y_TITLE_LINE / 2 : Y_TITLE_LINE)
+        .text(l)
+    );
   if (shown !== label) t.append('title').text(label);
   return t.node();
 }
