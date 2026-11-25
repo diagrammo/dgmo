@@ -5496,6 +5496,12 @@ interface CycleEdge {
     readonly description: readonly string[];
     readonly lineNumber?: number;
     readonly metadata: Readonly<Record<string, string>>;
+    /**
+     * A back edge (#2342): an extra arrow to a named step, drawn beside the
+     * step's own arrow to the next step. Drawn dashed. Unset on ring arrows and
+     * on a redirect (a step whose only edge lines name other steps, #2219).
+     */
+    readonly back?: true;
 }
 interface ParsedCycle {
     readonly type: 'cycle';
@@ -5566,6 +5572,7 @@ interface CycleLayoutResult {
  *   Description line (indented under node)
  *   -Label-> color: red, width: 6
  *     Edge description (indented under edge)
+ *   -Rework-> OtherStep color: red   (back edge, #2342)
  * ```
  */
 declare function parseCycle(content: string, palette?: PaletteColors): ParsedCycle;
