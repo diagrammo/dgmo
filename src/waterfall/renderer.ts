@@ -23,7 +23,11 @@ import {
 import { initD3Chart, renderChartTitle } from '../utils/d3-helpers';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import { fitLabel } from '../utils/fit-label';
-import { makeNumberFormatter } from '../utils/number-format';
+import {
+  isWordUnit,
+  makeNumberFormatter,
+  titleWithUnit,
+} from '../utils/number-format';
 import { measureText } from '../utils/text-measure';
 import { FRAME_BODY_TOP } from '../utils/title-constants';
 import { buildValueAxis } from '../charts-d3/value-axis';
@@ -34,6 +38,7 @@ const PAD = 20;
 const TICK_GAP = 8;
 const VALUE_GAP = 6;
 const NAME_GAP = 14;
+const AXIS_TITLE_H = TICK_FONT + 6;
 const NAME_LINE_PX = Math.round(TICK_FONT * 1.2);
 const NAME_MAX_LINES = 2;
 /** Most of the width the step names may take beside horizontal bars. */
@@ -112,10 +117,21 @@ export function renderWaterfall(
   const valueAxis = (range: [number, number]) =>
     buildValueAxis(lo, hi, undefined, range, { nice: true });
   const ticks = valueAxis([0, 1]).ticks(6);
-  const fmt = makeNumberFormatter(parsed.numberFormat, fmtNum, [
-    ...ticks,
-    ...rows.map((r) => Math.abs(r.value)),
-  ]);
+  // A word unit is stated once, on the value-axis title (#2295, #2088).
+  const unit = parsed.numberFormat?.unit;
+  const axisTitle =
+    unit && isWordUnit(unit) ? titleWithUnit(undefined, unit, true) : undefined;
+  const bareUnit = (nf: typeof parsed.numberFormat) => {
+    const bare = { ...nf };
+    delete bare.unit;
+    return bare;
+  };
+  const fmt = makeNumberFormatter(
+    axisTitle ? bareUnit(parsed.numberFormat) : parsed.numberFormat,
+    fmtNum,
+    [...ticks, ...rows.map((r) => Math.abs(r.value))]
+  );
+  const titleH = axisTitle ? AXIS_TITLE_H : 0;
   const tickText = (t: number) =>
     t < 0 ? `${MINUS}${fmt(Math.abs(t))}` : fmt(t);
   const valueTexts = rows.map((r) => waterfallValueText(r, fmt));
@@ -141,7 +157,7 @@ export function renderWaterfall(
     const tickW = Math.max(
       ...ticks.map((t) => measureText(tickText(t), TICK_FONT))
     );
-    const left = PAD + tickW + TICK_GAP;
+    const left = PAD + titleH + tickW + TICK_GAP;
     const right = width - PAD;
     const step = (right - left) / Math.max(1, rows.length);
     names = rows.map(
@@ -169,7 +185,7 @@ export function renderWaterfall(
     // Value labels stand past each bar's end, so the axis stops short of them.
     const right = width - PAD - (parsed.values ? valueW + VALUE_GAP : 0);
     const leftReserve = parsed.values && lo < 0 ? valueW + VALUE_GAP : 0;
-    const bottom = height - PAD - NAME_GAP;
+    const bottom = height - PAD - NAME_GAP - titleH;
     plot = { left: left + leftReserve, top, right, bottom };
     cat = scaleBand<string>().domain(keys).range([top, bottom]).padding(0.3);
     val = valueAxis([left + leftReserve, right]);
@@ -210,6 +226,23 @@ export function renderWaterfall(
         .attr('x', p)
         .attr('y', plot.bottom + NAME_GAP)
         .attr('text-anchor', 'middle');
+    }
+  }
+
+  if (axisTitle) {
+    const t = g
+      .append('text')
+      .attr('class', 'waterfall-axis-title')
+      .attr('font-size', TICK_FONT)
+      .attr('fill', palette.textMuted)
+      .attr('text-anchor', 'middle')
+      .text(axisTitle);
+    if (!horizontal) {
+      const cy = (plot.top + plot.bottom) / 2;
+      const x = PAD + TICK_FONT / 2;
+      t.attr('transform', `rotate(-90 ${x} ${cy})`).attr('x', x).attr('y', cy);
+    } else {
+      t.attr('x', (plot.left + plot.right) / 2).attr('y', height - PAD);
     }
   }
 

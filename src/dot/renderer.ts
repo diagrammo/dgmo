@@ -23,7 +23,11 @@ import {
 import { initD3Chart, renderChartTitle } from '../utils/d3-helpers';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import { fitLabel } from '../utils/fit-label';
-import { makeNumberFormatter } from '../utils/number-format';
+import {
+  isWordUnit,
+  makeNumberFormatter,
+  titleWithUnit,
+} from '../utils/number-format';
 import { measureText } from '../utils/text-measure';
 import { FRAME_BODY_TOP } from '../utils/title-constants';
 import { buildValueAxis } from '../charts-d3/value-axis';
@@ -34,6 +38,7 @@ import type { DotRow, ParsedDot } from './types';
 const PAD = 20;
 const TICK_GAP = 8;
 const NAME_GAP = 14;
+const AXIS_TITLE_H = TICK_FONT + 6;
 const VALUE_GAP = 6;
 const DOT_R = 5.5;
 const RING_W = 1.5;
@@ -166,11 +171,20 @@ export function renderDot(
     });
   const ticks = valueAxis([0, 1]).ticks(TICK_COUNT);
   const gaps = rows.map(dotGap);
-  const fmt = makeNumberFormatter(parsed.numberFormat, fmtNum, [
-    ...ticks,
-    ...all,
-    ...gaps.map(Math.abs),
-  ]);
+  // A word unit is stated once, on the value-axis title (#2295, #2088).
+  const unit = parsed.numberFormat?.unit;
+  const axisTitle =
+    unit && isWordUnit(unit) ? titleWithUnit(undefined, unit, true) : undefined;
+  const bareUnit = (nf: typeof parsed.numberFormat) => {
+    const bare = { ...nf };
+    delete bare.unit;
+    return bare;
+  };
+  const fmt = makeNumberFormatter(
+    axisTitle ? bareUnit(parsed.numberFormat) : parsed.numberFormat,
+    fmtNum,
+    [...ticks, ...all, ...gaps.map(Math.abs)]
+  );
   const tickText = (t: number) =>
     t < 0 ? `${MINUS}${fmt(Math.abs(t))}` : fmt(t);
   const gapTexts = parsed.gap ? gaps.map((g) => dotGapText(g, fmt)) : [];
@@ -188,7 +202,7 @@ export function renderDot(
   const top = (title ? FRAME_BODY_TOP : PAD) + titleExtra;
   // The series names stand above the first row's dots.
   const plotTop = top + (named ? VALUE_FONT + VALUE_GAP : 0);
-  const plotBottom = height - PAD - NAME_GAP;
+  const plotBottom = height - PAD - NAME_GAP - (axisTitle ? AXIS_TITLE_H : 0);
   const plotLeft = PAD + nameW + TICK_GAP + DOT_R;
   const plotRight =
     width - PAD - DOT_R - (parsed.gap ? gapW + VALUE_GAP + DOT_R : 0);
@@ -222,6 +236,16 @@ export function renderDot(
       .attr('fill', palette.textMuted)
       .text(tickText(t));
   });
+
+  if (axisTitle)
+    g.append('text')
+      .attr('class', 'dot-axis-title')
+      .attr('x', (plotLeft + plotRight) / 2)
+      .attr('y', height - PAD)
+      .attr('text-anchor', 'middle')
+      .attr('font-size', TICK_FONT)
+      .attr('fill', palette.textMuted)
+      .text(axisTitle);
 
   // ── Rows: name, connector, dots, gap ───────────────────────
   const body = g.append('g').attr('class', 'dot-rows');
