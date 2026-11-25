@@ -1399,18 +1399,6 @@ export function renderBar(
       // height: the drawing keeps the size it was asked for (#2310), since a
       // host that sized the pane clips anything taller.
       drawNoteKey(svg, marks, noteKey, { x: m.left, y: height }, noteOpts);
-      // A plot held at KEY_PLOT_MIN pushes the key past the requested size:
-      // the drawing grows by that much, and only that much.
-      const root = svg.node();
-      if (root && !panel) {
-        const h0 = Number(root.getAttribute('height') ?? 0);
-        const need = Math.ceil(height + noteKey.h);
-        if (need > h0) {
-          const w = Number(root.getAttribute('width') ?? width);
-          root.setAttribute('height', String(need));
-          root.setAttribute('viewBox', `0 0 ${w} ${need}`);
-        }
-      }
       boxes = marks.map(({ x, y }) => ({
         x: x - KEY_DISC_R,
         y: y - KEY_DISC_R,
@@ -1447,6 +1435,17 @@ export function renderBar(
           plan,
           panel
         );
+        // A plot held at KEY_PLOT_MIN pushes the key past the plot height it
+        // was given: the drawing grows by that overshoot, as it does for
+        // short rows (#2271), so the frame lays out around the taller canvas
+        // and its footer stays clear of the key.
+        const over = Math.ceil(chartH + plan.h - (height - grownBy));
+        if (root && !panel && over > 0) {
+          const h = Number(root.getAttribute('height') ?? 0) + over;
+          const w = Number(root.getAttribute('width') ?? width);
+          root.setAttribute('height', String(h));
+          root.setAttribute('viewBox', `0 0 ${w} ${h}`);
+        }
         return;
       }
       boxes = drawChartNotes(svg, notes, noteOpts, placed);

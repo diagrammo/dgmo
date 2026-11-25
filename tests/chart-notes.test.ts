@@ -439,6 +439,56 @@ describe('note', () => {
     }
   });
 
+  it('a numbered key held at the minimum plot clears the subtitle and footnote bands (#2310)', async () => {
+    const notes = [
+      'Sacked twice',
+      'Pirate republic',
+      'Governor pardoned the fleet',
+      'Treasure fleet departs',
+      'Fortress held',
+      'Oldest town',
+      'Earthquake',
+      'Rum shipments',
+      'Free port',
+      'Silver arrives',
+      'Ship yards',
+      'Raided by Morgan',
+      'Fair held yearly',
+      'Blockaded',
+    ];
+    const src = [
+      'bar Every port gets a note',
+      'subtitle Fiscal 1700, in pieces of eight',
+      'orientation-vertical',
+      ...notes.map((n, i) => `P${i + 1} ${100 + 60 * i}\n  note ${n}`),
+      '',
+      "footnote Ship's log",
+    ].join('\n');
+    const num = (e: Element, a: string) => Number(e.getAttribute(a));
+    for (const dims of [{ width: 400, height: 267 }, { width: 400 }]) {
+      const svg = await renderDataChartD3(src, 'light', palette, dims);
+      const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
+      const root = doc.documentElement;
+      const h = num(root, 'height');
+      expect(root.getAttribute('viewBox')).toBe(`0 0 ${dims.width} ${h}`);
+      const body = doc.querySelector('g.chart-frame-body')!;
+      const dy = Number(
+        /translate\(0,([\d.]+)\)/.exec(body.getAttribute('transform')!)![1]
+      );
+      expect(dy).toBeGreaterThan(0);
+      const discs = [...doc.querySelectorAll('g.dgmo-note-key-row circle')];
+      expect(discs).toHaveLength(notes.length);
+      const keyBottom =
+        dy + Math.max(...discs.map((c) => num(c, 'cy') + num(c, 'r')));
+      const foot = doc.querySelector('.chart-footnote')!;
+      // The footnote's text stands below every key row, inside the drawing.
+      expect(num(foot, 'y') - 11).toBeGreaterThanOrEqual(keyBottom);
+      expect(num(foot, 'y')).toBeLessThanOrEqual(h);
+      const bars = [...doc.querySelectorAll('rect[data-name]')];
+      for (const b of bars) expect(num(b, 'height')).toBeGreaterThan(0);
+    }
+  });
+
   it('a numbered key stays inside the requested size (#2310)', async () => {
     const src = [
       'bar Voyage Mood by Leg',
