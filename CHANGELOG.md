@@ -457,6 +457,9 @@ logged · most often Great`. Diagnostics: `E_CALENDAR_HEATMAP_UNKNOWN_TAG`,
 
 ### Fixed
 
+- **Waterfall and dot state a word unit once, on the value-axis title
+  (diagrammo/diagrammo#2295).** `unit pp` no longer prints `pp` on every tick
+  and value label; a symbol unit (`%`) still stays on every number.
 - **completion: `tag` stays a metadata key for gantt and infra
   (diagrammo/diagrammo#2290).** Tag entries before the data zone get their
   alias completions again.
