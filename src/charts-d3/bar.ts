@@ -919,6 +919,23 @@ export function renderBar(
     };
   };
 
+  // Hover projection onto the axes (#2307): plain and grouped bars only.
+  // Stacked, pareto (a second axis on the right), lollipop and facet panels (one plot
+  // rect per drawing) keep the dim-only hover.
+  const projects = !stacked && !pareto && !panel && !chart.lollipop;
+  const clampTo = (v: number, lo: number, hi: number) =>
+    Math.max(lo, Math.min(hi, v));
+  if (projects)
+    svg
+      .append('rect')
+      .attr('class', 'dgmo-plot-rect')
+      .attr('x', m.left)
+      .attr('y', m.top)
+      .attr('width', plotW)
+      .attr('height', plotH)
+      .attr('fill', 'transparent')
+      .attr('pointer-events', 'none');
+
   /** Where each bar ends (`category:series`), for a note's ring (#2039). */
   const noteAt = new Map<string, [number, number]>();
   const svgNode = svg.node();
@@ -1091,7 +1108,7 @@ export function renderBar(
               .attr('data-series-name', tag.seriesName ?? null);
         } else if (horiz) {
           const x1 = val(v);
-          rect(
+          const r = rect(
             svg,
             Math.min(zero, x1),
             base + off,
@@ -1102,6 +1119,12 @@ export function renderBar(
             tag,
             dim
           );
+          // Hover projects the value onto the value axis (#2307). The row
+          // name already stands beside the bar, so it gets no second copy.
+          if (projects)
+            r.attr('data-axval-x', fmt(v))
+              .attr('data-cx', clampTo(x1, m.left, m.left + plotW))
+              .attr('data-cy', mid);
           const spot = spots[s]!;
           if (spot.keep)
             drawValueLabel(
@@ -1116,7 +1139,7 @@ export function renderBar(
               .attr('data-series-name', tag.seriesName ?? null);
         } else {
           const y1 = val(v);
-          rect(
+          const r = rect(
             svg,
             base + off,
             Math.min(zero, y1),
@@ -1127,6 +1150,14 @@ export function renderBar(
             tag,
             dim
           );
+          // Hover prints the FULL name on the category axis — never the
+          // thinned or tilted tick text — and the value on the value axis
+          // (#2307).
+          if (projects)
+            r.attr('data-axval-x', d.label)
+              .attr('data-axval-y', fmt(v))
+              .attr('data-cx', mid)
+              .attr('data-cy', clampTo(y1, m.top, m.top + plotH));
           const spot = spots[s]!;
           if (spot.keep)
             drawValueLabel(
@@ -1462,7 +1493,7 @@ function rect(
     seriesName?: string | undefined;
   },
   dim: boolean
-): void {
+) {
   const r = svg
     .append('rect')
     .attr('x', x)
@@ -1475,6 +1506,7 @@ function rect(
   // A receded bar keeps its paint: the dim is a baked opacity (§1.11).
   if (dim) r.attr('opacity', EMPHASIS_DIM_OPACITY);
   tagDatum(r, tag);
+  return r;
 }
 
 /**

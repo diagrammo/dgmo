@@ -15,7 +15,8 @@
 // Three auto-detected modes:
 //   • crosshair   — line/area (`.dgmo-plot-rect` + `.dgmo-pt`): snap a vertical
 //     leader to the nearest x, project the nearest series point to the y-axis.
-//   • projection  — points carrying `data-axval-x`/`data-axval-y` (scatter):
+//   • projection  — figures carrying `data-axval-x`/`data-axval-y` (scatter
+//     points, plain and grouped bars):
 //     dotted leaders to BOTH axes + on-axis value pills.
 //   • emphasis    — any other `.dgmo-datum`: emphasize + dim siblings.
 // Plus universal click-to-source via `data-line-number`.
@@ -599,8 +600,14 @@ export function attachDataChartInteractions(
     const axY = el.getAttribute('data-axval-y');
     if (plot && (axX !== null || axY !== null)) {
       // projection mode (scatter): leaders to both axes + on-axis pills
-      const cx = parseFloat(el.getAttribute('cx') ?? '0');
-      const cy = parseFloat(el.getAttribute('cy') ?? '0');
+      // A bar is a rect with no centre of its own; it bakes its anchor in
+      // data-cx/data-cy (#2307).
+      const cx = parseFloat(
+        el.getAttribute('data-cx') ?? el.getAttribute('cx') ?? '0'
+      );
+      const cy = parseFloat(
+        el.getAttribute('data-cy') ?? el.getAttribute('cy') ?? '0'
+      );
       clearOverlay();
       if (axX !== null) {
         dottedLine(cx, cy, cx, plot.bottom);

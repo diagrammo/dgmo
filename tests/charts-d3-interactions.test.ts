@@ -1135,3 +1135,77 @@ May 500 450`;
     expect(state().every((p) => !p.in && !p.out)).toBe(true);
   });
 });
+
+// Bar hover projects onto the axes (#2307): the FULL category name on the
+// category axis, however the ticks were thinned or tilted, and the value on
+// the value axis.
+describe('bar hover → axis projection (#2307)', () => {
+  const CITIES = Array.from(
+    { length: 60 },
+    (_, i) => `City Number ${String(i).padStart(2, '0')} ${10 + i}`
+  ).join('\n');
+  const hover = (el: Element) =>
+    el.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+  const overlayTexts = () =>
+    [...svg.querySelectorAll('.dgmo-hover-layer text')].map(
+      (t) => t.textContent
+    );
+
+  it('vertical: every bar carries its full name and value, even with thinned ticks', async () => {
+    await mount(`bar Visitors\norientation-vertical\n\n${CITIES}`);
+    const bars = [...svg.querySelectorAll('rect.dgmo-datum')];
+    expect(bars.length).toBe(60);
+    const shown = [...svg.querySelectorAll('.dgmo-tick')].map(
+      (t) => t.textContent
+    );
+    const names = bars.map((b) => b.getAttribute('data-axval-x'));
+    expect(names.filter((n) => !shown.includes(n)).length).toBeGreaterThan(0);
+    expect(names[59]).toBe('City Number 59');
+    expect(bars[59]!.getAttribute('data-axval-y')).toBe('69');
+  });
+
+  it('vertical: hover draws two leaders and prints name + value; the name takes the tick slant', async () => {
+    await mount(`bar Visitors\norientation-vertical\n\n${CITIES}`);
+    const bar = svg.querySelector(
+      'rect.dgmo-datum[data-name="City Number 42"]'
+    )!;
+    hover(bar);
+    expect(svg.querySelectorAll('.dgmo-hover-layer .dgmo-axline').length).toBe(
+      2
+    );
+    expect(overlayTexts()).toEqual(['City Number 42', '52']);
+    const name = [...svg.querySelectorAll('.dgmo-hover-layer text')][0]!;
+    expect(name.getAttribute('transform') ?? '').toContain('rotate(');
+    svg.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
+    expect(svg.querySelector('.dgmo-hover-layer')?.children.length ?? 0).toBe(
+      0
+    );
+  });
+
+  it('horizontal: hover projects the value onto the bottom axis; the row name stands', async () => {
+    await mount(
+      `bar Visitors\norientation-horizontal\n\nOslo 92\nRome 23\nLima 77`
+    );
+    const bar = svg.querySelector('rect.dgmo-datum[data-name="Rome"]')!;
+    expect(bar.getAttribute('data-axval-x')).toBe('23');
+    expect(bar.hasAttribute('data-axval-y')).toBe(false);
+    hover(bar);
+    expect(svg.querySelectorAll('.dgmo-hover-layer .dgmo-axline').length).toBe(
+      1
+    );
+    expect(overlayTexts()).toEqual(['23']);
+  });
+
+  it('stacked and pareto bars keep the dim-only hover', async () => {
+    for (const src of [
+      STACKED_BAR,
+      `bar Defects\npareto\n\nA 50\nB 30\nC 20`,
+    ]) {
+      await mount(src);
+      expect(svg.querySelector('[data-axval-x], [data-axval-y]')).toBeNull();
+      expect(svg.querySelector('.dgmo-plot-rect')).toBeNull();
+      detach.destroy();
+      host.remove();
+    }
+  });
+});
