@@ -3853,6 +3853,12 @@ interface SitemapLayoutNode {
     readonly hasChildren?: boolean;
     /** 1-based position inside a `steps` group (#1861) */
     readonly step?: number;
+    /**
+     * Ids a hover on this card lights (#2312): itself, both ends of every drawn
+     * edge touching it, and its drawn children (a section or root lights the
+     * pages under it).
+     */
+    readonly neighbors: readonly string[];
 }
 interface SitemapLayoutEdge {
     readonly sourceId: string;
@@ -3897,7 +3903,7 @@ declare function layoutSitemap(parsed: ParsedSitemap, hiddenCounts?: Map<string,
 declare function renderSitemap(container: HTMLDivElement, parsed: ParsedSitemap, layout: SitemapLayoutResult, palette: PaletteColors, isDark: boolean, onClickItem?: (lineNumber: number) => void, exportDims?: {
     width?: number;
     height?: number;
-}, activeTagGroup?: string | null, hiddenAttributes?: Set<string>, exportMode?: boolean): void;
+}, activeTagGroup?: string | null, _hiddenAttributes?: Set<string>, exportMode?: boolean): void;
 declare function renderSitemapForExport(content: string, theme: 'light' | 'dark' | 'transparent', palette?: PaletteColors): Promise<string>;
 
 interface CollapsedSitemapResult {

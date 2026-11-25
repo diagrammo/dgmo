@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Sitemap: hovering a card lights the card, every edge touching it and every
+  card at the other end, in or out** (#2312). A section or the root also
+  lights the pages under it; the rest dims. Each card carries the list in
+  `data-neighbors`, and the exported SVG's baked hover CSS dims by it too.
+- **Sitemap: cards no longer show a chip for the active colour group**
+  (#2312). The card colour already shows that value, so the legend's eye
+  toggle is gone; `hide` in source still hides any group's chips.
 - **Kanban: cards no longer show a chip for the swimlane group or the active
   colour group** (#2311). The lane and the card colour already show those
   values. The `compactMeta` render option and the `cm` view-state field are

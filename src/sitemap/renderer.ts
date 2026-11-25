@@ -32,10 +32,6 @@ import {
   LEGEND_HEIGHT,
   LEGEND_GROUP_GAP,
   LEGEND_INK_BOTTOM,
-  LEGEND_EYE_SIZE,
-  LEGEND_EYE_GAP,
-  EYE_OPEN_PATH,
-  EYE_CLOSED_PATH,
 } from '../utils/legend-constants';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import {
@@ -265,7 +261,9 @@ export function renderSitemap(
   onClickItem?: (lineNumber: number) => void,
   exportDims?: { width?: number; height?: number },
   activeTagGroup?: string | null,
-  hiddenAttributes?: Set<string>,
+  // Unused since #2312: chips are filtered in layoutSitemap. Kept so the
+  // positional exportMode argument does not shift.
+  _hiddenAttributes?: Set<string>,
   exportMode?: boolean
 ): void {
   // Clear existing content
@@ -311,7 +309,6 @@ export function renderSitemap(
               titleRelation: 'below-title',
             },
             mode: 'preview',
-            capsulePillAddonWidth: LEGEND_EYE_SIZE + LEGEND_EYE_GAP,
           },
           width
         )
@@ -322,9 +319,7 @@ export function renderSitemap(
   // §1.9 `legend-inline` (decision #50): collapse the fixed title band + legend
   // band into ONE row (title left, legend flushed right). Only the fixed
   // preview header participates — export/scaled paths stay stacked. Falls back
-  // to the stacked band when the legend can't fit beside the title. The extent
-  // probe carries the SAME eye-icon addon the fixed legend renders with, so the
-  // measured width matches what `renderLegend` lays out.
+  // to the stacked band when the legend can't fit beside the title.
   const inlineRequested = legendInlineRequested(parsed.options);
   const legendExtent =
     inlineRequested && fixedTitle
@@ -336,7 +331,6 @@ export function renderSitemap(
               titleRelation: 'inline-with-title',
             },
             mode: exportMode ? 'export' : 'preview',
-            capsulePillAddonWidth: LEGEND_EYE_SIZE + LEGEND_EYE_GAP,
           },
           { activeGroup: activeTagGroup ?? null },
           width
@@ -600,7 +594,10 @@ export function renderSitemap(
         node.isContainer ? 'sitemap-node sitemap-container' : 'sitemap-node'
       )
       .attr('data-line-number', String(node.lineNumber))
-      .attr('data-node-id', node.id);
+      .attr('data-node-id', node.id)
+      // Hover reach (#2312): the app and the baked CSS dim cards whose list
+      // lacks the hovered id.
+      .attr('data-neighbors', node.neighbors.join(' '));
 
     if (node.hasChildren) {
       nodeG
@@ -765,7 +762,6 @@ export function renderSitemap(
       isDark,
       activeTagGroup,
       undefined,
-      hiddenAttributes,
       exportMode,
       undefined,
       parsed.frame
@@ -818,7 +814,6 @@ export function renderSitemap(
       isDark,
       activeTagGroup,
       width,
-      hiddenAttributes,
       exportMode,
       header.inline,
       parsed.frame
@@ -842,7 +837,6 @@ function renderLegend(
   isDark: boolean,
   activeTagGroup?: string | null,
   fixedWidth?: number,
-  hiddenAttributes?: Set<string>,
   exportMode?: boolean,
   inlineHeader?: boolean,
   frame?: ChartFrame
@@ -854,14 +848,11 @@ function renderLegend(
     entries: g.entries.map((e) => ({ value: e.value, color: e.color })),
   }));
 
-  const isFixedMode = fixedWidth != null;
-  const eyeAddonWidth = isFixedMode ? LEGEND_EYE_SIZE + LEGEND_EYE_GAP : 0;
-
   const containerWidth =
     // In-bounds by length === 0 early return at top of function.
     fixedWidth ?? legendGroups[0]!.x + (legendGroups[0]!.width ?? 200);
 
-  const legendHandle = renderIntegratedLegend(parent, {
+  renderIntegratedLegend(parent, {
     frame,
     groups,
     activeGroup: activeTagGroup ?? null,
@@ -870,56 +861,12 @@ function renderLegend(
       placement: 'top-center',
       titleRelation: inlineHeader ? 'inline-with-title' : 'below-title',
     },
-    capsulePillAddonWidth: eyeAddonWidth,
     palette,
     isDark,
     width: containerWidth,
   });
 
   parent.selectAll('[data-legend-group]').classed('sitemap-legend-group', true);
-
-  // Inject eye icons into active group capsules (fixed/app mode only)
-  if (isFixedMode) {
-    const computedLayout = legendHandle.getLayout();
-    if (computedLayout.activeCapsule?.addonX != null) {
-      const capsule = computedLayout.activeCapsule;
-      const groupKey = tagAttrKey(capsule.groupName);
-      const isHidden = hiddenAttributes?.has(groupKey) ?? false;
-
-      const activeGroupEl = parent.select(`[data-legend-group="${groupKey}"]`);
-      if (!activeGroupEl.empty()) {
-        const eyeX = capsule.addonX!;
-        const eyeY = (LEGEND_HEIGHT - LEGEND_EYE_SIZE) / 2;
-        const hitPad = 6;
-
-        const eyeG = activeGroupEl
-          .append('g')
-          .attr('class', 'sitemap-legend-eye')
-          .attr('data-legend-visibility', groupKey)
-          .style('cursor', 'pointer')
-          .attr('opacity', isHidden ? 0.4 : 0.7);
-
-        eyeG
-          .append('rect')
-          .attr('x', eyeX - hitPad)
-          .attr('y', eyeY - hitPad)
-          .attr('width', LEGEND_EYE_SIZE + hitPad * 2)
-          .attr('height', LEGEND_EYE_SIZE + hitPad * 2)
-          .attr('fill', 'transparent')
-          .attr('pointer-events', 'all');
-
-        eyeG
-          .append('path')
-          .attr('d', isHidden ? EYE_CLOSED_PATH : EYE_OPEN_PATH)
-          .attr('transform', `translate(${eyeX}, ${eyeY})`)
-          .attr('fill', 'none')
-          .attr('stroke', palette.textMuted)
-          .attr('stroke-width', 1.2)
-          .attr('stroke-linecap', 'round')
-          .attr('stroke-linejoin', 'round');
-      }
-    }
-  }
 }
 
 // ============================================================

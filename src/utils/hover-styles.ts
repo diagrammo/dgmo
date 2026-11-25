@@ -85,6 +85,10 @@ export interface HoverSpec {
   fromAttr?: string;
   /** Edge target-endpoint attr, e.g. `data-to`. */
   toAttr?: string;
+  /** Node attr holding the space-separated ids a hover on that node lights
+   *  (sitemap's `data-neighbors`, #2312). When set, a hover also dims every
+   *  `hoverSelector` node whose list lacks the hovered id. */
+  neighborAttr?: string;
 }
 
 /** DOM-scanned data the injector supplies to the pure formatter. */
@@ -237,7 +241,9 @@ function connectionRule(
   const lit = escCssString(id);
   const { hoverSelector, hoverAttr, edgeSelector, fromAttr, toAttr } = spec;
   const trigger = `svg:has(${hoverSelector}[${hoverAttr}="${lit}"]:hover)`;
-  return `${trigger} ${edgeSelector}:not([${fromAttr}="${lit}"]):not([${toAttr}="${lit}"]){opacity:${dimOpacity}}`;
+  const edges = `${trigger} ${edgeSelector}:not([${fromAttr}="${lit}"]):not([${toAttr}="${lit}"]){opacity:${dimOpacity}}`;
+  if (!spec.neighborAttr) return edges;
+  return `${edges}${trigger} ${hoverSelector}:not([${spec.neighborAttr}~="${lit}"]){opacity:${dimOpacity}}`;
 }
 
 /**
@@ -684,6 +690,7 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     edgeSelector: '.sitemap-edge-group',
     fromAttr: 'data-from',
     toAttr: 'data-to',
+    neighborAttr: 'data-neighbors',
     legend: true,
     emphasis: 'dim',
   },

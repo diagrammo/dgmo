@@ -24,8 +24,6 @@ import {
   LEGEND_ENTRY_DOT_GAP,
   LEGEND_ENTRY_TRAIL,
   LEGEND_GROUP_GAP,
-  LEGEND_EYE_SIZE,
-  LEGEND_EYE_GAP,
   measureLegendText,
 } from '../utils/legend-constants';
 import { measureText } from '../utils/text-measure';
@@ -56,6 +54,12 @@ export interface SitemapLayoutNode {
   readonly hasChildren?: boolean;
   /** 1-based position inside a `steps` group (#1861) */
   readonly step?: number;
+  /**
+   * Ids a hover on this card lights (#2312): itself, both ends of every drawn
+   * edge touching it, and its drawn children (a section or root lights the
+   * pages under it).
+   */
+  readonly neighbors: readonly string[];
 }
 
 export interface SitemapLayoutEdge {
@@ -289,9 +293,7 @@ function computeLegendGroups(
         measureLegendText(entry.value, LEGEND_ENTRY_FONT_SIZE) +
         LEGEND_ENTRY_TRAIL;
     }
-    const eyeSpace = LEGEND_EYE_SIZE + LEGEND_EYE_GAP;
-    const capsuleWidth =
-      LEGEND_CAPSULE_PAD * 2 + pillWidth + 4 + eyeSpace + entriesWidth;
+    const capsuleWidth = LEGEND_CAPSULE_PAD * 2 + pillWidth + 4 + entriesWidth;
 
     groups.push({
       name: group.name,
@@ -672,6 +674,29 @@ function linkPoints(s: TNode, t: TNode, label?: string): Pt[] {
   return [a, mid, b];
 }
 
+/**
+ * Hover reach per drawn card (#2312): itself, the other end of every drawn edge
+ * touching it (in or out, any kind), and its drawn children. Ids of cards not
+ * drawn (inside a collapsed section) never appear.
+ */
+function sitemapNeighborSets(
+  byId: ReadonlyMap<string, TNode>,
+  edges: readonly { sourceId: string; targetId: string }[]
+): Map<string, Set<string>> {
+  const sets = new Map<string, Set<string>>();
+  for (const [id, n] of byId) {
+    const set = new Set<string>([id]);
+    for (const k of n.kids) if (byId.has(k.src.id)) set.add(k.src.id);
+    sets.set(id, set);
+  }
+  for (const e of edges) {
+    if (!byId.has(e.sourceId) || !byId.has(e.targetId)) continue;
+    sets.get(e.sourceId)!.add(e.targetId);
+    sets.get(e.targetId)!.add(e.sourceId);
+  }
+  return sets;
+}
+
 export function layoutSitemap(
   parsed: ParsedSitemap,
   hiddenCounts?: Map<string, number>,
@@ -705,13 +730,16 @@ export function layoutSitemap(
   // The forest: top-level groups join the first top-level page.
   const firstPage = parsed.roots.find((r) => !r.isContainer);
   const topGroups = parsed.roots.filter((r) => r.isContainer);
+  // A card never repeats the value its colour already shows: the active
+  // group's chip is dropped like an eye-hidden one (#2312).
+  const chipHidden = activeTagGroup
+    ? new Set([...(hiddenAttributes ?? []), tagAttrKey(activeTagGroup)])
+    : hiddenAttributes;
   const trees: TNode[] = firstPage
     ? parsed.roots
         .filter((r) => !r.isContainer)
-        .map((r) =>
-          buildTNode(r, r === firstPage ? topGroups : [], hiddenAttributes)
-        )
-    : topGroups.map((g) => buildTNode(g, [], hiddenAttributes));
+        .map((r) => buildTNode(r, r === firstPage ? topGroups : [], chipHidden))
+    : topGroups.map((g) => buildTNode(g, [], chipHidden));
 
   const linkIndex = new Map<string, { targetId: string; label?: string }[]>();
   for (const e of parsed.edges) {
@@ -789,10 +817,15 @@ export function layoutSitemap(
         hasChildren: true,
       }),
       ...(n.step !== undefined && { step: n.step }),
+      neighbors: [],
     });
   }
   // Tree lines under, steps over them, written links on top.
   const layoutEdges: SitemapLayoutEdge[] = [...treeEdges, ...linkEdges];
+  const neighborSets = sitemapNeighborSets(byId, layoutEdges);
+  for (const node of layoutNodes) {
+    node.neighbors = [...(neighborSets.get(node.id) ?? [node.id])];
+  }
 
   // Compute bounding box
   let totalWidth = 0;
