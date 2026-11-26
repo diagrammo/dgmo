@@ -174,3 +174,16 @@ export function planJourneyThoughts(
     padding
   );
 }
+
+/**
+ * Annotations a step card lists. A static render draws each scored step's
+ * thoughts as a bubble above its face, so the card leaves them out there.
+ * Unscored steps have no face, so their card keeps the thought.
+ */
+export function cardAnnotations<T extends { type: string }>(
+  step: { score?: number | undefined; annotations: readonly T[] },
+  staticRender: boolean
+): readonly T[] {
+  if (!staticRender || step.score === undefined) return step.annotations;
+  return step.annotations.filter((a) => a.type !== 'thought');
+}

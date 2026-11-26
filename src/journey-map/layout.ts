@@ -5,7 +5,7 @@ import { LEGEND_HEIGHT } from '../utils/legend-constants';
 import { FRAME_BODY_TOP, LEGEND_BODY_GAP } from '../utils/title-constants';
 import { frameAlign } from '../utils/chart-frame-parse';
 import { measureText, wrapTextToWidth } from '../utils/text-measure';
-import { planJourneyThoughts } from './thoughts';
+import { cardAnnotations, planJourneyThoughts } from './thoughts';
 import type {
   ParsedJourneyMap,
   JourneyMapPhase,
@@ -311,7 +311,7 @@ function layoutOnce(
       titleTextWidth
     ).length;
     let h = CARD_PADDING_Y + titleLines * TITLE_LINE_HEIGHT + CARD_PADDING_Y;
-    const cardAnnos = step.annotations;
+    const cardAnnos = cardAnnotations(step, !!options?.exportDims);
     let contentLines = 0;
     // Description may wrap
     if (step.description) {

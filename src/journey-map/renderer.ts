@@ -4,6 +4,7 @@ import { tagAttrKey } from '../utils/tag-groups';
 import { fillModeFromOptions } from '../utils/parsing';
 import { renderCollapseBar } from '../utils/card';
 import {
+  cardAnnotations,
   planJourneyThoughts,
   THOUGHT_FONT as STATIC_THOUGHT_FONT,
   THOUGHT_LINE_H as STATIC_THOUGHT_LINE_H,
@@ -942,7 +943,8 @@ export function renderJourneyMap(
             effectiveActiveGroup,
             parsed.tagGroups,
             onNavigateToLine,
-            fillMode
+            fillMode,
+            !!exportDims
           );
         }
       }
@@ -958,7 +960,8 @@ export function renderJourneyMap(
         effectiveActiveGroup,
         parsed.tagGroups,
         onNavigateToLine,
-        fillMode
+        fillMode,
+        !!exportDims
       );
     }
   }
@@ -1227,8 +1230,9 @@ function renderStepCard(
   isDark: boolean,
   activeGroup: string | null,
   tagGroups: readonly TagGroup[],
-  onNavigateToLine?: (line: number) => void,
-  fillMode?: 'solid' | 'outline'
+  onNavigateToLine: ((line: number) => void) | undefined,
+  fillMode: 'solid' | 'outline' | undefined,
+  staticRender: boolean
 ): void {
   const stepG = parent
     .append('g')
@@ -1300,10 +1304,10 @@ function renderStepCard(
 
   const titleBlockH =
     CARD_PADDING_Y + titleLines.length * TITLE_LINE_HEIGHT + CARD_PADDING_Y;
-  const cardAnnotations = sl.step.annotations;
+  const cardAnnos = cardAnnotations(sl.step, staticRender);
 
   // Separator line between title and content (matches kanban)
-  const hasContent = !!sl.step.description || cardAnnotations.length > 0;
+  const hasContent = !!sl.step.description || cardAnnos.length > 0;
 
   if (hasContent) {
     stepG
@@ -1345,7 +1349,7 @@ function renderStepCard(
   const ANNO_ICON_GAP = 4;
   const annoIconIndent = ANNO_ICON_SIZE + ANNO_ICON_GAP;
   const annoTextW = sl.width - CARD_PADDING_X * 2 - annoIconIndent;
-  for (const anno of cardAnnotations) {
+  for (const anno of cardAnnos) {
     const annoColor = annotationColor(anno.type, palette);
     const iconPaths = annotationIconPaths(anno.type);
     const annoLines = wrapTextToWidth(anno.text, FONT_SIZE_META, annoTextW);

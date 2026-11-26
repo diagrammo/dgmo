@@ -473,6 +473,41 @@ persona Sam
       }
     });
 
+    it('export render shows each thought once: bubble, not card', () => {
+      const input = `journey-map Once
+
+[Stage]
+  A score: 3
+    thought: Scored thought
+    pain: Kept pain
+  B
+    thought: Unscored thought
+`;
+      const dom = new JSDOM(
+        renderJourneyMapForExport(input, 'light', palette.light)
+      );
+      const doc = dom.window.document;
+      const count = (text: string) =>
+        [...doc.querySelectorAll('text')].filter((t) =>
+          t.textContent?.includes(text)
+        ).length;
+      // Scored: bubble only. Unscored has no face, so the card keeps it.
+      expect(count('Scored thought')).toBe(1);
+      expect(doc.querySelector('.journey-thought')?.textContent).toContain(
+        'Scored thought'
+      );
+      expect(count('Unscored thought')).toBe(1);
+      expect(count('Kept pain')).toBe(1);
+    });
+
+    it('interactive render keeps thoughts on the cards', () => {
+      const { container } = renderToContainer(thoughtInput);
+      const cardText = [...container.querySelectorAll('.journey-step text')]
+        .map((t) => t.textContent)
+        .join(' ');
+      expect(cardText).toContain('Low point thought');
+    });
+
     it('interactive render draws no static thought bubbles', () => {
       const { container } = renderToContainer(thoughtInput);
       expect(container.querySelectorAll('.journey-thought').length).toBe(0);
