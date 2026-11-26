@@ -29,17 +29,40 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
       if (result.error) {
         throw new Error(`Unexpected error for ${name}: ${result.error}`);
       }
-      const query = new URL(result.url).search;
+      const query = new URL(result.url).hash;
       expect(decodeDiagramUrl(query).dsl).toBe(dsl);
     });
   }
 
-  it('uses the default base URL with both query and hash', () => {
+  it('uses the default base URL and carries the diagram in the fragment only', () => {
     const result = encodeDiagramUrl('pie\nA: 10');
     if (result.error) throw new Error('unexpected error');
-    expect(result.url).toMatch(
-      /^https:\/\/online\.diagrammo\.app\?dgmo=.+#dgmo=/
-    );
+    expect(result.url).toMatch(/^https:\/\/online\.diagrammo\.app#dgmo=/);
+  });
+
+  // A browser sends the query string to the server and never the fragment, so
+  // a payload in the query uploads the diagram on every open — against the
+  // terms, /ai/ and the MCP share_diagram description (diagrammo/diagrammo#2363).
+  it('never puts the diagram, or any of its params, in the query string', () => {
+    const result = encodeDiagramUrl('pie\nA: 10', {
+      viewState: { tag: 'Team' },
+      palette: 'catppuccin',
+      theme: 'light',
+      filename: 'secret-plan',
+      via: 'embed',
+    });
+    if (result.error) throw new Error('unexpected error');
+    const url = new URL(result.url);
+    expect(url.search).toBe('');
+    expect(result.url).not.toContain('?');
+    expect(decodeDiagramUrl(url.hash).dsl).toBe('pie\nA: 10');
+  });
+
+  it('still decodes a query-string link made before #2363', () => {
+    const result = encodeDiagramUrl('pie\nA: 10');
+    if (result.error) throw new Error('unexpected error');
+    const legacy = `https://online.diagrammo.app?${new URL(result.url).hash.slice(1)}`;
+    expect(decodeDiagramUrl(new URL(legacy).search).dsl).toBe('pie\nA: 10');
   });
 
   it('accepts a custom base URL', () => {
@@ -47,9 +70,7 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
       baseUrl: 'https://example.com/playground',
     });
     if (result.error) throw new Error('unexpected error');
-    expect(result.url).toMatch(
-      /^https:\/\/example\.com\/playground\?dgmo=.+#dgmo=/
-    );
+    expect(result.url).toMatch(/^https:\/\/example\.com\/playground#dgmo=/);
   });
 
   it('decodes from hash when query is stripped', () => {
@@ -104,7 +125,7 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
       expect(result.error).toBeUndefined();
       // Round-trip preserves both DSL and view state.
       if (!result.url) throw new Error('expected url');
-      const decoded = decodeDiagramUrl(new URL(result.url).search);
+      const decoded = decodeDiagramUrl(new URL(result.url).hash);
       expect(decoded.dsl).toBe(dsl);
       expect(decoded.viewState.cs).toEqual([4, 13, 25]);
     });
@@ -114,21 +135,21 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
     it('handles query with ? prefix', () => {
       const result = encodeDiagramUrl('pie\nA: 10');
       if (result.error) throw new Error('unexpected error');
-      const query = new URL(result.url).search; // includes ?
+      const query = new URL(result.url).hash; // includes ?
       expect(decodeDiagramUrl(query).dsl).toBe('pie\nA: 10');
     });
 
     it('handles query without ? prefix', () => {
       const result = encodeDiagramUrl('pie\nA: 10');
       if (result.error) throw new Error('unexpected error');
-      const query = new URL(result.url).search.slice(1); // strip ?
+      const query = new URL(result.url).hash.slice(1); // strip ?
       expect(decodeDiagramUrl(query).dsl).toBe('pie\nA: 10');
     });
 
     it('handles bare payload (no dgmo= prefix)', () => {
       const result = encodeDiagramUrl('pie\nA: 10');
       if (result.error) throw new Error('unexpected error');
-      const payload = new URL(result.url).search.replace('?dgmo=', '');
+      const payload = new URL(result.url).hash.replace('#dgmo=', '');
       expect(decodeDiagramUrl(payload).dsl).toBe('pie\nA: 10');
     });
 
@@ -136,7 +157,7 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
       const result = encodeDiagramUrl('pie\nA: 10');
       if (result.error) throw new Error('unexpected error');
       // Simulate old-style URL with hash fragment
-      const query = new URL(result.url).search.slice(1); // dgmo=...
+      const query = new URL(result.url).hash.slice(1); // dgmo=...
       expect(decodeDiagramUrl(`#${query}`).dsl).toBe('pie\nA: 10');
     });
 
@@ -169,7 +190,7 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
       });
       if (result.error) throw new Error('unexpected error');
       expect(result.url).toContain('&vs=');
-      const query = new URL(result.url).search;
+      const query = new URL(result.url).hash;
       const decoded = decodeDiagramUrl(query);
       expect(decoded.dsl).toBe(dsl);
       expect(decoded.viewState.tag).toBe('Location');
@@ -190,7 +211,7 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
     it('returns empty viewState when no vs= param present', () => {
       const result = encodeDiagramUrl('org\nCEO');
       if (result.error) throw new Error('unexpected error');
-      const query = new URL(result.url).search;
+      const query = new URL(result.url).hash;
       const decoded = decodeDiagramUrl(query);
       expect(decoded.viewState).toEqual({});
     });
@@ -202,13 +223,13 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
       });
       if (withNull.error) throw new Error('unexpected error');
       expect(withNull.url).toContain('&vs=');
-      const decodedNull = decodeDiagramUrl(new URL(withNull.url).search);
+      const decodedNull = decodeDiagramUrl(new URL(withNull.url).hash);
       expect(decodedNull.viewState.tag).toBeNull();
 
       // absent tag means "use DSL default"
       const withoutTag = encodeDiagramUrl('org\nCEO', { viewState: {} });
       if (withoutTag.error) throw new Error('unexpected error');
-      const decodedAbsent = decodeDiagramUrl(new URL(withoutTag.url).search);
+      const decodedAbsent = decodeDiagramUrl(new URL(withoutTag.url).hash);
       expect(decodedAbsent.viewState.tag).toBeUndefined();
     });
   });
@@ -296,7 +317,7 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
         const dsl = `${name === 'boxes-and-lines' ? 'graph' : name}\nA`;
         const result = encodeDiagramUrl(dsl, { viewState: state });
         if (result.error) throw new Error(`unexpected error for ${name}`);
-        const query = new URL(result.url).search;
+        const query = new URL(result.url).hash;
         const decoded = decodeDiagramUrl(query);
         expect(decoded.viewState).toEqual(state);
       });
@@ -309,7 +330,7 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
       const result = encodeDiagramUrl(dsl, { palette: 'catppuccin' });
       if (result.error) throw new Error('unexpected error');
       expect(result.url).toContain('&pal=catppuccin');
-      const query = new URL(result.url).search;
+      const query = new URL(result.url).hash;
       const decoded = decodeDiagramUrl(query);
       expect(decoded.palette).toBe('catppuccin');
     });
@@ -319,7 +340,7 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
       const result = encodeDiagramUrl(dsl, { theme: 'light' });
       if (result.error) throw new Error('unexpected error');
       expect(result.url).toContain('&th=light');
-      const query = new URL(result.url).search;
+      const query = new URL(result.url).hash;
       const decoded = decodeDiagramUrl(query);
       expect(decoded.theme).toBe('light');
     });
@@ -335,7 +356,7 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
       expect(result.url).toContain('&pal=catppuccin');
       expect(result.url).toContain('&th=light');
       expect(result.url).toContain('&vs=');
-      const query = new URL(result.url).search;
+      const query = new URL(result.url).hash;
       const decoded = decodeDiagramUrl(query);
       expect(decoded.palette).toBe('catppuccin');
       expect(decoded.theme).toBe('light');
@@ -358,7 +379,7 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
       const result = encodeDiagramUrl('pie\nA: 10');
       if (result.error) throw new Error('unexpected error');
       const query =
-        new URL(result.url).search.replace('?', '') + '&th=transparent';
+        new URL(result.url).hash.replace('?', '') + '&th=transparent';
       const decoded = decodeDiagramUrl(query);
       expect(decoded.theme).toBeUndefined();
     });
@@ -366,7 +387,7 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
     it('URL without &pal= → palette is undefined (not nord)', () => {
       const result = encodeDiagramUrl('pie\nA: 10');
       if (result.error) throw new Error('unexpected error');
-      const query = new URL(result.url).search;
+      const query = new URL(result.url).hash;
       const decoded = decodeDiagramUrl(query);
       expect(decoded.palette).toBeUndefined();
     });
@@ -378,7 +399,7 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
       const result = encodeDiagramUrl(dsl, { filename: 'my-chart.dgmo' });
       if (result.error) throw new Error('unexpected error');
       expect(result.url).toContain('&fn=my-chart.dgmo');
-      const query = new URL(result.url).search;
+      const query = new URL(result.url).hash;
       const decoded = decodeDiagramUrl(query);
       expect(decoded.filename).toBe('my-chart.dgmo');
     });

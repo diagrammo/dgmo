@@ -282,8 +282,7 @@ describe('no-title — share link round-trip', () => {
     const source = 'flowchart My Flow\n\nno-title\n\n[A] -> [B]';
     const result = encodeDiagramUrl(source);
     if ('error' in result) throw new Error('encode failed: ' + result.error);
-    // The encoded URL is `${baseUrl}?dgmo=...#dgmo=...`.
-    // decodeDiagramUrl accepts the hash or query portion.
+    // The encoded URL is `${baseUrl}#dgmo=...` (fragment only, #2363).
     const hashIdx = result.url.indexOf('#');
     const hash = hashIdx >= 0 ? result.url.slice(hashIdx) : '';
     const decoded = decodeDiagramUrl(hash);

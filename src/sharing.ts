@@ -153,16 +153,20 @@ export function encodeDiagramUrl(
     hash += `&via=${encodeURIComponent(options.via)}`;
   }
 
-  // Encode in both query param AND hash fragment — some share mechanisms
-  // strip one or the other (iOS share sheet strips #, AirDrop strips ?)
-  return { url: `${baseUrl}?${hash}#${hash}` };
+  // Fragment only, never the query string (diagrammo/diagrammo#2363). A
+  // browser sends the query to the server and keeps the fragment to itself, so
+  // a `?dgmo=` copy uploaded the whole diagram to online.diagrammo.app on
+  // every open — while the terms, /ai/ and the MCP `share_diagram` tool all
+  // promise that nothing is uploaded. The editor reads the fragment first and
+  // still accepts the query, so links made before this keep opening.
+  return { url: `${baseUrl}#${hash}` };
 }
 
 /**
  * Decode a DGMO DSL string and view state from a URL query string or hash.
  * Accepts any of:
- *   - `?dgmo=<payload>&vs=<state>`
- *   - `#dgmo=<payload>&vs=<state>` (backwards compat)
+ *   - `#dgmo=<payload>&vs=<state>` (what `encodeDiagramUrl` writes)
+ *   - `?dgmo=<payload>&vs=<state>` (links made before #2363)
  *   - `dgmo=<payload>`
  *   - `<bare payload>`
  *
