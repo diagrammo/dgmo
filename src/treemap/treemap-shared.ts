@@ -11,7 +11,11 @@
 import { scaleLinear } from 'd3-scale';
 import { resolveColor } from '../colors';
 import { mix } from '../palettes/color-utils';
-import { resolveTagColor, tagAttrKey } from '../utils/tag-groups';
+import {
+  resolveTagColor,
+  tagAttrKey,
+  UNTAGGED_TAG_COLOR,
+} from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import type { LegendGroupData } from '../utils/legend-types';
 import type { PaletteColors } from '../palettes';
@@ -132,13 +136,18 @@ export function resolveCellColor(
   }
   if (ctx.mode === 'tag') {
     if (!cell.node) return ctx.muted;
-    return (
-      resolveTagColor(
-        cell.node.metadata,
-        ctx.tagGroups as TagGroup[],
-        ctx.activeGroup
-      ) ?? ctx.muted
+    // A parent is a container: the group's default value must not reach it,
+    // or every untagged parent wears the first-declared entry's colour (#2384).
+    const color = resolveTagColor(
+      cell.node.metadata,
+      ctx.tagGroups as TagGroup[],
+      ctx.activeGroup,
+      cell.node.children.length > 0
     );
+    // UNTAGGED_TAG_COLOR is a sentinel, not a paint value.
+    return color === undefined || color === UNTAGGED_TAG_COLOR
+      ? ctx.muted
+      : color;
   }
   // branch: top-level hue, lightened slightly with depth (floored).
   const topLabel = cell.path[0] ?? cell.label;

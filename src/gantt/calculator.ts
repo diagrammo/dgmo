@@ -431,11 +431,18 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
     parsed.options.sprintLength &&
     result.tasks.length > 0
   ) {
+    // A milestone is zero-width, so one ON the end date sits in the sprint
+    // that starts there (start-inclusive) and that sprint must be drawn.
+    const endTime = result.endDate.getTime();
+    const milestoneAtEnd = result.tasks.some(
+      (t) => t.isMilestone && t.startDate.getTime() === endTime
+    );
     result.sprints = generateSprintBands(
       parsed.options,
       result.startDate,
       result.endDate,
-      projectStart
+      projectStart,
+      milestoneAtEnd
     );
 
     // Extend chart range to include the last sprint's end so it doesn't clip
@@ -979,7 +986,8 @@ function generateSprintBands(
   options: GanttOptions,
   chartStart: Date,
   chartEnd: Date,
-  projectStart: Date
+  projectStart: Date,
+  milestoneAtEnd = false
 ): ResolvedSprint[] {
   const sprintLength = options.sprintLength!;
   const sprintNumber = options.sprintNumber ?? 1;
@@ -1032,8 +1040,12 @@ function generateSprintBands(
     sprintEndDate.setDate(sprintEndDate.getDate() + sprintDays);
     sprintEndDate.setHours(0, 0, 0, 0);
 
-    // Stop when sprint start is past chart end
-    if (sprintStartDate.getTime() >= chartEndTime.getTime() + msPerDay) break;
+    // chartEnd is EXCLUSIVE (a task's end is the midnight after its last
+    // day), so a sprint starting on it holds no work and is not drawn —
+    // unless a zero-width milestone sits exactly there (#2384).
+    const startTime = sprintStartDate.getTime();
+    if (startTime > chartEndTime.getTime()) break;
+    if (startTime === chartEndTime.getTime() && !milestoneAtEnd) break;
 
     sprints.push({
       number: sprintNumber + i,

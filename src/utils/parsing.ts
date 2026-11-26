@@ -12,6 +12,7 @@ import {
 } from '../colors';
 import {
   emptyMetadataValueMessage,
+  unkeyedMetadataMessage,
   makeDgmoError,
   METADATA_DIAGNOSTIC_CODES,
   suggest,
@@ -1037,6 +1038,7 @@ export function parseMetadataRegion(
   line?: number
 ): Record<string, string> {
   const meta: Record<string, string> = {};
+  let lastKey: string | undefined;
   let i = 0;
   while (i < region.length) {
     // Skip leading whitespace + commas (commas separate pairs)
@@ -1049,9 +1051,30 @@ export function parseMetadataRegion(
     // Read key
     const keyStart = i;
     while (i < region.length && region[i] !== ':' && region[i] !== ',') i++;
-    if (i >= region.length || region[i] !== ':') break;
+    if (i >= region.length || region[i] !== ':') {
+      // A segment with no `key:` — almost always the tail of an unquoted
+      // value that held a comma (`label: Paris, France, size: 5`). Drop it
+      // with a warning that names it, and keep parsing the pairs after it
+      // so `size: 5` still applies (#2384).
+      const dropped = region.substring(keyStart, i).trim();
+      if (dropped && diagnostics && line !== undefined) {
+        diagnostics.push(
+          makeDgmoError(
+            line,
+            unkeyedMetadataMessage(dropped, lastKey, meta[lastKey ?? '']),
+            'warning',
+            METADATA_DIAGNOSTIC_CODES.UNKEYED_METADATA_SEGMENT
+          )
+        );
+      }
+      continue;
+    }
     const rawKey = region.substring(keyStart, i).trim().toLowerCase();
-    if (!rawKey) break;
+    if (!rawKey) {
+      // `: value` with no key — skip past it to the next pair.
+      while (i < region.length && region[i] !== ',') i++;
+      continue;
+    }
     i++; // skip ':'
     // Skip whitespace after colon
     while (i < region.length && (region[i] === ' ' || region[i] === '\t')) i++;
@@ -1089,6 +1112,7 @@ export function parseMetadataRegion(
       continue;
     }
     meta[key] = value;
+    lastKey = key;
   }
   return meta;
 }

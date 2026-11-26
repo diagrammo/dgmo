@@ -1213,15 +1213,7 @@ flowchart [Title]
 | Subroutine | `[[Label]]` | `[[Validate]]` |
 | Document   | `[Label~]`  | `[Report~]`    |
 
-- Node coloring: use tags (§1.3) — flowchart nodes have no color suffix. Declare a `tag <Name> as <alias>` group, then assign a node `<alias>: <Value>` (same-line after the node):
-
-```
-tag Status as s
-  Approved green
-  Rejected red
-[Review] -yes-> [Done] s: Approved
-[Review] -no-> [Reject] s: Rejected
-```
+- Node colour comes from the shape. A flowchart has no colour suffix and no tags: a trailing colour word stays part of the label (`[Process blue]` is labelled "Process blue"), and `key: value` metadata after a node shape is ignored with a warning (`W_FLOWCHART_NODE_SUFFIX`). Terminals, decisions and the other shapes take their colours automatically.
 
 ### 4.3 Arrows
 
@@ -2529,9 +2521,8 @@ Flagship -> Sloop
 - `heat <Label> [low] [high]` names the dimension and optionally sets the
   ramp endpoint colors: no color → primary hue / neutral low; one color → that
   high hue / neutral low; two → explicit `low high` (e.g. `heat Risk green
-red`). Order is literal — polarity (good vs bad) is your choice. A wide-hue-gap
-  pair routes through a neutral midpoint (so green→red mid values stay clean);
-  analogous pairs blend directly.
+red`). Order is literal — polarity (good vs bad) is your choice. Two colors
+  fade straight from one to the other, with no midpoint hue added between them.
 - The ramp anchors at `0` for all-non-negative data, else at the data minimum.
 - The heat ramp is the resting-active dimension whenever any box has a
   `heat:` (so heat shading works in static export with no interaction).
@@ -4919,7 +4910,7 @@ Captain purple
   Final word on heading and plunder,
   keeper of the ship's charter.
 
-Quartermaster description: Second-in-command, divvies the booty
+Quartermaster description: "Second-in-command, divvies the booty"
 
 Crew green
   Deckhands, gunners, and powder monkeys.
@@ -5814,7 +5805,7 @@ Texas heat: 78
 Florida heat: 51
 ```
 
-- `region-heat <label> [low] [high]` labels the ramp in the legend; one trailing color sets the high hue over a neutral low (`region-heat Sales ($M) blue` → blue ramp, default red), two set explicit `low high` endpoints (`region-heat Peril green red` → green→red, routed through a neutral midpoint). Order is literal — polarity is your choice.
+- `region-heat <label> [low] [high]` labels the ramp in the legend; one trailing color sets the high hue over a neutral low (`region-heat Sales ($M) blue` → blue ramp, default red), two set explicit `low high` endpoints (`region-heat Peril green red` → a straight green→red fade, no midpoint hue). Order is literal — polarity is your choice.
 - The ramp **auto-fits** from the lowest value to the highest.
 - **Diverging scale** — `scale diverging <mid>` colours regions below `mid` blue and above it red, through a neutral at `mid`; the legend bar shows the same three colours. Use it when the values are a change, a gap or a margin, where above and below the midpoint mean opposite things. `mid` defaults to 0, and each side spans its own distance from `mid`. Two `region-heat` colours replace blue and red (`region-heat Net green purple`). A `mid` outside the data widens the range to include it.
 

@@ -503,7 +503,7 @@ Result 5d`;
 
     it('numbers sprints starting from sprint-number', () => {
       const input =
-        'gantt\nstart 2026-01-05\nsprint-length 2w\nsprint-number 5\nTask A 2w\nTask B 2w';
+        'gantt\nstart 2026-01-05\nsprint-length 2w\nsprint-number 5\nTask A 2w\n  -> Task B 2w';
       const result = calc(input);
       expect(result.sprints[0].number).toBe(5);
       expect(result.sprints[1].number).toBe(6);
@@ -529,7 +529,7 @@ Result 5d`;
     it('uses start-inclusive, end-exclusive boundary', () => {
       // Sprint boundary at day 14 from start — task starting on that boundary belongs to next sprint
       const input =
-        'gantt\nstart 2026-01-05\nsprint-length 2w\nTask A 14d\nTask B 7d';
+        'gantt\nstart 2026-01-05\nsprint-length 2w\nTask A 14d\n  -> Task B 7d';
       const result = calc(input);
       // Task A: Jan 5 → Jan 19 (14 days)
       // Sprint 1: Jan 5 to Jan 19, Sprint 2: Jan 19 to Feb 2
@@ -537,6 +537,28 @@ Result 5d`;
       expect(fmt(result.sprints[0].startDate)).toBe('2026-01-05');
       expect(fmt(result.sprints[0].endDate)).toBe('2026-01-19');
       expect(fmt(result.sprints[1].startDate)).toBe('2026-01-19');
+    });
+
+    it('draws no sprint after a plan that ends exactly on a sprint boundary (#2384)', () => {
+      const result = calc(
+        'gantt\nstart 2026-01-05\nsprint-length 2w\nA 2w\n  -> B 2w'
+      );
+      expect(result.sprints.map((s) => s.number)).toEqual([1, 2]);
+      expect(fmt(result.endDate)).toBe('2026-02-02');
+    });
+
+    it('still draws the sprint a plan ends inside of (#2384)', () => {
+      const result = calc(
+        'gantt\nstart 2026-01-05\nsprint-length 2w\nA 2w\n  -> B 15d'
+      );
+      expect(result.sprints.map((s) => s.number)).toEqual([1, 2, 3]);
+    });
+
+    it('draws the sprint a milestone on the boundary falls in (#2384)', () => {
+      const result = calc(
+        'gantt\nstart 2026-01-05\nsprint-length 2w\nA 2w\n  -> B 2w\n    -> Launch 0d'
+      );
+      expect(result.sprints.map((s) => s.number)).toEqual([1, 2, 3]);
     });
 
     it('generates partial band when chart start falls mid-sprint', () => {

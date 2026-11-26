@@ -476,3 +476,23 @@ describe('layoutSequence', () => {
     });
   });
 });
+
+describe('a note just before a == section (#2384)', () => {
+  const withNote = ['A -one-> B', 'note hello', '== Part two ==', 'A -two-> B'];
+  const without = ['A -one-> B', '== Part two ==', 'A -two-> B'];
+
+  it('keeps the divider-to-next-message gap it has without the note', () => {
+    const n = layout(withNote.join('\n'));
+    const b = layout(without.join('\n'));
+    const gapWith = messageY(n, 4) - n.sectionYPositions.get(3)!;
+    const gapWithout = messageY(b, 3) - b.sectionYPositions.get(2)!;
+    expect(gapWith).toBe(gapWithout);
+  });
+
+  it('pushes the divider below the note instead of over it', () => {
+    const n = layout(withNote.join('\n'));
+    const [box] = [...n.noteBoxes.values()];
+    expect(box).toBeDefined();
+    expect(box!.y + box!.height).toBeLessThan(n.sectionYPositions.get(3)!);
+  });
+});

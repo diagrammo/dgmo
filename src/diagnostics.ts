@@ -363,6 +363,12 @@ export const METADATA_DIAGNOSTIC_CODES = {
    * pair is dropped from the entity's metadata.
    */
   EMPTY_METADATA_VALUE: 'W_EMPTY_METADATA_VALUE',
+  /**
+   * Warning: a comma-separated metadata segment has no `key:`
+   * (`label: Paris, France`). The segment is dropped; the pairs
+   * after it still parse.
+   */
+  UNKEYED_METADATA_SEGMENT: 'W_UNKEYED_METADATA_SEGMENT',
 } as const;
 
 /**
@@ -374,6 +380,23 @@ export function emptyMetadataValueMessage(key: string): string {
     `Metadata key '${key}:' has no value — the pair is dropped. ` +
     `Provide a value or remove the key.`
   );
+}
+
+/**
+ * Canonical message for `W_UNKEYED_METADATA_SEGMENT`. `prevKey` and
+ * `prevValue` are the pair just before the dropped text, when there is
+ * one — the usual cause is that pair's value holding a comma.
+ */
+export function unkeyedMetadataMessage(
+  dropped: string,
+  prevKey?: string,
+  prevValue?: string
+): string {
+  const fix =
+    prevKey !== undefined && prevValue !== undefined
+      ? `If it belongs to '${prevKey}:', quote the value: ${prevKey}: "${prevValue}, ${dropped}".`
+      : 'Give it a key, or quote the value it belongs to.';
+  return `Metadata "${dropped}" has no key and is dropped — commas separate metadata pairs. ${fix}`;
 }
 
 // ============================================================

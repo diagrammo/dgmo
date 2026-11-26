@@ -696,3 +696,33 @@ describe('parseMap — classification & robustness (AC16, AC18, AC19, AC21)', ()
     ).not.toThrow();
   });
 });
+
+describe('parseMap — an unquoted comma in a poi label: (#2384)', () => {
+  it('warns, names the dropped text, and still applies the pairs after it', () => {
+    const r = parseMap(
+      'map Europe\n\npoi Paris label: Paris, France, size: 5\n'
+    );
+    const poi = r.pois[0]!;
+    expect(poi.label).toBe('Paris');
+    expect(poi.meta['size']).toBe('5');
+    const w = r.diagnostics.filter(
+      (d) => d.code === 'W_UNKEYED_METADATA_SEGMENT'
+    );
+    expect(w).toHaveLength(1);
+    expect(w[0]!.severity).toBe('warning');
+    expect(w[0]!.line).toBe(3);
+    expect(w[0]!.message).toContain('"France"');
+    expect(w[0]!.message).toContain('label: "Paris, France"');
+  });
+
+  it('a quoted label keeps its comma with no warning', () => {
+    const r = parseMap(
+      'map Europe\n\npoi Paris label: "Paris, France", size: 5\n'
+    );
+    expect(r.pois[0]!.label).toBe('Paris, France');
+    expect(r.pois[0]!.meta['size']).toBe('5');
+    expect(
+      r.diagnostics.some((d) => d.code === 'W_UNKEYED_METADATA_SEGMENT')
+    ).toBe(false);
+  });
+});

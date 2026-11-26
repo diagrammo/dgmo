@@ -22,7 +22,7 @@ Launch p: Must, o: Product
   Readiness o: Engineering
     Load testing p: Must
     Monitoring
-    Rollback plan description: One command, rehearsed twice
+    Rollback plan description: "One command, rehearsed twice"
   Messaging o: Marketing, collapsed
     Landing page
     Launch post

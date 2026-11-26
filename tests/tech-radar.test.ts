@@ -850,6 +850,44 @@ D quadrant: bottom-right
     expect(a.blips[1].ring).toBe('Trial'); // resolved from alias
   });
 
+  it('resolves an `as` ring alias in ring: metadata (#2384)', () => {
+    const result = parseTechRadar(`tech-radar As Alias
+
+rings
+  Full Sail as f
+  Half Mast alias h
+  Anchored aka x
+
+A quadrant: top-right
+  X ring: f
+  Y ring: h
+  Z ring: x
+B quadrant: top-left
+  f
+    B1
+C quadrant: bottom-left
+  Half Mast
+    C1
+D quadrant: bottom-right
+  x
+    D1
+`);
+    expect(result.diagnostics).toHaveLength(0);
+    expect(result.rings.map((r) => [r.name, r.alias])).toEqual([
+      ['Full Sail', 'f'],
+      ['Half Mast', 'h'],
+      ['Anchored', 'x'],
+    ]);
+    const a = result.quadrants.find((q) => q.position === 'top-right')!;
+    expect(a.blips.map((b) => b.ring)).toEqual([
+      'Full Sail',
+      'Half Mast',
+      'Anchored',
+    ]);
+    const b = result.quadrants.find((q) => q.position === 'top-left')!;
+    expect(b.blips[0].ring).toBe('Full Sail');
+  });
+
   it('supports ring alias in pipe metadata', () => {
     const result = parseTechRadar(`tech-radar Alias Pipe
 

@@ -1641,6 +1641,7 @@ function layoutSequencePass(
     return lines.length * sNoteLineH + sNotePadV * 2;
   };
   let trailingNoteSpace = 0; // extra space for notes at the end with no following message
+  const extraBeforeSection = new Map<number, number>(); // section lineNumber → room for notes above it
   const markNoteSpacing = (els: readonly SequenceElement[]): void => {
     for (let i = 0; i < els.length; i++) {
       // In-bounds by loop guard.
@@ -1685,10 +1686,30 @@ function layoutSequencePass(
         let extraNeeded = Math.max(0, totalExtent - stepSpacing);
         // Scan forward past sections, blocks, and other non-message elements to find next message
         let nextMsgIdx = -1;
+        let sectionBetween: SequenceSection | null = null;
         for (let k = j; k < els.length; k++) {
           // In-bounds by loop guard.
-          nextMsgIdx = findFirstMsgIndex([els[k]!]);
+          const next = els[k]!;
+          if (isSequenceSection(next)) {
+            sectionBetween = next;
+            break;
+          }
+          nextMsgIdx = findFirstMsgIndex([next]);
           if (nextMsgIdx >= 0) break;
+        }
+        // 🔴 A `==` divider between the note and the next message takes the
+        // room ABOVE itself. Reserved before the message instead, the divider
+        // stayed put — over the note — and the gap below it grew (#2384).
+        if (sectionBetween) {
+          extraBeforeSection.set(
+            sectionBetween.lineNumber,
+            Math.max(
+              extraBeforeSection.get(sectionBetween.lineNumber) ?? 0,
+              extraNeeded
+            )
+          );
+          i = j - 1;
+          continue;
         }
         // If a block follows, its frame extends FRAME_PADDING_TOP above the first
         // message but only BLOCK_HEADER_SPACE is reserved. Add the difference so
@@ -2053,6 +2074,7 @@ function layoutSequencePass(
       if (sections) {
         for (const sec of sections) {
           const bandPad = collapsedBandPad(sec);
+          curY += extraBeforeSection.get(sec.lineNumber) ?? 0;
           curY += SECTION_TOP_PAD + bandPad;
           sectionYPositions.set(sec.lineNumber, curY);
           curY += SECTION_BOTTOM_PAD + bandPad;
@@ -2075,6 +2097,7 @@ function layoutSequencePass(
     // Handle trailing sections (after all steps)
     for (const sec of trailingSections) {
       const bandPad = collapsedBandPad(sec);
+      curY += extraBeforeSection.get(sec.lineNumber) ?? 0;
       curY += SECTION_TOP_PAD + bandPad;
       sectionYPositions.set(sec.lineNumber, curY);
       curY += SECTION_BOTTOM_PAD + bandPad;

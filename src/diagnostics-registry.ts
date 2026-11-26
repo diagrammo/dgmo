@@ -21,6 +21,7 @@ import type { DiagnosticSpec, DgmoError } from './diagnostics';
 import {
   nameMergedMessage,
   emptyMetadataValueMessage,
+  unkeyedMetadataMessage,
   MISTYPED_CHART_TYPE_DX,
   TITLE_DIRECTIVE_DX,
   NEGATIVE_VALUE_DX,
@@ -125,6 +126,20 @@ export const UNIVERSAL_DIAGNOSTICS: DiagnosticSpec[] = [
     message: (p) => emptyMetadataValueMessage(String(p.key ?? 'color')),
     hint: 'Provide a value or remove the key.',
     example: 'mindmap\nRoot color:\n  Child',
+  },
+  {
+    code: 'W_UNKEYED_METADATA_SEGMENT',
+    severity: 'warning',
+    chartType: null,
+    title: 'Metadata segment has no key',
+    message: (p) =>
+      unkeyedMetadataMessage(
+        String(p.dropped ?? 'France'),
+        p.key === undefined ? 'label' : String(p.key),
+        p.value === undefined ? 'Paris' : String(p.value)
+      ),
+    hint: 'Commas separate metadata pairs — quote a value that holds a comma.',
+    example: 'map Europe\n\npoi Paris label: Paris, France, size: 5\n',
   },
   {
     code: 'W_LEGEND_INLINE_UNSUPPORTED',
