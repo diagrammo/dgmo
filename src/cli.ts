@@ -672,9 +672,6 @@ interface InstallOpts {
   // Set once this run has handled the shared skills folder, so auto-detect
   // with Codex present writes it once.
   sharedSkillDone?: boolean;
-  // True once this run wrote (or, under --dry-run, would write) the shared
-  // copy; false when the Codex plugin route skipped it.
-  sharedSkillWritten?: boolean;
   // Set when this run took the Codex plugin route (true even under --dry-run,
   // where config.toml does not yet say so).
   codexPlugin?: boolean;
@@ -936,8 +933,7 @@ function runOneInstall(target: InstallTarget, opts: InstallOpts): void {
     case 'antigravity':
       return installAntigravity(opts);
     case 'agents':
-      installSharedSkill(opts);
-      return;
+      return installSharedSkill(opts);
   }
 }
 
@@ -951,9 +947,9 @@ server via \`dgmo mcp\`.
 Targets:   ${INSTALL_TARGETS.join(', ')}
            agents = the skill alone, into ~/.agents/skills (read by Gemini CLI,
            OpenCode, Amp, Goose and others). Auto-detect always writes it.
-           gemini, antigravity = the MCP server, plus that shared skill
-           (~/.gemini/skills instead while the Codex plugin is enabled).
-           antigravity has one config file, so --scope does not apply.
+           gemini, antigravity = the MCP server, plus the skill in
+           ~/.gemini/skills at either scope. antigravity has one config
+           file, so --scope does not apply to it.
 --scope    user = configure globally for all projects (default)
            project = write config into the current directory
 --dry-run  print what would change without writing anything`);
@@ -1103,19 +1099,16 @@ function installCodex(opts: InstallOpts): void {
 // user scope, ./.agents/skills for project scope. Skipped when the Codex plugin
 // is enabled, because Codex would list the plugin's copy and this one. Why the
 // other dual-folder readers load it once: cli-shared-skill.ts.
-// Returns whether the shared copy is in place after the call.
-function installSharedSkill(opts: InstallOpts): boolean {
-  if (opts.sharedSkillDone) return opts.sharedSkillWritten === true;
+function installSharedSkill(opts: InstallOpts): void {
+  if (opts.sharedSkillDone) return;
   opts.sharedSkillDone = true;
-  opts.sharedSkillWritten = false;
   const home = homedir();
   if (opts.scope === 'user' && (opts.codexPlugin || codexPluginEnabled(home))) {
     console.log(
       '  Skipped ~/.agents/skills: the Codex plugin carries the skill, and Codex would list it twice.'
     );
-    return false;
+    return;
   }
-  opts.sharedSkillWritten = true;
   const base = opts.scope === 'user' ? home : process.cwd();
   const shown = opts.scope === 'user' ? '~/' : './';
   writeOut(
@@ -1135,7 +1128,6 @@ function installSharedSkill(opts: InstallOpts): boolean {
       console.log('✓ Removed the old ~/.codex/skills/dgmo-diagramming copy');
     }
   }
-  return true;
 }
 
 // Non-destructive AGENTS.md note: only append to an existing file, never create.
@@ -1216,31 +1208,18 @@ function installCopilot(opts: InstallOpts): void {
   );
 }
 
-// The dgmo-diagramming skill for Google's CLIs. Gemini CLI and Antigravity
-// CLI read both ~/.gemini/skills and the shared ~/.agents/skills folder
-// (cli-shared-skill.ts), so a copy in each would be listed twice. The skill goes
-// to the shared folder; only when that is skipped (the Codex plugin carries
-// Codex's copy) does it go to ~/.gemini/skills, which Codex does not read.
-// Whichever copy is not wanted is removed, so a later run that switches folder
-// leaves one.
+// The dgmo-diagramming skill for Google's CLIs, in ~/.gemini/skills at every
+// scope: the user folder both read (diagrammo/diagrammo#2372's research).
+// Antigravity CLI reads no user-level ~/.agents/skills, so the shared copy
+// (#2380) alone would leave it without the skill. Gemini CLI reads both
+// folders but loads a name once — "Within the same tier, the .agents/skills/
+// alias takes precedence over the .gemini/skills/ directory"
+// (geminicli.com/docs/cli/skills) — so the two identical copies give it one
+// dgmo-diagramming skill.
 function installGeminiSkill(opts: InstallOpts): void {
-  const geminiDir = join(homedir(), '.gemini', 'skills', SHARED_SKILL_NAME);
-  if (installSharedSkill(opts)) {
-    if (opts.scope === 'user' && existsSync(geminiDir)) {
-      if (opts.dryRun) {
-        console.log(`  [dry-run] would remove ${geminiDir}`);
-      } else {
-        rmSync(geminiDir, { recursive: true, force: true });
-        console.log(
-          `✓ Removed the ~/.gemini/skills/${SHARED_SKILL_NAME} copy (the shared one replaces it)`
-        );
-      }
-    }
-    return;
-  }
   writeOut(
     opts,
-    join(geminiDir, 'SKILL.md'),
+    join(homedir(), '.gemini', 'skills', SHARED_SKILL_NAME, 'SKILL.md'),
     readCodexSkill(),
     `Skill → ~/.gemini/skills/${SHARED_SKILL_NAME}/SKILL.md`
   );

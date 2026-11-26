@@ -7,6 +7,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
@@ -21,9 +22,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 // CLIs:
 //   Gemini CLI       ~/.gemini/settings.json          key mcpServers
 //   Antigravity CLI  ~/.gemini/config/mcp_config.json key mcpServers
-//   both             the skill once: the shared ~/.agents/skills copy, or
-//                    ~/.gemini/skills when the Codex plugin skips that one.
-//                    Both CLIs read both folders, so never both (#2380).
+//   both             ~/.gemini/skills/dgmo-diagramming/SKILL.md, at either
+//                    scope. Antigravity reads no user ~/.agents/skills; Gemini
+//                    CLI reads both and loads a same-named skill once, so a
+//                    shared copy (#2380) beside it must be identical.
 //
 // The CLI is bundled from src/cli.ts, as in cli-install-claude-user.test.ts.
 // HOME is a temp directory, PATH holds only stand-ins, so nothing outside the
@@ -131,35 +133,38 @@ describe.runIf(process.platform !== 'win32')(
         install(home, cwd, target);
 
         expect(readJson(config(home))).toEqual({ mcpServers: { dgmo: DGMO } });
-        expect(readFileSync(sharedSkill(home), 'utf-8')).toBe(
+        expect(readFileSync(geminiSkill(home), 'utf-8')).toBe(
           readFileSync(join(REPO, 'SKILL.md'), 'utf-8')
         );
-        expect(existsSync(geminiSkill(home))).toBe(false);
+        expect(existsSync(sharedSkill(home))).toBe(false);
       });
 
-      it('after `dgmo install agents` leaves the skill in one folder', () => {
+      it('beside a shared copy writes the same skill, so Gemini CLI loads one', () => {
         const { home, cwd } = scratch();
         install(home, cwd, 'agents');
         install(home, cwd, target);
-        expect(skillCopies(home)).toEqual([sharedSkill(home)]);
+        expect(skillCopies(home)).toEqual([
+          sharedSkill(home),
+          geminiSkill(home),
+        ]);
+        expect(readFileSync(geminiSkill(home), 'utf-8')).toBe(
+          readFileSync(sharedSkill(home), 'utf-8')
+        );
       });
 
-      it('with the Codex plugin enabled writes the skill to ~/.gemini/skills only', () => {
+      it('with the Codex plugin enabled still writes ~/.gemini/skills', () => {
         const { home, cwd } = scratch();
         enableCodexPlugin(home);
         install(home, cwd, target);
         expect(skillCopies(home)).toEqual([geminiSkill(home)]);
-        expect(readFileSync(geminiSkill(home), 'utf-8')).toBe(
-          readFileSync(join(REPO, 'SKILL.md'), 'utf-8')
-        );
       });
 
-      it('removes an earlier ~/.gemini/skills copy once the shared one is written', () => {
+      it('--scope project still writes the skill to ~/.gemini/skills', () => {
         const { home, cwd } = scratch();
-        mkdirSync(resolve(geminiSkill(home), '..'), { recursive: true });
-        writeFileSync(geminiSkill(home), 'old');
-        install(home, cwd, target);
-        expect(skillCopies(home)).toEqual([sharedSkill(home)]);
+        install(home, cwd, target, '--scope', 'project');
+        expect(existsSync(geminiSkill(home))).toBe(true);
+        expect(existsSync(join(cwd, '.agents'))).toBe(false);
+        expect(existsSync(join(cwd, '.gemini', 'skills'))).toBe(false);
       });
 
       it('merges into an existing config and keeps the other servers and keys', () => {
@@ -212,6 +217,16 @@ describe.runIf(process.platform !== 'win32')(
       expect(existsSync(join(home, '.gemini', 'settings.json'))).toBe(false);
     });
 
+    it('antigravity --scope project writes its user config and nothing in the current directory', () => {
+      const { home, cwd } = scratch();
+      install(home, cwd, 'antigravity', '--scope', 'project');
+      expect(
+        readJson(join(home, '.gemini', 'config', 'mcp_config.json'))
+      ).toEqual({ mcpServers: { dgmo: DGMO } });
+      expect(existsSync(geminiSkill(home))).toBe(true);
+      expect(readdirSync(cwd)).toEqual([]);
+    });
+
     it('a bare `dgmo install` detects both from their config files', () => {
       const { home, cwd } = scratch();
       mkdirSync(join(home, '.gemini', 'config'), { recursive: true });
@@ -225,11 +240,15 @@ describe.runIf(process.platform !== 'win32')(
       expect(
         readJson(join(home, '.gemini', 'config', 'mcp_config.json'))
       ).toEqual({ mcpServers: { dgmo: DGMO } });
-      expect(skillCopies(home)).toEqual([sharedSkill(home)]);
-      expect(out.match(/Skill → /g) ?? []).toHaveLength(1);
+      expect(skillCopies(home)).toEqual([sharedSkill(home), geminiSkill(home)]);
+      expect(readFileSync(geminiSkill(home), 'utf-8')).toBe(
+        readFileSync(sharedSkill(home), 'utf-8')
+      );
+      // gemini and antigravity share one file; it is written once per target.
+      expect(out.match(/Skill → ~\/\.gemini\/skills/g) ?? []).toHaveLength(2);
     });
 
-    it('a bare `dgmo install` with the Codex plugin enabled leaves one copy', () => {
+    it('a bare `dgmo install` with the Codex plugin enabled still gives Gemini the skill', () => {
       const { home, cwd } = scratch();
       mkdirSync(join(home, '.gemini'), { recursive: true });
       writeFileSync(join(home, '.gemini', 'settings.json'), '{}');
