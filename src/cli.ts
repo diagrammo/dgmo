@@ -5,6 +5,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  rmSync,
   writeFileSync,
 } from 'node:fs';
 import { execSync, spawnSync } from 'node:child_process';
@@ -46,6 +47,11 @@ import {
 import { owningPackageManager, linuxClipboardCommand } from './cli-host';
 import { runCloudCommand } from './cli-cloud';
 import { installCodexPlugin } from './cli-codex-plugin';
+import {
+  codexPluginEnabled,
+  legacyCodexSkillDir,
+  sharedSkillPath,
+} from './cli-shared-skill';
 import { searchMapLocations } from './map/completion';
 import { loadMapData } from './map/load-data';
 
@@ -652,12 +658,19 @@ const INSTALL_TARGETS = [
   'cursor',
   'windsurf',
   'copilot',
+  'agents',
 ] as const;
 type InstallTarget = (typeof INSTALL_TARGETS)[number];
 
 interface InstallOpts {
   scope: 'user' | 'project';
   dryRun: boolean;
+  // Set once this run has handled the shared skills folder, so auto-detect
+  // with Codex present writes it once.
+  sharedSkillDone?: boolean;
+  // Set when this run took the Codex plugin route (true even under --dry-run,
+  // where config.toml does not yet say so).
+  codexPlugin?: boolean;
 }
 
 // `dgmo mcp` — run the MCP server. This is what AI client configs invoke. It
@@ -902,6 +915,8 @@ function runOneInstall(target: InstallTarget, opts: InstallOpts): void {
       return installWindsurf(opts);
     case 'copilot':
       return installCopilot(opts);
+    case 'agents':
+      return installSharedSkill(opts);
   }
 }
 
@@ -913,6 +928,8 @@ With no target, auto-detects every installed AI assistant and sets up each one
 server via \`dgmo mcp\`.
 
 Targets:   ${INSTALL_TARGETS.join(', ')}
+           agents = the skill alone, into ~/.agents/skills (read by Gemini CLI,
+           OpenCode, Amp, Goose and others). Auto-detect always writes it.
 --scope    user = configure globally for all projects (default)
            project = write config into the current directory
 --dry-run  print what would change without writing anything`);
@@ -954,6 +971,8 @@ function runInstallCommand(args: string[]): void {
     console.log(
       'No AI assistants detected (looked for Claude Code, Codex, Claude Desktop, Cursor, Windsurf, a .github dir).'
     );
+    // The shared folder serves harnesses detection does not look for.
+    installSharedSkill(opts);
     console.log('Install one and re-run `dgmo install`, or name a target:');
     console.log(`  dgmo install <${INSTALL_TARGETS.join('|')}>`);
     return;
@@ -964,6 +983,9 @@ function runInstallCommand(args: string[]): void {
     runOneInstall(t, opts);
     console.log('');
   }
+  console.log('── agents (shared ~/.agents/skills) ──');
+  installSharedSkill(opts);
+  console.log('');
   console.log('Done. Restart your AI assistant(s) to activate the dgmo tools.');
   console.log('(Re-run `dgmo install` after upgrading dgmo to refresh.)');
   for (const line of skillsInstallNote()) console.log(line);
@@ -1024,6 +1046,7 @@ function installCodex(opts: InstallOpts): void {
       log: (line) => console.log(line),
     });
   if (usedPlugin) {
+    opts.codexPlugin = true;
     appendCodexAgentsNote(opts);
     return;
   }
@@ -1047,14 +1070,44 @@ function installCodex(opts: InstallOpts): void {
   }
   writeOut(opts, configPath, next, `MCP server → ${configPath}`);
 
-  // Skill — single-sourced, always refreshed.
+  // Skill — Codex reads the shared ~/.agents/skills folder.
+  installSharedSkill(opts);
+  appendCodexAgentsNote(opts);
+}
+
+// The skill, once, into the shared skills folder (#2380): ~/.agents/skills for
+// user scope, ./.agents/skills for project scope. Skipped when the Codex plugin
+// is enabled, because Codex would list the plugin's copy and this one. Why the
+// other dual-folder readers load it once: cli-shared-skill.ts.
+function installSharedSkill(opts: InstallOpts): void {
+  if (opts.sharedSkillDone) return;
+  opts.sharedSkillDone = true;
+  const home = homedir();
+  if (opts.scope === 'user' && (opts.codexPlugin || codexPluginEnabled(home))) {
+    console.log(
+      '  Skipped ~/.agents/skills: the Codex plugin carries the skill, and Codex would list it twice.'
+    );
+    return;
+  }
+  const base = opts.scope === 'user' ? home : process.cwd();
+  const shown = opts.scope === 'user' ? '~/' : './';
   writeOut(
     opts,
-    join(homedir(), '.codex', 'skills', 'dgmo-diagramming', 'SKILL.md'),
+    sharedSkillPath(base),
     readCodexSkill(),
-    'Skill → ~/.codex/skills/dgmo-diagramming/SKILL.md'
+    `Skill → ${shown}.agents/skills/dgmo-diagramming/SKILL.md`
   );
-  appendCodexAgentsNote(opts);
+  // Codex reads ~/.codex/skills too, so an older install's copy there is a
+  // second entry for the same skill.
+  const legacy = legacyCodexSkillDir(home);
+  if (opts.scope === 'user' && existsSync(legacy)) {
+    if (opts.dryRun) {
+      console.log(`  [dry-run] would remove ${legacy}`);
+    } else {
+      rmSync(legacy, { recursive: true, force: true });
+      console.log('✓ Removed the old ~/.codex/skills/dgmo-diagramming copy');
+    }
+  }
 }
 
 // Non-destructive AGENTS.md note: only append to an existing file, never create.

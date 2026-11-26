@@ -22,10 +22,13 @@ Target a single assistant, or pick a scope, when you want to:
 ```bash
 dgmo install claude-code              # just one surface
 dgmo install codex --scope project    # write config into the current repo
+dgmo install agents                   # only the skill, into ~/.agents/skills
 dgmo install --dry-run                # preview every change, write nothing
 ```
 
 For Claude Code this copies the `/dgmo` skill into `~/.claude/commands/` (full dgmo context — all chart types, CLI flags, workflow, and tips) and adds the MCP server to `~/.claude.json`. Restart the assistant afterward.
+
+It also writes the skill to the shared `~/.agents/skills/dgmo-diagramming/` folder, which Gemini CLI, Antigravity, OpenCode, Cursor, Amp, Goose, Junie, Kilo Code and Codex read. That gives those assistants the skill without a target of their own; MCP still needs a per-assistant target. `dgmo install agents` writes only this copy, and `--scope project` puts it in `./.agents/skills/` instead. When the Diagrammo Codex plugin is enabled, the copy is skipped, because Codex would list the plugin's skill and this one.
 
 **Keeping it current:**
 - **Homebrew** bundles the MCP server, so `brew upgrade dgmo` upgrades the CLI *and* the server together. Re-run `dgmo install` afterward only to refresh the **skill files** (those are copies in your home dir).
