@@ -290,6 +290,23 @@ export const GENERATORS_C: Record<string, Generator> = {
       return lines.join('\n');
     },
   },
+
+  // n category rows of a two-series dumbbell, sorted by gap with the gap
+  // printed: the sort, the connectors and the labels all grow with n.
+  dot: {
+    gen: (n) => {
+      const lines = [
+        'dot Growth engagement by team',
+        'series 2020, 2025',
+        'sort gap',
+        'gap',
+        '',
+      ];
+      for (const i of range(n))
+        lines.push(`Team ${i} ${40 + ((i * 7) % 50)} ${35 + ((i * 11) % 60)}`);
+      return lines.join('\n');
+    },
+  },
 };
 
 export const NOT_SCALABLE_C: Record<string, string> = {
