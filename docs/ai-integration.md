@@ -15,7 +15,7 @@ dgmo install                         # auto-detects every AI assistant you have
 
 Homebrew and Arch/Omarchy (pacman) installs are listed at [diagrammo.app/dev](https://diagrammo.app/dev#cli).
 
-`dgmo install` with **no target** scans for Claude Code, Codex, Claude Desktop, Cursor, Windsurf, Copilot, Gemini CLI, and Antigravity CLI, then configures each one non-interactively — no prompts, no second package to install. The only binary you ever need is `dgmo`; it provides the MCP server through its own `dgmo mcp` subcommand.
+`dgmo install` with **no target** scans for Claude Code, Codex, Claude Desktop, Cursor, Windsurf, Copilot, Gemini CLI, Antigravity CLI, and OpenCode, then configures each one non-interactively — no prompts, no second package to install. The only binary you ever need is `dgmo`; it provides the MCP server through its own `dgmo mcp` subcommand.
 
 Target a single assistant, or pick a scope, when you want to:
 
@@ -559,9 +559,12 @@ dgmo install windsurf    # wires MCP (~/.codeium/windsurf/mcp_config.json) + .wi
 dgmo install copilot     # wires MCP (~/.copilot/mcp-config.json) + .github/copilot-instructions.md in a repo
 dgmo install gemini      # wires MCP (~/.gemini/settings.json) + the skill in ~/.gemini/skills/
 dgmo install antigravity # wires MCP (~/.gemini/config/mcp_config.json) + the skill in ~/.gemini/skills/
+dgmo install opencode    # wires MCP (~/.config/opencode/opencode.json) + the skill in ~/.agents/skills/
 ```
 
 Gemini CLI and Antigravity CLI (`agy`) both get the MCP server and the `dgmo-diagramming` skill in `~/.gemini/skills/dgmo-diagramming/`, the user skills folder both read. Gemini CLI also reads `~/.agents/skills/`; when the same skill is in both it loads it once. For Gemini CLI, `--scope project` writes the MCP entry to `.gemini/settings.json` in the current directory; the skill still goes to `~/.gemini/skills/`. Antigravity CLI has one config file, `~/.gemini/config/mcp_config.json`, so `--scope project` changes nothing for it. Every other key and server in those files is kept. `dgmo install` with no target sets Gemini CLI up when `~/.gemini/settings.json` exists or `gemini` is on your PATH, and Antigravity CLI when `~/.gemini/config` exists or `agy` is on your PATH.
+
+OpenCode (2.x) gets the MCP server under `mcp` → `servers` → `dgmo` in `~/.config/opencode/opencode.json` (`$XDG_CONFIG_HOME/opencode/` when that is set), or in `opencode.jsonc` when that is the file you have; `--scope project` writes `./opencode.json` instead. Every other key and server is kept. OpenCode reads the skill from the shared `~/.agents/skills/` copy; when the Codex plugin skips that copy, the skill goes to `~/.config/opencode/skills/` instead. OpenCode's config may carry comments, and rewriting such a file would drop them, so `dgmo install` leaves it as it is and prints what to add, or the `opencode mcp add --global dgmo -- dgmo mcp` command that adds it and keeps them. `dgmo install` with no target sets OpenCode up when `~/.config/opencode` exists or `opencode` is on your PATH.
 
 Cursor, Windsurf and Copilot CLI speak MCP, so `dgmo install` gives them the full render/share tools (pointed at `dgmo mcp`), plus the inline rules file. For Copilot, `--scope project` writes the MCP entry to `.github/mcp.json` instead, and the instructions file is written only in a repo (a `.github` directory in the current directory, or `--scope project`). `dgmo install` with no target sets Copilot up when `~/.copilot` exists or the current repo has a `.github` directory. To set the context files up by hand instead:
 

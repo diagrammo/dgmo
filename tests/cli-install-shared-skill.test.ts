@@ -76,6 +76,8 @@ function install(home: string, cwd: string, args: string[]) {
     env: {
       ...process.env,
       HOME: home,
+      // OpenCode's config follows XDG_CONFIG_HOME (#2379): keep it in HOME.
+      XDG_CONFIG_HOME: join(home, '.config'),
       USERPROFILE: home,
       // Only the stand-ins: no real codex, so its plugin route is never taken.
       PATH: `${bin}:${dirname(process.execPath)}:/usr/bin:/bin`,

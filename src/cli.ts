@@ -46,6 +46,13 @@ import {
 } from './cli-mcp-config';
 import { owningPackageManager, linuxClipboardCommand } from './cli-host';
 import { runCloudCommand } from './cli-cloud';
+import {
+  OPENCODE_MCP_ENTRY,
+  opencodeConfigDir,
+  opencodeConfigFile,
+  readJsonc,
+  withOpencodeDgmoServer,
+} from './cli-opencode-config';
 import { installCodexPlugin } from './cli-codex-plugin';
 import {
   codexPluginEnabled,
@@ -126,7 +133,8 @@ Commands:
   dgmo install [target]    Set up AI assistants (auto-detects all if no target).
                            Targets: claude-code, codex, claude-desktop,
                            cursor, windsurf, copilot, gemini,
-                           antigravity, agents. --scope user|project
+                           antigravity, opencode, agents.
+                           --scope user|project
   dgmo mcp                 Run the MCP server (invoked by AI client configs)
   dgmo map-search <query>  Find the map place token (city or IATA code)
   dgmo put <file> --space <id> [--folder <path>] [--title <title>]
@@ -662,6 +670,7 @@ const INSTALL_TARGETS = [
   'copilot',
   'gemini',
   'antigravity',
+  'opencode',
   'agents',
 ] as const;
 type InstallTarget = (typeof INSTALL_TARGETS)[number];
@@ -911,6 +920,11 @@ function detectSurfaces(): InstallTarget[] {
     found.push('gemini');
   if (existsSync(join(homedir(), '.gemini', 'config')) || commandExists('agy'))
     found.push('antigravity');
+  if (
+    existsSync(opencodeConfigDir(homedir(), process.env)) ||
+    commandExists('opencode')
+  )
+    found.push('opencode');
   return found;
 }
 
@@ -932,6 +946,8 @@ function runOneInstall(target: InstallTarget, opts: InstallOpts): void {
       return installGemini(opts);
     case 'antigravity':
       return installAntigravity(opts);
+    case 'opencode':
+      return installOpencode(opts);
     case 'agents':
       return installSharedSkill(opts);
   }
@@ -950,6 +966,9 @@ Targets:   ${INSTALL_TARGETS.join(', ')}
            gemini, antigravity = the MCP server, plus the skill in
            ~/.gemini/skills at either scope. antigravity has one config
            file, so --scope does not apply to it.
+           opencode = the MCP server in ~/.config/opencode/opencode.json
+           (./opencode.json with --scope project), plus the skill in
+           ~/.agents/skills. A config with comments is left alone.
 --scope    user = configure globally for all projects (default)
            project = write config into the current directory
 --dry-run  print what would change without writing anything`);
@@ -989,7 +1008,7 @@ function runInstallCommand(args: string[]): void {
   const detected = detectSurfaces();
   if (detected.length === 0) {
     console.log(
-      'No AI assistants detected (looked for Claude Code, Codex, Claude Desktop, Cursor, Windsurf, Gemini CLI, Antigravity CLI, a .github dir).'
+      'No AI assistants detected (looked for Claude Code, Codex, Claude Desktop, Cursor, Windsurf, Gemini CLI, Antigravity CLI, OpenCode, a .github dir).'
     );
     // The shared folder serves harnesses detection does not look for.
     installSharedSkill(opts);
@@ -1246,6 +1265,81 @@ function installAntigravity(opts: InstallOpts): void {
   ensureDgmoMcp(opts);
   upsertJsonMcp(opts, join(homedir(), '.gemini', 'config', 'mcp_config.json'));
   installGeminiSkill(opts);
+}
+
+// `path` as the install prints it: under the home directory, from `~/`.
+function shownPath(path: string): string {
+  const home = homedir();
+  return path.startsWith(home + '/') ? '~' + path.slice(home.length) : path;
+}
+
+// OpenCode 2.x reads MCP servers from `mcp.servers` in
+// ~/.config/opencode/opencode.json (or .jsonc), or ./opencode.json with
+// --scope project; the shape is cli-opencode-config.ts's. That file is JSONC
+// whatever its extension, and rewriting one with comments would drop them, so
+// it is left alone and the user is told what to add (diagrammo/diagrammo#2379).
+function installOpencode(opts: InstallOpts): void {
+  ensureDgmoMcp(opts);
+  const dir =
+    opts.scope === 'project'
+      ? process.cwd()
+      : opencodeConfigDir(homedir(), process.env);
+  const path = opencodeConfigFile(dir);
+  if (!opts.dryRun) refuseSymlinkInCwd(path);
+  let cfg: Record<string, unknown> = {};
+  let comments = false;
+  if (existsSync(path)) {
+    const raw = readFileSync(path, 'utf-8');
+    if (raw.trim().length > 0) {
+      try {
+        ({ cfg, comments } = readJsonc(raw));
+      } catch {
+        console.error(
+          `Error: ${path} is not valid JSON — fix it and re-run (skipping it for now).`
+        );
+        process.exitCode = 1;
+        installOpencodeSkill(opts);
+        return;
+      }
+    }
+  }
+  const next = withOpencodeDgmoServer(cfg);
+  if (JSON.stringify(next) === JSON.stringify(cfg)) {
+    console.log(`✓ MCP server already in ${shownPath(path)}`);
+  } else if (comments) {
+    console.error(
+      `Error: ${path} has comments, and writing the dgmo server into it would drop them, so it was left as it is.\n` +
+        `  Add it with OpenCode, which keeps them: opencode mcp add${opts.scope === 'project' ? '' : ' --global'} dgmo -- dgmo mcp\n` +
+        `  or put this under "mcp" → "servers" yourself: "dgmo": ${JSON.stringify(OPENCODE_MCP_ENTRY)}`
+    );
+    process.exitCode = 1;
+  } else {
+    writeOut(
+      opts,
+      path,
+      JSON.stringify(next, null, 2) + '\n',
+      `MCP server → ${shownPath(path)}`
+    );
+  }
+  installOpencodeSkill(opts);
+}
+
+// OpenCode reads the shared ~/.agents/skills folder (or ./.agents/skills), so
+// the shared copy is its skill. When the Codex plugin skips that copy, the
+// skill goes to OpenCode's own skills folder instead, so it still has one.
+function installOpencodeSkill(opts: InstallOpts): void {
+  const home = homedir();
+  if (opts.scope === 'user' && (opts.codexPlugin || codexPluginEnabled(home))) {
+    const path = join(
+      opencodeConfigDir(home, process.env),
+      'skills',
+      SHARED_SKILL_NAME,
+      'SKILL.md'
+    );
+    writeOut(opts, path, readCodexSkill(), `Skill → ${shownPath(path)}`);
+    return;
+  }
+  installSharedSkill(opts);
 }
 
 async function main(): Promise<void> {

@@ -87,6 +87,8 @@ describe.runIf(process.platform !== 'win32')(
         env: {
           ...process.env,
           HOME: home,
+          // OpenCode's config follows XDG_CONFIG_HOME (#2379): keep it in HOME.
+          XDG_CONFIG_HOME: join(home, '.config'),
           USERPROFILE: home,
           PATH: `${bin}:${process.env.PATH ?? ''}`,
           NO_COLOR: '1',

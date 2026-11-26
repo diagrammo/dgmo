@@ -282,7 +282,7 @@ describe.runIf(process.platform !== 'win32')(
     it('install help lists gemini, antigravity and agents', () => {
       const { home, cwd } = scratch();
       const out = install(home, cwd, '--help');
-      expect(out).toMatch(/Targets:.*gemini, antigravity, agents/);
+      expect(out).toMatch(/Targets:.*gemini, antigravity, opencode, agents/);
     });
   }
 );
