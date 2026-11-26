@@ -50,6 +50,8 @@ import {
   OPENCODE_MCP_ENTRY,
   opencodeConfigDir,
   opencodeConfigFile,
+  opencodeMajor,
+  opencodeShape,
   readJsonc,
   withOpencodeDgmoServer,
 } from './cli-opencode-config';
@@ -1273,7 +1275,20 @@ function shownPath(path: string): string {
   return path.startsWith(home + '/') ? '~' + path.slice(home.length) : path;
 }
 
-// OpenCode 2.x reads MCP servers from `mcp.servers` in
+// The major version of the `opencode` on the PATH, or null when there is none
+// or it does not say.
+function installedOpencodeMajor(): number | null {
+  const r = spawnSync('opencode', ['--version'], {
+    encoding: 'utf-8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    timeout: 10_000,
+  });
+  if (r.error || r.status !== 0) return null;
+  return opencodeMajor(`${r.stdout}`);
+}
+
+// OpenCode 2.x reads MCP servers from `mcp.servers` (1.x from `mcp`, and the
+// file's own shape is kept: opencodeShape) in
 // ~/.config/opencode/opencode.json (or .jsonc), or ./opencode.json with
 // --scope project; the shape is cli-opencode-config.ts's. That file is JSONC
 // whatever its extension, and rewriting one with comments would drop them, so
@@ -1303,14 +1318,15 @@ function installOpencode(opts: InstallOpts): void {
       }
     }
   }
-  const next = withOpencodeDgmoServer(cfg);
+  const shape = opencodeShape(cfg, installedOpencodeMajor());
+  const next = withOpencodeDgmoServer(cfg, shape);
   if (JSON.stringify(next) === JSON.stringify(cfg)) {
     console.log(`✓ MCP server already in ${shownPath(path)}`);
   } else if (comments) {
     console.error(
       `Error: ${path} has comments, and writing the dgmo server into it would drop them, so it was left as it is.\n` +
         `  Add it with OpenCode, which keeps them: opencode mcp add${opts.scope === 'project' ? '' : ' --global'} dgmo -- dgmo mcp\n` +
-        `  or put this under "mcp" → "servers" yourself: "dgmo": ${JSON.stringify(OPENCODE_MCP_ENTRY)}`
+        `  or put this under ${shape === 'flat' ? '"mcp"' : '"mcp" → "servers"'} yourself: "dgmo": ${JSON.stringify(OPENCODE_MCP_ENTRY)}`
     );
     process.exitCode = 1;
   } else {

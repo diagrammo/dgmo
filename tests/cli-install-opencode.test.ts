@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { build } from 'esbuild';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { readJsonc } from '../src/cli-opencode-config';
+import { opencodeMajor, readJsonc } from '../src/cli-opencode-config';
 
 // ============================================================
 // `dgmo install opencode` (diagrammo/diagrammo#2379) writes the dgmo MCP
@@ -23,6 +23,8 @@ import { readJsonc } from '../src/cli-opencode-config';
 //          --scope project), key mcp.servers.dgmo = { type: "local",
 //          command: ["dgmo", "mcp"] } — the shape `opencode mcp add dgmo --
 //          dgmo mcp` writes (opencode 2.4.2, probed 2026-11-26)
+//          — or mcp.dgmo when the file already keeps its servers right
+//          under "mcp" (the 1.x shape) or the installed OpenCode is 1.x
 //   skill  the shared ~/.agents/skills copy, which OpenCode reads; its own
 //          ~/.config/opencode/skills when the Codex plugin skips that copy
 // A config with comments is never rewritten, since that would drop them.
@@ -279,6 +281,80 @@ describe.runIf(process.platform !== 'win32')('dgmo install opencode', () => {
     }
   });
 
+  // A stand-in `opencode` on the PATH answering `--version` with `version`.
+  function withOpencode(version: string, body: () => void): void {
+    writeFileSync(
+      join(bin, 'opencode'),
+      `#!/bin/sh\n[ "$1" = --version ] && echo "opencode ${version}"\nexit 0\n`
+    );
+    chmodSync(join(bin, 'opencode'), 0o755);
+    try {
+      body();
+    } finally {
+      rmSync(join(bin, 'opencode'));
+    }
+  }
+
+  it('a config in the 1.x shape (servers right under "mcp") gets dgmo in that shape', () => {
+    const { home, cwd } = scratch();
+    const cloudflare = {
+      type: 'remote',
+      url: 'https://mcp.cloudflare.com/mcp',
+      enabled: true,
+    };
+    writeConfig(config(home), JSON.stringify({ mcp: { cloudflare } }));
+    install(home, cwd, 'opencode');
+    expect(readJson(config(home))).toEqual({
+      mcp: { cloudflare, dgmo: DGMO },
+    });
+  });
+
+  it('a 1.x-shape config with comments is told to add dgmo under "mcp"', () => {
+    const { home, cwd } = scratch();
+    const body =
+      '{\n  // mine\n  "mcp": { "x": { "type": "local", "command": ["x"] } }\n}\n';
+    writeConfig(config(home), body);
+    const r = run(home, cwd, ['opencode']);
+    expect(r.status).toBe(1);
+    expect(readFileSync(config(home), 'utf-8')).toBe(body);
+    expect(r.stderr).toContain(
+      `under "mcp" yourself: "dgmo": ${JSON.stringify(DGMO)}`
+    );
+  });
+
+  it('a config with both shapes gets dgmo under "servers", the 2.x shape', () => {
+    const { home, cwd } = scratch();
+    const x = { type: 'local', command: ['x'] };
+    writeConfig(config(home), JSON.stringify({ mcp: { x, servers: {} } }));
+    install(home, cwd, 'opencode');
+    expect(readJson(config(home))).toEqual({
+      mcp: { x, servers: { dgmo: DGMO } },
+    });
+  });
+
+  it('with OpenCode 1.x installed, a fresh config gets the 1.x shape', () => {
+    const { home, cwd } = scratch();
+    withOpencode('v1.14.3', () => install(home, cwd, 'opencode'));
+    expect(readJson(config(home))).toEqual({ mcp: { dgmo: DGMO } });
+  });
+
+  it('with OpenCode 2.x installed, a fresh config gets the 2.x shape', () => {
+    const { home, cwd } = scratch();
+    withOpencode('v2.4.2', () => install(home, cwd, 'opencode'));
+    expect(readJson(config(home))).toEqual({
+      mcp: { servers: { dgmo: DGMO } },
+    });
+  });
+
+  it('with OpenCode 1.x installed, a config already in the 2.x shape keeps it', () => {
+    const { home, cwd } = scratch();
+    writeConfig(config(home), JSON.stringify({ mcp: { servers: {} } }));
+    withOpencode('v1.14.3', () => install(home, cwd, 'opencode'));
+    expect(readJson(config(home))).toEqual({
+      mcp: { servers: { dgmo: DGMO } },
+    });
+  });
+
   it('a bare `dgmo install` with no sign of it writes no OpenCode config', () => {
     const { home, cwd } = scratch();
     const out = install(home, cwd);
@@ -291,6 +367,14 @@ describe.runIf(process.platform !== 'win32')('dgmo install opencode', () => {
     expect(install(home, cwd, '--help')).toMatch(
       /Targets:.*antigravity, opencode, agents/
     );
+  });
+});
+
+describe('opencodeMajor', () => {
+  it('reads the major version from `opencode --version`', () => {
+    expect(opencodeMajor('opencode v2.4.2\n')).toBe(2);
+    expect(opencodeMajor('1.14.3')).toBe(1);
+    expect(opencodeMajor('')).toBeNull();
   });
 });
 

@@ -2,7 +2,8 @@
 // config (diagrammo/diagrammo#2379). Kept out of cli.ts so the shapes can be
 // tested without running the CLI.
 //
-// OpenCode 2.x keeps MCP servers under `mcp.servers.<name>`, a local one as
+// OpenCode 2.x keeps MCP servers under `mcp.servers.<name>` (1.x under
+// `mcp.<name>`, see opencodeShape below), a local one as
 // `{ type: "local", command: [...] }` with the arguments in the array. That is
 // what `opencode mcp add dgmo -- dgmo mcp` itself writes (opencode 2.4.2,
 // probed 2026-11-26) and the shape the app's AI panel hands OpenCode
@@ -99,11 +100,46 @@ export function readJsonc(raw: string): {
   return { cfg: cfg as Record<string, unknown>, comments: plain !== raw };
 }
 
-// Set `mcp.servers.dgmo`, keeping every other key, server and `mcp` setting.
+// Which of OpenCode's two MCP shapes to write. 2.x keeps servers under
+// `mcp.servers.<name>`; 1.x keeps them directly under `mcp.<name>`, with the
+// same entry shape. 2.x still reads the 1.x shape: it lifts flat entries into
+// `servers`, and keeps both when a file mixes them (`opencode debug config`,
+// opencode 2.4.2, probed 2026-11-26). So the file's own shape wins: a file
+// with `mcp.servers` gets the 2.x shape, one whose `mcp` has only flat
+// entries gets the 1.x shape, and an empty one gets the shape of the
+// installed OpenCode — the 1.x shape when `opencode --version` says 1.x.
+export type OpencodeShape = 'servers' | 'flat';
+
+export function opencodeShape(
+  cfg: Record<string, unknown>,
+  installedMajor: number | null
+): OpencodeShape {
+  const mcp = cfg['mcp'];
+  if (mcp !== null && typeof mcp === 'object' && !Array.isArray(mcp)) {
+    const keys = Object.keys(mcp);
+    if (keys.includes('servers')) return 'servers';
+    if (keys.length > 0) return 'flat';
+  }
+  return installedMajor === 1 ? 'flat' : 'servers';
+}
+
+// The major version in `opencode --version`'s answer ("opencode v2.4.2"),
+// or null when there is none.
+export function opencodeMajor(versionOutput: string): number | null {
+  const m = /\bv?(\d+)\.\d+/.exec(versionOutput);
+  return m ? Number(m[1]) : null;
+}
+
+// Set the dgmo server in `shape`, keeping every other key, server and `mcp`
+// setting.
 export function withOpencodeDgmoServer(
-  cfg: Record<string, unknown>
+  cfg: Record<string, unknown>,
+  shape: OpencodeShape = 'servers'
 ): Record<string, unknown> {
   const mcp = (cfg['mcp'] as Record<string, unknown> | undefined) ?? {};
+  if (shape === 'flat') {
+    return { ...cfg, mcp: { ...mcp, dgmo: OPENCODE_MCP_ENTRY } };
+  }
   const servers = (mcp['servers'] as Record<string, unknown> | undefined) ?? {};
   return {
     ...cfg,
