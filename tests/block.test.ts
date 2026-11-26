@@ -84,8 +84,8 @@ describe('renderDgmoBlock — standard embed block', () => {
     expect(html).not.toContain('dgmo-chevron');
     // copy payload
     expect(html).toContain('data-dgmo-source="pie Crew Roles');
-    // editor link points at the hosted editor
-    expect(html).toMatch(/href="https:\/\/online\.diagrammo\.app\?[^"]+"/);
+    // editor link points at the hosted editor, diagram in the fragment only (#2363)
+    expect(html).toMatch(/href="https:\/\/online\.diagrammo\.app#dgmo=[^"]+"/);
     // source panel with class-based token highlighting
     expect(html).toContain('<div class="dgmo-source-inner">');
     expect(html).toContain('<pre class="dgmo-pre"><span class="dgmo-code">');
