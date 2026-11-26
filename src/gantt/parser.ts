@@ -443,18 +443,27 @@ function parseGanttRaw(content: string, palette?: PaletteColors): ParsedGantt {
   // `marker <date | task | [Group]> [label] [color]`. A named marker sits at
   // the element's start, resolved after scheduling (§13.6, #2407).
   const pushMarker = (body: string, lineNumber: number): boolean => {
-    const tail = eraColor(body, lineNumber, true);
-    if (!tail.label) return false;
-    const d = leadingDate(tail.label);
+    const text = body.trim();
+    if (!text) return false;
+    const d = leadingDate(text);
     // A word date (`May`) could also be a task's name; the name wins.
-    const ref = !d || /^[^\d+-]/.test(tail.label) ? tail.label : undefined;
+    const named = !d || /^[^\d+-]/.test(text);
+    // A date is not a label, so after one a lone color word IS the label
+    // (`marker 2026-03-27 orange` names the milestone "orange", §1.5). A
+    // named marker peels its color from the whole line instead.
+    const dated = d
+      ? extractColor(d.rest.trim(), palette, diagnostics, lineNumber)
+      : null;
+    const whole = named
+      ? extractColor(text, palette, dated ? undefined : diagnostics, lineNumber)
+      : null;
     result.markers.push({
       date: d ? d.iso : '',
       // Peel after the color — quotes keep a final color word in the label.
-      label: peelQuotedName(d ? d.rest.trim() : ''),
-      color: tail.color,
+      label: peelQuotedName(dated?.label ?? ''),
+      color: (dated ? dated.color : whole?.color) ?? null,
       lineNumber,
-      ...(ref !== undefined && { ref }),
+      ...(whole && { ref: whole.label }),
     });
     return true;
   };
