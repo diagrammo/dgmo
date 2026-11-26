@@ -2,9 +2,14 @@
 
 exports[`map layout golden output > is unchanged — dark, 520x900 1`] = `
 {
-  "content/map-office-hours.dgmo": "97c40aea05482ab8 383796b",
+  "content/map-categorical.dgmo": "f32e58f7c292e517 244681b",
+  "content/map-choropleth-diverging.dgmo": "7727f35b3ec800c6 204566b",
+  "content/map-choropleth.dgmo": "cd0415939b9ffaf0 114276b",
+  "content/map-office-hours.dgmo": "97c40aea05482ab8 384272b",
+  "content/map-pois.dgmo": "6fa82e295bde0315 130850b",
   "content/map-route.dgmo": "66aa04f7b7bc490c 45388b",
-  "content/map.dgmo": "ab094379d4117300 100335b",
+  "content/map-subnational-zoom.dgmo": "fea61c7c80c03273 72065b",
+  "content/map.dgmo": "ab094379d4117300 100339b",
   "map-categorical-world.dgmo": "1e0d2b8121388e42 350269b",
   "map-categorical.dgmo": "ba58bb7f93fe6206 348850b",
   "map-choropleth-diverging.dgmo": "03e8533af597bb34 196644b",
@@ -29,8 +34,13 @@ exports[`map layout golden output > is unchanged — dark, 520x900 1`] = `
 
 exports[`map layout golden output > is unchanged — dark, 1200x800 1`] = `
 {
+  "content/map-categorical.dgmo": "6c25982fb9c58e41 197002b",
+  "content/map-choropleth-diverging.dgmo": "59447a79bdd8968b 192908b",
+  "content/map-choropleth.dgmo": "349bffc4bf9ebb3a 122952b",
   "content/map-office-hours.dgmo": "a6a85d8b4ce16d11 718598b",
+  "content/map-pois.dgmo": "322a3e2a8a85e146 143769b",
   "content/map-route.dgmo": "5a236f8b6552d433 56469b",
+  "content/map-subnational-zoom.dgmo": "c22c129a14836741 60397b",
   "content/map.dgmo": "8e205967d592b117 98010b",
   "map-categorical-world.dgmo": "931f4638f3600633 644157b",
   "map-categorical.dgmo": "eefb0892e6dd1e80 642897b",
@@ -56,8 +66,13 @@ exports[`map layout golden output > is unchanged — dark, 1200x800 1`] = `
 
 exports[`map layout golden output > is unchanged — light, 520x900 1`] = `
 {
+  "content/map-categorical.dgmo": "76a626dc3acce433 244516b",
+  "content/map-choropleth-diverging.dgmo": "4799907431f93393 204455b",
+  "content/map-choropleth.dgmo": "a1ccf66226f467ac 114193b",
   "content/map-office-hours.dgmo": "92b36a7eba416da5 383799b",
+  "content/map-pois.dgmo": "211333f4d963bcdb 130763b",
   "content/map-route.dgmo": "a17c5349a96fc72b 45391b",
+  "content/map-subnational-zoom.dgmo": "49c007997ede53ce 72004b",
   "content/map.dgmo": "2308a98d624172a3 100338b",
   "map-categorical-world.dgmo": "ea83f96994aca957 350272b",
   "map-categorical.dgmo": "72fddc50f34aeaef 348853b",
@@ -83,8 +98,13 @@ exports[`map layout golden output > is unchanged — light, 520x900 1`] = `
 
 exports[`map layout golden output > is unchanged — light, 1200x800 1`] = `
 {
+  "content/map-categorical.dgmo": "c0cc5183aa44c890 197005b",
+  "content/map-choropleth-diverging.dgmo": "545a95c0d6c39265 192911b",
+  "content/map-choropleth.dgmo": "8baba9b00bed809b 122955b",
   "content/map-office-hours.dgmo": "34e93a3f65203441 718601b",
+  "content/map-pois.dgmo": "7ee0c0296c049f34 143772b",
   "content/map-route.dgmo": "c3b57c244021106c 56472b",
+  "content/map-subnational-zoom.dgmo": "19cba4bd6537560c 60400b",
   "content/map.dgmo": "d7fbf57ea4e539e3 98013b",
   "map-categorical-world.dgmo": "89ca49330f962680 643688b",
   "map-categorical.dgmo": "d930a33cc6d092ce 642428b",
