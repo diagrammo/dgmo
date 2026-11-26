@@ -172,3 +172,68 @@ describe('gantt era that runs backwards', () => {
     ).toBe(true);
   });
 });
+
+describe('gantt marker anchored to a task (#2407)', () => {
+  it('sits at the task start and follows it', () => {
+    const a = gantt('marker Task2 Handoff orange');
+    const b = gantt('marker Task2 Handoff orange', '40bd');
+    const task2 = a.tasks.find((t) => t.task.label === 'Task2')!;
+    expect(errors(a)).toEqual([]);
+    expect(a.markers[0]!.at).toEqual(task2.startDate);
+    expect(a.markers[0]!.label).toBe('Handoff');
+    expect(a.markers[0]!.color).not.toBeNull();
+    expect(b.markers[0]!.at!.getTime()).toBeGreaterThan(
+      a.markers[0]!.at!.getTime()
+    );
+  });
+
+  it('names a quoted task or a [Group], in flat and block form', () => {
+    const r = gantt(
+      'marker\n  "Task Three" Review\n  [Build] Build starts\n  2026-03-01 Dated'
+    );
+    expect(r.markers.map((m) => m.label)).toEqual([
+      'Review',
+      'Build starts',
+      'Dated',
+    ]);
+    const g = r.groups.find((x) => x.name === 'Build')!;
+    expect(r.markers[1]!.at).toEqual(g.startDate);
+  });
+
+  it('an unknown name is an error and the marker is dropped', () => {
+    const r = gantt('marker Nope Launch');
+    expect(r.markers).toHaveLength(0);
+    expect(errors(r).some((m) => m.includes('"Nope"'))).toBe(true);
+  });
+});
+
+describe('timeline marker anchored to an event (#2407)', () => {
+  const tl = (markers: string) =>
+    parseVisualization(
+      `timeline Pirates
+
+${markers}
+
+[Crew]
+  1716 Nassau Republic
+  1718 -> 1721 Woodes Rogers
+1722 Later`,
+      palette
+    );
+
+  it('sits at the event start; a lane marker at its first event', () => {
+    const p = tl(
+      'marker Woodes Rogers Arrives orange\nmarker [Crew] Crew forms'
+    );
+    expect(p.timelineMarkers.map((m) => [m.date, m.label])).toEqual([
+      ['1718', 'Arrives'],
+      ['1716', 'Crew forms'],
+    ]);
+  });
+
+  it('dated markers are unchanged; an unknown name is an error', () => {
+    const p = tl('marker 1720 Pardon\nmarker Nope X');
+    expect(p.timelineMarkers.map((m) => m.label)).toEqual(['Pardon']);
+    expect(errors(p).some((m) => m.includes('"Nope"'))).toBe(true);
+  });
+});

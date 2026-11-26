@@ -125,6 +125,10 @@ export interface GanttMarker {
   readonly color: string | null;
   readonly lineNumber: number;
   readonly offsetDate?: Offset; // +Nunit form (resolved to date via chart start)
+  /** Name plus label as written, when the marker may name a task or `[Group]` (#2407). */
+  readonly ref?: string;
+  /** Exact resolved instant, set when the marker named a task or group. */
+  readonly at?: Date;
 }
 
 // ── Chart Options ───────────────────────────────────────────

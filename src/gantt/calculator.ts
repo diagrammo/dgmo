@@ -23,6 +23,7 @@ import type {
   ResolvedGroup,
   Offset,
   GanttEra,
+  GanttMarker,
 } from './types';
 import { collectTasks, resolveTaskName, isResolverError } from './resolver';
 import {
@@ -110,7 +111,7 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
     ...(era.offsetEnd && { endDate: atOffset(era.offsetEnd) }),
   }));
 
-  result.markers = parsed.markers.map((m) => {
+  const offsetMarkers = parsed.markers.map((m) => {
     if (m.offsetDate) {
       const d = addGanttDuration(
         projectStart,
@@ -139,6 +140,12 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
   const allTasks = collectTasks(parsed.nodes);
   if (allTasks.length === 0) {
     result.eras = resolveEraAnchors(offsetEras, allTasks, result, diagnostics);
+    result.markers = resolveMarkerAnchors(
+      offsetMarkers,
+      allTasks,
+      result,
+      diagnostics
+    );
     return result; // empty chart is valid
   }
 
@@ -409,6 +416,12 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
   // ── Resolve eras whose ends name a task or [Group] (#2373) ──
 
   result.eras = resolveEraAnchors(offsetEras, allTasks, result, diagnostics);
+  result.markers = resolveMarkerAnchors(
+    offsetMarkers,
+    allTasks,
+    result,
+    diagnostics
+  );
 
   // ── Compute overall date range ──────────────────────────
 
@@ -481,13 +494,12 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
  * reads the same (`May`). An end that names nothing drops the era with an
  * error naming the line and the name.
  */
-function resolveEraAnchors(
-  eras: GanttEra[],
+/** Look up a task or `[Group]` by name in the computed schedule. */
+function elementSpan(
   allTasks: GanttTask[],
-  result: ResolvedSchedule,
-  diagnostics: DgmoError[]
-): GanttEra[] {
-  const span = (name: string): { start: Date; end: Date } | null => {
+  result: ResolvedSchedule
+): (name: string) => { start: Date; end: Date } | null {
+  return (name) => {
     const group = bracketName(name);
     if (group != null) {
       const g = result.groups.find(
@@ -500,6 +512,56 @@ function resolveEraAnchors(
     const t = result.tasks.find((r) => r.task.id === hit.task.id);
     return t ? { start: t.startDate, end: t.endDate } : null;
   };
+}
+
+/**
+ * Give each marker that names a task or `[Group]` the element's start (#2407).
+ * A name wins over a date that reads the same; a marker that names nothing
+ * and has no date is dropped with an error.
+ */
+function resolveMarkerAnchors(
+  markers: GanttMarker[],
+  allTasks: GanttTask[],
+  result: ResolvedSchedule,
+  diagnostics: DgmoError[]
+): GanttMarker[] {
+  const span = elementSpan(allTasks, result);
+  const out: GanttMarker[] = [];
+  for (const m of markers) {
+    if (m.ref === undefined) {
+      out.push(m);
+      continue;
+    }
+    const hit = leadingName(m.ref, span);
+    if (hit) {
+      out.push({
+        ...m,
+        date: formatDate(hit.hit.start),
+        at: hit.hit.start,
+        label: peelQuotedName(hit.rest),
+      });
+    } else if (m.date) {
+      out.push(m);
+    } else {
+      const first = anchorTokens(m.ref)[0] ?? m.ref;
+      diagnostics.push(
+        makeDgmoError(
+          m.lineNumber,
+          `marker: nothing named "${peelQuotedName(first)}" — a marker takes a date, a +offset, or a task or [Group] name.`
+        )
+      );
+    }
+  }
+  return out;
+}
+
+function resolveEraAnchors(
+  eras: GanttEra[],
+  allTasks: GanttTask[],
+  result: ResolvedSchedule,
+  diagnostics: DgmoError[]
+): GanttEra[] {
+  const span = elementSpan(allTasks, result);
   const out: GanttEra[] = [];
   for (const era of eras) {
     if (era.startRef === undefined && era.endRef === undefined) {

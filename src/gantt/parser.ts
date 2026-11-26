@@ -440,6 +440,25 @@ function parseGanttRaw(content: string, palette?: PaletteColors): ParsedGantt {
     return true;
   };
 
+  // `marker <date | task | [Group]> [label] [color]`. A named marker sits at
+  // the element's start, resolved after scheduling (§13.6, #2407).
+  const pushMarker = (body: string, lineNumber: number): boolean => {
+    const tail = eraColor(body, lineNumber, true);
+    if (!tail.label) return false;
+    const d = leadingDate(tail.label);
+    // A word date (`May`) could also be a task's name; the name wins.
+    const ref = !d || /^[^\d+-]/.test(tail.label) ? tail.label : undefined;
+    result.markers.push({
+      date: d ? d.iso : '',
+      // Peel after the color — quotes keep a final color word in the label.
+      label: peelQuotedName(d ? d.rest.trim() : ''),
+      color: tail.color,
+      lineNumber,
+      ...(ref !== undefined && { ref }),
+    });
+    return true;
+  };
+
   // ── State ───────────────────────────────────────────────
 
   let seenChartType = false;
@@ -610,27 +629,10 @@ function parseGanttRaw(content: string, palette?: PaletteColors): ParsedGantt {
         // fall through to process this line normally
       } else {
         if (COMMENT_RE.test(line)) continue;
-        const markerEntryMatch = leadingDate(line);
-        if (markerEntryMatch?.rest.trim()) {
-          const markerLabelRaw = markerEntryMatch.rest.trim();
-          const markerExtracted = extractColor(
-            markerLabelRaw,
-            palette,
-            diagnostics,
-            lineNumber
-          );
-          result.markers.push({
-            date: markerEntryMatch.iso,
-            // Peel after extractColor — the quotes are what keep a trailing
-            // color word inside the label (§2.2).
-            label: peelQuotedName(markerExtracted.label),
-            color: markerExtracted.color ?? null,
-            lineNumber,
-          });
-        } else {
+        if (!pushMarker(line, lineNumber)) {
           warn(
             lineNumber,
-            `Unrecognized marker entry: "${line}". Use 'YYYY-MM-DD Label [color]' (e.g. '2026-03-27 Board Review' or '2026-06-15 Release green'). (§13.6)`
+            `Unrecognized marker entry: "${line}". Use '<date or task name> Label [color]' (e.g. '2026-03-27 Board Review' or 'Launch Go-live green'). (§13.6)`
           );
         }
         continue;
@@ -1055,23 +1057,7 @@ function parseGanttRaw(content: string, palette?: PaletteColors): ParsedGantt {
     // Marker (inline, liberal date input)
     const markerInlinePrefix = line.match(/^marker\s+(.+)$/i);
     if (markerInlinePrefix) {
-      const markerMatch = leadingDate(markerInlinePrefix[1]!);
-      if (markerMatch?.rest.trim()) {
-        const markerLabelRaw = markerMatch.rest.trim();
-        const markerExtracted = extractColor(
-          markerLabelRaw,
-          palette,
-          diagnostics,
-          lineNumber
-        );
-        result.markers.push({
-          date: markerMatch.iso,
-          label: peelQuotedName(markerExtracted.label),
-          color: markerExtracted.color ?? null,
-          lineNumber,
-        });
-        continue;
-      }
+      if (pushMarker(markerInlinePrefix[1]!, lineNumber)) continue;
     }
 
     // ── New-syntax task: `Name duration: Xd` or `Name start: DATE` ─

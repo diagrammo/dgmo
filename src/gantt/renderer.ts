@@ -2885,7 +2885,7 @@ function renderErasAndMarkers(
   // distance to its nearest neighbor — symmetric truncation lets crowded
   // labels meet in the middle of the gap rather than overlapping.
   const markerXs = resolved.markers.map((m) =>
-    xScale(parseDateToFractionalYear(m.date))
+    xScale(dateToFractionalYear(m.at ?? parseDateStringToDate(m.date)))
   );
   // d3 scale.range() returns a 2-element array.
   const innerWidth = xScale.range()[1]!;
@@ -2895,7 +2895,7 @@ function renderErasAndMarkers(
     const color = marker.color ?? (palette.accent || '#3a9188');
     // In-bounds: markerXs.length === resolved.markers.length.
     const mx = markerXs[i]!;
-    const markerDate = parseDateStringToDate(marker.date);
+    const markerDate = marker.at ?? parseDateStringToDate(marker.date);
     const diamondSize = 5;
     const labelY = markerLabelY;
     const diamondY = -2; // below date indicator labels
@@ -3293,14 +3293,6 @@ function parseDateStringToDate(s: string): Date {
   const month = parts.length >= 2 ? parts[1]! - 1 : 0;
   const day = parts.length >= 3 ? parts[2]! : 1;
   return new Date(year, month, day);
-}
-
-/**
- * Parse a date string (YYYY, YYYY-MM, YYYY-MM-DD) to fractional year.
- * Used for eras and markers which may have partial dates.
- */
-function parseDateToFractionalYear(s: string): number {
-  return dateToFractionalYear(parseDateStringToDate(s));
 }
 
 // ── Dependency Hover Helpers ─────────────────────────────────
