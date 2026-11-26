@@ -50,6 +50,7 @@ import { installCodexPlugin } from './cli-codex-plugin';
 import {
   codexPluginEnabled,
   legacyCodexSkillDir,
+  SHARED_SKILL_NAME,
   sharedSkillPath,
 } from './cli-shared-skill';
 import { searchMapLocations } from './map/completion';
@@ -124,7 +125,8 @@ Commands:
   dgmo diagnostics         List every error/warning code (add --json for full catalog)
   dgmo install [target]    Set up AI assistants (auto-detects all if no target).
                            Targets: claude-code, codex, claude-desktop,
-                           cursor, windsurf, copilot. --scope user|project
+                           cursor, windsurf, copilot, gemini,
+                           antigravity, agents. --scope user|project
   dgmo mcp                 Run the MCP server (invoked by AI client configs)
   dgmo map-search <query>  Find the map place token (city or IATA code)
   dgmo put <file> --space <id> [--folder <path>] [--title <title>]
@@ -658,6 +660,8 @@ const INSTALL_TARGETS = [
   'cursor',
   'windsurf',
   'copilot',
+  'gemini',
+  'antigravity',
   'agents',
 ] as const;
 type InstallTarget = (typeof INSTALL_TARGETS)[number];
@@ -668,6 +672,9 @@ interface InstallOpts {
   // Set once this run has handled the shared skills folder, so auto-detect
   // with Codex present writes it once.
   sharedSkillDone?: boolean;
+  // True once this run wrote (or, under --dry-run, would write) the shared
+  // copy; false when the Codex plugin route skipped it.
+  sharedSkillWritten?: boolean;
   // Set when this run took the Codex plugin route (true even under --dry-run,
   // where config.toml does not yet say so).
   codexPlugin?: boolean;
@@ -898,6 +905,15 @@ function detectSurfaces(): InstallTarget[] {
     existsSync(join(process.cwd(), '.github'))
   )
     found.push('copilot');
+  // Gemini CLI and its successor Antigravity CLI share ~/.gemini, so each is
+  // told apart by its own config file or binary, not by the directory.
+  if (
+    existsSync(join(homedir(), '.gemini', 'settings.json')) ||
+    commandExists('gemini')
+  )
+    found.push('gemini');
+  if (existsSync(join(homedir(), '.gemini', 'config')) || commandExists('agy'))
+    found.push('antigravity');
   return found;
 }
 
@@ -915,8 +931,13 @@ function runOneInstall(target: InstallTarget, opts: InstallOpts): void {
       return installWindsurf(opts);
     case 'copilot':
       return installCopilot(opts);
+    case 'gemini':
+      return installGemini(opts);
+    case 'antigravity':
+      return installAntigravity(opts);
     case 'agents':
-      return installSharedSkill(opts);
+      installSharedSkill(opts);
+      return;
   }
 }
 
@@ -930,6 +951,9 @@ server via \`dgmo mcp\`.
 Targets:   ${INSTALL_TARGETS.join(', ')}
            agents = the skill alone, into ~/.agents/skills (read by Gemini CLI,
            OpenCode, Amp, Goose and others). Auto-detect always writes it.
+           gemini, antigravity = the MCP server, plus that shared skill
+           (~/.gemini/skills instead while the Codex plugin is enabled).
+           antigravity has one config file, so --scope does not apply.
 --scope    user = configure globally for all projects (default)
            project = write config into the current directory
 --dry-run  print what would change without writing anything`);
@@ -969,7 +993,7 @@ function runInstallCommand(args: string[]): void {
   const detected = detectSurfaces();
   if (detected.length === 0) {
     console.log(
-      'No AI assistants detected (looked for Claude Code, Codex, Claude Desktop, Cursor, Windsurf, a .github dir).'
+      'No AI assistants detected (looked for Claude Code, Codex, Claude Desktop, Cursor, Windsurf, Gemini CLI, Antigravity CLI, a .github dir).'
     );
     // The shared folder serves harnesses detection does not look for.
     installSharedSkill(opts);
@@ -1079,16 +1103,19 @@ function installCodex(opts: InstallOpts): void {
 // user scope, ./.agents/skills for project scope. Skipped when the Codex plugin
 // is enabled, because Codex would list the plugin's copy and this one. Why the
 // other dual-folder readers load it once: cli-shared-skill.ts.
-function installSharedSkill(opts: InstallOpts): void {
-  if (opts.sharedSkillDone) return;
+// Returns whether the shared copy is in place after the call.
+function installSharedSkill(opts: InstallOpts): boolean {
+  if (opts.sharedSkillDone) return opts.sharedSkillWritten === true;
   opts.sharedSkillDone = true;
+  opts.sharedSkillWritten = false;
   const home = homedir();
   if (opts.scope === 'user' && (opts.codexPlugin || codexPluginEnabled(home))) {
     console.log(
       '  Skipped ~/.agents/skills: the Codex plugin carries the skill, and Codex would list it twice.'
     );
-    return;
+    return false;
   }
+  opts.sharedSkillWritten = true;
   const base = opts.scope === 'user' ? home : process.cwd();
   const shown = opts.scope === 'user' ? '~/' : './';
   writeOut(
@@ -1108,6 +1135,7 @@ function installSharedSkill(opts: InstallOpts): void {
       console.log('✓ Removed the old ~/.codex/skills/dgmo-diagramming copy');
     }
   }
+  return true;
 }
 
 // Non-destructive AGENTS.md note: only append to an existing file, never create.
@@ -1186,6 +1214,59 @@ function installCopilot(opts: InstallOpts): void {
     readPackagedFile('.github', 'copilot-instructions.md'),
     'Copilot context → .github/copilot-instructions.md'
   );
+}
+
+// The dgmo-diagramming skill for Google's CLIs. Gemini CLI and Antigravity
+// CLI read both ~/.gemini/skills and the shared ~/.agents/skills folder
+// (cli-shared-skill.ts), so a copy in each would be listed twice. The skill goes
+// to the shared folder; only when that is skipped (the Codex plugin carries
+// Codex's copy) does it go to ~/.gemini/skills, which Codex does not read.
+// Whichever copy is not wanted is removed, so a later run that switches folder
+// leaves one.
+function installGeminiSkill(opts: InstallOpts): void {
+  const geminiDir = join(homedir(), '.gemini', 'skills', SHARED_SKILL_NAME);
+  if (installSharedSkill(opts)) {
+    if (opts.scope === 'user' && existsSync(geminiDir)) {
+      if (opts.dryRun) {
+        console.log(`  [dry-run] would remove ${geminiDir}`);
+      } else {
+        rmSync(geminiDir, { recursive: true, force: true });
+        console.log(
+          `✓ Removed the ~/.gemini/skills/${SHARED_SKILL_NAME} copy (the shared one replaces it)`
+        );
+      }
+    }
+    return;
+  }
+  writeOut(
+    opts,
+    join(geminiDir, 'SKILL.md'),
+    readCodexSkill(),
+    `Skill → ~/.gemini/skills/${SHARED_SKILL_NAME}/SKILL.md`
+  );
+}
+
+// Gemini CLI reads MCP servers from the `mcpServers` key of
+// ~/.gemini/settings.json (user) or .gemini/settings.json (project), the same
+// { command, args } shape as Cursor. That file holds the rest of Gemini CLI's
+// settings, so upsertJsonMcp keeps every other key.
+function installGemini(opts: InstallOpts): void {
+  ensureDgmoMcp(opts);
+  const path =
+    opts.scope === 'project'
+      ? join(process.cwd(), '.gemini', 'settings.json')
+      : join(homedir(), '.gemini', 'settings.json');
+  upsertJsonMcp(opts, path);
+  installGeminiSkill(opts);
+}
+
+// Antigravity CLI (`agy`, Gemini CLI's successor) reads MCP servers from
+// ~/.gemini/config/mcp_config.json, key `mcpServers`. That user file is the
+// only one its docs name, so --scope does not apply (as for Claude Desktop).
+function installAntigravity(opts: InstallOpts): void {
+  ensureDgmoMcp(opts);
+  upsertJsonMcp(opts, join(homedir(), '.gemini', 'config', 'mcp_config.json'));
+  installGeminiSkill(opts);
 }
 
 async function main(): Promise<void> {

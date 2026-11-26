@@ -26,7 +26,7 @@ dgmo install                # auto-detects what you have, no prompts
 dgmo install claude-code    # or name one
 ```
 
-Detects Claude Code, Codex, Claude Desktop, Cursor, Windsurf and Copilot, and points each at the DGMO MCP server. `dgmo mcp` runs that server directly.
+Detects Claude Code, Codex, Claude Desktop, Cursor, Windsurf, Copilot, Gemini CLI and Antigravity CLI, and points each at the DGMO MCP server. `dgmo mcp` runs that server directly.
 
 ## Also
 

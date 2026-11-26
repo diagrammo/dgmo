@@ -136,7 +136,7 @@ Claude, Cursor, Codex, and other agents can author and render DGMO directly. One
 dgmo install
 ```
 
-It auto-detects Claude Code, Codex, Claude Desktop, Cursor, Windsurf, and Copilot and wires each one to the bundled MCP server. More: **[diagrammo.app/ai](https://diagrammo.app/ai)**.
+It auto-detects Claude Code, Codex, Claude Desktop, Cursor, Windsurf, Copilot, Gemini CLI, and Antigravity CLI and wires each one to the bundled MCP server. More: **[diagrammo.app/ai](https://diagrammo.app/ai)**.
 
 ## Chart types
 
