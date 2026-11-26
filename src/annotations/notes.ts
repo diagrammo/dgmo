@@ -6,10 +6,12 @@
 // leader line. Each note tries spots around its datum that touch no placed
 // text, no data mark, no reference line and nothing outside the plot, and of
 // the clear ones takes the roomiest: open space beats a gap between lines,
-// with nearness and direction only breaking ties (#2134). The leader may
-// cross a line; the text may not. With no clear spot inside the plot it may
-// use the chart's margins (the gutter), and with none there either it takes
-// its first spot anyway: every note is drawn.
+// with nearness and direction only breaking ties (#2134). The leader keeps
+// off the lines where any spot allows it (#2158), and off every other note's
+// leader, text and ring and every value label where any spot allows that,
+// placing a boxed-in note earlier when none does (#2385). With no clear spot
+// inside the plot it may use the chart's margins (the gutter), and with none
+// there either it takes its first spot anyway: every note is drawn.
 //
 // A bar's note is its caption (#2136): it stands above the bar (past a
 // horizontal bar's end), lifted straight up past taller neighbours when it
@@ -243,7 +245,42 @@ export function placeChartNotes(
   notes: readonly PlacedNoteDatum[],
   opts: DrawNotesOptions
 ): PlacedNotes {
+  // The note with least room places first: a bar note on the bar reaching
+  // furthest, so a shorter neighbour's note cannot take the air above it.
+  const reach = (n: PlacedNoteDatum) =>
+    n.beyond === 'above' ? n.y : n.beyond === 'right' ? -n.x : Infinity;
+  const order = notes
+    .map((_, i) => i)
+    .sort((a, b) => reach(notes[a]!) - reach(notes[b]!) || a - b);
+  // A point note whose leader could not keep off the other notes was boxed
+  // in by notes placed before it: place it earlier and try again, keeping
+  // the pass with fewest such notes (#2385). A chart where every note
+  // finds a clear spot takes the first pass unchanged.
+  let best = placeInOrder(notes, opts, order);
+  let last = best;
+  let front: number[] = [];
+  for (let k = 0; best.stranded.length > 0 && k < notes.length; k++) {
+    const add = last.stranded.filter((i) => !front.includes(i));
+    if (add.length === 0) break;
+    front = [...add, ...front];
+    last = placeInOrder(notes, opts, [
+      ...front,
+      ...order.filter((i) => !front.includes(i)),
+    ]);
+    if (last.stranded.length < best.stranded.length) best = last;
+  }
+  return { boxes: best.boxes, blocks: best.blocks, clear: best.clear };
+}
+
+/** One placing pass in the given order; `stranded` lists the point notes
+ *  whose leader had to cross another note or a value label. */
+function placeInOrder(
+  notes: readonly PlacedNoteDatum[],
+  opts: DrawNotesOptions,
+  order: readonly number[]
+): PlacedNotes & { stranded: number[] } {
   let allClear = true;
+  const stranded: number[] = [];
   const placement = createLabelPlacement({
     reserved: opts.reserved ?? [],
     obstacles: opts.obstacles ?? [],
@@ -255,13 +292,6 @@ export function placeChartNotes(
         .map((n) => ({ cx: n.x, cy: n.y, r: n.r + RING_GAP + 2 })),
     ],
   });
-  // The note with least room places first: a bar note on the bar reaching
-  // furthest, so a shorter neighbour's note cannot take the air above it.
-  const reach = (n: PlacedNoteDatum) =>
-    n.beyond === 'above' ? n.y : n.beyond === 'right' ? -n.x : Infinity;
-  const order = notes
-    .map((_, i) => i)
-    .sort((a, b) => reach(notes[a]!) - reach(notes[b]!) || a - b);
   const boxes: LabelRect[] = new Array(notes.length);
   const blocks: ReturnType<typeof noteBlock>[] = new Array(notes.length);
   const beyond0 = (n: PlacedNoteDatum) => n.beyond !== undefined;
@@ -336,12 +366,19 @@ export function placeChartNotes(
       while (r < ROOM_CAP && free(b, NOTE_PAD + r + ROOM_STEP)) r += ROOM_STEP;
       return r;
     };
-    const roomiest = (area: Bounds, leaderToo: boolean) => {
+    /** `all`: the leader crosses nothing. `notes`: it may cross the data
+     *  and reference lines, but no leader, text, value label or ring, and the
+     *  text keeps off every leader (#2385). `text`: the text alone is clear. */
+    const roomiest = (area: Bounds, leaderToo: 'all' | 'notes' | 'text') => {
       let best: LabelRect | undefined;
       let bestScore = -Infinity;
       for (const s of spots) {
         if (!clear(s.box, area)) continue;
-        if (leaderToo && !(onNoLeader(s.box) && leaderClear(s.box))) continue;
+        if (
+          leaderToo !== 'text' &&
+          !(onNoLeader(s.box) && leaderClear(s.box, leaderToo === 'all'))
+        )
+          continue;
         const score = room(s.box) - s.cost;
         if (score > bestScore) {
           best = s.box;
@@ -353,13 +390,19 @@ export function placeChartNotes(
     /** The leader from the datum to the box's nearest point, trimmed off
      *  the bar's end or the ring, or null when none is drawn. */
     const ringR = beyond ? 0 : n.r + RING_GAP;
-    const leaderTo = (b: LabelRect): Leader | null => {
+    /** With `drawn`, a point note's leader as drawChartNotes draws it,
+     *  from the ring's rim: what another note's leader or text must keep
+     *  off. Two rings a few px apart otherwise let one leader slip past
+     *  the trimmed start of the other and cross it as drawn (#2385). */
+    const leaderTo = (b: LabelRect, drawn = false): Leader | null => {
       const tx = Math.max(b.x, Math.min(n.x, b.x + b.w));
       const ty = Math.max(b.y, Math.min(n.y, b.y + b.h));
       const len = Math.hypot(tx - n.x, ty - n.y);
       if (beyond ? len < CAPTION_NO_LEADER : len <= ringR + 2) return null;
       const ux = (tx - n.x) / len;
       const uy = (ty - n.y) / len;
+      if (drawn && !beyond)
+        return [n.x + ux * ringR, n.y + uy * ringR, tx - ux * 2, ty - uy * 2];
       const s0 = beyond ? 3 : ringR + LEADER_SKIP;
       if (len - 3 <= s0) return null;
       return [n.x + ux * s0, n.y + uy * s0, tx - ux * 3, ty - uy * 3];
@@ -388,17 +431,23 @@ export function placeChartNotes(
           n.y <= r.y + r.h + 1
         )
     );
-    const leaderClear = (b: LabelRect) => {
+    /** With `marks` false the leader may cross the data: lines, points,
+     *  reference lines and bands. It still keeps off every other note. */
+    const leaderClear = (b: LabelRect, marks = true) => {
       const l = leaderTo(b);
+      const drawn = leaderTo(b, true);
+      if (
+        drawn &&
+        (placement.leaderCrosses(drawn) || placement.leaderHitsPlaced(drawn))
+      )
+        return false;
       if (!l) return true;
       const [x0, y0, x1, y1] = l;
       return (
-        !placement.leaderCrosses(l) &&
-        !placement.leaderHitsPlaced(l) &&
-        ![...(opts.obstacles ?? []), ...leaderBlocks].some((r) =>
+        ![...(marks ? (opts.obstacles ?? []) : []), ...leaderBlocks].some((r) =>
           segmentRectOverlap(x0, y0, x1, y1, r)
         ) &&
-        ![...leaderMarks, ...ringMarks].some(
+        ![...(marks ? leaderMarks : []), ...ringMarks].some(
           (m) => segmentPointDistance(x0, y0, x1, y1, m.cx, m.cy) < m.r
         )
       );
@@ -500,21 +549,25 @@ export function placeChartNotes(
           captionsAt(BEYOND_DISTANCES[0]!, opts.canvas, w, h)[0]!,
           opts.canvas
         )))
-      : // A spot whose leader crosses nothing first; only then one whose
-        // text alone is clear (#2158).
-        (roomiest(opts.plot, true) ??
-        roomiest(opts.canvas, true) ??
-        roomiest(opts.plot, false) ??
-        roomiest(opts.canvas, false) ??
-        clamp(spots[0]!.box, opts.canvas));
+      : // A spot whose leader crosses nothing first (#2158); then one whose
+        // leader crosses only the data, never another note (#2385); only
+        // then one whose text alone is clear.
+        (roomiest(opts.plot, 'all') ??
+        roomiest(opts.canvas, 'all') ??
+        roomiest(opts.plot, 'notes') ??
+        roomiest(opts.canvas, 'notes') ??
+        (stranded.push(i),
+        roomiest(opts.plot, 'text') ??
+          roomiest(opts.canvas, 'text') ??
+          clamp(spots[0]!.box, opts.canvas)));
     blocks[i] = block;
-    const leader = leaderTo(box) ?? undefined;
+    const leader = leaderTo(box, true) ?? undefined;
     placement.commit(pad(box, NOTE_PAD), leader);
     if (leader) leaders.push(leader);
     boxes[i] = box;
     placedYet.add(i);
   }
-  return { boxes, blocks, clear: allClear };
+  return { boxes, blocks, clear: allClear, stranded };
 }
 
 /** Draws every note; returns their text boxes, which point values must clear. */
