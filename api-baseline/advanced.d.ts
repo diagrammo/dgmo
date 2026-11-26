@@ -4337,6 +4337,13 @@ interface GanttEra {
     readonly lineNumber: number;
     readonly offsetStart?: Offset;
     readonly offsetEnd?: Offset;
+    /** Start endpoint as written when it may name a task or `[Group]` (#2373). */
+    readonly startRef?: string;
+    /** End endpoint plus label as written, when it may name a task or `[Group]`. */
+    readonly endRef?: string;
+    /** Exact resolved instants, set when an endpoint named a task or group. */
+    readonly startAt?: Date;
+    readonly endAt?: Date;
 }
 interface GanttMarker {
     readonly date: string;
