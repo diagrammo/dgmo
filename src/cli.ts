@@ -1214,7 +1214,7 @@ function installCopilot(opts: InstallOpts): void {
 // (#2380) alone would leave it without the skill. Gemini CLI reads both
 // folders but loads a name once — "Within the same tier, the .agents/skills/
 // alias takes precedence over the .gemini/skills/ directory"
-// (geminicli.com/docs/cli/skills) — so the two identical copies give it one
+// (Gemini CLI docs, cli/skills) — so the two identical copies give it one
 // dgmo-diagramming skill.
 function installGeminiSkill(opts: InstallOpts): void {
   writeOut(
