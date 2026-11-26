@@ -141,50 +141,37 @@ _The most common types, inline so you can generate them without a fetch. For the
 #### journey-map
 
 ```dgmo
-journey-map A Cabin Boy's First Voyage
+journey-map The Quartermaster's Long Count
 
-persona Squidlips Sam color: blue
-  Greenhorn cabin boy, first time at sea
-  Sworn to the crew but quietly terrified
+persona Quartermaster color: orange
+  Keeps the ledger and the peace
+  Trusts no one, counts everything
 
-tag Station as st
-  Deck blue
-  Below orange
+tag Place as pl
+  Hold blue
+  Cabin purple
   Ashore green
 
-[Signing On]
-  Sign the articles score: 4, emotion: Hopeful, st: Ashore
-    description: Captain reads the code aloud — pay shares, no women aboard, lights out at 8
-    thought: A real crew at last
-  Scrub the decks score: 2, emotion: Weary, st: Deck
-    pain: The Bosun inspects every plank
-    thought: Is this what pirates do all day
+[Setting Out]
+  Inventory the hold score: 3, emotion: Careful, pl: Hold
+    thought: Short one cask of rum
+  Draft the articles score: 4, emotion: Satisfied, pl: Cabin
+    thought: Fair shares for all
 
-[The Tempest]
-  Caught in a squall off the reef score: 1, emotion: Terrified, st: Deck
-    pain: Two crewmates lost overboard before dawn
-    thought: Maybe the merchant fleet wasn't so bad after all
-  Dawn, and she still floats score: 3, emotion: Relieved, st: Deck
-    thought: I'm still here
+[The Plunder]
+  Weigh the silver score: 5, emotion: Gleeful, pl: Hold
+    thought: Heavier than hoped!
+  Crew demands extra shares score: 1, emotion: Furious, pl: Cabin
+    pain: The Bosun wants double
+    thought: Mutiny over maths
+  Cook the books score: 2, emotion: Uneasy, pl: Cabin
+    thought: Nobody counts better
 
-[Powder Duty] collapsed
-  Haul powder to the gun deck score: 2, emotion: Strained, st: Below
-  Learn the guns from the Quartermaster score: 4, emotion: Proud, st: Below
-
-[The Prize]
-  Chase the merchantman score: 4, emotion: Eager, st: Deck
-    thought: Run, you fat merchant
-  Strike the colors score: 5, emotion: Triumphant, st: Deck
-    description: Heavy with silver from the Veracruz mines
-    thought: I helped take her
-  Night watch with a cracked rib score: 2, emotion: Aching, st: Below
-
-[Homecoming]
-  Bury a share on the island score: 5, emotion: Proud, st: Ashore
-    thought: Three doubloons hidden where only he can find them
-  Back to the Rusty Anchor score: 4, emotion: Content, st: Ashore
-    opportunity: Next time he signs on as a full hand, not a boy
-    thought: Home, of a sort
+[Landfall]
+  Split the treasure score: 4, emotion: Relieved, pl: Ashore
+    thought: Every coin accounted
+  Pay off the crew score: 5, emotion: Proud, pl: Ashore
+    thought: Fair is fair
 ```
 #### c4
 
