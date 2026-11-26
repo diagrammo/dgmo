@@ -1209,3 +1209,137 @@ describe('bar hover → axis projection (#2307)', () => {
     }
   });
 });
+
+// #2391: hovering ANY facet panel — not only the first — shows the hover at
+// the same x in every panel, whether the panels share a y range or not.
+describe('facet panels share the hover (#2391)', () => {
+  const LINE = `line Downloads
+facet
+series
+  Mac
+  Windows
+  Linux
+  Other
+
+1.0 12 180 5 40
+1.1 15 220 7 35
+1.2 14 250 9 30`;
+  const BAR = `bar Downloads
+facet
+group
+  Mac
+  Windows
+  Linux
+
+A 12 180 5
+B 15 220 7
+C 14 250 9`;
+
+  /** Offset of `el`'s user space from the root's: nested svg x/y + translates. */
+  const offset = (el: Element): { dx: number; dy: number } => {
+    let dx = 0;
+    let dy = 0;
+    for (let n: Element | null = el; n; n = n.parentElement) {
+      if (
+        n.tagName.toLowerCase() === 'svg' &&
+        n.parentElement?.closest('svg')
+      ) {
+        dx += parseFloat(n.getAttribute('x') ?? '0');
+        dy += parseFloat(n.getAttribute('y') ?? '0');
+      }
+      const m = /translate\(\s*([-\d.]+)[ ,]+([-\d.]+)\s*\)/.exec(
+        n.getAttribute('transform') ?? ''
+      );
+      if (m) {
+        dx += parseFloat(m[1]!);
+        dy += parseFloat(m[2]!);
+      }
+    }
+    return { dx, dy };
+  };
+
+  /** jsdom has no layout: give every element a CTM from its offsets. */
+  async function mountWithLayout(src: string) {
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    host.innerHTML = await renderDataChartD3(src, 'light', undefined, {
+      width: 900,
+      height: 600,
+    });
+    svg = host.querySelector('svg')!;
+    for (const el of [svg, ...svg.querySelectorAll('*')])
+      (el as unknown as { getScreenCTM: () => unknown }).getScreenCTM = () => ({
+        inverse: () => offset(el),
+      });
+    (svg as unknown as { createSVGPoint: () => unknown }).createSVGPoint =
+      () => ({
+        x: 0,
+        y: 0,
+        matrixTransform(m: { dx: number; dy: number }) {
+          return { x: this.x - m.dx, y: this.y - m.dy };
+        },
+      });
+    detach = attachDataChartInteractions(svg, {});
+  }
+
+  const panels = () => [...svg.querySelectorAll('g.dgmo-facet-panel')];
+
+  // `facet-free-y` rides beside `facet`: each panel its own y range.
+  for (const flag of ['facet', 'facet\nfacet-free-y'])
+    it(`line \`${flag.replace('\n', ' + ')}\`: hovering a later panel draws the crosshair in every panel`, async () => {
+      await mountWithLayout(LINE.replace('facet', flag));
+      const ps = panels();
+      expect(ps.length).toBe(4);
+      // hover the LAST panel's middle point, in screen (root) coordinates
+      const pt = ps[3]!.querySelector<SVGCircleElement>(
+        '.dgmo-pt[data-x-index="1"]'
+      )!;
+      const o = offset(pt);
+      svg.dispatchEvent(
+        new MouseEvent('mousemove', {
+          bubbles: true,
+          clientX: parseFloat(pt.getAttribute('cx')!) + o.dx,
+          clientY: parseFloat(pt.getAttribute('cy')!) + o.dy,
+        })
+      );
+      for (const p of ps) {
+        const layer = p.querySelector('.dgmo-hover-layer');
+        expect(layer, p.getAttribute('data-series')!).not.toBeNull();
+        const own = p.querySelector<SVGCircleElement>(
+          '.dgmo-pt[data-x-index="1"]'
+        )!;
+        const vertical = [...layer!.querySelectorAll('.dgmo-axline')].find(
+          (l) => l.getAttribute('x1') === l.getAttribute('x2')
+        )!;
+        expect(parseFloat(vertical.getAttribute('x1')!)).toBeCloseTo(
+          parseFloat(own.getAttribute('cx')!),
+          6
+        );
+        expect(layer!.textContent).toContain('1.1');
+        expect(layer!.textContent).toContain(own.getAttribute('data-value')!);
+        expect(parseFloat(own.getAttribute('r')!)).toBeGreaterThan(3.5);
+      }
+      svg.dispatchEvent(new MouseEvent('mouseleave'));
+      expect(svg.querySelectorAll('.dgmo-hover-layer *').length).toBe(0);
+    });
+
+  // `facet-free-y` rides beside `facet`: each panel its own y range.
+  for (const flag of ['facet', 'facet\nfacet-free-y'])
+    it(`bar \`${flag.replace('\n', ' + ')}\`: hovering a later panel's bar lights that category in every panel`, async () => {
+      await mountWithLayout(BAR.replace('facet', flag));
+      const ps = panels();
+      expect(ps.length).toBe(3);
+      const bar = ps[2]!.querySelector<SVGElement>(
+        '.dgmo-datum[data-emph-key="B"]'
+      )!;
+      bar.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+      for (const p of ps) {
+        const bars = [...p.querySelectorAll('.dgmo-datum[data-emph-key]')];
+        expect(bars.length).toBe(3);
+        for (const b of bars)
+          expect(b.classList.contains('dgmo-dim')).toBe(
+            b.getAttribute('data-emph-key') !== 'B'
+          );
+      }
+    });
+});

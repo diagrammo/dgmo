@@ -104,19 +104,23 @@ export function attachDataChartInteractions(
   ensureStyle(svg, muted);
   const doc = svg.ownerDocument;
 
-  const plotRect = svg.querySelector<SVGRectElement>('.dgmo-plot-rect');
-  const plot: Plot | null = plotRect
-    ? {
-        left: parseFloat(plotRect.getAttribute('x') ?? '0'),
-        top: parseFloat(plotRect.getAttribute('y') ?? '0'),
-        right:
-          parseFloat(plotRect.getAttribute('x') ?? '0') +
-          parseFloat(plotRect.getAttribute('width') ?? '0'),
-        bottom:
-          parseFloat(plotRect.getAttribute('y') ?? '0') +
-          parseFloat(plotRect.getAttribute('height') ?? '0'),
-      }
-    : null;
+  const plotOf = (r: SVGRectElement): Plot => {
+    const x = parseFloat(r.getAttribute('x') ?? '0');
+    const y = parseFloat(r.getAttribute('y') ?? '0');
+    return {
+      left: x,
+      top: y,
+      right: x + parseFloat(r.getAttribute('width') ?? '0'),
+      bottom: y + parseFloat(r.getAttribute('height') ?? '0'),
+    };
+  };
+  // A `facet` grid (#1853) draws one plot rect per panel; the first is the
+  // one every single-plot mode below reads.
+  const plotRects = Array.from(
+    svg.querySelectorAll<SVGRectElement>('.dgmo-plot-rect')
+  );
+  const plotRect = plotRects[0] ?? null;
+  const plot: Plot | null = plotRect ? plotOf(plotRect) : null;
 
   // The chart-frame wraps the drawing in a translated group (header height),
   // so the plot rect, points and ticks live in THAT space, not the root's. The
@@ -216,18 +220,24 @@ export function attachDataChartInteractions(
   };
 
   // ── transient overlay (leader lines + on-axis value pills) ────────────
-  let overlay: SVGGElement | null = null;
+  // One overlay per coordinate space: a facet grid's crosshair draws in every
+  // panel at once (#2391), each in its own panel's space. `drawSpace` is the
+  // space the next mark goes into.
+  const overlays = new Map<SVGGraphicsElement, SVGGElement>();
+  let drawSpace: SVGGraphicsElement = space;
   const getOverlay = (): SVGGElement => {
+    let overlay = overlays.get(drawSpace);
     if (!overlay) {
       overlay = doc.createElementNS(NS, 'g');
       overlay.setAttribute('class', 'dgmo-overlay dgmo-hover-layer');
       overlay.setAttribute('pointer-events', 'none');
+      overlays.set(drawSpace, overlay);
     }
-    space.appendChild(overlay); // keep on top, in the plot's coordinate space
+    drawSpace.appendChild(overlay); // keep on top, in the plot's coordinate space
     return overlay;
   };
   const clearOverlay = () => {
-    if (overlay)
+    for (const overlay of overlays.values())
       while (overlay.firstChild) overlay.removeChild(overlay.firstChild);
     unfadeTicks();
   };
@@ -490,38 +500,83 @@ export function attachDataChartInteractions(
   }
 
   // ── crosshair (line / area) ───────────────────────────────────────────
-  const crosshairOn = !!plot && circles.length > 0;
-  let activePt: { el: SVGCircleElement; r: number } | null = null;
-  const restorePt = () => {
-    if (activePt) activePt.el.setAttribute('r', String(activePt.r));
-    activePt = null;
-  };
-  let slots: { cx: number; pts: SVGCircleElement[] }[] = [];
-  if (crosshairOn) {
+  // A pane is one plot rect and the points drawn in it. A plain line has one;
+  // a `facet` grid has one per panel, and hovering any panel draws the
+  // crosshair at the same x in every panel (#2391). The shared quantity is
+  // the x index, so panels with their own y ranges (`facet-free-y`) line up.
+  type Slot = { xi: number; cx: number; pts: SVGCircleElement[] };
+  interface Pane {
+    plot: Plot;
+    space: SVGGraphicsElement;
+    groups: SVGGElement[];
+    slots: Slot[];
+  }
+  const slotsOf = (pts: SVGCircleElement[]): Slot[] => {
     const byX = new Map<number, SVGCircleElement[]>();
-    for (const el of circles) {
+    for (const el of pts) {
       const xi = parseInt(el.getAttribute('data-x-index') ?? '0', 10);
       (byX.get(xi) ?? byX.set(xi, []).get(xi)!).push(el);
     }
-    slots = [...byX.values()]
-      .map((pts) => ({
-        cx: parseFloat(pts[0]!.getAttribute('cx') ?? '0'),
-        pts,
+    return [...byX.entries()]
+      .map(([xi, p]) => ({
+        xi,
+        cx: parseFloat(p[0]!.getAttribute('cx') ?? '0'),
+        pts: p,
       }))
       .sort((a, b) => a.cx - b.cx);
-  }
-
-  const drawCrosshair = (x: number, y: number): void => {
-    if (!plot || slots.length === 0) return;
-    let slot = slots[0]!;
-    let best = Infinity;
-    for (const s of slots) {
-      const d = Math.abs(s.cx - x);
-      if (d < best) {
-        best = d;
-        slot = s;
+  };
+  const faceted = plotRects.length > 1;
+  const panes: Pane[] = [];
+  if (plotRect && circles.length > 0) {
+    if (!faceted)
+      panes.push({
+        plot: plot!,
+        space,
+        groups: seriesGroups,
+        slots: slotsOf(circles),
+      });
+    else
+      for (const r of plotRects) {
+        const root = r.closest('.dgmo-facet-panel') ?? r.parentElement!;
+        const pts = circles.filter((c) => root.contains(c));
+        if (!pts.length) continue;
+        panes.push({
+          plot: plotOf(r),
+          space: (r.parentNode ?? svg) as SVGGraphicsElement,
+          groups: seriesGroups.filter((g) => root.contains(g)),
+          slots: slotsOf(pts),
+        });
       }
+  }
+  const crosshairOn = panes.length > 0;
+  let activePts: { el: SVGCircleElement; r: number }[] = [];
+  const restorePt = () => {
+    for (const p of activePts) p.el.setAttribute('r', String(p.r));
+    activePts = [];
+  };
+
+  /** The pane under the pointer and the pointer in its space, or null. */
+  const paneAt = (
+    e: MouseEvent
+  ): { pane: Pane; x: number; y: number } | null => {
+    for (const pane of panes) {
+      const ctm = pane.space.getScreenCTM?.();
+      const { x, y } = toUserSpace(svg, e, pane.space);
+      if (
+        !ctm ||
+        (x >= pane.plot.left - 2 &&
+          x <= pane.plot.right + 2 &&
+          y >= pane.plot.top - 2 &&
+          y <= pane.plot.bottom + 2)
+      )
+        return { pane, x, y };
     }
+    return null;
+  };
+
+  /** One pane's crosshair at `slot`, its leader from the point nearest `y`. */
+  const drawPaneCrosshair = (pane: Pane, slot: Slot, y: number): void => {
+    const { plot } = pane;
     let nearest = slot.pts[0]!;
     let bestY = Infinity;
     for (const p of slot.pts) {
@@ -532,7 +587,7 @@ export function attachDataChartInteractions(
         nearest = p;
       }
     }
-    clearOverlay();
+    drawSpace = pane.space;
     // vertical leader at the category x + x-axis value
     dottedLine(slot.cx, plot.top, slot.cx, plot.bottom);
     axisValue(
@@ -555,6 +610,7 @@ export function attachDataChartInteractions(
       nearest.getAttribute('data-value') ?? '',
       side === 'right' ? 'y-right' : 'y'
     );
+    drawSpace = space;
     if (side) {
       // Its own axis stays lit except the ticks the value would sit on; the
       // other axis fades, and the x ticks fade for the x value as before.
@@ -568,17 +624,37 @@ export function attachDataChartInteractions(
         )
           t.classList.add('dgmo-faded');
     } else fadeTicks();
-    // emphasize nearest point + its series, dim the others
-    restorePt();
+    // emphasize nearest point + its series, dim the pane's others
     const base = parseFloat(nearest.getAttribute('r') ?? '3.5');
-    activePt = { el: nearest, r: base };
+    activePts.push({ el: nearest, r: base });
     nearest.setAttribute('r', String(base + 3));
     const ns = nearest.getAttribute('data-series-name');
-    for (const g of seriesGroups)
+    for (const g of pane.groups)
       g.classList.toggle(
         'dgmo-dim',
-        seriesGroups.length > 1 && g.getAttribute('data-series-name') !== ns
+        pane.groups.length > 1 && g.getAttribute('data-series-name') !== ns
       );
+  };
+
+  const drawCrosshair = (hit: Pane, x: number, y: number): void => {
+    if (hit.slots.length === 0) return;
+    let slot = hit.slots[0]!;
+    let best = Infinity;
+    for (const s of hit.slots) {
+      const d = Math.abs(s.cx - x);
+      if (d < best) {
+        best = d;
+        slot = s;
+      }
+    }
+    clearOverlay();
+    restorePt();
+    drawPaneCrosshair(hit, slot, y);
+    for (const pane of panes) {
+      if (pane === hit) continue;
+      const same = pane.slots.find((s) => s.xi === slot.xi);
+      if (same) drawPaneCrosshair(pane, same, y);
+    }
     mirrorExtras();
   };
   const clearCrosshair = (): void => {
@@ -697,17 +773,10 @@ export function attachDataChartInteractions(
     if (curDatum) clearDatum();
     // Crosshair fires anywhere inside the plot region — over the area fill, the
     // line, or the dots, not just empty space (the whole point of the change).
-    if (crosshairOn && plot) {
-      const ctm = space.getScreenCTM?.();
-      const { x, y } = toUserSpace(svg, e, space);
-      const inside =
-        !ctm ||
-        (x >= plot.left - 2 &&
-          x <= plot.right + 2 &&
-          y >= plot.top - 2 &&
-          y <= plot.bottom + 2);
-      if (inside) {
-        drawCrosshair(x, y);
+    if (crosshairOn) {
+      const at = paneAt(e);
+      if (at) {
+        drawCrosshair(at.pane, at.x, at.y);
         crosshairActive = true;
       } else if (crosshairActive) {
         clearCrosshair();
@@ -885,7 +954,7 @@ export function attachDataChartInteractions(
         el.removeEventListener(ev, fn);
       for (const [el, ev, fn] of axisLabelListeners)
         el.removeEventListener(ev, fn);
-      if (overlay) overlay.remove();
+      for (const overlay of overlays.values()) overlay.remove();
       restorePt();
       setAxisPin(null);
       clearHighlight();
