@@ -2777,14 +2777,15 @@ function renderErasAndMarkers(
     // In-bounds: getEraColors returns 5 entries and i % 5 is always 0-4.
     const eraColors = getEraColors(palette);
     const color = era.color ?? eraColors[i % eraColors.length]!;
-    const sx = xScale(parseDateToFractionalYear(era.startDate));
-    const ex = xScale(parseDateToFractionalYear(era.endDate));
+    // A task-anchored era carries the task's exact instants (#2373).
+    const eraStartDate = era.startAt ?? parseDateStringToDate(era.startDate);
+    const eraEndDate = era.endAt ?? parseDateStringToDate(era.endDate);
+    const sx = xScale(dateToFractionalYear(eraStartDate));
+    const ex = xScale(dateToFractionalYear(eraEndDate));
     if (ex <= sx) continue;
 
     const baseEraOpacity = 0.08;
     const hoverEraOpacity = 0.16;
-    const eraStartDate = parseDateStringToDate(era.startDate);
-    const eraEndDate = parseDateStringToDate(era.endDate);
 
     const eraG = g
       .append('g')

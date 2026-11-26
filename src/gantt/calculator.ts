@@ -22,8 +22,17 @@ import type {
   ResolvedSprint,
   ResolvedGroup,
   Offset,
+  GanttEra,
 } from './types';
 import { collectTasks, resolveTaskName, isResolverError } from './resolver';
+import {
+  anchorTokens,
+  bracketName,
+  leadingName,
+  unknownEraName,
+} from '../utils/era-anchor';
+import { normalizeName } from '../utils/name-normalize';
+import { peelQuotedName } from '../utils/parsing';
 import {
   addGanttDuration,
   buildHolidaySet,
@@ -83,26 +92,23 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
 
   // ── Resolve offset-based eras and markers to absolute dates ──
 
-  result.eras = parsed.eras.map((era) => {
-    if (era.offsetStart && era.offsetEnd) {
-      const start = addGanttDuration(
+  const atOffset = (off: Offset): string =>
+    formatDate(
+      addGanttDuration(
         projectStart,
-        era.offsetStart.duration,
+        off.duration,
         parsed.holidays,
         new Set(),
-        era.offsetStart.direction
-      );
-      const end = addGanttDuration(
-        projectStart,
-        era.offsetEnd.duration,
-        parsed.holidays,
-        new Set(),
-        era.offsetEnd.direction
-      );
-      return { ...era, startDate: formatDate(start), endDate: formatDate(end) };
-    }
-    return era;
-  });
+        off.direction
+      )
+    );
+  // Each end resolves on its own, so `+2w -> 2026-03-01` works; a named end
+  // (task or [Group]) waits for the schedule below (#2373).
+  const offsetEras = parsed.eras.map((era) => ({
+    ...era,
+    ...(era.offsetStart && { startDate: atOffset(era.offsetStart) }),
+    ...(era.offsetEnd && { endDate: atOffset(era.offsetEnd) }),
+  }));
 
   result.markers = parsed.markers.map((m) => {
     if (m.offsetDate) {
@@ -132,6 +138,7 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
 
   const allTasks = collectTasks(parsed.nodes);
   if (allTasks.length === 0) {
+    result.eras = resolveEraAnchors(offsetEras, allTasks, result, diagnostics);
     return result; // empty chart is valid
   }
 
@@ -399,6 +406,10 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
 
   buildResolvedGroups(parsed.nodes, taskMap, result.groups, 0);
 
+  // ── Resolve eras whose ends name a task or [Group] (#2373) ──
+
+  result.eras = resolveEraAnchors(offsetEras, allTasks, result, diagnostics);
+
   // ── Compute overall date range ──────────────────────────
 
   if (result.tasks.length > 0) {
@@ -452,6 +463,97 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
   }
 
   return result;
+}
+
+// ── Era anchors ─────────────────────────────────────────────
+
+/**
+ * Give each era that names a task or `[Group]` its dates from the schedule.
+ * A named start takes the element's start and a named end its end, so the
+ * band follows duration and start-date changes. A name wins over a date that
+ * reads the same (`May`). An end that names nothing drops the era with an
+ * error naming the line and the name.
+ */
+function resolveEraAnchors(
+  eras: GanttEra[],
+  allTasks: GanttTask[],
+  result: ResolvedSchedule,
+  diagnostics: DgmoError[]
+): GanttEra[] {
+  const span = (name: string): { start: Date; end: Date } | null => {
+    const group = bracketName(name);
+    if (group != null) {
+      const g = result.groups.find(
+        (x) => normalizeName(x.name) === normalizeName(peelQuotedName(group))
+      );
+      return g ? { start: g.startDate, end: g.endDate } : null;
+    }
+    const hit = resolveTaskName(name, allTasks);
+    if (isResolverError(hit)) return null;
+    const t = result.tasks.find((r) => r.task.id === hit.task.id);
+    return t ? { start: t.startDate, end: t.endDate } : null;
+  };
+  const out: GanttEra[] = [];
+  for (const era of eras) {
+    if (era.startRef === undefined && era.endRef === undefined) {
+      out.push(era);
+      continue;
+    }
+    let next: GanttEra = era;
+    if (era.startRef !== undefined) {
+      const s = span(era.startRef);
+      if (s) {
+        next = { ...next, startDate: formatDate(s.start), startAt: s.start };
+      } else if (!era.startDate) {
+        diagnostics.push(
+          makeDgmoError(
+            era.lineNumber,
+            unknownEraName(
+              era.startRef,
+              'a date, a +offset, or a task or [Group] name'
+            )
+          )
+        );
+        continue;
+      }
+    }
+    if (era.endRef !== undefined) {
+      const e = leadingName(era.endRef, span);
+      if (e) {
+        next = {
+          ...next,
+          endDate: formatDate(e.hit.end),
+          endAt: e.hit.end,
+          label: peelQuotedName(e.rest),
+        };
+      } else if (!era.endDate) {
+        diagnostics.push(
+          makeDgmoError(
+            era.lineNumber,
+            unknownEraName(
+              anchorTokens(era.endRef)[0] ?? era.endRef,
+              'a date, a +offset, or a task or [Group] name'
+            )
+          )
+        );
+        continue;
+      }
+    }
+    // A band that ends before it starts draws nothing; say why (#2373).
+    const s0 = next.startAt?.getTime() ?? Date.parse(next.startDate);
+    const e0 = next.endAt?.getTime() ?? Date.parse(next.endDate);
+    if (e0 < s0) {
+      diagnostics.push(
+        makeDgmoError(
+          era.lineNumber,
+          `era ends before it starts (${next.endDate} is before ${next.startDate}), so it is not drawn.`,
+          'warning'
+        )
+      );
+    }
+    out.push(next);
+  }
+  return out;
 }
 
 // ── Implicit dependency builder ─────────────────────────────

@@ -12,7 +12,7 @@ tag Phase as p
   Outfitting green
   Voyage orange
 
-era 2024-01-15 -> 2024-02-15 Harbor Preparations
+era [Shipyard] -> [Shipyard] Harbor Preparations
 era 2024-03-10 -> 2024-03-14 Storm Season purple
 marker 2024-02-26 Admiral Inspection
 marker 2024-04-08 Landfall orange

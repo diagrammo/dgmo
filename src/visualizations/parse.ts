@@ -47,9 +47,19 @@ import {
   parseMetadataRegion,
   cutUnionMetadata,
   peelTrailingColorName,
+  peelQuotedName,
   peelTrailingCollapsedFlag,
   splitNameAndMeta,
 } from '../utils/parsing';
+import type { TimelineEra } from '../timeline/types';
+import { normalizeName } from '../utils/name-normalize';
+import {
+  anchorTokens,
+  bracketName,
+  leadingName as leadingEraName,
+  splitEraArrow,
+  unknownEraName,
+} from '../utils/era-anchor';
 import {
   TIMELINE_REGISTRY,
   VENN_REGISTRY,
@@ -257,16 +267,49 @@ function parseVisualizationFull(
     const iso = tlResolveYear(res.token);
     return iso == null ? null : { iso, rest: s.slice(res.consumed) };
   };
-  const tlLeadingRange = (
-    s: string
-  ): { start: string; end: string; rest: string } | null => {
-    const a = tlLeadingDate(s);
-    if (!a) return null;
-    const arrow = a.rest.match(/^\s*(?:->|–>)\s*/);
-    if (!arrow) return null;
-    const b = tlLeadingDate(a.rest.slice(arrow[0].length));
-    if (!b) return null;
-    return { start: a.iso, end: b.iso, rest: b.rest };
+  // `era <from> -> <to> [label] [color]` — each end a date or the name of an
+  // event or `[Lane]`, resolved once every event is read, so the band follows
+  // the event (§15.3, #2405). False when the body is not an era range.
+  const tlEraRefs = new Map<
+    TimelineEra,
+    { startRef?: string; endRef?: string }
+  >();
+  const tlEra = (body: string, lineNumber: number): boolean => {
+    const split = splitEraArrow(body);
+    if (!split?.left || !split.right) return false;
+    const tail = splitTrailingColor(split.right);
+    const ls = tlLeadingDate(split.left);
+    const startDate = ls && !ls.rest.trim() ? ls.iso : '';
+    const le = tlLeadingDate(tail.label);
+    const endDate = le ? le.iso : '';
+    // A word date (`May`) could also be an event's name; the name wins.
+    const startRef =
+      !startDate || /^[^\d-]/.test(split.left) ? split.left : undefined;
+    const endRef = !le || /^[^\d-]/.test(tail.label) ? tail.label : undefined;
+    const label = le ? le.rest.trim() : '';
+    if (!startRef && !endRef && !label) return false;
+    const era: TimelineEra = {
+      startDate,
+      endDate,
+      label: peelQuotedName(label),
+      color: tail.color
+        ? (resolveColorWithDiagnostic(
+            tail.color,
+            lineNumber,
+            result.diagnostics,
+            palette
+          ) ?? null)
+        : null,
+      lineNumber,
+    };
+    result.timelineEras.push(era);
+    if (startRef !== undefined || endRef !== undefined) {
+      tlEraRefs.set(era, {
+        ...(startRef !== undefined && { startRef }),
+        ...(endRef !== undefined && { endRef }),
+      });
+    }
+    return true;
   };
 
   const freeformLines: string[] = [];
@@ -706,27 +749,10 @@ function parseVisualizationFull(
         // Timeline era block entry (\u00a71.5 trailing-token, \u00a7 BL-121 liberal date):
         //   `<start> -> <end> Label`           (no color)
         //   `<start> -> <end> Label color`     (trailing color word)
-        const eraRange = tlLeadingRange(line);
-        const eraParsed = eraRange && splitTrailingColor(eraRange.rest);
-        if (eraRange && eraParsed?.label) {
-          result.timelineEras.push({
-            startDate: eraRange.start,
-            endDate: eraRange.end,
-            label: eraParsed.label,
-            color: eraParsed.color
-              ? (resolveColorWithDiagnostic(
-                  eraParsed.color,
-                  lineNumber,
-                  result.diagnostics,
-                  palette
-                ) ?? null)
-              : null,
-            lineNumber,
-          });
-        } else {
+        if (!tlEra(line, lineNumber)) {
           warn(
             lineNumber,
-            `Unrecognized era entry: "${line}" — use '<start> -> <end> Label [color]' (e.g. '1716 -> 1717 Reign').`
+            `Unrecognized era entry: "${line}" — use '<start> -> <end> Label [color]', where each end is a date or an event or [Lane] name (e.g. '1716 -> 1717 Reign').`
           );
         }
         continue;
@@ -787,26 +813,7 @@ function parseVisualizationFull(
       //   `era <start> -> <end> Label`        \u2014 no color
       //   `era <start> -> <end> Label color`  \u2014 trailing-token color
       const eraInline = line.match(/^era\s+(.+)$/i);
-      const eraInlineRange = eraInline && tlLeadingRange(eraInline[1]!);
-      const eraInlineParsed =
-        eraInlineRange && splitTrailingColor(eraInlineRange.rest);
-      if (eraInlineRange && eraInlineParsed?.label) {
-        result.timelineEras.push({
-          startDate: eraInlineRange.start,
-          endDate: eraInlineRange.end,
-          label: eraInlineParsed.label,
-          color: eraInlineParsed.color
-            ? (resolveColorWithDiagnostic(
-                eraInlineParsed.color,
-                lineNumber,
-                result.diagnostics,
-                palette
-              ) ?? null)
-            : null,
-          lineNumber,
-        });
-        continue;
-      }
+      if (eraInline && tlEra(eraInline[1]!, lineNumber)) continue;
 
       // Timeline marker lines, inline (§1.5 trailing-token, § BL-121 liberal date):
       //   `marker <date> Label`        — no color
@@ -1690,6 +1697,7 @@ function parseVisualizationFull(
   }
 
   if (result.type === 'timeline') {
+    resolveTimelineEraAnchors(result, tlEraRefs);
     if (result.timelineEvents.length === 0) {
       warn(
         1,
@@ -2053,4 +2061,86 @@ function tokenizeFreeformText(text: string): WordCloudWord[] {
   return Array.from(counts.entries())
     .map(([text, count]) => ({ text, weight: count, lineNumber: 0 }))
     .sort((a, b) => b.weight - a.weight);
+}
+
+/**
+ * Give each timeline era that names an event or `[Lane]` its dates from the
+ * events (#2405). A named start takes the element's start and a named end its
+ * end (a point event's date for both). A name wins over a date that reads the
+ * same. An end that names nothing drops the era with an error.
+ */
+function resolveTimelineEraAnchors(
+  result: ParsedVizFull,
+  refs: Map<TimelineEra, { startRef?: string; endRef?: string }>
+): void {
+  if (refs.size === 0) return;
+  const events = result.timelineEvents;
+  const span = (name: string): { start: string; end: string } | null => {
+    const lane = bracketName(name);
+    if (lane != null) {
+      const key = normalizeName(peelQuotedName(lane));
+      const inLane = events.filter(
+        (e) => e.group != null && normalizeName(e.group) === key
+      );
+      if (inLane.length === 0) return null;
+      let start = inLane[0]!.date;
+      let end = inLane[0]!.endDate ?? inLane[0]!.date;
+      for (const e of inLane) {
+        if (e.date < start) start = e.date;
+        const eEnd = e.endDate ?? e.date;
+        if (eEnd > end) end = eEnd;
+      }
+      return { start, end };
+    }
+    const key = normalizeName(peelQuotedName(name));
+    const hits = events.filter((e) => normalizeName(e.label) === key);
+    if (hits.length !== 1) return null;
+    return { start: hits[0]!.date, end: hits[0]!.endDate ?? hits[0]!.date };
+  };
+  const kept: TimelineEra[] = [];
+  for (const era of result.timelineEras) {
+    const ref = refs.get(era);
+    if (!ref) {
+      kept.push(era);
+      continue;
+    }
+    let ok = true;
+    if (ref.startRef !== undefined) {
+      const s = span(ref.startRef);
+      if (s) era.startDate = s.start;
+      else if (!era.startDate) {
+        result.diagnostics.push(
+          makeDgmoError(
+            era.lineNumber,
+            unknownEraName(
+              peelQuotedName(ref.startRef),
+              'a date, or an event or [Lane] name'
+            )
+          )
+        );
+        ok = false;
+      }
+    }
+    if (ok && ref.endRef !== undefined) {
+      const e = leadingEraName(ref.endRef, span);
+      if (e) {
+        era.endDate = e.hit.end;
+        era.label = peelQuotedName(e.rest);
+      } else if (!era.endDate) {
+        const first = anchorTokens(ref.endRef)[0] ?? ref.endRef;
+        result.diagnostics.push(
+          makeDgmoError(
+            era.lineNumber,
+            unknownEraName(
+              peelQuotedName(first),
+              'a date, or an event or [Lane] name'
+            )
+          )
+        );
+        ok = false;
+      }
+    }
+    if (ok) kept.push(era);
+  }
+  result.timelineEras = kept;
 }

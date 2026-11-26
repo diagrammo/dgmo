@@ -49,6 +49,7 @@ import {
   type DateToken,
 } from '../utils/date';
 import { normalizeName } from '../utils/name-normalize';
+import { splitEraArrow } from '../utils/era-anchor';
 import { AliasRegistry } from '../utils/alias-registry';
 import type { PaletteColors } from '../palettes';
 import { getSeriesColors } from '../palettes';
@@ -124,6 +125,11 @@ const WEEKDAY_MAP: Record<string, Weekday> = {
   saturday: 'sat',
   sunday: 'sun',
 };
+
+/** What an `era` line takes, for a line that is not one (§13.5). */
+function eraUsage(line: string): string {
+  return `Unrecognized era: "${line}". An era is '<from> -> <to> [Label] [color]', where each end is a date, a +offset, or a task or [Group] name (e.g. 'era Design -> Build Crunch orange'). (§13.5)`;
+}
 
 // ── Block Stack ─────────────────────────────────────────────
 
@@ -218,6 +224,27 @@ function parseGanttRaw(content: string, palette?: PaletteColors): ParsedGantt {
       : { iso, grain: res.token.grain, hasTime: res.token.hasTime };
   };
 
+  // A day past its month's end (`2026-02-30`) parses as a token but is no
+  // date; say so rather than letting it roll into the next month (#2373).
+  let curLine = 0;
+  const reportedBadDates = new Set<string>();
+  const reportImpossibleDate = (iso: string, written: string): void => {
+    const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return;
+    const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+    const last = new Date(y, mo, 0).getDate();
+    if (d <= last) return;
+    const key = `${curLine}:${written}`;
+    if (reportedBadDates.has(key)) return;
+    reportedBadDates.add(key);
+    diagnostics.push(
+      makeDgmoError(
+        curLine,
+        `"${written.trim()}" is not a real date — that month has ${last} days.`
+      )
+    );
+  };
+
   // Split a leading date off a `<date> <label>` entry; `rest` keeps its
   // original leading whitespace so the caller trims/parses the label.
   const leadingDate = (
@@ -227,6 +254,7 @@ function parseGanttRaw(content: string, palette?: PaletteColors): ParsedGantt {
     if (!res || res.consumed === 0 || res.token.invalidTime) return null;
     const iso = resolveToken(res.token);
     if (iso == null) return null;
+    reportImpossibleDate(iso, s.slice(0, res.consumed));
     return { iso, grain: res.token.grain, rest: s.slice(res.consumed) };
   };
 
@@ -341,6 +369,77 @@ function parseGanttRaw(content: string, palette?: PaletteColors): ParsedGantt {
     return path;
   };
 
+  // ── Eras ────────────────────────────────────────────────
+  // `era <from> -> <to> [label] [color]`. Each endpoint is a date, a +offset,
+  // or a task / `[Group]` name that the calculator resolves after scheduling,
+  // so the band follows the task (§13.5, #2373). Returns false when the body
+  // is not an era range, so the caller reports it.
+  const ERA_END_OFFSET_RE =
+    /^\+\d+(?:\.\d+)?(?:min|bd|sp|d|w|m|q|y|h|s)(?=\s|$)/;
+  // A trailing lowercase color word, alone or after a label (§1.5).
+  const eraColor = (
+    text: string,
+    lineNumber: number,
+    report: boolean
+  ): { label: string; color: string | null } => {
+    const x = extractColor(
+      '_ ' + text.trim(),
+      palette,
+      report ? diagnostics : undefined,
+      report ? lineNumber : undefined
+    );
+    return { label: x.label.slice(2).trim(), color: x.color ?? null };
+  };
+  const pushEra = (body: string, lineNumber: number): boolean => {
+    const split = splitEraArrow(body);
+    if (!split?.left || !split.right) return false;
+
+    let startDate = '';
+    let offsetStart: Offset | undefined;
+    let startRef: string | undefined;
+    const lo = split.left.match(ERA_END_OFFSET_RE);
+    if (lo?.[0].length === split.left.length) {
+      offsetStart = parseOffsetPrefix(lo[0]) ?? undefined;
+    } else {
+      const d = leadingDate(split.left);
+      if (d && !d.rest.trim()) startDate = d.iso;
+      // A word date (`May`) could also be a task's name; the name wins.
+      if (!startDate || /^[^\d+-]/.test(split.left)) startRef = split.left;
+    }
+
+    // The color word ends the line whichever form the end takes (§1.5).
+    const tail = eraColor(split.right, lineNumber, true);
+    let endDate = '';
+    let offsetEnd: Offset | undefined;
+    let endRef: string | undefined;
+    let label = '';
+    const ro = tail.label.match(ERA_END_OFFSET_RE);
+    if (ro) {
+      offsetEnd = parseOffsetPrefix(ro[0]) ?? undefined;
+      label = tail.label.slice(ro[0].length).trim();
+    } else {
+      const d = leadingDate(tail.label);
+      if (d) {
+        endDate = d.iso;
+        label = d.rest.trim();
+      }
+      if (!d || /^[^\d+-]/.test(tail.label)) endRef = tail.label;
+    }
+    result.eras.push({
+      startDate,
+      endDate,
+      // Peel after the color — quotes keep a final color word in the label.
+      label: peelQuotedName(label),
+      color: tail.color,
+      lineNumber,
+      ...(offsetStart && { offsetStart }),
+      ...(offsetEnd && { offsetEnd }),
+      ...(startRef !== undefined && { startRef }),
+      ...(endRef !== undefined && { endRef }),
+    });
+    return true;
+  };
+
   // ── State ───────────────────────────────────────────────
 
   let seenChartType = false;
@@ -371,6 +470,7 @@ function parseGanttRaw(content: string, palette?: PaletteColors): ParsedGantt {
     const line = rawLine.trim();
     const indent = measureIndent(rawLine);
     const lineNumber = i + 1;
+    curLine = lineNumber;
     nameAliasMap.at(lineNumber);
 
     // Skip empty lines
@@ -495,29 +595,8 @@ function parseGanttRaw(content: string, palette?: PaletteColors): ParsedGantt {
         // fall through to process this line normally
       } else {
         if (COMMENT_RE.test(line)) continue;
-        const eraEntryMatch = leadingRange(line);
-        if (eraEntryMatch?.rest.trim()) {
-          const eraLabelRaw = eraEntryMatch.rest.trim();
-          const eraExtracted = extractColor(
-            eraLabelRaw,
-            palette,
-            diagnostics,
-            lineNumber
-          );
-          result.eras.push({
-            startDate: eraEntryMatch.start,
-            endDate: eraEntryMatch.end,
-            // Peel after extractColor — the quotes are what keep a trailing
-            // color word inside the label (§2.2).
-            label: peelQuotedName(eraExtracted.label),
-            color: eraExtracted.color ?? null,
-            lineNumber,
-          });
-        } else {
-          warn(
-            lineNumber,
-            `Unrecognized era entry: "${line}". Use 'YYYY-MM-DD -> YYYY-MM-DD Label [color]' (e.g. '2026-04-06 -> 2026-04-10 Conference purple'). (§13.5)`
-          );
+        if (!pushEra(line, lineNumber)) {
+          warn(lineNumber, eraUsage(line));
         }
         continue;
       }
@@ -960,24 +1039,10 @@ function parseGanttRaw(content: string, palette?: PaletteColors): ParsedGantt {
     // Era (inline, liberal date input)
     const eraInlinePrefix = line.match(/^era\s+(.+)$/i);
     if (eraInlinePrefix) {
-      const eraMatch = leadingRange(eraInlinePrefix[1]!);
-      if (eraMatch?.rest.trim()) {
-        const eraLabelRaw = eraMatch.rest.trim();
-        const eraExtracted = extractColor(
-          eraLabelRaw,
-          palette,
-          diagnostics,
-          lineNumber
-        );
-        result.eras.push({
-          startDate: eraMatch.start,
-          endDate: eraMatch.end,
-          label: peelQuotedName(eraExtracted.label),
-          color: eraExtracted.color ?? null,
-          lineNumber,
-        });
-        continue;
+      if (!pushEra(eraInlinePrefix[1]!, lineNumber)) {
+        softError(lineNumber, eraUsage(line));
       }
+      continue;
     }
 
     // Marker block: bare `marker` keyword starts a block
