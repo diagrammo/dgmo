@@ -556,6 +556,9 @@ export function renderLine(
   /** A series' own curve: `mark: step` steps it whatever the chart's flag. */
   const curveOf = (s: number) =>
     markOf(s) === 'step' ? curveStepAfter : curve;
+  /** Which way a series steps, if it does — matches `curveOf`. */
+  const stepOf = (s: number): 'after' | 'before' | undefined =>
+    markOf(s) === 'step' ? 'after' : chart.step;
   // Bars of one slot share 70% of it, in declared order; a stack is one bar.
   const barSlots = barStack ? 1 : barSeries.length;
   // On a time axis a slot is the smallest interval between rows, so bars
@@ -769,6 +772,9 @@ export function renderLine(
 
   /** Each drawn series' points in px, for the notes' clear space. */
   const polylines: [number, number][][] = [];
+  /** Each drawn series' path as drawn, corners included: a step line's
+   *  risers and treads, not the diagonals between its points (#2369). */
+  const traces: [number, number][][] = [];
   /** Points along the overlay lines, which labels must clear (#2106). */
   const overlayTrace: PointCircle[] = [];
   /** Each drawn series' last point and paint, for its end-of-line name. */
@@ -1062,6 +1068,7 @@ export function renderLine(
           });
       }
       polylines.push(tops);
+      traces.push(tops);
       continue;
     }
 
@@ -1121,7 +1128,12 @@ export function renderLine(
       .attr('stroke-linecap', 'round');
 
     const drawn = pts.filter((p) => has(p.v));
-    polylines.push(drawn.map((p) => [xOfRow(p.xIndex), yy(p.y)]));
+    const line: [number, number][] = drawn.map((p) => [
+      xOfRow(p.xIndex),
+      yy(p.y),
+    ]);
+    polylines.push(line);
+    traces.push(stepTrace(line, stepOf(s)));
     const last = drawn.at(-1);
     if (last)
       lineEnds.push({
@@ -1142,7 +1154,11 @@ export function renderLine(
         lit && target?.color
           ? (resolveColor(target.color, palette) ?? color)
           : color;
-      const high = extremeAt.get(`${s}:${p.xIndex}`);
+      // An extreme the line ends on is already printed as its latest
+      // value; marking it again was a second label for one number (#2369).
+      const mark = extremeAt.get(`${s}:${p.xIndex}`);
+      const high =
+        mark !== undefined && p !== last && last?.v === p.v ? undefined : mark;
       // A dot that carries data — a target reached, an extreme — always
       // stays; the rest drop when dense, and hover grows the nearest one.
       const rest =
@@ -1224,7 +1240,7 @@ export function renderLine(
   const markerLines: LabelRect[] = [];
   // The series' lines and the overlay lines: overlay labels and point
   // values keep off them, not only off the points (#2106).
-  const lineTrace = [...sampleLines(polylines), ...overlayTrace];
+  const lineTrace = [...sampleLines(traces), ...overlayTrace];
   eraTitles.push(
     ...drawMarkers(
       svg,
@@ -1348,7 +1364,7 @@ export function renderLine(
         obstacles: [...markerLines, ...eraBands],
         markers: [
           ...polylines.flat().map(([cx, cy]) => ({ cx, cy, r: 4.5 })),
-          ...sampleLines(polylines),
+          ...sampleLines(traces),
         ],
         colors: { text: textColor, bg: bgColor },
         palette,
@@ -1614,4 +1630,20 @@ function cutValueSpot(
         y: edge - CUT_MARK_GAP - CUT_MARK_LEN / 2 + 4,
         anchor: 'start',
       };
+}
+
+/** A polyline as a step curve draws it: `after` holds each value to the
+ *  next point's x, `before` jumps at the point's own x (#2369). */
+export function stepTrace(
+  pts: readonly [number, number][],
+  step: 'after' | 'before' | undefined
+): [number, number][] {
+  if (!step || pts.length < 2) return [...pts];
+  const out: [number, number][] = [pts[0]!];
+  for (let i = 1; i < pts.length; i++) {
+    const [x0, y0] = pts[i - 1]!;
+    const [x1, y1] = pts[i]!;
+    out.push(step === 'after' ? [x1, y0] : [x0, y1], [x1, y1]);
+  }
+  return out;
 }

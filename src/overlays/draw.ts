@@ -683,7 +683,7 @@ export interface ExtremeMark {
   readonly y: number;
   readonly high: boolean;
   readonly text: string;
-  /** The dot's fill: the series' colour. */
+  /** The ring's colour: the series' colour. */
   readonly fill: string;
   /** The label's colour. */
   readonly color: string;
@@ -707,7 +707,7 @@ export function extremeRows(
 }
 
 /**
- * Draws `extremes` (#1954): a filled dot on each mark and its value beside
+ * Draws `extremes` (#1954): a ring on each mark and its value beside
  * it — above a high, below a low — placed like every overlay label (#2217):
  * hugging the dot, else off it with a leader, else not drawn. On by default
  * for a line (#2213). Returns the label boxes and the marks that got one.
@@ -740,9 +740,11 @@ export function drawExtremes(
       .attr('class', m.high ? 'dgmo-extreme-high' : 'dgmo-extreme-low')
       .attr('cx', m.x)
       .attr('cy', m.y)
-      .attr('r', EXTREME_R)
-      .attr('fill', m.fill)
-      .attr('stroke', bg)
+      // The same open ring as every other point (#2369): a filled dot
+      // read as a second kind of point. The value label marks the extreme.
+      .attr('r', 3.5)
+      .attr('fill', bg)
+      .attr('stroke', m.fill)
       .attr('stroke-width', 2);
   }
   for (const m of marks) {

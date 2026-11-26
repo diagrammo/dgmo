@@ -478,8 +478,9 @@ describe('moving-average and extremes', () => {
   it('marks the peak and the low with just their value (#2213)', async () => {
     const svg = await draw(PHX);
     expect(svg.querySelectorAll('circle.dgmo-extreme-high')).toHaveLength(1);
-    expect(svg.querySelectorAll('circle.dgmo-extreme-low')).toHaveLength(1);
-    expect(texts(svg, '.dgmo-overlay-extremes-label')).toEqual(['19', '41']);
+    // The low (19) ties the last value, which already prints it (#2369).
+    expect(svg.querySelectorAll('circle.dgmo-extreme-low')).toHaveLength(0);
+    expect(texts(svg, '.dgmo-overlay-extremes-label')).toEqual(['41']);
   });
   it('the high and low dots let the pointer through to their point (#2227)', async () => {
     const svg = await draw(PHX);

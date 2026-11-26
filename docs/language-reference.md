@@ -3476,9 +3476,11 @@ May 360
   a missing row is missing. The label reads `3-pt avg`, or `3-week avg` with
   `x-axis Week`.
 - A line chart marks each series' highest and lowest point by default (#2213):
-  a filled dot and its value (`41`) above the high, below the low; a tie goes
-  to the first row. The point's own value label gives way to it, and takes it
-  back when the mark's label finds no room. `no-extremes` turns the marks off;
+  its value (`41`) above the high, below the low, on the same open ring as
+  every other point; a tie goes to the first row. An extreme equal to the
+  line's last value is not marked, since the last value already prints it
+  (#2369). The point's own value label gives way to it, and takes it back
+  when the mark's label finds no room. `no-extremes` turns the marks off;
   writing `extremes` warns, since it is already on.
 - `pareto` needs one value per bar: on a `stack` or a `group` it is an error
   and is ignored. It overrides `sort`, and draws columns even with
