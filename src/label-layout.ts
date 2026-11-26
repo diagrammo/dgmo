@@ -148,7 +148,7 @@ export interface LabelPlacement {
   hitsObstacle(rect: LabelRect): boolean;
   /** Blocked by a point marker (the dot itself). */
   hitsMarker(rect: LabelRect): boolean;
-  /** Would tangle with a leader already drawn. */
+  /** Would tangle with a leader already drawn, or cross a fixed line. */
   leaderCrosses(leader: Leader): boolean;
   /** Would run through a label box already placed. */
   leaderHitsPlaced(leader: Leader): boolean;
@@ -165,9 +165,12 @@ export function createLabelPlacement(init?: {
   obstacles?: readonly LabelRect[];
   /** Point markers that labels must clear. */
   markers?: readonly PointCircle[];
+  /** Lines already drawn that a leader must not cross — a map's route legs.
+   *  A leader across a route reads as part of the route. */
+  lines?: readonly Leader[];
 }): LabelPlacement {
   const placed: LabelRect[] = [...(init?.reserved ?? [])];
-  const leaders: Leader[] = [];
+  const leaders: Leader[] = [...(init?.lines ?? [])];
   const obstacles = init?.obstacles ?? [];
   const markers = init?.markers ?? [];
 

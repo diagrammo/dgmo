@@ -3377,6 +3377,7 @@ export function layoutMap(
       topReserved,
       topPad,
       markers,
+      legSegments,
       collides,
       neutralFill,
       water,

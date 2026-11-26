@@ -58,6 +58,8 @@ export function placeRegionLabels(args: {
   readonly topReserved: readonly LabelRect[];
   readonly topPad: number;
   readonly markers: readonly PointCircle[];
+  /** Route legs as straight segments; a callout leader must not cross one. */
+  readonly legSegments: readonly Leader[];
   readonly collides: (rect: LabelRect) => boolean;
   readonly neutralFill: string;
   readonly water: string;
@@ -114,6 +116,7 @@ export function placeRegionLabels(args: {
     topReserved,
     topPad,
     markers,
+    legSegments,
     collides,
     neutralFill,
     water,
@@ -224,6 +227,7 @@ export function placeRegionLabels(args: {
     reserved: topReserved,
     obstacles: poiObstacles,
     markers,
+    lines: legSegments,
   });
   // ── Short-hop callout into adjacent empty space ────────────────────────
   // A valued region whose name won't fit in place (even abbreviated) may nudge
@@ -440,35 +444,36 @@ export function placeRegionLabels(args: {
     // full name into the open space beside it. A subject NEVER drops.
     if (isSubject && valStr === undefined && r.label !== undefined) {
       const name = candidates[0]!; // subjects use the full name, never an abbrev
-      let best = -1;
-      for (let f = SUBJECT_FONT_MAX; f >= FONT; f--) {
-        if (measureLegendText(name, f) > boxW || f + 2 * LABEL_PADY > boxH)
-          continue;
-        const rect = regionLabelRect(c[0], c[1], name, undefined, f);
-        if (!fitsRegions(rect) || !fitsPois(rect) || collides(rect)) continue;
-        const halfW = measureLegendText(name, f) / 2;
-        if (
-          fillAt(c[0] - halfW, c[1]) !== r.fill ||
-          fillAt(c[0] + halfW, c[1]) !== r.fill
-        )
-          continue;
-        best = f;
-        break;
-      }
-      if (best >= SUBJECT_MIN_PROMINENCE) {
-        const rect = regionLabelRect(c[0], c[1], name, undefined, best);
+      // Largest font whose name sits wholly on the region's fill at (ax,ay)
+      // and clears every obstacle; -1 when none does.
+      const bestFontAt = (ax: number, ay: number): number => {
+        for (let f = SUBJECT_FONT_MAX; f >= FONT; f--) {
+          if (measureLegendText(name, f) > boxW || f + 2 * LABEL_PADY > boxH)
+            continue;
+          const rect = regionLabelRect(ax, ay, name, undefined, f);
+          if (!fitsRegions(rect) || !fitsPois(rect) || collides(rect)) continue;
+          const halfW = measureLegendText(name, f) / 2;
+          if (
+            fillAt(ax - halfW, ay) !== r.fill ||
+            fillAt(ax + halfW, ay) !== r.fill
+          )
+            continue;
+          return f;
+        }
+        return -1;
+      };
+      // Centroid first; the ring of in-shape offsets is tried only after the
+      // leader fails below, so every map whose leader already worked keeps it.
+      const centroidFont = bestFontAt(c[0], c[1]);
+      const commitInShape = (ax: number, ay: number, f: number): void => {
+        const rect = regionLabelRect(ax, ay, name, undefined, f);
         placement.commit(rect);
-        pushRegionLabel(
-          c[0],
-          c[1],
-          name,
-          r.fill,
-          r.lineNumber,
-          undefined,
-          best
-        );
+        pushRegionLabel(ax, ay, name, r.fill, r.lineNumber, undefined, f);
         labeledRegionIds.add(r.id);
         regionLabelGuards.push({ label: labels[labels.length - 1]!, rect });
+      };
+      if (centroidFont >= SUBJECT_MIN_PROMINENCE) {
+        commitInShape(c[0], c[1], centroidFont);
       } else {
         // The shape can't host a prominent name (Chile's ribbon) → leader the
         // name into the open space beside it at a PROMINENT size, pushed well
@@ -507,6 +512,31 @@ export function placeRegionLabels(args: {
             lineNumber: r.lineNumber,
           });
           labeledRegionIds.add(r.id);
+        } else {
+          // No leader clears the routes (#2389: North Carolina's only reach to
+          // open water crossed a route leg). Rather than drop a subject, slide
+          // its name along the in-shape offsets valued regions use, off
+          // whatever route or POI blocks the centroid.
+          const ring: Array<[number, number]> = [
+            [0, 0.26],
+            [0, -0.26],
+            [0.26, 0],
+            [-0.26, 0],
+            [0.22, 0.22],
+            [-0.22, 0.22],
+            [0.22, -0.22],
+            [-0.22, -0.22],
+          ];
+          for (const [ox, oy] of ring) {
+            const px = c[0] + boxW * ox;
+            const py = c[1] + boxH * oy;
+            if (fillAt(px, py) !== r.fill) continue;
+            const f = bestFontAt(px, py);
+            if (f >= SUBJECT_MIN_PROMINENCE) {
+              commitInShape(px, py, f);
+              break;
+            }
+          }
         }
       }
       continue;
