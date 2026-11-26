@@ -71,7 +71,7 @@ export function applyRootDesc(svg: string, summary: string | null): string {
 }
 
 /** 32-bit FNV-1a, as 8 hex digits. */
-function fnv1a(s: string): string {
+export function fnv1a(s: string): string {
   let h = 0x811c9dc5;
   for (let i = 0; i < s.length; i++) {
     h ^= s.charCodeAt(i);

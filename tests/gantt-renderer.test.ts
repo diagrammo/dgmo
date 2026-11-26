@@ -221,6 +221,31 @@ describe('gantt renderer', () => {
     expect(gradients.length).toBeGreaterThanOrEqual(1);
   });
 
+  // #2386: `url(#id)` resolves against the whole page, so a light and a dark
+  // copy inline on one page must not define the same ids — the light card
+  // painted its uncertain bars with the dark card's gradients.
+  it('light and dark renders on one page share no ids', () => {
+    const input = `gantt
+start 2024-01-15
+[Hull]
+  Uncertain Task 30d? | 40%
+  Firm Task 10d`;
+    const resolved = calculateSchedule(parseGantt(input, palette));
+    const dark = getPalette('nord').dark;
+    const ids = (isDark: boolean) => {
+      const c = makeContainer();
+      renderGantt(c, resolved, isDark ? dark : palette, isDark);
+      return [...c.querySelectorAll('[id]')].map((el) => el.id);
+    };
+    const light = ids(false);
+    const darkIds = ids(true);
+    expect(light.some((id) => id.includes('uncertain'))).toBe(true);
+    expect(light.some((id) => id.includes('band-clip'))).toBe(true);
+    expect(darkIds.filter((id) => light.includes(id))).toEqual([]);
+    // Deterministic: the same render twice yields the same ids.
+    expect(ids(false)).toEqual(light);
+  });
+
   it('renders dependency arrows when enabled', () => {
     const input = `gantt
 start 2024-01-15

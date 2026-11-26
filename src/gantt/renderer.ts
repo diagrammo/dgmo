@@ -76,6 +76,7 @@ import {
 } from '../utils/title-constants';
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
+import { fnv1a } from '../utils/root-a11y';
 import type {
   ResolvedSchedule,
   ResolvedTask,
@@ -177,6 +178,14 @@ function computeBarLabel(
 const BAND_ACCENT_W = 4;
 const BAND_RADIUS = 4;
 let bandClipCounter = 0;
+/**
+ * Prefix for every `id` this render defines. `url(#id)` resolves against the
+ * whole HTML document, not the SVG, so two gantt charts inline on one page (a light
+ * and a dark copy, two embeds) must never share an id or one paints with the
+ * other's gradients (#2386). A hash of what the defs depend on keeps output
+ * deterministic for snapshots; identical renders sharing ids is harmless.
+ */
+let idScope = '';
 
 function renderLabelBand(
   svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
@@ -197,7 +206,7 @@ function renderLabelBand(
   const bandX = 5;
   const bandW = leftMargin - 7;
   const bandY = y - barH / 2;
-  const clipId = `gantt-band-clip-${bandClipCounter++}`;
+  const clipId = `gantt-${idScope}-band-clip-${bandClipCounter++}`;
 
   svg
     .append('clipPath')
@@ -375,6 +384,33 @@ export function renderGantt(
   );
 }
 
+function ganttIdScope(
+  container: HTMLDivElement,
+  resolved: ResolvedSchedule,
+  palette: PaletteColors,
+  isDark: boolean,
+  exportDims?: D3ExportDimensions
+): string {
+  const tasks = resolved.tasks
+    .map(
+      (t) =>
+        `${t.task.id}:${t.startDate.getTime()}:${t.endDate.getTime()}:${t.task.progress}:${t.isUncertain}:${JSON.stringify(t.effectiveMetadata)}`
+    )
+    .join(',');
+  const groups = resolved.groups.map((g) => `${g.name}:${g.color}`).join(',');
+  return fnv1a(
+    [
+      isDark,
+      JSON.stringify(palette),
+      JSON.stringify(exportDims ?? null),
+      container.clientWidth,
+      container.clientHeight,
+      tasks,
+      groups,
+    ].join('|')
+  );
+}
+
 function drawGantt(
   container: HTMLDivElement,
   resolved: ResolvedSchedule,
@@ -386,6 +422,7 @@ function drawGantt(
   // Clear previous content
   container.innerHTML = '';
   bandClipCounter = 0;
+  idScope = ganttIdScope(container, resolved, palette, isDark, exportDims);
 
   if (resolved.tasks.length === 0) return;
   // Gantt INTENTIONALLY ignores the §1.9 fill family — the partial-tint vs
@@ -1504,7 +1541,7 @@ function drawGantt(
             ? svg.append('defs')
             : svg.select<SVGDefsElement>('defs');
 
-          const fillGradId = `gantt-uncertain-fill-${task.id}`;
+          const fillGradId = `gantt-${idScope}-uncertain-fill-${task.id}`;
           const fillGrad = defs
             .append('linearGradient')
             .attr('id', fillGradId)
@@ -1528,7 +1565,7 @@ function drawGantt(
             .attr('stop-color', fillColor)
             .attr('stop-opacity', 0);
 
-          const strokeGradId = `gantt-uncertain-stroke-${task.id}`;
+          const strokeGradId = `gantt-${idScope}-uncertain-stroke-${task.id}`;
           const strokeGrad = defs
             .append('linearGradient')
             .attr('id', strokeGradId)
@@ -1574,7 +1611,7 @@ function drawGantt(
             const ratio = barWidth / progressWidth;
             const fadeStart = Math.min(50 * ratio, 100);
             const defs = svg.select<SVGDefsElement>('defs');
-            const progGradId = `gantt-uncertain-progress-${task.id}`;
+            const progGradId = `gantt-${idScope}-uncertain-progress-${task.id}`;
             const progGrad = defs
               .append('linearGradient')
               .attr('id', progGradId)
