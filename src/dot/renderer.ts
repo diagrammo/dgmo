@@ -9,6 +9,12 @@
 // `connector direction` green for a rise and red for a fall (`down` flips it).
 // Each series name sits above its dot in the first row, in the series colour,
 // so there is no legend. `gap` prints last − first at each row's right end.
+//
+// Labels never collide (#2432). A row name takes two lines only when the row
+// is two lines tall, else one; rows thinner than a line thin the names. The
+// gaps print only when every row is a line tall, else they join the hover.
+// Hovering a row — a dot, its connector, its name or (in the live preview)
+// its band — bolds its name, prints its values and recedes every other row.
 
 import { scaleBand, scaleLinear } from 'd3-scale';
 import { resolveColor } from '../colors';
@@ -31,7 +37,14 @@ import {
 import { measureText } from '../utils/text-measure';
 import { FRAME_BODY_TOP } from '../utils/title-constants';
 import { buildValueAxis } from '../charts-d3/value-axis';
-import { fmtNum, TICK_FONT, VALUE_FONT } from '../charts-d3/shared';
+import {
+  fmtNum,
+  spreadIndices,
+  TICK_FONT,
+  VALUE_FONT,
+} from '../charts-d3/shared';
+import { EMPHASIS_DIM_OPACITY } from '../utils/emphasis';
+import { FULL_TEXT_ATTR } from '../utils/full-text';
 import { dotGap } from './parser';
 import type { DotRow, ParsedDot } from './types';
 
@@ -50,6 +63,12 @@ const NAME_MAX_LINES = 2;
 /** Most of the width the row names may take. */
 const NAME_COLUMN_SHARE = 0.35;
 const MINUS = '−';
+/** Room between a value printed on hover and its dot. */
+const HOVER_VALUE_GAP = 3;
+/** The smallest dot a crowded row shrinks to. */
+const MIN_DOT_R = 2;
+/** The halo behind text printed on hover, over the receded rows. */
+const HALO_W = 3;
 const TICK_COUNT = 6;
 
 /** The colour of series `s`: its own colour word, else the palette's order —
@@ -193,23 +212,43 @@ export function renderDot(
     : 0;
 
   // ── Layout ─────────────────────────────────────────────────
-  const names = rows.map(
-    (r) =>
-      fitLabel(r.label, TICK_FONT, width * NAME_COLUMN_SHARE, NAME_MAX_LINES)
-        .lines
-  );
-  const nameW = Math.max(...names.flat().map((l) => measureText(l, TICK_FONT)));
   const top = (title ? FRAME_BODY_TOP : PAD) + titleExtra;
   // The series names stand above the first row's dots.
   const plotTop = top + (named ? VALUE_FONT + VALUE_GAP : 0);
   const plotBottom = height - PAD - NAME_GAP - (axisTitle ? AXIS_TITLE_H : 0);
-  const plotLeft = PAD + nameW + TICK_GAP + DOT_R;
-  const plotRight =
-    width - PAD - DOT_R - (parsed.gap ? gapW + VALUE_GAP + DOT_R : 0);
   const cat = scaleBand<string>()
     .domain(rows.map((_, i) => String(i)))
     .range([plotTop, plotBottom])
     .padding(0.2);
+  // Names never collide (#2432): a name wraps only into the lines its row
+  // is tall; rows thinner than one line draw every k-th name, ends kept.
+  const step = cat.step();
+  const nameLines = Math.max(
+    1,
+    Math.min(NAME_MAX_LINES, Math.floor(step / NAME_LINE_PX))
+  );
+  const fitted = rows.map((r) =>
+    fitLabel(r.label, TICK_FONT, width * NAME_COLUMN_SHARE, nameLines)
+  );
+  const names = fitted.map((f) => f.lines);
+  const nameKeep =
+    step >= NAME_LINE_PX
+      ? null
+      : spreadIndices(
+          rows.length,
+          Math.floor((rows.length - 1) / Math.ceil(NAME_LINE_PX / step)) + 1
+        );
+  // The gaps share one column, so they need a line per row.
+  const showGap = parsed.gap && step >= NAME_LINE_PX;
+  const nameW = Math.max(...names.flat().map((l) => measureText(l, TICK_FONT)));
+  const plotLeft = PAD + nameW + TICK_GAP + DOT_R;
+  const plotRight =
+    width - PAD - DOT_R - (parsed.gap ? gapW + VALUE_GAP + DOT_R : 0);
+  // A dot never reaches into the next row.
+  const dotR = Math.min(DOT_R, Math.max(MIN_DOT_R, step / 2 - RING_W));
+  // The live preview gives each row band a hit area; an export has no
+  // pointer, so it draws none and stays as it was.
+  const interactive = !exportDims;
   const val = valueAxis([plotLeft, plotRight]);
   const g = svg.append('g').attr('class', 'dot-body');
 
@@ -250,25 +289,21 @@ export function renderDot(
   // ── Rows: name, connector, dots, gap ───────────────────────
   const body = g.append('g').attr('class', 'dot-rows');
   const band = cat.bandwidth();
-  rows.forEach((row, i) => {
-    const cy = cat(String(i))! + band / 2;
-    const item = body
-      .append('g')
-      .attr('class', 'dot-row')
-      .attr('data-line-number', row.lineNumber);
-    if (onClickItem)
-      item
-        .style('cursor', 'pointer')
-        .on('click', () => onClickItem(row.lineNumber));
-
-    const lines = names[i]!;
-    const name = item
+  const nameX = plotLeft - DOT_R - TICK_GAP;
+  /** Draw row `i`'s name into `parent`, its fitted lines centred on `cy`. */
+  const drawName = (
+    parent: typeof body,
+    i: number,
+    cy: number,
+    lines: readonly string[]
+  ) => {
+    const name = parent
       .append('text')
       .attr('class', 'dot-label')
       .attr('text-anchor', 'end')
       .attr('font-size', TICK_FONT)
       .attr('fill', palette.text);
-    const nameX = plotLeft - DOT_R - TICK_GAP;
+    if (fitted[i]!.truncated) name.attr(FULL_TEXT_ATTR, rows[i]!.label);
     const nameY = cy - ((lines.length - 1) * NAME_LINE_PX) / 2;
     lines.forEach((l, k) =>
       name
@@ -278,6 +313,115 @@ export function renderDot(
         .attr('dy', k === 0 ? '0.33em' : NAME_LINE_PX)
         .text(l)
     );
+    return name;
+  };
+  const halo = (t: ReturnType<typeof drawName>) =>
+    t
+      .attr('stroke', bg)
+      .attr('stroke-width', HALO_W)
+      .attr('stroke-linejoin', 'round')
+      .attr('paint-order', 'stroke');
+
+  /** Hover: row `i` comes forward with its name bold and its values. */
+  let active: number | null = null;
+  let restore: [SVGGElement, ChildNode | null] | null = null;
+  const items: (typeof body)[] = [];
+  const enter = (i: number, cy: number) => {
+    if (active === i) return;
+    leave();
+    active = i;
+    const row = rows[i]!;
+    const item = items[i]!;
+    items.forEach((other, k) => {
+      if (k !== i) other.style('opacity', String(EMPHASIS_DIM_OPACITY));
+    });
+    // Drawn last while hovered, so it sits over its neighbours; put back on
+    // leave, so the rows keep their reading order.
+    const node = item.node()!;
+    restore = [node, node.nextSibling];
+    item.raise();
+    const hover = item
+      .append('g')
+      .attr('class', 'dot-hover')
+      .style('pointer-events', 'none');
+    const shown = item.select<SVGTextElement>('text.dot-label');
+    if (shown.empty())
+      halo(drawName(hover, i, cy, [names[i]![0]!])).attr('font-weight', 600);
+    else shown.attr('font-weight', 600);
+    // Each value above its dot, spread so no two overlap.
+    const labels = row.values.map((v) => tickText(v));
+    const widths = labels.map((l) =>
+      measureText(l, VALUE_FONT, { bold: true })
+    );
+    const xs = spreadLabels(
+      row.values.map((v) => val(v)),
+      widths,
+      plotLeft - dotR,
+      width - PAD
+    );
+    labels.forEach((l, s) =>
+      halo(
+        hover
+          .append('text')
+          .attr('class', 'dot-hover-value')
+          .attr('x', xs[s]!)
+          .attr('y', cy - dotR - HOVER_VALUE_GAP)
+          .attr('text-anchor', 'middle')
+          .attr('font-size', VALUE_FONT)
+          .attr('font-weight', 600)
+          .attr('fill', dotSeriesColor(parsed, s, palette))
+          .text(l)
+      )
+    );
+    if (parsed.gap && !showGap)
+      halo(
+        hover
+          .append('text')
+          .attr('class', 'dot-gap')
+          .attr('x', plotRight + DOT_R + VALUE_GAP)
+          .attr('y', cy)
+          .attr('dy', '0.33em')
+          .attr('font-size', VALUE_FONT)
+          .attr('fill', palette.textMuted)
+          .text(gapTexts[i]!)
+      );
+  };
+  function leave() {
+    if (active === null) return;
+    const item = items[active]!;
+    item.select('g.dot-hover').remove();
+    item.select('text.dot-label').attr('font-weight', null);
+    items.forEach((other) => other.style('opacity', null));
+    if (restore) restore[0].parentNode?.insertBefore(restore[0], restore[1]);
+    restore = null;
+    active = null;
+  }
+
+  rows.forEach((row, i) => {
+    const cy = cat(String(i))! + band / 2;
+    const item = body
+      .append('g')
+      .attr('class', 'dot-row')
+      .attr('data-line-number', row.lineNumber)
+      .on('mouseover', () => enter(i, cy))
+      .on('mouseleave', leave);
+    items.push(item);
+    if (onClickItem)
+      item
+        .style('cursor', 'pointer')
+        .on('click', () => onClickItem(row.lineNumber));
+
+    if (interactive)
+      item
+        .append('rect')
+        .attr('class', 'dot-row-hit')
+        .attr('x', PAD)
+        .attr('y', cy - step / 2)
+        .attr('width', width - 2 * PAD)
+        .attr('height', step)
+        .attr('fill', 'transparent');
+
+    if (!nameKeep || nameKeep.has(i)) drawName(item, i, cy, names[i]!);
 
     if (row.values.length >= 2) {
       item
@@ -299,13 +443,13 @@ export function renderDot(
         .attr('data-series', s)
         .attr('cx', val(v))
         .attr('cy', cy)
-        .attr('r', DOT_R)
+        .attr('r', dotR)
         .attr('fill', dotSeriesColor(parsed, s, palette))
         .attr('stroke', bg)
         .attr('stroke-width', RING_W);
     });
 
-    if (parsed.gap) {
+    if (showGap) {
       item
         .append('text')
         .attr('class', 'dot-gap')
@@ -331,7 +475,7 @@ export function renderDot(
       PAD,
       width - PAD
     );
-    const y = cat('0')! + band / 2 - DOT_R - VALUE_GAP;
+    const y = cat('0')! + band / 2 - dotR - VALUE_GAP;
     const legend = g.append('g').attr('class', 'dot-series-labels');
     labels.forEach((label, s) =>
       legend

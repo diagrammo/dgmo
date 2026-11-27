@@ -7,6 +7,13 @@
 
 import type { DiagnosticSpec } from '../diagnostics';
 
+/**
+ * Most rows one dot chart draws (#2432, owner's decision 2026-11-26). Past it
+ * the first that many are drawn and an error names the count. Not
+ * author-tunable: crowding is the renderer's decision.
+ */
+export const DOT_MAX_ROWS = 50;
+
 export const DOT_DX = {
   BAD_VALUE: {
     code: 'E_DOT_BAD_VALUE',
@@ -75,6 +82,16 @@ export const DOT_DX = {
     title: 'Nothing to draw',
     message: () => 'The chart has no rows.',
     hint: 'Add one row per category, a name and its value: `Staff engineer 212`.',
+    example: `dot Median salary ($k)\n\nStaff engineer 212\nDesigner 141`,
+  },
+  TOO_MANY_ROWS: {
+    code: 'E_DOT_TOO_MANY_ROWS',
+    severity: 'error',
+    chartType: 'dot',
+    title: 'Too many rows',
+    message: (p) =>
+      `This dot chart has ${(p.count as number) ?? 'too many'} rows; only the first ${DOT_MAX_ROWS} are drawn. Split the data into several charts.`,
+    hint: `Keep a dot chart to ${DOT_MAX_ROWS} rows or fewer: split it into several charts, or keep the rows that matter most.`,
     example: `dot Median salary ($k)\n\nStaff engineer 212\nDesigner 141`,
   },
 } satisfies Record<string, DiagnosticSpec>;

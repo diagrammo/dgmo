@@ -41,7 +41,7 @@ import {
   extractColor,
   parseFirstLine,
 } from '../utils/parsing';
-import { DOT_DX } from './diagnostics';
+import { DOT_DX, DOT_MAX_ROWS } from './diagnostics';
 import type { DotRow, DotSeries, DotSort, ParsedDot } from './types';
 
 const OPTION_WORDS = [
@@ -252,6 +252,18 @@ function parseDotRaw(content: string): ParsedDot {
         count: row.values.length,
         expected,
       });
+  }
+
+  // ── The row limit (#2432): the first DOT_MAX_ROWS rows, as written ──
+  // An error on the first row left out, but the chart still draws, as on
+  // `bar`: it goes straight to the list, never to `result.error`.
+  if (result.rows.length > DOT_MAX_ROWS) {
+    diagnostics.push(
+      emit(DOT_DX.TOO_MANY_ROWS, result.rows[DOT_MAX_ROWS]!.lineNumber, {
+        count: result.rows.length,
+      })
+    );
+    result.rows.length = DOT_MAX_ROWS;
   }
 
   // ── Options that need two series ─────────────────────────────
