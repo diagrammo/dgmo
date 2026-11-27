@@ -21,7 +21,8 @@
 
 import type { PaletteColors } from '../palettes';
 import { withPaletteLifted } from '../palettes/directive';
-import { makeDgmoError, makeFail } from '../diagnostics';
+import { emit, makeDgmoError, makeFail } from '../diagnostics';
+import { GOAL_DX, GOAL_MAX_CELLS, GOAL_MAX_MEASURES } from './limits';
 import type { Writable } from '../utils/brand';
 import { resolveColor } from '../colors';
 import {
@@ -433,7 +434,17 @@ function parseGoalRaw(content: string, palette?: PaletteColors): ParsedGoal {
         )
       );
     }
-    result.measures = ms;
+    // Past the limit, draw the first N and say how many there were (#2444).
+    const limit = result.mode === 'bar' ? GOAL_MAX_MEASURES : GOAL_MAX_CELLS;
+    if (ms.length > limit) {
+      result.diagnostics.push(
+        emit(GOAL_DX.TOO_MANY_MEASURES, ms[limit]!.lineNumber ?? titleLine, {
+          count: ms.length,
+          limit,
+        })
+      );
+    }
+    result.measures = ms.slice(0, limit);
   } else {
     if (top.actual === null) {
       warn(titleLine, 'Missing "actual" value — treating as 0.');

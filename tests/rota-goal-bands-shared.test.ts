@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseGoal } from '../src/goal/parser';
+import { GOAL_MAX_MEASURES } from '../src/goal/limits';
 
 function src(bands: number, measures: number, percent = false): string {
   const lines = ['goal Many', 'bands'];
@@ -12,8 +13,8 @@ function src(bands: number, measures: number, percent = false): string {
 
 describe('goal inherited bands are shared, not copied (#2274)', () => {
   it('measures inheriting a top-level block hold one bands array', () => {
-    const r = parseGoal(src(50, 40));
-    expect(r.measures).toHaveLength(40);
+    const r = parseGoal(src(50, GOAL_MAX_MEASURES));
+    expect(r.measures).toHaveLength(GOAL_MAX_MEASURES);
     expect(new Set(r.measures.map((m) => m.bands)).size).toBe(1);
   });
 

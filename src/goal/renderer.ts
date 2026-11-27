@@ -326,7 +326,13 @@ export function renderGoal(
   // The canvas was left at the caller's height (1200x800 on the export path)
   // while the content is a ~5:1 strip, so a goal PNG came out ~70% empty and
   // the background rect covered only the middle band.
-  if (vw > 0 && vh > 0) svg.attr('height', Math.round((cw * vh) / vw));
+  // On screen the viewport also stays within the pane's height, so a tall
+  // goal scales down to fit both ways instead of running past the pane's
+  // bottom, where the rows were clipped unseen (#2444).
+  if (vw > 0 && vh > 0) {
+    const fitH = Math.round((cw * vh) / vw);
+    svg.attr('height', exportDims ? fitH : Math.min(ch, fitH));
+  }
   svg
     .insert('rect', ':first-child')
     .attr('x', vx)
