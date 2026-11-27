@@ -18,6 +18,16 @@
 
 import type { DiagnosticSpec } from '../diagnostics';
 
+/**
+ * Most events one event-line draws (#2434, owner's decision 2026-11-26). Past
+ * it the cards pack into a dozen lanes and the fitted chart shrinks to an
+ * unreadable strip. The parser keeps the first this many in date order and
+ * raises TOO_MANY_EVENTS. Not author-tunable: crowding is the renderer's
+ * decision (dgmo/CLAUDE.md → Output rules). TBD, undated and collapsed-era
+ * events count the same as dated ones.
+ */
+export const EVENT_LINE_MAX_EVENTS = 50;
+
 /** Keyed specs — referenced by the parser's `emit()` call sites. */
 export const EVENT_LINE_DX = {
   // parser.ts: 'event-line has no events.'
@@ -116,6 +126,21 @@ direction-tb
 2020 A
 2024 B
 2022 C`,
+  },
+  // parser.ts capEvents: on the first event past EVENT_LINE_MAX_EVENTS in
+  // date order; `until` is the date caption of the last event drawn.
+  TOO_MANY_EVENTS: {
+    code: 'E_EVENT_LINE_TOO_MANY_EVENTS',
+    severity: 'error',
+    chartType: 'event-line',
+    title: 'Too many events',
+    message: (p) =>
+      `This event-line has ${(p.count as number) ?? 'too many'} events; only the first ${EVENT_LINE_MAX_EVENTS}${p.until ? ` (to ${p.until as string})` : ''} are drawn. Split it into several charts by period.`,
+    hint: `Keep an event-line to ${EVENT_LINE_MAX_EVENTS} events or fewer: split it into several charts, one per period.`,
+    example: `event-line X
+
+2020 A
+2021 B`,
   },
 } satisfies Record<string, DiagnosticSpec>;
 

@@ -21,7 +21,7 @@ import {
   suggest,
 } from '../diagnostics';
 import type { DgmoError } from '../diagnostics';
-import { EVENT_LINE_DX } from './diagnostics';
+import { EVENT_LINE_DX, EVENT_LINE_MAX_EVENTS } from './diagnostics';
 import type { Writable } from '../utils/brand';
 import {
   parseChartFrameLine,
@@ -550,6 +550,7 @@ function parseEventLineRaw(
   options.noTitle = sharedOptions['no-title'] === 'on';
 
   resolveFutureEvents(result.events as Writable<EventLineEvent>[]);
+  capEvents(result);
 
   // Finalize tag colors + validate (flat topology → no cascade).
   finalizeAutoTagColors(result.tagGroups as Writable<TagGroup>[], palette);
@@ -603,6 +604,35 @@ function parseEventLineRaw(
   }
 
   return result;
+}
+
+/**
+ * Event limit (#2434): keep the first EVENT_LINE_MAX_EVENTS events in the order
+ * they are drawn — date order when every event has a position (TBDs carry an
+ * inferred one by now), source order otherwise (the layout then spaces evenly)
+ * — so the drawn chart is one continuous stretch of time. One error, on the
+ * first event left out, names the count and the date the chart stops at.
+ */
+function capEvents(result: Writable<ParsedEventLine>): void {
+  const events = result.events;
+  if (events.length <= EVENT_LINE_MAX_EVENTS) return;
+  const order = events.map((_, i) => i);
+  if (events.every((e) => e.dateValue !== null)) {
+    // Stable: equal dates keep source order.
+    order.sort(
+      (a, b) => events[a]!.dateValue! - events[b]!.dateValue! || a - b
+    );
+  }
+  const keep = new Set(order.slice(0, EVENT_LINE_MAX_EVENTS));
+  const last = events[order[EVENT_LINE_MAX_EVENTS - 1]!]!;
+  const firstDropped = events[order[EVENT_LINE_MAX_EVENTS]!]!;
+  result.diagnostics.push(
+    emit(EVENT_LINE_DX.TOO_MANY_EVENTS, firstDropped.lineNumber, {
+      count: events.length,
+      until: last.date ?? undefined,
+    })
+  );
+  result.events = events.filter((_, i) => keep.has(i));
 }
 
 /**
