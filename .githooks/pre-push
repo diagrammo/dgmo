@@ -42,6 +42,14 @@ if [ -r "$GATE_ENV" ]; then . "$GATE_ENV"; gate_env_exec "$0" "$@"; fi
 # per ref on stdin. It can only be read once, so capture it up front.
 refs=$(cat)
 
+# A land/ or land-failed/ branch is a hand-off to the landing queue on anchor, which rebases,
+# gates and pushes it to main in turn (scripts/land-queue.sh, diagrammo/diagrammo#2477). Gating
+# it here as well would run the gate twice. Only a push whose EVERY ref is one of those skips.
+if [ -n "$refs" ] && ! printf '%s\n' "$refs" | awk '$3 !~ /^refs\/heads\/land(-failed)?\//' | grep -q .; then
+  echo "pre-push: land/ branch — the landing queue on anchor gates it on its way to main"
+  exit 0
+fi
+
 # A tag-only push of a commit this hook already passed on this machine is the
 # same gate again: release.sh pushes the branch, then the tag (#1654). The
 # workspace gate ledger decides, and its OUTPUT is the answer — an older copy
