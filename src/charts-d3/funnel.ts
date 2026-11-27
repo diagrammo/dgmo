@@ -1,7 +1,7 @@
 // ============================================================
 // Hand-built funnel renderer — SPIKE (Tier 2).
-// Descending-sorted contiguous trapezoid bands, width ∝ value (minSize
-// 14%). Names sit flush left of each band in the band's color; the value
+// Descending-sorted contiguous trapezoid bands, width ∝ value; a zero stage
+// has zero width and a tiny one a hairline (#2440). Names sit flush left of each band in the band's color; the value
 // is centered inside the band (falling back beside the band when too
 // narrow); the conversion % sits flush right — no leader lines.
 // Layout is responsive: side text scales with pane width and the funnel
@@ -22,6 +22,40 @@ const PAD = 12;
 const MARGIN = 8;
 /** Side-label line height, in em. */
 const LABEL_LINE_EM = 1.2;
+/**
+ * Thinnest drawn non-zero stage, in px (#2440). A stage whose proportional
+ * width is under FUNNEL_HAIRLINE_WIDTH is drawn between this and that on a
+ * log scale of its value, so a much larger tiny stage is still wider.
+ */
+const FUNNEL_MIN_STAGE_WIDTH = 1;
+/** Proportional widths below this many px are hairlines (#2440). */
+const FUNNEL_HAIRLINE_WIDTH = 4;
+
+/**
+ * Stage-over-stage conversion (#2440). 0 of 0 has no conversion (`—`); an
+ * exact 0% prints `0%`; `<1%` only for a share strictly between 0 and 1%.
+ */
+export function funnelConversionLabel(value: number, previous: number): string {
+  if (previous === 0) return '—';
+  const pct = (value / previous) * 100;
+  if (pct === 0) return '0%';
+  return pct < 1 ? '<1%' : `${Math.round(pct)}%`;
+}
+
+/**
+ * A formatter that never prints a non-zero value as zero (#2440): when the
+ * chart's formatter rounds it to no non-zero digit, print two significant
+ * figures instead (`0.0001`, `1.5e-7`).
+ */
+export function honestFormatter(
+  fmt: (n: number) => string
+): (n: number) => string {
+  return (n) => {
+    const s = fmt(n);
+    if (n === 0 || !isFinite(n) || /[1-9]/.test(s)) return s;
+    return String(Number(n.toPrecision(2)));
+  };
+}
 
 export function renderFunnel(
   svg: Svg,
@@ -36,9 +70,11 @@ export function renderFunnel(
   const sorted = [...chart.data].sort((a, b) => b.value - a.value);
   // The author's `format` / `unit` / `locale` (#1831); under `format compact`
   // every value prints in one unit (#2036).
-  const fmt = chartFormatter(
-    chart,
-    sorted.map((d) => d.value)
+  const fmt = honestFormatter(
+    chartFormatter(
+      chart,
+      sorted.map((d) => d.value)
+    )
   );
   const n = sorted.length;
   if (n === 0) return;
@@ -54,10 +90,11 @@ export function renderFunnel(
   const sideFont = Math.max(11, Math.min(21, width / 52));
   const est = (s: string, f: number) => s.length * f * 0.6;
 
-  const pctLabelFor = (i: number) => {
-    const pct = (sorted[i]!.value / sorted[i - 1]!.value) * 100;
-    return pct < 1 ? '<1%' : `${Math.round(pct)}%`;
-  };
+  const pctLabelFor = (i: number) =>
+    funnelConversionLabel(sorted[i]!.value, sorted[i - 1]!.value);
+  const minNonZero = Math.min(
+    ...sorted.map((d) => (d.value > 0 ? d.value : Infinity))
+  );
   const rightTextFor = (i: number, valueInside: boolean) => {
     const parts: string[] = [];
     if (!chart.noValue && !valueInside) parts.push(fmt(sorted[i]!.value));
@@ -70,8 +107,19 @@ export function renderFunnel(
     : Math.max(...sorted.map((d) => est(d.label, sideFont))) + PAD;
 
   const bandWidthsAt = (plotW: number, i: number) => {
-    const minW = plotW * 0.14;
-    const scale = (v: number) => Math.max(minW, (v / maxValue) * plotW);
+    // Width ∝ value; zero is zero wide; a hairline keeps its order (#2440).
+    const hairV = (FUNNEL_HAIRLINE_WIDTH / plotW) * maxValue;
+    const scale = (v: number) => {
+      if (v <= 0) return 0;
+      const w = (v / maxValue) * plotW;
+      if (w >= FUNNEL_HAIRLINE_WIDTH) return w;
+      const span = Math.log(hairV) - Math.log(minNonZero);
+      const t = span > 0 ? (Math.log(v) - Math.log(minNonZero)) / span : 0;
+      return (
+        FUNNEL_MIN_STAGE_WIDTH +
+        (FUNNEL_HAIRLINE_WIDTH - FUNNEL_MIN_STAGE_WIDTH) * t
+      );
+    };
     const topW = scale(sorted[i]!.value);
     const botW = i < n - 1 ? scale(sorted[i + 1]!.value) : topW * 0.7;
     return { topW, botW };
@@ -214,7 +262,8 @@ export function renderFunnel(
       )
       .attr('fill', fill)
       .attr('stroke', stroke)
-      .attr('stroke-width', 2);
+      // A zero stage is a band of no width: nothing to outline (#2440).
+      .attr('stroke-width', topW === 0 && botW === 0 ? 0 : 2);
     tagDatum(seg, {
       line: d.lineNumber,
       key: d.label,
