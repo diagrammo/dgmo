@@ -24,6 +24,21 @@ import {
 import { renderInlineText } from '../utils/inline-markdown';
 import { preprocessDescriptionLine } from '../utils/description-helpers';
 import { measureText, wrapTextToWidth } from '../utils/text-measure';
+import { FULL_TEXT_ATTR, fullNodeText } from '../utils/full-text';
+import type { FittedLabel } from '../utils/fit-label';
+import {
+  C4_EDGE_LABEL_FONT_SIZE,
+  C4_EDGE_TECH_FONT_SIZE,
+  C4_NAME_LINE_H,
+  C4_PERSON_NAME_INDENT,
+  c4EdgeLabelBaselines,
+  c4NameDrawnWidth,
+  c4NameExtraHeight,
+  fitC4EdgeLabel,
+  fitC4Name,
+  fitC4Title,
+  type C4EdgeLabelBox,
+} from './label-fit';
 import type { ParsedC4 } from './types';
 import type { C4LayoutResult, C4LayoutEdge } from './layout';
 import { parseC4 } from './parser';
@@ -40,6 +55,7 @@ import { growChartFrame, type ChartFrame } from '../utils/chart-frame';
 import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
+  TITLE_LINE_HEIGHT,
   FRAME_BODY_TOP,
   LEGEND_BODY_GAP,
 } from '../utils/title-constants';
@@ -57,8 +73,6 @@ const MAX_SCALE = 3;
 const TITLE_HEIGHT = 30;
 const TYPE_FONT_SIZE = 10;
 
-const EDGE_LABEL_FONT_SIZE = 11;
-const TECH_FONT_SIZE = 10;
 import {
   EDGE_STROKE_WIDTH,
   NODE_STROKE_WIDTH,
@@ -224,6 +238,151 @@ function drawPersonIcon(
 
 type GSelection = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
 
+// ============================================================
+// Fitted text (#2426) — names, relationship labels, the title
+// ============================================================
+
+/** Height of the title band: one line, plus each wrapped line past it. */
+function c4TitleBand(parsed: ParsedC4, width: number): number {
+  if (!parsed.title || parsed.options['no-title'] === 'on') return 0;
+  const fitted = fitC4Title(parsed.title, width);
+  return TITLE_HEIGHT + 10 + (fitted.lines.length - 1) * TITLE_LINE_HEIGHT;
+}
+
+/**
+ * The chart title, fitted to the canvas by renderChartTitle's rule (wrap,
+ * then "…"). A cut title keeps its words in FULL_TEXT_ATTR, never an
+ * `<svg><title>`. A title that fits draws as one plain `<text>`, as before.
+ */
+function drawC4Title(
+  svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
+  parsed: ParsedC4,
+  width: number,
+  palette: PaletteColors,
+  onClickItem?: (lineNumber: number) => void
+): void {
+  if (!parsed.title || parsed.options['no-title'] === 'on') return;
+  const fitted = fitC4Title(parsed.title, width);
+  const titleEl = svg
+    .append('text')
+    .attr('class', 'chart-title')
+    .attr('x', width / 2)
+    .attr('y', 30)
+    .attr('text-anchor', 'middle')
+    .attr('fill', palette.text)
+    .attr('font-size', TITLE_FONT_SIZE)
+    .attr('font-weight', TITLE_FONT_WEIGHT)
+    .style(
+      'cursor',
+      onClickItem && parsed.titleLineNumber ? 'pointer' : 'default'
+    );
+  if (fitted.lines.length === 1) titleEl.text(fitted.lines[0]!);
+  else
+    fitted.lines.forEach((line, i) => {
+      titleEl
+        .append('tspan')
+        .attr('x', width / 2)
+        .attr('dy', i === 0 ? 0 : TITLE_LINE_HEIGHT)
+        .text(line);
+    });
+  if (fitted.truncated) titleEl.attr(FULL_TEXT_ATTR, parsed.title);
+
+  if (parsed.titleLineNumber) {
+    titleEl.attr('data-line-number', parsed.titleLineNumber);
+    if (onClickItem) {
+      titleEl
+        .on('click', () => onClickItem(parsed.titleLineNumber!))
+        .on('mouseenter', function () {
+          d3Selection.select(this).attr('opacity', 0.7);
+        })
+        .on('mouseleave', function () {
+          d3Selection.select(this).attr('opacity', 1);
+        });
+    }
+  }
+}
+
+/** An element's fitted name, first line at `yPos`; a person's icon leads it. */
+function drawCardName(
+  nodeG: GSelection,
+  name: FittedLabel,
+  isPerson: boolean,
+  cx: number,
+  yPos: number,
+  fill: string,
+  stroke: string
+): void {
+  const lineY = (i: number): number =>
+    yPos + LABEL_FONT_SIZE / 2 + i * C4_NAME_LINE_H;
+  let x = cx;
+  let anchor = 'middle';
+  if (isPerson) {
+    const totalWidth = C4_PERSON_NAME_INDENT + c4NameDrawnWidth(name);
+    const iconCx = cx - totalWidth / 2 + PERSON_ICON_W / 2;
+    x = cx - totalWidth / 2 + C4_PERSON_NAME_INDENT;
+    anchor = 'start';
+    drawPersonIcon(nodeG, iconCx, yPos + LABEL_FONT_SIZE / 2 - 2, stroke);
+  }
+  name.lines.forEach((line, i) => {
+    nodeG
+      .append('text')
+      .attr('x', x)
+      .attr('y', lineY(i))
+      .attr('text-anchor', anchor)
+      .attr('dominant-baseline', 'central')
+      .attr('fill', fill)
+      .attr('font-size', LABEL_FONT_SIZE)
+      .attr('font-weight', 'bold')
+      .text(line);
+  });
+}
+
+/** A relationship label's knockout box and lines, centred on (x, y). */
+function drawC4EdgeLabel(
+  edgeG: GSelection,
+  x: number,
+  y: number,
+  box: C4EdgeLabelBox,
+  color: string,
+  palette: PaletteColors
+): void {
+  if (box.truncated) edgeG.attr(FULL_TEXT_ATTR, box.fullText);
+  edgeG
+    .append('rect')
+    .attr('x', x - box.bgW / 2)
+    .attr('y', y - box.bgH / 2)
+    .attr('width', box.bgW)
+    .attr('height', box.bgH)
+    .attr('rx', 3)
+    .attr('fill', palette.bg)
+    .attr('opacity', EDGE_LABEL_KNOCKOUT_OPACITY)
+    .attr('class', 'c4-edge-label-bg');
+  const { lineYs, techY } = c4EdgeLabelBaselines(box, y);
+  box.lines.forEach((line, i) => {
+    edgeG
+      .append('text')
+      .attr('x', x)
+      .attr('y', lineYs[i]!)
+      .attr('text-anchor', 'middle')
+      .attr('fill', color)
+      .attr('font-size', C4_EDGE_LABEL_FONT_SIZE)
+      .attr('class', 'c4-edge-label')
+      .text(line);
+  });
+  if (box.techText) {
+    edgeG
+      .append('text')
+      .attr('x', x)
+      .attr('y', techY)
+      .attr('text-anchor', 'middle')
+      .attr('fill', color)
+      .attr('font-size', C4_EDGE_TECH_FONT_SIZE)
+      .attr('font-style', 'italic')
+      .attr('class', 'c4-edge-tech')
+      .text(box.techText);
+  }
+}
+
 export function renderC4Context(
   container: HTMLDivElement,
   parsed: ParsedC4,
@@ -241,8 +400,8 @@ export function renderC4Context(
   const height = exportDims?.height ?? container.clientHeight;
   if (width <= 0 || height <= 0) return;
 
-  const titleHeight =
-    parsed.title && parsed.options['no-title'] !== 'on' ? TITLE_HEIGHT + 10 : 0;
+  const titleHeight = c4TitleBand(parsed, width);
+  const titleExtra = titleHeight === 0 ? 0 : titleHeight - TITLE_HEIGHT - 10;
   const diagramW = layout.width;
   const hasLegend = layout.legend.length > 0;
   // In app mode, legend is a fixed overlay outside the scaled group.
@@ -263,7 +422,7 @@ export function renderC4Context(
       ? null
       : hasLegend
         ? DIAGRAM_PADDING + titleHeight + LEGEND_INK_BOTTOM + LEGEND_BODY_GAP
-        : FRAME_BODY_TOP;
+        : FRAME_BODY_TOP + titleExtra;
   const availH = height - titleHeight - legendReserveH;
   const scaleX = (width - DIAGRAM_PADDING * 2) / diagramW;
   const scaleY =
@@ -303,36 +462,7 @@ export function renderC4Context(
   });
 
   // ── Title ──
-  if (parsed.title && parsed.options['no-title'] !== 'on') {
-    const titleEl = svg
-      .append('text')
-      .attr('class', 'chart-title')
-      .attr('x', width / 2)
-      .attr('y', 30)
-      .attr('text-anchor', 'middle')
-      .attr('fill', palette.text)
-      .attr('font-size', TITLE_FONT_SIZE)
-      .attr('font-weight', TITLE_FONT_WEIGHT)
-      .style(
-        'cursor',
-        onClickItem && parsed.titleLineNumber ? 'pointer' : 'default'
-      )
-      .text(parsed.title);
-
-    if (parsed.titleLineNumber) {
-      titleEl.attr('data-line-number', parsed.titleLineNumber);
-      if (onClickItem) {
-        titleEl
-          .on('click', () => onClickItem(parsed.titleLineNumber!))
-          .on('mouseenter', function () {
-            d3Selection.select(this).attr('opacity', 0.7);
-          })
-          .on('mouseleave', function () {
-            d3Selection.select(this).attr('opacity', 1);
-          });
-      }
-    }
-  }
+  drawC4Title(svg, parsed, width, palette, onClickItem);
 
   // ── Content group ──
   const contentG = svg
@@ -387,57 +517,14 @@ export function renderC4Context(
       // In-bounds: edge.points.length >= 2 guard at top of loop.
       const midPt = edge.points[midIdx]!;
 
-      const labelText = edge.label ?? '';
-      const techText = edge.technology ? `[${edge.technology}]` : '';
-
-      // Background rect
-      const textW = Math.max(
-        measureText(labelText, EDGE_LABEL_FONT_SIZE),
-        measureText(techText, TECH_FONT_SIZE)
+      drawC4EdgeLabel(
+        edgeG,
+        midPt.x,
+        midPt.y,
+        fitC4EdgeLabel(edge.label, edge.technology),
+        edgeColor,
+        palette
       );
-      const bgW = textW + 12;
-      const bgH = (labelText ? 16 : 0) + (techText ? 14 : 0) + 4;
-
-      edgeG
-        .append('rect')
-        .attr('x', midPt.x - bgW / 2)
-        .attr('y', midPt.y - bgH / 2)
-        .attr('width', bgW)
-        .attr('height', bgH)
-        .attr('rx', 3)
-        .attr('fill', palette.bg)
-        .attr('opacity', EDGE_LABEL_KNOCKOUT_OPACITY)
-        .attr('class', 'c4-edge-label-bg');
-
-      let textY = midPt.y;
-      if (labelText && techText) {
-        textY = midPt.y - 4;
-      }
-
-      if (labelText) {
-        edgeG
-          .append('text')
-          .attr('x', midPt.x)
-          .attr('y', textY + 4)
-          .attr('text-anchor', 'middle')
-          .attr('fill', edgeColor)
-          .attr('font-size', EDGE_LABEL_FONT_SIZE)
-          .attr('class', 'c4-edge-label')
-          .text(labelText);
-      }
-
-      if (techText) {
-        edgeG
-          .append('text')
-          .attr('x', midPt.x)
-          .attr('y', labelText ? textY + 18 : textY + 4)
-          .attr('text-anchor', 'middle')
-          .attr('fill', edgeColor)
-          .attr('font-size', TECH_FONT_SIZE)
-          .attr('font-style', 'italic')
-          .attr('class', 'c4-edge-tech')
-          .text(techText);
-      }
     }
   }
 
@@ -522,41 +609,25 @@ export function renderC4Context(
 
     yPos += TYPE_LABEL_HEIGHT;
 
-    // Name (bold) — above divider
-    if (node.type === 'person') {
-      // Person icon to the left of name
-      const textWidth = measureText(node.name, LABEL_FONT_SIZE, { bold: true });
-      const gap = 6;
-      const totalWidth = PERSON_ICON_W + gap + textWidth;
-      const iconCx = -totalWidth / 2 + PERSON_ICON_W / 2;
-      const textX = iconCx + PERSON_ICON_W / 2 + gap;
-
-      drawPersonIcon(nodeG, iconCx, yPos + LABEL_FONT_SIZE / 2 - 2, stroke);
-
-      nodeG
-        .append('text')
-        .attr('x', textX)
-        .attr('y', yPos + LABEL_FONT_SIZE / 2)
-        .attr('text-anchor', 'start')
-        .attr('dominant-baseline', 'central')
-        .attr('fill', onFillText)
-        .attr('font-size', LABEL_FONT_SIZE)
-        .attr('font-weight', 'bold')
-        .text(node.name);
-    } else {
-      nodeG
-        .append('text')
-        .attr('x', 0)
-        .attr('y', yPos + LABEL_FONT_SIZE / 2)
-        .attr('text-anchor', 'middle')
-        .attr('dominant-baseline', 'central')
-        .attr('fill', onFillText)
-        .attr('font-size', LABEL_FONT_SIZE)
-        .attr('font-weight', 'bold')
-        .text(node.name);
+    // Name (bold) — above divider; wraps, then "…" (#2426)
+    const name = fitC4Name(node.name, w, node.shape, node.type === 'person');
+    if (name.truncated) {
+      nodeG.attr(
+        FULL_TEXT_ATTR,
+        fullNodeText(node.name, node.description ? [node.description] : [])
+      );
     }
+    drawCardName(
+      nodeG,
+      name,
+      node.type === 'person',
+      0,
+      yPos,
+      onFillText,
+      stroke
+    );
 
-    yPos += NAME_HEIGHT;
+    yPos += NAME_HEIGHT + c4NameExtraHeight(name);
 
     // Subtle divider — between name and description
     nodeG
@@ -679,9 +750,8 @@ export function renderC4ContextForExport(
   const isDark = theme === 'dark';
 
   const container = document.createElement('div');
-  const titleOffset =
-    parsed.title && parsed.options['no-title'] !== 'on' ? TITLE_HEIGHT + 10 : 0;
   const exportWidth = layout.width + DIAGRAM_PADDING * 2;
+  const titleOffset = c4TitleBand(parsed, exportWidth);
   const exportHeight = layout.height + DIAGRAM_PADDING * 2 + titleOffset;
 
   container.style.width = `${exportWidth}px`;
@@ -758,8 +828,7 @@ function renderEdges(
   // Collect labels for deferred rendering with collision avoidance
   const pendingLabels: {
     edgeG: GSelection;
-    labelText: string;
-    techText: string;
+    box: C4EdgeLabelBox;
     bgW: number;
     bgH: number;
     x: number;
@@ -811,21 +880,12 @@ function renderEdges(
 
     // Collect label info for deferred placement
     if (edge.label || edge.technology) {
-      const labelText = edge.label ?? '';
-      const techText = edge.technology ? `[${edge.technology}]` : '';
-      const textW = Math.max(
-        measureText(labelText, EDGE_LABEL_FONT_SIZE),
-        measureText(techText, TECH_FONT_SIZE)
-      );
-      const bgW = textW + 12;
-      const bgH = (labelText ? 16 : 0) + (techText ? 14 : 0) + 4;
-
+      const box = fitC4EdgeLabel(edge.label, edge.technology);
       pendingLabels.push({
         edgeG,
-        labelText,
-        techText,
-        bgW,
-        bgH,
+        box,
+        bgW: box.bgW,
+        bgH: box.bgH,
         x: 0,
         y: 0,
         edgeColor,
@@ -841,46 +901,7 @@ function renderEdges(
 
   // Render all labels
   for (const lbl of pendingLabels) {
-    lbl.edgeG
-      .append('rect')
-      .attr('x', lbl.x - lbl.bgW / 2)
-      .attr('y', lbl.y - lbl.bgH / 2)
-      .attr('width', lbl.bgW)
-      .attr('height', lbl.bgH)
-      .attr('rx', 3)
-      .attr('fill', palette.bg)
-      .attr('opacity', EDGE_LABEL_KNOCKOUT_OPACITY)
-      .attr('class', 'c4-edge-label-bg');
-
-    let textY = lbl.y;
-    if (lbl.labelText && lbl.techText) {
-      textY = lbl.y - 4;
-    }
-
-    if (lbl.labelText) {
-      lbl.edgeG
-        .append('text')
-        .attr('x', lbl.x)
-        .attr('y', textY + 4)
-        .attr('text-anchor', 'middle')
-        .attr('fill', lbl.edgeColor)
-        .attr('font-size', EDGE_LABEL_FONT_SIZE)
-        .attr('class', 'c4-edge-label')
-        .text(lbl.labelText);
-    }
-
-    if (lbl.techText) {
-      lbl.edgeG
-        .append('text')
-        .attr('x', lbl.x)
-        .attr('y', lbl.labelText ? textY + 18 : textY + 4)
-        .attr('text-anchor', 'middle')
-        .attr('fill', lbl.edgeColor)
-        .attr('font-size', TECH_FONT_SIZE)
-        .attr('font-style', 'italic')
-        .attr('class', 'c4-edge-tech')
-        .text(lbl.techText);
-    }
+    drawC4EdgeLabel(lbl.edgeG, lbl.x, lbl.y, lbl.box, lbl.edgeColor, palette);
   }
 }
 
@@ -1303,8 +1324,8 @@ export function renderC4Containers(
   const height = exportDims?.height ?? container.clientHeight;
   if (width <= 0 || height <= 0) return;
 
-  const titleHeight =
-    parsed.title && parsed.options['no-title'] !== 'on' ? TITLE_HEIGHT + 10 : 0;
+  const titleHeight = c4TitleBand(parsed, width);
+  const titleExtra = titleHeight === 0 ? 0 : titleHeight - TITLE_HEIGHT - 10;
   const diagramW = layout.width;
   const hasLegend = layout.legend.length > 0;
   // In app mode, legend is a fixed overlay outside the scaled group.
@@ -1325,7 +1346,7 @@ export function renderC4Containers(
       ? null
       : hasLegend
         ? DIAGRAM_PADDING + titleHeight + LEGEND_INK_BOTTOM + LEGEND_BODY_GAP
-        : FRAME_BODY_TOP;
+        : FRAME_BODY_TOP + titleExtra;
   const availH = height - titleHeight - legendReserveH;
   const scaleX = (width - DIAGRAM_PADDING * 2) / diagramW;
   const scaleY =
@@ -1365,36 +1386,7 @@ export function renderC4Containers(
   });
 
   // ── Title ──
-  if (parsed.title && parsed.options['no-title'] !== 'on') {
-    const titleEl = svg
-      .append('text')
-      .attr('class', 'chart-title')
-      .attr('x', width / 2)
-      .attr('y', 30)
-      .attr('text-anchor', 'middle')
-      .attr('fill', palette.text)
-      .attr('font-size', TITLE_FONT_SIZE)
-      .attr('font-weight', TITLE_FONT_WEIGHT)
-      .style(
-        'cursor',
-        onClickItem && parsed.titleLineNumber ? 'pointer' : 'default'
-      )
-      .text(parsed.title);
-
-    if (parsed.titleLineNumber) {
-      titleEl.attr('data-line-number', parsed.titleLineNumber);
-      if (onClickItem) {
-        titleEl
-          .on('click', () => onClickItem(parsed.titleLineNumber!))
-          .on('mouseenter', function () {
-            d3Selection.select(this).attr('opacity', 0.7);
-          })
-          .on('mouseleave', function () {
-            d3Selection.select(this).attr('opacity', 1);
-          });
-      }
-    }
-  }
+  drawC4Title(svg, parsed, width, palette, onClickItem);
 
   // ── Content group ──
   const contentG = svg
@@ -1641,40 +1633,25 @@ export function renderC4Containers(
       yPos += TYPE_LABEL_HEIGHT;
     }
 
-    // Name (bold)
-    if (node.type === 'person') {
-      const textWidth = measureText(node.name, LABEL_FONT_SIZE, { bold: true });
-      const gap = 6;
-      const totalWidth = PERSON_ICON_W + gap + textWidth;
-      const iconCx = textCx - totalWidth / 2 + PERSON_ICON_W / 2;
-      const textX = iconCx + PERSON_ICON_W / 2 + gap;
-
-      drawPersonIcon(nodeG, iconCx, yPos + LABEL_FONT_SIZE / 2 - 2, stroke);
-
-      nodeG
-        .append('text')
-        .attr('x', textX)
-        .attr('y', yPos + LABEL_FONT_SIZE / 2)
-        .attr('text-anchor', 'start')
-        .attr('dominant-baseline', 'central')
-        .attr('fill', onFillText)
-        .attr('font-size', LABEL_FONT_SIZE)
-        .attr('font-weight', 'bold')
-        .text(node.name);
-    } else {
-      nodeG
-        .append('text')
-        .attr('x', textCx)
-        .attr('y', yPos + LABEL_FONT_SIZE / 2)
-        .attr('text-anchor', 'middle')
-        .attr('dominant-baseline', 'central')
-        .attr('fill', onFillText)
-        .attr('font-size', LABEL_FONT_SIZE)
-        .attr('font-weight', 'bold')
-        .text(node.name);
+    // Name (bold); wraps, then "…" (#2426)
+    const name = fitC4Name(node.name, w, shape, node.type === 'person');
+    if (name.truncated) {
+      nodeG.attr(
+        FULL_TEXT_ATTR,
+        fullNodeText(node.name, node.description ? [node.description] : [])
+      );
     }
+    drawCardName(
+      nodeG,
+      name,
+      node.type === 'person',
+      textCx,
+      yPos,
+      onFillText,
+      stroke
+    );
 
-    yPos += NAME_HEIGHT;
+    yPos += NAME_HEIGHT + c4NameExtraHeight(name);
 
     if (node.type === 'container' || node.type === 'component') {
       // Container and component cards: description above divider, metadata below
@@ -1880,9 +1857,8 @@ export function renderC4ContainersForExport(
   const isDark = theme === 'dark';
 
   const el = document.createElement('div');
-  const titleOffset =
-    parsed.title && parsed.options['no-title'] !== 'on' ? TITLE_HEIGHT + 10 : 0;
   const exportWidth = layout.width + DIAGRAM_PADDING * 2;
+  const titleOffset = c4TitleBand(parsed, exportWidth);
   const exportHeight = layout.height + DIAGRAM_PADDING * 2 + titleOffset;
 
   el.style.width = `${exportWidth}px`;
@@ -1933,9 +1909,8 @@ export function renderC4ComponentsForExport(
   const isDark = theme === 'dark';
 
   const el = document.createElement('div');
-  const titleOffset =
-    parsed.title && parsed.options['no-title'] !== 'on' ? TITLE_HEIGHT + 10 : 0;
   const exportWidth = layout.width + DIAGRAM_PADDING * 2;
+  const titleOffset = c4TitleBand(parsed, exportWidth);
   const exportHeight = layout.height + DIAGRAM_PADDING * 2 + titleOffset;
 
   el.style.width = `${exportWidth}px`;
@@ -2017,9 +1992,8 @@ export function renderC4DeploymentForExport(
   const isDark = theme === 'dark';
 
   const el = document.createElement('div');
-  const titleOffset =
-    parsed.title && parsed.options['no-title'] !== 'on' ? TITLE_HEIGHT + 10 : 0;
   const exportWidth = layout.width + DIAGRAM_PADDING * 2;
+  const titleOffset = c4TitleBand(parsed, exportWidth);
   const exportHeight = layout.height + DIAGRAM_PADDING * 2 + titleOffset;
 
   el.style.width = `${exportWidth}px`;

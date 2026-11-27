@@ -39,6 +39,7 @@ import {
   measureLegendText,
 } from '../utils/legend-constants';
 import { measureText, wrapTextToWidth } from '../utils/text-measure';
+import { fitC4Name, c4NameExtraHeight } from './label-fit';
 
 /** dagre node label shape after layout(). */
 interface DagreNodeLabel {
@@ -789,7 +790,7 @@ export function computeC4NodeDimensions(
     }
 
     height += CARD_V_PAD;
-    return padForShape(el, width, height);
+    return withNameRoom(el, padForShape(el, width, height));
   }
 
   // Context card layout: type + name | divider | description
@@ -804,7 +805,20 @@ export function computeC4NodeDimensions(
 
   height += CARD_V_PAD;
 
-  return padForShape(el, width, height);
+  return withNameRoom(el, padForShape(el, width, height));
+}
+
+/**
+ * Grow a card for a name that wraps (#2426). The name is fitted to the final
+ * width, exactly as the renderers fit it (c4/label-fit.ts); a one-line name
+ * adds nothing, so short names keep today's box.
+ */
+function withNameRoom(
+  el: C4Element,
+  dims: { width: number; height: number }
+): { width: number; height: number } {
+  const name = fitC4Name(el.name, dims.width, el.shape, el.type === 'person');
+  return { width: dims.width, height: dims.height + c4NameExtraHeight(name) };
 }
 
 /**

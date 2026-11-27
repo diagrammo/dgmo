@@ -16,6 +16,7 @@ import {
   FRAME_BODY_TOP,
   HERO_TITLE_TYPES,
   LEGEND_BODY_GAP,
+  TITLE_LINE_HEIGHT,
 } from '../src/utils/title-constants';
 
 const FIXTURES = join(__dirname, 'fixtures/conformance');
@@ -132,6 +133,17 @@ function legendCase(type: string): { file: string; src: string } | null {
   return null;
 }
 
+/**
+ * A title too wide for the canvas wraps (renderChartTitle's rule, #1718), and
+ * each line past the first pushes the band down one TITLE_LINE_HEIGHT.
+ */
+function titleExtra(svg: string): number {
+  const lines = parse(svg).root.querySelectorAll(
+    'text.chart-title tspan'
+  ).length;
+  return lines > 1 ? (lines - 1) * TITLE_LINE_HEIGHT : 0;
+}
+
 describe('the drawing starts on the shared band (#1838)', () => {
   for (const type of TYPES) {
     const cases: [string, string][] = [
@@ -151,7 +163,7 @@ describe('the drawing starts on the shared band (#1838)', () => {
           ).toBeLessThanOrEqual(TOLERANCE);
         else
           expect(
-            Math.abs(top - FRAME_BODY_TOP),
+            Math.abs(top - FRAME_BODY_TOP - titleExtra(svg)),
             `drawing top: ${top.toFixed(2)}`
           ).toBeLessThanOrEqual(TOLERANCE);
       });
