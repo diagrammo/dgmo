@@ -16,8 +16,11 @@ import { FONT_FAMILY } from '../fonts';
 import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
+  TITLE_SIDE_PAD,
   TITLE_Y,
 } from '../utils/title-constants';
+import { fitLabel } from '../utils/fit-label';
+import { FULL_TEXT_ATTR } from '../utils/full-text';
 import {
   CARD_RADIUS,
   HEADER_HEIGHT,
@@ -215,6 +218,18 @@ export function renderEventLine(
   // showing a dark box — matching every other chart type.
 
   if (showTitle) {
+    // A stacked title wider than the canvas is cut with `…` on one line (the
+    // shared label engine; #2435) — its band is one line tall. An inline title
+    // always fits: the inline header is chosen only when it does.
+    const fitted = header.inline
+      ? { lines: [parsed.title ?? ''], truncated: false }
+      : fitLabel(
+          parsed.title ?? '',
+          TITLE_FONT_SIZE,
+          Math.max(1, contentW - 2 * TITLE_SIDE_PAD),
+          1,
+          { bold: true }
+        );
     const t = svg
       .append('text')
       .attr('class', 'chart-title')
@@ -226,7 +241,8 @@ export function renderEventLine(
       .attr('font-size', TITLE_FONT_SIZE)
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .attr('data-line-number', parsed.titleLineNumber ?? 1)
-      .text(parsed.title);
+      .text(fitted.lines[0]!);
+    if (fitted.truncated) t.attr(FULL_TEXT_ATTR, parsed.title ?? '');
     if (onClickItem && parsed.titleLineNumber) {
       const ln = parsed.titleLineNumber;
       t.style('cursor', 'pointer').on('click', () => onClickItem(ln));
@@ -341,6 +357,7 @@ export function renderEventLine(
       .attr('class', 'dgmo-event-card')
       .attr('transform', `translate(${left}, ${top})`)
       .attr('data-line-number', p.lineNumber);
+    if (p.fullText) cardG.attr(FULL_TEXT_ATTR, p.fullText);
     applyHoverHooks(cardG, p);
     if (p.kind === 'era') {
       // App hook: a collapsed-era summary card toggles back open on click.

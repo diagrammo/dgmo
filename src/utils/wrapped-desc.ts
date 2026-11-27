@@ -3,6 +3,8 @@
 // ============================================================
 
 import { stripInlineMarkdown } from './inline-markdown';
+import { graphemeClusters } from './script-metrics';
+import { breakAtoms } from './text-measure';
 
 /**
  * One rendered description line. `kind` controls horizontal placement and
@@ -152,7 +154,12 @@ export function wrapDescriptionLines(
 
 /**
  * Greedy word-wrap of a single string at the given character limit.
- * Long words are kept whole even if they exceed the limit (no mid-word break).
+ *
+ * A word longer than the whole line is broken across lines (#2435) — at the
+ * shared label engine's break points first (`_`, `-`, camelCase: `breakAtoms`),
+ * then by grapheme cluster — so it never runs out of the box it belongs to.
+ * Its last piece stays open for the next word. A word that fits a line is
+ * never split, so text without such a word wraps exactly as before.
  */
 function wrapPlainLine(
   line: string,
@@ -164,13 +171,46 @@ function wrapPlainLine(
   let current = '';
   for (const word of words) {
     const test = current ? `${current} ${word}` : word;
-    if (lengthFn(test) > charsPerLine && current) {
-      result.push(current);
-      current = word;
-    } else {
+    if (lengthFn(test) <= charsPerLine) {
       current = test;
+      continue;
     }
+    if (current) result.push(current);
+    if (lengthFn(word) <= charsPerLine) {
+      current = word;
+      continue;
+    }
+    const pieces = breakLongWord(word, charsPerLine, lengthFn);
+    result.push(...pieces.slice(0, -1));
+    current = pieces[pieces.length - 1]!;
   }
   if (current) result.push(current);
   return result;
+}
+
+/** Cut a word wider than the line into line-fitting pieces, in order. */
+function breakLongWord(
+  word: string,
+  charsPerLine: number,
+  lengthFn: LengthFn
+): string[] {
+  const limit = Math.max(1, charsPerLine);
+  // Atoms concatenate (see breakAtoms); an atom still too wide is cut by cluster.
+  const units: string[] = [];
+  for (const atom of breakAtoms(word)) {
+    if (lengthFn(atom) <= limit) units.push(atom);
+    else units.push(...graphemeClusters(atom));
+  }
+  const pieces: string[] = [];
+  let piece = '';
+  for (const unit of units) {
+    if (piece && lengthFn(piece + unit) > limit) {
+      pieces.push(piece);
+      piece = unit;
+    } else {
+      piece += unit;
+    }
+  }
+  if (piece) pieces.push(piece);
+  return pieces;
 }

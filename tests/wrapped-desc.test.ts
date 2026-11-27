@@ -169,3 +169,44 @@ describe('stripInlineMarkdown', () => {
     );
   });
 });
+
+describe('wrapDescriptionLines — an unbroken word longer than the line (#2435)', () => {
+  it('breaks a 100-character word at 20 characters per line', () => {
+    const word = 'x'.repeat(100);
+    const lines = texts(wrapDescriptionLines([word], 20));
+    expect(lines.every((l) => l.length <= 20)).toBe(true);
+    expect(lines.join('')).toBe(word);
+    expect(lines).toHaveLength(5);
+  });
+
+  it('keeps the words around it, and the tail joins the next word', () => {
+    const lines = texts(
+      wrapDescriptionLines([`before ${'y'.repeat(30)} after`], 20)
+    );
+    expect(lines).toEqual([
+      'before',
+      'y'.repeat(20),
+      `${'y'.repeat(10)} after`,
+    ]);
+  });
+
+  it('breaks at a camelCase boundary before cutting by character', () => {
+    const word = 'Supercalifragilistic'.repeat(3);
+    const lines = texts(wrapDescriptionLines([word], 25));
+    expect(lines.every((l) => l.length <= 25)).toBe(true);
+    expect(lines[0]).toBe('Supercalifragilistic');
+    expect(lines.join('')).toBe(word);
+  });
+
+  it('breaks a long bullet body within the bullet column', () => {
+    const lines = wrapDescriptionLines([`• ${'z'.repeat(50)}`], 20);
+    expect(lines[0]!.kind).toBe('bullet-first');
+    expect(lines.every((l) => l.text.length <= 18)).toBe(true);
+  });
+
+  it('leaves a word that fits a line whole', () => {
+    expect(texts(wrapDescriptionLines(['a abcdefghijklmnopqrst'], 20))).toEqual(
+      ['a', 'abcdefghijklmnopqrst']
+    );
+  });
+});

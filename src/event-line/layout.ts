@@ -36,9 +36,12 @@ import {
   type InlineHeaderGeometry,
 } from '../utils/inline-header';
 import {
+  BULLET_INDENT_CHARS,
   wrapDescriptionLines,
   type WrappedDescLine,
 } from '../utils/wrapped-desc';
+import { stripInlineMarkdown } from '../utils/inline-markdown';
+import { fullNodeText } from '../utils/full-text';
 import { formatDateLabel } from '../timeline/renderer';
 import { parseTimelineDate } from '../timeline/parser';
 import {
@@ -56,6 +59,12 @@ export const LEADER_ABOVE = 46;
 export const LEADER_BELOW = 46;
 export const DESC_FONT = 11.5;
 export const DESC_LINE_H = 16;
+/**
+ * Most description lines one event card draws (#2435). Past it the last line
+ * ends in `…` and the card carries the whole text in `data-full-text`, so an
+ * 800-character description cannot make every card hundreds of px tall.
+ */
+export const DESC_MAX_LINES = 8;
 export const CARD_PAD = 9;
 // A long title wraps inside the fixed-width card rather than running over its
 // edge. Each wrapped line is TITLE_LINE_H tall; the header band grows to hold
@@ -116,6 +125,9 @@ export interface Placed {
   /** Header-band height sized to hold `titleLines` (>= HEADER_HEIGHT). */
   headerH: number;
   lines: WrappedDescLine[];
+  /** The event's full title + description when its description was cut at
+   *  DESC_MAX_LINES (stamped as `data-full-text`); null when drawn in full. */
+  fullText: string | null;
   /** For a collapsed era: per-member tag color, in member order (one per bullet). */
   bulletColors: readonly string[];
   /** For a collapsed era: per-member tag metadata, in member/bullet order — lets a
@@ -345,7 +357,8 @@ export function layoutEventLine(
         palette.textOnFillLight,
         palette.textOnFillDark
       );
-      const lines = wrapDescription(event.description, charsPerLine);
+      const wrapped = wrapDescription(event.description, charsPerLine);
+      const lines = capDescription(wrapped, charsPerLine);
       const title = titleLayout(event.label);
       return {
         kind: 'event',
@@ -365,6 +378,10 @@ export function layoutEventLine(
         titleLines: title.lines,
         headerH: title.headerH,
         lines,
+        fullText:
+          lines === wrapped
+            ? null
+            : fullNodeText(event.label, event.description),
         bulletColors: [],
         bulletMeta: [],
         cardH: cardHeight(title.headerH, lines, !!event.date),
@@ -446,6 +463,7 @@ export function layoutEventLine(
       titleLines: title.lines,
       headerH: title.headerH,
       lines,
+      fullText: null,
       bulletColors,
       bulletMeta,
       cardH: cardHeight(title.headerH, lines, false),
@@ -851,6 +869,31 @@ function eventTagHidden(
       return true;
   }
   return false;
+}
+
+/**
+ * Cap wrapped description lines at DESC_MAX_LINES; the last kept line ends in
+ * `…` within `charsPerLine`. Returns `lines` itself when nothing is cut.
+ */
+function capDescription(
+  lines: WrappedDescLine[],
+  charsPerLine: number
+): WrappedDescLine[] {
+  if (lines.length <= DESC_MAX_LINES) return lines;
+  const kept = lines.slice(0, DESC_MAX_LINES);
+  // A paragraph gap cannot carry the ellipsis.
+  while (kept.length > 1 && kept[kept.length - 1]!.text === '') kept.pop();
+  const last = kept[kept.length - 1]!;
+  // A bullet's body wraps at the bullet column (wrapDescriptionLines).
+  const limit =
+    last.kind === 'plain'
+      ? charsPerLine
+      : Math.max(8, charsPerLine - BULLET_INDENT_CHARS);
+  let text = last.text.trimEnd();
+  while (text && stripInlineMarkdown(`${text}\u2026`).length > limit)
+    text = text.slice(0, -1).trimEnd();
+  kept[kept.length - 1] = { ...last, text: `${text}\u2026` };
+  return kept;
 }
 
 function wrapDescription(
