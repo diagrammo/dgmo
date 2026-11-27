@@ -41,6 +41,7 @@ import { WATERFALL_DIAGNOSTICS } from './waterfall/diagnostics';
 import { DOT_DIAGNOSTICS } from './dot/diagnostics';
 import { BAR_DIAGNOSTICS } from './charts-d3/bar-limits';
 import { FUNCTION_DIAGNOSTICS } from './charts-d3/function-limits';
+import { FUNNEL_DIAGNOSTICS } from './charts-d3/funnel-limits';
 import { CYCLE_DIAGNOSTICS } from './cycle/limits';
 import { VENN_DIAGNOSTICS } from './venn/diagnostics';
 import { TREEMAP_DIAGNOSTICS } from './treemap/diagnostics';
@@ -268,6 +269,7 @@ const REGISTRY: DiagnosticSpec[] = [
   ...DOT_DIAGNOSTICS,
   ...BAR_DIAGNOSTICS,
   ...FUNCTION_DIAGNOSTICS,
+  ...FUNNEL_DIAGNOSTICS,
   ...CYCLE_DIAGNOSTICS,
   ...VENN_DIAGNOSTICS,
   ...TREEMAP_DIAGNOSTICS,

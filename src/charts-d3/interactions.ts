@@ -391,6 +391,14 @@ export function attachDataChartInteractions(
       else d.classList.toggle('dgmo-dim', d !== el);
     }
     mirrorExtras();
+    // Side labels paired to a mark by line (funnel, #2439) recede with the
+    // other marks.
+    const line = el.getAttribute('data-line-number');
+    for (const l of ptLabels)
+      l.classList.toggle(
+        'dgmo-dim',
+        line == null || l.getAttribute('data-line-number') !== line
+      );
     dimLegendExcept(el);
   };
   // ── band / era hover → light the points inside it (#2098) ──────────────

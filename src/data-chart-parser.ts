@@ -323,6 +323,7 @@ import {
   unknownOverlay,
 } from './overlays/parse';
 import type { ParsedChart } from './chart';
+import { FUNNEL_DX, FUNNEL_MAX_STAGES } from './charts-d3/funnel-limits';
 import {
   makeDgmoError,
   formatDgmoError,
@@ -1561,6 +1562,18 @@ function parseExtendedChartFull(
     } else if (result.type === 'funnel') {
       if (result.data.length === 0) {
         warn(1, 'No data found. Add data in format: Label: value');
+      }
+      // Stage limit (#2439): keep the first FUNNEL_MAX_STAGES stages and say
+      // the rest are not drawn.
+      if (result.data.length > FUNNEL_MAX_STAGES) {
+        result.diagnostics.push(
+          emit(
+            FUNNEL_DX.TOO_MANY_STAGES,
+            result.data[FUNNEL_MAX_STAGES]!.lineNumber,
+            { count: result.data.length }
+          )
+        );
+        result.data = result.data.slice(0, FUNNEL_MAX_STAGES);
       }
     } else if (result.type === 'histogram') {
       settleHistogram(histogram, result.diagnostics);

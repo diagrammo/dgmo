@@ -9,6 +9,7 @@
 // `no-name` / `no-value` / `no-percent` suppress each part.
 // ============================================================
 
+import type * as d3Selection from 'd3-selection';
 import type { ParsedFunnel } from '../data-chart-parser';
 import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
@@ -19,6 +20,8 @@ import { measureText } from '../utils/text-measure';
 
 const PAD = 12;
 const MARGIN = 8;
+/** Side-label line height, in em. */
+const LABEL_LINE_EM = 1.2;
 
 export function renderFunnel(
   svg: Svg,
@@ -126,6 +129,77 @@ export function renderFunnel(
   rightW = maxRightEst(plotW) + PAD;
   ({ plotW, cx } = layout(rightW));
 
+  // Side labels (#2439). Each stage's name (left) and value/percent (right)
+  // sits beside its band. When bands are shorter than a label line, a column
+  // is spread top to bottom so no two labels overlap, set in an outer column
+  // clear of every band, and joined to its band by a leader line — the pie's
+  // label avoidance (pie.ts). A column that needs no spreading draws exactly
+  // as before.
+  interface SideLabel {
+    i: number;
+    lines: string[];
+    ideal: number;
+    c: number;
+  }
+  const lo = top;
+  const hi = bottom;
+  const leftLabels: SideLabel[] = [];
+  const rightLabels: SideLabel[] = [];
+  const valueInsides = sorted.map((_, i) => valueInsideAt(plotW, i));
+  sorted.forEach((d, i) => {
+    const yMid = top + (i + 0.5) * bandH;
+    if (!chart.noName)
+      leftLabels.push({ i, lines: [d.label], ideal: yMid, c: yMid });
+    const right = rightTextFor(i, valueInsides[i]!);
+    if (right) rightLabels.push({ i, lines: [right], ideal: yMid, c: yMid });
+  });
+  // A column taller than the band area shrinks its font, as the pie's does.
+  const linesIn = (col: SideLabel[]) =>
+    col.reduce((t, l) => t + l.lines.length, 0);
+  const maxLines = Math.max(linesIn(leftLabels), linesIn(rightLabels), 1);
+  const labelFont = Math.min(sideFont, (hi - lo) / (maxLines * LABEL_LINE_EM));
+  const lineH = labelFont * LABEL_LINE_EM;
+  const spread = (col: SideLabel[]): boolean => {
+    col.forEach((l, k) => {
+      const h = l.lines.length * lineH;
+      const prev = col[k - 1];
+      const floor = prev
+        ? prev.c + (prev.lines.length * lineH) / 2 + h / 2
+        : lo + h / 2;
+      l.c = Math.max(l.ideal, floor);
+    });
+    for (let k = col.length - 1; k >= 0; k--) {
+      const l = col[k]!;
+      const h = l.lines.length * lineH;
+      const next = col[k + 1];
+      const ceil = next
+        ? next.c - (next.lines.length * lineH) / 2 - h / 2
+        : hi - h / 2;
+      l.c = Math.min(l.c, ceil);
+    }
+    return (
+      labelFont < sideFont ||
+      col.some((l) => Math.abs(l.c - l.ideal) > 0.5 || l.lines.length > 1)
+    );
+  };
+  const leftOuter = spread(leftLabels);
+  const rightOuter = spread(rightLabels);
+
+  // Hover pairing (#2439): a label and its leader carry their stage's line,
+  // so hovering one lights its stage and hovering a stage lights them
+  // (interactions.ts, `.dgmo-ptlabel`).
+  const pair = <E extends Element>(
+    sel: d3Selection.Selection<E, unknown, null, undefined>,
+    i: number
+  ) =>
+    sel
+      .attr('class', 'dgmo-ptlabel')
+      .attr('data-line-number', sorted[i]!.lineNumber);
+  // The outer columns clear the widest band, which is the top one.
+  const outerHalf = plotW / 2;
+  const leftAt = new Map(leftLabels.map((l) => [l.i, l]));
+  const rightAt = new Map(rightLabels.map((l) => [l.i, l]));
+
   sorted.forEach((d, i) => {
     const stroke = d.color ?? colors[chart.data.indexOf(d) % colors.length]!;
     const fill = shapeFill(palette, stroke, isDark, { mode: fillMode });
@@ -151,21 +225,37 @@ export function renderFunnel(
 
     const yMid = (y0 + y1) / 2;
     const halfEdge = (topW + botW) / 4; // half of the band's width at yMid
-    if (!chart.noName) {
-      svg
-        .append('text')
-        .attr('x', cx - halfEdge - PAD)
-        .attr('y', yMid + sideFont * 0.35)
-        .attr('text-anchor', 'end')
-        .attr('fill', stroke)
-        .attr('font-size', sideFont)
-        .attr('font-weight', 'bold')
-        .attr('font-family', FONT_FAMILY)
-        .text(d.label);
+    const leader = (side: 1 | -1, x: number, c: number) => {
+      const edge = cx + side * halfEdge;
+      pair(
+        svg
+          .append('path')
+          .attr('d', `M${edge + side * 2},${yMid}L${x - side * 4},${c}`)
+          .attr('fill', 'none')
+          .attr('stroke', stroke)
+          .attr('stroke-width', 1),
+        i
+      );
+    };
+    const name = leftAt.get(i);
+    if (name) {
+      const x = leftOuter ? cx - outerHalf - PAD : cx - halfEdge - PAD;
+      if (leftOuter) leader(-1, x, name.c);
+      pair(
+        svg
+          .append('text')
+          .attr('x', x)
+          .attr('y', name.c + labelFont * 0.35)
+          .attr('text-anchor', 'end')
+          .attr('fill', stroke)
+          .attr('font-size', labelFont)
+          .attr('font-weight', 'bold')
+          .attr('font-family', FONT_FAMILY),
+        i
+      ).text(name.lines[0]!);
     }
 
-    const showPct = !chart.noPercent && i > 0;
-    const valueInside = valueInsideAt(plotW, i);
+    const valueInside = valueInsides[i]!;
     if (valueInside) {
       const valueSize = valueSizeAt(plotW, i);
       const valueFill =
@@ -183,23 +273,21 @@ export function renderFunnel(
         .attr('font-family', FONT_FAMILY)
         .call(tabularText(fmt(d.value), valueSize, { bold: true }));
     }
-    const showValueRight = !chart.noValue && !valueInside;
-    if (showValueRight || showPct) {
+    const right = rightAt.get(i);
+    if (right) {
+      const x = rightOuter ? cx + outerHalf + PAD : cx + halfEdge + PAD;
+      if (rightOuter) leader(1, x, right.c);
       const text = svg
         .append('text')
-        .attr('x', cx + halfEdge + PAD)
-        .attr('y', yMid + sideFont * 0.35)
+        .attr('x', x)
+        .attr('y', right.c + labelFont * 0.35)
         .attr('text-anchor', 'start')
-        .attr('font-size', sideFont)
+        .attr('font-size', labelFont)
         .attr('font-weight', 'bold')
         .attr('font-family', FONT_FAMILY);
-      const parts = [
-        ...(showValueRight ? [fmt(d.value)] : []),
-        ...(showPct ? [pctLabelFor(i)] : []),
-      ];
-      text
-        .attr('fill', stroke)
-        .call(tabularText(parts.join(' · '), sideFont, { bold: true }));
+      pair(text.attr('fill', stroke), i).call(
+        tabularText(right.lines[0]!, labelFont, { bold: true })
+      );
     }
   });
 }
