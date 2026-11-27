@@ -20,6 +20,7 @@
 import { curveBasis } from 'd3-shape';
 import type { BLLayoutResult } from './layout';
 import type { BLGroup } from './types';
+import { fitGroupTitle, groupTitleWidth } from './group-title';
 import {
   measureText,
   wrapTextToWidth,
@@ -66,7 +67,6 @@ const EDGE_CLEAR_PAD = 2;
 // label living INSIDE the group keeps off (#932). Keep the title numbers in
 // sync with renderer.ts: 14px bold, centred, baseline 18px below the top.
 const GROUP_BORDER_BAND = 4;
-const GROUP_TITLE_FONT_SIZE = 14;
 const GROUP_TITLE_DEPTH = 24;
 const GROUP_LABEL_ZONE = 32;
 
@@ -523,7 +523,7 @@ export function placeEdgeLabels(
   const titleRects: Rect[] = layout.groups
     .filter((g) => !g.collapsed)
     .map((g) => {
-      const tw = measureText(g.label, GROUP_TITLE_FONT_SIZE, { bold: true });
+      const tw = groupTitleWidth(fitGroupTitle(g.label, g.width));
       const top = drawnTop(g);
       return {
         minX: g.x - tw / 2,

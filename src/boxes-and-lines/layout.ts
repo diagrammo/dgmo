@@ -27,6 +27,11 @@ import {
 import { measureText, wrapTextToWidth } from '../utils/text-measure';
 import { LABEL_REACH_WIDE, placeEdgeLabels } from './label-placement';
 import {
+  fitGroupTitle,
+  groupTitleExtraHeight,
+  groupTitleWidth,
+} from './group-title';
+import {
   resolveNotes,
   buildPlacedNotes,
   noteCanvasShift,
@@ -47,7 +52,6 @@ const PORT_CORNER_CLEAR = 6;
 // Group title: bold, centred in the top GROUP_LABEL_ZONE of the frame
 // (renderer.ts); an edge end keeps TITLE_CLEAR px off its text (#2299).
 const GROUP_LABEL_ZONE = 32;
-const GROUP_TITLE_FONT_SIZE = 14;
 const TITLE_CLEAR = 6;
 
 const DESC_NODE_WIDTH = 140;
@@ -317,7 +321,10 @@ export async function layoutBoxesAndLines(
   }
 ): Promise<BLLayoutResult> {
   const laid = clearGroupTitles(
-    await layoutWithSubLayouts(parsed, collapseInfo, layoutOptions),
+    reserveGroupTitleRoom(
+      await layoutWithSubLayouts(parsed, collapseInfo, layoutOptions),
+      parsed
+    ),
     parsed
   );
   // Engine-agnostic post-processing: float notes (and shift the canvas to fit
@@ -467,6 +474,100 @@ async function layoutPlaced(
   return placed.layout;
 }
 
+/** Groups whose frame the renderer extends upward by GROUP_LABEL_ZONE. */
+function parentGroupLabels(parsed: ParsedBoxesAndLines): Set<string> {
+  const groupLabels = new Set(parsed.groups.map((g) => g.label));
+  return new Set(
+    parsed.groups
+      .filter((g) => g.children.some((c) => groupLabels.has(c)))
+      .map((g) => g.label)
+  );
+}
+
+/**
+ * Make room for an expanded group title that wraps (#2423). For each extra
+ * title line, the layout is stretched by GROUP_TITLE_LINE_H at the frame's
+ * drawn top: everything below that line moves down, and a frame that spans it
+ * grows. The group itself keeps its top and grows at the bottom, so its
+ * contents drop below the wrapped title. The stretch only moves things apart,
+ * so it cannot make an overlap. A box moves with its centre and an edge's
+ * ends move with their boxes, so no box is resized and no edge comes loose.
+ * A layout whose titles all fit on one line is returned unchanged.
+ */
+function reserveGroupTitleRoom(
+  layout: BLLayoutResult,
+  parsed: ParsedBoxesAndLines
+): BLLayoutResult {
+  const hasSub = parentGroupLabels(parsed);
+  const needs = layout.groups
+    .filter((g) => !g.collapsed)
+    .map((g) => ({
+      label: g.label,
+      extra: groupTitleExtraHeight(fitGroupTitle(g.label, g.width)),
+    }))
+    .filter((n) => n.extra > 0);
+  if (needs.length === 0) return layout;
+
+  let nodes = [...layout.nodes];
+  let groups = [...layout.groups];
+  let edges = [...layout.edges];
+  let height = layout.height;
+  // Lowest title first, so a later cut never lands inside a stretched band.
+  const top = (g: BLLayoutGroup): number =>
+    g.y - g.height / 2 - (hasSub.has(g.label) ? GROUP_LABEL_ZONE : 0);
+  const order = needs
+    .map((n) => ({ ...n, g: groups.find((g) => g.label === n.label)! }))
+    .sort((a, b) => top(b.g) - top(a.g));
+  for (const { label, extra } of order) {
+    const g0 = groups.find((g) => g.label === label)!;
+    const cut = top(g0);
+    const f = (y: number): number => (y > cut ? y + extra : y);
+    const moved = new Set<string>();
+    nodes = nodes.map((n) => {
+      if (n.y <= cut) return n;
+      moved.add(n.label);
+      return { ...n, y: n.y + extra };
+    });
+    groups = groups.map((g) => {
+      const t = g.y - g.height / 2;
+      const b = g.y + g.height / 2;
+      if (g.label === label) {
+        return { ...g, y: g.y + extra / 2, height: g.height + extra };
+      }
+      if (g.collapsed) {
+        if (g.y <= cut) return g;
+        moved.add(g.label);
+        return { ...g, y: g.y + extra };
+      }
+      const nt = f(t);
+      const nb = f(b);
+      return nt === t && nb === b
+        ? g
+        : { ...g, y: (nt + nb) / 2, height: nb - nt };
+    });
+    edges = edges.map((e) => {
+      const last = e.points.length - 1;
+      const points = e.points.map((p, i) => {
+        const end = i === 0 ? e.source : i === last ? e.target : undefined;
+        const shift =
+          end !== undefined &&
+          (nodes.some((n) => n.label === end) ||
+            groups.some((g) => g.label === end && g.collapsed))
+            ? moved.has(end)
+            : p.y > cut;
+        return shift ? { x: p.x, y: p.y + extra } : p;
+      });
+      return {
+        ...e,
+        points,
+        ...(e.labelY !== undefined && { labelY: f(e.labelY) }),
+      };
+    });
+    height += extra;
+  }
+  return { ...layout, nodes, groups, edges, height };
+}
+
 /**
  * Move an edge's final drop off the group title it would run through (#2299).
  * The routers aim an edge at its box's port, and nothing keeps that port out
@@ -481,23 +582,19 @@ function clearGroupTitles(
   layout: BLLayoutResult,
   parsed: ParsedBoxesAndLines
 ): BLLayoutResult {
-  const groupLabels = new Set(parsed.groups.map((g) => g.label));
-  const hasSub = new Set(
-    parsed.groups
-      .filter((g) => g.children.some((c) => groupLabels.has(c)))
-      .map((g) => g.label)
-  );
+  const hasSub = parentGroupLabels(parsed);
   const strips = layout.groups
     .filter((g) => !g.collapsed)
     .map((g) => {
-      const tw = measureText(g.label, GROUP_TITLE_FONT_SIZE, { bold: true });
+      const title = fitGroupTitle(g.label, g.width);
+      const tw = groupTitleWidth(title);
       const y0 =
         g.y - g.height / 2 - (hasSub.has(g.label) ? GROUP_LABEL_ZONE : 0);
       return {
         x0: g.x - tw / 2 - TITLE_CLEAR,
         x1: g.x + tw / 2 + TITLE_CLEAR,
         y0,
-        y1: y0 + GROUP_LABEL_ZONE,
+        y1: y0 + GROUP_LABEL_ZONE + groupTitleExtraHeight(title),
       };
     });
   if (strips.length === 0) return layout;

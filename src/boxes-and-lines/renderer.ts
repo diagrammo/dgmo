@@ -76,6 +76,7 @@ import { ScaleContext } from '../utils/scaling';
 import { growChartFrame } from '../utils/chart-frame';
 import { renderCollapseBar } from '../utils/card';
 import { FULL_TEXT_ATTR, fullNodeText, isCutShort } from '../utils/full-text';
+import { fitGroupTitle, GROUP_TITLE_LINE_H } from './group-title';
 import {
   CHAR_WIDTH_RATIO,
   measureText,
@@ -939,17 +940,26 @@ export function renderBoxesAndLines(
         // the point where the group reads as uncolored again.
         .attr('stroke-opacity', groupTagColor && !gGround ? 1 : 0.35);
 
-      groupG
-        .append('text')
-        .attr('class', 'bl-group-label')
-        .attr('x', gx + group.width / 2)
-        .attr('y', gy + 18)
-        .attr('text-anchor', 'middle')
-        .attr('font-family', FONT_FAMILY)
-        .attr('font-size', sGroupLabelFontSize)
-        .attr('font-weight', 'bold')
-        .attr('fill', gGround ? gGround.groundText : palette.text)
-        .text(group.label);
+      // Wrapped to the frame, cut with "…" only past its last line (#2423);
+      // the layout reserved the room for the extra lines.
+      const title = fitGroupTitle(group.label, group.width);
+      title.lines.forEach((line, li) => {
+        groupG
+          .append('text')
+          .attr('class', 'bl-group-label')
+          .attr('x', gx + group.width / 2)
+          .attr('y', gy + GROUP_TITLE_LINE_H * (li + 1))
+          .attr('text-anchor', 'middle')
+          .attr('font-family', FONT_FAMILY)
+          .attr('font-size', sGroupLabelFontSize)
+          .attr('font-weight', 'bold')
+          .attr('fill', gGround ? gGround.groundText : palette.text)
+          .text(line);
+      });
+      if (title.truncated) {
+        groupG.attr(FULL_TEXT_ATTR, group.label);
+        groupG.append('title').text(group.label);
+      }
 
       // An expanded group folds: its hover preview of the bar (#1741).
       renderCollapseBar(groupG, {
