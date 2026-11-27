@@ -814,3 +814,52 @@ export function activeTagNoMatchMessage(
 export function matchTagBlockHeading(trimmed: string): TagBlockMatch | null {
   return parseTagDeclaration(trimmed);
 }
+
+/**
+ * The legend shows only the tag values something in the diagram uses (owner's
+ * rule 2026-11-26, diagrammo/diagrammo#2422). Keeps each group's entries whose
+ * value at least one item carries — matched case-insensitively, with the
+ * group's `defaultValue` standing in for an item that names none, exactly as
+ * `resolveTagValue` colours it — and drops a group left with no entry.
+ *
+ * `items` are the metadata records of the entities the chart colours (keys
+ * from `tagAttrKey`). `containers` are group frames: they count only a value
+ * written on them, never the default (as `resolveGroupTagColor` colours them).
+ * Gradient groups (no discrete entries) pass through untouched.
+ */
+export function keepUsedTagValues<
+  G extends {
+    readonly name: string;
+    readonly entries: ReadonlyArray<{ readonly value: string }>;
+    readonly gradient?: unknown;
+  },
+>(
+  groups: readonly G[],
+  tagGroups: readonly TagGroup[],
+  items: Iterable<Readonly<Record<string, string>> | undefined>,
+  containers: Iterable<Readonly<Record<string, string>> | undefined> = []
+): G[] {
+  const records = [...items];
+  const frames = [...containers];
+  const out: G[] = [];
+  for (const g of groups) {
+    if (g.gradient !== undefined) {
+      out.push(g);
+      continue;
+    }
+    const key = tagAttrKey(g.name);
+    const def = tagGroups.find((t) => tagAttrKey(t.name) === key)?.defaultValue;
+    const used = new Set<string>();
+    for (const m of records) {
+      const v = m?.[key] ?? def;
+      if (v) used.add(v.toLowerCase());
+    }
+    for (const m of frames) {
+      const v = m?.[key];
+      if (v) used.add(v.toLowerCase());
+    }
+    const entries = g.entries.filter((e) => used.has(e.value.toLowerCase()));
+    if (entries.length) out.push({ ...g, entries });
+  }
+  return out;
+}

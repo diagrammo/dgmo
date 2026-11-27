@@ -5,7 +5,7 @@
 // POI radii + edge widths, and places labels with per-cluster collision
 // escalation. The SVG emission is renderer.ts (it only draws what we compute).
 // See spec section 24B.3-.7/.11 + the tech-spec Adversarial Review Resolutions AR1-AR9.
-import { tagAttrKey } from '../utils/tag-groups';
+import { keepUsedTagValues, tagAttrKey } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import {
   geoPath,
@@ -2010,10 +2010,19 @@ export function layoutMap(
   // thickness are self-evident from the marker/line scale and carry no key. --
   let legend: MapLayoutLegend | null = null;
   if (!resolved.directives.noLegend) {
-    const legendTagGroups = resolved.tagGroups.map((g) => ({
-      name: g.name,
-      entries: g.entries.map((e) => ({ value: e.value, color: e.color })),
-    }));
+    const legendTagGroups = keepUsedTagValues(
+      resolved.tagGroups.map((g) => ({
+        name: g.name,
+        entries: g.entries.map((e) => ({ value: e.value, color: e.color })),
+      })),
+      resolved.tagGroups,
+      [
+        ...resolved.regions.map((r) => r.tags),
+        ...resolved.pois.map((p) => p.tags),
+        ...resolved.edges.map((e) => e.tags),
+        ...resolved.routes.flatMap((rt) => rt.legs.map((l) => l.tags)),
+      ]
+    );
     if (legendTagGroups.length > 0 || hasRamp) {
       legend = {
         tagGroups: legendTagGroups,

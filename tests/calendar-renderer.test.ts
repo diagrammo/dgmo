@@ -265,7 +265,7 @@ tag Mood
   Great green
   Rough red
 
-01-01 3 great
+01-01 Commits: 3, Mood: Great
 `;
     const words = (c: HTMLElement) =>
       [...c.querySelectorAll('.calendar-legend text')].map(

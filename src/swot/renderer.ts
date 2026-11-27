@@ -12,7 +12,7 @@ import { getMaxLegendReservedHeight } from '../utils/legend-layout';
 import { LEGEND_HEIGHT, legendInkBottom } from '../utils/legend-constants';
 import type { LegendConfig } from '../utils/legend-types';
 import { legendSuppressed } from '../utils/parsing';
-import { tagAttrKey } from '../utils/tag-groups';
+import { keepUsedTagValues, tagAttrKey } from '../utils/tag-groups';
 import { measureText, wrapTextToWidth } from '../utils/text-measure';
 import {
   FRAME_BODY_TOP,
@@ -174,7 +174,11 @@ export function renderSwot(
     width - legendX - DIAGRAM_PADDING
   );
   const legendConfig: LegendConfig = {
-    groups: parsed.tagGroups,
+    groups: keepUsedTagValues(
+      parsed.tagGroups,
+      parsed.tagGroups,
+      parsed.sections.flatMap((s) => s.items.map((i) => i.tags))
+    ),
     position: { placement: 'top-center', titleRelation: 'inline-with-title' },
     mode: options?.exportMode ? 'export' : 'preview',
     // Every other group as a pill beside the active capsule, so a click can

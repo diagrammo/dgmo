@@ -37,6 +37,7 @@ import { FONT_FAMILY } from '../fonts';
 import { growChartFrame } from '../utils/chart-frame';
 import {
   resolveActiveTagGroup,
+  keepUsedTagValues,
   resolveTagColor,
   tagAttrKey,
 } from '../utils/tag-groups';
@@ -571,13 +572,17 @@ export function renderBody(
     const legendG = svg
       .append('g')
       .attr('transform', `translate(0, ${TITLE_H}) scale(${LEGEND_SCALE})`);
-    const groups: LegendGroupData[] = parsed.tagGroups.map((g) => ({
-      name: g.name,
-      entries: g.entries.map((e) => ({
-        value: e.value,
-        color: resolveColor(e.color, palette) ?? e.color,
+    const groups: LegendGroupData[] = keepUsedTagValues(
+      parsed.tagGroups.map((g) => ({
+        name: g.name,
+        entries: g.entries.map((e) => ({
+          value: e.value,
+          color: resolveColor(e.color, palette) ?? e.color,
+        })),
       })),
-    }));
+      parsed.tagGroups,
+      parsed.parts.map((part) => part.metadata)
+    );
     renderIntegratedLegend(legendG, {
       frame: parsed.frame,
       groups,

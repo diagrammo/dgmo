@@ -3,7 +3,7 @@
 // ============================================================
 
 import { serializeSvg } from '../utils/svg-serialize';
-import { tagAttrKey } from '../utils/tag-groups';
+import { keepUsedTagValues, tagAttrKey } from '../utils/tag-groups';
 import { fillModeFromOptions } from '../utils/parsing';
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
@@ -671,7 +671,12 @@ function drawKanban(
       : 0;
     const legendX = sDiagramPadding + titleTextWidth;
     const legendConfig: LegendConfig = {
-      groups: parsed.tagGroups,
+      groups: keepUsedTagValues(
+        parsed.tagGroups,
+        parsed.tagGroups,
+        parsed.columns.flatMap((col) => col.cards.map((card) => card.tags)),
+        parsed.columns.map((col) => col.metadata)
+      ),
       position: { placement: 'top-center', titleRelation: 'inline-with-title' },
       mode: options?.exportMode ? 'export' : 'preview',
     };

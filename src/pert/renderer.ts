@@ -79,6 +79,7 @@ import {
   resolveActiveTagGroup,
   resolveTagColor,
   resolveGroupTagColor,
+  keepUsedTagValues,
   UNTAGGED_TAG_COLOR,
   tagAttrKey,
 } from '../utils/tag-groups';
@@ -591,10 +592,15 @@ export function renderPert(
   const legendExtent = inlineRequested
     ? getLegendExtent(
         {
-          groups: resolved.tagGroups.map((g) => ({
-            name: g.name,
-            entries: g.entries,
-          })),
+          groups: keepUsedTagValues(
+            resolved.tagGroups.map((g) => ({
+              name: g.name,
+              entries: g.entries,
+            })),
+            resolved.tagGroups,
+            resolved.activities.map((r) => r.activity.tags),
+            resolved.groups.map((rg) => rg.group.tags)
+          ),
           position: {
             placement: 'top-center',
             titleRelation: 'inline-with-title',
@@ -2574,10 +2580,15 @@ function renderTagLegendRow(
   if (resolved.tagGroups.length === 0) return;
 
   const { x, y, width, activeGroup, exportMode, inline } = args;
-  const groups = resolved.tagGroups.map((g) => ({
-    name: g.name,
-    entries: g.entries.map((e) => ({ value: e.value, color: e.color })),
-  }));
+  const groups = keepUsedTagValues(
+    resolved.tagGroups.map((g) => ({
+      name: g.name,
+      entries: g.entries.map((e) => ({ value: e.value, color: e.color })),
+    })),
+    resolved.tagGroups,
+    resolved.activities.map((r) => r.activity.tags),
+    resolved.groups.map((rg) => rg.group.tags)
+  );
 
   const block = svg
     .append('g')

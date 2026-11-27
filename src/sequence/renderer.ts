@@ -3,7 +3,7 @@
 // ============================================================
 
 import { growChartFrame } from '../utils/chart-frame';
-import { tagAttrKey } from '../utils/tag-groups';
+import { tagAttrKey, keepUsedTagValues } from '../utils/tag-groups';
 import { fillModeFromOptions } from '../utils/parsing';
 import * as d3Selection from 'd3-selection';
 import type { PaletteColors } from '../palettes';
@@ -1893,12 +1893,30 @@ function layoutSequencePass(
   const showTitle = !!title && parsedOptions['no-title'] !== 'on';
   const titleOffset = showTitle ? sTitleHeight : 0;
   const LEGEND_FIXED_GAP = 8;
-  const resolvedGroups = parsed.tagGroups
-    .filter((tg) => tg.entries.length > 0)
-    .map((tg) => ({
-      name: tg.name,
-      entries: tg.entries.map((e) => ({ value: e.value, color: e.color })),
-    }));
+  // Used tag values per group, as the renderer colours them: participants
+  // (group propagation, receiver inheritance and default included), messages,
+  // and group boxes' own metadata.
+  const usedTagRecords: Record<string, string>[] = [];
+  for (const tg of parsed.tagGroups) {
+    const key = tagAttrKey(tg.name);
+    const tm = resolveSequenceTags(parsed, tg.name);
+    for (const v of [...tm.participants.values(), ...tm.messages.values()]) {
+      if (v) usedTagRecords.push({ [key]: v });
+    }
+  }
+  for (const g of parsed.groups) {
+    if (g.metadata) usedTagRecords.push({ ...g.metadata });
+  }
+  const resolvedGroups = keepUsedTagValues(
+    parsed.tagGroups
+      .filter((tg) => tg.entries.length > 0)
+      .map((tg) => ({
+        name: tg.name,
+        entries: tg.entries.map((e) => ({ value: e.value, color: e.color })),
+      })),
+    parsed.tagGroups,
+    usedTagRecords
+  );
   const legendConfig: LegendConfig = {
     groups: resolvedGroups,
     position: { placement: 'top-center', titleRelation: 'below-title' },

@@ -43,7 +43,11 @@ import type { WrappedDescLine } from '../utils/wrapped-desc';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import { formatDateLabel } from '../timeline/renderer';
 import type { LegendGroupData } from '../utils/legend-types';
-import { resolveActiveTagGroup, tagAttrKey } from '../utils/tag-groups';
+import {
+  keepUsedTagValues,
+  resolveActiveTagGroup,
+  tagAttrKey,
+} from '../utils/tag-groups';
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import type { ParsedEventLine } from './types';
@@ -239,13 +243,17 @@ export function renderEventLine(
           ? `translate(${header.legendX}, ${header.legendY})`
           : `translate(0, ${titleH})`
       );
-    const groups: LegendGroupData[] = parsed.tagGroups.map((g) => ({
-      name: g.name,
-      entries: g.entries.map((e) => ({
-        value: e.value,
-        color: resolveColor(e.color, palette) ?? e.color,
+    const groups: LegendGroupData[] = keepUsedTagValues(
+      parsed.tagGroups.map((g) => ({
+        name: g.name,
+        entries: g.entries.map((e) => ({
+          value: e.value,
+          color: resolveColor(e.color, palette) ?? e.color,
+        })),
       })),
-    }));
+      parsed.tagGroups,
+      parsed.events.map((ev) => ev.metadata)
+    );
     renderIntegratedLegend(legendG, {
       frame: parsed.frame,
       groups,

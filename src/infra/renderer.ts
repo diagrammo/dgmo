@@ -3,7 +3,7 @@
 // ============================================================
 
 import { growChartFrame, type ChartFrame } from '../utils/chart-frame';
-import { tagAttrKey } from '../utils/tag-groups';
+import { keepUsedTagValues, tagAttrKey } from '../utils/tag-groups';
 import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
@@ -2436,7 +2436,20 @@ export function computeInfraLegendGroups(
     });
   }
 
-  return groups;
+  // A tag legend lists only the values some node carries (#2422).
+  return [
+    ...groups.filter((g) => g.type !== 'tag'),
+    ...keepUsedTagValues(
+      groups.filter((g) => g.type === 'tag'),
+      tagGroups.map((t) => ({
+        name: t.name,
+        entries: [],
+        ...(t.defaultValue !== undefined && { defaultValue: t.defaultValue }),
+        lineNumber: t.lineNumber,
+      })),
+      nodes.map((n) => n.tags)
+    ),
+  ];
 }
 
 function renderLegend(

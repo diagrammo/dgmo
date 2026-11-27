@@ -39,6 +39,7 @@ import {
 } from '../palettes/color-utils';
 import { resolveColor } from '../colors';
 import {
+  keepUsedTagValues,
   resolveTagColor,
   tagAttrKey,
   UNTAGGED_TAG_COLOR,
@@ -158,12 +159,16 @@ export function renderFamilyForExport(
   const titleReserve = parsed.title ? TITLE_RESERVE : 0;
 
   // ── Legend (standard tag-group framework) ──
-  const legendGroups = parsed.tagGroups
-    .filter((g) => g.entries.length > 0)
-    .map((g) => ({
-      name: g.name,
-      entries: g.entries.map((e) => ({ value: e.value, color: e.color })),
-    }));
+  const legendGroups = keepUsedTagValues(
+    parsed.tagGroups
+      .filter((g) => g.entries.length > 0)
+      .map((g) => ({
+        name: g.name,
+        entries: g.entries.map((e) => ({ value: e.value, color: e.color })),
+      })),
+    parsed.tagGroups,
+    [...parsed.persons.values()].map((p) => p.tagMetadata)
+  );
   const hasLegend =
     legendGroups.length > 0 && !legendSuppressed(parsed.options);
   const legendConfig: LegendConfig = {

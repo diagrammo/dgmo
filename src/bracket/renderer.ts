@@ -29,7 +29,11 @@ import {
 import { resolveColor } from '../colors';
 import { measureText } from '../utils/text-measure';
 import { renderInlineText } from '../utils/inline-markdown';
-import { resolveTagColor, tagAttrKey } from '../utils/tag-groups';
+import {
+  keepUsedTagValues,
+  resolveTagColor,
+  tagAttrKey,
+} from '../utils/tag-groups';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import {
   getMaxLegendReservedHeight,
@@ -160,15 +164,24 @@ function resolveBracketLegend(parsed: ParsedBracket, palette: PaletteColors) {
     : undefined;
   const legendGroups: LegendGroupData[] =
     activeGroup && !parsed.noLegend
-      ? [
-          {
-            name: activeGroup.name,
-            entries: activeGroup.entries.map((e) => ({
-              value: e.value,
-              color: resolveColor(e.color, palette) ?? e.color,
-            })),
-          },
-        ]
+      ? keepUsedTagValues(
+          [
+            {
+              name: activeGroup.name,
+              entries: activeGroup.entries.map((e) => ({
+                value: e.value,
+                color: resolveColor(e.color, palette) ?? e.color,
+              })),
+            },
+          ],
+          // Bracket colouring ignores a group's default value.
+          parsed.tagGroups.map((g) => ({
+            name: g.name,
+            entries: g.entries,
+            lineNumber: g.lineNumber,
+          })),
+          parsed.competitorMeta.values()
+        )
       : [];
   return { activeGroup, legendGroups };
 }

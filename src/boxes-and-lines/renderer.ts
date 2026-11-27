@@ -48,6 +48,7 @@ import { resolveHighlightPaths, storyGround } from '../utils/emphasis';
 import {
   resolveTagColor,
   resolveGroupTagColor,
+  keepUsedTagValues,
   tagAttrKey,
 } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
@@ -514,7 +515,17 @@ export function renderBoxesAndLines(
       : null;
   const legendGroups: readonly LegendGroupData[] = [
     ...(valueGroup ? [valueGroup] : []),
-    ...parsed.tagGroups,
+    ...keepUsedTagValues(
+      parsed.tagGroups,
+      parsed.tagGroups,
+      [
+        ...parsed.nodes.map((n) => n.metadata),
+        ...parsed.edges
+          .filter((e) => Object.keys(e.metadata).length > 0)
+          .map((e) => e.metadata),
+      ],
+      parsed.groups.map((g) => g.metadata)
+    ),
   ];
 
   // Reserve legend height only when a legend will actually render. App-hosted

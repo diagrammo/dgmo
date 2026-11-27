@@ -5,7 +5,11 @@
 import { CLOUD_BUMP, QUEUE_CAP } from '../shape-caps';
 import { Bounds, translateInPlace } from '../utils/bounds';
 import { META_FONT_SIZE, META_LINE_HEIGHT } from '../utils/visual-conventions';
-import { tagAttrKey, UNTAGGED_TAG_COLOR } from '../utils/tag-groups';
+import {
+  tagAttrKey,
+  keepUsedTagValues,
+  UNTAGGED_TAG_COLOR,
+} from '../utils/tag-groups';
 import dagre from '@dagrejs/dagre';
 import type {
   ParsedC4,
@@ -823,9 +827,39 @@ function padForShape(
 // ============================================================
 
 function computeLegendGroups(
-  tagGroups: readonly TagGroup[]
+  allTagGroups: readonly TagGroup[],
+  parsed: ParsedC4
 ): Writable<C4LegendGroup>[] {
   const result: Writable<C4LegendGroup>[] = [];
+
+  // The legend lists only tag values something in the diagram uses (whole
+  // diagram, not just the visible level): elements, boundaries, deployment nodes.
+  const usedRecords: Readonly<Record<string, string>>[] = [];
+  const boundaryRecords: Readonly<Record<string, string>>[] = [];
+  const walkEl = (els: readonly C4Element[]): void => {
+    for (const el of els) {
+      usedRecords.push(el.metadata);
+      for (const g of el.groups) {
+        if (g.metadata) boundaryRecords.push(g.metadata);
+        walkEl(g.children);
+      }
+      walkEl(el.children);
+    }
+  };
+  walkEl(parsed.elements);
+  const walkDep = (nodes: readonly C4DeploymentNode[]): void => {
+    for (const n of nodes) {
+      usedRecords.push(n.metadata);
+      walkDep(n.children);
+    }
+  };
+  walkDep(parsed.deployment);
+  const tagGroups = keepUsedTagValues(
+    allTagGroups,
+    parsed.tagGroups,
+    usedRecords,
+    boundaryRecords
+  );
 
   for (const group of tagGroups) {
     const entries: C4LegendEntry[] = [];
@@ -1036,7 +1070,8 @@ export function layoutC4Context(
   // Legend: show all defined tag groups and entries so users see the full
   // tag vocabulary regardless of which elements are visible at this view level.
   const legendGroups = computeLegendGroups(
-    legendSuppressed(parsed.options) ? [] : parsed.tagGroups
+    legendSuppressed(parsed.options) ? [] : parsed.tagGroups,
+    parsed
   );
 
   // Position legend below diagram
@@ -1469,7 +1504,8 @@ export function layoutC4Containers(
   let totalHeight = bb.maxY - bb.minY + MARGIN * 2;
 
   const legendGroups = computeLegendGroups(
-    legendSuppressed(parsed.options) ? [] : parsed.tagGroups
+    legendSuppressed(parsed.options) ? [] : parsed.tagGroups,
+    parsed
   );
 
   // Position legend below diagram
@@ -1982,7 +2018,8 @@ export function layoutC4Components(
   let totalHeight = bb.maxY - bb.minY + MARGIN * 2;
 
   const legendGroups = computeLegendGroups(
-    legendSuppressed(parsed.options) ? [] : parsed.tagGroups
+    legendSuppressed(parsed.options) ? [] : parsed.tagGroups,
+    parsed
   );
 
   // Position legend below diagram
@@ -2514,7 +2551,8 @@ export function layoutC4Deployment(
   let totalHeight = bb.maxY - bb.minY + MARGIN * 2;
 
   const legendGroups = computeLegendGroups(
-    legendSuppressed(parsed.options) ? [] : parsed.tagGroups
+    legendSuppressed(parsed.options) ? [] : parsed.tagGroups,
+    parsed
   );
 
   if (legendGroups.length > 0) {

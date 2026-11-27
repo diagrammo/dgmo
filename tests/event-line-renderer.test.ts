@@ -1207,7 +1207,7 @@ tag Type as t
     ).toBe(true);
   });
 
-  it('treats a legend value with zero events as a no-op (no all-dim void)', () => {
+  it('leaves a value with zero events out of the legend (#2422)', () => {
     const src = `event-line Unused
 tag Kind as k
   Browser blue
@@ -1218,11 +1218,8 @@ tag Kind as k
   2020-01-01 A  k: Browser
   2021-01-01 B  k: Standard`;
     const svg = renderPreview(src).querySelector('svg')!;
-    const mobile = svg.querySelector('[data-legend-entry="mobile"]')!;
-    expect(mobile).not.toBeNull();
-    mobile.dispatchEvent(new window.MouseEvent('mouseover', { bubbles: true }));
-    // Nothing is tagged Mobile → nothing dims (rather than dimming everything).
-    expect(svg.querySelectorAll('.dgmo-evt-dim').length).toBe(0);
+    expect(svg.querySelector('[data-legend-entry="browser"]')).not.toBeNull();
+    expect(svg.querySelector('[data-legend-entry="mobile"]')).toBeNull();
   });
 
   describe('now marker (§28.7)', () => {

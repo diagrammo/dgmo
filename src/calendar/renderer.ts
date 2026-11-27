@@ -35,6 +35,7 @@ import { legendSuppressed } from '../utils/parsing';
 import {
   AUTO_TAG_COLOR_SENTINEL,
   assignAutoTagColors,
+  keepUsedTagValues,
   tagAttrKey,
 } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
@@ -505,17 +506,20 @@ export function renderCalendar(
   // ── Legend: one pill per group ─────────────────────────────
   const showLegend =
     parsed.groups.length > 0 && !legendSuppressed(parsed.options);
-  const legendGroups: LegendGroupData[] = parsed.groups.map((ref) =>
-    legendGroupFor(
-      ref,
-      parsed,
-      palette,
-      isDark,
-      fillsByTag,
-      notLoggedStroke,
-      toSteps
+  const legendGroups: LegendGroupData[] = parsed.groups
+    .map((ref) =>
+      legendGroupFor(
+        ref,
+        parsed,
+        palette,
+        isDark,
+        fillsByTag,
+        notLoggedStroke,
+        toSteps
+      )
     )
-  );
+    // A tag group with no used value draws no pill (#2422).
+    .filter((g) => g.gradient !== undefined || g.entries.length > 0);
 
   // ── Geometry ───────────────────────────────────────────────
   const titleWidth = showTitle
@@ -900,7 +904,16 @@ function legendGroupFor(
     return {
       name: ref.name,
       entries: [
-        ...[...fills].map(([value, color]) => ({ value, color })),
+        ...(keepUsedTagValues(
+          [
+            {
+              name: ref.name,
+              entries: [...fills].map(([value, color]) => ({ value, color })),
+            },
+          ],
+          parsed.tagGroups,
+          [...parsed.days, ...parsed.events].map((d) => d.tags)
+        )[0]?.entries ?? []),
         // A blank day only means something when some day carries the tag.
         ...(parsed.days.some((d) => d.tags[ref.key] !== undefined)
           ? [{ value: parsed.emptyLabel, color: blank }]

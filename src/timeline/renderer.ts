@@ -39,7 +39,7 @@ import {
   themeBaseBg,
   getEraColors,
 } from '../palettes/color-utils';
-import { resolveTagColor } from '../utils/tag-groups';
+import { keepUsedTagValues, resolveTagColor } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import { FRAME_BODY_TOP } from '../utils/title-constants';
 import {
@@ -1282,7 +1282,11 @@ function renderTimelineTagLegendOverlay(
       minifiedWidth: number;
       expandedWidth: number;
     };
-    const legendGroups: LegendGroup[] = parsed.timelineTagGroups.map((g) => {
+    const legendGroups: LegendGroup[] = keepUsedTagValues(
+      parsed.timelineTagGroups,
+      parsed.timelineTagGroups,
+      timelineEvents.map((ev) => ev.metadata)
+    ).map((g) => {
       const pillW = measureLegendText(g.name, LG_PILL_FONT_SIZE) + LG_PILL_PAD;
       // Expanded: pill + icon (unless viewMode) + entries
       const iconSpace = viewMode ? 8 : LG_ICON_W + 4;

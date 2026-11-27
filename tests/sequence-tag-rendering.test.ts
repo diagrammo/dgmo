@@ -265,7 +265,7 @@ const multiGroupDiagram = [
   '',
   'API | concern: Caching',
   'DB is a database',
-  'API -query-> DB',
+  'API -query-> DB | concern: Auth',
 ].join('\n');
 
 describe('Sequence legend rendering', () => {

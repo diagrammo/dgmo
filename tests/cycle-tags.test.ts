@@ -204,12 +204,13 @@ B`);
 });
 
 describe('cycle tag groups — renderer', () => {
-  it('draws the tag legend with every value', () => {
+  it('draws the tag legend with the used values only', () => {
     const c = render(PIRATE);
     const entries = [...c.querySelectorAll('[data-legend-entry]')].map((e) =>
       e.getAttribute('data-legend-entry')
     );
-    expect(entries).toEqual(expect.arrayContaining(['big', 'small', 'tiny']));
+    expect(entries).toEqual(expect.arrayContaining(['big', 'small']));
+    expect(entries).not.toContain('tiny');
     expect(c.querySelector('[data-legend-group]')).toBeTruthy();
   });
 

@@ -29,6 +29,7 @@ import {
   resolveActiveTagGroup,
   resolveTagColor,
   resolveGroupTagColor,
+  keepUsedTagValues,
   tagAttrKey,
 } from '../utils/tag-groups';
 import { renderIntegratedLegend } from '../utils/legend-integration';
@@ -154,7 +155,12 @@ export function renderState(
     tagGroups,
     graph.options['active-tag']
   );
-  const legendGroups: readonly LegendGroupData[] = tagGroups;
+  const legendGroups: readonly LegendGroupData[] = keepUsedTagValues(
+    tagGroups,
+    tagGroups,
+    layout.nodes.map((n) => n.metadata),
+    layout.groups.map((g) => g.metadata)
+  );
   const hasLegend = legendGroups.length > 0 && !legendSuppressed(graph.options);
   const legendH = hasLegend
     ? ctx.structural(

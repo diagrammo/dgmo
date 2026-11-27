@@ -1,6 +1,6 @@
 import { serializeSvg } from '../utils/svg-serialize';
 import { growChartFrame } from '../utils/chart-frame';
-import { tagAttrKey } from '../utils/tag-groups';
+import { keepUsedTagValues, tagAttrKey } from '../utils/tag-groups';
 import { fillModeFromOptions } from '../utils/parsing';
 import { renderCollapseBar } from '../utils/card';
 import {
@@ -474,7 +474,13 @@ export function renderJourneyMap(
 
     renderIntegratedLegend(legendG, {
       frame: parsed.frame,
-      groups: parsed.tagGroups,
+      groups: keepUsedTagValues(
+        parsed.tagGroups,
+        parsed.tagGroups,
+        [...parsed.steps, ...parsed.phases.flatMap((ph) => ph.steps)].map(
+          (s) => s.tags
+        )
+      ),
       activeGroup: effectiveActiveGroup,
       mode: options?.exportMode ? 'export' : 'preview',
       position: { placement: 'top-center', titleRelation: 'inline-with-title' },

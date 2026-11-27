@@ -15,7 +15,7 @@ import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
 import { contrastText, shapeFill } from '../palettes/color-utils';
 import { getSeriesColors } from '../palettes';
-import { resolveTagColor } from '../utils/tag-groups';
+import { resolveTagColor, keepUsedTagValues } from '../utils/tag-groups';
 import { LEGEND_HEIGHT, LEGEND_INK_BOTTOM } from '../utils/legend-constants';
 import { getLegendExtent } from '../utils/legend-layout';
 import { layoutInlineHeader } from '../utils/inline-header';
@@ -319,7 +319,13 @@ export function renderERDiagram(
   // to the stacked band when it can't fit on one row beside the title.
   const inlineRequested = legendInlineRequested(parsed.options);
   const hasLegend = hasTagLegend || showSemanticLegend;
-  const inlineLegendGroups = hasTagLegend ? parsed.tagGroups : semanticGroups;
+  const inlineLegendGroups = hasTagLegend
+    ? keepUsedTagValues(
+        parsed.tagGroups,
+        parsed.tagGroups,
+        layout.nodes.map((n) => n.metadata)
+      )
+    : semanticGroups;
   const inlineActiveGroup = hasTagLegend
     ? (activeTagGroup ?? null)
     : semanticActive
@@ -707,7 +713,11 @@ export function renderERDiagram(
       );
     renderIntegratedLegend(legendG, {
       frame: parsed.frame,
-      groups: parsed.tagGroups,
+      groups: keepUsedTagValues(
+        parsed.tagGroups,
+        parsed.tagGroups,
+        layout.nodes.map((n) => n.metadata)
+      ),
       activeGroup: activeTagGroup ?? null,
       mode: exportMode ? 'export' : 'preview',
       position: {

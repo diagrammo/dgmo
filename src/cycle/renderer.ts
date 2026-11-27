@@ -22,6 +22,7 @@ import type {
   LegendGroupData,
 } from '../utils/legend-types';
 import {
+  keepUsedTagValues,
   resolveActiveTagGroup,
   resolveTagColor,
   tagAttrKey,
@@ -195,13 +196,17 @@ export function renderCycle(
       ],
     };
     const tagLegendGroups: LegendGroupData[] = hasTagLegend
-      ? parsed.tagGroups.map((g) => ({
-          name: g.name,
-          entries: g.entries.map((e) => ({
-            value: e.value,
-            color: resolveColor(e.color, palette) ?? e.color,
+      ? keepUsedTagValues(
+          parsed.tagGroups.map((g) => ({
+            name: g.name,
+            entries: g.entries.map((e) => ({
+              value: e.value,
+              color: resolveColor(e.color, palette) ?? e.color,
+            })),
           })),
-        }))
+          parsed.tagGroups,
+          [...parsed.nodes, ...parsed.edges].map((x) => x.metadata)
+        )
       : [];
     const legendCallbacks: LegendCallbacks = {
       ...(renderOptions?.onToggleControlsExpand !== undefined && {

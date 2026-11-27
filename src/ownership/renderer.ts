@@ -38,6 +38,7 @@ import type { LegendConfig, LegendGroupData } from '../utils/legend-types';
 import { fillModeFromOptions, legendSuppressed } from '../utils/parsing';
 import {
   resolveTagColor,
+  keepUsedTagValues,
   tagAttrKey,
   UNTAGGED_TAG_COLOR,
 } from '../utils/tag-groups';
@@ -112,7 +113,11 @@ export function renderOwnership(
     ? measureText(parsed.title, TITLE_FONT_SIZE, { bold: true })
     : 0;
   const legendConfig: LegendConfig = {
-    groups: parsed.tagGroups,
+    groups: keepUsedTagValues(
+      parsed.tagGroups,
+      parsed.tagGroups,
+      parsed.entities.map((e) => e.metadata)
+    ),
     position: { placement: 'top-center', titleRelation: 'inline-with-title' },
     mode: exportMode ? 'export' : 'preview',
     showInactivePills: true,
