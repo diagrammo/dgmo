@@ -39,7 +39,7 @@ export const SLOPE_DX = {
     message: (p) =>
       `This slope chart has ${(p.count as number) ?? 'too many'} rows; only the first ${MAX_SLOPE_ROWS} are drawn. Keep the rows that matter and mark a few with highlight, or use a line chart for many series.`,
     hint: `Keep a slope chart to ${MAX_SLOPE_ROWS} rows or fewer: cut it to the rows that matter and mark a few with highlight, or use a line chart.`,
-    example: `slope Market share\nhighlight Acme\nperiod 2020 2025\n\nAcme 12 31\nGlobex 28 22\nInitech 18 15`,
+    example: `slope Market share\nhighlight Acme\nperiod 2020 2025\n\nAcme 12 31\nOrbit 28 22\nSummit 18 15`,
   },
 } satisfies Record<string, DiagnosticSpec>;
 
