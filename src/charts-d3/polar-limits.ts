@@ -12,12 +12,13 @@
 import type { DiagnosticSpec } from '../diagnostics';
 
 /**
- * Most wedges one polar-area chart draws. How it was chosen: the labels sit
- * on one ring at `outerR + 14`, about 345px at the default 1200×800 canvas.
- * Nearest the top and bottom, two neighbouring labels are separated only
- * vertically, by `r·(cos(step/2) − cos(3·step/2))`. At 24 wedges (15° steps)
- * that is ~23px, clear of a 13px label line; at 36 (10°) it is ~10px and the
- * labels overprint. 24 also holds 12 months or 24 hours.
+ * Most wedges one polar-area chart draws. How it was chosen (2026-11-27): at
+ * the default 720×480 canvas the labels sit on a ring about 170px out.
+ * Nearest the top and bottom, neighbouring labels are separated only
+ * vertically, by `r·(cos(step/2) − cos(3·step/2))`: ~12px at 24 wedges (15°
+ * steps), about one 13px line, so the label spread (#2458) clears them with
+ * short leaders; ~5px at 36 (10°), where most of each column must move off
+ * its wedge. 24 also holds 12 months or 24 hours.
  */
 export const MAX_POLAR_AREA_WEDGES = 24;
 
