@@ -148,6 +148,14 @@ const ARC_BAND_RADIUS = 4;
 const ARC_BAND_LABEL_BOTTOM_OFFSET = 4;
 const ARC_NODE_LABEL_X_OFFSET = 14;
 const ARC_NODE_LABEL_Y_OFFSET = 20;
+/**
+ * Above this many nodes the node labels are not drawn: at that density they
+ * pile into an unreadable smear under the spine (#2416). Hovering a node then
+ * shows its label and its neighbours' labels as an overlay. A static export
+ * has no hover, so it shows none.
+ */
+const ARC_LABEL_NODE_LIMIT = 50;
+const ARC_HOVER_LABEL_HALO_WIDTH = 3;
 const ARC_STROKE_MIN = 1.5;
 const ARC_STROKE_MAX = 6;
 const ARC_BASELINE_STROKE_WIDTH = 1;
@@ -179,6 +187,8 @@ export function renderArcDiagram(
   const isVertical = orientation === 'vertical';
 
   const nodes = orderArcNodes(links, arcOrder, arcNodeGroups);
+  // Crowding is the renderer's decision (dgmo/CLAUDE.md → Output rules).
+  const hideNodeLabels = nodes.length > ARC_LABEL_NODE_LIMIT;
 
   const idealWidth = isVertical
     ? ARC_MARGIN_LEFT_VERTICAL + ARC_MARGIN_RIGHT + ARC_BAND_HALF_W * 2 + 100
@@ -295,8 +305,43 @@ export function renderArcDiagram(
 
   const FADE_OPACITY = 0.1;
 
+  // Above ARC_LABEL_NODE_LIMIT each node keeps a drawer for its label instead
+  // of a drawn label; hover draws the hovered node's and its neighbours'
+  // labels into an overlay layer (created after the nodes, so it sits on top)
+  // and mouse-leave clears it. The overlay reserves no layout space.
+  const hoverLabelDrawers = new Map<
+    string,
+    (
+      layer: d3Selection.Selection<SVGGElement, unknown, null, undefined>
+    ) => void
+  >();
+  let hoverLabelLayer: d3Selection.Selection<
+    SVGGElement,
+    unknown,
+    null,
+    undefined
+  > | null = null;
+  const haloHoverLabel = (
+    t: d3Selection.Selection<SVGTextElement, unknown, null, undefined>
+  ) =>
+    t
+      .attr('class', 'arc-node-label arc-hover-label')
+      .attr('pointer-events', 'none')
+      .attr('stroke', bgColor)
+      .attr('stroke-width', ARC_HOVER_LABEL_HALO_WIDTH)
+      .attr('stroke-linejoin', 'round')
+      .attr('paint-order', 'stroke');
+
+  function showHoverLabels(hovered: string) {
+    if (!hoverLabelLayer) return;
+    hoverLabelLayer.selectAll('*').remove();
+    const shown = [hovered, ...(neighbors.get(hovered) ?? [])];
+    for (const n of shown) hoverLabelDrawers.get(n)?.(hoverLabelLayer);
+  }
+
   function handleMouseEnter(hovered: string) {
     const connected = neighbors.get(hovered)!;
+    showHoverLabels(hovered);
 
     g.selectAll<SVGPathElement, unknown>('.arc-link').each(function () {
       const el = d3Selection.select(this);
@@ -315,6 +360,7 @@ export function renderArcDiagram(
   }
 
   function handleMouseLeave() {
+    hoverLabelLayer?.selectAll('*').remove();
     g.selectAll<SVGPathElement, unknown>('.arc-link').attr(
       'stroke-opacity',
       0.7
@@ -393,8 +439,9 @@ export function renderArcDiagram(
     // dedicated column at the far-left edge so it never crowds the top node.
     if (arcNodeGroups.length > 0) {
       const bandPad = (yScale.step?.() ?? 20) * 0.4;
-      const vWidestLabelPx =
-        Math.max(...nodes.map((n) => n.length)) * sNodeLabelFont * 0.6;
+      const vWidestLabelPx = hideNodeLabels
+        ? 0
+        : Math.max(...nodes.map((n) => n.length)) * sNodeLabelFont * 0.6;
       // Name column = text height + a full font of padding on each side, so the
       // rotated lane-label breathes off both the band edge and the node labels.
       const vNameColW = sGroupLabelFont * 3;
@@ -533,16 +580,26 @@ export function renderArcDiagram(
           outlineDots ? ctx.structural(2) : sNodeStrokeWidth
         );
 
-      nodeG
-        .append('text')
-        .attr('x', baseX - sNodeLabelXOffset)
-        .attr('y', y)
-        .attr('dy', '0.35em')
-        .attr('text-anchor', 'end')
-        .attr('fill', textColor)
-        .attr('font-size', sNodeLabelFont)
-        .text(node);
+      const drawLabel = (
+        parent: d3Selection.Selection<SVGGElement, unknown, null, undefined>
+      ) =>
+        parent
+          .append('text')
+          .attr('x', baseX - sNodeLabelXOffset)
+          .attr('y', y)
+          .attr('dy', '0.35em')
+          .attr('text-anchor', 'end')
+          .attr('fill', textColor)
+          .attr('font-size', sNodeLabelFont)
+          .text(node);
+      if (hideNodeLabels)
+        hoverLabelDrawers.set(node, (layer) =>
+          haloHoverLabel(drawLabel(layer))
+        );
+      else drawLabel(nodeG);
     }
+    if (hideNodeLabels)
+      hoverLabelLayer = g.append('g').attr('class', 'arc-hover-labels');
   } else {
     // Horizontal layout (default): nodes along X axis, arcs curve upward
     const xScale = d3Scale
@@ -558,7 +615,10 @@ export function renderArcDiagram(
     const arcStep = xScale.step();
     const widestLabelChars = Math.max(...nodes.map((n) => n.length));
     const labelWidthPx = widestLabelChars * sNodeLabelFont * 0.6;
-    const rotateLabels = labelWidthPx > arcStep * 0.9;
+    const labelsCollide = labelWidthPx > arcStep * 0.9;
+    // Hidden labels (above ARC_LABEL_NODE_LIMIT) take no rotated drop: the
+    // layout reserves only the dot, and the hover overlay may overlap.
+    const rotateLabels = !hideNodeLabels && labelsCollide;
     const labelPivotGap = sNodeRadius + 4;
     const rotatedLabelDrop = labelWidthPx * 0.71;
 
@@ -613,9 +673,11 @@ export function renderArcDiagram(
     // Depth below the baseline occupied by node labels, then the group name.
     // When labels rotate they drop past the flat band, so the band (and the
     // export canvas) must grow to keep both labels and group name inside.
-    const nodeLabelDepth = rotateLabels
-      ? labelPivotGap + rotatedLabelDrop
-      : sNodeLabelYOffset + sNodeLabelFont;
+    const nodeLabelDepth = hideNodeLabels
+      ? labelPivotGap
+      : rotateLabels
+        ? labelPivotGap + rotatedLabelDrop
+        : sNodeLabelYOffset + sNodeLabelFont;
     const groupNameGap = sGroupLabelFont + sBandLabelBottomOffset;
     // Grouped bands (either orientation of labels) seat the group name a full
     // font below the node labels, then the box extends further below it so the
@@ -793,23 +855,36 @@ export function renderArcDiagram(
           outlineDots ? ctx.structural(2) : sNodeStrokeWidth
         );
 
-      const labelY = rotateLabels
-        ? baseY + labelPivotGap
-        : baseY + sNodeLabelYOffset;
-      const nodeLabel = nodeG
-        .append('text')
-        .attr('x', x)
-        .attr('y', labelY)
-        .attr('text-anchor', rotateLabels ? 'end' : 'middle')
-        .attr('fill', textColor)
-        .attr('font-size', sNodeLabelFont)
-        .text(node);
-      if (rotateLabels) {
-        // -45° pivots at the dot; anchor 'end' hangs text down-left, last char
-        // under the dot (see rotatedLabelDrop above).
-        nodeLabel.attr('transform', `rotate(-45 ${x} ${labelY})`);
-      }
+      // The hover overlay rotates by the same collision test the drawn
+      // labels use, so a hovered label reads the way it would have.
+      const rotate = hideNodeLabels ? labelsCollide : rotateLabels;
+      const labelY = rotate ? baseY + labelPivotGap : baseY + sNodeLabelYOffset;
+      const drawLabel = (
+        parent: d3Selection.Selection<SVGGElement, unknown, null, undefined>
+      ) => {
+        const nodeLabel = parent
+          .append('text')
+          .attr('x', x)
+          .attr('y', labelY)
+          .attr('text-anchor', rotate ? 'end' : 'middle')
+          .attr('fill', textColor)
+          .attr('font-size', sNodeLabelFont)
+          .text(node);
+        if (rotate) {
+          // -45° pivots at the dot; anchor 'end' hangs text down-left, last char
+          // under the dot (see rotatedLabelDrop above).
+          nodeLabel.attr('transform', `rotate(-45 ${x} ${labelY})`);
+        }
+        return nodeLabel;
+      };
+      if (hideNodeLabels)
+        hoverLabelDrawers.set(node, (layer) =>
+          haloHoverLabel(drawLabel(layer))
+        );
+      else drawLabel(nodeG);
     }
+    if (hideNodeLabels)
+      hoverLabelLayer = g.append('g').attr('class', 'arc-hover-labels');
   }
 
   // Chart frame (#1827): subtitle under the title, footer under the chart.
