@@ -15,6 +15,13 @@ import { normalizeNumericToken } from '../utils/parsing';
 /** Below this many values a box is drawn, with a warning. */
 export const BOXPLOT_MIN_VALUES = 5;
 
+/**
+ * Most groups one box plot draws (#2424, owner's decision 2026-11-26). Past
+ * it the first that many are drawn and an error names the count. Not
+ * author-tunable: crowding is the renderer's decision.
+ */
+export const BOXPLOT_MAX_GROUPS = 50;
+
 export const BOXPLOT_DX = {
   NOT_A_NUMBER: {
     code: 'E_BOXPLOT_NOT_A_NUMBER',
@@ -45,6 +52,17 @@ export const BOXPLOT_DX = {
       `${(p.group as string) ? `The group [${p.group as string}]` : 'The chart'} has ${(p.count as number) ?? 'few'} value(s). Below ${BOXPLOT_MIN_VALUES}, the quartiles say little; the box is still drawn.`,
     hint: `Give each group at least ${BOXPLOT_MIN_VALUES} values, or show so few values as points on a scatter chart.`,
     example: 'boxplot Delivery time\n12 15 17',
+  },
+  TOO_MANY_GROUPS: {
+    code: 'E_BOXPLOT_TOO_MANY_GROUPS',
+    severity: 'error',
+    chartType: 'boxplot',
+    title: 'Too many groups',
+    message: (p) =>
+      `This box plot has ${(p.count as number) ?? 'too many'} groups; only the first ${BOXPLOT_MAX_GROUPS} are drawn. Split the data into several charts.`,
+    hint: `Keep a box plot to ${BOXPLOT_MAX_GROUPS} groups or fewer: split it into several charts, or merge small groups into one.`,
+    example:
+      'boxplot Delivery time\n[Downtown]\n12 15 17 19 22\n[Suburbs]\n26 31 22 24 29',
   },
 } satisfies Record<string, DiagnosticSpec>;
 
@@ -180,7 +198,10 @@ function pushValues(
   }
 }
 
-/** Settle once every line is read: warn on empty and thin groups. */
+/**
+ * Settle once every line is read: warn on empty and thin groups, and keep
+ * the first BOXPLOT_MAX_GROUPS groups that hold values.
+ */
 export function settleBoxplot(
   state: BoxplotState,
   diagnostics: DgmoError[]
@@ -201,4 +222,14 @@ export function settleBoxplot(
     }
   }
   state.groups = state.groups.filter((g) => g.values.length > 0);
+  if (state.groups.length > BOXPLOT_MAX_GROUPS) {
+    diagnostics.push(
+      emit(
+        BOXPLOT_DX.TOO_MANY_GROUPS,
+        state.groups[BOXPLOT_MAX_GROUPS]!.lineNumber,
+        { count: state.groups.length }
+      )
+    );
+    state.groups = state.groups.slice(0, BOXPLOT_MAX_GROUPS);
+  }
 }

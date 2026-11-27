@@ -605,7 +605,7 @@ export interface CategoryLabelPlan {
  * the final two dates printed on top of each other. Anchoring at both ends
  * instead keeps every gap at or above the stride.
  */
-function spreadIndices(total: number, count: number): Set<number> {
+export function spreadIndices(total: number, count: number): Set<number> {
   if (total <= 0) return new Set();
   if (total === 1 || count <= 1) return new Set([0]);
   const n = Math.min(count, total);

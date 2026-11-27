@@ -756,8 +756,10 @@ export function attachDataChartInteractions(
     // Hovering a point's name label or its leader line (scatter) highlights the
     // point itself: labels/leaders carry the same data-line-number as their
     // datum but are `.dgmo-ptlabel`, not `.dgmo-datum`, so resolve back.
+    // A `.dgmo-datum-hit` strip (a box plot's whisker span, #2424) stands in
+    // for its group's first datum the same way.
     if (!el) {
-      const lbl = t.closest?.('.dgmo-ptlabel');
+      const lbl = t.closest?.('.dgmo-ptlabel, .dgmo-datum-hit');
       const ln = lbl?.getAttribute('data-line-number');
       if (ln != null)
         el =

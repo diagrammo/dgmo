@@ -8,7 +8,9 @@
 // dot beside its box, spread sideways by a hash (never random), `mean` a
 // hollow diamond, `orientation-horizontal` lays the groups down the left.
 // Every box takes one colour unless its header names one (#1829). `n` is
-// always printed under the group name.
+// printed under the group name when it fits its slot, else it moves to the
+// hover. Crowded names rotate, then thin, through the shared category-label
+// planner (#2424); hovering a box prints its full name on the axis.
 
 import type { ParsedBoxplot } from '../data-chart-parser';
 import type { PaletteColors } from '../palettes';
@@ -31,6 +33,9 @@ import {
   drawXAxisTitle,
   drawYAxisTitle,
   tagDatum,
+  planLabelsFitLeft,
+  drawCategoryLabels,
+  spreadIndices,
 } from './shared';
 
 /** One group's box, ready to scale. */
@@ -92,6 +97,10 @@ const POINT_R = 2.25;
 const MEAN_HALF = 5;
 /** About this many value ticks. */
 const TICK_COUNT = 6;
+/** Clear space either side of a flat `n = …` line in its slot, px. */
+const N_GAP = 8;
+/** Most of the drawing's height rotated group names may take. */
+const LABEL_REGION_SHARE = 0.35;
 
 export function renderBoxplot(
   svg: Svg,
@@ -131,28 +140,68 @@ export function renderBoxplot(
   const named = series.some((s) => s.name);
 
   // Margins: the group labels sit beside (horizontal) or under the boxes.
+  // Names never collide (#2424): under the boxes they go through the shared
+  // category-label planner (flat, then thinned, then rotated); beside them a
+  // name owns one line, so a slot thinner than a line thins them. The `n`
+  // lines show only when every one fits its slot; otherwise `n` is on hover.
   let m: Margins;
+  /** Indices of the group names drawn. */
+  let keep: Set<number>;
+  let showN: boolean;
+  /** Vertical only: the planner's verdict when the names do not all fit flat. */
+  let crowded: ReturnType<typeof planLabelsFitLeft> | null = null;
+  /** Vertical only: room under the plot the labels take, px. */
+  let labelBand = 0;
   if (horizontal) {
+    const bottom = chart.ylabel ? 64 : 40;
+    const slotH = Math.max(10, height - topInset - 8 - bottom) / series.length;
+    showN = slotH >= (named ? 2 : 1) * LABEL_LINE;
+    keep = spreadIndices(
+      series.length,
+      Math.floor((series.length - 1) / Math.ceil(LABEL_LINE / slotH)) + 1
+    );
     const labelW = Math.max(
       ...series.map((s) =>
         Math.max(
           measureText(s.name, TICK_FONT),
-          measureTabular(nLabel(s), TICK_FONT)
+          showN ? measureTabular(nLabel(s), TICK_FONT) : 0
         )
       )
     );
     m = {
       top: topInset + 8,
       right: 32,
-      bottom: chart.ylabel ? 64 : 40,
+      bottom,
       left: Math.min(width * 0.35, labelW + 24) + (chart.xlabel ? 22 : 0),
     };
   } else {
+    const right = 32;
+    const fit = planLabelsFitLeft(
+      series.map((s) => s.name),
+      computeLeftMargin(chart.ylabel, probeTicks, { tabular: true }),
+      (ml) => Math.max(10, width - ml - right),
+      (pw) => pw / series.length,
+      (pw) => pw / series.length / 2,
+      TICK_FONT,
+      Math.floor(height * LABEL_REGION_SHARE)
+    );
+    const flat = !fit.plan.rotate && fit.plan.keep.size === series.length;
+    const slotW = fit.plotW / series.length;
+    showN =
+      flat &&
+      series.every(
+        (s) => measureTabular(nLabel(s), TICK_FONT) + N_GAP <= slotW
+      );
+    keep = fit.plan.keep;
+    if (!flat) crowded = fit;
+    labelBand = flat
+      ? ((named ? 1 : 0) + (showN ? 1 : 0) || 1) * LABEL_LINE + 18
+      : fit.plan.height + 18;
     m = {
       top: topInset + 8,
-      right: 32,
-      bottom: (named ? 2 : 1) * LABEL_LINE + 18 + (chart.xlabel ? 34 : 0),
-      left: computeLeftMargin(chart.ylabel, probeTicks, { tabular: true }),
+      right,
+      bottom: labelBand + (chart.xlabel ? 34 : 0),
+      left: fit.mLeft,
     };
     // The top tick label stands over its gridline; keep it on the band
     // (#2111).
@@ -217,6 +266,34 @@ export function renderBoxplot(
   const inDomain = (val: number) =>
     val >= Math.min(d0, d1) && val <= Math.max(d0, d1);
 
+  // Hover prints the group's FULL name on the group axis, never the thinned
+  // or tilted tick text, the way a bar pairs with its category (#2424). The
+  // plot rect gives the hover its axes.
+  svg
+    .append('rect')
+    .attr('class', 'dgmo-plot-rect')
+    .attr('x', m.left)
+    .attr('y', m.top)
+    .attr('width', plotW)
+    .attr('height', plotH)
+    .attr('fill', 'transparent')
+    .attr('pointer-events', 'none');
+  const hoverName = (s: BoxplotSeries) =>
+    [s.name, showN ? '' : nLabel(s)].filter(Boolean).join(' · ');
+  /** Mark a figure of group `s` as projecting `name` onto the group axis. */
+  const project = (
+    el: { attr: (k: string, v: string | number) => unknown },
+    s: BoxplotSeries,
+    x: number,
+    y: number
+  ) => {
+    const name = hoverName(s);
+    if (!name) return;
+    el.attr(horizontal ? 'data-axval-y' : 'data-axval-x', name);
+    el.attr('data-cx', x);
+    el.attr('data-cy', y);
+  };
+
   series.forEach((s, i) => {
     const c = groupCenter(i);
     const bc = c + boxOffset;
@@ -244,6 +321,21 @@ export function renderBoxplot(
         .attr('stroke', s.color)
         .attr('stroke-width', w);
     };
+
+    // The whiskers are too thin to point at; a clear strip over the whole
+    // whisker span stands in for the box under the pointer.
+    {
+      const [hx1, hy1] = at(bc - boxW / 2, v(b.whiskerLo));
+      const [hx2, hy2] = at(bc + boxW / 2, v(b.whiskerHi));
+      g.append('rect')
+        .attr('class', 'dgmo-datum-hit')
+        .attr('data-line-number', s.lineNumber)
+        .attr('x', Math.min(hx1, hx2))
+        .attr('y', Math.min(hy1, hy2))
+        .attr('width', Math.abs(hx2 - hx1))
+        .attr('height', Math.max(1, Math.abs(hy2 - hy1)))
+        .attr('fill', 'transparent');
+    }
 
     // Whiskers and their caps.
     const cap = boxW * 0.45;
@@ -282,6 +374,7 @@ export function renderBoxplot(
       color: s.color,
       seriesName: s.name || undefined,
     });
+    project(rect, s, ...at(bc, v(b.whiskerLo)));
 
     // The median, thicker than the outline.
     const medStroke = chart.fillMode === 'solid' ? bg : s.color;
@@ -313,6 +406,7 @@ export function renderBoxplot(
           color: s.color,
           seriesName: s.name || undefined,
         });
+        project(dot, s, x, y);
       }
     } else {
       s.values.forEach((val, k) => {
@@ -359,6 +453,7 @@ export function renderBoxplot(
         color: s.color,
         seriesName: s.name || undefined,
       });
+      project(diamond, s, x, y);
     }
 
     // Group name and n.
@@ -369,7 +464,10 @@ export function renderBoxplot(
     const nText = nLabel(s);
     if (horizontal) {
       const lx = m.left - 10;
-      const rows = s.name ? [name, nText] : [nText];
+      const rows = [
+        ...(s.name && keep.has(i) ? [name] : []),
+        ...(showN ? [nText] : []),
+      ];
       const y0 = c - ((rows.length - 1) * LABEL_LINE) / 2 + 4;
       rows.forEach((t, r) => {
         const isN = r === rows.length - 1;
@@ -386,7 +484,7 @@ export function renderBoxplot(
         if (isN) text.call(tabularText(t, TICK_FONT));
         else text.text(t);
       });
-    } else {
+    } else if (!crowded) {
       const base = m.top + plotH + 18;
       if (s.name)
         svg
@@ -400,19 +498,34 @@ export function renderBoxplot(
           .attr('font-family', FONT_FAMILY)
           .attr('data-line-number', s.lineNumber)
           .text(name);
-      svg
-        .append('text')
-        .attr('class', 'dgmo-tick dgmo-boxplot-n')
-        .attr('x', c)
-        .attr('y', base + (named ? LABEL_LINE : 0))
-        .attr('text-anchor', 'middle')
-        .attr('fill', palette.textMuted)
-        .attr('font-size', TICK_FONT)
-        .attr('font-family', FONT_FAMILY)
-        .attr('data-line-number', s.lineNumber)
-        .call(tabularText(nText, TICK_FONT));
+      if (showN)
+        svg
+          .append('text')
+          .attr('class', 'dgmo-tick dgmo-boxplot-n')
+          .attr('x', c)
+          .attr('y', base + (named ? LABEL_LINE : 0))
+          .attr('text-anchor', 'middle')
+          .attr('fill', palette.textMuted)
+          .attr('font-size', TICK_FONT)
+          .attr('font-family', FONT_FAMILY)
+          .attr('data-line-number', s.lineNumber)
+          .call(tabularText(nText, TICK_FONT));
     }
   });
+
+  // Crowded names: thinned, and rotated when thinning alone would cost too
+  // many. See planCategoryLabels in ./shared.
+  if (!horizontal && crowded)
+    drawCategoryLabels(
+      svg,
+      crowded.shown,
+      crowded.plan,
+      groupCenter,
+      m.top + plotH,
+      textColor,
+      TICK_FONT,
+      series.map((s) => s.name)
+    );
 
   // Axis titles: y names the values in either orientation, as on bar.
   if (horizontal) {
@@ -429,7 +542,7 @@ export function renderBoxplot(
       svg,
       chart.xlabel,
       m.left + plotW / 2,
-      m.top + plotH + 18 + (named ? 2 : 1) * LABEL_LINE + 14,
+      m.top + plotH + labelBand + 14,
       textColor
     );
     drawYAxisTitle(svg, chart.ylabel, m.top, plotH, 20, textColor);
