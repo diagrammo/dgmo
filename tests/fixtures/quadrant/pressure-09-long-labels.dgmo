@@ -1,0 +1,13 @@
+quadrant An extraordinarily long quadrant chart title that keeps going well past the width of any reasonable canvas so it must wrap and then be cut
+
+x-axis A very long low end of the horizontal axis that describes far more than anyone should put on an axis label, A very long high end of the horizontal axis that also goes on and on well past half of the chart width
+y-axis A very long low end of the vertical axis that describes far more than anyone should put on an axis label, A very long high end of the vertical axis that also goes on and on well past half of the chart height
+
+top-left An extremely long name for the top left quadrant that would wrap to many lines if nothing capped it at all
+top-right An extremely long name for the top right quadrant that would also wrap to many lines if nothing capped it
+bottom-left Fill-ins
+bottom-right Avoid
+
+A point whose name is a full sentence that runs right across the whole chart and off both of its edges 0.3 0.8
+Another point with a name long enough to cross both bottom quadrants and run off the canvas on each side 0.6 0.25
+Short 0.8 0.6

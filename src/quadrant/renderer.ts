@@ -5,7 +5,13 @@
 import * as d3Scale from 'd3-scale';
 import * as d3Selection from 'd3-selection';
 import { computeQuadrantPointLabels, type LabelRect } from '../label-layout';
-import { measureText, wrapTextToWidth } from '../utils/text-measure';
+import {
+  fitWrapped,
+  measureText,
+  type MeasureOpts,
+  wrapTextToWidth,
+} from '../utils/text-measure';
+import { FULL_TEXT_ATTR, isCutShort } from '../utils/full-text';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import { ScaleContext } from '../utils/scaling';
 import { initD3Chart, renderChartTitle } from '../utils/d3-helpers';
@@ -16,6 +22,37 @@ import { mix, themeBaseBg } from '../palettes/color-utils';
 
 // Quadrant Chart Renderer
 // ============================================================
+
+/** Lines an axis label may wrap to along its axis before it is cut (#2459). */
+export const AXIS_MAX_LINES = 2;
+/** Lines a quadrant name may wrap to before it is cut (#2459). */
+export const QUADRANT_LABEL_MAX_LINES = 3;
+/** Lines a point name may wrap to before it is cut (#2459). */
+export const POINT_LABEL_MAX_LINES = 2;
+/**
+ * Fit text to `maxWidth` in the order #2459 asks for: shrink on one line down
+ * to `minFont`, then wrap at `minFont` to `maxLines`, then cut the last line
+ * with `…`.
+ */
+function scaleWrapCut(
+  text: string,
+  maxWidth: number,
+  maxFont: number,
+  minFont: number,
+  maxLines: number,
+  opts: MeasureOpts
+): { lines: string[]; fontSize: number } {
+  for (let fs = Math.round(maxFont); fs >= minFont; fs--) {
+    if (measureText(text, fs, opts) <= maxWidth)
+      return { lines: [text], fontSize: fs };
+  }
+  return fitWrapped(text, maxWidth, minFont, minFont, maxLines, opts);
+}
+
+/** Smallest size an axis label shrinks to before it wraps further. */
+const AXIS_MIN_FONT = 12;
+const AXIS_LINE_HEIGHT = 1.2;
+const POINT_LINE_HEIGHT_EM = 1.2;
 
 type QuadrantPosition =
   | 'top-right'
@@ -84,14 +121,37 @@ export function renderQuadrant(
 
   const hasXAxis = !!quadrantXAxis;
   const hasYAxis = !!quadrantYAxis;
+  const sAxisFont = ctx.text(18);
+  const sAxisMinFont = ctx.text(AXIS_MIN_FONT);
+  const sAxisPad = ctx.aesthetic(20);
+  const sAxisX = ctx.aesthetic(22);
+  const AXIS_HALF_GAP = ctx.aesthetic(16);
+  const fitAxis = (text: string, len: number) =>
+    scaleWrapCut(text, len, sAxisFont, sAxisMinFont, AXIS_MAX_LINES, {});
+  // The band each axis takes, reserved for AXIS_MAX_LINES lines at full size
+  // so a wrapped label never reaches the plot. At scale 1 the base margins
+  // already hold two lines; the reserve matters once the layout shrinks.
+  const axisBand = (first: number) =>
+    first +
+    (AXIS_MAX_LINES - 1) * sAxisFont * AXIS_LINE_HEIGHT +
+    sAxisFont * 0.3 +
+    ctx.aesthetic(10);
   const margin = {
     top: (title ? ctx.aesthetic(60) : ctx.aesthetic(30)) + titleExtra,
     right: ctx.aesthetic(30),
-    bottom: hasXAxis ? ctx.aesthetic(70) : ctx.aesthetic(40),
-    left: hasYAxis ? ctx.aesthetic(80) : ctx.aesthetic(40),
+    bottom: hasXAxis
+      ? Math.max(ctx.aesthetic(70), axisBand(sAxisPad + sAxisFont * 0.7))
+      : ctx.aesthetic(40),
+    left: hasYAxis
+      ? Math.max(ctx.aesthetic(80), axisBand(sAxisX))
+      : ctx.aesthetic(40),
   };
   const chartWidth = width - margin.left - margin.right;
   const chartHeight = height - margin.top - margin.bottom;
+  const xAxisLen = Math.max(0, chartWidth / 2 - AXIS_HALF_GAP);
+  const xAxisFits = quadrantXAxis
+    ? quadrantXAxis.map((t) => fitAxis(t, xAxisLen))
+    : [];
 
   // Scales: data uses 0-1 range
   const xScale = d3Scale.scaleLinear().domain([0, 1]).range([0, chartWidth]);
@@ -232,15 +292,16 @@ export function renderQuadrant(
       };
     }
 
-    // Try wrapping into 2+ lines: greedily pack words so each line fits availW
+    // Wrap: greedily pack words so each line fits availW, breaking a word
+    // that alone is wider than the quadrant.
     const wrapLines = (fs: number): string[] =>
-      wrapTextToWidth(text, fs, availW, { bold: true });
+      wrapTextToWidth(text, fs, availW, { bold: true, hardBreak: true });
 
-    // Binary-search for largest font size where wrapped text fits both width and height
+    // Binary-search for the largest font where the wrapped text fits the
+    // width, the height and QUADRANT_LABEL_MAX_LINES.
     let lo = LABEL_MIN_FONT;
     let hi = LABEL_MAX_FONT;
-    let bestLines = wrapLines(lo);
-    let bestFs = lo;
+    let best: QuadrantLabelLayout | null = null;
     while (lo <= hi) {
       const mid = Math.round((lo + hi) / 2);
       const lines = wrapLines(mid);
@@ -248,15 +309,26 @@ export function renderQuadrant(
       const maxLineW = Math.max(
         ...lines.map((l) => measureText(l, mid, { bold: true }))
       );
-      if (maxLineW <= availW && totalH <= availH) {
-        bestFs = mid;
-        bestLines = lines;
+      if (
+        lines.length <= QUADRANT_LABEL_MAX_LINES &&
+        maxLineW <= availW &&
+        totalH <= availH
+      ) {
+        best = { lines, fontSize: mid };
         lo = mid + 1;
       } else {
         hi = mid - 1;
       }
     }
-    return { lines: bestLines, fontSize: Math.max(LABEL_MIN_FONT, bestFs) };
+    if (best) return best;
+    // Nothing fits even at the floor: cut at the line cap with `…` (#2459).
+    return fitWrapped(
+      text,
+      availW,
+      LABEL_MIN_FONT,
+      LABEL_MIN_FONT,
+      QUADRANT_LABEL_MAX_LINES
+    );
   };
 
   // Draw quadrant labels (large, centered, darkened shade of fill — recedes behind points)
@@ -326,6 +398,11 @@ export function renderQuadrant(
     .attr('data-line-number', (d) =>
       d.label?.lineNumber ? String(d.label.lineNumber) : null
     )
+    .attr(FULL_TEXT_ATTR, (d) =>
+      isCutShort(labelLayouts.get(d.label!.text)!.lines, [d.label!.text])
+        ? d.label!.text
+        : null
+    )
     .style('cursor', (d) =>
       onClickItem && d.label?.lineNumber ? 'pointer' : 'default'
     )
@@ -346,119 +423,80 @@ export function renderQuadrant(
       });
   }
 
-  const sAxisFont = ctx.text(18);
-  const sAxisPad = ctx.aesthetic(20);
-  const sAxisX = ctx.aesthetic(22);
+  // Axis labels: one per half of each axis. Each fits its half — shrink to
+  // AXIS_MIN_FONT, wrap to AXIS_MAX_LINES lines along the axis, then cut with
+  // `…` and keep the author's words in FULL_TEXT_ATTR (#2459).
+  const drawAxisLabel = (
+    text: string,
+    fit: { lines: string[]; fontSize: number },
+    x: number,
+    y: number,
+    rotate: boolean,
+    lineNumber: number | null | undefined
+  ) => {
+    const lineH = fit.fontSize * AXIS_LINE_HEIGHT;
+    const el = svg
+      .append('text')
+      .attr('class', 'quadrant-axis-label')
+      .attr('x', x)
+      // X labels grow upward from the bottom pad; Y labels grow toward the
+      // plot (rotated, +dy points right), so the first line keeps its place.
+      .attr('y', rotate ? y : y - (fit.lines.length - 1) * lineH)
+      .attr('text-anchor', 'middle')
+      .attr('fill', textColor)
+      .attr('font-size', fit.fontSize)
+      .attr('transform', rotate ? `rotate(-90, ${x}, ${y})` : null)
+      .attr('data-line-number', lineNumber ? String(lineNumber) : null)
+      .style('cursor', onClickItem && lineNumber ? 'pointer' : 'default');
+    if (fit.lines.length === 1) el.text(fit.lines[0]!);
+    else
+      fit.lines.forEach((line, i) => {
+        el.append('tspan')
+          .attr('x', x)
+          .attr('dy', i === 0 ? 0 : `${lineH}px`)
+          .text(line);
+      });
+    if (isCutShort(fit.lines, [text])) el.attr(FULL_TEXT_ATTR, text);
+    if (onClickItem && lineNumber) {
+      el.on('click', () => onClickItem(lineNumber))
+        .on('mouseenter', function () {
+          d3Selection.select(this).attr('opacity', 0.7);
+        })
+        .on('mouseleave', function () {
+          d3Selection.select(this).attr('opacity', 1);
+        });
+    }
+  };
 
   if (quadrantXAxis) {
-    const xLowLabel = svg
-      .append('text')
-      .attr('class', 'quadrant-axis-label')
-      .attr('x', margin.left + chartWidth / 4)
-      .attr('y', height - sAxisPad)
-      .attr('text-anchor', 'middle')
-      .attr('fill', textColor)
-      .attr('font-size', sAxisFont)
-      .attr(
-        'data-line-number',
-        quadrantXAxisLineNumber ? String(quadrantXAxisLineNumber) : null
+    xAxisFits.forEach((fit, i) =>
+      drawAxisLabel(
+        quadrantXAxis[i]!,
+        fit,
+        margin.left + (chartWidth * (i === 0 ? 1 : 3)) / 4,
+        height - sAxisPad,
+        false,
+        quadrantXAxisLineNumber
       )
-      .style(
-        'cursor',
-        onClickItem && quadrantXAxisLineNumber ? 'pointer' : 'default'
-      )
-      .text(quadrantXAxis[0]);
-
-    // High label (centered on right half)
-    const xHighLabel = svg
-      .append('text')
-      .attr('class', 'quadrant-axis-label')
-      .attr('x', margin.left + (chartWidth * 3) / 4)
-      .attr('y', height - sAxisPad)
-      .attr('text-anchor', 'middle')
-      .attr('fill', textColor)
-      .attr('font-size', sAxisFont)
-      .attr(
-        'data-line-number',
-        quadrantXAxisLineNumber ? String(quadrantXAxisLineNumber) : null
-      )
-      .style(
-        'cursor',
-        onClickItem && quadrantXAxisLineNumber ? 'pointer' : 'default'
-      )
-      .text(quadrantXAxis[1]);
-
-    if (onClickItem && quadrantXAxisLineNumber) {
-      [xLowLabel, xHighLabel].forEach((label) => {
-        label
-          .on('click', () => onClickItem(quadrantXAxisLineNumber))
-          .on('mouseenter', function () {
-            d3Selection.select(this).attr('opacity', 0.7);
-          })
-          .on('mouseleave', function () {
-            d3Selection.select(this).attr('opacity', 1);
-          });
-      });
-    }
+    );
   }
 
-  // Y-axis labels — centered on top/bottom halves
+  // Y-axis labels — low on the bottom half, high on the top half.
   if (quadrantYAxis) {
-    const yMidBottom = margin.top + (chartHeight * 3) / 4;
-    const yMidTop = margin.top + chartHeight / 4;
-
-    // Low label (centered on bottom half)
-    const yLowLabel = svg
-      .append('text')
-      .attr('class', 'quadrant-axis-label')
-      .attr('x', sAxisX)
-      .attr('y', yMidBottom)
-      .attr('text-anchor', 'middle')
-      .attr('fill', textColor)
-      .attr('font-size', sAxisFont)
-      .attr('transform', `rotate(-90, ${sAxisX}, ${yMidBottom})`)
-      .attr(
-        'data-line-number',
-        quadrantYAxisLineNumber ? String(quadrantYAxisLineNumber) : null
-      )
-      .style(
-        'cursor',
-        onClickItem && quadrantYAxisLineNumber ? 'pointer' : 'default'
-      )
-      .text(quadrantYAxis[0]);
-
-    // High label (centered on top half)
-    const yHighLabel = svg
-      .append('text')
-      .attr('class', 'quadrant-axis-label')
-      .attr('x', sAxisX)
-      .attr('y', yMidTop)
-      .attr('text-anchor', 'middle')
-      .attr('fill', textColor)
-      .attr('font-size', sAxisFont)
-      .attr('transform', `rotate(-90, ${sAxisX}, ${yMidTop})`)
-      .attr(
-        'data-line-number',
-        quadrantYAxisLineNumber ? String(quadrantYAxisLineNumber) : null
-      )
-      .style(
-        'cursor',
-        onClickItem && quadrantYAxisLineNumber ? 'pointer' : 'default'
-      )
-      .text(quadrantYAxis[1]);
-
-    if (onClickItem && quadrantYAxisLineNumber) {
-      [yLowLabel, yHighLabel].forEach((label) => {
-        label
-          .on('click', () => onClickItem(quadrantYAxisLineNumber))
-          .on('mouseenter', function () {
-            d3Selection.select(this).attr('opacity', 0.7);
-          })
-          .on('mouseleave', function () {
-            d3Selection.select(this).attr('opacity', 1);
-          });
-      });
-    }
+    const yAxisLen = Math.max(0, chartHeight / 2 - AXIS_HALF_GAP);
+    [margin.top + (chartHeight * 3) / 4, margin.top + chartHeight / 4].forEach(
+      (yMid, i) => {
+        const text = quadrantYAxis[i]!;
+        drawAxisLabel(
+          text,
+          fitAxis(text, yAxisLen),
+          sAxisX,
+          yMid,
+          true,
+          quadrantYAxisLineNumber
+        );
+      }
+    );
   }
 
   // Draw center cross lines
@@ -494,7 +532,9 @@ export function renderQuadrant(
   const quadrantLabelObstacles: LabelRect[] = quadrantDefsWithLabel.map((d) => {
     const layout = labelLayouts.get(d.label!.text)!;
     const totalW = Math.max(
-      ...layout.lines.map((l) => measureText(l, layout.fontSize))
+      ...layout.lines.map((l) =>
+        measureText(l, layout.fontSize, { bold: true })
+      )
     );
     const totalH = layout.lines.length * layout.fontSize * 1.2;
     return {
@@ -505,22 +545,43 @@ export function renderQuadrant(
     };
   });
 
-  // Compute collision-free label positions for all points
-  const pointPixels = quadrantPoints.map((point) => ({
-    label: point.label,
-    cx: xScale(point.x),
-    cy: yScale(point.y),
-  }));
-
-  const placedPointLabels = computeQuadrantPointLabels(
-    pointPixels,
-    { left: 0, top: 0, right: chartWidth, bottom: chartHeight },
-    quadrantLabelObstacles,
-    POINT_RADIUS,
-    POINT_LABEL_FONT_SIZE,
-    // Point labels are drawn at 700 here.
-    true
+  // Point names wrap to POINT_LABEL_MAX_LINES, then cut with `…` (#2459).
+  // They are already drawn at the smallest point size, so nothing shrinks.
+  const POINT_LABEL_MAX_W = Math.max(
+    0,
+    Math.min(qw - LABEL_PAD, ctx.aesthetic(220))
   );
+  const pointFit = {
+    maxWidth: POINT_LABEL_MAX_W,
+    maxLines: POINT_LABEL_MAX_LINES,
+    lineHeight: POINT_LABEL_FONT_SIZE * POINT_LINE_HEIGHT_EM,
+  };
+  const lineCaps: (number | undefined)[] = quadrantPoints.map(() => undefined);
+  const placePointLabels = () =>
+    computeQuadrantPointLabels(
+      quadrantPoints.map((point, i) => ({
+        label: point.label,
+        cx: xScale(point.x),
+        cy: yScale(point.y),
+        ...(lineCaps[i] !== undefined && { maxLines: lineCaps[i] }),
+      })),
+      { left: 0, top: 0, right: chartWidth, bottom: chartHeight },
+      quadrantLabelObstacles,
+      POINT_RADIUS,
+      POINT_LABEL_FONT_SIZE,
+      // Point labels are drawn at 700 here.
+      true,
+      pointFit
+    );
+  let placedPointLabels = placePointLabels();
+  // A wrapped name with no clear spot is cut to one line and placed again.
+  const crowded = placedPointLabels.flatMap((p, i) =>
+    p.collided && p.lines.length > 1 ? [i] : []
+  );
+  if (crowded.length > 0) {
+    for (const i of crowded) lineCaps[i] = 1;
+    placedPointLabels = placePointLabels();
+  }
 
   // Draw data points (circles and labels)
   const pointsG = chartG.append('g').attr('class', 'points');
@@ -533,7 +594,7 @@ export function renderQuadrant(
     // defaultColors is non-empty; in-bounds by modulo / fallback to index 0.
     const pointColor =
       quadDef?.label?.color ?? defaultColors[quadDef?.colorIdx ?? 0]!;
-    // placedPointLabels was produced by computeQuadrantPointLabels from pointPixels,
+    // placedPointLabels comes from computeQuadrantPointLabels over the points,
     // which has the same length as quadrantPoints.
     const placed = placedPointLabels[i]!;
 
@@ -584,7 +645,22 @@ export function renderQuadrant(
       .style('text-shadow', `0 1px 2px ${shadowColor}`)
       .style('transition', 'y 120ms ease-out');
 
-    labelText.append('tspan').text(point.label);
+    const nameLines = placed.lines;
+    if (nameLines.length === 1) labelText.append('tspan').text(nameLines[0]!);
+    else {
+      const lineH = pointFit.lineHeight;
+      nameLines.forEach((line, k) => {
+        labelText
+          .append('tspan')
+          .attr('x', placed.x)
+          .attr(
+            'dy',
+            `${k === 0 ? (-(nameLines.length - 1) * lineH) / 2 : lineH}px`
+          )
+          .text(line);
+      });
+    }
+    if (placed.truncated) pointG.attr(FULL_TEXT_ATTR, point.label);
 
     const coordsTspan = labelText
       .append('tspan')

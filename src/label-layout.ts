@@ -204,6 +204,9 @@ export interface QuadrantLabelPoint {
   cx: number; // pixel x
   cy: number; // pixel y
   r?: number; // per-point radius override (bubble charts); falls back to pointRadius
+  /** Per-point cap on `fit.maxLines`, so a caller can re-place one crowded
+   *  label on fewer lines (#2459). */
+  maxLines?: number;
 }
 
 interface PlacedQuadrantLabel {
@@ -218,6 +221,9 @@ interface PlacedQuadrantLabel {
   /** The label's box, padding included. */
   rect: LabelRect;
   connectorLine?: { x1: number; y1: number; x2: number; y2: number };
+  /** True when no clear spot existed, so the label sits where it overlaps
+   *  least (or, without `fit`, wherever the fallback put it) (#2459). */
+  collided?: boolean;
 }
 
 /** Wrap-then-cut limits for a point label (#2464). */
@@ -275,7 +281,13 @@ export function computeQuadrantPointLabels(
     const pt = points[i]!; // In-bounds by loop guard.
     const minGap = (pt.r ?? pointRadius) + 4;
     const fitted = fit
-      ? fitLabel(pt.label, fontSize, fit.maxWidth, fit.maxLines, { bold })
+      ? fitLabel(
+          pt.label,
+          fontSize,
+          fit.maxWidth,
+          Math.min(fit.maxLines, pt.maxLines ?? fit.maxLines),
+          { bold }
+        )
       : { lines: [pt.label], truncated: false };
     const labelWidth =
       (fit
@@ -433,6 +445,7 @@ export function computeQuadrantPointLabels(
       }
     }
 
+    const collided = !best;
     // Fallback with `fit`: of every in-bounds spot, the one that overlaps
     // least; a label with no in-bounds spot at all is pinned inside the plot.
     if (!best && fit) {
@@ -532,6 +545,7 @@ export function computeQuadrantPointLabels(
       truncated: fitted.truncated,
       rect: best.rect,
       ...(connectorLine !== undefined && { connectorLine }),
+      ...(collided && { collided: true }),
     });
   }
 
