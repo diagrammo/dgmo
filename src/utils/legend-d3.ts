@@ -20,6 +20,7 @@ import {
 import { computeLegendLayout } from './legend-layout';
 import { valueRampStops } from '../palettes/color-utils';
 import { FONT_FAMILY } from '../fonts';
+import { FULL_TEXT_ATTR } from './full-text';
 import type {
   LegendConfig,
   LegendState,
@@ -359,7 +360,11 @@ function renderCapsule(
     .attr('fill', palette.text)
     .attr('pointer-events', 'none')
     .attr('font-family', FONT_FAMILY)
-    .text(capsule.groupName);
+    .attr(
+      FULL_TEXT_ATTR,
+      pill.displayName !== undefined ? capsule.groupName : null
+    )
+    .text(pill.displayName ?? capsule.groupName);
 
   renderGradientRamp(g, capsule, palette, isDark);
   renderEntries(g, capsule, palette, true, callbacks);
@@ -431,7 +436,11 @@ function renderStaticKey(
       .attr('font-weight', 'normal')
       .attr('fill', palette.text)
       .attr('font-family', FONT_FAMILY)
-      .text(capsule.groupName);
+      .attr(
+        FULL_TEXT_ATTR,
+        capsule.pill.displayName !== undefined ? capsule.groupName : null
+      )
+      .text(capsule.pill.displayName ?? capsule.groupName);
   }
   renderGradientRamp(g, capsule, palette, isDark);
   renderEntries(g, capsule, palette, false, callbacks);
@@ -556,6 +565,10 @@ function renderEntries(
       .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
       .attr('fill', palette.textMuted)
       .attr('font-family', FONT_FAMILY)
+      .attr(
+        FULL_TEXT_ATTR,
+        entry.displayValue !== undefined ? entry.value : null
+      )
       .text(entry.displayValue ?? entry.value);
 
     // Entry hover callback for chart-level highlighting
@@ -608,7 +621,11 @@ function renderPill(
     .attr('fill', palette.textMuted)
     .attr('pointer-events', 'none')
     .attr('font-family', FONT_FAMILY)
-    .text(pill.groupName);
+    .attr(
+      FULL_TEXT_ATTR,
+      pill.displayName !== undefined ? pill.groupName : null
+    )
+    .text(pill.displayName ?? pill.groupName);
 
   if (callbacks?.onGroupToggle) {
     const cb = callbacks.onGroupToggle;

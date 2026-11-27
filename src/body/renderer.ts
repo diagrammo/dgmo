@@ -44,6 +44,14 @@ import {
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import type { LegendGroupData } from '../utils/legend-types';
 import { LEGEND_HEIGHT } from '../utils/legend-constants';
+import { fitLabel, type FittedLabel } from '../utils/fit-label';
+import { FULL_TEXT_ATTR } from '../utils/full-text';
+import {
+  fitWrapped,
+  measureText,
+  wrapTextToWidth,
+} from '../utils/text-measure';
+import { TITLE_SIDE_PAD } from '../utils/title-constants';
 import { getFigure, getPartGeom, resolvePartKey } from './catalog';
 import type { BodyFigure, BodyPart, BodyView, ParsedBody } from './types';
 
@@ -83,6 +91,68 @@ const OUTER_MARGIN = 30;
 const CENTER_COL = 420; // dual-view central label column width
 const LABEL_FONT = 23;
 const NOTE_FONT = 17;
+// Long text wraps before it is cut with … (#2421): the title to the drawing,
+// part names and notes to their label column.
+const TITLE_FONT = 34;
+const TITLE_LINE_H = 41;
+const TITLE_MAX_LINES = 2;
+const NAME_LINE_H = 28;
+const NOTE_LINE_H = 21;
+const NAME_MAX_LINES = 2;
+const NOTE_MAX_LINES = 3;
+// Gap between the dual-view label column's text and its edges.
+const COL_PAD = 10;
+
+/** A part's name and first note, fitted to its label column's width. */
+interface FittedPart {
+  name: FittedLabel;
+  note: FittedLabel | null;
+  fullName: string;
+  fullNote: string;
+}
+
+function fitPart(name: string, note: string, width: number): FittedPart {
+  return {
+    name: fitLabel(name, LABEL_FONT, width, NAME_MAX_LINES, { bold: true }),
+    note: note ? fitLabel(note, NOTE_FONT, width, NOTE_MAX_LINES) : null,
+    fullName: name,
+    fullNote: note,
+  };
+}
+
+/** How far a fitted part's last line sits below a one-line label's. */
+function extraDepth(f: FittedPart): number {
+  return (
+    (f.name.lines.length - 1) * NAME_LINE_H +
+    (f.note ? (f.note.lines.length - 1) * NOTE_LINE_H : 0)
+  );
+}
+
+/**
+ * One `<text>`, its lines as `<tspan>`s `lineH` apart. A one-line label is
+ * written exactly as before; a cut one carries its full text (#2421).
+ */
+function textLines(
+  lead: string,
+  x: number | string,
+  y: number | string,
+  attrs: string,
+  label: FittedLabel,
+  full: string,
+  lineH: number
+): string {
+  const fullAttr = label.truncated ? ` ${FULL_TEXT_ATTR}="${esc(full)}"` : '';
+  const body =
+    label.lines.length === 1
+      ? esc(label.lines[0]!)
+      : label.lines
+          .map(
+            (l, i) =>
+              `<tspan x="${x}" dy="${i === 0 ? 0 : lineH}">${esc(l)}</tspan>`
+          )
+          .join('');
+  return `<text${lead} x="${x}" y="${y}"${attrs}${fullAttr}>${body}</text>`;
+}
 
 type Box = [number, number, number, number]; // vx vy vw vh
 
@@ -301,9 +371,15 @@ function nearestCenter(
   return best;
 }
 
-/** Gutter labels for the single-view case (raw coords, drawn inside the g). */
-function gutterLabels(r: FigureRender, palette: PaletteColors): string {
+/** Gutter labels for the single-view case (raw coords, drawn inside the g).
+ *  `bottom` is the lowest label line's baseline, in the same coords. */
+function gutterLabels(
+  r: FigureRender,
+  palette: PaletteColors,
+  colW: number
+): { labels: string; bottom: number } {
   const { vx, vw, vh } = r;
+  let bottom = -Infinity;
   const cx = vx + vw / 2;
   const list = [...r.anchors.values()];
   // Clearly lateral parts label on their own side; near-midline ones (face,
@@ -334,21 +410,48 @@ function gutterLabels(r: FigureRender, palette: PaletteColors): string {
     let prevY = -1e9;
     for (const { a, tgt } of rows) {
       const ly = Math.max(tgt.y, prevY + minGap);
-      prevY = ly;
       const note = a.part.notes.length ? a.part.notes[0]! : '';
+      const fit = fitPart(partLabel(a.part), note, colW);
+      prevY = ly + extraDepth(fit);
       const dl = partAttrs(a.part.lineNumber, a.emph, r.tagAttr);
+      const nameY = ly + (note ? -2 : 7);
       labels +=
         `<path${dl} d="M${sx} ${ly} L${tgt.x} ${tgt.y}" stroke="${a.color}" stroke-width="2" stroke-linecap="round" vector-effect="non-scaling-stroke" fill="none" opacity="0.85"/>` +
         `<circle${dl} cx="${tgt.x}" cy="${tgt.y}" r="5.5" fill="${a.color}" stroke="${palette.bg}" stroke-width="2" vector-effect="non-scaling-stroke"/>` +
-        `<text${dl} x="${gx}" y="${ly + (note ? -2 : 7)}" text-anchor="${anchorX}" font-size="${LABEL_FONT}" font-weight="bold" fill="${palette.text}">${esc(partLabel(a.part))}</text>`;
-      if (note) {
-        labels += `<text${dl} x="${gx}" y="${ly + 22}" text-anchor="${anchorX}" font-size="${NOTE_FONT}" fill="${palette.textMuted}">${esc(note)}</text>`;
+        textLines(
+          dl,
+          gx,
+          nameY,
+          ` text-anchor="${anchorX}" font-size="${LABEL_FONT}" font-weight="bold" fill="${palette.text}"`,
+          fit.name,
+          fit.fullName,
+          NAME_LINE_H
+        );
+      bottom = Math.max(
+        bottom,
+        nameY + (fit.name.lines.length - 1) * NAME_LINE_H
+      );
+      if (fit.note) {
+        const noteY = ly + 22 + (fit.name.lines.length - 1) * NAME_LINE_H;
+        labels += textLines(
+          dl,
+          gx,
+          noteY,
+          ` text-anchor="${anchorX}" font-size="${NOTE_FONT}" fill="${palette.textMuted}"`,
+          fit.note,
+          fit.fullNote,
+          NOTE_LINE_H
+        );
+        bottom = Math.max(
+          bottom,
+          noteY + (fit.note.lines.length - 1) * NOTE_LINE_H
+        );
       }
     }
   };
   place(left, 'L');
   place(right, 'R');
-  return labels;
+  return { labels, bottom };
 }
 
 export function renderBody(
@@ -399,16 +502,35 @@ export function renderBody(
   // Laid out before the figures, in a detached group, so its drawn height sets
   // where the figures start (#2420); it joins the SVG after the figures, as before.
   let legendNode: SVGGElement | null = null;
+  // The title wraps to the drawing's width, then is cut with … (#2421) — the rule
+  // `renderChartTitle` applies, at this chart's scale.
+  const title = parsed.title && !parsed.options.noTitle ? parsed.title : '';
+  let titleLines: string[] = [];
+  let titleCut = false;
+  const fitTitle = (canvasW: number): number => {
+    if (!title) return 0;
+    const maxW = canvasW - 2 * TITLE_SIDE_PAD;
+    const fits = measureText(title, TITLE_FONT, { bold: true }) <= maxW;
+    titleLines = fits
+      ? [title]
+      : fitWrapped(title, maxW, TITLE_FONT, TITLE_FONT, TITLE_MAX_LINES).lines;
+    titleCut =
+      !fits &&
+      wrapTextToWidth(title, TITLE_FONT, maxW, { bold: true, hardBreak: true })
+        .length > TITLE_MAX_LINES;
+    return (titleLines.length - 1) * TITLE_LINE_H;
+  };
   const figuresTop = (canvasW: number): number => {
+    const titleH = TITLE_H + fitTitle(canvasW);
     if (parsed.options.noLegend || !parsed.tagGroups.length)
-      return TITLE_H + LEGEND_BAND;
+      return titleH + LEGEND_BAND;
     legendNode = container.ownerDocument.createElementNS(
       'http://www.w3.org/2000/svg',
       'g'
     );
     const legendG = d3Selection
       .select(legendNode)
-      .attr('transform', `translate(0, ${TITLE_H}) scale(${LEGEND_SCALE})`);
+      .attr('transform', `translate(0, ${titleH}) scale(${LEGEND_SCALE})`);
     const groups: LegendGroupData[] = keepUsedTagValues(
       parsed.tagGroups.map((g) => ({
         name: g.name,
@@ -432,7 +554,7 @@ export function renderBody(
       activeGroup,
     });
     return (
-      TITLE_H +
+      titleH +
       Math.max(LEGEND_BAND, handle.getHeight() * LEGEND_SCALE + LEGEND_FIG_GAP)
     );
   };
@@ -451,7 +573,11 @@ export function renderBody(
     top = figuresTop(totalW);
     const tx = OUTER_MARGIN + gutter - r.vx;
     const ty = top - r.vy;
-    body = `<g transform="translate(${tx.toFixed(2)} ${ty.toFixed(2)})">${r.body}${gutterLabels(r, palette)}</g>`;
+    // A label column runs from its 14-unit gap at the figure to the drawing's
+    // edge; labels that wrap below the figure grow the block (#2421).
+    const gl = gutterLabels(r, palette, gutter + OUTER_MARGIN - 14);
+    blockH = Math.max(figH, ty + gl.bottom + NOTE_FONT * 0.3 - top);
+    body = `<g transform="translate(${tx.toFixed(2)} ${ty.toFixed(2)})">${r.body}${gl.labels}</g>`;
   } else {
     // ── Dual view: figures flank a central label column, content-box aligned ──
     const fL = rendered[0]!;
@@ -483,8 +609,7 @@ export function renderBody(
 
     // One label per unique part name, with leaders to whichever figure(s) hold it.
     interface Item {
-      name: string;
-      note: string;
+      fit: FittedPart;
       color: string;
       emph: string;
       line: number;
@@ -507,8 +632,11 @@ export function renderBody(
       const right = aR ? mapR(nearestCenter(aR, fR.vx)) : undefined;
       const ys = [left?.y, right?.y].filter((v): v is number => v != null);
       items.push({
-        name: partLabel(part),
-        note: part.notes.length ? part.notes[0]! : '',
+        fit: fitPart(
+          partLabel(part),
+          part.notes.length ? part.notes[0]! : '',
+          CENTER_COL - 2 * COL_PAD
+        ),
         color: (aL ?? aR)!.color,
         emph: (aL ?? aR)!.emph,
         line: part.lineNumber,
@@ -524,7 +652,7 @@ export function renderBody(
     let prevY = -1e9;
     for (const it of items) {
       it.y = Math.max(it.y, prevY + minGap);
-      prevY = it.y;
+      prevY = it.y + extraDepth(it.fit);
     }
 
     // A label column that hangs past the figures is centred on their midline
@@ -535,7 +663,11 @@ export function renderBody(
     const first = items[0];
     const last = items[items.length - 1];
     const colTop = first ? first.y - 3 - LABEL_FONT : top;
-    const colBot = last ? last.y + (last.note ? 20 + NOTE_FONT * 0.3 : 0) : top;
+    const colBot = last
+      ? last.y +
+        extraDepth(last.fit) +
+        (last.fit.note ? 20 + NOTE_FONT * 0.3 : 0)
+      : top;
     if (colTop < top || colBot > top + figH) {
       const colH = colBot - colTop;
       blockH = Math.max(figH, colH);
@@ -566,9 +698,27 @@ export function renderBody(
           `<path${dl} d="M${(centerX + stub).toFixed(1)} ${it.y.toFixed(1)} L${it.right.x.toFixed(1)} ${it.right.y.toFixed(1)}" stroke="${it.color}" stroke-width="2" stroke-linecap="round" vector-effect="non-scaling-stroke" fill="none" opacity="0.85"/>` +
           `<circle${dl} cx="${it.right.x.toFixed(1)}" cy="${it.right.y.toFixed(1)}" r="5.5" fill="${it.color}" stroke="${palette.bg}" stroke-width="2" vector-effect="non-scaling-stroke"/>`;
       }
-      labels += `<text${dl} x="${centerX}" y="${(it.y - 3).toFixed(1)}" text-anchor="middle" font-size="${LABEL_FONT}" font-weight="bold" fill="${palette.text}">${esc(it.name)}</text>`;
-      if (it.note) {
-        labels += `<text${dl} x="${centerX}" y="${(it.y + 20).toFixed(1)}" text-anchor="middle" font-size="${NOTE_FONT}" fill="${palette.textMuted}">${esc(it.note)}</text>`;
+      const { fit } = it;
+      labels += textLines(
+        dl,
+        centerX,
+        (it.y - 3).toFixed(1),
+        ` text-anchor="middle" font-size="${LABEL_FONT}" font-weight="bold" fill="${palette.text}"`,
+        fit.name,
+        fit.fullName,
+        NAME_LINE_H
+      );
+      if (fit.note) {
+        const noteY = it.y + 20 + (fit.name.lines.length - 1) * NAME_LINE_H;
+        labels += textLines(
+          dl,
+          centerX,
+          noteY.toFixed(1),
+          ` text-anchor="middle" font-size="${NOTE_FONT}" fill="${palette.textMuted}"`,
+          fit.note,
+          fit.fullNote,
+          NOTE_LINE_H
+        );
       }
     }
     body += labels;
@@ -629,17 +779,26 @@ export function renderBody(
 
   // Title (centered over the whole canvas).
   let titleNode: SVGTextElement | null = null;
-  if (parsed.title && !parsed.options.noTitle) {
-    titleNode = svg
+  if (title) {
+    const titleSel = svg
       .append('text')
       .attr('x', totalW / 2)
       .attr('y', 40)
       .attr('text-anchor', 'middle')
-      .attr('font-size', 34)
+      .attr('font-size', TITLE_FONT)
       .attr('font-weight', 'bold')
-      .attr('fill', palette.text)
-      .text(parsed.title)
-      .node();
+      .attr('fill', palette.text);
+    if (titleCut) titleSel.attr(FULL_TEXT_ATTR, title);
+    if (titleLines.length === 1) titleSel.text(titleLines[0]!);
+    else
+      titleLines.forEach((line, i) => {
+        titleSel
+          .append('tspan')
+          .attr('x', totalW / 2)
+          .attr('dy', i === 0 ? 0 : TITLE_LINE_H)
+          .text(line);
+      });
+    titleNode = titleSel.node();
   }
 
   // The legend measured above, drawn over the band it reserved.

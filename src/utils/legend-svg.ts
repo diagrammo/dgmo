@@ -33,6 +33,7 @@ import {
 import { computeLegendLayoutWith } from './legend-layout';
 import { valueRampStops } from '../palettes/color-utils';
 import { FONT_FAMILY } from '../fonts';
+import { FULL_TEXT_ATTR } from './full-text';
 
 /** Vertical centring, matching legend-d3.ts's `centerText`. */
 const CENTER = 'dominant-baseline="central"';
@@ -108,6 +109,10 @@ function emitEntries(
   const cursor = interactive ? ' style="cursor:pointer"' : '';
   for (const entry of capsule.entries) {
     const label = entry.displayValue ?? entry.value;
+    const full =
+      entry.displayValue !== undefined
+        ? ` ${FULL_TEXT_ATTR}="${esc(entry.value)}"`
+        : '';
     // Transparent hit-rect spanning the whole entry so hover/click land on the
     // full pill area, not only the dot/text glyphs (legend-hover emphasis in
     // charts-d3/interactions.ts needs a filled mouseenter target).
@@ -119,7 +124,7 @@ function emitEntries(
       `<g data-legend-entry="${esc(entry.value.toLowerCase())}" data-series-name="${esc(entry.value)}"${cursor}>` +
         hit +
         legendSwatch(entry) +
-        `<text x="${entry.textX}" y="${entry.dotCy}" ${CENTER} font-size="${LEGEND_ENTRY_FONT_SIZE}" fill="${esc(palette.textMuted)}" font-family="${esc(FONT_FAMILY)}">${esc(label)}</text>` +
+        `<text x="${entry.textX}" y="${entry.dotCy}" ${CENTER} font-size="${LEGEND_ENTRY_FONT_SIZE}" fill="${esc(palette.textMuted)}" font-family="${esc(FONT_FAMILY)}"${full}>${esc(label)}</text>` +
         `</g>`
     );
   }
@@ -210,7 +215,7 @@ function emitCapsule(
 
   // Pill text — vertically centered in the first row.
   inner.push(
-    `<text x="${pill.x + pill.width / 2}" y="${LEGEND_HEIGHT / 2}" ${CENTER} font-size="${LEGEND_PILL_FONT_SIZE}" font-weight="normal" fill="${esc(palette.text)}" text-anchor="middle" font-family="${esc(FONT_FAMILY)}">${esc(capsule.groupName)}</text>`
+    `<text x="${pill.x + pill.width / 2}" y="${LEGEND_HEIGHT / 2}" ${CENTER} font-size="${LEGEND_PILL_FONT_SIZE}" font-weight="normal" fill="${esc(palette.text)}" text-anchor="middle" font-family="${esc(FONT_FAMILY)}"${pillFullText(pill)}>${esc(pill.displayName ?? capsule.groupName)}</text>`
   );
 
   // A continuous-ramp group draws its colour bar where entries would go.
@@ -222,6 +227,13 @@ function emitCapsule(
   return `<g transform="translate(${capsule.x},${capsule.y})" data-legend-group="${esc(tagAttrKey(capsule.groupName))}" style="cursor:pointer">${inner.join('')}</g>`;
 }
 
+/** The full group name, on a pill whose name was cut with … (#2421). */
+function pillFullText(pill: LegendPillLayout): string {
+  return pill.displayName !== undefined
+    ? ` ${FULL_TEXT_ATTR}="${esc(pill.groupName)}"`
+    : '';
+}
+
 /** Collapsed group pill (no active group) → SVG string. */
 function emitPill(
   pill: LegendPillLayout,
@@ -231,7 +243,7 @@ function emitPill(
   return (
     `<g transform="translate(${pill.x},${pill.y})" data-legend-group="${esc(tagAttrKey(pill.groupName))}" style="cursor:pointer">` +
     `<rect width="${pill.width}" height="${pill.height}" rx="${pill.height / 2}" fill="${esc(groupBg)}"/>` +
-    `<text x="${pill.width / 2}" y="${pill.height / 2}" ${CENTER} font-size="${LEGEND_PILL_FONT_SIZE}" font-weight="normal" fill="${esc(palette.textMuted)}" text-anchor="middle" font-family="${esc(FONT_FAMILY)}">${esc(pill.groupName)}</text>` +
+    `<text x="${pill.width / 2}" y="${pill.height / 2}" ${CENTER} font-size="${LEGEND_PILL_FONT_SIZE}" font-weight="normal" fill="${esc(palette.textMuted)}" text-anchor="middle" font-family="${esc(FONT_FAMILY)}"${pillFullText(pill)}>${esc(pill.displayName ?? pill.groupName)}</text>` +
     `</g>`
   );
 }

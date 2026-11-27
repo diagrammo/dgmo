@@ -174,6 +174,9 @@ export interface LegendPalette {
 
 export interface LegendPillLayout {
   groupName: string;
+  /** The name as drawn when it was cut with … to fit the legend (#2421);
+   *  absent ⇒ drawn in full. */
+  displayName?: string;
   x: number;
   y: number;
   width: number;

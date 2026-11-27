@@ -4,7 +4,12 @@
 // pays for it; the caller keeps the full text for hover.
 // ============================================================
 
-import { measureText, truncateText, wrapTextToWidth } from './text-measure';
+import {
+  measureText,
+  truncateText,
+  wrapTextToWidth,
+  type MeasureOpts,
+} from './text-measure';
 
 export interface FittedLabel {
   /** The lines to draw, top to bottom; at least one. */
@@ -17,19 +22,20 @@ export interface FittedLabel {
  * Fit `text` into at most `maxLines` lines of `maxWidth` px at `fontSize`.
  * Words wrap first. When the words need more lines than allowed, the last
  * line carries the rest and is cut with `…`. A single word wider than the
- * width is cut on its own line.
+ * width is cut on its own line. `opts` measures bold text as bold.
  */
 export function fitLabel(
   text: string,
   fontSize: number,
   maxWidth: number,
-  maxLines: number
+  maxLines: number,
+  opts?: MeasureOpts
 ): FittedLabel {
   const limit = Math.max(1, Math.floor(maxLines));
-  if (measureText(text, fontSize) <= maxWidth) {
+  if (measureText(text, fontSize, opts) <= maxWidth) {
     return { lines: [text], truncated: false };
   }
-  const wrapped = wrapTextToWidth(text, fontSize, maxWidth);
+  const wrapped = wrapTextToWidth(text, fontSize, maxWidth, opts);
   const kept =
     wrapped.length <= limit
       ? wrapped
@@ -40,7 +46,7 @@ export function fitLabel(
         ];
   let truncated = wrapped.length > limit;
   const lines = kept.map((line) => {
-    const cut = truncateText(line, fontSize, maxWidth);
+    const cut = truncateText(line, fontSize, maxWidth, opts);
     if (cut !== line) truncated = true;
     return cut;
   });

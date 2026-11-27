@@ -385,7 +385,7 @@ export function placeFrameTitle(
         if (span.hasAttribute('x')) span.setAttribute('x', local);
     }
   }
-  if (!inline) placeFrameLegend(node, frame, edges);
+  if (!inline) placeFrameLegend(node, frame, edges, vb, canvas);
   placeFrameText(node, frame, edges);
   return edges;
 }
@@ -430,7 +430,9 @@ function placeFrameText(
 function placeFrameLegend(
   node: SVGSVGElement,
   frame: ChartFrame | undefined,
-  edges: FrameEdges
+  edges: FrameEdges,
+  vb: { x: number; width: number },
+  inset: FrameEdges
 ): void {
   const legend = node.querySelector<SVGGElement>(
     'g.dgmo-legend, g.chart-legend'
@@ -446,7 +448,16 @@ function placeFrameLegend(
   const align = frameAlign(frame, 'legend');
   const at = align === 'center' ? (lo + hi) / 2 : align === 'right' ? hi : lo;
   const { x } = edge(align, edges);
-  const dx = (x - (m[0] * at + m[4])) / m[0];
+  // The shift, in root units. A legend it would push off the canvas rests on
+  // the canvas's inset edge instead: one laid out as wide as the canvas, moved
+  // to a drawing that starts inset, would otherwise run off the right edge
+  // (#2421). The left edge wins when the legend is wider than the canvas.
+  let shift = x - (m[0] * at + m[4]);
+  const right = m[0] * hi + m[4] + shift;
+  if (right > vb.x + vb.width) shift -= right - inset.right;
+  const left = m[0] * lo + m[4] + shift;
+  if (left < vb.x) shift += inset.left - left;
+  const dx = shift / m[0];
   if (Math.abs(dx) < 0.01) return;
   const parent = legend.parentElement;
   let wrap: Element;
@@ -848,8 +859,20 @@ export function growChartFrame(
   let subtitleY = vb.y + SUBTITLE_Y_NO_TITLE * scale;
   if (title) {
     const ty = Number(title.getAttribute('y') ?? 0);
-    const lines = Math.max(1, title.querySelectorAll('tspan').length);
-    const baseline = ty + (lines - 1) * TITLE_LINE_HEIGHT;
+    const spans = Array.from(title.querySelectorAll('tspan'));
+    const lines = Math.max(1, spans.length);
+    // Lines stepped by `dy` sit where their steps say: a chart that draws its
+    // title larger than TITLE_FONT_SIZE spaces its lines wider (body, #2421).
+    const dys = spans.map((t) => Number(t.getAttribute('dy')));
+    const stepped =
+      spans.length > 1 &&
+      spans.every((t) => t.hasAttribute('dy')) &&
+      dys.every(Number.isFinite);
+    const baseline =
+      ty +
+      (stepped
+        ? dys.reduce((a, b) => a + b, 0)
+        : (lines - 1) * TITLE_LINE_HEIGHT);
     subtitleY = m[3] * baseline + m[5] + (SUBTITLE_LINE_HEIGHT + 2) * scale;
   }
 

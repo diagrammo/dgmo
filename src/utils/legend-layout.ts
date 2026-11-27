@@ -137,6 +137,33 @@ export function pillWidth(name: string): number {
   return measureLegendText(name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
 }
 
+/** Most of the legend's width a group's name may take before it is cut with
+ *  …, so the name never pushes its entries (or itself) off the canvas (#2421). */
+const NAME_MAX_SHARE = 0.5;
+
+/**
+ * A group name's pill, fitted to `containerWidth`: drawn in full while it
+ * takes at most NAME_MAX_SHARE of the width, cut with … past that.
+ */
+function fitPill(
+  name: string,
+  containerWidth: number
+): { width: number; displayName?: string } {
+  const pw = pillWidth(name);
+  const cap = containerWidth * NAME_MAX_SHARE;
+  if (pw <= cap) return { width: pw };
+  const shown = truncateLegendText(
+    name,
+    LEGEND_PILL_FONT_SIZE,
+    Math.max(0, cap - LEGEND_PILL_PAD)
+  );
+  return { width: pillWidth(shown), displayName: shown };
+}
+
+/** The text room an entry has in `rowW` px, after its dot, gap and trail. */
+const entryTextRoom = (rowW: number): number =>
+  rowW - (LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + LEGEND_ENTRY_TRAIL);
+
 function entriesWidth(
   entries: ReadonlyArray<{ readonly value: string }>
 ): number {
@@ -197,7 +224,7 @@ function capsuleWidth(
   moreCount: number;
   visibleEntries: number;
 } {
-  const pw = pillWidth(name);
+  const pw = fitPill(name, containerWidth).width;
   const maxCapsuleW = containerWidth;
   const baseW = LEGEND_CAPSULE_PAD * 2 + pw + 4 + addonWidth;
 
@@ -505,14 +532,17 @@ export function computeLegendLayoutWith(
             config.capsuleTrailingAddonWidth ?? 0
           );
     } else if (!activeGroupName || config.showInactivePills) {
-      const pw = pillWidth(g.name);
+      const fitted = fitPill(g.name, groupAvailW);
       pills.push({
         groupName: g.name,
         x: 0,
         y: 0,
-        width: pw,
+        width: fitted.width,
         height: LEGEND_HEIGHT,
         isActive: false,
+        ...(fitted.displayName !== undefined && {
+          displayName: fitted.displayName,
+        }),
       });
     }
   }
@@ -567,9 +597,9 @@ const STATIC_CAPTION_GAP = 8;
  * The legend of a STATIC render — CLI, export, embed: a plain key, swatch plus
  * the full label, with none of the preview's controls. No group pill (that is
  * the button that switches groups in the app), no capsule background, no addon
- * icons, never an ellipsis and never a "+N more": entries wrap onto as many
- * rows as they need. A label wider than a whole row gets a row to itself and
- * runs to its natural width. A continuous ramp keeps its own layout; the
+ * icons and never a "+N more": entries wrap onto as many rows as they need. A
+ * label wider than a whole row gets a row to itself, cut with … to the row —
+ * the last resort, so the key never runs off the canvas (#2421). A continuous ramp keeps its own layout; the
  * renderer draws its group name as plain text rather than as a pill.
  *
  * With `caption`, the group's name opens the key as plain text and wrapped rows
@@ -584,16 +614,36 @@ function buildStaticKeyLayout(
 ): LegendCapsuleLayout {
   if (group.gradient) return buildGradientCapsuleLayout(group, group.gradient);
 
-  const captionW = caption
+  // A caption past NAME_MAX_SHARE of the width is cut with … (#2421).
+  const captionCap = containerWidth * NAME_MAX_SHARE;
+  const fullCaptionW = caption
     ? measureLegendText(group.name, LEGEND_PILL_FONT_SIZE)
     : 0;
+  const displayName =
+    fullCaptionW > captionCap
+      ? truncateLegendText(group.name, LEGEND_PILL_FONT_SIZE, captionCap)
+      : undefined;
+  const captionW =
+    displayName !== undefined
+      ? measureLegendText(displayName, LEGEND_PILL_FONT_SIZE)
+      : fullCaptionW;
   const start = caption ? captionW + STATIC_CAPTION_GAP : 0;
   const entries: LegendEntryLayout[] = [];
   let rowX = start;
   let row = 0;
   let widest = start;
   for (const entry of group.entries) {
-    const ew = entryWidth(entry.value);
+    let ew = entryWidth(entry.value);
+    // A label wider than a whole row is cut with … to the row (#2421).
+    let displayValue: string | undefined;
+    if (ew > containerWidth - start + 0.5) {
+      displayValue = truncateLegendText(
+        entry.value,
+        LEGEND_ENTRY_FONT_SIZE,
+        Math.max(0, entryTextRoom(containerWidth - start))
+      );
+      ew = entryWidth(displayValue);
+    }
     // Tolerate sub-pixel drift, as capsuleWidth does for a single row.
     if (rowX > start && rowX + ew > containerWidth + 0.5) {
       row++;
@@ -611,6 +661,7 @@ function buildStaticKeyLayout(
       dotCy: ey + LEGEND_HEIGHT / 2,
       textX: rowX + LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP,
       textY: ey + LEGEND_HEIGHT / 2,
+      ...(displayValue !== undefined && { displayValue }),
     });
     rowX += ew;
     widest = Math.max(widest, rowX);
@@ -629,6 +680,7 @@ function buildStaticKeyLayout(
       width: captionW,
       height: caption ? LEGEND_HEIGHT : 0,
       isActive: true,
+      ...(displayName !== undefined && { displayName }),
     },
     entries,
   };
@@ -643,7 +695,8 @@ function buildCapsuleLayout(
   trailWidth = 0
 ): LegendCapsuleLayout {
   if (group.gradient) return buildGradientCapsuleLayout(group, group.gradient);
-  const pw = pillWidth(group.name);
+  const fitted = fitPill(group.name, containerWidth);
+  const pw = fitted.width;
   const info = capsuleWidth(
     group.name,
     group.entries,
@@ -659,6 +712,9 @@ function buildCapsuleLayout(
     width: pw,
     height: LEGEND_HEIGHT - LEGEND_CAPSULE_PAD * 2,
     isActive: true,
+    ...(fitted.displayName !== undefined && {
+      displayName: fitted.displayName,
+    }),
   };
 
   const entries: LegendEntryLayout[] = [];
@@ -683,8 +739,7 @@ function buildCapsuleLayout(
     let displayValue: string | undefined;
     const availW = maxRowW - rowX;
     if (ew > availW) {
-      const textAvail =
-        availW - (LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + LEGEND_ENTRY_TRAIL);
+      const textAvail = entryTextRoom(availW);
       if (textAvail > 0) {
         displayValue = truncateLegendText(
           entry.value,

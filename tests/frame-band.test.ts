@@ -199,8 +199,17 @@ describe('title band on every chart type (#1838)', () => {
           expect(p.anchor, `${sel} anchor`).toBe(ANCHOR[align]);
           expect(p.x, `${sel} x`).toBeCloseTo(want, 0);
         }
+        // The legend too, unless it had to slide to stay on the canvas: then
+        // it rests on an inset edge of the canvas (#2421).
         const lx = legendAt(doc, align);
-        if (lx !== null) expect(lx, 'legend edge').toBeCloseTo(want, 0);
+        if (lx !== null && Math.abs(lx - want) > 0.5) {
+          const lo = legendAt(doc, 'left')!;
+          const hi = legendAt(doc, 'right')!;
+          const onEdge =
+            Math.abs(lo - (vbX + FRAME_INSET)) < 0.5 ||
+            Math.abs(hi - (vbX + vbW - FRAME_INSET)) < 0.5;
+          expect(onEdge, `legend at ${lo}–${hi}, edge ${want}`).toBe(true);
+        }
       });
     }
 
