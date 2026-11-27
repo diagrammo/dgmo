@@ -27,7 +27,13 @@ import {
 import { resolveColor } from '../colors';
 import { compactNumber } from '../treemap/treemap-shared';
 import { parseInlineMarkdown } from '../utils/inline-markdown';
-import { measureText, MIN_READABLE_TYPE_PX } from '../utils/text-measure';
+import {
+  measureText,
+  truncateText,
+  MIN_READABLE_TYPE_PX,
+} from '../utils/text-measure';
+import { fitLabel, type FittedLabel } from '../utils/fit-label';
+import { FULL_TEXT_ATTR } from '../utils/full-text';
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import type { GoalMeasure, ParsedGoal } from './types';
@@ -45,6 +51,16 @@ const RIBBON_GAP = 6;
 const VALUE_LABEL_GAP = 8;
 /** Bar face: how much band colour tints the track ground (#2094). */
 const BAND_GROUND_PCT = 18;
+/**
+ * A goal title wider than its room wraps to at most this many lines, then the
+ * last line is cut with `…` (#2443). Each line past the first moves the face
+ * down by GOAL_TITLE_LINE_H × the title size.
+ */
+const GOAL_TITLE_MAX_LINES = 3;
+const GOAL_TITLE_LINE_H = 1.2;
+/** Least clear space between the title and the readout on one row (#2443). */
+const TITLE_READOUT_GAP = 24;
+const BOLD = { bold: true } as const;
 /** Measures per row on the thermometer and gauge faces (#1851 rule 7). */
 const CELLS_PER_ROW = 4;
 
@@ -479,7 +495,34 @@ function drawNote(
   return firstY + lines.length * lineH;
 }
 
-/** Title placed immediately above a face's element (not the top-center slot). */
+/**
+ * The title fitted to `maxW` (#2443): wrapped, then cut with `…` on the last
+ * line. A title that fits comes back as one line, as typed. Null when hidden.
+ */
+function fitTitle(
+  parsed: ParsedGoal,
+  maxW: number,
+  size = GOAL_TITLE_SIZE
+): FittedLabel | null {
+  if (!parsed.title || parsed.options.noTitle) return null;
+  return fitLabel(
+    parsed.title,
+    size,
+    Math.max(1, maxW),
+    GOAL_TITLE_MAX_LINES,
+    BOLD
+  );
+}
+
+/** Height the fitted title takes past its first line (0 for one line). */
+function titleExtra(fit: FittedLabel | null, size = GOAL_TITLE_SIZE): number {
+  return fit ? (fit.lines.length - 1) * size * GOAL_TITLE_LINE_H : 0;
+}
+
+/**
+ * Title placed immediately above a face's element (not the top-center slot).
+ * `y` is the first line's baseline; further lines of `fit` run below it.
+ */
 function faceTitle(
   svg: Svg,
   parsed: ParsedGoal,
@@ -487,10 +530,11 @@ function faceTitle(
   x: number,
   y: number,
   anchor = 'middle',
-  size = GOAL_TITLE_SIZE
+  size = GOAL_TITLE_SIZE,
+  fit: FittedLabel | null = null
 ): void {
   if (!parsed.title || parsed.options.noTitle) return;
-  svg
+  const t = svg
     .append('text')
     .attr('class', 'chart-title')
     .attr('x', x)
@@ -500,8 +544,17 @@ function faceTitle(
     .attr('font-family', FONT_FAMILY)
     .attr('font-size', size)
     .attr('font-weight', TITLE_FONT_WEIGHT)
-    .attr('data-line-number', parsed.titleLineNumber)
-    .text(parsed.title);
+    .attr('data-line-number', parsed.titleLineNumber);
+  if (!fit || fit.lines.length === 1) t.text(fit?.lines[0] ?? parsed.title);
+  else
+    fit.lines.forEach((line, i) =>
+      t
+        .append('tspan')
+        .attr('x', x)
+        .attr('dy', i === 0 ? 0 : size * GOAL_TITLE_LINE_H)
+        .text(line)
+    );
+  if (fit?.truncated) t.attr(FULL_TEXT_ATTR, parsed.title);
 }
 
 /** The band name after the percent (`64% · OK`) — null when there is none. */
@@ -509,11 +562,33 @@ function statusSuffix(v: GoalView): string | null {
   return v.status?.label ? ` · ${v.status.label}` : null;
 }
 
+/** The readout as drawn: the band name cut with `…` to fit (#2443). */
+interface FittedReadout {
+  /** The band name to draw, or null when there is none. */
+  label: string | null;
+  width: number;
+  /** True when the band name was cut. */
+  cut: boolean;
+}
+
+/** The readout at `size`, its band name cut so the whole stays within `maxW`. */
+function fitReadout(v: GoalView, size: number, maxW = Infinity): FittedReadout {
+  const pct = v.metrics.pctLabel;
+  const full = v.status?.label ?? null;
+  const whole = measureText(`${pct}${statusSuffix(v) ?? ''}`, size, BOLD);
+  if (!full || whole <= maxW) return { label: full, width: whole, cut: false };
+  const room = maxW - measureText(`${pct} · `, size, BOLD);
+  const label = truncateText(full, size, Math.max(0, room), BOLD);
+  return {
+    label,
+    width: measureText(`${pct} · ${label}`, size, BOLD),
+    cut: label !== full,
+  };
+}
+
 /** Text width of the readout, for column sizing. */
-function readoutWidth(v: GoalView, size: number): number {
-  return measureText(`${v.metrics.pctLabel}${statusSuffix(v) ?? ''}`, size, {
-    bold: true,
-  });
+function readoutWidth(v: GoalView, size: number, maxW = Infinity): number {
+  return fitReadout(v, size, maxW).width;
 }
 
 /**
@@ -527,7 +602,8 @@ function drawReadout(
   y: number,
   anchor: string,
   size: number,
-  pctFill: string
+  pctFill: string,
+  maxW = Infinity
 ): void {
   const t = host
     .append('text')
@@ -538,13 +614,17 @@ function drawReadout(
     .attr('font-family', FONT_FAMILY)
     .attr('font-size', size)
     .attr('font-weight', 'bold');
-  const suffix = statusSuffix(v);
-  if (!suffix) {
+  const fit = fitReadout(v, size, maxW);
+  if (!fit.label) {
     t.text(v.metrics.pctLabel);
     return;
   }
   t.append('tspan').text(v.metrics.pctLabel);
-  t.append('tspan').attr('fill', v.paint.ink(v.status!.color)).text(suffix);
+  t.append('tspan')
+    .attr('fill', v.paint.ink(v.status!.color))
+    .text(` · ${fit.label}`);
+  if (fit.cut)
+    t.attr(FULL_TEXT_ATTR, `${v.metrics.pctLabel}${statusSuffix(v)}`);
 }
 
 /** The largest size up to `size` at which `text` (bold) fits `maxW`. */
@@ -755,13 +835,41 @@ function renderBar(svg: Svg, parsed: ParsedGoal, v: GoalView): Box {
   const showPct = !parsed.options.noPercent && m.hasTarget;
   const titleSize = GOAL_TITLE_SIZE;
 
-  // Top row above the bar: title on the left, readout on the right.
-  if (hasTitle) faceTitle(svg, parsed, paint, x, titleSize - 2, 'start');
+  // Top row above the bar: title on the left, readout on the right (#2443).
+  // The readout is measured first and its band name cut to half the row; the
+  // title wraps in what is left. When both are long, the readout takes its
+  // own line under the title instead.
+  let readMax = hasTitle ? trackW / 2 : trackW;
+  const read = showPct ? fitReadout(v, titleSize, readMax) : null;
+  let fit = fitTitle(
+    parsed,
+    read ? trackW - read.width - TITLE_READOUT_GAP : trackW,
+    titleSize
+  );
+  const ownLine = !!fit && !!read && read.cut && fit.lines.length > 1;
+  if (ownLine) {
+    readMax = trackW;
+    fit = fitTitle(parsed, trackW, titleSize);
+  }
+  const extra = titleExtra(fit, titleSize);
+  const readDrop = ownLine ? extra + titleSize * GOAL_TITLE_LINE_H : 0;
+  if (hasTitle)
+    faceTitle(svg, parsed, paint, x, titleSize - 2, 'start', titleSize, fit);
   const barRight = x + trackW;
   if (showPct) {
-    drawReadout(svg, v, barRight, titleSize - 2, 'end', titleSize, paint.muted);
+    drawReadout(
+      svg,
+      v,
+      barRight,
+      titleSize - 2 + readDrop,
+      'end',
+      titleSize,
+      paint.muted,
+      readMax
+    );
   }
-  const y = hasTitle || showPct ? titleSize + 14 : 0;
+  const y =
+    hasTitle || showPct ? titleSize + 14 + Math.max(extra, readDrop) : 0;
   const barCy = y + trackH / 2;
 
   const g = svg.append('g').attr('class', 'goal-bar');
@@ -815,20 +923,35 @@ function renderBarRows(svg: Svg, parsed: ParsedGoal, views: GoalView[]): Box {
     ...views.map((v) => measureText(targetText(v), valSize, { bold: true }))
   );
   const showPct = !parsed.options.noPercent;
+  // A row's band name is cut so its readout stays within half a track (#2443).
+  const readMax = trackW / 2;
   const readW = showPct
     ? Math.max(
         0,
-        ...views.map((v) => (v.m.hasTarget ? readoutWidth(v, valSize) : 0))
+        ...views.map((v) =>
+          v.m.hasTarget ? readoutWidth(v, valSize, readMax) : 0
+        )
       )
     : 0;
   const barX = nameW + 20;
   const targetX = barX + trackW + 16;
   const readX = targetX + targetColW + 22;
+  const maxX = showPct ? readX + readW : targetX + targetColW;
 
   let y = 0;
   if (parsed.title && !parsed.options.noTitle) {
-    faceTitle(svg, parsed, first.paint, 0, GOAL_TITLE_SIZE - 2, 'start');
-    y = GOAL_TITLE_SIZE + 26;
+    const fit = fitTitle(parsed, maxX);
+    faceTitle(
+      svg,
+      parsed,
+      first.paint,
+      0,
+      GOAL_TITLE_SIZE - 2,
+      'start',
+      GOAL_TITLE_SIZE,
+      fit
+    );
+    y = GOAL_TITLE_SIZE + 26 + titleExtra(fit);
   }
 
   views.forEach((v) => {
@@ -865,7 +988,8 @@ function renderBarRows(svg: Svg, parsed: ParsedGoal, views: GoalView[]): Box {
           barCy + valSize * 0.35,
           'start',
           valSize,
-          v.paint.text
+          v.paint.text,
+          readMax
         );
       }
     }
@@ -873,7 +997,6 @@ function renderBarRows(svg: Svg, parsed: ParsedGoal, views: GoalView[]): Box {
   });
   y -= rowGap;
 
-  const maxX = showPct ? readX + readW : targetX + targetColW;
   if (parsed.description && !parsed.options.noNote) {
     y = drawNote(svg, parsed.description, first.paint, 0, y + 36, maxX);
   }
@@ -903,14 +1026,25 @@ function renderCells(
       floor = (MIN_READABLE_TYPE_PX * 1.1) / Math.min(1, scale);
     }
   }
-  return layoutCells(svg, parsed, views, floor);
+  // The title wraps to the grid's width, learnt from a dry run (#2443).
+  const titleW =
+    parsed.title && !parsed.options.noTitle
+      ? layoutCells(
+          d3Selection.create('svg') as unknown as Svg,
+          parsed,
+          views,
+          floor
+        ).maxX
+      : Infinity;
+  return layoutCells(svg, parsed, views, floor, Math.max(400, titleW));
 }
 
 function layoutCells(
   svg: Svg,
   parsed: ParsedGoal,
   views: GoalView[],
-  textFloor: number
+  textFloor: number,
+  titleW = Infinity
 ): Box {
   const nameSize = 24;
   const readSize = 22;
@@ -921,8 +1055,18 @@ function layoutCells(
 
   let y = 0;
   if (parsed.title && !parsed.options.noTitle) {
-    faceTitle(svg, parsed, first.paint, 0, GOAL_TITLE_SIZE - 2, 'start');
-    y = GOAL_TITLE_SIZE + 36;
+    const fit = fitTitle(parsed, titleW);
+    faceTitle(
+      svg,
+      parsed,
+      first.paint,
+      0,
+      GOAL_TITLE_SIZE - 2,
+      'start',
+      GOAL_TITLE_SIZE,
+      fit
+    );
+    y = GOAL_TITLE_SIZE + 36 + titleExtra(fit);
   }
 
   let maxX = 0;
@@ -972,7 +1116,9 @@ function layoutCells(
           nameY + readSize + 10,
           'middle',
           readSize,
-          v.paint.muted
+          v.paint.muted,
+          // Neighbouring readouts sit w + cellGap apart, centre to centre.
+          w + cellGap
         );
       }
       x += w + cellGap;
@@ -1320,19 +1466,18 @@ function renderThermometer(
   const titleSize = GOAL_TITLE_SIZE;
   let cursorY = glassTop;
   if (parsed.title && !parsed.options.noTitle) {
-    svg
-      .append('text')
-      .attr('class', 'chart-title')
-      .attr('x', colLeft)
-      .attr('y', cursorY + titleSize)
-      .attr('text-anchor', 'start')
-      .attr('fill', paint.text)
-      .attr('font-family', FONT_FAMILY)
-      .attr('font-size', titleSize)
-      .attr('font-weight', TITLE_FONT_WEIGHT)
-      .attr('data-line-number', parsed.titleLineNumber)
-      .text(parsed.title);
-    cursorY += titleSize + 16;
+    const fit = fitTitle(parsed, textColW, titleSize);
+    faceTitle(
+      svg,
+      parsed,
+      paint,
+      colLeft,
+      cursorY + titleSize,
+      'start',
+      titleSize,
+      fit
+    );
+    cursorY += titleSize + 16 + titleExtra(fit, titleSize);
   }
   if (!parsed.options.noPercent) {
     const suffix = v.status?.label ?? null;
@@ -1351,7 +1496,9 @@ function renderThermometer(
         .attr('font-weight', 'bold')
         .text(metrics.pctLabel);
       const nameSize = fitSize(suffix, 32, textColW);
-      svg
+      // Past the smallest size, the band name is cut with `…` (#2443).
+      const shown = truncateText(suffix, nameSize, textColW, BOLD);
+      const nameText = svg
         .append('text')
         .attr('class', 'goal-readout')
         .attr('x', colLeft)
@@ -1361,7 +1508,8 @@ function renderThermometer(
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', nameSize)
         .attr('font-weight', 'bold')
-        .text(suffix);
+        .text(shown);
+      if (shown !== suffix) nameText.attr(FULL_TEXT_ATTR, suffix);
       cursorY += 76 + 8 + nameSize;
     } else {
       drawReadout(svg, v, colLeft, cursorY + 52, 'start', 64, paint.muted);
@@ -1433,7 +1581,6 @@ function renderGauge(
   // height + a gap so the arc's stroked crest never rides up into it.
   const hasTopTitle =
     !cell && !hasNote && !!parsed.title && !parsed.options.noTitle;
-  const topTitleH = hasTopTitle ? GOAL_TITLE_SIZE + 6 + 16 : 0;
 
   // Band ribbon OUTSIDE the arc, labels beyond it (#1973 rule 7).
   const zoneLabelSize = 15;
@@ -1448,6 +1595,14 @@ function renderGauge(
     : 0;
 
   const cx = colLeft + colW + colGap + sideRoom + r;
+  // A long title wraps (#2443): to the column beside a note, or over the
+  // dial's width when centred above it; extra lines move the arc down.
+  const titleFit = cell
+    ? null
+    : fitTitle(parsed, hasNote ? colW : 2 * (sideRoom + r));
+  const topTitleH = hasTopTitle
+    ? GOAL_TITLE_SIZE + 6 + 16 + titleExtra(titleFit)
+    : 0;
   const cy = r + stroke / 2 + topTitleH + topRoom; // band crest sits below the title
 
   const g = svg.append('g').attr('class', 'goal-gauge');
@@ -1461,23 +1616,31 @@ function renderGauge(
     const titleSize = GOAL_TITLE_SIZE;
     let top = crestTop;
     if (parsed.title && !parsed.options.noTitle) {
-      svg
-        .append('text')
-        .attr('class', 'chart-title')
-        .attr('x', colLeft)
-        .attr('y', top + titleSize * 0.78) // cap-top ≈ crest
-        .attr('text-anchor', 'start')
-        .attr('fill', paint.text)
-        .attr('font-family', FONT_FAMILY)
-        .attr('font-size', titleSize)
-        .attr('font-weight', TITLE_FONT_WEIGHT)
-        .attr('data-line-number', parsed.titleLineNumber)
-        .text(parsed.title);
-      top += titleSize * 0.78 + 16;
+      // cap-top ≈ crest
+      faceTitle(
+        svg,
+        parsed,
+        paint,
+        colLeft,
+        top + titleSize * 0.78,
+        'start',
+        titleSize,
+        titleFit
+      );
+      top += titleSize * 0.78 + 16 + titleExtra(titleFit, titleSize);
     }
     colBottom = drawNote(svg, parsed.description, paint, colLeft, top, colW);
   } else if (hasTopTitle) {
-    faceTitle(svg, parsed, paint, cx, GOAL_TITLE_SIZE);
+    faceTitle(
+      svg,
+      parsed,
+      paint,
+      cx,
+      GOAL_TITLE_SIZE,
+      'middle',
+      GOAL_TITLE_SIZE,
+      titleFit
+    );
   }
 
   g.append('path')
@@ -1625,8 +1788,10 @@ function renderGauge(
   // name alone. A cell's readout sits under the cell instead.
   let hubBottom = cy + stroke / 2;
   if (!cell && !parsed.options.noPercent && v.status?.label) {
+    // Cut with `…` to the dial's width (#2443).
+    const shown = truncateText(v.status.label, 24, 2 * r, BOLD);
     put(
-      v.status.label,
+      shown,
       cx,
       cy + 50,
       24,
@@ -1635,6 +1800,8 @@ function renderGauge(
       'bold',
       'goal-readout'
     );
+    if (shown !== v.status.label)
+      g.select('text.goal-readout').attr(FULL_TEXT_ATTR, v.status.label);
     hubBottom = cy + 58;
   }
 
