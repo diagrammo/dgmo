@@ -25,6 +25,7 @@ import {
 } from '../utils/chart-frame-parse';
 import { extractPaletteDirective } from '../palettes/directive';
 import { RACI_DX } from './diagnostics';
+import { MAX_RACI_ROLES, MAX_RACI_TASKS } from './limits';
 import { resolveColorWithDiagnostic } from '../colors';
 import { RACI_REGISTRY } from '../utils/reserved-key-registry';
 import {
@@ -655,6 +656,9 @@ export function parseRaci(
 
   finalizePhase(lines.length + 1);
 
+  // ── Role and task limits (#2460) ─────────────────────────────
+  capRaci(result, roleStore);
+
   // ── Variant resolution ───────────────────────────────────────
   //
   // Inferred purely from the markers actually used. Mixed `D` + `S` is
@@ -749,4 +753,59 @@ export function* allTasks(parsed: ParsedRaci): Iterable<RaciTask> {
   for (const phase of parsed.phases) {
     for (const t of phase.tasks) yield t;
   }
+}
+
+// Role and task limits (#2460): keep the first MAX_RACI_ROLES roles in column
+// order and the first MAX_RACI_TASKS tasks in source order, drop assignments
+// to roles not drawn and phases left with no task, and raise one error per
+// limit on the first role or task left out.
+function capRaci(
+  result: Writable<ParsedRaci>,
+  roleStore: ReadonlyMap<string, { declaredLine: number }>
+): void {
+  const roleCount = result.roles.length;
+  if (roleCount > MAX_RACI_ROLES) {
+    const firstDropped = result.roles[MAX_RACI_ROLES]!;
+    result.diagnostics.push(
+      emit(
+        RACI_DX.TOO_MANY_ROLES,
+        roleStore.get(firstDropped)?.declaredLine ?? 1,
+        { count: roleCount }
+      )
+    );
+    result.roles = result.roles.slice(0, MAX_RACI_ROLES);
+    result.roleDisplayNames = result.roleDisplayNames.slice(0, MAX_RACI_ROLES);
+    result.roleColors = result.roleColors.slice(0, MAX_RACI_ROLES);
+    const kept = new Set(result.roles);
+    for (const task of allTasks(result)) {
+      (task as Writable<RaciTask>).roleAssignments =
+        task.roleAssignments.filter((a) => kept.has(a.id));
+    }
+  }
+
+  const tasks = [...allTasks(result)].sort(
+    (a, b) => a.lineNumber - b.lineNumber
+  );
+  if (tasks.length <= MAX_RACI_TASKS) return;
+  result.diagnostics.push(
+    emit(RACI_DX.TOO_MANY_TASKS, tasks[MAX_RACI_TASKS]!.lineNumber, {
+      count: tasks.length,
+    })
+  );
+  const keptTasks = new Set(tasks.slice(0, MAX_RACI_TASKS));
+  const cutLine = tasks[MAX_RACI_TASKS]!.lineNumber;
+  result.tasksWithoutPhase = result.tasksWithoutPhase.filter((t) =>
+    keptTasks.has(t)
+  );
+  const phases: RaciPhase[] = [];
+  for (const phase of result.phases) {
+    const kept = phase.tasks.filter((t) => keptTasks.has(t));
+    if (
+      kept.length === 0 &&
+      (phase.tasks.length > 0 || phase.lineNumber > cutLine)
+    )
+      continue;
+    phases.push({ ...phase, tasks: kept });
+  }
+  result.phases = phases;
 }

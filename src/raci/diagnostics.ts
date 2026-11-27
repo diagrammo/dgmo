@@ -16,6 +16,7 @@
 // the catalog can render a representative message without live params.
 
 import type { DiagnosticSpec } from '../diagnostics';
+import { MAX_RACI_ROLES, MAX_RACI_TASKS } from './limits';
 
 /** Keyed specs — referenced by the parser's / rules' `emit()` call sites. */
 export const RACI_DX = {
@@ -31,6 +32,28 @@ export const RACI_DX = {
       `Task '${(p.task as string) ?? 'Task'}' has more than one Accountable — RACI requires exactly one.`,
     hint: 'Assign the A marker to exactly one role per task; make the others Responsible or Consulted.',
     example: `raci\n\nTask\n  Cap: A\n  QM: A`,
+  },
+  TOO_MANY_ROLES: {
+    code: 'E_RACI_TOO_MANY_ROLES',
+    severity: 'error',
+    chartType: 'raci',
+    title: 'Too many roles',
+    // parser.ts › capRaci — on the first role left out
+    message: (p) =>
+      `This matrix has ${(p.count as number) ?? 'too many'} roles; only the first ${MAX_RACI_ROLES} (MAX_RACI_ROLES) are drawn. Split the matrix into one chart per phase or team.`,
+    hint: `Keep a RACI matrix to ${MAX_RACI_ROLES} roles or fewer: split it into one chart per phase or team, or merge roles that always share markers.`,
+    example: `raci\nroles Lead, Dev, QA\n\nShip it\n  Lead: A\n  Dev: R`,
+  },
+  TOO_MANY_TASKS: {
+    code: 'E_RACI_TOO_MANY_TASKS',
+    severity: 'error',
+    chartType: 'raci',
+    title: 'Too many tasks',
+    // parser.ts › capRaci — on the first task left out
+    message: (p) =>
+      `This matrix has ${(p.count as number) ?? 'too many'} tasks; only the first ${MAX_RACI_TASKS} (MAX_RACI_TASKS) are drawn. Split the matrix into one chart per phase.`,
+    hint: `Keep a RACI matrix to ${MAX_RACI_TASKS} tasks or fewer: split it into one chart per phase, or roll small tasks up into one.`,
+    example: `raci\n\n[Plan]\nScope\n  Lead: A R\n\n[Build]\nCode\n  Lead: A\n  Dev: R`,
   },
   DACI_MULTI_DRIVER: {
     code: 'E_DACI_MULTI_DRIVER',

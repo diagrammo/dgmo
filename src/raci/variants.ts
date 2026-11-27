@@ -19,6 +19,8 @@ export const RACI_ERROR_CODES = {
   INVALID_MARKER: 'E_RACI_INVALID_MARKER',
   UNEXPECTED_LINE: 'E_RACI_UNEXPECTED_LINE',
   MIXED_VARIANTS: 'E_RACI_MIXED_VARIANTS',
+  TOO_MANY_ROLES: 'E_RACI_TOO_MANY_ROLES',
+  TOO_MANY_TASKS: 'E_RACI_TOO_MANY_TASKS',
 } as const;
 
 /** Union of every variant's marker alphabet — used for tolerant tokenization. */

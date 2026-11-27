@@ -445,7 +445,14 @@ export function renderRaci(
 
   // ── Column widths ──────────────────────────────────────────
 
-  const innerWidth = Math.max(0, width - 2 * sHMargin);
+  // A wide matrix never runs off the right edge (#2460): when every role at
+  // its minimum width plus the task-label column needs more than the canvas,
+  // the layout is drawn on a wider viewBox and the SVG scales it down to fit.
+  const layoutW = Math.max(
+    width,
+    Math.ceil(sTaskLabelMin + roleCount * sRoleColMin + 2 * sHMargin)
+  );
+  const innerWidth = Math.max(0, layoutW - 2 * sHMargin);
 
   // Greedy split: prefer sRoleColMin..sRoleColMax, give the rest to
   // the task-label column (clamped to a reasonable range).
@@ -487,9 +494,67 @@ export function renderRaci(
   // Title and legend share a single row at the top (kanban-style):
   //   title left-aligned, legend right-aligned, both vertically centered.
   // When both are hidden (app preview with HTML overlays), the row collapses.
+  // Decide legend geometry first so we know how much room is left for the title.
+  const variantLabels = MARKER_LABELS[parsed.variant];
+  const legendMarkers = (Object.keys(variantLabels) as RaciMarker[]).filter(
+    (m) => variantLabels[m] !== undefined
+  );
+  const numChips = legendMarkers.length;
+  const chipGapTotal = sLegendChipGap * Math.max(0, numChips - 1);
+
+  // Size full-mode chips to actually fit the longest label without truncation.
+  // chip = 4 pad + 24 slab + 8 gap + label + 8 right pad.
+  const longestLabelPx = legendMarkers.reduce(
+    (n, m) =>
+      Math.max(
+        n,
+        measureText(variantLabels[m] ?? '', sLegendLabelFont, { bold: true })
+      ),
+    0
+  );
+  const fullChipW = Math.max(
+    sLegendChipLabelMin,
+    Math.ceil(4 + 24 + 8 + longestLabelPx + 8)
+  );
+  const fullLegendW = numChips * fullChipW + chipGapTotal;
+  const letterLegendW = numChips * sLegendLetterChipW + chipGapTotal;
+
+  // Estimate title pixel width using the shared glyph measurer.
+  const titleEstW =
+    parsed.title && !hideTitle ? measureText(parsed.title, sTitleFontSize) : 0;
+
+  // Pick legend mode: full chips if everything fits, else letter-only.
+  // If even letters won't fit beside the title, the title is truncated below.
+  let legendMode: 'full' | 'letters' = 'full';
+  let legendOwnRow = false;
+  let legendTotalW = fullLegendW;
+  let legendChipW = fullChipW;
+  if (!hideLegend) {
+    const remaining = innerWidth - titleEstW - sTitleLegendGap;
+    if (remaining < fullLegendW) {
+      legendMode = 'letters';
+      legendTotalW = letterLegendW;
+      legendChipW = sLegendLetterChipW;
+    }
+    // Not even the letter chips fit beside the title: the legend takes a
+    // second row of its own rather than being cut or crushing the title.
+    if (remaining < letterLegendW && titleEstW > 0) legendOwnRow = true;
+  } else {
+    legendTotalW = 0;
+  }
+
+  const legendX = sHMargin + innerWidth - legendTotalW;
+  const titleMaxW =
+    hideLegend || legendOwnRow
+      ? innerWidth
+      : legendX - sHMargin - sTitleLegendGap;
+
   const hasTopRow = !hideTitle || !hideLegend;
-  const titleArea = hasTopRow ? sTitleAreaHeight : sVMargin;
-  const legendY = (sTitleAreaHeight - sLegendHeight) / 2;
+  const legendRowH = legendOwnRow ? sLegendHeight + sVMargin : 0;
+  const titleArea = hasTopRow ? sTitleAreaHeight + legendRowH : sVMargin;
+  const legendY = legendOwnRow
+    ? sTitleAreaHeight
+    : (sTitleAreaHeight - sLegendHeight) / 2;
   const headerY = titleArea + sVMargin;
   // Role names wrap onto extra lines instead of truncating; the header band
   // grows to the longest wrapped name so every column keeps one flat edge.
@@ -546,7 +611,18 @@ export function renderRaci(
   // otherwise reserve a tall band of dead space below the last row. Size the
   // export canvas to the content height. The interactive preview keeps the
   // `max(pane, content)` behaviour so a short matrix still fills the pane.
-  const svgHeight = exportDims ? totalHeight : Math.max(height, totalHeight);
+  //
+  // The viewBox is the layout (layoutW wide); the SVG element is the canvas.
+  // On screen the canvas is the pane, and `meet` scales a matrix taller or
+  // wider than the pane down to fit both ways instead of cutting the right
+  // columns and the bottom rows (#2460). A short matrix still pads its
+  // viewBox down to the pane's aspect so it sits at the top at full size.
+  const xScale = width / layoutW;
+  const vbHeight = exportDims
+    ? totalHeight
+    : Math.max(totalHeight, height / xScale);
+  const svgWidth = width;
+  const svgHeight = exportDims ? totalHeight * xScale : height;
 
   // ── SVG root ───────────────────────────────────────────────
 
@@ -554,9 +630,9 @@ export function renderRaci(
     .select(container)
     .append('svg')
     .attr('xmlns', 'http://www.w3.org/2000/svg')
-    .attr('width', width)
+    .attr('width', svgWidth)
     .attr('height', svgHeight)
-    .attr('viewBox', `0 0 ${width} ${svgHeight}`)
+    .attr('viewBox', `0 0 ${layoutW} ${vbHeight}`)
     .attr('preserveAspectRatio', 'xMidYMin meet')
     .attr('font-family', FONT_FAMILY);
 
@@ -564,7 +640,7 @@ export function renderRaci(
   // (svgHeight > totalHeight). Stamp the tight height so capture-based
   // exporters (the app's fast path clones this live SVG) can crop the
   // dead band.
-  if (!exportDims && svgHeight > totalHeight) {
+  if (!exportDims && vbHeight > totalHeight) {
     svg.attr('data-content-height', Math.ceil(totalHeight));
   }
   // Root background is applied at export time by finalizeSvgExport
@@ -576,56 +652,6 @@ export function renderRaci(
   }
 
   // ── Top row: title (left) + legend (right), inline like kanban ──
-
-  // Decide legend geometry first so we know how much room is left for the title.
-  const variantLabels = MARKER_LABELS[parsed.variant];
-  const legendMarkers = (Object.keys(variantLabels) as RaciMarker[]).filter(
-    (m) => variantLabels[m] !== undefined
-  );
-  const numChips = legendMarkers.length;
-  const chipGapTotal = sLegendChipGap * Math.max(0, numChips - 1);
-
-  // Size full-mode chips to actually fit the longest label without truncation.
-  // chip = 4 pad + 24 slab + 8 gap + label + 8 right pad.
-  const longestLabelPx = legendMarkers.reduce(
-    (n, m) =>
-      Math.max(
-        n,
-        measureText(variantLabels[m] ?? '', sLegendLabelFont, { bold: true })
-      ),
-    0
-  );
-  const fullChipW = Math.max(
-    sLegendChipLabelMin,
-    Math.ceil(4 + 24 + 8 + longestLabelPx + 8)
-  );
-  const fullLegendW = numChips * fullChipW + chipGapTotal;
-  const letterLegendW = numChips * sLegendLetterChipW + chipGapTotal;
-
-  // Estimate title pixel width using the shared glyph measurer.
-  const titleEstW =
-    parsed.title && !hideTitle ? measureText(parsed.title, sTitleFontSize) : 0;
-
-  // Pick legend mode: full chips if everything fits, else letter-only.
-  // If even letters won't fit beside the title, the title is truncated below.
-  let legendMode: 'full' | 'letters' = 'full';
-  let legendTotalW = fullLegendW;
-  let legendChipW = fullChipW;
-  if (!hideLegend) {
-    const remaining = innerWidth - titleEstW - sTitleLegendGap;
-    if (remaining < fullLegendW) {
-      legendMode = 'letters';
-      legendTotalW = letterLegendW;
-      legendChipW = sLegendLetterChipW;
-    }
-  } else {
-    legendTotalW = 0;
-  }
-
-  const legendX = sHMargin + innerWidth - legendTotalW;
-  const titleMaxW = hideLegend
-    ? innerWidth
-    : legendX - sHMargin - sTitleLegendGap;
 
   // Title — left-aligned, truncated to whatever room the legend leaves.
   if (parsed.title && !hideTitle) {
@@ -885,7 +911,7 @@ export function renderRaci(
   if (!anyMarker) {
     svg
       .append('text')
-      .attr('x', width / 2)
+      .attr('x', layoutW / 2)
       .attr('y', totalHeight - sVMargin - 2)
       .attr('text-anchor', 'middle')
       .attr('font-size', 12)
