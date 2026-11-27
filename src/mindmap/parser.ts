@@ -1,5 +1,6 @@
 import type { PaletteColors } from '../palettes';
 import {
+  emit,
   formatDgmoError,
   makeDgmoError,
   makeFail,
@@ -38,6 +39,7 @@ import {
 } from '../utils/reserved-key-registry';
 import type { MindmapNode, ParsedMindmap } from './types';
 import { markTitleRoot } from './title-root';
+import { MAX_MINDMAP_NODES, MINDMAP_DX } from './limits';
 import {
   parseEmphasisDirective,
   resolveHighlightPaths,
@@ -165,6 +167,10 @@ export function parseMindmap(
   let headerLineSeen = false;
   let activeTagOptionLine = 0;
   let nodeCounter = 0;
+  // Node limit (#2454): the first node line past MAX_MINDMAP_NODES, and how
+  // many node lines the source holds in all.
+  let firstLeftOutLine = 0;
+  let nodeLinesSeen = 0;
 
   // Tag group parsing state
   let currentTagGroup: Writable<TagGroup> | null = null;
@@ -356,6 +362,13 @@ export function parseMindmap(
 
     const indent = measureIndent(line);
 
+    // Past the node limit nothing more is drawn: count node lines for the
+    // message, and drop descriptions too so none lands on a kept node.
+    if (firstLeftOutLine > 0) {
+      if (!(indent > 0 && isDescriptionLine(trimmed))) nodeLinesSeen++;
+      continue;
+    }
+
     // Check for indented `description: text` metadata
     if (indent > 0) {
       const descResult = tryStripDescriptionKeyword(trimmed);
@@ -387,6 +400,11 @@ export function parseMindmap(
     }
 
     // It's a node line — possibly with same-line metadata
+    nodeLinesSeen++;
+    if (nodeCounter >= MAX_MINDMAP_NODES) {
+      firstLeftOutLine = lineNumber;
+      continue;
+    }
     const node = parseNodeLine(
       trimmed,
       lineNumber,
@@ -396,6 +414,13 @@ export function parseMindmap(
       result.diagnostics
     );
     attachNode(node, indent, indentStack, result, nodesWithChildren);
+  }
+
+  if (firstLeftOutLine > 0) {
+    const count = nodeLinesSeen + (titleRoot ? 1 : 0);
+    result.diagnostics.push(
+      emit(MINDMAP_DX.TOO_MANY_NODES, firstLeftOutLine, { count })
+    );
   }
 
   // If no title and roots exist, infer title from first root
@@ -570,6 +595,12 @@ function attachNode(
   }
 
   indentStack.push({ node, indent });
+}
+
+/** An indented `description: text` line, which is never a node. */
+function isDescriptionLine(trimmed: string): boolean {
+  const d = tryStripDescriptionKeyword(trimmed);
+  return d.isKeyword && !d.needsColon;
 }
 
 function findMetadataParent(
