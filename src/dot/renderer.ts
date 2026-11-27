@@ -8,7 +8,9 @@
 // its highest value, under the dots. The connector is grey, or with
 // `connector direction` green for a rise and red for a fall (`down` flips it).
 // Each series name sits above its dot in the first row, in the series colour,
-// so there is no legend. `gap` prints last − first at each row's right end.
+// so there is no legend. A long one wraps to two lines, then ends in `…`,
+// within an even share of the plot's width, so the names always fit side by
+// side; the strip above the first row is as tall as the tallest (#2433). `gap` prints last − first at each row's right end.
 //
 // Labels never collide (#2432). A row name takes two lines only when the row
 // is two lines tall, else one; rows thinner than a line thin the names. The
@@ -59,6 +61,8 @@ const CONNECTOR_W = 2.5;
 /** Room between two series names above the first row. */
 const SERIES_LABEL_GAP = 6;
 const NAME_LINE_PX = Math.round(TICK_FONT * 1.2);
+const SERIES_LINE_PX = Math.round(VALUE_FONT * 1.2);
+const SERIES_MAX_LINES = 2;
 const NAME_MAX_LINES = 2;
 /** Most of the width the row names may take. */
 const NAME_COLUMN_SHARE = 0.35;
@@ -213,8 +217,28 @@ export function renderDot(
 
   // ── Layout ─────────────────────────────────────────────────
   const top = (title ? FRAME_BODY_TOP : PAD) + titleExtra;
-  // The series names stand above the first row's dots.
-  const plotTop = top + (named ? VALUE_FONT + VALUE_GAP : 0);
+  // Series names never collide (#2433): each fits an even share of the room
+  // right of the widest possible name column, so side by side they always
+  // fit there, whatever the data.
+  const seriesBudget = Math.max(
+    1,
+    (width * (1 - NAME_COLUMN_SHARE) -
+      2 * PAD -
+      TICK_GAP -
+      parsed.series.length * SERIES_LABEL_GAP) /
+      Math.max(1, parsed.series.length)
+  );
+  const seriesFit = parsed.series.map((s) =>
+    fitLabel(s.name, VALUE_FONT, seriesBudget, SERIES_MAX_LINES, {
+      bold: true,
+    })
+  );
+  const seriesLines = Math.max(1, ...seriesFit.map((f) => f.lines.length));
+  // The series names stand above the first row's dots, in a strip as tall
+  // as the tallest of them.
+  const plotTop =
+    top +
+    (named ? VALUE_FONT + (seriesLines - 1) * SERIES_LINE_PX + VALUE_GAP : 0);
   const plotBottom = height - PAD - NAME_GAP - (axisTitle ? AXIS_TITLE_H : 0);
   const cat = scaleBand<string>()
     .domain(rows.map((_, i) => String(i)))
@@ -465,20 +489,37 @@ export function renderDot(
   // ── Series names above the first row, in the series colour ──
   if (named) {
     const first = rows[0]!;
-    const labels = parsed.series.map((s) => s.name);
-    const widths = labels.map((l) =>
-      measureText(l, VALUE_FONT, { bold: true })
+    const widths = seriesFit.map((f) =>
+      Math.max(
+        ...f.lines.map((l) => measureText(l, VALUE_FONT, { bold: true }))
+      )
     );
-    const xs = spreadLabels(
-      first.values.map((v) => val(v)),
-      widths,
-      PAD,
-      width - PAD
+    const dotXs = first.values.map((v) => val(v));
+    let xs = spreadLabels(dotXs, widths, PAD, width - PAD);
+    // The baseline of each name's last line; earlier lines stand above it.
+    const cy0 = cat('0')! + band / 2;
+    const y = cy0 - dotR - VALUE_GAP;
+    // A name reaching over the first row's name moves right of the name
+    // column, where an even share always leaves it room.
+    const firstName = names[0]!;
+    const nameTop =
+      cy0 -
+      ((firstName.length - 1) * NAME_LINE_PX) / 2 +
+      0.33 * TICK_FONT -
+      0.75 * TICK_FONT;
+    const nameLeft =
+      nameX - Math.max(...firstName.map((l) => measureText(l, TICK_FONT)));
+    const overName = xs.some(
+      (x, s) =>
+        x - widths[s]! / 2 < nameX &&
+        x + widths[s]! / 2 > nameLeft &&
+        y + 0.2 * VALUE_FONT > nameTop
     );
-    const y = cat('0')! + band / 2 - dotR - VALUE_GAP;
+    if (overName)
+      xs = spreadLabels(dotXs, widths, nameX + SERIES_LABEL_GAP, width - PAD);
     const legend = g.append('g').attr('class', 'dot-series-labels');
-    labels.forEach((label, s) =>
-      legend
+    seriesFit.forEach((fit, s) => {
+      const text = legend
         .append('text')
         .attr('class', 'dot-series-label')
         .attr('data-line-number', parsed.series[s]!.lineNumber)
@@ -487,9 +528,22 @@ export function renderDot(
         .attr('text-anchor', 'middle')
         .attr('font-size', VALUE_FONT)
         .attr('font-weight', 600)
-        .attr('fill', dotSeriesColor(parsed, s, palette))
-        .text(label)
-    );
+        .attr('fill', dotSeriesColor(parsed, s, palette));
+      // A cut name keeps its full text, never in an <svg><title>.
+      if (fit.truncated) text.attr(FULL_TEXT_ATTR, parsed.series[s]!.name);
+      if (fit.lines.length === 1) {
+        text.text(fit.lines[0]!);
+        return;
+      }
+      text.attr('y', null);
+      fit.lines.forEach((l, k) =>
+        text
+          .append('tspan')
+          .attr('x', xs[s]!)
+          .attr('y', y - (fit.lines.length - 1 - k) * SERIES_LINE_PX)
+          .text(l)
+      );
+    });
   }
 
   if (reserve)
