@@ -16,7 +16,12 @@ import {
   wrapDescriptionLines,
   type WrappedDescLine,
 } from '../utils/wrapped-desc';
-import { measureText, wrapTextToWidth } from '../utils/text-measure';
+import {
+  measureText,
+  truncateText,
+  wrapTextToWidth,
+} from '../utils/text-measure';
+import { fitLabel } from '../utils/fit-label';
 
 // The least arc a step keeps; it also sets the step limit (#2430).
 import { MIN_ARC_ANGLE } from './limits';
@@ -65,6 +70,80 @@ const MIN_CIRCLE_RADIUS = 35;
 /** Padding inside circle for text. */
 const CIRCLE_PAD = 14;
 
+// ── Long text (#2431): wrap first, then cut the last line with `…` ──
+
+/** Most lines a step name wraps to. */
+export const STEP_LABEL_MAX_LINES = 3;
+/** Most lines a rect step's description draws; the last one is cut with `…`. */
+export const DESC_MAX_LINES = 12;
+/** Widest a circle step's name runs on one line before it wraps. */
+const CIRCLE_LABEL_ONE_LINE_W = MAX_NODE_WIDTH - CIRCLE_PAD * 2;
+/** Width a circle step's name wraps to once it is too long for one line. */
+const CIRCLE_LABEL_WRAP_W = 180;
+/** Room above and below a wrapped name in a header strip or a plain step. */
+const LABEL_PAD_Y = 10;
+/** Most lines the `center` text wraps to. */
+export const CENTER_MAX_LINES = 3;
+
+/** Font of a rect step's name at a node scale (the renderer draws at it). */
+export function rectLabelFont(scale: number): number {
+  return Math.max(6, Math.round(LABEL_FONT_SIZE * scale));
+}
+
+/** Font of a circle step's name at a node scale. */
+export function circleLabelFont(scale: number): number {
+  return Math.max(8, Math.round(CIRCLE_LABEL_FONT_SIZE * scale));
+}
+
+/** Line spacing of a wrapped name at a font. */
+export function labelLineHeight(font: number): number {
+  return Math.round(font * 1.25);
+}
+
+/** A step name fitted to `innerW` at `font`: one line when it fits. */
+function fitStepLabel(label: string, font: number, innerW: number): string[] {
+  return fitLabel(label, font, innerW, STEP_LABEL_MAX_LINES, { bold: true })
+    .lines;
+}
+
+/**
+ * Height of a described rect's header strip holding `lines` name lines, at a
+ * node scale. One line keeps the fixed strip; more lines grow it.
+ */
+export function headerHeight(lines: number, scale: number): number {
+  const fixed = HEADER_HEIGHT * scale;
+  if (lines <= 1) return fixed;
+  const lh = labelLineHeight(rectLabelFont(scale));
+  return Math.max(fixed, lines * lh + 2 * LABEL_PAD_Y * scale);
+}
+
+/** Height of a plain rect step holding `lines` name lines (unscaled). */
+function plainNodeHeight(lines: number): number {
+  if (lines <= 1) return PLAIN_NODE_HEIGHT;
+  const lh = labelLineHeight(LABEL_FONT_SIZE);
+  return Math.max(PLAIN_NODE_HEIGHT, lines * lh + 2 * LABEL_PAD_Y);
+}
+
+/** Keep at most DESC_MAX_LINES description lines; the last kept one carries the rest, cut with `…`. */
+function capDescLines(
+  lines: WrappedDescLine[],
+  textWidth: number
+): WrappedDescLine[] {
+  if (lines.length <= DESC_MAX_LINES) return lines;
+  const kept = lines.slice(0, DESC_MAX_LINES - 1);
+  const rest = lines
+    .slice(DESC_MAX_LINES - 1)
+    .map((l) => l.text)
+    .join(' ');
+  // truncateText keeps what fits and ends in `…`; a rest that happens to fit
+  // still needs the mark, since lines were dropped.
+  let last = truncateText(rest, DESC_FONT_SIZE, textWidth);
+  if (last === rest) last = truncateText(`${rest}…`, DESC_FONT_SIZE, textWidth);
+  if (!last.endsWith('…')) last = `${last}…`;
+  kept.push({ ...lines[DESC_MAX_LINES - 1]!, text: last });
+  return kept;
+}
+
 /**
  * Compute cycle diagram layout: positions nodes equidistant (or span-weighted)
  * on a circle, and generates curved edge paths between consecutive nodes.
@@ -108,15 +187,33 @@ export function computeCycleLayout(
       return computeCircleNodeDims(node, hasDesc);
     }
 
+    const width = Math.min(MAX_NODE_WIDTH, labelWidth);
+    // A name wider than the widest box wraps to it (#2431).
+    const labelLines =
+      labelWidth > MAX_NODE_WIDTH
+        ? fitStepLabel(
+            node.label,
+            LABEL_FONT_SIZE,
+            MAX_NODE_WIDTH - NODE_PAD_X * 2
+          )
+        : [node.label];
     if (!hasDesc) {
       return {
-        width: Math.min(MAX_NODE_WIDTH, labelWidth),
-        height: PLAIN_NODE_HEIGHT,
+        width,
+        height: plainNodeHeight(labelLines.length),
         wrappedDesc: [] as WrappedDescLine[],
+        labelLines,
       };
     }
 
-    return chooseDescribedRectDims(node.description, labelWidth);
+    return {
+      ...chooseDescribedRectDims(
+        node.description,
+        labelWidth,
+        headerHeight(labelLines.length, 1)
+      ),
+      labelLines,
+    };
   });
 
   // ── Uniform circle sizing: all circles match the largest ──
@@ -131,9 +228,11 @@ export function computeCycleLayout(
       const node = parsed.nodes[nodeIdx]!;
       const hasDesc = !hideDescriptions && node.description.length > 0;
       if (hasDesc) {
-        d.wrappedDesc = wrapLinesForCircle(node.description, maxDiam / 2).map(
-          (text) => ({ text, kind: 'plain' as const })
-        );
+        d.wrappedDesc = wrapLinesForCircle(
+          node.description,
+          maxDiam / 2,
+          d.labelLines.length
+        ).map((text) => ({ text, kind: 'plain' as const }));
       }
     }
   }
@@ -206,13 +305,23 @@ export function computeCycleLayout(
       const node = parsed.nodes[i]!;
       const hasDesc = !hideDescriptions && node.description.length > 0;
       const newW = Math.max(50, d.width * scale);
+      // Refit the name at the size it is drawn at, so it never runs wider
+      // than the shrunk box (fonts round and have floors).
+      if (!circleNodes)
+        d.labelLines = fitStepLabel(
+          node.label,
+          rectLabelFont(scale),
+          newW - NODE_PAD_X * scale
+        );
       if (circleNodes) {
         d.width = newW;
         d.height = newW;
         if (hasDesc) {
-          d.wrappedDesc = wrapLinesForCircle(node.description, newW / 2).map(
-            (text) => ({ text, kind: 'plain' as const })
-          );
+          d.wrappedDesc = wrapLinesForCircle(
+            node.description,
+            newW / 2,
+            d.labelLines.length
+          ).map((text) => ({ text, kind: 'plain' as const }));
         }
       } else if (hasDesc) {
         d.width = newW;
@@ -221,10 +330,21 @@ export function computeCycleLayout(
         // which equals the original chosen width in pre-scale units.
         const layoutWidth = newW / scale;
         d.wrappedDesc = wrapDescForWidth(node.description, layoutWidth);
-        d.height = renderedDescNodeHeight(d.wrappedDesc.length, scale);
+        d.height = renderedDescNodeHeight(
+          d.wrappedDesc.length,
+          scale,
+          d.labelLines.length
+        );
       } else {
         d.width = newW;
-        d.height = Math.max(30, d.height * scale);
+        const lh = labelLineHeight(rectLabelFont(scale));
+        d.height = Math.max(
+          30,
+          d.height * scale,
+          d.labelLines.length > 1
+            ? d.labelLines.length * lh + 2 * LABEL_PAD_Y * scale
+            : 0
+        );
       }
     }
   }
@@ -315,6 +435,7 @@ export function computeCycleLayout(
       width: nodeDims[i]!.width,
       height: nodeDims[i]!.height,
       wrappedDesc: nodeDims[i]!.wrappedDesc,
+      labelLines: nodeDims[i]!.labelLines,
       isCircle: circleNodes,
     });
   }
@@ -379,7 +500,8 @@ export function computeCycleLayout(
  */
 function chooseDescribedRectDims(
   description: readonly string[],
-  labelWidth: number
+  labelWidth: number,
+  headerH: number
 ): { width: number; height: number; wrappedDesc: WrappedDescLine[] } {
   const minW = Math.min(
     MAX_NODE_WIDTH,
@@ -393,7 +515,7 @@ function chooseDescribedRectDims(
   let bestScore = Infinity;
   for (let w = minW; w <= MAX_NODE_WIDTH; w += DESC_WIDTH_STEP) {
     const wrapped = wrapDescForWidth(description, w);
-    const h = HEADER_HEIGHT + wrapped.length * DESC_LINE_HEIGHT + DESC_PAD_Y;
+    const h = headerH + wrapped.length * DESC_LINE_HEIGHT + DESC_PAD_Y;
     const ratio = w / h;
     const score = Math.abs(Math.log(ratio / DESC_TARGET_RATIO));
     if (score < bestScore) {
@@ -405,7 +527,7 @@ function chooseDescribedRectDims(
   const wrapped = wrapDescForWidth(description, minW);
   return {
     width: minW,
-    height: HEADER_HEIGHT + wrapped.length * DESC_LINE_HEIGHT + DESC_PAD_Y,
+    height: headerH + wrapped.length * DESC_LINE_HEIGHT + DESC_PAD_Y,
     wrappedDesc: wrapped,
   };
 }
@@ -419,8 +541,11 @@ function wrapDescForWidth(
   // emits bullet-first/cont kinds the renderer relies on), so feed it a pixel
   // `lengthFn` + pixel limit instead of a character count.
   const textWidth = Math.max(40, nodeWidth - NODE_PAD_X * 2);
-  return wrapDescriptionLines([...description], textWidth, (s) =>
-    measureText(s, DESC_FONT_SIZE)
+  return capDescLines(
+    wrapDescriptionLines([...description], textWidth, (s) =>
+      measureText(s, DESC_FONT_SIZE)
+    ),
+    textWidth
   );
 }
 
@@ -439,8 +564,12 @@ const RENDERER_DESC_LINE_H_MIN = 11;
  * fits inside the rectangle even when scale is small enough to trigger the
  * renderer's minimum-size clamps.
  */
-function renderedDescNodeHeight(numLines: number, scale: number): number {
-  const headerH = HEADER_HEIGHT * scale;
+function renderedDescNodeHeight(
+  numLines: number,
+  scale: number,
+  labelLines = 1
+): number {
+  const headerH = headerHeight(labelLines, scale);
   const descFont = Math.max(
     RENDERER_DESC_FONT_MIN,
     Math.round(RENDERER_DESC_FONT * scale)
@@ -496,26 +625,50 @@ export function wrapEdgeLabelText(
 function computeCircleNodeDims(
   node: { label: string; description: readonly string[] },
   hasDesc: boolean
-): { width: number; height: number; wrappedDesc: WrappedDescLine[] } {
+): {
+  width: number;
+  height: number;
+  wrappedDesc: WrappedDescLine[];
+  labelLines: string[];
+} {
+  const textW = measureText(node.label, CIRCLE_LABEL_FONT_SIZE, {
+    bold: true,
+  });
+  // A name too long for one line wraps (#2431); a shorter one stays as is.
+  const labelLines =
+    textW <= CIRCLE_LABEL_ONE_LINE_W
+      ? [node.label]
+      : fitStepLabel(node.label, CIRCLE_LABEL_FONT_SIZE, CIRCLE_LABEL_WRAP_W);
+  const labelW = Math.max(
+    ...labelLines.map((l) =>
+      measureText(l, CIRCLE_LABEL_FONT_SIZE, { bold: true })
+    )
+  );
+  const nameLineH = labelLineHeight(CIRCLE_LABEL_FONT_SIZE);
   if (!hasDesc) {
-    const textW = measureText(node.label, CIRCLE_LABEL_FONT_SIZE, {
-      bold: true,
-    });
-    const r = Math.max(MIN_CIRCLE_RADIUS, textW / 2 + CIRCLE_PAD);
-    return { width: r * 2, height: r * 2, wrappedDesc: [] };
+    const r =
+      labelLines.length === 1
+        ? Math.max(MIN_CIRCLE_RADIUS, textW / 2 + CIRCLE_PAD)
+        : Math.max(
+            MIN_CIRCLE_RADIUS,
+            Math.hypot(labelW / 2, (labelLines.length * nameLineH) / 2) +
+              CIRCLE_PAD
+          );
+    return { width: r * 2, height: r * 2, wrappedDesc: [], labelLines };
   }
 
   let r = MIN_CIRCLE_RADIUS;
 
   for (let attempt = 0; attempt < 10; attempt++) {
-    const wrappedDesc = wrapLinesForCircle(node.description, r);
-    const totalLines = 1 + wrappedDesc.length;
+    const wrappedDesc = wrapLinesForCircle(
+      node.description,
+      r,
+      labelLines.length
+    );
+    const totalLines = labelLines.length + wrappedDesc.length;
     const textBlockH = totalLines * DESC_LINE_HEIGHT + CIRCLE_PAD;
 
     if (textBlockH / 2 <= r * 0.85) {
-      const labelW = measureText(node.label, CIRCLE_LABEL_FONT_SIZE, {
-        bold: true,
-      });
       const labelY = -textBlockH / 2 + DESC_LINE_HEIGHT;
       const availW = 2 * Math.sqrt(Math.max(0, r * r - labelY * labelY));
       if (labelW <= availW - CIRCLE_PAD) {
@@ -526,17 +679,23 @@ function computeCircleNodeDims(
             text,
             kind: 'plain' as const,
           })),
+          labelLines,
         };
       }
     }
     r += 10;
   }
 
-  const wrappedDesc = wrapLinesForCircle(node.description, r);
+  const wrappedDesc = wrapLinesForCircle(
+    node.description,
+    r,
+    labelLines.length
+  );
   return {
     width: r * 2,
     height: r * 2,
     wrappedDesc: wrappedDesc.map((text) => ({ text, kind: 'plain' as const })),
+    labelLines,
   };
 }
 
@@ -547,20 +706,21 @@ function computeCircleNodeDims(
  */
 function wrapLinesForCircle(
   descriptions: readonly string[],
-  radius: number
+  radius: number,
+  labelLines = 1
 ): string[] {
   // First pass: wrap to the center pixel-width to estimate line count.
   const centerWidth = radius * 2 * 0.75;
   const roughWrapped = descriptions.flatMap((d) =>
     wrapTextToWidth(d, DESC_FONT_SIZE, centerWidth)
   );
-  const totalLines = 1 + roughWrapped.length; // +1 for label line
+  const totalLines = labelLines + roughWrapped.length;
   const blockH = totalLines * DESC_LINE_HEIGHT;
 
   // Second pass: re-wrap each source line with a position-aware pixel width —
   // wider near the circle's vertical center, narrower toward the edges.
   const result: string[] = [];
-  let lineIdx = 1; // start after label line
+  let lineIdx = labelLines; // start after the name's lines
   for (const srcLine of descriptions) {
     const words = srcLine.split(/\s+/).filter((w) => w.length > 0);
     let current = '';
@@ -972,11 +1132,63 @@ function approxLabelBox(
   return { x, y: le.labelY - 13 + hh, hw, hh };
 }
 
-// Must match cycle/renderer.ts (centre text).
+// Centre text sizes; the renderer draws what fitCenterText returns.
 const CENTER_FONT_SIZE = 36;
 const CENTER_FONT_MIN = 12;
 
-/** Box of the `center` text, sized as the renderer sizes it. */
+/** The `center` text as drawn: its font, lines and line spacing. */
+export interface FittedCenterText {
+  readonly font: number;
+  readonly lines: readonly string[];
+  readonly lineHeight: number;
+  /** True when the text was cut and ends in `…`. */
+  readonly truncated: boolean;
+}
+
+/**
+ * Fit the `center` text into the ring's inner clearance. It shrinks toward
+ * CENTER_FONT_MIN on one line; at the minimum it wraps to at most
+ * CENTER_MAX_LINES lines that fit the clearance disc, the last cut with `…`
+ * (#2431).
+ */
+export function fitCenterText(
+  text: string,
+  nodes: readonly CycleLayoutNode[],
+  radius: number
+): FittedCenterText {
+  const maxNodeHalf = Math.max(
+    ...nodes.map((n) => Math.max(n.width, n.height) / 2)
+  );
+  const clearance = radius - maxNodeHalf;
+  const availW = Math.max(60, 2 * clearance * 0.9);
+  const natural = measureText(text, CENTER_FONT_SIZE, { bold: true });
+  const font = Math.max(
+    CENTER_FONT_MIN,
+    Math.min(CENTER_FONT_SIZE, (CENTER_FONT_SIZE * availW) / natural)
+  );
+  const lineHeight = labelLineHeight(font);
+  if ((natural * font) / CENTER_FONT_SIZE <= availW) {
+    return { font, lines: [text], lineHeight, truncated: false };
+  }
+  // Widest block of CENTER_MAX_LINES lines whose corners stay in the disc.
+  const discR = Math.max(0, clearance) * 0.95;
+  const halfH = (CENTER_MAX_LINES * lineHeight) / 2;
+  const blockW = Math.min(
+    availW,
+    Math.max(40, 2 * Math.sqrt(Math.max(0, discR * discR - halfH * halfH)))
+  );
+  const fitted = fitLabel(text, font, blockW, CENTER_MAX_LINES, {
+    bold: true,
+  });
+  return {
+    font,
+    lines: fitted.lines,
+    lineHeight,
+    truncated: fitted.truncated,
+  };
+}
+
+/** Box of the `center` text, sized as the renderer draws it. */
 function centerTextBox(
   text: string,
   nodes: CycleLayoutNode[],
@@ -984,20 +1196,24 @@ function centerTextBox(
   cy: number,
   radius: number
 ): Box {
-  const maxNodeHalf = Math.max(
-    ...nodes.map((n) => Math.max(n.width, n.height) / 2)
-  );
-  const availW = Math.max(60, 2 * (radius - maxNodeHalf) * 0.9);
-  const natural = measureText(text, CENTER_FONT_SIZE, { bold: true });
-  const font = Math.max(
-    CENTER_FONT_MIN,
-    Math.min(CENTER_FONT_SIZE, (CENTER_FONT_SIZE * availW) / natural)
+  const fit = fitCenterText(text, nodes, radius);
+  if (fit.lines.length === 1 && fit.lines[0] === text) {
+    const natural = measureText(text, CENTER_FONT_SIZE, { bold: true });
+    return {
+      x: cx,
+      y: cy,
+      hw: (natural * fit.font) / CENTER_FONT_SIZE / 2,
+      hh: fit.font * 0.6,
+    };
+  }
+  const w = Math.max(
+    ...fit.lines.map((l) => measureText(l, fit.font, { bold: true }))
   );
   return {
     x: cx,
     y: cy,
-    hw: (natural * font) / CENTER_FONT_SIZE / 2,
-    hh: font * 0.6,
+    hw: w / 2,
+    hh: (fit.lines.length * fit.lineHeight) / 2,
   };
 }
 

@@ -212,3 +212,41 @@ export function overflowingElements(
   }
   return out;
 }
+
+/**
+ * Text of each step that leaves its shape (#2431): a rect node's text must lie
+ * inside the rect, a circle node's text box must have all four corners inside
+ * the circle.
+ */
+export function textOutsideNodes(
+  svg: SVGSVGElement
+): Array<{ node: number; text: string; box: Box }> {
+  const out: Array<{ node: number; text: string; box: Box }> = [];
+  for (const g of Array.from(svg.querySelectorAll('.cycle-node'))) {
+    const idx = Number(g.getAttribute('data-node-index'));
+    const rect = g.querySelector(':scope > rect');
+    const circle = g.querySelector(':scope > circle');
+    const shape = rect ?? circle;
+    if (!shape) continue;
+    const s = elementBox(shape)!;
+    for (const t of Array.from(g.querySelectorAll(':scope > text'))) {
+      const b = elementBox(t)!;
+      let inside: boolean;
+      if (rect) {
+        inside = b.x0 >= s.x0 && b.x1 <= s.x1 && b.y0 >= s.y0 && b.y1 <= s.y1;
+      } else {
+        const cx = (s.x0 + s.x1) / 2;
+        const cy = (s.y0 + s.y1) / 2;
+        const r = (s.x1 - s.x0) / 2;
+        inside = [
+          [b.x0, b.y0],
+          [b.x1, b.y0],
+          [b.x0, b.y1],
+          [b.x1, b.y1],
+        ].every(([x, y]) => (x! - cx) ** 2 + (y! - cy) ** 2 <= r * r);
+      }
+      if (!inside) out.push({ node: idx, text: t.textContent ?? '', box: b });
+    }
+  }
+  return out;
+}

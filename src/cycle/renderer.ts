@@ -41,25 +41,37 @@ import {
   arrowHeadLength,
   type ParsedCycle,
 } from './types';
-import { computeCycleLayout, wrapEdgeLabelText } from './layout';
+import {
+  DESC_MAX_LINES,
+  circleLabelFont,
+  computeCycleLayout,
+  fitCenterText,
+  headerHeight,
+  labelLineHeight,
+  rectLabelFont,
+  wrapEdgeLabelText,
+} from './layout';
+import type { WrappedDescLine } from './types';
+import { FULL_TEXT_ATTR, fullNodeText, isCutShort } from '../utils/full-text';
 import { ScaleContext } from '../utils/scaling';
-import { measureText } from '../utils/text-measure';
+import { measureText, truncateText } from '../utils/text-measure';
 import { measureSvgContent } from '../utils/export-fit';
 
 // ── Constants ────────────────────────────────────────────────
-const NODE_FONT_SIZE = 13;
 const DESC_FONT_SIZE = 11;
 const EDGE_LABEL_FONT_SIZE = 13;
 const DESC_LINE_HEIGHT = 15;
 const TITLE_AREA_HEIGHT = 50;
-const CENTER_FONT_SIZE = 36;
-const CENTER_FONT_MIN = 12;
 /** Least room the drawn body keeps from the canvas edges (#2429). */
 const BODY_EDGE_PAD = 6;
 /** Re-layouts tried before the body is drawn as it stands. */
 const MAX_FIT_PASSES = 6;
 /** Smallest layout box a re-layout may ask for. */
 const MIN_FIT_BOX = 120;
+/** Least room text keeps from a rect step's edge (#2431). */
+const RECT_TEXT_INSET = 3;
+/** Least room text keeps from a circle step's outline (#2431). */
+const CIRCLE_TEXT_INSET = 3;
 
 export interface CycleRenderOptions {
   onClickItem?: (lineNumber: number) => void;
@@ -361,24 +373,16 @@ export function renderCycle(
     }
 
     // ── Render nodes ──
-    const HEADER_H = 36 * layout.scale;
     // Font floors are intentionally low (≈ half the natural size) so text keeps
     // shrinking alongside the shrinking nodes when the canvas is small. Higher
     // floors decouple text from shape scale, causing labels to overflow node
     // boundaries at small canvas sizes.
-    const scaledNodeFont = Math.max(
-      6,
-      Math.round(NODE_FONT_SIZE * layout.scale)
-    );
+    const scaledNodeFont = rectLabelFont(layout.scale);
     const scaledEdgeLabelFont = Math.max(
       6,
       Math.round(EDGE_LABEL_FONT_SIZE * layout.scale)
     );
-    const CIRCLE_LABEL_FONT_SIZE = 16;
-    const scaledCircleLabelFont = Math.max(
-      8,
-      Math.round(CIRCLE_LABEL_FONT_SIZE * layout.scale)
-    );
+    const scaledCircleLabelFont = circleLabelFont(layout.scale);
     const scaledDescFont = Math.max(
       5,
       Math.round(DESC_FONT_SIZE * layout.scale)
@@ -443,6 +447,41 @@ export function renderCycle(
         nodeG.on('click', () => onClickItem(lineNum));
       }
 
+      // Text never leaves its shape (#2431): every line is fitted to the
+      // width it has where it is drawn, and a cut line ends in `…`.
+      let cut = isCutShort(ln.labelLines, [node.label]);
+      const fitLine = (
+        text: string,
+        font: number,
+        maxW: number,
+        bold = false
+      ): string => {
+        const out = truncateText(text, font, Math.max(0, maxW), { bold });
+        if (out !== text) cut = true;
+        return out;
+      };
+      const appendLine = (
+        x: number,
+        y: number,
+        anchor: 'start' | 'middle',
+        font: number,
+        color: string,
+        text: string,
+        markdownFont: number,
+        bold: boolean
+      ) => {
+        const el = nodeG
+          .append('text')
+          .attr('x', x)
+          .attr('y', y)
+          .attr('text-anchor', anchor)
+          .attr('fill', color)
+          .attr('font-family', FONT_FAMILY)
+          .attr('font-size', font);
+        if (bold) el.attr('font-weight', 'bold');
+        renderInlineText(el, text, palette, markdownFont);
+      };
+
       if (ln.isCircle) {
         // ── Circle node shape ──
         const r = nodeW / 2;
@@ -455,49 +494,99 @@ export function renderCycle(
           .attr('stroke', solidColor)
           .attr('stroke-width', 2);
 
+        // The chord a line of text may use at baseline y: the circle's width
+        // at the line's top or bottom, whichever is narrower. Null once the
+        // line would leave the circle.
+        const chordAt = (y: number, font: number): number | null => {
+          const dy = Math.max(
+            Math.abs(y - font * 0.8 - ln.y),
+            Math.abs(y + font * 0.25 - ln.y)
+          );
+          if (dy >= r - CIRCLE_TEXT_INSET) return null;
+          return 2 * Math.sqrt(r * r - dy * dy) - 2 * CIRCLE_TEXT_INSET;
+        };
+        const labelFont = scaledCircleLabelFont;
+        const nameLineH = labelLineHeight(labelFont);
+        const nameLines = ln.labelLines.length;
+
         if (hasDesc) {
-          // Label + descriptions vertically centered in circle
-          const labelFont = scaledCircleLabelFont;
-          const blockH = labelFont + 4 + wrappedDesc.length * scaledDescLineH;
+          // Label + descriptions vertically centered in circle. The name
+          // always draws; description lines past the circle's height are
+          // dropped, the last kept one cut with `…`.
+          const nameBlockH = labelFont + (nameLines - 1) * nameLineH + 4;
+          const roomH = 2 * (r - CIRCLE_TEXT_INSET) * 0.85 - nameBlockH;
+          const maxDesc = Math.max(0, Math.floor(roomH / scaledDescLineH));
+          const descLines =
+            wrappedDesc.length <= maxDesc
+              ? wrappedDesc.map((l) => l.text)
+              : wrappedDesc
+                  .slice(0, maxDesc)
+                  .map((l, li) => (li === maxDesc - 1 ? `${l.text}…` : l.text));
+          if (descLines.length < wrappedDesc.length) cut = true;
+          const blockH = nameBlockH + descLines.length * scaledDescLineH;
           const startY = ln.y - blockH / 2 + labelFont;
 
-          const labelText = nodeG
-            .append('text')
-            .attr('x', ln.x)
-            .attr('y', startY)
-            .attr('text-anchor', 'middle')
-            .attr('fill', textColor)
-            .attr('font-family', FONT_FAMILY)
-            .attr('font-size', labelFont)
-            .attr('font-weight', 'bold');
-          renderInlineText(labelText, node.label, palette, labelFont);
-
-          let descY = startY + scaledDescLineH + 4;
-          wrappedDesc.forEach((line) => {
-            const descText = nodeG
-              .append('text')
-              .attr('x', ln.x)
-              .attr('y', descY)
-              .attr('text-anchor', 'middle')
-              .attr('fill', descColor)
-              .attr('font-family', FONT_FAMILY)
-              .attr('font-size', scaledDescFont);
-            renderInlineText(descText, line.text, palette, DESC_FONT_SIZE);
-            descY += scaledDescLineH;
+          ln.labelLines.forEach((line, li) => {
+            const y = startY + li * nameLineH;
+            const w = chordAt(y, labelFont);
+            if (w === null) {
+              cut = true;
+              return;
+            }
+            appendLine(
+              ln.x,
+              y,
+              'middle',
+              labelFont,
+              textColor,
+              fitLine(line, labelFont, w, true),
+              labelFont,
+              true
+            );
           });
+
+          let descY =
+            startY + (nameLines - 1) * nameLineH + scaledDescLineH + 4;
+          for (const line of descLines) {
+            const w = chordAt(descY, scaledDescFont);
+            if (w === null) {
+              cut = true;
+              break;
+            }
+            appendLine(
+              ln.x,
+              descY,
+              'middle',
+              scaledDescFont,
+              descColor,
+              fitLine(line, scaledDescFont, w),
+              DESC_FONT_SIZE,
+              false
+            );
+            descY += scaledDescLineH;
+          }
         } else {
           // Label centered in circle
-          const labelFont = scaledCircleLabelFont;
-          const labelText = nodeG
-            .append('text')
-            .attr('x', ln.x)
-            .attr('y', ln.y + labelFont / 3)
-            .attr('text-anchor', 'middle')
-            .attr('fill', textColor)
-            .attr('font-family', FONT_FAMILY)
-            .attr('font-size', labelFont)
-            .attr('font-weight', 'bold');
-          renderInlineText(labelText, node.label, palette, labelFont);
+          const firstY =
+            ln.y - ((nameLines - 1) * nameLineH) / 2 + labelFont / 3;
+          ln.labelLines.forEach((line, li) => {
+            const y = firstY + li * nameLineH;
+            const w = chordAt(y, labelFont);
+            if (w === null) {
+              cut = true;
+              return;
+            }
+            appendLine(
+              ln.x,
+              y,
+              'middle',
+              labelFont,
+              textColor,
+              fitLine(line, labelFont, w, true),
+              labelFont,
+              true
+            );
+          });
         }
       } else {
         // ── Rectangular node shape ──
@@ -514,21 +603,32 @@ export function renderCycle(
           .attr('stroke', solidColor)
           .attr('stroke-width', 2);
 
+        const nameLineH = labelLineHeight(scaledNodeFont);
+        const nameLines = ln.labelLines.length;
+        const nameW = nodeW - 2 * RECT_TEXT_INSET;
+        const drawName = (centerY: number) => {
+          const firstY =
+            centerY - ((nameLines - 1) * nameLineH) / 2 + scaledNodeFont / 3;
+          ln.labelLines.forEach((line, li) =>
+            appendLine(
+              ln.x,
+              firstY + li * nameLineH,
+              'middle',
+              scaledNodeFont,
+              textColor,
+              fitLine(line, scaledNodeFont, nameW, true),
+              scaledNodeFont,
+              true
+            )
+          );
+        };
+
         if (hasDesc) {
           // ── Described node: header + separator + description ──
-          const headerCenterY = ln.y - nodeH / 2 + HEADER_H / 2;
-          const labelText = nodeG
-            .append('text')
-            .attr('x', ln.x)
-            .attr('y', headerCenterY + scaledNodeFont / 3)
-            .attr('text-anchor', 'middle')
-            .attr('fill', textColor)
-            .attr('font-family', FONT_FAMILY)
-            .attr('font-size', scaledNodeFont)
-            .attr('font-weight', 'bold');
-          renderInlineText(labelText, node.label, palette, scaledNodeFont);
+          const headerH = headerHeight(nameLines, layout.scale);
+          drawName(ln.y - nodeH / 2 + headerH / 2);
 
-          const sepY = ln.y - nodeH / 2 + HEADER_H;
+          const sepY = ln.y - nodeH / 2 + headerH;
           nodeG
             .append('line')
             .attr('x1', ln.x - nodeW / 2)
@@ -542,11 +642,31 @@ export function renderCycle(
           const descStartY = sepY + 4 + scaledDescFont;
           const descPadX = Math.max(8, 12 * layout.scale);
           const descX = ln.x - nodeW / 2 + descPadX;
+          const descRight = ln.x + nodeW / 2 - RECT_TEXT_INSET;
+          const descBottom = ln.y + nodeH / 2 - RECT_TEXT_INSET;
           // Bullet body column — body of bullet items + their continuations
           // share this x so wrapped text aligns under the first word past "•".
           const bulletBodyX = descX + Math.max(8, 12 * layout.scale);
-          wrappedDesc.forEach((line, li) => {
+          const fits = (li: number) =>
+            descStartY + li * scaledDescLineH + scaledDescFont * 0.25 <=
+            descBottom;
+          for (let li = 0; li < wrappedDesc.length; li++) {
+            if (!fits(li)) {
+              cut = true;
+              break;
+            }
+            const line = wrappedDesc[li]!;
+            const more = li < wrappedDesc.length - 1 && !fits(li + 1);
             const lineY = descStartY + li * scaledDescLineH;
+            const x =
+              line.kind === 'bullet-first' || line.kind === 'bullet-cont'
+                ? bulletBodyX
+                : descX;
+            const text = fitLine(
+              more ? `${line.text}…` : line.text,
+              scaledDescFont,
+              descRight - x
+            );
             if (line.kind === 'bullet-first') {
               // Bullet glyph as its own text element at descX
               nodeG
@@ -558,43 +678,28 @@ export function renderCycle(
                 .attr('font-family', FONT_FAMILY)
                 .attr('font-size', scaledDescFont)
                 .text('•');
-              // Body text at the bullet column
-              const bodyText = nodeG
-                .append('text')
-                .attr('x', bulletBodyX)
-                .attr('y', lineY)
-                .attr('text-anchor', 'start')
-                .attr('fill', descColor)
-                .attr('font-family', FONT_FAMILY)
-                .attr('font-size', scaledDescFont);
-              renderInlineText(bodyText, line.text, palette, DESC_FONT_SIZE);
-            } else {
-              const x = line.kind === 'bullet-cont' ? bulletBodyX : descX;
-              const descText = nodeG
-                .append('text')
-                .attr('x', x)
-                .attr('y', lineY)
-                .attr('text-anchor', 'start')
-                .attr('fill', descColor)
-                .attr('font-family', FONT_FAMILY)
-                .attr('font-size', scaledDescFont);
-              renderInlineText(descText, line.text, palette, DESC_FONT_SIZE);
             }
-          });
+            appendLine(
+              x,
+              lineY,
+              'start',
+              scaledDescFont,
+              descColor,
+              text,
+              DESC_FONT_SIZE,
+              false
+            );
+          }
         } else {
           // ── Plain node: label centered ──
-          const labelText = nodeG
-            .append('text')
-            .attr('x', ln.x)
-            .attr('y', ln.y + scaledNodeFont / 3)
-            .attr('text-anchor', 'middle')
-            .attr('fill', textColor)
-            .attr('font-family', FONT_FAMILY)
-            .attr('font-size', scaledNodeFont)
-            .attr('font-weight', 'bold');
-          renderInlineText(labelText, node.label, palette, scaledNodeFont);
+          drawName(ln.y);
         }
       }
+
+      // A cut name or description keeps its full text for hover and screen
+      // readers (utils/full-text.ts); a node drawn in full carries none.
+      if (cut || isDescCut(wrappedDesc, node.description, hasDesc))
+        nodeG.attr(FULL_TEXT_ATTR, fullNodeText(node.label, node.description));
     }
 
     // ── Step numbers (autonumber): a badge on each node's outer edge ──
@@ -646,29 +751,35 @@ export function renderCycle(
       }
     }
 
-    // ── Centre text: one line in the middle of the ring ──
+    // ── Centre text: in the middle of the ring, inside its clearance ──
     const centerText = parsed.options['center'];
     if (centerText) {
-      // Free width: the ring's inner clearance, never wider than the ring itself.
-      const maxNodeHalf = Math.max(
-        ...layout.nodes.map((n) => Math.max(n.width, n.height) / 2)
-      );
-      const availW = Math.max(60, 2 * (layout.radius - maxNodeHalf) * 0.9);
-      const natural = measureText(centerText, CENTER_FONT_SIZE, { bold: true });
-      const font = Math.max(
-        CENTER_FONT_MIN,
-        Math.min(CENTER_FONT_SIZE, (CENTER_FONT_SIZE * availW) / natural)
-      );
-      g.append('text')
-        .attr('class', 'cycle-center')
-        .attr('x', layout.cx)
-        .attr('y', layout.cy + font / 3)
-        .attr('text-anchor', 'middle')
-        .attr('fill', palette.text)
-        .attr('font-family', FONT_FAMILY)
-        .attr('font-size', font)
-        .attr('font-weight', 'bold')
-        .text(centerText);
+      const fit = fitCenterText(centerText, layout.nodes, layout.radius);
+      const { font, lines, lineHeight } = fit;
+      const drawCenterLine = (parent: typeof g, y: number, text: string) =>
+        parent
+          .append('text')
+          .attr('class', 'cycle-center')
+          .attr('x', layout.cx)
+          .attr('y', y)
+          .attr('text-anchor', 'middle')
+          .attr('fill', palette.text)
+          .attr('font-family', FONT_FAMILY)
+          .attr('font-size', font)
+          .attr('font-weight', 'bold')
+          .text(text);
+      if (lines.length === 1 && !fit.truncated) {
+        drawCenterLine(g, layout.cy + font / 3, lines[0]!);
+      } else {
+        // Wrapped (#2431): one text per line, the block centred on the ring.
+        const block = g.append('g').attr('class', 'cycle-center-block');
+        if (fit.truncated) block.attr(FULL_TEXT_ATTR, centerText);
+        const firstY =
+          layout.cy - ((lines.length - 1) * lineHeight) / 2 + font / 3;
+        lines.forEach((line, li) =>
+          drawCenterLine(block, firstY + li * lineHeight, line)
+        );
+      }
     }
 
     // ── Render edge labels (in a new group appended after nodes so they sit
@@ -805,6 +916,22 @@ export function renderCycle(
     size: exportDims ? 'grow' : 'fit',
     title: titleNode,
   });
+}
+
+/**
+ * Did the layout cut a rect step's description at DESC_MAX_LINES? Its last
+ * kept line then ends in `…` that the author did not write.
+ */
+function isDescCut(
+  wrapped: readonly WrappedDescLine[],
+  description: readonly string[],
+  hasDesc: boolean
+): boolean {
+  if (!hasDesc || wrapped.length !== DESC_MAX_LINES) return false;
+  return (
+    wrapped[wrapped.length - 1]!.text.endsWith('…') &&
+    !description.join('').trimEnd().endsWith('…')
+  );
 }
 
 /**

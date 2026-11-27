@@ -64,6 +64,11 @@ export interface CycleLayoutNode {
   readonly height: number;
   /** Pre-wrapped description lines (fit to node width). Empty if no descriptions. */
   readonly wrappedDesc: readonly WrappedDescLine[];
+  /**
+   * The name as drawn, one entry a line (#2431): the label itself when it
+   * fits, else wrapped to the node, the last line cut with `…`.
+   */
+  readonly labelLines: readonly string[];
   /** Whether this node should be rendered as a circle. */
   readonly isCircle: boolean;
 }
