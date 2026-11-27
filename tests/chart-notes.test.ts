@@ -667,6 +667,7 @@ describe('note', () => {
       '1720 22 11 18',
       '  note Vane Hanged at Port Royal',
     ].join('\n');
+    let inline = 0;
     for (const dims of [undefined, { width: 480, height: 320 }]) {
       const svg = await renderDataChartD3(src, 'light', palette, dims);
       const segs = [...svg.matchAll(/class="dgmo-series-line" d="M([^"]+)"/g)]
@@ -679,6 +680,13 @@ describe('note', () => {
       ].map(
         (l) => [num(l, 'x1'), num(l, 'y1'), num(l, 'x2'), num(l, 'y2')] as const
       );
+      // A size where some note has no clean spot draws numbered discs and
+      // a key instead, with no leaders at all (#2390).
+      if (doc.querySelector('.dgmo-note-key')) {
+        expect(leaders).toEqual([]);
+        continue;
+      }
+      inline++;
       expect(leaders.length).toBeGreaterThan(0);
       leaders.forEach(([x0, y0, x1, y1], i) => {
         // Trim the start: the datum's own line runs through the ring.
@@ -695,6 +703,9 @@ describe('note', () => {
         });
       });
     }
+    // The Bonnet note at 1719 is boxed in between two lines at both sizes,
+    // so both draw the key; tests/line-note-leaders.test.ts covers leaders.
+    expect(inline).toBe(0);
   });
 
   it('warns on a chart type that does not take notes', () => {

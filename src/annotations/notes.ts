@@ -559,7 +559,9 @@ function placeInOrder(
         (stranded.push(i),
         roomiest(opts.plot, 'text') ??
           roomiest(opts.canvas, 'text') ??
-          clamp(spots[0]!.box, opts.canvas)));
+          // No spot keeps the text itself clear: it would sit on the data or
+          // on another note, so the note is not clear (#2390).
+          ((allClear = false), clamp(spots[0]!.box, opts.canvas))));
     blocks[i] = block;
     const leader = leaderTo(box, true) ?? undefined;
     placement.commit(pad(box, NOTE_PAD), leader);
@@ -779,15 +781,19 @@ export function drawNoteKey(
   opts: {
     readonly colors: { readonly text: string; readonly bg: string };
     readonly palette: PaletteColors;
+    /** Prefixes every `data-note-key`, so a facet panel's "1" lights only
+     *  that panel's disc and row, not every panel's (#2390). */
+    readonly keyScope?: string | undefined;
   }
 ): void {
   const stroke = (it: NoteKeyItem) => it.color ?? opts.colors.text;
+  const keyOf = (num: number) => `${opts.keyScope ?? ''}${num}`;
   for (const { x, y, item } of marks) {
     const g = svg
       .append('g')
       .attr('class', 'dgmo-chart-note dgmo-note-mark')
       .attr('data-line-number', item.lineNumber)
-      .attr('data-note-key', item.num);
+      .attr('data-note-key', keyOf(item.num));
     drawDisc(g, x, y, item.num, stroke(item), opts.colors.bg);
   }
   const key = svg.append('g').attr('class', 'dgmo-note-key');
@@ -796,7 +802,7 @@ export function drawNoteKey(
       .append('g')
       .attr('class', 'dgmo-note-key-row')
       .attr('data-line-number', item.lineNumber)
-      .attr('data-note-key', item.num);
+      .attr('data-note-key', keyOf(item.num));
     const x0 = at.x + dx;
     const y0 = at.y + dy;
     drawDisc(
@@ -823,7 +829,8 @@ export function drawNoteKey(
   // reaches across the drawing without script; a PNG export ignores it.
   const rules = plan.rows
     .map(({ item: { num } }) => {
-      const on = `svg:has([data-note-key="${num}"]:hover) [data-note-key="${num}"]`;
+      const k = keyOf(num);
+      const on = `svg:has([data-note-key="${k}"]:hover) [data-note-key="${k}"]`;
       return (
         `${on} .dgmo-note-disc{fill:currentColor}` +
         `${on} .dgmo-note-num{fill:${opts.colors.bg}}` +

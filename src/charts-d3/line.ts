@@ -53,7 +53,13 @@ import {
 } from '../annotations/draw';
 import {
   drawChartNotes,
+  drawNoteKey,
+  KEY_DISC_R,
+  placeChartNotes,
+  planNoteKey,
   sampleLines,
+  type NoteKeyItem,
+  type NoteKeyPlan,
   type PlacedNoteDatum,
 } from '../annotations/notes';
 import { resolveVerticalCollisions } from '../slope/renderer';
@@ -118,6 +124,15 @@ function seriesValue(
   return s === 0 ? pt.value : (pt.extraValues?.[s - 1] ?? 0);
 }
 
+/** Plot area, in px², each inline note needs: a 250 × 130 facet plot
+ *  carries two, a full-width chart a few dozen (#2390). */
+const NOTE_AREA = 16000;
+
+/** How many notes a plot this size draws inline before they go to a key. */
+export function noteBudget(plotW: number, plotH: number): number {
+  return Math.max(1, Math.floor((plotW * plotH) / NOTE_AREA));
+}
+
 export function renderLine(
   svg: Svg,
   chart: ParsedChart,
@@ -132,8 +147,12 @@ export function renderLine(
   hasTitle: boolean,
   inlineTitle?: InlineTitleInfo,
   /** Set when this chart is one panel of a `facet` grid (#1853). */
-  panel?: FacetPanel
+  panel?: FacetPanel,
+  /** Set on the second pass, when the notes draw as numbered discs with
+   *  this key in the strip under `height` (#2390). */
+  noteKey?: NoteKeyPlan
 ): void {
+  const startNodes = svg.node()?.childNodes.length ?? 0;
   const data = chart.data;
   // `line` + a `stack` block → stacked areas; `stack 100%` → each x position
   // as shares of its total (#1846). A stack always fills.
@@ -1345,31 +1364,99 @@ export function renderLine(
         },
       ];
     });
-    eraTitles.push(
-      ...drawChartNotes(svg, notes, {
-        plot: {
-          left: m.left,
-          top: m.top,
-          right: m.left + plotW,
-          bottom: m.top + plotH,
-        },
-        // The gutter: the right margin, when the plot has no room.
-        canvas: {
-          left: m.left,
-          top: m.top,
-          right: width,
-          bottom: m.top + plotH,
-        },
-        reserved: eraTitles,
-        obstacles: [...markerLines, ...eraBands],
-        markers: [
-          ...polylines.flat().map(([cx, cy]) => ({ cx, cy, r: 4.5 })),
-          ...sampleLines(traces),
-        ],
-        colors: { text: textColor, bg: bgColor },
-        palette,
-      })
-    );
+    const noteOpts = {
+      plot: {
+        left: m.left,
+        top: m.top,
+        right: m.left + plotW,
+        bottom: m.top + plotH,
+      },
+      // The gutter: the right margin, when the plot has no room.
+      canvas: {
+        left: m.left,
+        top: m.top,
+        right: width,
+        bottom: m.top + plotH,
+      },
+      reserved: eraTitles,
+      obstacles: [...markerLines, ...eraBands],
+      markers: [
+        ...polylines.flat().map(([cx, cy]) => ({ cx, cy, r: 4.5 })),
+        ...sampleLines(traces),
+      ],
+      colors: { text: textColor, bg: bgColor },
+      palette,
+    };
+    // Numbered left to right, then down the series (#2390).
+    const keyItems: NoteKeyItem[] = notes
+      .map((d, i) => ({ d, i }))
+      .sort((a, b) => a.d.x - b.d.x || a.i - b.i)
+      .map(({ d }, k) => ({
+        num: k + 1,
+        text: d.text,
+        color: d.color ?? null,
+        lineNumber: d.lineNumber,
+      }));
+    if (noteKey) {
+      // Under a facet panel the key starts just below the tick labels, in
+      // space the grid adds; otherwise in the strip taken off the bottom.
+      const keyTop = panel?.keyBelow
+        ? m.top + plotH + (labelPlan?.height ?? TICK_FONT + 10) - 8
+        : height;
+      // Each note is a numbered disc on its point; its text is in the key
+      // drawn in the strip the second pass took off the bottom.
+      const marks = notes.map((d) => ({
+        x: d.x,
+        y: d.y,
+        item: keyItems.find((it) => it.lineNumber === d.lineNumber)!,
+      }));
+      drawNoteKey(
+        svg,
+        marks,
+        noteKey,
+        { x: m.left, y: keyTop },
+        { ...noteOpts, keyScope: panel?.noteScope }
+      );
+      // How far the key reaches past the panel, for the grid to make room.
+      svg.attr('data-note-key-h', Math.max(0, keyTop + noteKey.h - height));
+      eraTitles.push(
+        ...marks.map(({ x, y }) => ({
+          x: x - KEY_DISC_R,
+          y: y - KEY_DISC_R,
+          w: 2 * KEY_DISC_R,
+          h: 2 * KEY_DISC_R,
+        }))
+      );
+    } else {
+      // More notes than the plot can carry, or one with no clear spot: lay
+      // the chart out again with every note numbered and a key under it.
+      // One chart never mixes the two forms (#2159, #2390).
+      const over = notes.length > noteBudget(plotW, plotH);
+      const placed = over ? null : placeChartNotes(notes, noteOpts);
+      if (!placed?.clear) {
+        while ((svg.node()?.childNodes.length ?? 0) > startNodes)
+          svg.node()!.lastChild!.remove();
+        const plan = planNoteKey(keyItems, width - m.left - 16);
+        renderLine(
+          svg,
+          chart,
+          width,
+          panel?.keyBelow ? height : height - plan.h,
+          colors,
+          palette,
+          isDark,
+          textColor,
+          mutedColor,
+          bgColor,
+          hasTitle,
+          inlineTitle,
+          panel,
+          plan
+        );
+        return;
+      }
+      eraTitles.push(...drawChartNotes(svg, notes, noteOpts, placed));
+    }
   }
 
   // Point values (#1828): every series' labels are placed together, so one

@@ -1382,13 +1382,22 @@ export function renderBar(
             : Math.abs(x + w / 2 - ax) < 1.5 &&
                 (Math.abs(y - ay) < 1.5 || Math.abs(y + h - ay) < 1.5);
         });
-        bar?.setAttribute('data-note-key', String(it.num));
+        bar?.setAttribute(
+          'data-note-key',
+          `${panel?.noteScope ?? ''}${it.num}`
+        );
         bar?.classList.add('dgmo-note-bar');
       }
       // The key draws in the strip the second pass took off the plot's
       // height: the drawing keeps the size it was asked for (#2310), since a
       // host that sized the pane clips anything taller.
-      drawNoteKey(svg, marks, noteKey, { x: m.left, y: height }, noteOpts);
+      drawNoteKey(
+        svg,
+        marks,
+        noteKey,
+        { x: m.left, y: height },
+        { ...noteOpts, keyScope: panel?.noteScope }
+      );
       boxes = marks.map(({ x, y }) => ({
         x: x - KEY_DISC_R,
         y: y - KEY_DISC_R,

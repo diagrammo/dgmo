@@ -8,4 +8,10 @@ export interface FacetPanel {
   /** Line only: the other series, one value per row (NaN draws a gap),
    *  drawn thin and grey behind the panel's own series. */
   context?: number[][];
+  /** Prefixes the panel's note-key ids, so hovering one panel's numbered
+   *  note lights nothing in another panel (#2390). */
+  noteScope?: string;
+  /** Notes that go to a key draw it BELOW the panel's height, which the grid
+   *  grows to fit, rather than shrinking the plot to make room (#2390). */
+  keyBelow?: boolean;
 }

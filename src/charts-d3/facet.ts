@@ -249,38 +249,19 @@ export function renderFacet(
         )
       : null;
 
-  for (let s = 0; s < seriesCount; s++) {
-    const col = s % cols;
-    const row = Math.floor(s / cols);
-    const x = left + col * (cellW + FACET_GAP);
-    const y = top + row * (cellH + FACET_GAP);
-    const color = colorOf(s);
-    const g = svg
-      .append('g')
-      .attr('class', 'dgmo-facet-panel')
-      .attr('data-series', chart.seriesNames?.[s] ?? '');
-    const heading = g
-      .append('text')
-      .attr('class', 'dgmo-facet-heading')
-      .attr('x', x + 4)
-      .attr('y', y + FACET_HEAD_FONT + 2)
-      .attr('fill', color)
-      .attr('font-size', FACET_HEAD_FONT)
-      .attr('font-weight', 600)
-      .attr('font-family', FONT_FAMILY)
-      .text(chart.seriesNames?.[s] ?? `Series ${s + 1}`);
-    const nameLine = chart.seriesNameLineNumbers?.[s];
-    if (nameLine !== undefined) heading.attr('data-line-number', nameLine);
-    const cell = g
-      .append('svg')
-      .attr('x', x)
-      .attr('y', y + FACET_HEAD_H)
-      .attr('width', cellW)
-      .attr('height', plotH)
-      .attr('overflow', 'visible');
+  // One panel's plot, drawn into `cell` at height `h`.
+  const drawPanel = (
+    cell: Svg,
+    s: number,
+    col: number,
+    color: string,
+    h: number
+  ): void => {
     const one = panelChart(chart, s, color, range);
     const panel = {
       hideValueTicks: shared && col > 0 && !horiz,
+      noteScope: `p${s}-`,
+      keyBelow: true,
       ...(context && {
         context: context.filter((_, k) => k !== s),
       }),
@@ -290,7 +271,7 @@ export function renderFacet(
         cell,
         one,
         cellW,
-        plotH,
+        h,
         [color],
         palette,
         isDark,
@@ -306,7 +287,7 @@ export function renderFacet(
         cell,
         one,
         cellW,
-        plotH,
+        h,
         [color],
         palette,
         isDark,
@@ -317,9 +298,57 @@ export function renderFacet(
         undefined,
         panel
       );
+  };
+  const keyH = (cell: Svg): number => Number(cell.attr('data-note-key-h') ?? 0);
+
+  // A panel whose notes went to a key draws it under its own plot, and the
+  // grid moves the rows below down by the row's tallest key (#2390).
+  let extra = 0;
+  for (let row = 0; row < rows; row++) {
+    let rowKey = 0;
+    for (let s = row * cols; s < Math.min(seriesCount, (row + 1) * cols); s++) {
+      const col = s % cols;
+      const x = left + col * (cellW + FACET_GAP);
+      const y = top + row * (cellH + FACET_GAP) + extra;
+      const color = colorOf(s);
+      const g = svg
+        .append('g')
+        .attr('class', 'dgmo-facet-panel')
+        .attr('data-series', chart.seriesNames?.[s] ?? '');
+      const heading = g
+        .append('text')
+        .attr('class', 'dgmo-facet-heading')
+        .attr('x', x + 4)
+        .attr('y', y + FACET_HEAD_FONT + 2)
+        .attr('fill', color)
+        .attr('font-size', FACET_HEAD_FONT)
+        .attr('font-weight', 600)
+        .attr('font-family', FONT_FAMILY)
+        .text(chart.seriesNames?.[s] ?? `Series ${s + 1}`);
+      const nameLine = chart.seriesNameLineNumbers?.[s];
+      if (nameLine !== undefined) heading.attr('data-line-number', nameLine);
+      const cell = g
+        .append('svg')
+        .attr('x', x)
+        .attr('y', y + FACET_HEAD_H)
+        .attr('width', cellW)
+        .attr('height', plotH)
+        .attr('overflow', 'visible');
+      drawPanel(cell, s, col, color, plotH);
+      rowKey = Math.max(rowKey, keyH(cell));
+    }
+    extra += rowKey;
+  }
+  if (root && extra > 0) {
+    const h = Number(root.getAttribute('height') ?? height) + extra;
+    root.setAttribute('height', String(Math.ceil(h)));
+    root.setAttribute(
+      'viewBox',
+      `0 0 ${root.getAttribute('width') ?? width} ${Math.ceil(h)}`
+    );
   }
 
-  const gridH = rows * cellH + (rows - 1) * FACET_GAP;
+  const gridH = rows * cellH + (rows - 1) * FACET_GAP + extra;
   drawYAxisTitle(svg, leftTitle, top, gridH, 14, textColor);
   drawXAxisTitle(
     svg,
