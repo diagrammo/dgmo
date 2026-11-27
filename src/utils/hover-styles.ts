@@ -143,7 +143,7 @@ export const MAX_HOVER_GROUPS = 40;
 export const DEFAULT_DIM_OPACITY = 0.4;
 
 /** Positive emphasis for the MATCHED marks in `lift` mode (never opacity>1). */
-const LIFT_DECL = 'filter:saturate(1.4) brightness(1.06)';
+export const LIFT_DECL = 'filter:saturate(1.4) brightness(1.06)';
 
 const TRANSITION_DECL = 'transition:filter .12s ease, opacity .12s ease';
 

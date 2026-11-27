@@ -33,6 +33,12 @@ import {
   stripInlineMarkdown,
 } from '../utils/inline-markdown';
 import type { ParsedCountdown } from './types';
+import { installCountdownHover } from './hover';
+import { LIFT_DECL } from '../utils/hover-styles';
+
+/** The hover readout line's type size, and its baseline's lift off the band. */
+const READOUT_FONT = 13;
+const READOUT_GAP = 9;
 import {
   DAY_MS,
   dayStart as tzDayStart,
@@ -180,6 +186,8 @@ interface BandColors {
   readonly baseBg: string; // theme base bg — outline-mode chip fill
   readonly onLight: string; // palette.textOnFillLight (solid-mode chip text)
   readonly onDark: string; // palette.textOnFillDark
+  /** What hovering the event cell names it (#2428): the title, or "target". */
+  readonly targetName: string;
 }
 function bandColors(
   palette: PaletteColors,
@@ -187,7 +195,8 @@ function bandColors(
   muted: string,
   faint: string,
   isDark: boolean,
-  fillMode: FillMode | undefined
+  fillMode: FillMode | undefined,
+  targetName: string
 ): BandColors {
   // mix(a, b, pct) = pct% of `a` blended over `b`.
   // `now` is a FIXED blue so it always stands apart from the (any-hue) accent; if
@@ -219,6 +228,7 @@ function bandColors(
     baseBg: themeBaseBg(palette, isDark),
     onLight: palette.textOnFillLight,
     onDark: palette.textOnFillDark,
+    targetName,
   };
 }
 
@@ -317,7 +327,7 @@ function aRect(
   fill: string,
   stroke?: string,
   sw?: number
-): void {
+): d3Selection.Selection<SVGRectElement, unknown, null, undefined> {
   const r = svg
     .append('rect')
     .attr('x', x)
@@ -327,6 +337,7 @@ function aRect(
     .attr('rx', rx)
     .attr('fill', fill);
   if (stroke) r.attr('stroke', stroke).attr('stroke-width', sw ?? 1);
+  return r;
 }
 function aLine(
   svg: SvgSel,
@@ -347,6 +358,50 @@ function aLine(
     .attr('stroke', stroke)
     .attr('stroke-width', sw);
   if (opacity != null) l.attr('opacity', opacity);
+}
+
+// ── Hover (#2428): every band cell is a `<g data-dgmo-cd-cell>` naming its
+// period and its distance from now; each row is a `<g data-dgmo-cd-row>` whose
+// label carries `data-dgmo-cd-row-label`. The baked `<style>` outlines the
+// hovered cell's `.dgmo-cd-cell-box` and lifts its row label; ./hover fills the
+// readout line. Nothing changes at rest, so static exports draw as before. ──
+
+/** "5 years away" / "2 months ago" — `n` whole units from now (signed). */
+function awayFrom(n: number, unit: string): string {
+  const k = Math.abs(n);
+  const u = `${k} ${unit}${k === 1 ? '' : 's'}`;
+  return n > 0 ? `${u} away` : `${u} ago`;
+}
+
+/** The readout for one cell: period + distance, or the anchor's own name. */
+function cellText(
+  C: BandColors,
+  period: string,
+  role: 'now' | 'event' | null,
+  n: number,
+  unit: string
+): string {
+  if (role === 'event') return `${period} · ${C.targetName}`;
+  if (role === 'now') return `${period} · now`;
+  return `${period} · ${awayFrom(n, unit)}`;
+}
+
+/** Open a hoverable cell group under `parent`; draw the cell into it. */
+function cellG(parent: SvgSel, text: string): SvgSel {
+  return parent
+    .append('g')
+    .attr('data-dgmo-cd-cell', text) as unknown as SvgSel;
+}
+
+/** Open a row group (label + its cells) so CSS can find the hovered row. */
+function rowG(parent: SvgSel): SvgSel {
+  return parent.append('g').attr('data-dgmo-cd-row', '') as unknown as SvgSel;
+}
+
+/** A day cell's period, e.g. "Tue Mar 3, 2027". */
+function dayPeriod(d: Date): string {
+  const wd = WD_ABBR[d.getDay()]!;
+  return `${wd[0]}${wd.slice(1).toLowerCase()} ${MON_ABBR[d.getMonth()]!} ${d.getDate()}, ${d.getFullYear()}`;
 }
 
 /**
@@ -635,9 +690,10 @@ function vizYears(
   for (let r = 0; r < rows; r++) {
     const dec = d0 + r * 10;
     const ry = g.top + r * (rowH + rowGap);
+    const row = rowG(svg);
     // Decade label in the left gutter, right-aligned to its edge (matches vizYear).
     aText(
-      svg,
+      row,
       g.left + labW - 12,
       ry + rowH / 2,
       Math.min(14, rowH * 0.5),
@@ -645,7 +701,7 @@ function vizYears(
       'bold',
       'end',
       `${dec}s`,
-      { 'dominant-baseline': 'central' }
+      { 'dominant-baseline': 'central', 'data-dgmo-cd-row-label': '' }
     );
     for (let i = 0; i < 10; i++) {
       const yr = dec + i;
@@ -661,11 +717,24 @@ function vizYears(
             ? gradStyle(C, (yr - nowY) / (evY - nowY))
             : roleStyle(C, before ? 'past' : 'future');
       const x = g.left + labW + i * (cellW + gap);
-      aRect(svg, x, ry, cellW, cellH, rx, st.fill, st.stroke, 1);
-      if (isEv) haloRect(svg, x, ry, cellW, cellH, rx, C);
+      const cell = cellG(
+        row,
+        cellText(
+          C,
+          String(yr),
+          isEv ? 'event' : isNow ? 'now' : null,
+          yr - nowY,
+          'year'
+        )
+      );
+      aRect(cell, x, ry, cellW, cellH, rx, st.fill, st.stroke, 1).attr(
+        'class',
+        'dgmo-cd-cell-box'
+      );
+      if (isEv) haloRect(cell, x, ry, cellW, cellH, rx, C);
       if (showLabel) {
         aText(
-          svg,
+          cell,
           x + cellW / 2,
           ry + cellH / 2,
           yrFont,
@@ -712,10 +781,11 @@ function vizYear(
   const evOrd = evY * 12 + evM;
   years.forEach((yr, r) => {
     const ry = g.top + r * (rowH + rowGap);
+    const row = rowG(svg);
     // Big year number in the left gutter — RIGHT-aligned to the gutter edge so it
     // never collides with (or gets clipped by) the first month cell.
     aText(
-      svg,
+      row,
       g.left + yearW - 12,
       ry + rowH / 2,
       Math.min(22, rowH * 0.6),
@@ -723,7 +793,7 @@ function vizYear(
       'bold',
       'end',
       String(yr),
-      { 'dominant-baseline': 'central' }
+      { 'dominant-baseline': 'central', 'data-dgmo-cd-row-label': '' }
     );
     for (let m = 0; m < 12; m++) {
       const mOrd = yr * 12 + m;
@@ -741,13 +811,26 @@ function vizYear(
             : roleStyle(C, before ? 'past' : 'future');
       const x = g.left + yearW + m * (cellW + gap);
       const rx = Math.min(5, Math.min(cellW, cellH) * 0.22);
-      aRect(svg, x, ry, cellW, cellH, rx, st.fill, st.stroke, 1);
-      if (isEv) haloRect(svg, x, ry, cellW, cellH, rx, C);
+      const cell = cellG(
+        row,
+        cellText(
+          C,
+          `${MON_ABBR[m]!} ${yr}`,
+          isEv ? 'event' : isNow ? 'now' : null,
+          mOrd - nowOrd,
+          'month'
+        )
+      );
+      aRect(cell, x, ry, cellW, cellH, rx, st.fill, st.stroke, 1).attr(
+        'class',
+        'dgmo-cd-cell-box'
+      );
+      if (isEv) haloRect(cell, x, ry, cellW, cellH, rx, C);
       const cx = x + cellW / 2;
       const mFont = Math.min(11, cellW * 0.32);
       if (anchor) {
         aText(
-          svg,
+          cell,
           cx,
           ry + cellH * 0.36,
           mFont,
@@ -759,7 +842,7 @@ function vizYear(
         );
         const dnum = isEv ? ev.getDate() : now.getDate();
         aText(
-          svg,
+          cell,
           cx,
           ry + cellH * 0.72,
           Math.min(14, cellW * 0.42),
@@ -771,7 +854,7 @@ function vizYear(
         );
       } else {
         aText(
-          svg,
+          cell,
           cx,
           ry + cellH / 2,
           mFont,
@@ -832,9 +915,16 @@ function vizMonths(
     const x = g.left + col * (cellW + gap);
     const y = g.top + row * (cellH + rowGap);
     // Context months render dimmed so the real now→event run stays dominant.
-    const mt = (
-      isContext ? svg.append('g').attr('opacity', 0.42) : svg
-    ) as SvgSel;
+    const mt = cellG(
+      (isContext ? svg.append('g').attr('opacity', 0.42) : svg) as SvgSel,
+      cellText(
+        C,
+        `${MON_ABBR[d.getMonth()]!} ${d.getFullYear()}`,
+        isEv ? 'event' : isNow ? 'now' : null,
+        mk - nowMk,
+        'month'
+      )
+    );
     const st = isEv
       ? roleStyle(C, 'event')
       : isNow
@@ -843,7 +933,10 @@ function vizMonths(
           ? gradStyle(C, (mk - nowMk) / (evMk - nowMk))
           : roleStyle(C, mk < nowMk ? 'past' : 'future');
     const rxM = Math.min(12, cellH * 0.14);
-    aRect(mt, x, y, cellW, cellH, rxM, st.fill, st.stroke, 1.25);
+    aRect(mt, x, y, cellW, cellH, rxM, st.fill, st.stroke, 1.25).attr(
+      'class',
+      'dgmo-cd-cell-box'
+    );
     if (isEv) haloRect(mt, x, y, cellW, cellH, rxM, C);
     // Centered month name (no year — it won't fit the narrow cell).
     aText(
@@ -922,12 +1015,15 @@ function vizMonthGrid(
   const evKey = keyOf(resolvedMs);
   months.forEach((m, mi) => {
     // Context months render into a dimmed group so the real span stays dominant.
-    const mt = (
-      isContext[mi] ? svg.append('g').attr('opacity', 0.42) : svg
-    ) as SvgSel;
+    const mt = rowG(
+      (isContext[mi] ? svg.append('g').attr('opacity', 0.42) : svg) as SvgSel
+    );
     const mx = g.left + mi * (mw + gap);
     // Rounded-rect container for the whole month.
-    aRect(mt, mx, top, mw, g.height, 14, C.inert, C.inertBorder, 1.25);
+    aRect(mt, mx, top, mw, g.height, 14, C.inert, C.inertBorder, 1.25).attr(
+      'data-dgmo-cd-row-frame',
+      ''
+    );
     const gy = top + headH;
     // Weekend columns shaded vertically (Sun = col 0, Sat = col 6).
     for (const wcol of [0, 6])
@@ -949,7 +1045,8 @@ function vizMonthGrid(
       C.text,
       'bold',
       'middle',
-      `${MON_ABBR[m.getMonth()]} ${m.getFullYear()}`
+      `${MON_ABBR[m.getMonth()]} ${m.getFullYear()}`,
+      { 'data-dgmo-cd-row-label': '' }
     );
     aLine(mt, mx, top + headH - 6, mx + mw, top + headH - 6, C.rule, 1.25);
     const first = new Date(m.getFullYear(), m.getMonth(), 1).getDay();
@@ -966,6 +1063,16 @@ function vizMonthGrid(
       const between = (dk - todayKey) * (dk - evKey) < 0;
       const anchor = isEvent || isToday;
       const dtMs = new Date(m.getFullYear(), m.getMonth(), day).getTime();
+      const cell = cellG(
+        mt,
+        cellText(
+          C,
+          dayPeriod(new Date(dtMs)),
+          isEvent ? 'event' : isToday ? 'now' : null,
+          dayDelta(nowMs, dtMs),
+          'day'
+        )
+      );
       const st = isEvent
         ? roleStyle(C, 'event')
         : isToday
@@ -978,10 +1085,13 @@ function vizMonthGrid(
         const s = Math.min(cellW, cellH) * 1.02;
         const sx = cx + (cellW - s) / 2;
         const sy = cy + (cellH - s) / 2;
-        aRect(mt, sx, sy, s, s, 7, st.fill, st.stroke, 2);
-        if (isEvent) haloRect(mt, sx, sy, s, s, 7, C);
+        aRect(cell, sx, sy, s, s, 7, st.fill, st.stroke, 2).attr(
+          'class',
+          'dgmo-cd-cell-box'
+        );
+        if (isEvent) haloRect(cell, sx, sy, s, s, 7, C);
         aText(
-          mt,
+          cell,
           cx + cellW / 2,
           cy + cellH / 2,
           Math.min(16, cellH * 0.62),
@@ -995,7 +1105,7 @@ function vizMonthGrid(
         // Every other day is a small unlabeled dot carrying only its role color.
         const s = Math.min(cellW, cellH) * 0.5;
         aRect(
-          mt,
+          cell,
           cx + (cellW - s) / 2,
           cy + (cellH - s) / 2,
           s,
@@ -1004,7 +1114,7 @@ function vizMonthGrid(
           st.fill,
           st.stroke,
           1
-        );
+        ).attr('class', 'dgmo-cd-cell-box');
       }
     }
   });
@@ -1062,11 +1172,21 @@ function vizWeekStrip(
           ? roleStyle(C, dtOrd < nowOrd ? 'past' : 'future')
           : gradStyle(C, (dtOrd - nowOrd) / (evOrd - nowOrd));
     // Context (padding) days render dimmed so the real today→event run leads.
-    const ct = (
-      isContext ? svg.append('g').attr('opacity', 0.5) : svg
-    ) as SvgSel;
+    const ct = cellG(
+      (isContext ? svg.append('g').attr('opacity', 0.5) : svg) as SvgSel,
+      cellText(
+        C,
+        dayPeriod(dt),
+        isEvent ? 'event' : isToday ? 'now' : null,
+        dayDelta(nowMs, dt.getTime()),
+        'day'
+      )
+    );
     const sw = isToday || isEvent ? 2 : 1.25;
-    aRect(ct, x, cellTop, cw, ch, 14, st.fill, st.stroke, sw);
+    aRect(ct, x, cellTop, cw, ch, 14, st.fill, st.stroke, sw).attr(
+      'class',
+      'dgmo-cd-cell-box'
+    );
     if (isEvent) haloRect(ct, x, cellTop, cw, ch, 14, C);
     if (showWd) {
       aText(
@@ -1148,9 +1268,13 @@ function vizToday(
   const h = g.height * 0.52;
   // The date chip is an event chip — it follows the §1.9 fill family.
   const st = roleStyle(C, 'event');
-  aRect(svg, cx - w / 2, cy - h / 2, w, h, 18, st.fill, st.stroke, 2);
+  const chip = cellG(svg, cellText(C, dayPeriod(ev), 'event', 0, 'day'));
+  aRect(chip, cx - w / 2, cy - h / 2, w, h, 18, st.fill, st.stroke, 2).attr(
+    'class',
+    'dgmo-cd-cell-box'
+  );
   aText(
-    svg,
+    chip,
     cx,
     cy - h * 0.14,
     14,
@@ -1161,7 +1285,7 @@ function vizToday(
     { 'letter-spacing': '0.08em' }
   );
   aText(
-    svg,
+    chip,
     cx,
     cy + h * 0.22,
     Math.min(48, h * 0.4),
@@ -1228,7 +1352,12 @@ function vizClock(
   ];
   gauges.forEach((gg, i) => {
     const cx = g.left + (g.contentW * (i + 0.5)) / 3;
-    svg
+    // A gauge is a hover cell too; ./hover reads its live value at hover time.
+    const cell = cellG(svg, gg.label.toLowerCase()).attr(
+      'data-dgmo-cd-gauge',
+      gg.key
+    );
+    cell
       .append('circle')
       .attr('cx', cx)
       .attr('cy', cy)
@@ -1236,7 +1365,7 @@ function vizClock(
       .attr('fill', 'none')
       .attr('stroke', C.inert)
       .attr('stroke-width', sw);
-    const arc = svg
+    const arc = cell
       .append('path')
       .attr('d', gg.frac > 0.001 ? arcPath(cx, cy, R, gg.frac) : '')
       .attr('fill', 'none')
@@ -1249,7 +1378,7 @@ function vizClock(
       .attr('data-r', R);
     void arc;
     aText(
-      svg,
+      cell,
       cx,
       cy + R * 0.22,
       R * 0.62,
@@ -1261,7 +1390,7 @@ function vizClock(
         'data-dgmo-gauge-val': gg.key,
       }
     );
-    aText(svg, cx, cy + R + 22, 12, C.muted, 'bold', 'middle', gg.label, {
+    aText(cell, cx, cy + R + 22, 12, C.muted, 'bold', 'middle', gg.label, {
       'letter-spacing': '0.1em',
     });
   });
@@ -1435,6 +1564,18 @@ export function renderCountdown(
     }
     @media (prefers-reduced-motion: reduce) {
       .dgmo-countdown-target-ring { animation: none; }
+    }
+    @media (hover: hover) {
+      [data-dgmo-cd-cell]:hover { ${LIFT_DECL}; }
+      [data-dgmo-cd-cell]:hover > .dgmo-cd-cell-box {
+        stroke: ${palette.text}; stroke-width: 2px;
+      }
+      [data-dgmo-cd-row]:has([data-dgmo-cd-cell]:hover) [data-dgmo-cd-row-label] {
+        fill: ${palette.text};
+      }
+      [data-dgmo-cd-row]:has([data-dgmo-cd-cell]:hover) > [data-dgmo-cd-row-frame] {
+        stroke: ${palette.text};
+      }
     }
   `);
 
@@ -1718,9 +1859,23 @@ export function renderCountdown(
     muted,
     faint,
     isDark,
-    parsed.fillMode
+    parsed.fillMode,
+    parsed.title ?? 'target'
   );
   if (hasBand && resolved !== null) {
+    // Hover readout (#2428): a fixed line in the gap above the band, empty at
+    // rest so a static export draws nothing here; ./hover fills it.
+    svg
+      .append('text')
+      .attr('data-dgmo-cd-readout', '')
+      .attr('x', leftX)
+      .attr('y', bandTop - READOUT_GAP)
+      .attr('fill', palette.text)
+      .attr('font-family', FONT_FAMILY)
+      .attr('font-size', READOUT_FONT)
+      .attr('font-weight', 600)
+      .attr('font-variant-numeric', 'tabular-nums')
+      .style('pointer-events', 'none');
     drawBand(
       svg,
       bandKind,
@@ -1801,6 +1956,8 @@ export function renderCountdown(
       .attr('data-dgmo-countdown-detail', '');
     paintClock(detailSel, subText, Math.round(detailFont * 0.66), bandC.now);
   }
+
+  installCountdownHover(svg.node()!);
 
   // Chart frame (#1827): subtitle under the title, footer under the chart.
   growChartFrame(svg.node(), parsed.frame, palette, {

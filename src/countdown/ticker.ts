@@ -40,6 +40,7 @@ import {
   type RoundMode,
 } from './resolve';
 import { now as currentTimeMs } from '../utils/now';
+import { installCountdownHover } from './hover';
 
 function pad2(n: number): string {
   return n < 10 ? '0' + n : String(n);
@@ -259,6 +260,8 @@ function updateNode(node: Element, now: number): void {
   // Scope sibling lookups to this countdown's own SVG.
   const svg = (node as SVGElement).ownerSVGElement ?? node.closest('svg');
   if (!svg) return;
+  // Cell hover readout (#2428) — once per root, so it survives a band redraw.
+  installCountdownHover(svg);
 
   // Footer resolution line.
   const footer = svg.querySelector('[data-dgmo-countdown-footer]');
