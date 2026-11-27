@@ -39,12 +39,15 @@ import {
   tagAttrKey,
 } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
+import { fitLabel } from '../utils/fit-label';
 import { measureText } from '../utils/text-measure';
+import { FULL_TEXT_ATTR, isCutShort } from '../utils/full-text';
 import {
   FRAME_BODY_TOP,
   LEGEND_BODY_GAP,
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
+  TITLE_LINE_HEIGHT,
   TITLE_Y,
 } from '../utils/title-constants';
 import { dayNumber, daysInMonth, dayToIso, parts, weekday } from './dates';
@@ -110,6 +113,9 @@ const LABELLED_DATES = new Set([1, 5, 10, 15, 20, 25, 30]);
 const LABEL_INK_TOP = 1.66;
 /** Where the legend's first row sits under the title. */
 const LEGEND_TITLE_GAP = 10;
+/** Lines a title wider than the grid wraps to before it is cut with … —
+ *  long text never widens the canvas (#2427). */
+const TITLE_MAX_LINES = 3;
 
 /** Each tag value's fill in this palette, by group key then value. The
  *  parser has no palette, so colours resolve here: an authored name
@@ -522,13 +528,19 @@ export function renderCalendar(
     .filter((g) => g.gradient !== undefined || g.entries.length > 0);
 
   // ── Geometry ───────────────────────────────────────────────
-  const titleWidth = showTitle
-    ? measureText(parsed.title, TITLE_FONT_SIZE, { bold: true })
-    : 0;
-  const legendY = showTitle ? TITLE_Y + LEGEND_TITLE_GAP : DIAGRAM_PADDING;
-  // A first pass sizes the grid, so the legend can wrap to its width.
+  // A first pass sizes the grid. The canvas, title and legend all take its
+  // width; long text wraps to it, never widens it (#2427).
   const probe = geometryFor(parsed, DIAGRAM_PADDING, 0, exportMode);
-  const contentWidth = Math.max(probe.right - DIAGRAM_PADDING, titleWidth);
+  const contentWidth = probe.right - DIAGRAM_PADDING;
+  const titleFit = showTitle
+    ? fitLabel(parsed.title, TITLE_FONT_SIZE, contentWidth, TITLE_MAX_LINES, {
+        bold: true,
+      })
+    : { lines: [], truncated: false };
+  const titleExtra = Math.max(0, titleFit.lines.length - 1) * TITLE_LINE_HEIGHT;
+  const legendY = showTitle
+    ? TITLE_Y + titleExtra + LEGEND_TITLE_GAP
+    : DIAGRAM_PADDING;
   const legendConfig: LegendConfig = {
     groups: legendGroups,
     position: { placement: 'top-center', titleRelation: 'below-title' },
@@ -541,15 +553,11 @@ export function renderCalendar(
   const bodyTop = showLegend
     ? legendY + legendInkBottom(legendHeight) + LEGEND_BODY_GAP - LABEL_INK_TOP
     : showTitle
-      ? FRAME_BODY_TOP
+      ? FRAME_BODY_TOP + titleExtra
       : DIAGRAM_PADDING;
   const geo = geometryFor(parsed, DIAGRAM_PADDING, bodyTop, exportMode);
 
-  const width = Math.ceil(
-    DIAGRAM_PADDING +
-      Math.max(geo.right - DIAGRAM_PADDING, titleWidth) +
-      DIAGRAM_PADDING
-  );
+  const width = Math.ceil(geo.right + DIAGRAM_PADDING);
   const height = Math.ceil(geo.bottom + DIAGRAM_PADDING);
 
   container.innerHTML = '';
@@ -572,7 +580,7 @@ export function renderCalendar(
   }
 
   if (showTitle) {
-    svg
+    const titleEl = svg
       .append('text')
       .attr('class', 'chart-title')
       .attr('data-line-number', parsed.titleLineNumber ?? 0)
@@ -580,8 +588,17 @@ export function renderCalendar(
       .attr('y', TITLE_Y)
       .attr('font-size', TITLE_FONT_SIZE)
       .attr('font-weight', TITLE_FONT_WEIGHT)
-      .attr('fill', palette.text)
-      .text(parsed.title);
+      .attr('fill', palette.text);
+    if (titleFit.lines.length === 1) titleEl.text(titleFit.lines[0]!);
+    else
+      titleFit.lines.forEach((line, i) => {
+        titleEl
+          .append('tspan')
+          .attr('x', DIAGRAM_PADDING)
+          .attr('dy', i === 0 ? 0 : TITLE_LINE_HEIGHT)
+          .text(line);
+      });
+    if (titleFit.truncated) titleEl.attr(FULL_TEXT_ATTR, parsed.title);
   }
 
   if (showLegend) {
@@ -817,6 +834,17 @@ export function renderCalendar(
     if (summary) frame = { ...frame, subtitle: summary };
   }
   growChartFrame(svg.node(), frame, palette, { size: 'grow' });
+  // A summary or subtitle cut with … keeps its full text (#2427).
+  const subLines = [...svg.node()!.querySelectorAll('text.chart-subtitle')];
+  if (
+    frame?.subtitle &&
+    subLines.length &&
+    isCutShort(
+      subLines.map((l) => l.textContent ?? ''),
+      [frame.subtitle]
+    )
+  )
+    subLines[0]!.setAttribute(FULL_TEXT_ATTR, frame.subtitle);
 
   if (tooltip) {
     if (!isMonth)
