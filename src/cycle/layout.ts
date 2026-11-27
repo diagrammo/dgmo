@@ -18,8 +18,8 @@ import {
 } from '../utils/wrapped-desc';
 import { measureText, wrapTextToWidth } from '../utils/text-measure';
 
-/** Minimum arc angle in radians (~15°) to keep arcs readable. */
-const MIN_ARC_ANGLE = (15 * Math.PI) / 180;
+// The least arc a step keeps; it also sets the step limit (#2430).
+import { MIN_ARC_ANGLE } from './limits';
 
 // ── Font sizes (must match cycle/renderer.ts) ──
 // Layout sizes nodes/labels from text; the renderer draws them. Both measure

@@ -40,6 +40,7 @@ import { CALENDAR_DIAGNOSTICS } from './calendar/diagnostics';
 import { WATERFALL_DIAGNOSTICS } from './waterfall/diagnostics';
 import { DOT_DIAGNOSTICS } from './dot/diagnostics';
 import { BAR_DIAGNOSTICS } from './charts-d3/bar-limits';
+import { CYCLE_DIAGNOSTICS } from './cycle/limits';
 import { VENN_DIAGNOSTICS } from './venn/diagnostics';
 import { TREEMAP_DIAGNOSTICS } from './treemap/diagnostics';
 import { EVENT_LINE_DIAGNOSTICS } from './event-line/diagnostics';
@@ -265,6 +266,7 @@ const REGISTRY: DiagnosticSpec[] = [
   ...WATERFALL_DIAGNOSTICS,
   ...DOT_DIAGNOSTICS,
   ...BAR_DIAGNOSTICS,
+  ...CYCLE_DIAGNOSTICS,
   ...VENN_DIAGNOSTICS,
   ...TREEMAP_DIAGNOSTICS,
   ...EVENT_LINE_DIAGNOSTICS,

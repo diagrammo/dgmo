@@ -2,7 +2,8 @@
 // Cycle Diagram — Parser
 // ============================================================
 
-import { makeDgmoError, makeFail } from '../diagnostics';
+import { emit, formatDgmoError, makeDgmoError, makeFail } from '../diagnostics';
+import { CYCLE_DX, CYCLE_MAX_STEPS } from './limits';
 import {
   parseChartFrameLine,
   takeFootnoteBlock,
@@ -525,6 +526,19 @@ export function parseCycle(
       result.titleLineNumber || 1,
       'cycle requires at least 2 nodes.'
     );
+  }
+
+  // The step limit (#2430): past CYCLE_MAX_STEPS nothing is drawn. The error
+  // sits on the first step past the limit.
+  if (result.nodes.length > CYCLE_MAX_STEPS) {
+    const diag = emit(
+      CYCLE_DX.TOO_MANY_STEPS,
+      result.nodes[CYCLE_MAX_STEPS]!.lineNumber,
+      { count: result.nodes.length }
+    );
+    result.diagnostics.push(diag);
+    result.error = formatDgmoError(diag);
+    return result;
   }
 
   // ── Resolve edge targets and generate implicit edges ──
