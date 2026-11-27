@@ -39,7 +39,7 @@ import {
 } from '../utils/reserved-key-registry';
 import type { MindmapNode, ParsedMindmap } from './types';
 import { markTitleRoot } from './title-root';
-import { MAX_MINDMAP_NODES, MINDMAP_DX } from './limits';
+import { MAX_MINDMAP_DEPTH, MAX_MINDMAP_NODES, MINDMAP_DX } from './limits';
 import {
   parseEmphasisDirective,
   resolveHighlightPaths,
@@ -171,6 +171,10 @@ export function parseMindmap(
   // many node lines the source holds in all.
   let firstLeftOutLine = 0;
   let nodeLinesSeen = 0;
+  // Depth limit (#2455): the indent of the last line dropped as too deep;
+  // lines indented at least as far belong under it and are dropped too.
+  let tooDeepIndent: number | null = null;
+  let tooDeepReported = false;
 
   // Tag group parsing state
   let currentTagGroup: Writable<TagGroup> | null = null;
@@ -362,6 +366,11 @@ export function parseMindmap(
 
     const indent = measureIndent(line);
 
+    if (tooDeepIndent !== null) {
+      if (indent >= tooDeepIndent) continue;
+      tooDeepIndent = null;
+    }
+
     // Past the node limit nothing more is drawn: count node lines for the
     // message, and drop descriptions too so none lands on a kept node.
     if (firstLeftOutLine > 0) {
@@ -400,6 +409,14 @@ export function parseMindmap(
     }
 
     // It's a node line — possibly with same-line metadata
+    if (depthAt(indent, indentStack) > MAX_MINDMAP_DEPTH) {
+      tooDeepIndent = indent;
+      if (!tooDeepReported) {
+        tooDeepReported = true;
+        result.diagnostics.push(emit(MINDMAP_DX.TOO_DEEP, lineNumber));
+      }
+      continue;
+    }
     nodeLinesSeen++;
     if (nodeCounter >= MAX_MINDMAP_NODES) {
       firstLeftOutLine = lineNumber;
@@ -595,6 +612,19 @@ function attachNode(
   }
 
   indentStack.push({ node, indent });
+}
+
+/**
+ * The level a node at `indent` takes, the root as level 1: one more than the
+ * stack entries it would sit under (attachNode pops the rest).
+ */
+function depthAt(
+  indent: number,
+  indentStack: readonly { indent: number }[]
+): number {
+  let i = indentStack.length;
+  while (i > 0 && indentStack[i - 1]!.indent >= indent) i--;
+  return i + 1;
 }
 
 /** An indented `description: text` line, which is never a node. */
