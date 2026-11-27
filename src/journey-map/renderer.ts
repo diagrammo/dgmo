@@ -96,11 +96,6 @@ const FONT_SIZE_META = 10;
 const GRID_LINE_OPACITY = 0.15;
 const CURVE_STROKE_WIDTH = 2.5;
 const FACE_RADIUS = 14;
-// Distance from curveAreaBottom down to the filled band's bottom edge/border.
-// The score-1 face sits ~10px above curveAreaBottom; its emotion caption hangs
-// FACE_RADIUS + 5 + label-height (~29px) below the face center, so the band
-// must drop far enough that the caption clears the bottom border.
-const CURVE_AREA_BOTTOM_GAP = 28;
 // Faces grow on hover/active; the thought bubble + connector must clear the
 // enlarged outer edge (radius + ring halo), not the base radius.
 const FACE_HOVER_SCALE = 1.5;
@@ -536,10 +531,9 @@ export function renderJourneyMap(
       },
     ];
 
-    // Bottom of the filled band. Sits clear of the lowest face's emotion
-    // caption (score-1 face + FACE_RADIUS + EMOTION_LABEL gap) so the caption
-    // doesn't collide with the bottom border.
-    const areaBottomY = layout.curveAreaBottom + CURVE_AREA_BOTTOM_GAP;
+    // Bottom of the filled band — owned by the layout, which places the phase
+    // panels a fixed gap below it (#2447).
+    const areaBottomY = layout.areaBottom;
 
     const areaGen = d3Shape
       .area<CurvePoint>()

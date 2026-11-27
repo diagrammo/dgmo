@@ -51,6 +51,9 @@ export interface JourneyMapLayout {
   totalHeight: number;
   curveAreaTop: number;
   curveAreaBottom: number;
+  /** Bottom edge of the filled curve area and its frame. The renderer draws
+   *  to this; `cardAreaTop` sits `CURVE_AREA_PANEL_GAP` below it (#2447). */
+  areaBottom: number;
   cardAreaTop: number;
   personaHeight: number;
   /** Top edge of the persona panel: the top padding beside a left title,
@@ -92,9 +95,14 @@ export const TAG_STRIP_HEIGHT = 18;
 const PHASE_GAP = 16;
 const COLUMN_PADDING = 12;
 const FACE_ICON_SIZE = 20;
-// Extra room reserved below the curve band for emotion captions (which hang
-// beneath the lowest face) so they clear the phase header bar.
-const EMOTION_CAPTION_BAND = 18;
+// Distance from curveAreaBottom down to the filled area's bottom edge and
+// frame. The score-1 face sits ~10px above curveAreaBottom; its emotion
+// caption hangs FACE_RADIUS + 5 + label height (~29px) below the face
+// centre, so the area drops far enough that the caption clears the frame.
+const CURVE_AREA_BOTTOM_GAP = 28;
+// Clear space between the curve area's bottom frame and the phase panels
+// (or step cards). The same gap holds with or without emotion captions (#2447).
+export const CURVE_AREA_PANEL_GAP = 14;
 
 // ============================================================
 // Score-to-color
@@ -187,14 +195,6 @@ function layoutOnce(
     s.annotations.some((a) => a.type === 'thought')
   );
 
-  // Emotion captions render below their face. The score-1 face sits at the very
-  // bottom of the curve band, so without reserved room its caption collides with
-  // the phase header bar just below. Reserve a caption band in the curve→card gap
-  // whenever any scored step carries an emotion label.
-  const hasEmotions = allStepsForThoughts.some(
-    (s) => s.score !== undefined && s.emotionLabel !== undefined
-  );
-
   // Reserve top headroom so an expanded thought bubble — which always pops
   // ABOVE its face — clears the title + persona band, even when it hangs above
   // the highest (score-5) face. Mirrors the renderer's bubble metrics.
@@ -285,8 +285,8 @@ function layoutOnce(
 
   const curveAreaTop = baseTop + topHeadroom;
   const curveAreaBottom = curveAreaTop + CURVE_AREA_HEIGHT;
-  const cardAreaTop =
-    curveAreaBottom + PADDING + (hasEmotions ? EMOTION_CAPTION_BAND : 0);
+  const areaBottom = curveAreaBottom + CURVE_AREA_BOTTOM_GAP;
+  const cardAreaTop = areaBottom + CURVE_AREA_PANEL_GAP;
 
   const allSteps = hasPhases
     ? parsed.phases.flatMap((p) => p.steps)
@@ -559,6 +559,7 @@ function layoutOnce(
     totalHeight,
     curveAreaTop,
     curveAreaBottom,
+    areaBottom,
     cardAreaTop,
     personaHeight,
     personaTop,

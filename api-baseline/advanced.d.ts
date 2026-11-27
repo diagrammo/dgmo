@@ -5728,6 +5728,9 @@ interface JourneyMapLayout {
     totalHeight: number;
     curveAreaTop: number;
     curveAreaBottom: number;
+    /** Bottom edge of the filled curve area and its frame. The renderer draws
+     *  to this; `cardAreaTop` sits `CURVE_AREA_PANEL_GAP` below it (#2447). */
+    areaBottom: number;
     cardAreaTop: number;
     personaHeight: number;
     /** Top edge of the persona panel: the top padding beside a left title,
