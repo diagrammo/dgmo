@@ -103,7 +103,7 @@ import {
   drawValueLabel,
   planLabelsFitLeft,
   drawCategoryLabels,
-  rotatedLabelCap,
+  LABEL_REGION_SHARE,
   bandSafeTop,
   TICK_INK_ABOVE,
   topTickFraction,
@@ -430,8 +430,11 @@ export function renderLine(
           (pw) => (data.length > 0 ? pw / data.length : pw),
           (pw) => (data.length > 0 ? pw / data.length : pw) * 0.5,
           TICK_FONT,
-          // The same cap as bar's (#2450): long names never take the chart.
-          rotatedLabelCap(height, top + 8, chart.xlabel ? 40 : 18)
+          // Bar's share of the height (#2450), as box plot uses it. Bar's
+          // second term keeps the plot at PLOT_MIN_SHARE because a bar axis
+          // can flip horizontal; a line axis cannot, and at card size that
+          // term would cut names as short as "Nassau".
+          Math.floor(height * LABEL_REGION_SHARE)
         );
   let fit = fitFor(mRight);
   // The names never cost the category labels their flat reading: when the

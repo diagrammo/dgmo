@@ -7,7 +7,7 @@ import { describe, it, expect } from 'vitest';
 import { renderDataChartD3 } from '../src/charts-d3/index';
 import {
   planLabelsFitLeft,
-  rotatedLabelCap,
+  LABEL_REGION_SHARE,
   LABEL_BREAK,
   LABEL_ROTATE_DEG,
   TICK_FONT,
@@ -71,8 +71,7 @@ describe('long category names are capped (#2450)', () => {
   it('a line chart wraps and cuts 150-character names within the cap', async () => {
     const rows = Array.from({ length: 6 }, (_, i) => `${LONG(i)} ${i + 2}`);
     const svg = await mount(['line Long names', ...rows].join('\n'));
-    // The header band sits above the plot; the cap is no larger than this.
-    const cap = rotatedLabelCap(H, 0, 18);
+    const cap = Math.floor(H * LABEL_REGION_SHARE);
     expectCapped(svg, cap, 6);
     // Wrapped to two lines rather than one cut line.
     expect(longTicks(svg)[0]!.querySelectorAll('tspan').length).toBe(2);
@@ -85,7 +84,7 @@ describe('long category names are capped (#2450)', () => {
         `[${LONG(i)}]\n${Array.from({ length: 8 }, (_, k) => 10 + i + k).join(' ')}`
     );
     const svg = await mount(['boxplot Long names', ...groups].join('\n'));
-    expectCapped(svg, Math.floor(H * 0.35), 6);
+    expectCapped(svg, Math.floor(H * LABEL_REGION_SHARE), 6);
   });
 
   it('the shared fit keeps every caller under its cap', () => {
