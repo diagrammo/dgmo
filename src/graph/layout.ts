@@ -11,7 +11,8 @@ import type {
 import { resolveNotes } from './notes';
 import { noteBoxSize } from '../utils/note-box';
 import { placeNotes, noteCanvasShift } from '../utils/notes';
-import { unbundleEdges } from './edge-ports';
+import { unbundleEdges, withoutApproach } from './edge-ports';
+import { ARROWHEAD_WIDTH, ARROWHEAD_HEIGHT } from '../utils/visual-conventions';
 import { measureText } from '../utils/text-measure';
 import { elbowRetryEdges } from './retry-elbow';
 import {
@@ -181,6 +182,78 @@ function computeNodeHeight(lineCount: number, shape: GraphShape): number {
 
 const newDagreGraph = () => new dagre.graphlib.Graph({ compound: true });
 type DagreGraph = ReturnType<typeof newDagreGraph>;
+
+// What the renderers draw around an edge label (flowchart- and
+// state-renderer): `LABEL_PAD` beside the text, `LABEL_H` tall, its centre
+// `PERP_OFFSET` off the route's middle waypoint.
+const EDGE_LABEL_PAD = 8;
+const EDGE_LABEL_H = 16;
+const EDGE_LABEL_PERP_OFFSET = 10;
+
+/**
+ * Grow `bb` to cover everything drawn for each edge (#2436): its waypoints,
+ * its arrowhead (an `ARROWHEAD_WIDTH` deep triangle ending at the last
+ * point, aligned with the last segment) and its label box. The label is
+ * taken where the renderers first put it: `PERP_OFFSET` to the left of the
+ * middle waypoint. Where a renderer may put it on the other side instead —
+ * a self-loop, or one of a two-way pair — both sides are covered. A label
+ * the renderer later slides along its edge or stacks below another is not
+ * followed.
+ */
+function addEdgeExtents(bb: Bounds, edges: readonly LayoutEdge[]): void {
+  const pairs = new Set(edges.map((e) => `${e.source}\u0000${e.target}`));
+  for (const edge of edges) {
+    const pts = edge.points;
+    bb.addPoints(pts);
+    if (pts.length < 2) continue;
+    const end = pts[pts.length - 1]!;
+    const prev = pts[pts.length - 2]!;
+    const len = Math.hypot(end.x - prev.x, end.y - prev.y);
+    if (len > 0) {
+      const ux = (end.x - prev.x) / len;
+      const uy = (end.y - prev.y) / len;
+      const bx = end.x - ux * ARROWHEAD_WIDTH;
+      const by = end.y - uy * ARROWHEAD_WIDTH;
+      const hx = (-uy * ARROWHEAD_HEIGHT) / 2;
+      const hy = (ux * ARROWHEAD_HEIGHT) / 2;
+      bb.addPoints([
+        { x: bx + hx, y: by + hy },
+        { x: bx - hx, y: by - hy },
+      ]);
+    }
+    if (!edge.label) continue;
+    const route = withoutApproach(pts);
+    const midIdx = Math.floor(route.length / 2);
+    const mid = route[midIdx]!;
+    const before = route[Math.max(0, midIdx - 1)]!;
+    const after = route[Math.min(route.length - 1, midIdx + 1)]!;
+    const dx = after.x - before.x;
+    const dy = after.y - before.y;
+    const dlen = Math.hypot(dx, dy);
+    const halfW =
+      (measureText(edge.label, EDGE_LABEL_FONT_SIZE) + EDGE_LABEL_PAD) / 2;
+    // The renderers draw the box from (cy - h/2 - 1) down.
+    const addLabelAt = (cx: number, cy: number) =>
+      bb.add(
+        cx - halfW,
+        cy - EDGE_LABEL_H / 2 - 1,
+        cx + halfW,
+        cy + EDGE_LABEL_H / 2 - 1
+      );
+    if (dlen === 0) {
+      addLabelAt(mid.x, mid.y);
+      continue;
+    }
+    const ox = (-dy / dlen) * EDGE_LABEL_PERP_OFFSET;
+    const oy = (dx / dlen) * EDGE_LABEL_PERP_OFFSET;
+    addLabelAt(mid.x + ox, mid.y + oy);
+    if (
+      edge.source === edge.target ||
+      pairs.has(`${edge.target}\u0000${edge.source}`)
+    )
+      addLabelAt(mid.x - ox, mid.y - oy);
+  }
+}
 
 export function layoutGraph(
   graph: ParsedGraph,
@@ -435,9 +508,6 @@ export function layoutGraph(
             : (rs) => countSplineCrossings(scored(rs))
         )
       : unbundled;
-  const elbowed = new Set(
-    routes.flatMap((r, i) => (r !== unbundled[i] ? [i] : []))
-  );
 
   // ── Collision-aware note placement (shared `utils/notes`) ───
   // The note floats beside its node WITHOUT moving it: try the default
@@ -592,16 +662,12 @@ export function layoutGraph(
   }
 
   // Content bounding box over nodes, their (floated) notes, groups, and
-  // self-loop edges. Notes placed above/left of a node can land at negative
-  // coordinates; when they do, everything is shifted so nothing clips on
-  // export. Ordinary edges are intentionally excluded (matching the prior
-  // bounds behavior) so un-annotated layouts are byte-for-byte unchanged.
-  //
-  // Self-loops are the exception: dagre routes them on the axis
-  // perpendicular to the flow (below the node under `LR`, beside it under
-  // `TB`) and reserves rank space for them, but that space lies wholly
-  // outside every node box — so a bbox over nodes alone puts the loop
-  // exactly on the canvas edge and clips it.
+  // every edge — its waypoints, its arrowhead and its label. Notes placed
+  // above/left of a node can land at negative coordinates, and so can an
+  // edge routed around the outside of a dense graph; when either does,
+  // everything is shifted so nothing clips (#2436). The edge spline
+  // (`curveBasis`) stays inside the hull of its waypoints, so the points
+  // bound the drawn path.
   const bb = new Bounds();
   for (const node of layoutNodes) {
     bb.addCentred(node);
@@ -617,11 +683,7 @@ export function layoutGraph(
   for (const group of layoutGroups) {
     bb.addRect(group);
   }
-  // An elbowed retry edge (#2034) also runs outside every node box.
-  layoutEdges.forEach((edge, i) => {
-    if (edge.source !== edge.target && !elbowed.has(i)) return;
-    bb.addPoints(edge.points);
-  });
+  addEdgeExtents(bb, layoutEdges);
   bb.orZero();
 
   // Shift only when content runs off the top/left (note placed above/left).
