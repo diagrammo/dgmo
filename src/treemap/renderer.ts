@@ -440,16 +440,19 @@ export function renderTreemap(
       // the name down the cell shows more of it. Value/% are dropped in this
       // mode — showing the name is the point.
       if (fit.label.truncated && h > w * 1.25) {
-        const vfit = fitLeafLabel(
+        const verticalFit = fitLeafLabel(
           cell.label,
           h - 2 * PAD,
           w - 2 * PAD,
           Math.min(fs0, 22),
           MIN_FS
         );
-        if (vfit.fits && shownChars(vfit.label) > shownChars(fit.label)) {
-          drawVerticalLabel(g, vfit, w, h, ink);
-          if (vfit.label.truncated) g.attr(FULL_TEXT_ATTR, cell.label);
+        if (
+          verticalFit.fits &&
+          shownChars(verticalFit.label) > shownChars(fit.label)
+        ) {
+          drawVerticalLabel(g, verticalFit, w, h, ink);
+          if (verticalFit.label.truncated) g.attr(FULL_TEXT_ATTR, cell.label);
           if (drillable && w > 30 && h > 22) drawFocusIcon(g, w, ink, 9);
           continue;
         }
