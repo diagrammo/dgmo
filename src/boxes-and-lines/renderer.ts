@@ -956,10 +956,9 @@ export function renderBoxesAndLines(
           .attr('fill', gGround ? gGround.groundText : palette.text)
           .text(line);
       });
-      if (title.truncated) {
-        groupG.attr(FULL_TEXT_ATTR, group.label);
-        groupG.append('title').text(group.label);
-      }
+      // The full name rides data-full-text, never an <svg><title> (a native
+      // tooltip and a second accessible name; dgmo/CLAUDE.md → Output rules).
+      if (title.truncated) groupG.attr(FULL_TEXT_ATTR, group.label);
 
       // An expanded group folds: its hover preview of the bar (#1741).
       renderCollapseBar(groupG, {
