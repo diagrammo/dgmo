@@ -29,7 +29,12 @@ import { tagAttrKey } from './tag-groups';
 
 /** How a chart's cross-highlight rules are shaped. `self` = self-emphasis only
  *  (no cross-highlight — single-series / non-relational charts). */
-export type HoverStrategy = 'enumerated' | 'structural' | 'connection' | 'self';
+export type HoverStrategy =
+  | 'enumerated'
+  | 'structural'
+  | 'connection'
+  | 'lineage'
+  | 'self';
 
 /** Lift the matched group, or dim everything else. Default `lift` (ADR-5). */
 export type HoverEmphasis = 'lift' | 'dim';
@@ -89,6 +94,11 @@ export interface HoverSpec {
    *  (sitemap's `data-neighbors`, #2312). When set, a hover also dims every
    *  `hoverSelector` node whose list lacks the hovered id. */
   neighborAttr?: string;
+  // ── lineage strategy (bracket path highlight, #2425) ──
+  /** Attr on every mark a hover may dim: the space-separated ids whose hover
+   *  keeps that mark lit. A hover on `hoverSelector[hoverAttr="id"]` dims
+   *  every `[lineageAttr]` whose list lacks `id`. */
+  lineageAttr?: string;
 }
 
 /** DOM-scanned data the injector supplies to the pure formatter. */
@@ -246,6 +256,20 @@ function connectionRule(
   return `${edges}${trigger} ${hoverSelector}:not([${spec.neighborAttr}~="${lit}"]){opacity:${dimOpacity}}`;
 }
 
+/** One lineage rule for id `id` — dim every mark whose lineage lacks it. */
+function lineageRule(spec: HoverSpec, id: string, dimOpacity: number): string {
+  const lit = escCssString(id);
+  const { hoverSelector, hoverAttr, lineageAttr } = spec;
+  return `svg:has(${hoverSelector}[${hoverAttr}="${lit}"]:hover) [${lineageAttr}]:not([${lineageAttr}~="${lit}"]){opacity:${dimOpacity}}`;
+}
+
+/**
+ * A lineage chart's own cap. One rule per match, and a 128-entrant bracket has
+ * 127 matches, so `MAX_HOVER_GROUPS` would retire it on exactly the brackets
+ * the hover exists for (#2425). 255 = a 256-entrant field.
+ */
+export const MAX_LINEAGE_GROUPS = 255;
+
 /**
  * Pure formatter: given a registry spec + DOM-derived values/ids, return the
  * CSS text for one chart's baked hover `<style>` (no `<style>` wrapper). Returns
@@ -335,6 +359,14 @@ export function buildHoverCss(
       );
     } else {
       for (const id of ids) cross.push(connectionRule(spec, id, dimOpacity));
+    }
+  } else if (spec.strategy === 'lineage' && spec.lineageAttr) {
+    if (ids.length > MAX_LINEAGE_GROUPS) {
+      base.push(
+        `/* hover: ${ids.length} matches exceeds cap ${MAX_LINEAGE_GROUPS}; self-emphasis only */`
+      );
+    } else {
+      for (const id of ids) cross.push(lineageRule(spec, id, dimOpacity));
     }
   }
 
@@ -868,9 +900,15 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     legend: true,
     emphasis: 'dim',
   },
+  // Hover a match → its feeders back to round 1 and its path to the final stay
+  // lit, every other box, wire and note recedes (#2425). The renderer stamps
+  // `data-match` on boxes and `data-lineage` on every match-owned mark.
   bracket: {
     markSelector: '.dgmo-bracket-box',
-    strategy: 'self',
+    strategy: 'lineage',
+    hoverSelector: '.dgmo-bracket-box',
+    hoverAttr: 'data-match',
+    lineageAttr: 'data-lineage',
     legend: true,
   },
 };
@@ -1012,7 +1050,11 @@ function deriveFromSvg(svg: string, spec: HoverSpec): HoverDerived {
       ...legendExtra(),
     };
   }
-  if (spec.strategy === 'connection' && spec.hoverSelector && spec.hoverAttr) {
+  if (
+    (spec.strategy === 'connection' || spec.strategy === 'lineage') &&
+    spec.hoverSelector &&
+    spec.hoverAttr
+  ) {
     const seen = new Set<string>();
     root
       .querySelectorAll(`${spec.hoverSelector}[${spec.hoverAttr}]`)

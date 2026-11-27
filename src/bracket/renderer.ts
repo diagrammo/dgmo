@@ -47,6 +47,7 @@ import type { D3ExportDimensions } from '../utils/d3-types';
 import type { FillMode } from '../utils/parsing';
 import type { ParsedBracket } from './types';
 import {
+  bracketPaths,
   layoutBracket,
   wrapText,
   BOX_W,
@@ -473,10 +474,42 @@ export function renderBracket(
       .text(clip(col.label, BOX_W + 20, covered ? 14 : 15, true));
   }
 
+  // ── Hover lineage (#2425) ──
+  // Every match-owned mark carries `data-lineage`: the space-separated ids of
+  // the matches whose hover keeps it lit. A box lists its match's own lineage
+  // (upstream ∪ downstream); a connector child→parent lists up(child) ∪
+  // down(parent) — exactly the hovers whose highlighted path runs along that
+  // wire. The baked hover CSS (`HOVER_SPECS.bracket`) dims every
+  // `[data-lineage]` that does not name the hovered box's `data-match`.
+  const paths = bracketPaths(layout.matches);
+  const lineageOf = (...sets: (ReadonlySet<number> | undefined)[]): string =>
+    [...new Set(sets.flatMap((x) => (x ? [...x] : [])))]
+      .sort((p, q) => p - q)
+      .join(' ');
+  const matchLineage = new Map<number, string>();
+  for (const m of layout.matches)
+    matchLineage.set(m.id, lineageOf(paths.up.get(m.id), paths.down.get(m.id)));
+
   // ── Connectors (behind boxes) ──
+  const wireLineage = (m: LaidMatch, from: ConnectorPoint | null): string =>
+    from ? lineageOf(paths.up.get(from.matchId), paths.down.get(m.id)) : '';
   for (const m of layout.matches) {
-    drawConnector(root, m, m.topFrom, m.y - HALF_SPAN, basePaint);
-    drawConnector(root, m, m.botFrom, m.y + HALF_SPAN, basePaint);
+    drawConnector(
+      root,
+      m,
+      m.topFrom,
+      m.y - HALF_SPAN,
+      basePaint,
+      wireLineage(m, m.topFrom)
+    );
+    drawConnector(
+      root,
+      m,
+      m.botFrom,
+      m.y + HALF_SPAN,
+      basePaint,
+      wireLineage(m, m.botFrom)
+    );
   }
 
   // ── Matches: boxes + badges + commentary ──
@@ -537,6 +570,7 @@ export function renderBracket(
       isDark,
       m,
       activeKey,
+      matchLineage.get(m.id) ?? String(m.id),
       fillMode
     );
     drawBox(
@@ -550,11 +584,13 @@ export function renderBracket(
       isDark,
       m,
       activeKey,
+      matchLineage.get(m.id) ?? String(m.id),
       fillMode
     );
 
-    if (isUpset) drawUpset(root, m, sidePaint);
-    if (m.commentary.length) drawCommentary(root, m, palette);
+    const lin = matchLineage.get(m.id) ?? String(m.id);
+    if (isUpset) drawUpset(root, m, sidePaint, lin);
+    if (m.commentary.length) drawCommentary(root, m, palette, lin);
   }
 
   // Chart frame (#1827): subtitle under the title, footer under the chart.
@@ -568,7 +604,8 @@ function drawConnector(
   m: LaidMatch,
   from: ConnectorPoint | null,
   toCy: number,
-  paint: Paint
+  paint: Paint,
+  lineage: string
 ): void {
   if (!from) return;
   const parentLeft = m.x - BOX_W / 2;
@@ -588,6 +625,8 @@ function drawConnector(
       ? `M ${childEdge} ${from.yA} H ${midX} M ${childEdge} ${from.yB} H ${midX} M ${midX} ${vLo} V ${vHi} M ${midX} ${toCy} H ${parentEdge}`
       : `M ${childEdge} ${from.y} H ${midX} V ${toCy} H ${parentEdge}`;
   g.append('path')
+    .attr('class', 'dgmo-bracket-wire')
+    .attr('data-lineage', lineage)
     .attr('d', d)
     .attr('fill', 'none')
     .attr('stroke', paint.wire)
@@ -605,6 +644,7 @@ function drawBox(
   isDark: boolean,
   m: LaidMatch,
   activeKey: string | null,
+  lineage: string,
   fillMode?: FillMode
 ): void {
   const x = cx - BOX_W / 2;
@@ -615,7 +655,11 @@ function drawBox(
     ? paintForAccent(palette, isDark, info.tagColor, fillMode)
     : sidePaint;
 
-  const cell = g.append('g').attr('class', 'dgmo-bracket-box');
+  const cell = g
+    .append('g')
+    .attr('class', 'dgmo-bracket-box')
+    .attr('data-match', m.id)
+    .attr('data-lineage', lineage);
   if (m.lineNumber !== null) cell.attr('data-line-number', m.lineNumber);
   if (activeKey && info.tagValue)
     cell.attr(`data-tag-${tagAttrKey(activeKey)}`, info.tagValue.toLowerCase());
@@ -748,8 +792,9 @@ function drawHome(cell: GSel, hx: number, cy: number, color: string): void {
 }
 
 /** Small "UPSET" flag above the match's top box. */
-function drawUpset(g: GSel, m: LaidMatch, paint: Paint): void {
+function drawUpset(g: GSel, m: LaidMatch, paint: Paint, lineage: string): void {
   g.append('text')
+    .attr('data-lineage', lineage)
     .attr('x', m.x + BOX_W / 2)
     .attr('y', m.y - HALF_SPAN - BOX_H / 2 - 4)
     .attr('text-anchor', 'end')
@@ -763,7 +808,12 @@ function drawUpset(g: GSel, m: LaidMatch, paint: Paint): void {
 /** Prose commentary under the match's bottom box, word-wrapped to the column.
  *  Bullet lines get a hanging indent so wrapped continuations align with the
  *  text after the bullet, not under the bullet itself. */
-function drawCommentary(g: GSel, m: LaidMatch, palette: PaletteColors): void {
+function drawCommentary(
+  g: GSel,
+  m: LaidMatch,
+  palette: PaletteColors,
+  lineage: string
+): void {
   const x = m.x - BOX_W / 2 + 2;
   let y = m.y + HALF_SPAN + BOX_H / 2 + 13;
   const muted = mix(palette.text, palette.bg, 45);
@@ -772,6 +822,7 @@ function drawCommentary(g: GSel, m: LaidMatch, palette: PaletteColors): void {
   const emit = (line: string, lx: number): void => {
     const t = g
       .append('text')
+      .attr('data-lineage', lineage)
       .attr('x', lx)
       .attr('y', y)
       .attr('text-anchor', 'start')

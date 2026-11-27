@@ -71,6 +71,8 @@ function commentaryLineCount(commentary: readonly string[]): number {
 }
 
 export interface ConnectorPoint {
+  /** The child match this connector leaves from. */
+  readonly matchId: number;
   readonly x: number;
   /** Origin y. For a decided child this is the winner box; for an undecided
    *  child `yA`/`yB` are its two boxes (renderer draws a `]` merge). */
@@ -80,6 +82,10 @@ export interface ConnectorPoint {
 }
 
 export interface LaidMatch {
+  /** Unique match id within this layout — the hover keys off it. */
+  readonly id: number;
+  /** Ids of the matches whose winners feed this one (0–2). */
+  readonly feeders: readonly number[];
   readonly round: number;
   readonly side: string | null;
   /** Center x of this match's two boxes. */
@@ -826,13 +832,17 @@ export function layoutBracket(parsed: ParsedBracket): BracketLayout {
   const fromPoint = (c: Node): ConnectorPoint => {
     const y = winnerBoxCy(c);
     return c.winner === null
-      ? { x: c.x, y, yA: c.y - half, yB: c.y + half }
-      : { x: c.x, y, yA: y, yB: y };
+      ? { matchId: c.id, x: c.x, y, yA: c.y - half, yB: c.y + half }
+      : { matchId: c.id, x: c.x, y, yA: y, yB: y };
   };
   const matches: LaidMatch[] = allNodes.map((n) => {
     const topChild = n.topChildId !== null ? nodeById.get(n.topChildId) : null;
     const botChild = n.botChildId !== null ? nodeById.get(n.botChildId) : null;
     return {
+      id: n.id,
+      feeders: [topChild?.id, botChild?.id].filter(
+        (id): id is number => id !== undefined
+      ),
       round: n.round,
       side: n.side,
       x: n.x,
@@ -900,6 +910,7 @@ export function layoutBracket(parsed: ParsedBracket): BracketLayout {
     y: m.y + shiftY,
     topFrom: m.topFrom
       ? {
+          matchId: m.topFrom.matchId,
           x: m.topFrom.x + shiftX,
           y: m.topFrom.y + shiftY,
           yA: m.topFrom.yA + shiftY,
@@ -908,6 +919,7 @@ export function layoutBracket(parsed: ParsedBracket): BracketLayout {
       : null,
     botFrom: m.botFrom
       ? {
+          matchId: m.botFrom.matchId,
           x: m.botFrom.x + shiftX,
           y: m.botFrom.y + shiftY,
           yA: m.botFrom.yA + shiftY,
@@ -931,4 +943,53 @@ export function layoutBracket(parsed: ParsedBracket): BracketLayout {
     champion,
     diagnostics,
   };
+}
+
+/** Per match id: itself plus every match upstream (`up`: its feeders, their
+ *  feeders, back to round 1) and itself plus its path downstream to the final
+ *  (`down`). */
+export interface BracketPaths {
+  readonly up: ReadonlyMap<number, ReadonlySet<number>>;
+  readonly down: ReadonlyMap<number, ReadonlySet<number>>;
+}
+
+export function bracketPaths(matches: readonly LaidMatch[]): BracketPaths {
+  const byId = new Map(matches.map((m) => [m.id, m]));
+  const parentOf = new Map<number, number>();
+  for (const m of matches) for (const f of m.feeders) parentOf.set(f, m.id);
+  const up = new Map<number, Set<number>>();
+  const down = new Map<number, Set<number>>();
+  for (const m of matches) {
+    const u = new Set<number>();
+    const stack = [m.id];
+    while (stack.length) {
+      const id = stack.pop()!;
+      if (u.has(id)) continue;
+      u.add(id);
+      stack.push(...(byId.get(id)?.feeders ?? []));
+    }
+    up.set(m.id, u);
+    const d = new Set<number>([m.id]);
+    for (let p = parentOf.get(m.id); p !== undefined; p = parentOf.get(p)) {
+      if (d.has(p)) break;
+      d.add(p);
+    }
+    down.set(m.id, d);
+  }
+  return { up, down };
+}
+
+/**
+ * Per match: the ids a hover on it lights — `up ∪ down`. The relation is
+ * symmetric (X is on M's path iff M is on X's), so a mark lights for a hovered
+ * match M exactly when M is in the mark's own set.
+ */
+export function bracketLineage(
+  matches: readonly LaidMatch[]
+): Map<number, Set<number>> {
+  const { up, down } = bracketPaths(matches);
+  const out = new Map<number, Set<number>>();
+  for (const m of matches)
+    out.set(m.id, new Set([...up.get(m.id)!, ...down.get(m.id)!]));
+  return out;
 }
