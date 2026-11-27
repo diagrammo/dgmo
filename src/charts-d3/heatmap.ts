@@ -19,7 +19,7 @@ import {
 import type { LegendGroupData } from '../utils/legend-types';
 import { measureText, truncateText } from '../utils/text-measure';
 import type { Svg } from './shared';
-import { chartFormatter, tagDatum } from './shared';
+import { chartFormatter, spreadIndices, tagDatum } from './shared';
 import { measureTabular, tabularText } from '../utils/tabular-figures';
 import { TEXT_WIDTH_SAFETY } from '../utils/export-fit';
 
@@ -141,6 +141,21 @@ const COL_ANGLE = (40 * Math.PI) / 180;
 const ROW_FONT = 13;
 const COL_FONT = 12;
 const EDGE_GAP = 4;
+/** One label line, as a multiple of its font size: the least pitch at which
+ *  neighbouring row (or rotated column) names do not touch. */
+const LABEL_LINE = 1.25;
+
+/**
+ * Which of `n` names to draw when each owns `pitch` px across its axis and a
+ * name needs `need` px: all of them when they fit, else every k-th, spread
+ * evenly with the first and last kept (spreadIndices). The rest are drawn
+ * hidden and shown by a hovered cell (#2445).
+ */
+function thinNames(n: number, pitch: number, need: number): Set<number> {
+  if (pitch >= need || pitch <= 0) return spreadIndices(n, n);
+  const stride = Math.ceil(need / pitch);
+  return spreadIndices(n, Math.floor((n - 1) / stride) + 1);
+}
 
 export function renderHeatmap(
   svg: Svg,
@@ -253,6 +268,14 @@ export function renderHeatmap(
     Math.min(ch * 0.55, (cw * 0.7 * REF) / maxValueW)
   );
 
+  // Names never overprint (#2445): rows thinner than a line keep every k-th
+  // name; rotated columns closer than a line (measured across the slant) do
+  // the same. Flat column names already fit their cells.
+  const rowKeep = thinNames(nrows, ch, ROW_FONT * LABEL_LINE);
+  const colKeep = rotate
+    ? thinNames(cols.length, cw * sin, COL_FONT * LABEL_LINE)
+    : spreadIndices(cols.length, cols.length);
+
   // column labels (rotate if wide) — clickable: pins emphasis to the column
   cols.forEach((c, ci) => {
     const x = left + ci * cw + cw / 2;
@@ -265,7 +288,12 @@ export function renderHeatmap(
       .attr('font-size', COL_FONT)
       .attr('font-family', FONT_FAMILY)
       .text(colShown[ci]!);
-    if (colShown[ci] !== c) t.append('title').text(c);
+    if (colShown[ci] !== c) {
+      t.attr('data-full-text', c);
+      if (colKeep.has(ci)) t.append('title').text(c);
+    }
+    if (!colKeep.has(ci))
+      t.attr('visibility', 'hidden').attr('data-thinned', '');
     if (rotate) {
       t.attr('transform', `translate(${x},${top - 8}) rotate(-40)`).attr(
         'text-anchor',
@@ -292,7 +320,12 @@ export function renderHeatmap(
       .attr('font-size', ROW_FONT)
       .attr('font-family', FONT_FAMILY)
       .text(rowShown[ri]!);
-    if (rowShown[ri] !== row.label) rowLabel.append('title').text(row.label);
+    if (rowShown[ri] !== row.label) {
+      rowLabel.attr('data-full-text', row.label);
+      if (rowKeep.has(ri)) rowLabel.append('title').text(row.label);
+    }
+    if (!rowKeep.has(ri))
+      rowLabel.attr('visibility', 'hidden').attr('data-thinned', '');
 
     row.values.forEach((v, ci) => {
       const ramp = heatRamp.colorAt(v);
@@ -300,7 +333,8 @@ export function renderHeatmap(
       const cell = outline ? baseBg : ramp;
       const colLabel = cols[ci] ?? `Col ${ci + 1}`;
       // Per-cell emph key: hovering a cell emphasizes ONLY that cell (rect +
-      // its value label). Row/column emphasis comes from the axis labels via
+      // its value label), and marks its row and column names (interactions.ts,
+      // #2445). Row/column emphasis comes from the axis labels via
       // data-row-key / data-col-key.
       const cellKey = `${row.label} · ${colLabel}`;
       const r = svg

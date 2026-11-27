@@ -59,6 +59,7 @@ function ensureStyle(svg: SVGSVGElement, muted: string): void {
     .dgmo-datum{cursor:pointer}
     .dgmo-axis-label{cursor:pointer}
     .dgmo-axis-label.dgmo-axis-active{font-weight:bold}
+    .dgmo-axis-label{transition:opacity .12s ease}.dgmo-axis-label.dgmo-faded{opacity:.22}
     .dgmo-axline{stroke:${muted};stroke-width:1;stroke-dasharray:${GRID_DASH};pointer-events:none}
   `;
   svg.insertBefore(style, svg.firstChild);
@@ -672,10 +673,88 @@ export function attachDataChartInteractions(
     mirrorExtras();
   };
 
+  // ── heatmap cell hover → its row and column names (#2445) ──────────────
+  // A cell carries data-row-key / data-col-key; the names are the axis labels
+  // filtering on those attributes. Hovering a cell bolds both names at full
+  // length — drawing a thinned (hidden) one for the moment — fades the other
+  // names on each axis, and draws a faint crosshair along its row and column.
+  const rowNames = axisLabels.filter(
+    (l) => l.getAttribute('data-filter-attr') === 'data-row-key'
+  );
+  const colNames = axisLabels.filter(
+    (l) => l.getAttribute('data-filter-attr') === 'data-col-key'
+  );
+  const cellRects = datums.filter(
+    (d) =>
+      d.tagName.toLowerCase() === 'rect' &&
+      d.hasAttribute('data-row-key') &&
+      d.hasAttribute('data-col-key')
+  );
+  const num = (el: Element, a: string) => parseFloat(el.getAttribute(a) ?? '0');
+  let markedNames: { el: SVGElement; text: string | null; hidden: boolean }[] =
+    [];
+  const unmarkCell = () => {
+    for (const m of markedNames) {
+      m.el.classList.remove('dgmo-axis-active');
+      const node = m.el.firstChild;
+      if (m.text !== null && node?.nodeType === 3) node.textContent = m.text;
+      if (m.hidden) m.el.setAttribute('visibility', 'hidden');
+    }
+    markedNames = [];
+    for (const n of [...rowNames, ...colNames])
+      n.classList.remove('dgmo-faded');
+  };
+  const markCell = (el: SVGElement) => {
+    const row = el.getAttribute('data-row-key');
+    const col = el.getAttribute('data-col-key');
+    if (row === null || col === null || cellRects.length === 0) return;
+    for (const [names, key] of [
+      [rowNames, row],
+      [colNames, col],
+    ] as const) {
+      const hit = names.find(
+        (n) => n.getAttribute('data-filter-value') === key
+      );
+      if (!hit) continue;
+      for (const n of names) if (n !== hit) n.classList.add('dgmo-faded');
+      const full = hit.getAttribute('data-full-text');
+      const node = hit.firstChild;
+      const text =
+        full !== null && node?.nodeType === 3 ? node.textContent : null;
+      if (text !== null) node!.textContent = full;
+      const hidden = hit.getAttribute('visibility') === 'hidden';
+      if (hidden) hit.setAttribute('visibility', 'visible');
+      hit.classList.add('dgmo-axis-active');
+      markedNames.push({ el: hit, text, hidden });
+    }
+    const inRow = cellRects.find((c) => c.getAttribute('data-row-key') === row);
+    const inCol = cellRects.find((c) => c.getAttribute('data-col-key') === col);
+    if (!inRow || !inCol) return;
+    let x0 = Infinity;
+    let x1 = -Infinity;
+    let y0 = Infinity;
+    let y1 = -Infinity;
+    for (const c of cellRects) {
+      x0 = Math.min(x0, num(c, 'x'));
+      x1 = Math.max(x1, num(c, 'x') + num(c, 'width'));
+      y0 = Math.min(y0, num(c, 'y'));
+      y1 = Math.max(y1, num(c, 'y') + num(c, 'height'));
+    }
+    const cy = num(inRow, 'y') + num(inRow, 'height') / 2;
+    const cx = num(inCol, 'x') + num(inCol, 'width') / 2;
+    const prev = drawSpace;
+    drawSpace = (inRow.parentNode ?? svg) as SVGGraphicsElement;
+    clearOverlay();
+    dottedLine(x0, cy, x1, cy);
+    dottedLine(cx, y0, cx, y1);
+    drawSpace = prev;
+  };
+
   // ── element hover (projection for points w/ axis values, else emphasis) ─
   let curDatum: Element | null = null;
   const clearDatum = () => {
     clearOverlay();
+    unmarkCell();
     clearDim();
     curDatum = null;
   };
@@ -728,6 +807,7 @@ export function attachDataChartInteractions(
       dimDatumsExcept(el);
     } else {
       dimByKey(el);
+      markCell(el);
       // A figure with no axis that bakes a readout position (sankey's
       // alluvial bands and nodes, #1858) prints its value block there.
       const sz = el.getAttribute('data-size');

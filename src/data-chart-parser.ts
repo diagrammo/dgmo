@@ -325,6 +325,11 @@ import {
 import type { ParsedChart } from './chart';
 import { FUNNEL_DX, FUNNEL_MAX_STAGES } from './charts-d3/funnel-limits';
 import {
+  HEATMAP_DX,
+  HEATMAP_MAX_COLS,
+  HEATMAP_MAX_ROWS,
+} from './charts-d3/heatmap-limits';
+import {
   makeDgmoError,
   formatDgmoError,
   suggest,
@@ -668,6 +673,8 @@ function parseExtendedChartFull(
   // The footnote block read before the lift (#2093), joined to the result.
   if (footnote.frame) result.frame = footnote.frame;
   result.diagnostics.push(...footnote.diagnostics);
+  // The `columns` line, where a heatmap past HEATMAP_MAX_COLS is reported.
+  let columnsLine = 1;
   for (let i = 0; i < lines.length; i++) {
     // In-bounds by loop guard.
     const trimmed = lines[i]!.trim();
@@ -1213,6 +1220,7 @@ function parseExtendedChartFull(
       }
 
       if (firstToken === 'columns') {
+        columnsLine = lineNumber;
         if (value) {
           result.columns = value.includes(',')
             ? value.split(',').map((s) => s.trim())
@@ -1319,6 +1327,7 @@ function parseExtendedChartFull(
     }
 
     if (firstToken === 'columns' && spaceIdx === -1) {
+      columnsLine = lineNumber;
       const collected = collectIndentedValues(lines, i);
       i = collected.newIndex;
       result.columns = collected.values;
@@ -1558,6 +1567,33 @@ function parseExtendedChartFull(
           1,
           'No columns defined. Add columns in format: columns: Col1, Col2, Col3'
         );
+      }
+      // Size limit (#2445): keep the first HEATMAP_MAX_ROWS rows and the first
+      // HEATMAP_MAX_COLS columns, and say once what is not drawn.
+      const hRows = result.heatmapRows ?? [];
+      const nCols = Math.max(
+        result.columns?.length ?? 0,
+        ...hRows.map((r) => r.values.length)
+      );
+      if (hRows.length > HEATMAP_MAX_ROWS || nCols > HEATMAP_MAX_COLS) {
+        result.diagnostics.push(
+          emit(
+            HEATMAP_DX.TOO_LARGE,
+            hRows.length > HEATMAP_MAX_ROWS
+              ? hRows[HEATMAP_MAX_ROWS]!.lineNumber
+              : columnsLine,
+            { rows: hRows.length, cols: nCols }
+          )
+        );
+        result.heatmapRows = hRows
+          .slice(0, HEATMAP_MAX_ROWS)
+          .map((r) =>
+            r.values.length > HEATMAP_MAX_COLS
+              ? { ...r, values: r.values.slice(0, HEATMAP_MAX_COLS) }
+              : r
+          );
+        if (result.columns && result.columns.length > HEATMAP_MAX_COLS)
+          result.columns = result.columns.slice(0, HEATMAP_MAX_COLS);
       }
     } else if (result.type === 'funnel') {
       if (result.data.length === 0) {
