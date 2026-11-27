@@ -804,6 +804,10 @@ export function layoutInfra(
     }
   }
 
+  // A long thin layout (a chain) wraps into bands before the group boxes
+  // are built from the moved children (#2446).
+  foldLongLayout(layoutNodes, layoutEdges, isLR);
+
   // Compute group bounding boxes from children
   const layoutGroups: Writable<InfraLayoutGroup>[] = computed.groups.map(
     (group): Writable<InfraLayoutGroup> => {
@@ -926,4 +930,152 @@ export function layoutInfra(
     width: totalWidth,
     height: totalHeight,
   };
+}
+
+// ============================================================
+// Folding a long thin layout (#2446)
+// ============================================================
+//
+// The preview fits the whole SVG to the pane, so a 100-node chain laid out
+// in one 29,000 px row drew 5 px nodes: a hairline. Past FOLD_MIN_LENGTH
+// along the flow axis, and only when the layout is FOLD_MIN_ASPECT times
+// longer than it is deep, the ranks wrap into bands like lines of text: each
+// band starts again at the left (top for TB) one band depth further down.
+// A cut never splits a group. Edges between bands draw as the renderer's
+// backward routes, through the gap between the bands. Layouts under both
+// thresholds (every gallery diagram) are untouched.
+
+/** Flow-axis length (px) a layout must pass before it can fold. */
+export const FOLD_MIN_LENGTH = 4000;
+/** Flow length ÷ cross depth a layout must pass before it can fold. */
+export const FOLD_MIN_ASPECT = 4;
+/** Band length ÷ total depth the fold aims for (a landscape pane). */
+const FOLD_TARGET_ASPECT = 1.5;
+/** Clear space between two bands; the cross-band edges route through it. */
+const FOLD_BAND_GAP = 120;
+
+export function foldLongLayout(
+  nodes: Writable<InfraLayoutNode>[],
+  edges: Writable<InfraLayoutEdge>[],
+  isLR: boolean
+): void {
+  if (nodes.length < 2) return;
+  const main = (n: { x: number; y: number }) => (isLR ? n.x : n.y);
+  const mainHalf = (n: InfraLayoutNode) => (isLR ? n.width : n.height) / 2;
+  const crossHalf = (n: InfraLayoutNode) => (isLR ? n.height : n.width) / 2;
+  const cross = (n: { x: number; y: number }) => (isLR ? n.y : n.x);
+
+  let mainMin = Infinity,
+    mainMax = -Infinity,
+    crossMin = Infinity,
+    crossMax = -Infinity;
+  for (const n of nodes) {
+    mainMin = Math.min(mainMin, main(n) - mainHalf(n));
+    mainMax = Math.max(mainMax, main(n) + mainHalf(n));
+    // Grouped nodes need room for the group box on the cross axis too.
+    const pad = n.groupId ? GROUP_PADDING + GROUP_HEADER_HEIGHT : 0;
+    crossMin = Math.min(crossMin, cross(n) - crossHalf(n) - pad);
+    crossMax = Math.max(crossMax, cross(n) + crossHalf(n) + pad);
+  }
+  const length = mainMax - mainMin;
+  const depth = crossMax - crossMin;
+  if (length < FOLD_MIN_LENGTH || length < depth * FOLD_MIN_ASPECT) return;
+
+  // Ranks: dagre centres every node of one rank on the same flow coordinate.
+  const ranks = [...new Set(nodes.map((n) => main(n)))].sort((a, b) => a - b);
+  if (ranks.length < 2) return;
+
+  // A cut before a rank is allowed when no group has children on both sides.
+  const groupSpan = new Map<string, { lo: number; hi: number }>();
+  for (const n of nodes) {
+    if (!n.groupId) continue;
+    const span = groupSpan.get(n.groupId) ?? { lo: Infinity, hi: -Infinity };
+    span.lo = Math.min(span.lo, main(n));
+    span.hi = Math.max(span.hi, main(n));
+    groupSpan.set(n.groupId, span);
+  }
+  const canCutBefore = (r: number, prev: number) =>
+    [...groupSpan.values()].every((s) => s.hi <= prev || s.lo >= r);
+
+  /** Band starts (rank coordinates) for at most `k` bands of equal length. */
+  const cutsFor = (k: number): number[] => {
+    const starts: number[] = [ranks[0]!];
+    for (let i = 1; i < ranks.length && starts.length < k; i++) {
+      const r = ranks[i]!;
+      if (r - starts.at(-1)! >= length / k && canCutBefore(r, ranks[i - 1]!))
+        starts.push(r);
+    }
+    return starts;
+  };
+  // A small tolerance keeps a point on a rank's centre in that rank's band.
+  const bandIn = (starts: readonly number[], m: number): number => {
+    let k = 0;
+    while (k + 1 < starts.length && m >= starts[k + 1]! - 0.5) k++;
+    return k;
+  };
+
+  /** Each band's cross extent, and the folded length and depth. */
+  const measure = (starts: readonly number[]) => {
+    const lo = starts.map(() => Infinity);
+    const hi = starts.map(() => -Infinity);
+    let far = -Infinity;
+    for (const n of nodes) {
+      const k = bandIn(starts, main(n));
+      const pad = n.groupId ? GROUP_PADDING + GROUP_HEADER_HEIGHT : 0;
+      lo[k] = Math.min(lo[k]!, cross(n) - crossHalf(n) - pad);
+      hi[k] = Math.max(hi[k]!, cross(n) + crossHalf(n) + pad);
+      far = Math.max(far, main(n) + mainHalf(n) - (starts[k]! - starts[0]!));
+    }
+    const depths = lo.map((l, k) => Math.max(0, hi[k]! - l));
+    const total =
+      depths.reduce((sum, d) => sum + d, 0) +
+      FOLD_BAND_GAP * (starts.length - 1);
+    return { lo, depths, length: far - mainMin, depth: total };
+  };
+  // Scale at which the layout fits a FOLD_TARGET_ASPECT pane: bigger reads better.
+  const fit = (l: number, d: number) => Math.min(FOLD_TARGET_ASPECT / l, 1 / d);
+
+  let best: number[] | null = null;
+  let bestFit = fit(length, depth);
+  let lastCount = 1;
+  for (let k = 2; k <= ranks.length; k++) {
+    const starts = cutsFor(k);
+    if (starts.length === lastCount) continue;
+    lastCount = starts.length;
+    const m = measure(starts);
+    const f = fit(m.length, m.depth);
+    if (f > bestFit) {
+      bestFit = f;
+      best = starts;
+    }
+  }
+  if (!best) return;
+  const starts = best;
+
+  // Band k starts over at the first band's flow position and sits under
+  // band k-1 plus the gap.
+  const { lo, depths } = measure(starts);
+  const crossShift: number[] = [];
+  let top = lo[0]!;
+  for (let k = 0; k < starts.length; k++) {
+    crossShift.push(top - lo[k]!);
+    top += depths[k]! + FOLD_BAND_GAP;
+  }
+  const move = (p: { x: number; y: number }, k: number) => {
+    const dMain = -(starts[k]! - starts[0]!);
+    if (isLR) {
+      p.x += dMain;
+      p.y += crossShift[k]!;
+    } else {
+      p.y += dMain;
+      p.x += crossShift[k]!;
+    }
+  };
+
+  for (const n of nodes) move(n, bandIn(starts, main(n)));
+  for (const e of edges) {
+    for (const pt of e.points as Writable<{ x: number; y: number }>[]) {
+      move(pt, bandIn(starts, main(pt)));
+    }
+  }
 }

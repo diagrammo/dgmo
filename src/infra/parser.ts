@@ -17,6 +17,7 @@ import {
   suggest,
 } from '../diagnostics';
 import { GRAPH_DX } from '../graph/diagnostics';
+import { INFRA_DX, INFRA_MAX_NODES } from './limits';
 import { tryStripDescriptionKeyword } from '../utils/description-helpers';
 import { parseInArrowLabel } from '../utils/arrows';
 import {
@@ -1321,6 +1322,19 @@ function parseInfraRaw(content: string): ParsedInfra {
 
   assignAutoTagColorNames(result.tagGroups);
   validateTagGroupNames(result.tagGroups, warn, setError);
+
+  // The node limit (#2446): past INFRA_MAX_NODES nothing is drawn. The error
+  // sits on the first node past the limit, in source order (a stub node made
+  // for a forward reference counts at its edge's line).
+  if (result.nodes.length > INFRA_MAX_NODES) {
+    const lines = result.nodes.map((n) => n.lineNumber).sort((a, b) => a - b);
+    const diag = emit(INFRA_DX.TOO_MANY_NODES, lines[INFRA_MAX_NODES]!, {
+      count: result.nodes.length,
+    });
+    result.diagnostics.push(diag);
+    result.error = formatDgmoError(diag);
+    return result;
+  }
 
   checkReachability(result);
   checkSplitSums(result);
