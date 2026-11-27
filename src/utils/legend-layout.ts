@@ -21,6 +21,7 @@ import {
 } from './legend-constants';
 
 import { compactNumber } from './number-format';
+import { FRAME_INSET } from './title-constants';
 import type { LegendGroupData } from './legend-types';
 import type {
   LegendAlign,
@@ -385,6 +386,24 @@ function buildControlsGroupLayout(
 
 // ── Main layout computation ─────────────────────────────────
 
+/**
+ * The width a legend may fill inside a container as wide as the canvas. The
+ * chart frame puts the legend on an edge `FRAME_INSET` in from the canvas
+ * (`placeFrameLegend`), so a legend laid out to the full width ran off the
+ * far side or touched it (#2438). Rows wrap, and long entries are cut, to the
+ * canvas less that inset on both sides.
+ */
+export function legendFitWidth(
+  containerWidth: number,
+  config?: Pick<LegendConfig, 'position'>
+): number {
+  // A legend beside an inline title is laid out in the room the title left
+  // it, and the frame does not move it, so it keeps that whole width.
+  if (config?.position?.titleRelation === 'inline-with-title')
+    return containerWidth;
+  return Math.max(0, containerWidth - 2 * FRAME_INSET);
+}
+
 export function computeLegendLayout(
   config: LegendConfig,
   state: LegendState,
@@ -510,7 +529,8 @@ export function computeLegendLayoutWith(
   const gearSpace = controlsGroupLayout
     ? controlsGroupLayout.width + LEGEND_GROUP_GAP
     : 0;
-  const groupAvailW = containerWidth - controlsSpace - gearSpace;
+  const groupAvailW =
+    legendFitWidth(containerWidth, config) - controlsSpace - gearSpace;
 
   // Build pill/capsule layouts
   const pills: LegendPillLayout[] = [];
@@ -963,14 +983,15 @@ export function getMaxLegendReservedHeight(
   if (groups.length === 0) return LEGEND_HEIGHT;
   const addon = config.capsulePillAddonWidth ?? 0;
   const trail = config.capsuleTrailingAddonWidth ?? 0;
+  const fitW = legendFitWidth(containerWidth, config);
   let max = LEGEND_HEIGHT;
   for (const g of groups) {
     if (g.entries.length === 0) continue;
     const h =
       config.mode === 'export'
-        ? buildStaticKeyLayout(g, containerWidth, true).height
-        : capsuleWidth(g.name, g.entries, containerWidth, addon, trail)
-            .entryRows * LEGEND_HEIGHT;
+        ? buildStaticKeyLayout(g, fitW, true).height
+        : capsuleWidth(g.name, g.entries, fitW, addon, trail).entryRows *
+          LEGEND_HEIGHT;
     if (h > max) max = h;
   }
   return max;

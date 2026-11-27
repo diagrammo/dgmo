@@ -448,13 +448,13 @@ function placeFrameLegend(
   const align = frameAlign(frame, 'legend');
   const at = align === 'center' ? (lo + hi) / 2 : align === 'right' ? hi : lo;
   const { x } = edge(align, edges);
-  // The shift, in root units. A legend it would push off the canvas rests on
-  // the canvas's inset edge instead: one laid out as wide as the canvas, moved
-  // to a drawing that starts inset, would otherwise run off the right edge
-  // (#2421). The left edge wins when the legend is wider than the canvas.
+  // The shift, in root units. A legend it would push past the canvas's inset
+  // edge rests on that edge instead: one moved to a drawing that starts inset
+  // would otherwise run into or off the right edge (#2421, #2438). The left
+  // edge wins when the legend is wider than the canvas.
   let shift = x - (m[0] * at + m[4]);
   const right = m[0] * hi + m[4] + shift;
-  if (right > vb.x + vb.width) shift -= right - inset.right;
+  if (right > inset.right + 0.01) shift -= right - inset.right;
   const left = m[0] * lo + m[4] + shift;
   if (left < vb.x) shift += inset.left - left;
   const dx = shift / m[0];
