@@ -294,6 +294,8 @@ const BUILDS: Options[] = [
     dts: true,
     sourcemap: true,
     splitting: true,
+    // cloud-space.ts names itself to the Cloud as `dgmo/<version>` (#2414).
+    define: { __DGMO_VERSION__: JSON.stringify(pkg.version) },
     noExternal: ['lz-string'],
     external: ['jsdom'],
     esbuildPlugins: [fixJsdomXhrWorker],
@@ -384,6 +386,7 @@ const BUILDS: Options[] = [
     sourcemap: false,
     splitting: false,
     banner: { js: '#!/usr/bin/env node' },
+    define: { __DGMO_VERSION__: JSON.stringify(pkg.version) },
     // `subset-font` stays a runtime dependency: harfbuzzjs reads its
     // `hb-subset.wasm` through `require.resolve`, which a bundle breaks (#1834).
     noExternal: [/^(?!@resvg\/|jsdom$|subset-font$)/],

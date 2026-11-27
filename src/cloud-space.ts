@@ -11,6 +11,18 @@ import { parseDgmoChartType } from './chart-type-detect';
 
 export const CLOUD_API = 'https://api.diagrammo.app';
 
+declare const __DGMO_VERSION__: string;
+
+/**
+ * Sent on every call as `x-diagrammo-client`, so the Cloud's request log can
+ * tell this client from the app (#2414). It sent nothing before, and a burst of
+ * ~1,100 agent writes read as an anonymous caller. `0.0.0` only when built
+ * without the define (the test runner).
+ */
+const CLIENT_HEADER = `dgmo/${
+  (typeof __DGMO_VERSION__ === 'string' && __DGMO_VERSION__) || '0.0.0'
+}`;
+
 export interface CloudSpaceTarget {
   /** A space API key (`dgmo_sk_…`). */
   apiKey: string;
@@ -104,6 +116,7 @@ async function call<T>(
       headers: {
         authorization: `Bearer ${target.apiKey}`,
         accept: 'application/json',
+        'x-diagrammo-client': CLIENT_HEADER,
         ...(body === undefined ? {} : { 'content-type': 'application/json' }),
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -161,6 +174,13 @@ function folderPath(folders: WireFolder[], folderId: string | null): string {
   return names.join('/');
 }
 
+/** `a/ b /` → `['a', 'b']`; the root is `[]`. */
+const splitPath = (path: string | undefined): string[] =>
+  (path ?? '')
+    .split('/')
+    .map((p) => p.trim())
+    .filter(Boolean);
+
 /**
  * The folder at `path` (`a/b`, from the space root), or null for the root.
  * Sibling names are unique case-insensitively on the server, so a
@@ -170,10 +190,7 @@ function resolveFolder(
   folders: WireFolder[],
   path: string | undefined
 ): string | null {
-  const parts = (path ?? '')
-    .split('/')
-    .map((p) => p.trim())
-    .filter(Boolean);
+  const parts = splitPath(path);
   let parentId: string | null = null;
   for (const name of parts) {
     const hit = folders.find(
@@ -192,6 +209,11 @@ function resolveFolder(
 const contentsOf = (target: CloudSpaceTarget) =>
   call<WireContents>(target, 'GET', '/contents').then((r) => r.data);
 
+const foldersOf = (target: CloudSpaceTarget) =>
+  call<{ items: WireFolder[] }>(target, 'GET', '/folders').then(
+    (r) => r.data.items
+  );
+
 /**
  * Write `source` as the diagram titled `title` in `folder` (a path from the
  * space root; omitted = the root): updates that diagram if it exists, else
@@ -201,19 +223,21 @@ export async function putSpaceDiagram(
   target: CloudSpaceTarget,
   diagram: { source: string; title: string; folder?: string }
 ): Promise<SpacePutResult> {
-  const contents = await contentsOf(target);
-  const folderId = resolveFolder(contents.folders, diagram.folder);
+  // The server resolves the folder path itself (#2414). Listing the space
+  // first to find the folder id cost ~1,190 D1 rows per write in a large
+  // space, and a 975-file agent batch spent the whole day's read budget.
+  const folder = splitPath(diagram.folder).join('/');
   const { status, data } = await call<WireDiagram>(target, 'PUT', '/diagrams', {
     title: diagram.title,
     source: diagram.source,
     chartType: parseDgmoChartType(diagram.source),
-    folderId,
+    folder,
   });
   return {
     action: status === 201 ? 'created' : 'updated',
     id: data.id,
     title: data.title,
-    folder: folderPath(contents.folders, data.folderId),
+    folder,
     version: data.version,
   };
 }
@@ -223,7 +247,12 @@ export async function getSpaceDiagram(
   target: CloudSpaceTarget,
   which: { id: string } | { title: string; folder?: string }
 ): Promise<SpaceDiagram> {
-  const contents = await contentsOf(target);
+  // By id, only the folder path is wanted: the folder list is bounded by the
+  // folder cap, where the full listing grows with every diagram (#2414).
+  const contents =
+    'id' in which
+      ? { items: [], folders: await foldersOf(target) }
+      : await contentsOf(target);
   let id: string;
   if ('id' in which) id = which.id;
   else {

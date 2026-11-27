@@ -78,6 +78,7 @@ function harness(
 
 const CONTENTS = {
   'GET /spaces/s-1/contents': { status: 200, body: contents },
+  'GET /spaces/s-1/folders': { status: 200, body: { items: folders } },
 };
 
 describe('dgmo put', () => {
@@ -98,18 +99,21 @@ describe('dgmo put', () => {
     const put = h.requests.find((r) => r.method === 'PUT')!;
     expect(put.url).toBe(`${API}/spaces/s-1/diagrams`);
     expect(put.headers.authorization).toBe(`Bearer ${KEY}`);
+    expect(put.headers['x-diagrammo-client']).toMatch(/^dgmo\/\d+\.\d+\.\d+/);
+    // The server resolves the path: a write never lists the space (#2414).
+    expect(h.requests.map((r) => r.method)).toEqual(['PUT']);
     expect(put.body).toEqual({
       title: 'system',
       source: SOURCE,
       chartType: 'flowchart',
-      folderId: 'f-arch',
+      folder: 'docs/arch',
     });
     expect(JSON.parse(h.out())).toEqual({
       success: true,
       action: 'created',
       id: 'd-new',
       title: 'system',
-      folder: 'Docs/Arch',
+      folder: 'docs/arch',
       version: 'v-1',
     });
   });
@@ -129,19 +133,26 @@ describe('dgmo put', () => {
     );
     expect(code).toBe(0);
     const put = h.requests.find((r) => r.method === 'PUT')!;
-    expect(put.body).toMatchObject({ title: 'System', folderId: null });
+    expect(put.body).toMatchObject({ title: 'System', folder: '' });
     expect(h.out()).toBe('updated System (d-1)\n');
   });
 
-  it('refuses a folder the space does not have, before writing anything', async () => {
-    const h = harness({ ...CONTENTS });
+  it('reports the 404 the server gives a folder the space does not have', async () => {
+    const h = harness({
+      'PUT /spaces/s-1/diagrams': {
+        status: 404,
+        body: {
+          title: 'Not Found',
+          detail: 'No folder "Docs/Nope" in this space',
+        },
+      },
+    });
     const code = await runCloudCommand(
       'put',
       ['system.dgmo', '--space', 's-1', '--folder', 'Docs/Nope', '--json'],
       h.io
     );
     expect(code).toBe(1);
-    expect(h.requests.every((r) => r.method === 'GET')).toBe(true);
     expect(JSON.parse(h.out())).toMatchObject({ success: false, status: 404 });
   });
 
@@ -378,7 +389,7 @@ describe('failures and the key', () => {
     await runCloudCommand('put', ['system.dgmo', '--space', 's-1'], h.io);
     // The io carries no stdin and no TTY flag at all, so there is nothing a
     // prompt or a spinner could use; the output is one plain line.
-    expect(h.out()).toBe('updated Docs/Arch/System (d-1)\n');
+    expect(h.out()).toBe('updated System (d-1)\n');
     expect(h.out() + h.err()).not.toContain(String.fromCharCode(27));
     expect(h.out() + h.err()).not.toContain('\r');
   });
