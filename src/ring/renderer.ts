@@ -19,7 +19,13 @@ import {
 } from '../palettes/color-utils';
 import { resolveColor } from '../colors';
 import { renderInlineText } from '../utils/inline-markdown';
-import { CHAR_WIDTH_RATIO, measureText } from '../utils/text-measure';
+import {
+  CHAR_WIDTH_RATIO,
+  measureText,
+  truncateText,
+} from '../utils/text-measure';
+import { fitLabel } from '../utils/fit-label';
+import { HAIRLINE_DASH } from '../utils/visual-conventions';
 import {
   wrapDescriptionLines,
   type WrappedDescLine,
@@ -61,6 +67,17 @@ const LABEL_FONT_MIN = 12;
 const LABEL_FONT_MAX = 22;
 const DESC_FONT_MIN = 11;
 const DESC_FONT_MAX = 15;
+/** Lines a description block's bold title may wrap to before it is cut. */
+const DESC_TITLE_MAX_LINES = 2;
+/** Lines the centre label may wrap to once it moves outside the rings. */
+const CENTRE_LABEL_MAX_LINES = 3;
+/** Clearance between the outer ring and a moved centre label. */
+const CENTRE_LABEL_GAP = 12;
+/** Radius of the dot that anchors the centre label's leader in the disc. */
+const CENTRE_LEADER_DOT_R = 2.5;
+/** Angle below 9 / 3 o'clock at which a side leader leaves the rings — the
+ *  lower half carries no arc labels, so the leader crosses none. */
+const CENTRE_LEADER_SIDE_ANGLE = (20 * Math.PI) / 180;
 
 /**
  * Render a ring diagram into the given container.
@@ -276,20 +293,44 @@ export function renderRing(
         .attr('data-line-number', layer.lineNumber);
 
       if (isInnermost) {
-        // Center disc: no curvature — straight horizontal text like before.
-        const label = labelG
-          .append('text')
-          .attr('class', 'ring-label')
-          .attr('x', cx)
-          .attr('y', cy)
-          .attr('dy', '0.35em')
-          .attr('text-anchor', 'middle')
-          .attr('fill', textColor)
-          .attr('font-family', FONT_FAMILY)
-          .attr('font-size', labelFont)
-          .attr('font-weight', 'bold')
-          .style('pointer-events', 'none');
-        renderInlineText(label, layer.label, palette, labelFont);
+        const fitsDisc =
+          measureText(layer.label, labelFont, { bold: true }) <=
+          discTextWidth(thickness, labelFont);
+        if (fitsDisc) {
+          // Center disc: no curvature — straight horizontal text like before.
+          const label = labelG
+            .append('text')
+            .attr('class', 'ring-label')
+            .attr('x', cx)
+            .attr('y', cy)
+            .attr('dy', '0.35em')
+            .attr('text-anchor', 'middle')
+            .attr('fill', textColor)
+            .attr('font-family', FONT_FAMILY)
+            .attr('font-size', labelFont)
+            .attr('font-weight', 'bold')
+            .style('pointer-events', 'none');
+          renderInlineText(label, layer.label, palette, labelFont);
+        } else {
+          drawCentreLabelOnLeader({
+            labelG,
+            text: layer.label,
+            cx,
+            cy,
+            outerRadius,
+            discRadius: thickness,
+            fs: labelFont,
+            left: sideMargin,
+            right: hasAnyDescription
+              ? descAccentX - DESC_GAP / 2
+              : width - sideMargin,
+            sideRightFree: !hasAnyDescription,
+            top: bodyTop,
+            bottom: bodyBottom,
+            color: layerColors[0]!,
+            palette,
+          });
+        }
         continue;
       }
 
@@ -337,9 +378,10 @@ export function renderRing(
   });
 }
 
-/** Largest arc (radians) a curved label may occupy before it self-overlaps
- *  near the bottom of the ring — text longer than this is shrunk to fit. */
-const MAX_LABEL_ARC = 1.6 * Math.PI;
+/** Largest arc (radians) a curved label may occupy: the top half of its
+ *  ring, so it reads upright and never wraps round to meet its own start.
+ *  Text longer than this shrinks to LABEL_FONT_MIN, then is cut with `…`. */
+const MAX_LABEL_ARC = Math.PI;
 
 /**
  * Draw a ring-band label curved along the band, centered at 12 o'clock.
@@ -347,7 +389,8 @@ const MAX_LABEL_ARC = 1.6 * Math.PI;
  * reads upright (unlike sunburst there's no bottom-half flip — the arc never
  * crosses below the horizontal center). Long labels shrink the font to stay
  * within MAX_LABEL_ARC rather than wrapping around and colliding with
- * themselves.
+ * themselves; past the font floor they are cut with `…` and keep their full
+ * text in `data-full-text`.
  */
 function drawRingCurvedLabel(
   labelG: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
@@ -382,10 +425,15 @@ function drawRingCurvedLabel(
     fs = Math.max(LABEL_FONT_MIN, Math.floor((labelFont * maxLen) / wPadded));
     rPath = rMid - fs * 0.32;
   }
+  // Still too long at the floor: cut it to the arc rather than letting the
+  // textPath clip it mid-word.
+  const shown = truncateText(text, fs, (MAX_LABEL_ARC * rPath) / PAD, {
+    bold: true,
+  });
 
   // Half-angle the text subtends at the path radius, clamped so the two ends
   // never meet at the bottom.
-  const arcLen = measureText(text, fs, { bold: true }) * PAD;
+  const arcLen = measureText(shown, fs, { bold: true }) * PAD;
   const halfAngle = Math.min(arcLen / (2 * rPath), MAX_LABEL_ARC / 2);
   const largeArc = halfAngle * 2 > Math.PI ? 1 : 0;
   // Polar: 0 rad = 12 o'clock, +sin → clockwise (screen-right at the top).
@@ -405,6 +453,7 @@ function drawRingCurvedLabel(
     .attr('font-size', fs)
     .attr('font-weight', 'bold')
     .style('pointer-events', 'none');
+  if (shown !== text) label.attr('data-full-text', text);
   const textPath = label
     .append('textPath')
     .attr('href', `#${pathId}`)
@@ -417,10 +466,183 @@ function drawRingCurvedLabel(
       null,
       undefined
     >,
-    text,
+    shown,
     palette,
     fs
   );
+}
+
+/** Width a single centred line may take inside the centre disc. */
+function discTextWidth(discRadius: number, fs: number): number {
+  const halfH = fs * 0.6;
+  if (discRadius <= halfH) return 0;
+  return 2 * Math.sqrt(discRadius * discRadius - halfH * halfH) - 4;
+}
+
+interface CentreLeaderArgs {
+  labelG: d3Selection.Selection<SVGGElement, unknown, null, undefined>;
+  text: string;
+  cx: number;
+  cy: number;
+  outerRadius: number;
+  discRadius: number;
+  fs: number;
+  /** Horizontal bounds of the free canvas (description column excluded). */
+  left: number;
+  right: number;
+  /** True when nothing is drawn to the right of the rings. */
+  sideRightFree: boolean;
+  top: number;
+  bottom: number;
+  color: string;
+  palette: PaletteColors;
+}
+
+interface CentreSpot {
+  lines: string[];
+  truncated: boolean;
+  /** x of the text anchor and the first baseline. */
+  x: number;
+  y: number;
+  anchor: 'start' | 'middle' | 'end';
+  leader: [number, number][];
+  area: number;
+}
+
+/**
+ * The centre label does not fit its disc: draw it outside the rings at the
+ * end of a leader from the disc (#2461), after the chord leaders. Three
+ * places are tried — below the rings, left of them, and right of them when
+ * no description column is there — each wholly outside the rings' bounding
+ * square, so the label meets no ring label. The one that keeps the most text
+ * wins; ties go to the larger room.
+ */
+function drawCentreLabelOnLeader(a: CentreLeaderArgs): void {
+  const { cx, cy, outerRadius: R, fs } = a;
+  const lineH = Math.round(fs * 1.2);
+  const ascent = fs * 0.8;
+  const spots: CentreSpot[] = [];
+  const fitIn = (w: number, h: number) => {
+    const maxLines = Math.min(CENTRE_LABEL_MAX_LINES, Math.floor(h / lineH));
+    if (maxLines < 1 || w < fs * 2) return null;
+    return fitLabel(a.text, fs, w, maxLines, { bold: true });
+  };
+
+  // Below: straight down from the disc.
+  const belowTop = cy + R + CENTRE_LABEL_GAP;
+  const belowW = 2 * Math.min(cx - a.left, a.right - cx);
+  const below = fitIn(belowW, a.bottom - belowTop);
+  if (below) {
+    spots.push({
+      ...below,
+      x: cx,
+      y: belowTop + ascent,
+      anchor: 'middle',
+      leader: [
+        [cx, cy],
+        [cx, belowTop - 2],
+      ],
+      area: belowW * (a.bottom - belowTop),
+    });
+  }
+
+  // Sides: out along a line just below horizontal, then level to the label.
+  const side = (dir: -1 | 1): void => {
+    const edge = cx + dir * (R + CENTRE_LABEL_GAP);
+    const w = dir < 0 ? edge - a.left : a.right - edge;
+    const h = a.bottom - a.top;
+    const fit = fitIn(w, h);
+    if (!fit) return;
+    const bendR = R + CENTRE_LABEL_GAP / 2;
+    const bx = cx + dir * bendR * Math.cos(CENTRE_LEADER_SIDE_ANGLE);
+    const by = cy + bendR * Math.sin(CENTRE_LEADER_SIDE_ANGLE);
+    const boxH = fit.lines.length * lineH;
+    const boxTop = Math.max(a.top, Math.min(a.bottom - boxH, by - boxH / 2));
+    const midY = boxTop + boxH / 2;
+    spots.push({
+      ...fit,
+      x: edge,
+      y: boxTop + ascent,
+      anchor: dir < 0 ? 'end' : 'start',
+      leader: [
+        [cx, cy],
+        [bx, by],
+        [edge - dir * 2, midY],
+      ],
+      area: w * h,
+    });
+  };
+  side(-1);
+  if (a.sideRightFree) side(1);
+
+  const kept = (s: CentreSpot) =>
+    s.lines.reduce((n, l) => n + l.replace(/…$/, '').length, 0);
+  spots.sort(
+    (p, q) =>
+      Number(p.truncated) - Number(q.truncated) ||
+      kept(q) - kept(p) ||
+      q.area - p.area
+  );
+  const spot = spots[0];
+
+  if (!spot) {
+    // No room anywhere outside: cut it to the disc.
+    const shown = truncateText(a.text, fs, discTextWidth(a.discRadius, fs), {
+      bold: true,
+    });
+    const label = a.labelG
+      .append('text')
+      .attr('class', 'ring-label')
+      .attr('x', cx)
+      .attr('y', cy)
+      .attr('dy', '0.35em')
+      .attr('text-anchor', 'middle')
+      .attr('fill', a.palette.text)
+      .attr('font-family', FONT_FAMILY)
+      .attr('font-size', fs)
+      .attr('font-weight', 'bold')
+      .style('pointer-events', 'none')
+      .text(shown);
+    if (shown !== a.text) label.attr('data-full-text', a.text);
+    return;
+  }
+
+  a.labelG
+    .append('polyline')
+    .attr('class', 'ring-label-leader')
+    .attr('points', spot.leader.map(([x, y]) => `${x},${y}`).join(' '))
+    .attr('fill', 'none')
+    .attr('stroke', a.color)
+    .attr('stroke-width', 1)
+    .attr('stroke-dasharray', HAIRLINE_DASH)
+    .style('pointer-events', 'none');
+  a.labelG
+    .append('circle')
+    .attr('class', 'ring-label-leader-dot')
+    .attr('cx', cx)
+    .attr('cy', cy)
+    .attr('r', CENTRE_LEADER_DOT_R)
+    .attr('fill', a.color)
+    .style('pointer-events', 'none');
+  const label = a.labelG
+    .append('text')
+    .attr('class', 'ring-label ring-centre-label')
+    .attr('x', spot.x)
+    .attr('y', spot.y)
+    .attr('text-anchor', spot.anchor)
+    .attr('fill', a.palette.text)
+    .attr('font-family', FONT_FAMILY)
+    .attr('font-size', fs)
+    .attr('font-weight', 'bold')
+    .style('pointer-events', 'none');
+  if (spot.truncated) label.attr('data-full-text', a.text);
+  spot.lines.forEach((line, li) => {
+    label
+      .append('tspan')
+      .attr('x', spot.x)
+      .attr('y', spot.y + li * lineH)
+      .text(line);
+  });
 }
 
 /**
@@ -482,6 +704,15 @@ function renderSideDescriptions(args: SideDescArgs): void {
 
   // Shrink per-block line cap until the whole stack fits, so the last
   // entries don't paint past `bottomY` when N is large.
+  // Bold titles wrap, then cut with `…`, within the column (#2461).
+  const titles = layers.map((l) =>
+    fitLabel(l.label, descFont, textWidth, DESC_TITLE_MAX_LINES, {
+      bold: true,
+    })
+  );
+  const titleRowH = titles.map(
+    (t) => labelRowH + (t.lines.length - 1) * descLineHeight
+  );
   const computeStack = (
     cap: number
   ): { wraps: WrappedDescLine[][]; blockHeights: number[]; totalH: number } => {
@@ -492,7 +723,7 @@ function renderSideDescriptions(args: SideDescArgs): void {
       )
     );
     const blockHeights = wraps.map(
-      (lines) => labelRowH + lines.length * descLineHeight
+      (lines, i) => titleRowH[i]! + lines.length * descLineHeight
     );
     const totalH =
       blockHeights.reduce((s, h) => s + h, 0) +
@@ -536,19 +767,24 @@ function renderSideDescriptions(args: SideDescArgs): void {
       .attr('rx', DESC_ACCENT_WIDTH / 2)
       .attr('fill', colors[i]!);
 
-    // Layer name as the description block heading.
-    const labelEl = blockG
-      .append('text')
-      .attr('x', textX)
-      .attr('y', cursorY + Math.round(labelRowH * 0.7))
-      .attr('text-anchor', 'start')
-      .attr('fill', palette.text)
-      .attr('font-family', FONT_FAMILY)
-      .attr('font-size', descFont)
-      .attr('font-weight', 'bold');
-    renderInlineText(labelEl, layer.label, palette, descFont);
+    // Layer name as the description block heading, one <text> per line.
+    const title = titles[i]!;
+    title.lines.forEach((titleLine, li) => {
+      const labelEl = blockG
+        .append('text')
+        .attr('x', textX)
+        .attr('y', cursorY + Math.round(labelRowH * 0.7) + li * descLineHeight)
+        .attr('text-anchor', 'start')
+        .attr('fill', palette.text)
+        .attr('font-family', FONT_FAMILY)
+        .attr('font-size', descFont)
+        .attr('font-weight', 'bold');
+      if (title.truncated) labelEl.attr('data-full-text', layer.label);
+      renderInlineText(labelEl, titleLine, palette, descFont);
+    });
 
-    let lineY = cursorY + labelRowH + Math.round(descLineHeight * 0.4);
+    // Half a line between the title's descenders and the body's ascenders.
+    let lineY = cursorY + titleRowH[i]! + Math.round(descLineHeight * 0.5);
     for (const line of lines) {
       const isBullet =
         line.kind === 'bullet-first' || line.kind === 'bullet-cont';

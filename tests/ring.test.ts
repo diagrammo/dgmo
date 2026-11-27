@@ -6,6 +6,7 @@ import { getPalette } from '../src/palettes';
 import { getRenderCategory, parseDgmo } from '../src/dgmo-router';
 import { COMPLETION_REGISTRY, PIPE_METADATA } from '../src/completion-registry';
 import { CHART_TYPES as EDITOR_CHART_TYPES } from '../src/editor/keywords';
+import { measureText } from '../src/utils/text-measure';
 
 beforeAll(() => {
   const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
@@ -363,5 +364,166 @@ B`);
 
   it('editor keywords set includes ring (AC 14)', () => {
     expect(EDITOR_CHART_TYPES.has('ring')).toBe(true);
+  });
+});
+
+// ============================================================
+// Pressure — long labels stay on the canvas and never overprint (#2461)
+// ============================================================
+
+describe('ring — long labels (#2461)', () => {
+  const words =
+    'an extremely long ring label that keeps going well past any arc the ring could hold and then some more words to fill it right up to the end here';
+  const long = (i: number) => `R${i} ${words}`.slice(0, 150);
+  const desc =
+    'A long description of this ring that runs for several lines in the side column so the stack has to shrink its line cap to fit the canvas height.';
+  const fixture = (withDesc: boolean) =>
+    [
+      'ring Pressure: break long labels',
+      '',
+      ...Array.from({ length: 6 }, (_, i) =>
+        withDesc ? `${long(i)}\n  ${desc}` : long(i)
+      ),
+    ].join('\n');
+
+  interface Box {
+    x0: number;
+    y0: number;
+    x1: number;
+    y1: number;
+    text: string;
+  }
+
+  function straightBoxes(svg: SVGSVGElement): Box[] {
+    const boxes: Box[] = [];
+    for (const t of Array.from(svg.querySelectorAll('text'))) {
+      if (t.querySelector('textPath')) continue;
+      const fs = Number(t.getAttribute('font-size'));
+      const bold = t.getAttribute('font-weight') === 'bold';
+      const anchor = t.getAttribute('text-anchor') ?? 'start';
+      const tspans = Array.from(t.querySelectorAll('tspan[y]'));
+      const rows = tspans.length
+        ? tspans.map((s) => ({
+            x: Number(s.getAttribute('x')),
+            y: Number(s.getAttribute('y')),
+            s: s.textContent ?? '',
+          }))
+        : [
+            {
+              x: Number(t.getAttribute('x')),
+              y:
+                Number(t.getAttribute('y')) +
+                (t.getAttribute('dy') === '0.35em' ? fs * 0.35 : 0),
+              s: t.textContent ?? '',
+            },
+          ];
+      for (const r of rows) {
+        const w = measureText(r.s, fs, { bold });
+        const x0 =
+          anchor === 'middle' ? r.x - w / 2 : anchor === 'end' ? r.x - w : r.x;
+        boxes.push({
+          x0,
+          x1: x0 + w,
+          y0: r.y - fs * 0.8,
+          y1: r.y + fs * 0.25,
+          text: r.s,
+        });
+      }
+    }
+    return boxes;
+  }
+
+  for (const [w, h, withDesc] of [
+    [800, 600, true],
+    [1400, 600, true],
+    [800, 600, false],
+    [600, 900, true],
+  ] as const) {
+    it(`${w}x${h} ${withDesc ? 'with' : 'without'} descriptions: every label inside the canvas, none overlapping`, () => {
+      const parsed = parseRing(fixture(withDesc));
+      expect(parsed.error).toBeNull();
+      const container = makeContainer(w, h);
+      renderRing(container, parsed, nordLight, false);
+      const svg = container.querySelector('svg')!;
+
+      const disc = svg.querySelector('g.ring-layer circle')!;
+      const cx = Number(disc.getAttribute('cx'));
+      const cy = Number(disc.getAttribute('cy'));
+      const outerD = Array.from(svg.querySelectorAll('g.ring-layer path'))
+        .at(-1)!
+        .getAttribute('d')!;
+      const R = cx - Number(outerD.split(' ')[1]);
+
+      // Arc labels: top half of their own band, cut with … to the arc.
+      const curved = Array.from(svg.querySelectorAll('text.ring-label')).filter(
+        (t) => t.querySelector('textPath')
+      );
+      expect(curved).toHaveLength(5);
+      for (const t of curved) {
+        const id = t.querySelector('textPath')!.getAttribute('href')!.slice(1);
+        const d = svg.querySelector(`path[id="${id}"]`)!.getAttribute('d')!;
+        const [, x0, y0, , r, , , , , x1, y1] = d.split(' ').map(Number);
+        expect(y0).toBeLessThanOrEqual(cy + 0.01);
+        expect(y1).toBeLessThanOrEqual(cy + 0.01);
+        const arc = 2 * r! * Math.asin(Math.min(1, (x1! - x0!) / (2 * r!)));
+        const fs = Number(t.getAttribute('font-size'));
+        const shown = t.textContent ?? '';
+        expect(measureText(shown, fs, { bold: true })).toBeLessThanOrEqual(arc);
+        expect(shown.endsWith('…')).toBe(true);
+        expect(t.getAttribute('data-full-text')).toMatch(/^R\d /);
+      }
+
+      // Centre label moved out on a leader.
+      const centre = svg.querySelector('text.ring-centre-label')!;
+      expect(centre).not.toBeNull();
+      expect(svg.querySelector('polyline.ring-label-leader')).not.toBeNull();
+
+      const boxes = straightBoxes(svg);
+      expect(boxes.length).toBeGreaterThan(1);
+      for (const b of boxes) {
+        expect(b.x0, b.text).toBeGreaterThanOrEqual(0);
+        expect(b.y0, b.text).toBeGreaterThanOrEqual(0);
+        expect(b.x1, b.text).toBeLessThanOrEqual(w);
+        expect(b.y1, b.text).toBeLessThanOrEqual(h);
+        // Off the rings: the nearest point of the box lies outside them.
+        const nx = Math.max(b.x0, Math.min(cx, b.x1));
+        const ny = Math.max(b.y0, Math.min(cy, b.y1));
+        expect(Math.hypot(nx - cx, ny - cy), b.text).toBeGreaterThanOrEqual(R);
+      }
+      for (let i = 0; i < boxes.length; i++) {
+        for (let j = i + 1; j < boxes.length; j++) {
+          const a = boxes[i]!;
+          const b = boxes[j]!;
+          const overlap =
+            a.x0 < b.x1 - 0.5 &&
+            b.x0 < a.x1 - 0.5 &&
+            a.y0 < b.y1 - 0.5 &&
+            b.y0 < a.y1 - 0.5;
+          expect(overlap, `${a.text} / ${b.text}`).toBe(false);
+        }
+      }
+    });
+  }
+
+  it('description titles wrap, then end in …, with the full text kept', () => {
+    const parsed = parseRing(fixture(true));
+    const container = makeContainer(800, 600);
+    renderRing(container, parsed, nordLight, false);
+    const block = container.querySelector('g.ring-desc')!;
+    const titles = Array.from(
+      block.querySelectorAll('text[font-weight="bold"]')
+    );
+    expect(titles.length).toBeGreaterThan(1);
+    expect(titles.at(-1)!.textContent!.endsWith('…')).toBe(true);
+    expect(titles[0]!.getAttribute('data-full-text')).toBe(long(0));
+  });
+
+  it('a short centre label stays in the disc with no leader', () => {
+    const parsed = parseRing('ring T\n\nCore\nMiddle\nOuter');
+    const container = makeContainer(800, 600);
+    renderRing(container, parsed, nordLight, false);
+    const svg = container.querySelector('svg')!;
+    expect(svg.querySelector('polyline.ring-label-leader')).toBeNull();
+    expect(svg.querySelector('text.ring-centre-label')).toBeNull();
   });
 });
