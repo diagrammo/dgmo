@@ -386,9 +386,17 @@ export function attachDataChartInteractions(
   };
   const dimByKey = (el: SVGElement) => {
     const key = el.getAttribute('data-emph-key');
+    // A sankey node (#2463) keeps its whole flow closure lit: every mark
+    // lists, in `data-lineage`, the node ids whose hover keeps it lit.
+    const flowNode = el.getAttribute('data-flow-node');
     for (const d of datums) {
       const dk = d.getAttribute('data-emph-key');
-      if (key) d.classList.toggle('dgmo-dim', dk !== key);
+      if (flowNode)
+        d.classList.toggle(
+          'dgmo-dim',
+          !(d.getAttribute('data-lineage') ?? '').split(' ').includes(flowNode)
+        );
+      else if (key) d.classList.toggle('dgmo-dim', dk !== key);
       else d.classList.toggle('dgmo-dim', d !== el);
     }
     mirrorExtras();

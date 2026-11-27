@@ -903,6 +903,18 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
   // Hover a match → its feeders back to round 1 and its path to the final stay
   // lit, every other box, wire and note recedes (#2425). The renderer stamps
   // `data-match` on boxes and `data-lineage` on every match-owned mark.
+  // Hover a sankey node → its flow closure (what feeds it, what it feeds)
+  // stays lit and every other node and ribbon recedes, as live (#2463).
+  // Nodes carry `data-flow-node`; nodes and ribbons carry `data-lineage`.
+  sankey: {
+    markSelector: '.dgmo-datum',
+    strategy: 'lineage',
+    hoverSelector: 'rect[data-flow-node]',
+    hoverAttr: 'data-flow-node',
+    lineageAttr: 'data-lineage',
+    emphasis: 'dim',
+    dimOpacity: 0.18,
+  },
   bracket: {
     markSelector: '.dgmo-bracket-box',
     strategy: 'lineage',

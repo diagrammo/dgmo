@@ -189,6 +189,20 @@ export function renderSankey(
       }
     : resolveEmphasis(chart.emphasis, names, flowClosure);
   const { dimmed } = emphasis;
+  // Hover a node (#2463): its flow closure stays lit, the same set
+  // `highlight <node>` lights, and every other node and ribbon recedes. Each
+  // node gets a space-free id; every mark lists the ids whose hover keeps it
+  // lit, read by the live hover (interactions.ts) and the baked export CSS
+  // (hover-styles.ts, the `lineage` strategy).
+  const nodeId = new Map(names.map((n, i) => [n, `n${i}`]));
+  const closureOf = new Map(
+    names.map((n) => [n, flowClosure(new Set([n]))] as const)
+  );
+  const lineageOf = (members: readonly string[]): string =>
+    names
+      .filter((x) => members.every((m) => closureOf.get(x)!.has(m)))
+      .map((x) => nodeId.get(x)!)
+      .join(' ');
   const linkIndex = new Map(links.map((l, i) => [l, i]));
   // Story view (#2046): lit flows and nodes solid, the rest one grey ground.
   const story = storyPaint(emphasis, palette, isDark);
@@ -526,6 +540,7 @@ export function renderSankey(
       value: String(l.value),
       color: s.raw,
     });
+    ribbon.attr('data-lineage', lineageOf([s.name, t.name]));
   }
 
   const labelRoom = (n: SNode) =>
@@ -591,6 +606,10 @@ export function renderSankey(
       value: String(n.value),
       color: n.raw,
     });
+    nr.attr('data-flow-node', nodeId.get(n.name)!).attr(
+      'data-lineage',
+      lineageOf([n.name])
+    );
     // A label may run to the next column's nodes, or to the right edge.
     const labelX = n.x + labelOffset(n);
     const fit = placed.get(n)!;
