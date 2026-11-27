@@ -18,6 +18,8 @@ import {
 } from '../palettes/color-utils';
 import { tagAttrKey } from '../utils/tag-groups';
 import { measureText } from '../utils/text-measure';
+import { fitLabel, type FittedLabel } from '../utils/fit-label';
+import { FULL_TEXT_ATTR } from '../utils/full-text';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import {
   getMaxLegendReservedHeight,
@@ -415,52 +417,79 @@ export function renderTreemap(
 
     // Leaf / collapsed-block labels. The name scales with the cell so a big
     // shape fills its space; the bigger the label, the more it's muted — a soft
-    // watermark on large cells, crisp on small ones. Fit-to-width so the name
-    // never has to truncate just because it scaled up.
-    // Pad scales down on small cells so a tight label (e.g. a rolled-up
-    // "Trivia" leaf) still fits instead of truncating; big cells keep the roomy
-    // 14px gutter. MIN_FS lets the name shrink well below the comfortable 12px
-    // floor on cramped cells — readability yields to showing the whole word.
+    // watermark on large cells, crisp on small ones. A name that fits one line
+    // at a comfortable size stays one line; a long one wraps to fill the cell
+    // (#2466) at the largest size whose lines all fit, down to the
+    // TREEMAP_LABEL_MIN_FS floor. Only then is the last line cut with "…", and
+    // the cell keeps the full name in FULL_TEXT_ATTR.
+    // Pad scales down on small cells so a tight label still fits; big cells
+    // keep the roomy 14px gutter.
     const PAD = Math.max(4, Math.min(14, Math.floor(Math.min(w, h) / 5)));
-    const MIN_FS = 7;
+    const MIN_FS = TREEMAP_LABEL_MIN_FS;
     if (!cell.isContainer && w >= 2 * PAD + 8 && h >= 2 * PAD + 8) {
       const maxW = w - 2 * PAD;
+      const fs0 = clamp(
+        Math.round(Math.min(w / 3.6, h / 3.4)),
+        MIN_FS,
+        TREEMAP_LABEL_MAX_FS
+      );
+      const fit = fitLeafLabel(cell.label, maxW, h - 2 * PAD, fs0, MIN_FS);
 
-      // Vertical fallback: when the name can't fit horizontally even at the
-      // floor font, the cell is clearly taller than wide, and rotating buys
-      // real length (height beats the horizontal budget), run the name down the
-      // cell instead of truncating it. Value/% are dropped in this mode — a
-      // narrow tile has no room for a second column, and showing the whole name
-      // is the point. Skips the horizontal block entirely when it fires.
-      const horizMinW = measureText(cell.label, MIN_FS) * 1.06;
-      if (horizMinW > maxW && h > w * 1.25 && h - 2 * PAD > maxW) {
-        drawVerticalLabel(g, cell.label, w, h, PAD, ink);
-        if (drillable && w > 30 && h > 22) drawFocusIcon(g, w, ink, 9);
-        continue;
+      // Vertical fallback: only when the wrapped horizontal name cannot fit
+      // even at the floor, the cell is clearly taller than wide, and running
+      // the name down the cell shows more of it. Value/% are dropped in this
+      // mode — showing the name is the point.
+      if (fit.label.truncated && h > w * 1.25) {
+        const vfit = fitLeafLabel(
+          cell.label,
+          h - 2 * PAD,
+          w - 2 * PAD,
+          Math.min(fs0, 22),
+          MIN_FS
+        );
+        if (vfit.fits && shownChars(vfit.label) > shownChars(fit.label)) {
+          drawVerticalLabel(g, vfit, w, h, ink);
+          if (vfit.label.truncated) g.attr(FULL_TEXT_ATTR, cell.label);
+          if (drillable && w > 30 && h > 22) drawFocusIcon(g, w, ink, 9);
+          continue;
+        }
       }
+      if (fit.label.truncated) g.attr(FULL_TEXT_ATTR, cell.label);
 
-      let fs = clamp(Math.round(Math.min(w / 3.6, h / 3.4)), MIN_FS, 72);
-      // Safety factor: text-measure under-estimates bold glyph widths, so shrink
-      // a touch more to guarantee the PAD gap from the right edge.
-      const nameW = measureText(cell.label, fs) * 1.06;
-      if (nameW > maxW) fs = Math.max(MIN_FS, Math.floor((fs * maxW) / nameW));
-      const tg = clamp((fs - MIN_FS) / (72 - MIN_FS), 0, 1);
+      const fs = fit.fs;
+      // The muting ramp keeps its original 7px origin, so a name's opacity
+      // does not move with the floor.
+      const tg = clamp((fs - 7) / (TREEMAP_LABEL_MAX_FS - 7), 0, 1);
       const nameOpacity = 0.95 - tg * 0.5; // 0.95 small → 0.45 large
       const vfs = clamp(Math.round(fs * 0.42), 11, 28);
       const valOpacity = Math.max(0.45, nameOpacity - 0.1);
 
       // Top PAD above the cap height; a big name's ascenders (an accented
       // capital reaches a full em) stay inside its cell all the same (#2117).
-      let y = Math.max(PAD + Math.round(fs * 0.78), Math.ceil(fs));
-      g.append('text')
+      let y = labelFirstBaseline(fs, PAD);
+      const lineH = labelLineHeight(fs);
+      const nameText = g
+        .append('text')
         .attr('class', 'dgmo-treemap-label')
         .attr('x', PAD)
         .attr('y', y)
         .attr('font-size', fs)
         .attr('font-weight', 'bold')
         .attr('fill', ink)
-        .attr('opacity', nameOpacity)
-        .text(clipLabel(cell.label, maxW, fs));
+        .attr('opacity', nameOpacity);
+      if (fit.label.lines.length === 1) {
+        nameText.text(fit.label.lines[0]!);
+      } else {
+        fit.label.lines.forEach((line, i) => {
+          nameText
+            .append('tspan')
+            .attr('x', PAD)
+            .attr('y', y + i * lineH)
+            .text(line);
+        });
+      }
+      // Value lines hang off the last name line.
+      y += (fit.label.lines.length - 1) * lineH;
 
       const valParts = [
         opts.noValues ? '' : compactNumber(cell.value),
@@ -495,7 +524,7 @@ export function renderTreemap(
           // Short cell: no room below → trail the value after the name,
           // smaller, on the same line (if it fits the width).
           const ivfs = clamp(Math.round(fs * 0.5), 11, Math.max(11, vfs));
-          const rendered = clipLabel(cell.label, maxW, fs);
+          const rendered = fit.label.lines[fit.label.lines.length - 1] ?? '';
           // Measured in the bold face the name is drawn in — this used to pad
           // the regular width by 12% to keep the value off the name's end
           // (e.g. "Hardtack70"); the real advances make the guess unnecessary.
@@ -632,44 +661,134 @@ function drawFocusIcon(
 
 /**
  * Run a leaf's name vertically (reads bottom-to-top) down a tall-narrow cell.
- * Font is bound by the cell WIDTH (the rotated cap height) and the name length
- * by the cell HEIGHT; the name still clips if even rotated it can't fit. No
- * value/% — the caller only reaches here when the cell is too narrow for them.
+ * `fit` was computed with the cell HEIGHT as the line length and the cell
+ * WIDTH as the stack depth, so its lines sit side by side across the cell.
+ * No value/% — the caller only reaches here when the cell is too narrow.
  */
 function drawVerticalLabel(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
-  label: string,
+  fit: LeafLabelFit,
   w: number,
   h: number,
-  pad: number,
   ink: string
 ): void {
-  const MIN_FS = 6;
-  const availLen = h - 2 * pad; // length budget, along the cell height
-  const availThick = w - 2 * pad; // thickness budget, across the cell width
-  // Thickness-bound first: cap the glyph height to the cell width (modest cap so
-  // vertical names stay subtle), then shrink to fit the name into the length.
-  let fs = clamp(Math.round(Math.min(availThick / 0.8, 14)), MIN_FS, 22);
-  const nameW = measureText(label, fs, { bold: true });
-  if (nameW > availLen)
-    fs = Math.max(MIN_FS, Math.floor((fs * availLen) / nameW));
-  const text = clipLabel(label, availLen, fs);
-  if (!text) return;
-
-  g.append('text')
+  const { fs, label } = fit;
+  const lineH = labelLineHeight(fs);
+  const n = label.lines.length;
+  const text = g
+    .append('text')
     .attr('class', 'dgmo-treemap-label')
     // Center on the cell, rotate -90 so the string runs upward; the small y
     // offset recenters the glyph's cap height across the cell width (resvg has
     // no reliable dominant-baseline, so it's done by hand like the H labels).
     .attr('transform', `translate(${w / 2},${h / 2}) rotate(-90)`)
-    .attr('y', Math.round(fs * 0.28))
     .attr('text-anchor', 'middle')
     .attr('font-size', fs)
     .attr('font-weight', 'bold')
     .attr('fill', ink)
-    .attr('opacity', 0.95)
-    .text(text);
+    .attr('opacity', 0.95);
+  label.lines.forEach((line, i) => {
+    text
+      .append('tspan')
+      .attr('x', 0)
+      .attr('y', Math.round(fs * 0.28 + (i - (n - 1) / 2) * lineH))
+      .text(line);
+  });
 }
+
+/** Smallest font a leaf name is drawn at before its last line is cut (#2466). */
+export const TREEMAP_LABEL_MIN_FS = 10;
+/** A cell too short for one floor-size line shrinks its one line to this. */
+const TREEMAP_LABEL_TINY_FS = 7;
+/** Largest font a leaf name grows to in a big cell. */
+export const TREEMAP_LABEL_MAX_FS = 72;
+/** Text-measure under-estimates bold glyph widths; keep this much spare. */
+const LABEL_WIDTH_SAFETY = 1.06;
+
+/** Baseline of a leaf name's first line, `pad` below the cell top. */
+function labelFirstBaseline(fs: number, pad: number): number {
+  return Math.max(pad + Math.round(fs * 0.78), Math.ceil(fs));
+}
+
+/** Baseline-to-baseline pitch between wrapped name lines. */
+function labelLineHeight(fs: number): number {
+  return Math.round(fs * 1.15);
+}
+
+interface LeafLabelFit {
+  fs: number;
+  label: FittedLabel;
+  /** False when even one line at the floor does not fit the depth. */
+  fits: boolean;
+}
+
+/** Lines of `depth` px that fit at `fs`, first line's cap height included. */
+function linesThatFit(fs: number, depth: number): number {
+  const first = Math.round(fs * 0.78) + descent(fs);
+  if (depth < first) return 0;
+  return 1 + Math.floor((depth - first) / labelLineHeight(fs));
+}
+
+/**
+ * Fit a leaf name into a `length` × `depth` box. A name that fits one line at
+ * a comfortable size (half the cell's size, at least 12px) keeps one line, as
+ * it always has. Otherwise it takes the largest size from `fs0` down to
+ * `minFs` at which every word fits the lines the depth allows; failing that,
+ * the floor size with its last line cut.
+ */
+function fitLeafLabel(
+  name: string,
+  length: number,
+  depth: number,
+  fs0: number,
+  minFs: number
+): LeafLabelFit {
+  const width = length / LABEL_WIDTH_SAFETY;
+  // The one-line test keeps its original regular-face measure (with the
+  // safety factor), so a name that always fit on one line draws as before.
+  const oneLineW = measureText(name, fs0);
+  const oneLineFs =
+    oneLineW <= width ? fs0 : Math.floor((fs0 * width) / oneLineW);
+  if (oneLineFs >= Math.max(12, minFs, Math.round(fs0 / 2))) {
+    return {
+      fs: oneLineFs,
+      label: { lines: [name], truncated: false },
+      fits: linesThatFit(oneLineFs, depth) >= 1,
+    };
+  }
+  for (let fs = fs0; fs >= minFs; fs--) {
+    const maxLines = linesThatFit(fs, depth);
+    if (maxLines < 1) continue;
+    const label = fitLabel(name, fs, width, maxLines, BOLD);
+    if (label.truncated) continue;
+    // Wrapping bought nothing: keep the one-line size as measured above.
+    if (label.lines.length === 1 && oneLineFs >= minFs) {
+      return {
+        fs: oneLineFs,
+        label: { lines: [name], truncated: false },
+        fits: linesThatFit(oneLineFs, depth) >= 1,
+      };
+    }
+    return { fs, label, fits: true };
+  }
+  // A cell too short for one line at the floor still names itself, smaller,
+  // on one cut line — down to TREEMAP_LABEL_TINY_FS.
+  let fs = minFs;
+  while (fs > TREEMAP_LABEL_TINY_FS && linesThatFit(fs, depth) < 1) fs--;
+  const maxLines = linesThatFit(fs, depth);
+  return {
+    fs,
+    label: fitLabel(name, fs, width, Math.max(1, maxLines), BOLD),
+    fits: maxLines >= 1,
+  };
+}
+
+/** Characters a fitted label shows, ellipsis excluded. */
+function shownChars(label: FittedLabel): number {
+  return label.lines.join('').replace(/…/g, '').replace(/\s+/g, '').length;
+}
+
+const BOLD = { bold: true } as const;
 
 /** Depth a glyph's descender (p, q, g, y, j) drops below the baseline. Inter's
  *  deepest descenders sit at ~0.24em; round up so a big `g`/`y` tail never grazes
