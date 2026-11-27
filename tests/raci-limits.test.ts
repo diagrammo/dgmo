@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { parseRaci, allTasks } from '../src/raci/parser';
 import { renderRaci } from '../src/raci/renderer';
-import { MAX_RACI_ROLES, MAX_RACI_TASKS } from '../src/raci/limits';
+import { MAX_RACI_ROLES, MAX_RACI_TASKS } from '../src/raci/diagnostics';
 import { getPalette } from '../src/palettes';
 
 beforeAll(() => {

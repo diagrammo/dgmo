@@ -24,8 +24,7 @@ import {
   takeFootnoteBlock,
 } from '../utils/chart-frame-parse';
 import { extractPaletteDirective } from '../palettes/directive';
-import { RACI_DX } from './diagnostics';
-import { MAX_RACI_ROLES, MAX_RACI_TASKS } from './limits';
+import { MAX_RACI_ROLES, MAX_RACI_TASKS, RACI_DX } from './diagnostics';
 import { resolveColorWithDiagnostic } from '../colors';
 import { RACI_REGISTRY } from '../utils/reserved-key-registry';
 import {
