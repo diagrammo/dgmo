@@ -103,6 +103,7 @@ import {
   drawValueLabel,
   planLabelsFitLeft,
   drawCategoryLabels,
+  rotatedLabelCap,
   bandSafeTop,
   TICK_INK_ABOVE,
   topTickFraction,
@@ -427,7 +428,10 @@ export function renderLine(
           mLeft0,
           (ml) => width - ml - mr,
           (pw) => (data.length > 0 ? pw / data.length : pw),
-          (pw) => (data.length > 0 ? pw / data.length : pw) * 0.5
+          (pw) => (data.length > 0 ? pw / data.length : pw) * 0.5,
+          TICK_FONT,
+          // The same cap as bar's (#2450): long names never take the chart.
+          rotatedLabelCap(height, top + 8, chart.xlabel ? 40 : 18)
         );
   let fit = fitFor(mRight);
   // The names never cost the category labels their flat reading: when the
@@ -739,11 +743,13 @@ export function renderLine(
   } else if (labelPlan) {
     drawCategoryLabels(
       svg,
-      data.map((d) => d.label),
+      fit!.shown,
       labelPlan,
       xOfRow,
       m.top + plotH,
-      textColor
+      textColor,
+      TICK_FONT,
+      data.map((d) => d.label)
     );
   }
 

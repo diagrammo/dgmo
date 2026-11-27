@@ -35,6 +35,7 @@ import {
   tagDatum,
   planLabelsFitLeft,
   drawCategoryLabels,
+  LABEL_REGION_SHARE,
   spreadIndices,
 } from './shared';
 
@@ -99,8 +100,6 @@ const MEAN_HALF = 5;
 const TICK_COUNT = 6;
 /** Clear space either side of a flat `n = …` line in its slot, px. */
 const N_GAP = 8;
-/** Most of the drawing's height rotated group names may take. */
-const LABEL_REGION_SHARE = 0.35;
 
 export function renderBoxplot(
   svg: Svg,

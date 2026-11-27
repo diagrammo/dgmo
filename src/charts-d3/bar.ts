@@ -81,6 +81,8 @@ import {
   planCategoryLabels,
   planLabelsFitLeft,
   drawCategoryLabels,
+  rotatedLabelCap,
+  LABEL_REGION_SHARE,
   NEVER_THIN_MAX,
   isOrderedLabelSet,
   bandSafeTop,
@@ -100,8 +102,6 @@ import type { FacetPanel } from './facet-panel';
 // while the plot would be under PLOT_MIN_SHARE of the height. Names in the
 // column wrap first (#1828); only what still does not fit ends in `…`, and
 // keeps its full text as a hover title.
-const LABEL_REGION_SHARE = 0.35;
-const PLOT_MIN_SHARE = 0.6;
 /** A vertical bar axis this short flips horizontal rather than rotate (#1828).
  *  A longer axis of plain names flips too, rather than thin them (#2271). */
 const FLIP_MAX_CATEGORIES = NEVER_THIN_MAX;
@@ -357,12 +357,7 @@ export function renderBar(
   // first bar, so the margin may grow to keep them inside the SVG.
   const mTop = top + 8;
   const xTitleBand = chart.xlabel ? 40 : 18;
-  const labelCap = Math.floor(
-    Math.min(
-      height * LABEL_REGION_SHARE,
-      height * (1 - PLOT_MIN_SHARE) - mTop - xTitleBand
-    )
-  );
+  const labelCap = rotatedLabelCap(height, mTop, xTitleBand);
   // `pareto` (#1954): columns only, with a 0–100% axis in the right margin.
   const pareto =
     !stacked && !grouped && !!chart.overlays?.some((o) => o.kind === 'pareto');

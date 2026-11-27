@@ -16,7 +16,7 @@ import type * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import { measureText, truncateText } from '../utils/text-measure';
 import { fitLabel } from '../utils/fit-label';
-import { FULL_TEXT_ATTR } from '../utils/full-text';
+import { FULL_TEXT_ATTR, isCutShort } from '../utils/full-text';
 import { measureTabular, setTabularText } from '../utils/tabular-figures';
 import type { ParsedChart } from '../chart';
 import type { PaletteColors } from '../palettes';
@@ -593,6 +593,31 @@ const LABEL_GAP = 8;
 const LABEL_LINE_HEIGHT = 1.25;
 /** Room below the axis a rotated label region adds to the labels' drop. */
 export const ROTATED_LABEL_PAD = 12;
+/** Joins the lines of a wrapped category label in `planLabelsFitLeft`'s `shown`. */
+export const LABEL_BREAK = '\n';
+/**
+ * Long category names must not size the chart (#1422, #2450). Rotated names
+ * below a vertical axis take at most this share of the drawing's height…
+ */
+export const LABEL_REGION_SHARE = 0.35;
+/** …and give way while the plot would be under this share of it. */
+export const PLOT_MIN_SHARE = 0.6;
+/**
+ * The most height rotated category names may take below a vertical axis:
+ * `top` is the plot's top edge, `xTitleBand` the room under the names.
+ */
+export function rotatedLabelCap(
+  height: number,
+  top: number,
+  xTitleBand: number
+): number {
+  return Math.floor(
+    Math.min(
+      height * LABEL_REGION_SHARE,
+      height * (1 - PLOT_MIN_SHARE) - top - xTitleBand
+    )
+  );
+}
 /**
  * Fewest px between two kept labels on a rotated ORDERED axis (dates, times,
  * numbers). Rotation only needs a line height per label, which keeps thirty
@@ -670,9 +695,13 @@ export function planCategoryLabels(
     return { rotate: false, stride: 1, height: 18, keep: new Set() };
   }
 
-  const widest = Math.max(...labels.map((t) => measureText(t, font)));
+  // A label may be wrapped: its lines are joined with LABEL_BREAK.
+  const split = labels.map((t) => t.split(LABEL_BREAK));
+  const lineCount = Math.max(...split.map((ls) => ls.length));
+  const lineH = font * LABEL_LINE_HEIGHT;
+  const widest = Math.max(...split.flat().map((t) => measureText(t, font)));
   const flatNeeds = widest + LABEL_GAP;
-  const flatHeight = Math.round(font * LABEL_LINE_HEIGHT) + 6;
+  const flatHeight = Math.round(lineH * lineCount) + 6;
   const all = (stride: number): Set<number> =>
     // How many labels fit at this spacing, both ends included.
     spreadIndices(n, Math.floor((n - 1) / stride) + 1);
@@ -697,7 +726,7 @@ export function planCategoryLabels(
   // 3/4. Rotate, thinning further only if rotation alone is not enough — and
   //      never on a short axis.
   const rad = (LABEL_ROTATE_DEG * Math.PI) / 180;
-  const rotNeeds = (font * LABEL_LINE_HEIGHT) / Math.sin(rad);
+  const rotNeeds = (lineH * lineCount) / Math.sin(rad);
   const minSpacing =
     isOrderedLabelSet(labels) && slot > 0
       ? Math.max(rotNeeds, ORDERED_LABEL_MIN_SPACING)
@@ -707,9 +736,28 @@ export function planCategoryLabels(
   return {
     rotate: true,
     stride,
-    height: Math.round(widest * Math.sin(rad)) + ROTATED_LABEL_PAD,
+    height: Math.round(rotatedDrop(split, font)) + ROTATED_LABEL_PAD,
     keep: all(stride),
   };
+}
+
+/**
+ * How far below its anchor a rotated label reaches. Line k of a wrapped label
+ * sits k line heights further along the rotated frame's y, which the rotation
+ * turns into a step down and to the right.
+ */
+function rotatedDrop(split: string[][], font: number): number {
+  const rad = (LABEL_ROTATE_DEG * Math.PI) / 180;
+  const lineH = font * LABEL_LINE_HEIGHT;
+  let drop = 0;
+  for (const lines of split)
+    lines.forEach((t, k) => {
+      drop = Math.max(
+        drop,
+        measureText(t, font) * Math.sin(rad) + k * lineH * Math.cos(rad)
+      );
+    });
+  return drop;
 }
 
 /**
@@ -724,7 +772,17 @@ function rotatedLeftReach(
 ): number {
   if (!plan.rotate || first === undefined) return 0;
   const rad = (LABEL_ROTATE_DEG * Math.PI) / 180;
-  return measureText(first, font) * Math.cos(rad) + font * 0.8 * Math.sin(rad);
+  const lineH = font * LABEL_LINE_HEIGHT;
+  // Later lines step right as they step down, so they reach less far left.
+  const reach = Math.max(
+    ...first
+      .split(LABEL_BREAK)
+      .map(
+        (t, k) =>
+          measureText(t, font) * Math.cos(rad) - k * lineH * Math.sin(rad)
+      )
+  );
+  return reach + font * 0.8 * Math.sin(rad);
 }
 
 /**
@@ -738,8 +796,10 @@ function rotatedLeftReach(
  * the distance from the plot's left edge to the first category's centre.
  *
  * `maxHeight` caps the rotated label region (#1422): when the longest name
- * would drop further than that, every label is cut to the length that fits and
- * ends in `…`. `shown` is the text to draw, index for index with `labels`.
+ * would drop further than that, the labels wrap to two lines (flat if every
+ * name fits whole, else rotated), and what still does not fit ends in `…`
+ * (#2450). `shown` is the text to draw, index for index with `labels`; a
+ * wrapped label's lines are joined with LABEL_BREAK.
  */
 export function planLabelsFitLeft(
   labels: string[],
@@ -774,11 +834,50 @@ export function planLabelsFitLeft(
   const fit = settle(labels);
   if (!fit.plan.rotate || fit.plan.height <= maxHeight) return fit;
   const rad = (LABEL_ROTATE_DEG * Math.PI) / 180;
+  const lineH = font * LABEL_LINE_HEIGHT;
+  // Over the cap (#2450): wrap to two lines before cutting, flat or rotated,
+  // and take whichever keeps the most of the names in the capped band without
+  // thinning more of them than one cut line would. Ties go to the earlier
+  // candidate; one cut line is the last resort.
+  const twoLines = (w: number) =>
+    labels.map((t) => fitLabel(t, font, w, 2).lines.join(LABEL_BREAK));
   const maxW = Math.max(
     MIN_CAPPED_LABEL_W,
     Math.floor((maxHeight - ROTATED_LABEL_PAD) / Math.sin(rad))
   );
-  return settle(labels.map((t) => truncateText(t, font, maxW)));
+  const cut = settle(labels.map((t) => truncateText(t, font, maxW)));
+  const candidates: (typeof cut)[] = [];
+  const flatW = slotFor(plotWFor(mLeft0)) - LABEL_GAP;
+  if (flatW >= MIN_CAPPED_LABEL_W) {
+    const flat = settle(twoLines(flatW));
+    if (!flat.plan.rotate) candidates.push(flat);
+  }
+  const maxW2 = Math.floor(
+    (maxHeight - ROTATED_LABEL_PAD - lineH * Math.cos(rad)) / Math.sin(rad)
+  );
+  if (maxW2 >= MIN_CAPPED_LABEL_W) {
+    const rotated = settle(twoLines(maxW2));
+    if (rotated.plan.rotate) candidates.push(rotated);
+  }
+  candidates.push(cut);
+  const kept = (f: typeof cut) =>
+    f.shown.reduce(
+      (n, t, i) =>
+        f.plan.keep.has(i) ? n + t.replace(/[\s…]/g, '').length : n,
+      0
+    );
+  let best = cut;
+  let bestKept = -1;
+  for (const f of candidates) {
+    if (f.plan.height > maxHeight || f.plan.keep.size < cut.plan.keep.size)
+      continue;
+    const k = kept(f);
+    if (k > bestKept) {
+      best = f;
+      bestKept = k;
+    }
+  }
+  return best;
 }
 
 /** True when the label at `i` survives the plan's thinning. */
@@ -788,8 +887,9 @@ export function labelSurvives(plan: CategoryLabelPlan, i: number): boolean {
 
 /**
  * Draw a horizontal category axis' labels according to `plan`. `xFor` gives the
- * center of category `i`; `baseline` is the y of the axis line. A label drawn
- * shorter than its `full` text keeps the full text as a hover title.
+ * center of category `i`; `baseline` is the y of the axis line. A wrapped
+ * label (lines joined with LABEL_BREAK) draws one tspan a line. A label drawn
+ * shorter than its `full` text carries the full text in FULL_TEXT_ATTR.
  */
 export function drawCategoryLabels(
   svg: Svg,
@@ -808,10 +908,22 @@ export function drawCategoryLabels(
       .attr('class', 'dgmo-tick')
       .attr('fill', textColor)
       .attr('font-size', font)
-      .attr('font-family', FONT_FAMILY)
-      .text(label);
+      .attr('font-family', FONT_FAMILY);
+    const lines = label.split(LABEL_BREAK);
     const whole = full[i];
-    if (whole !== undefined && whole !== label) t.append('title').text(whole);
+    // The whole name for hover and screen readers, never an <svg><title>.
+    if (whole !== undefined && isCutShort(lines, [whole]))
+      t.attr(FULL_TEXT_ATTR, whole);
+    const x = plan.rotate ? 0 : xFor(i);
+    if (lines.length === 1) t.text(label);
+    else
+      lines.forEach((line, k) =>
+        t
+          .append('tspan')
+          .attr('x', x)
+          .attr('dy', k === 0 ? 0 : font * LABEL_LINE_HEIGHT)
+          .text(line)
+      );
     if (plan.rotate) {
       t.attr(
         'transform',
