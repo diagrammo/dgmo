@@ -3,6 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import { measureText } from './utils/text-measure';
+import { fitLabel, fittedWidth } from './utils/fit-label';
 
 export interface LabelRect {
   x: number;
@@ -210,7 +211,30 @@ interface PlacedQuadrantLabel {
   x: number; // text x
   y: number; // text y (center of label)
   anchor: 'middle' | 'start' | 'end';
+  /** Lines to draw, top to bottom; one unless `fit` wrapped the label. */
+  lines: string[];
+  /** True when `fit` cut the label with `…`: the caller keeps the full text. */
+  truncated: boolean;
+  /** The label's box, padding included. */
+  rect: LabelRect;
   connectorLine?: { x1: number; y1: number; x2: number; y2: number };
+}
+
+/** Wrap-then-cut limits for a point label (#2464). */
+export interface PointLabelFit {
+  /** Widest a line may be, in px. */
+  maxWidth: number;
+  /** Most lines a label may take before its last one ends in `…`. */
+  maxLines: number;
+  /** Baseline-to-baseline distance of the drawn lines, in px. */
+  lineHeight: number;
+}
+
+/** Area two rects share. */
+function overlapArea(a: LabelRect, b: LabelRect): number {
+  const w = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+  const h = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+  return w > 0 && h > 0 ? w * h : 0;
 }
 
 /**
@@ -228,10 +252,14 @@ export function computeQuadrantPointLabels(
   fontSize: number,
   /** True where the caller draws these labels at 700 — quadrant does, the
    *  scatter chart does not. */
-  bold = false
+  bold = false,
+  /** When given, a long label wraps, then ends in `…` (#2464); and a label
+   *  with no clear side takes the in-bounds side that overlaps least, never
+   *  a spot outside `chartBounds`. */
+  fit?: PointLabelFit
 ): PlacedQuadrantLabel[] {
-  const labelHeight = fontSize + 4;
-  const stepSize = labelHeight + 2;
+  const oneLineHeight = fontSize + 4;
+  const stepSize = oneLineHeight + 2;
 
   // Build collision circles for all points (per-point radius when given)
   const pointCircles: PointCircle[] = points.map((p) => ({
@@ -246,7 +274,15 @@ export function computeQuadrantPointLabels(
   for (let i = 0; i < points.length; i++) {
     const pt = points[i]!; // In-bounds by loop guard.
     const minGap = (pt.r ?? pointRadius) + 4;
-    const labelWidth = measureText(pt.label, fontSize, { bold }) + 8;
+    const fitted = fit
+      ? fitLabel(pt.label, fontSize, fit.maxWidth, fit.maxLines, { bold })
+      : { lines: [pt.label], truncated: false };
+    const labelWidth =
+      (fit
+        ? fittedWidth(fitted, fontSize)
+        : measureText(pt.label, fontSize, { bold })) + 8;
+    const labelHeight =
+      oneLineHeight + (fitted.lines.length - 1) * (fit?.lineHeight ?? 0);
 
     // Try 4 directions: above, below, left, right
     // Each direction generates candidate (labelX, labelY, anchor)
@@ -397,6 +433,57 @@ export function computeQuadrantPointLabels(
       }
     }
 
+    // Fallback with `fit`: of every in-bounds spot, the one that overlaps
+    // least; a label with no in-bounds spot at all is pinned inside the plot.
+    if (!best && fit) {
+      let leastArea = Infinity;
+      for (const { gen } of directions) {
+        for (let offset = minGap; ; offset += stepSize) {
+          const cand = gen(offset);
+          if (!cand) break;
+          const area =
+            placedLabels.reduce((a, pl) => a + overlapArea(cand.rect, pl), 0) +
+            obstacles.reduce((a, o) => a + overlapArea(cand.rect, o), 0) +
+            pointCircles.reduce(
+              (a, c) =>
+                a +
+                overlapArea(cand.rect, {
+                  x: c.cx - c.r,
+                  y: c.cy - c.r,
+                  w: 2 * c.r,
+                  h: 2 * c.r,
+                }),
+              0
+            );
+          if (area < leastArea) {
+            leastArea = area;
+            best = { ...cand, dist: offset };
+          }
+        }
+      }
+      if (!best) {
+        const w = Math.min(labelWidth, chartBounds.right - chartBounds.left);
+        const lx = Math.min(
+          Math.max(pt.cx - w / 2, chartBounds.left),
+          chartBounds.right - w
+        );
+        const ly = Math.max(
+          chartBounds.top,
+          Math.min(
+            pt.cy - minGap - labelHeight,
+            chartBounds.bottom - labelHeight
+          )
+        );
+        best = {
+          rect: { x: lx, y: ly, w, h: labelHeight },
+          textX: lx + w / 2,
+          textY: ly + labelHeight / 2,
+          anchor: 'middle',
+          dist: minGap,
+        };
+      }
+    }
+
     // Fallback: place above at minGap (may overlap, but at least visible)
     if (!best) {
       const lx = pt.cx - labelWidth / 2;
@@ -441,6 +528,9 @@ export function computeQuadrantPointLabels(
       x: best.textX,
       y: best.textY,
       anchor: best.anchor,
+      lines: fitted.lines,
+      truncated: fitted.truncated,
+      rect: best.rect,
       ...(connectorLine !== undefined && { connectorLine }),
     });
   }

@@ -308,6 +308,19 @@ function textBoxes(text: Element): Box[] {
   return boxes;
 }
 
+/**
+ * Every visible line of text in an SVG as a box in root coordinates, each
+ * with the <text> it came from — for a test that holds a chart to a stricter
+ * bar than the corpus lints (any intersection at all).
+ */
+export function svgTextBoxes(svg: string): (Box & { el: Element })[] {
+  const doc = new JSDOM(svg, { contentType: 'image/svg+xml' }).window.document;
+  HIDDEN_BY_STYLE = styleHidden(doc);
+  return Array.from(doc.getElementsByTagName('text'))
+    .filter((t) => !invisible(t))
+    .flatMap((t) => textBoxes(t).map((b) => ({ ...b, el: t })));
+}
+
 function quote(s: string): string {
   return JSON.stringify(s.length > 40 ? s.slice(0, 39) + '…' : s);
 }

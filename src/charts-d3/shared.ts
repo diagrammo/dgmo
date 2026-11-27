@@ -15,6 +15,8 @@ import {
 import type * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import { measureText, truncateText } from '../utils/text-measure';
+import { fitLabel } from '../utils/fit-label';
+import { FULL_TEXT_ATTR } from '../utils/full-text';
 import { measureTabular, setTabularText } from '../utils/tabular-figures';
 import type { ParsedChart } from '../chart';
 import type { PaletteColors } from '../palettes';
@@ -364,16 +366,39 @@ export function xAxisTitleY(plotBottom: number, marginBottom: number): number {
   return plotBottom + marginBottom - X_TITLE_FOOT;
 }
 
-/** Draw a centered axis title below the x-axis. */
+/** Most lines an x-axis title takes before it ends in `…` (#2464). */
+const X_TITLE_MAX_LINES = 2;
+/** Line pitch of an x-axis title that breaks onto two lines. */
+export const X_TITLE_LINE = 15;
+
+/**
+ * The lines an x-axis title draws in `maxWidth` px: one when it fits, else
+ * wrapped to X_TITLE_MAX_LINES, the last cut with `…`. A chart calls this
+ * first to grow its bottom margin by X_TITLE_LINE per extra line.
+ */
+export function xAxisTitleLines(
+  label: string | undefined,
+  maxWidth: number
+): { lines: string[]; truncated: boolean } {
+  if (!label) return { lines: [], truncated: false };
+  return fitLabel(label, AXIS_LABEL_FONT, maxWidth, X_TITLE_MAX_LINES, {
+    bold: true,
+  });
+}
+
+/** Draw a centered axis title below the x-axis. With `maxWidth` (the plot's
+ *  width) a long title wraps under the first line, then ends in `…`, and
+ *  keeps its full text in FULL_TEXT_ATTR (#2464). */
 export function drawXAxisTitle(
   svg: Svg,
   label: string | undefined,
   cx: number,
   y: number,
-  textColor: string
+  textColor: string,
+  maxWidth?: number
 ): void {
   if (!label) return;
-  svg
+  const t = svg
     .append('text')
     .attr('x', cx)
     .attr('y', y)
@@ -381,8 +406,22 @@ export function drawXAxisTitle(
     .attr('fill', textColor)
     .attr('font-size', AXIS_LABEL_FONT)
     .attr('font-family', FONT_FAMILY)
-    .attr('font-weight', 'bold')
-    .text(label);
+    .attr('font-weight', 'bold');
+  if (maxWidth === undefined) {
+    t.text(label);
+    return;
+  }
+  const { lines, truncated } = xAxisTitleLines(label, maxWidth);
+  if (lines.length === 1) t.text(lines[0]!);
+  else
+    lines.forEach((l, i) =>
+      t
+        .append('tspan')
+        .attr('x', cx)
+        .attr('dy', i === 0 ? 0 : X_TITLE_LINE)
+        .text(l)
+    );
+  if (truncated) t.attr(FULL_TEXT_ATTR, label);
 }
 
 /** Line pitch of a y-axis title that breaks onto two lines. */

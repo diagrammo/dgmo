@@ -17,6 +17,7 @@ import {
   type PointCircle,
 } from '../label-layout';
 import { measureText } from '../utils/text-measure';
+import { FULL_TEXT_ATTR } from '../utils/full-text';
 import type { ParsedScatter } from '../data-chart-parser';
 import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
@@ -45,6 +46,8 @@ import {
   chartFormatter,
   computeLeftMargin,
   drawXAxisTitle,
+  xAxisTitleLines,
+  X_TITLE_LINE,
   drawYAxisTitle,
   tagDatum,
   cutMark,
@@ -82,6 +85,12 @@ export function connectPaths(
 }
 const DEFAULT_SIZE = 15; // diameter
 const LABEL_FONT = 11;
+/** A point label wraps to at most this many lines, then ends in `…` (#2464). */
+const POINT_LABEL_MAX_LINES = 2;
+/** …and no line is wider than this share of the plot's width. */
+const POINT_LABEL_MAX_WIDTH_SHARE = 0.3;
+/** Baseline-to-baseline pitch of a wrapped point label. */
+const POINT_LABEL_LINE = LABEL_FONT + 2;
 // Must match the adapter's hover point-value styling: a big bold number line
 // nearest the bubble, the small label line stacked beyond it.
 const SIZEVAL_FONT = 20;
@@ -268,6 +277,9 @@ export function renderScatter(
     }),
   };
   const plotW = width - m.left - m.right;
+  // A long x-axis title wraps under the plot; the margin grows to hold it.
+  const xTitleLines = xAxisTitleLines(chart.xlabel, plotW).lines.length;
+  m.bottom += Math.max(0, xTitleLines - 1) * X_TITLE_LINE;
   const plotH = height - m.top - m.bottom;
 
   // Bubble radii: area-proportional (scaleSqrt, true-zero domain) mapped into a
@@ -537,7 +549,13 @@ export function renderScatter(
                 }))
             : [],
           DEFAULT_SIZE / 2,
-          LABEL_FONT
+          LABEL_FONT,
+          false,
+          {
+            maxWidth: plotW * POINT_LABEL_MAX_WIDTH_SHARE,
+            maxLines: POINT_LABEL_MAX_LINES,
+            lineHeight: POINT_LABEL_LINE,
+          }
         );
   const placedLabels:
     | (ReturnType<typeof computeQuadrantPointLabels>[number] | undefined)[]
@@ -613,16 +631,7 @@ export function renderScatter(
   // must clear it (everything else dims and may be overlapped).
   const ownLabelRect = (i: number): LabelRect[] => {
     const pl = placedLabels?.[i];
-    if (!pl) return [];
-    const w = measureText(points[i]!.name, LABEL_FONT) + 8;
-    const h = LABEL_FONT + 4;
-    const lx =
-      pl.anchor === 'middle'
-        ? pl.x - w / 2
-        : pl.anchor === 'end'
-          ? pl.x - w
-          : pl.x;
-    return [{ x: lx, y: pl.y - h / 2, w, h }];
+    return pl ? [pl.rect] : [];
   };
 
   // points
@@ -751,7 +760,7 @@ export function renderScatter(
           .attr('stroke-width', 1)
           .attr('opacity', dim ? 0.5 * EMPHASIS_DIM_OPACITY : 0.5);
       }
-      svg
+      const label = svg
         .append('text')
         .attr('class', 'dgmo-ptlabel')
         .attr('data-line-number', p.lineNumber)
@@ -762,8 +771,23 @@ export function renderScatter(
         .attr('fill', stroke)
         .attr('font-size', LABEL_FONT)
         .attr('font-family', FONT_FAMILY)
-        .attr('opacity', dim ? EMPHASIS_DIM_TEXT_OPACITY : null)
-        .text(p.name);
+        .attr('opacity', dim ? EMPHASIS_DIM_TEXT_OPACITY : null);
+      if (placed.lines.length === 1) label.text(placed.lines[0]!);
+      else
+        placed.lines.forEach((line, k) =>
+          label
+            .append('tspan')
+            .attr('x', placed.x)
+            .attr(
+              'dy',
+              k === 0
+                ? (-(placed.lines.length - 1) * POINT_LABEL_LINE) / 2
+                : POINT_LABEL_LINE
+            )
+            .text(line)
+        );
+      // A cut name keeps its whole text for hover and screen readers.
+      if (placed.truncated) label.attr(FULL_TEXT_ATTR, p.name);
     }
   });
 
@@ -834,7 +858,8 @@ export function renderScatter(
     chart.xlabel,
     m.left + plotW / 2,
     m.top + plotH + 46,
-    textColor
+    textColor,
+    plotW
   );
   drawYAxisTitle(svg, chart.ylabel, m.top, plotH, 20, textColor);
 }
