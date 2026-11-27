@@ -224,8 +224,17 @@ run_cheap_checks() {
 
 # Under the lock: the suite, and the two checks that read dist/ after it.
 run_locked_checks() {
+  # The tests this push can affect, not the whole suite (#2478): the import walk from the
+  # changed files plus every test that names a changed data file. Half the suite time on
+  # average, measured 2026-11-27. The full suite and the coverage floor run on a clock,
+  # `test:full` in the root's scripts/nightly-gate.sh; DGMO_GATE_FULL_SUITE=1 forces it here.
+  # A verify receipt for the full `pnpm test` at this tree still covers the step.
   echo "→ test"
-  receipt_run pnpm test
+  if receipt_covers pnpm test; then
+    echo "pre-push: pnpm test — passed in the verify at this tree, not re-run (receipt)"
+  else
+    node scripts/affected-tests.mjs "$GATE_BASE"
+  fi
 
   echo "→ public API surface"
   receipt_run node --test scripts/check-api.test.mjs
@@ -280,6 +289,8 @@ for sha in $pushed; do
   prepare_gate "$sha"
   if [ -x "$GATE_LOCK" ]; then "$GATE_LOCK" acquire dgmo $$ || true; fi
   stale_ref_check after-lock || exit 1
+  # What the push adds on top of the remote's main; empty means affected-tests runs the full suite.
+  GATE_BASE=$(git merge-base "$sha" "refs/remotes/$REMOTE/main" 2>/dev/null || true)
   (cd "$gate" && run_locked_checks)
   cleanup
 done
