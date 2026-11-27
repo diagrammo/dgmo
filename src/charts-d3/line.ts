@@ -1398,18 +1398,69 @@ export function renderLine(
         lineNumber: d.lineNumber,
       }));
     if (noteKey) {
-      // Under a facet panel the key starts just below the tick labels, in
-      // space the grid adds; otherwise in the strip taken off the bottom.
-      const keyTop = panel?.keyBelow
-        ? m.top + plotH + (labelPlan?.height ?? TICK_FONT + 10) - 8
-        : height;
+      // The key starts just below the tick labels: under a facet panel in
+      // room the grid adds, otherwise in the space the first pass freed.
+      const keyTop = m.top + plotH + (labelPlan?.height ?? TICK_FONT + 10) - 8;
       // Each note is a numbered disc on its point; its text is in the key
       // drawn in the strip the second pass took off the bottom.
-      const marks = notes.map((d) => ({
-        x: d.x,
-        y: d.y,
-        item: keyItems.find((it) => it.lineNumber === d.lineNumber)!,
-      }));
+      // A disc sits on its point, unless a label already there would print
+      // over it: then beside the point, on the first free side.
+      const taken: { x: number; y: number; w: number; h: number }[] = [
+        ...eraTitles,
+      ];
+      const hit = (x: number, y: number) =>
+        taken.some(
+          (b) =>
+            x + KEY_DISC_R > b.x &&
+            x - KEY_DISC_R < b.x + b.w &&
+            y + KEY_DISC_R > b.y &&
+            y - KEY_DISC_R < b.y + b.h
+        );
+      const off = KEY_DISC_R + 4;
+      const dirs = [
+        [0, -1],
+        [0, 1],
+        [1, -1],
+        [-1, -1],
+        [1, 1],
+        [-1, 1],
+        [1, 0],
+        [-1, 0],
+      ] as const;
+      const marks = notes.map((d) => {
+        const spot =
+          [
+            [d.x, d.y] as const,
+            ...[1, 2, 3].flatMap((k) =>
+              dirs.map(
+                ([dx, dy]) => [d.x + dx * k * off, d.y + dy * k * off] as const
+              )
+            ),
+          ].find(([x, y]) => !hit(x, y)) ?? ([d.x, d.y] as const);
+        // Moved off its point: a short leader says which point it names.
+        const len = Math.hypot(spot[0] - d.x, spot[1] - d.y);
+        if (len > KEY_DISC_R)
+          svg
+            .append('line')
+            .attr('class', 'dgmo-note-key-leader')
+            .attr('x1', d.x)
+            .attr('y1', d.y)
+            .attr('x2', spot[0] - ((spot[0] - d.x) * KEY_DISC_R) / len)
+            .attr('y2', spot[1] - ((spot[1] - d.y) * KEY_DISC_R) / len)
+            .attr('stroke', d.color ?? textColor)
+            .attr('stroke-width', 1);
+        taken.push({
+          x: spot[0] - KEY_DISC_R,
+          y: spot[1] - KEY_DISC_R,
+          w: 2 * KEY_DISC_R,
+          h: 2 * KEY_DISC_R,
+        });
+        return {
+          x: spot[0],
+          y: spot[1],
+          item: keyItems.find((it) => it.lineNumber === d.lineNumber)!,
+        };
+      });
       drawNoteKey(
         svg,
         marks,
@@ -1437,11 +1488,18 @@ export function renderLine(
         while ((svg.node()?.childNodes.length ?? 0) > startNodes)
           svg.node()!.lastChild!.remove();
         const plan = planNoteKey(keyItems, width - m.left - 16);
+        // The plot gives up only what the key needs past the empty space
+        // already under the tick labels; a facet panel gives up nothing.
+        const keyTop =
+          m.top + plotH + (labelPlan?.height ?? TICK_FONT + 10) - 8;
+        const shrink = panel?.keyBelow
+          ? 0
+          : Math.max(0, Math.ceil(keyTop + plan.h - height));
         renderLine(
           svg,
           chart,
           width,
-          panel?.keyBelow ? height : height - plan.h,
+          height - shrink,
           colors,
           palette,
           isDark,
