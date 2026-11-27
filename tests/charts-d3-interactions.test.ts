@@ -1141,7 +1141,7 @@ May 500 450`;
 // the value axis.
 describe('bar hover → axis projection (#2307)', () => {
   const CITIES = Array.from(
-    { length: 60 },
+    { length: 50 },
     (_, i) => `City Number ${String(i).padStart(2, '0')} ${10 + i}`
   ).join('\n');
   const hover = (el: Element) =>
@@ -1154,14 +1154,14 @@ describe('bar hover → axis projection (#2307)', () => {
   it('vertical: every bar carries its full name and value, even with thinned ticks', async () => {
     await mount(`bar Visitors\norientation-vertical\n\n${CITIES}`);
     const bars = [...svg.querySelectorAll('rect.dgmo-datum')];
-    expect(bars.length).toBe(60);
+    expect(bars.length).toBe(50);
     const shown = [...svg.querySelectorAll('.dgmo-tick')].map(
       (t) => t.textContent
     );
     const names = bars.map((b) => b.getAttribute('data-axval-x'));
     expect(names.filter((n) => !shown.includes(n)).length).toBeGreaterThan(0);
-    expect(names[59]).toBe('City Number 59');
-    expect(bars[59]!.getAttribute('data-axval-y')).toBe('69');
+    expect(names[49]).toBe('City Number 49');
+    expect(bars[49]!.getAttribute('data-axval-y')).toBe('59');
   });
 
   it('vertical: hover draws two leaders and prints name + value; the name takes the tick slant', async () => {

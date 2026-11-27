@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { renderDataChartD3 as renderDataChartD3Raw } from '../src/charts-d3/index';
 import { parseChart } from '../src/chart';
 import { flattenTabular } from './helpers/tabular-text';
+import { BAR_MAX_CATEGORIES } from '../src/charts-d3/bar-limits';
 
 // A bar axis of plain names flips horizontal at ANY count rather than thin
 // them, and the drawing grows taller than its host to give each name a row
@@ -73,7 +74,7 @@ const CITIES = [
   'Toronto',
   'Vienna',
   'Zurich',
-];
+].slice(0, BAR_MAX_CATEGORIES); // the most a bar chart draws (#2419)
 
 function bar(names: string[], extra = ''): string {
   return [
@@ -99,7 +100,7 @@ const HOST = { width: 600, height: 400 };
 const NARROW = { width: 360, height: 400 };
 
 describe('bar flips horizontal at any count of plain names (#2271)', () => {
-  for (const n of [13, 20, 60]) {
+  for (const n of [13, 20, 50]) {
     it(`${n} plain names that would thin: flat, every name drawn`, async () => {
       const names = CITIES.slice(0, n);
       const svg = await render(bar(names), 'light', undefined, NARROW);
@@ -117,7 +118,7 @@ describe('bar flips horizontal at any count of plain names (#2271)', () => {
     for (const name of names) expect(texts).toContain(name);
   });
 
-  it('60 names grow the drawing past the host height', async () => {
+  it('50 names grow the drawing past the host height', async () => {
     const svg = await render(bar(CITIES), 'light', undefined, HOST);
     expect(rootHeight(svg)).toBeGreaterThan(HOST.height);
   });
@@ -135,7 +136,7 @@ describe('orientation-vertical keeps the columns (#2271)', () => {
     );
   });
 
-  it('60 names stay vertical, thinned, at the host height', async () => {
+  it('50 names stay vertical, thinned, at the host height', async () => {
     const svg = await render(
       bar(CITIES, 'orientation-vertical'),
       'light',
@@ -163,11 +164,11 @@ describe('orientation-vertical keeps the columns (#2271)', () => {
 });
 
 describe('ordered names still thin (#2212)', () => {
-  it('60 years stay vertical and drop labels', async () => {
-    const years = Array.from({ length: 60 }, (_, i) => String(1960 + i));
+  it('50 years stay vertical and drop labels', async () => {
+    const years = Array.from({ length: 50 }, (_, i) => String(1960 + i));
     const svg = await render(bar(years), 'light', undefined, HOST);
     const texts = drawn(svg);
-    expect(years.filter((y) => texts.includes(y)).length).toBeLessThan(60);
+    expect(years.filter((y) => texts.includes(y)).length).toBeLessThan(50);
     expect(rootHeight(svg)).toBe(HOST.height);
   });
 });

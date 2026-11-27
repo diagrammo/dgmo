@@ -88,6 +88,7 @@ import {
   warnNoAnchor,
 } from './annotations/anchored';
 import { divergingSpans } from './utils/diverging';
+import { BAR_DX, BAR_MAX_CATEGORIES } from './charts-d3/bar-limits';
 import type { ChartOverlay } from './overlays/types';
 import {
   parseOverlayLine,
@@ -1721,6 +1722,11 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
     if (!result.seriesMarks) delete result.seriesMarkLineNumber;
   }
 
+  // Bar category limit (#2419): keep the first BAR_MAX_CATEGORIES categories
+  // and say the rest are not drawn. Grouped-by-category stacks count their
+  // categories (clusters), not their columns.
+  if (result.type === 'bar') capBarCategories(result);
+
   settleFacet(result, facetOptionLines, warn);
 
   // Notes point at rows; `sort` and the settle steps above may have moved
@@ -2803,4 +2809,34 @@ function settleSeriesFills(
       delete result.fill;
     }
   }
+}
+
+function capBarCategories(result: ParsedChart): void {
+  if (result.clusters) {
+    if (result.clusters.length <= BAR_MAX_CATEGORIES) return;
+    const dropped = result.clusters.slice(BAR_MAX_CATEGORIES);
+    const gone = new Set(dropped.map((c) => c.label));
+    result.diagnostics.push(
+      emit(
+        BAR_DX.TOO_MANY_CATEGORIES,
+        Math.min(...dropped.map((c) => c.lineNumber)),
+        { count: result.clusters.length }
+      )
+    );
+    result.clusters = result.clusters.slice(0, BAR_MAX_CATEGORIES);
+    result.data = result.data.filter(
+      (d) => d.cluster === undefined || !gone.has(d.cluster)
+    );
+    return;
+  }
+  if (result.data.length <= BAR_MAX_CATEGORIES) return;
+  const dropped = result.data.slice(BAR_MAX_CATEGORIES);
+  result.diagnostics.push(
+    emit(
+      BAR_DX.TOO_MANY_CATEGORIES,
+      Math.min(...dropped.map((d) => d.lineNumber)),
+      { count: result.data.length }
+    )
+  );
+  result.data = result.data.slice(0, BAR_MAX_CATEGORIES);
 }
