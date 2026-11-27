@@ -34,6 +34,7 @@ import {
 } from '../annotations/draw';
 import { drawChartNotes, sampleLines } from '../annotations/notes';
 import type { LabelRect } from '../label-layout';
+import { SLOPE_MIN_LABEL_PX } from './limits';
 
 // ============================================================
 // Slope Chart Renderer
@@ -231,9 +232,10 @@ export function renderSlopeChart(
   const innerHeight = height - sPlotTop - sMarginBottom;
 
   // A stack of end labels taller than the plot would overlap however it is
-  // packed (#2132): step the label font down (7px floor) until it fits.
+  // packed (#2132): step the label font down to the readable floor until it
+  // fits. MAX_SLOPE_ROWS (#2465) is the most rows that fit at that floor.
   const LABEL_GAP = 4;
-  const MIN_LABEL_FONT = 7;
+  const MIN_LABEL_FONT = SLOPE_MIN_LABEL_PX;
   while (
     sLabelFontSize > MIN_LABEL_FONT &&
     data.length * sLabelFontSize * 1.4 + (data.length - 1) * LABEL_GAP >

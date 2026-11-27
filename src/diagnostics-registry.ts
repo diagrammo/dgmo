@@ -45,6 +45,7 @@ import { GOAL_DIAGNOSTICS } from './goal/limits';
 import { FUNCTION_DIAGNOSTICS } from './charts-d3/function-limits';
 import { FUNNEL_DIAGNOSTICS } from './charts-d3/funnel-limits';
 import { SANKEY_DIAGNOSTICS } from './charts-d3/sankey-limits';
+import { SLOPE_DIAGNOSTICS } from './slope/limits';
 import { HEATMAP_DIAGNOSTICS } from './charts-d3/heatmap-limits';
 import { CYCLE_DIAGNOSTICS } from './cycle/limits';
 import { GANTT_DIAGNOSTICS } from './gantt/limits';
@@ -281,6 +282,7 @@ const REGISTRY: DiagnosticSpec[] = [
   ...FUNCTION_DIAGNOSTICS,
   ...FUNNEL_DIAGNOSTICS,
   ...SANKEY_DIAGNOSTICS,
+  ...SLOPE_DIAGNOSTICS,
   ...HEATMAP_DIAGNOSTICS,
   ...CYCLE_DIAGNOSTICS,
   ...GANTT_DIAGNOSTICS,

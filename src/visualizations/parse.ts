@@ -66,6 +66,7 @@ import {
   withTagAliases,
 } from '../utils/reserved-key-registry';
 import { VENN_DX } from '../venn/diagnostics';
+import { MAX_SLOPE_ROWS, SLOPE_DX } from '../slope/limits';
 import { checkVennSizes } from '../venn/sizes';
 import {
   matchTagBlockHeading,
@@ -1843,6 +1844,16 @@ function parseVisualizationFull(
         'y-axis has no effect under rank — positions run from 1 at the top'
       );
     }
+  }
+  // Row limit (#2465): past MAX_SLOPE_ROWS the end labels cannot stack at a
+  // readable size, so keep the first MAX_SLOPE_ROWS and flag the next row.
+  if (result.data.length > MAX_SLOPE_ROWS) {
+    result.diagnostics.push(
+      emit(SLOPE_DX.TOO_MANY_ROWS, result.data[MAX_SLOPE_ROWS]!.lineNumber, {
+        count: result.data.length,
+      })
+    );
+    result.data = result.data.slice(0, MAX_SLOPE_ROWS);
   }
   settleAxisSpec(
     'y',
