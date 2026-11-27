@@ -9,6 +9,7 @@ import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
 import { getSegmentColors, shapeFill } from '../palettes/color-utils';
 import { type Svg, chartFormatter, tagDatum } from './shared';
+import { MAX_POLAR_AREA_WEDGES } from './polar-limits';
 
 // Label text top above its anchor: the 13px label's em box less its +4
 // baseline drop. The em, not the cap height, so the label keeps the same air
@@ -25,7 +26,11 @@ export function renderPolarArea(
   textColor: string,
   topInset: number
 ): void {
-  const data = chart.data.filter((d) => d.value > 0);
+  // The parser already cuts to the limit (#2457); this guards a chart built
+  // by hand.
+  const data = chart.data
+    .slice(0, MAX_POLAR_AREA_WEDGES)
+    .filter((d) => d.value > 0);
   // The author's `format` / `unit` / `locale` (#1831); under `format compact`
   // every value prints in one unit (#2036).
   const fmt = chartFormatter(

@@ -89,6 +89,7 @@ import {
 } from './annotations/anchored';
 import { divergingSpans } from './utils/diverging';
 import { BAR_DX, BAR_MAX_CATEGORIES } from './charts-d3/bar-limits';
+import { MAX_POLAR_AREA_WEDGES, POLAR_AREA_DX } from './charts-d3/polar-limits';
 import type { ChartOverlay } from './overlays/types';
 import {
   parseOverlayLine,
@@ -1726,6 +1727,9 @@ function parseChartRaw(content: string, palette?: PaletteColors): ParsedChart {
   // and say the rest are not drawn. Grouped-by-category stacks count their
   // categories (clusters), not their columns.
   if (result.type === 'bar') capBarCategories(result);
+  // Polar-area wedge limit (#2457): keep the first MAX_POLAR_AREA_WEDGES
+  // wedges; the error sits on the first one left out.
+  if (result.type === 'polar-area') capPolarAreaWedges(result);
 
   settleFacet(result, facetOptionLines, warn);
 
@@ -2809,6 +2813,18 @@ function settleSeriesFills(
       delete result.fill;
     }
   }
+}
+
+function capPolarAreaWedges(result: ParsedChart): void {
+  if (result.data.length <= MAX_POLAR_AREA_WEDGES) return;
+  result.diagnostics.push(
+    emit(
+      POLAR_AREA_DX.TOO_MANY_WEDGES,
+      result.data[MAX_POLAR_AREA_WEDGES]!.lineNumber,
+      { count: result.data.length }
+    )
+  );
+  result.data = result.data.slice(0, MAX_POLAR_AREA_WEDGES);
 }
 
 function capBarCategories(result: ParsedChart): void {
