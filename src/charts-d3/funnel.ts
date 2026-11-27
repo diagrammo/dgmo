@@ -17,6 +17,9 @@ import { contrastText, shapeFill } from '../palettes/color-utils';
 import { type Svg, chartFormatter, tagDatum } from './shared';
 import { tabularText } from '../utils/tabular-figures';
 import { measureText } from '../utils/text-measure';
+import { capLabelColumn } from '../utils/label-column';
+import { fitLabel } from '../utils/fit-label';
+import { FULL_TEXT_ATTR } from '../utils/full-text';
 
 const PAD = 12;
 const MARGIN = 8;
@@ -30,6 +33,16 @@ const LABEL_LINE_EM = 1.2;
 const FUNNEL_MIN_STAGE_WIDTH = 1;
 /** Proportional widths below this many px are hairlines (#2440). */
 const FUNNEL_HAIRLINE_WIDTH = 4;
+/**
+ * Narrowest plot a funnel draws, in px (#2441). The side columns are capped
+ * at LABEL_COLUMN_MAX_SHARE each, so any canvas of 228px or more reaches it;
+ * below that the chart says it is too narrow instead of drawing nothing.
+ */
+const FUNNEL_MIN_PLOT_WIDTH = 60;
+/** Most lines a capped stage name wraps to before it is cut with `…`. */
+const NAME_MAX_LINES = 3;
+/** Most lines a capped value/percent label wraps to. */
+const RIGHT_MAX_LINES = 2;
 
 /**
  * Stage-over-stage conversion (#2440). 0 of 0 has no conversion (`—`); an
@@ -102,9 +115,13 @@ export function renderFunnel(
     return parts.join(' · ');
   };
 
-  const nameW = chart.noName
+  // A long name would ask for more than the canvas (#2441): the gutter is
+  // capped at LABEL_COLUMN_MAX_SHARE and names past it wrap, then cut.
+  const nameNatural = chart.noName
     ? 0
     : Math.max(...sorted.map((d) => est(d.label, sideFont))) + PAD;
+  const nameW = capLabelColumn(nameNatural, width, 0).width;
+  const namesCapped = nameNatural > nameW;
 
   const bandWidthsAt = (plotW: number, i: number) => {
     // Width ∝ value; zero is zero wide; a hairline keeps its order (#2440).
@@ -152,13 +169,18 @@ export function renderFunnel(
   const layout = (rightW: number) => {
     const spanL = MARGIN + nameW;
     const spanR = width - MARGIN - rightW;
-    const plotW = Math.max(width * 0.25, Math.min(width * 0.6, spanR - spanL));
+    // Never wider than the span between the gutters, so the centre stays
+    // inside the canvas (#2441).
+    const plotW = Math.min(
+      spanR - spanL,
+      Math.max(width * 0.25, Math.min(width * 0.6, spanR - spanL))
+    );
     const lo = spanL + plotW / 2;
     const hi = spanR - plotW / 2;
-    const cx =
-      lo > hi ? (spanL + spanR) / 2 : Math.min(Math.max(width / 2, lo), hi);
+    const cx = Math.min(Math.max(width / 2, lo), hi);
     return { plotW, cx };
   };
+  const rightCap = capLabelColumn(Infinity, width, 0).width;
 
   // Two passes: first size gutters assuming every value fits inside its
   // band, then re-reserve for the values that fall back to the right rail.
@@ -172,10 +194,25 @@ export function renderFunnel(
         )
       )
     );
-  let rightW = maxRightEst(null) + PAD;
+  let rightNatural = maxRightEst(null) + PAD;
+  let rightW = Math.min(rightNatural, rightCap);
   let { plotW, cx } = layout(rightW);
-  rightW = maxRightEst(plotW) + PAD;
+  rightNatural = maxRightEst(plotW) + PAD;
+  rightW = Math.min(rightNatural, rightCap);
   ({ plotW, cx } = layout(rightW));
+  const rightCapped = rightNatural > rightW;
+  if (plotW < FUNNEL_MIN_PLOT_WIDTH) {
+    svg
+      .append('text')
+      .attr('x', width / 2)
+      .attr('y', (top + bottom) / 2)
+      .attr('text-anchor', 'middle')
+      .attr('fill', palette.textMuted)
+      .attr('font-size', 12)
+      .attr('font-family', FONT_FAMILY)
+      .text('Too narrow to draw this funnel — widen the chart');
+    return;
+  }
 
   // Side labels (#2439). Each stage's name (left) and value/percent (right)
   // sits beside its band. When bands are shorter than a label line, a column
@@ -186,6 +223,7 @@ export function renderFunnel(
   interface SideLabel {
     i: number;
     lines: string[];
+    full?: string;
     ideal: number;
     c: number;
   }
@@ -196,10 +234,27 @@ export function renderFunnel(
   const valueInsides = sorted.map((_, i) => valueInsideAt(plotW, i));
   sorted.forEach((d, i) => {
     const yMid = top + (i + 0.5) * bandH;
+    // A capped column wraps its labels, then cuts the last line (#2441).
+    const fit = (text: string, capped: boolean, w: number, max: number) => {
+      if (!capped) return { lines: [text] };
+      const f = fitLabel(text, sideFont, w - PAD, max, { bold: true });
+      return f.truncated ? { lines: f.lines, full: text } : { lines: f.lines };
+    };
     if (!chart.noName)
-      leftLabels.push({ i, lines: [d.label], ideal: yMid, c: yMid });
+      leftLabels.push({
+        i,
+        ...fit(d.label, namesCapped, nameW, NAME_MAX_LINES),
+        ideal: yMid,
+        c: yMid,
+      });
     const right = rightTextFor(i, valueInsides[i]!);
-    if (right) rightLabels.push({ i, lines: [right], ideal: yMid, c: yMid });
+    if (right)
+      rightLabels.push({
+        i,
+        ...fit(right, rightCapped, rightW, RIGHT_MAX_LINES),
+        ideal: yMid,
+        c: yMid,
+      });
   });
   // A column taller than the band area shrinks its font, as the pie's does.
   const linesIn = (col: SideLabel[]) =>
@@ -230,6 +285,9 @@ export function renderFunnel(
       col.some((l) => Math.abs(l.c - l.ideal) > 0.5 || l.lines.length > 1)
     );
   };
+  /** Baseline of line `j` of a label centred at `l.c`. */
+  const lineY = (l: SideLabel, j: number) =>
+    l.c + (j - (l.lines.length - 1) / 2) * lineH + labelFont * 0.35;
   const leftOuter = spread(leftLabels);
   const rightOuter = spread(rightLabels);
 
@@ -290,18 +348,21 @@ export function renderFunnel(
     if (name) {
       const x = leftOuter ? cx - outerHalf - PAD : cx - halfEdge - PAD;
       if (leftOuter) leader(-1, x, name.c);
-      pair(
-        svg
-          .append('text')
-          .attr('x', x)
-          .attr('y', name.c + labelFont * 0.35)
-          .attr('text-anchor', 'end')
-          .attr('fill', stroke)
-          .attr('font-size', labelFont)
-          .attr('font-weight', 'bold')
-          .attr('font-family', FONT_FAMILY),
-        i
-      ).text(name.lines[0]!);
+      name.lines.forEach((line, j) => {
+        const t = pair(
+          svg
+            .append('text')
+            .attr('x', x)
+            .attr('y', lineY(name, j))
+            .attr('text-anchor', 'end')
+            .attr('fill', stroke)
+            .attr('font-size', labelFont)
+            .attr('font-weight', 'bold')
+            .attr('font-family', FONT_FAMILY),
+          i
+        ).text(line);
+        if (j === 0 && name.full) t.attr(FULL_TEXT_ATTR, name.full);
+      });
     }
 
     const valueInside = valueInsides[i]!;
@@ -326,17 +387,20 @@ export function renderFunnel(
     if (right) {
       const x = rightOuter ? cx + outerHalf + PAD : cx + halfEdge + PAD;
       if (rightOuter) leader(1, x, right.c);
-      const text = svg
-        .append('text')
-        .attr('x', x)
-        .attr('y', right.c + labelFont * 0.35)
-        .attr('text-anchor', 'start')
-        .attr('font-size', labelFont)
-        .attr('font-weight', 'bold')
-        .attr('font-family', FONT_FAMILY);
-      pair(text.attr('fill', stroke), i).call(
-        tabularText(right.lines[0]!, labelFont, { bold: true })
-      );
+      right.lines.forEach((line, j) => {
+        const text = svg
+          .append('text')
+          .attr('x', x)
+          .attr('y', lineY(right, j))
+          .attr('text-anchor', 'start')
+          .attr('font-size', labelFont)
+          .attr('font-weight', 'bold')
+          .attr('font-family', FONT_FAMILY);
+        pair(text.attr('fill', stroke), i).call(
+          tabularText(line, labelFont, { bold: true })
+        );
+        if (j === 0 && right.full) text.attr(FULL_TEXT_ATTR, right.full);
+      });
     }
   });
 }
