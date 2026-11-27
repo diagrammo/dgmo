@@ -26,6 +26,8 @@ import {
   storyPaint,
 } from '../utils/emphasis';
 import type { ResolvedEmphasis } from '../utils/emphasis';
+import { MIN_READABLE_TYPE_PX } from '../utils/text-measure';
+import { rankSankey } from './sankey-limits';
 
 const NODE_W = 20;
 const NODE_GAP = 14;
@@ -44,6 +46,23 @@ const LABEL_LINE_H = 16;
 const LABEL_BLOCK_GAP = 6;
 /** Most of the width the last column's labels may take as a right margin. */
 const MAX_LABEL_MARGIN = 0.4;
+/**
+ * A crowded column (#2462) shrinks toward these floors before the drawing
+ * grows: node bars to SANKEY_MIN_NODE_H (owner's pick, 2026-11-26) with
+ * MIN_NODE_GAP between them, names to the smallest readable type with
+ * MIN_LABEL_BLOCK_GAP between them. MAX_SANKEY_NODES_PER_COLUMN is chosen
+ * from these.
+ */
+export const SANKEY_MIN_NODE_H = 8;
+const MIN_NODE_GAP = 2;
+const MIN_LABEL_FONT = MIN_READABLE_TYPE_PX;
+const MIN_LABEL_BLOCK_GAP = 1;
+/** Name type: font size, baseline-to-baseline line height, gap between names. */
+interface LabelType {
+  font: number;
+  lineH: number;
+  gap: number;
+}
 /** Baseline ribbon translucency — dimming MULTIPLIES this, never replaces it. */
 const RIBBON_FILL_OPACITY = 0.6;
 
@@ -113,7 +132,7 @@ export function renderSankey(
   const valueText = (n: SNode): string =>
     chart.noValue ? '' : ` ${fmt(n.flow)}`;
   const valueW = (n: SNode): number =>
-    chart.noValue ? 0 : measureText(valueText(n), LABEL_FONT, { bold: true });
+    chart.noValue ? 0 : measureText(valueText(n), labelFont, { bold: true });
 
   const names = Array.from(new Set(links.flatMap((l) => [l.source, l.target])));
 
@@ -195,49 +214,13 @@ export function renderSankey(
     })
   );
 
-  // Back edges. Authors write cycles (an issue bouncing between two statuses
-  // twice), and longest-path ranking never converges on one: each pass pushes
-  // the loop a column further right, so the loop's nodes inflated maxRank and
-  // crushed every real column into the left of the chart (#1218). A DFS from
-  // the true sources marks each edge that closes a loop; ranking and ordering
-  // ignore those, and they are drawn as return ribbons under the chart.
-  const outgoing = new Map<string, typeof links>();
-  for (const l of links) {
-    const list = outgoing.get(l.source) ?? [];
-    list.push(l);
-    outgoing.set(l.source, list);
-  }
-  const backEdges = new Set<(typeof links)[number]>();
-  const visitState = new Map<string, 'open' | 'done'>();
-  const visit = (name: string): void => {
-    visitState.set(name, 'open');
-    for (const l of outgoing.get(name) ?? []) {
-      const st = visitState.get(l.target);
-      if (st === 'open') backEdges.add(l);
-      else if (st === undefined) visit(l.target);
-    }
-    visitState.set(name, 'done');
-  };
-  const hasIncoming = new Set(links.map((l) => l.target));
-  for (const name of names) if (!hasIncoming.has(name)) visit(name);
-  // a component that is all cycle has no source; enter it at its first name
-  for (const name of names) if (!visitState.has(name)) visit(name);
+  // Back edges are drawn as return ribbons under the chart; ranking ignores
+  // them (#1218). `rankSankey` is the parser's column count too (#2462).
+  const ranked = rankSankey(links);
+  const backEdges = ranked.back;
+  for (const n of node.values()) n.rank = ranked.rank.get(n.name) ?? 0;
   const forwardLinks = links.filter((l) => !backEdges.has(l));
   const backLinks = links.filter((l) => backEdges.has(l));
-
-  // longest-path ranking
-  for (let pass = 0; pass < names.length; pass++) {
-    let changed = false;
-    for (const l of forwardLinks) {
-      const s = node.get(l.source)!;
-      const t = node.get(l.target)!;
-      if (t.rank < s.rank + 1) {
-        t.rank = s.rank + 1;
-        changed = true;
-      }
-    }
-    if (!changed) break;
-  }
 
   // node value = max(sum in, sum out)
   for (const n of node.values()) {
@@ -296,12 +279,64 @@ export function renderSankey(
   const rightPad = 16;
   let plotH = height - top - 24;
 
+  // A crowded column fits the canvas (#2462): the gap between bars shrinks
+  // until the most crowded column's bars average SANKEY_MIN_NODE_H, and the
+  // names shrink from LABEL_FONT to MIN_LABEL_FONT until one line each
+  // stacks in the plot. Only past both floors does the drawing grow taller,
+  // so nothing is ever laid out below the canvas.
+  const most = Math.max(...layers.map((l) => l.length));
+  const mostReal = Math.max(
+    ...layers.map((l) => l.filter((n) => !n.virtual).length)
+  );
+  const labelNeed = (t: LabelType) =>
+    mostReal * t.lineH + Math.max(0, mostReal - 1) * t.gap;
+  const typeAt = (font: number, gap: number): LabelType => ({
+    font,
+    lineH: Math.round((font * LABEL_LINE_H) / LABEL_FONT),
+    gap,
+  });
+  const nodeNeed =
+    most * SANKEY_MIN_NODE_H + Math.max(0, most - 1) * MIN_NODE_GAP;
+  const grow = Math.ceil(
+    Math.max(nodeNeed, labelNeed(typeAt(MIN_LABEL_FONT, MIN_LABEL_BLOCK_GAP))) -
+      plotH
+  );
+  const root = svg.node();
+  if (grow > 0 && root) {
+    const h = Number(root.getAttribute('height') ?? height) + grow;
+    const w = Number(root.getAttribute('width') ?? width);
+    root.setAttribute('height', String(h));
+    root.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    plotH += grow;
+  }
+  const nodeGap =
+    most > 1
+      ? Math.min(
+          NODE_GAP,
+          Math.max(
+            MIN_NODE_GAP,
+            (plotH - most * SANKEY_MIN_NODE_H) / (most - 1)
+          )
+        )
+      : NODE_GAP;
+  let type = typeAt(LABEL_FONT, LABEL_BLOCK_GAP);
+  for (let f = LABEL_FONT; f >= MIN_LABEL_FONT; f--) {
+    const room = plotH - mostReal * typeAt(f, 0).lineH;
+    const gap =
+      mostReal > 1
+        ? Math.min(LABEL_BLOCK_GAP, room / (mostReal - 1))
+        : LABEL_BLOCK_GAP;
+    type = typeAt(f, Math.max(MIN_LABEL_BLOCK_GAP, gap));
+    if (gap >= MIN_LABEL_BLOCK_GAP) break;
+  }
+  const labelFont = type.font;
+
   // global value scale so the busiest layer fits
   const fitScale = (h: number): number => {
     let scale = Infinity;
     for (const layer of layers) {
       const tot = layer.reduce((a, n) => a + n.value, 0);
-      const avail = h - (layer.length - 1) * NODE_GAP;
+      const avail = h - (layer.length - 1) * nodeGap;
       if (tot > 0) scale = Math.min(scale, avail / tot);
     }
     return isFinite(scale) && scale > 0 ? scale : 1;
@@ -338,7 +373,7 @@ export function renderSankey(
   for (const n of layers[maxRank]!) {
     labelMargin = Math.max(
       labelMargin,
-      labelOffset(n) - NODE_W + measureText(n.name, LABEL_FONT) + valueW(n)
+      labelOffset(n) - NODE_W + measureText(n.name, labelFont) + valueW(n)
     );
   }
   labelMargin = Math.min(labelMargin, width * MAX_LABEL_MARGIN);
@@ -351,13 +386,13 @@ export function renderSankey(
     layer.sort((a, b) => a.order - b.order);
     const totH =
       layer.reduce((a, n) => a + n.value * valueScale, 0) +
-      (layer.length - 1) * NODE_GAP;
+      (layer.length - 1) * nodeGap;
     let y = top + (plotH - totH) / 2;
     for (const n of layer) {
       n.h = n.value * valueScale;
       n.x = layerX(n.rank);
       n.y = y;
-      y += n.h + NODE_GAP;
+      y += n.h + nodeGap;
     }
   };
   layers.forEach(placeLayer);
@@ -514,7 +549,8 @@ export function renderSankey(
         center: n.y + n.h / 2,
       })),
       top,
-      top + plotH
+      top + plotH,
+      type
     );
     col.forEach((n, i) => placed.set(n, blocks[i]!));
   }
@@ -562,16 +598,19 @@ export function renderSankey(
     const label = svg
       .append('text')
       .attr('x', labelX)
-      .attr('y', fit.y0 + LABEL_LINE_H / 2 + 4)
+      .attr(
+        'y',
+        fit.y0 + type.lineH / 2 + Math.round((labelFont * 4) / LABEL_FONT)
+      )
       .attr('text-anchor', 'start')
       .attr('fill', story.active && recede ? story.groundText : textColor)
-      .attr('font-size', LABEL_FONT)
+      .attr('font-size', labelFont)
       .attr('font-family', FONT_FAMILY);
     if (k === 1) label.text(fit.lines[0]!);
     else {
       fit.lines.forEach((line, j) => {
         const span = label.append('tspan').text(line);
-        if (j > 0) span.attr('x', labelX).attr('dy', LABEL_LINE_H);
+        if (j > 0) span.attr('x', labelX).attr('dy', type.lineH);
       });
     }
     if (!chart.noValue) {
@@ -593,14 +632,15 @@ export function renderSankey(
 function stackLabels(
   items: { name: string; width: number; center: number }[],
   lo: number,
-  hi: number
+  hi: number,
+  type: LabelType
 ): { lines: string[]; y0: number; cut: boolean }[] {
   const full = items.map((it) =>
-    it.width > 0 ? wrapTextToWidth(it.name, LABEL_FONT, it.width) : [it.name]
+    it.width > 0 ? wrapTextToWidth(it.name, type.font, it.width) : [it.name]
   );
   const k = full.map((l) => l.length);
-  const room = hi - lo - (items.length - 1) * LABEL_BLOCK_GAP;
-  const cap = Math.max(items.length, Math.floor(room / LABEL_LINE_H));
+  const room = hi - lo - (items.length - 1) * type.gap;
+  const cap = Math.max(items.length, Math.floor(room / type.lineH));
   let total = k.reduce((a, b) => a + b, 0);
   while (total > cap) {
     let at = 0;
@@ -617,27 +657,25 @@ function stackLabels(
       cut = true;
     }
     lines = lines.map((l) => {
-      const shown = truncateText(l, LABEL_FONT, it.width);
+      const shown = truncateText(l, type.font, it.width);
       if (shown !== l) cut = true;
       return shown;
     });
-    return { lines, y0: it.center - (lines.length * LABEL_LINE_H) / 2, cut };
+    return { lines, y0: it.center - (lines.length * type.lineH) / 2, cut };
   });
   // Push down past the block above, then back up from the bottom edge. A
   // column too short for one line each keeps every label on its node.
-  if (items.length * LABEL_LINE_H > room) return out;
+  if (items.length * type.lineH > room) return out;
   for (let i = 0; i < out.length; i++) {
     const floor =
       i === 0
         ? lo
-        : out[i - 1]!.y0 +
-          out[i - 1]!.lines.length * LABEL_LINE_H +
-          LABEL_BLOCK_GAP;
+        : out[i - 1]!.y0 + out[i - 1]!.lines.length * type.lineH + type.gap;
     out[i]!.y0 = Math.max(out[i]!.y0, floor);
   }
   for (let i = out.length - 1; i >= 0; i--) {
-    const h = out[i]!.lines.length * LABEL_LINE_H;
-    const ceil = i === out.length - 1 ? hi : out[i + 1]!.y0 - LABEL_BLOCK_GAP;
+    const h = out[i]!.lines.length * type.lineH;
+    const ceil = i === out.length - 1 ? hi : out[i + 1]!.y0 - type.gap;
     out[i]!.y0 = Math.max(lo, Math.min(out[i]!.y0, ceil - h));
   }
   return out;

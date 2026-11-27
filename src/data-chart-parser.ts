@@ -324,6 +324,7 @@ import {
 } from './overlays/parse';
 import type { ParsedChart } from './chart';
 import { FUNNEL_DX, FUNNEL_MAX_STAGES } from './charts-d3/funnel-limits';
+import { SANKEY_DX, capSankeyColumns } from './charts-d3/sankey-limits';
 import {
   HEATMAP_DX,
   HEATMAP_MAX_COLS,
@@ -1512,6 +1513,18 @@ function parseExtendedChartFull(
         if (flows) result.alluvial = flows;
       } else if (!result.links || result.links.length === 0) {
         warn(1, 'No links found. Add links in format: Source -> Target 123');
+      } else {
+        // Column limit (#2462): keep each column's first
+        // MAX_SANKEY_NODES_PER_COLUMN nodes and say the rest are not drawn.
+        const capped = capSankeyColumns(result.links);
+        if (capped) {
+          result.diagnostics.push(
+            emit(SANKEY_DX.TOO_MANY_NODES, capped.first.lineNumber, {
+              count: capped.count,
+            })
+          );
+          result.links = capped.kept;
+        }
       }
       // A `highlight` chain (#2041) that names a flow the chart does not have
       // warns and names that flow, so a typo never silently lights nothing.
