@@ -1265,3 +1265,83 @@ Publish`);
     expect(arcRadius(back.path)).toBeLessThan(layout.radius - 5);
   });
 });
+
+describe('cycle — the drawn body stays on the canvas (#2429)', () => {
+  // Stand-ins for the pressure files cycle-pressure-04-normal-span-weights and
+  // the span-extremes file: uneven spans, a title, a tag legend and step
+  // numbers, the mix that ran the ring off the bottom.
+  const SPAN_WEIGHTS = `cycle Sprint
+subtitle Two weeks
+autonumber
+
+tag Kind as k
+  plan blue
+  work green
+
+Plan span: 1, k: plan
+Build span: 3, k: work
+Review span: 1
+Retro span: 1.5`;
+  const SPAN_EXTREMES = `cycle Extremes
+autonumber
+
+tag Kind as k
+  a red
+
+A span: 0.1
+  -Go->
+B span: 10
+  -Go on->
+C span: 0.1
+D span: 5`;
+  const variants: Record<string, string> = {
+    'span weights': SPAN_WEIGHTS,
+    'span weights, counterclockwise': SPAN_WEIGHTS.replace(
+      'autonumber',
+      'autonumber\ndirection-counterclockwise'
+    ),
+    'span weights, circle nodes': SPAN_WEIGHTS.replace(
+      'autonumber',
+      'autonumber\ncircle-nodes'
+    ),
+    'span extremes': SPAN_EXTREMES,
+    'span extremes, untitled': SPAN_EXTREMES.replace('cycle Extremes', 'cycle'),
+    'two steps, uneven': `cycle Two\nautonumber\n\nA span: 5\nB`,
+  };
+  const sizes: Array<[number, number]> = [
+    [800, 600],
+    [1200, 500],
+    [600, 450],
+    [500, 700],
+  ];
+
+  for (const [name, src] of Object.entries(variants)) {
+    for (const [w, h] of sizes) {
+      for (const exported of [true, false]) {
+        it(`${name} at ${w}x${h}${exported ? ' (export)' : ''}`, async () => {
+          const { overflowingElements } =
+            await import('./helpers/cycle-extent');
+          const parsed = parseCycle(src);
+          const container = document.createElement('div');
+          Object.defineProperty(container, 'clientWidth', { value: w });
+          Object.defineProperty(container, 'clientHeight', { value: h });
+          document.body.appendChild(container);
+          renderCycle(
+            container,
+            parsed,
+            nordLight,
+            false,
+            undefined,
+            exported ? { width: w, height: h } : undefined
+          );
+          const svg = container.querySelector('svg')!;
+          const [, , vw, vh] = (svg.getAttribute('viewBox') ?? '')
+            .split(/\s+/)
+            .map(Number);
+          expect(overflowingElements(svg, vw!, vh!)).toEqual([]);
+          container.remove();
+        });
+      }
+    }
+  }
+});

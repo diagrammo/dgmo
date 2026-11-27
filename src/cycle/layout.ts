@@ -1371,7 +1371,9 @@ function fitToCanvas(
   const contentH = contentMaxY - contentMinY;
   const availW = width - 2 * PADDING;
   const availH = height - 2 * PADDING;
-  const shrink = Math.min(availW / contentW, availH / contentH);
+  // Only ever shrinks: content that overflows one axis while it is small on
+  // the other would otherwise grow the ring past the canvas (#2429).
+  const shrink = Math.min(1, availW / contentW, availH / contentH);
   const newRadius = Math.max(80, radius * shrink);
 
   return { radius: newRadius };
