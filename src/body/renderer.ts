@@ -43,6 +43,7 @@ import {
 } from '../utils/tag-groups';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import type { LegendGroupData } from '../utils/legend-types';
+import { LEGEND_HEIGHT } from '../utils/legend-constants';
 import { getFigure, getPartGeom, resolvePartKey } from './catalog';
 import type { BodyFigure, BodyPart, BodyView, ParsedBody } from './types';
 
@@ -69,8 +70,11 @@ const TITLE_H = 60; // title text area
 // legend — laid out at fixed ~11px — is scaled up to stay legible next to the
 // figure labels (font 23).
 const LEGEND_SCALE = 2.4;
-const LEGEND_BAND = 76; // shared tag legend band (scaled), below the title
-const TITLE_PAD = TITLE_H + LEGEND_BAND; // figures start below title + legend
+// Least band reserved under the title for the shared tag legend (scaled).
+// The band grows to the legend's measured height plus LEGEND_FIG_GAP when the
+// legend wraps onto more rows (#2420); one row fits the least band exactly.
+const LEGEND_BAND = 76;
+const LEGEND_FIG_GAP = LEGEND_BAND - LEGEND_HEIGHT * LEGEND_SCALE;
 const BOTTOM_PAD = 40;
 // Breathing room around the whole diagram: the viewBox is padded on every side
 // so the figure never crowds the canvas edge (it renders smaller + centered).
@@ -389,18 +393,65 @@ export function renderBody(
   // Figures are scaled/aligned by their CONTENT box (real body extent), not the
   // padded viewBox, so front/back tops and bottoms line up exactly.
   const figH = Math.max(...rendered.map((r) => r.fig.contentBox.h));
+  const exportMode = !!exportDims;
+
+  // ── Shared tag legend, in a band below the title ──
+  // Laid out before the figures, in a detached group, so its drawn height sets
+  // where the figures start (#2420); it joins the SVG after the figures, as before.
+  let legendNode: SVGGElement | null = null;
+  const figuresTop = (canvasW: number): number => {
+    if (parsed.options.noLegend || !parsed.tagGroups.length)
+      return TITLE_H + LEGEND_BAND;
+    legendNode = container.ownerDocument.createElementNS(
+      'http://www.w3.org/2000/svg',
+      'g'
+    );
+    const legendG = d3Selection
+      .select(legendNode)
+      .attr('transform', `translate(0, ${TITLE_H}) scale(${LEGEND_SCALE})`);
+    const groups: LegendGroupData[] = keepUsedTagValues(
+      parsed.tagGroups.map((g) => ({
+        name: g.name,
+        entries: g.entries.map((e) => ({
+          value: e.value,
+          color: resolveColor(e.color, palette) ?? e.color,
+        })),
+      })),
+      parsed.tagGroups,
+      parsed.parts.map((part) => part.metadata)
+    );
+    const handle = renderIntegratedLegend(legendG, {
+      frame: parsed.frame,
+      groups,
+      palette,
+      isDark: _isDark,
+      // Legend lays out in its own (pre-scale) coordinate space; passing the
+      // de-scaled width keeps it centered after the scale transform.
+      width: canvasW / LEGEND_SCALE,
+      mode: exportMode ? 'export' : 'preview',
+      activeGroup,
+    });
+    return (
+      TITLE_H +
+      Math.max(LEGEND_BAND, handle.getHeight() * LEGEND_SCALE + LEGEND_FIG_GAP)
+    );
+  };
 
   let body = '';
   let totalW: number;
+  // Height of the figure + label block under the legend band.
+  let blockH = figH;
+  let top: number;
 
   if (rendered.length === 1) {
     // ── Single view: figure with outer gutter labels ──
     const r = rendered[0]!;
     const gutter = r.vw * 0.42;
-    const tx = OUTER_MARGIN + gutter - r.vx;
-    const ty = TITLE_PAD - r.vy;
-    body = `<g transform="translate(${tx.toFixed(2)} ${ty.toFixed(2)})">${r.body}${gutterLabels(r, palette)}</g>`;
     totalW = OUTER_MARGIN * 2 + gutter * 2 + r.vw;
+    top = figuresTop(totalW);
+    const tx = OUTER_MARGIN + gutter - r.vx;
+    const ty = top - r.vy;
+    body = `<g transform="translate(${tx.toFixed(2)} ${ty.toFixed(2)})">${r.body}${gutterLabels(r, palette)}</g>`;
   } else {
     // ── Dual view: figures flank a central label column, content-box aligned ──
     const fL = rendered[0]!;
@@ -411,14 +462,14 @@ export function renderBody(
     const sR = figH / cbR.h;
     const leftX = OUTER_MARGIN; // fL content-box left edge on the canvas
     const rightX = OUTER_MARGIN + cbL.w * sL + CENTER_COL; // fR content-box left edge
-    // Map the figure's content-box top-left → (bandLeft, TITLE_PAD), scaled.
+    totalW = OUTER_MARGIN * 2 + cbL.w * sL + CENTER_COL + cbR.w * sR;
+    top = figuresTop(totalW);
+    // Map the figure's content-box top-left → (bandLeft, top), scaled. The
+    // figures move down by `figShift` once the label column is measured.
     const txL = leftX - cbL.x * sL;
     const txR = rightX - cbR.x * sR;
-    const tyL = TITLE_PAD - cbL.y * sL;
-    const tyR = TITLE_PAD - cbR.y * sR;
-    body += `<g transform="translate(${txL.toFixed(2)} ${tyL.toFixed(2)}) scale(${sL.toFixed(4)})">${fL.body}</g>`;
-    body += `<g transform="translate(${txR.toFixed(2)} ${tyR.toFixed(2)}) scale(${sR.toFixed(4)})">${fR.body}</g>`;
-    totalW = OUTER_MARGIN * 2 + cbL.w * sL + CENTER_COL + cbR.w * sR;
+    let tyL = top - cbL.y * sL;
+    let tyR = top - cbR.y * sR;
     const centerX = OUTER_MARGIN + cbL.w * sL + CENTER_COL / 2;
     // Map a figure's raw anchor into scaled master coords.
     const mapL = (a: { x: number; y: number }) => ({
@@ -476,6 +527,31 @@ export function renderBody(
       prevY = it.y;
     }
 
+    // A label column that hangs past the figures is centred on their midline
+    // (#2420): the taller sets the block height, the shorter is centred
+    // against it. A column inside the figures' span keeps its labels level
+    // with their parts. It runs from the first name's cap height to the last
+    // row's note.
+    const first = items[0];
+    const last = items[items.length - 1];
+    const colTop = first ? first.y - 3 - LABEL_FONT : top;
+    const colBot = last ? last.y + (last.note ? 20 + NOTE_FONT * 0.3 : 0) : top;
+    if (colTop < top || colBot > top + figH) {
+      const colH = colBot - colTop;
+      blockH = Math.max(figH, colH);
+      const figShift = (blockH - figH) / 2;
+      const colShift = top + (blockH - colH) / 2 - colTop;
+      tyL += figShift;
+      tyR += figShift;
+      for (const it of items) {
+        it.y += colShift;
+        if (it.left) it.left.y += figShift;
+        if (it.right) it.right.y += figShift;
+      }
+    }
+    body += `<g transform="translate(${txL.toFixed(2)} ${tyL.toFixed(2)}) scale(${sL.toFixed(4)})">${fL.body}</g>`;
+    body += `<g transform="translate(${txR.toFixed(2)} ${tyR.toFixed(2)}) scale(${sR.toFixed(4)})">${fR.body}</g>`;
+
     let labels = '';
     const stub = 96; // leader start offset from center, clears the label text
     for (const it of items) {
@@ -498,8 +574,7 @@ export function renderBody(
     body += labels;
   }
 
-  const totalH = TITLE_PAD + figH + BOTTOM_PAD;
-  const exportMode = !!exportDims;
+  const totalH = top + blockH + BOTTOM_PAD;
 
   // ── SVG root (built via d3 so the shared legend framework can attach) ──
   d3Selection.select(container).selectAll('svg').remove();
@@ -567,34 +642,8 @@ export function renderBody(
       .node();
   }
 
-  // ── Shared tag legend, in a band below the title ──
-  if (!parsed.options.noLegend && parsed.tagGroups.length) {
-    const legendG = svg
-      .append('g')
-      .attr('transform', `translate(0, ${TITLE_H}) scale(${LEGEND_SCALE})`);
-    const groups: LegendGroupData[] = keepUsedTagValues(
-      parsed.tagGroups.map((g) => ({
-        name: g.name,
-        entries: g.entries.map((e) => ({
-          value: e.value,
-          color: resolveColor(e.color, palette) ?? e.color,
-        })),
-      })),
-      parsed.tagGroups,
-      parsed.parts.map((part) => part.metadata)
-    );
-    renderIntegratedLegend(legendG, {
-      frame: parsed.frame,
-      groups,
-      palette,
-      isDark: _isDark,
-      // Legend lays out in its own (pre-scale) coordinate space; passing the
-      // de-scaled width keeps it centered after the scale transform.
-      width: totalW / LEGEND_SCALE,
-      mode: exportMode ? 'export' : 'preview',
-      activeGroup,
-    });
-  }
+  // The legend measured above, drawn over the band it reserved.
+  if (legendNode) svg.node()!.appendChild(legendNode);
 
   // Chart frame (#1827): subtitle under the title, footer under the chart.
   growChartFrame(svg.node(), parsed.frame, palette, {
