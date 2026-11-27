@@ -43,6 +43,7 @@ import { BAR_DIAGNOSTICS } from './charts-d3/bar-limits';
 import { FUNCTION_DIAGNOSTICS } from './charts-d3/function-limits';
 import { FUNNEL_DIAGNOSTICS } from './charts-d3/funnel-limits';
 import { CYCLE_DIAGNOSTICS } from './cycle/limits';
+import { GANTT_DIAGNOSTICS } from './gantt/limits';
 import { VENN_DIAGNOSTICS } from './venn/diagnostics';
 import { TREEMAP_DIAGNOSTICS } from './treemap/diagnostics';
 import { EVENT_LINE_DIAGNOSTICS } from './event-line/diagnostics';
@@ -271,6 +272,7 @@ const REGISTRY: DiagnosticSpec[] = [
   ...FUNCTION_DIAGNOSTICS,
   ...FUNNEL_DIAGNOSTICS,
   ...CYCLE_DIAGNOSTICS,
+  ...GANTT_DIAGNOSTICS,
   ...VENN_DIAGNOSTICS,
   ...TREEMAP_DIAGNOSTICS,
   ...EVENT_LINE_DIAGNOSTICS,

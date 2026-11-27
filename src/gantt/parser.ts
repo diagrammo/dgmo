@@ -7,7 +7,9 @@ import {
   takeFootnoteBlock,
 } from '../utils/chart-frame-parse';
 import { withPaletteLifted } from '../palettes/directive';
-import { formatDgmoError, makeDgmoError } from '../diagnostics';
+import { emit, formatDgmoError, makeDgmoError } from '../diagnostics';
+import { GANTT_DX, GANTT_MAX_TASKS } from './limits';
+import { collectTasks, isResolverError, resolveTaskName } from './resolver';
 import {
   GANTT_REGISTRY,
   withTagAliases,
@@ -1559,6 +1561,8 @@ function parseGanttRaw(content: string, palette?: PaletteColors): ParsedGantt {
   // source has been read.
   result.diagnostics.push(...nameAliasMap.finish());
 
+  capGanttTasks(result);
+
   return result;
 
   // ── Helper: match arrow line (new syntax) ──────────────
@@ -1939,4 +1943,45 @@ function hasSprintDurationUnit(nodes: readonly GanttNode[]): boolean {
     }
   }
   return false;
+}
+
+// Task limit (#2442): keep the first GANTT_MAX_TASKS tasks in source order
+// with their groups, drop groups and parallel blocks left empty, and drop
+// dependencies onto tasks that are not drawn so no arrow dangles.
+function capGanttTasks(result: Writable<ParsedGantt>): void {
+  const all = collectTasks(result.nodes);
+  if (all.length <= GANTT_MAX_TASKS) return;
+  const ordered = [...all].sort((a, b) => a.lineNumber - b.lineNumber);
+  const kept = new Set(ordered.slice(0, GANTT_MAX_TASKS).map((t) => t.id));
+  const firstDropped = ordered[GANTT_MAX_TASKS]!.lineNumber;
+  result.diagnostics.push(
+    emit(GANTT_DX.TOO_MANY_TASKS, firstDropped, { count: all.length })
+  );
+
+  const prune = (nodes: readonly GanttNode[]): GanttNode[] => {
+    const out: GanttNode[] = [];
+    for (const node of nodes) {
+      if (node.kind === 'task') {
+        if (kept.has(node.id)) out.push(node);
+        continue;
+      }
+      const children = prune(node.children);
+      const hadTasks = collectTasks(node.children).length > 0;
+      if (children.length === 0 && (hadTasks || node.lineNumber > firstDropped))
+        continue;
+      out.push({ ...node, children });
+    }
+    return out;
+  };
+  result.nodes = prune(result.nodes);
+
+  for (const task of collectTasks(result.nodes)) {
+    const deps = task.dependencies.filter((dep) => {
+      const target = resolveTaskName(dep.targetName, all);
+      return isResolverError(target) || kept.has(target.task.id);
+    });
+    if (deps.length !== task.dependencies.length) {
+      (task as Writable<GanttTask>).dependencies = deps;
+    }
+  }
 }
