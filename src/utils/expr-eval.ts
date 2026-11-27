@@ -185,9 +185,18 @@ class Parser {
 }
 
 export function evaluateExpression(expr: string, x: number): number {
+  const result = evaluateExpressionRaw(expr, x);
+  return isFinite(result) ? result : NaN;
+}
+
+/**
+ * Like `evaluateExpression`, but an overflow stays ±Infinity instead of
+ * NaN, so the overflow check (#2437) can tell it from a domain gap.
+ */
+export function evaluateExpressionRaw(expr: string, x: number): number {
   try {
     const result = new Parser(tokenize(expr), x).evaluate();
-    return typeof result === 'number' && isFinite(result) ? result : NaN;
+    return typeof result === 'number' ? result : NaN;
   } catch {
     return NaN;
   }

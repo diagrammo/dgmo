@@ -67,6 +67,8 @@ interface ParsedFunction {
   expression: string;
   color?: string;
   lineNumber: number;
+  /** Past FUNCTION_MAX_ABS_Y on the x range (#2437): an error, not drawn. */
+  overflow?: boolean;
 }
 
 interface ParsedScatterPoint {
@@ -90,6 +92,11 @@ interface ParsedHeatmapRow {
 }
 
 import type { DgmoError } from './diagnostics';
+import {
+  FUNCTION_DX,
+  functionOverflows,
+  functionSampleXs,
+} from './charts-d3/function-limits';
 import { TIME_AXIS_MIXED_DX, parseTimeLabel } from './charts-d3/date-axis';
 import type { ChartFrame } from './utils/chart-frame-parse';
 import {
@@ -1530,6 +1537,7 @@ function parseExtendedChartFull(
         );
       result.xRange = { min: x?.min ?? -10, max: x?.max ?? 10 };
       delete result.axes?.x;
+      flagOverflowingFunctions(result);
     } else if (result.type === 'scatter') {
       if (!result.scatterPoints || result.scatterPoints.length === 0) {
         warn(
@@ -1756,6 +1764,31 @@ const EXTENDED_AXES: Partial<Record<ExtendedChartType, ReadonlySet<AxisName>>> =
  * `mark:` (#1852) draws a series as a bar, line or step on bar and line
  * charts only; elsewhere it is peeled off the name and ignored, so say so.
  */
+/**
+ * A function whose samples grow past FUNCTION_MAX_ABS_Y (#2437) gets an
+ * error on its line and is not drawn; the others still plot. With none
+ * left, the chart is the error card.
+ */
+function flagOverflowingFunctions(result: ParsedExtendedChartFull): void {
+  const fns = result.functions ?? [];
+  const xr = result.xRange!;
+  const xs = functionSampleXs(xr);
+  let first: DgmoError | undefined;
+  for (const fn of fns) {
+    if (!functionOverflows(fn.expression, xs)) continue;
+    fn.overflow = true;
+    const diag = emit(FUNCTION_DX.OVERFLOW, fn.lineNumber, {
+      name: fn.name,
+      expression: fn.expression,
+      range: `${xr.min}..${xr.max}`,
+    });
+    result.diagnostics.push(diag);
+    first ??= diag;
+  }
+  if (first && fns.every((fn) => fn.overflow))
+    result.error = formatDgmoError(first);
+}
+
 function warnSeriesMarks(
   result: { type: string; diagnostics: DgmoError[] },
   parsed: { marks?: unknown[]; nameLineNumbers: number[] }
@@ -1856,11 +1889,19 @@ export function getExtendedChartLegendGroups(
     return [
       {
         name: 'Function',
-        entries: fns.map((fn, i) => ({
-          value: fn.name,
-          // colors is a non-empty palette array; modulo index is always in-bounds.
-          color: fn.color ?? colors[i % colors.length]!,
-        })),
+        // An overflowing function is not drawn (#2437); the rest keep
+        // their colors.
+        entries: fns.flatMap((fn, i) =>
+          fn.overflow
+            ? []
+            : [
+                {
+                  value: fn.name,
+                  // colors is a non-empty palette array; modulo index is always in-bounds.
+                  color: fn.color ?? colors[i % colors.length]!,
+                },
+              ]
+        ),
       },
     ];
   }

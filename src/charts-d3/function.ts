@@ -13,6 +13,8 @@ import { shapeFill } from '../palettes/color-utils';
 import { FONT_FAMILY } from '../fonts';
 import { evaluateExpression } from '../utils/expr-eval';
 import { tabularText } from '../utils/tabular-figures';
+import { makeNumberFormatter } from '../utils/number-format';
+import { FUNCTION_FULL_TICKS_BELOW, functionSampleXs } from './function-limits';
 import {
   type Svg,
   type Margins,
@@ -27,8 +29,6 @@ import {
   CUT_MARK_GAP,
   CUT_MARK_LEN,
 } from './shared';
-
-const SAMPLES = 200;
 
 export function renderFunction(
   svg: Svg,
@@ -45,18 +45,25 @@ export function renderFunction(
   const fns = chart.functions ?? [];
   if (fns.length === 0) return;
   const xr = chart.xRange ?? { min: -10, max: 10 };
-  const step = (xr.max - xr.min) / SAMPLES;
-  const xs: number[] = [];
-  for (let i = 0; i <= SAMPLES; i++) xs.push(xr.min + i * step);
+  const xs = functionSampleXs(xr);
 
-  const curves = fns.map((fn, i) => ({
-    color: fn.color ?? colors[i % colors.length]!,
-    name: fn.name,
-    line: fn.lineNumber,
-    pts: xs.map(
-      (x) => [x, evaluateExpression(fn.expression, x)] as [number, number]
-    ),
-  }));
+  // An overflowing function carries an error and is not drawn (#2437).
+  const curves = fns.flatMap((fn, i) =>
+    fn.overflow
+      ? []
+      : [
+          {
+            color: fn.color ?? colors[i % colors.length]!,
+            name: fn.name,
+            line: fn.lineNumber,
+            pts: xs.map(
+              (x) =>
+                [x, evaluateExpression(fn.expression, x)] as [number, number]
+            ),
+          },
+        ]
+  );
+  if (curves.length === 0) return;
 
   let yLo = Infinity;
   let yHi = -Infinity;
@@ -90,7 +97,18 @@ export function renderFunction(
   // The author's `format` / `unit` / `locale` (#1831), one compact unit for
   // the y axis (#2036).
   const fmt = chartFormatter(chart, yTicks);
-  const yTickFmt = axisTickFormat(yAxis([0, 1]), chart.numberFormat, fmt);
+  // A large range prints compact (10T), never a label wider than the plot
+  // (#2437). An explicit `format` still wins.
+  const large =
+    !chart.numberFormat?.kind &&
+    yTicks.some((t) => Math.abs(t) >= FUNCTION_FULL_TICKS_BELOW);
+  const yTickFmt = large
+    ? makeNumberFormatter(
+        { ...chart.numberFormat, kind: 'compact' },
+        fmt,
+        yTicks
+      )
+    : axisTickFormat(yAxis([0, 1]), chart.numberFormat, fmt);
   // A run of samples past a fixed y end gets one triangle where the curve
   // leaves the plot (#2119).
   const runs = curves.flatMap((c) =>
