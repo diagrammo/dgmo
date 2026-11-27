@@ -14,7 +14,8 @@ import { getPalette } from '../src/palettes';
 import { themeBaseBg, mix } from '../src/palettes/color-utils';
 import { parseArc } from '../src/arc/parser';
 import { orderArcNodes } from '../src/arc/renderer';
-import { layoutChord } from '../src/arc/chord';
+import { layoutChord, placeChordLabels } from '../src/arc/chord';
+import { measureText } from '../src/utils/text-measure';
 
 /** Distinct rounded circle-cy values: 1 ⇒ nodes share a baseline (arc/linear). */
 function distinctNodeRows(svg: string): number {
@@ -315,5 +316,74 @@ describe('fill family through `layout chord` (§1.9)', () => {
     }
     for (const r of tags(svg, 'arc-chord-ribbon'))
       expect(attr(r, 'fill-opacity')).toBe('0');
+  });
+});
+
+describe('crowded chord labels (#2418)', () => {
+  const EXTREME =
+    'A -> B 100000\nB -> A 90000\nA -> C 1\nC -> D 1\nD -> E 2\nE -> many 1\nmany -> 11 1\n11 -> F 1\nF -> G 1\n';
+  const W = 800;
+  const H = 600;
+
+  function place(edges: string, w = W, h = H) {
+    const parsed = parseArc(`arc D\nlayout chord\n${edges}`);
+    const layout = layoutChord(
+      orderArcNodes(parsed.links, parsed.arcOrder, parsed.arcNodeGroups),
+      parsed.links
+    );
+    return placeChordLabels(
+      layout.nodes.map((nd) => ({
+        a0: nd.a0,
+        a1: nd.a1,
+        width: measureText(`${nd.name} ${nd.total}`, 12),
+      })),
+      w,
+      h
+    );
+  }
+
+  it('near-zero neighbours never overlap, and stay inside the canvas', () => {
+    for (const [w, h] of [
+      [W, H],
+      [400, 300],
+      [1200, 900],
+    ] as const) {
+      const { labels } = place(EXTREME, w, h);
+      for (let i = 0; i < labels.length; i++) {
+        const a = labels[i]!.box;
+        expect(a.x0).toBeGreaterThanOrEqual(-w / 2);
+        expect(a.x1).toBeLessThanOrEqual(w / 2);
+        expect(a.y0).toBeGreaterThanOrEqual(-h / 2);
+        expect(a.y1).toBeLessThanOrEqual(h / 2);
+        for (let j = i + 1; j < labels.length; j++) {
+          const b = labels[j]!.box;
+          const overlap =
+            a.x0 < b.x1 - 0.01 &&
+            b.x0 < a.x1 - 0.01 &&
+            a.y0 < b.y1 - 0.01 &&
+            b.y0 < a.y1 - 0.01;
+          expect(overlap, `labels ${i} and ${j} overlap`).toBe(false);
+        }
+      }
+    }
+  });
+
+  it('crowded labels get a leader; the uncrowded big ones do not', async () => {
+    const { labels } = place(EXTREME);
+    expect(labels.filter((l) => l.leader).length).toBeGreaterThan(1);
+    expect(labels.slice(0, 2).every((l) => !l.leader)).toBe(true);
+    const svg = await renderForExport(
+      `arc D\nlayout chord\n${EXTREME}`,
+      'light'
+    );
+    expect(tags(svg, 'arc-chord-leader').length).toBe(
+      labels.filter((l) => l.leader).length
+    );
+  });
+
+  it('even weights draw no leaders', async () => {
+    expect(place(EDGES).labels.some((l) => l.leader)).toBe(false);
+    const svg = await renderForExport(`arc D\nlayout chord\n${EDGES}`, 'light');
+    expect(tags(svg, 'arc-chord-leader')).toHaveLength(0);
   });
 });

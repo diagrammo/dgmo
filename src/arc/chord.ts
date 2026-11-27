@@ -14,6 +14,7 @@ import type { PaletteColors } from '../palettes';
 import { shapeFill, themeBaseBg } from '../palettes/color-utils';
 import { measureText } from '../utils/text-measure';
 import { FONT_FAMILY } from '../fonts';
+import { HAIRLINE_DASH } from '../utils/visual-conventions';
 
 type G = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
 
@@ -24,6 +25,11 @@ const CHORD_LABEL_GAP = 8;
 /** Pad between segments, radians; shrunk when there are many nodes. */
 const CHORD_PAD = 0.04;
 const CHORD_MIN_RADIUS = 40;
+/** Leader for a crowded label: radial stub off the ring, then a flat run. */
+const CHORD_ELBOW_OUT = 10;
+const CHORD_ELBOW_RUN = 14;
+/** Line pitch of a stacked label column, in ems. */
+const CHORD_LABEL_PITCH = 1.18;
 const RIBBON_OPACITY = 0.6;
 const RIBBON_SOLID_OPACITY = 0.85;
 const RIBBON_FADE_OPACITY = 0.08;
@@ -157,6 +163,198 @@ function ribbonPath(
   ].join(' ');
 }
 
+export interface ChordLabelInput extends ChordSpan {
+  /** Label width at CHORD_LABEL_FONT. */
+  width: number;
+}
+
+export interface ChordLabelSpot {
+  /** Text anchor point, relative to the ring centre. */
+  x: number;
+  y: number;
+  dy: string;
+  anchor: 'start' | 'middle' | 'end';
+  font: number;
+  /** Leader polyline relative to the centre; absent when the label sits in place. */
+  leader?: [number, number][];
+  /** The label's ink box, relative to the centre. */
+  box: { x0: number; y0: number; x1: number; y1: number };
+}
+
+export interface ChordLabelPlacement {
+  outer: number;
+  labels: ChordLabelSpot[];
+}
+
+/** Boxes that only touch (a stacked column) do not overlap; 0.01px absorbs float drift. */
+const OVERLAP_EPS = 0.01;
+function boxesOverlap(a: ChordLabelSpot['box'], b: ChordLabelSpot['box']) {
+  return (
+    a.x0 < b.x1 - OVERLAP_EPS &&
+    b.x0 < a.x1 - OVERLAP_EPS &&
+    a.y0 < b.y1 - OVERLAP_EPS &&
+    b.y0 < a.y1 - OVERLAP_EPS
+  );
+}
+
+/** A text line's ink rows: ascender 0.75em above the baseline, descender 0.25em below. */
+function inkRows(y: number, dyEm: number, font: number) {
+  return { y0: y + (dyEm - 0.75) * font, y1: y + (dyEm + 0.25) * font };
+}
+
+/** Where today's label goes: mid-angle, a fixed gap outside the ring. */
+function naturalSpot(n: ChordLabelInput, outer: number): ChordLabelSpot {
+  const font = CHORD_LABEL_FONT;
+  const mid = (n.a0 + n.a1) / 2;
+  const s = Math.sin(mid);
+  const c = Math.cos(mid);
+  const lr = outer + CHORD_LABEL_GAP;
+  const x = lr * s;
+  const y = -lr * c;
+  const centred = Math.abs(s) < 0.2;
+  const anchor = centred ? 'middle' : s > 0 ? 'start' : 'end';
+  const dyEm = centred ? (c > 0 ? -0.2 : 0.9) : 0.35;
+  const x0 =
+    anchor === 'start' ? x : anchor === 'end' ? x - n.width : x - n.width / 2;
+  return {
+    x,
+    y,
+    dy: `${dyEm}em`,
+    anchor,
+    font,
+    box: { x0, ...inkRows(y, dyEm, font), x1: x0 + n.width },
+  };
+}
+
+/**
+ * Place every segment label (#2418). A label that collides with no other sits
+ * where it always has, with no leader. Labels that would overprint move to a
+ * column beside the ring, as the pie chart's do: a radial stub off the segment,
+ * then a flat run to the text, stacked top to bottom on their own side. A side
+ * with more labels than its height holds gets a smaller shared font.
+ */
+export function placeChordLabels(
+  nodes: ChordLabelInput[],
+  innerWidth: number,
+  innerHeight: number
+): ChordLabelPlacement {
+  const font = CHORD_LABEL_FONT;
+  const maxLabel = Math.max(0, ...nodes.map((n) => n.width));
+  const radiusFor = (reserve: number) =>
+    Math.max(
+      CHORD_MIN_RADIUS + CHORD_SEGMENT_THICKNESS,
+      Math.min(
+        innerWidth / 2 - maxLabel - reserve,
+        innerHeight / 2 - font - CHORD_LABEL_GAP
+      )
+    );
+
+  const crowdedAt = (spots: ChordLabelSpot[]) => {
+    const hit = new Set<number>();
+    for (let i = 0; i < spots.length; i++)
+      for (let j = i + 1; j < spots.length; j++)
+        if (boxesOverlap(spots[i]!.box, spots[j]!.box)) {
+          hit.add(i);
+          hit.add(j);
+        }
+    return hit;
+  };
+
+  const plain = radiusFor(CHORD_LABEL_GAP);
+  const plainSpots = nodes.map((n) => naturalSpot(n, plain));
+  if (crowdedAt(plainSpots).size === 0)
+    return { outer: plain, labels: plainSpots };
+
+  // Crowded: shrink the ring so the leader's stub and run fit beside it.
+  const outer = radiusFor(CHORD_ELBOW_OUT + CHORD_ELBOW_RUN + font * 0.3);
+  const natural = nodes.map((n) => naturalSpot(n, outer));
+  const moved = crowdedAt(natural);
+  const labelX = outer + CHORD_ELBOW_OUT + CHORD_ELBOW_RUN;
+  const bound = innerHeight / 2 - (font * CHORD_LABEL_PITCH) / 2;
+
+  let labels = natural;
+  // Moving labels into a column can land one on a label that stayed put; that
+  // one joins the column too. The set only grows, so this ends.
+  for (let pass = 0; pass <= nodes.length; pass++) {
+    const sideOf = (i: number) =>
+      Math.sin((nodes[i]!.a0 + nodes[i]!.a1) / 2) >= 0;
+    const perSide = Math.max(
+      0,
+      ...[true, false].map(
+        (r) => [...moved].filter((i) => sideOf(i) === r).length
+      )
+    );
+    const fitFont =
+      perSide > 1
+        ? (2 * bound) / ((perSide - 1) * CHORD_LABEL_PITCH + 1)
+        : font;
+    const colFont = Math.min(font, fitFont);
+    const gap = colFont * CHORD_LABEL_PITCH;
+    const colBound = innerHeight / 2 - gap / 2;
+    labels = [...natural];
+    for (const right of [true, false]) {
+      const group = [...moved]
+        .filter((i) => sideOf(i) === right)
+        .map((i) => {
+          const mid = (nodes[i]!.a0 + nodes[i]!.a1) / 2;
+          const ex = Math.sin(mid) * (outer + CHORD_ELBOW_OUT);
+          const ey = -Math.cos(mid) * (outer + CHORD_ELBOW_OUT);
+          return { i, mid, ex, ey, y: ey };
+        })
+        .sort((a, b) => a.ey - b.ey);
+      // Forward pass pushes each label down off the one above; backward pass
+      // pulls the column up where the bottom overran (the pie's #1941 fix).
+      group.forEach((l, k) => {
+        const floor = k === 0 ? -colBound : group[k - 1]!.y + gap;
+        l.y = Math.max(l.ey, floor);
+      });
+      for (let k = group.length - 1; k >= 0; k--) {
+        const ceil = k === group.length - 1 ? colBound : group[k + 1]!.y - gap;
+        group[k]!.y = Math.min(group[k]!.y, ceil);
+      }
+      const sx = right ? 1 : -1;
+      const tx = sx * labelX;
+      for (const l of group) {
+        const sx0 = Math.sin(l.mid) * outer;
+        const sy0 = -Math.cos(l.mid) * outer;
+        // Bend on the radial ray at the label's height when the ray gets there
+        // before the column; otherwise keep the fixed stub and angle across.
+        const rayX = Math.abs(sy0) < 0.001 ? NaN : (l.y * sx0) / sy0;
+        const onRay =
+          Number.isFinite(rayX) &&
+          Math.sign(l.y) === Math.sign(sy0) &&
+          Math.abs(l.y) >= Math.abs(l.ey) &&
+          Math.abs(rayX) <= labelX - CHORD_ELBOW_RUN * 0.25;
+        const bend: [number, number] = onRay ? [rayX, l.y] : [l.ex, l.ey];
+        const w = nodes[l.i]!.width * (colFont / font);
+        const x = tx + sx * colFont * 0.3;
+        const x0 = right ? x : x - w;
+        labels[l.i] = {
+          x,
+          y: l.y,
+          dy: '0.35em',
+          anchor: right ? 'start' : 'end',
+          font: colFont,
+          leader: [[sx0, sy0], bend, [tx, l.y]],
+          box: { x0, ...inkRows(l.y, 0.35, colFont), x1: x0 + w },
+        };
+      }
+    }
+    let grew = false;
+    for (let i = 0; i < nodes.length; i++) {
+      if (moved.has(i)) continue;
+      for (const j of moved)
+        if (boxesOverlap(labels[i]!.box, labels[j]!.box)) {
+          moved.add(i);
+          grew = true;
+          break;
+        }
+    }
+    if (!grew) break;
+  }
+  return { outer, labels };
+}
+
 function segmentPath(
   cx: number,
   cy: number,
@@ -229,19 +427,18 @@ export function renderArcChord(args: ChordRenderArgs): void {
 
   const labelText = (nd: ChordLayoutNode) =>
     showTotal ? `${nd.name} ${fmt(nd.total)}` : nd.name;
-  const maxLabel = Math.max(
-    0,
-    ...layout.nodes.map((nd) => measureText(labelText(nd), CHORD_LABEL_FONT))
-  );
   const cx = innerWidth / 2;
   const cy = innerHeight / 2;
-  const outer = Math.max(
-    CHORD_MIN_RADIUS + CHORD_SEGMENT_THICKNESS,
-    Math.min(
-      innerWidth / 2 - maxLabel - CHORD_LABEL_GAP,
-      innerHeight / 2 - CHORD_LABEL_FONT - CHORD_LABEL_GAP
-    )
+  const placement = placeChordLabels(
+    layout.nodes.map((nd) => ({
+      a0: nd.a0,
+      a1: nd.a1,
+      width: measureText(labelText(nd), CHORD_LABEL_FONT),
+    })),
+    innerWidth,
+    innerHeight
   );
+  const outer = placement.outer;
   const inner = outer - CHORD_SEGMENT_THICKNESS;
   const fillMode = parsed.fillMode;
   const baseOpacity =
@@ -278,7 +475,7 @@ export function renderArcChord(args: ChordRenderArgs): void {
   }
 
   const nodeLayer = g.append('g').attr('class', 'arc-chord-nodes');
-  for (const nd of layout.nodes) {
+  for (const [ni, nd] of layout.nodes.entries()) {
     const color = nodeColor.get(nd.name)!;
     const firstLink = links.find(
       (l) => l.source === nd.name || l.target === nd.name
@@ -306,23 +503,29 @@ export function renderArcChord(args: ChordRenderArgs): void {
       .attr('stroke', color)
       .attr('stroke-width', 1);
 
-    const mid = (nd.a0 + nd.a1) / 2;
-    const s = Math.sin(mid);
-    const c = Math.cos(mid);
-    const lr = outer + CHORD_LABEL_GAP;
+    const spot = placement.labels[ni]!;
+    if (spot.leader)
+      nodeG
+        .append('polyline')
+        .attr('class', 'arc-chord-leader')
+        .attr(
+          'points',
+          spot.leader.map(([x, y]) => `${cx + x},${cy + y}`).join(' ')
+        )
+        .attr('fill', 'none')
+        .attr('stroke', color)
+        .attr('stroke-width', 1)
+        .attr('stroke-dasharray', HAIRLINE_DASH);
     const text = nodeG
       .append('text')
-      .attr('x', cx + lr * s)
-      .attr('y', cy - lr * c)
-      .attr('dy', '0.35em')
-      .attr(
-        'text-anchor',
-        Math.abs(s) < 0.2 ? 'middle' : s > 0 ? 'start' : 'end'
-      )
+      .attr('class', 'arc-chord-label')
+      .attr('x', cx + spot.x)
+      .attr('y', cy + spot.y)
+      .attr('dy', spot.dy)
+      .attr('text-anchor', spot.anchor)
       .attr('fill', textColor)
-      .attr('font-size', CHORD_LABEL_FONT)
+      .attr('font-size', spot.font)
       .attr('font-family', FONT_FAMILY);
-    if (Math.abs(s) < 0.2) text.attr('dy', c > 0 ? '-0.2em' : '0.9em');
     text.append('tspan').text(nd.name);
     if (showTotal)
       text
