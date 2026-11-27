@@ -99,6 +99,12 @@ describe('arc node labels above ARC_LABEL_NODE_LIMIT', () => {
     hover(c, 'n030');
     expect(labelledNodes(c)).toEqual([...expected].sort());
     expect(expected.size).toBeGreaterThan(2);
+    // The hovered label paints last, over its neighbours' halos.
+    const drawn = [...c.querySelectorAll('.arc-hover-label')].map(
+      (t) => t.textContent
+    );
+    expect(drawn[drawn.length - 1]).toBe('n030');
+    expect(drawn.filter((t) => t === 'n030')).toHaveLength(1);
     // Hovering another node replaces the labels, never adds to them.
     hover(c, 'n100');
     expect(labelledNodes(c)).toContain('n100');

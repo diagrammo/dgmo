@@ -335,7 +335,12 @@ export function renderArcDiagram(
   function showHoverLabels(hovered: string) {
     if (!hoverLabelLayer) return;
     hoverLabelLayer.selectAll('*').remove();
-    const shown = [hovered, ...(neighbors.get(hovered) ?? [])];
+    // Neighbours first, the hovered node last: each label's halo paints over
+    // what is already drawn, so the label the user points at stays on top.
+    const shown = [
+      ...[...(neighbors.get(hovered) ?? [])].filter((n) => n !== hovered),
+      hovered,
+    ];
     for (const n of shown) hoverLabelDrawers.get(n)?.(hoverLabelLayer);
   }
 
