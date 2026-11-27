@@ -6746,6 +6746,8 @@ declare function renderBracket(container: HTMLDivElement, parsed: ParsedBracket,
 declare function renderBracketForExport(container: HTMLDivElement, parsed: ParsedBracket, palette: PaletteColors, isDark: boolean, exportDims?: D3ExportDimensions): void;
 
 interface ConnectorPoint {
+    /** The child match this connector leaves from. */
+    readonly matchId: number;
     readonly x: number;
     /** Origin y. For a decided child this is the winner box; for an undecided
      *  child `yA`/`yB` are its two boxes (renderer draws a `]` merge). */
@@ -6754,6 +6756,10 @@ interface ConnectorPoint {
     readonly yB: number;
 }
 interface LaidMatch {
+    /** Unique match id within this layout — the hover keys off it. */
+    readonly id: number;
+    /** Ids of the matches whose winners feed this one (0–2). */
+    readonly feeders: readonly number[];
     readonly round: number;
     readonly side: string | null;
     /** Center x of this match's two boxes. */
