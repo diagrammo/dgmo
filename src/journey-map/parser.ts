@@ -1,12 +1,14 @@
 import type { PaletteColors } from '../palettes';
 import { resolveColorWithDiagnostic } from '../colors';
 import {
+  emit,
   formatDgmoError,
   makeDgmoError,
   makeFail,
   suggest,
 } from '../diagnostics';
 import { extractPaletteDirective } from '../palettes/directive';
+import { JOURNEY_DX, JOURNEY_MAX_STEPS } from './limits';
 import {
   JOURNEY_MAP_REGISTRY,
   withTagAliases,
@@ -523,6 +525,8 @@ export function parseJourneyMap(
     return fail(1, 'No phases or steps found');
   }
 
+  capJourneySteps(result);
+
   // Assign palette colors to bare (colorless) tag values.
   finalizeAutoTagColors(result.tagGroups as Writable<TagGroup>[], palette);
 
@@ -550,6 +554,28 @@ export function parseJourneyMap(
   }
 
   return result;
+}
+
+// Step limit (#2448): keep the first JOURNEY_MAX_STEPS steps in source order.
+// A phase cut mid-way keeps its header; phases that start after the first
+// dropped step go. The error sits on the first step not drawn.
+function capJourneySteps(result: Writable<ParsedJourneyMap>): void {
+  const all = [...result.phases.flatMap((p) => p.steps), ...result.steps];
+  if (all.length <= JOURNEY_MAX_STEPS) return;
+  const firstDropped = all[JOURNEY_MAX_STEPS]!.lineNumber;
+  result.diagnostics.push(
+    emit(JOURNEY_DX.TOO_MANY_STEPS, firstDropped, { count: all.length })
+  );
+  let room = JOURNEY_MAX_STEPS;
+  const phases: JourneyMapPhase[] = [];
+  for (const phase of result.phases) {
+    if (phase.lineNumber > firstDropped) break;
+    const steps = phase.steps.slice(0, room);
+    room -= steps.length;
+    phases.push({ ...phase, steps });
+  }
+  result.phases = phases;
+  result.steps = result.steps.slice(0, room);
 }
 
 // ============================================================

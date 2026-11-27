@@ -47,6 +47,7 @@ import { HEATMAP_DIAGNOSTICS } from './charts-d3/heatmap-limits';
 import { CYCLE_DIAGNOSTICS } from './cycle/limits';
 import { GANTT_DIAGNOSTICS } from './gantt/limits';
 import { INFRA_DIAGNOSTICS } from './infra/limits';
+import { JOURNEY_DIAGNOSTICS } from './journey-map/limits';
 import { VENN_DIAGNOSTICS } from './venn/diagnostics';
 import { TREEMAP_DIAGNOSTICS } from './treemap/diagnostics';
 import { EVENT_LINE_DIAGNOSTICS } from './event-line/diagnostics';
@@ -279,6 +280,7 @@ const REGISTRY: DiagnosticSpec[] = [
   ...CYCLE_DIAGNOSTICS,
   ...GANTT_DIAGNOSTICS,
   ...INFRA_DIAGNOSTICS,
+  ...JOURNEY_DIAGNOSTICS,
   ...VENN_DIAGNOSTICS,
   ...TREEMAP_DIAGNOSTICS,
   ...EVENT_LINE_DIAGNOSTICS,
