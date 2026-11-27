@@ -1199,6 +1199,8 @@ interface ParsedFunction {
     expression: string;
     color?: string;
     lineNumber: number;
+    /** Past FUNCTION_MAX_ABS_Y on the x range (#2437): an error, not drawn. */
+    overflow?: boolean;
 }
 interface ParsedScatterPoint {
     name: string;
