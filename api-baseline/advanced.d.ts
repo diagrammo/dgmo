@@ -8183,6 +8183,8 @@ declare const RACI_ERROR_CODES: {
     readonly INVALID_MARKER: "E_RACI_INVALID_MARKER";
     readonly UNEXPECTED_LINE: "E_RACI_UNEXPECTED_LINE";
     readonly MIXED_VARIANTS: "E_RACI_MIXED_VARIANTS";
+    readonly TOO_MANY_ROLES: "E_RACI_TOO_MANY_ROLES";
+    readonly TOO_MANY_TASKS: "E_RACI_TOO_MANY_TASKS";
 };
 /** Codes for warnings (suppressible chart-wide by the `no-rule-enforcement` directive). */
 declare const RACI_WARNING_CODES: {
